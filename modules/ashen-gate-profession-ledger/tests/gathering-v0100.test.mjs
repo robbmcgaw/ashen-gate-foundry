@@ -1,0 +1,319 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {pathToFileURL,fileURLToPath} from 'node:url';
+import path from 'node:path';
+import {gatherOutcome,gatherReward,exhaustsNode,normalizeNode,tierNumber,defaultDC,checkGatherRequest,helperEligibility,stackMaterial,canRunGathering} from '../scripts/gathering.mjs';
+import {effectiveMapping,toolRef,rollModeFor,checkOption,professionKey} from '../scripts/checks.mjs';
+// 0.10.0: node-based gathering (Locations), player requests with GM approval, tool requirement on recipes, XP from chat cards.
+const hooks={},errors=[],infos=[],chats=[],sent=[],dialogs=[],xpHooks=[];let api;
+const values={partyRoster:['belwar','tarra'],libraryData:{schema:'ag-ledger/0.1',recipes:[],materials:[]}};
+const gm={id:'gm',isGM:true,name:'GM',active:true},alice={id:'u1',isGM:false,name:'Alice',active:true},bob={id:'u2',isGM:false,name:'Bob',active:true};
+const users=[gm,alice,bob];
+const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
+let confirmAnswer=true;
+class FakeDialog{constructor(opts){this.opts=opts;dialogs.push(this);}render(){this.rendered=true;return this;}async close(){this.closed=true;}
+  static async confirm(opts){FakeDialog.last=opts;return confirmAnswer;}
+  click(action,form={}){return this.opts.buttons.find(b=>b.action===action).callback?.({},{form:{elements:form}});}}
+globalThis.foundry={applications:{api:{ApplicationV2:class{async _prepareContext(){return {};}render(){this.rendered=true;return this;}},HandlebarsApplicationMixin:c=>c,DialogV2:FakeDialog}},utils:{escapeHTML:esc,randomID:()=>`id${Math.random().toString(36).slice(2,10)}`}};
+globalThis.Hooks={once:(n,f)=>hooks[n]=f,on:()=>{},callAll:(name,data)=>xpHooks.push({name,data})};
+globalThis.ui={notifications:{info:m=>infos.push(String(m)),error:e=>errors.push(String(e))}};
+globalThis.ChatMessage={create:async x=>{const m={id:`m${chats.length}`,...structuredClone(x),update:async u=>{for(const [k,v] of Object.entries(u)){const parts=k.split('.');let o=m;while(parts.length>1)o=o[parts.shift()];o[parts[0]]=v;}}};chats.push(m);return m;},getSpeaker:({actor}={})=>({alias:actor?.name})};
+const src=(id,type,{visibility='player',status='approved',definition=null}={})=>({'ashen-gate-manager':{source:{sourceId:id,entityType:type,visibility,status,version:'0.1.0',refs:[],...(definition?{definition}:{})}}});
+const def=(id,type,extra={})=>({id,entity_type:type,version:'0.1.0',refs:[],...extra});
+// Approved player materials are observable by every player (Manager's player-visible projection).
+const worldDoc=(id,name,flags,img='')=>({id,uuid:`Item.${id}`,name,img,type:'loot',flags,system:{description:{value:''}},testUserPermission:u=>u.isGM||flags['ashen-gate-manager'].source.visibility==='player',
+  toObject(){return {_id:this.id,name:this.name,img:this.img,type:this.type,folder:'f1',flags:structuredClone(this.flags),system:{description:{value:''}}};}});
+const brew=def('REC-TG-BREW','Recipe',{name:'[TEST] Brew',profession_id:'PROF-TG-ALCHEMY',result_item_id:'ITEM-TG-BREW',tier:'apprentice',tool:'alchemist',additional_gp:5,ingredients:[{material_id:'MAT-TG-HERB',quantity:1}]});
+const stew=def('REC-TG-STEW','Recipe',{name:'[TEST] Stew',profession_id:'PROF-TG-ALCHEMY',result_item_id:'ITEM-TG-BREW',tier:'apprentice',workstation:'[TEST] Kitchen',ingredients:[{material_id:'MAT-TG-HERB',quantity:1}]});
+const tonic=def('REC-TG-TONIC','Recipe',{name:'[TEST] Tonic',profession_id:'PROF-TG-ALCHEMY',result_item_id:'ITEM-TG-BREW',tier:'apprentice',ingredients:[{material_id:'MAT-TG-HERB',quantity:1}]});
+const world=[
+ worldDoc('wherb','[TEST] Herb',src('MAT-TG-HERB','Material',{definition:def('MAT-TG-HERB','Material',{name:'[TEST] Herb'})}),'icons/herb.webp'),
+ worldDoc('wrare','[TEST] Rare Herb',src('MAT-TG-RARE','Material',{definition:def('MAT-TG-RARE','Material',{name:'[TEST] Rare Herb'})})),
+ worldDoc('wsecret','[TEST] Secret Ore',src('MAT-TG-SECRET','Material',{visibility:'gm'})),
+ worldDoc('wbrew','Recipe: [TEST] Brew',src('REC-TG-BREW','Recipe',{definition:brew})),
+ worldDoc('wstew','Recipe: [TEST] Stew',src('REC-TG-STEW','Recipe',{definition:stew})),
+ worldDoc('wtonic','Recipe: [TEST] Tonic',src('REC-TG-TONIC','Recipe',{definition:tonic})),
+ worldDoc('walch','[TEST] Alchemy — Profession',src('PROF-TG-ALCHEMY','Profession',{definition:def('PROF-TG-ALCHEMY','Profession',{name:'[TEST] Alchemy'})})),
+ worldDoc('wbrewitem','[TEST] Brew',src('ITEM-TG-BREW','Item',{definition:def('ITEM-TG-BREW','Item',{name:'[TEST] Brew'})})),
+];
+world.get=id=>world.find(x=>x.id===id);
+const held=(id,name,flags,qty=1,extra={})=>({id,name,type:'loot',system:{quantity:qty,description:{value:''}},flags,...extra,toObject(){return {_id:this.id,name:this.name,type:this.type,system:structuredClone(this.system),flags:structuredClone(this.flags)};}});
+const rolls=[];
+const makeActor=(id,name,ownerId,items,known=[])=>{const inv=[...items];inv.get=i=>inv.find(x=>x.id===i);let n=0;
+ const a={id,name,type:'character',hasPlayerOwner:true,items:inv,flags:{'ashen-gate-profession-ledger':{knownRecipes:known}},
+  system:{skills:{nat:{total:3,value:1},sur:{total:1,value:0}},tools:{},abilities:{int:{mod:1},wis:{mod:2},dex:{mod:0},str:{mod:0}}},
+  testUserPermission:(u,role)=>u.isGM||u.id===ownerId||role==='LIMITED',
+  setFlag:async(scope,key,v)=>{a.flags[scope]??={};a.flags[scope][key]=structuredClone(v);},
+  updateEmbeddedDocuments:async(t,ups)=>{for(const u of ups){const it=inv.get(u._id);for(const [k,v] of Object.entries(u))if(k!=='_id'){const parts=k.split('.');let o=it;while(parts.length>1)o=o[parts.shift()];o[parts[0]]=v;}}return ups;},
+  deleteEmbeddedDocuments:async(t,ids)=>{for(const i of ids)inv.splice(inv.findIndex(x=>x.id===i),1);return ids;},
+  createEmbeddedDocuments:async(t,docs)=>{const out=docs.map(d=>held(`${id}-new${n++}`,d.name,d.flags,d.system?.quantity??1,{img:d.img}));inv.push(...out);return out;},
+  rollSkill:async(cfg)=>{rolls.push({actor:id,...cfg});return [{total:a.nextRoll??10}];},
+  rollToolCheck:async(cfg)=>{rolls.push({actor:id,...cfg});return [{total:a.nextRoll??10}];}};
+ return a;};
+const profItem=(id,name,prof)=>held(id,`${name} — Profession`,src(prof,'Profession',{definition:def(prof,'Profession',{name})}),1,{type:'feat'});
+const belwar=makeActor('belwar','[TEST] Belwar','u1',[held('bherb','[TEST] Herb',src('MAT-TG-HERB','Material'),1),
+ profItem('bprof','[TEST] Herbalism','PROF-TG-HERBALISM'),profItem('balch','[TEST] Alchemy','PROF-TG-ALCHEMY'),
+ held('bherb2','[TEST] Herb',src('MAT-TG-HERB','Material'),5)],['REC-TG-BREW','REC-TG-STEW','REC-TG-TONIC']);
+const tarra=makeActor('tarra','[TEST] Tarra','u2',[held('tkit','Herbalism Kit',{},1,{type:'tool',system:{quantity:1,type:{baseItem:'herb'}}})]);
+const vex=makeActor('vex','[TEST] Vex','u2',[]);
+const all=[belwar,tarra,vex];
+// Locations module stand-in (1.1.0 shape). Player calls get only revealed locations and visible entries.
+const locs=[
+ {id:'LOC-TG-MEADOW',name:'[TEST] Meadow',revealed:true,resources:[
+  {id:'n1',label:'Herb patch',skill:'Herbalism',tier:1,dc:10,dcVisible:true,materialId:'MAT-TG-HERB',rareMaterialId:'MAT-TG-RARE',quantity:2,rareQuantity:1,finite:true,exhausted:false,available:true,visible:true,note:''},
+  {id:'n2',label:'[TEST] Hidden grove',skill:'Herbalism',tier:2,materialId:'MAT-TG-HERB',visible:false,available:true},
+  {id:'n3',label:'Picked patch',skill:'Herbalism',tier:1,materialId:'MAT-TG-HERB',exhausted:true,visible:true},
+  {id:'n4',label:'Endless reeds',skill:'Skinning & Harvesting',tier:3,dc:13,dcVisible:false,materialId:'MAT-TG-HERB',finite:false,visible:true},
+  {id:'n5',label:'Common-only bush',skill:'Herbalism',tier:1,materialId:'MAT-TG-HERB',finite:true,visible:true}]},
+ {id:'LOC-TG-CAVE',name:'[TEST] Unrevealed Cave',revealed:false,resources:[{id:'c1',label:'[TEST] Cave moss',skill:'Herbalism',tier:1,materialId:'MAT-TG-HERB',visible:true}]}];
+const exhaustCalls=[];
+const locApi={
+ listLocations:()=>game.user.isGM?structuredClone(locs):structuredClone(locs.filter(l=>l.revealed).map(({revealed,...l})=>l)),
+ resourcesAt:id=>{const l=locs.find(x=>x.id===id);if(!l||(!game.user.isGM&&!l.revealed))return [];
+  return structuredClone(game.user.isGM?l.resources:l.resources.filter(r=>r.visible!==false).map(({visible,dcVisible,dc,...r})=>dcVisible===false?r:{...r,dc}));},
+ markNodeExhausted:async(locId,entryId,ex)=>{if(!game.user.isGM)throw Error('Only the GM');exhaustCalls.push([locId,entryId,ex]);locs.find(l=>l.id===locId).resources.find(r=>r.id===entryId).exhausted=ex;}};
+const ledgerModule={active:true,version:'0.10.0',set api(v){api=v},get api(){return api}};
+const modules={'ashen-gate-profession-ledger':ledgerModule,'ashen-gate-locations':{active:true,api:locApi}};
+globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:world.get},
+ actors:{contents:all,get:id=>all.find(a=>a.id===id)},socket:{emit:(name,msg)=>sent.push({name,msg}),on:()=>{}},
+ modules:{get:id=>modules[id]},settings:{register:()=>{},registerMenu:()=>{},get:(id,k)=>values[k],set:async(id,k,v)=>{values[k]=v;}}};
+const entry=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../scripts/main.js');
+const {_test}=await import(pathToFileURL(entry));hooks.init();hooks.ready();
+const app=api.open({view:'gathering'});
+const html=async view=>{app.view=view;return (await app._prepareContext({})).html;};
+const flush=()=>new Promise(r=>setImmediate(r));
+const nextSent=type=>{const i=sent.findIndex(s=>s.msg.type===type);return i<0?null:sent.splice(i,1)[0].msg;};
+const herbTotal=a=>a.items.filter(i=>i.flags?.['ashen-gate-manager']?.source?.sourceId==='MAT-TG-HERB'||i.flags?.['ashen-gate-profession-ledger']?.sourceId==='MAT-TG-HERB').reduce((n,i)=>n+i.system.quantity,0);
+const nodeOf=(loc,id)=>normalizeNode(locs.find(l=>l.id===loc).resources.find(r=>r.id===id),{locationId:loc,locationName:'x',locationRevealed:true});
+const slot=()=>{const s={innerHTML:'',querySelector:()=>null};return {querySelector:sel=>sel==='[data-agl-xp]'?s:null,slot:s};};
+
+test('outcomes: fail below DC, common at DC to DC+4, rare at DC+5; failure or a finite node exhausts',()=>{
+ assert.equal(gatherOutcome(9,10).result,'fail');
+ assert.equal(gatherOutcome(10,10).result,'common');assert.equal(gatherOutcome(14,10).result,'common');
+ assert.equal(gatherOutcome(15,10).result,'rare');assert.equal(gatherOutcome(15,10).margin,5);
+ const node=nodeOf('LOC-TG-MEADOW','n1');
+ assert.equal(gatherReward(node,gatherOutcome(9,10)),null,'failure gives nothing');
+ assert.deepEqual(gatherReward(node,gatherOutcome(12,10)),{materialId:'MAT-TG-HERB',quantity:2,rare:false,noRareFallback:false});
+ assert.deepEqual(gatherReward(node,gatherOutcome(15,10)),{materialId:'MAT-TG-RARE',quantity:1,rare:true,noRareFallback:false},'rare instead of common, not as well');
+ assert.equal(gatherReward(nodeOf('LOC-TG-MEADOW','n5'),gatherOutcome(20,10)).noRareFallback,true,'no rare material: the common bundle');
+ assert.equal(exhaustsNode(node,gatherOutcome(12,10)),true,'finite node is spent by a success');
+ const endless=nodeOf('LOC-TG-MEADOW','n4');
+ assert.equal(exhaustsNode(endless,gatherOutcome(20,13)),false);assert.equal(exhaustsNode(endless,gatherOutcome(2,13)),true,'failure exhausts any node');
+});
+
+test('nodes tolerate missing fields: DC by tier 10/12/13/14/15, quantity 1, finite by default',()=>{
+ assert.deepEqual([1,2,3,4,5].map(defaultDC),[10,12,13,14,15]);
+ assert.equal(tierNumber('Journeyman'),2);assert.equal(tierNumber('expert'),3);assert.equal(tierNumber(9),null);
+ const n=normalizeNode({id:'x',skill:'Mining',tier:'3',materialId:'MAT-TG-HERB'});
+ assert.equal(n.dc,13);assert.equal(n.quantity,1);assert.equal(n.rareQuantity,1);assert.equal(n.finite,true);assert.equal(n.gatherable,true);
+ assert.equal(normalizeNode({id:'y',materialId:'MAT-TG-HERB'}).gatherable,false,'no tier and no DC: not gatherable');
+ assert.equal(normalizeNode({id:'z',tier:1,materialId:'not-an-id'}).gatherable,false);
+ assert.equal(normalizeNode({id:'e',tier:1,materialId:'MAT-TG-HERB',exhausted:true}).why,'Already gathered (exhausted)');
+});
+
+test('request rules: owner, party member, revealed location, visible and available node; GM-only decisions',()=>{
+ const node=nodeOf('LOC-TG-MEADOW','n1'),ok={ownsActor:true,inParty:true,location:{revealed:true},node};
+ assert.deepEqual(checkGatherRequest(ok),{ok:true});
+ assert.match(checkGatherRequest({...ok,ownsActor:false}).reason,/own that character/);
+ assert.match(checkGatherRequest({...ok,inParty:false}).reason,/not in the party/);
+ const hidden='That gathering spot is not available';
+ assert.equal(checkGatherRequest({...ok,location:{revealed:false}}).reason,hidden);
+ assert.equal(checkGatherRequest({...ok,location:null}).reason,hidden);
+ assert.equal(checkGatherRequest({...ok,node:{...node,visible:false}}).reason,hidden,'hidden and unknown read the same');
+ assert.match(checkGatherRequest({...ok,node:nodeOf('LOC-TG-MEADOW','n3')}).reason,/exhausted/);
+ assert.match(checkGatherRequest({...ok,busy:true}).reason,/already gathering/);
+ assert.equal(canRunGathering(gm),true);assert.equal(canRunGathering(alice),false);assert.equal(canRunGathering(null),false);
+});
+
+test('helpers: a different character carrying a suitable tool gives advantage, preset with the sheet',()=>{
+ const refs=[{key:'herb'}];
+ assert.deepEqual(helperEligibility(tarra,{leadId:'belwar',toolRefs:refs}),{eligible:true,reason:'Carries Herbalism Kit'});
+ assert.equal(helperEligibility(vex,{leadId:'belwar',toolRefs:refs}).eligible,false);
+ assert.equal(helperEligibility(belwar,{leadId:'belwar',toolRefs:refs}).eligible,false,'the lead cannot assist themself');
+ assert.equal(helperEligibility(vex,{leadId:'belwar',hasProfession:()=>true}).eligible,true,'no tool applies: the profession counts');
+ assert.deepEqual(rollModeFor(belwar,{kind:'skill',key:'nat'},{assists:['[TEST] Tarra']}),{mode:1,sources:['Advantage: assisted by [TEST] Tarra']});
+ const dis={...belwar,system:{...belwar.system,skills:{nat:{total:3,roll:{mode:-1}}}}};
+ assert.equal(rollModeFor(dis,{kind:'skill',key:'nat'},{assists:['T']}).mode,0,'advantage and disadvantage cancel');
+ assert.equal(checkOption(belwar,{kind:'skill',key:'nat'}).bonus,3);
+ assert.equal(checkOption(tarra,{kind:'tool',key:'herb'}).bonus,1,'unproficient tool check uses the ability modifier');
+});
+
+test('stacking: a gathered material adds to the Item already held',async()=>{
+ const a=makeActor('s','S','u1',[held('h','[TEST] Herb',src('MAT-TG-HERB','Material'),3)]);
+ const out=await stackMaterial(a,world.get('wherb'),2,{sourceIdOf:i=>i?.flags?.['ashen-gate-manager']?.source?.sourceId??i?.flags?.['ashen-gate-profession-ledger']?.sourceId,flagScope:'ashen-gate-profession-ledger'});
+ assert.equal(out.stacked,true);assert.equal(a.items.length,1);assert.equal(a.items.get('h').system.quantity,5);
+ const b=makeActor('t','T','u1',[]);
+ const made=await stackMaterial(b,world.get('wherb'),2,{sourceIdOf:i=>i?.flags?.['ashen-gate-manager']?.source?.sourceId,flagScope:'ashen-gate-profession-ledger'});
+ assert.equal(made.stacked,false);assert.equal(b.items[0].system.quantity,2);assert.equal(b.items[0].flags['ashen-gate-profession-ledger'].sourceId,'MAT-TG-HERB');
+});
+
+test('player view: only revealed locations and visible nodes; no GM controls; player cannot start or resolve',async()=>{
+ game.user=alice;
+ const h=await html('gathering');
+ assert.match(h,/Request gathering/);assert.match(h,/Herb patch/);assert.match(h,/\[TEST\] Meadow/);
+ assert.doesNotMatch(h,/Unrevealed Cave|Cave moss|Hidden grove|MAT-TG-/);
+ assert.doesNotMatch(h,/data-action="gather-start"|data-action="gather-gm-roll"/);
+ assert.match(h,/value="LOC-TG-MEADOW\|n3"\s+disabled/,'exhausted spots are shown but cannot be picked');
+ const reeds=h.slice(h.indexOf('Endless reeds'),h.indexOf('</label>',h.indexOf('Endless reeds')));
+ assert.match(reeds,/Tier 3/);assert.doesNotMatch(reeds,/DC/,'a DC the GM has not shown stays hidden');
+ await assert.rejects(()=>_test.startGather({node:nodeOf('LOC-TG-MEADOW','n1'),leadId:'belwar'}),/Only the GM/);
+ await assert.rejects(()=>_test.resolveGather('nope',{total:20}),/Only the GM/);
+ await assert.rejects(()=>api.gathering.start({locationId:'LOC-TG-MEADOW',nodeId:'n1',leadId:'belwar'}),/Only the GM/);
+});
+
+test('player requests: unrevealed, hidden, foreign and exhausted are refused without a GM popup',async()=>{
+ game.user=gm;
+ const ask=async(extra,from='u1')=>{const before=dialogs.length;sent.length=0;
+  const out=await _test.handleGatherRequest({type:'gather-request',requestId:'r',requesterId:from,actorId:'belwar',locationId:'LOC-TG-MEADOW',nodeId:'n1',...extra},from);
+  return {out,popup:dialogs.length>before};};
+ let r=await ask({locationId:'LOC-TG-CAVE',nodeId:'c1'});assert.equal(r.out.ok,false);assert.equal(r.out.message,'That gathering spot is not available');assert.equal(r.popup,false);
+ r=await ask({nodeId:'n2'});assert.equal(r.out.message,'That gathering spot is not available','hidden node');
+ r=await ask({nodeId:'n3'});assert.match(r.out.message,/exhausted/);
+ r=await ask({},'u2');assert.match(r.out.message,/own that character/,'Bob cannot request for Belwar');
+ r=await ask({actorId:'vex'},'u2');assert.match(r.out.message,/not in the party/);
+ r=await ask({requesterId:'u1'},'u2');assert.match(r.out.message,/could not be verified/,'sender must be the requester');
+ assert.equal(nextSent('gather-request-result')?.toUserId,'u1');
+});
+
+test('player request → GM popup: decline tells the player; approve sends the roll prompt to the lead’s owner',async()=>{
+ // Decline.
+ game.user=alice;sent.length=0;
+ let pending=api.gathering.request({actorId:'belwar',locationId:'LOC-TG-MEADOW',nodeId:'n1',helperIds:['tarra']});await flush();
+ const req=nextSent('gather-request');assert.ok(req);
+ game.user=gm;let handled=_test.onSocket(req,'u1');await flush();
+ let popup=dialogs.at(-1);assert.match(popup.opts.content,/Alice<\/strong> asks for <strong>\[TEST\] Belwar/);assert.match(popup.opts.content,/Carries Herbalism Kit — gives advantage/);
+ popup.click('decline');await handled;
+ let res=nextSent('gather-request-result');game.user=alice;await _test.onSocket(res,'gm');
+ assert.deepEqual(await pending,{ok:false,message:'The GM declined the gathering request.'});
+ assert.equal(_test.gatherSessions.size,0);
+ // Approve.
+ pending=api.gathering.request({actorId:'belwar',locationId:'LOC-TG-MEADOW',nodeId:'n1',helperIds:['tarra']});await flush();
+ game.user=gm;handled=_test.onSocket(nextSent('gather-request'),'u1');await flush();
+ dialogs.at(-1).click('approve');await handled;
+ assert.equal(_test.gatherSessions.size,1);
+ const prompt=nextSent('gather-roll');assert.deepEqual(prompt.toUserIds,['u1'],'only Belwar’s owner is asked to roll');
+ assert.equal(prompt.title,'Herb patch at [TEST] Meadow');assert.equal(prompt.dc,10);assert.deepEqual(prompt.assists,['[TEST] Tarra']);
+ assert.equal(prompt.selected,'skill:nat','no herbalism kit on Belwar: Nature is preselected');
+ res=nextSent('gather-request-result');game.user=alice;await _test.onSocket(res,'gm');
+ assert.equal((await pending).ok,true);
+ // Bob is not addressed and gets no popup; Alice does.
+ game.user=bob;const n=dialogs.length;await _test.onSocket(prompt,'gm');assert.equal(dialogs.length,n);
+ game.user=alice;await _test.onSocket(prompt,'gm');
+ const rollDialog=dialogs.at(-1);assert.match(rollDialog.opts.content,/Nature/);assert.match(rollDialog.opts.content,/assisted by \[TEST\] Tarra/);
+ assert.match(rollDialog.opts.content,/<option value="1" selected>Advantage/,'advantage preselected from the helper');
+ assert.match(await html('gathering'),/Your gathering check/);
+ // A forged roll from Bob is ignored; Alice's roll resolves (12 vs DC 10: success, common bundle).
+ game.user=gm;
+ assert.equal(await _test.receiveGatherRoll({type:'gather-rolled',sessionId:prompt.sessionId,actorId:'belwar',total:30,choice:'skill:nat',mode:1},'u2'),false);
+ assert.equal(_test.gatherSessions.size,1);
+ game.user=alice;belwar.nextRoll=12;rolls.length=0;sent.length=0;
+ rollDialog.click('roll',{check:{value:'skill:nat'},mode:{value:'1'}});await flush();await flush();
+ assert.deepEqual(rolls.at(-1),{actor:'belwar',skill:'nat',advantage:true,disadvantage:false},'native dnd5e roll with advantage');
+ const rolled=nextSent('gather-rolled');assert.equal(rolled.total,12);
+ game.user=gm;const before=herbTotal(belwar),chatCount=chats.length;
+ await _test.onSocket(rolled,'u1');
+ assert.equal(_test.gatherSessions.size,0);
+ assert.equal(herbTotal(belwar),before+2,'2 × common herb');
+ assert.equal(belwar.items.filter(i=>i.name==='[TEST] Herb').length,2,'stacked onto an existing Item, no new Item');
+ assert.deepEqual(exhaustCalls.at(-1),['LOC-TG-MEADOW','n1',true],'finite node exhausted through the Locations API');
+ const card=chats[chatCount];
+ assert.equal(card.whisper,undefined,'gather card is for everyone');
+ assert.match(card.content,/\[TEST\] Belwar gathered 2 × \[TEST\] Herb/);assert.match(card.content,/Nature check:<\/strong> 12 with advantage vs DC 10 — <strong>Success/);
+ assert.match(card.content,/Assisted by \[TEST\] Tarra/);assert.match(card.content,/now exhausted/);
+ assert.deepEqual({...card.flags['ashen-gate-profession-ledger'].xp},{kind:'gather',actorId:'belwar',actorName:'[TEST] Belwar',professionId:'PROF-TG-HERBALISM',professionName:'[TEST] Herbalism',suggested:1,awarded:null});
+ assert.equal(xpHooks.at(-1).name,'ashenGateLedger.xpOpportunity');assert.equal(xpHooks.at(-1).data.outcome,'common');
+ // The spent node cannot be requested or started again.
+ await assert.rejects(()=>_test.startGather({node:_test.gatherLocations().locations[0].nodes.find(x=>x.id==='n1'),leadId:'belwar'}),/exhausted|already/);
+});
+
+test('XP from a card: no automatic award, GM-only button, one award per card',async()=>{
+ const card=chats.find(c=>c.flags?.['ashen-gate-profession-ledger']?.xp?.kind==='gather');
+ assert.equal(belwar.flags['ashen-gate-profession-ledger'].professionProgress,undefined,'gathering awarded no XP by itself');
+ game.user=alice;let el=slot();_test.decorateChatCard(card,el);assert.equal(el.slot.innerHTML,'','players see no XP control');
+ await assert.rejects(()=>_test.awardXpFromCard(card,3),/Only the GM/);
+ game.user=gm;el=slot();_test.decorateChatCard(card,el);assert.match(el.slot.innerHTML,/data-agl-xp-award/);assert.match(el.slot.innerHTML,/value="1"/);
+ await _test.awardXpFromCard(card,3);
+ assert.equal(api.getProfessionProgress(belwar,'PROF-TG-HERBALISM').xp,3);
+ assert.deepEqual(card.flags['ashen-gate-profession-ledger'].xp.awarded.points,3);
+ await assert.rejects(()=>_test.awardXpFromCard(card,3),/already awarded/);
+ game.user=alice;el=slot();_test.decorateChatCard(card,el);assert.match(el.slot.innerHTML,/\+3 \[TEST\] Herbalism XP awarded/);
+});
+
+test('GM-initiated: success by 5+ gives the rare bundle instead; failure gives nothing and exhausts a renewable node',async()=>{
+ game.user=gm;
+ let s=await _test.startGather({node:_test.gatherLocations().locations[0].nodes.find(x=>x.id==='n5'),leadId:'tarra'});
+ assert.equal(s.plan.selected,'tool:herb','Tarra carries a herbalism kit: the tool check is preselected');
+ let out=await _test.resolveGather(s.id,{total:16,choice:'tool:herb'});
+ assert.equal(out.outcome.result,'rare');assert.equal(out.reward.noRareFallback,true);assert.equal(herbTotal(tarra),1);
+ assert.match(chats.at(-1).content,/no rare material, so it gave its common bundle/);
+ // Rare bundle replaces the common one.
+ locs[0].resources.push({id:'n6',label:'Rich patch',skill:'Herbalism',tier:2,materialId:'MAT-TG-HERB',rareMaterialId:'MAT-TG-RARE',quantity:3,rareQuantity:1,finite:true,visible:true});
+ s=await _test.startGather({node:_test.gatherLocations().locations[0].nodes.find(x=>x.id==='n6'),leadId:'tarra'});
+ out=await _test.resolveGather(s.id,{total:17,choice:'tool:herb'});
+ assert.equal(out.outcome.result,'rare');assert.equal(herbTotal(tarra),1,'no common herb as well');
+ assert.equal(tarra.items.find(i=>i.name==='[TEST] Rare Herb').system.quantity,1);
+ // Failure on a non-finite node.
+ const n4=_test.gatherLocations().locations[0].nodes.find(x=>x.id==='n4');
+ s=await _test.startGather({node:n4,leadId:'tarra'});
+ const items=tarra.items.length;
+ out=await _test.resolveGather(s.id,{total:5,choice:'tool:herb'});
+ assert.equal(out.outcome.result,'fail');assert.equal(out.award,null);assert.equal(tarra.items.length,items);
+ assert.notDeepEqual(exhaustCalls.at(-1),['LOC-TG-MEADOW','n4',true],'Locations cannot exhaust a renewable node');
+ assert.match(chats.at(-1).content,/used up for now/);assert.doesNotMatch(chats.at(-1).content,/vs DC/,'a hidden DC stays off the public card');
+ await assert.rejects(()=>_test.startGather({node:_test.gatherLocations().locations[0].nodes.find(x=>x.id==='n4'),leadId:'tarra'}),/exhausted/,'blocked for this session');
+ assert.match(chats.at(-1).content,/found nothing usable/);assert.match(chats.at(-1).content,/Failed/);
+ await assert.rejects(()=>_test.resolveGather(s.id,{total:20}),/no longer open/,'one check per node');
+});
+
+test('unrevealed location in a public card is not named; ad-hoc node works without Locations',async()=>{
+ game.user=gm;
+ sent.length=0;
+ const cave=_test.gatherLocations().locations.find(l=>l.id==='LOC-TG-CAVE').nodes[0];
+ let s=await _test.startGather({node:cave,leadId:'belwar'});
+ assert.equal(nextSent('gather-roll').title,'a gathering spot');
+ await _test.resolveGather(s.id,{total:11,choice:'skill:nat'});
+ assert.doesNotMatch(chats.at(-1).content,/Cave/);
+ modules['ashen-gate-locations']=undefined;
+ assert.equal(_test.gatherLocations().ok,false);
+ assert.match(await html('gathering'),/Ad-hoc node/);
+ s=await api.gathering.start({node:{label:'[TEST] Ditch',skill:'Herbalism',tier:2,materialId:'MAT-TG-HERB'},leadId:'belwar'});
+ assert.equal(s.node.dc,12,'ad-hoc DC defaults by tier');
+ await assert.rejects(()=>api.gathering.start({node:{label:'x',tier:1,materialId:'MAT-TG-SECRET'},leadId:'belwar'}),/player-visible/);
+ assert.equal(_test.cancelGather(s.id),true);assert.equal(_test.gatherSessions.size,0);
+ modules['ashen-gate-locations']={active:true,api:locApi};
+});
+
+test('recipes: tool, workstation or the profession’s tool; warning when not carried; craft rolls the tool check',async()=>{
+ assert.deepEqual(toolRef('alchemist'),{key:'alchemist',uuid:null,name:null});
+ assert.deepEqual(toolRef('Compendium.dnd5e.items.Item.abc'),{key:null,uuid:'Compendium.dnd5e.items.Item.abc',name:null});
+ assert.equal(professionKey('[TEST] Alchemy'),'alchemy');
+ assert.equal(effectiveMapping({}).tools.alchemy,'alchemist');assert.equal(effectiveMapping({tools:{alchemy:''}}).tools.alchemy,'');
+ assert.equal(effectiveMapping({tools:{alchemy:'<x>'}}).tools.alchemy,'alchemist','invalid saved values are ignored');
+ game.user=alice;app.actorId='belwar';
+ const h=await html('individual');
+ const row=name=>h.slice(h.indexOf(`<strong>${name}</strong>`),h.indexOf('</article>',h.indexOf(`<strong>${name}</strong>`)));
+ assert.match(row('[TEST] Brew'),/Alchemist’s Supplies.*doesn’t carry this/);
+ assert.match(row('[TEST] Stew'),/Workstation: \[TEST\] Kitchen/);assert.doesNotMatch(row('[TEST] Stew'),/Alchemist/,'workstation recipes need no tool');
+ assert.match(row('[TEST] Tonic'),/Alchemist’s Supplies/,'no tool given: the profession’s tool');
+ belwar.nextRoll=14;rolls.length=0;
+ await app._click('craft','REC-TG-BREW',{actor:'belwar'});
+ assert.match(FakeDialog.last.content,/Alchemist’s Supplies check/);assert.match(FakeDialog.last.content,/also costs 5 gp — not deducted/i);
+ assert.deepEqual(rolls.at(-1),{actor:'belwar',tool:'alchemist',advantage:false,disadvantage:false});
+ const card=chats.at(-1);assert.match(card.content,/crafted \[TEST\] Brew/);assert.match(card.content,/Alchemist’s Supplies check:<\/strong> 14/);
+ assert.equal(card.flags['ashen-gate-profession-ledger'].xp.kind,'craft');assert.equal(card.flags['ashen-gate-profession-ledger'].xp.professionId,'PROF-TG-ALCHEMY');
+ assert.equal(belwar.flags['ashen-gate-profession-ledger'].professionProgress.professions['PROF-TG-ALCHEMY'],undefined,'crafting awards no XP by itself');
+});
+
+test('GM Setup maps profession → tool and gathering skill; saved with Save Changes',async()=>{
+ game.user=gm;
+ const h=await html('gm');
+ assert.match(h,/Tools and checks/);assert.match(h,/data-map-tool="alchemy"/);assert.match(h,/data-map-skill="herbalism"/);
+ assert.doesNotMatch(h,/data-map-skill="alchemy"/,'crafting professions have no gathering skill');
+ app.element={querySelector:()=>null,querySelectorAll:s=>s.includes('roster-actor')?[{dataset:{rosterActor:'belwar'},checked:true},{dataset:{rosterActor:'tarra'},checked:true}].filter(x=>s.endsWith(']')||x.checked):[]};
+ app._rememberMapDraft({dataset:{mapTool:'alchemy'},value:'herb'});
+ assert.equal(app.mapDirty,true);assert.equal(app.setupStatus,'Unsaved tool and check changes');
+ await app._click('roster-save');
+ assert.equal(values.checkMapping.tools.alchemy,'herb');assert.deepEqual(values.partyRoster,['belwar','tarra']);
+ assert.equal(app.mapDirty,false);
+ game.user=alice;await app._click('roster-save');assert.ok(errors.some(e=>e.includes('GM only')));
+});

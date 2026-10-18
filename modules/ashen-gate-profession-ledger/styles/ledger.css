@@ -99,15 +99,37 @@
 .agl-gather-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--ag-space-3) var(--ag-space-4);margin:var(--ag-space-3) 0}
 .agl-gather-eligible{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:var(--ag-space-2) var(--ag-space-4);border:1px solid var(--ag-border);border-radius:var(--ag-radius);padding:var(--ag-space-3)}
 .agl-gather-eligible label{display:flex;align-items:center;gap:6px}
-.agl-gather-result{margin-top:var(--ag-space-3)}
-.agl-reward-reel{padding:var(--ag-space-3);border:1px solid var(--ag-accent);border-radius:var(--ag-radius);background:var(--ag-accent-soft);font-size:var(--ag-text-lg);text-align:center}
+/* Gathering (0.10.0): node picker, roll panels */
+.agl-gather-roll{border-color:var(--ag-accent)}
+.agl-roll-fields{display:flex;flex-wrap:wrap;gap:var(--ag-space-2) var(--ag-space-4);align-items:flex-end;margin:var(--ag-space-2) 0}
+.agl-nodes{display:grid;gap:var(--ag-space-3);margin:var(--ag-space-3) 0}
+.agl-node-group{display:grid;gap:6px;border:1px solid var(--ag-border);border-radius:var(--ag-radius);padding:var(--ag-space-2) var(--ag-space-3)}
+.agl-node-group legend{font-weight:600;padding:0 var(--ag-space-1)}
+.agl-node{display:flex;gap:var(--ag-space-2);align-items:flex-start;padding:var(--ag-space-1) var(--ag-space-2);border-radius:var(--ag-radius);cursor:pointer}
+.agl-node:hover{background:var(--ag-surface-hover)}
+.agl-node>span{display:flex;flex-direction:column;gap:2px;min-width:0}
+.agl-node small{color:var(--ag-muted)}
+.agl-node.is-off{cursor:default;opacity:.7}
+.agl-node.is-off:hover{background:transparent}
+/* GM Setup tool mapping */
+.agl-map-wrap{overflow-x:auto}
+.agl-map{width:100%;border-collapse:collapse;font-size:var(--ag-text-sm)}
+.agl-map th,.agl-map td{padding:4px var(--ag-space-2);border-bottom:1px solid var(--ag-border);text-align:left;vertical-align:middle}
+.agl-map thead th{font-size:var(--ag-text-xs);text-transform:uppercase;letter-spacing:.07em;color:var(--ag-muted)}
+.agl-map select{width:100%;min-width:150px}
 @media(max-width:720px){.agl-gather-form{grid-template-columns:1fr}.agl-gather-eligible{grid-column:1}}
+
+/* Craft confirmation: the tool check and its advantage */
+.agl-check-pick{display:flex;flex-wrap:wrap;gap:var(--ag-space-2);align-items:center;padding:var(--ag-space-2);border:1px solid var(--ag-border);border-radius:var(--ag-radius);margin:var(--ag-space-2) 0}
+.agl-check-pick .agl-sub{flex-basis:100%}
 
 /* Chat cards (rendered in Foundry's chat log, outside .ag-app) */
 .agl-chat-card header{display:flex;gap:var(--ag-space-2);align-items:center}
 .agl-chat-card header span{display:block;font-size:var(--ag-text-sm);opacity:.8}
 .agl-chat-card ul{margin:4px 0 0 18px;padding:0}
 .agl-chat-note{font-size:var(--ag-text-xs);opacity:.8}
+.agl-xp-slot .agl-xp-award{margin-top:4px}
+.agl-xp-slot input{width:60px}
 
 /* Tidy5e Professions tab: same panel inside the sheet, on the sheet's own background. */
 .agl-sheet{padding:var(--ag-space-2);display:flex;flex-direction:column;gap:var(--ag-space-3);background:transparent;color:inherit}

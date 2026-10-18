@@ -60,6 +60,9 @@ export function normalizeRecipe(raw) {
   return {id, name, profession:displayProfession(profession),professionId,
     resultItemId, tier:src?.tier??raw?.tier??null,effort:src?.effort??raw?.effort??null,
     description:src?.description??src?.rules_summary??'',
+    // Optional crafting requirement: a dnd5e tool key, tool Item UUID/name, or a workstation (text).
+    tool:canonical?.tool??canonical?.required_tool??canonical?.tool_key??src?.tool??src?.required_tool??null,
+    workstation:String(canonical?.workstation??src?.workstation??'').trim()||null,
     ingredients:clean,hasStructuredIngredients:validIngredients,
     sourceUuid:raw?.uuid??null, status:raw?.status??canonical?.status??'unreviewed',
     sourceVisibility:sourceVisibility(raw), isDemo:Boolean(raw?.isDemo),

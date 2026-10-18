@@ -64,3 +64,12 @@ test("Ledger readers load the pack: recipes, ingredients and visibility", () => 
   assert.equal(sourceAvailableToPlayer(draft), false);
   assert.equal(sourceAvailableToPlayer(lib.recipes.find(r => r.id === 'REC-PT-EMBER-SALVE')), true);
 });
+test('pack recipes carry a tool or a workstation for the 0.10.0 bench requirement', () => {
+  const lib = normalizeLibrary(pack);
+  const by = id => lib.recipes.find(r => r.id === id);
+  assert.equal(by('REC-PT-EMBER-SALVE').tool, 'alchemist');
+  assert.equal(by('REC-PT-IRON-HINGE-SET').tool, 'smith');
+  assert.equal(by('REC-PT-GLASSBLOOM-ELIXIR').workstation, '[TEST] Alchemy Laboratory');
+  assert.equal(by('REC-PT-GLASSBLOOM-ELIXIR').tool, null);
+  assert.equal(by('REC-PT-MISTVEIL-TONIC').tool, null, 'no tool given: the profession default applies in the Ledger');
+});
