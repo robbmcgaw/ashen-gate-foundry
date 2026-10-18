@@ -4,8 +4,9 @@ import {createObjectiveConsumer} from './resolver-consumer.mjs';
 import {createQuestDefinitionReader,parsePackIds} from './pinned-runtime.mjs';
 import {ASSIGNMENT_CONTRACT,listAssignments,getAssignment,saveAssignment,removeAssignment} from './assignments.mjs';
 import {selectTrackedViews,validTrackedId,trackingState} from './tracking.mjs';
+import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 
-const VERSION='0.4.1';
+const VERSION='0.4.2';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -220,36 +221,14 @@ function renderTracker(){
 async function open(){assertUI(game.user,openAllowed());if(!instance||!instance.rendered)instance=new QuestLogApplication();await instance.render({force:true});return instance;}
 async function openObjective(id){assertUI(game.user,openAllowed());const found=visibleById(id);if(!found)return {status:'not_found'};await open();instance.tab=found.view.scope==='individual'?'individual':'party';instance.actorId=found.view.scope==='individual'?found.view.actorId:instance.actorId;instance.selectedId=id;await instance.render();return {status:'opened'};}
 function locationList(id){return visibleViews().filter(x=>Array.isArray(x.view.locationIds)&&x.view.locationIds.includes(id)).map(x=>structuredClone(x.view));}
-// Shared Actors sidebar shelf (rank 50) so separately installed modules align.
 function refreshLaunchers(){
- if(!openAllowed()&&!hasGM())document.querySelectorAll?.('[data-ag-module-launch="ashen-gate-quest-manager"],.ag-quest-launcher').forEach(x=>x.remove());
- if(ui?.actors?.element)addLauncher({tabName:'actors'},ui.actors.element);
+ if(!openAllowed()&&!hasGM())document.querySelectorAll?.('[data-ag-launcher="ashen-gate-quest-manager"]').forEach(x=>x.remove());
+ if(ui?.actors?.element)addLauncher(ui.actors,ui.actors.element);
  if(!openAllowed()&&instance?.rendered&&!hasGM())instance.close();
  renderTracker();
 }
 function addLauncher(app,html){
- const root=(typeof HTMLElement!=='undefined'&&html instanceof HTMLElement)?html:(html?.[0]??app?.element??app?.[0]??null);
- if(!root?.querySelector||!(app?.tabName==='actors'||app?.id==='actors'||app?.constructor?.name?.toLowerCase().includes('actor')))return;
- root.querySelector('.ag-quest-launcher')?.remove(); // migrate old standalone launcher.
- const header=root.matches?.('.directory-header')?root:root.querySelector('.directory-header');
- if(!header)return;
- const present=root.querySelector('[data-ag-module-launch="ashen-gate-quest-manager"]');
- if(!openAllowed()){
-  present?.remove();
-  const shelf=header.querySelector('[data-ag-sidebar-launchers="actors"]');
-  if(shelf&&!shelf.querySelector(':scope > button[data-ag-launch-order]'))shelf.remove();
-  return;
- }
- let shelf=header.querySelector('[data-ag-sidebar-launchers="actors"]');
- if(!shelf){shelf=document.createElement('div');shelf.className='ag-sidebar-launchers';shelf.dataset.agSidebarLaunchers='actors';shelf.setAttribute('aria-label','Ashen Gate character modules');header.prepend(shelf);}
- const button=present??document.createElement('button');
- if(!present){button.type='button';button.addEventListener('click',event=>{event.preventDefault();open().catch(notifyError);});}
- button.classList.add('ag-sidebar-open-button','ag-quest-open-button');
- button.dataset.agModuleLaunch=MOD;button.dataset.agLaunchOrder='50';
- button.title='Open Quest Log';button.setAttribute('aria-label','Open Quest Log');
- button.innerHTML='<i class="fa-solid fa-scroll" aria-hidden="true"></i><span>Quest Log</span>';
- if(button.parentElement!==shelf)shelf.append(button);
- for(const child of [...shelf.querySelectorAll(':scope > button[data-ag-launch-order]')].sort((a,b)=>Number(a.dataset.agLaunchOrder)-Number(b.dataset.agLaunchOrder)))shelf.append(child);
+ mountLauncher(launcherRoot(app,html),{moduleId:MOD,label:'Quest Log',icon:'fa-solid fa-scroll',onClick:()=>open().catch(notifyError),visible:openAllowed()});
 }
 function updateWindows(){refreshLaunchers();renderTracker();if(instance?.rendered&&!instance.unsavedSource)instance.render().catch(notifyError);}
 Hooks.once('init',()=>{
@@ -288,7 +267,7 @@ Hooks.once('ready',()=>{
   setGMState:(id,patch)=>{assertGM(game.user);return updateState(id,patch);},
   playerAccess:{contract:'ag-player-access/1',getState:()=>({contract:'ag-player-access/1',moduleId:MOD,audience:'player',playerAccessEnabled:game.settings.get(MOD,'playerAccessEnabled'),configurable:true}),setEnabled:async enabled=>{assertGM(game.user);if(typeof enabled!=='boolean')throw new Error('Boolean required.');await game.settings.set(MOD,'playerAccessEnabled',enabled);return module.api.playerAccess.getState();}}
  };
- Hooks.on('renderSidebarTab',addLauncher);Hooks.on('renderActorDirectory',addLauncher);Hooks.on('renderActorDirectoryV2',addLauncher);refreshLaunchers();
+ Hooks.on('renderActorDirectory',addLauncher);refreshLaunchers();
  Hooks.on('createJournalEntry',updateWindows);Hooks.on('updateJournalEntry',updateWindows);Hooks.on('deleteJournalEntry',updateWindows);
  Hooks.on('updateActor',(actor,change)=>{if(hasGM()&&change?.ownership)reconcileActorAudience(actor.id).catch(notifyError);updateWindows();});
  Hooks.on('deleteActor',(actor)=>{if(hasGM())reconcileActorAudience(actor.id).catch(notifyError);updateWindows();});

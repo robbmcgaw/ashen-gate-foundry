@@ -24,7 +24,7 @@ async def main():
         logic_url='data:text/javascript;base64,'+base64.b64encode(logic_source.encode()).decode('ascii')
         for filename in ('logic.mjs','access.mjs','private-state.mjs','player-intent-bridge.mjs',
                          'hq-authoritative-writer.mjs','staffing-reconciliation.mjs',
-                         'source-resolver-adapter.mjs','native-hireling-definitions.mjs'):
+                         'source-resolver-adapter.mjs','native-hireling-definitions.mjs','ag-launchers.mjs'):
             source=(here.parent/'js'/filename).read_text()
             source=source.replace("from './hirelings.mjs'",f"from '{hireling_url}'")
             source=source.replace("from './logic.mjs'",f"from '{logic_url}'")
@@ -39,23 +39,22 @@ async def main():
         assert await page.evaluate('window.menuBeforeReady') is True
         assert await page.evaluate('typeof globalThis.JournalEntry') == 'undefined'
 
-        # Verify Actors directory placement, full-width alignment and stable ordering.
+        # Verify the shared Ashen Gate launcher group: top of the Actors header, stable order, no duplicates.
         await page.evaluate('''() => {
           const directory=document.createElement('section');directory.id='actors';
-          directory.innerHTML='<header class="directory-header">Actor search</header><div class="directory-list">Actor list</div>';
+          directory.innerHTML='<header class="directory-header"><div class="header-actions">Create</div><div class="header-search">Actor search</div></header><div class="directory-list">Actor list</div>';
           document.body.appendChild(directory);
-          fireHook('renderApplicationV2',{tabName:'actors',element:directory},directory);
-          const dock=directory.querySelector('[data-ag-launcher-group="actors"]');
-          if(!dock || dock.nextElementSibling.className!=='directory-header')throw Error('Launcher not before Actors directory');
-          const synthetic=document.createElement('button');synthetic.dataset.agLauncherModule='ashen-gate-skill-trees';synthetic.dataset.agLauncherOrder='30';synthetic.className='ag-sidebar-launcher';synthetic.textContent='Skill Trees';dock.append(synthetic);
           fireHook('renderActorDirectory',{tabName:'actors',element:directory},directory);
-          fireHook('renderApplicationV2',{tabName:'actors',element:directory},directory);
+          const group=directory.querySelector('#ashen-gate-launchers');
+          if(!group || group.parentElement.className!=='directory-header' || group.parentElement.firstElementChild!==group)throw Error('Launcher group not at top of Actors header');
+          const synthetic=document.createElement('button');synthetic.dataset.agLauncher='ashen-gate-utilities';synthetic.className='ag-launcher';synthetic.textContent='Utilities';group.prepend(synthetic);
+          fireHook('renderActorDirectory',{tabName:'actors',element:directory},directory);
+          fireHook('renderActorDirectory',{tabName:'actors',element:directory},directory);
         }''')
-        assert await page.locator('[data-ag-launcher-module="ashen-gate-headquarters"]').count()==1
-        assert await page.locator('[data-ag-launcher-group="actors"] > button').all_text_contents()==['Skill Trees','Open Headquarters']
-        assert await page.locator('[data-ag-launcher-module="ashen-gate-headquarters"]').evaluate('(el)=>getComputedStyle(el).height')=='36px'
-        assert await page.locator('[data-ag-launcher-module="ashen-gate-headquarters"]').evaluate('(el)=>el.getBoundingClientRect().width')==await page.locator('[data-ag-launcher-module="ashen-gate-skill-trees"]').evaluate('(el)=>el.getBoundingClientRect().width')
-        await page.locator('[data-ag-launcher-module="ashen-gate-headquarters"]').click()
+        assert await page.locator('[data-ag-launcher="ashen-gate-headquarters"]').count()==1
+        assert await page.locator('#ashen-gate-launchers > button').all_text_contents()==['Headquarters','Utilities']
+        assert await page.locator('[data-ag-launcher="ashen-gate-headquarters"]').evaluate('(el)=>el.getBoundingClientRect().width')==await page.locator('[data-ag-launcher="ashen-gate-utilities"]').evaluate('(el)=>el.getBoundingClientRect().width')
+        await page.locator('[data-ag-launcher="ashen-gate-headquarters"]').click()
         assert await page.locator('text=Guildhall not activated').count()==1
         await page.locator('button[data-action="help"]').first.click()
         assert await page.locator('text=Headquarters — Help').count()==1
@@ -167,14 +166,14 @@ async def main():
         await page.evaluate('async()=>{await testOpen().render();}')
         await page.locator('button[data-action="release"]').click()
         await page.wait_for_function('getRawState().editor_lease===null',timeout=4500)
-        assert await page.locator('[data-ag-launcher-module="ashen-gate-headquarters"]').count()==1
+        assert await page.locator('[data-ag-launcher="ashen-gate-headquarters"]').count()==1
         # DEC-0072, existing upgrade stays Visible unless GM changes it.
         assert await page.evaluate('testGetAccess().playerAccessEnabled') is True
         # GM-only setEnabled, including when invoked through public API.
         assert await page.evaluate('''async()=>{try{await testSetAccess(false);return false;}catch(e){return /Only a GM/.test(e.message);}}''')
         # Previously opened player window is closed on live Hidden transition.
         await page.evaluate('''async()=>{useUser('gm1');await testSetAccess(false);useUser('alice');simulatePlayerSync();}''')
-        assert await page.locator('[data-ag-launcher-module="ashen-gate-headquarters"]').count()==0
+        assert await page.locator('[data-ag-launcher="ashen-gate-headquarters"]').count()==0
         assert await page.locator('.fake-window').count()==0
         assert await page.evaluate('testGetAccess().playerAccessEnabled') is False
         assert await page.evaluate('testOpen()===null') is True
@@ -197,7 +196,7 @@ async def main():
         await page.wait_for_function('testGetAccess().playerAccessEnabled')
         assert await page.evaluate('getRawState().core.headquarters_states[0].installations.length')==before
         await page.evaluate("useUser('alice');fireHook('renderActorDirectory',{tabName:'actors',element:document.querySelector('#actors')},document.querySelector('#actors'))")
-        assert await page.locator('[data-ag-launcher-module="ashen-gate-headquarters"]').count()==1
+        assert await page.locator('[data-ag-launcher="ashen-gate-headquarters"]').count()==1
         assert await page.evaluate('testOpen()!==null') is True
         # v0.6.0: closes must not strand the singleton; reopen from the same
         # public API used by Actors, Manager and keyboard shortcuts.
@@ -244,8 +243,8 @@ async def main():
           directory.innerHTML='<header class="directory-header">Actors</header><div class="directory-list">One Actor</div>';
           document.body.appendChild(directory);
           const app={element:directory};ui.actors=app;
-          fireHook('renderApplicationV2',app,directory);
-          return directory.querySelectorAll('[data-ag-launcher-module="ashen-gate-headquarters"]').length===1;
+          fireHook('renderActorDirectory',app,directory);
+          return directory.querySelectorAll('[data-ag-launcher="ashen-gate-headquarters"]').length===1;
         }''') is True
         assert await failure_page.evaluate('testOpen()===null') is True
         assert await failure_page.evaluate('game.settings.get("ashen-gate-headquarters","state").active===false') is True

@@ -1,4 +1,5 @@
 import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY} from './core.mjs';
+import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 
 const {ApplicationV2}=foundry.applications.api;
 let windowInstance=null;
@@ -205,7 +206,7 @@ async function rollFromActor(root){
 async function open(){if(!permitted())throw Error('Utilities access is hidden by the GM.');if(!windowInstance||!windowInstance.rendered)windowInstance=new UtilitiesApp();await windowInstance.render({force:true});return windowInstance;}
 function refreshWindows(){
  if(!permitted()&&!isGM()){
-  document.querySelectorAll(`[data-ag-module="${ID}"]`).forEach(x=>x.remove());if(windowInstance?.rendered)windowInstance.close().catch(error);
+  document.querySelectorAll(`[data-ag-launcher="${ID}"]`).forEach(x=>x.remove());if(windowInstance?.rendered)windowInstance.close().catch(error);
  } else if(windowInstance?.rendered&&!activeRoll){windowInstance.render().catch(error);}
  addLauncher(ui?.actors,ui?.actors?.element);
 }
@@ -220,17 +221,8 @@ function incomingSession(){
  windowInstance.render({force:true}).catch(error);
 }
 function sessionChanged(){refreshWindows();incomingSession();}
-/** Shared Actors launcher group contract: direct children, full width and ordered by rank. */
 function addLauncher(app,html){
- const root=html instanceof HTMLElement?html:html?.[0];if(!root||!(app?.tabName==='actors'||app?.constructor?.name?.toLowerCase().includes('actor')))return;
- let old=root.querySelector(`[data-ag-module="${ID}"]`);
- if(!permitted()){old?.remove();return;}
- let group=root.querySelector('.ag-sidebar-launcher-group[data-ag-sidebar="actors"]');
- if(!group){group=document.createElement('div');group.className='ag-sidebar-launcher-group';group.dataset.agSidebar='actors';const anchor=root.querySelector('.directory-header .header-search, .directory-header .search, .directory-header input[type="search"], .directory-header .filter');if(anchor){const target=anchor.closest('.header-search,.search')||anchor;target.parentElement.insertBefore(group,target);}else{const head=root.querySelector('.directory-header,.header-actions');if(head)head.prepend(group);else root.prepend(group);}}
- if(!old){old=document.createElement('button');old.type='button';old.textContent='Utilities';old.setAttribute('aria-label','Open Ashen Gate Utilities');old.addEventListener('click',()=>open().catch(error));}
- old.classList.add('ag-sidebar-module-launcher');old.dataset.agModule=ID;old.dataset.agOrder='60';old.dataset.agLauncherRank='60';
- if(old.parentElement!==group)group.append(old);
- const ordered=[...group.children].filter(x=>x.dataset?.agOrder||x.dataset?.agLauncherRank).sort((a,b)=>Number(a.dataset.agOrder??a.dataset.agLauncherRank)-Number(b.dataset.agOrder??b.dataset.agLauncherRank));for(const node of ordered)group.append(node);
+ mountLauncher(launcherRoot(app,html),{moduleId:ID,label:'Utilities',icon:'fa-solid fa-dice-d20',onClick:()=>open(),visible:permitted()});
 }
 Hooks.once('init',()=>{
  game.settings.register(ID,'playerAccessEnabled',{name:'Utilities: Player Access',hint:'New module player launcher starts Hidden until enabled by GM.',scope:'world',config:true,type:Boolean,default:false,onChange:refreshWindows});
@@ -240,7 +232,7 @@ Hooks.once('init',()=>{
 Hooks.once('ready',()=>{
  const m=game.modules.get(ID);
  m.api={version:VERSION,contract:'ag-utilities/0.2-alpha',open,playerAccess:{contract:'ag-player-access/1',getState:()=>({contract:'ag-player-access/1',moduleId:ID,audience:'player',playerAccessEnabled:game.settings.get(ID,'playerAccessEnabled'),configurable:true}),setEnabled:async enabled=>{if(!isGM())throw Error('GM only.');if(typeof enabled!=='boolean')throw TypeError('Boolean required.');await game.settings.set(ID,'playerAccessEnabled',enabled);return m.api.playerAccess.getState();}}};
- Hooks.on('renderSidebarTab',addLauncher);Hooks.on('renderActorDirectory',addLauncher);Hooks.on('createChatMessage',msg=>{void processSubmission(msg).catch(error);});
+ Hooks.on('renderActorDirectory',addLauncher);Hooks.on('createChatMessage',msg=>{void processSubmission(msg).catch(error);});
  for(const ev of ['updateActor','createActiveEffect','updateActiveEffect','deleteActiveEffect'])Hooks.on(ev,()=>{if(windowInstance?.rendered&&!activeRoll)windowInstance.render().catch(error);});
  Hooks.on('updateUser',refreshWindows);addLauncher(ui?.actors,ui?.actors?.element);
  lastPromptedSession=activeSession()?.id||null;

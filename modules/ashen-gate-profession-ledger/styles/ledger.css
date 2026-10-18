@@ -67,8 +67,6 @@
 .agl-gm-lens{display:flex;align-items:center;gap:7px;flex-wrap:wrap;background:#202d33;border-bottom:1px solid #465a63;padding:9px 21px;font-size:11px;color:#a7b8b9}
 .agl-gm-lens strong{font-size:12px;color:#e1d1ae;margin-right:4px}
 .agl-material-row span{min-width:0;overflow-wrap:anywhere}
-.agl-sidebar-launcher{min-width:max-content;white-space:nowrap}
-.agl-sidebar-launcher i{margin-right:5px}
 @media(max-width:950px){.agl-individual-content{grid-template-columns:minmax(0,2fr) minmax(190px,1fr)}.agl-individual-content .agl-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.agl-individual-content{grid-template-columns:1fr}.agl-actor-strip{flex-direction:column}.agl-app button.agl-actor{max-width:none;width:100%}.agl-individual-content .agl-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 
@@ -133,3 +131,9 @@
 .agl-app .agl-management-actions{margin-top:12px}
 .agl-app .agl-learn-row button{flex-shrink:0}
 @media(max-width:720px){.agl-app .agl-gather-form{grid-template-columns:1fr}.agl-app .agl-gather-eligible{grid-column:1}}
+
+/* Ashen Gate Actors-sidebar launcher group: identical block in every player-facing module. */
+#ashen-gate-launchers.ag-launchers {display:flex;flex-direction:column;gap:4px;flex:0 0 100%;width:100%;grid-column:1/-1;box-sizing:border-box;margin:0 0 6px;padding:0;}
+#ashen-gate-launchers > .ag-launcher {display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:32px;margin:0;padding:4px 10px;box-sizing:border-box;font:600 13px/1.2 var(--font-primary,sans-serif);white-space:normal;text-align:center;cursor:pointer;}
+#ashen-gate-launchers > .ag-launcher > i {flex:0 0 16px;text-align:center;}
+#ashen-gate-launchers > .ag-launcher:focus-visible {outline:2px solid var(--color-border-highlight,#d8b788);outline-offset:1px;}

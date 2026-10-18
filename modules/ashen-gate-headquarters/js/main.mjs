@@ -7,6 +7,7 @@ import {inspectFacilityRef} from './source-resolver-adapter.mjs';
 import {hirelingState,stationed,derivePerkStatuses,markNonStacking,HIRE_REF} from './hirelings.mjs';
 import {readNativeHirelingDefinitions} from './native-hireling-definitions.mjs';
 import {createPrivateStateStore,projectPublicState,VAULT_POINTER} from './private-state.mjs';
+import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 const {ApplicationV2,HandlebarsApplicationMixin}=foundry.applications.api;
 // Player edits are transported by server-attributed Actor document updates, not module socket packets.
 const ACK_TIMEOUT_MS=16000;
@@ -26,11 +27,11 @@ async function setPlayerAccess(enabled){
 }
 function refreshPlayerAccess(){
  // Settings onChange runs on connected clients; never trust the DOM for access.
- document.querySelectorAll('[data-ag-launcher-module="ashen-gate-headquarters"]').forEach(button=>{
+ document.querySelectorAll('[data-ag-launcher="ashen-gate-headquarters"]').forEach(button=>{
   if(!canView())button.remove();
  });
  const actorTab=ui?.sidebar?.tabs?.actors ?? ui?.actors;
- if(canView()&&actorTab?.element)mountActorsLauncher(actorTab,actorTab.element);
+ if(actorTab?.element)mountActorsLauncher(actorTab,actorTab.element);
  if(!canView()&&windowApp?.rendered){
   windowApp.close().catch(err=>console.warn(`${MODULE_ID} access gate close`,err));
  }else if(windowApp?.rendered)windowApp.render();
@@ -56,53 +57,8 @@ const read=()=>{
 const primaryGM=()=>game.users.activeGM ?? game.users.find(x=>x.isGM&&x.active);
 const friendly=e=>e instanceof Error?e.message:String(e);
 const isEditing=(s)=>activeLock(s)?.user_id===game.user?.id;
-// Shared cross-specialist directory convention (self-contained; no runtime dependency).
-// Actor launcher ordering: Profession Ledger 10, Factions & Renown 20,
-// Skill Trees 30, Headquarters 40. Items: Manager 10, Locations 20.
-const ACTOR_LAUNCHER_ORDER={
- 'ashen-gate-profession-ledger':10,
- 'ashen-gate-factions':20,
- 'ashen-gate-skill-trees':30,
- 'ashen-gate-headquarters':40
-};
 function mountActorsLauncher(app,html){
- if(!canView()){
-  const root=html?.querySelector?html:app?.element;
-  root?.querySelectorAll?.('[data-ag-launcher-module="ashen-gate-headquarters"]').forEach(button=>button.remove());
-  return;
- }
- const tab=app?.tabName ?? app?.constructor?.tabName;
- const root=html?.querySelector?html:app?.element;
- const currentActorTab=ui?.sidebar?.tabs?.actors ?? ui?.actors;
- const actorDirectory=tab==='actors' || app?.constructor?.name==='ActorDirectory'
-   || (currentActorTab && app===currentActorTab)
-   || root?.id==='actors' || root?.dataset?.tab==='actors';
- if(!actorDirectory)return;
- if(!root?.querySelector || !globalThis.document)return;
- const anchor=root.querySelector('.directory-header')||root.querySelector('[data-application-part="header"]')||root.querySelector('header.directory-header')||root.querySelector('.directory-list');
- const host=anchor?.parentElement || root;
- let group=host.querySelector(':scope > [data-ag-launcher-group="actors"]');
- if(!group){
-   group=document.createElement('div');group.className='ag-sidebar-launchers';
-   group.dataset.agLauncherGroup='actors';group.setAttribute('role','group');
-   group.setAttribute('aria-label','Ashen Gate player module launchers');
-   host.insertBefore(group,anchor||host.firstElementChild);
- }
- let button=group.querySelector('[data-ag-launcher-module="ashen-gate-headquarters"]');
- if(!button){
-   button=document.createElement('button');button.type='button';
-   button.className='ag-sidebar-launcher aghq-launcher';
-   button.dataset.agLauncherModule=MODULE_ID;
-   button.dataset.agLauncherOrder='40';
-   button.textContent='Open Headquarters';
-   button.setAttribute('aria-label','Open Ashen Gate Headquarters');
-   button.title='Open Headquarters · Ashen Gate';
-   button.addEventListener('click',()=>open());group.append(button);
- }
- // Multiple independent modules can insert into one bar and still sort consistently.
- [...group.children].filter(x=>x.matches?.('[data-ag-launcher-module]'))
-   .sort((a,b)=>(ACTOR_LAUNCHER_ORDER[a.dataset.agLauncherModule]??Number(a.dataset.agLauncherOrder)??999)-(ACTOR_LAUNCHER_ORDER[b.dataset.agLauncherModule]??Number(b.dataset.agLauncherOrder)??999))
-   .forEach(el=>group.append(el));
+ mountLauncher(launcherRoot(app,html),{moduleId:MODULE_ID,label:'Headquarters',icon:'fa-solid fa-building',onClick:()=>open(),visible:canView()});
 }
 
 const roomAccess=(r)=>game.user.isGM || r?.owner_user_id===game.user.id;
@@ -476,7 +432,6 @@ Hooks.once('init',()=>{
  };
  // Foundry V14 can render the Actor Directory before the ready hook.
  Hooks.on('renderActorDirectory',mountActorsLauncher);
- Hooks.on('renderApplicationV2',mountActorsLauncher);
  // Optional launch conveniences must not break startup if Foundry rejects one.
  try{
   game.keybindings.register(MODULE_ID,'open',{name:'Open Headquarters',hint:'Open the independent Guildhall builder.',editable:[{key:'KeyH',modifiers:['SHIFT']}],onDown:()=>{open();return true;},restricted:false});

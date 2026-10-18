@@ -66,6 +66,14 @@ for (const id of ids) {
   }
 }
 
+// The Actors launcher helper is copied into each player-facing module; the copies must not drift.
+const launcherCopies = fs.readdirSync(modulesDir).sort()
+  .flatMap(id => walk(path.join(modulesDir, id)).filter(f => path.basename(f) === 'ag-launchers.mjs'));
+const launcherSources = new Set(launcherCopies.map(f => fs.readFileSync(f, 'utf8')));
+if (launcherSources.size > 1) {
+  fail('ag-launchers.mjs', `copies differ; keep them identical:\n  ${launcherCopies.map(f => path.relative(root, f)).join('\n  ')}`);
+}
+
 if (failures.length) {
   console.error(`\n${failures.length} problem(s):\n- ${failures.join('\n- ')}`);
   process.exit(1);

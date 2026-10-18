@@ -27,7 +27,6 @@
 .ag-quest-objective-control {padding:10px 4px;border-top:1px solid var(--ag-border);}.ag-quest-objective-control strong {display:block;margin:0 0 6px;}
 .ag-quest-app label.ag-check {display:flex;align-items:center;gap:7px;}.ag-quest-app input[type=checkbox] {width:auto;min-height:auto;}
 .ag-quest-app button.danger {border-color:var(--ag-danger);color:var(--ag-danger);}.ag-quest-footer {display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;padding:8px 14px;border-top:1px solid var(--ag-border);font-size:12px;color:var(--ag-muted);}
-.ag-quest-launcher {padding:6px 7px;display:flex;}.ag-quest-launcher button {width:100%;min-height:32px;font-weight:600;}
 @media(max-width:690px){.ag-quest-gm-body,.ag-quest-main {flex-direction:column;}.ag-quest-list,.ag-quest-gm-left {width:auto;max-height:230px;border-right:0;border-bottom:1px solid var(--ag-border);}.ag-quest-reading {padding:12px;}.ag-quest-gm-edit {min-width:0;}}
 /* Quest-owned delegated execution editor (v0.3.0) */
 .ag-quest-app .ag-quest-assignment { margin-top:16px; padding-top:12px; border-top:1px solid var(--ag-border,#63594b); }
@@ -82,6 +81,8 @@
 .ag-quest-app .ag-quest-tabs button{min-width:96px}
 @media(max-width:760px){.ag-quest-source-objective{grid-template-columns:1fr}.ag-quest-header{flex-wrap:wrap;gap:8px}.ag-quest-tracker{top:60px;right:8px}.ag-quest-app .ag-quest-gm-left{width:auto}}
 
-/* Shared sidebar shelf. Do not depend on any other Ashen Gate module for placement. */
-.ag-sidebar-launchers[data-ag-sidebar-launchers="actors"]{display:flex;flex-direction:column;gap:5px;padding:7px 0;width:100%}
-.ag-sidebar-launchers[data-ag-sidebar-launchers="actors"] > button{min-height:36px;min-width:0;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:5px 10px;border-radius:4px;cursor:pointer}
+/* Ashen Gate Actors-sidebar launcher group: identical block in every player-facing module. */
+#ashen-gate-launchers.ag-launchers {display:flex;flex-direction:column;gap:4px;flex:0 0 100%;width:100%;grid-column:1/-1;box-sizing:border-box;margin:0 0 6px;padding:0;}
+#ashen-gate-launchers > .ag-launcher {display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:32px;margin:0;padding:4px 10px;box-sizing:border-box;font:600 13px/1.2 var(--font-primary,sans-serif);white-space:normal;text-align:center;cursor:pointer;}
+#ashen-gate-launchers > .ag-launcher > i {flex:0 0 16px;text-align:center;}
+#ashen-gate-launchers > .ag-launcher:focus-visible {outline:2px solid var(--color-border-highlight,#d8b788);outline-offset:1px;}

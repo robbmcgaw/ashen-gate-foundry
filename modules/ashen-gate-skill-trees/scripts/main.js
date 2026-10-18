@@ -4,12 +4,12 @@ import {
 } from './engine.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition} from './definition-lookup.mjs';
-import {attachSkillTreesLauncher} from './sidebar-launcher.mjs';
+import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument,qaCleanupBlockers} from './qa-fixtures.mjs';
 
 /** Skill Trees 0.6.0 alpha: shared Foundry development-standard UI; private GM definitions. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.6.1';
+const VERSION='0.6.2';
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
 const SAFE_SETTING='publicTreesV2';
@@ -27,7 +27,7 @@ function syncTreePlayerAccess(enabled){
   }
   const app=globalThis.ui?.actors;
   if(app?.element)addDirectoryLauncher(app,app.element);
-  if(!game.user?.isGM && enabled!==true)globalThis.document?.querySelectorAll?.('[data-ag-module-launch="ashen-gate-skill-trees"]')?.forEach(button=>button.remove());
+  if(!game.user?.isGM && enabled!==true)globalThis.document?.querySelectorAll?.('[data-ag-launcher="ashen-gate-skill-trees"]')?.forEach(button=>button.remove());
 }
 const escape=x=>foundry.utils.escapeHTML(String(x??''));
 const notify=(s,error=false)=>error?ui.notifications.error(s):ui.notifications.info(s);
@@ -550,8 +550,8 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
 }
 
 function addDirectoryLauncher(app,html){
-  return attachSkillTreesLauncher(html??app,()=>{try{open();}catch(error){notify(error.message,true);}},
-    {visible:canOpenTrees()});
+  return mountLauncher(launcherRoot(app,html),{moduleId:MODULE,label:'Skill Trees',icon:'fa-solid fa-diagram-project',
+    onClick:()=>{try{open();}catch(error){notify(error.message,true);}},visible:canOpenTrees()});
 }
 function open({treeId=null,actorId=null}={}){
   checkTreePlayerAccess();
@@ -563,8 +563,6 @@ function open({treeId=null,actorId=null}={}){
 Hooks.once('init',()=>{
   Hooks.on('renderActorDirectory',addDirectoryLauncher);
   Hooks.on('closeApplicationV2',app=>{openTreeWindows.delete(app);if(instance===app)instance=null;});
-  Hooks.on('renderApplicationV2',(app,el)=>{if(app?.tabName==='actors'||app?.constructor?.name==='ActorDirectory')addDirectoryLauncher(app,el);});
-  Hooks.on('changeSidebarTab',app=>{if(app?.tabName==='actors'||app==='actors')addDirectoryLauncher(globalThis.ui?.actors,globalThis.ui?.actors?.element);});
   // Existing player-facing Skill Trees retains player access on upgrade.
   game.settings.register(MODULE,PLAYER_ACCESS_SETTING,{name:'Player Access — Skill Trees',hint:'GM only: hide or reveal the player tree interface without deleting points, node unlocks or Feature Items.',scope:'world',config:true,type:Boolean,default:true,
     onChange:value=>syncTreePlayerAccess(value)});
