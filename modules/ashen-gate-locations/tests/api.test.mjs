@@ -1,0 +1,102 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {createApi} from '../scripts/api.mjs';
+import {parseImport, playerView} from '../scripts/model.mjs';
+
+const sample = parseImport(JSON.parse(fs.readFileSync(new URL('../examples/test-locations.json', import.meta.url))), []).created;
+sample[0].quests = [{key: 'q', questId: 'QUEST-TEST-ONE', visible: true}];
+sample[0].sections.quests = true;
+sample[0].resources[0].materialId = 'MAT-TEST-REED';
+sample[1].quests = [{key: 'q', questId: 'QUEST-TEST-ONE', visible: true}];   // quests section hidden here
+
+function setup({gm = false, access = true} = {}) {
+  const state = {gm, access, stored: structuredClone(sample), opened: []};
+  const api = createApi({
+    version: '1.0.0', isGM: () => state.gm, playerAccessEnabled: () => state.access,
+    setPlayerAccess: async v => { state.access = v; },
+    readAll: () => { if (!state.gm) throw new Error('Only the GM can do that.'); return structuredClone(state.stored); },
+    writeAll: async list => { state.stored = list; },
+    readViews: () => state.stored.map(l => playerView(l, state.stored)).filter(Boolean),
+    placeNote: async (loc, opts) => ({loc, opts}),
+    open: () => state.opened.push('main'), openLocation: id => state.opened.push(id)
+  });
+  return {api, state};
+}
+
+test('players with access see only revealed, sanitized locations', () => {
+  const {api} = setup();
+  assert.deepEqual(api.listLocations().map(l => l.name), ['[TEST] Millbrook', '[TEST] Old Quarry']);
+  assert.deepEqual(api.listLocations({revealedOnly: false}).length, 2, 'players cannot ask for unrevealed');
+  assert.equal(api.getLocation('LOC-TEST-HIDDEN-CAVE'), null);
+  const mill = api.getLocation('LOC-TEST-MILLBROOK');
+  assert.equal(mill.revealed, undefined);
+  assert.doesNotMatch(JSON.stringify(api.listLocations()), /GM secret|GM-only Herb|smuggler/);
+  assert.deepEqual(api.resourcesAt('LOC-TEST-MILLBROOK').map(r => r.label), ['[TEST] Reed Bundle', '[TEST] River Clay']);
+  assert.deepEqual(api.resourcesAt('LOC-TEST-ASH-WASTES'), []);
+});
+
+test('players without Player Access are refused by the API itself', () => {
+  const {api, state} = setup({access: false});
+  for (const call of [() => api.listLocations(), () => api.getLocation('LOC-TEST-MILLBROOK'), () => api.resourcesAt('LOC-TEST-MILLBROOK'),
+    () => api.locationsWithMaterial('MAT-TEST-REED'), () => api.open(), () => api.openLocation('LOC-TEST-MILLBROOK')])
+    assert.throws(call, /hidden from players/);
+  assert.deepEqual(api.locationsForQuest('QUEST-TEST-ONE'), []);
+  assert.deepEqual(state.opened, []);
+});
+
+test('players cannot write, import, export or place notes', async () => {
+  const {api, state} = setup();
+  const before = structuredClone(state.stored);
+  await assert.rejects(() => api.createLocation('X'), /Only the GM/);
+  await assert.rejects(() => api.saveLocation({id: 'LOC-TEST-MILLBROOK', name: 'Hacked'}), /Only the GM/);
+  await assert.rejects(() => api.deleteLocation('LOC-TEST-MILLBROOK'), /Only the GM/);
+  await assert.rejects(() => api.importPackage({}), /Only the GM/);
+  await assert.rejects(() => api.playerAccess.setEnabled(false), /Only the GM/);
+  assert.throws(() => api.exportPackage(), /Only the GM/);
+  assert.throws(() => api.placeOnScene('LOC-TEST-MILLBROOK', {}), /Only the GM/);
+  assert.deepEqual(state.stored, before);
+});
+
+test('GM sees everything; Player Access does not limit the GM', () => {
+  const {api} = setup({gm: true, access: false});
+  assert.equal(api.listLocations().length, 4);
+  assert.equal(api.listLocations({revealedOnly: true}).length, 2);
+  assert.equal(api.getLocation('LOC-TEST-HIDDEN-CAVE').description, 'Players must not see this until revealed.');
+  assert.equal(api.resourcesAt('LOC-TEST-MILLBROOK').length, 3);
+});
+
+test('GM create generates the ID from the name; save keeps it on rename', async () => {
+  const {api, state} = setup({gm: true});
+  const made = await api.createLocation('[TEST] Old Quarry');
+  assert.equal(made.id, 'LOC-TEST-OLD-QUARRY-2');
+  const fresh = await api.saveLocation({name: 'Brand New', id: ''});
+  assert.equal(fresh.id, 'LOC-BRAND-NEW');
+  await api.saveLocation({...fresh, name: 'Renamed'});
+  assert.equal(state.stored.find(l => l.id === 'LOC-BRAND-NEW').name, 'Renamed');
+  await api.deleteLocation('LOC-BRAND-NEW');
+  assert.equal(state.stored.some(l => l.id === 'LOC-BRAND-NEW'), false);
+});
+
+test('import adds new locations and keeps existing ones', async () => {
+  const {api, state} = setup({gm: true});
+  state.stored[0].name = 'GM edited';
+  const r = await api.importPackage(JSON.parse(fs.readFileSync(new URL('../examples/test-locations.json', import.meta.url))));
+  assert.deepEqual(r.created, []);
+  assert.equal(r.skipped.length, 4);
+  assert.equal(state.stored[0].name, 'GM edited');
+});
+
+test('Ledger and Quest helpers respect visibility', () => {
+  assert.deepEqual(setup().api.locationsWithMaterial('MAT-TEST-REED'), [{id: 'LOC-TEST-MILLBROOK', name: '[TEST] Millbrook', available: true}]);
+  assert.deepEqual(setup().api.locationsForQuest('QUEST-TEST-ONE'), [{id: 'LOC-TEST-MILLBROOK', name: '[TEST] Millbrook'}]);
+  assert.deepEqual(setup({gm: true}).api.locationsForQuest('QUEST-TEST-ONE').map(l => l.id), ['LOC-TEST-MILLBROOK', 'LOC-TEST-OLD-QUARRY']);
+});
+
+test('ag-player-access/1 capability', async () => {
+  const {api, state} = setup({gm: true});
+  assert.deepEqual(api.playerAccess.getState(), {contract: 'ag-player-access/1', moduleId: 'ashen-gate-locations', audience: 'player', playerAccessEnabled: true, configurable: true});
+  await api.playerAccess.setEnabled(false);
+  assert.equal(state.access, false);
+  await assert.rejects(() => api.playerAccess.setEnabled('no'), /Boolean/);
+});

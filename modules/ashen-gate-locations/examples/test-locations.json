@@ -1,0 +1,56 @@
+{
+  "manifest": {"schema_version": "ag-foundry-import/0.2", "package_id": "AG-TEST-LOCATIONS", "version": "1.0.0"},
+  "records": [
+    {
+      "id": "LOC-TEST-MILLBROOK", "entity_type": "Location", "status": "draft", "version": "1.0.0",
+      "provenance": {"sources": ["synthetic test data"]}, "visibility": "player", "refs": [],
+      "name": "[TEST] Millbrook",
+      "location": {
+        "name": "[TEST] Millbrook", "type": "Village", "region": "[TEST] Green Vale", "threat": "normal", "revealed": true,
+        "description": "A quiet test village beside a mill pond.",
+        "sections": {"resources": true, "factions": true, "related": true, "notes": true},
+        "resources": [
+          {"label": "[TEST] Reed Bundle", "available": true},
+          {"label": "[TEST] River Clay", "available": false, "note": "Flooded this season"},
+          {"label": "[TEST] GM-only Herb", "visible": false}
+        ],
+        "factions": [{"label": "[TEST] Millers' Guild"}],
+        "related": [{"locationId": "LOC-TEST-OLD-QUARRY"}, {"locationId": "LOC-TEST-HIDDEN-CAVE"}],
+        "notes": [
+          {"title": "Rumour", "text": "Lights were seen near the old quarry."},
+          {"title": "GM secret", "text": "The miller is the smuggler.", "visible": false}
+        ]
+      }
+    },
+    {
+      "id": "LOC-TEST-OLD-QUARRY", "entity_type": "Location", "status": "draft", "version": "1.0.0",
+      "provenance": {"sources": ["synthetic test data"]}, "visibility": "player", "refs": [],
+      "name": "[TEST] Old Quarry",
+      "location": {
+        "name": "[TEST] Old Quarry", "type": "Ruin", "region": "[TEST] Green Vale", "threat": "hot", "revealed": true,
+        "description": "Abandoned stone workings.", "show": {"description": false},
+        "sections": {"resources": true, "related": true},
+        "resources": [{"label": "[TEST] Granite Block", "available": true}],
+        "related": [{"locationId": "LOC-TEST-MILLBROOK"}]
+      }
+    },
+    {
+      "id": "LOC-TEST-HIDDEN-CAVE", "entity_type": "Location", "status": "draft", "version": "1.0.0",
+      "provenance": {"sources": ["synthetic test data"]}, "visibility": "reveal_gated", "refs": [],
+      "name": "[TEST] Hidden Cave",
+      "location": {
+        "name": "[TEST] Hidden Cave", "type": "Cave", "region": "[TEST] Green Vale", "threat": "deadly", "revealed": false,
+        "description": "Players must not see this until revealed."
+      }
+    },
+    {
+      "id": "LOC-TEST-ASH-WASTES", "entity_type": "Location", "status": "draft", "version": "1.0.0",
+      "provenance": {"sources": ["synthetic test data"]}, "visibility": "reveal_gated", "refs": [],
+      "name": "[TEST] Ash Wastes",
+      "location": {
+        "name": "[TEST] Ash Wastes", "type": "Wilderness", "region": "[TEST] Far Reach", "threat": "deadly", "revealed": false,
+        "resources": [{"label": "[TEST] Cinder Moss", "available": true}]
+      }
+    }
+  ]
+}

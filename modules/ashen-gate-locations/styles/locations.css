@@ -1,172 +1,105 @@
-.ag-locations-app{min-width:640px}
-.ag-locations-app .window-content{padding:0;overflow:hidden}
-.ag-locations-app .ag-root{height:100%;min-height:0;display:flex;flex-direction:column;color:var(--ag-text,var(--color-text-primary,#e9e3db));background:var(--ag-bg,transparent);font-size:13px}
-.ag-locations-app button,.ag-locations-app input,.ag-locations-app select,.ag-locations-app textarea{font:inherit}
-.ag-locations-app button{cursor:pointer;background:rgba(144,118,85,.12);border:1px solid var(--ag-border,#5f6264);padding:7px 10px;border-radius:5px;white-space:nowrap;color:inherit}
-.ag-locations-app button:hover{background:rgba(178,141,86,.28)}
-.ag-locations-app .ag-primary{background:var(--ag-accent,#80643e);color:var(--ag-primary-text,#fff4df);border:1px solid var(--ag-accent,#a8885d)}
-.ag-locations-app .ag-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:17px 17px 13px;background:var(--ag-panel,rgba(0,0,0,.15));border-bottom:1px solid var(--ag-border,#5f6264)}
-.ag-locations-app .ag-head h2{margin:0;font-size:19px;line-height:1.3;font-weight:650}
-.ag-locations-app .ag-head p{font-size:11px;opacity:.75;margin:4px 0 0}
-.ag-locations-app .ag-actions{display:flex;gap:7px;align-items:center}
-.ag-locations-app .ag-toolbar{display:grid;grid-template-columns:2fr 1.2fr 1.2fr 70px;gap:8px;padding:12px 15px;border-bottom:1px solid var(--ag-border,#5f6264)}
-.ag-locations-app input,.ag-locations-app textarea,.ag-locations-app select{width:100%;box-sizing:border-box;color:var(--ag-text,var(--color-text-primary,inherit));background:var(--ag-bg,var(--color-cool-5,rgba(0,0,0,.14)));border:1px solid var(--ag-border,#5f6264);border-radius:4px;padding:7px;min-height:32px}
-.ag-locations-app textarea{resize:vertical;min-height:65px;line-height:1.45}
-.ag-locations-app input[type="checkbox"]{width:auto;min-height:auto;accent-color:var(--ag-accent,#9d8159)}
-.ag-locations-app .ag-table{overflow-y:auto;flex:1;padding:0 15px}
-.ag-locations-app .ag-table-head,.ag-locations-app .ag-table-row{display:grid;align-items:center;grid-template-columns:minmax(180px,2.2fr) minmax(105px,1fr) 65px 95px 54px;gap:10px}
-.ag-locations-app .ag-table-head{font-size:10px;font-weight:650;letter-spacing:.08em;opacity:.7;padding:14px 5px 8px;border-bottom:1px solid var(--ag-border,#5f6264)}
-.ag-locations-app .ag-table-row{padding:11px 5px;border-bottom:1px solid color-mix(in srgb,var(--ag-border,#5f6264),transparent 62%)}
-.ag-locations-app .ag-table-row strong{display:block;font-weight:650}
-.ag-locations-app .ag-table-row small{display:block;font-size:11px;opacity:.65;padding-top:3px}
-.ag-locations-app .ag-empty{padding:20px 8px;opacity:.75;text-align:center}
-.ag-locations-app .ag-bottom{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:9px 15px;font-size:11px;opacity:.75;border-top:1px solid var(--ag-border,#5f6264);background:var(--ag-panel,rgba(0,0,0,.15))}
-.ag-locations-app .ag-tabs{display:flex;gap:0;border-bottom:1px solid var(--ag-border,#5f6264);padding:0 12px;flex-wrap:wrap}
-.ag-locations-app .ag-tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:transparent;font-size:12px;padding:12px 11px}
-.ag-locations-app .ag-tabs button.active{border-bottom-color:var(--ag-accent,#d6b27b);font-weight:bold;color:var(--ag-accent,#dcb886)}
-.ag-locations-app .ag-editor-content{overflow-y:auto;flex:1;min-height:0;padding:16px 18px 22px}
-.ag-locations-app .ag-two{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px}
-.ag-locations-app .ag-field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
-.ag-locations-app .ag-field span{font-size:12px;font-weight:600}
-.ag-locations-app .ag-help{font-size:11px;line-height:1.45;opacity:.7;margin:6px 0 14px}
-.ag-locations-app .ag-sectionbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:3px 0 13px}
-.ag-locations-app .ag-sectionbar h3{margin:0;font-size:15px}
-.ag-locations-app .ag-sectionbar .ag-help{margin-bottom:0}
-.ag-locations-app .ag-column-head{font-size:11px;opacity:.7;margin:12px 0 4px;padding:0 8px}
-.ag-locations-app .ag-resource{display:grid;grid-template-columns:minmax(180px,1.5fr) minmax(100px,1fr) 65px 32px;gap:8px;align-items:center}
-.ag-locations-app .ag-entry{border:1px solid var(--ag-border,#5f6264);border-radius:5px;margin:7px 0;padding:10px;background:var(--ag-panel,rgba(0,0,0,.15))}
-.ag-locations-app .ag-subkey{grid-column:1/-1;opacity:.65}
-.ag-locations-app .ag-connection{display:grid;grid-template-columns:minmax(180px,1fr) 0.8fr;gap:12px;align-items:center;padding-bottom:5px}
-.ag-locations-app .ag-reveal-list{display:flex;flex-wrap:wrap;gap:7px;align-items:center}
-.ag-locations-app .ag-reveal-list label{display:flex;gap:5px;align-items:center}
-.ag-locations-app .ag-poi{display:grid;gap:8px}
-.ag-locations-app .ag-entry-top{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center}
-.ag-locations-app .ag-entry-top label{display:flex;align-items:center;gap:4px;font-size:11px}
-.ag-locations-app .ag-poi small{opacity:.65}
-.ag-locations-app .ag-scene{display:grid;grid-template-columns:1fr 1.4fr 30px;gap:10px;align-items:center}
-.ag-locations-app .ag-preview-status{border-bottom:1px solid var(--ag-border,#5f6264);padding:5px 0 12px;font-size:12px;opacity:.7}
-.ag-locations-app .ag-journal-preview{border:1px solid var(--ag-border,#5f6264);border-radius:5px;padding:16px 20px;margin-top:14px;background:rgba(0,0,0,.09);min-height:120px}
-.ag-locations-app .ag-journal-preview h1{font-size:21px;margin:3px 0 14px}
-.ag-locations-app .ag-journal-preview h2{font-size:16px;margin:17px 0 8px}
-.ag-locations-app .ag-journal-preview h3{font-size:14px;margin:13px 0 7px}
-@media(max-width:750px){.ag-locations-app{min-width:500px}.ag-locations-app .ag-toolbar{grid-template-columns:1fr 1fr}.ag-locations-app .ag-two{grid-template-columns:1fr}.ag-locations-app .ag-connection{grid-template-columns:1fr}.ag-locations-app .ag-head{flex-wrap:wrap}}
+/* Ashen Gate | Locations. Layout is module-specific (.agl-*). Shared kit classes (.ag-btn, .ag-card, ...)
+   come from ag-ui.css; the :where() rules below are zero-specificity fallbacks so the window still has a
+   clean default look without the kit or Manager's appearance controller, and the kit always wins. */
+.ag-locations {
+  --agl-surface: var(--ag-surface, #1f1d1a);
+  --agl-surface-2: var(--ag-surface-2, #2a2723);
+  --agl-text: var(--ag-text, #ece6dc);
+  --agl-muted: var(--ag-muted, #a59c8e);
+  --agl-accent: var(--ag-accent, #c8892f);
+  --agl-border: var(--ag-border, #46403a);
+  --agl-ok: var(--ag-ok, #4f9a5a);
+  --agl-warn: var(--ag-warn, #d08a2c);
+  --agl-danger: var(--ag-danger, #c0453b);
+  --agl-radius: var(--ag-radius, 6px);
+  --agl-gap: var(--ag-space, 8px);
+}
+.ag-locations .window-content { padding: 0; background: var(--agl-surface); color: var(--agl-text); }
 
-/* AG-FOUNDRY-DEV/1.1 shell alignment (v0.2.0) */
-.ag-locations-app .ag-root {font-size:14px; min-height:0}
-.ag-locations-app .ag-version {font-size:12px;color:var(--ag-muted,#b0a9a0);white-space:nowrap}
-.ag-locations-app .ag-head {padding:12px 16px}
-.ag-locations-app .ag-head h2 {font-size:18px}
-.ag-locations-app .ag-head p {font-size:12px}
-.ag-locations-app .ag-help, .ag-locations-app .ag-table-row small,
-.ag-locations-app .ag-tab-static, .ag-locations-app .ag-bottom {font-size:12px}
-.ag-locations-app .ag-tabs {min-height:42px;align-items:stretch}
-.ag-locations-app .ag-tab-static {display:flex;align-items:center;padding:9px 12px;border-bottom:2px solid var(--ag-accent,#bda174);font-weight:650}
-.ag-locations-app .ag-toolbar {grid-template-columns:minmax(135px,2fr) minmax(90px,1.1fr) minmax(120px,1.1fr) 68px auto;gap:8px;align-items:center}
-.ag-locations-app .ag-toolbar-actions {display:flex;gap:6px;justify-content:flex-end;white-space:nowrap}
-.ag-locations-app .ag-bottom {opacity:1;color:var(--ag-muted,#b0a9a0)}
-.ag-locations-app .ag-editor-footer {position:sticky;bottom:0;z-index:2;min-height:50px}
-.ag-locations-app .ag-footer-left,.ag-locations-app .ag-footer-right {display:flex;gap:8px;align-items:center}
-.ag-locations-app .ag-footer-left {min-width:0}
-.ag-locations-app .ag-footer-left span {overflow-wrap:anywhere}
-.ag-locations-app .ag-field span {font-size:13px}
-.ag-locations-app .ag-tabs button {font-size:13px}
-.ag-locations-app button:focus-visible, .ag-locations-app input:focus-visible,
-.ag-locations-app select:focus-visible, .ag-locations-app textarea:focus-visible {outline:2px solid var(--ag-focus,#d8b788);outline-offset:2px}
-.ag-locations-app .ag-table-row strong,.ag-locations-app .ag-table-row span {overflow-wrap:anywhere;word-break:normal}
-.ag-locations-app .ag-table-row button {white-space:nowrap}
-@media (max-width:900px) {
-  .ag-locations-app .ag-toolbar {grid-template-columns:minmax(140px,1fr) minmax(140px,1fr)}
-  .ag-locations-app .ag-toolbar-actions {grid-column:1/-1;justify-content:flex-end}
-  .ag-locations-app .ag-table-head,.ag-locations-app .ag-table-row {grid-template-columns:minmax(130px,2fr) minmax(95px,1fr) 48px 75px 54px;gap:7px}
-  .ag-locations-app .ag-head {flex-wrap:wrap}
-  .ag-locations-app .ag-resource {grid-template-columns:minmax(140px,2fr) minmax(85px,1fr) 55px 32px}
-}
+/* ----- kit fallbacks (zero specificity) ----- */
+:where(.ag-locations) :where(.ag-header) { display: flex; align-items: center; justify-content: space-between; gap: var(--agl-gap); padding: 10px 14px; border-bottom: 1px solid var(--agl-border); }
+:where(.ag-locations) :where(.ag-header h1) { margin: 0; font-size: 1.15rem; border: 0; }
+:where(.ag-locations) :where(.ag-header__actions) { display: flex; align-items: center; gap: var(--agl-gap); }
+:where(.ag-locations) :where(.ag-version) { color: var(--agl-muted); font-size: .85em; }
+:where(.ag-locations) :where(.ag-tabs) { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--agl-border); }
+:where(.ag-locations) :where(.ag-tabs button) { width: auto; background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--agl-muted); padding: 8px 12px; }
+:where(.ag-locations) :where(.ag-tabs button.active) { color: var(--agl-text); border-bottom-color: var(--agl-accent); }
+:where(.ag-locations) :where(.ag-toolbar) { display: flex; align-items: center; gap: var(--agl-gap); padding: 10px 14px; }
+:where(.ag-locations) :where(.ag-toolbar input[type="search"]) { flex: 1; }
+:where(.ag-locations) :where(.ag-btn) { display: inline-flex; align-items: center; gap: 6px; width: auto; flex: 0 0 auto; padding: 4px 10px; min-height: 30px; line-height: 1.2; white-space: nowrap; border: 1px solid var(--agl-border); border-radius: var(--agl-radius); background: var(--agl-surface-2); color: var(--agl-text); cursor: pointer; }
+:where(.ag-locations) :where(.ag-btn--primary) { background: var(--agl-accent); border-color: var(--agl-accent); color: #1a1208; font-weight: 600; }
+:where(.ag-locations) :where(.ag-btn--ghost) { background: transparent; border-color: transparent; }
+:where(.ag-locations) :where(.ag-btn--danger) { color: var(--agl-danger); }
+:where(.ag-locations) :where(.ag-card) { border: 1px solid var(--agl-border); border-radius: var(--agl-radius); background: var(--agl-surface-2); padding: 10px 12px; margin: 0 0 10px; }
+:where(.ag-locations) :where(.ag-card h3) { margin: 0 0 6px; font-size: 1rem; border: 0; }
+:where(.ag-locations) :where(.ag-field) { display: flex; flex-direction: column; gap: 3px; }
+:where(.ag-locations) :where(.ag-field label) { color: var(--agl-muted); font-size: .85em; }
+:where(.ag-locations) :where(.ag-list) { list-style: none; margin: 0; padding: 0; }
+:where(.ag-locations) :where(.ag-badge) { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .8em; line-height: 1.6; white-space: nowrap; border: 1px solid var(--agl-border); }
+:where(.ag-locations) :where(.ag-empty) { color: var(--agl-muted); font-style: italic; margin: 6px 0; }
+:where(.ag-locations) :where(input, select, textarea) { min-height: 30px; line-height: 1.4; }
 
-/* Independent, GM-only Items sidebar launcher. Shared convention for siblings:
- * Items: Manager order 10, Locations order 20; Actors: Ledger/Factions/Trees/HQ.
- * Each module contributes its own button to the common host; none is a dependency.
- */
-.ag-sidebar-launchers {display:flex; flex-direction:column;gap:4px;padding:6px 8px 9px;
-  border-bottom:1px solid var(--color-border-light-tertiary,#555)}
-.ag-sidebar-launchers .ag-sidebar-launch-button {box-sizing:border-box;width:100%;min-height:34px;margin:0;
-  display:flex;justify-content:center;align-items:center;gap:7px;padding:7px 11px;
-  font-size:13px;line-height:1.3;font-weight:600;
-  color:var(--ag-text,var(--color-text-primary,#eae2d4));background:var(--ag-panel,rgba(142,115,75,.13));
-  border:1px solid var(--color-border-light-tertiary,#5f6264);border-radius:4px}
-.ag-sidebar-launchers .ag-sidebar-launch-button:hover {background:rgba(178,141,86,.28)}
-.ag-sidebar-launchers .ag-sidebar-launch-button:focus-visible {outline:2px solid var(--ag-focus,#d8b788);outline-offset:2px}
-.ag-locations-app .ag-region-group {border-bottom:1px solid var(--ag-border,#5f6264);margin-bottom:5px}
-.ag-locations-app .ag-region-group>summary {cursor:pointer;position:relative;list-style:revert;padding:11px 9px;font-weight:650;
- background:var(--ag-panel,rgba(0,0,0,.15));border-radius:4px}
-.ag-locations-app .ag-region-group>summary small {font-weight:400;color:var(--ag-muted,#b0a9a0)}
-.ag-locations-app .ag-region-group>summary:focus-visible {outline:2px solid var(--ag-focus,#d8b788)}
+/* ----- layout ----- */
+.agl-root { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.agl-body { display: grid; grid-template-columns: minmax(200px, 260px) 1fr; flex: 1; min-height: 0; border-top: 1px solid var(--agl-border); }
+.agl-list { overflow-y: auto; padding: 8px; border-right: 1px solid var(--agl-border); }
+.agl-groups { list-style: none; margin: 0; padding: 0; }
+.agl-group h3 { margin: 10px 4px 4px; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--agl-muted); border: 0; }
+.agl-row { display: flex; align-items: center; gap: 6px; width: 100%; text-align: left; padding: 6px 8px; background: none; border: 1px solid transparent; border-radius: var(--agl-radius); color: var(--agl-text); }
+.agl-row:hover { background: var(--agl-surface-2); }
+.agl-row.active { border-color: var(--agl-accent); background: var(--agl-surface-2); }
+.agl-row__name { flex: 1; overflow-wrap: anywhere; }
+.agl-row__rev { color: var(--agl-muted); }
+.agl-detail { overflow-y: auto; padding: 12px 16px; }
+.agl-hint { color: var(--agl-muted); font-size: .85em; margin: 6px 0; }
+.agl-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
-/* v0.3.0 — spatial map registry and live Tile overlay controls */
-.ag-locations-app button:disabled {opacity:.45;cursor:not-allowed;background:transparent}
-.ag-locations-app .ag-map-library {flex:1;min-height:0;overflow:auto;padding:15px 18px}
-.ag-locations-app .ag-map-list-row {display:grid;grid-template-columns:minmax(150px,1fr) minmax(160px,2fr) auto;align-items:center;gap:12px;border-bottom:1px solid var(--ag-border,#5f6264);padding:11px 8px}
-.ag-locations-app .ag-map-list-row strong,.ag-locations-app .ag-map-list-row span {overflow-wrap:anywhere}
-.ag-locations-app .ag-map-list-row span {color:var(--ag-muted,#b0a9a0);font-size:12px}
-.ag-locations-app .ag-map-toolbar {display:flex;align-items:end;gap:9px;padding:12px 18px;border-bottom:1px solid var(--ag-border,#5f6264);flex-wrap:wrap}
-.ag-locations-app .ag-map-toolbar .ag-field {min-width:210px;flex:1;margin:0}
-.ag-locations-app .ag-map-overlay-head,.ag-locations-app .ag-map-overlay-row {display:grid;grid-template-columns:minmax(145px,1.45fr) minmax(140px,1.3fr) minmax(185px,2fr) 86px;gap:10px;align-items:center}
-.ag-locations-app .ag-map-overlay-head {border-bottom:1px solid var(--ag-border,#5f6264);padding:10px 8px;font-size:12px;font-weight:650;color:var(--ag-muted,#b0a9a0)}
-.ag-locations-app .ag-map-overlay-row {padding:10px 8px;border-bottom:1px solid color-mix(in srgb,var(--ag-border,#5f6264),transparent 55%)}
-.ag-locations-app .ag-map-overlay-name strong {display:block;font-size:14px;overflow-wrap:anywhere}
-.ag-locations-app .ag-map-overlay-name small {display:block;color:var(--ag-muted,#b0a9a0);font-size:12px;line-height:1.45;overflow-wrap:anywhere}
-.ag-locations-app .ag-map-overlay-row .ag-field {margin:0;min-width:0}
-.ag-locations-app .ag-map-overlay-row .ag-field select {min-width:0}
-.ag-locations-app .ag-map-bulk {display:flex;justify-content:flex-end;align-items:center;gap:8px;padding:12px 0;flex-wrap:wrap}
-.ag-locations-app .ag-map-note {font-size:12px;line-height:1.4;color:var(--ag-muted,#b0a9a0);padding:12px 2px}
-@media(max-width:850px){
-  .ag-locations-app .ag-map-overlay-head {display:none}
-  .ag-locations-app .ag-map-overlay-row {grid-template-columns:minmax(125px,1fr) minmax(125px,1fr);padding:12px 3px}
-  .ag-locations-app .ag-map-overlay-row>button {justify-self:end}
-  .ag-locations-app .ag-map-list-row {grid-template-columns:minmax(140px,1fr) auto}
-  .ag-locations-app .ag-map-list-row span {grid-column:1/-1;grid-row:2}
-}
+.agl-title { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.agl-title h2 { margin: 0; border: 0; }
+.agl-name { flex: 1; min-width: 220px; }
+.agl-name input { font-size: 1.15rem; }
+.agl-id { color: var(--agl-muted); font-size: .8em; margin: 4px 0 10px; }
+.agl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.agl-field { margin-bottom: 10px; }
+.agl-field__row { display: flex; align-items: center; gap: 6px; }
+.agl-field__row > input, .agl-field__row > select, .agl-field__row > textarea { flex: 1; min-width: 0; }
+.agl-img { display: block; max-width: 100%; max-height: 220px; object-fit: contain; border-radius: var(--agl-radius); margin: 0 0 10px; border: 0; }
+.agl-meta { color: var(--agl-muted); margin: 4px 0 10px; }
+.agl-desc { white-space: normal; }
 
-/* AG-FOUNDRY-DEV/1.6 / DEC-0074: semantic tokens inherit from an optional
- * Manager theme provider. Bundled values work independently if none exists.
- * Theme selection must never change Location data, visibility or permissions.
- */
-.ag-locations-app .ag-ref-control{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:3px 0}
-.ag-locations-app .ag-ref-control .ag-mode-label{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--ag-muted,#b0a9a0)}
-.ag-locations-app .ag-ref-control select{width:auto;min-width:92px;min-height:28px;padding:3px 7px}
-.ag-locations-app .ag-ref-control input[type="checkbox"]{accent-color:var(--ag-accent,#9d8159)}
-.ag-locations-app .ag-danger{color:var(--ag-danger,#d6716d)}
-.ag-locations-app button:focus-visible,.ag-locations-app select:focus-visible,
-.ag-locations-app input:focus-visible,.ag-locations-app textarea:focus-visible,
-.ag-sidebar-launchers .ag-sidebar-launch-button:focus-visible{outline:2px solid var(--ag-focus,#d8b788);outline-offset:2px}
+.agl-eye { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; flex: 0 0 auto; cursor: pointer; color: var(--agl-ok); }
+.agl-eye input { position: absolute; opacity: 0; pointer-events: none; }
+.agl-eye:has(input:not(:checked)) { color: var(--agl-muted); }
+.agl-eye:has(input:focus-visible) { outline: 2px solid var(--agl-accent); border-radius: 4px; }
+.agl-switch { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.agl-switch input { margin: 0; }
+.agl-reveal { padding: 4px 10px; border: 1px solid var(--agl-border); border-radius: var(--agl-radius); }
+.agl-reveal:has(input:checked) { border-color: var(--agl-ok); }
 
-/* v0.8.0 / AG-FOUNDRY-DEV/1.7: content-fit controls and single shared Items shelf.
-   Scope to Locations window or shared launcher group; never style Foundry globally. */
-.ag-sidebar-launch-group[data-ag-launch-group="items"] {
-  display:flex;flex-direction:column;gap:5px;padding:8px 12px;
-  border-bottom:1px solid var(--ag-border,var(--color-border-light-tertiary,#555));
-}
-.ag-sidebar-launch-group[data-ag-launch-group="items"] > .ag-sidebar-launch-button {
-  box-sizing:border-box;display:flex;align-items:center;justify-content:center;
-  gap:8px;width:100%;height:36px;min-height:36px;max-height:36px;
-  margin:0;padding:5px 12px;font-size:13px;font-weight:600;
-  border-radius:5px;border:1px solid var(--ag-border,var(--color-border-light-tertiary,#555));
-  background:var(--ag-panel,rgba(142,115,75,.13));color:var(--ag-text,var(--color-text-primary,#eee));
-}
-.ag-sidebar-launch-group[data-ag-launch-group="items"] > .ag-sidebar-launch-button:focus-visible {
-  outline:2px solid var(--ag-focus,#d8b788);outline-offset:2px;
-}
-.ag-locations-app .ag-resource {grid-template-columns:minmax(145px,1.55fr) minmax(108px,0.8fr) 56px 32px;}
-.ag-locations-app .ag-resource > input[type="checkbox"] {justify-self:center;inline-size:18px;block-size:18px;}
-.ag-locations-app .ag-resource > select {min-width:0;width:100%;}
-.ag-locations-app .ag-entry-top label {white-space:normal;font-size:12px;}
-.ag-locations-app .ag-entry-top input[type="checkbox"] {inline-size:18px;block-size:18px;}
-.ag-locations-app .ag-map-toolbar .ag-field {flex:0 1 290px;min-width:185px;}
-.ag-locations-app .ag-map-toolbar > button,.ag-locations-app .ag-map-bulk button {flex:0 0 auto;width:auto;}
-.ag-locations-app .ag-toolbar-actions {flex-wrap:wrap;}
-.ag-locations-app .ag-map-overlay-row > button {justify-self:end;width:auto;min-width:68px;}
-.ag-locations-app .ag-map-overlay-row .ag-field select {width:100%;max-width:100%;}
-@media(max-width:720px){
-  .ag-locations-app .ag-entry-top {grid-template-columns:minmax(110px,1fr) auto;}
-  .ag-locations-app .ag-entry-top > button {grid-column:2;justify-self:end;}
-  .ag-locations-app .ag-resource {grid-template-columns:minmax(115px,1fr) minmax(100px,0.7fr) 44px 32px;}
-}
+.agl-section.agl-dragover { outline: 2px dashed var(--agl-accent); outline-offset: 2px; }
+.agl-section__head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.agl-entries > li { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid var(--agl-border); flex-wrap: wrap; }
+.agl-entries > li:last-child { border-bottom: 0; }
+.agl-entry { flex: 1; min-width: 160px; overflow-wrap: anywhere; }
+.agl-entry code { font-size: .8em; color: var(--agl-muted); }
+.agl-tools { display: inline-flex; align-items: center; gap: 2px; }
+.agl-hidden .agl-entry, .agl-note.agl-hidden input { opacity: .55; }
+.agl-add { display: flex; align-items: center; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.agl-add > input, .agl-add > select { flex: 1; min-width: 160px; }
+.agl-note { border-top: 1px solid var(--agl-border); padding-top: 8px; margin-top: 8px; }
+.agl-note:first-of-type { border-top: 0; margin-top: 0; }
+.agl-note textarea { width: 100%; margin-top: 6px; }
+.agl-link { cursor: pointer; color: var(--agl-accent); text-decoration: underline; text-underline-offset: 2px; }
+.agl-entries small { color: var(--agl-muted); margin-left: 6px; }
+.agl-footer { position: sticky; bottom: -12px; display: flex; justify-content: space-between; gap: 8px; padding: 10px 0; margin-top: 6px; background: var(--agl-surface); border-top: 1px solid var(--agl-border); }
+.agl-footer > div { display: flex; gap: 8px; }
+.agl-setup { padding: 14px; overflow-y: auto; }
+.agl-setup summary { cursor: pointer; font-weight: 600; }
+
+.agl-threat--normal { border-color: var(--agl-ok); color: var(--agl-ok); }
+.agl-threat--hot { border-color: var(--agl-warn); color: var(--agl-warn); }
+.agl-threat--deadly { border-color: var(--agl-danger); background: var(--agl-danger); color: #fff; }
+.agl-ok { border-color: var(--agl-ok); color: var(--agl-ok); }
+.agl-off { color: var(--agl-muted); }
+
+@media (max-width: 640px) { .agl-body { grid-template-columns: 1fr; } .agl-list { border-right: 0; border-bottom: 1px solid var(--agl-border); max-height: 35%; } }

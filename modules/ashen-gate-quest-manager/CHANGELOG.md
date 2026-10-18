@@ -1,3 +1,8 @@
+## 0.5.0 — 2026-10-18
+
+- Quest details list the Locations linked to a quest (from Locations 1.0, or the Location IDs set on the quest); click one to open it. Shown only when the Locations module is active and the location is revealed to you.
+- New GM-only `api.listQuests()` so Locations can offer every quest when linking.
+
 ## 0.4.3 — 2026-10-18
 
 - Fix: the shared Ashen Gate launcher group now sits above the Actors sidebar header instead of inside it, so Foundry's Create Actor / Create Folder buttons show again. Tighter padding around the group.
