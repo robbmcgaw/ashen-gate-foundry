@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.2 — 2026-10-18
+
+- New look from the shared Ashen Gate UI kit (`styles/ag-ui.css`): cleaner type, consistent padding, header, tabs, buttons and fields that match every other Ashen Gate module.
+- Window shell only in this release (header class and shared kit). Content styling is unchanged.
+- Follows the appearance chosen in General Manager, live, with no reload. Without Manager it uses the built-in Standard look.
+- Dropdowns no longer cut off the bottom of their text.
+- The Location Builder button in the Items sidebar is styled by the shared kit, so it matches the Manager button and the Actors-sidebar launchers.
+
 ## 0.8.1 — 2026-10-18
 
 - Moved to the `ashen-gate-foundry` repository. No gameplay changes.

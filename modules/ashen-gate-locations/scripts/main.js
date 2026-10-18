@@ -10,7 +10,7 @@ import {createLocationProvider, createResolverConnections, checkObjectiveLinks} 
 import {MAP_PATTERN, FRONTIER_OVERLAYS, emptyMapRegistry, newMap, validateMapRegistry, addFrontierPreset, matchOverlayTiles, mapOverlayUpdates, fileBasename} from "./maps-model.js";
 
 const BaseApp = foundry.applications.api.ApplicationV2;
-const MODULE_VERSION = "0.8.1";
+const MODULE_VERSION = "0.8.2";
 const DialogV2 = foundry.applications.api.DialogV2;
 const notify = {
   info: text => ui.notifications.info(text),

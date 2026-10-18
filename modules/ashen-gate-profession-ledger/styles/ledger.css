@@ -7,16 +7,16 @@
 .agl-app .window-content{padding:0;overflow:hidden;background:var(--ag-surface);color:var(--ag-text)}
 .agl-app .agl-host,.agl-app .agl-shell{height:100%;min-height:400px}
 .agl-shell{display:flex;flex-direction:column;color:var(--ag-text)}
-.agl-header{padding:var(--ag-space-3) var(--ag-space-4)}
+.agl-app .agl-header{padding:var(--ag-space-3) var(--ag-space-4)}
 .agl-title{font-size:var(--ag-text-sm);color:var(--ag-muted)}.agl-title strong{font-size:var(--ag-text-xl);color:var(--ag-text);display:block}
 .agl-sub{font-size:var(--ag-text-sm);color:var(--ag-muted);margin-top:4px}.agl-controls{display:flex;align-items:center;gap:var(--ag-space-2);flex-wrap:wrap}
 .agl-header-right{display:flex;align-items:center;gap:var(--ag-space-2);color:var(--ag-muted);font-size:var(--ag-text-sm)}
 .agl-app button{text-align:left}
-.agl-app button.active{background:var(--ag-accent-soft);border-color:var(--ag-accent);color:var(--ag-text)}
+.agl-app :not(.ag-tabs) > button.active{background:var(--ag-accent-soft);border-color:var(--ag-accent);color:var(--ag-text)}
 .agl-app button.agl-primary{background:var(--ag-accent);color:var(--ag-accent-contrast);font-weight:650;border-color:var(--ag-accent);padding:8px 16px;margin-top:16px}
 .agl-app button.agl-primary:hover{background:var(--ag-accent-hover)}.agl-app button.agl-small{font-size:var(--ag-text-sm);margin-top:4px;padding:4px 8px;min-height:28px}
 .agl-app button.agl-link{border:0;background:none;color:var(--ag-accent);padding:10px 0}
-.agl-tabs{overflow-x:auto;flex-wrap:nowrap}
+.agl-app .agl-tabs{overflow-x:auto;flex-wrap:nowrap}
 .agl-shell main{flex:1;min-height:0;overflow:auto;padding:var(--ag-space-4);background:var(--ag-surface)}
 .agl-panel{padding:16px;background:#1d292c;border:1px solid #34464a;border-radius:8px;min-width:0}
 .agl-panel h2{font-size:19px;color:#e9d7ac;margin:0 0 14px;font-weight:650}.agl-panel h2 small{font-size:12px;color:#94aaa9}

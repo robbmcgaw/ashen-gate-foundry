@@ -6,7 +6,7 @@ import {ASSIGNMENT_CONTRACT,listAssignments,getAssignment,saveAssignment,removeA
 import {selectTrackedViews,validTrackedId,trackingState} from './tracking.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 
-const VERSION='0.4.3';
+const VERSION='0.4.4';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;

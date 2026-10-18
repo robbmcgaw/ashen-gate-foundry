@@ -685,13 +685,13 @@ Hooks.once('ready',()=>{
     awardProfessionXP:(actor,profId,amount)=>awardXP(actor,profId,amount),
     getKnownRecipes:(actor)=>{checkPlayerLedger();if(!actor?.testUserPermission?.(game.user,'OBSERVER')&&!game.user.isGM)throw Error('Actor access denied');return knownRecipesOf(actor);},
     inspectProfessionPerkChoices:(actor,profId)=>{checkPlayerLedger();if(!game.user.isGM&&!actor?.testUserPermission?.(game.user,'OBSERVER'))throw Error('Actor access denied');return progressOf(actor,profId);},
-    version:'0.8.1',source:'Actor inventories, Manager tagged Items, and optional Ledger catalog'};
+    version:'0.8.2',source:'Actor inventories, Manager tagged Items, and optional Ledger catalog'};
   Hooks.on('updateActor',()=>{if(current?.rendered&&!current.demo)current.render();});
   Hooks.on('createItem',()=>{if(current?.rendered&&!current.demo)current.render();});
   Hooks.on('updateItem',()=>{if(current?.rendered&&!current.demo)current.render();});
   // Handle Actor Directory already rendered before ready hook ran.
   addActorDirectoryLauncher(globalThis.ui?.actors, globalThis.ui?.actors?.element);
-  console.info(`[${ID}] v0.8.1 ready. Open from the Actors directory, Module Settings or game.modules.get('${ID}').api.open()`);
+  console.info(`[${ID}] v0.8.2 ready. Open from the Actors directory, Module Settings or game.modules.get('${ID}').api.open()`);
 });
 
 /** Open Ledger on the Actors directory for both GM and players; idempotent across renders. */

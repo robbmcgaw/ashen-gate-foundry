@@ -1,5 +1,13 @@
 # Factions & Renown change history
 
+## 0.6.6 — 2026-10-18
+
+- New look from the shared Ashen Gate UI kit (`styles/ag-ui.css`): cleaner type, consistent padding, header, tabs, buttons and fields that match every other Ashen Gate module.
+- Follows the appearance chosen in General Manager, live, with no reload. Without Manager it uses the built-in Standard look.
+- Dropdowns no longer cut off the bottom of their text.
+- The Actors-sidebar launcher buttons now match the Manager and Location Builder buttons in the Items sidebar, with padding inside the sidebar edges.
+- Tabs sit in a full-width strip at the top of the main pane. Headings use the UI font instead of Georgia.
+
 ## 0.6.5 — 2026-10-18
 
 - Fix: the shared Ashen Gate launcher group now sits above the Actors sidebar header instead of inside it, so Foundry's Create Actor / Create Folder buttons show again. Tighter padding around the group.

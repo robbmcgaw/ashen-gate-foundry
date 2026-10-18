@@ -2,6 +2,14 @@
 
 - Fix: the shared Ashen Gate launcher group now sits above the Actors sidebar header instead of inside it, so Foundry's Create Actor / Create Folder buttons show again. Tighter padding around the group.
 
+## 0.8.2 — 2026-10-18
+
+- New look from the shared Ashen Gate UI kit (`styles/ag-ui.css`): cleaner type, consistent padding, header, tabs, buttons and fields that match every other Ashen Gate module.
+- Window shell only in this release (header, tabs, buttons). Tab content styling is unchanged.
+- Follows the appearance chosen in General Manager, live, with no reload. Without Manager it uses the built-in Standard look.
+- Dropdowns no longer cut off the bottom of their text.
+- The Actors-sidebar launcher buttons now match the Manager and Location Builder buttons in the Items sidebar, with padding inside the sidebar edges.
+
 ## 0.8.0 — 2026-10-18
 
 - Players: **Recipes** and **Recipe Learning** are now one **Recipes** tab (#5). *Known by the party* lists every recipe learned by a roster character, who knows it and its ingredients; only those characters can craft it. *Found, not yet learned* lists recipe items in party inventories and who holds them; the holder's owner gets the Learn button.

@@ -90,22 +90,22 @@
   background: var(--ag-surface);
   color: var(--ag-text);
 }
-.ag-app :where(h1, h2, h3, h4) {
+:where(.ag-app) :where(h1, h2, h3, h4) {
   font-family: var(--ag-font-display);
   color: var(--ag-text);
   border: 0;
   line-height: 1.25;
   font-weight: 650;
 }
-.ag-app :where(p) { line-height: 1.5; }
-.ag-app :where(a) { color: var(--ag-accent); }
-.ag-app :where(code, pre, kbd) { font-family: var(--ag-font-mono); font-size: .92em; }
-.ag-app :where(hr) { border: 0; border-top: 1px solid var(--ag-border); margin: var(--ag-space-3) 0; }
-.ag-app ::selection { background: var(--ag-accent-soft); }
-.ag-app :where(*) { scrollbar-color: var(--ag-border-strong) transparent; scrollbar-width: thin; }
+:where(.ag-app) :where(p) { line-height: 1.5; }
+:where(.ag-app) :where(a) { color: var(--ag-accent); }
+:where(.ag-app) :where(code, pre, kbd) { font-family: var(--ag-font-mono); font-size: .92em; }
+:where(.ag-app) :where(hr) { border: 0; border-top: 1px solid var(--ag-border); margin: var(--ag-space-3) 0; }
+:where(.ag-app) ::selection { background: var(--ag-accent-soft); }
+:where(.ag-app) :where(*) { scrollbar-color: var(--ag-border-strong) transparent; scrollbar-width: thin; }
 
 /* ---------- Generic controls inside an Ashen Gate window ---------- */
-.ag-app :where(button:not(.header-control):not([data-action="close"])) {
+:where(.ag-app) :where(button:not(.header-control):not([data-action="close"])) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -124,13 +124,13 @@
   box-shadow: none;
   transition: background-color .12s ease, border-color .12s ease, color .12s ease;
 }
-.ag-app :where(button:not(.header-control):hover:not(:disabled)) {
+:where(.ag-app) :where(button:not(.header-control):hover:not(:disabled)) {
   background: var(--ag-surface-hover);
   border-color: var(--ag-border-strong);
   box-shadow: none;
 }
-.ag-app :where(button:disabled) { opacity: .5; cursor: not-allowed; }
-.ag-app :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select, textarea) {
+:where(.ag-app) :where(button:disabled) { opacity: .5; cursor: not-allowed; }
+:where(.ag-app) :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select, textarea) {
   box-sizing: border-box;
   max-width: 100%;
   min-height: var(--ag-control-h);
@@ -142,19 +142,19 @@
   font: 400 var(--ag-text-md)/1.4 var(--ag-font-body);
   box-shadow: none;
 }
-.ag-app :where(textarea) { resize: vertical; }
-.ag-app :where(input, select, textarea)::placeholder { color: var(--ag-muted); opacity: .85; }
-.ag-app :where(input[type="checkbox"], input[type="radio"], input[type="range"], progress) { accent-color: var(--ag-accent); }
-.ag-app :where(select option) { background: var(--ag-surface-raised); color: var(--ag-text); }
-.ag-app :where(fieldset) {
+:where(.ag-app) :where(textarea) { resize: vertical; }
+:where(.ag-app) :where(input, select, textarea)::placeholder { color: var(--ag-muted); opacity: .85; }
+:where(.ag-app) :where(input[type="checkbox"], input[type="radio"], input[type="range"], progress) { accent-color: var(--ag-accent); }
+:where(.ag-app) :where(select option) { background: var(--ag-surface-raised); color: var(--ag-text); }
+:where(.ag-app) :where(fieldset) {
   border: 1px solid var(--ag-border);
   border-radius: var(--ag-radius);
   padding: var(--ag-space-2) var(--ag-space-3) var(--ag-space-3);
   margin: var(--ag-space-3) 0;
 }
-.ag-app :where(legend) { color: var(--ag-muted); font-size: var(--ag-text-sm); padding: 0 var(--ag-space-1); }
-.ag-app :where(table) { border-collapse: collapse; }
-.ag-app :where(th) { color: var(--ag-muted); font-weight: 600; text-align: left; }
+:where(.ag-app) :where(legend) { color: var(--ag-muted); font-size: var(--ag-text-sm); padding: 0 var(--ag-space-1); }
+:where(.ag-app) :where(table) { border-collapse: collapse; }
+:where(.ag-app) :where(th) { color: var(--ag-muted); font-weight: 600; text-align: left; }
 
 /* Selects never clip their text: Foundry gives form controls a fixed height, which cuts off
    descenders once padding or a larger font is added. Let the select size to its content. */
@@ -168,14 +168,14 @@
 }
 
 /* Focus rings */
-.ag-app :where(button, input, select, textarea, summary, a, [tabindex]):focus-visible,
+:where(.ag-app) :where(button, input, select, textarea, summary, a, [tabindex]):focus-visible,
 .ag-launcher:focus-visible,
 .ag-sidebar-launch-button:focus-visible {
   outline: 2px solid var(--ag-focus);
   outline-offset: 2px;
   box-shadow: none;
 }
-.ag-app :where(input, select, textarea):focus { border-color: var(--ag-accent); outline: none; }
+:where(.ag-app) :where(input, select, textarea):focus { border-color: var(--ag-accent); outline: none; }
 
 /* ---------- .ag-header: module title row ---------- */
 .ag-header {
