@@ -50,6 +50,6 @@ export function classifyDelivery(input) {
 /** Definition data is never a substitute for a domain owner's revision-aware world editor. */
 export function domainHandoff(record) {
   if(record?.entity_type==='Location'||record?.entity_type==='Region'||String(record?.id??'').startsWith('LOC-'))
-    return 'Location/Region definitions must be reviewed and imported through the standalone Locations module (world revisions, Journal previews and GM publish). Existing Manager-bound records remain browseable; direct create/update is disabled.';
+    return 'Location records are not Foundry documents Manager creates itself: its import passes them to the Locations module (enable it). Region records and existing Manager-bound records stay browseable; direct create/update is disabled.';
   return null;
 }

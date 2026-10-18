@@ -12,14 +12,11 @@ Raw file: `https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/t
 
 1. Open Ashen Gate | Manager (GM only) and choose the import/package option, then pick `AG_Playtest_Pack_0.4.0.json`.
 2. Leave "Include drafts" off for a normal player-facing test. Turn it on to also import the draft recipe and item.
-3. Apply. Items land under `Ashen Gate/Playtest/` (Professions, Materials, Recipes, Items).
+3. Apply. Items land under `Ashen Gate/Playtest/` (Professions, Materials, Recipes, Items), and the locations are imported with them.
 
-## Import the locations
+## Locations
 
-Manager lists the three `LOC-PT-*` records as blocked ("must be imported through the standalone Locations module"); that is expected.
-
-1. Items sidebar → **Location Builder** → **GM Setup** → **Import JSON**, pick the same `AG_Playtest_Pack_0.4.0.json`.
-2. Three locations appear under *[TEST] Playtest Vale*. Other record types in the file are ignored.
+With Locations 1.2.0+ active, the same Manager import also creates the three `LOC-PT-*` locations (after the items, in the same Apply). They appear under *[TEST] Playtest Vale* in Location Builder. Without Locations they show as skipped ("enable Locations"). Importing again keeps existing locations; tick **Update existing locations** to replace their definitions. Location Builder → GM Setup → Import JSON still reads this file for Locations-only use.
 
 ## Give a recipe item to a character
 

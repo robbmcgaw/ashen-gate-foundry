@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.2.0 — 2026-10-18
+
+- New GM-only API `importLocations(records, {mode})` for General Manager's single import run. `mode: "skip"` (default) leaves any existing location id exactly as it is; `mode: "update"` replaces its definition but keeps whether it is revealed and which finite nodes are exhausted. Returns `{created, updated, skipped: [{id, reason}]}`.
+- **Import JSON** in GM Setup stays as a secondary path for using Locations without General Manager. It still skips existing ids.
+
 ## 1.1.0 — 2026-10-18
 
 - Gathering resources are now **gathering nodes** (#21): skill, tier 1–5, DC (defaults 10/12/13/14/15 by tier, editable), a common material and an optional rare one (success by 5+), quantities, *Finite* and *Available* switches, and a note. Edited inline in the GM builder.

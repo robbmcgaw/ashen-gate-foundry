@@ -3,7 +3,7 @@
  * GM calls read full records. Player calls read only the sanitized player view, and only while
  * Player Access is on. Write calls are GM-only. Every guard lives here, not in the UI.
  */
-import {MODULE_ID, GATHERING, clone, newLocation, normalizeLocation, parseImport, exportPackage, resourcesOf, nodeForGM, nodeMatch} from './model.mjs';
+import {MODULE_ID, GATHERING, clone, newLocation, normalizeLocation, parseImport, exportPackage, importRecords, resourcesOf, nodeForGM, nodeMatch} from './model.mjs';
 
 export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
 
@@ -100,6 +100,21 @@ export function createApi(deps) {
       const result = parseImport(pkg, all.map(l => l.id));
       if (result.created.length) await deps.writeAll([...all, ...result.created]);
       return {created: result.created.map(l => l.id), skipped: result.skipped, errors: result.errors};
+    },
+    /**
+     * GM: imports Location records from an ag-foundry-import/0.2 package (General Manager calls this in its
+     * import run). mode 'skip' keeps existing ids as they are; 'update' replaces their definition but keeps
+     * revealed/exhausted state. Returns {created: [id], updated: [id], skipped: [{id, reason}]}.
+     */
+    async importLocations(records, {mode = 'skip'} = {}) {
+      requireGM();
+      const all = deps.readAll();
+      const r = importRecords(records, all, {mode});
+      if (r.created.length || r.updated.length) {
+        const replaced = new Map(r.updated.map(l => [l.id, l]));
+        await deps.writeAll([...all.map(l => replaced.get(l.id) ?? l), ...r.created]);
+      }
+      return {created: r.created.map(l => l.id), updated: r.updated.map(l => l.id), skipped: r.skipped};
     },
     exportPackage() {
       requireGM();

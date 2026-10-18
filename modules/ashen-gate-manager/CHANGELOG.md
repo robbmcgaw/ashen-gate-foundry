@@ -1,3 +1,10 @@
+## 0.13.0 — 2026-10-18
+
+- **One import for everything.** Location records in an `ag-foundry-import/0.2` package are now imported by Manager's normal run when Locations (1.2.0+) is active: Items and other documents first, then the Locations are passed to `api.importLocations` in the same Apply, so Material references resolve. You no longer import the same file a second time in Location Builder.
+- Location rows appear in the normal preview (create, or skipped with a reason) and in the import message and History (imported count, skipped count with reasons). Existing location ids are kept as they are unless you tick the new **Update existing locations** option.
+- If Locations is not active the rows are skipped and the preview says "N location records skipped: enable Locations".
+- Draft locations follow **Include drafts** like every other record.
+
 ## 0.12.2 — 2026-10-18
 
 - Header is one line: title and version on the left, Help and the "GM only" chip on the right. The empty emblem box (non-existent `fa-gate` icon) is replaced by a `fa-dungeon` icon.
