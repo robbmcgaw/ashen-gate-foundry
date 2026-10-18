@@ -128,7 +128,7 @@ function historyView(app){if(!isGM())return empty('History is GM-only.');
 }
 function setupView(){return `<section class="agu-card"><h2>GM Setup</h2><label class="agu-inline"><input id="agu-access" type="checkbox" ${game.settings.get(ID,'playerAccessEnabled')?'checked':''}>Enable Player Access</label><p class="agu-note">This controls the player-facing Utilities launcher, not native Actor ownership.</p><div class="agu-actions">${btn('save-access','Save Player Access',{kind:'primary'})}</div></section>`;}
 class UtilitiesApp extends ApplicationV2 {
- static DEFAULT_OPTIONS={id:'ashen-gate-utilities-window',classes:['ag-utilities'],window:{title:'Ashen Gate | Utilities',resizable:true,minimizable:true},position:{width:900,height:690,minWidth:620,minHeight:490}};
+ static DEFAULT_OPTIONS={id:'ashen-gate-utilities-window',classes:['ag-utilities'],window:{title:'Ashen Gate | Utilities',resizable:true,minimizable:true},position:{width:900,height:690}};
  constructor(...args){super(...args);this.tab='checks';this.actorId='';this.rollActorId='';this.tableDraft='';this.tableAuto=false;}
  async _renderHTML(){if(!permitted())throw Error('Utilities is hidden for players.');const tabs=[['checks','Group Checks'],['rolls','Roll Requests'],['inventory','Party Inventory'],['tables','Roll Tables'],['conditions','Conditions'],...(isGM()?[['history','History'],['setup','GM Setup']]:[])];
   const body=this.tab==='checks'?interactionView('group',this):this.tab==='rolls'?interactionView('request',this):this.tab==='inventory'?inventoryView():this.tab==='tables'?tableView(this):this.tab==='conditions'?conditionsView(this):this.tab==='history'&&isGM()?historyView(this):this.tab==='setup'&&isGM()?setupView():empty('Unavailable view.');

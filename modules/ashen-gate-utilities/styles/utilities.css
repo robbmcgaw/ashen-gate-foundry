@@ -70,3 +70,6 @@
 #ashen-gate-launchers > .ag-launcher {display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:32px;margin:0;padding:4px 10px;box-sizing:border-box;font:600 13px/1.2 var(--font-primary,sans-serif);white-space:normal;text-align:center;cursor:pointer;}
 #ashen-gate-launchers > .ag-launcher > i {flex:0 0 16px;text-align:center;}
 #ashen-gate-launchers > .ag-launcher:focus-visible {outline:2px solid var(--color-border-highlight,#d8b788);outline-offset:1px;}
+
+/* ApplicationV2 position is sealed (no minWidth/minHeight); enforce minimum size in CSS. */
+.application.ag-utilities{min-width:620px;min-height:490px}

@@ -2,7 +2,7 @@
   "id": "ashen-gate-utilities",
   "title": "Ashen Gate | Utilities",
   "description": "Foundry V14 tabletop utility shell with Group Checks, Roll Requests, native RollTable sharing, native condition viewing, and a party stash preview.",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "authors": [
     {
       "name": "Ashen Gate project"
@@ -30,5 +30,5 @@
   ],
   "url": "https://github.com/robbmcgaw/ashen-gate-foundry",
   "manifest": "https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-utilities/module.json",
-  "download": "https://github.com/robbmcgaw/ashen-gate-foundry/releases/download/ashen-gate-utilities-v0.2.2/ashen-gate-utilities.zip"
+  "download": "https://github.com/robbmcgaw/ashen-gate-foundry/releases/download/ashen-gate-utilities-v0.2.3/ashen-gate-utilities.zip"
 }
