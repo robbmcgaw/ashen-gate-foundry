@@ -13,7 +13,7 @@
 - **Player prompt**: eligible connected players receive a notification and automatically see the relevant Utilities tab when a new session starts; the main **Roll Now** control is larger and more obvious. Player roll view is intentionally compact.
 - **History**: GM History now shows per-character skill, accepted total, pending/skipped/cancelled status, individual result versus DC, Group Check average and outcome.
 - **Conditions**: native status information in a two-pane party/selected-character view, with Foundry condition icons when supplied by `CONFIG.statusEffects`. Uses native `Actor.toggleStatusEffect`; listens to Actor and ActiveEffect updates for in-world refresh.
-- **RollTables**: explicitly rejects a table containing native document/compendium result entries *before* rolling it or attempting to send a message. Editable preview, per-player whisper and text-only Auto-Send retained.
+- **RollTables**: rolls with Foundry's own `RollTable#draw`. Text, document and compendium results are all supported; document results are shown with an Open button and sent as `@UUID` links. Editable preview, per-player whisper and Auto-Send retained.
 - **Party Inventory**: documents and enforces the existing intentionally GM-only read-only stash UI, including when native Actor Observer permission is granted. No cross-Actor transfers.
 - **Layout**: content-fit controls, two-pane responsive layout, shared Actors launch-group metadata/order rank 60 and 36px launcher button; `ApplicationV2` minimum dimensions target 620 × 490. Manager remains optional.
 
