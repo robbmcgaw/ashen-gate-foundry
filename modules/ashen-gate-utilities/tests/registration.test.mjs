@@ -11,7 +11,7 @@ globalThis.ui={actors:null,notifications:{info:()=>{},error:()=>{}}};
 globalThis.Hooks={once:(k,fn)=>handlers.once.set(k,fn),on:(k,fn)=>{handlers.on.set(k,fn);return 123;},off:()=>{}};
 await import('../scripts/main.mjs');
 handlers.once.get('init')();handlers.once.get('ready')();
-test('registers three module-owned world settings',()=>{assert.equal(settings.size,3);assert.equal(settings.get(`${ID}.playerAccessEnabled`).value,false);});
+test('registers four module-owned world settings',()=>{assert.equal(settings.size,4);assert.equal(settings.get(`${ID}.playerAccessEnabled`).value,false);});
 test('publishes working and versioned public Open API',()=>{const api=game.modules.get(ID).api;assert.equal(api.version,VERSION);assert.equal(typeof api.open,'function');});
 test('Player Access conforms to ag-player-access/1',()=>{const s=game.modules.get(ID).api.playerAccess.getState();assert.deepEqual(s,{contract:'ag-player-access/1',moduleId:ID,audience:'player',playerAccessEnabled:false,configurable:true});});
 test('Player Access rejects unauthorized user writes',async()=>{const api=game.modules.get(ID).api.playerAccess;game.user={id:'player',isGM:false};await assert.rejects(api.setEnabled(true),/GM only/);game.user=gm;assert.equal(game.settings.get(ID,'playerAccessEnabled'),false);});
@@ -85,12 +85,52 @@ test('party stash remains hidden to players even when Actor observer permission 
  const html=await app._renderHTML();assert.ok(html.includes('Observer permission'));assert.ok(!html.includes('GM PRIVATE ITEM'));assert.ok(!html.includes('Create GM-only Party Stash'));
  game.user=gm;
 });
-test('RollTables with document results are rejected before invoking roll',async()=>{
- let rolled=0;const t={id:'table1',name:'Document Results',results:[{type:1}],roll:async()=>{rolled++;}};
+test('RollTables with document results are drawn with Foundry draw and linked',async()=>{
+ let drew=0,opts=null;
+ const t={id:'table1',name:'Document Results',results:[{type:'document'}],draw:async o=>{drew++;opts=o;return {results:[{type:'document',name:'Iron Key',documentUuid:'Compendium.world.keys.Item.abc'},{type:'text',name:'',description:'<p>Rust flakes</p>'}]};}};
  game.tables=[t];game.tables.get=id=>game.tables.find(x=>x.id===id);game.user=gm;
  const app=await game.modules.get(ID).api.open();app.tab='tables';
- await assert.rejects(app.handle('table-roll',{disabled:false},{querySelector:q=>q==='#agu-table'?{value:'table1'}:null}),/document\/compendium/);
- assert.equal(rolled,0);
+ await app.handle('table-roll',{disabled:false},{querySelector:q=>q==='#agu-table'?{value:'table1'}:null});
+ assert.equal(drew,1);assert.equal(opts.displayChat,false);
+ assert.equal(app.tableDraft,'@UUID[Compendium.world.keys.Item.abc]{Iron Key}\nRust flakes');
+ const html=await app._renderHTML();assert.ok(html.includes('data-open-uuid="Compendium.world.keys.Item.abc"'));assert.ok(html.includes('Iron Key'));
+});
+test('finished Group Check persists for everyone until the GM clears it, and tallies to GM chat',async()=>{
+ const chats=[];globalThis.ChatMessage={create:async m=>{chats.push(m);return m;},getSpeaker:()=>({})};
+ const player=game.users.find(u=>u.id==='player');game.user=gm;game.users.get=id=>game.users.find(u=>u.id===id);
+ await game.settings.set(ID,'activeSession',{});await game.settings.set(ID,'lastResult',{});
+ globalThis.CONFIG={DND5E:{skills:{}},statusEffects:[]};game.i18n={localize:x=>x};
+ const s=createSession({id:'persist1',name:'Climb the Wall',kind:'group',actors:['pc01'],skills:['ath'],createdBy:'gm',dc:10});
+ await game.settings.set(ID,'activeSession',s);
+ const proof={id:'proof-p1',author:player,speaker:{actor:'pc01'},rolls:[{total:14}]};game.messages.set(proof.id,proof);
+ handlers.on.get('createChatMessage')({id:'submit-p1',author:player,flags:{[ID]:{submission:{contract:'ag-utility-roll/0.1',sessionId:'persist1',actorId:'pc01',skill:'ath',total:14,proofMessageId:'proof-p1'}}}});
+ await new Promise(r=>setTimeout(r,20));
+ assert.deepEqual(game.settings.get(ID,'activeSession'),{});
+ const kept=game.settings.get(ID,'lastResult');assert.equal(kept.name,'Climb the Wall');assert.deepEqual(kept.audit,[]);assert.equal(kept.slots[0].userId,null);
+ assert.equal(chats.length,1);assert.deepEqual(chats[0].whisper,['gm']);assert.ok(chats[0].content.includes('Climb the Wall')&&chats[0].content.includes('Success')&&chats[0].content.includes('14'));
+ // Players still see it, with no Clear control; the GM sees Clear Result.
+ game.user=player;await game.settings.set(ID,'playerAccessEnabled',true);
+ let app=await game.modules.get(ID).api.open();app.tab='checks';
+ let html=await app._renderHTML();assert.ok(html.includes('Climb the Wall'));assert.ok(html.includes('Success'));assert.ok(!html.includes('Clear Result'));
+ await assert.rejects(app.handle('clear-result',{disabled:false},{}),/GM only/);
+ game.user=gm;app=await game.modules.get(ID).api.open();app.tab='checks';
+ html=await app._renderHTML();assert.ok(html.includes('Clear Result'));
+ await app.handle('clear-result',{disabled:false},{});
+ assert.deepEqual(game.settings.get(ID,'lastResult'),{});
+ html=await app._renderHTML();assert.ok(!html.includes('Climb the Wall'));
+});
+test('unknown statuses are traced to their effect and the GM can remove them',async()=>{
+ game.user=gm;globalThis.CONFIG={DND5E:{skills:{}},statusEffects:[{id:'prone',name:'Prone'}]};game.i18n={localize:x=>x};globalThis.confirm=()=>true;
+ const deleted=[];
+ const effect={id:'fx1',name:'Mind Haze',statuses:new Set(['thinking']),origin:'Actor.pc01.Item.spell1',disabled:false,parent:null};
+ const actor={id:'pc01',name:'PC',type:'character',statuses:new Set(['prone','thinking']),effects:[effect],items:[],testUserPermission:()=>true,getFlag:()=>null,deleteEmbeddedDocuments:async(t,ids)=>{deleted.push(...ids);effect.disabled=true;}};
+ effect.parent=actor;
+ game.actors=[actor];game.actors.get=id=>game.actors.find(a=>a.id===id);
+ const app=await game.modules.get(ID).api.open();app.tab='conditions';app.actorId='pc01';
+ const html=await app._renderHTML();
+ assert.ok(html.includes('Custom'));assert.ok(html.includes('Mind Haze'));assert.ok(html.includes('data-status="thinking"'));assert.ok(html.includes('data-status="prone"'));
+ await app.handle('remove-status',{disabled:false,dataset:{status:'thinking'}},{});
+ assert.deepEqual(deleted,['fx1']);
 });
 test('player-facing pending roll is prominent and group/roll request states differ',async()=>{
  const player=game.users.find(u=>u.id==='player');game.user=player;await game.settings.set(ID,'playerAccessEnabled',true);

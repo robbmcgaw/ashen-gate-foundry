@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.2.4';
+export const VERSION = '0.3.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -94,4 +94,104 @@ export function projectSession(session,{userId,isGM=false,ownedActorIds=[]}={}){
       if(visible)return {...s,proofMessageId:isGM?s.proofMessageId:null};
       return {...s,total:null,skill:null,userId:null,proofMessageId:null};
     })};
+}
+
+/* ---- v0.3.0: Group Check bonus/advantage, tally, RollTable draw results, unknown statuses ---- */
+export const formatBonus = n => Number.isFinite(n) ? (n >= 0 ? `+${n}` : `−${Math.abs(n)}`) : '—';
+/** Skill check modifier as prepared by dnd5e (`system.skills.<id>.total`), or null if unavailable. */
+export function skillBonus(actor, skill) {
+  const total = Number(actor?.system?.skills?.[skill]?.total);
+  return Number.isFinite(total) ? total : null;
+}
+const isOn = v => !['', '0', 'false', 'null', 'undefined'].includes(String(v ?? '').trim().toLowerCase());
+const activeEffects = actor => {
+  const list = typeof actor?.allApplicableEffects === 'function' ? [...actor.allApplicableEffects()] : [...(actor?.effects ?? [])];
+  return list.filter(e => e && !e.disabled && !e.isSuppressed);
+};
+/**
+ * Advantage/disadvantage a skill check starts with.
+ * dnd5e already folds sheet settings and Active Effects into the prepared `roll.mode` of the skill and
+ * its ability check (1 advantage, -1 disadvantage), so those are read first. Midi-QOL style effect flags
+ * are also honoured when present. Advantage and disadvantage cancel, as they do at the table.
+ * Returns {mode: -1|0|1, sources: string[]}; the player can still override the preset.
+ */
+export function skillRollMode(actor, skill) {
+  const sys = actor?.system, sk = sys?.skills?.[skill], ability = sk?.ability;
+  const adv = [], dis = [];
+  const note = (mode, label) => { if (mode > 0) adv.push(label); else if (mode < 0) dis.push(label); };
+  note(Math.sign(Number(sk?.roll?.mode) || 0), 'skill setting');
+  if (ability) note(Math.sign(Number(sys?.abilities?.[ability]?.check?.roll?.mode) || 0), `${String(ability).toUpperCase()} check setting`);
+  const dnd5eKeys = [`system.skills.${skill}.roll.mode`, ability ? `system.abilities.${ability}.check.roll.mode` : null].filter(Boolean);
+  const midi = new RegExp(`^flags\\.midi-qol\\.(advantage|disadvantage)\\.(all|skill\\.(all|${skill})${ability ? `|ability\\.check\\.(all|${ability})` : ''})$`);
+  for (const effect of activeEffects(actor)) {
+    for (const change of effect.changes ?? []) {
+      const key = String(change.key ?? '');
+      const m = midi.exec(key);
+      if (m && isOn(change.value)) note(m[1] === 'advantage' ? 1 : -1, effect.name ?? effect.label ?? 'effect');
+      else if (dnd5eKeys.includes(key)) {
+        // Already counted via the prepared value above; just name the effect that set it.
+        const v = Math.sign(Number(change.value) || 0), list = v > 0 ? adv : v < 0 ? dis : null;
+        if (list && list.length) list[list.length - 1] += ` (${effect.name ?? effect.label ?? 'effect'})`;
+      }
+    }
+  }
+  const mode = adv.length && dis.length ? 0 : adv.length ? 1 : dis.length ? -1 : 0;
+  return {mode, sources: [...adv.map(s => `Advantage: ${s}`), ...dis.map(s => `Disadvantage: ${s}`)]};
+}
+
+/** Chat-ready tally of a finished Group Check (GM whisper). `names(actorId)` and `skillLabel(skillId)` are supplied by the caller. */
+export function tallyHTML(session, {actorName = id => id, skillLabel = id => id} = {}) {
+  const sum = summary(session), E = escapeHTML;
+  const verdict = session.dc === null ? 'Recorded' : sum.result === 'success' ? 'Success' : sum.result === 'failure' ? 'Failure' : 'No result';
+  const rows = session.actors.map(id => {
+    const mine = session.slots.filter(s => s.actorId === id);
+    const parts = mine.map(s => s.status === 'accepted' ? `${E(skillLabel(s.skill))} <strong>${E(s.total)}</strong>` : s.status === 'skipped' ? '<em>skipped</em>' : '<em>no roll</em>');
+    return `<li><strong>${E(actorName(id))}</strong>: ${parts.join(' · ')}</li>`;
+  }).join('');
+  const avg = sum.average === null ? '—' : sum.average.toFixed(1);
+  return `<div class="ag-utilities-tally"><h3>${E(session.name)} — ${E(verdict)}</h3><p>Average <strong>${E(avg)}</strong>${session.dc === null ? '' : ` vs DC <strong>${E(session.dc)}</strong>`} · ${sum.accepted} roll(s) counted, ${sum.skipped} skipped</p><ul>${rows}</ul></div>`;
+}
+
+const stripTags = html => String(html ?? '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>\s*<p>/gi, '\n').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").trim();
+/**
+ * Describes one drawn TableResult. Document and compendium results carry a UUID (`documentUuid` in V13+);
+ * those are returned as links so chat can enrich them.
+ */
+export function describeTableResult(result) {
+  const uuid = result?.documentUuid ?? result?.documentUri ?? null;
+  const name = String(result?.name ?? '').trim();
+  const text = stripTags(result?.description ?? result?.text ?? '');
+  if (typeof uuid === 'string' && uuid) {
+    const label = name || text || uuid;
+    return {kind: 'document', uuid, label, chat: `@UUID[${uuid}]{${label.replace(/[{}\[\]]/g, '')}}`, img: result?.img ?? null};
+  }
+  const body = [name, text].filter(Boolean).join(': ');
+  return {kind: 'text', uuid: null, label: body, chat: body, img: null};
+}
+
+/**
+ * Effects on an Actor that put `statusId` on `actor.statuses`, for statuses the module does not know.
+ * Each entry says where the effect lives so the GM can see its source and remove it.
+ */
+export function resolveStatusSources(actor, statusId) {
+  const out = [];
+  const all = typeof actor?.allApplicableEffects === 'function' ? [...actor.allApplicableEffects()] : [...(actor?.effects ?? [])];
+  for (const effect of all) {
+    const st = effect?.statuses;
+    const has = st instanceof Set ? st.has(statusId) : Array.isArray(st) ? st.includes(statusId) : false;
+    if (!has && effect?.getFlag?.('core', 'statusId') !== statusId) continue;
+    const parent = effect.parent;
+    out.push({effect, effectId: effect.id, name: effect.name ?? effect.label ?? statusId, origin: typeof effect.origin === 'string' ? effect.origin : null,
+      onActor: !parent || parent === actor || parent.documentName === 'Actor', parentName: parent?.name ?? null, disabled: Boolean(effect.disabled)});
+  }
+  return out;
+}
+/** Remove a status the module does not know: delete effects on the Actor, disable ones inherited from an Item. */
+export async function removeUnknownStatus(actor, statusId) {
+  const sources = resolveStatusSources(actor, statusId);
+  if (!sources.length) throw Error(`No active effect on ${actor?.name ?? 'this character'} provides "${statusId}". It may come from the system or another module; remove it in that source.`);
+  const own = sources.filter(s => s.onActor), inherited = sources.filter(s => !s.onActor);
+  if (own.length) await actor.deleteEmbeddedDocuments('ActiveEffect', own.map(s => s.effectId));
+  for (const s of inherited) await s.effect.update({disabled: true});
+  return {deleted: own.length, disabled: inherited.length, sources};
 }
