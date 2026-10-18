@@ -16,7 +16,7 @@ globalThis.ui={actors:{element:null},notifications:{info:()=>{},error:()=>{}}};
 await import('../scripts/main.mjs');
 callbacks.get('init')();callbacks.get('ready')();
 test('mock boot publishes exact-ID consumer and Quest-owned Assignment API',()=>{
- assert.equal(module.api.version,'0.4.3');assert.equal(module.api.consumer.contract,'ag-objective-consumer/0.2-alpha');assert.equal(module.api.assignments.contract,'ag-quest-assignments/0.1-alpha');
+ assert.equal(module.api.version,'0.5.0');assert.equal(module.api.consumer.contract,'ag-objective-consumer/0.2-alpha');assert.equal(module.api.assignments.contract,'ag-quest-assignments/0.1-alpha');
 });
 test('direct non-GM APIs reject hidden Player Access, including resolver',()=>{
  game.user=alice;access=false;
@@ -42,4 +42,10 @@ test('player cannot use direct GM state-write API',async()=>{
  game.user=alice;access=true;
  assert.throws(()=>module.api.setGMState('QUEST-SAFE',{status:'Completed'}),/GM permission/);
  await assert.rejects(()=>module.api.assignments.save({}),/GM permission/);
+});
+test('listQuests is GM-only and lists every quest for linking',()=>{
+ game.user=alice;access=true;
+ assert.throws(()=>module.api.listQuests(),/GM permission/);
+ game.user=gm;
+ assert.deepEqual(module.api.listQuests().map(q=>[q.id,q.status]),[['QUEST-HIDDEN','Hidden']],'GM sees hidden quests too');
 });
