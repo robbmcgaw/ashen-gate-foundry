@@ -23,6 +23,7 @@ test('pack has the promised contents', () => {
   assert.equal(byType('Material').length, 8);
   assert.equal(byType('Recipe').length, 8);
   assert.equal(byType('Item').length, 8);
+  assert.equal(byType('Location').length, 3);
   const given = byType('Recipe').filter(r => r.foundry.data.type === 'consumable');
   assert.equal(given.length, 3);
   for (const r of given) assert.match(r.foundry.data.name, /^Recipe: /);
@@ -40,7 +41,7 @@ test('only deliberate gm/draft examples are non-player-approved; every recipe pr
     assert.ok(ids.has(r.result_item_id), r.id);
     for (const ing of r.ingredients) assert.ok(ids.has(ing.material_id), `${r.id} -> ${ing.material_id}`);
   }
-  for (const r of pack.records) assert.match(r.foundry.data.name, /\[TEST\]/, r.id);
+  for (const r of pack.records) assert.match(r.foundry?.data.name ?? r.name, /\[TEST\]/, r.id);
 });
 test("Manager's validatePackage accepts the pack with no errors", () => {
   assert.deepEqual(validatePackage(pack), []);

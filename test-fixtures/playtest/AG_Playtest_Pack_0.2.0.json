@@ -2,15 +2,15 @@
   "manifest": {
     "schema_version": "ag-foundry-import/0.2",
     "package_id": "AG-PLAYTEST-PACK",
-    "version": "0.1.0",
-    "description": "Synthetic playtest pack: 3 professions, 8 materials, 8 recipes with crafted items, 3 give-to-player recipe items. Includes one GM-only material and one draft recipe/item as deliberate visibility examples. Not canon."
+    "version": "0.2.0",
+    "description": "Synthetic playtest pack: 3 professions, 8 materials, 8 recipes with crafted items, 3 give-to-player recipe items. 3 locations (Normal/Hot/Deadly) for the Locations module. Includes one GM-only material, one draft recipe/item and hidden location content as deliberate visibility examples. Not canon."
   },
   "records": [
     {
       "id": "PROF-PT-ALCHEMY",
       "entity_type": "Profession",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -145,7 +145,7 @@
       "id": "PROF-PT-HERBALISM",
       "entity_type": "Profession",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -267,7 +267,7 @@
       "id": "PROF-PT-BLACKSMITHING",
       "entity_type": "Profession",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -401,7 +401,7 @@
       "id": "MAT-PT-EMBERROOT",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -447,7 +447,7 @@
       "id": "MAT-PT-PALEMOSS",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -493,7 +493,7 @@
       "id": "MAT-PT-GLASSBLOOM",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -539,7 +539,7 @@
       "id": "MAT-PT-IRON-ORE",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -578,7 +578,7 @@
       "id": "MAT-PT-COAL",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -617,7 +617,7 @@
       "id": "MAT-PT-LEATHER-STRIPS",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -656,7 +656,7 @@
       "id": "MAT-PT-ASHWOOD-PLANKS",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -695,7 +695,7 @@
       "id": "MAT-PT-GM-ONLY-RESIN",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -734,7 +734,7 @@
       "id": "REC-PT-EMBER-SALVE",
       "entity_type": "Recipe",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -807,7 +807,7 @@
       "id": "REC-PT-MISTVEIL-TONIC",
       "entity_type": "Recipe",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -880,7 +880,7 @@
       "id": "REC-PT-GLASSBLOOM-ELIXIR",
       "entity_type": "Recipe",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -953,7 +953,7 @@
       "id": "REC-PT-DRAFT-DRAUGHT",
       "entity_type": "Recipe",
       "status": "draft",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1016,7 +1016,7 @@
       "id": "REC-PT-IRON-HINGE-SET",
       "entity_type": "Recipe",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1089,7 +1089,7 @@
       "id": "REC-PT-TEST-DAGGER",
       "entity_type": "Recipe",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1172,7 +1172,7 @@
       "id": "REC-PT-ASHWOOD-BUCKLER",
       "entity_type": "Recipe",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1245,7 +1245,7 @@
       "id": "REC-PT-RIVET-POUCH",
       "entity_type": "Recipe",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1328,7 +1328,7 @@
       "id": "ITEM-PT-EMBER-SALVE",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1368,7 +1368,7 @@
       "id": "ITEM-PT-MISTVEIL-TONIC",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1408,7 +1408,7 @@
       "id": "ITEM-PT-GLASSBLOOM-ELIXIR",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1448,7 +1448,7 @@
       "id": "ITEM-PT-DRAFT-DRAUGHT",
       "entity_type": "Item",
       "status": "draft",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1488,7 +1488,7 @@
       "id": "ITEM-PT-IRON-HINGE-SET",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1528,7 +1528,7 @@
       "id": "ITEM-PT-TEST-DAGGER",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1568,7 +1568,7 @@
       "id": "ITEM-PT-ASHWOOD-BUCKLER",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1608,7 +1608,7 @@
       "id": "ITEM-PT-RIVET-POUCH",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1642,6 +1642,166 @@
             }
           }
         }
+      }
+    },
+    {
+      "id": "LOC-PT-GREENHOLLOW",
+      "entity_type": "Location",
+      "status": "approved",
+      "version": "0.2.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "refs": [],
+      "name": "[TEST] Greenhollow",
+      "location": {
+        "name": "[TEST] Greenhollow",
+        "type": "Village",
+        "region": "[TEST] Playtest Vale",
+        "threat": "normal",
+        "revealed": true,
+        "description": "Placeholder farming village surrounded by herb meadows.",
+        "sections": {
+          "resources": true,
+          "factions": true,
+          "related": true,
+          "notes": true
+        },
+        "factions": [
+          {
+            "label": "[TEST] Herbalists' Circle"
+          }
+        ],
+        "notes": [
+          {
+            "title": "Rumour",
+            "text": "Smoke rises from the quarry at night."
+          },
+          {
+            "title": "GM note",
+            "text": "[TEST] Hidden note players must not see.",
+            "visible": false
+          }
+        ],
+        "resources": [
+          {
+            "label": "[TEST] Emberroot",
+            "materialId": "MAT-PT-EMBERROOT",
+            "available": true,
+            "visible": true
+          },
+          {
+            "label": "[TEST] Palemoss",
+            "materialId": "MAT-PT-PALEMOSS",
+            "available": true,
+            "visible": true
+          },
+          {
+            "label": "[TEST] Glassbloom",
+            "materialId": "MAT-PT-GLASSBLOOM",
+            "available": false,
+            "visible": true
+          }
+        ],
+        "related": [
+          {
+            "locationId": "LOC-PT-CINDER-QUARRY"
+          },
+          {
+            "locationId": "LOC-PT-ASH-HOLLOW"
+          }
+        ]
+      }
+    },
+    {
+      "id": "LOC-PT-CINDER-QUARRY",
+      "entity_type": "Location",
+      "status": "approved",
+      "version": "0.2.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "refs": [],
+      "name": "[TEST] Cinder Quarry",
+      "location": {
+        "name": "[TEST] Cinder Quarry",
+        "type": "Quarry",
+        "region": "[TEST] Playtest Vale",
+        "threat": "hot",
+        "revealed": true,
+        "description": "[TEST] Hidden description players must not see.",
+        "show": {
+          "description": false
+        },
+        "sections": {
+          "resources": true,
+          "related": true
+        },
+        "resources": [
+          {
+            "label": "[TEST] Iron Ore",
+            "materialId": "MAT-PT-IRON-ORE",
+            "available": true,
+            "visible": true
+          },
+          {
+            "label": "[TEST] Coal",
+            "materialId": "MAT-PT-COAL",
+            "available": true,
+            "visible": true
+          },
+          {
+            "label": "[TEST] Ashwood Planks",
+            "materialId": "MAT-PT-ASHWOOD-PLANKS",
+            "available": true,
+            "visible": false
+          }
+        ],
+        "related": [
+          {
+            "locationId": "LOC-PT-GREENHOLLOW"
+          }
+        ]
+      }
+    },
+    {
+      "id": "LOC-PT-ASH-HOLLOW",
+      "entity_type": "Location",
+      "status": "approved",
+      "version": "0.2.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "refs": [],
+      "name": "[TEST] Ash Hollow",
+      "location": {
+        "name": "[TEST] Ash Hollow",
+        "type": "Cave",
+        "region": "[TEST] Playtest Vale",
+        "threat": "deadly",
+        "revealed": false,
+        "description": "[TEST] Unrevealed location players must not see.",
+        "sections": {
+          "resources": true
+        },
+        "resources": [
+          {
+            "label": "[TEST] GM-only Resin",
+            "materialId": "MAT-PT-GM-ONLY-RESIN",
+            "available": true,
+            "visible": true
+          }
+        ],
+        "related": []
       }
     }
   ]
