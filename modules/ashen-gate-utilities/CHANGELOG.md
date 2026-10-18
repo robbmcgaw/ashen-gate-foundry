@@ -1,5 +1,13 @@
 # Changelog — Ashen Gate | Utilities
 
+## 0.3.1 — 2026-10-18
+
+- New look from the shared Ashen Gate UI kit (`styles/ag-ui.css`): cleaner type, consistent padding, header, tabs, buttons and fields that match every other Ashen Gate module.
+- Follows the appearance chosen in General Manager, live, with no reload. Without Manager it uses the built-in Standard look.
+- Dropdowns no longer cut off the bottom of their text.
+- The Actors-sidebar launcher buttons now match the Manager and Location Builder buttons in the Items sidebar, with padding inside the sidebar edges.
+- New **Appearance** button in the header, for players and the GM. It opens General Manager's My Appearance window, and it is hidden when Manager isn't active.
+
 ## 0.3.0 — 2026-10-18
 
 Beta-feedback quick wins.

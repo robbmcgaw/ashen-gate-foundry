@@ -3,20 +3,21 @@
 .agl-app .agl-panel{background:var(--ag-panel,#1d292c);border-color:var(--ag-border,#354348)}
 .agl-app button.agl-primary{background:var(--ag-accent,#b39c6d)}
 .agl-app button:focus-visible{outline:2px solid var(--ag-focus,#dfc692);outline-offset:2px}
-.agl-app .window-content{padding:0;overflow:hidden;background:#12191d;color:#e9e6dc}
+/* Window shell: colours, type, header, tabs and buttons come from the shared kit (ag-ui.css). */
+.agl-app .window-content{padding:0;overflow:hidden;background:var(--ag-surface);color:var(--ag-text)}
 .agl-app .agl-host,.agl-app .agl-shell{height:100%;min-height:400px}
-.agl-shell{display:flex;flex-direction:column;font:14px/1.45 system-ui,-apple-system,'Segoe UI',sans-serif;color:#e9e6dc}
-.agl-header{padding:18px 22px;display:flex;justify-content:space-between;gap:16px;align-items:center;border-bottom:1px solid #354348;background:linear-gradient(112deg,#1b2529,#25383b)}
-.agl-title{letter-spacing:.12em;font-size:13px;color:#b4c6c2}.agl-title strong{font-size:20px;letter-spacing:.025em;color:#f2e5cb;display:block}
-.agl-sub{font-size:12px;color:#9caeb1;margin-top:5px}.agl-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.agl-app button{font-family:inherit;cursor:pointer;color:#e5e8e3;background:#243237;border:1px solid #46585b;border-radius:6px;padding:8px 12px;text-align:left;box-shadow:none}
-.agl-app button:hover{background:#315053;border-color:#729391}.agl-app button:disabled{opacity:.45;cursor:not-allowed}
-.agl-app button.active,.agl-tabs button.active{background:#375454;border-color:#9ab5a8;color:#fff}
-.agl-app button.agl-primary{background:#b39c6d;color:#151c1b;font-weight:700;border-color:#dfc692;padding:10px 16px;margin-top:16px}
-.agl-app button.agl-primary:hover{background:#d0b789}.agl-app button.agl-small{font-size:12px;margin-top:4px;padding:4px 8px}
-.agl-app button.agl-link{border:0;background:none;color:#c3cfad;padding:10px 0}
-.agl-tabs{display:flex;gap:7px;padding:12px 20px 0;background:#151f23;overflow-x:auto}.agl-tabs button{border-radius:7px 7px 0 0;white-space:nowrap}
-.agl-shell main{flex:1;min-height:0;overflow:auto;padding:18px 22px;background:#151e21}
+.agl-shell{display:flex;flex-direction:column;color:var(--ag-text)}
+.agl-app .agl-header{padding:var(--ag-space-3) var(--ag-space-4)}
+.agl-title{font-size:var(--ag-text-sm);color:var(--ag-muted)}.agl-title strong{font-size:var(--ag-text-xl);color:var(--ag-text);display:block}
+.agl-sub{font-size:var(--ag-text-sm);color:var(--ag-muted);margin-top:4px}.agl-controls{display:flex;align-items:center;gap:var(--ag-space-2);flex-wrap:wrap}
+.agl-header-right{display:flex;align-items:center;gap:var(--ag-space-2);color:var(--ag-muted);font-size:var(--ag-text-sm)}
+.agl-app button{text-align:left}
+.agl-app :not(.ag-tabs) > button.active{background:var(--ag-accent-soft);border-color:var(--ag-accent);color:var(--ag-text)}
+.agl-app button.agl-primary{background:var(--ag-accent);color:var(--ag-accent-contrast);font-weight:650;border-color:var(--ag-accent);padding:8px 16px;margin-top:16px}
+.agl-app button.agl-primary:hover{background:var(--ag-accent-hover)}.agl-app button.agl-small{font-size:var(--ag-text-sm);margin-top:4px;padding:4px 8px;min-height:28px}
+.agl-app button.agl-link{border:0;background:none;color:var(--ag-accent);padding:10px 0}
+.agl-app .agl-tabs{overflow-x:auto;flex-wrap:nowrap}
+.agl-shell main{flex:1;min-height:0;overflow:auto;padding:var(--ag-space-4);background:var(--ag-surface)}
 .agl-panel{padding:16px;background:#1d292c;border:1px solid #34464a;border-radius:8px;min-width:0}
 .agl-panel h2{font-size:19px;color:#e9d7ac;margin:0 0 14px;font-weight:650}.agl-panel h2 small{font-size:12px;color:#94aaa9}
 .agl-panel h3{font-size:14px;margin:20px 0 8px;color:#b7c7bf;text-transform:uppercase;letter-spacing:.07em}
@@ -132,11 +133,6 @@
 .agl-app .agl-learn-row button{flex-shrink:0}
 @media(max-width:720px){.agl-app .agl-gather-form{grid-template-columns:1fr}.agl-app .agl-gather-eligible{grid-column:1}}
 
-/* Ashen Gate Actors-sidebar launcher group: identical block in every player-facing module. */
-#ashen-gate-launchers.ag-launchers {display:flex;flex-direction:column;gap:4px;flex:0 0 100%;width:100%;grid-column:1/-1;box-sizing:border-box;margin:0;padding:8px 8px 4px;}
-#ashen-gate-launchers > .ag-launcher {display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:32px;margin:0;padding:4px 10px;box-sizing:border-box;font:600 13px/1.2 var(--font-primary,sans-serif);white-space:normal;text-align:center;cursor:pointer;}
-#ashen-gate-launchers > .ag-launcher > i {flex:0 0 16px;text-align:center;}
-#ashen-gate-launchers > .ag-launcher:focus-visible {outline:2px solid var(--color-border-highlight,#d8b788);outline-offset:1px;}
 /* 0.8.0 party Recipes tab: recipe items are marked so they are not confused with what they craft. */
 .agl-badge.recipe{background:#4a3a5c;border-color:#8c6fb0;color:#eadcfb}
 .agl-app .agl-recipe-mark{color:#c9a8f0;margin-right:6px}

@@ -133,8 +133,8 @@ function planWithMetadata(record,matches,unmanaged,includeDrafts,pkg) {
 class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
-    classes: ["ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.12.2 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    classes: ["ag-app","ashen-gate-manager"],
+    window: {title:"Ashen Gate | General Manager v0.12.3 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -325,7 +325,6 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   async _onRender(context, options) {
     await super._onRender(context, options);
     const root = this.element;
-    if(appearanceController)appearanceController.applyTo(root);
     root.querySelector("[data-ag-world-skin]")?.addEventListener("change",event=>{this.appearanceSelection=event.target.value;});
     root.querySelectorAll("[data-ag-action]").forEach(el => el.addEventListener("click", event => {
       event.preventDefault();
@@ -1063,9 +1062,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
 // Separate player-safe view; never inherits General Manager's Library or Import handlers.
 class AshenGateMyAppearance extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS={
-    id:'ashen-gate-my-appearance',classes:['ag-my-appearance'],
+    id:'ashen-gate-my-appearance',classes:['ag-app','ag-my-appearance'],
     window:{title:'Ashen Gate | My Appearance',icon:'fa-solid fa-palette',resizable:true},
-    position:{width:540,height:470}
+    position:{width:560,height:520}
   };
   static PARTS={main:{template:`modules/${MODULE_ID}/templates/my-appearance.hbs`}};
   constructor(options={}){super(options);myAppearanceApp=this;this.selection=null;this.status='Select a skin, or inherit the GM world default.';}
@@ -1077,12 +1076,12 @@ class AshenGateMyAppearance extends HandlebarsApplicationMixin(ApplicationV2) {
     return {...ctx,worldDefault:appearanceController.listSkins().find(s=>s.id===state.worldDefault)?.label??state.worldDefault,
       effective:appearanceController.listSkins().find(s=>s.id===state.effective)?.label??state.effective,
       selected,isInherit:selected==='',status:this.status,
+      skins:appearanceController.listSkins().map(s=>({...s,current:s.id===state.effective})),
       choices:[{id:'',label:'Use GM default',selected:selected===''},
         ...appearanceController.listSkins().map(s=>({...s,selected:s.id===selected}))]};
   }
   async _onRender(ctx,options){
     await super._onRender(ctx,options);
-    if(appearanceController)appearanceController.applyTo(this.element);
     this.element.querySelector('[data-ag-my-skin]')?.addEventListener('change',e=>{this.selection=e.target.value;});
     this.element.querySelector('[data-ag-my-save]')?.addEventListener('click',async e=>{
       e.preventDefault();const button=e.currentTarget;button.disabled=true;
@@ -1116,11 +1115,12 @@ Hooks.once("init",()=>{
 Hooks.once("ready",()=>{
   appearanceController=makeFoundryAppearanceController({game,namespace:MODULE_ID});
   definitionsReader=createManagerDefinitionReader({game,hooks:Hooks});
-  appearanceController.subscribe(()=>{
-    // Presentation only: no Actor/Item/source or specialist-state writes.
-    if(activeApp?.element)try{appearanceController.applyTo(activeApp.element);}catch{}
-    if(myAppearanceApp?.element)try{appearanceController.applyTo(myAppearanceApp.element);}catch{}
-  });
+  // Every Ashen Gate window and launcher inherits the kit's --ag-* tokens from <html>, so
+  // writing the effective skin there re-themes all modules live, with no per-app wiring.
+  // Presentation only: no Actor/Item/source or specialist-state writes.
+  const applyDocumentSkin=()=>{try{appearanceController.applyTo(document.documentElement);}catch(error){console.warn(`[${MODULE_ID}] Appearance not applied`,error);}};
+  applyDocumentSkin();
+  appearanceController.subscribe(applyDocumentSkin);
   game.modules.get(MODULE_ID).api = {
     appearance:{
       contract:APPEARANCE_CONTRACT,
@@ -1130,7 +1130,9 @@ Hooks.once("ready",()=>{
       subscribe:callback=>appearanceController.subscribe(callback),
       refresh:()=>appearanceController.refresh(),
       setWorldDefault:id=>appearanceController.setWorldDefault(id),
-      setUserOverride:id=>appearanceController.setUserOverride(id)
+      setUserOverride:id=>appearanceController.setUserOverride(id),
+      // Player-safe personal appearance window (never the GM Manager).
+      openMyAppearance:()=>{myAppearanceApp??=new AshenGateMyAppearance();return myAppearanceApp.render({force:true});}
     },
     definitions:{
       contract:READER_CONTRACT,
@@ -1166,7 +1168,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.12.2 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.12.3 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */

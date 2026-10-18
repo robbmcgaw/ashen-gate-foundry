@@ -3,6 +3,17 @@
 - Header is one line: title and version on the left, Help and the "GM only" chip on the right. The empty emblem box (non-existent `fa-gate` icon) is replaced by a `fa-dungeon` icon.
 - Module launchers moved to one compact row under the header with short labels and icons (Professions, Skill Trees, Quests, Factions, Headquarters, Locations, Utilities), in the same order as the Actors-sidebar launchers. Full name and state stay in the tooltip; inactive modules stay disabled. Wraps only at narrow widths. (#3)
 
+## 0.12.3 — 2026-10-18
+
+- New look from the shared Ashen Gate UI kit (`styles/ag-ui.css`): cleaner type, consistent padding, header, tabs, buttons and fields that match every other Ashen Gate module.
+- Follows the appearance chosen in General Manager, live, with no reload. Without Manager it uses the built-in Standard look.
+- Dropdowns no longer cut off the bottom of their text.
+- Appearance now themes the whole page: Manager writes the effective skin (GM world default or your own override) to the document, so every Ashen Gate window and sidebar launcher follows it, not only Manager's own windows.
+- Two new skins: **Verdigris** (dark teal with brass) and **Parchment** (light). Standard, Slate and Ember are refreshed.
+- My Appearance has a new layout with a colour preview of each skin.
+- New `api.appearance.openMyAppearance()`, so other modules (Utilities) can open the player-safe My Appearance window.
+- The General Manager button in the Items sidebar is styled by the shared kit, so it matches the Location Builder button and the Actors-sidebar launchers.
+
 ## 0.12.1 — 2026-10-18
 
 - Moved to the `ashen-gate-foundry` repository. No gameplay changes.

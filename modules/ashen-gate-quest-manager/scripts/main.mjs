@@ -6,7 +6,7 @@ import {ASSIGNMENT_CONTRACT,listAssignments,getAssignment,saveAssignment,removeA
 import {selectTrackedViews,validTrackedId,trackingState} from './tracking.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 
-const VERSION='0.5.0';
+const VERSION='0.5.1';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -129,20 +129,20 @@ function gmPanel(selectedId,statusFilter='all'){
 }
 const Base=appBase();
 class QuestLogApplication extends Base {
- static DEFAULT_OPTIONS={id:'ag-quest-manager-window',classes:['ag-quest-app'],window:{title:'Ashen Gate | Quest Manager',resizable:true,minimizable:true},position:{width:940,height:700}};
+ static DEFAULT_OPTIONS={id:'ag-quest-manager-window',classes:['ag-app','ag-quest-app'],window:{title:'Ashen Gate | Quest Manager',resizable:true,minimizable:true},position:{width:940,height:700}};
  constructor(options={}){super(options);this.tab='party';this.actorId=actorsOwned()[0]?.id??null;this.selectedId=null;this.gmId=null;this.filter='';this.unsavedSource=false;this.sourceJsonEdited=false;this.gmFilter='all';this.statusFilter='all';}
  async _renderHTML(){assertUI(game.user,openAllowed());
   let rows=[],detail=null;
   if(this.tab!=='gm'){rows=roleViewList(this.tab,this.actorId).filter(x=>(this.statusFilter==='all'||x.view.status===this.statusFilter)&&[x.view.name,x.view.summary,x.view.id].some(t=>t.toLowerCase().includes(this.filter.toLowerCase())));if(!rows.some(x=>x.view.id===this.selectedId))this.selectedId=rows[0]?.view.id??null;detail=rows.find(x=>x.view.id===this.selectedId)?.view??null;}
   const allowed=actorsOwned(),actorOption=options(allowed.map(a=>[a.id,a.name]),this.actorId);
-  const html=`<div class="ag-quest-root"><header class="ag-quest-header"><div><h1>Quest Log</h1><p>Quests · Work Orders · Contracts</p></div><div class="ag-quest-heading-actions">${safeButton(trackerVisible()?'Hide Objectives Overlay':'Show Objectives Overlay','toggle-overlay',{kind:'secondary'})}<span class="ag-quest-version">v${VERSION}</span></div></header>
-  <nav class="ag-quest-tabs" aria-label="Quest sections"><button data-tab="party" class="${this.tab==='party'?'active':''}">Party</button><button data-tab="individual" class="${this.tab==='individual'?'active':''}">Individual</button>${hasGM()?`<button data-tab="gm" class="${this.tab==='gm'?'active':''}">GM Setup</button>`:''}</nav>
+  const html=`<div class="ag-quest-root"><header class="ag-header ag-quest-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Quest Log</h1><p>Quests · Work Orders · Contracts</p></div><div class="ag-header__meta ag-quest-heading-actions">${safeButton(trackerVisible()?'Hide Objectives Overlay':'Show Objectives Overlay','toggle-overlay',{kind:'secondary'})}<span class="ag-quest-version">v${VERSION}</span></div></header>
+  <nav class="ag-tabs ag-quest-tabs" aria-label="Quest sections"><button data-tab="party" class="${this.tab==='party'?'active':''}">Party</button><button data-tab="individual" class="${this.tab==='individual'?'active':''}">Individual</button>${hasGM()?`<button data-tab="gm" class="${this.tab==='gm'?'active':''}">GM Setup</button>`:''}</nav>
   <main class="ag-quest-main">${this.tab==='gm'?gmPanel(this.gmId,this.gmFilter):`<aside class="ag-quest-list"><label>Search<input id="ag-quest-search" placeholder="Search visible objectives" value="${E(this.filter)}"></label><label>Status<select id="ag-player-filter">${options([['all','All visible quests'],...STATUSES.filter(x=>x!=='Hidden').map(x=>[x,x])],this.statusFilter)}</select></label><label>${this.tab==='individual'?'Individual Quest Actor':'Character Notes Actor'}<select id="ag-actor"><option value="">Select Actor</option>${actorOption}</select></label><div class="ag-quest-scroll" id="ag-quest-cards">${cards(rows,this.selectedId)}</div><small id="ag-quest-count">${rows.length} visible objectives</small></aside><section class="ag-quest-reading">${readableDetail(detail,this.actorId)}</section>`}</main>
-  <footer class="ag-quest-footer"><span>Player content follows Foundry Journal/Actor permissions.</span>${hasGM()?'<span>Objective progress and rewards: GM controlled</span>':''}</footer></div>`;
+  <footer class="ag-footer ag-quest-footer"><span>Player content follows Foundry Journal/Actor permissions.</span>${hasGM()?'<span>Objective progress and rewards: GM controlled</span>':''}</footer></div>`;
   return html;
  }
- _replaceHTML(result,content){content.innerHTML=result;this.bind(content);this.applyOptionalTheme(content);}
- applyOptionalTheme(element){try{const a=game.modules.get('ashen-gate-manager')?.api?.appearance;if(a?.contract==='ag-appearance/0.1-beta'&&typeof a.applyTo==='function')a.applyTo(element);}catch(err){console.warn(`[${MOD}] optional appearance unavailable`,err);}}
+ // Appearance is inherited: the kit's --ag-* tokens live on the document, kept in sync by General Manager when active.
+ _replaceHTML(result,content){content.innerHTML=result;this.bind(content);}
  bind(root){
    for(const b of root.querySelectorAll('[data-tab]'))b.addEventListener('click',async e=>{if(this.unsavedSource&&!confirm('Discard unsaved source changes?'))return;this.tab=e.currentTarget.dataset.tab;this.unsavedSource=false;this.sourceJsonEdited=false;await this.render();});
    root.querySelector('#ag-actor')?.addEventListener('change',async e=>{this.actorId=e.target.value;this.selectedId=null;await this.render();});

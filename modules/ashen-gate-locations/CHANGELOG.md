@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1 — 2026-10-18
+
+- Loads the shared Ashen Gate UI kit (`styles/ag-ui.css`) first, so the window, its kit classes and the Location Builder button in the Items sidebar get the shared look and follow the appearance chosen in General Manager, live.
+- Dropdowns no longer cut off the bottom of their text.
+
 ## 1.0.0 — 2026-10-18
 
 Rebuilt from scratch (#12). Simpler, and players can now see what you reveal.

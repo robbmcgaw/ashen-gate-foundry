@@ -1,3 +1,10 @@
+## 0.5.1 — 2026-10-18
+
+- New look from the shared Ashen Gate UI kit (`styles/ag-ui.css`): cleaner type, consistent padding, header, tabs, buttons and fields that match every other Ashen Gate module.
+- Follows the appearance chosen in General Manager, live, with no reload. Without Manager it uses the built-in Standard look.
+- Dropdowns no longer cut off the bottom of their text.
+- The Actors-sidebar launcher buttons now match the Manager and Location Builder buttons in the Items sidebar, with padding inside the sidebar edges.
+
 ## 0.5.0 — 2026-10-18
 
 - Quest details list the Locations linked to a quest (from Locations 1.0, or the Location IDs set on the quest); click one to open it. Shown only when the Locations module is active and the location is revealed to you.

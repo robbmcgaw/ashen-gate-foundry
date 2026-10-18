@@ -1,9 +1,9 @@
 <div class="agst-shell">
-  <header class="agst-toolbar">
+  <header class="ag-header agst-toolbar">
     <div class="agst-title"><span class="agst-mark"><i class="fa-solid fa-diagram-project"></i></span><div><strong>Ashen Gate | Skill Trees</strong><small>Reusable progression graphs · Alpha</small></div></div>
-    <div class="agst-toolbar-right"><span class="agst-version" aria-label="Skill Trees version">v{{moduleVersion}}</span><button type="button" class="agst-action" data-act="help" title="Skill Trees help"><i class="fa-solid fa-circle-question"></i> Help</button></div>
+    <div class="ag-header__meta agst-toolbar-right"><span class="agst-version" aria-label="Skill Trees version">v{{moduleVersion}}</span><button type="button" class="agst-action" data-act="help" title="Skill Trees help"><i class="fa-solid fa-circle-question"></i> Help</button></div>
   </header>
-  <nav class="agst-tabs" aria-label="Skill Trees views">
+  <nav class="ag-tabs agst-tabs" aria-label="Skill Trees views">
     <button type="button" data-act="tab-trees" class="agst-tab {{#if activeTrees}}agst-active{{/if}}" aria-current="{{#if activeTrees}}page{{else}}false{{/if}}">Skill Trees</button>
     {{#if gm}}<button type="button" data-act="tab-setup" class="agst-tab {{#if activeSetup}}agst-active{{/if}}" aria-current="{{#if activeSetup}}page{{else}}false{{/if}}">GM Setup</button>{{/if}}
   </nav>
