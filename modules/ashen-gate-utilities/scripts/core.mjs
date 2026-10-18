@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.4.0';
+export const VERSION = '0.5.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -225,4 +225,38 @@ export function removalDecision({user, actor, statusId, unlocks, nativeIds = []}
 export function conditionGroups(actors, {label = id => id, isNative = () => true, canRemove = () => false} = {}) {
   return actors.map(actor => ({actorId: actor.id, name: actor.name, conditions: [...(actor.statuses ?? [])].map(id => ({id, label: label(id), custom: !isNative(id), removable: Boolean(canRemove(actor, id))}))}))
     .filter(g => g.conditions.length);
+}
+
+/* ---- v0.5.0: party stash rows and the take-out consent poll ---- */
+const num = v => { const n = Number(v); return Number.isFinite(n) ? n : null; };
+/** Display row for one stash Item. Weight and value are per item, as dnd5e stores them. */
+export function stashRow(item, {typeLabel = t => t} = {}) {
+  const sys = item?.system ?? {};
+  const w = sys.weight !== null && typeof sys.weight === 'object' ? sys.weight : {value: sys.weight, units: ''};
+  const weight = num(w.value), price = sys.price !== null && typeof sys.price === 'object' ? sys.price : {value: sys.price, denomination: 'gp'};
+  const value = num(price.value);
+  return {id: item?.id, uuid: item?.uuid ?? null, img: typeof item?.img === 'string' ? item.img : null, name: String(item?.name ?? 'Unnamed Item'),
+    quantity: num(sys.quantity) ?? 1, weight: weight ? `${weight} ${w.units || 'lb'}` : '—', value: value ? `${value} ${price.denomination || 'gp'}` : '—',
+    type: item?.type ?? 'item', typeLabel: typeLabel(item?.type ?? 'item')};
+}
+export const CONSENT_TIMEOUT_MS = 60000;
+/** Who must approve a take-out: every other active, non-GM user. */
+export const consentVoters = (users, requesterId) => [...(users ?? [])].filter(u => u?.active && !u.isGM && u.id !== requesterId).map(u => u.id);
+export function createPoll({id, requesterId, voters, now = Date.now(), timeoutMs = CONSENT_TIMEOUT_MS}) {
+  if (!id || !requesterId) throw Error('Missing request identity.');
+  return {id: String(id), requesterId, voters: [...new Set(voters ?? [])].filter(v => v !== requesterId), votes: {}, expiresAt: now + timeoutMs};
+}
+/** Records one voter's answer. A deny is final; only listed voters may vote. */
+export function recordVote(poll, {userId, vote}) {
+  if (!poll.voters.includes(userId)) throw Error('You were not asked to approve this request.');
+  if (!['accept', 'deny'].includes(vote)) throw Error('Vote must be accept or deny.');
+  if (poll.votes[userId] !== 'deny') poll.votes[userId] = vote;
+  return poll;
+}
+/** 'denied' as soon as anyone denies, 'approved' when every voter accepted (or there are none), 'expired' at the deadline. */
+export function pollOutcome(poll, now = Date.now()) {
+  const votes = poll.voters.map(id => poll.votes[id]);
+  if (votes.includes('deny')) return 'denied';
+  if (votes.every(v => v === 'accept')) return 'approved';
+  return now >= poll.expiresAt ? 'expired' : 'pending';
 }
