@@ -1,0 +1,74 @@
+{
+  "document_id": "AG-WORK-0004-HQ-HOSTING-ACCEPTANCE-DRAFT",
+  "status": "draft_illustrative_acceptance_not_runtime_observation",
+  "source_commit": "7c76fc49081812c051697fa7bec2aaea860f7299",
+  "fixture_source": "AG_Hirelings_HQ_TestKit_v0.2.0_2026-10-15.zip",
+  "host_module": "SYS-HQ",
+  "logical_personnel_owner": "SYS-HIRE",
+  "cases": [
+    {
+      "id": "HQR-01",
+      "scenario": "Source import/reimport",
+      "expected": "14 canonical source IDs stable; neither Working nor staffing/personnel state overwritten",
+      "source_case": "HR-T01,HR-T10"
+    },
+    {
+      "id": "HQR-02",
+      "scenario": "Staffed hireling Working OFF",
+      "hireling_ref": "HIRE-TEST-003",
+      "expected": "watch_staff_2 reserved, perk requiring work/presence suppressed, history unchanged",
+      "source_case": "HR-T02"
+    },
+    {
+      "id": "HQR-03",
+      "scenario": "Staffed hireling Working ON",
+      "hireling_ref": "HIRE-TEST-003",
+      "expected": "Slot unchanged, eligible informational benefits resume without reassignment",
+      "source_case": "HR-T03"
+    },
+    {
+      "id": "HQR-04",
+      "scenario": "Unstationed roster and passive perk",
+      "hireling_ref": "HIRE-TEST-004",
+      "expected": "Appears in HQ-hosted Hireling roster without slot; passive perk checked under its own conditions",
+      "source_case": "HR-T05"
+    },
+    {
+      "id": "HQR-05",
+      "scenario": "Overlapping Hireling perks",
+      "expected": "No overlapping bonus stacking by default; no automatic Actor/roll writes",
+      "source_case": "HR-T06"
+    },
+    {
+      "id": "HQR-06",
+      "scenario": "Explicit permanent departure",
+      "hireling_ref": "HIRE-TEST-001",
+      "expected": "One authorized GM action clears forge_staff_1 while recording departure and preserving history; repeating action is idempotent",
+      "source_case": "HR-T07"
+    },
+    {
+      "id": "HQR-07",
+      "scenario": "HQ disabled or absent",
+      "expected": "Source Item/Journal definitions remain; no separate Hirelings runtime UI expected; HQ-stored personnel state survives reenable",
+      "source_case": "HR-T08"
+    },
+    {
+      "id": "HQR-08",
+      "scenario": "GM-only test visibility",
+      "expected": "Unauthorized players cannot read GM-only source content or write personnel/HQ state even with forged API or macro call",
+      "source_case": "HR-T09"
+    },
+    {
+      "id": "HQR-09",
+      "scenario": "Stationing vs delegated assignment",
+      "expected": "HQ slot placement creates no ASSIGN-* record, Quest state, or work-order completion",
+      "source_case": "AG-WORK-0004/0005 boundary"
+    },
+    {
+      "id": "HQR-10",
+      "scenario": "No duplicate state authorities",
+      "expected": "Single Hirelings personnel state under HQ host; HQ alone stores occupancy; no redundant active-benefit cache persisted as authority",
+      "source_case": "DEC-0041,DEC-0064"
+    }
+  ]
+}

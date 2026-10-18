@@ -1,0 +1,12 @@
+{
+  "schema_version": "ag-macro-registry/0.4",
+  "entries": [
+    {
+      "id": "ag-custom-hello-example",
+      "name": "AG \u2014 Sample notification (review first)",
+      "version": "0.1.0",
+      "description": "Illustrative harmless GM notification; not installed automatically.",
+      "command": "ui.notifications.info(\"Ashen Gate macro test: hello.\");"
+    }
+  ]
+}

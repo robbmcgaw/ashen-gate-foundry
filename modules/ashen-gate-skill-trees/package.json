@@ -1,0 +1,10 @@
+{
+  "name": "ashen-gate-skill-trees",
+  "private": true,
+  "type": "module",
+  "version": "0.6.0",
+  "description": "Foundry V14 Skill Trees v0.6.0 alpha; no runtime dependencies",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  }
+}

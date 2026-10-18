@@ -1,0 +1,96 @@
+TAP version 13
+# [ashen-gate-profession-ledger] v0.7.0 ready. Open from the Actors directory, Module Settings or game.modules.get('ashen-gate-profession-ledger').api.open()
+# [ashen-gate-profession-ledger] Error: Recipe already learned
+#     at LedgerApp._click (file:///mnt/data/ledger_build/ashen-gate-profession-ledger/scripts/main.js:470:84)
+#     at TestContext.<anonymous> (file:///mnt/data/ledger_build/ashen-gate-profession-ledger/tests/actor-learning-gathering-v040.test.mjs:51:12)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+# [ashen-gate-profession-ledger] Error: Recipe learning was cancelled because Item consumption failed: Cannot delete
+#     at learnRecipe (file:///mnt/data/ledger_build/ashen-gate-profession-ledger/scripts/main.js:79:13)
+#     at async LedgerApp._click (file:///mnt/data/ledger_build/ashen-gate-profession-ledger/scripts/main.js:472:37)
+#     at async TestContext.<anonymous> (file:///mnt/data/ledger_build/ashen-gate-profession-ledger/tests/actor-learning-gathering-v040.test.mjs:59:2)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+# [ashen-gate-profession-ledger] Error: GM only
+#     at LedgerApp._click (file:///mnt/data/ledger_build/ashen-gate-profession-ledger/scripts/main.js:473:56)
+#     at TestContext.<anonymous> (file:///mnt/data/ledger_build/ashen-gate-profession-ledger/tests/actor-learning-gathering-v040.test.mjs:74:29)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+# [ashen-gate-profession-ledger] Error: Recipe Item is missing or no longer held
+#     at LedgerApp._click (file:///mnt/data/ledger_build/ashen-gate-profession-ledger/scripts/main.js:468:76)
+#     at TestContext.<anonymous> (file:///mnt/data/ledger_build/ashen-gate-profession-ledger/tests/actor-learning-gathering-v040.test.mjs:146:12)
+#     at async Test.run (node:internal/test_runner/test:1054:7)
+#     at async Test.processPendingSubtests (node:internal/test_runner/test:744:7)
+# Subtest: Recipe Learning view recognizes Actor-held Recipe Items and not world catalog knowledge
+ok 1 - Recipe Learning view recognizes Actor-held Recipe Items and not world catalog knowledge
+  ---
+  duration_ms: 2.406117
+  type: 'test'
+  ...
+# Subtest: Player with Actor OWNER permission learns REC ID and consumes exactly one Item
+ok 2 - Player with Actor OWNER permission learns REC ID and consumes exactly one Item
+  ---
+  duration_ms: 1.907477
+  type: 'test'
+  ...
+# Subtest: Recipe learning failure rolls back knowledge without consuming Item
+ok 3 - Recipe learning failure rolls back knowledge without consuming Item
+  ---
+  duration_ms: 1.381626
+  type: 'test'
+  ...
+# Subtest: GM awards XP from Actor PROF Item with correct levels; player cannot award XP
+ok 4 - GM awards XP from Actor PROF Item with correct levels; player cannot award XP
+  ---
+  duration_ms: 1.518713
+  type: 'test'
+  ...
+# Subtest: Player Gathering view excludes GM-only encounter config; request whispers to GM only
+ok 5 - Player Gathering view excludes GM-only encounter config; request whispers to GM only
+  ---
+  duration_ms: 0.637358
+  type: 'test'
+  ...
+# Subtest: GM scene pool selects approved source, check outcome, confirms exactly one material award
+ok 6 - GM scene pool selects approved source, check outcome, confirms exactly one material award
+  ---
+  duration_ms: 1.630641
+  type: 'test'
+  ...
+# Subtest: failed check and wrong material ID never award
+ok 7 - failed check and wrong material ID never award
+  ---
+  duration_ms: 0.61835
+  type: 'test'
+  ...
+# Subtest: Actor progress, known recipes and roster persist as three separately owned fields
+ok 8 - Actor progress, known recipes and roster persist as three separately owned fields
+  ---
+  duration_ms: 0.107622
+  type: 'test'
+  ...
+# Subtest: Crafting permission requests require learned Recipe and sufficient tracked Profession tier
+ok 9 - Crafting permission requests require learned Recipe and sufficient tracked Profession tier
+  ---
+  duration_ms: 2.117283
+  type: 'test'
+  ...
+# Subtest: Single-use Recipe Items are deleted only once when learned
+ok 10 - Single-use Recipe Items are deleted only once when learned
+  ---
+  duration_ms: 1.597752
+  type: 'test'
+  ...
+# Subtest: Known recipe IDs survive catalog replacement and do not disclose restricted world data
+ok 11 - Known recipe IDs survive catalog replacement and do not disclose restricted world data
+  ---
+  duration_ms: 0.563376
+  type: 'test'
+  ...
+# Subtest: source fixture is original pinned chain with complete required reference closure
+ok 12 - source fixture is original pinned chain with complete required reference closure
+  ---
+  duration_ms: 2.453263
+  type: 'test'
+  ...
+# Subtest: projected native Items retain full original structured definitions, IDs, types, provena

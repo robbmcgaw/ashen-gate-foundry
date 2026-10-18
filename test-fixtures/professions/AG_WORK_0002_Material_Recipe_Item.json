@@ -1,0 +1,137 @@
+{
+  "fixture_id": "AG-WORK-0002-MAT-REC-ITEM-001",
+  "fixture_status": "pinned_source_snapshot_not_new_canon",
+  "source": {
+    "artifact_name": "AG_Professions_Catalog_v0.3.3_Five_Complete_Examples.zip",
+    "artifact_sha256": "c9b892e7ea369da39733d4a244e26383de1348f0e4d5ce23c5d5bfc6466c9deb",
+    "member_path": "AG_Professions_v0.3.3_CanonicalSource.json",
+    "member_sha256": "b653111f72ff488210dd46752bac587a6ac286b81118f12636e3e2b6d54f0356",
+    "source_schema_version": "ag-content-records/0.1",
+    "branch": "local prior specialist output; not asserted to be committed in GitHub"
+  },
+  "chain_ids": [
+    "MAT-HERBALISM-APPRENTICE-COMMON",
+    "REC-ALCHEMY-FIELD-MEDIC-S-SALVE",
+    "ITEM-ALCHEMY-FIELD-MEDIC-S-SALVE"
+  ],
+  "records": [
+    {
+      "id": "MAT-HERBALISM-APPRENTICE-COMMON",
+      "entity_type": "Material",
+      "status": "draft",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Preserved materials content v19/review 2026-10-15"
+        ]
+      },
+      "visibility": "player",
+      "refs": [
+        {
+          "relation": "gathered_by",
+          "target_id": "PROF-HERBALISM",
+          "mode": "required"
+        }
+      ],
+      "scope": "generic_rules",
+      "name": "Hearthleaf Bundle",
+      "tierId": "apprentice",
+      "quality": "Common",
+      "unit": "Bundle",
+      "flavor": "Hardy medicinal leaves that retain their warmth after drying.",
+      "tags": [
+        "standard",
+        "gathering"
+      ],
+      "priceGp": 5,
+      "weightLb": 0.5,
+      "source_profession_id": "PROF-HERBALISM"
+    },
+    {
+      "id": "REC-ALCHEMY-FIELD-MEDIC-S-SALVE",
+      "entity_type": "Recipe",
+      "status": "draft",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Starting recipes reviewed in Tim chat on 2026-10-15"
+        ]
+      },
+      "visibility": "player",
+      "refs": [
+        {
+          "relation": "crafted_by",
+          "target_id": "PROF-ALCHEMY",
+          "mode": "required"
+        },
+        {
+          "relation": "produces",
+          "target_id": "ITEM-ALCHEMY-FIELD-MEDIC-S-SALVE",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-HERBALISM-APPRENTICE-COMMON",
+          "mode": "required"
+        }
+      ],
+      "scope": "generic_rules",
+      "name": "Field Medic's Salve",
+      "tier": "apprentice",
+      "starting": true,
+      "origin": "original",
+      "effort": "short",
+      "price_class": "common_consumable",
+      "market_gp": 50,
+      "craft_gp": 25,
+      "additional_gp": 20,
+      "rules_summary": "Stabilize an adjacent creature at 0 HP as an action without a Medicine check; consumed.",
+      "profession_id": "PROF-ALCHEMY",
+      "result_item_id": "ITEM-ALCHEMY-FIELD-MEDIC-S-SALVE",
+      "ingredients": [
+        {
+          "material_id": "MAT-HERBALISM-APPRENTICE-COMMON",
+          "quantity": 1,
+          "material_value_gp": 5
+        }
+      ]
+    },
+    {
+      "id": "ITEM-ALCHEMY-FIELD-MEDIC-S-SALVE",
+      "entity_type": "Item",
+      "status": "draft",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Result of reviewed recipe on 2026-10-15"
+        ]
+      },
+      "visibility": "player",
+      "refs": [
+        {
+          "relation": "created_by",
+          "target_id": "REC-ALCHEMY-FIELD-MEDIC-S-SALVE",
+          "mode": "required"
+        }
+      ],
+      "scope": "generic_rules",
+      "name": "Field Medic's Salve",
+      "origin": "original",
+      "rarity_price_class": "common_consumable",
+      "market_gp": 50,
+      "rules_summary": "Stabilize an adjacent creature at 0 HP as an action without a Medicine check; consumed.",
+      "created_by_recipe_id": "REC-ALCHEMY-FIELD-MEDIC-S-SALVE"
+    }
+  ],
+  "reference_context_ids": [
+    "PROF-ALCHEMY",
+    "PROF-HERBALISM"
+  ],
+  "reference_expectations": {
+    "all_original_refs_preserved": true,
+    "all_three_chain_records_have_only_required_refs": true,
+    "optional_refs_in_this_fixture": [],
+    "notes": "No optional refs occur in the three source records; do not invent optional refs. PROF targets must resolve from the source package."
+  },
+  "scope": "Definition import/read only. No Actor XP mutation, learned-recipe write, or perk progression."
+}

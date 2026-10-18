@@ -1,0 +1,50 @@
+<!doctype html><html><head><meta charset="UTF-8"><title>Headquarters Alpha Browser Harness — Fake Foundry</title><link rel="stylesheet" href="../styles/headquarters.css"><style>body{margin:0;background:#151b20} .fake-window {width:1200px;height:800px;margin:20px auto;color:white;background:#131b21;border:1px solid #555;}</style></head><body>
+<script type="module">
+const callbacks={};
+window.Hooks={once:(name,fn)=>{(callbacks[name]||=[]).push(fn);},on:(name,fn)=>{(callbacks[name]||=[]).push(fn);},off:(name,fn)=>{const x=callbacks[name]||[];const k=x.indexOf(fn);if(k>=0)x.splice(k,1);}};
+const settings=new Map(); const gmid='gm1';
+const GM={id:gmid,isGM:true,active:true,name:'GM'};
+const Alice={id:'alice',isGM:false,active:true,name:'Alice'};
+const Bob={id:'bob',isGM:false,active:true,name:'Bob'};
+const users=new Map([[GM.id,GM],[Alice.id,Alice],[Bob.id,Bob]]);users.activeGM=GM;
+const listeners=new Map();
+// Synthetic Actor transport: updates reach a separate authoritative-GM hook
+// with a Foundry-supplied sender id. This is NOT a live permission test.
+const ownedActor={id:'pc-alice',testUserPermission:(who,level)=>who?.id==='alice'&&level==='OWNER',
+ async update(changes){const caller=game.user;const sender=caller.id;game.user=GM;
+  try{for(const fn of callbacks.updateActor||[])await fn(this,changes,{},sender);}
+  finally{game.user=caller;}return this;}};
+const journalDocuments=[];
+window.JournalEntry={create:async ({name,ownership,flags})=>{
+  const doc={id:`vault${journalDocuments.length+1}`,name,ownership,flags,getFlag:(ns,key)=>structuredClone(doc.flags?.[ns]?.[key]),async update(patch){if(!game.user.isGM)throw Error('Journal permission denied');for(const [path,val] of Object.entries(patch)){const key=path.split('.').at(-1);doc.flags['ashen-gate-headquarters'][key]=structuredClone(val);}return doc;}};
+  journalDocuments.push(doc);return doc;
+}};
+window.ui={notifications:{warn:m=>{console.log('UI_WARNING',m);window.lastWarning=m;},error:m=>{console.log('UI_ERROR',m);window.lastError=m;}}};
+window.game={user:GM,users,world:{id:'test'},actors:{contents:[ownedActor]},journal:{get contents(){return game.user.isGM?journalDocuments:[];},get(id){return game.user.isGM?journalDocuments.find(d=>d.id===id):undefined;}},modules:new Map([['ashen-gate-headquarters',{}]]),settings:{registerMenu(namespace,key,opts){settings.set(`${namespace}.${key}`,{menu:opts});},register(namespace,key,opts){settings.set(`${namespace}.${key}`,{value:structuredClone(opts.default),opts});},get(namespace,key){return structuredClone(settings.get(`${namespace}.${key}`).value);},async set(namespace,key,value){const x=settings.get(`${namespace}.${key}`);x.value=structuredClone(value);x.opts.onChange?.(value);return value;}},keybindings:{register(){}},socket:{on(name,handler){listeners.set(name,handler);},emit(name,data){listeners.get(name)?.(data);}}};
+class ApplicationV2 {
+  constructor(){this.element=null;this.rendered=false;}
+  async render(){if(!this.element){this.element=document.createElement('div');this.element.className='fake-window aghq-app';document.body.appendChild(this.element);this.element.innerHTML='<div class="window-content" style="height:100%;padding:0"><section class="aghq-shell"><div data-aghq-content class="aghq-content"></div></section></div>';}this.rendered=true;await this._onRender({},{});return this;}
+  async _onRender(){}
+  async _onClose(){}
+  async close(){await this._onClose({});this.element.remove();this.rendered=false;}
+  bringToFront(){}
+}
+window.foundry={documents:{JournalEntry:window.JournalEntry},applications:{api:{ApplicationV2,HandlebarsApplicationMixin:(Base)=>Base},apps:{FilePicker:class{constructor(o){this.options=o;}render(){console.log('PICKER_SHOWN');}}}}};
+delete window.JournalEntry;
+await import('../js/main.mjs');
+for(const hook of callbacks.init||[])await hook();
+window.apiBeforeReady=typeof game.modules.get('ashen-gate-headquarters').api?.open==='function';
+window.menuBeforeReady=typeof settings.get('ashen-gate-headquarters.openHeadquarters')?.menu?.type==='function';
+for(const hook of callbacks.ready||[])await hook();
+window.testOpen=()=>game.modules.get('ashen-gate-headquarters').api.open();
+window.getState=()=>game.modules.get('ashen-gate-headquarters').api.getState();
+window.useUser=userId=>game.user=users.get(userId);
+window.testSetAccess=enabled=>game.modules.get('ashen-gate-headquarters').api.playerAccess.setEnabled(enabled);
+window.testGetAccess=()=>game.modules.get('ashen-gate-headquarters').api.playerAccess.getState();
+window.getRawState=()=>game.settings.get('ashen-gate-headquarters','state');
+window.getPrivatePointer=()=>game.settings.get('ashen-gate-headquarters','privateStateDocumentId');
+// Emulate a second client's synchronized world setting onChange in the one-page mock.
+window.simulatePlayerSync=()=>{const record=settings.get('ashen-gate-headquarters.playerAccessEnabled');record.opts.onChange(record.value);};
+window.fireHook=(name,app,root)=>{for(const fn of callbacks[name]||[])fn(app,root);};
+window.fakeReady=true;
+</script></body></html>

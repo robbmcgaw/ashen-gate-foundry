@@ -1,0 +1,257 @@
+{
+  "schema": "ag-skill-trees/0.1",
+  "status": "template_example_not_approved",
+  "trees": [
+    {
+      "id": "DEMO-16-LEVEL-TEMPLATE",
+      "name": "16-Level Profession Template (Demo)",
+      "kind": "profession",
+      "mode": "level",
+      "visibility": "player",
+      "xpCosts": [
+        5,
+        8,
+        11,
+        14,
+        17,
+        20,
+        23,
+        26,
+        29,
+        32,
+        35,
+        38,
+        41,
+        44,
+        47,
+        50
+      ],
+      "description": "Example 16-level structure for UI testing; replace all placeholder nodes with approved perks and requirements.",
+      "sourceId": null,
+      "nodes": [
+        {
+          "id": "DEMO-16-N01",
+          "name": "Level 1 \u2014 Example perk",
+          "stage": 1,
+          "x": 475,
+          "y": 100,
+          "description": "Placeholder only; not official Profession content.",
+          "prerequisites": [],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-16-N02",
+          "name": "Level 2 \u2014 Example perk",
+          "stage": 2,
+          "x": 475,
+          "y": 245,
+          "description": "Placeholder only; not official Profession content.",
+          "prerequisites": [
+            "DEMO-16-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-16-N03",
+          "name": "Level 3 \u2014 Example perk",
+          "stage": 3,
+          "x": 475,
+          "y": 390,
+          "description": "Placeholder only; not official Profession content.",
+          "prerequisites": [
+            "DEMO-16-N02"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-16-N04",
+          "name": "Level 4 \u2014 Example perk",
+          "stage": 4,
+          "x": 475,
+          "y": 535,
+          "description": "Placeholder only; not official Profession content.",
+          "prerequisites": [
+            "DEMO-16-N03"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-16-N05",
+          "name": "Level 5 \u2014 Example perk",
+          "stage": 5,
+          "x": 475,
+          "y": 680,
+          "description": "Placeholder only; not official Profession content.",
+          "prerequisites": [
+            "DEMO-16-N04"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-16-N06",
+          "name": "Level 6 \u2014 Example perk",
+          "stage": 6,
+          "x": 475,
+          "y": 825,
+          "description": "Placeholder only; not official Profession content.",
+          "prerequisites": [
+            "DEMO-16-N05"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-16-N07",
+          "name": "Level 7 \u2014 Example perk",
+          "stage": 7,
+          "x": 475,
+          "y": 970,
+          "description": "Placeholder only; not official Profession content.",
+          "prerequisites": [
+            "DEMO-16-N06"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-16-N08",
+          "name": "Level 8 \u2014 Example perk",
+          "stage": 8,
+          "x": 475,
+          "y": 1115,
+          "description": "Placeholder only; not official Profession content.",
+          "prerequisites": [
+            "DEMO-16-N07"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-16-N09",
+          "name": "Level 9 \u2014 Example perk",
+          "stage": 9,
+          "x": 475,
+          "y": 1260,
+          "description": "Placeholder only; not official Profession content.",
+          "prerequisites": [
+            "DEMO-16-N08"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-16-N10",
+          "name": "Level 10 \u2014 Example perk",
+          "stage": 10,
+          "x": 475,
+          "y": 1405,
+          "description": "Placeholder only; not official Profession content.",
+          "prerequisites": [
+            "DEMO-16-N09"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-16-N11",
+          "name": "Level 11 \u2014 Example perk",
+          "stage": 11,
+          "x": 475,
+          "y": 1550,
+          "description": "Placeholder only; not official Profession content.",
+          "prerequisites": [
+            "DEMO-16-N10"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-16-N12",
+          "name": "Level 12 \u2014 Example perk",
+          "stage": 12,
+          "x": 475,
+          "y": 1695,
+          "description": "Placeholder only; not official Profession content.",
+          "prerequisites": [
+            "DEMO-16-N11"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-16-N13",
+          "name": "Level 13 \u2014 Example perk",
+          "stage": 13,
+          "x": 475,
+          "y": 1840,
+          "description": "Placeholder only; not official Profession content.",
+          "prerequisites": [
+            "DEMO-16-N12"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-16-N14",
+          "name": "Level 14 \u2014 Example perk",
+          "stage": 14,
+          "x": 475,
+          "y": 1985,
+          "description": "Placeholder only; not official Profession content.",
+          "prerequisites": [
+            "DEMO-16-N13"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-16-N15",
+          "name": "Level 15 \u2014 Example perk",
+          "stage": 15,
+          "x": 475,
+          "y": 2130,
+          "description": "Placeholder only; not official Profession content.",
+          "prerequisites": [
+            "DEMO-16-N14"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-16-N16",
+          "name": "Level 16 \u2014 Example perk",
+          "stage": 16,
+          "x": 475,
+          "y": 2275,
+          "description": "Placeholder only; not official Profession content.",
+          "prerequisites": [
+            "DEMO-16-N15"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        }
+      ]
+    }
+  ]
+}

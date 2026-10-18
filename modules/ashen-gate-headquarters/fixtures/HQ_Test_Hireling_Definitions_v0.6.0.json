@@ -1,0 +1,58 @@
+[
+  {
+    "id": "HIRE-AGTEST-SMITH",
+    "entity_type": "Hireling",
+    "status": "draft",
+    "version": "0.6.0",
+    "scope": "setting_adapter",
+    "provenance": {
+      "sources": [
+        "AG-WORK-0005:synthetic-test-fixture-v0.6.0"
+      ]
+    },
+    "visibility": "player",
+    "refs": [
+      {
+        "relation": "has_hireling_perk",
+        "target_id": "HPERK-AGTEST-WORKING",
+        "mode": "optional"
+      }
+    ],
+    "name": "TEST ONLY \u2014 Smith",
+    "role": "Blacksmith",
+    "capabilities": [
+      {
+        "key": "smith",
+        "label": "Test Smithing",
+        "description": "Test capability, no gameplay bonus"
+      }
+    ]
+  },
+  {
+    "id": "HPERK-AGTEST-WORKING",
+    "entity_type": "HirelingPerk",
+    "status": "draft",
+    "version": "0.6.0",
+    "scope": "generic_rules",
+    "provenance": {
+      "sources": [
+        "AG-WORK-0005:synthetic-test-fixture-v0.6.0"
+      ]
+    },
+    "visibility": "player",
+    "refs": [],
+    "name": "TEST ONLY \u2014 Working Hands",
+    "contexts": [
+      "headquarters"
+    ],
+    "conditions": {
+      "requires_working": true,
+      "requires_presence": true
+    },
+    "stacking": {
+      "overlap_group": "test_hq_benefit",
+      "allow_overlap": false
+    },
+    "implementation": "informational"
+  }
+]

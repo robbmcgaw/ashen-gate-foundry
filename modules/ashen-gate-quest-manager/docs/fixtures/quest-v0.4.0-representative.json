@@ -1,0 +1,201 @@
+{
+  "schema_version": "ag-quest-source/0.1",
+  "domain": "quests_orders",
+  "version": "0.4.0-testkit",
+  "records": [
+    {
+      "id": "QUEST-QA-PATH",
+      "entity_type": "Objective",
+      "objective_kind": "quest",
+      "status": "draft",
+      "version": "0.4.0-test-fixture",
+      "provenance": {
+        "sources": [
+          "Synthetic Quest Manager v0.4.0 beta UI fixture: test records, NOT campaign canon"
+        ]
+      },
+      "visibility": "player",
+      "refs": [],
+      "name": "Waystone Caravan \u2014 Trail Search",
+      "public_summary": "An abandoned caravan was last seen on the northern road. Find its missing route markers.",
+      "source": {
+        "description": "Synthetic GM test issuer"
+      },
+      "objectives": [
+        {
+          "key": "follow",
+          "goal": "Inspect the abandoned caravan",
+          "visibility": "player"
+        },
+        {
+          "key": "discover",
+          "goal": "Locate the trail markers",
+          "visibility": "reveal_gated",
+          "reveal_on_create": false
+        },
+        {
+          "key": "gm_secret",
+          "goal": "Secret: identify the concealed ambush location",
+          "visibility": "gm"
+        }
+      ],
+      "locations": [],
+      "parameters": {},
+      "outcomes": {}
+    },
+    {
+      "id": "QUEST-QA-INDIVIDUAL",
+      "entity_type": "Objective",
+      "objective_kind": "quest",
+      "status": "draft",
+      "version": "0.4.0-test-fixture",
+      "provenance": {
+        "sources": [
+          "Synthetic Quest Manager v0.4.0 beta UI fixture: test records, NOT campaign canon"
+        ]
+      },
+      "visibility": "player",
+      "refs": [],
+      "name": "A Private Message",
+      "public_summary": "Speak privately with the messenger who left a sealed note for your character.",
+      "source": {
+        "description": "Synthetic GM test issuer"
+      },
+      "objectives": [
+        {
+          "key": "speak",
+          "goal": "Meet the messenger without the rest of the party"
+        }
+      ],
+      "locations": [],
+      "parameters": {},
+      "outcomes": {}
+    },
+    {
+      "id": "QUEST-QA-PRIVATE",
+      "entity_type": "Objective",
+      "objective_kind": "quest",
+      "status": "draft",
+      "version": "0.4.0-test-fixture",
+      "provenance": {
+        "sources": [
+          "Synthetic Quest Manager v0.4.0 beta UI fixture: test records, NOT campaign canon"
+        ]
+      },
+      "visibility": "gm",
+      "refs": [],
+      "name": "GM Secret \u2014 Sealed Hold",
+      "public_summary": "This record must never appear in a player account.",
+      "source": {
+        "description": "Synthetic GM test issuer"
+      },
+      "objectives": [
+        {
+          "key": "secret",
+          "goal": "GM-only concealed objective",
+          "visibility": "gm"
+        }
+      ],
+      "locations": [],
+      "parameters": {},
+      "outcomes": {}
+    },
+    {
+      "id": "ORDER-QA-CRAFT",
+      "entity_type": "Objective",
+      "objective_kind": "work_order",
+      "work_order_domain": "crafting",
+      "status": "draft",
+      "version": "0.4.0-test-fixture",
+      "provenance": {
+        "sources": [
+          "Synthetic Quest Manager v0.4.0 beta UI fixture: test records, NOT campaign canon"
+        ]
+      },
+      "visibility": "player",
+      "refs": [],
+      "name": "Shield Repair Order",
+      "public_summary": "Produce replacement shields for a local guard post.",
+      "source": {
+        "description": "Synthetic production request"
+      },
+      "objectives": [
+        {
+          "key": "produce",
+          "goal": "Present a GM-approved crafted sample"
+        }
+      ],
+      "locations": [],
+      "parameters": {},
+      "outcomes": {}
+    },
+    {
+      "id": "CONTRACT-QA-DELIVERY",
+      "entity_type": "Objective",
+      "objective_kind": "contract",
+      "status": "draft",
+      "version": "0.4.0-test-fixture",
+      "provenance": {
+        "sources": [
+          "Synthetic Quest Manager v0.4.0 beta UI fixture: test records, NOT campaign canon"
+        ]
+      },
+      "visibility": "reveal_gated",
+      "refs": [],
+      "name": "QA \u2014 Sealed Delivery",
+      "public_summary": "Reveal-gated Contract for testing whole-record discovery.",
+      "source": {
+        "description": "Synthetic patron"
+      },
+      "objectives": [
+        {
+          "key": "deliver",
+          "goal": "Deliver the designated parcel"
+        }
+      ],
+      "locations": [],
+      "parameters": {},
+      "outcomes": {}
+    },
+    {
+      "id": "QUEST-QA-REVEAL",
+      "entity_type": "Objective",
+      "objective_kind": "quest",
+      "status": "draft",
+      "version": "0.4.0-test-fixture",
+      "provenance": {
+        "sources": [
+          "Synthetic Quest Manager v0.4.0 beta UI fixture: test records, NOT campaign canon"
+        ]
+      },
+      "visibility": "reveal_gated",
+      "refs": [],
+      "name": "Lanterns on the Ridge",
+      "public_summary": "Find the lantern signals before nightfall.",
+      "source": {
+        "description": "Sample non-canon frontier investigation"
+      },
+      "objectives": [
+        {
+          "key": "inspect",
+          "goal": "Examine the abandoned signal tower",
+          "visibility": "player"
+        },
+        {
+          "key": "secret",
+          "goal": "Recover the concealed signal cipher",
+          "visibility": "reveal_gated",
+          "reveal_on_create": false
+        },
+        {
+          "key": "gm_only",
+          "goal": "GM secret: the cipher is deliberately misleading",
+          "visibility": "gm"
+        }
+      ],
+      "locations": [],
+      "parameters": {},
+      "outcomes": {}
+    }
+  ]
+}

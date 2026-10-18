@@ -1,0 +1,44 @@
+# On every push to main: check all modules, then publish a GitHub Release for any
+# module whose module.json version does not have a release yet. Foundry/Forge sees
+# the new version through the manifest URL and offers an update.
+name: Release
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: release
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/check.mjs
+      - name: Publish new module versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for dir in modules/*/; do
+            id=$(basename "$dir")
+            version=$(jq -r .version "$dir/module.json")
+            tag="$id-v$version"
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "$tag already released"
+              continue
+            fi
+            echo "Releasing $tag"
+            (cd "$dir" && zip -qr "$GITHUB_WORKSPACE/dist/$id.zip" . -x 'tests/*' 'test/*' 'qa/*' 'package.json')
+            cp "$dir/module.json" "dist/module.json"
+            # Release notes = the first "## " section of the module's CHANGELOG.md
+            notes=$(awk '/^## /{n++} n==1' "$dir/CHANGELOG.md" 2>/dev/null | tail -n +2 | head -40 || true)
+            gh release create "$tag" "dist/$id.zip" "dist/module.json" \
+              --title "$(jq -r .title "$dir/module.json") $version" \
+              --notes "${notes:-See CHANGELOG.md}"
+            rm -f "dist/$id.zip" dist/module.json
+          done

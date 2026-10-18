@@ -1,0 +1,14 @@
+<section class="ag-my-appearance-body">
+  <header><h2>Ashen Gate | My Appearance</h2><p>Personal interface colors only. This does not open GM tools or change gameplay.</p></header>
+  <div class="ag-my-appearance-panel">
+    <label for="ag-my-appearance-choice">My appearance</label>
+    <select id="ag-my-appearance-choice" data-ag-my-skin>
+      {{#each choices}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+    </select>
+    <p>GM world default: <strong>{{worldDefault}}</strong></p>
+    <p>Currently displayed: <strong>{{effective}}</strong></p>
+    <p role="status">{{status}}</p>
+  </div>
+  <footer><button type="button" data-ag-my-save>Save My Appearance</button></footer>
+  <p class="ag-my-appearance-note">This view only saves your own user-scoped preference. The General Manager remains GM-only.</p>
+</section>

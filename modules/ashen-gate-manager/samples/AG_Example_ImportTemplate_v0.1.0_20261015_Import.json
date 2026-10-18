@@ -1,0 +1,24 @@
+{
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-EXAMPLE-MANAGER-IMPORT",
+    "version": "0.1.0"
+  },
+  "records": [
+    {
+      "id": "MUT-EXAMPLE-001",
+      "entity_type": "Mutation",
+      "status": "draft",
+      "version": "0.1.0",
+      "provenance": {"sources": ["Manager v0.5.0 example; illustrative only"]},
+      "visibility": "gm",
+      "scope": "generic_rules",
+      "owner_system_id": "SYS-MUT",
+      "refs": [],
+      "foundry": {
+        "document_type": "Item",
+        "data": {"name": "EXAMPLE — not approved for play", "type": "feat", "system": {"description": {"value": "<p>Illustrative import fixture only.</p>"}}}
+      }
+    }
+  ]
+}

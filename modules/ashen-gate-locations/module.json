@@ -1,0 +1,24 @@
+{
+  "id": "ashen-gate-locations",
+  "title": "Ashen Gate | Locations",
+  "description": "Standalone GM-only Locations, region/map manager and optional read-only resolver/Objective link adapters. Foundry V14 experimental alpha.",
+  "version": "0.8.1",
+  "authors": [
+    {
+      "name": "Ashen Gate"
+    }
+  ],
+  "compatibility": {
+    "minimum": "14",
+    "maximum": "14"
+  },
+  "esmodules": [
+    "scripts/main.js"
+  ],
+  "styles": [
+    "styles/locations.css"
+  ],
+  "url": "https://github.com/robbmcgaw/ashen-gate-foundry",
+  "manifest": "https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-locations/module.json",
+  "download": "https://github.com/robbmcgaw/ashen-gate-foundry/releases/download/ashen-gate-locations-v0.8.1/ashen-gate-locations.zip"
+}

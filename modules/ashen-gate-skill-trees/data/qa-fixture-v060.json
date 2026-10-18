@@ -1,0 +1,315 @@
+{
+  "schema": "ag-skill-trees-qa/0.1",
+  "status": "synthetic_test_only_not_canon",
+  "module_id": "ashen-gate-skill-trees",
+  "module_version": "0.6.0",
+  "provenance": {
+    "source": "AG-WORK-0011",
+    "created_for": "AG-COORDINATED-BUILD-2026-10-17"
+  },
+  "fixture_marker": "ag-skill-trees-qa/0.1",
+  "source_ids": {
+    "profession": "PROF-QA-SKILL-TREES",
+    "mutation": "MUT-QA-SKILL-TREES",
+    "perk": "PERK-QA-SKILL-TREES",
+    "power": "POWER-QA-SKILL-TREES"
+  },
+  "tree_ids": {
+    "generic": "QA-ST-GENERIC",
+    "cinder": "QA-ST-CINDER",
+    "profession": "QA-ST-PROFESSION"
+  },
+  "expected_native_actor": {
+    "name": "[AG QA] Skill Tree Test Character",
+    "type": "character",
+    "img": "icons/svg/mystery-man.svg",
+    "ownership": {
+      "default": 0
+    },
+    "flags": {
+      "ashen-gate-skill-trees": {
+        "qaFixture": "ag-skill-trees-qa/0.1"
+      }
+    }
+  },
+  "expected_native_items": [
+    {
+      "name": "[AG QA] Profession Perk Source",
+      "type": "feat",
+      "img": "icons/svg/item-bag.svg",
+      "ownership": {
+        "default": 0
+      },
+      "system": {
+        "description": {
+          "value": "<p>Synthetic draft Feature reference; not a claimable perk.</p>"
+        }
+      },
+      "flags": {
+        "ashen-gate-skill-trees": {
+          "qaFixture": "ag-skill-trees-qa/0.1"
+        },
+        "ashen-gate-manager": {
+          "source": {
+            "sourceId": "PERK-QA-SKILL-TREES",
+            "entityType": "ProfessionPerk",
+            "status": "draft",
+            "sourceVersion": "0.1.0",
+            "version": "0.1.0",
+            "visibility": "gm",
+            "scope": "generic_rules",
+            "refs": [],
+            "provenance": {
+              "sources": [
+                "AG-WORK-0011/QA-2026-10-17"
+              ],
+              "decision_refs": []
+            },
+            "definition": {
+              "id": "PERK-QA-SKILL-TREES",
+              "entity_type": "ProfessionPerk",
+              "status": "draft",
+              "version": "0.1.0",
+              "name": "[AG QA] Profession Perk Source",
+              "description": "Synthetic draft Feature reference; not a claimable perk.",
+              "visibility": "gm",
+              "scope": "generic_rules",
+              "refs": [],
+              "provenance": {
+                "sources": [
+                  "AG-WORK-0011/QA-2026-10-17"
+                ],
+                "decision_refs": []
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "[AG QA] Cinder Power Source",
+      "type": "feat",
+      "img": "icons/svg/item-bag.svg",
+      "ownership": {
+        "default": 0
+      },
+      "system": {
+        "description": {
+          "value": "<p>Synthetic draft Feature reference; not an actual Cinder power.</p>"
+        }
+      },
+      "flags": {
+        "ashen-gate-skill-trees": {
+          "qaFixture": "ag-skill-trees-qa/0.1"
+        },
+        "ashen-gate-manager": {
+          "source": {
+            "sourceId": "POWER-QA-SKILL-TREES",
+            "entityType": "Power",
+            "status": "draft",
+            "sourceVersion": "0.1.0",
+            "version": "0.1.0",
+            "visibility": "gm",
+            "scope": "generic_rules",
+            "refs": [],
+            "provenance": {
+              "sources": [
+                "AG-WORK-0011/QA-2026-10-17"
+              ],
+              "decision_refs": []
+            },
+            "definition": {
+              "id": "POWER-QA-SKILL-TREES",
+              "entity_type": "Power",
+              "status": "draft",
+              "version": "0.1.0",
+              "name": "[AG QA] Cinder Power Source",
+              "description": "Synthetic draft Feature reference; not an actual Cinder power.",
+              "visibility": "gm",
+              "scope": "generic_rules",
+              "refs": [],
+              "provenance": {
+                "sources": [
+                  "AG-WORK-0011/QA-2026-10-17"
+                ],
+                "decision_refs": []
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "expected_layouts": [
+    {
+      "id": "QA-ST-GENERIC",
+      "name": "[AG QA] Generic Progression",
+      "description": "QA-only points and prerequisites, not approved content.",
+      "status": "test",
+      "visibility": "player",
+      "sourceRef": null,
+      "provider": {
+        "kind": "generic_points",
+        "maxPoints": 8
+      },
+      "nodes": [
+        {
+          "id": "QA-ST-BASE",
+          "name": "QA Foundation",
+          "description": "QA-only node; no automatic game effect or Item grant.",
+          "x": 120,
+          "y": 120,
+          "cost": 1,
+          "requiresAll": [],
+          "requiresAny": [],
+          "excludes": [],
+          "contentRef": null,
+          "sourceUuid": null,
+          "status": "test",
+          "visibility": "player",
+          "display": "shown"
+        },
+        {
+          "id": "QA-ST-LEFT",
+          "name": "QA Left Path",
+          "description": "QA-only node; no automatic game effect or Item grant.",
+          "x": 420,
+          "y": 50,
+          "cost": 1,
+          "requiresAll": [
+            "QA-ST-BASE"
+          ],
+          "requiresAny": [],
+          "excludes": [
+            "QA-ST-RIGHT"
+          ],
+          "contentRef": null,
+          "sourceUuid": null,
+          "status": "test",
+          "visibility": "player",
+          "display": "shown"
+        },
+        {
+          "id": "QA-ST-RIGHT",
+          "name": "QA Right Path",
+          "description": "QA-only node; no automatic game effect or Item grant.",
+          "x": 420,
+          "y": 225,
+          "cost": 1,
+          "requiresAll": [
+            "QA-ST-BASE"
+          ],
+          "requiresAny": [],
+          "excludes": [
+            "QA-ST-LEFT"
+          ],
+          "contentRef": null,
+          "sourceUuid": null,
+          "status": "test",
+          "visibility": "player",
+          "display": "shown"
+        },
+        {
+          "id": "QA-ST-FINAL",
+          "name": "QA Final Node",
+          "description": "QA-only node; no automatic game effect or Item grant.",
+          "x": 750,
+          "y": 145,
+          "cost": 1,
+          "requiresAll": [],
+          "requiresAny": [
+            [
+              "QA-ST-LEFT",
+              "QA-ST-RIGHT"
+            ]
+          ],
+          "excludes": [],
+          "contentRef": null,
+          "sourceUuid": null,
+          "status": "test",
+          "visibility": "player",
+          "display": "shown"
+        }
+      ]
+    },
+    {
+      "id": "QA-ST-CINDER",
+      "name": "[AG QA] Cinder Milestones",
+      "description": "QA-only 13-point wallet test; does not implement Cinder mechanics.",
+      "status": "test",
+      "visibility": "player",
+      "sourceRef": "MUT-QA-SKILL-TREES",
+      "provider": {
+        "kind": "cinder_milestone",
+        "maxPoints": 13
+      },
+      "nodes": [
+        {
+          "id": "QA-CIN-START",
+          "name": "QA Manifestation",
+          "description": "QA-only node; no automatic game effect or Item grant.",
+          "x": 150,
+          "y": 140,
+          "cost": 1,
+          "requiresAll": [],
+          "requiresAny": [],
+          "excludes": [],
+          "contentRef": null,
+          "sourceUuid": null,
+          "status": "test",
+          "visibility": "player",
+          "display": "shown"
+        },
+        {
+          "id": "QA-CIN-NEXT",
+          "name": "QA Next Milestone",
+          "description": "QA-only node; no automatic game effect or Item grant.",
+          "x": 430,
+          "y": 140,
+          "cost": 1,
+          "requiresAll": [
+            "QA-CIN-START"
+          ],
+          "requiresAny": [],
+          "excludes": [],
+          "contentRef": null,
+          "sourceUuid": null,
+          "status": "test",
+          "visibility": "player",
+          "display": "shown"
+        },
+        {
+          "id": "QA-CIN-HIDDEN",
+          "name": "QA GM-only Source",
+          "description": "QA-only node; no automatic game effect or Item grant.",
+          "x": 710,
+          "y": 180,
+          "cost": 1,
+          "requiresAll": [],
+          "requiresAny": [],
+          "excludes": [],
+          "contentRef": null,
+          "sourceUuid": null,
+          "status": "test",
+          "visibility": "gm",
+          "display": "hidden"
+        }
+      ]
+    },
+    {
+      "id": "QA-ST-PROFESSION",
+      "name": "[AG QA] Profession Reference",
+      "description": "Read-only QA layout; Profession XP and perk selection belong to Ledger.",
+      "status": "draft",
+      "visibility": "gm",
+      "sourceRef": "PROF-QA-SKILL-TREES",
+      "provider": {
+        "kind": "profession",
+        "maxPoints": null
+      },
+      "nodes": []
+    }
+  ],
+  "setup": "GM: Actors → Skill Trees → GM Setup → Initialize GM Storage (if needed) → Developer Tools → Install QA Fixture Records. Assign a test player Owner permission to the [AG QA] Actor to exercise player UI.",
+  "reset": "GM: Actors → Skill Trees → GM Setup → Developer Tools → Reset QA Fixture. Reset refuses if an unrelated Actor has QA tree progress. Only marked QA Actors/Items and known QA layouts are removed. Never run in production world."
+}

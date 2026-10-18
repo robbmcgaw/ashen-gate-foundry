@@ -1,0 +1,25 @@
+{
+  "id": "ASSIGN-QA-PATH",
+  "entity_type": "Assignment",
+  "status": "draft",
+  "version": "0.4.0-test-fixture",
+  "provenance": {
+    "sources": [
+      "Synthetic Quest Manager v0.4.0 Assignment fixture; NOT campaign canon"
+    ]
+  },
+  "visibility": "gm",
+  "refs": [
+    {
+      "relation": "executes_objective",
+      "target_id": "QUEST-QA-PATH",
+      "mode": "required"
+    }
+  ],
+  "scope": "campaign_state",
+  "owner_system_id": "SYS-QUEST",
+  "objective_id": "QUEST-QA-PATH",
+  "execution_status": "pending",
+  "participants": [],
+  "results": {}
+}

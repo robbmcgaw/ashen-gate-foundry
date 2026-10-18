@@ -1,0 +1,8 @@
+{
+  "manifest": {"schema_version":"ag-foundry-import/0.1","package_id":"AG-WORK-0018-BLOCKED","version":"1.0.0","description":"Synthetic validation failure fixture; must not write any documents."},
+  "records": [{
+    "id":"TAB-TEST-INVALID-001","entity_type":"TravelTable","status":"example_only","version":"1.0.0",
+    "provenance":{"source":"AG-WORK-0018 test fixture","approval":"none"},"visibility":"gm","refs":[],
+    "foundry":{"document_type":"RollTable","data":{"name":"Invalid Result Type","results":[{"type":"0","text":"Invalid Foundry TableResult type","range":[1,1],"weight":1}]}}
+  }]
+}

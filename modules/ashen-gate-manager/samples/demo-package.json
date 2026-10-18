@@ -1,0 +1,62 @@
+{
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.1",
+    "package_id": "AG-SANDBOX-EXAMPLE",
+    "version": "0.1.0",
+    "description": "Demonstration only. These are NOT approved Ashen Gate setting records."
+  },
+  "records": [
+    {
+      "id": "MAT-EXAMPLE-IRON-001",
+      "entity_type": "Material",
+      "status": "example_only",
+      "version": "0.1.0",
+      "provenance": {"source": "Ashen Gate Manager fixture", "approval": "none"},
+      "visibility": "player",
+      "refs": [],
+      "foundry": {
+        "document_type": "Item",
+        "data": {
+          "name": "AG Example — Ore Bundle",
+          "type": "loot",
+          "img": "icons/commodities/metal/iron-bar-stock.webp",
+          "system": {"description": {"value": "<p>Demonstration crafting material. Not canonical.</p>"}}
+        }
+      }
+    },
+    {
+      "id": "ITEM-EXAMPLE-TOOL-001",
+      "entity_type": "Item",
+      "status": "example_only",
+      "version": "0.1.0",
+      "provenance": {"source": "Ashen Gate Manager fixture", "approval": "none"},
+      "visibility": "player",
+      "refs": [{"id":"MAT-EXAMPLE-IRON-001"}],
+      "foundry": {
+        "document_type": "Item",
+        "data": {
+          "name": "AG Example — Prototype Tool",
+          "type": "loot",
+          "img": "icons/tools/smithing/hammer-sledge-steel-grey.webp",
+          "system": {"description": {"value": "<p>Example finished product demonstrating a stable reference to the ore bundle.</p>"}}
+        }
+      }
+    },
+    {
+      "id": "LOC-EXAMPLE-RESOURCE-001",
+      "entity_type": "Location",
+      "status": "example_only",
+      "version": "0.1.0",
+      "provenance": {"source": "Ashen Gate Manager fixture", "approval": "none"},
+      "visibility": "gm",
+      "refs": [{"id":"MAT-EXAMPLE-IRON-001"}],
+      "foundry": {
+        "document_type": "JournalEntry",
+        "data": {
+          "name": "AG Example — Resource Site",
+          "pages": [{"name":"Location Notes", "type":"text", "text":{"content":"<p>Illustrative resource site with a reference to an example material. Not campaign canon.</p>","format":1}}]
+        }
+      }
+    }
+  ]
+}

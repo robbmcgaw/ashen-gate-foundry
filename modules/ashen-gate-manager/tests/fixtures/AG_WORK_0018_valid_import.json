@@ -1,0 +1,8 @@
+{
+  "manifest": {"schema_version":"ag-foundry-import/0.1","package_id":"AG-WORK-0018-TEST","version":"1.0.0","description":"Synthetic real-document import regression fixture."},
+  "records": [{
+    "id":"TAB-TEST-FIELD-001","entity_type":"TravelTable","status":"example_only","version":"1.0.0",
+    "provenance":{"source":"AG-WORK-0018 test fixture","approval":"none"},"visibility":"gm","refs":[],
+    "foundry":{"document_type":"RollTable","data":{"name":"Test Field Encounters","description":"Synthetic disposable test data.","formula":"1d6","replacement":true,"displayRoll":true,"results":[{"type":"text","text":"A broken wagon","range":[1,1],"weight":1,"drawn":false},{"type":"text","text":"A flooded trail","range":[2,2],"weight":1,"drawn":false}]}}
+  }]
+}

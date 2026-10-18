@@ -1,0 +1,148 @@
+<div class="agst-shell">
+  <header class="agst-toolbar">
+    <div class="agst-title"><span class="agst-mark"><i class="fa-solid fa-diagram-project"></i></span><div><strong>Ashen Gate | Skill Trees</strong><small>Reusable progression graphs · Alpha</small></div></div>
+    <div class="agst-toolbar-right"><span class="agst-version" aria-label="Skill Trees version">v{{moduleVersion}}</span><button type="button" class="agst-action" data-act="help" title="Skill Trees help"><i class="fa-solid fa-circle-question"></i> Help</button></div>
+  </header>
+  <nav class="agst-tabs" aria-label="Skill Trees views">
+    <button type="button" data-act="tab-trees" class="agst-tab {{#if activeTrees}}agst-active{{/if}}" aria-current="{{#if activeTrees}}page{{else}}false{{/if}}">Skill Trees</button>
+    {{#if gm}}<button type="button" data-act="tab-setup" class="agst-tab {{#if activeSetup}}agst-active{{/if}}" aria-current="{{#if activeSetup}}page{{else}}false{{/if}}">GM Setup</button>{{/if}}
+  </nav>
+  {{#if activeTrees}}
+  <div class="agst-context-row">
+    <div class="agst-selects">
+      <label>Tree<select id="agst-tree-choice" aria-label="Select skill tree">{{#each trees}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select></label>
+      <label>Character<select id="agst-actor-choice" aria-label="Select character">{{#each actors}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select></label>
+    </div>
+    {{#if gm}}<div class="agst-toolbar-right">
+      <button type="button" data-act="player-preview" class="agst-action {{#if preview}}agst-active{{/if}}" title="Show the sanitized public projection"><i class="fa-solid fa-eye"></i> {{#if preview}}Exit Preview{{else}}Player Preview{{/if}}</button>
+      {{#if initialized}}{{#unless preview}}<button type="button" data-act="edit-mode" class="agst-action {{#if editing}}agst-active{{/if}}"><i class="fa-solid fa-pen-to-square"></i> {{#if editing}}Finish Editing{{else}}Edit Layout{{/if}}</button>{{/unless}}{{/if}}
+    </div>{{/if}}
+  </div>
+  {{/if}}
+  {{#if activeSetup}}{{#unless initialized}}
+    <section class="agst-start"><h3>Set up your private Skill Tree workspace</h3><p>Tree definitions are stored in a GM-only Journal. Players receive a separate, sanitized view. This does not migrate or overwrite existing v0.1 trees or Actor flags.</p>
+      <button data-act="initialize" type="button" class="agst-primary"><i class="fa-solid fa-lock"></i> Initialize GM Storage</button></section>
+  {{/unless}}{{/if}}
+
+  {{#if activeTrees}}{{#if initialized}}
+  <section class="agst-command">
+    <div class="agst-pool">
+      <span class="agst-stat"><small>POINTS AWARDED</small><b>{{progress.awarded}}</b></span>
+      <span class="agst-stat"><small>POINTS AVAILABLE</small><b class="agst-highlight">{{progress.available}}</b></span>
+      <span class="agst-stat"><small>UNLOCKED</small><b>{{progress.unlocks}}</b></span>
+      <span class="agst-provider" title="Provider owns the progression rules">{{mode}}</span>
+    </div>
+    <div class="agst-commands">
+      {{#if canGrant}}<button type="button" class="agst-primary" data-act="grant"><i class="fa-solid fa-plus"></i> Award Points</button>{{/if}}
+      <button type="button" data-act="zoom-out" title="Zoom out">−</button><span class="agst-zoom-label">{{zoomText}}</span><button type="button" data-act="zoom-in" title="Zoom in">+</button><button type="button" data-act="zoom-reset" title="Reset zoom">⟲</button>
+    </div>
+  </section>
+  {{#if awaitingProvider}}<div class="agst-banner"><i class="fa-solid fa-link-slash"></i> Profession node spending is read-only until Tim's validated progression import and Ledger adapter are connected. No alternate Profession XP is tracked here.</div>{{/if}}
+  {{#if isTest}}<div class="agst-banner agst-banner-test"><i class="fa-solid fa-flask"></i> Test content only — node unlocks do not grant Items or implement game effects.</div>{{/if}}
+  {{#if preview}}<div class="agst-banner agst-banner-info">GM player preview shows the shared sanitized tree. Test again from an actual player account to verify document permissions.</div>{{/if}}
+
+  <div class="agst-main">
+    {{#if editing}}
+      <aside class="agst-feature-shelf" aria-label="Imported feature palette"><h3>Imported Features</h3><p class="agst-help">Drag a Manager-imported <code>PERK-*</code> or <code>POWER-*</code> Feature onto the canvas. A link does not create a duplicate Item.</p>
+        <input id="agst-feature-search" type="search" placeholder="Search Features / IDs" value="{{search}}" aria-label="Search imported features">
+        <div class="agst-feature-list">
+          {{#each features}}<div class="agst-feature" draggable="true" data-uuid="{{uuid}}" title="{{id}}"><i class="fa-solid fa-grip-vertical"></i><div><strong>{{name}}</strong><small>{{id}} · {{status}}</small></div><span class="agst-drag-icon">⠿</span></div>{{else}}<p class="agst-empty">No imported PERK/POWER Feature Items found. Use Manager to import definitions first, or add a test node.</p>{{/each}}
+        </div>
+      </aside>
+    {{/if}}
+    <section class="agst-workspace" aria-label="Skill tree canvas">
+      {{#if hasTree}}
+        <div class="agst-viewport">
+          <div class="agst-board" style="width:{{mapWidth}}px;height:{{mapHeight}}px;" tabindex="0" aria-label="Pan the skill tree with scrollbars">
+            <svg class="agst-links" width="{{mapWidth}}" height="{{mapHeight}}" aria-hidden="true">
+              {{#each paths}}<path d="{{d}}" data-from="{{from}}" data-to="{{to}}" class="agst-link {{#if active}}agst-linked{{/if}} {{#if isOr}}agst-link-or{{/if}}"></path>{{/each}}
+            </svg>
+            {{#each nodes}}
+              <button type="button" class="agst-node {{#if selected}}agst-selected{{/if}} {{#if eligible}}agst-eligible{{/if}} {{#if unlocked}}agst-unlocked{{/if}} {{#if silhouette}}agst-silhouette{{/if}}" data-act="select" data-id="{{id}}" style="{{style}}" aria-label="{{name}}: {{flag}}" title="{{name}} · {{reason}}">
+                <span class="agst-node-icon"><i class="fa-solid {{#if silhouette}}fa-question{{else}}{{#if unlocked}}fa-check{{else}}{{#if blocked}}fa-lock{{else}}fa-star{{/if}}{{/if}}{{/if}}"></i></span>
+                <span class="agst-node-main"><strong>{{name}}</strong><small>{{flag}}{{#unless silhouette}} · {{cost}} pt{{/unless}}</small></span>
+              </button>
+            {{/each}}
+            {{#unless nodes}}<div class="agst-board-hint">Empty layout. Enter Edit Layout to add a node or drag in a Feature.</div>{{/unless}}
+          </div>
+        </div>
+        {{#if editing}}<div class="agst-canvas-help">Drag nodes to reposition · Drag imported Features here · Select a node and choose Connect to link prerequisites · OR groups and exclusions are in node properties.</div>{{/if}}
+      {{else}}
+        <div class="agst-no-tree"><i class="fa-regular fa-map"></i><h3>No visible tree layouts</h3><p>{{#if gm}}Initialize, add demo trees, or create a new draft.{{else}}A GM has not published any player-visible trees yet.{{/if}}</p></div>
+      {{/if}}
+    </section>
+    <aside class="agst-inspector" aria-label="Tree details">
+      {{#if selected}}
+        <div class="agst-inspector-head"><small>SELECTED NODE</small><h2>{{selected.name}}</h2><span class="agst-state">{{selected.flag}}</span></div>
+        <div class="agst-inspector-body"><p>{{selected.description}}</p><div class="agst-inspector-line"><strong>Points:</strong> {{selected.cost}}</div>
+          <div class="agst-inspector-line"><strong>Unlock:</strong> {{selected.reason}}</div>
+          {{#if gm}}{{#unless preview}}
+            {{#if bindingNote}}<div class="agst-inspector-line"><strong>Linked source:</strong><br><code>{{bindingNote}}</code> {{#if selectedBinding}}✓{{else}}⚠ missing{{/if}}</div>{{/if}}
+            <div class="agst-inspector-line"><strong>Node status:</strong> {{selected.status}} · {{selected.visibility}} · {{selected.display}}</div>
+          {{/unless}}{{/if}}
+        </div>
+        <div class="agst-inspector-actions">
+          {{#if canBuy}}<button type="button" data-act="purchase" class="agst-primary"><i class="fa-solid fa-unlock"></i> Record Unlock</button>{{/if}}
+          {{#if canRequest}}<button type="button" data-act="request" class="agst-primary"><i class="fa-solid fa-paper-plane"></i> Request Unlock</button>{{/if}}
+          {{#if editing}}
+            <button type="button" data-act="edit-node"><i class="fa-solid fa-sliders"></i> Edit Properties</button>
+            <button type="button" data-act="link"><i class="fa-solid fa-link"></i> Connect Prerequisite</button>
+            <button type="button" data-act="remove-node" class="agst-danger"><i class="fa-solid fa-trash"></i> Remove Node</button>
+          {{/if}}
+        </div>
+      {{else}}
+        <div class="agst-no-selection"><i class="fa-regular fa-hand-pointer"></i><h3>Choose a node</h3><p>Select a feature on the canvas to see prerequisites, availability and its linked source.</p></div>
+      {{/if}}
+      {{#if linkFrom}}<div class="agst-link-alert">Linking: select the target node to create an AND prerequisite.</div>{{/if}}
+      {{#if editing}}<div class="agst-editor-buttons"><button type="button" data-act="new-node"><i class="fa-solid fa-plus"></i> Add Node</button><button type="button" data-act="tree-settings"><i class="fa-solid fa-sliders"></i> Tree Settings</button><button type="button" data-act="undo"><i class="fa-solid fa-rotate-left"></i> Undo</button><button type="button" data-act="redo"><i class="fa-solid fa-rotate-right"></i> Redo</button></div>{{/if}}
+    </aside>
+  </div>
+
+  {{/if}}{{!-- initialized --}}
+  {{#unless initialized}}
+    <section class="agst-start agst-start-inline"><h3>No tree workspace is available yet</h3><p>{{#if gm}}Open <strong>GM Setup</strong> to initialize the private tree library.{{else}}The GM has not published any accessible tree layouts.{{/if}}</p></section>
+  {{/unless}}
+  {{/if}}{{!-- activeTrees --}}
+
+  {{#if activeSetup}}
+  {{#if initialized}}
+  <div class="agst-setup-main" aria-label="GM Setup for Skill Trees">
+    <section class="agst-setup-card">
+      <h2>Tree management</h2>
+      <p>Manage the private layout library. This module does not import Profession XP or overwrite General Manager source definitions.</p>
+      <div class="agst-setup-meta"><span><strong>{{privateCount}}</strong> private layouts</span><span><strong>{{publishedCount}}</strong> public tree projections</span><span><strong>v{{moduleVersion}}</strong> Alpha release</span></div>
+      <div class="agst-setup-actions">
+        <button type="button" data-act="create-tree" class="agst-primary"><i class="fa-solid fa-plus"></i> New Tree</button>
+        <button type="button" data-act="import"><i class="fa-solid fa-file-import"></i> Import Tree Layout JSON</button>
+        <button type="button" data-act="export" {{#unless hasPrivateTree}}disabled title="Select a tree in the Skill Trees tab first"{{/unless}}><i class="fa-solid fa-file-export"></i> Export Selected Tree</button>
+        <button type="button" data-act="export-all"><i class="fa-solid fa-download"></i> Export All Trees</button>
+      </div>
+      <p class="agst-help">Import accepts only <code>ag-skill-trees/0.2</code> layout JSON. Send canonical source packages and generated <code>ag-foundry-import/0.2</code> Items/Journals to General Manager instead. Manager owns any <code>foundry.folder_path</code> placement.</p>
+    </section>
+    <div class="agst-inline-setting" role="group" aria-label="GM-controlled Player Access">
+      <span><strong>Player Access:</strong> {{#if playerAccessEnabled}}Visible{{else}}Hidden{{/if}} <small>Controls player launcher and window only; not Actor progress or document permissions.</small></span>
+      <button type="button" data-act="toggle-player-access">{{#if playerAccessEnabled}}Hide from Players{{else}}Show to Players{{/if}}</button>
+    </div>
+    <section class="agst-setup-card">
+      <h2>Publication and backups</h2>
+      <p>Player views use a separately sanitized tree projection. Publish does not grant Features, XP, or Actor ownership.</p>
+      <div class="agst-setup-actions">
+        <button type="button" data-act="publish" class="agst-primary"><i class="fa-solid fa-arrows-rotate"></i> Publish Player View</button>
+        <button type="button" data-act="backup-progress"><i class="fa-solid fa-box-archive"></i> Backup Actor Tree Progress</button>
+      </div>
+    </section>
+    <details class="agst-dev-tools">
+      <summary><i class="fa-solid fa-flask"></i> Developer Tools — Experimental / GM only</summary>
+      <div class="agst-dev-content"><p>Use a disposable world. QA installation creates real, clearly marked native Foundry documents and private tree layouts; they are not approved Cinder or Profession content.</p>
+        <div class="agst-setup-actions">
+          <button type="button" data-act="qa-install"><i class="fa-solid fa-vial"></i> Install QA Fixture Records</button>
+          <button type="button" data-act="qa-reset" class="agst-danger"><i class="fa-solid fa-trash-can"></i> Reset QA Fixture</button>
+          {{#if legacy}}<button type="button" data-act="legacy-preview"><i class="fa-solid fa-clock-rotate-left"></i> Review Legacy ({{legacy}})</button><button type="button" data-act="legacy-clear" class="agst-danger">Backup &amp; Clear Legacy</button>{{/if}}
+        </div>
+      </div>
+    </details>
+    <input type="file" accept=".json,application/json" id="agst-tree-import" hidden>
+  </div>
+  {{/if}}
+  {{/if}}{{!-- activeSetup --}}
+</div>

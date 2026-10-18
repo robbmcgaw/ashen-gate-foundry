@@ -1,0 +1,48 @@
+{
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.1",
+    "package_id": "EXAMPLE-TEMPLATE-ALPHA",
+    "version": "0.1.0"
+  },
+  "templates": [
+    {
+      "id": "material-base",
+      "version": "0.1.0",
+      "document_type": "Item",
+      "defaults": {
+        "type": "loot",
+        "img": "icons/svg/item-bag.svg",
+        "system": {
+          "description": {
+            "value": "<p>Template default.</p>"
+          }
+        }
+      }
+    }
+  ],
+  "records": [
+    {
+      "id": "MAT-ALPHA-EXAMPLE",
+      "entity_type": "Material",
+      "status": "example_only",
+      "version": "0.1.0",
+      "provenance": {
+        "source": "v0.3 local sample only"
+      },
+      "visibility": "gm",
+      "refs": [],
+      "template_ref": "material-base",
+      "foundry": {
+        "document_type": "Item",
+        "data": {
+          "name": "Template Demo Material",
+          "system": {
+            "description": {
+              "value": "<p>Record overrides template default.</p>"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

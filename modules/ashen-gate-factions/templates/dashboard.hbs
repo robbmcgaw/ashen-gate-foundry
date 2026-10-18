@@ -1,0 +1,129 @@
+<section class="agf-shell agf-v3" aria-label="Factions & Renown">
+  <aside class="agf-sidebar">
+    <header class="agf-aside-title"><span class="agf-eyebrow">ASHEN GATE / FACTIONS</span><h2>Organizations</h2><p>Known allies, rivals & reputations</p></header>
+    <div class="agf-folder-list">
+      {{#each folders}}
+        <div class="agf-folder" data-folder-drop="{{key}}">
+          <div class="agf-folder-title"><i class="fa-solid fa-folder" aria-hidden="true"></i><strong>{{name}}</strong></div>
+          {{#each factions}}
+            <button class="agf-faction-card {{#if selected}}is-selected{{/if}}" type="button" data-action="select" data-id="{{id}}" {{#if @root.isGM}}draggable="true" data-faction-drag="{{id}}"{{/if}}>{{name}}</button>
+          {{/each}}
+          {{#each unknown}}<div class="agf-unknown"><i class="fa-solid fa-lock"></i> Undiscovered faction</div>{{/each}}
+        </div>
+      {{/each}}
+      {{#unless folders.length}}<p class="agf-empty-list">{{#if isGM}}Create a faction in GM Setup.{{else}}No organizations discovered yet.{{/if}}</p>{{/unless}}
+    </div>
+  </aside>
+  <main class="agf-main">
+    <nav class="agf-tabs" aria-label="Renown pages">
+      <button type="button" data-agf-view="group" class="agf-tab {{#if tabGroup}}is-active{{/if}}"><i class="fa-solid fa-users"></i> Group</button>
+      <button type="button" data-agf-view="player" class="agf-tab {{#if tabPlayer}}is-active{{/if}}"><i class="fa-solid fa-user"></i> Player</button>
+      {{#if isGM}}<button type="button" data-agf-view="gm" class="agf-tab {{#if tabGM}}is-active{{/if}}"><i class="fa-solid fa-gears"></i> GM Setup</button>{{/if}}
+    </nav>
+    {{#if detail}}
+      <header class="agf-detail-header">
+        <div><span class="agf-eyebrow">FACTION DOSSIER</span><h1>{{detail.name}}</h1><p class="agf-leader">{{detail.leader}}</p><p class="agf-public-role">{{detail.public_role}}</p></div>
+        {{#if tabPlayer}}{{#unless isGM}}{{#if detail.canShare}}<button type="button" data-action="share" class="agf-primary agf-share"><i class="fa-solid fa-share-nodes"></i> Share with Party</button>{{/if}}{{/unless}}{{/if}}
+        {{#if tabGroup}}<div class="agf-rank-badge"><small>{{groupLabel}}</small><strong>{{detail.score}}</strong><span>{{detail.rank}}</span></div>{{/if}}
+        {{#if tabPlayer}}<div class="agf-rank-badge"><small>Personal Renown</small><strong>{{detail.individualScore}}</strong><span>{{detail.individualRank}}</span></div>{{/if}}
+      </header>
+    {{/if}}
+
+    {{#if tabGroup}}
+      {{#if detail}}
+        <section class="agf-panel"><h2>{{groupLabel}}</h2>
+          <div class="agf-milestones">
+            {{#each detail.groupMs}}<div class="agf-milestone {{#if unlocked}}is-unlocked{{/if}}">
+              <div class="agf-step">{{order}}</div><div class="agf-milestone-name">{{name}}</div><div class="agf-threshold">{{threshold}} Renown</div>
+              {{#if benefit}}<p>{{benefit}}</p>{{/if}}
+              {{#each rewards}}<div class="agf-reward {{#unless unlocked}}agf-reward-locked{{/unless}}"><strong>{{name}}</strong>{{#if description}}<small>{{description}}</small>{{/if}}
+                {{#if canViewGranted}}<button type="button" data-action="openLinked" data-uuid="{{grantedUuid}}">View granted Item</button>{{/if}}{{#if canView}}<button type="button" class="agf-inline-action" data-action="openLinked" data-uuid="{{uuid}}">View source</button>{{else}}{{#if documentAccessRequired}}<small class="agf-muted">Source document is GM-restricted; granted Items are on your Actor sheet.</small>{{/if}}{{/if}}
+                {{#if passive}}<span class="agf-claim-state">{{#if unlocked}}Available privilege{{else}}Not yet available{{/if}}</span>{{/if}}
+                {{#if isClaimed}}<span class="agf-claim-state">Claimed</span>{{/if}}
+                {{#if isPending}}<span class="agf-claim-state">Pending GM</span>{{/if}}
+                {{#if isApproved}}<span class="agf-claim-state">Approved; awaiting fulfillment</span>{{/if}}
+                {{#if canClaim}}{{#if @root.hasActiveGM}}<button type="button" class="agf-claim" data-action="claim" data-audience="group" data-reward="{{id}}">{{#if repeatable}}Request Service{{else}}Claim for Group{{/if}}</button>{{else}}<span class="agf-claim-state">GM must be online to request</span>{{/if}}{{/if}}
+                {{#if repeatable}}{{#if usesLeft}}<small>{{usesLeft}} remaining until GM reset</small>{{/if}}{{/if}}
+              </div>{{/each}}<span class="agf-state">{{#if unlocked}}Unlocked{{else}}Locked{{/if}}</span>
+            </div>{{/each}}
+          </div>
+        </section>
+        {{#if isGM}}<section class="agf-panel agf-award" data-award-scope="group"><h2>GM · Adjust Group Renown</h2><div class="agf-award-row-v2"><label>Change<input name="renown-delta" type="number" value="1" min="-1000" max="1000"></label><label>Reason<input name="renown-reason" maxlength="400" placeholder="Action and consequence"></label><button type="button" data-action="award" data-scope="group">Record</button></div></section>{{/if}}
+        <section class="agf-panel"><h2>Group activity</h2>{{#if detail.groupEvents.length}}<ol class="agf-history">{{#each detail.groupEvents}}<li><strong>{{displayDelta}}</strong> {{reason}} <small>{{previous_score}} → {{score_after}}</small></li>{{/each}}</ol>{{else}}<p class="agf-muted">No recorded reputation changes.</p>{{/if}}</section>
+        <section class="agf-panel"><h2>Discovered information</h2>{{#if detail.entries.length}}{{#each detail.entries}}<div class="agf-knowledge"><strong>{{name}}</strong><p>{{text}}</p>{{#if uuid}}<button type="button" data-action="openLinked" data-uuid="{{uuid}}">Open linked document</button>{{else}}{{#if documentAccessRequired}}<small class="agf-muted">Linked document requires Foundry permission; ask the GM for access.</small>{{/if}}{{/if}}</div>{{/each}}{{else}}<p class="agf-muted">No additional information discovered.</p>{{/if}}</section>
+      {{else}}<div class="agf-welcome"><h1>Factions & Renown</h1><p>Choose a faction to view its group standing.</p></div>{{/if}}
+    {{/if}}
+
+    {{#if tabPlayer}}
+      {{#if detail}}
+        <section class="agf-panel"><h2>Individual Renown</h2><div class="agf-actor-selector"><label>Assigned character<select name="actor-id">{{#each actorChoices}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select></label></div>
+          {{#if actorChoices.length}}
+            <div class="agf-milestones">{{#each detail.individualMs}}<div class="agf-milestone {{#if unlocked}}is-unlocked{{/if}}"><div class="agf-step">{{order}}</div><div class="agf-milestone-name">{{name}}</div><div class="agf-threshold">{{threshold}} Renown</div>
+              {{#if benefit}}<p>{{benefit}}</p>{{/if}}{{#each rewards}}<div class="agf-reward {{#unless unlocked}}agf-reward-locked{{/unless}}"><strong>{{name}}</strong>{{#if description}}<small>{{description}}</small>{{/if}}
+                {{#if canViewGranted}}<button type="button" data-action="openLinked" data-uuid="{{grantedUuid}}">View granted Item</button>{{/if}}{{#if canView}}<button type="button" data-action="openLinked" data-uuid="{{uuid}}">View source</button>{{else}}{{#if documentAccessRequired}}<small class="agf-muted">Source document requires Foundry permission.</small>{{/if}}{{/if}}
+                {{#if passive}}<span class="agf-claim-state">{{#if unlocked}}Available privilege{{else}}Locked{{/if}}</span>{{/if}}
+                {{#if isClaimed}}<span class="agf-claim-state">Claimed</span>{{/if}}{{#if isPending}}<span class="agf-claim-state">Pending GM</span>{{/if}}{{#if isApproved}}<span class="agf-claim-state">Awaiting delivery</span>{{/if}}
+                {{#if canClaim}}{{#if @root.hasActiveGM}}<button type="button" class="agf-claim" data-action="claim" data-audience="individual" data-reward="{{id}}">{{#if repeatable}}Request Service{{else}}Claim Reward{{/if}}</button>{{else}}<small>GM must be online</small>{{/if}}{{/if}}
+              </div>{{/each}}<span class="agf-state">{{#if unlocked}}Unlocked{{else}}Locked{{/if}}</span></div>{{/each}}</div>
+          {{else}}<p class="agf-muted">Your GM must assign you a character in Foundry.</p>{{/if}}
+        </section>
+        {{#if isGM}}<section class="agf-panel agf-award" data-award-scope="individual"><h2>GM · Adjust Personal Renown</h2><div class="agf-award-row-v2"><label>Change<input name="renown-delta" type="number" value="1" min="-1000" max="1000"></label><label>Reason<input name="renown-reason" maxlength="400" placeholder="Personal deed or consequence"></label><button type="button" data-action="award" data-scope="individual">Record</button></div></section>{{/if}}
+        <section class="agf-panel"><h2>Personal activity</h2>{{#if detail.personalEvents.length}}<ol class="agf-history">{{#each detail.personalEvents}}<li><strong>{{displayDelta}}</strong> {{reason}} <small>{{previous_score}} → {{score_after}}</small></li>{{/each}}</ol>{{else}}<p class="agf-muted">No personal reputation changes recorded.</p>{{/if}}</section>
+      {{else}}<div class="agf-welcome"><h1>Individual Renown</h1><p>Discover a faction to view personal standing.</p></div>{{/if}}
+    {{/if}}
+
+    {{#if tabGM}}
+      <section class="agf-panel agf-player-access"><h2>GM · Player Access</h2><p class="agf-muted">Controls whether players can open this module from Actors, macros or Manager. Hidden access keeps Renown, claims, discoveries and character progress unchanged.</p><label class="agf-check"><input type="checkbox" name="player-access-enabled" {{#if playerAccessEnabled}}checked{{/if}}> Players can open Factions &amp; Renown</label><button type="button" data-action="savePlayerAccess">Save Player Access</button></section>
+      <section class="agf-panel agf-selected-character"><h2>GM · Selected character</h2><label>Choose the character for personal Renown, information reveals and rewards<select name="actor-id">{{#each actorChoices}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select></label></section>
+      <details class="agf-config-section" data-agf-section="organizations"><summary>Organizations and folders</summary><section class="agf-panel"><h2>GM · Organizations</h2><div class="agf-create-row"><input name="new-faction-name" maxlength="120" placeholder="New faction name"><button type="button" data-action="create">Create faction</button></div><div class="agf-toolbar agf-setup-toolbar"><button type="button" data-action="seed">Load four draft guilds</button><button type="button" data-action="exportAll">Export definitions only</button></div></section>
+      <section class="agf-panel"><h2>GM · Faction folders</h2><p class="agf-muted">Drag a faction onto a folder in the left sidebar, or choose its folder below.</p><div class="agf-create-row"><input name="new-folder-name" maxlength="100" placeholder="New organizational folder"><button type="button" data-action="createFolder">Create folder</button></div><div class="agf-toolbar agf-setup-toolbar">{{#each foldersForSelect}}{{#if key}}<button type="button" data-action="saveFolder" data-key="{{key}}">Rename {{name}}</button>{{/if}}{{/each}}</div></section>
+      </details>
+      {{#if detail}}
+        <details class="agf-config-section" data-agf-section="profile" open><summary>Faction profile, discovery and fields</summary>
+        <section class="agf-panel"><h2>GM · Faction profile & discovery</h2><div class="agf-form-grid"><label>Faction name<input name="faction-name" value="{{gmKnown.name}}"></label><label>Leader/contact<input name="faction-leader" value="{{gmKnown.leader}}"></label><label class="agf-wide">Public description<textarea name="faction-role" rows="2">{{gmKnown.public_role}}</textarea></label><label>Folder<select name="faction-folder">{{#each foldersForSelect}}<option value="{{key}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select></label><label>Tags<input name="faction-tags" value="{{gmKnown.tags}}" placeholder="military, regional, political"></label></div>
+          <div class="agf-toolbar agf-setup-toolbar"><label class="agf-check"><input name="discovery-placeholder" type="checkbox" {{#if gmKnown.discovery.placeholder}}checked{{/if}}> Show undiscovered placeholder</label><label class="agf-check"><input name="sharing-enabled" type="checkbox" {{#if shareEnabled}}checked{{/if}}> Allow player Share with Party</label></div>
+          <div class="agf-toolbar agf-setup-toolbar"><button type="button" data-action="discovery" data-mode="party">{{#if gmKnown.discovery.party}}Hide from party{{else}}Reveal to party{{/if}}</button><button type="button" data-action="discovery" data-mode="actor">Toggle discovery for selected character</button><span class="agf-muted">Current character: {{actorId}}</span></div>
+          <div class="agf-field-reveals"><h3>Field-level visibility</h3>
+            <p class="agf-muted">Normal discovery shows all profile fields. Enable selective disclosure to reveal each field independently. A hidden name appears as “Unknown Organization”; secret field values are not sent to player Journals.</p>
+            <label class="agf-check"><input type="checkbox" name="field-selective" {{#if fieldSelective}}checked{{/if}}> Use selective field reveals for this faction</label>
+            <div class="agf-field-reveal-grid"><strong>Field</strong><strong>Reveal to party</strong><strong>Reveal to selected character</strong>
+              {{#each gmFieldReveals}}<span>{{label}}</span><label class="agf-check"><input type="checkbox" name="field-party-{{key}}" {{#if party}}checked{{/if}}> Party</label><label class="agf-check"><input type="checkbox" name="field-actor-{{key}}" {{#if actor}}checked{{/if}}> Character</label>{{/each}}
+            </div><button type="button" data-action="saveFieldReveals">Save field visibility</button>
+          </div>
+          <p class="agf-muted">Tags are GM organization keywords for searching and cataloging factions; they are not automatically shared with players.</p>
+          <details class="agf-inner-section"><summary>Group milestone settings</summary><h3>Group milestone settings</h3>{{#each gmGroupLevels}}<div class="agf-milestone-editor agf-v3-editor" data-milestone-row="group"><span>{{name}}</span><label>Rank<input data-field="name" value="{{name}}"></label><label>Threshold<input data-field="threshold" type="number" value="{{threshold}}"></label><label>Reward mode<select data-field="selection"><option value="all" {{#if isAll}}selected{{/if}}>All Rewards</option><option value="choose_one" {{#if isOne}}selected{{/if}}>Choose One</option></select></label><label>Text<textarea data-field="benefit" rows="2">{{benefit}}</textarea></label></div>{{/each}}
+          </details><details class="agf-inner-section"><summary>Individual milestone settings</summary><h3>Individual milestone settings</h3>{{#each gmPersonalLevels}}<div class="agf-milestone-editor agf-v3-editor" data-milestone-row="individual"><span>{{name}}</span><label>Rank<input data-field="name" value="{{name}}"></label><label>Threshold<input data-field="threshold" type="number" value="{{threshold}}"></label><label>Reward mode<select data-field="selection"><option value="all" {{#if isAll}}selected{{/if}}>All Rewards</option><option value="choose_one" {{#if isOne}}selected{{/if}}>Choose One</option></select></label><label>Text<textarea data-field="benefit" rows="2">{{benefit}}</textarea></label></div>{{/each}}
+          </details><button type="button" class="agf-primary" data-action="save">Save Faction Setup</button>
+        </section></details>
+        <details class="agf-config-section" data-agf-section="objectives"><summary>Related Quests and contracts</summary><section class="agf-panel agf-objective-links" aria-label="GM Objective reference authoring">
+          <h2>GM · Related Objectives</h2>
+          <p class="agf-muted">Canonical Quest, Work Order or Contract references. <strong>GM-only authoring:</strong> these links do not discover, publish, or open Quests for players. Only the GM can verify link targets through Quest Manager. Objective discovery, progress and player visibility remain Quest-owned.</p>
+          {{#each gmObjectiveRefs}}
+            <div class="agf-objective-row"><code>{{target_id}}</code><span>{{relation}} · {{mode}}</span><span class="agf-objective-status" title="Quest owner verification; unverified means unavailable or not installed">{{status}}</span><button type="button" data-action="removeObjective" data-objective="{{target_id}}" data-relation="{{relation}}" data-mode="{{mode}}">Remove</button></div>
+          {{else}}
+            <p class="agf-muted">No Objective references attached to this faction.</p>
+          {{/each}}
+          <div class="agf-objective-entry">
+            <label>Canonical Objective ID<input name="objective-id" placeholder="QUEST-... / ORDER-... / CONTRACT-..." autocomplete="off"></label>
+            <label>Relationship<select name="objective-relation"><option value="associated_objective">Associated with</option><option value="offers_objective">Offers</option></select></label>
+            <label>Link mode<select name="objective-mode"><option value="optional">Optional</option><option value="required">Required</option></select></label>
+            <button type="button" data-action="addObjective">Add reference</button>
+          </div>
+        </section></details>
+        <details class="agf-config-section" data-agf-section="information"><summary>Information and Journal links</summary><section class="agf-panel"><h2>GM · Information entries</h2><p class="agf-muted">Write entries or drop Foundry Actors/Journals below; reveal them manually or by Group/Individual Renown. Linked documents remain permission-checked.</p>
+          {{#each gmKnown.entries}}<div class="agf-entry-editor"><strong>{{name}}</strong> <small>{{unlock}}{{#if threshold}} · {{threshold}} Renown{{/if}}</small><div class="agf-toolbar"><button type="button" data-action="showEntry" data-mode="party" data-entry="{{id}}">{{#if discovered_party}}Hide from party{{else}}Reveal to party{{/if}}</button><button type="button" data-action="showEntry" data-mode="actor" data-entry="{{id}}">Toggle for selected character</button><button type="button" data-action="showEntry" data-mode="edit" data-entry="{{id}}">Edit text</button>{{#if uuid}}<button type="button" data-action="showEntry" data-mode="mode" data-entry="{{id}}">Link: {{link_mode}}</button>{{/if}}<button type="button" data-action="showEntry" data-mode="remove" data-entry="{{id}}">Remove</button></div></div>{{/each}}
+          <details class="agf-drop-zone" data-entry-drop data-info-editor><summary>Add information entry / drop document</summary><div class="agf-form-grid"><label>Title<input name="info-name" placeholder="Rumor, history, contact"></label><label>Unlock<select name="info-unlock"><option value="manual">GM manually</option><option value="group_renown">Group Renown</option><option value="individual_renown">Individual Renown</option></select></label><label>Threshold<input name="info-threshold" type="number" value="0" min="0"></label><label class="agf-wide">Text<textarea name="info-text" rows="2"></textarea></label></div><button type="button" data-action="addEntry">Add information</button></details>
+        </section></details>
+        <details class="agf-config-section" data-agf-section="rewards"><summary>Rewards and milestone claims</summary><section class="agf-panel"><h2>GM · Group display name</h2><div class="agf-group-name-form"><label class="agf-check"><input type="checkbox" name="group-name-enabled" {{#if groupNameEnabled}}checked{{/if}}> Use custom group name</label><label>Name<input name="group-name" value="{{groupName}}"></label><button type="button" data-action="saveGroupLabel">Save</button></div></section>
+        <section class="agf-panel"><h2>GM · Milestone rewards</h2><p class="agf-muted">Each reward can be one-time, repeatable service, or passive. New linked Items default to one-time. Edit rewards for optional tags, teasers and service limits.</p>
+          {{#each gmGroupLevels}}<div class="agf-v3-reward-level"><h3>Group — {{name}}</h3><button type="button" class="agf-small" data-action="resetChoice" data-audience="group" data-milestone="{{id}}">GM: Clear choice</button>{{#each rewards}}<div class="agf-reward-editor"><strong>{{name}}</strong><small>{{behavior}}</small><button type="button" data-action="editReward" data-reward="{{id}}">Edit</button><button type="button" data-action="removeReward" data-reward="{{id}}">×</button></div>{{/each}}<details class="agf-drop-zone" data-reward-drop data-audience="group" data-milestone="{{id}}"><summary>Drop linked reward / add custom</summary><input name="reward-name" placeholder="Reward name"><input name="reward-description" placeholder="Description"><label>Behavior<select name="reward-behavior"><option value="one_time">One-time</option><option value="repeatable_service">Repeatable service</option><option value="passive">Passive benefit</option></select></label><label>Usage limit<input name="reward-limit" type="number" value="0" min="0"></label><button type="button" data-action="addReward">Add reward</button></details></div>{{/each}}
+          {{#each gmPersonalLevels}}<div class="agf-v3-reward-level"><h3>Individual — {{name}}</h3><button type="button" class="agf-small" data-action="resetChoice" data-audience="individual" data-milestone="{{id}}">GM: Clear choice</button>{{#each rewards}}<div class="agf-reward-editor"><strong>{{name}}</strong><small>{{behavior}}</small><button type="button" data-action="editReward" data-reward="{{id}}">Edit</button><button type="button" data-action="removeReward" data-reward="{{id}}">×</button></div>{{/each}}<details class="agf-drop-zone" data-reward-drop data-audience="individual" data-milestone="{{id}}"><summary>Drop linked reward / add custom</summary><input name="reward-name" placeholder="Reward name"><input name="reward-description" placeholder="Description"><label>Behavior<select name="reward-behavior"><option value="one_time">One-time</option><option value="repeatable_service">Repeatable service</option><option value="passive">Passive benefit</option></select></label><label>Usage limit<input name="reward-limit" type="number" value="0" min="0"></label><button type="button" data-action="addReward">Add reward</button></details></div>{{/each}}
+        </section>
+        </details>
+        <details class="agf-config-section" data-agf-section="requests" open><summary>Incoming reward and service requests ({{gmQueue.length}})</summary><section class="agf-panel"><h2>GM · Claims & service requests</h2>{{#if gmQueue.length}}{{#each gmQueue}}<div class="agf-request-row"><div><strong>{{actor}}</strong> · {{reward}} <small>({{status}})</small></div><div class="agf-toolbar">{{#if isItem}}<label>Recipient<select name="recipient-{{requestKey}}"><option value="">Manual delivery</option>{{#each @root.actorChoices}}<option value="{{id}}">{{name}}</option>{{/each}}</select></label>{{/if}} {{#if pending}}<button type="button" data-action="resolveRequest" data-doc="{{docId}}" data-key="{{requestKey}}" data-claim="{{#if claim}}1{{/if}}" data-mode="approve">Approve</button>{{/if}}{{#if approved}}<button type="button" data-action="resolveRequest" data-doc="{{docId}}" data-key="{{requestKey}}" data-claim="{{#if claim}}1{{/if}}" data-mode="fulfill">Mark fulfilled</button>{{/if}}<button type="button" data-action="resolveRequest" data-doc="{{docId}}" data-key="{{requestKey}}" data-claim="{{#if claim}}1{{/if}}" data-mode="deny">Deny</button></div></div>{{/each}}{{else}}<p class="agf-muted">No pending or approved requests.</p>{{/if}}</section>
+        <section class="agf-panel"><h2>GM · Reset service limits</h2>{{#each serviceRewards}}<div class="agf-request-row"><strong>{{name}}</strong><button type="button" data-action="resetUsage" data-audience="{{audience}}" data-reward="{{id}}">Reset {{audience}} uses</button></div>{{/each}}</section></details>
+      {{/if}}
+    {{/if}}
+    {{#if refreshNeeded}}<p class="agf-muted">Waiting for the GM to prepare your private faction view. Reopen after the GM connects.</p>{{/if}}
+  </main>
+</section>

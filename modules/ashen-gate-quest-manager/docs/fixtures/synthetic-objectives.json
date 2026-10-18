@@ -1,0 +1,107 @@
+{
+  "schema_version": "ag-quest-source/0.1",
+  "domain": "quests_orders",
+  "version": "0.3.0",
+  "records": [
+    {
+      "id": "QUEST-TEST-PATH",
+      "entity_type": "Objective",
+      "objective_kind": "quest",
+      "status": "draft",
+      "version": "0.2.0",
+      "provenance": {
+        "sources": [
+          "Synthetic AG-WORK-0015 test fixture; no Ashen Gate lore"
+        ]
+      },
+      "visibility": "player",
+      "refs": [
+        {
+          "relation": "associated_location",
+          "target_id": "LOC-TEST-VALLEY",
+          "mode": "optional"
+        }
+      ],
+      "name": "TEST \u2014 Follow the Path",
+      "public_summary": "Test an exploration objective and a late-revealed discovery.",
+      "source": {
+        "description": "Synthetic GM test issuer"
+      },
+      "objectives": [
+        {
+          "key": "follow",
+          "goal": "Follow the marked trail"
+        },
+        {
+          "key": "discover",
+          "goal": "Identify the unknown marker",
+          "visibility": "reveal_gated"
+        }
+      ],
+      "locations": [
+        {
+          "target_id": "LOC-TEST-VALLEY"
+        }
+      ],
+      "parameters": {},
+      "outcomes": {}
+    },
+    {
+      "id": "ORDER-TEST-CRAFT",
+      "entity_type": "Objective",
+      "objective_kind": "work_order",
+      "work_order_domain": "crafting",
+      "status": "draft",
+      "version": "0.2.0",
+      "provenance": {
+        "sources": [
+          "Synthetic AG-WORK-0015 test fixture; no crafting rules invented"
+        ]
+      },
+      "visibility": "player",
+      "refs": [],
+      "name": "TEST \u2014 Craft a Sample",
+      "public_summary": "Test a crafting Work Order without assuming recipe costs.",
+      "source": {
+        "description": "Synthetic production request"
+      },
+      "objectives": [
+        {
+          "key": "produce",
+          "goal": "Present a GM-approved crafted sample"
+        }
+      ],
+      "locations": [],
+      "parameters": {},
+      "outcomes": {}
+    },
+    {
+      "id": "CONTRACT-TEST-DELIVERY",
+      "entity_type": "Objective",
+      "objective_kind": "contract",
+      "status": "draft",
+      "version": "0.2.0",
+      "provenance": {
+        "sources": [
+          "Synthetic AG-WORK-0015 test fixture; no faction reward invented"
+        ]
+      },
+      "visibility": "reveal_gated",
+      "refs": [],
+      "name": "TEST \u2014 Private Delivery",
+      "public_summary": "Test a reveal-gated offered Contract.",
+      "source": {
+        "description": "Synthetic patron"
+      },
+      "objectives": [
+        {
+          "key": "deliver",
+          "goal": "Deliver the designated parcel"
+        }
+      ],
+      "locations": [],
+      "parameters": {},
+      "outcomes": {}
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "schema_version": "ag-source-package/0.1",
+  "package_id": "AG-DEMO-CONTENT",
+  "version": "0.1.0",
+  "domain": "integration",
+  "content_set": "example",
+  "visibility": "gm",
+  "includes_campaign_state": false,
+  "source_commit": null,
+  "files": [
+    {"path": "records.json", "role": "canonical_records", "schema_version": "ashen-gate-core/0.2"},
+    {"path": "foundry-import.json", "role": "foundry_projection", "schema_version": "ag-foundry-import/0.2"}
+  ]
+}

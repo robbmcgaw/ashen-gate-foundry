@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Roll Table fallback">
+<rect x="3" y="3" width="58" height="58" rx="9" fill="#262a2d" stroke="#a48758" stroke-width="2"/>
+<path d="m32 10 20 12v22L32 55 12 44V22z" fill="none" stroke="#e6dbc4" stroke-width="2.5"/>
+<path d="m12 22 20 11 20-11M32 33v22M23 17l19 12" fill="none" stroke="#a48758" stroke-width="2"/>
+<circle cx="32" cy="24" r="2" fill="#e6dbc4"/>
+</svg>

@@ -1,0 +1,13 @@
+# Quest Manager v0.3.1 Alpha — release and test handoff
+
+- **Module ID:** `ashen-gate-quest-manager` · manifest `0.3.1` · Stage: Alpha.
+- **Pinned baseline:** GitHub `main` `4629d37d48f8d58e6ba7ffb7282a4cf2d8f5a641`; Archie resolver implementation `f535fe085cc3446dd3e82dd796df95118631b145`, contract `ag-definition-resolver/0.1-prototype`.
+- **Test environment:** Node v22 local/mocked, not Foundry V14. User-reported target: Forge Foundry V14 Stable 9 Build 367, dnd5e 6.0.6. This is NOT a certification.
+- **Diff from v0.3.0:** stricter Objective/Manager projection canonical envelopes (typed refs, sources strings, scope), independent opt-in compendium reader with GM world setting, exact pack-only Objective lookup, DEC-0078 world override/ambiguity and archive behavior.
+- **Source of reusable definitions:** GitHub/Manager metadata. **Mutable Quest progress, reveal, notes/rewards and ASSIGN state:** unchanged Quest Manager Journals only. Nothing reimported or reset automatically.
+- **Pack configuration:** `Quest Definitions: Compendium Pack IDs` is a GM world setting, default empty; exact pack collection IDs only. Reload after changing IDs, or GM calls `await game.modules.get('ashen-gate-quest-manager').api.consumer.refreshCompendiums()` after contents change. Lookups can be temporarily unavailable during async refresh or after a failed pack load. No automatic pack discovery.
+- **Standalone:** Manager remains entirely optional, including for pack-only lookups. A packaged implementation of the pinned resolver contract is bundled under `scripts/vendor/archie-resolver/` with provenance in `VENDORED_RESOLVER_PIN.md`.
+- **GM/player privacy:** GM-only definition reader; player API strictly requires Quest-published, permission-checked, revealed Journal views. `readSource`, generic resolver and `ASSIGN` mutation are never exposed through player Quest APIs. Source `status` remains independent of campaign status.
+- **Known issues:** Not Foundry V14-certified; compendium cache refresh is explicit; this package is a pinned-contract adaptation, not a byte-for-byte imported source snapshot or an independently approved public resolver v1. Original final Eli v0.1 source artifact remains unverified.
+- **Migration/rollback:** Fresh-world test candidate. Back up the world. No automated state migration or changes to stored Quest/ASSIGN records. Restore the previous module ZIP if a regression occurs; configuration for pack IDs is unused by 0.3.0.
+- **Run:** `npm run check && npm test` inside the source tree; see `TEST_RESULTS_v0.3.1.txt`. Robb will perform the integrated GM/player V14 test later.

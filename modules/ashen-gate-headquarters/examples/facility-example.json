@@ -1,0 +1,37 @@
+[
+  {
+    "id": "FAC-EXAMPLE-WORKSHOP",
+    "entity_type": "Facility",
+    "status": "draft",
+    "version": "0.1.0",
+    "provenance": {"sources": ["Example only; replace with a reviewed source"]},
+    "visibility": "player",
+    "scope": "generic_rules",
+    "refs": [],
+    "name": "Example Workshop",
+    "category": "Profession",
+    "placements": ["shared"],
+    "stages": [
+      {
+        "key": "base",
+        "label": "Initial",
+        "width": 4,
+        "height": 3,
+        "staffing_slots": 1,
+        "art": "",
+        "benefits": [
+          {"name": "Workshop Access (example)", "description": "Demonstration only. No mechanical effect is defined.", "recipient": "guild"}
+        ]
+      },
+      {
+        "key": "expanded",
+        "label": "Expanded",
+        "width": 5,
+        "height": 4,
+        "staffing_slots": 2,
+        "art": "",
+        "benefits": []
+      }
+    ]
+  }
+]

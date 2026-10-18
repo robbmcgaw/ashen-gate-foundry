@@ -1,0 +1,10 @@
+{
+  "name": "ashen-gate-quest-manager",
+  "private": true,
+  "type": "module",
+  "version": "0.4.0",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "check": "node --check scripts/tracking.mjs && node --check scripts/core.mjs && node --check scripts/store.mjs && node --check scripts/assignments.mjs && node --check scripts/resolver-consumer.mjs && node --check scripts/main.mjs && node --check scripts/pinned-runtime.mjs && node --check scripts/vendor/archie-resolver/index.mjs"
+  }
+}

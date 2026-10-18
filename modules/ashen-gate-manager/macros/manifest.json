@@ -1,0 +1,23 @@
+{
+  "schema_version": "ag-macro-manifest/0.1",
+  "entries": [
+    {
+      "id": "ag-profession-14-trees",
+      "name": "AG \u2014 Generate 14 Profession Skill Trees (Experimental)",
+      "version": "2026-10-14-prototype",
+      "description": "Creates the previously user-tested seven-node design variants; placeholder rewards and experimental costs. Does NOT apply official profession leveling rules. Skips same-name trees.",
+      "source": "macros/legacy/ag-profession-14-trees.js",
+      "category": "Legacy experiments",
+      "status": "experimental"
+    },
+    {
+      "id": "ag-profession-access",
+      "name": "AG \u2014 Sync Profession Tree Access (Experimental)",
+      "version": "2026-10-14-prototype",
+      "description": "User-level Journal Observer permission grants based on experimental proficiency mappings. Review Foundry ownership implications.",
+      "source": "macros/legacy/ag-profession-access.js",
+      "category": "Legacy experiments",
+      "status": "experimental"
+    }
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-LEDGER-MANAGER-CONTRACT-SMOKE",
+    "version": "0.1.0",
+    "description": "Synthetic interoperability fixture only. NOT canonical rules, recipes, or campaign content."
+  },
+  "records": [
+    {
+      "id": "MAT-DEMO-INTEROP-HERBS",
+      "entity_type": "Material",
+      "status": "draft",
+      "version": "0.1.0",
+      "provenance": {"sources": ["Profession Ledger v0.2.3 synthetic test fixture"]},
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "foundry": {"document_type": "Item", "data": {"name": "Interop Test Herbs", "type": "loot", "system": {"quantity": 1, "description": {"value": "<p>Synthetic testing material.</p>"}}}}
+    },
+    {
+      "id": "REC-DEMO-INTEROP-TEA",
+      "entity_type": "Recipe",
+      "status": "draft",
+      "version": "0.1.0",
+      "provenance": {"sources": ["Profession Ledger v0.2.3 synthetic test fixture"]},
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [{"relation": "requires_material", "target_id": "MAT-DEMO-INTEROP-HERBS", "mode": "required"}],
+      "recipe": {"profession": "Herbalism", "tier": "Apprentice", "effort": "Short", "ingredients": [{"materialId": "MAT-DEMO-INTEROP-HERBS", "name": "Interop Test Herbs", "quantity": 2}]},
+      "foundry": {"document_type": "Item", "data": {"name": "Recipe: Interop Test Tea", "type": "loot", "system": {"description": {"value": "<p>Test fixture: ingredients are in the canonical recipe record.</p>"}}}}
+    },
+    {
+      "id": "MAT-DEMO-HIDDEN-HERB",
+      "entity_type": "Material",
+      "status": "draft",
+      "version": "0.1.0",
+      "provenance": {"sources": ["Profession Ledger v0.2.3 synthetic test fixture"]},
+      "visibility": "gm",
+      "scope": "generic_rules",
+      "refs": [],
+      "foundry": {"document_type": "Item", "data": {"name": "SECRET TEST HERB", "type": "loot", "system": {"description": {"value": "<p>Do not expose this text in the Ledger public catalog.</p>"}}}}
+    },
+    {
+      "id": "REC-DEMO-HIDDEN-TEA",
+      "entity_type": "Recipe",
+      "status": "draft",
+      "version": "0.1.0",
+      "provenance": {"sources": ["Profession Ledger v0.2.3 synthetic test fixture"]},
+      "visibility": "reveal_gated",
+      "scope": "generic_rules",
+      "refs": [],
+      "foundry": {"document_type": "Item", "data": {"name": "SECRET TEST RECIPE", "type": "loot", "system": {"description": {"value": "<p>GM-only unrevealed test.</p>"}}}}
+    }
+  ]
+}

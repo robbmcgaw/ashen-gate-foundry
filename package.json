@@ -1,0 +1,8 @@
+{
+  "name": "ashen-gate-foundry",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node scripts/check.mjs"
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-ARCHIE-CONTRACT-DEMO",
+    "version": "0.4.0",
+    "description": "Synthetic draft fixture, not approved campaign canon."
+  },
+  "records": [
+    {
+      "id": "MAT-DEMO-METAL",
+      "entity_type": "Material",
+      "status": "draft",
+      "version": "0.1.0",
+      "provenance": {"sources": ["AG-WORK-0001:technical-fixture"]},
+      "visibility": "gm",
+      "scope": "generic_rules",
+      "refs": [],
+      "foundry": {"document_type": "Item", "data": {
+        "name": "AG Contract Demo — Metal", "type": "loot",
+        "system": {"description": {"value": "<p>Synthetic test material. Not setting canon.</p>"}}
+      }}
+    },
+    {
+      "id": "LOC-DEMO-FORGE",
+      "entity_type": "Location",
+      "status": "draft",
+      "version": "0.1.0",
+      "provenance": {"sources": ["AG-WORK-0001:technical-fixture"]},
+      "visibility": "gm",
+      "scope": "setting_adapter",
+      "refs": [{"relation":"offers_objective","target_id":"CONTRACT-DEMO-CRAFT","mode":"optional"}],
+      "resource_opportunities": [{"id":"RES-DEMO-METAL","material_ref":"MAT-DEMO-METAL"}],
+      "foundry": {"document_type": "JournalEntry", "data": {
+        "name": "AG Contract Demo — Workshop Site",
+        "pages": [{"name":"Test Notes", "type":"text", "text":{"content":"<p>Synthetic location and RES resource opportunity.</p>","format":1}}]
+      }}
+    },
+    {
+      "id": "CONTRACT-DEMO-CRAFT",
+      "entity_type": "Objective",
+      "objective_kind": "contract",
+      "status": "draft",
+      "version": "0.1.0",
+      "provenance": {"sources": ["AG-WORK-0001:technical-fixture"]},
+      "visibility": "gm",
+      "scope": "setting_adapter",
+      "source": {"kind": "example"},
+      "objectives": [{"key": "craft", "completion_criteria": "Demonstrate craft output"}],
+      "locations": ["LOC-DEMO-FORGE"],
+      "parameters": {},
+      "outcomes": {},
+      "refs": [
+        {"relation":"targets_location","target_id":"LOC-DEMO-FORGE","mode":"required"},
+        {"relation":"requires_material","target_id":"MAT-DEMO-METAL","mode":"required"},
+        {"relation":"uses_resource","target_id":"RES-DEMO-METAL","mode":"required"}
+      ],
+      "foundry": {"document_type": "JournalEntry", "data": {
+        "name": "AG Contract Demo — Crafting Objective",
+        "pages": [{"name":"Test Contract", "type":"text", "text":{"content":"<p>Synthetic Contract Objective; one Objective, no mandatory Order.</p>","format":1}}]
+      }}
+    },
+    {
+      "id": "MUT-DEMO-SHELL",
+      "entity_type": "Mutation",
+      "status": "draft",
+      "version": "0.1.0",
+      "provenance": {"sources": ["AG-WORK-0006:technical-fixture"]},
+      "visibility": "reveal_gated",
+      "scope": "setting_adapter",
+      "refs": [],
+      "foundry": {"document_type": "Item", "data": {
+        "name": "AG Contract Demo — Mutation", "type": "feat",
+        "system": {"description": {"value": "<p>Demo only: no Cinder mechanics are changed or implemented.</p>"}}
+      }}
+    },
+    {
+      "id": "ASSIGN-DEMO-SCOPED",
+      "entity_type": "Assignment",
+      "status": "draft",
+      "version": "0.1.0",
+      "provenance": {"sources": ["AG-WORK-0001:technical-fixture"]},
+      "visibility": "gm",
+      "scope": "campaign_state",
+      "owner_system_id": "SYS-QUEST",
+      "execution_status": "unassigned",
+      "participants": [],
+      "refs": [{"relation":"fulfills_objective","target_id":"CONTRACT-DEMO-CRAFT","mode":"required"}]
+    }
+  ]
+}

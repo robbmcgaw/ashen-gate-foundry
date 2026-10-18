@@ -1,0 +1,112 @@
+{
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-MANAGER-FIDELITY-TEST",
+    "version": "0.6.0"
+  },
+  "records": [
+    {
+      "status": "draft",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic Manager v0.6.0 interface fixture only"
+        ]
+      },
+      "visibility": "gm",
+      "scope": "generic_rules",
+      "id": "DOC-TEST-JOURNAL",
+      "entity_type": "Journal",
+      "refs": [
+        {
+          "relation": "documents_recipe",
+          "target_id": "REC-TEST-RECIPE",
+          "mode": "required"
+        }
+      ],
+      "foundry": {
+        "document_type": "JournalEntry",
+        "folder_path": "Ashen Gate/Professions/Journals/Test",
+        "data": {
+          "name": "[TEST] Import Notes",
+          "pages": [
+            {
+              "name": "Link Test",
+              "type": "text",
+              "text": {
+                "format": 1,
+                "content": "<p>Recipe: [[AGREF:REC-TEST-RECIPE|Test Recipe]]</p>"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "status": "draft",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic Manager v0.6.0 interface fixture only"
+        ]
+      },
+      "visibility": "gm",
+      "scope": "generic_rules",
+      "id": "REC-TEST-RECIPE",
+      "entity_type": "Recipe",
+      "refs": [
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-TEST-IRON",
+          "mode": "required"
+        }
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Professions/Recipes/Test",
+        "data": {
+          "name": "[TEST] Synthetic Recipe",
+          "type": "feat",
+          "system": {
+            "description": {
+              "value": "<p>See [[AGREF:MAT-TEST-IRON|Synthetic Iron]] for testing.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "status": "draft",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic Manager v0.6.0 interface fixture only"
+        ]
+      },
+      "visibility": "gm",
+      "scope": "generic_rules",
+      "id": "MAT-TEST-IRON",
+      "entity_type": "Material",
+      "refs": [
+        {
+          "relation": "used_by_recipe",
+          "target_id": "REC-TEST-RECIPE",
+          "mode": "required"
+        }
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Professions/Materials/Test",
+        "data": {
+          "name": "[TEST] Iron",
+          "type": "loot",
+          "system": {
+            "description": {
+              "value": "<p>Synthetic material, no rules.</p>"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

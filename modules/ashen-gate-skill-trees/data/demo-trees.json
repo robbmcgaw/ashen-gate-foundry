@@ -1,0 +1,1883 @@
+{
+  "schema": "ag-skill-trees/0.1",
+  "packageId": "ashen-gate-skill-trees-examples",
+  "version": "0.1.0",
+  "status": "experimental_demo_only",
+  "trees": [
+    {
+      "id": "DEMO-TREE-ALCHEMY",
+      "name": "Alchemy \u00b7 Prototype",
+      "kind": "profession",
+      "mode": "level",
+      "visibility": "player",
+      "xpCosts": [
+        4,
+        7,
+        10,
+        13,
+        16
+      ],
+      "description": "Experimental 5-level display using Early trident. Real Profession rules remain authoritative.",
+      "sourceId": null,
+      "layout": "Early trident",
+      "nodes": [
+        {
+          "id": "DEMO-ALCHEMY-N01",
+          "name": "Alchemy \u2014 Foundation",
+          "description": "Experimental stage 1 node in the Early trident layout. This is not an approved Ashen Gate perk.",
+          "stage": 1,
+          "x": 480,
+          "y": 90,
+          "prerequisites": [],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ALCHEMY-N02",
+          "name": "Alchemy \u2014 Stage 2 \u00b7 A",
+          "description": "Experimental stage 2 node in the Early trident layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 230,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-ALCHEMY-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-ALCHEMY-N03",
+            "DEMO-ALCHEMY-N04"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ALCHEMY-N03",
+          "name": "Alchemy \u2014 Stage 2 \u00b7 B",
+          "description": "Experimental stage 2 node in the Early trident layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 480,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-ALCHEMY-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-ALCHEMY-N02",
+            "DEMO-ALCHEMY-N04"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ALCHEMY-N04",
+          "name": "Alchemy \u2014 Stage 2 \u00b7 C",
+          "description": "Experimental stage 2 node in the Early trident layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 730,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-ALCHEMY-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-ALCHEMY-N02",
+            "DEMO-ALCHEMY-N03"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ALCHEMY-N05",
+          "name": "Alchemy \u2014 Stage 3 \u00b7 A",
+          "description": "Experimental stage 3 node in the Early trident layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 480,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-ALCHEMY-N02",
+            "DEMO-ALCHEMY-N03",
+            "DEMO-ALCHEMY-N04"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ALCHEMY-N06",
+          "name": "Alchemy \u2014 Stage 4 \u00b7 A",
+          "description": "Experimental stage 4 node in the Early trident layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 480,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-ALCHEMY-N05"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ALCHEMY-N07",
+          "name": "Alchemy \u2014 Stage 5 \u00b7 A",
+          "description": "Experimental stage 5 node in the Early trident layout. This is not an approved Ashen Gate perk.",
+          "stage": 5,
+          "x": 480,
+          "y": 670,
+          "prerequisites": [
+            "DEMO-ALCHEMY-N06"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        }
+      ]
+    },
+    {
+      "id": "DEMO-TREE-ARCHAEOLOGY",
+      "name": "Archaeology \u00b7 Prototype",
+      "kind": "profession",
+      "mode": "level",
+      "visibility": "player",
+      "xpCosts": [
+        4,
+        7,
+        10,
+        13,
+        16
+      ],
+      "description": "Experimental 5-level display using Centered trident. Real Profession rules remain authoritative.",
+      "sourceId": null,
+      "layout": "Centered trident",
+      "nodes": [
+        {
+          "id": "DEMO-ARCHAEOLOGY-N01",
+          "name": "Archaeology \u2014 Foundation",
+          "description": "Experimental stage 1 node in the Centered trident layout. This is not an approved Ashen Gate perk.",
+          "stage": 1,
+          "x": 480,
+          "y": 90,
+          "prerequisites": [],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ARCHAEOLOGY-N02",
+          "name": "Archaeology \u2014 Stage 2 \u00b7 A",
+          "description": "Experimental stage 2 node in the Centered trident layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 480,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-ARCHAEOLOGY-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ARCHAEOLOGY-N03",
+          "name": "Archaeology \u2014 Stage 3 \u00b7 A",
+          "description": "Experimental stage 3 node in the Centered trident layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 105,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-ARCHAEOLOGY-N02"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-ARCHAEOLOGY-N04",
+            "DEMO-ARCHAEOLOGY-N05"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ARCHAEOLOGY-N04",
+          "name": "Archaeology \u2014 Stage 3 \u00b7 B",
+          "description": "Experimental stage 3 node in the Centered trident layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 480,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-ARCHAEOLOGY-N02"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-ARCHAEOLOGY-N03",
+            "DEMO-ARCHAEOLOGY-N05"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ARCHAEOLOGY-N05",
+          "name": "Archaeology \u2014 Stage 3 \u00b7 C",
+          "description": "Experimental stage 3 node in the Centered trident layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 855,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-ARCHAEOLOGY-N02"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-ARCHAEOLOGY-N03",
+            "DEMO-ARCHAEOLOGY-N04"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ARCHAEOLOGY-N06",
+          "name": "Archaeology \u2014 Stage 4 \u00b7 A",
+          "description": "Experimental stage 4 node in the Centered trident layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 480,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-ARCHAEOLOGY-N03",
+            "DEMO-ARCHAEOLOGY-N04",
+            "DEMO-ARCHAEOLOGY-N05"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ARCHAEOLOGY-N07",
+          "name": "Archaeology \u2014 Stage 5 \u00b7 A",
+          "description": "Experimental stage 5 node in the Centered trident layout. This is not an approved Ashen Gate perk.",
+          "stage": 5,
+          "x": 480,
+          "y": 670,
+          "prerequisites": [
+            "DEMO-ARCHAEOLOGY-N06"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        }
+      ]
+    },
+    {
+      "id": "DEMO-TREE-BLACKSMITHING",
+      "name": "Blacksmithing \u00b7 Prototype",
+      "kind": "profession",
+      "mode": "level",
+      "visibility": "player",
+      "xpCosts": [
+        4,
+        7,
+        10,
+        13,
+        16
+      ],
+      "description": "Experimental 5-level display using Late trident. Real Profession rules remain authoritative.",
+      "sourceId": null,
+      "layout": "Late trident",
+      "nodes": [
+        {
+          "id": "DEMO-BLACKSMITHING-N01",
+          "name": "Blacksmithing \u2014 Foundation",
+          "description": "Experimental stage 1 node in the Late trident layout. This is not an approved Ashen Gate perk.",
+          "stage": 1,
+          "x": 480,
+          "y": 90,
+          "prerequisites": [],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-BLACKSMITHING-N02",
+          "name": "Blacksmithing \u2014 Stage 2 \u00b7 A",
+          "description": "Experimental stage 2 node in the Late trident layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 480,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-BLACKSMITHING-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-BLACKSMITHING-N03",
+          "name": "Blacksmithing \u2014 Stage 3 \u00b7 A",
+          "description": "Experimental stage 3 node in the Late trident layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 480,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-BLACKSMITHING-N02"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-BLACKSMITHING-N04",
+          "name": "Blacksmithing \u2014 Stage 4 \u00b7 A",
+          "description": "Experimental stage 4 node in the Late trident layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 230,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-BLACKSMITHING-N03"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-BLACKSMITHING-N05",
+            "DEMO-BLACKSMITHING-N06"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-BLACKSMITHING-N05",
+          "name": "Blacksmithing \u2014 Stage 4 \u00b7 B",
+          "description": "Experimental stage 4 node in the Late trident layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 480,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-BLACKSMITHING-N03"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-BLACKSMITHING-N04",
+            "DEMO-BLACKSMITHING-N06"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-BLACKSMITHING-N06",
+          "name": "Blacksmithing \u2014 Stage 4 \u00b7 C",
+          "description": "Experimental stage 4 node in the Late trident layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 730,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-BLACKSMITHING-N03"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-BLACKSMITHING-N04",
+            "DEMO-BLACKSMITHING-N05"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-BLACKSMITHING-N07",
+          "name": "Blacksmithing \u2014 Stage 5 \u00b7 A",
+          "description": "Experimental stage 5 node in the Late trident layout. This is not an approved Ashen Gate perk.",
+          "stage": 5,
+          "x": 480,
+          "y": 670,
+          "prerequisites": [
+            "DEMO-BLACKSMITHING-N04",
+            "DEMO-BLACKSMITHING-N05",
+            "DEMO-BLACKSMITHING-N06"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        }
+      ]
+    },
+    {
+      "id": "DEMO-TREE-COOKING",
+      "name": "Cooking \u00b7 Prototype",
+      "kind": "profession",
+      "mode": "level",
+      "visibility": "player",
+      "xpCosts": [
+        4,
+        7,
+        10,
+        13,
+        16
+      ],
+      "description": "Experimental 5-level display using Two independent lanes. Real Profession rules remain authoritative.",
+      "sourceId": null,
+      "layout": "Two independent lanes",
+      "nodes": [
+        {
+          "id": "DEMO-COOKING-N01",
+          "name": "Cooking \u2014 Foundation",
+          "description": "Experimental stage 1 node in the Two independent lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 1,
+          "x": 480,
+          "y": 90,
+          "prerequisites": [],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-COOKING-N02",
+          "name": "Cooking \u2014 Stage 2 \u00b7 A",
+          "description": "Experimental stage 2 node in the Two independent lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 230,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-COOKING-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-COOKING-N03"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-COOKING-N03",
+          "name": "Cooking \u2014 Stage 2 \u00b7 B",
+          "description": "Experimental stage 2 node in the Two independent lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 730,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-COOKING-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-COOKING-N02"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-COOKING-N04",
+          "name": "Cooking \u2014 Stage 3 \u00b7 A",
+          "description": "Experimental stage 3 node in the Two independent lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 230,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-COOKING-N02"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-COOKING-N05"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-COOKING-N05",
+          "name": "Cooking \u2014 Stage 3 \u00b7 B",
+          "description": "Experimental stage 3 node in the Two independent lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 730,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-COOKING-N03"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-COOKING-N04"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-COOKING-N06",
+          "name": "Cooking \u2014 Stage 4 \u00b7 A",
+          "description": "Experimental stage 4 node in the Two independent lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 480,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-COOKING-N04",
+            "DEMO-COOKING-N05"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-COOKING-N07",
+          "name": "Cooking \u2014 Stage 5 \u00b7 A",
+          "description": "Experimental stage 5 node in the Two independent lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 5,
+          "x": 480,
+          "y": 670,
+          "prerequisites": [
+            "DEMO-COOKING-N06"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        }
+      ]
+    },
+    {
+      "id": "DEMO-TREE-ENCHANTING",
+      "name": "Enchanting \u00b7 Prototype",
+      "kind": "profession",
+      "mode": "level",
+      "visibility": "player",
+      "xpCosts": [
+        4,
+        7,
+        10,
+        13,
+        16
+      ],
+      "description": "Experimental 5-level display using Crossed lanes. Real Profession rules remain authoritative.",
+      "sourceId": null,
+      "layout": "Crossed lanes",
+      "nodes": [
+        {
+          "id": "DEMO-ENCHANTING-N01",
+          "name": "Enchanting \u2014 Foundation",
+          "description": "Experimental stage 1 node in the Crossed lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 1,
+          "x": 480,
+          "y": 90,
+          "prerequisites": [],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ENCHANTING-N02",
+          "name": "Enchanting \u2014 Stage 2 \u00b7 A",
+          "description": "Experimental stage 2 node in the Crossed lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 105,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-ENCHANTING-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-ENCHANTING-N03"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ENCHANTING-N03",
+          "name": "Enchanting \u2014 Stage 2 \u00b7 B",
+          "description": "Experimental stage 2 node in the Crossed lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 855,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-ENCHANTING-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-ENCHANTING-N02"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ENCHANTING-N04",
+          "name": "Enchanting \u2014 Stage 3 \u00b7 A",
+          "description": "Experimental stage 3 node in the Crossed lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 105,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-ENCHANTING-N03"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-ENCHANTING-N05"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ENCHANTING-N05",
+          "name": "Enchanting \u2014 Stage 3 \u00b7 B",
+          "description": "Experimental stage 3 node in the Crossed lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 855,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-ENCHANTING-N02"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-ENCHANTING-N04"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ENCHANTING-N06",
+          "name": "Enchanting \u2014 Stage 4 \u00b7 A",
+          "description": "Experimental stage 4 node in the Crossed lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 480,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-ENCHANTING-N04",
+            "DEMO-ENCHANTING-N05"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ENCHANTING-N07",
+          "name": "Enchanting \u2014 Stage 5 \u00b7 A",
+          "description": "Experimental stage 5 node in the Crossed lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 5,
+          "x": 480,
+          "y": 670,
+          "prerequisites": [
+            "DEMO-ENCHANTING-N06"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        }
+      ]
+    },
+    {
+      "id": "DEMO-TREE-ENGINEERING",
+      "name": "Engineering \u00b7 Prototype",
+      "kind": "profession",
+      "mode": "level",
+      "visibility": "player",
+      "xpCosts": [
+        4,
+        7,
+        10,
+        13,
+        16
+      ],
+      "description": "Experimental 5-level display using Flexible crossovers. Real Profession rules remain authoritative.",
+      "sourceId": null,
+      "layout": "Flexible crossovers",
+      "nodes": [
+        {
+          "id": "DEMO-ENGINEERING-N01",
+          "name": "Engineering \u2014 Foundation",
+          "description": "Experimental stage 1 node in the Flexible crossovers layout. This is not an approved Ashen Gate perk.",
+          "stage": 1,
+          "x": 480,
+          "y": 90,
+          "prerequisites": [],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ENGINEERING-N02",
+          "name": "Engineering \u2014 Stage 2 \u00b7 A",
+          "description": "Experimental stage 2 node in the Flexible crossovers layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 355,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-ENGINEERING-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-ENGINEERING-N03"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ENGINEERING-N03",
+          "name": "Engineering \u2014 Stage 2 \u00b7 B",
+          "description": "Experimental stage 2 node in the Flexible crossovers layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 605,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-ENGINEERING-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-ENGINEERING-N02"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ENGINEERING-N04",
+          "name": "Engineering \u2014 Stage 3 \u00b7 A",
+          "description": "Experimental stage 3 node in the Flexible crossovers layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 230,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-ENGINEERING-N02",
+            "DEMO-ENGINEERING-N03"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-ENGINEERING-N05"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ENGINEERING-N05",
+          "name": "Engineering \u2014 Stage 3 \u00b7 B",
+          "description": "Experimental stage 3 node in the Flexible crossovers layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 730,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-ENGINEERING-N02",
+            "DEMO-ENGINEERING-N03"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-ENGINEERING-N04"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ENGINEERING-N06",
+          "name": "Engineering \u2014 Stage 4 \u00b7 A",
+          "description": "Experimental stage 4 node in the Flexible crossovers layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 480,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-ENGINEERING-N04",
+            "DEMO-ENGINEERING-N05"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-ENGINEERING-N07",
+          "name": "Engineering \u2014 Stage 5 \u00b7 A",
+          "description": "Experimental stage 5 node in the Flexible crossovers layout. This is not an approved Ashen Gate perk.",
+          "stage": 5,
+          "x": 480,
+          "y": 670,
+          "prerequisites": [
+            "DEMO-ENGINEERING-N06"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        }
+      ]
+    },
+    {
+      "id": "DEMO-TREE-FISHING",
+      "name": "Fishing \u00b7 Prototype",
+      "kind": "profession",
+      "mode": "level",
+      "visibility": "player",
+      "xpCosts": [
+        4,
+        7,
+        10,
+        13,
+        16
+      ],
+      "description": "Experimental 5-level display using One-way crossover. Real Profession rules remain authoritative.",
+      "sourceId": null,
+      "layout": "One-way crossover",
+      "nodes": [
+        {
+          "id": "DEMO-FISHING-N01",
+          "name": "Fishing \u2014 Foundation",
+          "description": "Experimental stage 1 node in the One-way crossover layout. This is not an approved Ashen Gate perk.",
+          "stage": 1,
+          "x": 480,
+          "y": 90,
+          "prerequisites": [],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-FISHING-N02",
+          "name": "Fishing \u2014 Stage 2 \u00b7 A",
+          "description": "Experimental stage 2 node in the One-way crossover layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 230,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-FISHING-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-FISHING-N03"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-FISHING-N03",
+          "name": "Fishing \u2014 Stage 2 \u00b7 B",
+          "description": "Experimental stage 2 node in the One-way crossover layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 730,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-FISHING-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-FISHING-N02"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-FISHING-N04",
+          "name": "Fishing \u2014 Stage 3 \u00b7 A",
+          "description": "Experimental stage 3 node in the One-way crossover layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 230,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-FISHING-N02"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-FISHING-N05"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-FISHING-N05",
+          "name": "Fishing \u2014 Stage 3 \u00b7 B",
+          "description": "Experimental stage 3 node in the One-way crossover layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 730,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-FISHING-N02",
+            "DEMO-FISHING-N03"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-FISHING-N04"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-FISHING-N06",
+          "name": "Fishing \u2014 Stage 4 \u00b7 A",
+          "description": "Experimental stage 4 node in the One-way crossover layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 480,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-FISHING-N04",
+            "DEMO-FISHING-N05"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-FISHING-N07",
+          "name": "Fishing \u2014 Stage 5 \u00b7 A",
+          "description": "Experimental stage 5 node in the One-way crossover layout. This is not an approved Ashen Gate perk.",
+          "stage": 5,
+          "x": 480,
+          "y": 670,
+          "prerequisites": [
+            "DEMO-FISHING-N06"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        }
+      ]
+    },
+    {
+      "id": "DEMO-TREE-HERBALISM",
+      "name": "Herbalism \u00b7 Prototype",
+      "kind": "profession",
+      "mode": "level",
+      "visibility": "player",
+      "xpCosts": [
+        4,
+        7,
+        10,
+        13,
+        16
+      ],
+      "description": "Experimental 5-level display using Two separated forks. Real Profession rules remain authoritative.",
+      "sourceId": null,
+      "layout": "Two separated forks",
+      "nodes": [
+        {
+          "id": "DEMO-HERBALISM-N01",
+          "name": "Herbalism \u2014 Foundation",
+          "description": "Experimental stage 1 node in the Two separated forks layout. This is not an approved Ashen Gate perk.",
+          "stage": 1,
+          "x": 480,
+          "y": 90,
+          "prerequisites": [],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-HERBALISM-N02",
+          "name": "Herbalism \u2014 Stage 2 \u00b7 A",
+          "description": "Experimental stage 2 node in the Two separated forks layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 230,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-HERBALISM-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-HERBALISM-N03"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-HERBALISM-N03",
+          "name": "Herbalism \u2014 Stage 2 \u00b7 B",
+          "description": "Experimental stage 2 node in the Two separated forks layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 730,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-HERBALISM-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-HERBALISM-N02"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-HERBALISM-N04",
+          "name": "Herbalism \u2014 Stage 3 \u00b7 A",
+          "description": "Experimental stage 3 node in the Two separated forks layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 480,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-HERBALISM-N02",
+            "DEMO-HERBALISM-N03"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-HERBALISM-N05",
+          "name": "Herbalism \u2014 Stage 4 \u00b7 A",
+          "description": "Experimental stage 4 node in the Two separated forks layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 230,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-HERBALISM-N04"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-HERBALISM-N06"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-HERBALISM-N06",
+          "name": "Herbalism \u2014 Stage 4 \u00b7 B",
+          "description": "Experimental stage 4 node in the Two separated forks layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 730,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-HERBALISM-N04"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-HERBALISM-N05"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-HERBALISM-N07",
+          "name": "Herbalism \u2014 Stage 5 \u00b7 A",
+          "description": "Experimental stage 5 node in the Two separated forks layout. This is not an approved Ashen Gate perk.",
+          "stage": 5,
+          "x": 480,
+          "y": 670,
+          "prerequisites": [
+            "DEMO-HERBALISM-N05",
+            "DEMO-HERBALISM-N06"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        }
+      ]
+    },
+    {
+      "id": "DEMO-TREE-HUNTING-SKINNING",
+      "name": "Hunting/Skinning \u00b7 Prototype",
+      "kind": "profession",
+      "mode": "level",
+      "visibility": "player",
+      "xpCosts": [
+        4,
+        7,
+        10,
+        13,
+        16
+      ],
+      "description": "Experimental 5-level display using Offset double fork. Real Profession rules remain authoritative.",
+      "sourceId": null,
+      "layout": "Offset double fork",
+      "nodes": [
+        {
+          "id": "DEMO-HUNTING-SKINNING-N01",
+          "name": "Hunting/Skinning \u2014 Foundation",
+          "description": "Experimental stage 1 node in the Offset double fork layout. This is not an approved Ashen Gate perk.",
+          "stage": 1,
+          "x": 230,
+          "y": 90,
+          "prerequisites": [],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-HUNTING-SKINNING-N02",
+          "name": "Hunting/Skinning \u2014 Stage 2 \u00b7 A",
+          "description": "Experimental stage 2 node in the Offset double fork layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 105,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-HUNTING-SKINNING-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-HUNTING-SKINNING-N03"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-HUNTING-SKINNING-N03",
+          "name": "Hunting/Skinning \u2014 Stage 2 \u00b7 B",
+          "description": "Experimental stage 2 node in the Offset double fork layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 605,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-HUNTING-SKINNING-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-HUNTING-SKINNING-N02"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-HUNTING-SKINNING-N04",
+          "name": "Hunting/Skinning \u2014 Stage 3 \u00b7 A",
+          "description": "Experimental stage 3 node in the Offset double fork layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 355,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-HUNTING-SKINNING-N02",
+            "DEMO-HUNTING-SKINNING-N03"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-HUNTING-SKINNING-N05",
+          "name": "Hunting/Skinning \u2014 Stage 4 \u00b7 A",
+          "description": "Experimental stage 4 node in the Offset double fork layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 480,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-HUNTING-SKINNING-N04"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-HUNTING-SKINNING-N06"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-HUNTING-SKINNING-N06",
+          "name": "Hunting/Skinning \u2014 Stage 4 \u00b7 B",
+          "description": "Experimental stage 4 node in the Offset double fork layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 855,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-HUNTING-SKINNING-N04"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-HUNTING-SKINNING-N05"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-HUNTING-SKINNING-N07",
+          "name": "Hunting/Skinning \u2014 Stage 5 \u00b7 A",
+          "description": "Experimental stage 5 node in the Offset double fork layout. This is not an approved Ashen Gate perk.",
+          "stage": 5,
+          "x": 605,
+          "y": 670,
+          "prerequisites": [
+            "DEMO-HUNTING-SKINNING-N05",
+            "DEMO-HUNTING-SKINNING-N06"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        }
+      ]
+    },
+    {
+      "id": "DEMO-TREE-INSCRIPTION",
+      "name": "Inscription \u00b7 Prototype",
+      "kind": "profession",
+      "mode": "level",
+      "visibility": "player",
+      "xpCosts": [
+        4,
+        7,
+        10,
+        13,
+        16
+      ],
+      "description": "Experimental 5-level display using Late parallel lanes. Real Profession rules remain authoritative.",
+      "sourceId": null,
+      "layout": "Late parallel lanes",
+      "nodes": [
+        {
+          "id": "DEMO-INSCRIPTION-N01",
+          "name": "Inscription \u2014 Foundation",
+          "description": "Experimental stage 1 node in the Late parallel lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 1,
+          "x": 480,
+          "y": 90,
+          "prerequisites": [],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-INSCRIPTION-N02",
+          "name": "Inscription \u2014 Stage 2 \u00b7 A",
+          "description": "Experimental stage 2 node in the Late parallel lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 480,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-INSCRIPTION-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-INSCRIPTION-N03",
+          "name": "Inscription \u2014 Stage 3 \u00b7 A",
+          "description": "Experimental stage 3 node in the Late parallel lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 230,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-INSCRIPTION-N02"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-INSCRIPTION-N04"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-INSCRIPTION-N04",
+          "name": "Inscription \u2014 Stage 3 \u00b7 B",
+          "description": "Experimental stage 3 node in the Late parallel lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 730,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-INSCRIPTION-N02"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-INSCRIPTION-N03"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-INSCRIPTION-N05",
+          "name": "Inscription \u2014 Stage 4 \u00b7 A",
+          "description": "Experimental stage 4 node in the Late parallel lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 230,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-INSCRIPTION-N03"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-INSCRIPTION-N06"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-INSCRIPTION-N06",
+          "name": "Inscription \u2014 Stage 4 \u00b7 B",
+          "description": "Experimental stage 4 node in the Late parallel lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 730,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-INSCRIPTION-N04"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-INSCRIPTION-N05"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-INSCRIPTION-N07",
+          "name": "Inscription \u2014 Stage 5 \u00b7 A",
+          "description": "Experimental stage 5 node in the Late parallel lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 5,
+          "x": 480,
+          "y": 670,
+          "prerequisites": [
+            "DEMO-INSCRIPTION-N05",
+            "DEMO-INSCRIPTION-N06"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        }
+      ]
+    },
+    {
+      "id": "DEMO-TREE-JEWELCRAFTING",
+      "name": "Jewelcrafting \u00b7 Prototype",
+      "kind": "profession",
+      "mode": "level",
+      "visibility": "player",
+      "xpCosts": [
+        4,
+        7,
+        10,
+        13,
+        16
+      ],
+      "description": "Experimental 5-level display using Late crossed lanes. Real Profession rules remain authoritative.",
+      "sourceId": null,
+      "layout": "Late crossed lanes",
+      "nodes": [
+        {
+          "id": "DEMO-JEWELCRAFTING-N01",
+          "name": "Jewelcrafting \u2014 Foundation",
+          "description": "Experimental stage 1 node in the Late crossed lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 1,
+          "x": 480,
+          "y": 90,
+          "prerequisites": [],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-JEWELCRAFTING-N02",
+          "name": "Jewelcrafting \u2014 Stage 2 \u00b7 A",
+          "description": "Experimental stage 2 node in the Late crossed lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 480,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-JEWELCRAFTING-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-JEWELCRAFTING-N03",
+          "name": "Jewelcrafting \u2014 Stage 3 \u00b7 A",
+          "description": "Experimental stage 3 node in the Late crossed lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 355,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-JEWELCRAFTING-N02"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-JEWELCRAFTING-N04"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-JEWELCRAFTING-N04",
+          "name": "Jewelcrafting \u2014 Stage 3 \u00b7 B",
+          "description": "Experimental stage 3 node in the Late crossed lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 605,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-JEWELCRAFTING-N02"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-JEWELCRAFTING-N03"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-JEWELCRAFTING-N05",
+          "name": "Jewelcrafting \u2014 Stage 4 \u00b7 A",
+          "description": "Experimental stage 4 node in the Late crossed lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 230,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-JEWELCRAFTING-N04"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-JEWELCRAFTING-N06"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-JEWELCRAFTING-N06",
+          "name": "Jewelcrafting \u2014 Stage 4 \u00b7 B",
+          "description": "Experimental stage 4 node in the Late crossed lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 730,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-JEWELCRAFTING-N03"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-JEWELCRAFTING-N05"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-JEWELCRAFTING-N07",
+          "name": "Jewelcrafting \u2014 Stage 5 \u00b7 A",
+          "description": "Experimental stage 5 node in the Late crossed lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 5,
+          "x": 480,
+          "y": 670,
+          "prerequisites": [
+            "DEMO-JEWELCRAFTING-N05",
+            "DEMO-JEWELCRAFTING-N06"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        }
+      ]
+    },
+    {
+      "id": "DEMO-TREE-LEATHERWORKING",
+      "name": "Leatherworking \u00b7 Prototype",
+      "kind": "profession",
+      "mode": "level",
+      "visibility": "player",
+      "xpCosts": [
+        4,
+        7,
+        10,
+        13,
+        16
+      ],
+      "description": "Experimental 5-level display using Late open crossings. Real Profession rules remain authoritative.",
+      "sourceId": null,
+      "layout": "Late open crossings",
+      "nodes": [
+        {
+          "id": "DEMO-LEATHERWORKING-N01",
+          "name": "Leatherworking \u2014 Foundation",
+          "description": "Experimental stage 1 node in the Late open crossings layout. This is not an approved Ashen Gate perk.",
+          "stage": 1,
+          "x": 480,
+          "y": 90,
+          "prerequisites": [],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-LEATHERWORKING-N02",
+          "name": "Leatherworking \u2014 Stage 2 \u00b7 A",
+          "description": "Experimental stage 2 node in the Late open crossings layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 480,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-LEATHERWORKING-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-LEATHERWORKING-N03",
+          "name": "Leatherworking \u2014 Stage 3 \u00b7 A",
+          "description": "Experimental stage 3 node in the Late open crossings layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 105,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-LEATHERWORKING-N02"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-LEATHERWORKING-N04"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-LEATHERWORKING-N04",
+          "name": "Leatherworking \u2014 Stage 3 \u00b7 B",
+          "description": "Experimental stage 3 node in the Late open crossings layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 855,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-LEATHERWORKING-N02"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-LEATHERWORKING-N03"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-LEATHERWORKING-N05",
+          "name": "Leatherworking \u2014 Stage 4 \u00b7 A",
+          "description": "Experimental stage 4 node in the Late open crossings layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 230,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-LEATHERWORKING-N03",
+            "DEMO-LEATHERWORKING-N04"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-LEATHERWORKING-N06"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-LEATHERWORKING-N06",
+          "name": "Leatherworking \u2014 Stage 4 \u00b7 B",
+          "description": "Experimental stage 4 node in the Late open crossings layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 730,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-LEATHERWORKING-N03",
+            "DEMO-LEATHERWORKING-N04"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-LEATHERWORKING-N05"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-LEATHERWORKING-N07",
+          "name": "Leatherworking \u2014 Stage 5 \u00b7 A",
+          "description": "Experimental stage 5 node in the Late open crossings layout. This is not an approved Ashen Gate perk.",
+          "stage": 5,
+          "x": 480,
+          "y": 670,
+          "prerequisites": [
+            "DEMO-LEATHERWORKING-N05",
+            "DEMO-LEATHERWORKING-N06"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        }
+      ]
+    },
+    {
+      "id": "DEMO-TREE-MINING",
+      "name": "Mining \u00b7 Prototype",
+      "kind": "profession",
+      "mode": "level",
+      "visibility": "player",
+      "xpCosts": [
+        4,
+        7,
+        10,
+        13,
+        16
+      ],
+      "description": "Experimental 5-level display using Late one-way switch. Real Profession rules remain authoritative.",
+      "sourceId": null,
+      "layout": "Late one-way switch",
+      "nodes": [
+        {
+          "id": "DEMO-MINING-N01",
+          "name": "Mining \u2014 Foundation",
+          "description": "Experimental stage 1 node in the Late one-way switch layout. This is not an approved Ashen Gate perk.",
+          "stage": 1,
+          "x": 480,
+          "y": 90,
+          "prerequisites": [],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-MINING-N02",
+          "name": "Mining \u2014 Stage 2 \u00b7 A",
+          "description": "Experimental stage 2 node in the Late one-way switch layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 480,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-MINING-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-MINING-N03",
+          "name": "Mining \u2014 Stage 3 \u00b7 A",
+          "description": "Experimental stage 3 node in the Late one-way switch layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 230,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-MINING-N02"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-MINING-N04"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-MINING-N04",
+          "name": "Mining \u2014 Stage 3 \u00b7 B",
+          "description": "Experimental stage 3 node in the Late one-way switch layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 730,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-MINING-N02"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-MINING-N03"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-MINING-N05",
+          "name": "Mining \u2014 Stage 4 \u00b7 A",
+          "description": "Experimental stage 4 node in the Late one-way switch layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 105,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-MINING-N03"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-MINING-N06"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-MINING-N06",
+          "name": "Mining \u2014 Stage 4 \u00b7 B",
+          "description": "Experimental stage 4 node in the Late one-way switch layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 855,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-MINING-N03",
+            "DEMO-MINING-N04"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-MINING-N05"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-MINING-N07",
+          "name": "Mining \u2014 Stage 5 \u00b7 A",
+          "description": "Experimental stage 5 node in the Late one-way switch layout. This is not an approved Ashen Gate perk.",
+          "stage": 5,
+          "x": 480,
+          "y": 670,
+          "prerequisites": [
+            "DEMO-MINING-N05",
+            "DEMO-MINING-N06"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        }
+      ]
+    },
+    {
+      "id": "DEMO-TREE-TAILORING",
+      "name": "Tailoring \u00b7 Prototype",
+      "kind": "profession",
+      "mode": "level",
+      "visibility": "player",
+      "xpCosts": [
+        4,
+        7,
+        10,
+        13,
+        16
+      ],
+      "description": "Experimental 5-level display using Narrow staggered lanes. Real Profession rules remain authoritative.",
+      "sourceId": null,
+      "layout": "Narrow staggered lanes",
+      "nodes": [
+        {
+          "id": "DEMO-TAILORING-N01",
+          "name": "Tailoring \u2014 Foundation",
+          "description": "Experimental stage 1 node in the Narrow staggered lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 1,
+          "x": 480,
+          "y": 90,
+          "prerequisites": [],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-TAILORING-N02",
+          "name": "Tailoring \u2014 Stage 2 \u00b7 A",
+          "description": "Experimental stage 2 node in the Narrow staggered lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 105,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-TAILORING-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-TAILORING-N03"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-TAILORING-N03",
+          "name": "Tailoring \u2014 Stage 2 \u00b7 B",
+          "description": "Experimental stage 2 node in the Narrow staggered lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 855,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-TAILORING-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-TAILORING-N02"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-TAILORING-N04",
+          "name": "Tailoring \u2014 Stage 3 \u00b7 A",
+          "description": "Experimental stage 3 node in the Narrow staggered lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 105,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-TAILORING-N02"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-TAILORING-N05"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-TAILORING-N05",
+          "name": "Tailoring \u2014 Stage 3 \u00b7 B",
+          "description": "Experimental stage 3 node in the Narrow staggered lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 855,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-TAILORING-N03"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-TAILORING-N04"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-TAILORING-N06",
+          "name": "Tailoring \u2014 Stage 4 \u00b7 A",
+          "description": "Experimental stage 4 node in the Narrow staggered lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 480,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-TAILORING-N04",
+            "DEMO-TAILORING-N05"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-TAILORING-N07",
+          "name": "Tailoring \u2014 Stage 5 \u00b7 A",
+          "description": "Experimental stage 5 node in the Narrow staggered lanes layout. This is not an approved Ashen Gate perk.",
+          "stage": 5,
+          "x": 480,
+          "y": 670,
+          "prerequisites": [
+            "DEMO-TAILORING-N06"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        }
+      ]
+    },
+    {
+      "id": "DEMO-TREE-MUTATION",
+      "name": "Mutation \u00b7 Prototype (Spend XP)",
+      "kind": "mutation",
+      "mode": "spend",
+      "visibility": "player",
+      "xpCosts": [
+        4,
+        7,
+        10,
+        13,
+        16
+      ],
+      "description": "Generic spend-XP demonstration, NOT approved Cinder mechanics or powers.",
+      "sourceId": null,
+      "layout": "Two separated forks",
+      "nodes": [
+        {
+          "id": "DEMO-MUTATION-N01",
+          "name": "Mutation \u2014 Foundation",
+          "description": "Experimental stage 1 node in the Two separated forks layout. This is not an approved Ashen Gate perk.",
+          "stage": 1,
+          "x": 480,
+          "y": 90,
+          "prerequisites": [],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-MUTATION-N02",
+          "name": "Mutation \u2014 Stage 2 \u00b7 B",
+          "description": "Experimental stage 2 node in the Two separated forks layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 230,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-MUTATION-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-MUTATION-N03"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-MUTATION-N03",
+          "name": "Mutation \u2014 Stage 2 \u00b7 C",
+          "description": "Experimental stage 2 node in the Two separated forks layout. This is not an approved Ashen Gate perk.",
+          "stage": 2,
+          "x": 730,
+          "y": 235,
+          "prerequisites": [
+            "DEMO-MUTATION-N01"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-MUTATION-N02"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-MUTATION-N04",
+          "name": "Mutation \u2014 Stage 3 \u00b7 A",
+          "description": "Experimental stage 3 node in the Two separated forks layout. This is not an approved Ashen Gate perk.",
+          "stage": 3,
+          "x": 480,
+          "y": 380,
+          "prerequisites": [
+            "DEMO-MUTATION-N02",
+            "DEMO-MUTATION-N03"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-MUTATION-N05",
+          "name": "Mutation \u2014 Stage 4 \u00b7 B",
+          "description": "Experimental stage 4 node in the Two separated forks layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 230,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-MUTATION-N04"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-MUTATION-N06"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-MUTATION-N06",
+          "name": "Mutation \u2014 Stage 4 \u00b7 C",
+          "description": "Experimental stage 4 node in the Two separated forks layout. This is not an approved Ashen Gate perk.",
+          "stage": 4,
+          "x": 730,
+          "y": 525,
+          "prerequisites": [
+            "DEMO-MUTATION-N04"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [
+            "DEMO-MUTATION-N05"
+          ],
+          "rewardUuid": null
+        },
+        {
+          "id": "DEMO-MUTATION-N07",
+          "name": "Mutation \u2014 Stage 5 \u00b7 A",
+          "description": "Experimental stage 5 node in the Two separated forks layout. This is not an approved Ashen Gate perk.",
+          "stage": 5,
+          "x": 480,
+          "y": 670,
+          "prerequisites": [
+            "DEMO-MUTATION-N05",
+            "DEMO-MUTATION-N06"
+          ],
+          "prerequisiteMode": "any",
+          "excludes": [],
+          "rewardUuid": null
+        }
+      ]
+    }
+  ]
+}

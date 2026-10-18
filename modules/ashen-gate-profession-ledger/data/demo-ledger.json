@@ -1,0 +1,26 @@
+{
+  "schema": "ag-ledger/0.1",
+  "status": "demo_only_not_canon",
+  "materials": [
+    {"id":"MAT-DEMO-HERBS","name":"Demo Herbs"},
+    {"id":"MAT-DEMO-VIAL","name":"Demo Vial"}
+  ],
+  "recipes": [
+    {
+      "id":"REC-DEMO-TONIC","name":"Demo Field Tonic","status":"demo_only",
+      "profession":"Alchemy","tier":"Apprentice","effort":"Short",
+      "ingredients":[
+        {"materialId":"MAT-DEMO-HERBS","name":"Demo Herbs","quantity":4},
+        {"materialId":"MAT-DEMO-VIAL","name":"Demo Vial","quantity":2}
+      ]
+    },
+    {
+      "id":"REC-DEMO-POULTICE","name":"Demo Travel Poultice","status":"demo_only",
+      "profession":"Alchemy","tier":"Apprentice","effort":"Short",
+      "ingredients":[
+        {"materialId":"MAT-DEMO-HERBS","name":"Demo Herbs","quantity":9},
+        {"materialId":"MAT-DEMO-VIAL","name":"Demo Vial","quantity":1}
+      ]
+    }
+  ]
+}

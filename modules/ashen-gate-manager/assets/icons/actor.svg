@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Actor fallback">
+<rect x="3" y="3" width="58" height="58" rx="9" fill="#262a2d" stroke="#a48758" stroke-width="2"/>
+<circle cx="32" cy="24" r="11" fill="none" stroke="#e6dbc4" stroke-width="3"/>
+<path d="M13 51c2-12 10-17 19-17s17 5 19 17" fill="none" stroke="#e6dbc4" stroke-width="3" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,135 @@
+/* AG-WORK-0016: local semantic fallback tokens; Manager is optional. */
+.agl-app .window-content{background:var(--ag-bg,#12191d);color:var(--ag-text,#e9e6dc)}
+.agl-app .agl-panel{background:var(--ag-panel,#1d292c);border-color:var(--ag-border,#354348)}
+.agl-app button.agl-primary{background:var(--ag-accent,#b39c6d)}
+.agl-app button:focus-visible{outline:2px solid var(--ag-focus,#dfc692);outline-offset:2px}
+.agl-app .window-content{padding:0;overflow:hidden;background:#12191d;color:#e9e6dc}
+.agl-app .agl-host,.agl-app .agl-shell{height:100%;min-height:400px}
+.agl-shell{display:flex;flex-direction:column;font:14px/1.45 system-ui,-apple-system,'Segoe UI',sans-serif;color:#e9e6dc}
+.agl-header{padding:18px 22px;display:flex;justify-content:space-between;gap:16px;align-items:center;border-bottom:1px solid #354348;background:linear-gradient(112deg,#1b2529,#25383b)}
+.agl-title{letter-spacing:.12em;font-size:13px;color:#b4c6c2}.agl-title strong{font-size:20px;letter-spacing:.025em;color:#f2e5cb;display:block}
+.agl-sub{font-size:12px;color:#9caeb1;margin-top:5px}.agl-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.agl-app button{font-family:inherit;cursor:pointer;color:#e5e8e3;background:#243237;border:1px solid #46585b;border-radius:6px;padding:8px 12px;text-align:left;box-shadow:none}
+.agl-app button:hover{background:#315053;border-color:#729391}.agl-app button:disabled{opacity:.45;cursor:not-allowed}
+.agl-app button.active,.agl-tabs button.active{background:#375454;border-color:#9ab5a8;color:#fff}
+.agl-app button.agl-primary{background:#b39c6d;color:#151c1b;font-weight:700;border-color:#dfc692;padding:10px 16px;margin-top:16px}
+.agl-app button.agl-primary:hover{background:#d0b789}.agl-app button.agl-small{font-size:12px;margin-top:4px;padding:4px 8px}
+.agl-app button.agl-link{border:0;background:none;color:#c3cfad;padding:10px 0}
+.agl-tabs{display:flex;gap:7px;padding:12px 20px 0;background:#151f23;overflow-x:auto}.agl-tabs button{border-radius:7px 7px 0 0;white-space:nowrap}
+.agl-shell main{flex:1;min-height:0;overflow:auto;padding:18px 22px;background:#151e21}
+.agl-panel{padding:16px;background:#1d292c;border:1px solid #34464a;border-radius:8px;min-width:0}
+.agl-panel h2{font-size:19px;color:#e9d7ac;margin:0 0 14px;font-weight:650}.agl-panel h2 small{font-size:12px;color:#94aaa9}
+.agl-panel h3{font-size:14px;margin:20px 0 8px;color:#b7c7bf;text-transform:uppercase;letter-spacing:.07em}
+.agl-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}.agl-kpis>div{border:1px solid #39504b;border-radius:8px;background:#223034;padding:16px}
+.agl-kpis strong{font-size:26px;display:block;color:#ead4aa}.agl-kpis span{font-size:12px;color:#a8bab4}
+.agl-twocol{display:grid;grid-template-columns:minmax(320px,1fr) minmax(360px,1.1fr);gap:16px}
+.agl-columns{display:grid;grid-template-columns:230px minmax(0,1fr);gap:16px}.agl-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.agl-card{padding:12px;border:1px solid #394a4b;border-radius:7px;display:flex;flex-direction:column;align-items:flex-start;background:#233136;gap:8px;min-width:0}
+.agl-card strong{font-size:14px;color:#f1ead5}.agl-card p{margin:0;color:#b3c1c1;font-size:11px}
+.agl-line{display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid #334043;padding:10px 0;flex-wrap:wrap}
+.agl-line:last-of-type{border-bottom:none}.agl-line>span:nth-child(2){color:#a8bdb7;flex:1}
+.agl-badge{border:1px solid #566260;padding:2px 7px;font-size:11px;border-radius:10px;color:#cdd7d3;background:#394647;white-space:nowrap}
+.agl-badge.ok{background:#254f43;border-color:#4c8871;color:#ceeed5}.agl-badge.warn{background:#604e2c;border-color:#ad965b;color:#fae6b5}.agl-badge.muted{background:#303b40;border-color:#4a5255;color:#adbdbd}.agl-badge.demo{background:#5b422d;color:#ead8a7}
+.agl-actor{display:flex;gap:9px;align-items:center;width:100%;margin:5px 0}.agl-avatar{width:28px;height:28px;display:inline-grid;place-items:center;border-radius:50%;background:#6e786c;color:#fff;flex-shrink:0}
+.agl-recipe{width:100%;display:flex;flex-direction:column;align-items:flex-start;gap:4px;margin:6px 0;padding:11px 12px!important}
+.agl-recipe span{font-size:11px;color:#b3c3c1}.agl-recipe strong{font-size:13px}
+.agl-note{padding:12px 14px;border-radius:6px;background:#24373a;border:1px solid #426063;margin-top:14px;color:#c6d6d4}.agl-note.warn{border-color:#977c4d;background:#3b3028}
+.agl-empty{padding:28px 12px;text-align:center;border:1px dashed #566369;color:#aabfbe;border-radius:8px;line-height:1.6}
+.agl-status{padding:11px;border-radius:6px;margin:10px 0}.agl-status.ok{background:#244d41;color:#c3ead2}.agl-status.warn{background:#594a2c;color:#e8d3a8}
+.agl-table-head,.agl-material-row{display:grid;grid-template-columns:minmax(0,2fr) 80px minmax(0,2fr);gap:10px;padding:12px 8px;align-items:center;border-bottom:1px solid #354649}
+.agl-table-head{font-size:12px;color:#9fb0ae;text-transform:uppercase}.agl-material-row span{color:#b0c2bc}
+.agl-shell footer{padding:9px 20px;border-top:1px solid #304244;background:#172125;display:flex;gap:12px;justify-content:space-between;align-items:center;font-size:11px;color:#9eb5af}
+.agl-chat{font-size:13px}
+@media(max-width:850px){.agl-twocol,.agl-columns{grid-template-columns:1fr}.agl-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.agl-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.agl-header{flex-wrap:wrap}}
+/* v0.2: horizontal party picker and deliberate 75/25 detail layout. */
+.agl-character-strip{margin-bottom:14px}
+.agl-character-strip h2{margin-bottom:8px}
+.agl-actor-strip{display:flex;flex-wrap:wrap;gap:9px;align-items:stretch}
+.agl-app button.agl-actor{margin:0;width:auto;flex:0 1 auto;min-width:170px;max-width:300px;min-height:52px;align-items:center;display:flex;gap:8px;white-space:normal;line-height:1.4;padding:9px 11px}
+.agl-actor-name{min-width:0;overflow-wrap:anywhere;flex:1}
+.agl-app button.agl-actor .agl-badge{flex:none;align-self:center}
+.agl-individual-content{display:grid;grid-template-columns:minmax(0,3fr) minmax(200px,1fr);gap:14px}
+.agl-individual-content .agl-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.agl-individual-content .agl-panel{align-self:start}
+.agl-app button.agl-recipe{height:auto;min-height:72px;box-sizing:border-box;white-space:normal;overflow:visible;line-height:1.42;overflow-wrap:anywhere;padding:12px 13px!important;gap:7px}
+.agl-app button.agl-recipe strong,.agl-app button.agl-recipe span{display:block;max-width:100%;overflow-wrap:anywhere;line-height:1.45;flex-shrink:0}
+.agl-app button.agl-recipe .agl-access{width:auto;align-self:start}
+.agl-roster{max-width:1100px}
+.agl-roster-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.agl-roster-actions .agl-primary{margin-top:0!important}
+.agl-roster-list{display:grid;gap:6px}
+.agl-roster-row{display:flex;gap:11px;align-items:center;min-height:54px;padding:9px 12px;border:1px solid #3b5051;border-radius:7px;background:#243235;flex-wrap:wrap;cursor:pointer}
+.agl-roster-row input{width:18px;height:18px;flex-shrink:0}
+.agl-roster-name{display:flex;flex-direction:column;gap:3px;flex:1;min-width:130px;overflow-wrap:anywhere}
+.agl-roster-name small{font-size:11px;color:#aab7b6}
+.agl-access{display:inline-flex;align-items:center;vertical-align:middle;flex-shrink:0;max-width:100%}
+.agl-badge.partial{background:#344354;border-color:#6686a1;color:#d7e6f4}
+.agl-gm-lens{display:flex;align-items:center;gap:7px;flex-wrap:wrap;background:#202d33;border-bottom:1px solid #465a63;padding:9px 21px;font-size:11px;color:#a7b8b9}
+.agl-gm-lens strong{font-size:12px;color:#e1d1ae;margin-right:4px}
+.agl-material-row span{min-width:0;overflow-wrap:anywhere}
+.agl-sidebar-launcher{min-width:max-content;white-space:nowrap}
+.agl-sidebar-launcher i{margin-right:5px}
+@media(max-width:950px){.agl-individual-content{grid-template-columns:minmax(0,2fr) minmax(190px,1fr)}.agl-individual-content .agl-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:650px){.agl-individual-content{grid-template-columns:1fr}.agl-actor-strip{flex-direction:column}.agl-app button.agl-actor{max-width:none;width:100%}.agl-individual-content .agl-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* v0.2.2 — group the indexed recipe library without altering its source records */
+.agl-app [hidden]{display:none!important}
+.agl-recipe-toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-bottom:12px}
+.agl-recipe-toolbar .agl-recipe-search{flex:1 1 175px;min-width:125px;width:auto;box-sizing:border-box;padding:8px 10px;border-radius:6px;border:1px solid #567176;background:#131e20;color:#f1e9d5}
+.agl-recipe-group{border:1px solid #34494b;border-radius:7px;overflow:hidden;margin-bottom:8px;background:#192427}
+.agl-app button.agl-recipe-group-toggle{display:flex;align-items:center;gap:8px;width:100%;min-height:43px;text-align:left;padding:8px 11px!important;white-space:normal;box-sizing:border-box;overflow-wrap:anywhere}
+.agl-recipe-group-toggle strong{flex:1 1 auto;font-size:13px;line-height:1.35}
+.agl-group-chevron{font-size:14px;flex:0 0 13px}
+.agl-group-count{min-width:23px;text-align:center;border-radius:20px;background:#304449;color:#e2e9e6;font-size:12px;padding:2px 7px}
+.agl-recipe-group-content{padding:5px 8px 9px}
+.agl-recipe-group-content .agl-recipe{margin:5px 0}
+.agl-recipe-toolbar button.agl-small{font-size:11px;line-height:1.3;min-height:30px;white-space:nowrap}
+
+/* v0.3.0 — shared Ashen Gate module shell (AG-FOUNDRY-DEV/1.3). */
+.agl-app .agl-header{padding:12px 18px;flex-wrap:wrap;gap:10px;background:#1b2529}
+.agl-app .agl-title{font-size:16px;letter-spacing:0;color:#e2e4d9;line-height:1.35}
+.agl-app .agl-title strong{display:inline;color:#e9d7ac;font-size:16px;letter-spacing:0}
+.agl-app .agl-header-right{display:flex;align-items:center;gap:10px;margin-left:auto}
+.agl-app .agl-version{color:#e3d6bb;font-size:12px;white-space:nowrap}
+.agl-app .agl-tabs{padding:8px 18px 0}
+.agl-app .agl-tabs button{font-size:13px;text-align:center}
+.agl-app main{padding:16px 18px}
+.agl-app .agl-panel{min-width:0;overflow-wrap:anywhere}
+.agl-app .agl-card p,.agl-app .agl-recipe span,.agl-app .agl-roster-name small,.agl-app .agl-recipe-toolbar button.agl-small{font-size:12px}
+.agl-app .agl-badge{font-size:12px;white-space:normal;overflow-wrap:anywhere}
+.agl-app .agl-kpis span,.agl-app .agl-panel h2 small{font-size:12px}
+.agl-app .agl-gm-setup{display:grid;gap:14px;max-width:1100px}
+.agl-app .agl-management-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.agl-app .agl-management-actions button{max-width:100%;white-space:normal;overflow-wrap:anywhere}
+.agl-app .agl-gm-setup .agl-panel h2{margin-bottom:10px}
+.agl-app .agl-dev-tools summary{cursor:pointer;color:#e9d7ac;font-size:14px;font-weight:650}
+.agl-app .agl-dev-tools[open] summary{margin-bottom:10px}
+.agl-app .agl-dev-panel{border-color:#6f5c45}
+.agl-app .agl-roster-actions{margin-top:12px}
+.agl-app .agl-footer{flex:none;min-height:52px;padding:10px 18px;gap:10px;flex-wrap:wrap;background:#172125}
+.agl-app .agl-footer-status{font-size:12px;flex:1 1 200px}
+.agl-app .agl-footer-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.agl-app .agl-footer-actions button.agl-primary{margin:0;padding:8px 12px;text-align:center}
+.agl-app .agl-footer-note{font-size:12px;color:#9eb5af}
+.agl-app button:focus-visible,.agl-app input:focus-visible,.agl-app summary:focus-visible{outline:2px solid #dfc692;outline-offset:2px}
+.agl-app .agl-help p{font-size:14px;line-height:1.55;max-width:85ch}
+@media(max-width:850px){.agl-app .agl-header{align-items:start}.agl-app .agl-header-right{margin-left:0}.agl-app .agl-tabs{flex-wrap:wrap}.agl-app .agl-tabs button{border-radius:6px}}
+@media(max-width:530px){.agl-app .agl-footer-actions{width:100%}.agl-app .agl-footer-actions button{flex:1 1 130px}.agl-app .agl-recipe-toolbar{align-items:stretch}.agl-app .agl-recipe-search{flex-basis:100%}}
+
+/* v0.4.0 — Actor progression, Recipe Learning and GM gathering encounters. */
+.agl-app .agl-learn-row small{display:block;color:#aabbb8;font-size:12px;margin-top:3px}
+.agl-app .agl-xp-award{display:flex;flex-wrap:wrap;gap:6px;align-items:center;width:100%}
+.agl-app .agl-xp-award label{font-size:12px;display:flex;align-items:center;gap:6px}
+.agl-app .agl-xp-award input{width:72px;min-height:34px;padding:5px 8px}
+.agl-app .agl-gather-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px 18px;margin:16px 0}
+.agl-app .agl-field{display:flex;flex-direction:column;gap:6px;font-size:13px;color:#e5ddcc}
+.agl-app .agl-field select,.agl-app .agl-field input{width:100%;min-width:0;min-height:36px;border:1px solid #536c70;border-radius:6px;background:#111b1d;color:#f4ede0;padding:7px 9px}
+.agl-app .agl-gather-eligible{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:10px 16px;border:1px solid #405557;border-radius:7px;padding:12px}
+.agl-app .agl-gather-eligible legend{color:#e4d4aa;font-size:14px;padding:0 6px}
+.agl-app .agl-gather-eligible label{display:flex;align-items:center;gap:6px;min-height:28px;font-size:13px;flex:0 1 auto}
+.agl-app .agl-gather-eligible input{width:16px;height:16px;margin:0}
+.agl-app .agl-gather-result{margin-top:14px}
+.agl-app .agl-reward-reel{padding:14px;border:1px solid #7b724e;border-radius:8px;background:#27372f;color:#f4e6b5;font-size:17px;text-align:center;min-height:54px}
+.agl-app .agl-management-actions{margin-top:12px}
+.agl-app .agl-learn-row button{flex-shrink:0}
+@media(max-width:720px){.agl-app .agl-gather-form{grid-template-columns:1fr}.agl-app .agl-gather-eligible{grid-column:1}}

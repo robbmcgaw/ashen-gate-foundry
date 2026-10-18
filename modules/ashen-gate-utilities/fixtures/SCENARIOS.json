@@ -1,0 +1,23 @@
+{
+  "fixture_id":"AG-UTILITIES-V020-DISPOSABLE",
+  "status":"synthetic_test_only_not_canon",
+  "module":"ashen-gate-utilities",
+  "target":{"foundry":"14 Stable 9 Build 367","dnd5e":"6.0.6","host":"Forge"},
+  "real_world_documents":[
+    {"role":"pc-scout","native_type":"Actor/character","name":"AG TEST | Bridge Scout","player_owner":"first non-GM","test_ids":["UTL-07","UTL-08","UTL-09","UTL-13","UTL-18","UTL-19"]},
+    {"role":"pc-warden","native_type":"Actor/character","name":"AG TEST | Field Warden","player_owner":"second non-GM or first fallback","test_ids":["UTL-07","UTL-12","UTL-13"]},
+    {"role":"item","native_type":"Item/loot","name":"AG TEST | Sealed Travel Ledger","test_ids":["UTL-20","UTL-21"]},
+    {"role":"text-table","native_type":"RollTable","name":"AG TEST | Crossing Reports","test_ids":["UTL-15","UTL-16"]},
+    {"role":"document-table","native_type":"RollTable","name":"AG TEST | Unsafe Document Result","test_ids":["UTL-17"]}
+  ],
+  "lifecycle_scenarios":[
+    {"name":"pending_group","through_ui":"GM > Group Checks > Start Group Check","slots":4,"status":"active","participants":2,"rolls_per_actor":2},
+    {"name":"submitted_group","through_ui":"Each owning player > Group Checks > Roll Now","result":"accepted native roll evidence; progress updates"},
+    {"name":"completed_group","through_ui":"GM > Group Checks > End & Record or final player roll","result":"activeSession cleared; History records outcome and slot details"},
+    {"name":"cancelled_group","through_ui":"GM > Group Checks > Cancel Session","result":"activeSession cleared; History records cancelled"},
+    {"name":"public_roll_request","through_ui":"GM > Roll Requests > Send Roll Request","result":"one public skill roll per participant; no group averaging"}
+  ],
+  "privacy":"Players never see the GM-only Party Stash in Utilities even if native Actor Observer permission is granted; no direct native transfer flow ships with this Alpha.",
+  "setup":"fixtures/setup.mjs exports setup(); it creates real Foundry world documents only after an explicit GM console call.",
+  "reset":"fixtures/setup.mjs exports reset(); it deletes only documents bearing fixtureId; optional deleteStash true with second confirmation."
+}

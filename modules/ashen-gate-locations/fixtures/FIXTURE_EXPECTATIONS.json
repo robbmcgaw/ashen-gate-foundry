@@ -1,0 +1,23 @@
+{
+  "type": "manual acceptance expectation, not actual Foundry run",
+  "fixture": "AG_Locations_Real_World_Fixture_v0.8.0.json",
+  "record_ids": [
+    "LOC-AGTEST-FRONTIER",
+    "LOC-AGTEST-VERGE",
+    "LOC-AGTEST-ROAD",
+    "LOC-AGTEST-MINE",
+    "LOC-AGTEST-VIEW",
+    "LOC-AGTEST-SEALED"
+  ],
+  "resource_id": "RES-AGTEST-MINE-001",
+  "material_id": "MAT-AGTEST-ORE",
+  "objective_refs": [
+    "QUEST-AGTEST-SURVEY",
+    "CONTRACT-AGTEST-SCOUT"
+  ],
+  "dependency_note": "Material and Objective IDs are syntactically valid external placeholder links only. The fixture imports six genuine Locations world records through Locations normal import flow; it does not create Profession/Quest records in other modules. Objective lookup = owner_unavailable until real owner records exist.",
+  "publication": "none automatically; GM must Save/Preview/Publish and grant native Journal rights deliberately",
+  "expected_source_permissions": "ownership default NONE, GM author only",
+  "expected_map_effect": "none, no map/Scene/Tile created",
+  "reset": "fixtures/AG_Locations_Reset_Test_Fixture.js"
+}

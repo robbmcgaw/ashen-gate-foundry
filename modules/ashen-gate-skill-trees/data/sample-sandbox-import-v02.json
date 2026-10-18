@@ -1,0 +1,54 @@
+{
+  "schema": "ag-skill-trees/0.2",
+  "status": "synthetic_example_not_approved",
+  "trees": [
+    {
+      "id": "DEMO-IMPORT-GENERIC",
+      "name": "Imported Sandbox Layout",
+      "description": "Synthetic tree layout example only",
+      "status": "test",
+      "visibility": "player",
+      "sourceRef": null,
+      "provider": {
+        "kind": "generic_points",
+        "maxPoints": 6
+      },
+      "nodes": [
+        {
+          "id": "DEMO-IMPORT-A",
+          "name": "Example A",
+          "description": "No game effects",
+          "x": 150,
+          "y": 150,
+          "cost": 1,
+          "status": "test",
+          "visibility": "player",
+          "display": "shown",
+          "requiresAll": [],
+          "requiresAny": [],
+          "excludes": [],
+          "contentRef": null,
+          "sourceUuid": null
+        },
+        {
+          "id": "DEMO-IMPORT-B",
+          "name": "Example B",
+          "description": "Depends on A",
+          "x": 410,
+          "y": 200,
+          "cost": 1,
+          "status": "test",
+          "visibility": "player",
+          "display": "shown",
+          "requiresAll": [
+            "DEMO-IMPORT-A"
+          ],
+          "requiresAny": [],
+          "excludes": [],
+          "contentRef": null,
+          "sourceUuid": null
+        }
+      ]
+    }
+  ]
+}
