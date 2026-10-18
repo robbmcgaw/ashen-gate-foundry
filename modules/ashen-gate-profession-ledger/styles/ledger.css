@@ -137,3 +137,9 @@
 #ashen-gate-launchers > .ag-launcher {display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:32px;margin:0;padding:4px 10px;box-sizing:border-box;font:600 13px/1.2 var(--font-primary,sans-serif);white-space:normal;text-align:center;cursor:pointer;}
 #ashen-gate-launchers > .ag-launcher > i {flex:0 0 16px;text-align:center;}
 #ashen-gate-launchers > .ag-launcher:focus-visible {outline:2px solid var(--color-border-highlight,#d8b788);outline-offset:1px;}
+/* 0.8.0 party Recipes tab: recipe items are marked so they are not confused with what they craft. */
+.agl-badge.recipe{background:#4a3a5c;border-color:#8c6fb0;color:#eadcfb}
+.agl-app .agl-recipe-mark{color:#c9a8f0;margin-right:6px}
+.agl-app .agl-party-recipe{border-bottom:1px solid #334043;padding-bottom:8px;margin-bottom:8px}
+.agl-app .agl-party-recipe:last-of-type{border-bottom:none}
+.agl-app .agl-party-recipe .agl-ingredient{padding:4px 0 4px 12px;border-bottom:none}

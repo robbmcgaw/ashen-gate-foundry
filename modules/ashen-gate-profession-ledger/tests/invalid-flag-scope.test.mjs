@@ -26,7 +26,7 @@ globalThis.game={settings:{register:(m,k,o)=>settings[k]=o,registerMenu:(m,k,o)=
  actors:{contents:[actor],get:id=>id==='a'?actor:null},items:{contents:[recipe,material]}};
 const entry=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../scripts/main.js');
 await import(pathToFileURL(entry));hooks.init();hooks.ready();
-const app=apiMod.api.open({view:'recipes'});
+const app=apiMod.api.open({view:'catalog'});
 const recipeView=await app._prepareContext({});
 assert.match(recipeView.html,/Hearth Tonic/);
 assert.match(recipeView.html,/data-id="gm"/);

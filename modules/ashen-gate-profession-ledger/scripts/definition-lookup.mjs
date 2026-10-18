@@ -26,7 +26,7 @@ function visibleToEveryPlayer(doc, game) {
  * trust an options.viewer object from an exported helper, macro, or console.
  */
 export function lookupWorldDefinition(game,sourceId,{
-  entityType=null,publicForAll=false,approvedOnly=false,expectedVersion=null
+  entityType=null,publicForAll=false,approvedOnly=false,expectedVersion=null,partyKnown=false
 }={}) {
   if(typeof sourceId!=='string'||!CANONICAL_ID.test(sourceId))return {status:'invalid'};
   const viewer=game?.user;
@@ -39,7 +39,7 @@ export function lookupWorldDefinition(game,sourceId,{
   if(bindings.length!==1)return {status:viewer.isGM?'conflict':'not_found'};
   const document=bindings[0],src=definitionSource(document);
   if(entityType && src.entityType!==entityType)return {status:viewer.isGM?'wrong_type':'not_found'};
-  if(approvedOnly&&src.status!=='approved')return {status:viewer.isGM?'not_released':'not_found'};
+  if((approvedOnly||partyKnown)&&src.status!=='approved')return {status:viewer.isGM?'not_released':'not_found'};
   if(expectedVersion!=null && (src.sourceVersion??src.version)!==expectedVersion)
     return {status:viewer.isGM?'stale':'not_found'};
   // publicForAll is for a GM publishing a sanitized common interface, never a
@@ -48,6 +48,10 @@ export function lookupWorldDefinition(game,sourceId,{
     if(src.visibility!=='player'||!visibleToEveryPlayer(document,game))return {status:'not_visible'};
   }else if(!viewer.isGM){
     if(src.visibility!=='player')return {status:'not_found'};
+    // partyKnown: the caller has already checked that a party member knows or
+    // holds this exact ID. It still requires an approved, player-visible
+    // source; it only waives Observer on the world definition document.
+    if(partyKnown)return {status:'ok',document,source:src};
     try {if(document.testUserPermission?.(viewer,'OBSERVER')!==true)return {status:'not_found'};}
     catch {return {status:'not_found'};}
   }
