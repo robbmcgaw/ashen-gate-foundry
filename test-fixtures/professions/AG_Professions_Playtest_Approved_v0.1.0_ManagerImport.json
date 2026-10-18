@@ -1,0 +1,628 @@
+{
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-PROFESSIONS-PLAYTEST",
+    "version": "0.1.0",
+    "description": "Player-visible copy of the pinned professions chain for live alpha testing: status approved so players can see it. Synthetic test data, not canon."
+  },
+  "records": [
+    {
+      "id": "PROF-ALCHEMY",
+      "entity_type": "Profession",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Professions unified review 2026-10-15; established profession rules"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "starting_recipe",
+          "target_id": "REC-ALCHEMY-FIELD-MEDIC-S-SALVE",
+          "mode": "required"
+        },
+        {
+          "relation": "starting_recipe",
+          "target_id": "REC-ALCHEMY-VEILSMOKE-PHIAL",
+          "mode": "required"
+        },
+        {
+          "relation": "starting_recipe",
+          "target_id": "REC-ALCHEMY-POTION-OF-CLIMBING",
+          "mode": "required"
+        }
+      ],
+      "name": "Alchemy",
+      "profession_kind": "crafting",
+      "access": {
+        "toolProficienciesAnyOf": [
+          "Alchemist's Supplies",
+          "Herbalism Kit"
+        ],
+        "toolMustBePresent": true
+      },
+      "workstation": "Alchemy Laboratory",
+      "progression": {
+        "professionLevels": 16,
+        "tiers": [
+          {
+            "id": "apprentice",
+            "startsAtLevel": 1,
+            "advancement": "tool-access"
+          },
+          {
+            "id": "journeyman",
+            "startsAtLevel": 4,
+            "advancement": "automatic"
+          },
+          {
+            "id": "expert",
+            "startsAtLevel": 7,
+            "advancement": "automatic"
+          },
+          {
+            "id": "artisan",
+            "startsAtLevel": 10,
+            "advancement": "dm-feat-required"
+          },
+          {
+            "id": "master",
+            "startsAtLevel": 13,
+            "advancement": "dm-feat-required"
+          }
+        ],
+        "xpTable": {
+          "startingXP": 0,
+          "startingLevel": 1,
+          "costFormula": "5 + 3 * (currentLevel - 1)",
+          "costToNextByCurrentLevel": {
+            "1": 5,
+            "2": 8,
+            "3": 11,
+            "4": 14,
+            "5": 17,
+            "6": 20,
+            "7": 23,
+            "8": 26,
+            "9": 29,
+            "10": 32,
+            "11": 35,
+            "12": 38,
+            "13": 41,
+            "14": 44,
+            "15": 47
+          },
+          "cumulativeXPToReachLevel": {
+            "1": 0,
+            "2": 5,
+            "3": 13,
+            "4": 24,
+            "5": 38,
+            "6": 55,
+            "7": 75,
+            "8": 98,
+            "9": 124,
+            "10": 153,
+            "11": 185,
+            "12": 220,
+            "13": 258,
+            "14": 299,
+            "15": 343,
+            "16": 390
+          },
+          "cap": 16,
+          "status": "confirmed"
+        },
+        "gatheringBaseDC": [
+          10,
+          12,
+          14,
+          16,
+          18
+        ],
+        "criticalMargin": 5,
+        "manualXP": true,
+        "manualLevelUp": true
+      },
+      "starting_recipe_ids": [
+        "REC-ALCHEMY-FIELD-MEDIC-S-SALVE",
+        "REC-ALCHEMY-VEILSMOKE-PHIAL",
+        "REC-ALCHEMY-POTION-OF-CLIMBING"
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Professions",
+        "data": {
+          "name": "Alchemy — Profession",
+          "type": "feat",
+          "img": "icons/consumables/potions/flask-corked-purple-glow.webp",
+          "system": {
+            "description": {
+              "value": "<h2>Alchemy</h2><p>Qualifying proficiency: Alchemist's Supplies or Herbalism Kit. Workstation: Alchemy Laboratory.</p><p>Starting recipes: [[AGREF:REC-ALCHEMY-FIELD-MEDIC-S-SALVE|REC-ALCHEMY-FIELD-MEDIC-S-SALVE]], [[AGREF:REC-ALCHEMY-VEILSMOKE-PHIAL|REC-ALCHEMY-VEILSMOKE-PHIAL]], [[AGREF:REC-ALCHEMY-POTION-OF-CLIMBING|REC-ALCHEMY-POTION-OF-CLIMBING]]</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "PROF-HERBALISM",
+      "entity_type": "Profession",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Professions unified review 2026-10-15; established profession rules"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "Herbalism",
+      "profession_kind": "gathering",
+      "access": {
+        "skillProficienciesAnyOf": [
+          "Nature"
+        ],
+        "advantageToolsAnyOf": [
+          "Herbalism Kit"
+        ]
+      },
+      "workstation": null,
+      "progression": {
+        "professionLevels": 16,
+        "tiers": [
+          {
+            "id": "apprentice",
+            "startsAtLevel": 1,
+            "advancement": "tool-access"
+          },
+          {
+            "id": "journeyman",
+            "startsAtLevel": 4,
+            "advancement": "automatic"
+          },
+          {
+            "id": "expert",
+            "startsAtLevel": 7,
+            "advancement": "automatic"
+          },
+          {
+            "id": "artisan",
+            "startsAtLevel": 10,
+            "advancement": "dm-feat-required"
+          },
+          {
+            "id": "master",
+            "startsAtLevel": 13,
+            "advancement": "dm-feat-required"
+          }
+        ],
+        "xpTable": {
+          "startingXP": 0,
+          "startingLevel": 1,
+          "costFormula": "5 + 3 * (currentLevel - 1)",
+          "costToNextByCurrentLevel": {
+            "1": 5,
+            "2": 8,
+            "3": 11,
+            "4": 14,
+            "5": 17,
+            "6": 20,
+            "7": 23,
+            "8": 26,
+            "9": 29,
+            "10": 32,
+            "11": 35,
+            "12": 38,
+            "13": 41,
+            "14": 44,
+            "15": 47
+          },
+          "cumulativeXPToReachLevel": {
+            "1": 0,
+            "2": 5,
+            "3": 13,
+            "4": 24,
+            "5": 38,
+            "6": 55,
+            "7": 75,
+            "8": 98,
+            "9": 124,
+            "10": 153,
+            "11": 185,
+            "12": 220,
+            "13": 258,
+            "14": 299,
+            "15": 343,
+            "16": 390
+          },
+          "cap": 16,
+          "status": "confirmed"
+        },
+        "gatheringBaseDC": [
+          10,
+          12,
+          14,
+          16,
+          18
+        ],
+        "criticalMargin": 5,
+        "manualXP": true,
+        "manualLevelUp": true
+      },
+      "starting_recipe_ids": [],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Professions",
+        "data": {
+          "name": "Herbalism — Profession",
+          "type": "feat",
+          "img": "icons/consumables/plants/herb-tied-bundle-green.webp",
+          "system": {
+            "description": {
+              "value": "<h2>Herbalism</h2><p>Nature proficiency qualifies. Herbalism Kit provides Advantage on relevant gathering checks.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "MAT-HERBALISM-APPRENTICE-COMMON",
+      "entity_type": "Material",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Preserved materials content v19/review 2026-10-15"
+        ]
+      },
+      "visibility": "player",
+      "refs": [
+        {
+          "relation": "gathered_by",
+          "target_id": "PROF-HERBALISM",
+          "mode": "required"
+        }
+      ],
+      "scope": "generic_rules",
+      "name": "Hearthleaf Bundle",
+      "tierId": "apprentice",
+      "quality": "Common",
+      "unit": "Bundle",
+      "flavor": "Hardy medicinal leaves that retain their warmth after drying.",
+      "tags": [
+        "standard",
+        "gathering"
+      ],
+      "priceGp": 5,
+      "weightLb": 0.5,
+      "source_profession_id": "PROF-HERBALISM",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Materials",
+        "data": {
+          "name": "Hearthleaf Bundle",
+          "type": "loot",
+          "img": "icons/consumables/plants/cilantro-parsley-herb-leaf-green.webp",
+          "system": {
+            "description": {
+              "value": "<h2>Hearthleaf Bundle</h2><p>Apprentice · Common · 5 gp · 0.5 lb · Bundle</p><p>Hardy medicinal leaves that retain their warmth after drying.</p><p>Gathered through [[AGREF:PROF-HERBALISM|Herbalism]].</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "REC-ALCHEMY-FIELD-MEDIC-S-SALVE",
+      "entity_type": "Recipe",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Starting recipes reviewed in Tim chat on 2026-10-15"
+        ]
+      },
+      "visibility": "player",
+      "refs": [
+        {
+          "relation": "crafted_by",
+          "target_id": "PROF-ALCHEMY",
+          "mode": "required"
+        },
+        {
+          "relation": "produces",
+          "target_id": "ITEM-ALCHEMY-FIELD-MEDIC-S-SALVE",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-HERBALISM-APPRENTICE-COMMON",
+          "mode": "required"
+        }
+      ],
+      "scope": "generic_rules",
+      "name": "Field Medic's Salve",
+      "tier": "apprentice",
+      "starting": true,
+      "origin": "original",
+      "effort": "short",
+      "price_class": "common_consumable",
+      "market_gp": 50,
+      "craft_gp": 25,
+      "additional_gp": 20,
+      "rules_summary": "Stabilize an adjacent creature at 0 HP as an action without a Medicine check; consumed.",
+      "profession_id": "PROF-ALCHEMY",
+      "result_item_id": "ITEM-ALCHEMY-FIELD-MEDIC-S-SALVE",
+      "ingredients": [
+        {
+          "material_id": "MAT-HERBALISM-APPRENTICE-COMMON",
+          "quantity": 1,
+          "material_value_gp": 5
+        }
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Recipes",
+        "data": {
+          "name": "Recipe: Field Medic's Salve",
+          "type": "loot",
+          "img": "icons/commodities/materials/parchment-secrets.webp",
+          "system": {
+            "description": {
+              "value": "<h2>Field Medic's Salve recipe</h2><p>[[AGREF:PROF-ALCHEMY|Alchemy]] · Apprentice · Short effort · Starting recipe</p><p>Requires one [[AGREF:MAT-HERBALISM-APPRENTICE-COMMON|Hearthleaf Bundle]] (5 gp), plus 20 gp. Crafting 25 gp; market 50 gp.</p><p>Produces [[AGREF:ITEM-ALCHEMY-FIELD-MEDIC-S-SALVE|Field Medic's Salve]].</p><p>Stabilize an adjacent creature at 0 HP as an action without a Medicine check; consumed.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ITEM-ALCHEMY-FIELD-MEDIC-S-SALVE",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Result of reviewed recipe on 2026-10-15"
+        ]
+      },
+      "visibility": "player",
+      "refs": [
+        {
+          "relation": "created_by",
+          "target_id": "REC-ALCHEMY-FIELD-MEDIC-S-SALVE",
+          "mode": "required"
+        }
+      ],
+      "scope": "generic_rules",
+      "name": "Field Medic's Salve",
+      "origin": "original",
+      "rarity_price_class": "common_consumable",
+      "market_gp": 50,
+      "rules_summary": "Stabilize an adjacent creature at 0 HP as an action without a Medicine check; consumed.",
+      "created_by_recipe_id": "REC-ALCHEMY-FIELD-MEDIC-S-SALVE",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Items",
+        "data": {
+          "name": "Field Medic's Salve",
+          "type": "loot",
+          "img": "icons/commodities/treasure/token-brass-round.webp",
+          "system": {
+            "description": {
+              "value": "<h2>Field Medic's Salve</h2><p>Stabilize an adjacent creature at 0 HP as an action without a Medicine check; consumed.</p><p>Recipe: [[AGREF:REC-ALCHEMY-FIELD-MEDIC-S-SALVE|Field Medic's Salve]].</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "REC-ALCHEMY-VEILSMOKE-PHIAL",
+      "entity_type": "Recipe",
+      "status": "approved",
+      "version": "0.1.0",
+      "visibility": "player",
+      "scope": "generic_rules",
+      "provenance": {
+        "sources": [
+          "Starting recipes reviewed in Tim chat on 2026-10-15"
+        ]
+      },
+      "refs": [
+        {
+          "relation": "crafted_by",
+          "target_id": "PROF-ALCHEMY",
+          "mode": "required"
+        },
+        {
+          "relation": "produces",
+          "target_id": "ITEM-ALCHEMY-VEILSMOKE-PHIAL",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-HERBALISM-APPRENTICE-COMMON",
+          "mode": "required"
+        }
+      ],
+      "name": "Veilsmoke Phial",
+      "tier": "apprentice",
+      "starting": true,
+      "origin": "original",
+      "effort": "short",
+      "price_class": "common_consumable",
+      "market_gp": 50,
+      "craft_gp": 25,
+      "additional_gp": 20,
+      "rules_summary": "Action: throw within 20 ft; 10-ft-radius heavily obscured smoke until end of next turn, dispersed by strong wind.",
+      "profession_id": "PROF-ALCHEMY",
+      "result_item_id": "ITEM-ALCHEMY-VEILSMOKE-PHIAL",
+      "ingredients": [
+        {
+          "material_id": "MAT-HERBALISM-APPRENTICE-COMMON",
+          "quantity": 1,
+          "material_value_gp": 5
+        }
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Recipes",
+        "data": {
+          "name": "Recipe: Veilsmoke Phial",
+          "type": "loot",
+          "img": "icons/commodities/materials/parchment-secrets.webp",
+          "system": {
+            "description": {
+              "value": "<h2>Recipe: Veilsmoke Phial</h2><p>[[AGREF:PROF-ALCHEMY|Alchemy]] · Apprentice · short effort · Starting recipe</p><p>Requires one [[AGREF:MAT-HERBALISM-APPRENTICE-COMMON|Hearthleaf Bundle]] (5 gp) plus 20 gp. Crafting: 25 gp; market 50 gp.</p><p>Produces [[AGREF:ITEM-ALCHEMY-VEILSMOKE-PHIAL|Veilsmoke Phial]].</p><p>Action: throw within 20 ft; 10-ft-radius heavily obscured smoke until end of next turn, dispersed by strong wind.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ITEM-ALCHEMY-VEILSMOKE-PHIAL",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "0.1.0",
+      "visibility": "player",
+      "scope": "generic_rules",
+      "provenance": {
+        "sources": [
+          "Result of reviewed recipe on 2026-10-15"
+        ]
+      },
+      "refs": [
+        {
+          "relation": "created_by",
+          "target_id": "REC-ALCHEMY-VEILSMOKE-PHIAL",
+          "mode": "required"
+        }
+      ],
+      "name": "Veilsmoke Phial",
+      "origin": "original",
+      "rarity_price_class": "common_consumable",
+      "market_gp": 50,
+      "rules_summary": "Action: throw within 20 ft; 10-ft-radius heavily obscured smoke until end of next turn, dispersed by strong wind.",
+      "created_by_recipe_id": "REC-ALCHEMY-VEILSMOKE-PHIAL",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Items",
+        "data": {
+          "name": "Veilsmoke Phial",
+          "type": "loot",
+          "img": "icons/commodities/treasure/token-brass-round.webp",
+          "system": {
+            "description": {
+              "value": "<h2>Veilsmoke Phial</h2><p>Action: throw within 20 ft; 10-ft-radius heavily obscured smoke until end of next turn, dispersed by strong wind.</p><p>Crafted from [[AGREF:REC-ALCHEMY-VEILSMOKE-PHIAL|Recipe: Veilsmoke Phial]].</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "REC-ALCHEMY-POTION-OF-CLIMBING",
+      "entity_type": "Recipe",
+      "status": "approved",
+      "version": "0.1.0",
+      "visibility": "player",
+      "scope": "generic_rules",
+      "provenance": {
+        "sources": [
+          "Starting recipes reviewed in Tim chat on 2026-10-15"
+        ]
+      },
+      "refs": [
+        {
+          "relation": "crafted_by",
+          "target_id": "PROF-ALCHEMY",
+          "mode": "required"
+        },
+        {
+          "relation": "produces",
+          "target_id": "ITEM-ALCHEMY-POTION-OF-CLIMBING",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-HERBALISM-APPRENTICE-COMMON",
+          "mode": "required"
+        }
+      ],
+      "name": "Potion of Climbing",
+      "tier": "apprentice",
+      "starting": true,
+      "origin": "srd",
+      "effort": "long",
+      "price_class": "common_consumable",
+      "market_gp": 50,
+      "craft_gp": 25,
+      "additional_gp": 20,
+      "rules_summary": "Use SRD 5.2.1 Potion of Climbing rules.",
+      "profession_id": "PROF-ALCHEMY",
+      "result_item_id": "ITEM-ALCHEMY-POTION-OF-CLIMBING",
+      "ingredients": [
+        {
+          "material_id": "MAT-HERBALISM-APPRENTICE-COMMON",
+          "quantity": 1,
+          "material_value_gp": 5
+        }
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Recipes",
+        "data": {
+          "name": "Recipe: Potion of Climbing",
+          "type": "loot",
+          "img": "icons/commodities/materials/parchment-secrets.webp",
+          "system": {
+            "description": {
+              "value": "<h2>Recipe: Potion of Climbing</h2><p>[[AGREF:PROF-ALCHEMY|Alchemy]] · Apprentice · long effort · Starting recipe</p><p>Requires one [[AGREF:MAT-HERBALISM-APPRENTICE-COMMON|Hearthleaf Bundle]] (5 gp) plus 20 gp. Crafting: 25 gp; market 50 gp.</p><p>Produces [[AGREF:ITEM-ALCHEMY-POTION-OF-CLIMBING|Potion of Climbing]].</p><p>Use SRD 5.2.1 Potion of Climbing rules.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ITEM-ALCHEMY-POTION-OF-CLIMBING",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "0.1.0",
+      "visibility": "player",
+      "scope": "generic_rules",
+      "provenance": {
+        "sources": [
+          "Result of reviewed recipe on 2026-10-15"
+        ]
+      },
+      "refs": [
+        {
+          "relation": "created_by",
+          "target_id": "REC-ALCHEMY-POTION-OF-CLIMBING",
+          "mode": "required"
+        }
+      ],
+      "name": "Potion of Climbing",
+      "origin": "srd",
+      "rarity_price_class": "common_consumable",
+      "market_gp": 50,
+      "rules_summary": "Use SRD 5.2.1 Potion of Climbing rules.",
+      "created_by_recipe_id": "REC-ALCHEMY-POTION-OF-CLIMBING",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Items",
+        "data": {
+          "name": "Potion of Climbing",
+          "type": "loot",
+          "img": "icons/commodities/treasure/token-brass-round.webp",
+          "system": {
+            "description": {
+              "value": "<h2>Potion of Climbing</h2><p>Use SRD 5.2.1 Potion of Climbing rules.</p><p>Crafted from [[AGREF:REC-ALCHEMY-POTION-OF-CLIMBING|Recipe: Potion of Climbing]].</p>"
+            }
+          }
+        }
+      }
+    }
+  ]
+}
