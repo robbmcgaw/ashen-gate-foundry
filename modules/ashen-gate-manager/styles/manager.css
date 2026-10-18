@@ -1,11 +1,12 @@
 .ashen-gate-manager {--agm-ink:#eadbc9;--agm-accent:#caa574;--agm-panel:#22252b;--agm-edge:#4b4640;--agm-muted:#afafa9;min-width:650px}
 .ashen-gate-manager .window-content {padding:0;background:#191c21;color:var(--agm-ink);overflow:auto}
 .agmanager-body {display:flex;flex-direction:column;gap:12px;padding:15px;font-size:13px;color:var(--agm-ink)}
-.agmanager-top {display:flex;align-items:center;gap:15px;border-bottom:1px solid var(--agm-edge);padding:4px 4px 13px}
-.agmanager-heading {flex:0 0 auto}
-.agmanager-header-launchers {display:flex;flex:1;flex-wrap:wrap;justify-content:flex-end;gap:5px}
-.agmanager-header-launchers button {min-height:36px;padding:7px 12px}
-.agmanager-emblem {width:48px;height:48px;border:2px solid #966b44;display:grid;place-items:center;border-radius:6px;font-weight:bold;color:#ecc38f;background:#342c25}
+.agmanager-top {display:flex;align-items:center;gap:10px;padding:2px 4px}
+.agmanager-heading {flex:1 1 auto;min-width:0}
+.agmanager-header-launchers {display:flex;flex-wrap:wrap;gap:5px;border-bottom:1px solid var(--agm-edge);padding:0 4px 10px}
+.agmanager-header-launchers button {flex:0 0 auto;width:auto;min-height:28px;padding:4px 10px;white-space:nowrap;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.agmanager-header-launchers button:disabled {opacity:.5;cursor:not-allowed}
+.agmanager-emblem {flex:0 0 auto;font-size:20px;color:#ecc38f}
 .agmanager-top h2 {border:0;margin:0;font-size:23px;color:#f0dcc3}.agmanager-top h2 small {font-size:12px;opacity:.75}
 .agmanager-top p {margin:3px 0;color:var(--agm-muted)}
 .agmanager-chip {margin-left:auto;border:1px solid var(--agm-edge);border-radius:20px;padding:6px 10px;white-space:nowrap;color:var(--agm-muted)}
@@ -119,7 +120,6 @@
 .ag-sidebar-launch-group[data-ag-launch-group="items"] .ag-sidebar-launch-button:focus-visible {outline:2px solid #d6ac76;outline-offset:2px;}
 .ashen-gate-manager .agmanager-body {font-size:14px;}
 
-.ashen-gate-manager .agmanager-emblem {width:32px;height:32px;font-size:13px;flex:0 0 auto;}
 .ashen-gate-manager .agmanager-top h2 {font-size:19px;}
 .ashen-gate-manager .agmanager-help {margin-left:auto;flex:0 0 auto;min-height:30px;background:#38322b;color:#ead4b0;border:1px solid #846744;border-radius:4px;cursor:pointer;padding:5px 10px;}
 .ashen-gate-manager .agmanager-chip {margin-left:0;}
@@ -154,6 +154,7 @@
 .ashen-gate-manager .agmanager-detail-grid>div{background:var(--ag-panel);border-color:var(--ag-border)}
 .ashen-gate-manager .agmanager-row button,.ashen-gate-manager .agmanager-panel button,
 .ashen-gate-manager .agmanager-footer button,.ashen-gate-manager .agmanager-help,
+.ashen-gate-manager .agmanager-header-launchers button,
 .ashen-gate-manager .agmanager-filelabel{background:var(--ag-panel);border-color:var(--ag-accent);color:var(--ag-text)}
 .ashen-gate-manager .agmanager-row button:focus-visible,.ashen-gate-manager .agmanager-panel button:focus-visible,
 .ashen-gate-manager select:focus-visible,.ashen-gate-manager input:focus-visible{outline:2px solid var(--ag-focus);outline-offset:2px}

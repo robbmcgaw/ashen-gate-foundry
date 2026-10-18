@@ -1,3 +1,8 @@
+## 0.12.2 — 2026-10-18
+
+- Header is one line: title and version on the left, Help and the "GM only" chip on the right. The empty emblem box (non-existent `fa-gate` icon) is replaced by a `fa-dungeon` icon.
+- Module launchers moved to one compact row under the header with short labels and icons (Professions, Skill Trees, Quests, Factions, Headquarters, Locations, Utilities), in the same order as the Actors-sidebar launchers. Full name and state stay in the tooltip; inactive modules stay disabled. Wraps only at narrow widths. (#3)
+
 ## 0.12.1 — 2026-10-18
 
 - Moved to the `ashen-gate-foundry` repository. No gameplay changes.
