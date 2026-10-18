@@ -16,6 +16,7 @@
     "scripts/main.js"
   ],
   "styles": [
+    "styles/ag-ui.css",
     "styles/ledger.css"
   ],
   "readme": "README.md",

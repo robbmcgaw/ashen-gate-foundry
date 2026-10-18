@@ -7,27 +7,38 @@ export const APPEARANCE_CONTRACT = 'ag-appearance/0.1-beta';
 export const WORLD_SKIN_KEY = 'worldSkin';
 export const USER_SKIN_KEY = 'userSkin';
 
-const DEFAULT_TOKENS = Object.freeze({
-  '--ag-bg':'#191c21','--ag-panel':'#22252b','--ag-text':'#eadbc9',
-  '--ag-muted':'#afafa9','--ag-border':'#4b4640','--ag-accent':'#caa574',
-  '--ag-danger':'#d58787','--ag-focus':'#eed2a2'
+// Base tokens of the shared UI kit (styles/ag-ui.css). --ag-bg/--ag-panel are pre-kit aliases.
+const skinTokens=t=>Object.freeze({
+  '--ag-surface':t.surface,'--ag-surface-sunken':t.sunken,'--ag-surface-raised':t.raised,
+  '--ag-text':t.text,'--ag-muted':t.muted,'--ag-border':t.border,
+  '--ag-accent':t.accent,'--ag-accent-contrast':t.onAccent,
+  '--ag-danger':t.danger,'--ag-ok':t.ok,'--ag-warn':t.warn,'--ag-focus':t.focus,
+  '--ag-bg':t.surface,'--ag-panel':t.raised
 });
+export const SKIN_TOKEN_NAMES=Object.freeze(['--ag-surface','--ag-surface-sunken','--ag-surface-raised','--ag-text','--ag-muted',
+  '--ag-border','--ag-accent','--ag-accent-contrast','--ag-danger','--ag-ok','--ag-warn','--ag-focus','--ag-bg','--ag-panel']);
+const DEFAULT_TOKENS=skinTokens({surface:'#17191d',sunken:'#111316',raised:'#1f2227',text:'#ece6dc',muted:'#a7a197',
+  border:'#34373d',accent:'#d2a86a',onAccent:'#1a1408',danger:'#e0817a',ok:'#7cc19a',warn:'#e5b85c',focus:'#f0cf94'});
 const SKINS = Object.freeze([
-  Object.freeze({id:'ag-default',label:'Ashen Gate — Standard',description:'Warm parchment on charcoal',tokens:DEFAULT_TOKENS}),
-  Object.freeze({id:'ag-slate',label:'Ashen Gate — Slate',description:'Cool, high-contrast slate',tokens:Object.freeze({
-    '--ag-bg':'#151d26','--ag-panel':'#26333e','--ag-text':'#f0f5f7',
-    '--ag-muted':'#c1cbd0','--ag-border':'#657d8b','--ag-accent':'#9ed1dc',
-    '--ag-danger':'#ef9c9c','--ag-focus':'#c8f4f4'
-  })}),
-  Object.freeze({id:'ag-ember',label:'Ashen Gate — Ember',description:'Deep brown with copper highlights',tokens:Object.freeze({
-    '--ag-bg':'#241c19','--ag-panel':'#33251f','--ag-text':'#ffecdc',
-    '--ag-muted':'#d9bda9','--ag-border':'#80624f','--ag-accent':'#f4b278',
-    '--ag-danger':'#f09c94','--ag-focus':'#ffdd9d'
-  })})
+  Object.freeze({id:'ag-default',label:'Ashen Gate — Standard',description:'Warm gold on charcoal',tokens:DEFAULT_TOKENS}),
+  Object.freeze({id:'ag-slate',label:'Ashen Gate — Slate',description:'Cool, high-contrast slate',tokens:skinTokens({
+    surface:'#141a21',sunken:'#0e1318',raised:'#1c242d',text:'#eef3f6',muted:'#9fb0bc',border:'#2f3b47',
+    accent:'#8fcbe0',onAccent:'#0b1820',danger:'#f0928f',ok:'#86d3a6',warn:'#f0c46b',focus:'#c4ecf7'})}),
+  Object.freeze({id:'ag-ember',label:'Ashen Gate — Ember',description:'Deep brown with copper highlights',tokens:skinTokens({
+    surface:'#1d1512',sunken:'#150f0c',raised:'#271c18',text:'#fbeadb',muted:'#c9ab96',border:'#47342b',
+    accent:'#f0a35e',onAccent:'#231205',danger:'#f2867c',ok:'#9bcf8e',warn:'#f5c35f',focus:'#ffd59a'})}),
+  Object.freeze({id:'ag-verdigris',label:'Ashen Gate — Verdigris',description:'Dark teal with brass accents',tokens:skinTokens({
+    surface:'#121b1a',sunken:'#0c1312',raised:'#192423',text:'#e6f0ec',muted:'#97ada6',border:'#2b3b39',
+    accent:'#d6b56a',onAccent:'#191304',danger:'#ec8a80',ok:'#74d0a8',warn:'#e9c066',focus:'#b9e8d6'})}),
+  Object.freeze({id:'ag-parchment',label:'Ashen Gate — Parchment',description:'Light parchment with ink and bronze',tokens:skinTokens({
+    surface:'#f4efe6',sunken:'#fbf8f2',raised:'#ebe3d6',text:'#2a241d',muted:'#6a5f52',border:'#cfc2ae',
+    accent:'#94642a',onAccent:'#ffffff',danger:'#b03f37',ok:'#2f7a4b',warn:'#9a6a10',focus:'#b5832f'})})
 ]);
 export const DEFAULT_SKIN_ID = 'ag-default';
 const findSkin = id => SKINS.find(s=>s.id===id);
-const publicSkin = skin => ({id:skin.id,label:skin.label,description:skin.description});
+// swatch: four display colours for previews (surface, raised, accent, text); not the token map.
+const publicSkin = skin => ({id:skin.id,label:skin.label,description:skin.description,
+  swatch:['--ag-surface','--ag-surface-raised','--ag-accent','--ag-text'].map(k=>skin.tokens[k])});
 
 /** Injectable settings facade, so permissions and preference precedence can be unit-tested. */
 export function createAppearanceController({getSetting,setSetting,currentUser,subscribeSettings=()=>()=>{}}={}) {

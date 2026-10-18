@@ -15,6 +15,7 @@
     "js/main.mjs"
   ],
   "styles": [
+    "styles/ag-ui.css",
     "styles/headquarters.css"
   ],
   "readme": "README.md",

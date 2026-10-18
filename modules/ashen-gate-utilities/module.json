@@ -26,6 +26,7 @@
     "scripts/main.mjs"
   ],
   "styles": [
+    "styles/ag-ui.css",
     "styles/utilities.css"
   ],
   "url": "https://github.com/robbmcgaw/ashen-gate-foundry",

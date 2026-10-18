@@ -62,7 +62,12 @@ test('players never receive GM-only Objective refs through faction projections',
 });
 test('theme styling is local and tolerates absent optional appearance controller',async()=>{
   const {readFileSync}=await import('node:fs');const css=readFileSync(new URL('../styles/module.css',import.meta.url),'utf8');
-  for(const token of ['--ag-bg','--ag-panel','--ag-text','--ag-muted','--ag-border','--ag-accent','--ag-focus'])assert.ok(css.includes(`var(${token},`));
+  // Token defaults ship in the shared kit (styles/ag-ui.css, loaded first), so module CSS uses
+  // the tokens directly and never redefines them (a local value would block Manager's skin).
+  for(const token of ['--ag-surface','--ag-text','--ag-muted','--ag-border','--ag-accent'])assert.ok(css.includes(`var(${token})`),token);
+  assert.doesNotMatch(css,/--ag-[a-z-]+\s*:/);
+  const kit=readFileSync(new URL('../styles/ag-ui.css',import.meta.url),'utf8');
+  for(const token of ['--ag-surface','--ag-text','--ag-accent','--ag-focus'])assert.match(kit,new RegExp(`${token}:\\s*#`));
   const last=css.slice(css.indexOf('/* AG-WORK-0009 / AG-WORK-0016'));
   assert.doesNotMatch(last,/(^|\})\s*(body|html|:root)\s*\{/);
   assert.match(last,/\.ashen-gate-factions/);

@@ -82,19 +82,7 @@
   .ag-locations-app .ag-resource {grid-template-columns:minmax(140px,2fr) minmax(85px,1fr) 55px 32px}
 }
 
-/* Independent, GM-only Items sidebar launcher. Shared convention for siblings:
- * Items: Manager order 10, Locations order 20; Actors: Ledger/Factions/Trees/HQ.
- * Each module contributes its own button to the common host; none is a dependency.
- */
-.ag-sidebar-launchers {display:flex; flex-direction:column;gap:4px;padding:6px 8px 9px;
-  border-bottom:1px solid var(--color-border-light-tertiary,#555)}
-.ag-sidebar-launchers .ag-sidebar-launch-button {box-sizing:border-box;width:100%;min-height:34px;margin:0;
-  display:flex;justify-content:center;align-items:center;gap:7px;padding:7px 11px;
-  font-size:13px;line-height:1.3;font-weight:600;
-  color:var(--ag-text,var(--color-text-primary,#eae2d4));background:var(--ag-panel,rgba(142,115,75,.13));
-  border:1px solid var(--color-border-light-tertiary,#5f6264);border-radius:4px}
-.ag-sidebar-launchers .ag-sidebar-launch-button:hover {background:rgba(178,141,86,.28)}
-.ag-sidebar-launchers .ag-sidebar-launch-button:focus-visible {outline:2px solid var(--ag-focus,#d8b788);outline-offset:2px}
+/* Items-sidebar launcher styling lives in the shared kit (ag-ui.css). */
 .ag-locations-app .ag-region-group {border-bottom:1px solid var(--ag-border,#5f6264);margin-bottom:5px}
 .ag-locations-app .ag-region-group>summary {cursor:pointer;position:relative;list-style:revert;padding:11px 9px;font-weight:650;
  background:var(--ag-panel,rgba(0,0,0,.15));border-radius:4px}
@@ -136,25 +124,10 @@
 .ag-locations-app .ag-ref-control input[type="checkbox"]{accent-color:var(--ag-accent,#9d8159)}
 .ag-locations-app .ag-danger{color:var(--ag-danger,#d6716d)}
 .ag-locations-app button:focus-visible,.ag-locations-app select:focus-visible,
-.ag-locations-app input:focus-visible,.ag-locations-app textarea:focus-visible,
-.ag-sidebar-launchers .ag-sidebar-launch-button:focus-visible{outline:2px solid var(--ag-focus,#d8b788);outline-offset:2px}
+.ag-locations-app input:focus-visible,.ag-locations-app textarea:focus-visible{outline:2px solid var(--ag-focus,#d8b788);outline-offset:2px}
 
-/* v0.8.0 / AG-FOUNDRY-DEV/1.7: content-fit controls and single shared Items shelf.
-   Scope to Locations window or shared launcher group; never style Foundry globally. */
-.ag-sidebar-launch-group[data-ag-launch-group="items"] {
-  display:flex;flex-direction:column;gap:5px;padding:8px 12px;
-  border-bottom:1px solid var(--ag-border,var(--color-border-light-tertiary,#555));
-}
-.ag-sidebar-launch-group[data-ag-launch-group="items"] > .ag-sidebar-launch-button {
-  box-sizing:border-box;display:flex;align-items:center;justify-content:center;
-  gap:8px;width:100%;height:36px;min-height:36px;max-height:36px;
-  margin:0;padding:5px 12px;font-size:13px;font-weight:600;
-  border-radius:5px;border:1px solid var(--ag-border,var(--color-border-light-tertiary,#555));
-  background:var(--ag-panel,rgba(142,115,75,.13));color:var(--ag-text,var(--color-text-primary,#eee));
-}
-.ag-sidebar-launch-group[data-ag-launch-group="items"] > .ag-sidebar-launch-button:focus-visible {
-  outline:2px solid var(--ag-focus,#d8b788);outline-offset:2px;
-}
+/* v0.8.0 / AG-FOUNDRY-DEV/1.7: content-fit controls.
+   Scoped to the Locations window; never style Foundry globally. */
 .ag-locations-app .ag-resource {grid-template-columns:minmax(145px,1.55fr) minmax(108px,0.8fr) 56px 32px;}
 .ag-locations-app .ag-resource > input[type="checkbox"] {justify-self:center;inline-size:18px;block-size:18px;}
 .ag-locations-app .ag-resource > select {min-width:0;width:100%;}

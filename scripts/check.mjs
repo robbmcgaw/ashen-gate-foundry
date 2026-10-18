@@ -1,6 +1,7 @@
 // Checks every module (or the ones named on the command line):
 //   - module.json is valid and its manifest/download URLs match its id and version
 //   - every runtime script parses
+//   - styles/ag-ui.css is listed first and identical in every module
 //   - the module's automated tests pass
 // Usage: node scripts/check.mjs [module-id ...]
 import fs from 'node:fs';
@@ -44,6 +45,7 @@ for (const id of ids) {
   for (const [key, url] of Object.entries(expected)) {
     if (manifest[key] !== url) fail(id, `${key} should be ${url}`);
   }
+  if ((manifest.styles ?? [])[0] !== 'styles/ag-ui.css') fail(id, 'module.json styles must list styles/ag-ui.css first (shared UI kit)');
   for (const file of [...(manifest.esmodules ?? []), ...(manifest.styles ?? [])]) {
     if (!fs.existsSync(path.join(dir, file))) fail(id, `module.json lists missing file ${file}`);
   }
@@ -66,12 +68,14 @@ for (const id of ids) {
   }
 }
 
-// The Actors launcher helper is copied into each player-facing module; the copies must not drift.
-const launcherCopies = fs.readdirSync(modulesDir).sort()
-  .flatMap(id => walk(path.join(modulesDir, id)).filter(f => path.basename(f) === 'ag-launchers.mjs'));
-const launcherSources = new Set(launcherCopies.map(f => fs.readFileSync(f, 'utf8')));
-if (launcherSources.size > 1) {
-  fail('ag-launchers.mjs', `copies differ; keep them identical:\n  ${launcherCopies.map(f => path.relative(root, f)).join('\n  ')}`);
+// Shared files are copied into modules and must not drift: the Actors launcher helper
+// (player-facing modules) and the UI kit stylesheet (every module).
+for (const shared of ['ag-launchers.mjs', 'ag-ui.css']) {
+  const copies = fs.readdirSync(modulesDir).sort()
+    .flatMap(id => walk(path.join(modulesDir, id)).filter(f => path.basename(f) === shared));
+  if (new Set(copies.map(f => fs.readFileSync(f, 'utf8'))).size > 1) {
+    fail(shared, `copies differ; keep them identical:\n  ${copies.map(f => path.relative(root, f)).join('\n  ')}`);
+  }
 }
 
 if (failures.length) {

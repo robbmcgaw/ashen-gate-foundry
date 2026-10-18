@@ -130,7 +130,7 @@ function makePaths(nodes){
 }
 
 class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
-  static DEFAULT_OPTIONS={id:'agst-window-v2',classes:['agst-window-v2'],window:{title:'Ashen Gate | Skill Trees',resizable:true,icon:'fa-solid fa-diagram-project'},position:{width:1120,height:740}};
+  static DEFAULT_OPTIONS={id:'agst-window-v2',classes:['ag-app','agst-window-v2'],window:{title:'Ashen Gate | Skill Trees',resizable:true,icon:'fa-solid fa-diagram-project'},position:{width:1120,height:740}};
   static PARTS={main:{template:`modules/${MODULE}/templates/tree.hbs`}};
   render(options){checkTreePlayerAccess();return super.render(options);}
   constructor(...args){super(...args);this.activeTab='trees';this.actorId=null;this.treeId=null;this.nodeId=null;this.editMode=false;this.playerPreview=false;this.linkFrom=null;this.zoom=1;this.search='';this.busy=false;this.undo=[];this.redo=[];}

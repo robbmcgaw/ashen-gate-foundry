@@ -143,7 +143,7 @@ function runAction(root,handler){
   });
 }
 class SimpleApp extends BaseApp {
-  static DEFAULT_OPTIONS = {classes:["ag-locations-app"],window:{resizable:true},position:{width:870,height:690}};
+  static DEFAULT_OPTIONS = {classes:["ag-app","ag-locations-app"],window:{resizable:true},position:{width:870,height:690}};
   async _renderHTML(){ensureGm();const div=document.createElement("div");div.className="ag-root";div.innerHTML=this.html();return div;}
   _replaceHTML(result,content){content.replaceChildren(result);}
   _onRender(context,options){ensureGm();super._onRender(context,options);const root=this.element.querySelector(".ag-root");if(!root)return;
@@ -175,7 +175,7 @@ class LocationLibrary extends SimpleApp {
       if(this.levelFilter){const level=Number(this.levelFilter);if((r.level_min??1)>level || (r.level_max??20)<level)return false;}
       return true;
     }).sort((a,b)=>a.record.name.localeCompare(b.record.name));
-    return `<header class="ag-head"><div><h2>Ashen Gate | Locations</h2><p>Location Library • GM management</p></div><div class="ag-actions"><span class="ag-version">v${MODULE_VERSION} Alpha</span>${act("help","Help")}</div></header>
+    return `<header class="ag-header ag-head"><div><h2>Ashen Gate | Locations</h2><p>Location Library • GM management</p></div><div class="ag-actions"><span class="ag-version">v${MODULE_VERSION} Alpha</span>${act("help","Help")}</div></header>
     <nav class="ag-tabs" aria-label="Location library"><button type="button" data-ag-action="library-tab" data-tab="library" class="${this.libraryTab==="library"?"active":""}">Library</button><button type="button" data-ag-action="library-tab" data-tab="maps" class="${this.libraryTab==="maps"?"active":""}">Maps</button></nav>
     ${this.libraryTab==="maps"?`<section class="ag-map-library"><div class="ag-sectionbar"><h3>Registered Maps</h3>${act("open-maps","Open Map Manager","ag-primary")}</div>${readMaps().maps.map(m=>`<div class="ag-map-list-row"><strong>${esc(m.name)}</strong><span>${esc(m.id)} · ${esc(game.scenes.get(m.scene_id)?.name??"Unlinked Scene")} · ${(m.overlays??[]).length} overlays</span><button type="button" data-ag-action="edit-map" data-id="${esc(m.id)}">Manage</button></div>`).join("")||`<p class="ag-empty">No Maps registered yet. Open Map Manager to register an existing Scene and its overlays.</p>`}</section><footer class="ag-bottom"><span>Map metadata only; Locations own resources and discovery.</span></footer>`:`<div class="ag-toolbar"><input aria-label="Search locations" placeholder="Search by name or ID…" id="ag-query" value="${esc(this.query)}">
     <select id="ag-filter-region"><option value="">All Regions</option>${options(allRegions.map(x=>[x.record.id,x.record.name]),this.regionFilter)}</select>
@@ -344,7 +344,7 @@ class LocationEditor extends SimpleApp {
     if(this.tab==="connections")body=connectionsTab(this.draft,this.reveal);
     if(this.tab==="scenes")body=scenesTab(this.draft);
     if(this.tab==="preview")body=previewTab(this.draft,this.reveal,!data?"Unsaved Location":this.dirty?"Unsaved changes — save first":this.previewedRevision===data.revision?"Preview reviewed — ready to publish":"Click Preview saved Location before publishing",canPublish);
-    return `<header class="ag-head"><div><h2>Ashen Gate | Locations</h2><p>${esc(this.draft.name)} · ${esc(this.draft.id)} · World revision ${data?.revision??"unsaved"}</p></div><div class="ag-actions"><span class="ag-version">v${MODULE_VERSION} Alpha</span>${act("help","Help")}</div></header>
+    return `<header class="ag-header ag-head"><div><h2>Ashen Gate | Locations</h2><p>${esc(this.draft.name)} · ${esc(this.draft.id)} · World revision ${data?.revision??"unsaved"}</p></div><div class="ag-actions"><span class="ag-version">v${MODULE_VERSION} Alpha</span>${act("help","Help")}</div></header>
     <nav class="ag-tabs">${tabs.map(([key,label])=>`<button type="button" data-ag-action="tab" data-tab="${key}" class="${this.tab===key?"active":""}">${label}</button>`).join("")}</nav>
     <div class="ag-editor-content">${body}</div><footer class="ag-bottom ag-editor-footer">
       <div class="ag-footer-left">${act("back","Back / Cancel")}<span>${this.dirty ? "Unsaved changes" : "Saved"}</span></div>
@@ -479,7 +479,7 @@ class MapManager extends SimpleApp {
         <button type="button" data-ag-action="toggle-overlay" data-key="${esc(o.key)}" ${canControl&&valid?'':'disabled title="Save map and bind one matching Tile first"'}>${visible?'Hide':'Show'}</button>
       </div>`;
     };
-    return `<header class="ag-head"><div><h2>Ashen Gate | Maps & Scenes</h2><p>GM map registry · visual overlays only</p></div><div class="ag-actions"><span class="ag-version">v${MODULE_VERSION} Alpha</span>${act('map-help','Help')}</div></header>
+    return `<header class="ag-header ag-head"><div><h2>Ashen Gate | Maps & Scenes</h2><p>GM map registry · visual overlays only</p></div><div class="ag-actions"><span class="ag-version">v${MODULE_VERSION} Alpha</span>${act('map-help','Help')}</div></header>
       <nav class="ag-tabs"><span class="ag-tab-static">Map Manager</span></nav>
       <div class="ag-map-toolbar"><label class="ag-field"><span>Select registered map</span><select data-map-switch="true">${options([['','Select a map'],...maps.map(m=>[m.id,`${m.name} (${m.id})`])],this.mapId)}</select></label>${act('new-map','+ Register Map','ag-primary')}<button type="button" data-ag-action="remove-map" ${saved?'':'disabled'}>More…</button></div>
       <div class="ag-editor-content ag-map-content">

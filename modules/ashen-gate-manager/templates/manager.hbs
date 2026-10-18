@@ -1,5 +1,5 @@
 <section class="agmanager-body">
-  <header class="agmanager-top">
+  <header class="ag-header agmanager-top">
     <i class="agmanager-emblem fa-solid fa-dungeon" aria-hidden="true"></i>
     <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.12.2 Beta</small></h2></div>
     <button type="button" class="agmanager-help" data-ag-action="help" aria-label="Manager Help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button><span class="agmanager-chip">GM only</span>
@@ -7,7 +7,7 @@
   {{#if headerLaunchers.length}}<nav class="agmanager-header-launchers" aria-label="Open Ashen Gate modules">
     {{#each headerLaunchers}}<button type="button" data-ag-module-open="{{id}}" title="{{title}} · {{state}}" {{#unless canOpen}}disabled{{/unless}}><i class="{{icon}}" aria-hidden="true"></i> {{label}}</button>{{/each}}
   </nav>{{/if}}
-  <nav class="agmanager-nav" aria-label="Manager tabs">
+  <nav class="ag-tabs agmanager-nav" aria-label="Manager tabs">
     <button type="button" data-ag-tab="import" class="{{#if importActive}}active{{/if}}"><i class="fa-solid fa-file-import"></i> Import</button>
     <button type="button" data-ag-tab="capture" class="{{#if captureActive}}active{{/if}}"><i class="fa-solid fa-tags"></i> Adopt &amp; Export</button>
     <button type="button" data-ag-tab="library" class="{{#if libraryActive}}active{{/if}}"><i class="fa-solid fa-layer-group"></i> Library</button>
@@ -246,7 +246,7 @@
           {{#each appearanceSkinRows}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}} — {{description}}</option>{{/each}}
         </select>
       </label>
-      <button type="button" data-ag-action="appearance-save-world" {{#if busy}}disabled{{/if}}>Save World Default</button>
+      <button type="button" class="ag-btn ag-btn--primary" data-ag-action="appearance-save-world" {{#if busy}}disabled{{/if}}>Save World Default</button>
       <button type="button" data-ag-action="appearance-my-appearance" class="agmanager-muted">Open My Appearance</button>
     </div>
     <p role="status" class="agmanager-notice">{{appearanceMessage}}</p>

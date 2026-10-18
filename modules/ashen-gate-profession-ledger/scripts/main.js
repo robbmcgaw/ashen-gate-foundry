@@ -213,7 +213,7 @@ function demoProfessions(actor){return (actor.professions??[]).map(name=>({name,
 const portrait=(a)=>`<span class="agl-avatar">${esc((a.name||'?').slice(0,1))}</span>`;
 function renderActorButton(a,active=false){return `<button class="agl-actor ${active?'active':''}" data-action="actor" data-id="${esc(a.id)}">${portrait(a)}<span class="agl-actor-name">${esc(a.name)}</span>${a.isDemo?badge('DEMO','demo'):visibilityBadge(a)}</button>`;}
 class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
-  static DEFAULT_OPTIONS={id:'agl-window',classes:['agl-app'],window:{title:'Ashen Gate | Profession Ledger',resizable:true,icon:'fa-solid fa-book-open'},position:{width:1210,height:780}};
+  static DEFAULT_OPTIONS={id:'agl-window',classes:['ag-app','agl-app'],window:{title:'Ashen Gate | Profession Ledger',resizable:true,icon:'fa-solid fa-book-open'},position:{width:1210,height:780}};
   static PARTS={main:{template:`modules/${ID}/templates/ledger.hbs`}};
   render(options){checkPlayerLedger();return super.render(options);}
   constructor(...args){super(...args);this.view='party';this.previousView='party';this.actorId=null;this.recipeId=null;this.demo=false;this.query='';this.expandedRecipeGroups=new Set();this.recipeGroupsInitialized=false;this.notice='';this.rosterDraft=null;this._events=null;
@@ -499,11 +499,11 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     this._default();const actors=this.actors,lib=this.library;
     const content=({individual:()=>this._individual(this.actor),party:()=>this._party(actors,lib),materials:()=>this._materials(actors,lib),recipes:()=>this._partyRecipes(lib),catalog:()=>this._recipes(lib),learning:()=>this._learning(),gathering:()=>this._gathering(),planner:()=>this._planner(actors,lib),gm:()=>this._gmSetup(),roster:()=>this._gmSetup(),help:()=>this._help()})[this.view]?.()??this._party(actors,lib);
     const inGm=game.user.isGM&&(this.view==='gm'||this.view==='roster');
-    return {...ctx,html:`<div class="agl-shell"><header class="agl-header"><div><div class="agl-title">Ashen Gate | <strong>Profession Ledger</strong></div>
+    return {...ctx,html:`<div class="agl-shell"><header class="ag-header agl-header"><div><div class="agl-title">Ashen Gate | <strong>Profession Ledger</strong></div>
       <div class="agl-sub">${this.demo?'Experimental demonstration — no world changes':`Active roster: ${rosterIds().length} characters • Foundry access permissions enforced`}</div></div>
       <div class="agl-header-right"><span class="agl-version">v${esc(game.modules.get(ID)?.version??'0.7.0')} Alpha</span><button type="button" data-action="help">Help</button></div>
       <input id="agl-file" type="file" accept="application/json,.json" hidden></header>
-      <nav class="agl-tabs" aria-label="Profession Ledger views">${this._tabs()}</nav><main>${content}</main>
+      <nav class="ag-tabs agl-tabs" aria-label="Profession Ledger views">${this._tabs()}</nav><main>${content}</main>
       <footer class="agl-footer"><span class="agl-footer-status" ${inGm?'data-agl-roster-status':''}>${inGm?(this.rosterDirty?'Unsaved party roster changes':'Party roster saved'):esc(this.notice||'Alpha • Crafting plans never consume materials.')}</span>
         ${inGm?`<div class="agl-footer-actions"><button type="button" data-action="gm-cancel">Cancel / Back</button><button type="button" class="agl-primary" data-action="roster-save" ${this.rosterDirty?'':'disabled'}>Save party roster</button></div>`:`<span class="agl-footer-note">Source: Actor inventory + Manager-tagged Items</span>`}
       </footer></div>`};

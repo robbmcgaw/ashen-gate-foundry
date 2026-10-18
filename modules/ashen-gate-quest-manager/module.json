@@ -15,6 +15,7 @@
     "scripts/main.mjs"
   ],
   "styles": [
+    "styles/ag-ui.css",
     "styles/quest.css"
   ],
   "relationships": {

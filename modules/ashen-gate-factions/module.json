@@ -15,6 +15,7 @@
     "scripts/module.mjs"
   ],
   "styles": [
+    "styles/ag-ui.css",
     "styles/module.css"
   ],
   "socket": true,

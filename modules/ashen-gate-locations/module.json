@@ -16,6 +16,7 @@
     "scripts/main.js"
   ],
   "styles": [
+    "styles/ag-ui.css",
     "styles/locations.css"
   ],
   "url": "https://github.com/robbmcgaw/ashen-gate-foundry",

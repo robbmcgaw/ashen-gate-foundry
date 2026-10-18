@@ -1,0 +1,436 @@
+/*
+ * Ashen Gate UI kit (ag-ui.css)
+ * Every Ashen Gate module ships an identical copy of this file; scripts/check.mjs fails if
+ * the copies drift. Loading it more than once is harmless (same rules, same values).
+ *
+ * Theming: base tokens are declared on :root with the default "Standard" skin. General
+ * Manager, when active, writes the effective skin's base tokens inline on <html>, which
+ * beats :root, so every Ashen Gate window and launcher follows the skin live. Derived
+ * tokens are recomputed on .ag-app so they track whatever base values are inherited.
+ * Without Manager, the :root defaults apply.
+ *
+ * Generic element styling inside .ag-app uses :where() (zero specificity) so module CSS
+ * can override it with a single class. Component classes (.ag-btn, .ag-card, ...) carry
+ * normal one-class specificity.
+ */
+
+/* ---------- Base tokens (what a skin sets) ---------- */
+:root {
+  --ag-surface: #17191d;          /* window background */
+  --ag-surface-sunken: #111316;   /* inputs, wells, code */
+  --ag-surface-raised: #1f2227;   /* cards, panels, toolbars */
+  --ag-text: #ece6dc;             /* body text */
+  --ag-muted: #a7a197;            /* secondary text, hints */
+  --ag-border: #34373d;           /* hairlines, control borders */
+  --ag-accent: #d2a86a;           /* brand / primary action */
+  --ag-accent-contrast: #1a1408;  /* text on accent fills */
+  --ag-danger: #e0817a;
+  --ag-ok: #7cc19a;
+  --ag-warn: #e5b85c;
+  --ag-focus: #f0cf94;
+
+  /* Scale tokens (skins do not change these) */
+  --ag-font-body: "Signika", "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ag-font-display: "Signika", "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --ag-font-mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, Consolas, monospace;
+  --ag-text-xs: 11px;
+  --ag-text-sm: 12px;
+  --ag-text-md: 14px;
+  --ag-text-lg: 16px;
+  --ag-text-xl: 19px;
+  --ag-space-1: 4px;
+  --ag-space-2: 8px;
+  --ag-space-3: 12px;
+  --ag-space-4: 16px;
+  --ag-space-5: 24px;
+  --ag-space-6: 32px;
+  --ag-radius-sm: 4px;
+  --ag-radius: 6px;
+  --ag-radius-lg: 10px;
+  --ag-control-h: 34px;
+}
+
+/* ---------- Derived tokens + legacy aliases (recomputed inside each app) ---------- */
+:root, .ag-app, .ag-launchers, .ag-sidebar-launch-group {
+  --ag-surface-hover: color-mix(in srgb, var(--ag-text) 7%, var(--ag-surface-raised));
+  --ag-border-strong: color-mix(in srgb, var(--ag-text) 22%, var(--ag-border));
+  --ag-accent-soft: color-mix(in srgb, var(--ag-accent) 16%, var(--ag-surface-raised));
+  --ag-accent-hover: color-mix(in srgb, var(--ag-text) 14%, var(--ag-accent));
+  --ag-danger-soft: color-mix(in srgb, var(--ag-danger) 16%, var(--ag-surface-raised));
+  --ag-ok-soft: color-mix(in srgb, var(--ag-ok) 16%, var(--ag-surface-raised));
+  --ag-warn-soft: color-mix(in srgb, var(--ag-warn) 16%, var(--ag-surface-raised));
+  --ag-shadow: 0 1px 2px rgb(0 0 0 / .28), 0 6px 18px rgb(0 0 0 / .22);
+  /* Pre-kit names still used by module CSS; they follow the kit tokens. */
+  --ag-bg: var(--ag-surface);
+  --ag-panel: var(--ag-surface-raised);
+}
+
+/* ---------- Window root ---------- */
+.ag-app {
+  color: var(--ag-text);
+  font-family: var(--ag-font-body);
+  font-size: var(--ag-text-md);
+  line-height: 1.45;
+}
+.application.ag-app {
+  background: var(--ag-surface);
+  border: 1px solid var(--ag-border);
+  border-radius: var(--ag-radius-lg);
+  box-shadow: var(--ag-shadow);
+  overflow: hidden;
+}
+.application.ag-app > .window-header {
+  background: var(--ag-surface-sunken);
+  color: var(--ag-muted);
+  border-bottom: 1px solid var(--ag-border);
+  font-family: var(--ag-font-display);
+}
+.application.ag-app > .window-header .window-title { color: var(--ag-text); font-size: var(--ag-text-md); font-weight: 600; }
+.application.ag-app > .window-content {
+  background: var(--ag-surface);
+  color: var(--ag-text);
+}
+.ag-app :where(h1, h2, h3, h4) {
+  font-family: var(--ag-font-display);
+  color: var(--ag-text);
+  border: 0;
+  line-height: 1.25;
+  font-weight: 650;
+}
+.ag-app :where(p) { line-height: 1.5; }
+.ag-app :where(a) { color: var(--ag-accent); }
+.ag-app :where(code, pre, kbd) { font-family: var(--ag-font-mono); font-size: .92em; }
+.ag-app :where(hr) { border: 0; border-top: 1px solid var(--ag-border); margin: var(--ag-space-3) 0; }
+.ag-app ::selection { background: var(--ag-accent-soft); }
+.ag-app :where(*) { scrollbar-color: var(--ag-border-strong) transparent; scrollbar-width: thin; }
+
+/* ---------- Generic controls inside an Ashen Gate window ---------- */
+.ag-app :where(button:not(.header-control):not([data-action="close"])) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ag-space-2);
+  width: auto;
+  min-height: var(--ag-control-h);
+  height: auto;
+  padding: 6px 14px;
+  border: 1px solid var(--ag-border);
+  border-radius: var(--ag-radius);
+  background: var(--ag-surface-raised);
+  color: var(--ag-text);
+  font: 500 var(--ag-text-md)/1.25 var(--ag-font-body);
+  white-space: normal;
+  cursor: pointer;
+  box-shadow: none;
+  transition: background-color .12s ease, border-color .12s ease, color .12s ease;
+}
+.ag-app :where(button:not(.header-control):hover:not(:disabled)) {
+  background: var(--ag-surface-hover);
+  border-color: var(--ag-border-strong);
+  box-shadow: none;
+}
+.ag-app :where(button:disabled) { opacity: .5; cursor: not-allowed; }
+.ag-app :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select, textarea) {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-height: var(--ag-control-h);
+  padding: 6px 10px;
+  border: 1px solid var(--ag-border);
+  border-radius: var(--ag-radius);
+  background: var(--ag-surface-sunken);
+  color: var(--ag-text);
+  font: 400 var(--ag-text-md)/1.4 var(--ag-font-body);
+  box-shadow: none;
+}
+.ag-app :where(textarea) { resize: vertical; }
+.ag-app :where(input, select, textarea)::placeholder { color: var(--ag-muted); opacity: .85; }
+.ag-app :where(input[type="checkbox"], input[type="radio"], input[type="range"], progress) { accent-color: var(--ag-accent); }
+.ag-app :where(select option) { background: var(--ag-surface-raised); color: var(--ag-text); }
+.ag-app :where(fieldset) {
+  border: 1px solid var(--ag-border);
+  border-radius: var(--ag-radius);
+  padding: var(--ag-space-2) var(--ag-space-3) var(--ag-space-3);
+  margin: var(--ag-space-3) 0;
+}
+.ag-app :where(legend) { color: var(--ag-muted); font-size: var(--ag-text-sm); padding: 0 var(--ag-space-1); }
+.ag-app :where(table) { border-collapse: collapse; }
+.ag-app :where(th) { color: var(--ag-muted); font-weight: 600; text-align: left; }
+
+/* Selects never clip their text: Foundry gives form controls a fixed height, which cuts off
+   descenders once padding or a larger font is added. Let the select size to its content. */
+.ag-app select,
+.ag-field select {
+  height: auto !important;
+  line-height: 1.4 !important;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  text-overflow: ellipsis;
+}
+
+/* Focus rings */
+.ag-app :where(button, input, select, textarea, summary, a, [tabindex]):focus-visible,
+.ag-launcher:focus-visible,
+.ag-sidebar-launch-button:focus-visible {
+  outline: 2px solid var(--ag-focus);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+.ag-app :where(input, select, textarea):focus { border-color: var(--ag-accent); outline: none; }
+
+/* ---------- .ag-header: module title row ---------- */
+.ag-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ag-space-2) var(--ag-space-4);
+  padding: var(--ag-space-3) var(--ag-space-4);
+  background: var(--ag-surface-raised);
+  border-bottom: 1px solid var(--ag-border);
+}
+.ag-header :where(h1, h2) {
+  margin: 0;
+  font-size: var(--ag-text-xl);
+  font-weight: 650;
+  letter-spacing: .01em;
+}
+.ag-header :where(p) { margin: 2px 0 0; color: var(--ag-muted); font-size: var(--ag-text-sm); }
+.ag-header__title { min-width: 0; flex: 1 1 260px; }
+.ag-header__brand { color: var(--ag-accent); font-weight: 700; }
+.ag-header__meta {
+  display: flex;
+  align-items: center;
+  gap: var(--ag-space-2);
+  flex-wrap: wrap;
+  color: var(--ag-muted);
+  font-size: var(--ag-text-sm);
+  white-space: nowrap;
+}
+
+/* ---------- .ag-tabs: tab strip under the header ---------- */
+.ag-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--ag-space-1);
+  padding: var(--ag-space-2) var(--ag-space-4) 0;
+  background: var(--ag-surface-raised);
+  border-bottom: 1px solid var(--ag-border);
+}
+.ag-tabs > :where(button, a, .ag-tab) {
+  flex: 0 0 auto;
+  min-width: 0;
+  min-height: 36px;
+  margin: 0 0 -1px;
+  padding: 7px 14px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: var(--ag-radius) var(--ag-radius) 0 0;
+  background: transparent;
+  color: var(--ag-muted);
+  font: 600 var(--ag-text-md)/1.2 var(--ag-font-body);
+  white-space: nowrap;
+  cursor: pointer;
+  box-shadow: none;
+}
+.ag-tabs > :where(button, a, .ag-tab):where(:hover:not(:disabled)) {
+  background: var(--ag-surface-hover);
+  color: var(--ag-text);
+  border-color: transparent;
+  border-bottom-color: var(--ag-border-strong);
+}
+.ag-tabs > :where(.active, [aria-current="page"], [aria-selected="true"], .is-active) {
+  color: var(--ag-text);
+  background: var(--ag-surface);
+  border-bottom-color: var(--ag-accent);
+}
+
+/* ---------- .ag-btn: explicit buttons ---------- */
+.ag-btn,
+:where(.ag-app) button.primary,
+:where(.ag-app) button.danger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ag-space-2);
+  width: auto;
+  min-height: var(--ag-control-h);
+  height: auto;
+  padding: 6px 14px;
+  border: 1px solid var(--ag-border);
+  border-radius: var(--ag-radius);
+  background: var(--ag-surface-raised);
+  color: var(--ag-text);
+  font: 500 var(--ag-text-md)/1.25 var(--ag-font-body);
+  cursor: pointer;
+}
+.ag-btn:hover:not(:disabled) { background: var(--ag-surface-hover); border-color: var(--ag-border-strong); }
+.ag-btn--primary,
+:where(.ag-app) button.primary {
+  background: var(--ag-accent);
+  border-color: var(--ag-accent);
+  color: var(--ag-accent-contrast);
+  font-weight: 650;
+}
+.ag-btn--primary:hover:not(:disabled),
+:where(.ag-app) button.primary:hover:not(:disabled) { background: var(--ag-accent-hover); border-color: var(--ag-accent-hover); color: var(--ag-accent-contrast); }
+.ag-btn--ghost { background: transparent; border-color: transparent; color: var(--ag-muted); }
+.ag-btn--ghost:hover:not(:disabled) { background: var(--ag-surface-hover); color: var(--ag-text); border-color: transparent; }
+.ag-btn--danger,
+:where(.ag-app) button.danger { background: var(--ag-danger-soft); border-color: color-mix(in srgb, var(--ag-danger) 55%, var(--ag-border)); color: var(--ag-danger); }
+.ag-btn--danger:hover:not(:disabled),
+:where(.ag-app) button.danger:hover:not(:disabled) { background: var(--ag-danger); border-color: var(--ag-danger); color: var(--ag-surface); }
+.ag-btn--sm { min-height: 28px; padding: 3px 10px; font-size: var(--ag-text-sm); }
+.ag-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ---------- .ag-field: label + control ---------- */
+.ag-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  margin: 0 0 var(--ag-space-3);
+  color: var(--ag-muted);
+  font-size: var(--ag-text-sm);
+  font-weight: 600;
+}
+.ag-field > :where(input:not([type="checkbox"], [type="radio"]), select, textarea) { width: 100%; font-weight: 400; }
+.ag-field__hint { color: var(--ag-muted); font-size: var(--ag-text-xs); font-weight: 400; }
+.ag-field--inline { flex-direction: row; align-items: center; gap: var(--ag-space-2); color: var(--ag-text); font-size: var(--ag-text-md); font-weight: 400; }
+
+/* ---------- .ag-card: raised panel ---------- */
+.ag-card {
+  background: var(--ag-surface-raised);
+  border: 1px solid var(--ag-border);
+  border-radius: var(--ag-radius-lg);
+  padding: var(--ag-space-4);
+  margin: 0 0 var(--ag-space-3);
+}
+.ag-card > :where(h2, h3):first-child { margin-top: 0; }
+.ag-card--accent { border-color: color-mix(in srgb, var(--ag-accent) 55%, var(--ag-border)); background: var(--ag-accent-soft); }
+
+/* ---------- .ag-list: stacked rows ---------- */
+.ag-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.ag-list > * {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ag-space-2) var(--ag-space-3);
+  padding: 10px var(--ag-space-1);
+  border-bottom: 1px solid var(--ag-border);
+}
+.ag-list > *:last-child { border-bottom: 0; }
+
+/* ---------- .ag-badge: small status pill ---------- */
+.ag-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border: 1px solid var(--ag-border);
+  border-radius: 999px;
+  background: var(--ag-surface-sunken);
+  color: var(--ag-muted);
+  font-size: var(--ag-text-xs);
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.ag-badge--accent { border-color: color-mix(in srgb, var(--ag-accent) 55%, transparent); background: var(--ag-accent-soft); color: var(--ag-accent); }
+.ag-badge--ok { border-color: color-mix(in srgb, var(--ag-ok) 55%, transparent); background: var(--ag-ok-soft); color: var(--ag-ok); }
+.ag-badge--warn { border-color: color-mix(in srgb, var(--ag-warn) 55%, transparent); background: var(--ag-warn-soft); color: var(--ag-warn); }
+.ag-badge--danger { border-color: color-mix(in srgb, var(--ag-danger) 55%, transparent); background: var(--ag-danger-soft); color: var(--ag-danger); }
+
+/* ---------- .ag-empty: empty state ---------- */
+.ag-empty {
+  padding: var(--ag-space-5) var(--ag-space-4);
+  border: 1px dashed var(--ag-border-strong);
+  border-radius: var(--ag-radius-lg);
+  color: var(--ag-muted);
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* ---------- .ag-toolbar: search/filter row, create action on the right ---------- */
+.ag-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ag-space-2);
+  padding: var(--ag-space-2) 0;
+  margin: 0 0 var(--ag-space-3);
+}
+.ag-toolbar > :where(input[type="search"], input[type="text"], .ag-toolbar__search) { flex: 1 1 200px; }
+.ag-toolbar__end { margin-left: auto; display: flex; gap: var(--ag-space-2); flex-wrap: wrap; }
+
+/* ---------- .ag-footer: Cancel left, primary action right ---------- */
+.ag-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ag-space-2) var(--ag-space-3);
+  padding: var(--ag-space-2) var(--ag-space-4);
+  background: var(--ag-surface-raised);
+  border-top: 1px solid var(--ag-border);
+  color: var(--ag-muted);
+  font-size: var(--ag-text-sm);
+}
+
+/* ---------- Sidebar launchers: Actors group and Items (Manager / Location Builder) group ---------- */
+#ashen-gate-launchers.ag-launchers,
+.ag-sidebar-launch-group[data-ag-launch-group] {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 0 0 auto;
+  grid-column: 1 / -1;
+  width: auto;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 8px 8px 6px;
+  background: none;
+  border: 0;
+}
+#ashen-gate-launchers > .ag-launcher,
+.ag-sidebar-launch-group[data-ag-launch-group] > .ag-sidebar-launch-button {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+  min-height: 32px;
+  height: auto;
+  margin: 0;
+  padding: 6px 12px;
+  box-sizing: border-box;
+  border: 1px solid var(--ag-border);
+  border-radius: var(--ag-radius);
+  background: var(--ag-surface-raised);
+  color: var(--ag-text);
+  font: 600 13px/1.25 var(--ag-font-body);
+  text-align: left;
+  white-space: normal;
+  box-shadow: none;
+  cursor: pointer;
+  transition: background-color .12s ease, border-color .12s ease;
+}
+#ashen-gate-launchers > .ag-launcher > i,
+.ag-sidebar-launch-group[data-ag-launch-group] > .ag-sidebar-launch-button > i {
+  flex: 0 0 18px;
+  margin: 0;
+  color: var(--ag-accent);
+  text-align: center;
+}
+#ashen-gate-launchers > .ag-launcher:hover,
+.ag-sidebar-launch-group[data-ag-launch-group] > .ag-sidebar-launch-button:hover {
+  background: var(--ag-accent-soft);
+  border-color: color-mix(in srgb, var(--ag-accent) 60%, var(--ag-border));
+  color: var(--ag-text);
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ag-app *, .ag-launcher, .ag-sidebar-launch-button { transition: none !important; }
+}

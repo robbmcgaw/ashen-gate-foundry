@@ -1,14 +1,21 @@
 <section class="ag-my-appearance-body">
-  <header><h2>Ashen Gate | My Appearance</h2><p>Personal interface colors only. This does not open GM tools or change gameplay.</p></header>
-  <div class="ag-my-appearance-panel">
-    <label for="ag-my-appearance-choice">My appearance</label>
-    <select id="ag-my-appearance-choice" data-ag-my-skin>
-      {{#each choices}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
-    </select>
-    <p>GM world default: <strong>{{worldDefault}}</strong></p>
-    <p>Currently displayed: <strong>{{effective}}</strong></p>
-    <p role="status">{{status}}</p>
+  <header class="ag-header">
+    <div class="ag-header__title"><h2><span class="ag-header__brand">Ashen Gate</span> | My Appearance</h2><p>Personal interface colours only. This does not open GM tools or change gameplay.</p></div>
+  </header>
+  <div class="ag-my-appearance-main">
+    <div class="ag-card">
+      <label class="ag-field" for="ag-my-appearance-choice">My appearance
+        <select id="ag-my-appearance-choice" data-ag-my-skin>
+          {{#each choices}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
+        </select>
+      </label>
+      <ul class="ag-my-appearance-swatches" aria-label="Available appearances">
+        {{#each skins}}<li class="{{#if current}}is-current{{/if}}"><span class="ag-swatch" aria-hidden="true">{{#each swatch}}<i style="background:{{this}}"></i>{{/each}}</span><span>{{label}}</span></li>{{/each}}
+      </ul>
+      <p class="ag-my-appearance-note">GM world default: <strong>{{worldDefault}}</strong> · Currently displayed: <strong>{{effective}}</strong></p>
+      <p class="ag-my-appearance-note" role="status">{{status}}</p>
+    </div>
+    <p class="ag-my-appearance-note">This view only saves your own user-scoped preference. The General Manager remains GM-only.</p>
   </div>
-  <footer><button type="button" data-ag-my-save>Save My Appearance</button></footer>
-  <p class="ag-my-appearance-note">This view only saves your own user-scoped preference. The General Manager remains GM-only.</p>
+  <footer class="ag-footer"><span></span><button type="button" class="ag-btn ag-btn--primary" data-ag-my-save>Save My Appearance</button></footer>
 </section>
