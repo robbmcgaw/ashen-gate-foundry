@@ -133,3 +133,51 @@ test('markNodeExhausted is GM-only, validates, and restores', async () => {
   await assert.rejects(() => api.markNodeExhausted('LOC-TEST-MILLBROOK', nodeId), /Only the GM/);
   assert.deepEqual(api.GATHERING.dcByTier[5], 15);
 });
+
+const pack = () => JSON.parse(fs.readFileSync(new URL('../examples/test-locations.json', import.meta.url)));
+const locRecords = () => pack().records.filter(r => r.entity_type === 'Location');
+
+test('importLocations is GM-only and writes nothing for a player', async () => {
+  const {api, state} = setup();
+  const before = structuredClone(state.stored);
+  await assert.rejects(() => api.importLocations(locRecords()), /Only the GM/);
+  assert.deepEqual(state.stored, before);
+});
+
+test('importLocations creates new ids, reports skips with reasons and leaves existing ones alone', async () => {
+  const {api, state} = setup({gm: true});
+  state.stored[0].name = 'GM edited';
+  const fresh = {...locRecords()[0], id: 'LOC-TEST-BRAND-NEW', name: '[TEST] Brand New', location: {name: '[TEST] Brand New'}};
+  const r = await api.importLocations([...locRecords(), fresh, {id: 'ITEM-X', entity_type: 'Item'}, {id: 'bad id', entity_type: 'Location'}]);
+  assert.deepEqual(r.created, ['LOC-TEST-BRAND-NEW']);
+  assert.deepEqual(r.updated, []);
+  assert.equal(r.skipped.length, 4 + 2);
+  assert.ok(r.skipped.every(s => s.id && s.reason));
+  assert.equal(state.stored[0].name, 'GM edited');
+  assert.ok(state.stored.some(l => l.id === 'LOC-TEST-BRAND-NEW'));
+});
+
+test('importLocations update mode replaces the definition but keeps revealed and exhausted state', async () => {
+  const {api, state} = setup({gm: true});
+  const rec = locRecords().find(r => r.id === 'LOC-TEST-MILLBROOK');
+  const stored = state.stored.find(l => l.id === 'LOC-TEST-MILLBROOK');
+  stored.revealed = true;
+  stored.resources[0].finite = true; stored.resources[0].exhausted = true;
+  const nodeKey = stored.resources[0].key;
+  rec.location = {...rec.location, revealed: false, description: 'Updated text',
+    resources: [{id: nodeKey, label: 'Renamed node', finite: true, materialId: 'MAT-TEST-REED'}]};
+  const r = await api.importLocations([rec], {mode: 'update'});
+  assert.deepEqual(r.updated, ['LOC-TEST-MILLBROOK']);
+  const after = state.stored.find(l => l.id === 'LOC-TEST-MILLBROOK');
+  assert.equal(after.description, 'Updated text');
+  assert.equal(after.resources[0].label, 'Renamed node');
+  assert.equal(after.revealed, true);
+  assert.equal(after.resources[0].exhausted, true);
+  assert.equal(state.stored.length, sample.length);
+});
+
+test('importLocations rejects an unknown mode and non-arrays', async () => {
+  const {api} = setup({gm: true});
+  await assert.rejects(() => api.importLocations(locRecords(), {mode: 'overwrite'}), /Unknown import mode/);
+  await assert.rejects(() => api.importLocations({}), /array/);
+});

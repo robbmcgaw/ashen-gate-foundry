@@ -37,12 +37,12 @@ Journals from Locations 0.8.x are ignored (a one-line console note says how many
 | `GATHERING` | `{skills: [...], dcByTier: {1: 10, 2: 12, 3: 13, 4: 14, 5: 15}}` |
 | `locationsForQuest('QUEST-…')` | `[{id, name}]` (used by Quest Manager) |
 | `open()`, `openLocation(id)` | opens the window |
-| GM only: `createLocation(name)`, `saveLocation(data)`, `deleteLocation(id)`, `importPackage(pkg)`, `exportPackage()`, `placeOnScene(id, {scene, x, y})` | |
+| GM only: `createLocation(name)`, `saveLocation(data)`, `deleteLocation(id)`, `importPackage(pkg)`, `importLocations(records, {mode})`, `exportPackage()`, `placeOnScene(id, {scene, x, y})` | |
 | `playerAccess` | `ag-player-access/1` capability |
 
 ## Import format
 
-Location records go in an `ag-foundry-import/0.2` package with `entity_type: "Location"`, so one test data pack can carry them. Manager validates the pack and leaves Location records to this module; import them from **GM Setup → Import JSON**. Other record types are skipped. A location whose ID already exists is kept as it is.
+Location records go in an `ag-foundry-import/0.2` package with `entity_type: "Location"`, so one test data pack can carry them. **General Manager imports them for you:** when Locations is active, its normal import creates the Items first and then passes the Location records to `api.importLocations` in the same run. Without Manager (or for a Locations-only file) use **GM Setup → Import JSON**, which reads the same records and skips other types. Either way a location whose ID already exists is kept as it is; Manager can also be told to update existing locations (`importLocations(records, {mode: 'update'})` replaces the definition but keeps revealed and exhausted state).
 
 ```json
 {

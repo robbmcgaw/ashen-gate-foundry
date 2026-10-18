@@ -212,6 +212,37 @@ export function parseImport(pkg, existingIds = []) {
   return {created, skipped, errors};
 }
 
+/**
+ * Imports Location records (Manager's import run, or the package path above) into `existing`.
+ * mode 'skip' (default) leaves any existing id untouched; 'update' replaces its definition but
+ * keeps the GM's play state: whether it is revealed and which finite nodes are exhausted.
+ * Returns {created, updated, skipped: [{id, reason}]} with ready-to-save locations in `created`/`updated`.
+ */
+export function importRecords(records, existing = [], {mode = 'skip'} = {}) {
+  if (!['skip', 'update'].includes(mode)) throw new Error(`Unknown import mode "${mode}"; use "skip" or "update".`);
+  if (!Array.isArray(records)) throw new Error('Expected an array of Location records.');
+  const current = new Map(existing.map(l => [l.id, normalizeLocation(l)]));
+  const seen = new Set();
+  const created = [], updated = [], skipped = [];
+  for (const [i, rec] of records.entries()) {
+    const id = rec?.id ?? `records[${i}]`;
+    if (rec?.entity_type !== 'Location') { skipped.push({id, reason: 'Not a Location record.'}); continue; }
+    const body = {...(rec.location ?? {}), id: rec.id, name: rec.location?.name ?? rec.name};
+    if (!LOCATION_ID.test(body.id ?? '')) { skipped.push({id, reason: 'id must look like LOC-NAME.'}); continue; }
+    if (seen.has(body.id)) { skipped.push({id, reason: 'Duplicate id in this import.'}); continue; }
+    seen.add(body.id);
+    const incoming = normalizeLocation(body);
+    const old = current.get(body.id);
+    if (!old) { created.push(incoming); continue; }
+    if (mode === 'skip') { skipped.push({id, reason: 'Already exists; kept unchanged.'}); continue; }
+    const exhausted = new Set(old.resources.filter(n => n.exhausted).map(n => n.key));
+    incoming.revealed = old.revealed;
+    for (const n of incoming.resources) if (n.finite && exhausted.has(n.key)) n.exhausted = true;
+    updated.push(incoming);
+  }
+  return {created, updated, skipped};
+}
+
 /** Pulls a MAT-* id from an Item's data, wherever Ashen Gate modules record it. */
 export function materialIdOf(item) {
   const f = item?.flags ?? {};
