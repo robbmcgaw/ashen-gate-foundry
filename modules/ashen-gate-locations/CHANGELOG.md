@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.0 — 2026-10-18
+
+- Gathering resources are now **gathering nodes** (#21): skill, tier 1–5, DC (defaults 10/12/13/14/15 by tier, editable), a common material and an optional rare one (success by 5+), quantities, *Finite* and *Available* switches, and a note. Edited inline in the GM builder.
+- Finite nodes can be marked exhausted (struck through) and restored with one click.
+- Players see the DC only when the GM turns on its 👁.
+- API for the Profession Ledger: `resourcesAt` returns node fields, plus new `nodesForMaterial`, GM-only `markNodeExhausted` and `GATHERING` constants.
+- 1.0.x data loads unchanged (old entries become tier-1, DC 10, finite nodes) and is saved in the new shape on your next save.
+- Import format extended with the node fields. The playtest pack (0.3.0) gives each location 1–2 nodes.
+
 ## 1.0.2 — 2026-10-18
 
 - Removed the stand-in copies of the shared classes from `locations.css`; the kit now provides them, so Locations matches the other modules exactly.

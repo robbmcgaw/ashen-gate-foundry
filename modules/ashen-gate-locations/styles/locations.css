@@ -80,3 +80,16 @@
 .agl-off { color: var(--agl-muted); }
 
 @media (max-width: 640px) { .agl-body { grid-template-columns: 1fr; } .agl-list { border-right: 0; border-bottom: 1px solid var(--agl-border); max-height: 35%; } }
+
+/* Gathering nodes */
+.agl-nodes > li.agl-node { display: flex; flex-direction: column; gap: 6px; padding: 8px 0; border-bottom: 1px solid var(--agl-border); }
+.agl-nodes > li.agl-node:last-child { border-bottom: 0; }
+.agl-node__row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.agl-node__name { flex: 2 1 160px; min-width: 140px; }
+.agl-node__skill { flex: 1 1 150px; min-width: 130px; }
+.agl-node__note { flex: 1 1 200px; min-width: 160px; }
+.agl-mini { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; color: var(--agl-muted); font-size: .85em; }
+.agl-mini input[type="number"] { width: 4.5em; }
+.agl-mini input[type="text"] { width: 12em; }
+.agl-node.agl-hidden .agl-node__name { opacity: .55; }
+.agl-exhausted .agl-node__name, .agl-entry.agl-exhausted { text-decoration: line-through; opacity: .6; }

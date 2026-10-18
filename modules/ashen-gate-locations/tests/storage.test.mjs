@@ -87,3 +87,13 @@ test('0.8.x journals are counted, not touched', () => {
   assert.equal(legacyJournalCount(), 2);
   assert.deepEqual(readAll(), [], 'old data is ignored, no crash');
 });
+
+test('a hidden DC never reaches the player journal; showing it does', async () => {
+  installFoundry();
+  const loc = {id: 'LOC-A', name: 'A', revealed: true, sections: {resources: true},
+    resources: [{id: 'n1', label: 'Seam', skill: 'Mining', tier: 3, dc: 37}]};
+  await writeAll([loc]);
+  assert.doesNotMatch(JSON.stringify(playerJournal()), /37/);
+  await writeAll([{...loc, resources: [{...loc.resources[0], dcVisible: true}]}]);
+  assert.match(playerJournal().pages[0].getFlag(MOD, 'view'), /"dc":37/);
+});

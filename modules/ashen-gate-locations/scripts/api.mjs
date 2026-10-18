@@ -3,7 +3,7 @@
  * GM calls read full records. Player calls read only the sanitized player view, and only while
  * Player Access is on. Write calls are GM-only. Every guard lives here, not in the UI.
  */
-import {MODULE_ID, clone, newLocation, normalizeLocation, parseImport, exportPackage, resourcesOf} from './model.mjs';
+import {MODULE_ID, GATHERING, clone, newLocation, normalizeLocation, parseImport, exportPackage, resourcesOf, nodeForGM, nodeMatch} from './model.mjs';
 
 export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
 
@@ -32,6 +32,7 @@ export function createApi(deps) {
 
   const api = {
     version: deps.version,
+    GATHERING,
     open: () => { requireAccess(); return deps.open(); },
     openLocation: id => { requireAccess(); return deps.openLocation(id); },
 
@@ -46,7 +47,7 @@ export function createApi(deps) {
       if (!gm()) return clone(deps.readViews());
       return clone(deps.readAll().filter(l => !revealedOnly || l.revealed));
     },
-    /** Gathering resources at a location: [{label, materialId, uuid, available, note}]. */
+    /** Gathering nodes at a location (see README). Players: no hidden nodes, no DC unless shown. */
     resourcesAt(id) {
       requireAccess();
       return gm() ? resourcesOf(find(id), {gm: true}) : resourcesOf(findView(id));
@@ -58,6 +59,13 @@ export function createApi(deps) {
       return list.flatMap(l => resourcesOf(l, {gm: gm()}).filter(r => r.materialId === materialId)
         .map(r => ({id: l.id, name: l.name, available: r.available})));
     },
+    /** Every node that yields a material, as common or rare bundle: [{locationId, locationName, matches, ...node}]. */
+    nodesForMaterial(materialId) {
+      requireAccess();
+      const list = gm() ? deps.readAll() : deps.readViews();
+      return list.flatMap(l => resourcesOf(l, {gm: gm()}).map(n => [n, nodeMatch(n, materialId)]).filter(([, m]) => m)
+        .map(([n, matches]) => ({locationId: l.id, locationName: l.name, matches, ...n})));
+    },
     /** Locations that list a quest, for Quest Manager's reverse link: [{id, name}]. */
     locationsForQuest(questId) {
       if (!gm() && !deps.playerAccessEnabled()) return [];
@@ -68,6 +76,20 @@ export function createApi(deps) {
     // GM-only writes.
     createLocation: name => saveLocation({name}),
     saveLocation,
+    /** Marks a finite node used up (or restores it with exhausted=false). Returns the GM node. */
+    async markNodeExhausted(locationId, nodeId, exhausted = true) {
+      requireGM();
+      if (typeof exhausted !== 'boolean') throw new TypeError('exhausted must be true or false.');
+      const all = deps.readAll();
+      const loc = all.find(l => l.id === locationId);
+      if (!loc) throw new Error(`No location ${locationId}.`);
+      const node = loc.resources.find(n => n.key === nodeId);
+      if (!node) throw new Error(`No gathering node ${nodeId} at ${locationId}.`);
+      if (exhausted && !node.finite) throw new Error(`${node.label || nodeId} is not finite, so it cannot be exhausted.`);
+      node.exhausted = exhausted;
+      await deps.writeAll(all);
+      return nodeForGM(node);
+    },
     async deleteLocation(id) {
       requireGM();
       await deps.writeAll(deps.readAll().filter(l => l.id !== id));
