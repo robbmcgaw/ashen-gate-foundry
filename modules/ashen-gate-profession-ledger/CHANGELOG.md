@@ -1,3 +1,16 @@
+## 0.9.0 — 2026-10-18
+
+Professions that work at the table (#14).
+- **Crafting:** the new **Individual** tab is each character's crafting bench. Every known recipe shows what it needs (✓ on hand, ↔ in the party, ✗ missing) and what it makes, with a **Craft** button. Crafting checks the recipe is known, the profession tier (when XP is tracked) and the materials. It then uses up the materials, adds the recipe's result item (copied from the `ITEM-*` world Item that General Manager imported, stacking if you already have one) and posts a chat card. Every step is verified first, and a failed write puts the materials back.
+- **Shared materials:** when a party member has what's missing, **Craft — ask the party** pops up an Allow/Decline window on that character's owner's screen (on the GM's if the owner is offline). Any decline or timeout cancels and nothing is used. The GM's client coordinates this, so the GM must be online for shared-material crafts.
+- **Learning is player-facing:** recipe items in your inventory show a **Learn** button (Ledger and sheet tab). The GM can no longer learn recipes for player-owned characters, and the API enforces it.
+- **XP is visible:** the GM awards XP from a control on each profession card in a character's Individual view. The card shows level, an XP bar, "+N XP" and XP to the next level; the player and GM get a whispered chat note. XP stays on Actor flags (unchanged format) and is also written into the profession feature's description on the character sheet.
+- **Players see their own stuff:** a character's own materials and professions now show even when their source record is still a draft. Only GM-only or reveal-gated records stay hidden. Draft recipe items are hidden from players entirely, and the GM sees them marked "Draft — hidden from players".
+- **Party** tab: all party materials (who holds what) and party recipes, by player or by profession. **Recipe Catalog**: folders by profession, the same recipe row as everywhere else. Players see what the party has found or learned; the GM sees everything, with drafts marked. Raw IDs are never shown to players.
+- **Tidy5e sheet:** a **Professions** tab with the same professions, XP, Learn and Craft (registered only when Tidy5e Sheet is active).
+- Removed the Materials, Recipes, Recipe Learning and Crafting Planner tabs (merged into the above; old `api.open({view})` names still work). Tab content now uses the shared UI kit (`ag-btn--primary`, `ag-card`, `ag-badge--*`, `ag-toolbar`, `ag-footer`, …) and kit tokens only, so it follows every General Manager skin, including light ones. The old hard-coded dark palette in `ledger.css` is gone.
+- No changes to Actor flag formats or settings; no migration needed. New: crafted items carry `flags["ashen-gate-profession-ledger"].craftedFrom`; the module uses a socket (`"socket": true`).
+
 ## 0.8.1 — 2026-10-18
 
 - Fix: the shared Ashen Gate launcher group now sits above the Actors sidebar header instead of inside it, so Foundry's Create Actor / Create Folder buttons show again. Tighter padding around the group.

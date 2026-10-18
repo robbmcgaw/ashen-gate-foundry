@@ -1,17 +1,12 @@
 # Ashen Gate | Profession Ledger
 
-**Current recommended test release:** [`AG_ashen-gate-profession-ledger_v0.7.0_Alpha.zip`](../../releases/AG_ashen-gate-profession-ledger_v0.7.0_Alpha.zip) • **Module ID:** `ashen-gate-profession-ledger` • **Source/test kit:** [`AG_ashen-gate-profession-ledger_v0.7.0_Source_TestKit.zip`](../../releases/AG_ashen-gate-profession-ledger_v0.7.0_Source_TestKit.zip). v0.6.2 remains available for rollback. **78/78 Node/mock tests pass; live Foundry V14 acceptance is NOT RUN.** See [RELEASE_NOTES.md](RELEASE_NOTES.md), [QA_REPORT.json](QA_REPORT.json) and [real-data setup/reset](qa/REAL_DATA_SETUP_RESET.md).
+Module ID `ashen-gate-profession-ledger` · Foundry V14 · dnd5e. Owns each character's profession progression (XP, level) and known recipes, stored on Actor flags.
 
-# Ashen Gate | Profession Ledger v0.5.0 Alpha
+- **Individual:** a character's crafting bench: professions with level and XP, materials, recipe items to **Learn**, and known recipes to **Craft**. If a craft needs a party member's materials, that character's owner gets an Allow/Decline popup (the GM's client coordinates; any decline cancels).
+- **Party:** all party members' materials and recipes, by player or by profession.
+- **Recipe Catalog:** recipes in folders by profession. Players see only recipes the party has found or learned; the GM sees all, with drafts marked.
+- **Gathering:** player requests and GM-confirmed material awards.
+- **GM Setup:** party roster, Player Access, catalog import.
+- **Tidy5e:** a *Professions* tab on the character sheet (registered only when Tidy5e Sheet is active).
 
-**Recommended test release:** `AG_ashen-gate-profession-ledger_v0.5.0_Alpha.zip` • **Module ID:** `ashen-gate-profession-ledger` • **Foundry minimum:** V14, **not independently tested in live Foundry**. The version is upgraded in-place via Forge Import Wizard; leave the same module ID active, do not enable duplicate copies. Back up/test world before using Actor-mutating features.
-
-**Tabs:** Individual (Profession XP summary and GM XP award), Party, Materials, **Recipes** (recipes known by the party and recipe items found in party inventories; the holder's owner learns by consuming one Actor-owned item → permanent known ID; players never browse the full catalog), GM-only **Recipe Catalog** (all indexed definitions, drafts marked) and **Recipe Learning**, **Gathering** (player requests, GM-check prompts and confirmed material awards), Crafting Planner (read-only allocations, only learned recipes can request permission), and **GM Setup** (roster/catalog import/Manager/Developer Tools). Actors sidebar remains player-accessible **when the GM has enabled Player Access**. GM controls are role-gated.
-
-**Player Access (DEC-0072):** Player-facing Actors launchers are **Visible on upgrade** (preserving prior access). GMs can hide/show the UI through **GM Setup → Player Access** or **Foundry Module Settings**. Supported General Manager releases can call `api.playerAccess` to control the same module-owned setting; Manager is optional. Hiding closes player windows and blocks direct interface APIs/macros, but never changes XP, learned recipes, Items, purchases, Cinder wallets or background game mechanics. See `RELEASE_NOTES.md` for live beta tests.
-
-**Install/test:** See `BETA_CHECKLIST.md` and `RELEASE_NOTES.md`. **Source integration:** See `MANAGER_TIM_HANDOFF.md` and `ACTOR_STATE_CONTRACT_ALPHA.md`. Demo records are not canon and do not mutate world state. No automatic reimport, migration, XP grant or hidden quest/Cinder behavior.
-
-**Important:** The Ledger is the Actor Profession progression owner. The generic Skill Trees module displays perk choices, but may not assign Profession XP independently. Manager handles canonical content source import and Foundry world Item/Journal folders. Location resource opportunity ownership remains with Locations, not Gathering UI. `ag-foundry-import/0.2` is accepted as a Ledger *recipe/material catalog read adapter only*, not full domain/campaign-state ingestion.
-
-**Known beta limits:** No actual Foundry-V14 validation, no tested per-Perk eligibility/purchase or automatic Feature grants, no direct player skill roll macro (GM prompts Actor-sheet check), no automatic gathering XP/depletion, and no player-facing animated reward reveal. The material spinner is a deterministic GM preview animation only. New Actor flag keys are written only after explicit confirmed actions.
+General Manager imports recipes (`REC-*`), materials (`MAT-*`), professions (`PROF-*`) and crafted items (`ITEM-*`); a craft copies the recipe's `result_item_id` world Item. Manager is optional; the Ledger opens without it. See `CHANGELOG.md` for changes.
