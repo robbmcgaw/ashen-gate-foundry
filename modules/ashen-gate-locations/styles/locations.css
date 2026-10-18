@@ -1,43 +1,20 @@
-/* Ashen Gate | Locations. Layout is module-specific (.agl-*). Shared kit classes (.ag-btn, .ag-card, ...)
-   come from ag-ui.css; the :where() rules below are zero-specificity fallbacks so the window still has a
-   clean default look without the kit or Manager's appearance controller, and the kit always wins. */
+/* Ashen Gate | Locations. Layout is module-specific (.agl-*). The window shell and the shared classes
+   (.ag-header, .ag-tabs, .ag-btn, .ag-card, .ag-field, .ag-badge, .ag-empty, .ag-toolbar) come from the
+   shared UI kit (ag-ui.css, loaded first). --agl-* are local short names for kit tokens. */
 .ag-locations {
-  --agl-surface: var(--ag-surface, #1f1d1a);
-  --agl-surface-2: var(--ag-surface-2, #2a2723);
-  --agl-text: var(--ag-text, #ece6dc);
-  --agl-muted: var(--ag-muted, #a59c8e);
-  --agl-accent: var(--ag-accent, #c8892f);
-  --agl-border: var(--ag-border, #46403a);
-  --agl-ok: var(--ag-ok, #4f9a5a);
-  --agl-warn: var(--ag-warn, #d08a2c);
-  --agl-danger: var(--ag-danger, #c0453b);
-  --agl-radius: var(--ag-radius, 6px);
-  --agl-gap: var(--ag-space, 8px);
+  --agl-surface: var(--ag-surface);
+  --agl-surface-2: var(--ag-surface-raised);
+  --agl-text: var(--ag-text);
+  --agl-muted: var(--ag-muted);
+  --agl-accent: var(--ag-accent);
+  --agl-border: var(--ag-border);
+  --agl-ok: var(--ag-ok);
+  --agl-warn: var(--ag-warn);
+  --agl-danger: var(--ag-danger);
+  --agl-radius: var(--ag-radius);
+  --agl-gap: var(--ag-space-2);
 }
-.ag-locations .window-content { padding: 0; background: var(--agl-surface); color: var(--agl-text); }
-
-/* ----- kit fallbacks (zero specificity) ----- */
-:where(.ag-locations) :where(.ag-header) { display: flex; align-items: center; justify-content: space-between; gap: var(--agl-gap); padding: 10px 14px; border-bottom: 1px solid var(--agl-border); }
-:where(.ag-locations) :where(.ag-header h1) { margin: 0; font-size: 1.15rem; border: 0; }
-:where(.ag-locations) :where(.ag-header__actions) { display: flex; align-items: center; gap: var(--agl-gap); }
-:where(.ag-locations) :where(.ag-version) { color: var(--agl-muted); font-size: .85em; }
-:where(.ag-locations) :where(.ag-tabs) { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--agl-border); }
-:where(.ag-locations) :where(.ag-tabs button) { width: auto; background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; color: var(--agl-muted); padding: 8px 12px; }
-:where(.ag-locations) :where(.ag-tabs button.active) { color: var(--agl-text); border-bottom-color: var(--agl-accent); }
-:where(.ag-locations) :where(.ag-toolbar) { display: flex; align-items: center; gap: var(--agl-gap); padding: 10px 14px; }
-:where(.ag-locations) :where(.ag-toolbar input[type="search"]) { flex: 1; }
-:where(.ag-locations) :where(.ag-btn) { display: inline-flex; align-items: center; gap: 6px; width: auto; flex: 0 0 auto; padding: 4px 10px; min-height: 30px; line-height: 1.2; white-space: nowrap; border: 1px solid var(--agl-border); border-radius: var(--agl-radius); background: var(--agl-surface-2); color: var(--agl-text); cursor: pointer; }
-:where(.ag-locations) :where(.ag-btn--primary) { background: var(--agl-accent); border-color: var(--agl-accent); color: #1a1208; font-weight: 600; }
-:where(.ag-locations) :where(.ag-btn--ghost) { background: transparent; border-color: transparent; }
-:where(.ag-locations) :where(.ag-btn--danger) { color: var(--agl-danger); }
-:where(.ag-locations) :where(.ag-card) { border: 1px solid var(--agl-border); border-radius: var(--agl-radius); background: var(--agl-surface-2); padding: 10px 12px; margin: 0 0 10px; }
-:where(.ag-locations) :where(.ag-card h3) { margin: 0 0 6px; font-size: 1rem; border: 0; }
-:where(.ag-locations) :where(.ag-field) { display: flex; flex-direction: column; gap: 3px; }
-:where(.ag-locations) :where(.ag-field label) { color: var(--agl-muted); font-size: .85em; }
-:where(.ag-locations) :where(.ag-list) { list-style: none; margin: 0; padding: 0; }
-:where(.ag-locations) :where(.ag-badge) { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: .8em; line-height: 1.6; white-space: nowrap; border: 1px solid var(--agl-border); }
-:where(.ag-locations) :where(.ag-empty) { color: var(--agl-muted); font-style: italic; margin: 6px 0; }
-:where(.ag-locations) :where(input, select, textarea) { min-height: 30px; line-height: 1.4; }
+.ag-locations .window-content { padding: 0; }
 
 /* ----- layout ----- */
 .agl-root { display: flex; flex-direction: column; height: 100%; min-height: 0; }
