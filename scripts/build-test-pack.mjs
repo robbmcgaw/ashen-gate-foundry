@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const PACK_VERSION = '0.3.0';
+export const PACK_VERSION = '0.4.0';
 export const PACK_ID = 'AG-PLAYTEST-PACK';
 const SOURCE = 'Synthetic playtest data (not canon)';
 const FOLDER = 'Ashen Gate/Playtest';
@@ -80,18 +80,20 @@ const MATERIALS = [
 // ---- Recipes ---------------------------------------------------------------------------------
 // giveItem: the REC-* "Recipe: ..." Item is a consumable meant to be handed to a player.
 // draft: deliberate draft example (player visibility, status draft), not shown until approved.
+// tool: a dnd5e tool key the recipe needs; workstation: a named workstation instead. Recipes with
+// neither use their profession's tool (Profession Ledger GM Setup).
 const RECIPES = [
-  { id: 'REC-PT-EMBER-SALVE', item: 'ITEM-PT-EMBER-SALVE', name: '[TEST] Ember Salve', prof: 'PROF-PT-ALCHEMY', tier: 'apprentice', effort: 'short', giveItem: true,
+  { id: 'REC-PT-EMBER-SALVE', item: 'ITEM-PT-EMBER-SALVE', name: '[TEST] Ember Salve', prof: 'PROF-PT-ALCHEMY', tier: 'apprentice', effort: 'short', giveItem: true, tool: 'alchemist',
     ing: [['MAT-PT-EMBERROOT', 2], ['MAT-PT-PALEMOSS', 1]] },
   { id: 'REC-PT-MISTVEIL-TONIC', item: 'ITEM-PT-MISTVEIL-TONIC', name: '[TEST] Mistveil Tonic', prof: 'PROF-PT-ALCHEMY', tier: 'apprentice', effort: 'short',
     ing: [['MAT-PT-PALEMOSS', 2], ['MAT-PT-GLASSBLOOM', 1]] },
-  { id: 'REC-PT-GLASSBLOOM-ELIXIR', item: 'ITEM-PT-GLASSBLOOM-ELIXIR', name: '[TEST] Glassbloom Elixir', prof: 'PROF-PT-ALCHEMY', tier: 'journeyman', effort: 'long',
+  { id: 'REC-PT-GLASSBLOOM-ELIXIR', item: 'ITEM-PT-GLASSBLOOM-ELIXIR', name: '[TEST] Glassbloom Elixir', prof: 'PROF-PT-ALCHEMY', tier: 'journeyman', effort: 'long', workstation: '[TEST] Alchemy Laboratory',
     ing: [['MAT-PT-GLASSBLOOM', 2], ['MAT-PT-EMBERROOT', 1]] },
   { id: 'REC-PT-DRAFT-DRAUGHT', item: 'ITEM-PT-DRAFT-DRAUGHT', name: '[TEST] Draft Draught', prof: 'PROF-PT-ALCHEMY', tier: 'apprentice', effort: 'short', draft: true,
     ing: [['MAT-PT-EMBERROOT', 1]] },
-  { id: 'REC-PT-IRON-HINGE-SET', item: 'ITEM-PT-IRON-HINGE-SET', name: '[TEST] Iron Hinge Set', prof: 'PROF-PT-BLACKSMITHING', tier: 'apprentice', effort: 'short', giveItem: true,
+  { id: 'REC-PT-IRON-HINGE-SET', item: 'ITEM-PT-IRON-HINGE-SET', name: '[TEST] Iron Hinge Set', prof: 'PROF-PT-BLACKSMITHING', tier: 'apprentice', effort: 'short', giveItem: true, tool: 'smith',
     ing: [['MAT-PT-IRON-ORE', 2], ['MAT-PT-COAL', 1]] },
-  { id: 'REC-PT-TEST-DAGGER', item: 'ITEM-PT-TEST-DAGGER', name: '[TEST] Test Dagger', prof: 'PROF-PT-BLACKSMITHING', tier: 'apprentice', effort: 'long', giveItem: true,
+  { id: 'REC-PT-TEST-DAGGER', item: 'ITEM-PT-TEST-DAGGER', name: '[TEST] Test Dagger', prof: 'PROF-PT-BLACKSMITHING', tier: 'apprentice', effort: 'long', giveItem: true, tool: 'smith',
     ing: [['MAT-PT-IRON-ORE', 3], ['MAT-PT-COAL', 1], ['MAT-PT-LEATHER-STRIPS', 1]] },
   { id: 'REC-PT-ASHWOOD-BUCKLER', item: 'ITEM-PT-ASHWOOD-BUCKLER', name: '[TEST] Ashwood Buckler', prof: 'PROF-PT-BLACKSMITHING', tier: 'journeyman', effort: 'long',
     ing: [['MAT-PT-IRON-ORE', 2], ['MAT-PT-ASHWOOD-PLANKS', 2]] },
@@ -99,6 +101,7 @@ const RECIPES = [
     ing: [['MAT-PT-IRON-ORE', 1], ['MAT-PT-COAL', 1], ['MAT-PT-LEATHER-STRIPS', 1]] },
 ];
 
+const TOOL_NAMES = { alchemist: 'Alchemist’s Supplies', smith: 'Smith’s Tools' };
 const matById = new Map(MATERIALS.map(m => [m.id, m]));
 const profById = new Map(PROFESSIONS.map(p => [p.id, p]));
 const cap = s => s[0].toUpperCase() + s.slice(1);
@@ -138,11 +141,14 @@ function recipeRecord(r) {
     name: r.name, tier: r.tier, starting: profById.get(r.prof).starting.includes(r.id), origin: 'original',
     effort: r.effort, price_class: 'common_consumable', market_gp: gp * 2, craft_gp: gp, additional_gp: 0,
     rules_summary: summary, profession_id: r.prof, result_item_id: r.item,
+    ...(r.tool ? { tool: r.tool } : {}), ...(r.workstation ? { workstation: r.workstation } : {}),
     ingredients: r.ing.map(([material_id, quantity]) => ({ material_id, quantity, material_value_gp: matById.get(material_id).gp })),
     // Recipe Items that are handed to players are consumables; the rest are loot like the older fixtures.
     foundry: project('Recipes', `Recipe: ${r.name}`, r.giveItem ? 'consumable' : 'loot', ICONS.recipe,
       `<h2>Recipe: ${r.name}</h2><p>${marker(r.prof, profById.get(r.prof).name)} · ${cap(r.tier)} · ${r.effort} effort${r.draft ? ' · DRAFT example' : ''}</p>` +
-      `<p>Requires ${ingredientsHtml}.</p><p>Produces ${marker(r.item, r.name)}.</p><p>${summary}</p>`),
+      `<p>Requires ${ingredientsHtml}.</p>` +
+      (r.tool ? `<p>Tool: ${TOOL_NAMES[r.tool]}.</p>` : r.workstation ? `<p>Workstation: ${r.workstation}.</p>` : '') +
+      `<p>Produces ${marker(r.item, r.name)}.</p><p>${summary}</p>`),
   });
 }
 

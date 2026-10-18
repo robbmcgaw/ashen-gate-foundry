@@ -1,3 +1,16 @@
+## 0.10.0 — 2026-10-18
+
+Gathering, tools and GM-coordinated XP (#23).
+- **Gathering** tab, rebuilt around gathering nodes from Locations 1.1.0 (feature-detected; without Locations the GM can still use an ad-hoc node). One lead gatherer and one check per node for the party. Helpers who carry a suitable tool give advantage, not another attempt. Success gives one common bundle, success by 5+ one rare bundle instead (the common one if the node has no rare material). Failure exhausts the node. DC defaults by tier: 10/12/13/14/15.
+  - **GM-initiated:** pick a Location node (or fill in an ad-hoc one), the lead and helpers, then **Start gathering check**. The lead's player gets a roll popup. The GM can also **Roll for them** or **Record total**.
+  - **Player-requested:** a player picks an available node at a revealed location and sends a request. The GM gets an Approve/Decline popup. The GM client checks every request against the full Locations record: an unrevealed location, a hidden or exhausted node, or a character the player doesn't own is refused.
+  - **Roll:** works like the Utilities Group Check. Each skill and the profession's tool are listed with their bonus, and advantage is preset from the sheet, effects and helpers (the roller can change it). The roll is the native dnd5e one.
+  - **Result:** the material goes to the lead and stacks onto what they hold. Finite nodes are marked exhausted through `markNodeExhausted`. A failed renewable node can't be exhausted in Locations, so it is blocked until the GM reloads. A chat card is posted for everyone. It never names an unrevealed location or hidden node, and shows the DC only if Locations shows it.
+- **XP from chat cards:** gather and craft cards show the GM an amount and an **Award XP** button for that character's profession, one award per card. Players see the award once it is made. Nothing is awarded automatically. The `ashenGateLedger.xpOpportunity` hook fires on the GM client for each card, so XP can be automated later.
+- **Tools and workstations:** a recipe can name a `tool` (a dnd5e tool key, a tool Item UUID or a name) or a `workstation`. A recipe with neither needs its profession's tool. GM Setup → **Tools and checks** maps each profession to a tool (defaults: Alchemy → Alchemist's Supplies, Blacksmithing → Smith's Tools, Herbalism → Herbalism Kit, Cooking → Cook's Utensils, …; Arcana, Archaeology and Fishing are left blank) and each gathering profession to a check skill. Recipe rows show the requirement and warn when the character doesn't carry the tool. Crafting rolls a tool check (bonus and advantage shown in the confirm window) and puts the result on the craft card. It doesn't decide success yet. Gold cost is shown, not deducted.
+- New world setting `checkMapping` (defaults apply until you save). The old manual gathering form (Preview result / Confirm material award) is gone. No Actor flag changes; no migration needed.
+- Playtest pack 0.4.0: Ember Salve, Iron Hinge Set and Test Dagger name a tool; Glassbloom Elixir names a workstation.
+
 ## 0.9.0 — 2026-10-18
 
 Professions that work at the table (#14).

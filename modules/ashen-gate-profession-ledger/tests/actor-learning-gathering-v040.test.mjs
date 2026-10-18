@@ -83,41 +83,7 @@ test('GM awards XP from Actor PROF Item with correct levels; player cannot award
  assert.ok(errors.some(x=>x.includes('GM only')));
 });
 
-test('Player Gathering view excludes GM-only encounter config; request whispers to GM only',async()=>{
- app.view='gathering';game.user=player;
- let html=(await app._prepareContext({})).html;
- assert.match(html,/Request gathering/);
- assert.doesNotMatch(html,/data-action="gather-award"|data-action="gather-roll-request"|Secret Reagent|MAT-SECRET/);
- app.gather.profession='Herbalism';
- await app._click('gather-player-request');
- assert.equal(chats.at(-1).whisper.length,1);assert.deepEqual(chats.at(-1).whisper,['gm']);
-});
-
-test('GM scene pool selects approved source, check outcome, confirms exactly one material award',async()=>{
- game.user=gm;app.view='gathering';app.gather={actorId:'a',profession:'Herbalism',eligibleProfessions:['Herbalism'],tier:'Apprentice',dc:'12',rollTotal:'15',qty:'2',materialId:'MAT-HEARTHLEAF',locationId:'',preview:null};
- const before=awardWrites.length;
- const html=(await app._prepareContext({})).html;
- assert.match(html,/Gathering encounter/);
- assert.doesNotMatch(html,/Secret Reagent/);
- app._buildGatherPreview();assert.equal(app.gather.preview.passed,true);
- assert.equal(awardWrites.length,before,'preview cannot mutate inventory');
- await app._awardGathering();
- assert.equal(awardWrites.length,before+1);
- assert.equal(created.at(-1).system.quantity,2);
- assert.equal(created.at(-1).flags['ashen-gate-profession-ledger'].sourceId,'MAT-HEARTHLEAF');
- assert.equal(app.gather.preview,null);
- assert.equal(api.getProfessionProgress(actor,'PROF-HERBALISM').xp,5,'gather award does not auto-change progression without GM action');
- assert.match(chats.at(-1).content,/Gathering reward awarded/);
-});
-
-test('failed check and wrong material ID never award',async()=>{
- const before=awardWrites.length;
- app.gather.rollTotal='3';app._buildGatherPreview();assert.equal(app.gather.preview.passed,false);
- await assert.rejects(()=>app._awardGathering(),/No successful/);
- app.gather.materialId='MAT-SECRET';assert.throws(()=>app._buildGatherPreview(),/player-visible/);
- assert.equal(awardWrites.length,before);
-});
-
+// 0.10.0 replaced the manual gathering preview with the node-based flow; see gathering-v0100.test.mjs.
 test('Actor progress, known recipes and roster persist as three separately owned fields',()=>{
  assert.deepEqual(values.partyRoster,['a']);
  assert.deepEqual(values.libraryData.recipes,[]);
