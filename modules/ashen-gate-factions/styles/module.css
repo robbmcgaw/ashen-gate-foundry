@@ -127,34 +127,6 @@
 @media(max-width:1000px){.agf-v3 .agf-v3-editor{grid-template-columns:1fr 1fr}.agf-v3 .agf-v3-editor>span{grid-column:1/-1}.agf-v3 .agf-v3-editor label:last-child{grid-column:1/-1}}
 @media(max-width:750px){.agf-v3 .agf-sidebar{width:175px;flex-basis:175px}.agf-v3 .agf-detail-header{flex-wrap:wrap}.agf-v3 .agf-drop-zone[open]{grid-template-columns:1fr}}
 
-/* Shared top-of-Actors launcher shelf.  Independent modules can opt into the
-   same data-ag-sidebar-launchers slot without requiring Factions to be enabled. */
-[data-ag-sidebar-launchers="actors"].ag-sidebar-launchers {
-  display:flex;
-  flex-direction:column;
-  width:100%;
-  gap:5px;
-  padding:8px 8px 10px;
-  box-sizing:border-box;
-  grid-column:1 / -1;
-}
-[data-ag-sidebar-launchers="actors"] > button[data-ag-launch-order].ag-sidebar-open-button {
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:8px;
-  width:100%;
-  min-height:36px;
-  height:36px;
-  margin:0;
-  padding:7px 12px;
-  box-sizing:border-box;
-  font:600 13px/1.2 var(--font-primary, sans-serif);
-  white-space:nowrap;
-  text-align:center;
-}
-[data-ag-sidebar-launchers="actors"] > button[data-ag-launch-order].ag-sidebar-open-button > i {flex:0 0 18px;text-align:center;}
-[data-ag-sidebar-launchers="actors"] > button[data-ag-launch-order].ag-sidebar-open-button > span {min-width:0;overflow:hidden;text-overflow:ellipsis;}
 
 /* v0.4.0: locally managed Player Access (DEC-0072). */
 .agf-v3 .agf-player-access {display:grid;gap:10px}
@@ -227,3 +199,9 @@
 .ashen-gate-factions .agf-config-section .agf-v3-reward-level {padding:8px 10px;margin:6px 0;}
 .ashen-gate-factions .agf-config-section .agf-v3-editor {gap:6px;}
 @media(max-width:850px){.ashen-gate-factions .agf-field-reveal-grid {grid-template-columns:1fr 1fr 1fr;}}
+
+/* Ashen Gate Actors-sidebar launcher group: identical block in every player-facing module. */
+#ashen-gate-launchers.ag-launchers {display:flex;flex-direction:column;gap:4px;flex:0 0 100%;width:100%;grid-column:1/-1;box-sizing:border-box;margin:0 0 6px;padding:0;}
+#ashen-gate-launchers > .ag-launcher {display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:32px;margin:0;padding:4px 10px;box-sizing:border-box;font:600 13px/1.2 var(--font-primary,sans-serif);white-space:normal;text-align:center;cursor:pointer;}
+#ashen-gate-launchers > .ag-launcher > i {flex:0 0 16px;text-align:center;}
+#ashen-gate-launchers > .ag-launcher:focus-visible {outline:2px solid var(--color-border-highlight,#d8b788);outline-offset:1px;}

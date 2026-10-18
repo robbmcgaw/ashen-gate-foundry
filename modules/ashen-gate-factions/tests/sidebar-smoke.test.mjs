@@ -8,6 +8,5 @@ globalThis.foundry={applications:{api:{ApplicationV2,HandlebarsApplicationMixin:
 globalThis.game={};
 await import('../scripts/module.mjs');
 assert.equal(typeof hookMap.get('renderActorDirectory'),'function');
-assert.equal(typeof hookMap.get('renderActorDirectoryV2'),'function');
 assert.equal(hookMap.has('renderJournalDirectory'),false);
 console.log('Actor launcher hooks registered; no Journal launcher hook.');

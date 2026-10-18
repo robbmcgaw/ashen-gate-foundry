@@ -74,11 +74,6 @@
 .aghq-benefit p { margin-bottom:0; }
 @media (max-width:900px) { .aghq-grid { grid-template-columns:145px minmax(0,1fr) 190px; } .aghq-management { grid-template-columns:1fr; } .aghq-management section:last-child { grid-column:auto; } }
 
-/* Actor-sidebar shared launcher convention. Other specialist modules use these same
- * ag-sidebar-* classes, sizes, and data-ag-launcher-order values independently. */
-.ag-sidebar-launchers[data-ag-launcher-group="actors"] {display:flex;flex-direction:column;gap:5px;padding:7px 9px 9px;border-bottom:1px solid var(--color-border-light-tertiary,#52504b);}
-.ag-sidebar-launchers .ag-sidebar-launcher {box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:100%;height:36px;min-height:36px;max-height:36px;margin:0;padding:0 10px;border:1px solid var(--color-border-light-tertiary,#665f52);border-radius:5px;background:var(--color-bg-btn-minor-inactive,#303039);color:var(--color-text-light-primary,#ede8da);font-size:13px;font-weight:600;line-height:1.2;white-space:normal;text-align:center;cursor:pointer;}
-.ag-sidebar-launchers .ag-sidebar-launcher:hover,.ag-sidebar-launchers .ag-sidebar-launcher:focus-visible{outline:2px solid var(--color-border-highlight-alt,#aa916c);outline-offset:1px;}
 .aghq-app .aghq-header-actions{display:flex;flex-direction:row;align-items:center;gap:10px;text-align:right;}
 .aghq-app .aghq-top h2{font-size:18px;margin:0 0 4px;}
 .aghq-app .aghq-version{font-size:12px;color:#d3c5a8;white-space:nowrap;}
@@ -139,3 +134,9 @@
 .aghq-app .aghq-board>.aghq-tile,.aghq-app .aghq-board>.aghq-decoration{z-index:1;}
 .aghq-app .aghq-board>.aghq-tile.selected,.aghq-app .aghq-board>.aghq-decoration.selected{z-index:2;}
 .aghq-app .aghq-catalogrow[hidden]{display:none;}
+
+/* Ashen Gate Actors-sidebar launcher group: identical block in every player-facing module. */
+#ashen-gate-launchers.ag-launchers {display:flex;flex-direction:column;gap:4px;flex:0 0 100%;width:100%;grid-column:1/-1;box-sizing:border-box;margin:0 0 6px;padding:0;}
+#ashen-gate-launchers > .ag-launcher {display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:32px;margin:0;padding:4px 10px;box-sizing:border-box;font:600 13px/1.2 var(--font-primary,sans-serif);white-space:normal;text-align:center;cursor:pointer;}
+#ashen-gate-launchers > .ag-launcher > i {flex:0 0 16px;text-align:center;}
+#ashen-gate-launchers > .ag-launcher:focus-visible {outline:2px solid var(--color-border-highlight,#d8b788);outline-offset:1px;}

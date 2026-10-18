@@ -3,6 +3,11 @@
 - Moved to the `ashen-gate-foundry` repository. No gameplay changes.
 - Installs and updates through the manifest URL; releases are built automatically.
 
+## 0.6.2 — 2026-10-18
+
+- Actors sidebar: the launcher button now joins one shared "Ashen Gate" group at the top of the Actors sidebar, with the same style as the other modules' buttons and a fixed order: Profession Ledger, Skill Trees, Quest Log, Factions & Renown, Headquarters, Utilities (#2).
+- Re-rendering the sidebar no longer duplicates the button; Player Access still hides it, and the group disappears when it has no buttons.
+
 ## v0.6.0 Alpha — 2026-10-17 (local, unpublished)
 
 - AG-WORK-0011 + FB-2026-10-16-001: Actors launch button joins single shared launcher shelf, consistent direct-child module/order metadata (rank 30), with idempotent same-group sorting and Player Access protection.

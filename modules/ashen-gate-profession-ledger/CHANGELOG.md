@@ -4,6 +4,11 @@
 - Installs and updates through the manifest URL; releases are built automatically.
 - Fix: v0.7.0 shipped with `scripts/main.js` cut off after 68 lines (and a corrupt zip), so the module could not load. Restored the complete file.
 
+## 0.7.2 — 2026-10-18
+
+- Actors sidebar: the launcher button now joins one shared "Ashen Gate" group at the top of the Actors sidebar, with the same style as the other modules' buttons and a fixed order: Profession Ledger, Skill Trees, Quest Log, Factions & Renown, Headquarters, Utilities (#2).
+- Re-rendering the sidebar no longer duplicates the button; Player Access still hides it, and the group disappears when it has no buttons.
+
 ## v0.7.0 Alpha — coordinated build (2026-10-17)
 
 - Removed fictional demonstration UI/API. Ledger views use actual Foundry Actors and native definition data.

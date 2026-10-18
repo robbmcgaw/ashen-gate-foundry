@@ -3,7 +3,7 @@ import {SCHEMA,PROFESSION_NAMES,norm,displayProfession,professionFromTreeName,cl
 import {LEDGER_SCOPE,PROGRESSION_SCHEMA,GATHERING_PROFESSIONS,TIERS,ACCESS_LEVELS,gatherXP,knownRecipesOf,canLearnRecipe,progressOf,emptyProgress,nextProgress,isMaterialAwardCandidate} from './progression.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition,readWorldDefinition} from './definition-lookup.mjs';
-import {arrangeLaunchers} from './launcher-order.mjs';
+import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 const ID='ashen-gate-profession-ledger';
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const esc=value=>foundry.utils.escapeHTML(String(value??''));
@@ -30,7 +30,7 @@ function syncLedgerPlayerAccess(enabled){
   if(app?.element) addActorDirectoryLauncher(app,app.element);
   // A sidebar may have been rendered by a V14 wrapper rather than ui.actors.
   if(!game.user?.isGM&&enabled!==true){
-    globalThis.document?.querySelectorAll?.('[data-agl-launcher]')?.forEach(button=>button.remove());
+    globalThis.document?.querySelectorAll?.('[data-ag-launcher="ashen-gate-profession-ledger"]')?.forEach(button=>button.remove());
   }
 }
 const materialChoices=()=> (game.items?.contents??[]).filter(item=>isMaterialAwardCandidate(item,agSourceId) && classify(item)==='Material' && lookupWorldDefinition(game,agSourceId(item),{entityType:'Material',publicForAll:true,approvedOnly:true}).document===item).sort((a,b)=>a.name.localeCompare(b.name));
@@ -596,34 +596,19 @@ Hooks.once('ready',()=>{
     awardProfessionXP:(actor,profId,amount)=>awardXP(actor,profId,amount),
     getKnownRecipes:(actor)=>{checkPlayerLedger();if(!actor?.testUserPermission?.(game.user,'OBSERVER')&&!game.user.isGM)throw Error('Actor access denied');return knownRecipesOf(actor);},
     inspectProfessionPerkChoices:(actor,profId)=>{checkPlayerLedger();if(!game.user.isGM&&!actor?.testUserPermission?.(game.user,'OBSERVER'))throw Error('Actor access denied');return progressOf(actor,profId);},
-    version:'0.7.1',source:'Actor inventories, Manager tagged Items, and optional Ledger catalog'};
+    version:'0.7.2',source:'Actor inventories, Manager tagged Items, and optional Ledger catalog'};
   Hooks.on('updateActor',()=>{if(current?.rendered&&!current.demo)current.render();});
   Hooks.on('createItem',()=>{if(current?.rendered&&!current.demo)current.render();});
   Hooks.on('updateItem',()=>{if(current?.rendered&&!current.demo)current.render();});
   // Handle Actor Directory already rendered before ready hook ran.
   addActorDirectoryLauncher(globalThis.ui?.actors, globalThis.ui?.actors?.element);
-  console.info(`[${ID}] v0.7.1 ready. Open from the Actors directory, Module Settings or game.modules.get('${ID}').api.open()`);
+  console.info(`[${ID}] v0.7.2 ready. Open from the Actors directory, Module Settings or game.modules.get('${ID}').api.open()`);
 });
 
 /** Open Ledger on the Actors directory for both GM and players; idempotent across renders. */
 function addActorDirectoryLauncher(application, renderedElement){
-  const isActors=application?.tabName==='actors'||application?.constructor?.name==='ActorDirectory';
-  if(!isActors)return;
-  const root=renderedElement?.jquery?renderedElement[0]:(renderedElement?.element??renderedElement??application.element);
-  if(!root?.querySelector)return;
-  if(!canOpenLedger()){root.querySelectorAll?.('[data-agl-launcher]')?.forEach(button=>button.remove());return;}
-  if(root.querySelector('[data-agl-launcher]'))return;
-  const header=root.querySelector('.directory-header .action-buttons')||root.querySelector('.directory-header');
-  if(!header)return;
-  const button=document.createElement('button');button.type='button';button.classList.add('agl-sidebar-launcher');
-  button.dataset.aglLauncher='true';button.dataset.agLauncherRank='10';button.innerHTML='<i class="fa-solid fa-book-open" aria-hidden="true"></i> Profession Ledger';
-  button.title='Open the Ashen Gate Profession Ledger';
-  button.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();try{game.modules.get(ID)?.api?.open();}catch(error){say(error.message,true);}});
-  header.append(button);arrangeLaunchers(header);
+  mountLauncher(launcherRoot(application,renderedElement),{moduleId:ID,label:'Profession Ledger',icon:'fa-solid fa-book-open',
+    onClick:()=>game.modules.get(ID)?.api?.open(),visible:canOpenLedger()});
 }
 Hooks.on('closeApplicationV2',app=>openLedgerWindows.delete(app));
 Hooks.on('renderActorDirectory',(app,el)=>addActorDirectoryLauncher(app,el));
-Hooks.on('renderApplicationV2',(app,el)=>addActorDirectoryLauncher(app,el));
-
-// Sidebar can be mounted later than module ready on Foundry V14.
-Hooks.on('changeSidebarTab',(app)=>{if(app?.tabName==='actors'||app==='actors')addActorDirectoryLauncher(globalThis.ui?.actors,globalThis.ui?.actors?.element);});

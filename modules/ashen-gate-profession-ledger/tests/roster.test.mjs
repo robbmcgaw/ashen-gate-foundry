@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import path from 'node:path';
+import {installDocument,actorsDirectory} from '../../../test-fixtures/mini-dom.mjs';
 const once={}, events={}, settings={}, values={partyRoster:['a','hidden'],libraryData:{schema:'ag-ledger/0.1',recipes:[],materials:[]}};
 const players=[{id:'u1',name:'First Player',isGM:false},{id:'u2',name:'Second Player',isGM:false}];
 const gm={id:'gm',name:'GM',isGM:true};let api,opens=0;
@@ -46,18 +47,16 @@ assert.match(app._roster(),/GM-only/,'roster view refuses players even if forced
 await app._click('roster-save');
 assert.deepEqual(values.partyRoster,['a','hidden'],'player cannot mutate world roster');
 // Actor directory hook registration and idempotent injection, both GM and player.
-let launcher=null;let click;
-const header={append:x=>{launcher=x;}};
-const root={querySelector:selector=>selector==='[data-agl-launcher]'?launcher:header};
-globalThis.document={createElement:()=>({classList:{add:()=>{}},dataset:{},addEventListener:(name,fn)=>{if(name==='click')click=fn;}})};
+installDocument();
+const {root}=actorsDirectory();
 const directory={tabName:'actors'};
 assert.equal(typeof events.renderActorDirectory?.[0],'function');
 events.renderActorDirectory[0](directory,root);
-assert.equal(launcher.dataset.aglLauncher,'true');
-const oldLauncher=launcher;
+const launcher=root.querySelector('[data-ag-launcher="ashen-gate-profession-ledger"]');
+assert.ok(launcher);
 events.renderActorDirectory[0](directory,root);
-assert.equal(launcher,oldLauncher,'no duplicate launchers after re-render');
+assert.equal(root.querySelectorAll('[data-ag-launcher="ashen-gate-profession-ledger"]').length,1,'no duplicate launchers after re-render');
 moduleObj.api.open=()=>{opens++;};
-click({preventDefault:()=>{},stopPropagation:()=>{}});
+launcher.click();
 assert.equal(opens,1,'sidebar button opens Ledger API');
 console.log('PASS GM-managed roster, player-safe selection, visibility badges and sidebar launcher');

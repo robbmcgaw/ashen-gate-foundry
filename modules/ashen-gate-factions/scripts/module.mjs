@@ -1,6 +1,6 @@
 /** Factions & Renown v0.6.0 Beta; Foundry V14 target. No mandatory companion module. */
 import {MODULE_ID,SCHEMA_VERSION,RECOVERED_GUILDS_DRAFT,makeFaction,upgradeFaction,sourceDefinition,validateFaction,blankStanding,adjustStanding,progressFor,milestoneProjection,discoverable,projectedFolders,grantAutoKnowledge,secureEntryPreview,claimEligible,chooseOneEligible,rewardUnlocked,makeGroupRecord,makePersonalRecord,keyFor,overlayCampaign,extractCampaignDiscovery,fieldDisclosure,disclosedField,revealField,FIELD_KEYS} from './core.mjs';
-import {attachActorLauncher} from './sidebar-launcher.mjs';
+import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {addObjectiveRef,removeObjectiveRef,objectiveRefs,auditObjectiveRefs} from './objective-refs.mjs';
 const {ApplicationV2,HandlebarsApplicationMixin}=foundry.applications.api;
 const OBS=CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER,NONE=CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE,OWNER=CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER;
@@ -364,10 +364,12 @@ const openDashboard=()=>{
   dashboard.render({force:true});
   return dashboard;
 };
-function attachLauncher(app,visibility=playerMayOpen()){return attachActorLauncher(app,openDashboard,{visible:visibility});}
+function attachLauncher(app,html,visible=playerMayOpen()){
+  return mountLauncher(launcherRoot(app,html),{moduleId:MODULE_ID,label:'Factions & Renown',icon:'fa-solid fa-shield-halved',onClick:openDashboard,visible});
+}
 // Called after a world setting change and from the GM API. No campaign-state writes.
 async function applyPlayerAccess(enabled=playerAccessEnabled()){
-  attachLauncher(ui.actors,game.user.isGM||enabled);
+  attachLauncher(ui.actors,null,game.user.isGM||enabled);
   if(!game.user.isGM&&!enabled&&dashboard?.rendered){
     try{await dashboard.close({animate:false});}catch(e){console.error(`[${MODULE_ID}] Failed to close player interface`,e);}
   }
@@ -379,9 +381,7 @@ function accessSettingChanged(setting){
   const value=setting.value===true||setting.value==='true';
   void applyPlayerAccess(value);
 }
-Hooks.on('renderActorDirectory',(a,html)=>attachLauncher(html instanceof HTMLElement?html:a));
-Hooks.on('renderActorDirectoryV2',(a,html)=>attachLauncher(html instanceof HTMLElement?html:a));
-Hooks.on('renderSidebarTab',a=>{if(a.tabName==='actors'||a.id==='actors')attachLauncher(a);});
+Hooks.on('renderActorDirectory',(app,html)=>attachLauncher(app,html));
 Hooks.once('init',()=>{
   game.settings.register(MODULE_ID,'groupName',{name:'Group display name',scope:'world',config:false,type:String,default:''});
   game.settings.register(MODULE_ID,'groupNameEnabled',{name:'Custom group name enabled',scope:'world',config:false,type:Boolean,default:false});

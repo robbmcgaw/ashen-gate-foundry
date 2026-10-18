@@ -17,10 +17,8 @@ class FakeElement {
   querySelectorAll(selector){
     const all=this.children.flatMap(c=>[c,...c.querySelectorAll(selector)]);
     if(selector==='.directory-header')return this===sidebar?[this]:[];
-    if(selector==='.agst-open-button'||selector==='button.agst-open-button')return all.filter(el=>el.className.split(' ').includes('agst-open-button'));
-    if(selector==='[data-ag-module-launch="ashen-gate-skill-trees"]')return all.filter(el=>el.dataset.agModuleLaunch==='ashen-gate-skill-trees');
-    if(selector==='[data-ag-sidebar-launchers="actors"]')return all.filter(el=>el.dataset.agSidebarLaunchers==='actors');
-    if(selector===':scope > button[data-ag-launch-order]')return this.children.filter(el=>el.dataset.agLaunchOrder!==undefined);
+    if(selector==='[data-ag-launcher="ashen-gate-skill-trees"]')return all.filter(el=>el.dataset.agLauncher==='ashen-gate-skill-trees');
+    if(selector==='#ashen-gate-launchers')return all.filter(el=>el.id==='ashen-gate-launchers');
     return [];
   }
   prepend(el){this._reparent(el);this.children.unshift(el);el.parentElement=this;}
@@ -32,7 +30,7 @@ class FakeElement {
 }
 globalThis.HTMLElement=FakeElement;
 const sidebar=new FakeElement();
-globalThis.document={createElement:()=>new FakeElement(),querySelectorAll:s=>s==='.agst-open-button'||s==='[data-ag-module-launch="ashen-gate-skill-trees"]'?sidebar.querySelectorAll(s):[]};
+globalThis.document={createElement:()=>new FakeElement(),querySelectorAll:s=>s==='[data-ag-launcher="ashen-gate-skill-trees"]'?sidebar.querySelectorAll(s):[]};
 const defs=new Map(),values=new Map(),once=new Map(),events=new Map();
 const user={id:'gm',isGM:true};
 const MODULE='ashen-gate-skill-trees';
@@ -53,7 +51,7 @@ test('Skill Trees exposes Player Access v1 and retains backwards-compatible acce
   assert.deepEqual(mod.api.playerAccess.getState(),{
     contract:'ag-player-access/1',moduleId:MODULE,audience:'player',playerAccessEnabled:true,configurable:true
   });
-  assert.equal(sidebar.querySelectorAll('.agst-open-button').length,1);
+  assert.equal(sidebar.querySelectorAll('[data-ag-launcher="ashen-gate-skill-trees"]').length,1);
 });
 
 test('GM hide leaves GM UI open and never rewrites tree/Actor progression',async()=>{
@@ -64,14 +62,14 @@ test('GM hide leaves GM UI open and never rewrites tree/Actor progression',async
   const state=await mod.api.playerAccess.setEnabled(false);
   assert.equal(state.playerAccessEnabled,false);
   assert.equal(gmWindow.rendered,true);
-  assert.equal(sidebar.querySelectorAll('.agst-open-button').length,1);
+  assert.equal(sidebar.querySelectorAll('[data-ag-launcher="ashen-gate-skill-trees"]').length,1);
   assert.equal(actor.flags[MODULE].progressV2,progress);
   assert.equal(game.settings.get(MODULE,'publicTreesV2'),publicTrees);
 });
 
 test('hidden player denies open/listTrees/actorProgress, removes launcher, and rejects write bypass',async()=>{
   user.isGM=false;defs.get('playerAccessEnabled').onChange(false);
-  assert.equal(sidebar.querySelectorAll('.agst-open-button').length,0);
+  assert.equal(sidebar.querySelectorAll('[data-ag-launcher="ashen-gate-skill-trees"]').length,0);
   assert.throws(()=>mod.api.open(),/GM has hidden/);
   assert.throws(()=>mod.api.listTrees(),/GM has hidden/);
   assert.throws(()=>mod.api.actorProgress(null,'NO-TREE'),/GM has hidden/);
@@ -83,12 +81,12 @@ test('reveal restores launcher; open player window closes on live hide, and GM s
   await assert.rejects(()=>mod.api.playerAccess.setEnabled('true'),/Boolean/);
   await mod.api.playerAccess.setEnabled(true);
   user.isGM=false;defs.get('playerAccessEnabled').onChange(true);
-  assert.equal(sidebar.querySelectorAll('.agst-open-button').length,1);
+  assert.equal(sidebar.querySelectorAll('[data-ag-launcher="ashen-gate-skill-trees"]').length,1);
   const app=mod.api.open();assert.equal(app.rendered,true);
   values.set('playerAccessEnabled',false);defs.get('playerAccessEnabled').onChange(false);
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(app.closed,true);
-  assert.equal(sidebar.querySelectorAll('.agst-open-button').length,0);
+  assert.equal(sidebar.querySelectorAll('[data-ag-launcher="ashen-gate-skill-trees"]').length,0);
   assert.throws(()=>app.render(),/GM has hidden/);
   await assert.rejects(()=>app._prepareContext({}),/GM has hidden/);
   user.isGM=true;

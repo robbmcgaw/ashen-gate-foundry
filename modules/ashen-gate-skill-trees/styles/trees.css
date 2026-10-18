@@ -27,12 +27,6 @@
 .agst-editor-buttons{display:grid;grid-template-columns:1fr 1fr;gap:6px;border-top:1px solid #4e5964;padding-top:12px}.agst-editor-buttons button{font-size:11px;text-align:left}
 .agst-footer{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:9px 12px;background:#1e252b;border-top:1px solid #515f68}.agst-footer button{font-size:11px;padding:6px 8px}.agst-footer-label{font-size:9px;letter-spacing:.08em;color:#b2bec5;margin-right:5px;font-weight:700}
 .agst-form{display:flex;flex-direction:column;gap:9px;max-height:65vh;overflow:auto}.agst-form label{display:flex;flex-direction:column;gap:4px;font-size:12px}.agst-form input,.agst-form textarea,.agst-form select{width:100%;max-width:100%;padding:7px;line-height:1.35;color:#18222a;background:#f3f1e9;border:1px solid #97999b;border-radius:4px}.agst-preview{max-height:230px;overflow:auto;margin:10px 0;border:1px solid #aaa;padding:10px}
-/* Shared Actors launcher slot: only targets the Ashen Gate shelf, not other Foundry controls. */
-[data-ag-sidebar-launchers="actors"].ag-sidebar-launchers{display:flex;flex-direction:column;width:100%;gap:5px;padding:8px;box-sizing:border-box;grid-column:1/-1}
-[data-ag-sidebar-launchers="actors"] > button[data-ag-launch-order].ag-sidebar-open-button{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:36px;min-height:36px;margin:0;padding:7px 12px;box-sizing:border-box;font:600 13px/1.2 var(--font-primary,sans-serif);text-align:center}
-[data-ag-sidebar-launchers="actors"] > button[data-ag-launch-order].ag-sidebar-open-button > i{flex:0 0 18px;text-align:center}
-[data-ag-sidebar-launchers="actors"] > button[data-ag-launch-order].ag-sidebar-open-button > span{min-width:0;white-space:normal;overflow-wrap:anywhere}
-[data-ag-sidebar-launchers="actors"] > button[data-ag-launch-order]:focus-visible{outline:2px solid var(--ag-focus,#dac390);outline-offset:2px}
 @media(max-width:1100px){.agst-feature-shelf{flex-basis:185px}.agst-inspector{flex-basis:210px}.agst-provider{min-width:80px}}
 @media(max-width:800px){.agst-toolbar{gap:7px}.agst-selects{min-width:220px}.agst-main{flex-wrap:wrap;overflow:auto}.agst-workspace{flex:1 1 100%;min-height:380px;order:1}.agst-inspector{flex:1 1 100%;max-width:none;order:2}.agst-feature-shelf{flex:1 1 100%;max-width:none;order:0;max-height:140px}.agst-node{min-height:68px}}
 
@@ -85,3 +79,9 @@
  .agst-inspector{flex:1 1 100%;max-width:none;order:2}
  .agst-context-row .agst-selects{flex:1 1 100%}
 }
+
+/* Ashen Gate Actors-sidebar launcher group: identical block in every player-facing module. */
+#ashen-gate-launchers.ag-launchers {display:flex;flex-direction:column;gap:4px;flex:0 0 100%;width:100%;grid-column:1/-1;box-sizing:border-box;margin:0 0 6px;padding:0;}
+#ashen-gate-launchers > .ag-launcher {display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:32px;margin:0;padding:4px 10px;box-sizing:border-box;font:600 13px/1.2 var(--font-primary,sans-serif);white-space:normal;text-align:center;cursor:pointer;}
+#ashen-gate-launchers > .ag-launcher > i {flex:0 0 16px;text-align:center;}
+#ashen-gate-launchers > .ag-launcher:focus-visible {outline:2px solid var(--color-border-highlight,#d8b788);outline-offset:1px;}

@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {installDocument,actorsDirectory} from '../../../test-fixtures/mini-dom.mjs';
 
 class FakeApp {
   static DEFAULT_OPTIONS={};
@@ -10,17 +11,11 @@ class FakeApp {
   async _onRender(){}
 }
 const definitions=new Map(),values=new Map(),once=new Map(),events=new Map();
-let moduleAPI,launcher=null;
+let moduleAPI;
 const user={isGM:true,id:'u-gm',name:'GM'};
-const buttonRoot={
-  querySelector:s=>s==='[data-agl-launcher]'?launcher:s==='.directory-header .action-buttons'||s==='.directory-header'?header:null,
-  querySelectorAll:s=>s==='[data-agl-launcher]'?(launcher?[launcher]:[]):[]
-};
-const header={append(button){launcher=button;}};
-globalThis.document={
-  createElement:()=>({dataset:{},classList:{add(){}},addEventListener(){},remove(){launcher=null;}}),
-  querySelectorAll:s=>s==='[data-agl-launcher]'?(launcher?[launcher]:[]):[]
-};
+installDocument();
+const {root:buttonRoot}=actorsDirectory();
+const launcherOf=()=>buttonRoot.querySelector('[data-ag-launcher="ashen-gate-profession-ledger"]');
 globalThis.foundry={applications:{api:{ApplicationV2:FakeApp,HandlebarsApplicationMixin:B=>B,DialogV2:{}}},utils:{escapeHTML:s=>String(s)}};
 globalThis.Hooks={once:(event,fn)=>once.set(event,fn),on:(event,fn)=>{const array=events.get(event)??[];array.push(fn);events.set(event,array);}};
 const module={active:true,id:'ashen-gate-profession-ledger',get api(){return moduleAPI},set api(v){moduleAPI=v}};
@@ -43,7 +38,7 @@ test('DEC-0072 Player Access v1 is module-owned, world-scoped, upgrade-visible a
   assert.deepEqual(moduleAPI.playerAccess.getState(),{
     contract:'ag-player-access/1',moduleId:module.id,audience:'player',playerAccessEnabled:true,configurable:true
   });
-  assert.ok(launcher,'GM sees Actors launcher even if player interface is later hidden');
+  assert.ok(launcherOf(),'GM sees Actors launcher even if player interface is later hidden');
 });
 
 test('GM can hide while retaining GM window, persistent campaign data and private progression',async()=>{
@@ -53,7 +48,7 @@ test('GM can hide while retaining GM window, persistent campaign data and privat
   const result=await moduleAPI.playerAccess.setEnabled(false);
   assert.equal(result.playerAccessEnabled,false);
   assert.equal(window.rendered,true,'GM window stays open');
-  assert.equal(launcher!==null,true,'GM still sees launcher');
+  assert.equal(launcherOf()!==null,true,'GM still sees launcher');
   assert.equal(actor.flags['ashen-gate-profession-ledger'].professionProgress,progress);
   assert.equal(actor.flags['ashen-gate-profession-ledger'].knownRecipes,recipes);
   assert.equal(game.settings.get(module.id,'partyRoster').length,0);
@@ -64,7 +59,7 @@ test('remote hide locks open player UI, removes Actors button and refuses direct
   user.isGM=false;
   // Equivalent of Foundry delivering a saved world setting to a connected client.
   definitions.get('playerAccessEnabled').onChange(false);
-  assert.equal(launcher,null);
+  assert.equal(launcherOf(),null);
   const app=moduleAPI.open;
   assert.throws(()=>app(),/GM has hidden/);
   assert.throws(()=>moduleAPI.getKnownRecipes(null),/GM has hidden/);
@@ -80,13 +75,13 @@ test('revealing on player client restores launcher and open; boolean validation 
   await assert.rejects(()=>moduleAPI.playerAccess.setEnabled('enabled'),/Boolean/);
   await moduleAPI.playerAccess.setEnabled(true);
   user.isGM=false;definitions.get('playerAccessEnabled').onChange(true);
-  assert.ok(launcher,'player launcher restored by onChange without rebuilding sidebar');
+  assert.ok(launcherOf(),'player launcher restored by onChange without rebuilding sidebar');
   const app=moduleAPI.open();assert.ok(app.rendered);
   // A remote GM hide closes the player's already-open window.
   values.set('playerAccessEnabled',false);definitions.get('playerAccessEnabled').onChange(false);
   await new Promise(resolve=>setImmediate(resolve));
   assert.ok(app.closed,'open player window dismissed');
-  assert.equal(launcher,null);
+  assert.equal(launcherOf(),null);
   assert.throws(()=>app.render(),/GM has hidden/,'direct class render must enforce gate');
   await assert.rejects(()=>app._prepareContext({}),/GM has hidden/);
   user.isGM=true;

@@ -1,5 +1,10 @@
 # Factions & Renown change history
 
+## 0.6.3 — 2026-10-18
+
+- Actors sidebar: the launcher button now joins one shared "Ashen Gate" group at the top of the Actors sidebar, with the same style as the other modules' buttons and a fixed order: Profession Ledger, Skill Trees, Quest Log, Factions & Renown, Headquarters, Utilities (#2).
+- Re-rendering the sidebar no longer duplicates the button; Player Access still hides it, and the group disappears when it has no buttons.
+
 ## 0.6.2 — 2026-10-18
 
 - Moved to the `ashen-gate-foundry` repository. No gameplay changes.

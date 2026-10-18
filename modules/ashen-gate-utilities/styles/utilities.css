@@ -38,8 +38,6 @@
 .ag-utilities button:focus-visible,.ag-utilities input:focus-visible,.ag-utilities select:focus-visible,.ag-utilities textarea:focus-visible {outline:2px solid var(--ag-focus, #e4bd7b);outline-offset:2px;}
 .ag-utilities progress {width:100%;height:13px;accent-color:var(--ag-accent, #bea176);}
 .ag-utilities .agu-footer {display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:9px 16px;background:var(--ag-panel, #24282b);border-top:1px solid var(--ag-border, #575851);color:var(--ag-muted, #bec0bb);font-size:12px;}
-.agu-launcher {display:flex;justify-content:center;width:100%;padding:4px 6px;}
-.agu-launcher button {display:block;width:100%;min-height:30px;cursor:pointer;}
 @media(max-width:610px){.ag-utilities .agu-header {flex-wrap:wrap}.ag-utilities .agu-columns{grid-template-columns:1fr}.ag-utilities .agu-main{padding:9px}.ag-utilities .agu-card{padding:10px}.ag-utilities .agu-tabs button{min-width:100px}}
 
 /* v0.2.0 — content-fit controls and two-pane conditions. */
@@ -65,7 +63,10 @@
 .ag-utilities .agu-history p {margin:6px 0;font-size:13px;overflow-wrap:anywhere;}
 .ag-utilities .agu-history small {color:var(--ag-muted,#bec0bb);}
 .ag-utilities .agu-quiet {color:var(--ag-muted,#bec0bb);}
-.ag-sidebar-launcher-group[data-ag-sidebar="actors"] {display:flex;flex-direction:column;gap:5px;width:100%;padding:8px 0;box-sizing:border-box;}
-.ag-sidebar-launcher-group[data-ag-sidebar="actors"] > [data-ag-module="ashen-gate-utilities"] {display:block;width:100%;height:36px;min-height:36px;padding:6px 10px;box-sizing:border-box;cursor:pointer;text-align:center;}
-.ag-sidebar-launcher-group[data-ag-sidebar="actors"] > [data-ag-module="ashen-gate-utilities"]:focus-visible {outline:2px solid var(--ag-focus,#e4bd7b);outline-offset:2px;}
 @media(max-width:750px){.ag-utilities .agu-party-panes{grid-template-columns:1fr}.ag-utilities .agu-compact label{flex:1 1 180px}}
+
+/* Ashen Gate Actors-sidebar launcher group: identical block in every player-facing module. */
+#ashen-gate-launchers.ag-launchers {display:flex;flex-direction:column;gap:4px;flex:0 0 100%;width:100%;grid-column:1/-1;box-sizing:border-box;margin:0 0 6px;padding:0;}
+#ashen-gate-launchers > .ag-launcher {display:flex;align-items:center;justify-content:center;gap:8px;width:100%;min-height:32px;margin:0;padding:4px 10px;box-sizing:border-box;font:600 13px/1.2 var(--font-primary,sans-serif);white-space:normal;text-align:center;cursor:pointer;}
+#ashen-gate-launchers > .ag-launcher > i {flex:0 0 16px;text-align:center;}
+#ashen-gate-launchers > .ag-launcher:focus-visible {outline:2px solid var(--color-border-highlight,#d8b788);outline-offset:1px;}
