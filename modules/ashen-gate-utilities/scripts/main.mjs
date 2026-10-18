@@ -1,4 +1,4 @@
-import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY} from './core.mjs';
+import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus} from './core.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 
 const {ApplicationV2}=foundry.applications.api;
@@ -12,6 +12,7 @@ const isGM=()=>Boolean(game.user?.isGM);
 const permitted=()=>isGM()||game.settings.get(ID,'playerAccessEnabled')===true;
 const getSession=()=>game.settings.get(ID,'activeSession')||{};
 const getHistory=()=>game.settings.get(ID,'history')||[];
+const getResult=()=>{const s=game.settings.get(ID,'lastResult');return s?.schema==='ag-utilities-session/0.1'&&s.status==='completed'?s:null;};
 const activeSession=()=>{const s=getSession();return s?.schema==='ag-utilities-session/0.1'&&s.status==='active'?s:null;};
 const isOwned=(actor,user=game.user)=>Boolean(actor&&(user?.isGM||actor.testUserPermission?.(user,'OWNER')));
 const allCharacters=()=>[...game.actors].filter(a=>a.type==='character').sort((a,b)=>a.name.localeCompare(b.name));
@@ -41,8 +42,17 @@ async function storeSession(s){
    // Archive before clearing so a write failure cannot silently lose the concluded record.
    const history=[s,...getHistory().filter(x=>x.id!==s.id)].slice(0,MAX_HISTORY);
    await game.settings.set(ID,'history',history);
+   // A finished check stays on screen for everyone until the GM clears it (or starts the next one).
+   await game.settings.set(ID,'lastResult',s.status==='completed'?{...s,audit:[],slots:s.slots.map(x=>({...x,proofMessageId:null,userId:null}))}:{});
    await game.settings.set(ID,'activeSession',{});
  } finally {saving=false;}
+ if(s.status==='completed'&&s.kind==='group')await postTally(s);
+}
+/** GM-only chat summary of a finished Group Check. A chat failure never loses the stored result. */
+async function postTally(s){
+ try{
+  await ChatMessage.create({content:tallyHTML(s,{actorName:id=>game.actors.get(id)?.name??'Unavailable Actor',skillLabel:skillName}),whisper:[...game.users].filter(u=>u.isGM).map(u=>u.id),speaker:ChatMessage.getSpeaker?.()??{}});
+ }catch(e){console.warn(`[${ID}] Could not post the Group Check tally`,e);}
 }
 function authorOf(message){return message.author??(typeof message.user==='string'?game.users.get(message.user):message.user);}
 function coordinatorIsMe(){return [...game.users].filter(u=>u.active&&u.isGM).sort((a,b)=>a.id.localeCompare(b.id))[0]?.id===game.user.id;}
@@ -79,47 +89,89 @@ function createPanel(kind){if(!isGM())return '';
  <div class="agu-actions">${btn('start',group?'Start Group Check':'Send Roll Request',{kind:'primary'})}</div></section>`;
 }
 function slotText(slot,kind){return slot.status==='accepted'?`${slot.total} · ${labelSkill(slot.skill)}`:slot.status==='skipped'?'Skipped':'Waiting';}
+const modeLabels={'0':'Normal','1':'Advantage','-1':'Disadvantage'};
+const modeHint=m=>m.sources.length?`Preset from ${m.sources.join('; ')}. You can change it.`:'No advantage or disadvantage found on the sheet or effects. You can still choose one.';
+const bonusText=(actor,skill)=>formatBonus(skillBonus(actor,skill));
+function checkBar(slots){
+ const done=slots.filter(x=>x.status!=='pending').length;
+ return `<div class="ag-checkbar" role="progressbar" aria-valuemin="0" aria-valuemax="${slots.length}" aria-valuenow="${done}" aria-label="Rolls resolved">${slots.map(x=>`<span class="ag-checkbar-seg ${E(x.status)}"></span>`).join('')}</div>`;
+}
+function verdictOf(s,sm){return s.dc===null?'Recorded':sm.result==='success'?'Success':sm.result==='failure'?'Failure':'No Result';}
+function resultView(kind,res){
+ const projected=projectSession(res,{userId:game.user.id,isGM:isGM(),ownedActorIds:ownedIds()}),sm=summary(projected);
+ const verdict=kind==='group'?verdictOf(res,sm):'Responses';
+ const cls=verdict==='Success'?'success':verdict==='Failure'?'failure':'';
+ const rows=projected.actors.map(id=>{
+  const cells=projected.slots.filter(x=>x.actorId===id).map(sl=>{
+   const text=sl.status==='accepted'?(sl.total===null?'Roll hidden':`${labelSkill(sl.skill)} ${sl.total}${kind==='request'&&res.dc!==null?` · ${sl.total>=res.dc?'Success':'Failure'}`:''}`):sl.status==='skipped'?'Skipped':'No roll';
+   return `<span class="ag-badge agu-pill ${E(sl.status)}">${E(text)}</span>`;
+  }).join('');
+  return `<div class="agu-participant"><strong>${E(game.actors.get(id)?.name||'Unavailable Actor')}</strong><div class="agu-contributions">${cells}</div></div>`;
+ }).join('');
+ const avg=kind==='group'&&sm.average!==null?`<div class="ag-result-score"><span class="ag-result-num">${E(sm.average.toFixed(1))}</span><span class="ag-result-vs">average${res.dc===null?'':` vs DC ${E(res.dc)}`}</span></div>`:'';
+ return `<section class="agu-card ag-card ag-result ${cls}"><div class="agu-line"><h2>${E(res.name)}</h2><span class="ag-badge agu-pill">${E(sessionKind(res))} · finished</span></div><div class="ag-result-verdict">${E(verdict)}</div>${avg}${rows}${isGM()?`<div class="agu-actions">${btn('clear-result','Clear Result',{kind:'primary ag-btn'})}</div><p class="agu-note">Everyone sees this result until you clear it or start the next check.</p>`:''}</section>`;
+}
 function sessionView(session,kind,app){
  if(session.kind!==kind)return `<section class="ag-card agu-card agu-quiet"><h2>${kind==='group'?'No Group Check active':'No Roll Request active'}</h2><p>A ${sessionKind(session)} is currently active in its own tab.</p>${isGM()?'Finish or cancel it there before starting another interaction.':'Switch tabs to respond to the current request.'}</section>`;
  const projected=projectSession(session,{userId:game.user.id,isGM:isGM(),ownedActorIds:ownedIds()});
  const sum=summary(projected),pending=projected.slots.filter(x=>x.status==='pending'&&isOwned(game.actors.get(x.actorId)));
  const actorIds=[...new Set(pending.map(x=>x.actorId))];
  const selected=actorIds.includes(app.rollActorId)?app.rollActorId:actorIds[0];
+ const selectedActor=game.actors.get(selected);
  const acceptedSkill=new Set(projected.slots.filter(x=>x.actorId===selected&&x.status==='accepted').map(x=>x.skill));
  const skills=session.skills.filter(s=>!acceptedSkill.has(s));
  const headline=session.kind==='group'?'Team progress':'Responses';
  const rows=projected.actors.map(id=>{
   const actor=game.actors.get(id),slots=projected.slots.filter(x=>x.actorId===id);
   const cells=slots.map(s=>`<span class="ag-badge agu-pill ${E(s.status)}">${E(slotText(s,session.kind))}</span>`).join('');
-  return `<div class="agu-participant"><strong>${E(actor?.name||'Unavailable Actor')}</strong><div class="agu-contributions">${cells}</div>${isGM()&&slots.some(x=>x.status==='pending')?btn('skip','Skip One',{attrs:`data-actor="${E(id)}"`}):''}</div>`;
+  const bonuses=isGM()&&actor&&slots.some(x=>x.status==='pending')?`<small class="agu-bonuses">${session.skills.map(k=>`${E(skillName(k))} ${E(bonusText(actor,k))}`).join(' · ')}</small>`:'';
+  return `<div class="agu-participant"><div class="agu-who"><strong>${E(actor?.name||'Unavailable Actor')}</strong>${bonuses}</div><div class="agu-contributions">${cells}</div>${isGM()&&slots.some(x=>x.status==='pending')?btn('skip','Skip One',{attrs:`data-actor="${E(id)}"`}):''}</div>`;
  }).join('');
- const rollForm=actorIds.length?`<section class="agu-action-panel"><h3>Your roll is requested</h3><p class="agu-note">${E(session.name)} · ${session.kind==='group'?'Choose one of the allowed skills.':'Roll the requested skill.'}</p><div class="agu-compact"><label>Character<select id="agu-roll-actor">${actorIds.map(id=>option(id,game.actors.get(id)?.name??'Unavailable',selected)).join('')}</select></label><label>Skill<select id="agu-roll-skill">${skills.map(x=>option(x,skillName(x),x)).join('')}</select></label></div>${btn('roll','Roll Now',{kind:'primary agu-roll-large',disabled:!skills.length})}</section>`:'';
+ const preset=selectedActor&&skills[0]?skillRollMode(selectedActor,skills[0]):{mode:0,sources:[]};
+ const skillOptions=skills.map(x=>option(x,`${skillName(x)} (${bonusText(selectedActor,x)})`,x)).join('');
+ const rollForm=actorIds.length?`<section class="agu-action-panel"><h3>Your roll is requested</h3><p class="agu-note">${E(session.name)} · ${session.kind==='group'?'Choose one of the allowed skills.':'Roll the requested skill.'}</p><div class="agu-compact"><label>Character<select id="agu-roll-actor">${actorIds.map(id=>option(id,game.actors.get(id)?.name??'Unavailable',selected)).join('')}</select></label><label>Skill (bonus)<select id="agu-roll-skill">${skillOptions}</select></label><label>Roll<select id="agu-roll-mode">${['0','1','-1'].map(m=>option(m,modeLabels[m],String(preset.mode))).join('')}</select></label></div><p class="agu-note" id="agu-mode-hint">${E(modeHint(preset))}</p>${btn('roll','Roll Now',{kind:'primary ag-btn agu-roll-large',disabled:!skills.length})}</section>`:'';
  return `<section class="ag-card agu-card"><div class="agu-line"><h2>${E(session.name)}</h2><span class="ag-badge ag-badge--accent agu-pill">${E(sessionKind(session))}</span></div>
- <p class="agu-note">${session.kind==='group'?`DC ${E(session.dc??'none')} · ${session.rollsPerActor} per character · unique skills`:`Public ${E(skillName(session.skills[0]))} request · ${session.dc===null?'No DC':`DC ${E(session.dc)}`}`}</p>
- <div class="agu-line"><strong>${E(headline)}</strong><strong>${sum.accepted+sum.skipped}/${sum.totalSlots} resolved</strong></div>
- <progress max="${sum.totalSlots}" value="${sum.accepted+sum.skipped}"></progress>
- ${isGM()?`<p class="agu-note">${session.kind==='group'?`Average ${sum.average===null?'—':sum.average.toFixed(1)}`:`${sum.accepted} responses accepted`}</p>`:''}
+ <p class="agu-note agu-big">${session.kind==='group'?`DC ${E(session.dc??'none')} · ${session.rollsPerActor} per character · unique skills`:`Public ${E(skillName(session.skills[0]))} request · ${session.dc===null?'No DC':`DC ${E(session.dc)}`}`}</p>
+ <div class="agu-line agu-big"><strong>${E(headline)}</strong><strong>${sum.accepted+sum.skipped}/${sum.totalSlots} resolved</strong></div>
+ ${checkBar(projected.slots)}
+ ${isGM()?`<p class="agu-note agu-big">${session.kind==='group'?`Average ${sum.average===null?'—':sum.average.toFixed(1)}`:`${sum.accepted} responses accepted`}</p>`:''}
  ${isGM()?rows+rollForm:rollForm+`<p class="agu-note">${sum.pending} contribution(s) still pending.</p>`}
- ${isGM()?`<div class="agu-actions">${btn('resolve','End & Record',{kind:'primary'})}${btn('cancel','Cancel Session',{kind:'danger'})}</div>`:''}
+ ${isGM()?`<div class="agu-actions">${btn('resolve','End & Record',{kind:'primary ag-btn'})}${btn('cancel','Cancel Session',{kind:'danger ag-btn'})}</div>`:''}
  </section>`;
 }
-function interactionView(kind,app){const active=activeSession();return (active?sessionView(active,kind,app):isGM()?empty(kind==='group'?'No Group Check active. Create one below.':'No Roll Request active. Send one below.'):empty('No active roll request for your character.'))+createPanel(kind);}
+function interactionView(kind,app){const active=activeSession(),res=getResult();
+ const idle=res&&res.kind===kind?resultView(kind,res):isGM()?empty(kind==='group'?'No Group Check active. Create one below.':'No Roll Request active. Send one below.'):empty('No active roll request for your character.');
+ return (active?sessionView(active,kind,app):idle)+createPanel(kind);}
 function stashActor(){return game.actors.find(a=>a.getFlag(ID,'partyStash')===true);}
 function inventoryView(){if(!isGM())return `<section class="ag-card agu-card"><h2>Party Inventory</h2>${empty('The v0.2.0 Alpha stash is GM-only regardless of Observer permission. Player transfers and unidentified item sharing are not enabled.')}</section>`;
  const stash=stashActor(),items=stash?[...stash.items].map(it=>`<div class="agu-participant"><strong>${E(it.name)}</strong><span>Qty ${E(it.system?.quantity??1)}</span></div>`).join(''):'';
  return `<section class="ag-card agu-card"><h2>Party Inventory · GM Preview</h2><p class="agu-note">The stash is a native NPC Actor with default ownership None. Even if players gain Observer permission, Utilities does not publish its contents or transfer controls in this Alpha.</p>${stash?`<p>Stash: <strong>${E(stash.name)}</strong></p>${items||empty('Stash empty.')}${btn('open-stash','Open Native Stash Sheet')}`:empty('No Utilities stash yet.')+btn('create-stash','Create GM-only Party Stash',{kind:'primary'})}</section>`;
 }
-const safeTextResult=r=>{const type=r?.type,textType=globalThis.CONST?.TABLE_RESULT_TYPES?.TEXT;return (type===0||type==='text'||(textType!==undefined&&type===textType))&&!r?.documentCollection&&!r?.documentId;};
+async function openUuid(uuid){const doc=await fromUuid(uuid);if(!doc?.sheet)throw Error('That document could not be found or has no sheet.');doc.sheet.render(true);}
 function tableView(app){if(!isGM())return empty('Only the GM can roll and distribute RollTable messages.');
  const tables=[...game.tables].sort((a,b)=>a.name.localeCompare(b.name));
  const recipients=[...game.users].filter(u=>!u.isGM).map(u=>`<label class="agu-inline"><input type="checkbox" name="agu-recipient" value="${E(u.id)}">${E(u.name)}</label>`).join('');
- return `<section class="ag-card agu-card"><h2>RollTable Messenger</h2><p class="agu-note">Text-only RollTables are supported. Any table containing document/compendium results is rejected before rolling.</p><label>Foundry RollTable<select id="agu-table">${tables.map(t=>option(t.id,t.name,t.id)).join('')}</select></label><div class="agu-actions">${btn('table-roll','Roll Privately',{disabled:!tables.length})}</div><label>Outgoing message<textarea id="agu-table-message" rows="3">${E(app.tableDraft)}</textarea></label><fieldset><legend>Recipients (none = public to all)</legend><div class="agu-choices">${recipients||empty('No players connected.')}</div></fieldset><label class="agu-inline"><input type="checkbox" id="agu-table-auto" ${app.tableAuto?'checked':''}>Auto-Send safe text results</label><div class="agu-actions">${btn('table-send','Send Message',{kind:'primary',disabled:!app.tableDraft.trim()})}</div></section>`;
+ return `<section class="ag-card agu-card"><h2>RollTable Messenger</h2><p class="agu-note">Rolls with Foundry's own RollTable draw. Text, document and compendium results are supported; documents are linked in the message.</p><label>Foundry RollTable<select id="agu-table">${tables.map(t=>option(t.id,t.name,t.id)).join('')}</select></label><div class="agu-actions">${btn('table-roll','Roll Privately',{disabled:!tables.length})}</div><label>Outgoing message<textarea id="agu-table-message" rows="3">${E(app.tableDraft)}</textarea></label><fieldset><legend>Recipients (none = public to all)</legend><div class="agu-choices">${recipients||empty('No players connected.')}</div></fieldset><label class="agu-inline"><input type="checkbox" id="agu-table-auto" ${app.tableAuto?'checked':''}>Auto-Send drawn results</label><div class="agu-actions">${btn('table-send','Send Message',{kind:'primary',disabled:!app.tableDraft.trim()})}</div></section>${drawPanel(app)}`;
 }
+function drawPanel(app){const d=app.lastDraw;if(!d?.length)return '';
+ return `<section class="ag-card agu-card"><h3>Last draw</h3>${d.map(r=>r.kind==='document'?`<div class="agu-participant"><span class="agu-status-title">${r.img?`<img class="agu-status-icon" src="${E(r.img)}" alt="">`:''}<strong>${E(r.label)}</strong><span class="ag-badge agu-pill">Document</span></span>${btn('open-uuid','Open',{attrs:`data-open-uuid="${E(r.uuid)}"`})}</div>`:`<div class="agu-participant"><span>${E(r.label)}</span></div>`).join('')}</section>`;}
 function conditionIcon(id){const cfg=statusConfig(id),img=cfg?.img??cfg?.icon;return typeof img==='string'&&img&&!/^\s*javascript:/i.test(img)?`<img class="agu-status-icon" src="${E(img)}" alt="">`:'';}
+function statusSourceLine(actor,id){
+ const sources=resolveStatusSources(actor,id);
+ if(!sources.length)return `<small class="agu-source">No active effect found for this status; it may come from the system or another module.</small>`;
+ return sources.map(x=>{
+  let origin='';
+  if(x.origin){let doc=null;try{doc=fromUuidSync(x.origin);}catch{}
+   origin=` · from ${doc?.name?`<a class="agu-link" data-open-uuid="${E(x.origin)}" href="#" role="button">${E(doc.name)}</a>`:E(x.parentName||'unknown source')}`;}
+  else if(x.parentName&&!x.onActor)origin=` · from ${E(x.parentName)}`;
+  return `<small class="agu-source">Effect: <strong>${E(x.name)}</strong>${origin}${x.onActor?'':' (item effect: Remove disables it)'}${x.disabled?' (disabled)':''}</small>`;
+ }).join('');
+}
 function conditionsView(app){const characters=isGM()?allCharacters():permittedActors();const actor=characters.find(a=>a.id===app.actorId)||characters[0];const statuses=actor?[...(actor.statuses||[])]:[],known=CONFIG.statusEffects||[];
  const roster=characters.map(a=>`<button type="button" data-condition-actor="${E(a.id)}" class="agu-roster-row ${actor?.id===a.id?'active':''}"><span>${E(a.name)}</span><span class="agu-roster-status">${[...(a.statuses||[])].map(s=>conditionIcon(s)+`<span title="${E(statusName(s))}">${E(statusName(s))}</span>`).join('')||'No conditions'}</span></button>`).join('');
- const details=statuses.length?statuses.map(id=>`<div class="agu-participant"><span class="agu-status-title">${conditionIcon(id)}${E(statusName(id))}</span>${isGM()?btn('remove-status','Remove',{attrs:`data-status="${E(id)}"`}) :''}</div>`).join(''):empty('No conditions on this character.');
- return `<section class="ag-card agu-card"><h2>Party Conditions</h2><div class="agu-party-panes"><section><h3>${isGM()?'All Characters':'Your Characters'}</h3>${roster||empty('No accessible characters.')}</section><section><h3>${E(actor?.name||'Select a character')}</h3>${details}${isGM()&&actor?`<div class="agu-compact"><label>Native condition<select id="agu-condition-status">${known.map(x=>option(x.id,statusName(x.id),x.id)).join('')}</select></label>${btn('add-status','Apply',{kind:'primary'})}</div>`:''}</section></div><p class="agu-note">Native Foundry statuses only. Automatic duration, exhaustion and concentration management remain outside this Alpha.</p></section>`;
+ const details=statuses.length?statuses.map(id=>{const unknown=!statusConfig(id);
+  return `<div class="agu-participant"><div class="agu-who"><span class="agu-status-title">${conditionIcon(id)}${E(statusName(id))}${unknown?'<span class="ag-badge agu-pill" title="Not a native Foundry status">Custom</span>':''}</span>${unknown&&actor?statusSourceLine(actor,id):''}</div>${isGM()?btn('remove-status','Remove',{attrs:`data-status="${E(id)}"`}):''}</div>`;}).join(''):empty('No conditions on this character.');
+ return `<section class="ag-card agu-card"><h2>Party Conditions</h2><div class="agu-party-panes"><section><h3>${isGM()?'All Characters':'Your Characters'}</h3>${roster||empty('No accessible characters.')}</section><section><h3>${E(actor?.name||'Select a character')}</h3>${details}${isGM()&&actor?`<div class="agu-compact"><label>Native condition<select id="agu-condition-status">${known.map(x=>option(x.id,statusName(x.id),x.id)).join('')}</select></label>${btn('add-status','Apply',{kind:'primary'})}</div>`:''}</section></div><p class="agu-note">Statuses Foundry does not list (shown as Custom) are traced to the effect that grants them. The GM can always remove them. Automatic duration, exhaustion and concentration management remain outside this Alpha.</p></section>`;
 }
 function historyView(app){if(!isGM())return empty('History is GM-only.');
  const history=getHistory();return `<section class="ag-card agu-card"><h2>Completed & Cancelled Checks</h2>${history.length?history.map(s=>{
@@ -131,7 +183,7 @@ function historyView(app){if(!isGM())return empty('History is GM-only.');
 function setupView(){return `<section class="ag-card agu-card"><h2>GM Setup</h2><label class="agu-inline"><input id="agu-access" type="checkbox" ${game.settings.get(ID,'playerAccessEnabled')?'checked':''}>Enable Player Access</label><p class="agu-note">This controls the player-facing Utilities launcher, not native Actor ownership.</p><div class="agu-actions">${btn('save-access','Save Player Access',{kind:'primary'})}</div></section>`;}
 class UtilitiesApp extends ApplicationV2 {
  static DEFAULT_OPTIONS={id:'ashen-gate-utilities-window',classes:['ag-app','ag-utilities'],window:{title:'Ashen Gate | Utilities',resizable:true,minimizable:true},position:{width:900,height:690}};
- constructor(...args){super(...args);this.tab='checks';this.actorId='';this.rollActorId='';this.tableDraft='';this.tableAuto=false;}
+ constructor(...args){super(...args);this.tab='checks';this.actorId='';this.rollActorId='';this.tableDraft='';this.tableAuto=false;this.lastDraw=[];}
  async _renderHTML(){if(!permitted())throw Error('Utilities is hidden for players.');const tabs=[['checks','Group Checks'],['rolls','Roll Requests'],['inventory','Party Inventory'],['tables','Roll Tables'],['conditions','Conditions'],...(isGM()?[['history','History'],['setup','GM Setup']]:[])];
   const body=this.tab==='checks'?interactionView('group',this):this.tab==='rolls'?interactionView('request',this):this.tab==='inventory'?inventoryView():this.tab==='tables'?tableView(this):this.tab==='conditions'?conditionsView(this):this.tab==='history'&&isGM()?historyView(this):this.tab==='setup'&&isGM()?setupView():empty('Unavailable view.');
   return `<div class="agu-root"><header class="ag-header agu-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Utilities</h1><p>Group challenges, individual requests and party utilities</p></div><div class="ag-header__meta">${appearanceOpener()?`<button type="button" class="ag-btn ag-btn--ghost" data-open-appearance title="Choose your Ashen Gate appearance"><i class="fa-solid fa-palette" aria-hidden="true"></i>Appearance</button>`:''}<span class="agu-version">v${VERSION} Alpha · ${isGM()?'GM':'Player'}</span></div></header><nav class="ag-tabs agu-tabs" aria-label="Utility sections">${tabs.map(([id,label])=>`<button type="button" data-tab="${id}" aria-current="${this.tab===id?'page':'false'}" class="${this.tab===id?'active':''}">${E(label)}</button>`).join('')}</nav><main class="agu-main">${body}</main><footer class="ag-footer agu-footer"><span>Foundry V14 · dnd5e 6.0.6 target · live acceptance pending</span><span>${this.tab==='inventory'?'Stash transfers: not enabled':'Native permissions apply'}</span></footer></div>`;
@@ -143,7 +195,9 @@ class UtilitiesApp extends ApplicationV2 {
   for(const el of root.querySelectorAll('[data-tab]'))el.addEventListener('click',async()=>{this.tab=el.dataset.tab;await this.render();});
   root.querySelector('[data-open-appearance]')?.addEventListener('click',()=>{const open=appearanceOpener();if(!open)return ui.notifications?.warn('General Manager is not active, so there are no appearance settings to open.');Promise.resolve(open()).catch(error);});
   for(const b of root.querySelectorAll('[data-condition-actor]'))b.addEventListener('click',async()=>{this.actorId=b.dataset.conditionActor;await this.render();});
-  root.querySelector('#agu-roll-actor')?.addEventListener('change',e=>{this.rollActorId=e.target.value;const session=activeSession(),used=new Set((session?.slots||[]).filter(s=>s.actorId===this.rollActorId&&s.status==='accepted').map(s=>s.skill));const choices=session?.skills.filter(s=>!used.has(s))||[];root.querySelector('#agu-roll-skill').innerHTML=choices.map(x=>option(x,skillName(x),x)).join('');});
+  root.querySelector('#agu-roll-actor')?.addEventListener('change',e=>{this.rollActorId=e.target.value;this.render().catch(error);});
+  root.querySelector('#agu-roll-skill')?.addEventListener('change',e=>{const actor=game.actors.get(root.querySelector('#agu-roll-actor')?.value),m=actor?skillRollMode(actor,e.target.value):{mode:0,sources:[]};const sel=root.querySelector('#agu-roll-mode');if(sel)sel.value=String(m.mode);const hint=root.querySelector('#agu-mode-hint');if(hint)hint.textContent=modeHint(m);});
+  for(const b of root.querySelectorAll('[data-open-uuid]'))b.addEventListener('click',ev=>{ev.preventDefault();openUuid(b.dataset.openUuid).catch(error);});
   root.querySelector('#agu-table-message')?.addEventListener('input',e=>{this.tableDraft=e.target.value;const b=root.querySelector('[data-action="table-send"]');if(b)b.disabled=!this.tableDraft.trim();});
   root.querySelector('#agu-table-auto')?.addEventListener('change',e=>{this.tableAuto=e.target.checked;});
   for(const b of root.querySelectorAll('[data-action]'))b.addEventListener('click',()=>this.handle(b.dataset.action,b,root).catch(error));
@@ -153,10 +207,11 @@ class UtilitiesApp extends ApplicationV2 {
    if(!isGM())throw Error('GM only.');const actors=[...root.querySelectorAll('input[name="agu-participant"]:checked')].map(x=>x.value),kind=this.tab==='rolls'?'request':'group';const skills=kind==='group'?[...root.querySelectorAll('input[name="agu-skill"]:checked')].map(x=>x.value):[root.querySelector('#agu-request-skill')?.value];const dcText=root.querySelector('#agu-dc')?.value;
    if(activeSession())throw Error('Resolve or cancel the active interaction first.');
    const session=createSession({id:crypto.randomUUID(),kind,name:root.querySelector('#agu-title')?.value,actors,skills,rollsPerActor:kind==='group'?Number(root.querySelector('#agu-roll-count')?.value):1,dc:dcText===''?null:Number(dcText),visibility:'public',createdBy:game.user.id});
-   await queueSession(async()=>{if(activeSession())throw Error('An active interaction already exists.');await storeSession(session);});
+   await queueSession(async()=>{if(activeSession())throw Error('An active interaction already exists.');if(getResult())await game.settings.set(ID,'lastResult',{});await storeSession(session);});
    ui.notifications.info(`${sessionKind(session)} sent to selected players.`);return;
   }
   if(action==='roll'){await rollFromActor(root);return;}
+  if(action==='clear-result'){if(!isGM())throw Error('GM only.');await game.settings.set(ID,'lastResult',{});return;}
   if(action==='skip'||action==='resolve'||action==='cancel'){
    if(!isGM())throw Error('GM only.');const session=activeSession();if(!session)throw Error('No active check.');
    const msg=action==='skip'?`Skip one contribution for ${game.actors.get(b.dataset.actor)?.name||'the character'}?`:action==='resolve'?'End now? All remaining contributions will be marked Skipped and the result saved to History.':'Cancel this interaction and save it in History?';
@@ -173,18 +228,25 @@ class UtilitiesApp extends ApplicationV2 {
   if(action==='open-stash'){if(!isGM())throw Error('GM only.');stashActor()?.sheet?.render(true);return;}
   if(action==='table-roll'){
    if(!isGM())throw Error('GM only.');const table=game.tables.get(root.querySelector('#agu-table')?.value);if(!table)throw Error('Choose a native RollTable.');
-   if([...table.results].some(x=>!safeTextResult(x)))throw Error('This table includes document/compendium results and cannot be rolled by Utilities in this Alpha. Use a text-only table.');
-   const rolled=await table.roll();const results=rolled?.results||[];
-   if(!results.length||results.some(x=>!safeTextResult(x)))throw Error('No safe text-only results available.');
-   this.tableDraft=results.map(x=>String(x.text||'')).join('\n').slice(0,3000);
+   if(typeof table.draw!=='function')throw Error('This Foundry version has no RollTable draw.');
+   // Foundry's own draw handles formulas, ranges, replacement and drawn-state; we only present the results.
+   const drawn=await table.draw({displayChat:false});const results=(drawn?.results||[]).map(describeTableResult);
+   if(!results.length)throw Error('The table returned no results. It may be empty or fully drawn without replacement.');
+   this.lastDraw=results;
+   this.tableDraft=results.map(x=>x.chat).filter(Boolean).join('\n').slice(0,3000);
    if(!this.tableDraft.trim())throw Error('RollTable returned no text.');
-   if(this.tableAuto){await sendMessage(this.tableDraft,root);this.tableDraft='';ui.notifications.info('Safe RollTable text sent.');}
+   if(this.tableAuto){await sendMessage(this.tableDraft,root);this.tableDraft='';ui.notifications.info('RollTable result sent.');}
    await this.render();return;
   }
   if(action==='table-send'){if(!isGM())throw Error('GM only.');await sendMessage(root.querySelector('#agu-table-message')?.value||'',root);this.tableDraft='';await this.render();return;}
   if(action==='add-status'||action==='remove-status'){
    if(!isGM())throw Error('GM only.');const actor=game.actors.get(this.actorId)||allCharacters()[0];if(!actor)throw Error('Select a character.');const id=action==='add-status'?root.querySelector('#agu-condition-status')?.value:b.dataset.status;
-   if(!CONFIG.statusEffects.some(x=>x.id===id))throw Error('Unknown native status.');await actor.toggleStatusEffect(id,{active:action==='add-status'});await this.render();return;
+   if(action==='add-status'&&!CONFIG.statusEffects.some(x=>x.id===id))throw Error('Unknown native status.');
+   if(action==='remove-status'&&!CONFIG.statusEffects.some(x=>x.id===id)){
+    if(!confirm(`Remove "${statusName(id)}" from ${actor.name}? It is not a native status, so its source effect will be removed.`))return;
+    const r=await removeUnknownStatus(actor,id);ui.notifications.info(r.disabled?`Disabled ${r.disabled} item effect(s) and deleted ${r.deleted} on ${actor.name}.`:`Removed "${statusName(id)}" from ${actor.name}.`);await this.render();return;
+   }
+   await actor.toggleStatusEffect(id,{active:action==='add-status'});await this.render();return;
   }
   if(action==='save-access'){if(!isGM())throw Error('GM only.');await game.settings.set(ID,'playerAccessEnabled',Boolean(root.querySelector('#agu-access')?.checked));ui.notifications.info('Player Access saved.');return;}
  }finally{b.disabled=false;}}
@@ -201,7 +263,8 @@ async function rollFromActor(root){
  if(typeof actor.rollSkill!=='function')throw Error('Native dnd5e rollSkill is unavailable.');
  activeRoll=true;let proof=null;const observe=msg=>{if(authorOf(msg)?.id===game.user.id&&msg.speaker?.actor===actor.id&&msg.rolls?.length&&!proof)proof=msg;};Hooks.on('createChatMessage',observe);
  try{
-  const result=await actor.rollSkill({skill});if(result===false||!result)throw Error('Native roll cancelled.');if(!proof)await new Promise(resolve=>setTimeout(resolve,350));
+  const mode=Number(root.querySelector('#agu-roll-mode')?.value)||0;
+  const result=await actor.rollSkill({skill,advantage:mode>0,disadvantage:mode<0});if(result===false||!result)throw Error('Native roll cancelled.');if(!proof)await new Promise(resolve=>setTimeout(resolve,350));
   if(!proof)throw Error('Native roll appeared without verifiable chat evidence. No contribution was counted.');const total=Number(proof.rolls[0]?.total);if(!Number.isFinite(total))throw Error('Native roll total unavailable.');
   const msg=await ChatMessage.create({content:`Roll submitted: ${E(actor.name)} · ${E(skillName(skill))} · ${E(total)} (awaiting GM verification).`,speaker:ChatMessage.getSpeaker({actor}),whisper:[...new Set([...game.users.filter(u=>u.isGM).map(u=>u.id),game.user.id])],flags:{[ID]:{submission:{contract:'ag-utility-roll/0.1',sessionId:s.id,actorId:actor.id,skill,total,proofMessageId:proof.id}}}});
   if(!msg)throw Error('No submission message created.');ui.notifications.info('Roll submitted; awaiting GM acceptance.');
@@ -232,6 +295,7 @@ Hooks.once('init',()=>{
  game.settings.register(ID,'playerAccessEnabled',{name:'Utilities: Player Access',hint:'New module player launcher starts Hidden until enabled by GM.',scope:'world',config:true,type:Boolean,default:false,onChange:refreshWindows});
  game.settings.register(ID,'activeSession',{name:'Utilities: Active Interaction',scope:'world',config:false,type:Object,default:{},onChange:sessionChanged});
  game.settings.register(ID,'history',{name:'Utilities: Interaction History',scope:'world',config:false,type:Array,default:[],onChange:refreshWindows});
+ game.settings.register(ID,'lastResult',{name:'Utilities: Last Finished Check',scope:'world',config:false,type:Object,default:{},onChange:refreshWindows});
 });
 Hooks.once('ready',()=>{
  const m=game.modules.get(ID);
