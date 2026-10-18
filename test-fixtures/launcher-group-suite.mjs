@@ -1,7 +1,7 @@
 /**
  * Shared tests for the Ashen Gate Actors launcher group (ag-launchers.mjs). Each
  * player-facing module runs this suite against its own copy of the helper; the copies
- * are identical (scripts/check.mjs), so one copy standing in for all six modules is
+ * are identical (scripts/check.mjs), so one copy standing in for all of them is
  * the same code Foundry runs. Proves DOM logic only, not live Foundry rendering.
  */
 import test from 'node:test';
@@ -9,10 +9,10 @@ import assert from 'node:assert/strict';
 import {installDocument,actorsDirectory} from './mini-dom.mjs';
 
 const EXPECTED=['ashen-gate-profession-ledger','ashen-gate-skill-trees','ashen-gate-quest-manager',
-  'ashen-gate-factions','ashen-gate-headquarters','ashen-gate-utilities'];
+  'ashen-gate-factions','ashen-gate-headquarters','ashen-gate-locations','ashen-gate-utilities'];
 const LABELS={'ashen-gate-profession-ledger':'Profession Ledger','ashen-gate-skill-trees':'Skill Trees',
   'ashen-gate-quest-manager':'Quest Log','ashen-gate-factions':'Factions & Renown',
-  'ashen-gate-headquarters':'Headquarters','ashen-gate-utilities':'Utilities'};
+  'ashen-gate-headquarters':'Headquarters','ashen-gate-locations':'Locations','ashen-gate-utilities':'Utilities'};
 
 function permutations(list){
   if(list.length<=1)return [list];
@@ -27,7 +27,7 @@ export function launcherGroupSuite(helper,moduleId){
   const ids=group=>[...group.children].map(node=>node.dataset.agLauncher);
   const setup=()=>{installDocument();return actorsDirectory();};
 
-  test(`${moduleId}: order table lists the six modules in the agreed order`,()=>{
+  test(`${moduleId}: order table lists the player-facing modules in the agreed order`,()=>{
     assert.ok(EXPECTED.includes(moduleId));
     assert.deepEqual(Object.keys(LAUNCHER_ORDER).sort((a,b)=>LAUNCHER_ORDER[a]-LAUNCHER_ORDER[b]),EXPECTED);
   });

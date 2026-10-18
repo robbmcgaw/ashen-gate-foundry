@@ -197,7 +197,8 @@
 .ag-header :where(p) { margin: 2px 0 0; color: var(--ag-muted); font-size: var(--ag-text-sm); }
 .ag-header__title { min-width: 0; flex: 1 1 260px; }
 .ag-header__brand { color: var(--ag-accent); font-weight: 700; }
-.ag-header__meta {
+.ag-header__meta,
+.ag-header__actions {
   display: flex;
   align-items: center;
   gap: var(--ag-space-2);

@@ -66,3 +66,4 @@
 .ag-quest-app .ag-quest-gm-left {width:285px}
 @media(max-width:760px){.ag-quest-source-objective{grid-template-columns:1fr}.ag-quest-tracker{top:60px;right:8px}.ag-quest-app .ag-quest-gm-left{width:auto}}
 
+.ag-quest-location {cursor:pointer;color:var(--ag-accent);text-decoration:underline;}

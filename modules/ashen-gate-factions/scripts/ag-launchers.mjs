@@ -12,6 +12,7 @@ export const LAUNCHER_ORDER=Object.freeze({
   'ashen-gate-quest-manager':30,
   'ashen-gate-factions':40,
   'ashen-gate-headquarters':50,
+  'ashen-gate-locations':55,
   'ashen-gate-utilities':60
 });
 

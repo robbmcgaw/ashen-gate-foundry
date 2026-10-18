@@ -6,7 +6,7 @@ import {ASSIGNMENT_CONTRACT,listAssignments,getAssignment,saveAssignment,removeA
 import {selectTrackedViews,validTrackedId,trackingState} from './tracking.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 
-const VERSION='0.4.4';
+const VERSION='0.5.1';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -29,13 +29,24 @@ function roleViewList(tab,actorId){return visibleViews().filter(x=>x.view.scope=
 function safeButton(label,action,{disabled=false,kind='',title=''}={}){return `<button type="button" data-action="${E(action)}" class="${E(kind)}" ${disabled?'disabled':''} title="${E(title)}">${E(label)}</button>`;}
 function options(items,value){return items.map(([v,n])=>`<option value="${E(v)}" ${v===value?'selected':''}>${E(n)}</option>`).join('');}
 function cards(list,sel){return list.map(({view})=>`<div class="ag-quest-card-row"><button type="button" class="ag-quest-card ${view.id===sel?'selected':''}" data-action="select" data-id="${E(view.id)}"><strong>${E(view.name)}</strong><small>${E(view.objective_kind.replace('_',' '))} · ${E(view.status)}</small></button><label class="ag-quest-track-toggle" title="Track quest in on-screen objectives overlay"><input type="checkbox" data-action="track" data-id="${E(view.id)}" ${trackedIds().includes(view.id)?'checked':''}><span>Track</span></label></div>`).join('')||'<div class="ag-quest-empty">No quests are visible here yet. Ask your GM to reveal one in GM Setup.</div>';}
+// Optional Locations link: ids the GM listed on the quest plus locations that list this quest.
+// Feature-detected; Locations decides what the current user may see.
+function locationLinks(view){
+ const loc=game.modules.get('ashen-gate-locations');if(!loc?.active||typeof loc.api?.getLocation!=='function')return '';
+ try{
+  const ids=[...new Set([...(view.locationIds||[]),...(loc.api.locationsForQuest?.(view.id)??[]).map(x=>x.id)])];
+  const links=ids.map(id=>[id,loc.api.getLocation(id)?.name]).filter(([,name])=>name)
+   .map(([id,name])=>`<li><a class="ag-quest-location" data-action="open-location" data-id="${E(id)}"><i class="fa-solid fa-map-location-dot"></i> ${E(name)}</a></li>`);
+  return links.length?`<h3>Locations</h3><ul>${links.join('')}</ul>`:'';
+ }catch{return '';}
+}
 function readableDetail(view,actorId){
  if(!view)return '<div class="ag-quest-empty">Select an objective to see its details.</div>';
  const state=STATUSES.includes(view.status)?view.status:'Unknown';
  const items=view.objectives.map(o=>`<li><span>${E(o.goal)}</span><span class="ag-quest-pill">${o.complete?'Complete':o.failed?'Failed':'Pending'}</span></li>`).join('');
  const actor=actorId?game.actors.get(actorId):null;const notes=actor?noteText(view.id,actor.id):'';
  const canNote=actor&&(hasGM()||actor.testUserPermission(game.user,'OWNER'))&&(view.scope==='party'||view.actorId===actorId);
- return `<div class="ag-quest-detail"><h2>${E(view.name)}</h2><div class="ag-quest-tags">${E(view.objective_kind.replace('_',' '))} · ${E(state)}</div><p>${E(view.summary||'No public summary.')}</p><h3>Objectives</h3><ul>${items||'<li>No objectives currently revealed.</li>'}</ul><h3>Shared party notes</h3><p class="ag-quest-note">${E(view.partyNotes||'No shared notes yet.')}</p><h3>Character notes</h3>${canNote?`<label for="ag-my-note">Notes for ${E(actor.name)}</label><textarea id="ag-my-note" rows="5">${E(notes)}</textarea>${safeButton('Save Character Notes','save-note',{kind:'secondary'})}`:'<p>Select one of your Actors to keep character notes.</p>'}</div>`;
+ return `<div class="ag-quest-detail"><h2>${E(view.name)}</h2><div class="ag-quest-tags">${E(view.objective_kind.replace('_',' '))} · ${E(state)}</div><p>${E(view.summary||'No public summary.')}</p><h3>Objectives</h3><ul>${items||'<li>No objectives currently revealed.</li>'}</ul>${locationLinks(view)}<h3>Shared party notes</h3><p class="ag-quest-note">${E(view.partyNotes||'No shared notes yet.')}</p><h3>Character notes</h3>${canNote?`<label for="ag-my-note">Notes for ${E(actor.name)}</label><textarea id="ag-my-note" rows="5">${E(notes)}</textarea>${safeButton('Save Character Notes','save-note',{kind:'secondary'})}`:'<p>Select one of your Actors to keep character notes.</p>'}</div>`;
 }
 function sourceForm(source,existing){
  const type=source.objective_kind;
@@ -149,6 +160,7 @@ class QuestLogApplication extends Base {
  async action(btn,root){
   try{const action=btn.dataset.action,id=btn.dataset.id;
    if(action==='select'){this.selectedId=id;return await this.render();}
+   if(action==='open-location'){const api=game.modules.get('ashen-gate-locations')?.api;if(!api?.openLocation)throw new Error('Locations is not active.');return await api.openLocation(id);}
    if(action==='toggle-overlay'){assertUI(game.user,openAllowed());await changeTracking({visible:!trackerVisible()});return await this.render();}
    if(action==='track'){assertUI(game.user,openAllowed());if(!visibleById(id))throw new Error('Quest is no longer visible.');const ids=trackedIds();await changeTracking({ids:btn.checked?[...ids,id]:ids.filter(x=>x!==id)});return await this.render();}
    if(action==='save-note'){
@@ -262,6 +274,7 @@ Hooks.once('ready',()=>{
   assignments:{contract:ASSIGNMENT_CONTRACT,list:listAssignments,get:getAssignment,save:(value,options={})=>saveAssignment(value,{...options,objectiveExists:id=>!!getPrivate(id),ensureFolder}),remove:removeAssignment},
   listVisible:({locationId=null}={})=>{assertUI(game.user,openAllowed());return structuredClone(locationId?locationList(locationId):visibleViews().map(x=>x.view));},
   getVisibleObjective:(id)=>{assertUI(game.user,openAllowed());return structuredClone(visibleById(id)?.view??null);},
+  listQuests:()=>{assertGM(game.user);return stateForGM().map(x=>({id:x.source.id,name:x.source.name,status:x.state.status}));},
   getGMSource:(id)=>{assertGM(game.user);return structuredClone(getPrivate(id)?.getFlag(MOD,'source')??null);},
   getGMState:(id)=>{assertGM(game.user);return structuredClone(getPrivate(id)?.getFlag(MOD,'state')??null);},
   setGMState:(id,patch)=>{assertGM(game.user);return updateState(id,patch);},

@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const PACK_VERSION = '0.1.0';
+export const PACK_VERSION = '0.2.0';
 export const PACK_ID = 'AG-PLAYTEST-PACK';
 const SOURCE = 'Synthetic playtest data (not canon)';
 const FOLDER = 'Ashen Gate/Playtest';
@@ -159,15 +159,45 @@ function itemRecord(r) {
   });
 }
 
-// ---- Locations hook --------------------------------------------------------------------------
-// TODO(locations): another session is rebuilding the Locations module and will define its import
-// format. When that format is known, return 3-4 Location records from this function:
-//   - one each at threat levels Normal, Hot and Deadly
-//   - resource entries that reference the MATERIAL IDS passed in (e.g. MAT-PT-EMBERROOT, MAT-PT-IRON-ORE)
-//   - synthetic [TEST] names, status approved, visibility player
-// `materialIds` is the full list of MAT-* ids in this pack. Until then this returns no records.
-export function buildLocations(_materialIds) {
-  return [];
+// ---- Locations ---------------------------------------------------------------------------------
+// Location records use the Locations module's import shape (see modules/ashen-gate-locations/README.md):
+// Manager validates them and leaves them to Locations (GM Setup -> Import JSON imports the same file).
+// One location per threat level. Deliberate visibility examples: the Deadly location is unrevealed,
+// and the revealed ones each carry a hidden field, a hidden entry or a hidden section.
+const LOCATIONS = [
+  { id: 'LOC-PT-GREENHOLLOW', name: '[TEST] Greenhollow', type: 'Village', region: '[TEST] Playtest Vale', threat: 'normal', revealed: true,
+    description: 'Placeholder farming village surrounded by herb meadows.',
+    sections: { resources: true, factions: true, related: true, notes: true },
+    resources: [['MAT-PT-EMBERROOT', true], ['MAT-PT-PALEMOSS', true], ['MAT-PT-GLASSBLOOM', false]],
+    factions: [{ label: '[TEST] Herbalists\' Circle' }],
+    related: ['LOC-PT-CINDER-QUARRY', 'LOC-PT-ASH-HOLLOW'],
+    notes: [{ title: 'Rumour', text: 'Smoke rises from the quarry at night.' }, { title: 'GM note', text: '[TEST] Hidden note players must not see.', visible: false }] },
+  { id: 'LOC-PT-CINDER-QUARRY', name: '[TEST] Cinder Quarry', type: 'Quarry', region: '[TEST] Playtest Vale', threat: 'hot', revealed: true,
+    description: '[TEST] Hidden description players must not see.', show: { description: false },
+    sections: { resources: true, related: true },
+    resources: [['MAT-PT-IRON-ORE', true], ['MAT-PT-COAL', true], ['MAT-PT-ASHWOOD-PLANKS', true, false]],
+    related: ['LOC-PT-GREENHOLLOW'] },
+  { id: 'LOC-PT-ASH-HOLLOW', name: '[TEST] Ash Hollow', type: 'Cave', region: '[TEST] Playtest Vale', threat: 'deadly', revealed: false,
+    description: '[TEST] Unrevealed location players must not see.',
+    sections: { resources: true },
+    resources: [['MAT-PT-GM-ONLY-RESIN', true]] },
+];
+
+export function buildLocations(materialIds) {
+  const known = new Set(materialIds);
+  const name = id => MATERIALS.find(m => m.id === id).name;
+  return LOCATIONS.map(({ id, name: locName, related = [], resources = [], ...rest }) => {
+    for (const [mat] of resources) if (!known.has(mat)) throw new Error(`${id}: unknown material ${mat}`);
+    return {
+      id, entity_type: 'Location', status: 'approved', version: PACK_VERSION,
+      provenance: { sources: [SOURCE] }, visibility: 'player', refs: [], name: locName,
+      location: {
+        name: locName, ...rest,
+        resources: resources.map(([mat, available, visible = true]) => ({ label: name(mat), materialId: mat, available, visible })),
+        related: related.map(locationId => ({ locationId })),
+      },
+    };
+  });
 }
 
 export function buildPack() {
@@ -178,7 +208,8 @@ export function buildPack() {
       package_id: PACK_ID,
       version: PACK_VERSION,
       description: 'Synthetic playtest pack: 3 professions, 8 materials, 8 recipes with crafted items, 3 give-to-player recipe items. ' +
-        'Includes one GM-only material and one draft recipe/item as deliberate visibility examples. Not canon.',
+        '3 locations (Normal/Hot/Deadly) for the Locations module. ' +
+        'Includes one GM-only material, one draft recipe/item and hidden location content as deliberate visibility examples. Not canon.',
     },
     records: [
       ...PROFESSIONS.map(professionRecord),
