@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.2 — 2026-10-18
+
+- Removed the stand-in copies of the shared classes from `locations.css`; the kit now provides them, so Locations matches the other modules exactly.
+
 ## 1.0.1 — 2026-10-18
 
 - Loads the shared Ashen Gate UI kit (`styles/ag-ui.css`) first, so the window, its kit classes and the Location Builder button in the Items sidebar get the shared look and follow the appearance chosen in General Manager, live.
