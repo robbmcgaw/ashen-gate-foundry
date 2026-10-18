@@ -39,7 +39,8 @@ export function launcherGroupSuite(helper,moduleId){
       const groups=root.querySelectorAll(`#${LAUNCHER_GROUP_ID}`);
       assert.equal(groups.length,1,`one group for load order ${loadOrder}`);
       assert.deepEqual(ids(groups[0]),EXPECTED,`order for load order ${loadOrder}`);
-      assert.deepEqual(header.children,[groups[0],actions,search],'group sits at the top; Foundry controls untouched');
+      assert.equal(root.children[0],groups[0],'group sits at the top of the directory');
+      assert.deepEqual(header.children,[actions,search],'Foundry header controls untouched');
     }
   });
 
@@ -77,8 +78,11 @@ export function launcherGroupSuite(helper,moduleId){
     header.remove();
     const fresh=document.createElement('header');fresh.className='directory-header';root.prepend(fresh);
     for(const id of EXPECTED)mount(root,id);
-    assert.equal(root.querySelectorAll(`#${LAUNCHER_GROUP_ID}`).length,1);
-    assert.deepEqual(ids(fresh.children[0]),EXPECTED);
+    const groups=root.querySelectorAll(`#${LAUNCHER_GROUP_ID}`);
+    assert.equal(groups.length,1);
+    assert.deepEqual(ids(groups[0]),EXPECTED);
+    assert.equal(root.children.indexOf(groups[0]),root.children.indexOf(fresh)-1,'group moves back above the new header');
+    assert.deepEqual(fresh.children,[],'the new header is left alone');
   });
 
   test(`${moduleId}: hidden modules show no button and an empty group disappears`,()=>{
