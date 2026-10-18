@@ -4,7 +4,7 @@ import {createManagerDefinitionReader, READER_CONTRACT} from './native-definitio
 import {sourceMetadata as projectionSourceMetadata} from './source-projection.mjs';
 import {MODULE_ID, MANAGED_TYPES, validatePackage, planRecord, exportedFields, getPath, canonical} from "./core.js";
 import {checkContractGraph, isContractImport, selectionIssues, projectedReferences, finalReferenceResolution} from "./contract.js";
-import {systemOf, browseLibrary, inspectLibrary, describeLaunchers} from "./browser.js";
+import {systemOf, browseLibrary, inspectLibrary, describeLaunchers, headerLaunchers} from "./browser.js";
 import {openAshenLauncher} from "./launchers.js";
 import {collectPlayerAccess, changePlayerAccess, hideAllPlayerInterfaces} from "./player-access.js";
 import {chooseIcon,markerTargets,buildUuidIndex,resolveRichText,resolveTypedRefs,appendReferenceBlock} from "./import-fidelity.js";
@@ -134,7 +134,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.12.1 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.12.2 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -261,7 +261,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       playerAccessRows, playerAccessMessage:this.playerAccessMessage, playerAccessReport:this.playerAccessReport,
       playerAccessVisibleCount:accessVisibleCount,
       playerAccessHasVisible:accessVisibleCount>0&&!this.busy,
-      launcherRows, launcherCount:launcherRows.length,
+      launcherRows, launcherCount:launcherRows.length, headerLaunchers:headerLaunchers(launcherRows),
       templatesActive: this.tab === "templates",
       macrosActive: this.tab === "macros",
       libraryRows, libraryTotal:library.length, librarySelectedCount:this.librarySelected.size,
@@ -1166,7 +1166,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.12.1 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.12.2 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import {validatePackage, planRecord} from '../scripts/core.js';
 import {localEdits, checkMacroUpdate} from '../scripts/workflows.js';
 import {downloadJson} from '../scripts/download.js';
+import {headerLaunchers} from '../scripts/browser.js';
 
 const read=name=>JSON.parse(fs.readFileSync(new URL(`./fixtures/${name}`,import.meta.url),'utf8'));
 
@@ -47,7 +48,24 @@ test('JSON exports use Foundry file-save dialog API',()=>{
 
 test('header uses current version, module shortcuts, and no redundant workflow subtitle',()=>{
   const template=fs.readFileSync(new URL('../templates/manager.hbs',import.meta.url),'utf8');
-  assert.match(template,/v0\.12\.1 Beta/);
+  assert.match(template,/v0\.12\.2 Beta/);
   assert.match(template,/data-ag-module-open="\{\{id\}\}"/);
   assert.doesNotMatch(template,/Upload → Preview → Import/);
+});
+
+test('header launchers use short labels in the shared order; emblem uses a real icon',()=>{
+  const rows=[
+    {id:'ashen-gate-utilities',title:'Ashen Gate | Utilities',canOpen:true},
+    {id:'ashen-gate-hirelings',title:'Ashen Gate | Hirelings',canOpen:false},
+    {id:'ashen-gate-factions',title:'Ashen Gate | Factions & Renown',canOpen:false,state:'Not active'},
+    {id:'ashen-gate-profession-ledger',title:'Ashen Gate | Profession Ledger',canOpen:true}
+  ];
+  const out=headerLaunchers(rows);
+  assert.deepEqual(out.map(r=>r.label),['Professions','Factions','Utilities','Hirelings']);
+  assert.equal(out[1].canOpen,false);
+  assert.equal(out[1].title,'Ashen Gate | Factions & Renown');
+  const template=fs.readFileSync(new URL('../templates/manager.hbs',import.meta.url),'utf8');
+  assert.doesNotMatch(template,/fa-gate\b/);
+  assert.match(template,/\{\{#each headerLaunchers\}\}/);
+  assert.ok(template.indexOf('</header>')<template.indexOf('agmanager-header-launchers'),'launchers sit below the header line');
 });
