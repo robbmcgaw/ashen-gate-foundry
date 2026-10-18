@@ -1,5 +1,9 @@
 # Factions & Renown change history
 
+## 0.6.4 — 2026-10-18
+
+- Fix: opening the Factions window failed in Foundry V14 with "Cannot add property minWidth, object is not extensible". ApplicationV2 window position doesn't accept `minWidth`/`minHeight`; the minimum size is now set in CSS.
+
 ## 0.6.3 — 2026-10-18
 
 - Actors sidebar: the launcher button now joins one shared "Ashen Gate" group at the top of the Actors sidebar, with the same style as the other modules' buttons and a fixed order: Profession Ledger, Skill Trees, Quest Log, Factions & Renown, Headquarters, Utilities (#2).
