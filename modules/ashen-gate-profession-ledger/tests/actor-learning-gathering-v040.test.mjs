@@ -125,7 +125,8 @@ test('Crafting permission requests require learned Recipe and sufficient tracked
  api.open({view:'planner',actorId:'a'});
  app.recipeId=x.id;
  actor.flags['ashen-gate-profession-ledger'].knownRecipes=[];
- await assert.rejects(()=>app._request(),/learned this recipe/);
+ // Nobody in the party knows it, so the player cannot even select it (no browsable catalog).
+ await assert.rejects(()=>app._request(),/No recipe selected/);
  actor.flags['ashen-gate-profession-ledger'].knownRecipes=['REC-CRAFTTEST'];
  assert.match((await app._prepareContext({})).html,/Collaborative crafting plan/);
  await assert.rejects(()=>app._request(),/level 4/);

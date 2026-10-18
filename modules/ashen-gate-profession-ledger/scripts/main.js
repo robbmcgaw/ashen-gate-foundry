@@ -36,7 +36,13 @@ function syncLedgerPlayerAccess(enabled){
 const materialChoices=()=> (game.items?.contents??[]).filter(item=>isMaterialAwardCandidate(item,agSourceId) && classify(item)==='Material' && lookupWorldDefinition(game,agSourceId(item),{entityType:'Material',publicForAll:true,approvedOnly:true}).document===item).sort((a,b)=>a.name.localeCompare(b.name));
 const linkedProfession=(actor,id)=>Array.from(actor?.items??[]).some(item=>classify(item)==='Profession'&&agSourceId(item)===id);
 const professionItems=(actor)=>Array.from(actor?.items??[]).filter(item=>classify(item)==='Profession'&&/^PROF-[A-Z0-9-]+$/.test(agSourceId(item)??'')&&(game.user.isGM||sourceAvailableToPlayer(item)));
-const recipeItems=(actor)=>Array.from(actor?.items??[]).filter(item=>classify(item)==='Recipe'&&/^REC-[A-Z0-9-]+$/.test(agSourceId(item)??'')&&quantity(item)>0&&(game.user.isGM||sourceAvailableToPlayer(item)));
+const heldRecipeItems=(actor)=>Array.from(actor?.items??[]).filter(item=>classify(item)==='Recipe'&&/^REC-[A-Z0-9-]+$/.test(agSourceId(item)??'')&&quantity(item)>0);
+const recipeItems=(actor)=>heldRecipeItems(actor).filter(item=>game.user.isGM||sourceAvailableToPlayer(item));
+const GM_VIEWS=new Set(['gm','roster','catalog','learning']);
+const HIDDEN_STATUSES=['draft','proposed','superseded','retired','placeholder'];
+/** Recipe items share names with what they craft, so mark them everywhere the Ledger lists them. */
+const recipeItemLabel=(item)=>`<i class="fa-solid fa-scroll agl-recipe-mark" aria-hidden="true"></i><strong>${esc(item.name)}</strong> ${badge('Recipe item','recipe')}`;
+const nameList=(actors)=>actors.map(a=>a.name).join(', ');
 /** Exact Actor source ID and ownership enforced; no Actor state duplicated in Skill Trees. */
 async function awardXP(actor,profId,points){
   if(!game.user.isGM)throw Error('Only the GM can award Profession XP');
@@ -54,6 +60,7 @@ async function learnRecipe(actor,item){
   if(!actor||!item||!owned(actor))throw Error('You need OWNER permission on that character to learn a recipe');
   if(!Array.from(actor.items??[]).some(i=>i.id===item.id))throw Error('The Recipe Item must be held by the selected character');
   if(classify(item)!=='Recipe')throw Error('This is not a Recipe Item');
+  if(!game.user.isGM&&!sourceAvailableToPlayer(item))throw Error('The GM has not released this recipe to players yet');
   const id=agSourceId(item);
   const eligible=canLearnRecipe(actor,item,id);
   if(!eligible.ok)throw Error(eligible.reason);
@@ -99,6 +106,36 @@ async function awardGatheringItem(actor,worldItem,qty){
 function rosterIds(){const stored=game.settings.get(ID,'partyRoster');return Array.isArray(stored)?stored.filter(x=>typeof x==='string'):[];}
 function allCharacters(){return (game.actors?.contents??[]).filter(a=>a.type==='character').sort((a,b)=>a.name.localeCompare(b.name));}
 function liveActors(){const ids=new Set(rosterIds());return allCharacters().filter(a=>ids.has(a.id)&&(game.user.isGM||a.testUserPermission(game.user,'OBSERVER')));}
+/** Recipe knowledge is shared across the roster: a player sees every roster character they can see
+ * in the Actors sidebar (LIMITED), but only names, known REC IDs and held recipe items are shown. */
+function recipePartyActors(){const ids=new Set(rosterIds());return allCharacters().filter(a=>ids.has(a.id)&&(game.user.isGM||a.testUserPermission?.(game.user,'LIMITED')));}
+/** Known and found recipes for the given party. Never mutates Actors. */
+function partyRecipes(actors){
+  const known=new Map(),found=[],unreleased=[];
+  for(const actor of actors){
+    for(const id of knownRecipesOf(actor)){if(!known.has(id))known.set(id,[]);known.get(id).push(actor);}
+    // The GM can still learn an unreleased item, so it stays in found for the GM and is also counted as hidden.
+    for(const item of heldRecipeItems(actor)){const released=sourceAvailableToPlayer(item);
+      if(released||game.user.isGM)found.push({actor,item});if(!released)unreleased.push({actor,item});}
+  }
+  return {known,found,unreleased};
+}
+/** A player may read an approved, player-visible definition only for an ID the party knows; never the whole catalog. */
+function partyRecipeDefinition(id,lib){
+  const indexed=lib.recipes.find(r=>r.id===id);if(indexed||game.user.isGM)return indexed??null;
+  const full=readWorldDefinition(game,id,{entityType:'Recipe',partyKnown:true});
+  if(full.status!=='ok')return null;
+  const doc=full.document;
+  return normalizeRecipe({...doc.toObject(),uuid:doc.uuid,id,status:'approved',sourceDefinition:full.definition});
+}
+function ingredientName(ing,lib){
+  const mat=lib.materials.find(m=>m.id===ing.materialId);if(mat?.name)return mat.name;
+  if(ing.name&&ing.name!==ing.materialId)return ing.name;
+  // Ingredient of a party-known recipe: its approved player-visible Material name may be shown.
+  const hit=ing.materialId&&!game.user.isGM?lookupWorldDefinition(game,ing.materialId,{entityType:'Material',partyKnown:true}):null;
+  return hit?.status==='ok'?hit.document.name:(ing.name||ing.materialId);
+}
+const hiddenFromPlayers=(recipe)=>HIDDEN_STATUSES.includes(recipe?.status)||['gm','reveal_gated'].includes(recipe?.sourceVisibility);
 function players(){return (game.users?.contents??Array.from(game.users??[])).filter(u=>!u.isGM);}
 /** Only evaluated on the GM client; never expose names of inaccessible Actors to players. */
 function visibilityInfo(doc){
@@ -113,10 +150,12 @@ function visibilityInfo(doc){
   return viewers.length===0?{label:'GM only',kind:'warn',details}:viewers.length===accounts.length?{label:'All players',kind:'ok',details}:{label:`${viewers.length}/${accounts.length} players`,kind:'partial',details};
 }
 function visibilityBadge(doc){const v=visibilityInfo(doc);return v?`<span class="agl-access" title="${esc(v.details)}">${badge(v.label,v.kind)}</span>`:'';}
+function releaseBadge(recipe){if(!game.user.isGM||!HIDDEN_STATUSES.includes(recipe?.status))return '';
+  const status=String(recipe.status);return `<span class="agl-access" title="Players never see a ${esc(status)} recipe, even when a party member holds or knows it. Approve it in General Manager to release it.">${badge(`${status[0].toUpperCase()}${status.slice(1)} — hidden from players`,'warn')}</span>`;}
 function recipeVisibilityBadge(recipe){if(!game.user.isGM)return '';
   if(recipe.isDemo)return badge('Demo','demo');
   const item=game.items?.contents?.find(i=>i.uuid===recipe.sourceUuid);
-  if(item)return visibilityBadge(item);
+  if(item)return `${releaseBadge(recipe)} ${visibilityBadge(item)}`;
   return `<span class="agl-access" title="This catalog is stored in a shared world setting and is accessible to players; this does NOT mean a character has learned it.">${badge('Shared catalog','partial')}</span>`;
 }
 function catalog(){
@@ -183,13 +222,16 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   get actors(){return liveActors();}
   get library(){return catalog();}
   _default(){const actors=this.actors;if(!actors.some(a=>a.id===this.actorId))this.actorId=actors[0]?.id??null;
-    if(!this.library.recipes.some(r=>r.id===this.recipeId))this.recipeId=this.library.recipes[0]?.id??null;
+    const recipes=this._visibleRecipes();if(!recipes.some(r=>r.id===this.recipeId))this.recipeId=recipes[0]?.id??null;
     if(!this.recipeGroupsInitialized&&this.recipe){this.expandedRecipeGroups.add(groupRecipesByProfession([this.recipe])[0].key);this.recipeGroupsInitialized=true;}}
   get actor(){return this.actors.find(a=>a.id===this.actorId)??null;}
-  get recipe(){return this.library.recipes.find(r=>r.id===this.recipeId)??null;}
+  get recipe(){return this._visibleRecipes().find(r=>r.id===this.recipeId)??null;}
+  /** GM: the whole catalog. Players: only recipes a party member has learned (no browsable catalog). */
+  _visibleRecipes(lib=this.library){if(game.user.isGM)return lib.recipes;
+    return [...partyRecipes(recipePartyActors()).known.keys()].map(id=>partyRecipeDefinition(id,lib)).filter(Boolean).sort((a,b)=>a.name.localeCompare(b.name));}
   _recipeRows(recipes){
     const groups=groupRecipesByProfession(recipes);
-    if(!groups.length)return '<div class="agl-empty">No recipes indexed. Import a recipe catalog or adopt existing Recipe Items.</div>';
+    if(!groups.length)return game.user.isGM?'<div class="agl-empty">No recipes indexed. Import a recipe catalog or adopt existing Recipe Items.</div>':'<div class="agl-empty">No one in the party has learned a recipe yet. Learn one from a recipe item on the Recipes tab.</div>';
     const sections=groups.map(group=>`<section class="agl-recipe-group" data-recipe-group="${esc(group.key)}">
       <button type="button" class="agl-recipe-group-toggle" data-action="recipe-group" data-id="${esc(group.key)}" aria-expanded="${this.expandedRecipeGroups.has(group.key)?'true':'false'}">
         <span class="agl-group-chevron" aria-hidden="true">${this.expandedRecipeGroups.has(group.key)?'▾':'▸'}</span>
@@ -228,9 +270,9 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const empty=this.element?.querySelector('.agl-recipe-no-matches');
     if(empty)empty.hidden=!query||[...this.element.querySelectorAll('[data-recipe-group]')].some(group=>!group.hidden);
   }
-  _tabs(){const names=[['individual','Individual'],['party','Party'],['materials','Materials'],['recipes','Recipes'],['learning','Recipe Learning'],['gathering','Gathering'],['planner','Crafting Planner'],...(game.user.isGM?[['gm','GM Setup']]:[])];return names.map(([key,title])=>`<button type="button" data-action="tab" data-id="${key}" class="${(this.view===key||(key==='gm'&&this.view==='roster'))?'active':''}" aria-current="${(this.view===key||(key==='gm'&&this.view==='roster'))?'page':'false'}">${title}</button>`).join('');}
+  _tabs(){const names=[['individual','Individual'],['party','Party'],['materials','Materials'],['recipes','Recipes'],...(game.user.isGM?[['catalog','Recipe Catalog'],['learning','Recipe Learning']]:[]),['gathering','Gathering'],['planner','Crafting Planner'],...(game.user.isGM?[['gm','GM Setup']]:[])];return names.map(([key,title])=>`<button type="button" data-action="tab" data-id="${key}" class="${(this.view===key||(key==='gm'&&this.view==='roster'))?'active':''}" aria-current="${(this.view===key||(key==='gm'&&this.view==='roster'))?'page':'false'}">${title}</button>`).join('');}
   _stats(actors,lib){const mat=listMaterials(actors,lib.materials,{includeRestricted:game.user.isGM});
-    return `<div class="agl-kpis"><div><strong>${actors.length}</strong><span>Accessible party characters</span></div><div><strong>${mat.length}</strong><span>Material types</span></div><div><strong>${mat.reduce((n,x)=>n+x.total,0)}</strong><span>Material units</span></div><div><strong>${lib.recipes.length}</strong><span>Indexed recipes</span></div></div>`;}
+    return `<div class="agl-kpis"><div><strong>${actors.length}</strong><span>Accessible party characters</span></div><div><strong>${mat.length}</strong><span>Material types</span></div><div><strong>${mat.reduce((n,x)=>n+x.total,0)}</strong><span>Material units</span></div>${game.user.isGM?`<div><strong>${lib.recipes.length}</strong><span>Indexed recipes</span></div>`:`<div><strong>${partyRecipes(recipePartyActors()).known.size}</strong><span>Recipes known by the party</span></div>`}</div>`;}
   _individual(actor){
     const selector=`<section class="agl-panel agl-character-strip"><h2>Party characters</h2><div class="agl-actor-strip">${this.actors.map(a=>renderActorButton(a,a.id===actor?.id)).join('')||'<p class="agl-sub">No accessible roster characters.</p>'}</div></section>`;
     if(!actor)return `${selector}<div class="agl-empty">No accessible characters in the active roster. ${game.user.isGM?'Open GM Setup to choose your active characters.':'Ask your GM to configure the Party Roster and check your Actor permissions.'}</div>`;
@@ -276,16 +318,58 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     return `<section class="agl-panel"><h2>Party material inventory</h2><p class="agl-sub">Recognizes tagged MAT records and the material catalog. Only shows Actor inventories you can view.</p>
       <div class="agl-table-head"><b>Material</b><b>Total</b><b>Held by</b></div>
       ${mats.map(m=>`<div class="agl-material-row"><strong>${esc(m.name)}</strong><b>${m.total}</b><span>${m.sources.map(s=>`${esc(s.actorName)}: ${s.qty} ${visibilityBadge(game.actors?.get(s.actorId))}`).join('<br>')}</span></div>`).join('')||'<div class="agl-empty">No recognized Material Items in the accessible party inventories.</div>'}</section>`;}
-  _recipes(lib){return `<div class="agl-twocol"><section class="agl-panel"><h2>Recipe definitions (${lib.recipes.length})</h2><p class="agl-sub">This indexes visible world recipes and catalog definitions; it does not indicate that your character has learned them.</p>${this._recipeRows(lib.recipes)}</section>${this._recipeDetail()}</div>`;}
+  _recipes(lib){if(!game.user.isGM)return '<div class="agl-empty">The Recipe Catalog is GM-only.</div>';
+    const hidden=lib.recipes.filter(hiddenFromPlayers).length;
+    return `<div class="agl-note ${hidden?'warn':''}">${hidden?`<b>${hidden} of ${lib.recipes.length} recipe${lib.recipes.length===1?' is':'s are'} draft or GM-only and hidden from players.</b> `:''}GM only: players never browse this catalog. They see a recipe on their Recipes tab only after a party member holds its recipe item or learns it.</div>
+      <div class="agl-twocol"><section class="agl-panel"><h2>Recipe catalog (${lib.recipes.length}) ${badge('GM only','warn')}</h2><p class="agl-sub">Every indexed world recipe and catalog definition, including drafts. Indexing does not mean a character has learned a recipe.</p>${this._recipeRows(lib.recipes)}</section>${this._recipeDetail()}</div>`;}
   _recipeDetail(){const r=this.recipe;if(!r)return '<section class="agl-panel"><div class="agl-empty">No recipes loaded.</div></section>';
     return `<section class="agl-panel"><h2>${esc(r.name)} ${recipeVisibilityBadge(r)}</h2><p>${badge(r.profession||'Unassigned profession','ok')} ${badge(r.tier||'Tier unknown')} ${badge(r.effort||'Effort unspecified')}</p>
       <h3>Ingredients</h3>${r.hasStructuredIngredients?(r.ingredients.map(i=>`<div class="agl-line"><span>${esc(i.name||i.materialId)}</span><b>× ${i.quantity}</b></div>`).join('')||'<p>Recipe has no ingredients.</p>'):'<div class="agl-note">Ingredients are not stored as structured data. No assumptions have been made from the description.</div>'}
       <p class="agl-sub">${esc(r.description||'Open the Foundry Item for more details when available.')}</p>
-      ${!this.demo&&this.actor?(knownRecipesOf(this.actor).includes(r.id)?badge('Known by selected character','ok'):`${badge('Not yet learned','warn')} <button type="button" data-action="tab" data-id="learning">Learn from owned Recipe Item →</button>`):''}
+      ${!this.demo&&this.actor?(knownRecipesOf(this.actor).includes(r.id)?badge('Known by selected character','ok'):`${badge('Not yet learned','warn')} <button type="button" data-action="tab" data-id="recipes">Learn from a held recipe item →</button>`):''}
       <button data-action="tab" data-id="planner" class="agl-primary">Plan this craft →</button></section>`;}
+  /** Player Recipes tab (also shown to the GM): party knowledge and found recipe items, never the full catalog. */
+  _partyRecipes(lib){
+    if(!rosterIds().length)return `<div class="agl-empty">The active party roster has not been configured. ${game.user.isGM?'<button data-action="tab" data-id="gm">Set up Party Roster →</button>':'Ask your GM to select the active characters.'}</div>`;
+    const actors=recipePartyActors();
+    if(!actors.length)return '<div class="agl-empty">None of the party characters are visible to you. Ask your GM to check your Actor permissions.</div>';
+    const {known,found,unreleased}=partyRecipes(actors);
+    const mine=game.user.isGM?actors:actors.filter(a=>owned(a));
+    const knownRows=[...known.entries()].map(([id,knowers])=>({id,knowers,def:partyRecipeDefinition(id,lib)}))
+      .sort((a,b)=>(a.def?.name??a.id).localeCompare(b.def?.name??b.id)).map(({id,knowers,def})=>`<div class="agl-party-recipe">
+        <div class="agl-line"><span><strong>${esc(def?.name??id)}</strong><small>${esc(id)}</small></span>
+          <span>${def?`${badge(def.profession||'Unassigned profession','ok')} ${badge(def.tier||'Tier unknown')}`:''} ${def?recipeVisibilityBadge(def):''}</span>
+          ${def?.hasStructuredIngredients&&knowers.some(a=>owned(a))?`<button type="button" class="agl-small" data-action="plan-recipe" data-id="${esc(id)}">Plan craft →</button>`:''}</div>
+        <p class="agl-sub">Known by <b>${esc(nameList(knowers))}</b> — only ${knowers.length===1?'this character':'these characters'} can craft it.</p>
+        ${!def?'<p class="agl-sub">Recipe details are not available to you right now.</p>':def.hasStructuredIngredients?(def.ingredients.map(i=>`<div class="agl-line agl-ingredient"><span>${esc(ingredientName(i,lib))}</span><b>× ${i.quantity}</b></div>`).join('')||'<p class="agl-sub">No ingredients.</p>'):'<p class="agl-sub">Ingredients are not stored as structured data for this recipe.</p>'}
+      </div>`).join('');
+    const foundRows=found.sort((a,b)=>a.item.name.localeCompare(b.item.name)||a.actor.name.localeCompare(b.actor.name)).map(({actor,item})=>{
+      const id=agSourceId(item),state=canLearnRecipe(actor,item,id),can=owned(actor)&&state.ok,already=knownRecipesOf(actor).includes(id);
+      const action=can?`<button type="button" data-action="learn-recipe" data-id="${esc(`${actor.id}:${item.id}`)}">Learn (consume 1)</button>`
+        :already?badge(`${actor.name} already knows this`,'ok'):!owned(actor)?`<span class="agl-sub">Only ${esc(actor.name)}’s owner can learn it</span>`:badge(state.reason,'warn');
+      return `<div class="agl-line agl-learn-row"><span>${recipeItemLabel(item)}<small>Held by ${esc(actor.name)} • ×${quantity(item)}${game.user.isGM?` • ${esc(id)}`:''}</small></span>${game.user.isGM?releaseBadge({status:item.flags?.['ashen-gate-manager']?.source?.status}):''}${action}</div>`;}).join('');
+    const hidden=game.user.isGM?unreleased:unreleased.filter(x=>owned(x.actor));
+    const hiddenNote=!hidden.length?'':game.user.isGM
+      ?`<div class="agl-note warn"><b>${hidden.length} recipe item${hidden.length===1?' is':'s are'} draft or GM-only and hidden from players:</b> ${hidden.map(x=>`${esc(x.item.name)} (${esc(x.actor.name)})`).join(', ')}. Approve the recipe in General Manager to release it.</div>`
+      :`<div class="agl-note">${hidden.map(x=>`${esc(x.actor.name)} holds <b>${esc(x.item.name)}</b>, which the GM hasn’t released to players yet, so it can’t be learned.`).join('<br>')}</div>`;
+    const draftCount=game.user.isGM?lib.recipes.filter(hiddenFromPlayers).length:0;
+    const emptyFound=`<div class="agl-empty">No recipe items in ${actors.length===1?`${esc(actors[0].name)}’s inventory`:`any party inventory (${esc(nameList(actors))})`}.</div>
+      <p class="agl-sub">Recipe items are named “Recipe: …” and carry a <code>REC-</code> ID. The crafted item (for example a salve or potion) is what a recipe makes; it can’t be learned.</p>`;
+    return `${game.user.isGM?`<div class="agl-note">This is what players see. ${draftCount?`<b>${draftCount} recipe${draftCount===1?' is':'s are'} draft or GM-only and hidden from players.</b> `:''}Open <button type="button" class="agl-link" data-action="tab" data-id="catalog">Recipe Catalog</button> for every recipe.</div>`:''}
+      <div class="agl-twocol"><section class="agl-panel"><h2>Known by the party (${known.size})</h2>
+        <p class="agl-sub">Recipes learned by ${esc(nameList(actors))}.</p>
+        ${knownRows||`<div class="agl-empty">No one in the party has learned a recipe yet.${found.length?' Learn one from a recipe item listed here.':''}</div>`}
+      </section>
+      <section class="agl-panel"><h2>Found, not yet learned (${found.length})</h2>
+        <p class="agl-sub">Recipe items in the party’s inventories. The character holding one can learn it; learning consumes <b>one</b> item and records its permanent <code>REC-*</code> ID. Learning does not require the crafting tier.</p>
+        ${foundRows||emptyFound}${hiddenNote}
+        ${!game.user.isGM&&!mine.length?'<p class="agl-sub">You don’t own a party character, so you can’t learn recipes here.</p>':''}
+      </section></div>`;
+  }
   _characterSelector(){return `<section class="agl-panel agl-character-strip"><h2>Character</h2><div class="agl-actor-strip">${this.actors.map(a=>renderActorButton(a,a.id===this.actor?.id)).join('')||'<p class="agl-sub">No accessible roster characters.</p>'}</div></section>`;}
   _learning(){
     const actor=this.actor;
+    if(!game.user.isGM)return '<div class="agl-empty">Recipe Learning has moved to the Recipes tab.</div>';
     if(this.demo)return '<div class="agl-empty">Recipe Learning is disabled in demonstration mode.</div>';
     if(!actor)return `${this._characterSelector()}<div class="agl-empty">Choose an accessible party character first.</div>`;
     const known=knownRecipesOf(actor),library=this.library;
@@ -294,7 +378,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       <section class="agl-panel"><h2>Recipe Items held by ${esc(actor.name)}</h2>
         <p class="agl-sub">Learning consumes <b>one Actor-owned Recipe Item</b> and permanently records its <code>REC-*</code> ID. Learning does not require the character to meet the crafting tier.</p>
         ${available.map(i=>{const id=agSourceId(i),state=canLearnRecipe(actor,i,id),permitted=owned(actor)&&state.ok;
-          return `<div class="agl-line agl-learn-row"><span><strong>${esc(i.name)}</strong><small>${esc(id)} • ×${quantity(i)}</small></span>
+          return `<div class="agl-line agl-learn-row"><span>${recipeItemLabel(i)}<small>${esc(id)} • ×${quantity(i)}</small></span>
           <button type="button" data-action="learn-recipe" data-id="${esc(i.id)}" ${permitted?'':`disabled title="${esc(!owned(actor)?'You must own this Actor':state.reason)}"`}>${known.includes(id)?'Already learned':'Learn (consume 1)'}</button></div>`;}).join('')||'<div class="agl-empty">No tagged REC-* consumable Recipe Items found in this character’s inventory.</div>'}
       </section>
       <section class="agl-panel"><h2>Known recipes (${known.length})</h2>
@@ -342,9 +426,9 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   _planner(actors,lib){const plan=this.recipe?planRecipe(this.recipe,actors,lib.materials,{includeRestricted:game.user.isGM}):null;
     const knows=Boolean(this.actor&&this.recipe&&knownRecipesOf(this.actor).includes(this.recipe.id));
     const eligible=knows&&owned(this.actor);
-    return `${this._characterSelector()}<div class="agl-twocol"><section class="agl-panel"><h2>Choose a recipe</h2>${this._recipeRows(lib.recipes)}</section>
+    return `${this._characterSelector()}<div class="agl-twocol"><section class="agl-panel"><h2>Choose a recipe</h2>${this._recipeRows(this._visibleRecipes(lib))}</section>
       <section class="agl-panel"><h2>Collaborative crafting plan</h2>${!this.recipe?'<div class="agl-empty">Select a recipe.</div>':`<p class="agl-sub">${esc(this.recipe.name)} · ${esc(this.recipe.profession||'Unassigned')}</p>
-        ${!knows&&!this.demo?'<div class="agl-note warn">Selected character has not learned this recipe. Use Recipe Learning before requesting a craft.</div>':''}
+        ${!knows&&!this.demo?'<div class="agl-note warn">Selected character has not learned this recipe. Learn it from a recipe item on the Recipes tab before requesting a craft.</div>':''}
         ${plan.unsupported?'<div class="agl-note warn">This recipe has no structured ingredient mapping. Planning is unavailable until its ingredients are provided.</div>':`
         <div class="agl-status ${plan.ready?'ok':'warn'}">${plan.ready?'✓ Materials available across visible party':'! Materials still needed'}</div>
         <h3>Requirements</h3>${plan.requirements.map(req=>`<div class="agl-line"><span>${esc(req.name)}</span><strong>${req.available}/${req.required}</strong>${req.missing?badge(`Need ${req.missing}`,'warn'):badge('Ready','ok')}</div>`).join('')}
@@ -401,18 +485,19 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   _help(){return `<section class="agl-panel agl-help"><h2>Profession Ledger Help</h2>
     <p><strong>Individual / Party:</strong> inspect Profession Items and the GM-selected party. Missing XP is shown as unknown until Tim's authoritative progression is connected.</p>
     <p><strong>Materials:</strong> count material Items on accessible party Actors only; world library definitions are not owned inventory.</p>
-    <p><strong>Recipes:</strong> browse indexed, player-visible definitions. Indexing does not teach a recipe to a character.</p>
+    <p><strong>Recipes:</strong> recipes the party knows (who knows each one, and its ingredients) and recipe items the party has found. Only a character who knows a recipe can craft it. The owner of a recipe item can learn it, which consumes one item and keeps its permanent ID even after reimports. Recipe items are marked with a scroll and a <em>Recipe item</em> badge; the crafted item itself cannot be learned.</p>
+    ${game.user.isGM?'<p><strong>Recipe Catalog (GM):</strong> every indexed recipe, drafts included and marked. Players never browse it.</p>':''}
     <p><strong>Crafting Planner:</strong> request permission to contribute Items. Requests never consume inventory or award crafted Items.</p>
-    <p><strong>Recipe Learning:</strong> learn from an Actor-owned tagged Recipe Item; consumes one Item and retains the permanent ID even after reimports.</p>
+    ${game.user.isGM?'<p><strong>Recipe Learning (GM):</strong> per-character view of held recipe items and known recipes.</p>':''}
     <p><strong>Gathering:</strong> players may request; GMs configure a check and material reward, then manually verify and confirm the award. Profession XP is awarded separately.</p>
     <p><strong>GM Setup:</strong> configure the party roster and import a safe Ledger catalog. GM Setup is GM-only; testing requires actual imported Foundry records.</p>
     <button type="button" data-action="help-back">Back to ${esc(this.previousView==='gm'?'GM Setup':this.previousView)}</button>
   </section>`;}
   async _prepareContext(options){checkPlayerLedger();const ctx=await super._prepareContext(options);
     this.demo=false; // Demo-only modes retired in v0.7.0; all views use Foundry records.
-    if(!game.user.isGM){this.rosterDraft=null;if(this.view==='gm'||this.view==='roster')this.view='party';}
+    if(!game.user.isGM){this.rosterDraft=null;if(this.view==='gm'||this.view==='roster')this.view='party';if(this.view==='catalog'||this.view==='learning')this.view='recipes';}
     this._default();const actors=this.actors,lib=this.library;
-    const content=({individual:()=>this._individual(this.actor),party:()=>this._party(actors,lib),materials:()=>this._materials(actors,lib),recipes:()=>this._recipes(lib),learning:()=>this._learning(),gathering:()=>this._gathering(),planner:()=>this._planner(actors,lib),gm:()=>this._gmSetup(),roster:()=>this._gmSetup(),help:()=>this._help()})[this.view]?.()??this._party(actors,lib);
+    const content=({individual:()=>this._individual(this.actor),party:()=>this._party(actors,lib),materials:()=>this._materials(actors,lib),recipes:()=>this._partyRecipes(lib),catalog:()=>this._recipes(lib),learning:()=>this._learning(),gathering:()=>this._gathering(),planner:()=>this._planner(actors,lib),gm:()=>this._gmSetup(),roster:()=>this._gmSetup(),help:()=>this._help()})[this.view]?.()??this._party(actors,lib);
     const inGm=game.user.isGM&&(this.view==='gm'||this.view==='roster');
     return {...ctx,html:`<div class="agl-shell"><header class="agl-header"><div><div class="agl-title">Ashen Gate | <strong>Profession Ledger</strong></div>
       <div class="agl-sub">${this.demo?'Experimental demonstration — no world changes':`Active roster: ${rosterIds().length} characters • Foundry access permissions enforced`}</div></div>
@@ -442,7 +527,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     this._updateRecipeGroups();this._syncRosterActions();if(this.view==='gathering'&&game.user.isGM&&this.gather.preview?.passed&&!this.gather.preview.revealDone)void this._animateGatherPreview();}
   async _click(action,id){try{checkPlayerLedger();if(action==='tab'){
         const next=id==='roster'?'gm':id;
-        if(!game.user.isGM&&next==='gm')throw Error('GM only');
+        if(!game.user.isGM&&GM_VIEWS.has(next))throw Error('GM only');
         if((this.view==='gm'||this.view==='roster')&&next!=='gm'&&!await this._leaveGmSetup())return;
         this.view=next;this.render();return;}
       if(action==='help'){this.previousView=this.view==='roster'?'gm':this.view;this.view='help';this.render();return;}
@@ -450,6 +535,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(action==='gm-cancel'){if(!game.user.isGM)throw Error('GM only');if(!await this._leaveGmSetup())return;this.view='party';this.render();return;}
       if(action==='actor'){this.actorId=id;this.render();return;}
       if(action==='recipe'){this.recipeId=id;this.render();return;}
+      if(action==='plan-recipe'){const crafter=(partyRecipes(this.actors).known.get(id)??[]).find(a=>owned(a));
+        this.recipeId=id;if(crafter)this.actorId=crafter.id;this.view='planner';this.render();return;}
       if(action==='recipe-group'){if(this.expandedRecipeGroups.has(id))this.expandedRecipeGroups.delete(id);else this.expandedRecipeGroups.add(id);this._updateRecipeGroups();return;}
       if(action==='recipe-groups-expand'||action==='recipe-groups-collapse'){const open=action==='recipe-groups-expand';for(const group of this.element.querySelectorAll('[data-recipe-group]')){if(open)this.expandedRecipeGroups.add(group.dataset.recipeGroup);else this.expandedRecipeGroups.delete(group.dataset.recipeGroup);}this._updateRecipeGroups();return;}
       if(action==='demo')throw Error('Demonstration mode was removed. Use an isolated test world with imported source definitions.');
@@ -465,7 +552,9 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         const ids=[...this.element.querySelectorAll('[data-roster-actor]:checked')].map(el=>el.dataset.rosterActor).filter(id=>game.actors.get(id)?.type==='character');
         await game.settings.set(ID,'partyRoster',ids);this.rosterDraft=null;this.demo=false;this.notice=`Active roster saved: ${ids.length} characters.`;this.render();say(this.notice);return;}
       if(action==='learn-recipe'){if(this.demo)throw Error('Demo records cannot be learned');
-        const actor=this.actor,item=actor?.items?.get?.(id);if(!item)throw Error('Recipe Item is missing or no longer held');
+        // Recipes tab sends "actorId:itemId"; GM Recipe Learning sends the item id of the selected character.
+        const [actorId,itemId]=String(id).includes(':')?String(id).split(':'):[this.actorId,id];
+        const actor=recipePartyActors().find(a=>a.id===actorId)??null,item=actor?.items?.get?.(itemId);if(!item)throw Error('Recipe Item is missing or no longer held');
         if(!owned(actor))throw Error('OWNER permission is required to learn');
         const check=canLearnRecipe(actor,item,agSourceId(item));if(!check.ok)throw Error(check.reason);
         const ok=await DialogV2.confirm({window:{title:`Learn ${esc(item.name)}?`},content:`<p>Consume <strong>one ${esc(item.name)}</strong> held by <strong>${esc(actor.name)}</strong> and permanently learn <code>${esc(agSourceId(item))}</code>?</p><p>The item cannot be refunded automatically after a completed learning action. Tier eligibility affects crafting, not learning.</p>`,modal:true,rejectClose:false});
@@ -591,18 +680,18 @@ Hooks.once('init',()=>{
 Hooks.once('ready',()=>{
   const module=game.modules.get(ID);if(!module)return;
   module.api={playerAccess:{contract:PLAYER_ACCESS_CONTRACT,getState:()=>accessState(game,ID),setEnabled:enabled=>setPlayerAccess(game,ID,enabled)},
-    open:({actorId=null,view=null}={})=>{checkPlayerLedger();current??=new LedgerApp();if(actorId)current.actorId=actorId;if(view)current.view=!game.user.isGM&&['roster','gm'].includes(view)?'party':(view==='roster'?'gm':view);current.demo=false;current.render({force:true});return current;},
+    open:({actorId=null,view=null}={})=>{checkPlayerLedger();current??=new LedgerApp();if(actorId)current.actorId=actorId;if(view)current.view=!game.user.isGM&&GM_VIEWS.has(view)?(['catalog','learning'].includes(view)?'recipes':'party'):(view==='roster'?'gm':view);current.demo=false;current.render({force:true});return current;},
     getProfessionProgress:(actor,profId)=>{checkPlayerLedger();if(!actor?.testUserPermission?.(game.user,'OBSERVER')&&!game.user.isGM)throw Error('Actor access denied');return progressOf(actor,profId);},
     awardProfessionXP:(actor,profId,amount)=>awardXP(actor,profId,amount),
     getKnownRecipes:(actor)=>{checkPlayerLedger();if(!actor?.testUserPermission?.(game.user,'OBSERVER')&&!game.user.isGM)throw Error('Actor access denied');return knownRecipesOf(actor);},
     inspectProfessionPerkChoices:(actor,profId)=>{checkPlayerLedger();if(!game.user.isGM&&!actor?.testUserPermission?.(game.user,'OBSERVER'))throw Error('Actor access denied');return progressOf(actor,profId);},
-    version:'0.7.2',source:'Actor inventories, Manager tagged Items, and optional Ledger catalog'};
+    version:'0.8.0',source:'Actor inventories, Manager tagged Items, and optional Ledger catalog'};
   Hooks.on('updateActor',()=>{if(current?.rendered&&!current.demo)current.render();});
   Hooks.on('createItem',()=>{if(current?.rendered&&!current.demo)current.render();});
   Hooks.on('updateItem',()=>{if(current?.rendered&&!current.demo)current.render();});
   // Handle Actor Directory already rendered before ready hook ran.
   addActorDirectoryLauncher(globalThis.ui?.actors, globalThis.ui?.actors?.element);
-  console.info(`[${ID}] v0.7.2 ready. Open from the Actors directory, Module Settings or game.modules.get('${ID}').api.open()`);
+  console.info(`[${ID}] v0.8.0 ready. Open from the Actors directory, Module Settings or game.modules.get('${ID}').api.open()`);
 });
 
 /** Open Ledger on the Actors directory for both GM and players; idempotent across renders. */

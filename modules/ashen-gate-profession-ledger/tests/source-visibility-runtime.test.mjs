@@ -34,18 +34,22 @@ const filename=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../scr
 await import(pathToFileURL(filename));hooks.init();hooks.ready();
 
 test('GM sees flagged hidden world records with explicit restricted badges',async()=>{
-  const app=moduleObj.api.open({view:'recipes'});
+  const app=moduleObj.api.open({view:'catalog'});
   const html=(await app._prepareContext({})).html;
   assert.match(html,/Recipe:|Secret Tea/);
+  assert.match(html,/Draft — hidden from players/);
+  assert.match(html,/2 of 3 recipes are draft or GM-only and hidden from players/);
   assert.match(html,/GM-only source/);
   assert.match(html,/Reveal gated/);
 });
 
 test('player view does not reveal GM or reveal-gated Items even when Foundry Observer permission is true',async()=>{
   game.user=player;
-  const app=moduleObj.api.open({view:'recipes'});
+  const app=moduleObj.api.open({view:'catalog'});
   let html=(await app._prepareContext({})).html;
-  assert.match(html,/Public Tea/);
+  assert.equal(app.view,'recipes','player is redirected from the GM-only catalog');
+  assert.doesNotMatch(html,/Public Tea/,'players never browse the catalog');
+  assert.match(html,/No recipe items in Player Character’s inventory/);
   assert.doesNotMatch(html,/Secret Tea|Gate Tea|REC-SECRET-TEA|REC-GATE-TEA/);
   assert.doesNotMatch(html,/data-action="manager"/);
   app.view='materials';

@@ -1,3 +1,13 @@
+## 0.8.0 — 2026-10-18
+
+- Players: **Recipes** and **Recipe Learning** are now one **Recipes** tab (#5). *Known by the party* lists every recipe learned by a roster character, who knows it and its ingredients; only those characters can craft it. *Found, not yet learned* lists recipe items in party inventories and who holds them; the holder's owner gets the Learn button.
+- "Party" here means roster characters the player can see in the Actors sidebar (at least Limited permission); only their names, known recipes and held recipe items are shown. A recipe's details are shown to players only when it is approved and player-visible.
+- Players no longer browse the full recipe catalog, and the Crafting Planner only lists recipes the party knows.
+- GM: new GM-only **Recipe Catalog** tab (the old Recipes browser) with drafts marked "Draft — hidden from players" and a count of hidden recipes. Recipe Learning stays as a GM tab.
+- Empty states explain themselves: "No recipe items in Belwar's inventory", unreleased (draft) recipe items a player holds are named, and the GM sees how many recipes/items are hidden from players.
+- Recipe items are marked with a scroll icon and a "Recipe item" badge so they aren't confused with the crafted item.
+- Learning still consumes the Actor-owned recipe item and requires OWNER; it now also refuses an unreleased (draft) recipe item for players in the data layer. No Actor flag format changes.
+
 ## 0.7.1 — 2026-10-18
 
 - Moved to the `ashen-gate-foundry` repository. No gameplay changes.
