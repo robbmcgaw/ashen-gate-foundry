@@ -16,6 +16,11 @@ export const SECTIONS = Object.freeze([
   {key: 'related', label: 'Related Locations'},
   {key: 'notes', label: 'Notes'}
 ]);
+/** Gathering nodes (Session 1 runbook §3): skill, tier 1–5, DC defaulting by tier. Rules live in the Ledger. */
+export const GATHERING = Object.freeze({
+  skills: Object.freeze(['Herbalism', 'Mining', 'Fishing', 'Skinning & Harvesting', 'Archaeology']),
+  dcByTier: Object.freeze({1: 10, 2: 12, 3: 13, 4: 14, 5: 15})
+});
 export const LOCATION_ID = /^LOC-[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
 export const QUEST_ID = /^(?:QUEST|ORDER|CONTRACT)-[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
 export const NOTE_DOC_TYPES = Object.freeze(['Actor', 'Item', 'JournalEntry', 'JournalEntryPage', 'RollTable']);
@@ -26,6 +31,11 @@ export const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&': 
 const text = (value, max = 20000) => String(value ?? '').slice(0, max);
 const line = (value, max = 200) => text(value, max).replace(/[\r\n]+/g, ' ').trim();
 const bool = (value, fallback) => typeof value === 'boolean' ? value : fallback;
+const int = (value, fallback, min, max) => {
+  const n = Number(value);
+  return value !== '' && value !== null && Number.isInteger(n) && n >= min && n <= max ? n : fallback;
+};
+const matId = value => /^MAT-[A-Z0-9-]+$/.test(value ?? '') ? value : '';
 /** Foundry stores relative file paths; reject script/data schemes and markup characters. */
 export const safePath = value => {
   const s = line(value, 500);
@@ -50,19 +60,26 @@ export function makeLocationId(name, existingIds = []) {
 
 function entry(raw, extra) {
   const e = raw && typeof raw === 'object' ? raw : {};
-  return {key: line(e.key, 40) || newKey(), visible: bool(e.visible, true), ...extra(e)};
+  return {key: line(e.key ?? e.id, 40) || newKey(), visible: bool(e.visible, true), ...extra(e)};
 }
 const linked = e => ({uuid: safeUuid(e.uuid), docType: line(e.docType, 40)});
 const ENTRY_SHAPES = {
-  resources: e => ({label: line(e.label), materialId: /^MAT-[A-Z0-9-]+$/.test(e.materialId ?? '') ? e.materialId : '',
-    uuid: safeUuid(e.uuid), available: bool(e.available, true), note: line(e.note, 500)}),
+  // A gathering node. 1.0.x entries (label/materialId/available only) get tier 1, DC 10, finite.
+  resources: e => {
+    const tier = int(e.tier, 1, 1, 5), finite = bool(e.finite, true);
+    return {label: line(e.label), skill: line(e.skill, 80), tier, dc: int(e.dc, GATHERING.dcByTier[tier], 1, 40), dcVisible: bool(e.dcVisible, false),
+      materialId: matId(e.materialId), quantity: int(e.quantity, 1, 1, 999),
+      rareMaterialId: matId(e.rareMaterialId), rareQuantity: int(e.rareQuantity, 1, 1, 999),
+      finite, exhausted: finite && bool(e.exhausted, false), available: bool(e.available, true),
+      uuid: safeUuid(e.uuid), note: line(e.note, 500)};
+  },
   factions: e => ({label: line(e.label), ...linked(e), note: line(e.note, 500)}),
   quests: e => ({questId: QUEST_ID.test(e.questId ?? '') ? e.questId : ''}),
   related: e => ({locationId: LOCATION_ID.test(e.locationId ?? '') ? e.locationId : ''}),
   notes: e => ({title: line(e.title), text: text(e.text), ...linked(e)})
 };
 const KEEP_ENTRY = {
-  resources: e => e.label || e.materialId || e.uuid,
+  resources: e => e.label || e.materialId || e.rareMaterialId || e.uuid,
   factions: e => e.label || e.uuid,
   quests: e => e.questId,
   related: e => e.locationId,
@@ -91,6 +108,9 @@ export function normalizeLocation(raw = {}) {
   return loc;
 }
 
+/** A fresh gathering node with every default filled in (the editor's "add" path). */
+export const newNode = (data = {}) => ({key: newKey(), visible: true, ...ENTRY_SHAPES.resources(data)});
+
 export function newLocation(name, existingIds) {
   const loc = normalizeLocation({name});
   loc.id = makeLocationId(loc.name, existingIds);
@@ -108,7 +128,7 @@ export function playerView(raw, all = []) {
   const view = {id: loc.id, name: loc.name};
   for (const f of FIELDS) if (loc.show[f] && loc[f]) view[f] = loc[f];
   const on = key => loc.sections[key] ? loc[key].filter(e => e.visible) : [];
-  const resources = on('resources').map(e => ({label: e.label, materialId: e.materialId, uuid: e.uuid, available: e.available, note: e.note}));
+  const resources = on('resources').map(nodeForPlayer);
   const factions = on('factions').map(e => ({label: e.label, uuid: e.uuid, docType: e.docType, note: e.note}));
   const quests = on('quests').map(e => e.questId);
   const revealed = new Map(all.map(normalizeLocation).filter(l => l.revealed).map(l => [l.id, l.name]));
@@ -117,6 +137,17 @@ export function playerView(raw, all = []) {
   for (const [key, list] of Object.entries({resources, factions, quests, related, notes})) if (list.length) view[key] = list;
   return view;
 }
+
+/** Node fields in a fixed order. The player copy drops the GM toggles, and the DC unless shown. */
+export function nodeForGM(e) {
+  const {key, label, skill, tier, dc, dcVisible, materialId, quantity, rareMaterialId, rareQuantity, finite, exhausted, available, visible, uuid, note} = e;
+  return {id: key, label, skill, tier, dc, materialId, quantity, rareMaterialId, rareQuantity, finite, exhausted, available, note, uuid, visible, dcVisible};
+}
+export function nodeForPlayer(e) {
+  const {visible, dcVisible, dc, ...rest} = nodeForGM(e);
+  return dcVisible ? {...rest, dc} : rest;
+}
+export const nodeName = n => n.label || n.materialId || n.rareMaterialId || 'Resource';
 
 /** Plain HTML for the player-view Journal page: readable even if the module is later disabled. */
 export function viewHtml(view) {
@@ -128,18 +159,24 @@ export function viewHtml(view) {
   if (view.img) parts.push(`<p><img src="${esc(view.img)}" alt="${esc(view.name)}"></p>`);
   if (view.description) parts.push(`<p>${p(view.description)}</p>`);
   const list = (title, items) => items?.length && parts.push(`<h2>${title}</h2><ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>`);
-  list('Gathering Resources', view.resources?.map(r => `${esc(r.label)} ${r.available ? '' : '(unavailable)'}`));
+  list('Gathering Resources', view.resources?.map(r => [esc(nodeName(r)), r.skill && esc(`${r.skill} T${r.tier}`), r.dc && `DC ${r.dc}`,
+    r.exhausted ? '(exhausted)' : !r.available && '(unavailable)'].filter(Boolean).join(' · ')));
   list('Factions', view.factions?.map(f => esc(f.label)));
   list('Related Locations', view.related?.map(r => esc(r.name)));
   for (const n of view.notes ?? []) parts.push(`<h2>${esc(n.title || 'Note')}</h2>${n.text ? `<p>${p(n.text)}</p>` : ''}`);
   return parts.join('\n');
 }
 
-/** Gatherable materials at a location, as the given audience may see them. */
+/** Gathering nodes at a location, as the given audience may see them (a player passes a playerView). */
 export function resourcesOf(locOrView, {gm = false} = {}) {
   if (!locOrView) return [];
   if (!gm) return clone(locOrView.resources ?? []);
-  return normalizeLocation(locOrView).resources.map(({label, materialId, uuid, available, note, visible}) => ({label, materialId, uuid, available, note, visible}));
+  return normalizeLocation(locOrView).resources.map(nodeForGM);
+}
+/** Which of a node's bundles a material is: 'common', 'rare', 'both' or null. */
+export function nodeMatch(node, materialId) {
+  const common = node.materialId === materialId, rare = node.rareMaterialId === materialId;
+  return common && rare ? 'both' : common ? 'common' : rare ? 'rare' : null;
 }
 
 /** Location records travel inside a Manager-style ag-foundry-import/0.2 package. */

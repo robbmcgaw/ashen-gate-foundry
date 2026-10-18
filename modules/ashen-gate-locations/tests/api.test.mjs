@@ -100,3 +100,36 @@ test('ag-player-access/1 capability', async () => {
   assert.equal(state.access, false);
   await assert.rejects(() => api.playerAccess.setEnabled('no'), /Boolean/);
 });
+
+test('nodesForMaterial and resourcesAt carry node fields with player sanitizing', async () => {
+  const {api, state} = setup({gm: true});
+  const mill = state.stored.find(l => l.id === 'LOC-TEST-MILLBROOK');
+  Object.assign(mill.resources[0], {skill: 'Herbalism', tier: 2, dc: 12, rareMaterialId: 'MAT-TEST-RARE-REED'});
+  const gmNodes = api.nodesForMaterial('MAT-TEST-REED');
+  assert.deepEqual(gmNodes.map(n => [n.locationId, n.matches, n.dc, n.visible]), [['LOC-TEST-MILLBROOK', 'common', 12, true]]);
+  assert.equal(api.nodesForMaterial('MAT-TEST-RARE-REED')[0].matches, 'rare');
+  state.gm = false;
+  const [node] = api.nodesForMaterial('MAT-TEST-REED');
+  assert.deepEqual([node.skill, node.tier, 'dc' in node, 'visible' in node], ['Herbalism', 2, false, false]);
+  assert.equal(api.resourcesAt('LOC-TEST-MILLBROOK').some(n => 'dc' in n), false);
+  assert.deepEqual(api.nodesForMaterial('MAT-NOPE'), []);
+  state.access = false;
+  assert.throws(() => api.nodesForMaterial('MAT-TEST-REED'), /hidden from players/);
+});
+
+test('markNodeExhausted is GM-only, validates, and restores', async () => {
+  const {api, state} = setup({gm: true});
+  const nodeId = api.resourcesAt('LOC-TEST-MILLBROOK')[0].id;
+  const used = await api.markNodeExhausted('LOC-TEST-MILLBROOK', nodeId);
+  assert.equal(used.exhausted, true);
+  assert.equal(state.stored.find(l => l.id === 'LOC-TEST-MILLBROOK').resources[0].exhausted, true);
+  assert.equal((await api.markNodeExhausted('LOC-TEST-MILLBROOK', nodeId, false)).exhausted, false);
+  await assert.rejects(() => api.markNodeExhausted('LOC-NOPE', nodeId), /No location/);
+  await assert.rejects(() => api.markNodeExhausted('LOC-TEST-MILLBROOK', 'nope'), /No gathering node/);
+  await assert.rejects(() => api.markNodeExhausted('LOC-TEST-MILLBROOK', nodeId, 'yes'), /true or false/);
+  state.stored.find(l => l.id === 'LOC-TEST-MILLBROOK').resources[0].finite = false;
+  await assert.rejects(() => api.markNodeExhausted('LOC-TEST-MILLBROOK', nodeId), /not finite/);
+  state.gm = false;
+  await assert.rejects(() => api.markNodeExhausted('LOC-TEST-MILLBROOK', nodeId), /Only the GM/);
+  assert.deepEqual(api.GATHERING.dcByTier[5], 15);
+});

@@ -82,3 +82,27 @@ test('player with Player Access off cannot render', async () => {
   await assert.rejects(() => new LocationsApp()._renderHTML(), /hidden from players/);
   access = true;
 });
+
+test('GM node editor: inline fields, exhausted struck through with Restore; player sees badge, no DC', async () => {
+  await world();
+  const app = new LocationsApp();
+  app.select('LOC-TEST-MILLBROOK');
+  const node = app.draft.resources[0];
+  Object.assign(node, {skill: 'Herbalism', tier: 2, dc: 12, exhausted: true});
+  const html = await app._renderHTML();
+  for (const f of ['skill', 'tier', 'dc', 'materialId', 'rareMaterialId', 'quantity', 'rareQuantity', 'note'])
+    assert.match(html, new RegExp(`data-bind="resources\\.${node.key}\\.${f}"`), f);
+  assert.match(html, /agl-node agl-exhausted|agl-node agl-hidden agl-exhausted/);
+  assert.match(html, /data-action="restore"/);
+  assert.match(html, /data-toggle="resources\.[a-z0-9]+\.dcVisible"/);
+  app.setPath(`resources.${node.key}.tier`, '4');
+  assert.deepEqual([node.tier, node.dc], [4, 14], 'DC follows the tier when it was the default');
+  await game.modules.get('ashen-gate-locations').api.saveLocation(app.draft);
+  game.user = player;
+  const viewer = new LocationsApp();
+  viewer.select('LOC-TEST-MILLBROOK');
+  const view = await viewer._renderHTML();
+  assert.match(view, /Herbalism · Tier 4/);
+  assert.match(view, /Exhausted/);
+  assert.doesNotMatch(view, /DC 14/);
+});

@@ -1,5 +1,5 @@
 /** The Locations window: GM builder (list + editor + GM Setup) and the player viewer, one class. */
-import {MODULE_ID, THREATS, FIELDS, SECTIONS, NOTE_DOC_TYPES, FACTION_DOC_TYPES, esc, clone, threatLabel, normalizeLocation, newKey, materialIdOf} from './model.mjs';
+import {MODULE_ID, THREATS, FIELDS, SECTIONS, NOTE_DOC_TYPES, FACTION_DOC_TYPES, GATHERING, esc, clone, threatLabel, normalizeLocation, newKey, newNode, nodeName, materialIdOf} from './model.mjs';
 
 const QUEST_MODULE = 'ashen-gate-quest-manager';
 const FIELD_LABELS = {type: 'Type', region: 'Region', description: 'Description', img: 'Image', threat: 'Threat'};
@@ -9,6 +9,13 @@ const questApi = () => { const m = game.modules.get(QUEST_MODULE); return m?.act
 const btn = (action, label, {kind = '', icon = '', data = {}, title = ''} = {}) =>
   `<button type="button" class="ag-btn${kind ? ` ag-btn--${kind}` : ''}" data-action="${action}"${Object.entries(data).map(([k, v]) => ` data-${k}="${esc(v)}"`).join('')}${title ? ` title="${esc(title)}"` : ''}>${icon ? `<i class="${icon}" aria-hidden="true"></i>` : ''}${label ? `<span>${esc(label)}</span>` : ''}</button>`;
 const eye = (bind, on, what) => `<label class="agl-eye" title="${on ? 'Visible' : 'Hidden'} to players: ${esc(what)}"><input type="checkbox" data-toggle="${esc(bind)}" ${on ? 'checked' : ''}><i class="fa-solid ${on ? 'fa-eye' : 'fa-eye-slash'}" aria-hidden="true"></i><span class="agl-sr">Show ${esc(what)} to players</span></label>`;
+const NUMERIC = new Set(['tier', 'dc', 'quantity', 'rareQuantity']);
+/** World Items carrying a MAT-* id, for the material pickers. */
+function materialOptions() {
+  const seen = new Map();
+  for (const item of game.items ?? []) { const id = materialIdOf(item); if (id && !seen.has(id)) seen.set(id, item.name); }
+  return [...seen].sort((a, b) => a[1].localeCompare(b[1])).map(([id, name]) => `<option value="${esc(id)}">${esc(name)}</option>`).join('');
+}
 const threatBadge = value => `<span class="ag-badge agl-threat agl-threat--${esc(value)}">${esc(threatLabel(value))}</span>`;
 
 function dragData(event) {
@@ -137,7 +144,9 @@ export class LocationsApp extends Base {
       ${v.type || v.region ? `<p class="agl-meta">${[v.type, v.region].filter(Boolean).map(esc).join(' · ')}</p>` : ''}
       ${v.img ? `<img class="agl-img" src="${esc(v.img)}" alt="">` : ''}
       ${v.description ? `<p class="agl-desc">${esc(v.description).replace(/\n/g, '<br>')}</p>` : ''}
-      ${card('Gathering Resources', ul((v.resources ?? []).map(r => `${link(r.label, r.uuid)} <span class="ag-badge ${r.available ? 'agl-ok' : 'agl-off'}">${r.available ? 'Available' : 'Unavailable'}</span>${r.note ? `<small>${esc(r.note)}</small>` : ''}`)))}
+      ${card('Gathering Resources', ul((v.resources ?? []).map(r => `<span class="agl-entry${r.exhausted ? ' agl-exhausted' : ''}">${link(nodeName(r), r.uuid)}${r.quantity > 1 ? ` ×${r.quantity}` : ''}
+        <small>${[r.skill, `Tier ${r.tier}`, r.dc && `DC ${r.dc}`].filter(Boolean).map(esc).join(' · ')}</small></span>
+        ${r.exhausted ? '<span class="ag-badge">Exhausted</span>' : `<span class="ag-badge ${r.available ? 'ag-badge--ok' : ''}">${r.available ? 'Available' : 'Unavailable'}</span>`}${r.note ? `<small>${esc(r.note)}</small>` : ''}`)))}
       ${card('Factions', ul((v.factions ?? []).map(f => `${link(f.label, f.uuid)}${f.note ? ` <small>${esc(f.note)}</small>` : ''}`)))}
       ${card('Quests', ul(questItems))}
       ${card('Related Locations', ul((v.related ?? []).map(r => `<a class="agl-link" data-action="select" data-id="${esc(r.id)}">${esc(r.name)}</a>`)))}
@@ -163,8 +172,9 @@ export class LocationsApp extends Base {
     const rows = (key, fn) => d[key].length ? `<ul class="ag-list agl-entries">${d[key].map(e => `<li class="${e.visible ? '' : 'agl-hidden'}">${fn(e)}<span class="agl-tools">${entryTools(key, e)}</span></li>`).join('')}</ul>` : '';
     const addText = (key, placeholder) => `<input type="text" id="agl-add-${key}" placeholder="${placeholder}">${btn('add-text', 'Add', {data: {section: key}, icon: 'fa-solid fa-plus'})}`;
 
-    const resources = rows('resources', e => `<span class="agl-entry">${docLink(e.label || e.materialId, e.uuid)}${e.materialId ? ` <code>${esc(e.materialId)}</code>` : ''}</span>
-      <label class="agl-switch"><input type="checkbox" data-toggle="resources.${e.key}.available" ${e.available ? 'checked' : ''}> Available</label>`);
+    const resources = d.resources.length ? `<datalist id="agl-skills">${GATHERING.skills.map(k => `<option value="${esc(k)}">`).join('')}</datalist>
+      <datalist id="agl-mats">${materialOptions()}</datalist>
+      <ul class="ag-list agl-nodes">${d.resources.map(e => this.nodeHtml(e, entryTools, docLink)).join('')}</ul>` : '';
     const factions = rows('factions', e => `<span class="agl-entry">${docLink(e.label, e.uuid)}</span>`);
     const questRows = rows('quests', e => {
       const name = questName(e.questId, quests);
@@ -197,7 +207,7 @@ export class LocationsApp extends Base {
       </div>
       ${d.img ? `<img class="agl-img" src="${esc(d.img)}" alt="">` : ''}
       ${fld('description', `<textarea id="agl-description" rows="4" data-bind="description">${esc(d.description)}</textarea>`)}
-      ${sec('resources', resources, addText('resources', 'Custom resource name'), 'Drop material Items here, or add a custom resource.')}
+      ${sec('resources', resources, addText('resources', 'Custom node name'), 'Drop material Items here, or add a custom gathering node.')}
       ${sec('factions', factions, addText('factions', 'Custom faction name'), 'Drop Actors or Journals here, or add a custom faction.')}
       ${sec('quests', questRows, questAdd, 'No quests linked.')}
       ${sec('related', relatedRows, relatedAdd, 'No related locations.')}
@@ -206,6 +216,32 @@ export class LocationsApp extends Base {
         <div>${btn('cancel', 'Cancel', {kind: 'ghost'})}${btn('delete', 'Delete', {kind: 'danger', icon: 'fa-solid fa-trash'})}</div>
         <div>${btn('place', 'Place on Scene', {icon: 'fa-solid fa-map-pin', title: 'Adds a Map Note at the centre of your current view'})}${btn('save', this.dirty ? 'Save Changes •' : 'Save Changes', {kind: 'primary', icon: 'fa-solid fa-floppy-disk'})}</div>
       </footer></form>`;
+  }
+
+  /** One gathering node, edited inline. Exhausted nodes are struck through with Restore. */
+  nodeHtml(e, entryTools, docLink) {
+    const b = f => `data-bind="resources.${esc(e.key)}.${f}"`;
+    const num = (f, v, min, max, label) => `<label class="agl-mini">${label}<input type="number" min="${min}" max="${max}" step="1" ${b(f)} value="${v}"></label>`;
+    return `<li class="agl-node${e.visible ? '' : ' agl-hidden'}${e.exhausted ? ' agl-exhausted' : ''}">
+      <div class="agl-node__row">
+        <input type="text" class="agl-node__name" ${b('label')} value="${esc(e.label)}" placeholder="Node name" aria-label="Node name">
+        ${e.uuid ? docLink('', e.uuid).replace('></a>', '><i class="fa-solid fa-up-right-from-square"></i></a>') : ''}
+        <input type="text" list="agl-skills" class="agl-node__skill" ${b('skill')} value="${esc(e.skill)}" placeholder="Skill" aria-label="Gathering skill">
+        <label class="agl-mini">Tier<select ${b('tier')}>${[1, 2, 3, 4, 5].map(t => `<option value="${t}" ${e.tier === t ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+        ${num('dc', e.dc, 1, 40, 'DC')}${eye(`resources.${e.key}.dcVisible`, e.dcVisible, 'the DC')}
+        <span class="agl-tools">${entryTools('resources', e)}</span>
+      </div>
+      <div class="agl-node__row">
+        <label class="agl-mini">Common<input type="text" list="agl-mats" ${b('materialId')} value="${esc(e.materialId)}" placeholder="MAT-…"></label>${num('quantity', e.quantity, 1, 999, '×')}
+        <label class="agl-mini">Rare (by 5+)<input type="text" list="agl-mats" ${b('rareMaterialId')} value="${esc(e.rareMaterialId)}" placeholder="MAT-… (optional)"></label>${num('rareQuantity', e.rareQuantity, 1, 999, '×')}
+      </div>
+      <div class="agl-node__row">
+        <label class="agl-switch"><input type="checkbox" data-toggle="resources.${esc(e.key)}.finite" ${e.finite ? 'checked' : ''}> Finite</label>
+        <label class="agl-switch"><input type="checkbox" data-toggle="resources.${esc(e.key)}.available" ${e.available ? 'checked' : ''}> Available</label>
+        <input type="text" class="agl-node__note" ${b('note')} value="${esc(e.note)}" placeholder="Source and limit (note)" aria-label="Note">
+        ${e.exhausted ? `<span class="ag-badge">Exhausted</span>${btn('restore', 'Restore', {kind: 'sm', icon: 'fa-solid fa-rotate-left', data: {key: e.key}})}`
+          : e.finite ? btn('exhaust', 'Mark exhausted', {kind: 'sm', data: {key: e.key}}) : ''}
+      </div></li>`;
   }
 
   setupHtml() {
@@ -240,7 +276,7 @@ export class LocationsApp extends Base {
     if (!this.gm) return;
     for (const el of root.querySelectorAll('[data-bind]')) el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => {
       this.setPath(el.dataset.bind, el.value);
-      if (el.dataset.bind === 'threat' || el.dataset.bind === 'img') this.render();
+      if (el.dataset.bind === 'threat' || el.dataset.bind === 'img' || el.dataset.bind.endsWith('.tier')) this.render();
     });
     for (const el of root.querySelectorAll('[data-toggle]')) el.addEventListener('change', () => { this.setPath(el.dataset.toggle, el.checked); this.render(); });
     for (const row of root.querySelectorAll('.agl-row[draggable]')) row.addEventListener('dragstart', e => {
@@ -255,12 +291,24 @@ export class LocationsApp extends Base {
   /** Writes into the draft. Paths: "name", "show.type", "sections.quests", "resources.<key>.available". */
   setPath(path, value) {
     const [a, b, c] = path.split('.');
-    if (Array.isArray(this.draft[a])) { const e = this.draft[a].find(x => x.key === b); if (e) e[c] = value; }
+    if (Array.isArray(this.draft[a])) {
+      const e = this.draft[a].find(x => x.key === b);
+      if (e && NUMERIC.has(c)) value = Number(value);
+      // Changing the tier moves the DC with it, unless the GM had set a custom DC.
+      if (e && c === 'tier' && e.dc === GATHERING.dcByTier[e.tier]) e.dc = GATHERING.dcByTier[value] ?? e.dc;
+      if (e && c === 'finite' && !value) e.exhausted = false;
+      if (e) e[c] = value;
+    }
     else if (b) this.draft[a][b] = value;
     else this.draft[a] = value;
     this.dirty = true;
     const save = this.element?.querySelector('[data-action="save"] span');
     if (save) save.textContent = 'Save Changes •';
+  }
+  addNode(data) {
+    this.draft.resources.push(newNode(data));
+    this.dirty = true;
+    return this.render();
   }
   addEntry(section, data) {
     this.draft[section].push({key: newKey(), visible: true, ...data});
@@ -276,7 +324,7 @@ export class LocationsApp extends Base {
       if (type !== 'Item') return ui.notifications.warn('Drop an Item (a material) here.');
       const materialId = materialIdOf(doc);
       if (!materialId) ui.notifications.info(`${doc.name} has no MAT-* id; added as a linked item.`);
-      return this.addEntry('resources', {label: doc.name, materialId, uuid: doc.uuid, available: true, note: ''});
+      return this.addNode({label: doc.name, materialId, uuid: doc.uuid});
     }
     if (section === 'factions') {
       if (!FACTION_DOC_TYPES.includes(type)) return ui.notifications.warn('Drop an Actor or Journal here.');
@@ -338,7 +386,16 @@ export class LocationsApp extends Base {
       case 'add-text': {
         const section = el.dataset.section, value = root.querySelector(`#agl-add-${section}`)?.value.trim();
         if (!value) return;
-        return this.addEntry(section, section === 'resources' ? {label: value, materialId: '', uuid: '', available: true, note: ''} : {label: value, uuid: '', docType: '', note: ''});
+        return section === 'resources' ? this.addNode({label: value}) : this.addEntry(section, {label: value, uuid: '', docType: '', note: ''});
+      }
+      case 'exhaust': case 'restore': {
+        const exhausted = action === 'exhaust';
+        // With no other unsaved edits, save straight away: this is a mid-session click.
+        if (!this.dirty && this.draft.id) {
+          await api().markNodeExhausted(this.draft.id, el.dataset.key, exhausted);
+          this.select(this.draft.id); return this.render();
+        }
+        this.setPath(`resources.${el.dataset.key}.exhausted`, exhausted); return this.render();
       }
       case 'add-quest': { const id = root.querySelector('#agl-add-quests')?.value; return id && this.addEntry('quests', {questId: id}); }
       case 'add-related': { const id = root.querySelector('#agl-add-related')?.value; return id && this.addEntry('related', {locationId: id}); }
@@ -376,6 +433,7 @@ export class LocationsApp extends Base {
     const gm = this.gm ? `<ul>
       <li><strong>New Location</strong>, type a name. The ID is made for you.</li>
       <li>Drop material Items on <em>Gathering Resources</em>, Actors/Journals on <em>Factions</em>, anything on <em>Notes</em>. Or type a custom entry.</li>
+      <li>Each gathering node has a skill, tier and DC (10/12/13/14/15 by tier). <strong>Mark exhausted</strong> after a node is used or a check fails; <strong>Restore</strong> undoes it. Players only see the DC if you turn on its <i class="fa-solid fa-eye"></i>.</li>
       <li>The <i class="fa-solid fa-eye"></i> toggles decide what players see. Nothing is visible until <strong>Revealed to players</strong> is on, and each section has its own switch.</li>
       <li><strong>Place on Scene</strong> or drag a location from the list onto the map to add a Map Note. Double-click the note to open the location.</li>
       <li>Quests come from Quest Manager. Clicking one opens the Quest Log.</li></ul>`

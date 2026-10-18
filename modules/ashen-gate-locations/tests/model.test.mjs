@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {makeLocationId, newLocation, normalizeLocation, playerView, viewHtml, parseImport, exportPackage, resourcesOf, materialIdOf} from '../scripts/model.mjs';
+import {makeLocationId, newLocation, normalizeLocation, playerView, viewHtml, parseImport, exportPackage, resourcesOf, materialIdOf, nodeMatch, newNode, GATHERING} from '../scripts/model.mjs';
 
 const sample = JSON.parse(fs.readFileSync(new URL('../examples/test-locations.json', import.meta.url)));
 
@@ -43,7 +43,7 @@ test('player view omits hidden fields, hidden sections and hidden entries', () =
     notes: [{title: 'Public', text: 'hello'}, {title: 'GM-SECRET-NOTE', text: 'x', visible: false}]};
   const view = playerView(loc, [loc]);
   assert.deepEqual(Object.keys(view).sort(), ['id', 'name', 'notes', 'quests', 'region', 'resources', 'threat', 'type']);
-  assert.deepEqual(view.resources, [{label: 'Ore', materialId: '', uuid: '', available: false, note: ''}]);
+  assert.deepEqual(view.resources.map(r => [r.label, r.available]), [['Ore', false]]);
   assert.deepEqual(view.quests, ['QUEST-ONE']);
   assert.equal(view.notes.length, 1);
   assert.doesNotMatch(JSON.stringify(view) + viewHtml(view), /GM-SECRET/);
@@ -109,4 +109,45 @@ test('material id comes from Ashen Gate item flags', () => {
   assert.equal(materialIdOf({flags: {'ashen-gate-profession-ledger': {sourceId: 'MAT-REED'}}}), 'MAT-REED');
   assert.equal(materialIdOf({flags: {'ashen-gate-manager': {source: {sourceId: 'REC-X'}}}}), '');
   assert.equal(materialIdOf({}), '');
+});
+
+test('1.0.x resource entries load as tier-1 finite nodes, and normalizing is re-runnable', () => {
+  const old = {id: 'LOC-A', name: 'A', revealed: true, sections: {resources: true},
+    resources: [{key: 'k1', label: 'Ore', materialId: 'MAT-ORE', uuid: '', available: false, note: 'n', visible: true}]};
+  const loc = normalizeLocation(old);
+  assert.deepEqual(resourcesOf(loc, {gm: true}), [{id: 'k1', label: 'Ore', skill: '', tier: 1, dc: 10, materialId: 'MAT-ORE', quantity: 1,
+    rareMaterialId: '', rareQuantity: 1, finite: true, exhausted: false, available: false, note: 'n', uuid: '', visible: true, dcVisible: false}]);
+  assert.deepEqual(normalizeLocation(normalizeLocation(loc)), loc);
+});
+
+test('node defaults: DC follows tier unless set; bad numbers fall back; non-finite never exhausted', () => {
+  assert.deepEqual(GATHERING.dcByTier, {1: 10, 2: 12, 3: 13, 4: 14, 5: 15});
+  const [a, b, c, d] = normalizeLocation({id: 'LOC-A', name: 'A', resources: [
+    {id: 'a', label: 'A', tier: 4}, {id: 'b', label: 'B', tier: 2, dc: 17}, {id: 'c', label: 'C', tier: 9, dc: 'x', quantity: 0, rareQuantity: 2.5},
+    {id: 'd', label: 'D', finite: false, exhausted: true}]}).resources;
+  assert.deepEqual([a.tier, a.dc, a.key], [4, 14, 'a'], 'import id becomes the stable key');
+  assert.deepEqual([b.tier, b.dc], [2, 17]);
+  assert.deepEqual([c.tier, c.dc, c.quantity, c.rareQuantity], [1, 10, 1, 1]);
+  assert.equal(d.exhausted, false);
+  const n = newNode({label: 'Fresh'});
+  assert.deepEqual([n.tier, n.dc, n.finite, n.exhausted, n.visible, n.dcVisible], [1, 10, true, false, true, false]);
+});
+
+test('players never see the DC unless the GM shows it, nor the GM toggles', () => {
+  const loc = {id: 'LOC-A', name: 'A', revealed: true, sections: {resources: true}, resources: [
+    {id: 'n1', label: 'Hidden DC', skill: 'Mining', tier: 3, dc: 13, materialId: 'MAT-ORE', rareMaterialId: 'MAT-RARE'},
+    {id: 'n2', label: 'Shown DC', skill: 'Fishing', tier: 2, dcVisible: true, exhausted: true}]};
+  const [hidden, shown] = playerView(loc).resources;
+  assert.equal('dc' in hidden, false);
+  assert.equal(shown.dc, 12);
+  for (const n of [hidden, shown]) for (const k of ['visible', 'dcVisible', 'key']) assert.equal(k in n, false, k);
+  assert.deepEqual([hidden.skill, hidden.tier, hidden.rareMaterialId, shown.exhausted], ['Mining', 3, 'MAT-RARE', true]);
+  assert.doesNotMatch(viewHtml(playerView(loc)), /DC 13/);
+  assert.match(viewHtml(playerView(loc)), /DC 12/);
+});
+
+test('nodeMatch tells common from rare', () => {
+  const n = {materialId: 'MAT-A', rareMaterialId: 'MAT-B'};
+  assert.deepEqual(['MAT-A', 'MAT-B', 'MAT-C'].map(m => nodeMatch(n, m)), ['common', 'rare', null]);
+  assert.equal(nodeMatch({materialId: 'MAT-A', rareMaterialId: 'MAT-A'}, 'MAT-A'), 'both');
 });

@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const PACK_VERSION = '0.2.0';
+export const PACK_VERSION = '0.3.0';
 export const PACK_ID = 'AG-PLAYTEST-PACK';
 const SOURCE = 'Synthetic playtest data (not canon)';
 const FOLDER = 'Ashen Gate/Playtest';
@@ -162,38 +162,48 @@ function itemRecord(r) {
 // ---- Locations ---------------------------------------------------------------------------------
 // Location records use the Locations module's import shape (see modules/ashen-gate-locations/README.md):
 // Manager validates them and leaves them to Locations (GM Setup -> Import JSON imports the same file).
-// One location per threat level. Deliberate visibility examples: the Deadly location is unrevealed,
-// and the revealed ones each carry a hidden field, a hidden entry or a hidden section.
+// One location per threat level, each with 1-2 finite gathering nodes (skill, tier, DC; common bundle on
+// success, rare on success by 5+). Deliberate visibility examples: the Deadly location is unrevealed,
+// Cinder Quarry hides its description and its Coal node, Greenhollow hides a note and shows one DC.
+// Node: [id, skill, tier, common MAT, rare MAT or null, options]; DC defaults by tier (10/12/13/14/15).
 const LOCATIONS = [
   { id: 'LOC-PT-GREENHOLLOW', name: '[TEST] Greenhollow', type: 'Village', region: '[TEST] Playtest Vale', threat: 'normal', revealed: true,
     description: 'Placeholder farming village surrounded by herb meadows.',
     sections: { resources: true, factions: true, related: true, notes: true },
-    resources: [['MAT-PT-EMBERROOT', true], ['MAT-PT-PALEMOSS', true], ['MAT-PT-GLASSBLOOM', false]],
+    nodes: [['pt-greenhollow-roots', 'Herbalism', 1, 'MAT-PT-EMBERROOT', 'MAT-PT-GLASSBLOOM', { dcVisible: true, note: '[TEST] One meadow patch.' }],
+      ['pt-greenhollow-moss', 'Herbalism', 1, 'MAT-PT-PALEMOSS', null, { available: false, note: '[TEST] Under snow until spring.' }]],
     factions: [{ label: '[TEST] Herbalists\' Circle' }],
     related: ['LOC-PT-CINDER-QUARRY', 'LOC-PT-ASH-HOLLOW'],
     notes: [{ title: 'Rumour', text: 'Smoke rises from the quarry at night.' }, { title: 'GM note', text: '[TEST] Hidden note players must not see.', visible: false }] },
   { id: 'LOC-PT-CINDER-QUARRY', name: '[TEST] Cinder Quarry', type: 'Quarry', region: '[TEST] Playtest Vale', threat: 'hot', revealed: true,
     description: '[TEST] Hidden description players must not see.', show: { description: false },
     sections: { resources: true, related: true },
-    resources: [['MAT-PT-IRON-ORE', true], ['MAT-PT-COAL', true], ['MAT-PT-ASHWOOD-PLANKS', true, false]],
+    nodes: [['pt-cinder-seam', 'Mining', 1, 'MAT-PT-IRON-ORE', null, { dc: 13, note: '[TEST] One exposed seam.' }],
+      ['pt-cinder-coal', 'Mining', 2, 'MAT-PT-COAL', null, { visible: false }]],
     related: ['LOC-PT-GREENHOLLOW'] },
   { id: 'LOC-PT-ASH-HOLLOW', name: '[TEST] Ash Hollow', type: 'Cave', region: '[TEST] Playtest Vale', threat: 'deadly', revealed: false,
     description: '[TEST] Unrevealed location players must not see.',
     sections: { resources: true },
-    resources: [['MAT-PT-GM-ONLY-RESIN', true]] },
+    nodes: [['pt-ash-hollow-resin', 'Herbalism', 5, 'MAT-PT-GM-ONLY-RESIN', null, {}]] },
 ];
+
+const DC_BY_TIER = { 1: 10, 2: 12, 3: 13, 4: 14, 5: 15 };
 
 export function buildLocations(materialIds) {
   const known = new Set(materialIds);
   const name = id => MATERIALS.find(m => m.id === id).name;
-  return LOCATIONS.map(({ id, name: locName, related = [], resources = [], ...rest }) => {
-    for (const [mat] of resources) if (!known.has(mat)) throw new Error(`${id}: unknown material ${mat}`);
+  return LOCATIONS.map(({ id, name: locName, related = [], nodes = [], ...rest }) => {
+    for (const [, , , mat, rare] of nodes) for (const m of [mat, rare].filter(Boolean)) if (!known.has(m)) throw new Error(`${id}: unknown material ${m}`);
     return {
       id, entity_type: 'Location', status: 'approved', version: PACK_VERSION,
       provenance: { sources: [SOURCE] }, visibility: 'player', refs: [], name: locName,
       location: {
         name: locName, ...rest,
-        resources: resources.map(([mat, available, visible = true]) => ({ label: name(mat), materialId: mat, available, visible })),
+        resources: nodes.map(([nodeId, skill, tier, mat, rare, opts]) => ({
+          id: nodeId, label: name(mat), skill, tier, dc: opts.dc ?? DC_BY_TIER[tier], dcVisible: opts.dcVisible ?? false,
+          materialId: mat, quantity: 1, rareMaterialId: rare ?? '', rareQuantity: 1, finite: true, exhausted: false,
+          available: opts.available ?? true, visible: opts.visible ?? true, note: opts.note ?? '',
+        })),
         related: related.map(locationId => ({ locationId })),
       },
     };
@@ -208,7 +218,7 @@ export function buildPack() {
       package_id: PACK_ID,
       version: PACK_VERSION,
       description: 'Synthetic playtest pack: 3 professions, 8 materials, 8 recipes with crafted items, 3 give-to-player recipe items. ' +
-        '3 locations (Normal/Hot/Deadly) for the Locations module. ' +
+        '3 locations (Normal/Hot/Deadly) with finite gathering nodes for the Locations module. ' +
         'Includes one GM-only material, one draft recipe/item and hidden location content as deliberate visibility examples. Not canon.',
     },
     records: [
