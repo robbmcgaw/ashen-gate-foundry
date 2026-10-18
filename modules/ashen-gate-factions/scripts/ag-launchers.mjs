@@ -1,7 +1,8 @@
 /**
  * Ashen Gate Actors-sidebar launcher group.
  * Every player-facing module ships an identical copy of this file and adds only its own
- * button. Whichever module renders first creates the shared #ashen-gate-launchers group;
+ * button. Whichever module renders first creates the shared #ashen-gate-launchers group above the
+ * directory header;
  * no module depends on another. scripts/check.mjs fails if the copies drift apart.
  */
 export const LAUNCHER_GROUP_ID='ashen-gate-launchers';
@@ -59,6 +60,20 @@ function sortGroup(group){
 }
 
 /**
+ * Keeps the group directly above Foundry's directory header, as a sibling, so the header's
+ * own Create/Folder buttons and search keep their layout. Falls back to inside the header
+ * only when the header has no parent to sit in.
+ */
+function placeGroup(group,header){
+  if(!header)return;
+  const parent=header.parentElement;
+  if(!parent){if(group.parentElement!==header)header.prepend(group);return;}
+  const siblings=[...parent.children];
+  if(group.parentElement===parent&&siblings.indexOf(group)===siblings.indexOf(header)-1)return;
+  parent.insertBefore(group,header);
+}
+
+/**
  * Adds, refreshes or removes this module's button. Idempotent across re-renders.
  * visible=false removes the button, and the group too once it is empty.
  */
@@ -71,16 +86,16 @@ export function mountLauncher(root,{moduleId,label,icon,onClick,visible=true}){
     if(group&&![...group.children].some(node=>node.dataset?.agLauncher))group.remove();
     return true;
   }
+  const header=root.matches?.('.directory-header')?root:root.querySelector('.directory-header');
   if(!group){
-    const header=root.querySelector('.directory-header');
     if(!header)return false;
     group=document.createElement('div');
     group.id=LAUNCHER_GROUP_ID;
     group.className='ag-launchers';
     group.setAttribute('role','group');
     group.setAttribute('aria-label','Ashen Gate');
-    header.prepend(group);
   }
+  placeGroup(group,header);
   const [button=createButton({moduleId,label,icon,onClick}),...duplicates]=own;
   for(const duplicate of duplicates)duplicate.remove();
   if(button.parentElement!==group)group.append(button);

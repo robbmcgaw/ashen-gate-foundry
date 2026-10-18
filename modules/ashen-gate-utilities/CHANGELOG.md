@@ -1,5 +1,9 @@
 # Changelog — Ashen Gate | Utilities
 
+## 0.2.4 — 2026-10-18
+
+- Fix: the shared Ashen Gate launcher group now sits above the Actors sidebar header instead of inside it, so Foundry's Create Actor / Create Folder buttons show again. Tighter padding around the group.
+
 ## 0.2.3 — 2026-10-18
 
 - Fix: opening the Utilities window failed in Foundry V14 with "Cannot add property minWidth, object is not extensible". ApplicationV2 window position doesn't accept `minWidth`/`minHeight`; the minimum size is now set in CSS.

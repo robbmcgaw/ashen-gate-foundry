@@ -1,3 +1,7 @@
+## 0.4.3 — 2026-10-18
+
+- Fix: the shared Ashen Gate launcher group now sits above the Actors sidebar header instead of inside it, so Foundry's Create Actor / Create Folder buttons show again. Tighter padding around the group.
+
 ## 0.4.1 — 2026-10-18
 
 - Moved to the `ashen-gate-foundry` repository. No gameplay changes.
