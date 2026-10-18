@@ -93,3 +93,22 @@
 .agu-overlay .agu-ov-empty {margin:var(--ag-space-1) 0;color:var(--ag-muted);}
 .ag-app.agu-overlay-app .agu-overlay button.agu-ov-x {display:inline-flex;min-height:0;width:16px;height:16px;padding:0;border:0;border-radius:var(--ag-radius-sm);background:transparent;color:var(--ag-danger);font-size:14px;line-height:1;vertical-align:middle;text-shadow:inherit;}
 .ag-app.agu-overlay-app .agu-overlay button.agu-ov-x:hover:not(:disabled) {background:var(--ag-danger-soft);}
+
+/* v0.5.0 — Party Stash window and the take-out approval prompt. */
+.application.agu-stash-app{min-width:520px;min-height:360px}
+.agu-stash-app .agu-root{min-height:0}
+.agu-stash-app .agu-main.agu-drop-over {outline:2px dashed var(--ag-accent);outline-offset:-6px;}
+.agu-stash-app .agu-stash-group {margin-bottom:var(--ag-space-3);}
+.agu-stash-app .agu-stash-head,.agu-stash-app .agu-stash-row {display:grid;grid-template-columns:32px minmax(140px,1fr) 48px 96px 96px 90px auto;align-items:center;gap:var(--ag-space-2);}
+.agu-stash-app .agu-stash-head {color:var(--ag-muted);font-size:var(--ag-text-xs);font-weight:600;padding:0 var(--ag-space-1) 4px;border-bottom:1px solid var(--ag-border);}
+.agu-stash-app .agu-stash-row {padding:6px var(--ag-space-1);border-bottom:1px solid var(--ag-border);cursor:grab;}
+.agu-stash-app .agu-stash-row:hover {background:var(--ag-surface-hover);}
+.agu-stash-app .agu-stash-icon {width:28px;height:28px;object-fit:contain;border-radius:var(--ag-radius-sm);border:0;}
+.ag-app.agu-stash-app button.agu-stash-name {justify-content:flex-start;min-height:0;padding:2px 4px;border:0;background:transparent;color:var(--ag-text);font-weight:600;text-align:left;overflow-wrap:anywhere;}
+.ag-app.agu-stash-app button.agu-stash-name:hover {color:var(--ag-accent);text-decoration:underline;background:transparent;}
+.agu-stash-app .ag-toolbar .agu-inline {margin:0;}
+.agu-stash-app .agu-dropzone {margin:var(--ag-space-3) 0;padding:var(--ag-space-3);border:1px dashed var(--ag-border-strong);border-radius:var(--ag-radius);color:var(--ag-muted);text-align:center;}
+@media(max-width:640px){.agu-stash-app .agu-stash-head{display:none}.agu-stash-app .agu-stash-row{grid-template-columns:32px 1fr auto;}.agu-stash-app .agu-stash-row > span:nth-child(n+3):not(:last-child){display:none}}
+.agu-vote-app .window-content {padding:var(--ag-space-4);}
+.agu-vote-app .agu-vote p {margin:0 0 var(--ag-space-2);}
+.agu-vote-app .agu-vote-actions {display:flex;justify-content:space-between;gap:var(--ag-space-2);margin-top:var(--ag-space-3);}

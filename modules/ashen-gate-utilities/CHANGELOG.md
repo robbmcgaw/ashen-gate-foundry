@@ -1,5 +1,17 @@
 # Changelog — Ashen Gate | Utilities
 
+## 0.5.0 — 2026-10-18
+
+Party stash overhaul.
+
+- The party stash has its own **Party Stash** window instead of opening the Actor's features tab. Each item shows its icon, name, quantity, weight, value and type, grouped by type, with a search box. Click a name to open the item's sheet.
+- GM world toggle (GM Setup, or Party Inventory → **Turn On for Players**). Off by default; while off, players can't see the stash or move items. While on, players get Observer permission on the stash Actor so item sheets open read-only.
+- **Drag in:** drag an item from your own character sheet onto the Party Stash window. The GM client moves it (no copy left behind).
+- **Take out:** drag a row onto your character sheet, or use **Take**. Every other connected player gets an Accept/Deny popup. Any deny, or no answer within 60 seconds, cancels and the item stays. On approval the GM client moves it. Dragging a stash item onto a sheet never makes a native copy.
+- The GM moves items freely: drag from any sheet into the stash, drag a row onto any sheet, or use Take with any character. No vote.
+- Player actions are checked again by the primary GM client (stash on, Player Access on, you own the character); the player's own client never edits the stash.
+- New world setting `stashEnabled` (hidden, default off). No migration needed: the existing stash Actor is reused.
+
 ## 0.4.0 — 2026-10-18
 
 Conditions overhaul.

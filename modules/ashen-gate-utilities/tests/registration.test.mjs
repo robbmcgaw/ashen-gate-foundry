@@ -11,7 +11,7 @@ globalThis.ui={actors:null,notifications:{info:()=>{},error:()=>{}}};
 globalThis.Hooks={once:(k,fn)=>handlers.once.set(k,fn),on:(k,fn)=>{handlers.on.set(k,fn);return 123;},off:()=>{}};
 await import('../scripts/main.mjs');
 handlers.once.get('init')();handlers.once.get('ready')();
-test('registers module-owned settings',()=>{assert.equal(settings.size,7);assert.equal(settings.get(`${ID}.playerAccessEnabled`).value,false);});
+test('registers module-owned settings',()=>{assert.equal(settings.size,8);assert.equal(settings.get(`${ID}.playerAccessEnabled`).value,false);});
 test('publishes working and versioned public Open API',()=>{const api=game.modules.get(ID).api;assert.equal(api.version,VERSION);assert.equal(typeof api.open,'function');});
 test('Player Access conforms to ag-player-access/1',()=>{const s=game.modules.get(ID).api.playerAccess.getState();assert.deepEqual(s,{contract:'ag-player-access/1',moduleId:ID,audience:'player',playerAccessEnabled:false,configurable:true});});
 test('Player Access rejects unauthorized user writes',async()=>{const api=game.modules.get(ID).api.playerAccess;game.user={id:'player',isGM:false};await assert.rejects(api.setEnabled(true),/GM only/);game.user=gm;assert.equal(game.settings.get(ID,'playerAccessEnabled'),false);});
@@ -77,12 +77,13 @@ test('completed Group Check never appears in Roll Requests as a live request',as
  const html=await app._renderHTML();assert.ok(html.includes('Roll Request is currently active')===false);assert.ok(html.includes('Group Check is currently active'));assert.ok(html.includes('No Roll Request active'));
  assert.ok(!html.includes('Roll Now'));
 });
-test('party stash remains hidden to players even when Actor observer permission exists',async()=>{
+test('party stash stays hidden to players while the GM has it turned off, even with Observer permission',async()=>{
  const player=game.users.find(u=>u.id==='player');
  const stash={id:'stash',name:'SECRET STASH',type:'npc',getFlag:()=>true,items:[{name:'GM PRIVATE ITEM',system:{quantity:1}}],testUserPermission:()=>true};
  game.actors.push(stash);game.user=player;await game.settings.set(ID,'playerAccessEnabled',true);
  const app=await game.modules.get(ID).api.open();app.tab='inventory';
- const html=await app._renderHTML();assert.ok(html.includes('Observer permission'));assert.ok(!html.includes('GM PRIVATE ITEM'));assert.ok(!html.includes('Create GM-only Party Stash'));
+ const html=await app._renderHTML();assert.ok(html.includes('turned the party stash off'));assert.ok(!html.includes('GM PRIVATE ITEM'));assert.ok(!html.includes('Create Party Stash'));assert.ok(!html.includes('Open Party Stash'));
+ await assert.rejects(game.modules.get(ID).api.stash.open(),/turned the party stash off/);
  game.user=gm;
 });
 test('RollTables with document results are drawn with Foundry draw and linked',async()=>{
