@@ -1,0 +1,1648 @@
+{
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-PLAYTEST-PACK",
+    "version": "0.1.0",
+    "description": "Synthetic playtest pack: 3 professions, 8 materials, 8 recipes with crafted items, 3 give-to-player recipe items. Includes one GM-only material and one draft recipe/item as deliberate visibility examples. Not canon."
+  },
+  "records": [
+    {
+      "id": "PROF-PT-ALCHEMY",
+      "entity_type": "Profession",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "starting_recipe",
+          "target_id": "REC-PT-EMBER-SALVE",
+          "mode": "required"
+        },
+        {
+          "relation": "starting_recipe",
+          "target_id": "REC-PT-MISTVEIL-TONIC",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Alchemy",
+      "profession_kind": "crafting",
+      "access": {
+        "toolProficienciesAnyOf": [
+          "Alchemist's Supplies",
+          "Herbalism Kit"
+        ],
+        "toolMustBePresent": true
+      },
+      "workstation": "Alchemy Laboratory",
+      "progression": {
+        "professionLevels": 16,
+        "tiers": [
+          {
+            "id": "apprentice",
+            "startsAtLevel": 1,
+            "advancement": "tool-access"
+          },
+          {
+            "id": "journeyman",
+            "startsAtLevel": 4,
+            "advancement": "automatic"
+          },
+          {
+            "id": "expert",
+            "startsAtLevel": 7,
+            "advancement": "automatic"
+          },
+          {
+            "id": "artisan",
+            "startsAtLevel": 10,
+            "advancement": "dm-feat-required"
+          },
+          {
+            "id": "master",
+            "startsAtLevel": 13,
+            "advancement": "dm-feat-required"
+          }
+        ],
+        "xpTable": {
+          "startingXP": 0,
+          "startingLevel": 1,
+          "costFormula": "5 + 3 * (currentLevel - 1)",
+          "costToNextByCurrentLevel": {
+            "1": 5,
+            "2": 8,
+            "3": 11,
+            "4": 14,
+            "5": 17,
+            "6": 20,
+            "7": 23,
+            "8": 26,
+            "9": 29,
+            "10": 32,
+            "11": 35,
+            "12": 38,
+            "13": 41,
+            "14": 44,
+            "15": 47
+          },
+          "cumulativeXPToReachLevel": {
+            "1": 0,
+            "2": 5,
+            "3": 13,
+            "4": 24,
+            "5": 38,
+            "6": 55,
+            "7": 75,
+            "8": 98,
+            "9": 124,
+            "10": 153,
+            "11": 185,
+            "12": 220,
+            "13": 258,
+            "14": 299,
+            "15": 343,
+            "16": 390
+          },
+          "cap": 16,
+          "status": "confirmed"
+        },
+        "gatheringBaseDC": [
+          10,
+          12,
+          14,
+          16,
+          18
+        ],
+        "criticalMargin": 5,
+        "manualXP": true,
+        "manualLevelUp": true
+      },
+      "starting_recipe_ids": [
+        "REC-PT-EMBER-SALVE",
+        "REC-PT-MISTVEIL-TONIC"
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Professions",
+        "data": {
+          "name": "[TEST] Alchemy — Profession",
+          "type": "feat",
+          "img": "icons/skills/trades/smithing-anvil-silver-red.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Alchemy</h2><p>Synthetic playtest profession; no rules text.</p><p>Starting recipes: [[AGREF:REC-PT-EMBER-SALVE|REC-PT-EMBER-SALVE]], [[AGREF:REC-PT-MISTVEIL-TONIC|REC-PT-MISTVEIL-TONIC]]</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "PROF-PT-HERBALISM",
+      "entity_type": "Profession",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Herbalism",
+      "profession_kind": "gathering",
+      "access": {
+        "skillProficienciesAnyOf": [
+          "Nature"
+        ],
+        "advantageToolsAnyOf": [
+          "Herbalism Kit"
+        ]
+      },
+      "workstation": null,
+      "progression": {
+        "professionLevels": 16,
+        "tiers": [
+          {
+            "id": "apprentice",
+            "startsAtLevel": 1,
+            "advancement": "tool-access"
+          },
+          {
+            "id": "journeyman",
+            "startsAtLevel": 4,
+            "advancement": "automatic"
+          },
+          {
+            "id": "expert",
+            "startsAtLevel": 7,
+            "advancement": "automatic"
+          },
+          {
+            "id": "artisan",
+            "startsAtLevel": 10,
+            "advancement": "dm-feat-required"
+          },
+          {
+            "id": "master",
+            "startsAtLevel": 13,
+            "advancement": "dm-feat-required"
+          }
+        ],
+        "xpTable": {
+          "startingXP": 0,
+          "startingLevel": 1,
+          "costFormula": "5 + 3 * (currentLevel - 1)",
+          "costToNextByCurrentLevel": {
+            "1": 5,
+            "2": 8,
+            "3": 11,
+            "4": 14,
+            "5": 17,
+            "6": 20,
+            "7": 23,
+            "8": 26,
+            "9": 29,
+            "10": 32,
+            "11": 35,
+            "12": 38,
+            "13": 41,
+            "14": 44,
+            "15": 47
+          },
+          "cumulativeXPToReachLevel": {
+            "1": 0,
+            "2": 5,
+            "3": 13,
+            "4": 24,
+            "5": 38,
+            "6": 55,
+            "7": 75,
+            "8": 98,
+            "9": 124,
+            "10": 153,
+            "11": 185,
+            "12": 220,
+            "13": 258,
+            "14": 299,
+            "15": 343,
+            "16": 390
+          },
+          "cap": 16,
+          "status": "confirmed"
+        },
+        "gatheringBaseDC": [
+          10,
+          12,
+          14,
+          16,
+          18
+        ],
+        "criticalMargin": 5,
+        "manualXP": true,
+        "manualLevelUp": true
+      },
+      "starting_recipe_ids": [],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Professions",
+        "data": {
+          "name": "[TEST] Herbalism — Profession",
+          "type": "feat",
+          "img": "icons/skills/trades/smithing-anvil-silver-red.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Herbalism</h2><p>Synthetic playtest profession; no rules text.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "PROF-PT-BLACKSMITHING",
+      "entity_type": "Profession",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "starting_recipe",
+          "target_id": "REC-PT-IRON-HINGE-SET",
+          "mode": "required"
+        },
+        {
+          "relation": "starting_recipe",
+          "target_id": "REC-PT-TEST-DAGGER",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Blacksmithing",
+      "profession_kind": "crafting",
+      "access": {
+        "toolProficienciesAnyOf": [
+          "Smith's Tools"
+        ],
+        "toolMustBePresent": true
+      },
+      "workstation": "Forge",
+      "progression": {
+        "professionLevels": 16,
+        "tiers": [
+          {
+            "id": "apprentice",
+            "startsAtLevel": 1,
+            "advancement": "tool-access"
+          },
+          {
+            "id": "journeyman",
+            "startsAtLevel": 4,
+            "advancement": "automatic"
+          },
+          {
+            "id": "expert",
+            "startsAtLevel": 7,
+            "advancement": "automatic"
+          },
+          {
+            "id": "artisan",
+            "startsAtLevel": 10,
+            "advancement": "dm-feat-required"
+          },
+          {
+            "id": "master",
+            "startsAtLevel": 13,
+            "advancement": "dm-feat-required"
+          }
+        ],
+        "xpTable": {
+          "startingXP": 0,
+          "startingLevel": 1,
+          "costFormula": "5 + 3 * (currentLevel - 1)",
+          "costToNextByCurrentLevel": {
+            "1": 5,
+            "2": 8,
+            "3": 11,
+            "4": 14,
+            "5": 17,
+            "6": 20,
+            "7": 23,
+            "8": 26,
+            "9": 29,
+            "10": 32,
+            "11": 35,
+            "12": 38,
+            "13": 41,
+            "14": 44,
+            "15": 47
+          },
+          "cumulativeXPToReachLevel": {
+            "1": 0,
+            "2": 5,
+            "3": 13,
+            "4": 24,
+            "5": 38,
+            "6": 55,
+            "7": 75,
+            "8": 98,
+            "9": 124,
+            "10": 153,
+            "11": 185,
+            "12": 220,
+            "13": 258,
+            "14": 299,
+            "15": 343,
+            "16": 390
+          },
+          "cap": 16,
+          "status": "confirmed"
+        },
+        "gatheringBaseDC": [
+          10,
+          12,
+          14,
+          16,
+          18
+        ],
+        "criticalMargin": 5,
+        "manualXP": true,
+        "manualLevelUp": true
+      },
+      "starting_recipe_ids": [
+        "REC-PT-IRON-HINGE-SET",
+        "REC-PT-TEST-DAGGER"
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Professions",
+        "data": {
+          "name": "[TEST] Blacksmithing — Profession",
+          "type": "feat",
+          "img": "icons/skills/trades/smithing-anvil-silver-red.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Blacksmithing</h2><p>Synthetic playtest profession; no rules text.</p><p>Starting recipes: [[AGREF:REC-PT-IRON-HINGE-SET|REC-PT-IRON-HINGE-SET]], [[AGREF:REC-PT-TEST-DAGGER|REC-PT-TEST-DAGGER]]</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "MAT-PT-EMBERROOT",
+      "entity_type": "Material",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "gathered_by",
+          "target_id": "PROF-PT-HERBALISM",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Emberroot",
+      "tierId": "apprentice",
+      "quality": "Common",
+      "unit": "Bundle",
+      "flavor": "Warm red roots, placeholder herb.",
+      "tags": [
+        "standard",
+        "playtest"
+      ],
+      "priceGp": 5,
+      "weightLb": 0.5,
+      "source_profession_id": "PROF-PT-HERBALISM",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Materials",
+        "data": {
+          "name": "[TEST] Emberroot",
+          "type": "loot",
+          "img": "icons/commodities/materials/bowl-powder-green.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Emberroot</h2><p>Apprentice · Common · 5 gp · 0.5 lb · Bundle</p><p>Warm red roots, placeholder herb.</p><p>Gathered through [[AGREF:PROF-PT-HERBALISM|Herbalism]].</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "MAT-PT-PALEMOSS",
+      "entity_type": "Material",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "gathered_by",
+          "target_id": "PROF-PT-HERBALISM",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Palemoss",
+      "tierId": "apprentice",
+      "quality": "Common",
+      "unit": "Handful",
+      "flavor": "Pale damp moss, placeholder herb.",
+      "tags": [
+        "standard",
+        "playtest"
+      ],
+      "priceGp": 4,
+      "weightLb": 0.25,
+      "source_profession_id": "PROF-PT-HERBALISM",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Materials",
+        "data": {
+          "name": "[TEST] Palemoss",
+          "type": "loot",
+          "img": "icons/commodities/materials/bowl-powder-green.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Palemoss</h2><p>Apprentice · Common · 4 gp · 0.25 lb · Handful</p><p>Pale damp moss, placeholder herb.</p><p>Gathered through [[AGREF:PROF-PT-HERBALISM|Herbalism]].</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "MAT-PT-GLASSBLOOM",
+      "entity_type": "Material",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "gathered_by",
+          "target_id": "PROF-PT-HERBALISM",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Glassbloom",
+      "tierId": "journeyman",
+      "quality": "Uncommon",
+      "unit": "Bloom",
+      "flavor": "Translucent flower, placeholder herb.",
+      "tags": [
+        "standard",
+        "playtest"
+      ],
+      "priceGp": 12,
+      "weightLb": 0.1,
+      "source_profession_id": "PROF-PT-HERBALISM",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Materials",
+        "data": {
+          "name": "[TEST] Glassbloom",
+          "type": "loot",
+          "img": "icons/commodities/materials/bowl-powder-green.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Glassbloom</h2><p>Journeyman · Uncommon · 12 gp · 0.1 lb · Bloom</p><p>Translucent flower, placeholder herb.</p><p>Gathered through [[AGREF:PROF-PT-HERBALISM|Herbalism]].</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "MAT-PT-IRON-ORE",
+      "entity_type": "Material",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Iron Ore",
+      "tierId": "apprentice",
+      "quality": "Common",
+      "unit": "Chunk",
+      "flavor": "Rough placeholder ore.",
+      "tags": [
+        "standard",
+        "playtest"
+      ],
+      "priceGp": 3,
+      "weightLb": 2,
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Materials",
+        "data": {
+          "name": "[TEST] Iron Ore",
+          "type": "loot",
+          "img": "icons/commodities/materials/bowl-powder-green.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Iron Ore</h2><p>Apprentice · Common · 3 gp · 2 lb · Chunk</p><p>Rough placeholder ore.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "MAT-PT-COAL",
+      "entity_type": "Material",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Coal",
+      "tierId": "apprentice",
+      "quality": "Common",
+      "unit": "Sack",
+      "flavor": "Placeholder fuel.",
+      "tags": [
+        "standard",
+        "playtest"
+      ],
+      "priceGp": 2,
+      "weightLb": 5,
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Materials",
+        "data": {
+          "name": "[TEST] Coal",
+          "type": "loot",
+          "img": "icons/commodities/materials/bowl-powder-green.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Coal</h2><p>Apprentice · Common · 2 gp · 5 lb · Sack</p><p>Placeholder fuel.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "MAT-PT-LEATHER-STRIPS",
+      "entity_type": "Material",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Leather Strips",
+      "tierId": "apprentice",
+      "quality": "Common",
+      "unit": "Bundle",
+      "flavor": "Placeholder binding.",
+      "tags": [
+        "standard",
+        "playtest"
+      ],
+      "priceGp": 3,
+      "weightLb": 1,
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Materials",
+        "data": {
+          "name": "[TEST] Leather Strips",
+          "type": "loot",
+          "img": "icons/commodities/materials/bowl-powder-green.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Leather Strips</h2><p>Apprentice · Common · 3 gp · 1 lb · Bundle</p><p>Placeholder binding.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "MAT-PT-ASHWOOD-PLANKS",
+      "entity_type": "Material",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Ashwood Planks",
+      "tierId": "apprentice",
+      "quality": "Common",
+      "unit": "Plank",
+      "flavor": "Placeholder timber.",
+      "tags": [
+        "standard",
+        "playtest"
+      ],
+      "priceGp": 4,
+      "weightLb": 3,
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Materials",
+        "data": {
+          "name": "[TEST] Ashwood Planks",
+          "type": "loot",
+          "img": "icons/commodities/materials/bowl-powder-green.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Ashwood Planks</h2><p>Apprentice · Common · 4 gp · 3 lb · Plank</p><p>Placeholder timber.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "MAT-PT-GM-ONLY-RESIN",
+      "entity_type": "Material",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "gm",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] GM-only Resin",
+      "tierId": "master",
+      "quality": "Rare",
+      "unit": "Vial",
+      "flavor": "GM-only example material. Players must not see this.",
+      "tags": [
+        "standard",
+        "playtest"
+      ],
+      "priceGp": 100,
+      "weightLb": 0.1,
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Materials",
+        "data": {
+          "name": "[TEST] GM-only Resin",
+          "type": "loot",
+          "img": "icons/commodities/materials/bowl-powder-green.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] GM-only Resin</h2><p>Master · Rare · 100 gp · 0.1 lb · Vial</p><p>GM-only example material. Players must not see this.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "REC-PT-EMBER-SALVE",
+      "entity_type": "Recipe",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "crafted_by",
+          "target_id": "PROF-PT-ALCHEMY",
+          "mode": "required"
+        },
+        {
+          "relation": "produces",
+          "target_id": "ITEM-PT-EMBER-SALVE",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-EMBERROOT",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-PALEMOSS",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Ember Salve",
+      "tier": "apprentice",
+      "starting": true,
+      "origin": "original",
+      "effort": "short",
+      "price_class": "common_consumable",
+      "market_gp": 28,
+      "craft_gp": 14,
+      "additional_gp": 0,
+      "rules_summary": "Placeholder recipe for playtesting; no rules effect. [TEST] Ember Salve is crafted from the listed materials.",
+      "profession_id": "PROF-PT-ALCHEMY",
+      "result_item_id": "ITEM-PT-EMBER-SALVE",
+      "ingredients": [
+        {
+          "material_id": "MAT-PT-EMBERROOT",
+          "quantity": 2,
+          "material_value_gp": 5
+        },
+        {
+          "material_id": "MAT-PT-PALEMOSS",
+          "quantity": 1,
+          "material_value_gp": 4
+        }
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Recipes",
+        "data": {
+          "name": "Recipe: [TEST] Ember Salve",
+          "type": "consumable",
+          "img": "icons/commodities/materials/parchment-secrets.webp",
+          "system": {
+            "description": {
+              "value": "<h2>Recipe: [TEST] Ember Salve</h2><p>[[AGREF:PROF-PT-ALCHEMY|Alchemy]] · Apprentice · short effort</p><p>Requires 2 × [[AGREF:MAT-PT-EMBERROOT|Emberroot]], 1 × [[AGREF:MAT-PT-PALEMOSS|Palemoss]].</p><p>Produces [[AGREF:ITEM-PT-EMBER-SALVE|Ember Salve]].</p><p>Placeholder recipe for playtesting; no rules effect. [TEST] Ember Salve is crafted from the listed materials.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "REC-PT-MISTVEIL-TONIC",
+      "entity_type": "Recipe",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "crafted_by",
+          "target_id": "PROF-PT-ALCHEMY",
+          "mode": "required"
+        },
+        {
+          "relation": "produces",
+          "target_id": "ITEM-PT-MISTVEIL-TONIC",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-PALEMOSS",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-GLASSBLOOM",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Mistveil Tonic",
+      "tier": "apprentice",
+      "starting": true,
+      "origin": "original",
+      "effort": "short",
+      "price_class": "common_consumable",
+      "market_gp": 40,
+      "craft_gp": 20,
+      "additional_gp": 0,
+      "rules_summary": "Placeholder recipe for playtesting; no rules effect. [TEST] Mistveil Tonic is crafted from the listed materials.",
+      "profession_id": "PROF-PT-ALCHEMY",
+      "result_item_id": "ITEM-PT-MISTVEIL-TONIC",
+      "ingredients": [
+        {
+          "material_id": "MAT-PT-PALEMOSS",
+          "quantity": 2,
+          "material_value_gp": 4
+        },
+        {
+          "material_id": "MAT-PT-GLASSBLOOM",
+          "quantity": 1,
+          "material_value_gp": 12
+        }
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Recipes",
+        "data": {
+          "name": "Recipe: [TEST] Mistveil Tonic",
+          "type": "loot",
+          "img": "icons/commodities/materials/parchment-secrets.webp",
+          "system": {
+            "description": {
+              "value": "<h2>Recipe: [TEST] Mistveil Tonic</h2><p>[[AGREF:PROF-PT-ALCHEMY|Alchemy]] · Apprentice · short effort</p><p>Requires 2 × [[AGREF:MAT-PT-PALEMOSS|Palemoss]], 1 × [[AGREF:MAT-PT-GLASSBLOOM|Glassbloom]].</p><p>Produces [[AGREF:ITEM-PT-MISTVEIL-TONIC|Mistveil Tonic]].</p><p>Placeholder recipe for playtesting; no rules effect. [TEST] Mistveil Tonic is crafted from the listed materials.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "REC-PT-GLASSBLOOM-ELIXIR",
+      "entity_type": "Recipe",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "crafted_by",
+          "target_id": "PROF-PT-ALCHEMY",
+          "mode": "required"
+        },
+        {
+          "relation": "produces",
+          "target_id": "ITEM-PT-GLASSBLOOM-ELIXIR",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-GLASSBLOOM",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-EMBERROOT",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Glassbloom Elixir",
+      "tier": "journeyman",
+      "starting": false,
+      "origin": "original",
+      "effort": "long",
+      "price_class": "common_consumable",
+      "market_gp": 58,
+      "craft_gp": 29,
+      "additional_gp": 0,
+      "rules_summary": "Placeholder recipe for playtesting; no rules effect. [TEST] Glassbloom Elixir is crafted from the listed materials.",
+      "profession_id": "PROF-PT-ALCHEMY",
+      "result_item_id": "ITEM-PT-GLASSBLOOM-ELIXIR",
+      "ingredients": [
+        {
+          "material_id": "MAT-PT-GLASSBLOOM",
+          "quantity": 2,
+          "material_value_gp": 12
+        },
+        {
+          "material_id": "MAT-PT-EMBERROOT",
+          "quantity": 1,
+          "material_value_gp": 5
+        }
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Recipes",
+        "data": {
+          "name": "Recipe: [TEST] Glassbloom Elixir",
+          "type": "loot",
+          "img": "icons/commodities/materials/parchment-secrets.webp",
+          "system": {
+            "description": {
+              "value": "<h2>Recipe: [TEST] Glassbloom Elixir</h2><p>[[AGREF:PROF-PT-ALCHEMY|Alchemy]] · Journeyman · long effort</p><p>Requires 2 × [[AGREF:MAT-PT-GLASSBLOOM|Glassbloom]], 1 × [[AGREF:MAT-PT-EMBERROOT|Emberroot]].</p><p>Produces [[AGREF:ITEM-PT-GLASSBLOOM-ELIXIR|Glassbloom Elixir]].</p><p>Placeholder recipe for playtesting; no rules effect. [TEST] Glassbloom Elixir is crafted from the listed materials.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "REC-PT-DRAFT-DRAUGHT",
+      "entity_type": "Recipe",
+      "status": "draft",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "crafted_by",
+          "target_id": "PROF-PT-ALCHEMY",
+          "mode": "required"
+        },
+        {
+          "relation": "produces",
+          "target_id": "ITEM-PT-DRAFT-DRAUGHT",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-EMBERROOT",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Draft Draught",
+      "tier": "apprentice",
+      "starting": false,
+      "origin": "original",
+      "effort": "short",
+      "price_class": "common_consumable",
+      "market_gp": 10,
+      "craft_gp": 5,
+      "additional_gp": 0,
+      "rules_summary": "Placeholder recipe for playtesting; no rules effect. [TEST] Draft Draught is crafted from the listed materials.",
+      "profession_id": "PROF-PT-ALCHEMY",
+      "result_item_id": "ITEM-PT-DRAFT-DRAUGHT",
+      "ingredients": [
+        {
+          "material_id": "MAT-PT-EMBERROOT",
+          "quantity": 1,
+          "material_value_gp": 5
+        }
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Recipes",
+        "data": {
+          "name": "Recipe: [TEST] Draft Draught",
+          "type": "loot",
+          "img": "icons/commodities/materials/parchment-secrets.webp",
+          "system": {
+            "description": {
+              "value": "<h2>Recipe: [TEST] Draft Draught</h2><p>[[AGREF:PROF-PT-ALCHEMY|Alchemy]] · Apprentice · short effort · DRAFT example</p><p>Requires 1 × [[AGREF:MAT-PT-EMBERROOT|Emberroot]].</p><p>Produces [[AGREF:ITEM-PT-DRAFT-DRAUGHT|Draft Draught]].</p><p>Placeholder recipe for playtesting; no rules effect. [TEST] Draft Draught is crafted from the listed materials.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "REC-PT-IRON-HINGE-SET",
+      "entity_type": "Recipe",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "crafted_by",
+          "target_id": "PROF-PT-BLACKSMITHING",
+          "mode": "required"
+        },
+        {
+          "relation": "produces",
+          "target_id": "ITEM-PT-IRON-HINGE-SET",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-IRON-ORE",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-COAL",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Iron Hinge Set",
+      "tier": "apprentice",
+      "starting": true,
+      "origin": "original",
+      "effort": "short",
+      "price_class": "common_consumable",
+      "market_gp": 16,
+      "craft_gp": 8,
+      "additional_gp": 0,
+      "rules_summary": "Placeholder recipe for playtesting; no rules effect. [TEST] Iron Hinge Set is crafted from the listed materials.",
+      "profession_id": "PROF-PT-BLACKSMITHING",
+      "result_item_id": "ITEM-PT-IRON-HINGE-SET",
+      "ingredients": [
+        {
+          "material_id": "MAT-PT-IRON-ORE",
+          "quantity": 2,
+          "material_value_gp": 3
+        },
+        {
+          "material_id": "MAT-PT-COAL",
+          "quantity": 1,
+          "material_value_gp": 2
+        }
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Recipes",
+        "data": {
+          "name": "Recipe: [TEST] Iron Hinge Set",
+          "type": "consumable",
+          "img": "icons/commodities/materials/parchment-secrets.webp",
+          "system": {
+            "description": {
+              "value": "<h2>Recipe: [TEST] Iron Hinge Set</h2><p>[[AGREF:PROF-PT-BLACKSMITHING|Blacksmithing]] · Apprentice · short effort</p><p>Requires 2 × [[AGREF:MAT-PT-IRON-ORE|Iron Ore]], 1 × [[AGREF:MAT-PT-COAL|Coal]].</p><p>Produces [[AGREF:ITEM-PT-IRON-HINGE-SET|Iron Hinge Set]].</p><p>Placeholder recipe for playtesting; no rules effect. [TEST] Iron Hinge Set is crafted from the listed materials.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "REC-PT-TEST-DAGGER",
+      "entity_type": "Recipe",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "crafted_by",
+          "target_id": "PROF-PT-BLACKSMITHING",
+          "mode": "required"
+        },
+        {
+          "relation": "produces",
+          "target_id": "ITEM-PT-TEST-DAGGER",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-IRON-ORE",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-COAL",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-LEATHER-STRIPS",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Test Dagger",
+      "tier": "apprentice",
+      "starting": true,
+      "origin": "original",
+      "effort": "long",
+      "price_class": "common_consumable",
+      "market_gp": 28,
+      "craft_gp": 14,
+      "additional_gp": 0,
+      "rules_summary": "Placeholder recipe for playtesting; no rules effect. [TEST] Test Dagger is crafted from the listed materials.",
+      "profession_id": "PROF-PT-BLACKSMITHING",
+      "result_item_id": "ITEM-PT-TEST-DAGGER",
+      "ingredients": [
+        {
+          "material_id": "MAT-PT-IRON-ORE",
+          "quantity": 3,
+          "material_value_gp": 3
+        },
+        {
+          "material_id": "MAT-PT-COAL",
+          "quantity": 1,
+          "material_value_gp": 2
+        },
+        {
+          "material_id": "MAT-PT-LEATHER-STRIPS",
+          "quantity": 1,
+          "material_value_gp": 3
+        }
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Recipes",
+        "data": {
+          "name": "Recipe: [TEST] Test Dagger",
+          "type": "consumable",
+          "img": "icons/commodities/materials/parchment-secrets.webp",
+          "system": {
+            "description": {
+              "value": "<h2>Recipe: [TEST] Test Dagger</h2><p>[[AGREF:PROF-PT-BLACKSMITHING|Blacksmithing]] · Apprentice · long effort</p><p>Requires 3 × [[AGREF:MAT-PT-IRON-ORE|Iron Ore]], 1 × [[AGREF:MAT-PT-COAL|Coal]], 1 × [[AGREF:MAT-PT-LEATHER-STRIPS|Leather Strips]].</p><p>Produces [[AGREF:ITEM-PT-TEST-DAGGER|Test Dagger]].</p><p>Placeholder recipe for playtesting; no rules effect. [TEST] Test Dagger is crafted from the listed materials.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "REC-PT-ASHWOOD-BUCKLER",
+      "entity_type": "Recipe",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "crafted_by",
+          "target_id": "PROF-PT-BLACKSMITHING",
+          "mode": "required"
+        },
+        {
+          "relation": "produces",
+          "target_id": "ITEM-PT-ASHWOOD-BUCKLER",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-IRON-ORE",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-ASHWOOD-PLANKS",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Ashwood Buckler",
+      "tier": "journeyman",
+      "starting": false,
+      "origin": "original",
+      "effort": "long",
+      "price_class": "common_consumable",
+      "market_gp": 28,
+      "craft_gp": 14,
+      "additional_gp": 0,
+      "rules_summary": "Placeholder recipe for playtesting; no rules effect. [TEST] Ashwood Buckler is crafted from the listed materials.",
+      "profession_id": "PROF-PT-BLACKSMITHING",
+      "result_item_id": "ITEM-PT-ASHWOOD-BUCKLER",
+      "ingredients": [
+        {
+          "material_id": "MAT-PT-IRON-ORE",
+          "quantity": 2,
+          "material_value_gp": 3
+        },
+        {
+          "material_id": "MAT-PT-ASHWOOD-PLANKS",
+          "quantity": 2,
+          "material_value_gp": 4
+        }
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Recipes",
+        "data": {
+          "name": "Recipe: [TEST] Ashwood Buckler",
+          "type": "loot",
+          "img": "icons/commodities/materials/parchment-secrets.webp",
+          "system": {
+            "description": {
+              "value": "<h2>Recipe: [TEST] Ashwood Buckler</h2><p>[[AGREF:PROF-PT-BLACKSMITHING|Blacksmithing]] · Journeyman · long effort</p><p>Requires 2 × [[AGREF:MAT-PT-IRON-ORE|Iron Ore]], 2 × [[AGREF:MAT-PT-ASHWOOD-PLANKS|Ashwood Planks]].</p><p>Produces [[AGREF:ITEM-PT-ASHWOOD-BUCKLER|Ashwood Buckler]].</p><p>Placeholder recipe for playtesting; no rules effect. [TEST] Ashwood Buckler is crafted from the listed materials.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "REC-PT-RIVET-POUCH",
+      "entity_type": "Recipe",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "crafted_by",
+          "target_id": "PROF-PT-BLACKSMITHING",
+          "mode": "required"
+        },
+        {
+          "relation": "produces",
+          "target_id": "ITEM-PT-RIVET-POUCH",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-IRON-ORE",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-COAL",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-LEATHER-STRIPS",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Rivet Pouch",
+      "tier": "apprentice",
+      "starting": false,
+      "origin": "original",
+      "effort": "short",
+      "price_class": "common_consumable",
+      "market_gp": 16,
+      "craft_gp": 8,
+      "additional_gp": 0,
+      "rules_summary": "Placeholder recipe for playtesting; no rules effect. [TEST] Rivet Pouch is crafted from the listed materials.",
+      "profession_id": "PROF-PT-BLACKSMITHING",
+      "result_item_id": "ITEM-PT-RIVET-POUCH",
+      "ingredients": [
+        {
+          "material_id": "MAT-PT-IRON-ORE",
+          "quantity": 1,
+          "material_value_gp": 3
+        },
+        {
+          "material_id": "MAT-PT-COAL",
+          "quantity": 1,
+          "material_value_gp": 2
+        },
+        {
+          "material_id": "MAT-PT-LEATHER-STRIPS",
+          "quantity": 1,
+          "material_value_gp": 3
+        }
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Recipes",
+        "data": {
+          "name": "Recipe: [TEST] Rivet Pouch",
+          "type": "loot",
+          "img": "icons/commodities/materials/parchment-secrets.webp",
+          "system": {
+            "description": {
+              "value": "<h2>Recipe: [TEST] Rivet Pouch</h2><p>[[AGREF:PROF-PT-BLACKSMITHING|Blacksmithing]] · Apprentice · short effort</p><p>Requires 1 × [[AGREF:MAT-PT-IRON-ORE|Iron Ore]], 1 × [[AGREF:MAT-PT-COAL|Coal]], 1 × [[AGREF:MAT-PT-LEATHER-STRIPS|Leather Strips]].</p><p>Produces [[AGREF:ITEM-PT-RIVET-POUCH|Rivet Pouch]].</p><p>Placeholder recipe for playtesting; no rules effect. [TEST] Rivet Pouch is crafted from the listed materials.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ITEM-PT-EMBER-SALVE",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "created_by",
+          "target_id": "REC-PT-EMBER-SALVE",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Ember Salve",
+      "origin": "original",
+      "rarity_price_class": "common_consumable",
+      "market_gp": 28,
+      "rules_summary": "Placeholder item for playtesting; no rules effect.",
+      "created_by_recipe_id": "REC-PT-EMBER-SALVE",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Items",
+        "data": {
+          "name": "[TEST] Ember Salve",
+          "type": "loot",
+          "img": "icons/commodities/treasure/token-brass-round.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Ember Salve</h2><p>Placeholder item for playtesting; no rules effect.</p><p>Crafted from [[AGREF:REC-PT-EMBER-SALVE|Recipe: Ember Salve]].</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ITEM-PT-MISTVEIL-TONIC",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "created_by",
+          "target_id": "REC-PT-MISTVEIL-TONIC",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Mistveil Tonic",
+      "origin": "original",
+      "rarity_price_class": "common_consumable",
+      "market_gp": 40,
+      "rules_summary": "Placeholder item for playtesting; no rules effect.",
+      "created_by_recipe_id": "REC-PT-MISTVEIL-TONIC",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Items",
+        "data": {
+          "name": "[TEST] Mistveil Tonic",
+          "type": "loot",
+          "img": "icons/commodities/treasure/token-brass-round.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Mistveil Tonic</h2><p>Placeholder item for playtesting; no rules effect.</p><p>Crafted from [[AGREF:REC-PT-MISTVEIL-TONIC|Recipe: Mistveil Tonic]].</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ITEM-PT-GLASSBLOOM-ELIXIR",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "created_by",
+          "target_id": "REC-PT-GLASSBLOOM-ELIXIR",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Glassbloom Elixir",
+      "origin": "original",
+      "rarity_price_class": "common_consumable",
+      "market_gp": 58,
+      "rules_summary": "Placeholder item for playtesting; no rules effect.",
+      "created_by_recipe_id": "REC-PT-GLASSBLOOM-ELIXIR",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Items",
+        "data": {
+          "name": "[TEST] Glassbloom Elixir",
+          "type": "loot",
+          "img": "icons/commodities/treasure/token-brass-round.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Glassbloom Elixir</h2><p>Placeholder item for playtesting; no rules effect.</p><p>Crafted from [[AGREF:REC-PT-GLASSBLOOM-ELIXIR|Recipe: Glassbloom Elixir]].</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ITEM-PT-DRAFT-DRAUGHT",
+      "entity_type": "Item",
+      "status": "draft",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "created_by",
+          "target_id": "REC-PT-DRAFT-DRAUGHT",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Draft Draught",
+      "origin": "original",
+      "rarity_price_class": "common_consumable",
+      "market_gp": 10,
+      "rules_summary": "Placeholder item for playtesting; no rules effect.",
+      "created_by_recipe_id": "REC-PT-DRAFT-DRAUGHT",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Items",
+        "data": {
+          "name": "[TEST] Draft Draught",
+          "type": "loot",
+          "img": "icons/commodities/treasure/token-brass-round.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Draft Draught</h2><p>Placeholder item for playtesting; no rules effect.</p><p>Crafted from [[AGREF:REC-PT-DRAFT-DRAUGHT|Recipe: Draft Draught]].</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ITEM-PT-IRON-HINGE-SET",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "created_by",
+          "target_id": "REC-PT-IRON-HINGE-SET",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Iron Hinge Set",
+      "origin": "original",
+      "rarity_price_class": "common_consumable",
+      "market_gp": 16,
+      "rules_summary": "Placeholder item for playtesting; no rules effect.",
+      "created_by_recipe_id": "REC-PT-IRON-HINGE-SET",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Items",
+        "data": {
+          "name": "[TEST] Iron Hinge Set",
+          "type": "loot",
+          "img": "icons/commodities/treasure/token-brass-round.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Iron Hinge Set</h2><p>Placeholder item for playtesting; no rules effect.</p><p>Crafted from [[AGREF:REC-PT-IRON-HINGE-SET|Recipe: Iron Hinge Set]].</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ITEM-PT-TEST-DAGGER",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "created_by",
+          "target_id": "REC-PT-TEST-DAGGER",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Test Dagger",
+      "origin": "original",
+      "rarity_price_class": "common_consumable",
+      "market_gp": 28,
+      "rules_summary": "Placeholder item for playtesting; no rules effect.",
+      "created_by_recipe_id": "REC-PT-TEST-DAGGER",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Items",
+        "data": {
+          "name": "[TEST] Test Dagger",
+          "type": "loot",
+          "img": "icons/commodities/treasure/token-brass-round.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Test Dagger</h2><p>Placeholder item for playtesting; no rules effect.</p><p>Crafted from [[AGREF:REC-PT-TEST-DAGGER|Recipe: Test Dagger]].</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ITEM-PT-ASHWOOD-BUCKLER",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "created_by",
+          "target_id": "REC-PT-ASHWOOD-BUCKLER",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Ashwood Buckler",
+      "origin": "original",
+      "rarity_price_class": "common_consumable",
+      "market_gp": 28,
+      "rules_summary": "Placeholder item for playtesting; no rules effect.",
+      "created_by_recipe_id": "REC-PT-ASHWOOD-BUCKLER",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Items",
+        "data": {
+          "name": "[TEST] Ashwood Buckler",
+          "type": "loot",
+          "img": "icons/commodities/treasure/token-brass-round.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Ashwood Buckler</h2><p>Placeholder item for playtesting; no rules effect.</p><p>Crafted from [[AGREF:REC-PT-ASHWOOD-BUCKLER|Recipe: Ashwood Buckler]].</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ITEM-PT-RIVET-POUCH",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "created_by",
+          "target_id": "REC-PT-RIVET-POUCH",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Rivet Pouch",
+      "origin": "original",
+      "rarity_price_class": "common_consumable",
+      "market_gp": 16,
+      "rules_summary": "Placeholder item for playtesting; no rules effect.",
+      "created_by_recipe_id": "REC-PT-RIVET-POUCH",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Items",
+        "data": {
+          "name": "[TEST] Rivet Pouch",
+          "type": "loot",
+          "img": "icons/commodities/treasure/token-brass-round.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Rivet Pouch</h2><p>Placeholder item for playtesting; no rules effect.</p><p>Crafted from [[AGREF:REC-PT-RIVET-POUCH|Recipe: Rivet Pouch]].</p>"
+            }
+          }
+        }
+      }
+    }
+  ]
+}
