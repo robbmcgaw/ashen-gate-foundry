@@ -1,8 +1,10 @@
-import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus} from './core.mjs';
+import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,conditionGroups} from './core.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 
 const {ApplicationV2}=foundry.applications.api;
 let windowInstance=null;
+let overlayInstance=null;
+const SOCKET=`module.${ID}`;
 let activeRoll=false;
 let saving=false;
 let sessionQueue=Promise.resolve();
@@ -21,6 +23,11 @@ const ownedIds=()=>permittedActors().map(a=>a.id);
 const skillName=k=>game.i18n.localize(CONFIG.DND5E?.skills?.[k]?.label??k);
 const statusConfig=k=>CONFIG.statusEffects?.find(x=>x.id===k);
 const statusName=k=>game.i18n.localize(statusConfig(k)?.name??k);
+const nativeIds=()=>(CONFIG.statusEffects||[]).map(x=>x.id);
+const getUnlocks=()=>game.settings.get(ID,'conditionUnlocks')||{};
+/** Party characters this user can see (Limited or better); the GM sees all of them. */
+const partyCharacters=(user=game.user)=>allCharacters().filter(a=>user?.isGM||a.testUserPermission?.(user,'LIMITED'));
+const canRemove=(actor,id,user=game.user)=>removalDecision({user,actor,statusId:id,unlocks:getUnlocks(),nativeIds:nativeIds()}).ok;
 const error=e=>{console.error(`[${ID}]`,e);ui.notifications?.error(e?.message||String(e));};
 const option=(id,title,selected)=>`<option value="${E(id)}" ${id===selected?'selected':''}>${E(title)}</option>`;
 const btn=(action,title,{disabled=false,kind='',attrs=''}={})=>`<button type="button" class="${E(kind)}" data-action="${E(action)}" ${disabled?'disabled':''} ${attrs}>${E(title)}</button>`;
@@ -167,11 +174,16 @@ function statusSourceLine(actor,id){
   return `<small class="agu-source">Effect: <strong>${E(x.name)}</strong>${origin}${x.onActor?'':' (item effect: Remove disables it)'}${x.disabled?' (disabled)':''}</small>`;
  }).join('');
 }
-function conditionsView(app){const characters=isGM()?allCharacters():permittedActors();const actor=characters.find(a=>a.id===app.actorId)||characters[0];const statuses=actor?[...(actor.statuses||[])]:[],known=CONFIG.statusEffects||[];
- const roster=characters.map(a=>`<button type="button" data-condition-actor="${E(a.id)}" class="agu-roster-row ${actor?.id===a.id?'active':''}"><span>${E(a.name)}</span><span class="agu-roster-status">${[...(a.statuses||[])].map(s=>conditionIcon(s)+`<span title="${E(statusName(s))}">${E(statusName(s))}</span>`).join('')||'No conditions'}</span></button>`).join('');
+function lockBadge(actor){return isUnlocked(getUnlocks(),actor.id)?`<span class="ag-badge ag-badge--ok agu-pill" title="Its owner can remove native conditions"><i class="fa-solid fa-lock-open" aria-hidden="true"></i>Unlocked</span>`:`<span class="ag-badge agu-pill" title="Only the GM can remove conditions"><i class="fa-solid fa-lock" aria-hidden="true"></i>Locked</span>`;}
+function conditionsView(app){const characters=partyCharacters();const actor=characters.find(a=>a.id===app.actorId)||characters[0];const statuses=actor?[...(actor.statuses||[])]:[],known=CONFIG.statusEffects||[];
+ const showSources=actor&&(isGM()||actor.testUserPermission?.(game.user,'OBSERVER'));
+ const roster=characters.map(a=>`<button type="button" data-condition-actor="${E(a.id)}" class="agu-roster-row ${actor?.id===a.id?'active':''}"><span class="agu-who"><span>${E(a.name)}</span>${lockBadge(a)}</span><span class="agu-roster-status">${[...(a.statuses||[])].map(s=>conditionIcon(s)+`<span title="${E(statusName(s))}">${E(statusName(s))}</span>`).join('')||'No conditions'}</span></button>`).join('');
  const details=statuses.length?statuses.map(id=>{const unknown=!statusConfig(id);
-  return `<div class="agu-participant"><div class="agu-who"><span class="agu-status-title">${conditionIcon(id)}${E(statusName(id))}${unknown?'<span class="ag-badge agu-pill" title="Not a native Foundry status">Custom</span>':''}</span>${unknown&&actor?statusSourceLine(actor,id):''}</div>${isGM()?btn('remove-status','Remove',{attrs:`data-status="${E(id)}"`}):''}</div>`;}).join(''):empty('No conditions on this character.');
- return `<section class="ag-card agu-card"><h2>Party Conditions</h2><div class="agu-party-panes"><section><h3>${isGM()?'All Characters':'Your Characters'}</h3>${roster||empty('No accessible characters.')}</section><section><h3>${E(actor?.name||'Select a character')}</h3>${details}${isGM()&&actor?`<div class="agu-compact"><label>Native condition<select id="agu-condition-status">${known.map(x=>option(x.id,statusName(x.id),x.id)).join('')}</select></label>${btn('add-status','Apply',{kind:'primary'})}</div>`:''}</section></div><p class="agu-note">Statuses Foundry does not list (shown as Custom) are traced to the effect that grants them. The GM can always remove them. Automatic duration, exhaustion and concentration management remain outside this Alpha.</p></section>`;
+  return `<div class="agu-participant"><div class="agu-who"><span class="agu-status-title">${conditionIcon(id)}${E(statusName(id))}${unknown?'<span class="ag-badge agu-pill" title="Not a native Foundry status">Custom</span>':''}</span>${unknown&&showSources?statusSourceLine(actor,id):''}</div>${canRemove(actor,id)?btn('remove-status','Remove',{attrs:`data-status="${E(id)}"`}):''}</div>`;}).join(''):empty('No conditions on this character.');
+ const unlocked=actor&&isUnlocked(getUnlocks(),actor.id);
+ const lockLine=actor?`<div class="agu-line agu-lock-line"><span>Removal by owner: ${lockBadge(actor)}</span>${isGM()?btn('toggle-lock',unlocked?'Lock Removal':'Unlock for Owner',{kind:'ag-btn ag-btn--sm',attrs:`data-actor="${E(actor.id)}"`}):''}</div>`:'';
+ const overlayOn=game.settings.get(ID,'overlayOpen')===true;
+ return `<section class="ag-card agu-card"><div class="agu-line"><h2>Party Conditions</h2>${btn('toggle-overlay',overlayOn?'Close Overlay':'Pop Out Overlay',{kind:'ag-btn ag-btn--sm',attrs:`aria-pressed="${overlayOn}"`})}</div><div class="agu-party-panes"><section><h3>Party Characters</h3>${roster||empty('No characters you can see. The GM can give you Limited or Observer permission on party characters.')}</section><section><h3>${E(actor?.name||'Select a character')}</h3>${lockLine}${details}${isGM()&&actor?`<div class="agu-compact"><label>Native condition<select id="agu-condition-status">${known.map(x=>option(x.id,statusName(x.id),x.id)).join('')}</select></label>${btn('add-status','Apply',{kind:'primary'})}</div>`:''}</section></div><p class="agu-note">Condition removal is locked for every character until the GM unlocks it; an unlocked character's owner can then remove its native conditions. Statuses Foundry does not list (shown as Custom) are traced to the effect that grants them, and only the GM can remove them. Automatic duration, exhaustion and concentration management are not part of Utilities.</p></section>`;
 }
 function historyView(app){if(!isGM())return empty('History is GM-only.');
  const history=getHistory();return `<section class="ag-card agu-card"><h2>Completed & Cancelled Checks</h2>${history.length?history.map(s=>{
@@ -239,15 +251,14 @@ class UtilitiesApp extends ApplicationV2 {
    await this.render();return;
   }
   if(action==='table-send'){if(!isGM())throw Error('GM only.');await sendMessage(root.querySelector('#agu-table-message')?.value||'',root);this.tableDraft='';await this.render();return;}
-  if(action==='add-status'||action==='remove-status'){
-   if(!isGM())throw Error('GM only.');const actor=game.actors.get(this.actorId)||allCharacters()[0];if(!actor)throw Error('Select a character.');const id=action==='add-status'?root.querySelector('#agu-condition-status')?.value:b.dataset.status;
-   if(action==='add-status'&&!CONFIG.statusEffects.some(x=>x.id===id))throw Error('Unknown native status.');
-   if(action==='remove-status'&&!CONFIG.statusEffects.some(x=>x.id===id)){
-    if(!confirm(`Remove "${statusName(id)}" from ${actor.name}? It is not a native status, so its source effect will be removed.`))return;
-    const r=await removeUnknownStatus(actor,id);ui.notifications.info(r.disabled?`Disabled ${r.disabled} item effect(s) and deleted ${r.deleted} on ${actor.name}.`:`Removed "${statusName(id)}" from ${actor.name}.`);await this.render();return;
-   }
-   await actor.toggleStatusEffect(id,{active:action==='add-status'});await this.render();return;
+  if(action==='remove-status'){const actor=game.actors.get(this.actorId)||partyCharacters()[0];if(!actor)throw Error('Select a character.');await removeFromUI(actor,b.dataset.status);await this.render();return;}
+  if(action==='add-status'){
+   if(!isGM())throw Error('GM only.');const actor=game.actors.get(this.actorId)||allCharacters()[0];if(!actor)throw Error('Select a character.');const id=root.querySelector('#agu-condition-status')?.value;
+   if(!CONFIG.statusEffects.some(x=>x.id===id))throw Error('Unknown native status.');
+   await actor.toggleStatusEffect(id,{active:true});await this.render();return;
   }
+  if(action==='toggle-lock'){await setUnlocked(b.dataset.actor,!isUnlocked(getUnlocks(),b.dataset.actor));return;}
+  if(action==='toggle-overlay'){await game.settings.set(ID,'overlayOpen',game.settings.get(ID,'overlayOpen')!==true);await this.render();return;}
   if(action==='save-access'){if(!isGM())throw Error('GM only.');await game.settings.set(ID,'playerAccessEnabled',Boolean(root.querySelector('#agu-access')?.checked));ui.notifications.info('Player Access saved.');return;}
  }finally{b.disabled=false;}}
 }
@@ -270,11 +281,86 @@ async function rollFromActor(root){
   if(!msg)throw Error('No submission message created.');ui.notifications.info('Roll submitted; awaiting GM acceptance.');
  }finally{Hooks.off('createChatMessage',observe);activeRoll=false;}
 }
+/* ---- Conditions: removal goes through one gate. A GM removes directly; anyone else asks the
+   primary GM client over the module socket, and that client re-checks ownership and the lock. ---- */
+async function setUnlocked(actorId,unlocked){
+ if(!isGM())throw Error('GM only.');if(typeof unlocked!=='boolean')throw TypeError('Boolean required.');if(!game.actors.get(actorId))throw Error('Character not found.');
+ await game.settings.set(ID,'conditionUnlocks',withUnlocked(getUnlocks(),actorId,unlocked));
+}
+async function executeRemoval(actor,statusId,user){
+ const d=removalDecision({user,actor,statusId,unlocks:getUnlocks(),nativeIds:nativeIds()});if(!d.ok)throw Error(d.reason);
+ if(nativeIds().includes(statusId)){await actor.toggleStatusEffect(statusId,{active:false});return `Removed ${statusName(statusId)} from ${actor.name}.`;}
+ const r=await removeUnknownStatus(actor,statusId);
+ return r.disabled?`Disabled ${r.disabled} item effect(s) and deleted ${r.deleted} on ${actor.name}.`:`Removed "${statusName(statusId)}" from ${actor.name}.`;
+}
+async function removeCondition(actorId,statusId){
+ if(!permitted())throw Error('Utilities access is hidden by the GM.');
+ const actor=game.actors.get(actorId),d=removalDecision({user:game.user,actor,statusId,unlocks:getUnlocks(),nativeIds:nativeIds()});if(!d.ok)throw Error(d.reason);
+ return isGM()?executeRemoval(actor,statusId,game.user):requestGM('remove-status',{actorId,statusId});
+}
+async function removeFromUI(actor,statusId){
+ if(!actor)throw Error('Character not found.');
+ if(isGM()&&!statusConfig(statusId)&&!confirm(`Remove "${statusName(statusId)}" from ${actor.name}? It is not a native status, so its source effect will be removed.`))return;
+ ui.notifications?.info(await removeCondition(actor.id,statusId));
+}
+const pendingRequests=new Map();
+function requestGM(type,data,timeout=15000){
+ if(!game.socket?.emit)return Promise.reject(Error('The Utilities socket is unavailable.'));
+ if(![...game.users].some(u=>u.isGM&&u.active))return Promise.reject(Error('A GM must be connected.'));
+ const requestId=crypto.randomUUID();
+ return new Promise((resolve,reject)=>{
+  const timer=setTimeout(()=>{pendingRequests.delete(requestId);reject(Error('The GM client did not answer. Nothing was changed.'));},timeout);
+  pendingRequests.set(requestId,{resolve,reject,timer});
+  game.socket.emit(SOCKET,{...data,type,requestId,userId:game.user.id});
+ });
+}
+const gmHandlers={
+ 'remove-status':async(msg,user)=>{if(!user.isGM&&game.settings.get(ID,'playerAccessEnabled')!==true)throw Error('Utilities is hidden for players.');return executeRemoval(game.actors.get(msg.actorId),String(msg.statusId??''),user);}
+};
+async function onSocket(msg,senderId){
+ if(!msg||typeof msg!=='object')return;
+ if(msg.type==='receipt'){
+  const p=msg.userId===game.user?.id&&pendingRequests.get(msg.requestId);if(!p)return;
+  pendingRequests.delete(msg.requestId);clearTimeout(p.timer);msg.ok?p.resolve(msg.message):p.reject(Error(msg.message||'The GM client rejected the request.'));return;
+ }
+ const handler=gmHandlers[msg.type];if(!handler||!isGM()||!coordinatorIsMe())return;
+ let ok=false,message='';
+ try{
+  // When Foundry supplies the sender's id, it must match the claimed requester.
+  if(typeof senderId==='string'&&senderId!==msg.userId)throw Error('Request sender mismatch.');
+  const user=game.users.get(msg.userId);if(!user?.active)throw Error('Unknown requester.');
+  message=await handler(msg,user);ok=true;
+ }catch(e){message=e?.message||String(e);console.warn(`[${ID}] Rejected ${msg.type} from ${msg.userId}: ${message}`);}
+ game.socket.emit(SOCKET,{type:'receipt',requestId:msg.requestId,userId:msg.userId,ok,message});
+}
+
+/* ---- Conditions overlay: a mostly transparent, per-user pop-out. ---- */
+function overlayHTML(){
+ const groups=conditionGroups(partyCharacters(),{label:statusName,isNative:id=>Boolean(statusConfig(id)),canRemove:(a,id)=>canRemove(a,id)});
+ return `<div class="agu-overlay">${groups.length?groups.map(g=>`<section class="agu-ov-group"><h3>${E(g.name)}</h3><ul>${g.conditions.map(c=>`<li><span>${E(c.label)}${c.custom?' <small>(Custom)</small>':''}</span>${c.removable?`<button type="button" class="agu-ov-x" data-ov-remove data-actor="${E(g.actorId)}" data-status="${E(c.id)}" title="Remove ${E(c.label)}" aria-label="Remove ${E(c.label)} from ${E(g.name)}">×</button>`:''}</li>`).join('')}</ul></section>`).join(''):'<p class="agu-ov-empty">No conditions.</p>'}</div>`;
+}
+const savedOverlayPosition=()=>{const p=game.settings.get(ID,'overlayPosition')||{};return Object.fromEntries(['left','top','width','height'].filter(k=>Number.isFinite(p[k])).map(k=>[k,p[k]]));};
+let positionTimer=null;
+class ConditionsOverlay extends ApplicationV2 {
+ static DEFAULT_OPTIONS={id:'ashen-gate-utilities-conditions-overlay',classes:['ag-app','agu-overlay-app'],window:{title:'Party Conditions',resizable:true,minimizable:false},position:{width:240,height:'auto'}};
+ async _renderHTML(){if(!permitted())throw Error('Utilities is hidden for players.');return overlayHTML();}
+ _replaceHTML(html,content){content.innerHTML=html;
+  for(const b of content.querySelectorAll('[data-ov-remove]'))b.addEventListener('click',()=>{b.disabled=true;removeFromUI(game.actors.get(b.dataset.actor),b.dataset.status).catch(error).finally(()=>{b.disabled=false;});});
+ }
+ _onPosition(position){super._onPosition?.(position);clearTimeout(positionTimer);
+  positionTimer=setTimeout(()=>{const keep=Object.fromEntries(['left','top','width','height'].filter(k=>Number.isFinite(position?.[k])).map(k=>[k,position[k]]));game.settings.set(ID,'overlayPosition',keep).catch(error);},400);}
+ // Closing the window with its own X turns the overlay off for this user; closing it for a permission change does not.
+ _onClose(options){super._onClose?.(options);if(overlayInstance===this)overlayInstance=null;if(!this.silentClose&&game.settings.get(ID,'overlayOpen'))game.settings.set(ID,'overlayOpen',false).catch(error);}
+}
+async function openOverlay(){if(!permitted())throw Error('Utilities access is hidden by the GM.');overlayInstance??=new ConditionsOverlay({position:savedOverlayPosition()});await overlayInstance.render({force:true});return overlayInstance;}
+async function closeOverlay(){if(!overlayInstance?.rendered)return;overlayInstance.silentClose=true;await overlayInstance.close();}
+function syncOverlay(){(game.settings.get(ID,'overlayOpen')===true&&permitted()?openOverlay():closeOverlay()).catch(error);}
+function rerenderConditions(){if(windowInstance?.rendered&&!activeRoll)windowInstance.render().catch(error);if(overlayInstance?.rendered)overlayInstance.render().catch(error);}
 async function open(){if(!permitted())throw Error('Utilities access is hidden by the GM.');if(!windowInstance||!windowInstance.rendered)windowInstance=new UtilitiesApp();await windowInstance.render({force:true});return windowInstance;}
 function refreshWindows(){
  if(!permitted()&&!isGM()){
-  document.querySelectorAll(`[data-ag-launcher="${ID}"]`).forEach(x=>x.remove());if(windowInstance?.rendered)windowInstance.close().catch(error);
- } else if(windowInstance?.rendered&&!activeRoll){windowInstance.render().catch(error);}
+  document.querySelectorAll(`[data-ag-launcher="${ID}"]`).forEach(x=>x.remove());if(windowInstance?.rendered)windowInstance.close().catch(error);closeOverlay().catch(error);
+ } else {rerenderConditions();if(game.settings.get(ID,'overlayOpen')===true&&!overlayInstance?.rendered)openOverlay().catch(error);}
  addLauncher(ui?.actors,ui?.actors?.element);
 }
 function incomingSession(){
@@ -296,13 +382,20 @@ Hooks.once('init',()=>{
  game.settings.register(ID,'activeSession',{name:'Utilities: Active Interaction',scope:'world',config:false,type:Object,default:{},onChange:sessionChanged});
  game.settings.register(ID,'history',{name:'Utilities: Interaction History',scope:'world',config:false,type:Array,default:[],onChange:refreshWindows});
  game.settings.register(ID,'lastResult',{name:'Utilities: Last Finished Check',scope:'world',config:false,type:Object,default:{},onChange:refreshWindows});
+ // Characters whose owners may remove conditions: {actorId:true}. Absent means locked.
+ game.settings.register(ID,'conditionUnlocks',{name:'Utilities: Condition Removal Unlocks',scope:'world',config:false,type:Object,default:{},onChange:refreshWindows});
+ game.settings.register(ID,'overlayOpen',{name:'Utilities: Conditions Overlay',scope:'client',config:false,type:Boolean,default:false,onChange:syncOverlay});
+ game.settings.register(ID,'overlayPosition',{name:'Utilities: Conditions Overlay Position',scope:'client',config:false,type:Object,default:{}});
 });
 Hooks.once('ready',()=>{
  const m=game.modules.get(ID);
- m.api={version:VERSION,contract:'ag-utilities/0.2-alpha',open,playerAccess:{contract:'ag-player-access/1',getState:()=>({contract:'ag-player-access/1',moduleId:ID,audience:'player',playerAccessEnabled:game.settings.get(ID,'playerAccessEnabled'),configurable:true}),setEnabled:async enabled=>{if(!isGM())throw Error('GM only.');if(typeof enabled!=='boolean')throw TypeError('Boolean required.');await game.settings.set(ID,'playerAccessEnabled',enabled);return m.api.playerAccess.getState();}}};
+ m.api={version:VERSION,contract:'ag-utilities/0.2-alpha',open,playerAccess:{contract:'ag-player-access/1',getState:()=>({contract:'ag-player-access/1',moduleId:ID,audience:'player',playerAccessEnabled:game.settings.get(ID,'playerAccessEnabled'),configurable:true}),setEnabled:async enabled=>{if(!isGM())throw Error('GM only.');if(typeof enabled!=='boolean')throw TypeError('Boolean required.');await game.settings.set(ID,'playerAccessEnabled',enabled);return m.api.playerAccess.getState();}},
+  conditions:{contract:'ag-utilities-conditions/1',isUnlocked:actorId=>isUnlocked(getUnlocks(),actorId),setUnlocked,canRemove:(actorId,statusId)=>canRemove(game.actors.get(actorId),statusId),remove:removeCondition,openOverlay:async()=>{await game.settings.set(ID,'overlayOpen',true);return openOverlay();},closeOverlay:()=>game.settings.set(ID,'overlayOpen',false)}};
+ game.socket?.on?.(SOCKET,(msg,senderId)=>{void onSocket(msg,senderId).catch(error);});
  Hooks.on('renderActorDirectory',addLauncher);Hooks.on('createChatMessage',msg=>{void processSubmission(msg).catch(error);});
- for(const ev of ['updateActor','createActiveEffect','updateActiveEffect','deleteActiveEffect'])Hooks.on(ev,()=>{if(windowInstance?.rendered&&!activeRoll)windowInstance.render().catch(error);});
+ for(const ev of ['updateActor','createActiveEffect','updateActiveEffect','deleteActiveEffect'])Hooks.on(ev,rerenderConditions);
  Hooks.on('updateUser',refreshWindows);addLauncher(ui?.actors,ui?.actors?.element);
  lastPromptedSession=activeSession()?.id||null;
+ syncOverlay();
  console.info(`${ID} ${VERSION} Alpha initialized. Foundry V14/dnd5e 6.0.6 live acceptance pending.`);
 });

@@ -1,5 +1,16 @@
 # Changelog — Ashen Gate | Utilities
 
+## 0.4.0 — 2026-10-18
+
+Conditions overhaul.
+
+- Players now see the same Conditions view as the GM, for every party character they can see (Limited permission or better). The GM still sees every character.
+- Per-character removal lock, set by the GM in the Conditions tab (**Unlock for Owner** / **Lock Removal**). Every character starts locked. When a character is unlocked, its owner can remove its conditions.
+- The lock is enforced, not just hidden: a player's removal is sent to the primary GM client over the module socket, which checks ownership and the lock again before removing. A locked, unowned or forged request changes nothing, and the player is told why.
+- New **Pop Out Overlay**: a mostly transparent window with each character's name in bold, then a bulleted list of their conditions, with a small × where you may remove one. It is a per-user toggle, remembers where you put it, and updates live.
+- Custom statuses work as in 0.3.x: marked Custom, traced to their source effect, and the GM can always remove them. Players can't remove Custom statuses, even when unlocked.
+- New settings: `conditionUnlocks` (world, hidden, starts empty, so everything is locked), `overlayOpen` and `overlayPosition` (per user). No migration needed. The module now uses a socket (`"socket": true`).
+
 ## 0.3.1 — 2026-10-18
 
 - New look from the shared Ashen Gate UI kit (`styles/ag-ui.css`): cleaner type, consistent padding, header, tabs, buttons and fields that match every other Ashen Gate module.

@@ -75,3 +75,21 @@
 .ag-utilities .ag-result-vs {font-size:16px;color:var(--ag-muted);}
 .ag-utilities button.agu-roll-large {min-width:200px;min-height:52px;font-size:18px;}
 @media (prefers-reduced-motion:reduce) {.ag-utilities .ag-checkbar-seg {animation:none !important;transition:none;}}
+
+/* v0.4.0 — condition removal locks and the transparent conditions overlay. */
+.ag-utilities .agu-roster-row .agu-who {align-items:flex-start;}
+.ag-utilities .agu-pill i {font-size:.9em;}
+.ag-utilities .agu-lock-line {margin:0 0 var(--ag-space-2);font-size:var(--ag-text-md);}
+.application.ag-app.agu-overlay-app {background:color-mix(in srgb,var(--ag-surface) 25%,transparent);border-color:color-mix(in srgb,var(--ag-border) 45%,transparent);box-shadow:none;min-width:170px;}
+.application.ag-app.agu-overlay-app > .window-header {background:color-mix(in srgb,var(--ag-surface-sunken) 40%,transparent);border-bottom-color:transparent;}
+.application.ag-app.agu-overlay-app > .window-content {background:transparent;padding:var(--ag-space-1) var(--ag-space-3) var(--ag-space-2);overflow-y:auto;}
+.agu-overlay {color:var(--ag-text);text-shadow:0 0 3px var(--ag-surface),0 0 2px var(--ag-surface);}
+.agu-overlay .agu-ov-group + .agu-ov-group {margin-top:var(--ag-space-2);}
+.agu-overlay h3 {margin:0 0 2px;font-size:var(--ag-text-md);font-weight:800;}
+.agu-overlay ul {margin:0;padding-left:18px;list-style:disc;}
+.agu-overlay li {font-size:var(--ag-text-md);line-height:1.5;}
+.agu-overlay li > span {margin-right:4px;}
+.agu-overlay small {color:var(--ag-muted);}
+.agu-overlay .agu-ov-empty {margin:var(--ag-space-1) 0;color:var(--ag-muted);}
+.ag-app.agu-overlay-app .agu-overlay button.agu-ov-x {display:inline-flex;min-height:0;width:16px;height:16px;padding:0;border:0;border-radius:var(--ag-radius-sm);background:transparent;color:var(--ag-danger);font-size:14px;line-height:1;vertical-align:middle;text-shadow:inherit;}
+.ag-app.agu-overlay-app .agu-overlay button.agu-ov-x:hover:not(:disabled) {background:var(--ag-danger-soft);}
