@@ -47,12 +47,12 @@ test('player view does not reveal GM or reveal-gated Items even when Foundry Obs
   game.user=player;
   const app=moduleObj.api.open({view:'catalog'});
   let html=(await app._prepareContext({})).html;
-  assert.equal(app.view,'recipes','player is redirected from the GM-only catalog');
-  assert.doesNotMatch(html,/Public Tea/,'players never browse the catalog');
-  assert.match(html,/No recipe items in Player Character’s inventory/);
+  assert.equal(app.view,'catalog');
+  assert.doesNotMatch(html,/Public Tea/,'players never browse recipes the party has not found');
+  assert.match(html,/No recipes yet/);
   assert.doesNotMatch(html,/Secret Tea|Gate Tea|REC-SECRET-TEA|REC-GATE-TEA/);
   assert.doesNotMatch(html,/data-action="manager"/);
-  app.view='materials';
+  app.view='party';
   html=(await app._prepareContext({})).html;
   assert.match(html,/Public Ore/);
   assert.doesNotMatch(html,/Secret Ore|MAT-SECRET-ORE/);

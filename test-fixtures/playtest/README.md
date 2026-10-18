@@ -26,7 +26,7 @@ Manager lists the three `LOC-PT-*` records as blocked ("must be imported through
 1. In the Items sidebar open `Ashen Gate/Playtest/Recipes`.
 2. Drag `Recipe: [TEST] Ember Salve`, `Recipe: [TEST] Iron Hinge Set` or `Recipe: [TEST] Test Dagger` onto a character sheet. These three are consumables, the other recipes are loot.
 3. Give the character some materials from `Ashen Gate/Playtest/Materials` (for Ember Salve: 2 Emberroot and 1 Palemoss).
-4. In the Profession Ledger, as that player, check the Recipes tab shows the recipe and its ingredient availability.
+4. In the Profession Ledger, as that player, open the **Individual** tab: the recipe item has a **Learn** button; after learning, the recipe shows its ingredient availability and a **Craft** button.
 
 ## Regenerating
 

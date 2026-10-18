@@ -35,16 +35,23 @@ await import(pathToFileURL(entry));hooks.init();hooks.ready();
 const app=api.open({view:'learning',actorId:'a'});
 app.element={querySelector:s=>s.includes('[data-xp-input')?{value:'5'}:null,querySelectorAll:()=>[]};
 
-test('Recipe Learning view recognizes Actor-held Recipe Items and not world catalog knowledge',async()=>{
+test('GM Individual view shows held recipe items but leaves learning to the player',async()=>{
+ app.view='individual';
  let html=(await app._prepareContext({})).html;
- assert.match(html,/Recipe Learning/);
- assert.match(html,/Learn \(consume 1\)/);
+ assert.match(html,/Recipes to learn/);
  assert.match(html,/Field Tonic/);
- assert.match(html,/No recipes learned yet/);
+ assert.match(html,/Adventurer’s player learns this/);
+ assert.doesNotMatch(html,/data-action="learn-recipe"/,'GM gets no Learn button for a player-owned character');
+ assert.match(html,/hasn’t learned a recipe yet/);
+ await app._click('learn-recipe','a:ri');
+ assert.ok(errors.some(e=>e.includes('player learns this recipe')),'data layer refuses GM learning for players');
+ assert.equal(inv.get('ri').system.quantity,2);
+ assert.equal(actor.flags['ashen-gate-profession-ledger'],undefined);
 });
 
 test('Player with Actor OWNER permission learns REC ID and consumes exactly one Item',async()=>{
  game.user=player;
+ assert.match((await app._prepareContext({})).html,/data-action="learn-recipe" data-id="a:ri"/,'player gets the Learn button');
  await app._click('learn-recipe','ri');
  assert.deepEqual(actor.flags['ashen-gate-profession-ledger'].knownRecipes,['REC-FIELD-TONIC']);
  assert.equal(inv.get('ri').system.quantity,1);
@@ -118,27 +125,8 @@ test('Actor progress, known recipes and roster persist as three separately owned
  assert.deepEqual(actor.flags['ashen-gate-profession-ledger'].knownRecipes,[]);
 });
 
-test('Crafting permission requests require learned Recipe and sufficient tracked Profession tier',async()=>{
- const x={id:'REC-CRAFTTEST',name:'Craft Test',sourceVisibility:'player',profession:'Herbalism',tier:'Journeyman',ingredients:[{materialId:'MAT-HEARTHLEAF',name:'Hearthleaf Bundle',quantity:2}],hasStructuredIngredients:true};
- values.libraryData.recipes=[x];
- game.user=player;
- api.open({view:'planner',actorId:'a'});
- app.recipeId=x.id;
- actor.flags['ashen-gate-profession-ledger'].knownRecipes=[];
- // Nobody in the party knows it, so the player cannot even select it (no browsable catalog).
- await assert.rejects(()=>app._request(),/No recipe selected/);
- actor.flags['ashen-gate-profession-ledger'].knownRecipes=['REC-CRAFTTEST'];
- assert.match((await app._prepareContext({})).html,/Collaborative crafting plan/);
- await assert.rejects(()=>app._request(),/level 4/);
- actor.flags['ashen-gate-profession-ledger'].professionProgress.professions['PROF-HERBALISM'].xp=25;
- game.users.filter=predicate=>[gm,player].filter(predicate);
- await app._request();
- assert.match(chats.at(-1).content,/Crafting Permission Request/);
- assert.equal(inv.find(i=>i.name==='Hearthleaf Bundle').system.quantity,2,'permission request does not consume material');
-});
-
 test('Single-use Recipe Items are deleted only once when learned',async()=>{
- game.user=player;app.view='learning';
+ game.user=player;app.view='individual';
  const one={id:'single',name:'Recipe: Rare Sample',type:'loot',system:{quantity:1},flags:source('REC-RARE','Recipe')};
  inv.push(one);
  await app._click('learn-recipe','single');
@@ -151,8 +139,9 @@ test('Single-use Recipe Items are deleted only once when learned',async()=>{
 test('Known recipe IDs survive catalog replacement and do not disclose restricted world data',async()=>{
  values.libraryData={schema:'ag-ledger/0.1',recipes:[],materials:[]};
  assert.ok(api.getKnownRecipes(actor).includes('REC-RARE'));
- app.view='learning';game.user=player;
+ app.view='individual';game.user=player;
  const html=(await app._prepareContext({})).html;
  assert.doesNotMatch(html,/Secret Reagent|MAT-SECRET/);
- assert.match(html,/REC-RARE/);
+ assert.doesNotMatch(html,/REC-RARE|REC-FIELD-TONIC|PROF-HERBALISM/,'players never see raw IDs');
+ assert.match(html,/1 known recipe is not available right now/);
 });

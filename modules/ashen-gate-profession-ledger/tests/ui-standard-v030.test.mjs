@@ -25,7 +25,7 @@ app.element={querySelectorAll:s=>s==='[data-roster-actor]'||s==='[data-roster-ac
 test('GM Setup owns import, roster, optional launcher and Developer Tools; standard header/footer',async()=>{
  const html=(await app._prepareContext({})).html;
  assert.match(html,/Ashen Gate \| <strong>Profession Ledger/);
- assert.match(html,/v0\.7\.0 Alpha/);
+ assert.match(html,/v0\.9\.0/);
  assert.match(html,/data-id="gm"/);
  assert.match(html,/data-action="help"/);
  assert.match(html,/data-action="roster-save"/);
@@ -33,15 +33,15 @@ test('GM Setup owns import, roster, optional launcher and Developer Tools; stand
  assert.doesNotMatch(html,/Developer Tools — experimental/);
  assert.match(html,/data-action="import"/);
  assert.match(html,/data-action="manager" disabled/,'Missing optional Manager has truthful disabled button');
- assert.doesNotMatch((await (app.view='recipes',app._prepareContext({}))).html,/data-action="demo"|data-action="import"|data-action="manager"/);
+ assert.doesNotMatch((await (app.view='party',app._prepareContext({}))).html,/data-action="demo"|data-action="import"|data-action="manager"/);
 });
 
 test('editing roster is explicit; cancelled navigation retains changes',async()=>{
  app.view='gm';twoInputs[1].checked=true;app._rememberRosterDraft();
  assert.equal(app.rosterDirty,true);
  assert.equal(saveButton.disabled,false);
- assert.equal(stateText.textContent,'Unsaved party roster changes');
- await app._click('tab','recipes');
+ assert.equal(stateText.textContent,'Unsaved party changes');
+ await app._click('tab','party');
  assert.equal(app.view,'gm');
  assert.equal(app.rosterDirty,true);
  assert.equal(prompts.length,1);
@@ -59,19 +59,19 @@ test('confirmed roster save preserves world IDs and leaves other catalog state a
 });
 
 test('navigation back from GM Setup does not discard saved roster; Help returns to prior view',async()=>{
- await app._click('tab','materials');assert.equal(app.view,'materials');
+ await app._click('tab','catalog');assert.equal(app.view,'catalog');
  await app._click('help');assert.equal(app.view,'help');
  assert.match((await app._prepareContext({})).html,/Profession Ledger Help/);
- await app._click('help-back');assert.equal(app.view,'materials');
+ await app._click('help-back');assert.equal(app.view,'catalog');
 });
 
 test('player cannot force GM Setup through UI or public API, and never sees secret controls',async()=>{
  game.user=player;
  moduleApi.open({view:'gm',demo:true});
- assert.equal(app.view,'party');assert.equal(app.demo,false);
+ assert.equal(app.view,'individual');assert.equal(app.demo,false);
  const playerHtml=(await app._prepareContext({})).html;
  assert.doesNotMatch(playerHtml,/data-id="gm"|data-action="import"|Developer Tools|data-action="roster-save"/);
- await app._click('tab','gm');assert.equal(app.view,'party');
- app.view='roster';assert.doesNotMatch((await app._prepareContext({})).html,/Active party roster/);
+ await app._click('tab','gm');assert.equal(app.view,'individual');
+ app.view='roster';assert.doesNotMatch((await app._prepareContext({})).html,/data-roster-actor/);
  assert.ok(errors.some(e=>String(e).includes('GM only')));
 });

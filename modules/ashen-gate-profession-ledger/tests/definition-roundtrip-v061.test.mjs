@@ -90,7 +90,7 @@ test('Ledger Manager-format source package import preserves complete structured 
 
 test('Ledger catalog prefers native source definitions to stale world-setting summaries',()=>{
   const src=readFileSync(new URL('../scripts/main.js',import.meta.url),'utf8');
-  const start=src.indexOf('function catalog(){'),end=src.indexOf('\nfunction professionFor(',start);
+  const start=src.indexOf('function catalog(){'),end=src.indexOf('\n/** Profession rows for a character',start);
   assert.ok(start>=0&&end>start);
   const catalogFn=src.slice(start,end);
   game.settings.get=()=>({source:'legacy',recipes:[{id:fixture.chain_ids[1],name:'Stale',visibility:'player'}],
