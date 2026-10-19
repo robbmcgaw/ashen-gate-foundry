@@ -13,11 +13,12 @@ import {ensureFolder} from "./folders.js";
 import {readImportZip, adaptRecordArtwork, uploadMatchingArt} from "./zip-import.js";
 import {CAPTURE_TYPES, normalizeCaptureFlag, buildCapturePackage} from "./capture.js";
 import {compilePackage, dependencyOrder, normalizeRef, docManagerSnapshot, localEdits, planLifecycle, buildSourceReplacementPatch} from "./workflows.js";
-import {downloadJson} from "./download.js";
+import {downloadJson, downloadText} from "./download.js";
 import {isLocationRecord, locationsApi, planLocation, locationsNote, applyLocations} from './location-handoff.js';
 import {SPECIALISTS, detectSpecialistFile, specialistCount, specialistApi, describeUnrecognized, planSpecialist, applySpecialist} from './specialist-handoff.js';
 import {classifyDelivery} from './delivery.js';
 import {buildWorldExport, saveWorldExport, SNAPSHOT_SETTING} from './world-export.js';
+import {runPreSessionCheck} from './pre-session-check.js';
 import {buildImportReport, buildBlockedReport, pushReport} from './import-result.js';
 import {ITEM_FLAG, ACTOR_ITEMS_FLAG, itemKeys, matchActors, planActor, applyActorUpdate} from './actor-update.js';
 import {mediaFilename} from './zip-import.js';
@@ -160,7 +161,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.20.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.21.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -229,6 +230,19 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     } catch(error){this.worldExportSummary=`Export failed: ${error.message??error}`;toast(String(error.message??error),true);}
     await this.render();
   }
+  /** Read-only: runPreSessionCheck never writes; Copy and Download reuse the last result. */
+  async #preSession(name) {
+    try {
+      if(!game.user?.isGM)throw new Error('Only the GM can run the pre-session check.');
+      if(name==='presession-run' || !this.preSessionResult) this.preSessionResult=await runPreSessionCheck(game);
+      const out=this.preSessionResult;
+      if(name==='presession-copy'){
+        try{await (game.clipboard?.copyPlainText?.(out.text)??navigator.clipboard.writeText(out.text));toast('Report copied.');}
+        catch{toast('Could not copy automatically: select the report text below and copy it.',true);}
+      } else if(name==='presession-download'){downloadText(out.filename,out.text);toast(`Saved ${out.filename}.`);}
+    } catch(error){this.preSessionResult={rows:[],summary:`Check failed: ${error.message??error}`,text:''};toast(String(error.message??error),true);}
+    await this.render();
+  }
   managedRows() {
     const docs=allBoundDocuments().sort((a,b)=>a.name.localeCompare(b.name));
     return docs.map(doc=>{
@@ -291,6 +305,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       libraryHasPrevious:this.libraryPage>0,libraryHasNext:this.libraryPage+1<pageCount,
       libraryDetail,libraryHasDetail:Boolean(libraryDetail),
       libraryMessage:this.libraryMessage, worldExportSummary:this.worldExportSummary??'',
+      preSession:this.preSessionResult?{summary:this.preSessionResult.summary,rows:this.preSessionResult.rows.map(r=>({...r,css:r.status==='N-A'?'na':r.status.toLowerCase()})),hasText:Boolean(this.preSessionResult.text)}:null,
       profile:this.profile,developmentProfile:this.profile==='development',sessionProfile:this.profile==='session-safe',
       hasLibrarySelected:this.librarySelected.size>0,
       adoptOpen: this.adoptOpen,
@@ -489,6 +504,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       }
       case "clear-results": this.importReports=[]; await this.render(); break;
       case "world-export-everything": case "world-export-changed": case "world-export-copy": await this.#worldExport(name); break;
+      case "presession-run": case "presession-copy": case "presession-download": await this.#preSession(name); break;
       case "library-check": this.#runAudit(); this.libraryMessage="Library check finished: results are listed above."; await this.render(); break;
       case "appearance-save-world": {
         const choice=this.appearanceSelection??appearanceController?.getState()?.worldDefault;
@@ -1243,6 +1259,8 @@ Hooks.once("ready",()=>{
       loadCompendiums:(packIds)=>definitionsReader.loadCompendiums(packIds),
       dispose:()=>definitionsReader.dispose()
     },
+    // GM-only, read-only health report (0.21.0); the gate is inside runPreSessionCheck.
+    preSessionCheck:()=>runPreSessionCheck(game),
     resolverBridge:{
       contract:'ag-definition-resolver/0.1-prototype-adapter',
       // Requires a caller-supplied source-reviewed resolver; no invented global provider.
@@ -1262,7 +1280,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.20.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.21.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */

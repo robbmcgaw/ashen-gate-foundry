@@ -1,3 +1,9 @@
+## 0.21.0 — 2026-10-19
+
+- **Pre-session check** (Modules tab, GM only). **Run pre-session check** lists PASS / WARN / FAIL / N-A lines for: Ashen Gate module versions (inactive or too old for Manager's hand-offs warns), each module's GM data (Locations GM Data, Quest GM sources, Skill Trees definitions, Factions definitions, Headquarters vault), Player Access per module (a hidden player launcher warns), [TEST] records players can see, hidden names in player views, the Locations 1.8.0 migration and pending GM notice, and Foundry / dnd5e versions. A summary line ends the list. **Copy report** copies it as plain text; **Download report** saves a .txt.
+- Leak scan uses the modules' own player views (Locations player previews, Quest Log's visible quests) and reports hits by record id, never by name. Factions, Skill Trees and Headquarters have no player view Manager can call, so they show "could not check". A gm-visibility Item that players can open is a FAIL.
+- Strictly read-only: it never creates, changes or deletes a document, flag or setting. Missing modules show "not installed". GM only, checked inside the function too (`api.preSessionCheck()`).
+
 ## 0.20.0 — 2026-10-19
 
 - **Two new structural skins** in Appearance (GM world default) and My Appearance (per player): **Ashen Gate — Stone Tablet** (carved stone slabs, chiselled bevels, engraved uppercase headings, inset carved tabs, lichen-green primary actions, ember focus ring) and **Ashen Gate — Tome Pages** (vellum pages with paper grain, leather-bound title bar, gutter and corner shading, small-capital headings with ornamental rules, ribbon bookmark on the open tab, rubric-red primary actions). They reshape every Ashen Gate window and the sidebar launchers, not just colours.
