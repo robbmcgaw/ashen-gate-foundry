@@ -160,7 +160,7 @@ header   { schema: "ag-world-export/0.1", date, mode: "everything"|"changed", no
 summary  { <section>: {total, new, changed, removed, status?} }   // section = world, locations, quests, factions, skill_trees, headquarters, profession_ledger
 world    [ {id, kind, type, name, folder_path, access: "visible"|"gm", visibility, flags, system, hash, uuid} ]
 modules  { <section>: {module_id, version, status: "ok"|"not available"|"no definitions to export", reason?, records: [{id, name, data, hash}]} }
-removed  [ {id, name, section} ]   // ids in the last snapshot that are gone now (when anything was removed or in changed mode)
+removed  [ {id, section} ]   // ids in the last snapshot that are gone now (when anything was removed or in changed mode)
 ```
 
 - `world` holds every Item, Journal, Actor, Roll Table and Macro whose Manager source flag carries a permanent `sourceId` (`PROF-`, `MAT-`, `REC-`, `ITEM-`, `PERK-`, …), plus the Folders Manager made for them. `id` is the permanent id (folders: `<type>:<path>`). `uuid` is a local hint only, never an id. `access` is `visible` when players can observe the document by default, else `gm`. `flags` is Manager's flag namespace (source, lifecycle, capture). `system` is omitted for `character` and `group` Actors (`system_omitted` says why).

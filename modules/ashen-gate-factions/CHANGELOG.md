@@ -1,3 +1,7 @@
+## 0.8.2 — 2026-10-19
+
+- Export file name no longer has a hard-coded version: it is now `AG_Factions_Definitions.json`.
+
 ## 0.8.1 — 2026-10-19
 
 - Faster GM login: the startup check of each faction's group state now writes only when a missing field actually needs filling, instead of rewriting every faction's state journal on every load (which also re-rendered open Factions windows each time). Saved data is unchanged.

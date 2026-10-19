@@ -36,7 +36,7 @@ const getFolders=d=>d?.getFlag(MODULE_ID,'folderIndex');
 // Foundry's Journal folder is storage organization only, independent from the in-dashboard faction folders.
 // Do not set player visibility on the Folder. Journal ownership controls actual document access.
 const STORAGE_FOLDER_NAME='Ashen Gate — Factions Data';
-const BUILD_VERSION='0.8.1';
+const BUILD_VERSION='0.8.2';
 const isModuleJournal=d=>Boolean(getFaction(d)||getGroup(d)||getPersonal(d)||getView(d)||getFolders(d));
 async function ensureStorageFolder(){
   assertGM();
@@ -399,7 +399,7 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
       await this.render({force:true});
     }catch(e){notifyError(e)}
   }
-  static async exportAll(){try{assertGM();jsonDownload({schema_version:'ag-factions-source-export/0.3',definitions:defs().map(d=>sourceDefinition(getFaction(d))),note:'Excludes all mutable campaign state and user discovery state.'},'AG_Factions_Definitions_v0.6.0.json');}catch(e){notifyError(e)}}
+  static async exportAll(){try{assertGM();jsonDownload({schema_version:'ag-factions-source-export/0.3',definitions:defs().map(d=>sourceDefinition(getFaction(d))),note:'Excludes all mutable campaign state and user discovery state.'},'AG_Factions_Definitions.json');}catch(e){notifyError(e)}}
 }
 function rankOf(ms,score){return[...ms].reverse().find(m=>score>=m.threshold)?.name??'Unproven';}
 let dashboard=null;
