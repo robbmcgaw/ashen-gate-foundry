@@ -1,5 +1,9 @@
 # Changelog — Ashen Gate | Utilities
 
+## 0.6.1 — 2026-10-19
+
+- Actors sidebar launcher is the full-width row under the other launchers. Buttons wrap their labels instead of clipping, use the Ashen Gate theme tokens for hover/focus, and the grid reflows with no gap when a module is off or hidden by Player Access.
+
 ## 0.6.0 — 2026-10-19
 
 Party stash: optional take-out vote and a history log.

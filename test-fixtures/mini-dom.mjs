@@ -55,6 +55,8 @@ export class Element {
     node.remove();node.parentElement=this;
     this.children.splice(this.children.indexOf(ref),0,node);return node;
   }
+  before(...nodes){for(const node of nodes)this.parentElement.insertBefore(node,this);}
+  after(...nodes){const p=this.parentElement;const ref=p.children[p.children.indexOf(this)+1];for(const node of nodes)p.insertBefore(node,ref);}
   remove(){
     if(!this.parentElement)return;
     const siblings=this.parentElement.children;

@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.5.1 — 2026-10-19
+
+- Actors launcher joins the shared two-column grid in the fixed order. GM-only Location Builder button in the Items sidebar now sits beside General Manager (Manager first, Locations second) in a tidy grid. No saved-data changes. Buttons wrap their labels instead of clipping, use the Ashen Gate theme tokens for hover/focus, and the grid reflows with no gap when a module is off or hidden by Player Access.
+
 ## 1.5.0 — 2026-10-19
 
 Nested point-crawl, part 3 of 3: shared Party Notes.

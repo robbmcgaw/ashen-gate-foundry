@@ -6,7 +6,7 @@ import {ASSIGNMENT_CONTRACT,listAssignments,getAssignment,saveAssignment,removeA
 import {selectTrackedViews,validTrackedId,trackingState} from './tracking.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 
-const VERSION='0.5.1';
+const VERSION='0.5.2';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -240,7 +240,7 @@ function refreshLaunchers(){
  renderTracker();
 }
 function addLauncher(app,html){
- mountLauncher(launcherRoot(app,html),{moduleId:MOD,label:'Quest Log',icon:'fa-solid fa-scroll',onClick:()=>open().catch(notifyError),visible:openAllowed()});
+ mountLauncher(launcherRoot(app,html),{moduleId:MOD,label:'Quests',title:'Quest Log',icon:'fa-solid fa-scroll',onClick:()=>open().catch(notifyError),visible:openAllowed()});
 }
 function updateWindows(){refreshLaunchers();renderTracker();if(instance?.rendered&&!instance.unsavedSource)instance.render().catch(notifyError);}
 Hooks.once('init',()=>{

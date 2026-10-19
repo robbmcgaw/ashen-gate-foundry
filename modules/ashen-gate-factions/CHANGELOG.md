@@ -1,5 +1,9 @@
 # Factions & Renown change history
 
+## 0.7.1 — 2026-10-19
+
+- Actors sidebar launcher is now a two-column grid in the shared Ashen Gate group, button label "Renown" (tooltip "Factions & Renown"). Fixed order (Quests, Renown, Professions, Skill Trees, Locations, Headquarters, Utilities) whatever the module load order. Buttons wrap their labels instead of clipping, use the Ashen Gate theme tokens for hover/focus, and the grid reflows with no gap when a module is off or hidden by Player Access.
+
 ## 0.7.0 — 2026-10-19
 
 - **Import JSON** (GM Setup → Organizations and folders). Loads factions from a definitions file (the same `ag-factions-source-export/0.3` file that **Export definitions only** writes). A preview lists each faction as NEW or SKIP before anything is written.

@@ -11,6 +11,10 @@ Gathering, tools and GM-coordinated XP (#23).
 - New world setting `checkMapping` (defaults apply until you save). The old manual gathering form (Preview result / Confirm material award) is gone. No Actor flag changes; no migration needed.
 - Playtest pack 0.4.0: Ember Salve, Iron Hinge Set and Test Dagger name a tool; Glassbloom Elixir names a workstation.
 
+## 0.10.1 — 2026-10-19
+
+- Actors sidebar launcher label is now "Professions" (tooltip "Profession Ledger"), in the shared two-column grid with a fixed order. Buttons wrap their labels instead of clipping, use the Ashen Gate theme tokens for hover/focus, and the grid reflows with no gap when a module is off or hidden by Player Access.
+
 ## 0.9.0 — 2026-10-18
 
 Professions that work at the table (#14).

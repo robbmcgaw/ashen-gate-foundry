@@ -6,6 +6,7 @@ import {MODULE_ID, MANAGED_TYPES, validatePackage, planRecord, exportedFields, g
 import {checkContractGraph, isContractImport, selectionIssues, projectedReferences, finalReferenceResolution} from "./contract.js";
 import {systemOf, browseLibrary, inspectLibrary, describeLaunchers, headerLaunchers} from "./browser.js";
 import {openAshenLauncher} from "./launchers.js";
+import {mountManagerLauncher} from "./items-launcher.js";
 import {collectPlayerAccess, changePlayerAccess, hideAllPlayerInterfaces} from "./player-access.js";
 import {chooseIcon,markerTargets,buildUuidIndex,resolveRichText,resolveTypedRefs,appendReferenceBlock} from "./import-fidelity.js";
 import {ensureFolder} from "./folders.js";
@@ -135,7 +136,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.13.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.13.1 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -1195,35 +1196,20 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.13.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.13.1 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */
 function addManagerSidebarButton(app,html) {
-  if(!game.user?.isGM)return;
   const root=html?.[0]??html?.element?.[0]??html?.element??html;
-  if(!root || typeof root.querySelector!=='function')return;
   const tab=app?.tabName??app?.id??app?.constructor?.name??'';
   if(!/item/i.test(String(tab)))return;
-  if(root.querySelector('[data-ag-launch="manager"]'))return;
-  const directory=root.querySelector('.directory-header')??root.querySelector('.directory-list')?.parentElement??root;
-  const group=document.createElement('div');
-  group.className='ag-sidebar-launch-group';group.dataset.agLaunchGroup='items';
-  const button=document.createElement('button');
-  button.type='button';button.dataset.agLaunch='manager';button.className='ag-sidebar-launch-button';
-  button.innerHTML='<i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i><span>General Manager</span>';
-  button.title='Open the GM-only Ashen Gate General Manager';
-  button.addEventListener('click',()=>{
-    if(!game.user?.isGM) return toast('Only GMs can open the General Manager.',true);
+  mountManagerLauncher(root,{isGM:!!game.user?.isGM,onOpen:()=>{
     const open=game.modules.get(MODULE_ID)?.api?.open;
     if(typeof open==='function') return open();
     activeApp??=new AshenGateManager();
     return activeApp.render({force:true});
-  });
-  group.append(button);
-  // Above the directory contents, after any standard header actions.
-  if(directory.classList.contains('directory-header')) directory.after(group);
-  else directory.prepend(group);
+  }});
 }
 if(typeof Hooks.on==='function') Hooks.on('renderItemDirectory',addManagerSidebarButton);
 if(typeof Hooks.on==='function') Hooks.on('renderSidebarTab',(app,html)=>{
