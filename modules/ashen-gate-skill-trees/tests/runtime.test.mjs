@@ -30,7 +30,7 @@ test('module registers API and hidden public projection settings',async()=>{
   assert.equal(menus.get('open').restricted,false);
   assert.equal(events.get('renderActorDirectory').length,1);
   const api=game.modules.get('ashen-gate-skill-trees').api;
-  assert.equal(api.version,'0.9.0');
+  assert.equal(api.version,'0.10.0');
   assert.ok(api.open());
   assert.deepEqual(api.listTrees(),[]);
   assert.equal(api.actorProgress(null,'MISSING'),null);
@@ -141,11 +141,13 @@ test('DEC-0068 through DEC-0071: standardized tabbed shell and source/import sep
   const template=await fs.readFile(new URL('../templates/tree.hbs',import.meta.url),'utf8');
   const manifest=JSON.parse(await fs.readFile(new URL('../module.json',import.meta.url),'utf8'));
   assert.equal(manifest.id,'ashen-gate-skill-trees');
-  assert.equal(manifest.version,'0.9.0');
+  assert.equal(manifest.version,'0.10.0');
   assert.match(manifest.title,/Ashen Gate \| Skill Trees/);
   assert.match(template,/data-act="tab-trees"/);
-  assert.match(template,/\{\{#if gm\}\}<button type="button" data-act="tab-setup"/);
+  assert.match(template,/\{\{#if gm\}\}<button type="button" data-act="tab-library"/);
+  assert.match(template,/<button type="button" data-act="tab-setup"/);
   assert.match(template,/\{\{#if activeSetup\}\}/);
+  assert.match(template,/data-act="tab-library"/);
   assert.match(template,/Developer Tools — Experimental \/ GM only/);
   assert.match(template,/data-act="publish"/);
   assert.match(template,/General Manager → Import/);
@@ -168,6 +170,28 @@ test('Actors launcher remains player enabled while GM Setup is guarded in code',
  game.user.isGM=true;
  await app._clicked({target:{closest:()=>({dataset:{act:'tab-trees'}})}});
  assert.equal(app.activeTab,'trees');
+});
+
+test('GM Setup has settings only; content actions live in the GM-only Tree Library tab',async()=>{
+ const fs=await import('node:fs/promises');
+ const template=await fs.readFile(new URL('../templates/tree.hbs',import.meta.url),'utf8');
+ const setup=template.slice(template.indexOf('{{#if activeSetup}}\n  {{#if initialized}}'));
+ const library=template.slice(template.indexOf('{{#if activeLibrary}}\n  {{#if initialized}}'),template.indexOf('{{#if activeSetup}}\n  {{#if initialized}}'));
+ for(const act of ['create-tree','export','export-all','give-missing','publish','backup-progress'])
+  assert.match(library,new RegExp(`data-act="${act}"`),`${act} is in Tree Library`),assert.doesNotMatch(setup,new RegExp(`data-act="${act}"`),`${act} is not in GM Setup`);
+ assert.match(setup,/data-act="toggle-player-access"/);
+ assert.match(setup,/Developer Tools/);
+ const api=game.modules.get('ashen-gate-skill-trees').api;
+ const app=api.open();
+ game.user.isGM=true;
+ await app._clicked({target:{closest:()=>({dataset:{act:'tab-library'}})}});
+ assert.equal(app.activeTab,'library');
+ game.user.isGM=false;
+ await app._clicked({target:{closest:()=>({dataset:{act:'tab-library'}})}});
+ app._defaults();
+ assert.equal(app.activeTab,'trees','players are returned to the tree view');
+ for(const fn of ['publish','backupProgress','exportTrees'])if(api[fn])await assert.rejects(()=>api[fn](),/GM only/);
+ game.user.isGM=true;
 });
 
 test('Handlebars template has correctly paired #if/#unless/#each blocks',async()=>{

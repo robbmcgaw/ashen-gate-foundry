@@ -13,7 +13,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.9.0';
+const VERSION='0.10.0';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -334,10 +334,10 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       .map(i=>({uuid:i.uuid,name:i.name,id:sourceFlag(i).sourceId,status:sourceFlag(i).status,img:i.img,onTree:onTree.has(sourceFlag(i).sourceId),
         eligible:sourceFlag(i).status==='approved'&&sourceFlag(i).visibility==='player'}))
       .sort((a,b)=>a.name.localeCompare(b.name)):[];
-    const setupReport=gm&&!preview&&this.activeTab==='setup'?savedDataReport(readPrivate(),id=>Boolean(perkDoc(id))):[];
+    const setupReport=gm&&!preview&&this.activeTab==='library'?savedDataReport(readPrivate(),id=>Boolean(perkDoc(id))):[];
     const projectedCount=gm?readPublic().length:null;
     return {...ctx,gm,editing:gm&&this.editMode&&!preview,preview,initialized:!gm||!!store,legacy,
-      moduleVersion:VERSION,playerAccessEnabled:gm?playerAccessEnabled():false,activeTrees:this.activeTab==='trees',activeSetup:gm&&this.activeTab==='setup',
+      moduleVersion:VERSION,playerAccessEnabled:gm?playerAccessEnabled():false,activeTrees:this.activeTab==='trees',activeSetup:gm&&this.activeTab==='setup',activeLibrary:gm&&this.activeTab==='library',gmPanel:gm&&(this.activeTab==='setup'||this.activeTab==='library'),
       hasTree:!!t,tree:t,selected,canBuy:gm&&!preview&&!!selected&&!!actor&&availability(t,acc,selected.id).ok,
       canRequest:!gm&&!!selected&&!!actor&&!profession&&publicAvailability(t,acc,selected.id).ok,
       canRefund:raw&&!!selected?.unlocked&&!!actor&&!profession,
@@ -358,7 +358,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       awaitingProvider:t?.provider.kind==='profession',isTest:t?.status==='test',
       bindingNote:raw&&selected?.perkId?selected.perkId:null,
       selectedBinding:raw&&selected?.perkId?!selected.perkMissing:false,selectedCustom:raw&&!!selected?.custom,
-      setupReport,hasSetupReport:setupReport.length>0,missingGrants:gm&&!preview&&this.activeTab==='setup'?missingGrantCount():0};
+      setupReport,hasSetupReport:setupReport.length>0,missingGrants:gm&&!preview&&this.activeTab==='library'?missingGrantCount():0};
   }
   async _onRender(context,options){
     await super._onRender(context,options);if(!canOpenTrees()){await this.close?.({animate:false});return;}instance=this;openTreeWindows.add(this);
@@ -429,6 +429,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const el=event.target.closest('[data-act]');if(!el||this.busy)return;
     const action=el.dataset.act,id=el.dataset.id;
     if(action==='tab-trees'){this.activeTab='trees';this.render();return;}
+    if(action==='tab-library'){if(!game.user.isGM){notify('Tree Library is restricted to the GM.',true);return;}this.activeTab='library';this.editMode=false;this.playerPreview=false;this.render();return;}
     if(action==='tab-setup'){if(!game.user.isGM){notify('GM Setup is restricted to the GM.',true);return;}this.activeTab='setup';this.editMode=false;this.playerPreview=false;this.render();return;}
     if(action==='select'){
       if(this.linkFrom&&game.user.isGM&&this.editMode){try{await this._linkTo(id);}catch(e){notify(e.message,true);}return;}
@@ -918,7 +919,7 @@ Hooks.once('ready',()=>{
       if(!game.user.isGM)throw Error('GM only');
       // The GM-only definitions Journal belongs to this module, so the import creates it when missing instead of failing.
       let createdStorage=false;
-      if(!gmPrivate()){try{await createStore();createdStorage=true;}catch(error){throw Error(`Could not create the GM-only Skill Trees storage Journal: ${error?.message??error}. Open Skill Trees > GM Setup and click Initialize GM Storage, then import again.`);}}
+      if(!gmPrivate()){try{await createStore();createdStorage=true;}catch(error){throw Error(`Could not create the GM-only Skill Trees storage Journal: ${error?.message??error}. Open Skill Trees > GM Setup (or Tree Library) and click Initialize GM Storage, then import again.`);}}
       const current=readPrivate();
       const {errors,rows,apply}=planTreeImport(pack,current,{mode});
       if(errors.length)throw Error(`Import blocked: ${errors[0]}`);

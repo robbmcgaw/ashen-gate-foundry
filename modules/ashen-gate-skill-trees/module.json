@@ -2,7 +2,7 @@
   "id": "ashen-gate-skill-trees",
   "title": "Ashen Gate | Skill Trees",
   "description": "Independent Skill Trees for Professions, Cinders and future progression. Each node is a world perk; unlocking adds the perk to the character sheet (refund removes it). GM-controlled Player Access (ag-player-access/1).",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "authors": [
     {
       "name": "Ashen Gate project"
@@ -23,5 +23,5 @@
   "readme": "README.md",
   "url": "https://github.com/robbmcgaw/ashen-gate-foundry",
   "manifest": "https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-skill-trees/module.json",
-  "download": "https://github.com/robbmcgaw/ashen-gate-foundry/releases/download/ashen-gate-skill-trees-v0.9.0/ashen-gate-skill-trees.zip"
+  "download": "https://github.com/robbmcgaw/ashen-gate-foundry/releases/download/ashen-gate-skill-trees-v0.10.0/ashen-gate-skill-trees.zip"
 }
