@@ -4,6 +4,7 @@
  * membership, mutate profession XP, or pretend to be canonical published content.
  * Run from the GM console in a disposable world only.
  */
+import {confirmDialog} from '../js/dialogs.mjs';
 const MOD='ashen-gate-headquarters';
 const MARK='v0.6.0-synthetic-test';
 const fixtureIds=['HIRE-AGTEST-SMITH','HPERK-AGTEST-WORKING'];
@@ -47,7 +48,7 @@ export async function reset(){
  requireGM();
  const docs=(game.items?.contents||[]).filter(doc=>doc.flags?.[MOD]?.testFixture===MARK&&alreadyManaged(doc));
  if(!docs.length)return {deleted:0,notice:'No tagged fixture Items. Headquarters campaign data unchanged.'};
- if(!window.confirm(`Delete ${docs.length} TEST ONLY Headquarters fixture Item(s)? Guildhall room, roster, catalog and staff records will NOT be changed.`))return {deleted:0,cancelled:true};
+ if(!await confirmDialog(`Delete ${docs.length} TEST ONLY Headquarters fixture Item(s)? Guildhall room, roster, catalog and staff records will NOT be changed.`,{title:'Delete fixture Items',yes:'Delete fixture Items'}))return {deleted:0,cancelled:true};
  for(const doc of docs)await doc.delete();
  return {deleted:docs.length,notice:'Only tagged Item definitions deleted. For a full HQ campaign-state reset, restore a saved test-world backup.'};
 }

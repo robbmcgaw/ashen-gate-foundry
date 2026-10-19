@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.1 — 2026-10-19
+
+- Uninstall / Return facility and Mark hireling departed now use Foundry dialogs instead of the browser's `confirm` (the desktop app has none), with a labelled action button and Cancel on the left. The fixture-delete prompt does the same.
+- No saved-data, permission or API changes.
+
 ## 0.8.0 — 2026-10-19
 
 - New GM-only **Facilities** tab: every imported or seeded facility definition with Locked / Unlocked / Acquired chips, copies owned and installed, search, status and placement filters, sort and group. Unlock, Acquire +1, Import Facility Definitions JSON, Decorations and the test-record seeder moved here from GM Setup and work the same. It also opens before the Guildhall is activated (browse and import; unlock/acquire wait for activation).

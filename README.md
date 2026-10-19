@@ -1,6 +1,19 @@
 # Ashen Gate — Foundry VTT modules
 
-Eight Foundry VTT (V14, dnd5e) modules for the Ashen Gate D&D 2024 supplement. Each module installs on its own; **General Manager** is the optional GM hub.
+Eight Foundry VTT (V14, dnd5e) modules for the Ashen Gate D&D 2024 supplement. Each module installs on its own and keeps its own id, settings and public API (`game.modules.get(id)?.api`). **General Manager** is the optional GM hub: it owns source-definition import and shared appearance. Every other module opens and works without it and feature-detects its partners. Each module's own state (Actor progression, Renown, Headquarters, Locations, Quests) belongs to that module.
+
+| Module | What it does | Where it opens |
+|---|---|---|
+| Factions & Renown | Factions, group and personal Renown, discovery, rewards, service requests | Actors sidebar → Renown |
+| Headquarters | Shared Guildhall layout, facilities, hirelings, personal quarters | Actors sidebar → Headquarters |
+| Locations | Campaign places with threat, gathering nodes, party notes, map pins, per-player visibility | Actors sidebar → Locations; GM: Items sidebar → Location Builder |
+| General Manager | GM-only importer, library, appearance and Player Access overview | GM: Items sidebar → General Manager |
+| Profession Ledger | Crafting, recipes, gathering, Actor-owned profession XP | Actors sidebar → Professions |
+| Quest Manager | Quests, orders and contracts with Party and Individual logs | Actors sidebar → Quests |
+| Skill Trees | Perk-based progression trees | Actors sidebar → Skill Trees |
+| Utilities | Group checks, roll requests, conditions, party stash, RollTable sharing | Actors sidebar → Utilities |
+
+Actors-sidebar launchers are player-facing and gated by each module's Player Access setting. Each module's README has its tabs, public API and install steps.
 
 ## Install / update
 
@@ -18,7 +31,7 @@ After that, updates show up through Foundry's normal **Check for Updates** / For
 | Skill Trees | `ashen-gate-skill-trees` | `https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-skill-trees/module.json` |
 | Utilities | `ashen-gate-utilities` | `https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-utilities/module.json` |
 
-Every version is also on the [Releases page](https://github.com/robbmcgaw/ashen-gate-foundry/releases) for manual install or rollback.
+Every version is also on the [Releases page](https://github.com/robbmcgaw/ashen-gate-foundry/releases) for manual install or rollback. Each module's `CHANGELOG.md` and the Releases page are the change history.
 
 ## How releases work
 

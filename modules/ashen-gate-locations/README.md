@@ -2,7 +2,15 @@
 
 Places in your campaign, each with a threat level, gathering resources, factions, quests, related locations and notes. You decide which parts players can see.
 
-Foundry V14, dnd5e. Works on its own; Quest Manager and General Manager are optional.
+Module ID `ashen-gate-locations` · Foundry V14, dnd5e. Works on its own; Quest Manager, Profession Ledger and General Manager are optional partners and are feature-detected. General Manager hands location records to `importLocations`.
+
+## Install
+
+Foundry or The Forge: **Add-on Modules → Install Module → Manifest URL**, paste
+
+`https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-locations/module.json`
+
+and Install. Updates arrive through Check for Updates / Forge's update button. Every version is also on the [GitHub Releases](https://github.com/robbmcgaw/ashen-gate-foundry/releases) page for manual install or rollback. Change history is in [CHANGELOG.md](CHANGELOG.md).
 
 ## Using it
 
@@ -110,7 +118,3 @@ Location records go in an `ag-foundry-import/0.2` package with `entity_type: "Lo
 - Exports also carry `pinKey` and `published` (what players currently see). An update import that leaves out `parentLocationId`, `unidentifiedLabel`, `teaser`, `pin` or `sceneUuids` keeps the world's value (see also the 1.4.0 fields above).
 - Party Notes are campaign state, not definition: exports leave them out and imports never read or change them.
 - **Export JSON** writes the same format. [`examples/test-locations.json`](examples/test-locations.json) is a synthetic sample; **GM Setup → Developer Tools** imports it.
-
-## Tests
-
-`node scripts/check.mjs ashen-gate-locations` runs the model, storage, API and render tests against mocked Foundry, with an emphasis on what players can read. Party Notes tests run a GM and two player clients in one process over a fake socket. They prove logic, not the live Foundry UI or real multi-client timing.
