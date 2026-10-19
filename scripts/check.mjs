@@ -1,5 +1,6 @@
 // Checks every module (or the ones named on the command line):
 //   - module.json is valid and its manifest/download URLs match its id and version
+//   - CHANGELOG.md starts with this version, and any hard-coded VERSION/BUILD_VERSION constant matches it
 //   - every runtime script parses
 //   - styles/ag-ui.css is listed first and identical in every module
 //   - the module's automated tests pass
@@ -51,10 +52,23 @@ for (const id of ids) {
     if (!fs.existsSync(path.join(dir, file))) fail(id, `module.json lists missing file ${file}`);
   }
 
+  // The release notes are the top CHANGELOG section, so it must describe this version.
+  const changelog = path.join(dir, 'CHANGELOG.md');
+  const top = fs.existsSync(changelog) ? fs.readFileSync(changelog, 'utf8').match(/^## +(\S+)/m)?.[1] : null;
+  if (top !== v) fail(id, `CHANGELOG.md must start with a "## ${v}" section (found ${top ? `"## ${top}"` : 'none'})`);
+
   // Legacy macros are Foundry macro bodies (top-level return/await), not modules, so skip them.
-  for (const file of walk(dir).filter(f => /\.(m?js)$/.test(f) && !f.includes(`${path.sep}macros${path.sep}`))) {
+  const runtime = walk(dir).filter(f => /\.(m?js)$/.test(f) && !f.includes(`${path.sep}macros${path.sep}`));
+  for (const file of runtime) {
     const r = spawnSync(process.execPath, ['--check', file], { encoding: 'utf8' });
     if (r.status !== 0) fail(id, `syntax error in ${path.relative(dir, file)}\n${r.stderr}`);
+  }
+
+  // A hard-coded VERSION / BUILD_VERSION constant (shown in headers and logs) must match module.json.
+  for (const file of runtime.filter(f => !/[\\/](tests?|vendor)[\\/]/.test(f))) {
+    for (const [, name, found] of fs.readFileSync(file, 'utf8').matchAll(/\bconst\s+((?:BUILD_)?VERSION)\s*=\s*['"](\d+\.\d+\.\d+)['"]/g)) {
+      if (found !== v) fail(id, `${path.relative(dir, file)}: ${name} is '${found}' but module.json says ${v}`);
+    }
   }
 
   const testDir = ['tests', 'test'].map(d => path.join(dir, d)).find(d => fs.existsSync(d));
