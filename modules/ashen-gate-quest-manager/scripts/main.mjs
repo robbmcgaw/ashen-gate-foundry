@@ -7,8 +7,9 @@ import {createQuestDefinitionReader,parsePackIds} from './pinned-runtime.mjs';
 import {ASSIGNMENT_CONTRACT,listAssignments,getAssignment,saveAssignment,removeAssignment} from './assignments.mjs';
 import {selectTrackedViews,validTrackedId,trackingState} from './tracking.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
+import {confirmDialog,infoDialog} from './dialogs.mjs';
 
-const VERSION='0.7.1';
+const VERSION='0.7.2';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -127,23 +128,24 @@ function questsPanel(selectedId,view){
 function setupTab(){return setupPanel({playerAccess:game.settings.get(MOD,'playerAccessEnabled'),packIds:game.settings.get(MOD,'compendiumPackIds'),overlayVisible:trackerVisible()});}
 const Base=appBase();
 class QuestLogApplication extends Base {
- static DEFAULT_OPTIONS={id:'ag-quest-manager-window',classes:['ag-app','ag-quest-app'],window:{title:'Ashen Gate | Quest Manager',resizable:true,minimizable:true},position:{width:940,height:700}};
+ static DEFAULT_OPTIONS={id:'ag-quest-manager-window',classes:['ag-app','ag-quest-app'],window:{title:'Ashen Gate | Quest Log',resizable:true,minimizable:true},position:{width:940,height:700}};
  constructor(options={}){super(options);this.tab='party';this.actorId=actorsOwned()[0]?.id??null;this.selectedId=null;this.gmId=null;this.filter='';this.unsavedSource=false;this.sourceJsonEdited=false;this.qv={...DEFAULT_VIEW};this.statusFilter='all';}
  async _renderHTML(){assertUI(game.user,openAllowed());
   let rows=[],detail=null;
   const gmTab=this.tab==='quests'||this.tab==='setup';
   if(!gmTab){rows=roleViewList(this.tab,this.actorId).filter(x=>(this.statusFilter==='all'||x.view.status===this.statusFilter)&&[x.view.name,x.view.summary,x.view.id].some(t=>t.toLowerCase().includes(this.filter.toLowerCase())));if(!rows.some(x=>x.view.id===this.selectedId))this.selectedId=rows[0]?.view.id??null;detail=rows.find(x=>x.view.id===this.selectedId)?.view??null;}
   const allowed=actorsOwned(),actorOption=options(allowed.map(a=>[a.id,a.name]),this.actorId);
-  const html=`<div class="ag-quest-root"><header class="ag-header ag-quest-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Quest Log</h1><p>Quests · Work Orders · Contracts</p></div><div class="ag-header__meta ag-quest-heading-actions">${safeButton(trackerVisible()?'Hide Objectives Overlay':'Show Objectives Overlay','toggle-overlay',{kind:'secondary'})}<span class="ag-quest-version">v${VERSION}</span></div></header>
+  const html=`<div class="ag-quest-root"><header class="ag-header ag-quest-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Quest Log</h1><p>Quests · Work Orders · Contracts</p></div><div class="ag-header__meta ag-quest-heading-actions">${safeButton('Help','help',{kind:'secondary'})}${safeButton(trackerVisible()?'Hide Objectives Overlay':'Show Objectives Overlay','toggle-overlay',{kind:'secondary'})}<span class="ag-quest-version">v${VERSION}</span></div></header>
   <nav class="ag-tabs ag-quest-tabs" aria-label="Quest sections"><button data-tab="party" class="${this.tab==='party'?'active':''}">Party</button><button data-tab="individual" class="${this.tab==='individual'?'active':''}">Individual</button>${hasGM()?`<button data-tab="quests" class="${this.tab==='quests'?'active':''}">Quests</button><button data-tab="setup" class="${this.tab==='setup'?'active':''}">GM Setup</button>`:''}</nav>
   <main class="ag-quest-main">${this.tab==='quests'?questsPanel(this.gmId,this.qv):this.tab==='setup'?setupTab():`<aside class="ag-quest-list"><label>Search<input id="ag-quest-search" placeholder="Search visible objectives" value="${E(this.filter)}"></label><label>Status<select id="ag-player-filter">${options([['all','All visible quests'],...STATUSES.filter(x=>x!=='Hidden').map(x=>[x,x])],this.statusFilter)}</select></label><label>${this.tab==='individual'?'Individual Quest Actor':'Character Notes Actor'}<select id="ag-actor"><option value="">Select Actor</option>${actorOption}</select></label><div class="ag-quest-scroll" id="ag-quest-cards">${cards(rows,this.selectedId)}</div><small id="ag-quest-count">${rows.length} visible objectives</small></aside><section class="ag-quest-reading">${readableDetail(detail,this.actorId)}</section>`}</main>
   <footer class="ag-footer ag-quest-footer"><span>Player content follows Foundry Journal/Actor permissions.</span>${hasGM()?'<span>Objective progress and rewards: GM controlled</span>':''}</footer></div>`;
   return html;
  }
+ showHelp(){return infoDialog('Quest Log Help',`<p><strong>Quest Log</strong> shows the quests, work orders and contracts your party is working on.</p><ul><li><strong>Party</strong> lists the quests the whole party can see. Pick one to read its objectives and write your character's notes.</li><li><strong>Individual</strong> lists a character's own quests; choose the character on the left.</li>${hasGM()?'<li><strong>Quests</strong> (GM) lists every quest with search, filters and sorting. Pick one to edit it, or press <em>New quest</em>. Import JSON and Export Sources are in its toolbar.</li><li><strong>GM Setup</strong> holds Player Access (whether players see the Quest Log) and other settings.</li>':''}</ul><p>The <em>Objectives Overlay</em> button shows or hides your tracked objectives on screen.</p>${hasGM()?'<p>Deleting a quest or an assignment, or leaving a tab with unsaved source changes, asks you to confirm first.</p>':''}`);}
  // Appearance is inherited: the kit's --ag-* tokens live on the document, kept in sync by General Manager when active.
  _replaceHTML(result,content){content.innerHTML=result;this.bind(content);}
  bind(root){
-   for(const b of root.querySelectorAll('[data-tab]'))b.addEventListener('click',async e=>{if(this.unsavedSource&&!confirm('Discard unsaved source changes?'))return;this.tab=e.currentTarget.dataset.tab;this.unsavedSource=false;this.sourceJsonEdited=false;await this.render();});
+   for(const b of root.querySelectorAll('[data-tab]'))b.addEventListener('click',async e=>{if(this.unsavedSource&&!await confirmDialog('Discard unsaved source changes?',{title:'Unsaved changes',yes:'Discard changes'}))return;this.tab=e.currentTarget.dataset.tab;this.unsavedSource=false;this.sourceJsonEdited=false;await this.render();});
    root.querySelector('#ag-actor')?.addEventListener('change',async e=>{this.actorId=e.target.value;this.selectedId=null;await this.render();});
    root.querySelector('#ag-player-filter')?.addEventListener('change',async e=>{this.statusFilter=e.target.value;this.selectedId=null;await this.render();});
    for(const [id,key] of [['type','type'],['status','status'],['location','location'],['visible','visible'],['sort','sort'],['group','group']])root.querySelector(`#ag-gm-${id}`)?.addEventListener('change',async e=>{this.qv[key]=e.target.value;await this.render();});
@@ -165,14 +167,15 @@ class QuestLogApplication extends Base {
   try{const action=btn.dataset.action,id=btn.dataset.id;
    if(action==='select'){this.selectedId=id;return await this.render();}
    if(action==='open-location'){const api=game.modules.get('ashen-gate-locations')?.api;if(!api?.openLocation)throw new Error('Locations is not active.');return await api.openLocation(id);}
+   if(action==='help')return await this.showHelp();
    if(action==='toggle-overlay'){assertUI(game.user,openAllowed());await changeTracking({visible:!trackerVisible()});return await this.render();}
    if(action==='track'){assertUI(game.user,openAllowed());if(!visibleById(id))throw new Error('Quest is no longer visible.');const ids=trackedIds();await changeTracking({ids:btn.checked?[...ids,id]:ids.filter(x=>x!==id)});return await this.render();}
    if(action==='save-note'){
      assertUI(game.user,openAllowed());await savePersonalNote(this.selectedId,this.actorId,root.querySelector('#ag-my-note')?.value||'');ui.notifications.info('Character notes saved.');return;
    }
    assertGM(game.user);
-   if(action==='gm-select'){if(this.unsavedSource&&!confirm('Discard unsaved source changes?'))return;this.gmId=id;this.unsavedSource=false;return await this.render();}
-   if(action==='new'){if(this.unsavedSource&&!confirm('Discard unsaved source changes?'))return;this.gmId=null;this.unsavedSource=false;this.sourceJsonEdited=false;return await this.render();}
+   if(action==='gm-select'){if(this.unsavedSource&&!await confirmDialog('Discard unsaved source changes?',{title:'Unsaved changes',yes:'Discard changes'}))return;this.gmId=id;this.unsavedSource=false;return await this.render();}
+   if(action==='new'){if(this.unsavedSource&&!await confirmDialog('Discard unsaved source changes?',{title:'Unsaved changes',yes:'Discard changes'}))return;this.gmId=null;this.unsavedSource=false;this.sourceJsonEdited=false;return await this.render();}
    if(action==='save-source'){
     const src=this.sourceJsonEdited?validSource(JSON.parse(root.querySelector('#ag-source-json').value)):sourceFromForm(root,this.gmId?getPrivate(this.gmId)?.getFlag(MOD,'source'):null);
     if(this.gmId&&src.id!==this.gmId)throw new Error('Cannot change permanent ID of an existing Objective. Use New quest.');
@@ -197,8 +200,8 @@ class QuestLogApplication extends Base {
    }
    if(action==='edit-assignment'){const record=getAssignment(id);const textarea=root.querySelector('#ag-assignment-json');if(!record||!textarea)throw new Error('Assignment unavailable');textarea.value=JSON.stringify(record,null,2);return;}
    if(action==='save-assignment'){const source=JSON.parse(root.querySelector('#ag-assignment-json').value);if(source.objective_id!==this.gmId)throw new Error('Assignment target must be the selected Objective');await saveAssignment(source,{replace:!!getAssignment(source.id),objectiveExists:id=>!!getPrivate(id),ensureFolder});ui.notifications.info('Delegated Assignment saved.');return await this.render();}
-   if(action==='remove-assignment'){if(!confirm(`Delete delegated Assignment ${id}?`))return;await removeAssignment(id);return await this.render();}
-   if(action==='delete'){if(!confirm(`Delete ${this.gmId}? Removes its published Quest Log view. Character-owned notes are retained.`))return;await removeRecord(this.gmId);this.gmId=null;return await this.render();}
+   if(action==='remove-assignment'){if(!await confirmDialog(`Delete delegated Assignment ${id}?`,{title:'Delete assignment',yes:'Delete assignment'}))return;await removeAssignment(id);return await this.render();}
+   if(action==='delete'){if(!await confirmDialog(`Delete ${this.gmId}? Removes its published Quest Log view. Character-owned notes are retained.`,{title:'Delete quest',yes:'Delete quest'}))return;await removeRecord(this.gmId);this.gmId=null;return await this.render();}
    if(action==='export'){return dialogDownload('AG_Quest_Source_v0.4.0.json',JSON.stringify(exportPackage(allPrivate().map(x=>x.source)),null,2));}
    if(action==='import'){
     const input=document.createElement('input');input.type='file';input.accept='.json,application/json';input.onchange=async()=>{try{const raw=JSON.parse(await input.files[0].text());const imported=await importSources(raw);ui.notifications.info(`Imported ${imported.length} Objective sources. No campaign state was overwritten.`);await this.render();}catch(e){notifyError(e);}};input.click();return;
