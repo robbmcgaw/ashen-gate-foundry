@@ -1,7 +1,7 @@
 <section class="agmanager-body">
   <header class="ag-header agmanager-top">
     <i class="agmanager-emblem fa-solid fa-dungeon" aria-hidden="true"></i>
-    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.15.0 Beta</small></h2></div>
+    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.16.0 Beta</small></h2></div>
     <button type="button" class="agmanager-help" data-ag-action="help" aria-label="Manager Help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button><span class="agmanager-chip">GM only</span>
   </header>
   <nav class="ag-tabs agmanager-nav" aria-label="Manager tabs">
@@ -9,7 +9,6 @@
     <button type="button" data-ag-tab="library" class="{{#if libraryActive}}active{{/if}}"><i class="fa-solid fa-layer-group"></i> Library</button>
     <button type="button" data-ag-tab="modules" class="{{#if modulesActive}}active{{/if}}"><i class="fa-solid fa-grip"></i> Modules</button>
     <button type="button" data-ag-tab="appearance" class="{{#if appearanceActive}}active{{/if}}"><i class="fa-solid fa-palette"></i> Appearance</button>
-    <button type="button" data-ag-tab="macros" class="{{#if macrosActive}}active{{/if}}"><i class="fa-solid fa-terminal"></i> Macros</button>
     <button type="button" data-ag-tab="history" class="{{#if historyActive}}active{{/if}}"><i class="fa-solid fa-clock-rotate-left"></i> History</button>
   </nav>
 
@@ -287,27 +286,6 @@
     </section>
   </div>
   {{/if}}
-
-
-  {{#if macrosActive}}
-  <div class="agmanager-panel">
-    <h3>Macro library</h3>
-    <p>Macros are loaded from the module's <code>macros/manifest.json</code> and referenced JS files. Installation creates or updates world Macro documents; it never executes scripts. Existing macro IDs and locally modified code are protected.</p>
-    <div class="agmanager-row agmanager-row-wrap">
-      <label class="agmanager-filelabel"><i class="fa-solid fa-file-code"></i> Load custom macro JSON <input type="file" data-ag-macro-json accept=".json,application/json" /></label>
-      <button type="button" data-ag-action="macro-select">Select installable</button>
-      <button type="button" data-ag-action="macro-install" class="agmanager-primary" {{#unless macroSelectedCount}}disabled{{/unless}}>Install / Update selected</button>
-      <button type="button" data-ag-action="macro-export" class="agmanager-muted">Export installed macros</button></div>
-    <div class="agmanager-table-scroll"><table class="agmanager-table"><thead><tr><th>Select</th><th>Macro</th><th>Version</th><th>Action</th></tr></thead>
-      <tbody>{{#each macroRows}}<tr><td><input type="checkbox" data-ag-macro-select="{{id}}" {{#if selected}}checked{{/if}} {{#unless installable}}disabled{{/unless}} /></td>
-        <td><strong>{{name}}</strong><code>{{id}}</code><p class="agmanager-tiny">{{category}} · {{status}} — {{description}}</p></td><td>{{version}}</td><td><span class="agmanager-badge agmanager-{{action}}">{{action}}</span><div class="agmanager-tiny">{{reason}}</div></td>
-      </tr>{{/each}}</tbody></table></div>
-    <p class="agmanager-notice">{{macroMessage}}</p>
-    <p class="agmanager-tiny">No macros are bundled right now. To add bundled scripts, register JS sources in macros/manifest.json. You can also load an optional ag-macro-registry/0.4 JSON file with id, name, version, description, command for each macro. Custom entries last for this window only; installed macros remain in Foundry. Loading and installing do not execute scripts; review them before running.</p>
-  </div>
-  {{/if}}
-
-
 
   {{#if historyActive}}
   <div class="agmanager-panel">

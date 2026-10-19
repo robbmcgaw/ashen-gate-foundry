@@ -1,15 +1,18 @@
 import {
   SCHEMA,clone,asArray,cleanAccount,walletKey,normalizeTree,validateTree,validatePackage,allowedSourceForProvider,
-  availability,publicAvailability,publicTree,totalSpent,grantPoints,purchase,changedPurchasedNodes,planTreeImport
+  availability,publicAvailability,publicTree,totalSpent,grantPoints,purchase,changedPurchasedNodes,planTreeImport,
+  resolveTree,perkCost,refund,resetUnlocks,grantTag,isGrantFor,missingGrants,savedDataReport
 } from './engine.mjs';
+import {graphEdges,edgeLine} from './graph.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition} from './definition-lookup.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument,qaCleanupBlockers} from './qa-fixtures.mjs';
 
-/** Skill Trees 0.6.0 alpha: shared Foundry development-standard UI; private GM definitions. */
+/** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.7.0';
+const VERSION='0.8.0';
+const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
 const SAFE_SETTING='publicTreesV2';
@@ -58,18 +61,27 @@ const input=async(title,content,label='Save')=>{
   const result=await DialogV2.input({window:{title},content,ok:{label}});
   return result?formValues(result):null;
 };
-const parseList=v=>String(v??'').split(',').map(s=>s.trim()).filter(Boolean);
-const parseAny=v=>String(v??'').split(';').map(parseList).filter(a=>a.length);
 const newKey=(prefix='LOCAL-NODE')=>`${prefix}-${foundry.utils.randomID(14)}`;
-const managerBinding=id=>lookupWorldDefinition(game,id,{}).document??null;
+const checked=v=>v===true||v==='on'||v==='true';
+// Perk text for the node: tags removed, and Manager [[AGREF:ID|label]] / Foundry @UUID[...]{label} links reduced to their label.
+const plainText=html=>{
+  const raw=String(html??'').replace(/\[\[AGREF:[^|\]]*\|([^\]]*)\]\]/g,'$1').replace(/@\w+\[[^\]]*\]\{([^}]*)\}/g,'$1');
+  if(typeof DOMParser==='function')return (new DOMParser().parseFromString(raw,'text/html').body?.textContent??'').replace(/\s+/g,' ').trim();
+  return raw.replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();
+};
+/** The world perk for a permanent id (Manager's binding). The node's stored UUID is only a local hint. */
+const perkDoc=id=>{const hit=lookupWorldDefinition(game,id,{});return hit.status==='ok'&&hit.document?.documentName==='Item'?hit.document:null;};
+const perkInfo=id=>{const doc=perkDoc(id);if(!doc)return null;
+  return {name:doc.name,description:plainText(doc.system?.description?.value),img:doc.img??null,cost:perkCost(sourceFlag(doc)?.definition),uuid:doc.uuid};};
+const resolved=t=>resolveTree(t,id=>perkInfo(id));
 const safePublicSource=n=>{
-  if(!n.contentRef)return true; // Sandbox nodes may be contentless.
-  const hit=lookupWorldDefinition(game,n.contentRef.target_id,{publicForAll:true,approvedOnly:true});
+  if(!n.perkId)return true; // Older custom nodes have no perk.
+  const hit=lookupWorldDefinition(game,n.perkId,{publicForAll:true,approvedOnly:true});
   const doc=hit.document,source=hit.source;
   return Boolean(doc?.documentName==='Item'&&doc?.type==='feat'&&source?.entityType===
-    (n.contentRef.target_id.startsWith('PERK-')?'ProfessionPerk':'Power') && !/placeholder/i.test(doc.name));
+    (n.perkId.startsWith('PERK-')?'ProfessionPerk':'Power') && !/placeholder/i.test(doc.name));
 };
-const project=t=>publicTree({...t,nodes:t.nodes.map(n=>safePublicSource(n)?n:{...n,visibility:'gm',display:'hidden'})});
+const project=t=>{const r=resolved(t);return publicTree({...r,nodes:r.nodes.map(n=>safePublicSource(n)?n:{...n,visibility:'gm',display:'hidden'})});};
 const publishedPayload=trees=>({schema:SCHEMA,revision:Date.now(),trees:trees.map(project).filter(Boolean)});
 async function initializeStore(){
   if(!game.user.isGM)throw Error('GM only');
@@ -117,26 +129,160 @@ async function persistAccount(actor,tree,next){
   records[walletKey(tree)]=cleanAccount(next);
   await actor.setFlag(MODULE,'progressV2',records);
 }
-function makePaths(nodes){
-  const lookup=new Map(nodes.map(n=>[n.id,n]));const paths=[];
-  for(const n of nodes)for(const id of [...asArray(n.requiresAll),...asArray(n.requiresAny).flat()]){
-    const parent=lookup.get(id);if(!parent)continue;
-    const x1=parent.x+90,y1=parent.y+33,x2=n.x+90,y2=n.y+33;
-    const dx=(x2-x1)*0.5,dy=(y2-y1)*0.12;
-    paths.push({from:id,to:n.id,d:`M ${x1} ${y1} C ${x1+dx} ${y1+dy}, ${x2-dx} ${y2-dy}, ${x2} ${y2}`,
-      active:Boolean(n.unlocked&&parent.unlocked),isOr:asArray(n.requiresAny).some(g=>g.includes(id))});
-  }
-  return paths;
+const grantOf=item=>item?.flags?.[MODULE]?.grant??null;
+const grantedItems=(actor,tree,nodeId=null)=>Array.from(actor?.items??[]).filter(i=>isGrantFor(grantOf(i),tree,nodeId));
+/** Embedded copy of the world perk on the character, tagged with the perk id. Reuses an existing tagged copy. */
+async function givePerk(actor,tree,node){
+  const existing=grantedItems(actor,tree,node.id);
+  if(existing.length)return {item:existing[0],created:false};
+  const doc=perkDoc(node.perkId);
+  if(!doc)throw Error(`Perk ${node.perkId} is not in this world. Import it through General Manager first.`);
+  const data=doc.toObject();
+  for(const key of ['_id','folder','sort','ownership','_stats'])delete data[key];
+  data.flags={...(data.flags??{}),[MODULE]:{grant:{...grantTag(tree,node),perkUuid:doc.uuid}}};
+  const [item]=await actor.createEmbeddedDocuments('Item',[data]);
+  if(!item)throw Error(`Could not add ${doc.name} to ${actor.name}`);
+  return {item,created:true};
 }
+// One unlock/refund at a time per character, so a double click or two clients cannot spend twice.
+const actorLocks=new Map();
+function withActorLock(actorId,fn){
+  const run=(actorLocks.get(actorId)??Promise.resolve()).then(fn);
+  const tail=run.catch(()=>{});actorLocks.set(actorId,tail);
+  tail.then(()=>{if(actorLocks.get(actorId)===tail)actorLocks.delete(actorId);});
+  return run;
+}
+/** Authoritative unlock (GM client): checks the private tree, adds the perk Item, then records the unlock. */
+async function unlockNode(actor,treeId,nodeId,{forUser=null}={}){
+  if(!game.user.isGM)throw Error('GM only: unlocks run on the GM client');
+  if(!actor)throw Error('No character selected');
+  return withActorLock(actor.id,async()=>{
+    const stored=readPrivate().find(t=>t.id===treeId);if(!stored)throw Error('Unknown tree');
+    const t=resolved(stored),n=t.nodes.find(x=>x.id===nodeId);if(!n)throw Error('Unknown node');
+    const account=readProgress(actor,stored);
+    if(forUser){ // A player may unlock only what the player view shows them.
+      const pub=project(stored),pn=pub?.nodes.find(x=>x.id===nodeId);
+      if(!pub||!pn||pn.silhouette)throw Error('That node is not released to players');
+      const ok=publicAvailability(pub,account,nodeId);if(!ok.ok)throw Error(ok.reason);
+    }
+    const next=purchase(t,account,nodeId);
+    if(n.perkId&&!safePublicSource(n))throw Error(`${n.perkId} is not an approved, player-visible perk yet`);
+    const grant=n.perkId?await givePerk(actor,stored,n):null;
+    try{await persistAccount(actor,stored,next);}
+    catch(error){
+      if(grant?.created)await grant.item.delete().catch(e=>console.error(`[${MODULE}] Could not undo perk Item`,e));
+      throw error;
+    }
+    return {node:n,item:grant?.item??null};
+  });
+}
+/** GM refund: gives the points back, then removes the granted perk Item from the sheet. */
+async function refundNode(actor,treeId,nodeId){
+  if(!game.user.isGM)throw Error('GM only');
+  if(!actor)throw Error('No character selected');
+  return withActorLock(actor.id,async()=>{
+    const stored=readPrivate().find(t=>t.id===treeId);if(!stored)throw Error('Unknown tree');
+    const next=refund(resolved(stored),readProgress(actor,stored),nodeId);
+    await persistAccount(actor,stored,next);
+    return removeGrants(actor,stored,nodeId);
+  });
+}
+async function resetTreeFor(actor,treeId){
+  if(!game.user.isGM)throw Error('GM only');
+  if(!actor)throw Error('No character selected');
+  return withActorLock(actor.id,async()=>{
+    const stored=readPrivate().find(t=>t.id===treeId);if(!stored)throw Error('Unknown tree');
+    await persistAccount(actor,stored,resetUnlocks(readProgress(actor,stored)));
+    return removeGrants(actor,stored,null);
+  });
+}
+async function removeGrants(actor,tree,nodeId){
+  const items=grantedItems(actor,tree,nodeId),failed=[];
+  for(const item of items){try{await item.delete();}catch(error){console.error(`[${MODULE}] Could not remove perk Item`,error);failed.push(item.name);}}
+  if(failed.length)throw Error(`Points refunded, but ${failed.join(', ')} could not be removed from ${actor.name}. Delete it from the sheet by hand.`);
+  return {removed:items.map(i=>i.name)};
+}
+/** Re-runnable: adds the perk Item for unlocks recorded without one (e.g. before 0.8.0). Never removes anything. */
+async function giveMissingPerks(){
+  if(!game.user.isGM)throw Error('GM only');
+  const given=[],failed=[];
+  for(const actor of game.actors?.contents??[])for(const stored of readPrivate()){
+    if(stored.provider.kind==='profession')continue;
+    const acc=readProgress(actor,stored);if(!acc.unlocks.length)continue;
+    for(const n of missingGrants(stored,acc,Array.from(actor.items??[]).map(grantOf))){
+      try{await withActorLock(actor.id,()=>givePerk(actor,stored,n));given.push(`${actor.name}: ${perkDoc(n.perkId)?.name??n.perkId}`);}
+      catch(error){failed.push(`${actor.name}: ${error.message}`);}
+    }
+  }
+  return {given,failed};
+}
+function missingGrantCount(){
+  let count=0;
+  for(const actor of game.actors?.contents??[])for(const stored of readPrivate()){
+    if(stored.provider.kind==='profession')continue;
+    count+=missingGrants(stored,readProgress(actor,stored),Array.from(actor.items??[]).map(grantOf)).length;
+  }
+  return count;
+}
+// Player unlocks: the active GM's client does the checks and the writes (players cannot be trusted to).
+const pendingRequests=new Map();
+function onSocket(message,senderId){
+  if(!message||typeof message!=='object')return;
+  if(message.type==='unlock-result'){
+    const wait=pendingRequests.get(message.requestId);if(!wait||message.userId!==game.user.id)return;
+    pendingRequests.delete(message.requestId);clearTimeout(wait.timer);
+    if(message.ok)wait.resolve(message);else wait.reject(Error(message.message));
+    return;
+  }
+  if(message.type==='unlock-request'&&game.user.isGM&&game.users?.activeGM?.id===game.user.id)return handleUnlockRequest(message,senderId);
+}
+async function handleUnlockRequest(message,senderId){
+  const userId=typeof senderId==='string'&&game.users?.get(senderId)?senderId:message.userId;
+  const reply=(ok,text)=>game.socket.emit(SOCKET,{type:'unlock-result',requestId:message.requestId,userId,ok,message:text});
+  try{
+    const user=game.users?.get(userId),actor=game.actors?.get(message.actorId);
+    if(!user||user.isGM)throw Error('Unknown player');
+    if(!playerAccessEnabled())throw Error('Skill Trees is hidden from players right now');
+    if(!actor||actor.testUserPermission?.(user,'OWNER')!==true)throw Error('You do not own that character');
+    const {node}=await unlockNode(actor,message.treeId,message.nodeId,{forUser:user});
+    reply(true,`${node.name} unlocked for ${actor.name}.`);
+  }catch(error){reply(false,String(error?.message??error));}
+}
+function requestUnlock(actor,treeId,nodeId){
+  if(!game.users?.activeGM)return Promise.reject(Error('A GM must be logged in to unlock perks (the GM client adds the perk to the sheet).'));
+  const requestId=foundry.utils.randomID(16);
+  return new Promise((resolve,reject)=>{
+    const timer=setTimeout(()=>{pendingRequests.delete(requestId);reject(Error('No answer from the GM client. Check that a GM is connected and try again.'));},20000);
+    pendingRequests.set(requestId,{resolve,reject,timer});
+    game.socket.emit(SOCKET,{type:'unlock-request',requestId,userId:game.user.id,actorId:actor.id,treeId,nodeId});
+  });
+}
+/** Readable prerequisite lists for a node: the keyboard/screen-reader version of the arrows. */
+function relationsOf(nodes,n){
+  const by=new Map(nodes.map(x=>[x.id,x]));
+  const ref=id=>{const x=by.get(id);return x?{id,name:x.name,unlocked:Boolean(x.unlocked)}:null;};
+  return {
+    all:asArray(n.requiresAll).map(ref).filter(Boolean),
+    any:asArray(n.requiresAny).map((g,i)=>({index:i+1,nodes:g.map(ref).filter(Boolean)})).filter(g=>g.nodes.length),
+    excludes:[...new Set([...asArray(n.excludes),...nodes.filter(x=>asArray(x.excludes).includes(n.id)).map(x=>x.id)])].map(ref).filter(Boolean),
+    leadsTo:nodes.filter(x=>asArray(x.requiresAll).includes(n.id)||asArray(x.requiresAny).some(g=>g.includes(n.id))).map(x=>ref(x.id))
+  };
+}
+const relationText=r=>[r.all.length?`Requires ${r.all.map(x=>x.name).join(' and ')}`:'',
+  ...r.any.map(g=>`Requires one of ${g.nodes.map(x=>x.name).join(' or ')}`),
+  r.excludes.length?`Cannot be taken with ${r.excludes.map(x=>x.name).join(', ')}`:''].filter(Boolean).join('. ');
 
 class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS={id:'agst-window-v2',classes:['ag-app','agst-window-v2'],window:{title:'Ashen Gate | Skill Trees',resizable:true,icon:'fa-solid fa-diagram-project'},position:{width:1120,height:740}};
   static PARTS={main:{template:`modules/${MODULE}/templates/tree.hbs`}};
   render(options){checkTreePlayerAccess();return super.render(options);}
-  constructor(...args){super(...args);this.activeTab='trees';this.actorId=null;this.treeId=null;this.nodeId=null;this.editMode=false;this.playerPreview=false;this.linkFrom=null;this.zoom=1;this.search='';this.busy=false;this.undo=[];this.redo=[];}
+  constructor(...args){super(...args);this.activeTab='trees';this.actorId=null;this.treeId=null;this.nodeId=null;this.editMode=false;this.playerPreview=false;this.linkFrom=null;this.zoom=1;this.search='';this.busy=false;this.listOpen=false;this.undo=[];this.redo=[];}
   get actor(){return game.actors?.get(this.actorId)??null;}
   get trees(){return readSelectedTrees(this.playerPreview);}
-  get tree(){return this.trees.find(t=>t.id===this.treeId)??null;}
+  /** Raw stored tree (GM editor writes). Never save the resolved view: perk text must stay on the perk. */
+  get storedTree(){return game.user.isGM?readPrivate().find(t=>t.id===this.treeId)??null:null;}
+  /** Display tree: GM sees it resolved from world perks; players (and preview) see the published projection. */
+  get tree(){const t=this.trees.find(t=>t.id===this.treeId)??null;return t&&game.user.isGM&&!this.playerPreview?resolved(t):t;}
   _defaults(){
     const trees=this.trees;
     if(!trees.some(t=>t.id===this.treeId))this.treeId=trees[0]?.id??null;
@@ -149,15 +295,20 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const ctx=await super._prepareContext(options);this._defaults();
     const gm=game.user.isGM,preview=gm&&this.playerPreview,raw=gm&&!preview;
     const t=this.tree,actor=this.actor,acc=t&&actor?readProgress(actor,t):cleanAccount();
-    const nodes=asArray(t?.nodes).map(n=>{
-      const unlocked=acc.unlocks.includes(n.id),e=t&&actor?
+    const base=asArray(t?.nodes).map(n=>({...n,unlocked:acc.unlocks.includes(n.id)}));
+    const nodes=base.map(n=>{
+      const unlocked=n.unlocked,e=t&&actor?
         (raw?availability(t,acc,n.id):publicAvailability(t,acc,n.id)):{ok:false,reason:'Choose a character'};
+      const rel=relationsOf(base,n),flag=unlocked?'UNLOCKED':e.ok?'AVAILABLE':'LOCKED';
       return {...n,unlocked,eligible:!unlocked&&e.ok,reason:unlocked?'Unlocked':e.reason,
-        selected:n.id===this.nodeId,flag:unlocked?'UNLOCKED':e.ok?'AVAILABLE':'LOCKED',
-        placeholder:n.status==='placeholder',silhouette:n.silhouette??false,
+        selected:n.id===this.nodeId,flag,rel,relText:relationText(rel),
+        placeholder:n.status==='placeholder',silhouette:n.silhouette??false,img:n.silhouette?null:n.img??null,
+        label:[`${n.name}: ${flag}`,`${n.cost??1} point${(n.cost??1)===1?'':'s'}`,relationText(rel)].filter(Boolean).join('. '),
         blocked:!unlocked&&!e.ok,style:`left:${n.x}px;top:${n.y}px;`};
     });
     const selected=nodes.find(n=>n.id===this.nodeId)??null;
+    const onTree=new Set(asArray(t?.nodes).map(n=>n.perkId).filter(Boolean));
+    const profession=t?.provider?.kind==='profession';
     const maxX=Math.max(990,...nodes.map(n=>n.x+225)),maxY=Math.max(700,...nodes.map(n=>n.y+160));
     const spent=t?totalSpent(t,acc):0;
     const points=Math.max(0,acc.awarded-spent);
@@ -166,25 +317,32 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const features=gm&&!preview?(game.items?.contents??[]).filter(i=>i.type==='feat'&&/^(PERK|POWER)-/.test(sourceFlag(i)?.sourceId??'') && lookupWorldDefinition(game,sourceFlag(i)?.sourceId).document===i
       &&(!t||allowedSourceForProvider(t.provider.kind,sourceFlag(i)?.sourceId)))
       .filter(i=>`${i.name} ${sourceFlag(i).sourceId}`.toLowerCase().includes(this.search.toLowerCase()))
-      .map(i=>({uuid:i.uuid,name:i.name,id:sourceFlag(i).sourceId,status:sourceFlag(i).status,
-        eligible:sourceFlag(i).status==='approved'&&sourceFlag(i).visibility==='player'})):[];
+      .map(i=>({uuid:i.uuid,name:i.name,id:sourceFlag(i).sourceId,status:sourceFlag(i).status,img:i.img,onTree:onTree.has(sourceFlag(i).sourceId),
+        eligible:sourceFlag(i).status==='approved'&&sourceFlag(i).visibility==='player'}))
+      .sort((a,b)=>a.name.localeCompare(b.name)):[];
+    const setupReport=gm&&!preview&&this.activeTab==='setup'?savedDataReport(readPrivate(),id=>Boolean(perkDoc(id))):[];
     const projectedCount=gm?readPublic().length:null;
     return {...ctx,gm,editing:gm&&this.editMode&&!preview,preview,initialized:!gm||!!store,legacy,
       moduleVersion:VERSION,playerAccessEnabled:gm?playerAccessEnabled():false,activeTrees:this.activeTab==='trees',activeSetup:gm&&this.activeTab==='setup',
-      hasTree:!!t,tree:t,selected,canBuy:gm&&!preview&&!!selected&&!!actor&&!selected.contentRef?.target_id?.startsWith('PERK-')&&availability(t,acc,selected.id).ok,
-      canRequest:!gm&&!!selected&&!!actor&&publicAvailability(t,acc,selected.id).ok,
+      hasTree:!!t,tree:t,selected,canBuy:gm&&!preview&&!!selected&&!!actor&&availability(t,acc,selected.id).ok,
+      canRequest:!gm&&!!selected&&!!actor&&!profession&&publicAvailability(t,acc,selected.id).ok,
+      canRefund:raw&&!!selected?.unlocked&&!!actor&&!profession,
+      canReset:raw&&!!actor&&!!t&&!profession&&acc.unlocks.length>0,
+      actorName:actor?.name??'',
       canGrant:gm&&!preview&&!!actor&&!!t&&t.provider.kind!=='profession',
       mode:t?.provider?.kind==='profession'?'Profession • Ledger-authoritative (read-only)':t?.provider?.kind==='cinder_milestone'?'Cinder • 13-point milestone wallet': 'Generic • GM-awarded points',
       trees:this.trees.map(x=>({id:x.id,name:x.name,selected:x.id===this.treeId})),
       actors:actorChoices().map(x=>({id:x.id,name:x.name,selected:x.id===this.actorId})),
-      nodes,paths:makePaths(nodes),selectedId:this.nodeId,
+      nodes,edges:graphEdges(nodes).map(e=>({...e,marker:e.kind==='exclude'?'':`url(#agst-arrow-${e.active?'active':e.kind})`,
+        label:e.kind==='exclude'?'✕':e.kind==='any'?(e.group>1?`OR ${e.group}`:'OR'):''})),selectedId:this.nodeId,listOpen:this.listOpen,
       progress:{awarded:acc.awarded,spent,available:points,unlocks:acc.unlocks.length,cap:t?.provider?.maxPoints??null},
       mapWidth:Math.ceil(maxX),mapHeight:Math.ceil(maxY),zoom:this.zoom,zoomText:`${Math.round(this.zoom*100)}%`,
       hasFeatures:!!features.length,features,search:this.search,linkFrom:this.linkFrom,
       publishedCount:projectedCount,privateCount:gm?readPrivate().length:0,hasPrivateStore:!!store,hasPrivateTree:gm&&!!t,
       awaitingProvider:t?.provider.kind==='profession',isTest:t?.status==='test',
-      bindingNote:selected?.contentRef?selected.contentRef.target_id:null,
-      selectedBinding:gm&&selected?.contentRef?Boolean(managerBinding(selected.contentRef.target_id)):false};
+      bindingNote:raw&&selected?.perkId?selected.perkId:null,
+      selectedBinding:raw&&selected?.perkId?!selected.perkMissing:false,selectedCustom:raw&&!!selected?.custom,
+      setupReport,hasSetupReport:setupReport.length>0,missingGrants:gm&&!preview&&this.activeTab==='setup'?missingGrantCount():0};
   }
   async _onRender(context,options){
     await super._onRender(context,options);if(!canOpenTrees()){await this.close?.({animate:false});return;}instance=this;openTreeWindows.add(this);
@@ -197,8 +355,8 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       if(el.id==='agst-tree-choice'){this.treeId=el.value;this.nodeId=null;this.linkFrom=null;this.undo=[];this.redo=[];this.render();}
       if(el.id==='agst-actor-choice'){this.actorId=el.value;this.render();}
     },listenerOptions);
+    root.querySelector('.agst-tree-list')?.addEventListener('toggle',e=>{this.listOpen=e.target.open;},listenerOptions);
     root.querySelector('#agst-feature-search')?.addEventListener('input',e=>{this.search=e.target.value;const cards=root.querySelectorAll('.agst-feature');for(const c of cards)c.hidden=!`${c.textContent}`.toLowerCase().includes(this.search.toLowerCase());},listenerOptions);
-    root.querySelector('#agst-tree-import')?.addEventListener('change',e=>this._readFile(e),listenerOptions);
     const board=root.querySelector('.agst-board');
     if(board){
       board.style.zoom=String(this.zoom);
@@ -235,15 +393,18 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
         case 'grant':await this._grant();break;
         case 'purchase':await this._purchase();break;
         case 'request':await this._request();break;
+        case 'refund':await this._refund();break;
+        case 'reset-tree':await this._resetTree();break;
+        case 'give-missing':await this._giveMissing();break;
         case 'edit-node':await this._editNode();break;
-        case 'new-node':await this._newNode();break;
+        case 'add-perk':await this._addPerkFromList(el.dataset.uuid);break;
+        case 'assign-perk':await this._assignPerk();break;
         case 'remove-node':await this._removeNode();break;
         case 'tree-settings':await this._treeSettings();break;
         case 'link':this.linkFrom=this.nodeId;notify('Select another node to add an AND prerequisite connection.');break;
         case 'undo':await this._undo();break;
         case 'redo':await this._redo();break;
         case 'publish':await publishPublic();notify('Player projection republished.');break;
-        case 'import':this.element.querySelector('#agst-tree-import')?.click();break;
         case 'export':this._export(false);break;
         case 'export-all':this._export(true);break;
         case 'backup-progress':this._backupProgress();break;
@@ -254,7 +415,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     }catch(error){console.error(`[${MODULE}]`,error);notify(`Skill Trees: ${error.message}`,true);}finally{this.busy=false;}
   }
   async _help(){
-    await confirm('<p><strong>Tree View</strong> shows a character’s accessible progression. Select a node to inspect its requirements.</p><p><strong>GM Setup</strong> contains tree import/export, publication and backups. Developer Tools are restricted to the GM.</p><p>Profession trees are read-only until the Profession Ledger adapter is verified. Cinder and generic wallets are experimental and never auto-grant Items.</p>','Skill Trees help');
+    await confirm('<p><strong>Tree View</strong> shows a character’s tree. Each node is a perk. Arrows point from a prerequisite to the perk it opens; a dashed arrow marked OR means any one of that group is enough; a red dotted line marked ✕ joins perks that cannot both be taken. Select a node to read the same information as text.</p><p><strong>Unlock</strong> spends the character’s points and adds the perk to their sheet. Players unlock their own characters while a GM is logged in; the GM can unlock, refund or reset (refund removes the perk from the sheet).</p><p><strong>GM Setup</strong> has publishing, export (backups) and the saved-data check. Tree files are imported through General Manager.</p><p>Profession trees are read-only here: the Profession Ledger owns profession perk choices.</p>','Skill Trees help');
   }
   async _installQa(){
     if(!game.user.isGM)throw Error('GM only');
@@ -328,7 +489,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
   }
   async _treeSettings(){
     if(!game.user.isGM||!this.editMode||!this.tree)throw Error('GM editor only');
-    const t=copy(this.tree);const f=await input('Tree settings',`<div class="agst-form"><label>Name<input name="name" value="${escape(t.name)}" maxlength="120"></label>
+    const t=copy(this.storedTree);const f=await input('Tree settings',`<div class="agst-form"><label>Name<input name="name" value="${escape(t.name)}" maxlength="120"></label>
       <label>Description (player-readable when published)<textarea name="description" rows="3">${escape(t.description)}</textarea></label>
       <label>Release status<select name="status"><option value="draft" ${t.status==='draft'?'selected':''}>Draft: GM only</option><option value="test" ${t.status==='test'?'selected':''}>Test: not canon</option><option value="approved" ${t.status==='approved'?'selected':''}>Approved</option></select></label>
       <label>Visibility<select name="visibility"><option value="gm" ${t.visibility==='gm'?'selected':''}>GM only</option><option value="player" ${t.visibility==='player'?'selected':''}>Player-visible</option></select></label>
@@ -339,50 +500,98 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if(t.provider.kind==='generic_points')t.provider.maxPoints=Number(f.maxPoints);
     await this._saveEdited(t);notify('Tree saved and player snapshot refreshed.');
   }
-  async _newNode(){
-    if(!game.user.isGM||!this.editMode||!this.tree)throw Error('GM editor only');
-    const t=copy(this.tree),f=await input('Add test/draft node',`<div class="agst-form"><label>Name<input name="name" value="New node" maxlength="120"></label>
-      <label>Status<select name="status"><option value="draft">Draft (not spendable)</option><option value="test" ${t.status==='test'?'selected':''}>Test-only node</option></select></label>
-      <p>Use the imported Feature palette to link real PERK/POWER source IDs.</p></div>`,'Add node');
-    if(!f)return;
-    const node={id:newKey(),name:String(f.name??'').trim(),description:'No automatic Item reward.',x:220+(t.nodes.length%4)*235,y:140+Math.floor(t.nodes.length/4)*135,
-      cost:1,requiresAll:[],requiresAny:[],excludes:[],contentRef:null,sourceUuid:null,status:f.status,
-      visibility:f.status==='test'&&t.status==='test'?'player':'gm',display:f.status==='test'&&t.status==='test'?'shown':'hidden'};
-    t.nodes.push(node);await this._saveEdited(t);this.nodeId=node.id;notify('Node created.');
+  /** Perk Items in the world this tree may use (Manager-bound, right namespace), for the picker. */
+  _worldPerks(t){
+    return (game.items?.contents??[]).filter(i=>i.type==='feat'&&/^(PERK|POWER)-/.test(sourceFlag(i)?.sourceId??'')&&perkDoc(sourceFlag(i).sourceId)===i
+      &&allowedSourceForProvider(t.provider.kind,sourceFlag(i).sourceId)).sort((a,b)=>a.name.localeCompare(b.name));
+  }
+  /** New node for a world perk. An approved player-visible perk is shown on the tree; anything else starts GM-only. */
+  async _addPerkNode(doc,x=null,y=null){
+    if(!game.user.isGM||!this.editMode||this.playerPreview||!this.storedTree)throw Error('GM editor only');
+    if(doc?.documentName!=='Item'||doc.type!=='feat')throw Error('Only perk Feature Items can be added');
+    const source=sourceFlag(doc),id=source?.sourceId;
+    if(!/^(PERK|POWER)-[A-Z0-9-]+$/.test(id??''))throw Error('That Item has no General Manager PERK-* / POWER-* id');
+    if(perkDoc(id)!==doc)throw Error('Missing, archived or duplicated perk binding; resolve duplicates in General Manager first');
+    const t=copy(this.storedTree);
+    if(!allowedSourceForProvider(t.provider.kind,id))throw Error('Wrong perk type for this tree: Profession and generic trees use PERK-*, Cinder trees use POWER-*; HPERK-* belongs to Hirelings');
+    if(t.nodes.some(n=>n.perkId===id))throw Error(`${doc.name} is already on this tree`);
+    const count=t.nodes.length;
+    x??=120+(count%4)*235;y??=120+Math.floor(count/4)*135;
+    const released=source.status==='approved'&&source.visibility==='player'&&!/placeholder/i.test(doc.name);
+    const n={id:newKey('NODE'),perkId:id,perkUuid:doc.uuid,x,y,requiresAll:[],requiresAny:[],excludes:[],
+      status:released?(t.status==='approved'?'approved':'test'):source.status==='approved'?'draft':'placeholder',
+      visibility:released?'player':'gm',display:released?'shown':'hidden'};
+    t.nodes.push(n);await this._saveEdited(t);this.nodeId=n.id;
+    notify(released?`${doc.name} added. Players see it once the tree is player-visible and published.`:`${doc.name} added as a GM-only node (the perk is not approved and player-visible yet).`);
+  }
+  async _addPerkFromList(uuid){
+    const doc=(game.items?.contents??[]).find(i=>i.uuid===uuid);
+    if(!doc)throw Error('That perk is no longer in this world');
+    await this._addPerkNode(doc);
+  }
+  /** Give an existing node (an older custom node, or one whose perk changed) a perk from the world. */
+  async _assignPerk(){
+    if(!game.user.isGM||!this.editMode||!this.storedTree||!this.nodeId)throw Error('Choose a node while editing');
+    const t=copy(this.storedTree),n=t.nodes.find(x=>x.id===this.nodeId);if(!n)throw Error('Missing node');
+    const used=new Set(t.nodes.filter(x=>x.id!==n.id).map(x=>x.perkId).filter(Boolean));
+    const perks=this._worldPerks(t).filter(i=>!used.has(sourceFlag(i).sourceId));
+    if(!perks.length)throw Error('No unused perks of the right type in this world. Import perks through General Manager first.');
+    const f=await input('Assign perk',`<div class="agst-form"><label>Perk<select name="perk">${perks.map(i=>{const id=sourceFlag(i).sourceId;
+      return `<option value="${escape(id)}" ${id===n.perkId?'selected':''}>${escape(i.name)} (${escape(id)})</option>`;}).join('')}</select></label>
+      <p>The node takes its name, text, picture and point cost from the perk. Position and prerequisites stay as they are.</p></div>`,'Assign');
+    if(!f?.perk)return;
+    const doc=perkDoc(f.perk);if(!doc)throw Error('That perk is no longer in this world');
+    n.perkId=f.perk;n.perkUuid=doc.uuid;
+    await this._saveEdited(t);notify(`Node now gives ${doc.name}.`);
   }
   async _editNode(){
-    if(!game.user.isGM||!this.editMode||!this.tree||!this.nodeId)throw Error('Choose a node while editing');
-    const t=copy(this.tree),n=t.nodes.find(x=>x.id===this.nodeId);if(!n)throw Error('Missing node');
-    const f=await input(`Edit node • ${n.name}`,`<div class="agst-form"><label>Name<input name="name" value="${escape(n.name)}" maxlength="120"></label>
-      <label>Description<textarea name="description" rows="3">${escape(n.description)}</textarea></label>
-      <label>Point cost<input type="number" name="cost" min="1" max="100" value="${n.cost}"></label>
-      <label>Requires ALL (node IDs, commas)<input name="requiresAll" value="${escape(n.requiresAll.join(', '))}"></label>
-      <label>Requires ANY (one OR group per semicolon)<input name="requiresAny" value="${escape(n.requiresAny.map(x=>x.join(', ')).join('; '))}"></label>
-      <label>Mutually excludes (node IDs)<input name="excludes" value="${escape(n.excludes.join(', '))}"></label>
+    if(!game.user.isGM||!this.editMode||!this.storedTree||!this.nodeId)throw Error('Choose a node while editing');
+    const t=copy(this.storedTree),n=t.nodes.find(x=>x.id===this.nodeId);if(!n)throw Error('Missing node');
+    const shown=resolved(t),nameOf=id=>shown.nodes.find(x=>x.id===id)?.name??id,others=t.nodes.filter(x=>x.id!==n.id);
+    const groups=Math.max(3,n.requiresAny.length+1);
+    const reqOf=id=>n.requiresAll.includes(id)?'all':(i=>i>=0?`any${i+1}`:'none')(n.requiresAny.findIndex(g=>g.includes(id)));
+    const opts=id=>['none','all',...Array.from({length:groups},(_,i)=>`any${i+1}`)].map(v=>`<option value="${v}" ${reqOf(id)===v?'selected':''}>${v==='none'?'—':v==='all'?'Required':`OR group ${v.slice(3)}`}</option>`).join('');
+    const rows=others.map((x,i)=>`<tr><th scope="row">${escape(nameOf(x.id))}</th><td><select name="req_${i}" aria-label="${escape(nameOf(x.id))} as a prerequisite">${opts(x.id)}</select></td>
+      <td><input type="checkbox" name="ex_${i}" aria-label="Cannot be taken with ${escape(nameOf(x.id))}" ${n.excludes.includes(x.id)?'checked':''}></td></tr>`).join('');
+    const custom=!n.perkId;
+    const f=await input(`Edit node • ${nameOf(n.id)}`,`<div class="agst-form">
+      ${custom?`<p class="agst-warn">Older custom node with no perk: it records an unlock but gives no Item. Use <strong>Assign Perk</strong> to turn it into a perk node.</p>
+        <label>Name<input name="name" value="${escape(n.name)}" maxlength="120"></label>
+        <label>Description<textarea name="description" rows="3">${escape(n.description)}</textarea></label>
+        <label>Point cost<input type="number" name="cost" min="1" max="100" value="${n.cost??1}"></label>`
+        :`<p>Perk <code>${escape(n.perkId)}</code>: name, text, picture and point cost come from the perk.</p>`}
+      ${others.length?`<table class="agst-prereq-table"><caption>Before this node can be unlocked</caption><thead><tr><th scope="col">Node</th><th scope="col">Needed?</th><th scope="col">Cannot be taken with</th></tr></thead><tbody>${rows}</tbody></table>
+      <p class="agst-help"><strong>Required</strong>: every one is needed. <strong>OR group</strong>: any one node of that group is enough (each group must be met).</p>`:''}
       <label>Status<select name="status">${['draft','test','approved','placeholder'].map(k=>`<option value="${k}" ${n.status===k?'selected':''}>${k}</option>`).join('')}</select></label>
       <label>Visibility<select name="visibility"><option value="gm" ${n.visibility==='gm'?'selected':''}>GM only</option><option value="player" ${n.visibility==='player'?'selected':''}>Player-visible</option><option value="reveal_gated" ${n.visibility==='reveal_gated'?'selected':''}>Reveal-gated (hidden until source released)</option></select></label>
       <label>Display<select name="display"><option value="hidden" ${n.display==='hidden'?'selected':''}>Hidden</option><option value="teaser" ${n.display==='teaser'?'selected':''}>Silhouette</option><option value="shown" ${n.display==='shown'?'selected':''}>Shown</option></select></label>
-      <p>${n.contentRef?`Linked ID: <code>${escape(n.contentRef.target_id)}</code> (read-only; drop a new Feature to create a separate node).`:'No imported Feature binding.'}</p>
       <p class="agst-help">A placeholder is always GM-only; the editor enforces this even if other fields are selected.</p></div>`);
     if(!f)return;
-    n.name=String(f.name??'').trim();n.description=String(f.description??'');n.cost=Number(f.cost);
-    n.requiresAll=parseList(f.requiresAll);n.requiresAny=parseAny(f.requiresAny);n.excludes=parseList(f.excludes);
+    if(custom){n.name=String(f.name??'').trim();n.description=String(f.description??'');n.cost=Number(f.cost);}
+    const any=new Map();n.requiresAll=[];n.excludes=[];
+    others.forEach((x,i)=>{
+      const v=String(f[`req_${i}`]??reqOf(x.id));
+      if(v==='all')n.requiresAll.push(x.id);
+      else if(/^any\d+$/.test(v)){const g=Number(v.slice(3));any.set(g,[...(any.get(g)??[]),x.id]);}
+      if(checked(f[`ex_${i}`]))n.excludes.push(x.id);
+    });
+    n.requiresAny=[...any.keys()].sort((a,b)=>a-b).map(k=>any.get(k));
     n.status=f.status;n.visibility=f.status==='placeholder'?'gm':f.visibility;n.display=f.status==='placeholder'?'hidden':f.display;
     await this._saveEdited(t);notify('Node updated.');
   }
   async _removeNode(){
     if(!game.user.isGM||!this.editMode||!this.tree||!this.nodeId)throw Error('GM editor only');
-    const t=copy(this.tree),n=t.nodes.find(n=>n.id===this.nodeId);
+    const t=copy(this.storedTree),n=t.nodes.find(n=>n.id===this.nodeId);
     if(!n)throw Error('Missing node');
     if(allProgressFor(t).some(a=>a.unlocks.includes(n.id)))throw Error('Purchased node cannot be deleted');
-    if(!await confirm(`<p>Delete ${escape(n.name)} and its dependency connections? The permanent imported Feature is not deleted.</p>`,'Delete layout node'))return;
+    if(!await confirm(`<p>Remove ${escape(this.tree?.nodes.find(x=>x.id===n.id)?.name??n.id)} and its connections from this tree? The perk Item itself is not deleted.</p>`,'Remove node'))return;
     t.nodes=t.nodes.filter(x=>x.id!==n.id);
     for(const x of t.nodes){x.requiresAll=x.requiresAll.filter(id=>id!==n.id);x.requiresAny=x.requiresAny.map(g=>g.filter(id=>id!==n.id)).filter(g=>g.length);x.excludes=x.excludes.filter(id=>id!==n.id);}
     await this._saveEdited(t);this.nodeId=null;notify('Node removed from layout only.');
   }
   async _linkTo(targetId){
     if(!this.tree||!this.editMode||!this.linkFrom)return;
-    const t=copy(this.tree),source=t.nodes.find(x=>x.id===this.linkFrom),target=t.nodes.find(x=>x.id===targetId);
+    const t=copy(this.storedTree),source=t.nodes.find(x=>x.id===this.linkFrom),target=t.nodes.find(x=>x.id===targetId);
     if(!source||!target||source.id===target?.id)throw Error('Select a different node');
     target.requiresAll=[...new Set([...target.requiresAll,source.id])];
     await this._saveEdited(t);this.linkFrom=null;this.nodeId=targetId;notify('Prerequisite connection added.');this.render();
@@ -413,51 +622,50 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
   }
   async _purchase(){
     if(!game.user.isGM||!this.tree||!this.actor||!this.nodeId)throw Error('GM and Actor selection required');
-    const t=readPrivate().find(x=>x.id===this.tree.id),n=t?.nodes.find(x=>x.id===this.nodeId);
+    const actor=this.actor,t=this.tree,n=t.nodes.find(x=>x.id===this.nodeId);
     if(!n)throw Error('Missing private node');
-    if(n.contentRef?.target_id?.startsWith('PERK-'))throw Error('Profession PERK selection is Ledger-owned; Skill Trees cannot spend generic or Cinder points to purchase it');
-    if(n.contentRef&&!safePublicSource(n))throw Error('Unverified/GM-only/unfinished Manager Feature cannot be purchased');
-    purchase(t,readProgress(this.actor,t),n.id); // validate before opening confirmation
-    if(!await confirm(`<p>Spend <strong>${n.cost}</strong> point(s) and unlock <strong>${escape(n.name)}</strong> for ${escape(this.actor.name)}?</p><p>This alpha records a node choice only. It does <strong>not</strong> grant or modify a Foundry Item.</p>`,'Confirm test unlock'))return;
-    const check=purchase(t,readProgress(this.actor,t),n.id); // re-read after dialog
-    await persistAccount(this.actor,t,check);notify('Unlock recorded; no Feature Item was awarded.');
+    const ok=availability(t,readProgress(actor,t),n.id);if(!ok.ok)throw Error(ok.reason);
+    if(!await confirm(`<p>Spend <strong>${ok.cost}</strong> point(s) and unlock <strong>${escape(n.name)}</strong> for ${escape(actor.name)}?</p><p>${n.perkId?'The perk is added to the character sheet.':'This older custom node has no perk, so nothing is added to the sheet.'}</p>`,'Unlock perk'))return;
+    const {item}=await unlockNode(actor,t.id,n.id);
+    notify(item?`${n.name} unlocked and added to ${actor.name}.`:`${n.name} unlocked (no perk Item: custom node).`);
   }
   async _request(){
-    if(game.user.isGM||!this.tree||!this.actor||!this.nodeId)throw Error('Select an eligible perk');
-    if(!this.actor.isOwner)throw Error('You do not own the selected character');
+    if(game.user.isGM||!this.tree||!this.actor||!this.nodeId)throw Error('Select an available perk');
+    const actor=this.actor;if(!actor.isOwner)throw Error('You do not own the selected character');
     const n=this.tree.nodes.find(x=>x.id===this.nodeId);
-    const ok=publicAvailability(this.tree,readProgress(this.actor,this.tree),n?.id);
+    const ok=publicAvailability(this.tree,readProgress(actor,this.tree),n?.id);
     if(!ok.ok)throw Error(ok.reason);
-    const gms=(game.users?.contents??[]).filter(u=>u.isGM).map(u=>u.id);
-    if(!gms.length)throw Error('No GM recipient found');
-    await ChatMessage.create({content:`<p><strong>${escape(this.actor.name)}</strong> requests <strong>${escape(n.name)}</strong> on ${escape(this.tree.name)}.</p><p>GM: open Skill Trees, select the character and node, and confirm the unlock.</p>`,
-      whisper:gms,speaker:{alias:'Ashen Gate • Skill Trees'}});
-    notify('Unlock request sent privately to the GM.');
+    if(!await confirm(`<p>Spend <strong>${n.cost??1}</strong> point(s) to unlock <strong>${escape(n.name)}</strong> for ${escape(actor.name)}?</p><p>The perk is added to the character sheet. Only the GM can refund it.</p>`,'Unlock perk'))return;
+    const result=await requestUnlock(actor,this.tree.id,n.id);
+    notify(result.message);
   }
-  async _readFile(event){
-    const file=event.target.files?.[0];event.target.value='';if(!file)return;
-    try{
-      if(!game.user.isGM)throw Error('GM only');if(!gmPrivate())throw Error('Initialize GM storage first');
-      if(file.size>2_000_000)throw Error('File too large (>2 MB)');
-      const pack=JSON.parse(await file.text());
-      if(pack?.schema_version==='ag-source-package/0.1' || pack?.manifest?.schema_version==='ag-source-package/0.1')
-        throw Error('This is a canonical source package, not a Skill Trees layout. Import its generated ag-foundry-import/0.2 records through the General Manager; import tree layouts here only.');
-      if(pack?.schema_version==='ag-foundry-import/0.2' || pack?.manifest?.schema_version==='ag-foundry-import/0.2')
-        throw Error('General Manager import records cannot be loaded as a Skill Trees layout. Use the Manager to import PERK/POWER Features first.');
-      const v=validatePackage(pack);
-      if(v.errors.length)throw Error(v.errors.slice(0,6).join('; '));
-      const current=readPrivate(),incoming=pack.trees.map(normalizeTree);
-      const actions=incoming.map(t=>({id:t.id,name:t.name,update:current.some(x=>x.id===t.id)}));
-      if(!await confirm(`<p>Import <strong>${incoming.length}</strong> tree layouts from ${escape(file.name)}?</p><div class="agst-preview">${actions.map(a=>`<div>${a.update?'UPDATE':'NEW'} · ${escape(a.name)}</div>`).join('')}</div><p>Purchased-node changes are blocked. Actor progress is never imported. Export backups first.</p>`,'Preview tree import'))return;
-      const combined=new Map(current.map(t=>[t.id,t]));for(const t of incoming)combined.set(t.id,t);
-      await saveTrees([...combined.values()]);notify('Tree layouts imported.');this.activeTab='trees';this.render();
-    }catch(e){console.error(e);notify(`Import: ${e.message}`,true);}
+  async _refund(){
+    if(!game.user.isGM||!this.tree||!this.actor||!this.nodeId)throw Error('GM, character and node required');
+    const actor=this.actor,n=this.tree.nodes.find(x=>x.id===this.nodeId);if(!n)throw Error('Missing node');
+    const items=grantedItems(actor,this.tree,n.id).map(i=>i.name);
+    if(!await confirm(`<p>Refund <strong>${escape(n.name)}</strong> for ${escape(actor.name)}?</p><p>The point(s) go back to the character${items.length?` and <strong>${items.map(escape).join(', ')}</strong> is removed from the sheet`:''}.</p>`,'Refund perk'))return;
+    const {removed}=await refundNode(actor,this.tree.id,n.id);
+    notify(`Refunded ${n.name}${removed.length?`; removed ${removed.join(', ')} from ${actor.name}`:''}.`);
+  }
+  async _resetTree(){
+    if(!game.user.isGM||!this.tree||!this.actor)throw Error('GM and character required');
+    const actor=this.actor,acc=readProgress(actor,this.tree);
+    if(!await confirm(`<p>Reset <strong>${escape(this.tree.name)}</strong> for ${escape(actor.name)}?</p><p>All ${acc.unlocks.length} unlock(s) are refunded and the perks this tree gave are removed from the sheet. Points awarded stay.</p>`,'Reset tree'))return;
+    const {removed}=await resetTreeFor(actor,this.tree.id);
+    notify(`Reset ${this.tree.name} for ${actor.name}; removed ${removed.length} perk Item(s).`);
+  }
+  async _giveMissing(){
+    if(!game.user.isGM)throw Error('GM only');
+    if(!await confirm('<p>Add the perk Item to every character that has an unlocked perk node but no matching Item on the sheet (for example, unlocks made before Skill Trees 0.8.0)?</p><p>Nothing is removed. Safe to run again.</p>','Give missing perks'))return;
+    const {given,failed}=await giveMissingPerks();
+    if(failed.length)throw Error(`Gave ${given.length}; ${failed.length} failed: ${failed.slice(0,4).join('; ')}`);
+    notify(given.length?`Gave ${given.length} perk Item(s): ${given.slice(0,6).join('; ')}`:'Nothing missing: every unlocked perk is on its sheet.');
   }
   _export(all){
     if(!game.user.isGM)throw Error('GM only');
-    const trees=all?readPrivate():[this.tree].filter(Boolean);
+    const trees=all?readPrivate():[this.storedTree].filter(Boolean);
     if(!trees.length)throw Error('No tree selected');
-    download(all?'AG_Skill_Trees_v02_GM_Layouts.json':`AG_Skill_Tree_${this.tree.id}.json`,{schema:SCHEMA,exportedAt:new Date().toISOString(),status:'prototype_not_canonical',trees});
+    download(all?'AG_Skill_Trees_GM_Layouts.json':`AG_Skill_Tree_${this.storedTree?.id??this.tree.id}.json`,{schema:SCHEMA,exportedAt:new Date().toISOString(),status:'prototype_not_canonical',trees});
   }
   _backupProgress(){
     if(!game.user.isGM)throw Error('GM only');
@@ -495,24 +703,14 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     event.preventDefault();
     try{
       const raw=event.dataTransfer?.getData('text/plain')??'';
-      const data=JSON.parse(raw);if(data.type!=='Item')throw Error('Drop a Foundry Item Feature');
-      const doc=await fromUuid(data.uuid);if(doc?.documentName!=='Item'||doc.type!=='feat')throw Error('Only imported Feature Items can be linked');
-      const source=sourceFlag(doc),id=source?.sourceId;
-      if(lookupWorldDefinition(game,id).document!==doc)throw Error('Missing, archived or ambiguous source binding; resolve duplicates before linking');
-      if(!/^(PERK|POWER)-[A-Z0-9-]+$/.test(id??''))throw Error('Feature has no Manager PERK-* / POWER-* source ID');
-      if(!allowedSourceForProvider(this.tree.provider.kind,id))throw Error('Wrong Feature namespace for this tree: Profession uses PERK-*, Cinder uses POWER-*; HPERK-* belongs to Hirelings');
-      if(this.tree.nodes.some(n=>n.contentRef?.target_id===id))throw Error('That source Feature is already on this tree');
+      let data;try{data=JSON.parse(raw);}catch{throw Error('Drop a perk Item from the Items sidebar or the perk list');}
+      if(data?.type!=='Item')throw Error('Drop a perk Item from the Items sidebar or the perk list');
+      const doc=await fromUuid(data.uuid);
       const board=this.element.querySelector('.agst-board'),rect=board.getBoundingClientRect();
       const x=Math.round(Math.max(0,Math.min(6000,(event.clientX-rect.left)/this.zoom-85))/10)*10;
       const y=Math.round(Math.max(0,Math.min(6000,(event.clientY-rect.top)/this.zoom-35))/10)*10;
-      const valid=source.status==='approved'&&source.visibility==='player',placeholder=source.status!=='approved'||/placeholder/i.test(doc.name);
-      const t=copy(this.tree),n={id:newKey(),name:doc.name,description:'Imported Feature binding; no automatic Item grant in this alpha.',
-        x,y,cost:1,requiresAll:[],requiresAny:[],excludes:[],
-        contentRef:{relation:id.startsWith('POWER-')?'unlocks_power':'unlocks_perk',target_id:id,mode:'required'},sourceUuid:doc.uuid,
-        status:placeholder?'placeholder':'draft',visibility:'gm',display:'hidden'};
-      t.nodes.push(n);await this._saveEdited(t);this.nodeId=n.id;this.render();
-      notify(`Feature ${id} linked as ${placeholder?'a hidden placeholder':'a hidden draft; release it explicitly in node properties'}.`);
-    }catch(e){console.error(e);notify(`Feature drop: ${e.message}`,true);}
+      await this._addPerkNode(doc,x,y);this.render();
+    }catch(e){console.error(e);notify(`Perk drop: ${e.message}`,true);}
   }
   _pointerDown(event){
     if(!game.user.isGM||!this.editMode||this.playerPreview||event.button!==0)return;
@@ -525,21 +723,22 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       if(!moved)return;
       target.style.left=`${Math.max(0,Math.min(6000,original.x+dx))}px`;
       target.style.top=`${Math.max(0,Math.min(6000,original.y+dy))}px`;
-      // Preview connected edges live while dragging. Saved IDs and positions remain untouched until pointer-up.
+      // Edges (and their arrowheads and labels) follow the node live. Positions are saved on pointer-up.
       const board=this.element.querySelector('.agst-board');
-      for(const path of board?.querySelectorAll('path.agst-link')??[]){
-        if(path.dataset.from!==id && path.dataset.to!==id)continue;
-        const coords=nodeId=>{const el=board.querySelector(`.agst-node[data-id="${CSS.escape(nodeId)}"]`);
-          return el?{x:parseFloat(el.style.left)+90,y:parseFloat(el.style.top)+33}:null;};
-        const src=coords(path.dataset.from),dst=coords(path.dataset.to);if(!src||!dst)continue;
-        const half=(dst.x-src.x)*.5,vert=(dst.y-src.y)*.12;
-        path.setAttribute('d',`M ${src.x} ${src.y} C ${src.x+half} ${src.y+vert}, ${dst.x-half} ${dst.y-vert}, ${dst.x} ${dst.y}`);
+      const pos=nodeId=>{const el=board?.querySelector(`.agst-node[data-id="${CSS.escape(nodeId)}"]`);
+        return el?{x:parseFloat(el.style.left),y:parseFloat(el.style.top)}:null;};
+      for(const el of board?.querySelectorAll('[data-edge]')??[]){
+        if(el.dataset.from!==id && el.dataset.to!==id)continue;
+        const src=pos(el.dataset.from),dst=pos(el.dataset.to);if(!src||!dst)continue;
+        const line=edgeLine(src,dst);
+        if(el.tagName.toLowerCase()==='path')el.setAttribute('d',line.d);
+        else{el.setAttribute('x',line.mx);el.setAttribute('y',line.my);}
       }
     };
     const stop=async e=>{
       window.removeEventListener('pointermove',move);window.removeEventListener('pointerup',stop);
       if(!moved)return;
-      const t=copy(this.tree),n=t.nodes.find(v=>v.id===id);
+      const t=copy(this.storedTree),n=t.nodes.find(v=>v.id===id);
       n.x=Math.round(Math.max(0,Math.min(6000,original.x+(e.clientX-startX)/this.zoom))/10)*10;
       n.y=Math.round(Math.max(0,Math.min(6000,original.y+(e.clientY-startY)/this.zoom))/10)*10;
       try{await this._saveEdited(t);}catch(err){console.error(err);notify(err.message,true);}
@@ -584,6 +783,13 @@ Hooks.once('ready',()=>{
     },
     grantXp:async()=>{throw Error('Legacy XP grant retired: Profession XP belongs to the Profession Ledger; use grantPoints for Cinders/generic trees.');},
     publish:async()=>{if(!game.user.isGM)throw Error('GM only');return publishPublic();},
+    // Unlock spends the character's points and adds the perk Item. A player's call is checked and done by the active GM client.
+    unlock:async(actor,treeId,nodeId)=>{checkTreePlayerAccess();
+      if(game.user.isGM){const {node,item}=await unlockNode(actor,treeId,nodeId);return {ok:true,nodeId:node.id,itemId:item?.id??null};}
+      if(!actor?.isOwner)throw Error('Actor access denied');await requestUnlock(actor,treeId,nodeId);return {ok:true,nodeId};},
+    refund:async(actor,treeId,nodeId)=>refundNode(actor,treeId,nodeId),
+    resetTree:async(actor,treeId)=>resetTreeFor(actor,treeId),
+    giveMissingPerks:async()=>giveMissingPerks(),
     // GM-only, UI-less hand-off used by General Manager's single importer. Never touches Actor progress.
     previewTreeImport:(pack,{mode='skip'}={})=>{
       if(!game.user.isGM)throw Error('GM only');
@@ -596,19 +802,23 @@ Hooks.once('ready',()=>{
       const {errors,rows,apply}=planTreeImport(pack,current,{mode});
       if(errors.length)throw Error(`Import blocked: ${errors[0]}`);
       const report={created:rows.filter(r=>r.action==='new').map(r=>r.id),updated:rows.filter(r=>r.action==='update').map(r=>r.id),
-        skipped:rows.filter(r=>r.action==='skip').map(r=>({id:r.id,reason:r.reason})),failed:[]};
+        skipped:rows.filter(r=>r.action==='skip').map(r=>({id:r.id,reason:r.reason})),failed:[],
+        // Layouts import even when a perk is not in the world yet; those nodes cannot be unlocked until it is.
+        warnings:savedDataReport(apply,id=>Boolean(perkDoc(id))).map(r=>`${r.treeId} / ${r.nodeId}: ${r.text}`)};
       if(!apply.length)return report;
       const combined=new Map(current.map(t=>[t.id,t]));for(const t of apply)combined.set(t.id,t);
       try{await saveTrees([...combined.values()]);}
-      catch(error){return {created:[],updated:[],skipped:report.skipped,failed:apply.map(t=>({id:t.id,reason:String(error?.message??error)}))};}
+      catch(error){return {created:[],updated:[],skipped:report.skipped,failed:apply.map(t=>({id:t.id,reason:String(error?.message??error)})),warnings:report.warnings};}
       return report;
     }
   };
+  game.socket?.on?.(SOCKET,onSocket);
   if(ui.actors?.rendered) addDirectoryLauncher(ui.actors,ui.actors.element);
   Hooks.on('updateActor',actor=>{if(instance?.rendered && instance.actorId===actor.id)instance.render();});
   if(game.user.isGM){
-    for(const eventName of ['createItem','updateItem','deleteItem'])Hooks.on(eventName,async()=>{
-      if(!gmPrivate())return;
+    // World perks feed node names/text; an Item on a character sheet does not change the published view.
+    for(const eventName of ['createItem','updateItem','deleteItem'])Hooks.on(eventName,async item=>{
+      if(item?.parent||!gmPrivate())return;
       try{await publishPublic();}catch(e){console.error(`[${MODULE}] Auto-publish error`,e);}
     });
   }
