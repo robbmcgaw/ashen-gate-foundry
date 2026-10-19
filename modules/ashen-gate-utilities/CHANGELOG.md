@@ -1,3 +1,8 @@
+## 0.7.1 — 2026-10-19
+
+- If a finished Group Check's tally can't be posted to GM chat, the GM now gets a warning notification instead of a console-only message. The result itself was already saved and still shows in Group Checks and History.
+- No saved-data or permission changes.
+
 # Changelog — Ashen Gate | Utilities
 
 ## 0.7.0 — 2026-10-19

@@ -30,7 +30,7 @@ test('module registers API and hidden public projection settings',async()=>{
   assert.equal(menus.get('open').restricted,false);
   assert.equal(events.get('renderActorDirectory').length,1);
   const api=game.modules.get('ashen-gate-skill-trees').api;
-  assert.equal(api.version,'0.10.0');
+  assert.equal(api.version,'0.10.1');
   assert.ok(api.open());
   assert.deepEqual(api.listTrees(),[]);
   assert.equal(api.actorProgress(null,'MISSING'),null);
@@ -141,7 +141,7 @@ test('DEC-0068 through DEC-0071: standardized tabbed shell and source/import sep
   const template=await fs.readFile(new URL('../templates/tree.hbs',import.meta.url),'utf8');
   const manifest=JSON.parse(await fs.readFile(new URL('../module.json',import.meta.url),'utf8'));
   assert.equal(manifest.id,'ashen-gate-skill-trees');
-  assert.equal(manifest.version,'0.10.0');
+  assert.equal(manifest.version,'0.10.1');
   assert.match(manifest.title,/Ashen Gate \| Skill Trees/);
   assert.match(template,/data-act="tab-trees"/);
   assert.match(template,/\{\{#if gm\}\}<button type="button" data-act="tab-library"/);
@@ -225,4 +225,19 @@ test('Manager import creates the GM-only storage Journal itself when it is missi
   const again=await api.importTrees({schema:'ag-skill-trees/0.3',trees:[tree]});
   assert.equal(created.length,1,'storage is created once');
   assert.equal(again.notes,undefined);
+});
+
+test('a failed auto-publish after a world perk changes tells the GM once, until a publish works again',async()=>{
+  const errors=[],origError=ui.notifications.error,origSet=game.settings.set,origConsole=console.error;
+  ui.notifications.error=msg=>errors.push(msg);console.error=()=>{};
+  const fire=async()=>{for(const fn of events.get('createItem'))await fn({parent:null});};
+  try{
+    game.settings.set=async()=>{throw Error('[TEST] settings write refused');};
+    await fire();await fire();
+    assert.equal(errors.length,1,'one notification for repeated failures');
+    assert.match(errors[0],/Players still see the previous trees.*\[TEST\] settings write refused|\[TEST\] settings write refused.*Players still see the previous trees/);
+    game.settings.set=origSet;await fire();
+    game.settings.set=async()=>{throw Error('[TEST] refused again');};await fire();
+    assert.equal(errors.length,2,'a new failure after a success is reported');
+  }finally{ui.notifications.error=origError;game.settings.set=origSet;console.error=origConsole;}
 });

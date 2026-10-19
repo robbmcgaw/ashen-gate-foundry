@@ -1,3 +1,8 @@
+## 0.10.1 — 2026-10-19
+
+- If the automatic player-view publish fails after a world perk Item changes, the GM now gets an error notification (once, until a publish works again) instead of a console-only error. Players keep seeing the previous trees until **Tree Library → Publish Player View** succeeds.
+- No saved-data or permission changes.
+
 ## 0.10.0 — 2026-10-19
 
 - New GM-only **Tree Library** tab: New Tree, Export Selected / All Trees, Saved data check, **Give Missing Perks**, Publish Player View and Backup Actor Tree Progress. All work as before.

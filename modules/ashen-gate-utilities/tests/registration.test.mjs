@@ -120,6 +120,21 @@ test('finished Group Check persists for everyone until the GM clears it, and tal
  assert.deepEqual(game.settings.get(ID,'lastResult'),{});
  html=await app._renderHTML();assert.ok(!html.includes('Climb the Wall'));
 });
+test('a Group Check tally that cannot reach chat warns the GM and still keeps the result',async()=>{
+ const warns=[],origWarn=ui.notifications.warn,origConsole=console.warn;ui.notifications.warn=m=>warns.push(m);console.warn=()=>{};
+ globalThis.ChatMessage={create:async()=>{throw Error('[TEST] chat refused');},getSpeaker:()=>({})};
+ try{
+  const player=game.users.find(u=>u.id==='player');game.user=gm;
+  await game.settings.set(ID,'activeSession',{});await game.settings.set(ID,'lastResult',{});
+  const s=createSession({id:'tally-fail',name:'[TEST] Ford the River',kind:'group',actors:['pc01'],skills:['ath'],createdBy:'gm',dc:10});
+  await game.settings.set(ID,'activeSession',s);
+  const proof={id:'proof-tf',author:player,speaker:{actor:'pc01'},rolls:[{total:12}]};game.messages.set(proof.id,proof);
+  handlers.on.get('createChatMessage')({id:'submit-tf',author:player,flags:{[ID]:{submission:{contract:'ag-utility-roll/0.1',sessionId:'tally-fail',actorId:'pc01',skill:'ath',total:12,proofMessageId:'proof-tf'}}}});
+  await new Promise(r=>setTimeout(r,20));
+  assert.equal(game.settings.get(ID,'lastResult').name,'[TEST] Ford the River');
+  assert.equal(warns.length,1);assert.match(warns[0],/\[TEST\] Ford the River.*\[TEST\] chat refused.*result is saved/);
+ }finally{ui.notifications.warn=origWarn;console.warn=origConsole;}
+});
 test('unknown statuses are traced to their effect and the GM can remove them',async()=>{
  game.user=gm;globalThis.CONFIG={DND5E:{skills:{}},statusEffects:[{id:'prone',name:'Prone'}]};game.i18n={localize:x=>x};globalThis.confirm=()=>true;
  const deleted=[];
