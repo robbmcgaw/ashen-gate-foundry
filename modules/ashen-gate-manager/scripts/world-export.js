@@ -139,7 +139,7 @@ export function collectModuleSections(game) {
   return sections;
 }
 
-/** Compare current records with the last snapshot ({key: {hash, name, section}}). Null snapshot = first run, all new. */
+/** Compare current records with the last snapshot ({key: {hash, section}}; names are never stored, an old snapshot that still has them is read fine and rewritten without). Null snapshot = first run, all new. */
 export function diffRecords(records, snapshot) {
   const prev = snapshot?.records ?? null;
   const now = new Map(records.map(r => [r.key, r]));
@@ -150,11 +150,11 @@ export function diffRecords(records, snapshot) {
   }
   if (prev) for (const key of Object.keys(prev)) if (!now.has(key)) removed.push(key);
   return {firstRun: !prev, new: added.sort(), changed: changed.sort(), removed: removed.sort(),
-    removedInfo: removed.sort().map(key => ({key, id: idOfKey(key), name: prev[key].name ?? null, section: prev[key].section ?? key.split('/')[0]}))};
+    removedInfo: removed.sort().map(key => ({key, id: idOfKey(key), section: prev[key].section ?? key.split('/')[0]}))};
 }
 
 export const makeSnapshot = (records, date) => ({schema: EXPORT_SCHEMA, date,
-  records: Object.fromEntries(records.map(r => [r.key, {hash: r.hash, name: r.name, section: r.section}]))});
+  records: Object.fromEntries(records.map(r => [r.key, {hash: r.hash, section: r.section}]))});
 
 const sectionOfKey = key => key.split('/')[0];
 const idOfKey = key => { const p = key.split('/'); return (p[0] === 'world' ? p.slice(2) : p.slice(1)).join('/'); };
@@ -201,7 +201,7 @@ export function buildWorldExport(game, {mode = 'everything', snapshot = null, no
     world: pick(world).map(strip),
     modules: Object.fromEntries(Object.entries(sections).sort(([a], [b]) => a < b ? -1 : 1)
       .map(([name, s]) => [name, {...s, records: pick(s.records).map(strip)}])),
-    ...(keep || diff.removed.length ? {removed: diff.removedInfo.map(({id, name, section}) => ({id, name, section}))} : {})};
+    ...(keep || diff.removed.length ? {removed: diff.removedInfo.map(({id, section}) => ({id, section}))} : {})};
   return {file: sortKeys(file), diff, counts, snapshot: makeSnapshot(all, date), summary: summaryText(header, diff, counts),
     filename: `AG_World_Export_${date}${keep ? '_changed' : ''}.json`};
 }

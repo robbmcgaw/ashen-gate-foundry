@@ -69,7 +69,7 @@ test('hash and diff: new, changed, removed; first run is all new; unchanged is q
   const snap = {records: {'world/Item/A': {hash: a.hash, name: 'A', section: 'world'}, 'world/Item/B': {hash: 'old', name: 'B', section: 'world'}, 'world/Item/C': {hash: 'c', name: 'C', section: 'world'}}};
   const d = diffRecords([a, b], snap);
   assert.deepEqual([d.new, d.changed, d.removed], [[], ['world/Item/B'], ['world/Item/C']]);
-  assert.equal(d.removedInfo[0].name, 'C');
+  assert.deepEqual(d.removedInfo[0], {key: 'world/Item/C', id: 'C', section: 'world'});
 });
 
 test('changed mode: first run exports everything; later only changes plus removed list; snapshot saved after the file', async () => {
@@ -109,4 +109,19 @@ test('stable ordering: input order and key order do not change the file', () => 
   assert.equal(one, two);
   assert.deepEqual(buildWorldExport(world({items: docs}), {now: fixedNow}).file.world.map(r => r.id), ['MAT-A', 'MAT-B']);
   assert.equal(JSON.stringify(sortKeys({b: 1, a: {d: 1, c: 2}})), '{"a":{"c":2,"d":1},"b":1}');
+});
+
+test('0.18.1: stored snapshot never holds names; old snapshot with names still loads and is rewritten without', async () => {
+  const items = [mkDoc('Item', 'MAT-1', '[TEST] Visible'), mkDoc('Item', 'MAT-2', '[TEST] Hidden Secret Name', {access: 0})];
+  const old = {schema: EXPORT_SCHEMA, date: '2026-10-18', records: {'world/Item/MAT-1': {hash: 'old', name: '[TEST] Visible', section: 'world'}, 'world/Item/MAT-GONE': {hash: 'g', name: '[TEST] Gone Name', section: 'world'}}};
+  const g = world({items, snapshot: old});
+  const out = await saveWorldExport(g, {mode: 'changed', save: () => {}, now: fixedNow});
+  assert.deepEqual(out.file.removed, [{id: 'MAT-GONE', section: 'world'}]);
+  const stored = g.settings.get(M, SNAPSHOT_SETTING);
+  assert.equal(JSON.stringify(stored).includes('Hidden Secret Name'), false);
+  assert.equal(JSON.stringify(stored).includes('Gone Name'), false);
+  assert.deepEqual(Object.keys(stored.records['world/Item/MAT-2']).sort(), ['hash', 'section']);
+  // re-run on the rewritten snapshot is quiet
+  const again = await saveWorldExport(g, {mode: 'changed', save: () => {}, now: fixedNow});
+  assert.equal(again.diff.new.length + again.diff.changed.length + again.diff.removed.length, 0);
 });

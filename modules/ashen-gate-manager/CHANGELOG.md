@@ -1,3 +1,7 @@
+## 0.18.1 — 2026-10-19
+
+- World export no longer stores record names in the saved snapshot (a world setting players could read), so hidden record names cannot leak. It keeps only content hashes. "Removed since last export" now lists ids and sections, not names. An older snapshot that still has names loads fine and is rewritten without them on the next export.
+
 ## 0.18.0 — 2026-10-19
 
 - **Export Ashen Gate data** (Library tab). One button group: **Export everything**, **Export changed since last export**, and **Copy summary**. Each Export saves ONE JSON file (`AG_World_Export_<date>.json`) of every Ashen Gate tagged world document plus the definitions Locations, Quest Log, Factions, Skill Trees and Headquarters expose; a module that is off or too old is listed as "not available". Definitions only: no actor progress, stash, party notes, quest status or other play state. GM only. "Changed" compares content hashes with a snapshot saved (new world setting, additive) after the last export; the first run exports everything. Format is documented in the README.
