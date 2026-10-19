@@ -2,17 +2,24 @@
  * World storage. Two JournalEntries, both created on demand by the GM:
  *  - "Locations (GM Data)": ownership NONE; flag `locations` holds every full record.
  *  - "Locations (Player View)": ownership OBSERVER; one page per location whose `view` flag is the
- *    sanitized playerView() JSON. Unrevealed locations get an empty page with ownership NONE, so a
- *    Map Note pointing at that page is hidden from players by Foundry itself.
- * Players read only the second Journal. Nothing hidden is ever written into it.
+ *    sanitized playerView() JSON. Hidden locations get an empty, generically named page with
+ *    ownership NONE, so a Map Note pointing at that page is hidden from players by Foundry itself.
+ *    Unidentified locations get a page with only the generic label and teaser.
+ * Pages and Map Notes carry only the location's random `pinKey`, never its LOC id (which is made
+ * from a name). Players read only the second Journal. Nothing hidden is ever written into it.
  */
-import {MODULE_ID, normalizeLocation, playerView, viewHtml} from './model.mjs';
+import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL, normalizeLocation, playerView, viewHtml, pinPresentation, notePatch, uniquePinKeys, PIN_KEY} from './model.mjs';
 
 const ROLE_GM = 'gm-data';
 const ROLE_VIEW = 'player-view';
 const LEGACY_ROLES = ['source', 'projection', 'map_registry'];
 const FOLDER_PATH = ['Ashen Gate', 'Locations'];
-const NOTE_ICON = 'icons/svg/castle.svg';
+
+/** World settings that shape what players see on pins and pages. Safe defaults without Foundry settings. */
+function setting(key, fallback) {
+  try { return game.settings.get(MODULE_ID, key) || fallback; } catch { return fallback; }
+}
+export const presentationOptions = () => ({label: setting('unidentifiedLabel', DEFAULT_UNIDENTIFIED_LABEL), unknownImg: setting('unknownPinImage', '')});
 
 const levels = () => globalThis.CONST?.DOCUMENT_OWNERSHIP_LEVELS ?? {INHERIT: -1, NONE: 0, OBSERVER: 2};
 const htmlFormat = () => globalThis.CONST?.JOURNAL_ENTRY_PAGE_FORMATS?.HTML ?? 1;
@@ -43,7 +50,7 @@ export function readAll() {
 /** Replaces the stored list, then rebuilds the player view and Map Note labels. */
 export async function writeAll(list) {
   assertGM();
-  const locations = list.map(normalizeLocation).filter(l => l.id);
+  const locations = uniquePinKeys(list.map(normalizeLocation).filter(l => l.id));
   const doc = byRole(ROLE_GM);
   if (doc) await doc.update({[`flags.${MODULE_ID}.locations`]: locations});
   else await JournalEntry.create({name: 'Locations (GM Data)', folder: await ensureFolder(),
@@ -61,46 +68,64 @@ async function viewJournal() {
 }
 
 /** The page data Foundry should hold for one location. Exported for tests. */
-export function pageData(loc, all) {
-  const view = playerView(loc, all);
+export function pageData(loc, all, opts = presentationOptions()) {
+  const view = playerView(loc, all, opts);
   return {
     name: view?.name ?? 'Unrevealed location', type: 'text',
     text: {content: viewHtml(view), format: htmlFormat()},
     ownership: {default: view ? levels().INHERIT : levels().NONE},
     // A JSON string, not an object: Foundry merges object flags on update, which could keep a
     // field the GM just hid. A string is always replaced whole.
-    flags: {[MODULE_ID]: {locationId: loc.id, view: view ? JSON.stringify(view) : ''}}
+    flags: {[MODULE_ID]: {pinKey: loc.pinKey, view: view ? JSON.stringify(view) : ''}}
   };
 }
 
-export async function syncPlayerView(locations) {
+/** 1.2.x pages and notes carried `locationId`; map them to the location's pinKey. */
+const legacyKey = (doc, keyById) => keyById.get(doc.getFlag?.(MODULE_ID, 'locationId'));
+const bindingKey = (doc, keyById) => {
+  const key = doc.getFlag?.(MODULE_ID, 'pinKey');
+  return PIN_KEY.test(key ?? '') ? key : legacyKey(doc, keyById);
+};
+
+export async function syncPlayerView(locations, opts = presentationOptions()) {
   assertGM();
   const journal = await viewJournal();
-  const pages = new Map([...journal.pages].map(p => [p.getFlag(MODULE_ID, 'locationId'), p]));
-  const create = [], update = [];
+  const keyById = new Map(locations.map(l => [l.id, l.pinKey]));
+  const pages = new Map();
+  for (const p of journal.pages) { const key = bindingKey(p, keyById); if (key && !pages.has(key)) pages.set(key, p); }
+  const create = [], update = [], used = new Set();
   for (const loc of locations) {
-    const data = pageData(loc, locations);
-    const page = pages.get(loc.id);
-    pages.delete(loc.id);
+    const data = pageData(loc, locations, opts);
+    const page = pages.get(loc.pinKey);
     if (!page) { create.push(data); continue; }
-    const same = page.name === data.name && page.getFlag(MODULE_ID, 'view') === data.flags[MODULE_ID].view
-      && page.ownership?.default === data.ownership.default;
+    used.add(page.id);
+    const legacy = page.getFlag(MODULE_ID, 'locationId') != null;
+    if (legacy) data.flags[MODULE_ID].locationId = null;
+    const same = !legacy && page.name === data.name && page.getFlag(MODULE_ID, 'view') === data.flags[MODULE_ID].view
+      && page.getFlag(MODULE_ID, 'pinKey') === loc.pinKey && page.ownership?.default === data.ownership.default;
     if (!same) update.push({_id: page.id, ...data});
   }
-  const remove = [...pages.values()].map(p => p.id);
+  // Pages of deleted locations, and any stray duplicate, so no stale player content survives.
+  const remove = [...journal.pages].filter(p => !used.has(p.id)).map(p => p.id);
   if (create.length) await journal.createEmbeddedDocuments('JournalEntryPage', create);
   if (update.length) await journal.updateEmbeddedDocuments('JournalEntryPage', update);
   if (remove.length) await journal.deleteEmbeddedDocuments('JournalEntryPage', remove);
 }
 
-/** Map Note labels show the name only while the location is revealed. */
-async function syncNotes(locations) {
-  const names = new Map(locations.map(l => [l.id, l.revealed ? l.name : '']));
+/**
+ * Brings every module-managed Map Note in line with its location's state: label, and image/size
+ * unless the GM overrode them on that Note. Notes without our flag are never touched.
+ */
+async function syncNotes(locations, opts = presentationOptions()) {
+  const byKey = new Map(locations.map(l => [l.pinKey, l]));
+  const keyById = new Map(locations.map(l => [l.id, l.pinKey]));
   for (const scene of game.scenes ?? []) {
     const updates = [];
     for (const note of scene.notes ?? []) {
-      const id = note.getFlag?.(MODULE_ID, 'locationId');
-      if (id && names.has(id) && note.text !== names.get(id)) updates.push({_id: note.id, text: names.get(id)});
+      const loc = byKey.get(bindingKey(note, keyById));
+      if (!loc) continue;
+      const patch = notePatch(note, loc.pinKey, pinPresentation(loc, opts));
+      if (patch) updates.push({_id: note.id, ...patch});
     }
     if (updates.length) await scene.updateEmbeddedDocuments('Note', updates);
   }
@@ -121,15 +146,34 @@ export function readViews() {
 export async function placeNote(location, {scene, x, y}) {
   assertGM();
   if (!scene) throw new Error('Open a scene first.');
-  await syncPlayerView(readAll());
+  const all = readAll();
+  const loc = all.find(l => l.id === location.id) ?? normalizeLocation(location);
+  await syncPlayerView(all);
   const journal = byRole(ROLE_VIEW);
-  const page = [...journal.pages].find(p => p.getFlag(MODULE_ID, 'locationId') === location.id);
+  const page = [...journal.pages].find(p => p.getFlag(MODULE_ID, 'pinKey') === loc.pinKey);
+  const pres = pinPresentation(loc, presentationOptions());
   const [note] = await scene.createEmbeddedDocuments('Note', [{
     entryId: journal.id, pageId: page?.id ?? null, x: Math.round(x), y: Math.round(y),
-    text: location.revealed ? location.name : '', texture: {src: NOTE_ICON}, iconSize: 48,
-    flags: {[MODULE_ID]: {locationId: location.id}}
+    text: pres.text, texture: {src: pres.src}, iconSize: pres.size,
+    flags: {[MODULE_ID]: {pinKey: loc.pinKey, pin: {src: pres.src, size: pres.size}}}
   }]);
   return note;
+}
+
+/**
+ * 1.3.0 migration, re-runnable: gives every stored location a pinKey and a marker state, and
+ * replaces the `locationId` flag on player pages and Map Notes with the pinKey. Does nothing (and
+ * writes nothing) when everything is already current. Returns what it found.
+ */
+export async function migrate() {
+  assertGM();
+  const raw = byRole(ROLE_GM)?.getFlag(MODULE_ID, 'locations');
+  const records = Array.isArray(raw) ? raw : [];
+  const stale = records.filter(r => !PIN_KEY.test(r?.pinKey ?? '') || !r?.state || r.published === undefined).length;
+  const legacyPages = [...(byRole(ROLE_VIEW)?.pages ?? [])].filter(p => p.getFlag(MODULE_ID, 'locationId') != null).length;
+  const legacyNotes = [...(game.scenes ?? [])].flatMap(s => [...(s.notes ?? [])]).filter(n => n.getFlag?.(MODULE_ID, 'locationId') != null).length;
+  if (stale || legacyPages || legacyNotes) await writeAll(readAll());
+  return {records: stale, pages: legacyPages, notes: legacyNotes};
 }
 
 /** 0.8.x kept test-only data in differently-flagged Journals. Leave it alone; just say so once. */

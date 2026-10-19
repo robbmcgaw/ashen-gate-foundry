@@ -23,15 +23,19 @@ test('GM data journal is NONE; player journal holds only sanitized pages', async
   // Everything a player client could read from the player journal, flags and HTML included:
   assert.doesNotMatch(JSON.stringify(pj), SECRETS);
   const hidden = pj.pages.filter(p => p.ownership.default === 0);
-  assert.equal(hidden.length, 2);
+  assert.equal(hidden.length, 1);
   for (const p of hidden) { assert.equal(p.name, 'Unrevealed location'); assert.equal(p.getFlag(MOD, 'view'), ''); assert.equal(p.text.content, ''); }
+  const unidentified = pj.pages.find(p => p.name === '[TEST] Smoke on the horizon');
+  assert.equal(unidentified.ownership.default, -1, 'players can see an unidentified pin');
+  assert.deepEqual(JSON.parse(unidentified.getFlag(MOD, 'view')), {key: unidentified.getFlag(MOD, 'pinKey'), state: 'unidentified',
+    name: '[TEST] Smoke on the horizon', teaser: 'A grey haze hangs over the far hills.'});
 });
 
 test('players read only revealed views and cannot read GM data', async () => {
   installFoundry();
   await writeAll(sample);
   as(player);
-  assert.deepEqual(readViews().map(v => v.name), ['[TEST] Millbrook', '[TEST] Old Quarry']);
+  assert.deepEqual(readViews().map(v => v.name), ['[TEST] Millbrook', '[TEST] Old Quarry', '[TEST] Smoke on the horizon']);
   assert.throws(() => readAll(), /Only the GM/);
   await assert.rejects(() => writeAll([]), /Only the GM/);
   as(gm);
@@ -58,23 +62,24 @@ test('deleting a location removes its player page', async () => {
   assert.equal(playerJournal().pages.length, 3);
 });
 
-test('Map Notes point at the location page and hide the label until revealed', async () => {
+test('Map Notes point at the location page by pinKey and hide the label until revealed', async () => {
   installFoundry();
   const scene = new Scene();
   game.scenes.push(scene);
-  await writeAll(sample);
-  const cave = sample.find(l => l.id === 'LOC-TEST-HIDDEN-CAVE');
+  const stored = await writeAll(sample);
+  const cave = stored.find(l => l.id === 'LOC-TEST-HIDDEN-CAVE');
   const note = await placeNote(cave, {scene, x: 10.4, y: 20.6});
   const page = playerJournal().pages.find(p => p.id === note.pageId);
   assert.equal(note.entryId, playerJournal().id);
-  assert.equal(page.getFlag(MOD, 'locationId'), cave.id);
-  assert.equal(note.text, '', 'no name leak for an unrevealed location');
-  assert.equal(note.getFlag(MOD, 'locationId'), cave.id);
+  assert.equal(page.getFlag(MOD, 'pinKey'), cave.pinKey);
+  assert.equal(note.text, '', 'no name leak for a hidden location');
+  assert.equal(note.getFlag(MOD, 'pinKey'), cave.pinKey);
+  assert.doesNotMatch(JSON.stringify(note) + JSON.stringify(page), /LOC-|Hidden Cave|HIDDEN-CAVE/, 'no LOC id or name on the note or page');
   assert.deepEqual([note.x, note.y], [10, 21]);
   as(player);
   assert.equal(page.testUserPermission(player, 'LIMITED'), false, 'Foundry hides the note from players');
   as(gm);
-  await writeAll(sample.map(l => l.id === cave.id ? {...l, revealed: true} : l));
+  await writeAll(stored.map(l => l.id === cave.id ? {...l, state: 'revealed', published: undefined} : l));
   assert.equal(scene.notes[0].text, '[TEST] Hidden Cave');
   assert.equal(page.testUserPermission(player, 'OBSERVER'), true);
   as(player);

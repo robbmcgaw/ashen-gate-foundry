@@ -42,7 +42,7 @@ test('player view omits hidden fields, hidden sections and hidden entries', () =
     quests: [{questId: 'QUEST-ONE'}, {questId: 'QUEST-TWO', visible: false}],
     notes: [{title: 'Public', text: 'hello'}, {title: 'GM-SECRET-NOTE', text: 'x', visible: false}]};
   const view = playerView(loc, [loc]);
-  assert.deepEqual(Object.keys(view).sort(), ['id', 'name', 'notes', 'quests', 'region', 'resources', 'threat', 'type']);
+  assert.deepEqual(Object.keys(view).sort(), ['id', 'key', 'name', 'notes', 'quests', 'region', 'resources', 'state', 'threat', 'type']);
   assert.deepEqual(view.resources.map(r => [r.label, r.available]), [['Ore', false]]);
   assert.deepEqual(view.quests, ['QUEST-ONE']);
   assert.equal(view.notes.length, 1);
@@ -65,7 +65,8 @@ test('sample [TEST] data: player views never contain GM-only content', () => {
   const {created} = parseImport(sample, []);
   assert.equal(created.length, 4);
   const views = created.map(l => playerView(l, created)).filter(Boolean);
-  assert.deepEqual(views.map(v => v.name), ['[TEST] Millbrook', '[TEST] Old Quarry']);
+  assert.deepEqual(views.map(v => v.name), ['[TEST] Millbrook', '[TEST] Old Quarry', '[TEST] Smoke on the horizon']);
+  assert.deepEqual(views[0].children.map(c => c.name), ['[TEST] Old Quarry'], 'the hidden child is not listed');
   const text = JSON.stringify(views) + views.map(viewHtml).join('');
   assert.doesNotMatch(text, /GM-only Herb|GM secret|smuggler|Hidden Cave|Ash Wastes|Players must not see/);
   assert.equal(views[1].description, undefined, 'Old Quarry hides its description');

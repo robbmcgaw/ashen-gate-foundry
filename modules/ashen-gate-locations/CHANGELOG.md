@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.3.0 — 2026-10-19
+
+Nested point-crawl, part 1 of 3: marker states, private Save, pin art, nesting.
+
+- **Hidden / Unidentified / Revealed** replace the *Revealed to players* switch. Unidentified shows players only a label (per location, or the world default from GM Setup) and an optional teaser, on the pin and in their Locations list. Nothing else about it reaches players.
+- **Save Changes is private.** Players see edits only after **Publish** (or Reveal / Unidentified). **Player Preview** shows what they would see. A dot in the list marks locations with unpublished edits. Marking a node exhausted still shows at once.
+- **Pins no longer carry the `LOC-*` id.** Map Notes and player pages are bound by a random pin key, so an unidentified pin can't give the name away. `LOC-*` ids are unchanged everywhere else, including exports.
+- **Pin art:** per-location image for revealed, a separate image for hidden/unidentified, and size. World default unidentified image in GM Setup. Built-in Foundry icons until set. If you change a placed pin's image or size in Foundry's Note settings, that pin keeps it. Native Notes are never touched.
+- **Nesting:** a location can sit inside another (any depth; loops are refused). The card lists the places inside; players see each one only once it's revealed (unidentified ones by label). **Linked scenes** with an *Open scene* button that moves only you.
+- Migration runs once on the GM's client and is safe to re-run: `revealed` becomes Revealed/Hidden (players keep seeing what they saw), and existing pins and pages switch to pin keys in place.
+- Imports keep each location's state, what players currently see, its pin key and exhausted nodes; an *update* import's changes wait for Publish. New fields export and import; a package that leaves them out keeps the world's values.
+- API: `setLocationState`, `publishLocation`, `previewLocation`, `hasUnpublishedChanges`, `childrenOf`, `STATES`; `getLocation`/`openLocation` also take a pin key; players' `listLocations({includeUnidentified: true})`. Existing calls return the same shapes as before (players' lists stay revealed-only).
+
 ## 1.2.0 — 2026-10-18
 
 - New GM-only API `importLocations(records, {mode})` for General Manager's single import run. `mode: "skip"` (default) leaves any existing location id exactly as it is; `mode: "update"` replaces its definition but keeps whether it is revealed and which finite nodes are exhausted. Returns `{created, updated, skipped: [{id, reason}]}`.

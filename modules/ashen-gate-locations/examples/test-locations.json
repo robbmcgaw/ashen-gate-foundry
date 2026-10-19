@@ -28,6 +28,7 @@
       "name": "[TEST] Old Quarry",
       "location": {
         "name": "[TEST] Old Quarry", "type": "Ruin", "region": "[TEST] Green Vale", "threat": "hot", "revealed": true,
+        "parentLocationId": "LOC-TEST-MILLBROOK",
         "description": "Abandoned stone workings.", "show": {"description": false},
         "sections": {"resources": true, "related": true},
         "resources": [{"label": "[TEST] Granite Block", "available": true}],
@@ -40,6 +41,7 @@
       "name": "[TEST] Hidden Cave",
       "location": {
         "name": "[TEST] Hidden Cave", "type": "Cave", "region": "[TEST] Green Vale", "threat": "deadly", "revealed": false,
+        "parentLocationId": "LOC-TEST-MILLBROOK",
         "description": "Players must not see this until revealed."
       }
     },
@@ -48,7 +50,8 @@
       "provenance": {"sources": ["synthetic test data"]}, "visibility": "reveal_gated", "refs": [],
       "name": "[TEST] Ash Wastes",
       "location": {
-        "name": "[TEST] Ash Wastes", "type": "Wilderness", "region": "[TEST] Far Reach", "threat": "deadly", "revealed": false,
+        "name": "[TEST] Ash Wastes", "type": "Wilderness", "region": "[TEST] Far Reach", "threat": "deadly", "state": "unidentified",
+        "unidentifiedLabel": "[TEST] Smoke on the horizon", "teaser": "A grey haze hangs over the far hills.",
         "resources": [{"label": "[TEST] Cinder Moss", "available": true}]
       }
     }
