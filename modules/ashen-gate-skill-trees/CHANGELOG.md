@@ -1,3 +1,11 @@
+## 0.12.0 — 2026-10-19
+
+Review, undo and older Ledger perk choices for profession trees.
+- **Review** (GM): when a lower profession level leaves perks above it, click **Review** on the tree's banner or in the GM's whisper. One dialog lists the flagged perks, each with **Keep** (preselected) or **Remove**, plus an optional reason. Removals happen in dependency order. If removing a perk would leave a kept perk without its prerequisite, nothing changes and the dialog says which perk.
+- **Undo** (GM): each pick, GM grant, removal and keep in a character's **History** has an **Undo** button. A removed perk comes back exactly as it was on the sheet (uses, edits) when its data was kept (the last 10 removals), otherwise as a fresh copy. Undo refuses when the tree changed underneath or the change was already undone.
+- **Import Ledger perk choices** (GM Setup → Developer Tools): finds perks saved as chosen in older Profession Ledger data and shows what would happen first. On confirm it allocates them on the matching profession tree. A perk Item already on the sheet is linked, not copied again. Unknown perks are left alone. The Ledger's own record is not changed. Safe to run again. Characters this leaves above their level are flagged for review.
+- New API: `resolve`, `undo`, `importLedgerPerkChoices`. History entries now carry an `id`. No other saved-data change.
+
 ## 0.11.0 — 2026-10-19
 
 Profession trees now work. The Profession Ledger owns XP and level; Skill Trees owns which perks are picked and the perk Items.
