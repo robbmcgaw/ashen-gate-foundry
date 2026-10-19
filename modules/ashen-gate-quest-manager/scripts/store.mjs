@@ -44,8 +44,10 @@ async function publish(source,state){
   const cur=(old&&old.getFlag(MOD,'accessSignature')===sig)?old:null;
   if(!cur){const created=await JournalEntry.create({name:`Quest Log — ${source.name}`,folder:await ensureFolder('Quest Log'),ownership,
     flags:projectionFlags(v,sig),pages:[{name:'Quest Log',type:'text',text:{format:1,content:journalPageHtml(v)}}]});await synchronizeNotes(source,state,true);return created;}
-  await cur.update({name:`Quest Log — ${source.name}`,[`${FLAG}.view`]:v});
-  const page=[...cur.pages][0];if(page)await page.update({'text.content':journalPageHtml(v)});
+  // Skip unchanged writes: audience reconciles re-publish every individual quest, and each write re-renders every client.
+  const name=`Quest Log — ${source.name}`,html=journalPageHtml(v);
+  if(cur.name!==name||JSON.stringify(cur.getFlag(MOD,'view'))!==JSON.stringify(v))await cur.update({name,[`${FLAG}.view`]:v});
+  const page=[...cur.pages][0];if(page&&page.text?.content!==html)await page.update({'text.content':html});
   await synchronizeNotes(source,state,true);return cur;
 }
 async function synchronizeNotes(source,state,visible){

@@ -1,5 +1,5 @@
 /** Factions & Renown v0.6.0 Beta; Foundry V14 target. No mandatory companion module. */
-import {MODULE_ID,SCHEMA_VERSION,RECOVERED_GUILDS_DRAFT,makeFaction,upgradeFaction,sourceDefinition,validateFaction,blankStanding,adjustStanding,progressFor,milestoneProjection,discoverable,projectedFolders,grantAutoKnowledge,secureEntryPreview,claimEligible,chooseOneEligible,rewardUnlocked,makeGroupRecord,makePersonalRecord,keyFor,overlayCampaign,extractCampaignDiscovery,fieldDisclosure,disclosedField,revealField,FIELD_KEYS} from './core.mjs';
+import {MODULE_ID,SCHEMA_VERSION,RECOVERED_GUILDS_DRAFT,makeFaction,upgradeFaction,groupStateDefaults,sourceDefinition,validateFaction,blankStanding,adjustStanding,progressFor,milestoneProjection,discoverable,projectedFolders,grantAutoKnowledge,secureEntryPreview,claimEligible,chooseOneEligible,rewardUnlocked,makeGroupRecord,makePersonalRecord,keyFor,overlayCampaign,extractCampaignDiscovery,fieldDisclosure,disclosedField,revealField,FIELD_KEYS} from './core.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {addObjectiveRef,removeObjectiveRef,objectiveRefs,auditObjectiveRefs} from './objective-refs.mjs';
 import {planImport,runImport} from './import.mjs';
@@ -36,7 +36,7 @@ const getFolders=d=>d?.getFlag(MODULE_ID,'folderIndex');
 // Foundry's Journal folder is storage organization only, independent from the in-dashboard faction folders.
 // Do not set player visibility on the Folder. Journal ownership controls actual document access.
 const STORAGE_FOLDER_NAME='Ashen Gate — Factions Data';
-const BUILD_VERSION='0.8.0';
+const BUILD_VERSION='0.8.1';
 const isModuleJournal=d=>Boolean(getFaction(d)||getGroup(d)||getPersonal(d)||getView(d)||getFolders(d));
 async function ensureStorageFolder(){
   assertGM();
@@ -144,7 +144,7 @@ async function reproject(){if(!game.user.isGM||activeGM()?.id!==game.user.id||pr
 async function migrate(){assertGM();await folderRecord();for(const doc of defs()){
   const original=getFaction(doc),legacy=Boolean(original?.state?.party||!original?.discovery);
   let f=upgradeFaction(original);if(legacy&&doc.ownership.default>=OBS)f.discovery.party=true;
-  const group=await ensureGroup(doc),state=structuredClone(getGroup(group));state.standing??=original.state?.party??blankStanding();state.requests??={};state.uses??={};state.claims??={};state.choices??={};await group.setFlag(MODULE_ID,'groupClaims',state);
+  const group=await ensureGroup(doc),{state,changed}=groupStateDefaults(getGroup(group),original.state?.party);if(changed)await group.setFlag(MODULE_ID,'groupClaims',state);
   if(legacy)await saveDef(doc,f);
   // Definitions and internal state are never player-accessible; projection journals supply filtered data.
   if(doc.ownership.default!==NONE||Object.entries(doc.ownership).some(([u,v])=>u!=='default'&&v!==NONE))await doc.update({ownership:Object.fromEntries([['default',NONE],...Object.keys(doc.ownership).filter(u=>u!=='default').map(u=>[u,NONE])])});

@@ -93,3 +93,18 @@ test('Quest-owned delegated ASSIGN blocks deletion of its Objective',async()=>{
  await assert.rejects(()=>removeRecord(source.id),/Remove\/reassign Quest-owned ASSIGN/);
  assert.equal(allPrivate().length,1);
 });
+
+test('re-publishing an unchanged quest writes nothing; a real change still updates the journal and page',async()=>{
+ const {docs,source}=setup();
+ await saveRecord(source,{state:{status:'Active',scope:'individual',actorId:'actorA',revealed:false,objectiveReveal:[],progress:{},partyNotes:'',gmNotes:'',rewardRecorded:false}});
+ const view=docs.find(j=>j.getFlag(MOD,'public'));let writes=0;
+ const update=view.update.bind(view),page=view.pages[0],pageUpdate=page.update;
+ view.update=async f=>{writes++;return update(f);};page.update=async f=>{writes++;return pageUpdate(f);};
+ await reconcileActorAudience('actorA');await reconcileActorAudience();
+ assert.equal(writes,0,'no-op reconcile does not touch the Quest Log journal');
+ assert.equal(docs.find(j=>j.getFlag(MOD,'public')),view,'same projection kept');
+ await updateState(source.id,{partyNotes:'[TEST] new party note'});
+ assert.equal(view.getFlag(MOD,'view').partyNotes,'[TEST] new party note');
+ assert.match(page.text.content,/\[TEST\] new party note/);
+ assert.ok(writes>=2,'flag and page both written on a real change');
+});
