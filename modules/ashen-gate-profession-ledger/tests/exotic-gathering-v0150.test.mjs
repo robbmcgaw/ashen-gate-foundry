@@ -153,7 +153,7 @@ globalThis.foundry={applications:{api:{ApplicationV2:class{async _prepareContext
 globalThis.Hooks={once:(n,f)=>hooks[n]=f,on:()=>{},callAll:()=>{}};
 globalThis.ui={notifications:{info:()=>{},error:e=>errors.push(String(e))}};
 globalThis.ChatMessage={create:async x=>{const m={id:`m${chats.length}`,...structuredClone(x),update:async()=>{}};chats.push(m);return m;},getSpeaker:({actor}={})=>({alias:actor?.name})};
-const src=(id,type,definition,visibility='player')=>({'ashen-gate-manager':{source:{sourceId:id,entityType:type,visibility,status:'approved',version:'0.1.0',refs:definition?.refs??[],definition}}});
+const src=(id,type,definition,visibility='player',status='approved')=>({'ashen-gate-manager':{source:{sourceId:id,entityType:type,visibility,status,version:'0.1.0',refs:definition?.refs??[],definition}}});
 const worldDoc=(id,name,flags)=>({id,uuid:`Item.${id}`,name,img:'',type:'loot',flags,system:{},testUserPermission:u=>u.isGM||flags['ashen-gate-manager'].source.visibility==='player',
   toObject(){return {_id:this.id,name:this.name,img:'',type:'loot',flags:structuredClone(this.flags),system:{}};}});
 const world=[
@@ -163,6 +163,7 @@ const world=[
  worldDoc('wstar','[TEST] Star Moss',src('MAT-TG-STAR','Material',matDef('MAT-TG-STAR','[TEST] Star Moss',{tierId:'apprentice'}))),
  worldDoc('wdeep','[TEST] Deep Ore',src('MAT-TG-DEEP','Material',matDef('MAT-TG-DEEP','[TEST] Deep Ore',{prof:'PROF-TG-MINING',tierId:'apprentice'}))),
  worldDoc('wgm','[TEST] Secret Exotic',src('MAT-TG-SECRETX','Material',matDef('MAT-TG-SECRETX','[TEST] Secret Exotic',{tierId:'apprentice'}),'gm')),
+ worldDoc('wdraft','[TEST] Draft Exotic',src('MAT-TG-DRAFTX','Material',matDef('MAT-TG-DRAFTX','[TEST] Draft Exotic',{tierId:'apprentice'}),'player','draft')),
  worldDoc('wprof','[TEST] Herbalism — Profession',src('PROF-TG-HERBALISM','Profession',{id:'PROF-TG-HERBALISM',entity_type:'Profession',version:'0.1.0',refs:[],name:'[TEST] Herbalism'}))];
 const held=(id,name,flags,qty)=>({id,name,type:'loot',system:{quantity:qty},flags,toObject(){return {_id:id,name,type:'loot',system:structuredClone(this.system),flags:structuredClone(flags)};}});
 const inv=[];inv.get=i=>inv.find(x=>x.id===i);let made=0;
@@ -249,13 +250,19 @@ test('designated source at a location uses its chance, not the 2% roll',async()=
  }
 });
 
-test('missing or GM-only Exotic definitions fail safely: skipped, the normal bundle still given',async()=>{
+test('missing, draft or GM-only Exotic candidates fail safely: skipped with the Manager fix, told to the GM only',async()=>{
  game.user=gm;
  _test.setExoticRoll(noRoll);
- const s=await api.gathering.start({node:{label:'x',skill:'Herbalism',tier:3,materialId:'MAT-TG-HERB',exotics:[{materialId:'MAT-TG-SECRETX'},{materialId:'MAT-TG-GONE'}]},leadId:'belwar'});
+ const s=await api.gathering.start({node:{label:'x',skill:'Herbalism',tier:3,materialId:'MAT-TG-HERB',exotics:[{materialId:'MAT-TG-SECRETX'},{materialId:'MAT-TG-GONE'},{materialId:'MAT-TG-DRAFTX'}]},leadId:'belwar'});
  const out=await _test.resolveGather(s.id,{total:30,choice:'skill:nat'});
  assert.equal(out.award.name,'[TEST] Herb');assert.equal(out.exotic.roll,null);
- assert.deepEqual(out.exotic.skipped.map(x=>x.materialId),['MAT-TG-SECRETX','MAT-TG-GONE']);
+ assert.deepEqual(out.exotic.skipped.map(x=>[x.materialId,x.reason]),[['MAT-TG-SECRETX','GM-only: make it player-visible in General Manager first'],
+  ['MAT-TG-GONE','Not in this world: import it with General Manager'],['MAT-TG-DRAFTX','Draft: approve it in General Manager first']]);
+ const card=chats.at(-2),note=chats.at(-1);
+ assert.doesNotMatch(card.content,/Secret|Draft|skipped/,'the public card says nothing');assert.equal(card.whisper,undefined);
+ assert.deepEqual(note.whisper,['gm']);assert.match(note.content,/Exotic candidate \[TEST\] Draft Exotic skipped: Draft: approve it in General Manager first/);
+ assert.match(note.content,/\[TEST\] Secret Exotic skipped: GM-only/);
+ assert.match(await html('gathering'),/Exotic candidate \[TEST\] Draft Exotic skipped/,'and in the GM’s last-result note');
 });
 
 test('players never get Exotic candidates: node list, roll prompt, Gathering tab and API',async()=>{
@@ -282,12 +289,16 @@ test('GM ad-hoc editor: Exotic picker filters by profession, tier and rarity; ad
  const pick=h.slice(h.indexOf('agl-exotic-filters'));
  assert.match(pick,/\[TEST\] Star Moss/);assert.doesNotMatch(pick,/Phoenix Ash/,'tier 3 is above a tier 1 node');
  assert.doesNotMatch(pick,/Deep Ore/,'Mining Exotic at a Herbalism node');assert.doesNotMatch(pick,/Rare Herb|>\[TEST\] Herb</,'only Exotic quality');
+ assert.match(pick,/\[TEST\] Draft Exotic<\/strong>.*Draft: approve it in General Manager first.*data-id="MAT-TG-DRAFTX" disabled/s,'draft shown, disabled, with the fix');
+ await assert.doesNotReject(()=>app._click('adhoc-exotic-add','MAT-TG-DRAFTX'));assert.deepEqual(app.gather.adhoc.exotics,[],'a draft cannot be added');
  app.gather.pick.tier='any';h=await html('gathering');assert.match(h.slice(h.indexOf('agl-exotic-filters')),/Phoenix Ash/);
  await app._click('adhoc-exotic-add','MAT-TG-PHOENIX');
  assert.deepEqual(app.gather.adhoc.exotics,[{materialId:'MAT-TG-PHOENIX',mode:'discovery'}]);
  h=await html('gathering');assert.match(h,/Tier 3 is above the node’s tier 1/);
  await app._click('adhoc-exotic-remove','MAT-TG-PHOENIX');assert.deepEqual(app.gather.adhoc.exotics,[]);
  assert.deepEqual(api.gathering.exotic.materials({profession:'Herbalism',maxTier:1}).map(m=>m.id),['MAT-TG-STAR']);
+ assert.deepEqual(api.gathering.exotic.materials({profession:'Herbalism',maxTier:1,includeUnavailable:true}).map(m=>[m.id,m.available,m.reason]),
+  [['MAT-TG-DRAFTX',false,'Draft: approve it in General Manager first'],['MAT-TG-SECRETX',false,'GM-only: make it player-visible in General Manager first'],['MAT-TG-STAR',true,'']]);
  assert.deepEqual(api.gathering.exotic.eligibility({skill:'Herbalism',tier:1,exotics:[{materialId:'MAT-TG-PHOENIX'}]}).map(r=>[r.materialId,r.eligible]),[['MAT-TG-PHOENIX',false]]);
  assert.equal(api.gathering.exotic.percent(),2);assert.deepEqual(api.gathering.exotic.defaultDcByTier,{1:10,2:12,3:15,4:18,5:20});
  app.gather.source='location';
