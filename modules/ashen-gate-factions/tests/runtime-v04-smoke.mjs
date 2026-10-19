@@ -76,13 +76,17 @@ async function clickView(page){
 }
 let viewResult=await clickView('player');
 test(viewResult.context.tabPlayer&&!viewResult.context.tabGroup&&viewResult.prevented,'clicking Player opens player view');
-viewResult=await clickView('gm');
-test(viewResult.context.tabGM&&!viewResult.context.tabPlayer,'clicking GM Setup opens GM view');
+viewResult=await clickView('orgs');
+test(viewResult.context.tabOrgs&&!viewResult.context.tabPlayer&&!viewResult.context.tabSetup,'clicking Organizations opens GM content view');
+viewResult=await clickView('setup');
+test(viewResult.context.tabSetup&&!viewResult.context.tabOrgs,'clicking GM Setup opens settings view');
 viewResult=await clickView('group');
-test(viewResult.context.tabGroup&&!viewResult.context.tabGM,'clicking Group restores group view');
+test(viewResult.context.tabGroup&&!viewResult.context.tabOrgs&&!viewResult.context.tabSetup,'clicking Group restores group view');
 // Client-level authorization remains strict if a forged GM button is present.
-game.user=p1;await clickView('player');viewResult=await clickView('gm');
-test(viewResult.context.tabPlayer&&!viewResult.context.tabGM,'player cannot select GM Setup even with forged button');
+game.user=p1;await clickView('player');viewResult=await clickView('orgs');
+test(viewResult.context.tabPlayer&&!viewResult.context.tabOrgs,'player cannot select Organizations even with forged button');
+viewResult=await clickView('setup');
+test(viewResult.context.tabPlayer&&!viewResult.context.tabSetup,'player cannot select GM Setup even with forged button');
 game.user=gm;await clickView('group');
 // Shell event wiring survives a later render (listeners attach once).
 await dashboard._onRender({},{});test(root.listeners.click!==undefined,'tab delegation remains active');

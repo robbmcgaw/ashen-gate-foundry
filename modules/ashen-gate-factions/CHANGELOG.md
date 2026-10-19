@@ -1,5 +1,11 @@
 # Factions & Renown change history
 
+## 0.8.0 — 2026-10-19
+
+- New GM-only **Organizations** tab: every faction (hidden, character-only and revealed) in a searchable list with visibility, group Renown, folder and linked-objective chips; filter by visibility, sort, group by visibility or folder. Creating, editing, revealing, folders, rewards, claims, information entries, linked quests, Import and Export all live here, unchanged.
+- **GM Setup** now holds settings only: Player Access and the custom group display name.
+- No saved-data changes. Player views, import APIs and permissions are unchanged.
+
 ## 0.7.2 — 2026-10-19
 
 - Import through General Manager reports a failing faction with its reason and still lists the factions that were added, instead of failing the whole file. No change to saved data.

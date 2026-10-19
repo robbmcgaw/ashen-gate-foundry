@@ -56,8 +56,8 @@ test('players never receive GM-only Objective refs through faction projections',
   assert.ok(start>0&&end>start);
   assert.doesNotMatch(project,/refs\s*:/);
   assert.doesNotMatch(project,/objectiveRefs\(/);
-  assert.ok(template.indexOf('GM · Related Objectives')>template.indexOf('{{#if tabGM}}'));
-  assert.match(template,/\{\{#if tabGM\}\}[\s\S]*\{\{#if detail\}\}[\s\S]*GM · Related Objectives/);
+  assert.ok(template.indexOf('GM · Related Objectives')>template.indexOf('{{#if tabOrgs}}'));
+  assert.match(template,/\{\{#if tabOrgs\}\}[\s\S]*\{\{#if detail\}\}[\s\S]*GM · Related Objectives/);
   assert.match(runtime,/assertGM\(\);const doc=definition\(this\.#selected\)/);
 });
 test('theme styling is local and tolerates absent optional appearance controller',async()=>{
