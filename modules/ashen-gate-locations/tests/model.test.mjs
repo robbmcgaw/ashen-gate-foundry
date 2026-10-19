@@ -117,16 +117,16 @@ test('1.0.x resource entries load as tier-1 finite nodes, and normalizing is re-
     resources: [{key: 'k1', label: 'Ore', materialId: 'MAT-ORE', uuid: '', available: false, note: 'n', visible: true}]};
   const loc = normalizeLocation(old);
   assert.deepEqual(resourcesOf(loc, {gm: true}), [{id: 'k1', label: 'Ore', skill: '', tier: 1, dc: 10, materialId: 'MAT-ORE', quantity: 1,
-    rareMaterialId: '', rareQuantity: 1, finite: true, exhausted: false, available: false, note: 'n', uuid: '', visible: true, dcVisible: false}]);
+    rareMaterialId: '', rareQuantity: 1, finite: true, exhausted: false, available: false, note: 'n', uuid: '', visible: true, dcVisible: false, exotics: []}]);
   assert.deepEqual(normalizeLocation(normalizeLocation(loc)), loc);
 });
 
 test('node defaults: DC follows tier unless set; bad numbers fall back; non-finite never exhausted', () => {
-  assert.deepEqual(GATHERING.dcByTier, {1: 10, 2: 12, 3: 13, 4: 14, 5: 15});
+  assert.deepEqual(GATHERING.dcByTier, {1: 10, 2: 12, 3: 15, 4: 18, 5: 20});
   const [a, b, c, d] = normalizeLocation({id: 'LOC-A', name: 'A', resources: [
     {id: 'a', label: 'A', tier: 4}, {id: 'b', label: 'B', tier: 2, dc: 17}, {id: 'c', label: 'C', tier: 9, dc: 'x', quantity: 0, rareQuantity: 2.5},
     {id: 'd', label: 'D', finite: false, exhausted: true}]}).resources;
-  assert.deepEqual([a.tier, a.dc, a.key], [4, 14, 'a'], 'import id becomes the stable key');
+  assert.deepEqual([a.tier, a.dc, a.key], [4, 18, 'a'], 'import id becomes the stable key');
   assert.deepEqual([b.tier, b.dc], [2, 17]);
   assert.deepEqual([c.tier, c.dc, c.quantity, c.rareQuantity], [1, 10, 1, 1]);
   assert.equal(d.exhausted, false);

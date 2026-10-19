@@ -135,7 +135,7 @@ test('markNodeExhausted is GM-only, validates, and restores', async () => {
   await assert.rejects(() => api.markNodeExhausted('LOC-TEST-MILLBROOK', nodeId), /not finite/);
   state.gm = false;
   await assert.rejects(() => api.markNodeExhausted('LOC-TEST-MILLBROOK', nodeId), /Only the GM/);
-  assert.deepEqual(api.GATHERING.dcByTier[5], 15);
+  assert.deepEqual(api.GATHERING.dcByTier[5], 20);
 });
 
 const pack = () => JSON.parse(fs.readFileSync(new URL('../examples/test-locations.json', import.meta.url)));

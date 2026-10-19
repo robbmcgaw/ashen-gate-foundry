@@ -40,11 +40,37 @@ export const BLOCKS = Object.freeze([
 export const DETAIL_PREFIX = 'detail:';
 export const LOOT_STATUSES = Object.freeze(['available', 'discovered', 'taken']);
 export const LOOT_STATUS_LABELS = Object.freeze({available: 'Available', discovered: 'Discovered', taken: 'Taken'});
-/** Gathering nodes (Session 1 runbook §3): skill, tier 1–5, DC defaulting by tier. Rules live in the Ledger. */
+/** Gathering nodes (Session 1 runbook §3): skill, tier 1–5, DC defaulting by tier. Rules live in the Ledger.
+ * 1.9.0: dcByTier is 10/12/15/18/20, kept equal to the Ledger's DEFAULT_DC_BY_TIER (a test checks both).
+ * legacyDcByTier is the pre-1.9.0 table: a stored DC equal to it still counts as "the tier default" in the editor. */
 export const GATHERING = Object.freeze({
   skills: Object.freeze(['Herbalism', 'Mining', 'Fishing', 'Skinning & Harvesting', 'Archaeology']),
-  dcByTier: Object.freeze({1: 10, 2: 12, 3: 13, 4: 14, 5: 15})
+  dcByTier: Object.freeze({1: 10, 2: 12, 3: 15, 4: 18, 5: 20}),
+  legacyDcByTier: Object.freeze({1: 10, 2: 12, 3: 13, 4: 14, 5: 15})
 });
+/** Exotic candidates on a node (1.9.0), GM only. The Ledger owns the rules; Locations stores the choice:
+ * random discovery, or a designated source with its own chance (1–100, required) and condition (any success / by 5+). */
+export const EXOTIC_MODES = Object.freeze(['discovery', 'designated']);
+export const EXOTIC_CONDITIONS = Object.freeze({success: 'Any success', rare: 'Success by 5+ only'});
+const MAX_EXOTICS = 20;
+export function normalizeExotics(list) {
+  const out = [], seen = new Set();
+  for (const raw of Array.isArray(list) ? list : []) {
+    const materialId = matId(raw?.materialId);
+    if (!materialId || seen.has(materialId)) continue;
+    seen.add(materialId);
+    if (raw.mode !== 'designated') out.push({materialId, mode: 'discovery'});
+    else {
+      const c = Number(raw.chance);
+      out.push({materialId, mode: 'designated', chance: raw.chance !== '' && raw.chance != null && Number.isFinite(c) && c >= 1 && c <= 100 ? Math.round(c) : null,
+        condition: raw.condition === 'rare' ? 'rare' : 'success'});
+    }
+    if (out.length >= MAX_EXOTICS) break;
+  }
+  return out;
+}
+/** True when a node's DC is its tier default (current or pre-1.9.0), so a tier change may move it. */
+export const isTierDefaultDc = (dc, tier) => dc === GATHERING.dcByTier[tier] || dc === GATHERING.legacyDcByTier[tier];
 export const LOCATION_ID = /^LOC-[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
 export const QUEST_ID = /^(?:QUEST|ORDER|CONTRACT)-[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
 /**
@@ -107,7 +133,7 @@ const ENTRY_SHAPES = {
       materialId: matId(e.materialId), quantity: int(e.quantity, 1, 1, 999),
       rareMaterialId: matId(e.rareMaterialId), rareQuantity: int(e.rareQuantity, 1, 1, 999),
       finite, exhausted: finite && bool(e.exhausted, false), available: bool(e.available, true),
-      uuid: safeUuid(e.uuid), note: line(e.note, 500)};
+      uuid: safeUuid(e.uuid), note: line(e.note, 500), exotics: normalizeExotics(e.exotics)};
   },
   conditions: e => ({label: line(e.label), text: text(e.text, 2000)}),
   factions: e => ({label: line(e.label), ...linked(e), note: line(e.note, 500)}),
@@ -464,10 +490,12 @@ export function notePatch(note, pinKey, pres) {
 /** Node fields in a fixed order. The player copy drops the GM toggles, and the DC unless shown. */
 export function nodeForGM(e) {
   const {key, label, skill, tier, dc, dcVisible, materialId, quantity, rareMaterialId, rareQuantity, finite, exhausted, available, visible, uuid, note} = e;
-  return {id: key, label, skill, tier, dc, materialId, quantity, rareMaterialId, rareQuantity, finite, exhausted, available, note, uuid, visible, dcVisible};
+  return {id: key, label, skill, tier, dc, materialId, quantity, rareMaterialId, rareQuantity, finite, exhausted, available, note, uuid, visible, dcVisible,
+    exotics: normalizeExotics(e.exotics)};
 }
+/** Players never get Exotic candidates (or the GM toggles, or a DC the GM has not shown). */
 export function nodeForPlayer(e) {
-  const {visible, dcVisible, dc, ...rest} = nodeForGM(e);
+  const {visible, dcVisible, dc, exotics, ...rest} = nodeForGM(e);
   return dcVisible ? {...rest, dc} : rest;
 }
 export const nodeName = n => n.label || n.materialId || n.rareMaterialId || 'Resource';

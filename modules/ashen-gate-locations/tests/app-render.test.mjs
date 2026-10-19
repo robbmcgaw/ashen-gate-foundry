@@ -102,7 +102,7 @@ test('GM node editor: inline fields, exhausted struck through with Restore; play
   assert.match(html, /data-action="restore"/);
   assert.match(html, /data-toggle="resources\.[a-z0-9]+\.dcVisible"/);
   app.setPath(`resources.${node.key}.tier`, '4');
-  assert.deepEqual([node.tier, node.dc], [4, 14], 'DC follows the tier when it was the default');
+  assert.deepEqual([node.tier, node.dc], [4, 18], 'DC follows the tier when it was the default');
   const locApi = game.modules.get('ashen-gate-locations').api;
   await locApi.saveLocation(app.draft);
   game.user = player;
@@ -115,7 +115,7 @@ test('GM node editor: inline fields, exhausted struck through with Restore; play
   const view = await viewer._renderHTML();
   assert.match(view, /Herbalism · Tier 4/);
   assert.match(view, /Exhausted/);
-  assert.doesNotMatch(view, /DC 14/);
+  assert.doesNotMatch(view, /DC 18/);
 });
 
 test('player: unidentified place shows only its label and teaser; children list skips the hidden one', async () => {

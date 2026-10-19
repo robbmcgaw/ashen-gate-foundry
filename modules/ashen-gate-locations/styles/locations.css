@@ -159,3 +159,7 @@
 .agl-audience li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .agl-share { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .agl-share-pick { display: flex; flex-direction: column; gap: 4px; border: 0; padding: 0; }
+/* 1.9.0: optional Exotic candidates under a gathering node (GM only). */
+.agl-node__exotics { margin-top: 4px; }
+.agl-node__exotics > summary { cursor: pointer; }
+.agl-exotic { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
