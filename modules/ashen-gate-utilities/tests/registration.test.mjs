@@ -157,3 +157,18 @@ test('player-facing pending roll is prominent and group/roll request states diff
  app.tab='checks';h=await app._renderHTML();assert.ok(h.includes('No Group Check active'));assert.ok(!h.includes('Roll Now'));
  game.user=gm;
 });
+
+test('0.7.3: a roll that cannot be counted is reported to the player, not dropped silently',async()=>{
+ game.user=gm;const chats=[];globalThis.ChatMessage={create:async m=>{chats.push(m);return m;},getSpeaker:()=>({})};
+ try{
+  const player={id:'p73',name:'P73',isGM:false,active:true};game.users.push(player);
+  const actor={id:'pc73',name:'[TEST] PC73',type:'character',testUserPermission:u=>u.id==='p73',statuses:new Set(),items:[],getFlag:()=>null};game.actors.push(actor);
+  await game.settings.set(ID,'activeSession',{});
+  const proof={id:'proof73',author:player,speaker:{actor:actor.id},rolls:[{total:12}]};game.messages.set(proof.id,proof);
+  handlers.on.get('createChatMessage')({id:'submit73',author:player,flags:{[ID]:{submission:{contract:'ag-utility-roll/0.1',sessionId:'gone',actorId:actor.id,skill:'prc',total:12,proofMessageId:'proof73'}}}});
+  await new Promise(r=>setTimeout(r,15));
+  assert.equal(chats.length,1);
+  assert.match(chats[0].content,/Roll not counted for \[TEST\] PC73: That check has already ended/);
+  assert.ok(chats[0].whisper.includes('p73')&&chats[0].whisper.includes('gm'),'whispered to the player and the GM only');
+ }finally{delete globalThis.ChatMessage;}
+});
