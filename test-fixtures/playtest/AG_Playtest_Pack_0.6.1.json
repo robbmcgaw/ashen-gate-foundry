@@ -2,7 +2,7 @@
   "manifest": {
     "schema_version": "ag-foundry-import/0.2",
     "package_id": "AG-PLAYTEST-PACK",
-    "version": "0.6.0",
+    "version": "0.6.1",
     "description": "Synthetic playtest pack: 3 professions, 8 materials, 8 recipes with crafted items, 3 give-to-player recipe items, 8 perks, 4 stash items, 3 test characters, 3 journals, 1 roll table, 1 hireling and perk, 1 GM-only link macro. 8 locations (a Region point-crawl plus Normal/Hot/Deadly sites) with gathering nodes for the Locations module. Includes one GM-only material, one draft recipe/item and hidden location content as deliberate visibility examples. Not canon."
   },
   "records": [
@@ -10,7 +10,7 @@
       "id": "PROF-PT-ALCHEMY",
       "entity_type": "Profession",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -145,7 +145,7 @@
       "id": "PROF-PT-HERBALISM",
       "entity_type": "Profession",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -267,7 +267,7 @@
       "id": "PROF-PT-BLACKSMITHING",
       "entity_type": "Profession",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -398,10 +398,133 @@
       }
     },
     {
+      "id": "PROF-PT-ENCHANTING",
+      "entity_type": "Profession",
+      "status": "approved",
+      "version": "0.6.1",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "starting_recipe",
+          "target_id": "REC-PT-WARDING-CHARM",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Enchanting",
+      "profession_kind": "crafting",
+      "access": {},
+      "workstation": null,
+      "progression": {
+        "professionLevels": 16,
+        "tiers": [
+          {
+            "id": "apprentice",
+            "startsAtLevel": 1,
+            "advancement": "tool-access"
+          },
+          {
+            "id": "journeyman",
+            "startsAtLevel": 4,
+            "advancement": "automatic"
+          },
+          {
+            "id": "expert",
+            "startsAtLevel": 7,
+            "advancement": "automatic"
+          },
+          {
+            "id": "artisan",
+            "startsAtLevel": 10,
+            "advancement": "dm-feat-required"
+          },
+          {
+            "id": "master",
+            "startsAtLevel": 13,
+            "advancement": "dm-feat-required"
+          }
+        ],
+        "xpTable": {
+          "startingXP": 0,
+          "startingLevel": 1,
+          "costFormula": "5 + 3 * (currentLevel - 1)",
+          "costToNextByCurrentLevel": {
+            "1": 5,
+            "2": 8,
+            "3": 11,
+            "4": 14,
+            "5": 17,
+            "6": 20,
+            "7": 23,
+            "8": 26,
+            "9": 29,
+            "10": 32,
+            "11": 35,
+            "12": 38,
+            "13": 41,
+            "14": 44,
+            "15": 47
+          },
+          "cumulativeXPToReachLevel": {
+            "1": 0,
+            "2": 5,
+            "3": 13,
+            "4": 24,
+            "5": 38,
+            "6": 55,
+            "7": 75,
+            "8": 98,
+            "9": 124,
+            "10": 153,
+            "11": 185,
+            "12": 220,
+            "13": 258,
+            "14": 299,
+            "15": 343,
+            "16": 390
+          },
+          "cap": 16,
+          "status": "confirmed"
+        },
+        "gatheringBaseDC": [
+          10,
+          12,
+          14,
+          16,
+          18
+        ],
+        "criticalMargin": 5,
+        "manualXP": true,
+        "manualLevelUp": true
+      },
+      "starting_recipe_ids": [
+        "REC-PT-WARDING-CHARM"
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Professions",
+        "data": {
+          "name": "[TEST] Enchanting — Profession",
+          "type": "feat",
+          "img": "icons/skills/trades/smithing-anvil-silver-red.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Enchanting</h2><p>Synthetic playtest profession; no rules text.</p><p>Starting recipes: [[AGREF:REC-PT-WARDING-CHARM|REC-PT-WARDING-CHARM]]</p>"
+            }
+          }
+        }
+      }
+    },
+    {
       "id": "MAT-PT-EMBERROOT",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -447,7 +570,7 @@
       "id": "MAT-PT-PALEMOSS",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -493,7 +616,7 @@
       "id": "MAT-PT-GLASSBLOOM",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -539,7 +662,7 @@
       "id": "MAT-PT-IRON-ORE",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -578,7 +701,7 @@
       "id": "MAT-PT-COAL",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -617,7 +740,7 @@
       "id": "MAT-PT-LEATHER-STRIPS",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -653,10 +776,88 @@
       }
     },
     {
+      "id": "MAT-PT-ARCANE-DUST",
+      "entity_type": "Material",
+      "status": "approved",
+      "version": "0.6.1",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Arcane Dust",
+      "tierId": "apprentice",
+      "quality": "Common",
+      "unit": "Pinch",
+      "flavor": "Glittering placeholder dust.",
+      "tags": [
+        "standard",
+        "playtest"
+      ],
+      "priceGp": 6,
+      "weightLb": 0.1,
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Materials",
+        "data": {
+          "name": "[TEST] Arcane Dust",
+          "type": "loot",
+          "img": "icons/commodities/materials/bowl-powder-green.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Arcane Dust</h2><p>Apprentice · Common · 6 gp · 0.1 lb · Pinch</p><p>Glittering placeholder dust.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "MAT-PT-GEM-CHIPS",
+      "entity_type": "Material",
+      "status": "approved",
+      "version": "0.6.1",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Gem Chips",
+      "tierId": "apprentice",
+      "quality": "Common",
+      "unit": "Pouch",
+      "flavor": "Placeholder gem fragments.",
+      "tags": [
+        "standard",
+        "playtest"
+      ],
+      "priceGp": 8,
+      "weightLb": 0.2,
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Materials",
+        "data": {
+          "name": "[TEST] Gem Chips",
+          "type": "loot",
+          "img": "icons/commodities/materials/bowl-powder-green.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Gem Chips</h2><p>Apprentice · Common · 8 gp · 0.2 lb · Pouch</p><p>Placeholder gem fragments.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
       "id": "MAT-PT-ASHWOOD-PLANKS",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -695,7 +896,7 @@
       "id": "MAT-PT-GM-ONLY-RESIN",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -734,7 +935,7 @@
       "id": "REC-PT-EMBER-SALVE",
       "entity_type": "Recipe",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -808,7 +1009,7 @@
       "id": "REC-PT-MISTVEIL-TONIC",
       "entity_type": "Recipe",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -881,7 +1082,7 @@
       "id": "REC-PT-GLASSBLOOM-ELIXIR",
       "entity_type": "Recipe",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -955,7 +1156,7 @@
       "id": "REC-PT-DRAFT-DRAUGHT",
       "entity_type": "Recipe",
       "status": "draft",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1018,7 +1219,7 @@
       "id": "REC-PT-IRON-HINGE-SET",
       "entity_type": "Recipe",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1092,7 +1293,7 @@
       "id": "REC-PT-TEST-DAGGER",
       "entity_type": "Recipe",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1176,7 +1377,7 @@
       "id": "REC-PT-ASHWOOD-BUCKLER",
       "entity_type": "Recipe",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1249,7 +1450,7 @@
       "id": "REC-PT-RIVET-POUCH",
       "entity_type": "Recipe",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1329,10 +1530,295 @@
       }
     },
     {
+      "id": "REC-PT-WARDING-CHARM",
+      "entity_type": "Recipe",
+      "status": "approved",
+      "version": "0.6.1",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "crafted_by",
+          "target_id": "PROF-PT-ENCHANTING",
+          "mode": "required"
+        },
+        {
+          "relation": "produces",
+          "target_id": "ITEM-PT-WARDING-CHARM",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-ARCANE-DUST",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Warding Charm",
+      "tier": "apprentice",
+      "starting": true,
+      "origin": "original",
+      "effort": "short",
+      "price_class": "common_consumable",
+      "market_gp": 24,
+      "craft_gp": 12,
+      "additional_gp": 0,
+      "rules_summary": "Placeholder recipe for playtesting; no rules effect. [TEST] Warding Charm is crafted from the listed materials.",
+      "profession_id": "PROF-PT-ENCHANTING",
+      "result_item_id": "ITEM-PT-WARDING-CHARM",
+      "ingredients": [
+        {
+          "material_id": "MAT-PT-ARCANE-DUST",
+          "quantity": 2,
+          "material_value_gp": 6
+        }
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Recipes",
+        "data": {
+          "name": "Recipe: [TEST] Warding Charm",
+          "type": "loot",
+          "img": "icons/commodities/materials/parchment-secrets.webp",
+          "system": {
+            "description": {
+              "value": "<h2>Recipe: [TEST] Warding Charm</h2><p>[[AGREF:PROF-PT-ENCHANTING|Enchanting]] · Apprentice · short effort</p><p>Requires 2 × [[AGREF:MAT-PT-ARCANE-DUST|Arcane Dust]].</p><p>Produces [[AGREF:ITEM-PT-WARDING-CHARM|Warding Charm]].</p><p>Placeholder recipe for playtesting; no rules effect. [TEST] Warding Charm is crafted from the listed materials.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "REC-PT-JEWELED-WARD-RING",
+      "entity_type": "Recipe",
+      "status": "approved",
+      "version": "0.6.1",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "crafted_by",
+          "target_id": "PROF-PT-ENCHANTING",
+          "mode": "required"
+        },
+        {
+          "relation": "produces",
+          "target_id": "ITEM-PT-JEWELED-WARD-RING",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-GEM-CHIPS",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-ARCANE-DUST",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Jeweled Ward Ring",
+      "tier": "apprentice",
+      "starting": false,
+      "origin": "original",
+      "effort": "short",
+      "price_class": "common_consumable",
+      "market_gp": 44,
+      "craft_gp": 22,
+      "additional_gp": 0,
+      "rules_summary": "Placeholder recipe for playtesting; no rules effect. [TEST] Jeweled Ward Ring is crafted from the listed materials.",
+      "profession_id": "PROF-PT-ENCHANTING",
+      "result_item_id": "ITEM-PT-JEWELED-WARD-RING",
+      "tool": "jeweler",
+      "ingredients": [
+        {
+          "material_id": "MAT-PT-GEM-CHIPS",
+          "quantity": 2,
+          "material_value_gp": 8
+        },
+        {
+          "material_id": "MAT-PT-ARCANE-DUST",
+          "quantity": 1,
+          "material_value_gp": 6
+        }
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Recipes",
+        "data": {
+          "name": "Recipe: [TEST] Jeweled Ward Ring",
+          "type": "loot",
+          "img": "icons/commodities/materials/parchment-secrets.webp",
+          "system": {
+            "description": {
+              "value": "<h2>Recipe: [TEST] Jeweled Ward Ring</h2><p>[[AGREF:PROF-PT-ENCHANTING|Enchanting]] · Apprentice · short effort</p><p>Requires 2 × [[AGREF:MAT-PT-GEM-CHIPS|Gem Chips]], 1 × [[AGREF:MAT-PT-ARCANE-DUST|Arcane Dust]].</p><p>Tool: Jeweler’s Tools.</p><p>Produces [[AGREF:ITEM-PT-JEWELED-WARD-RING|Jeweled Ward Ring]].</p><p>Placeholder recipe for playtesting; no rules effect. [TEST] Jeweled Ward Ring is crafted from the listed materials.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "REC-PT-GEMSET-PENDANT",
+      "entity_type": "Recipe",
+      "status": "approved",
+      "version": "0.6.1",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "crafted_by",
+          "target_id": "PROF-PT-ENCHANTING",
+          "mode": "required"
+        },
+        {
+          "relation": "produces",
+          "target_id": "ITEM-PT-GEMSET-PENDANT",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-GEM-CHIPS",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-ARCANE-DUST",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Gemset Pendant",
+      "tier": "journeyman",
+      "starting": false,
+      "origin": "original",
+      "effort": "long",
+      "price_class": "common_consumable",
+      "market_gp": 72,
+      "craft_gp": 36,
+      "additional_gp": 0,
+      "rules_summary": "Placeholder recipe for playtesting; no rules effect. [TEST] Gemset Pendant is crafted from the listed materials.",
+      "profession_id": "PROF-PT-ENCHANTING",
+      "result_item_id": "ITEM-PT-GEMSET-PENDANT",
+      "tool": "jeweler",
+      "ingredients": [
+        {
+          "material_id": "MAT-PT-GEM-CHIPS",
+          "quantity": 3,
+          "material_value_gp": 8
+        },
+        {
+          "material_id": "MAT-PT-ARCANE-DUST",
+          "quantity": 2,
+          "material_value_gp": 6
+        }
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Recipes",
+        "data": {
+          "name": "Recipe: [TEST] Gemset Pendant",
+          "type": "loot",
+          "img": "icons/commodities/materials/parchment-secrets.webp",
+          "system": {
+            "description": {
+              "value": "<h2>Recipe: [TEST] Gemset Pendant</h2><p>[[AGREF:PROF-PT-ENCHANTING|Enchanting]] · Journeyman · long effort</p><p>Requires 3 × [[AGREF:MAT-PT-GEM-CHIPS|Gem Chips]], 2 × [[AGREF:MAT-PT-ARCANE-DUST|Arcane Dust]].</p><p>Tool: Jeweler’s Tools.</p><p>Produces [[AGREF:ITEM-PT-GEMSET-PENDANT|Gemset Pendant]].</p><p>Placeholder recipe for playtesting; no rules effect. [TEST] Gemset Pendant is crafted from the listed materials.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "REC-PT-CARVED-WARD-TOTEM",
+      "entity_type": "Recipe",
+      "status": "approved",
+      "version": "0.6.1",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "crafted_by",
+          "target_id": "PROF-PT-ENCHANTING",
+          "mode": "required"
+        },
+        {
+          "relation": "produces",
+          "target_id": "ITEM-PT-CARVED-WARD-TOTEM",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-ASHWOOD-PLANKS",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-PT-ARCANE-DUST",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Carved Ward Totem",
+      "tier": "apprentice",
+      "starting": false,
+      "origin": "original",
+      "effort": "short",
+      "price_class": "common_consumable",
+      "market_gp": 28,
+      "craft_gp": 14,
+      "additional_gp": 0,
+      "rules_summary": "Placeholder recipe for playtesting; no rules effect. [TEST] Carved Ward Totem is crafted from the listed materials.",
+      "profession_id": "PROF-PT-ENCHANTING",
+      "result_item_id": "ITEM-PT-CARVED-WARD-TOTEM",
+      "tool": "woodcarver",
+      "ingredients": [
+        {
+          "material_id": "MAT-PT-ASHWOOD-PLANKS",
+          "quantity": 2,
+          "material_value_gp": 4
+        },
+        {
+          "material_id": "MAT-PT-ARCANE-DUST",
+          "quantity": 1,
+          "material_value_gp": 6
+        }
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Recipes",
+        "data": {
+          "name": "Recipe: [TEST] Carved Ward Totem",
+          "type": "consumable",
+          "img": "icons/commodities/materials/parchment-secrets.webp",
+          "system": {
+            "description": {
+              "value": "<h2>Recipe: [TEST] Carved Ward Totem</h2><p>[[AGREF:PROF-PT-ENCHANTING|Enchanting]] · Apprentice · short effort</p><p>Requires 2 × [[AGREF:MAT-PT-ASHWOOD-PLANKS|Ashwood Planks]], 1 × [[AGREF:MAT-PT-ARCANE-DUST|Arcane Dust]].</p><p>Tool: Woodcarver’s Tools.</p><p>Produces [[AGREF:ITEM-PT-CARVED-WARD-TOTEM|Carved Ward Totem]].</p><p>Placeholder recipe for playtesting; no rules effect. [TEST] Carved Ward Totem is crafted from the listed materials.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
       "id": "ITEM-PT-EMBER-SALVE",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1372,7 +1858,7 @@
       "id": "ITEM-PT-MISTVEIL-TONIC",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1412,7 +1898,7 @@
       "id": "ITEM-PT-GLASSBLOOM-ELIXIR",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1452,7 +1938,7 @@
       "id": "ITEM-PT-DRAFT-DRAUGHT",
       "entity_type": "Item",
       "status": "draft",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1492,7 +1978,7 @@
       "id": "ITEM-PT-IRON-HINGE-SET",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1532,7 +2018,7 @@
       "id": "ITEM-PT-TEST-DAGGER",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1572,7 +2058,7 @@
       "id": "ITEM-PT-ASHWOOD-BUCKLER",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1612,7 +2098,7 @@
       "id": "ITEM-PT-RIVET-POUCH",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1649,10 +2135,170 @@
       }
     },
     {
+      "id": "ITEM-PT-WARDING-CHARM",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "0.6.1",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "created_by",
+          "target_id": "REC-PT-WARDING-CHARM",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Warding Charm",
+      "origin": "original",
+      "rarity_price_class": "common_consumable",
+      "market_gp": 24,
+      "rules_summary": "Placeholder item for playtesting; no rules effect.",
+      "created_by_recipe_id": "REC-PT-WARDING-CHARM",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Items",
+        "data": {
+          "name": "[TEST] Warding Charm",
+          "type": "loot",
+          "img": "icons/commodities/treasure/token-brass-round.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Warding Charm</h2><p>Placeholder item for playtesting; no rules effect.</p><p>Crafted from [[AGREF:REC-PT-WARDING-CHARM|Recipe: Warding Charm]].</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ITEM-PT-JEWELED-WARD-RING",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "0.6.1",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "created_by",
+          "target_id": "REC-PT-JEWELED-WARD-RING",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Jeweled Ward Ring",
+      "origin": "original",
+      "rarity_price_class": "common_consumable",
+      "market_gp": 44,
+      "rules_summary": "Placeholder item for playtesting; no rules effect.",
+      "created_by_recipe_id": "REC-PT-JEWELED-WARD-RING",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Items",
+        "data": {
+          "name": "[TEST] Jeweled Ward Ring",
+          "type": "loot",
+          "img": "icons/commodities/treasure/token-brass-round.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Jeweled Ward Ring</h2><p>Placeholder item for playtesting; no rules effect.</p><p>Crafted from [[AGREF:REC-PT-JEWELED-WARD-RING|Recipe: Jeweled Ward Ring]].</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ITEM-PT-GEMSET-PENDANT",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "0.6.1",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "created_by",
+          "target_id": "REC-PT-GEMSET-PENDANT",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Gemset Pendant",
+      "origin": "original",
+      "rarity_price_class": "common_consumable",
+      "market_gp": 72,
+      "rules_summary": "Placeholder item for playtesting; no rules effect.",
+      "created_by_recipe_id": "REC-PT-GEMSET-PENDANT",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Items",
+        "data": {
+          "name": "[TEST] Gemset Pendant",
+          "type": "loot",
+          "img": "icons/commodities/treasure/token-brass-round.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Gemset Pendant</h2><p>Placeholder item for playtesting; no rules effect.</p><p>Crafted from [[AGREF:REC-PT-GEMSET-PENDANT|Recipe: Gemset Pendant]].</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ITEM-PT-CARVED-WARD-TOTEM",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "0.6.1",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "created_by",
+          "target_id": "REC-PT-CARVED-WARD-TOTEM",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Carved Ward Totem",
+      "origin": "original",
+      "rarity_price_class": "common_consumable",
+      "market_gp": 28,
+      "rules_summary": "Placeholder item for playtesting; no rules effect.",
+      "created_by_recipe_id": "REC-PT-CARVED-WARD-TOTEM",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Items",
+        "data": {
+          "name": "[TEST] Carved Ward Totem",
+          "type": "loot",
+          "img": "icons/commodities/treasure/token-brass-round.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Carved Ward Totem</h2><p>Placeholder item for playtesting; no rules effect.</p><p>Crafted from [[AGREF:REC-PT-CARVED-WARD-TOTEM|Recipe: Carved Ward Totem]].</p>"
+            }
+          }
+        }
+      }
+    },
+    {
       "id": "PERK-PT-ALCH-STEADY-HANDS",
       "entity_type": "ProfessionPerk",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1688,7 +2334,7 @@
       "id": "PERK-PT-ALCH-FRUGAL-BREW",
       "entity_type": "ProfessionPerk",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1724,7 +2370,7 @@
       "id": "PERK-PT-ALCH-QUICK-BREW",
       "entity_type": "ProfessionPerk",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1760,7 +2406,7 @@
       "id": "PERK-PT-ALCH-MASTER-TOUCH",
       "entity_type": "ProfessionPerk",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1796,7 +2442,7 @@
       "id": "PERK-PT-GEN-FOUNDATION",
       "entity_type": "ProfessionPerk",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1833,7 +2479,7 @@
       "id": "PERK-PT-GEN-LEFT-PATH",
       "entity_type": "ProfessionPerk",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1870,7 +2516,7 @@
       "id": "PERK-PT-GEN-RIGHT-PATH",
       "entity_type": "ProfessionPerk",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1907,7 +2553,7 @@
       "id": "PERK-PT-GEN-FINAL",
       "entity_type": "ProfessionPerk",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1944,7 +2590,7 @@
       "id": "ITEM-PT-STASH-ROPE",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1980,7 +2626,7 @@
       "id": "ITEM-PT-STASH-RATIONS",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -2016,7 +2662,7 @@
       "id": "ITEM-PT-STASH-LANTERN",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -2052,7 +2698,7 @@
       "id": "ITEM-PT-STASH-LEDGER",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -2088,7 +2734,7 @@
       "id": "PC-PT-BELWAR",
       "entity_type": "PlayerCharacter",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -2144,7 +2790,7 @@
             },
             "details": {
               "biography": {
-                "value": "<h2>[TEST] Belwar</h2><p>Test alchemist. Carries the Ember Salve recipe item (not yet learned) and the materials to brew it.</p><p>Profession: [[AGREF:PROF-PT-ALCHEMY|Alchemy]].</p>"
+                "value": "<h2>[TEST] Belwar</h2><p>Test alchemist and enchanter. Carries the Ember Salve recipe item (not yet learned) and the materials to brew it. Also holds Enchanting and Jeweler’s Tools, and knows two Enchanting recipes (the Carved Ward Totem needs Woodcarver’s Tools, which Belwar lacks).</p><p>Profession: [[AGREF:PROF-PT-ALCHEMY|Alchemy]].</p>"
               }
             }
           },
@@ -2179,10 +2825,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.6.0",
-                    "sourceVersion": "0.6.0",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.6.0"
+                    "packageVersion": "0.6.1"
                   }
                 }
               }
@@ -2205,10 +2851,152 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.6.0",
-                    "sourceVersion": "0.6.0",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.6.0"
+                    "packageVersion": "0.6.1"
+                  }
+                }
+              }
+            },
+            {
+              "name": "Jeweler’s Tools",
+              "type": "tool",
+              "img": "icons/commodities/treasure/token-brass-round.webp",
+              "system": {
+                "quantity": 1,
+                "type": {
+                  "value": "art",
+                  "baseItem": "jeweler"
+                }
+              }
+            },
+            {
+              "name": "[TEST] Enchanting — Profession",
+              "type": "feat",
+              "img": "icons/skills/trades/smithing-anvil-silver-red.webp",
+              "system": {
+                "quantity": 1,
+                "description": {
+                  "value": "<p>[TEST] Enchanting — Profession. Synthetic playtest item.</p>"
+                }
+              },
+              "flags": {
+                "ashen-gate-manager": {
+                  "source": {
+                    "sourceId": "PROF-PT-ENCHANTING",
+                    "entityType": "Profession",
+                    "status": "approved",
+                    "visibility": "player",
+                    "scope": "generic_rules",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
+                    "packageId": "AG-PLAYTEST-PACK",
+                    "packageVersion": "0.6.1"
+                  }
+                }
+              }
+            },
+            {
+              "name": "Recipe: [TEST] Carved Ward Totem",
+              "type": "consumable",
+              "img": "icons/commodities/materials/parchment-secrets.webp",
+              "system": {
+                "quantity": 1,
+                "description": {
+                  "value": "<p>Recipe: [TEST] Carved Ward Totem. Synthetic playtest item.</p>"
+                }
+              },
+              "flags": {
+                "ashen-gate-manager": {
+                  "source": {
+                    "sourceId": "REC-PT-CARVED-WARD-TOTEM",
+                    "entityType": "Recipe",
+                    "status": "approved",
+                    "visibility": "player",
+                    "scope": "generic_rules",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
+                    "packageId": "AG-PLAYTEST-PACK",
+                    "packageVersion": "0.6.1"
+                  }
+                }
+              }
+            },
+            {
+              "name": "[TEST] Arcane Dust",
+              "type": "loot",
+              "img": "icons/commodities/materials/bowl-powder-green.webp",
+              "system": {
+                "quantity": 4,
+                "description": {
+                  "value": "<p>[TEST] Arcane Dust. Synthetic playtest item.</p>"
+                }
+              },
+              "flags": {
+                "ashen-gate-manager": {
+                  "source": {
+                    "sourceId": "MAT-PT-ARCANE-DUST",
+                    "entityType": "Material",
+                    "status": "approved",
+                    "visibility": "player",
+                    "scope": "generic_rules",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
+                    "packageId": "AG-PLAYTEST-PACK",
+                    "packageVersion": "0.6.1"
+                  }
+                }
+              }
+            },
+            {
+              "name": "[TEST] Gem Chips",
+              "type": "loot",
+              "img": "icons/commodities/materials/bowl-powder-green.webp",
+              "system": {
+                "quantity": 3,
+                "description": {
+                  "value": "<p>[TEST] Gem Chips. Synthetic playtest item.</p>"
+                }
+              },
+              "flags": {
+                "ashen-gate-manager": {
+                  "source": {
+                    "sourceId": "MAT-PT-GEM-CHIPS",
+                    "entityType": "Material",
+                    "status": "approved",
+                    "visibility": "player",
+                    "scope": "generic_rules",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
+                    "packageId": "AG-PLAYTEST-PACK",
+                    "packageVersion": "0.6.1"
+                  }
+                }
+              }
+            },
+            {
+              "name": "[TEST] Ashwood Planks",
+              "type": "loot",
+              "img": "icons/commodities/materials/bowl-powder-green.webp",
+              "system": {
+                "quantity": 2,
+                "description": {
+                  "value": "<p>[TEST] Ashwood Planks. Synthetic playtest item.</p>"
+                }
+              },
+              "flags": {
+                "ashen-gate-manager": {
+                  "source": {
+                    "sourceId": "MAT-PT-ASHWOOD-PLANKS",
+                    "entityType": "Material",
+                    "status": "approved",
+                    "visibility": "player",
+                    "scope": "generic_rules",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
+                    "packageId": "AG-PLAYTEST-PACK",
+                    "packageVersion": "0.6.1"
                   }
                 }
               }
@@ -2231,10 +3019,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.6.0",
-                    "sourceVersion": "0.6.0",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.6.0"
+                    "packageVersion": "0.6.1"
                   }
                 }
               }
@@ -2257,10 +3045,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.6.0",
-                    "sourceVersion": "0.6.0",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.6.0"
+                    "packageVersion": "0.6.1"
                   }
                 }
               }
@@ -2283,10 +3071,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.6.0",
-                    "sourceVersion": "0.6.0",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.6.0"
+                    "packageVersion": "0.6.1"
                   }
                 }
               }
@@ -2309,10 +3097,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.6.0",
-                    "sourceVersion": "0.6.0",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.6.0"
+                    "packageVersion": "0.6.1"
                   }
                 }
               }
@@ -2335,10 +3123,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.6.0",
-                    "sourceVersion": "0.6.0",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.6.0"
+                    "packageVersion": "0.6.1"
                   }
                 }
               }
@@ -2372,9 +3160,17 @@
                   "PROF-PT-ALCHEMY": {
                     "xp": 10,
                     "selectedPerkIds": []
+                  },
+                  "PROF-PT-ENCHANTING": {
+                    "xp": 0,
+                    "selectedPerkIds": []
                   }
                 }
-              }
+              },
+              "knownRecipes": [
+                "REC-PT-WARDING-CHARM",
+                "REC-PT-JEWELED-WARD-RING"
+              ]
             }
           }
         }
@@ -2384,7 +3180,7 @@
       "id": "PC-PT-KESSA",
       "entity_type": "PlayerCharacter",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -2475,10 +3271,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.6.0",
-                    "sourceVersion": "0.6.0",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.6.0"
+                    "packageVersion": "0.6.1"
                   }
                 }
               }
@@ -2501,10 +3297,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.6.0",
-                    "sourceVersion": "0.6.0",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.6.0"
+                    "packageVersion": "0.6.1"
                   }
                 }
               }
@@ -2527,10 +3323,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.6.0",
-                    "sourceVersion": "0.6.0",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.6.0"
+                    "packageVersion": "0.6.1"
                   }
                 }
               }
@@ -2553,10 +3349,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.6.0",
-                    "sourceVersion": "0.6.0",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.6.0"
+                    "packageVersion": "0.6.1"
                   }
                 }
               }
@@ -2579,10 +3375,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.6.0",
-                    "sourceVersion": "0.6.0",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.6.0"
+                    "packageVersion": "0.6.1"
                   }
                 }
               }
@@ -2605,10 +3401,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.6.0",
-                    "sourceVersion": "0.6.0",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.6.0"
+                    "packageVersion": "0.6.1"
                   }
                 }
               }
@@ -2631,10 +3427,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.6.0",
-                    "sourceVersion": "0.6.0",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.6.0"
+                    "packageVersion": "0.6.1"
                   }
                 }
               }
@@ -2683,7 +3479,7 @@
       "id": "PC-PT-ORIN",
       "entity_type": "PlayerCharacter",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -2774,10 +3570,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.6.0",
-                    "sourceVersion": "0.6.0",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.6.0"
+                    "packageVersion": "0.6.1"
                   }
                 }
               }
@@ -2800,10 +3596,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.6.0",
-                    "sourceVersion": "0.6.0",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.6.0"
+                    "packageVersion": "0.6.1"
                   }
                 }
               }
@@ -2826,10 +3622,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.6.0",
-                    "sourceVersion": "0.6.0",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.6.0"
+                    "packageVersion": "0.6.1"
                   }
                 }
               }
@@ -2852,10 +3648,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.6.0",
-                    "sourceVersion": "0.6.0",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.6.0"
+                    "packageVersion": "0.6.1"
                   }
                 }
               }
@@ -2878,10 +3674,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.6.0",
-                    "sourceVersion": "0.6.0",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.6.0"
+                    "packageVersion": "0.6.1"
                   }
                 }
               }
@@ -2904,10 +3700,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.6.0",
-                    "sourceVersion": "0.6.0",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.6.0"
+                    "packageVersion": "0.6.1"
                   }
                 }
               }
@@ -2930,10 +3726,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.6.0",
-                    "sourceVersion": "0.6.0",
+                    "version": "0.6.1",
+                    "sourceVersion": "0.6.1",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.6.0"
+                    "packageVersion": "0.6.1"
                   }
                 }
               }
@@ -2960,7 +3756,7 @@
       "id": "JRN-PT-GREENHOLLOW-NOTES",
       "entity_type": "JournalEntry",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3000,7 +3796,7 @@
       "id": "JRN-PT-MARSH-HANDOUT",
       "entity_type": "JournalEntry",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3032,7 +3828,7 @@
       "id": "JRN-PT-CHAPEL-GM-NOTES",
       "entity_type": "JournalEntry",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3064,7 +3860,7 @@
       "id": "TABLE-PT-MARSH-FINDS",
       "entity_type": "RollTable",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3153,7 +3949,7 @@
       "id": "HIRE-PT-SMITH",
       "entity_type": "Hireling",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3196,7 +3992,7 @@
       "id": "HPERK-PT-WORKING",
       "entity_type": "HirelingPerk",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3237,7 +4033,7 @@
       "id": "LOC-PT-GREENHOLLOW",
       "entity_type": "Location",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3331,7 +4127,7 @@
       "id": "LOC-PT-CINDER-QUARRY",
       "entity_type": "Location",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3407,7 +4203,7 @@
       "id": "LOC-PT-ASH-HOLLOW",
       "entity_type": "Location",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3452,7 +4248,7 @@
       "id": "LOC-PT-HOLLOWMERE",
       "entity_type": "Location",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3518,7 +4314,7 @@
       "id": "LOC-PT-DROWNED-CHAPEL",
       "entity_type": "Location",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3688,7 +4484,7 @@
       "id": "LOC-PT-CHAPEL-CRYPT",
       "entity_type": "Location",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3759,7 +4555,7 @@
       "id": "LOC-PT-SUNKEN-CACHE",
       "entity_type": "Location",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3796,7 +4592,7 @@
       "id": "LOC-PT-LANTERN-MOUND",
       "entity_type": "Location",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3844,7 +4640,7 @@
       "id": "MACRO-PT-LINK-TEST-DATA",
       "entity_type": "Macro",
       "status": "approved",
-      "version": "0.6.0",
+      "version": "0.6.1",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3862,7 +4658,7 @@
           "img": "icons/commodities/treasure/token-brass-round.webp",
           "type": "script",
           "scope": "global",
-          "command": "// [TEST] Link test data. GM only; safe to run again.\n// Links the playtest pack's Items and Journals (a) into the [TEST] Marsh Finds roll table as document results and\n// (b) into the loot and note entries of the LOC-PT-* test locations, through the Locations public API.\n// It only touches [TEST]-named data, never replaces a link that is already set, and reports what it did.\n// Source: scripts/playtest-link-macro.js in the ashen-gate-foundry repo (the generator fills in PACK).\nconst PACK = {\n  \"names\": {\n    \"ITEM-PT-ASHWOOD-BUCKLER\": \"[TEST] Ashwood Buckler\",\n    \"ITEM-PT-GLASSBLOOM-ELIXIR\": \"[TEST] Glassbloom Elixir\",\n    \"ITEM-PT-IRON-HINGE-SET\": \"[TEST] Iron Hinge Set\",\n    \"ITEM-PT-MISTVEIL-TONIC\": \"[TEST] Mistveil Tonic\",\n    \"ITEM-PT-RIVET-POUCH\": \"[TEST] Rivet Pouch\",\n    \"ITEM-PT-TEST-DAGGER\": \"[TEST] Test Dagger\",\n    \"JRN-PT-GREENHOLLOW-NOTES\": \"[TEST] Greenhollow — Field Notes\",\n    \"JRN-PT-MARSH-HANDOUT\": \"[TEST] Marsh Crossing — Handout\"\n  },\n  \"table\": {\n    \"id\": \"TABLE-PT-MARSH-FINDS\",\n    \"name\": \"[TEST] Marsh Finds\",\n    \"add\": [\n      \"ITEM-PT-TEST-DAGGER\",\n      \"ITEM-PT-MISTVEIL-TONIC\",\n      \"ITEM-PT-IRON-HINGE-SET\",\n      \"JRN-PT-MARSH-HANDOUT\"\n    ]\n  },\n  \"locations\": [\n    \"LOC-PT-GREENHOLLOW\",\n    \"LOC-PT-CINDER-QUARRY\",\n    \"LOC-PT-ASH-HOLLOW\",\n    \"LOC-PT-HOLLOWMERE\",\n    \"LOC-PT-DROWNED-CHAPEL\",\n    \"LOC-PT-CHAPEL-CRYPT\",\n    \"LOC-PT-SUNKEN-CACHE\",\n    \"LOC-PT-LANTERN-MOUND\"\n  ]\n};\nconst out = [];\nconst say = line => out.push(line);\nconst isTest = doc => typeof doc?.name === 'string' && doc.name.startsWith('[TEST]');\nconst boundId = doc => doc.getFlag?.('ashen-gate-manager', 'source')?.sourceId;\n\n// A pack record is found by its permanent id (Manager's binding), else by its exact [TEST] name when nothing is bound to it.\nfunction find(collection, id, label = id) {\n  const name = PACK.names[id];\n  const bound = collection.filter(doc => boundId(doc) === id && isTest(doc));\n  const named = bound.length ? [] : collection.filter(doc => doc.name === name && !boundId(doc) && isTest(doc));\n  const hits = [...bound, ...named];\n  if (hits.length > 1) { say(`SKIPPED ${label}: more than one ${name} in this world.`); return null; }\n  return hits[0] ?? null;\n}\nconst worldDoc = id => (id.startsWith('JRN-') ? find(game.journal, id) : find(game.items, id));\n\nasync function run() {\n  if (!game.user?.isGM) { ui.notifications?.warn('Link test data is GM only.'); return false; }\n\n  // (a) Roll table: document results for the pack Items and the handout Journal.\n  const table = find(game.tables, PACK.table.id, 'Roll table');\n  if (!table) say(`Roll table ${PACK.table.name}: not in this world. Import the Manager pack first.`);\n  else {\n    const have = new Set(table.results.map(r => r.documentUuid).filter(Boolean));\n    const oldMax = Math.max(0, ...table.results.map(r => r.range[1]));\n    let max = oldMax;\n    const rows = [];\n    for (const id of PACK.table.add) {\n      const doc = worldDoc(id);\n      if (!doc) { say(`Table: ${id} not found in this world; skipped.`); continue; }\n      if (have.has(doc.uuid)) { say(`Table: ${doc.name} was already a result.`); continue; }\n      max += 1;\n      rows.push({ type: 'document', name: doc.name, img: doc.img, documentUuid: doc.uuid, weight: 1, range: [max, max] });\n    }\n    if (rows.length) {\n      await table.createEmbeddedDocuments('TableResult', rows);\n      if (table.formula === `1d${oldMax}`) await table.update({ formula: `1d${max}` });\n      else say(`Table: formula \"${table.formula}\" left as you set it; make it cover results 1-${max}.`);\n      say(`Table: added ${rows.length} document result(s): ${rows.map(r => r.name).join(', ')}.`);\n    }\n  }\n\n  // (b) Locations: link loot to Items and notes to Journals.\n  const mod = game.modules.get('ashen-gate-locations');\n  const api = mod?.active ? mod.api : null;\n  if (typeof api?.saveLocation !== 'function' || typeof api?.listLocations !== 'function') {\n    say('Locations: module not active (or too old); loot and notes not linked.');\n    return true;\n  }\n  let linked = 0;\n  for (const loc of api.listLocations().filter(l => PACK.locations.includes(l.id))) {\n    const edit = structuredClone(loc);\n    const changes = [];\n    const link = (entry, marker, docType, what) => {\n      const id = marker.exec(`${entry.text ?? ''}`)?.[0];\n      if (!id || entry.uuid) return;\n      const doc = worldDoc(id);\n      if (!doc) { say(`${loc.name}: ${what} ${id} not found in this world; skipped.`); return; }\n      entry.uuid = doc.uuid;\n      entry.docType = docType;\n      changes.push(`${what} \"${entry.label || entry.title}\" -> ${doc.name}`);\n    };\n    for (const e of edit.loot ?? []) link(e, /ITEM-PT-[A-Z0-9-]+/, 'Item', 'loot');\n    for (const e of edit.notes ?? []) link(e, /JRN-PT-[A-Z0-9-]+/, 'JournalEntry', 'note');\n    if (!changes.length) continue;\n    const wasCurrent = loc.state !== 'hidden' && !api.hasUnpublishedChanges(loc.id);\n    await api.saveLocation(edit);\n    // Players see the link only once published; republish only when nothing else was waiting to be published.\n    if (wasCurrent) await api.publishLocation(loc.id);\n    else say(`${loc.name}: saved; Publish it in Locations to show players the links.`);\n    linked += changes.length;\n    for (const c of changes) say(`${loc.name}: linked ${c}.`);\n  }\n  if (!linked) say('Locations: nothing new to link.');\n  return true;\n}\n\nlet ok = false;\ntry { ok = await run(); } catch (err) { console.error(err); say(`FAILED: ${err.message}`); }\nif (ok !== false || out.length) {\n  const text = out.length ? out.join('\\n') : 'Nothing to do.';\n  console.log(`[TEST] Link test data\\n${text}`);\n  ChatMessage.create({ content: `<p><strong>[TEST] Link test data</strong></p><pre>${foundry.utils.escapeHTML(text)}</pre>`, whisper: [game.user.id] });\n}\n"
+          "command": "// [TEST] Link test data. GM only; safe to run again.\n// Links the playtest pack's Items and Journals (a) into the [TEST] Marsh Finds roll table as document results and\n// (b) into the loot and note entries of the LOC-PT-* test locations, through the Locations public API, and\n// (c) sets the Profession Ledger party to the [TEST] characters (the same world setting as Ledger > GM Setup > Party).\n// It only touches [TEST]-named data, never replaces a link that is already set, and reports what it did.\n// Source: scripts/playtest-link-macro.js in the ashen-gate-foundry repo (the generator fills in PACK).\nconst PACK = {\n  \"names\": {\n    \"ITEM-PT-ASHWOOD-BUCKLER\": \"[TEST] Ashwood Buckler\",\n    \"ITEM-PT-GLASSBLOOM-ELIXIR\": \"[TEST] Glassbloom Elixir\",\n    \"ITEM-PT-IRON-HINGE-SET\": \"[TEST] Iron Hinge Set\",\n    \"ITEM-PT-MISTVEIL-TONIC\": \"[TEST] Mistveil Tonic\",\n    \"ITEM-PT-RIVET-POUCH\": \"[TEST] Rivet Pouch\",\n    \"ITEM-PT-TEST-DAGGER\": \"[TEST] Test Dagger\",\n    \"JRN-PT-GREENHOLLOW-NOTES\": \"[TEST] Greenhollow — Field Notes\",\n    \"JRN-PT-MARSH-HANDOUT\": \"[TEST] Marsh Crossing — Handout\"\n  },\n  \"characters\": [\n    \"[TEST] Belwar\",\n    \"[TEST] Kessa\",\n    \"[TEST] Orin\"\n  ],\n  \"table\": {\n    \"id\": \"TABLE-PT-MARSH-FINDS\",\n    \"name\": \"[TEST] Marsh Finds\",\n    \"add\": [\n      \"ITEM-PT-TEST-DAGGER\",\n      \"ITEM-PT-MISTVEIL-TONIC\",\n      \"ITEM-PT-IRON-HINGE-SET\",\n      \"JRN-PT-MARSH-HANDOUT\"\n    ]\n  },\n  \"locations\": [\n    \"LOC-PT-GREENHOLLOW\",\n    \"LOC-PT-CINDER-QUARRY\",\n    \"LOC-PT-ASH-HOLLOW\",\n    \"LOC-PT-HOLLOWMERE\",\n    \"LOC-PT-DROWNED-CHAPEL\",\n    \"LOC-PT-CHAPEL-CRYPT\",\n    \"LOC-PT-SUNKEN-CACHE\",\n    \"LOC-PT-LANTERN-MOUND\"\n  ]\n};\nconst out = [];\nconst say = line => out.push(line);\nconst isTest = doc => typeof doc?.name === 'string' && doc.name.startsWith('[TEST]');\nconst boundId = doc => doc.getFlag?.('ashen-gate-manager', 'source')?.sourceId;\n\n// A pack record is found by its permanent id (Manager's binding), else by its exact [TEST] name when nothing is bound to it.\nfunction find(collection, id, label = id) {\n  const name = PACK.names[id];\n  const bound = collection.filter(doc => boundId(doc) === id && isTest(doc));\n  const named = bound.length ? [] : collection.filter(doc => doc.name === name && !boundId(doc) && isTest(doc));\n  const hits = [...bound, ...named];\n  if (hits.length > 1) { say(`SKIPPED ${label}: more than one ${name} in this world.`); return null; }\n  return hits[0] ?? null;\n}\nconst worldDoc = id => (id.startsWith('JRN-') ? find(game.journal, id) : find(game.items, id));\n\nasync function setLedgerParty() {\n  const LEDGER = 'ashen-gate-profession-ledger';\n  if (!game.modules.get(LEDGER)?.active || !game.settings.settings.has(`${LEDGER}.partyRoster`)) { say('Ledger party: Profession Ledger is not active; set the party in Ledger > GM Setup.'); return; }\n  const have = game.settings.get(LEDGER, 'partyRoster');\n  if (Array.isArray(have) && have.length) { say(`Ledger party: already set (${have.length} character(s)); left as is.`); return; }\n  const actors = PACK.characters.map(name => game.actors.filter(a => a.name === name && a.type === 'character'));\n  const missing = PACK.characters.filter((name, i) => actors[i].length !== 1);\n  if (missing.length) { say(`Ledger party: not set. Need exactly one of each: ${missing.join(', ')}. Import the pack, then run this again.`); return; }\n  await game.settings.set(LEDGER, 'partyRoster', actors.map(list => list[0].id));\n  say(`Ledger party: set to ${PACK.characters.join(', ')}.`);\n}\n\nasync function run() {\n  if (!game.user?.isGM) { ui.notifications?.warn('Link test data is GM only.'); return false; }\n\n  // (a) Roll table: document results for the pack Items and the handout Journal.\n  const table = find(game.tables, PACK.table.id, 'Roll table');\n  if (!table) say(`Roll table ${PACK.table.name}: not in this world. Import the Manager pack first.`);\n  else {\n    const have = new Set(table.results.map(r => r.documentUuid).filter(Boolean));\n    const oldMax = Math.max(0, ...table.results.map(r => r.range[1]));\n    let max = oldMax;\n    const rows = [];\n    for (const id of PACK.table.add) {\n      const doc = worldDoc(id);\n      if (!doc) { say(`Table: ${id} not found in this world; skipped.`); continue; }\n      if (have.has(doc.uuid)) { say(`Table: ${doc.name} was already a result.`); continue; }\n      max += 1;\n      rows.push({ type: 'document', name: doc.name, img: doc.img, documentUuid: doc.uuid, weight: 1, range: [max, max] });\n    }\n    if (rows.length) {\n      await table.createEmbeddedDocuments('TableResult', rows);\n      if (table.formula === `1d${oldMax}`) await table.update({ formula: `1d${max}` });\n      else say(`Table: formula \"${table.formula}\" left as you set it; make it cover results 1-${max}.`);\n      say(`Table: added ${rows.length} document result(s): ${rows.map(r => r.name).join(', ')}.`);\n    }\n  }\n\n  // (c) Ledger party: gathering needs one. Only an empty party is filled, so a party you chose is never replaced.\n  await setLedgerParty();\n\n  // (b) Locations: link loot to Items and notes to Journals.\n  const mod = game.modules.get('ashen-gate-locations');\n  const api = mod?.active ? mod.api : null;\n  if (typeof api?.saveLocation !== 'function' || typeof api?.listLocations !== 'function') {\n    say('Locations: module not active (or too old); loot and notes not linked.');\n    return true;\n  }\n  let linked = 0;\n  for (const loc of api.listLocations().filter(l => PACK.locations.includes(l.id))) {\n    const edit = structuredClone(loc);\n    const changes = [];\n    const link = (entry, marker, docType, what) => {\n      const id = marker.exec(`${entry.text ?? ''}`)?.[0];\n      if (!id || entry.uuid) return;\n      const doc = worldDoc(id);\n      if (!doc) { say(`${loc.name}: ${what} ${id} not found in this world; skipped.`); return; }\n      entry.uuid = doc.uuid;\n      entry.docType = docType;\n      changes.push(`${what} \"${entry.label || entry.title}\" -> ${doc.name}`);\n    };\n    for (const e of edit.loot ?? []) link(e, /ITEM-PT-[A-Z0-9-]+/, 'Item', 'loot');\n    for (const e of edit.notes ?? []) link(e, /JRN-PT-[A-Z0-9-]+/, 'JournalEntry', 'note');\n    if (!changes.length) continue;\n    const wasCurrent = loc.state !== 'hidden' && !api.hasUnpublishedChanges(loc.id);\n    await api.saveLocation(edit);\n    // Players see the link only once published; republish only when nothing else was waiting to be published.\n    if (wasCurrent) await api.publishLocation(loc.id);\n    else say(`${loc.name}: saved; Publish it in Locations to show players the links.`);\n    linked += changes.length;\n    for (const c of changes) say(`${loc.name}: linked ${c}.`);\n  }\n  if (!linked) say('Locations: nothing new to link.');\n  return true;\n}\n\nlet ok = false;\ntry { ok = await run(); } catch (err) { console.error(err); say(`FAILED: ${err.message}`); }\nif (ok !== false || out.length) {\n  const text = out.length ? out.join('\\n') : 'Nothing to do.';\n  console.log(`[TEST] Link test data\\n${text}`);\n  ChatMessage.create({ content: `<p><strong>[TEST] Link test data</strong></p><pre>${foundry.utils.escapeHTML(text)}</pre>`, whisper: [game.user.id] });\n}\n"
         }
       }
     }

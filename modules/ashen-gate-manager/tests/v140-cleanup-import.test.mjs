@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import {detectSpecialistFile,specialistCount,specialistApi,describeUnrecognized,planSpecialist,filterSpecialist,applySpecialist} from '../scripts/specialist-handoff.js';
 import {createAppearanceController} from '../scripts/appearance.js';
 
-const fx=n=>JSON.parse(fs.readFileSync(new URL(`../../../test-fixtures/playtest/AG_Playtest_${n}_0.6.0.json`,import.meta.url),'utf8'));
+const fx=n=>JSON.parse(fs.readFileSync(new URL(`../../../test-fixtures/playtest/AG_Playtest_${n}_0.6.1.json`,import.meta.url),'utf8'));
 const tpl=fs.readFileSync(new URL('../templates/manager.hbs',import.meta.url),'utf8');
 const main=fs.readFileSync(new URL('../scripts/main.js',import.meta.url),'utf8');
 
@@ -106,6 +106,6 @@ test('0.16: no Macros tab or install/export UI; Macro documents still import fro
   assert.doesNotMatch(tpl,/data-ag-tab="macros"|macrosActive|data-ag-macro|macro-install|macro-export/);
   assert.doesNotMatch(main,/#installMacros|#exportMacros|ensureMacroRegistry|macro-install/);
   assert.match(main,/const cls = \{Item,JournalEntry,Actor,RollTable,Macro\}\[kind\]/);
-  const pack=JSON.parse(fs.readFileSync(new URL('../../../test-fixtures/playtest/AG_Playtest_Pack_0.6.0.json',import.meta.url),'utf8'));
+  const pack=JSON.parse(fs.readFileSync(new URL('../../../test-fixtures/playtest/AG_Playtest_Pack_0.6.1.json',import.meta.url),'utf8'));
   assert.ok(pack.records.some(r=>r.foundry?.document_type==='Macro'),'playtest pack still carries its Macro');
 });

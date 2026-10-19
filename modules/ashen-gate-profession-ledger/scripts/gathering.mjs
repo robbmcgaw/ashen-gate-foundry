@@ -83,11 +83,11 @@ export function helperEligibility(helper,{leadId,toolRefs=[],hasProfession=()=>f
  * "hidden" so a refusal does not confirm that something exists.
  */
 export function checkGatherRequest({ownsActor,inParty,location,node,busy=false}){
-  if(!ownsActor)return {ok:false,reason:'You need to own that character to request gathering'};
-  if(!inParty)return {ok:false,reason:'That character is not in the party'};
+  if(!ownsActor)return {ok:false,reason:'You need to own that character to request gathering: ask the GM to give you Owner permission on it.'};
+  if(!inParty)return {ok:false,reason:'That character is not in the party: ask the GM to tick them in Ledger > GM Setup.'};
   if(!location||location.revealed!==true||!node||node.visible===false)return {ok:false,reason:'That gathering spot is not available'};
   if(busy)return {ok:false,reason:'Someone is already gathering there'};
-  if(!node.gatherable)return {ok:false,reason:node.why||'That gathering spot is not available'};
+  if(!node.gatherable)return {ok:false,reason:nodeBlocker(node,{forPlayer:true})||node.why||'That gathering spot is not available'};
   return {ok:true};
 }
 /** Only a GM may approve, decline or start gathering. */
@@ -114,4 +114,49 @@ export async function stackMaterial(actor,worldItem,qty,{sourceIdOf,flagScope}){
   const created=await actor.createEmbeddedDocuments('Item',[data]);
   if(!created?.length)throw Error('Foundry did not create the gathered Item');
   return {item:created[0],stacked:false,total:qty};
+}
+
+/**
+ * Why gathering cannot start, as one plain line that also says how to fix it. Empty string means nothing blocks.
+ * Players get the same reasons without ids or GM menus. No gathering rule lives here; these only explain gates
+ * that startGather/checkGatherRequest already enforce.
+ */
+export const GATHER_FIX=Object.freeze({
+  noParty:'No party set: Ledger > GM Setup > tick the characters, then Save Changes.',
+  partyMissing:'The party characters were not found: Ledger > GM Setup > tick them again, then Save Changes.',
+  playerNoParty:'The GM has not set the party yet: ask them to tick the characters in Ledger > GM Setup.',
+  playerNotOwner:'You do not own a character in the party: ask the GM to give you Owner permission on your character.',
+  noLocations:'The Locations module is not active: enable Ashen Gate | Locations in Manage Modules.',
+  playerNoSpots:'No gathering spots yet: the GM must reveal a location that has gathering resources.',
+  noNode:'Choose a gathering node first.',
+  noLead:'Choose a lead gatherer from the party.',
+  busy:'That node is already being gathered: finish or cancel the open check first.'});
+/** The reason one node cannot be gathered ('' when it can). `materialFound`: the node's MAT-* is an imported, approved, player-visible world Item. */
+export function nodeBlocker(node,{materialFound=true,forPlayer=false}={}){
+  if(!node)return GATHER_FIX.noNode;
+  if(forPlayer&&!node.id)return 'This spot cannot be requested yet: the GM needs a newer Locations module.';
+  if(!node.materialId)return forPlayer?'This spot is not set up yet: the GM has to finish it in Locations.':'No material is set on this node: choose one in Locations > Gathering.';
+  if(node.exhausted)return forPlayer?'Already gathered (exhausted).':'Already gathered (exhausted): untick Exhausted in Locations to gather it again.';
+  if(!node.available)return forPlayer?'Not available right now.':'Marked not available: tick Available on the node in Locations.';
+  if(!Number.isInteger(node.dc))return forPlayer?'This spot is not set up yet: the GM has to finish it in Locations.':'No DC or tier on this node: set one in Locations.';
+  if(!materialFound)return forPlayer?'The GM has not imported this material yet.'
+    :`Material ${node.materialId} is not in the world: import the pack in General Manager (it must be approved and player-visible).`;
+  return '';
+}
+/** GM start: first thing that blocks, in the order a GM would fix them. */
+export function startBlocker({rosterCount=0,partyCount=0,leadInParty=false,node=null,materialFound=true,busy=false}={}){
+  if(!rosterCount)return GATHER_FIX.noParty;
+  if(!partyCount)return GATHER_FIX.partyMissing;
+  if(!leadInParty)return GATHER_FIX.noLead;
+  const why=nodeBlocker(node,{materialFound});
+  if(why)return why;
+  return busy?GATHER_FIX.busy:'';
+}
+/** Player Gathering tab: why there is nothing to request. `where` is gatherLocations(); `mine` the user's party characters. */
+export function playerBlocker({rosterCount=0,mine=0,where={ok:true,locations:[]}}={}){
+  if(!rosterCount)return GATHER_FIX.playerNoParty;
+  if(!mine)return GATHER_FIX.playerNotOwner;
+  if(!where.ok)return /not active/i.test(where.reason??'')?'The Locations module is not active: ask the GM to enable Ashen Gate | Locations.'
+    :/hidden from players/i.test(where.reason??'')?'Locations is hidden from players: ask the GM to turn on Player Access in Locations.':`${where.reason}`;
+  return where.locations.length?'':GATHER_FIX.playerNoSpots;
 }

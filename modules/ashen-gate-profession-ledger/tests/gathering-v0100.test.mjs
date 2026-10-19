@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {pathToFileURL,fileURLToPath} from 'node:url';
 import path from 'node:path';
-import {gatherOutcome,gatherReward,exhaustsNode,normalizeNode,tierNumber,defaultDC,checkGatherRequest,helperEligibility,stackMaterial,canRunGathering} from '../scripts/gathering.mjs';
+import {nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,gatherOutcome,gatherReward,exhaustsNode,normalizeNode,tierNumber,defaultDC,checkGatherRequest,helperEligibility,stackMaterial,canRunGathering} from '../scripts/gathering.mjs';
 import {effectiveMapping,toolRef,rollModeFor,checkOption,professionKey} from '../scripts/checks.mjs';
 // 0.10.0: node-based gathering (Locations), player requests with GM approval, tool requirement on recipes, XP from chat cards.
 const hooks={},errors=[],infos=[],chats=[],sent=[],dialogs=[],xpHooks=[];let api;
@@ -316,4 +316,98 @@ test('GM Setup maps profession → tool and gathering skill; saved with Save Cha
  assert.equal(values.checkMapping.tools.alchemy,'herb');assert.deepEqual(values.partyRoster,['belwar','tarra']);
  assert.equal(app.mapDirty,false);
  game.user=alice;await app._click('roster-save');assert.ok(errors.some(e=>e.includes('GM only')));
+});
+
+// 0.10.2: Enchanting is the profession; Arcana is the skill it checks by default.
+test('Enchanting: old Arcana data resolves to it; the default check is the Arcana skill, a recipe tool is offered beside it',async()=>{
+ assert.equal(professionKey('Arcana'),'enchanting');assert.equal(professionKey('[TEST] Enchanting'),'enchanting');
+ assert.equal(effectiveMapping({}).skills.enchanting,'arc');assert.equal(effectiveMapping({}).tools.enchanting,'');
+ assert.equal(effectiveMapping({tools:{arcana:'jeweler'}}).tools.enchanting,'jeweler','a setting saved under the old name is still read');
+ assert.equal(effectiveMapping({skills:{enchanting:''}}).skills.enchanting,'','the GM can clear the skill');
+ const ring=def('REC-TG-RING','Recipe',{name:'[TEST] Spellbound Ring',profession_id:'PROF-TG-ENCHANTING',result_item_id:'ITEM-TG-BREW',tier:'apprentice',tool:'jeweler',ingredients:[{material_id:'MAT-TG-HERB',quantity:1}]});
+ const charm=def('REC-TG-CHARM','Recipe',{name:'[TEST] Plain Charm',profession_id:'PROF-TG-ENCHANTING',result_item_id:'ITEM-TG-BREW',tier:'apprentice',ingredients:[{material_id:'MAT-TG-HERB',quantity:1}]});
+ world.push(worldDoc('wenc','[TEST] Enchanting — Profession',src('PROF-TG-ENCHANTING','Profession',{definition:def('PROF-TG-ENCHANTING','Profession',{name:'[TEST] Enchanting'})})),
+  worldDoc('wring','Recipe: [TEST] Spellbound Ring',src('REC-TG-RING','Recipe',{definition:ring})),worldDoc('wcharm','Recipe: [TEST] Plain Charm',src('REC-TG-CHARM','Recipe',{definition:charm})));
+ belwar.items.push(profItem('benc','[TEST] Enchanting','PROF-TG-ENCHANTING'));
+ belwar.flags['ashen-gate-profession-ledger'].knownRecipes.push('REC-TG-RING','REC-TG-CHARM');
+ game.user=alice;app.actorId='belwar';
+ const h=await html('individual');
+ const row=name=>h.slice(h.indexOf(`<strong>${name}</strong>`),h.indexOf('</article>',h.indexOf(`<strong>${name}</strong>`)));
+ assert.match(h,/Enchanting/);assert.doesNotMatch(h,/Arcana — Profession/);
+ assert.match(row('[TEST] Spellbound Ring'),/Jeweler’s Tools.*doesn’t carry this/,'a missing recipe tool keeps the warning');
+ assert.doesNotMatch(row('[TEST] Plain Charm'),/doesn’t carry|Uses/,'no tool: the Arcana skill needs no tool');
+ // Without the tool the Arcana skill is rolled, and both are offered.
+ belwar.nextRoll=12;rolls.length=0;
+ await app._click('craft','REC-TG-RING',{actor:'belwar'});
+ assert.match(FakeDialog.last.content,/<select name="check">/);assert.match(FakeDialog.last.content,/value="skill:arc" selected/);assert.match(FakeDialog.last.content,/Jeweler’s Tools \(tool\)/);
+ assert.deepEqual(rolls.at(-1),{actor:'belwar',skill:'arc',advantage:false,disadvantage:false});
+ assert.match(chats.at(-1).content,/Arcana check:<\/strong> 12/);
+ // Carrying the tool makes it the default again.
+ belwar.items.push(held('bjewel',"Jeweler’s Tools",{},1,{type:'tool',system:{quantity:1,type:{baseItem:'jeweler'}}}));
+ rolls.length=0;await app._click('craft','REC-TG-RING',{actor:'belwar'});
+ assert.match(FakeDialog.last.content,/value="tool:jeweler" selected/);assert.equal(rolls.at(-1).tool,'jeweler');
+ // A recipe with no tool of its own rolls Arcana only.
+ rolls.length=0;await app._click('craft','REC-TG-CHARM',{actor:'belwar'});
+ assert.doesNotMatch(FakeDialog.last.content,/<select name="check">/);assert.match(FakeDialog.last.content,/Arcana check/);assert.equal(rolls.at(-1).skill,'arc');
+});
+
+// 0.10.2: every blocked gathering path says why and how to fix it.
+test('gathering blockers: pure reasons, each with its fix',()=>{
+ assert.match(startBlocker({rosterCount:0}),/^No party set: Ledger > GM Setup > tick the characters/);
+ assert.match(startBlocker({rosterCount:2,partyCount:0}),/party characters were not found/);
+ assert.match(startBlocker({rosterCount:2,partyCount:2,leadInParty:false}),/Choose a lead gatherer/);
+ const ok=normalizeNode({id:'x',tier:1,materialId:'MAT-A-B'});
+ assert.match(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:null}),/Choose a gathering node/);
+ assert.equal(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialFound:false}),'Material MAT-A-B is not in the world: import the pack in General Manager (it must be approved and player-visible).');
+ assert.equal(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialFound:true}),'');
+ assert.match(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialFound:true,busy:true}),/already being gathered/);
+ assert.match(nodeBlocker(normalizeNode({id:'x',tier:1})),/No material is set.*Locations/);
+ assert.match(nodeBlocker(normalizeNode({id:'x',tier:1,materialId:'MAT-A-B',exhausted:true})),/exhausted.*untick Exhausted in Locations/);
+ assert.match(nodeBlocker(normalizeNode({id:'x',tier:1,materialId:'MAT-A-B',available:false})),/tick Available/);
+ assert.match(nodeBlocker(normalizeNode({id:'x',materialId:'MAT-A-B'})),/No DC or tier.*Locations/);
+ assert.doesNotMatch(nodeBlocker(ok,{materialFound:false,forPlayer:true}),/MAT-/,'players never see ids');
+ assert.match(playerBlocker({rosterCount:0}),/GM has not set the party.*GM Setup/);
+ assert.match(playerBlocker({rosterCount:2,mine:0}),/Owner permission/);
+ assert.match(playerBlocker({rosterCount:2,mine:1,where:{ok:false,reason:GATHER_FIX.noLocations,locations:[]}}),/Locations module is not active/);
+ assert.match(playerBlocker({rosterCount:2,mine:1,where:{ok:false,reason:'Locations is hidden from players. Ask your GM to enable Player Access.',locations:[]}}),/Player Access/);
+ assert.match(playerBlocker({rosterCount:2,mine:1,where:{ok:true,locations:[]}}),/reveal a location/);
+ assert.equal(playerBlocker({rosterCount:2,mine:1,where:{ok:true,locations:[{}]}}),'');
+});
+
+test('gathering blockers in Forge: GM tab, GM start and player tab each name the fix',async()=>{
+ const roster=values.partyRoster;
+ locs[0].resources.push({id:'n9',label:'Fresh patch',skill:'Herbalism',tier:1,dc:10,dcVisible:true,materialId:'MAT-TG-HERB',visible:true});
+ // No party set.
+ values.partyRoster=[];game.user=gm;
+ let h=await html('gathering');
+ assert.match(h,/No party set: Ledger > GM Setup > tick the characters/);
+ await assert.rejects(()=>_test.startGather({node:nodeOf('LOC-TG-MEADOW','n9'),leadId:'belwar'}),/No party set: Ledger > GM Setup > tick the characters/);
+ game.user=alice;h=await html('gathering');
+ assert.match(h,/The GM has not set the party yet/);
+ // A party the player has no character in.
+ values.partyRoster=['tarra'];game.user=alice;h=await html('gathering');
+ assert.match(h,/Owner permission on your character/);
+ // Party set, material not in the world: the node is shown with the reason, start is refused with the same line.
+ values.partyRoster=roster;game.user=gm;
+ const missing=world.splice(world.findIndex(w=>w.id==='wherb'),1)[0];
+ try{
+  h=await html('gathering');app.gather.source='location';app.gather.nodeRef='LOC-TG-MEADOW|n9';
+  h=await html('gathering');
+  assert.match(h,/Material MAT-TG-HERB is not in the world: import the pack in General Manager/);
+  assert.match(h,/data-action="gather-start" disabled/);
+  await assert.rejects(()=>_test.startGather({node:nodeOf('LOC-TG-MEADOW','n9'),leadId:'belwar'}),/Material MAT-TG-HERB is not in the world/);
+  // A player request is refused before the GM is bothered; the player gets no id, the GM gets the exact fix.
+  const before=dialogs.length;errors.length=0;sent.length=0;
+  const out=await _test.handleGatherRequest({type:'gather-request',requestId:'rm',requesterId:'u1',actorId:'belwar',locationId:'LOC-TG-MEADOW',nodeId:'n9'},'u1');
+  assert.equal(out.ok,false);assert.equal(dialogs.length,before,'no approval popup');
+  assert.doesNotMatch(out.message,/MAT-/);assert.match(out.message,/GM can’t start this yet/);
+  assert.ok(errors.some(e=>/MAT-TG-HERB is not in the world/.test(e)),'the GM sees the fix');
+ }finally{world.push(missing);}
+ // Locations inactive.
+ const loc=modules['ashen-gate-locations'];loc.active=false;
+ h=await html('gathering');assert.match(h,/Locations module is not active: enable Ashen Gate \| Locations in Manage Modules/);
+ game.user=alice;h=await html('gathering');assert.match(h,/Locations module is not active: ask the GM to enable/);
+ loc.active=true;game.user=gm;
+ assert.match(checkGatherRequest({ownsActor:false}).reason,/Owner permission/);
+ assert.match(checkGatherRequest({ownsActor:true,inParty:false}).reason,/GM Setup/);
 });

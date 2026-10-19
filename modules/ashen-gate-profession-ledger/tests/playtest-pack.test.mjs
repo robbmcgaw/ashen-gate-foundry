@@ -19,13 +19,13 @@ test('committed playtest pack is up to date with scripts/build-test-pack.mjs', (
   assert.equal(pack.manifest.version, PACK_VERSION);
 });
 test('pack has the promised contents', () => {
-  assert.equal(byType('Profession').length, 3);
-  assert.equal(byType('Material').length, 8);
-  assert.equal(byType('Recipe').length, 8);
-  assert.equal(byType('Item').length, 12, '8 crafted items + 4 ordinary stash items');
+  assert.equal(byType('Profession').length, 4);
+  assert.equal(byType('Material').length, 10);
+  assert.equal(byType('Recipe').length, 12);
+  assert.equal(byType('Item').length, 16, '12 crafted items + 4 ordinary stash items');
   assert.equal(byType('Location').length, 8);
   const given = byType('Recipe').filter(r => r.foundry.data.type === 'consumable');
-  assert.equal(given.length, 3);
+  assert.equal(given.length, 4);
   for (const r of given) assert.match(r.foundry.data.name, /^Recipe: /);
 });
 test('ids and package id do not collide with the old pinned-chain fixtures', () => {
@@ -48,10 +48,10 @@ test("Manager's validatePackage accepts the pack with no errors", () => {
 });
 test("Ledger readers load the pack: recipes, ingredients and visibility", () => {
   const lib = normalizeLibrary(pack);
-  assert.equal(lib.recipes.length, 8);
+  assert.equal(lib.recipes.length, 12);
   assert.equal(lib.importSummary.unmappedRecipes, 0);
   // The gm material is skipped on import; recipes only use player materials.
-  assert.equal(lib.materials.length, 7);
+  assert.equal(lib.materials.length, 9);
   assert.equal(lib.importSummary.skippedRestricted, 1);
   const matIds = new Set(lib.materials.map(m => m.id));
   for (const rec of lib.recipes) {
@@ -72,4 +72,31 @@ test('pack recipes carry a tool or a workstation for the 0.10.0 bench requiremen
   assert.equal(by('REC-PT-GLASSBLOOM-ELIXIR').workstation, '[TEST] Alchemy Laboratory');
   assert.equal(by('REC-PT-GLASSBLOOM-ELIXIR').tool, null);
   assert.equal(by('REC-PT-MISTVEIL-TONIC').tool, null, 'no tool given: the profession default applies in the Ledger');
+});
+test('Enchanting: profession, recipes (Arcana-only, Jeweler\'s, Woodcarver\'s) and a character holding it all resolve', () => {
+  const lib = normalizeLibrary(pack);
+  const by = id => lib.recipes.find(r => r.id === id);
+  const prof = byType('Profession').find(r => r.id === 'PROF-PT-ENCHANTING');
+  assert.equal(prof.name, '[TEST] Enchanting');
+  assert.deepEqual(byType('Profession').filter(r => /arcana/i.test(r.name)), [], 'Arcana is a skill, not a profession');
+  const rec = Object.fromEntries(byType('Recipe').filter(r => r.profession_id === 'PROF-PT-ENCHANTING').map(r => [r.id, r]));
+  assert.deepEqual(Object.keys(rec).sort(), ['REC-PT-CARVED-WARD-TOTEM', 'REC-PT-GEMSET-PENDANT', 'REC-PT-JEWELED-WARD-RING', 'REC-PT-WARDING-CHARM']);
+  assert.equal(by('REC-PT-WARDING-CHARM').tool, null, 'no tool: Enchanting rolls the Arcana skill');
+  assert.equal(by('REC-PT-JEWELED-WARD-RING').tool, 'jeweler');
+  assert.equal(by('REC-PT-GEMSET-PENDANT').tool, 'jeweler');
+  assert.equal(by('REC-PT-CARVED-WARD-TOTEM').tool, 'woodcarver');
+  for (const r of Object.values(rec)) assert.ok(r.id.startsWith('REC-PT-') && r.result_item_id.startsWith('ITEM-PT-'));
+  const belwar = byType('PlayerCharacter').find(r => r.id === 'PC-PT-BELWAR').foundry.data;
+  const ids = belwar.items.map(i => i.flags?.['ashen-gate-manager']?.source?.sourceId).filter(Boolean);
+  assert.ok(ids.includes('PROF-PT-ENCHANTING'));
+  assert.ok(belwar.items.some(i => i.type === 'tool' && i.system.type.baseItem === 'jeweler'), 'holds Jeweler\'s Tools');
+  assert.ok(!belwar.items.some(i => i.type === 'tool' && i.system.type.baseItem === 'woodcarver'), 'no Woodcarver\'s Tools, to show the warning');
+  assert.deepEqual(belwar.flags['ashen-gate-profession-ledger'].knownRecipes, ['REC-PT-WARDING-CHARM', 'REC-PT-JEWELED-WARD-RING']);
+  const known = new Set(pack.records.map(r => r.id));
+  for (const id of ids) assert.ok(known.has(id), `${id} resolves`);
+});
+test('the link macro also sets the Ledger party to the three test characters, only when it is empty', () => {
+  const macro = pack.records.find(r => r.id === 'MACRO-PT-LINK-TEST-DATA').foundry.data.command;
+  assert.match(macro, /"characters": \[\s*"\[TEST\] Belwar",\s*"\[TEST\] Kessa",\s*"\[TEST\] Orin"\s*\]/);
+  assert.match(macro, /partyRoster/);assert.match(macro, /left as is/);
 });

@@ -1,6 +1,7 @@
 // [TEST] Link test data. GM only; safe to run again.
 // Links the playtest pack's Items and Journals (a) into the [TEST] Marsh Finds roll table as document results and
-// (b) into the loot and note entries of the LOC-PT-* test locations, through the Locations public API.
+// (b) into the loot and note entries of the LOC-PT-* test locations, through the Locations public API, and
+// (c) sets the Profession Ledger party to the [TEST] characters (the same world setting as Ledger > GM Setup > Party).
 // It only touches [TEST]-named data, never replaces a link that is already set, and reports what it did.
 // Source: scripts/playtest-link-macro.js in the ashen-gate-foundry repo (the generator fills in PACK).
 const PACK = /*PACK*/ {};
@@ -19,6 +20,18 @@ function find(collection, id, label = id) {
   return hits[0] ?? null;
 }
 const worldDoc = id => (id.startsWith('JRN-') ? find(game.journal, id) : find(game.items, id));
+
+async function setLedgerParty() {
+  const LEDGER = 'ashen-gate-profession-ledger';
+  if (!game.modules.get(LEDGER)?.active || !game.settings.settings.has(`${LEDGER}.partyRoster`)) { say('Ledger party: Profession Ledger is not active; set the party in Ledger > GM Setup.'); return; }
+  const have = game.settings.get(LEDGER, 'partyRoster');
+  if (Array.isArray(have) && have.length) { say(`Ledger party: already set (${have.length} character(s)); left as is.`); return; }
+  const actors = PACK.characters.map(name => game.actors.filter(a => a.name === name && a.type === 'character'));
+  const missing = PACK.characters.filter((name, i) => actors[i].length !== 1);
+  if (missing.length) { say(`Ledger party: not set. Need exactly one of each: ${missing.join(', ')}. Import the pack, then run this again.`); return; }
+  await game.settings.set(LEDGER, 'partyRoster', actors.map(list => list[0].id));
+  say(`Ledger party: set to ${PACK.characters.join(', ')}.`);
+}
 
 async function run() {
   if (!game.user?.isGM) { ui.notifications?.warn('Link test data is GM only.'); return false; }
@@ -45,6 +58,9 @@ async function run() {
       say(`Table: added ${rows.length} document result(s): ${rows.map(r => r.name).join(', ')}.`);
     }
   }
+
+  // (c) Ledger party: gathering needs one. Only an empty party is filled, so a party you chose is never replaced.
+  await setLedgerParty();
 
   // (b) Locations: link loot to Items and notes to Journals.
   const mod = game.modules.get('ashen-gate-locations');

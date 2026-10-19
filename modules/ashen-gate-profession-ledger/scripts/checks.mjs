@@ -21,21 +21,22 @@ const TOOL_ABILITY={alchemist:'int',brewer:'int',calligrapher:'dex',carpenter:'s
 const SKILL_ABILITY={acr:'dex',ani:'wis',arc:'int',ath:'str',dec:'cha',his:'int',ins:'wis',itm:'cha',inv:'int',med:'wis',nat:'int',prc:'wis',
   prf:'cha',per:'cha',rel:'int',slt:'dex',ste:'dex',sur:'wis'};
 
-/** Profession names are matched without "[TEST]"-style tags or punctuation. "Enchanting" is the old name of Arcana;
- * Locations calls Hunting/Skinning "Skinning & Harvesting". */
-const PROFESSION_ALIASES={enchanting:'arcana',skinningharvesting:'huntingskinning',skinning:'huntingskinning',hunting:'huntingskinning'};
+/** Profession names are matched without "[TEST]"-style tags or punctuation. The profession is Enchanting; "Arcana" is
+ * its old name in existing data (the Arcana SKILL is Enchanting's default check). Locations calls Hunting/Skinning "Skinning & Harvesting". */
+const PROFESSION_ALIASES={arcana:'enchanting',skinningharvesting:'huntingskinning',skinning:'huntingskinning',hunting:'huntingskinning'};
 export const professionKey=name=>{const key=norm(String(name??'').replace(/\[[^\]]*\]/g,''));return PROFESSION_ALIASES[key]??key;};
 /** GM Setup defaults: the tool each profession crafts or gathers with. Blank means no default; the GM can set one. */
 export const DEFAULT_PROFESSION_TOOLS=Object.freeze({alchemy:'alchemist',blacksmithing:'smith',cooking:'cook',engineering:'tinker',
   inscription:'calligrapher',jewelcrafting:'jeweler',leatherworking:'leatherworker',tailoring:'weaver',herbalism:'herb',
-  mining:'mason',huntingskinning:'leatherworker',arcana:'',archaeology:'',fishing:''});
-/** GM Setup defaults: the skill a gathering profession can roll instead of its tool. */
-export const DEFAULT_GATHER_SKILLS=Object.freeze({herbalism:'nat',huntingskinning:'sur',archaeology:'his',fishing:'',mining:''});
+  mining:'mason',huntingskinning:'leatherworker',enchanting:'',archaeology:'',fishing:''});
+/** GM Setup defaults: the skill a profession can roll instead of (or beside) its tool. Gathering professions use it to
+ * gather; Enchanting is the one crafting profession whose main check is a skill (Arcana). The GM can change or clear it. */
+export const DEFAULT_GATHER_SKILLS=Object.freeze({herbalism:'nat',huntingskinning:'sur',archaeology:'his',fishing:'',mining:'',enchanting:'arc'});
 /** Stored GM choices win over defaults; an explicit '' means "none". */
 export function effectiveMapping(stored){
   const s=stored&&typeof stored==='object'?stored:{};
   const pick=(defaults,saved,valid)=>{const out={...defaults};
-    for(const [k,v] of Object.entries(saved&&typeof saved==='object'?saved:{}))if(typeof v==='string'&&(v===''||valid(v)))out[k]=v;return out;};
+    for(const [k,v] of Object.entries(saved&&typeof saved==='object'?saved:{}))if(typeof v==='string'&&(v===''||valid(v)))out[PROFESSION_ALIASES[k]??k]=v;return out;};
   return {tools:pick(DEFAULT_PROFESSION_TOOLS,s.tools,v=>/^[a-z][a-z0-9]*$/.test(v)),skills:pick(DEFAULT_GATHER_SKILLS,s.skills,v=>SKILL_IDS.includes(v))};
 }
 
@@ -144,4 +145,18 @@ export async function rollCheck(actor,option,mode){
   const total=Number(roll?.total);
   if(!Number.isFinite(total))throw Error('The roll was cancelled');
   return {total,mode};
+}
+
+/**
+ * The checks a craft offers: the recipe's (or profession's) tool and/or the profession's check skill.
+ * The tool is the default when the crafter carries it or is proficient; otherwise the skill, if there is one.
+ * Returns null when neither applies. `tool` is a toolRef; `skill` a skill id or null.
+ */
+export function craftCheckPlan(actor,{tool=null,skill=null}={}){
+  const options=[...(tool?[{kind:'tool',key:tool.key??null,ref:tool}]:[]),...(skill?[{kind:'skill',key:skill}]:[])];
+  if(!options.length)return null;
+  const toolOption=options.find(o=>o.kind==='tool');
+  const usable=toolOption&&(heldTool(actor,tool)||(tool.key&&checkOption(actor,{kind:'tool',key:tool.key,ref:tool}).proficient));
+  const first=(usable||!skill?toolOption:null)??options.find(o=>o.kind==='skill')??toolOption;
+  return {options,selected:first,choice:`${first.kind}:${first.key??first.ref?.name??first.ref?.uuid}`};
 }

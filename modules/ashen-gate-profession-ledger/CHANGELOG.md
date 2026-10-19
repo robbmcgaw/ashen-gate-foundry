@@ -1,3 +1,11 @@
+## 0.11.0 — 2026-10-19
+
+Enchanting, and clearer gathering errors.
+- **Enchanting, not Arcana.** The profession is **Enchanting** everywhere it is shown (GM Setup, folders, tabs, recipes, perks, tree names). **Arcana** is the 5e *skill* Enchanting checks by default. Old data named "Arcana" (profession features, tree names, a saved Tools and checks setting) still resolves to Enchanting; nothing is rewritten, so there is no migration.
+- **Crafting can roll a skill.** GM Setup → Tools and checks has a skill for Enchanting (default Arcana; change or clear it). A craft offers that skill and, when the recipe names a tool such as Jeweler's Tools, the tool too; the tool is preselected when the crafter carries it (or is proficient), otherwise the skill. A crafter without the recipe's tool still gets the "doesn't carry this" warning. No new gating.
+- **Gathering says why it is blocked, and how to fix it.** No party set, party characters missing, no lead, node without a material / exhausted / unavailable / no DC, material not imported as an approved player-visible world Item, Locations inactive or hidden from players, no owned character, no revealed spots: each shows one plain line in the GM and player Gathering tabs (and as the error on start). A player request that cannot start because of setup is refused before the GM approval popup; the GM is told the exact fix and the player gets a line without ids. Gathering rules and the Locations API are unchanged.
+- Playtest pack 0.6.1 (see `test-fixtures/playtest/README.md`): `[TEST] Enchanting` with four recipes, Jeweler's and Woodcarver's Tools, Belwar holds Enchanting; the link macro also sets the Ledger party.
+
 ## 0.10.0 — 2026-10-18
 
 Gathering, tools and GM-coordinated XP (#23).

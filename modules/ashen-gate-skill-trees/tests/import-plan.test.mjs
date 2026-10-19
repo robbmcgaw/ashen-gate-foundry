@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {planTreeImport} from '../scripts/engine.mjs';
-const pack=JSON.parse(fs.readFileSync(new URL('../../../test-fixtures/playtest/AG_Playtest_SkillTrees_0.6.0.json',import.meta.url),'utf8'));
+const pack=JSON.parse(fs.readFileSync(new URL('../../../test-fixtures/playtest/AG_Playtest_SkillTrees_0.6.1.json',import.meta.url),'utf8'));
 test('new trees are planned as new and carry normalized trees to apply',()=>{
  const plan=planTreeImport(pack,[]);
  assert.deepEqual(plan.errors,[]);assert.ok(plan.rows.every(r=>r.action==='new'));assert.equal(plan.apply.length,pack.trees.length);
