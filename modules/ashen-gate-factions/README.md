@@ -9,7 +9,7 @@
 
 **State/privacy:** No destructive migration, no automatic secret-sharing, and no source Item/Journal permission changes. Existing discoveries stay in legacy all-fields-visible mode until a GM explicitly opts into selective field disclosure. Source-definition exports omit player/user disclosure flags, Renown, claims, service usage and history. Manager is optional. Quest links remain GM-only diagnostics and must wait for Eli's accepted Quest iteration before live acceptance.
 
-**Release evidence:** See `RELEASE_NOTES.md`, `TEST_RESULTS.txt`, `SOURCE_SHA256SUMS.txt`. Local Node and mocked tests do not prove Forge multiuser behavior.
+**Changes:** see `CHANGELOG.md`. Local Node and mocked tests do not prove Forge multiuser behavior.
 
 **Release provenance:** Published release commit `e5de9a7dc76b5aa8ff46a0192eef6480b545f5a6`; package source commit `0c8ea5f12947a49c2df501fec9268e754f680bda`. Receipt: `foundry/releases/AG_ashen-gate-factions_v0.6.1_RELEASE.json`; checksum: `foundry/releases/AG_ashen-gate-factions_v0.6.1_SHA256SUMS.txt`. The immutable published v0.6.1 ZIP contains the earlier v0.6.0-recommending README; this repository README corrects that guidance only and does not alter the ZIP. Live Foundry GM/player testing remains **NOT RUN**.
 

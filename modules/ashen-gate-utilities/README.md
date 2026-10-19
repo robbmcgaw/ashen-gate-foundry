@@ -28,7 +28,7 @@
    await (await import('/modules/ashen-gate-utilities/fixtures/setup.mjs')).setup()
    ```
 
-5. Follow [Foundry acceptance tests](tests/FOUNDRY_ACCEPTANCE_v0.2.0.csv), recording **Pass/Fail and Test Notes on the same row**. Use two browser logins where Role requires GM + Player. Use the [same fixture guide](fixtures/SETUP_AND_RESET.md) for cleanup.
+5. Test with two browser logins where a step needs GM + Player. Use the [same fixture guide](fixtures/SETUP_AND_RESET.md) for cleanup.
 
 ### Reset (disposable world only)
 
@@ -53,4 +53,4 @@ Public roll requests only (no Private/Blind, ability/saving throws), no stash cu
 
 **Important beta security restriction:** This is **not adversary-resistant** for hostile clients until roll-type/skill proof attestation and multiplayer authority have been verified in a live Foundry environment. Do not use campaign secrets or actual party property during the Alpha acceptance pass.
 
-See [release notes](RELEASE_NOTES.md), [fixture scenarios](fixtures/SCENARIOS.json), [setup/reset guide](fixtures/SETUP_AND_RESET.md), and [automated evidence](docs/TEST_RESULTS_v0.2.0.txt).
+See [CHANGELOG](CHANGELOG.md), [fixture scenarios](fixtures/SCENARIOS.json) and the [setup/reset guide](fixtures/SETUP_AND_RESET.md).
