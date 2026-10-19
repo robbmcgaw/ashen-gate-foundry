@@ -31,12 +31,22 @@ function materialOptions() {
 const LEDGER_MODULE = 'ashen-gate-profession-ledger';
 /** The Ledger's Exotic API (ag-ledger-exotic/1), feature-detected. Locations works without it. */
 const exoticApi = () => { const m = game.modules.get(LEDGER_MODULE); const x = m?.active ? m.api?.gathering?.exotic : null; return x?.contract === 'ag-ledger-exotic/1' ? x : null; };
+/** Why the Ledger could not award a material, read from Manager's source flags ('' when it looks awardable). */
+export function unavailableReason(src) {
+  if (!src) return 'Not imported with General Manager';
+  if (src.status !== 'approved') return `${src.status ? src.status[0].toUpperCase() + src.status.slice(1) : 'Not approved'}: approve it in General Manager first`;
+  if (src.visibility !== 'player') return 'GM-only: make it player-visible in General Manager first';
+  return '';
+}
 /** Exotic-quality world materials straight from Manager's definitions (read only), when the Ledger is not active. */
 function exoticMaterialsLocal() {
   const seen = new Map();
   for (const item of game.items ?? []) {
-    const id = materialIdOf(item), def = item.flags?.['ashen-gate-manager']?.source?.definition;
-    if (id && !seen.has(id) && String(def?.quality ?? '').toLowerCase() === 'exotic') seen.set(id, {id, name: item.name, tier: null});
+    const id = materialIdOf(item), src = item.flags?.['ashen-gate-manager']?.source, def = src?.definition;
+    if (id && !seen.has(id) && String(def?.quality ?? '').toLowerCase() === 'exotic') {
+      const reason = unavailableReason(src);
+      seen.set(id, {id, name: item.name, tier: null, available: !reason, reason});
+    }
   }
   return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -47,7 +57,7 @@ function exoticMaterialsLocal() {
 export function exoticChoices(node) {
   const x = exoticApi();
   if (!x) return {filtered: false, list: exoticMaterialsLocal()};
-  try { return {filtered: true, list: x.materials({profession: node.skill, maxTier: node.tier})}; }
+  try { return {filtered: true, list: x.materials({profession: node.skill, maxTier: node.tier, includeUnavailable: true}).map(m => ({available: true, reason: '', ...m}))}; }
   catch (err) { console.warn(`${MODULE_ID} | Ledger Exotic list`, err); return {filtered: false, list: exoticMaterialsLocal()}; }
 }
 const STATE_ICONS = {hidden: 'fa-solid fa-eye-slash', unidentified: 'fa-solid fa-circle-question', revealed: 'fa-solid fa-eye'};
@@ -686,7 +696,8 @@ export class LocationsApp extends Base {
         ${btn('exotic-remove', '', {kind: 'ghost', icon: 'fa-solid fa-trash', data: {key: e.key, mat: x.materialId}, title: 'Remove this Exotic'})}</li>`;
     }).join('');
     const {filtered, list: choices} = exoticChoices(e);
-    const opts = choices.filter(m => !chosen.has(m.id)).map(m => `<option value="${esc(m.id)}">${esc(m.name)}${m.tier ? ` (tier ${m.tier})` : ''}</option>`).join('');
+    // Draft or GM-only Exotics are listed but disabled, with what to fix in General Manager.
+    const opts = choices.filter(m => !chosen.has(m.id)).map(m => `<option value="${esc(m.id)}"${m.available === false ? ' disabled' : ''}>${esc(m.name)}${m.tier ? ` (tier ${m.tier})` : ''}${m.available === false ? ` — ${esc(m.reason)}` : ''}</option>`).join('');
     return `<details class="agl-node__exotics"${list.length ? ' open' : ''}><summary>Exotic materials (optional, GM only)${list.length ? ` · ${list.length}` : ''}</summary>
       ${rows ? `<ul class="ag-list">${rows}</ul>` : ''}
       <div class="agl-add"><select id="agl-exo-${esc(e.key)}" aria-label="Exotic material"><option value="">${opts ? 'Choose an Exotic material…' : 'No Exotic materials to add'}</option>${opts}</select>${btn('exotic-add', 'Add', {kind: 'sm', icon: 'fa-solid fa-plus', data: {key: e.key}})}</div>
@@ -1025,6 +1036,7 @@ export class LocationsApp extends Base {
         if (!node) return;
         const id = action === 'exotic-add' ? this.element?.querySelector(`#agl-exo-${el.dataset.key}`)?.value : el.dataset.mat;
         if (!id) return;
+        if (action === 'exotic-add') { const why = exoticChoices(node).list.find(m => m.id === id)?.reason; if (why) throw new Error(why); }
         const rest = (node.exotics ?? []).filter(x => x.materialId !== id);
         node.exotics = normalizeExotics(action === 'exotic-add' ? [...rest, {materialId: id, mode: 'discovery'}] : rest);
         this.dirty = true; return this.render();

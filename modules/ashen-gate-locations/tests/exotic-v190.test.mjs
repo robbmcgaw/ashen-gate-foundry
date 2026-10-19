@@ -63,10 +63,11 @@ test('players never get Exotic candidates: player view, published page HTML, res
   game.user = gm;
 });
 
-const matItem = (id, name, quality) => ({name, flags: {'ashen-gate-manager': {source: {sourceId: id, entityType: 'Material', definition: {id, entity_type: 'Material', quality}}}}});
+const matItem = (id, name, quality, status = 'approved', visibility = 'player') => ({name, flags: {'ashen-gate-manager': {source: {sourceId: id, entityType: 'Material', status, visibility, definition: {id, entity_type: 'Material', quality}}}}});
 async function editorWorld(ledger) {
   const game = installFoundry();
-  game.items = [matItem('MAT-TEST-PHOENIX', '[TEST] Phoenix Ash', 'Exotic'), matItem('MAT-TEST-STAR', '[TEST] Star Moss', 'Exotic'), matItem('MAT-TEST-HERB', '[TEST] Herb', 'Common')];
+  game.items = [matItem('MAT-TEST-PHOENIX', '[TEST] Phoenix Ash', 'Exotic'), matItem('MAT-TEST-STAR', '[TEST] Star Moss', 'Exotic'), matItem('MAT-TEST-HERB', '[TEST] Herb', 'Common'),
+    matItem('MAT-TEST-DRAFT', '[TEST] Draft Ember', 'Exotic', 'draft'), matItem('MAT-TEST-GMX', '[TEST] Secret Ember', 'Exotic', 'approved', 'gm')];
   const mod = {version: '1.9.0', active: true};
   mod.api = createApi({version: '1.9.0', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}});
   game.modules = {get: id => id === 'ashen-gate-locations' ? mod : id === 'ashen-gate-profession-ledger' ? ledger : null};
@@ -85,6 +86,10 @@ test('editor without the Ledger: lists Exotic-quality materials by name (no ids 
   const select = html.slice(html.indexOf(`id="agl-exo-${node.key}"`), html.indexOf('</select>', html.indexOf(`id="agl-exo-${node.key}"`)));
   assert.match(select, /\[TEST\] Phoenix Ash/);assert.match(select, /\[TEST\] Star Moss/);assert.doesNotMatch(select, /\[TEST\] Herb</, 'Common materials are not offered');
   assert.match(html, /Profession Ledger is not active/);
+  assert.match(select, /<option value="MAT-TEST-DRAFT" disabled>\[TEST\] Draft Ember — Draft: approve it in General Manager first/, 'draft listed, disabled, with the fix');
+  assert.match(select, /<option value="MAT-TEST-GMX" disabled>\[TEST\] Secret Ember — GM-only: make it player-visible/);
+  app.element = {querySelector: () => ({value: 'MAT-TEST-DRAFT'})};
+  await assert.rejects(() => app.onAction({dataset: {action: 'exotic-add', key: node.key}}), /approve it/);
   app.element = {querySelector: sel => sel === `#agl-exo-${node.key}` ? {value: 'MAT-TEST-PHOENIX'} : null};
   await app.onAction({dataset: {action: 'exotic-add', key: node.key}});
   assert.deepEqual(node.exotics, [{materialId: 'MAT-TEST-PHOENIX', mode: 'discovery'}]);
@@ -103,13 +108,15 @@ test('editor without the Ledger: lists Exotic-quality materials by name (no ids 
 test('editor with the Ledger: its filtered catalog and eligibility badges; tier change moves an old default DC', async () => {
   const calls = [];
   const ledger = {active: true, api: {gathering: {exotic: {contract: 'ag-ledger-exotic/1',
-    materials: f => { calls.push(f); return [{id: 'MAT-TEST-STAR', name: '[TEST] Star Moss', quality: 'Exotic', tier: 1}]; },
+    materials: f => { calls.push(f); return [{id: 'MAT-TEST-STAR', name: '[TEST] Star Moss', quality: 'Exotic', tier: 1, available: true, reason: ''},
+      {id: 'MAT-TEST-DRAFT', name: '[TEST] Draft Ember', quality: 'Exotic', tier: 1, available: false, reason: 'Draft: approve it in General Manager first'}]; },
     eligibility: node => node.exotics.map(x => ({...x, eligible: false, reason: 'Tier 3 is above the node’s tier 1'}))}}}};
   const {app} = await editorWorld(ledger);
   const node = app.draft.resources[0];
   node.exotics = [{materialId: 'MAT-TEST-PHOENIX', mode: 'discovery'}];
   const html = await app._renderHTML();
-  assert.deepEqual(calls[0], {profession: 'Herbalism', maxTier: 3}, 'asked for this node’s profession and tier');
+  assert.deepEqual(calls[0], {profession: 'Herbalism', maxTier: 3, includeUnavailable: true}, 'asked for this node’s profession and tier');
+  assert.match(html, /<option value="MAT-TEST-DRAFT" disabled>\[TEST\] Draft Ember \(tier 1\) — Draft: approve it/);
   assert.match(html, /\[TEST\] Star Moss \(tier 1\)/);assert.match(html, /Tier 3 is above the node’s tier 1/);
   assert.match(html, /tier not above the node’s/);
   assert.equal(exoticChoices({skill: 'Herbalism', tier: 3}).filtered, true);

@@ -6,6 +6,7 @@
   - **Random discovery:** the Profession Ledger may find it on a successful check, at its discovery chance (default 2%).
   - **Designated source:** its own chance (required) and condition (any success, or success by 5+ only), used instead of the discovery roll.
   - Adding one makes it eligible, not a sure award; the Ledger (0.15.0+) decides when gathering.
+  - Draft or GM-only Exotics are listed but disabled, with the fix (e.g. "Draft: approve it in General Manager first"). The Ledger awards only approved, player-visible materials.
   - With the Ledger active, the list shows only Exotics gathered by the node's profession with a tier not above the node's, and each entry shows whether it is eligible. Without the Ledger, every imported Exotic-quality material is listed.
 - **Players never see Exotic candidates:** they are not in the player view, the published Journal page, or `resourcesAt` for players.
 - **Tier DC defaults are now 10 / 12 / 15 / 18 / 20**, the same as the Ledger (a test keeps them equal).
