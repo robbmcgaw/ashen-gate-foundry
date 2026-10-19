@@ -25,7 +25,7 @@ app.element={querySelectorAll:s=>s==='[data-roster-actor]'||s==='[data-roster-ac
 test('GM Setup owns roster, access and tool mapping only; standard header/footer',async()=>{
  const html=(await app._prepareContext({})).html;
  assert.match(html,/Ashen Gate \| <strong>Profession Ledger/);
- assert.match(html,/v0\.13\.0/);
+ assert.match(html,/v0\.14\.0/);
  assert.match(html,/data-id="gm"/);
  assert.match(html,/data-action="help"/);
  assert.match(html,/data-action="roster-save"/);
