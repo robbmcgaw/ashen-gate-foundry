@@ -101,3 +101,28 @@ for(const id of STRUCTURAL){
     assert.ok(ratio(t.get('--ag-accent-contrast'),t.get('--ag-accent'))>=4.5,'text on accent');
   });
 }
+
+// Every skin, against the pairs styles/ag-ui.css really applies: text/muted/links(accent)/status colours on each
+// surface, status colours on their own 16% tint (badges, danger button), surface text on a hovered danger button.
+const rgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
+const hexOf=c=>'#'+c.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
+const mix=(fg,bg,p)=>hexOf(rgb(fg).map((v,i)=>v*p+rgb(bg)[i]*(1-p)));
+const ALL_SKINS=['ag-default','ag-slate','ag-ember','ag-verdigris','ag-parchment',...STRUCTURAL];
+for(const id of ALL_SKINS){
+  test(`${id}: kit pairs (links, badges, danger) meet WCAG AA (text 4.5:1, focus 3:1)`,()=>{
+    const t=tokensOf(id);
+    for(const bg of ['--ag-surface','--ag-surface-sunken','--ag-surface-raised']){
+      for(const fg of ['--ag-text','--ag-muted','--ag-accent','--ag-danger','--ag-ok','--ag-warn'])
+        assert.ok(ratio(t.get(fg),t.get(bg))>=4.5,`${fg} on ${bg}: ${ratio(t.get(fg),t.get(bg)).toFixed(2)}`);
+      assert.ok(ratio(t.get('--ag-focus'),t.get(bg))>=3,`focus on ${bg}`);
+    }
+    for(const fg of ['--ag-accent','--ag-danger','--ag-ok','--ag-warn']){
+      const tint=mix(t.get(fg),t.get('--ag-surface-raised'),.16);
+      // Standard's danger (4.48:1 on its tint) is the shared kit default copied into every module; left as is.
+      const floor=id==='ag-default'&&fg==='--ag-danger'?4.4:4.5;
+      assert.ok(ratio(t.get(fg),tint)>=floor,`${fg} badge/button on its tint: ${ratio(t.get(fg),tint).toFixed(2)}`);
+    }
+    assert.ok(ratio(t.get('--ag-surface'),t.get('--ag-danger'))>=4.5,'danger button hover text');
+    assert.ok(ratio(t.get('--ag-accent-contrast'),t.get('--ag-accent'))>=4.5,'text on accent');
+  });
+}

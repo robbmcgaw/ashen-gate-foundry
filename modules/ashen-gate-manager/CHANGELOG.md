@@ -1,3 +1,9 @@
+## 0.21.1 — 2026-10-19
+
+- **Parchment contrast.** Parchment's accent (links, accent badges), danger, ok and warn colours were 3.1–4.0:1 on the parchment surfaces and on their own badge tints, below WCAG AA. They are now darker bronze/brick/green/amber (accent #734e21, danger #94352e, ok #25603b, warn #734f0c), all at least 4.5:1; the light-parchment-with-ink-and-bronze look stays.
+- Stone Tablet's danger text was 4.43:1 on the danger badge/button tint; lightened a few steps (#f9b3aa). Parchment's focus ring is slightly darker (#a5772b) to hold 3:1. Standard's danger is 4.48:1 on its tint and is left alone because it is the kit default shared by every module. No other skin changed.
+- Contrast test now covers every skin against the kit's real pairs (links, status text, badges, danger button, focus ring). No saved-data change.
+
 ## 0.21.0 — 2026-10-19
 
 - **Pre-session check** (Modules tab, GM only). **Run pre-session check** lists PASS / WARN / FAIL / N-A lines for: Ashen Gate module versions (inactive or too old for Manager's hand-offs warns), each module's GM data (Locations GM Data, Quest GM sources, Skill Trees definitions, Factions definitions, Headquarters vault), Player Access per module (a hidden player launcher warns), [TEST] records players can see, hidden names in player views, the Locations 1.8.0 migration and pending GM notice, and Foundry / dnd5e versions. A summary line ends the list. **Copy report** copies it as plain text; **Download report** saves a .txt.
