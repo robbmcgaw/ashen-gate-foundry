@@ -32,13 +32,44 @@ const SKINS = Object.freeze([
     accent:'#d6b56a',onAccent:'#191304',danger:'#ec8a80',ok:'#74d0a8',warn:'#e9c066',focus:'#b9e8d6'})}),
   Object.freeze({id:'ag-parchment',label:'Ashen Gate — Parchment',description:'Light parchment with ink and bronze',tokens:skinTokens({
     surface:'#f4efe6',sunken:'#fbf8f2',raised:'#ebe3d6',text:'#2a241d',muted:'#6a5f52',border:'#cfc2ae',
-    accent:'#94642a',onAccent:'#ffffff',danger:'#b03f37',ok:'#2f7a4b',warn:'#9a6a10',focus:'#b5832f'})})
+    accent:'#94642a',onAccent:'#ffffff',danger:'#b03f37',ok:'#2f7a4b',warn:'#9a6a10',focus:'#b5832f'})}),
+  // Structural skins: tokens as above plus a stylesheet (scoped by html[data-ag-skin]) that reshapes the kit components.
+  Object.freeze({id:'ag-stone-tablet',label:'Ashen Gate — Stone Tablet',description:'Carved stone slabs, engraved headings and inset tabs',
+    stylesheet:'styles/skins/stone-tablet.css',tokens:skinTokens({
+    surface:'#2b302c',sunken:'#1d211f',raised:'#363c37',text:'#ebe8de',muted:'#c8ccbf',border:'#505850',
+    accent:'#b9cc8c',onAccent:'#18200c',danger:'#f7aca2',ok:'#93d4a4',warn:'#f4be80',focus:'#f5c97d'})}),
+  Object.freeze({id:'ag-tome-pages',label:'Ashen Gate — Tome Pages',description:'Vellum pages, ink lettering and a ribbon bookmark',
+    stylesheet:'styles/skins/tome-pages.css',tokens:skinTokens({
+    surface:'#f1e6cc',sunken:'#f9f2e1',raised:'#e9dbbb',text:'#2c1d10',muted:'#5a4630',border:'#b49b74',
+    accent:'#8a2a22',onAccent:'#fff8ec',danger:'#8a2219',ok:'#235a2c',warn:'#6b4400',focus:'#1d4f91'})})
 ]);
 export const DEFAULT_SKIN_ID = 'ag-default';
 const findSkin = id => SKINS.find(s=>s.id===id);
 // swatch: four display colours for previews (surface, raised, accent, text); not the token map.
-const publicSkin = skin => ({id:skin.id,label:skin.label,description:skin.description,
+const publicSkin = skin => ({id:skin.id,label:skin.label,description:skin.description,structural:Boolean(skin.stylesheet),
   swatch:['--ag-surface','--ag-surface-raised','--ag-accent','--ag-text'].map(k=>skin.tokens[k])});
+
+/** Module-relative stylesheet path of a structural skin, or null (colour-only or unknown skin). */
+export const skinStylesheet = id => findSkin(id)?.stylesheet ?? null;
+export const SKIN_STYLESHEET_ID = 'ashen-gate-skin-stylesheet';
+/**
+ * Keeps exactly one <link> in <head> for the effective skin's stylesheet, and none for a colour-only skin.
+ * The skin CSS only matches html[data-ag-skin="<id>"], so a link lingering for a moment is inert.
+ */
+export function syncSkinStylesheet(doc,skinId,{basePath,version=''}={}){
+  if(!doc?.head || typeof doc.createElement!=='function')return null;
+  const file=skinStylesheet(skinId);
+  let link=doc.getElementById?.(SKIN_STYLESHEET_ID)??null;
+  if(!file){link?.remove?.();return null;}
+  const href=`${basePath}/${file}${version?`?v=${encodeURIComponent(version)}`:''}`;
+  if(!link){
+    link=doc.createElement('link');link.id=SKIN_STYLESHEET_ID;link.rel='stylesheet';
+    doc.head.appendChild(link);
+  }
+  if(link.getAttribute?.('href')!==href)link.setAttribute('href',href);
+  link.dataset&&(link.dataset.agSkin=skinId);
+  return href;
+}
 
 /** Injectable settings facade, so permissions and preference precedence can be unit-tested. */
 export function createAppearanceController({getSetting,setSetting,currentUser,subscribeSettings=()=>()=>{}}={}) {

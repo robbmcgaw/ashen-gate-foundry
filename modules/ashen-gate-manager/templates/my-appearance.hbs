@@ -1,6 +1,6 @@
 <section class="ag-my-appearance-body">
   <header class="ag-header">
-    <div class="ag-header__title"><h2><span class="ag-header__brand">Ashen Gate</span> | My Appearance</h2><p>Personal interface colours only. This does not open GM tools or change gameplay.</p></div>
+    <div class="ag-header__title"><h2><span class="ag-header__brand">Ashen Gate</span> | My Appearance</h2><p>Personal interface look only. This does not open GM tools or change gameplay.</p></div>
   </header>
   <div class="ag-my-appearance-main">
     <div class="ag-card">
@@ -10,7 +10,7 @@
         </select>
       </label>
       <ul class="ag-my-appearance-swatches" aria-label="Available appearances">
-        {{#each skins}}<li class="{{#if current}}is-current{{/if}}"><span class="ag-swatch" aria-hidden="true">{{#each swatch}}<i style="background:{{this}}"></i>{{/each}}</span><span>{{label}}</span></li>{{/each}}
+        {{#each skins}}<li class="{{#if current}}is-current{{/if}}"><span class="ag-swatch" aria-hidden="true">{{#each swatch}}<i style="background:{{this}}"></i>{{/each}}</span><span>{{label}}<small class="ag-my-appearance-desc">{{description}}</small></span></li>{{/each}}
       </ul>
       <p class="ag-my-appearance-note">GM world default: <strong>{{worldDefault}}</strong> · Currently displayed: <strong>{{effective}}</strong></p>
       <p class="ag-my-appearance-note" role="status">{{status}}</p>

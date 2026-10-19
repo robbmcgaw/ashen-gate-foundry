@@ -1,4 +1,4 @@
-import {createAppearanceController, registerAppearanceSettings, makeFoundryAppearanceController, APPEARANCE_CONTRACT, DEFAULT_SKIN_ID} from "./appearance.js";
+import {createAppearanceController, registerAppearanceSettings, makeFoundryAppearanceController, syncSkinStylesheet, APPEARANCE_CONTRACT, DEFAULT_SKIN_ID} from "./appearance.js";
 import {auditTypedReferences, renderGmReferenceMarkers} from "./manager-resolver-bridge.mjs";
 import {createManagerDefinitionReader, READER_CONTRACT} from './native-definition-reader.mjs';
 import {sourceMetadata as projectionSourceMetadata} from './source-projection.mjs';
@@ -160,7 +160,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.19.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.20.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -1208,7 +1208,11 @@ Hooks.once("ready",()=>{
   // Every Ashen Gate window and launcher inherits the kit's --ag-* tokens from <html>, so
   // writing the effective skin there re-themes all modules live, with no per-app wiring.
   // Presentation only: no Actor/Item/source or specialist-state writes.
-  const applyDocumentSkin=()=>{try{appearanceController.applyTo(document.documentElement);}catch(error){console.warn(`[${MODULE_ID}] Appearance not applied`,error);}};
+  // Structural skins (Stone Tablet, Tome Pages) also load their own stylesheet, only while active.
+  const applyDocumentSkin=()=>{try{
+    appearanceController.applyTo(document.documentElement);
+    syncSkinStylesheet(document,document.documentElement.dataset.agSkin,{basePath:globalThis.foundry?.utils?.getRoute?.(`modules/${MODULE_ID}`)??`modules/${MODULE_ID}`,version:game.modules.get(MODULE_ID)?.version});
+  }catch(error){console.warn(`[${MODULE_ID}] Appearance not applied`,error);}};
   applyDocumentSkin();
   appearanceController.subscribe(applyDocumentSkin);
   game.modules.get(MODULE_ID).api = {
@@ -1258,7 +1262,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.19.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.20.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */
