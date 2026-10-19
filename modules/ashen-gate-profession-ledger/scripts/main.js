@@ -6,12 +6,14 @@ import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertP
 import {lookupWorldDefinition,readWorldDefinition} from './definition-lookup.mjs';
 import {planCraft,craftBlockers,executeCraft,resultItemData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
-import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,toolRefLabel,heldTool,
+import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,requiredToolRef,toolRefLabel,heldTool,
   checkOption,rollModeFor,rollCheck,formatBonus} from './checks.mjs';
-import {tierName,defaultDC,normalizeNode,gatherOutcome,gatherReward,exhaustsNode,helperEligibility,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
+import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,gatherOutcome,gatherReward,exhaustsNode,helperEligibility,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
   stackMaterial} from './gathering.mjs';
+import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
+  exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.14.1';
+const VERSION='0.15.0';
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...}. */
 const XP_HOOK='ashenGateLedger.xpOpportunity';
@@ -362,18 +364,25 @@ const professionTool=name=>{const key=checkMapping().tools[professionKey(name)];
  * the profession's tool. The tool check uses the recipe's tool, else the profession's tool.
  */
 function craftRequirement(recipe,actor=null){
-  const own=toolRef(recipe?.tool),profLabel=professionLabel(recipe),profTool=professionTool(profLabel);
-  const tool=own??(recipe?.workstation?null:profTool);
-  const check=own??profTool;
-  const held=actor&&tool?heldTool(actor,tool):null;
+  // The recipe's own tools: its single tool field plus every required_tools entry (all are needed).
+  const own=[toolRef(recipe?.tool),...(recipe?.tools??[]).map(requiredToolRef)].filter(Boolean)
+    .filter((ref,i,list)=>list.findIndex(r=>toolRefLabel(r)===toolRefLabel(ref))===i);
+  const profLabel=professionLabel(recipe),profTool=professionTool(profLabel);
+  const tools=own.length?own:recipe?.workstation||!profTool?[]:[profTool];
+  const checks=own.length?own:profTool?[profTool]:[];
+  const missing=actor?tools.filter(ref=>!heldTool(actor,ref)):[];
   // A profession whose main check is a skill (Enchanting: Arcana) offers that skill; a recipe tool is offered beside it.
   const skill=checkMapping().skills[professionKey(profLabel)]||null;
-  return {tool,toolLabel:toolRefLabel(tool),fromProfession:Boolean(tool&&!own),workstation:recipe?.workstation??null,
-    check,skill,checkPlan:actor?craftCheckPlan(actor,{tool:check,skill}):null,held:Boolean(held),lacks:Boolean(actor&&tool&&!held)};
+  const tool=tools[0]??null;
+  return {tool,tools,toolLabel:tools.map(toolRefLabel).join(' + '),fromProfession:Boolean(tool&&!own.length),workstation:recipe?.workstation??null,
+    check:checks[0]??null,skill,checkPlan:actor?craftCheckPlan(actor,{tools:checks,skill}):null,held:Boolean(actor&&tools.length&&!missing.length),
+    lacks:missing.length>0,missing:missing.map(toolRefLabel)};
 }
+/** "doesn't carry X" for one tool, "doesn't carry X, Y" when several of the required tools are missing. */
+const lacksText=(req,actor)=>req.tools.length>1?`${actor.name} doesn’t carry ${req.missing.join(', ')}`:`${actor.name} doesn’t carry this`;
 function requirementHTML(req,actor){
   const parts=[];
-  if(req.tool)parts.push(`${esc(req.toolLabel)}${actor?(req.lacks?` ${badge(`${actor.name} doesn’t carry this`,'warn')}`:` ${badge('Carried','ok')}`):''}`);
+  if(req.tool)parts.push(`${esc(req.toolLabel)}${actor?(req.lacks?` ${badge(lacksText(req,actor),'warn')}`:` ${badge(req.tools.length>1?'All carried':'Carried','ok')}`):''}`);
   if(req.workstation)parts.push(`Workstation: ${esc(req.workstation)}`);
   return parts.length?`<div><span class="agl-label">Uses</span> ${parts.join(' · ')}</div>`:'';
 }
@@ -658,7 +667,7 @@ async function craft(actor,recipeId,{confirm=true}={}){
   const preset=presetOf(picked);
   let mode=preset.mode;
   if(confirm){
-    const needs=[req.tool?`<li>Tool: <strong>${esc(req.toolLabel)}</strong>${req.lacks?` — <strong>${esc(actor.name)} doesn’t carry this tool.</strong>`:' (carried)'}</li>`:'',
+    const needs=[req.tool?`<li>${req.tools.length>1?'Tools (all needed)':'Tool'}: <strong>${esc(req.toolLabel)}</strong>${req.lacks?` — <strong>${esc(req.tools.length>1?`${lacksText(req,actor)}.`:`${actor.name} doesn’t carry this tool.`)}</strong>`:' (carried)'}</li>`:'',
       req.workstation?`<li>Workstation: <strong>${esc(req.workstation)}</strong> (confirm with your GM)</li>`:'',
       extraCost(recipe)?`<li>Also costs ${extraCost(recipe)} gp — not deducted automatically.</li>`:''].join('');
     const answer=await DialogV2.confirm({window:{title:`Craft ${recipe.name}?`},modal:true,rejectClose:false,
@@ -707,6 +716,18 @@ const gatherDialogs=new Map();        // any client: key → open DialogV2
 const exhaustedHere=new Set();        // node keys spent in this GM session, even if Locations could not record it
 let lastGather=null;
 const worldMaterial=id=>id?materialChoices().find(i=>agSourceId(i)===id)??null:null;
+/** Machine-readable metadata of an awardable world material (Manager's definition), or null. */
+const worldMaterialMeta=id=>{const item=worldMaterial(id);return item?materialMeta(item.flags?.['ashen-gate-manager']?.source?.definition,{name:item.name}):null;};
+/** A PROF-* id as a gathering-profession key, from its world Profession definition's name, else from the id. */
+function professionKeyOfId(id){
+  const hit=game.user.isGM?lookupWorldDefinition(game,id,{entityType:'Profession'}):null;
+  const key=professionKey(hit?.status==='ok'?hit.source?.definition?.name??hit.document?.name:'');
+  return GATHERING_KEYS.includes(key)?key:professionKeyFromId(id);
+}
+const exoticPercent=()=>clampPercent(game.settings.get(ID,EXOTIC_SETTING));
+const requireGM=()=>{if(!game.user?.isGM)throw Error('Only the GM can read Exotic gathering setup');};
+/** Test seam: a scripted d100 for the Node suite. Production uses Foundry's dice RNG. */
+let exoticRoll=defaultRoll;
 const materialName=id=>worldMaterial(id)?.name??(game.user.isGM?id:humanizeId(id));
 const refreshLedger=()=>{if(current?.rendered)current.render();};
 const nodeBusy=key=>[...gatherSessions.values()].some(s=>s.node.key===key)||[...gatherRequests.values()].some(r=>r.node.key===key);
@@ -721,7 +742,7 @@ function gatherLocations(){
     const locations=(api.listLocations()??[]).map(loc=>{
       const revealed=gm?loc?.revealed===true:true;
       const nodes=(api.resourcesAt(loc.id)??[]).map((entry,index)=>normalizeNode(entry,{locationId:loc.id,locationName:loc.name??loc.id,locationRevealed:revealed,index}))
-        .filter(n=>n&&(gm||n.visible)).map(n=>exhaustedHere.has(n.key)?{...n,exhausted:true,gatherable:false,why:'Already gathered (exhausted)'}:n)
+        .filter(n=>n&&(gm||n.visible)).map(n=>gm?n:{...n,exotics:[]}).map(n=>exhaustedHere.has(n.key)?{...n,exhausted:true,gatherable:false,why:'Already gathered (exhausted)'}:n)
         .map(n=>({...n,blocked:nodeBlocker(n,{materialFound:!gm||Boolean(worldMaterial(n.materialId)),forPlayer:!gm})}));
       return {id:loc.id,name:String(loc.name??loc.id),revealed,nodes};
     }).filter(l=>l.nodes.length).sort((a,b)=>a.name.localeCompare(b.name));
@@ -731,6 +752,16 @@ function gatherLocations(){
 function findNode(locationId,nodeId){
   const loc=gatherLocations().locations.find(l=>l.id===locationId);
   return {location:loc??null,node:nodeId?loc?.nodes.find(n=>n.id===nodeId)??null:null};
+}
+/** GM only: each configured Exotic candidate with its name and eligibility at this node. */
+const exoticRows=node=>normalizeExotics(node?.exotics).map(e=>{const meta=worldMaterialMeta(e.materialId);
+  return {...e,name:meta?.name??materialName(e.materialId),meta,...exoticEligibility(e,node,meta,{keyOf:professionKeyOfId})};});
+const exoticRule=e=>e.mode==='designated'?`designated: ${e.chance==null?'no chance set':`${e.chance}%`} · ${DESIGNATED_CONDITIONS[e.condition]??''}`:'random discovery';
+/** GM-only one-line summary of a node's Exotic candidates. */
+function exoticSummary(node){
+  const rows=exoticRows(node);if(!rows.length)return '';
+  const designated=rows.some(r=>r.eligible&&r.mode==='designated');
+  return `Exotic candidates (GM only): ${rows.map(r=>`${r.name} — ${exoticRule(r)}${r.eligible?'':` (not eligible: ${r.reason})`}`).join('; ')}.${designated?' Designated source: its own rules replace the discovery roll.':` Discovery chance ${exoticPercent()}% on a success.`}`;
 }
 const nodeTitle=n=>n.label||materialName(n.materialId)||'Gathering spot';
 /** What everyone may read about a node: no unrevealed location or hidden entry names. */
@@ -810,10 +841,15 @@ async function resolveGather(sessionId,{total,choice,mode=0,by=''}){
   const option=parseChoice(session.plan,choice)??parseChoice(session.plan,session.plan.selected);
   session.status='resolving';
   const {node}=session;
-  let award=null,reward=null;
+  let award=null,reward=null,exoticAward=null,exoticNote='';
   const outcome=gatherOutcome(n,node.dc);
+  // Shared resolver: the Common/Rare bundle, then at most one Exotic roll (Location and ad-hoc nodes alike).
+  let rewards;
+  try{rewards=resolveGatherRewards({node,outcome,percent:exoticPercent(),roll:exoticRoll,metaOf:worldMaterialMeta,keyOf:professionKeyOfId});}
+  catch(err){session.status='rolling';throw err;}
+  const exotic=rewards.exotic;
   try{
-    reward=gatherReward(node,outcome);
+    reward=rewards.base;
     if(reward){
       let item=worldMaterial(reward.materialId);
       if(!item&&reward.rare){reward={materialId:node.materialId,quantity:node.quantity,rare:false,noRareFallback:true};item=worldMaterial(node.materialId);}
@@ -821,6 +857,14 @@ async function resolveGather(sessionId,{total,choice,mode=0,by=''}){
       award={...await stackMaterial(lead,item,reward.quantity,{sourceIdOf:agSourceId,flagScope:ID}),name:item.name,img:item.img,quantity:reward.quantity};
     }
   }catch(err){session.status='rolling';throw err;}
+  if(exotic.materialId){
+    // The normal bundle is already given; an Exotic that cannot be written is reported to the GM, never retried.
+    const item=worldMaterial(exotic.materialId);
+    try{
+      if(!item)throw Error('not an imported, player-visible world material');
+      exoticAward={...await stackMaterial(lead,item,1,{sourceIdOf:agSourceId,flagScope:ID}),name:item.name,img:item.img,quantity:1,materialId:exotic.materialId};
+    }catch(err){console.warn(`[${ID}] Exotic ${exotic.materialId} could not be given`,err);exoticNote=`Exotic ${item?.name??exotic.materialId} was found but could not be given (${err.message}). Give it by hand.`;}
+  }
   gatherSessions.delete(sessionId);
   let exhausted=null;
   if(exhaustsNode(node,outcome)){exhaustedHere.add(node.key);exhausted=await exhaustInLocations(node);}
@@ -828,8 +872,11 @@ async function resolveGather(sessionId,{total,choice,mode=0,by=''}){
   const check={label:option?checkOption(lead,option).label:'Check',total:n,mode:Math.sign(Number(mode)||0)};
   const verdict=outcome.result==='rare'?'Success by 5+':outcome.result==='common'?'Success':'Failed';
   const assists=session.helpers.filter(h=>h.eligible).map(h=>h.name);
-  const head=award?`${lead.name} gathered ${award.quantity} × ${award.name}`:`${lead.name} found nothing usable`;
+  // Only awarded materials are named; candidates, chances and the d100 stay with the GM.
+  const got=[award,exoticAward].filter(Boolean);
+  const head=got.length?`${lead.name} gathered ${got.map(a=>`${a.quantity} × ${a.name}`).join(' and ')}`:`${lead.name} found nothing usable`;
   const lines=[`<p><strong>${esc(check.label)} check:</strong> ${n}${modeText(check.mode)}${node.dcVisible?` vs DC ${node.dc}`:''} — <strong>${verdict}</strong>${reward?.rare?' (rare bundle)':''}</p>`,
+    exoticAward?`<p class="agl-exotic-find"><strong>Exotic find:</strong> ${exoticAward.quantity} × ${esc(exoticAward.name)}</p>`:'',
     assists.length?`<p>Assisted by ${esc(assists.join(', '))} (advantage, not another attempt).</p>`:'',
     reward?.noRareFallback?'<p class="agl-chat-note">Success by 5+, but this node has no rare material, so it gave its common bundle.</p>':'',
     exhausted==='session'?'<p class="agl-chat-note">This gathering spot is used up for now.</p>':exhausted?'<p class="agl-chat-note">This gathering spot is now exhausted.</p>':''];
@@ -839,12 +886,15 @@ async function resolveGather(sessionId,{total,choice,mode=0,by=''}){
     xpFlag('gather',lead,{professionId:session.plan.professionId,professionName:session.plan.professionName,suggested:outcome.result!=='fail'&&node.tier?gatherXP(tierName(node.tier)):null}),
     {outcome:outcome.result,nodeKey:node.key,locationId:node.locationId});}
   catch(err){console.warn(`[${ID}] Gathering resolved; chat card failed`,err);}
+  if(exoticNote){
+    try{await globalThis.ChatMessage?.create?.({whisper:allUsers().filter(u=>u.isGM).map(u=>u.id),content:`<div class="agl-chat-card"><p><strong>GM:</strong> ${esc(exoticNote)}</p></div>`});}catch{}
+  }
   if(exhausted==='manual'){
     try{await globalThis.ChatMessage?.create?.({whisper:allUsers().filter(u=>u.isGM).map(u=>u.id),content:`<div class="agl-chat-card"><p><strong>GM:</strong> Locations could not record that <em>${esc(nodeTitle(node))}</em> at ${esc(node.locationName)} is exhausted. Mark it in Locations.</p></div>`});}catch{}
   }
-  lastGather={leadName:lead.name,title:nodeTitle(node),total:n,dc:node.dc,verdict,award,exhausted,by};
+  lastGather={leadName:lead.name,title:nodeTitle(node),total:n,dc:node.dc,verdict,award,exoticAward,exotic,exoticNote,exhausted,by};
   refreshLedger();
-  return {outcome,reward,award,exhausted};
+  return {outcome,reward,award,exotic,exoticAward,awards:rewards.awards,exhausted};
 }
 
 /** Roll prompt fields; shared by the player popup and the GM's "Roll for them" panel. */
@@ -1086,7 +1136,10 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     this.closedFolders=new Set();this.partySort='player';this.lastAward=null;this.notice='';this.rosterDraft=null;this._events=null;
     this.mapDraft=null;
     this.gather={source:'location',actorId:null,nodeRef:'',helperIds:[],pending:false,
-      adhoc:{label:'',skill:'Herbalism',tier:'1',dc:'',materialId:'',rareMaterialId:'',quantity:'1',rareQuantity:'1'}};
+      adhoc:{label:'',skill:'Herbalism',tier:'1',dc:'',materialId:'',rareMaterialId:'',quantity:'1',rareQuantity:'1',exotics:[]},
+      // Exotic picker filters: profession and tier default to the ad-hoc node's own.
+      pick:{query:'',profession:'node',tier:'node'}};
+    this.exoticDraft=null;
   }
   get actors(){return partyActors();}
   get library(){return catalog();}
@@ -1190,8 +1243,18 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
           <button type="button" data-action="toggle-player-access" class="ag-btn">${playerAccessEnabled()?'Hide from players':'Show to players'}</button></div>
       </section>
       ${this._toolSetup()}
+      ${this._exoticSetup()}
     </div>`;
   }
+  /** GM Setup: the generic Exotic discovery chance (a setting only; candidates are chosen per node). */
+  _exoticSetup(){
+    const value=this.exoticDraft??String(exoticPercent());
+    return `<section class="ag-card agl-panel"><h2>Exotic discovery</h2>
+      <p class="agl-sub">Chance that a successful gathering check also finds one Exotic material, rolled once on d100 (2% means a roll of 01–02). Only nodes with Exotic candidates roll; a designated source uses its own chance instead. Whole percent, 0–100 (0 turns random discovery off). Saved with <b>Save Changes</b>.</p>
+      <label class="ag-field ag-field--inline">Discovery chance %<input type="number" min="0" max="100" step="1" data-exotic-chance value="${esc(value)}"></label>
+    </section>`;
+  }
+  get exoticDirty(){return this.exoticDraft!==null&&clampPercent(this.exoticDraft,exoticPercent())!==exoticPercent();}
   /** Profession → tool (crafting default and gathering), and gathering profession → check skill. */
   _toolSetup(){
     const map=this.mapDraft??checkMapping(),keys=toolKeys();
@@ -1219,7 +1282,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   _adhocNode(){
     const a=this.gather.adhoc;
     // Each ad-hoc node is its own spot, so several can be worked at once.
-    return normalizeNode({id:`adhoc-${newId()}`,label:a.label,skill:a.skill,tier:a.tier,dc:a.dc,dcVisible:true,materialId:a.materialId,rareMaterialId:a.rareMaterialId,
+    return normalizeNode({id:`adhoc-${newId()}`,label:a.label,skill:a.skill,tier:a.tier,dc:a.dc,dcVisible:true,materialId:a.materialId,rareMaterialId:a.rareMaterialId,exotics:a.exotics,
       quantity:a.quantity,rareQuantity:a.rareQuantity,finite:false},{locationId:null,index:0});
   }
   _selectedNode(){
@@ -1229,6 +1292,35 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   }
   _gathering(){
     return game.user.isGM?this._gatherGM():this._gatherPlayer();
+  }
+  /** GM ad-hoc form: Exotic candidates from the imported catalog. Choosing one sets eligibility; it never awards by itself. */
+  _exoticPicker(node){
+    const a=this.gather.adhoc,p=this.gather.pick;
+    const metas=materialChoices().map(i=>materialMeta(i.flags?.['ashen-gate-manager']?.source?.definition,{name:i.name})).filter(Boolean);
+    const nodeProf=nodeProfessionKey(node),nodeTier=node?.tier??null;
+    const profession=p.profession==='node'?nodeProf:p.profession==='any'?null:p.profession;
+    const tierOpt=p.tier==='node'?{maxTier:nodeTier}:p.tier==='any'?{}:{tier:Number(p.tier)};
+    const chosen=new Set(a.exotics.map(e=>e.materialId));
+    const list=(p.profession==='node'&&!nodeProf)?[]:filterMaterials(metas,{query:p.query,profession,quality:'Exotic',...tierOpt,keyOf:professionKeyOfId}).filter(m=>!chosen.has(m.id)).slice(0,50);
+    const profLabel=k=>GATHERING_PROFESSIONS.find(n=>professionKey(n)===k)??k;
+    const rows=exoticRows({...node,exotics:a.exotics}).map(r=>`<li class="agl-exotic-row">
+        <strong>${esc(r.name)}</strong>${r.meta?.tier?` <small class="agl-sub">Tier ${r.meta.tier}</small>`:''} ${r.eligible?badge('Eligible','ok'):badge(r.reason,'warn')}
+        <label class="ag-field ag-field--inline">Rule<select data-adhoc-exotic="${esc(r.materialId)}" data-exotic-key="mode">${EXOTIC_MODES.map(m=>`<option value="${m}" ${r.mode===m?'selected':''}>${m==='designated'?'Designated source':'Random discovery'}</option>`).join('')}</select></label>
+        ${r.mode==='designated'?`<label class="ag-field ag-field--inline">Chance %<input type="number" min="1" max="100" step="1" data-adhoc-exotic="${esc(r.materialId)}" data-exotic-key="chance" value="${esc(r.chance??'')}" placeholder="required"></label>
+        <label class="ag-field ag-field--inline">When<select data-adhoc-exotic="${esc(r.materialId)}" data-exotic-key="condition">${Object.entries(DESIGNATED_CONDITIONS).map(([k,l])=>`<option value="${k}" ${r.condition===k?'selected':''}>${esc(l)}</option>`).join('')}</select></label>`:''}
+        <button type="button" class="ag-btn" data-action="adhoc-exotic-remove" data-id="${esc(r.materialId)}">Remove</button></li>`).join('');
+    return `<fieldset class="agl-exotic-pick"><legend>Exotic candidates (optional, GM only)</legend>
+      <p class="agl-sub">Pick which Exotic materials this node can give. A pick sets eligibility only: a successful check rolls d100 once (discovery ${exoticPercent()}%, set in GM Setup), or a designated source uses its own chance instead. A failed check never finds one. Players never see this list.</p>
+      ${rows?`<ul class="agl-exotic-list">${rows}</ul>`:''}
+      <div class="ag-toolbar agl-exotic-filters">
+        <label class="ag-field">Search<input type="search" data-gather-pick="query" value="${esc(p.query)}" placeholder="Material name"></label>
+        <label class="ag-field">Gathering profession<select data-gather-pick="profession"><option value="node" ${p.profession==='node'?'selected':''}>This node’s (${esc(nodeProf?profLabel(nodeProf):'none')})</option><option value="any" ${p.profession==='any'?'selected':''}>Any</option>${GATHERING_KEYS.map(k=>`<option value="${k}" ${p.profession===k?'selected':''}>${esc(profLabel(k))}</option>`).join('')}</select></label>
+        <label class="ag-field">Tier<select data-gather-pick="tier"><option value="node" ${p.tier==='node'?'selected':''}>Up to this node’s (${esc(nodeTier??'—')})</option><option value="any" ${p.tier==='any'?'selected':''}>Any</option>${TIERS.map((t,i)=>`<option value="${i+1}" ${p.tier===String(i+1)?'selected':''}>${i+1} · ${t}</option>`).join('')}</select></label>
+        <span class="agl-sub">Rarity: Exotic · Type: Material</span></div>
+      ${list.length?`<ul class="agl-exotic-list">${list.map(m=>`<li class="agl-exotic-row"><strong>${esc(m.name)}</strong> <small class="agl-sub">Tier ${m.tier??'—'}</small>
+        <button type="button" class="ag-btn" data-action="adhoc-exotic-add" data-id="${esc(m.id)}">Add</button></li>`).join('')}</ul>`
+        :`<p class="agl-sub">${p.profession==='node'&&!nodeProf?'This node’s skill is not a gathering profession, so no Exotic can be found here. Choose a gathering profession above.':'No imported Exotic materials match. Exotics come from General Manager (approved, player-visible, quality “Exotic”).'}</p>`}
+    </fieldset>`;
   }
   _gatherPlayer(){
     const mine=myCharacters(),actor=mine.find(a=>a.id===this.gather.actorId)??mine[0]??null;
@@ -1270,7 +1362,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="gather-cancel" data-id="${esc(s.id)}">Cancel</button>
         <label class="ag-field ag-field--inline">Total <input type="number" min="-20" max="100" step="1" data-gather-total="${esc(s.id)}"></label><button type="button" class="ag-btn" data-action="gather-record" data-id="${esc(s.id)}">Record total</button>
         <button type="button" class="ag-btn ag-btn--primary" data-action="gather-gm-roll" data-id="${esc(s.id)}"><i class="fa-solid fa-dice-d20"></i> Roll for ${esc(s.leadName)}</button></div></section>`;}).join('');
-    const last=lastGather?`<div class="agl-note">${esc(lastGather.leadName)} · ${esc(lastGather.title)}: ${lastGather.total} vs DC ${lastGather.dc} — <b>${esc(lastGather.verdict)}</b>${lastGather.award?`, ${lastGather.award.quantity} × ${esc(lastGather.award.name)}${lastGather.award.stacked?` (now ${lastGather.award.total})`:''}`:''}${lastGather.exhausted==='recorded'?' · node marked exhausted in Locations':lastGather.exhausted==='manual'?' · <b>mark the node exhausted in Locations</b>':lastGather.exhausted==='session'?' · renewable node: blocked until you reload':''}. Award XP from the chat card.</div>`:'';
+    const last=lastGather?`<div class="agl-note">${esc(lastGather.leadName)} · ${esc(lastGather.title)}: ${lastGather.total} vs DC ${lastGather.dc} — <b>${esc(lastGather.verdict)}</b>${lastGather.award?`, ${lastGather.award.quantity} × ${esc(lastGather.award.name)}${lastGather.award.stacked?` (now ${lastGather.award.total})`:''}`:''}${lastGather.exoticAward?` + Exotic ${esc(lastGather.exoticAward.name)}`:''}${lastGather.exotic?.roll!=null?` · Exotic d100 ${lastGather.exotic.roll} vs ${lastGather.exotic.target} (${lastGather.exotic.kind})`:''}${lastGather.exoticNote?` · <b>${esc(lastGather.exoticNote)}</b>`:''}${lastGather.exhausted==='recorded'?' · node marked exhausted in Locations':lastGather.exhausted==='manual'?' · <b>mark the node exhausted in Locations</b>':lastGather.exhausted==='session'?' · renewable node: blocked until you reload':''}. Award XP from the chat card.</div>`:'';
     const nodeOptions=where.locations.map(loc=>`<optgroup label="${esc(loc.name)}${loc.revealed?'':' (unrevealed)'}">${loc.nodes.map(n=>{const value=`${loc.id}|${n.id??''}`,ok=n.gatherable&&!nodeBusy(n.key),byHand=!n.materialId&&!nodeBusy(n.key);
       return `<option value="${esc(value)}" ${g.nodeRef===value?'selected':''} ${ok||byHand?'':'disabled'}>${esc(nodeTitle(n))} · ${esc(nodeSummary(n)||'no DC')}${n.visible?'':' · hidden from players'}${byHand?' — no material: award by hand':n.blocked?` — ${esc(n.blocked)}`:ok?'':' — in progress'}</option>`;}).join('')}</optgroup>`).join('');
     const a=g.adhoc,matOpts=(selected,blank)=>`${blank?`<option value="">${blank}</option>`:''}${mats.map(i=>`<option value="${esc(agSourceId(i))}" ${selected===agSourceId(i)?'selected':''}>${esc(i.name)}</option>`).join('')}`;
@@ -1285,6 +1377,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
        <label class="ag-field">Common quantity<input data-gather-adhoc="quantity" type="number" min="1" max="99" step="1" value="${esc(a.quantity)}"></label>
        <label class="ag-field">Rare material (success by 5+)<select data-gather-adhoc="rareMaterialId">${matOpts(a.rareMaterialId,'None — common instead')}</select></label>
        <label class="ag-field">Rare quantity<input data-gather-adhoc="rareQuantity" type="number" min="1" max="99" step="1" value="${esc(a.rareQuantity)}"></label></div>
+       ${this._exoticPicker(node)}
        ${mats.length?'':'<div class="agl-note warn">Import at least one approved, player-visible material with General Manager first.</div>'}`
       :`<label class="ag-field">Gathering node<select data-gather-field="nodeRef"><option value="">Choose a node…</option>${nodeOptions}</select></label>
        ${where.locations.length?'':'<div class="ag-empty">No gathering resources in Locations yet.</div>'}`;
@@ -1292,11 +1385,12 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       :startBlocker({rosterCount:rosterIds().length,partyCount:party.length,leadInParty:true,node,materialFound:Boolean(node&&worldMaterial(node.materialId)),busy:Boolean(node)&&nodeBusy(node.key)});
     const ready=!blocker;
     return `${sessions}${last}<section class="ag-card agl-panel"><h2>Start gathering</h2>
-      <p class="agl-sub">One lead gatherer, one check per node for the party. Helpers with suitable tools give advantage, not another attempt. Success gives one common bundle; success by 5+ gives one rare bundle instead. Failure exhausts the node. Players can also request a node from their Gathering tab.</p>
+      <p class="agl-sub">One lead gatherer, one check per node for the party. Helpers with suitable tools give advantage, not another attempt. Success gives one common bundle; success by 5+ gives one rare bundle instead. A success can also find one Exotic when the node has Exotic candidates (only an awarded Exotic is shown to players). Failure exhausts the node. Players can also request a node from their Gathering tab.</p>
       <div class="agl-segmented" role="group" aria-label="Node source"><button type="button" class="ag-btn ${g.source!=='adhoc'?'active':''}" data-action="gather-source" data-id="location" ${where.ok?'':`disabled title="${esc(where.reason)}"`}>Location node</button><button type="button" class="ag-btn ${g.source==='adhoc'?'active':''}" data-action="gather-source" data-id="adhoc">Ad-hoc node</button></div>
       ${where.ok?'':`<p class="agl-sub">${esc(where.reason)} Ad-hoc nodes still work.</p>`}
       ${form}
       ${node?`<p class="agl-sub">${esc(nodeSummary(node))} · common ${node.quantity} × ${esc(node.materialId?materialName(node.materialId):'—')}${node.rareMaterialId?` · rare ${node.rareQuantity} × ${esc(materialName(node.rareMaterialId))}`:''}${node.finite?' · finite':''}${node.note&&node.materialId?` · ${esc(node.note)}`:''}</p>
+        ${g.source!=='adhoc'&&exoticSummary(node)?`<p class="agl-sub">${esc(exoticSummary(node))}</p>`:''}
         `:''}
       <div class="agl-gather-form">
         <label class="ag-field">Lead gatherer<select data-gather-field="actorId">${party.map(p=>`<option value="${esc(p.id)}" ${p.id===lead.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label>
@@ -1336,6 +1430,12 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       }
       if(e.target?.matches?.('[data-gather-field]')){const f=e.target.dataset.gatherField;if(['actorId','nodeRef'].includes(f)){this.gather[f]=e.target.value;if(f==='actorId')this.gather.helperIds=this.gather.helperIds.filter(id=>id!==e.target.value);this.render();}return;}
       if(e.target?.matches?.('[data-gather-adhoc]')&&game.user.isGM){this.gather.adhoc[e.target.dataset.gatherAdhoc]=e.target.value;this.render();return;}
+      if(e.target?.matches?.('[data-gather-pick]')&&game.user.isGM){this.gather.pick[e.target.dataset.gatherPick]=e.target.value;this.render();return;}
+      if(e.target?.matches?.('[data-adhoc-exotic]')&&game.user.isGM){
+        const id=e.target.dataset.adhocExotic,k=e.target.dataset.exoticKey,entry=this.gather.adhoc.exotics.find(x=>x.materialId===id);
+        if(entry&&['mode','chance','condition'].includes(k)){entry[k]=e.target.value;this.gather.adhoc.exotics=normalizeExotics(this.gather.adhoc.exotics.map(x=>x===entry?{chance:'',...x}:x));}
+        this.render();return;}
+      if(e.target?.matches?.('[data-exotic-chance]')&&game.user.isGM){this.exoticDraft=e.target.value;this._syncRosterActions();return;}
       if(e.target?.matches?.('[data-map-tool],[data-map-skill]')&&game.user.isGM){this._rememberMapDraft(e.target);return;}
       if(e.target?.matches?.('[data-roster-actor]')&&game.user.isGM)this._rememberRosterDraft();
     },{signal});
@@ -1376,9 +1476,10 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(action==='roster-save'){if(!game.user.isGM)throw Error('GM only');
         const ids=[...this.element.querySelectorAll('[data-roster-actor]:checked')].map(el=>el.dataset.rosterActor).filter(id=>game.actors.get(id)?.type==='character');
         const saved=[];
-        if(this.rosterDirty||!this.mapDirty){await game.settings.set(ID,'partyRoster',ids);saved.push(`party: ${plural(ids.length,'character')}`);}
+        if(this.rosterDirty||(!this.mapDirty&&!this.exoticDirty)){await game.settings.set(ID,'partyRoster',ids);saved.push(`party: ${plural(ids.length,'character')}`);}
         if(this.mapDirty){await game.settings.set(ID,'checkMapping',structuredClone(this.mapDraft));saved.push('tools and checks');}
-        this.rosterDraft=null;this.mapDraft=null;this.notice=`Saved ${saved.join('; ')}.`;this.render();say(this.notice);return;}
+        if(this.exoticDirty){const pct=clampPercent(this.exoticDraft,exoticPercent());await game.settings.set(ID,EXOTIC_SETTING,pct);saved.push(`Exotic discovery ${pct}%`);}
+        this.rosterDraft=null;this.mapDraft=null;this.exoticDraft=null;this.notice=`Saved ${saved.join('; ')}.`;this.render();say(this.notice);return;}
       if(['learn-recipe','craft','award-xp','adjust-xp'].includes(action)){
         const actorId=data.actor??(String(id).includes(':')?String(id).split(':')[0]:this.actor?.id);
         const input=action==='award-xp'?this.element?.querySelector?.(`[data-xp-input="${id}"]`):null;
@@ -1387,6 +1488,9 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         if(!out)return;
         if(out.award)this.lastAward=out.award;
         this.notice=out.message;this.render();say(out.message,out.ok===false);return;}
+      if(action==='adhoc-exotic-add'||action==='adhoc-exotic-remove'){if(!game.user.isGM)throw Error('GM only');
+        const list=this.gather.adhoc.exotics.filter(x=>x.materialId!==id);
+        this.gather.adhoc.exotics=normalizeExotics(action==='adhoc-exotic-add'?[...list,{materialId:id,mode:'discovery'}]:list);this.render();return;}
       if(action==='gather-source'){if(!game.user.isGM)throw Error('GM only');this.gather.source=id==='adhoc'?'adhoc':'location';this.render();return;}
       if(action==='gather-start'){if(!game.user.isGM)throw Error('GM only');
         const session=await startGather({node:this._selectedNode(),leadId:this.gather.actorId,helperIds:this.gather.helperIds});
@@ -1401,7 +1505,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         if(action==='gather-record'){total=this.element?.querySelector?.(`[data-gather-total="${id}"]`)?.value;if(total===''||total==null)throw Error('Enter the check total first');}
         else{const lead=game.actors.get(session.leadId);total=(await rollForGather(lead,gatherProjection(session),{choice,mode})).total;}
         const out=await resolveGather(id,{total:Number(total),choice,mode,by:game.user.name});
-        this.notice=out.award?`${session.leadName} gathered ${out.award.quantity} × ${out.award.name}.`:`${session.leadName}’s gathering failed; the node is exhausted.`;this.render();say(this.notice);return;}
+        this.notice=out.award?`${session.leadName} gathered ${out.award.quantity} × ${out.award.name}${out.exoticAward?` and an Exotic ${out.exoticAward.name}`:''}.`:`${session.leadName}’s gathering failed; the node is exhausted.`;this.render();say(this.notice);return;}
       if(action==='gather-player-roll'){
         await submitGatherRoll(id,{choice:this.element?.querySelector?.(`[data-gather-roll-check="${id}"]`)?.value,mode:this.element?.querySelector?.(`[data-gather-roll-mode="${id}"]`)?.value});return;}
       if(action==='gather-request'){
@@ -1436,19 +1540,20 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     if(el.dataset.mapSkill)this.mapDraft.skills[el.dataset.mapSkill]=el.value;
     this._syncRosterActions();
   }
-  get setupStatus(){return this.rosterDirty&&this.mapDirty?'Unsaved changes':this.rosterDirty?'Unsaved party changes':this.mapDirty?'Unsaved tool and check changes':'All changes saved';}
+  get setupStatus(){const n=[this.rosterDirty,this.mapDirty,this.exoticDirty].filter(Boolean).length;
+    return n>1?'Unsaved changes':this.rosterDirty?'Unsaved party changes':this.mapDirty?'Unsaved tool and check changes':this.exoticDirty?'Unsaved Exotic discovery change':'All changes saved';}
   _syncRosterActions(){
     const save=this.element?.querySelector?.('[data-action="roster-save"]');
-    if(save)save.disabled=!this.rosterDirty&&!this.mapDirty;
+    if(save)save.disabled=!this.rosterDirty&&!this.mapDirty&&!this.exoticDirty;
     const status=this.element?.querySelector?.('[data-agl-roster-status]');
     if(status)status.textContent=this.setupStatus;
   }
   async _leaveGmSetup(){
-    if(!this.rosterDirty&&!this.mapDirty){this.rosterDraft=null;this.mapDraft=null;return true;}
+    if(!this.rosterDirty&&!this.mapDirty&&!this.exoticDirty){this.rosterDraft=null;this.mapDraft=null;this.exoticDraft=null;return true;}
     const discard=await DialogV2.confirm({window:{title:'Discard unsaved GM Setup changes?'},
       content:'<p>Your party or tool changes have not been saved. Discard these changes and leave GM Setup?</p>',modal:true,rejectClose:false});
     if(!discard)return false;
-    this.rosterDraft=null;this.mapDraft=null;return true;
+    this.rosterDraft=null;this.mapDraft=null;this.exoticDraft=null;return true;
   }
   async _upload(e){checkPlayerLedger();if(!game.user.isGM)return;const f=e.target.files?.[0];if(!f)return;
     try{const data=normalizeLibrary(JSON.parse(await f.text()));const approved=await DialogV2.confirm({window:{title:'Import Ledger Catalog'},
@@ -1499,6 +1604,7 @@ Hooks.once('init',()=>{
     onChange:value=>syncLedgerPlayerAccess(value)});
   game.settings.register(ID,'libraryData',{name:'Profession Ledger catalog',scope:'world',config:false,type:Object,
     default:{schema:SCHEMA,source:'empty',recipes:[],materials:[]},onChange:()=>current?.render()});
+  game.settings.register(ID,EXOTIC_SETTING,{name:'Exotic discovery chance (%)',scope:'world',config:false,type:Number,default:DEFAULT_EXOTIC_PERCENT,onChange:()=>{if(current?.rendered)current.render();}});
   game.settings.register(ID,'checkMapping',{name:'Profession tools and gathering checks',scope:'world',config:false,type:Object,default:{},onChange:()=>{if(current?.rendered)current.render();}});
   game.settings.register(ID,'partyRoster',{name:'Active party Actor IDs',scope:'world',config:false,type:Array,default:[],onChange:()=>{if(current?.rendered)current.render();}});
   game.settings.registerMenu(ID,'open',{name:'Ashen Gate Profession Ledger',label:'Open Profession Ledger',
@@ -1523,7 +1629,18 @@ Hooks.once('ready',()=>{
       start:({locationId=null,nodeId=null,node=null,leadId,helperIds=[]}={})=>{checkPlayerLedger();
         const target=node?normalizeNode({dcVisible:true,...node,id:`adhoc-${newId()}`},{locationId:null}):findNode(locationId,nodeId).node;return startGather({node:target,leadId,helperIds});},
       resolve:(sessionId,result)=>resolveGather(sessionId,result),cancel:sessionId=>cancelGather(sessionId),
-      request:options=>requestGather(options)},
+      request:options=>requestGather(options),
+      /** Exotic candidates (contract ag-ledger-exotic/1), GM only: Locations' resource editor uses these when the Ledger is active. */
+      exotic:{contract:'ag-ledger-exotic/1',defaultDcByTier:{...DEFAULT_DC_BY_TIER},
+        percent:()=>{requireGM();return exoticPercent();},
+        /** Imported, approved, player-visible Materials as {id,name,quality,tier,professions}; filters: query, profession (e.g. 'Herbalism'), quality, tier, maxTier. */
+        materials:({query='',profession=null,quality='Exotic',tier=null,maxTier=null}={})=>{requireGM();
+          const metas=materialChoices().map(i=>materialMeta(i.flags?.['ashen-gate-manager']?.source?.definition,{name:i.name})).filter(Boolean);
+          const prof=profession?professionKey(profession):null;
+          return filterMaterials(metas,{query,profession:prof,quality,tier,maxTier,keyOf:professionKeyOfId})
+            .map(m=>({id:m.id,name:m.name,quality:m.quality,tier:m.tier,professions:materialProfessionKeys(m,professionKeyOfId)}));},
+        /** Each candidate on a node ({skill, tier, exotics}) with {eligible, reason}. */
+        eligibility:node=>{requireGM();return exoticRows(normalizeNode(node??{},{})??{}).map(({meta,...r})=>r);}}},
     /** Stable read contract for partner modules (Skill Trees). Never returns history or perk choices. */
     progression:{contract:PROGRESSION_CONTRACT,level:(actor,profId)=>progressionLevel(actor,profId)},
     hooks:{xpOpportunity:XP_HOOK,progressionChanged:PROGRESSION_HOOK},
@@ -1547,4 +1664,4 @@ Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateChatCard(message,h
 
 /** Test seam for the Node suite (mocked Foundry); not part of the public API. */
 export const _test={craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
-  startGather,resolveGather,cancelGather,handleGatherRequest,receiveGatherRoll,gatherSessions,decorateChatCard,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations};
+  startGather,resolveGather,cancelGather,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,receiveGatherRoll,gatherSessions,decorateChatCard,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations};

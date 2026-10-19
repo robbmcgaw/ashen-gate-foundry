@@ -139,3 +139,8 @@
 .agl-sheet{padding:var(--ag-space-2);display:flex;flex-direction:column;gap:var(--ag-space-3);background:transparent;color:inherit}
 .agl-sheet .agl-sheet-head{display:flex;justify-content:space-between;align-items:center}
 .agl-on-sheet{grid-template-columns:minmax(200px,1fr) minmax(0,2fr)}
+/* 0.15.0: Exotic candidates in the ad-hoc gathering form (GM only). */
+.agl-app .agl-exotic-pick{display:grid;gap:var(--ag-space-2);margin-top:var(--ag-space-3)}
+.agl-app .agl-exotic-list{list-style:none;margin:0;padding:0;display:grid;gap:var(--ag-space-1)}
+.agl-app .agl-exotic-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--ag-space-2)}
+.agl-app .agl-exotic-filters{flex-wrap:wrap;align-items:end}

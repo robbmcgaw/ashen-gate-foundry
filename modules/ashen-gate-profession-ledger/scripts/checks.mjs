@@ -64,6 +64,14 @@ export function toolRef(value){
   if(/^(Compendium|Item)\./.test(text))return {key:null,uuid:text,name:null};
   return {key:null,uuid:null,name:text};
 }
+/** A required_tools entry: like toolRef, and a tool name such as "Carpenter's Tools" also gets its dnd5e key so
+ * proficiency and the native tool roll work. Matching ignores case and apostrophe style. */
+export function requiredToolRef(value){
+  const ref=toolRef(value);
+  if(!ref||ref.key||!ref.name)return ref;
+  const key=toolKeys().find(k=>norm(toolLabel(k))===norm(ref.name)||norm(TOOL_LABELS[k])===norm(ref.name));
+  return key?{...ref,key}:ref;
+}
 export const toolRefLabel=ref=>!ref?'':ref.name||(ref.key?toolLabel(ref.key):'')||(ref.uuid?(globalThis.fromUuidSync?.(ref.uuid)?.name??'Required tool'):'');
 
 const abilityMod=(actor,ability)=>{const n=Number(actor?.system?.abilities?.[ability]?.mod);return Number.isFinite(n)?n:null;};
@@ -152,11 +160,13 @@ export async function rollCheck(actor,option,mode){
  * The tool is the default when the crafter carries it or is proficient; otherwise the skill, if there is one.
  * Returns null when neither applies. `tool` is a toolRef; `skill` a skill id or null.
  */
-export function craftCheckPlan(actor,{tool=null,skill=null}={}){
-  const options=[...(tool?[{kind:'tool',key:tool.key??null,ref:tool}]:[]),...(skill?[{kind:'skill',key:skill}]:[])];
+export function craftCheckPlan(actor,{tool=null,tools=null,skill=null}={}){
+  // `tools` (0.15.0): a recipe needing several tools offers a check with each of them.
+  const refs=(Array.isArray(tools)&&tools.length?tools:tool?[tool]:[]).filter(Boolean);
+  const options=[...refs.map(ref=>({kind:'tool',key:ref.key??null,ref})),...(skill?[{kind:'skill',key:skill}]:[])];
   if(!options.length)return null;
-  const toolOption=options.find(o=>o.kind==='tool');
-  const usable=toolOption&&(heldTool(actor,tool)||(tool.key&&checkOption(actor,{kind:'tool',key:tool.key,ref:tool}).proficient));
-  const first=(usable||!skill?toolOption:null)??options.find(o=>o.kind==='skill')??toolOption;
+  const toolOptions=options.filter(o=>o.kind==='tool');
+  const usable=toolOptions.find(o=>heldTool(actor,o.ref)||(o.ref.key&&checkOption(actor,{kind:'tool',key:o.ref.key,ref:o.ref}).proficient));
+  const first=usable??(!skill?toolOptions[0]:null)??options.find(o=>o.kind==='skill')??toolOptions[0];
   return {options,selected:first,choice:`${first.kind}:${first.key??first.ref?.name??first.ref?.uuid}`};
 }
