@@ -3,6 +3,7 @@ import {MODULE_ID,SCHEMA_VERSION,RECOVERED_GUILDS_DRAFT,makeFaction,upgradeFacti
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {addObjectiveRef,removeObjectiveRef,objectiveRefs,auditObjectiveRefs} from './objective-refs.mjs';
 import {planImport,runImport} from './import.mjs';
+import {orgRow,listOrgsTab,CHIPS as ORG_CHIPS,SORTS as ORG_SORTS,GROUPS as ORG_GROUPS,DEFAULT_VIEW as ORG_VIEW} from './orgs-tab.mjs';
 const {ApplicationV2,HandlebarsApplicationMixin}=foundry.applications.api;
 const OBS=CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER,NONE=CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE,OWNER=CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER;
 const rid=()=>foundry.utils.randomID(24).toUpperCase().replace(/[^A-Z0-9]/g,'');
@@ -35,7 +36,7 @@ const getFolders=d=>d?.getFlag(MODULE_ID,'folderIndex');
 // Foundry's Journal folder is storage organization only, independent from the in-dashboard faction folders.
 // Do not set player visibility on the Folder. Journal ownership controls actual document access.
 const STORAGE_FOLDER_NAME='Ashen Gate — Factions Data';
-const BUILD_VERSION='0.7.2';
+const BUILD_VERSION='0.8.0';
 const isModuleJournal=d=>Boolean(getFaction(d)||getGroup(d)||getPersonal(d)||getView(d)||getFolders(d));
 async function ensureStorageFolder(){
   assertGM();
@@ -230,7 +231,7 @@ async function grantItem(actor,reward,claim,faction){const source=await fromUuid
 class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
   static DEFAULT_OPTIONS={id:'ashen-gate-factions-window',classes:['ag-app','ashen-gate-factions'],window:{title:'Ashen Gate | Factions & Renown',icon:'fa-solid fa-shield-halved',resizable:true},position:{width:1180,height:800},actions:{savePlayerAccess:Dashboard.savePlayerAccess,select:Dashboard.select,create:Dashboard.create,seed:Dashboard.seed,save:Dashboard.save,award:Dashboard.award,saveGroupLabel:Dashboard.saveGroupLabel,createFolder:Dashboard.createFolder,saveFolder:Dashboard.saveFolder,discovery:Dashboard.discovery,share:Dashboard.share,addEntry:Dashboard.addEntry,showEntry:Dashboard.showEntry,claim:Dashboard.claim,resolveRequest:Dashboard.resolveRequest,resetUsage:Dashboard.resetUsage,addReward:Dashboard.addReward,editReward:Dashboard.editReward,removeReward:Dashboard.removeReward,openLinked:Dashboard.openLinked,resetChoice:Dashboard.resetChoice,saveFieldReveals:Dashboard.saveFieldReveals,addObjective:Dashboard.addObjective,removeObjective:Dashboard.removeObjective,exportAll:Dashboard.exportAll,importJson:Dashboard.importJson}};
   static PARTS={main:{template:`modules/${MODULE_ID}/templates/dashboard.hbs`}};
-  #tab='group';#selected=null;#actor=null;#lastView=null;
+  #tab='group';#orgsView={...ORG_VIEW};#selected=null;#actor=null;#lastView=null;
   async render(options={}){
     const previous=this.element?.querySelector?.('.agf-main');
     const viewKey=`${this.#tab}:${this.#selected}`;
@@ -262,9 +263,18 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
     const detail=f?{id:f.id,name:f.name,leader:f.leader,public_role:f.public_role,tags:f.tags??[],score:groupScore,rank:gf?progressFor(gf.renown_track,groupScore).rank.name:rankOf(groupMs,groupScore),individualScore:actorScore,individualRank:gf?progressFor(gf.individual_track,actorScore).rank.name:rankOf(individualMs,actorScore),groupMs,individualMs,entries:knownEntries,canShare:!isGM&&f.canShare,groupEvents:[...groupEvents].reverse().slice(0,35).map(event),personalEvents:[...personalEvents].reverse().slice(0,35).map(event),folder_key:gf?.folder_key??f.folder_key,discovery:gf?.discovery??null,rewards:gf?.rewards??[],trackGroup:gf?.renown_track,trackPersonal:gf?.individual_track}:null;
     const factionMap=new Map(known.map(f=>[f.id,f.name]));const folders=(data.folders??[]).map(folder=>({...folder,factions:folder.known.map(id=>({id,name:factionMap.get(id),selected:id===this.#selected})),unknown:Array.from({length:folder.unknown_count??0},(_,i)=>({index:i}))}));
     const requestRows=isGM&&gf?this.#queue(gf):[];
-    if(!isGM&&this.#tab==='gm')this.#tab='group';
-    return {...ctx,isGM,detail,folders,hasData:Boolean(detail),tabGroup:this.#tab==='group',tabPlayer:this.#tab==='player',tabGM:isGM&&this.#tab==='gm',groupLabel:groupLabel(),actorChoices:actorChoices.map(a=>({id:a.id,name:a.name,selected:a.id===this.#actor})),actorId:this.#actor,gmQueue:requestRows,foldersForSelect:[{key:'',name:'Other Factions',selected:!detail?.folder_key},...folderList().map(q=>({...q,selected:detail?.folder_key===q.key}))],groupName:game.settings.get(MODULE_ID,'groupName'),groupNameEnabled:game.settings.get(MODULE_ID,'groupNameEnabled'),playerAccessEnabled:playerAccessEnabled(),hasActiveGM:Boolean(activeGM()),gmKnown:gf,gmObjectiveRefs:gf?auditObjectiveRefs(gf,game.modules.get('ashen-gate-quest-manager')):[],gmGroupLevels:gf?.renown_track.milestones.map(m=>({...m,rewards:gf.rewards.filter(r=>r.audience==='group'&&r.milestone_id===m.id),isAll:m.selection_mode==='all',isOne:m.selection_mode==='choose_one'}))??[],gmPersonalLevels:gf?.individual_track.milestones.map(m=>({...m,rewards:gf.rewards.filter(r=>r.audience==='individual'&&r.milestone_id===m.id),isAll:m.selection_mode==='all',isOne:m.selection_mode==='choose_one'}))??[],serviceRewards:gf?.rewards.filter(r=>r.behavior==='repeatable_service')??[],shareEnabled:gf?.discovery?.sharing_enabled,fieldSelective:gf?.field_reveals?.mode==='selective',gmFieldReveals:gf?FIELD_KEYS.map(key=>({key,label:key==='public_role'?'Description':key==='leader'?'Leader':'Name',party:Boolean(gf.field_reveals?.fields?.[key]?.party),actor:Boolean(gf.field_reveals?.fields?.[key]?.actors?.includes(this.#actor))})):[],canEdit:!!gf,refreshNeeded:!isGM&&!userViewDoc(game.user)};
+    if(!isGM&&['orgs','setup'].includes(this.#tab))this.#tab='group';
+    const orgsView=this.#orgsView,orgs=isGM?this.#orgsList(orgsView):{total:0,shown:0,groups:[]};
+    for(const g of orgs.groups)for(const r of g.rows){r.selected=r.id===this.#selected;r.chipKey=r.chip.toLowerCase().replace(/[^a-z]+/g,'-');}
+    const opt=(items,v)=>items.map(x=>{const [value,label]=Array.isArray(x)?x:[x,x];return{value,label,selected:value===v};});
+    const orgsOptions={status:opt([['all','All'],...ORG_CHIPS],orgsView.status),sort:opt(ORG_SORTS,orgsView.sort),group:opt(ORG_GROUPS,orgsView.group)};
+    return {...ctx,isGM,detail,folders,hasData:Boolean(detail),tabGroup:this.#tab==='group',tabPlayer:this.#tab==='player',tabOrgs:isGM&&this.#tab==='orgs',tabSetup:isGM&&this.#tab==='setup',showHeader:Boolean(detail)&&!(isGM&&this.#tab==='setup'),orgs,orgsView,orgsOptions,groupLabel:groupLabel(),actorChoices:actorChoices.map(a=>({id:a.id,name:a.name,selected:a.id===this.#actor})),actorId:this.#actor,gmQueue:requestRows,foldersForSelect:[{key:'',name:'Other Factions',selected:!detail?.folder_key},...folderList().map(q=>({...q,selected:detail?.folder_key===q.key}))],groupName:game.settings.get(MODULE_ID,'groupName'),groupNameEnabled:game.settings.get(MODULE_ID,'groupNameEnabled'),playerAccessEnabled:playerAccessEnabled(),hasActiveGM:Boolean(activeGM()),gmKnown:gf,gmObjectiveRefs:gf?auditObjectiveRefs(gf,game.modules.get('ashen-gate-quest-manager')):[],gmGroupLevels:gf?.renown_track.milestones.map(m=>({...m,rewards:gf.rewards.filter(r=>r.audience==='group'&&r.milestone_id===m.id),isAll:m.selection_mode==='all',isOne:m.selection_mode==='choose_one'}))??[],gmPersonalLevels:gf?.individual_track.milestones.map(m=>({...m,rewards:gf.rewards.filter(r=>r.audience==='individual'&&r.milestone_id===m.id),isAll:m.selection_mode==='all',isOne:m.selection_mode==='choose_one'}))??[],serviceRewards:gf?.rewards.filter(r=>r.behavior==='repeatable_service')??[],shareEnabled:gf?.discovery?.sharing_enabled,fieldSelective:gf?.field_reveals?.mode==='selective',gmFieldReveals:gf?FIELD_KEYS.map(key=>({key,label:key==='public_role'?'Description':key==='leader'?'Leader':'Name',party:Boolean(gf.field_reveals?.fields?.[key]?.party),actor:Boolean(gf.field_reveals?.fields?.[key]?.actors?.includes(this.#actor))})):[],canEdit:!!gf,refreshNeeded:!isGM&&!userViewDoc(game.user)};
   }
+  /** GM roster rows: every faction, hidden or not, with its group Renown. */
+  #orgsList(view){const folders=new Map(folderList().map(x=>[x.key,x.name]));
+    const rows=defs().map(d=>{const f=upgradeFaction(loadDef(d)),state=getGroup(groupDoc(f.id))??makeGroupRecord({factionId:f.id}),score=state?.standing?.score??state?.score??0;
+      return orgRow({faction:f,score,rank:progressFor(f.renown_track,score).rank.name,folderName:folders.get(f.folder_key)});});
+    return listOrgsTab(rows,view);}
   #queue(f){return game.journal.filter(d=>getGroup(d)?.faction_id===f.id||getPersonal(d)?.faction_id===f.id).flatMap(doc=>{const group=getGroup(doc),state=group??getPersonal(doc),audience=group?'group':'individual',actor=state.actor_id?game.actors.get(state.actor_id):null;
     const ones=Object.entries(state.claims??{}).filter(([_,r])=>['pending','approved'].includes(r.status)).map(([key,c])=>({docId:doc.id,requestKey:key,reward:f.rewards.find(r=>r.id===key)?.name??key,actor:actor?.name??'Group',status:c.status,claim:true,approved:c.status==='approved',pending:c.status==='pending',isItem:f.rewards.some(r=>r.id===key&&linkedItem(r)&&audience==='group')}));
     const services=Object.entries(state.requests??{}).filter(([_,r])=>['requested','approved'].includes(r.status)).map(([key,c])=>({docId:doc.id,requestKey:key,reward:f.rewards.find(r=>r.id===c.reward_id)?.name??c.reward_id,actor:actor?.name??'Group',status:c.status,service:true,pending:c.status==='requested',approved:c.status==='approved'}));return[...ones,...services];});}
@@ -276,13 +286,13 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
       const tab=e.target?.closest?.('button[data-agf-view]');
       if(!tab||!root.contains(tab))return;
       const page=tab.dataset.agfView;
-      if(!['group','player','gm'].includes(page)||(page==='gm'&&!game.user.isGM))return;
+      if(!['group','player','orgs','setup'].includes(page)||(['orgs','setup'].includes(page)&&!game.user.isGM))return;
       e.preventDefault();
       if(this.#tab===page)return;
       this.#tab=page;
       void this.render({force:true}).catch(notifyError);
     });
-    root.addEventListener('change',e=>{if(e.target.matches('[name=faction-import-file]')){void this.importFile(e.target);return;}if(e.target.matches('[name=actor-id]')){const a=accessibleActors().find(a=>a.id===e.target.value);if(a){this.#actor=a.id;void this.render({force:true});}}});
+    root.addEventListener('change',e=>{const flt=e.target.closest?.('[data-orgs-filter]');if(flt&&game.user.isGM){this.#orgsView[flt.dataset.orgsFilter]=flt.value;void this.render({force:true});return;}if(e.target.matches('[name=faction-import-file]')){void this.importFile(e.target);return;}if(e.target.matches('[name=actor-id]')){const a=accessibleActors().find(a=>a.id===e.target.value);if(a){this.#actor=a.id;void this.render({force:true});}}});
     root.addEventListener('dragstart',e=>{const el=e.target.closest('[data-faction-drag]');if(!game.user.isGM||!el)return;e.dataTransfer.setData('text/ashen-gate-faction',el.dataset.factionDrag);e.dataTransfer.effectAllowed='move';});
     root.addEventListener('dragover',e=>{if(game.user.isGM&&e.target.closest('[data-folder-drop], [data-reward-drop], [data-entry-drop]'))e.preventDefault();});
     root.addEventListener('drop',async e=>{try{if(!game.user.isGM)return;const folder=e.target.closest('[data-folder-drop]');if(folder){const id=e.dataTransfer.getData('text/ashen-gate-faction');if(!id)return;e.preventDefault();const doc=definition(id),f=loadDef(doc);f.folder_key=folder.dataset.folderDrop;await saveChange(doc,f);await this.render({force:true});return;}

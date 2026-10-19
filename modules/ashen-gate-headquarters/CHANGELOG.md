@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.0 — 2026-10-19
+
+- New GM-only **Facilities** tab: every imported or seeded facility definition with Locked / Unlocked / Acquired chips, copies owned and installed, search, status and placement filters, sort and group. Unlock, Acquire +1, Import Facility Definitions JSON, Decorations and the test-record seeder moved here from GM Setup and work the same. It also opens before the Guildhall is activated (browse and import; unlock/acquire wait for activation).
+- **GM Setup** now holds settings only: Player Access, Guild / Canvas settings, Five-Rank configuration, Create Missing Player Rooms. Guildhall activation stays on the not-activated screen because it is a one-time setup step.
+- No saved-data changes. Player views and the import APIs are unchanged.
+
 ## 0.7.1 — 2026-10-19
 
 - Facility definitions now import **before the Guildhall is activated** (Manager's single import and the catalog's own Import). They are library data: nothing is unlocked or acquired by importing. Before activation, the GM sees an Imported facility library list on the "Guildhall not activated" screen; after activation they are in GM Setup > Facility Catalog.
