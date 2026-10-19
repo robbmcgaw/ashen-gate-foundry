@@ -1,3 +1,8 @@
+## 0.16.0 — 2026-10-19
+
+- The **Macros** tab is gone for now (install, export and custom macro JSON). Macros already installed in a world stay as they are, and nothing stored changed.
+- Importing Macro documents inside an import package works as before (for example the `[TEST] Link test data` macro). Imported Macros are still never executed.
+
 ## 0.15.0 — 2026-10-19
 
 - The **Templates** tab is gone. The three sample downloads (template package, Import JSON starter, source manifest) are under **Import → Advanced / sample files**. Packages that use templates still compile as before.
