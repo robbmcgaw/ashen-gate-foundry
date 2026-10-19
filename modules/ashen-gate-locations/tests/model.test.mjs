@@ -42,7 +42,7 @@ test('player view omits hidden fields, hidden sections and hidden entries', () =
     quests: [{questId: 'QUEST-ONE'}, {questId: 'QUEST-TWO', visible: false}],
     notes: [{title: 'Public', text: 'hello'}, {title: 'GM-SECRET-NOTE', text: 'x', visible: false}]};
   const view = playerView(loc, [loc]);
-  assert.deepEqual(Object.keys(view).sort(), ['id', 'key', 'name', 'notes', 'quests', 'region', 'resources', 'state', 'threat', 'type']);
+  assert.deepEqual(Object.keys(view).sort(), ['id', 'key', 'layout', 'name', 'notes', 'quests', 'region', 'resources', 'state', 'threat', 'type']);
   assert.deepEqual(view.resources.map(r => [r.label, r.available]), [['Ore', false]]);
   assert.deepEqual(view.quests, ['QUEST-ONE']);
   assert.equal(view.notes.length, 1);

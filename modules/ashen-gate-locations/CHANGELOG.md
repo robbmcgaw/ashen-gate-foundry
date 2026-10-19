@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.4.0 — 2026-10-19
+
+Nested point-crawl, part 2 of 3: a reorderable card, custom details, Loot & Rewards, Region conditions.
+
+- **Reorder the card.** Every block (Description, Conditions, Places Inside, Gathering Resources, Factions, Quests, Related Locations, Loot & Rewards, Notes, Linked Scenes) and every entry inside a list has a grip to drag, ▲▼ buttons, and Alt+Up / Alt+Down on the grip for the keyboard. Only the order is stored (a `layout` list of block keys; entries keep their keys, so nothing is re-keyed). Players see published blocks in your order, and a block with nothing to show has no title or count. A reorder is a saved edit: it reaches players on **Publish**.
+- **Add Detail.** A custom block on one location: a title, text and an optional linked Actor/Item/Journal/Roll Table. It has its own 👁 (new ones start unrevealed) and its own place in the order. No shared list of details, no new entity type.
+- **Loot & Rewards.** Drag an Item (world or compendium) into the list, or type a plain reward (coins, a clue, a favour, a key). You choose the title, description and image players see, and set **Available / Discovered / Taken** yourself. It is a link only: nothing is ever created, moved or equipped on an Actor. Each entry has its own 👁. Players can open the linked Item only if Foundry's own permissions let them; otherwise they see just the title, description and image you wrote. One Item can be linked from many locations.
+- **Regions.** Tick *This is a Region* and its **Conditions** apply to every place inside it, at any depth. Each place shows where a condition comes from and can *Turn off here* or change its label/text without touching the Region. Only conditions are inherited, never resources, factions, quests, loot, state or visibility. Players never see a Region's name through this. A player sees an inherited condition only when the Region isn't Hidden, its Conditions section is shown, that condition's 👁 is on, and the place's own Conditions section is shown too.
+- Everything here is additive. 1.3.0 locations load unchanged with the default order and no false "unpublished" flag. Exports carry the new fields; an import that leaves them out keeps the world's, and imports still never change state, published content or exhausted nodes.
+- API: no new calls and no changed shapes (`resourcesAt`, `nodesForMaterial` and the rest are as before). Location records and player views gain `layout`, `details`, `conditions`, `loot`, `isRegion` and `conditionOverrides` (views: `layout`, `details`, `conditions`, `loot`).
+
 ## 1.3.0 — 2026-10-19
 
 Nested point-crawl, part 1 of 3: marker states, private Save, pin art, nesting.

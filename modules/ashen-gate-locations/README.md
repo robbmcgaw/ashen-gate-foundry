@@ -11,6 +11,7 @@ Foundry V14, dnd5e. Works on its own; Quest Manager and General Manager are opti
 - **Fill it in:** drop material Items on *Gathering Resources*, Actors or Journals on *Factions*, and any Actor, Item, Journal or Roll Table on *Notes*. Or type a custom entry. Link quests from Quest Manager and other locations from the dropdowns.
 - **Marker state:** each location is **Hidden** (players see nothing; its pins are invisible to them), **Unidentified** (players see only its unidentified label and teaser) or **Revealed**. New locations start hidden.
 - **Save vs Publish:** **Save Changes** is private. Players see your edits only after **Publish** (Reveal and Unidentified publish too). **Player Preview** shows what they would see. Marking a node exhausted shows at once.
+- **Reorder, Add Detail, Loot, Regions (1.4.0):** drag a block's grip (or use ▲▼, or Alt+Up/Down on the grip) to reorder the card and the entries in it; players see published blocks in that order after **Publish**. **Add Detail** makes a custom block on this location. **Loot & Rewards** takes Items dragged from the sidebar or a compendium (a link only; no Actor ever gets the item) or plain rewards, with a status you set. Tick **This is a Region** and its Conditions pass to every place inside it; a place can turn one off or change it for itself.
 - **Visibility once revealed:** each field has an 👁 toggle, each section has a *Show section to players* switch, and each entry has its own 👁 toggle.
 - **Map:** **Place on Scene** adds a Map Note at the centre of your view, or drag a location from the list onto the canvas. Double-clicking the note opens the location. Hidden pins are invisible to players; unidentified pins show the label and the unidentified image. Set pin art under *Unidentified Marker & Pin* (default images are Foundry icons). Change one placed pin's image or size in Foundry's own Note settings and that pin keeps it.
 - **Nesting & Scenes:** put a location inside another (any depth, no loops). Players see the places inside a revealed location once each is revealed (unidentified ones by label). Link scenes and open them with one click; only your view moves.
@@ -66,7 +67,12 @@ Location records go in an `ag-foundry-import/0.2` package with `entity_type: "Lo
       "pin": {"img": "path/to/pin.webp", "unidentifiedImg": "path/to/unknown.webp", "size": 48}, "sceneUuids": ["Scene.abc123"],
       "description": "…", "img": "path/to/image.webp",
       "show": {"description": true},
-      "sections": {"resources": true, "factions": true, "quests": false, "related": true, "notes": true},
+      "sections": {"resources": true, "factions": true, "quests": false, "related": true, "notes": true, "conditions": true, "loot": true},
+      "isRegion": false, "layout": ["description", "loot", "detail:cellar"],
+      "conditions": [{"key": "fog", "label": "Dense fog", "text": "…", "visible": true}],
+      "loot": [{"key": "blade", "label": "[TEST] Blade", "text": "…", "img": "path/to/img.webp", "uuid": "Item.abc123", "docType": "Item", "status": "available", "visible": true}],
+      "details": [{"key": "cellar", "title": "[TEST] Cellar", "text": "…", "uuid": "", "visible": false}],
+      "conditionOverrides": [{"from": "LOC-TEST-REGION", "conditionKey": "fog", "disabled": true}],
       "resources": [{"id": "reed-bed", "label": "[TEST] Reed Bundle", "skill": "Herbalism", "tier": 2, "dc": 12, "dcVisible": false,
                      "materialId": "MAT-REED", "quantity": 1, "rareMaterialId": "MAT-SILVER-REED", "rareQuantity": 1,
                      "finite": true, "exhausted": false, "available": true, "visible": true, "note": "One patch"}],
@@ -84,7 +90,8 @@ Location records go in an `ag-foundry-import/0.2` package with `entity_type: "Lo
 - `show` (per field: `type`, `region`, `description`, `img`, `threat`) and every entry's `visible` default to `true`.
 - `sections` default to `false`. `state` is `hidden` (default), `unidentified` or `revealed`; older files with `revealed: true/false` still import. A visible location's content is published on import.
 - `parentLocationId` is an exact `LOC-*` id (a loop is refused); `type` and `region` stay free text. `pin.size` 0 or missing means 48.
-- Exports also carry `pinKey` and `published` (what players currently see). An update import that leaves out `parentLocationId`, `unidentifiedLabel`, `teaser`, `pin` or `sceneUuids` keeps the world's value.
+- 1.4.0 fields, all optional: `layout` (block keys in order: `description`, `conditions`, `children`, `resources`, `factions`, `quests`, `related`, `loot`, `notes`, `scenes`, `detail:<key>`; unknown keys are dropped and missing ones appended), `details`, `conditions`, `loot` (`status` is `available`, `discovered` or `taken`), `isRegion`, `conditionOverrides` (`from` is the Region's `LOC-*` id, `conditionKey` one of its condition keys). Loot `uuid` is a link only. An update import that leaves any of them (or the `conditions`/`loot` section switches) out keeps the world's value.
+- Exports also carry `pinKey` and `published` (what players currently see). An update import that leaves out `parentLocationId`, `unidentifiedLabel`, `teaser`, `pin` or `sceneUuids` keeps the world's value (see also the 1.4.0 fields above).
 - **Export JSON** writes the same format. [`examples/test-locations.json`](examples/test-locations.json) is a synthetic sample; **GM Setup → Developer Tools** imports it.
 
 ## Tests

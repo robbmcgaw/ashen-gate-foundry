@@ -10,12 +10,34 @@ export const THREATS = Object.freeze([
 export const FIELDS = Object.freeze(['type', 'region', 'description', 'img', 'threat']);
 /** List sections; each has a section toggle and a per-entry toggle. */
 export const SECTIONS = Object.freeze([
+  {key: 'conditions', label: 'Conditions'},
   {key: 'resources', label: 'Gathering Resources'},
   {key: 'factions', label: 'Factions'},
   {key: 'quests', label: 'Quests'},
   {key: 'related', label: 'Related Locations'},
+  {key: 'loot', label: 'Loot & Rewards'},
   {key: 'notes', label: 'Notes'}
 ]);
+/**
+ * Every card block in its default order. Built-in keys are permanent; a custom block ("+ Add Detail")
+ * is `detail:<its local key>`. `children` and `scenes` are derived from nesting, `scenes` is GM-only.
+ * A location's `layout` is just this list in the GM's order.
+ */
+export const BLOCKS = Object.freeze([
+  {key: 'description', label: 'Description'},
+  {key: 'conditions', label: 'Conditions'},
+  {key: 'children', label: 'Places Inside'},
+  {key: 'resources', label: 'Gathering Resources'},
+  {key: 'factions', label: 'Factions'},
+  {key: 'quests', label: 'Quests'},
+  {key: 'related', label: 'Related Locations'},
+  {key: 'loot', label: 'Loot & Rewards'},
+  {key: 'notes', label: 'Notes'},
+  {key: 'scenes', label: 'Linked Scenes'}
+]);
+export const DETAIL_PREFIX = 'detail:';
+export const LOOT_STATUSES = Object.freeze(['available', 'discovered', 'taken']);
+export const LOOT_STATUS_LABELS = Object.freeze({available: 'Available', discovered: 'Discovered', taken: 'Taken'});
 /** Gathering nodes (Session 1 runbook §3): skill, tier 1–5, DC defaulting by tier. Rules live in the Ledger. */
 export const GATHERING = Object.freeze({
   skills: Object.freeze(['Herbalism', 'Mining', 'Fishing', 'Skinning & Harvesting', 'Archaeology']),
@@ -85,18 +107,54 @@ const ENTRY_SHAPES = {
       finite, exhausted: finite && bool(e.exhausted, false), available: bool(e.available, true),
       uuid: safeUuid(e.uuid), note: line(e.note, 500)};
   },
+  conditions: e => ({label: line(e.label), text: text(e.text, 2000)}),
   factions: e => ({label: line(e.label), ...linked(e), note: line(e.note, 500)}),
   quests: e => ({questId: QUEST_ID.test(e.questId ?? '') ? e.questId : ''}),
   related: e => ({locationId: LOCATION_ID.test(e.locationId ?? '') ? e.locationId : ''}),
+  // A loot entry is a plain-text reward (no uuid) or a link to a native Item. `label`, `text` and `img` are what
+  // players see; nothing is ever read from the linked document into the view. A link creates no Actor item.
+  loot: e => ({label: line(e.label), text: text(e.text, 2000), img: safePath(e.img), ...linked(e),
+    status: LOOT_STATUSES.includes(e.status) ? e.status : 'available'}),
   notes: e => ({title: line(e.title), text: text(e.text), ...linked(e)})
 };
+const DETAIL_SHAPE = e => ({title: line(e.title), text: text(e.text), ...linked(e)});
 const KEEP_ENTRY = {
+  conditions: e => e.label || e.text,
+  loot: e => e.label || e.text || e.uuid,
   resources: e => e.label || e.materialId || e.rareMaterialId || e.uuid,
   factions: e => e.label || e.uuid,
   quests: e => e.questId,
   related: e => e.locationId,
   notes: e => e.title || e.text || e.uuid
 };
+
+/**
+ * The GM's block order: known keys only, each once, in the order given; anything missing is appended in
+ * default order (custom blocks last, in the order they were added). Order metadata only.
+ */
+export function normalizeLayout(raw, details = []) {
+  const valid = [...BLOCKS.map(b => b.key), ...details.map(d => DETAIL_PREFIX + d.key)];
+  const known = new Set(valid), out = [];
+  for (const k of Array.isArray(raw) ? raw : []) if (known.has(k) && !out.includes(k)) out.push(k);
+  return [...out, ...valid.filter(k => !out.includes(k))];
+}
+/**
+ * Moves one item of an ordered list and returns a new list (the input is untouched). `by` shifts it up (-1)
+ * or down (+1); `before`/`after` drop it next to another item. Unknown keys and no-ops return the list as it was.
+ */
+export function reorder(list, keyOf, key, {by = 0, before = null, after = null} = {}) {
+  const from = list.findIndex(x => keyOf(x) === key);
+  if (from < 0) return list;
+  const next = list.slice(), [item] = next.splice(from, 1);
+  let to;
+  if (before != null || after != null) {
+    const at = next.findIndex(x => keyOf(x) === (before ?? after));
+    if (at < 0) return list;
+    to = before != null ? at : at + 1;
+  } else to = Math.max(0, Math.min(next.length, from + by));
+  next.splice(to, 0, item);
+  return next.every((x, i) => x === list[i]) ? list : next;
+}
 
 /** The authored content of a location: everything a Publish copies. GM-only bindings and play state live outside it. */
 function normalizeBody(r, id) {
@@ -114,6 +172,15 @@ function normalizeBody(r, id) {
     body[key] = list.map(e => entry(e, ENTRY_SHAPES[key])).filter(KEEP_ENTRY[key]);
   }
   body.related = body.related.filter(e => e.locationId !== id);
+  // Location-local custom blocks. `visible` is the block's own reveal toggle.
+  body.details = (Array.isArray(r.details) ? r.details : []).map(e => entry(e, DETAIL_SHAPE)).filter(e => e.title || e.text || e.uuid);
+  body.details = body.details.filter((e, i, all) => all.findIndex(x => x.key === e.key) === i);
+  body.layout = normalizeLayout(r.layout, body.details);
+  body.isRegion = bool(r.isRegion, false);
+  // A child's changes to a conditions it inherits: {from: Region LOC id, conditionKey, disabled, label?, text?}.
+  body.conditionOverrides = (Array.isArray(r.conditionOverrides) ? r.conditionOverrides : []).map(e => entry(e, o => ({
+    from: LOCATION_ID.test(o.from ?? '') ? o.from : '', conditionKey: line(o.conditionKey, 40), disabled: bool(o.disabled, false),
+    label: line(o.label), text: text(o.text, 2000)}))).filter(o => o.from && o.conditionKey && (o.disabled || o.label || o.text));
   body.parentLocationId = LOCATION_ID.test(r.parentLocationId ?? '') && r.parentLocationId !== id ? r.parentLocationId : '';
   body.unidentifiedLabel = line(r.unidentifiedLabel, 80);
   body.teaser = text(r.teaser, 2000);
@@ -180,6 +247,44 @@ export function newLocation(name, existingIds) {
 }
 
 /**
+ * Conditions in effect at a location: those it inherits from Region ancestors, then its own. Only locations
+ * marked `isRegion` pass conditions down, through any number of non-Region places in between; nothing else
+ * (resources, factions, quests, loot, state, visibility) is inherited. A child's `conditionOverrides` can turn an
+ * inherited condition off or replace its label/text; the Region is never edited.
+ * GM (default): saved content, every condition, each with its source. `player: true`: only what the published
+ * content allows (Region not hidden, shown section, visible entry); disabled ones are dropped and no source is named.
+ */
+export function effectiveConditions(raw, all = [], {player = false} = {}) {
+  const loc = normalizeLocation(raw);
+  const body = player ? loc.published : loc;
+  if (!body) return [];
+  const byId = new Map(all.map(normalizeLocation).filter(l => l.id).map(l => [l.id, l]));
+  const overrides = new Map(body.conditionOverrides.map(o => [`${o.from}\n${o.conditionKey}`, o]));
+  const chain = [], seen = new Set([loc.id]);
+  for (let id = body.parentLocationId; id && !seen.has(id);) {
+    seen.add(id);
+    const a = byId.get(id);
+    if (!a) break;
+    chain.unshift(a);
+    id = (player ? a.published : a)?.parentLocationId ?? a.parentLocationId;
+  }
+  const out = [];
+  for (const a of chain) {
+    const src = player ? (a.state !== 'hidden' ? a.published : null) : a;
+    if (!src?.isRegion || (player && !src.sections.conditions)) continue;
+    for (const c of src.conditions) {
+      if (player && !c.visible) continue;
+      const o = overrides.get(`${a.id}\n${c.key}`);
+      if (player && o?.disabled) continue;
+      out.push({key: c.key, label: o?.label || c.label, text: o?.text || c.text, original: {label: c.label, text: c.text}, visible: c.visible, inherited: true,
+        source: {id: a.id, name: a.name}, disabled: !!o?.disabled, overridden: !!(o && (o.label || o.text))});
+    }
+  }
+  for (const c of body.conditions) if (!player || c.visible) out.push({key: c.key, label: c.label, text: c.text, visible: c.visible, inherited: false, source: null, disabled: false, overridden: false});
+  return out;
+}
+
+/**
  * The only data players ever receive, built from the published content only (Save is private).
  * Hidden: null. Unidentified: {key, state, name: the generic label, teaser?} and nothing else, so no
  * LOC id, true name, children or flags. Revealed: hidden fields, sections and entries are omitted (not
@@ -207,10 +312,19 @@ export function playerView(raw, all = [], {label = ''} = {}) {
   const ref = l => l.state === 'revealed' ? {id: l.id, key: l.pinKey, name: l.published.name} : {key: l.pinKey, name: l.published.unidentifiedLabel || fallback};
   const related = on('related').map(e => shown.get(e.locationId)).filter(l => l?.state === 'revealed').map(l => ({id: l.id, name: l.published.name}));
   const notes = on('notes').map(e => ({title: e.title, text: e.text, uuid: e.uuid, docType: e.docType}));
+  // Only what the GM wrote for players. Nothing is read from the linked document, and the status is the GM's.
+  const loot = on('loot').map(e => ({label: e.label, text: e.text, img: e.img, uuid: e.uuid, docType: e.docType, status: e.status}));
+  const details = pub.details.filter(d => d.visible).map(d => ({key: d.key, title: d.title, text: d.text, uuid: d.uuid, docType: d.docType}));
+  const conditions = pub.sections.conditions ? effectiveConditions(loc, all, {player: true}).map(c => ({label: c.label, text: c.text})) : [];
   const parent = shown.get(pub.parentLocationId);
   if (parent) view.parent = ref(parent);
   const children = [...shown.values()].filter(l => l.published.parentLocationId === loc.id).map(ref).sort((a, b) => a.name.localeCompare(b.name));
-  for (const [key, list] of Object.entries({resources, factions, quests, related, notes, children})) if (list.length) view[key] = list;
+  for (const [key, list] of Object.entries({conditions, resources, factions, quests, related, loot, notes, details, children})) if (list.length) view[key] = list;
+  // Block order as the GM published it, listing only blocks the player actually has (so no empty or unrevealed titles).
+  const present = new Set(Object.keys(view).filter(k => k !== 'details'));
+  for (const d of details) present.add(DETAIL_PREFIX + d.key);
+  if (view.description) present.add('description');
+  view.layout = pub.layout.filter(k => present.has(k));
   return view;
 }
 
@@ -278,13 +392,21 @@ export function viewHtml(view) {
   if (meta.length) parts.push(`<p><em>${meta.map(esc).join(' · ')}</em></p>`);
   if (view.img) parts.push(`<p><img src="${esc(view.img)}" alt="${esc(view.name)}"></p>`);
   if (view.description) parts.push(`<p>${p(view.description)}</p>`);
-  const list = (title, items) => items?.length && parts.push(`<h2>${title}</h2><ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>`);
-  list('Gathering Resources', view.resources?.map(r => [esc(nodeName(r)), r.skill && esc(`${r.skill} T${r.tier}`), r.dc && `DC ${r.dc}`,
-    r.exhausted ? '(exhausted)' : !r.available && '(unavailable)'].filter(Boolean).join(' · ')));
-  list('Factions', view.factions?.map(f => esc(f.label)));
-  list('Places Here', view.children?.map(c => esc(c.name)));
-  list('Related Locations', view.related?.map(r => esc(r.name)));
-  for (const n of view.notes ?? []) parts.push(`<h2>${esc(n.title || 'Note')}</h2>${n.text ? `<p>${p(n.text)}</p>` : ''}`);
+  const list = (title, items) => items?.length ? `<h2>${title}</h2><ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>` : '';
+  const blocks = {
+    description: view.description ? `<p>${p(view.description)}</p>` : '',
+    conditions: list('Conditions', view.conditions?.map(c => [`<strong>${esc(c.label)}</strong>`, c.text && esc(c.text)].filter(Boolean).join(': '))),
+    resources: list('Gathering Resources', view.resources?.map(r => [esc(nodeName(r)), r.skill && esc(`${r.skill} T${r.tier}`), r.dc && `DC ${r.dc}`,
+      r.exhausted ? '(exhausted)' : !r.available && '(unavailable)'].filter(Boolean).join(' · '))),
+    factions: list('Factions', view.factions?.map(f => esc(f.label))),
+    children: list('Places Here', view.children?.map(c => esc(c.name))),
+    related: list('Related Locations', view.related?.map(r => esc(r.name))),
+    // Plain text only: a Journal page never links a document, so it can't open one the reader may not see.
+    loot: list('Loot & Rewards', view.loot?.map(l => [esc(l.label), l.text && esc(l.text), `(${LOOT_STATUS_LABELS[l.status] ?? 'Available'})`].filter(Boolean).join(' · '))),
+    notes: (view.notes ?? []).map(n => `<h2>${esc(n.title || 'Note')}</h2>${n.text ? `<p>${p(n.text)}</p>` : ''}`).join('\n')
+  };
+  for (const d of view.details ?? []) blocks[DETAIL_PREFIX + d.key] = `<h2>${esc(d.title || 'Detail')}</h2>${d.text ? `<p>${p(d.text)}</p>` : ''}`;
+  for (const k of view.layout ?? normalizeLayout([], view.details ?? [])) if (blocks[k]) parts.push(blocks[k]);
   return parts.join('\n');
 }
 
@@ -339,8 +461,8 @@ export function parseImport(pkg, existing = []) {
   return {created, skipped, errors};
 }
 
-/** Fields added in 1.3.0. An update that leaves one out keeps the world's value instead of clearing it. */
-const ADDITIVE = ['parentLocationId', 'unidentifiedLabel', 'teaser', 'pin', 'sceneUuids'];
+/** Fields added in 1.3.0 and 1.4.0. An update that leaves one out keeps the world's value instead of clearing it. */
+const ADDITIVE = ['parentLocationId', 'unidentifiedLabel', 'teaser', 'pin', 'sceneUuids', 'layout', 'details', 'isRegion', 'conditionOverrides', 'conditions', 'loot'];
 
 /**
  * Imports Location records (Manager's import run, or the package path above) into `existing`.
@@ -366,7 +488,11 @@ export function importRecords(records, existing = [], {mode = 'skip'} = {}) {
     seen.add(body.id);
     const old = current.get(body.id);
     if (old && mode === 'skip') { skipped.push({id, reason: 'Already exists; kept unchanged.'}); continue; }
-    if (old) for (const k of ADDITIVE) if (!(k in body)) body[k] = old[k];
+    if (old) {
+      for (const k of ADDITIVE) if (!(k in body)) body[k] = old[k];
+      // A package from before 1.4.0 has no switch for the new sections; keep the world's.
+      body.sections = {conditions: old.sections.conditions, loot: old.sections.loot, ...(body.sections ?? {})};
+    }
     const incoming = normalizeLocation(body);
     if (wouldCycle(incoming.id, incoming.parentLocationId, parents)) { skipped.push({id, reason: `parentLocationId ${incoming.parentLocationId} would put it inside itself.`}); continue; }
     parents.set(incoming.id, incoming.parentLocationId);
