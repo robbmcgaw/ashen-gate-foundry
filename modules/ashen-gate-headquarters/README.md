@@ -20,7 +20,7 @@ Source contract: Ashen Gate live `main` reviewed 2026-10-17 at `89da7ab854fa87e1
 
 ## Implemented in this alpha
 
-- **Existing v0.3.0 UI retained:** aligned Actors sidebar launcher, visible version/Help, GM Setup tab, catalog search, bottom-right shared-edit action; see `RELEASE_NOTES.md`, `SIDEBAR_LAUNCHER_HANDOFF.md`. No v0.1 state migration.
+- **Existing v0.3.0 UI retained:** aligned Actors sidebar launcher, visible version/Help, GM Setup tab, catalog search, bottom-right shared-edit action. No v0.1 state migration.
 
 - Separate campaign-scoped `guild_state` (campaign + guild key) and one `HQ-*` physical site linked to `LOC-*`.
 - Five GM-controlled ranks, configurable rank table, rank-granted facility unlocks, manual unlocks; defaults of two facility slots and two shared downtime Orders are **playtest defaults**, not fixed mechanics.
@@ -61,7 +61,7 @@ api?.getState(); // {contract:'ag-player-access/1',moduleId:'ashen-gate-headquar
 await api?.setEnabled(false); // only GM; rejected for non-GM
 ```
 
-**This is UI access, not module activation, game rule permission, Actor ownership or document discovery.** v0.4.0 removed v0.3.0's unauthenticated player-mutation socket and uses an Actor document update to carry player editing intents. This still requires an actual Foundry V14 two-client verification before it can be called secure; see `RELEASE_NOTES.md`.
+**This is UI access, not module activation, game rule permission, Actor ownership or document discovery.** v0.4.0 removed v0.3.0's unauthenticated player-mutation socket and uses an Actor document update to carry player editing intents. This still requires an actual Foundry V14 two-client verification before it can be called secure.
 
 ## Data shape and ownership
 
@@ -112,4 +112,4 @@ No live Foundry test has been performed. If the launcher is absent after enablin
 
 ## v0.6.0 coordinated update
 
-See [RELEASE_NOTES.md](RELEASE_NOTES.md) for new launcher lifetime, image controls, compact GM Setup, and active-GM bridge fallback; [fixtures/SETUP_RESET.md](fixtures/SETUP_RESET.md) for exact GM fixture setup and safe cleanup; [fixtures/HQ_v0.6.0_Live_Test_Cases.csv](fixtures/HQ_v0.6.0_Live_Test_Cases.csv) for the required eight-column Foundry acceptance checklist. These supersede older references to the Settings fallback or screen labels. No live Foundry V14 test is claimed.
+See [CHANGELOG.md](CHANGELOG.md) for changes; [fixtures/SETUP_RESET.md](fixtures/SETUP_RESET.md) for exact GM fixture setup and safe cleanup; [fixtures/HQ_v0.6.0_Live_Test_Cases.csv](fixtures/HQ_v0.6.0_Live_Test_Cases.csv) for the required eight-column Foundry acceptance checklist. These supersede older references to the Settings fallback or screen labels. No live Foundry V14 test is claimed.

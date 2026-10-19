@@ -28,7 +28,6 @@
 3. GM: expand **Developer Tools → Install QA Fixture Records**, read the confirmation, and confirm. The action creates `[AG QA] Skill Tree Test Character` (native character Actor), `[AG QA] Profession Perk Source` and `[AG QA] Cinder Power Source` (native draft GM-only `feat` Items), and three actual GM Journal layouts: `[AG QA] Generic Progression`, `[AG QA] Cinder Milestones`, `[AG QA] Profession Reference` (read-only).
 4. In the native **Actors** directory, open `[AG QA] Skill Tree Test Character` and configure its **Ownership/Permissions** to give your test player **Owner**. Leave both QA source Feature Items GM-only; their `draft` state is deliberate. Join with a separate player account to verify the sanitized view.
 5. Test the normal **Skill Trees** tab: award points, select nodes, record generic/Cinder unlocks, drag QA source Features into a tree while editing, publish player projection, and verify GM-only nodes are not visible to the player. The QA fixture is also serialized as `data/qa-fixture-v060.json` for exact data inspection, **not for import into Manager or Skill Trees**.
-6. Complete the **Test Cases** sheet (`tests/AG_Skill_Trees_v0.6.0_Test_Cases.csv` or the separate Excel tracker). Actual GM/player observations remain NOT RUN until you perform them.
 
 ## Reset / safe cleanup
 
@@ -64,4 +63,4 @@ Expected result in this build: **61 tests passed, 0 failed** (local Node/mock so
 - Current world-only ID reader does not implement an explicit compendium snapshot/provider or player `reveal_gated` policy; do not use it to advertise those capabilities.
 - The window requires visual confirmation of canvas scrolling/dragging and long-text wrapping on the user's installed Foundry build; source-level CSS tests do not certify its appearance.
 
-See `RELEASE_NOTES.md`, `QA_REPORT.json`, `tests/FOUNDRY_BETA_CHECKLIST.md` and `tests/AG_Skill_Trees_v0.6.0_Test_Cases.csv`.
+See `CHANGELOG.md`.
