@@ -101,3 +101,21 @@
 .agl-preview { display: flex; flex-direction: column; gap: 10px; }
 .agl-preview__part { border: 1px solid var(--agl-border); border-radius: var(--agl-radius); padding: 8px 12px; }
 .agl-preview__part > h3 { margin: 0 0 6px; font-size: .8rem; text-transform: uppercase; letter-spacing: .05em; color: var(--agl-muted); border: 0; }
+
+/* ----- 1.4.0: reorder, details, loot, conditions ----- */
+.agl-head-tools { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.agl-block-tools { display: inline-flex; align-items: center; gap: 2px; }
+.agl-handle { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 28px; flex: 0 0 auto; cursor: grab; color: var(--agl-muted); border-radius: 4px; }
+.agl-handle:hover { color: var(--agl-text); }
+.agl-handle:focus-visible { outline: 2px solid var(--agl-accent); }
+.agl-handle:active { cursor: grabbing; }
+.agl-section[data-block].agl-dragover { outline: 2px dashed var(--agl-accent); }
+.agl-detail-title { font-weight: 600; min-width: 220px; }
+.agl-add-detail { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 4px 0 12px; }
+.agl-cond, .agl-loot { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.agl-cond input { flex: 1; min-width: 160px; }
+.agl-loot__fields { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 220px; }
+.agl-loot__img { width: 40px; height: 40px; object-fit: cover; border-radius: var(--agl-radius); border: 1px solid var(--agl-border); }
+.agl-inherited { border-left: 3px solid var(--agl-accent); padding-left: 8px; }
+.agl-inherited input { flex: 1; min-width: 140px; }
+.agl-inherited.agl-off .agl-entry { text-decoration: line-through; opacity: .7; }
