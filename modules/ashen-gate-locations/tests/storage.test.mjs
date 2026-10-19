@@ -102,3 +102,25 @@ test('a hidden DC never reaches the player journal; showing it does', async () =
   await writeAll([{...loc, resources: [{...loc.resources[0], dcVisible: true}]}]);
   assert.match(playerJournal().pages[0].getFlag(MOD, 'view'), /"dc":37/);
 });
+
+test('writeAll skips the GM data write when nothing changed, and still writes when something did', async () => {
+  installFoundry();
+  await writeAll(sample);
+  await writeAll(readAll()); // readAll sorts by name, so the first round trip may reorder the stored array once
+  const doc = gmJournal();
+  let writes = 0;
+  const update = doc.update.bind(doc);
+  doc.update = d => { writes++; return update(d); };
+  await writeAll(readAll());
+  assert.equal(writes, 0, 'identical records are not rewritten');
+  const edited = readAll(); edited[0].description = 'Changed for the test.';
+  await writeAll(edited);
+  assert.equal(writes, 1);
+  assert.equal(readAll().find(l => l.id === edited[0].id).description, 'Changed for the test.');
+});
+
+test('player views built with a pre-normalized list match the ones built without', async () => {
+  const {playerView, normalizeLocation} = await import('../scripts/model.mjs');
+  const all = sample.map(normalizeLocation);
+  for (const loc of all) assert.deepEqual(playerView(loc, all, {normalized: all}), playerView(loc, all));
+});

@@ -11,6 +11,8 @@
   --agl-ok: var(--ag-ok);
   --agl-warn: var(--ag-warn);
   --agl-danger: var(--ag-danger);
+  /* Text on a solid danger fill. No shared token for this yet; dark, because white on the salmon default is ~2.5:1 and this is ~7:1. */
+  --agl-on-danger: #1a1408;
   --agl-radius: var(--ag-radius);
   --agl-gap: var(--ag-space-2);
 }
@@ -73,7 +75,7 @@
 
 .agl-threat--normal { border-color: var(--agl-ok); color: var(--agl-ok); }
 .agl-threat--hot { border-color: var(--agl-warn); color: var(--agl-warn); }
-.agl-threat--deadly { border-color: var(--agl-danger); background: var(--agl-danger); color: #fff; }
+.agl-threat--deadly { border-color: var(--agl-danger); background: var(--agl-danger); color: var(--agl-on-danger); }
 .agl-ok { border-color: var(--agl-ok); color: var(--agl-ok); }
 .agl-off { color: var(--agl-muted); }
 

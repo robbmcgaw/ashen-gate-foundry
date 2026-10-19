@@ -335,11 +335,11 @@ export const passesConditions = body => !!body?.isRegion && (body.passConditions
  * content allows (Region not hidden and seen by everyone who reads this card, shown section, visible entry);
  * disabled ones are dropped and no source is named.
  */
-export function effectiveConditions(raw, all = [], {player = false} = {}) {
+export function effectiveConditions(raw, all = [], {player = false, normalized = null} = {}) {
   const loc = normalizeLocation(raw);
   const body = player ? loc.published : loc;
   if (!body) return [];
-  const byId = new Map(all.map(normalizeLocation).filter(l => l.id).map(l => [l.id, l]));
+  const byId = new Map((normalized ?? all.map(normalizeLocation)).filter(l => l.id).map(l => [l.id, l]));
   const overrides = new Map(body.conditionOverrides.map(o => [`${o.from}\n${o.conditionKey}`, o]));
   const chain = [], seen = new Set([loc.id]);
   const reader = player ? loc : null;
@@ -372,9 +372,10 @@ export function effectiveConditions(raw, all = [], {player = false} = {}) {
  * LOC id, true name, children or flags. Revealed: hidden fields, sections and entries are omitted (not
  * blanked); related links only point at other revealed locations; children/parent show revealed
  * ones by name and unidentified ones by their label. Quests carry ids only; Quest Manager decides
- * what a player sees. `label` is the world fallback for the unidentified label.
+ * what a player sees. `label` is the world fallback for the unidentified label. `normalized` (optional): `all`
+ * already run through normalizeLocation, so a caller building many views normalizes the list once, not per view.
  */
-export function playerView(raw, all = [], {label = ''} = {}) {
+export function playerView(raw, all = [], {label = '', normalized = null} = {}) {
   const loc = normalizeLocation(raw);
   const pub = loc.published;
   if (!loc.id || loc.state === 'hidden' || !pub) return null;
@@ -394,14 +395,14 @@ export function playerView(raw, all = [], {label = ''} = {}) {
   const factions = on('factions').map(e => ({label: e.label, uuid: e.uuid, docType: e.docType, note: e.note}));
   const quests = on('quests').map(e => e.questId);
   // A link (parent, children, related) appears only if everyone who can read this card can also see its target.
-  const shown = new Map(all.map(normalizeLocation).filter(l => l.id && l.state !== 'hidden' && l.published && covers(l, loc)).map(l => [l.id, l]));
+  const shown = new Map((normalized ?? all.map(normalizeLocation)).filter(l => l.id && l.state !== 'hidden' && l.published && covers(l, loc)).map(l => [l.id, l]));
   const ref = l => l.state === 'revealed' ? {id: l.id, key: l.pinKey, name: l.published.name} : {key: l.pinKey, name: l.published.unidentifiedLabel || fallback};
   const related = on('related').map(e => shown.get(e.locationId)).filter(l => l?.state === 'revealed').map(l => ({id: l.id, name: l.published.name}));
   const notes = on('notes').map(e => ({title: e.title, text: e.text, uuid: e.uuid, docType: e.docType}));
   // Only what the GM wrote for players. Nothing is read from the linked document, and the status is the GM's.
   const loot = on('loot').map(e => ({label: e.label, text: e.text, img: e.img, uuid: e.uuid, docType: e.docType, status: e.status}));
   const details = pub.details.filter(d => d.visible).map(d => ({key: d.key, title: d.title, text: d.text, uuid: d.uuid, docType: d.docType}));
-  const conditions = pub.sections.conditions ? effectiveConditions(loc, all, {player: true}).map(c => ({label: c.label, text: c.text})) : [];
+  const conditions = pub.sections.conditions ? effectiveConditions(loc, all, {player: true, normalized}).map(c => ({label: c.label, text: c.text})) : [];
   const parent = shown.get(pub.parentLocationId);
   if (parent) view.parent = ref(parent);
   const children = [...shown.values()].filter(l => l.published.parentLocationId === loc.id).map(ref).sort((a, b) => a.name.localeCompare(b.name));
