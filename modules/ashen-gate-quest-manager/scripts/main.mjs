@@ -6,7 +6,7 @@ import {ASSIGNMENT_CONTRACT,listAssignments,getAssignment,saveAssignment,removeA
 import {selectTrackedViews,validTrackedId,trackingState} from './tracking.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 
-const VERSION='0.6.0';
+const VERSION='0.6.1';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -24,7 +24,7 @@ function blankTemplate(){return {
  objectives:[{key:'first',goal:'',visibility:'player'}],locations:[],parameters:{},outcomes:{}
 };}
 function blankAssignment(objectiveId){return {id:'ASSIGN-REPLACE-ME',entity_type:'Assignment',status:'draft',version:'0.1.0',provenance:{sources:['GM-authored campaign assignment']},visibility:'gm',refs:[{relation:'executes_objective',target_id:objectiveId,mode:'required'}],scope:'campaign_state',owner_system_id:'SYS-QUEST',objective_id:objectiveId,execution_status:'pending',participants:[],results:{}};}
-function stateForGM(){return allPrivate().sort((a,b)=>a.source.name.localeCompare(b.source.name));}
+function stateForGM(){return allPrivate().sort((a,b)=>String(a.source.name??a.source.id).localeCompare(String(b.source.name??b.source.id)));}
 function roleViewList(tab,actorId){return visibleViews().filter(x=>x.view.scope===(tab==='individual'?'individual':'party')&&(tab!=='individual'||x.view.actorId===actorId)).sort((a,b)=>a.view.name.localeCompare(b.view.name));}
 function safeButton(label,action,{disabled=false,kind='',title=''}={}){return `<button type="button" data-action="${E(action)}" class="${E(kind)}" ${disabled?'disabled':''} title="${E(title)}">${E(label)}</button>`;}
 function options(items,value){return items.map(([v,n])=>`<option value="${E(v)}" ${v===value?'selected':''}>${E(n)}</option>`).join('');}
@@ -277,7 +277,8 @@ Hooks.once('ready',()=>{
   // GM-only hand-off used by General Manager's single importer; Quest Log's own Import JSON keeps working.
   previewQuestImport:(payload,options)=>previewQuestImport(payload,options),
   importQuests:(payload,options)=>importQuests(payload,options),
-  listQuests:()=>{assertGM(game.user);return stateForGM().map(x=>({id:x.source.id,name:x.source.name,status:x.state.status}));},
+  // Every Quest, Order and Contract regardless of reveal status (Hidden ones included). `status` is the play state; `definitionStatus` is the source's own (draft, approved...).
+  listQuests:()=>{assertGM(game.user);return stateForGM().map(x=>({id:x.source.id,name:x.source.name,status:x.state.status,kind:x.source.objective_kind,definitionStatus:x.source.status}));},
   getGMSource:(id)=>{assertGM(game.user);return structuredClone(getPrivate(id)?.getFlag(MOD,'source')??null);},
   getGMState:(id)=>{assertGM(game.user);return structuredClone(getPrivate(id)?.getFlag(MOD,'state')??null);},
   setGMState:(id,patch)=>{assertGM(game.user);return updateState(id,patch);},

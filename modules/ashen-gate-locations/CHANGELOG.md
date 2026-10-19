@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.5.2 — 2026-10-19
+
+- **Fixed: the window going blank.** Pressing Tab out of a new detail's title, or clicking an eye (reveal) icon, scrolled the whole window out of view (the hidden checkbox behind each eye was not anchored to its label). Closing and reopening only brought it back. Fixed in the stylesheet.
+- If the window ever fails to draw, it now shows the error inside the window with a **Retry** button (and logs it to the console) instead of an empty window. Your unsaved edits stay in memory.
+- **Fixed: Link a quest picker.** The GM's picker lists every Quest, Order and Contract from Quest Log whatever its reveal status, marking Hidden and draft ones, e.g. "Hidden · draft". If Quest Log's full list can't be read, it falls back to visible quests and logs why to the console instead of showing an empty picker. Players still see only what Quest Log lets them see. (Quest Log 0.6.1 adds the draft label.)
+- No saved-data changes.
+
 ## 1.5.1 — 2026-10-19
 
 - Actors launcher joins the shared two-column grid in the fixed order. GM-only Location Builder button in the Items sidebar now sits beside General Manager (Manager first, Locations second) in a tidy grid. No saved-data changes. Buttons wrap their labels instead of clipping, use the Ashen Gate theme tokens for hover/focus, and the grid reflows with no gap when a module is off or hidden by Player Access.
