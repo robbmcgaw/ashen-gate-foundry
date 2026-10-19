@@ -239,6 +239,57 @@ test('XP from a card: no automatic award, GM-only button, one award per card',as
  game.user=alice;el=slot();_test.decorateChatCard(card,el);assert.match(el.slot.innerHTML,/\+3 \[TEST\] Herbalism XP awarded/);
 });
 
+test('0.12.0: undo award, adjust/set XP, perks kept and flagged, history GM-only',async()=>{
+ const card=chats.find(c=>c.flags?.['ashen-gate-profession-ledger']?.xp?.kind==='gather');
+ const flag=()=>belwar.flags['ashen-gate-profession-ledger'].professionProgress.professions['PROF-TG-HERBALISM'];
+ const P='PROF-TG-HERBALISM';
+ // Players cannot undo, adjust, or read history.
+ game.user=alice;
+ await assert.rejects(()=>_test.undoAwardFromCard(card),/Only the GM/);
+ await assert.rejects(()=>_test.adjustXP(belwar,P,{delta:-1}),/Only the GM/);
+ await assert.rejects(()=>_test.performAction('adjust-xp',{id:P,actorId:'belwar',delta:-1}),/GM only/);
+ assert.throws(()=>api.getProfessionXPHistory(belwar,P),/Only the GM/);
+ assert.equal('history' in api.getProfessionProgress(belwar,P),false,'player progress never carries history');
+ // GM: the card offers Undo; undo restores XP, re-enables Award, is idempotent and traceable.
+ game.user=gm;let el=slot();_test.decorateChatCard(card,el);assert.match(el.slot.innerHTML,/data-agl-xp-undo/);
+ const out=await _test.undoAwardFromCard(card);
+ assert.match(out.message,/3 \[TEST\] Herbalism XP taken back → 0 XP, level 1/);
+ assert.equal(flag().xp,0);assert.equal(card.flags['ashen-gate-profession-ledger'].xp.awarded,null);
+ assert.equal(card.flags['ashen-gate-profession-ledger'].xp.undone.points,3);
+ await assert.rejects(()=>_test.undoAwardFromCard(card),/no XP award/);
+ assert.equal(flag().xp,0,'second undo changed nothing');
+ el=slot();_test.decorateChatCard(card,el);assert.match(el.slot.innerHTML,/data-agl-xp-award/,'Award XP is back');
+ game.user=alice;el=slot();_test.decorateChatCard(card,el);assert.equal(el.slot.innerHTML,'','players see nothing again');
+ game.user=gm;
+ assert.deepEqual(api.getProfessionXPHistory(belwar,P).map(h=>[h.kind,h.delta,h.by]),[['award',3,'gm'],['undo',-3,'gm']]);
+ assert.ok(api.getProfessionXPHistory(belwar,P).every(h=>h.messageId===card.id));
+ // Award 7 from the card again, then lower it by 4 and set it exactly; derived level/sheet text follow.
+ await _test.awardXpFromCard(card,7);
+ assert.equal(flag().xp,7);
+ let r=await _test.performAction('adjust-xp',{id:P,actorId:'belwar',delta:'-4',reason:'Misclick'});
+ assert.match(r.message,/XP 7 → 3, level 1/);assert.equal(flag().xp,3);
+ const note=chats.at(-1);assert.match(note.content,/adjusted by the GM \(−4\)/);assert.match(note.content,/Misclick/);assert.ok(note.whisper.includes('gm'));
+ assert.match(FakeDialog.last.content,/3<\/strong>/);
+ await assert.rejects(()=>_test.performAction('adjust-xp',{id:P,actorId:'belwar',delta:'1',set:'5'}),/either/);
+ r=await _test.performAction('adjust-xp',{id:P,actorId:'belwar',set:'-5'}).catch(e=>e);assert.match(String(r),/0 or more/);
+ // Below zero clamps to 0; above the cap clamps to 390.
+ r=await _test.performAction('adjust-xp',{id:P,actorId:'belwar',delta:'-50'});assert.equal(flag().xp,0);
+ r=await _test.performAction('adjust-xp',{id:P,actorId:'belwar',set:'99999'});assert.equal(flag().xp,390);
+ assert.equal(api.getProfessionProgress(belwar,P).level,16);
+ // Perks held beyond a lower level are kept, flagged, and the progress stays valid.
+ belwar.flags['ashen-gate-profession-ledger'].professionProgress.professions[P].selectedPerkIds=['PERK-TG-A','PERK-TG-B','PERK-TG-C'];
+ r=await _test.performAction('adjust-xp',{id:P,actorId:'belwar',set:'3'});
+ assert.deepEqual(flag().selectedPerkIds,['PERK-TG-A','PERK-TG-B','PERK-TG-C'],'nothing deleted');
+ assert.match(r.message,/2 held \[TEST\] Herbalism perks \(PERK-TG-B, PERK-TG-C\) now exceed level 1\. They are kept/);
+ assert.match(FakeDialog.last.content,/PERK-TG-B, PERK-TG-C/);assert.match(chats.at(-1).content,/PERK-TG-B/);
+ const prog=api.getProfessionProgress(belwar,P);
+ assert.deepEqual([prog.xp,prog.level,prog.unspentPerkChoices,prog.perksBeyondLevel],[3,1,0,['PERK-TG-B','PERK-TG-C']]);
+ // Cancelling the confirmation changes nothing.
+ confirmAnswer=false;assert.equal(await _test.performAction('adjust-xp',{id:P,actorId:'belwar',delta:'-1'}),null);confirmAnswer=true;
+ assert.equal(flag().xp,3);
+ assert.ok(api.getProfessionXPHistory(belwar,P).at(-1).reason==='' && api.getProfessionXPHistory(belwar,P).at(-1).kind==='set');
+});
+
 test('GM-initiated: success by 5+ gives the rare bundle instead; failure gives nothing and exhausts a renewable node',async()=>{
  game.user=gm;
  let s=await _test.startGather({node:_test.gatherLocations().locations[0].nodes.find(x=>x.id==='n5'),leadId:'tarra'});

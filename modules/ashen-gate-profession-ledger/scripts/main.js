@@ -1,7 +1,7 @@
 import {SCHEMA,PROFESSION_NAMES,norm,professionFromTreeName,classify,normalizeRecipe,normalizeLibrary,
   sourceVisibility,sourceAvailableToPlayer,agSourceId,quantity} from './core.mjs';
 import {GATHERING_PROFESSIONS,TIERS,ACCESS_LEVELS,gatherXP,knownRecipesOf,canLearnRecipe,progressOf,emptyProgress,
-  nextProgress,isMaterialAwardCandidate,xpForLevel} from './progression.mjs';
+  nextProgress,adjustProgress,xpHistoryOf,XP_CAP,isMaterialAwardCandidate,xpForLevel} from './progression.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition,readWorldDefinition} from './definition-lookup.mjs';
 import {planCraft,craftBlockers,executeCraft,resultItemData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
@@ -11,7 +11,7 @@ import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiv
 import {tierName,defaultDC,normalizeNode,gatherOutcome,gatherReward,exhaustsNode,helperEligibility,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
   stackMaterial} from './gathering.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.11.0';
+const VERSION='0.12.0';
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...}. */
 const XP_HOOK='ashenGateLedger.xpOpportunity';
@@ -92,17 +92,49 @@ async function syncProfessionSheet(actor,profId){
   if(next!==html)await actor.updateEmbeddedDocuments('Item',[{_id:item.id,'system.description.value':next}]);
 }
 /** Exact Actor source ID and ownership enforced; no Actor state duplicated in Skill Trees. */
-async function awardXP(actor,profId,points){
+const xpEntry=(kind,extra={})=>({kind,at:Date.now(),by:game.user.id,byName:game.user.name,...extra});
+async function awardXP(actor,profId,points,extra={}){
   if(!game.user.isGM)throw Error('Only the GM can award Profession XP');
   if(!actor||!linkedProfession(actor,profId))throw Error('Actor must own a matching Manager-tagged PROF-* Profession Item');
   const key=`${actor.id}:${profId}`;
   if(xpLocks.has(key))throw Error('Profession XP award already in progress');
   xpLocks.add(key);
-  try {const before=actor.flags?.[ID]?.professionProgress??emptyProgress();const result=nextProgress(before,profId,points);
+  try {const before=actor.flags?.[ID]?.professionProgress??emptyProgress();const result=nextProgress(before,profId,points,xpEntry('award',extra));
     await actor.setFlag(ID,'professionProgress',result.state);
     try{await syncProfessionSheet(actor,profId);}catch(err){console.warn(`[${ID}] XP saved; sheet description not updated`,err);}
     return result;
   }finally{xpLocks.delete(key);}
+}
+/** Known recipes of this profession, for telling the GM which recipes a lower level locks. */
+const professionRecipes=(actor,profId)=>knownRecipesOf(actor).map(id=>partyRecipeDefinition(id,catalog())).filter(r=>r&&r.professionId===profId).map(r=>({id:r.id,name:r.name,tier:r.tier}));
+/** Plain sentence listing what depends on levels the change takes away. Nothing is deleted. */
+function dependentsText(plan,name){
+  const parts=[];
+  if(plan.perksBeyondLevel.length)parts.push(`${plan.perksBeyondLevel.length} held ${name} perk${plan.perksBeyondLevel.length===1?'':'s'} (${plan.perksBeyondLevel.join(', ')}) ${plan.perksBeyondLevel.length===1?'exceeds':'now exceed'} level ${plan.level}. They are kept, not removed. Review them.`);
+  if(plan.lockedRecipes.length)parts.push(`Known recipes now above this level (kept, but crafting is blocked until the level returns): ${plan.lockedRecipes.join(', ')}.`);
+  return parts.join(' ');
+}
+/** GM-only data-layer XP change (signed amount or exact value). Never deletes perks; records history. */
+async function adjustXP(actor,profId,{delta=null,set=null,reason='',messageId=null,kind=null}={}){
+  if(!game.user.isGM)throw Error('Only the GM can adjust Profession XP');
+  if(!actor||!linkedProfession(actor,profId))throw Error('Actor must own a matching Manager-tagged PROF-* Profession Item');
+  const key=`${actor.id}:${profId}`;
+  if(xpLocks.has(key))throw Error('Profession XP change already in progress');
+  xpLocks.add(key);
+  try{
+    const before=actor.flags?.[ID]?.professionProgress??emptyProgress();
+    const result=adjustProgress(before,profId,{delta,set,recipes:professionRecipes(actor,profId),
+      entry:xpEntry(kind??(set!==null?'set':'adjust'),{reason:String(reason??'').slice(0,200),messageId})});
+    await actor.setFlag(ID,'professionProgress',result.state);
+    try{await syncProfessionSheet(actor,profId);}catch(err){console.warn(`[${ID}] XP saved; sheet description not updated`,err);}
+    return result;
+  }finally{xpLocks.delete(key);}
+}
+/** Visible record for the owner and GMs of an XP change, so nothing happens silently. */
+async function whisperXpNote(actor,html){
+  const recipients=[...new Set(allUsers().filter(u=>u.isGM||actor.testUserPermission?.(u,'OWNER')).map(u=>u.id))];
+  try{await globalThis.ChatMessage?.create?.({whisper:recipients,speaker:ChatMessage.getSpeaker?.({actor}),content:`<div class="agl-chat-card"><header><div>${html}</div></header></div>`});}
+  catch(err){console.warn(`[${ID}] XP saved; chat note failed`,err);}
 }
 /** Consumes a real Actor-owned Recipe Item; writes only a permanent REC-* knowledge ID. */
 async function learnRecipe(actor,item){
@@ -385,6 +417,18 @@ function folders(rows,closed=new Set()){
     <summary><i class="fa-solid fa-folder-open" aria-hidden="true"></i> <strong>${esc(g.name)}</strong> <span class="agl-count">${g.rows.length}</span></summary>
     <div class="agl-folder-body">${g.rows.map(r=>r.html).join('')}</div></details>`).join('');
 }
+const HISTORY_LABELS={award:'Awarded',adjust:'Adjusted',set:'Set',undo:'Award undone'};
+/** GM only: adjust / set XP, plus the recorded history. Players never receive this markup. */
+function xpAdjustPanel(actor,p){
+  const rows=xpHistoryOf(actor,p.sourceId).slice(-8).reverse().map(h=>`<li>${esc(new Date(h.at??0).toLocaleString())} · ${esc(h.byName??'GM')} · ${esc(HISTORY_LABELS[h.kind]??h.kind)} ${h.delta>0?'+':h.delta<0?'−':''}${Math.abs(Number(h.delta)||0)} (${Number(h.from)} → ${Number(h.to)})${h.reason?` · ${esc(h.reason)}`:''}${h.messageId?' · from chat card':''}</li>`).join('');
+  const attrs=`data-id="${esc(p.sourceId)}" data-actor="${esc(actor.id)}"`;
+  return `<details class="agl-xp-adjust"><summary>Adjust XP</summary>
+    <div class="agl-xp-award"><label class="ag-field">Change (+/−) <input type="number" step="1" data-xp-delta="${esc(p.sourceId)}" placeholder="−5"></label>
+    <label class="ag-field">or Set to <input type="number" min="0" max="${XP_CAP}" step="1" data-xp-set="${esc(p.sourceId)}" placeholder="${p.xp}"></label>
+    <label class="ag-field">Why <input type="text" maxlength="200" data-xp-reason="${esc(p.sourceId)}" placeholder="Accidental award"></label>
+    <button type="button" class="ag-btn" data-action="adjust-xp" ${attrs}>Apply</button></div>
+    ${rows?`<p class="agl-sub">XP history (GM only):</p><ul class="agl-sub">${rows}</ul>`:''}</details>`;
+}
 function professionCard(actor,p,{lastAward=null}={}){
   const gm=game.user.isGM;
   const flash=lastAward&&lastAward.actorId===actor.id&&lastAward.profId===p.sourceId;
@@ -392,6 +436,7 @@ function professionCard(actor,p,{lastAward=null}={}){
     <div class="agl-prof-head"><strong>${esc(p.name)}</strong>${badge(`Level ${p.level}`,'ok')}${gm&&p.draft?badge('Draft','warn'):''}${flash?badge(`+${lastAward.points} XP`,'recipe'):''}</div>
     <div class="agl-xpbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p.percent}"><span style="width:${p.percent}%"></span></div>
     <div class="agl-sub">${esc(p.tier)} · ${p.xp} XP${p.toNext!==null?` · ${p.toNext} XP to level ${p.level+1}`:' · maximum level'}${p.tracked?'':' · no XP awarded yet'}</div>
+    ${gm?xpAdjustPanel(actor,p):''}
     ${gm?`<div class="agl-xp-award"><label class="ag-field">Award XP <input type="number" data-xp-input="${esc(p.sourceId)}" min="1" max="1000" step="1" value="1"></label><button type="button" class="ag-btn" data-action="award-xp" data-id="${esc(p.sourceId)}" data-actor="${esc(actor.id)}">Award</button></div>`:''}
   </div>`;
 }
@@ -898,15 +943,52 @@ async function awardXpFromCard(message,points){
   if(!x)throw Error('This card has no XP award');
   if(x.awarded)throw Error('XP was already awarded from this card');
   if(!x.professionId)throw Error(`${x.actorName} has no matching profession feature to award XP to`);
-  const out=await performAction('award-xp',{id:x.professionId,actorId:x.actorId,points});
-  try{await message.update?.({[`flags.${ID}.xp.awarded`]:{points:Number(points),at:Date.now()}});}catch(err){console.warn(`[${ID}] XP awarded; card not marked`,err);}
+  const out=await performAction('award-xp',{id:x.professionId,actorId:x.actorId,points,messageId:message.id??null});
+  try{await message.update?.({[`flags.${ID}.xp.awarded`]:{points:Number(points),at:Date.now(),by:game.user.id,byName:game.user.name}});}catch(err){console.warn(`[${ID}] XP awarded; card not marked`,err);}
   return out;
+}
+/** GM-only. Takes back the XP given from this card and re-enables Award XP. Idempotent: a card with no award is a no-op error. */
+async function undoAwardFromCard(message){
+  if(!game.user.isGM)throw Error('Only the GM can undo an XP award');
+  const x=message?.flags?.[ID]?.xp,key=`undo:${message?.id}`;
+  if(!x)throw Error('This card has no XP award');
+  if(xpLocks.has(key))throw Error('Undo already in progress');
+  xpLocks.add(key);
+  try{
+    const award=x.awarded;
+    if(!award)throw Error('There is no XP award on this card to undo');
+    const actor=game.actors?.get?.(x.actorId);
+    if(!actor)throw Error(`${x.actorName} is no longer in this world`);
+    // Clear the card first so a second click cannot take the XP back twice; restore it if the XP change fails.
+    await message.update({[`flags.${ID}.xp.awarded`]:null,[`flags.${ID}.xp.undone`]:{points:Number(award.points),awardedAt:award.at??null,at:Date.now(),by:game.user.id,byName:game.user.name}});
+    try{
+      const have=progressOf(actor,x.professionId)?.xp??0,take=Math.min(Number(award.points),have);
+      const r=await adjustXP(actor,x.professionId,{delta:-take,reason:`Undo award from chat card (${award.points} XP)`,messageId:message.id??null,kind:'undo'});
+      const note=take<Number(award.points)?` Only ${take} could be taken back: the profession has less XP than was awarded.`:'';
+      const dep=dependentsText(r,x.professionName);
+      await whisperXpNote(actor,`<strong>${esc(actor.name)}: ${take} ${esc(x.professionName)} XP award taken back</strong><span>Now level ${r.level} · ${r.xp} XP${dep?` · ${esc(dep)}`:''}</span>`);
+      return {message:`${actor.name}: ${take} ${x.professionName} XP taken back → ${r.xp} XP, level ${r.level}.${note}${dep?` ${dep}`:''}`};
+    }catch(err){
+      await message.update({[`flags.${ID}.xp.awarded`]:award,[`flags.${ID}.xp.undone`]:null}).catch(()=>{});
+      throw err;
+    }
+  }finally{xpLocks.delete(key);}
 }
 /** renderChatMessageHTML: players see nothing until the GM awards; the GM gets an amount and a button. */
 function decorateChatCard(message,html){
   const x=message?.flags?.[ID]?.xp,slot=html?.querySelector?.('[data-agl-xp]');
   if(!x||!slot)return;
-  if(x.awarded){slot.innerHTML=`<p class="agl-chat-note">+${Number(x.awarded.points)} ${esc(x.professionName)} XP awarded by the GM.</p>`;return;}
+  if(x.awarded){
+    slot.innerHTML=`<p class="agl-chat-note">+${Number(x.awarded.points)} ${esc(x.professionName)} XP awarded by the GM.</p>${game.user.isGM?'<button type="button" data-agl-xp-undo><i class="fa-solid fa-rotate-left"></i> Undo award</button>':''}`;
+    const undo=slot.querySelector('[data-agl-xp-undo]');
+    undo?.addEventListener?.('click',async event=>{
+      event.preventDefault?.();undo.disabled=true;
+      try{const ok=await DialogV2.confirm({window:{title:'Undo XP award?'},content:`<p>Take back <strong>${Number(x.awarded.points)} ${esc(x.professionName)} XP</strong> from <strong>${esc(x.actorName)}</strong> and allow Award XP on this card again?</p>`,modal:true,rejectClose:false});
+        if(!ok){undo.disabled=false;return;}
+        say((await undoAwardFromCard(message)).message);}
+      catch(err){undo.disabled=false;say(`Profession Ledger: ${err.message}`,true);}
+    });
+    return;}
   if(!game.user.isGM){slot.innerHTML='';return;}
   if(!x.professionId){slot.innerHTML=`<p class="agl-chat-note">GM: ${esc(x.actorName)} has no matching profession feature, so there is no XP to award here.</p>`;return;}
   slot.innerHTML=`<div class="agl-xp-award"><label>XP <input type="number" min="1" max="1000" step="1" value="${x.suggested??1}" data-agl-xp-points></label>
@@ -920,7 +1002,7 @@ function decorateChatCard(message,html){
 }
 
 /** Learn / Craft / Award XP, shared by the Ledger window and the sheet tab. Returns {message} or null if cancelled. */
-async function performAction(action,{id,actorId,points}){
+async function performAction(action,{id,actorId,points,delta=null,set=null,reason='',messageId=null}){
   checkPlayerLedger();
   const actor=game.actors?.get?.(actorId)??null;
   if(action==='learn-recipe'){
@@ -939,7 +1021,7 @@ async function performAction(action,{id,actorId,points}){
     if(!game.user.isGM)throw Error('GM only');
     const amount=Number(points);if(!Number.isSafeInteger(amount)||amount<1||amount>1000)throw Error('XP award must be between 1 and 1000');
     const before=progressOf(actor,id);
-    await awardXP(actor,id,amount);
+    await awardXP(actor,id,amount,{messageId});
     const after=progressOf(actor,id),name=professionsOf(actor).find(p=>p.sourceId===id)?.name??humanizeId(id);
     const levelUp=after.level>(before?.level??1);
     const message=`${actor.name}: +${amount} ${name} XP → ${after.xp} XP, level ${after.level}${levelUp?' (level up!)':''}.`;
@@ -947,6 +1029,23 @@ async function performAction(action,{id,actorId,points}){
     try{await globalThis.ChatMessage?.create?.({whisper:recipients,speaker:ChatMessage.getSpeaker?.({actor}),content:`<div class="agl-chat-card"><header><div><strong>${esc(actor.name)} gained ${amount} ${esc(name)} XP</strong><span>Now level ${after.level} (${esc(after.tier)}) · ${after.xp} XP${levelUp?' · Level up!':''}</span></div></header></div>`});}
     catch(err){console.warn(`[${ID}] XP saved; chat note failed`,err);}
     return {message,award:{actorId:actor.id,profId:id,points:amount}};
+  }
+  if(action==='adjust-xp'){
+    if(!game.user.isGM)throw Error('GM only');
+    const blank=v=>v===null||v===undefined||String(v).trim()==='';
+    if(blank(delta)===blank(set))throw Error('Enter either an XP change (+ or −) or a Set to value, not both');
+    const d=blank(delta)?null:Number(delta),st=blank(set)?null:Number(set);
+    if(!linkedProfession(actor,id))throw Error('Actor must own a matching Manager-tagged PROF-* Profession Item');
+    const name=professionsOf(actor).find(p=>p.sourceId===id)?.name??humanizeId(id);
+    const plan=adjustProgress(actor.flags?.[ID]?.professionProgress??emptyProgress(),id,{delta:d,set:st,recipes:professionRecipes(actor,id)});
+    if(plan.xp===plan.from)throw Error(`${actor.name}'s ${name} XP is already ${plan.from}${plan.clamped?` (limits are 0 and ${XP_CAP})`:''}`);
+    const dep=dependentsText(plan,name);
+    const ok=await DialogV2.confirm({window:{title:`Adjust ${name} XP?`},content:`<p><strong>${esc(actor.name)}</strong>: ${esc(name)} XP ${plan.from} → <strong>${plan.xp}</strong>${plan.clamped?` (limited to 0–${XP_CAP})`:''}. Level ${plan.previousLevel} → <strong>${plan.level}</strong>.</p>${dep?`<p><strong>Heads up:</strong> ${esc(dep)}</p>`:''}<p>The owner is told in chat, and the change is recorded in the XP history.</p>`,modal:true,rejectClose:false});
+    if(!ok)return null;
+    const r=await adjustXP(actor,id,{delta:d,set:st,reason});
+    const sign=r.xp-r.from>0?'+':'−',amount=Math.abs(r.xp-r.from);
+    await whisperXpNote(actor,`<strong>${esc(actor.name)}'s ${esc(name)} XP adjusted by the GM (${sign}${amount})</strong><span>Now level ${r.level} · ${r.xp} XP${reason?` · ${esc(String(reason).slice(0,200))}`:''}${dep?` · ${esc(dep)}`:''}</span>`);
+    return {message:`${actor.name}: ${name} XP ${r.from} → ${r.xp}, level ${r.level}.${dep?` ${dep}`:''}`,...(r.xp>r.from?{award:{actorId:actor.id,profId:id,points:r.xp-r.from}}:{})};
   }
   if(action==='craft')return craft(actor,id);
   throw Error(`Unknown action ${action}`);
@@ -1253,10 +1352,11 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         if(this.rosterDirty||!this.mapDirty){await game.settings.set(ID,'partyRoster',ids);saved.push(`party: ${plural(ids.length,'character')}`);}
         if(this.mapDirty){await game.settings.set(ID,'checkMapping',structuredClone(this.mapDraft));saved.push('tools and checks');}
         this.rosterDraft=null;this.mapDraft=null;this.notice=`Saved ${saved.join('; ')}.`;this.render();say(this.notice);return;}
-      if(['learn-recipe','craft','award-xp'].includes(action)){
+      if(['learn-recipe','craft','award-xp','adjust-xp'].includes(action)){
         const actorId=data.actor??(String(id).includes(':')?String(id).split(':')[0]:this.actor?.id);
         const input=action==='award-xp'?this.element?.querySelector?.(`[data-xp-input="${id}"]`):null;
-        const out=await performAction(action,{id,actorId,points:input?.value});
+        const q=n=>this.element?.querySelector?.(`[data-xp-${n}="${id}"]`)?.value;
+        const out=await performAction(action,{id,actorId,points:input?.value,delta:action==='adjust-xp'?q('delta'):null,set:action==='adjust-xp'?q('set'):null,reason:action==='adjust-xp'?q('reason'):''});
         if(!out)return;
         if(out.award)this.lastAward=out.award;
         this.notice=out.message;this.render();say(out.message,out.ok===false);return;}
@@ -1347,7 +1447,9 @@ function renderSheetTab(params){
     try{
       if(b.dataset.action==='open-ledger'){game.modules.get(ID)?.api?.open({actorId:sheetActor.id,view:'individual'});return;}
       const input=b.dataset.action==='award-xp'?target.querySelector(`[data-xp-input="${b.dataset.id}"]`):null;
-      const out=await performAction(b.dataset.action,{id:b.dataset.id,actorId:b.dataset.actor??sheetActor.id,points:input?.value});
+      const q=n=>target.querySelector(`[data-xp-${n}="${b.dataset.id}"]`)?.value;
+      const adj=b.dataset.action==='adjust-xp';
+      const out=await performAction(b.dataset.action,{id:b.dataset.id,actorId:b.dataset.actor??sheetActor.id,points:input?.value,delta:adj?q('delta'):null,set:adj?q('set'):null,reason:adj?q('reason'):''});
       if(out)say(out.message,out.ok===false);
       renderSheetTab({...params,tabContentsElement:target});
     }catch(err){console.error(`[${ID}]`,err);say(`Profession Ledger: ${err.message}`,true);}
@@ -1383,6 +1485,8 @@ Hooks.once('ready',()=>{
       current.demo=false;current.render({force:true});return current;},
     getProfessionProgress:(actor,profId)=>{checkPlayerLedger();if(!actor?.testUserPermission?.(game.user,'OBSERVER')&&!game.user.isGM)throw Error('Actor access denied');return progressOf(actor,profId);},
     awardProfessionXP:(actor,profId,amount)=>awardXP(actor,profId,amount),
+    adjustProfessionXP:(actor,profId,options)=>adjustXP(actor,profId,options),
+    getProfessionXPHistory:(actor,profId)=>{if(!game.user.isGM)throw Error('Only the GM can read XP history');return xpHistoryOf(actor,profId);},
     getKnownRecipes:(actor)=>{checkPlayerLedger();if(!actor?.testUserPermission?.(game.user,'OBSERVER')&&!game.user.isGM)throw Error('Actor access denied');return knownRecipesOf(actor);},
     inspectProfessionPerkChoices:(actor,profId)=>{checkPlayerLedger();if(!game.user.isGM&&!actor?.testUserPermission?.(game.user,'OBSERVER'))throw Error('Actor access denied');return progressOf(actor,profId);},
     learnRecipe:(actor,item)=>{checkPlayerLedger();return learnRecipe(actor,item);},
@@ -1414,4 +1518,4 @@ Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateChatCard(message,h
 
 /** Test seam for the Node suite (mocked Foundry); not part of the public API. */
 export const _test={craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
-  startGather,resolveGather,cancelGather,handleGatherRequest,receiveGatherRoll,gatherSessions,decorateChatCard,awardXpFromCard,gatherLocations};
+  startGather,resolveGather,cancelGather,handleGatherRequest,receiveGatherRoll,gatherSessions,decorateChatCard,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations};

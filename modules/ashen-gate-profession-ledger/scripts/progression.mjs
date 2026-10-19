@@ -28,10 +28,16 @@ export function validateProgressState(state){
  for(const [id,row] of Object.entries(state.professions)){
   if(!validId(id,'PROF')||!row||!validXp(row.xp)||!Array.isArray(row.selectedPerkIds)||!row.selectedPerkIds.every(x=>validId(x,'PERK')))throw Error(`Invalid Profession progress entry ${id}`);
   if(new Set(row.selectedPerkIds).size!==row.selectedPerkIds.length)throw Error(`Duplicate perk selection on ${id}`);
-  if(row.selectedPerkIds.length>levelForXP(row.xp))throw Error(`Perk selections exceed level on ${id}`);
+  // Perks held beyond the current level are allowed: the GM may lower XP, and held perks are kept and flagged (see perksBeyondLevel).
+  if(row.history!==undefined&&(!Array.isArray(row.history)||!row.history.every(h=>h&&typeof h==='object'&&!Array.isArray(h))))throw Error(`Invalid XP history on ${id}`);
  }
  return state;
 }
+export const XP_CAP=LEVEL_COSTS.reduce((a,b)=>a+b,0); // XP at level 16; GM adjustments never raise XP above this
+export const HISTORY_LIMIT=50;
+/** Perks selected beyond what the current level allows (kept, never deleted; the GM is told). */
+export const perksBeyondLevel=(selectedPerkIds,level)=>selectedPerkIds.slice(Math.max(0,level));
+const trimHistory=(history,entry)=>(entry?[...(history??[]),entry]:[...(history??[])]).slice(-HISTORY_LIMIT);
 export const emptyProgress=()=>({schema:PROGRESSION_SCHEMA,professions:{}});
 export function progressOf(actor,profId){
  if(!validId(profId,'PROF'))return null;
@@ -40,16 +46,47 @@ export function progressOf(actor,profId){
  try {validateProgressState(raw);}catch{return null;}
  const row=raw.professions[profId];
  if(!row)return null;
- return {id:profId,xp:row.xp,level:levelForXP(row.xp),tier:tierForLevel(levelForXP(row.xp)),selectedPerkIds:[...row.selectedPerkIds],unspentPerkChoices:Math.max(0,levelForXP(row.xp)-row.selectedPerkIds.length)};
+ return {id:profId,xp:row.xp,level:levelForXP(row.xp),tier:tierForLevel(levelForXP(row.xp)),selectedPerkIds:[...row.selectedPerkIds],unspentPerkChoices:Math.max(0,levelForXP(row.xp)-row.selectedPerkIds.length),perksBeyondLevel:perksBeyondLevel(row.selectedPerkIds,levelForXP(row.xp))};
 }
-export function nextProgress(state,profId,points){
+/** GM-only history lives beside xp in the row; progressOf never returns it. */
+export function xpHistoryOf(actor,profId){
+ const raw=actor?.flags?.[LEDGER_SCOPE]?.professionProgress;
+ try {validateProgressState(raw);}catch{return [];}
+ return structuredClone(raw.professions[profId]?.history??[]);
+}
+export function nextProgress(state,profId,points,entry=null){
  if(!validId(profId,'PROF'))throw Error('An imported PROF-* Item is required');
  if(!Number.isSafeInteger(points)||points<=0)throw Error('XP award must be a positive whole number');
  const current=state??emptyProgress();validateProgressState(current);
  const row=current.professions[profId]??{xp:0,selectedPerkIds:[]};
  if(!validXp(row.xp+points))throw Error('XP award exceeds supported safe integer range');
- const out={schema:PROGRESSION_SCHEMA,professions:{...current.professions,[profId]:{...row,xp:row.xp+points,selectedPerkIds:[...row.selectedPerkIds]}}};
+ const out={schema:PROGRESSION_SCHEMA,professions:{...current.professions,[profId]:{...row,xp:row.xp+points,selectedPerkIds:[...row.selectedPerkIds],...(entry||row.history?{history:trimHistory(row.history,entry&&{...entry,from:row.xp,to:row.xp+points,delta:points})}:{})}}};
  return {state:out,previousLevel:levelForXP(row.xp),level:levelForXP(row.xp+points)};
+}
+/**
+ * Change a Profession's XP by a signed amount or to an exact value (never below 0; raises stop at XP_CAP, lowers are always allowed).
+ * Perks are never touched. Returns the new state plus what the change takes away so the GM can be told.
+ */
+export function adjustProgress(state,profId,{delta=null,set=null,entry=null,recipes=[]}={}){
+ if(!validId(profId,'PROF'))throw Error('An imported PROF-* Item is required');
+ if((delta===null)===(set===null))throw Error('Give either a change amount or a Set to value');
+ const value=delta===null?set:delta;
+ if(!Number.isSafeInteger(value)||(delta===null&&value<0))throw Error(delta===null?'Set to must be a whole number, 0 or more':'XP change must be a whole number');
+ const current=state??emptyProgress();validateProgressState(current);
+ const row=current.professions[profId]??{xp:0,selectedPerkIds:[]};
+ const wanted=delta===null?set:row.xp+delta;
+ const target=Math.min(Math.max(XP_CAP,row.xp),Math.max(0,wanted));
+ const out={schema:PROGRESSION_SCHEMA,professions:{...current.professions,[profId]:{...row,xp:target,selectedPerkIds:[...row.selectedPerkIds],
+  history:trimHistory(row.history,{...(entry??{}),from:row.xp,to:target,delta:target-row.xp})}}};
+ const previousLevel=levelForXP(row.xp),level=levelForXP(target);
+ return {state:out,from:row.xp,xp:target,previousLevel,level,clamped:target!==wanted,
+  ...lostLevelDependents({selectedPerkIds:row.selectedPerkIds,level,previousLevel,recipes})};
+}
+/** What depends on levels the character no longer has. Nothing is removed; this is a report for the GM. */
+export function lostLevelDependents({selectedPerkIds=[],level,previousLevel,recipes=[]}){
+ const tierLevel=t=>ACCESS_LEVELS[TIERS.find(k=>k.toLowerCase()===String(t??'').toLowerCase())]??null;
+ return {perksBeyondLevel:perksBeyondLevel(selectedPerkIds,level),
+  lockedRecipes:level>=previousLevel?[]:recipes.filter(r=>{const need=tierLevel(r.tier);return need!==null&&need>level&&need<=previousLevel;}).map(r=>r.name||r.id)};
 }
 export function knownRecipesOf(actor){
  const raw=actor?.flags?.[LEDGER_SCOPE]?.knownRecipes;
