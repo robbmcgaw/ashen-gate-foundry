@@ -1,11 +1,12 @@
 import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL} from './model.mjs';
-import {readAll, writeAll, readViews, placeNote, legacyJournalCount, isGM, migrate, presentationOptions} from './store.mjs';
+import {readAll, writeAll, readViews, placeNote, legacyJournalCount, isGM, migrate, presentationOptions, readNotes, writeNotes, readPlayerNotes} from './store.mjs';
 import {createApi} from './api.mjs';
+import {createNotesService, SOCKET} from './party-notes.mjs';
 import {LocationsApp} from './app.mjs';
 import {mountLocationLauncher} from './launcher.js';
 import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 
-const VERSION = '1.4.0';
+const VERSION = '1.5.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 const notifyError = err => { console.error(`${MODULE_ID} |`, err); ui.notifications?.error(err?.message ?? String(err)); };
@@ -38,12 +39,18 @@ Hooks.once('init', () => {
 
 Hooks.once('ready', () => {
   const mod = game.modules.get(MODULE_ID);
+  const isPrimaryGM = () => isGM() && (game.users?.activeGM?.isSelf ?? true);
+  // Party Notes: players ask the primary GM's client, which checks and writes (party-notes.mjs).
+  const notes = createNotesService({users: game.users, currentUser: () => game.user, isPrimaryGM, playerAccessEnabled,
+    readAll, readNotes, writeNotes, socket: game.socket});
+  game.socket?.on?.(SOCKET, (msg, senderId) => { notes.onSocket(msg, senderId).catch(notifyError); });
   mod.api = createApi({
     version: VERSION, isGM, playerAccessEnabled,
     setPlayerAccess: value => game.settings.set(MODULE_ID, 'playerAccessEnabled', value),
     readAll, writeAll, readViews, placeNote, viewOptions: presentationOptions,
     open: () => LocationsApp.show(),
-    openLocation: ref => LocationsApp.show(ref)
+    openLocation: ref => LocationsApp.show(ref),
+    notes: {readGM: readNotes, readPlayer: readPlayerNotes, request: notes.request, userId: () => game.user?.id, isActive: notes.isActive, nameOf: notes.nameOf}
   });
   if (isGM()) {
     const legacy = legacyJournalCount();
@@ -88,6 +95,6 @@ function refresh() {
     if (app?.rendered && !app.dirty && mayOpen()) app.render().catch(notifyError);
   }, 100);
 }
-for (const hook of ['updateJournalEntry', 'createJournalEntryPage', 'updateJournalEntryPage', 'deleteJournalEntryPage']) {
+for (const hook of ['createJournalEntry', 'updateJournalEntry', 'createJournalEntryPage', 'updateJournalEntryPage', 'deleteJournalEntryPage']) {
   Hooks.on(hook, doc => { if ((doc.parent ?? doc).getFlag?.(MODULE_ID, 'role')) refresh(); });
 }

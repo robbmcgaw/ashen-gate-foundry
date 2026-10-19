@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.5.0 — 2026-10-19
+
+Nested point-crawl, part 3 of 3: shared Party Notes.
+
+- **Party Notes.** Every location players can see (Revealed, or Unidentified by its label) has a **Party Notes** card that the whole party reads and edits together. It is separate from your own *Notes* section and clearly labelled.
+- **One editor at a time.** **Edit** takes a lock; everyone else sees "*name* is editing" and can still read. **Save Notes** or **Cancel** releases it, and it lapses after 2 minutes without typing or when that player disconnects. Each save carries the version it started from, so a save based on an older copy is refused with a message and the text stays in the box. Everyone's window updates live.
+- **GM:** sees Party Notes on every location (hidden ones too), can edit, **Take Over** from a player, and **Clear** (with a confirmation).
+- **Secure write path.** Players get no new permissions on any document. They ask the primary GM's client over the module socket (`"socket": true`), which checks the sender, Player Access, that the location is visible to players, the lock and the version before writing. Hidden, unknown and made-up locations all get the same refusal. A GM must be connected for players to save; reading works without one.
+- **Campaign state, not definition.** Stored in a new *Locations (Party Notes)* Journal (no player permission) keyed by `LOC-*` id; each visible location's player page carries a copy keyed by pin key only. Save Changes, Publish, reveal changes, imports (Manager or Import JSON), Map Note changes and deleting + re-importing a location never lose them. Hiding a location removes the copy from its player page; the notes come back when it is visible again. Exports leave them out.
+- Additive only: no change to location records, pages' existing flags or exports, and no migration. Plain text, capped at 20,000 characters, always escaped on display.
+- API: `getPartyNotes`, `editPartyNotes`, `savePartyNotes`, `releasePartyNotes`, GM-only `clearPartyNotes`, `PARTY_NOTES`. Existing calls are unchanged.
+
 ## 1.4.0 — 2026-10-19
 
 Nested point-crawl, part 2 of 3: a reorderable card, custom details, Loot & Rewards, Region conditions.

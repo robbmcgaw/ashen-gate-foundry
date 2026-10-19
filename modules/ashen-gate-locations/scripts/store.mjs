@@ -7,11 +7,19 @@
  *    Unidentified locations get a page with only the generic label and teaser.
  * Pages and Map Notes carry only the location's random `pinKey`, never its LOC id (which is made
  * from a name). Players read only the second Journal. Nothing hidden is ever written into it.
+ *
+ * Party Notes (1.5.0) are campaign state in a third Journal, "Locations (Party Notes)": ownership NONE, flag
+ * `notes` holds one record per LOC id. Each visible location's page carries a copy in its `partyNotes` flag
+ * (no LOC id); a hidden location's page carries none, so the notes stay private until it is visible again.
+ * Only the GM's client writes either (players ask it over the socket, see party-notes.mjs). writeAll, imports
+ * and Publish never change the notes themselves.
  */
-import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL, normalizeLocation, playerView, viewHtml, pinPresentation, notePatch, uniquePinKeys, PIN_KEY} from './model.mjs';
+import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL, normalizeLocation, playerView, viewHtml, pinPresentation, notePatch, uniquePinKeys, PIN_KEY,
+  normalizeNotes, notesMirror} from './model.mjs';
 
 const ROLE_GM = 'gm-data';
 const ROLE_VIEW = 'player-view';
+const ROLE_NOTES = 'party-notes';
 const LEGACY_ROLES = ['source', 'projection', 'map_registry'];
 const FOLDER_PATH = ['Ashen Gate', 'Locations'];
 
@@ -67,8 +75,8 @@ async function viewJournal() {
     ownership: {default: levels().OBSERVER}, flags: {[MODULE_ID]: {role: ROLE_VIEW}}});
 }
 
-/** The page data Foundry should hold for one location. Exported for tests. */
-export function pageData(loc, all, opts = presentationOptions()) {
+/** The page data Foundry should hold for one location. Exported for tests. `notes`: its Party Notes record, if any. */
+export function pageData(loc, all, opts = presentationOptions(), notes = null) {
   const view = playerView(loc, all, opts);
   return {
     name: view?.name ?? 'Unrevealed location', type: 'text',
@@ -76,9 +84,10 @@ export function pageData(loc, all, opts = presentationOptions()) {
     ownership: {default: view ? levels().INHERIT : levels().NONE},
     // A JSON string, not an object: Foundry merges object flags on update, which could keep a
     // field the GM just hid. A string is always replaced whole.
-    flags: {[MODULE_ID]: {pinKey: loc.pinKey, view: view ? JSON.stringify(view) : ''}}
+    flags: {[MODULE_ID]: {pinKey: loc.pinKey, view: view ? JSON.stringify(view) : '', partyNotes: view ? notesFlag(notes) : ''}}
   };
 }
+const notesFlag = rec => rec ? JSON.stringify(notesMirror(rec)) : '';
 
 /** 1.2.x pages and notes carried `locationId`; map them to the location's pinKey. */
 const legacyKey = (doc, keyById) => keyById.get(doc.getFlag?.(MODULE_ID, 'locationId'));
@@ -91,18 +100,20 @@ export async function syncPlayerView(locations, opts = presentationOptions()) {
   assertGM();
   const journal = await viewJournal();
   const keyById = new Map(locations.map(l => [l.id, l.pinKey]));
+  const notes = readNotesStore();
   const pages = new Map();
   for (const p of journal.pages) { const key = bindingKey(p, keyById); if (key && !pages.has(key)) pages.set(key, p); }
   const create = [], update = [], used = new Set();
   for (const loc of locations) {
-    const data = pageData(loc, locations, opts);
+    const data = pageData(loc, locations, opts, notes.get(loc.id));
     const page = pages.get(loc.pinKey);
     if (!page) { create.push(data); continue; }
     used.add(page.id);
     const legacy = page.getFlag(MODULE_ID, 'locationId') != null;
     if (legacy) data.flags[MODULE_ID].locationId = null;
     const same = !legacy && page.name === data.name && page.getFlag(MODULE_ID, 'view') === data.flags[MODULE_ID].view
-      && page.getFlag(MODULE_ID, 'pinKey') === loc.pinKey && page.ownership?.default === data.ownership.default;
+      && page.getFlag(MODULE_ID, 'pinKey') === loc.pinKey && page.ownership?.default === data.ownership.default
+      && (page.getFlag(MODULE_ID, 'partyNotes') ?? '') === data.flags[MODULE_ID].partyNotes;
     if (!same) update.push({_id: page.id, ...data});
   }
   // Pages of deleted locations, and any stray duplicate, so no stale player content survives.
@@ -140,6 +151,41 @@ export function readViews() {
     .map(p => { try { return JSON.parse(p.getFlag(MODULE_ID, 'view') || 'null'); } catch { return null; } })
     .filter(Boolean)
     .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** GM: every Party Notes record, by LOC id. Records of deleted locations are kept (a re-import brings them back). */
+export function readNotesStore() {
+  assertGM();
+  const raw = byRole(ROLE_NOTES)?.getFlag(MODULE_ID, 'notes');
+  return new Map((Array.isArray(raw) ? raw : []).map(r => normalizeNotes(r)).filter(r => r.locationId).map(r => [r.locationId, r]));
+}
+/** GM: one location's notes (an empty record if none were written yet). */
+export const readNotes = locationId => readNotesStore().get(locationId) ?? normalizeNotes({}, locationId);
+
+/** GM: stores one location's notes, then refreshes the copy on its player page (none while it is hidden). */
+export async function writeNotes(loc, record) {
+  assertGM();
+  const rec = normalizeNotes(record, loc.id);
+  const store = readNotesStore();
+  store.set(loc.id, rec);
+  const notes = [...store.values()];
+  const doc = byRole(ROLE_NOTES);
+  // An array flag is replaced whole on update, so nothing stale is merged back in.
+  if (doc) await doc.update({[`flags.${MODULE_ID}.notes`]: notes});
+  else await JournalEntry.create({name: 'Locations (Party Notes)', folder: await ensureFolder(),
+    ownership: {default: levels().NONE}, flags: {[MODULE_ID]: {role: ROLE_NOTES, notes}}});
+  const page = [...(byRole(ROLE_VIEW)?.pages ?? [])].find(p => p.getFlag(MODULE_ID, 'pinKey') === loc.pinKey);
+  const flag = loc.state !== 'hidden' && loc.published ? notesFlag(rec) : '';
+  if (page && (page.getFlag(MODULE_ID, 'partyNotes') ?? '') !== flag)
+    await page.parent.updateEmbeddedDocuments('JournalEntryPage', [{_id: page.id, [`flags.${MODULE_ID}.partyNotes`]: flag}]);
+  return rec;
+}
+
+/** Any user: the notes copy on a page this user may observe, by pin key; null if there is no such page. */
+export function readPlayerNotes(pinKey) {
+  const page = [...(byRole(ROLE_VIEW)?.pages ?? [])].find(p => p.getFlag(MODULE_ID, 'pinKey') === pinKey);
+  if (!page || !(isGM() || page.testUserPermission(game.user, 'OBSERVER'))) return null;
+  try { return notesMirror(JSON.parse(page.getFlag(MODULE_ID, 'partyNotes') || '{}')); } catch { return notesMirror({}); }
 }
 
 /** Places a Map Note for a location on a scene. The note opens the location (see main.mjs). */

@@ -511,3 +511,71 @@ export function materialIdOf(item) {
   const id = f['ashen-gate-manager']?.source?.sourceId ?? f['ashen-gate-profession-ledger']?.sourceId ?? f['ashen-gate']?.sourceId ?? '';
   return /^MAT-[A-Z0-9-]+$/.test(id) ? id : '';
 }
+
+/**
+ * Party Notes (1.5.0): one shared text per location, written by the players together. Campaign state, not part
+ * of the definition: never in a record, a Publish, an export or an import. One editor at a time (a lock that
+ * lapses after `lockMs` or when its holder disconnects); every save also carries the `rev` it started from, so a
+ * stale save is refused instead of overwriting someone else's text. Plain text only; always escaped on display.
+ */
+export const PARTY_NOTES = Object.freeze({maxLength: 20000, lockMs: 120000, renewMs: 30000});
+const USER_ID = /^[A-Za-z0-9]{1,64}$/;
+const userId = value => USER_ID.test(value ?? '') ? value : '';
+const stamp = value => Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
+/** Plain text: control characters (except tab and newline) removed, newlines unified, capped in length. */
+export const cleanNotesText = value => String(value ?? '').replace(/\r\n?/g, '\n')
+  .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '').slice(0, PARTY_NOTES.maxLength);
+
+/** Fills defaults and drops anything malformed. `locationId` is kept only in the GM-only store. */
+export function normalizeNotes(raw = {}, locationId = '') {
+  const r = raw && typeof raw === 'object' ? raw : {};
+  const lock = r.lock && userId(r.lock.userId) ? {userId: r.lock.userId, until: stamp(r.lock.until)} : null;
+  return {locationId: LOCATION_ID.test(locationId || r.locationId || '') ? locationId || r.locationId : '',
+    text: cleanNotesText(r.text), rev: stamp(r.rev), updatedBy: userId(r.updatedBy), updatedAt: stamp(r.updatedAt), lock};
+}
+/** The copy on a player page: no LOC id, nothing but the text, its stamp and who holds the lock. */
+export const notesMirror = rec => {
+  const {text, rev, updatedBy, updatedAt, lock} = normalizeNotes(rec);
+  return {text, rev, updatedBy, updatedAt, lock};
+};
+/** Who is editing right now, or ''. A lapsed lock, or one held by someone who has left, counts as free. */
+export function notesLockHolder(rec, now = Date.now(), isActive = () => true) {
+  const lock = rec?.lock;
+  return lock && lock.until > now && isActive(lock.userId) ? lock.userId : '';
+}
+
+/**
+ * One change to a location's notes, decided on the GM's client. Returns the new record; throws with a message
+ * the requester can show. ctx: {userId, isGM, now, isActive(userId), nameOf(userId), lockMs?}
+ *  - lock: start (or keep) editing. Refused while someone else holds the lock, unless a GM asks to take over.
+ *  - release: stop editing (only the holder's own lock is cleared).
+ *  - save: needs the `rev` the editor started from and no one else holding the lock; clears the lock.
+ *  - clear: GM only; empties the notes.
+ */
+export function applyNotesOp(raw, {op, text, rev, takeover = false} = {}, ctx) {
+  const rec = normalizeNotes(raw);
+  const {now, isGM = false} = ctx;
+  const me = userId(ctx.userId);
+  if (!me) throw new Error('Unknown user.');
+  const holder = notesLockHolder(rec, now, ctx.isActive);
+  const name = id => ctx.nameOf?.(id) || 'Someone';
+  const busy = () => new Error(`${name(holder)} is editing these Party Notes. Try again when they have saved or closed.`);
+  switch (op) {
+    case 'lock':
+      if (holder && holder !== me && !(isGM && takeover)) throw busy();
+      return {...rec, lock: {userId: me, until: now + (ctx.lockMs ?? PARTY_NOTES.lockMs)}};
+    case 'release':
+      return rec.lock?.userId === me ? {...rec, lock: null} : rec;
+    case 'save': {
+      if (holder && holder !== me) throw busy();
+      if (!Number.isInteger(rev) || rev !== rec.rev)
+        throw new Error(`These Party Notes were changed by ${name(rec.updatedBy)} after you started editing. Your text was not saved and is still in the box: copy it, click Cancel, then Edit to see the new notes.`);
+      if (typeof text !== 'string') throw new TypeError('Party Notes must be text.');
+      return {...rec, text: cleanNotesText(text), rev: rec.rev + 1, updatedBy: me, updatedAt: now, lock: null};
+    }
+    case 'clear':
+      if (!isGM) throw new Error('Only the GM can clear Party Notes.');
+      return {...rec, text: '', rev: rec.rev + 1, updatedBy: me, updatedAt: now, lock: null};
+    default: throw new Error(`Unknown Party Notes action "${op}".`);
+  }
+}

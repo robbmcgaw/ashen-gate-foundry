@@ -1,7 +1,7 @@
 /** The Locations window: GM builder (list + editor + GM Setup) and the player viewer, one class. */
 import {MODULE_ID, THREATS, FIELDS, SECTIONS, BLOCKS, DETAIL_PREFIX, LOOT_STATUSES, LOOT_STATUS_LABELS, NOTE_DOC_TYPES, FACTION_DOC_TYPES, GATHERING, STATES, STATE_LABELS,
   DEFAULT_UNIDENTIFIED_LABEL, PIN_DEFAULTS, esc, clone, threatLabel, normalizeLocation, normalizeLayout, reorder, effectiveConditions, newKey, newNode, nodeName, materialIdOf,
-  hasUnpublishedChanges, wouldCycle, parentMap} from './model.mjs';
+  hasUnpublishedChanges, wouldCycle, parentMap, PARTY_NOTES} from './model.mjs';
 
 const QUEST_MODULE = 'ashen-gate-quest-manager';
 const FIELD_LABELS = {type: 'Type', region: 'Region', description: 'Description', img: 'Image', threat: 'Threat'};
@@ -91,6 +91,8 @@ export class LocationsApp extends Base {
   constructor(options = {}) {
     super(options);
     this.tab = 'locations'; this.query = ''; this.selectedId = null; this.draft = null; this.dirty = false;
+    // Party Notes being edited: {ref, text, rev, renewed}. Kept across re-renders so live updates never wipe typing.
+    this.notesEdit = null; this.notesTimer = null;
   }
   get gm() { return game.user.isGM === true; }
   list() { return this.gm ? api().listLocations() : api().listLocations({includeUnidentified: true}); }
@@ -99,7 +101,9 @@ export class LocationsApp extends Base {
   /** Accepts a LOC id or a pinKey (Map Notes carry only the key). */
   select(ref) {
     const found = ref ? api().getLocation(ref) : null;
-    this.selectedId = found ? this.rid(found) : null;
+    const next = found ? this.rid(found) : null;
+    if (this.notesEdit && this.notesEdit.ref !== next) this.stopNotesEdit();
+    this.selectedId = next;
     this.draft = this.gm && found ? clone(found) : null;
     this.dirty = false;
   }
@@ -111,6 +115,8 @@ export class LocationsApp extends Base {
   async close(options = {}) {
     if (!(await this.confirmDiscard())) return this;
     this.dirty = false;
+    this.stopNotesEdit();
+    clearTimeout(this.notesTimer);
     return super.close(options);
   }
 
@@ -131,9 +137,13 @@ export class LocationsApp extends Base {
   }
   _replaceHTML(result, content) {
     const scroll = content.querySelector('.agl-detail')?.scrollTop ?? 0;
+    const typing = globalThis.document?.activeElement?.id === 'agl-party-text' ? globalThis.document.activeElement : null;
+    const caret = typing ? [typing.selectionStart, typing.selectionEnd] : null;
     content.innerHTML = result;
     const detail = content.querySelector('.agl-detail');
     if (detail) detail.scrollTop = scroll;
+    const box = caret && content.querySelector('#agl-party-text');
+    if (box) { box.focus(); box.setSelectionRange(...caret); }
     this.bind(content);
     try { const a = game.modules.get('ashen-gate-manager')?.api?.appearance; if (a?.contract === 'ag-appearance/0.1-beta') a.applyTo?.(content); } catch {}
   }
@@ -162,12 +172,13 @@ export class LocationsApp extends Base {
   }
 
   // ---------- player viewer ----------
-  viewerHtml(v) {
+  viewerHtml(v, {partyNotes = true} = {}) {
     if (!v) return '<p class="ag-empty">Select a location.</p>';
     const go = r => `<a class="agl-link" data-action="select" data-id="${esc(r.key || r.id)}">${esc(r.name)}</a>${r.id ? '' : ' <small>(unidentified)</small>'}`;
     if (v.state === 'unidentified') return `<article class="agl-view">
       <div class="agl-title"><h2>${esc(v.name)}</h2><span class="ag-badge">Unidentified</span></div>
       ${v.teaser ? `<p class="agl-desc">${esc(v.teaser).replace(/\n/g, '<br>')}</p>` : '<p class="ag-empty">Nothing more is known about this place yet.</p>'}
+      ${partyNotes ? this.partyNotesHtml(v.key) : ''}
     </article>`;
     const quests = questChoices();
     const link = (label, uuid) => uuid ? `<a class="agl-link" data-action="open-doc" data-uuid="${esc(uuid)}">${esc(label)}</a>` : esc(label);
@@ -199,7 +210,57 @@ export class LocationsApp extends Base {
       ${v.parent ? `<p class="agl-meta">Part of ${go(v.parent)}</p>` : ''}
       ${v.img ? `<img class="agl-img" src="${esc(v.img)}" alt="">` : ''}
       ${(v.layout ?? normalizeLayout([], v.details ?? [])).map(k => blocks[k] ?? '').join('')}
+      ${partyNotes ? this.partyNotesHtml(v.key) : ''}
     </article>`;
+  }
+
+  /**
+   * The shared Party Notes card (players and GM). Separate from the GM's own Notes: never part of the location,
+   * never published or imported. Edit takes the one-editor lock; Save sends the text with the stamp it started from.
+   */
+  partyNotesHtml(ref, {gmHint = ''} = {}) {
+    clearTimeout(this.notesTimer);
+    let n = null;
+    try { n = ref ? api().getPartyNotes(ref) : null; } catch { n = null; }
+    if (!n) { if (this.notesEdit?.ref === ref) this.notesEdit = null; return ''; }
+    const editing = this.notesEdit?.ref === ref;
+    const other = n.editing && !n.mine ? n.editing : null;
+    // Show the lock lifting on its own when it lapses, without waiting for another change.
+    if (other && !editing) this.notesTimer = setTimeout(() => { if (this.rendered) this.render().catch(notifyError); }, Math.max(1000, other.until - Date.now() + 500));
+    const when = n.updatedAt ? new Date(n.updatedAt).toLocaleString() : '';
+    const meta = n.updatedBy ? `<p class="agl-hint">Last saved by ${esc(n.updatedBy.name)}${when ? `, ${esc(when)}` : ''}.</p>` : '';
+    const badge = other ? `<span class="ag-badge ag-badge--warn"><i class="fa-solid fa-pen" aria-hidden="true"></i> ${esc(other.name)} is editing</span>` : '';
+    const data = {ref};
+    let body;
+    if (editing) {
+      body = `<textarea id="agl-party-text" rows="6" maxlength="${PARTY_NOTES.maxLength}" aria-label="Party Notes">${esc(this.notesEdit.text)}</textarea>
+        <p class="agl-hint">Only you can edit now; others see that you are editing. Save or Cancel when you are done (the lock lapses after ${Math.round(PARTY_NOTES.lockMs / 60000)} minutes without typing).</p>
+        <div class="agl-party__actions"><div>${btn('notes-cancel', 'Cancel', {kind: 'ghost', data})}</div><div>${btn('notes-save', 'Save Notes', {kind: 'primary', icon: 'fa-solid fa-floppy-disk', data})}</div></div>`;
+    } else {
+      const text = n.text ? `<p class="agl-party__text">${esc(n.text).replace(/\n/g, '<br>')}</p>` : '<p class="ag-empty">No party notes yet.</p>';
+      const edit = other && this.gm
+        ? btn('notes-edit', 'Take Over', {icon: 'fa-solid fa-pen', data: {...data, takeover: 1}, title: `Edit now. ${other.name}'s unsaved text will be refused when they save.`})
+        : `<button type="button" class="ag-btn" data-action="notes-edit" data-ref="${esc(ref)}"${other ? ` disabled title="${esc(other.name)} is editing"` : ''}><i class="fa-solid fa-pen" aria-hidden="true"></i><span>Edit</span></button>`;
+      const clear = this.gm && n.text ? btn('notes-clear', 'Clear', {kind: 'danger', icon: 'fa-solid fa-eraser', data, title: 'Empty these Party Notes'}) : '';
+      body = `${text}${meta}<div class="agl-party__actions"><div>${clear}</div><div>${edit}</div></div>`;
+    }
+    return `<section class="ag-card ag-card--accent agl-party" data-party="${esc(ref)}">
+      <header class="agl-section__head"><h3><i class="fa-solid fa-users" aria-hidden="true"></i> Party Notes</h3>${badge}</header>
+      <p class="agl-hint">${this.gm ? `Written by the players, shared by everyone. Not part of the location: Save Changes, Publish and imports never change them.${gmHint}` : 'Shared by the whole party. Anyone can edit, one at a time.'}</p>
+      ${body}</section>`;
+  }
+  /** Leaves the editor and lets go of the lock (fire and forget: a lapsed or lost lock is fine). */
+  stopNotesEdit() {
+    const ref = this.notesEdit?.ref;
+    this.notesEdit = null;
+    if (ref) api()?.releasePartyNotes(ref).catch(err => console.warn(`${MODULE_ID} |`, err?.message ?? err));
+  }
+  /** Keeps the lock while the user is typing, at most every PARTY_NOTES.renewMs. */
+  renewNotesLock() {
+    const e = this.notesEdit;
+    if (!e || Date.now() - e.renewed < PARTY_NOTES.renewMs) return;
+    e.renewed = Date.now();
+    api().editPartyNotes(e.ref).catch(err => ui.notifications.warn(`${err?.message ?? err} Your text is still in the box.`));
   }
 
   // ---------- GM editor ----------
@@ -316,6 +377,7 @@ export class LocationsApp extends Base {
       ${order.map(k => blocks[k] ?? '').join('')}
       <div class="agl-add agl-add-detail">${btn('add-detail', 'Add Detail', {icon: 'fa-solid fa-plus', title: 'A custom block on this location: a title, text and an optional linked document'})}
         <span class="agl-hint">Drag the grip, or use the arrows (Alt+Up / Alt+Down on a grip), to reorder blocks and the entries in them. Players see published blocks in this order.</span></div>
+      ${d.id ? this.partyNotesHtml(d.id, {gmHint: d.state === 'hidden' ? ' Players cannot see or edit them while this location is hidden.' : ''}) : ''}
       <footer class="agl-footer">
         <div>${btn('cancel', 'Cancel', {kind: 'ghost'})}${btn('delete', 'Delete', {kind: 'danger', icon: 'fa-solid fa-trash'})}</div>
         <div>${btn('place', 'Place on Scene', {icon: 'fa-solid fa-map-pin', title: 'Adds a Map Note at the centre of your current view'})}${btn('save', this.dirty ? 'Save Changes •' : 'Save Changes', {kind: 'primary', icon: 'fa-solid fa-floppy-disk'})}</div>
@@ -438,6 +500,7 @@ export class LocationsApp extends Base {
     for (const el of root.querySelectorAll('[data-action]')) el.addEventListener('click', ev => { ev.preventDefault(); this.onAction(el).catch(notifyError); });
     root.querySelector('[data-action-change="player-access"]')?.addEventListener('change', e => api().playerAccess.setEnabled(e.target.checked).then(() => this.render()).catch(notifyError));
     root.querySelector('#agl-import-file')?.addEventListener('change', e => this.importFile(e.target.files?.[0]).catch(notifyError));
+    root.querySelector('#agl-party-text')?.addEventListener('input', e => { if (this.notesEdit) { this.notesEdit.text = e.target.value; this.renewNotesLock(); } });
     if (!this.gm) return;
     for (const el of root.querySelectorAll('[data-bind]')) el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => {
       this.setPath(el.dataset.bind, el.value);
@@ -584,6 +647,7 @@ export class LocationsApp extends Base {
     }
     if (action === 'open-doc') return openDocument(el.dataset.uuid);
     if (action === 'open-quest') return openQuest(el.dataset.id);
+    if (action.startsWith('notes-')) return this.onNotesAction(action, el);
     if (!this.gm) return;
     const root = this.element;
     switch (action) {
@@ -729,6 +793,40 @@ export class LocationsApp extends Base {
       }
     }
   }
+  /** Party Notes: Edit / Take Over, Save, Cancel, Clear. A refused save keeps the editor and its text. */
+  async onNotesAction(action, el) {
+    const ref = el.dataset.ref;
+    if (action === 'notes-edit') {
+      const takeover = el.dataset.takeover === '1';
+      if (takeover) {
+        const ok = await foundry.applications.api.DialogV2.confirm({window: {title: 'Take over Party Notes?'},
+          content: '<p>Edit these Party Notes now? Whoever is editing keeps their text on screen, but their Save will be refused.</p>',
+          yes: {label: 'Take Over'}, no: {label: 'Cancel'}, rejectClose: false});
+        if (!ok) return;
+      }
+      const n = await api().editPartyNotes(ref, {takeover});
+      this.notesEdit = {ref, text: n.text, rev: n.rev, renewed: Date.now()};
+      await this.render();
+      this.element?.querySelector('#agl-party-text')?.focus();
+      return;
+    }
+    if (action === 'notes-save') {
+      if (this.notesEdit?.ref !== ref) return;
+      await api().savePartyNotes(ref, this.notesEdit.text, this.notesEdit.rev);
+      this.notesEdit = null;
+      ui.notifications.info('Saved Party Notes.');
+      return this.render();
+    }
+    if (action === 'notes-cancel') { this.stopNotesEdit(); return this.render(); }
+    if (action === 'notes-clear') {
+      const ok = await foundry.applications.api.DialogV2.confirm({window: {title: 'Clear Party Notes?'},
+        content: '<p>Empty these Party Notes for everyone? This cannot be undone.</p>', yes: {label: 'Clear Party Notes'}, no: {label: 'Keep'}, rejectClose: false});
+      if (!ok) return;
+      await api().clearPartyNotes(ref);
+      if (this.notesEdit?.ref === ref) this.notesEdit = null;
+      return this.render();
+    }
+  }
   focusBack(selector) { this.element?.querySelector(selector)?.focus(); }
   /** Saves the draft privately (never publishes). Returns the saved record, or null if it has no name. */
   async saveDraft() {
@@ -743,7 +841,7 @@ export class LocationsApp extends Base {
     const d = normalizeLocation(this.draft);
     const part = st => {
       const v = api().previewLocation(d, st);
-      return `<section class="agl-preview__part"><h3>${STATE_LABELS[st]}${this.draft.state === st ? ' (current)' : ''}</h3>${this.viewerHtml(v)}</section>`;
+      return `<section class="agl-preview__part"><h3>${STATE_LABELS[st]}${this.draft.state === st ? ' (current)' : ''}</h3>${this.viewerHtml(v, {partyNotes: false})}</section>`;
     };
     const content = `<div class="ag-locations agl-preview">
       <p class="agl-hint">${this.draft.state === 'hidden' ? 'Hidden: players see nothing now. ' : ''}This is what players would see after you publish your current edits. Quest names follow Quest Manager's own visibility.</p>
@@ -774,8 +872,9 @@ export class LocationsApp extends Base {
       <li><em>Place</em>: put a location inside another. Mark one as a <strong>Region</strong> and its <em>Conditions</em> apply to every place inside it; a place can turn one off or change it for itself. <em>Linked Scenes</em> open with one click (only you move).</li>
       <li><strong>Reorder:</strong> drag a grip, or use the arrows (Alt+Up / Alt+Down on a grip), to move a block or an entry. Players see published blocks in your order. <strong>Add Detail</strong> makes a custom block with a title, text and an optional linked document.</li>
       <li><strong>Loot &amp; Rewards:</strong> drag an Item in (world or compendium) or add a plain reward. It is a link only: nothing is given to anyone. Set <em>Available / Discovered / Taken</em> yourself.</li>
-      <li>Quests come from Quest Manager. Clicking one opens the Quest Log.</li></ul>`
-      : '<p>These are the places your GM has revealed. Places under <em>Unidentified</em> show only what you have heard so far. Click a linked quest, faction, document or place to open it.</p>';
+      <li>Quests come from Quest Manager. Clicking one opens the Quest Log.</li>
+      <li><strong>Party Notes</strong> are written by the players, one at a time, on any location they can see. They are not your <em>Notes</em> section and are never published, exported or changed by an import. You can edit, take over or clear them. Hiding a location hides its Party Notes until it is visible again.</li></ul>`
+      : '<p>These are the places your GM has revealed. Places under <em>Unidentified</em> show only what you have heard so far. Click a linked quest, faction, document or place to open it.</p><p><strong>Party Notes</strong> are shared by the whole party. Click <em>Edit</em>, type, then <em>Save Notes</em>. One person edits at a time; everyone else sees who is editing. A GM must be connected to save.</p>';
     return foundry.applications.api.DialogV2.prompt({window: {title: 'Locations Help'}, content: gm, ok: {label: 'Close'}, rejectClose: false});
   }
 }
