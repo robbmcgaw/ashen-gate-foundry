@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.1 — 2026-10-19
+
+- Facility definitions now import **before the Guildhall is activated** (Manager's single import and the catalog's own Import). They are library data: nothing is unlocked or acquired by importing. Before activation, the GM sees an Imported facility library list on the "Guildhall not activated" screen; after activation they are in GM Setup > Facility Catalog.
+- If Headquarters refuses the facility import, Manager now gets the real reason instead of only a pop-up. Saved data format unchanged.
+
 ## 0.7.0 — 2026-10-19
 
 - New GM-only `api.previewFacilityImport(payload)` and `api.importFacilities(payload)` so General Manager's single importer can hand facility files over (a list, or an object with `records`). New facilities are added to the catalog; facilities already there are kept as they are. The catalog's own Import button is unchanged.

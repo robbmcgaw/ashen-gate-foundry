@@ -106,6 +106,8 @@ export async function applySpecialist(kind, input, api, {ids, updateExisting = f
     ...(report.skipped ?? []).map(s => ({id: s.id, kind: spec.kind, status: 'skipped', message: s.reason})),
     ...(report.failed ?? []).map(s => ({id: s.id, kind: spec.kind, action: 'create', status: 'error', message: s.reason}))
   ];
+  for (const note of report.notes ?? []) results.push({id: spec.moduleId, kind: spec.kind, status: 'note', message: note});
+  for (const warning of report.warnings ?? []) results.push({id: spec.moduleId, kind: spec.kind, status: 'warning', message: warning});
   if (report.missingActors?.length) results.push({id: spec.moduleId, kind: spec.kind, status: 'skipped',
     message: `No character named: ${report.missingActors.join(', ')}. Import the Manager package first; their personal Renown was skipped.`});
   return results;

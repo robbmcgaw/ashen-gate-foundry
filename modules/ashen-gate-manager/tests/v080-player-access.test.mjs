@@ -38,8 +38,8 @@ test('player access: module and state identity must match, invalid/failed provid
  x.mod.api.playerAccess.getState=()=>Promise.reject(new Error('broken provider'));
  assert.equal((await inspectPlayerModule(x.mod)).state,'Unsupported');
 });
-test('player access: GM-only Manager and Locations cannot be revealed even with malicious capability',async()=>{
- for(const id of ['ashen-gate-manager','ashen-gate-locations','ashen-gate-location-builder']) {
+test('player access: GM-only Manager and Location Builder cannot be revealed even with malicious capability',async()=>{
+ for(const id of ['ashen-gate-manager','ashen-gate-location-builder']) {
   const x=makeModule(id,true);
   assert.equal(isGmOnlyModule(x.mod),true);
   assert.equal((await inspectPlayerModule(x.mod)).state,'GM only');
@@ -56,10 +56,10 @@ test('player access: Hide All skips unsupported/GM-only/disabled and reports par
  const a=makeModule('ashen-gate-profession-ledger');
  const b=makeModule('ashen-gate-skill-trees',true,{fail:true});
  const c=makeModule('ashen-gate-factions',false);
- const d=makeModule('ashen-gate-locations',true);
+ const d=makeModule('ashen-gate-location-builder',true);
  const report=await hideAllPlayerInterfaces([a.mod,b.mod,c.mod,d.mod],{isGM:true});
  assert.equal(report.changed.length,1);assert.equal(report.failed.length,1);
- assert.equal(report.alreadyHidden.length,1);assert.equal(report.skipped.length,1);
+ assert.equal(report.alreadyHidden.length,1);assert.equal(report.skipped.length,2,"GM-only builder plus the not-installed Locations row");
  assert.match(report.failed[0].error,/specialist denied/);
  assert.equal(a.enabled,false);assert.equal(b.enabled,true);assert.equal(d.calls,0);
 });
@@ -82,4 +82,15 @@ test('player access: valid read-only player state displays honestly without an a
  const row=await inspectPlayerModule(x.mod);assert.equal(row.state,'Hidden');assert.equal(row.canToggle,false);
  await assert.rejects(changePlayerAccess(x.mod,true,{isGM:true}),/read-only/);
  assert.equal(x.calls,0);
+});
+
+test('player access: Locations is player-capable and toggles through its own Player Access API',async()=>{
+ const x=makeModule('ashen-gate-locations',false);
+ assert.equal(isGmOnlyModule(x.mod),false);
+ const row=await inspectPlayerModule(x.mod);
+ assert.equal(row.audience,'Player');assert.equal(row.state,'Hidden');assert.equal(row.canToggle,true);
+ const shown=await changePlayerAccess(x.mod,true,{isGM:true});
+ assert.equal(shown.state,'Visible');assert.equal(x.enabled,true);
+ const rows=await collectPlayerAccess([]);
+ assert.ok(rows.some(r=>r.id==='ashen-gate-locations'&&r.state==='Not installed'),'Locations is listed even when not installed');
 });

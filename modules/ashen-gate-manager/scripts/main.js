@@ -17,6 +17,7 @@ import {downloadJson} from "./download.js";
 import {isLocationRecord, locationsApi, planLocation, locationsNote, applyLocations} from './location-handoff.js';
 import {SPECIALISTS, detectSpecialistFile, specialistCount, specialistApi, describeUnrecognized, planSpecialist, applySpecialist} from './specialist-handoff.js';
 import {classifyDelivery} from './delivery.js';
+import {buildImportReport, buildBlockedReport, pushReport} from './import-result.js';
 
 const {ApplicationV2, HandlebarsApplicationMixin, DialogV2} = foundry.applications.api;
 const FOLDER_NAMES = {Item: "Ashen Gate — Imported Items", JournalEntry: "Ashen Gate — Imported Journals",
@@ -137,7 +138,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.16.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.17.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -160,6 +161,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.appearanceSelection = null;
     this.appearanceMessage = 'Choose the default appearance for all Ashen Gate modules that support the optional appearance API.';
     this.busy = false;
+    this.importReports = [];
     this.auditEntries = [];
     this.message = "Choose a Manager-ready JSON projection or ZIP package; no world changes occur until Import.";
     this.zipMedia = new Map();
@@ -228,6 +230,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     return {
       ...ctx,
       importActive: this.tab === "import",
+      importReports: this.importReports, hasImportReports: this.importReports.length>0,
       libraryActive: this.tab === "library",
       modulesActive: this.tab === "modules",
       appearanceActive: this.tab === "appearance",
@@ -327,6 +330,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       } catch (error) {
         this.#clearLoaded(`${f.name} was not loaded. Nothing in your world changed.`);
         this.errors=[`Import not loaded: ${error.message}`];
+        this.importReports=pushReport(this.importReports,buildBlockedReport({file:f.name,message:`${f.name} was not loaded: ${error.message}`,fix:'Choose a Manager package or a Quest, Skill Tree, Headquarters facility or Factions JSON file (up to 10 MB), or a ZIP (up to 60 MB). Nothing in your world changed.'}));
         await this.render();
       }
     });
@@ -429,6 +433,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         await this.render(); break;
       case "clear": this.selected.clear(); await this.render(); break;
       case "apply": await this.#apply(); break;
+      case "clear-results": this.importReports=[]; await this.render(); break;
       case "library-check": this.#runAudit(); this.libraryMessage="Library check finished: results are listed above."; await this.render(); break;
       case "appearance-save-world": {
         const choice=this.appearanceSelection??appearanceController?.getState()?.worldDefault;
@@ -559,9 +564,16 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   async #applySpecialist() {
     const {kind,payload}=this.specialist, spec=SPECIALISTS[kind];
     const rows=this.preview.filter(row=>actionAllowed.has(row.action)&&this.selected.has(row.id));
-    if(!rows.length){toast("Select at least one eligible record.");return;}
+    const fileLabel=this.packageSource??`${spec.label} file`;
+    if(!rows.length){
+      this.importReports=pushReport(this.importReports,buildBlockedReport({file:fileLabel,module:spec.label,message:'No records were selected, so nothing was imported.',fix:'Press Select eligible (or tick records) in the preview, then Apply.'}));
+      this.message='Nothing selected: nothing was imported. See the result below.';await this.render();return;}
     const api=specialistApi(game,kind);
-    if(!api){this.errors=[`${spec.label} is not active or is too old to import. Enable or update it.`];await this.render();return;}
+    if(!api){
+      const message=`${spec.label} is not active or is too old to import.`;
+      this.errors=[`${message} Enable or update it.`];
+      this.importReports=pushReport(this.importReports,buildBlockedReport({file:fileLabel,module:spec.label,message}));
+      await this.render();return;}
     const yes=await DialogV2.confirm({window:{title:`Import into ${spec.label}`},modal:true,rejectClose:false,
       content:`<p><strong>${rows.length}</strong> ${escapeHtml(spec.kind.toLowerCase())} record(s) will be passed to <strong>${escapeHtml(spec.label)}</strong>, which stores and owns them.</p><p>${spec.canUpdate&&this.updateExisting?'Records already in the world are replaced; their progress and state are kept.':'Records already in the world are kept as they are.'} Back up your world first.</p>`});
     if(!yes)return;
@@ -575,9 +587,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const count=s=>log.results.filter(r=>r.status===s).length;
     const made=log.results.filter(r=>r.status==='ok'&&r.action==='create').length;
     const replaced=log.results.filter(r=>r.status==='ok'&&r.action==='update').length;
-    const text=`${spec.label}: ${made} created, ${replaced} updated, ${count('skipped')} skipped (reasons in History), ${count('error')} error(s).`;
+    const text=`${spec.label}: ${made} created, ${replaced} updated, ${count('skipped')} skipped, ${count('error')} error(s). Details are in the result panel below.`;
     this.busy=false;
     await this.#preview();
+    this.importReports=pushReport(this.importReports,buildImportReport({file:fileLabel,at:log.at,results:log.results,
+      names:new Map(rows.map(r=>[r.id,r.name]))}));
     this.message=text; toast(text,Boolean(count('error')));
     await this.render();
   }
@@ -694,9 +708,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     if (this.specialist) return this.#applySpecialist();
     if (!this.pkg || this.errors.length) throw new Error("Load a validated package first.");
     const targetRows = this.preview.filter(row => actionAllowed.has(row.action) && this.selected.has(row.id));
-    if (!targetRows.length) {toast("Select at least one eligible record.");return;}
+    const blocked=(message,fix)=>{this.importReports=pushReport(this.importReports,buildBlockedReport({file:this.packageSource??this.pkg.manifest.package_id,message,fix}));};
+    if (!targetRows.length) {blocked('No records were selected, so nothing was imported.','Press Select eligible (or tick records) in the preview, then Apply.');this.message='Nothing selected: nothing was imported. See the result below.';await this.render();return;}
     const missing=selectionIssues(this.pkg.records,targetRows.map(r=>r.id),existingSourceIndex().keys());
-    if (missing.length) {this.errors=missing;this.message='Selected records have missing required dependencies; no changes made.';await this.render();return;}
+    if (missing.length) {this.errors=missing;blocked(`Selected records have missing required dependencies: ${missing.slice(0,3).join(' ')}`,'Select the records they depend on too, or import the file that contains them first.');this.message='Selected records have missing required dependencies; no changes made.';await this.render();return;}
     const eligibleIds=new Set([...targetRows.map(r=>r.id),...existingSourceIndex().keys()]);
     const markerProblems=[];
     for(const row of targetRows) {
@@ -707,7 +722,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         if(already.length>1) markerProblems.push(`${row.id}: AGREF ${id} matches ${already.length} existing documents (ambiguous).`);
       }
     }
-    if(markerProblems.length){this.errors=markerProblems;this.message='Source markers need all their targets; no documents were imported.';await this.render();return;}
+    if(markerProblems.length){this.errors=markerProblems;blocked(`Source markers need their targets: ${markerProblems.slice(0,3).join(' ')}`,'Select the target records too, or import them first, then apply again.');this.message='Source markers need all their targets; no documents were imported.';await this.render();return;}
     const pendingGraph=dependencyOrder(this.pkg.records.filter(r=>targetRows.some(row=>row.id===r.id)));
     const cycleNotice=pendingGraph.cycles.length ? `<p><strong>${pendingGraph.cycles.length} circular reference path(s).</strong> These are permitted because the Manager stores stable Ashen Gate IDs. If any required target fails creation, its references are not finalized and the error is logged.</p>` : '';
     const locRows=targetRows.filter(r=>r.kind==='Location');
@@ -857,7 +872,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       log.results.push({action:'import-aborted',status:'error',message});
       const prior=game.settings.get(MODULE_ID,'importHistory')??[];
       await game.settings.set(MODULE_ID,'importHistory',[...prior,log].slice(-40));
-      this.message=`Import aborted: ${message}. Review History; any earlier successful writes may remain.`;
+      this.message=`Import aborted: ${message}. See the result below; any earlier successful writes may remain.`;
       toast(this.message,true);
     } finally {
       this.busy=false;
@@ -873,7 +888,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         const locOk=last.results.filter(x=>x.kind==='Location'&&x.status==='ok').length;
         const locSkipped=last.results.filter(x=>x.kind==='Location'&&x.status==='skipped').length;
         const locText=locOk||locSkipped?` ${locOk} location(s) imported${locSkipped?`, ${locSkipped} skipped (reasons in History)`:''}.`:'';
-        this.message=`Imported ${okay} document(s), created ${folders} folder(s), bound ${links} reference(s); ${bad} error(s).${locText} See History for details.`;
+        this.message=`Imported ${okay} document(s), created ${folders} folder(s), bound ${links} reference(s); ${bad} error(s).${locText} Details are in the result panel below.`;
+        this.importReports=pushReport(this.importReports,buildImportReport({file:this.packageSource??log.packageId,at:log.at,results:last.results,
+          names:new Map(this.pkg?.records?.map(r=>[r.id,r.name??r.id])??[])}));
         await this.render();
       }
     }
@@ -1170,7 +1187,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.16.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.17.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */

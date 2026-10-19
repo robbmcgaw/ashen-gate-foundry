@@ -17,3 +17,13 @@ test('bad shape, duplicates and invalid definitions are reported',()=>{
  assert.match(planFacilityImport([list[0],list[0]]).errors[0],/duplicate/);
  assert.ok(planFacilityImport([{id:'x'}]).errors.length);
 });
+import {emptyState,applyOperation,facilities} from '../js/logic.mjs';
+test('facility definitions import before the Guildhall is activated, and activate nothing',()=>{
+ const gm={id:'gm',isGM:true};
+ const s=applyOperation(emptyState(),gm,'import_definitions',{definitions:list});
+ assert.equal(s.active,false);assert.equal(s.catalog.length,list.length);assert.equal(s.inventory.length,0);
+ assert.throws(()=>applyOperation(s,gm,'import_definitions',{definitions:[list[0]]}),/Duplicate/);
+ assert.throws(()=>applyOperation(emptyState(),{id:'p',isGM:false},'import_definitions',{definitions:list}),/GM/i);
+ assert.throws(()=>applyOperation(emptyState(),gm,'load_demo'),/activate the Guildhall first/);
+ assert.equal(facilities(s).size,list.length);
+});

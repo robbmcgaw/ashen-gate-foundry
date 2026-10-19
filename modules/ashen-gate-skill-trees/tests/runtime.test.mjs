@@ -30,7 +30,7 @@ test('module registers API and hidden public projection settings',async()=>{
   assert.equal(menus.get('open').restricted,false);
   assert.equal(events.get('renderActorDirectory').length,1);
   const api=game.modules.get('ashen-gate-skill-trees').api;
-  assert.equal(api.version,'0.8.0');
+  assert.equal(api.version,'0.8.1');
   assert.ok(api.open());
   assert.deepEqual(api.listTrees(),[]);
   assert.equal(api.actorProgress(null,'MISSING'),null);
@@ -141,7 +141,7 @@ test('DEC-0068 through DEC-0071: standardized tabbed shell and source/import sep
   const template=await fs.readFile(new URL('../templates/tree.hbs',import.meta.url),'utf8');
   const manifest=JSON.parse(await fs.readFile(new URL('../module.json',import.meta.url),'utf8'));
   assert.equal(manifest.id,'ashen-gate-skill-trees');
-  assert.equal(manifest.version,'0.8.0');
+  assert.equal(manifest.version,'0.8.1');
   assert.match(manifest.title,/Ashen Gate \| Skill Trees/);
   assert.match(template,/data-act="tab-trees"/);
   assert.match(template,/\{\{#if gm\}\}<button type="button" data-act="tab-setup"/);
@@ -179,4 +179,26 @@ test('Handlebars template has correctly paired #if/#unless/#each blocks',async()
    else assert.equal(stack.pop(),match[2],`unbalanced handlebars block near ${match.index}`);
  }
  assert.deepEqual(stack,[]);
+});
+
+test('Manager import creates the GM-only storage Journal itself when it is missing, and says so',async()=>{
+  game.user.isGM=true;
+  game.journal.contents=[];
+  const created=[];
+  globalThis.CONST={DOCUMENT_OWNERSHIP_LEVELS:{NONE:0}};
+  globalThis.JournalEntry={create:async options=>{
+    assert.equal(options.ownership.default,0,'no player access');
+    const doc={name:options.name,flags:options.flags,async setFlag(m,k,v){this.flags[m][k]=v;return v;}};
+    created.push(doc);game.journal.contents.push(doc);return doc;
+  }};
+  const api=game.modules.get('ashen-gate-skill-trees').api;
+  const tree={id:'TREE-TEST-AUTO',name:'[TEST] Auto storage',status:'test',visibility:'player',provider:{kind:'generic_points',maxPoints:3},
+    nodes:[{id:'NODE-A',perkId:'PERK-TEST-A',x:100,y:100,requiresAll:[],requiresAny:[],excludes:[],status:'test',visibility:'player',display:'shown'}]};
+  const report=await api.importTrees({schema:'ag-skill-trees/0.3',trees:[tree]});
+  assert.equal(created.length,1);
+  assert.deepEqual(report.failed,[]);
+  assert.match(report.notes[0],/Created the GM-only Skill Trees storage Journal/);
+  const again=await api.importTrees({schema:'ag-skill-trees/0.3',trees:[tree]});
+  assert.equal(created.length,1,'storage is created once');
+  assert.equal(again.notes,undefined);
 });

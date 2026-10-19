@@ -73,10 +73,11 @@ export function planImport(data,existingIds=new Set()){
 export async function runImport(plan,io){
   io.assertGM();
   if(plan.errors.length)throw Error(`Import blocked: ${plan.errors[0]}`);
-  const added=[],skipped=[],missing=new Set();
+  const added=[],skipped=[],failed=[],missing=new Set();
   const standing=(old,events)=>events.reduce((s,e)=>adjustStanding(s,{delta:e.delta,reason:e.reason,eventId:io.eventId(),when:io.now()}).standing,old);
   for(const row of plan.rows){
     if(row.action==='skip'){skipped.push({id:row.id,name:row.name,reason:row.reason});continue;}
+    try{
     await io.createFaction(row.definition);
     const start=row.start??{},actors=[];
     for(const a of start.actors??[]){
@@ -99,6 +100,7 @@ export async function runImport(plan,io){
     }
     await io.finish(row.id);
     added.push({id:row.id,name:row.name});
+    }catch(error){failed.push({id:row.id,reason:String(error?.message??error)});}
   }
-  return {added,skipped,missingActors:[...missing]};
+  return {added,skipped,failed,missingActors:[...missing]};
 }
