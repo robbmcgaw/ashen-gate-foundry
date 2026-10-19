@@ -12,7 +12,7 @@ These are **synthetic, clearly named TEST records**, not approved Ashen Gate set
    ```
 
    It should return an object listing **two actual character Actors** (`AG TEST | Bridge Scout`, `AG TEST | Field Warden`), **one native loot Item** (`AG TEST | Sealed Travel Ledger`) and **two RollTables** (`AG TEST | Crossing Reports`, `AG TEST | Unsafe Document Result`). First two non-GM user accounts receive Owner permission; with one player account both belong to that user. Re-running setup does not duplicate the tagged documents.
-3. GM: open Actors → Utilities → GM Setup and enable Player Access. Player: open Actors → Utilities. Use Group Checks and Roll Requests through their normal GM creation buttons; no fixture injects fake session state or awards.
+3. GM: open Actors → Utilities → GM Setup and enable Player Access. Player: open Actors → Utilities. Use the Rolls tab (Group result or Individual rolls) through its Start Rolls button; no fixture injects fake session state or awards.
 4. For the Party Stash test, GM opens **Party Inventory → Create Party Stash → Turn On for Players** (the stash is on that tab), then drags the `AG TEST | Sealed Travel Ledger` Item from the Items directory onto the Party Inventory tab.
 5. The setup script is never automatically loaded during normal play.
 
@@ -38,6 +38,6 @@ Do not run reset on a real campaign world. Keep a snapshot before testing, and d
 - Submitted: Player makes a native dnd5e roll. The GM observes server-authored ChatMessage proof and accepts one contribution.
 - Completed: Last valid contribution, or GM End & Record, archives the exact session in History and clears activeSession.
 - Cancelled: GM confirms Cancel Session; History records the cancellation and activeSession clears.
-- Individual: Roll Requests show a separate view and record each actor's result independently. Both feature tabs serialize through one active-interaction slot so requests cannot overwrite each other.
+- Individual: Individual rolls (Roll Requests) record each actor's result independently. Both modes serialize through one active-interaction slot so requests cannot overwrite each other.
 
 If setup fails, capture the browser Console error and stop. These actual-world operations **cannot be certified without your Forge GM/player acceptance**.

@@ -48,7 +48,7 @@ test('GM-only tools are not rendered for a player',async()=>{
  const user=game.users.find(u=>u.id==='player');game.user=user;await game.settings.set(ID,'playerAccessEnabled',true);
  const app=await game.modules.get(ID).api.open();
  globalThis.CONFIG={DND5E:{skills:{}},statusEffects:[]};game.i18n={localize:x=>x};
- const html=await app._renderHTML();assert.ok(html.includes('Group Checks'));assert.ok(!html.includes('GM Setup'));
+ const html=await app._renderHTML();assert.ok(html.includes('>Rolls<'));assert.ok(!html.includes('Group Checks')&&!html.includes('Roll Requests'));assert.ok(!html.includes('GM Setup'));
  game.user=gm;
 });
 
@@ -69,13 +69,12 @@ test('ended sessions archive and do not block the next valid character selection
  assert.equal(game.settings.get(ID,'activeSession').name,'Second Group');
  assert.equal(game.settings.get(ID,'activeSession').slots.length,1);
 });
-test('completed Group Check never appears in Roll Requests as a live request',async()=>{
+test('an active Group Check shows in the one Rolls tab (old ids map there) and the GM gets no second start form',async()=>{
  game.user=gm;
  const s=createSession({id:'v2-session-b',name:'ONLY GROUP',kind:'group',actors:['pc01'],skills:['prc'],createdBy:'gm'});
  await game.settings.set(ID,'activeSession',s);
- const app=await game.modules.get(ID).api.open();app.tab='rolls';
- const html=await app._renderHTML();assert.ok(html.includes('Roll Request is currently active')===false);assert.ok(html.includes('Group Check is currently active'));assert.ok(html.includes('No Roll Request active'));
- assert.ok(!html.includes('Roll Now'));
+ const app=await game.modules.get(ID).api.open();
+ for(const old of ['checks','rolls']){app.tab=old;const html=await app._renderHTML();assert.equal(app.tab,'rolls');assert.ok(html.includes('ONLY GROUP'));assert.ok(html.includes('Group Check'));assert.ok(!html.includes('Start Rolls'));assert.ok(html.includes('Another active interaction is in progress'));}
 });
 test('party stash stays hidden to players while the GM has it turned off, even with Observer permission',async()=>{
  const player=game.users.find(u=>u.id==='player');
@@ -148,13 +147,13 @@ test('unknown statuses are traced to their effect and the GM can remove them',as
  await app.handle('remove-status',{disabled:false,dataset:{status:'thinking'}},{});
  assert.deepEqual(deleted,['fx1']);
 });
-test('player-facing pending roll is prominent and group/roll request states differ',async()=>{
+test('player-facing pending roll is prominent in the Rolls tab under either old tab id',async()=>{
  const player=game.users.find(u=>u.id==='player');game.user=player;await game.settings.set(ID,'playerAccessEnabled',true);
  const session=createSession({id:'v2-request',name:'Party Perception',kind:'request',actors:['pc01'],skills:['prc'],createdBy:'gm'});
  await game.settings.set(ID,'activeSession',session);
  const app=await game.modules.get(ID).api.open();app.tab='rolls';
  let h=await app._renderHTML();assert.ok(h.includes('Your roll is requested'));assert.ok(h.includes('Roll Now'));
- app.tab='checks';h=await app._renderHTML();assert.ok(h.includes('No Group Check active'));assert.ok(!h.includes('Roll Now'));
+ app.tab='checks';h=await app._renderHTML();assert.ok(h.includes('Roll Now'));assert.ok(h.includes('Roll Request'));
  game.user=gm;
 });
 
