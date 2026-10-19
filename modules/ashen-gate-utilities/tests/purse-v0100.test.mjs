@@ -224,3 +224,41 @@ test('GM adjust dialog: coin/op/amount/reason, labelled confirmation, Cancel cha
   assert.deepEqual(seen[1].buttons.map(b=>b.label),['Cancel','Set purse to 0 sp']);assert.match(seen[1].content,new RegExp(`${sp} → 0 sp`));
  }finally{delete foundry.applications.api.DialogV2;}
 });
+
+// ---- v0.10.1 separate coin vote ----
+test('coin vote: never saved, it inherits the item vote; once saved it is independent',async()=>{
+ assert.equal(game.settings.get(ID,'purseVoteRequired'),'');
+ await api.stash.setVoteRequired(true);assert.equal(api.purse.isVoteRequired(),true);
+ await api.stash.setVoteRequired(false);assert.equal(api.purse.isVoteRequired(),false,'follows the item vote while unset');
+ await api.purse.setVoteRequired(true);await api.stash.setVoteRequired(false);
+ assert.equal(api.purse.isVoteRequired(),true,'independent once saved');assert.equal(api.stash.isVoteRequired(),false);
+ await api.stash.setVoteRequired(true);
+});
+test('player cannot change the coin vote',async()=>{
+ game.user=alice;
+ try{await assert.rejects(api.purse.setVoteRequired(false),/GM only/);}finally{game.user=gm;}
+ assert.equal(game.settings.get(ID,'purseVoteRequired'),'on');
+});
+test('coin vote off: Take applies at once with a "no vote" history entry, bounds still enforced; item vote unaffected',async()=>{
+ await api.purse.setVoteRequired(false);await api.stash.setVoteRequired(true);
+ stash.system.currency.gp=5;wren.system.currency.gp=1;
+ const before=sent.filter(m=>m.type==='stash-vote-request').length;
+ await socketHandler({type:'purse-take',requestId:'c1',userId:'alice',actorId:'pcA',coin:'gp',amount:2},'alice');await tick();
+ assert.equal(receipt('c1').ok,true);assert.equal(sent.filter(m=>m.type==='stash-vote-request').length,before);
+ assert.deepEqual([stash.system.currency.gp,wren.system.currency.gp],[3,3]);
+ assert.deepEqual([hist().at(-1).kind,hist().at(-1).approval,hist().at(-1).moved],['purse-take','not-required',true]);
+ await socketHandler({type:'purse-take',requestId:'c2',userId:'alice',actorId:'pcA',coin:'gp',amount:4},'alice');await tick();
+ assert.match(receipt('c2').message,/purse has 3 gp, fewer than 4 gp/);
+ await socketHandler({type:'purse-take',requestId:'c3',userId:'alice',actorId:'pcB',coin:'gp',amount:1},'alice');await tick();
+ assert.match(receipt('c3').message,/do not own/);
+ const app=await api.stash.open();const html=await app._renderHTML();assert.match(html,/Coin vote: off/);
+});
+test('coin vote on: the vote flow is unchanged even when the item vote is off',async()=>{
+ await api.purse.setVoteRequired(true);await api.stash.setVoteRequired(false);
+ socketHandler({type:'purse-take',requestId:'c4',userId:'alice',actorId:'pcA',coin:'gp',amount:1},'alice');await tick();
+ const vr=voteRequest();assert.deepEqual(vr.voters,['bob']);assert.equal(vr.item,'1 gp');
+ await socketHandler({type:'stash-vote',pollId:vr.pollId,userId:'bob',vote:'accept'},'bob');await tick();
+ assert.equal(receipt('c4').ok,true);assert.equal(hist().at(-1).approval,'accepted');
+ const app=await api.stash.open();assert.match(await app._renderHTML(),/Coin vote: on/);
+ await api.stash.setVoteRequired(true);
+});
