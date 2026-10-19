@@ -2,6 +2,8 @@
 export const MODULE_ID = 'ashen-gate-locations';
 export const IMPORT_SCHEMA = 'ag-foundry-import/0.2';
 export const THREATS = Object.freeze([
+  {value: 'settled', label: 'Settled'},
+  {value: 'light', label: 'Light'},
   {value: 'normal', label: 'Normal'},
   {value: 'hot', label: 'Hot'},
   {value: 'deadly', label: 'Deadly'}
@@ -78,6 +80,27 @@ const safeUuid = value => {
   const s = line(value, 300);
   return /^[A-Za-z0-9._-]+$/.test(s) ? s : '';
 };
+export const GROUP_MODES = Object.freeze([{value: 'region', label: 'Region'}, {value: 'threat', label: 'Threat level'}, {value: 'profession', label: 'Gathering profession'}]);
+/**
+ * The GM list as groups: by region, threat level (safest first) or gathering profession (a location appears under each
+ * profession it has a node for). Rows sort by name inside a group. Returns [{key, label, rows}].
+ */
+export function groupLocations(rows, mode = 'region') {
+  const groups = new Map();
+  const put = (key, label, row) => { if (!groups.has(key)) groups.set(key, {key, label, rows: []}); groups.get(key).rows.push(row); };
+  for (const l of rows) {
+    if (mode === 'threat') put(l.threat || 'normal', threatLabel(l.threat), l);
+    else if (mode === 'profession') {
+      const skills = [...new Set((l.resources ?? []).map(r => String(r.skill ?? '').trim()).filter(Boolean))];
+      if (skills.length) for (const k of skills) put(k, k, l); else put('', 'No gathering', l);
+    } else put(l.region || '', l.region || 'No region', l);
+  }
+  const byName = (a, b) => a.name.localeCompare(b.name);
+  const order = THREATS.map(t => t.value);
+  const list = [...groups.values()].map(g => ({...g, rows: g.rows.sort(byName)}));
+  return list.sort(mode === 'threat' ? (a, b) => order.indexOf(a.key) - order.indexOf(b.key)
+    : (a, b) => (a.key === '') - (b.key === '') || a.label.localeCompare(b.label));
+}
 export const threatLabel = value => THREATS.find(t => t.value === value)?.label ?? 'Normal';
 export const newKey = () => Math.random().toString(36).slice(2, 10);
 export const newPinKey = () => [...globalThis.crypto.getRandomValues(new Uint8Array(16))].map(b => (b % 36).toString(36)).join('');
