@@ -1,8 +1,18 @@
 # Changelog — Ashen Gate | Utilities
 
-## 0.5.1 — 2026-10-19
+## 0.6.1 — 2026-10-19
 
 - Actors sidebar launcher is the full-width row under the other launchers. Buttons wrap their labels instead of clipping, use the Ashen Gate theme tokens for hover/focus, and the grid reflows with no gap when a module is off or hidden by Player Access.
+
+## 0.6.0 — 2026-10-19
+
+Party stash: optional take-out vote and a history log.
+
+- New GM Setup checkbox **Party must accept when a player takes an item out**. On (the default, same as 0.5.x): any other player can deny, and no answer in 60 seconds cancels. Off: a player withdraws freely with no vote. The GM is never voted on. The primary GM client checks the setting when it runs the move, so a player client can't skip or force a vote.
+- New **History** tab in the Party Stash window: every deposit and take-out with who (player and character), the item (icon, name, quantity), how it was approved (party accepted, party denied, no answer in time, no vote needed, GM), and real and world time. Denied and timed-out take-outs are listed too. Players can read it while the stash is on; only the GM can clear it (with a confirmation).
+- The log is written only by the GM client, stored in the new hidden world setting `stashHistory`, and keeps the latest 500 entries (oldest trimmed). It shows 50 at a time with **Show more**.
+- API (additive): `stash.isVoteRequired()`, `stash.setVoteRequired(bool)`, `stash.history()`, `stash.clearHistory()`. Existing calls are unchanged.
+- New world settings `stashVoteRequired` (default on) and `stashHistory` (default empty). No migration needed.
 
 ## 0.5.0 — 2026-10-18
 
