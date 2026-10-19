@@ -1,3 +1,9 @@
+## 0.7.2 — 2026-10-19
+
+- Skip / End / Cancel on a check, Clear stash history and Remove a non-native condition now use Foundry dialogs instead of the browser's `confirm` (which the desktop app lacks). Each has a labelled action button, with Cancel on the left. The test-fixture reset prompts do the same.
+- New **Help** button in the header (draft text).
+- No saved-data or permission changes.
+
 ## 0.7.1 — 2026-10-19
 
 - If a finished Group Check's tally can't be posted to GM chat, the GM now gets a warning notification instead of a console-only message. The result itself was already saved and still shows in Group Checks and History.
