@@ -6,7 +6,7 @@ A standalone D&D 2024 / Foundry V14 module for Quest, Work Order and Contract Ob
 
 ## Start here for the v0.4.0 user experience
 
-Use **Actors → Quest Log → GM Setup** to create quests through normal fields, publish/reveal to players, and enable the player Quest Log interface. Players open **Party** or **Individual**, tick **Track**, then **Show Objectives Overlay**. The overlay shows only permitted public objectives; it does not affect quest progress. See `docs/SETUP_RESET_v0.4.0.md`, `docs/QA_TEST_CASES_v0.4.0.csv` and `docs/RELEASE_NOTES_v0.4.0.md`.
+Use **Actors → Quest Log → GM Setup** to create quests through normal fields, publish/reveal to players, and enable the player Quest Log interface. Players open **Party** or **Individual**, tick **Track**, then **Show Objectives Overlay**. The overlay shows only permitted public objectives; it does not affect quest progress.
 
 ## Main UI
 
@@ -35,8 +35,7 @@ Other existing APIs: `open`, `openObjective`, `listVisible`, `getVisibleObjectiv
 
 ## Source and acceptance
 
-The source-tree archive contains the **same runtime files** as the installable ZIP, plus Node test suites, synthetic fixtures, release QA, integration contract and handoff. `node --test test/*.test.mjs` tests without Foundry; no live multiplayer/runtime certification is claimed. Node 22 was used for local tests. See `docs/RECONCILIATION_v0.3.0.md`, `docs/INTEGRATION_HANDOFF.md`, `docs/V14_HANDOFF.md` and `docs/RELEASE_NOTES_v0.3.1.md`.
+The source-tree archive contains the **same runtime files** as the installable ZIP, plus Node test suites, synthetic fixtures, release QA, integration contract and handoff. `node --test test/*.test.mjs` tests without Foundry; no live multiplayer/runtime certification is claimed. Node 22 was used for local tests. See `CHANGELOG.md` and `docs/VENDORED_RESOLVER_PIN.md`.
 
-**Local automated evidence:** New v0.4.0 test output is in `docs/TEST_RESULTS_v0.4.0.txt`; no live V14 acceptance.
 
 **Privacy condition:** All source/Assignment Journals remain GM-only; safe projections contain only explicitly revealed data. Never import GM secrets into accessible native Manager documents and assume JavaScript filtering will hide their flags.

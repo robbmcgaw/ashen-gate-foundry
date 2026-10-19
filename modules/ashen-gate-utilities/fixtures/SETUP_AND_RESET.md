@@ -14,7 +14,7 @@ These are **synthetic, clearly named TEST records**, not approved Ashen Gate set
    It should return an object listing **two actual character Actors** (`AG TEST | Bridge Scout`, `AG TEST | Field Warden`), **one native loot Item** (`AG TEST | Sealed Travel Ledger`) and **two RollTables** (`AG TEST | Crossing Reports`, `AG TEST | Unsafe Document Result`). First two non-GM user accounts receive Owner permission; with one player account both belong to that user. Re-running setup does not duplicate the tagged documents.
 3. GM: open Actors → Utilities → GM Setup and enable Player Access. Player: open Actors → Utilities. Use Group Checks and Roll Requests through their normal GM creation buttons; no fixture injects fake session state or awards.
 4. For the Party Stash test, GM opens **Party Inventory → Create Party Stash → Turn On for Players** (the stash is on that tab), then drags the `AG TEST | Sealed Travel Ledger` Item from the Items directory onto the Party Inventory tab.
-5. Use `tests/FOUNDRY_ACCEPTANCE_v0.2.0.csv` and enter Pass/Fail + Test Notes on **the same test row**. All initial results remain NOT RUN. The setup script is never automatically loaded during normal play.
+5. The setup script is never automatically loaded during normal play.
 
 ## Clean reset
 
