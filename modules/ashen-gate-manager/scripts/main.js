@@ -17,7 +17,7 @@ import {downloadJson, downloadText} from "./download.js";
 import {isLocationRecord, locationsApi, planLocation, locationsNote, applyLocations} from './location-handoff.js';
 import {SPECIALISTS, detectSpecialistFile, specialistCount, specialistApi, describeUnrecognized, planSpecialist, applySpecialist} from './specialist-handoff.js';
 import {classifyDelivery} from './delivery.js';
-import {buildWorldExport, saveWorldExport, SNAPSHOT_SETTING} from './world-export.js';
+import {buildWorldExport, saveWorldExport, saveBackup, SNAPSHOT_SETTING} from './world-export.js';
 import {runPreSessionCheck} from './pre-session-check.js';
 import {buildImportReport, buildBlockedReport, pushReport} from './import-result.js';
 import {ITEM_FLAG, ACTOR_ITEMS_FLAG, itemKeys, matchActors, planActor, applyActorUpdate} from './actor-update.js';
@@ -217,7 +217,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   async #worldExport(name) {
     try {
       if(!game.user?.isGM)throw new Error('Only the GM can export Ashen Gate data.');
-      if(name==='world-export-copy'){
+      if(name==='world-backup'){
+        const out=saveBackup(game,{save:downloadJson});
+        this.worldExportSummary=out.summary;toast(`Saved ${out.filename}. The "changed since last export" baseline is unchanged.`);
+      } else if(name==='world-export-copy'){
         const snap=game.settings.get(MODULE_ID,SNAPSHOT_SETTING);
         const out=buildWorldExport(game,{mode:'changed',snapshot:snap?.records?snap:null});
         this.worldExportSummary=out.summary;
@@ -503,7 +506,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         break;
       }
       case "clear-results": this.importReports=[]; await this.render(); break;
-      case "world-export-everything": case "world-export-changed": case "world-export-copy": await this.#worldExport(name); break;
+      case "world-export-everything": case "world-export-changed": case "world-export-copy": case "world-backup": await this.#worldExport(name); break;
       case "presession-run": case "presession-copy": case "presession-download": await this.#preSession(name); break;
       case "library-check": this.#runAudit(); this.libraryMessage="Library check finished: results are listed above."; await this.render(); break;
       case "appearance-save-world": {
@@ -1261,6 +1264,8 @@ Hooks.once("ready",()=>{
     },
     // GM-only, read-only health report (0.21.0); the gate is inside runPreSessionCheck.
     preSessionCheck:()=>runPreSessionCheck(game),
+    // GM-only "Back up before play" (0.21.0): the everything export as AG_Backup_<date>.json; leaves the export snapshot alone.
+    backup:()=>saveBackup(game,{save:downloadJson}),
     resolverBridge:{
       contract:'ag-definition-resolver/0.1-prototype-adapter',
       // Requires a caller-supplied source-reviewed resolver; no invented global provider.

@@ -193,6 +193,7 @@
         <button type="button" class="ag-btn ag-btn--primary" data-ag-action="world-export-everything"><i class="fa-solid fa-file-export"></i> Export everything</button>
         <button type="button" class="ag-btn" data-ag-action="world-export-changed"><i class="fa-solid fa-file-circle-exclamation"></i> Export changed since last export</button>
         <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="world-export-copy"><i class="fa-solid fa-copy"></i> Copy summary</button>
+        <button type="button" class="ag-btn" data-ag-action="world-backup" title="Saves everything as AG_Backup_&lt;date&gt;.json. Does not change what counts as changed since last export."><i class="fa-solid fa-shield-halved"></i> Back up before play</button>
       </div>
       {{#if worldExportSummary}}<pre class="agmanager-tiny agmanager-worldexport-summary">{{worldExportSummary}}</pre>{{/if}}
     </section>

@@ -214,3 +214,21 @@ export async function saveWorldExport(game, {mode, save, now} = {}) {
   await game.settings.set(MODULE_ID, SNAPSHOT_SETTING, out.snapshot);
   return out;
 }
+
+/**
+ * Back up before play: the same "everything" export, saved as AG_Backup_<date>.json. GM-only (buildWorldExport
+ * rejects anyone else). Read-only: it never reads or writes the export snapshot, so "changed since last export"
+ * still compares with the last real export.
+ */
+export function buildBackup(game, {now = new Date()} = {}) {
+  const out = buildWorldExport(game, {mode: 'everything', snapshot: null, now});
+  const date = out.file.header.date;
+  const lines = [`Ashen Gate backup — ${game.world?.title ?? game.world?.id}, ${date}`,
+    ...Object.entries(out.counts).map(([name, c]) => c.status ? `${name}: ${c.status}` : `${name}: ${c.total} records`)];
+  return {file: sortKeys({...out.file, header: {...out.file.header, purpose: 'backup'}}), filename: `AG_Backup_${date}.json`, summary: lines.join('\n')};
+}
+export function saveBackup(game, {save, now} = {}) {
+  const out = buildBackup(game, {now});
+  save(out.filename, out.file);
+  return out;
+}

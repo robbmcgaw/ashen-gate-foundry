@@ -3,6 +3,7 @@
 - **Pre-session check** (Modules tab, GM only). **Run pre-session check** lists PASS / WARN / FAIL / N-A lines for: Ashen Gate module versions (inactive or too old for Manager's hand-offs warns), each module's GM data (Locations GM Data, Quest GM sources, Skill Trees definitions, Factions definitions, Headquarters vault), Player Access per module (a hidden player launcher warns), [TEST] records players can see, hidden names in player views, the Locations 1.8.0 migration and pending GM notice, and Foundry / dnd5e versions. A summary line ends the list. **Copy report** copies it as plain text; **Download report** saves a .txt.
 - Leak scan uses the modules' own player views (Locations player previews, Quest Log's visible quests) and reports hits by record id, never by name. Factions, Skill Trees and Headquarters have no player view Manager can call, so they show "could not check". A gm-visibility Item that players can open is a FAIL.
 - Strictly read-only: it never creates, changes or deletes a document, flag or setting. Missing modules show "not installed". GM only, checked inside the function too (`api.preSessionCheck()`).
+- **Back up before play** (Library tab, next to Export). Saves all Ashen Gate data in one file, `AG_Backup_<date>.json`, using the same code as **Export everything**. It does not change the "changed since last export" baseline: a backup is not an export. GM only, checked inside the function too (`api.backup()`). Nothing in the world changes.
 
 ## 0.20.0 — 2026-10-19
 
