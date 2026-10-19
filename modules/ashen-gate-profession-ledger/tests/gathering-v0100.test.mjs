@@ -413,7 +413,7 @@ test('gathering blockers: pure reasons, each with its fix',()=>{
  assert.equal(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialFound:false}),'Material MAT-A-B is not in the world: import the pack in General Manager (it must be approved and player-visible).');
  assert.equal(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialFound:true}),'');
  assert.match(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialFound:true,busy:true}),/already being gathered/);
- assert.match(nodeBlocker(normalizeNode({id:'x',tier:1})),/No material is set.*Locations/);
+ assert.match(nodeBlocker(normalizeNode({id:'x',tier:1})),/^No material id set: award by hand.*Locations/);
  assert.match(nodeBlocker(normalizeNode({id:'x',tier:1,materialId:'MAT-A-B',exhausted:true})),/exhausted.*untick Exhausted in Locations/);
  assert.match(nodeBlocker(normalizeNode({id:'x',tier:1,materialId:'MAT-A-B',available:false})),/tick Available/);
  assert.match(nodeBlocker(normalizeNode({id:'x',materialId:'MAT-A-B'})),/No DC or tier.*Locations/);
@@ -495,4 +495,29 @@ test('0.14.0: progression read contract, level-changed hook, Skill Trees report 
  await _test.performAction('adjust-xp',{id:P,actorId:'belwar',set:String(xpForLevel(1))});
  assert.equal(api.progression.level(belwar,P).level,1);
  delete modules['ashen-gate-skill-trees'];
+});
+
+test('0.14.1: a Locations node with no material reads "award by hand" for the GM; players get no DC and no GM menus',async()=>{
+ const M=await import('../../ashen-gate-locations/scripts/model.mjs');
+ const raw=M.resourcesOf(M.normalizeLocation({id:'LOC-TG-WOODS',name:'[TEST] Woods',resources:[{label:'[TEST] Hunter remains',skill:'Skinning & Harvesting',tier:1,dc:12,note:'[TEST] skin it, award by hand'}]}),{gm:true})[0];
+ assert.equal(raw.materialId,'');assert.equal(raw.dcVisible,false);
+ locs.push({id:'LOC-TG-WOODS',name:'[TEST] Woods',revealed:true,resources:[raw]});
+ try{
+  game.user=gm;app.gather.source='location';app.gather.nodeRef='';
+  let h=await html('gathering');
+  const opt=h.match(new RegExp(`<option value="LOC-TG-WOODS\\|${raw.id}"[^>]*>[^<]*</option>`))[0];
+  assert.doesNotMatch(opt,/disabled/,'the GM can pick it to read why');assert.match(opt,/no material: award by hand/);
+  app.gather.nodeRef=`LOC-TG-WOODS|${raw.id}`;h=await html('gathering');
+  assert.match(h,/No material id set: award by hand\. \[TEST\] skin it, award by hand \(To let the Ledger award it/);
+  assert.match(h,/data-action="gather-start" disabled/);
+  await assert.rejects(()=>_test.startGather({node:normalizeNode(raw,{locationId:'LOC-TG-WOODS'}),leadId:'belwar'}),/award by hand/);
+  game.user=alice;h=await html('gathering');
+  assert.match(h,/The GM handles this spot at the table: ask them\./);
+  assert.match(h,/\[TEST\] Hunter remains/,'free-text skill does not break the list');
+  assert.doesNotMatch(h,/DC 12/);assert.doesNotMatch(h,/Locations > Gathering/);
+  game.user=gm;sent.length=0;const before=dialogs.length;
+  const out=await _test.handleGatherRequest({type:'gather-request',requestId:'rh',requesterId:'u1',actorId:'belwar',locationId:'LOC-TG-WOODS',nodeId:raw.id},'u1');
+  assert.equal(out.ok,false);assert.equal(dialogs.length,before);
+  assert.equal(out.message,'The GM handles this spot at the table: ask them.');
+ }finally{locs.pop();game.user=gm;app.gather.nodeRef='';}
 });
