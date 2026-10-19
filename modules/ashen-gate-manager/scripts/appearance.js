@@ -32,12 +32,12 @@ const SKINS = Object.freeze([
     accent:'#d6b56a',onAccent:'#191304',danger:'#ec8a80',ok:'#74d0a8',warn:'#e9c066',focus:'#b9e8d6'})}),
   Object.freeze({id:'ag-parchment',label:'Ashen Gate — Parchment',description:'Light parchment with ink and bronze',tokens:skinTokens({
     surface:'#f4efe6',sunken:'#fbf8f2',raised:'#ebe3d6',text:'#2a241d',muted:'#6a5f52',border:'#cfc2ae',
-    accent:'#94642a',onAccent:'#ffffff',danger:'#b03f37',ok:'#2f7a4b',warn:'#9a6a10',focus:'#b5832f'})}),
+    accent:'#734e21',onAccent:'#ffffff',danger:'#94352e',ok:'#25603b',warn:'#734f0c',focus:'#a5772b'})}),
   // Structural skins: tokens as above plus a stylesheet (scoped by html[data-ag-skin]) that reshapes the kit components.
   Object.freeze({id:'ag-stone-tablet',label:'Ashen Gate — Stone Tablet',description:'Carved stone slabs, engraved headings and inset tabs',
     stylesheet:'styles/skins/stone-tablet.css',tokens:skinTokens({
     surface:'#2b302c',sunken:'#1d211f',raised:'#363c37',text:'#ebe8de',muted:'#c8ccbf',border:'#505850',
-    accent:'#b9cc8c',onAccent:'#18200c',danger:'#f7aca2',ok:'#93d4a4',warn:'#f4be80',focus:'#f5c97d'})}),
+    accent:'#b9cc8c',onAccent:'#18200c',danger:'#f9b3aa',ok:'#93d4a4',warn:'#f4be80',focus:'#f5c97d'})}),
   Object.freeze({id:'ag-tome-pages',label:'Ashen Gate — Tome Pages',description:'Vellum pages, ink lettering and a ribbon bookmark',
     stylesheet:'styles/skins/tome-pages.css',tokens:skinTokens({
     surface:'#f1e6cc',sunken:'#f9f2e1',raised:'#e9dbbb',text:'#2c1d10',muted:'#5a4630',border:'#b49b74',
