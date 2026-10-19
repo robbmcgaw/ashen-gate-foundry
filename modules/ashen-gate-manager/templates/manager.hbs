@@ -1,7 +1,7 @@
 <section class="agmanager-body">
   <header class="ag-header agmanager-top">
     <i class="agmanager-emblem fa-solid fa-dungeon" aria-hidden="true"></i>
-    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.21.1 Beta</small></h2></div>
+    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.21.2 Beta</small></h2></div>
     <button type="button" class="agmanager-help" data-ag-action="help" aria-label="Manager Help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button><span class="agmanager-chip">GM only</span>
   </header>
   <nav class="ag-tabs agmanager-nav" aria-label="Manager tabs">
@@ -298,11 +298,9 @@
     <h3>Appearance <span class="agmanager-beta">GM world default</span></h3>
     <p>Choose the default skin for every player who has not picked their own (players see it live; anyone who has not reloaded since a module update needs one refresh, F5). Colour skins change interface colours; Stone Tablet and Tome Pages also reshape panels, tabs and buttons. It never changes Player Access, Actor progress, permissions or content.</p>
     <div class="agmanager-row agmanager-row-wrap">
-      <label>World default
-        <select data-ag-world-skin aria-label="Ashen Gate world default appearance">
-          {{#each appearanceSkinRows}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}} — {{description}}</option>{{/each}}
-        </select>
-      </label>
+      <div class="ag-skin-picker" role="radiogroup" aria-label="Ashen Gate world default appearance" data-ag-skin-picker="world">
+        {{#each appearanceSkinRows}}<button type="button" role="radio" class="ag-skin-card{{#if selected}} is-selected{{/if}}" aria-checked="{{#if selected}}true{{else}}false{{/if}}" tabindex="{{#if selected}}0{{else}}-1{{/if}}" data-ag-skin-value="{{id}}" aria-describedby="ag-wskin-desc-{{id}}"><span class="ag-swatch" aria-hidden="true">{{#each swatch}}<i style="background:{{this}}"></i>{{/each}}</span><span class="ag-skin-card__text"><span class="ag-skin-card__name">{{label}}</span><small id="ag-wskin-desc-{{id}}" class="ag-my-appearance-desc">{{description}}</small></span></button>{{/each}}
+      </div>
       <button type="button" class="ag-btn ag-btn--primary" data-ag-action="appearance-save-world" {{#if busy}}disabled{{/if}}>Save World Default</button>
       <button type="button" data-ag-action="appearance-my-appearance" class="agmanager-muted">Open My Appearance</button>
     </div>
