@@ -1,3 +1,7 @@
+## 0.18.0 — 2026-10-19
+
+- **Export Ashen Gate data** (Library tab). One button group: **Export everything**, **Export changed since last export**, and **Copy summary**. Each Export saves ONE JSON file (`AG_World_Export_<date>.json`) of every Ashen Gate tagged world document plus the definitions Locations, Quest Log, Factions, Skill Trees and Headquarters expose; a module that is off or too old is listed as "not available". Definitions only: no actor progress, stash, party notes, quest status or other play state. GM only. "Changed" compares content hashes with a snapshot saved (new world setting, additive) after the last export; the first run exports everything. Format is documented in the README.
+
 ## 0.17.0 — 2026-10-19
 
 - **Import results panel.** After every Apply, the Import tab keeps a plain result panel (newest first, until you press Clear results): per module and file what was created, updated, kept and what failed, with the reason, what to do about it, and where to find it afterwards (for example Quest Log > GM Setup). Applies that cannot start (module off, nothing selected, file not loaded) are listed there too, not only as a pop-up. The History tab entry is unchanged.

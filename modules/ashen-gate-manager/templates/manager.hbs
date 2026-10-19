@@ -1,7 +1,7 @@
 <section class="agmanager-body">
   <header class="ag-header agmanager-top">
     <i class="agmanager-emblem fa-solid fa-dungeon" aria-hidden="true"></i>
-    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.17.0 Beta</small></h2></div>
+    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.18.0 Beta</small></h2></div>
     <button type="button" class="agmanager-help" data-ag-action="help" aria-label="Manager Help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button><span class="agmanager-chip">GM only</span>
   </header>
   <nav class="ag-tabs agmanager-nav" aria-label="Manager tabs">
@@ -184,6 +184,16 @@
       {{#if libraryDetail.editedFields.length}}<p class="agmanager-tiny">Locally edited fields (not overwritten by browsing): {{#each libraryDetail.editedFields}}{{this}} · {{/each}}</p>{{/if}}
     </section>
     {{/if}}
+    <section class="ag-card agmanager-worldexport">
+      <h3>Export Ashen Gate data</h3>
+      <p class="agmanager-tiny">One JSON file of all Ashen Gate tagged world records plus the other modules' definitions (no play state). GM only.</p>
+      <div class="agmanager-row agmanager-row-wrap">
+        <button type="button" class="ag-btn ag-btn--primary" data-ag-action="world-export-everything"><i class="fa-solid fa-file-export"></i> Export everything</button>
+        <button type="button" class="ag-btn" data-ag-action="world-export-changed"><i class="fa-solid fa-file-circle-exclamation"></i> Export changed since last export</button>
+        <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="world-export-copy"><i class="fa-solid fa-copy"></i> Copy summary</button>
+      </div>
+      {{#if worldExportSummary}}<pre class="agmanager-tiny agmanager-worldexport-summary">{{worldExportSummary}}</pre>{{/if}}
+    </section>
     <div class="agmanager-row agmanager-row-wrap agmanager-commands">
       <button type="button" data-ag-action="library-check"><i class="fa-solid fa-magnifying-glass"></i> Check library</button>
       <button type="button" data-ag-action="library-export" {{#unless hasLibrarySelected}}disabled{{/unless}}>Export selected / local edits</button>

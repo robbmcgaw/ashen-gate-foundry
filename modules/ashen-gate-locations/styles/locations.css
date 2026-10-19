@@ -130,9 +130,11 @@
 /* ----- grouped GM list ----- */
 .agl-group__head { display: flex; align-items: center; gap: 6px; width: 100%; padding: 4px; background: none; border: 1px solid transparent; border-radius: var(--agl-radius); color: inherit; font: inherit; text-transform: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; }
 .agl-group__head:hover { background: var(--agl-surface-2); }
-.agl-group__head.active { border-color: var(--agl-accent); color: var(--agl-text); }
 .agl-group__head > span:first-of-type { flex: 1; overflow-wrap: anywhere; }
 .agl-count { color: var(--agl-muted); font-weight: 400; }
-.agl-groupby { display: inline-flex; align-items: center; gap: 6px; }
+.agl-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; padding: 6px 0 8px; }
+.agl-ctl { display: flex; flex-direction: column; gap: 2px; font-size: .8rem; color: var(--agl-muted); }
+.agl-ctl select { min-width: 0; max-width: 200px; }
+.agl-showing { color: var(--agl-muted); font-size: .85rem; align-self: center; }
 .agl-threat--settled { border-color: var(--agl-muted); color: var(--agl-muted); }
 .agl-threat--light { border-color: var(--agl-ok); color: var(--agl-ok); }
