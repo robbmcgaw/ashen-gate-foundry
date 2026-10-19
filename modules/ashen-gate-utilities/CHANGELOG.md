@@ -1,3 +1,11 @@
+## 0.8.0 — 2026-10-19
+
+- New GM-only **Award Gold** (Party Inventory: next to the stash on/off toggle and in stash **History**). Enter gp, choose *each character gets this* (default) or *split evenly*, an optional reason, and tick characters. Default ticks: members of the dnd5e Primary Party, or characters owned by connected players when no Primary Party is set. A confirmation lists each character's gp before → after; a split pays whole gp only and any remainder is **not handed out** (it stays with you) and is shown before you confirm.
+- Each character gets one update to `system.currency.gp`; no other coins or fields change. A chat card goes to the GM (or to everyone if ticked). The award is written to stash History with amount, characters, before/after gp, reason, time and GM.
+- **Undo** on a gold History row takes the gold back from each character who still has at least that much, refuses (and names) anyone who has spent it, and never undoes a character twice. Players see only public awards in History, without gp totals.
+- API: `api.awardGold({amount, mode, actorIds, reason, public})`, `api.undoGoldAward(entryId)` (also under `api.gold`); GM-only inside the API.
+- Saved data: adds a `gold-award` entry type to the existing stash History list (additive; old entries render unchanged). Needs dnd5e currency; refuses clearly if `system.currency.gp` is missing.
+
 ## 0.7.3 — 2026-10-19
 
 - A Group Check / Roll Request roll the GM client cannot count (the check already ended, the character's slots are used up, the roll proof doesn't match) is no longer dropped silently: the player and the GM get a whispered "Roll not counted: <reason>" chat line. Before, the player only saw "awaiting GM acceptance" forever.
