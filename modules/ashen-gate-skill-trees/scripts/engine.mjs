@@ -429,3 +429,43 @@ export function reconcile(tree,rawAccount,{level=null,itemTags=[]}={}) {
   for(const t of tags)if(t.treeId===tree.id&&!a.unlocks.includes(t.nodeId))issues.push({code:'ORPHAN_ITEM',nodeId:t.nodeId,detail:`A perk Item from ${name(t.nodeId)} is on the sheet, but the node is not allocated.`});
   return {...st,issues};
 }
+
+// ---- 0.12.0: resolve over-allocation, undo, legacy Ledger perk choices ----
+/** Nodes the GM may need to decide on: above the level, or (when only points are over) every allocated node not yet kept. */
+export function reviewCandidates(tree,rawAccount,level) {
+  const a=cleanAccount(rawAccount),st=professionStatus(tree,a,level);
+  if(!st.overAllocated)return [];
+  const above=new Set(st.aboveLevel.map(x=>x.nodeId));
+  return tree.nodes.filter(n=>a.unlocks.includes(n.id)&&(above.has(n.id)||(st.overSpent>0&&!keptAt(a,n.id,level))))
+    .map(n=>({nodeId:n.id,name:n.name||n.perkId||n.id,threshold:needLevel(n),aboveLevel:above.has(n.id)}));
+}
+/**
+ * Order to remove several nodes so each is removed after the nodes that depend on it.
+ * blocked: nodes another allocated node (not being removed) still needs.
+ */
+export function removalOrder(tree,rawAccount,nodeIds) {
+  let a=cleanAccount(rawAccount);const left=new Set(asArray(nodeIds).filter(id=>a.unlocks.includes(id))),order=[];
+  let progress=true;
+  while(left.size&&progress){
+    progress=false;
+    for(const id of [...left]){
+      if(dependentsBlockingRefund(tree,a,id).length)continue;
+      a=refund(tree,a,id);order.push(id);left.delete(id);progress=true;
+    }
+  }
+  return {order,blocked:[...left].map(id=>({nodeId:id,by:dependentsBlockingRefund(tree,a,id).map(n=>n.name||n.id)})),account:a};
+}
+/**
+ * Dry run of importing legacy Profession Ledger perk choices (selectedPerkIds) into a profession tree. Never writes.
+ * sheetPerkIds: perk ids of Items already on the sheet that no tree has tagged (adopted instead of copied again).
+ */
+export function planLedgerImport(tree,rawAccount,perkIds,sheetPerkIds=[]) {
+  const a=cleanAccount(rawAccount),sheet=new Set(sheetPerkIds);
+  return [...new Set(asArray(perkIds))].map(perkId=>{
+    const n=tree.nodes.find(x=>x.perkId===perkId);
+    if(!n)return {perkId,nodeId:null,action:'unmapped',reason:'No node on this tree has this perk; left as it is.'};
+    if(a.unlocks.includes(n.id))return {perkId,nodeId:n.id,name:n.name||perkId,action:'skip',reason:'Already allocated.'};
+    return {perkId,nodeId:n.id,name:n.name||perkId,action:sheet.has(perkId)?'adopt':'add',
+      reason:sheet.has(perkId)?'Allocate; the perk Item already on the sheet is linked to the node.':'Allocate and add the perk Item.'};
+  });
+}

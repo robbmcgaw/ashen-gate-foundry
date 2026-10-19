@@ -98,3 +98,12 @@ test('the player view (no perk tiers) flags the same perks as the GM view',()=>{
   assert.deepEqual(professionStatus(p,a,4).aboveLevel.map(x=>x.nodeId),professionStatus(t,a,4).aboveLevel.map(x=>x.nodeId));
   assert.equal(professionStatus(p,a,4).aboveLevel.length,1);
 });
+test('0.12.0: review candidates, removal order and the Ledger import plan (pure)',async()=>{
+  const {reviewCandidates,removalOrder,planLedgerImport}=await import('../scripts/engine.mjs');
+  const t=tree(),a=allocate(t,{},[id(0),id(1),id(2),byTier('journeyman')[0]],4);
+  assert.deepEqual(reviewCandidates(t,a,4),[],'nothing to review when the level covers it');
+  assert.deepEqual(reviewCandidates(t,a,2).map(r=>[r.nodeId,r.aboveLevel]),[[id(0),false],[id(1),false],[id(2),false],[byTier('journeyman')[0],true]]);
+  const o=removalOrder(t,a,[id(0),id(1)]);assert.deepEqual(o.order,[id(1),id(0)]);assert.deepEqual(o.blocked,[]);
+  assert.deepEqual(removalOrder(t,a,[id(0)]).blocked.map(b=>b.nodeId),[id(0)]);
+  assert.deepEqual(planLedgerImport(t,a,['PERK-TP-01','PERK-TP-05','PERK-TP-05','PERK-TP-99'],['PERK-TP-05']).map(r=>r.action),['skip','adopt','unmapped']);
+});

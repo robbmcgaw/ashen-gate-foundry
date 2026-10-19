@@ -27,8 +27,11 @@ function makeActor(id){
 }
 // Stand-in Ledger: the only source of profession levels.
 const levels=new Map();
-const ledger={id:'ashen-gate-profession-ledger',active:true,api:{progression:{contract:'ag-ledger-progression/1',
-  level:(actor,profId)=>profId===PROF&&levels.has(actor.id)?{profId,xp:0,level:levels.get(actor.id),tier:'Apprentice'}:null}}};
+let ledger;
+ledger={id:'ashen-gate-profession-ledger',active:true,api:{progression:{contract:'ag-ledger-progression/1',
+  level:(actor,profId)=>profId===PROF&&levels.has(actor.id)?{profId,xp:0,level:levels.get(actor.id),tier:'Apprentice'}:null},
+  inspectProfessionPerkChoices:(actor,profId)=>profId===PROF&&legacy.has(actor.id)?{selectedPerkIds:legacy.get(actor.id)}:null}};
+const legacy=new Map();
 globalThis.game={modules:new Map([[MOD,{id:MOD,active:true}],['ashen-gate-profession-ledger',ledger]]),
   settings:{register:()=>{},registerMenu:()=>{},get:(_m,k)=>saved.get(k)??(k==='playerAccessEnabled'?true:undefined),set:async(_m,k,v)=>{saved.set(k,v);return v;}},
   journal:{contents:[journal]},items:{contents:TIERS.map((_,i)=>perk(i))},
@@ -104,4 +107,58 @@ test('profession report respects Actor permission; public view carries level gat
   const pub=saved.get('publicTreesV2').trees.find(t=>t.id==='TP-PROF-TREE');
   assert.equal(pub.nodes.length,24);assert.deepEqual([...new Set(pub.nodes.map(n=>n.requiredLevel))],[1,4,7,10,13]);
   assert.ok(pub.nodes.every(n=>n.cost===1));assert.ok(!JSON.stringify(pub).includes('PERK-TP'));
+});
+
+test('0.12.0: review applies keep/remove in one go, in dependency order, and refuses to strand a kept perk',async()=>{
+  const a=fresh('RA',5);for(const i of [0,1,2,3,6])assert.equal((await ask(a,nid(i))).ok,true);
+  levels.set('RA',2);
+  assert.equal(api.professionReport(a,PROF,{}).overAllocated,true);
+  await assert.rejects(()=>api.resolve(a,'TP-PROF-TREE',{remove:[nid(0)],keep:[nid(1),nid(2),nid(3),nid(6)]}),/Cannot remove \[TEST\] Perk 1 \(needed by \[TEST\] Perk 2\)/);
+  assert.equal(acc(a).unlocks.length,5,'refused review changed nothing');
+  const r=await api.resolve(a,'TP-PROF-TREE',{remove:[nid(0),nid(1),nid(6)],keep:[nid(2),nid(3)],reason:'XP fix'});
+  assert.deepEqual(r.removed.sort(),['[TEST] Perk 1','[TEST] Perk 2','[TEST] Perk 7']);
+  assert.equal(r.status.overAllocated,false);assert.deepEqual(acc(a).unlocks.sort(),[nid(2),nid(3)]);
+  const kinds=acc(a).history.slice(-5).map(h=>h.kind);assert.deepEqual(kinds,['remove','remove','remove','keep','keep']);
+  assert.ok(acc(a).history.slice(-5).every(h=>h.reason==='XP fix'&&h.id));
+  assert.equal(a.items.length,2);
+});
+test('0.12.0: undo restores a removed perk exactly, takes back picks and keeps, never twice',async()=>{
+  const a=fresh('UA',3);await ask(a,nid(0));await ask(a,nid(2));
+  a.items.find(i=>i.flags[MOD].grant.nodeId===nid(2)).system.uses={spent:1};
+  await api.refund(a,'TP-PROF-TREE',nid(2),{reason:'Swap'});
+  const removal=acc(a).history.at(-1);
+  game.user=player;await assert.rejects(()=>api.undo(a,'TP-PROF-TREE',removal.id),/GM only/);game.user=gm;
+  const r=await api.undo(a,'TP-PROF-TREE',removal.id);
+  assert.equal(r.restored,'[TEST] Perk 3');assert.ok(acc(a).unlocks.includes(nid(2)));
+  const back=a.items.find(i=>i.flags[MOD].grant.nodeId===nid(2));assert.deepEqual(back.system.uses,{spent:1},'per-character edits come back');
+  await assert.rejects(()=>api.undo(a,'TP-PROF-TREE',removal.id),/already undone/);
+  const pick=acc(a).history.find(h=>h.kind==='allocate'&&h.nodeId===nid(0));
+  await api.undo(a,'TP-PROF-TREE',pick.id);
+  assert.equal(acc(a).unlocks.includes(nid(0)),false);assert.equal(a.items.some(i=>i.flags[MOD].grant.nodeId===nid(0)),false);
+  assert.equal(acc(a).history.at(-1).kind,'undo');assert.equal(acc(a).history.at(-1).undoneKind,'allocate');
+  levels.set('UA',4);assert.equal((await ask(a,nid(6))).ok,true);
+  levels.set('UA',1);await api.keep(a,'TP-PROF-TREE',nid(6));
+  assert.equal(api.professionReport(a,PROF,{}).overAllocated,false);
+  await api.undo(a,'TP-PROF-TREE',acc(a).history.at(-1).id);
+  assert.equal(api.professionReport(a,PROF,{}).overAllocated,true,'undoing a keep flags the character again');
+});
+test('0.12.0: Import Ledger perk choices: dry run first, re-runnable, links an Item already on the sheet, never touches the Ledger',async()=>{
+  const a=fresh('LA',2);
+  // A perk already on the sheet from the old Ledger flow (no Skill Trees tag).
+  a.items.push({name:'[TEST] Perk 3',id:'OLD3',flags:{'ashen-gate-manager':{source:{sourceId:pid(2)}}},
+    async update(u){for(const [k,v] of Object.entries(u)){const parts=k.split('.');let o=this;while(parts.length>1){o[parts[0]]??={};o=o[parts.shift()];}o[parts[0]]=v;}}});
+  legacy.set('LA',[pid(0),pid(2),'PERK-TP-NOPE']);
+  const before=JSON.stringify(legacy.get('LA'));
+  const dry=await api.importLedgerPerkChoices({apply:false});
+  const mine=dry.rows.filter(r=>r.actorId==='LA');
+  assert.deepEqual(mine.map(r=>r.action),['add','adopt','unmapped']);assert.equal(acc(a).unlocks.length,0,'dry run writes nothing');
+  const out=await api.importLedgerPerkChoices({apply:true});
+  assert.ok(out.applied.some(r=>r.actorId==='LA'));
+  assert.deepEqual(acc(a).unlocks.sort(),[nid(0),nid(2)]);
+  assert.equal(a.items.filter(i=>i.flags?.[MOD]?.grant?.nodeId===nid(2)).length,1,'the old Item is linked, not copied');
+  assert.equal(a.items.find(i=>i.id==='OLD3').flags[MOD].grant.nodeId,nid(2));
+  assert.equal(acc(a).history.filter(h=>h.kind==='migrate').length,2);
+  const again=await api.importLedgerPerkChoices({apply:true});
+  assert.equal(again.applied.filter(r=>r.actorId==='LA').length,0,'second run changes nothing');
+  assert.equal(JSON.stringify(legacy.get('LA')),before,'Ledger choices untouched');
 });

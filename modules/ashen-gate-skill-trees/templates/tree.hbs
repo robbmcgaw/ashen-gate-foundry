@@ -50,7 +50,7 @@
         {{/if}}
         {{#if history.length}}
         <details class="agst-side-section agst-history"><summary>History for {{actorName}} ({{history.length}})</summary>
-          <ol>{{#each history}}<li><strong>{{label}}</strong> {{node}}{{#if level}} · level {{level}}{{/if}} · {{byName}} · <small>{{when}}</small>{{#if reason}}<br><small>{{reason}}</small>{{/if}}</li>{{/each}}</ol>
+          <ol>{{#each history}}<li><strong>{{label}}</strong> {{node}}{{#if level}} · level {{level}}{{/if}} · {{byName}} · <small>{{when}}</small>{{#if undone}} <span class="ag-badge">undone</span>{{/if}}{{#if reason}}<br><small>{{reason}}</small>{{/if}}{{#if canUndo}} <button type="button" class="ag-btn ag-btn--sm" data-act="undo-history" data-id="{{id}}" title="Undo this change"><i class="fa-solid fa-rotate-left"></i> Undo</button>{{/if}}</li>{{/each}}</ol>
         </details>
         {{/if}}
         {{#if gm}}
@@ -126,7 +126,7 @@
         <span class="agst-zoom"><button type="button" class="ag-btn ag-btn--sm" data-act="zoom-out" title="Zoom out" aria-label="Zoom out">−</button><span class="agst-zoom-label">{{zoomText}}</span><button type="button" class="ag-btn ag-btn--sm" data-act="zoom-in" title="Zoom in" aria-label="Zoom in">+</button><button type="button" class="ag-btn ag-btn--sm" data-act="zoom-reset" title="Reset zoom" aria-label="Reset zoom">⟲</button></span>
       </div>
       {{#if ledgerMissing}}<div class="agst-banner"><i class="fa-solid fa-link-slash"></i> Profession Ledger is not active, so profession points are unavailable. Nothing is removed; picks wait until it is on again.</div>{{/if}}
-      {{#if prof.overAllocated}}<div class="agst-banner agst-banner-review" role="alert"><i class="fa-solid fa-triangle-exclamation"></i> <strong>{{actorName}} needs GM review.</strong> Level {{prof.levelText}} no longer covers {{#if prof.aboveText}}{{prof.aboveText}}{{else}}{{prof.overSpent}} point(s) used{{/if}}. Nothing was removed. {{#if gm}}Select a flagged perk and choose <strong>Keep at this level</strong> or <strong>Remove</strong>.{{else}}New picks wait until the GM has looked at it.{{/if}}</div>{{/if}}
+      {{#if prof.overAllocated}}<div class="agst-banner agst-banner-review" role="alert"><i class="fa-solid fa-triangle-exclamation"></i> <strong>{{actorName}} needs GM review.</strong> Level {{prof.levelText}} no longer covers {{#if prof.aboveText}}{{prof.aboveText}}{{else}}{{prof.overSpent}} point(s) used{{/if}}. Nothing was removed. {{#if gm}}<button type="button" class="ag-btn ag-btn--sm ag-btn--primary" data-act="resolve"><i class="fa-solid fa-scale-balanced"></i> Review</button>{{else}}New picks wait until the GM has looked at it.{{/if}}</div>{{/if}}
       {{#if isTest}}<div class="agst-banner agst-banner-test"><i class="fa-solid fa-flask"></i> Test tree. Unlocking adds the perk Item to the sheet; perks with no rules effect do nothing else.</div>{{/if}}
       {{#if preview}}<div class="agst-banner agst-banner-info">GM player preview shows the shared sanitized tree. Test again from an actual player account to verify document permissions.</div>{{/if}}
       {{#if hasTree}}
@@ -228,6 +228,7 @@
         <div class="agst-setup-actions">
           <button type="button" class="ag-btn" data-act="qa-install"><i class="fa-solid fa-vial"></i> Install QA Fixture Records</button>
           <button type="button" data-act="qa-reset" class="ag-btn ag-btn--danger"><i class="fa-solid fa-trash-can"></i> Reset QA Fixture</button>
+          <button type="button" class="ag-btn" data-act="ledger-import" title="Allocate perks chosen in older Profession Ledger data on profession trees; shows what would happen first"><i class="fa-solid fa-file-import"></i> Import Ledger perk choices</button>
           {{#if legacy}}<button type="button" class="ag-btn" data-act="legacy-preview"><i class="fa-solid fa-clock-rotate-left"></i> Review Legacy ({{legacy}})</button><button type="button" data-act="legacy-clear" class="ag-btn ag-btn--danger">Backup &amp; Clear Legacy</button>{{/if}}
         </div>
       </div>
