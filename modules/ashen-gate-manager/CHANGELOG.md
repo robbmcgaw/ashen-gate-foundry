@@ -1,3 +1,7 @@
+## 0.21.2 — 2026-10-19
+
+- **Appearance cards are the selector.** In My Appearance and Manager → Appearance, the dropdown is gone: click a skin card to choose it (the chosen card is highlighted). My Appearance has an **Inherit world default** card for what the dropdown's "Use GM default" did. Cards are a keyboard radio group (Tab in, arrow keys move and choose, Space/Enter activate) and wrap at narrow widths. Save buttons, status lines and what gets saved are unchanged; nothing applies until you Save. Pure UI change, no saved-data change.
+
 ## 0.21.1 — 2026-10-19
 
 - **Parchment contrast.** Parchment's accent (links, accent badges), danger, ok and warn colours were 3.1–4.0:1 on the parchment surfaces and on their own badge tints, below WCAG AA. They are now darker bronze/brick/green/amber (accent #734e21, danger #94352e, ok #25603b, warn #734f0c), all at least 4.5:1; the light-parchment-with-ink-and-bronze look stays.
