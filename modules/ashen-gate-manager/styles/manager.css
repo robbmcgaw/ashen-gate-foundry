@@ -195,3 +195,11 @@
 .agmanager-presession-fail {border-color:var(--ag-danger)}
 .agmanager-presession-warn {border-color:var(--ag-accent)}
 .agmanager-presession-na {opacity:.75}
+.ag-skin-picker{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:var(--ag-space-2);margin:0;padding:0;flex:1 1 100%}
+.ag-skin-card{display:flex;align-items:center;gap:var(--ag-space-2);padding:8px 10px;margin:0;border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface,transparent);color:inherit;font:inherit;font-size:var(--ag-text-sm);text-align:left;cursor:pointer;height:auto;min-height:44px;line-height:1.3}
+.ag-skin-card:hover{border-color:var(--ag-accent)}
+.ag-skin-card.is-selected{border-color:var(--ag-accent);background:var(--ag-accent-soft);box-shadow:inset 0 0 0 1px var(--ag-accent)}
+.ag-skin-card:focus-visible{outline:2px solid var(--ag-focus,var(--ag-accent));outline-offset:2px}
+.ag-skin-card__text{display:flex;flex-direction:column;min-width:0}
+.ag-skin-card__name{font-weight:600}
+.ag-skin-card--inherit{flex-direction:column;align-items:flex-start;justify-content:center;gap:2px}

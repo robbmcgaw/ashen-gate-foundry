@@ -1,3 +1,4 @@
+import {bindSkinPicker} from "./skin-picker.js";
 import {createAppearanceController, registerAppearanceSettings, makeFoundryAppearanceController, syncSkinStylesheet, APPEARANCE_CONTRACT, DEFAULT_SKIN_ID} from "./appearance.js";
 import {auditTypedReferences, renderGmReferenceMarkers} from "./manager-resolver-bridge.mjs";
 import {createManagerDefinitionReader, READER_CONTRACT} from './native-definition-reader.mjs';
@@ -161,7 +162,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.21.1 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.21.2 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -360,7 +361,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   async _onRender(context, options) {
     await super._onRender(context, options);
     const root = this.element;
-    root.querySelector("[data-ag-world-skin]")?.addEventListener("change",event=>{this.appearanceSelection=event.target.value;});
+    bindSkinPicker(root.querySelector('[data-ag-skin-picker="world"]'),value=>{this.appearanceSelection=value;});
     root.querySelectorAll("[data-ag-action]").forEach(el => el.addEventListener("click", event => {
       event.preventDefault();
       this.#action(el.dataset.agAction).catch(err => this.#fail(err));
@@ -1184,13 +1185,11 @@ class AshenGateMyAppearance extends HandlebarsApplicationMixin(ApplicationV2) {
     return {...ctx,worldDefault:appearanceController.listSkins().find(s=>s.id===state.worldDefault)?.label??state.worldDefault,
       effective:appearanceController.listSkins().find(s=>s.id===state.effective)?.label??state.effective,
       selected,isInherit:selected==='',status:this.status,
-      skins:appearanceController.listSkins().map(s=>({...s,current:s.id===state.effective})),
-      choices:[{id:'',label:'Use GM default',selected:selected===''},
-        ...appearanceController.listSkins().map(s=>({...s,selected:s.id===selected}))]};
+      skins:appearanceController.listSkins().map(s=>({...s,current:s.id===state.effective,selected:s.id===selected}))};
   }
   async _onRender(ctx,options){
     await super._onRender(ctx,options);
-    this.element.querySelector('[data-ag-my-skin]')?.addEventListener('change',e=>{this.selection=e.target.value;});
+    bindSkinPicker(this.element.querySelector('[data-ag-skin-picker="my"]'),value=>{this.selection=value;});
     this.element.querySelector('[data-ag-my-save]')?.addEventListener('click',async e=>{
       e.preventDefault();const button=e.currentTarget;button.disabled=true;
       try {const chosen=this.selection===null ? (appearanceController.getState().userOverride??'') : this.selection;
@@ -1285,7 +1284,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.21.1 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.21.2 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */
