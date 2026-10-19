@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.6.1 — 2026-10-19
+
+- **Location Builder list: real filters, sort and search (GM).**
+  - **Filters** (all combine): Threat, Region, Profession (a location matches any of its professions), Quest (any / has linked quest / no quest / a specific quest) and Status (Hidden / Unidentified / Revealed / Unpublished edits). Each dropdown shows counts. **Clear filters** resets them and the search; **Showing N of M** is always visible.
+  - **Sort by** Name, Threat, Region then name, Gathering nodes or Status, with a direction button.
+  - **Group by** None, Region, Threat, Gathering profession or Quest. Groups still fold and show counts.
+  - **Search** now also matches threat, gathering skills and node names, material names and linked quest names (several words must all match), so "Herbalism" finds locations with Herbalism nodes.
+  - Removed the "Show only one group" toggle (filters replace it). When nothing matches the list says so with a Clear filters button, and the open location stays selected.
+- Players' list is unchanged. No saved-data changes.
+
 ## 1.6.0 — 2026-10-19
 
 - **New threat levels: Settled and Light.** The list now runs Settled, Light, Normal, Hot, Deadly (safest to most dangerous). Existing locations keep their value.
