@@ -1,3 +1,8 @@
+## 0.7.2 — 2026-10-19
+
+- Delete quest, Delete assignment and the "discard unsaved source changes" question now use Foundry dialogs (the desktop app has no browser `confirm`), with a labelled action button and Cancel on the left.
+- New **Help** button in the header (draft text). The window title now reads `Ashen Gate | Quest Log`, matching its header. Module id, API and saved data are unchanged.
+
 ## 0.7.1 — 2026-10-19
 
 - Fewer pointless writes: re-publishing a quest whose player view hasn't changed no longer rewrites its Quest Log journal. This happens on every user or actor change, for every Individual quest, and each write made every open window re-render. Real changes publish exactly as before.
