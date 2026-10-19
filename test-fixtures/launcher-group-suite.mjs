@@ -8,10 +8,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {installDocument,actorsDirectory} from './mini-dom.mjs';
 
-const EXPECTED=['ashen-gate-profession-ledger','ashen-gate-skill-trees','ashen-gate-quest-manager',
-  'ashen-gate-factions','ashen-gate-headquarters','ashen-gate-locations','ashen-gate-utilities'];
-const LABELS={'ashen-gate-profession-ledger':'Profession Ledger','ashen-gate-skill-trees':'Skill Trees',
-  'ashen-gate-quest-manager':'Quest Log','ashen-gate-factions':'Factions & Renown',
+// Quests, Renown, Professions, Skill Trees, Locations, Headquarters; Utilities full width last.
+const EXPECTED=['ashen-gate-quest-manager','ashen-gate-factions','ashen-gate-profession-ledger',
+  'ashen-gate-skill-trees','ashen-gate-locations','ashen-gate-headquarters','ashen-gate-utilities'];
+const LABELS={'ashen-gate-profession-ledger':'Professions','ashen-gate-skill-trees':'Skill Trees',
+  'ashen-gate-quest-manager':'Quests','ashen-gate-factions':'Renown',
   'ashen-gate-headquarters':'Headquarters','ashen-gate-locations':'Locations','ashen-gate-utilities':'Utilities'};
 
 function permutations(list){
@@ -21,6 +22,7 @@ function permutations(list){
 
 export function launcherGroupSuite(helper,moduleId){
   const {LAUNCHER_GROUP_ID,LAUNCHER_ORDER,launcherRoot,mountLauncher}=helper;
+  const spans=group=>[...group.children].filter(node=>node.dataset.agSpan==='full').map(node=>node.dataset.agLauncher);
   const opened=[];
   const mount=(root,id,visible=true)=>mountLauncher(root,{moduleId:id,label:LABELS[id],icon:'fa-solid fa-star',
     onClick:()=>opened.push(id),visible});
@@ -50,6 +52,36 @@ export function launcherGroupSuite(helper,moduleId){
       const enabled=EXPECTED.filter(id=>id!==skip);
       for(const id of [...enabled].reverse())mount(root,id);
       assert.deepEqual(ids(root.querySelector(`#${LAUNCHER_GROUP_ID}`)),enabled);
+    }
+  });
+
+  test(`${moduleId}: Utilities is always full width; a lone last paired button is too, so the grid has no hole`,()=>{
+    const {root}=setup();
+    for(const id of EXPECTED)mount(root,id);
+    const group=root.querySelector(`#${LAUNCHER_GROUP_ID}`);
+    assert.deepEqual(spans(group),['ashen-gate-utilities'],'six pair up; only Utilities spans');
+    mount(root,'ashen-gate-headquarters',false);
+    assert.deepEqual(spans(group),['ashen-gate-locations','ashen-gate-utilities'],'five: Locations is the lone last');
+    mount(root,'ashen-gate-quest-manager',false);
+    assert.deepEqual(spans(group),['ashen-gate-utilities'],'four pair up again');
+    mount(root,'ashen-gate-utilities',false);
+    assert.deepEqual(spans(group),[],'without Utilities four still pair up');
+    mount(root,'ashen-gate-factions',false);
+    assert.deepEqual(spans(group),['ashen-gate-locations'],'three: the odd last button spans');
+    mount(root,'ashen-gate-profession-ledger',false);mount(root,'ashen-gate-skill-trees',false);
+    assert.deepEqual(ids(group),['ashen-gate-locations']);
+    assert.deepEqual(spans(group),['ashen-gate-locations'],'a single button is full width');
+    mount(root,'ashen-gate-headquarters');
+    assert.deepEqual(spans(group),[],'two buttons sit side by side');
+  });
+
+  test(`${moduleId}: span marks are stable across re-renders and any load order`,()=>{
+    for(const loadOrder of permutations(EXPECTED.slice(0,4)).slice(0,6)){
+      const {root}=setup();
+      for(let pass=0;pass<3;pass++)for(const id of loadOrder)mount(root,id);
+      assert.deepEqual(spans(root.querySelector(`#${LAUNCHER_GROUP_ID}`)),[],loadOrder.join());
+      mount(root,'ashen-gate-utilities');
+      assert.deepEqual(spans(root.querySelector(`#${LAUNCHER_GROUP_ID}`)),['ashen-gate-utilities']);
     }
   });
 
@@ -110,11 +142,21 @@ export function launcherGroupSuite(helper,moduleId){
       assert.deepEqual(button.children.map(c=>c.tagName),['I','SPAN']);
       assert.equal(button.textContent,LABELS[id]);
       assert.equal(button.getAttribute('aria-label'),`Open ${LABELS[id]}`);
+      assert.equal(button.title,`Open ${LABELS[id]}`);
     }
     opened.length=0;
     const event=root.querySelector(`[data-ag-launcher="${moduleId}"]`).click();
     assert.deepEqual(opened,[moduleId]);
     assert.equal(event.defaultPrevented,true);
+  });
+
+  test(`${moduleId}: a longer tooltip name keeps the short label on the button`,()=>{
+    const {root}=setup();
+    mountLauncher(root,{moduleId,label:'Short',title:'Short Full Name',icon:'fa-solid fa-star',onClick:()=>{}});
+    const button=root.querySelector(`[data-ag-launcher="${moduleId}"]`);
+    assert.equal(button.textContent,'Short');
+    assert.equal(button.title,'Open Short Full Name');
+    assert.equal(button.getAttribute('aria-label'),'Open Short Full Name');
   });
 
   test(`${moduleId}: click errors become a warning, not an uncaught throw`,async()=>{

@@ -9,7 +9,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees 0.6.0 alpha: shared Foundry development-standard UI; private GM definitions. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.6.4';
+const VERSION='0.6.5';
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
 const SAFE_SETTING='publicTreesV2';

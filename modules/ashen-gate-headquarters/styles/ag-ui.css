@@ -379,47 +379,72 @@
   font-size: var(--ag-text-sm);
 }
 
-/* ---------- Sidebar launchers: Actors group and Items (Manager / Location Builder) group ---------- */
+/* ---------- Sidebar launchers: Actors group and Items (Manager / Locations) group ----------
+   Both groups are a two-column grid under a small "Ashen Gate" caption. A lone last button
+   (Items: last odd child; Actors: data-ag-span="full", set by ag-launchers.mjs) spans both
+   columns. Labels wrap instead of clipping. */
 #ashen-gate-launchers.ag-launchers,
 .ag-sidebar-launch-group[data-ag-launch-group] {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ag-space-1);
   flex: 0 0 auto;
   grid-column: 1 / -1;
   width: auto;
   box-sizing: border-box;
-  margin: 0;
-  padding: 8px 8px 6px;
-  background: none;
-  border: 0;
+  margin: var(--ag-space-1) var(--ag-space-2);
+  padding: var(--ag-space-2);
+  background: var(--ag-surface);
+  border: 1px solid var(--ag-border);
+  border-radius: var(--ag-radius);
+}
+#ashen-gate-launchers.ag-launchers::before,
+.ag-sidebar-launch-group[data-ag-launch-group]::before {
+  content: attr(aria-label);
+  grid-column: 1 / -1;
+  padding: 0 var(--ag-space-1) var(--ag-space-1);
+  color: var(--ag-muted);
+  font: 600 var(--ag-text-xs)/1.2 var(--ag-font-body);
+  letter-spacing: .06em;
+  text-transform: uppercase;
 }
 #ashen-gate-launchers > .ag-launcher,
 .ag-sidebar-launch-group[data-ag-launch-group] > .ag-sidebar-launch-button {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 10px;
+  gap: var(--ag-space-2);
+  min-width: 0;
   width: 100%;
   min-height: 32px;
   height: auto;
   margin: 0;
-  padding: 6px 12px;
+  padding: 6px 10px;
   box-sizing: border-box;
   border: 1px solid var(--ag-border);
   border-radius: var(--ag-radius);
   background: var(--ag-surface-raised);
   color: var(--ag-text);
-  font: 600 13px/1.25 var(--ag-font-body);
+  font: 600 var(--ag-text-sm)/1.25 var(--ag-font-body);
   text-align: left;
   white-space: normal;
+  overflow-wrap: anywhere;
   box-shadow: none;
   cursor: pointer;
   transition: background-color .12s ease, border-color .12s ease;
 }
+#ashen-gate-launchers > .ag-launcher > span,
+.ag-sidebar-launch-group[data-ag-launch-group] > .ag-sidebar-launch-button > span {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+#ashen-gate-launchers > .ag-launcher[data-ag-span="full"],
+.ag-sidebar-launch-group[data-ag-launch-group] > .ag-sidebar-launch-button:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
 #ashen-gate-launchers > .ag-launcher > i,
 .ag-sidebar-launch-group[data-ag-launch-group] > .ag-sidebar-launch-button > i {
-  flex: 0 0 18px;
+  flex: 0 0 16px;
   margin: 0;
   color: var(--ag-accent);
   text-align: center;
