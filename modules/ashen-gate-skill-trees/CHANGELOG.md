@@ -5,7 +5,7 @@
 - **Corner tooltip.** Hover or Tab to a node, or select it: a small card in the top-right of the canvas shows name, cost, short text, prerequisites and Locked / Available / Unlocked. Press Enter or Space to select a focused node.
 - **Level / tier bands.** In Appearance a GM can add bands (level, optional name, where it starts) with an optional icon picked with the Foundry file browser; the icon shows behind the level badge, with a built-in icon when empty. Players see them.
 - **Canvas background.** Appearance also sets a background image (Cover, Tile or Fixed) with an opacity slider. If the file is missing the canvas simply shows no image.
-- Saved data: three optional, additive tree fields (`nodeSize`, `background`, `tiers`); nothing existing is rewritten. Image paths must be local image files (png, jpg, webp, gif, svg, avif); web addresses and anything unsafe are dropped on save, import and publish. Players' view carries the same three fields.
+- Saved data: three optional, additive tree fields (`nodeSize`, `background`, `tiers`); nothing existing is rewritten. Images must be local files or https addresses on The Forge (assets.forge-vtt.com or another *.forge-vtt.com host), as png, jpg, webp, gif, svg or avif; every other address and anything unsafe is dropped on save, import and publish. Players' view carries the same three fields.
 
 ## 0.8.1 — 2026-10-19
 
