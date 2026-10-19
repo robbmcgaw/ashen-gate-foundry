@@ -35,26 +35,34 @@ await import('../scripts/main.mjs');
 once.get('init')();once.get('ready')();
 
 test('v0.4.0 preserves original APIs, hides both advanced world settings in Game Settings',()=>{
- assert.equal(module.api.version,'0.6.1');
+ assert.equal(module.api.version,'0.7.0');
  assert.equal(module.api.assignments.contract,'ag-quest-assignments/0.1-alpha');
  assert.equal(module.api.consumer.contract,'ag-objective-consumer/0.2-alpha');
  assert.equal(settingsDefs.get('playerAccessEnabled').config,false);
  assert.equal(settingsDefs.get('compendiumPackIds').config,false);
 });
-test('GM Setup exposes player-interface control and advanced pack settings without JSON-first layout',async()=>{
+test('GM Setup is settings-only and the Quests tab holds the authoring form',async()=>{
  game.user=gm;
  await module.api.open();
  const html=await lastApp.render();
  assert.match(html,/Track/);
  assert.match(html,/Show Objectives Overlay/);
- lastApp.tab='gm';
- const gmHtml=await lastApp.render();
- assert.match(gmHtml,/Save Player Access/);
- assert.match(gmHtml,/Compendium pack IDs/);
- assert.match(gmHtml,/Create Quest Definition/);
- assert.match(gmHtml,/Advanced: canonical source JSON/);
- assert.match(gmHtml,/Reveal when GM approves/);
- assert.match(gmHtml,/Quest Log/);
+ assert.match(html,/data-tab="quests"/);
+ lastApp.tab='setup';
+ const setupHtml=await lastApp.render();
+ assert.match(setupHtml,/Save Player Access/);
+ assert.match(setupHtml,/Compendium pack IDs/);
+ assert.match(setupHtml,/Quest Log/);
+ assert.doesNotMatch(setupHtml,/Create Quest Definition|Import JSON|Export Sources|canonical source JSON/);
+ lastApp.tab='quests';
+ const questsHtml=await lastApp.render();
+ assert.match(questsHtml,/New quest/);
+ assert.match(questsHtml,/Create Quest Definition/);
+ assert.match(questsHtml,/Advanced: canonical source JSON/);
+ assert.match(questsHtml,/Reveal when GM approves/);
+ assert.match(questsHtml,/Import JSON/);
+ assert.match(questsHtml,/Export Sources/);
+ assert.doesNotMatch(questsHtml,/Save Player Access/);
 });
 test('player tracking is per-user, permission-filtered, and escapes objective markup in overlay',async()=>{
  playerAccess=true;game.user=alice;

@@ -955,7 +955,7 @@ export class LocationsApp extends Base {
       <li><strong>Loot &amp; Rewards:</strong> drag an Item in (world or compendium) or add a plain reward. It is a link only: nothing is given to anyone. Set <em>Available / Discovered / Taken</em> yourself.</li>
       <li>Quests come from Quest Manager. Clicking one opens the Quest Log.</li>
       <li><strong>Party Notes</strong> are written by the players, one at a time, on any location they can see. They are not your <em>Notes</em> section and are never published, exported or changed by an import. You can edit, take over or clear them. Hiding a location hides its Party Notes until it is visible again.</li></ul>`
-      : '<p>These are the places your GM has revealed. Places under <em>Unidentified</em> show only what you have heard so far. Click a linked quest, faction, document or place to open it.</p><p><strong>Party Notes</strong> are shared by the whole party. Click <em>Edit</em>, type, then <em>Save Notes</em>. One person edits at a time; everyone else sees who is editing. A GM must be connected to save.</p>';
+      : '<p>These are the places your GM has revealed. Places under <em>Unidentified</em> show only what you have heard so far. Click a linked quest, faction, document or place to open it.</p><p><strong>Party Notes</strong> are shared by the whole party. Click <em>Edit</em>, type, then <em>Save Notes</em>. One person edits at a time; everyone else sees who is editing. Saving works whether or not a GM is connected.</p>';
     return foundry.applications.api.DialogV2.prompt({window: {title: 'Locations Help'}, content: gm, ok: {label: 'Close'}, rejectClose: false});
   }
 }

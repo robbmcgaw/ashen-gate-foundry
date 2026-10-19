@@ -1,4 +1,6 @@
 import {MOD,assertGM,assertUI,cleanText,publicView,validSource,exportPackage,STATUSES} from './core.mjs';
+import {safeButton,options,questCards,questsToolbar,setupPanel} from './gm-panels.mjs';
+import {DEFAULT_VIEW,listQuestsTab} from './quests-tab.mjs';
 import {getPrivate,allPrivate,visibleViews,visibleById,saveRecord,updateState,removeRecord,importSources,previewQuestImport,importQuests,savePersonalNote,reconcileActorAudience,noteText,ensureFolder} from './store.mjs';
 import {createObjectiveConsumer} from './resolver-consumer.mjs';
 import {createQuestDefinitionReader,parsePackIds} from './pinned-runtime.mjs';
@@ -6,7 +8,7 @@ import {ASSIGNMENT_CONTRACT,listAssignments,getAssignment,saveAssignment,removeA
 import {selectTrackedViews,validTrackedId,trackingState} from './tracking.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 
-const VERSION='0.6.1';
+const VERSION='0.7.0';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -26,9 +28,7 @@ function blankTemplate(){return {
 function blankAssignment(objectiveId){return {id:'ASSIGN-REPLACE-ME',entity_type:'Assignment',status:'draft',version:'0.1.0',provenance:{sources:['GM-authored campaign assignment']},visibility:'gm',refs:[{relation:'executes_objective',target_id:objectiveId,mode:'required'}],scope:'campaign_state',owner_system_id:'SYS-QUEST',objective_id:objectiveId,execution_status:'pending',participants:[],results:{}};}
 function stateForGM(){return allPrivate().sort((a,b)=>String(a.source.name??a.source.id).localeCompare(String(b.source.name??b.source.id)));}
 function roleViewList(tab,actorId){return visibleViews().filter(x=>x.view.scope===(tab==='individual'?'individual':'party')&&(tab!=='individual'||x.view.actorId===actorId)).sort((a,b)=>a.view.name.localeCompare(b.view.name));}
-function safeButton(label,action,{disabled=false,kind='',title=''}={}){return `<button type="button" data-action="${E(action)}" class="${E(kind)}" ${disabled?'disabled':''} title="${E(title)}">${E(label)}</button>`;}
-function options(items,value){return items.map(([v,n])=>`<option value="${E(v)}" ${v===value?'selected':''}>${E(n)}</option>`).join('');}
-function cards(list,sel){return list.map(({view})=>`<div class="ag-quest-card-row"><button type="button" class="ag-quest-card ${view.id===sel?'selected':''}" data-action="select" data-id="${E(view.id)}"><strong>${E(view.name)}</strong><small>${E(view.objective_kind.replace('_',' '))} · ${E(view.status)}</small></button><label class="ag-quest-track-toggle" title="Track quest in on-screen objectives overlay"><input type="checkbox" data-action="track" data-id="${E(view.id)}" ${trackedIds().includes(view.id)?'checked':''}><span>Track</span></label></div>`).join('')||'<div class="ag-quest-empty">No quests are visible here yet. Ask your GM to reveal one in GM Setup.</div>';}
+function cards(list,sel){return list.map(({view})=>`<div class="ag-quest-card-row"><button type="button" class="ag-quest-card ${view.id===sel?'selected':''}" data-action="select" data-id="${E(view.id)}"><strong>${E(view.name)}</strong><small>${E(view.objective_kind.replace('_',' '))} · ${E(view.status)}</small></button><label class="ag-quest-track-toggle" title="Track quest in on-screen objectives overlay"><input type="checkbox" data-action="track" data-id="${E(view.id)}" ${trackedIds().includes(view.id)?'checked':''}><span>Track</span></label></div>`).join('')||'<div class="ag-quest-empty">No quests are visible here yet. Ask your GM to reveal one.</div>';}
 // Optional Locations link: ids the GM listed on the quest plus locations that list this quest.
 // Feature-detected; Locations decides what the current user may see.
 function locationLinks(view){
@@ -115,29 +115,28 @@ function gmStatePanel(row){
  ${listAssignments({objectiveId:s.id}).map(a=>`<div class="ag-assignment-row"><strong>${E(a.id)}</strong> · ${E(a.execution_status)} ${safeButton('Edit','edit-assignment',{kind:'secondary'}).replace('data-action="edit-assignment"',`data-action="edit-assignment" data-id="${E(a.id)}"`)} ${safeButton('Delete','remove-assignment',{kind:'danger'}).replace('data-action="remove-assignment"',`data-action="remove-assignment" data-id="${E(a.id)}"`)}</div>`).join('')||'<p>No delegated Assignments.</p>'}
  <label>Assignment JSON<textarea id="ag-assignment-json" rows="8">${E(JSON.stringify(blankAssignment(s.id),null,2))}</textarea></label>${safeButton('Save Assignment','save-assignment',{kind:'secondary'})}</details></section>`;
 }
-function gmPanel(selectedId,statusFilter='all'){
+function questsPanel(selectedId,view){
  const rows=stateForGM(),selected=rows.find(x=>x.source.id===selectedId)||null;
- const filtered=rows.filter(x=>statusFilter==='all'||x.state.status===statusFilter);
+ const {groups,locations,shown,total}=listQuestsTab(rows,view);
  const source=selected?.source||blankTemplate();
- return `<div class="ag-quest-gm-body"><aside class="ag-quest-gm-left">
- <div class="ag-quest-toolbar">${safeButton('New Quest','new',{kind:'primary'})}</div>
- <label>Campaign status<select id="ag-gm-filter">${options([['all','All statuses'],...STATUSES.map(x=>[x,x])],statusFilter)}</select></label>
- <div class="ag-quest-scroll">${filtered.map(x=>`<button class="ag-quest-card ${selectedId===x.source.id?'selected':''}" type="button" data-action="gm-select" data-id="${E(x.source.id)}"><strong>${E(x.source.name)}</strong><small>${E(x.source.id)} · ${E(x.state.status)}</small></button>`).join('')||'<p>No matching Quests.</p>'}</div>
- <section class="ag-quest-admin"><h3>Player Interface</h3><label class="ag-check"><input type="checkbox" id="ag-player-access" ${game.settings.get(MOD,'playerAccessEnabled')?'checked':''}> Show Quest Log to players</label><p>This controls the player interface, not discovery or individual quest visibility. Use the reveal controls on each quest.</p>${safeButton('Save Player Access','save-player-access',{kind:'secondary'})}</section>
- <details class="ag-quest-advanced"><summary>Advanced import and source libraries</summary><div class="ag-quest-toolbar">${safeButton('Import JSON','import',{kind:'secondary'})}${safeButton('Export Sources','export',{kind:'secondary'})}</div><p>Compendium IDs identify optional read-only Objective definitions, not player quests. Leave blank unless you use a custom Quest compendium.</p><label>Compendium pack IDs<input id="ag-compendium-packs" value="${E(game.settings.get(MOD,'compendiumPackIds')||'')}"></label>${safeButton('Save Pack Configuration (reload required)','save-pack-ids',{kind:'secondary'})}</details></aside>
+ return `<div class="ag-quest-gm-body"><aside class="ag-quest-gm-left">${questsToolbar(view,locations)}
+ <small id="ag-gm-count">${shown} of ${total} quests</small>
+ <div class="ag-quest-scroll" id="ag-gm-cards">${questCards(groups,selectedId)}</div></aside>
  <div class="ag-quest-gm-edit">${sourceForm(source,!!selected)}${gmStatePanel(selected)}</div></div>`;
 }
+function setupTab(){return setupPanel({playerAccess:game.settings.get(MOD,'playerAccessEnabled'),packIds:game.settings.get(MOD,'compendiumPackIds'),overlayVisible:trackerVisible()});}
 const Base=appBase();
 class QuestLogApplication extends Base {
  static DEFAULT_OPTIONS={id:'ag-quest-manager-window',classes:['ag-app','ag-quest-app'],window:{title:'Ashen Gate | Quest Manager',resizable:true,minimizable:true},position:{width:940,height:700}};
- constructor(options={}){super(options);this.tab='party';this.actorId=actorsOwned()[0]?.id??null;this.selectedId=null;this.gmId=null;this.filter='';this.unsavedSource=false;this.sourceJsonEdited=false;this.gmFilter='all';this.statusFilter='all';}
+ constructor(options={}){super(options);this.tab='party';this.actorId=actorsOwned()[0]?.id??null;this.selectedId=null;this.gmId=null;this.filter='';this.unsavedSource=false;this.sourceJsonEdited=false;this.qv={...DEFAULT_VIEW};this.statusFilter='all';}
  async _renderHTML(){assertUI(game.user,openAllowed());
   let rows=[],detail=null;
-  if(this.tab!=='gm'){rows=roleViewList(this.tab,this.actorId).filter(x=>(this.statusFilter==='all'||x.view.status===this.statusFilter)&&[x.view.name,x.view.summary,x.view.id].some(t=>t.toLowerCase().includes(this.filter.toLowerCase())));if(!rows.some(x=>x.view.id===this.selectedId))this.selectedId=rows[0]?.view.id??null;detail=rows.find(x=>x.view.id===this.selectedId)?.view??null;}
+  const gmTab=this.tab==='quests'||this.tab==='setup';
+  if(!gmTab){rows=roleViewList(this.tab,this.actorId).filter(x=>(this.statusFilter==='all'||x.view.status===this.statusFilter)&&[x.view.name,x.view.summary,x.view.id].some(t=>t.toLowerCase().includes(this.filter.toLowerCase())));if(!rows.some(x=>x.view.id===this.selectedId))this.selectedId=rows[0]?.view.id??null;detail=rows.find(x=>x.view.id===this.selectedId)?.view??null;}
   const allowed=actorsOwned(),actorOption=options(allowed.map(a=>[a.id,a.name]),this.actorId);
   const html=`<div class="ag-quest-root"><header class="ag-header ag-quest-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Quest Log</h1><p>Quests · Work Orders · Contracts</p></div><div class="ag-header__meta ag-quest-heading-actions">${safeButton(trackerVisible()?'Hide Objectives Overlay':'Show Objectives Overlay','toggle-overlay',{kind:'secondary'})}<span class="ag-quest-version">v${VERSION}</span></div></header>
-  <nav class="ag-tabs ag-quest-tabs" aria-label="Quest sections"><button data-tab="party" class="${this.tab==='party'?'active':''}">Party</button><button data-tab="individual" class="${this.tab==='individual'?'active':''}">Individual</button>${hasGM()?`<button data-tab="gm" class="${this.tab==='gm'?'active':''}">GM Setup</button>`:''}</nav>
-  <main class="ag-quest-main">${this.tab==='gm'?gmPanel(this.gmId,this.gmFilter):`<aside class="ag-quest-list"><label>Search<input id="ag-quest-search" placeholder="Search visible objectives" value="${E(this.filter)}"></label><label>Status<select id="ag-player-filter">${options([['all','All visible quests'],...STATUSES.filter(x=>x!=='Hidden').map(x=>[x,x])],this.statusFilter)}</select></label><label>${this.tab==='individual'?'Individual Quest Actor':'Character Notes Actor'}<select id="ag-actor"><option value="">Select Actor</option>${actorOption}</select></label><div class="ag-quest-scroll" id="ag-quest-cards">${cards(rows,this.selectedId)}</div><small id="ag-quest-count">${rows.length} visible objectives</small></aside><section class="ag-quest-reading">${readableDetail(detail,this.actorId)}</section>`}</main>
+  <nav class="ag-tabs ag-quest-tabs" aria-label="Quest sections"><button data-tab="party" class="${this.tab==='party'?'active':''}">Party</button><button data-tab="individual" class="${this.tab==='individual'?'active':''}">Individual</button>${hasGM()?`<button data-tab="quests" class="${this.tab==='quests'?'active':''}">Quests</button><button data-tab="setup" class="${this.tab==='setup'?'active':''}">GM Setup</button>`:''}</nav>
+  <main class="ag-quest-main">${this.tab==='quests'?questsPanel(this.gmId,this.qv):this.tab==='setup'?setupTab():`<aside class="ag-quest-list"><label>Search<input id="ag-quest-search" placeholder="Search visible objectives" value="${E(this.filter)}"></label><label>Status<select id="ag-player-filter">${options([['all','All visible quests'],...STATUSES.filter(x=>x!=='Hidden').map(x=>[x,x])],this.statusFilter)}</select></label><label>${this.tab==='individual'?'Individual Quest Actor':'Character Notes Actor'}<select id="ag-actor"><option value="">Select Actor</option>${actorOption}</select></label><div class="ag-quest-scroll" id="ag-quest-cards">${cards(rows,this.selectedId)}</div><small id="ag-quest-count">${rows.length} visible objectives</small></aside><section class="ag-quest-reading">${readableDetail(detail,this.actorId)}</section>`}</main>
   <footer class="ag-footer ag-quest-footer"><span>Player content follows Foundry Journal/Actor permissions.</span>${hasGM()?'<span>Objective progress and rewards: GM controlled</span>':''}</footer></div>`;
   return html;
  }
@@ -147,7 +146,12 @@ class QuestLogApplication extends Base {
    for(const b of root.querySelectorAll('[data-tab]'))b.addEventListener('click',async e=>{if(this.unsavedSource&&!confirm('Discard unsaved source changes?'))return;this.tab=e.currentTarget.dataset.tab;this.unsavedSource=false;this.sourceJsonEdited=false;await this.render();});
    root.querySelector('#ag-actor')?.addEventListener('change',async e=>{this.actorId=e.target.value;this.selectedId=null;await this.render();});
    root.querySelector('#ag-player-filter')?.addEventListener('change',async e=>{this.statusFilter=e.target.value;this.selectedId=null;await this.render();});
-   root.querySelector('#ag-gm-filter')?.addEventListener('change',async e=>{this.gmFilter=e.target.value;await this.render();});
+   for(const [id,key] of [['type','type'],['status','status'],['location','location'],['visible','visible'],['sort','sort'],['group','group']])root.querySelector(`#ag-gm-${id}`)?.addEventListener('change',async e=>{this.qv[key]=e.target.value;await this.render();});
+   const gmSearch=root.querySelector('#ag-gm-search');gmSearch?.addEventListener('input',()=>{
+     this.qv.search=gmSearch.value;const {groups,shown,total}=listQuestsTab(stateForGM(),this.qv);const wrap=root.querySelector('#ag-gm-cards');
+     wrap.innerHTML=questCards(groups,this.gmId);root.querySelector('#ag-gm-count').textContent=`${shown} of ${total} quests`;
+     wrap.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>this.action(b,root)));
+   });
    const search=root.querySelector('#ag-quest-search');search?.addEventListener('input',()=>{
      this.filter=search.value;const wrap=root.querySelector('#ag-quest-cards');const filtered=roleViewList(this.tab,this.actorId).filter(({view})=>(this.statusFilter==='all'||view.status===this.statusFilter)&&[view.name,view.summary,view.id].some(t=>t.toLowerCase().includes(this.filter.toLowerCase())));
      wrap.innerHTML=cards(filtered,this.selectedId);root.querySelector('#ag-quest-count').textContent=`${filtered.length} matches`;
@@ -168,10 +172,10 @@ class QuestLogApplication extends Base {
    }
    assertGM(game.user);
    if(action==='gm-select'){if(this.unsavedSource&&!confirm('Discard unsaved source changes?'))return;this.gmId=id;this.unsavedSource=false;return await this.render();}
-   if(action==='new'){if(this.unsavedSource&&!confirm('Discard unsaved source changes?'))return;this.gmId=null;this.gmFilter='all';this.unsavedSource=false;this.sourceJsonEdited=false;return await this.render();}
+   if(action==='new'){if(this.unsavedSource&&!confirm('Discard unsaved source changes?'))return;this.gmId=null;this.unsavedSource=false;this.sourceJsonEdited=false;return await this.render();}
    if(action==='save-source'){
     const src=this.sourceJsonEdited?validSource(JSON.parse(root.querySelector('#ag-source-json').value)):sourceFromForm(root,this.gmId?getPrivate(this.gmId)?.getFlag(MOD,'source'):null);
-    if(this.gmId&&src.id!==this.gmId)throw new Error('Cannot change permanent ID of an existing Objective. Use New Draft.');
+    if(this.gmId&&src.id!==this.gmId)throw new Error('Cannot change permanent ID of an existing Objective. Use New quest.');
     await saveRecord(src,{replace:!!this.gmId});this.gmId=src.id;this.unsavedSource=false;this.sourceJsonEdited=false;ui.notifications.info('Quest definition saved. Choose campaign status and reveal below.');return await this.render();
    }
    if(action==='add-objective'){
