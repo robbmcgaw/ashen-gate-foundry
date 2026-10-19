@@ -16,13 +16,12 @@ test('oversized archive compatible count 556 passes package size guard when vali
  const source={manifest:{schema_version:'ag-foundry-import/0.2',package_id:'TEST-556',version:'0.1'},records:Array.from({length:556},(_,i)=>({...r,id:`MAT-TEST-${i+1}`,refs:[],scope:'generic_rules',resource_opportunities:undefined}))};
  assert.deepEqual(validatePackage(compilePackage(source)),[]);
 });
-test('manifest macro library preserves v0.3 commands byte for byte and IDs',async()=>{
+test('bundled macro manifest is valid and empty',async()=>{
  const manifest=await load('macros/manifest.json');
- const legacy=await load('samples/macro-registry.json');
- assert.deepEqual(manifest.entries.map(x=>x.id),legacy.entries.map(x=>x.id));
+
+ assert.deepEqual(manifest.entries,[],'legacy experimental macros were removed');
  const entries=await loadMacroSources(manifest,async source=>readFile(new URL('../'+source,import.meta.url),'utf8'));
- assert.deepEqual(entries.map(x=>x.command),legacy.entries.map(x=>x.command));
- assert.ok(entries.every(x=>x.status==='experimental'));
+ assert.deepEqual(entries,[]);
 });
 test('macro manifest rejects traversal, duplicate IDs, unsafe path and rogue fields',()=>{
  const b={schema_version:'ag-macro-manifest/0.1',entries:[{id:'ag-good',name:'Good',version:'0.1',description:'okay',category:'Test',status:'experimental',source:'macros/tools/a.js'}]};

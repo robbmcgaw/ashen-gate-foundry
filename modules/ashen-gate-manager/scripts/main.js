@@ -138,7 +138,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.14.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.15.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -185,7 +185,6 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.registry = null;
     this.userMacros = [];
     this.macroMessage = "Install experimental utilities without executing them. Existing macros retain their Foundry IDs on update.";
-    this.lastTemplateInfo = "Templates are compiled from imported JSON; they are not approved game rules.";
     this.profile = "session-safe";
     this.applyProfile();
   }
@@ -268,7 +267,6 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       playerAccessVisibleCount:accessVisibleCount,
       playerAccessHasVisible:accessVisibleCount>0&&!this.busy,
       launcherRows, launcherCount:launcherRows.length,
-      templatesActive: this.tab === "templates",
       macrosActive: this.tab === "macros",
       libraryRows, libraryTotal:library.length, librarySelectedCount:this.librarySelected.size,
       libraryFilteredCount:browser.rows.length, libraryActiveCount:browser.summary.active,
@@ -283,11 +281,6 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       libraryMessage:this.libraryMessage,
       macroRows:macros,macroMessage:this.macroMessage,hasMacroRegistry:Boolean(this.registry),
       macroSelectedCount:this.macroSelected.size,
-      templateRows:(Array.isArray(this.rawPkg?.templates)?this.rawPkg.templates:[]).map(t=>({id:t.id,version:t.version??'—',
-        kind:t.document_type,used:this.rawPkg.records.filter(r=>r.template_ref===t.id).length})),
-      templateCount:Array.isArray(this.rawPkg?.templates)?this.rawPkg.templates.length:0,
-      compiledCount:this.pkg?.records?.filter(r=>r.template_ref).length??0,
-      templateMessage:this.lastTemplateInfo,
       profile:this.profile,developmentProfile:this.profile==='development',sessionProfile:this.profile==='session-safe',
       hasLibrarySelected:this.librarySelected.size>0,
       adoptOpen: this.adoptOpen,
@@ -301,7 +294,6 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       captureTaggedOnly:this.captureTaggedOnly,
       captureKindOptions:CAPTURE_TYPES.map(value=>({value, selected:this.captureKind===value})),
       captureMessage:this.captureMessage,
-      auditActive: this.tab === "audit",
       historyActive: this.tab === "history",
       hasPackage: Boolean(this.pkg || this.specialist),
       isSpecialist: Boolean(this.specialist),
@@ -345,7 +337,6 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     root.querySelectorAll("[data-ag-tab]").forEach(el => el.addEventListener("click", async event => {
       event.preventDefault();
       this.tab = el.dataset.agTab;
-      if (this.tab === "audit") this.#runAudit();
       if (this.tab === "macros") await this.ensureMacroRegistry();
       void this.render();
     }));
@@ -491,7 +482,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         await this.render(); break;
       case "clear": this.selected.clear(); await this.render(); break;
       case "apply": await this.#apply(); break;
-      case "audit": this.#runAudit(); await this.render(); break;
+      case "library-check": this.#runAudit(); this.libraryMessage="Library check finished: results are listed above."; await this.render(); break;
       case "appearance-save-world": {
         const choice=this.appearanceSelection??appearanceController?.getState()?.worldDefault;
         await appearanceController.setWorldDefault(choice);
@@ -1265,7 +1256,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.14.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.15.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */

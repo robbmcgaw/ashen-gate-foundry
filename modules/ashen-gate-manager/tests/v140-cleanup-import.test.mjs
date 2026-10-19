@@ -92,3 +92,12 @@ test('a player client that reads the old value inside onChange still gets the ne
   c.noteChange('userSkin','');
   assert.equal(c.getState().effective,'ag-slate');
 });
+
+test('0.15: no Templates or Audit tab; samples under Import; Check library in Library; no bundled macros',()=>{
+  assert.doesNotMatch(tpl,/data-ag-tab="templates"|data-ag-tab="audit"|templatesActive|auditActive/);
+  for(const a of ['template-example','import-format-example','source-manifest-template'])assert.match(tpl,new RegExp(`data-ag-action="${a}"`));
+  const lib=tpl.indexOf('\n  {{#if libraryActive}}'),mods=tpl.indexOf('\n  {{#if modulesActive}}');
+  assert.ok(tpl.indexOf('data-ag-action="library-check"')>lib&&tpl.indexOf('data-ag-action="library-check"')<mods);
+  assert.ok(tpl.indexOf('data-ag-action="template-example"')<lib,'samples sit in the Import tab');
+  assert.deepEqual(JSON.parse(fs.readFileSync(new URL('../macros/manifest.json',import.meta.url),'utf8')).entries,[]);
+});
