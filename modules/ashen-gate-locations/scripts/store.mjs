@@ -11,15 +11,23 @@
  * Party Notes (1.5.0) are campaign state in a third Journal, "Locations (Party Notes)": ownership NONE, flag
  * `notes` holds one record per LOC id. Each visible location's page carries a copy in its `partyNotes` flag
  * (no LOC id); a hidden location's page carries none, so the notes stay private until it is visible again.
- * Only the GM's client writes either (players ask it over the socket, see party-notes.mjs). writeAll, imports
- * and Publish never change the notes themselves.
+ * writeAll, imports and Publish never change the notes themselves.
+ *
+ * 1.7.0: a fourth Journal, "Locations (Shared Notes)" (role `shared-notes`, players OBSERVER on the entry so they
+ * cannot add pages), holds one page per location that is visible to players, keyed by pin key and named
+ * generically. Its `shared` flag is the notesMirror() copy (no LOC id, name or GM data). While the location is
+ * visible the page gives players OWNER, so they can save without a GM connected; while it is Hidden the page is
+ * blanked and set to NONE. Pages are only ever created by a GM, so a location that was never visible has none.
+ * The GM store stays the record of truth: syncSharedNotes() (GM: on ready, on every writeAll, and when a player
+ * writes a shared page) reconciles both sides with reconcileNotes() and never drops text.
  */
 import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL, normalizeLocation, playerView, viewHtml, pinPresentation, notePatch, uniquePinKeys, PIN_KEY,
-  normalizeNotes, notesMirror} from './model.mjs';
+  normalizeNotes, notesMirror, reconcileNotes} from './model.mjs';
 
 const ROLE_GM = 'gm-data';
 const ROLE_VIEW = 'player-view';
 const ROLE_NOTES = 'party-notes';
+const ROLE_SHARED = 'shared-notes';
 const LEGACY_ROLES = ['source', 'projection', 'map_registry'];
 const FOLDER_PATH = ['Ashen Gate', 'Locations'];
 
@@ -29,7 +37,7 @@ function setting(key, fallback) {
 }
 export const presentationOptions = () => ({label: setting('unidentifiedLabel', DEFAULT_UNIDENTIFIED_LABEL), unknownImg: setting('unknownPinImage', '')});
 
-const levels = () => globalThis.CONST?.DOCUMENT_OWNERSHIP_LEVELS ?? {INHERIT: -1, NONE: 0, OBSERVER: 2};
+const levels = () => globalThis.CONST?.DOCUMENT_OWNERSHIP_LEVELS ?? {INHERIT: -1, NONE: 0, OBSERVER: 2, OWNER: 3};
 const htmlFormat = () => globalThis.CONST?.JOURNAL_ENTRY_PAGE_FORMATS?.HTML ?? 1;
 const byRole = role => [...game.journal].find(j => j.getFlag(MODULE_ID, 'role') === role) ?? null;
 export const isGM = () => game.user?.isGM === true;
@@ -65,6 +73,7 @@ export async function writeAll(list) {
     ownership: {default: levels().NONE}, flags: {[MODULE_ID]: {role: ROLE_GM, locations}}});
   await syncPlayerView(locations);
   await syncNotes(locations);
+  await syncSharedNotes(locations);
   return locations;
 }
 
@@ -162,29 +171,117 @@ export function readNotesStore() {
 /** GM: one location's notes (an empty record if none were written yet). */
 export const readNotes = locationId => readNotesStore().get(locationId) ?? normalizeNotes({}, locationId);
 
-/** GM: stores one location's notes, then refreshes the copy on its player page (none while it is hidden). */
+/** GM: stores one location's notes, then refreshes the copies players read (none while it is hidden). */
 export async function writeNotes(loc, record) {
   assertGM();
-  const rec = normalizeNotes(record, loc.id);
+  const n = normalizeNotes(record, loc.id);
+  const rec = {...n, base: n.version}; // written to the shared copy below too, so both sides agree on this version
   const store = readNotesStore();
   store.set(loc.id, rec);
-  const notes = [...store.values()];
+  await writeNotesStore([...store.values()]);
+  const page = [...(byRole(ROLE_VIEW)?.pages ?? [])].find(p => p.getFlag(MODULE_ID, 'pinKey') === loc.pinKey);
+  const flag = visibleToPlayers(loc) ? notesFlag(rec) : '';
+  if (page && (page.getFlag(MODULE_ID, 'partyNotes') ?? '') !== flag)
+    await page.parent.updateEmbeddedDocuments('JournalEntryPage', [{_id: page.id, [`flags.${MODULE_ID}.partyNotes`]: flag}]);
+  const journal = await ensureSharedJournal();
+  const change = sharedPageChange(loc, rec, sharedPage(journal, loc.pinKey));
+  if (change?.create) await journal.createEmbeddedDocuments('JournalEntryPage', [change.create]);
+  if (change?.update) await journal.updateEmbeddedDocuments('JournalEntryPage', [change.update]);
+  return rec;
+}
+
+async function writeNotesStore(notes) {
   const doc = byRole(ROLE_NOTES);
   // An array flag is replaced whole on update, so nothing stale is merged back in.
   if (doc) await doc.update({[`flags.${MODULE_ID}.notes`]: notes});
   else await JournalEntry.create({name: 'Locations (Party Notes)', folder: await ensureFolder(),
     ownership: {default: levels().NONE}, flags: {[MODULE_ID]: {role: ROLE_NOTES, notes}}});
-  const page = [...(byRole(ROLE_VIEW)?.pages ?? [])].find(p => p.getFlag(MODULE_ID, 'pinKey') === loc.pinKey);
-  const flag = loc.state !== 'hidden' && loc.published ? notesFlag(rec) : '';
-  if (page && (page.getFlag(MODULE_ID, 'partyNotes') ?? '') !== flag)
-    await page.parent.updateEmbeddedDocuments('JournalEntryPage', [{_id: page.id, [`flags.${MODULE_ID}.partyNotes`]: flag}]);
-  return rec;
 }
 
-/** Any user: the notes copy on a page this user may observe, by pin key; null if there is no such page. */
+// ---------- 1.7.0 shared notes ----------
+const visibleToPlayers = loc => loc.state !== 'hidden' && !!loc.published;
+const sharedPage = (journal, pinKey) => [...(journal?.pages ?? [])].find(p => p.getFlag(MODULE_ID, 'pinKey') === pinKey) ?? null;
+/** The record on a shared page, or null when it holds none (never written, or blanked while hidden). */
+function sharedRecord(page) {
+  const raw = page?.getFlag(MODULE_ID, 'shared');
+  if (!raw) return null;
+  try { const v = JSON.parse(raw); return v && typeof v === 'object' ? normalizeNotes(v) : null; } catch { return null; }
+}
+async function ensureSharedJournal() {
+  return byRole(ROLE_SHARED) ?? JournalEntry.create({name: 'Locations (Shared Notes)', folder: await ensureFolder(),
+    ownership: {default: levels().OBSERVER}, flags: {[MODULE_ID]: {role: ROLE_SHARED}}});
+}
+/** What the shared page for `loc` should become: {create} | {update} | null when it already matches. */
+function sharedPageChange(loc, rec, page) {
+  const L = levels();
+  const own = visibleToPlayers(loc) ? L.OWNER : L.NONE;
+  const flag = visibleToPlayers(loc) ? JSON.stringify(notesMirror(rec)) : '';
+  if (!page) return flag ? {create: {name: 'Party Notes', type: 'text', text: {content: '', format: htmlFormat()},
+    ownership: {default: own}, flags: {[MODULE_ID]: {pinKey: loc.pinKey, shared: flag}}}} : null;
+  if (page.ownership?.default === own && (page.getFlag(MODULE_ID, 'shared') ?? '') === flag) return null;
+  return {update: {_id: page.id, ownership: {default: own}, [`flags.${MODULE_ID}.shared`]: flag}};
+}
+
+/**
+ * GM: reconciles every location's notes with its shared page, then makes each page match: visible → players
+ * OWNER with the current copy; hidden → blank and NONE. The GM store is written first, so text a player saved
+ * on a page is kept privately before that page is blanked. Re-runnable: writes nothing when all agree. This is
+ * also the 1.7.0 migration (it creates the Journal and copies the existing notes in); it never deletes notes.
+ */
+export async function syncSharedNotes(locations = readAll(), {now = Date.now()} = {}) {
+  assertGM();
+  const users = game.users;
+  const opts = {now, isActive: id => users?.get?.(id)?.active === true, nameOf: id => users?.get?.(id)?.name ?? ''};
+  const store = readNotesStore();
+  const existing = byRole(ROLE_SHARED);
+  const result = {created: 0, updated: 0, fromPlayers: 0, merged: 0, truncated: 0};
+  const creates = [], updates = [];
+  let storeChanged = false;
+  for (const loc of locations) {
+    const page = sharedPage(existing, loc.pinKey);
+    const before = store.get(loc.id) ?? normalizeNotes({}, loc.id);
+    const {record, outcome, truncated} = reconcileNotes(before, sharedRecord(page), opts);
+    if (JSON.stringify(record) !== JSON.stringify(before) && (store.has(loc.id) || outcome !== 'same')) { store.set(loc.id, record); storeChanged = true; }
+    if (outcome === 'shared') result.fromPlayers++;
+    if (outcome === 'merged') result.merged++;
+    if (truncated) { result.truncated++; console.warn(`${MODULE_ID} | Party Notes of ${loc.id}: merged text was over the limit; this end was cut:\n${truncated}`); }
+    const change = sharedPageChange(loc, record, page);
+    if (change?.create) creates.push(change.create);
+    if (change?.update) updates.push(change.update);
+  }
+  if (storeChanged) await writeNotesStore([...store.values()]);
+  const journal = existing ?? (creates.length ? await ensureSharedJournal() : null);
+  if (creates.length) await journal.createEmbeddedDocuments('JournalEntryPage', creates);
+  if (updates.length) await journal.updateEmbeddedDocuments('JournalEntryPage', updates);
+  result.created = creates.length; result.updated = updates.length;
+  return result;
+}
+
+/** Any user: the shared copy for a pin key this user can see: {record, writable}; null if there is none for them. */
+export function readSharedNotes(pinKey) {
+  const view = [...(byRole(ROLE_VIEW)?.pages ?? [])].find(p => p.getFlag(MODULE_ID, 'pinKey') === pinKey);
+  if (!view || !(isGM() || view.testUserPermission(game.user, 'OBSERVER'))) return null;
+  const page = sharedPage(byRole(ROLE_SHARED), pinKey);
+  if (!page || !(isGM() || page.testUserPermission(game.user, 'OBSERVER'))) return null;
+  return {record: sharedRecord(page), writable: isGM() || page.testUserPermission(game.user, 'OWNER')};
+}
+/** Player, no GM connected: writes the shared copy. Foundry itself refuses it unless the page gives this user OWNER. */
+export async function writeSharedNotes(pinKey, record) {
+  const shared = readSharedNotes(pinKey);
+  if (!shared?.writable) throw new Error("That location isn't available to you.");
+  const page = sharedPage(byRole(ROLE_SHARED), pinKey);
+  await page.update({[`flags.${MODULE_ID}.shared`]: JSON.stringify(notesMirror(record))});
+}
+/** Whether a Journal page belongs to the shared notes (main.mjs reconciles when a player writes one). */
+export const isSharedNotesPage = page => page?.parent?.getFlag?.(MODULE_ID, 'role') === ROLE_SHARED;
+
+/** Any user: the notes copy for a page this user may observe, by pin key; null if there is no such page. */
 export function readPlayerNotes(pinKey) {
   const page = [...(byRole(ROLE_VIEW)?.pages ?? [])].find(p => p.getFlag(MODULE_ID, 'pinKey') === pinKey);
   if (!page || !(isGM() || page.testUserPermission(game.user, 'OBSERVER'))) return null;
+  // The shared copy is newer when players saved without a GM; otherwise both carry the same version.
+  const shared = readSharedNotes(pinKey)?.record;
+  if (shared) return notesMirror(shared);
   try { return notesMirror(JSON.parse(page.getFlag(MODULE_ID, 'partyNotes') || '{}')); } catch { return notesMirror({}); }
 }
 

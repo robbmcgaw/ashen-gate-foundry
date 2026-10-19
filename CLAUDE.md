@@ -32,6 +32,7 @@ This repo is public (so Forge can read the manifest URLs). Never put setting spo
 - Header: `Ashen Gate | <Module>` on the left, version + Help on the right. Tabs directly below. Search/filter toolbar at top of content, create action on the right.
 - Primary action (Save Changes / Apply) bottom-right, Cancel bottom-left. Destructive actions behind a labelled confirmation.
 - GM configuration lives in a permission-gated **GM Setup** tab; demo/debug tools in a GM-only **Developer Tools** area.
+- GM Setup holds settings only. Authoring and management of content (quests, locations, factions, etc.) lives in its own tab(s), not in GM Setup.
 - Group long lists by a useful category; never clip or truncate actionable text. Controls sized to their content.
 - Modules must render with a default theme when Manager's appearance controller is absent.
 

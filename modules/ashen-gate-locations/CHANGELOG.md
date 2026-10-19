@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.0 — 2026-10-19
+
+- **Party Notes save without a GM connected.** Players can now Edit and Save Party Notes when no GM is logged in. The same rules apply: one editor at a time (the lock lapses after 2 minutes idle), and a save based on an older copy is refused with your text kept in the box. If two players hit Edit or Save at the very same moment, one wins and the other is told so.
+- **How:** a new *Locations (Shared Notes)* Journal holds one generic "Party Notes" page per location players can see (Revealed or Unidentified), keyed by pin key only: no LOC ids, names or GM data. Players own those pages, so they can write them directly. A Hidden location's page is blanked and closed to players (its notes are kept in the GM-only *Locations (Party Notes)* Journal first), so players can neither read nor write it.
+- **When a GM connects** (and whenever a player saves while a GM is on) the GM's client reconciles: players' saves move into the GM store. If both sides changed, the newer text wins and the older one is kept below it under a "----- Earlier version …" divider; nothing is dropped. With a GM online, saves still go through the GM's client as before, and the GM can still Take Over and Clear.
+- Trade-off (agreed): a player who knows the browser console could edit the Party Notes of a location they can already see.
+- **Saved data:** additive. On the GM's first login after updating, the shared Journal is created and existing notes are copied into it; nothing is deleted. Re-running changes nothing. No API changes.
+
 ## 1.6.1 — 2026-10-19
 
 - **Location Builder list: real filters, sort and search (GM).**
