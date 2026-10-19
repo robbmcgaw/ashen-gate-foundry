@@ -1,3 +1,14 @@
+## 0.16.0 — 2026-10-19
+
+- The **Macros** tab is gone for now (install, export and custom macro JSON). Macros already installed in a world stay as they are, and nothing stored changed.
+- Importing Macro documents inside an import package works as before (for example the `[TEST] Link test data` macro). Imported Macros are still never executed.
+
+## 0.15.0 — 2026-10-19
+
+- The **Templates** tab is gone. The three sample downloads (template package, Import JSON starter, source manifest) are under **Import → Advanced / sample files**. Packages that use templates still compile as before.
+- The **Audit** tab is gone. **Library → Check library** shows the same results inline.
+- The two bundled legacy experimental macros (14-tree generator, tree access sync) are removed from the Macros tab. Macros already installed in a world are not touched. Custom macro JSON still works.
+
 ## 0.14.0 — 2026-10-19
 
 - **One import for everything.** Manager now recognises Quest, Skill Tree, Headquarters facility and Factions files by their shape and hands them to that module (Quest Log 0.6.0+, Skill Trees 0.7.0+, Headquarters 0.7.0+, Factions 0.7.0+). The preview shows each record as new or kept, and you pick what to import. Records already in the world are kept; tick **Update existing** to replace Quests and Skill Trees (their status and purchases are protected). Headquarters and Factions only add new ones. If a module is off, its rows say so.

@@ -11,9 +11,8 @@ import {collectPlayerAccess, changePlayerAccess, hideAllPlayerInterfaces} from "
 import {chooseIcon,markerTargets,buildUuidIndex,resolveRichText,resolveTypedRefs,appendReferenceBlock} from "./import-fidelity.js";
 import {ensureFolder} from "./folders.js";
 import {readImportZip, adaptRecordArtwork, uploadMatchingArt} from "./zip-import.js";
-import {loadMacroSources, validateUserMacroRegistry} from "./macros.js";
 import {CAPTURE_TYPES, normalizeCaptureFlag, buildCapturePackage} from "./capture.js";
-import {compilePackage, dependencyOrder, normalizeRef, docManagerSnapshot, localEdits, planLifecycle, buildSourceReplacementPatch, checkMacroUpdate} from "./workflows.js";
+import {compilePackage, dependencyOrder, normalizeRef, docManagerSnapshot, localEdits, planLifecycle, buildSourceReplacementPatch} from "./workflows.js";
 import {downloadJson} from "./download.js";
 import {isLocationRecord, locationsApi, planLocation, locationsNote, applyLocations} from './location-handoff.js';
 import {SPECIALISTS, detectSpecialistFile, specialistCount, specialistApi, describeUnrecognized, planSpecialist, applySpecialist} from './specialist-handoff.js';
@@ -138,7 +137,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.14.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.16.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -181,11 +180,6 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.libraryPageSize = 100;
     this.libraryShowArchived = true;
     this.libraryMessage = "Browse Manager-imported Items, Journals, Actors, Roll Tables and Macros by permanent ID.";
-    this.macroSelected = new Set();
-    this.registry = null;
-    this.userMacros = [];
-    this.macroMessage = "Install experimental utilities without executing them. Existing macros retain their Foundry IDs on update.";
-    this.lastTemplateInfo = "Templates are compiled from imported JSON; they are not approved game rules.";
     this.profile = "session-safe";
     this.applyProfile();
   }
@@ -193,19 +187,6 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   applyProfile() {
     const profiles={development:{includeDrafts:true},"session-safe":{includeDrafts:false}};
     this.includeDrafts=profiles[this.profile]?.includeDrafts??true;
-  }
-  async ensureMacroRegistry() {
-    if (this.registry) return this.registry;
-    const response=await fetch(`modules/${MODULE_ID}/macros/manifest.json`,{cache:"no-store"});
-    if (!response.ok) throw new Error(`Macro manifest unavailable: ${response.status}`);
-    const manifest=await response.json();
-    const entries=await loadMacroSources(manifest, async source => {
-      const macroResponse=await fetch(`modules/${MODULE_ID}/${source}`,{cache:'no-store'});
-      if (!macroResponse.ok) throw new Error(`Macro source unavailable ${source}: ${macroResponse.status}`);
-      return macroResponse.text();
-    });
-    this.registry={...manifest,entries};
-    return this.registry;
   }
   managedRows() {
     const docs=allBoundDocuments().sort((a,b)=>a.name.localeCompare(b.name));
@@ -225,16 +206,6 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       ...((r)=>({systemKey:r.key,systemLabel:r.label}))(systemOf({sourceId:source.sourceId,ownerSystemId:source.ownerSystemId,entityType:source.entityType,packageId:source.packageId}))
     });});
   }
-  macroRows() {
-    return [...(this.registry?.entries??[]), ...this.userMacros].map(entry=>{
-      const matches=game.macros?.contents.filter(m=>m.getFlag(MODULE_ID,'macro')?.registryId===entry.id)??[];
-      const existing=matches[0];
-      const result=matches.length>1 ? {action:'blocked',reason:'Duplicate managed macro IDs.'} : checkMacroUpdate(existing ?
-        {command:existing.command,flag:existing.getFlag(MODULE_ID,'macro')} : null,entry);
-      return {...entry, action:result.action,reason:result.reason,uuid:existing?.uuid,
-        selected:this.macroSelected.has(entry.id),installable:['install','update'].includes(result.action)};
-    });
-  }
   async _prepareContext(options) {
     if(!game.user?.isGM)throw new Error('Only GMs can open the General Manager.');
     const ctx = await super._prepareContext(options);
@@ -253,7 +224,6 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const playerAccessRows=game.user?.isGM ? await collectPlayerAccess(game.modules?.values?.()??[]) : [];
     const launcherRows=describeLaunchers(game.modules?.values?.()??[],menus).map(row=>({...row,playerAccessState:playerAccessRows.find(entry=>entry.id===row.id)?.state??'Unsupported'}));
     const accessVisibleCount=playerAccessRows.filter(row=>row.canToggle&&row.playerAccessEnabled).length;
-    const macros=this.macroRows();
     const captureRows = allItems.filter(row => (!this.captureTaggedOnly || row.capture) && (!this.captureSearch || row.name.toLowerCase().includes(this.captureSearch.toLowerCase()) || row.type.toLowerCase().includes(this.captureSearch.toLowerCase())));
     return {
       ...ctx,
@@ -268,8 +238,6 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       playerAccessVisibleCount:accessVisibleCount,
       playerAccessHasVisible:accessVisibleCount>0&&!this.busy,
       launcherRows, launcherCount:launcherRows.length,
-      templatesActive: this.tab === "templates",
-      macrosActive: this.tab === "macros",
       libraryRows, libraryTotal:library.length, librarySelectedCount:this.librarySelected.size,
       libraryFilteredCount:browser.rows.length, libraryActiveCount:browser.summary.active,
       libraryEditedCount:browser.summary.edited, librarySystemCount:browser.summary.systems,
@@ -281,13 +249,6 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       libraryHasPrevious:this.libraryPage>0,libraryHasNext:this.libraryPage+1<pageCount,
       libraryDetail,libraryHasDetail:Boolean(libraryDetail),
       libraryMessage:this.libraryMessage,
-      macroRows:macros,macroMessage:this.macroMessage,hasMacroRegistry:Boolean(this.registry),
-      macroSelectedCount:this.macroSelected.size,
-      templateRows:(Array.isArray(this.rawPkg?.templates)?this.rawPkg.templates:[]).map(t=>({id:t.id,version:t.version??'—',
-        kind:t.document_type,used:this.rawPkg.records.filter(r=>r.template_ref===t.id).length})),
-      templateCount:Array.isArray(this.rawPkg?.templates)?this.rawPkg.templates.length:0,
-      compiledCount:this.pkg?.records?.filter(r=>r.template_ref).length??0,
-      templateMessage:this.lastTemplateInfo,
       profile:this.profile,developmentProfile:this.profile==='development',sessionProfile:this.profile==='session-safe',
       hasLibrarySelected:this.librarySelected.size>0,
       adoptOpen: this.adoptOpen,
@@ -301,7 +262,6 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       captureTaggedOnly:this.captureTaggedOnly,
       captureKindOptions:CAPTURE_TYPES.map(value=>({value, selected:this.captureKind===value})),
       captureMessage:this.captureMessage,
-      auditActive: this.tab === "audit",
       historyActive: this.tab === "history",
       hasPackage: Boolean(this.pkg || this.specialist),
       isSpecialist: Boolean(this.specialist),
@@ -345,8 +305,6 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     root.querySelectorAll("[data-ag-tab]").forEach(el => el.addEventListener("click", async event => {
       event.preventDefault();
       this.tab = el.dataset.agTab;
-      if (this.tab === "audit") this.#runAudit();
-      if (this.tab === "macros") await this.ensureMacroRegistry();
       void this.render();
     }));
     root.querySelector("[data-ag-file]")?.addEventListener("change", async event => {
@@ -374,21 +332,6 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     });
     root.querySelector('[data-ag-upload-assets]')?.addEventListener('change',async e=>{
       this.uploadZipArtwork=Boolean(e.target.checked);
-      await this.render();
-    });
-    root.querySelector('[data-ag-macro-json]')?.addEventListener('change', async event => {
-      const file=event.target.files?.[0];
-      if (!file) return;
-      try {
-        if(file.size>1_000_000) throw new Error('Custom macro registry exceeds 1MB.');
-        const entries=validateUserMacroRegistry(JSON.parse(await file.text()));
-        await this.ensureMacroRegistry();
-        const bundled=new Set(this.registry.entries.map(e=>e.id));
-        for(const entry of entries) if(bundled.has(entry.id)) throw new Error(`Custom macro ${entry.id} would replace a bundled macro; change its registry ID.`);
-        this.userMacros=entries;
-        this.macroSelected.clear();
-        this.macroMessage=`Loaded ${entries.length} custom macro definition(s) for this Manager session. Review commands before installing; loading never executes them. Re-import this JSON when updating its macros later.`;
-      } catch(error) { this.macroMessage=`Custom macro registry rejected: ${error.message}. No macros installed.`; }
       await this.render();
     });
     root.querySelector("[data-ag-profile]")?.addEventListener("change", async event => {
@@ -431,11 +374,6 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     root.querySelectorAll("[data-ag-library-select]").forEach(el=>el.addEventListener("change",event=>{
       if(event.target.checked)this.librarySelected.add(event.target.dataset.agLibrarySelect);
       else this.librarySelected.delete(event.target.dataset.agLibrarySelect);
-      void this.render();
-    }));
-    root.querySelectorAll("[data-ag-macro-select]").forEach(el=>el.addEventListener("change",event=>{
-      if(event.target.checked)this.macroSelected.add(event.target.dataset.agMacroSelect);
-      else this.macroSelected.delete(event.target.dataset.agMacroSelect);
       void this.render();
     }));
     root.querySelector("[data-ag-drafts]")?.addEventListener("change", async event => {
@@ -491,7 +429,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         await this.render(); break;
       case "clear": this.selected.clear(); await this.render(); break;
       case "apply": await this.#apply(); break;
-      case "audit": this.#runAudit(); await this.render(); break;
+      case "library-check": this.#runAudit(); this.libraryMessage="Library check finished: results are listed above."; await this.render(); break;
       case "appearance-save-world": {
         const choice=this.appearanceSelection??appearanceController?.getState()?.worldDefault;
         await appearanceController.setWorldDefault(choice);
@@ -527,9 +465,6 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case "library-export": await this.#exportManaged();break;
       case "library-stage": await this.#stageCompendium();break;
       case "library-replace": await this.#replaceFromSource();break;
-      case "macro-install": await this.#installMacros();break;
-      case "macro-select": this.macroSelected=new Set(this.macroRows().filter(r=>r.installable).map(r=>r.id));await this.render();break;
-      case "macro-export": await this.#exportMacros();break;
       case "template-example": this.#downloadTemplateExample();break;
       case "source-manifest-template": {
         const file='AG_SourcePackage_Manifest_v0.1.0_Example.json';
@@ -1084,36 +1019,6 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.libraryMessage=`Staging Compendium: ${copies} copied, ${skips} existing entries skipped. No updates made to source Items.`;
     await this.render();toast(this.libraryMessage);
   }
-  async #installMacros() {
-    await this.ensureMacroRegistry();
-    const rows=this.macroRows().filter(r=>this.macroSelected.has(r.id)&&r.installable);
-    if(!rows.length)return toast('Select macros marked INSTALL or UPDATE.');
-    const yes=await DialogV2.confirm({window:{title:'Install / Update Ashen Gate Macros'},modal:true,rejectClose:false,
-      content:`<p>Install or update <strong>${rows.length}</strong> managed Script Macros?</p><p>Macros are NOT executed. They may make world changes if you later run them. The included Skill Tree generator remains experimental and is NOT official profession progression.</p><p>Existing edited macro code is protected from automatic overwrite.</p>`});
-    if(!yes)return;
-    this.busy=true;let installed=0,updated=0,failed=0;
-    try{for(const row of rows) {
-      try {
-        const existing=game.macros.contents.find(m=>m.getFlag(MODULE_ID,'macro')?.registryId===row.id);
-        const flag={registryId:row.id,version:row.version,lastCommand:row.command};
-        if(existing){await existing.update({command:row.command,[`flags.${MODULE_ID}.macro`]:flag});updated++;}
-        else {await Macro.create({name:row.name,type:'script',scope:'global',command:row.command,
-          ownership:{default:CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE},flags:{[MODULE_ID]:{macro:flag}}});installed++;}
-      }catch(err){console.error(`[${MODULE_ID}] macro installation failed`,err);failed++;}
-    }}finally{this.busy=false;}
-    this.macroSelected.clear();this.macroMessage=`${installed} installed, ${updated} updated, ${failed} failed. Macros were not executed.`;
-    await this.render();toast(this.macroMessage,Boolean(failed));
-  }
-  async #exportMacros(){
-    const docs=game.macros.contents.filter(m=>m.getFlag(MODULE_ID,'macro')?.registryId);
-    if(!docs.length)return toast('No managed macros installed.');
-    downloadJson(`ag-managed-macros-${Date.now()}.json`,{schema_version:'ag-macro-registry/0.4',
-      entries:docs.map(doc=>({id:doc.getFlag(MODULE_ID,'macro').registryId,name:doc.name,
-        version:doc.getFlag(MODULE_ID,'macro').version ?? 'unversioned',
-        description:'Exported managed Macro — review source before executing.',command:doc.command}))});
-    this.macroMessage=`Exported ${docs.length} reimportable macro definition(s) for backup, without executing them.`;
-    await this.render();
-  }
   #downloadTemplateExample() {
     const sample={manifest:{schema_version:'ag-foundry-import/0.1',package_id:'TEMPLATE-PLAYTEST',version:'0.1.0'},
       templates:[{id:'basic-loot',version:'0.1',document_type:'Item',defaults:{type:'loot',img:'icons/svg/item-bag.svg',system:{description:{value:'<p>Shared description.</p>'}}}}],
@@ -1265,7 +1170,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.14.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.16.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */
