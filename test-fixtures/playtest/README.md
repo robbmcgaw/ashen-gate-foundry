@@ -1,4 +1,4 @@
-# Playtest data (0.5.1)
+# Playtest data (0.5.2)
 
 Synthetic data for testing every shipped feature from imports. Everything is `[TEST]`-named placeholder content with no rules effects. Not canon.
 
@@ -6,11 +6,11 @@ Five generated files (`node scripts/build-test-pack.mjs`; never hand-edit them).
 
 | File | Imported by |
 |---|---|
-| `AG_Playtest_Pack_0.5.1.json` | General Manager → Import (also Locations → GM Setup → Import JSON, Locations only) |
-| `AG_Playtest_Quests_0.5.1.json` | Quest Log → GM Setup → Advanced → **Import JSON** |
-| `AG_Playtest_SkillTrees_0.5.1.json` | Skill Trees → GM Setup → **Import Tree Layout JSON** |
-| `AG_Playtest_HQ_Facilities_0.5.1.json` | Headquarters → GM Setup → Facility Catalog → **Import Facility Definitions JSON** |
-| `AG_Playtest_Factions_0.5.1.json` | Factions & Renown → GM Setup → Organizations and folders → **Import JSON** (needs Factions 0.7.0) |
+| `AG_Playtest_Pack_0.5.2.json` | General Manager → Import (also Locations → GM Setup → Import JSON, Locations only) |
+| `AG_Playtest_Quests_0.5.2.json` | Quest Log → GM Setup → Advanced → **Import JSON** |
+| `AG_Playtest_SkillTrees_0.5.2.json` | Skill Trees → GM Setup → **Import Tree Layout JSON** |
+| `AG_Playtest_HQ_Facilities_0.5.2.json` | Headquarters → GM Setup → Facility Catalog → **Import Facility Definitions JSON** |
+| `AG_Playtest_Factions_0.5.2.json` | Factions & Renown → GM Setup → Organizations and folders → **Import JSON** (needs Factions 0.7.0) |
 
 ## Import order
 
@@ -38,11 +38,11 @@ Five generated files (`node scripts/build-test-pack.mjs`; never hand-edit them).
 
 ## What is in the Manager pack
 
-- **3 professions, 8 materials, 8 recipes + crafted items, 3 give-away recipe items** (Glassbloom Elixir needs the *[TEST] Alchemy Laboratory* workstation; Draft Draught is a draft; GM-only Resin is GM-only; Mistveil Tonic uses the profession default tool).
+- **4 professions, 10 materials, 12 recipes + crafted items, 4 give-away recipe items** (Glassbloom Elixir needs the *[TEST] Alchemy Laboratory* workstation; Draft Draught is a draft; GM-only Resin is GM-only; Mistveil Tonic uses the profession default tool). **`[TEST] Enchanting`** (`PROF-PT-ENCHANTING`) is the Enchanting profession: its default check is the Arcana *skill* (Ledger GM Setup), nothing is gated behind a skill proficiency. Its recipes: Warding Charm (no tool: rolls Arcana), Jeweled Ward Ring and Gemset Pendant (need Jeweler's Tools), Carved Ward Totem (needs Woodcarver's Tools; a give-away recipe item).
 - **4 profession perks** (`PERK-PT-ALCH-*`, one GM-only) for the Alchemy skill tree.
 - **4 ordinary stash items** (`ITEM-PT-STASH-*`) in `Ashen Gate/Playtest/Items/Stash`.
 - **3 test characters** in `Ashen Gate/Playtest/Characters`:
-  - `[TEST] Belwar`: Alchemist's Supplies, Alchemy (10 XP = level 2), Ember Salve recipe item (not learned), Emberroot/Palemoss/Glassbloom, Poisoned + a custom status, 2 stash items.
+  - `[TEST] Belwar`: Alchemist's Supplies, **Jeweler's Tools, Enchanting (0 XP)**, knows Warding Charm and Jeweled Ward Ring, holds a Carved Ward Totem recipe item (not learned; he has no Woodcarver's Tools, so it shows the missing-tool warning), Arcane Dust/Gem Chips/Ashwood Planks, Alchemy (10 XP = level 2), Ember Salve recipe item (not learned), Emberroot/Palemoss/Glassbloom, Poisoned + a custom status, 2 stash items.
   - `[TEST] Kessa`: Smith's Tools, Blacksmithing (5 XP), already knows Iron Hinge Set, holds a Test Dagger recipe item ×2, ore/coal/leather, Prone + a custom status, 2 stash items.
   - `[TEST] Orin`: Herbalism Kit, Herbalism, few materials (shows missing-ingredient states), 3 stash items.
 - **3 Journals**: `[TEST] Greenhollow — Field Notes` (the chapel's note links to it), `[TEST] Marsh Crossing — Handout` (becomes a table result), and a GM-only chapel note.
@@ -74,9 +74,12 @@ Rank names come from the standard ladder: 0 Unproven, 3 Recognized, 6 Trusted, 1
 - Finds the pack's Items and Journals by their permanent ids (Manager's binding) or, if unbound, by their exact `[TEST]` name. Anything not named `[TEST] …` is ignored; two matches means skipped and reported.
 - **Roll table:** adds document results for `ITEM-PT-TEST-DAGGER`, `ITEM-PT-MISTVEIL-TONIC`, `ITEM-PT-IRON-HINGE-SET` and `JRN-PT-MARSH-HANDOUT` as results 7-10, and changes the formula from `1d6` to `1d10` only if it still reads `1d6`. A result already there is not added twice.
 - **Locations:** uses the Locations public API (`listLocations`, `saveLocation`, `publishLocation`; no new API was needed). For each `LOC-PT-*` location it links a loot entry (or note) that names a pack id and has no link yet. A link you set yourself is never replaced. A location that was published with nothing waiting is published again so players see the links; a Hidden location (Sunken Cache) or one with other unpublished edits is saved only, and the report says so.
+- **Ledger party:** if Profession Ledger is active and its party is empty, sets the party to `[TEST] Belwar`, `[TEST] Kessa` and `[TEST] Orin` (the same world setting as Ledger > GM Setup > tick the characters). A party you already chose is left alone. Gathering cannot start without a party.
 - Needs Locations active for the Locations half; without it the table half still runs.
 
 ## What you still do by hand
+
+0. **Gathering needs, in this order:** the Manager pack imported (the materials must be world Items: approved, player-visible), a Ledger party (the link macro sets it, or Ledger > GM Setup > tick the characters > Save Changes), Locations active, a location revealed to players, and Owner on a character for the player. Every missing piece now shows as a one-line reason with its fix in the Ledger Gathering tab.
 
 1. **Player accounts:** Actors directory → each `[TEST]` character → Ownership → give your test player Owner. Import cannot assign users.
 2. **Quest states:** quests import as Hidden. In Quest Log → GM Setup set statuses/reveal, and mark `[TEST] Smoke at Cinder Quarry` **Completed** (status is campaign state, not importable): Quest Log → **GM** tab → select that quest → *Campaign status* = **Completed** → tick *Reveal Quest to selected audience* → **Save Progress & Reveal**. Objective reveal and progress are set in the same panel.

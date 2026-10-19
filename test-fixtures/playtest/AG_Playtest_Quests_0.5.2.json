@@ -1,14 +1,14 @@
 {
   "schema_version": "ag-quest-source/0.1",
   "domain": "quests_orders",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "records": [
     {
       "id": "QUEST-PT-GREENHOLLOW-HERBS",
       "entity_type": "Objective",
       "objective_kind": "quest",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.5.2",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -58,7 +58,7 @@
       "entity_type": "Objective",
       "objective_kind": "quest",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.5.2",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -138,7 +138,7 @@
       "entity_type": "Objective",
       "objective_kind": "quest",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.5.2",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -182,7 +182,7 @@
       "entity_type": "Objective",
       "objective_kind": "quest",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.5.2",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -221,7 +221,7 @@
       "entity_type": "Objective",
       "objective_kind": "work_order",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.5.2",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -254,7 +254,7 @@
       "entity_type": "Objective",
       "objective_kind": "contract",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.5.2",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"

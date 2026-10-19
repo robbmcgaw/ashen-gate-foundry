@@ -1,7 +1,7 @@
 /** Ashen Gate Profession Ledger core v0.2.3; side-effect-free, reusable transforms. */
 export const SCHEMA = 'ag-ledger/0.1';
 export const PROFESSION_NAMES = Object.freeze([
-  'Alchemy','Arcana','Blacksmithing','Cooking','Engineering','Inscription','Jewelcrafting',
+  'Alchemy','Blacksmithing','Cooking','Enchanting','Engineering','Inscription','Jewelcrafting',
   'Leatherworking','Tailoring','Archaeology','Fishing','Herbalism','Hunting/Skinning','Mining'
 ]);
 export const norm = value => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g,'');
@@ -25,10 +25,10 @@ export function classify(raw) {
   if(id?.startsWith('PROF-'))return 'Profession';
   if(id?.startsWith('PERK-'))return 'ProfessionPerk';
   if(/^Recipe\s*:/i.test(raw?.name??''))return 'Recipe';
-  if(PROFESSION_NAMES.some(x=>norm(raw?.name)===norm(x))||norm(raw?.name)==='enchanting')return 'Profession';
+  if(PROFESSION_NAMES.some(x=>norm(raw?.name)===norm(x))||norm(raw?.name)==='arcana')return 'Profession';
   return null;
 }
-export const displayProfession = raw => norm(raw)==='enchanting'?'Arcana':String(raw??'');
+export const displayProfession = raw => norm(raw)==='arcana'?'Enchanting':String(raw??'');
 export const professionFromTreeName = raw => displayProfession(String(raw??'').split(/\s[·•—–]\s|\s-\s/)[0].trim());
 export const cleanName = raw => String(raw??'').replace(/^Recipe\s*:\s*/i,'').trim();
 const ingredientName = raw => String(raw?.name??raw?.materialName??raw?.material_id??raw?.materialId??raw?.target_id??raw?.id??'').trim();

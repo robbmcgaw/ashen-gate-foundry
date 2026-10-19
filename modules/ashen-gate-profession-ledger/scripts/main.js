@@ -6,12 +6,12 @@ import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertP
 import {lookupWorldDefinition,readWorldDefinition} from './definition-lookup.mjs';
 import {planCraft,craftBlockers,executeCraft,resultItemData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
-import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,toolRefLabel,heldTool,
+import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,toolRefLabel,heldTool,
   checkOption,rollModeFor,rollCheck,formatBonus} from './checks.mjs';
-import {tierName,defaultDC,normalizeNode,gatherOutcome,gatherReward,exhaustsNode,helperEligibility,checkGatherRequest,canRunGathering,
+import {tierName,defaultDC,normalizeNode,gatherOutcome,gatherReward,exhaustsNode,helperEligibility,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
   stackMaterial} from './gathering.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.10.1';
+const VERSION='0.11.0';
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...}. */
 const XP_HOOK='ashenGateLedger.xpOpportunity';
@@ -304,12 +304,14 @@ const professionTool=name=>{const key=checkMapping().tools[professionKey(name)];
  * the profession's tool. The tool check uses the recipe's tool, else the profession's tool.
  */
 function craftRequirement(recipe,actor=null){
-  const own=toolRef(recipe?.tool),profTool=professionTool(professionLabel(recipe));
+  const own=toolRef(recipe?.tool),profLabel=professionLabel(recipe),profTool=professionTool(profLabel);
   const tool=own??(recipe?.workstation?null:profTool);
   const check=own??profTool;
   const held=actor&&tool?heldTool(actor,tool):null;
+  // A profession whose main check is a skill (Enchanting: Arcana) offers that skill; a recipe tool is offered beside it.
+  const skill=checkMapping().skills[professionKey(profLabel)]||null;
   return {tool,toolLabel:toolRefLabel(tool),fromProfession:Boolean(tool&&!own),workstation:recipe?.workstation??null,
-    check,held:Boolean(held),lacks:Boolean(actor&&tool&&!held)};
+    check,skill,checkPlan:actor?craftCheckPlan(actor,{tool:check,skill}):null,held:Boolean(held),lacks:Boolean(actor&&tool&&!held)};
 }
 function requirementHTML(req,actor){
   const parts=[];
@@ -521,9 +523,10 @@ async function orchestrateCraft(request,senderId){
 }
 /** The requester rolled the tool check on their own client; the GM keeps only the numbers and re-labels it. */
 function craftCheckFromRequest(recipe,crafter,check){
-  const req=craftRequirement(recipe,crafter);
-  if(!req.check||!check)return null;
-  const label=checkOption(crafter,{kind:'tool',key:req.check.key,ref:req.check}).label;
+  const plan=craftRequirement(recipe,crafter).checkPlan;
+  if(!plan||!check)return null;
+  const picked=plan.options.find(o=>`${o.kind}:${o.key??o.ref?.name??o.ref?.uuid}`===check.choice)??plan.selected;
+  const label=checkOption(crafter,picked).label;
   const total=Number(check.total),mode=Math.sign(Number(check.mode)||0);
   return Number.isSafeInteger(total)&&total>=-20&&total<=100?{label,total,mode}:{label,unavailable:true};
 }
@@ -577,8 +580,11 @@ async function craft(actor,recipeId,{confirm=true}={}){
   const list=ctx.plan.allocations.map(a=>`<li>${a.quantity} × ${esc(a.name)}${a.own?'':` — from <strong>${esc(a.actorName)}</strong>`}</li>`).join('');
   const foreign=[...new Set(ctx.plan.foreign.map(a=>a.actorName))];
   const req=craftRequirement(recipe,actor);
-  const option=req.check?checkOption(actor,{kind:'tool',key:req.check.key,ref:req.check}):null;
-  const preset=option?.key?rollModeFor(actor,{kind:'tool',key:option.key}):{mode:0,sources:[]};
+  const cplan=req.checkPlan,choiceOf=o=>`${o.kind}:${o.key??o.ref?.name??o.ref?.uuid}`;
+  let picked=cplan?.selected??null;
+  const presetOf=o=>o?.key?rollModeFor(actor,{kind:o.kind,key:o.key}):{mode:0,sources:[]};
+  let option=picked?checkOption(actor,picked):null;
+  const preset=presetOf(picked);
   let mode=preset.mode;
   if(confirm){
     const needs=[req.tool?`<li>Tool: <strong>${esc(req.toolLabel)}</strong>${req.lacks?` — <strong>${esc(actor.name)} doesn’t carry this tool.</strong>`:' (carried)'}</li>`:'',
@@ -586,12 +592,15 @@ async function craft(actor,recipeId,{confirm=true}={}){
       extraCost(recipe)?`<li>Also costs ${extraCost(recipe)} gp — not deducted automatically.</li>`:''].join('');
     const answer=await DialogV2.confirm({window:{title:`Craft ${recipe.name}?`},modal:true,rejectClose:false,
       content:`<p>${esc(actor.name)} crafts <strong>${esc(ctx.result.name)}</strong>, using:</p><ul>${list}</ul>${needs?`<ul>${needs}</ul>`:''}
-        ${option?`<div class="agl-check-pick"><span><strong>${esc(option.label)} check</strong> ${formatBonus(option.bonus)}${option.proficient?'':' (not proficient)'}</span>
+        ${option?`<div class="agl-check-pick">${cplan.options.length>1?`<label class="ag-field">Check (bonus)<select name="check">${cplan.options.map(o=>{const c=checkOption(actor,o);return `<option value="${esc(choiceOf(o))}" ${o===picked?'selected':''}>${esc(c.label)}${o.kind==='tool'?' (tool)':''} ${formatBonus(c.bonus)}</option>`;}).join('')}</select></label>`
+          :`<span><strong>${esc(option.label)} check</strong> ${formatBonus(option.bonus)}${option.proficient?'':' (not proficient)'}</span>`}
           <label class="ag-field ag-field--inline">Roll ${modeSelect(mode)}</label><p class="agl-sub">${esc(modeHint(preset))} The result goes on the craft card; it doesn’t decide success yet.</p></div>`:''}
         ${foreign.length?`<p>${esc(foreign.join(', '))}’s owner${foreign.length===1?'':'s'} will be asked on their screen. Any decline cancels the craft and nothing is used.</p>`:''}`,
       yes:{callback:(event,button)=>({mode:button?.form?.elements?.mode?.value})}});
     if(!answer)return null;
     if(typeof answer==='object'&&answer.mode!=null)mode=Math.sign(Number(answer.mode)||0);
+    const chosen=typeof answer==='object'?cplan?.options.find(o=>choiceOf(o)===answer.check):null;
+    if(chosen&&chosen!==picked){picked=chosen;option=checkOption(actor,picked);}
   }
   let check=null;
   if(option){
@@ -603,7 +612,7 @@ async function craft(actor,recipeId,{confirm=true}={}){
     return {ok:true,message:`${actor.name} crafted ${out.created?.name??ctx.result.name}.`};
   }
   const request={type:'craft-request',requestId:newId(),requesterId:game.user.id,crafterId:actor.id,recipeId,
-    check:check&&!check.unavailable?{total:check.total,mode:check.mode}:null};
+    check:check&&!check.unavailable?{total:check.total,mode:check.mode,choice:picked?choiceOf(picked):null}:null};
   if(game.user.isGM)return orchestrateCraft(request,game.user.id);
   if(!activeGM())throw Error('Using another character’s materials needs the GM to be online');
   const outcome=new Promise(resolve=>{
@@ -635,13 +644,14 @@ const closeGatherDialogs=prefix=>{for(const [key,dialog] of gatherDialogs)if(key
 /** Gathering nodes the current user may see: GM every location, a player revealed ones (Locations sanitizes them). */
 function gatherLocations(){
   const api=locationsApi();
-  if(typeof api?.listLocations!=='function'||typeof api?.resourcesAt!=='function')return {ok:false,reason:'The Locations module is not active.',locations:[]};
+  if(typeof api?.listLocations!=='function'||typeof api?.resourcesAt!=='function')return {ok:false,reason:GATHER_FIX.noLocations,locations:[]};
   try{
     const gm=game.user.isGM;
     const locations=(api.listLocations()??[]).map(loc=>{
       const revealed=gm?loc?.revealed===true:true;
       const nodes=(api.resourcesAt(loc.id)??[]).map((entry,index)=>normalizeNode(entry,{locationId:loc.id,locationName:loc.name??loc.id,locationRevealed:revealed,index}))
-        .filter(n=>n&&(gm||n.visible)).map(n=>exhaustedHere.has(n.key)?{...n,exhausted:true,gatherable:false,why:'Already gathered (exhausted)'}:n);
+        .filter(n=>n&&(gm||n.visible)).map(n=>exhaustedHere.has(n.key)?{...n,exhausted:true,gatherable:false,why:'Already gathered (exhausted)'}:n)
+        .map(n=>({...n,blocked:nodeBlocker(n,{materialFound:!gm||Boolean(worldMaterial(n.materialId)),forPlayer:!gm})}));
       return {id:loc.id,name:String(loc.name??loc.id),revealed,nodes};
     }).filter(l=>l.nodes.length).sort((a,b)=>a.name.localeCompare(b.name));
     return {ok:true,locations};
@@ -691,11 +701,10 @@ function gatherProjection(session){
 async function startGather({node,leadId,helperIds=[],requesterId=null}){
   if(!canRunGathering(game.user))throw Error('Only the GM can start gathering');
   const party=partyActors(),lead=game.actors?.get?.(leadId);
-  if(!lead||!party.some(a=>a.id===lead.id))throw Error('Choose a lead gatherer from the party');
-  if(!node)throw Error('Choose a gathering node');
-  if(exhaustedHere.has(node.key)||!node.gatherable)throw Error(node.why||'That node has already been gathered');
-  if([...gatherSessions.values()].some(s=>s.node.key===node.key))throw Error('That node is already being gathered');
-  if(!worldMaterial(node.materialId))throw Error(`The node’s material (${node.materialId||'none'}) is not an imported, approved, player-visible world material`);
+  const blocked=startBlocker({rosterCount:rosterIds().length,partyCount:party.length,leadInParty:Boolean(lead)&&party.some(a=>a.id===lead.id),node,
+    materialFound:Boolean(node&&worldMaterial(node.materialId)),busy:Boolean(node)&&[...gatherSessions.values()].some(s=>s.node.key===node.key)});
+  if(blocked)throw Error(blocked);
+  if(exhaustedHere.has(node.key))throw Error(nodeBlocker({...node,exhausted:true}));
   const plan=gatherCheckPlan(lead,node);
   const helpers=helperInfo([...new Set(helperIds)].map(id=>game.actors.get(id)).filter(a=>a&&a.id!==lead.id&&party.some(p=>p.id===a.id)),lead,plan);
   const session={id:newId(),node,leadId:lead.id,leadName:lead.name,helpers,plan,requesterId,status:'rolling',createdAt:Date.now()};
@@ -847,6 +856,10 @@ async function handleGatherRequest(request,senderId){
     location,node,busy:Boolean(node)&&nodeBusy(node.key)});
   if(!verdict.ok)return reply(false,verdict.reason);
   const party=partyActors();
+  // Setup problems are reported now, not after the GM has approved: the player gets a plain line, the GM the exact fix.
+  const setup=startBlocker({rosterCount:rosterIds().length,partyCount:party.length,leadInParty:party.some(a=>a.id===actor.id),node,materialFound:Boolean(worldMaterial(node.materialId))});
+  if(setup){say(`Profession Ledger: ${requester.name}’s gathering request can’t start. ${setup}`,true);
+    return reply(false,`The GM can’t start this yet: ${nodeBlocker(node,{materialFound:Boolean(worldMaterial(node.materialId)),forPlayer:true})||'the party is not set up.'} They have been told.`);}
   const helpers=(Array.isArray(request.helperIds)?request.helperIds:[]).map(id=>game.actors.get(id)).filter(a=>a&&a.id!==actor.id&&party.some(p=>p.id===a.id));
   gatherRequests.set(request.requestId,{node,actorId:actor.id});
   let approved=false;
@@ -1056,13 +1069,13 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   /** Profession → tool (crafting default and gathering), and gathering profession → check skill. */
   _toolSetup(){
     const map=this.mapDraft??checkMapping(),keys=toolKeys();
-    const rows=PROFESSION_NAMES.map(name=>{const k=professionKey(name),gathering=GATHERING_PROFESSIONS.includes(name);
+    const rows=PROFESSION_NAMES.map(name=>{const k=professionKey(name),gathering=GATHERING_PROFESSIONS.includes(name),hasSkill=gathering||k==='enchanting';
       return `<tr><th scope="row">${esc(name)}${gathering?' <small class="agl-sub">gathering</small>':''}</th>
         <td><select data-map-tool="${esc(k)}" aria-label="${esc(name)} tool"><option value="">— None —</option>${keys.map(t=>`<option value="${esc(t)}" ${map.tools[k]===t?'selected':''}>${esc(toolLabel(t))}</option>`).join('')}</select></td>
-        <td>${gathering?`<select data-map-skill="${esc(k)}" aria-label="${esc(name)} gathering skill"><option value="">— None —</option>${SKILL_IDS.map(sk=>`<option value="${sk}" ${map.skills[k]===sk?'selected':''}>${esc(skillLabel(sk))}</option>`).join('')}</select>`:'<span class="agl-sub">—</span>'}</td></tr>`;}).join('');
+        <td>${hasSkill?`<select data-map-skill="${esc(k)}" aria-label="${esc(name)} ${gathering?'gathering':'craft'} skill"><option value="">— None —</option>${SKILL_IDS.map(sk=>`<option value="${sk}" ${map.skills[k]===sk?'selected':''}>${esc(skillLabel(sk))}</option>`).join('')}</select>`:'<span class="agl-sub">—</span>'}</td></tr>`;}).join('');
     return `<section class="ag-card agl-panel"><h2>Tools and checks</h2>
-      <p class="agl-sub">The tool each profession uses. A recipe with no tool or workstation of its own needs its profession’s tool, and crafting rolls a check with it (shown on the craft card; it doesn’t decide success yet). Gathering offers the tool check and, for gathering professions, the skill below; the roller can pick another skill. Helpers carrying the tool give advantage. Saved with <b>Save Changes</b>.</p>
-      <div class="agl-map-wrap"><table class="agl-map"><thead><tr><th>Profession</th><th>Tool</th><th>Gathering check skill</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+      <p class="agl-sub">The tool each profession uses. A recipe with no tool or workstation of its own needs its profession’s tool, and crafting rolls a check with it (shown on the craft card; it doesn’t decide success yet). Gathering offers the tool check and, for gathering professions, the skill below; the roller can pick another skill. Enchanting’s main check is the Arcana skill: a craft offers it, and also the recipe’s own tool (such as Jeweler’s Tools) when it names one. Helpers carrying the tool give advantage. Saved with <b>Save Changes</b>.</p>
+      <div class="agl-map-wrap"><table class="agl-map"><thead><tr><th>Profession</th><th>Tool</th><th>Check skill (gathering / Enchanting)</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
   }
   _help(){return `<section class="ag-card agl-panel agl-help"><h2>Profession Ledger Help</h2>
     <p><strong>Individual:</strong> your character’s crafting bench: professions with level and XP, materials, recipe items you can learn, and known recipes. <em>Craft</em> checks you know the recipe and have the materials, uses them up and puts the crafted item in your inventory, with a chat card. If a party member has what you’re missing, <em>Craft — ask the party</em> asks their owner on their screen; any decline cancels and nothing is used.</p>
@@ -1100,14 +1113,14 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const where=gatherLocations();
     const party=partyActors().filter(a=>a.id!==actor?.id);
     const nodes=where.locations.map(loc=>`<fieldset class="agl-node-group"><legend>${esc(loc.name)}</legend>${loc.nodes.map(n=>{
-      const value=`${loc.id}|${n.id??''}`,ok=n.gatherable&&n.id;
+      const value=`${loc.id}|${n.id??''}`,ok=n.gatherable&&n.id&&!n.blocked;
       return `<label class="agl-node ${ok?'':'is-off'}"><input type="radio" name="agl-node" data-gather-field="nodeRef" value="${esc(value)}" ${this.gather.nodeRef===value&&ok?'checked':''} ${ok?'':'disabled'}>
-        <span><strong>${esc(nodeTitle(n))}</strong> <small>${esc(nodeSummary(n,{forPlayers:true}))}</small>${ok?'':` <small class="agl-reason">${esc(n.id?n.why:'Needs a newer Locations module')}</small>`}${n.note?`<small class="agl-sub">${esc(n.note)}</small>`:''}</span></label>`;}).join('')}</fieldset>`).join('');
+        <span><strong>${esc(nodeTitle(n))}</strong> <small>${esc(nodeSummary(n,{forPlayers:true}))}</small>${ok?'':` <small class="agl-reason">${esc(n.blocked||n.why)}</small>`}${n.note?`<small class="agl-sub">${esc(n.note)}</small>`:''}</span></label>`;}).join('')}</fieldset>`).join('');
     const pending=this.gather.pending;
+    const blocker=playerBlocker({rosterCount:rosterIds().length,mine:actor?mine.length:0,where});
     return `${rollCards}<section class="ag-card agl-panel"><h2>Request gathering</h2>
       <p class="agl-sub">Pick a gathering spot at a location your party knows. The GM approves it, then the lead gatherer rolls one check for the party. Helpers with suitable tools give advantage, not another attempt.</p>
-      ${!actor?'<div class="ag-empty">You don’t own a character in the party.</div>':!where.ok?`<div class="ag-empty">No gathering spots to choose from (${esc(where.reason)}). Your GM can still start gathering for you.</div>`
-        :!where.locations.length?'<div class="ag-empty">No gathering spots at the locations your party knows yet.</div>'
+      ${blocker?`<div class="ag-empty">${esc(blocker)}</div>`
         :`<div class="agl-gather-form">${mine.length>1?`<label class="ag-field">Lead gatherer<select data-gather-field="actorId">${mine.map(a=>`<option value="${esc(a.id)}" ${a.id===actor.id?'selected':''}>${esc(a.name)}</option>`).join('')}</select></label>`:`<div class="agl-who">${portrait(actor)}<strong>${esc(actor.name)}</strong> leads</div>`}
           ${party.length?`<fieldset class="agl-gather-eligible"><legend>Helpers (optional)</legend>${party.map(h=>`<label><input type="checkbox" data-gather-helper="${esc(h.id)}" ${this.gather.helperIds.includes(h.id)?'checked':''}> ${esc(h.name)}</label>`).join('')}</fieldset>`:''}</div>
           <div class="agl-nodes">${nodes}</div>
@@ -1116,7 +1129,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   }
   _gatherGM(){
     const party=this.actors,where=gatherLocations(),mats=materialChoices();
-    if(!party.length)return rosterIds().length?'<div class="ag-empty">No characters in the party.</div>':this._noRoster();
+    if(!party.length)return rosterIds().length?`<div class="ag-empty">${esc(GATHER_FIX.partyMissing)}</div>`:`<div class="ag-empty">${esc(GATHER_FIX.noParty)} <button type="button" class="ag-btn" data-action="tab" data-id="gm">Open GM Setup →</button></div>`;
     const g=this.gather;
     if(!where.ok)g.source='adhoc';
     const lead=party.find(a=>a.id===g.actorId)??party[0];g.actorId=lead.id;
@@ -1133,7 +1146,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         <button type="button" class="ag-btn ag-btn--primary" data-action="gather-gm-roll" data-id="${esc(s.id)}"><i class="fa-solid fa-dice-d20"></i> Roll for ${esc(s.leadName)}</button></div></section>`;}).join('');
     const last=lastGather?`<div class="agl-note">${esc(lastGather.leadName)} · ${esc(lastGather.title)}: ${lastGather.total} vs DC ${lastGather.dc} — <b>${esc(lastGather.verdict)}</b>${lastGather.award?`, ${lastGather.award.quantity} × ${esc(lastGather.award.name)}${lastGather.award.stacked?` (now ${lastGather.award.total})`:''}`:''}${lastGather.exhausted==='recorded'?' · node marked exhausted in Locations':lastGather.exhausted==='manual'?' · <b>mark the node exhausted in Locations</b>':lastGather.exhausted==='session'?' · renewable node: blocked until you reload':''}. Award XP from the chat card.</div>`:'';
     const nodeOptions=where.locations.map(loc=>`<optgroup label="${esc(loc.name)}${loc.revealed?'':' (unrevealed)'}">${loc.nodes.map(n=>{const value=`${loc.id}|${n.id??''}`,ok=n.gatherable&&!nodeBusy(n.key);
-      return `<option value="${esc(value)}" ${g.nodeRef===value?'selected':''} ${ok?'':'disabled'}>${esc(nodeTitle(n))} · ${esc(nodeSummary(n)||'no DC')}${n.visible?'':' · hidden from players'}${ok?'':` — ${esc(n.why||'in progress')}`}</option>`;}).join('')}</optgroup>`).join('');
+      return `<option value="${esc(value)}" ${g.nodeRef===value?'selected':''} ${ok?'':'disabled'}>${esc(nodeTitle(n))} · ${esc(nodeSummary(n)||'no DC')}${n.visible?'':' · hidden from players'}${n.blocked?` — ${esc(n.blocked)}`:ok?'':' — in progress'}</option>`;}).join('')}</optgroup>`).join('');
     const a=g.adhoc,matOpts=(selected,blank)=>`${blank?`<option value="">${blank}</option>`:''}${mats.map(i=>`<option value="${esc(agSourceId(i))}" ${selected===agSourceId(i)?'selected':''}>${esc(i.name)}</option>`).join('')}`;
     const gatherSkills=Array.isArray(locationsApi()?.GATHERING?.skills)?locationsApi().GATHERING.skills:GATHERING_PROFESSIONS;
     const skillChoices=[...gatherSkills.map(p=>[p,p]),...SKILL_IDS.map(k=>[k,skillLabel(k)])];
@@ -1149,19 +1162,22 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
        ${mats.length?'':'<div class="agl-note warn">Import at least one approved, player-visible material with General Manager first.</div>'}`
       :`<label class="ag-field">Gathering node<select data-gather-field="nodeRef"><option value="">Choose a node…</option>${nodeOptions}</select></label>
        ${where.locations.length?'':'<div class="ag-empty">No gathering resources in Locations yet.</div>'}`;
-    const ready=Boolean(node?.gatherable&&!nodeBusy(node.key)&&worldMaterial(node.materialId));
+    const blocker=g.source==='adhoc'&&node&&!node.materialId?'Choose a common material for the ad-hoc node.'
+      :startBlocker({rosterCount:rosterIds().length,partyCount:party.length,leadInParty:true,node,materialFound:Boolean(node&&worldMaterial(node.materialId)),busy:Boolean(node)&&nodeBusy(node.key)});
+    const ready=!blocker;
     return `${sessions}${last}<section class="ag-card agl-panel"><h2>Start gathering</h2>
       <p class="agl-sub">One lead gatherer, one check per node for the party. Helpers with suitable tools give advantage, not another attempt. Success gives one common bundle; success by 5+ gives one rare bundle instead. Failure exhausts the node. Players can also request a node from their Gathering tab.</p>
       <div class="agl-segmented" role="group" aria-label="Node source"><button type="button" class="ag-btn ${g.source!=='adhoc'?'active':''}" data-action="gather-source" data-id="location" ${where.ok?'':`disabled title="${esc(where.reason)}"`}>Location node</button><button type="button" class="ag-btn ${g.source==='adhoc'?'active':''}" data-action="gather-source" data-id="adhoc">Ad-hoc node</button></div>
       ${where.ok?'':`<p class="agl-sub">${esc(where.reason)} Ad-hoc nodes still work.</p>`}
       ${form}
       ${node?`<p class="agl-sub">${esc(nodeSummary(node))} · common ${node.quantity} × ${esc(node.materialId?materialName(node.materialId):'—')}${node.rareMaterialId?` · rare ${node.rareQuantity} × ${esc(materialName(node.rareMaterialId))}`:''}${node.finite?' · finite':''}${node.note?` · ${esc(node.note)}`:''}</p>
-        ${node.materialId&&!worldMaterial(node.materialId)?`<div class="agl-note warn">${esc(node.materialId)} isn’t an imported, approved, player-visible world material yet.</div>`:''}`:''}
+        `:''}
       <div class="agl-gather-form">
         <label class="ag-field">Lead gatherer<select data-gather-field="actorId">${party.map(p=>`<option value="${esc(p.id)}" ${p.id===lead.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label>
         ${plan?`<div class="agl-sub">${esc(lead.name)}: ${plan.options.slice(0,2).map(o=>{const c=checkOption(lead,o);return `${esc(c.label)} ${formatBonus(c.bonus)}`;}).join(' · ')}${plan.professionId?'':` · no ${esc(plan.profession||'matching')} profession feature (no XP target)`}</div>`:'<div></div>'}
         ${helpers.length?`<fieldset class="agl-gather-eligible"><legend>Helpers</legend>${helpers.map(h=>`<label title="${esc(h.reason)}"><input type="checkbox" data-gather-helper="${esc(h.id)}" ${g.helperIds.includes(h.id)?'checked':''}> ${esc(h.name)} ${badge(h.eligible?'Advantage':h.reason,h.eligible?'ok':'muted')}</label>`).join('')}</fieldset>`:''}
       </div>
+      ${blocker?`<p class="agl-reason" role="status">${esc(blocker)}</p>`:''}
       <div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--primary" data-action="gather-start" ${ready?'':'disabled'}><i class="fa-solid fa-seedling"></i> Start gathering check</button></div>
     </section>`;
   }

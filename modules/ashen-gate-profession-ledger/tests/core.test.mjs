@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import {SCHEMA,PROFESSION_NAMES,norm,normalizeLibrary,normalizeRecipe,professionFromTreeName,demoSnapshot,DEMO_LIBRARY,
   classify,inventory,listMaterials,planRecipe,quantity,agSourceId} from '../scripts/core.mjs';
 const t=(desc,fn)=>{fn(); console.log('PASS '+desc);};
-t('14 current profession names with Arcana',()=>{assert.equal(PROFESSION_NAMES.length,14);assert.ok(PROFESSION_NAMES.includes('Arcana'));});
-t('prototype tree title maps back to profession',()=>{assert.equal(professionFromTreeName('Alchemy · Prototype'),'Alchemy');assert.equal(professionFromTreeName('Enchanting · Prototype'),'Arcana');});
+t('14 current profession names with Enchanting, not Arcana',()=>{assert.equal(PROFESSION_NAMES.length,14);assert.ok(PROFESSION_NAMES.includes('Enchanting'));assert.ok(!PROFESSION_NAMES.includes('Arcana'));});
+t('prototype tree title maps back to profession',()=>{assert.equal(professionFromTreeName('Alchemy · Prototype'),'Alchemy');assert.equal(professionFromTreeName('Enchanting · Prototype'),'Enchanting');assert.equal(professionFromTreeName('Arcana · Prototype'),'Enchanting');});
 t('material classification uses permanent id',()=>{assert.equal(classify(demoSnapshot()[0].items[0]),'Material');});
 t('Item quantities integer nonnegative',()=>{assert.equal(quantity({system:{quantity:4}}),4);assert.equal(quantity({system:{quantity:-2}}),0);});
 t('snapshot shares materials across Actors',()=>{const m=listMaterials(demoSnapshot(),DEMO_LIBRARY.materials);assert.equal(m.find(x=>x.name==='Demo Herbs').total,6);assert.equal(m.find(x=>x.name==='Demo Vial').total,6);});

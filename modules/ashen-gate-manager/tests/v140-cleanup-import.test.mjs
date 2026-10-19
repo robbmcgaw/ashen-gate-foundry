@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import {detectSpecialistFile,specialistCount,specialistApi,describeUnrecognized,planSpecialist,filterSpecialist,applySpecialist} from '../scripts/specialist-handoff.js';
 import {createAppearanceController} from '../scripts/appearance.js';
 
-const fx=n=>JSON.parse(fs.readFileSync(new URL(`../../../test-fixtures/playtest/AG_Playtest_${n}_0.5.1.json`,import.meta.url),'utf8'));
+const fx=n=>JSON.parse(fs.readFileSync(new URL(`../../../test-fixtures/playtest/AG_Playtest_${n}_0.5.2.json`,import.meta.url),'utf8'));
 const tpl=fs.readFileSync(new URL('../templates/manager.hbs',import.meta.url),'utf8');
 const main=fs.readFileSync(new URL('../scripts/main.js',import.meta.url),'utf8');
 

@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeFaction, sourceDefinition } from '../modules/ashen-gate-factions/scripts/core.mjs';
 
-export const PACK_VERSION = '0.5.1';
+export const PACK_VERSION = '0.5.2';
 export const PACK_ID = 'AG-PLAYTEST-PACK';
 const SOURCE = 'Synthetic playtest data (not canon)';
 const FOLDER = 'Ashen Gate/Playtest';
@@ -63,6 +63,11 @@ const PROFESSIONS = [
   { id: 'PROF-PT-BLACKSMITHING', name: '[TEST] Blacksmithing', kind: 'crafting', workstation: 'Forge',
     access: { toolProficienciesAnyOf: ["Smith's Tools"], toolMustBePresent: true },
     starting: ['REC-PT-IRON-HINGE-SET', 'REC-PT-TEST-DAGGER'] },
+  // Enchanting is the profession; Arcana is only the skill it checks by default (Ledger GM Setup). It is not gated
+  // behind a skill proficiency, and a recipe may name its own tool (Jeweler's or Woodcarver's Tools).
+  { id: 'PROF-PT-ENCHANTING', name: '[TEST] Enchanting', kind: 'crafting', workstation: null,
+    access: {},
+    starting: ['REC-PT-WARDING-CHARM'] },
 ];
 
 // ---- Materials -------------------------------------------------------------------------------
@@ -74,6 +79,8 @@ const MATERIALS = [
   { id: 'MAT-PT-IRON-ORE', name: '[TEST] Iron Ore', tier: 'apprentice', quality: 'Common', unit: 'Chunk', gp: 3, lb: 2, flavor: 'Rough placeholder ore.' },
   { id: 'MAT-PT-COAL', name: '[TEST] Coal', tier: 'apprentice', quality: 'Common', unit: 'Sack', gp: 2, lb: 5, flavor: 'Placeholder fuel.' },
   { id: 'MAT-PT-LEATHER-STRIPS', name: '[TEST] Leather Strips', tier: 'apprentice', quality: 'Common', unit: 'Bundle', gp: 3, lb: 1, flavor: 'Placeholder binding.' },
+  { id: 'MAT-PT-ARCANE-DUST', name: '[TEST] Arcane Dust', tier: 'apprentice', quality: 'Common', unit: 'Pinch', gp: 6, lb: 0.1, flavor: 'Glittering placeholder dust.' },
+  { id: 'MAT-PT-GEM-CHIPS', name: '[TEST] Gem Chips', tier: 'apprentice', quality: 'Common', unit: 'Pouch', gp: 8, lb: 0.2, flavor: 'Placeholder gem fragments.' },
   { id: 'MAT-PT-ASHWOOD-PLANKS', name: '[TEST] Ashwood Planks', tier: 'apprentice', quality: 'Common', unit: 'Plank', gp: 4, lb: 3, flavor: 'Placeholder timber.' },
   // Deliberate GM-only example: players must never see this in the Ledger catalog or exports.
   { id: 'MAT-PT-GM-ONLY-RESIN', name: '[TEST] GM-only Resin', tier: 'master', quality: 'Rare', unit: 'Vial', gp: 100, lb: 0.1, visibility: 'gm', flavor: 'GM-only example material. Players must not see this.' },
@@ -101,9 +108,18 @@ const RECIPES = [
     ing: [['MAT-PT-IRON-ORE', 2], ['MAT-PT-ASHWOOD-PLANKS', 2]] },
   { id: 'REC-PT-RIVET-POUCH', item: 'ITEM-PT-RIVET-POUCH', name: '[TEST] Rivet Pouch', prof: 'PROF-PT-BLACKSMITHING', tier: 'apprentice', effort: 'short',
     ing: [['MAT-PT-IRON-ORE', 1], ['MAT-PT-COAL', 1], ['MAT-PT-LEATHER-STRIPS', 1]] },
+  // Enchanting: no tool of its own (rolls the Arcana skill), or a per-recipe tool rolled beside Arcana.
+  { id: 'REC-PT-WARDING-CHARM', item: 'ITEM-PT-WARDING-CHARM', name: '[TEST] Warding Charm', prof: 'PROF-PT-ENCHANTING', tier: 'apprentice', effort: 'short',
+    ing: [['MAT-PT-ARCANE-DUST', 2]] },
+  { id: 'REC-PT-JEWELED-WARD-RING', item: 'ITEM-PT-JEWELED-WARD-RING', name: '[TEST] Jeweled Ward Ring', prof: 'PROF-PT-ENCHANTING', tier: 'apprentice', effort: 'short', tool: 'jeweler',
+    ing: [['MAT-PT-GEM-CHIPS', 2], ['MAT-PT-ARCANE-DUST', 1]] },
+  { id: 'REC-PT-GEMSET-PENDANT', item: 'ITEM-PT-GEMSET-PENDANT', name: '[TEST] Gemset Pendant', prof: 'PROF-PT-ENCHANTING', tier: 'journeyman', effort: 'long', tool: 'jeweler',
+    ing: [['MAT-PT-GEM-CHIPS', 3], ['MAT-PT-ARCANE-DUST', 2]] },
+  { id: 'REC-PT-CARVED-WARD-TOTEM', item: 'ITEM-PT-CARVED-WARD-TOTEM', name: '[TEST] Carved Ward Totem', prof: 'PROF-PT-ENCHANTING', tier: 'apprentice', effort: 'short', giveItem: true, tool: 'woodcarver',
+    ing: [['MAT-PT-ASHWOOD-PLANKS', 2], ['MAT-PT-ARCANE-DUST', 1]] },
 ];
 
-const TOOL_NAMES = { alchemist: 'Alchemist’s Supplies', smith: 'Smith’s Tools' };
+const TOOL_NAMES = { alchemist: 'Alchemist’s Supplies', smith: 'Smith’s Tools', jeweler: 'Jeweler’s Tools', woodcarver: 'Woodcarver’s Tools' };
 const matById = new Map(MATERIALS.map(m => [m.id, m]));
 const profById = new Map(PROFESSIONS.map(p => [p.id, p]));
 const cap = s => s[0].toUpperCase() + s.slice(1);
@@ -325,6 +341,7 @@ const TOOLS = {
   alchemist: { name: 'Alchemist’s Supplies', key: 'alchemist' },
   smith: { name: 'Smith’s Tools', key: 'smith' },
   herb: { name: 'Herbalism Kit', key: 'herb' },
+  jeweler: { name: 'Jeweler’s Tools', key: 'jeweler' },
 };
 const toolItem = key => ({ name: TOOLS[key].name, type: 'tool', img: ICONS.item, system: { quantity: 1, type: { value: 'art', baseItem: TOOLS[key].key } } });
 const material = (id, qty) => owned(id, 'Material', 'loot', matById.get(id).name, ICONS.mat, qty);
@@ -339,11 +356,14 @@ const effect = (name, statuses) => ({ name, img: 'icons/svg/aura.svg', statuses,
 
 const CHARACTERS = [
   { id: 'PC-PT-BELWAR', name: '[TEST] Belwar', prof: 'PROF-PT-ALCHEMY', tool: 'alchemist', skills: ['arc'],
-    bio: 'Test alchemist. Carries the Ember Salve recipe item (not yet learned) and the materials to brew it.',
+    bio: 'Test alchemist and enchanter. Carries the Ember Salve recipe item (not yet learned) and the materials to brew it. Also holds Enchanting and Jeweler’s Tools, and knows two Enchanting recipes (the Carved Ward Totem needs Woodcarver’s Tools, which Belwar lacks).',
     items: [toolItem('alchemist'), profItem('PROF-PT-ALCHEMY'), recipeItem('REC-PT-EMBER-SALVE', 1),
+      toolItem('jeweler'), profItem('PROF-PT-ENCHANTING'), recipeItem('REC-PT-CARVED-WARD-TOTEM', 1),
+      material('MAT-PT-ARCANE-DUST', 4), material('MAT-PT-GEM-CHIPS', 3), material('MAT-PT-ASHWOOD-PLANKS', 2),
       material('MAT-PT-EMBERROOT', 4), material('MAT-PT-PALEMOSS', 2), material('MAT-PT-GLASSBLOOM', 1),
       stashItem('ITEM-PT-STASH-ROPE'), stashItem('ITEM-PT-STASH-RATIONS')],
-    flags: { progress: progress({ 'PROF-PT-ALCHEMY': { xp: 10, selectedPerkIds: [] } }) },
+    flags: { progress: progress({ 'PROF-PT-ALCHEMY': { xp: 10, selectedPerkIds: [] }, 'PROF-PT-ENCHANTING': { xp: 0, selectedPerkIds: [] } }),
+      knownRecipes: ['REC-PT-WARDING-CHARM', 'REC-PT-JEWELED-WARD-RING'] },
     effects: [effect('[TEST] Poisoned', ['poisoned']), effect('[TEST] Stonefast (custom)', ['pt-stonefast'])] },
   { id: 'PC-PT-KESSA', name: '[TEST] Kessa', prof: 'PROF-PT-BLACKSMITHING', tool: 'smith', skills: ['ath'],
     bio: 'Test smith. Already knows the Iron Hinge Set recipe; carries a Test Dagger recipe item with quantity 2.',
@@ -527,7 +547,8 @@ function linkMacro(locations, records) {
   const wanted = new Set(TABLE_LINKS);
   for (const l of locations) for (const e of [...(l.loot ?? []), ...(l.notes ?? [])]) for (const m of (e.text ?? '').matchAll(LOOT_MARKER)) wanted.add(m[0]);
   const names = Object.fromEntries([...wanted].sort().map(id => [id, records.find(r => r.id === id)?.foundry?.data.name]));
-  const pack = { names, table: { id: TABLES[0].id, name: TABLES[0].name, add: TABLE_LINKS }, locations: locations.map(l => l.id) };
+  const characters = records.filter(r => r.entity_type === 'PlayerCharacter').map(r => r.foundry.data.name);
+  const pack = { names, characters, table: { id: TABLES[0].id, name: TABLES[0].name, add: TABLE_LINKS }, locations: locations.map(l => l.id) };
   const source = fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'playtest-link-macro.js'), 'utf8');
   return common('MACRO-PT-LINK-TEST-DATA', 'Macro', {
     visibility: 'gm', refs: [], name: '[TEST] Link test data',

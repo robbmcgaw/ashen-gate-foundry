@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {planQuestImport} from '../scripts/core.mjs';
-const pack=JSON.parse(fs.readFileSync(new URL('../../../test-fixtures/playtest/AG_Playtest_Quests_0.5.1.json',import.meta.url),'utf8'));
+const pack=JSON.parse(fs.readFileSync(new URL('../../../test-fixtures/playtest/AG_Playtest_Quests_0.5.2.json',import.meta.url),'utf8'));
 test('new objectives are planned as new',()=>{
  const {errors,rows}=planQuestImport(pack);
  assert.deepEqual(errors,[]);assert.ok(rows.length>0);assert.ok(rows.every(r=>r.action==='new'));
