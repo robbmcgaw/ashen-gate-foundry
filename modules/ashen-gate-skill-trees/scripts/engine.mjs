@@ -1,4 +1,5 @@
 /** Ashen Gate shared visual tree — isolated data/eligibility rules, no Foundry globals. */
+import {applyAppearance,appearanceWarnings} from './appearance.mjs';
 export const SCHEMA = 'ag-skill-trees/0.3';
 /** 0.2 files (free-text nodes, contentRef links) are still read; 0.3 nodes name a perk by perkId. */
 export const READABLE_SCHEMAS = ['ag-skill-trees/0.2', SCHEMA];
@@ -52,7 +53,8 @@ export function normalizeTree(raw) {
       contentRef:n.contentRef??null, sourceUuid:n.sourceUuid??null
     };
   });
-  return tree;
+  // Look fields (nodeSize, background, tiers) are optional; only safe values survive.
+  return applyAppearance(tree);
 }
 /** Point cost stored on the perk's source definition (point_cost), or null when the perk names none. */
 export function perkCost(definition) {
@@ -114,6 +116,7 @@ export function validateTree(input) {
     if(n.status==='placeholder' && (n.display!=='hidden'||n.visibility!=='gm'))errors.push(`${n.id}: placeholder must be GM-only and hidden`);
     if(n.minLevel!=null && (!Number.isSafeInteger(n.minLevel)||n.minLevel<1||n.minLevel>99))errors.push(`${n.id}: invalid level gate`);
   }
+  warnings.push(...appearanceWarnings(input));
   const adjacency=new Map(nodes.map(n=>[n.id,[]]));
   for(const n of nodes){
     const dep=[...idList(n.requiresAll),...n.requiresAny.flatMap(g=>idList(g))];
@@ -271,6 +274,7 @@ export function publicTree(tree) {
     id:t.id,name:t.name,description:t.description,sourceRef:t.sourceRef??null,
     provider:{kind:t.provider.kind,maxPoints:t.provider.kind==='profession'?null:t.provider.maxPoints??null},
     status:t.status,visibility:'player',
+    ...(t.nodeSize?{nodeSize:t.nodeSize}:{}),...(t.background?{background:t.background}:{}),...(t.tiers?{tiers:t.tiers}:{}),
     nodes:visible.map(n=> {
       if(n.display==='teaser')return {id:n.id,name:'Undiscovered',description:'',img:null,x:n.x,y:n.y,cost:n.cost??1,
         silhouette:true,requiresAll:[],requiresAny:[],excludes:[],unrevealedPrerequisite:true};

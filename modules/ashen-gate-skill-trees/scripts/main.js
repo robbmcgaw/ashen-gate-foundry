@@ -4,6 +4,8 @@ import {
   resolveTree,perkCost,refund,resetUnlocks,grantTag,isGrantFor,missingGrants,savedDataReport
 } from './engine.mjs';
 import {graphEdges,edgeLine} from './graph.mjs';
+import {NODE_SIZES,nodeSizeOf,tierBands,backgroundView,appearanceFromForm,BG_FITS,MAX_TIERS} from './appearance.mjs';
+import {tooltipModel,initialSidebar,toggledSidebar,isNarrow} from './layout.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition} from './definition-lookup.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
@@ -11,7 +13,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.8.1';
+const VERSION='0.9.0';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -279,8 +281,14 @@ const relationText=r=>[r.all.length?`Requires ${r.all.map(x=>x.name).join(' and 
 class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS={id:'agst-window-v2',classes:['ag-app','agst-window-v2'],window:{title:'Ashen Gate | Skill Trees',resizable:true,icon:'fa-solid fa-diagram-project'},position:{width:1120,height:740}};
   static PARTS={main:{template:`modules/${MODULE}/templates/tree.hbs`}};
-  render(options){checkTreePlayerAccess();return super.render(options);}
-  constructor(...args){super(...args);this.activeTab='trees';this.actorId=null;this.treeId=null;this.nodeId=null;this.editMode=false;this.playerPreview=false;this.linkFrom=null;this.zoom=1;this.search='';this.busy=false;this.listOpen=false;this.undo=[];this.redo=[];}
+  render(options){
+    checkTreePlayerAccess();
+    // Keep the canvas and sidebar scroll positions: tall trees must not jump to the top on every click.
+    const el=this.element;
+    if(el?.querySelector)this._scroll={vp:[el.querySelector('.agst-viewport')?.scrollLeft??0,el.querySelector('.agst-viewport')?.scrollTop??0],side:el.querySelector('.agst-sidebar-scroll')?.scrollTop??0};
+    return super.render(options);
+  }
+  constructor(...args){super(...args);this.activeTab='trees';this.actorId=null;this.treeId=null;this.nodeId=null;this.editMode=false;this.playerPreview=false;this.linkFrom=null;this.zoom=1;this.search='';this.busy=false;this.listOpen=false;this.undo=[];this.redo=[];this.sidebarOpen=null;this._scroll=null;this._tips={};}
   get actor(){return game.actors?.get(this.actorId)??null;}
   get trees(){return readSelectedTrees(this.playerPreview);}
   /** Raw stored tree (GM editor writes). Never save the resolved view: perk text must stay on the perk. */
@@ -313,7 +321,9 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const selected=nodes.find(n=>n.id===this.nodeId)??null;
     const onTree=new Set(asArray(t?.nodes).map(n=>n.perkId).filter(Boolean));
     const profession=t?.provider?.kind==='profession';
-    const maxX=Math.max(990,...nodes.map(n=>n.x+225)),maxY=Math.max(700,...nodes.map(n=>n.y+160));
+    const size=nodeSizeOf(t),dim=NODE_SIZES[size];
+    const maxX=Math.max(420,...nodes.map(n=>n.x+dim.w+40)),maxY=Math.max(520,...nodes.map(n=>n.y+dim.h+60),...asArray(t?.tiers).map(x=>x.y+80));
+    this._tips=Object.fromEntries(nodes.map(n=>[n.id,tooltipModel(n)]));
     const spent=t?totalSpent(t,acc):0;
     const points=Math.max(0,acc.awarded-spent);
     const store=gmPrivate();
@@ -337,7 +347,9 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       mode:t?.provider?.kind==='profession'?'Profession • Ledger-authoritative (read-only)':t?.provider?.kind==='cinder_milestone'?'Cinder • 13-point milestone wallet': 'Generic • GM-awarded points',
       trees:this.trees.map(x=>({id:x.id,name:x.name,selected:x.id===this.treeId})),
       actors:actorChoices().map(x=>({id:x.id,name:x.name,selected:x.id===this.actorId})),
-      nodes,edges:graphEdges(nodes).map(e=>({...e,marker:e.kind==='exclude'?'':`url(#agst-arrow-${e.active?'active':e.kind})`,
+      nodes,sizeClass:`agst-size-${size}`,nodeSize:size,bg:backgroundView(t),tiers:tierBands(t?.tiers,Math.ceil(maxY)),canAppearance:gm&&!preview&&this.editMode,
+      sidebarOpen:this.sidebarOpen!==false,
+      edges:graphEdges(nodes,size).map(e=>({...e,marker:e.kind==='exclude'?'':`url(#agst-arrow-${e.active?'active':e.kind})`,
         label:e.kind==='exclude'?'✕':e.kind==='any'?(e.group>1?`OR ${e.group}`:'OR'):''})),selectedId:this.nodeId,listOpen:this.listOpen,
       progress:{awarded:acc.awarded,spent,available:points,unlocks:acc.unlocks.length,cap:t?.provider?.maxPoints??null},
       mapWidth:Math.ceil(maxX),mapHeight:Math.ceil(maxY),zoom:this.zoom,zoomText:`${Math.round(this.zoom*100)}%`,
@@ -361,14 +373,56 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     },listenerOptions);
     root.querySelector('.agst-tree-list')?.addEventListener('toggle',e=>{this.listOpen=e.target.open;},listenerOptions);
     root.querySelector('#agst-feature-search')?.addEventListener('input',e=>{this.search=e.target.value;const cards=root.querySelectorAll('.agst-feature');for(const c of cards)c.hidden=!`${c.textContent}`.toLowerCase().includes(this.search.toLowerCase());},listenerOptions);
+    const shell=root.querySelector('.agst-shell');
+    this.sidebarOpen=initialSidebar(this.sidebarOpen,shell?.clientWidth);
+    this._applySidebar();
+    this._showTip(this.nodeId);
+    const viewport=root.querySelector('.agst-viewport');
+    if(viewport){
+      viewport.addEventListener('pointerdown',e=>this._pointerDown(e),listenerOptions);
+      viewport.addEventListener('wheel',e=>{if(!e.ctrlKey)return;e.preventDefault();this._setZoom(this.zoom+(e.deltaY<0?.1:-.1));},{...listenerOptions,passive:false});
+      if(this._scroll){viewport.scrollLeft=this._scroll.vp[0];viewport.scrollTop=this._scroll.vp[1];}
+    }
+    const side=root.querySelector('.agst-sidebar-scroll');if(side&&this._scroll)side.scrollTop=this._scroll.side;
     const board=root.querySelector('.agst-board');
     if(board){
       board.style.zoom=String(this.zoom);
+      // Corner tooltip: hover or keyboard focus previews a node; the selected node shows when nothing else does.
+      const nodeOf=e=>e.target.closest?.('.agst-node')?.dataset.id??null;
+      board.addEventListener('pointerover',e=>{const id=nodeOf(e);if(id)this._showTip(id);},listenerOptions);
+      board.addEventListener('focusin',e=>{const id=nodeOf(e);if(id)this._showTip(id);},listenerOptions);
+      board.addEventListener('pointerout',e=>{if(nodeOf(e))this._showTip(this.nodeId);},listenerOptions);
+      board.addEventListener('focusout',e=>{if(nodeOf(e))this._showTip(this.nodeId);},listenerOptions);
+      if(this._refocus&&this.nodeId){board.querySelector(`.agst-node[data-id="${CSS.escape(this.nodeId)}"]`)?.focus({preventScroll:true});}
+      this._refocus=false;
       board.addEventListener('dragover',e=>{if(game.user.isGM&&this.editMode&&!this.playerPreview)e.preventDefault();},listenerOptions);
       board.addEventListener('drop',e=>this._dropped(e),listenerOptions);
-      board.addEventListener('pointerdown',e=>this._pointerDown(e),listenerOptions);
     }
     root.querySelectorAll('.agst-feature').forEach(el=>el.addEventListener('dragstart',e=>e.dataTransfer?.setData('text/plain',JSON.stringify({type:'Item',uuid:el.dataset.uuid})),listenerOptions));
+  }
+  _applySidebar(){
+    const open=this.sidebarOpen!==false,layout=this.element?.querySelector?.('.agst-layout');
+    layout?.classList.toggle('agst-sidebar-open',open);
+    this.element?.querySelectorAll?.('[data-act="toggle-sidebar"]').forEach(b=>b.setAttribute('aria-expanded',String(open)));
+  }
+  /** Fill the corner card from the prepared tooltip data (text only, never markup); no re-render. */
+  _showTip(id){
+    const card=this.element?.querySelector?.('.agst-tip');if(!card)return;
+    const tip=this._tips?.[id]??null;
+    card.hidden=!tip;
+    if(!tip){card.replaceChildren();return;}
+    const make=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className=cls;e.textContent=text;return e;};
+    const head=make('div','agst-tip-head','');head.append(make('strong','',tip.name),make('span',`ag-badge agst-tip-state agst-tip-${tip.statusKey}`,tip.status));
+    card.replaceChildren(head);
+    if(tip.costText)card.append(make('div','agst-tip-line',tip.costText));
+    if(tip.text)card.append(make('p','agst-tip-text',tip.text));
+    if(tip.prerequisites)card.append(make('div','agst-tip-line agst-tip-req',tip.prerequisites));
+    else if(tip.reason)card.append(make('div','agst-tip-line agst-tip-req',tip.reason));
+  }
+  _setZoom(value){
+    this.zoom=Math.min(1.6,Math.max(.4,Math.round(value*10)/10));
+    const board=this.element?.querySelector?.('.agst-board');if(board)board.style.zoom=String(this.zoom);
+    const label=this.element?.querySelector?.('.agst-zoom-label');if(label)label.textContent=`${Math.round(this.zoom*100)}%`;
   }
   async _clicked(event){
     try{checkTreePlayerAccess();}catch(error){notify(error.message,true);await this.close?.({animate:false});return;}
@@ -378,11 +432,12 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if(action==='tab-setup'){if(!game.user.isGM){notify('GM Setup is restricted to the GM.',true);return;}this.activeTab='setup';this.editMode=false;this.playerPreview=false;this.render();return;}
     if(action==='select'){
       if(this.linkFrom&&game.user.isGM&&this.editMode){try{await this._linkTo(id);}catch(e){notify(e.message,true);}return;}
-      this.nodeId=id;this.render();return;
+      this.nodeId=id;this._refocus=true;this.render();return;
     }
-    if(action==='zoom-in'){this.zoom=Math.min(1.6,Math.round((this.zoom+.1)*10)/10);this.render();return;}
-    if(action==='zoom-out'){this.zoom=Math.max(.6,Math.round((this.zoom-.1)*10)/10);this.render();return;}
-    if(action==='zoom-reset'){this.zoom=1;this.render();return;}
+    if(action==='toggle-sidebar'){this.sidebarOpen=toggledSidebar(this.sidebarOpen);this._applySidebar();return;}
+    if(action==='zoom-in'){this._setZoom(this.zoom+.1);return;}
+    if(action==='zoom-out'){this._setZoom(this.zoom-.1);return;}
+    if(action==='zoom-reset'){this._setZoom(1);return;}
     this.busy=true;
     try{
       switch(action){
@@ -405,6 +460,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
         case 'assign-perk':await this._assignPerk();break;
         case 'remove-node':await this._removeNode();break;
         case 'tree-settings':await this._treeSettings();break;
+        case 'appearance':await this._appearance();break;
         case 'link':this.linkFrom=this.nodeId;notify('Select another node to add an AND prerequisite connection.');break;
         case 'undo':await this._undo();break;
         case 'redo':await this._redo();break;
@@ -583,6 +639,53 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     n.status=f.status;n.visibility=f.status==='placeholder'?'gm':f.visibility;n.display=f.status==='placeholder'?'hidden':f.display;
     await this._saveEdited(t);notify('Node updated.');
   }
+  /** Node size, canvas background and level/tier bands. GM editor only; images are picked with Foundry's FilePicker. */
+  async _appearance(){
+    if(!game.user.isGM||!this.editMode||!this.storedTree)throw Error('GM editor only');
+    const t=copy(this.storedTree),bg=t.background??{},tiers=asArray(t.tiers);
+    const FP=foundry.applications?.apps?.FilePicker?.implementation??globalThis.FilePicker;
+    const row=x=>`<tr class="agst-tier-row"><td><input type="number" name="tierLevel" min="1" max="99" value="${escape(x.level??'')}" aria-label="Level"></td>
+      <td><input name="tierLabel" maxlength="40" value="${escape(x.label??'')}" placeholder="Optional name" aria-label="Tier name"></td>
+      <td><input type="number" name="tierY" min="0" max="6000" step="10" value="${escape(x.y??'')}" aria-label="Starts at (px from top)"></td>
+      <td class="agst-pick"><input name="tierIcon" value="${escape(x.icon??'')}" placeholder="No icon" aria-label="Icon file"><button type="button" class="ag-btn ag-btn--sm" data-pick="tierIcon">Browse</button></td>
+      <td><button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-del-tier aria-label="Remove tier">✕</button></td></tr>`;
+    const content=`<div class="agst-form agst-appearance">
+      <label>Node size<select name="nodeSize">${Object.keys(NODE_SIZES).map(k=>`<option value="${k}" ${nodeSizeOf(t)===k?'selected':''}>${k==='compact'?'Compact (default; best for tall trees)':'Normal'}</option>`).join('')}</select></label>
+      <fieldset><legend>Canvas background</legend>
+        <label>Image<span class="agst-pick"><input name="bgImage" value="${escape(bg.image??'')}" placeholder="No background"><button type="button" class="ag-btn ag-btn--sm" data-pick="bgImage">Browse</button></span></label>
+        <label>Fit<select name="bgFit">${BG_FITS.map(k=>`<option value="${k}" ${(bg.fit??'cover')===k?'selected':''}>${{cover:'Cover (fill the tree)',tile:'Tile (repeat)',fixed:'Fixed (stays put while scrolling)'}[k]}</option>`).join('')}</select></label>
+        <label>Opacity <output data-opacity>${Math.round((bg.opacity??.35)*100)}%</output><input type="range" name="bgOpacity" min="5" max="100" step="5" value="${Math.round((bg.opacity??.35)*100)}"></label>
+      </fieldset>
+      <fieldset><legend>Level / tier bands</legend>
+        <p class="agst-help">A band starts at the position (pixels from the top) and runs to the next band. The icon shows behind the level badge; with no icon a built-in one is used. Players see bands and icons.</p>
+        <table class="agst-prereq-table"><thead><tr><th scope="col">Level</th><th scope="col">Name</th><th scope="col">Starts at</th><th scope="col">Icon</th><th></th></tr></thead><tbody data-tiers>${tiers.map(row).join('')}</tbody></table>
+        <button type="button" class="ag-btn ag-btn--sm" data-add-tier>Add tier</button>
+      </fieldset></div>`;
+    const wire=(event,dialog)=>{
+      const el=dialog.element,body=el.querySelector('[data-tiers]');
+      el.addEventListener('click',e=>{
+        const pick=e.target.closest('[data-pick]');
+        if(pick){const field=pick.parentElement.querySelector(`input[name="${pick.dataset.pick}"]`);
+          new FP({type:'image',current:field.value,callback:path=>{field.value=path;}}).render(true);return;}
+        if(e.target.closest('[data-add-tier]')){
+          if(body.children.length>=MAX_TIERS)return;
+          const last=[...body.querySelectorAll('[name="tierLevel"]')].map(i=>Number(i.value)||0),ys=[...body.querySelectorAll('[name="tierY"]')].map(i=>Number(i.value)||0);
+          body.insertAdjacentHTML('beforeend',row({level:Math.max(0,...last)+1,y:ys.length?Math.max(...ys)+300:0}));return;}
+        if(e.target.closest('[data-del-tier]'))e.target.closest('tr').remove();
+      });
+      el.addEventListener('input',e=>{if(e.target.name==='bgOpacity')el.querySelector('[data-opacity]').textContent=`${e.target.value}%`;});
+    };
+    const read=(event,button)=>{const fd=new FormData(button.form);
+      return appearanceFromForm({nodeSize:fd.get('nodeSize'),bgImage:fd.get('bgImage'),bgFit:fd.get('bgFit'),bgOpacity:fd.get('bgOpacity'),
+        tierLevel:fd.getAll('tierLevel'),tierLabel:fd.getAll('tierLabel'),tierY:fd.getAll('tierY'),tierIcon:fd.getAll('tierIcon')});};
+    const out=await DialogV2.prompt({window:{title:'Tree appearance'},content,ok:{label:'Save',callback:read},render:wire,rejectClose:false});
+    if(!out)return;
+    if(out.errors.length)throw Error(out.errors[0]);
+    t.nodeSize=out.nodeSize;
+    if(out.background)t.background=out.background;else delete t.background;
+    if(out.tiers.length)t.tiers=out.tiers;else delete t.tiers;
+    await this._saveEdited(t);notify('Appearance saved and player snapshot refreshed.');
+  }
   async _removeNode(){
     if(!game.user.isGM||!this.editMode||!this.tree||!this.nodeId)throw Error('GM editor only');
     const t=copy(this.storedTree),n=t.nodes.find(n=>n.id===this.nodeId);
@@ -711,12 +814,23 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       if(data?.type!=='Item')throw Error('Drop a perk Item from the Items sidebar or the perk list');
       const doc=await fromUuid(data.uuid);
       const board=this.element.querySelector('.agst-board'),rect=board.getBoundingClientRect();
-      const x=Math.round(Math.max(0,Math.min(6000,(event.clientX-rect.left)/this.zoom-85))/10)*10;
-      const y=Math.round(Math.max(0,Math.min(6000,(event.clientY-rect.top)/this.zoom-35))/10)*10;
+      const x=Math.round(Math.max(0,Math.min(6000,(event.clientX-rect.left)/this.zoom-NODE_SIZES[nodeSizeOf(this.tree)].w/2))/10)*10;
+      const y=Math.round(Math.max(0,Math.min(6000,(event.clientY-rect.top)/this.zoom-NODE_SIZES[nodeSizeOf(this.tree)].h/2))/10)*10;
       await this._addPerkNode(doc,x,y);this.render();
     }catch(e){console.error(e);notify(`Perk drop: ${e.message}`,true);}
   }
+  /** Drag empty canvas with the mouse to pan (touch and wheel already scroll the viewport). */
+  _panStart(event){
+    const viewport=this.element.querySelector('.agst-viewport');if(!viewport||event.pointerType!=='mouse'||event.button!==0)return;
+    if(event.target.closest('.agst-node'))return;
+    const x=event.clientX,y=event.clientY,left=viewport.scrollLeft,top=viewport.scrollTop;
+    viewport.classList.add('agst-panning');
+    const move=e=>{viewport.scrollLeft=left-(e.clientX-x);viewport.scrollTop=top-(e.clientY-y);};
+    const stop=()=>{viewport.classList.remove('agst-panning');window.removeEventListener('pointermove',move);};
+    window.addEventListener('pointermove',move);window.addEventListener('pointerup',stop,{once:true});
+  }
   _pointerDown(event){
+    if(!event.target.closest('.agst-node'))return this._panStart(event);
     if(!game.user.isGM||!this.editMode||this.playerPreview||event.button!==0)return;
     const target=event.target.closest('.agst-node');if(!target||!this.tree)return;
     const id=target.dataset.id,original=this.tree.nodes.find(n=>n.id===id);if(!original)return;
@@ -734,7 +848,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       for(const el of board?.querySelectorAll('[data-edge]')??[]){
         if(el.dataset.from!==id && el.dataset.to!==id)continue;
         const src=pos(el.dataset.from),dst=pos(el.dataset.to);if(!src||!dst)continue;
-        const line=edgeLine(src,dst);
+        const line=edgeLine(src,dst,nodeSizeOf(this.tree));
         if(el.tagName.toLowerCase()==='path')el.setAttribute('d',line.d);
         else{el.setAttribute('x',line.mx);el.setAttribute('y',line.my);}
       }

@@ -1,3 +1,12 @@
+## 0.9.0 — 2026-10-19
+
+- **New layout.** The window is two panes: a collapsible sidebar (tree and character pickers, points, Player Preview / Edit Layout, the selected perk with its actions, the Perks list, Tree as a list) and a tall canvas that scrolls and zooms (Ctrl + mouse wheel, drag empty canvas to pan). On narrow windows the sidebar becomes a drawer opened with **Menu**. Scroll position is kept when you click a node. Every existing function is unchanged.
+- **Smaller nodes.** Compact is the new default (names wrap to two lines; the full name is in the tooltip). Each tree can switch to Normal in **Edit Layout → Appearance**.
+- **Corner tooltip.** Hover or Tab to a node, or select it: a small card in the top-right of the canvas shows name, cost, short text, prerequisites and Locked / Available / Unlocked. Press Enter or Space to select a focused node.
+- **Level / tier bands.** In Appearance a GM can add bands (level, optional name, where it starts) with an optional icon picked with the Foundry file browser; the icon shows behind the level badge, with a built-in icon when empty. Players see them.
+- **Canvas background.** Appearance also sets a background image (Cover, Tile or Fixed) with an opacity slider. If the file is missing the canvas simply shows no image.
+- Saved data: three optional, additive tree fields (`nodeSize`, `background`, `tiers`); nothing existing is rewritten. Image paths must be local image files (png, jpg, webp, gif, svg, avif); web addresses and anything unsafe are dropped on save, import and publish. Players' view carries the same three fields.
+
 ## 0.8.1 — 2026-10-19
 
 - Importing trees through General Manager no longer needs a manual "Initialize GM Storage" first. The import creates the module's own GM-only definitions Journal (no player access) when it is missing and says so in the result. Nothing else about storage changed; the GM Setup button still works.
