@@ -1,8 +1,9 @@
 /** The Locations window: GM builder (list + editor + GM Setup) and the player viewer, one class. */
 import {MODULE_ID, THREATS, FIELDS, SECTIONS, BLOCKS, DETAIL_PREFIX, LOOT_STATUSES, LOOT_STATUS_LABELS, NOTE_DOC_TYPES, FACTION_DOC_TYPES, GATHERING, STATES, STATE_LABELS,
   DEFAULT_UNIDENTIFIED_LABEL, PIN_DEFAULTS, esc, clone, threatLabel, normalizeLocation, normalizeLayout, reorder, effectiveConditions, newKey, newNode, nodeName, materialIdOf,
-  hasUnpublishedChanges, wouldCycle, parentMap, PARTY_NOTES} from './model.mjs';
+  hasUnpublishedChanges, wouldCycle, parentMap, PARTY_NOTES, isPlaceable, passesConditions} from './model.mjs';
 import {GROUP_MODES, SORTS, emptyFilters, hasFilters, searchText, matchesQuery, applyFilters, filterOptions, comparator, groupRows} from './list-filter.mjs';
+import {buildTree, withAncestors, breadcrumb, moveTargets, VIEW} from './tree.mjs';
 
 const QUEST_MODULE = 'ashen-gate-quest-manager';
 const FIELD_LABELS = {type: 'Type', region: 'Region', description: 'Description', img: 'Image', threat: 'Threat'};
@@ -36,6 +37,10 @@ const STATE_HINTS = {
 const setting = (key, fallback) => { try { return game.settings.get(MODULE_ID, key) || fallback; } catch { return fallback; } };
 const sceneName = uuid => { try { return globalThis.fromUuidSync?.(uuid)?.name ?? null; } catch { return null; } };
 const threatBadge = value => `<span class="ag-badge agl-threat agl-threat--${esc(value)}">${esc(threatLabel(value))}</span>`;
+const userName = id => game.users?.get?.(id)?.name ?? 'A former player';
+/** The world's players (not GMs), by name. */
+const worldPlayers = () => [...(game.users ?? [])].filter(u => u?.id && !u.isGM).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+const MOVE_TYPES = new Set(['AshenGateLocation', 'AshenGateLocationMove']);
 
 function dragData(event) {
   const TE = foundry.applications?.ux?.TextEditor?.implementation ?? globalThis.TextEditor;
@@ -90,6 +95,8 @@ const Base = foundry.applications.api.ApplicationV2;
 export class LocationsApp extends Base {
   static DEFAULT_OPTIONS = {id: 'ag-locations', classes: ['ag-app', 'ag-locations'], window: {title: 'Ashen Gate | Locations', resizable: true}, position: {width: 980, height: 720}};
   static instance = null;
+  /** Tree mode folders the GM (or player) opened. Kept while the game is open, across closing and reopening the window. */
+  static treeOpen = new Set();
   static async show(id = null) {
     const app = LocationsApp.instance?.rendered ? LocationsApp.instance : (LocationsApp.instance = new LocationsApp());
     const found = id ? api().getLocation(id) : null;
@@ -108,6 +115,8 @@ export class LocationsApp extends Base {
     this.notesEdit = null; this.notesTimer = null;
     // GM list view: how it is grouped, which groups are folded, and "show only one group". Per window, not saved.
     this.groupBy = 'region'; this.collapsed = new Set(); this.filters = emptyFilters(); this.sort = 'name'; this.sortDesc = false;
+    // 1.8.0: Tree mode (folders), "Show representative-only too" for placing pins, and the last move (for Undo).
+    this.treeMode = false; this.showRep = false; this.lastMove = null; this.undoTimer = null;
   }
   get gm() { return game.user.isGM === true; }
   list() { return this.gm ? api().listLocations() : api().listLocations({includeUnidentified: true}); }
@@ -199,14 +208,11 @@ export class LocationsApp extends Base {
       const q = this.query.toLowerCase();
       rows = list.filter(l => !q || [l.name, l.type, l.region].some(s => String(s ?? '').toLowerCase().includes(q)));
     }
-    const row = l => `
-      <li><button type="button" class="agl-row${this.rid(l) === this.selectedId ? ' active' : ''}" data-action="select" data-id="${esc(this.rid(l))}" ${this.gm ? 'draggable="true"' : ''}>
-        <span class="agl-row__name">${esc(l.name)}</span>
-        ${l.threat ? threatBadge(l.threat) : ''}
-        ${this.gm ? `${hasUnpublishedChanges(l) ? '<span class="agl-dot" title="Saved changes not published yet"></span>' : ''}<i class="${STATE_ICONS[l.state]} agl-row__rev" title="${STATE_LABELS[l.state]}"></i>` : ''}
-      </button></li>`;
+    const row = l => `<li>${this.rowButton(l)}</li>`;
     let items;
-    if (this.gm) {
+    if (this.gm && this.treeMode) items = this.treeHtml(list, rows, hasFilters(this.filters) || !!this.query.trim());
+    else if (!this.gm) items = this.playerTreeHtml(list, rows, !!this.query.trim());
+    else if (this.gm) {
       items = groupRows(rows, this.groupBy, this.qName).map(g => {
         if (this.groupBy === 'none') return `<li class="agl-group"><ul class="ag-list">${g.rows.map(row).join('')}</ul></li>`;
         const folded = this.collapsed.has(`${this.groupBy}:${g.key}`);
@@ -214,13 +220,6 @@ export class LocationsApp extends Base {
           title="Fold or unfold"><i class="fa-solid ${folded ? 'fa-chevron-right' : 'fa-chevron-down'}" aria-hidden="true"></i><span>${esc(g.label)}</span><span class="agl-count">${g.rows.length}</span></button></h3>
           ${folded ? '' : `<ul class="ag-list">${g.rows.map(row).join('')}</ul>`}</li>`;
       }).join('');
-    } else {
-      const groups = new Map();
-      const UNID = 'Unidentified';
-      for (const l of rows) { const g = l.state === 'unidentified' ? UNID : l.region || 'No region'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(l); }
-      const last = g => g === 'No region' || g === UNID;
-      const sorted = [...groups.entries()].sort(([a], [b]) => last(a) - last(b) || (a === UNID) - (b === UNID) || a.localeCompare(b));
-      items = sorted.map(([group, ls]) => `<li class="agl-group"><h3>${esc(group)}</h3><ul class="ag-list">${ls.map(row).join('')}</ul></li>`).join('');
     }
     const empty = this.gm ? 'No locations yet. Click <strong>New Location</strong> to create one.' : 'No locations have been revealed yet.';
     const none = list.length
@@ -228,9 +227,69 @@ export class LocationsApp extends Base {
       : `<p class="ag-empty">${empty}</p>`;
     return `<div class="ag-toolbar"><input type="search" id="agl-search" placeholder="${this.gm ? 'Search name, region, skill, material, quest…' : 'Search locations'}" value="${esc(this.query)}" aria-label="Search locations">
         ${this.gm ? btn('new', 'New Location', {kind: 'primary', icon: 'fa-solid fa-plus'}) : ''}</div>${gmTools}
-      <div class="agl-body"><aside class="agl-list">${rows.length ? `<ul class="agl-groups">${items}</ul>` : none}
-        ${this.gm && rows.length ? '<p class="agl-hint">Drag a location onto the scene to place a Map Note.</p>' : ''}</aside>
+      <div class="agl-body"><aside class="agl-list">${this.undoHtml()}${rows.length ? `<ul class="agl-groups">${items}</ul>` : none}
+        ${this.gm && rows.length ? `<p class="agl-hint">Drag a placeable location onto the scene to place a Map Note${this.treeMode ? '; drag one onto a folder to move it inside' : ''}.</p>` : ''}</aside>
       <section class="agl-detail">${this.gm ? this.editorHtml() : this.viewerHtml(list.find(l => this.rid(l) === this.selectedId))}</section></div>`;
+  }
+
+  /** One list row. GM: draggable onto the canvas (placeable ones, or all with "Show representative-only too") or onto a folder. */
+  rowButton(l) {
+    const gm = this.gm, rep = gm && !isPlaceable(l);
+    const drag = gm ? ` draggable="true" data-drag-type="${!rep || this.showRep ? 'AshenGateLocation' : 'AshenGateLocationMove'}"` : '';
+    const restricted = gm ? l.audience?.mode === 'selected' : !!l.share;
+    return `<button type="button" class="agl-row${this.rid(l) === this.selectedId ? ' active' : ''}" data-action="select" data-id="${esc(this.rid(l))}"${drag}>
+        ${gm && l.isRegion ? '<i class="fa-solid fa-folder agl-row__icon" title="Region (folder)"></i>' : ''}
+        <span class="agl-row__name">${esc(l.name)}</span>
+        ${rep && !l.isRegion ? '<i class="fa-solid fa-layer-group agl-row__rev" title="Representative only: not placed on maps"></i>' : ''}
+        ${restricted ? `<i class="fa-solid fa-user-lock agl-row__rev" title="${gm ? 'Selected players only' : 'Shared with selected players'}"></i>` : ''}
+        ${l.threat ? threatBadge(l.threat) : ''}
+        ${gm ? `${hasUnpublishedChanges(l) ? '<span class="agl-dot" title="Saved changes not published yet"></span>' : ''}<i class="${STATE_ICONS[l.state]} agl-row__rev" title="${STATE_LABELS[l.state]}"></i>` : ''}
+      </button>`;
+  }
+  /** One tree node and, if open, its children. GM Regions are folders: counts, drop target, New place inside. */
+  treeNodeHtml(n, {open, path = null}) {
+    const l = n.item, kids = n.children.length > 0, isOpen = kids && open(n.id), folder = this.gm && l.isRegion;
+    const toggle = kids ? `<button type="button" class="agl-tree__toggle" data-action="tree-toggle" data-id="${esc(n.id)}" aria-expanded="${isOpen}" aria-label="${isOpen ? 'Close' : 'Open'} ${esc(l.name)}" title="${isOpen ? 'Close' : 'Open'}"><i class="fa-solid ${isOpen ? 'fa-chevron-down' : 'fa-chevron-right'}" aria-hidden="true"></i></button>`
+      : '<span class="agl-tree__toggle" aria-hidden="true"></span>';
+    const counts = this.gm && (folder || n.direct) ? `<span class="agl-count" title="${n.direct} directly inside, ${n.total} in total">${n.direct}${n.total !== n.direct ? ` · ${n.total}` : ''}</span>` : '';
+    const add = folder ? btn('new-child', '', {kind: 'ghost', icon: 'fa-solid fa-plus', data: {parent: l.id}, title: `New place inside ${l.name}`}) : '';
+    return `<li class="agl-tree__item${path && !path.has(n.id) ? ' agl-tree__item--path' : ''}">
+      <div class="agl-tree__row"${folder ? ` data-folder="${esc(l.id)}"` : ''}>${toggle}${this.rowButton(l)}${counts}${add}</div>
+      ${isOpen ? `<ul class="agl-tree">${n.children.map(c => this.treeNodeHtml(c, {open, path})).join('')}</ul>` : ''}</li>`;
+  }
+  /** Is this folder open? Filtering opens every path to a match; the selected location's folders are always open. */
+  treeOpener(items, filtering, accessors) {
+    const sel = this.selectedId ? new Set(breadcrumb(items, this.selectedId, accessors).map(i => accessors?.idOf?.(i) ?? i.id)) : new Set();
+    return id => filtering || sel.has(id) || LocationsApp.treeOpen.has(id);
+  }
+  /** GM Tree mode: every location under its parent, Regions as folders. Filters and search keep matches and their folders. */
+  treeHtml(list, rows, filtering) {
+    const show = filtering ? withAncestors(list, rows) : null;
+    const nodes = buildTree(list, {show, sort: comparator(this.sort, this.sortDesc)});
+    const open = this.treeOpener(list, filtering);
+    const tools = `<li class="agl-tree__tools" data-folder="">${btn('tree-all', 'Expand all', {kind: 'ghost', icon: 'fa-solid fa-folder-open', data: {open: 1}})}${btn('tree-all', 'Collapse all', {kind: 'ghost', icon: 'fa-solid fa-folder-closed', data: {open: 0}})}
+      <span class="agl-hint">Drop here for top level</span></li>`;
+    return `${tools}<li><ul class="agl-tree agl-tree--root" aria-label="Locations by folder">${nodes.map(n => this.treeNodeHtml(n, {open, path: show && new Set(rows.map(l => l.id))})).join('')}</ul></li>`;
+  }
+  /**
+   * Players: places they can see, nested under the visible places they are in (a parent they cannot see is never
+   * named; an unidentified one shows its label). Top-level places are grouped by region, unidentified ones last.
+   */
+  playerTreeHtml(list, rows, filtering) {
+    const show = filtering ? withAncestors(list, rows, VIEW) : null;
+    const nodes = buildTree(list, {...VIEW, show, sort: (a, b) => a.name.localeCompare(b.name)});
+    const open = this.treeOpener(list, filtering, VIEW);
+    const groups = new Map(), UNID = 'Unidentified';
+    for (const n of nodes) { const g = n.item.state === 'unidentified' ? UNID : n.item.region || 'No region'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(n); }
+    const last = g => g === 'No region' || g === UNID;
+    return [...groups.entries()].sort(([a], [b]) => last(a) - last(b) || (a === UNID) - (b === UNID) || a.localeCompare(b))
+      .map(([group, ns]) => `<li class="agl-group"><h3>${esc(group)}</h3><ul class="agl-tree agl-tree--root">${ns.map(n => this.treeNodeHtml(n, {open})).join('')}</ul></li>`).join('');
+  }
+  /** After a move: what happened, with Undo (GM). */
+  undoHtml() {
+    const m = this.lastMove;
+    if (!m || !this.gm) return '';
+    return `<div class="agl-undo" role="status"><span>Moved <strong>${esc(m.name)}</strong> ${m.to ? `into ${esc(m.toName)}` : 'to the top level'}.</span>${btn('undo-move', 'Undo', {icon: 'fa-solid fa-rotate-left'})}</div>`;
   }
 
   /** GM list controls: filters (AND, each with counts), sort, group, Clear filters and "Showing N of M". */
@@ -239,9 +298,11 @@ export class LocationsApp extends Base {
       `<option value="${esc(o.value)}" ${this.filters[key] === o.value ? 'selected' : ''}>${esc(o.label)} (${o.count})</option>`).join('')}</select></label>`;
     const plain = (id, label, list, cur) => `<label class="agl-ctl">${label}<select id="${id}" aria-label="${label}">${list.map(m => `<option value="${m.value}" ${cur === m.value ? 'selected' : ''}>${m.label}</option>`).join('')}</select></label>`;
     return `<div class="agl-filters" role="group" aria-label="Filter, sort and group the list">
-      ${sel('threat', 'Threat', 'All')}${sel('region', 'Region', 'All')}${sel('profession', 'Profession', 'All')}${sel('quest', 'Quest', 'Any')}${sel('status', 'Status', 'All')}
+      ${sel('threat', 'Threat', 'All')}${sel('region', 'Region', 'All')}${sel('profession', 'Profession', 'All')}${sel('quest', 'Quest', 'Any')}${sel('status', 'Status', 'All')}${sel('placeable', 'Placeable', 'All')}
       ${plain('agl-sort', 'Sort by', SORTS, this.sort)}<button type="button" class="ag-btn" id="agl-sortdir" aria-label="Sort direction: ${this.sortDesc ? 'descending' : 'ascending'}" title="${this.sortDesc ? 'Descending (click for ascending)' : 'Ascending (click for descending)'}"><i class="fa-solid ${this.sortDesc ? 'fa-arrow-down-wide-short' : 'fa-arrow-up-short-wide'}" aria-hidden="true"></i></button>
-      ${plain('agl-groupby', 'Group by', GROUP_MODES, this.groupBy)}
+      ${this.treeMode ? '' : plain('agl-groupby', 'Group by', GROUP_MODES, this.groupBy)}
+      <button type="button" class="ag-btn${this.treeMode ? ' ag-btn--primary' : ''}" id="agl-tree" aria-pressed="${this.treeMode}" title="Show locations inside their Regions, as folders"><i class="fa-solid fa-folder-tree" aria-hidden="true"></i><span>Tree</span></button>
+      <label class="agl-switch" title="Representative-only locations (most Regions) are not offered for placing on a map unless this is on"><input type="checkbox" id="agl-showrep" ${this.showRep ? 'checked' : ''}> Show representative-only too</label>
       <span class="agl-showing" aria-live="polite">Showing ${shown} of ${total}</span>${hasFilters(this.filters) || this.query ? btn('clear-filters', 'Clear filters', {kind: 'ghost', icon: 'fa-solid fa-filter-circle-xmark'}) : ''}</div>`;
   }
 
@@ -249,8 +310,9 @@ export class LocationsApp extends Base {
   viewerHtml(v, {partyNotes = true} = {}) {
     if (!v) return '<p class="ag-empty">Select a location.</p>';
     const go = r => `<a class="agl-link" data-action="select" data-id="${esc(r.key || r.id)}">${esc(r.name)}</a>${r.id ? '' : ' <small>(unidentified)</small>'}`;
+    const share = partyNotes ? this.shareHtml(v) : '';
     if (v.state === 'unidentified') return `<article class="agl-view">
-      <div class="agl-title"><h2>${esc(v.name)}</h2><span class="ag-badge">Unidentified</span></div>
+      <div class="agl-title"><h2>${esc(v.name)}</h2><span class="ag-badge">Unidentified</span></div>${share}
       ${v.teaser ? `<p class="agl-desc">${esc(v.teaser).replace(/\n/g, '<br>')}</p>` : '<p class="ag-empty">Nothing more is known about this place yet.</p>'}
       ${partyNotes ? this.partyNotesHtml(v.key) : ''}
     </article>`;
@@ -278,14 +340,26 @@ export class LocationsApp extends Base {
       notes: (v.notes ?? []).map(n => card(esc(n.title || 'Note'), `${n.text ? `<p>${paras(n.text)}</p>` : ''}${n.uuid ? `<p>${link(`Open ${n.docType || 'document'}`, n.uuid)}</p>` : ''}`)).join('')
     };
     for (const d of v.details ?? []) blocks[DETAIL_PREFIX + d.key] = card(esc(d.title || 'Detail'), `${d.text ? `<p>${paras(d.text)}</p>` : ''}${d.uuid && canOpen(d.uuid) ? `<p>${link(`Open ${d.docType || 'document'}`, d.uuid)}</p>` : ''}`);
+    // The path through the places this player can see (the view's parent is only ever a visible one).
+    const views = partyNotes ? this.list() : [];
+    const crumbs = breadcrumb(views, v.key, VIEW);
     return `<article class="agl-view">
-      <div class="agl-title"><h2>${esc(v.name)}</h2>${v.threat ? threatBadge(v.threat) : ''}</div>
+      ${crumbs.length ? `<nav class="agl-crumbs" aria-label="Where this is">${crumbs.map(c => `${go(c)} <span aria-hidden="true">›</span> `).join('')}<span>${esc(v.name)}</span></nav>` : ''}
+      <div class="agl-title"><h2>${esc(v.name)}</h2>${v.threat ? threatBadge(v.threat) : ''}</div>${share}
       ${v.type || v.region ? `<p class="agl-meta">${[v.type, v.region].filter(Boolean).map(esc).join(' · ')}</p>` : ''}
-      ${v.parent ? `<p class="agl-meta">Part of ${go(v.parent)}</p>` : ''}
+      ${v.parent && !crumbs.length ? `<p class="agl-meta">Part of ${go(v.parent)}</p>` : ''}
       ${v.img ? `<img class="agl-img" src="${esc(v.img)}" alt="">` : ''}
       ${(v.layout ?? normalizeLayout([], v.details ?? [])).map(k => blocks[k] ?? '').join('')}
       ${partyNotes ? this.partyNotesHtml(v.key) : ''}
     </article>`;
+  }
+
+  /** Players: who else sees a "Selected players" location, and Share with... when the GM allows it. */
+  shareHtml(v) {
+    if (!v?.share || this.gm) return '';
+    const others = v.share.userIds.filter(u => u !== game.user.id).map(userName);
+    return `<p class="agl-meta agl-share"><i class="fa-solid fa-user-lock" aria-hidden="true"></i> ${others.length ? `Also known to ${others.map(esc).join(', ')}.` : 'Only you know this place.'}
+      ${v.share.canShare ? btn('share', 'Share with…', {kind: 'sm', icon: 'fa-solid fa-share-nodes', data: {ref: v.key}, title: 'Let other players see this place too'}) : ''}</p>`;
   }
 
   /**
@@ -411,7 +485,7 @@ export class LocationsApp extends Base {
     const order = normalizeLayout(d.layout, d.details);
     const blocks = {
       description: block('description', 'Description', 'Description', `<div class="agl-field__row"><textarea id="agl-description" rows="4" data-bind="description" aria-label="Description">${esc(d.description)}</textarea>${eye('show.description', d.show.description, 'Description')}</div>`, '', ''),
-      conditions: sec('conditions', conditions, `${addText('conditions', 'Condition name')}`, d.isRegion ? 'No conditions yet. Those you add here apply to every place inside this Region.' : 'No conditions. Places inside a Region show its conditions here.'),
+      conditions: sec('conditions', conditions, `${addText('conditions', 'Condition name')}`, passesConditions(d) ? 'No conditions yet. Those you add here apply to every place inside this Region.' : 'No conditions. Places inside a Region that passes its conditions down show them here.'),
       children: this.childrenHtml(d, all, block),
       resources: sec('resources', resources, addText('resources', 'Custom node name'), 'Drop material Items here, or add a custom gathering node.'),
       factions: sec('factions', factions, addText('factions', 'Custom faction name'), 'Drop Actors or Journals here, or add a custom faction.'),
@@ -427,7 +501,11 @@ export class LocationsApp extends Base {
         ${det.uuid ? `<p>${docLink(`Linked ${det.docType || 'document'}`, det.uuid)}</p>` : '<p class="agl-hint">Drop an Actor, Item, Journal or Roll Table here to link it (optional).</p>'}`,
       `${eye(`details.${det.key}.visible`, det.visible, 'this block')}${btn('remove', '', {kind: 'ghost', icon: 'fa-solid fa-trash', data: {section: 'details', key: det.key}, title: 'Remove this detail'})}`, `${DETAIL_PREFIX}${det.key}`);
 
+    const pins = d.id ? api().pinsOf(d.id) : [];
+    const crumbs = d.id ? breadcrumb(all, d.id) : d.parentLocationId ? [...breadcrumb(all, d.parentLocationId), ...all.filter(l => l.id === d.parentLocationId)] : [];
     return `<form class="agl-editor" autocomplete="off" onsubmit="return false">
+      <nav class="agl-crumbs" aria-label="Where this is">${crumbs.length ? crumbs.map(c => `<a class="agl-link" data-action="select" data-id="${esc(c.id)}">${esc(c.name)}</a> <span aria-hidden="true">›</span> `).join('') : '<span class="agl-hint">Top level ›</span> '}
+        <span>${esc(d.name || 'New location')}</span>${d.id ? btn('move-to', 'Move to…', {kind: 'sm', icon: 'fa-solid fa-folder-tree', title: 'Put this location inside a Region (or at the top level). Keyboard-friendly.'}) : ''}</nav>
       <div class="agl-title">
         <div class="ag-field agl-name"><label for="agl-name">Name</label><input id="agl-name" type="text" data-bind="name" value="${esc(d.name)}" placeholder="Location name"></div>
         ${stateBar}
@@ -446,15 +524,16 @@ export class LocationsApp extends Base {
         ${fld('img', `<input id="agl-img" type="text" data-bind="img" value="${esc(d.img)}" placeholder="path/to/image.webp">${btn('browse-img', '', {icon: 'fa-solid fa-folder-open', title: 'Browse'})}`)}
       </div>
       ${d.img ? `<img class="agl-img" src="${esc(d.img)}" alt="">` : ''}
+      ${this.audienceHtml(d)}
       ${this.markerHtml(d)}
-      ${this.placeHtml(d, all)}
+      ${this.placeHtml(d, all, pins)}
       ${order.map(k => blocks[k] ?? '').join('')}
       <div class="agl-add agl-add-detail">${btn('add-detail', 'Add Detail', {icon: 'fa-solid fa-plus', title: 'A custom block on this location: a title, text and an optional linked document'})}
         <span class="agl-hint">Drag the grip, or use the arrows (Alt+Up / Alt+Down on a grip), to reorder blocks and the entries in them. Players see published blocks in this order.</span></div>
       ${d.id ? this.partyNotesHtml(d.id, {gmHint: d.state === 'hidden' ? ' Players cannot see or edit them while this location is hidden.' : ''}) : ''}
       <footer class="agl-footer">
         <div>${btn('cancel', 'Cancel', {kind: 'ghost'})}${btn('delete', 'Delete', {kind: 'danger', icon: 'fa-solid fa-trash'})}</div>
-        <div>${btn('place', 'Place on Scene', {icon: 'fa-solid fa-map-pin', title: 'Adds a Map Note at the centre of your current view'})}${btn('save', this.dirty ? 'Save Changes •' : 'Save Changes', {kind: 'primary', icon: 'fa-solid fa-floppy-disk'})}</div>
+        <div>${isPlaceable(d) || this.showRep || pins.length ? btn('place', 'Place on Scene', {icon: 'fa-solid fa-map-pin', title: 'Adds a Map Note at the centre of your current view'}) : ''}${btn('save', this.dirty ? 'Save Changes •' : 'Save Changes', {kind: 'primary', icon: 'fa-solid fa-floppy-disk'})}</div>
       </footer></form>`;
   }
 
@@ -478,8 +557,32 @@ export class LocationsApp extends Base {
     </section>`;
   }
 
-  /** Where this location sits (parent) and whether it is a Region. Fixed at the top; the blocks below it are reorderable. */
-  placeHtml(d, all) {
+  /**
+   * Who can see this location (1.8.0): Everyone, or Selected players. Applied at once for a saved location (like the
+   * marker state); a new one keeps it in the draft until Save. Players the party added show who added them.
+   */
+  audienceHtml(d) {
+    const a = d.audience;
+    const players = worldPlayers();
+    const ids = new Set(a.userIds);
+    const radio = (mode, label) => `<label class="agl-switch"><input type="radio" name="agl-audience" data-action-change="audience-mode" value="${mode}" ${a.mode === mode ? 'checked' : ''}> ${label}</label>`;
+    const known = new Set(players.map(u => u.id));
+    const gone = a.userIds.filter(u => !known.has(u));
+    const list = a.mode !== 'selected' ? '' : players.length || gone.length ? `<ul class="ag-list agl-entries agl-audience">${[...players.map(u => u.id), ...gone].map(u => `<li>
+        <label class="agl-switch"><input type="checkbox" data-action-change="audience-user" value="${esc(u)}" ${ids.has(u) ? 'checked' : ''}> ${esc(userName(u))}</label>
+        ${a.sharedBy[u] ? `<span class="ag-badge ag-badge--warn" title="Untick to undo">shared by ${esc(userName(a.sharedBy[u]))}</span>` : ''}</li>`).join('')}</ul>`
+      : '<p class="ag-empty">No player accounts in this world yet.</p>';
+    return `<section class="ag-card agl-section">
+      <header class="agl-section__head"><h3>Who Can See It</h3><span class="agl-hint">GM only</span></header>
+      <div class="agl-state" role="radiogroup" aria-label="Who can see this location">${radio('everyone', 'Everyone')}${radio('selected', 'Selected players')}</div>
+      ${list}
+      ${a.mode === 'selected' ? `<label class="agl-switch"><input type="checkbox" data-action-change="audience-sharing" ${a.sharing ? 'checked' : ''}> Players who see it can share it with others</label>` : ''}
+      <p class="agl-hint">${a.mode === 'selected' ? 'Only ticked players get this card, its pins and its Party Notes, and only while it is Unidentified or Revealed. Everyone else sees nothing, exactly as if it were Hidden.' : 'Every player sees it once it is Unidentified or Revealed.'}${d.id ? ' Changes here apply at once.' : ''}</p>
+    </section>`;
+  }
+
+  /** Where this location sits (parent), whether it is a Region (a folder) and whether it goes on maps. Fixed at the top. */
+  placeHtml(d, all, pins = []) {
     const byId = new Map(all.map(l => [l.id, l]));
     const parents = parentMap(all.filter(l => l.id !== d.id));
     const choices = all.filter(l => l.id !== d.id && !(d.id && wouldCycle(d.id, l.id, parents)));
@@ -489,8 +592,12 @@ export class LocationsApp extends Base {
     return `<section class="ag-card agl-section">
       <header class="agl-section__head"><h3>Place</h3><span class="agl-hint">GM only</span></header>
       <div class="ag-field agl-field"><label for="agl-parent">Inside</label>${parentSel}</div>
-      <label class="agl-switch"><input type="checkbox" data-toggle="isRegion" ${d.isRegion ? 'checked' : ''}> This is a Region</label>
-      <p class="agl-hint">A Region passes its <em>Conditions</em> to every place inside it, at any depth. Nothing else is inherited. A place can turn an inherited condition off or change it for itself without touching the Region.</p>
+      <label class="agl-switch"><input type="checkbox" data-toggle="isRegion" ${d.isRegion ? 'checked' : ''}> This is a Region (a folder)</label>
+      <p class="agl-hint">A Region is a container: in Tree view it is a folder other places can go in, to any depth. Any place can sit inside another; only Regions show as folders.</p>
+      ${d.isRegion ? `<label class="agl-switch"><input type="checkbox" data-toggle="passConditions" ${passesConditions(d) ? 'checked' : ''}> Pass conditions to places inside</label>
+      <p class="agl-hint">Off by default. When on, this Region's <em>Conditions</em> apply to every place inside it, at any depth (players see them after Publish). Nothing else is inherited; a place can turn one off or change it for itself.</p>` : ''}
+      <label class="agl-switch"><input type="checkbox" data-toggle="placeable" ${isPlaceable(d) ? 'checked' : ''}> Placeable on a map</label>
+      <p class="agl-hint">${pins.length ? `Pinned on ${pins.map(p => `${esc(p.name)}${p.count > 1 ? ` (${p.count})` : ''}`).join(', ')}. ` : ''}Turn off for places that only group others (most Regions start off). They are left out of Place on Scene and dragging onto the map unless you tick <em>Show representative-only too</em>.</p>
     </section>`;
   }
   /** Places inside this one. Players see each only once revealed (unidentified ones by label). */
@@ -574,6 +681,8 @@ export class LocationsApp extends Base {
     root.querySelector('#agl-groupby')?.addEventListener('change', e => { this.groupBy = e.target.value; this.render(); });
     root.querySelector('#agl-sort')?.addEventListener('change', e => { this.sort = e.target.value; this.render(); });
     root.querySelector('#agl-sortdir')?.addEventListener('click', () => { this.sortDesc = !this.sortDesc; this.render(); });
+    root.querySelector('#agl-tree')?.addEventListener('click', () => { this.treeMode = !this.treeMode; this.render(); });
+    root.querySelector('#agl-showrep')?.addEventListener('change', e => { this.showRep = e.target.checked; this.render(); });
     for (const el of root.querySelectorAll('[data-filter]')) el.addEventListener('change', () => { this.filters[el.dataset.filter] = el.value; this.render(); });
     for (const el of root.querySelectorAll('[data-action]')) el.addEventListener('click', ev => { ev.preventDefault(); this.onAction(el).catch(notifyError); });
     root.querySelector('[data-action-change="player-access"]')?.addEventListener('change', e => api().playerAccess.setEnabled(e.target.checked).then(() => this.render()).catch(notifyError));
@@ -591,9 +700,22 @@ export class LocationsApp extends Base {
       this.override(from, ckey)[field] = el.value; this.touch();
     });
     this.bindReorder(root);
+    for (const el of root.querySelectorAll('[data-action-change^="audience-"]')) el.addEventListener('change', () => this.onAudience(el).catch(notifyError));
+    // AshenGateLocation places a pin when dropped on the canvas; AshenGateLocationMove (representative-only) only moves it into a folder.
     for (const row of root.querySelectorAll('.agl-row[draggable]')) row.addEventListener('dragstart', e => {
-      e.dataTransfer.setData('text/plain', JSON.stringify({type: 'AshenGateLocation', id: row.dataset.id}));
+      e.dataTransfer.setData('text/plain', JSON.stringify({type: row.dataset.dragType || 'AshenGateLocation', id: row.dataset.id}));
     });
+    for (const zone of root.querySelectorAll('[data-folder]')) {
+      zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('agl-dragover'); });
+      zone.addEventListener('dragleave', () => zone.classList.remove('agl-dragover'));
+      zone.addEventListener('drop', e => {
+        const data = dragData(e);
+        zone.classList.remove('agl-dragover');
+        if (!MOVE_TYPES.has(data?.type) || !data.id) return;
+        e.preventDefault(); e.stopPropagation();
+        this.move(data.id, zone.dataset.folder).catch(notifyError);
+      });
+    }
     for (const zone of root.querySelectorAll('[data-drop]')) {
       zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('agl-dragover'); });
       zone.addEventListener('dragleave', () => zone.classList.remove('agl-dragover'));
@@ -722,6 +844,13 @@ export class LocationsApp extends Base {
     if (action === 'retry') return this.render();
     if (action === 'clear-filters') return this.clearFilters();
     if (action === 'toggle-group') return this.toggleGroup(el.dataset.group);
+    if (action === 'tree-toggle') { const open = LocationsApp.treeOpen; if (!open.delete(el.dataset.id)) open.add(el.dataset.id); return this.render(); }
+    if (action === 'tree-all') {
+      if (el.dataset.open === '1') for (const l of this.list()) { const p = this.gm ? l.parentLocationId : l.parent?.key; if (p) LocationsApp.treeOpen.add(p); }
+      else LocationsApp.treeOpen.clear();
+      return this.render();
+    }
+    if (action === 'share') return this.share(el.dataset.ref);
     if (action === 'select') {
       if (el.dataset.id === this.selectedId || !(await this.confirmDiscard())) return;
       this.select(el.dataset.id); return this.render();
@@ -773,13 +902,21 @@ export class LocationsApp extends Base {
       }
       case 'preview': return this.preview();
       case 'new-child': {
-        if (!this.draft.id || !(await this.confirmDiscard())) return;
-        const parent = this.draft.id;
+        const parent = el.dataset.parent || this.draft?.id;
+        if (!parent || !(await this.confirmDiscard())) return;
+        this.tab = 'locations'; LocationsApp.treeOpen.add(parent);
         this.selectedId = null;
         this.draft = {...normalizeLocation({parentLocationId: parent}), name: ''}; this.dirty = true;
         await this.render();
         this.element.querySelector('#agl-name')?.focus();
         return;
+      }
+      case 'move-to': return this.moveTo();
+      case 'undo-move': {
+        const m = this.lastMove;
+        if (!m) return;
+        this.lastMove = null;
+        return this.move(m.id, m.from, {undo: true});
       }
       case 'add-scene': {
         const uuid = root.querySelector('#agl-add-scene')?.value;
@@ -909,6 +1046,70 @@ export class LocationsApp extends Base {
     }
   }
   focusBack(selector) { this.element?.querySelector(selector)?.focus(); }
+
+  /** Moves a location inside a folder (or to the top level), at once, with Undo. Unsaved edits to it are kept. */
+  async move(id, to, {undo = false} = {}) {
+    if (!id || id === to) return;
+    const r = await api().moveLocation(id, to || '');
+    if (r.from === r.to) return;
+    if (this.draft?.id === id) { if (this.dirty) this.draft.parentLocationId = r.to; else this.select(id); }
+    const names = new Map(api().listLocations().map(l => [l.id, l.name]));
+    if (r.to) LocationsApp.treeOpen.add(r.to);
+    clearTimeout(this.undoTimer);
+    this.lastMove = undo ? null : {...r, name: names.get(id) ?? id, toName: names.get(r.to) ?? r.to};
+    if (this.lastMove) this.undoTimer = setTimeout(() => { this.lastMove = null; if (this.rendered) this.render().catch(notifyError); }, 20000);
+    if (undo) ui.notifications.info(`Moved ${names.get(id) ?? id} back.`);
+    return this.render();
+  }
+  /** Keyboard path for moving: pick a Region (or top level) from a list. */
+  async moveTo() {
+    const d = this.draft;
+    if (!d?.id) return;
+    const all = api().listLocations();
+    const targets = moveTargets(all, d.id).sort((a, b) => a.name.localeCompare(b.name));
+    const path = l => [...breadcrumb(all, l.id), l].map(x => x.name).join(' › ');
+    const content = `<div class="ag-field"><label for="agl-move-target">Move ${esc(d.name)} into</label><select id="agl-move-target" name="target" autofocus>
+      <option value="" ${d.parentLocationId ? '' : 'selected'}>Top level</option>${targets.map(l => `<option value="${esc(l.id)}" ${d.parentLocationId === l.id ? 'selected' : ''}>${esc(path(l))}</option>`).join('')}</select>
+      <p class="agl-hint">Only Regions are listed, and never one inside ${esc(d.name)}.</p></div>`;
+    const to = await foundry.applications.api.DialogV2.prompt({window: {title: 'Move to…'}, content, rejectClose: false,
+      ok: {label: 'Move', callback: (_event, button) => button.form.elements.target.value}});
+    if (to === null || to === undefined) return;
+    return this.move(d.id, to);
+  }
+  /** GM: Who Can See It. Saved locations change at once through the API; a new one changes its draft. */
+  async onAudience(el) {
+    const d = this.draft;
+    if (!d) return;
+    const a = d.audience, kind = el.dataset.actionChange;
+    const next = {mode: a.mode, userIds: [...a.userIds], sharing: a.sharing};
+    if (kind === 'audience-mode') next.mode = el.value;
+    if (kind === 'audience-user') next.userIds = el.checked ? [...new Set([...next.userIds, el.value])] : next.userIds.filter(u => u !== el.value);
+    if (kind === 'audience-sharing') next.sharing = el.checked;
+    if (next.mode === 'everyone' && a.mode === 'selected' && d.id && d.state !== 'hidden') {
+      const ok = await foundry.applications.api.DialogV2.confirm({window: {title: 'Show to every player?'},
+        content: `<p>Let <strong>every</strong> player see <strong>${esc(d.name)}</strong>, not just the selected ones?</p>`, yes: {label: 'Show to Everyone'}, no: {label: 'Cancel'}, rejectClose: false});
+      if (!ok) return this.render();
+    }
+    if (!d.id) { d.audience = {...a, ...next}; this.touch(); return this.render(); }
+    d.audience = await api().setAudience(d.id, next);
+    return this.render();
+  }
+  /** Player: Share with... other players (adds only). */
+  async share(ref) {
+    const v = this.list().find(l => this.rid(l) === ref);
+    if (!v?.share?.canShare) return;
+    const choices = worldPlayers().filter(u => !v.share.userIds.includes(u.id));
+    if (!choices.length) return ui.notifications.info('Every player can already see this place.');
+    const content = `<fieldset class="agl-share-pick"><legend>Share ${esc(v.name)} with</legend>${choices.map(u =>
+      `<label class="agl-switch"><input type="checkbox" name="user" value="${esc(u.id)}"> ${esc(u.name)}</label>`).join('')}</fieldset>
+      <p class="agl-hint">They will see this place, its pin and its Party Notes. Only the GM can take it back.</p>`;
+    const ids = await foundry.applications.api.DialogV2.prompt({window: {title: 'Share with…'}, content, rejectClose: false,
+      ok: {label: 'Share', callback: (_event, button) => [...button.form.querySelectorAll('input[name="user"]:checked')].map(i => i.value)}});
+    if (!ids?.length) return;
+    const r = await api().shareLocation(ref, ids);
+    ui.notifications.info(r.added ? `Shared with ${r.added} player(s).` : 'They could already see it.');
+    return this.render();
+  }
   /** Saves the draft privately (never publishes). Returns the saved record, or null if it has no name. */
   async saveDraft() {
     if (!this.draft.name.trim()) { ui.notifications.warn('Give the location a name first.'); return null; }
@@ -950,12 +1151,15 @@ export class LocationsApp extends Base {
       <li><strong>Save Changes</strong> is private. Players see edits only after <strong>Publish</strong> (or Reveal). <strong>Player Preview</strong> shows what they would see.</li>
       <li>The <i class="fa-solid fa-eye"></i> toggles decide what players see once revealed, and each section has its own switch.</li>
       <li><strong>Place on Scene</strong> or drag a location from the list onto the map to add a Map Note. Double-click the note to open the location. The pin shows the unidentified label and image until the location is revealed; set pin art under <em>Unidentified Marker &amp; Pin</em>.</li>
-      <li><em>Place</em>: put a location inside another. Mark one as a <strong>Region</strong> and its <em>Conditions</em> apply to every place inside it; a place can turn one off or change it for itself. <em>Linked Scenes</em> open with one click (only you move).</li>
+      <li><em>Place</em>: put a location inside another. Mark one as a <strong>Region</strong> to make it a folder. A Region passes its <em>Conditions</em> to the places inside it only if you tick <em>Pass conditions to places inside</em>; a place can turn one off or change it for itself. <em>Linked Scenes</em> open with one click (only you move).</li>
+      <li><strong>Tree</strong> (next to Group by) shows places inside their Regions as folders, with how many places each holds (directly · in total). Drag a place onto a folder (or onto <em>Drop here for top level</em>) to move it; <strong>Undo</strong> puts it back. <strong>Move to…</strong> on the card does the same from the keyboard, and <strong>+</strong> on a folder makes a new place inside it.</li>
+      <li><strong>Placeable on a map</strong>: untick it for places that only group others. They are left out of Place on Scene and dragging onto the map unless you tick <em>Show representative-only too</em>. The <em>Placeable</em> filter finds either kind.</li>
+      <li><strong>Who Can See It</strong>: <em>Everyone</em>, or <em>Selected players</em> only. Other players get nothing, not even its pin, exactly as if it were Hidden. Players who can see it may <em>Share with…</em> others (you can turn that off); you see who shared with whom and can untick anyone.</li>
       <li><strong>Reorder:</strong> drag a grip, or use the arrows (Alt+Up / Alt+Down on a grip), to move a block or an entry. Players see published blocks in your order. <strong>Add Detail</strong> makes a custom block with a title, text and an optional linked document.</li>
       <li><strong>Loot &amp; Rewards:</strong> drag an Item in (world or compendium) or add a plain reward. It is a link only: nothing is given to anyone. Set <em>Available / Discovered / Taken</em> yourself.</li>
       <li>Quests come from Quest Manager. Clicking one opens the Quest Log.</li>
       <li><strong>Party Notes</strong> are written by the players, one at a time, on any location they can see. They are not your <em>Notes</em> section and are never published, exported or changed by an import. You can edit, take over or clear them. Hiding a location hides its Party Notes until it is visible again.</li></ul>`
-      : '<p>These are the places your GM has revealed. Places under <em>Unidentified</em> show only what you have heard so far. Click a linked quest, faction, document or place to open it.</p><p><strong>Party Notes</strong> are shared by the whole party. Click <em>Edit</em>, type, then <em>Save Notes</em>. One person edits at a time; everyone else sees who is editing. Saving works whether or not a GM is connected.</p>';
+      : '<p>These are the places your GM has revealed. Places under <em>Unidentified</em> show only what you have heard so far. Click a linked quest, faction, document or place to open it.</p><p><strong>Party Notes</strong> are shared by the whole party. Click <em>Edit</em>, type, then <em>Save Notes</em>. One person edits at a time; everyone else sees who is editing. Saving works whether or not a GM is connected.</p><p>A place marked with <i class="fa-solid fa-user-lock"></i> is known only to some players. If the GM allows it, <em>Share with…</em> lets other players see it too (a GM must be connected).</p>';
     return foundry.applications.api.DialogV2.prompt({window: {title: 'Locations Help'}, content: gm, ok: {label: 'Close'}, rejectClose: false});
   }
 }

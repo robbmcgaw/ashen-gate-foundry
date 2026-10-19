@@ -1,13 +1,14 @@
 import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL} from './model.mjs';
 import {readAll, writeAll, readViews, placeNote, legacyJournalCount, isGM, migrate, presentationOptions, readNotes, writeNotes, readPlayerNotes,
-  syncSharedNotes, readSharedNotes, writeSharedNotes, isSharedNotesPage} from './store.mjs';
+  syncSharedNotes, readSharedNotes, writeSharedNotes, isSharedNotesPage, players, pinsOf} from './store.mjs';
 import {createApi} from './api.mjs';
 import {createNotesService, SOCKET} from './party-notes.mjs';
+import {createShareService} from './sharing.mjs';
 import {LocationsApp} from './app.mjs';
 import {mountLocationLauncher} from './launcher.js';
 import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 
-const VERSION = '1.7.0';
+const VERSION = '1.8.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 const notifyError = err => { console.error(`${MODULE_ID} |`, err); ui.notifications?.error(err?.message ?? String(err)); };
@@ -46,11 +47,17 @@ Hooks.once('ready', () => {
   const notes = createNotesService({users: game.users, currentUser: () => game.user, isPrimaryGM, playerAccessEnabled,
     readAll, readNotes, writeNotes, reconcile: loc => syncSharedNotes([loc]),
     shared: {read: readSharedNotes, write: writeSharedNotes}, socket: game.socket});
-  game.socket?.on?.(SOCKET, (msg, senderId) => { notes.onSocket(msg, senderId).catch(notifyError); });
+  // 1.8.0 "Share with...": players ask the primary GM's client to add players to a location they can see (sharing.mjs).
+  const sharing = createShareService({users: game.users, currentUser: () => game.user, isPrimaryGM, playerAccessEnabled, readAll, writeAll, socket: game.socket});
+  game.socket?.on?.(SOCKET, (msg, senderId) => {
+    if (typeof msg?.type === 'string' && msg.type.startsWith('share-')) sharing.onSocket(msg, senderId).catch(notifyError);
+    else notes.onSocket(msg, senderId).catch(notifyError);
+  });
   mod.api = createApi({
     version: VERSION, isGM, playerAccessEnabled,
     setPlayerAccess: value => game.settings.set(MODULE_ID, 'playerAccessEnabled', value),
-    readAll, writeAll, readViews, placeNote, viewOptions: presentationOptions,
+    readAll, writeAll, readViews, placeNote, viewOptions: presentationOptions, pinsOf, playerIds: () => players().map(u => u.id),
+    sharing: {request: sharing.request},
     open: () => LocationsApp.show(),
     openLocation: ref => LocationsApp.show(ref),
     notes: {readGM: readNotes, readPlayer: readPlayerNotes, request: notes.request, userId: () => game.user?.id, isActive: notes.isActive, nameOf: notes.nameOf}
@@ -61,6 +68,9 @@ Hooks.once('ready', () => {
     // One GM migrates 1.2.x data (pin keys, marker states, Note/page flags). Re-runnable; a no-op once done.
     if (game.users?.activeGM?.isSelf ?? true) migrate().then(r => {
       if (r.records || r.pages || r.notes) console.info(`${MODULE_ID} | migrated ${r.records} location(s), ${r.pages} page(s), ${r.notes} Map Note(s) to 1.3.0 pin keys`);
+      // 1.8.0: Regions that were passing conditions keep doing so; tell the GM which.
+      if (r.unsettled) console.info(`${MODULE_ID} | 1.8.0: settled "Pass conditions to places inside" on ${r.unsettled} record(s); kept on for: ${r.inheritance.map(x => x.id).join(', ') || 'none'}`);
+      if (r.inheritance.length) ui.notifications?.info(`Locations 1.8.0: Regions now pass their conditions down only when you switch it on. ${r.inheritance.length} Region(s) were already doing so and still do: ${r.inheritance.map(x => x.name).join(', ')}.`, {permanent: true});
     }).then(() => reconcileShared()).catch(notifyError);
   }
   attachActorsLauncher(ui.actors);
@@ -82,7 +92,8 @@ Hooks.on('activateNote', (note, options) => {
   game.modules.get(MODULE_ID).api.openLocation(ref).catch(notifyError);
   return false;
 });
-// Dragging a location from the GM list onto the canvas places a Map Note there.
+// Dragging a location from the GM list onto the canvas places a Map Note there. (The list only offers this for
+// locations marked Placeable on a map, unless the GM shows representative-only ones too.)
 Hooks.on('dropCanvasData', (canvas, data) => {
   if (data?.type !== 'AshenGateLocation' || !isGM()) return;
   game.modules.get(MODULE_ID).api.placeOnScene(data.id, {scene: canvas.scene, x: data.x, y: data.y}).catch(notifyError);

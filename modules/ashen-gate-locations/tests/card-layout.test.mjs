@@ -313,7 +313,8 @@ test('1.3.0 records load unchanged: default layout, empty new fields, no false "
 
 test('GM editor: grips and arrows on every block and entry; Add Detail; Region switch; loot hint; inherited sources', async () => {
   const api = boot();
-  const region = await api.saveLocation({name: '[TEST] Marsh', isRegion: true, sections: {conditions: true}, conditions: [{key: 'fog', label: 'Dense fog', text: 'obscured'}]});
+  // 1.8.0: a Region passes conditions down only with its switch on.
+  const region = await api.saveLocation({name: '[TEST] Marsh', isRegion: true, passConditions: true, sections: {conditions: true}, conditions: [{key: 'fog', label: 'Dense fog', text: 'obscured'}]});
   const child = await api.saveLocation({name: '[TEST] Hut', parentLocationId: region.id, details: [{key: 'dd', title: 'Hidden cellar', text: 'x'}],
     resources: [{key: 'r1', label: 'Reeds'}, {key: 'r2', label: 'Rushes'}], sections: {resources: true, loot: true}, loot: [{key: 'l', label: 'Coins'}]});
   const app = new LocationsApp();

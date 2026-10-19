@@ -179,6 +179,9 @@ function normalizeBody(r, id) {
   body.details = body.details.filter((e, i, all) => all.findIndex(x => x.key === e.key) === i);
   body.layout = normalizeLayout(r.layout, body.details);
   body.isRegion = bool(r.isRegion, false);
+  // 1.8.0: a Region passes its Conditions down only while this is on. null = a record from before 1.8.0, read as on
+  // (the 1.4.0 behaviour) until the GM's migration settles it (resolvePassConditions); new records get false.
+  body.passConditions = typeof r.passConditions === 'boolean' ? r.passConditions : null;
   // A child's changes to a conditions it inherits: {from: Region LOC id, conditionKey, disabled, label?, text?}.
   body.conditionOverrides = (Array.isArray(r.conditionOverrides) ? r.conditionOverrides : []).map(e => entry(e, o => ({
     from: LOCATION_ID.test(o.from ?? '') ? o.from : '', conditionKey: line(o.conditionKey, 40), disabled: bool(o.disabled, false),
@@ -204,6 +207,9 @@ export function normalizeLocation(raw = {}) {
   const id = LOCATION_ID.test(r.id ?? '') ? r.id : '';
   const loc = {id, pinKey: PIN_KEY.test(r.pinKey ?? '') ? r.pinKey : newPinKey(), ...normalizeBody(r, id)};
   loc.sceneUuids = [...new Set((Array.isArray(r.sceneUuids) ? r.sceneUuids : []).map(safeUuid).filter(Boolean))].slice(0, 20);
+  // 1.8.0, GM-only: null = the default (placeable unless it is a Region), see isPlaceable().
+  loc.placeable = typeof r.placeable === 'boolean' ? r.placeable : null;
+  loc.audience = normalizeAudience(r.audience);
   loc.state = STATES.includes(r.state) ? r.state : r.revealed === true ? 'revealed' : 'hidden';
   loc.revealed = loc.state === 'revealed';
   loc.published = r.published && typeof r.published === 'object' ? normalizeBody(r.published, id)
@@ -229,6 +235,75 @@ export function wouldCycle(id, parentId, parentOf) {
 }
 export const parentMap = list => new Map(list.map(l => [l.id, l.parentLocationId ?? '']));
 
+/**
+ * 1.8.0 audience: who may see a location at all, on top of its marker state. 'everyone' (the default, as before) or
+ * 'selected': only the listed player user ids. `sharedBy[userId]` names the player who added that user (absent when
+ * the GM did). `sharing`: whether those players may add others (they can never remove anyone).
+ */
+export const AUDIENCE_MODES = Object.freeze(['everyone', 'selected']);
+const PLAYER_ID = /^[A-Za-z0-9]{1,64}$/;
+export function normalizeAudience(raw) {
+  const r = raw && typeof raw === 'object' ? raw : {};
+  const mode = AUDIENCE_MODES.includes(r.mode) ? r.mode : 'everyone';
+  const userIds = [...new Set((Array.isArray(r.userIds) ? r.userIds : []).filter(u => PLAYER_ID.test(u ?? '')))].slice(0, 100);
+  const sharedBy = {};
+  for (const u of userIds) if (PLAYER_ID.test(r.sharedBy?.[u] ?? '') && r.sharedBy[u] !== u) sharedBy[u] = r.sharedBy[u];
+  return {mode, userIds, sharedBy, sharing: bool(r.sharing, true)};
+}
+/** May this player see the location at all (marker state aside)? */
+export const inAudience = (loc, userId) => loc.audience?.mode !== 'selected' || (loc.audience.userIds ?? []).includes(userId);
+/** Can everyone who may read `reader` also see `target`? (reader null: the GM, who sees everything.) */
+export function covers(target, reader) {
+  if (!reader || target.audience?.mode !== 'selected') return true;
+  if (reader.audience?.mode !== 'selected') return false;
+  return reader.audience.userIds.every(u => target.audience.userIds.includes(u));
+}
+/**
+ * A player shares a location they can see with other players. Pure; throws a message the player can show.
+ * `players`: ids of the world's player (non-GM) users. Returns {audience, added: [userId]}. Nobody is ever removed.
+ */
+export function applyShare(raw, byUserId, userIds, players) {
+  const loc = normalizeLocation(raw);
+  const a = loc.audience;
+  if (a.mode !== 'selected') throw new Error('Everyone can already see this location.');
+  if (!a.userIds.includes(byUserId)) throw new Error("That location isn't available to you.");
+  if (!a.sharing) throw new Error('The GM has turned sharing off for this location.');
+  if (!Array.isArray(userIds) || !userIds.length) throw new Error('Choose at least one player to share with.');
+  const known = new Set(players);
+  const added = [...new Set(userIds)].filter(u => known.has(u) && !a.userIds.includes(u));
+  if (userIds.some(u => !known.has(u))) throw new Error('You can only share with players in this world.');
+  for (const u of added) { a.userIds.push(u); a.sharedBy[u] = byUserId; }
+  return {audience: normalizeAudience(a), added};
+}
+
+/** 1.8.0 Placeable flag: shown in Place on Scene and the drag-to-map list. Default: yes, unless it is a Region. */
+export const isPlaceable = loc => loc.placeable ?? !loc.isRegion;
+
+/**
+ * 1.8.0 migration (re-runnable): settles "Pass conditions to places inside" on records from before 1.8.0 (null).
+ * A Region that was actually passing conditions (it has some and something sits inside it) is switched on so nothing
+ * changes; everything else gets off. The published copy is settled the same way from its own content. Records that
+ * already have a value are untouched. Returns {list, turnedOn: [{id, name}], changed: count}.
+ */
+export function resolvePassConditions(list) {
+  const hasChild = new Set(list.map(l => l.parentLocationId).filter(Boolean));
+  const pubChild = new Set(list.map(l => l.published?.parentLocationId).filter(Boolean));
+  const turnedOn = [];
+  let changed = 0;
+  for (const l of list) {
+    if (l.passConditions === null || l.passConditions === undefined) {
+      l.passConditions = !!(l.isRegion && l.conditions?.length && hasChild.has(l.id));
+      if (l.passConditions) turnedOn.push({id: l.id, name: l.name});
+      changed++;
+    }
+    if (l.published && (l.published.passConditions === null || l.published.passConditions === undefined)) {
+      l.published.passConditions = !!(l.published.isRegion && l.published.conditions?.length && pubChild.has(l.id));
+      changed++;
+    }
+  }
+  return {list, turnedOn, changed};
+}
+
 /** Gives any location whose pinKey is already taken a fresh one (first one keeps it). */
 export function uniquePinKeys(list) {
   const seen = new Set();
@@ -248,13 +323,17 @@ export function newLocation(name, existingIds) {
   return loc;
 }
 
+/** 1.8.0: does this location (or published body) pass its Conditions down? A Region with the switch on; a
+ *  pre-1.8.0 Region (switch never set) keeps passing until the migration decides. */
+export const passesConditions = body => !!body?.isRegion && (body.passConditions ?? true);
 /**
- * Conditions in effect at a location: those it inherits from Region ancestors, then its own. Only locations
- * marked `isRegion` pass conditions down, through any number of non-Region places in between; nothing else
+ * Conditions in effect at a location: those it inherits from Region ancestors, then its own. Only Regions with
+ * "Pass conditions to places inside" on (passesConditions) pass them down, through any number of places in between; nothing else
  * (resources, factions, quests, loot, state, visibility) is inherited. A child's `conditionOverrides` can turn an
  * inherited condition off or replace its label/text; the Region is never edited.
  * GM (default): saved content, every condition, each with its source. `player: true`: only what the published
- * content allows (Region not hidden, shown section, visible entry); disabled ones are dropped and no source is named.
+ * content allows (Region not hidden and seen by everyone who reads this card, shown section, visible entry);
+ * disabled ones are dropped and no source is named.
  */
 export function effectiveConditions(raw, all = [], {player = false} = {}) {
   const loc = normalizeLocation(raw);
@@ -263,6 +342,7 @@ export function effectiveConditions(raw, all = [], {player = false} = {}) {
   const byId = new Map(all.map(normalizeLocation).filter(l => l.id).map(l => [l.id, l]));
   const overrides = new Map(body.conditionOverrides.map(o => [`${o.from}\n${o.conditionKey}`, o]));
   const chain = [], seen = new Set([loc.id]);
+  const reader = player ? loc : null;
   for (let id = body.parentLocationId; id && !seen.has(id);) {
     seen.add(id);
     const a = byId.get(id);
@@ -272,8 +352,8 @@ export function effectiveConditions(raw, all = [], {player = false} = {}) {
   }
   const out = [];
   for (const a of chain) {
-    const src = player ? (a.state !== 'hidden' ? a.published : null) : a;
-    if (!src?.isRegion || (player && !src.sections.conditions)) continue;
+    const src = player ? (a.state !== 'hidden' && covers(a, reader) ? a.published : null) : a;
+    if (!passesConditions(src) || (player && !src.sections.conditions)) continue;
     for (const c of src.conditions) {
       if (player && !c.visible) continue;
       const o = overrides.get(`${a.id}\n${c.key}`);
@@ -299,9 +379,12 @@ export function playerView(raw, all = [], {label = ''} = {}) {
   const pub = loc.published;
   if (!loc.id || loc.state === 'hidden' || !pub) return null;
   const fallback = line(label, 80) || DEFAULT_UNIDENTIFIED_LABEL;
+  // Only readers of a "Selected players" location get this view, so the list names no one else.
+  const share = loc.audience.mode === 'selected' ? {userIds: [...loc.audience.userIds], canShare: loc.audience.sharing} : null;
   if (loc.state === 'unidentified') {
     const view = {key: loc.pinKey, state: 'unidentified', name: pub.unidentifiedLabel || fallback};
     if (pub.teaser) view.teaser = pub.teaser;
+    if (share) view.share = share;
     return view;
   }
   const view = {id: loc.id, key: loc.pinKey, state: 'revealed', name: pub.name};
@@ -310,7 +393,8 @@ export function playerView(raw, all = [], {label = ''} = {}) {
   const resources = on('resources').map(nodeForPlayer);
   const factions = on('factions').map(e => ({label: e.label, uuid: e.uuid, docType: e.docType, note: e.note}));
   const quests = on('quests').map(e => e.questId);
-  const shown = new Map(all.map(normalizeLocation).filter(l => l.id && l.state !== 'hidden' && l.published).map(l => [l.id, l]));
+  // A link (parent, children, related) appears only if everyone who can read this card can also see its target.
+  const shown = new Map(all.map(normalizeLocation).filter(l => l.id && l.state !== 'hidden' && l.published && covers(l, loc)).map(l => [l.id, l]));
   const ref = l => l.state === 'revealed' ? {id: l.id, key: l.pinKey, name: l.published.name} : {key: l.pinKey, name: l.published.unidentifiedLabel || fallback};
   const related = on('related').map(e => shown.get(e.locationId)).filter(l => l?.state === 'revealed').map(l => ({id: l.id, name: l.published.name}));
   const notes = on('notes').map(e => ({title: e.title, text: e.text, uuid: e.uuid, docType: e.docType}));
@@ -327,6 +411,7 @@ export function playerView(raw, all = [], {label = ''} = {}) {
   for (const d of details) present.add(DETAIL_PREFIX + d.key);
   if (view.description) present.add('description');
   view.layout = pub.layout.filter(k => present.has(k));
+  if (share) view.share = share;
   return view;
 }
 
@@ -345,6 +430,9 @@ export function pinPresentation(raw, {label = '', unknownImg = ''} = {}) {
   const loc = normalizeLocation(raw);
   const src = loc.state !== 'hidden' && loc.published ? loc.published : loc;
   const size = src.pin.size || PIN_DEFAULTS.size;
+  // 1.8.0: a "Selected players" pin carries no label of its own. Foundry then labels it with its page's name,
+  // which only the players who may open that page are shown (the Note is invisible to everyone else).
+  if (loc.audience.mode === 'selected') return {text: '', src: loc.state === 'revealed' ? src.pin.img || PIN_DEFAULTS.img : src.pin.unidentifiedImg || safePath(unknownImg) || PIN_DEFAULTS.unidentifiedImg, size};
   if (loc.state === 'revealed') return {text: src.name, src: src.pin.img || PIN_DEFAULTS.img, size};
   const unknown = src.pin.unidentifiedImg || safePath(unknownImg) || PIN_DEFAULTS.unidentifiedImg;
   return {text: loc.state === 'unidentified' ? src.unidentifiedLabel || line(label, 80) || DEFAULT_UNIDENTIFIED_LABEL : '', src: unknown, size};
@@ -463,14 +551,15 @@ export function parseImport(pkg, existing = []) {
   return {created, skipped, errors};
 }
 
-/** Fields added in 1.3.0 and 1.4.0. An update that leaves one out keeps the world's value instead of clearing it. */
-const ADDITIVE = ['parentLocationId', 'unidentifiedLabel', 'teaser', 'pin', 'sceneUuids', 'layout', 'details', 'isRegion', 'conditionOverrides', 'conditions', 'loot'];
+/** Fields added in 1.3.0, 1.4.0 and 1.8.0. An update that leaves one out keeps the world's value instead of clearing it. */
+const ADDITIVE = ['parentLocationId', 'unidentifiedLabel', 'teaser', 'pin', 'sceneUuids', 'layout', 'details', 'isRegion', 'conditionOverrides', 'conditions', 'loot',
+  'passConditions', 'placeable'];
 
 /**
  * Imports Location records (Manager's import run, or the package path above) into `existing`.
  * mode 'skip' (default) leaves any existing id untouched; 'update' replaces its definition but
  * keeps the GM's play state: its marker state and what players currently see (the published
- * content, until the GM publishes again), its pin binding, and which finite nodes are exhausted.
+ * content, until the GM publishes again), its audience, its pin binding, and which finite nodes are exhausted.
  * Map Notes are never touched by an import, so per-pin overrides survive.
  * Returns {created, updated, skipped: [{id, reason}]} with ready-to-save locations in `created`/`updated`.
  */
@@ -500,7 +589,8 @@ export function importRecords(records, existing = [], {mode = 'skip'} = {}) {
     parents.set(incoming.id, incoming.parentLocationId);
     if (!old) { created.push(incoming); continue; }
     const exhausted = new Set(old.resources.filter(n => n.exhausted).map(n => n.key));
-    Object.assign(incoming, {pinKey: old.pinKey, state: old.state, revealed: old.revealed, published: old.published});
+    // Who may see it is play state too, like the marker state.
+    Object.assign(incoming, {pinKey: old.pinKey, state: old.state, revealed: old.revealed, published: old.published, audience: old.audience});
     for (const n of incoming.resources) if (n.finite && exhausted.has(n.key)) n.exhausted = true;
     updated.push(incoming);
   }

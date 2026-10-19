@@ -20,9 +20,14 @@
  * blanked and set to NONE. Pages are only ever created by a GM, so a location that was never visible has none.
  * The GM store stays the record of truth: syncSharedNotes() (GM: on ready, on every writeAll, and when a player
  * writes a shared page) reconciles both sides with reconcileNotes() and never drops text.
+ *
+ * 1.8.0: a location's audience ("Everyone" or "Selected players") is enforced with Foundry's own ownership. Its
+ * player page and shared-notes page name every player user explicitly: the readers get access, everyone else NONE
+ * (explicit, because Foundry merges ownership on update, so a removed player must be set back). Map Notes point at
+ * the player page, so Foundry hides a pin from anyone who cannot open that page.
  */
 import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL, normalizeLocation, playerView, viewHtml, pinPresentation, notePatch, uniquePinKeys, PIN_KEY,
-  normalizeNotes, notesMirror, reconcileNotes} from './model.mjs';
+  normalizeNotes, notesMirror, reconcileNotes, inAudience, resolvePassConditions} from './model.mjs';
 
 const ROLE_GM = 'gm-data';
 const ROLE_VIEW = 'player-view';
@@ -40,6 +45,19 @@ export const presentationOptions = () => ({label: setting('unidentifiedLabel', D
 const levels = () => globalThis.CONST?.DOCUMENT_OWNERSHIP_LEVELS ?? {INHERIT: -1, NONE: 0, OBSERVER: 2, OWNER: 3};
 const htmlFormat = () => globalThis.CONST?.JOURNAL_ENTRY_PAGE_FORMATS?.HTML ?? 1;
 const byRole = role => [...game.journal].find(j => j.getFlag(MODULE_ID, 'role') === role) ?? null;
+/** The world's player (non-GM) users. */
+export const players = () => [...(game.users ?? [])].filter(u => u?.id && !u.isGM);
+/**
+ * Ownership for one of a location's pages: `grant` for every player who may see it now (visible state and in its
+ * audience), NONE for every other player, and a default that covers players created later.
+ */
+export function ownershipFor(loc, visible, grant) {
+  const L = levels();
+  const own = {default: visible && loc.audience?.mode !== 'selected' ? grant : L.NONE};
+  for (const u of players()) own[u.id] = visible && inAudience(loc, u.id) ? grant : L.NONE;
+  return own;
+}
+const sameOwnership = (current, want) => Object.entries(want).every(([k, v]) => current?.[k] === v);
 export const isGM = () => game.user?.isGM === true;
 export function assertGM() {
   if (!isGM()) throw new Error('Only the GM can do that.');
@@ -90,7 +108,7 @@ export function pageData(loc, all, opts = presentationOptions(), notes = null) {
   return {
     name: view?.name ?? 'Unrevealed location', type: 'text',
     text: {content: viewHtml(view), format: htmlFormat()},
-    ownership: {default: view ? levels().INHERIT : levels().NONE},
+    ownership: ownershipFor(loc, !!view, levels().INHERIT),
     // A JSON string, not an object: Foundry merges object flags on update, which could keep a
     // field the GM just hid. A string is always replaced whole.
     flags: {[MODULE_ID]: {pinKey: loc.pinKey, view: view ? JSON.stringify(view) : '', partyNotes: view ? notesFlag(notes) : ''}}
@@ -121,7 +139,7 @@ export async function syncPlayerView(locations, opts = presentationOptions()) {
     const legacy = page.getFlag(MODULE_ID, 'locationId') != null;
     if (legacy) data.flags[MODULE_ID].locationId = null;
     const same = !legacy && page.name === data.name && page.getFlag(MODULE_ID, 'view') === data.flags[MODULE_ID].view
-      && page.getFlag(MODULE_ID, 'pinKey') === loc.pinKey && page.ownership?.default === data.ownership.default
+      && page.getFlag(MODULE_ID, 'pinKey') === loc.pinKey && sameOwnership(page.ownership, data.ownership)
       && (page.getFlag(MODULE_ID, 'partyNotes') ?? '') === data.flags[MODULE_ID].partyNotes;
     if (!same) update.push({_id: page.id, ...data});
   }
@@ -213,13 +231,12 @@ async function ensureSharedJournal() {
 }
 /** What the shared page for `loc` should become: {create} | {update} | null when it already matches. */
 function sharedPageChange(loc, rec, page) {
-  const L = levels();
-  const own = visibleToPlayers(loc) ? L.OWNER : L.NONE;
+  const own = ownershipFor(loc, visibleToPlayers(loc), levels().OWNER);
   const flag = visibleToPlayers(loc) ? JSON.stringify(notesMirror(rec)) : '';
   if (!page) return flag ? {create: {name: 'Party Notes', type: 'text', text: {content: '', format: htmlFormat()},
-    ownership: {default: own}, flags: {[MODULE_ID]: {pinKey: loc.pinKey, shared: flag}}}} : null;
-  if (page.ownership?.default === own && (page.getFlag(MODULE_ID, 'shared') ?? '') === flag) return null;
-  return {update: {_id: page.id, ownership: {default: own}, [`flags.${MODULE_ID}.shared`]: flag}};
+    ownership: own, flags: {[MODULE_ID]: {pinKey: loc.pinKey, shared: flag}}}} : null;
+  if (sameOwnership(page.ownership, own) && (page.getFlag(MODULE_ID, 'shared') ?? '') === flag) return null;
+  return {update: {_id: page.id, ownership: own, [`flags.${MODULE_ID}.shared`]: flag}};
 }
 
 /**
@@ -285,6 +302,16 @@ export function readPlayerNotes(pinKey) {
   try { return notesMirror(JSON.parse(page.getFlag(MODULE_ID, 'partyNotes') || '{}')); } catch { return notesMirror({}); }
 }
 
+/** GM: the scenes holding a Map Note for this location: [{uuid, name, count}]. */
+export function pinsOf(loc) {
+  const out = [];
+  for (const scene of game.scenes ?? []) {
+    const count = [...(scene.notes ?? [])].filter(n => { const k = n.getFlag?.(MODULE_ID, 'pinKey'); return k ? k === loc.pinKey : n.getFlag?.(MODULE_ID, 'locationId') === loc.id; }).length;
+    if (count) out.push({uuid: scene.uuid ?? `Scene.${scene.id}`, name: scene.name ?? '', count});
+  }
+  return out;
+}
+
 /** Places a Map Note for a location on a scene. The note opens the location (see main.mjs). */
 export async function placeNote(location, {scene, x, y}) {
   assertGM();
@@ -307,6 +334,8 @@ export async function placeNote(location, {scene, x, y}) {
  * 1.3.0 migration, re-runnable: gives every stored location a pinKey and a marker state, and
  * replaces the `locationId` flag on player pages and Map Notes with the pinKey. Does nothing (and
  * writes nothing) when everything is already current. Returns what it found.
+ * 1.8.0: also settles "Pass conditions to places inside" on older records (resolvePassConditions): Regions that
+ * were passing conditions stay on (listed in `inheritance`), everything else is off. Additive and re-runnable.
  */
 export async function migrate() {
   assertGM();
@@ -315,8 +344,14 @@ export async function migrate() {
   const stale = records.filter(r => !PIN_KEY.test(r?.pinKey ?? '') || !r?.state || r.published === undefined).length;
   const legacyPages = [...(byRole(ROLE_VIEW)?.pages ?? [])].filter(p => p.getFlag(MODULE_ID, 'locationId') != null).length;
   const legacyNotes = [...(game.scenes ?? [])].flatMap(s => [...(s.notes ?? [])]).filter(n => n.getFlag?.(MODULE_ID, 'locationId') != null).length;
-  if (stale || legacyPages || legacyNotes) await writeAll(readAll());
-  return {records: stale, pages: legacyPages, notes: legacyNotes};
+  const unsettled = records.filter(r => typeof r?.passConditions !== 'boolean' || (r?.published && typeof r.published.passConditions !== 'boolean')).length;
+  let inheritance = [];
+  if (stale || legacyPages || legacyNotes || unsettled) {
+    const list = readAll();
+    inheritance = resolvePassConditions(list).turnedOn;
+    await writeAll(list);
+  }
+  return {records: stale, pages: legacyPages, notes: legacyNotes, unsettled, inheritance};
 }
 
 /** 0.8.x kept test-only data in differently-flagged Journals. Leave it alone; just say so once. */

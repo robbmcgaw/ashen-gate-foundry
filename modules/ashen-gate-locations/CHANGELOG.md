@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.8.0 — 2026-10-19
+
+- **Region inheritance is now off by default.** A Region passes its Conditions to the places inside it only when you tick **Pass conditions to places inside** (shown under *This is a Region*). A place's inherited-conditions list appears only when a Region above it has this on. **Existing worlds:** on the GM's first login, every Region that was already passing conditions (it has conditions and places inside it) is switched on, so nothing changes, and a notice lists them; all others are off. Re-running changes nothing.
+- **Tree (folders).** A **Tree** button beside *Group by* shows locations inside their Regions as folders to any depth (e.g. Overworld › Frontier › Town › Muster › Guildhall), with counts (directly · in total), Expand all / Collapse all, open folders remembered while the game is open, **+** on a folder to create a place inside it, drag onto a folder to move (loops refused) with **Undo**, **Move to…** on the card for the keyboard, and a breadcrumb path on the card. Filters and search still apply and keep the folders leading to each match. Players' list nests the places they can see under the visible places they are in; a place they cannot see is never named (unidentified ones show their label).
+- **Who Can See It: Everyone or Selected players.** Only the ticked players get the card, its pins (Foundry's own Note permissions, through per-player page ownership), its Party Notes and its quest links; for everyone else it is exactly like Hidden. Players who can see it can **Share with…** other players (adds only, needs a GM connected); the card shows "shared by" and you untick to undo. Sharing can be turned off per location. Existing locations stay *Everyone*.
+- **Placeable on a map.** New checkbox (on for places, off for Regions). Place on Scene and dragging onto the map offer only placeable locations unless you tick **Show representative-only too**; a place that already has a pin always shows it on its card. New **Placeable** filter.
+- **Saved data:** additive (`passConditions`, `placeable`, `audience`), plus the re-runnable inheritance migration above. Player pages now name each player in their ownership. Export/import carry the new fields. API: new `moveLocation`, `getAudience`, `setAudience`, `shareLocation`, `pinsOf`, and `listLocations({placeableOnly})`; existing calls keep their shapes.
+
 ## 1.7.0 — 2026-10-19
 
 - **Party Notes save without a GM connected.** Players can now Edit and Save Party Notes when no GM is logged in. The same rules apply: one editor at a time (the lock lapses after 2 minutes idle), and a save based on an older copy is refused with your text kept in the box. If two players hit Edit or Save at the very same moment, one wins and the other is told so.
