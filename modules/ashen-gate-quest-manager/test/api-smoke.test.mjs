@@ -7,7 +7,7 @@ let access=false;
 const gm={id:'gm',isGM:true},alice={id:'alice',isGM:false},bob={id:'bob',isGM:false};
 const projection={id:'QUEST-SAFE',entity_type:'Objective',objective_kind:'quest',name:'Safe Public Name',status:'Available',scope:'party',actorId:null,objectives:[{key:'one',goal:'A public objective'}],locationIds:[]};
 const j={getFlag:(mod,key)=>mod===MOD?({public:true,view:projection})[key]:null,testUserPermission:(u)=>u.id==='alice'||u.isGM};
-const jHidden={getFlag:(mod,key)=>mod===MOD?({private:true,source:{id:'QUEST-HIDDEN'},state:{status:'Hidden'}})[key]:null,testUserPermission:(u)=>u.isGM};
+const jHidden={getFlag:(mod,key)=>mod===MOD?({private:true,source:{id:'QUEST-HIDDEN',objective_kind:'quest',status:'approved'},state:{status:'Hidden'}})[key]:null,testUserPermission:(u)=>u.isGM};
 const module={active:true,api:null};
 const actors=[];actors.get=()=>null;
 globalThis.game={user:gm,settings:{register:()=>{},get:()=>access,set:async(_,__,value)=>{access=value;}},journal:[j,jHidden],actors,users:[gm,alice,bob],modules:{get:id=>id===MOD?module:null}};
@@ -16,7 +16,7 @@ globalThis.ui={actors:{element:null},notifications:{info:()=>{},error:()=>{}}};
 await import('../scripts/main.mjs');
 callbacks.get('init')();callbacks.get('ready')();
 test('mock boot publishes exact-ID consumer and Quest-owned Assignment API',()=>{
- assert.equal(module.api.version,'0.6.0');assert.equal(module.api.consumer.contract,'ag-objective-consumer/0.2-alpha');assert.equal(module.api.assignments.contract,'ag-quest-assignments/0.1-alpha');
+ assert.equal(module.api.version,'0.6.1');assert.equal(module.api.consumer.contract,'ag-objective-consumer/0.2-alpha');assert.equal(module.api.assignments.contract,'ag-quest-assignments/0.1-alpha');
 });
 test('direct non-GM APIs reject hidden Player Access, including resolver',()=>{
  game.user=alice;access=false;
@@ -48,4 +48,5 @@ test('listQuests is GM-only and lists every quest for linking',()=>{
  assert.throws(()=>module.api.listQuests(),/GM permission/);
  game.user=gm;
  assert.deepEqual(module.api.listQuests().map(q=>[q.id,q.status]),[['QUEST-HIDDEN','Hidden']],'GM sees hidden quests too');
+ assert.deepEqual(module.api.listQuests().map(q=>[q.kind,q.definitionStatus]),[['quest','approved']],'kind and definition status are reported so pickers can label drafts');
 });

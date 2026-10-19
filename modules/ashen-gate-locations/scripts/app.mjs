@@ -61,11 +61,17 @@ async function openQuest(id) {
 /** Quest names: GM sees every quest, players only what Quest Manager lets them see. */
 function questChoices() {
   const q = questApi();
-  try {
-    if (game.user.isGM && q?.listQuests) return q.listQuests();
-    return (q?.listVisible?.() ?? []).map(v => ({id: v.id, name: v.name, status: v.status}));
-  } catch { return []; }
+  const visible = () => (q?.listVisible?.() ?? []).map(v => ({id: v.id, name: v.name, status: v.status}));
+  if (game.user.isGM && q?.listQuests) {
+    try { return q.listQuests(); } catch (err) { console.warn(`${MODULE_ID} | Quest Manager listQuests failed; showing visible quests only`, err); }
+  }
+  try { return visible(); } catch (err) { console.warn(`${MODULE_ID} | could not list quests`, err); return []; }
 }
+/** Picker label: the play status (Hidden until revealed) and the source's own status when it is not approved (e.g. draft). */
+const questLabel = q => {
+  const notes = [q.status, q.definitionStatus && q.definitionStatus !== 'approved' ? q.definitionStatus : ''].filter(Boolean);
+  return `${q.name}${notes.length ? ` (${notes.join(' · ')})` : ''}`;
+};
 function questName(id, choices) {
   const hit = choices.find(c => c.id === id);
   if (hit) return hit.name;
@@ -120,7 +126,20 @@ export class LocationsApp extends Base {
     return super.close(options);
   }
 
+  /** Never an empty window: a failure while building the page shows the error inside the window, with Retry. */
   async _renderHTML() {
+    try { return await this.buildHtml(); } catch (err) {
+      if (/hidden from players/.test(err?.message ?? '')) throw err;   // Player Access is off: the window closes itself, not a render fault
+      return this.errorHtml(err);
+    }
+  }
+  errorHtml(err) {
+    console.error(`${MODULE_ID} | render failed`, err);
+    return `<div class="agl-root"><div class="ag-card agl-error" role="alert"><h3>Locations could not be drawn</h3>
+      <p>${esc(err?.message ?? String(err))}</p><p class="agl-hint">Your unsaved edits are still in memory. Retry, or close and reopen the window. The error is also in the browser console (F12).</p>
+      ${btn('retry', 'Retry', {kind: 'primary', icon: 'fa-solid fa-rotate'})}</div></div>`;
+  }
+  async buildHtml() {
     const list = this.list();
     const creating = this.gm && this.draft && !this.draft.id;
     if (!creating) {
@@ -144,7 +163,7 @@ export class LocationsApp extends Base {
     if (detail) detail.scrollTop = scroll;
     const box = caret && content.querySelector('#agl-party-text');
     if (box) { box.focus(); box.setSelectionRange(...caret); }
-    this.bind(content);
+    try { this.bind(content); } catch (err) { content.innerHTML = this.errorHtml(err); this.bind(content); }
     try { const a = game.modules.get('ashen-gate-manager')?.api?.appearance; if (a?.contract === 'ag-appearance/0.1-beta') a.applyTo?.(content); } catch {}
   }
 
@@ -295,7 +314,7 @@ export class LocationsApp extends Base {
     });
     const linkedQuests = new Set(d.quests.map(q => q.questId));
     const questAdd = questApi()
-      ? `<select id="agl-add-quests"><option value="">Choose a quest…</option>${quests.filter(q => !linkedQuests.has(q.id)).map(q => `<option value="${esc(q.id)}">${esc(q.name)}${q.status ? ` (${esc(q.status)})` : ''}</option>`).join('')}</select>${btn('add-quest', 'Link', {icon: 'fa-solid fa-link'})}`
+      ? `<select id="agl-add-quests"><option value="">Choose a quest…</option>${quests.filter(q => !linkedQuests.has(q.id)).map(q => `<option value="${esc(q.id)}">${esc(questLabel(q))}</option>`).join('')}</select>${btn('add-quest', 'Link', {icon: 'fa-solid fa-link'})}`
       : '<p class="agl-hint">Activate Quest Manager to link quests.</p>';
     const byId = new Map(all.map(l => [l.id, l.name]));
     const relatedRows = rows('related', e => `<span class="agl-entry">${byId.has(e.locationId) ? `<a class="agl-link" data-action="select" data-id="${esc(e.locationId)}">${esc(byId.get(e.locationId))}</a>` : `${esc(e.locationId)} <small>(deleted)</small>`}</span>`);
@@ -641,6 +660,7 @@ export class LocationsApp extends Base {
   async onAction(el) {
     const action = el.dataset.action;
     if (action === 'help') return this.help();
+    if (action === 'retry') return this.render();
     if (action === 'select') {
       if (el.dataset.id === this.selectedId || !(await this.confirmDiscard())) return;
       this.select(el.dataset.id); return this.render();
