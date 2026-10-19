@@ -86,7 +86,8 @@ export async function writeAll(list) {
   assertGM();
   const locations = uniquePinKeys(list.map(normalizeLocation).filter(l => l.id));
   const doc = byRole(ROLE_GM);
-  if (doc) await doc.update({[`flags.${MODULE_ID}.locations`]: locations});
+  // Skip the write when the stored records already match (Factions 0.8.1 / Quest Manager 0.7.1 did the same).
+  if (doc) { if (JSON.stringify(doc.getFlag(MODULE_ID, 'locations')) !== JSON.stringify(locations)) await doc.update({[`flags.${MODULE_ID}.locations`]: locations}); }
   else await JournalEntry.create({name: 'Locations (GM Data)', folder: await ensureFolder(),
     ownership: {default: levels().NONE}, flags: {[MODULE_ID]: {role: ROLE_GM, locations}}});
   await syncPlayerView(locations);
@@ -131,8 +132,9 @@ export async function syncPlayerView(locations, opts = presentationOptions()) {
   const pages = new Map();
   for (const p of journal.pages) { const key = bindingKey(p, keyById); if (key && !pages.has(key)) pages.set(key, p); }
   const create = [], update = [], used = new Set();
+  const normalized = locations.map(normalizeLocation);
   for (const loc of locations) {
-    const data = pageData(loc, locations, opts, notes.get(loc.id));
+    const data = pageData(loc, locations, {...opts, normalized}, notes.get(loc.id));
     const page = pages.get(loc.pinKey);
     if (!page) { create.push(data); continue; }
     used.add(page.id);

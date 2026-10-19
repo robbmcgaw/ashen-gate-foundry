@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.8.1 — 2026-10-19
+
+- **Faster Save and Publish with many locations.** Building the player views no longer re-reads the whole list for every location, so saving 500 locations drops from about 1.4 s to about 0.1 s of module work (measured with the mocked Foundry layer), and a save that changes nothing no longer rewrites the GM data record.
+- **Deadly-threat badge** text is now dark on the red fill instead of white, so it is readable.
+- **Saved data:** no changes. No API changes. Benchmark: `node tests/bench/locations-bench.mjs`.
+
 ## 1.8.0 — 2026-10-19
 
 - **Region inheritance is now off by default.** A Region passes its Conditions to the places inside it only when you tick **Pass conditions to places inside** (shown under *This is a Region*). A place's inherited-conditions list appears only when a Region above it has this on. **Existing worlds:** on the GM's first login, every Region that was already passing conditions (it has conditions and places inside it) is switched on, so nothing changes, and a notice lists them; all others are off. Re-running changes nothing.
