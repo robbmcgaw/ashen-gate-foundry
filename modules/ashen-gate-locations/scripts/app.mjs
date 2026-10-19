@@ -1,7 +1,8 @@
 /** The Locations window: GM builder (list + editor + GM Setup) and the player viewer, one class. */
 import {MODULE_ID, THREATS, FIELDS, SECTIONS, BLOCKS, DETAIL_PREFIX, LOOT_STATUSES, LOOT_STATUS_LABELS, NOTE_DOC_TYPES, FACTION_DOC_TYPES, GATHERING, STATES, STATE_LABELS,
   DEFAULT_UNIDENTIFIED_LABEL, PIN_DEFAULTS, esc, clone, threatLabel, normalizeLocation, normalizeLayout, reorder, effectiveConditions, newKey, newNode, nodeName, materialIdOf,
-  hasUnpublishedChanges, wouldCycle, parentMap, PARTY_NOTES, GROUP_MODES, groupLocations} from './model.mjs';
+  hasUnpublishedChanges, wouldCycle, parentMap, PARTY_NOTES} from './model.mjs';
+import {GROUP_MODES, SORTS, emptyFilters, hasFilters, searchText, matchesQuery, applyFilters, filterOptions, comparator, groupRows} from './list-filter.mjs';
 
 const QUEST_MODULE = 'ashen-gate-quest-manager';
 const FIELD_LABELS = {type: 'Type', region: 'Region', description: 'Description', img: 'Image', threat: 'Threat'};
@@ -14,6 +15,12 @@ const eye = (bind, on, what) => `<label class="agl-eye" title="${on ? 'Visible' 
 /** "section:key" -> [section, key] (a key may itself contain a colon). */
 const splitEntry = v => { const i = v.indexOf(':'); return [v.slice(0, i), v.slice(i + 1)]; };
 const NUMERIC = new Set(['tier', 'dc', 'quantity', 'rareQuantity']);
+/** MAT-* id -> Item name, for the pickers and list search. */
+function materialNames() {
+  const seen = new Map();
+  for (const item of game.items ?? []) { const id = materialIdOf(item); if (id && !seen.has(id)) seen.set(id, item.name); }
+  return seen;
+}
 /** World Items carrying a MAT-* id, for the material pickers. */
 function materialOptions() {
   const seen = new Map();
@@ -100,7 +107,7 @@ export class LocationsApp extends Base {
     // Party Notes being edited: {ref, text, rev, renewed}. Kept across re-renders so live updates never wipe typing.
     this.notesEdit = null; this.notesTimer = null;
     // GM list view: how it is grouped, which groups are folded, and "show only one group". Per window, not saved.
-    this.groupBy = 'region'; this.collapsed = new Set(); this.onlyGroup = false; this.focusGroup = null;
+    this.groupBy = 'region'; this.collapsed = new Set(); this.filters = emptyFilters(); this.sort = 'name'; this.sortDesc = false;
   }
   get gm() { return game.user.isGM === true; }
   list() { return this.gm ? api().listLocations() : api().listLocations({includeUnidentified: true}); }
@@ -115,12 +122,13 @@ export class LocationsApp extends Base {
     this.draft = this.gm && found ? clone(found) : null;
     this.dirty = false;
   }
-  /** List header click: with "Show only one group" on it picks (or clears) that group; otherwise it folds or unfolds it. */
+  /** List header click: folds or unfolds that group. */
   toggleGroup(key) {
-    if (this.onlyGroup) this.focusGroup = this.focusGroup === key ? null : key;
-    else { const id = `${this.groupBy}:${key}`; if (!this.collapsed.delete(id)) this.collapsed.add(id); }
+    const id = `${this.groupBy}:${key}`;
+    if (!this.collapsed.delete(id)) this.collapsed.add(id);
     return this.render();
   }
+  clearFilters() { this.filters = emptyFilters(); this.query = ''; return this.render(); }
   async confirmDiscard() {
     if (!this.dirty) return true;
     return foundry.applications.api.DialogV2.confirm({window: {title: 'Discard changes?'}, content: '<p>You have unsaved changes to this location. Discard them?</p>',
@@ -177,8 +185,20 @@ export class LocationsApp extends Base {
 
   // ---------- list ----------
   locationsHtml(list) {
-    const q = this.query.toLowerCase();
-    const rows = list.filter(l => !q || [l.name, l.type, l.region].some(s => String(s ?? '').toLowerCase().includes(q)));
+    let rows = list, total = list.length, gmTools = '';
+    if (this.gm) {
+      const questChoicesList = questChoices();
+      const qName = id => questName(id, questChoicesList) ?? id;
+      const mats = materialNames();
+      if (this.query.trim()) rows = rows.filter(l => matchesQuery(searchText(l, {questName: qName, materialName: id => mats.get(id) ?? id}), this.query));
+      const searched = rows;
+      rows = applyFilters(rows, this.filters).sort(comparator(this.sort, this.sortDesc));
+      gmTools = this.filterBarHtml(filterOptions(searched, this.filters, qName), rows.length, total);
+      this.qName = qName;
+    } else {
+      const q = this.query.toLowerCase();
+      rows = list.filter(l => !q || [l.name, l.type, l.region].some(s => String(s ?? '').toLowerCase().includes(q)));
+    }
     const row = l => `
       <li><button type="button" class="agl-row${this.rid(l) === this.selectedId ? ' active' : ''}" data-action="select" data-id="${esc(this.rid(l))}" ${this.gm ? 'draggable="true"' : ''}>
         <span class="agl-row__name">${esc(l.name)}</span>
@@ -187,12 +207,11 @@ export class LocationsApp extends Base {
       </button></li>`;
     let items;
     if (this.gm) {
-      let groups = groupLocations(rows, this.groupBy);
-      if (this.onlyGroup && this.focusGroup != null && groups.some(g => g.key === this.focusGroup)) groups = groups.filter(g => g.key === this.focusGroup);
-      items = groups.map(g => {
-        const folded = !(this.onlyGroup && this.focusGroup != null) && this.collapsed.has(`${this.groupBy}:${g.key}`);
-        return `<li class="agl-group"><h3><button type="button" class="agl-group__head${this.onlyGroup && this.focusGroup === g.key ? ' active' : ''}" data-action="toggle-group" data-group="${esc(g.key)}" aria-expanded="${!folded}"
-          title="${this.onlyGroup ? 'Show only this group' : 'Fold or unfold'}"><i class="fa-solid ${folded ? 'fa-chevron-right' : 'fa-chevron-down'}" aria-hidden="true"></i><span>${esc(g.label)}</span><span class="agl-count">${g.rows.length}</span></button></h3>
+      items = groupRows(rows, this.groupBy, this.qName).map(g => {
+        if (this.groupBy === 'none') return `<li class="agl-group"><ul class="ag-list">${g.rows.map(row).join('')}</ul></li>`;
+        const folded = this.collapsed.has(`${this.groupBy}:${g.key}`);
+        return `<li class="agl-group"><h3><button type="button" class="agl-group__head" data-action="toggle-group" data-group="${esc(g.key)}" aria-expanded="${!folded}"
+          title="Fold or unfold"><i class="fa-solid ${folded ? 'fa-chevron-right' : 'fa-chevron-down'}" aria-hidden="true"></i><span>${esc(g.label)}</span><span class="agl-count">${g.rows.length}</span></button></h3>
           ${folded ? '' : `<ul class="ag-list">${g.rows.map(row).join('')}</ul>`}</li>`;
       }).join('');
     } else {
@@ -204,13 +223,26 @@ export class LocationsApp extends Base {
       items = sorted.map(([group, ls]) => `<li class="agl-group"><h3>${esc(group)}</h3><ul class="ag-list">${ls.map(row).join('')}</ul></li>`).join('');
     }
     const empty = this.gm ? 'No locations yet. Click <strong>New Location</strong> to create one.' : 'No locations have been revealed yet.';
-    const groupTools = this.gm ? `<label class="agl-groupby">Group by <select id="agl-groupby" aria-label="Group locations by">${GROUP_MODES.map(m => `<option value="${m.value}" ${this.groupBy === m.value ? 'selected' : ''}>${m.label}</option>`).join('')}</select></label>
-        <label class="agl-switch"><input type="checkbox" id="agl-onlygroup" ${this.onlyGroup ? 'checked' : ''}> Show only one group</label>` : '';
-    return `<div class="ag-toolbar"><input type="search" id="agl-search" placeholder="Search locations" value="${esc(this.query)}" aria-label="Search locations">${groupTools}
-        ${this.gm ? btn('new', 'New Location', {kind: 'primary', icon: 'fa-solid fa-plus'}) : ''}</div>
-      <div class="agl-body"><aside class="agl-list">${rows.length ? `<ul class="agl-groups">${items}</ul>` : `<p class="ag-empty">${list.length ? 'No matches.' : empty}</p>`}
+    const none = list.length
+      ? `<p class="ag-empty">${this.gm ? 'No locations match these filters.' : 'No matches.'}</p>${this.gm ? btn('clear-filters', 'Clear filters', {icon: 'fa-solid fa-filter-circle-xmark'}) : ''}`
+      : `<p class="ag-empty">${empty}</p>`;
+    return `<div class="ag-toolbar"><input type="search" id="agl-search" placeholder="${this.gm ? 'Search name, region, skill, material, quest…' : 'Search locations'}" value="${esc(this.query)}" aria-label="Search locations">
+        ${this.gm ? btn('new', 'New Location', {kind: 'primary', icon: 'fa-solid fa-plus'}) : ''}</div>${gmTools}
+      <div class="agl-body"><aside class="agl-list">${rows.length ? `<ul class="agl-groups">${items}</ul>` : none}
         ${this.gm && rows.length ? '<p class="agl-hint">Drag a location onto the scene to place a Map Note.</p>' : ''}</aside>
       <section class="agl-detail">${this.gm ? this.editorHtml() : this.viewerHtml(list.find(l => this.rid(l) === this.selectedId))}</section></div>`;
+  }
+
+  /** GM list controls: filters (AND, each with counts), sort, group, Clear filters and "Showing N of M". */
+  filterBarHtml(opts, shown, total) {
+    const sel = (key, label, all, extra = '') => `<label class="agl-ctl">${label}<select data-filter="${key}" aria-label="Filter by ${label.toLowerCase()}"><option value="">${all}</option>${extra}${opts[key].map(o =>
+      `<option value="${esc(o.value)}" ${this.filters[key] === o.value ? 'selected' : ''}>${esc(o.label)} (${o.count})</option>`).join('')}</select></label>`;
+    const plain = (id, label, list, cur) => `<label class="agl-ctl">${label}<select id="${id}" aria-label="${label}">${list.map(m => `<option value="${m.value}" ${cur === m.value ? 'selected' : ''}>${m.label}</option>`).join('')}</select></label>`;
+    return `<div class="agl-filters" role="group" aria-label="Filter, sort and group the list">
+      ${sel('threat', 'Threat', 'All')}${sel('region', 'Region', 'All')}${sel('profession', 'Profession', 'All')}${sel('quest', 'Quest', 'Any')}${sel('status', 'Status', 'All')}
+      ${plain('agl-sort', 'Sort by', SORTS, this.sort)}<button type="button" class="ag-btn" id="agl-sortdir" aria-label="Sort direction: ${this.sortDesc ? 'descending' : 'ascending'}" title="${this.sortDesc ? 'Descending (click for ascending)' : 'Ascending (click for descending)'}"><i class="fa-solid ${this.sortDesc ? 'fa-arrow-down-wide-short' : 'fa-arrow-up-short-wide'}" aria-hidden="true"></i></button>
+      ${plain('agl-groupby', 'Group by', GROUP_MODES, this.groupBy)}
+      <span class="agl-showing" aria-live="polite">Showing ${shown} of ${total}</span>${hasFilters(this.filters) || this.query ? btn('clear-filters', 'Clear filters', {kind: 'ghost', icon: 'fa-solid fa-filter-circle-xmark'}) : ''}</div>`;
   }
 
   // ---------- player viewer ----------
@@ -539,8 +571,10 @@ export class LocationsApp extends Base {
       this.query = e.target.value; const pos = e.target.selectionStart;
       this.render().then(() => { const s = this.element.querySelector('#agl-search'); s?.focus(); s?.setSelectionRange(pos, pos); });
     });
-    root.querySelector('#agl-groupby')?.addEventListener('change', e => { this.groupBy = e.target.value; this.focusGroup = null; this.render(); });
-    root.querySelector('#agl-onlygroup')?.addEventListener('change', e => { this.onlyGroup = e.target.checked; if (!this.onlyGroup) this.focusGroup = null; this.render(); });
+    root.querySelector('#agl-groupby')?.addEventListener('change', e => { this.groupBy = e.target.value; this.render(); });
+    root.querySelector('#agl-sort')?.addEventListener('change', e => { this.sort = e.target.value; this.render(); });
+    root.querySelector('#agl-sortdir')?.addEventListener('click', () => { this.sortDesc = !this.sortDesc; this.render(); });
+    for (const el of root.querySelectorAll('[data-filter]')) el.addEventListener('change', () => { this.filters[el.dataset.filter] = el.value; this.render(); });
     for (const el of root.querySelectorAll('[data-action]')) el.addEventListener('click', ev => { ev.preventDefault(); this.onAction(el).catch(notifyError); });
     root.querySelector('[data-action-change="player-access"]')?.addEventListener('change', e => api().playerAccess.setEnabled(e.target.checked).then(() => this.render()).catch(notifyError));
     root.querySelector('#agl-import-file')?.addEventListener('change', e => this.importFile(e.target.files?.[0]).catch(notifyError));
@@ -686,6 +720,7 @@ export class LocationsApp extends Base {
     const action = el.dataset.action;
     if (action === 'help') return this.help();
     if (action === 'retry') return this.render();
+    if (action === 'clear-filters') return this.clearFilters();
     if (action === 'toggle-group') return this.toggleGroup(el.dataset.group);
     if (action === 'select') {
       if (el.dataset.id === this.selectedId || !(await this.confirmDiscard())) return;
