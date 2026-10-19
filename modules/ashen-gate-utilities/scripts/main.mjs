@@ -4,7 +4,6 @@ import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 const {ApplicationV2}=foundry.applications.api;
 let windowInstance=null;
 let overlayInstance=null;
-let stashInstance=null;
 const SOCKET=`module.${ID}`;
 let activeRoll=false;
 let saving=false;
@@ -154,11 +153,11 @@ function stashActor(){return game.actors.find(a=>a.getFlag(ID,'partyStash')===tr
 const stashEnabled=()=>game.settings.get(ID,'stashEnabled')===true;
 /** Defaults to ON: only an explicit false turns the party vote off. */
 const stashVoteRequired=()=>game.settings.get(ID,'stashVoteRequired')!==false;
-function inventoryView(){
+function inventoryView(app){
  const stash=stashActor(),on=stashEnabled();
- if(!isGM())return `<section class="ag-card agu-card"><h2>Party Stash</h2>${on&&stash?`<p class="agu-note">One shared stash for the party. Drag an item from your character sheet into the stash window to add it. Taking an item out needs every other connected player to accept.</p><div class="agu-actions">${btn('open-stash','Open Party Stash',{kind:'primary'})}</div>`:empty('The GM has turned the party stash off.')}</section>`;
+ if(!isGM())return on&&stash?stashPanel(app):`<section class="ag-card agu-card"><h2>Party Stash</h2>${empty(stash?'The GM has turned the party stash off.':'There is no party stash yet.')}</section>`;
  const count=stash?stash.items.size??[...stash.items].length:0;
- return `<section class="ag-card agu-card"><div class="agu-line"><h2>Party Stash</h2><span class="ag-badge agu-pill ${on?'ag-badge--ok':''}">${on?'On for players':'Off for players'}</span></div><p class="agu-note">The stash is an NPC Actor kept by Utilities. While it is on, players get Observer permission on it so they can read item sheets; Utilities moves items for them through the GM client. You can move items freely.</p>${stash?`<p>Stash: <strong>${E(stash.name)}</strong> · ${E(count)} item(s)</p><div class="agu-actions">${btn('toggle-stash',on?'Turn Off for Players':'Turn On for Players',{kind:on?'danger':''})}${btn('open-stash','Open Party Stash',{kind:'primary'})}</div>`:empty('No party stash yet.')+`<div class="agu-actions">${btn('create-stash','Create Party Stash',{kind:'primary'})}</div>`}</section>`;
+ return `<section class="ag-card agu-card"><div class="agu-line"><h2>Party Stash</h2><span class="ag-badge agu-pill ${on?'ag-badge--ok':''}">${on?'On for players':'Off for players'}</span></div><p class="agu-note">The stash is an NPC Actor kept by Utilities. While it is on, players get Observer permission on it so they can read item sheets; Utilities moves items for them through the GM client. You can move items freely.</p>${stash?`<p>Stash: <strong>${E(stash.name)}</strong> · ${E(count)} item(s)</p><div class="agu-actions">${btn('toggle-stash',on?'Turn Off for Players':'Turn On for Players',{kind:on?'danger':''})}</div>`:empty('No party stash yet.')+`<div class="agu-actions">${btn('create-stash','Create Party Stash',{kind:'primary'})}</div>`}</section>${stash?stashPanel(app):''}`;
 }
 async function openUuid(uuid){const doc=await fromUuid(uuid);if(!doc?.sheet)throw Error('That document could not be found or has no sheet.');doc.sheet.render(true);}
 function tableView(app){if(!isGM())return empty('Only the GM can roll and distribute RollTable messages.');
@@ -201,9 +200,9 @@ function historyView(app){if(!isGM())return empty('History is GM-only.');
 function setupView(){return `<section class="ag-card agu-card"><h2>GM Setup</h2><label class="agu-inline"><input id="agu-access" type="checkbox" ${game.settings.get(ID,'playerAccessEnabled')?'checked':''}>Enable Player Access</label><p class="agu-note">This controls the player-facing Utilities launcher, not native Actor ownership.</p><label class="agu-inline"><input id="agu-stash-enabled" type="checkbox" ${stashEnabled()?'checked':''}>Party Stash on for players</label><p class="agu-note">Off: players can't see the stash or move items in or out. You can always manage it.</p><label class="agu-inline"><input id="agu-stash-vote" type="checkbox" ${stashVoteRequired()?'checked':''}>Party must accept when a player takes an item out</label><p class="agu-note">On: any other player can deny, and no answer in 60 seconds cancels. Off: players take items out freely. You are never voted on. Every move is recorded in the stash History tab either way.</p><div class="agu-actions">${btn('save-access','Save Changes',{kind:'primary'})}</div></section>`;}
 class UtilitiesApp extends ApplicationV2 {
  static DEFAULT_OPTIONS={id:'ashen-gate-utilities-window',classes:['ag-app','ag-utilities'],window:{title:'Ashen Gate | Utilities',resizable:true,minimizable:true},position:{width:900,height:690}};
- constructor(...args){super(...args);this.tab='checks';this.actorId='';this.rollActorId='';this.tableDraft='';this.tableAuto=false;this.lastDraw=[];}
+ constructor(...args){super(...args);this.tab='checks';this.actorId='';this.rollActorId='';this.tableDraft='';this.tableAuto=false;this.lastDraw=[];this.filter='';this.takeActorId='';this.stashTab='items';this.historyShown=HISTORY_PAGE;}
  async _renderHTML(){if(!permitted())throw Error('Utilities is hidden for players.');const tabs=[['checks','Group Checks'],['rolls','Roll Requests'],['inventory','Party Inventory'],['tables','Roll Tables'],['conditions','Conditions'],...(isGM()?[['history','History'],['setup','GM Setup']]:[])];
-  const body=this.tab==='checks'?interactionView('group',this):this.tab==='rolls'?interactionView('request',this):this.tab==='inventory'?inventoryView():this.tab==='tables'?tableView(this):this.tab==='conditions'?conditionsView(this):this.tab==='history'&&isGM()?historyView(this):this.tab==='setup'&&isGM()?setupView():empty('Unavailable view.');
+  const body=this.tab==='checks'?interactionView('group',this):this.tab==='rolls'?interactionView('request',this):this.tab==='inventory'?inventoryView(this):this.tab==='tables'?tableView(this):this.tab==='conditions'?conditionsView(this):this.tab==='history'&&isGM()?historyView(this):this.tab==='setup'&&isGM()?setupView():empty('Unavailable view.');
   return `<div class="agu-root"><header class="ag-header agu-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Utilities</h1><p>Group challenges, individual requests and party utilities</p></div><div class="ag-header__meta">${appearanceOpener()?`<button type="button" class="ag-btn ag-btn--ghost" data-open-appearance title="Choose your Ashen Gate appearance"><i class="fa-solid fa-palette" aria-hidden="true"></i>Appearance</button>`:''}<span class="agu-version">v${VERSION} Alpha · ${isGM()?'GM':'Player'}</span></div></header><nav class="ag-tabs agu-tabs" aria-label="Utility sections">${tabs.map(([id,label])=>`<button type="button" data-tab="${id}" aria-current="${this.tab===id?'page':'false'}" class="${this.tab===id?'active':''}">${E(label)}</button>`).join('')}</nav><main class="agu-main">${body}</main><footer class="ag-footer agu-footer"><span>Foundry V14 · dnd5e 6.0.6 target · live acceptance pending</span><span>${this.tab==='inventory'?`Party stash: ${stashEnabled()?'on':'off'} for players`:'Native permissions apply'}</span></footer></div>`;
  }
  // Appearance needs no wiring here: the kit's --ag-* tokens are inherited from the document,
@@ -218,6 +217,7 @@ class UtilitiesApp extends ApplicationV2 {
   for(const b of root.querySelectorAll('[data-open-uuid]'))b.addEventListener('click',ev=>{ev.preventDefault();openUuid(b.dataset.openUuid).catch(error);});
   root.querySelector('#agu-table-message')?.addEventListener('input',e=>{this.tableDraft=e.target.value;const b=root.querySelector('[data-action="table-send"]');if(b)b.disabled=!this.tableDraft.trim();});
   root.querySelector('#agu-table-auto')?.addEventListener('change',e=>{this.tableAuto=e.target.checked;});
+  this.bindStash(root);
   for(const b of root.querySelectorAll('[data-action]'))b.addEventListener('click',()=>this.handle(b.dataset.action,b,root).catch(error));
  }
  async handle(action,b,root){if(b.disabled)return;b.disabled=true;try{
@@ -243,7 +243,9 @@ class UtilitiesApp extends ApplicationV2 {
    return;
   }
   if(action==='create-stash'){if(!isGM())throw Error('GM only.');if(stashActor())throw Error('Party Stash already exists.');await Actor.create({name:'Ashen Gate | Party Stash',type:'npc',ownership:{default:stashEnabled()?OBSERVER():0},flags:{[ID]:{partyStash:true}}});await this.render();return;}
-  if(action==='open-stash'){await openStash();return;}
+  if(action==='stash-take'){await notifyResult(withdrawItem(b.dataset.item,root.querySelector('#agu-stash-target')?.value));return;}
+  if(action==='stash-history-more'){this.historyShown+=HISTORY_PAGE;await this.render();return;}
+  if(action==='stash-history-clear'){if(!confirm('Clear the whole stash history? This cannot be undone.'))return;await clearStashHistory();this.historyShown=HISTORY_PAGE;ui.notifications?.info('Stash history cleared.');await this.render();return;}
   if(action==='toggle-stash'){await setStashEnabled(!stashEnabled());await this.render();return;}
   if(action==='table-roll'){
    if(!isGM())throw Error('GM only.');const table=game.tables.get(root.querySelector('#agu-table')?.value);if(!table)throw Error('Choose a native RollTable.');
@@ -522,7 +524,6 @@ function onSheetDrop(actor,sheet,data){
  if(stashItemFromUuid(data.uuid))return; // sorting inside the stash sheet
  notifyResult(depositItem(data.uuid));return false;
 }
-const stashFilter={text:''};
 function stashBody(app){
  const stash=stashActor(),on=stashEnabled();
  if(!stash)return empty(isGM()?'No party stash yet. Create one in Utilities → Party Inventory.':'There is no party stash yet.');
@@ -534,8 +535,13 @@ function stashBody(app){
  const groups=[...new Set(shown.map(r=>r.typeLabel))].sort((a,b)=>a.localeCompare(b));
  const table=groups.map(g=>`<section class="agu-stash-group"><h3>${E(g)}</h3><div class="agu-stash-head" aria-hidden="true"><span></span><span>Item</span><span>Qty</span><span>Weight (each)</span><span>Value (each)</span><span>Type</span><span></span></div>${shown.filter(r=>r.typeLabel===g).map(r=>`<div class="agu-stash-row" draggable="true" data-stash-item="${E(r.id)}" data-uuid="${E(r.uuid??'')}"><span>${r.img?`<img class="agu-stash-icon" src="${E(r.img)}" alt="">`:''}</span><button type="button" class="agu-stash-name" data-open-item="${E(r.id)}" title="Open ${E(r.name)}">${E(r.name)}</button><span>${E(r.quantity)}</span><span>${E(r.weight)}</span><span>${E(r.value)}</span><span>${E(r.typeLabel)}</span><span>${target?btn('stash-take','Take',{kind:'ag-btn ag-btn--sm',attrs:`data-item="${E(r.id)}"`}):''}</span></div>`).join('')}</section>`).join('');
  const toolbar=`<div class="ag-toolbar"><input type="search" id="agu-stash-search" placeholder="Search items" value="${E(app.filter)}" aria-label="Search the stash"><div class="ag-toolbar__end">${takers.length?`<label class="agu-inline">Take into <select id="agu-stash-target">${takers.map(a=>option(a.id,a.name,target)).join('')}</select></label>`:''}</div></div>`;
- const note=isGM()?`<p class="agu-note">${on?'On for players.':'Off for players; only you can see and use it.'} You move items freely: drag from any sheet into this window, drag a row onto a sheet, or use Take.</p>`:`<p class="agu-note">Drag an item from your character sheet into this window to stash it. To take one out, drag its row onto your sheet or use Take${stashVoteRequired()?'; every other connected player must accept':''}.</p>`;
- return toolbar+(rows.length?(table||empty('No items match.')):empty('The stash is empty.'))+`<div class="agu-dropzone">Drop items here to put them in the stash</div>`+note;
+ const note=isGM()?`<p class="agu-note">${on?'On for players.':'Off for players; only you can see and use it.'} You move items freely: drag from any sheet onto this tab, drag a row onto a sheet, or use Take.</p>`:`<p class="agu-note">Drag an item from your character sheet onto this tab to stash it. To take one out, drag its row onto your sheet or use Take${stashVoteRequired()?'; every other connected player must accept':''}.</p>`;
+ return toolbar+(rows.length?(table||empty('No items match.')):empty('The stash is empty.'))+`<div class="agu-dropzone">Drop items anywhere on this tab to put them in the stash</div>`+note;
+}
+function stashPanel(app){
+ const stash=stashActor();if(!stash||(!stashEnabled()&&!isGM()))return '';
+ const tabs=`<nav class="ag-tabs agu-subtabs" aria-label="Stash sections">${[['items','Items'],['history','History']].map(([id,label])=>`<button type="button" data-stash-tab="${id}" aria-current="${app.stashTab===id?'page':'false'}" class="${app.stashTab===id?'active':''}">${label}</button>`).join('')}</nav>`;
+ return `<section class="agu-stash" aria-label="Party stash">${tabs}<div class="agu-stash-body">${app.stashTab==='history'?historyBody(app):stashBody(app)}</div></section>`;
 }
 const HISTORY_PAGE=50;
 const worldClock=t=>{if(!Number.isFinite(t))return '';const d=Math.floor(t/86400),r=((t%86400)+86400)%86400,p=n=>String(Math.floor(n)).padStart(2,'0');return `World day ${d}, ${p(r/3600)}:${p((r%3600)/60)}`;};
@@ -552,42 +558,35 @@ function historyBody(app){
  const clear=isGM()?`<div class="ag-toolbar__end">${btn('stash-history-clear','Clear History',{kind:'ag-btn ag-btn--danger',disabled:!rows.length})}</div>`:'';
  return `<div class="ag-toolbar"><span class="agu-note">${rows.length} ${rows.length===1?'entry':'entries'}, newest first. The log keeps the latest ${STASH_HISTORY_CAP}.</span>${clear}</div>${rows.length?items+more:empty('Nothing has moved in or out of the stash yet.')}`;
 }
-class StashApp extends ApplicationV2 {
- static DEFAULT_OPTIONS={id:'ashen-gate-utilities-stash',classes:['ag-app','ag-utilities','agu-stash-app'],window:{title:'Ashen Gate | Party Stash',resizable:true,minimizable:true},position:{width:720,height:560}};
- constructor(...args){super(...args);this.filter='';this.takeActorId='';this.tab='items';this.historyShown=HISTORY_PAGE;}
- async _renderHTML(){if(!permitted())throw Error('Utilities is hidden for players.');
-  const usable=Boolean(stashActor())&&(stashEnabled()||isGM());
-  return `<div class="agu-root"><header class="ag-header agu-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Party Stash</h1><p>${E(stashActor()?.name??'Party Stash')}</p></div><div class="ag-header__meta"><span class="agu-version">v${VERSION} · ${isGM()?'GM':'Player'}</span></div></header>${usable?`<nav class="ag-tabs agu-tabs" aria-label="Stash sections">${[['items','Items'],['history','History']].map(([id,label])=>`<button type="button" data-stash-tab="${id}" aria-current="${this.tab===id?'page':'false'}" class="${this.tab===id?'active':''}">${label}</button>`).join('')}</nav>`:''}<main class="agu-main">${usable&&this.tab==='history'?historyBody(this):stashBody(this)}</main></div>`;}
- _replaceHTML(html,content){content.innerHTML=html;const root=content;
-  for(const el of root.querySelectorAll('[data-stash-tab]'))el.addEventListener('click',()=>{this.tab=el.dataset.stashTab;this.render().catch(error);});
-  root.querySelector('[data-action="stash-history-more"]')?.addEventListener('click',()=>{this.historyShown+=HISTORY_PAGE;this.render().catch(error);});
-  root.querySelector('[data-action="stash-history-clear"]')?.addEventListener('click',()=>{if(!confirm('Clear the whole stash history? This cannot be undone.'))return;clearStashHistory().then(()=>{this.historyShown=HISTORY_PAGE;ui.notifications?.info('Stash history cleared.');},error);});
-  root.querySelector('#agu-stash-search')?.addEventListener('input',e=>{this.filter=e.target.value;const at=e.target.selectionStart;this.render().then(()=>{const s=this.element?.querySelector?.('#agu-stash-search');if(s){s.focus();s.setSelectionRange?.(at,at);}}).catch(error);});
+/** Wires the stash panel inside the Utilities window: tabs, search, take-into, sheet links, row drag-out, and drop-in over the whole tab. */
+UtilitiesApp.prototype.bindStash=function(root){
+  for(const el of root.querySelectorAll('[data-stash-tab]'))el.addEventListener('click',()=>{this.stashTab=el.dataset.stashTab;this.render().catch(error);});
+  root.querySelector('#agu-stash-search')?.addEventListener('input',e=>{this.filter=e.target.value;const at=e.target.selectionStart;this.render().then(()=>{const q=this.element?.querySelector?.('#agu-stash-search');if(q){q.focus();q.setSelectionRange?.(at,at);}}).catch(error);});
   root.querySelector('#agu-stash-target')?.addEventListener('change',e=>{this.takeActorId=e.target.value;});
   for(const b of root.querySelectorAll('[data-open-item]'))b.addEventListener('click',()=>{const item=stashActor()?.items.get(b.dataset.openItem);if(!item?.sheet)return error(Error('That item could not be opened.'));item.sheet.render(true);});
-  for(const b of root.querySelectorAll('[data-action="stash-take"]'))b.addEventListener('click',()=>{const target=root.querySelector('#agu-stash-target')?.value;b.disabled=true;notifyResult(withdrawItem(b.dataset.item,target)).finally(()=>{b.disabled=false;});});
   for(const row of root.querySelectorAll('[data-stash-item]'))row.addEventListener('dragstart',ev=>{ev.dataTransfer?.setData('text/plain',JSON.stringify({type:'Item',uuid:row.dataset.uuid}));});
-  const main=root.querySelector('.agu-main')??root;
-  main.addEventListener('dragover',ev=>{ev.preventDefault();main.classList.add('agu-drop-over');});
-  main.addEventListener('dragleave',()=>main.classList.remove('agu-drop-over'));
-  main.addEventListener('drop',ev=>{ev.preventDefault();main.classList.remove('agu-drop-over');const data=dragData(ev);
+  const zone=root.querySelector('.agu-main');
+  if(this.tab!=='inventory'||!zone||!root.querySelector('.agu-stash'))return;
+  zone.addEventListener('dragover',ev=>{ev.preventDefault();zone.classList.add('agu-drop-over');});
+  zone.addEventListener('dragleave',ev=>{if(!zone.contains(ev.relatedTarget))zone.classList.remove('agu-drop-over');});
+  zone.addEventListener('drop',ev=>{ev.preventDefault();zone.classList.remove('agu-drop-over');const data=dragData(ev);
    if(data?.type!=='Item'||!data.uuid)return ui.notifications?.warn('Drop an item from a character sheet.');
    if(stashItemFromUuid(data.uuid))return;notifyResult(depositItem(data.uuid));});
- }
-}
+};
+/** API open(): the stash lives in the Utilities window, Party Inventory tab. */
 async function openStash(){
  if(!permitted())throw Error('Utilities access is hidden by the GM.');
  if(!isGM()&&!stashEnabled())throw Error('The GM has turned the party stash off.');
  if(!stashActor())throw Error(isGM()?'Create the party stash first.':'There is no party stash yet.');
- stashInstance??=new StashApp();await stashInstance.render({force:true});return stashInstance;
+ if(!windowInstance||!windowInstance.rendered)windowInstance=new UtilitiesApp();
+ windowInstance.tab='inventory';await windowInstance.render({force:true});return windowInstance;
 }
-function rerenderStash(doc){const stash=stashActor();if(!stashInstance?.rendered)return;if(doc&&doc.parent?.id!==stash?.id&&doc.id!==stash?.id)return;stashInstance.render().catch(error);}
+function rerenderStash(doc){const stash=stashActor();if(!windowInstance?.rendered||windowInstance.tab!=='inventory')return;if(doc&&doc.parent?.id!==stash?.id&&doc.id!==stash?.id)return;windowInstance.render().catch(error);}
 async function open(){if(!permitted())throw Error('Utilities access is hidden by the GM.');if(!windowInstance||!windowInstance.rendered)windowInstance=new UtilitiesApp();await windowInstance.render({force:true});return windowInstance;}
 function refreshWindows(){
  if(!permitted()&&!isGM()){
-  document.querySelectorAll(`[data-ag-launcher="${ID}"]`).forEach(x=>x.remove());if(windowInstance?.rendered)windowInstance.close().catch(error);closeOverlay().catch(error);if(stashInstance?.rendered)stashInstance.close().catch(error);
- } else if(!isGM()&&!stashEnabled()&&stashInstance?.rendered){stashInstance.close().catch(error);rerenderConditions();}
- else {rerenderStash();rerenderConditions();if(game.settings.get(ID,'overlayOpen')===true&&!overlayInstance?.rendered)openOverlay().catch(error);}
+  document.querySelectorAll(`[data-ag-launcher="${ID}"]`).forEach(x=>x.remove());if(windowInstance?.rendered)windowInstance.close().catch(error);closeOverlay().catch(error);
+ } else {rerenderStash();rerenderConditions();if(game.settings.get(ID,'overlayOpen')===true&&!overlayInstance?.rendered)openOverlay().catch(error);}
  addLauncher(ui?.actors,ui?.actors?.element);
 }
 function incomingSession(){

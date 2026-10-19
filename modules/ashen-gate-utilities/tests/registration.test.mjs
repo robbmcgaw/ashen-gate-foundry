@@ -82,7 +82,7 @@ test('party stash stays hidden to players while the GM has it turned off, even w
  const stash={id:'stash',name:'SECRET STASH',type:'npc',getFlag:()=>true,items:[{name:'GM PRIVATE ITEM',system:{quantity:1}}],testUserPermission:()=>true};
  game.actors.push(stash);game.user=player;await game.settings.set(ID,'playerAccessEnabled',true);
  const app=await game.modules.get(ID).api.open();app.tab='inventory';
- const html=await app._renderHTML();assert.ok(html.includes('turned the party stash off'));assert.ok(!html.includes('GM PRIVATE ITEM'));assert.ok(!html.includes('Create Party Stash'));assert.ok(!html.includes('Open Party Stash'));
+ const html=await app._renderHTML();assert.ok(html.includes('turned the party stash off'));assert.ok(!html.includes('GM PRIVATE ITEM'));assert.ok(!html.includes('Create Party Stash'));
  await assert.rejects(game.modules.get(ID).api.stash.open(),/turned the party stash off/);
  game.user=gm;
 });
