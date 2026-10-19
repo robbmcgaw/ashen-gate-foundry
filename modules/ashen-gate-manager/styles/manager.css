@@ -184,3 +184,4 @@
 .agmanager-result-line {margin:3px 0;overflow-wrap:anywhere}
 .agmanager-line-failed {color:var(--ag-text);background:var(--ag-danger-soft);padding:4px 6px;border-radius:var(--ag-radius-sm)}
 .agmanager-line-skipped, .agmanager-line-warning {background:var(--ag-warn-soft);padding:4px 6px;border-radius:var(--ag-radius-sm)}
+.agmanager-changes {margin:4px 0 0 16px;padding:0;font-size:12px;overflow-wrap:anywhere}
