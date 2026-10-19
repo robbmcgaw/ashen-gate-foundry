@@ -1,3 +1,11 @@
+## 0.14.0 — 2026-10-19
+
+Groundwork for Skill Trees to handle profession perks. No visible change on its own.
+- **New read API for partner modules:** `api.progression.level(actor, profId)` returns `{profId, xp, level, tier}` (contract `ag-ledger-progression/1`). An owned profession with no XP yet is level 1. GM, or a player who can see the Actor; it works with Ledger Player Access off (that setting hides the Ledger window, not profession mechanics). Never returns history or perk choices.
+- **New hook** `ashenGateLedger.progressionChanged` `{actorId, profId, previousLevel, level, xp}` after every XP award, adjust, set or undo, on the GM client. It only says "look again"; Skill Trees reads the level through the API.
+- When XP is lowered and Skill Trees (0.11.0+) is active, the confirmation and chat note list the Skill Tree perks above the new level instead of Ledger perk choices. Nothing is removed.
+- No saved-data changes. XP, levels, history and existing API calls are unchanged.
+
 ## 0.13.0 — 2026-10-19
 
 - **GM Setup** now holds settings only: the party, Player Access, and the tool and check mapping.

@@ -4,6 +4,7 @@ import {pathToFileURL,fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,gatherOutcome,gatherReward,exhaustsNode,normalizeNode,tierNumber,defaultDC,checkGatherRequest,helperEligibility,stackMaterial,canRunGathering} from '../scripts/gathering.mjs';
 import {effectiveMapping,toolRef,rollModeFor,checkOption,professionKey} from '../scripts/checks.mjs';
+import {xpForLevel} from '../scripts/progression.mjs';
 // 0.10.0: node-based gathering (Locations), player requests with GM approval, tool requirement on recipes, XP from chat cards.
 const hooks={},errors=[],infos=[],chats=[],sent=[],dialogs=[],xpHooks=[];let api;
 const values={partyRoster:['belwar','tarra'],libraryData:{schema:'ag-ledger/0.1',recipes:[],materials:[]}};
@@ -461,4 +462,37 @@ test('gathering blockers in Forge: GM tab, GM start and player tab each name the
  loc.active=true;game.user=gm;
  assert.match(checkGatherRequest({ownsActor:false}).reason,/Owner permission/);
  assert.match(checkGatherRequest({ownsActor:true,inParty:false}).reason,/GM Setup/);
+});
+
+test('0.14.0: progression read contract, level-changed hook, Skill Trees report in the lower-level text',async()=>{
+ const P='PROF-TG-HERBALISM';
+ game.user=gm;
+ assert.equal(api.progression.contract,'ag-ledger-progression/1');
+ const before=api.progression.level(belwar,P);
+ assert.deepEqual(Object.keys(before).sort(),['level','profId','tier','xp'],'no history or perk choices');
+ // An owned Profession with no XP row is level 1; a Profession the Actor does not own is null.
+ assert.deepEqual(api.progression.level(belwar,'PROF-TG-ALCHEMY'),{profId:'PROF-TG-ALCHEMY',xp:0,level:1,tier:'Apprentice'});
+ assert.equal(api.progression.level(tarra,P),null);
+ // Players: own/observed Actors only; works even with Ledger Player Access off.
+ values.playerAccessEnabled=false;
+ game.user=alice;assert.equal(api.progression.level(belwar,P).level,before.level);
+ game.user=bob;assert.throws(()=>api.progression.level(belwar,P),/access denied/);
+ delete values.playerAccessEnabled;game.user=gm;
+ // Every XP write announces the level change on the writing client.
+ xpHooks.length=0;
+ await _test.adjustXP(belwar,P,{set:xpForLevel(7)});
+ await _test.adjustXP(belwar,P,{set:xpForLevel(3),reason:'test'});
+ const fired=xpHooks.filter(h=>h.name==='ashenGateLedger.progressionChanged').map(h=>h.data);
+ assert.deepEqual(fired.map(d=>[d.actorId,d.profId,d.previousLevel,d.level]),[['belwar',P,before.level,7],['belwar',P,7,3]]);
+ assert.equal(api.hooks.progressionChanged,'ashenGateLedger.progressionChanged');
+ // With Skill Trees present, the lower-level dialog lists its over-level nodes instead of Ledger perk choices.
+ modules['ashen-gate-skill-trees']={active:true,api:{professionReport:(a,id,{level})=>a.id==='belwar'&&id===P&&level<7?{nodesAboveLevel:[{nodeId:'n7',name:'[TEST] Deep Roots',threshold:7}],overSpent:0}:null}};
+ await _test.adjustXP(belwar,P,{set:xpForLevel(7)});
+ const r=await _test.performAction('adjust-xp',{id:P,actorId:'belwar',set:String(xpForLevel(2))});
+ assert.match(r.message,/1 \[TEST\] Herbalism Skill Tree perk \(\[TEST\] Deep Roots\) needs a higher level than 2\. They are kept, not removed\. Resolve them in Skill Trees\./);
+ // A broken partner never blocks the XP change.
+ modules['ashen-gate-skill-trees']={active:true,api:{professionReport:()=>{throw Error('boom');}}};
+ await _test.performAction('adjust-xp',{id:P,actorId:'belwar',set:String(xpForLevel(1))});
+ assert.equal(api.progression.level(belwar,P).level,1);
+ delete modules['ashen-gate-skill-trees'];
 });
