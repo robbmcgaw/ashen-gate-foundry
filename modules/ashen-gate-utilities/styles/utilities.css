@@ -104,16 +104,20 @@
 .ag-utilities .agu-main{container-type:inline-size;}
 .ag-utilities .agu-subtabs{padding:0 0 0;margin:0 0 var(--ag-space-3);background:transparent;}
 .ag-utilities .agu-stash-group {margin-bottom:var(--ag-space-3);}
-.ag-utilities .agu-stash-head,.ag-utilities .agu-stash-row {display:grid;grid-template-columns:32px minmax(140px,1fr) 48px 96px 96px 90px auto;align-items:center;gap:var(--ag-space-2);}
-.ag-utilities .agu-stash-head {color:var(--ag-muted);font-size:var(--ag-text-xs);font-weight:600;padding:0 var(--ag-space-1) 4px;border-bottom:1px solid var(--ag-border);}
-.ag-utilities .agu-stash-row {padding:6px var(--ag-space-1);border-bottom:1px solid var(--ag-border);cursor:grab;}
+/* v0.10.0: one column template for the header and every row (no `auto` column, which sized per row and pushed headers off their columns). */
+.ag-utilities .agu-stash-table {--agu-stash-cols:32px minmax(120px,1fr) 48px 104px 104px 104px 72px;}
+.ag-utilities .agu-stash-grid {display:grid;grid-template-columns:var(--agu-stash-cols);align-items:center;gap:var(--ag-space-2);padding-inline:var(--ag-space-1);}
+.ag-utilities .agu-stash-cell {min-width:0;overflow-wrap:anywhere;}
+.ag-utilities .agu-stash-head {color:var(--ag-muted);font-size:var(--ag-text-xs);font-weight:600;padding-block:0 4px;border-bottom:1px solid var(--ag-border);}
+.ag-utilities .agu-stash-head .agu-col-item {padding-inline:4px;} /* same inset as the item-name button below it */
+.ag-utilities .agu-stash-row {padding-block:6px;border-bottom:1px solid var(--ag-border);cursor:grab;}
 .ag-utilities .agu-stash-row:hover {background:var(--ag-surface-hover);}
 .ag-utilities .agu-stash-icon {width:28px;height:28px;object-fit:contain;border-radius:var(--ag-radius-sm);border:0;}
 .ag-app.ag-utilities button.agu-stash-name {justify-content:flex-start;min-height:0;padding:2px 4px;border:0;background:transparent;color:var(--ag-text);font-weight:600;text-align:left;overflow-wrap:anywhere;}
 .ag-app.ag-utilities button.agu-stash-name:hover {color:var(--ag-accent);text-decoration:underline;background:transparent;}
 .ag-utilities .ag-toolbar .agu-inline {margin:0;}
 .ag-utilities .agu-dropzone {margin:var(--ag-space-3) 0;padding:var(--ag-space-3);border:1px dashed var(--ag-border-strong);border-radius:var(--ag-radius);color:var(--ag-muted);text-align:center;}
-@container (max-width:560px){.ag-utilities .agu-stash-head{display:none}.ag-utilities .agu-stash-row{grid-template-columns:32px 1fr auto;}.ag-utilities .agu-stash-row > span:nth-child(n+3):not(:last-child){display:none}}
+@container (max-width:560px){.ag-utilities .agu-stash-table{--agu-stash-cols:32px minmax(0,1fr) 72px;}.ag-utilities .agu-stash-grid > :is(.agu-col-qty,.agu-col-weight,.agu-col-value,.agu-col-type){display:none}}
 .agu-vote-app .window-content {padding:var(--ag-space-4);}
 .agu-vote-app .agu-vote p {margin:0 0 var(--ag-space-2);}
 .agu-vote-app .agu-vote-actions {display:flex;justify-content:space-between;gap:var(--ag-space-2);margin-top:var(--ag-space-3);}
@@ -121,3 +125,15 @@
 .ag-utilities .agu-stash-log .agu-line{align-items:center;gap:var(--ag-space-2);}
 .ag-utilities .agu-stash-log__what{display:flex;align-items:center;gap:var(--ag-space-2);min-width:0;}
 .ag-utilities .agu-stash-log small{color:var(--ag-muted);}
+/* v0.10.0 — Party purse strip (Party Inventory → Items). */
+.ag-utilities .agu-purse {margin:0 0 var(--ag-space-3);padding:var(--ag-space-2) var(--ag-space-3);border:1px solid var(--ag-border);border-radius:var(--ag-radius);}
+.ag-utilities .agu-purse h3 {margin:0;}
+.ag-utilities .agu-coins {display:grid;grid-template-columns:repeat(auto-fit,minmax(84px,1fr));gap:var(--ag-space-2);margin:var(--ag-space-2) 0;}
+.ag-utilities .agu-coin {display:flex;flex-direction:column;gap:2px;padding:var(--ag-space-1) var(--ag-space-2);border:1px solid var(--ag-border);border-radius:var(--ag-radius-sm);}
+.ag-utilities .agu-coin__label {color:var(--ag-muted);font-size:var(--ag-text-xs);}
+.ag-utilities .agu-coin__label abbr {text-decoration:none;text-transform:uppercase;}
+.ag-utilities .agu-coin__value {font-variant-numeric:tabular-nums;overflow-wrap:anywhere;}
+.ag-utilities .agu-purse-move {display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--ag-space-2);}
+.ag-utilities .agu-purse-move label {flex:1 1 140px;}
+.ag-utilities .agu-purse-move input[type=number] {width:100%;}
+.ag-utilities .agu-purse-move .agu-actions {margin:0;}

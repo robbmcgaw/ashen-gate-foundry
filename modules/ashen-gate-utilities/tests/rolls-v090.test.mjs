@@ -107,6 +107,6 @@ test('End & Record files the roll in History; pre-0.9 history entries still rend
  assert.ok(html.includes('[TEST] Old Request')&&html.includes('Roll Request · Recorded')&&html.includes('Failure vs DC 15'));
  assert.ok(html.includes('[TEST] New')&&html.includes('Group Check · No Result'));
 });
-test('public API keeps the same names (no start/request functions existed to wrap)',()=>{
- assert.deepEqual(Object.keys(api()).sort(),['awardGold','conditions','contract','gold','open','playerAccess','stash','undoGoldAward','version']);
+test('public API keeps the same names (no start/request functions existed to wrap; 0.10.0 adds purse)',()=>{
+ assert.deepEqual(Object.keys(api()).sort(),['awardGold','conditions','contract','gold','open','playerAccess','purse','stash','undoGoldAward','version']);
 });

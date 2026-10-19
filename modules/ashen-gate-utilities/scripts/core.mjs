@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.9.0';
+export const VERSION = '0.10.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -299,43 +299,46 @@ export function readGp(actor) {
 /**
  * What each recipient gets. mode 'each': everyone gets `amount`. mode 'split': `amount` is shared evenly in
  * whole gp; the remainder is not paid to anyone (it stays with the GM) and is returned so it can be shown.
- * recipients: [{id, name, gp}] with gp read fresh from the actor.
+ * recipients: [{id, name, held}] with `held` (or the 0.8 name `gp`) read fresh from the actor for the chosen coin.
+ * v0.10.0: `coin` picks the dnd5e denomination (cp/sp/ep/gp/pp, default gp); nothing is converted.
  */
-export function planGoldAward({amount, mode = 'each', recipients} = {}) {
+export function planGoldAward({amount, mode = 'each', recipients, coin = 'gp'} = {}) {
   const amt = Number(amount);
-  if (!Number.isInteger(amt) || amt < 1 || amt > GOLD_MAX) throw Error(`Gold must be a whole number from 1 to ${GOLD_MAX}.`);
+  if (!COINS.includes(coin)) throw Error(`Coin must be one of ${COINS.join(', ')}.`);
+  if (!Number.isInteger(amt) || amt < 1 || amt > GOLD_MAX) throw Error(`${coin === 'gp' ? 'Gold' : COIN_LABELS[coin]} must be a whole number from 1 to ${GOLD_MAX}.`);
   if (!['each', 'split'].includes(mode)) throw Error('Mode must be "each" or "split".');
-  const list = [...new Map((recipients ?? []).filter(r => r?.id).map(r => [r.id, r])).values()];
+  const list = [...new Map((recipients ?? []).filter(r => r?.id).map(r => [r.id, {...r, held: r.held ?? r.gp}])).values()];
   if (!list.length) throw Error('Choose at least one character.');
-  for (const r of list) if (!Number.isFinite(r.gp)) throw Error(`${r.name ?? r.id} has no dnd5e gold (system.currency.gp).`);
+  for (const r of list) if (!Number.isFinite(r.held)) throw Error(`${r.name ?? r.id} has no dnd5e ${coinWord(coin)} (system.currency.${coin}).`);
   const share = mode === 'each' ? amt : Math.floor(amt / list.length);
-  if (share < 1) throw Error(`${amt} gp cannot be split between ${list.length} characters in whole gp.`);
+  if (share < 1) throw Error(`${amt} ${coin} cannot be split between ${list.length} characters in whole ${coin}.`);
   const remainder = mode === 'each' ? 0 : amt - share * list.length;
-  return {amount: amt, mode, share, remainder, total: share * list.length,
-    recipients: list.map(r => ({actorId: r.id, actorName: String(r.name ?? ''), before: r.gp, added: share, after: r.gp + share}))};
+  return {amount: amt, mode, coin, share, remainder, total: share * list.length,
+    recipients: list.map(r => ({actorId: r.id, actorName: String(r.name ?? ''), before: r.held, added: share, after: r.held + share}))};
 }
 /** History record of a gold award. Lives in the stash history list next to deposits/withdrawals. */
 export function goldAwardEntry({id, plan, reason = '', isPublic = false, user, worldTime = null, realTime = Date.now()} = {}) {
   if (!plan?.recipients?.length) throw new TypeError('A gold award needs recipients.');
   return {id: String(id ?? `g${realTime}`), kind: 'gold-award', approval: 'gm', moved: true,
-    userId: str(user?.id), userName: str(user?.name) ?? 'Unknown', amount: plan.amount, mode: plan.mode, share: plan.share, remainder: plan.remainder,
+    userId: str(user?.id), userName: str(user?.name) ?? 'Unknown', amount: plan.amount, mode: plan.mode, coin: COINS.includes(plan.coin) ? plan.coin : 'gp', share: plan.share, remainder: plan.remainder,
     reason: String(reason ?? '').trim().slice(0, 240), public: Boolean(isPublic),
     recipients: plan.recipients.map(r => ({actorId: r.actorId, actorName: str(r.actorName) ?? '', before: r.before, added: r.added, after: r.after, undone: false})),
     undo: [], worldTime: num(worldTime), realTime: num(realTime) ?? Date.now()};
 }
 /**
  * Undo decision per recipient. Only recipients not already undone are considered; each is reversed only if
- * the character still holds at least the gp that was added. `gpOf(actorId)` returns current gp or null (missing).
+ * the character still holds at least the coins that were added. `gpOf(actorId, coin)` returns the current amount
+ * of the award's coin (gp for entries from before 0.10.0) or null when missing.
  */
 export function planGoldUndo(entry, gpOf) {
   if (entry?.kind !== 'gold-award') throw Error('That history entry is not a gold award.');
-  const open = (entry.recipients ?? []).filter(r => !r.undone);
-  if (!open.length) throw Error('This gold award was already undone.');
+  const open = (entry.recipients ?? []).filter(r => !r.undone), coin = entryCoin(entry);
+  if (!open.length) throw Error(`This ${coin === 'gp' ? 'gold' : 'coin'} award was already undone.`);
   return open.map(r => {
-    const gp = gpOf(r.actorId);
+    const gp = gpOf(r.actorId, coin);
     if (gp === undefined) return {...r, ok: false, reason: `${r.actorName} no longer exists.`};
-    if (gp === null) return {...r, ok: false, reason: `${r.actorName} has no dnd5e gold (system.currency.gp).`};
-    if (gp < r.added) return {...r, ok: false, reason: `${r.actorName} has ${gp} gp, fewer than the ${r.added} gp awarded.`};
+    if (gp === null) return {...r, ok: false, reason: `${r.actorName} has no dnd5e ${coinWord(coin)} (system.currency.${coin}).`};
+    if (gp < r.added) return {...r, ok: false, reason: `${r.actorName} has ${gp} ${coin}, fewer than the ${r.added} ${coin} awarded.`};
     return {...r, ok: true, reason: '', now: gp, next: gp - r.added};
   });
 }
@@ -348,9 +351,9 @@ export function applyGoldUndo(entry, results, {user, realTime = Date.now()} = {}
 }
 /** Short chat card for an award (GM whisper, or public if the GM ticked it). */
 export function goldCardHTML(entry) {
-  const E = escapeHTML, how = entry.mode === 'split' ? `${E(entry.amount)} gp split evenly` : `${E(entry.share)} gp each`;
-  const rows = entry.recipients.map(r => `<li><strong>${E(r.actorName)}</strong>: +${E(r.added)} gp</li>`).join('');
-  return `<div class="ag-utilities-gold"><h3>Gold awarded: ${how}</h3>${entry.reason ? `<p>${E(entry.reason)}</p>` : ''}<ul>${rows}</ul>${entry.remainder ? `<p>${E(entry.remainder)} gp left over was not handed out.</p>` : ''}</div>`;
+  const E = escapeHTML, c = entryCoin(entry), how = entry.mode === 'split' ? `${E(entry.amount)} ${c} split evenly` : `${E(entry.share)} ${c} each`;
+  const rows = entry.recipients.map(r => `<li><strong>${E(r.actorName)}</strong>: +${E(r.added)} ${c}</li>`).join('');
+  return `<div class="ag-utilities-gold"><h3>${c === 'gp' ? 'Gold' : 'Coins'} awarded: ${how}</h3>${entry.reason ? `<p>${E(entry.reason)}</p>` : ''}<ul>${rows}</ul>${entry.remainder ? `<p>${E(entry.remainder)} ${c} left over was not handed out.</p>` : ''}</div>`;
 }
 
 /* ---- v0.9.0: one Rolls tab for Group Checks and Roll Requests ---- */
@@ -369,4 +372,106 @@ export function rollFormSession({mode = 'group', title = '', actors, skills, rol
   if (kind === 'request' && picked.length !== 1) throw Error('Individual rolls ask for one skill: tick exactly one.');
   const name = String(title ?? '').trim() || (kind === 'group' ? 'New Group Check' : 'New Roll Request');
   return createSession({id, kind, name, actors, skills: picked, rollsPerActor: kind === 'group' ? Number(rollsPerActor) : 1, dc, visibility: 'public', createdBy, createdAt});
+}
+
+/* ---- v0.10.0: party purse (dnd5e system.currency on the stash Actor), coin moves, GM adjust, Undo ---- */
+/** dnd5e currency keys, lowest to highest. Shown as five separate counters; nothing is ever converted. */
+export const COINS = Object.freeze(['cp', 'sp', 'ep', 'gp', 'pp']);
+export const COIN_LABELS = Object.freeze({cp: 'Copper', sp: 'Silver', ep: 'Electrum', gp: 'Gold', pp: 'Platinum'});
+const coinWord = coin => (coin === 'gp' ? 'gold' : String(COIN_LABELS[coin] ?? coin).toLowerCase());
+/** Coin of a history entry; gold awards from before 0.10.0 have none and were gp. */
+export const entryCoin = entry => (COINS.includes(entry?.coin) ? entry.coin : 'gp');
+/** One coin as dnd5e stores it (blank counts as 0), or null when the dnd5e currency path is missing. */
+export function readCoin(actor, coin) {
+  if (!COINS.includes(coin)) return null;
+  const cur = actor?.system?.currency;
+  if (!cur || typeof cur !== 'object') return null;
+  const v = cur[coin];
+  if (v === undefined || v === null || v === '') return 0;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+}
+/** All five coins, or null when the actor has no dnd5e currency. */
+export function readCoins(actor) {
+  if (!actor?.system?.currency || typeof actor.system.currency !== 'object') return null;
+  return Object.fromEntries(COINS.map(c => [c, readCoin(actor, c) ?? 0]));
+}
+const wholeAmount = (amount, {min = 1} = {}) => {
+  const n = Number(amount);
+  if (amount === '' || amount === null || !Number.isInteger(n) || n < min || n > GOLD_MAX) throw Error(`Amount must be a whole number from ${min} to ${GOLD_MAX}.`);
+  return n;
+};
+const checkCoin = coin => { if (!COINS.includes(coin)) throw Error(`Coin must be one of ${COINS.join(', ')}.`); return coin; };
+/**
+ * A character ↔ purse move. 'deposit' takes coins from the character into the purse; 'take' the reverse.
+ * Never more than the giver holds, so neither side can go negative. `actorHas`/`purseHas` are the current amounts.
+ */
+export function planCoinMove({kind, coin, amount, actorHas, purseHas, actorName = 'The character'} = {}) {
+  if (!['deposit', 'take'].includes(kind)) throw Error('Move must be deposit or take.');
+  checkCoin(coin);const amt = wholeAmount(amount);
+  if (!Number.isFinite(actorHas)) throw Error(`${actorName} has no dnd5e ${coinWord(coin)} (system.currency.${coin}).`);
+  if (!Number.isFinite(purseHas)) throw Error(`The party purse has no dnd5e currency (system.currency.${coin}).`);
+  if (kind === 'deposit' && actorHas < amt) throw Error(`${actorName} has ${actorHas} ${coin}, fewer than ${amt} ${coin}.`);
+  if (kind === 'take' && purseHas < amt) throw Error(`The party purse has ${purseHas} ${coin}, fewer than ${amt} ${coin}.`);
+  const sign = kind === 'deposit' ? 1 : -1;
+  return {kind, coin, amount: amt, actorBefore: actorHas, actorAfter: actorHas - sign * amt, purseBefore: purseHas, purseAfter: purseHas + sign * amt};
+}
+/** GM purse change: 'add', 'remove' (never below 0) or 'set' (0 allowed). */
+export function planPurseAdjust({op, coin, amount, purseHas} = {}) {
+  if (!['add', 'remove', 'set'].includes(op)) throw Error('Adjust must be add, remove or set.');
+  checkCoin(coin);const amt = wholeAmount(amount, {min: op === 'set' ? 0 : 1});
+  if (!Number.isFinite(purseHas)) throw Error(`The party purse has no dnd5e currency (system.currency.${coin}).`);
+  if (op === 'remove' && purseHas < amt) throw Error(`The party purse has ${purseHas} ${coin}, fewer than ${amt} ${coin}.`);
+  const after = op === 'add' ? purseHas + amt : op === 'remove' ? purseHas - amt : amt;
+  if (after === purseHas) throw Error(`The party purse already has ${purseHas} ${coin}.`);
+  return {op, coin, amount: amt, purseBefore: purseHas, purseAfter: after};
+}
+export const PURSE_KINDS = Object.freeze(['purse-deposit', 'purse-take', 'purse-adjust']);
+/** History record for the purse. `plan` comes from planCoinMove or planPurseAdjust. A denied/timed-out take has moved: false. */
+export function purseEntry({id, kind, approval, plan, user, actor = null, reason = '', worldTime = null, realTime = Date.now()} = {}) {
+  if (!PURSE_KINDS.includes(kind)) throw new TypeError('Unknown purse history kind.');
+  if (!HISTORY_APPROVALS.includes(approval)) throw new TypeError('Unknown history approval.');
+  if (!plan || !COINS.includes(plan.coin)) throw new TypeError('A purse entry needs a coin plan.');
+  return {id: String(id ?? `p${realTime}`), kind, approval, moved: approval !== 'denied' && approval !== 'timed-out',
+    userId: str(user?.id), userName: str(user?.name) ?? 'Unknown', actorId: str(actor?.id), actorName: str(actor?.name),
+    coin: plan.coin, amount: plan.amount, op: kind === 'purse-adjust' ? plan.op : null,
+    purseBefore: num(plan.purseBefore), purseAfter: num(plan.purseAfter), actorBefore: num(plan.actorBefore ?? null), actorAfter: num(plan.actorAfter ?? null),
+    reason: String(reason ?? '').trim().slice(0, 240), undone: false, undo: [], worldTime: num(worldTime), realTime: num(realTime) ?? Date.now()};
+}
+/** Whether the GM can still try Undo on this entry: GM adjustments and completed takes, once. */
+export const purseUndoable = h => (h?.kind === 'purse-adjust' || (h?.kind === 'purse-take' && h.moved === true)) && !h.undone && Number.isFinite(h.purseAfter) && Number.isFinite(h.purseBefore);
+/**
+ * Undo decision, same refusal rules as gold awards: nothing goes negative and nothing is undone twice.
+ * Adjust: put the purse back by the same difference (refused if those coins have since left the purse).
+ * Take: move the coins from the character back to the purse (refused if the character no longer holds them).
+ * `purseHas` / `actorHas` are current amounts (`undefined` = missing document, null = no dnd5e currency).
+ */
+export function planPurseUndo(entry, {purseHas, actorHas} = {}) {
+  if (!PURSE_KINDS.includes(entry?.kind)) throw Error('That history entry is not a purse change.');
+  if (entry.undone) throw Error('This purse change was already undone.');
+  if (!purseUndoable(entry)) throw Error(entry.kind === 'purse-deposit' ? 'Deposits are not undone here; the player can take the coins back.' : 'This purse change cannot be undone.');
+  const c = entry.coin, refuse = reason => ({ok: false, reason});
+  if (purseHas === undefined) return refuse('The party stash no longer exists.');
+  if (!Number.isFinite(purseHas)) return refuse(`The party purse has no dnd5e currency (system.currency.${c}).`);
+  if (entry.kind === 'purse-adjust') {
+    const delta = entry.purseAfter - entry.purseBefore, next = purseHas - delta;
+    if (next < 0) return refuse(`The party purse has ${purseHas} ${c}, fewer than the ${delta} ${c} added.`);
+    return {ok: true, reason: '', purseNext: next, change: -delta};
+  }
+  if (actorHas === undefined) return refuse(`${entry.actorName ?? 'The character'} no longer exists.`);
+  if (!Number.isFinite(actorHas)) return refuse(`${entry.actorName} has no dnd5e ${coinWord(c)} (system.currency.${c}).`);
+  if (actorHas < entry.amount) return refuse(`${entry.actorName} has ${actorHas} ${c}, fewer than the ${entry.amount} ${c} taken.`);
+  return {ok: true, reason: '', purseNext: purseHas + entry.amount, actorNext: actorHas - entry.amount, change: entry.amount};
+}
+/** New entry with the undo attempt recorded (and marked undone when it worked); never mutates the input. */
+export function applyPurseUndo(entry, result, {user, realTime = Date.now()} = {}) {
+  return {...entry, undone: entry.undone || result.ok === true,
+    undo: [...(entry.undo ?? []), {userId: str(user?.id), userName: str(user?.name) ?? 'Unknown', realTime, ok: result.ok === true, reason: String(result.reason ?? '')}]};
+}
+/** History line for a purse entry. */
+export function purseLine(h) {
+  const amt = `${h.amount} ${h.coin}`, who = `${h.userName}${h.actorName ? ` (${h.actorName})` : ''}`;
+  if (h.kind === 'purse-deposit') return `${who} put ${amt} in the party purse`;
+  if (h.kind === 'purse-take') return h.moved ? `${who} took ${amt} from the party purse` : `${who} tried to take ${amt} from the party purse`;
+  return h.op === 'set' ? `${h.userName} set the party purse ${h.coin} to ${h.amount}` : `${h.userName} ${h.op === 'add' ? 'added' : 'removed'} ${amt} ${h.op === 'add' ? 'to' : 'from'} the party purse`;
 }
