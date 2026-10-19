@@ -1,4 +1,4 @@
-import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,conditionGroups,stashRow,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome} from './core.mjs';
+import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,conditionGroups,stashRow,historyEntry,appendHistory,approvalLabel,STASH_HISTORY_CAP,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome} from './core.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 
 const {ApplicationV2}=foundry.applications.api;
@@ -152,6 +152,8 @@ function interactionView(kind,app){const active=activeSession(),res=getResult();
  return (active?sessionView(active,kind,app):idle)+createPanel(kind);}
 function stashActor(){return game.actors.find(a=>a.getFlag(ID,'partyStash')===true);}
 const stashEnabled=()=>game.settings.get(ID,'stashEnabled')===true;
+/** Defaults to ON: only an explicit false turns the party vote off. */
+const stashVoteRequired=()=>game.settings.get(ID,'stashVoteRequired')!==false;
 function inventoryView(){
  const stash=stashActor(),on=stashEnabled();
  if(!isGM())return `<section class="ag-card agu-card"><h2>Party Stash</h2>${on&&stash?`<p class="agu-note">One shared stash for the party. Drag an item from your character sheet into the stash window to add it. Taking an item out needs every other connected player to accept.</p><div class="agu-actions">${btn('open-stash','Open Party Stash',{kind:'primary'})}</div>`:empty('The GM has turned the party stash off.')}</section>`;
@@ -196,7 +198,7 @@ function historyView(app){if(!isGM())return empty('History is GM-only.');
   return `<div class="agu-history"><div class="agu-line"><strong>${E(s.name)}</strong><span>${E(sessionKind(s))} · ${E(outcome)}</span></div><p>${E(detail)}</p><small>${E(new Date(s.closedAt||s.createdAt).toLocaleString())}${s.kind==='group'&&sm.average!==null?` · Average ${E(sm.average.toFixed(1))}`:''}</small></div>`;
  }).join(''):empty('No completed interactions yet.')}</section>`;
 }
-function setupView(){return `<section class="ag-card agu-card"><h2>GM Setup</h2><label class="agu-inline"><input id="agu-access" type="checkbox" ${game.settings.get(ID,'playerAccessEnabled')?'checked':''}>Enable Player Access</label><p class="agu-note">This controls the player-facing Utilities launcher, not native Actor ownership.</p><label class="agu-inline"><input id="agu-stash-enabled" type="checkbox" ${stashEnabled()?'checked':''}>Party Stash on for players</label><p class="agu-note">Off: players can't see the stash or move items in or out. You can always manage it.</p><div class="agu-actions">${btn('save-access','Save Changes',{kind:'primary'})}</div></section>`;}
+function setupView(){return `<section class="ag-card agu-card"><h2>GM Setup</h2><label class="agu-inline"><input id="agu-access" type="checkbox" ${game.settings.get(ID,'playerAccessEnabled')?'checked':''}>Enable Player Access</label><p class="agu-note">This controls the player-facing Utilities launcher, not native Actor ownership.</p><label class="agu-inline"><input id="agu-stash-enabled" type="checkbox" ${stashEnabled()?'checked':''}>Party Stash on for players</label><p class="agu-note">Off: players can't see the stash or move items in or out. You can always manage it.</p><label class="agu-inline"><input id="agu-stash-vote" type="checkbox" ${stashVoteRequired()?'checked':''}>Party must accept when a player takes an item out</label><p class="agu-note">On: any other player can deny, and no answer in 60 seconds cancels. Off: players take items out freely. You are never voted on. Every move is recorded in the stash History tab either way.</p><div class="agu-actions">${btn('save-access','Save Changes',{kind:'primary'})}</div></section>`;}
 class UtilitiesApp extends ApplicationV2 {
  static DEFAULT_OPTIONS={id:'ashen-gate-utilities-window',classes:['ag-app','ag-utilities'],window:{title:'Ashen Gate | Utilities',resizable:true,minimizable:true},position:{width:900,height:690}};
  constructor(...args){super(...args);this.tab='checks';this.actorId='';this.rollActorId='';this.tableDraft='';this.tableAuto=false;this.lastDraw=[];}
@@ -264,7 +266,7 @@ class UtilitiesApp extends ApplicationV2 {
   }
   if(action==='toggle-lock'){await setUnlocked(b.dataset.actor,!isUnlocked(getUnlocks(),b.dataset.actor));return;}
   if(action==='toggle-overlay'){await game.settings.set(ID,'overlayOpen',game.settings.get(ID,'overlayOpen')!==true);await this.render();return;}
-  if(action==='save-access'){if(!isGM())throw Error('GM only.');await game.settings.set(ID,'playerAccessEnabled',Boolean(root.querySelector('#agu-access')?.checked));const stashBox=root.querySelector('#agu-stash-enabled');if(stashBox&&stashBox.checked!==stashEnabled())await setStashEnabled(stashBox.checked);ui.notifications.info('GM Setup saved.');return;}
+  if(action==='save-access'){if(!isGM())throw Error('GM only.');await game.settings.set(ID,'playerAccessEnabled',Boolean(root.querySelector('#agu-access')?.checked));const stashBox=root.querySelector('#agu-stash-enabled');if(stashBox&&stashBox.checked!==stashEnabled())await setStashEnabled(stashBox.checked);const voteBox=root.querySelector('#agu-stash-vote');if(voteBox&&voteBox.checked!==stashVoteRequired())await setStashVoteRequired(voteBox.checked);ui.notifications.info('GM Setup saved.');return;}
  }finally{b.disabled=false;}}
 }
 async function sendMessage(raw,root){if(!isGM())throw Error('GM only.');const content=String(raw).trim();if(!content||content.length>3000)throw Error('Message must be 1–3000 characters.');const selected=[...root.querySelectorAll('input[name="agu-recipient"]:checked')].map(x=>x.value),valid=selected.filter(id=>game.users.get(id)&&!game.users.get(id).isGM);if(valid.length!==selected.length)throw Error('Invalid recipients.');
@@ -380,6 +382,32 @@ async function setStashEnabled(on){
  // Observer lets players open stash item sheets read-only; it never lets them edit the stash.
  const stash=stashActor();if(stash)await stash.update({'ownership.default':on?OBSERVER():0});
 }
+async function setStashVoteRequired(on){
+ if(!isGM())throw Error('GM only.');if(typeof on!=='boolean')throw TypeError('Boolean required.');
+ await game.settings.set(ID,'stashVoteRequired',on);
+}
+/* History: read-modify-write is queued so two moves can't overwrite each other's entry. */
+let historyQueue=Promise.resolve();
+function logStash({kind,approval,user,actor,item}){
+ if(!isGM())return Promise.reject(Error('GM only.'));
+ const run=async()=>{
+  const entry=historyEntry({id:crypto.randomUUID(),kind,approval,user,actor,item,worldTime:game.time?.worldTime??null,realTime:Date.now()});
+  await game.settings.set(ID,'stashHistory',appendHistory(game.settings.get(ID,'stashHistory'),entry,STASH_HISTORY_CAP));
+ };
+ const next=historyQueue.then(run);historyQueue=next.catch(()=>{});return next;
+}
+/** A move already happened or was already refused, so a failed log write is reported, not thrown. */
+const logQuietly=args=>logStash(args).catch(e=>console.warn(`[${ID}] Could not write stash history: ${e.message}`));
+function stashHistory(){
+ if(!permitted())throw Error('Utilities access is hidden by the GM.');
+ if(!isGM())playerStashGate(game.user);
+ const list=game.settings.get(ID,'stashHistory');return structuredClone(Array.isArray(list)?list:[]);
+}
+async function clearStashHistory(){
+ if(!isGM())throw Error('GM only.');
+ await historyQueue.catch(()=>{});
+ await game.settings.set(ID,'stashHistory',[]);
+}
 /** Create first, then delete, so a failure can never lose the item. */
 async function moveItem(item,target){
  const data=item.toObject();delete data._id;
@@ -394,9 +422,11 @@ async function executeDeposit(uuid,user){
  const item=await fromUuid(uuid);if(item?.documentName!=='Item')throw Error('Only items can go in the stash.');
  const from=item.parent;
  if(from===stash||from?.id===stash.id)return `${item.name} is already in the stash.`;
- if(!from){if(!user.isGM)throw Error('Only items from your own character sheet can go in the stash.');await stash.createEmbeddedDocuments('Item',[(()=>{const d=item.toObject();delete d._id;delete d.folder;return d;})()]);return `Copied ${item.name} into the party stash.`;}
+ if(!from){if(!user.isGM)throw Error('Only items from your own character sheet can go in the stash.');await stash.createEmbeddedDocuments('Item',[(()=>{const d=item.toObject();delete d._id;delete d.folder;return d;})()]);await logQuietly({kind:'deposit',approval:'gm',user,actor:null,item:stashRow(item)});return `Copied ${item.name} into the party stash.`;}
  if(from.documentName!=='Actor'||!(user.isGM||from.testUserPermission?.(user,'OWNER')))throw Error('You can only stash items from a character you own.');
- await moveItem(item,stash);return `${from.name} put ${item.name} in the party stash.`;
+ const row=stashRow(item);const made=await moveItem(item,stash);
+ await logQuietly({kind:'deposit',approval:user.isGM?'gm':'not-required',user,actor:from,item:{...row,uuid:made?.uuid??row.uuid}});
+ return `${from.name} put ${item.name} in the party stash.`;
 }
 const takingItems=new Set();
 async function executeWithdraw(itemId,actorId,user){
@@ -405,16 +435,29 @@ async function executeWithdraw(itemId,actorId,user){
  if(!item)throw Error('That item is no longer in the stash.');
  if(!actor||actor.id===stash.id)throw Error('Choose a character to receive the item.');
  if(!(user.isGM||actor.testUserPermission?.(user,'OWNER')))throw Error(`You do not own ${actor.name}.`);
+ const row=stashRow(item);let approval='gm';
  if(!user.isGM){
   if(takingItems.has(item.id))throw Error(`${item.name} already has a request waiting for the party.`);
   takingItems.add(item.id);
   try{
-   const outcome=await runConsent(createPoll({id:crypto.randomUUID(),requesterId:user.id,voters:consentVoters(game.users,user.id)}),{requester:user.name,item:item.name,quantity:stashRow(item).quantity,actor:actor.name});
-   if(outcome!=='approved')throw Error(outcome==='denied'?`The party denied taking ${item.name}. It stays in the stash.`:`Not every player answered in time. ${item.name} stays in the stash.`);
+   if(!stashVoteRequired())approval='not-required';
+   else{
+    const outcome=await runConsent(createPoll({id:crypto.randomUUID(),requesterId:user.id,voters:consentVoters(game.users,user.id)}),{requester:user.name,item:item.name,quantity:row.quantity,actor:actor.name});
+    if(outcome!=='approved'){
+     await logQuietly({kind:'withdraw',approval:outcome==='denied'?'denied':'timed-out',user,actor,item:row});
+     throw Error(outcome==='denied'?`The party denied taking ${item.name}. It stays in the stash.`:`Not every player answered in time. ${item.name} stays in the stash.`);
+    }
+    approval='accepted';
+   }
+   if(!stash.items.get(item.id))throw Error('That item left the stash while the party was voting.');
+   const made=await moveItem(item,actor);
+   await logQuietly({kind:'withdraw',approval,user,actor,item:{...row,uuid:made?.uuid??row.uuid}});
   }finally{takingItems.delete(item.id);}
-  if(!stash.items.get(item.id))throw Error('That item left the stash while the party was voting.');
+  return `${actor.name} took ${item.name} from the party stash.`;
  }
- await moveItem(item,actor);return `${actor.name} took ${item.name} from the party stash.`;
+ const made=await moveItem(item,actor);
+ await logQuietly({kind:'withdraw',approval,user,actor,item:{...row,uuid:made?.uuid??row.uuid}});
+ return `${actor.name} took ${item.name} from the party stash.`;
 }
 /** Asks the party; resolves 'approved', 'denied' or 'expired'. Any deny, or the deadline, cancels. */
 const polls=new Map();
@@ -491,15 +534,34 @@ function stashBody(app){
  const groups=[...new Set(shown.map(r=>r.typeLabel))].sort((a,b)=>a.localeCompare(b));
  const table=groups.map(g=>`<section class="agu-stash-group"><h3>${E(g)}</h3><div class="agu-stash-head" aria-hidden="true"><span></span><span>Item</span><span>Qty</span><span>Weight (each)</span><span>Value (each)</span><span>Type</span><span></span></div>${shown.filter(r=>r.typeLabel===g).map(r=>`<div class="agu-stash-row" draggable="true" data-stash-item="${E(r.id)}" data-uuid="${E(r.uuid??'')}"><span>${r.img?`<img class="agu-stash-icon" src="${E(r.img)}" alt="">`:''}</span><button type="button" class="agu-stash-name" data-open-item="${E(r.id)}" title="Open ${E(r.name)}">${E(r.name)}</button><span>${E(r.quantity)}</span><span>${E(r.weight)}</span><span>${E(r.value)}</span><span>${E(r.typeLabel)}</span><span>${target?btn('stash-take','Take',{kind:'ag-btn ag-btn--sm',attrs:`data-item="${E(r.id)}"`}):''}</span></div>`).join('')}</section>`).join('');
  const toolbar=`<div class="ag-toolbar"><input type="search" id="agu-stash-search" placeholder="Search items" value="${E(app.filter)}" aria-label="Search the stash"><div class="ag-toolbar__end">${takers.length?`<label class="agu-inline">Take into <select id="agu-stash-target">${takers.map(a=>option(a.id,a.name,target)).join('')}</select></label>`:''}</div></div>`;
- const note=isGM()?`<p class="agu-note">${on?'On for players.':'Off for players; only you can see and use it.'} You move items freely: drag from any sheet into this window, drag a row onto a sheet, or use Take.</p>`:`<p class="agu-note">Drag an item from your character sheet into this window to stash it. To take one out, drag its row onto your sheet or use Take; every other connected player must accept.</p>`;
+ const note=isGM()?`<p class="agu-note">${on?'On for players.':'Off for players; only you can see and use it.'} You move items freely: drag from any sheet into this window, drag a row onto a sheet, or use Take.</p>`:`<p class="agu-note">Drag an item from your character sheet into this window to stash it. To take one out, drag its row onto your sheet or use Take${stashVoteRequired()?'; every other connected player must accept':''}.</p>`;
  return toolbar+(rows.length?(table||empty('No items match.')):empty('The stash is empty.'))+`<div class="agu-dropzone">Drop items here to put them in the stash</div>`+note;
+}
+const HISTORY_PAGE=50;
+const worldClock=t=>{if(!Number.isFinite(t))return '';const d=Math.floor(t/86400),r=((t%86400)+86400)%86400,p=n=>String(Math.floor(n)).padStart(2,'0');return `World day ${d}, ${p(r/3600)}:${p((r%3600)/60)}`;};
+function historyLine(h){
+ const who=`${h.userName}${h.actorName?` (${h.actorName})`:''}`,qty=h.quantity>1?` ×${h.quantity}`:'';
+ return h.kind==='deposit'?`${who} put ${h.itemName}${qty} in the stash`:h.moved?`${who} took ${h.itemName}${qty} out of the stash`:`${who} tried to take ${h.itemName}${qty} out of the stash`;
+}
+function historyBody(app){
+ let list;try{list=stashHistory();}catch(e){return empty(e.message);}
+ const rows=list.slice().reverse(),shown=rows.slice(0,app.historyShown);
+ const tone=a=>a==='denied'||a==='timed-out'?'ag-badge--danger':a==='accepted'?'ag-badge--ok':a==='gm'?'ag-badge--accent':'';
+ const items=shown.map(h=>`<div class="agu-history agu-stash-log"><div class="agu-line"><span class="agu-stash-log__what">${h.img?`<img class="agu-stash-icon" src="${E(h.img)}" alt="">`:''}<strong>${E(historyLine(h))}</strong></span><span class="ag-badge ${tone(h.approval)}">${E(approvalLabel(h))}</span></div><small>${E(new Date(h.realTime).toLocaleString())}${Number.isFinite(h.worldTime)?` · ${E(worldClock(h.worldTime))}`:''}</small></div>`).join('');
+ const more=rows.length>shown.length?`<div class="agu-actions">${btn('stash-history-more',`Show more (${rows.length-shown.length} older)`,{kind:'ag-btn'})}</div>`:'';
+ const clear=isGM()?`<div class="ag-toolbar__end">${btn('stash-history-clear','Clear History',{kind:'ag-btn ag-btn--danger',disabled:!rows.length})}</div>`:'';
+ return `<div class="ag-toolbar"><span class="agu-note">${rows.length} ${rows.length===1?'entry':'entries'}, newest first. The log keeps the latest ${STASH_HISTORY_CAP}.</span>${clear}</div>${rows.length?items+more:empty('Nothing has moved in or out of the stash yet.')}`;
 }
 class StashApp extends ApplicationV2 {
  static DEFAULT_OPTIONS={id:'ashen-gate-utilities-stash',classes:['ag-app','ag-utilities','agu-stash-app'],window:{title:'Ashen Gate | Party Stash',resizable:true,minimizable:true},position:{width:720,height:560}};
- constructor(...args){super(...args);this.filter='';this.takeActorId='';}
+ constructor(...args){super(...args);this.filter='';this.takeActorId='';this.tab='items';this.historyShown=HISTORY_PAGE;}
  async _renderHTML(){if(!permitted())throw Error('Utilities is hidden for players.');
-  return `<div class="agu-root"><header class="ag-header agu-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Party Stash</h1><p>${E(stashActor()?.name??'Party Stash')}</p></div><div class="ag-header__meta"><span class="agu-version">v${VERSION} · ${isGM()?'GM':'Player'}</span></div></header><main class="agu-main">${stashBody(this)}</main></div>`;}
+  const usable=Boolean(stashActor())&&(stashEnabled()||isGM());
+  return `<div class="agu-root"><header class="ag-header agu-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Party Stash</h1><p>${E(stashActor()?.name??'Party Stash')}</p></div><div class="ag-header__meta"><span class="agu-version">v${VERSION} · ${isGM()?'GM':'Player'}</span></div></header>${usable?`<nav class="ag-tabs agu-tabs" aria-label="Stash sections">${[['items','Items'],['history','History']].map(([id,label])=>`<button type="button" data-stash-tab="${id}" aria-current="${this.tab===id?'page':'false'}" class="${this.tab===id?'active':''}">${label}</button>`).join('')}</nav>`:''}<main class="agu-main">${usable&&this.tab==='history'?historyBody(this):stashBody(this)}</main></div>`;}
  _replaceHTML(html,content){content.innerHTML=html;const root=content;
+  for(const el of root.querySelectorAll('[data-stash-tab]'))el.addEventListener('click',()=>{this.tab=el.dataset.stashTab;this.render().catch(error);});
+  root.querySelector('[data-action="stash-history-more"]')?.addEventListener('click',()=>{this.historyShown+=HISTORY_PAGE;this.render().catch(error);});
+  root.querySelector('[data-action="stash-history-clear"]')?.addEventListener('click',()=>{if(!confirm('Clear the whole stash history? This cannot be undone.'))return;clearStashHistory().then(()=>{this.historyShown=HISTORY_PAGE;ui.notifications?.info('Stash history cleared.');},error);});
   root.querySelector('#agu-stash-search')?.addEventListener('input',e=>{this.filter=e.target.value;const at=e.target.selectionStart;this.render().then(()=>{const s=this.element?.querySelector?.('#agu-stash-search');if(s){s.focus();s.setSelectionRange?.(at,at);}}).catch(error);});
   root.querySelector('#agu-stash-target')?.addEventListener('change',e=>{this.takeActorId=e.target.value;});
   for(const b of root.querySelectorAll('[data-open-item]'))b.addEventListener('click',()=>{const item=stashActor()?.items.get(b.dataset.openItem);if(!item?.sheet)return error(Error('That item could not be opened.'));item.sheet.render(true);});
@@ -551,13 +613,17 @@ Hooks.once('init',()=>{
  game.settings.register(ID,'conditionUnlocks',{name:'Utilities: Condition Removal Unlocks',scope:'world',config:false,type:Object,default:{},onChange:refreshWindows});
  game.settings.register(ID,'overlayOpen',{name:'Utilities: Conditions Overlay',scope:'client',config:false,type:Boolean,default:false,onChange:syncOverlay});
  game.settings.register(ID,'stashEnabled',{name:'Utilities: Party Stash for Players',scope:'world',config:false,type:Boolean,default:false,onChange:refreshWindows});
+ // Party vote on take-outs. Absent/true = vote (the 0.5.x behaviour); false = players withdraw freely.
+ game.settings.register(ID,'stashVoteRequired',{name:'Utilities: Party Stash Take-Out Vote',scope:'world',config:false,type:Boolean,default:true,onChange:refreshWindows});
+ // Append-only deposit/withdraw log, written only by the GM client (world settings are GM-write).
+ game.settings.register(ID,'stashHistory',{name:'Utilities: Party Stash History',scope:'world',config:false,type:Array,default:[],onChange:refreshWindows});
  game.settings.register(ID,'overlayPosition',{name:'Utilities: Conditions Overlay Position',scope:'client',config:false,type:Object,default:{}});
 });
 Hooks.once('ready',()=>{
  const m=game.modules.get(ID);
  m.api={version:VERSION,contract:'ag-utilities/0.2-alpha',open,playerAccess:{contract:'ag-player-access/1',getState:()=>({contract:'ag-player-access/1',moduleId:ID,audience:'player',playerAccessEnabled:game.settings.get(ID,'playerAccessEnabled'),configurable:true}),setEnabled:async enabled=>{if(!isGM())throw Error('GM only.');if(typeof enabled!=='boolean')throw TypeError('Boolean required.');await game.settings.set(ID,'playerAccessEnabled',enabled);return m.api.playerAccess.getState();}},
   conditions:{contract:'ag-utilities-conditions/1',isUnlocked:actorId=>isUnlocked(getUnlocks(),actorId),setUnlocked,canRemove:(actorId,statusId)=>canRemove(game.actors.get(actorId),statusId),remove:removeCondition,openOverlay:async()=>{await game.settings.set(ID,'overlayOpen',true);return openOverlay();},closeOverlay:()=>game.settings.set(ID,'overlayOpen',false)},
-  stash:{contract:'ag-utilities-stash/1',isEnabled:stashEnabled,setEnabled:setStashEnabled,open:openStash,deposit:depositItem,withdraw:withdrawItem}};
+  stash:{contract:'ag-utilities-stash/1',isEnabled:stashEnabled,setEnabled:setStashEnabled,isVoteRequired:stashVoteRequired,setVoteRequired:setStashVoteRequired,history:stashHistory,clearHistory:clearStashHistory,open:openStash,deposit:depositItem,withdraw:withdrawItem}};
  game.socket?.on?.(SOCKET,(msg,senderId)=>{void onSocket(msg,senderId).catch(error);});
  Hooks.on('renderActorDirectory',addLauncher);Hooks.on('createChatMessage',msg=>{void processSubmission(msg).catch(error);});
  for(const ev of ['updateActor','createActiveEffect','updateActiveEffect','deleteActiveEffect'])Hooks.on(ev,rerenderConditions);

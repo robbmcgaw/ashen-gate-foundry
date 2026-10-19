@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.5.0';
+export const VERSION = '0.6.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -259,4 +259,29 @@ export function pollOutcome(poll, now = Date.now()) {
   if (votes.includes('deny')) return 'denied';
   if (votes.every(v => v === 'accept')) return 'approved';
   return now >= poll.expiresAt ? 'expired' : 'pending';
+}
+
+/* ---- v0.6.0: stash history log ---- */
+export const STASH_HISTORY_CAP = 500;
+/** How a stash move was approved. `gm` = the GM moved it; `not-required` = no vote was needed. */
+export const HISTORY_APPROVALS = ['accepted', 'denied', 'timed-out', 'not-required', 'gm'];
+const str = (v, max = 200) => (typeof v === 'string' ? v.slice(0, max) : null);
+/** One history record. `moved` is false for a denied or timed-out take-out (the item stayed). */
+export function historyEntry({id, kind, approval, user, actor, item, worldTime = null, realTime = Date.now()} = {}) {
+  if (!['deposit', 'withdraw'].includes(kind)) throw new TypeError('History kind must be deposit or withdraw.');
+  if (!HISTORY_APPROVALS.includes(approval)) throw new TypeError('Unknown history approval.');
+  const row = item ?? {};
+  return {id: String(id ?? `h${realTime}`), kind, approval, moved: approval !== 'denied' && approval !== 'timed-out',
+    userId: str(user?.id), userName: str(user?.name) ?? 'Unknown', actorId: str(actor?.id), actorName: str(actor?.name),
+    itemName: str(row.name) ?? 'Unnamed Item', itemUuid: str(row.uuid, 400), img: str(row.img, 400), quantity: num(row.quantity) ?? 1,
+    worldTime: num(worldTime), realTime: num(realTime) ?? Date.now()};
+}
+/** Newest last; the oldest entries are trimmed once the cap is passed. Never mutates the input. */
+export function appendHistory(list, entry, cap = STASH_HISTORY_CAP) {
+  const next = [...(Array.isArray(list) ? list : []), entry];
+  return next.length > cap ? next.slice(next.length - cap) : next;
+}
+/** Short label for the History panel. */
+export function approvalLabel(entry) {
+  return {accepted: 'Party accepted', denied: 'Party denied', 'timed-out': 'No answer in time', 'not-required': 'No vote needed', gm: 'GM'}[entry?.approval] ?? '';
 }
