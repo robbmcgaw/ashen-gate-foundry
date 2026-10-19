@@ -106,6 +106,20 @@ export function validateTree(input) {
   }
   return {errors:[...new Set(errors)],warnings:[...new Set(warnings)]};
 }
+/** What a layout import would do, without writing. mode 'skip' keeps existing trees; 'update' replaces their layout. */
+export function planTreeImport(pack,existing=[],{mode='skip'}={}) {
+  if(!['skip','update'].includes(mode))return {errors:['mode must be skip or update.'],rows:[],apply:[]};
+  const check=validatePackage(pack);
+  if(check.errors.length)return {errors:check.errors,rows:[],apply:[]};
+  const known=new Set(existing.map(t=>t.id));
+  const rows=pack.trees.map(raw=>{
+    const tree=normalizeTree(raw),exists=known.has(tree.id);
+    const action=!exists?'new':mode==='update'?'update':'skip';
+    return {id:tree.id,name:tree.name,action,tree,
+      reason:action==='new'?'':action==='update'?'Replaces the layout; purchased nodes are protected.':'Already in this world; kept as is.'};
+  });
+  return {errors:[],rows,apply:rows.filter(r=>r.action!=='skip').map(r=>r.tree)};
+}
 export function validatePackage(obj) {
   const errors=[],warnings=[];
   if(obj?.schema!==SCHEMA||!Array.isArray(obj.trees))return {errors:[`Expected {schema:'${SCHEMA}',trees:[...]}`],warnings:[]};

@@ -59,6 +59,20 @@ export function validateDefinition(def){
    for(const b of t.benefits){if(typeof b.name!=='string'||!b.name||typeof b.description!=='string'||!['guild','facility','individual','room_owner'].includes(b.recipient))throw Error("Benefits require name, description and an allowed recipient.");}}
   return true;
 }
+/** What a facility import would do, without writing. Existing facility ids are always kept (HQ has no definition update). */
+export function planFacilityImport(payload,knownIds=new Set()){
+ const defs=Array.isArray(payload)?payload:payload?.records;
+ if(!Array.isArray(defs)||defs.length<1||defs.length>200)return {errors:['Expected a JSON array of 1–200 facility definitions (or an object with records[]).'],rows:[]};
+ const errors=[],rows=[],seen=new Set();
+ defs.forEach((def,i)=>{
+  try{validateDefinition(def);}catch(e){errors.push(`records[${i}] ${def?.id??'?'}: ${e.message}`);return;}
+  if(seen.has(def.id)){errors.push(`records[${i}]: duplicate id ${def.id}.`);return;}
+  seen.add(def.id);
+  const exists=knownIds.has(def.id);
+  rows.push({id:def.id,name:def.name,action:exists?'skip':'new',reason:exists?'Already in the catalog; kept as is.':'',definition:def});
+ });
+ return {errors,rows};
+}
 export const activeLock = (s, now=Date.now()) => s.editor_lease && s.editor_lease.until>now ? s.editor_lease : null;
 function requireGM(actor){if(!actor?.isGM)throw Error("GM authorization required.");}
 function allowedToEdit(actor,s,roomKey,now){

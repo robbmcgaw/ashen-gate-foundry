@@ -45,6 +45,10 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
   if (![getSetting,setSetting,currentUser,subscribeSettings].every(x=>typeof x==='function'))
     throw new TypeError('Appearance settings/current user callbacks are required');
   const listeners=new Set();
+  // Values Foundry hands to a setting's onChange. On other clients game.settings.get can still return the previous
+  // value at that moment, so a change is read from here first (this is what made players lag a change behind).
+  const observed=new Map();
+  const read=key=>observed.has(key)?observed.get(key):getSetting(key);
   let closed=false;
   const emit=()=>{if(closed)return;const state=getState();for(const fn of [...listeners]){try{fn(state);}catch(error){console.warn('[ashen-gate-manager] Appearance subscriber failed',error);}}};
   const disposeSettings=subscribeSettings(emit);
@@ -52,8 +56,8 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
   function listSkins(){return SKINS.map(publicSkin);}
   function getState(){
     user();
-    const rawWorld=getSetting(WORLD_SKIN_KEY);
-    const rawOverride=getSetting(USER_SKIN_KEY);
+    const rawWorld=read(WORLD_SKIN_KEY);
+    const rawOverride=read(USER_SKIN_KEY);
     const worldDefault=findSkin(rawWorld)?rawWorld:DEFAULT_SKIN_ID;
     const userOverride=rawOverride && findSkin(rawOverride) ? rawOverride : null;
     return {contract:APPEARANCE_CONTRACT,worldDefault,userOverride,
@@ -63,13 +67,14 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
   async function setWorldDefault(id){
     if(!user().isGM)throw new Error('Only GMs may set the Ashen Gate world appearance');
     if(!findSkin(id))throw new TypeError('Unknown Ashen Gate skin');
-    await setSetting(WORLD_SKIN_KEY,id);emit();return getState();
+    await setSetting(WORLD_SKIN_KEY,id);observed.set(WORLD_SKIN_KEY,id);emit();return getState();
   }
   async function setUserOverride(id=null){
     user();
     if(id!==null && id!=='' && !findSkin(id))throw new TypeError('Unknown Ashen Gate skin');
-    await setSetting(USER_SKIN_KEY,id??'');emit();return getState();
+    await setSetting(USER_SKIN_KEY,id??'');observed.set(USER_SKIN_KEY,id??'');emit();return getState();
   }
+  function noteChange(key,value){if([WORLD_SKIN_KEY,USER_SKIN_KEY].includes(key)&&(value===undefined||typeof value==='string'))observed.set(key,value??'');emit();}
   function applyTo(root){
     if(!root?.style || typeof root.style.setProperty!=='function')throw new TypeError('Appearance target must be an application root');
     const state=getState();const skin=findSkin(state.effective)||SKINS[0];
@@ -81,18 +86,19 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
     if(closed)throw new Error('Appearance controller disposed');listeners.add(fn);return ()=>listeners.delete(fn);}
   function dispose(){closed=true;listeners.clear();if(typeof disposeSettings==='function')disposeSettings();}
   return Object.freeze({contract:APPEARANCE_CONTRACT,listSkins,getState,setWorldDefault,setUserOverride,
-    applyTo,subscribe,refresh:emit,dispose});
+    applyTo,subscribe,refresh:emit,noteChange,dispose});
 }
 
 /** Foundry is the only settings authority. No client-storage or unregistered namespaces. */
+/** onSettingChange(key, newValue) runs on every client when either setting changes. */
 export function registerAppearanceSettings({game,namespace,onSettingChange=()=>{}}){
   game.settings.register(namespace,WORLD_SKIN_KEY,{
     name:'Ashen Gate world appearance',scope:'world',config:false,restricted:true,type:String,
-    default:DEFAULT_SKIN_ID,onChange:onSettingChange
+    default:DEFAULT_SKIN_ID,onChange:value=>onSettingChange(WORLD_SKIN_KEY,value)
   });
   game.settings.register(namespace,USER_SKIN_KEY,{
     name:'My Ashen Gate appearance',scope:'user',config:false,type:String,
-    default:'',onChange:onSettingChange
+    default:'',onChange:value=>onSettingChange(USER_SKIN_KEY,value)
   });
 }
 export function makeFoundryAppearanceController({game,namespace}){

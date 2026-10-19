@@ -4,7 +4,7 @@ import {createManagerDefinitionReader, READER_CONTRACT} from './native-definitio
 import {sourceMetadata as projectionSourceMetadata} from './source-projection.mjs';
 import {MODULE_ID, MANAGED_TYPES, validatePackage, planRecord, exportedFields, getPath, canonical} from "./core.js";
 import {checkContractGraph, isContractImport, selectionIssues, projectedReferences, finalReferenceResolution} from "./contract.js";
-import {systemOf, browseLibrary, inspectLibrary, describeLaunchers, headerLaunchers} from "./browser.js";
+import {systemOf, browseLibrary, inspectLibrary, describeLaunchers} from "./browser.js";
 import {openAshenLauncher} from "./launchers.js";
 import {mountManagerLauncher} from "./items-launcher.js";
 import {collectPlayerAccess, changePlayerAccess, hideAllPlayerInterfaces} from "./player-access.js";
@@ -15,7 +15,9 @@ import {loadMacroSources, validateUserMacroRegistry} from "./macros.js";
 import {CAPTURE_TYPES, normalizeCaptureFlag, buildCapturePackage} from "./capture.js";
 import {compilePackage, dependencyOrder, normalizeRef, docManagerSnapshot, localEdits, planLifecycle, buildSourceReplacementPatch, checkMacroUpdate} from "./workflows.js";
 import {downloadJson} from "./download.js";
-import {isLocationRecord, locationsApi, planLocation, locationsNote, applyLocations} from "./location-handoff.js";
+import {isLocationRecord, locationsApi, planLocation, locationsNote, applyLocations} from './location-handoff.js';
+import {SPECIALISTS, detectSpecialistFile, specialistCount, specialistApi, describeUnrecognized, planSpecialist, applySpecialist} from './specialist-handoff.js';
+import {classifyDelivery} from './delivery.js';
 
 const {ApplicationV2, HandlebarsApplicationMixin, DialogV2} = foundry.applications.api;
 const FOLDER_NAMES = {Item: "Ashen Gate — Imported Items", JournalEntry: "Ashen Gate — Imported Journals",
@@ -136,7 +138,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.13.1 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.14.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -149,7 +151,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.errors = [];
     this.warnings = [];
     this.includeDrafts = false;
-    this.updateExistingLocations = false;
+    this.updateExisting = false;
+    this.specialist = null;
+    this.adoptOpen = false;
     this.selected = new Set();
     this.tab = "import";
     this.playerAccessMessage = "Only supported, active player-facing modules can be revealed or hidden. Manager never stores their access state.";
@@ -256,7 +260,6 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       importActive: this.tab === "import",
       libraryActive: this.tab === "library",
       modulesActive: this.tab === "modules",
-      playerAccessActive: this.tab === "player-access",
       appearanceActive: this.tab === "appearance",
       appearanceMessage:this.appearanceMessage,
       appearanceCurrent: appearanceController?.getState?.()??null,
@@ -264,7 +267,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       playerAccessRows, playerAccessMessage:this.playerAccessMessage, playerAccessReport:this.playerAccessReport,
       playerAccessVisibleCount:accessVisibleCount,
       playerAccessHasVisible:accessVisibleCount>0&&!this.busy,
-      launcherRows, launcherCount:launcherRows.length, headerLaunchers:headerLaunchers(launcherRows),
+      launcherRows, launcherCount:launcherRows.length,
       templatesActive: this.tab === "templates",
       macrosActive: this.tab === "macros",
       libraryRows, libraryTotal:library.length, librarySelectedCount:this.librarySelected.size,
@@ -287,7 +290,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       templateMessage:this.lastTemplateInfo,
       profile:this.profile,developmentProfile:this.profile==='development',sessionProfile:this.profile==='session-safe',
       hasLibrarySelected:this.librarySelected.size>0,
-      captureActive: this.tab === "capture",
+      adoptOpen: this.adoptOpen,
       captureRows: captureRows.map(row => ({...row, tagged:Boolean(row.capture), selected:this.captureSelected.has(row.id), kindLabel:row.capture?.entityType??"—"})),
       taggedCount:allItems.filter(row=>row.capture).length,
       worldItemCount:allItems.length,
@@ -300,21 +303,25 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       captureMessage:this.captureMessage,
       auditActive: this.tab === "audit",
       historyActive: this.tab === "history",
-      hasPackage: Boolean(this.pkg),
-      packageId: this.pkg?.manifest?.package_id ?? "—",
-      packageVersion: this.pkg?.manifest?.version ?? "—",
-      recordCount: this.pkg?.records?.length ?? 0,
-      typeSummary:Object.entries(this.pkg?.records?.reduce((a,r)=>(a[r.foundry?.document_type??'Unsupported']=(a[r.foundry?.document_type??'Unsupported']??0)+1,a),{})??{}).map(([name,count])=>({name,count})),
+      hasPackage: Boolean(this.pkg || this.specialist),
+      isSpecialist: Boolean(this.specialist),
+      specialistLabel: this.specialist ? SPECIALISTS[this.specialist.kind].label : '',
+      specialistNoun: this.specialist ? SPECIALISTS[this.specialist.kind].kind.toLowerCase() + 's' : '',
+      specialistCanUpdate: Boolean(this.specialist && SPECIALISTS[this.specialist.kind].canUpdate),
+      packageId: this.specialist ? `${SPECIALISTS[this.specialist.kind].label} file` : (this.pkg?.manifest?.package_id ?? "—"),
+      packageVersion: this.specialist ? (this.specialist.payload?.version ?? "—") : (this.pkg?.manifest?.version ?? "—"),
+      recordCount: this.specialist ? this.specialist.count : (this.pkg?.records?.length ?? 0),
+      typeSummary: this.specialist ? [{name:SPECIALISTS[this.specialist.kind].kind,count:this.specialist.count}] : Object.entries(this.pkg?.records?.reduce((a,r)=>(a[r.foundry?.document_type??'Unsupported']=(a[r.foundry?.document_type??'Unsupported']??0)+1,a),{})??{}).map(([name,count])=>({name,count})),
       zipPortraitCount:this.zipMedia.size, hasZipPortraits:this.zipMedia.size>0,
       uploadZipArtwork:this.uploadZipArtwork, packageSource:this.packageSource??'—',
       includeDrafts: this.includeDrafts,
       hasLocationRecords: Boolean(this.pkg?.records?.some(isLocationRecord)),
-      updateExistingLocations: this.updateExistingLocations,
+      updateExisting: this.updateExisting,
       message: this.message,
       errors: this.errors.map(message => ({message})),
       warnings: this.warnings.map(message => ({message})),
       hasWarnings: this.warnings.length > 0,
-      schemaVersion: this.pkg?.manifest?.schema_version ?? "—",
+      schemaVersion: this.specialist ? (this.specialist.payload?.schema_version ?? this.specialist.payload?.schema ?? "list") : (this.pkg?.manifest?.schema_version ?? "—"),
       hasErrors: this.errors.length > 0,
       hasPreview: this.preview.length > 0 && !this.errors.length,
       canApply: !this.busy && this.errors.length === 0 && this.preview.some(row => actionAllowed.has(row.action) && this.selected.has(row.id)),
@@ -344,7 +351,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     }));
     root.querySelector("[data-ag-file]")?.addEventListener("change", async event => {
       const f = event.target.files?.[0];
+      event.target.value = '';
       if (!f) return;
+      this.#clearLoaded(`Reading ${f.name}…`);
       try {
         if(f.size>60_000_000)throw new Error('Maximum source file is 60 MB.');
         if(/\.zip$/i.test(f.name)) {
@@ -357,7 +366,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
           this.zipMedia=new Map();this.packageSource=f.name;
           await this.#load(JSON.parse(await f.text()),f.name);
         }
-      } catch (error) {this.pkg=null; this.rawPkg=null; this.zipMedia=new Map();this.preview=[]; this.warnings=[]; this.selected.clear(); this.errors=[`Import not loaded: ${error.message}`]; await this.render();}
+      } catch (error) {
+        this.#clearLoaded(`${f.name} was not loaded. Nothing in your world changed.`);
+        this.errors=[`Import not loaded: ${error.message}`];
+        await this.render();
+      }
     });
     root.querySelector('[data-ag-upload-assets]')?.addEventListener('change',async e=>{
       this.uploadZipArtwork=Boolean(e.target.checked);
@@ -429,8 +442,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       this.includeDrafts = event.target.checked;
       await this.#preview();
     });
-    root.querySelector("[data-ag-update-locations]")?.addEventListener("change", async event => {
-      this.updateExistingLocations = event.target.checked;
+    root.querySelector("[data-ag-adopt]")?.addEventListener("toggle", event => {this.adoptOpen = event.target.open;});
+    root.querySelector("[data-ag-update-existing]")?.addEventListener("change", async event => {
+      this.updateExisting = event.target.checked;
       await this.#preview();
     });
     root.querySelector("[data-ag-capture-filter]")?.addEventListener("change", e=>{
@@ -481,7 +495,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case "appearance-save-world": {
         const choice=this.appearanceSelection??appearanceController?.getState()?.worldDefault;
         await appearanceController.setWorldDefault(choice);
-        this.appearanceMessage=`World default saved: ${appearanceController.listSkins().find(s=>s.id===choice)?.label??choice}. Connected users with no override inherit this skin.`;
+        this.appearanceMessage=`World default saved: ${appearanceController.listSkins().find(s=>s.id===choice)?.label??choice}. Players with no personal override see it right away; anyone who has not reloaded since a module update needs one refresh (F5).`;
         await this.render();break;
       }
       case "appearance-my-appearance": {
@@ -529,7 +543,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         if(!response.ok) throw new Error(`Import template unavailable (${response.status}).`);
         downloadJson(file,await response.json());break;
       }
-      case "reset": this.pkg=null;this.rawPkg=null;this.preview=[];this.errors=[];this.warnings=[];this.zipMedia=new Map();this.packageSource=null;this.selected.clear();this.message="Choose a Manager JSON or ZIP package to begin."; await this.render();break;
+      case "reset": this.#clearLoaded("Choose a Manager package or a Quest, Skill Tree, Headquarters or Factions file to begin."); await this.render();break;
       default: throw new Error(`Unknown action: ${name}`);
     }
   }
@@ -571,15 +585,69 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       toast(this.playerAccessMessage,Boolean(result.failed.length));
     }finally{this.busy=false;await this.render();}
   }
+  /** Forgets any loaded file (and its banner) so a failed or new load never shows the previous file as loaded. */
+  #clearLoaded(message) {
+    this.pkg=null; this.rawPkg=null; this.specialist=null; this.zipMedia=new Map(); this.packageSource=null;
+    this.preview=[]; this.errors=[]; this.warnings=[]; this.selected.clear();
+    this.message=message;
+  }
   async #load(input, label) {
-    this.rawPkg=input;
-    this.pkg=compilePackage(input);
-    this.selected.clear();
-    this.message = `${label} loaded. Preview has NOT modified your world.`;
+    const keepSource=this.packageSource, keepMedia=this.zipMedia;
+    this.#clearLoaded(`Reading ${label}…`);
+    this.packageSource=keepSource; this.zipMedia=keepMedia;
+    const kind=detectSpecialistFile(input);
+    if(kind) {
+      this.specialist={kind,payload:input,count:specialistCount(kind,input)};
+      this.message = `${label} loaded as a ${SPECIALISTS[kind].label} file. Preview has NOT modified your world.`;
+    } else {
+      const plain=input && typeof input==='object' && !Array.isArray(input);
+      if(!plain || (!classifyDelivery(input) && !Array.isArray(input.records))) throw new Error(describeUnrecognized(input));
+      this.rawPkg=input;
+      this.pkg=compilePackage(input);
+      this.message = `${label} loaded. Preview has NOT modified your world.`;
+    }
     this.tab = "import";
     await this.#preview();
   }
+  async #previewSpecialist() {
+    const {kind,payload}=this.specialist;
+    this.warnings=[]; this.preview=[]; this.selected.clear();
+    try {
+      const plan=planSpecialist(kind,payload,specialistApi(game,kind),{updateExisting:this.updateExisting});
+      this.errors=plan.errors; this.preview=plan.errors.length?[]:plan.rows;
+    } catch(error) { this.errors=[String(error?.message??error)]; }
+    const label=SPECIALISTS[kind].label;
+    this.message=this.errors.length ? `Validation failed: ${this.errors.length} issue(s). No changes made.`
+      : `Validated ${this.specialist.count} ${label} record(s). ${label} stores them; nothing changes before Apply.`;
+    await this.render();
+  }
+  async #applySpecialist() {
+    const {kind,payload}=this.specialist, spec=SPECIALISTS[kind];
+    const rows=this.preview.filter(row=>actionAllowed.has(row.action)&&this.selected.has(row.id));
+    if(!rows.length){toast("Select at least one eligible record.");return;}
+    const api=specialistApi(game,kind);
+    if(!api){this.errors=[`${spec.label} is not active or is too old to import. Enable or update it.`];await this.render();return;}
+    const yes=await DialogV2.confirm({window:{title:`Import into ${spec.label}`},modal:true,rejectClose:false,
+      content:`<p><strong>${rows.length}</strong> ${escapeHtml(spec.kind.toLowerCase())} record(s) will be passed to <strong>${escapeHtml(spec.label)}</strong>, which stores and owns them.</p><p>${spec.canUpdate&&this.updateExisting?'Records already in the world are replaced; their progress and state are kept.':'Records already in the world are kept as they are.'} Back up your world first.</p>`});
+    if(!yes)return;
+    this.busy=true;
+    const log={at:new Date().toISOString(),packageId:`${spec.label} file`,packageVersion:payload?.version??'—',results:[]};
+    try {
+      log.results.push(...await applySpecialist(kind,payload,api,{ids:rows.map(r=>r.id),updateExisting:this.updateExisting}));
+    } catch(error) { log.results.push({action:'import-aborted',status:'error',message:String(error?.message??error)}); }
+    const prior=game.settings.get(MODULE_ID,"importHistory") ?? [];
+    await game.settings.set(MODULE_ID,"importHistory",[...prior,log].slice(-40));
+    const count=s=>log.results.filter(r=>r.status===s).length;
+    const made=log.results.filter(r=>r.status==='ok'&&r.action==='create').length;
+    const replaced=log.results.filter(r=>r.status==='ok'&&r.action==='update').length;
+    const text=`${spec.label}: ${made} created, ${replaced} updated, ${count('skipped')} skipped (reasons in History), ${count('error')} error(s).`;
+    this.busy=false;
+    await this.#preview();
+    this.message=text; toast(text,Boolean(count('error')));
+    await this.render();
+  }
   async #preview() {
+    if (this.specialist) return this.#previewSpecialist();
     if (!this.pkg) {this.message="No package loaded."; await this.render(); return;}
     const externalIds = existingSourceIndex();
     this.errors = validatePackage(this.pkg, externalIds);
@@ -608,7 +676,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     for (const id of graph.order) {
       const record=records.find(r=>r.id===id);
       if (isLocationRecord(record)) {
-        const {action,reason}=planLocation(record,{existingIds:locationIds,includeDrafts:this.includeDrafts,updateExisting:this.updateExistingLocations});
+        const {action,reason}=planLocation(record,{existingIds:locationIds,includeDrafts:this.includeDrafts,updateExisting:this.updateExisting});
         this.preview.push({id:record.id, name:record.location?.name ?? record.name ?? record.id, kind:'Location', lifecycle:record.status, action, reason, patch:{}});
         continue;
       }
@@ -622,7 +690,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     await this.render();
   }
   #exportPreview() {
-    const report = {generated_at:new Date().toISOString(), manifest:this.pkg?.manifest ?? null, errors:this.errors, warnings:this.warnings, preview:this.preview.map(({id, name, kind, lifecycle, action, reason, patch})=>({id,name,kind,lifecycle,action,reason,patch}))};
+    const report = {generated_at:new Date().toISOString(), manifest:this.pkg?.manifest ?? (this.specialist?{specialist:SPECIALISTS[this.specialist.kind].label}:null), errors:this.errors, warnings:this.warnings, preview:this.preview.map(({id, name, kind, lifecycle, action, reason, patch})=>({id,name,kind,lifecycle,action,reason,patch}))};
     downloadJson("ag-import-preview.json",report);
   }
   async #tagSelected() {
@@ -688,6 +756,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   }
   async #apply() {
     if (!game.user.isGM) throw new Error("Only a GM may import content.");
+    if (this.specialist) return this.#applySpecialist();
     if (!this.pkg || this.errors.length) throw new Error("Load a validated package first.");
     const targetRows = this.preview.filter(row => actionAllowed.has(row.action) && this.selected.has(row.id));
     if (!targetRows.length) {toast("Select at least one eligible record.");return;}
@@ -760,7 +829,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         }
       }
       // Locations come after every document so Material and Quest ids they mention already exist.
-      if(locRows.length) log.results.push(...await applyLocations(locRows.map(row=>this.pkg.records.find(r=>r.id===row.id)),locationsApi(game),{updateExisting:this.updateExistingLocations}));
+      if(locRows.length) log.results.push(...await applyLocations(locRows.map(row=>this.pkg.records.find(r=>r.id===row.id)),locationsApi(game),{updateExisting:this.updateExisting}));
       // Complete-world UUID index: only actual saved documents are addressable.
       // Resolve after the *whole* batch; record order and reference cycles do not matter.
       const uuidIndex=buildUuidIndex(allBoundDocuments());
@@ -1128,7 +1197,7 @@ let definitionsReader=null;
 let myAppearanceApp=null;
 let activeApp;
 Hooks.once("init",()=>{
-  registerAppearanceSettings({game,namespace:MODULE_ID,onSettingChange:()=>appearanceController?.refresh()});
+  registerAppearanceSettings({game,namespace:MODULE_ID,onSettingChange:(key,value)=>appearanceController?.noteChange(key,value)});
   game.settings.register(MODULE_ID,"importHistory",{name:"Import History",scope:"world",config:false,type:Array,default:[]});
   game.settings.registerMenu(MODULE_ID,"manager",{
     name:"Ashen Gate Manager", label:"Open Import Manager", icon:"fa-solid fa-boxes-stacked",
@@ -1196,7 +1265,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.13.1 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.14.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */

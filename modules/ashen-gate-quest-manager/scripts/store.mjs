@@ -1,4 +1,4 @@
-import {MOD,assertGM,validSource,validState,initialState,publicView,projectionOwnership,accessSignature,cleanText,normalizePackage} from './core.mjs';
+import {MOD,assertGM,validSource,validState,initialState,publicView,projectionOwnership,accessSignature,cleanText,normalizePackage,planQuestImport} from './core.mjs';
 import {listAssignments} from './assignments.mjs';
 const FLAG = `flags.${MOD}`;
 const GM_ONLY = {default:0};
@@ -104,6 +104,26 @@ export async function importSources(payload){
   assertGM(game.user);const rows=normalizePackage(payload);const conflicts=rows.filter(r=>getPrivate(r.id));
   if(conflicts.length)throw new Error('Duplicate existing source IDs: '+conflicts.map(x=>x.id).join(', '));
   const out=[];for(const row of rows)out.push(await saveRecord(row));return out;
+}
+const questPlan=(payload,mode)=>{assertGM(game.user);return planQuestImport(payload,new Set(allPrivate().map(x=>x.source.id)),{mode});};
+/** GM-only preview for another module's import hand-off. Writes nothing. */
+export function previewQuestImport(payload,{mode='skip'}={}){
+  const {errors,rows}=questPlan(payload,mode);
+  return {errors,rows:rows.map(({id,name,action,reason})=>({id,name,action,reason}))};
+}
+/** GM-only, additive: new Objectives are created; existing ones are kept (skip) or have their source replaced with status kept (update). */
+export async function importQuests(payload,{mode='skip'}={}){
+  const {errors,rows}=questPlan(payload,mode);
+  if(errors.length)throw new Error(`Import blocked: ${errors[0]}`);
+  const report={created:[],updated:[],skipped:[],failed:[]};
+  for(const row of rows){
+    if(row.action==='skip'){report.skipped.push({id:row.id,reason:row.reason});continue;}
+    try{
+      await saveRecord(row.source,{replace:row.action==='update'});
+      (row.action==='update'?report.updated:report.created).push(row.id);
+    }catch(error){report.failed.push({id:row.id,reason:String(error?.message??error)});}
+  }
+  return report;
 }
 export async function savePersonalNote(id,actorId,text){
   const entry=visibleById(id);if(!entry)throw new Error('Objective is not visible to you.');

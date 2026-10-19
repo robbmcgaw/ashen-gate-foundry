@@ -1,4 +1,4 @@
-import {MODULE_ID,emptyState,applyOperation,activeLock,site,rankConfig,stageFor,facilities,owned,validateDefinition} from './logic.mjs';
+import {MODULE_ID,emptyState,applyOperation,activeLock,site,rankConfig,stageFor,facilities,owned,validateDefinition,planFacilityImport} from './logic.mjs';
 import {ACCESS_CONTRACT,accessStatus,canOpenPlayerInterface,requireGMToSetAccess,requireInterfaceAccess} from './access.mjs';
 import {createPlayerIntentBridge,REQUEST_PATH,RECEIPT_FLAG,checkIntent} from './player-intent-bridge.mjs';
 import {createHQAuthoritativeWriter} from './hq-authoritative-writer.mjs';
@@ -428,6 +428,23 @@ Hooks.once('init',()=>{
   playerAccess:{contract:ACCESS_CONTRACT,getState:playerAccessState,setEnabled:setPlayerAccess},
   reconcileDepartures,
   getPersonnel:()=>{if(!game.user.isGM)throw Error('Personnel state API is GM-only.');return structuredClone(read().personnel??{format:'aghq-personnel/0.1',hirelings:[]});},
+  // GM-only hand-off used by General Manager's single importer. Adds new facility definitions; existing ids are kept.
+  previewFacilityImport:payload=>{
+   if(!game.user.isGM)throw Error('Headquarters facility import is GM-only.');
+   const {errors,rows}=planFacilityImport(payload,new Set(facilities(read()).keys()));
+   return {errors,rows:rows.map(({id,name,action,reason})=>({id,name,action,reason}))};
+  },
+  importFacilities:async payload=>{
+   if(!game.user.isGM)throw Error('Headquarters facility import is GM-only.');
+   const {errors,rows}=planFacilityImport(payload,new Set(facilities(read()).keys()));
+   if(errors.length)throw Error(`Import blocked: ${errors[0]}`);
+   const fresh=rows.filter(r=>r.action==='new');
+   const report={created:[],updated:[],skipped:rows.filter(r=>r.action==='skip').map(r=>({id:r.id,reason:r.reason})),failed:[]};
+   if(!fresh.length)return report;
+   const ok=await request('import_definitions',{definitions:fresh.map(r=>r.definition)});
+   if(!ok)return {...report,failed:fresh.map(r=>({id:r.id,reason:'Headquarters did not accept the import (see the Headquarters notice).'}))};
+   report.created=fresh.map(r=>r.id);return report;
+  },
   inspectFacilityRef:async(ref,resolve)=>{if(!game.user.isGM)throw Error('GM diagnostics only.');return inspectFacilityRef(ref,resolve);}
  };
  // Foundry V14 can render the Actor Directory before the ready hook.
