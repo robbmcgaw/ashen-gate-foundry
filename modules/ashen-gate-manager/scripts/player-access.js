@@ -3,7 +3,8 @@ export const ACCESS_CONTRACT = 'ag-player-access/1';
 export const EXPECTED_ACCESS_MODULES = Object.freeze([
   {id:'ashen-gate-profession-ledger',title:'Profession Ledger'},
   {id:'ashen-gate-skill-trees',title:'Skill Trees'},
-  {id:'ashen-gate-factions',title:'Factions & Renown'}
+  {id:'ashen-gate-factions',title:'Factions & Renown'},
+  {id:'ashen-gate-locations',title:'Locations'}
 ]);
 function isAshenModule(mod) {
   const id=String(mod?.id??'').toLowerCase();
@@ -13,8 +14,9 @@ export function isGmOnlyModule(mod) {
   // GM-only editors cannot be revealed even if another code path returns a bad audience.
   const id=String(mod?.id??'').toLowerCase();
   const title=String(mod?.title??'').toLowerCase();
-  return id==='ashen-gate-manager' || /(?:^|[-_])locations?(?:[-_]|$)/.test(id)
-    || /(?:^|[-_])location-builder(?:[-_]|$)/.test(id)
+  // Locations itself is player-capable (Actors-sidebar launcher and viewer behind its own Player Access setting);
+  // only the Manager and a separate Location Builder editor are GM-only.
+  return id==='ashen-gate-manager' || /(?:^|[-_])location-builder(?:[-_]|$)/.test(id)
     || /(?:general manager|location builder|locations editor)/.test(title);
 }
 export function enumerateAccessModules(modules,expected=EXPECTED_ACCESS_MODULES) {

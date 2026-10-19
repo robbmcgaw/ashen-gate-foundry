@@ -1,3 +1,7 @@
+## 0.8.1 — 2026-10-19
+
+- Importing trees through General Manager no longer needs a manual "Initialize GM Storage" first. The import creates the module's own GM-only definitions Journal (no player access) when it is missing and says so in the result. Nothing else about storage changed; the GM Setup button still works.
+
 ## 0.8.0 — 2026-10-19
 
 - Every node is now a world perk (`PERK-*`, or `POWER-*` on Cinder trees). Name, text, picture and point cost come from the perk. Add perks by dragging them from the Items sidebar or the Perks list, or with **Add**. **Assign Perk** turns an older custom node into a perk node. No more custom nodes.

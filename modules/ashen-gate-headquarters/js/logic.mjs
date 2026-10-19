@@ -105,6 +105,11 @@ export function applyOperation(prior,actor,op,payload={},now=Date.now()){
   let campaign_key=safeText(payload.campaign_key,"campaign key"),guild_key=safeText(payload.guild_key,"guild key",40);
   if(!COPY_KEY.test(guild_key))throw Error("Guild key must be lowercase letters, digits, underscores or hyphens.");
   s.active=true;s.core={guild_state:{campaign_key,guild_key,rank:1,shared_defaults:{},unlocked_facility_refs:[]},headquarters_states:[{hq_ref:payload.hq_ref,location_ref:payload.location_ref,shared_revision:0,rooms:[{key:"common",kind:"shared",owner_user_id:null,revision:0}],installations:[],staffing_slots:[]}]};updateUnlocks(s);
+ }else if(op==="import_definitions"){
+  // Facility definitions are library data, not campaign state: allowed before the Guildhall is activated.
+  requireGM(actor);const defs=payload.definitions;if(!Array.isArray(defs)||defs.length<1||defs.length>200)throw Error("Import a JSON array of 1–200 facility definitions.");
+  const known=facilities(s);const seen=new Set();for(const def of defs){validateDefinition(def);if(known.has(def.id)||seen.has(def.id))throw Error(`Duplicate FAC ID ${def.id}; import cancelled.`);seen.add(def.id);}
+  s.catalog.push(...clone(defs));
  }else{
   if(!s.active)throw Error("GM must activate the Guildhall first.");
   const st=site(s);
@@ -118,10 +123,6 @@ export function applyOperation(prior,actor,op,payload={},now=Date.now()){
    if(!activeLock(s,now)||s.editor_lease.user_id!==actor.id)throw Error("No current editing lock.");s.editor_lease.until=now+LEASE_MS;
   }else if(op==="load_demo"){
    requireGM(actor);for(const def of demoCatalog()){if(!facilities(s).has(def.id))s.catalog.push(def);}
-  }else if(op==="import_definitions"){
-   requireGM(actor);const defs=payload.definitions;if(!Array.isArray(defs)||defs.length<1||defs.length>200)throw Error("Import a JSON array of 1–200 facility definitions.");
-   const known=facilities(s);const seen=new Set();for(const def of defs){validateDefinition(def);if(known.has(def.id)||seen.has(def.id))throw Error(`Duplicate FAC ID ${def.id}; import cancelled.`);seen.add(def.id);}
-   s.catalog.push(...clone(defs));
   }else if(op==="unlock_facility"){
    requireGM(actor);if(!facilities(s).has(payload.facility_ref))throw Error("Unknown facility.");
    if(!s.config.manual_unlock_refs.includes(payload.facility_ref))s.config.manual_unlock_refs.push(payload.facility_ref);

@@ -1,7 +1,7 @@
 <section class="agmanager-body">
   <header class="ag-header agmanager-top">
     <i class="agmanager-emblem fa-solid fa-dungeon" aria-hidden="true"></i>
-    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.16.0 Beta</small></h2></div>
+    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.17.0 Beta</small></h2></div>
     <button type="button" class="agmanager-help" data-ag-action="help" aria-label="Manager Help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button><span class="agmanager-chip">GM only</span>
   </header>
   <nav class="ag-tabs agmanager-nav" aria-label="Manager tabs">
@@ -53,6 +53,29 @@
     <p class="agmanager-tiny">Folder destinations: <code>foundry.folder_path</code> (e.g. <code>Ashen Gate/Professions/Recipes</code>). Explicit links: <code>[[AGREF:MAT-EXAMPLE|Material]]</code> (provisional, pending Tim confirmation). Missing/ambiguous UUID targets are reported in History.</p>
     <p class="agmanager-tiny">Importer accepts versioned Foundry projection JSON, or a ZIP with one valid projection. Locations and campaign state remain with their specialist modules. Imported Macros are not executed.</p>
     <p class="agmanager-notice">{{message}}</p>
+    {{#if hasImportReports}}
+    <section class="agmanager-result-panel" aria-label="Import results" aria-live="polite">
+      <div class="agmanager-row agmanager-row-wrap"><h3>Import results</h3><button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="clear-results">Clear results</button></div>
+      {{#each importReports}}
+      <article class="agmanager-result agmanager-result-{{tone}}">
+        <header><span class="ag-badge {{#if isError}}ag-badge--danger{{else}}{{#if isWarn}}ag-badge--warn{{else}}ag-badge--ok{{/if}}{{/if}}">{{toneLabel}}</span> <strong>{{file}}</strong> <small>{{at}}</small></header>
+        <p class="agmanager-result-headline">{{headline}}</p>
+        {{#each notes}}<p class="agmanager-tiny">{{this}}</p>{{/each}}
+        {{#each sections}}
+        <div class="agmanager-result-module">
+          <h4>{{module}} <small>{{countText}}</small></h4>
+          {{#if where}}<p class="agmanager-tiny"><strong>Find it:</strong> {{where}}</p>{{/if}}
+          <ul>
+            {{#each lines}}
+            <li class="agmanager-result-line agmanager-line-{{outcome}}"><span class="agmanager-badge">{{label}}</span> {{#if name}}{{name}} {{/if}}{{#if id}}<code>{{id}}</code>{{/if}}{{#if message}} — {{message}}{{/if}}{{#if fix}}<br><strong>Fix:</strong> {{fix}}{{/if}}</li>
+            {{/each}}
+          </ul>
+        </div>
+        {{/each}}
+      </article>
+      {{/each}}
+    </section>
+    {{/if}}
     {{#if hasWarnings}}<div class="agmanager-warnings"><strong>Import review notes</strong><ul>{{#each warnings}}<li>{{message}}</li>{{/each}}</ul></div>{{/if}}
     {{#if hasErrors}}
       <div class="agmanager-errors"><strong>Validation failed — import blocked</strong><ul>{{#each errors}}<li>{{message}}</li>{{/each}}</ul></div>

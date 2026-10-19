@@ -170,3 +170,17 @@
 .ashen-gate-manager .agmanager-access-list button{flex:0 0 auto;width:auto}
 .ashen-gate-manager .agmanager-adopt{margin-top:var(--ag-space-3)}
 .ashen-gate-manager .agmanager-adopt>summary{cursor:pointer;margin-bottom:var(--ag-space-2)}
+
+/* Import result panel: persistent, plain-language outcome of every apply. */
+.agmanager-result-panel {margin:10px 0;display:grid;gap:8px}
+.agmanager-result-panel h3 {margin:0;flex:1}
+.agmanager-result {border:1px solid var(--ag-border);border-left-width:4px;border-radius:var(--ag-radius);padding:10px 12px;background:var(--ag-surface-raised)}
+.agmanager-result-ok {border-left-color:var(--ag-ok)}
+.agmanager-result-warn {border-left-color:var(--ag-warn)}
+.agmanager-result-error {border-left-color:var(--ag-danger)}
+.agmanager-result-headline {margin:6px 0;font-weight:600}
+.agmanager-result-module h4 {margin:8px 0 2px}
+.agmanager-result-module ul {margin:4px 0 0 0;padding:0;list-style:none}
+.agmanager-result-line {margin:3px 0;overflow-wrap:anywhere}
+.agmanager-line-failed {color:var(--ag-text);background:var(--ag-danger-soft);padding:4px 6px;border-radius:var(--ag-radius-sm)}
+.agmanager-line-skipped, .agmanager-line-warning {background:var(--ag-warn-soft);padding:4px 6px;border-radius:var(--ag-radius-sm)}
