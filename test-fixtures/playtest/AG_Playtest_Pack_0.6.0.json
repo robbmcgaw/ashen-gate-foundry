@@ -2,15 +2,15 @@
   "manifest": {
     "schema_version": "ag-foundry-import/0.2",
     "package_id": "AG-PLAYTEST-PACK",
-    "version": "0.5.1",
-    "description": "Synthetic playtest pack: 3 professions, 8 materials, 8 recipes with crafted items, 3 give-to-player recipe items, 4 perks, 4 stash items, 3 test characters, 3 journals, 1 roll table, 1 hireling and perk, 1 GM-only link macro. 8 locations (a Region point-crawl plus Normal/Hot/Deadly sites) with gathering nodes for the Locations module. Includes one GM-only material, one draft recipe/item and hidden location content as deliberate visibility examples. Not canon."
+    "version": "0.6.0",
+    "description": "Synthetic playtest pack: 3 professions, 8 materials, 8 recipes with crafted items, 3 give-to-player recipe items, 8 perks, 4 stash items, 3 test characters, 3 journals, 1 roll table, 1 hireling and perk, 1 GM-only link macro. 8 locations (a Region point-crawl plus Normal/Hot/Deadly sites) with gathering nodes for the Locations module. Includes one GM-only material, one draft recipe/item and hidden location content as deliberate visibility examples. Not canon."
   },
   "records": [
     {
       "id": "PROF-PT-ALCHEMY",
       "entity_type": "Profession",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -145,7 +145,7 @@
       "id": "PROF-PT-HERBALISM",
       "entity_type": "Profession",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -267,7 +267,7 @@
       "id": "PROF-PT-BLACKSMITHING",
       "entity_type": "Profession",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -401,7 +401,7 @@
       "id": "MAT-PT-EMBERROOT",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -447,7 +447,7 @@
       "id": "MAT-PT-PALEMOSS",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -493,7 +493,7 @@
       "id": "MAT-PT-GLASSBLOOM",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -539,7 +539,7 @@
       "id": "MAT-PT-IRON-ORE",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -578,7 +578,7 @@
       "id": "MAT-PT-COAL",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -617,7 +617,7 @@
       "id": "MAT-PT-LEATHER-STRIPS",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -656,7 +656,7 @@
       "id": "MAT-PT-ASHWOOD-PLANKS",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -695,7 +695,7 @@
       "id": "MAT-PT-GM-ONLY-RESIN",
       "entity_type": "Material",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -734,7 +734,7 @@
       "id": "REC-PT-EMBER-SALVE",
       "entity_type": "Recipe",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -808,7 +808,7 @@
       "id": "REC-PT-MISTVEIL-TONIC",
       "entity_type": "Recipe",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -881,7 +881,7 @@
       "id": "REC-PT-GLASSBLOOM-ELIXIR",
       "entity_type": "Recipe",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -955,7 +955,7 @@
       "id": "REC-PT-DRAFT-DRAUGHT",
       "entity_type": "Recipe",
       "status": "draft",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1018,7 +1018,7 @@
       "id": "REC-PT-IRON-HINGE-SET",
       "entity_type": "Recipe",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1092,7 +1092,7 @@
       "id": "REC-PT-TEST-DAGGER",
       "entity_type": "Recipe",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1176,7 +1176,7 @@
       "id": "REC-PT-ASHWOOD-BUCKLER",
       "entity_type": "Recipe",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1249,7 +1249,7 @@
       "id": "REC-PT-RIVET-POUCH",
       "entity_type": "Recipe",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1332,7 +1332,7 @@
       "id": "ITEM-PT-EMBER-SALVE",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1372,7 +1372,7 @@
       "id": "ITEM-PT-MISTVEIL-TONIC",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1412,7 +1412,7 @@
       "id": "ITEM-PT-GLASSBLOOM-ELIXIR",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1452,7 +1452,7 @@
       "id": "ITEM-PT-DRAFT-DRAUGHT",
       "entity_type": "Item",
       "status": "draft",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1492,7 +1492,7 @@
       "id": "ITEM-PT-IRON-HINGE-SET",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1532,7 +1532,7 @@
       "id": "ITEM-PT-TEST-DAGGER",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1572,7 +1572,7 @@
       "id": "ITEM-PT-ASHWOOD-BUCKLER",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1612,7 +1612,7 @@
       "id": "ITEM-PT-RIVET-POUCH",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1652,7 +1652,7 @@
       "id": "PERK-PT-ALCH-STEADY-HANDS",
       "entity_type": "ProfessionPerk",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1688,7 +1688,7 @@
       "id": "PERK-PT-ALCH-FRUGAL-BREW",
       "entity_type": "ProfessionPerk",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1724,7 +1724,7 @@
       "id": "PERK-PT-ALCH-QUICK-BREW",
       "entity_type": "ProfessionPerk",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1760,7 +1760,7 @@
       "id": "PERK-PT-ALCH-MASTER-TOUCH",
       "entity_type": "ProfessionPerk",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1793,10 +1793,158 @@
       }
     },
     {
+      "id": "PERK-PT-GEN-FOUNDATION",
+      "entity_type": "ProfessionPerk",
+      "status": "approved",
+      "version": "0.6.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "perk_of",
+          "target_id": "PROF-PT-HERBALISM",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Foundation",
+      "profession_id": "PROF-PT-HERBALISM",
+      "point_cost": 1,
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Perks",
+        "data": {
+          "name": "[TEST] Foundation",
+          "type": "feat",
+          "img": "icons/skills/trades/smithing-anvil-silver-red.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Foundation</h2><p>Synthetic playtest perk of [[AGREF:PROF-PT-HERBALISM|Herbalism]]; no rules effect.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "PERK-PT-GEN-LEFT-PATH",
+      "entity_type": "ProfessionPerk",
+      "status": "approved",
+      "version": "0.6.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "perk_of",
+          "target_id": "PROF-PT-HERBALISM",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Left Path",
+      "profession_id": "PROF-PT-HERBALISM",
+      "point_cost": 1,
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Perks",
+        "data": {
+          "name": "[TEST] Left Path",
+          "type": "feat",
+          "img": "icons/skills/trades/smithing-anvil-silver-red.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Left Path</h2><p>Synthetic playtest perk of [[AGREF:PROF-PT-HERBALISM|Herbalism]]; no rules effect.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "PERK-PT-GEN-RIGHT-PATH",
+      "entity_type": "ProfessionPerk",
+      "status": "approved",
+      "version": "0.6.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "perk_of",
+          "target_id": "PROF-PT-HERBALISM",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Right Path",
+      "profession_id": "PROF-PT-HERBALISM",
+      "point_cost": 1,
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Perks",
+        "data": {
+          "name": "[TEST] Right Path",
+          "type": "feat",
+          "img": "icons/skills/trades/smithing-anvil-silver-red.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Right Path</h2><p>Synthetic playtest perk of [[AGREF:PROF-PT-HERBALISM|Herbalism]]; no rules effect.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "PERK-PT-GEN-FINAL",
+      "entity_type": "ProfessionPerk",
+      "status": "approved",
+      "version": "0.6.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "perk_of",
+          "target_id": "PROF-PT-HERBALISM",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Final Step",
+      "profession_id": "PROF-PT-HERBALISM",
+      "point_cost": 2,
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Playtest/Perks",
+        "data": {
+          "name": "[TEST] Final Step",
+          "type": "feat",
+          "img": "icons/skills/trades/smithing-anvil-silver-red.webp",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Final Step</h2><p>Synthetic playtest perk of [[AGREF:PROF-PT-HERBALISM|Herbalism]]; no rules effect.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
       "id": "ITEM-PT-STASH-ROPE",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1832,7 +1980,7 @@
       "id": "ITEM-PT-STASH-RATIONS",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1868,7 +2016,7 @@
       "id": "ITEM-PT-STASH-LANTERN",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1904,7 +2052,7 @@
       "id": "ITEM-PT-STASH-LEDGER",
       "entity_type": "Item",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -1940,7 +2088,7 @@
       "id": "PC-PT-BELWAR",
       "entity_type": "PlayerCharacter",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -2031,10 +2179,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.5.1",
-                    "sourceVersion": "0.5.1",
+                    "version": "0.6.0",
+                    "sourceVersion": "0.6.0",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.5.1"
+                    "packageVersion": "0.6.0"
                   }
                 }
               }
@@ -2057,10 +2205,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.5.1",
-                    "sourceVersion": "0.5.1",
+                    "version": "0.6.0",
+                    "sourceVersion": "0.6.0",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.5.1"
+                    "packageVersion": "0.6.0"
                   }
                 }
               }
@@ -2083,10 +2231,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.5.1",
-                    "sourceVersion": "0.5.1",
+                    "version": "0.6.0",
+                    "sourceVersion": "0.6.0",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.5.1"
+                    "packageVersion": "0.6.0"
                   }
                 }
               }
@@ -2109,10 +2257,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.5.1",
-                    "sourceVersion": "0.5.1",
+                    "version": "0.6.0",
+                    "sourceVersion": "0.6.0",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.5.1"
+                    "packageVersion": "0.6.0"
                   }
                 }
               }
@@ -2135,10 +2283,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.5.1",
-                    "sourceVersion": "0.5.1",
+                    "version": "0.6.0",
+                    "sourceVersion": "0.6.0",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.5.1"
+                    "packageVersion": "0.6.0"
                   }
                 }
               }
@@ -2161,10 +2309,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.5.1",
-                    "sourceVersion": "0.5.1",
+                    "version": "0.6.0",
+                    "sourceVersion": "0.6.0",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.5.1"
+                    "packageVersion": "0.6.0"
                   }
                 }
               }
@@ -2187,10 +2335,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.5.1",
-                    "sourceVersion": "0.5.1",
+                    "version": "0.6.0",
+                    "sourceVersion": "0.6.0",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.5.1"
+                    "packageVersion": "0.6.0"
                   }
                 }
               }
@@ -2236,7 +2384,7 @@
       "id": "PC-PT-KESSA",
       "entity_type": "PlayerCharacter",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -2327,10 +2475,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.5.1",
-                    "sourceVersion": "0.5.1",
+                    "version": "0.6.0",
+                    "sourceVersion": "0.6.0",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.5.1"
+                    "packageVersion": "0.6.0"
                   }
                 }
               }
@@ -2353,10 +2501,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.5.1",
-                    "sourceVersion": "0.5.1",
+                    "version": "0.6.0",
+                    "sourceVersion": "0.6.0",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.5.1"
+                    "packageVersion": "0.6.0"
                   }
                 }
               }
@@ -2379,10 +2527,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.5.1",
-                    "sourceVersion": "0.5.1",
+                    "version": "0.6.0",
+                    "sourceVersion": "0.6.0",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.5.1"
+                    "packageVersion": "0.6.0"
                   }
                 }
               }
@@ -2405,10 +2553,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.5.1",
-                    "sourceVersion": "0.5.1",
+                    "version": "0.6.0",
+                    "sourceVersion": "0.6.0",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.5.1"
+                    "packageVersion": "0.6.0"
                   }
                 }
               }
@@ -2431,10 +2579,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.5.1",
-                    "sourceVersion": "0.5.1",
+                    "version": "0.6.0",
+                    "sourceVersion": "0.6.0",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.5.1"
+                    "packageVersion": "0.6.0"
                   }
                 }
               }
@@ -2457,10 +2605,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.5.1",
-                    "sourceVersion": "0.5.1",
+                    "version": "0.6.0",
+                    "sourceVersion": "0.6.0",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.5.1"
+                    "packageVersion": "0.6.0"
                   }
                 }
               }
@@ -2483,10 +2631,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.5.1",
-                    "sourceVersion": "0.5.1",
+                    "version": "0.6.0",
+                    "sourceVersion": "0.6.0",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.5.1"
+                    "packageVersion": "0.6.0"
                   }
                 }
               }
@@ -2535,7 +2683,7 @@
       "id": "PC-PT-ORIN",
       "entity_type": "PlayerCharacter",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -2626,10 +2774,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.5.1",
-                    "sourceVersion": "0.5.1",
+                    "version": "0.6.0",
+                    "sourceVersion": "0.6.0",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.5.1"
+                    "packageVersion": "0.6.0"
                   }
                 }
               }
@@ -2652,10 +2800,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.5.1",
-                    "sourceVersion": "0.5.1",
+                    "version": "0.6.0",
+                    "sourceVersion": "0.6.0",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.5.1"
+                    "packageVersion": "0.6.0"
                   }
                 }
               }
@@ -2678,10 +2826,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.5.1",
-                    "sourceVersion": "0.5.1",
+                    "version": "0.6.0",
+                    "sourceVersion": "0.6.0",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.5.1"
+                    "packageVersion": "0.6.0"
                   }
                 }
               }
@@ -2704,10 +2852,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.5.1",
-                    "sourceVersion": "0.5.1",
+                    "version": "0.6.0",
+                    "sourceVersion": "0.6.0",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.5.1"
+                    "packageVersion": "0.6.0"
                   }
                 }
               }
@@ -2730,10 +2878,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.5.1",
-                    "sourceVersion": "0.5.1",
+                    "version": "0.6.0",
+                    "sourceVersion": "0.6.0",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.5.1"
+                    "packageVersion": "0.6.0"
                   }
                 }
               }
@@ -2756,10 +2904,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.5.1",
-                    "sourceVersion": "0.5.1",
+                    "version": "0.6.0",
+                    "sourceVersion": "0.6.0",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.5.1"
+                    "packageVersion": "0.6.0"
                   }
                 }
               }
@@ -2782,10 +2930,10 @@
                     "status": "approved",
                     "visibility": "player",
                     "scope": "generic_rules",
-                    "version": "0.5.1",
-                    "sourceVersion": "0.5.1",
+                    "version": "0.6.0",
+                    "sourceVersion": "0.6.0",
                     "packageId": "AG-PLAYTEST-PACK",
-                    "packageVersion": "0.5.1"
+                    "packageVersion": "0.6.0"
                   }
                 }
               }
@@ -2812,7 +2960,7 @@
       "id": "JRN-PT-GREENHOLLOW-NOTES",
       "entity_type": "JournalEntry",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -2852,7 +3000,7 @@
       "id": "JRN-PT-MARSH-HANDOUT",
       "entity_type": "JournalEntry",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -2884,7 +3032,7 @@
       "id": "JRN-PT-CHAPEL-GM-NOTES",
       "entity_type": "JournalEntry",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -2916,7 +3064,7 @@
       "id": "TABLE-PT-MARSH-FINDS",
       "entity_type": "RollTable",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3005,7 +3153,7 @@
       "id": "HIRE-PT-SMITH",
       "entity_type": "Hireling",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3048,7 +3196,7 @@
       "id": "HPERK-PT-WORKING",
       "entity_type": "HirelingPerk",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3089,7 +3237,7 @@
       "id": "LOC-PT-GREENHOLLOW",
       "entity_type": "Location",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3183,7 +3331,7 @@
       "id": "LOC-PT-CINDER-QUARRY",
       "entity_type": "Location",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3259,7 +3407,7 @@
       "id": "LOC-PT-ASH-HOLLOW",
       "entity_type": "Location",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3304,7 +3452,7 @@
       "id": "LOC-PT-HOLLOWMERE",
       "entity_type": "Location",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3370,7 +3518,7 @@
       "id": "LOC-PT-DROWNED-CHAPEL",
       "entity_type": "Location",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3540,7 +3688,7 @@
       "id": "LOC-PT-CHAPEL-CRYPT",
       "entity_type": "Location",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3611,7 +3759,7 @@
       "id": "LOC-PT-SUNKEN-CACHE",
       "entity_type": "Location",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3648,7 +3796,7 @@
       "id": "LOC-PT-LANTERN-MOUND",
       "entity_type": "Location",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"
@@ -3696,7 +3844,7 @@
       "id": "MACRO-PT-LINK-TEST-DATA",
       "entity_type": "Macro",
       "status": "approved",
-      "version": "0.5.1",
+      "version": "0.6.0",
       "provenance": {
         "sources": [
           "Synthetic playtest data (not canon)"

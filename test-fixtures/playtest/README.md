@@ -1,4 +1,4 @@
-# Playtest data (0.5.1)
+# Playtest data (0.6.0)
 
 Synthetic data for testing every shipped feature from imports. Everything is `[TEST]`-named placeholder content with no rules effects. Not canon.
 
@@ -6,11 +6,11 @@ Five generated files (`node scripts/build-test-pack.mjs`; never hand-edit them).
 
 | File | Imported by |
 |---|---|
-| `AG_Playtest_Pack_0.5.1.json` | General Manager → Import (also Locations → GM Setup → Import JSON, Locations only) |
-| `AG_Playtest_Quests_0.5.1.json` | Quest Log → GM Setup → Advanced → **Import JSON** |
-| `AG_Playtest_SkillTrees_0.5.1.json` | Skill Trees → GM Setup → **Import Tree Layout JSON** |
-| `AG_Playtest_HQ_Facilities_0.5.1.json` | Headquarters → GM Setup → Facility Catalog → **Import Facility Definitions JSON** |
-| `AG_Playtest_Factions_0.5.1.json` | Factions & Renown → GM Setup → Organizations and folders → **Import JSON** (needs Factions 0.7.0) |
+| `AG_Playtest_Pack_0.6.0.json` | General Manager → Import (also Locations → GM Setup → Import JSON, Locations only) |
+| `AG_Playtest_Quests_0.6.0.json` | Quest Log → GM Setup → Advanced → **Import JSON** |
+| `AG_Playtest_SkillTrees_0.6.0.json` | General Manager → Import (hands it to Skill Trees; needs Skill Trees 0.8.0) |
+| `AG_Playtest_HQ_Facilities_0.6.0.json` | Headquarters → GM Setup → Facility Catalog → **Import Facility Definitions JSON** |
+| `AG_Playtest_Factions_0.6.0.json` | Factions & Renown → GM Setup → Organizations and folders → **Import JSON** (needs Factions 0.7.0) |
 
 ## Import order
 
@@ -31,7 +31,7 @@ Five generated files (`node scripts/build-test-pack.mjs`; never hand-edit them).
 | **Roll Table document results** (3 Items + the Marsh handout Journal) | **Link macro** adds results 7-10, formula becomes `1d10` | none |
 | **Location loot links** (5 loot entries → pack Items) and the chapel's note link (→ Journal) | **Link macro**, through the Locations API | none |
 | Quest Log: quests, work order, contract, objectives (player / reveal-gated / GM-only) | Quests file | statuses and reveals (hand step 2) |
-| Skill Trees: profession tree + generic tree | Skill Trees file | Publish (hand step 6) |
+| Skill Trees: profession tree + generic tree, every node a pack perk | Skill Trees file (after the pack) | award points, publish (hand step 6) |
 | Headquarters facility catalog | HQ file | activation, unlock, acquire (hand step 5) |
 | **Factions**: revealed, hidden and personal-only factions with Renown and ranks; links to pack quests | Factions file | none |
 | Party Notes, Party Stash, Group Check | not importable (campaign state) | hand steps 3, 4 |
@@ -39,7 +39,7 @@ Five generated files (`node scripts/build-test-pack.mjs`; never hand-edit them).
 ## What is in the Manager pack
 
 - **3 professions, 8 materials, 8 recipes + crafted items, 3 give-away recipe items** (Glassbloom Elixir needs the *[TEST] Alchemy Laboratory* workstation; Draft Draught is a draft; GM-only Resin is GM-only; Mistveil Tonic uses the profession default tool).
-- **4 profession perks** (`PERK-PT-ALCH-*`, one GM-only) for the Alchemy skill tree.
+- **8 perks**: `PERK-PT-ALCH-*` (one GM-only) for the Alchemy profession tree, and `PERK-PT-GEN-*` (Foundation, Left Path, Right Path, Final Step; Final Step costs 2 points) for the generic points tree.
 - **4 ordinary stash items** (`ITEM-PT-STASH-*`) in `Ashen Gate/Playtest/Items/Stash`.
 - **3 test characters** in `Ashen Gate/Playtest/Characters`:
   - `[TEST] Belwar`: Alchemist's Supplies, Alchemy (10 XP = level 2), Ember Salve recipe item (not learned), Emberroot/Palemoss/Glassbloom, Poisoned + a custom status, 2 stash items.
@@ -83,7 +83,7 @@ Rank names come from the standard ladder: 0 Unproven, 3 Recognized, 6 Trusted, 1
 3. **Party Notes** are campaign state: open a visible location as a player → Party Notes → Edit.
 4. **Party Stash:** Utilities → Party Inventory → Create Party Stash → Turn On for Players → drag stash items in. **Group Check:** Utilities → Group Checks (use the three characters).
 5. **Headquarters activation.** It does **not** need an `HQ-*` record: activation only checks the id formats, and the pack has none. Open Headquarters (not activated) → fill the form: **Guildhall HQ ID** `HQ-PT-GUILD`, **Location ID** `LOC-PT-GREENHOLLOW`, **Campaign key** `playtest`, **Guild key** `primary` → **Activate Guildhall**. Then Facility Catalog → Unlock → Acquire; Hirelings → add `[TEST] Hireling Smith` from imported definitions.
-6. **Skill Trees:** to publish, edit the tree and Publish. Profession-tree perk picks are the Ledger's job (Skill Trees shows them read-only).
+6. **Skill Trees:** import the pack first (the trees name its `PERK-PT-*` perks). Skill Trees → GM Setup → **Publish Player View**. Skill Trees tab → tree `[TEST] Generic Points` → pick a character → **Award Points** (e.g. 4). As that character's player: select `[TEST] Foundation` → **Unlock**; the perk appears on the sheet's Features. GM: select it → **Refund** removes it again. Profession-tree perk picks are the Ledger's job (Skill Trees shows them read-only).
 7. **Unsafe Document Result case** (Utilities): its own console fixture (`modules/ashen-gate-utilities/fixtures/SETUP_AND_RESET.md`) creates that table.
 
 ## Regenerating

@@ -1,3 +1,11 @@
+## 0.8.0 — 2026-10-19
+
+- Every node is now a world perk (`PERK-*`, or `POWER-*` on Cinder trees). Name, text, picture and point cost come from the perk. Add perks by dragging them from the Items sidebar or the Perks list, or with **Add**. **Assign Perk** turns an older custom node into a perk node. No more custom nodes.
+- Unlocking adds the perk to the character sheet (a tagged copy, never twice). Players unlock their own characters while a GM is logged in; the GM client checks and writes. GM **Refund** and **Reset Tree** give points back and remove the perk from the sheet. A perk missing from the world is reported and nothing is unlocked. Profession trees stay read-only (the Ledger owns them).
+- Clearer graph: arrows from prerequisite to the perk it opens (they follow nodes while you drag), dashed OR arrows, red ✕ exclusion lines, a legend, and the same information as text in the inspector and **Tree as a list**. Prerequisites, OR groups and exclusions are set in a table in Edit Properties.
+- Removed Skill Trees' own Import Tree Layout JSON button (it did nothing: the window re-rendered right after opening the file picker, which dropped the file listener). Import tree files through General Manager. Export buttons stay for backups. Tree files are now `ag-skill-trees/0.3`; 0.2 files still import.
+- **GM Setup → Saved data check** lists custom nodes and perks missing from the world; **Give Missing Perks** adds Items for unlocks made earlier. Saved trees and Actor progress are read as they are; nothing is rewritten or dropped.
+
 ## 0.7.0 — 2026-10-19
 
 - New GM-only, UI-less `api.previewTreeImport(pack, {mode})` and `api.importTrees(pack, {mode})` so General Manager's single importer can hand tree layouts over. New trees are created; existing ones are kept (or, with mode `update`, replaced; purchased nodes stay protected). Actor progress is never touched.

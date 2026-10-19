@@ -9,7 +9,7 @@ const source=readFileSync(new URL('../scripts/main.js',import.meta.url),'utf8');
 
 test('v0.6.0 QA creates real native Actor and feat Item payloads with synthetic provenance',()=>{
  const trees=qaTreeLayouts(), items=qaSourceItems(),actor=qaActorData();
- assert.equal(moduleJson.version,'0.7.0');
+ assert.equal(moduleJson.version,'0.8.0');
  assert.equal(validatePackage({schema:SCHEMA,trees}).errors.length,0);
  assert.equal(trees.length,3);assert.equal(items.length,2);
  assert.equal(actor.type,'character');assert.ok(isQaDocument(actor));
@@ -52,9 +52,9 @@ test('GM-only QA path replaces old Add Demo Trees and uses native Foundry docume
  assert.match(source,/await doc\.delete\(\)/);
 });
 
-test('GM cannot offer Record Unlock for PERK-bound node via generic point wallet',()=>{
- assert.match(source,/!selected\.contentRef\?\.target_id\?\.startsWith\('PERK-'\)/);
- assert.match(source,/Profession PERK selection is Ledger-owned/);
+test('Unlock runs through the GM-side path; profession points stay with the Ledger',()=>{
+ assert.match(source,/async function unlockNode\(/);
+ assert.match(source,/if\(!game\.user\.isGM\)throw Error\('GM only: unlocks run on the GM client'\)/);
  assert.match(source,/provider\.kind==='profession'\)throw Error\('Profession XP\/points belong to the Ledger'/);
 });
 test('shipped JSON QA fixture exactly matches the native seed source (no disconnected display mock)',()=>{

@@ -1,4 +1,15 @@
-# Ashen Gate | Skill Trees v0.6.0 Alpha
+# Ashen Gate | Skill Trees
+
+## How it works (0.8.0)
+
+- **Every node is a perk.** A node names a world perk by its permanent `PERK-*` id (Cinder trees: `POWER-*`); the world Item's UUID is only the local binding. Name, text, picture and point cost come from the perk (`point_cost` on the perk's source definition; 1 when absent). Add a perk to a tree by dragging it from the Items sidebar or the Perks list, or with its **Add** button. Position, required prerequisites, OR groups and exclusions are kept on the node.
+- **Unlocking adds the perk to the sheet.** The unlock spends the character's points and creates an embedded copy of the perk, tagged `flags['ashen-gate-skill-trees'].grant = {perkId, treeId, nodeId, wallet, perkUuid}`. A player's unlock is checked and written by the active GM's client (a GM must be logged in). Refund and Reset (GM only) give the points back and remove the tagged Item. Profession trees stay read-only: the Profession Ledger owns profession perk choices.
+- **Graph.** Arrows point from a prerequisite to the perk it opens. Dashed arrows marked OR: any one of the group. Red dotted ✕ lines: cannot take both. A legend sits under the canvas; the inspector and **Tree as a list** give the same information as text.
+- **Import / export.** Tree files `{schema:'ag-skill-trees/0.3', trees:[…]}` (0.2 files still read) are imported through General Manager, which calls the GM-only `api.previewTreeImport(pack,{mode})` / `api.importTrees(pack,{mode})`. GM Setup keeps **Export Selected Tree** / **Export All Trees** for backups.
+- **Saved data.** Older 0.2 nodes linked through `contentRef` read as perk nodes without being rewritten. Older custom nodes (no perk) still work, give no Item, and are listed under **GM Setup → Saved data check**; **Give Missing Perks** adds the Item for unlocks made before 0.8.0 (re-runnable, removes nothing).
+- API: `unlock(actor, treeId, nodeId)`, `refund(actor, treeId, nodeId)` (GM), `resetTree(actor, treeId)` (GM), `giveMissingPerks()` (GM).
+
+## History (0.6.0 alpha notes)
 
 **Status:** installable Foundry V14 test candidate. Not live Foundry-certified.  **Module ID:** `ashen-gate-skill-trees`.  **Canonical source review:** GitHub `main` `89da7ab854fa87e1b2b77dfdd19c4e16f0b5c5f8` (AG-COORDINATED-BUILD-2026-10-17).  **Owner:** Zeke — Skill Trees only; Tim owns Profession Ledger.
 
@@ -29,8 +40,8 @@
 
 ## Progression and data boundaries
 
-- **Tim's Profession Ledger** is the sole Actor Profession XP/level, `PERK-*` selection and known `REC-*` authority. Skill Trees cannot spend Cinder/generic points to purchase a `PERK-*`. Profession tree layouts and references remain readable only.
-- Skill Trees owns GM-private tree layouts (`ag-skill-trees/0.2`), sanitized published projection (`publicTreesV2`), and GM-awarded **generic** and **experimental Cinder** point wallets (`progressV2`). Nodes do not automatically award Features or implement effects.
+- **Tim's Profession Ledger** is the sole Actor Profession XP/level, profession `PERK-*` selection and known `REC-*` authority. Profession tree layouts remain read-only in Skill Trees.
+- Skill Trees owns GM-private tree layouts (`ag-skill-trees/0.3`), sanitized published projection (`publicTreesV2`), and GM-awarded **generic** and **experimental Cinder** point wallets (`progressV2`). Since 0.8.0 an unlock adds the node's perk Item to the sheet (see the top of this file).
 - General Manager is **optional** and owns canonical import; Skill Trees merely binds native world `feat` Items by stable `PERK-*`/`POWER-*` IDs. World-only source lookup: pack-only compendium/provider reads and reveal-gated owner policy are **not** wired yet. Do not assert support for either.
 - Manager's own Admin window never becomes available to players from Skill Trees. Player Access (`ag-player-access/1`) gates window/launcher opening only; Foundry document ownership and GM Source visibility are separate. GM-only QA source Items are not player-facing.
 - Existing historical Demo layouts, legacy settings, Actor state and source Items are preserved without migration, rewrite or deletion on install. The former Add Demo Trees button is removed; preexisting Demo layouts remain available until their GM reviews them.
