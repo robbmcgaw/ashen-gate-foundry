@@ -13,7 +13,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.10.0';
+const VERSION='0.10.1';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -940,9 +940,15 @@ Hooks.once('ready',()=>{
   Hooks.on('updateActor',actor=>{if(instance?.rendered && instance.actorId===actor.id)instance.render();});
   if(game.user.isGM){
     // World perks feed node names/text; an Item on a character sheet does not change the published view.
+    // A failed publish leaves players on the old tree, so tell the GM (once until a publish works again).
+    let publishFailed=false;
     for(const eventName of ['createItem','updateItem','deleteItem'])Hooks.on(eventName,async item=>{
       if(item?.parent||!gmPrivate())return;
-      try{await publishPublic();}catch(e){console.error(`[${MODULE}] Auto-publish error`,e);}
+      try{await publishPublic();publishFailed=false;}catch(e){
+        console.error(`[${MODULE}] Auto-publish error`,e);
+        if(!publishFailed)ui.notifications?.error?.(`Skill Trees could not update the player view after a perk Item changed: ${e?.message??e}. Players still see the previous trees. Open Skill Trees → Tree Library → Publish Player View to retry.`);
+        publishFailed=true;
+      }
     });
   }
 });

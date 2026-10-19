@@ -59,7 +59,7 @@ async function storeSession(s){
 async function postTally(s){
  try{
   await ChatMessage.create({content:tallyHTML(s,{actorName:id=>game.actors.get(id)?.name??'Unavailable Actor',skillLabel:skillName}),whisper:[...game.users].filter(u=>u.isGM).map(u=>u.id),speaker:ChatMessage.getSpeaker?.()??{}});
- }catch(e){console.warn(`[${ID}] Could not post the Group Check tally`,e);}
+ }catch(e){console.warn(`[${ID}] Could not post the Group Check tally`,e);ui.notifications?.warn?.(`Utilities could not post the "${s.name}" tally to chat (${e?.message??e}). The result is saved: see Group Checks or History.`);}
 }
 function authorOf(message){return message.author??(typeof message.user==='string'?game.users.get(message.user):message.user);}
 function coordinatorIsMe(){return [...game.users].filter(u=>u.active&&u.isGM).sort((a,b)=>a.id.localeCompare(b.id))[0]?.id===game.user.id;}
