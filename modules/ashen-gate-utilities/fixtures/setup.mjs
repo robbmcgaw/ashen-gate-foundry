@@ -6,6 +6,7 @@
  * Full cleanup including GM-created stash: reset({deleteStash:true}) only after backup.
  * No runtime module automatically executes this file.
  */
+import {confirmDialog} from '../scripts/dialogs.mjs';
 const MODULE='ashen-gate-utilities';
 const F='AG-UTILITIES-V020-DISPOSABLE';
 const entries=[['AG TEST | Bridge Scout','pc-scout'],['AG TEST | Field Warden','pc-warden']];
@@ -44,7 +45,7 @@ export async function setup(){
 }
 export async function reset({deleteStash=false}={}){
  guard();
- if(!confirm('Reset Utilities disposable fixture? This deletes tagged TEST Actors, Item and RollTables and clears active check/history. Do this only in a disposable test world.'))return {cancelled:true};
+ if(!await confirmDialog('Reset Utilities disposable fixture? This deletes tagged TEST Actors, Item and RollTables and clears active check/history. Do this only in a disposable test world.',{title:'Reset fixture',yes:'Reset fixture'}))return {cancelled:true};
  // Delete only items/Actors/Tables stamped by this fixture; no name-only deletion.
  const active=[...game.tables].filter(tagged);for(const x of active)await x.delete();
  const items=[...game.items].filter(tagged);for(const x of items)await x.delete();
@@ -54,7 +55,7 @@ export async function reset({deleteStash=false}={}){
  let stashDeleted=false;
  if(deleteStash){
   const stash=[...game.actors].find(a=>a.getFlag(MODULE,'partyStash')===true&&a.name==='Ashen Gate | Party Stash');
-  if(stash){if(!confirm('Also delete the native Party Stash Actor AND all its test items?'))return {fixtureDeleted:true,stashDeleted:false};await stash.delete();stashDeleted=true;}
+  if(stash){if(!await confirmDialog('Also delete the native Party Stash Actor AND all its test items?',{title:'Delete Party Stash',yes:'Delete Party Stash'}))return {fixtureDeleted:true,stashDeleted:false};await stash.delete();stashDeleted=true;}
  }
  ui.notifications?.info('Utilities fixture reset completed.');
  return {fixture:F,deleted:{actors:actors.length,items:items.length,tables:active.length},stashDeleted};
