@@ -718,6 +718,29 @@ let lastGather=null;
 const worldMaterial=id=>id?materialChoices().find(i=>agSourceId(i)===id)??null:null;
 /** Machine-readable metadata of an awardable world material (Manager's definition), or null. */
 const worldMaterialMeta=id=>{const item=worldMaterial(id);return item?materialMeta(item.flags?.['ashen-gate-manager']?.source?.definition,{name:item.name}):null;};
+/** GM: why a MAT-* cannot be awarded ('' when it can), named after what the GM fixes in General Manager. */
+function materialUnavailable(id){
+  if(worldMaterial(id))return '';
+  const docs=(game.items?.contents??[]).filter(i=>agSourceId(i)===id);
+  const src=docs[0]?.flags?.['ashen-gate-manager']?.source;
+  if(!docs.length||!src)return 'Not in this world: import it with General Manager';
+  if(docs.length>1)return 'Imported more than once: remove the duplicate in General Manager';
+  if(src.status!=='approved')return `${src.status?src.status[0].toUpperCase()+src.status.slice(1):'Not approved'}: approve it in General Manager first`;
+  if(src.visibility!=='player')return 'GM-only: make it player-visible in General Manager first';
+  return 'Not visible to every player: check its permissions';
+}
+/** GM: every imported Material with readable metadata, awardable or not ({...meta, unavailable: reason|''}), one per id. */
+function materialCatalog(){
+  const out=new Map();
+  for(const item of game.items?.contents??[]){
+    const id=agSourceId(item);if(!id?.startsWith('MAT-')||out.has(id))continue;
+    const meta=materialMeta(item.flags?.['ashen-gate-manager']?.source?.definition,{name:item.name});
+    if(meta)out.set(id,{...meta,unavailable:materialUnavailable(id)});
+  }
+  return [...out.values()];
+}
+/** A skip reason with the specific Manager fix when the material is not awardable. */
+const skipReason=(id,reason)=>/^Not an imported/.test(reason)?materialUnavailable(id)||reason:reason;
 /** A PROF-* id as a gathering-profession key, from its world Profession definition's name, else from the id. */
 function professionKeyOfId(id){
   const hit=game.user.isGM?lookupWorldDefinition(game,id,{entityType:'Profession'}):null;
@@ -754,8 +777,9 @@ function findNode(locationId,nodeId){
   return {location:loc??null,node:nodeId?loc?.nodes.find(n=>n.id===nodeId)??null:null};
 }
 /** GM only: each configured Exotic candidate with its name and eligibility at this node. */
-const exoticRows=node=>normalizeExotics(node?.exotics).map(e=>{const meta=worldMaterialMeta(e.materialId);
-  return {...e,name:meta?.name??materialName(e.materialId),meta,...exoticEligibility(e,node,meta,{keyOf:professionKeyOfId})};});
+const exoticRows=node=>normalizeExotics(node?.exotics).map(e=>{const meta=worldMaterialMeta(e.materialId),check=exoticEligibility(e,node,meta,{keyOf:professionKeyOfId});
+  const name=meta?.name??materialCatalog().find(m=>m.id===e.materialId)?.name??materialName(e.materialId);
+  return {...e,name,meta,eligible:check.eligible,reason:skipReason(e.materialId,check.reason)};});
 const exoticRule=e=>e.mode==='designated'?`designated: ${e.chance==null?'no chance set':`${e.chance}%`} · ${DESIGNATED_CONDITIONS[e.condition]??''}`:'random discovery';
 /** GM-only one-line summary of a node's Exotic candidates. */
 function exoticSummary(node){
@@ -886,15 +910,22 @@ async function resolveGather(sessionId,{total,choice,mode=0,by=''}){
     xpFlag('gather',lead,{professionId:session.plan.professionId,professionName:session.plan.professionName,suggested:outcome.result!=='fail'&&node.tier?gatherXP(tierName(node.tier)):null}),
     {outcome:outcome.result,nodeKey:node.key,locationId:node.locationId});}
   catch(err){console.warn(`[${ID}] Gathering resolved; chat card failed`,err);}
+  const skipped=(exotic.skipped??[]).map(x=>({...x,reason:skipReason(x.materialId,x.reason)}));
+  if(skipped.length){
+    // GM-only: a configured candidate that could not be found this time, and why. Players never get this.
+    const names=new Map(materialCatalog().map(m=>[m.id,m.name]));
+    const text=skipped.map(x=>`Exotic candidate ${names.get(x.materialId)??x.materialId} skipped: ${x.reason}.`).join(' ');
+    exoticNote=exoticNote?`${exoticNote} ${text}`:text;
+  }
   if(exoticNote){
     try{await globalThis.ChatMessage?.create?.({whisper:allUsers().filter(u=>u.isGM).map(u=>u.id),content:`<div class="agl-chat-card"><p><strong>GM:</strong> ${esc(exoticNote)}</p></div>`});}catch{}
   }
   if(exhausted==='manual'){
     try{await globalThis.ChatMessage?.create?.({whisper:allUsers().filter(u=>u.isGM).map(u=>u.id),content:`<div class="agl-chat-card"><p><strong>GM:</strong> Locations could not record that <em>${esc(nodeTitle(node))}</em> at ${esc(node.locationName)} is exhausted. Mark it in Locations.</p></div>`});}catch{}
   }
-  lastGather={leadName:lead.name,title:nodeTitle(node),total:n,dc:node.dc,verdict,award,exoticAward,exotic,exoticNote,exhausted,by};
+  lastGather={leadName:lead.name,title:nodeTitle(node),total:n,dc:node.dc,verdict,award,exoticAward,exotic:{...exotic,skipped},exoticNote,exhausted,by};
   refreshLedger();
-  return {outcome,reward,award,exotic,exoticAward,awards:rewards.awards,exhausted};
+  return {outcome,reward,award,exotic:{...exotic,skipped},exoticAward,awards:rewards.awards,exhausted};
 }
 
 /** Roll prompt fields; shared by the player popup and the GM's "Roll for them" panel. */
@@ -1296,7 +1327,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   /** GM ad-hoc form: Exotic candidates from the imported catalog. Choosing one sets eligibility; it never awards by itself. */
   _exoticPicker(node){
     const a=this.gather.adhoc,p=this.gather.pick;
-    const metas=materialChoices().map(i=>materialMeta(i.flags?.['ashen-gate-manager']?.source?.definition,{name:i.name})).filter(Boolean);
+    // Every imported Exotic is listed; one that cannot be awarded (draft, GM-only) is shown with its fix, not hidden.
+    const metas=materialCatalog();
     const nodeProf=nodeProfessionKey(node),nodeTier=node?.tier??null;
     const profession=p.profession==='node'?nodeProf:p.profession==='any'?null:p.profession;
     const tierOpt=p.tier==='node'?{maxTier:nodeTier}:p.tier==='any'?{}:{tier:Number(p.tier)};
@@ -1317,8 +1349,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         <label class="ag-field">Gathering profession<select data-gather-pick="profession"><option value="node" ${p.profession==='node'?'selected':''}>This node’s (${esc(nodeProf?profLabel(nodeProf):'none')})</option><option value="any" ${p.profession==='any'?'selected':''}>Any</option>${GATHERING_KEYS.map(k=>`<option value="${k}" ${p.profession===k?'selected':''}>${esc(profLabel(k))}</option>`).join('')}</select></label>
         <label class="ag-field">Tier<select data-gather-pick="tier"><option value="node" ${p.tier==='node'?'selected':''}>Up to this node’s (${esc(nodeTier??'—')})</option><option value="any" ${p.tier==='any'?'selected':''}>Any</option>${TIERS.map((t,i)=>`<option value="${i+1}" ${p.tier===String(i+1)?'selected':''}>${i+1} · ${t}</option>`).join('')}</select></label>
         <span class="agl-sub">Rarity: Exotic · Type: Material</span></div>
-      ${list.length?`<ul class="agl-exotic-list">${list.map(m=>`<li class="agl-exotic-row"><strong>${esc(m.name)}</strong> <small class="agl-sub">Tier ${m.tier??'—'}</small>
-        <button type="button" class="ag-btn" data-action="adhoc-exotic-add" data-id="${esc(m.id)}">Add</button></li>`).join('')}</ul>`
+      ${list.length?`<ul class="agl-exotic-list">${list.map(m=>`<li class="agl-exotic-row${m.unavailable?' is-off':''}"><strong>${esc(m.name)}</strong> <small class="agl-sub">Tier ${m.tier??'—'}</small>
+        ${m.unavailable?badge(m.unavailable,'warn'):''}<button type="button" class="ag-btn" data-action="adhoc-exotic-add" data-id="${esc(m.id)}" ${m.unavailable?`disabled title="${esc(m.unavailable)}"`:''}>Add</button></li>`).join('')}</ul>`
         :`<p class="agl-sub">${p.profession==='node'&&!nodeProf?'This node’s skill is not a gathering profession, so no Exotic can be found here. Choose a gathering profession above.':'No imported Exotic materials match. Exotics come from General Manager (approved, player-visible, quality “Exotic”).'}</p>`}
     </fieldset>`;
   }
@@ -1489,6 +1521,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         if(out.award)this.lastAward=out.award;
         this.notice=out.message;this.render();say(out.message,out.ok===false);return;}
       if(action==='adhoc-exotic-add'||action==='adhoc-exotic-remove'){if(!game.user.isGM)throw Error('GM only');
+        if(action==='adhoc-exotic-add'){const why=materialUnavailable(id);if(why)throw Error(why);}
         const list=this.gather.adhoc.exotics.filter(x=>x.materialId!==id);
         this.gather.adhoc.exotics=normalizeExotics(action==='adhoc-exotic-add'?[...list,{materialId:id,mode:'discovery'}]:list);this.render();return;}
       if(action==='gather-source'){if(!game.user.isGM)throw Error('GM only');this.gather.source=id==='adhoc'?'adhoc':'location';this.render();return;}
@@ -1633,12 +1666,14 @@ Hooks.once('ready',()=>{
       /** Exotic candidates (contract ag-ledger-exotic/1), GM only: Locations' resource editor uses these when the Ledger is active. */
       exotic:{contract:'ag-ledger-exotic/1',defaultDcByTier:{...DEFAULT_DC_BY_TIER},
         percent:()=>{requireGM();return exoticPercent();},
-        /** Imported, approved, player-visible Materials as {id,name,quality,tier,professions}; filters: query, profession (e.g. 'Herbalism'), quality, tier, maxTier. */
-        materials:({query='',profession=null,quality='Exotic',tier=null,maxTier=null}={})=>{requireGM();
-          const metas=materialChoices().map(i=>materialMeta(i.flags?.['ashen-gate-manager']?.source?.definition,{name:i.name})).filter(Boolean);
+        /** Imported, approved, player-visible Materials as {id,name,quality,tier,professions}; filters: query, profession (e.g. 'Herbalism'), quality, tier, maxTier.
+         * includeUnavailable: also draft/GM-only ones, each with {available, reason} (the Manager fix). */
+        materials:({query='',profession=null,quality='Exotic',tier=null,maxTier=null,includeUnavailable=false}={})=>{requireGM();
+          const metas=materialCatalog().filter(m=>includeUnavailable||!m.unavailable);
           const prof=profession?professionKey(profession):null;
           return filterMaterials(metas,{query,profession:prof,quality,tier,maxTier,keyOf:professionKeyOfId})
-            .map(m=>({id:m.id,name:m.name,quality:m.quality,tier:m.tier,professions:materialProfessionKeys(m,professionKeyOfId)}));},
+            .map(m=>({id:m.id,name:m.name,quality:m.quality,tier:m.tier,professions:materialProfessionKeys(m,professionKeyOfId),
+              ...(includeUnavailable?{available:!m.unavailable,reason:m.unavailable}:{})}));},
         /** Each candidate on a node ({skill, tier, exotics}) with {eligible, reason}. */
         eligibility:node=>{requireGM();return exoticRows(normalizeNode(node??{},{})??{}).map(({meta,...r})=>r);}}},
     /** Stable read contract for partner modules (Skill Trees). Never returns history or perk choices. */
