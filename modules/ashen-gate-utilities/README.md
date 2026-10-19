@@ -9,6 +9,7 @@ Open it from **Actors sidebar → Utilities**. The GM always sees it; players se
 - **Group Checks:** the GM starts a skill check for chosen characters against a DC. Eligible connected players are prompted and roll from the compact player view. **End & Record** closes an incomplete check and records the remaining slots as Skipped. The result uses the average of accepted totals.
 - **Roll Requests:** the GM asks for a single skill roll from chosen characters. Group Checks and Roll Requests share one active slot, so a new one cannot overwrite a running one.
 - **Party Inventory:** one shared stash (a Utilities-flagged NPC Actor). Drop an item from any character sheet onto the tab to stash it; drag a row onto a character sheet to take it out. Taking an item out needs every other connected player to accept (GM can turn the vote off; the GM is never asked; 60 second timeout). An Items / History sub-tab lists contents and movements. The GM turns the stash on or off for players.
+- **Award Gold (GM):** pay gp to ticked characters (each, or split evenly in whole gp; a remainder is not handed out). Writes `system.currency.gp` only, posts a chat card and logs to stash History, where the GM can Undo it for anyone who still has the gold.
 - **Roll Tables:** draws a native RollTable and shows the result with an editable preview, whisper to chosen players, and Auto-Send. Document results are sent as `@UUID` links.
 - **Conditions:** one party view of native conditions. Removal is locked per character; the GM unlocks a character so its owner can remove that character's native conditions. **Pop Out Overlay** opens a transparent per-user conditions window.
 - **History** (GM): finished Group Checks with per-character results, average and outcome.
@@ -18,7 +19,7 @@ Player actions that change shared state (stash moves, condition removal) are car
 
 ## Public API
 
-`game.modules.get('ashen-gate-utilities').api`: `open`, `playerAccess` (`ag-player-access/1`), `conditions` (`isUnlocked`, `setUnlocked`, `canRemove`, `remove`, `openOverlay`) and `stash` (`isEnabled`, `setEnabled`, `isVoteRequired`, `setVoteRequired`, `history`, `clearHistory`, `open`, `deposit`, `withdraw`).
+`game.modules.get('ashen-gate-utilities').api`: `open`, `playerAccess` (`ag-player-access/1`), `conditions` (`isUnlocked`, `setUnlocked`, `canRemove`, `remove`, `openOverlay`) and `stash` (`isEnabled`, `setEnabled`, `isVoteRequired`, `setVoteRequired`, `history`, `clearHistory`, `open`, `deposit`, `withdraw`), plus GM-only `awardGold({amount, mode, actorIds, reason, public})` and `undoGoldAward(entryId)` (also as `gold`).
 
 ## Install
 

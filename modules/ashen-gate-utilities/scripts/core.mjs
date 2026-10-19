@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.7.3';
+export const VERSION = '0.8.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -284,4 +284,71 @@ export function appendHistory(list, entry, cap = STASH_HISTORY_CAP) {
 /** Short label for the History panel. */
 export function approvalLabel(entry) {
   return {accepted: 'Party accepted', denied: 'Party denied', 'timed-out': 'No answer in time', 'not-required': 'No vote needed', gm: 'GM'}[entry?.approval] ?? '';
+}
+
+/* ---- v0.8.0: GM gold awards (dnd5e system.currency.gp), logged in stash history with Undo ---- */
+export const GOLD_MAX = 1000000;
+/** The actor's gp as dnd5e stores it, or null when the dnd5e currency path is missing. */
+export function readGp(actor) {
+  const cur = actor?.system?.currency;
+  if (!cur || typeof cur !== 'object') return null;
+  if (cur.gp === undefined || cur.gp === null || cur.gp === '') return 0;
+  const n = Number(cur.gp);
+  return Number.isFinite(n) ? n : null;
+}
+/**
+ * What each recipient gets. mode 'each': everyone gets `amount`. mode 'split': `amount` is shared evenly in
+ * whole gp; the remainder is not paid to anyone (it stays with the GM) and is returned so it can be shown.
+ * recipients: [{id, name, gp}] with gp read fresh from the actor.
+ */
+export function planGoldAward({amount, mode = 'each', recipients} = {}) {
+  const amt = Number(amount);
+  if (!Number.isInteger(amt) || amt < 1 || amt > GOLD_MAX) throw Error(`Gold must be a whole number from 1 to ${GOLD_MAX}.`);
+  if (!['each', 'split'].includes(mode)) throw Error('Mode must be "each" or "split".');
+  const list = [...new Map((recipients ?? []).filter(r => r?.id).map(r => [r.id, r])).values()];
+  if (!list.length) throw Error('Choose at least one character.');
+  for (const r of list) if (!Number.isFinite(r.gp)) throw Error(`${r.name ?? r.id} has no dnd5e gold (system.currency.gp).`);
+  const share = mode === 'each' ? amt : Math.floor(amt / list.length);
+  if (share < 1) throw Error(`${amt} gp cannot be split between ${list.length} characters in whole gp.`);
+  const remainder = mode === 'each' ? 0 : amt - share * list.length;
+  return {amount: amt, mode, share, remainder, total: share * list.length,
+    recipients: list.map(r => ({actorId: r.id, actorName: String(r.name ?? ''), before: r.gp, added: share, after: r.gp + share}))};
+}
+/** History record of a gold award. Lives in the stash history list next to deposits/withdrawals. */
+export function goldAwardEntry({id, plan, reason = '', isPublic = false, user, worldTime = null, realTime = Date.now()} = {}) {
+  if (!plan?.recipients?.length) throw new TypeError('A gold award needs recipients.');
+  return {id: String(id ?? `g${realTime}`), kind: 'gold-award', approval: 'gm', moved: true,
+    userId: str(user?.id), userName: str(user?.name) ?? 'Unknown', amount: plan.amount, mode: plan.mode, share: plan.share, remainder: plan.remainder,
+    reason: String(reason ?? '').trim().slice(0, 240), public: Boolean(isPublic),
+    recipients: plan.recipients.map(r => ({actorId: r.actorId, actorName: str(r.actorName) ?? '', before: r.before, added: r.added, after: r.after, undone: false})),
+    undo: [], worldTime: num(worldTime), realTime: num(realTime) ?? Date.now()};
+}
+/**
+ * Undo decision per recipient. Only recipients not already undone are considered; each is reversed only if
+ * the character still holds at least the gp that was added. `gpOf(actorId)` returns current gp or null (missing).
+ */
+export function planGoldUndo(entry, gpOf) {
+  if (entry?.kind !== 'gold-award') throw Error('That history entry is not a gold award.');
+  const open = (entry.recipients ?? []).filter(r => !r.undone);
+  if (!open.length) throw Error('This gold award was already undone.');
+  return open.map(r => {
+    const gp = gpOf(r.actorId);
+    if (gp === undefined) return {...r, ok: false, reason: `${r.actorName} no longer exists.`};
+    if (gp === null) return {...r, ok: false, reason: `${r.actorName} has no dnd5e gold (system.currency.gp).`};
+    if (gp < r.added) return {...r, ok: false, reason: `${r.actorName} has ${gp} gp, fewer than the ${r.added} gp awarded.`};
+    return {...r, ok: true, reason: '', now: gp, next: gp - r.added};
+  });
+}
+/** New entry with the reversed recipients marked; never mutates the input. */
+export function applyGoldUndo(entry, results, {user, realTime = Date.now()} = {}) {
+  const done = new Set(results.filter(r => r.ok).map(r => r.actorId));
+  return {...entry, recipients: entry.recipients.map(r => done.has(r.actorId) ? {...r, undone: true} : r),
+    undo: [...(entry.undo ?? []), {userId: str(user?.id), userName: str(user?.name) ?? 'Unknown', realTime,
+      results: results.map(r => ({actorId: r.actorId, actorName: r.actorName, ok: r.ok, reason: r.reason, removed: r.ok ? r.added : 0}))}]};
+}
+/** Short chat card for an award (GM whisper, or public if the GM ticked it). */
+export function goldCardHTML(entry) {
+  const E = escapeHTML, how = entry.mode === 'split' ? `${E(entry.amount)} gp split evenly` : `${E(entry.share)} gp each`;
+  const rows = entry.recipients.map(r => `<li><strong>${E(r.actorName)}</strong>: +${E(r.added)} gp</li>`).join('');
+  return `<div class="ag-utilities-gold"><h3>Gold awarded: ${how}</h3>${entry.reason ? `<p>${E(entry.reason)}</p>` : ''}<ul>${rows}</ul>${entry.remainder ? `<p>${E(entry.remainder)} gp left over was not handed out.</p>` : ''}</div>`;
 }

@@ -1,6 +1,6 @@
-import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,conditionGroups,stashRow,historyEntry,appendHistory,approvalLabel,STASH_HISTORY_CAP,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome} from './core.mjs';
+import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,conditionGroups,stashRow,historyEntry,appendHistory,approvalLabel,STASH_HISTORY_CAP,readGp,planGoldAward,goldAwardEntry,planGoldUndo,applyGoldUndo,goldCardHTML,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome} from './core.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
-import {confirmDialog,infoDialog} from './dialogs.mjs';
+import {confirmDialog,infoDialog,formDialog} from './dialogs.mjs';
 
 const {ApplicationV2}=foundry.applications.api;
 let windowInstance=null;
@@ -164,7 +164,7 @@ function inventoryView(app){
  const stash=stashActor(),on=stashEnabled();
  if(!isGM())return on&&stash?stashPanel(app):`<section class="ag-card agu-card"><h2>Party Stash</h2>${empty(stash?'The GM has turned the party stash off.':'There is no party stash yet.')}</section>`;
  const count=stash?stash.items.size??[...stash.items].length:0;
- return `<section class="ag-card agu-card"><div class="agu-line"><h2>Party Stash</h2><span class="ag-badge agu-pill ${on?'ag-badge--ok':''}">${on?'On for players':'Off for players'}</span></div><p class="agu-note">The stash is an NPC Actor kept by Utilities. While it is on, players get Observer permission on it so they can read item sheets; Utilities moves items for them through the GM client. You can move items freely.</p>${stash?`<p>Stash: <strong>${E(stash.name)}</strong> · ${E(count)} item(s)</p><div class="agu-actions">${btn('toggle-stash',on?'Turn Off for Players':'Turn On for Players',{kind:on?'danger':''})}</div>`:empty('No party stash yet.')+`<div class="agu-actions">${btn('create-stash','Create Party Stash',{kind:'primary'})}</div>`}</section>${stash?stashPanel(app):''}`;
+ return `<section class="ag-card agu-card"><div class="agu-line"><h2>Party Stash</h2><span class="ag-badge agu-pill ${on?'ag-badge--ok':''}">${on?'On for players':'Off for players'}</span></div><p class="agu-note">The stash is an NPC Actor kept by Utilities. While it is on, players get Observer permission on it so they can read item sheets; Utilities moves items for them through the GM client. You can move items freely.</p>${stash?`<p>Stash: <strong>${E(stash.name)}</strong> · ${E(count)} item(s)</p><div class="agu-actions">${btn('toggle-stash',on?'Turn Off for Players':'Turn On for Players',{kind:on?'danger':''})}${btn('gold-award','Award Gold',{kind:'primary'})}</div>`:empty('No party stash yet.')+`<div class="agu-actions">${btn('gold-award','Award Gold')}${btn('create-stash','Create Party Stash',{kind:'primary'})}</div>`}</section>${stash?stashPanel(app):''}`;
 }
 async function openUuid(uuid){const doc=await fromUuid(uuid);if(!doc?.sheet)throw Error('That document could not be found or has no sheet.');doc.sheet.render(true);}
 function tableView(app){if(!isGM())return empty('Only the GM can roll and distribute RollTable messages.');
@@ -255,6 +255,14 @@ class UtilitiesApp extends ApplicationV2 {
   if(action==='stash-take'){await notifyResult(withdrawItem(b.dataset.item,root.querySelector('#agu-stash-target')?.value));return;}
   if(action==='stash-history-more'){this.historyShown+=HISTORY_PAGE;await this.render();return;}
   if(action==='stash-history-clear'){if(!await confirmDialog('Clear the whole stash history? This cannot be undone.',{title:'Clear stash history',yes:'Clear history'}))return;await clearStashHistory();this.historyShown=HISTORY_PAGE;ui.notifications?.info('Stash history cleared.');await this.render();return;}
+  if(action==='gold-award'){if(await awardGoldDialog())await this.render();return;}
+  if(action==='gold-undo'){
+   if(!isGM())throw Error('GM only.');
+   if(!await confirmDialog('Take this gold back from every character who still has it? Anyone who has already spent it keeps it, and you will be told who.',{title:'Undo gold award',yes:'Undo award'}))return;
+   const res=await undoGoldAward(b.dataset.entry),ok=res.filter(r=>r.ok),no=res.filter(r=>!r.ok);
+   const msg=`${ok.length?`Took back ${ok.map(r=>`${r.removed} gp from ${r.actorName}`).join(', ')}.`:'Nothing was taken back.'}${no.length?` Not undone: ${no.map(r=>r.reason).join(' ')}`:''}`;
+   (no.length?ui.notifications?.warn:ui.notifications?.info)?.call(ui.notifications,msg);await this.render();return;
+  }
   if(action==='toggle-stash'){await setStashEnabled(!stashEnabled());await this.render();return;}
   if(action==='table-roll'){
    if(!isGM())throw Error('GM only.');const table=game.tables.get(root.querySelector('#agu-table')?.value);if(!table)throw Error('Choose a native RollTable.');
@@ -405,19 +413,94 @@ function logStash({kind,approval,user,actor,item}){
   const entry=historyEntry({id:crypto.randomUUID(),kind,approval,user,actor,item,worldTime:game.time?.worldTime??null,realTime:Date.now()});
   await game.settings.set(ID,'stashHistory',appendHistory(game.settings.get(ID,'stashHistory'),entry,STASH_HISTORY_CAP));
  };
- const next=historyQueue.then(run);historyQueue=next.catch(()=>{});return next;
+ return queueHistory(run);
 }
+const queueHistory=run=>{const next=historyQueue.then(run);historyQueue=next.catch(()=>{});return next;};
 /** A move already happened or was already refused, so a failed log write is reported, not thrown. */
 const logQuietly=args=>logStash(args).catch(e=>console.warn(`[${ID}] Could not write stash history: ${e.message}`));
 function stashHistory(){
  if(!permitted())throw Error('Utilities access is hidden by the GM.');
  if(!isGM())playerStashGate(game.user);
- const list=game.settings.get(ID,'stashHistory');return structuredClone(Array.isArray(list)?list:[]);
+ const list=structuredClone(Array.isArray(game.settings.get(ID,'stashHistory'))?game.settings.get(ID,'stashHistory'):[]);
+ if(isGM())return list;
+ // Players see only gold awards the GM made public, without anyone's gp totals.
+ return list.filter(h=>h?.kind!=='gold-award'||h.public===true).map(h=>h?.kind!=='gold-award'?h:{...h,recipients:(h.recipients??[]).map(r=>({actorId:r.actorId,actorName:r.actorName,added:r.added,undone:r.undone})),undo:[]});
 }
 async function clearStashHistory(){
  if(!isGM())throw Error('GM only.');
  await historyQueue.catch(()=>{});
  await game.settings.set(ID,'stashHistory',[]);
+}
+/* ---- Gold awards: GM-only, one update per character to system.currency.gp, logged in stash history ---- */
+/** dnd5e Primary Party members if one is set, otherwise characters owned by connected players. */
+function goldDefaults(){
+ let party=null;try{party=game.actors?.party??null;}catch{party=null;}
+ if(!party){try{party=game.settings.get('dnd5e','primaryParty')?.actor??null;}catch{party=null;}}
+ const members=[...(party?.system?.members??[])].map(m=>m?.actor??m).filter(a=>a?.id&&game.actors.get(a.id));
+ if(members.length)return {source:'party',partyName:party.name??'Primary Party',actorIds:[...new Set(members.map(a=>a.id))]};
+ const players=[...game.users].filter(u=>u.active&&!u.isGM);
+ return {source:'players',partyName:null,actorIds:allCharacters().filter(a=>players.some(u=>a.testUserPermission?.(u,'OWNER'))).map(a=>a.id)};
+}
+const gmWhisper=()=>[...game.users].filter(u=>u.isGM).map(u=>u.id);
+function gpOrThrow(actor){const gp=readGp(actor);if(gp===null)throw Error(`${actor.name} has no dnd5e gold (system.currency.gp); Utilities cannot award gold here.`);return gp;}
+/** API: award gold. mode 'each' (default) or 'split' (whole gp; any remainder is not handed out). */
+async function awardGold({amount,mode='each',actorIds,reason='',public:isPublic=false}={}){
+ if(!isGM())throw Error('GM only.');
+ return queueHistory(async()=>{
+  const actors=[...new Set(actorIds??[])].map(id=>{const a=game.actors.get(id);if(!a)throw Error(`Character ${id} was not found.`);return a;});
+  const plan=planGoldAward({amount,mode,recipients:actors.map(a=>({id:a.id,name:a.name,gp:gpOrThrow(a)}))});
+  const paid=[],failed=[];
+  for(const r of plan.recipients){
+   try{await game.actors.get(r.actorId).update({'system.currency.gp':r.after});paid.push(r);}
+   catch(e){failed.push({actorName:r.actorName,reason:e?.message??String(e)});}
+  }
+  if(!paid.length)throw Error(`No gold was awarded: ${failed.map(f=>`${f.actorName}: ${f.reason}`).join('; ')}`);
+  const entry=goldAwardEntry({id:crypto.randomUUID(),plan:{...plan,recipients:paid},reason,isPublic,user:game.user,worldTime:game.time?.worldTime??null,realTime:Date.now()});
+  await game.settings.set(ID,'stashHistory',appendHistory(game.settings.get(ID,'stashHistory'),entry,STASH_HISTORY_CAP));
+  try{await ChatMessage.create({content:goldCardHTML(entry),whisper:isPublic?[]:gmWhisper(),speaker:ChatMessage.getSpeaker?.()??{}});}
+  catch(e){console.warn(`[${ID}] Could not post the gold award card`,e);ui.notifications?.warn?.(`Gold was awarded but the chat card failed (${e?.message??e}). See stash History.`);}
+  return {entry:structuredClone(entry),failed};
+ });
+}
+/** API: undo a gold award from history. Reverses only characters that still hold the awarded gp; never twice. */
+async function undoGoldAward(entryId){
+ if(!isGM())throw Error('GM only.');
+ return queueHistory(async()=>{
+  const list=game.settings.get(ID,'stashHistory'),entry=(Array.isArray(list)?list:[]).find(h=>h?.id===entryId);
+  if(!entry)throw Error('That gold award is no longer in the stash history.');
+  const results=planGoldUndo(entry,id=>{const a=game.actors.get(id);return a?readGp(a):undefined;});
+  for(const r of results.filter(x=>x.ok)){
+   try{await game.actors.get(r.actorId).update({'system.currency.gp':r.next});}
+   catch(e){r.ok=false;r.reason=`${r.actorName}: ${e?.message??e}`;}
+  }
+  const next=applyGoldUndo(entry,results,{user:game.user,realTime:Date.now()});
+  await game.settings.set(ID,'stashHistory',game.settings.get(ID,'stashHistory').map(h=>h?.id===entryId?next:h));
+  return results.map(r=>({actorId:r.actorId,actorName:r.actorName,ok:r.ok,reason:r.reason,removed:r.ok?r.added:0}));
+ });
+}
+/** GM dialog: form, then a labelled confirmation that shows each share and any remainder. */
+async function awardGoldDialog(){
+ if(!isGM())throw Error('GM only.');
+ const def=goldDefaults(),ids=new Set(def.actorIds);
+ const pool=[...new Map([...allCharacters(),...def.actorIds.map(id=>game.actors.get(id))].filter(Boolean).map(a=>[a.id,a])).values()].sort((a,b)=>a.name.localeCompare(b.name));
+ if(!pool.length)throw Error('There are no characters to award gold to.');
+ const form=await formDialog('Award Gold',[
+  {name:'amount',label:'Gold (gp)',type:'number',value:''},
+  {name:'mode',label:'How',type:'select',value:'each',options:[{value:'each',label:'Each character gets this amount'},{value:'split',label:'Split this amount evenly'}],hint:'Split pays whole gp only; any remainder is not handed out (it stays with you) and is shown before you confirm.'},
+  {name:'reason',label:'Reason (optional)',type:'text',value:''},
+  {name:'recipients',label:'Characters',type:'checklist',options:pool.map(a=>({value:a.id,label:a.name,checked:ids.has(a.id)})),hint:def.source==='party'?`Ticked: members of ${def.partyName}.`:'Ticked: characters owned by connected players (no dnd5e Primary Party is set).'},
+  {name:'public',label:'Also show the chat card to players',type:'checkbox',value:'1'}
+ ],{ok:'Review Award'});
+ if(!form)return null;
+ const actorIds=[].concat(form.recipients??[]),isPublic=[].concat(form.public??[]).length>0,amount=Number(form.amount),mode=form.mode==='split'?'split':'each';
+ const plan=planGoldAward({amount,mode,recipients:actorIds.map(id=>{const a=game.actors.get(id);return {id,name:a?.name??id,gp:a?gpOrThrow(a):NaN};})});
+ const lines=[mode==='split'?`Split ${plan.amount} gp evenly: ${plan.share} gp each.`:`${plan.share} gp to each character.`,...plan.recipients.map(r=>`${r.actorName}: ${r.before} → ${r.after} gp`)];
+ if(plan.remainder)lines.push(`${plan.remainder} gp left over will NOT be handed out; it stays with you.`);
+ lines.push(isPublic?'The chat card will be public.':'The chat card will be whispered to the GM only.');
+ if(!await confirmDialog(lines.join('\n'),{title:'Award Gold',yes:`Award ${plan.total} gp`}))return null;
+ const out=await awardGold({amount,mode,actorIds,reason:form.reason??'',public:isPublic});
+ ui.notifications?.info(`Awarded ${out.entry.recipients.reduce((n,r)=>n+r.added,0)} gp.${out.failed.length?` Not paid: ${out.failed.map(f=>`${f.actorName} (${f.reason})`).join(', ')}.`:''}`);
+ return out;
 }
 /** Create first, then delete, so a failure can never lose the item. */
 async function moveItem(item,target){
@@ -553,8 +636,17 @@ function stashPanel(app){
  return `<section class="agu-stash" aria-label="Party stash">${tabs}<div class="agu-stash-body">${app.stashTab==='history'?historyBody(app):stashBody(app)}</div></section>`;
 }
 const HISTORY_PAGE=50;
+/** Extra lines for a gold award row: reason, per-character gp, remainder, undo state and the GM's Undo button. */
+function goldDetail(h){
+ if(h.kind!=='gold-award')return '';
+ const per=(h.recipients??[]).map(r=>`${r.actorName} +${r.added} gp${Number.isFinite(r.before)?` (${r.before} → ${r.after})`:''}${r.undone?' · undone':''}`).join('; ');
+ const left=(h.recipients??[]).some(r=>!r.undone);
+ const undo=(h.undo??[]).flatMap(u=>u.results.filter(r=>!r.ok).map(r=>r.reason)).filter(Boolean);
+ return `${h.reason?`<p>${E(h.reason)}</p>`:''}<p>${E(per)}${h.remainder?` · ${E(h.remainder)} gp not handed out`:''}</p>${isGM()&&undo.length&&left?`<p class="agu-note">Last undo refused: ${E(undo.slice(-3).join(' '))}</p>`:''}${isGM()&&left?`<div class="agu-actions">${btn('gold-undo',(h.undo??[]).length?'Undo Remaining':'Undo',{kind:'ag-btn ag-btn--sm',attrs:`data-entry="${E(h.id)}"`})}</div>`:''}`;
+}
 const worldClock=t=>{if(!Number.isFinite(t))return '';const d=Math.floor(t/86400),r=((t%86400)+86400)%86400,p=n=>String(Math.floor(n)).padStart(2,'0');return `World day ${d}, ${p(r/3600)}:${p((r%3600)/60)}`;};
 function historyLine(h){
+ if(h.kind==='gold-award'){const names=(h.recipients??[]).map(r=>r.actorName).join(', ');return h.mode==='split'?`${h.userName} split ${h.amount} gp between ${names}`:`${h.userName} awarded ${h.share} gp each to ${names}`;}
  const who=`${h.userName}${h.actorName?` (${h.actorName})`:''}`,qty=h.quantity>1?` ×${h.quantity}`:'';
  return h.kind==='deposit'?`${who} put ${h.itemName}${qty} in the stash`:h.moved?`${who} took ${h.itemName}${qty} out of the stash`:`${who} tried to take ${h.itemName}${qty} out of the stash`;
 }
@@ -562,9 +654,9 @@ function historyBody(app){
  let list;try{list=stashHistory();}catch(e){return empty(e.message);}
  const rows=list.slice().reverse(),shown=rows.slice(0,app.historyShown);
  const tone=a=>a==='denied'||a==='timed-out'?'ag-badge--danger':a==='accepted'?'ag-badge--ok':a==='gm'?'ag-badge--accent':'';
- const items=shown.map(h=>`<div class="agu-history agu-stash-log"><div class="agu-line"><span class="agu-stash-log__what">${h.img?`<img class="agu-stash-icon" src="${E(h.img)}" alt="">`:''}<strong>${E(historyLine(h))}</strong></span><span class="ag-badge ${tone(h.approval)}">${E(approvalLabel(h))}</span></div><small>${E(new Date(h.realTime).toLocaleString())}${Number.isFinite(h.worldTime)?` · ${E(worldClock(h.worldTime))}`:''}</small></div>`).join('');
+ const items=shown.map(h=>`<div class="agu-history agu-stash-log"><div class="agu-line"><span class="agu-stash-log__what">${h.img?`<img class="agu-stash-icon" src="${E(h.img)}" alt="">`:''}<strong>${E(historyLine(h))}</strong></span><span class="ag-badge ${tone(h.approval)}">${E(h.kind==='gold-award'?'Gold':approvalLabel(h))}</span></div>${goldDetail(h)}<small>${E(new Date(h.realTime).toLocaleString())}${Number.isFinite(h.worldTime)?` · ${E(worldClock(h.worldTime))}`:''}</small></div>`).join('');
  const more=rows.length>shown.length?`<div class="agu-actions">${btn('stash-history-more',`Show more (${rows.length-shown.length} older)`,{kind:'ag-btn'})}</div>`:'';
- const clear=isGM()?`<div class="ag-toolbar__end">${btn('stash-history-clear','Clear History',{kind:'ag-btn ag-btn--danger',disabled:!rows.length})}</div>`:'';
+ const clear=isGM()?`<div class="ag-toolbar__end">${btn('gold-award','Award Gold',{kind:'ag-btn'})}${btn('stash-history-clear','Clear History',{kind:'ag-btn ag-btn--danger',disabled:!rows.length})}</div>`:'';
  return `<div class="ag-toolbar"><span class="agu-note">${rows.length} ${rows.length===1?'entry':'entries'}, newest first. The log keeps the latest ${STASH_HISTORY_CAP}.</span>${clear}</div>${rows.length?items+more:empty('Nothing has moved in or out of the stash yet.')}`;
 }
 /** Wires the stash panel inside the Utilities window: tabs, search, take-into, sheet links, row drag-out, and drop-in over the whole tab. */
@@ -631,7 +723,8 @@ Hooks.once('ready',()=>{
  const m=game.modules.get(ID);
  m.api={version:VERSION,contract:'ag-utilities/0.2-alpha',open,playerAccess:{contract:'ag-player-access/1',getState:()=>({contract:'ag-player-access/1',moduleId:ID,audience:'player',playerAccessEnabled:game.settings.get(ID,'playerAccessEnabled'),configurable:true}),setEnabled:async enabled=>{if(!isGM())throw Error('GM only.');if(typeof enabled!=='boolean')throw TypeError('Boolean required.');await game.settings.set(ID,'playerAccessEnabled',enabled);return m.api.playerAccess.getState();}},
   conditions:{contract:'ag-utilities-conditions/1',isUnlocked:actorId=>isUnlocked(getUnlocks(),actorId),setUnlocked,canRemove:(actorId,statusId)=>canRemove(game.actors.get(actorId),statusId),remove:removeCondition,openOverlay:async()=>{await game.settings.set(ID,'overlayOpen',true);return openOverlay();},closeOverlay:()=>game.settings.set(ID,'overlayOpen',false)},
-  stash:{contract:'ag-utilities-stash/1',isEnabled:stashEnabled,setEnabled:setStashEnabled,isVoteRequired:stashVoteRequired,setVoteRequired:setStashVoteRequired,history:stashHistory,clearHistory:clearStashHistory,open:openStash,deposit:depositItem,withdraw:withdrawItem}};
+  stash:{contract:'ag-utilities-stash/1',isEnabled:stashEnabled,setEnabled:setStashEnabled,isVoteRequired:stashVoteRequired,setVoteRequired:setStashVoteRequired,history:stashHistory,clearHistory:clearStashHistory,open:openStash,deposit:depositItem,withdraw:withdrawItem},
+  awardGold,undoGoldAward,gold:{contract:'ag-utilities-gold/1',award:awardGold,undo:undoGoldAward,defaultRecipients:()=>{if(!isGM())throw Error('GM only.');return goldDefaults();},openDialog:awardGoldDialog}};
  game.socket?.on?.(SOCKET,(msg,senderId)=>{void onSocket(msg,senderId).catch(error);});
  Hooks.on('renderActorDirectory',addLauncher);Hooks.on('createChatMessage',msg=>{void processSubmission(msg).catch(error);});
  for(const ev of ['updateActor','createActiveEffect','updateActiveEffect','deleteActiveEffect'])Hooks.on(ev,rerenderConditions);

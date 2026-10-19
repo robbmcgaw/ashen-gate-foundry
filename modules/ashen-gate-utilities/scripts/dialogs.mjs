@@ -11,7 +11,12 @@ const paragraphs = text => String(text ?? '').split('\n').map(line => `<p>${esc(
 /** Reads {name: value} from a submitted DialogV2 form. */
 export function readForm(form) {
   const out = {};
-  for (const el of form?.elements ?? []) if (el?.name) out[el.name] = el.value;
+  for (const el of form?.elements ?? []) {
+    if (!el?.name) continue;
+    // Checkboxes collect the ticked values into an array (absent when none are ticked).
+    if (el.type === 'checkbox') { if (el.checked) (out[el.name] ??= []).push(el.value); }
+    else out[el.name] = el.value;
+  }
   return out;
 }
 
@@ -30,8 +35,8 @@ export async function confirmDialog(message, {title = 'Confirm', yes = 'Confirm'
 }
 
 /**
- * Form dialog. fields: [{name, label, value, type: 'text'|'textarea'|'number'|'select', options: [{value,label}], hint}].
- * Resolves {name: string} on the action button, or null when cancelled or closed.
+ * Form dialog. fields: [{name, label, value, type: 'text'|'textarea'|'number'|'select'|'checkbox'|'checklist', options: [{value,label,checked}], checked, hint}].
+ * Resolves {name: string} on the action button (checkbox/checklist: array of ticked values, absent if none), or null when cancelled or closed.
  */
 export async function formDialog(title, fields, {ok = 'Save', cancel = 'Cancel'} = {}) {
   const D = dialogV2();
@@ -39,7 +44,9 @@ export async function formDialog(title, fields, {ok = 'Save', cancel = 'Cancel'}
     const row = f => {
       const id = `agdlg-${esc(f.name)}`;
       let control;
-      if (f.type === 'textarea') control = `<textarea id="${id}" name="${esc(f.name)}" rows="4">${esc(f.value)}</textarea>`;
+      if (f.type === 'checklist') return `<fieldset class="form-group"><legend>${esc(f.label)}</legend>${(f.options ?? []).map(o => `<label class="checkbox"><input type="checkbox" name="${esc(f.name)}" value="${esc(o.value)}"${o.checked ? ' checked' : ''}> ${esc(o.label ?? o.value)}</label>`).join('')}${f.hint ? `<p class="hint">${esc(f.hint)}</p>` : ''}</fieldset>`;
+      if (f.type === 'checkbox') control = `<input id="${id}" type="checkbox" name="${esc(f.name)}" value="${esc(f.value ?? '1')}"${f.checked ? ' checked' : ''}>`;
+      else if (f.type === 'textarea') control = `<textarea id="${id}" name="${esc(f.name)}" rows="4">${esc(f.value)}</textarea>`;
       else if (f.type === 'select') control = `<select id="${id}" name="${esc(f.name)}">${(f.options ?? []).map(o => `<option value="${esc(o.value)}"${String(o.value) === String(f.value) ? ' selected' : ''}>${esc(o.label ?? o.value)}</option>`).join('')}</select>`;
       else control = `<input id="${id}" type="${f.type === 'number' ? 'number' : 'text'}" name="${esc(f.name)}" value="${esc(f.value)}"${f.type === 'number' ? ' min="0" step="1"' : ''}>`;
       return `<div class="form-group"><label for="${id}">${esc(f.label)}</label><div class="form-fields">${control}</div>${f.hint ? `<p class="hint">${esc(f.hint)}</p>` : ''}</div>`;
