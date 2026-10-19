@@ -1,12 +1,13 @@
 import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL} from './model.mjs';
-import {readAll, writeAll, readViews, placeNote, legacyJournalCount, isGM, migrate, presentationOptions, readNotes, writeNotes, readPlayerNotes} from './store.mjs';
+import {readAll, writeAll, readViews, placeNote, legacyJournalCount, isGM, migrate, presentationOptions, readNotes, writeNotes, readPlayerNotes,
+  syncSharedNotes, readSharedNotes, writeSharedNotes, isSharedNotesPage} from './store.mjs';
 import {createApi} from './api.mjs';
 import {createNotesService, SOCKET} from './party-notes.mjs';
 import {LocationsApp} from './app.mjs';
 import {mountLocationLauncher} from './launcher.js';
 import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 
-const VERSION = '1.6.0';
+const VERSION = '1.7.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 const notifyError = err => { console.error(`${MODULE_ID} |`, err); ui.notifications?.error(err?.message ?? String(err)); };
@@ -40,9 +41,11 @@ Hooks.once('init', () => {
 Hooks.once('ready', () => {
   const mod = game.modules.get(MODULE_ID);
   const isPrimaryGM = () => isGM() && (game.users?.activeGM?.isSelf ?? true);
-  // Party Notes: players ask the primary GM's client, which checks and writes (party-notes.mjs).
+  // Party Notes: players ask the primary GM's client, which checks and writes; with no GM connected they write
+  // the shared page of a location they can see (party-notes.mjs).
   const notes = createNotesService({users: game.users, currentUser: () => game.user, isPrimaryGM, playerAccessEnabled,
-    readAll, readNotes, writeNotes, socket: game.socket});
+    readAll, readNotes, writeNotes, reconcile: loc => syncSharedNotes([loc]),
+    shared: {read: readSharedNotes, write: writeSharedNotes}, socket: game.socket});
   game.socket?.on?.(SOCKET, (msg, senderId) => { notes.onSocket(msg, senderId).catch(notifyError); });
   mod.api = createApi({
     version: VERSION, isGM, playerAccessEnabled,
@@ -58,7 +61,7 @@ Hooks.once('ready', () => {
     // One GM migrates 1.2.x data (pin keys, marker states, Note/page flags). Re-runnable; a no-op once done.
     if (game.users?.activeGM?.isSelf ?? true) migrate().then(r => {
       if (r.records || r.pages || r.notes) console.info(`${MODULE_ID} | migrated ${r.records} location(s), ${r.pages} page(s), ${r.notes} Map Note(s) to 1.3.0 pin keys`);
-    }).catch(notifyError);
+    }).then(() => reconcileShared()).catch(notifyError);
   }
   attachActorsLauncher(ui.actors);
   console.info(`${MODULE_ID} | ${VERSION} ready`);
@@ -84,6 +87,22 @@ Hooks.on('dropCanvasData', (canvas, data) => {
   if (data?.type !== 'AshenGateLocation' || !isGM()) return;
   game.modules.get(MODULE_ID).api.placeOnScene(data.id, {scene: canvas.scene, x: data.x, y: data.y}).catch(notifyError);
   return false;
+});
+
+// 1.7.0: the primary GM reconciles shared Party Notes on ready (this also creates the shared Journal and copies
+// existing notes in) and whenever another user writes a shared page (players saving with no GM connected, or just
+// as the GM arrives). Re-runnable; never deletes notes.
+async function reconcileShared() {
+  const r = await syncSharedNotes();
+  if (r.created || r.fromPlayers || r.merged) console.info(`${MODULE_ID} | shared Party Notes: ${r.created} page(s) created, ${r.fromPlayers} taken from players' saves, ${r.merged} merged`);
+  if (r.merged) ui.notifications?.info(`Locations: ${r.merged} location(s) had Party Notes changed on both sides; both versions were kept, the older under a divider.`);
+  if (r.truncated) ui.notifications?.warn(`Locations: merged Party Notes for ${r.truncated} location(s) hit the length limit; the end of the older text was cut. See the console.`);
+}
+let reconcileTimer = null;
+Hooks.on('updateJournalEntryPage', (page, _changes, _options, userId) => {
+  if (!isSharedNotesPage(page) || userId === game.user?.id || !isGM() || !(game.users?.activeGM?.isSelf ?? true)) return;
+  clearTimeout(reconcileTimer);
+  reconcileTimer = setTimeout(() => reconcileShared().catch(notifyError), 500);
 });
 
 // Keep an open window current when another client saves. Never clobber a GM's unsaved edits.

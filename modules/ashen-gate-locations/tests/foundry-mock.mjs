@@ -24,6 +24,7 @@ const level = (ownership, user) => ownership?.[user.id] ?? ownership?.default ??
 class Page {
   constructor(parent, data) { Object.defineProperty(this, 'parent', {value: parent}); this.id = id(); merge(this, structuredClone(data)); }
   getFlag(scope, key) { return getFlag(this.flags)(scope, key); }
+  async update(data) { await this.parent.updateEmbeddedDocuments('JournalEntryPage', [{_id: this.id, ...data}]); return this; }
   testUserPermission(user, need) {
     if (user.isGM) return true;
     let l = level(this.ownership, user);

@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import {installFoundry} from './foundry-mock.mjs';
 import {createApi} from '../scripts/api.mjs';
 import {createNotesService, SOCKET} from '../scripts/party-notes.mjs';
-import {readAll, writeAll, readViews, placeNote, readNotes, writeNotes, readPlayerNotes} from '../scripts/store.mjs';
+import {readAll, writeAll, readViews, placeNote, readNotes, writeNotes, readPlayerNotes, syncSharedNotes, readSharedNotes, writeSharedNotes} from '../scripts/store.mjs';
 import {parseImport, applyNotesOp, normalizeNotes, PARTY_NOTES, exportPackage} from '../scripts/model.mjs';
 
 const MOD = 'ashen-gate-locations';
@@ -19,6 +19,7 @@ const P2 = {id: 'p2', name: '[TEST] Bram', isGM: false, active: true};
 const as = (user, fn) => { const prev = game.user; game.user = user; try { return fn(); } finally { game.user = prev; } };
 const playerJournal = () => game.journal.find(j => j.getFlag(MOD, 'role') === 'player-view');
 const notesJournal = () => game.journal.find(j => j.getFlag(MOD, 'role') === 'party-notes');
+const sharedJournal = () => game.journal.find(j => j.getFlag(MOD, 'role') === 'shared-notes');
 const pageOf = key => playerJournal().pages.find(p => p.getFlag(MOD, 'pinKey') === key);
 const flush = () => new Promise(r => setTimeout(r, 0));
 
@@ -40,7 +41,9 @@ async function world({access = true} = {}) {
   for (const user of users.values()) {
     const service = createNotesService({users, currentUser: () => users.get(user.id), isPrimaryGM: () => user.isGM,
       playerAccessEnabled: () => state.access, readAll: gmOnly(readAll), readNotes: gmOnly(readNotes), writeNotes: gmOnly(writeNotes),
-      socket: socket(user.id), now: () => state.now, timeout: 500});
+      reconcile: gmOnly(loc => syncSharedNotes([loc], {now: state.now})),
+      shared: {read: key => as(users.get(user.id), () => readSharedNotes(key)), write: (key, rec) => as(users.get(user.id), () => writeSharedNotes(key, rec))},
+      socket: socket(user.id), now: () => state.now, timeout: 500, settleMs: 5});
     const api = createApi({version: '1.5.0', isGM: () => user.isGM, playerAccessEnabled: () => state.access, setPlayerAccess: async v => { state.access = v; },
       readAll: () => as(users.get(user.id), readAll), writeAll: list => as(users.get(user.id), () => writeAll(list)),
       readViews: () => as(users.get(user.id), readViews), placeNote, open: () => {}, openLocation: () => {},
@@ -173,14 +176,6 @@ test('unauthorized writes are rejected on the GM client, not just in the API', a
   as(game.users.get('gm'), () => assert.deepEqual(readNotes('LOC-TEST-HIDDEN-CAVE').text, ''), 'nothing was written to the hidden place');
 });
 
-test('no GM connected: players can read but not write, and are told why', async () => {
-  const {api, users, keyOf} = await world();
-  const mill = keyOf('LOC-TEST-MILLBROOK');
-  users.get('gm').active = false;
-  await assert.rejects(() => api('p1').editPartyNotes(mill), /A GM must be connected/);
-  assert.equal(api('p1').getPartyNotes(mill).text, '');
-});
-
 test('notes survive Save, Publish, imports, state changes, pin deletion and delete + re-import', async () => {
   const {api, keyOf} = await world();
   const say = async (who, ref, text) => { const s = await api(who).editPartyNotes(ref); return api(who).savePartyNotes(ref, text, s.rev); };
@@ -251,7 +246,7 @@ test('players can read nothing they should not: no LOC ids, no hidden notes, no 
   await api('p1').savePartyNotes(keyOf('LOC-TEST-ASH-WASTES'), 'smoke notes', s.rev);
   assert.equal(notesJournal().ownership.default, 0, 'the notes store has no player permission');
   // Everything player-readable: the player journal (all pages, flags, HTML) and every socket message.
-  const readable = JSON.stringify(playerJournal()) + JSON.stringify(state.log);
+  const readable = JSON.stringify(playerJournal()) + JSON.stringify(sharedJournal()) + JSON.stringify(state.log);
   assert.doesNotMatch(readable, /CAVE-SECRET-NOTE|LOC-TEST-ASH-WASTES|LOC-TEST-HIDDEN-CAVE|Ash Wastes|Hidden Cave/);
   assert.match(pageOf(keyOf('LOC-TEST-ASH-WASTES')).getFlag(MOD, 'partyNotes'), /smoke notes/);
   const out = api('p1').getPartyNotes(keyOf('LOC-TEST-ASH-WASTES'));

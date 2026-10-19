@@ -554,12 +554,20 @@ export function normalizeNotes(raw = {}, locationId = '') {
   const r = raw && typeof raw === 'object' ? raw : {};
   const lock = r.lock && userId(r.lock.userId) ? {userId: r.lock.userId, until: stamp(r.lock.until)} : null;
   return {locationId: LOCATION_ID.test(locationId || r.locationId || '') ? locationId || r.locationId : '',
-    text: cleanNotesText(r.text), rev: stamp(r.rev), updatedBy: userId(r.updatedBy), updatedAt: stamp(r.updatedAt), lock};
+    text: cleanNotesText(r.text), rev: stamp(r.rev), updatedBy: userId(r.updatedBy), updatedAt: stamp(r.updatedAt), lock,
+    version: versionId(r.version), base: versionId(r.base)};
 }
-/** The copy on a player page: no LOC id, nothing but the text, its stamp and who holds the lock. */
+/**
+ * 1.7.0: `version` is a random id given to each saved text; `base` (GM store only) is the version the GM store and
+ * the shared copy last agreed on, so a later reconcile can tell which side changed. Records from 1.5/1.6 have ''.
+ */
+const VERSION_ID = /^[A-Za-z0-9]{1,32}$/;
+const versionId = value => VERSION_ID.test(value ?? '') ? value : '';
+export const newVersionId = () => globalThis.crypto?.randomUUID?.().replace(/-/g, '').slice(0, 16) ?? Math.random().toString(36).slice(2, 18);
+/** The copy players can read: no LOC id, nothing but the text, its stamps and who holds the lock. */
 export const notesMirror = rec => {
-  const {text, rev, updatedBy, updatedAt, lock} = normalizeNotes(rec);
-  return {text, rev, updatedBy, updatedAt, lock};
+  const {text, rev, updatedBy, updatedAt, lock, version} = normalizeNotes(rec);
+  return {text, rev, updatedBy, updatedAt, lock, version};
 };
 /** Who is editing right now, or ''. A lapsed lock, or one held by someone who has left, counts as free. */
 export function notesLockHolder(rec, now = Date.now(), isActive = () => true) {
@@ -594,11 +602,41 @@ export function applyNotesOp(raw, {op, text, rev, takeover = false} = {}, ctx) {
       if (!Number.isInteger(rev) || rev !== rec.rev)
         throw new Error(`These Party Notes were changed by ${name(rec.updatedBy)} after you started editing. Your text was not saved and is still in the box: copy it, click Cancel, then Edit to see the new notes.`);
       if (typeof text !== 'string') throw new TypeError('Party Notes must be text.');
-      return {...rec, text: cleanNotesText(text), rev: rec.rev + 1, updatedBy: me, updatedAt: now, lock: null};
+      return {...rec, text: cleanNotesText(text), rev: rec.rev + 1, updatedBy: me, updatedAt: now, lock: null, version: ctx.newVersion?.() ?? newVersionId()};
     }
     case 'clear':
       if (!isGM) throw new Error('Only the GM can clear Party Notes.');
-      return {...rec, text: '', rev: rec.rev + 1, updatedBy: me, updatedAt: now, lock: null};
+      return {...rec, text: '', rev: rec.rev + 1, updatedBy: me, updatedAt: now, lock: null, version: ctx.newVersion?.() ?? newVersionId()};
     default: throw new Error(`Unknown Party Notes action "${op}".`);
   }
+}
+
+export const NOTES_MERGE_DIVIDER = '----- Earlier version, kept when the notes were reconciled';
+/**
+ * 1.7.0: brings the GM store's record and the shared (player-writable) copy together. Pure; never drops text.
+ *  - no shared copy, or both on the same version: the store's record (a lock held on the shared copy is kept);
+ *  - only the shared copy changed since they last agreed (players saved while no GM was connected): it wins;
+ *  - only the store changed: the store wins (and is pushed to the shared copy);
+ *  - both changed: the newer one (higher rev, then later save) wins and the older text is appended under a divider.
+ * The result's `base` equals its `version`: once written to both sides they agree again.
+ * opts: {now, isActive(userId), nameOf(userId), newVersion?()}. Returns {record, outcome: 'same'|'store'|'shared'|'merged', truncated}: `truncated` is any text cut by the length cap.
+ */
+export function reconcileNotes(storeRaw, sharedRaw, {now = Date.now(), isActive = () => true, nameOf = () => '', newVersion = newVersionId} = {}) {
+  const store = normalizeNotes(storeRaw);
+  const done = (rec, outcome, truncated = '') => ({record: {...rec, locationId: store.locationId, base: rec.version}, outcome, truncated});
+  if (!sharedRaw) return done(store, store.version === store.base ? 'same' : 'store');
+  const shared = normalizeNotes(sharedRaw);
+  // A lock someone took on the shared copy while no GM was connected still counts, unless the store holds a live one.
+  const lock = notesLockHolder(store, now, isActive) ? store.lock : notesLockHolder(shared, now, isActive) ? shared.lock : store.lock;
+  const fields = r => ({text: r.text, rev: r.rev, updatedBy: r.updatedBy, updatedAt: r.updatedAt, version: r.version});
+  if (shared.version === store.version) return done({...store, lock}, store.version === store.base && JSON.stringify(lock) === JSON.stringify(store.lock) ? 'same' : 'store');
+  const sharedChanged = shared.version !== store.base, storeChanged = store.version !== store.base;
+  if (sharedChanged && !storeChanged) return done({...store, ...fields(shared), lock}, 'shared');
+  if (!sharedChanged) return done({...store, lock}, 'store');
+  const [newer, older] = shared.rev > store.rev || (shared.rev === store.rev && shared.updatedAt > store.updatedAt) ? [shared, store] : [store, shared];
+  const when = older.updatedAt ? new Date(older.updatedAt).toISOString().slice(0, 16).replace('T', ' ') : 'unknown time';
+  const full = older.text && older.text !== newer.text
+    ? `${newer.text}\n\n${NOTES_MERGE_DIVIDER} (saved by ${nameOf(older.updatedBy) || 'someone'}, ${when} UTC) -----\n${older.text}` : newer.text;
+  const text = cleanNotesText(full);
+  return done({...store, ...fields(newer), text, rev: Math.max(store.rev, shared.rev) + 1, updatedAt: now, version: newVersion(), lock}, 'merged', full.slice(text.length));
 }
