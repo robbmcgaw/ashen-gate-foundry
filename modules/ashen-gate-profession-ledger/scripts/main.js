@@ -1,7 +1,7 @@
 import {SCHEMA,PROFESSION_NAMES,norm,professionFromTreeName,classify,normalizeRecipe,normalizeLibrary,
   sourceVisibility,sourceAvailableToPlayer,agSourceId,quantity} from './core.mjs';
 import {GATHERING_PROFESSIONS,TIERS,ACCESS_LEVELS,gatherXP,knownRecipesOf,canLearnRecipe,progressOf,emptyProgress,
-  nextProgress,adjustProgress,xpHistoryOf,XP_CAP,isMaterialAwardCandidate,xpForLevel} from './progression.mjs';
+  nextProgress,adjustProgress,xpHistoryOf,XP_CAP,professionLevelOf,isMaterialAwardCandidate,xpForLevel} from './progression.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition,readWorldDefinition} from './definition-lookup.mjs';
 import {planCraft,craftBlockers,executeCraft,resultItemData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
@@ -11,10 +11,14 @@ import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiv
 import {tierName,defaultDC,normalizeNode,gatherOutcome,gatherReward,exhaustsNode,helperEligibility,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
   stackMaterial} from './gathering.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.13.0';
+const VERSION='0.14.0';
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...}. */
 const XP_HOOK='ashenGateLedger.xpOpportunity';
+/** Called on the client that wrote the XP (the GM) after every Profession XP change. It only says "look again":
+ * read the level through api.progression.level, never from this payload. Payload: {actorId, profId, previousLevel, level, xp}. */
+const PROGRESSION_HOOK='ashenGateLedger.progressionChanged';
+const PROGRESSION_CONTRACT='ag-ledger-progression/1';
 const LOCATIONS_ID='ashen-gate-locations';
 const SOCKET=`module.${ID}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
@@ -92,6 +96,16 @@ async function syncProfessionSheet(actor,profId){
   if(next!==html)await actor.updateEmbeddedDocuments('Item',[{_id:item.id,'system.description.value':next}]);
 }
 /** Exact Actor source ID and ownership enforced; no Actor state duplicated in Skill Trees. */
+function announceProgression(actor,profId,previousLevel,level,xp){
+  try{Hooks.callAll?.(PROGRESSION_HOOK,{actorId:actor.id,profId,previousLevel,level,xp});}catch(err){console.warn(`[${ID}] ${PROGRESSION_HOOK} listener failed`,err);}
+}
+/** Public read of one Profession's level (contract ag-ledger-progression/1). GM or anyone who can see the Actor.
+ * Not tied to Ledger Player Access: that hides the Ledger window, not Profession mechanics. */
+function progressionLevel(actor,profId){
+  if(!actor)throw Error('No Actor given');
+  if(!game.user?.isGM&&actor.testUserPermission?.(game.user,'OBSERVER')!==true)throw Error('Actor access denied');
+  return professionLevelOf(actor,profId,linkedProfession(actor,profId));
+}
 const xpEntry=(kind,extra={})=>({kind,at:Date.now(),by:game.user.id,byName:game.user.name,...extra});
 async function awardXP(actor,profId,points,extra={}){
   if(!game.user.isGM)throw Error('Only the GM can award Profession XP');
@@ -101,16 +115,27 @@ async function awardXP(actor,profId,points,extra={}){
   xpLocks.add(key);
   try {const before=actor.flags?.[ID]?.professionProgress??emptyProgress();const result=nextProgress(before,profId,points,xpEntry('award',extra));
     await actor.setFlag(ID,'professionProgress',result.state);
+    announceProgression(actor,profId,result.previousLevel,result.level,result.state.professions[profId].xp);
     try{await syncProfessionSheet(actor,profId);}catch(err){console.warn(`[${ID}] XP saved; sheet description not updated`,err);}
     return result;
   }finally{xpLocks.delete(key);}
 }
+/** Skill Trees' view of perks a level no longer covers (optional partner; null when absent or it fails). */
+function skillTreesReport(actor,profId,level){
+  if(!actor||!profId)return null;
+  const m=game.modules?.get?.('ashen-gate-skill-trees');
+  if(!m?.active||typeof m.api?.professionReport!=='function')return null;
+  try{return m.api.professionReport(actor,profId,{level})??null;}catch(err){console.warn(`[${ID}] Skill Trees report unavailable`,err);return null;}
+}
 /** Known recipes of this profession, for telling the GM which recipes a lower level locks. */
 const professionRecipes=(actor,profId)=>knownRecipesOf(actor).map(id=>partyRecipeDefinition(id,catalog())).filter(r=>r&&r.professionId===profId).map(r=>({id:r.id,name:r.name,tier:r.tier}));
 /** Plain sentence listing what depends on levels the change takes away. Nothing is deleted. */
-function dependentsText(plan,name){
+function dependentsText(plan,name,actor=null,profId=null){
   const parts=[];
-  if(plan.perksBeyondLevel.length)parts.push(`${plan.perksBeyondLevel.length} held ${name} perk${plan.perksBeyondLevel.length===1?'':'s'} (${plan.perksBeyondLevel.join(', ')}) ${plan.perksBeyondLevel.length===1?'exceeds':'now exceed'} level ${plan.level}. They are kept, not removed. Review them.`);
+  const tree=skillTreesReport(actor,profId,plan.level);
+  if(tree?.nodesAboveLevel?.length)parts.push(`${tree.nodesAboveLevel.length} ${name} Skill Tree perk${tree.nodesAboveLevel.length===1?'':'s'} (${tree.nodesAboveLevel.map(n=>n.name).join(', ')}) ${tree.nodesAboveLevel.length===1?'needs':'need'} a higher level than ${plan.level}. They are kept, not removed. Resolve them in Skill Trees.`);
+  else if(tree?.overSpent>0)parts.push(`${name} Skill Tree perks use ${tree.overSpent} more point${tree.overSpent===1?'':'s'} than level ${plan.level} gives. They are kept, not removed. Resolve them in Skill Trees.`);
+  if(!tree&&plan.perksBeyondLevel.length)parts.push(`${plan.perksBeyondLevel.length} held ${name} perk${plan.perksBeyondLevel.length===1?'':'s'} (${plan.perksBeyondLevel.join(', ')}) ${plan.perksBeyondLevel.length===1?'exceeds':'now exceed'} level ${plan.level}. They are kept, not removed. Review them.`);
   if(plan.lockedRecipes.length)parts.push(`Known recipes now above this level (kept, but crafting is blocked until the level returns): ${plan.lockedRecipes.join(', ')}.`);
   return parts.join(' ');
 }
@@ -126,6 +151,7 @@ async function adjustXP(actor,profId,{delta=null,set=null,reason='',messageId=nu
     const result=adjustProgress(before,profId,{delta,set,recipes:professionRecipes(actor,profId),
       entry:xpEntry(kind??(set!==null?'set':'adjust'),{reason:String(reason??'').slice(0,200),messageId})});
     await actor.setFlag(ID,'professionProgress',result.state);
+    announceProgression(actor,profId,result.previousLevel,result.level,result.state.professions[profId].xp);
     try{await syncProfessionSheet(actor,profId);}catch(err){console.warn(`[${ID}] XP saved; sheet description not updated`,err);}
     return result;
   }finally{xpLocks.delete(key);}
@@ -965,7 +991,7 @@ async function undoAwardFromCard(message){
       const have=progressOf(actor,x.professionId)?.xp??0,take=Math.min(Number(award.points),have);
       const r=await adjustXP(actor,x.professionId,{delta:-take,reason:`Undo award from chat card (${award.points} XP)`,messageId:message.id??null,kind:'undo'});
       const note=take<Number(award.points)?` Only ${take} could be taken back: the profession has less XP than was awarded.`:'';
-      const dep=dependentsText(r,x.professionName);
+      const dep=dependentsText(r,x.professionName,actor,x.professionId);
       await whisperXpNote(actor,`<strong>${esc(actor.name)}: ${take} ${esc(x.professionName)} XP award taken back</strong><span>Now level ${r.level} · ${r.xp} XP${dep?` · ${esc(dep)}`:''}</span>`);
       return {message:`${actor.name}: ${take} ${x.professionName} XP taken back → ${r.xp} XP, level ${r.level}.${note}${dep?` ${dep}`:''}`};
     }catch(err){
@@ -1039,7 +1065,7 @@ async function performAction(action,{id,actorId,points,delta=null,set=null,reaso
     const name=professionsOf(actor).find(p=>p.sourceId===id)?.name??humanizeId(id);
     const plan=adjustProgress(actor.flags?.[ID]?.professionProgress??emptyProgress(),id,{delta:d,set:st,recipes:professionRecipes(actor,id)});
     if(plan.xp===plan.from)throw Error(`${actor.name}'s ${name} XP is already ${plan.from}${plan.clamped?` (limits are 0 and ${XP_CAP})`:''}`);
-    const dep=dependentsText(plan,name);
+    const dep=dependentsText(plan,name,actor,id);
     const ok=await DialogV2.confirm({window:{title:`Adjust ${name} XP?`},content:`<p><strong>${esc(actor.name)}</strong>: ${esc(name)} XP ${plan.from} → <strong>${plan.xp}</strong>${plan.clamped?` (limited to 0–${XP_CAP})`:''}. Level ${plan.previousLevel} → <strong>${plan.level}</strong>.</p>${dep?`<p><strong>Heads up:</strong> ${esc(dep)}</p>`:''}<p>The owner is told in chat, and the change is recorded in the XP history.</p>`,modal:true,rejectClose:false});
     if(!ok)return null;
     const r=await adjustXP(actor,id,{delta:d,set:st,reason});
@@ -1498,7 +1524,9 @@ Hooks.once('ready',()=>{
         const target=node?normalizeNode({dcVisible:true,...node,id:`adhoc-${newId()}`},{locationId:null}):findNode(locationId,nodeId).node;return startGather({node:target,leadId,helperIds});},
       resolve:(sessionId,result)=>resolveGather(sessionId,result),cancel:sessionId=>cancelGather(sessionId),
       request:options=>requestGather(options)},
-    hooks:{xpOpportunity:XP_HOOK},
+    /** Stable read contract for partner modules (Skill Trees). Never returns history or perk choices. */
+    progression:{contract:PROGRESSION_CONTRACT,level:(actor,profId)=>progressionLevel(actor,profId)},
+    hooks:{xpOpportunity:XP_HOOK,progressionChanged:PROGRESSION_HOOK},
     version:VERSION,source:'Actor inventories, Manager tagged Items, and optional Ledger catalog'};
   game.socket?.on?.(SOCKET,(message,senderId)=>void onSocket(message,senderId));
   const refresh=()=>{if(current?.rendered)current.render();};

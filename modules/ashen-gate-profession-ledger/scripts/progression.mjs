@@ -48,6 +48,13 @@ export function progressOf(actor,profId){
  if(!row)return null;
  return {id:profId,xp:row.xp,level:levelForXP(row.xp),tier:tierForLevel(levelForXP(row.xp)),selectedPerkIds:[...row.selectedPerkIds],unspentPerkChoices:Math.max(0,levelForXP(row.xp)-row.selectedPerkIds.length),perksBeyondLevel:perksBeyondLevel(row.selectedPerkIds,levelForXP(row.xp))};
 }
+/** Level of one Profession for partner modules: {profId,xp,level,tier}. An owned Profession with no XP yet is level 1; not owned → null. */
+export function professionLevelOf(actor,profId,owned){
+ if(!validId(profId,'PROF'))return null;
+ const p=progressOf(actor,profId);
+ if(p)return {profId,xp:p.xp,level:p.level,tier:p.tier};
+ return owned?{profId,xp:0,level:1,tier:tierForLevel(1)}:null;
+}
 /** GM-only history lives beside xp in the row; progressOf never returns it. */
 export function xpHistoryOf(actor,profId){
  const raw=actor?.flags?.[LEDGER_SCOPE]?.professionProgress;
