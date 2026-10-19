@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {normalizeTree,resolveTree,availability,purchase,publicTree,publicAvailability} from '../scripts/engine.mjs';
-// 0.8.0: every node is a perk. Generic/Cinder trees spend their own points; Profession trees stay Ledger-owned.
+// 0.8.0: every node is a perk. Generic/Cinder trees spend their own points; Profession trees take points from the Ledger level (0.11.0).
 const base=(kind='generic_points',perkId='PERK-TEST')=>normalizeTree({id:'DEMO-TREE',name:'Test tree',status:'approved',visibility:'player',
  provider:kind==='profession'?{kind,maxPoints:null}:{kind,maxPoints:10},sourceRef:kind==='profession'?'PROF-TEST':null,
  nodes:[{id:'DEMO-NODE',perkId,status:'approved',visibility:'player',display:'shown',x:100,y:100,requiresAll:[],requiresAny:[],excludes:[]}]});
@@ -17,11 +17,13 @@ test('a perk missing from the world blocks the unlock with a clear reason',()=>{
  assert.equal(r.ok,false);assert.match(r.reason,/PERK-TEST is not in this world/);
  assert.throws(()=>purchase(t,account,'DEMO-NODE'),/not in this world/);
 });
-test('profession trees stay read-only: the Ledger owns profession perk choices and points',()=>{
+test('0.11.0: profession trees spend Ledger-level points, 1 per node, never without the Ledger',()=>{
  const t=resolveTree(base('profession'),()=>perk);
- assert.match(availability(t,{awarded:99},'DEMO-NODE').reason,/Profession Ledger/);
- const p=publicTree(t);assert.equal(p.nodes[0].purchaseAuthority,'ledger');
- assert.equal(publicAvailability(p,{awarded:99},'DEMO-NODE').ok,false);
+ assert.match(availability(t,{awarded:99},'DEMO-NODE').reason,/Profession Ledger is not active/);
+ assert.deepEqual(availability(t,{},'DEMO-NODE',{level:1}),{ok:true,reason:'Available',cost:1},'perk point_cost is ignored on profession trees');
+ const p=publicTree(t);assert.equal(p.nodes[0].requiredLevel,1);assert.equal(p.nodes[0].cost,1);
+ assert.equal(publicAvailability(p,{awarded:99},'DEMO-NODE').ok,false,'awarded points mean nothing on a profession tree');
+ assert.equal(publicAvailability(p,{},'DEMO-NODE',{level:1}).ok,true);
 });
 test('public projection shows the perk name and picture but never its id or UUID',()=>{
  const p=publicTree(resolveTree(base('generic_points','PERK-HIDDEN-NAME'),()=>({...perk,uuid:'Item.secretuuid'})));
