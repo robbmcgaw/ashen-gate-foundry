@@ -22,18 +22,29 @@ const saveButton={disabled:true};const stateText={textContent:''};
 app.element={querySelectorAll:s=>s==='[data-roster-actor]'||s==='[data-roster-actor]:checked'?twoInputs.filter(x=>s==='[data-roster-actor]'||x.checked):[],
  querySelector:s=>s==='[data-action="roster-save"]'?saveButton:s==='[data-agl-roster-status]'?stateText:null};
 
-test('GM Setup owns import, roster, optional launcher and Developer Tools; standard header/footer',async()=>{
+test('GM Setup owns roster, access and tool mapping only; standard header/footer',async()=>{
  const html=(await app._prepareContext({})).html;
  assert.match(html,/Ashen Gate \| <strong>Profession Ledger/);
- assert.match(html,/v0\.12\.0/);
+ assert.match(html,/v0\.13\.0/);
  assert.match(html,/data-id="gm"/);
  assert.match(html,/data-action="help"/);
  assert.match(html,/data-action="roster-save"/);
  assert.doesNotMatch(html,/data-action="demo"/);
  assert.doesNotMatch(html,/Developer Tools — experimental/);
+ assert.match(html,/data-action="roster-save"/);
+ assert.doesNotMatch((await (app.view='party',app._prepareContext({}))).html,/data-action="demo"|data-action="import"|data-action="manager"/);
+});
+
+test('Recipe Catalog tab: GM gets Catalog tools (import, Manager), players do not',async()=>{
+ app.view='catalog';
+ let html=(await app._prepareContext({})).html;
+ assert.match(html,/Catalog tools/);
  assert.match(html,/data-action="import"/);
  assert.match(html,/data-action="manager" disabled/,'Missing optional Manager has truthful disabled button');
- assert.doesNotMatch((await (app.view='party',app._prepareContext({}))).html,/data-action="demo"|data-action="import"|data-action="manager"/);
+ game.user=player;app.view='catalog';
+ html=(await app._prepareContext({})).html;
+ assert.doesNotMatch(html,/Catalog tools|data-action="import"|data-action="manager"|data-id="gm"/);
+ game.user=gm;
 });
 
 test('editing roster is explicit; cancelled navigation retains changes',async()=>{

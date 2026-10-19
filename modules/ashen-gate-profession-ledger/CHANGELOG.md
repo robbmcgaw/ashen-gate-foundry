@@ -1,3 +1,9 @@
+## 0.13.0 — 2026-10-19
+
+- **GM Setup** now holds settings only: the party, Player Access, and the tool and check mapping.
+- Recipe import (Ledger JSON), the Open General Manager shortcut and the draft visibility guide moved to a GM-only **Catalog tools** panel at the top of the **Recipe Catalog** tab. Nothing was removed.
+- No saved-data changes. Player views, API and permissions are unchanged.
+
 ## 0.12.0 — 2026-10-19
 
 Take XP back.

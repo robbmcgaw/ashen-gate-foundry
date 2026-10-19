@@ -1,3 +1,9 @@
+## 0.10.0 — 2026-10-19
+
+- New GM-only **Tree Library** tab: New Tree, Export Selected / All Trees, Saved data check, **Give Missing Perks**, Publish Player View and Backup Actor Tree Progress. All work as before.
+- **GM Setup** now holds settings only: Player Access (plus Initialize GM Storage on a fresh world) and the Developer Tools (QA fixtures, legacy review).
+- No saved-data changes. Player views, import APIs and permissions are unchanged.
+
 ## 0.9.0 — 2026-10-19
 
 - **New layout.** The window is two panes: a collapsible sidebar (tree and character pickers, points, Player Preview / Edit Layout, the selected perk with its actions, the Perks list, Tree as a list) and a tall canvas that scrolls and zooms (Ctrl + mouse wheel, drag empty canvas to pan). On narrow windows the sidebar becomes a drawer opened with **Menu**. Scroll position is kept when you click a node. Every existing function is unchanged.
