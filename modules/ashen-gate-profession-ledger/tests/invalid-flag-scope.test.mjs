@@ -30,7 +30,7 @@ const app=apiMod.api.open({view:'catalog'});
 const recipeView=await app._prepareContext({});
 assert.match(recipeView.html,/Hearth Tonic/);
 assert.match(recipeView.html,/data-id="gm"/);
-app.view="gm";assert.match((await app._prepareContext({})).html,/GM visibility guide/);
+app.view="catalog";assert.match((await app._prepareContext({})).html,/Draft recipes are visible only to you/);
 app.view='individual';const individual=await app._prepareContext({});
 assert.match(individual.html,/Test PC/);
 assert.match(individual.html,/Herbs/);

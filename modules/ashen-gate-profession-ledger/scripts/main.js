@@ -11,7 +11,7 @@ import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiv
 import {tierName,defaultDC,normalizeNode,gatherOutcome,gatherReward,exhaustsNode,helperEligibility,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
   stackMaterial} from './gathering.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.12.0';
+const VERSION='0.13.0';
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...}. */
 const XP_HOOK='ashenGateLedger.xpOpportunity';
@@ -1117,6 +1117,19 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         </section>
       </div>`;
   }
+  /** GM-only catalog management: legacy JSON import, Manager shortcut, draft visibility guide. */
+  _catalogTools(){
+    if(!game.user.isGM)return '';
+    const manager=game.modules.get('ashen-gate-manager');
+    const canOpen=Boolean(manager?.active&&typeof manager.api?.open==='function');
+    return `<section class="ag-card agl-panel agl-catalog-tools"><h2>Catalog tools</h2>
+        <p class="agl-sub">General Manager imports recipes, materials and the items recipes make. A crafted item is copied from the recipe’s result item in the world Items directory. The Ledger catalog import below is only for older player-safe JSON catalogs.</p>
+        <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="import">Import Ledger recipe/material JSON</button>
+        <button type="button" class="ag-btn" data-action="manager" ${canOpen?'':'disabled title="Manager is not installed, enabled or exposing its open API"'}>Open General Manager ↗</button></div>
+        <div class="agl-management-actions">${badge('All players','ok')} ${badge('Some players','partial')} ${badge('GM only','warn')} ${badge('Draft — hidden from players','warn')}</div>
+        <p class="agl-sub">Draft recipes are visible only to you. A player never sees a draft recipe item, and can’t learn or craft it, until you approve it in General Manager.</p>
+      </section>`;
+  }
   _catalog(lib){
     const gm=game.user.isGM,party=this.actors;
     const {known,found}=partyRecipes(party);
@@ -1124,6 +1137,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const rows=recipes.map(r=>({group:professionLabel(r),html:recipeRow(r,lib,{knownBy:known.get(r.id)??[],foundBy:(found.get(r.id)??[]).map(x=>x.actor)})}));
     const hidden=gm?lib.recipes.filter(hiddenFromPlayers).length:0;
     return `<div class="ag-toolbar agl-toolbar">${this._search('Search recipes, professions or results')}</div>
+      ${this._catalogTools()}
       ${gm?`<div class="agl-note ${hidden?'warn':''}">GM view: every recipe in the world. ${hidden?`<b>${hidden} of ${lib.recipes.length} ${lib.recipes.length===1?'recipe':'recipes'} ${hidden===1?'is':'are'} draft or GM-only and hidden from players.</b> `:''}Players only see recipes someone in the party has found or learned.</div>`
         :'<p class="agl-sub">Recipes your party has found or learned, by profession.</p>'}
       ${folders(rows,this.closedFolders)||`<div class="ag-empty">${gm?'No recipes in this world. Import recipes with General Manager.':'No recipes yet. A recipe appears here once someone in the party finds its recipe item or learns it.'}</div>`}
@@ -1142,8 +1156,6 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   }
   _gmSetup(){
     if(!game.user.isGM)return '<div class="ag-empty">GM Setup is restricted to the GM.</div>';
-    const manager=game.modules.get('ashen-gate-manager');
-    const canOpen=Boolean(manager?.active&&typeof manager.api?.open==='function');
     return `<div class="agl-gm-setup">
       ${this._roster()}
       <section class="ag-card agl-panel"><h2>Player Access</h2>
@@ -1152,17 +1164,6 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
           <button type="button" data-action="toggle-player-access" class="ag-btn">${playerAccessEnabled()?'Hide from players':'Show to players'}</button></div>
       </section>
       ${this._toolSetup()}
-      <section class="ag-card agl-panel"><h2>Profession XP</h2>
-        <p class="agl-sub">Award XP from the <b>Individual</b> tab: pick a character, enter an amount on a profession and click Award. XP is stored on the character (Actor flags owned by this module), shown to the player in the Ledger and the sheet’s Professions tab, and written into the profession feature’s description on the character sheet. The player and GM get a whispered chat note.</p>
-      </section>
-      <section class="ag-card agl-panel"><h2>Catalog &amp; integrations</h2>
-        <p class="agl-sub">General Manager imports recipes, materials and the items recipes make. A crafted item is copied from the recipe’s result item in the world Items directory. The Ledger catalog import below is only for older player-safe JSON catalogs.</p>
-        <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="import">Import Ledger recipe/material JSON</button>
-        <button type="button" class="ag-btn" data-action="manager" ${canOpen?'':'disabled title="Manager is not installed, enabled or exposing its open API"'}>Open General Manager ↗</button></div>
-      </section>
-      <section class="ag-card agl-panel"><h2>GM visibility guide</h2><div class="agl-management-actions">${badge('All players','ok')} ${badge('Some players','partial')} ${badge('GM only','warn')} ${badge('Draft — hidden from players','warn')}</div>
-        <p class="agl-sub">Draft recipes are visible only to you. A player never sees a draft recipe item, and can’t learn or craft it, until you approve it in General Manager.</p>
-      </section>
     </div>`;
   }
   /** Profession → tool (crafting default and gathering), and gathering profession → check skill. */
@@ -1185,7 +1186,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>Gathering:</strong> pick a gathering spot at a location your party knows and send a request; the GM approves it. The lead gatherer rolls one check for the party (skill or tool bonus shown, advantage preset from the sheet, effects and helpers). Success gives one common bundle, success by 5+ a rare one instead; failure exhausts the spot. The result is posted in chat.</p>
     <p><strong>Tools:</strong> a recipe shows the tool or workstation it needs and warns if your character doesn’t carry the tool. Crafting rolls a tool check; the result is on the craft card. Gold costs are shown, not deducted.</p>
     <p><strong>XP:</strong> the GM awards profession XP from the gather and craft chat cards.</p>
-    ${game.user.isGM?'<p><strong>GM Setup:</strong> choose the party, Player Access and imports.</p>':''}
+    ${game.user.isGM?'<p><strong>GM Setup:</strong> choose the party, Player Access, and the tool and check mapping. Recipe imports and Manager are in the Recipe Catalog tab; XP is awarded from the Individual tab.</p>':''}
     <button type="button" class="ag-btn" data-action="help-back">Back</button>
   </section>`;}
   /** Ad-hoc node from the GM's form; same shape as a Locations entry. */
