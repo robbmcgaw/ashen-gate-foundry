@@ -17,6 +17,7 @@ import {downloadJson} from "./download.js";
 import {isLocationRecord, locationsApi, planLocation, locationsNote, applyLocations} from './location-handoff.js';
 import {SPECIALISTS, detectSpecialistFile, specialistCount, specialistApi, describeUnrecognized, planSpecialist, applySpecialist} from './specialist-handoff.js';
 import {classifyDelivery} from './delivery.js';
+import {buildWorldExport, saveWorldExport, SNAPSHOT_SETTING} from './world-export.js';
 import {buildImportReport, buildBlockedReport, pushReport} from './import-result.js';
 
 const {ApplicationV2, HandlebarsApplicationMixin, DialogV2} = foundry.applications.api;
@@ -138,7 +139,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.17.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.18.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -189,6 +190,22 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   applyProfile() {
     const profiles={development:{includeDrafts:true},"session-safe":{includeDrafts:false}};
     this.includeDrafts=profiles[this.profile]?.includeDrafts??true;
+  }
+  async #worldExport(name) {
+    try {
+      if(!game.user?.isGM)throw new Error('Only the GM can export Ashen Gate data.');
+      if(name==='world-export-copy'){
+        const snap=game.settings.get(MODULE_ID,SNAPSHOT_SETTING);
+        const out=buildWorldExport(game,{mode:'changed',snapshot:snap?.records?snap:null});
+        this.worldExportSummary=out.summary;
+        try{await (game.clipboard?.copyPlainText?.(out.summary)??navigator.clipboard.writeText(out.summary));toast('Summary copied.');}
+        catch{toast('Could not copy automatically: select the summary text below and copy it.',true);}
+      } else {
+        const out=await saveWorldExport(game,{mode:name==='world-export-changed'?'changed':'everything',save:downloadJson});
+        this.worldExportSummary=out.summary;toast(`Saved ${out.filename}.`);
+      }
+    } catch(error){this.worldExportSummary=`Export failed: ${error.message??error}`;toast(String(error.message??error),true);}
+    await this.render();
   }
   managedRows() {
     const docs=allBoundDocuments().sort((a,b)=>a.name.localeCompare(b.name));
@@ -251,7 +268,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       libraryPageLabel:`${browser.rows.length ? this.libraryPage*this.libraryPageSize+1 : 0}–${Math.min((this.libraryPage+1)*this.libraryPageSize,browser.rows.length)} of ${browser.rows.length}`,
       libraryHasPrevious:this.libraryPage>0,libraryHasNext:this.libraryPage+1<pageCount,
       libraryDetail,libraryHasDetail:Boolean(libraryDetail),
-      libraryMessage:this.libraryMessage,
+      libraryMessage:this.libraryMessage, worldExportSummary:this.worldExportSummary??'',
       profile:this.profile,developmentProfile:this.profile==='development',sessionProfile:this.profile==='session-safe',
       hasLibrarySelected:this.librarySelected.size>0,
       adoptOpen: this.adoptOpen,
@@ -434,6 +451,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case "clear": this.selected.clear(); await this.render(); break;
       case "apply": await this.#apply(); break;
       case "clear-results": this.importReports=[]; await this.render(); break;
+      case "world-export-everything": case "world-export-changed": case "world-export-copy": await this.#worldExport(name); break;
       case "library-check": this.#runAudit(); this.libraryMessage="Library check finished: results are listed above."; await this.render(); break;
       case "appearance-save-world": {
         const choice=this.appearanceSelection??appearanceController?.getState()?.worldDefault;
@@ -1120,6 +1138,7 @@ let myAppearanceApp=null;
 let activeApp;
 Hooks.once("init",()=>{
   registerAppearanceSettings({game,namespace:MODULE_ID,onSettingChange:(key,value)=>appearanceController?.noteChange(key,value)});
+  game.settings.register(MODULE_ID,SNAPSHOT_SETTING,{name:"World export snapshot",scope:"world",config:false,type:Object,default:{}});
   game.settings.register(MODULE_ID,"importHistory",{name:"Import History",scope:"world",config:false,type:Array,default:[]});
   game.settings.registerMenu(MODULE_ID,"manager",{
     name:"Ashen Gate Manager", label:"Open Import Manager", icon:"fa-solid fa-boxes-stacked",
@@ -1187,7 +1206,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.17.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.18.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */
