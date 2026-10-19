@@ -122,7 +122,7 @@ test('the log is capped and trims the oldest entries',async()=>{
  const l=log();assert.equal(l.length,STASH_HISTORY_CAP);assert.equal(l[0].id,'old1');assert.equal(l.at(-1).itemName,'Cap');
 });
 test('GM can clear; the window shows a History tab to players and Clear only to the GM',async()=>{
- game.user=alice;const app=await api.stash.open();app.tab='history';let html=await app._renderHTML();
+ game.user=alice;const app=await api.stash.open();app.tab='inventory';app.stashTab='history';let html=await app._renderHTML();
  assert.ok(html.includes('data-stash-tab="history"'));assert.ok(html.includes('newest first'));assert.ok(!html.includes('stash-history-clear'));
  game.user=gm;html=await app._renderHTML();assert.ok(html.includes('stash-history-clear'));
  await api.stash.clearHistory();assert.deepEqual(log(),[]);assert.ok((await app._renderHTML()).includes('Nothing has moved'));

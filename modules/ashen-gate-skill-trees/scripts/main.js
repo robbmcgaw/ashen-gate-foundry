@@ -11,7 +11,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.8.0';
+const VERSION='0.8.1';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -87,6 +87,10 @@ async function initializeStore(){
   if(!game.user.isGM)throw Error('GM only');
   if(gmPrivate())return gmPrivate();
   if(!await confirm('<p>Create a <strong>GM-only Journal</strong> for private tree definitions?</p><p>The public player view receives separately sanitized snapshots. No old v0.1 data or Actor progress will be changed.</p>','Initialize Skill Trees'))return null;
+  return createStore();
+}
+/** Creates the module's own GM-only definitions Journal (no player access). Also used by the Manager import. */
+async function createStore(){
   const d=await JournalEntry.create({name:'[AG] Skill Trees — GM Definitions',
     ownership:{default:CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE},
     flags:{[MODULE]:{[STORAGE_FLAG]:true,payload:{schema:SCHEMA,trees:[]}}}});
@@ -797,14 +801,18 @@ Hooks.once('ready',()=>{
       return {errors,rows:rows.map(({id,name,action,reason})=>({id,name,action,reason}))};
     },
     importTrees:async(pack,{mode='skip'}={})=>{
-      if(!game.user.isGM)throw Error('GM only');if(!gmPrivate())throw Error('Initialize GM storage first (Skill Trees → GM Setup).');
+      if(!game.user.isGM)throw Error('GM only');
+      // The GM-only definitions Journal belongs to this module, so the import creates it when missing instead of failing.
+      let createdStorage=false;
+      if(!gmPrivate()){try{await createStore();createdStorage=true;}catch(error){throw Error(`Could not create the GM-only Skill Trees storage Journal: ${error?.message??error}. Open Skill Trees > GM Setup and click Initialize GM Storage, then import again.`);}}
       const current=readPrivate();
       const {errors,rows,apply}=planTreeImport(pack,current,{mode});
       if(errors.length)throw Error(`Import blocked: ${errors[0]}`);
       const report={created:rows.filter(r=>r.action==='new').map(r=>r.id),updated:rows.filter(r=>r.action==='update').map(r=>r.id),
         skipped:rows.filter(r=>r.action==='skip').map(r=>({id:r.id,reason:r.reason})),failed:[],
         // Layouts import even when a perk is not in the world yet; those nodes cannot be unlocked until it is.
-        warnings:savedDataReport(apply,id=>Boolean(perkDoc(id))).map(r=>`${r.treeId} / ${r.nodeId}: ${r.text}`)};
+        warnings:savedDataReport(apply,id=>Boolean(perkDoc(id))).map(r=>`${r.treeId} / ${r.nodeId}: ${r.text}`),
+        ...(createdStorage?{notes:['Created the GM-only Skill Trees storage Journal "[AG] Skill Trees — GM Definitions" (no player access).']}:{})};
       if(!apply.length)return report;
       const combined=new Map(current.map(t=>[t.id,t]));for(const t of apply)combined.set(t.id,t);
       try{await saveTrees([...combined.values()]);}

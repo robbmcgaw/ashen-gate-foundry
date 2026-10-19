@@ -1,3 +1,9 @@
+## 0.17.0 — 2026-10-19
+
+- **Import results panel.** After every Apply, the Import tab keeps a plain result panel (newest first, until you press Clear results): per module and file what was created, updated, kept and what failed, with the reason, what to do about it, and where to find it afterwards (for example Quest Log > GM Setup). Applies that cannot start (module off, nothing selected, file not loaded) are listed there too, not only as a pop-up. The History tab entry is unchanged.
+- Player Access now lists **Locations** as player-capable with its own toggle, like the others (only Manager and a separate Location Builder stay GM only). Locations is also listed when not installed.
+- Skill Trees warnings and notes from the owning module now show in the result rows.
+
 ## 0.16.0 — 2026-10-19
 
 - The **Macros** tab is gone for now (install, export and custom macro JSON). Macros already installed in a world stay as they are, and nothing stored changed.

@@ -1,5 +1,14 @@
 # Changelog — Ashen Gate | Utilities
 
+## 0.7.0 — 2026-10-19
+
+The party stash now lives inside the Utilities window; there is no separate stash window any more.
+
+- **Party Inventory** tab hosts the stash: item list with details, search, Take, and an **Items / History** sub-tab. The "Open Party Stash" button is gone.
+- Drop an item from any character sheet (Tidy5e included) anywhere on the Party Inventory tab to stash it; the tab outlines and the drop strip lights up while you drag. Drag a row onto a character sheet to take it out.
+- Rules unchanged: whole stacks, party vote (GM toggle, GM never voted on, 60 s timeout), History log (GM clears), GM-side writes, stash on/off for players. No saved-data changes; the `stash` API keeps its shape (`stash.open()` now opens Utilities on Party Inventory).
+- Utilities can be resized narrower (min 360 px); the item list collapses to a compact layout when the window is narrow.
+
 ## 0.6.1 — 2026-10-19
 
 - Actors sidebar launcher is the full-width row under the other launchers. Buttons wrap their labels instead of clipping, use the Ashen Gate theme tokens for hover/focus, and the grid reflows with no gap when a module is off or hidden by Player Access.
