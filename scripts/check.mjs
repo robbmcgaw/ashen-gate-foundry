@@ -3,6 +3,7 @@
 //   - every runtime script parses
 //   - styles/ag-ui.css is listed first and identical in every module
 //   - the module's automated tests pass
+//   - (full run only) the playtest data pack loads, ids are unique and references resolve
 // Usage: node scripts/check.mjs [module-id ...]
 import fs from 'node:fs';
 import path from 'node:path';
@@ -66,6 +67,13 @@ for (const id of ids) {
   } else {
     console.log(`${id} ${v}: no automated tests`);
   }
+}
+
+// The synthetic playtest data (scripts/build-test-pack.mjs -> test-fixtures/playtest) loads in every module that reads it.
+if (!wanted.length) {
+  const r = spawnSync(process.execPath, ['--test', path.join(root, 'scripts/playtest-pack.test.mjs')], { cwd: root, encoding: 'utf8' });
+  console.log(`playtest data: ${(r.stdout.match(/^# (pass|fail) \d+$/gm) ?? []).join(', ')}`);
+  if (r.status !== 0) fail('playtest-pack', `tests failed\n${r.stdout.split('\n').filter(l => /^not ok/.test(l)).join('\n')}`);
 }
 
 // Shared files are copied into modules and must not drift: the Actors launcher helper

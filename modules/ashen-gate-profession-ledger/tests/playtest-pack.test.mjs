@@ -22,8 +22,8 @@ test('pack has the promised contents', () => {
   assert.equal(byType('Profession').length, 3);
   assert.equal(byType('Material').length, 8);
   assert.equal(byType('Recipe').length, 8);
-  assert.equal(byType('Item').length, 8);
-  assert.equal(byType('Location').length, 3);
+  assert.equal(byType('Item').length, 12, '8 crafted items + 4 ordinary stash items');
+  assert.equal(byType('Location').length, 8);
   const given = byType('Recipe').filter(r => r.foundry.data.type === 'consumable');
   assert.equal(given.length, 3);
   for (const r of given) assert.match(r.foundry.data.name, /^Recipe: /);
@@ -35,7 +35,7 @@ test('ids and package id do not collide with the old pinned-chain fixtures', () 
 });
 test('only deliberate gm/draft examples are non-player-approved; every recipe product resolves', () => {
   const exceptions = pack.records.filter(r => r.status !== 'approved' || r.visibility !== 'player').map(r => r.id).sort();
-  assert.deepEqual(exceptions, ['ITEM-PT-DRAFT-DRAUGHT', 'MAT-PT-GM-ONLY-RESIN', 'REC-PT-DRAFT-DRAUGHT']);
+  assert.deepEqual(exceptions, ['ITEM-PT-DRAFT-DRAUGHT', 'JRN-PT-CHAPEL-GM-NOTES', 'MAT-PT-GM-ONLY-RESIN', 'PERK-PT-ALCH-MASTER-TOUCH', 'REC-PT-DRAFT-DRAUGHT']);
   const ids = new Set(pack.records.map(r => r.id));
   for (const r of byType('Recipe')) {
     assert.ok(ids.has(r.result_item_id), r.id);

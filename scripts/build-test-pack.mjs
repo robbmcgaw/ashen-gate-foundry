@@ -1,12 +1,13 @@
-// Generates the synthetic playtest data pack: a Manager-importable ag-foundry-import/0.2 package.
-//   node scripts/build-test-pack.mjs        -> test-fixtures/playtest/AG_Playtest_Pack_<version>.json
+// Generates the synthetic playtest data: a Manager-importable ag-foundry-import/0.2 package plus the three
+// module-specific import files (Quest Manager, Skill Trees, Headquarters facilities).
+//   node scripts/build-test-pack.mjs        -> test-fixtures/playtest/AG_Playtest_*_<version>.json
 // All names are [TEST]-style placeholders with no rules effects and no setting material (public repo).
 // Bump PACK_VERSION when the content changes, then regenerate. The output is deterministic.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const PACK_VERSION = '0.4.0';
+export const PACK_VERSION = '0.5.0';
 export const PACK_ID = 'AG-PLAYTEST-PACK';
 const SOURCE = 'Synthetic playtest data (not canon)';
 const FOLDER = 'Ashen Gate/Playtest';
@@ -175,7 +176,8 @@ function itemRecord(r) {
 const LOCATIONS = [
   { id: 'LOC-PT-GREENHOLLOW', name: '[TEST] Greenhollow', type: 'Village', region: '[TEST] Playtest Vale', threat: 'normal', revealed: true,
     description: 'Placeholder farming village surrounded by herb meadows.',
-    sections: { resources: true, factions: true, related: true, notes: true },
+    sections: { resources: true, factions: true, related: true, notes: true, quests: true },
+    quests: [{ questId: 'QUEST-PT-GREENHOLLOW-HERBS' }],
     nodes: [['pt-greenhollow-roots', 'Herbalism', 1, 'MAT-PT-EMBERROOT', 'MAT-PT-GLASSBLOOM', { dcVisible: true, note: '[TEST] One meadow patch.' }],
       ['pt-greenhollow-moss', 'Herbalism', 1, 'MAT-PT-PALEMOSS', null, { available: false, note: '[TEST] Under snow until spring.' }]],
     factions: [{ label: '[TEST] Herbalists\' Circle' }],
@@ -183,7 +185,8 @@ const LOCATIONS = [
     notes: [{ title: 'Rumour', text: 'Smoke rises from the quarry at night.' }, { title: 'GM note', text: '[TEST] Hidden note players must not see.', visible: false }] },
   { id: 'LOC-PT-CINDER-QUARRY', name: '[TEST] Cinder Quarry', type: 'Quarry', region: '[TEST] Playtest Vale', threat: 'hot', revealed: true,
     description: '[TEST] Hidden description players must not see.', show: { description: false },
-    sections: { resources: true, related: true },
+    sections: { resources: true, related: true, quests: true },
+    quests: [{ questId: 'QUEST-PT-QUARRY-SMOKE' }],
     nodes: [['pt-cinder-seam', 'Mining', 1, 'MAT-PT-IRON-ORE', null, { dc: 13, note: '[TEST] One exposed seam.' }],
       ['pt-cinder-coal', 'Mining', 2, 'MAT-PT-COAL', null, { visible: false }]],
     related: ['LOC-PT-GREENHOLLOW'] },
@@ -191,6 +194,67 @@ const LOCATIONS = [
     description: '[TEST] Unrevealed location players must not see.',
     sections: { resources: true },
     nodes: [['pt-ash-hollow-resin', 'Herbalism', 5, 'MAT-PT-GM-ONLY-RESIN', null, {}]] },
+
+  // ---- Point-crawl: Region > site > room, plus a Hidden and an Unidentified place nested in it. ----
+  // Loot entries name pack Items by label and ITEM id in their text: a native link needs a world UUID,
+  // which an import cannot know, so the GM drags the Item onto the entry once (see the README).
+  { id: 'LOC-PT-HOLLOWMERE', name: '[TEST] Hollowmere Marsh', type: 'Region', region: '[TEST] Playtest Vale', threat: 'hot', state: 'revealed', isRegion: true,
+    description: 'Placeholder drowned marsh. A Region: its conditions pass to every place inside it.',
+    sections: { conditions: true, related: true, quests: true, notes: true },
+    conditions: [
+      { key: 'fog', label: '[TEST] Dense fog', text: 'Placeholder condition text, no rules effect.', visible: true },
+      { key: 'mire', label: '[TEST] Sucking mire', text: 'Placeholder condition text, no rules effect.', visible: true },
+      { key: 'omen', label: '[TEST] Whispering omen', text: '[TEST] GM-only condition players must not see.', visible: false },
+    ],
+    quests: [{ questId: 'QUEST-PT-MARSH-LIGHTS' }],
+    related: ['LOC-PT-GREENHOLLOW'],
+    notes: [{ title: 'Marsh rumour', text: '[TEST] Pale lights drift near the old chapel.' }] },
+  { id: 'LOC-PT-DROWNED-CHAPEL', name: '[TEST] Drowned Chapel', type: 'Ruin', region: '[TEST] Playtest Vale', threat: 'hot', state: 'revealed',
+    parentLocationId: 'LOC-PT-HOLLOWMERE',
+    description: 'Placeholder flooded chapel on a mound. A child of Hollowmere Marsh.',
+    sections: { conditions: true, resources: true, loot: true, notes: true, quests: true },
+    conditionOverrides: [
+      { from: 'LOC-PT-HOLLOWMERE', conditionKey: 'fog', disabled: true },
+      { from: 'LOC-PT-HOLLOWMERE', conditionKey: 'mire', label: '[TEST] Flooded floor', text: 'Placeholder override text, no rules effect.' },
+    ],
+    conditions: [{ key: 'echo', label: '[TEST] Echoing nave', text: 'Placeholder condition text, no rules effect.', visible: true }],
+    quests: [{ questId: 'QUEST-PT-MARSH-LIGHTS' }],
+    // One node per state: renewable (not finite), finite and available, finite and exhausted, GM-only.
+    nodes: [
+      ['pt-chapel-reeds', 'Herbalism', 1, 'MAT-PT-PALEMOSS', null, { finite: false, note: '[TEST] Renewable: never runs out.' }],
+      ['pt-chapel-roots', 'Herbalism', 1, 'MAT-PT-EMBERROOT', 'MAT-PT-GLASSBLOOM', { note: '[TEST] Finite, still available.' }],
+      ['pt-chapel-bloom', 'Herbalism', 2, 'MAT-PT-GLASSBLOOM', null, { exhausted: true, note: '[TEST] Finite and already exhausted.' }],
+      ['pt-chapel-seam', 'Mining', 1, 'MAT-PT-IRON-ORE', null, { visible: false, note: '[TEST] GM-only node.' }],
+    ],
+    loot: [
+      { key: 'dagger', label: '[TEST] Test Dagger', text: 'Pack Item ITEM-PT-TEST-DAGGER. Drag it onto this entry to link it.', status: 'available', visible: true },
+      { key: 'tonic', label: '[TEST] Mistveil Tonic', text: 'Pack Item ITEM-PT-MISTVEIL-TONIC.', status: 'discovered', visible: true },
+      { key: 'hinges', label: '[TEST] Iron Hinge Set', text: 'Pack Item ITEM-PT-IRON-HINGE-SET.', status: 'taken', visible: true },
+      { key: 'coin', label: '[TEST] 25 gp in a rotted purse', text: 'Plain-text reward, no item.', status: 'available', visible: true },
+      { key: 'secret', label: '[TEST] GM-only stash', text: '[TEST] Hidden loot players must not see.', status: 'available', visible: false },
+    ],
+    notes: [{ title: 'Location note', text: '[TEST] Drag JRN-PT-GREENHOLLOW-NOTES (Journal) onto this note to link it.' }] },
+  { id: 'LOC-PT-CHAPEL-CRYPT', name: '[TEST] Chapel Crypt', type: 'Room', region: '[TEST] Playtest Vale', threat: 'deadly', state: 'revealed',
+    parentLocationId: 'LOC-PT-DROWNED-CHAPEL',
+    description: 'Placeholder crypt room. A grandchild: it inherits Hollowmere\'s conditions through the chapel.',
+    sections: { resources: true, loot: true },
+    nodes: [['pt-crypt-ore', 'Mining', 2, 'MAT-PT-IRON-ORE', 'MAT-PT-COAL', {}]],
+    loot: [
+      { key: 'buckler', label: '[TEST] Ashwood Buckler', text: 'Pack Item ITEM-PT-ASHWOOD-BUCKLER.', status: 'available', visible: true },
+      { key: 'pouch', label: '[TEST] Rivet Pouch', text: 'Pack Item ITEM-PT-RIVET-POUCH.', status: 'available', visible: true },
+    ],
+    details: [{ key: 'inscription', title: '[TEST] Worn inscription', text: '[TEST] A custom Add Detail block.', visible: true }] },
+  { id: 'LOC-PT-SUNKEN-CACHE', name: '[TEST] Sunken Cache', type: 'Cache', region: '[TEST] Playtest Vale', threat: 'normal', state: 'hidden',
+    parentLocationId: 'LOC-PT-DROWNED-CHAPEL',
+    description: '[TEST] Hidden location players must not see.',
+    sections: { loot: true },
+    loot: [{ key: 'draught', label: '[TEST] Glassbloom Elixir', text: 'Pack Item ITEM-PT-GLASSBLOOM-ELIXIR.', status: 'available', visible: true }] },
+  { id: 'LOC-PT-LANTERN-MOUND', name: '[TEST] Lantern Mound', type: 'Mound', region: '[TEST] Playtest Vale', threat: 'hot', state: 'unidentified',
+    parentLocationId: 'LOC-PT-HOLLOWMERE',
+    unidentifiedLabel: '[TEST] A distant light', teaser: '[TEST] Something glimmers between the reeds. Players see only this.',
+    description: '[TEST] True description players must not see until revealed.',
+    sections: { resources: true },
+    nodes: [['pt-mound-roots', 'Herbalism', 3, 'MAT-PT-GLASSBLOOM', null, {}]] },
 ];
 
 const DC_BY_TIER = { 1: 10, 2: 12, 3: 13, 4: 14, 5: 15 };
@@ -207,13 +271,250 @@ export function buildLocations(materialIds) {
         name: locName, ...rest,
         resources: nodes.map(([nodeId, skill, tier, mat, rare, opts]) => ({
           id: nodeId, label: name(mat), skill, tier, dc: opts.dc ?? DC_BY_TIER[tier], dcVisible: opts.dcVisible ?? false,
-          materialId: mat, quantity: 1, rareMaterialId: rare ?? '', rareQuantity: 1, finite: true, exhausted: false,
+          materialId: mat, quantity: 1, rareMaterialId: rare ?? '', rareQuantity: 1, finite: opts.finite ?? true, exhausted: opts.exhausted ?? false,
           available: opts.available ?? true, visible: opts.visible ?? true, note: opts.note ?? '',
         })),
         related: related.map(locationId => ({ locationId })),
       },
     };
   });
+}
+
+// ---- Profession perks (Skill Trees link these by PERK-* id; the Ledger owns who has chosen them) -------
+const PERKS = [
+  { id: 'PERK-PT-ALCH-STEADY-HANDS', name: '[TEST] Steady Hands', prof: 'PROF-PT-ALCHEMY' },
+  { id: 'PERK-PT-ALCH-FRUGAL-BREW', name: '[TEST] Frugal Brew', prof: 'PROF-PT-ALCHEMY' },
+  { id: 'PERK-PT-ALCH-QUICK-BREW', name: '[TEST] Quick Brew', prof: 'PROF-PT-ALCHEMY' },
+  { id: 'PERK-PT-ALCH-MASTER-TOUCH', name: '[TEST] Master’s Touch', prof: 'PROF-PT-ALCHEMY', visibility: 'gm' },
+];
+function perkRecord(p) {
+  return common(p.id, 'ProfessionPerk', {
+    ...(p.visibility ? { visibility: p.visibility } : {}),
+    refs: [ref('perk_of', p.prof)], name: p.name, profession_id: p.prof,
+    foundry: project('Perks', p.name, 'feat', ICONS.prof,
+      `<h2>${p.name}</h2><p>Synthetic playtest perk of ${marker(p.prof, profById.get(p.prof).name)}; no rules effect.</p>`),
+  });
+}
+
+// ---- Ordinary items (party stash and Actor inventories) --------------------------------------------
+const STASH = [
+  { id: 'ITEM-PT-STASH-ROPE', name: '[TEST] Rope (50 ft)', type: 'loot', lb: 10 },
+  { id: 'ITEM-PT-STASH-RATIONS', name: '[TEST] Trail Rations', type: 'consumable', lb: 2 },
+  { id: 'ITEM-PT-STASH-LANTERN', name: '[TEST] Hooded Lantern', type: 'loot', lb: 2 },
+  { id: 'ITEM-PT-STASH-LEDGER', name: '[TEST] Sealed Travel Ledger', type: 'loot', lb: 1 },
+];
+const stashById = new Map(STASH.map(i => [i.id, i]));
+function stashRecord(i) {
+  return common(i.id, 'Item', {
+    refs: [], name: i.name, origin: 'original', rules_summary: 'Ordinary placeholder item for the party stash; no rules effect.',
+    foundry: { ...project('Items/Stash', i.name, i.type, ICONS.item, `<h2>${i.name}</h2><p>Ordinary placeholder item; no rules effect.</p>`),
+      data: { name: i.name, type: i.type, img: ICONS.item, system: { quantity: 1, weight: { value: i.lb, units: 'lb' }, description: { value: `<h2>${i.name}</h2><p>Ordinary placeholder item; no rules effect.</p>` } } } },
+  });
+}
+
+// ---- Test characters --------------------------------------------------------------------------------
+// New Actors only: Manager never updates an existing Actor. Profession progress, known recipes, materials and
+// tools are seeded on these brand-new synthetic characters so the Ledger has something to show; the modules
+// still own that state afterwards. Ownership cannot be imported (Manager sets it to None); the GM assigns it.
+const sourceFlag = (id, entityType, extra = {}) => ({ 'ashen-gate-manager': { source: { sourceId: id, entityType, status: 'approved', visibility: 'player', scope: 'generic_rules', version: PACK_VERSION, sourceVersion: PACK_VERSION, packageId: PACK_ID, packageVersion: PACK_VERSION, ...extra } } });
+const owned = (id, entityType, type, name, img, quantity, system = {}) => ({
+  name, type, img, system: { quantity, description: { value: `<p>${name}. Synthetic playtest item.</p>` }, ...system }, flags: sourceFlag(id, entityType),
+});
+const TOOLS = {
+  alchemist: { name: 'Alchemist’s Supplies', key: 'alchemist' },
+  smith: { name: 'Smith’s Tools', key: 'smith' },
+  herb: { name: 'Herbalism Kit', key: 'herb' },
+};
+const toolItem = key => ({ name: TOOLS[key].name, type: 'tool', img: ICONS.item, system: { quantity: 1, type: { value: 'art', baseItem: TOOLS[key].key } } });
+const material = (id, qty) => owned(id, 'Material', 'loot', matById.get(id).name, ICONS.mat, qty);
+const profItem = id => owned(id, 'Profession', 'feat', `${profById.get(id).name} — Profession`, ICONS.prof, 1);
+const recipeItem = (recId, qty) => {
+  const r = RECIPES.find(x => x.id === recId);
+  return owned(recId, 'Recipe', 'consumable', `Recipe: ${r.name}`, ICONS.recipe, qty);
+};
+const stashItem = id => owned(id, 'Item', stashById.get(id).type, stashById.get(id).name, ICONS.item, 1);
+const progress = professions => ({ schema: 'ag-profession-actor-progress/0.1', professions });
+const effect = (name, statuses) => ({ name, img: 'icons/svg/aura.svg', statuses, disabled: false, transfer: false });
+
+const CHARACTERS = [
+  { id: 'PC-PT-BELWAR', name: '[TEST] Belwar', prof: 'PROF-PT-ALCHEMY', tool: 'alchemist', skills: ['arc'],
+    bio: 'Test alchemist. Carries the Ember Salve recipe item (not yet learned) and the materials to brew it.',
+    items: [toolItem('alchemist'), profItem('PROF-PT-ALCHEMY'), recipeItem('REC-PT-EMBER-SALVE', 1),
+      material('MAT-PT-EMBERROOT', 4), material('MAT-PT-PALEMOSS', 2), material('MAT-PT-GLASSBLOOM', 1),
+      stashItem('ITEM-PT-STASH-ROPE'), stashItem('ITEM-PT-STASH-RATIONS')],
+    flags: { progress: progress({ 'PROF-PT-ALCHEMY': { xp: 10, selectedPerkIds: [] } }) },
+    effects: [effect('[TEST] Poisoned', ['poisoned']), effect('[TEST] Stonefast (custom)', ['pt-stonefast'])] },
+  { id: 'PC-PT-KESSA', name: '[TEST] Kessa', prof: 'PROF-PT-BLACKSMITHING', tool: 'smith', skills: ['ath'],
+    bio: 'Test smith. Already knows the Iron Hinge Set recipe; carries a Test Dagger recipe item with quantity 2.',
+    items: [toolItem('smith'), profItem('PROF-PT-BLACKSMITHING'), recipeItem('REC-PT-TEST-DAGGER', 2),
+      material('MAT-PT-IRON-ORE', 5), material('MAT-PT-COAL', 2), material('MAT-PT-LEATHER-STRIPS', 1),
+      stashItem('ITEM-PT-STASH-LANTERN'), stashItem('ITEM-PT-STASH-LEDGER')],
+    flags: { progress: progress({ 'PROF-PT-BLACKSMITHING': { xp: 5, selectedPerkIds: [] } }), knownRecipes: ['REC-PT-IRON-HINGE-SET'] },
+    effects: [effect('[TEST] Prone', ['prone']), effect('[TEST] Hexed (custom)', ['pt-hexed'])] },
+  { id: 'PC-PT-ORIN', name: '[TEST] Orin', prof: 'PROF-PT-HERBALISM', tool: 'herb', skills: ['nat'],
+    bio: 'Test herbalist (gathering). Short on materials on purpose, to show missing-ingredient states.',
+    items: [toolItem('herb'), profItem('PROF-PT-HERBALISM'),
+      material('MAT-PT-EMBERROOT', 1), material('MAT-PT-ASHWOOD-PLANKS', 2), material('MAT-PT-IRON-ORE', 1),
+      stashItem('ITEM-PT-STASH-ROPE'), stashItem('ITEM-PT-STASH-RATIONS'), stashItem('ITEM-PT-STASH-LEDGER')],
+    flags: { progress: progress({ 'PROF-PT-HERBALISM': { xp: 0, selectedPerkIds: [] } }) },
+    effects: [] },
+];
+function characterRecord(c) {
+  const bio = `<h2>${c.name}</h2><p>${c.bio}</p><p>Profession: ${marker(c.prof, profById.get(c.prof).name)}.</p>`;
+  const abilities = Object.fromEntries(['str', 'dex', 'con', 'int', 'wis', 'cha'].map(a => [a, { value: 10 }]));
+  const flags = {};
+  if (c.flags.progress) flags.professionProgress = c.flags.progress;
+  if (c.flags.knownRecipes) flags.knownRecipes = c.flags.knownRecipes;
+  return common(c.id, 'PlayerCharacter', {
+    refs: [ref('has_profession', c.prof)], name: c.name,
+    foundry: {
+      document_type: 'Actor', folder_path: `${FOLDER}/Characters`,
+      data: {
+        name: c.name, type: 'character', img: 'icons/svg/mystery-man.svg',
+        system: { abilities, tools: { [TOOLS[c.tool].key]: { value: 1 } }, skills: Object.fromEntries(c.skills.map(k => [k, { value: 1 }])), details: { biography: { value: bio } } },
+        items: c.items, effects: c.effects,
+        flags: { 'ashen-gate-profession-ledger': flags },
+      },
+    },
+  });
+}
+
+// ---- Journals ---------------------------------------------------------------------------------------
+const JOURNALS = [
+  { id: 'JRN-PT-GREENHOLLOW-NOTES', name: '[TEST] Greenhollow — Field Notes', visibility: 'player',
+    pages: [['Overview', '<p>Synthetic location note. Drag this Journal onto a Location’s Notes entry to link it.</p><p>Herbs here: ' + marker('MAT-PT-EMBERROOT', 'Emberroot') + ', ' + marker('MAT-PT-PALEMOSS', 'Palemoss') + '.</p>'],
+      ['Rumours', '<p>[TEST] Smoke rises from the quarry at night.</p>']] },
+  { id: 'JRN-PT-MARSH-HANDOUT', name: '[TEST] Marsh Crossing — Handout', visibility: 'player',
+    pages: [['Handout', '<p>[TEST] A hand-drawn crossing sketch. Player-facing handout.</p>']] },
+  { id: 'JRN-PT-CHAPEL-GM-NOTES', name: '[TEST] Drowned Chapel — GM Notes', visibility: 'gm',
+    pages: [['GM only', '<p>[TEST] GM-only note. Players must never see this Journal.</p>']] },
+];
+function journalRecord(j) {
+  return common(j.id, 'JournalEntry', {
+    visibility: j.visibility, refs: [], name: j.name,
+    foundry: { document_type: 'JournalEntry', folder_path: `${FOLDER}/Journals`, data: { name: j.name, pages: j.pages.map(([name, content]) => ({ name, type: 'text', text: { content, format: 1 } })) } },
+  });
+}
+
+// ---- Roll table -------------------------------------------------------------------------------------
+// Text results only: a document result needs a world UUID, which an import cannot know. Drag pack Items and
+// the Journals onto the imported table to add document results (see the README).
+const TABLES = [{ id: 'TABLE-PT-MARSH-FINDS', name: '[TEST] Marsh Finds',
+  results: [['Reed bundle', 'You find a [TEST] reed bundle.'], ['Rusted hinge', 'You find a [TEST] rusted hinge.'], ['Pale lantern', 'A [TEST] pale lantern bobs away.'],
+    ['Ash-streaked stone', 'A [TEST] ash-streaked stone.'], ['Nothing', 'Only mud.'], ['Whisper', 'A [TEST] whisper from the fog.']] }];
+function tableRecord(t) {
+  return common(t.id, 'RollTable', {
+    refs: [], name: t.name,
+    foundry: { document_type: 'RollTable', folder_path: `${FOLDER}/Tables`, data: {
+      name: t.name, img: ICONS.item, description: `<p>Synthetic table for the Group Check / Roll Table steps. Add Item or Journal results by dragging them onto this table.</p>`,
+      formula: `1d${t.results.length}`, replacement: true, displayRoll: true,
+      results: t.results.map(([name, description], i) => ({ type: 'text', name, description, weight: 1, range: [i + 1, i + 1] })),
+    } },
+  });
+}
+
+// ---- Hirelings (Headquarters reads these from Manager-imported world Items) -------------------------------
+function hirelingRecords() {
+  const hire = common('HIRE-PT-SMITH', 'Hireling', {
+    scope: 'setting_adapter', refs: [ref('has_hireling_perk', 'HPERK-PT-WORKING', 'optional')],
+    name: '[TEST] Hireling Smith', role: 'Blacksmith', capabilities: [{ key: 'smith', label: 'Test Smithing', description: 'Test capability, no gameplay bonus' }],
+    foundry: project('Hirelings', '[TEST] Hireling Smith', 'feat', ICONS.prof, '<h2>[TEST] Hireling Smith</h2><p>Synthetic hireling definition; no rules effect.</p>'),
+  });
+  const perk = common('HPERK-PT-WORKING', 'HirelingPerk', {
+    refs: [], name: '[TEST] Working Hands', contexts: ['headquarters'],
+    conditions: { requires_working: true, requires_presence: true },
+    stacking: { overlap_group: 'test_hq_benefit', allow_overlap: false }, implementation: 'informational',
+    foundry: project('Hirelings', '[TEST] Working Hands', 'feat', ICONS.prof, '<h2>[TEST] Working Hands</h2><p>Synthetic hireling perk; informational only.</p>'),
+  });
+  return [hire, perk];
+}
+
+// ---- Module import files (not read by Manager) ------------------------------------------------------------
+const questSource = 'Synthetic playtest data (not canon)';
+const questBase = (id, kind, extra) => ({
+  id, entity_type: 'Objective', objective_kind: kind, status: 'approved', version: PACK_VERSION,
+  provenance: { sources: [questSource] }, visibility: 'player', refs: [], source: { description: 'Synthetic playtest issuer' },
+  locations: [], parameters: {}, outcomes: {}, ...extra,
+});
+const locRefs = ids => ids.map(target_id => ({ relation: 'targets_location', target_id, mode: 'optional' }));
+export function buildQuests() {
+  const quest = (id, name, summary, locations, objectives, extra = {}) =>
+    questBase(id, 'quest', { name, public_summary: summary, refs: locRefs(locations), locations: locations.map(target_id => ({ target_id })), objectives, ...extra });
+  return {
+    schema_version: 'ag-quest-source/0.1', domain: 'quests_orders', version: PACK_VERSION,
+    records: [
+      quest('QUEST-PT-GREENHOLLOW-HERBS', '[TEST] Herbs for Greenhollow', 'Gather herbs from the meadows around Greenhollow.', ['LOC-PT-GREENHOLLOW'], [
+        { key: 'gather', goal: 'Gather two bundles of Emberroot', visibility: 'player' },
+        { key: 'deliver', goal: 'Bring them to the herbalists’ circle', visibility: 'reveal_gated', reveal_on_create: false },
+        { key: 'secret', goal: '[TEST] GM-only objective: players must not see this', visibility: 'gm' }]),
+      quest('QUEST-PT-MARSH-LIGHTS', '[TEST] Lights over Hollowmere', 'Find the source of the pale lights in the marsh.',
+        ['LOC-PT-HOLLOWMERE', 'LOC-PT-DROWNED-CHAPEL', 'LOC-PT-CHAPEL-CRYPT', 'LOC-PT-LANTERN-MOUND'], [
+          { key: 'cross', goal: 'Cross the marsh', visibility: 'player' },
+          { key: 'chapel', goal: 'Search the drowned chapel', visibility: 'player' },
+          { key: 'crypt', goal: 'Open the crypt', visibility: 'reveal_gated', reveal_on_create: false },
+          { key: 'mound', goal: 'Follow the distant light', visibility: 'reveal_gated', reveal_on_create: false }]),
+      quest('QUEST-PT-QUARRY-SMOKE', '[TEST] Smoke at Cinder Quarry', 'Find out why the quarry smokes at night. Mark this one Completed by hand to test a finished quest.',
+        ['LOC-PT-CINDER-QUARRY'], [
+          { key: 'watch', goal: 'Watch the quarry at night', visibility: 'player' },
+          { key: 'seam', goal: 'Inspect the exposed seam', visibility: 'player' }]),
+      quest('QUEST-PT-GM-SECRET', '[TEST] GM Secret: Ash Hollow', 'This record must never appear in a player account.',
+        ['LOC-PT-ASH-HOLLOW'], [{ key: 'secret', goal: '[TEST] GM-only concealed objective', visibility: 'gm' }], { visibility: 'gm' }),
+      questBase('ORDER-PT-HINGE-ORDER', 'work_order', {
+        work_order_domain: 'crafting', name: '[TEST] Hinge Order', public_summary: 'Craft two Iron Hinge Sets for the village.',
+        objectives: [{ key: 'craft', goal: 'Craft two Iron Hinge Sets', visibility: 'player' }],
+        parameters: { recipe_id: 'REC-PT-IRON-HINGE-SET', quantity: 2 } }),
+      questBase('CONTRACT-PT-ESCORT', 'contract', {
+        visibility: 'reveal_gated', name: '[TEST] Marsh Escort', public_summary: 'Reveal-gated contract: escort a merchant across the marsh.',
+        refs: locRefs(['LOC-PT-HOLLOWMERE']), locations: [{ target_id: 'LOC-PT-HOLLOWMERE' }],
+        objectives: [{ key: 'escort', goal: 'Escort the merchant to Greenhollow', visibility: 'player' }] }),
+    ],
+  };
+}
+
+const stNode = (id, name, x, y, extra = {}) => ({
+  id, name, description: 'Synthetic playtest node; no automatic game effect.', x, y, cost: 1,
+  requiresAll: [], requiresAny: [], excludes: [], contentRef: null, sourceUuid: null, status: 'test', visibility: 'player', display: 'shown', ...extra,
+});
+const perkRef = id => ({ relation: 'unlocks_perk', target_id: id, mode: 'optional' });
+export function buildSkillTrees() {
+  return {
+    schema: 'ag-skill-trees/0.2',
+    trees: [
+      { id: 'PT-TREE-ALCHEMY', name: '[TEST] Alchemy Perks', description: 'Profession tree tied to PROF-PT-ALCHEMY. Read-only in Skill Trees; the Ledger owns perk selection.',
+        status: 'test', visibility: 'player', sourceRef: 'PROF-PT-ALCHEMY', provider: { kind: 'profession', maxPoints: null },
+        nodes: [
+          stNode('PT-ALC-STEADY', '[TEST] Steady Hands', 120, 120, { contentRef: perkRef('PERK-PT-ALCH-STEADY-HANDS') }),
+          stNode('PT-ALC-FRUGAL', '[TEST] Frugal Brew', 420, 50, { requiresAll: ['PT-ALC-STEADY'], contentRef: perkRef('PERK-PT-ALCH-FRUGAL-BREW') }),
+          stNode('PT-ALC-QUICK', '[TEST] Quick Brew', 420, 225, { requiresAll: ['PT-ALC-STEADY'], contentRef: perkRef('PERK-PT-ALCH-QUICK-BREW') }),
+          stNode('PT-ALC-MASTER', '[TEST] Master’s Touch', 750, 145, { requiresAny: [['PT-ALC-FRUGAL', 'PT-ALC-QUICK']], visibility: 'gm', display: 'hidden', contentRef: perkRef('PERK-PT-ALCH-MASTER-TOUCH') }),
+        ] },
+      { id: 'PT-TREE-GENERIC', name: '[TEST] Generic Points', description: 'Generic point wallet with a prerequisite, an exclusion and an OR group.',
+        status: 'test', visibility: 'player', sourceRef: null, provider: { kind: 'generic_points', maxPoints: 6 },
+        nodes: [
+          stNode('PT-GEN-BASE', '[TEST] Foundation', 120, 120),
+          stNode('PT-GEN-LEFT', '[TEST] Left Path', 420, 50, { requiresAll: ['PT-GEN-BASE'], excludes: ['PT-GEN-RIGHT'] }),
+          stNode('PT-GEN-RIGHT', '[TEST] Right Path', 420, 225, { requiresAll: ['PT-GEN-BASE'], excludes: ['PT-GEN-LEFT'] }),
+          stNode('PT-GEN-FINAL', '[TEST] Final Node', 750, 145, { requiresAny: [['PT-GEN-LEFT', 'PT-GEN-RIGHT']], cost: 2 }),
+        ] },
+    ],
+  };
+}
+
+export function buildHqFacilities() {
+  const fac = (id, name, category, placements, stages) => ({
+    id, entity_type: 'Facility', status: 'approved', version: PACK_VERSION, scope: 'generic_rules',
+    provenance: { sources: [SOURCE] }, visibility: 'player', refs: [], name, category, placements, stages,
+  });
+  const stage = (key, label, width, height, staffing_slots, benefits = []) => ({ key, label, width, height, staffing_slots, art: '', benefits });
+  return [
+    fac('FAC-PT-FIELD-FORGE', '[TEST] Field Forge', 'Profession', ['shared'], [
+      stage('base', 'Unimproved', 4, 3, 1, [{ name: '[TEST] Workshop Access', description: 'Descriptive only. No automatic bonus.', recipient: 'guild' }]),
+      stage('expanded', 'Expanded', 5, 4, 2)]),
+    fac('FAC-PT-MAP-ROOM', '[TEST] Map Room', 'Administrative', ['shared', 'personal'], [stage('base', 'Standard', 3, 3, 0)]),
+    fac('FAC-PT-HERB-GARDEN', '[TEST] Herb Garden', 'Profession', ['shared', 'personal'], [
+      stage('base', 'Plot', 3, 2, 1, [{ name: '[TEST] Garden Produce', description: 'Descriptive only. No automatic bonus.', recipient: 'room_owner' }]),
+      stage('grown', 'Grown', 4, 3, 1)]),
+  ];
 }
 
 export function buildPack() {
@@ -223,8 +524,8 @@ export function buildPack() {
       schema_version: 'ag-foundry-import/0.2',
       package_id: PACK_ID,
       version: PACK_VERSION,
-      description: 'Synthetic playtest pack: 3 professions, 8 materials, 8 recipes with crafted items, 3 give-to-player recipe items. ' +
-        '3 locations (Normal/Hot/Deadly) with finite gathering nodes for the Locations module. ' +
+      description: 'Synthetic playtest pack: 3 professions, 8 materials, 8 recipes with crafted items, 3 give-to-player recipe items, 4 perks, 4 stash items, ' +
+        '3 test characters, 3 journals, 1 roll table, 1 hireling and perk. 8 locations (a Region point-crawl plus Normal/Hot/Deadly sites) with gathering nodes for the Locations module. ' +
         'Includes one GM-only material, one draft recipe/item and hidden location content as deliberate visibility examples. Not canon.',
     },
     records: [
@@ -232,17 +533,28 @@ export function buildPack() {
       ...MATERIALS.map(materialRecord),
       ...RECIPES.map(recipeRecord),
       ...RECIPES.map(itemRecord),
+      ...PERKS.map(perkRecord),
+      ...STASH.map(stashRecord),
+      ...CHARACTERS.map(characterRecord),
+      ...JOURNALS.map(journalRecord),
+      ...TABLES.map(tableRecord),
+      ...hirelingRecords(),
       ...buildLocations(materialIds),
     ],
   };
 }
 
 export const packFileName = () => `AG_Playtest_Pack_${PACK_VERSION}.json`;
+export const questsFileName = () => `AG_Playtest_Quests_${PACK_VERSION}.json`;
+export const skillTreesFileName = () => `AG_Playtest_SkillTrees_${PACK_VERSION}.json`;
+export const hqFileName = () => `AG_Playtest_HQ_Facilities_${PACK_VERSION}.json`;
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const outDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'test-fixtures', 'playtest');
   fs.mkdirSync(outDir, { recursive: true });
-  const out = path.join(outDir, packFileName());
-  fs.writeFileSync(out, JSON.stringify(buildPack(), null, 2) + '\n');
-  console.log(`Wrote ${path.relative(process.cwd(), out)}`);
+  for (const [name, data] of [[packFileName(), buildPack()], [questsFileName(), buildQuests()], [skillTreesFileName(), buildSkillTrees()], [hqFileName(), buildHqFacilities()]]) {
+    const out = path.join(outDir, name);
+    fs.writeFileSync(out, JSON.stringify(data, null, 2) + '\n');
+    console.log(`Wrote ${path.relative(process.cwd(), out)}`);
+  }
 }
