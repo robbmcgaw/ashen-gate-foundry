@@ -1,0 +1,199 @@
+{
+  "schema": "ag-skill-trees/0.2",
+  "trees": [
+    {
+      "id": "PT-TREE-ALCHEMY",
+      "name": "[TEST] Alchemy Perks",
+      "description": "Profession tree tied to PROF-PT-ALCHEMY. Read-only in Skill Trees; the Ledger owns perk selection.",
+      "status": "test",
+      "visibility": "player",
+      "sourceRef": "PROF-PT-ALCHEMY",
+      "provider": {
+        "kind": "profession",
+        "maxPoints": null
+      },
+      "nodes": [
+        {
+          "id": "PT-ALC-STEADY",
+          "name": "[TEST] Steady Hands",
+          "description": "Synthetic playtest node; no automatic game effect.",
+          "x": 120,
+          "y": 120,
+          "cost": 1,
+          "requiresAll": [],
+          "requiresAny": [],
+          "excludes": [],
+          "contentRef": {
+            "relation": "unlocks_perk",
+            "target_id": "PERK-PT-ALCH-STEADY-HANDS",
+            "mode": "optional"
+          },
+          "sourceUuid": null,
+          "status": "test",
+          "visibility": "player",
+          "display": "shown"
+        },
+        {
+          "id": "PT-ALC-FRUGAL",
+          "name": "[TEST] Frugal Brew",
+          "description": "Synthetic playtest node; no automatic game effect.",
+          "x": 420,
+          "y": 50,
+          "cost": 1,
+          "requiresAll": [
+            "PT-ALC-STEADY"
+          ],
+          "requiresAny": [],
+          "excludes": [],
+          "contentRef": {
+            "relation": "unlocks_perk",
+            "target_id": "PERK-PT-ALCH-FRUGAL-BREW",
+            "mode": "optional"
+          },
+          "sourceUuid": null,
+          "status": "test",
+          "visibility": "player",
+          "display": "shown"
+        },
+        {
+          "id": "PT-ALC-QUICK",
+          "name": "[TEST] Quick Brew",
+          "description": "Synthetic playtest node; no automatic game effect.",
+          "x": 420,
+          "y": 225,
+          "cost": 1,
+          "requiresAll": [
+            "PT-ALC-STEADY"
+          ],
+          "requiresAny": [],
+          "excludes": [],
+          "contentRef": {
+            "relation": "unlocks_perk",
+            "target_id": "PERK-PT-ALCH-QUICK-BREW",
+            "mode": "optional"
+          },
+          "sourceUuid": null,
+          "status": "test",
+          "visibility": "player",
+          "display": "shown"
+        },
+        {
+          "id": "PT-ALC-MASTER",
+          "name": "[TEST] Master’s Touch",
+          "description": "Synthetic playtest node; no automatic game effect.",
+          "x": 750,
+          "y": 145,
+          "cost": 1,
+          "requiresAll": [],
+          "requiresAny": [
+            [
+              "PT-ALC-FRUGAL",
+              "PT-ALC-QUICK"
+            ]
+          ],
+          "excludes": [],
+          "contentRef": {
+            "relation": "unlocks_perk",
+            "target_id": "PERK-PT-ALCH-MASTER-TOUCH",
+            "mode": "optional"
+          },
+          "sourceUuid": null,
+          "status": "test",
+          "visibility": "gm",
+          "display": "hidden"
+        }
+      ]
+    },
+    {
+      "id": "PT-TREE-GENERIC",
+      "name": "[TEST] Generic Points",
+      "description": "Generic point wallet with a prerequisite, an exclusion and an OR group.",
+      "status": "test",
+      "visibility": "player",
+      "sourceRef": null,
+      "provider": {
+        "kind": "generic_points",
+        "maxPoints": 6
+      },
+      "nodes": [
+        {
+          "id": "PT-GEN-BASE",
+          "name": "[TEST] Foundation",
+          "description": "Synthetic playtest node; no automatic game effect.",
+          "x": 120,
+          "y": 120,
+          "cost": 1,
+          "requiresAll": [],
+          "requiresAny": [],
+          "excludes": [],
+          "contentRef": null,
+          "sourceUuid": null,
+          "status": "test",
+          "visibility": "player",
+          "display": "shown"
+        },
+        {
+          "id": "PT-GEN-LEFT",
+          "name": "[TEST] Left Path",
+          "description": "Synthetic playtest node; no automatic game effect.",
+          "x": 420,
+          "y": 50,
+          "cost": 1,
+          "requiresAll": [
+            "PT-GEN-BASE"
+          ],
+          "requiresAny": [],
+          "excludes": [
+            "PT-GEN-RIGHT"
+          ],
+          "contentRef": null,
+          "sourceUuid": null,
+          "status": "test",
+          "visibility": "player",
+          "display": "shown"
+        },
+        {
+          "id": "PT-GEN-RIGHT",
+          "name": "[TEST] Right Path",
+          "description": "Synthetic playtest node; no automatic game effect.",
+          "x": 420,
+          "y": 225,
+          "cost": 1,
+          "requiresAll": [
+            "PT-GEN-BASE"
+          ],
+          "requiresAny": [],
+          "excludes": [
+            "PT-GEN-LEFT"
+          ],
+          "contentRef": null,
+          "sourceUuid": null,
+          "status": "test",
+          "visibility": "player",
+          "display": "shown"
+        },
+        {
+          "id": "PT-GEN-FINAL",
+          "name": "[TEST] Final Node",
+          "description": "Synthetic playtest node; no automatic game effect.",
+          "x": 750,
+          "y": 145,
+          "cost": 2,
+          "requiresAll": [],
+          "requiresAny": [
+            [
+              "PT-GEN-LEFT",
+              "PT-GEN-RIGHT"
+            ]
+          ],
+          "excludes": [],
+          "contentRef": null,
+          "sourceUuid": null,
+          "status": "test",
+          "visibility": "player",
+          "display": "shown"
+        }
+      ]
+    }
+  ]
+}

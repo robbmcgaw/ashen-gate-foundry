@@ -6,8 +6,9 @@ import {dependencyOrder} from '../scripts/workflows.js';
 import {isLocationRecord, locationsApi, planLocation, locationsNote, applyLocations} from '../scripts/location-handoff.js';
 import {createApi} from '../../ashen-gate-locations/scripts/api.mjs';
 import {playerView} from '../../ashen-gate-locations/scripts/model.mjs';
+import {packFileName} from '../../../scripts/build-test-pack.mjs';
 
-const pack = async () => JSON.parse(await readFile(new URL('../../../test-fixtures/playtest/AG_Playtest_Pack_0.4.0.json', import.meta.url), 'utf8'));
+const pack = async () => JSON.parse(await readFile(new URL(`../../../test-fixtures/playtest/${packFileName()}`, import.meta.url), 'utf8'));
 
 // The real Locations API over an in-memory store, as the Locations module wires it in Foundry.
 function locations({gm = true, stored = []} = {}) {
@@ -31,7 +32,7 @@ function previewRows(pkg, {api, includeDrafts = false, updateExisting = false}) 
   });
 }
 
-test('one Manager import of the playtest pack creates the items and the 3 locations', async () => {
+test('one Manager import of the playtest pack creates the documents and all the locations', async () => {
   const pkg = await pack();
   assert.deepEqual(validatePackage(pkg), []);
   const {api, state} = locations();
@@ -39,15 +40,18 @@ test('one Manager import of the playtest pack creates the items and the 3 locati
   const creates = rows.filter(r => r.action === 'create');
   const itemRows = creates.filter(r => r.kind === 'Item');
   const locRows = creates.filter(r => r.kind === 'Location');
-  assert.equal(itemRows.length, 25, '3 professions, 8 materials, 7 recipes, 7 items (drafts excluded)');
-  assert.deepEqual(locRows.map(r => r.id).sort(), ['LOC-PT-ASH-HOLLOW', 'LOC-PT-CINDER-QUARRY', 'LOC-PT-GREENHOLLOW']);
+  const count = kind => creates.filter(r => r.kind === kind).length;
+  assert.equal(itemRows.length, 35, '3 professions, 8 materials, 7 recipes, 7 items (drafts excluded), 4 perks, 4 stash items, 2 hireling records');
+  assert.deepEqual(['Actor', 'JournalEntry', 'RollTable'].map(count), [3, 3, 1]);
+  assert.deepEqual(locRows.map(r => r.id).sort(), pkg.records.filter(isLocationRecord).map(r => r.id).sort());
+  assert.equal(locRows.length, 8);
   assert.ok(!rows.some(r => r.action === 'blocked'), 'locations are no longer blocked');
 
   // Items are created first, then the selected Location records go to Locations in one call.
   const itemIds = new Set(itemRows.map(r => r.id));
   const results = await applyLocations(locRows.map(r => pkg.records.find(x => x.id === r.id)), api);
-  assert.deepEqual(results.map(r => [r.status, r.action]), [['ok', 'create'], ['ok', 'create'], ['ok', 'create']]);
-  assert.equal(state.stored.length, 3);
+  assert.deepEqual(results.map(r => [r.status, r.action]), locRows.map(() => ['ok', 'create']));
+  assert.equal(state.stored.length, 8);
 
   // Every material a node names was created by the same run, so the references resolve.
   const materials = state.stored.flatMap(l => l.resources).flatMap(n => [n.materialId, n.rareMaterialId]).filter(Boolean);
@@ -70,7 +74,7 @@ test('a second import keeps existing locations; update mode replaces them and sa
 
   assert.ok(previewRows(pkg, {api, updateExisting: true}).filter(r => r.kind === 'Location').every(r => r.action === 'update'));
   const updated = await applyLocations(locRecords, api, {updateExisting: true});
-  assert.deepEqual(updated.map(r => r.action), ['update', 'update', 'update']);
+  assert.deepEqual(updated.map(r => r.action), locRecords.map(() => 'update'));
   assert.notEqual(state.stored[0].name, 'GM edited');
 });
 
@@ -80,12 +84,12 @@ test('without Locations the rows are skipped and the note says how many', async 
   assert.equal(locationsApi(game), null);
   assert.equal(locationsApi({modules: new Map()}), null);
   assert.equal(locationsApi({modules: new Map([['ashen-gate-locations', {active: true, api: {}}]])}), null, 'an old Locations without importLocations is treated as unavailable');
-  assert.equal(locationsNote(pkg.records, null), '3 location records skipped: enable Locations');
+  assert.equal(locationsNote(pkg.records, null), '8 location records skipped: enable Locations');
   assert.equal(locationsNote(pkg.records, {}), null);
   const rows = previewRows(pkg, {api: null}).filter(r => r.kind === 'Location');
-  assert.equal(rows.length, 3);
+  assert.equal(rows.length, 8);
   assert.ok(rows.every(r => r.action === 'skipped' && /enable Locations/.test(r.reason)));
-  assert.deepEqual((await applyLocations(pkg.records.filter(isLocationRecord), null)).map(r => r.status), ['skipped', 'skipped', 'skipped']);
+  assert.ok((await applyLocations(pkg.records.filter(isLocationRecord), null)).every(r => r.status === 'skipped'));
 });
 
 test('draft and retired location records follow Manager\'s status rules', () => {

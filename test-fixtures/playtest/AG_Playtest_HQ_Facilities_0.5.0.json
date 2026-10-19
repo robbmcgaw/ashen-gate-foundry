@@ -1,0 +1,124 @@
+[
+  {
+    "id": "FAC-PT-FIELD-FORGE",
+    "entity_type": "Facility",
+    "status": "approved",
+    "version": "0.5.0",
+    "scope": "generic_rules",
+    "provenance": {
+      "sources": [
+        "Synthetic playtest data (not canon)"
+      ]
+    },
+    "visibility": "player",
+    "refs": [],
+    "name": "[TEST] Field Forge",
+    "category": "Profession",
+    "placements": [
+      "shared"
+    ],
+    "stages": [
+      {
+        "key": "base",
+        "label": "Unimproved",
+        "width": 4,
+        "height": 3,
+        "staffing_slots": 1,
+        "art": "",
+        "benefits": [
+          {
+            "name": "[TEST] Workshop Access",
+            "description": "Descriptive only. No automatic bonus.",
+            "recipient": "guild"
+          }
+        ]
+      },
+      {
+        "key": "expanded",
+        "label": "Expanded",
+        "width": 5,
+        "height": 4,
+        "staffing_slots": 2,
+        "art": "",
+        "benefits": []
+      }
+    ]
+  },
+  {
+    "id": "FAC-PT-MAP-ROOM",
+    "entity_type": "Facility",
+    "status": "approved",
+    "version": "0.5.0",
+    "scope": "generic_rules",
+    "provenance": {
+      "sources": [
+        "Synthetic playtest data (not canon)"
+      ]
+    },
+    "visibility": "player",
+    "refs": [],
+    "name": "[TEST] Map Room",
+    "category": "Administrative",
+    "placements": [
+      "shared",
+      "personal"
+    ],
+    "stages": [
+      {
+        "key": "base",
+        "label": "Standard",
+        "width": 3,
+        "height": 3,
+        "staffing_slots": 0,
+        "art": "",
+        "benefits": []
+      }
+    ]
+  },
+  {
+    "id": "FAC-PT-HERB-GARDEN",
+    "entity_type": "Facility",
+    "status": "approved",
+    "version": "0.5.0",
+    "scope": "generic_rules",
+    "provenance": {
+      "sources": [
+        "Synthetic playtest data (not canon)"
+      ]
+    },
+    "visibility": "player",
+    "refs": [],
+    "name": "[TEST] Herb Garden",
+    "category": "Profession",
+    "placements": [
+      "shared",
+      "personal"
+    ],
+    "stages": [
+      {
+        "key": "base",
+        "label": "Plot",
+        "width": 3,
+        "height": 2,
+        "staffing_slots": 1,
+        "art": "",
+        "benefits": [
+          {
+            "name": "[TEST] Garden Produce",
+            "description": "Descriptive only. No automatic bonus.",
+            "recipient": "room_owner"
+          }
+        ]
+      },
+      {
+        "key": "grown",
+        "label": "Grown",
+        "width": 4,
+        "height": 3,
+        "staffing_slots": 1,
+        "art": "",
+        "benefits": []
+      }
+    ]
+  }
+]

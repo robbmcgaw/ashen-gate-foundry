@@ -1,0 +1,292 @@
+{
+  "schema_version": "ag-quest-source/0.1",
+  "domain": "quests_orders",
+  "version": "0.5.0",
+  "records": [
+    {
+      "id": "QUEST-PT-GREENHOLLOW-HERBS",
+      "entity_type": "Objective",
+      "objective_kind": "quest",
+      "status": "approved",
+      "version": "0.5.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "refs": [
+        {
+          "relation": "targets_location",
+          "target_id": "LOC-PT-GREENHOLLOW",
+          "mode": "optional"
+        }
+      ],
+      "source": {
+        "description": "Synthetic playtest issuer"
+      },
+      "locations": [
+        {
+          "target_id": "LOC-PT-GREENHOLLOW"
+        }
+      ],
+      "parameters": {},
+      "outcomes": {},
+      "name": "[TEST] Herbs for Greenhollow",
+      "public_summary": "Gather herbs from the meadows around Greenhollow.",
+      "objectives": [
+        {
+          "key": "gather",
+          "goal": "Gather two bundles of Emberroot",
+          "visibility": "player"
+        },
+        {
+          "key": "deliver",
+          "goal": "Bring them to the herbalists’ circle",
+          "visibility": "reveal_gated",
+          "reveal_on_create": false
+        },
+        {
+          "key": "secret",
+          "goal": "[TEST] GM-only objective: players must not see this",
+          "visibility": "gm"
+        }
+      ]
+    },
+    {
+      "id": "QUEST-PT-MARSH-LIGHTS",
+      "entity_type": "Objective",
+      "objective_kind": "quest",
+      "status": "approved",
+      "version": "0.5.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "refs": [
+        {
+          "relation": "targets_location",
+          "target_id": "LOC-PT-HOLLOWMERE",
+          "mode": "optional"
+        },
+        {
+          "relation": "targets_location",
+          "target_id": "LOC-PT-DROWNED-CHAPEL",
+          "mode": "optional"
+        },
+        {
+          "relation": "targets_location",
+          "target_id": "LOC-PT-CHAPEL-CRYPT",
+          "mode": "optional"
+        },
+        {
+          "relation": "targets_location",
+          "target_id": "LOC-PT-LANTERN-MOUND",
+          "mode": "optional"
+        }
+      ],
+      "source": {
+        "description": "Synthetic playtest issuer"
+      },
+      "locations": [
+        {
+          "target_id": "LOC-PT-HOLLOWMERE"
+        },
+        {
+          "target_id": "LOC-PT-DROWNED-CHAPEL"
+        },
+        {
+          "target_id": "LOC-PT-CHAPEL-CRYPT"
+        },
+        {
+          "target_id": "LOC-PT-LANTERN-MOUND"
+        }
+      ],
+      "parameters": {},
+      "outcomes": {},
+      "name": "[TEST] Lights over Hollowmere",
+      "public_summary": "Find the source of the pale lights in the marsh.",
+      "objectives": [
+        {
+          "key": "cross",
+          "goal": "Cross the marsh",
+          "visibility": "player"
+        },
+        {
+          "key": "chapel",
+          "goal": "Search the drowned chapel",
+          "visibility": "player"
+        },
+        {
+          "key": "crypt",
+          "goal": "Open the crypt",
+          "visibility": "reveal_gated",
+          "reveal_on_create": false
+        },
+        {
+          "key": "mound",
+          "goal": "Follow the distant light",
+          "visibility": "reveal_gated",
+          "reveal_on_create": false
+        }
+      ]
+    },
+    {
+      "id": "QUEST-PT-QUARRY-SMOKE",
+      "entity_type": "Objective",
+      "objective_kind": "quest",
+      "status": "approved",
+      "version": "0.5.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "refs": [
+        {
+          "relation": "targets_location",
+          "target_id": "LOC-PT-CINDER-QUARRY",
+          "mode": "optional"
+        }
+      ],
+      "source": {
+        "description": "Synthetic playtest issuer"
+      },
+      "locations": [
+        {
+          "target_id": "LOC-PT-CINDER-QUARRY"
+        }
+      ],
+      "parameters": {},
+      "outcomes": {},
+      "name": "[TEST] Smoke at Cinder Quarry",
+      "public_summary": "Find out why the quarry smokes at night. Mark this one Completed by hand to test a finished quest.",
+      "objectives": [
+        {
+          "key": "watch",
+          "goal": "Watch the quarry at night",
+          "visibility": "player"
+        },
+        {
+          "key": "seam",
+          "goal": "Inspect the exposed seam",
+          "visibility": "player"
+        }
+      ]
+    },
+    {
+      "id": "QUEST-PT-GM-SECRET",
+      "entity_type": "Objective",
+      "objective_kind": "quest",
+      "status": "approved",
+      "version": "0.5.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "gm",
+      "refs": [
+        {
+          "relation": "targets_location",
+          "target_id": "LOC-PT-ASH-HOLLOW",
+          "mode": "optional"
+        }
+      ],
+      "source": {
+        "description": "Synthetic playtest issuer"
+      },
+      "locations": [
+        {
+          "target_id": "LOC-PT-ASH-HOLLOW"
+        }
+      ],
+      "parameters": {},
+      "outcomes": {},
+      "name": "[TEST] GM Secret: Ash Hollow",
+      "public_summary": "This record must never appear in a player account.",
+      "objectives": [
+        {
+          "key": "secret",
+          "goal": "[TEST] GM-only concealed objective",
+          "visibility": "gm"
+        }
+      ]
+    },
+    {
+      "id": "ORDER-PT-HINGE-ORDER",
+      "entity_type": "Objective",
+      "objective_kind": "work_order",
+      "status": "approved",
+      "version": "0.5.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "refs": [],
+      "source": {
+        "description": "Synthetic playtest issuer"
+      },
+      "locations": [],
+      "parameters": {
+        "recipe_id": "REC-PT-IRON-HINGE-SET",
+        "quantity": 2
+      },
+      "outcomes": {},
+      "work_order_domain": "crafting",
+      "name": "[TEST] Hinge Order",
+      "public_summary": "Craft two Iron Hinge Sets for the village.",
+      "objectives": [
+        {
+          "key": "craft",
+          "goal": "Craft two Iron Hinge Sets",
+          "visibility": "player"
+        }
+      ]
+    },
+    {
+      "id": "CONTRACT-PT-ESCORT",
+      "entity_type": "Objective",
+      "objective_kind": "contract",
+      "status": "approved",
+      "version": "0.5.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ]
+      },
+      "visibility": "reveal_gated",
+      "refs": [
+        {
+          "relation": "targets_location",
+          "target_id": "LOC-PT-HOLLOWMERE",
+          "mode": "optional"
+        }
+      ],
+      "source": {
+        "description": "Synthetic playtest issuer"
+      },
+      "locations": [
+        {
+          "target_id": "LOC-PT-HOLLOWMERE"
+        }
+      ],
+      "parameters": {},
+      "outcomes": {},
+      "name": "[TEST] Marsh Escort",
+      "public_summary": "Reveal-gated contract: escort a merchant across the marsh.",
+      "objectives": [
+        {
+          "key": "escort",
+          "goal": "Escort the merchant to Greenhollow",
+          "visibility": "player"
+        }
+      ]
+    }
+  ]
+}
