@@ -3,7 +3,7 @@
     "id": "FAC-PT-FIELD-FORGE",
     "entity_type": "Facility",
     "status": "approved",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "scope": "generic_rules",
     "provenance": {
       "sources": [
@@ -48,7 +48,7 @@
     "id": "FAC-PT-MAP-ROOM",
     "entity_type": "Facility",
     "status": "approved",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "scope": "generic_rules",
     "provenance": {
       "sources": [
@@ -79,7 +79,7 @@
     "id": "FAC-PT-HERB-GARDEN",
     "entity_type": "Facility",
     "status": "approved",
-    "version": "0.5.0",
+    "version": "0.5.1",
     "scope": "generic_rules",
     "provenance": {
       "sources": [

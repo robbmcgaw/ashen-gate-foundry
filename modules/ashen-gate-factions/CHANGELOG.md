@@ -1,5 +1,13 @@
 # Factions & Renown change history
 
+## 0.7.0 — 2026-10-19
+
+- **Import JSON** (GM Setup → Organizations and folders). Loads factions from a definitions file (the same `ag-factions-source-export/0.3` file that **Export definitions only** writes). A preview lists each faction as NEW or SKIP before anything is written.
+- **Additive and safe.** A faction whose id already exists is skipped whole: its definition, discovery and Renown are never changed. Nothing is deleted. No migration of saved data.
+- **Optional `starting_state`** in the file (new factions only): reveal to the party, group Renown events, and per-character discovery and Renown by character name. A name that is not in the world is skipped and reported.
+- GM-only in the data layer: `api.importFactions(data)` and `api.previewFactionsImport(data)` refuse players, as does the button.
+- The playtest data pack now includes `AG_Playtest_Factions_0.5.1.json` for this.
+
 ## 0.6.6 — 2026-10-18
 
 - New look from the shared Ashen Gate UI kit (`styles/ag-ui.css`): cleaner type, consistent padding, header, tabs, buttons and fields that match every other Ashen Gate module.

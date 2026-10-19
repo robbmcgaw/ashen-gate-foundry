@@ -35,7 +35,7 @@ test('ids and package id do not collide with the old pinned-chain fixtures', () 
 });
 test('only deliberate gm/draft examples are non-player-approved; every recipe product resolves', () => {
   const exceptions = pack.records.filter(r => r.status !== 'approved' || r.visibility !== 'player').map(r => r.id).sort();
-  assert.deepEqual(exceptions, ['ITEM-PT-DRAFT-DRAUGHT', 'JRN-PT-CHAPEL-GM-NOTES', 'MAT-PT-GM-ONLY-RESIN', 'PERK-PT-ALCH-MASTER-TOUCH', 'REC-PT-DRAFT-DRAUGHT']);
+  assert.deepEqual(exceptions, ['ITEM-PT-DRAFT-DRAUGHT', 'JRN-PT-CHAPEL-GM-NOTES', 'MACRO-PT-LINK-TEST-DATA', 'MAT-PT-GM-ONLY-RESIN', 'PERK-PT-ALCH-MASTER-TOUCH', 'REC-PT-DRAFT-DRAUGHT']);
   const ids = new Set(pack.records.map(r => r.id));
   for (const r of byType('Recipe')) {
     assert.ok(ids.has(r.result_item_id), r.id);
