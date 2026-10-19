@@ -1,3 +1,15 @@
+## 0.10.0 — 2026-10-19
+
+- **Fix: Party Inventory → Items column headers line up with their rows.** The last column was sized `auto` per row (empty in the header, a Take button in rows), so every grid worked out different widths and headers drifted. Header and rows now render the same cells from one column list and share one CSS template (`--agu-stash-cols`, fixed widths, no `auto`); the narrow layout uses the same rule for both. The last column is now headed **Action** (over Take); **Type** sits over the type text. Text sizes unchanged.
+- **New: Party purse** strip at the top of Party Inventory → Items: five labelled counters (Copper, Silver, Electrum, Gold, Platinum) read from the stash Actor's dnd5e `system.currency` (the stash is a dnd5e NPC, which has currency; no new storage).
+  - Players: pick their character, a coin and an amount, then **Deposit** (no vote) or **Take** (same party vote as items when *Party must accept* is on). The GM client re-checks ownership and amounts; never more than the giver holds, nothing goes negative, one update per document, only `system.currency.<coin>` changes. If the second update fails the first is put back.
+  - GM: **Adjust Purse** (Add / Remove / Set to, optional reason, labelled confirmation). GM-only in the API (`api.purse.adjust`), not just the button. The GM sees and manages the purse even when the stash is off for players.
+  - Stash **History** logs every deposit, take (including denied / timed-out) and adjustment with who, coin, amount, purse before → after and reason. GM **Undo** on adjustments and completed takes, once; refused (and the reason shown) if it would take the purse or the character below 0. Players see purse rows without the character's own coin totals.
+- **Award Gold** now has a **Coin** choice (cp/sp/ep/gp/pp, default gp) with the same each/split and Undo logic. Older gold awards (no coin recorded) still read as gp.
+- Saved data: additive only. New history kinds `purse-deposit`, `purse-take`, `purse-adjust`; gold awards gain `coin`. Old entries render unchanged. No migration needed.
+- API: new `api.purse` (`totals`, `deposit`, `take`, `adjust`, `undo`, `openAdjust`); `awardGold` accepts `coin`.
+- Not included: currency conversion / making change (possible follow-up).
+
 ## 0.9.0 — 2026-10-19
 
 - **Group Checks** and **Roll Requests** are now one **Rolls** tab with one start form. Pick characters (the dnd5e Primary Party is ticked by default, else characters owned by connected players), skills, an optional DC, and a **Result** choice (default **Group result**):
