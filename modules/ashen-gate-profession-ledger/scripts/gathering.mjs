@@ -41,7 +41,7 @@ export function normalizeNode(raw,{locationId=null,locationName='',locationRevea
     finite:raw.finite!==false,exhausted:raw.exhausted===true,available:raw.available!==false,visible:raw.visible!==false,
     note:String(raw.note??''),locationId,locationName:String(locationName??''),locationRevealed:locationRevealed===true};
   node.gatherable=node.available&&!node.exhausted&&Boolean(node.materialId)&&Number.isInteger(node.dc);
-  node.why=!node.materialId?'No material is set for this node':node.exhausted?'Already gathered (exhausted)':!node.available?'Not available right now':!Number.isInteger(node.dc)?'No DC or tier set':'';
+  node.why=!node.materialId?'No material id set: award by hand':node.exhausted?'Already gathered (exhausted)':!node.available?'Not available right now':!Number.isInteger(node.dc)?'No DC or tier set':'';
   return node;
 }
 
@@ -135,7 +135,9 @@ export const GATHER_FIX=Object.freeze({
 export function nodeBlocker(node,{materialFound=true,forPlayer=false}={}){
   if(!node)return GATHER_FIX.noNode;
   if(forPlayer&&!node.id)return 'This spot cannot be requested yet: the GM needs a newer Locations module.';
-  if(!node.materialId)return forPlayer?'This spot is not set up yet: the GM has to finish it in Locations.':'No material is set on this node: choose one in Locations > Gathering.';
+  // A node with no material is a by-hand node (e.g. remains the GM awards at the table), not a broken one.
+  if(!node.materialId)return forPlayer?'The GM handles this spot at the table: ask them.'
+    :`No material id set: award by hand.${node.note?` ${node.note}`:''} (To let the Ledger award it, set a Common material in Locations > Gathering.)`;
   if(node.exhausted)return forPlayer?'Already gathered (exhausted).':'Already gathered (exhausted): untick Exhausted in Locations to gather it again.';
   if(!node.available)return forPlayer?'Not available right now.':'Marked not available: tick Available on the node in Locations.';
   if(!Number.isInteger(node.dc))return forPlayer?'This spot is not set up yet: the GM has to finish it in Locations.':'No DC or tier on this node: set one in Locations.';

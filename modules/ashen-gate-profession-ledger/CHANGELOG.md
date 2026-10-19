@@ -1,3 +1,8 @@
+## 0.14.1 — 2026-10-19
+
+- A Locations gathering node with no material (e.g. remains you award at the table) is now a clear **award by hand** node instead of a dead option. The GM can pick it in Gathering > Start gathering and reads "No material id set: award by hand. <the node's note>"; Start stays off. Players see "The GM handles this spot at the table: ask them." with no DC or setup hints.
+- No saved-data, API or permission changes.
+
 ## 0.14.0 — 2026-10-19
 
 Groundwork for Skill Trees to handle profession perks. No visible change on its own.
