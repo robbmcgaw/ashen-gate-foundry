@@ -1,7 +1,7 @@
 <section class="agmanager-body">
   <header class="ag-header agmanager-top">
     <i class="agmanager-emblem fa-solid fa-dungeon" aria-hidden="true"></i>
-    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.18.1 Beta</small></h2></div>
+    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.19.0 Beta</small></h2></div>
     <button type="button" class="agmanager-help" data-ag-action="help" aria-label="Manager Help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button><span class="agmanager-chip">GM only</span>
   </header>
   <nav class="ag-tabs agmanager-nav" aria-label="Manager tabs">
@@ -44,7 +44,8 @@
     </details>
     {{#unless isSpecialist}}<label class="agmanager-toggle"><input type="checkbox" data-ag-drafts {{#if includeDrafts}}checked{{/if}}> Include <strong>draft / proposed / example</strong> records (sandbox testing only)</label>{{/unless}}
     {{#if isSpecialist}}{{#if specialistCanUpdate}}<label class="agmanager-toggle"><input type="checkbox" data-ag-update-existing {{#if updateExisting}}checked{{/if}}> <strong>Update existing {{specialistNoun}}</strong> (otherwise ones already in the world are kept as they are)</label>{{else}}<p class="agmanager-tiny">{{specialistLabel}} keeps {{specialistNoun}} that are already in the world; this file only adds new ones.</p>{{/if}}
-    {{else}}{{#if hasLocationRecords}}<label class="agmanager-toggle"><input type="checkbox" data-ag-update-existing {{#if updateExisting}}checked{{/if}}> <strong>Update existing locations</strong> (otherwise locations already in the world are kept as they are)</label>{{/if}}{{/if}}
+    {{else}}{{#if hasLocationRecords}}<label class="agmanager-toggle"><input type="checkbox" data-ag-update-existing {{#if updateExisting}}checked{{/if}}> <strong>Update existing locations</strong> (otherwise locations already in the world are kept as they are)</label>{{/if}}
+    {{#if hasActorRecords}}<label class="agmanager-toggle"><input type="checkbox" data-ag-update-actors {{#if updateActors}}checked{{/if}}> <strong>Update existing actors</strong> (name, image, token settings and package items only; HP, XP, level, conditions, player items, notes, ownership, folders and other modules' data are always kept. Off: actors already in the world are kept as they are)</label>{{/if}}{{/if}}
     <div class="agmanager-row">
       <button type="button" data-ag-action="preview" {{#unless hasPackage}}disabled{{/unless}}><i class="fa-solid fa-shield-halved"></i> Validate &amp; Preview</button>
       <button type="button" data-ag-action="select" class="agmanager-muted" {{#unless hasPreview}}disabled{{/unless}}>Select eligible</button>
@@ -104,14 +105,15 @@
         <td><strong>{{name}}</strong><code>{{id}}</code></td>
         <td>{{kind}}<div class="agmanager-tiny">{{lifecycle}}</div></td>
         <td><span class="agmanager-badge agmanager-{{action}}">{{badge}}</span></td>
-        <td>{{reason}}</td>
+        <td>{{reason}}{{#if changes.length}}<ul class="agmanager-changes">{{#each changes}}<li>{{this}}</li>{{/each}}</ul>{{/if}}</td>
       </tr>
       {{/each}}
       </tbody>
     </table>
     </div>
     <div class="agmanager-footer">
-      <div><strong>GM-controlled.</strong> New Actors, Tables and Macros can be created; existing Actors and character progress are never overwritten. Back up your test world first.</div>
+      <div><strong>GM-controlled.</strong> New Actors, Tables and Macros can be created. Existing Actors change only with <strong>Update existing actors</strong> ticked; character progress is never overwritten. Back up your test world first.
+        {{#if actorUpdateCount}}<div><button type="button" data-ag-action="backup-actors"><i class="fa-solid fa-download"></i> Download backup of {{actorUpdateCount}} actor(s) to update</button></div>{{/if}}</div>
       <button type="button" data-ag-action="apply" class="agmanager-primary" {{#unless canApply}}disabled{{/unless}}>
         <i class="fa-solid fa-check"></i> Import Selected Documents
       </button>

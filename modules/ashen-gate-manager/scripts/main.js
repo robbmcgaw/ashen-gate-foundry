@@ -19,6 +19,8 @@ import {SPECIALISTS, detectSpecialistFile, specialistCount, specialistApi, descr
 import {classifyDelivery} from './delivery.js';
 import {buildWorldExport, saveWorldExport, SNAPSHOT_SETTING} from './world-export.js';
 import {buildImportReport, buildBlockedReport, pushReport} from './import-result.js';
+import {ITEM_FLAG, ACTOR_ITEMS_FLAG, itemKeys, matchActors, planActor, applyActorUpdate} from './actor-update.js';
+import {mediaFilename} from './zip-import.js';
 
 const {ApplicationV2, HandlebarsApplicationMixin, DialogV2} = foundry.applications.api;
 const FOLDER_NAMES = {Item: "Ashen Gate — Imported Items", JournalEntry: "Ashen Gate — Imported Journals",
@@ -113,6 +115,12 @@ async function createRecord(record, pkg, availableIds, report=()=>{}) {
   data.ownership = {default: CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE};
   // Keep authored Actor flags, but reserve Manager's own namespace for immutable source bindings.
   data.flags = {...(kind==='Actor'?data.flags??{}:{}),[MODULE_ID]:{source:sourceMetadata(record, pkg, availableIds)}};
+  if(kind==='Actor') {
+    // Mark the package's embedded Items so a later opt-in update can tell them from player-added ones.
+    const keys=itemKeys(data.items??[]);
+    data.items=(data.items??[]).map((item,i)=>({...item,flags:{...(item.flags??{}),[MODULE_ID]:{...(item.flags?.[MODULE_ID]??{}),[ITEM_FLAG]:keys[i]}}}));
+    data.flags[MODULE_ID][ACTOR_ITEMS_FLAG]={version:1};
+  }
   return cls.create(data);
 }
 async function updateRecord(record, pkg, doc, patch, availableIds) {
@@ -135,11 +143,24 @@ function planWithMetadata(record,matches,unmanaged,includeDrafts,pkg) {
   return planned;
 }
 
+/** Preview/apply decision for one document record. Actors use the opt-in actor updater. */
+function planDocument(record,pkg,{includeDrafts,updateActors,zipMedia}) {
+  if(record.foundry?.document_type==='Actor') {
+    const docs=matchActors(record,game.actors?.contents??[]);
+    if(docs.some(d=>d.getFlag(MODULE_ID,'lifecycle')?.archived)) return {plan:{action:'blocked',reason:'Existing record is archived; restore it before reimport.'},docs};
+    const isBundled=path=>Boolean(zipMedia?.size&&zipMedia.has(mediaFilename(path)));
+    return {plan:planActor(record,docs.map(d=>d.toObject()),{updateExisting:updateActors,includeDrafts,sameNameUnmanaged:findSameNameUnmanaged(record),isBundled}),docs};
+  }
+  const matches=foundDocuments(record.id).map(docWrapper);
+  if(matches.some(m=>m.doc.getFlag(MODULE_ID,'lifecycle')?.archived)) return {plan:{action:'blocked',reason:'Existing record is archived; restore it before reimport.'},docs:matches.map(m=>m.doc)};
+  return {plan:planWithMetadata(record,matches,findSameNameUnmanaged(record),includeDrafts,pkg),docs:matches.map(m=>m.doc)};
+}
+
 class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.18.1 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.19.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -153,6 +174,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.warnings = [];
     this.includeDrafts = false;
     this.updateExisting = false;
+    this.updateActors = false;
     this.specialist = null;
     this.adoptOpen = false;
     this.selected = new Set();
@@ -297,6 +319,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       includeDrafts: this.includeDrafts,
       hasLocationRecords: Boolean(this.pkg?.records?.some(isLocationRecord)),
       updateExisting: this.updateExisting,
+      hasActorRecords: Boolean(this.pkg?.records?.some(r=>r.foundry?.document_type==='Actor')),
+      updateActors: this.updateActors,
+      actorUpdateCount: this.preview.filter(r=>r.kind==='Actor'&&r.action==='update').length,
       message: this.message,
       errors: this.errors.map(message => ({message})),
       warnings: this.warnings.map(message => ({message})),
@@ -406,6 +431,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       this.updateExisting = event.target.checked;
       await this.#preview();
     });
+    root.querySelector("[data-ag-update-actors]")?.addEventListener("change", async event => {
+      this.updateActors = event.target.checked;
+      await this.#preview();
+    });
     root.querySelector("[data-ag-capture-filter]")?.addEventListener("change", e=>{
       this.captureSearch=e.target.value.trim();void this.render();
     });
@@ -440,7 +469,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       }
       case "help": {
         await DialogV2.confirm({window:{title:'Ashen Gate | General Manager Help'},
-          content:'<p><strong>Clean import:</strong> Choose Manager JSON or ZIP containing exactly one Manager projection; select Development for draft content, Validate & Preview, Select eligible, then Import.</p><p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro; no Scenes or Playlists. ZIP scripts never run. Bundled images are uploaded only if that option is enabled.</p><p><strong>Folders:</strong> foundry.folder_path creates nested folders per document type. <strong>Links:</strong> canonical refs bind after creation. Markers [[AGREF:MAT-EXAMPLE|Material]] are provisional pending Tim.</p><p>Back up a test world. Only new Actors/Tables/Macros are allowed; existing data is never replaced through this adapter.</p>',
+          content:'<p><strong>Clean import:</strong> Choose Manager JSON or ZIP containing exactly one Manager projection; select Development for draft content, Validate & Preview, Select eligible, then Import.</p><p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro; no Scenes or Playlists. ZIP scripts never run. Bundled images are uploaded only if that option is enabled.</p><p><strong>Folders:</strong> foundry.folder_path creates nested folders per document type. <strong>Links:</strong> canonical refs bind after creation. Markers [[AGREF:MAT-EXAMPLE|Material]] are provisional pending Tim.</p><p>Back up a test world. Existing Tables and Macros are never replaced. Existing Actors change only if you tick <strong>Update existing actors</strong>: then their name, image, token settings and package items follow the file, and HP, XP, level, conditions, player items, notes, ownership, folders and other modules\' data are kept.</p>',
           modal:true,rejectClose:false});
         break;
       }
@@ -450,6 +479,14 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         await this.render(); break;
       case "clear": this.selected.clear(); await this.render(); break;
       case "apply": await this.#apply(); break;
+      case "backup-actors": {
+        if(!game.user.isGM) throw new Error('GM access required.');
+        const docs=this.preview.filter(r=>r.kind==='Actor'&&r.action==='update').flatMap(r=>foundDocuments(r.id));
+        if(!docs.length) return toast('No existing Actors would be updated.');
+        this.#downloadSnapshots(docs,`actor-backup-${Date.now()}`);
+        toast(`Downloaded a backup of ${docs.length} Actor(s). Nothing in the world changed.`);
+        break;
+      }
       case "clear-results": this.importReports=[]; await this.render(); break;
       case "world-export-everything": case "world-export-changed": case "world-export-copy": await this.#worldExport(name); break;
       case "library-check": this.#runAudit(); this.libraryMessage="Library check finished: results are listed above."; await this.render(); break;
@@ -647,17 +684,14 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         this.preview.push({id:record.id, name:record.location?.name ?? record.name ?? record.id, kind:'Location', lifecycle:record.status, action, reason, patch:{}});
         continue;
       }
-      const matches = foundDocuments(record.id).map(docWrapper);
-      const planned = planWithMetadata(record, matches, findSameNameUnmanaged(record), this.includeDrafts,this.pkg);
-      const archived=matches.some(m=>m.doc.getFlag(MODULE_ID,'lifecycle')?.archived);
-      const {action,reason,patch={}}=archived?{action:'blocked',reason:'Existing record is archived; restore it before reimport.'}:planned;
-      this.preview.push({id:record.id, name:record.foundry?.data?.name ?? record.name ?? record.id, kind:record.foundry?.document_type ?? record.entity_type+" (unmapped)", lifecycle:record.status, action, reason, patch});
+      const {action,reason,patch={},changes=[]}=planDocument(record,this.pkg,this).plan;
+      this.preview.push({id:record.id, name:record.foundry?.data?.name ?? record.name ?? record.id, kind:record.foundry?.document_type ?? record.entity_type+" (unmapped)", lifecycle:record.status, action, reason, patch, changes});
     }
     this.message = `Validated ${records.length} records. ${this.dependencyNotes} Nothing changes before Apply.`;
     await this.render();
   }
   #exportPreview() {
-    const report = {generated_at:new Date().toISOString(), manifest:this.pkg?.manifest ?? (this.specialist?{specialist:SPECIALISTS[this.specialist.kind].label}:null), errors:this.errors, warnings:this.warnings, preview:this.preview.map(({id, name, kind, lifecycle, action, reason, patch})=>({id,name,kind,lifecycle,action,reason,patch}))};
+    const report = {generated_at:new Date().toISOString(), manifest:this.pkg?.manifest ?? (this.specialist?{specialist:SPECIALISTS[this.specialist.kind].label}:null), errors:this.errors, warnings:this.warnings, preview:this.preview.map(({id, name, kind, lifecycle, action, reason, patch, changes})=>({id,name,kind,lifecycle,action,reason,patch,changes}))};
     downloadJson("ag-import-preview.json",report);
   }
   async #tagSelected() {
@@ -745,14 +779,26 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const cycleNotice=pendingGraph.cycles.length ? `<p><strong>${pendingGraph.cycles.length} circular reference path(s).</strong> These are permitted because the Manager stores stable Ashen Gate IDs. If any required target fails creation, its references are not finalized and the error is logged.</p>` : '';
     const locRows=targetRows.filter(r=>r.kind==='Location');
     const docRows=targetRows.filter(r=>r.kind!=='Location');
+    const actorUpdates=docRows.filter(r=>r.kind==='Actor'&&r.action==='update');
     const wantsScriptMacros=targetRows.some(r=>this.pkg.records.find(rec=>rec.id===r.id)?.foundry?.document_type==='Macro' && this.pkg.records.find(rec=>rec.id===r.id)?.foundry?.data?.type==='script');
     const decision = await DialogV2.confirm({
       window:{title:"Confirm Foundry world changes"},
-      content:`<p><strong>${docRows.length} document(s)</strong>${locRows.length?` and <strong>${locRows.length} location(s)</strong> (passed to Locations, after the documents)`:''} will be created/updated in this world.</p>${cycleNotice}<p>Back up your test world. This import is non-transactional: partial writes may remain if anything fails.</p><p><strong>Actors:</strong> only new NPC/character definitions; existing Actors and player progress are never replaced. ${wantsScriptMacros?'<strong>Warning: this import installs untrusted Script Macro source as GM-only, but never executes it.</strong>':''}</p><p>${this.uploadZipArtwork&&this.zipMedia.size?`${this.zipMedia.size} bundled assets may be uploaded to the current world before importing documents.`:'ZIP artwork will not be uploaded. If actor images reference missing world paths, upload them manually.'}</p>`,
+      content:`<p><strong>${docRows.length} document(s)</strong>${locRows.length?` and <strong>${locRows.length} location(s)</strong> (passed to Locations, after the documents)`:''} will be created/updated in this world.</p>${cycleNotice}<p>Back up your test world. This import is non-transactional: partial writes may remain if anything fails.</p><p><strong>Actors:</strong> ${actorUpdates.length?`${actorUpdates.length} existing Actor(s) will have their definition updated (you confirm this separately next).`:'only new NPC/character definitions; existing Actors are not changed.'} HP, XP, level, conditions and player items are never replaced. ${wantsScriptMacros?'<strong>Warning: this import installs untrusted Script Macro source as GM-only, but never executes it.</strong>':''}</p><p>${this.uploadZipArtwork&&this.zipMedia.size?`${this.zipMedia.size} bundled assets may be uploaded to the current world before importing documents.`:'ZIP artwork will not be uploaded. If actor images reference missing world paths, upload them manually.'}</p>`,
       rejectClose:false,
       modal:true
     });
     if (!decision) return;
+    if (actorUpdates.length) {
+      const list=actorUpdates.map(r=>`<li><strong>${escapeHtml(r.name)}</strong> <code>${escapeHtml(r.id)}</code><ul>${r.changes.map(c=>`<li>${escapeHtml(c)}</li>`).join('')}</ul></li>`).join('');
+      const sure=await DialogV2.confirm({
+        window:{title:'Update existing Actors'},
+        content:`<p><strong>This changes ${actorUpdates.length} Actor(s) already in your world.</strong> Only the listed definition fields and package items change. HP, XP, level, conditions, player-added items, notes, ownership, folders and other modules' data are kept.</p><ul>${list}</ul><p>A JSON backup of these Actors downloads automatically before anything is written.</p>`,
+        yes:{label:`Update ${actorUpdates.length} existing Actor(s)`,icon:'fa-solid fa-triangle-exclamation'},
+        no:{label:'Cancel'},
+        rejectClose:false,modal:true
+      });
+      if (!sure) return;
+    }
     this.busy=true;
     const log = {at:new Date().toISOString(), packageId:this.pkg.manifest.package_id, packageVersion:this.pkg.manifest.version, results:[]};
     let originalMediaPaths=new Map();
@@ -773,11 +819,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       const ordered=graph.order.map(id=>docRows.find(row=>row.id===id)).filter(Boolean);
       const before=ordered.filter(r=>r.action==='update').map(row=>foundDocuments(row.id)[0]).filter(Boolean);
       if(before.length) this.#downloadSnapshots(before,`before-import-${Date.now()}`);
+      const plans=new Map();
       for (const row of ordered) {
         const record = this.pkg.records.find(r=>r.id===row.id);
-        const matches = foundDocuments(row.id).map(docWrapper);
-        const current = matches.some(m=>m.doc.getFlag(MODULE_ID,'lifecycle')?.archived)
-          ? {action:'blocked'} : planWithMetadata(record, matches, findSameNameUnmanaged(record), this.includeDrafts,this.pkg);
+        const {plan:current,docs}=planDocument(record,this.pkg,this);
+        plans.set(row.id,current);
         if (current.action !== row.action || canonical(current.patch ?? {}) !== canonical(row.patch ?? {})) {
           log.results.push({id:row.id, status:"skipped", message:"Foundry state changed since preview; preview again."});
           continue;
@@ -788,7 +834,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
           for (const child of record.resource_opportunities??[]) present.add(child.id);
           // Never mutate the canonical source record. Only the Foundry write copy gets uploaded asset paths.
           const adapted=adaptRecordArtwork(record,originalMediaPaths);
-          const doc = row.action==="create" ? await createRecord(adapted, this.pkg, present, entry=>log.results.push({...entry,id:entry.id??row.id})) : await updateRecord(record,this.pkg,matches[0].doc,current.patch,present);
+          const doc = row.action==="create" ? await createRecord(adapted, this.pkg, present, entry=>log.results.push({...entry,id:entry.id??row.id}))
+            : row.kind==='Actor' ? await applyActorUpdate(docs[0],current,{user:game.user,source:sourceMetadata(record,this.pkg,present)})
+            : await updateRecord(record,this.pkg,docs[0],current.patch,present);
           if (!doc) throw new Error("Foundry did not return a saved document.");
           log.results.push({id:row.id, action:row.action, status:"ok", uuid:doc.uuid});
         } catch(error) {
@@ -830,14 +878,18 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
             log.results.push({id:row.id,action:'rich-text-link',status:'ok',resolved:linked.resolved.length,added:bindings.length-bindings.filter(b=>linked.resolved.includes(b.target_id)).length});
           }
         } else if(doc.documentName==='Actor') {
+          // An updated Actor keeps its biography (GM notes); only Items this run created or changed are re-linked.
+          const created=row.action==='create', touched=new Set(plans.get(row.id)?.patch?.touched??[]);
+          const keys=itemKeys(record.foundry.data?.items??[]);
           const bio=record.foundry.data?.system?.details?.biography?.value;
-          if(typeof bio==='string') {
+          if(created && typeof bio==='string') {
             const resolved=resolveRichText(bio,uuidIndex);
             updates['system.details.biography.value']=appendReferenceBlock(resolved.text,bindings,resolved.resolved);
             for(const issue of resolved.issues)log.results.push({id:row.id,action:'actor-bio-link',status:'error',message:issue.message});
           }
           for(const [i,sourceItem] of (record.foundry.data?.items??[]).entries()) {
-            const html=sourceItem.system?.description?.value, embedded=doc.items?.contents?.[i];
+            if(!created&&!touched.has(keys[i])) continue;
+            const html=sourceItem.system?.description?.value, embedded=doc.items?.contents?.find(it=>it.getFlag?.(MODULE_ID,ITEM_FLAG)===keys[i]);
             if(typeof html!=='string'||!embedded) continue;
             const resolved=resolveRichText(html,uuidIndex);
             for(const issue of resolved.issues)log.results.push({id:row.id,action:'actor-item-link',status:'error',message:issue.message});
@@ -1206,7 +1258,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.18.1 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.19.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */

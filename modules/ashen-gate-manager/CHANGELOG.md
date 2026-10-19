@@ -1,3 +1,10 @@
+## 0.19.0 — 2026-10-19
+
+- **Update existing actors** (Import tab, opt-in, off by default). Re-importing a file can now update Actors Manager created earlier. Actors are matched only by their permanent id, never by name. The preview marks each Actor CREATE, UPDATE or SKIPPED and lists every field that would change.
+- Only the package's own definition changes: name, image (if the file gives one), the token settings the file defines, and the package's embedded items (new ones added, changed descriptions and rules updated). Kept as they are: HP and other system values, XP and level, conditions/effects, items players added, quantities, uses and equipped state, biography/notes, ownership, folder, and every other module's flags. A field the GM edited and the package did not change is kept.
+- Applying asks for a separate **Update existing Actors** confirmation listing each change, and a JSON backup of those Actors downloads before anything is written. **Download backup of N actor(s)** under the preview downloads it on its own. GM only, also checked where the write happens. Running the same import again changes nothing.
+- Actors imported before 0.19.0 work: their package items are recognised on the first update (an item with duplicate copies is left alone and listed). Items removed from the package stay on the Actor.
+
 ## 0.18.1 — 2026-10-19
 
 - World export no longer stores record names in the saved snapshot (a world setting players could read), so hidden record names cannot leak. It keeps only content hashes. "Removed since last export" now lists ids and sections, not names. An older snapshot that still has names loads fine and is rewritten without them on the next export.
