@@ -1,0 +1,665 @@
+{
+  "schema_version": "ag-factions-source-export/0.3",
+  "note": "Synthetic playtest factions (not canon). starting_state is applied to new factions only; existing factions are never changed.",
+  "definitions": [
+    {
+      "id": "FACTION-PT-LANTERN-WARDENS",
+      "entity_type": "Faction",
+      "status": "draft",
+      "version": "0.3.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ],
+        "decision_refs": [
+          "DEC-0028"
+        ]
+      },
+      "visibility": "reveal_gated",
+      "refs": [
+        {
+          "relation": "offers_objective",
+          "target_id": "QUEST-PT-MARSH-LIGHTS",
+          "mode": "optional"
+        },
+        {
+          "relation": "associated_objective",
+          "target_id": "QUEST-PT-GREENHOLLOW-HERBS",
+          "mode": "optional"
+        }
+      ],
+      "name": "[TEST] Lantern Wardens",
+      "leader": "[TEST] Warden Ilse",
+      "public_role": "Revealed to the party: marsh patrols with a rank ladder in use.",
+      "folder_key": "",
+      "tags": [],
+      "discovery": {
+        "placeholder": false,
+        "sharing_enabled": true
+      },
+      "entries": [
+        {
+          "id": "pt-signal-lamps",
+          "name": "[TEST] Signal lamps",
+          "text": "Placeholder text: patrols flash lamps from the chapel mound.",
+          "link_mode": "preview",
+          "unlock": "manual",
+          "threshold": 0
+        },
+        {
+          "id": "pt-patrol-routes",
+          "name": "[TEST] Patrol routes",
+          "text": "Placeholder text: unlocks at group Renown 3.",
+          "link_mode": "preview",
+          "unlock": "group_renown",
+          "threshold": 3
+        }
+      ],
+      "renown_track": {
+        "id": "RENOWN-PT-LANTERN-WARDENS",
+        "entity_type": "RenownTrack",
+        "status": "draft",
+        "version": "0.3.0",
+        "provenance": {
+          "sources": [
+            "Five-rank playtest proposal"
+          ],
+          "decision_refs": [
+            "DEC-0029"
+          ]
+        },
+        "visibility": "player",
+        "refs": [
+          {
+            "relation": "for_faction",
+            "target_id": "FACTION-PT-LANTERN-WARDENS",
+            "mode": "required"
+          }
+        ],
+        "default_scope": "group",
+        "milestones": [
+          {
+            "id": "RENOWN-PT-LANTERN-WARDENS-M1",
+            "key": "milestone_1",
+            "name": "Unproven",
+            "threshold": 0,
+            "benefit": "Access to public faction opportunities.",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-LANTERN-WARDENS-M2",
+            "key": "milestone_2",
+            "name": "Recognized",
+            "threshold": 3,
+            "benefit": "A recognized contact and an introductory faction service.",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-LANTERN-WARDENS-M3",
+            "key": "milestone_3",
+            "name": "Trusted",
+            "threshold": 6,
+            "benefit": "Eligibility for a modest, negotiated noncombat favor.",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-LANTERN-WARDENS-M4",
+            "key": "milestone_4",
+            "name": "Proven",
+            "threshold": 10,
+            "benefit": "Eligibility for significant commissions and expedition sponsorship.",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-LANTERN-WARDENS-M5",
+            "key": "milestone_5",
+            "name": "Esteemed",
+            "threshold": 15,
+            "benefit": "Eligibility to pursue an earned, lasting faction alliance.",
+            "selection_mode": "all"
+          }
+        ]
+      },
+      "individual_track": {
+        "id": "RENOWN-PT-LANTERN-WARDENS-IND",
+        "entity_type": "RenownTrack",
+        "status": "draft",
+        "version": "0.3.0",
+        "provenance": {
+          "sources": [
+            "Five-rank playtest proposal"
+          ],
+          "decision_refs": [
+            "DEC-0029"
+          ]
+        },
+        "visibility": "player",
+        "refs": [
+          {
+            "relation": "for_faction",
+            "target_id": "FACTION-PT-LANTERN-WARDENS",
+            "mode": "required"
+          }
+        ],
+        "default_scope": "individual",
+        "milestones": [
+          {
+            "id": "RENOWN-PT-LANTERN-WARDENS-IND-M1",
+            "key": "milestone_1",
+            "name": "Unproven",
+            "threshold": 0,
+            "benefit": "",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-LANTERN-WARDENS-IND-M2",
+            "key": "milestone_2",
+            "name": "Recognized",
+            "threshold": 3,
+            "benefit": "",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-LANTERN-WARDENS-IND-M3",
+            "key": "milestone_3",
+            "name": "Trusted",
+            "threshold": 6,
+            "benefit": "",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-LANTERN-WARDENS-IND-M4",
+            "key": "milestone_4",
+            "name": "Proven",
+            "threshold": 10,
+            "benefit": "",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-LANTERN-WARDENS-IND-M5",
+            "key": "milestone_5",
+            "name": "Esteemed",
+            "threshold": 15,
+            "benefit": "",
+            "selection_mode": "all"
+          }
+        ]
+      },
+      "rewards": [
+        {
+          "id": "rw-pt-lantern-wardens-token",
+          "key": "rw_pt_token",
+          "audience": "group",
+          "milestone_id": "RENOWN-PT-LANTERN-WARDENS-M2",
+          "name": "[TEST] Warden token",
+          "teaser": "[TEST] Warden token",
+          "description": "A one-time placeholder reward at Recognized.",
+          "kind": "custom",
+          "tags": [],
+          "behavior": "one_time",
+          "usage_limit": 0
+        },
+        {
+          "id": "rw-pt-lantern-wardens-lamp-loan",
+          "key": "rw_pt_lamp_loan",
+          "audience": "group",
+          "milestone_id": "RENOWN-PT-LANTERN-WARDENS-M3",
+          "name": "[TEST] Lamp loan",
+          "teaser": "[TEST] Lamp loan",
+          "description": "A repeatable service, two uses, at Trusted.",
+          "kind": "custom",
+          "tags": [],
+          "behavior": "repeatable_service",
+          "usage_limit": 2
+        },
+        {
+          "id": "rw-pt-lantern-wardens-familiar-face",
+          "key": "rw_pt_familiar_face",
+          "audience": "individual",
+          "milestone_id": "RENOWN-PT-LANTERN-WARDENS-IND-M2",
+          "name": "[TEST] Familiar face",
+          "teaser": "[TEST] Familiar face",
+          "description": "A passive personal privilege at Recognized.",
+          "kind": "custom",
+          "tags": [],
+          "behavior": "passive",
+          "usage_limit": 0
+        }
+      ]
+    },
+    {
+      "id": "FACTION-PT-ASH-BROKERS",
+      "entity_type": "Faction",
+      "status": "draft",
+      "version": "0.3.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ],
+        "decision_refs": [
+          "DEC-0028"
+        ]
+      },
+      "visibility": "reveal_gated",
+      "refs": [
+        {
+          "relation": "associated_objective",
+          "target_id": "ORDER-PT-HINGE-ORDER",
+          "mode": "optional"
+        }
+      ],
+      "name": "[TEST] Ash Brokers",
+      "leader": "[TEST] Broker Tamsin",
+      "public_role": "Hidden: no player can see this faction until it is revealed.",
+      "folder_key": "",
+      "tags": [],
+      "discovery": {
+        "placeholder": false,
+        "sharing_enabled": true
+      },
+      "entries": [
+        {
+          "id": "pt-ledger-rumour",
+          "name": "[TEST] Ledger rumour",
+          "text": "Placeholder text, shown only after discovery.",
+          "link_mode": "preview",
+          "unlock": "manual",
+          "threshold": 0
+        }
+      ],
+      "renown_track": {
+        "id": "RENOWN-PT-ASH-BROKERS",
+        "entity_type": "RenownTrack",
+        "status": "draft",
+        "version": "0.3.0",
+        "provenance": {
+          "sources": [
+            "Five-rank playtest proposal"
+          ],
+          "decision_refs": [
+            "DEC-0029"
+          ]
+        },
+        "visibility": "player",
+        "refs": [
+          {
+            "relation": "for_faction",
+            "target_id": "FACTION-PT-ASH-BROKERS",
+            "mode": "required"
+          }
+        ],
+        "default_scope": "group",
+        "milestones": [
+          {
+            "id": "RENOWN-PT-ASH-BROKERS-M1",
+            "key": "milestone_1",
+            "name": "Unproven",
+            "threshold": 0,
+            "benefit": "Access to public faction opportunities.",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-ASH-BROKERS-M2",
+            "key": "milestone_2",
+            "name": "Recognized",
+            "threshold": 3,
+            "benefit": "A recognized contact and an introductory faction service.",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-ASH-BROKERS-M3",
+            "key": "milestone_3",
+            "name": "Trusted",
+            "threshold": 6,
+            "benefit": "Eligibility for a modest, negotiated noncombat favor.",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-ASH-BROKERS-M4",
+            "key": "milestone_4",
+            "name": "Proven",
+            "threshold": 10,
+            "benefit": "Eligibility for significant commissions and expedition sponsorship.",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-ASH-BROKERS-M5",
+            "key": "milestone_5",
+            "name": "Esteemed",
+            "threshold": 15,
+            "benefit": "Eligibility to pursue an earned, lasting faction alliance.",
+            "selection_mode": "all"
+          }
+        ]
+      },
+      "individual_track": {
+        "id": "RENOWN-PT-ASH-BROKERS-IND",
+        "entity_type": "RenownTrack",
+        "status": "draft",
+        "version": "0.3.0",
+        "provenance": {
+          "sources": [
+            "Five-rank playtest proposal"
+          ],
+          "decision_refs": [
+            "DEC-0029"
+          ]
+        },
+        "visibility": "player",
+        "refs": [
+          {
+            "relation": "for_faction",
+            "target_id": "FACTION-PT-ASH-BROKERS",
+            "mode": "required"
+          }
+        ],
+        "default_scope": "individual",
+        "milestones": [
+          {
+            "id": "RENOWN-PT-ASH-BROKERS-IND-M1",
+            "key": "milestone_1",
+            "name": "Unproven",
+            "threshold": 0,
+            "benefit": "",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-ASH-BROKERS-IND-M2",
+            "key": "milestone_2",
+            "name": "Recognized",
+            "threshold": 3,
+            "benefit": "",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-ASH-BROKERS-IND-M3",
+            "key": "milestone_3",
+            "name": "Trusted",
+            "threshold": 6,
+            "benefit": "",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-ASH-BROKERS-IND-M4",
+            "key": "milestone_4",
+            "name": "Proven",
+            "threshold": 10,
+            "benefit": "",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-ASH-BROKERS-IND-M5",
+            "key": "milestone_5",
+            "name": "Esteemed",
+            "threshold": 15,
+            "benefit": "",
+            "selection_mode": "all"
+          }
+        ]
+      },
+      "rewards": [
+        {
+          "id": "rw-pt-ash-brokers-discount",
+          "key": "rw_pt_discount",
+          "audience": "group",
+          "milestone_id": "RENOWN-PT-ASH-BROKERS-M2",
+          "name": "[TEST] Trade discount",
+          "teaser": "[TEST] Trade discount",
+          "description": "A passive placeholder privilege.",
+          "kind": "custom",
+          "tags": [],
+          "behavior": "passive",
+          "usage_limit": 0
+        }
+      ]
+    },
+    {
+      "id": "FACTION-PT-MIRE-FERRYMEN",
+      "entity_type": "Faction",
+      "status": "draft",
+      "version": "0.3.0",
+      "provenance": {
+        "sources": [
+          "Synthetic playtest data (not canon)"
+        ],
+        "decision_refs": [
+          "DEC-0028"
+        ]
+      },
+      "visibility": "reveal_gated",
+      "refs": [
+        {
+          "relation": "offers_objective",
+          "target_id": "CONTRACT-PT-ESCORT",
+          "mode": "optional"
+        }
+      ],
+      "name": "[TEST] Mire Ferrymen",
+      "leader": "[TEST] Ferryman Oss",
+      "public_role": "Undiscovered placeholder for the party; one character has met them.",
+      "folder_key": "",
+      "tags": [],
+      "discovery": {
+        "placeholder": true,
+        "sharing_enabled": true
+      },
+      "entries": [
+        {
+          "id": "pt-crossing-song",
+          "name": "[TEST] Crossing song",
+          "text": "Placeholder text, known to the character who met them.",
+          "link_mode": "preview",
+          "unlock": "manual",
+          "threshold": 0
+        }
+      ],
+      "renown_track": {
+        "id": "RENOWN-PT-MIRE-FERRYMEN",
+        "entity_type": "RenownTrack",
+        "status": "draft",
+        "version": "0.3.0",
+        "provenance": {
+          "sources": [
+            "Five-rank playtest proposal"
+          ],
+          "decision_refs": [
+            "DEC-0029"
+          ]
+        },
+        "visibility": "player",
+        "refs": [
+          {
+            "relation": "for_faction",
+            "target_id": "FACTION-PT-MIRE-FERRYMEN",
+            "mode": "required"
+          }
+        ],
+        "default_scope": "group",
+        "milestones": [
+          {
+            "id": "RENOWN-PT-MIRE-FERRYMEN-M1",
+            "key": "milestone_1",
+            "name": "Unproven",
+            "threshold": 0,
+            "benefit": "Access to public faction opportunities.",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-MIRE-FERRYMEN-M2",
+            "key": "milestone_2",
+            "name": "Recognized",
+            "threshold": 3,
+            "benefit": "A recognized contact and an introductory faction service.",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-MIRE-FERRYMEN-M3",
+            "key": "milestone_3",
+            "name": "Trusted",
+            "threshold": 6,
+            "benefit": "Eligibility for a modest, negotiated noncombat favor.",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-MIRE-FERRYMEN-M4",
+            "key": "milestone_4",
+            "name": "Proven",
+            "threshold": 10,
+            "benefit": "Eligibility for significant commissions and expedition sponsorship.",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-MIRE-FERRYMEN-M5",
+            "key": "milestone_5",
+            "name": "Esteemed",
+            "threshold": 15,
+            "benefit": "Eligibility to pursue an earned, lasting faction alliance.",
+            "selection_mode": "all"
+          }
+        ]
+      },
+      "individual_track": {
+        "id": "RENOWN-PT-MIRE-FERRYMEN-IND",
+        "entity_type": "RenownTrack",
+        "status": "draft",
+        "version": "0.3.0",
+        "provenance": {
+          "sources": [
+            "Five-rank playtest proposal"
+          ],
+          "decision_refs": [
+            "DEC-0029"
+          ]
+        },
+        "visibility": "player",
+        "refs": [
+          {
+            "relation": "for_faction",
+            "target_id": "FACTION-PT-MIRE-FERRYMEN",
+            "mode": "required"
+          }
+        ],
+        "default_scope": "individual",
+        "milestones": [
+          {
+            "id": "RENOWN-PT-MIRE-FERRYMEN-IND-M1",
+            "key": "milestone_1",
+            "name": "Unproven",
+            "threshold": 0,
+            "benefit": "",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-MIRE-FERRYMEN-IND-M2",
+            "key": "milestone_2",
+            "name": "Recognized",
+            "threshold": 3,
+            "benefit": "",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-MIRE-FERRYMEN-IND-M3",
+            "key": "milestone_3",
+            "name": "Trusted",
+            "threshold": 6,
+            "benefit": "",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-MIRE-FERRYMEN-IND-M4",
+            "key": "milestone_4",
+            "name": "Proven",
+            "threshold": 10,
+            "benefit": "",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-PT-MIRE-FERRYMEN-IND-M5",
+            "key": "milestone_5",
+            "name": "Esteemed",
+            "threshold": 15,
+            "benefit": "",
+            "selection_mode": "all"
+          }
+        ]
+      },
+      "rewards": [
+        {
+          "id": "rw-pt-mire-ferrymen-crossing",
+          "key": "rw_pt_crossing",
+          "audience": "individual",
+          "milestone_id": "RENOWN-PT-MIRE-FERRYMEN-IND-M2",
+          "name": "[TEST] Free crossing",
+          "teaser": "[TEST] Free crossing",
+          "description": "A one-time personal placeholder reward.",
+          "kind": "custom",
+          "tags": [],
+          "behavior": "one_time",
+          "usage_limit": 0
+        }
+      ]
+    }
+  ],
+  "starting_state": [
+    {
+      "faction_id": "FACTION-PT-LANTERN-WARDENS",
+      "party_discovered": true,
+      "group_renown": [
+        {
+          "delta": 4,
+          "reason": "[TEST] Escorted a patrol"
+        },
+        {
+          "delta": 3,
+          "reason": "[TEST] Cleared the road"
+        }
+      ],
+      "actors": [
+        {
+          "name": "[TEST] Belwar",
+          "discovered": true,
+          "renown": [
+            {
+              "delta": 4,
+              "reason": "[TEST] Carried the signal lamp"
+            }
+          ]
+        },
+        {
+          "name": "[TEST] Kessa",
+          "discovered": true,
+          "renown": [
+            {
+              "delta": 1,
+              "reason": "[TEST] Repaired a gate hinge"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "faction_id": "FACTION-PT-ASH-BROKERS",
+      "group_renown": [
+        {
+          "delta": 2,
+          "reason": "[TEST] Paid an old debt"
+        }
+      ]
+    },
+    {
+      "faction_id": "FACTION-PT-MIRE-FERRYMEN",
+      "actors": [
+        {
+          "name": "[TEST] Orin",
+          "discovered": true,
+          "renown": [
+            {
+              "delta": 3,
+              "reason": "[TEST] Paid the ferry toll"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -2,6 +2,7 @@
 import {MODULE_ID,SCHEMA_VERSION,RECOVERED_GUILDS_DRAFT,makeFaction,upgradeFaction,sourceDefinition,validateFaction,blankStanding,adjustStanding,progressFor,milestoneProjection,discoverable,projectedFolders,grantAutoKnowledge,secureEntryPreview,claimEligible,chooseOneEligible,rewardUnlocked,makeGroupRecord,makePersonalRecord,keyFor,overlayCampaign,extractCampaignDiscovery,fieldDisclosure,disclosedField,revealField,FIELD_KEYS} from './core.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {addObjectiveRef,removeObjectiveRef,objectiveRefs,auditObjectiveRefs} from './objective-refs.mjs';
+import {planImport,runImport} from './import.mjs';
 const {ApplicationV2,HandlebarsApplicationMixin}=foundry.applications.api;
 const OBS=CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER,NONE=CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE,OWNER=CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER;
 const rid=()=>foundry.utils.randomID(24).toUpperCase().replace(/[^A-Z0-9]/g,'');
@@ -34,7 +35,7 @@ const getFolders=d=>d?.getFlag(MODULE_ID,'folderIndex');
 // Foundry's Journal folder is storage organization only, independent from the in-dashboard faction folders.
 // Do not set player visibility on the Folder. Journal ownership controls actual document access.
 const STORAGE_FOLDER_NAME='Ashen Gate — Factions Data';
-const BUILD_VERSION='0.6.0';
+const BUILD_VERSION='0.7.0';
 const isModuleJournal=d=>Boolean(getFaction(d)||getGroup(d)||getPersonal(d)||getView(d)||getFolders(d));
 async function ensureStorageFolder(){
   assertGM();
@@ -163,6 +164,20 @@ async function saveChange(doc,f){
   }
   await saveDef(doc,next);await reproject();
 }
+// GM-only import (additive). Every write goes through runImport's io, whose first call is assertGM.
+const importIO=()=>({
+  assertGM,
+  createFaction:async clean=>{const d=await JournalEntry.create({name:clean.name,folder:(await ensureStorageFolder()).id,ownership:{default:NONE},flags:{[MODULE_ID]:{faction:clean}}});await ensureGroup(d);},
+  updateGroup:async(id,fn)=>{const g=groupDoc(id);await g.setFlag(MODULE_ID,'groupClaims',fn(structuredClone(getGroup(g))));},
+  updatePersonal:async(id,actor,fn)=>{const d=await ensurePersonal(definition(id),game.actors.get(actor.id));await d.setFlag(MODULE_ID,'individual',fn(structuredClone(getPersonal(d))));},
+  findActor:name=>{const a=game.actors.find(a=>a.type==='character'&&a.name===name);return a?{id:a.id,name:a.name}:null;},
+  finish:async id=>{const d=definition(id);await saveChange(d,loadDef(d));},
+  eventId:()=>`RENOWN-EVT-${rid()}`,
+  now:()=>new Date().toISOString()
+});
+const planFactionsImport=data=>{assertGM();return planImport(data,new Set(defs().map(d=>getFaction(d).id)));};
+async function importFactions(data){assertGM();return runImport(planFactionsImport(data),importIO());}
+const previewFactionsImport=data=>{const {errors,rows}=planFactionsImport(data);return {errors,rows:rows.map(({id,name,action,reason})=>({id,name,action,reason}))};};
 const findKnownUser=(id,user)=>buildPlayerPayload(user).factions.find(x=>x.id===id);
 function requestAuthorized(msg){if(!playerAccessEnabled())throw Error('Factions player interface is hidden.');const user=game.users.get(msg.userId),vdoc=user&&userViewDoc(user),v=getView(vdoc);if(!user?.active||user.isGM||!v||v.capability!==msg.capability||!vdoc.testUserPermission(user,OBS))throw Error('Invalid requester authentication.');return user;}
 function sendClientAction(message){
@@ -213,7 +228,7 @@ async function incoming(msg){if(!['share','request'].includes(msg?.type)||!game.
 }catch(e){notifyError(e)}finally{inFlight.delete(requestLock);if(msg?.requestId&&msg?.userId)game.socket?.emit(SOCKET,{type:'receipt',userId:msg.userId,requestId:msg.requestId,ok:accepted,message:msg.type==='share'?'Discovery shared with party.':'Faction request received by GM.'});}}
 async function grantItem(actor,reward,claim,faction){const source=await fromUuid(reward.uuid);if(!source||source.documentName!=='Item')throw Error('Item source unavailable.');if(actor.items.some(i=>i.getFlag(MODULE_ID,'claimId')===claim.request_id))return;const data=source.toObject();delete data._id;delete data.folder;data.flags??={};data.flags[MODULE_ID]={...(data.flags[MODULE_ID]??{}),claimId:claim.request_id,rewardId:reward.id,factionId:faction.id};await actor.createEmbeddedDocuments('Item',[data]);}
 class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
-  static DEFAULT_OPTIONS={id:'ashen-gate-factions-window',classes:['ag-app','ashen-gate-factions'],window:{title:'Ashen Gate | Factions & Renown',icon:'fa-solid fa-shield-halved',resizable:true},position:{width:1180,height:800},actions:{savePlayerAccess:Dashboard.savePlayerAccess,select:Dashboard.select,create:Dashboard.create,seed:Dashboard.seed,save:Dashboard.save,award:Dashboard.award,saveGroupLabel:Dashboard.saveGroupLabel,createFolder:Dashboard.createFolder,saveFolder:Dashboard.saveFolder,discovery:Dashboard.discovery,share:Dashboard.share,addEntry:Dashboard.addEntry,showEntry:Dashboard.showEntry,claim:Dashboard.claim,resolveRequest:Dashboard.resolveRequest,resetUsage:Dashboard.resetUsage,addReward:Dashboard.addReward,editReward:Dashboard.editReward,removeReward:Dashboard.removeReward,openLinked:Dashboard.openLinked,resetChoice:Dashboard.resetChoice,saveFieldReveals:Dashboard.saveFieldReveals,addObjective:Dashboard.addObjective,removeObjective:Dashboard.removeObjective,exportAll:Dashboard.exportAll}};
+  static DEFAULT_OPTIONS={id:'ashen-gate-factions-window',classes:['ag-app','ashen-gate-factions'],window:{title:'Ashen Gate | Factions & Renown',icon:'fa-solid fa-shield-halved',resizable:true},position:{width:1180,height:800},actions:{savePlayerAccess:Dashboard.savePlayerAccess,select:Dashboard.select,create:Dashboard.create,seed:Dashboard.seed,save:Dashboard.save,award:Dashboard.award,saveGroupLabel:Dashboard.saveGroupLabel,createFolder:Dashboard.createFolder,saveFolder:Dashboard.saveFolder,discovery:Dashboard.discovery,share:Dashboard.share,addEntry:Dashboard.addEntry,showEntry:Dashboard.showEntry,claim:Dashboard.claim,resolveRequest:Dashboard.resolveRequest,resetUsage:Dashboard.resetUsage,addReward:Dashboard.addReward,editReward:Dashboard.editReward,removeReward:Dashboard.removeReward,openLinked:Dashboard.openLinked,resetChoice:Dashboard.resetChoice,saveFieldReveals:Dashboard.saveFieldReveals,addObjective:Dashboard.addObjective,removeObjective:Dashboard.removeObjective,exportAll:Dashboard.exportAll,importJson:Dashboard.importJson}};
   static PARTS={main:{template:`modules/${MODULE_ID}/templates/dashboard.hbs`}};
   #tab='group';#selected=null;#actor=null;#lastView=null;
   async render(options={}){
@@ -267,7 +282,7 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
       this.#tab=page;
       void this.render({force:true}).catch(notifyError);
     });
-    root.addEventListener('change',e=>{if(e.target.matches('[name=actor-id]')){const a=accessibleActors().find(a=>a.id===e.target.value);if(a){this.#actor=a.id;void this.render({force:true});}}});
+    root.addEventListener('change',e=>{if(e.target.matches('[name=faction-import-file]')){void this.importFile(e.target);return;}if(e.target.matches('[name=actor-id]')){const a=accessibleActors().find(a=>a.id===e.target.value);if(a){this.#actor=a.id;void this.render({force:true});}}});
     root.addEventListener('dragstart',e=>{const el=e.target.closest('[data-faction-drag]');if(!game.user.isGM||!el)return;e.dataTransfer.setData('text/ashen-gate-faction',el.dataset.factionDrag);e.dataTransfer.effectAllowed='move';});
     root.addEventListener('dragover',e=>{if(game.user.isGM&&e.target.closest('[data-folder-drop], [data-reward-drop], [data-entry-drop]'))e.preventDefault();});
     root.addEventListener('drop',async e=>{try{if(!game.user.isGM)return;const folder=e.target.closest('[data-folder-drop]');if(folder){const id=e.dataTransfer.getData('text/ashen-gate-faction');if(!id)return;e.preventDefault();const doc=definition(id),f=loadDef(doc);f.folder_key=folder.dataset.folderDrop;await saveChange(doc,f);await this.render({force:true});return;}
@@ -354,6 +369,26 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
   static async resetUsage(e,t){try{assertGM();const doc=definition(this.#selected),f=loadDef(doc),aud=t.dataset.audience,actor=aud==='individual'?game.actors.get(this.#actor):null,store=aud==='group'?await ensureGroup(doc):actor?await ensurePersonal(doc,actor):null;if(!store)throw Error('No selected character.');const key=aud==='group'?'groupClaims':'individual',state=structuredClone(store.getFlag(MODULE_ID,key)),reward=f.rewards.find(r=>r.id===t.dataset.reward);if(reward?.behavior!=='repeatable_service')throw Error('Not a service.');if(!window.confirm('Reset used service charges? Fulfilled request history will remain.'))return;state.uses??={};const old=state.uses[reward.id]??{consumed:0,reset_count:0};state.uses[reward.id]={consumed:0,reset_count:old.reset_count+1};await store.setFlag(MODULE_ID,key,state);await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
   static async resetChoice(e,t){try{assertGM();const fdoc=definition(this.#selected),audience=t.dataset.audience,actor=audience==='individual'?game.actors.get(this.#actor):null,doc=audience==='group'?await ensureGroup(fdoc):actor?await ensurePersonal(fdoc,actor):null;if(!doc)throw Error('Choose an assigned character first.');const key=audience==='group'?'groupClaims':'individual',state=structuredClone(doc.getFlag(MODULE_ID,key));if(!window.confirm('Clear this milestone choice? Previously granted Items or permanent benefits will NOT be removed.'))return;state.choices??={};state.choices[t.dataset.milestone]=null;await doc.setFlag(MODULE_ID,key,state);await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
   static async openLinked(e,t){try{requirePlayerAccess();const uuid=t.dataset.uuid;if(!uuid)throw Error('No document link.');const doc=await fromUuid(uuid);if(!doc||!(doc.testUserPermission?.(game.user,OBS)||(doc.parent?.documentName==='Actor'&&doc.parent.testUserPermission?.(game.user,OWNER))))throw Error('Document access is not permitted.');doc.sheet.render(true);}catch(e){notifyError(e)}}
+  static importJson(){try{assertGM();this.element.querySelector('[name=faction-import-file]')?.click();}catch(e){notifyError(e)}}
+  async importFile(input){
+    const file=input.files?.[0];input.value='';if(!file)return;
+    try{
+      assertGM();
+      if(file.size>2_000_000)throw Error('File too large (over 2 MB).');
+      let data;try{data=JSON.parse(await file.text());}catch{throw Error('That file is not valid JSON.');}
+      const {errors,rows}=previewFactionsImport(data);
+      if(errors.length)throw Error(errors.slice(0,5).join(' | '));
+      const esc=v=>String(v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+      const fresh=rows.filter(r=>r.action==='new').length;
+      const list=rows.map(r=>`<div>${r.action==='new'?'NEW':'SKIP (already here)'} · ${esc(r.name)}</div>`).join('');
+      if(!fresh){ui.notifications.info('Nothing to import: every faction in that file is already in this world.');return;}
+      const ok=await foundry.applications.api.DialogV2.confirm({window:{title:'Import factions'},content:`<p>Add <strong>${fresh}</strong> of ${rows.length} factions from ${esc(file.name)}?</p>${list}<p>Existing factions, their Renown and discovery are never changed.</p>`,modal:true,rejectClose:false});
+      if(!ok)return;
+      const result=await importFactions(data);
+      ui.notifications.info(`Factions imported: ${result.added.length} added, ${result.skipped.length} kept as they were.${result.missingActors.length?` No character named: ${result.missingActors.join(', ')} (import the Manager pack first); their personal Renown was skipped.`:''}`);
+      await this.render({force:true});
+    }catch(e){notifyError(e)}
+  }
   static async exportAll(){try{assertGM();jsonDownload({schema_version:'ag-factions-source-export/0.3',definitions:defs().map(d=>sourceDefinition(getFaction(d))),note:'Excludes all mutable campaign state and user discovery state.'},'AG_Factions_Definitions_v0.6.0.json');}catch(e){notifyError(e)}}
 }
 function rankOf(ms,score){return[...ms].reverse().find(m=>score>=m.threshold)?.name??'Unproven';}
@@ -398,6 +433,9 @@ Hooks.once('ready',()=>{
     open:openDashboard,
     getFactions:()=>{requirePlayerAccess();return game.user.isGM?defs().map(d=>sourceDefinition(getFaction(d))):getView(userViewDoc(game.user))?.payload.factions??[];},
     validateFaction,
+    // GM-only, additive: adds factions that are not in the world yet (see scripts/import.mjs). Existing factions are never changed.
+    previewFactionsImport:data=>previewFactionsImport(data),
+    importFactions:data=>importFactions(data),
     // Optional read-only GM source relationship API. It never resolves or reveals Quest state.
     refreshPlayerViews:async()=>{assertGM();await reproject();return {status:'requested'};},
     getObjectiveRefs:(factionId)=>{assertGM();const doc=definition(factionId);if(!doc)throw Error('Faction not found.');return structuredClone(objectiveRefs(getFaction(doc)));},

@@ -1,13 +1,14 @@
-// Generates the synthetic playtest data: a Manager-importable ag-foundry-import/0.2 package plus the three
-// module-specific import files (Quest Manager, Skill Trees, Headquarters facilities).
+// Generates the synthetic playtest data: a Manager-importable ag-foundry-import/0.2 package plus the four
+// module-specific import files (Quest Manager, Skill Trees, Headquarters facilities, Factions).
 //   node scripts/build-test-pack.mjs        -> test-fixtures/playtest/AG_Playtest_*_<version>.json
 // All names are [TEST]-style placeholders with no rules effects and no setting material (public repo).
 // Bump PACK_VERSION when the content changes, then regenerate. The output is deterministic.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { makeFaction, sourceDefinition } from '../modules/ashen-gate-factions/scripts/core.mjs';
 
-export const PACK_VERSION = '0.5.0';
+export const PACK_VERSION = '0.5.1';
 export const PACK_ID = 'AG-PLAYTEST-PACK';
 const SOURCE = 'Synthetic playtest data (not canon)';
 const FOLDER = 'Ashen Gate/Playtest';
@@ -196,8 +197,8 @@ const LOCATIONS = [
     nodes: [['pt-ash-hollow-resin', 'Herbalism', 5, 'MAT-PT-GM-ONLY-RESIN', null, {}]] },
 
   // ---- Point-crawl: Region > site > room, plus a Hidden and an Unidentified place nested in it. ----
-  // Loot entries name pack Items by label and ITEM id in their text: a native link needs a world UUID,
-  // which an import cannot know, so the GM drags the Item onto the entry once (see the README).
+  // Loot entries name pack Items by label and ITEM id in their text: a native link needs a world UUID, which an import
+  // cannot know. The pack's "[TEST] Link test data" macro reads that id and links the entry (see the README).
   { id: 'LOC-PT-HOLLOWMERE', name: '[TEST] Hollowmere Marsh', type: 'Region', region: '[TEST] Playtest Vale', threat: 'hot', state: 'revealed', isRegion: true,
     description: 'Placeholder drowned marsh. A Region: its conditions pass to every place inside it.',
     sections: { conditions: true, related: true, quests: true, notes: true },
@@ -227,13 +228,13 @@ const LOCATIONS = [
       ['pt-chapel-seam', 'Mining', 1, 'MAT-PT-IRON-ORE', null, { visible: false, note: '[TEST] GM-only node.' }],
     ],
     loot: [
-      { key: 'dagger', label: '[TEST] Test Dagger', text: 'Pack Item ITEM-PT-TEST-DAGGER. Drag it onto this entry to link it.', status: 'available', visible: true },
+      { key: 'dagger', label: '[TEST] Test Dagger', text: 'Pack Item ITEM-PT-TEST-DAGGER.', status: 'available', visible: true },
       { key: 'tonic', label: '[TEST] Mistveil Tonic', text: 'Pack Item ITEM-PT-MISTVEIL-TONIC.', status: 'discovered', visible: true },
       { key: 'hinges', label: '[TEST] Iron Hinge Set', text: 'Pack Item ITEM-PT-IRON-HINGE-SET.', status: 'taken', visible: true },
       { key: 'coin', label: '[TEST] 25 gp in a rotted purse', text: 'Plain-text reward, no item.', status: 'available', visible: true },
       { key: 'secret', label: '[TEST] GM-only stash', text: '[TEST] Hidden loot players must not see.', status: 'available', visible: false },
     ],
-    notes: [{ title: 'Location note', text: '[TEST] Drag JRN-PT-GREENHOLLOW-NOTES (Journal) onto this note to link it.' }] },
+    notes: [{ title: 'Location note', text: '[TEST] Pack Journal JRN-PT-GREENHOLLOW-NOTES.' }] },
   { id: 'LOC-PT-CHAPEL-CRYPT', name: '[TEST] Chapel Crypt', type: 'Room', region: '[TEST] Playtest Vale', threat: 'deadly', state: 'revealed',
     parentLocationId: 'LOC-PT-DROWNED-CHAPEL',
     description: 'Placeholder crypt room. A grandchild: it inherits Hollowmere\'s conditions through the chapel.',
@@ -397,8 +398,9 @@ function journalRecord(j) {
 }
 
 // ---- Roll table -------------------------------------------------------------------------------------
-// Text results only: a document result needs a world UUID, which an import cannot know. Drag pack Items and
-// the Journals onto the imported table to add document results (see the README).
+// Text results only: a document result needs a world UUID, which an import cannot know. The "[TEST] Link test data"
+// macro adds the document results below (TABLE_LINKS) once the Items and Journal exist in the world.
+const TABLE_LINKS = ['ITEM-PT-TEST-DAGGER', 'ITEM-PT-MISTVEIL-TONIC', 'ITEM-PT-IRON-HINGE-SET', 'JRN-PT-MARSH-HANDOUT'];
 const TABLES = [{ id: 'TABLE-PT-MARSH-FINDS', name: '[TEST] Marsh Finds',
   results: [['Reed bundle', 'You find a [TEST] reed bundle.'], ['Rusted hinge', 'You find a [TEST] rusted hinge.'], ['Pale lantern', 'A [TEST] pale lantern bobs away.'],
     ['Ash-streaked stone', 'A [TEST] ash-streaked stone.'], ['Nothing', 'Only mud.'], ['Whisper', 'A [TEST] whisper from the fog.']] }];
@@ -406,7 +408,7 @@ function tableRecord(t) {
   return common(t.id, 'RollTable', {
     refs: [], name: t.name,
     foundry: { document_type: 'RollTable', folder_path: `${FOLDER}/Tables`, data: {
-      name: t.name, img: ICONS.item, description: `<p>Synthetic table for the Group Check / Roll Table steps. Add Item or Journal results by dragging them onto this table.</p>`,
+      name: t.name, img: ICONS.item, description: `<p>Synthetic table for the Group Check / Roll Table steps. Run the [TEST] Link test data macro to add Item and Journal results.</p>`,
       formula: `1d${t.results.length}`, replacement: true, displayRoll: true,
       results: t.results.map(([name, description], i) => ({ type: 'text', name, description, weight: 1, range: [i + 1, i + 1] })),
     } },
@@ -517,30 +519,99 @@ export function buildHqFacilities() {
   ];
 }
 
+// ---- Link macro -------------------------------------------------------------------------------------
+// scripts/playtest-link-macro.js with its PACK constant filled in from this file's own data, so the ids it looks for
+// cannot drift from the records the pack creates.
+const LOOT_MARKER = /(?:ITEM|JRN)-PT-[A-Z0-9-]+/g;
+function linkMacro(locations, records) {
+  const wanted = new Set(TABLE_LINKS);
+  for (const l of locations) for (const e of [...(l.loot ?? []), ...(l.notes ?? [])]) for (const m of (e.text ?? '').matchAll(LOOT_MARKER)) wanted.add(m[0]);
+  const names = Object.fromEntries([...wanted].sort().map(id => [id, records.find(r => r.id === id)?.foundry?.data.name]));
+  const pack = { names, table: { id: TABLES[0].id, name: TABLES[0].name, add: TABLE_LINKS }, locations: locations.map(l => l.id) };
+  const source = fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'playtest-link-macro.js'), 'utf8');
+  return common('MACRO-PT-LINK-TEST-DATA', 'Macro', {
+    visibility: 'gm', refs: [], name: '[TEST] Link test data',
+    foundry: { document_type: 'Macro', folder_path: `${FOLDER}/Macros`, data: {
+      name: '[TEST] Link test data', img: ICONS.item, type: 'script', scope: 'global',
+      command: source.replace('/*PACK*/ {}', JSON.stringify(pack, null, 2)),
+    } },
+  });
+}
+
+// ---- Factions ---------------------------------------------------------------------------------------
+// Imported by Factions -> GM Setup -> Import JSON. The definitions use Factions' own export format; `starting_state`
+// is applied to new factions only: party discovery, group Renown events and per-character discovery/Renown by character name.
+export function buildFactions() {
+  const faction = (key, name, leader, role, { placeholder = false, refs = [], entries = [], rewards = [] } = {}) => {
+    const f = makeFaction({ id: `FACTION-PT-${key}`, trackId: `RENOWN-PT-${key}`, name, leader, public_role: role, source: SOURCE });
+    f.discovery = { party: false, actors: [], placeholder, sharing_enabled: true };
+    f.refs = refs.map(([relation, target_id]) => ({ relation, target_id, mode: 'optional' }));
+    f.entries = entries.map(([id, entryName, text, unlock, threshold]) => ({ id, name: entryName, text, link_mode: 'preview', unlock, threshold }));
+    const group = f.renown_track.milestones, personal = f.individual_track.milestones;
+    f.rewards = rewards.map(([n, audience, rank, behavior, usage_limit, description]) => ({
+      id: `rw-pt-${key.toLowerCase()}-${n}`, key: `rw_pt_${n.replace(/-/g, '_')}`, audience, milestone_id: (audience === 'group' ? group : personal)[rank].id,
+      name: `[TEST] ${description.name}`, teaser: `[TEST] ${description.name}`, description: description.text, kind: 'custom', tags: [], behavior, usage_limit,
+    }));
+    return sourceDefinition(f);
+  };
+  const entry = (id, name, text, unlock = 'manual', threshold = 0) => [id, name, text, unlock, threshold];
+  const reward = (n, audience, rank, behavior, usage, name, text) => [n, audience, rank, behavior, usage, { name, text }];
+  return {
+    schema_version: 'ag-factions-source-export/0.3',
+    note: 'Synthetic playtest factions (not canon). starting_state is applied to new factions only; existing factions are never changed.',
+    definitions: [
+      faction('LANTERN-WARDENS', '[TEST] Lantern Wardens', '[TEST] Warden Ilse', 'Revealed to the party: marsh patrols with a rank ladder in use.', {
+        refs: [['offers_objective', 'QUEST-PT-MARSH-LIGHTS'], ['associated_objective', 'QUEST-PT-GREENHOLLOW-HERBS']],
+        entries: [entry('pt-signal-lamps', '[TEST] Signal lamps', 'Placeholder text: patrols flash lamps from the chapel mound.'),
+          entry('pt-patrol-routes', '[TEST] Patrol routes', 'Placeholder text: unlocks at group Renown 3.', 'group_renown', 3)],
+        rewards: [reward('token', 'group', 1, 'one_time', 0, 'Warden token', 'A one-time placeholder reward at Recognized.'),
+          reward('lamp-loan', 'group', 2, 'repeatable_service', 2, 'Lamp loan', 'A repeatable service, two uses, at Trusted.'),
+          reward('familiar-face', 'individual', 1, 'passive', 0, 'Familiar face', 'A passive personal privilege at Recognized.')] }),
+      faction('ASH-BROKERS', '[TEST] Ash Brokers', '[TEST] Broker Tamsin', 'Hidden: no player can see this faction until it is revealed.', {
+        refs: [['associated_objective', 'ORDER-PT-HINGE-ORDER']],
+        entries: [entry('pt-ledger-rumour', '[TEST] Ledger rumour', 'Placeholder text, shown only after discovery.')],
+        rewards: [reward('discount', 'group', 1, 'passive', 0, 'Trade discount', 'A passive placeholder privilege.')] }),
+      faction('MIRE-FERRYMEN', '[TEST] Mire Ferrymen', '[TEST] Ferryman Oss', 'Undiscovered placeholder for the party; one character has met them.', {
+        placeholder: true, refs: [['offers_objective', 'CONTRACT-PT-ESCORT']],
+        entries: [entry('pt-crossing-song', '[TEST] Crossing song', 'Placeholder text, known to the character who met them.')],
+        rewards: [reward('crossing', 'individual', 1, 'one_time', 0, 'Free crossing', 'A one-time personal placeholder reward.')] }),
+    ],
+    starting_state: [
+      { faction_id: 'FACTION-PT-LANTERN-WARDENS', party_discovered: true,
+        group_renown: [{ delta: 4, reason: '[TEST] Escorted a patrol' }, { delta: 3, reason: '[TEST] Cleared the road' }],
+        actors: [{ name: '[TEST] Belwar', discovered: true, renown: [{ delta: 4, reason: '[TEST] Carried the signal lamp' }] },
+          { name: '[TEST] Kessa', discovered: true, renown: [{ delta: 1, reason: '[TEST] Repaired a gate hinge' }] }] },
+      { faction_id: 'FACTION-PT-ASH-BROKERS', group_renown: [{ delta: 2, reason: '[TEST] Paid an old debt' }] },
+      { faction_id: 'FACTION-PT-MIRE-FERRYMEN', actors: [{ name: '[TEST] Orin', discovered: true, renown: [{ delta: 3, reason: '[TEST] Paid the ferry toll' }] }] },
+    ],
+  };
+}
+
 export function buildPack() {
   const materialIds = MATERIALS.map(m => m.id);
+  const records = [
+    ...PROFESSIONS.map(professionRecord),
+    ...MATERIALS.map(materialRecord),
+    ...RECIPES.map(recipeRecord),
+    ...RECIPES.map(itemRecord),
+    ...PERKS.map(perkRecord),
+    ...STASH.map(stashRecord),
+    ...CHARACTERS.map(characterRecord),
+    ...JOURNALS.map(journalRecord),
+    ...TABLES.map(tableRecord),
+    ...hirelingRecords(),
+    ...buildLocations(materialIds),
+  ];
   return {
     manifest: {
       schema_version: 'ag-foundry-import/0.2',
       package_id: PACK_ID,
       version: PACK_VERSION,
       description: 'Synthetic playtest pack: 3 professions, 8 materials, 8 recipes with crafted items, 3 give-to-player recipe items, 4 perks, 4 stash items, ' +
-        '3 test characters, 3 journals, 1 roll table, 1 hireling and perk. 8 locations (a Region point-crawl plus Normal/Hot/Deadly sites) with gathering nodes for the Locations module. ' +
+        '3 test characters, 3 journals, 1 roll table, 1 hireling and perk, 1 GM-only link macro. 8 locations (a Region point-crawl plus Normal/Hot/Deadly sites) with gathering nodes for the Locations module. ' +
         'Includes one GM-only material, one draft recipe/item and hidden location content as deliberate visibility examples. Not canon.',
     },
-    records: [
-      ...PROFESSIONS.map(professionRecord),
-      ...MATERIALS.map(materialRecord),
-      ...RECIPES.map(recipeRecord),
-      ...RECIPES.map(itemRecord),
-      ...PERKS.map(perkRecord),
-      ...STASH.map(stashRecord),
-      ...CHARACTERS.map(characterRecord),
-      ...JOURNALS.map(journalRecord),
-      ...TABLES.map(tableRecord),
-      ...hirelingRecords(),
-      ...buildLocations(materialIds),
-    ],
+    records: [...records, linkMacro(LOCATIONS, records)],
   };
 }
 
@@ -548,11 +619,12 @@ export const packFileName = () => `AG_Playtest_Pack_${PACK_VERSION}.json`;
 export const questsFileName = () => `AG_Playtest_Quests_${PACK_VERSION}.json`;
 export const skillTreesFileName = () => `AG_Playtest_SkillTrees_${PACK_VERSION}.json`;
 export const hqFileName = () => `AG_Playtest_HQ_Facilities_${PACK_VERSION}.json`;
+export const factionsFileName = () => `AG_Playtest_Factions_${PACK_VERSION}.json`;
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const outDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'test-fixtures', 'playtest');
   fs.mkdirSync(outDir, { recursive: true });
-  for (const [name, data] of [[packFileName(), buildPack()], [questsFileName(), buildQuests()], [skillTreesFileName(), buildSkillTrees()], [hqFileName(), buildHqFacilities()]]) {
+  for (const [name, data] of [[packFileName(), buildPack()], [questsFileName(), buildQuests()], [skillTreesFileName(), buildSkillTrees()], [hqFileName(), buildHqFacilities()], [factionsFileName(), buildFactions()]]) {
     const out = path.join(outDir, name);
     fs.writeFileSync(out, JSON.stringify(data, null, 2) + '\n');
     console.log(`Wrote ${path.relative(process.cwd(), out)}`);
