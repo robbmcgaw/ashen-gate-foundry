@@ -18,15 +18,70 @@ export const clone = v => structuredClone(v);
 const KEY = /^[A-Za-z][A-Za-z0-9_-]{2,100}$/;
 const REF = /^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/;
 const idList = arr => asArray(arr).filter(s => typeof s === 'string');
+const plainObject = v => Boolean(v) && typeof v==='object' && !Array.isArray(v);
+export const HISTORY_LIMIT = 50;
+export const SNAPSHOT_LIMIT = 10;
+/** Nodes the GM accepted at a level (override grant, or keep after a level drop): {level, at, by, reason}. */
+const cleanKept = raw => Object.fromEntries(Object.entries(plainObject(raw)?raw:{})
+  .filter(([id,k])=>KEY.test(id)&&plainObject(k)&&Number.isSafeInteger(k.level)&&k.level>=0)
+  .map(([id,k])=>[id,{level:k.level,at:Number(k.at)||0,by:String(k.by??''),reason:String(k.reason??'').slice(0,200)}]));
+/** Last 50 changes; only the last 10 removals keep the removed Item's data (for undo). */
+export function trimHistory(list) {
+  const out=asArray(list).filter(plainObject).slice(-HISTORY_LIMIT).map(h=>({...h}));
+  let snaps=0;
+  for(let i=out.length-1;i>=0;i--)if(out[i].itemSnapshot!=null){if(++snaps>SNAPSHOT_LIMIT)delete out[i].itemSnapshot;}
+  return out;
+}
 export const cleanAccount = raw => {
   const r=raw && typeof raw==='object' ? raw : {};
   return {
     awarded: Number.isSafeInteger(r.awarded) && r.awarded>=0 ? r.awarded : 0,
     unlocks: [...new Set(idList(r.unlocks))],
     grants: asArray(r.grants).filter(x=>x && typeof x==='object' && typeof x.key==='string').map(x=>({key:x.key,amount:Math.max(0,Number(x.amount)||0)})),
-    revision: Number.isSafeInteger(r.revision)&&r.revision>=0?r.revision:0
+    revision: Number.isSafeInteger(r.revision)&&r.revision>=0?r.revision:0,
+    // 0.11.0, additive: GM-accepted nodes and the change history (both empty on older data).
+    kept: cleanKept(r.kept),
+    history: trimHistory(r.history)
   };
 };
+/** Add one history entry to an account (returns a new account). */
+export function withHistory(rawAccount,entry) {
+  const a=cleanAccount(rawAccount);
+  a.history=trimHistory([...a.history,{...entry}]);
+  return a;
+}
+
+// ---- Profession trees (0.11.0): points come from the Profession Ledger level; this module owns the allocations. ----
+export const PROFESSION_MAX_LEVEL = 16;
+export const PROFESSION_TREE_NODES = 24;
+export const PROFESSION_TIER_LEVELS = Object.freeze({apprentice:1,journeyman:4,expert:7,artisan:10,master:13});
+/** One perk point per profession level, level 1 included (level 16 = 16 points). */
+export const pointsForLevel = level => Number.isSafeInteger(level)&&level>=1 ? Math.min(level,PROFESSION_MAX_LEVEL) : 0;
+export const tierLevel = tier => PROFESSION_TIER_LEVELS[String(tier??'').trim().toLowerCase()] ?? null;
+/** Level a profession node needs: its perk's tier, raised (never lowered) by the node's own minLevel. */
+export function nodeThreshold(n) {
+  const tier=tierLevel(n?.perkTier)??1;
+  return Number.isSafeInteger(n?.minLevel)&&n.minLevel>tier?n.minLevel:tier;
+}
+/** Level a node needs as shown: the published requiredLevel (player view has no perk tier), else worked out. */
+const needLevel = n => Number.isSafeInteger(n?.requiredLevel) ? n.requiredLevel : nodeThreshold(n);
+/** Every profession node costs 1 point; other trees use the node/perk cost. */
+export const nodeCost = (tree,n) => tree?.provider?.kind==='profession' ? 1 : (n?.cost ?? 1);
+const keptAt = (a,id,level) => Boolean(a.kept[id]) && Number.isSafeInteger(level) && a.kept[id].level<=level;
+/**
+ * Where a character stands on a profession tree. level: the Ledger level (0 = does not have the profession; null = Ledger not available).
+ * Over-allocated: an allocated node needs a higher level, or more points are used than the level gives, and the GM has not kept it.
+ */
+export function professionStatus(tree,rawAccount,level) {
+  const a=cleanAccount(rawAccount),ledger=Number.isSafeInteger(level)&&level>=0;
+  const earned=ledger?pointsForLevel(level):0,spent=totalSpent(tree,a);
+  const taken=tree.nodes.filter(n=>a.unlocks.includes(n.id));
+  const aboveLevel=ledger?taken.filter(n=>needLevel(n)>level&&!keptAt(a,n.id,level)).map(n=>({nodeId:n.id,name:n.name||n.perkId||n.id,threshold:needLevel(n)})):[];
+  const keptCount=taken.filter(n=>keptAt(a,n.id,level)).length;
+  const overSpent=ledger?Math.max(0,spent-earned-keptCount):0;
+  return {ledger,level:ledger?level:null,earned,spent,available:earned-spent,maxPoints:PROFESSION_MAX_LEVEL,nodeCount:tree.nodes.length,
+    aboveLevel,overSpent,overAllocated:aboveLevel.length>0||overSpent>0};
+}
 export function walletKey(tree) {
   return tree.provider.kind==='cinder_milestone' ? `cinder:${tree.sourceRef}` : `tree:${tree.id}`;
 }
@@ -73,8 +128,10 @@ export function resolveTree(tree,lookup) {
     const perk=lookup?.(n.perkId,n)??null;
     return {...n,custom:false,perkMissing:!perk,
       name:perk?.name??(n.name||n.perkId),description:perk?.description??n.description??'',
-      img:perk?.img??null,cost:perk?.cost??n.cost??1,perkUuid:perk?.uuid??n.perkUuid};
+      img:perk?.img??null,cost:perk?.cost??n.cost??1,perkUuid:perk?.uuid??n.perkUuid,perkTier:perk?.tier??null};
   });
+  // Worked out fresh from the perk every time; a stored requiredLevel is never trusted.
+  if(t.provider.kind==='profession')t.nodes=t.nodes.map(n=>({...n,cost:1,requiredLevel:nodeThreshold(n)}));
   return t;
 }
 export function validateTree(input) {
@@ -132,6 +189,7 @@ export function validateTree(input) {
     }
     if(n.status==='approved' && n.contentRef && n.contentRef.mode==='required' && n.visibility==='player' && n.display==='shown' && !n.sourceUuid)warnings.push(`${n.id}: permanent ID will require a world Item binding`);
   }
+  if(t.provider.kind==='profession'&&nodes.length!==PROFESSION_TREE_NODES)warnings.push(`Profession trees have ${PROFESSION_TREE_NODES} nodes (16 can be chosen); this one has ${nodes.length}`);
   const perkUse=new Map();
   for(const n of nodes)if(n.perkId){if(perkUse.has(n.perkId))warnings.push(`${n.id}: ${n.perkId} is also on ${perkUse.get(n.perkId)}`);else perkUse.set(n.perkId,n.id);}
   const state=new Map(),path=[];
@@ -183,12 +241,23 @@ export function validatePackage(obj) {
 }
 export function totalSpent(tree,acc){
   const a=cleanAccount(acc);
-  return a.unlocks.reduce((s,id)=>{const n=tree.nodes.find(n=>n.id===id);return s+(n?(n.cost??1):0);},0);
+  return a.unlocks.reduce((s,id)=>{const n=tree.nodes.find(n=>n.id===id);return s+(n?nodeCost(tree,n):0);},0);
 }
-export function availability(tree,rawAccount,nodeId,{canModify=true}={}) {
+/** Profession-only checks shared by the GM and player views. null when nothing blocks. */
+function professionBlock(tree,a,n,level) {
+  if(tree.provider.kind!=='profession')return null;
+  if(level===null||level===undefined)return 'Profession Ledger is not active: profession points are unavailable';
+  if(level<1)return 'This character does not have this profession';
+  const st=professionStatus(tree,a,level);
+  if(st.overAllocated)return 'Waiting on GM review: this character has perks above their profession level';
+  const need=needLevel(n);
+  if(need>level)return `Needs profession level ${need} (now ${level})`;
+  if(st.available<1)return `No perk points left (${st.spent} of ${st.earned} used at level ${level})`;
+  return null;
+}
+export function availability(tree,rawAccount,nodeId,{canModify=true,level=null}={}) {
   const a=cleanAccount(rawAccount),n=tree.nodes.find(x=>x.id===nodeId);
   if(!n)return {ok:false,reason:'Unknown node'};
-  if(tree.provider.kind==='profession')return {ok:false,reason:'Profession perk choices belong to the Profession Ledger; Skill Trees does not spend them'};
   if(!canModify)return {ok:false,reason:'You cannot change this character'};
   if(a.unlocks.includes(n.id))return {ok:false,reason:'Already unlocked'};
   if(n.perkMissing)return {ok:false,reason:`Perk ${n.perkId} is not in this world. Import it through General Manager first`};
@@ -200,9 +269,10 @@ export function availability(tree,rawAccount,nodeId,{canModify=true}={}) {
   if(excluded)return {ok:false,reason:`Mutually exclusive with ${excluded.name}`};
   if(n.requiresAll.some(id=>!a.unlocks.includes(id)))return {ok:false,reason:'Required prerequisite not unlocked'};
   if(n.requiresAny.some(group=>!group.some(id=>a.unlocks.includes(id))))return {ok:false,reason:'One required alternative is not unlocked'};
-  const points=a.awarded-totalSpent(tree,a);
-  const cost=n.cost??1;
-  if(points<cost)return {ok:false,reason:`Need ${cost-points} more point(s)`};
+  const blocked=professionBlock(tree,a,n,level);
+  if(blocked)return {ok:false,reason:blocked};
+  const cost=nodeCost(tree,n);
+  if(tree.provider.kind!=='profession'){const points=a.awarded-totalSpent(tree,a);if(points<cost)return {ok:false,reason:`Need ${cost-points} more point(s)`};}
   return {ok:true,reason:'Available',cost};
 }
 export function grantPoints(tree,rawAccount,amount,grantKey) {
@@ -217,11 +287,26 @@ export function grantPoints(tree,rawAccount,amount,grantKey) {
   a.awarded+=amount;a.grants.push({key:grantKey.trim(),amount});a.revision++;
   return a;
 }
-export function purchase(tree,rawAccount,nodeId) {
-  const a=cleanAccount(rawAccount),ok=availability(tree,a,nodeId);
+export function purchase(tree,rawAccount,nodeId,{level=null}={}) {
+  const a=cleanAccount(rawAccount),ok=availability(tree,a,nodeId,{level});
   if(!ok.ok)throw Error(ok.reason);
   a.unlocks.push(nodeId);a.revision++;
   return a;
+}
+/**
+ * GM override: allocate a node whatever its points, level or prerequisites, with a reason. The node is kept at the current level,
+ * so it does not flag the character for review. Returns the account and the rules that were overridden (for the confirmation).
+ */
+export function overrideGrant(tree,rawAccount,nodeId,{level=null,reason='',by='',at=0}={}) {
+  const a=cleanAccount(rawAccount),n=tree.nodes.find(x=>x.id===nodeId);
+  if(!n)throw Error('Unknown node');
+  if(a.unlocks.includes(n.id))throw Error('Already unlocked');
+  if(n.perkMissing)throw Error(`Perk ${n.perkId} is not in this world. Import it through General Manager first`);
+  if(!String(reason??'').trim())throw Error('Give a reason for the override');
+  const check=availability(tree,a,nodeId,{level});
+  a.unlocks.push(n.id);a.revision++;
+  if(tree.provider.kind==='profession')a.kept[n.id]={level:Number.isSafeInteger(level)?level:0,at,by,reason:String(reason).trim().slice(0,200)};
+  return {account:a,overridden:check.ok?[]:[check.reason]};
 }
 /** Unlocked nodes that still count on nodeId: requiresAll, or an OR group with no other unlocked choice. */
 export function dependentsBlockingRefund(tree,rawAccount,nodeId) {
@@ -235,12 +320,12 @@ export function refund(tree,rawAccount,nodeId) {
   if(!a.unlocks.includes(nodeId))throw Error('That node is not unlocked');
   const blockers=dependentsBlockingRefund(tree,a,nodeId);
   if(blockers.length)throw Error(`Refund ${blockers.map(n=>n.name||n.id).join(', ')} first; it depends on this node`);
-  a.unlocks=a.unlocks.filter(id=>id!==nodeId);a.revision++;
+  a.unlocks=a.unlocks.filter(id=>id!==nodeId);delete a.kept[nodeId];a.revision++;
   return a;
 }
 /** Refund every unlock on the tree (points stay awarded). */
 export function resetUnlocks(rawAccount) {
-  const a=cleanAccount(rawAccount);a.unlocks=[];a.revision++;return a;
+  const a=cleanAccount(rawAccount);a.unlocks=[];a.kept={};a.revision++;return a;
 }
 /** The tag written on a perk Item given by a tree unlock; it makes the grant traceable and idempotent. */
 export const grantTag=(tree,node)=>({perkId:node.perkId,treeId:tree.id,nodeId:node.id,wallet:walletKey(tree)});
@@ -283,24 +368,28 @@ export function publicTree(tree) {
         silhouette:false,requiresAll:n.requiresAll.filter(id=>visibleIds.has(id)),
         requiresAny:n.requiresAny.map(g=>g.filter(id=>visibleIds.has(id))).filter(g=>g.length),
         excludes:n.excludes.filter(id=>visibleIds.has(id)),
-        unrevealedPrerequisite:missing,status:n.status,purchaseAuthority:t.provider.kind==='profession'?'ledger':'tree'};
+        unrevealedPrerequisite:missing,status:n.status,
+        ...(t.provider.kind==='profession'?{requiredLevel:needLevel(n),cost:1}:{})};
     })
   };
 }
 /** Only use projected node state for the player's UI, but authoritative GM graph for GM unlock. */
-export function publicAvailability(tree,acc,nodeId) {
+export function publicAvailability(tree,acc,nodeId,{level=null}={}) {
   const n=tree.nodes.find(n=>n.id===nodeId);
   if(!n)return {ok:false,reason:'Unknown node'};
   if(n.silhouette)return {ok:false,reason:'Not yet revealed'};
   if(n.unrevealedPrerequisite)return {ok:false,reason:'Unrevealed prerequisite'};
   const a=cleanAccount(acc);
-  if(tree.provider.kind==='profession'||n.purchaseAuthority==='ledger')return {ok:false,reason:'Profession perk selection is controlled by the Ledger'};
   if(a.unlocks.includes(nodeId))return {ok:false,reason:'Already unlocked'};
   if(n.excludes.some(id=>a.unlocks.includes(id)) || tree.nodes.some(x=>a.unlocks.includes(x.id)&&asArray(x.excludes).includes(nodeId)))return {ok:false,reason:'Excluded by a chosen perk'};
   if(n.requiresAll.some(id=>!a.unlocks.includes(id)))return {ok:false,reason:'Prerequisite required'};
   if(n.requiresAny.some(g=>!g.some(id=>a.unlocks.includes(id))))return {ok:false,reason:'An alternative prerequisite is required'};
-  const spent=tree.nodes.filter(x=>a.unlocks.includes(x.id)).reduce((s,x)=>s+(x.cost??1),0),cost=n.cost??1;
-  if(a.awarded-spent<cost)return {ok:false,reason:`Need ${cost-(a.awarded-spent)} more point(s)`};
+  const blocked=professionBlock(tree,a,n,level);
+  if(blocked)return {ok:false,reason:blocked};
+  if(tree.provider.kind!=='profession'){
+    const spent=tree.nodes.filter(x=>a.unlocks.includes(x.id)).reduce((s,x)=>s+(x.cost??1),0),cost=n.cost??1;
+    if(a.awarded-spent<cost)return {ok:false,reason:`Need ${cost-(a.awarded-spent)} more point(s)`};
+  }
   return {ok:true,reason:'Available'};
 }
 export function changedPurchasedNodes(oldTree,newTree,accounts) {
@@ -315,4 +404,28 @@ export function changedPurchasedNodes(oldTree,newTree,accounts) {
     if(accounts.some(a=>cleanAccount(a).awarded>0||cleanAccount(a).unlocks.length))warnings.push('Cannot change provider or wallet identity with existing progression');
   }
   return [...new Set(warnings)];
+}
+
+/**
+ * Read-only check of one character on one profession tree. itemTags: Skill Trees grant tags of every Item on the sheet.
+ * Codes: LEDGER_UNAVAILABLE, OVER_SPENT, ABOVE_THRESHOLD, PREREQ_BROKEN, MISSING_ITEM, ORPHAN_ITEM, DUPLICATE_ITEM, PERK_NOT_IN_WORLD.
+ */
+export function reconcile(tree,rawAccount,{level=null,itemTags=[]}={}) {
+  const a=cleanAccount(rawAccount),st=professionStatus(tree,a,level),issues=[];
+  const by=new Map(tree.nodes.map(n=>[n.id,n])),tags=asArray(itemTags).filter(Boolean),name=id=>by.get(id)?.name||id;
+  if(!st.ledger)issues.push({code:'LEDGER_UNAVAILABLE',nodeId:null,detail:'Profession Ledger is not active, so the level and points cannot be checked.'});
+  if(st.overSpent>0)issues.push({code:'OVER_SPENT',nodeId:null,detail:`${st.spent} points used; level ${st.level} gives ${st.earned}.`});
+  for(const x of st.aboveLevel)issues.push({code:'ABOVE_THRESHOLD',nodeId:x.nodeId,detail:`${x.name} needs level ${x.threshold}; the character is level ${st.level}.`});
+  for(const id of a.unlocks){
+    const n=by.get(id);if(!n)continue;
+    const broken=n.requiresAll.some(p=>!a.unlocks.includes(p))||n.requiresAny.some(g=>!g.some(p=>a.unlocks.includes(p)));
+    if(broken&&!a.kept[id])issues.push({code:'PREREQ_BROKEN',nodeId:id,detail:`${name(id)} is allocated without its prerequisites.`});
+    if(n.perkMissing)issues.push({code:'PERK_NOT_IN_WORLD',nodeId:id,detail:`${n.perkId} is not in this world.`});
+    const mine=tags.filter(t=>isGrantFor(t,tree,id));
+    if(n.perkId&&!n.perkMissing&&!mine.length)issues.push({code:'MISSING_ITEM',nodeId:id,detail:`${name(id)} is allocated but its perk Item is not on the sheet.`});
+    if(mine.length>1)issues.push({code:'DUPLICATE_ITEM',nodeId:id,detail:`${name(id)} is on the sheet ${mine.length} times.`});
+    if(n.perkId&&tags.some(t=>t.treeId!==tree.id&&t.perkId===n.perkId))issues.push({code:'DUPLICATE_ITEM',nodeId:id,detail:`${n.perkId} was also given by another tree.`});
+  }
+  for(const t of tags)if(t.treeId===tree.id&&!a.unlocks.includes(t.nodeId))issues.push({code:'ORPHAN_ITEM',nodeId:t.nodeId,detail:`A perk Item from ${name(t.nodeId)} is on the sheet, but the node is not allocated.`});
+  return {...st,issues};
 }

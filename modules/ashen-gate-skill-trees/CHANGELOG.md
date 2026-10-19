@@ -1,3 +1,22 @@
+## 0.11.0 — 2026-10-19
+
+Profession trees now work. The Profession Ledger owns XP and level; Skill Trees owns which perks are picked and the perk Items.
+- **Points from the Ledger level:** 1 point per profession level, level 1 included (level 16 = 16 points). A profession tree has 24 perks, so a character picks 16. Every profession perk costs 1 point (a perk's own point cost is ignored here). The sidebar shows *x of y points used · 24 perks in this tree*.
+- **Level gates:** each perk needs the level of its tier: Apprentice 1, Journeyman 4, Expert 7, Artisan 10, Master 13. A node's own minimum level can raise this, never lower it. Prerequisites and exclusions work as on other trees.
+- **Players pick their own** perks while a GM is logged in. The GM client checks the level, points and prerequisites and adds the perk Item. There is no approval step. Players cannot undo a pick.
+- **GM controls** (select a profession tree):
+  - A **Characters** list shows every character on that tree: level, points used, and *Needs review* or *n to choose*. Click a name to switch to that character.
+  - **Remove (point returned):** takes the perk off the sheet, with an optional reason.
+  - **Grant (GM override):** gives a perk whatever the points, level or prerequisites. A reason is required.
+  - **Keep at this level:** keeps a perk the level no longer covers.
+  - **History:** each character's last 50 picks, removals, grants and keeps, with who and why.
+- **Lowering the level never removes anything.** If perks are left above the level, or more points are used than the level gives, the character is flagged. The GM gets a whisper with a **Review** button, the tree shows a banner, and the player cannot pick again until the GM keeps or removes them. Kept perks still use their points. If the level drops below the kept level, the character is flagged again.
+- **Level up:** the owner gets a whisper, *n perks to choose in <tree>*, with an **Open Skill Tree** button.
+- **Tree Library → Profession perk check:** a read-only report per character. It lists over-spent points, perks above the level, missing or duplicate perk Items, orphan Items, broken prerequisites and an inactive Ledger, with an **Open** button for each character.
+- If the Profession Ledger (0.14.0+) is off or missing, profession trees still open and say points are unavailable. Nothing is removed. Cinder and generic trees are unchanged.
+- **Saved data:** additive only. Each character's tree record gains `kept` and `history` (older records read as empty). No migration is needed.
+- New API: `overrideGrant`, `keep`, `professionReport`, `reconcileProfessions`. `refund` takes an optional `{reason}`.
+
 ## 0.10.1 — 2026-10-19
 
 - If the automatic player-view publish fails after a world perk Item changes, the GM now gets an error notification (once, until a publish works again) instead of a console-only error. Players keep seeing the previous trees until **Tree Library → Publish Player View** succeeds.

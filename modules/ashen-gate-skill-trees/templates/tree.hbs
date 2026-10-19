@@ -22,15 +22,36 @@
         </section>
         {{#if hasTree}}
         <section class="agst-side-section" aria-label="Points">
+          {{#if prof}}
+          <div class="agst-pool">
+            <span class="agst-stat"><small>LEVEL</small><b>{{prof.levelText}}</b></span>
+            <span class="agst-stat"><small>TO CHOOSE</small><b>{{prof.available}}</b></span>
+            <span class="agst-stat"><small>USED</small><b>{{prof.spent}}</b></span>
+          </div>
+          <p class="agst-help agst-prof-summary">{{prof.spent}} of {{prof.earned}} points used (1 per profession level, {{prof.maxPoints}} at most) · {{prof.nodeCount}} perks in this tree</p>
+          {{else}}
           <div class="agst-pool">
             <span class="agst-stat"><small>AWARDED</small><b>{{progress.awarded}}</b></span>
             <span class="agst-stat"><small>AVAILABLE</small><b>{{progress.available}}</b></span>
             <span class="agst-stat"><small>UNLOCKED</small><b>{{progress.unlocks}}</b></span>
           </div>
+          {{/if}}
           <span class="ag-badge agst-provider" title="Provider owns the progression rules">{{mode}}</span>
           {{#if canGrant}}<button type="button" class="ag-btn ag-btn--primary" data-act="grant"><i class="fa-solid fa-plus"></i> Award Points</button>{{/if}}
           {{#if canReset}}<button type="button" class="ag-btn ag-btn--danger" data-act="reset-tree" title="Refund every unlock on this tree and remove its perks from the sheet"><i class="fa-solid fa-rotate-left"></i> Reset Tree for {{actorName}}</button>{{/if}}
         </section>
+        {{/if}}
+        {{#if roster.length}}
+        <section class="agst-side-section agst-roster" aria-label="Characters on this profession tree">
+          <h3>Characters <small>(GM)</small></h3>
+          <ul class="agst-roster-list">{{#each roster}}<li class="{{#if selected}}agst-active{{/if}}"><button type="button" class="agst-linklike" data-act="pick-actor" data-id="{{id}}">{{name}}</button>
+            <span class="agst-roster-meta">Lvl {{level}} · {{spent}}/{{earned}} pts</span> <span class="ag-badge {{#if review}}ag-badge--warn{{else}}{{#if toChoose}}ag-badge--ok{{/if}}{{/if}}">{{status}}</span></li>{{/each}}</ul>
+        </section>
+        {{/if}}
+        {{#if history.length}}
+        <details class="agst-side-section agst-history"><summary>History for {{actorName}} ({{history.length}})</summary>
+          <ol>{{#each history}}<li><strong>{{label}}</strong> {{node}}{{#if level}} · level {{level}}{{/if}} · {{byName}} · <small>{{when}}</small>{{#if reason}}<br><small>{{reason}}</small>{{/if}}</li>{{/each}}</ol>
+        </details>
         {{/if}}
         {{#if gm}}
         <section class="agst-side-section" aria-label="GM tools">
@@ -65,7 +86,9 @@
             <div class="agst-inspector-actions">
               {{#if canBuy}}<button type="button" data-act="purchase" class="ag-btn ag-btn--primary"><i class="fa-solid fa-unlock"></i> Unlock for {{actorName}}</button>{{/if}}
               {{#if canRequest}}<button type="button" data-act="request" class="ag-btn ag-btn--primary"><i class="fa-solid fa-unlock"></i> Unlock ({{selected.cost}} pt)</button>{{/if}}
-              {{#if canRefund}}<button type="button" data-act="refund" class="ag-btn ag-btn--danger"><i class="fa-solid fa-rotate-left"></i> Refund (removes perk from sheet)</button>{{/if}}
+              {{#if canOverride}}<button type="button" data-act="override" class="ag-btn" title="Give this perk whatever the points, level or prerequisites, with a reason"><i class="fa-solid fa-gavel"></i> Grant (GM override)</button>{{/if}}
+              {{#if canKeep}}<button type="button" data-act="keep" class="ag-btn" title="Keep this perk although the level no longer covers it"><i class="fa-solid fa-thumbtack"></i> Keep at this level</button>{{/if}}
+              {{#if canRefund}}<button type="button" data-act="refund" class="ag-btn ag-btn--danger"><i class="fa-solid fa-rotate-left"></i> {{#if isProfession}}Remove (point returned){{else}}Refund (removes perk from sheet){{/if}}</button>{{/if}}
               {{#if editing}}
                 <button type="button" class="ag-btn" data-act="assign-perk"><i class="fa-solid fa-star"></i> {{#if selectedCustom}}Assign Perk{{else}}Change Perk{{/if}}</button>
                 <button type="button" class="ag-btn" data-act="edit-node"><i class="fa-solid fa-sliders"></i> Edit Properties</button>
@@ -102,7 +125,8 @@
         <span class="agst-canvas-title">{{#if hasTree}}{{tree.name}}{{/if}}</span>
         <span class="agst-zoom"><button type="button" class="ag-btn ag-btn--sm" data-act="zoom-out" title="Zoom out" aria-label="Zoom out">−</button><span class="agst-zoom-label">{{zoomText}}</span><button type="button" class="ag-btn ag-btn--sm" data-act="zoom-in" title="Zoom in" aria-label="Zoom in">+</button><button type="button" class="ag-btn ag-btn--sm" data-act="zoom-reset" title="Reset zoom" aria-label="Reset zoom">⟲</button></span>
       </div>
-      {{#if awaitingProvider}}<div class="agst-banner"><i class="fa-solid fa-link-slash"></i> Profession tree: read-only here. The Profession Ledger owns profession perk choices and their points; Skill Trees does not spend them.</div>{{/if}}
+      {{#if ledgerMissing}}<div class="agst-banner"><i class="fa-solid fa-link-slash"></i> Profession Ledger is not active, so profession points are unavailable. Nothing is removed; picks wait until it is on again.</div>{{/if}}
+      {{#if prof.overAllocated}}<div class="agst-banner agst-banner-review" role="alert"><i class="fa-solid fa-triangle-exclamation"></i> <strong>{{actorName}} needs GM review.</strong> Level {{prof.levelText}} no longer covers {{#if prof.aboveText}}{{prof.aboveText}}{{else}}{{prof.overSpent}} point(s) used{{/if}}. Nothing was removed. {{#if gm}}Select a flagged perk and choose <strong>Keep at this level</strong> or <strong>Remove</strong>.{{else}}New picks wait until the GM has looked at it.{{/if}}</div>{{/if}}
       {{#if isTest}}<div class="agst-banner agst-banner-test"><i class="fa-solid fa-flask"></i> Test tree. Unlocking adds the perk Item to the sheet; perks with no rules effect do nothing else.</div>{{/if}}
       {{#if preview}}<div class="agst-banner agst-banner-info">GM player preview shows the shared sanitized tree. Test again from an actual player account to verify document permissions.</div>{{/if}}
       {{#if hasTree}}
@@ -122,9 +146,9 @@
                 {{#each edges}}{{#if label}}<text data-edge data-from="{{from}}" data-to="{{to}}" x="{{mx}}" y="{{my}}" class="agst-edge-label agst-edge-label-{{kind}}" text-anchor="middle" dominant-baseline="central">{{label}}</text>{{/if}}{{/each}}
               </svg>
               {{#each nodes}}
-                <button type="button" class="agst-node {{#if selected}}agst-selected{{/if}} {{#if eligible}}agst-eligible{{/if}} {{#if unlocked}}agst-unlocked{{/if}} {{#if silhouette}}agst-silhouette{{/if}} {{#if perkMissing}}agst-node-warn{{/if}}" data-act="select" data-id="{{id}}" style="{{style}}" aria-label="{{label}}" aria-pressed="{{#if selected}}true{{else}}false{{/if}}" title="{{name}} · {{reason}}">
+                <button type="button" class="agst-node {{#if selected}}agst-selected{{/if}} {{#if eligible}}agst-eligible{{/if}} {{#if unlocked}}agst-unlocked{{/if}} {{#if silhouette}}agst-silhouette{{/if}} {{#if perkMissing}}agst-node-warn{{/if}} {{#if overLevel}}agst-node-review{{/if}}" data-act="select" data-id="{{id}}" style="{{style}}" aria-label="{{label}}" aria-pressed="{{#if selected}}true{{else}}false{{/if}}" title="{{name}} · {{reason}}">
                   <span class="agst-node-icon">{{#if img}}<img src="{{img}}" alt="">{{else}}<i class="fa-solid {{#if silhouette}}fa-question{{else}}fa-star{{/if}}"></i>{{/if}}</span>
-                  <span class="agst-node-main"><strong>{{name}}</strong><small><i class="fa-solid {{#if unlocked}}fa-check{{else}}{{#if eligible}}fa-unlock{{else}}fa-lock{{/if}}{{/if}}" aria-hidden="true"></i><span class="agst-flag"> {{flag}}</span>{{#unless silhouette}} · {{cost}} pt{{/unless}}{{#if perkMissing}} · ⚠<span class="agst-flag"> perk missing</span>{{/if}}{{#if custom}}<span class="agst-flag"> · custom</span>{{/if}}</small></span>
+                  <span class="agst-node-main"><strong>{{name}}</strong><small><i class="fa-solid {{#if unlocked}}fa-check{{else}}{{#if eligible}}fa-unlock{{else}}fa-lock{{/if}}{{/if}}" aria-hidden="true"></i><span class="agst-flag"> {{flag}}</span>{{#unless silhouette}} · {{cost}} pt{{/unless}}{{#if levelText}} · {{levelText}}{{/if}}{{#if overLevel}} · ⚠<span class="agst-flag"> review</span>{{/if}}{{#if perkMissing}} · ⚠<span class="agst-flag"> perk missing</span>{{/if}}{{#if custom}}<span class="agst-flag"> · custom</span>{{/if}}</small></span>
                 </button>
               {{/each}}
               {{#unless nodes}}<div class="agst-board-hint">Empty tree. Enter Edit Layout and add perks from the Perks list.</div>{{/unless}}
@@ -172,6 +196,13 @@
       {{else}}<p>Every node has a perk that is in this world.</p>{{/if}}
       <p>{{#if missingGrants}}<strong>{{missingGrants}}</strong> unlocked perk(s) are not on their character sheet yet.{{else}}Every unlocked perk is on its character sheet.{{/if}}</p>
       <div class="agst-setup-actions"><button type="button" class="ag-btn" data-act="give-missing" {{#unless missingGrants}}disabled{{/unless}}><i class="fa-solid fa-user-plus"></i> Give Missing Perks</button></div>
+    </section>
+    <section class="agst-setup-card" aria-label="Profession perk check">
+      <h2>Profession perk check</h2>
+      {{#if professionReport.length}}<p>Characters whose profession perks need a look. Nothing has been changed or removed. Open the tree with the character selected to fix it.</p>
+        <ul class="agst-report">{{#each professionReport}}<li><strong>{{actorName}}</strong> · {{treeName}} (level {{level}}, {{spent}} of {{earned}} points)<ul>{{#each issues}}<li><code>{{code}}</code> {{detail}}</li>{{/each}}</ul>
+          <button type="button" class="ag-btn ag-btn--sm" data-act="open-row" data-tree="{{treeId}}" data-actor="{{actorId}}"><i class="fa-solid fa-diagram-project"></i> Open</button></li>{{/each}}</ul>
+      {{else}}<p>Every character's profession perks match their level, and every allocated perk is on its sheet.</p>{{/if}}
     </section>
     <section class="agst-setup-card">
       <h2>Publication and backups</h2>
