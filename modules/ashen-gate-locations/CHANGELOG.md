@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.0 — 2026-10-19
+
+- **New threat levels: Settled and Light.** The list now runs Settled, Light, Normal, Hot, Deadly (safest to most dangerous). Existing locations keep their value.
+- **Location Builder list (GM):** every group shows how many locations it holds and folds with a click. **Group by** Region, Threat level or Gathering profession (a location with nodes for several professions appears under each). Locations are sorted by name inside each group.
+- **Show only one group:** turn it on, then click a group heading to hide everything else; click it again to show all.
+- Players' list is unchanged (revealed places, grouped by region).
+- No saved-data changes.
+
 ## 1.5.2 — 2026-10-19
 
 - **Fixed: the window going blank.** Pressing Tab out of a new detail's title, or clicking an eye (reveal) icon, scrolled the whole window out of view (the hidden checkbox behind each eye was not anchored to its label). Closing and reopening only brought it back. Fixed in the stylesheet.
