@@ -1,4 +1,5 @@
 import {MODULE_ID,emptyState,applyOperation,activeLock,site,rankConfig,stageFor,facilities,owned,validateDefinition,planFacilityImport} from './logic.mjs';
+import {confirmDialog} from './dialogs.mjs';
 import {facilitiesPanel,facilityRow,listFacilitiesTab,DEFAULT_VIEW as FAC_VIEW} from './facilities-tab.mjs';
 import {ACCESS_CONTRACT,accessStatus,canOpenPlayerInterface,requireGMToSetAccess,requireInterfaceAccess} from './access.mjs';
 import {createPlayerIntentBridge,REQUEST_PATH,RECEIPT_FLAG,checkIntent} from './player-intent-bridge.mjs';
@@ -353,7 +354,7 @@ class HeadquartersApp extends HandlebarsApplicationMixin(ApplicationV2){
    await request('unassign_staff',{hireling_ref:btn.dataset.hireRef});return;
  }
  if(op==='rotate'){const ins=st.installations.find(x=>x.key===this.selectedCopy);if(ins)await request('rotate',this.withRevision(s,ins.room_key,{key:ins.key}));return;}
- if(op==='uninstall'){const ins=st.installations.find(x=>x.key===this.selectedCopy);if(!ins)return;const staffed=st.staffing_slots.filter(x=>x.installation_key===ins.key&&x.occupant_hireling_ref);const msg=staffed.length?`Uninstall this facility and unassign ${staffed.length} Hireling(s)?`:'Return this facility to acquired inventory?';if(!window.confirm(msg))return;await request('uninstall',this.withRevision(s,ins.room_key,{key:ins.key,confirm_staff:true}));this.selectedCopy='';return;}
+ if(op==='uninstall'){const ins=st.installations.find(x=>x.key===this.selectedCopy);if(!ins)return;const staffed=st.staffing_slots.filter(x=>x.installation_key===ins.key&&x.occupant_hireling_ref);const msg=staffed.length?`Uninstall this facility and unassign ${staffed.length} Hireling(s)?`:'Return this facility to acquired inventory?';if(!await confirmDialog(msg,{title:staffed.length?'Uninstall facility':'Return facility',yes:staffed.length?'Uninstall facility':'Return to inventory'}))return;await request('uninstall',this.withRevision(s,ins.room_key,{key:ins.key,confirm_staff:true}));this.selectedCopy='';return;}
  if(op==='upgrade'){const stage_key=root.querySelector('[data-upgrade-stage]')?.value;if(stage_key)await request('upgrade',{key:this.selectedCopy,stage_key});return;}
  if(op==='rotate-decor'||op==='remove-decor'){const room_key=this.selectedRoom;await request(op==='rotate-decor'?'rotate_decoration':'remove_decoration',this.withRevision(s,room_key,{room_key,key:this.selectedCopy}));if(op==='remove-decor')this.selectedCopy='';return;}
  }
@@ -376,7 +377,7 @@ class HeadquartersApp extends HandlebarsApplicationMixin(ApplicationV2){
  else if(form.dataset.aghqForm==='depart-hireling'){
     if(!game.user.isGM)return allowedOpsError('GM only.');
     const id=String(data.get('hireling_ref')||'');const status=String(data.get('status')||'');
-    if(!window.confirm(`Permanently mark ${id} as ${status}, clear its Headquarters station, and preserve its history? This cannot be undone automatically.`))return;
+    if(!await confirmDialog(`Permanently mark ${id} as ${status}, clear its Headquarters station, and preserve its history? This cannot be undone automatically.`,{title:'Mark hireling departed',yes:`Mark ${status}`}))return;
     op='depart_hireling';payload={hireling_ref:id,status,confirm:true};
  }
  else if(form.dataset.aghqForm==='decoration'){op='add_decoration_art';payload={art:data.get('art')};}
