@@ -1,3 +1,9 @@
+## 0.20.0 — 2026-10-19
+
+- **Two new structural skins** in Appearance (GM world default) and My Appearance (per player): **Ashen Gate — Stone Tablet** (carved stone slabs, chiselled bevels, engraved uppercase headings, inset carved tabs, lichen-green primary actions, ember focus ring) and **Ashen Gate — Tome Pages** (vellum pages with paper grain, leather-bound title bar, gutter and corner shading, small-capital headings with ornamental rules, ribbon bookmark on the open tab, rubric-red primary actions). They reshape every Ashen Gate window and the sidebar launchers, not just colours.
+- Each skin's stylesheet is loaded only while it is the effective skin and only matches when it is active; the five colour skins are unchanged. No web fonts (uses Foundry's own Modesto Condensed/Amiri with system serif fallbacks) and no images beyond inline noise. Text keeps WCAG AA contrast; focus rings stay visible; no animation.
+- Saved appearance settings are untouched; an unknown skin still falls back to Standard. My Appearance now shows each skin's description.
+
 ## 0.19.0 — 2026-10-19
 
 - **Update existing actors** (Import tab, opt-in, off by default). Re-importing a file can now update Actors Manager created earlier. Actors are matched only by their permanent id, never by name. The preview marks each Actor CREATE, UPDATE or SKIPPED and lists every field that would change.

@@ -1,0 +1,253 @@
+/*
+ * Ashen Gate skin: Stone Tablet (ag-stone-tablet). Loaded by General Manager only while this skin
+ * is the effective one, and every rule is scoped to html[data-ag-skin="ag-stone-tablet"], so it is
+ * inert otherwise. Colours come from the skin's --ag-* tokens (scripts/appearance.js); this file
+ * only adds the carved-stone shape: squared corners, bevels, grain and engraved lettering.
+ * Generic element rules use :where() (zero specificity) like the kit, so module CSS still wins.
+ * No web fonts, no images other than inline SVG noise, no animation.
+ */
+html[data-ag-skin="ag-stone-tablet"] {
+  --ag-radius-sm: 0;
+  --ag-radius: 1px;
+  --ag-radius-lg: 2px;
+  --ag-font-display: "Modesto Condensed", "Roboto Slab", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  /* Fine grain and slow mottling of a quarried slab (inline SVG fractal noise). */
+  --agx-grain: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='g'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23g)' opacity='.16'/></svg>");
+  --agx-mottle: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='520' height='520'><filter id='m'><feTurbulence type='fractalNoise' baseFrequency='.012' numOctaves='4' seed='7' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%25' height='100%25' filter='url(%23m)' opacity='.2'/></svg>");
+  --agx-chisel-hi: rgb(255 255 255 / .09);
+  --agx-chisel-lo: rgb(0 0 0 / .55);
+  --agx-engrave: 0 1px 0 rgb(255 255 255 / .1), 0 -1px 0 rgb(0 0 0 / .75);
+  --agx-bevel: inset 1px 1px 0 var(--agx-chisel-hi), inset -1px -1px 0 var(--agx-chisel-lo);
+  --agx-inset: inset 1px 2px 3px rgb(0 0 0 / .6), inset -1px -1px 0 rgb(255 255 255 / .06);
+}
+html[data-ag-skin="ag-stone-tablet"] :is(.ag-app, .ag-launchers, .ag-sidebar-launch-group) {
+  --ag-shadow: 0 0 0 1px #0d100e, 0 2px 0 #0d100e, 0 12px 28px rgb(0 0 0 / .55);
+}
+
+/* ---------- Window: one slab ---------- */
+html[data-ag-skin="ag-stone-tablet"] .application.ag-app {
+  background-color: var(--ag-surface);
+  border: 1px solid #111412;
+  box-shadow: var(--agx-bevel), var(--ag-shadow);
+}
+html[data-ag-skin="ag-stone-tablet"] .application.ag-app > .window-header {
+  background: var(--agx-grain), linear-gradient(180deg, color-mix(in srgb, var(--ag-surface-sunken) 80%, #000), var(--ag-surface-sunken));
+  background-color: var(--ag-surface-sunken);
+  border-bottom: 3px groove color-mix(in srgb, var(--ag-border) 70%, #000);
+  color: var(--ag-muted);
+}
+html[data-ag-skin="ag-stone-tablet"] .application.ag-app > .window-header .window-title {
+  font-family: var(--ag-font-display);
+  font-size: var(--ag-text-lg);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  text-shadow: var(--agx-engrave);
+}
+html[data-ag-skin="ag-stone-tablet"] .application.ag-app > .window-content {
+  background: var(--agx-grain), var(--agx-mottle), linear-gradient(160deg, color-mix(in srgb, var(--ag-surface) 88%, #fff) 0%, var(--ag-surface) 45%, color-mix(in srgb, var(--ag-surface) 85%, #000) 100%);
+  background-color: var(--ag-surface);
+  box-shadow: inset 0 0 40px rgb(0 0 0 / .35);
+}
+
+/* ---------- Engraved lettering ---------- */
+:where(html[data-ag-skin="ag-stone-tablet"]) :where(.ag-app) :where(h1, h2, h3, h4) {
+  font-family: var(--ag-font-display);
+  letter-spacing: .05em;
+  text-shadow: var(--agx-engrave);
+}
+:where(html[data-ag-skin="ag-stone-tablet"]) :where(.ag-app) :where(h1, h2, h3) { text-transform: uppercase; }
+:where(html[data-ag-skin="ag-stone-tablet"]) :where(.ag-app) :where(hr) {
+  border-top: 1px solid var(--agx-chisel-lo);
+  border-bottom: 1px solid var(--agx-chisel-hi);
+}
+
+/* ---------- Header and footer: chiselled lintel and plinth ---------- */
+html[data-ag-skin="ag-stone-tablet"] :is(.ag-header, .ag-footer) {
+  background: var(--agx-grain), linear-gradient(180deg, color-mix(in srgb, var(--ag-surface-raised) 90%, #fff), var(--ag-surface-raised));
+  background-color: var(--ag-surface-raised);
+  box-shadow: var(--agx-bevel);
+}
+html[data-ag-skin="ag-stone-tablet"] .ag-header { border-bottom: 3px groove color-mix(in srgb, var(--ag-border) 70%, #000); }
+html[data-ag-skin="ag-stone-tablet"] .ag-footer { border-top: 3px groove color-mix(in srgb, var(--ag-border) 70%, #000); }
+html[data-ag-skin="ag-stone-tablet"] .ag-header :where(h1, h2) {
+  font-family: var(--ag-font-display);
+  font-size: calc(var(--ag-text-xl) + 3px);
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  text-shadow: var(--agx-engrave);
+}
+html[data-ag-skin="ag-stone-tablet"] .ag-header__brand { color: var(--ag-accent); }
+
+/* ---------- Tabs: carved recesses; the active one is the raised stone ---------- */
+html[data-ag-skin="ag-stone-tablet"] .ag-tabs {
+  gap: 6px;
+  padding: var(--ag-space-2) var(--ag-space-3);
+  background-color: var(--ag-surface-sunken);
+  background-image: var(--agx-grain);
+  border-bottom: 1px solid #0f1210;
+  box-shadow: inset 0 2px 4px rgb(0 0 0 / .5);
+}
+html[data-ag-skin="ag-stone-tablet"] .ag-tabs > :where(button, a, .ag-tab) {
+  margin: 0;
+  border: 1px solid #111412;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--ag-surface-sunken) 70%, #000);
+  color: var(--ag-muted);
+  box-shadow: var(--agx-inset);
+  font-family: var(--ag-font-body);
+  letter-spacing: .03em;
+}
+html[data-ag-skin="ag-stone-tablet"] .ag-tabs > :where(button, a, .ag-tab):where(:hover:not(:disabled)) {
+  background: color-mix(in srgb, var(--ag-surface-sunken) 85%, var(--ag-text));
+  color: var(--ag-text);
+  border-color: #111412;
+}
+html[data-ag-skin="ag-stone-tablet"] .ag-tabs > :where(.active, [aria-current="page"], [aria-selected="true"], .is-active) {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ag-surface-raised) 85%, #fff), var(--ag-surface-raised));
+  background-color: var(--ag-surface-raised);
+  color: var(--ag-text);
+  border-color: #111412;
+  border-bottom: 2px solid var(--ag-accent);
+  box-shadow: var(--agx-bevel), 0 1px 2px rgb(0 0 0 / .5);
+  text-shadow: var(--agx-engrave);
+}
+
+/* ---------- Buttons: dressed stone blocks that press in ---------- */
+:where(html[data-ag-skin="ag-stone-tablet"]) :where(.ag-app) :where(button:not(.header-control):not([data-action="close"])),
+html[data-ag-skin="ag-stone-tablet"] .ag-btn {
+  border-color: #111412;
+  border-radius: var(--ag-radius);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ag-surface-raised) 82%, #fff), var(--ag-surface-raised) 55%, color-mix(in srgb, var(--ag-surface-raised) 85%, #000));
+  background-color: var(--ag-surface-raised);
+  color: var(--ag-text);
+  box-shadow: var(--agx-bevel), 0 1px 1px rgb(0 0 0 / .45);
+}
+:where(html[data-ag-skin="ag-stone-tablet"]) :where(.ag-app) :where(button:not(.header-control):hover:not(:disabled)),
+html[data-ag-skin="ag-stone-tablet"] .ag-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ag-surface-raised) 72%, #fff), color-mix(in srgb, var(--ag-surface-raised) 92%, #fff));
+  background-color: var(--ag-surface-raised);
+  border-color: #111412;
+  box-shadow: var(--agx-bevel), 0 1px 1px rgb(0 0 0 / .45);
+}
+:where(html[data-ag-skin="ag-stone-tablet"]) :where(.ag-app) :where(button:not(.header-control):active:not(:disabled)),
+html[data-ag-skin="ag-stone-tablet"] .ag-btn:active:not(:disabled) {
+  box-shadow: var(--agx-inset);
+}
+html[data-ag-skin="ag-stone-tablet"] :is(.ag-btn--primary, .ag-app button.primary) {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ag-accent) 85%, #fff), var(--ag-accent) 60%, color-mix(in srgb, var(--ag-accent) 88%, #000));
+  background-color: var(--ag-accent);
+  border-color: color-mix(in srgb, var(--ag-accent) 40%, #000);
+  color: var(--ag-accent-contrast);
+  text-shadow: 0 1px 0 rgb(255 255 255 / .25);
+}
+html[data-ag-skin="ag-stone-tablet"] :is(.ag-btn--primary, .ag-app button.primary):hover:not(:disabled) {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ag-accent) 70%, #fff), color-mix(in srgb, var(--ag-accent) 90%, #fff));
+  background-color: var(--ag-accent);
+  border-color: color-mix(in srgb, var(--ag-accent) 40%, #000);
+  color: var(--ag-accent-contrast);
+}
+html[data-ag-skin="ag-stone-tablet"] .ag-btn--ghost {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  color: var(--ag-muted);
+}
+html[data-ag-skin="ag-stone-tablet"] .ag-btn--ghost:hover:not(:disabled) {
+  background: var(--ag-surface-hover);
+  border-color: transparent;
+  color: var(--ag-text);
+  box-shadow: var(--agx-inset);
+}
+html[data-ag-skin="ag-stone-tablet"] :is(.ag-btn--danger, .ag-app button.danger) {
+  background: color-mix(in srgb, var(--ag-danger) 14%, var(--ag-surface-sunken));
+  border-color: color-mix(in srgb, var(--ag-danger) 45%, #000);
+  color: var(--ag-danger);
+}
+html[data-ag-skin="ag-stone-tablet"] :is(.ag-btn--danger, .ag-app button.danger):hover:not(:disabled) {
+  background: var(--ag-danger);
+  border-color: color-mix(in srgb, var(--ag-danger) 45%, #000);
+  color: var(--ag-surface-sunken);
+}
+
+/* ---------- Inputs: cut wells ---------- */
+:where(html[data-ag-skin="ag-stone-tablet"]) :where(.ag-app) :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select, textarea) {
+  border-color: #111412;
+  border-radius: var(--ag-radius);
+  background-color: var(--ag-surface-sunken);
+  box-shadow: var(--agx-inset);
+}
+:where(html[data-ag-skin="ag-stone-tablet"]) :where(.ag-app) :where(fieldset) {
+  border: 2px groove color-mix(in srgb, var(--ag-border) 70%, #000);
+}
+:where(html[data-ag-skin="ag-stone-tablet"]) :where(.ag-app) :where(legend) {
+  font-family: var(--ag-font-display);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+/* ---------- Cards: raised slabs; lists and tables: incised lines ---------- */
+html[data-ag-skin="ag-stone-tablet"] .ag-card {
+  background: var(--agx-grain), linear-gradient(165deg, color-mix(in srgb, var(--ag-surface-raised) 90%, #fff), var(--ag-surface-raised) 60%);
+  background-color: var(--ag-surface-raised);
+  border-color: #111412;
+  box-shadow: var(--agx-bevel), 0 2px 0 rgb(0 0 0 / .45), 0 6px 14px rgb(0 0 0 / .3);
+}
+html[data-ag-skin="ag-stone-tablet"] .ag-card--accent {
+  background: var(--agx-grain), linear-gradient(165deg, color-mix(in srgb, var(--ag-accent-soft) 90%, #fff), var(--ag-accent-soft));
+  background-color: var(--ag-accent-soft);
+  border-color: color-mix(in srgb, var(--ag-accent) 40%, #000);
+}
+html[data-ag-skin="ag-stone-tablet"] .ag-list > * {
+  border-bottom: 1px solid var(--agx-chisel-lo);
+  box-shadow: 0 1px 0 var(--agx-chisel-hi);
+}
+html[data-ag-skin="ag-stone-tablet"] .ag-list > *:last-child { box-shadow: none; }
+:where(html[data-ag-skin="ag-stone-tablet"]) :where(.ag-app) :where(th) {
+  font-family: var(--ag-font-display);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  text-shadow: var(--agx-engrave);
+}
+:where(html[data-ag-skin="ag-stone-tablet"]) :where(.ag-app) :where(td, th) { border-bottom: 1px solid var(--agx-chisel-lo); }
+html[data-ag-skin="ag-stone-tablet"] .ag-badge {
+  border-radius: 0;
+  border-color: #111412;
+  box-shadow: var(--agx-inset);
+  letter-spacing: .04em;
+}
+/* Status badges sit in a dark recess so their coloured text keeps AA contrast on any slab. */
+html[data-ag-skin="ag-stone-tablet"] .ag-badge--accent { background: color-mix(in srgb, var(--ag-accent) 14%, var(--ag-surface-sunken)); }
+html[data-ag-skin="ag-stone-tablet"] .ag-badge--ok { background: color-mix(in srgb, var(--ag-ok) 14%, var(--ag-surface-sunken)); }
+html[data-ag-skin="ag-stone-tablet"] .ag-badge--warn { background: color-mix(in srgb, var(--ag-warn) 14%, var(--ag-surface-sunken)); }
+html[data-ag-skin="ag-stone-tablet"] .ag-badge--danger { background: color-mix(in srgb, var(--ag-danger) 14%, var(--ag-surface-sunken)); }
+html[data-ag-skin="ag-stone-tablet"] .ag-empty {
+  border: 2px dashed color-mix(in srgb, var(--ag-border) 80%, #000);
+  border-radius: 0;
+  box-shadow: var(--agx-inset);
+}
+
+/* ---------- Sidebar launchers ---------- */
+html[data-ag-skin="ag-stone-tablet"] :is(#ashen-gate-launchers.ag-launchers, .ag-sidebar-launch-group[data-ag-launch-group]) {
+  border-color: #111412;
+  border-radius: 0;
+  background: var(--agx-grain), var(--ag-surface);
+  background-color: var(--ag-surface);
+  box-shadow: var(--agx-inset);
+}
+html[data-ag-skin="ag-stone-tablet"] :is(#ashen-gate-launchers.ag-launchers, .ag-sidebar-launch-group[data-ag-launch-group])::before {
+  font-family: var(--ag-font-display);
+  letter-spacing: .12em;
+  text-shadow: var(--agx-engrave);
+}
+html[data-ag-skin="ag-stone-tablet"] :is(#ashen-gate-launchers > .ag-launcher, .ag-sidebar-launch-group[data-ag-launch-group] > .ag-sidebar-launch-button) {
+  border-color: #111412;
+  border-radius: var(--ag-radius);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--ag-surface-raised) 82%, #fff), var(--ag-surface-raised));
+  background-color: var(--ag-surface-raised);
+  box-shadow: var(--agx-bevel);
+}
+html[data-ag-skin="ag-stone-tablet"] :is(#ashen-gate-launchers > .ag-launcher, .ag-sidebar-launch-group[data-ag-launch-group] > .ag-sidebar-launch-button):hover {
+  background: var(--ag-accent-soft);
+  border-color: color-mix(in srgb, var(--ag-accent) 50%, #000);
+  box-shadow: var(--agx-bevel);
+}
