@@ -1,3 +1,11 @@
+## 0.10.1 — 2026-10-19
+
+- **New: separate coin vote setting.** GM Setup has **Party must accept when a player takes coins out**, independent of the item take-out vote. Off: a player's Take from the purse applies at once (same bounds, ownership and one-update-per-document rules) and the History entry reads "No vote needed". On: the existing vote prompt, unchanged.
+- Default keeps today's behaviour: until the GM saves GM Setup, the coin vote follows the item vote; once saved it is independent. GM-only to change (world setting, and the API refuses players).
+- The GM sees "Coin vote: on/off" under the purse strip; players' purse note reflects it. Help and README updated.
+- Saved data: one new world setting `purseVoteRequired` (blank = follow the item vote). No migration needed.
+- API: `api.purse.isVoteRequired()`, `api.purse.setVoteRequired(bool)` (GM-only).
+
 ## 0.10.0 — 2026-10-19
 
 - **Fix: Party Inventory → Items column headers line up with their rows.** The last column was sized `auto` per row (empty in the header, a Take button in rows), so every grid worked out different widths and headers drifted. Header and rows now render the same cells from one column list and share one CSS template (`--agu-stash-cols`, fixed widths, no `auto`); the narrow layout uses the same rule for both. The last column is now headed **Action** (over Take); **Type** sits over the type text. Text sizes unchanged.
