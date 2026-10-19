@@ -2,13 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {createApi} from '../scripts/api.mjs';
-import {parseImport, playerView} from '../scripts/model.mjs';
+import {parseImport, playerView, publishable} from '../scripts/model.mjs';
 
 const sample = parseImport(JSON.parse(fs.readFileSync(new URL('../examples/test-locations.json', import.meta.url))), []).created;
 sample[0].quests = [{key: 'q', questId: 'QUEST-TEST-ONE', visible: true}];
 sample[0].sections.quests = true;
 sample[0].resources[0].materialId = 'MAT-TEST-REED';
 sample[1].quests = [{key: 'q', questId: 'QUEST-TEST-ONE', visible: true}];   // quests section hidden here
+// The edits above stand for edits the GM has published.
+const publish = l => { if (l.published) l.published = publishable(l); return l; };
+sample.forEach(publish);
 
 function setup({gm = false, access = true} = {}) {
   const state = {gm, access, stored: structuredClone(sample), opened: []};
@@ -105,6 +108,7 @@ test('nodesForMaterial and resourcesAt carry node fields with player sanitizing'
   const {api, state} = setup({gm: true});
   const mill = state.stored.find(l => l.id === 'LOC-TEST-MILLBROOK');
   Object.assign(mill.resources[0], {skill: 'Herbalism', tier: 2, dc: 12, rareMaterialId: 'MAT-TEST-RARE-REED'});
+  publish(mill);
   const gmNodes = api.nodesForMaterial('MAT-TEST-REED');
   assert.deepEqual(gmNodes.map(n => [n.locationId, n.matches, n.dc, n.visible]), [['LOC-TEST-MILLBROOK', 'common', 12, true]]);
   assert.equal(api.nodesForMaterial('MAT-TEST-RARE-REED')[0].matches, 'rare');

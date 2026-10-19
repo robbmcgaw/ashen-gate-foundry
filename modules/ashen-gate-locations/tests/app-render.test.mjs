@@ -6,13 +6,14 @@ import fs from 'node:fs';
 import {installFoundry, gm, player} from './foundry-mock.mjs';
 import {createApi} from '../scripts/api.mjs';
 import {readAll, writeAll, readViews, placeNote} from '../scripts/store.mjs';
-import {parseImport} from '../scripts/model.mjs';
+import {parseImport, publishable} from '../scripts/model.mjs';
 
 globalThis.foundry = {applications: {api: {ApplicationV2: class { constructor(o) { this.options = o; } }}}};
 const {LocationsApp} = await import('../scripts/app.mjs');
 const sample = parseImport(JSON.parse(fs.readFileSync(new URL('../examples/test-locations.json', import.meta.url))), []).created;
 sample[0].quests = [{questId: 'QUEST-TEST-ONE'}, {questId: 'QUEST-TEST-SECRET'}];
 sample[0].sections.quests = true;
+sample[0].published = publishable(sample[0]);
 
 let access = true;
 async function world() {
@@ -40,7 +41,12 @@ test('GM builder: list, editor with toggles, quest picker, no ID input', async (
   assert.equal(app.selectedId, 'LOC-TEST-ASH-WASTES', 'first location by name is selected');
   app.select('LOC-TEST-MILLBROOK');
   const editor = await app._renderHTML();
-  assert.match(editor, /data-toggle="revealed" checked/);
+  assert.match(editor, /data-action="state" data-state="revealed"/);
+  assert.match(editor, /ag-btn ag-btn--primary" data-action="state" data-state="revealed"/, 'current state is highlighted');
+  assert.match(editor, /data-action="publish"/);
+  assert.match(editor, /data-action="preview"/);
+  assert.match(editor, /data-bind="unidentifiedLabel"/);
+  assert.match(editor, /data-bind="parentLocationId"/);
   assert.match(editor, /data-toggle="sections\.resources" checked/);
   assert.match(editor, /GM-only Herb/, 'GM sees hidden entries');
   assert.match(editor, /\[TEST\] Secret Quest/, 'GM sees every linked quest name');
@@ -97,12 +103,52 @@ test('GM node editor: inline fields, exhausted struck through with Restore; play
   assert.match(html, /data-toggle="resources\.[a-z0-9]+\.dcVisible"/);
   app.setPath(`resources.${node.key}.tier`, '4');
   assert.deepEqual([node.tier, node.dc], [4, 14], 'DC follows the tier when it was the default');
-  await game.modules.get('ashen-gate-locations').api.saveLocation(app.draft);
+  const locApi = game.modules.get('ashen-gate-locations').api;
+  await locApi.saveLocation(app.draft);
   game.user = player;
   const viewer = new LocationsApp();
   viewer.select('LOC-TEST-MILLBROOK');
+  assert.doesNotMatch(await viewer._renderHTML(), /Herbalism · Tier 4/, 'Save alone is private');
+  game.user = gm;
+  await locApi.publishLocation('LOC-TEST-MILLBROOK');
+  game.user = player;
   const view = await viewer._renderHTML();
   assert.match(view, /Herbalism · Tier 4/);
   assert.match(view, /Exhausted/);
   assert.doesNotMatch(view, /DC 14/);
+});
+
+test('player: unidentified place shows only its label and teaser; children list skips the hidden one', async () => {
+  await world();
+  const key = readAll().find(l => l.id === 'LOC-TEST-ASH-WASTES').pinKey;
+  game.user = player;
+  const app = new LocationsApp();
+  const list = await app._renderHTML();
+  assert.match(list, /<h3>Unidentified<\/h3>/);
+  assert.doesNotMatch(list, /Ash Wastes|ASH-WASTES|Hidden Cave|HIDDEN-CAVE/);
+  app.select(key);   // what a click on its Map Note does
+  const view = await app._renderHTML();
+  assert.match(view, /\[TEST\] Smoke on the horizon/);
+  assert.match(view, /A grey haze hangs over the far hills/);
+  assert.doesNotMatch(view, /Ash Wastes|Cinder Moss|Far Reach|Wilderness|LOC-TEST-ASH/);
+  app.select('LOC-TEST-ASH-WASTES');
+  assert.equal(app.selectedId, null, 'its LOC id opens nothing');
+  app.select('LOC-TEST-MILLBROOK');
+  const mill = await app._renderHTML();
+  assert.match(mill, /Places Here/);
+  assert.match(mill, /\[TEST\] Old Quarry/);
+  assert.doesNotMatch(mill, /Hidden Cave/);
+});
+
+test('GM: nesting picker offers no place that would loop; state shown on rows', async () => {
+  await world();
+  const app = new LocationsApp();
+  app.select('LOC-TEST-MILLBROOK');
+  const html = await app._renderHTML();
+  const picker = html.slice(html.indexOf('id="agl-parent"'), html.indexOf('</select>', html.indexOf('id="agl-parent"')));
+  assert.doesNotMatch(picker, /Old Quarry|Hidden Cave|value="LOC-TEST-MILLBROOK"/, 'its own children and itself are not offered');
+  assert.match(picker, /Ash Wastes/);
+  assert.match(html, /Places inside/);
+  assert.match(html, /fa-circle-question agl-row__rev" title="Unidentified"/);
+  assert.match(html, /data-action="new-child"/);
 });

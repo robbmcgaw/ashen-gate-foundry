@@ -9,14 +9,19 @@ Foundry V14, dnd5e. Works on its own; Quest Manager and General Manager are opti
 - **GM:** Items sidebar → **Location Builder**. Click **New Location**, type a name, and click **Save Changes**. The `LOC-*` ID is made from the name the first time you save and never changes after that.
 - **Gathering nodes:** each *Gathering Resources* entry is a node with a skill, tier (1–5) and DC (10/12/13/14/15 by tier unless you change it), a common material and an optional rare one (success by 5+), quantities, *Finite* and *Available* switches, and a note. A finite node can be marked exhausted (shown struck through) and restored. Players see the DC only if you turn on its 👁.
 - **Fill it in:** drop material Items on *Gathering Resources*, Actors or Journals on *Factions*, and any Actor, Item, Journal or Roll Table on *Notes*. Or type a custom entry. Link quests from Quest Manager and other locations from the dropdowns.
-- **Visibility:** nothing is visible to players until **Revealed to players** is on. Then each field has an 👁 toggle, each section has a *Show section to players* switch, and each entry has its own 👁 toggle.
-- **Map:** **Place on Scene** adds a Map Note at the centre of your view, or drag a location from the list onto the canvas. Double-clicking the note opens the location. Players only see notes for revealed locations.
+- **Marker state:** each location is **Hidden** (players see nothing; its pins are invisible to them), **Unidentified** (players see only its unidentified label and teaser) or **Revealed**. New locations start hidden.
+- **Save vs Publish:** **Save Changes** is private. Players see your edits only after **Publish** (Reveal and Unidentified publish too). **Player Preview** shows what they would see. Marking a node exhausted shows at once.
+- **Visibility once revealed:** each field has an 👁 toggle, each section has a *Show section to players* switch, and each entry has its own 👁 toggle.
+- **Map:** **Place on Scene** adds a Map Note at the centre of your view, or drag a location from the list onto the canvas. Double-clicking the note opens the location. Hidden pins are invisible to players; unidentified pins show the label and the unidentified image. Set pin art under *Unidentified Marker & Pin* (default images are Foundry icons). Change one placed pin's image or size in Foundry's own Note settings and that pin keeps it.
+- **Nesting & Scenes:** put a location inside another (any depth, no loops). Players see the places inside a revealed location once each is revealed (unidentified ones by label). Link scenes and open them with one click; only your view moves.
 - **Players:** Actors sidebar → **Locations** (when *Player Access* is on in GM Setup). Players get a read-only view of revealed locations. Clicking a quest opens the Quest Log; in the Quest Log, a quest's *Locations* list opens the location.
 
 ## Storage
 
 - **Locations (GM Data)** Journal (no player permission) holds every record.
-- **Locations (Player View)** Journal holds one page per location. A page contains only what players may see. Unrevealed locations get an empty page with no player permission, and Map Notes point at these pages.
+- **Locations (Player View)** Journal holds one page per location. A page contains only what players may see. Hidden locations get an empty page with no player permission, unidentified ones a page with just the label and teaser, and Map Notes point at these pages.
+- Pages and Map Notes are bound to a location by a random **pin key**, never by the `LOC-*` id (an id is made from a name, so it could give an unidentified place away).
+- Foundry sends every world document to every client, so a player who digs in the browser console could read the GM Data journal. Nothing in the normal Foundry UI shows it.
 
 Both Journals live in *Ashen Gate / Locations*. Don't edit them by hand.
 
@@ -28,21 +33,25 @@ Journals from Locations 0.8.x are ignored (a one-line console note says how many
 
 | Call | Returns |
 |---|---|
-| `listLocations({revealedOnly})` | locations (GM: full records; players: always revealed only) |
-| `getLocation(id)` | one location, or `null` |
+| `listLocations({revealedOnly, includeUnidentified})` | locations (GM: full records; players: revealed only, plus unidentified `{key, state, name, teaser?}` with `includeUnidentified`) |
+| `getLocation(idOrPinKey)` | one location, or `null`. Players get unidentified ones only by pin key |
+| `childrenOf(idOrPinKey)` | GM: child records. Players: `[{id?, key, name}]` of revealed/unidentified children |
 | `resourcesAt(id)` | gathering nodes: `[{id, label, skill, tier, dc, materialId, quantity, rareMaterialId, rareQuantity, finite, exhausted, available, note, uuid}]`. GM also gets `visible`, `dcVisible`; players never get `dc` unless shown |
 | `nodesForMaterial('MAT-…')` | `[{locationId, locationName, matches: 'common'\|'rare'\|'both', ...node}]` |
 | `locationsWithMaterial('MAT-…')` | `[{id, name, available}]` |
 | GM only: `markNodeExhausted(locationId, nodeId, exhausted = true)` | the updated node; `false` restores it |
 | `GATHERING` | `{skills: [...], dcByTier: {1: 10, 2: 12, 3: 13, 4: 14, 5: 15}}` |
 | `locationsForQuest('QUEST-…')` | `[{id, name}]` (used by Quest Manager) |
-| `open()`, `openLocation(id)` | opens the window |
-| GM only: `createLocation(name)`, `saveLocation(data)`, `deleteLocation(id)`, `importPackage(pkg)`, `importLocations(records, {mode})`, `exportPackage()`, `placeOnScene(id, {scene, x, y})` | |
+| `open()`, `openLocation(idOrPinKey)` | opens the window |
+| GM only: `setLocationState(id, 'hidden'\|'unidentified'\|'revealed')`, `publishLocation(id)` | change what players see (the only calls that do) |
+| GM only: `previewLocation(draft, state?)`, `hasUnpublishedChanges(id)` | the player view after Publish; whether players see an older version |
+| `STATES` | `['hidden', 'unidentified', 'revealed']` |
+| GM only: `createLocation(name)`, `saveLocation(data)` (private; never changes state), `deleteLocation(id)`, `importPackage(pkg)`, `importLocations(records, {mode})`, `exportPackage()`, `placeOnScene(id, {scene, x, y})` | |
 | `playerAccess` | `ag-player-access/1` capability |
 
 ## Import format
 
-Location records go in an `ag-foundry-import/0.2` package with `entity_type: "Location"`, so one test data pack can carry them. **General Manager imports them for you:** when Locations is active, its normal import creates the Items first and then passes the Location records to `api.importLocations` in the same run. Without Manager (or for a Locations-only file) use **GM Setup → Import JSON**, which reads the same records and skips other types. Either way a location whose ID already exists is kept as it is; Manager can also be told to update existing locations (`importLocations(records, {mode: 'update'})` replaces the definition but keeps revealed and exhausted state).
+Location records go in an `ag-foundry-import/0.2` package with `entity_type: "Location"`, so one test data pack can carry them. **General Manager imports them for you:** when Locations is active, its normal import creates the Items first and then passes the Location records to `api.importLocations` in the same run. Without Manager (or for a Locations-only file) use **GM Setup → Import JSON**, which reads the same records and skips other types. Either way a location whose ID already exists is kept as it is; Manager can also be told to update existing locations (`importLocations(records, {mode: 'update'})` replaces the definition but keeps its marker state, what players currently see, its pin key and exhausted nodes; publish to show the update). Imports never touch Map Notes.
 
 ```json
 {
@@ -52,7 +61,9 @@ Location records go in an `ag-foundry-import/0.2` package with `entity_type: "Lo
     "provenance": {"sources": ["synthetic test data"]}, "visibility": "player", "refs": [],
     "name": "[TEST] Millbrook",
     "location": {
-      "type": "Village", "region": "[TEST] Green Vale", "threat": "normal", "revealed": true,
+      "type": "Village", "region": "[TEST] Green Vale", "threat": "normal", "state": "revealed",
+      "parentLocationId": "LOC-TEST-REGION", "unidentifiedLabel": "[TEST] Mill smoke", "teaser": "…",
+      "pin": {"img": "path/to/pin.webp", "unidentifiedImg": "path/to/unknown.webp", "size": 48}, "sceneUuids": ["Scene.abc123"],
       "description": "…", "img": "path/to/image.webp",
       "show": {"description": true},
       "sections": {"resources": true, "factions": true, "quests": false, "related": true, "notes": true},
@@ -71,7 +82,9 @@ Location records go in an `ag-foundry-import/0.2` package with `entity_type: "Lo
 - `threat` is `normal`, `hot` or `deadly`.
 - Gathering nodes: every field except a name or material is optional. Defaults: `tier` 1, `dc` from the tier, `quantity`/`rareQuantity` 1, `finite` true, `exhausted` false, `dcVisible` false. Keep `id` stable; 1.0.x entries without node fields still import.
 - `show` (per field: `type`, `region`, `description`, `img`, `threat`) and every entry's `visible` default to `true`.
-- `sections` and `revealed` default to `false`.
+- `sections` default to `false`. `state` is `hidden` (default), `unidentified` or `revealed`; older files with `revealed: true/false` still import. A visible location's content is published on import.
+- `parentLocationId` is an exact `LOC-*` id (a loop is refused); `type` and `region` stay free text. `pin.size` 0 or missing means 48.
+- Exports also carry `pinKey` and `published` (what players currently see). An update import that leaves out `parentLocationId`, `unidentifiedLabel`, `teaser`, `pin` or `sceneUuids` keeps the world's value.
 - **Export JSON** writes the same format. [`examples/test-locations.json`](examples/test-locations.json) is a synthetic sample; **GM Setup → Developer Tools** imports it.
 
 ## Tests

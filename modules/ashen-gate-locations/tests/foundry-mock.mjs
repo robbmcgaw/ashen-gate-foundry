@@ -45,7 +45,8 @@ export class Scene {
     const made = list.map(d => ({id: id(), ...structuredClone(d), getFlag(s, k) { return this.flags?.[s]?.[k]; }}));
     this.notes.push(...made); return made;
   }
-  async updateEmbeddedDocuments(_, list) { for (const d of list) Object.assign(this.notes.find(n => n.id === d._id), d); }
+  // Foundry merges object fields (flags, texture) on update; so does this.
+  async updateEmbeddedDocuments(_, list) { this.updates = (this.updates ?? 0) + 1; for (const d of list) merge(this.notes.find(n => n.id === d._id), d); }
 }
 
 export const gm = {id: 'gm', isGM: true};
