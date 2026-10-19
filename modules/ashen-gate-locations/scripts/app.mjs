@@ -1,7 +1,7 @@
 /** The Locations window: GM builder (list + editor + GM Setup) and the player viewer, one class. */
 import {MODULE_ID, THREATS, FIELDS, SECTIONS, BLOCKS, DETAIL_PREFIX, LOOT_STATUSES, LOOT_STATUS_LABELS, NOTE_DOC_TYPES, FACTION_DOC_TYPES, GATHERING, STATES, STATE_LABELS,
   DEFAULT_UNIDENTIFIED_LABEL, PIN_DEFAULTS, esc, clone, threatLabel, normalizeLocation, normalizeLayout, reorder, effectiveConditions, newKey, newNode, nodeName, materialIdOf,
-  hasUnpublishedChanges, wouldCycle, parentMap, PARTY_NOTES, isPlaceable, passesConditions} from './model.mjs';
+  hasUnpublishedChanges, wouldCycle, parentMap, PARTY_NOTES, isPlaceable, passesConditions, EXOTIC_MODES, EXOTIC_CONDITIONS, normalizeExotics, isTierDefaultDc} from './model.mjs';
 import {GROUP_MODES, SORTS, emptyFilters, hasFilters, searchText, matchesQuery, applyFilters, filterOptions, comparator, groupRows} from './list-filter.mjs';
 import {buildTree, withAncestors, breadcrumb, moveTargets, VIEW} from './tree.mjs';
 
@@ -27,6 +27,38 @@ function materialOptions() {
   const seen = new Map();
   for (const item of game.items ?? []) { const id = materialIdOf(item); if (id && !seen.has(id)) seen.set(id, item.name); }
   return [...seen].sort((a, b) => a[1].localeCompare(b[1])).map(([id, name]) => `<option value="${esc(id)}">${esc(name)}</option>`).join('');
+}
+const LEDGER_MODULE = 'ashen-gate-profession-ledger';
+/** The Ledger's Exotic API (ag-ledger-exotic/1), feature-detected. Locations works without it. */
+const exoticApi = () => { const m = game.modules.get(LEDGER_MODULE); const x = m?.active ? m.api?.gathering?.exotic : null; return x?.contract === 'ag-ledger-exotic/1' ? x : null; };
+/** Why the Ledger could not award a material, read from Manager's source flags ('' when it looks awardable). */
+export function unavailableReason(src) {
+  if (!src) return 'Not imported with General Manager';
+  if (src.status !== 'approved') return `${src.status ? src.status[0].toUpperCase() + src.status.slice(1) : 'Not approved'}: approve it in General Manager first`;
+  if (src.visibility !== 'player') return 'GM-only: make it player-visible in General Manager first';
+  return '';
+}
+/** Exotic-quality world materials straight from Manager's definitions (read only), when the Ledger is not active. */
+function exoticMaterialsLocal() {
+  const seen = new Map();
+  for (const item of game.items ?? []) {
+    const id = materialIdOf(item), src = item.flags?.['ashen-gate-manager']?.source, def = src?.definition;
+    if (id && !seen.has(id) && String(def?.quality ?? '').toLowerCase() === 'exotic') {
+      const reason = unavailableReason(src);
+      seen.set(id, {id, name: item.name, tier: null, available: !reason, reason});
+    }
+  }
+  return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
+}
+/**
+ * Exotic materials the GM can add to a node: with the Ledger, its catalog filtered by the node's gathering profession and
+ * tier (not above); without it, every Exotic-quality material (the Ledger checks eligibility when gathering).
+ */
+export function exoticChoices(node) {
+  const x = exoticApi();
+  if (!x) return {filtered: false, list: exoticMaterialsLocal()};
+  try { return {filtered: true, list: x.materials({profession: node.skill, maxTier: node.tier, includeUnavailable: true}).map(m => ({available: true, reason: '', ...m}))}; }
+  catch (err) { console.warn(`${MODULE_ID} | Ledger Exotic list`, err); return {filtered: false, list: exoticMaterialsLocal()}; }
 }
 const STATE_ICONS = {hidden: 'fa-solid fa-eye-slash', unidentified: 'fa-solid fa-circle-question', revealed: 'fa-solid fa-eye'};
 const STATE_HINTS = {
@@ -644,7 +676,33 @@ export class LocationsApp extends Base {
         <input type="text" class="agl-node__note" ${b('note')} value="${esc(e.note)}" placeholder="Source and limit (note)" aria-label="Note">
         ${e.exhausted ? `<span class="ag-badge">Exhausted</span>${btn('restore', 'Restore', {kind: 'sm', icon: 'fa-solid fa-rotate-left', data: {key: e.key}})}`
           : e.finite ? btn('exhaust', 'Mark exhausted', {kind: 'sm', data: {key: e.key}}) : ''}
-      </div></li>`;
+      </div>${this.exoticHtml(e)}</li>`;
+  }
+  /** Optional Exotic candidates for a node (GM only, never published). Picked by name from the imported catalog. */
+  exoticHtml(e) {
+    const names = materialNames(), list = normalizeExotics(e.exotics), chosen = new Set(list.map(x => x.materialId));
+    let checks = [];
+    try { checks = exoticApi()?.eligibility?.({skill: e.skill, tier: e.tier, exotics: list}) ?? []; } catch { checks = []; }
+    const why = id => checks.find(c => c.materialId === id);
+    const f = (x, field) => `data-exotic="${esc(e.key)}|${esc(x.materialId)}|${field}"`;
+    const rows = list.map(x => {
+      const c = why(x.materialId);
+      return `<li class="agl-exotic">
+        <span class="agl-entry">${esc(names.get(x.materialId) ?? x.materialId)}${names.has(x.materialId) ? '' : ' <small>(not in this world)</small>'}</span>
+        ${c ? `<span class="ag-badge${c.eligible ? ' ag-badge--ok' : ' ag-badge--warn'}">${esc(c.eligible ? 'Eligible' : c.reason)}</span>` : ''}
+        <label class="agl-mini">Rule<select ${f(x, 'mode')}>${EXOTIC_MODES.map(m => `<option value="${m}" ${x.mode === m ? 'selected' : ''}>${m === 'designated' ? 'Designated source' : 'Random discovery'}</option>`).join('')}</select></label>
+        ${x.mode === 'designated' ? `<label class="agl-mini">Chance %<input type="number" min="1" max="100" step="1" ${f(x, 'chance')} value="${x.chance ?? ''}" placeholder="required"></label>
+        <label class="agl-mini">When<select ${f(x, 'condition')}>${Object.entries(EXOTIC_CONDITIONS).map(([k, l]) => `<option value="${k}" ${x.condition === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>` : ''}
+        ${btn('exotic-remove', '', {kind: 'ghost', icon: 'fa-solid fa-trash', data: {key: e.key, mat: x.materialId}, title: 'Remove this Exotic'})}</li>`;
+    }).join('');
+    const {filtered, list: choices} = exoticChoices(e);
+    // Draft or GM-only Exotics are listed but disabled, with what to fix in General Manager.
+    const opts = choices.filter(m => !chosen.has(m.id)).map(m => `<option value="${esc(m.id)}"${m.available === false ? ' disabled' : ''}>${esc(m.name)}${m.tier ? ` (tier ${m.tier})` : ''}${m.available === false ? ` — ${esc(m.reason)}` : ''}</option>`).join('');
+    return `<details class="agl-node__exotics"${list.length ? ' open' : ''}><summary>Exotic materials (optional, GM only)${list.length ? ` · ${list.length}` : ''}</summary>
+      ${rows ? `<ul class="ag-list">${rows}</ul>` : ''}
+      <div class="agl-add"><select id="agl-exo-${esc(e.key)}" aria-label="Exotic material"><option value="">${opts ? 'Choose an Exotic material…' : 'No Exotic materials to add'}</option>${opts}</select>${btn('exotic-add', 'Add', {kind: 'sm', icon: 'fa-solid fa-plus', data: {key: e.key}})}</div>
+      <p class="agl-hint">${filtered ? 'Listed: imported Exotics gathered by this node’s profession, tier not above the node’s.' : 'Profession Ledger is not active, so this lists every imported Exotic; the Ledger checks eligibility when gathering.'}
+        Adding one makes it eligible, not a sure award. Random discovery uses the Ledger’s discovery chance on a success; a designated source needs a chance and uses it instead. Players never see this list.</p></details>`;
   }
 
   setupHtml() {
@@ -694,6 +752,8 @@ export class LocationsApp extends Base {
       if (['threat', 'img', 'parentLocationId'].includes(el.dataset.bind) || el.dataset.bind.endsWith('.tier')) this.render();
     });
     for (const el of root.querySelectorAll('[data-toggle]')) el.addEventListener('change', () => { this.setPath(el.dataset.toggle, el.checked); this.render(); });
+    // Exotic candidate fields: "<node key>|<MAT id>|mode|chance|condition".
+    for (const el of root.querySelectorAll('[data-exotic]')) el.addEventListener('change', () => { this.setExotic(...el.dataset.exotic.split('|'), el.value); this.render(); });
     // Inherited-condition overrides: "<Region id>|<condition key>|label|text".
     for (const el of root.querySelectorAll('[data-ov]')) el.addEventListener('input', () => {
       const [from, ckey, field] = el.dataset.ov.split('|');
@@ -787,12 +847,19 @@ export class LocationsApp extends Base {
       const e = this.draft[a].find(x => x.key === b);
       if (e && NUMERIC.has(c)) value = Number(value);
       // Changing the tier moves the DC with it, unless the GM had set a custom DC.
-      if (e && c === 'tier' && e.dc === GATHERING.dcByTier[e.tier]) e.dc = GATHERING.dcByTier[value] ?? e.dc;
+      if (e && c === 'tier' && isTierDefaultDc(e.dc, e.tier)) e.dc = GATHERING.dcByTier[value] ?? e.dc;
       if (e && c === 'finite' && !value) e.exhausted = false;
       if (e) e[c] = value;
     }
     else if (b) this.draft[a][b] = path === 'pin.size' ? Number(value) || 0 : value;
     else this.draft[a] = value;
+    this.touch();
+  }
+  /** Exotic candidates live on the node; edits go through the model's normalizer (additive field). */
+  setExotic(nodeKey, materialId, field, value) {
+    const node = this.draft.resources.find(n => n.key === nodeKey);
+    if (!node || !['mode', 'chance', 'condition'].includes(field)) return;
+    node.exotics = normalizeExotics((node.exotics ?? []).map(x => x.materialId === materialId ? {...x, [field]: value} : x));
     this.touch();
   }
   addNode(data) {
@@ -963,6 +1030,16 @@ export class LocationsApp extends Base {
         await api().placeOnScene(id, {scene: canvas?.scene, x: x ?? 0, y: y ?? 0});
         ui.notifications.info(`Placed ${this.draft.name} on ${canvas.scene.name}.`);
         return this.render();
+      }
+      case 'exotic-add': case 'exotic-remove': {
+        const node = this.draft.resources.find(n => n.key === el.dataset.key);
+        if (!node) return;
+        const id = action === 'exotic-add' ? this.element?.querySelector(`#agl-exo-${el.dataset.key}`)?.value : el.dataset.mat;
+        if (!id) return;
+        if (action === 'exotic-add') { const why = exoticChoices(node).list.find(m => m.id === id)?.reason; if (why) throw new Error(why); }
+        const rest = (node.exotics ?? []).filter(x => x.materialId !== id);
+        node.exotics = normalizeExotics(action === 'exotic-add' ? [...rest, {materialId: id, mode: 'discovery'}] : rest);
+        this.dirty = true; return this.render();
       }
       case 'remove': this.draft[el.dataset.section] = this.draft[el.dataset.section].filter(e => e.key !== el.dataset.key); this.dirty = true; return this.render();
       case 'add-text': {
@@ -1146,7 +1223,7 @@ export class LocationsApp extends Base {
     const gm = this.gm ? `<ul>
       <li><strong>New Location</strong>, type a name. The ID is made for you.</li>
       <li>Drop material Items on <em>Gathering Resources</em>, Actors/Journals on <em>Factions</em>, anything on <em>Notes</em>. Or type a custom entry.</li>
-      <li>Each gathering node has a skill, tier and DC (10/12/13/14/15 by tier). <strong>Mark exhausted</strong> after a node is used or a check fails; <strong>Restore</strong> undoes it. Players only see the DC if you turn on its <i class="fa-solid fa-eye"></i>.</li>
+      <li>Each gathering node has a skill, tier and DC (10/12/15/18/20 by tier; a DC you set stays). Optional <em>Exotic materials</em> on a node make them findable on a successful check through the Profession Ledger (GM only, never shown to players). <strong>Mark exhausted</strong> after a node is used or a check fails; <strong>Restore</strong> undoes it. Players only see the DC if you turn on its <i class="fa-solid fa-eye"></i>.</li>
       <li>Each location is <strong>Hidden</strong> (players see nothing), <strong>Unidentified</strong> (players see only its label and teaser) or <strong>Revealed</strong>. The buttons next to the name change it.</li>
       <li><strong>Save Changes</strong> is private. Players see edits only after <strong>Publish</strong> (or Reveal). <strong>Player Preview</strong> shows what they would see.</li>
       <li>The <i class="fa-solid fa-eye"></i> toggles decide what players see once revealed, and each section has its own switch.</li>

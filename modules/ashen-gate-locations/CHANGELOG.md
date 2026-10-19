@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.9.0 — 2026-10-19
+
+- **Exotic materials on gathering nodes (optional, GM only).** Each node in *Gathering Resources* has an *Exotic materials* row. Pick an Exotic from the imported catalog by name (no ids to type), then choose its rule:
+  - **Random discovery:** the Profession Ledger may find it on a successful check, at its discovery chance (default 2%).
+  - **Designated source:** its own chance (required) and condition (any success, or success by 5+ only), used instead of the discovery roll.
+  - Adding one makes it eligible, not a sure award; the Ledger (0.15.0+) decides when gathering.
+  - Draft or GM-only Exotics are listed but disabled, with the fix (e.g. "Draft: approve it in General Manager first"). The Ledger awards only approved, player-visible materials.
+  - With the Ledger active, the list shows only Exotics gathered by the node's profession with a tier not above the node's, and each entry shows whether it is eligible. Without the Ledger, every imported Exotic-quality material is listed.
+- **Players never see Exotic candidates:** they are not in the player view, the published Journal page, or `resourcesAt` for players.
+- **Tier DC defaults are now 10 / 12 / 15 / 18 / 20**, the same as the Ledger (a test keeps them equal).
+  - DCs already saved on nodes are not changed.
+  - Changing a node's tier moves its DC when it was a tier default (old or new table); a custom DC stays.
+- Saved data: nodes gain an additive `exotics` list (empty for existing nodes). It goes through export/import. `resourcesAt` for the GM gains `exotics`; nothing else in the API changed. No migration needed.
+
 ## 1.8.1 — 2026-10-19
 
 - **Faster Save and Publish with many locations.** Building the player views no longer re-reads the whole list for every location, so saving 500 locations drops from about 1.4 s to about 0.1 s of module work (measured with the mocked Foundry layer), and a save that changes nothing no longer rewrites the GM data record.

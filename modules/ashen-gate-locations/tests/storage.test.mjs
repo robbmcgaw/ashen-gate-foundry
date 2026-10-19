@@ -98,7 +98,8 @@ test('a hidden DC never reaches the player journal; showing it does', async () =
   const loc = {id: 'LOC-A', name: 'A', revealed: true, sections: {resources: true},
     resources: [{id: 'n1', label: 'Seam', skill: 'Mining', tier: 3, dc: 37}]};
   await writeAll([loc]);
-  assert.doesNotMatch(JSON.stringify(playerJournal()), /37/);
+  // Match the DC field itself: random pin keys and page ids can contain "37".
+  assert.doesNotMatch(JSON.stringify(playerJournal()), /\\?"dc\\?":37/);
   await writeAll([{...loc, resources: [{...loc.resources[0], dcVisible: true}]}]);
   assert.match(playerJournal().pages[0].getFlag(MOD, 'view'), /"dc":37/);
 });

@@ -15,7 +15,7 @@ and Install. Updates arrive through Check for Updates / Forge's update button. E
 ## Using it
 
 - **GM:** Items sidebar → **Location Builder**. Click **New Location**, type a name, and click **Save Changes**. The `LOC-*` ID is made from the name the first time you save and never changes after that.
-- **Gathering nodes:** each *Gathering Resources* entry is a node with a skill, tier (1–5) and DC (10/12/13/14/15 by tier unless you change it), a common material and an optional rare one (success by 5+), quantities, *Finite* and *Available* switches, and a note. A finite node can be marked exhausted (shown struck through) and restored. Players see the DC only if you turn on its 👁.
+- **Gathering nodes:** each *Gathering Resources* entry is a node with a skill, tier (1–5) and DC (10/12/15/18/20 by tier unless you change it), a common material and an optional rare one (success by 5+), quantities, *Finite* and *Available* switches, and a note. A finite node can be marked exhausted (shown struck through) and restored. Players see the DC only if you turn on its 👁. Optional *Exotic materials* (1.9.0, GM only) list Exotics the Profession Ledger may find there: random discovery, or a designated source with its own chance and condition.
 - **Fill it in:** drop material Items on *Gathering Resources*, Actors or Journals on *Factions*, and any Actor, Item, Journal or Roll Table on *Notes*. Or type a custom entry. Link quests from Quest Manager and other locations from the dropdowns.
 - **Marker state:** each location is **Hidden** (players see nothing; its pins are invisible to them), **Unidentified** (players see only its unidentified label and teaser) or **Revealed**. New locations start hidden.
 - **Save vs Publish:** **Save Changes** is private. Players see your edits only after **Publish** (Reveal and Unidentified publish too). **Player Preview** shows what they would see. Marking a node exhausted shows at once.
@@ -51,7 +51,7 @@ Journals from Locations 0.8.x are ignored (a one-line console note says how many
 | `listLocations({revealedOnly, includeUnidentified, placeableOnly})` | locations (GM: full records; `placeableOnly` keeps those marked Placeable on a map; players: revealed only, plus unidentified `{key, state, name, teaser?}` with `includeUnidentified`). A player view of a *Selected players* location also has `share: {userIds, canShare}` |
 | `getLocation(idOrPinKey)` | one location, or `null`. Players get unidentified ones only by pin key |
 | `childrenOf(idOrPinKey)` | GM: child records. Players: `[{id?, key, name}]` of revealed/unidentified children |
-| `resourcesAt(id)` | gathering nodes: `[{id, label, skill, tier, dc, materialId, quantity, rareMaterialId, rareQuantity, finite, exhausted, available, note, uuid}]`. GM also gets `visible`, `dcVisible`; players never get `dc` unless shown |
+| `resourcesAt(id)` | gathering nodes: `[{id, label, skill, tier, dc, materialId, quantity, rareMaterialId, rareQuantity, finite, exhausted, available, note, uuid}]`. GM also gets `visible`, `dcVisible` and `exotics` (`[{materialId, mode: 'discovery'|'designated', chance?, condition?}]`); players never get `dc` unless shown, and never `exotics` |
 | `nodesForMaterial('MAT-…')` | `[{locationId, locationName, matches: 'common'\|'rare'\|'both', ...node}]` |
 | `locationsWithMaterial('MAT-…')` | `[{id, name, available}]` |
 | GM only: `markNodeExhausted(locationId, nodeId, exhausted = true)` | the updated node; `false` restores it |
