@@ -26,6 +26,10 @@
 /* Content-fit controls and two-pane conditions. */
 .ag-utilities .agu-inline {display:inline-flex;align-items:center;gap:var(--ag-space-2);margin:4px 14px 4px 0;font-size:var(--ag-text-md);font-weight:400;color:var(--ag-text);min-height:28px;}
 .ag-utilities .agu-inline input[type="checkbox"] {width:16px;height:16px;margin:0;flex:none;}
+.ag-utilities .agu-mode {align-items:flex-start;flex:1 1 260px;margin-right:0;}
+.ag-utilities .agu-mode input[type="radio"] {width:16px;height:16px;margin:3px 0 0;flex:none;}
+.ag-utilities .agu-mode small {color:var(--ag-muted);white-space:normal;}
+.ag-utilities [data-group-only][hidden] {display:none;}
 .ag-utilities .agu-choices {display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;padding:4px 0;}
 .ag-utilities .agu-compact {display:flex;align-items:end;gap:var(--ag-space-3);flex-wrap:wrap;margin-top:var(--ag-space-3);}
 .ag-utilities .agu-compact label {margin:0;flex:0 1 240px;}

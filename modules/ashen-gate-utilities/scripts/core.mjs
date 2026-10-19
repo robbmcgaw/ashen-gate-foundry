@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.8.0';
+export const VERSION = '0.9.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -351,4 +351,22 @@ export function goldCardHTML(entry) {
   const E = escapeHTML, how = entry.mode === 'split' ? `${E(entry.amount)} gp split evenly` : `${E(entry.share)} gp each`;
   const rows = entry.recipients.map(r => `<li><strong>${E(r.actorName)}</strong>: +${E(r.added)} gp</li>`).join('');
   return `<div class="ag-utilities-gold"><h3>Gold awarded: ${how}</h3>${entry.reason ? `<p>${E(entry.reason)}</p>` : ''}<ul>${rows}</ul>${entry.remainder ? `<p>${E(entry.remainder)} gp left over was not handed out.</p>` : ''}</div>`;
+}
+
+/* ---- v0.9.0: one Rolls tab for Group Checks and Roll Requests ---- */
+/** Start-form modes. 'group' tallies against the DC (a Group Check); 'individual' collects each roll (a Roll Request). */
+export const ROLL_MODES = Object.freeze({group: 'group', individual: 'request'});
+/** Window tab ids from before 0.9.0 ('checks', 'rolls') both open the single Rolls tab. */
+export const normalizeTab = tab => (tab === 'checks' || tab === 'rolls' || !tab) ? 'rolls' : String(tab);
+/**
+ * Builds the session the Rolls start form asks for. Individual rolls take exactly one skill and one roll
+ * per character, as Roll Requests always have; Group result keeps the Group Check rules in createSession.
+ */
+export function rollFormSession({mode = 'group', title = '', actors, skills, rollsPerActor = 1, dc = null, id, createdBy, createdAt} = {}) {
+  const kind = ROLL_MODES[mode];
+  if (!kind) throw Error('Choose Group result or Individual rolls.');
+  const picked = unique(skills ?? []).filter(Boolean);
+  if (kind === 'request' && picked.length !== 1) throw Error('Individual rolls ask for one skill: tick exactly one.');
+  const name = String(title ?? '').trim() || (kind === 'group' ? 'New Group Check' : 'New Roll Request');
+  return createSession({id, kind, name, actors, skills: picked, rollsPerActor: kind === 'group' ? Number(rollsPerActor) : 1, dc, visibility: 'public', createdBy, createdAt});
 }

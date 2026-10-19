@@ -1,4 +1,4 @@
-import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,conditionGroups,stashRow,historyEntry,appendHistory,approvalLabel,STASH_HISTORY_CAP,readGp,planGoldAward,goldAwardEntry,planGoldUndo,applyGoldUndo,goldCardHTML,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome} from './core.mjs';
+import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,conditionGroups,stashRow,historyEntry,appendHistory,approvalLabel,STASH_HISTORY_CAP,rollFormSession,normalizeTab,readGp,planGoldAward,goldAwardEntry,planGoldUndo,applyGoldUndo,goldCardHTML,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome} from './core.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,infoDialog,formDialog} from './dialogs.mjs';
 
@@ -60,7 +60,7 @@ async function storeSession(s){
 async function postTally(s){
  try{
   await ChatMessage.create({content:tallyHTML(s,{actorName:id=>game.actors.get(id)?.name??'Unavailable Actor',skillLabel:skillName}),whisper:[...game.users].filter(u=>u.isGM).map(u=>u.id),speaker:ChatMessage.getSpeaker?.()??{}});
- }catch(e){console.warn(`[${ID}] Could not post the Group Check tally`,e);ui.notifications?.warn?.(`Utilities could not post the "${s.name}" tally to chat (${e?.message??e}). The result is saved: see Group Checks or History.`);}
+ }catch(e){console.warn(`[${ID}] Could not post the Group Check tally`,e);ui.notifications?.warn?.(`Utilities could not post the "${s.name}" tally to chat (${e?.message??e}). The result is saved: see Rolls or History.`);}
 }
 function authorOf(message){return message.author??(typeof message.user==='string'?game.users.get(message.user):message.user);}
 function coordinatorIsMe(){return [...game.users].filter(u=>u.active&&u.isGM).sort((a,b)=>a.id.localeCompare(b.id))[0]?.id===game.user.id;}
@@ -90,17 +90,31 @@ async function tellRejected(author,actor,reason){
  try{await ChatMessage.create({content:`Roll not counted${actor?` for ${E(actor.name)}`:''}: ${E(reason)}`,speaker:ChatMessage.getSpeaker?.()??{},whisper:[...new Set([...[...game.users].filter(u=>u.isGM).map(u=>u.id),author.id])]});}
  catch(e){console.warn(`[${ID}] Could not report the rejected roll`,e);}
 }
-function actorsCheckboxes(){const a=allCharacters();return a.length?`<div class="agu-choices">${a.map(x=>`<label class="agu-inline"><input type="checkbox" name="agu-participant" value="${E(x.id)}"> ${E(x.name)}</label>`).join('')}</div>`:empty('Create two disposable character Actors in the Actors directory before starting a check.');}
+function actorsCheckboxes(ticked=[]){const a=allCharacters(),on=new Set(ticked);return a.length?`<div class="agu-choices">${a.map(x=>`<label class="agu-inline"><input type="checkbox" name="agu-participant" value="${E(x.id)}" ${on.has(x.id)?'checked':''}> ${E(x.name)}</label>`).join('')}</div>`:empty('Create two disposable character Actors in the Actors directory before starting a check.');}
 function skillChoices(){return `<div class="agu-choices">${SKILL_IDS.map(s=>`<label class="agu-inline"><input type="checkbox" name="agu-skill" value="${E(s)}" ${['acr','ath','prc'].includes(s)?'checked':''}>${E(skillName(s))}</label>`).join('')}</div>`;}
-function createPanel(kind){if(!isGM())return '';
+/** Characters ticked by default: the dnd5e Primary Party, else characters owned by connected players. */
+function partyDefaults(){try{return goldDefaults().actorIds;}catch{return [];}}
+/** One start form for both kinds: Group result (a Group Check) or Individual rolls (a Roll Request). */
+function createPanel(app){if(!isGM())return '';
  if(activeSession())return `<div class="agu-note">${E(notice())}</div>`;
- const group=kind==='group';return `<section class="ag-card agu-card"><h2>${group?'Start a Group Check':'Send a Roll Request'}</h2>
- <p class="agu-note">${group?'Everyone contributes to one averaged result. Select the characters, skills and DC.':'Ask each selected character for one public skill check. Each result is reported individually.'}</p>
- <label>Title<input id="agu-title" maxlength="120" value="${group?'New Group Check':'New Roll Request'}"></label>
- <fieldset><legend>Participating characters</legend>${actorsCheckboxes()}</fieldset>
- <fieldset><legend>${group?'Allowed skills':'Requested skill'}</legend>${group?skillChoices():`<select id="agu-request-skill">${SKILL_IDS.map(s=>option(s,skillName(s),'prc')).join('')}</select>`}</fieldset>
- <div class="agu-compact"><label>DC <input id="agu-dc" type="number" min="0" max="100" value="15"></label>${group?`<label>Rolls per character <select id="agu-roll-count">${[1,2,3,4,5].map(n=>option(String(n),String(n),'1')).join('')}</select></label>`:''}</div>
- <div class="agu-actions">${btn('start',group?'Start Group Check':'Send Roll Request',{kind:'primary'})}</div></section>`;
+ const group=app.rollMode!=='individual',radio=(v,label,hint,on)=>`<label class="agu-inline agu-mode"><input type="radio" name="agu-mode" value="${v}" ${on?'checked':''}><span><strong>${E(label)}</strong><br><small>${E(hint)}</small></span></label>`;
+ return `<section class="ag-card agu-card"><h2>Start Rolls</h2>
+ <fieldset><legend>Result</legend><div class="agu-choices">${radio('group','Group result','Everyone rolls; the average of the rolls is compared with the DC for one pass or fail.',group)}${radio('individual','Individual rolls','Each character makes one roll of one skill; each result is shown on its own.',!group)}</div></fieldset>
+ <label>Title<input id="agu-title" maxlength="120" placeholder="${group?'New Group Check':'New Roll Request'}"></label>
+ <fieldset><legend>Participating characters</legend>${actorsCheckboxes(partyDefaults())}</fieldset>
+ <fieldset><legend>Skills</legend><p class="agu-note" id="agu-skill-hint">${group?'Characters choose from the ticked skills.':'Tick exactly one skill.'}</p>${skillChoices()}</fieldset>
+ <div class="agu-compact"><label>DC <input id="agu-dc" type="number" min="0" max="100" value="15"></label><label data-group-only ${group?'':'hidden'}>Rolls per character <select id="agu-roll-count">${[1,2,3,4,5].map(n=>option(String(n),String(n),'1')).join('')}</select></label></div>
+ <p class="agu-note">Leave the DC empty to record rolls without a pass or fail. Players pick advantage or disadvantage when they roll.</p>
+ <div class="agu-actions">${btn('start','Start Rolls',{kind:'primary'})}</div></section>`;
+}
+/** GM-only start. Reads the Rolls form; one active slot, so a second start is refused whatever its mode. */
+async function startRolls(form){
+ if(!isGM())throw Error('GM only.');
+ if(activeSession())throw Error('Resolve or cancel the active interaction first.');
+ const dcText=String(form.dc??'').trim();
+ const session=rollFormSession({...form,dc:dcText===''?null:Number(dcText),id:crypto.randomUUID(),createdBy:game.user.id});
+ await queueSession(async()=>{if(activeSession())throw Error('An active interaction already exists.');if(getResult())await game.settings.set(ID,'lastResult',{});await storeSession(session);});
+ return session;
 }
 function slotText(slot,kind){return slot.status==='accepted'?`${slot.total} · ${labelSkill(slot.skill)}`:slot.status==='skipped'?'Skipped':'Waiting';}
 const modeLabels={'0':'Normal','1':'Advantage','-1':'Disadvantage'};
@@ -111,7 +125,7 @@ function checkBar(slots){
  return `<div class="ag-checkbar" role="progressbar" aria-valuemin="0" aria-valuemax="${slots.length}" aria-valuenow="${done}" aria-label="Rolls resolved">${slots.map(x=>`<span class="ag-checkbar-seg ${E(x.status)}"></span>`).join('')}</div>`;
 }
 function verdictOf(s,sm){return s.dc===null?'Recorded':sm.result==='success'?'Success':sm.result==='failure'?'Failure':'No Result';}
-function resultView(kind,res){
+function resultView(res){const kind=res.kind;
  const projected=projectSession(res,{userId:game.user.id,isGM:isGM(),ownedActorIds:ownedIds()}),sm=summary(projected);
  const verdict=kind==='group'?verdictOf(res,sm):'Responses';
  const cls=verdict==='Success'?'success':verdict==='Failure'?'failure':'';
@@ -125,8 +139,7 @@ function resultView(kind,res){
  const avg=kind==='group'&&sm.average!==null?`<div class="ag-result-score"><span class="ag-result-num">${E(sm.average.toFixed(1))}</span><span class="ag-result-vs">average${res.dc===null?'':` vs DC ${E(res.dc)}`}</span></div>`:'';
  return `<section class="agu-card ag-card ag-result ${cls}"><div class="agu-line"><h2>${E(res.name)}</h2><span class="ag-badge agu-pill">${E(sessionKind(res))} · finished</span></div><div class="ag-result-verdict">${E(verdict)}</div>${avg}${rows}${isGM()?`<div class="agu-actions">${btn('clear-result','Clear Result',{kind:'primary ag-btn'})}</div><p class="agu-note">Everyone sees this result until you clear it or start the next check.</p>`:''}</section>`;
 }
-function sessionView(session,kind,app){
- if(session.kind!==kind)return `<section class="ag-card agu-card agu-quiet"><h2>${kind==='group'?'No Group Check active':'No Roll Request active'}</h2><p>A ${sessionKind(session)} is currently active in its own tab.</p>${isGM()?'Finish or cancel it there before starting another interaction.':'Switch tabs to respond to the current request.'}</section>`;
+function sessionView(session,app){
  const projected=projectSession(session,{userId:game.user.id,isGM:isGM(),ownedActorIds:ownedIds()});
  const sum=summary(projected),pending=projected.slots.filter(x=>x.status==='pending'&&isOwned(game.actors.get(x.actorId)));
  const actorIds=[...new Set(pending.map(x=>x.actorId))];
@@ -153,9 +166,9 @@ function sessionView(session,kind,app){
  ${isGM()?`<div class="agu-actions">${btn('resolve','End & Record',{kind:'primary ag-btn'})}${btn('cancel','Cancel Session',{kind:'danger ag-btn'})}</div>`:''}
  </section>`;
 }
-function interactionView(kind,app){const active=activeSession(),res=getResult();
- const idle=res&&res.kind===kind?resultView(kind,res):isGM()?empty(kind==='group'?'No Group Check active. Create one below.':'No Roll Request active. Send one below.'):empty('No active roll request for your character.');
- return (active?sessionView(active,kind,app):idle)+createPanel(kind);}
+function rollsView(app){const active=activeSession(),res=getResult();
+ const idle=res?resultView(res):isGM()?empty('No rolls running. Start one below.'):empty('No active roll request for your character.');
+ return (active?sessionView(active,app):idle)+createPanel(app);}
 function stashActor(){return game.actors.find(a=>a.getFlag(ID,'partyStash')===true);}
 const stashEnabled=()=>game.settings.get(ID,'stashEnabled')===true;
 /** Defaults to ON: only an explicit false turns the party vote off. */
@@ -204,13 +217,13 @@ function historyView(app){if(!isGM())return empty('History is GM-only.');
   return `<div class="agu-history"><div class="agu-line"><strong>${E(s.name)}</strong><span>${E(sessionKind(s))} · ${E(outcome)}</span></div><p>${E(detail)}</p><small>${E(new Date(s.closedAt||s.createdAt).toLocaleString())}${s.kind==='group'&&sm.average!==null?` · Average ${E(sm.average.toFixed(1))}`:''}</small></div>`;
  }).join(''):empty('No completed interactions yet.')}</section>`;
 }
-function helpHtml(){const gm=isGM();return `<p><strong>Utilities</strong> holds the party tools for running a session.</p><ul><li><strong>Group Checks</strong>: ${gm?'pick characters and skills and send a check to players; it ends when everyone has rolled, or you can end it early.':'when the GM sends a check, roll it for your character.'}</li><li><strong>Roll Requests</strong>: an individual roll request to selected players.</li><li><strong>Party Inventory</strong>: the shared party stash${gm?', which you turn on or off for players':''}.</li><li><strong>Roll Tables</strong>: roll a table and ${gm?'send the result to chat or selected players':'view results the GM shares'}.</li><li><strong>Conditions</strong>: see and remove the native conditions on party characters.</li>${gm?'<li><strong>History</strong>: finished checks and requests.</li><li><strong>GM Setup</strong>: Player Access and other settings.</li>':''}</ul>${gm?'<p>Skipping a contribution, ending or cancelling a check, clearing stash history and removing a non-native condition ask you to confirm first.</p>':''}`;}
+function helpHtml(){const gm=isGM();return `<p><strong>Utilities</strong> holds the party tools for running a session.</p><ul><li><strong>Rolls</strong>: ${gm?'pick characters and skills and send a roll to players. <em>Group result</em> averages everyone\'s rolls against the DC for one pass or fail (a Group Check); <em>Individual rolls</em> asks each character for one roll of one skill and shows each result (a Roll Request). Only one can run at a time; it ends when everyone has rolled, or you can end it early.':'when the GM asks for a roll, roll it here for your character.'}</li><li><strong>Party Inventory</strong>: the shared party stash${gm?', which you turn on or off for players':''}.</li><li><strong>Roll Tables</strong>: roll a table and ${gm?'send the result to chat or selected players':'view results the GM shares'}.</li><li><strong>Conditions</strong>: see and remove the native conditions on party characters.</li>${gm?'<li><strong>History</strong>: finished Group Checks and Roll Requests.</li><li><strong>GM Setup</strong>: Player Access and other settings.</li>':''}</ul>${gm?'<p>Skipping a contribution, ending or cancelling a check, clearing stash history and removing a non-native condition ask you to confirm first.</p>':''}`;}
 function setupView(){return `<section class="ag-card agu-card"><h2>GM Setup</h2><label class="agu-inline"><input id="agu-access" type="checkbox" ${game.settings.get(ID,'playerAccessEnabled')?'checked':''}>Enable Player Access</label><p class="agu-note">This controls the player-facing Utilities launcher, not native Actor ownership.</p><label class="agu-inline"><input id="agu-stash-enabled" type="checkbox" ${stashEnabled()?'checked':''}>Party Stash on for players</label><p class="agu-note">Off: players can't see the stash or move items in or out. You can always manage it.</p><label class="agu-inline"><input id="agu-stash-vote" type="checkbox" ${stashVoteRequired()?'checked':''}>Party must accept when a player takes an item out</label><p class="agu-note">On: any other player can deny, and no answer in 60 seconds cancels. Off: players take items out freely. You are never voted on. Every move is recorded in the stash History tab either way.</p><div class="agu-actions">${btn('save-access','Save Changes',{kind:'primary'})}</div></section>`;}
 class UtilitiesApp extends ApplicationV2 {
  static DEFAULT_OPTIONS={id:'ashen-gate-utilities-window',classes:['ag-app','ag-utilities'],window:{title:'Ashen Gate | Utilities',resizable:true,minimizable:true},position:{width:900,height:690}};
- constructor(...args){super(...args);this.tab='checks';this.actorId='';this.rollActorId='';this.tableDraft='';this.tableAuto=false;this.lastDraw=[];this.filter='';this.takeActorId='';this.stashTab='items';this.historyShown=HISTORY_PAGE;}
- async _renderHTML(){if(!permitted())throw Error('Utilities is hidden for players.');const tabs=[['checks','Group Checks'],['rolls','Roll Requests'],['inventory','Party Inventory'],['tables','Roll Tables'],['conditions','Conditions'],...(isGM()?[['history','History'],['setup','GM Setup']]:[])];
-  const body=this.tab==='checks'?interactionView('group',this):this.tab==='rolls'?interactionView('request',this):this.tab==='inventory'?inventoryView(this):this.tab==='tables'?tableView(this):this.tab==='conditions'?conditionsView(this):this.tab==='history'&&isGM()?historyView(this):this.tab==='setup'&&isGM()?setupView():empty('Unavailable view.');
+ constructor(...args){super(...args);this.tab='rolls';this.rollMode='group';this.actorId='';this.rollActorId='';this.tableDraft='';this.tableAuto=false;this.lastDraw=[];this.filter='';this.takeActorId='';this.stashTab='items';this.historyShown=HISTORY_PAGE;}
+ async _renderHTML(){if(!permitted())throw Error('Utilities is hidden for players.');this.tab=normalizeTab(this.tab);const tabs=[['rolls','Rolls'],['inventory','Party Inventory'],['tables','Roll Tables'],['conditions','Conditions'],...(isGM()?[['history','History'],['setup','GM Setup']]:[])];
+  const body=this.tab==='rolls'?rollsView(this):this.tab==='inventory'?inventoryView(this):this.tab==='tables'?tableView(this):this.tab==='conditions'?conditionsView(this):this.tab==='history'&&isGM()?historyView(this):this.tab==='setup'&&isGM()?setupView():empty('Unavailable view.');
   return `<div class="agu-root"><header class="ag-header agu-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Utilities</h1><p>Group challenges, individual requests and party utilities</p></div><div class="ag-header__meta">${appearanceOpener()?`<button type="button" class="ag-btn ag-btn--ghost" data-open-appearance title="Choose your Ashen Gate appearance"><i class="fa-solid fa-palette" aria-hidden="true"></i>Appearance</button>`:''}<button type="button" class="ag-btn ag-btn--ghost" data-action="help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i>Help</button><span class="agu-version">v${VERSION} Alpha · ${isGM()?'GM':'Player'}</span></div></header><nav class="ag-tabs agu-tabs" aria-label="Utility sections">${tabs.map(([id,label])=>`<button type="button" data-tab="${id}" aria-current="${this.tab===id?'page':'false'}" class="${this.tab===id?'active':''}">${E(label)}</button>`).join('')}</nav><main class="agu-main">${body}</main><footer class="ag-footer agu-footer"><span>Foundry V14 · dnd5e 6.0.6 target · live acceptance pending</span><span>${this.tab==='inventory'?`Party stash: ${stashEnabled()?'on':'off'} for players`:'Native permissions apply'}</span></footer></div>`;
  }
  // Appearance needs no wiring here: the kit's --ag-* tokens are inherited from the document,
@@ -218,6 +231,11 @@ class UtilitiesApp extends ApplicationV2 {
  _replaceHTML(html,content){content.innerHTML=html;this.bind(content);}
  bind(root){
   for(const el of root.querySelectorAll('[data-tab]'))el.addEventListener('click',async()=>{this.tab=el.dataset.tab;await this.render();});
+  for(const r of root.querySelectorAll('input[name="agu-mode"]'))r.addEventListener('change',()=>{this.rollMode=r.value;const group=r.value==='group';
+   for(const el of root.querySelectorAll('[data-group-only]'))el.hidden=!group;
+   const hint=root.querySelector('#agu-skill-hint');if(hint)hint.textContent=group?'Characters choose from the ticked skills.':'Tick exactly one skill.';
+   const title=root.querySelector('#agu-title');if(title)title.placeholder=group?'New Group Check':'New Roll Request';
+   if(!group)[...root.querySelectorAll('input[name="agu-skill"]:checked')].slice(1).forEach(x=>{x.checked=false;});});
   root.querySelector('[data-open-appearance]')?.addEventListener('click',()=>{const open=appearanceOpener();if(!open)return ui.notifications?.warn('General Manager is not active, so there are no appearance settings to open.');Promise.resolve(open()).catch(error);});
   for(const b of root.querySelectorAll('[data-condition-actor]'))b.addEventListener('click',async()=>{this.actorId=b.dataset.conditionActor;await this.render();});
   root.querySelector('#agu-roll-actor')?.addEventListener('change',e=>{this.rollActorId=e.target.value;this.render().catch(error);});
@@ -230,10 +248,8 @@ class UtilitiesApp extends ApplicationV2 {
  }
  async handle(action,b,root){if(b.disabled)return;b.disabled=true;try{
   if(action==='start'){
-   if(!isGM())throw Error('GM only.');const actors=[...root.querySelectorAll('input[name="agu-participant"]:checked')].map(x=>x.value),kind=this.tab==='rolls'?'request':'group';const skills=kind==='group'?[...root.querySelectorAll('input[name="agu-skill"]:checked')].map(x=>x.value):[root.querySelector('#agu-request-skill')?.value];const dcText=root.querySelector('#agu-dc')?.value;
-   if(activeSession())throw Error('Resolve or cancel the active interaction first.');
-   const session=createSession({id:crypto.randomUUID(),kind,name:root.querySelector('#agu-title')?.value,actors,skills,rollsPerActor:kind==='group'?Number(root.querySelector('#agu-roll-count')?.value):1,dc:dcText===''?null:Number(dcText),visibility:'public',createdBy:game.user.id});
-   await queueSession(async()=>{if(activeSession())throw Error('An active interaction already exists.');if(getResult())await game.settings.set(ID,'lastResult',{});await storeSession(session);});
+   const val=q=>root.querySelector(q)?.value,checked=n=>[...root.querySelectorAll(`input[name="${n}"]:checked`)].map(x=>x.value);
+   const session=await startRolls({mode:checked('agu-mode')[0]??this.rollMode??'group',title:val('#agu-title'),actors:checked('agu-participant'),skills:checked('agu-skill'),rollsPerActor:val('#agu-roll-count')??1,dc:val('#agu-dc')??''});
    ui.notifications.info(`${sessionKind(session)} sent to selected players.`);return;
   }
   if(action==='help'){await infoDialog('Utilities Help',helpHtml());return;}
@@ -697,7 +713,7 @@ function incomingSession(){
  lastPromptedSession=s.id;
  ui.notifications?.info(`New ${sessionKind(s)}: ${s.name}. Open Utilities to roll.`);
  if(!windowInstance||!windowInstance.rendered)windowInstance=new UtilitiesApp();
- windowInstance.tab=s.kind==='group'?'checks':'rolls';
+ windowInstance.tab='rolls';
  windowInstance.render({force:true}).catch(error);
 }
 function sessionChanged(){refreshWindows();incomingSession();}

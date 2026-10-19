@@ -1,3 +1,12 @@
+## 0.9.0 — 2026-10-19
+
+- **Group Checks** and **Roll Requests** are now one **Rolls** tab with one start form. Pick characters (the dnd5e Primary Party is ticked by default, else characters owned by connected players), skills, an optional DC, and a **Result** choice (default **Group result**):
+  - *Group result* is the old Group Check: characters choose from the ticked skills, rolls per character 1–5, the average is compared with the DC, tally whispered to the GM.
+  - *Individual rolls* is the old Roll Request: tick exactly one skill, one roll per character, each result shown on its own (Success/Failure per roll when a DC is set).
+- Unchanged: one active roll at a time across both modes, GM-only Start/Skip/End/Cancel, the GM-client roll check and "Roll not counted" whispers, the player prompt and Roll Now, finished-result card, History.
+- Saved data: none changed. History still labels entries Group Check or Roll Request, so old entries show as before. The old `checks`/`rolls` window tab ids both open Rolls.
+- No public API changes (there was no start-roll API to keep).
+
 ## 0.8.0 — 2026-10-19
 
 - New GM-only **Award Gold** (Party Inventory: next to the stash on/off toggle and in stash **History**). Enter gp, choose *each character gets this* (default) or *split evenly*, an optional reason, and tick characters. Default ticks: members of the dnd5e Primary Party, or characters owned by connected players when no Primary Party is set. A confirmation lists each character's gp before → after; a split pays whole gp only and any remainder is **not handed out** (it stays with you) and is shown before you confirm.
