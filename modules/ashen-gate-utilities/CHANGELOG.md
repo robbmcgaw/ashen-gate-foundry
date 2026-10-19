@@ -1,3 +1,8 @@
+## 0.7.3 — 2026-10-19
+
+- A Group Check / Roll Request roll the GM client cannot count (the check already ended, the character's slots are used up, the roll proof doesn't match) is no longer dropped silently: the player and the GM get a whispered "Roll not counted: <reason>" chat line. Before, the player only saw "awaiting GM acceptance" forever.
+- No saved-data or permission changes.
+
 ## 0.7.2 — 2026-10-19
 
 - Skip / End / Cancel on a check, Clear stash history and Remove a non-native condition now use Foundry dialogs instead of the browser's `confirm` (which the desktop app lacks). Each has a labelled action button, with Cancel on the left. The test-fixture reset prompts do the same.

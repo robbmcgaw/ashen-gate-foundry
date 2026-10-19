@@ -77,12 +77,18 @@ async function processSubmission(message){
   const total=Number(proof.rolls[0].total);
   if(!Number.isFinite(total)||total!==Number(payload.total))throw Error('Native roll does not match submission.');
   await queueSession(async()=>{
-   const s=activeSession();if(!s||s.id!==payload.sessionId)return;
+   const s=activeSession();if(!s||s.id!==payload.sessionId)throw Error('That check has already ended.');
    // Roll type/skill attestation in the native chat payload requires dnd5e 6.0.6 in-world verification.
    acceptRoll(s,{actorId:actor.id,skill:payload.skill,total,userId:author.id,proofMessageId:proof.id});
    await storeSession(s);
   });
- }catch(e){console.warn(`[${ID}] Rejected roll submission ${message.id}: ${e.message}`);}
+ }catch(e){console.warn(`[${ID}] Rejected roll submission ${message.id}: ${e.message}`);await tellRejected(author,actor,e.message);}
+}
+/** The submitter (and GMs) see why a roll was not counted, instead of waiting on "awaiting GM acceptance". */
+async function tellRejected(author,actor,reason){
+ if(!author)return;
+ try{await ChatMessage.create({content:`Roll not counted${actor?` for ${E(actor.name)}`:''}: ${E(reason)}`,speaker:ChatMessage.getSpeaker?.()??{},whisper:[...new Set([...[...game.users].filter(u=>u.isGM).map(u=>u.id),author.id])]});}
+ catch(e){console.warn(`[${ID}] Could not report the rejected roll`,e);}
 }
 function actorsCheckboxes(){const a=allCharacters();return a.length?`<div class="agu-choices">${a.map(x=>`<label class="agu-inline"><input type="checkbox" name="agu-participant" value="${E(x.id)}"> ${E(x.name)}</label>`).join('')}</div>`:empty('Create two disposable character Actors in the Actors directory before starting a check.');}
 function skillChoices(){return `<div class="agu-choices">${SKILL_IDS.map(s=>`<label class="agu-inline"><input type="checkbox" name="agu-skill" value="${E(s)}" ${['acr','ath','prc'].includes(s)?'checked':''}>${E(skillName(s))}</label>`).join('')}</div>`;}
