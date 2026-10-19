@@ -101,3 +101,11 @@ test('0.15: no Templates or Audit tab; samples under Import; Check library in Li
   assert.ok(tpl.indexOf('data-ag-action="template-example"')<lib,'samples sit in the Import tab');
   assert.deepEqual(JSON.parse(fs.readFileSync(new URL('../macros/manifest.json',import.meta.url),'utf8')).entries,[]);
 });
+
+test('0.16: no Macros tab or install/export UI; Macro documents still import from packages',()=>{
+  assert.doesNotMatch(tpl,/data-ag-tab="macros"|macrosActive|data-ag-macro|macro-install|macro-export/);
+  assert.doesNotMatch(main,/#installMacros|#exportMacros|ensureMacroRegistry|macro-install/);
+  assert.match(main,/const cls = \{Item,JournalEntry,Actor,RollTable,Macro\}\[kind\]/);
+  const pack=JSON.parse(fs.readFileSync(new URL('../../../test-fixtures/playtest/AG_Playtest_Pack_0.5.1.json',import.meta.url),'utf8'));
+  assert.ok(pack.records.some(r=>r.foundry?.document_type==='Macro'),'playtest pack still carries its Macro');
+});
