@@ -6,16 +6,24 @@ export const MAX_TIERS = 40;
 const IMAGE_EXT = /\.(?:png|jpe?g|webp|gif|svg|avif)$/i;
 const SAFE_CHARS = /^[A-Za-z0-9 _\-.@+()/]+$/;
 
+const FORGE_URL = /^https:\/\/((?:[a-z0-9-]+\.)+forge-vtt\.com)\/([A-Za-z0-9_\-.@+()/%]+)$/i;
 /**
- * A stored image path is a plain file path inside Foundry's data (e.g. worlds/x/map.webp): no scheme, no host,
- * no "..", no quotes or markup. Anything else is dropped (null). Percent-escapes are not accepted.
+ * A stored image is either a plain local file path inside Foundry's data (e.g. worlds/x/map.webp) or an https
+ * address on The Forge's own hosts (assets.forge-vtt.com, any *.forge-vtt.com). No other scheme or host, no "..",
+ * no quotes or markup, no query or fragment. Anything else is dropped (null).
  */
 export function safeImagePath(value) {
   if (typeof value !== 'string') return null;
   const p = value.trim();
-  if (!p || p.length > 300) return null;
-  if (p.startsWith('//') || p.includes('..') || p.includes('//') || p.endsWith('/')) return null;
-  if (!SAFE_CHARS.test(p) || !IMAGE_EXT.test(p)) return null;
+  if (!p || p.length > 500) return null;
+  if (p.includes('..') || p.endsWith('/') || !IMAGE_EXT.test(p)) return null;
+  if (/^[a-z][a-z0-9+.-]*:/i.test(p) || p.startsWith('//')) {
+    const m = FORGE_URL.exec(p);
+    if (!m || m[2].startsWith('/') || m[2].includes('//')) return null;
+    if (/%(?![0-9a-f]{2})|%(?:2e|2f|5c)/i.test(m[2])) return null;
+    return p;
+  }
+  if (p.length > 300 || p.includes('//') || !SAFE_CHARS.test(p)) return null;
   return p;
 }
 /** Value for a CSS url("...") from an already-safe path (spaces are escaped). */
@@ -52,12 +60,12 @@ export function applyAppearance(tree) {
 export function appearanceWarnings(raw) {
   const out = [];
   if (raw?.nodeSize != null && !Object.hasOwn(NODE_SIZES, raw.nodeSize)) out.push('nodeSize must be compact or normal; ignored');
-  if (raw?.background != null && !cleanBackground(raw.background)) out.push('background image path is not a safe local image file; ignored');
+  if (raw?.background != null && !cleanBackground(raw.background)) out.push('background image path is not a safe local or Forge image file; ignored');
   if (Array.isArray(raw?.tiers)) {
     if (raw.tiers.length > MAX_TIERS) out.push(`only the first ${MAX_TIERS} tiers are kept`);
     raw.tiers.slice(0, MAX_TIERS).forEach((t, i) => {
       if (cleanTiers([t]).length !== 1) out.push(`tier ${i + 1}: needs a level (1-99) and a position; ignored`);
-      else if (t.icon != null && t.icon !== '' && !safeImagePath(t.icon)) out.push(`tier ${i + 1}: icon path is not a safe local image file; ignored`);
+      else if (t.icon != null && t.icon !== '' && !safeImagePath(t.icon)) out.push(`tier ${i + 1}: icon path is not a safe local or Forge image file; ignored`);
     });
   }
   return out;
@@ -86,7 +94,7 @@ export function appearanceFromForm(v) {
     .filter(t => String(t.level ?? '').trim() !== '' || String(t.y ?? '').trim() !== '');
   const bgImage = String(v.bgImage ?? '').trim();
   const errors = [];
-  if (bgImage && !safeImagePath(bgImage)) errors.push('Background: use a local image file path (png, jpg, webp, gif, svg or avif); web addresses are not allowed.');
+  if (bgImage && !safeImagePath(bgImage)) errors.push('Background: use a local image file path or Forge asset address (png, jpg, webp, gif, svg or avif); other web addresses are not allowed.');
   tiers.forEach((t, i) => {
     if (cleanTiers([t]).length !== 1) errors.push(`Tier row ${i + 1}: needs a level (1-99) and a start position (0-6000).`);
     else if (t.icon && !safeImagePath(t.icon)) errors.push(`Tier row ${i + 1}: use a local image file path for the icon.`);

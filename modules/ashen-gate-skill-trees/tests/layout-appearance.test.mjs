@@ -9,7 +9,9 @@ const tree=(o={})=>({id:'TEST-TREE-1',name:'[TEST] Tree',status:'approved',visib
 
 test('image paths: only safe local image files',()=>{
   for(const ok of ['worlds/test/map.webp','modules/x/img/Level 1 (a).png','/worlds/t/b.JPG','icons/a-b_c.svg'])assert.equal(safeImagePath(ok),ok);
-  for(const bad of ['https://evil.example/a.png','http://a/b.png','//evil.example/a.png','javascript:alert(1)','data:image/png;base64,AAAA','../secret.png','worlds/../a.png','a.png"onerror="x','a.png);background:url(x','worlds/t/<script>.png','worlds\\t\\a.png','worlds/t/a.html','worlds/t/','worlds/t/a%2e%2e.png','',null,undefined,42,'x'.repeat(301)+'.png'])assert.equal(safeImagePath(bad),null,String(bad));
+  for(const ok of ['https://assets.forge-vtt.com/5f2a/Art/Level%201.png','https://assets.forge-vtt.com/5f2a/a.webp','https://foo.bar.forge-vtt.com/x/y.jpg','HTTPS://Assets.Forge-VTT.com/a.png'])assert.equal(safeImagePath(ok),ok);
+  assert.equal(cssUrl('https://assets.forge-vtt.com/a/b%20c.png'),'url("https://assets.forge-vtt.com/a/b%20c.png")');
+  for(const bad of ['https://forge-vtt.com.evil.example/a.png','https://evilforge-vtt.com/a.png','https://forge-vtt.com/a.png','http://assets.forge-vtt.com/a.png','https://user@assets.forge-vtt.com/a.png','https://assets.forge-vtt.com:8080/a.png','https://assets.forge-vtt.com/a.png?x=1','https://assets.forge-vtt.com/a.png#x','https://assets.forge-vtt.com/../a.png','https://assets.forge-vtt.com/%2e%2e/a.png','https://assets.forge-vtt.com/a"b.png','https://assets.forge-vtt.com/<a>.png','https://assets.forge-vtt.com/a.html','file:///etc/a.png','ftp://assets.forge-vtt.com/a.png','//assets.forge-vtt.com/a.png','https://assets.forge-vtt.com//a.png','https://assets.forge-vtt.com/a%zz.png','https://evil.example/a.png','http://a/b.png','//evil.example/a.png','javascript:alert(1)','data:image/png;base64,AAAA','../secret.png','worlds/../a.png','a.png"onerror="x','a.png);background:url(x','worlds/t/<script>.png','worlds\\t\\a.png','worlds/t/a.html','worlds/t/','worlds/t/a%2e%2e.png','',null,undefined,42,'x'.repeat(301)+'.png'])assert.equal(safeImagePath(bad),null,String(bad));
   assert.equal(cssUrl('a b/c d.png'),'url("a%20b/c%20d.png")');
   assert.equal(cssUrl('javascript:alert(1)'),'url("")');
 });
@@ -38,6 +40,11 @@ test('look fields round-trip through normalise, export JSON and import; unsafe v
   const exported=JSON.parse(JSON.stringify({schema:SCHEMA,trees:[n]}));
   const plan=planTreeImport(exported,[],{mode:'skip'});
   assert.deepEqual(plan.errors,[]);assert.deepEqual(plan.apply[0].background,n.background);assert.deepEqual(plan.apply[0].tiers,n.tiers);assert.equal(plan.apply[0].nodeSize,'normal');
+  const forge=normalizeTree(tree({background:{image:'https://assets.forge-vtt.com/1/b.webp'},tiers:[{level:1,y:0,icon:'https://assets.forge-vtt.com/1/i.png'}]}));
+  assert.equal(forge.background.image,'https://assets.forge-vtt.com/1/b.webp');
+  assert.equal(publicTree(forge).tiers[0].icon,'https://assets.forge-vtt.com/1/i.png');
+  assert.equal(planTreeImport({schema:SCHEMA,trees:[forge]},[]).apply[0].background.image,'https://assets.forge-vtt.com/1/b.webp');
+  assert.equal(publicTree(tree({background:{image:'https://evil.example/b.webp'}})).background,undefined);
   const evil=normalizeTree(tree({nodeSize:'huge',background:{image:'javascript:alert(1)',fit:'cover'},tiers:[{level:1,y:0,icon:'https://x.test/a.png',label:'<img src=x onerror=alert(1)>'}]}));
   assert.equal(evil.nodeSize,undefined);assert.equal(evil.background,undefined);assert.equal(evil.tiers[0].icon,null);
   const imported=planTreeImport({schema:SCHEMA,trees:[tree({background:{image:'//evil.test/a.png'}})]},[]);
