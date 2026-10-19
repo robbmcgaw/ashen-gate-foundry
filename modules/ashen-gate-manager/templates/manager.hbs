@@ -1,7 +1,7 @@
 <section class="agmanager-body">
   <header class="ag-header agmanager-top">
     <i class="agmanager-emblem fa-solid fa-dungeon" aria-hidden="true"></i>
-    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.14.0 Beta</small></h2></div>
+    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.15.0 Beta</small></h2></div>
     <button type="button" class="agmanager-help" data-ag-action="help" aria-label="Manager Help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button><span class="agmanager-chip">GM only</span>
   </header>
   <nav class="ag-tabs agmanager-nav" aria-label="Manager tabs">
@@ -9,9 +9,7 @@
     <button type="button" data-ag-tab="library" class="{{#if libraryActive}}active{{/if}}"><i class="fa-solid fa-layer-group"></i> Library</button>
     <button type="button" data-ag-tab="modules" class="{{#if modulesActive}}active{{/if}}"><i class="fa-solid fa-grip"></i> Modules</button>
     <button type="button" data-ag-tab="appearance" class="{{#if appearanceActive}}active{{/if}}"><i class="fa-solid fa-palette"></i> Appearance</button>
-    <button type="button" data-ag-tab="templates" class="{{#if templatesActive}}active{{/if}}"><i class="fa-solid fa-puzzle-piece"></i> Templates</button>
     <button type="button" data-ag-tab="macros" class="{{#if macrosActive}}active{{/if}}"><i class="fa-solid fa-terminal"></i> Macros</button>
-    <button type="button" data-ag-tab="audit" class="{{#if auditActive}}active{{/if}}"><i class="fa-solid fa-magnifying-glass"></i> Audit</button>
     <button type="button" data-ag-tab="history" class="{{#if historyActive}}active{{/if}}"><i class="fa-solid fa-clock-rotate-left"></i> History</button>
   </nav>
 
@@ -42,6 +40,8 @@
       </label>
       <span class="agmanager-tiny">Profiles change preview defaults only; they never apply changes automatically.</span>
     </div>
+    <p class="agmanager-tiny"><strong>Advanced / sample files.</strong> Package templates (<code>templates</code> + <code>template_ref</code> in the JSON) are compiled automatically on load; they do not rewrite existing Items.</p>
+    <div class="agmanager-row agmanager-row-wrap"><button type="button" data-ag-action="template-example">Download sample template package</button><button type="button" data-ag-action="import-format-example">Download v0.2 Import JSON starter</button><button type="button" data-ag-action="source-manifest-template">Download canonical source manifest</button></div>
     </details>
     {{#unless isSpecialist}}<label class="agmanager-toggle"><input type="checkbox" data-ag-drafts {{#if includeDrafts}}checked{{/if}}> Include <strong>draft / proposed / example</strong> records (sandbox testing only)</label>{{/unless}}
     {{#if isSpecialist}}{{#if specialistCanUpdate}}<label class="agmanager-toggle"><input type="checkbox" data-ag-update-existing {{#if updateExisting}}checked{{/if}}> <strong>Update existing {{specialistNoun}}</strong> (otherwise ones already in the world are kept as they are)</label>{{else}}<p class="agmanager-tiny">{{specialistLabel}} keeps {{specialistNoun}} that are already in the world; this file only adds new ones.</p>{{/if}}
@@ -163,6 +163,7 @@
     </section>
     {{/if}}
     <div class="agmanager-row agmanager-row-wrap agmanager-commands">
+      <button type="button" data-ag-action="library-check"><i class="fa-solid fa-magnifying-glass"></i> Check library</button>
       <button type="button" data-ag-action="library-export" {{#unless hasLibrarySelected}}disabled{{/unless}}>Export selected / local edits</button>
       <button type="button" data-ag-action="library-replace" {{#unless hasLibrarySelected}}disabled{{/unless}}>Replace from loaded JSON</button>
       <button type="button" data-ag-action="library-archive" {{#unless hasLibrarySelected}}disabled{{/unless}}>Archive</button>
@@ -217,6 +218,9 @@
     </div>
     <p class="agmanager-tiny">Export includes system rules, active effects and other module flags. Review copyright/third-party content and hidden GM details before uploading.</p>
       </details>
+    {{#if hasAudit}}<div class="agmanager-audit" aria-label="Library check results">
+    {{#each audit}}<div class="agmanager-auditrow agmanager-{{level}}"><span>{{level}}</span> {{message}}</div>{{/each}}
+    </div>{{/if}}
     <p class="agmanager-notice">{{libraryMessage}}</p>
     <p class="agmanager-tiny">Only Manager-managed projected world documents appear here; this is <strong>not</strong> the live Profession Ledger, Skill Tree or campaign-state browser. Unclassified/Shared is intentional where content ownership is ambiguous. Delete retains existing safeguards and requires a world backup.</p>
   </div>
@@ -284,24 +288,10 @@
   </div>
   {{/if}}
 
-  {{#if templatesActive}}
-  <div class="agmanager-panel">
-    <h3>Declarative templates</h3>
-    <p>Optional <code>templates</code> in the loaded JSON provide default Item or Journal fields. Each record selects one with <code>template_ref</code>. Record-specific properties override defaults; the manager compiles these before validating or writing documents.</p>
-    <div class="agmanager-package"><div><span>Loaded templates</span><strong>{{templateCount}}</strong></div><div><span>Records using templates</span><strong>{{compiledCount}}</strong></div></div>
-    <div class="agmanager-table-scroll"><table class="agmanager-table"><thead><tr><th>Template ID</th><th>Type</th><th>Version</th><th>Records</th></tr></thead>
-      <tbody>{{#each templateRows}}<tr><td><code>{{id}}</code></td><td>{{kind}}</td><td>{{version}}</td><td>{{used}}</td></tr>{{/each}}</tbody>
-    </table></div>
-    <div class="agmanager-row agmanager-row-wrap"><button type="button" data-ag-action="template-example">Download sample template package</button><button type="button" data-ag-action="import-format-example">Download v0.2 Import JSON starter</button><button type="button" data-ag-action="source-manifest-template">Download canonical source manifest</button></div>
-    <p class="agmanager-notice">{{templateMessage}}</p>
-    <p class="agmanager-tiny"><strong>Approved delivery:</strong> ag-source-package/0.1 manifests describe authored source and optional ZIPs; only generated ag-foundry-import/0.2 JSON is installable here. Location editing and mutable campaign state remain in specialist modules.</p>
-    <p class="agmanager-tiny">Template changes use normal Update / Replace preview; they do not rewrite Actor Item instances or Skill Tree Journals. Templates are imported from source JSON rather than edited in this alpha.</p>
-  </div>
-  {{/if}}
 
   {{#if macrosActive}}
   <div class="agmanager-panel">
-    <h3>Bundled macro library</h3>
+    <h3>Macro library</h3>
     <p>Macros are loaded from the module's <code>macros/manifest.json</code> and referenced JS files. Installation creates or updates world Macro documents; it never executes scripts. Existing macro IDs and locally modified code are protected.</p>
     <div class="agmanager-row agmanager-row-wrap">
       <label class="agmanager-filelabel"><i class="fa-solid fa-file-code"></i> Load custom macro JSON <input type="file" data-ag-macro-json accept=".json,application/json" /></label>
@@ -313,21 +303,11 @@
         <td><strong>{{name}}</strong><code>{{id}}</code><p class="agmanager-tiny">{{category}} · {{status}} — {{description}}</p></td><td>{{version}}</td><td><span class="agmanager-badge agmanager-{{action}}">{{action}}</span><div class="agmanager-tiny">{{reason}}</div></td>
       </tr>{{/each}}</tbody></table></div>
     <p class="agmanager-notice">{{macroMessage}}</p>
-    <p class="agmanager-tiny">Both bundled entries are legacy experimental Profession macros; do not run them against the current Ledger or Skill Tree data. To add bundled scripts, register JS sources in macros/manifest.json. You can also load an optional ag-macro-registry/0.4 JSON file with id, name, version, description, command for each macro. Custom entries last for this window only; installed macros remain in Foundry. Loading and installing do not execute scripts; review them before running.</p>
+    <p class="agmanager-tiny">No macros are bundled right now. To add bundled scripts, register JS sources in macros/manifest.json. You can also load an optional ag-macro-registry/0.4 JSON file with id, name, version, description, command for each macro. Custom entries last for this window only; installed macros remain in Foundry. Loading and installing do not execute scripts; review them before running.</p>
   </div>
   {{/if}}
 
 
-  {{#if auditActive}}
-  <div class="agmanager-panel">
-    <h3>Managed world document audit</h3>
-    <p>Checks only objects tagged by this importer: duplicate Ashen Gate IDs, missing baselines, and unresolved source references. It does not validate all Foundry or third-party content.</p>
-    <button type="button" data-ag-action="audit"><i class="fa-solid fa-arrows-rotate"></i> Scan again</button>
-    <div class="agmanager-audit">
-    {{#each audit}}<div class="agmanager-auditrow agmanager-{{level}}"><span>{{level}}</span> {{message}}</div>{{/each}}
-    </div>
-  </div>
-  {{/if}}
 
   {{#if historyActive}}
   <div class="agmanager-panel">
