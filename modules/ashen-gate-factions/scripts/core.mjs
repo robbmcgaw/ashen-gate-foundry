@@ -13,6 +13,12 @@ export const RECOVERED_GUILDS_DRAFT=Object.freeze([
   {name:'The Iron March',leader:'Marshal Edra Voss',public_role:'Reliable escort, disciplined defense, and contracts that hold under pressure',initial_benefit:'Access supervised practice space and introductions to available guards.'}
 ]);
 export const blankStanding=()=>({opening_score:0,score:0,events:[]});
+/** Fills missing group-state keys; `changed` is false when the stored state already had them all (so no write is needed). */
+export function groupStateDefaults(stored,legacyStanding){
+  const state=structuredClone(stored??{});
+  state.standing??=legacyStanding??blankStanding();state.requests??={};state.uses??={};state.claims??={};state.choices??={};
+  return {state,changed:stored==null||JSON.stringify(state)!==JSON.stringify(stored)};
+}
 export const keyFor=s=>String(s??'').toLowerCase().replace(/[^a-z0-9_-]+/g,'_').replace(/^[_-]+/,'').slice(0,90)||'entry';
 const provenance=(x,fallback)=>({sources:Array.isArray(x?.sources)?x.sources:[x?.source||fallback].filter(Boolean),decision_refs:x?.decision_refs??x?.decisionRefs??[]});
 export function makeFaction({id,trackId,name,leader='',public_role='',source='New GM draft',initialBenefit=null}){
