@@ -49,6 +49,10 @@
 .agl-xpbar>span{display:block;height:100%;background:linear-gradient(90deg,var(--ag-ok),var(--ag-accent));transition:width .5s ease}
 .agl-xp-award{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 .agl-xp-award input{width:70px}
+.agl-xp-award input[type=text]{width:180px}
+.agl-xp-adjust{margin-top:6px}
+.agl-xp-adjust summary{cursor:pointer}
+.agl-xp-adjust ul{margin:4px 0 0;padding-left:18px}
 .agl-flash{animation:agl-flash 1.6s ease-out 1;border-color:var(--ag-accent)}
 @keyframes agl-flash{0%{box-shadow:0 0 0 3px var(--ag-accent)}100%{box-shadow:0 0 0 0 transparent}}
 @media (prefers-reduced-motion:reduce){.agl-flash{animation:none}.agl-xpbar>span{transition:none}}

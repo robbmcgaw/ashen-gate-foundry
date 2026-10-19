@@ -1,3 +1,12 @@
+## 0.12.0 — 2026-10-19
+
+Take XP back.
+- **Adjust XP** (GM only, Individual tab → a profession → *Adjust XP*): change by a + or − amount, or *Set to* an exact value, with an optional reason. Never below 0 or above 390 (level 16). A confirmation shows the new XP and level first, and the character's owner gets a chat note.
+- **Undo award** (GM only) on a gather/craft chat card whose XP was awarded: takes the XP back and turns **Award XP** on again. Safe to click twice; the second click does nothing.
+- **Lowering XP never deletes anything.** Level, XP-to-next, the sheet's profession description and the Tidy5e tab recompute. Perks held beyond the new level are kept and listed in the confirmation and chat note; known recipes above the new level stay known, but crafting them is blocked until the level returns.
+- **XP history** per profession (GM only): who, how much, when, why, and which chat card, last 50 changes, stored beside the XP in the existing progress flag (additive). Players never see it. New API: `adjustProfessionXP`, `getProfessionXPHistory` (GM only). `ashenGateLedger.xpOpportunity` and existing API shapes are unchanged; `progressOf` gains `perksBeyondLevel`.
+- A character holding more perks than their level used to make their saved progress read as invalid; that check is gone.
+
 ## 0.11.0 — 2026-10-19
 
 Enchanting, and clearer gathering errors.

@@ -43,7 +43,7 @@ test('actor flags are keyed by stable PROF IDs and leave selected perks alone',(
  const b=nextProgress(a.state,'PROF-HERBALISM',1);
  assert.equal(b.level,3);
  const actor={flags:{'ashen-gate-profession-ledger':{professionProgress:b.state}}};
- assert.deepEqual(progressOf(actor,'PROF-HERBALISM'),{id:'PROF-HERBALISM',xp:14,level:3,tier:'Apprentice',selectedPerkIds:[],unspentPerkChoices:3});
+ assert.deepEqual(progressOf(actor,'PROF-HERBALISM'),{id:'PROF-HERBALISM',xp:14,level:3,tier:'Apprentice',selectedPerkIds:[],unspentPerkChoices:3,perksBeyondLevel:[]});
  assert.equal(progressOf(actor,'PROF-UNKNOWN'),null);
  assert.throws(()=>nextProgress(base,'NOT-PROF',1));
  assert.throws(()=>nextProgress(base,'PROF-HERBALISM',-1));
