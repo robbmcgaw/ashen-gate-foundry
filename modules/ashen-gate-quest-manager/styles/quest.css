@@ -67,3 +67,13 @@
 @media(max-width:760px){.ag-quest-source-objective{grid-template-columns:1fr}.ag-quest-tracker{top:60px;right:8px}.ag-quest-app .ag-quest-gm-left{width:auto}}
 
 .ag-quest-location {cursor:pointer;color:var(--ag-accent);text-decoration:underline;}
+.ag-quest-filter-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 8px}
+.ag-quest-group h4{margin:10px 0 6px;color:var(--ag-muted);text-transform:uppercase;font-size:12px;letter-spacing:.04em}
+.ag-quest-card-chips{display:flex;gap:6px;flex-wrap:wrap}
+.ag-quest-chip{font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid var(--ag-border);color:var(--ag-muted)}
+.ag-quest-chip--active,.ag-quest-chip--available,.ag-quest-chip--visible{border-color:var(--ag-accent);color:var(--ag-accent)}
+.ag-quest-setup{padding:12px 18px;overflow:auto;flex:1;max-width:680px}
+.ag-quest-setup .ag-quest-admin{border-bottom:1px solid var(--ag-border);padding-bottom:12px;margin-bottom:12px}
+.ag-quest-setup label:not(.ag-check){display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
+.ag-quest-setup input:not([type=checkbox]){width:100%}
+@media(max-width:760px){.ag-quest-app .ag-quest-gm-left{max-height:none}}
