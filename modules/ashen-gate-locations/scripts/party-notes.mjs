@@ -17,10 +17,11 @@
  * The GM-side checks are the real ones for the socket (a player can bypass the API and emit by hand):
  *  - the sender is the user named in the request, and is connected;
  *  - a player needs Player Access, and may name a location only by the pin key of a page they can see, or by the
- *    LOC id of a revealed one. Hidden, unknown and made-up references get the same answer;
+ *    LOC id of a revealed one, and must be in its audience (1.8.0). Hidden, unknown, other players' and made-up
+ *    references get the same answer;
  *  - only the GM can clear.
  */
-import {MODULE_ID, PARTY_NOTES, applyNotesOp, notesMirror, notesLockHolder} from './model.mjs';
+import {MODULE_ID, PARTY_NOTES, applyNotesOp, notesMirror, notesLockHolder, inAudience} from './model.mjs';
 
 export const SOCKET = `module.${MODULE_ID}`;
 const OPS = new Set(['lock', 'release', 'save', 'clear']);
@@ -50,11 +51,12 @@ export function createNotesService(deps) {
     }
     if (!deps.playerAccessEnabled()) throw new Error('Locations is hidden from players. Ask your GM to enable Player Access.');
     const loc = all.find(l => l.pinKey === ref) ?? all.find(l => l.id === ref && l.state === 'revealed');
-    if (!loc || loc.state === 'hidden' || !loc.published) throw new Error(NOT_AVAILABLE);
+    if (!loc || loc.state === 'hidden' || !loc.published || !inAudience(loc, user.id)) throw new Error(NOT_AVAILABLE);
     return loc;
   }
 
-  /** Carries out one request on the primary GM's client: {notes, visible}. `visible` is false for a hidden location (only a GM gets that far). */
+  /** Carries out one request on the primary GM's client: {notes, visible}. `visible` (every player may read these notes)
+   *  is false for a hidden location (only a GM gets that far) and for a "Selected players" one. */
   function perform(payload, user) {
     return serial(async () => {
       if (!user?.id) throw new Error('Unknown user.');
@@ -67,7 +69,7 @@ export function createNotesService(deps) {
       const next = applyNotesOp(before, {op, text, rev, takeover: takeover === true},
         {userId: user.id, isGM: user.isGM === true, now: now(), isActive, nameOf, lockMs: PARTY_NOTES.lockMs});
       const saved = JSON.stringify(next) === JSON.stringify(before) ? before : await deps.writeNotes(loc, next);
-      return {notes: notesMirror(saved), visible: loc.state !== 'hidden' && !!loc.published};
+      return {notes: notesMirror(saved), visible: loc.state !== 'hidden' && !!loc.published && loc.audience?.mode !== 'selected'};
     });
   }
 
@@ -141,7 +143,8 @@ export function createNotesService(deps) {
       message = e?.message || String(e);
       console.warn(`${MODULE_ID} | refused Party Notes ${msg.op} from ${msg.userId}: ${message}`);
     }
-    // Receipts reach every client, so they only carry notes every player may already read: never a hidden location's.
+    // Receipts reach every client, so they only carry notes every player may already read: never a hidden or
+    // "Selected players" location's (the requester then reads its own copy from the page it may open).
     deps.socket.emit(SOCKET, {type: 'notes-receipt', requestId: msg.requestId, userId: msg.userId, ok, message, notes: ok && result.visible ? result.notes : null});
   }
 

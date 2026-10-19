@@ -237,7 +237,9 @@ test('world migration from 1.2.x: pages and notes lose locationId, gain pinKey; 
     {entryId: pj.id, pageId: lairPage.id, text: '', texture: {src: 'icons/svg/castle.svg'}, iconSize: 48, flags: {[MOD]: {locationId: 'LOC-SECRET-LAIR'}}},
     {entryId: pj.id, pageId: innPage.id, text: '[TEST] Inn', texture: {src: 'icons/svg/castle.svg'}, iconSize: 48, flags: {[MOD]: {locationId: 'LOC-TEST-INN'}}},
     {text: 'native', texture: {src: 'icons/svg/book.svg'}, iconSize: 48}]);
-  assert.deepEqual(await migrate(), {records: 2, pages: 2, notes: 2});
+  const {inheritance, unsettled, ...first} = await migrate();
+  assert.deepEqual(first, {records: 2, pages: 2, notes: 2});
+  assert.deepEqual(inheritance, [], 'no Region was passing conditions');
   const [inn, lair] = readAll();
   assert.deepEqual([inn.state, lair.state], ['revealed', 'hidden']);
   assert.equal(pj.pages.length, 2, 'pages updated in place, so existing notes keep working');
@@ -249,7 +251,7 @@ test('world migration from 1.2.x: pages and notes lose locationId, gain pinKey; 
   assert.match(JSON.parse(innPage.getFlag(MOD, 'view')).description, /warm/, 'revealed content is still shown');
   assert.equal(nativeNote.flags, undefined);
   const writes = scene.updates;
-  assert.deepEqual(await migrate(), {records: 0, pages: 0, notes: 0});
+  assert.deepEqual(await migrate(), {records: 0, pages: 0, notes: 0, unsettled: 0, inheritance: []});
   assert.equal(scene.updates, writes, 're-running changes nothing');
   assert.equal(gmJournal().getFlag(MOD, 'locations').length, 2);
 });

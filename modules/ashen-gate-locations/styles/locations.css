@@ -138,3 +138,22 @@
 .agl-showing { color: var(--agl-muted); font-size: .85rem; align-self: center; }
 .agl-threat--settled { border-color: var(--agl-muted); color: var(--agl-muted); }
 .agl-threat--light { border-color: var(--agl-ok); color: var(--agl-ok); }
+
+/* ----- 1.8.0 tree, path, move undo, audience ----- */
+.agl-tree { list-style: none; margin: 0; padding: 0 0 0 14px; }
+.agl-tree--root { padding-left: 0; }
+.agl-tree__row { display: flex; align-items: center; gap: 2px; border: 1px dashed transparent; border-radius: var(--agl-radius); }
+.agl-tree__row .agl-row { flex: 1; min-width: 0; }
+.agl-tree__row .agl-count { white-space: nowrap; font-size: .85em; }
+.agl-tree__toggle { flex: 0 0 22px; width: 22px; height: 22px; padding: 0; display: inline-flex; align-items: center; justify-content: center; background: none; border: 0; color: var(--agl-muted); cursor: pointer; }
+.agl-tree__item--path > .agl-tree__row .agl-row__name { color: var(--agl-muted); }
+.agl-tree__tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 2px; margin-bottom: 4px; border: 1px dashed transparent; border-radius: var(--agl-radius); }
+.agl-tree__row.agl-dragover, .agl-tree__tools.agl-dragover { border-color: var(--agl-accent); background: var(--agl-surface-2); }
+.agl-row__icon { color: var(--agl-accent); }
+.agl-undo { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; margin-bottom: 6px; border: 1px solid var(--agl-accent); border-radius: var(--agl-radius); background: var(--agl-surface-2); }
+.agl-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 0 0 6px; color: var(--agl-muted); font-size: .9em; }
+.agl-crumbs > span:last-of-type { color: var(--agl-text); }
+.agl-crumbs .ag-btn { margin-left: auto; }
+.agl-audience li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.agl-share { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.agl-share-pick { display: flex; flex-direction: column; gap: 4px; border: 0; padding: 0; }

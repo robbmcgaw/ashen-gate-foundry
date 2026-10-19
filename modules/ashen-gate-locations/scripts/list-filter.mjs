@@ -1,5 +1,5 @@
 /** The GM list: search, filters, sort and grouping. Pure functions over the location records; nothing here is saved. */
-import {THREATS, threatLabel, hasUnpublishedChanges} from './model.mjs';
+import {THREATS, threatLabel, hasUnpublishedChanges, isPlaceable} from './model.mjs';
 
 export const NONE = '__none';
 export const HAS = '__has';
@@ -9,7 +9,8 @@ export const SORTS = Object.freeze([{value: 'name', label: 'Name'}, {value: 'thr
   {value: 'nodes', label: 'Gathering nodes'}, {value: 'status', label: 'Status'}]);
 export const STATUS_FILTERS = Object.freeze([{value: 'hidden', label: 'Hidden'}, {value: 'unidentified', label: 'Unidentified'}, {value: 'revealed', label: 'Revealed'},
   {value: 'unpublished', label: 'Unpublished edits'}]);
-export const emptyFilters = () => ({threat: '', region: '', profession: '', quest: '', status: ''});
+export const PLACEABLE_FILTERS = Object.freeze([{value: 'yes', label: 'Placeable on a map'}, {value: 'no', label: 'Representative only'}]);
+export const emptyFilters = () => ({threat: '', region: '', profession: '', quest: '', status: '', placeable: ''});
 export const hasFilters = f => Object.values(f).some(Boolean);
 
 const skillsOf = l => [...new Set((l.resources ?? []).map(r => String(r.skill ?? '').trim()).filter(Boolean))];
@@ -29,7 +30,8 @@ const test = {
   region: (l, v) => v === NONE ? !l.region : l.region === v,
   profession: (l, v) => skillsOf(l).includes(v),
   quest: (l, v) => v === HAS ? questIdsOf(l).length > 0 : v === NONE ? questIdsOf(l).length === 0 : questIdsOf(l).includes(v),
-  status: (l, v) => v === 'unpublished' ? hasUnpublishedChanges(l) : l.state === v
+  status: (l, v) => v === 'unpublished' ? hasUnpublishedChanges(l) : l.state === v,
+  placeable: (l, v) => (v === 'yes') === isPlaceable(l)
 };
 /** Rows that pass every filter (AND), optionally ignoring one so a dropdown can count its own alternatives. */
 export function applyFilters(rows, filters, except = null) {
@@ -54,6 +56,8 @@ export function filterOptions(rows, filters, questName = id => id) {
     ...[...quests].map(([id, n]) => ({value: id, label: questName(id), count: n})).sort((a, b) => a.label.localeCompare(b.label))];
   const srows = base('status');
   opts.status = STATUS_FILTERS.map(s => ({...s, count: srows.filter(l => test.status(l, s.value)).length}));
+  const prows = base('placeable');
+  opts.placeable = PLACEABLE_FILTERS.map(s => ({...s, count: prows.filter(l => test.placeable(l, s.value)).length}));
   return opts;
 }
 
