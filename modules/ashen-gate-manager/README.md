@@ -147,3 +147,22 @@ A genuine three-way **field-by-field merge UI**, schema migration for Item subty
 ## Repository
 
 This archive is a **local prototype**. No GitHub commit, deployment or sync was requested or performed.
+
+## World export (0.18.0)
+
+Library tab → **Export Ashen Gate data**. GM only (rejected in the handler, not just hidden). Buttons: **Export everything**, **Export changed since last export**, **Copy summary** (counts per module plus new/changed/removed ids, to paste elsewhere; it does not save a file or move the snapshot).
+
+File: `AG_World_Export_<YYYY-MM-DD>.json` (`_changed` is added for a changed-only file). Keys and records are sorted so diffs stay clean.
+
+```
+header   { schema: "ag-world-export/0.1", date, mode: "everything"|"changed", note?,
+           world: {id, title}, versions: {foundry, dnd5e, modules: {<module id>: version|null}} }
+summary  { <section>: {total, new, changed, removed, status?} }   // section = world, locations, quests, factions, skill_trees, headquarters, profession_ledger
+world    [ {id, kind, type, name, folder_path, access: "visible"|"gm", visibility, flags, system, hash, uuid} ]
+modules  { <section>: {module_id, version, status: "ok"|"not available"|"no definitions to export", reason?, records: [{id, name, data, hash}]} }
+removed  [ {id, name, section} ]   // ids in the last snapshot that are gone now (when anything was removed or in changed mode)
+```
+
+- `world` holds every Item, Journal, Actor, Roll Table and Macro whose Manager source flag carries a permanent `sourceId` (`PROF-`, `MAT-`, `REC-`, `ITEM-`, `PERK-`, …), plus the Folders Manager made for them. `id` is the permanent id (folders: `<type>:<path>`). `uuid` is a local hint only, never an id. `access` is `visible` when players can observe the document by default, else `gm`. `flags` is Manager's flag namespace (source, lifecycle, capture). `system` is omitted for `character` and `group` Actors (`system_omitted` says why).
+- `modules` records come from the other modules' public GM-only APIs, feature-detected: Locations `listLocations`, Quest Log `listQuests` + `getGMSource` (definition only, no status), Factions `getFactions`, Skill Trees `listTrees`, Headquarters `exportState().catalog` (facility definitions only). Profession Ledger has no definitions of its own; its professions, recipes and perks are the tagged `world` Items. Play state keys (exhausted/available nodes, loot status, locks, scene bindings, progress, stash, party notes) are stripped.
+- `hash` is a short non-cryptographic content hash for change detection. In `changed` mode the file lists new and changed records only. The snapshot (world setting `worldExportSnapshot`, GM only) is updated after the file save call returns; the browser cannot confirm the file reached disk, so if you cancel the download, run **Export everything** again.
