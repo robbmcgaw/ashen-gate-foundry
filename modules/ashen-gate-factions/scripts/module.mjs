@@ -35,7 +35,7 @@ const getFolders=d=>d?.getFlag(MODULE_ID,'folderIndex');
 // Foundry's Journal folder is storage organization only, independent from the in-dashboard faction folders.
 // Do not set player visibility on the Folder. Journal ownership controls actual document access.
 const STORAGE_FOLDER_NAME='Ashen Gate — Factions Data';
-const BUILD_VERSION='0.7.0';
+const BUILD_VERSION='0.7.1';
 const isModuleJournal=d=>Boolean(getFaction(d)||getGroup(d)||getPersonal(d)||getView(d)||getFolders(d));
 async function ensureStorageFolder(){
   assertGM();
@@ -400,7 +400,7 @@ const openDashboard=()=>{
   return dashboard;
 };
 function attachLauncher(app,html,visible=playerMayOpen()){
-  return mountLauncher(launcherRoot(app,html),{moduleId:MODULE_ID,label:'Factions & Renown',icon:'fa-solid fa-shield-halved',onClick:openDashboard,visible});
+  return mountLauncher(launcherRoot(app,html),{moduleId:MODULE_ID,label:'Renown',title:'Factions & Renown',icon:'fa-solid fa-shield-halved',onClick:openDashboard,visible});
 }
 // Called after a world setting change and from the GM API. No campaign-state writes.
 async function applyPlayerAccess(enabled=playerAccessEnabled()){

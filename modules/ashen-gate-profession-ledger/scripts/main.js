@@ -11,7 +11,7 @@ import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,professionKey,effectiveMapping,toolKe
 import {tierName,defaultDC,normalizeNode,gatherOutcome,gatherReward,exhaustsNode,helperEligibility,checkGatherRequest,canRunGathering,
   stackMaterial} from './gathering.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.10.0';
+const VERSION='0.10.1';
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...}. */
 const XP_HOOK='ashenGateLedger.xpOpportunity';
@@ -1389,7 +1389,7 @@ Hooks.once('ready',()=>{
 
 /** Open Ledger on the Actors directory for both GM and players; idempotent across renders. */
 function addActorDirectoryLauncher(application, renderedElement){
-  mountLauncher(launcherRoot(application,renderedElement),{moduleId:ID,label:'Profession Ledger',icon:'fa-solid fa-book-open',
+  mountLauncher(launcherRoot(application,renderedElement),{moduleId:ID,label:'Professions',title:'Profession Ledger',icon:'fa-solid fa-book-open',
     onClick:()=>game.modules.get(ID)?.api?.open(),visible:canOpenLedger()});
 }
 Hooks.on('closeApplicationV2',app=>openLedgerWindows.delete(app));

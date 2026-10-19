@@ -15,6 +15,10 @@
 - If Locations is not active the rows are skipped and the preview says "N location records skipped: enable Locations".
 - Draft locations follow **Include drafts** like every other record.
 
+## 0.13.1 — 2026-10-19
+
+- GM-only Items sidebar launcher moved to `scripts/items-launcher.js`: General Manager always first, Locations second, in one shared two-column group whichever module renders first. Still GM-only (checked on render and on click). No saved-data changes. Buttons wrap their labels instead of clipping, use the Ashen Gate theme tokens for hover/focus, and the grid reflows with no gap when a module is off or hidden by Player Access.
+
 ## 0.12.2 — 2026-10-18
 
 - Header is one line: title and version on the left, Help and the "GM only" chip on the right. The empty emblem box (non-existent `fa-gate` icon) is replaced by a `fa-dungeon` icon.

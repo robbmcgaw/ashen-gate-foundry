@@ -4,6 +4,10 @@
 
 - New GM-only `api.previewFacilityImport(payload)` and `api.importFacilities(payload)` so General Manager's single importer can hand facility files over (a list, or an object with `records`). New facilities are added to the catalog; facilities already there are kept as they are. The catalog's own Import button is unchanged.
 
+## 0.6.5 — 2026-10-19
+
+- Actors sidebar launcher: shared two-column grid layout and fixed order. No change to Player Access or saved data. Buttons wrap their labels instead of clipping, use the Ashen Gate theme tokens for hover/focus, and the grid reflows with no gap when a module is off or hidden by Player Access.
+
 ## 0.6.4 — 2026-10-18
 
 - New look from the shared Ashen Gate UI kit (`styles/ag-ui.css`): cleaner type, consistent padding, header, tabs, buttons and fields that match every other Ashen Gate module.

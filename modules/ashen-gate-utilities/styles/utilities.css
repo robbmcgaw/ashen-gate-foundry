@@ -112,3 +112,7 @@
 .agu-vote-app .window-content {padding:var(--ag-space-4);}
 .agu-vote-app .agu-vote p {margin:0 0 var(--ag-space-2);}
 .agu-vote-app .agu-vote-actions {display:flex;justify-content:space-between;gap:var(--ag-space-2);margin-top:var(--ag-space-3);}
+/* v0.6.0 — Party Stash history tab. */
+.agu-stash-app .agu-stash-log .agu-line{align-items:center;gap:var(--ag-space-2);}
+.agu-stash-app .agu-stash-log__what{display:flex;align-items:center;gap:var(--ag-space-2);min-width:0;}
+.agu-stash-app .agu-stash-log small{color:var(--ag-muted);}
