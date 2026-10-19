@@ -41,7 +41,7 @@ test('one Manager import of the playtest pack creates the documents and all the 
   const itemRows = creates.filter(r => r.kind === 'Item');
   const locRows = creates.filter(r => r.kind === 'Location');
   const count = kind => creates.filter(r => r.kind === kind).length;
-  assert.equal(itemRows.length, 35, '3 professions, 8 materials, 7 recipes, 7 items (drafts excluded), 4 perks, 4 stash items, 2 hireling records');
+  assert.equal(itemRows.length, 39, '3 professions, 8 materials, 7 recipes, 7 items (drafts excluded), 8 perks, 4 stash items, 2 hireling records');
   assert.deepEqual(['Actor', 'JournalEntry', 'RollTable'].map(count), [3, 3, 1]);
   assert.deepEqual(locRows.map(r => r.id).sort(), pkg.records.filter(isLocationRecord).map(r => r.id).sort());
   assert.equal(locRows.length, 8);

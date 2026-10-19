@@ -30,7 +30,7 @@ test('module registers API and hidden public projection settings',async()=>{
   assert.equal(menus.get('open').restricted,false);
   assert.equal(events.get('renderActorDirectory').length,1);
   const api=game.modules.get('ashen-gate-skill-trees').api;
-  assert.equal(api.version,'0.7.0');
+  assert.equal(api.version,'0.8.0');
   assert.ok(api.open());
   assert.deepEqual(api.listTrees(),[]);
   assert.equal(api.actorProgress(null,'MISSING'),null);
@@ -108,34 +108,31 @@ test('end-to-end fake GM: initialize, install native QA fixture, grant wallet, r
   game.items.contents=[];
 });
 
-test('import UI explicitly separates canonical source packages from tree layout imports',async()=>{
- const fs=await import('node:fs/promises');const source=await fs.readFile(new URL('../scripts/main.js',import.meta.url),'utf8');
- assert.match(source,/ag-source-package\/0\.1/);
- assert.match(source,/ag-foundry-import\/0\.2/);
- assert.match(source,/allowedSourceForProvider\(this\.tree\.provider\.kind,id\)/);
- assert.match(source,/unlocks_power/);
+test('Skill Trees has no importer UI of its own; Manager hands files to the GM-only API',async()=>{
+ const fs=await import('node:fs/promises');
+ const source=await fs.readFile(new URL('../scripts/main.js',import.meta.url),'utf8');
+ const template=await fs.readFile(new URL('../templates/tree.hbs',import.meta.url),'utf8');
+ assert.doesNotMatch(template,/data-act="import"|type="file"|Import Tree Layout JSON/);
+ assert.doesNotMatch(source,/_readFile|agst-tree-import/);
+ assert.match(template,/data-act="export"/);assert.match(template,/data-act="export-all"/);
+ assert.match(source,/allowedSourceForProvider\(t\.provider\.kind,id\)/);
 });
 
-test('canonical source and Manager projections are rejected without writing tree layouts',async()=>{
+test('import API rejects source packages and Manager records without writing tree layouts',async()=>{
   game.user.isGM=true;
   const api=game.modules.get('ashen-gate-skill-trees').api;
-  const app=api.open();
   const journal=game.journal.contents.find(j=>j.flags?.['ashen-gate-skill-trees']?.privateStore);
   assert.ok(journal,'Test GM storage exists');
   const before=JSON.stringify(journal.flags['ashen-gate-skill-trees'].payload);
-  const notifications=[];
-  ui.notifications.error=s=>notifications.push(s);
-  for(const [name,payload,expected] of [
-    ['source.json',{schema_version:'ag-source-package/0.1',files:[]},'canonical source package'],
-    ['manager.json',{manifest:{schema_version:'ag-foundry-import/0.2'},records:[]},'General Manager import records']
-  ]){
-    const file={name,size:200,text:async()=>JSON.stringify(payload)};
-    const event={target:{files:[file],value:'not-yet-cleared'}};
-    await app._readFile(event);
-    assert.equal(event.target.value,'');
+  for(const payload of [{schema_version:'ag-source-package/0.1',files:[]},{manifest:{schema_version:'ag-foundry-import/0.2'},records:[]}]){
+    assert.ok(api.previewTreeImport(payload).errors.length);
+    await assert.rejects(()=>api.importTrees(payload),/Import blocked/);
     assert.equal(JSON.stringify(journal.flags['ashen-gate-skill-trees'].payload),before);
-    assert.ok(notifications.at(-1).includes(expected),`${name} rejection must be specific`);
   }
+  game.user.isGM=false;
+  assert.throws(()=>api.previewTreeImport({schema:'ag-skill-trees/0.3',trees:[]}),/GM only/);
+  await assert.rejects(()=>api.importTrees({schema:'ag-skill-trees/0.3',trees:[]}),/GM only/);
+  game.user.isGM=true;
 });
 
 
@@ -144,15 +141,14 @@ test('DEC-0068 through DEC-0071: standardized tabbed shell and source/import sep
   const template=await fs.readFile(new URL('../templates/tree.hbs',import.meta.url),'utf8');
   const manifest=JSON.parse(await fs.readFile(new URL('../module.json',import.meta.url),'utf8'));
   assert.equal(manifest.id,'ashen-gate-skill-trees');
-  assert.equal(manifest.version,'0.7.0');
+  assert.equal(manifest.version,'0.8.0');
   assert.match(manifest.title,/Ashen Gate \| Skill Trees/);
   assert.match(template,/data-act="tab-trees"/);
   assert.match(template,/\{\{#if gm\}\}<button type="button" data-act="tab-setup"/);
   assert.match(template,/\{\{#if activeSetup\}\}/);
   assert.match(template,/Developer Tools — Experimental \/ GM only/);
   assert.match(template,/data-act="publish"/);
-  assert.match(template,/foundry\.folder_path/);
-  assert.match(template,/ag-foundry-import\/0\.2/);
+  assert.match(template,/General Manager → Import/);
   assert.match(template,/moduleVersion/);
   assert.match(template,/Export Selected Tree/);
   assert.doesNotMatch(template,/agst-footer-label/);

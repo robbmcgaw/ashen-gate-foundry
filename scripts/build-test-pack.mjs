@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeFaction, sourceDefinition } from '../modules/ashen-gate-factions/scripts/core.mjs';
 
-export const PACK_VERSION = '0.5.1';
+export const PACK_VERSION = '0.6.0';
 export const PACK_ID = 'AG-PLAYTEST-PACK';
 const SOURCE = 'Synthetic playtest data (not canon)';
 const FOLDER = 'Ashen Gate/Playtest';
@@ -281,17 +281,23 @@ export function buildLocations(materialIds) {
   });
 }
 
-// ---- Profession perks (Skill Trees link these by PERK-* id; the Ledger owns who has chosen them) -------
+// ---- Perks (Skill Tree nodes name these by PERK-* id). Alchemy perks: the Ledger owns who has chosen them.
+// The PERK-PT-GEN-* perks sit on the generic points tree; unlocking one there adds it to the character sheet.
+// point_cost is the Skill Trees point cost (it lives on the perk; 1 when absent).
 const PERKS = [
   { id: 'PERK-PT-ALCH-STEADY-HANDS', name: '[TEST] Steady Hands', prof: 'PROF-PT-ALCHEMY' },
   { id: 'PERK-PT-ALCH-FRUGAL-BREW', name: '[TEST] Frugal Brew', prof: 'PROF-PT-ALCHEMY' },
   { id: 'PERK-PT-ALCH-QUICK-BREW', name: '[TEST] Quick Brew', prof: 'PROF-PT-ALCHEMY' },
   { id: 'PERK-PT-ALCH-MASTER-TOUCH', name: '[TEST] Master’s Touch', prof: 'PROF-PT-ALCHEMY', visibility: 'gm' },
+  { id: 'PERK-PT-GEN-FOUNDATION', name: '[TEST] Foundation', prof: 'PROF-PT-HERBALISM', cost: 1 },
+  { id: 'PERK-PT-GEN-LEFT-PATH', name: '[TEST] Left Path', prof: 'PROF-PT-HERBALISM', cost: 1 },
+  { id: 'PERK-PT-GEN-RIGHT-PATH', name: '[TEST] Right Path', prof: 'PROF-PT-HERBALISM', cost: 1 },
+  { id: 'PERK-PT-GEN-FINAL', name: '[TEST] Final Step', prof: 'PROF-PT-HERBALISM', cost: 2 },
 ];
 function perkRecord(p) {
   return common(p.id, 'ProfessionPerk', {
     ...(p.visibility ? { visibility: p.visibility } : {}),
-    refs: [ref('perk_of', p.prof)], name: p.name, profession_id: p.prof,
+    refs: [ref('perk_of', p.prof)], name: p.name, profession_id: p.prof, ...(p.cost ? { point_cost: p.cost } : {}),
     foundry: project('Perks', p.name, 'feat', ICONS.prof,
       `<h2>${p.name}</h2><p>Synthetic playtest perk of ${marker(p.prof, profById.get(p.prof).name)}; no rules effect.</p>`),
   });
@@ -473,30 +479,29 @@ export function buildQuests() {
   };
 }
 
-const stNode = (id, name, x, y, extra = {}) => ({
-  id, name, description: 'Synthetic playtest node; no automatic game effect.', x, y, cost: 1,
-  requiresAll: [], requiresAny: [], excludes: [], contentRef: null, sourceUuid: null, status: 'test', visibility: 'player', display: 'shown', ...extra,
+// Skill Trees 0.8 format: each node names a perk; name, text, picture and point cost come from that perk.
+const stNode = (id, perkId, x, y, extra = {}) => ({
+  id, perkId, x, y, requiresAll: [], requiresAny: [], excludes: [], status: 'test', visibility: 'player', display: 'shown', ...extra,
 });
-const perkRef = id => ({ relation: 'unlocks_perk', target_id: id, mode: 'optional' });
 export function buildSkillTrees() {
   return {
-    schema: 'ag-skill-trees/0.2',
+    schema: 'ag-skill-trees/0.3',
     trees: [
       { id: 'PT-TREE-ALCHEMY', name: '[TEST] Alchemy Perks', description: 'Profession tree tied to PROF-PT-ALCHEMY. Read-only in Skill Trees; the Ledger owns perk selection.',
         status: 'test', visibility: 'player', sourceRef: 'PROF-PT-ALCHEMY', provider: { kind: 'profession', maxPoints: null },
         nodes: [
-          stNode('PT-ALC-STEADY', '[TEST] Steady Hands', 120, 120, { contentRef: perkRef('PERK-PT-ALCH-STEADY-HANDS') }),
-          stNode('PT-ALC-FRUGAL', '[TEST] Frugal Brew', 420, 50, { requiresAll: ['PT-ALC-STEADY'], contentRef: perkRef('PERK-PT-ALCH-FRUGAL-BREW') }),
-          stNode('PT-ALC-QUICK', '[TEST] Quick Brew', 420, 225, { requiresAll: ['PT-ALC-STEADY'], contentRef: perkRef('PERK-PT-ALCH-QUICK-BREW') }),
-          stNode('PT-ALC-MASTER', '[TEST] Master’s Touch', 750, 145, { requiresAny: [['PT-ALC-FRUGAL', 'PT-ALC-QUICK']], visibility: 'gm', display: 'hidden', contentRef: perkRef('PERK-PT-ALCH-MASTER-TOUCH') }),
+          stNode('PT-ALC-STEADY', 'PERK-PT-ALCH-STEADY-HANDS', 120, 120),
+          stNode('PT-ALC-FRUGAL', 'PERK-PT-ALCH-FRUGAL-BREW', 420, 50, { requiresAll: ['PT-ALC-STEADY'] }),
+          stNode('PT-ALC-QUICK', 'PERK-PT-ALCH-QUICK-BREW', 420, 225, { requiresAll: ['PT-ALC-STEADY'] }),
+          stNode('PT-ALC-MASTER', 'PERK-PT-ALCH-MASTER-TOUCH', 750, 145, { requiresAny: [['PT-ALC-FRUGAL', 'PT-ALC-QUICK']], visibility: 'gm', display: 'hidden' }),
         ] },
-      { id: 'PT-TREE-GENERIC', name: '[TEST] Generic Points', description: 'Generic point wallet with a prerequisite, an exclusion and an OR group.',
+      { id: 'PT-TREE-GENERIC', name: '[TEST] Generic Points', description: 'Generic point wallet with a prerequisite, an exclusion and an OR group. Unlocking adds the perk to the sheet.',
         status: 'test', visibility: 'player', sourceRef: null, provider: { kind: 'generic_points', maxPoints: 6 },
         nodes: [
-          stNode('PT-GEN-BASE', '[TEST] Foundation', 120, 120),
-          stNode('PT-GEN-LEFT', '[TEST] Left Path', 420, 50, { requiresAll: ['PT-GEN-BASE'], excludes: ['PT-GEN-RIGHT'] }),
-          stNode('PT-GEN-RIGHT', '[TEST] Right Path', 420, 225, { requiresAll: ['PT-GEN-BASE'], excludes: ['PT-GEN-LEFT'] }),
-          stNode('PT-GEN-FINAL', '[TEST] Final Node', 750, 145, { requiresAny: [['PT-GEN-LEFT', 'PT-GEN-RIGHT']], cost: 2 }),
+          stNode('PT-GEN-BASE', 'PERK-PT-GEN-FOUNDATION', 120, 120),
+          stNode('PT-GEN-LEFT', 'PERK-PT-GEN-LEFT-PATH', 420, 50, { requiresAll: ['PT-GEN-BASE'], excludes: ['PT-GEN-RIGHT'] }),
+          stNode('PT-GEN-RIGHT', 'PERK-PT-GEN-RIGHT-PATH', 420, 225, { requiresAll: ['PT-GEN-BASE'], excludes: ['PT-GEN-LEFT'] }),
+          stNode('PT-GEN-FINAL', 'PERK-PT-GEN-FINAL', 750, 145, { requiresAny: [['PT-GEN-LEFT', 'PT-GEN-RIGHT']] }),
         ] },
     ],
   };
@@ -607,7 +612,7 @@ export function buildPack() {
       schema_version: 'ag-foundry-import/0.2',
       package_id: PACK_ID,
       version: PACK_VERSION,
-      description: 'Synthetic playtest pack: 3 professions, 8 materials, 8 recipes with crafted items, 3 give-to-player recipe items, 4 perks, 4 stash items, ' +
+      description: 'Synthetic playtest pack: 3 professions, 8 materials, 8 recipes with crafted items, 3 give-to-player recipe items, 8 perks, 4 stash items, ' +
         '3 test characters, 3 journals, 1 roll table, 1 hireling and perk, 1 GM-only link macro. 8 locations (a Region point-crawl plus Normal/Hot/Deadly sites) with gathering nodes for the Locations module. ' +
         'Includes one GM-only material, one draft recipe/item and hidden location content as deliberate visibility examples. Not canon.',
     },

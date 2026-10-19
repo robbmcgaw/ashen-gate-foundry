@@ -83,7 +83,7 @@ test('the pack carries the test characters, journals, table, perks and hireling 
   assert.equal(byType('JournalEntry').length, 3);
   assert.equal(byType('RollTable').length, 1);
   assert.deepEqual(byType('HirelingPerk').map(r => r.id), ['HPERK-PT-WORKING']);
-  assert.ok(byType('Hireling').length === 1 && byType('ProfessionPerk').length === 4 && byType('Item').length >= 12);
+  assert.ok(byType('Hireling').length === 1 && byType('ProfessionPerk').length === 8 && byType('Item').length >= 12);
 });
 
 test('Locations import the whole point-crawl; nesting, states, loot, nodes and quest links all resolve', () => {
@@ -135,7 +135,10 @@ test('Quest Manager, Skill Trees and Headquarters files load and reference pack 
   assert.deepEqual(validateTrees(trees).errors, []);
   for (const t of trees.trees) {
     if (t.sourceRef) assert.ok(ids.has(t.sourceRef), `${t.id} sourceRef`);
-    for (const n of t.nodes) if (n.contentRef) assert.ok(ids.has(n.contentRef.target_id), `${n.id} -> ${n.contentRef.target_id}`);
+    for (const n of t.nodes) {
+      assert.match(n.perkId ?? '', /^PERK-PT-/, `${n.id} names a pack perk`);
+      assert.ok(ids.has(n.perkId), `${n.id} -> ${n.perkId}`);
+    }
   }
   assert.ok(trees.trees.some(t => t.provider.kind === 'profession' && t.sourceRef === 'PROF-PT-ALCHEMY'));
   const facIds = facilities.map(f => f.id);

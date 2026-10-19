@@ -1,0 +1,42 @@
+/** Skill tree graph geometry: edges run from prerequisite to dependent and stop at the node's border,
+ * so the arrowhead stays visible. Pure; shared by the template context and the live drag preview. */
+export const NODE_W = 181, NODE_H = 67;
+const GAP = 3;
+export const nodeCenter = n => ({x: n.x + NODE_W / 2, y: n.y + NODE_H / 2});
+/** Where the line from box centre a toward point b leaves the node box (plus a small gap). */
+function borderPoint(c, toward) {
+  const dx = toward.x - c.x, dy = toward.y - c.y;
+  if (!dx && !dy) return {...c};
+  const scale = Math.min(dx ? (NODE_W / 2 + GAP) / Math.abs(dx) : Infinity, dy ? (NODE_H / 2 + GAP) / Math.abs(dy) : Infinity);
+  return {x: c.x + dx * scale, y: c.y + dy * scale};
+}
+const r = v => Math.round(v * 10) / 10;
+/** Straight segment between two node positions ({x,y} top-left), with its midpoint for a label. */
+export function edgeLine(from, to) {
+  const a = nodeCenter(from), b = nodeCenter(to);
+  const s = borderPoint(a, b), e = borderPoint(b, a);
+  return {d: `M ${r(s.x)} ${r(s.y)} L ${r(e.x)} ${r(e.y)}`, mx: r((s.x + e.x) / 2), my: r((s.y + e.y) / 2)};
+}
+/**
+ * Every edge of a tree. kind: 'all' (required), 'any' (one of an OR group; group is 1-based), 'exclude' (either/or, no direction).
+ * Exclusions listed on both nodes are drawn once. Edges to nodes not in the list (e.g. hidden from players) are left out.
+ */
+export function graphEdges(nodes) {
+  const by = new Map(nodes.map(n => [n.id, n])), edges = [], seen = new Set();
+  const unlocked = id => Boolean(by.get(id)?.unlocked);
+  const add = (kind, from, to, extra = {}) => {
+    const a = by.get(from), b = by.get(to);
+    if (!a || !b || a === b) return;
+    edges.push({kind, from, to, ...edgeLine(a, b), active: kind !== 'exclude' && unlocked(from) && unlocked(to), ...extra});
+  };
+  for (const n of nodes) {
+    for (const id of n.requiresAll ?? []) add('all', id, n.id);
+    (n.requiresAny ?? []).forEach((g, i) => { for (const id of g) add('any', id, n.id, {group: i + 1}); });
+    for (const id of n.excludes ?? []) {
+      const key = [n.id, id].sort().join('|');
+      if (seen.has(key)) continue;
+      seen.add(key); add('exclude', n.id, id);
+    }
+  }
+  return edges;
+}
