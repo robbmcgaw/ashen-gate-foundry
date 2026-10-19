@@ -1,3 +1,9 @@
+## 0.8.3 — 2026-10-19
+
+- Faction actions that used the browser's `prompt`/`confirm` (rename folder, edit information, edit reward, remove entry/reward/reference, reset charges, clear a milestone choice, share with party, add example guilds) now use Foundry dialogs, so they work in the desktop app. Destructive confirms have a labelled action button. Editing a reward is now one form instead of six prompts; the same checks apply.
+- New header (`Ashen Gate | Factions`, version, **Help**). The Help text is a draft.
+- No saved-data, permission or API changes.
+
 ## 0.8.2 — 2026-10-19
 
 - Export file name no longer has a hard-coded version: it is now `AG_Factions_Definitions.json`.
