@@ -1,3 +1,7 @@
+## 0.7.0 — 2026-10-19
+
+- New GM-only, UI-less `api.previewTreeImport(pack, {mode})` and `api.importTrees(pack, {mode})` so General Manager's single importer can hand tree layouts over. New trees are created; existing ones are kept (or, with mode `update`, replaced; purchased nodes stay protected). Actor progress is never touched.
+
 ## 0.6.3 — 2026-10-18
 
 - Fix: the shared Ashen Gate launcher group now sits above the Actors sidebar header instead of inside it, so Foundry's Create Actor / Create Folder buttons show again. Tighter padding around the group.

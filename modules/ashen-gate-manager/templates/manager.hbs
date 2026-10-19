@@ -1,18 +1,13 @@
 <section class="agmanager-body">
   <header class="ag-header agmanager-top">
     <i class="agmanager-emblem fa-solid fa-dungeon" aria-hidden="true"></i>
-    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.13.0 Beta</small></h2></div>
+    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.14.0 Beta</small></h2></div>
     <button type="button" class="agmanager-help" data-ag-action="help" aria-label="Manager Help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button><span class="agmanager-chip">GM only</span>
   </header>
-  {{#if headerLaunchers.length}}<nav class="agmanager-header-launchers" aria-label="Open Ashen Gate modules">
-    {{#each headerLaunchers}}<button type="button" data-ag-module-open="{{id}}" title="{{title}} · {{state}}" {{#unless canOpen}}disabled{{/unless}}><i class="{{icon}}" aria-hidden="true"></i> {{label}}</button>{{/each}}
-  </nav>{{/if}}
   <nav class="ag-tabs agmanager-nav" aria-label="Manager tabs">
     <button type="button" data-ag-tab="import" class="{{#if importActive}}active{{/if}}"><i class="fa-solid fa-file-import"></i> Import</button>
-    <button type="button" data-ag-tab="capture" class="{{#if captureActive}}active{{/if}}"><i class="fa-solid fa-tags"></i> Adopt &amp; Export</button>
     <button type="button" data-ag-tab="library" class="{{#if libraryActive}}active{{/if}}"><i class="fa-solid fa-layer-group"></i> Library</button>
     <button type="button" data-ag-tab="modules" class="{{#if modulesActive}}active{{/if}}"><i class="fa-solid fa-grip"></i> Modules</button>
-    <button type="button" data-ag-tab="player-access" class="{{#if playerAccessActive}}active{{/if}}"><i class="fa-solid fa-user-shield"></i> Player Access</button>
     <button type="button" data-ag-tab="appearance" class="{{#if appearanceActive}}active{{/if}}"><i class="fa-solid fa-palette"></i> Appearance</button>
     <button type="button" data-ag-tab="templates" class="{{#if templatesActive}}active{{/if}}"><i class="fa-solid fa-puzzle-piece"></i> Templates</button>
     <button type="button" data-ag-tab="macros" class="{{#if macrosActive}}active{{/if}}"><i class="fa-solid fa-terminal"></i> Macros</button>
@@ -34,7 +29,7 @@
       <div><span>Schema</span><strong>{{schemaVersion}}</strong></div>
       <div><span>Records</span><strong>{{recordCount}}</strong></div>
     </div>
-    <p class="agmanager-tiny"><strong>Source:</strong> {{packageSource}}. Supported projections: Item, Journal, Actor, RollTable, Macro. ZIPs must contain exactly one <code>ag-foundry-import/0.2</code> JSON; source JSON and executable scripts are not run.</p>
+    <p class="agmanager-tiny"><strong>Source:</strong> {{packageSource}}. Supported: a Manager package (Item, Journal, Actor, RollTable, Macro, Location) or a Quest, Skill Tree, Headquarters facility or Factions file, which Manager recognises and hands to that module. ZIPs must contain exactly one <code>ag-foundry-import/0.2</code> JSON; source JSON and executable scripts are not run.</p>
     {{#if hasPackage}}<div class="agmanager-row agmanager-row-wrap">{{#each typeSummary}}<span class="agmanager-chip">{{name}}: {{count}}</span>{{/each}}</div>{{/if}}
     {{#if hasZipPortraits}}<label class="agmanager-toggle"><input type="checkbox" data-ag-upload-assets {{#if uploadZipArtwork}}checked{{/if}}> Upload matching ZIP portraits into this world's <code>ashen-gate-imports</code> folder before creating documents ({{zipPortraitCount}} images available).</label>{{/if}}
     <details><summary>Advanced import options</summary>
@@ -48,8 +43,9 @@
       <span class="agmanager-tiny">Profiles change preview defaults only; they never apply changes automatically.</span>
     </div>
     </details>
-    <label class="agmanager-toggle"><input type="checkbox" data-ag-drafts {{#if includeDrafts}}checked{{/if}}> Include <strong>draft / proposed / example</strong> records (sandbox testing only)</label>
-    {{#if hasLocationRecords}}<label class="agmanager-toggle"><input type="checkbox" data-ag-update-locations {{#if updateExistingLocations}}checked{{/if}}> <strong>Update existing locations</strong> (otherwise locations already in the world are kept as they are)</label>{{/if}}
+    {{#unless isSpecialist}}<label class="agmanager-toggle"><input type="checkbox" data-ag-drafts {{#if includeDrafts}}checked{{/if}}> Include <strong>draft / proposed / example</strong> records (sandbox testing only)</label>{{/unless}}
+    {{#if isSpecialist}}{{#if specialistCanUpdate}}<label class="agmanager-toggle"><input type="checkbox" data-ag-update-existing {{#if updateExisting}}checked{{/if}}> <strong>Update existing {{specialistNoun}}</strong> (otherwise ones already in the world are kept as they are)</label>{{else}}<p class="agmanager-tiny">{{specialistLabel}} keeps {{specialistNoun}} that are already in the world; this file only adds new ones.</p>{{/if}}
+    {{else}}{{#if hasLocationRecords}}<label class="agmanager-toggle"><input type="checkbox" data-ag-update-existing {{#if updateExisting}}checked{{/if}}> <strong>Update existing locations</strong> (otherwise locations already in the world are kept as they are)</label>{{/if}}{{/if}}
     <div class="agmanager-row">
       <button type="button" data-ag-action="preview" {{#unless hasPackage}}disabled{{/unless}}><i class="fa-solid fa-shield-halved"></i> Validate &amp; Preview</button>
       <button type="button" data-ag-action="select" class="agmanager-muted" {{#unless hasPreview}}disabled{{/unless}}>Select eligible</button>
@@ -174,124 +170,10 @@
       <button type="button" data-ag-action="library-stage" {{#unless hasLibrarySelected}}disabled{{/unless}}>Copy to staging compendium</button>
       <button type="button" data-ag-action="library-delete" class="agmanager-danger" {{#unless hasLibrarySelected}}disabled{{/unless}}>Delete archived</button>
     </div>
-    <p class="agmanager-notice">{{libraryMessage}}</p>
-    <p class="agmanager-tiny">Only Manager-managed projected world documents appear here; this is <strong>not</strong> the live Profession Ledger, Skill Tree or campaign-state browser. Unclassified/Shared is intentional where content ownership is ambiguous. Delete retains existing safeguards and requires a world backup.</p>
-  </div>
-  {{/if}}
+    <details class="agmanager-adopt" data-ag-adopt {{#if adoptOpen}}open{{/if}}>
+    <summary><strong>Adopt &amp; export world Items for review</strong></summary>
 
-  {{#if modulesActive}}
-  <div class="agmanager-panel">
-    <h3>Ashen Gate Modules <span class="agmanager-beta">BETA</span></h3>
-    <p>Open other Ashen Gate modules from one place. The Manager discovers <strong>installed modules</strong> and uses their published <code>api.open()</code> launcher or registered Foundry settings window; it doesn't assume a module has an interface.</p>
-    <div class="agmanager-module-grid">
-    {{#each launcherRows}}
-      <article class="agmanager-module-card">
-        <div><h4>{{title}}</h4><code>{{id}}</code><p class="agmanager-tiny">v{{version}} · {{state}} · Player access: {{playerAccessState}} (GM launcher remains available)</p><p class="agmanager-tiny">{{role}}</p></div>
-        <button type="button" data-ag-module-open="{{id}}" {{#unless canOpen}}disabled{{/unless}}>Open</button>
-      </article>
-    {{else}}<p>No other Ashen Gate modules were detected in this world. Enable a module and reopen this tab.</p>
-    {{/each}}
-    </div>
-    <p class="agmanager-tiny">Disabled means the module is inactive or has not exposed an Open API / settings menu. Other workstreams can support direct opening by exposing <code>game.modules.get(moduleId).api.open()</code>. This tab never installs, enables or changes another module.</p>
-  </div>
-  {{/if}}
-
-  {{#if playerAccessActive}}
-  <div class="agmanager-panel agmanager-player-access">
-    <h3>Player Access <span class="agmanager-beta">GM controls</span></h3>
-    <p>Reveal or hide each specialist module’s <strong>player-facing interface</strong> as your campaign introduces that system. The specialist stores and enforces the setting; this Manager never copies the gate or changes Actor progression, features, items or campaign state.</p>
-    <div class="agmanager-row agmanager-row-wrap agmanager-access-actions">
-      <button type="button" data-ag-action="player-access-refresh" {{#if busy}}disabled{{/if}}><i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i> Refresh status</button>
-      <button type="button" data-ag-action="player-access-hide-all" {{#unless playerAccessHasVisible}}disabled{{/unless}}><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Hide All Player Interfaces ({{playerAccessVisibleCount}})</button>
-    </div>
-    <p class="agmanager-notice" role="status">{{playerAccessMessage}}</p>
-    <div class="agmanager-table-scroll agmanager-access-scroll">
-      <table class="agmanager-table agmanager-access-table">
-        <thead><tr><th>Module</th><th>Installation</th><th>Audience</th><th>Player access</th><th>Action</th></tr></thead>
-        <tbody>
-          {{#each playerAccessRows}}
-          <tr>
-            <td><strong>{{title}}</strong><code>{{id}}</code><span class="agmanager-access-version">v{{version}}</span></td>
-            <td>{{status}}</td><td>{{audience}}</td>
-            <td><span class="agmanager-access-state">{{state}}</span><small class="agmanager-access-reason">{{reason}}</small></td>
-            <td>{{#if canToggle}}
-              {{#if playerAccessEnabled}}
-                <button type="button" data-ag-player-access-toggle="{{id}}" data-ag-player-access-enabled="false" {{#if @root.busy}}disabled{{/if}} aria-label="Hide {{title}} from players">Hide from players</button>
-              {{else}}
-                <button type="button" data-ag-player-access-toggle="{{id}}" data-ag-player-access-enabled="true" {{#if @root.busy}}disabled{{/if}} aria-label="Show {{title}} to players">Show to players</button>
-              {{/if}}
-              {{else}}<span class="agmanager-tiny">Not configurable here</span>{{/if}}</td>
-          </tr>
-          {{else}}<tr><td colspan="5">No Ashen Gate modules detected.</td></tr>{{/each}}
-        </tbody>
-      </table>
-    </div>
-    {{#if playerAccessReport}}
-      <details open class="agmanager-access-report"><summary>Hide All results: {{playerAccessReport.changed.length}} hidden; {{playerAccessReport.failed.length}} failed; {{playerAccessReport.skipped.length}} skipped</summary>
-        {{#each playerAccessReport.changed}}<p>Hidden: {{title}}</p>{{/each}}
-        {{#each playerAccessReport.failed}}<p class="agmanager-missing">Failed: {{title}} — {{error}}</p>{{/each}}
-        {{#each playerAccessReport.skipped}}<p>Skipped: {{title}} ({{reason}})</p>{{/each}}
-      </details>
-    {{/if}}
-    <p class="agmanager-tiny">Requires <code>ag-player-access/1</code> published by the installed specialist module. Older modules show <strong>Unsupported</strong>, not Visible. The Manager and the current Locations editor remain GM-only. Hidden interfaces still require their own modules to block direct API/macro opening and close existing player windows.</p>
-  </div>
-  {{/if}}
-
-  {{#if appearanceActive}}
-  <div class="agmanager-panel agmanager-appearance">
-    <h3>Appearance <span class="agmanager-beta">GM world default</span></h3>
-    <p>Choose the default skin for all connected users who have not selected an individual override. This changes interface colors only. It never changes Player Access, Actor progress, permissions or content.</p>
-    <div class="agmanager-row agmanager-row-wrap">
-      <label>World default
-        <select data-ag-world-skin aria-label="Ashen Gate world default appearance">
-          {{#each appearanceSkinRows}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}} — {{description}}</option>{{/each}}
-        </select>
-      </label>
-      <button type="button" class="ag-btn ag-btn--primary" data-ag-action="appearance-save-world" {{#if busy}}disabled{{/if}}>Save World Default</button>
-      <button type="button" data-ag-action="appearance-my-appearance" class="agmanager-muted">Open My Appearance</button>
-    </div>
-    <p role="status" class="agmanager-notice">{{appearanceMessage}}</p>
-    <p class="agmanager-tiny">Effective on your screen: {{appearanceCurrent.effective}} · Your override: {{#if appearanceCurrent.userOverride}}{{appearanceCurrent.userOverride}}{{else}}Inherit GM default{{/if}}</p>
-    <p class="agmanager-tiny">For all players: Foundry Game Settings → <strong>Ashen Gate | My Appearance</strong>. The separate player-safe screen cannot open this GM-only Manager.</p>
-  </div>
-  {{/if}}
-
-  {{#if templatesActive}}
-  <div class="agmanager-panel">
-    <h3>Declarative templates</h3>
-    <p>Optional <code>templates</code> in the loaded JSON provide default Item or Journal fields. Each record selects one with <code>template_ref</code>. Record-specific properties override defaults; the manager compiles these before validating or writing documents.</p>
-    <div class="agmanager-package"><div><span>Loaded templates</span><strong>{{templateCount}}</strong></div><div><span>Records using templates</span><strong>{{compiledCount}}</strong></div></div>
-    <div class="agmanager-table-scroll"><table class="agmanager-table"><thead><tr><th>Template ID</th><th>Type</th><th>Version</th><th>Records</th></tr></thead>
-      <tbody>{{#each templateRows}}<tr><td><code>{{id}}</code></td><td>{{kind}}</td><td>{{version}}</td><td>{{used}}</td></tr>{{/each}}</tbody>
-    </table></div>
-    <div class="agmanager-row agmanager-row-wrap"><button type="button" data-ag-action="template-example">Download sample template package</button><button type="button" data-ag-action="import-format-example">Download v0.2 Import JSON starter</button><button type="button" data-ag-action="source-manifest-template">Download canonical source manifest</button></div>
-    <p class="agmanager-notice">{{templateMessage}}</p>
-    <p class="agmanager-tiny"><strong>Approved delivery:</strong> ag-source-package/0.1 manifests describe authored source and optional ZIPs; only generated ag-foundry-import/0.2 JSON is installable here. Location editing and mutable campaign state remain in specialist modules.</p>
-    <p class="agmanager-tiny">Template changes use normal Update / Replace preview; they do not rewrite Actor Item instances or Skill Tree Journals. Templates are imported from source JSON rather than edited in this alpha.</p>
-  </div>
-  {{/if}}
-
-  {{#if macrosActive}}
-  <div class="agmanager-panel">
-    <h3>Bundled macro library</h3>
-    <p>Macros are loaded from the module's <code>macros/manifest.json</code> and referenced JS files. Installation creates or updates world Macro documents; it never executes scripts. Existing macro IDs and locally modified code are protected.</p>
-    <div class="agmanager-row agmanager-row-wrap">
-      <label class="agmanager-filelabel"><i class="fa-solid fa-file-code"></i> Load custom macro JSON <input type="file" data-ag-macro-json accept=".json,application/json" /></label>
-      <button type="button" data-ag-action="macro-select">Select installable</button>
-      <button type="button" data-ag-action="macro-install" class="agmanager-primary" {{#unless macroSelectedCount}}disabled{{/unless}}>Install / Update selected</button>
-      <button type="button" data-ag-action="macro-export" class="agmanager-muted">Export installed macros</button></div>
-    <div class="agmanager-table-scroll"><table class="agmanager-table"><thead><tr><th>Select</th><th>Macro</th><th>Version</th><th>Action</th></tr></thead>
-      <tbody>{{#each macroRows}}<tr><td><input type="checkbox" data-ag-macro-select="{{id}}" {{#if selected}}checked{{/if}} {{#unless installable}}disabled{{/unless}} /></td>
-        <td><strong>{{name}}</strong><code>{{id}}</code><p class="agmanager-tiny">{{category}} · {{status}} — {{description}}</p></td><td>{{version}}</td><td><span class="agmanager-badge agmanager-{{action}}">{{action}}</span><div class="agmanager-tiny">{{reason}}</div></td>
-      </tr>{{/each}}</tbody></table></div>
-    <p class="agmanager-notice">{{macroMessage}}</p>
-    <p class="agmanager-tiny">Both bundled entries are legacy experimental Profession macros; do not run them against the current Ledger or Skill Tree data. To add bundled scripts, register JS sources in macros/manifest.json. You can also load an optional ag-macro-registry/0.4 JSON file with id, name, version, description, command for each macro. Custom entries last for this window only; installed macros remain in Foundry. Loading and installing do not execute scripts; review them before running.</p>
-  </div>
-  {{/if}}
-
-  {{#if captureActive}}
-  <div class="agmanager-panel">
-    <h3>Adopt existing world Items for source review</h3>
+    
     <p>Assign <strong>review tags</strong> to world Items without editing their contents. A tag records a stable capture ID and suggested classification; <strong>it does not approve a record or make it importer-managed.</strong></p>
     <div class="agmanager-package">
       <div><span>World Items</span><strong>{{worldItemCount}}</strong></div>
@@ -334,8 +216,107 @@
       <button type="button" class="agmanager-primary" data-ag-action="capture-export" {{#unless canCaptureExport}}disabled{{/unless}}><i class="fa-solid fa-file-export"></i> Export all tagged Items (JSON)</button>
     </div>
     <p class="agmanager-tiny">Export includes system rules, active effects and other module flags. Review copyright/third-party content and hidden GM details before uploading.</p>
+      </details>
+    <p class="agmanager-notice">{{libraryMessage}}</p>
+    <p class="agmanager-tiny">Only Manager-managed projected world documents appear here; this is <strong>not</strong> the live Profession Ledger, Skill Tree or campaign-state browser. Unclassified/Shared is intentional where content ownership is ambiguous. Delete retains existing safeguards and requires a world backup.</p>
   </div>
   {{/if}}
+
+  {{#if modulesActive}}
+  <div class="agmanager-panel">
+    <h3>Ashen Gate Modules <span class="agmanager-beta">BETA</span></h3>
+    <p>Open other Ashen Gate modules from one place. The Manager discovers <strong>installed modules</strong> and uses their published <code>api.open()</code> launcher or registered Foundry settings window; it doesn't assume a module has an interface.</p>
+    <div class="agmanager-module-grid">
+    {{#each launcherRows}}
+      <article class="agmanager-module-card">
+        <div><h4>{{title}}</h4><code>{{id}}</code><p class="agmanager-tiny">v{{version}} · {{state}} · Player access: {{playerAccessState}} (GM launcher remains available)</p><p class="agmanager-tiny">{{role}}</p></div>
+        <button type="button" data-ag-module-open="{{id}}" {{#unless canOpen}}disabled{{/unless}}>Open</button>
+      </article>
+    {{else}}<p>No other Ashen Gate modules were detected in this world. Enable a module and reopen this tab.</p>
+    {{/each}}
+    </div>
+    <p class="agmanager-tiny">Disabled means the module is inactive or has not exposed an Open API / settings menu. Other workstreams can support direct opening by exposing <code>game.modules.get(moduleId).api.open()</code>. This tab never installs, enables or changes another module.</p>
+  </div>
+  {{/if}}
+
+  {{#if appearanceActive}}
+  <div class="agmanager-panel agmanager-appearance">
+    <h3>Appearance <span class="agmanager-beta">GM world default</span></h3>
+    <p>Choose the default skin for every player who has not picked their own (players see it live; anyone who has not reloaded since a module update needs one refresh, F5). This changes interface colors only. It never changes Player Access, Actor progress, permissions or content.</p>
+    <div class="agmanager-row agmanager-row-wrap">
+      <label>World default
+        <select data-ag-world-skin aria-label="Ashen Gate world default appearance">
+          {{#each appearanceSkinRows}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}} — {{description}}</option>{{/each}}
+        </select>
+      </label>
+      <button type="button" class="ag-btn ag-btn--primary" data-ag-action="appearance-save-world" {{#if busy}}disabled{{/if}}>Save World Default</button>
+      <button type="button" data-ag-action="appearance-my-appearance" class="agmanager-muted">Open My Appearance</button>
+    </div>
+    <p role="status" class="agmanager-notice">{{appearanceMessage}}</p>
+    <p class="agmanager-tiny">Effective on your screen: {{appearanceCurrent.effective}} · Your override: {{#if appearanceCurrent.userOverride}}{{appearanceCurrent.userOverride}}{{else}}Inherit GM default{{/if}}</p>
+    <p class="agmanager-tiny">For all players: Foundry Game Settings → <strong>Ashen Gate | My Appearance</strong>. The separate player-safe screen cannot open this GM-only Manager.</p>
+    <section class="agmanager-access-compact" aria-label="Player module access">
+      <h4>Player access <span class="agmanager-beta">show or hide modules from players</span></h4>
+      <div class="agmanager-row agmanager-row-wrap agmanager-access-actions">
+        <button type="button" data-ag-action="player-access-refresh" {{#if busy}}disabled{{/if}}><i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i> Refresh</button>
+        <button type="button" data-ag-action="player-access-hide-all" {{#unless playerAccessHasVisible}}disabled{{/unless}}><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Hide all ({{playerAccessVisibleCount}})</button>
+      </div>
+      <p class="agmanager-notice" role="status">{{playerAccessMessage}}</p>
+      <ul class="agmanager-access-list">
+        {{#each playerAccessRows}}
+        <li title="{{reason}}"><span class="agmanager-access-name"><strong>{{title}}</strong> <span class="agmanager-access-version">v{{version}}</span></span>
+          <span class="agmanager-access-state">{{state}}</span>
+          {{#if canToggle}}
+            {{#if playerAccessEnabled}}<button type="button" data-ag-player-access-toggle="{{id}}" data-ag-player-access-enabled="false" {{#if @root.busy}}disabled{{/if}} aria-label="Hide {{title}} from players">Hide</button>
+            {{else}}<button type="button" data-ag-player-access-toggle="{{id}}" data-ag-player-access-enabled="true" {{#if @root.busy}}disabled{{/if}} aria-label="Show {{title}} to players">Show</button>{{/if}}
+          {{else}}<span class="agmanager-tiny">{{reason}}</span>{{/if}}
+        </li>
+        {{else}}<li>No Ashen Gate modules detected.</li>{{/each}}
+      </ul>
+      {{#if playerAccessReport}}
+        <details open class="agmanager-access-report"><summary>Hide all: {{playerAccessReport.changed.length}} hidden; {{playerAccessReport.failed.length}} failed; {{playerAccessReport.skipped.length}} skipped</summary>
+          {{#each playerAccessReport.failed}}<p class="agmanager-missing">Failed: {{title}} — {{error}}</p>{{/each}}
+          {{#each playerAccessReport.skipped}}<p>Skipped: {{title}} ({{reason}})</p>{{/each}}
+        </details>
+      {{/if}}
+      <p class="agmanager-tiny">Each module saves its own setting. Needs <code>ag-player-access/1</code>; older modules show Unsupported. Hiding never deletes progress.</p>
+    </section>
+  </div>
+  {{/if}}
+
+  {{#if templatesActive}}
+  <div class="agmanager-panel">
+    <h3>Declarative templates</h3>
+    <p>Optional <code>templates</code> in the loaded JSON provide default Item or Journal fields. Each record selects one with <code>template_ref</code>. Record-specific properties override defaults; the manager compiles these before validating or writing documents.</p>
+    <div class="agmanager-package"><div><span>Loaded templates</span><strong>{{templateCount}}</strong></div><div><span>Records using templates</span><strong>{{compiledCount}}</strong></div></div>
+    <div class="agmanager-table-scroll"><table class="agmanager-table"><thead><tr><th>Template ID</th><th>Type</th><th>Version</th><th>Records</th></tr></thead>
+      <tbody>{{#each templateRows}}<tr><td><code>{{id}}</code></td><td>{{kind}}</td><td>{{version}}</td><td>{{used}}</td></tr>{{/each}}</tbody>
+    </table></div>
+    <div class="agmanager-row agmanager-row-wrap"><button type="button" data-ag-action="template-example">Download sample template package</button><button type="button" data-ag-action="import-format-example">Download v0.2 Import JSON starter</button><button type="button" data-ag-action="source-manifest-template">Download canonical source manifest</button></div>
+    <p class="agmanager-notice">{{templateMessage}}</p>
+    <p class="agmanager-tiny"><strong>Approved delivery:</strong> ag-source-package/0.1 manifests describe authored source and optional ZIPs; only generated ag-foundry-import/0.2 JSON is installable here. Location editing and mutable campaign state remain in specialist modules.</p>
+    <p class="agmanager-tiny">Template changes use normal Update / Replace preview; they do not rewrite Actor Item instances or Skill Tree Journals. Templates are imported from source JSON rather than edited in this alpha.</p>
+  </div>
+  {{/if}}
+
+  {{#if macrosActive}}
+  <div class="agmanager-panel">
+    <h3>Bundled macro library</h3>
+    <p>Macros are loaded from the module's <code>macros/manifest.json</code> and referenced JS files. Installation creates or updates world Macro documents; it never executes scripts. Existing macro IDs and locally modified code are protected.</p>
+    <div class="agmanager-row agmanager-row-wrap">
+      <label class="agmanager-filelabel"><i class="fa-solid fa-file-code"></i> Load custom macro JSON <input type="file" data-ag-macro-json accept=".json,application/json" /></label>
+      <button type="button" data-ag-action="macro-select">Select installable</button>
+      <button type="button" data-ag-action="macro-install" class="agmanager-primary" {{#unless macroSelectedCount}}disabled{{/unless}}>Install / Update selected</button>
+      <button type="button" data-ag-action="macro-export" class="agmanager-muted">Export installed macros</button></div>
+    <div class="agmanager-table-scroll"><table class="agmanager-table"><thead><tr><th>Select</th><th>Macro</th><th>Version</th><th>Action</th></tr></thead>
+      <tbody>{{#each macroRows}}<tr><td><input type="checkbox" data-ag-macro-select="{{id}}" {{#if selected}}checked{{/if}} {{#unless installable}}disabled{{/unless}} /></td>
+        <td><strong>{{name}}</strong><code>{{id}}</code><p class="agmanager-tiny">{{category}} · {{status}} — {{description}}</p></td><td>{{version}}</td><td><span class="agmanager-badge agmanager-{{action}}">{{action}}</span><div class="agmanager-tiny">{{reason}}</div></td>
+      </tr>{{/each}}</tbody></table></div>
+    <p class="agmanager-notice">{{macroMessage}}</p>
+    <p class="agmanager-tiny">Both bundled entries are legacy experimental Profession macros; do not run them against the current Ledger or Skill Tree data. To add bundled scripts, register JS sources in macros/manifest.json. You can also load an optional ag-macro-registry/0.4 JSON file with id, name, version, description, command for each macro. Custom entries last for this window only; installed macros remain in Foundry. Loading and installing do not execute scripts; review them before running.</p>
+  </div>
+  {{/if}}
+
 
   {{#if auditActive}}
   <div class="agmanager-panel">

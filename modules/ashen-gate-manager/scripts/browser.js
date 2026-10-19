@@ -63,25 +63,6 @@ export function inspectLibrary(rows,uuid) {
     editedFields:selected.editedFields??[],visibility:selected.visibility??'—',
     provenanceSummary:(selected.provenance?.sources??[]).join(' • ')||'No source recorded'};
 }
-/** Header shortcut labels/icons, in the shared Actors-sidebar launcher order (#2). */
-const HEADER_LAUNCHERS=[
-  ['ashen-gate-profession-ledger','Professions','fa-solid fa-book-open'],
-  ['ashen-gate-skill-trees','Skill Trees','fa-solid fa-diagram-project'],
-  ['ashen-gate-quest-manager','Quests','fa-solid fa-scroll'],
-  ['ashen-gate-factions','Factions','fa-solid fa-shield-halved'],
-  ['ashen-gate-headquarters','Headquarters','fa-solid fa-building'],
-  ['ashen-gate-locations','Locations','fa-solid fa-map-location-dot'],
-  ['ashen-gate-utilities','Utilities','fa-solid fa-toolbox']
-];
-/** Compact header row: known modules first in fixed order, then any others by title. */
-export function headerLaunchers(rows) {
-  const rank=id=>{const i=HEADER_LAUNCHERS.findIndex(([known])=>known===id);return i<0?HEADER_LAUNCHERS.length:i;};
-  return [...rows].map(row=>{
-    const known=HEADER_LAUNCHERS.find(([id])=>id===row.id);
-    const label=known?.[1]??(String(row.title).replace(/^ashen gate\s*[|—:–-]\s*/i,'')||row.id);
-    return {...row,label,icon:known?.[2]??'fa-solid fa-puzzle-piece'};
-  }).sort((a,b)=>rank(a.id)-rank(b.id)||a.title.localeCompare(b.title));
-}
 /** Find only actual Ashen Gate modules; never invent IDs for optional modules. */
 export function isAshenModule(module) {
   const id=String(module?.id??'').toLowerCase(),title=String(module?.title??'');

@@ -69,5 +69,16 @@ export function normalizePackage(payload){
   if(payload?.schema_version&&!['ag-quest-source/0.1','ag-source-records/0.1'].includes(payload.schema_version))throw new Error('Unsupported source records schema_version.');
   const ids=new Set();return raw.map(x=>{const s=validSource(x);if(ids.has(s.id))throw new Error(`Duplicate source ID ${s.id}`);ids.add(s.id);return s;});
 }
+/** What an import would do, without writing. mode 'skip' keeps existing Objectives; 'update' replaces their source and keeps their state. */
+export function planQuestImport(payload,existingIds=new Set(),{mode='skip'}={}){
+  if(!['skip','update'].includes(mode))throw new Error('mode must be skip or update.');
+  let rows;try{rows=normalizePackage(payload);}catch(e){return {errors:[e.message],rows:[]};}
+  return {errors:[],rows:rows.map(source=>{
+    const exists=existingIds.has(source.id);
+    const action=!exists?'new':mode==='update'?'update':'skip';
+    return {id:source.id,name:source.name,action,source,
+      reason:action==='new'?'':action==='update'?'Replaces the quest definition; keeps its status and notes.':'Already in this world; kept as is.'};
+  })};
+}
 export function exportPackage(rows){return {schema_version:SCHEMA,domain:'quests_orders',version:'0.4.0',records:rows.map(x=>validSource(x))};}
 export function associatedLocationIds(s){return [...new Set([...(s.locations||[]).map(x=>typeof x==='string'?x:x?.target_id),...(s.refs||[]).filter(x=>/location/i.test(x.relation||'')).map(x=>x.target_id)].filter(x=>/^LOC-[A-Z0-9-]+$/.test(x||'')))];}

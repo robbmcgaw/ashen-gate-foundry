@@ -1,3 +1,13 @@
+## 0.14.0 — 2026-10-19
+
+- **One import for everything.** Manager now recognises Quest, Skill Tree, Headquarters facility and Factions files by their shape and hands them to that module (Quest Log 0.6.0+, Skill Trees 0.7.0+, Headquarters 0.7.0+, Factions 0.7.0+). The preview shows each record as new or kept, and you pick what to import. Records already in the world are kept; tick **Update existing** to replace Quests and Skill Trees (their status and purchases are protected). Headquarters and Factions only add new ones. If a module is off, its rows say so.
+- A file Manager cannot use now says what it looks like (top-level keys, record types) and which module's import similar files belong to.
+- Fix: a failed load no longer leaves the previous file shown as "loaded". The banner and file name clear on every new attempt, and you can pick the same file again.
+- The row of module buttons under the header is gone; the **Modules** tab opens and manages modules.
+- **Export** is no longer a tab. Adopting and exporting world Items now lives in **Library**, next to export of selected records.
+- **Player Access** moved under **Appearance** as a compact list below the skin selector.
+- Fix (appearance for players): a player's screen could keep the previous world default after the GM changed it, because the setting was re-read before Foundry had stored it. Manager now uses the value Foundry sends with the change. Players who picked their own look in My Appearance keep it; anyone who has not reloaded since a module update needs one refresh.
+
 ## 0.13.0 — 2026-10-18
 
 - **One import for everything.** Location records in an `ag-foundry-import/0.2` package are now imported by Manager's normal run when Locations (1.2.0+) is active: Items and other documents first, then the Locations are passed to `api.importLocations` in the same Apply, so Material references resolve. You no longer import the same file a second time in Location Builder.

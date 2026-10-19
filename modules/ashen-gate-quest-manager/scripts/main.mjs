@@ -1,12 +1,12 @@
 import {MOD,assertGM,assertUI,cleanText,publicView,validSource,exportPackage,STATUSES} from './core.mjs';
-import {getPrivate,allPrivate,visibleViews,visibleById,saveRecord,updateState,removeRecord,importSources,savePersonalNote,reconcileActorAudience,noteText,ensureFolder} from './store.mjs';
+import {getPrivate,allPrivate,visibleViews,visibleById,saveRecord,updateState,removeRecord,importSources,previewQuestImport,importQuests,savePersonalNote,reconcileActorAudience,noteText,ensureFolder} from './store.mjs';
 import {createObjectiveConsumer} from './resolver-consumer.mjs';
 import {createQuestDefinitionReader,parsePackIds} from './pinned-runtime.mjs';
 import {ASSIGNMENT_CONTRACT,listAssignments,getAssignment,saveAssignment,removeAssignment} from './assignments.mjs';
 import {selectTrackedViews,validTrackedId,trackingState} from './tracking.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 
-const VERSION='0.5.1';
+const VERSION='0.6.0';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -274,6 +274,9 @@ Hooks.once('ready',()=>{
   assignments:{contract:ASSIGNMENT_CONTRACT,list:listAssignments,get:getAssignment,save:(value,options={})=>saveAssignment(value,{...options,objectiveExists:id=>!!getPrivate(id),ensureFolder}),remove:removeAssignment},
   listVisible:({locationId=null}={})=>{assertUI(game.user,openAllowed());return structuredClone(locationId?locationList(locationId):visibleViews().map(x=>x.view));},
   getVisibleObjective:(id)=>{assertUI(game.user,openAllowed());return structuredClone(visibleById(id)?.view??null);},
+  // GM-only hand-off used by General Manager's single importer; Quest Log's own Import JSON keeps working.
+  previewQuestImport:(payload,options)=>previewQuestImport(payload,options),
+  importQuests:(payload,options)=>importQuests(payload,options),
   listQuests:()=>{assertGM(game.user);return stateForGM().map(x=>({id:x.source.id,name:x.source.name,status:x.state.status}));},
   getGMSource:(id)=>{assertGM(game.user);return structuredClone(getPrivate(id)?.getFlag(MOD,'source')??null);},
   getGMState:(id)=>{assertGM(game.user);return structuredClone(getPrivate(id)?.getFlag(MOD,'state')??null);},

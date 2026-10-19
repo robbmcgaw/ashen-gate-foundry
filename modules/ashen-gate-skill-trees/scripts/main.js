@@ -1,6 +1,6 @@
 import {
   SCHEMA,clone,asArray,cleanAccount,walletKey,normalizeTree,validateTree,validatePackage,allowedSourceForProvider,
-  availability,publicAvailability,publicTree,totalSpent,grantPoints,purchase,changedPurchasedNodes
+  availability,publicAvailability,publicTree,totalSpent,grantPoints,purchase,changedPurchasedNodes,planTreeImport
 } from './engine.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition} from './definition-lookup.mjs';
@@ -9,7 +9,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees 0.6.0 alpha: shared Foundry development-standard UI; private GM definitions. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.6.4';
+const VERSION='0.7.0';
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
 const SAFE_SETTING='publicTreesV2';
@@ -583,7 +583,26 @@ Hooks.once('ready',()=>{
       const next=grantPoints(t,readProgress(actor,t),amount,label);await persistAccount(actor,t,next);return next;
     },
     grantXp:async()=>{throw Error('Legacy XP grant retired: Profession XP belongs to the Profession Ledger; use grantPoints for Cinders/generic trees.');},
-    publish:async()=>{if(!game.user.isGM)throw Error('GM only');return publishPublic();}
+    publish:async()=>{if(!game.user.isGM)throw Error('GM only');return publishPublic();},
+    // GM-only, UI-less hand-off used by General Manager's single importer. Never touches Actor progress.
+    previewTreeImport:(pack,{mode='skip'}={})=>{
+      if(!game.user.isGM)throw Error('GM only');
+      const {errors,rows}=planTreeImport(pack,readPrivate(),{mode});
+      return {errors,rows:rows.map(({id,name,action,reason})=>({id,name,action,reason}))};
+    },
+    importTrees:async(pack,{mode='skip'}={})=>{
+      if(!game.user.isGM)throw Error('GM only');if(!gmPrivate())throw Error('Initialize GM storage first (Skill Trees → GM Setup).');
+      const current=readPrivate();
+      const {errors,rows,apply}=planTreeImport(pack,current,{mode});
+      if(errors.length)throw Error(`Import blocked: ${errors[0]}`);
+      const report={created:rows.filter(r=>r.action==='new').map(r=>r.id),updated:rows.filter(r=>r.action==='update').map(r=>r.id),
+        skipped:rows.filter(r=>r.action==='skip').map(r=>({id:r.id,reason:r.reason})),failed:[]};
+      if(!apply.length)return report;
+      const combined=new Map(current.map(t=>[t.id,t]));for(const t of apply)combined.set(t.id,t);
+      try{await saveTrees([...combined.values()]);}
+      catch(error){return {created:[],updated:[],skipped:report.skipped,failed:apply.map(t=>({id:t.id,reason:String(error?.message??error)}))};}
+      return report;
+    }
   };
   if(ui.actors?.rendered) addDirectoryLauncher(ui.actors,ui.actors.element);
   Hooks.on('updateActor',actor=>{if(instance?.rendered && instance.actorId===actor.id)instance.render();});
