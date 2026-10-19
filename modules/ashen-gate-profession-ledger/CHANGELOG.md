@@ -1,3 +1,20 @@
+## 0.15.0 — 2026-10-19
+
+Exotic gathering, new tier DCs, recipes that need several tools.
+- **Exotic discovery.** A successful gathering check can also find one Exotic material, on top of its Common (or, by 5+, Rare) bundle. A failed check never does. Only Exotic candidates the GM put on the node can be found; a node with none rolls nothing, so existing nodes behave as before.
+  - A candidate counts when its imported definition says quality **Exotic** (never guessed from the name), it is gathered by the node's gathering profession, and its tier is not above the node's tier.
+  - **Random discovery:** one d100 per success; 01–02 finds one at the default 2%. The chance is in **GM Setup → Exotic discovery** (whole percent, 0–100; 0 turns it off). With several candidates, which one is found is picked after the roll.
+  - **Designated source:** a candidate set to *Designated source* has its own chance (required) and condition (any success, or success by 5+ only). A node with one uses those rules instead of the discovery roll. Still one d100 per gathering action.
+  - Location and ad-hoc nodes use the same reward resolver. Everything awarded goes on **one** chat card with one XP opportunity and stacks on the lead's inventory. The card names only what was awarded; candidates, chances and the d100 stay in the GM's Gathering tab. Exhaustion is unchanged.
+  - **Ad-hoc node:** new *Exotic candidates* picker: search the imported catalog, filter by gathering profession and tier (defaults: this node's), rarity Exotic. Add or remove candidates and set each one's rule.
+  - An Exotic must be an imported, approved, player-visible world material, the same rule as other gathering awards.
+    - The picker still lists draft or GM-only Exotics, disabled, with the fix (e.g. "Draft: approve it in General Manager first").
+    - At gather time, a candidate that can't be found is skipped and the normal bundle is still given. The GM gets a whispered note and a line in the Gathering tab, e.g. "Exotic candidate X skipped: Draft: approve it in General Manager first". Players see none of this.
+- **Tier DC defaults are now 10 / 12 / 15 / 18 / 20** (were 10/12/13/14/15). A DC set on the node still wins.
+- **`required_tools`:** a recipe listing several tools needs all of them. The recipe row and craft window name each missing tool; the craft check offers each tool (a carried one preselected) and the profession skill. Tool names such as "Carpenter's Tools" map to the dnd5e tool. Single `tool` / `required_tool` / `tool_key` recipes work as before. Like before, a missing tool is a warning, not a block. Enchanting still defaults to the Arcana skill.
+- **API:** `api.gathering.exotic` (contract `ag-ledger-exotic/1`, GM only): `materials({query, profession, quality, tier, maxTier, includeUnavailable})`, `eligibility(node)`, `percent()`, `defaultDcByTier`. `resolve()` also returns `exotic`, `exoticAward` and `awards`. Gathering nodes accept an optional `exotics: [{materialId, mode, chance, condition}]`.
+- New world setting `exoticChance` (default 2). No Actor flag or saved-data changes; no migration.
+
 ## 0.14.1 — 2026-10-19
 
 - A Locations gathering node with no material (e.g. remains you award at the table) is now a clear **award by hand** node instead of a dead option. The GM can pick it in Gathering > Start gathering and reads "No material id set: award by hand. <the node's note>"; Start stays off. Players see "The GM handles this spot at the table: ask them." with no DC or setup hints.

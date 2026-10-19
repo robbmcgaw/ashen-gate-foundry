@@ -62,6 +62,8 @@ export function normalizeRecipe(raw) {
     description:src?.description??src?.rules_summary??'',
     // Optional crafting requirement: a dnd5e tool key, tool Item UUID/name, or a workstation (text).
     tool:canonical?.tool??canonical?.required_tool??canonical?.tool_key??src?.tool??src?.required_tool??null,
+    // required_tools (production catalog): every listed tool is needed, in addition to any single tool above.
+    tools:(()=>{const list=canonical?.required_tools??src?.required_tools;return Array.isArray(list)?list.filter(t=>(typeof t==='string'&&t.trim())||safePlain(t)).slice(0,10):[];})(),
     workstation:String(canonical?.workstation??src?.workstation??'').trim()||null,
     ingredients:clean,hasStructuredIngredients:validIngredients,
     sourceUuid:raw?.uuid??null, status:raw?.status??canonical?.status??'unreviewed',

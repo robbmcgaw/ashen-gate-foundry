@@ -1,13 +1,15 @@
-/** Ashen Gate Profession Ledger gathering rules (0.10.0).
+/** Ashen Gate Profession Ledger gathering rules (0.10.0; DC defaults and Exotic candidates 0.15.0).
  * One lead gatherer, one check per node for the party. Eligible helpers with suitable tools give advantage,
  * not another attempt. Success gives one common bundle; success by 5+ gives one rare bundle instead.
- * Failure exhausts the node. No Foundry globals are read here.
+ * A success may also find one Exotic (exotic.mjs). Failure exhausts the node. No Foundry globals are read here.
  */
 import {norm,quantity} from './core.mjs';
 import {TIERS} from './progression.mjs';
 import {heldTool} from './checks.mjs';
+import {normalizeExotics} from './exotic.mjs';
 
-export const DEFAULT_DC_BY_TIER=Object.freeze({1:10,2:12,3:13,4:14,5:15});
+/** Kept equal to Locations' GATHERING.dcByTier (a Locations test checks both). A node's own DC always wins. */
+export const DEFAULT_DC_BY_TIER=Object.freeze({1:10,2:12,3:15,4:18,5:20});
 export const RARE_MARGIN=5;
 const MAT=/^MAT-[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
 const MAX_QTY=999;
@@ -39,6 +41,8 @@ export function normalizeNode(raw,{locationId=null,locationName='',locationRevea
     tier,dc,dcVisible:raw.dcVisible===true||(raw.dcVisible===undefined&&raw.dc!=null&&raw.dc!==''),materialId:mat(raw.materialId),rareMaterialId:mat(raw.rareMaterialId),
     quantity:count(raw.quantity,1),rareQuantity:count(raw.rareQuantity,1),
     finite:raw.finite!==false,exhausted:raw.exhausted===true,available:raw.available!==false,visible:raw.visible!==false,
+    // GM-only Exotic candidates (Locations never sends them to players).
+    exotics:normalizeExotics(raw.exotics),
     note:String(raw.note??''),locationId,locationName:String(locationName??''),locationRevealed:locationRevealed===true};
   node.gatherable=node.available&&!node.exhausted&&Boolean(node.materialId)&&Number.isInteger(node.dc);
   node.why=!node.materialId?'No material id set: award by hand':node.exhausted?'Already gathered (exhausted)':!node.available?'Not available right now':!Number.isInteger(node.dc)?'No DC or tier set':'';

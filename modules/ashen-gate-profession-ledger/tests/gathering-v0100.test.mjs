@@ -102,11 +102,11 @@ test('outcomes: fail below DC, common at DC to DC+4, rare at DC+5; failure or a 
  assert.equal(exhaustsNode(endless,gatherOutcome(20,13)),false);assert.equal(exhaustsNode(endless,gatherOutcome(2,13)),true,'failure exhausts any node');
 });
 
-test('nodes tolerate missing fields: DC by tier 10/12/13/14/15, quantity 1, finite by default',()=>{
- assert.deepEqual([1,2,3,4,5].map(defaultDC),[10,12,13,14,15]);
+test('nodes tolerate missing fields: DC by tier 10/12/15/18/20 (0.15.0), quantity 1, finite by default',()=>{
+ assert.deepEqual([1,2,3,4,5].map(defaultDC),[10,12,15,18,20]);
  assert.equal(tierNumber('Journeyman'),2);assert.equal(tierNumber('expert'),3);assert.equal(tierNumber(9),null);
  const n=normalizeNode({id:'x',skill:'Mining',tier:'3',materialId:'MAT-TG-HERB'});
- assert.equal(n.dc,13);assert.equal(n.quantity,1);assert.equal(n.rareQuantity,1);assert.equal(n.finite,true);assert.equal(n.gatherable,true);
+ assert.equal(n.dc,15);assert.equal(normalizeNode({id:'o',tier:3,dc:13,materialId:'MAT-TG-HERB'}).dc,13,'an explicit node DC is kept');assert.equal(n.quantity,1);assert.equal(n.rareQuantity,1);assert.equal(n.finite,true);assert.equal(n.gatherable,true);
  assert.equal(normalizeNode({id:'y',materialId:'MAT-TG-HERB'}).gatherable,false,'no tier and no DC: not gatherable');
  assert.equal(normalizeNode({id:'z',tier:1,materialId:'not-an-id'}).gatherable,false);
  assert.equal(normalizeNode({id:'e',tier:1,materialId:'MAT-TG-HERB',exhausted:true}).why,'Already gathered (exhausted)');
