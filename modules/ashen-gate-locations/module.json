@@ -1,8 +1,8 @@
 {
   "id": "ashen-gate-locations",
   "title": "Ashen Gate | Locations",
-  "description": "Configurable campaign locations: threat level, gathering resources, factions, quests, related places and notes, with per-field player visibility and Map Note pins. Foundry V14.",
-  "version": "1.4.0",
+  "description": "Configurable campaign locations: threat level, gathering resources, factions, quests, related places, notes and shared Party Notes, with per-field player visibility and Map Note pins. Foundry V14.",
+  "version": "1.5.0",
   "authors": [
     {
       "name": "Ashen Gate"
@@ -12,6 +12,7 @@
     "minimum": "14",
     "maximum": "14"
   },
+  "socket": true,
   "esmodules": [
     "scripts/main.mjs"
   ],
@@ -21,5 +22,5 @@
   ],
   "url": "https://github.com/robbmcgaw/ashen-gate-foundry",
   "manifest": "https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-locations/module.json",
-  "download": "https://github.com/robbmcgaw/ashen-gate-foundry/releases/download/ashen-gate-locations-v1.4.0/ashen-gate-locations.zip"
+  "download": "https://github.com/robbmcgaw/ashen-gate-foundry/releases/download/ashen-gate-locations-v1.5.0/ashen-gate-locations.zip"
 }

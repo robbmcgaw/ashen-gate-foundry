@@ -15,6 +15,7 @@ Foundry V14, dnd5e. Works on its own; Quest Manager and General Manager are opti
 - **Visibility once revealed:** each field has an 👁 toggle, each section has a *Show section to players* switch, and each entry has its own 👁 toggle.
 - **Map:** **Place on Scene** adds a Map Note at the centre of your view, or drag a location from the list onto the canvas. Double-clicking the note opens the location. Hidden pins are invisible to players; unidentified pins show the label and the unidentified image. Set pin art under *Unidentified Marker & Pin* (default images are Foundry icons). Change one placed pin's image or size in Foundry's own Note settings and that pin keeps it.
 - **Nesting & Scenes:** put a location inside another (any depth, no loops). Players see the places inside a revealed location once each is revealed (unidentified ones by label). Link scenes and open them with one click; only your view moves.
+- **Party Notes (1.5.0):** every location players can see (Revealed or Unidentified) has a shared **Party Notes** card that the whole party edits. One person edits at a time: **Edit** takes the lock, everyone else sees "*name* is editing", and **Save Notes** or **Cancel** lets it go (it also lapses after 2 minutes without typing, or when that player disconnects). A save based on an older copy is refused and the text stays in the box. The GM can edit any location's Party Notes, **Take Over** from a player, and **Clear** them. They are not your *Notes* section: Save Changes, Publish, imports and exports never touch them. Hiding a location hides its Party Notes from players until it is visible again. A GM must be connected for players to save.
 - **Players:** Actors sidebar → **Locations** (when *Player Access* is on in GM Setup). Players get a read-only view of revealed locations. Clicking a quest opens the Quest Log; in the Quest Log, a quest's *Locations* list opens the location.
 
 ## Storage
@@ -22,9 +23,10 @@ Foundry V14, dnd5e. Works on its own; Quest Manager and General Manager are opti
 - **Locations (GM Data)** Journal (no player permission) holds every record.
 - **Locations (Player View)** Journal holds one page per location. A page contains only what players may see. Hidden locations get an empty page with no player permission, unidentified ones a page with just the label and teaser, and Map Notes point at these pages.
 - Pages and Map Notes are bound to a location by a random **pin key**, never by the `LOC-*` id (an id is made from a name, so it could give an unidentified place away).
+- **Locations (Party Notes)** Journal (no player permission) holds every location's Party Notes, by `LOC-*` id. Each visible location's player page carries a copy (no id); a hidden one's page carries none. Only the primary GM's client writes them: players send a request over the module socket and that client checks it (sender, Player Access, the location is visible to players, the lock and the stamp) before writing. Notes of a deleted location are kept and come back if the same id is imported again.
 - Foundry sends every world document to every client, so a player who digs in the browser console could read the GM Data journal. Nothing in the normal Foundry UI shows it.
 
-Both Journals live in *Ashen Gate / Locations*. Don't edit them by hand.
+All three Journals live in *Ashen Gate / Locations*. Don't edit them by hand.
 
 Journals from Locations 0.8.x are ignored (a one-line console note says how many). Delete them when you no longer need them.
 
@@ -48,6 +50,11 @@ Journals from Locations 0.8.x are ignored (a one-line console note says how many
 | GM only: `previewLocation(draft, state?)`, `hasUnpublishedChanges(id)` | the player view after Publish; whether players see an older version |
 | `STATES` | `['hidden', 'unidentified', 'revealed']` |
 | GM only: `createLocation(name)`, `saveLocation(data)` (private; never changes state), `deleteLocation(id)`, `importPackage(pkg)`, `importLocations(records, {mode})`, `exportPackage()`, `placeOnScene(id, {scene, x, y})` | |
+| `getPartyNotes(idOrPinKey)` | `{key, text, rev, updatedAt, updatedBy: {id, name}\|null, editing: {id, name, until}\|null, mine, canEdit}`, or `null`. Players: only for locations they can see (unidentified ones by pin key); the GM: any |
+| `editPartyNotes(idOrPinKey, {takeover})` | takes the edit lock and returns the current notes to edit from; `takeover` is GM only |
+| `savePartyNotes(idOrPinKey, text, rev)`, `releasePartyNotes(idOrPinKey)` | save (refused if someone else holds the lock or `rev` is stale) / let go of the lock |
+| GM only: `clearPartyNotes(idOrPinKey)` | empties a location's Party Notes |
+| `PARTY_NOTES` | `{maxLength: 20000, lockMs: 120000, renewMs: 30000}` |
 | `playerAccess` | `ag-player-access/1` capability |
 
 ## Import format
@@ -92,8 +99,9 @@ Location records go in an `ag-foundry-import/0.2` package with `entity_type: "Lo
 - `parentLocationId` is an exact `LOC-*` id (a loop is refused); `type` and `region` stay free text. `pin.size` 0 or missing means 48.
 - 1.4.0 fields, all optional: `layout` (block keys in order: `description`, `conditions`, `children`, `resources`, `factions`, `quests`, `related`, `loot`, `notes`, `scenes`, `detail:<key>`; unknown keys are dropped and missing ones appended), `details`, `conditions`, `loot` (`status` is `available`, `discovered` or `taken`), `isRegion`, `conditionOverrides` (`from` is the Region's `LOC-*` id, `conditionKey` one of its condition keys). Loot `uuid` is a link only. An update import that leaves any of them (or the `conditions`/`loot` section switches) out keeps the world's value.
 - Exports also carry `pinKey` and `published` (what players currently see). An update import that leaves out `parentLocationId`, `unidentifiedLabel`, `teaser`, `pin` or `sceneUuids` keeps the world's value (see also the 1.4.0 fields above).
+- Party Notes are campaign state, not definition: exports leave them out and imports never read or change them.
 - **Export JSON** writes the same format. [`examples/test-locations.json`](examples/test-locations.json) is a synthetic sample; **GM Setup → Developer Tools** imports it.
 
 ## Tests
 
-`node scripts/check.mjs ashen-gate-locations` runs the model, storage, API and render tests against mocked Foundry, with an emphasis on what players can read. They prove logic, not the live Foundry UI.
+`node scripts/check.mjs ashen-gate-locations` runs the model, storage, API and render tests against mocked Foundry, with an emphasis on what players can read. Party Notes tests run a GM and two player clients in one process over a fake socket. They prove logic, not the live Foundry UI or real multi-client timing.

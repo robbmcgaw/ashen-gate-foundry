@@ -4,15 +4,18 @@
  * Player Access is on. Write calls are GM-only. Every guard lives here, not in the UI.
  * Save is private: saveLocation never changes what players see. Only setLocationState and
  * publishLocation do.
+ * Party Notes are the one thing players write. Those calls only ask the GM's client, which re-checks every
+ * request (see party-notes.mjs); the checks here just give a quick, identical answer for hidden and unknown places.
  */
-import {MODULE_ID, GATHERING, STATES, clone, newLocation, normalizeLocation, parseImport, exportPackage, importRecords, resourcesOf, nodeForGM, nodeMatch,
+import {MODULE_ID, GATHERING, STATES, PARTY_NOTES, notesLockHolder, clone, newLocation, normalizeLocation, parseImport, exportPackage, importRecords, resourcesOf, nodeForGM, nodeMatch,
   publishable, hasUnpublishedChanges, previewView, wouldCycle, parentMap} from './model.mjs';
 
 export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
 
 /**
  * deps: {isGM(), playerAccessEnabled(), setPlayerAccess(bool), readAll(), writeAll(list), readViews(),
- *        placeNote(loc, opts), open(), openLocation(idOrKey), version, viewOptions?()}
+ *        placeNote(loc, opts), open(), openLocation(idOrKey), version, viewOptions?(),
+ *        notes?: {readGM(locationId), readPlayer(pinKey), request(payload), userId(), isActive(id), nameOf(id), now?()}}
  */
 export function createApi(deps) {
   const gm = () => deps.isGM() === true;
@@ -36,6 +39,33 @@ export function createApi(deps) {
     if (!loc.parentLocationId) return;
     if (wouldCycle(loc.id, loc.parentLocationId, parentMap(all.filter(l => l.id !== loc.id))))
       throw new Error(`${loc.name} cannot sit inside ${loc.parentLocationId}: that location is already inside it.`);
+  };
+
+  // ---------- Party Notes ----------
+  const notesDeps = () => { if (!deps.notes) throw new Error('Party Notes are unavailable.'); return deps.notes; };
+  /** What the caller may send: GM → the LOC id (any state); player → the pin key of a location they can see. */
+  const notesTarget = ref => {
+    requireAccess();
+    if (gm()) { const loc = find(ref); if (!loc) throw new Error(`No location ${ref}.`); return loc.id; }
+    const v = findView(ref);
+    if (!v) throw new Error("That location isn't available to you.");
+    return v.key;
+  };
+  /** Adds names and what this user may do. No LOC id is added; `key` is the pin key players already have. */
+  const notesOut = (rec, key) => {
+    if (!rec) return null;
+    const n = notesDeps(), me = n.userId(), now = n.now?.() ?? Date.now();
+    const holder = notesLockHolder(rec, now, n.isActive);
+    return {key, text: rec.text, rev: rec.rev, updatedAt: rec.updatedAt || null,
+      updatedBy: rec.updatedBy ? {id: rec.updatedBy, name: n.nameOf(rec.updatedBy) || 'Someone'} : null,
+      editing: holder ? {id: holder, name: n.nameOf(holder) || 'Someone', until: rec.lock.until} : null,
+      mine: !!holder && holder === me, canEdit: !holder || holder === me || gm()};
+  };
+  const notesKey = ref => gm() ? find(ref)?.pinKey : findView(ref)?.key;
+  const notesOp = async (ref, payload) => {
+    const target = notesTarget(ref), key = notesKey(ref);
+    const rec = await notesDeps().request({...payload, ref: target});
+    return notesOut(rec ?? (gm() ? notesDeps().readGM(target) : notesDeps().readPlayer(key)), key);
   };
 
   /** Saves privately. State, published content and pin binding of an existing location are kept. New ones start Hidden. */
@@ -194,6 +224,27 @@ export function createApi(deps) {
       if (!loc) throw new Error(`No location ${id}.`);
       return deps.placeNote(loc, opts);
     },
+
+    // Party Notes: shared by the whole party, separate from the GM's Notes section. Not part of the definition.
+    PARTY_NOTES,
+    /**
+     * The notes of a location this user can see: {key, text, rev, updatedAt, updatedBy: {id, name}|null,
+     * editing: {id, name, until}|null, mine, canEdit}. Players: null for hidden or unknown places. GM: any location.
+     */
+    getPartyNotes(ref) {
+      requireAccess();
+      if (gm()) { const loc = find(ref); return loc ? notesOut(notesDeps().readGM(loc.id), loc.pinKey) : null; }
+      const v = findView(ref);
+      return v ? notesOut(notesDeps().readPlayer(v.key) ?? {text: '', rev: 0, updatedBy: '', updatedAt: 0, lock: null}, v.key) : null;
+    },
+    /** Start editing (one editor at a time). Returns the current notes to edit from. A GM can pass {takeover: true}. */
+    editPartyNotes: (ref, {takeover = false} = {}) => notesOp(ref, {op: 'lock', takeover: takeover === true && gm()}),
+    /** Save the text. `rev` is the one returned by editPartyNotes; a stale one is refused and nothing is written. */
+    savePartyNotes: (ref, text, rev) => notesOp(ref, {op: 'save', text, rev}),
+    /** Stop editing without saving. */
+    releasePartyNotes: ref => notesOp(ref, {op: 'release'}),
+    /** GM: empty a location's notes. */
+    async clearPartyNotes(ref) { requireGM(); return notesOp(ref, {op: 'clear'}); },
 
     playerAccess: Object.freeze({
       contract: PLAYER_ACCESS_CONTRACT,

@@ -119,3 +119,9 @@
 .agl-inherited { border-left: 3px solid var(--agl-accent); padding-left: 8px; }
 .agl-inherited input { flex: 1; min-width: 140px; }
 .agl-inherited.agl-off .agl-entry { text-decoration: line-through; opacity: .7; }
+
+/* ----- 1.5.0: Party Notes ----- */
+.agl-party textarea { width: 100%; }
+.agl-party__text { overflow-wrap: anywhere; }
+.agl-party__actions { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.agl-party__actions > div { display: flex; gap: 8px; }
