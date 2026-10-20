@@ -1,3 +1,8 @@
+## 1.13.0 — 2026-10-20
+
+- **New API `embed.mount(element, {actorId, mode: 'character'})`** so a partner module (Character Hub) can show a compact, read-only Locations view: the party's journey progress and the revealed places the user can see, grouped by region, with search and Open. Returns `{unmount, refresh}`; it refreshes itself on changes. See the README.
+- Built from the same player views as the window (no GM fields, no hazard chances). The Locations window is unchanged. No saved data changes.
+
 # Changelog
 
 ## 1.12.0 — 2026-10-20

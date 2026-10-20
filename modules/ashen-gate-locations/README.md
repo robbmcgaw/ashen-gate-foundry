@@ -85,6 +85,23 @@ Journals from Locations 0.8.x are ignored (a one-line console note says how many
 | GM only: `startJourney(routeId, {direction: 'forward'\|'reverse'})`, `nextLeg()` → `{journey, roll, chance, hazard, result, arrived}`, `rerollHazard()`, `dismissHazard()`, `shareHazard()`, `reverseJourney()`, `abortJourney()`, `retryTravelLog()` | one journey at a time |
 | `playerAccess` | `ag-player-access/1` capability |
 
+### `embed.mount(element, options)` (1.13.0)
+
+Shows a compact, **read-only** Locations view inside another module's window, for example Character Hub's Ashen Gate → Locations: the party's journey progress (from → to, leg of legs) and the revealed places the user can see, grouped by region, with search. Each place opens in the Locations window; **Open Locations** opens the window.
+
+```js
+const api = game.modules.get('ashen-gate-locations')?.api;
+if (api?.embed?.mount) {
+  const view = api.embed.mount(element, {actorId: actor.id, mode: 'character'});
+  // later: view.refresh();  view.unmount();
+}
+```
+
+- `element`: a DOM element the caller owns. Locations replaces its contents and adds the class `agl-embed`.
+- `options.actorId` is accepted (places are party-wide); `options.mode`: `'character'` (the only mode; `api.embed.modes` lists them). An unknown mode or a missing element throws.
+- Returns `{unmount(), refresh()}`. It refreshes itself when Locations' journals or Player Access change and unmounts itself if the element has left the page.
+- **Permission:** it reads the same player views the window shows players, so players see only revealed places they may read (never hidden, unidentified details or GM fields) and the journey's progress only (never hazard chances or rolls). The GM sees the same list (what the party knows). Players see "The GM has hidden Locations." while Player Access is off; Open checks Player Access again. Nothing can be edited from the embed.
+
 ## Import format
 
 Location records go in an `ag-foundry-import/0.2` package with `entity_type: "Location"`, so one test data pack can carry them. **General Manager imports them for you:** when Locations is active, its normal import creates the Items first and then passes the Location records to `api.importLocations` in the same run. Without Manager (or for a Locations-only file) use **GM Setup → Import JSON**, which reads the same records and skips other types. Either way a location whose ID already exists is kept as it is; Manager can also be told to update existing locations (`importLocations(records, {mode: 'update'})` replaces the definition but keeps its marker state, what players currently see, its pin key and exhausted nodes; publish to show the update). Imports never touch Map Notes.
