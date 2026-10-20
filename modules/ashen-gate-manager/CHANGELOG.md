@@ -1,3 +1,7 @@
+## 0.28.0 — 2026-10-20
+
+- **Renown naming.** The Factions module is now shown as **Renown** (Ashen Gate | Renown), so Manager's text follows: import results (*Renown > GM Setup (Actors sidebar launcher)*), Browse source labels and "Open it in Renown", the specialist-file handoff, the campaign-standing notice, Pre-session check rows (*Renown*, *Renown definitions*), Player access and the Browse help. Module id `ashen-gate-factions`, its API, flags, the `ag-factions-` file schema and "faction" entries are unchanged. No saved-data changes.
+
 ## 0.27.0 — 2026-10-20
 
 - **Route records import** (needs Locations 1.10.0 or later). A Manager package can carry `entity_type: "Route"` records (point-crawl routes between locations; schema in `docs/routes-schema.md`). In the same run they go to Locations **after** the locations they join, whatever their order in the file.

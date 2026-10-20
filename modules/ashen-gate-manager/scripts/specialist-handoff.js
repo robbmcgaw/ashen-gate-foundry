@@ -10,7 +10,7 @@ export const SPECIALISTS = Object.freeze({
   quests: {kind: 'Quest', label: 'Quest Log', moduleId: 'ashen-gate-quest-manager', preview: 'previewQuestImport', run: 'importQuests', canUpdate: true},
   'skill-trees': {kind: 'Skill Tree', label: 'Skill Trees', moduleId: 'ashen-gate-skill-trees', preview: 'previewTreeImport', run: 'importTrees', canUpdate: true},
   headquarters: {kind: 'Facility', label: 'Headquarters', moduleId: 'ashen-gate-headquarters', preview: 'previewFacilityImport', run: 'importFacilities', canUpdate: false},
-  factions: {kind: 'Faction', label: 'Factions & Renown', moduleId: 'ashen-gate-factions', preview: 'previewFactionsImport', run: 'importFactions', canUpdate: false}
+  factions: {kind: 'Faction', label: 'Renown', moduleId: 'ashen-gate-factions', preview: 'previewFactionsImport', run: 'importFactions', canUpdate: false}
 });
 
 const QUEST_SCHEMAS = ['ag-quest-source/0.1', 'ag-source-records/0.1'];
@@ -59,7 +59,7 @@ export function describeUnrecognized(input) {
     return `${head} It has ${input.records.length} record(s) of type ${types} but no manifest, so it is not a Manager package.${owner} ${fix}`;
   }
   if (Array.isArray(input.trees)) return `${head} trees[] belongs to Skill Trees, whose schema must start with ag-skill-trees/. ${fix}`;
-  if (Array.isArray(input.definitions)) return `${head} definitions[] belongs to Factions, whose schema_version must start with ag-factions-. ${fix}`;
+  if (Array.isArray(input.definitions)) return `${head} definitions[] belongs to Renown, whose schema_version must start with ag-factions-. ${fix}`;
   return `${head} ${fix}`;
 }
 

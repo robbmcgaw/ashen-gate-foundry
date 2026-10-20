@@ -31,7 +31,7 @@ test('source manifests reject unsafe paths, duplicate paths, campaign state and 
 test('campaign-state contracts routed to owners, never imported',()=>{
   for (const [data,type] of [
     [{guild_state:{},headquarters_states:[]},'Guildhall'],
-    [{campaign_key:'demo',track_ref:'RENOWN-X',scopes:[]},'Factions'],
+    [{campaign_key:'demo',track_ref:'RENOWN-X',scopes:[]},'Renown'],
     [{location_ref:'LOC-X',base_world_revision:1,world_revision:2},'Location']
   ]) {
     assert.equal(classifyDelivery(data).kind,'domain_state');
