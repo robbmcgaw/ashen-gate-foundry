@@ -50,12 +50,21 @@ node scripts/check.mjs ashen-gate-factions   # one module
 
 Validates each `module.json` (id, version, manifest/download URLs, listed files), syntax-checks every script and runs the module's tests.
 
+To check authored content (import JSON, before it goes to Foundry) against the modules' own validators:
+
+```bash
+node scripts/validate-content.mjs path/to/files-or-folder
+```
+
+Files in a folder named `invalid` must be rejected (examples of common mistakes). Nothing is written.
+
 ## Layout
 
 ```
 modules/<module-id>/     module source, tests, README, CHANGELOG
 test-fixtures/           shared test data used by more than one module
 scripts/check.mjs        the one check script (CI runs this too)
+scripts/validate-content.mjs  runs content files through the import validators
 .github/workflows/       check.yml (branches/PRs) and release.yml (main)
 ```
 
