@@ -1,3 +1,9 @@
+## 0.17.0 — 2026-10-20
+
+- **Crafting awards the real 2024 core item when linked.** If General Manager (0.26.0+, Core Links) has linked a recipe's result Item to a 2024 core item, crafting gives a fresh copy of that core item: its image, description and rules data, with the Ashen Gate name, the `ITEM-*` id, Manager's source data and the Ledger flags kept, so it stacks with earlier crafts as before.
+- Falls back to today's world item when the result is not linked, the core item can't be found, or it has no quantity to stack. Never fails a craft because of a link.
+- New **GM Setup → Crafted items** setting, **Award the linked core item when crafting** (default on), saved with Save Changes. No migration; nothing changes until Manager links an item.
+
 ## 0.16.0 — 2026-10-20
 
 Assign professions (AG-F01) and a configurable profession crosswalk.
