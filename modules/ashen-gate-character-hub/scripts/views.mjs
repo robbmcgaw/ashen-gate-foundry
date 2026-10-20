@@ -2,7 +2,7 @@
  * HTML for the hub. Tabs are a plain ordered registry so sections can be reordered or added later
  * without touching the sheet class. Every value is read from the live Actor at render time.
  */
-import {MODULE_ID, esc, signed} from './constants.mjs';
+import {MODULE_ID, esc, signed, OPACITY_MIN, windowOpacity} from './constants.mjs';
 import {abilitiesData, skillsData, overviewData} from './data.mjs';
 import {characterPanelHtml} from './character.mjs';
 import {btn} from './buttons.mjs';
@@ -33,31 +33,32 @@ function overviewTab(ctx) {
 /** The tab registry, in display order. Later views are appended here; reorder by moving entries. */
 export const TABS = [
   {id: 'overview', label: 'Overview', icon: 'fa-solid fa-user', render: overviewTab},
-  ...ITEM_TABS.filter(t => t.id !== 'rest'),
+  ...ITEM_TABS,
   {id: 'ashen-gate', label: 'Ashen Gate', icon: 'fa-solid fa-dungeon', render: ashenGateTab},
   {id: 'companions', label: 'Companions', icon: 'fa-solid fa-horse', render: companionsTab},
-  ...ITEM_TABS.filter(t => t.id === 'rest'),
   {id: 'gm-setup', label: 'GM Setup', icon: 'fa-solid fa-gear', render: gmSetupTab, gmOnly: true}
 ];
 /** Tabs this user may open (GM Setup is GM-only). */
 export const visibleTabs = () => TABS.filter(t => !t.gmOnly || globalThis.game?.user?.isGM === true);
 
+/** The tab rail down the right edge: icon buttons, label on hover (title) and for screen readers (aria-label). */
 export function tabsHtml(active) {
-  return `<nav class="ag-tabs" role="tablist" aria-label="Character Hub sections">${visibleTabs().map(t => `<button type="button" role="tab" data-action="hub-tab" data-tab="${t.id}" data-ag-always aria-selected="${t.id === active}" class="${t.id === active ? 'active' : ''}"><i class="${t.icon}" aria-hidden="true"></i> ${esc(t.label)}</button>`).join('')}</nav>`;
+  return `<nav class="agch-rail" role="tablist" aria-orientation="vertical" aria-label="Character Hub sections">${visibleTabs().map(t => `<button type="button" role="tab" data-action="hub-tab" data-tab="${t.id}" data-ag-always aria-selected="${t.id === active}" class="agch-rail__tab${t.id === active ? ' active' : ''}" title="${esc(t.label)}" aria-label="${esc(t.label)}"><i class="${t.icon}" aria-hidden="true"></i></button>`).join('')}</nav>`;
 }
-
 export function shellHtml(ctx) {
   const {actor, tab} = ctx;
   const version = globalThis.game?.modules?.get?.(MODULE_ID)?.version ?? '';
-  const top = `<header class="ag-header"><h1>Ashen Gate | Character Hub</h1><div class="ag-header__actions"><span class="ag-version">v${esc(version)}</span>
+  const top = `<header class="ag-header"><h1>Ashen Gate | Character Hub</h1><div class="ag-header__actions">
+    <label class="agch-opacity" title="Window background opacity (only for you): slide left to see the map behind"><i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i><input type="range" min="${OPACITY_MIN}" max="100" step="5" value="${windowOpacity()}" data-opacity data-ag-always aria-label="Window background opacity"></label>
+    <span class="ag-version">v${esc(version)}</span>
     ${btn('open-native', 'Open native sheet', {kind: 'ghost', icon: 'fa-solid fa-file-lines', always: true, title: 'Open the standard dnd5e character sheet'})}
     ${btn('help', 'Help', {kind: 'ghost', icon: 'fa-solid fa-circle-question', always: true})}</div></header>`;
   if (ctx.limited) return `<div class="agch-root agch-root--limited">${top}<section class="agch-hero ag-card"><img class="agch-portrait" src="${esc(actor.img)}" alt=""><div class="agch-identity"><h2 class="agch-name">${esc(actor.name)}</h2><p class="agch-sub">You have limited access to this character.</p></div></section></div>`;
   const tabs = visibleTabs(), current = tabs.find(t => t.id === tab) ?? tabs[0];
   const notice = ctx.editable ? '' : '<p class="agch-notice" role="note"><i class="fa-solid fa-eye" aria-hidden="true"></i> View only: you can look but not change or roll for this character.</p>';
   return `<div class="agch-root">${top}<div class="agch-split">${characterPanelHtml(ctx)}
-    <section class="agch-pane">${tabsHtml(current.id)}${notice}
-    <div class="agch-body" role="tabpanel" aria-label="${esc(current.label)}">${current.render(ctx)}</div></section></div></div>`;
+    <section class="agch-pane"><h2 class="agch-pane__title"><i class="${current.icon}" aria-hidden="true"></i> ${esc(current.label)}</h2>${notice}
+    <div class="agch-body" role="tabpanel" aria-label="${esc(current.label)}">${current.render(ctx)}</div></section>${tabsHtml(current.id)}</div></div>`;
 }
 
 export function errorHtml(err) {

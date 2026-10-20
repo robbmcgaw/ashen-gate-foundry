@@ -3,13 +3,13 @@
  * from the live Actor and sends every change through the Actor/Item (see actions.mjs). It never
  * mounts or hides the native sheet; "Open native sheet" opens that one separately.
  */
-import {MODULE_ID, SHEET_LABEL} from './constants.mjs';
+import {MODULE_ID, SHEET_LABEL, clampOpacity, windowOpacity} from './constants.mjs';
 import {shellHtml, errorHtml} from './views.mjs';
 import * as act from './actions.mjs';
 import {openNativeSheet} from './native.mjs';
 import {showHelp} from './help.mjs';
 import * as items from './item-actions.mjs';
-import {openPartner} from './partners.mjs';
+import {openPartner, mountEmbeds, unmountEmbeds, depositToParty} from './partners.mjs';
 import * as comp from './companions.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
@@ -22,8 +22,10 @@ export const ACTIONS = {
   'ag-subtab': (s, t) => { s.agTab = t.dataset.partner; return s.render(); },
   'inv-view': (s, t) => { s.invView = t.dataset.view === 'party' ? 'party' : 'character'; return s.render(); },
   'slot-menu': (s, t) => toggleMenu(s, `slot:${t.dataset.slot}`),
-  'conditions-menu': s => toggleMenu(s, 'conditions'),
+  'slot-open': (s, t) => items.openItemSheet(s.document, t.dataset.id),
   'menu-close': s => toggleMenu(s, null),
+  'cond-add': s => { s.condAdd = !s.condAdd; return s.render(); },
+  'item-deposit': (s, t) => { s.menu = null; return depositToParty(s.document, t.dataset.id, act.canEdit); },
   'slot-equip': (s, t) => { s.menu = null; return items.equipItem(s.document, t.dataset.id, {slot: t.dataset.slot}); },
   'slot-swap': (s, t) => items.swapSlots(s.document, t.dataset.id, t.dataset.slot, t.dataset.other, t.dataset.otherSlot),
   'retry': s => s.render({force: true}),
@@ -66,6 +68,10 @@ export function applyFilter(root, text) {
     row.hidden = !!q && !name.includes(q);
   }
 }
+/** Saves this user's window opacity (client setting). */
+export function saveOpacity(value) {
+  try { return globalThis.game?.settings?.set?.(MODULE_ID, 'windowOpacity', clampOpacity(value)); } catch (err) { console.warn(`${MODULE_ID} | opacity not saved`, err); return null; }
+}
 function hpButton(sheet, target, sign) {
   const input = target.closest('.agch-hp')?.querySelector('[data-hp-amount]');
   const amount = Math.abs(Math.trunc(Number(input?.value) || 0));
@@ -102,14 +108,18 @@ export function createHubSheetClass(Base) {
   return class CharacterHubSheet extends Base {
     static DEFAULT_OPTIONS = {
       classes: ['ag-app', 'ag-character-hub'],
-      position: {width: 1200, height: 800},
+      position: {width: 1240, height: 800},
       window: {resizable: true},
       form: {submitOnChange: false, closeOnSubmit: false}
     };
     static LABEL = SHEET_LABEL;
     tab = 'overview';
-    /** Open small menu: 'slot:<id>', 'conditions' or null. */
+    /** Open slot menu: 'slot:<id>' or null. */
     menu = null;
+    /** The conditions box shows the inactive conditions to add. */
+    condAdd = false;
+    /** Partner views mounted in this sheet: key → {element, handle} (see mountEmbeds). */
+    _embeds = new Map();
     invView = 'character';
     agTab = null;
     filter = '';
@@ -132,12 +142,18 @@ export function createHubSheetClass(Base) {
       const body = content.querySelector?.('.agch-body');
       const scroll = body?.scrollTop ?? 0;
       content.innerHTML = result;
+      mountEmbeds(content, this._embeds);
       const next = content.querySelector?.('.agch-body');
       if (next) next.scrollTop = scroll;
+      this.applyOpacity();
       applyFilter(content, this.tab === 'inventory' ? this.filter : '');
       if (!this._agchBound) {   // listeners live on the stable content element, so bind once
         content.addEventListener?.('change', ev => this._onHubChange(ev));
-        content.addEventListener?.('input', ev => { if (ev.target?.matches?.('[data-filter]')) { this.filter = ev.target.value; applyFilter(content, this.filter); } });
+        content.addEventListener?.('input', ev => {
+          if (ev.target?.matches?.('[data-filter]')) { this.filter = ev.target.value; applyFilter(content, this.filter); }
+          if (ev.target?.matches?.('[data-opacity]')) this.applyOpacity(ev.target.value);
+        });
+        content.addEventListener?.('change', ev => { if (ev.target?.matches?.('[data-opacity]')) saveOpacity(ev.target.value); });
         content.addEventListener?.('contextmenu', ev => this._onContextMenu(ev));
         content.addEventListener?.('click', ev => this._onOutsideClick(ev));
         content.addEventListener?.('keydown', ev => { if (ev.key === 'Escape' && this.menu) { ev.stopPropagation(); toggleMenu(this, null); } });
@@ -155,8 +171,9 @@ export function createHubSheetClass(Base) {
       this.element?.querySelectorAll?.('[data-ag-always]').forEach(el => { el.disabled = false; });
     }
 
-    /** ApplicationV2 routes [data-action] clicks without a registered handler here. */
+    /** ApplicationV2 routes [data-action] clicks without a registered handler here. Embedded partner views handle their own. */
     async _onClickAction(event, target) {
+      if (target?.closest?.('.agch-embed')) return null;
       return this.dispatch(target.dataset.action, target, event);
     }
 
@@ -169,20 +186,35 @@ export function createHubSheetClass(Base) {
       }
     }
 
-    /** Right-click on a slot opens its menu (the same one a click opens). */
+    /** Right-click on a filled slot unequips it; on an empty slot (or Other) it opens the slot's menu. */
     _onContextMenu(event) {
-      const slot = event.target?.closest?.('[data-action="slot-menu"]');
+      const filled = event.target?.closest?.('[data-action="slot-open"]');
+      const slot = filled ?? event.target?.closest?.('[data-action="slot-menu"]');
       if (!slot) return null;
       event.preventDefault(); event.stopPropagation();
+      if (filled) { this.menu = null; return items.unequipItem(this.document, filled.dataset.id).then(report); }
       this.menu = `slot:${slot.dataset.slot}`;
       return this.render();
+    }
+
+    /** Sets the window background opacity (a CSS custom property; only backgrounds use it). */
+    applyOpacity(value = windowOpacity()) {
+      const v = clampOpacity(value);
+      this.element?.style?.setProperty?.('--ag-window-opacity', `${v}%`);
+      return v;
+    }
+
+    /** Partner views are unmounted when the sheet closes. */
+    _onClose(options) {
+      unmountEmbeds(this._embeds);
+      return super._onClose?.(options);
     }
 
     /** A click outside the open menu (and not on a menu opener) closes it. */
     _onOutsideClick(event) {
       if (!this.menu) return null;
       const t = event.target;
-      if (t?.closest?.('.agch-menu, [data-action="slot-menu"], [data-action="conditions-menu"]')) return null;
+      if (t?.closest?.('.agch-menu, [data-action="slot-menu"]')) return null;
       this.menu = null;
       return this.render();
     }

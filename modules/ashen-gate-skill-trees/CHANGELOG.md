@@ -1,3 +1,9 @@
+## 0.14.0 — 2026-10-20
+
+- **New API `embed.mount(element, {actorId, mode: 'character'})`** so a partner module (Character Hub) can show a compact list of a character's trees: points, Available now perks with a real **Unlock**, Unlocked perks, Locked perks with the reason, and Open tree. Returns `{unmount, refresh}` and refreshes itself on changes. See the README.
+- Unlock goes through the same confirm and checks as the window (players' unlocks are done by the GM client). Players see the published trees only. The full graph and GM tools stay in the window.
+- The Skill Trees window is unchanged. No saved data changes.
+
 ## 0.13.0 — 2026-10-20
 
 - **New read-only API `pointsSummary(actor)`** for partner modules (Character Hub): `[{treeId, name, kind, level, earned, spent, available}]`, one row per tree the caller can see. Profession trees earn 1 point per Profession Ledger level (`null` when the Ledger is unavailable); other trees earn GM-awarded points.

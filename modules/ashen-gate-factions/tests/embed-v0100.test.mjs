@@ -1,4 +1,4 @@
-/** 0.9.0: api.embed.mount. In-memory Foundry V14-shaped data and a fake element: proves gates and data sources, not the live UI. */
+/** 0.10.0: api.embed.mount. In-memory Foundry V14-shaped data and a fake element: proves gates and data sources, not the live UI. */
 import assert from 'node:assert/strict';
 import nodeTest from 'node:test';
 import {makeFaction,blankStanding,adjustStanding} from '../scripts/core.mjs';

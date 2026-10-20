@@ -17,7 +17,7 @@ Independent. General Manager owns import: tree files (`ag-skill-trees/0.3`, 0.2 
 
 ## Public API
 
-`game.modules.get('ashen-gate-skill-trees').api`: `open`, `playerAccess` (`ag-player-access/1`), `listTrees`, `actorProgress`, `pointsSummary`, `unlock`, and GM-only `grantPoints`, `refund`, `resetTree`, `giveMissingPerks`, `publish`, `previewTreeImport`, `importTrees`.
+`game.modules.get('ashen-gate-skill-trees').api`: `open`, `playerAccess` (`ag-player-access/1`), `listTrees`, `actorProgress`, `pointsSummary`, `unlock`, `embed.mount`, and GM-only `grantPoints`, `refund`, `resetTree`, `giveMissingPerks`, `publish`, `previewTreeImport`, `importTrees`.
 
 ### `pointsSummary(actor)` (0.13.0)
 
@@ -34,6 +34,24 @@ game.modules.get('ashen-gate-skill-trees').api.pointsSummary(actor)
 - `spent` is the cost of perks unlocked on the tree; `available` is `earned − spent`, never below 0.
 - A character with no points or perks gets rows of zeros; with no trees published, `[]`. GMs see every tree; players see published trees only, with the same numbers the player tree window shows.
 - **Permission:** the GM, or a user who owns the Actor. Anyone else gets `Error('Actor access denied')`. Players are also refused while Skill Trees Player Access is off.
+
+
+### `embed.mount(element, options)` (0.14.0)
+
+Shows a compact list of one character's trees inside another module's window, for example Character Hub's Ashen Gate → Perks. Per tree: points to spend and spent (profession trees: level from the Profession Ledger), **Available now** perks with a real **Unlock** button, **Unlocked** perks, **Locked** perks with the reason, and **Open tree** (the full graph at that tree and character). The full graph and every GM control (refund, override, keep, awards, editing) stay in the Skill Trees window.
+
+```js
+const api = game.modules.get('ashen-gate-skill-trees')?.api;
+if (api?.embed?.mount) {
+  const view = api.embed.mount(element, {actorId: actor.id, mode: 'character'});
+  // later: view.refresh();  view.unmount();
+}
+```
+
+- `element`: a DOM element the caller owns. Skill Trees replaces its contents and adds the class `agst-embed`.
+- `options.actorId`: the character. `options.mode`: `'character'` (the only mode; `api.embed.modes` lists them). An unknown mode or a missing element throws.
+- Returns `{unmount(), refresh()}`. It refreshes itself when the character, the published trees, Player Access or the Ledger level change, and unmounts itself if the element has left the page.
+- **Permission:** the GM, or the Actor's **Owner** (same as `pointsSummary`). Anyone else sees "Only <name>'s owner and the GM can see this."; players see "The GM has hidden Skill Trees." while Player Access is off. Players see the published projection only (unrevealed nodes are left out). **Unlock** uses the window's own confirm and checks: the GM unlocks directly; a player's unlock is checked again and carried out by the GM client, exactly as in the window.
 
 ## Install
 

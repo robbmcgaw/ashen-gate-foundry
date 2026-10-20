@@ -124,12 +124,16 @@ test('sheet renders header, tabs and Open native sheet; observers get a view-onl
   assert.match(html, /data-action="help"/);
   assert.match(html, /data-action="roll-skill" data-skill="ste"/);
   assert.doesNotMatch(html, /View only/);
-  assert.match(html, /class="agch-split"><aside class="agch-char"[\s\S]*<section class="agch-pane">/, 'character left, tabs right');
+  assert.match(html, /class="agch-split"><aside class="agch-char"[\s\S]*<section class="agch-pane">[\s\S]*<nav class="agch-rail"/, 'character left, content, then the tab rail');
   assert.match(html, /data-action="roll-check" data-ability="str"/);
   assert.match(html, /data-action="roll-save" data-ability="str"/);
   assert.match(html, /data-edit="hp.tempmax"/);
   assert.match(html, /agch-ac__value">15</);
-  assert.match(html, /aria-selected="true" class="active"><i class="fa-solid fa-user" aria-hidden="true"><\/i> Overview/);
+  assert.match(html, /data-tab="overview" data-ag-always aria-selected="true" class="agch-rail__tab active" title="Overview" aria-label="Overview"/);
+  assert.match(html, /agch-pane__title"><i class="fa-solid fa-user" aria-hidden="true"><\/i> Overview/);
+  assert.doesNotMatch(html, /data-tab="rest"/, 'rests moved to the character column');
+  assert.match(html, /data-action="rest" data-type="short"/);
+  assert.match(html, /type="range" min="20" max="100" step="5" value="100" data-opacity data-ag-always/, 'opaque by default');
   installGlobals({user: users.observer});
   const view = await new Cls({document: makeActor()})._renderHTML();
   assert.match(view, /View only/);
@@ -232,14 +236,38 @@ test('conditions carry their status icon when dnd5e provides one', () => {
   assert.equal(c.find(x => x.id === 'blinded').img, '');
 });
 
-test('active conditions show as icons on the left; the full list opens in the conditions menu', async () => {
+test('conditions box lists only active conditions; + shows the others inline to add', async () => {
   installGlobals();
   const {Cls} = hubClass();
   const sheet = new Cls({document: makeActor({statuses: ['prone']})});
   let html = await sheet._renderHTML();
-  assert.match(html, /agch-foot__conds[\s\S]*data-action="condition" data-id="prone"/);
-  assert.doesNotMatch(html, /data-id="blinded"/, 'inactive ones only in the menu');
-  sheet.menu = 'conditions';
+  assert.match(html, /agch-conds[\s\S]*data-action="condition" data-id="prone" aria-pressed="true" title="Remove Prone"/);
+  assert.doesNotMatch(html, /data-id="blinded"/, 'inactive ones hidden until +');
+  await sheet.dispatch('cond-add', {dataset: {}}, {});
+  assert.equal(sheet.condAdd, true);
   html = await sheet._renderHTML();
-  assert.match(html, /agch-menu--conditions[\s\S]*data-id="blinded"/);
+  assert.match(html, /agch-conds__list[\s\S]*data-id="blinded" aria-pressed="false" title="Add Blinded"/);
+  installGlobals({user: users.observer});
+  const view = await new Cls({document: makeActor({statuses: ['prone']})})._renderHTML();
+  assert.doesNotMatch(view, /data-action="cond-add"/, 'observers cannot add');
+  assert.match(view, /data-id="prone"[^>]*disabled/);
+});
+
+test('window opacity: client setting, clamped 20-100, applied as a CSS property; default opaque', async () => {
+  const {clampOpacity, windowOpacity} = await import('../scripts/constants.mjs');
+  assert.equal(clampOpacity(5), 20); assert.equal(clampOpacity(150), 100); assert.equal(clampOpacity('55'), 55); assert.equal(clampOpacity('abc'), 100); assert.equal(clampOpacity(undefined), 100);
+  installGlobals({settings: {}});
+  assert.equal(windowOpacity(), 100, 'unset means opaque');
+  installGlobals({settings: {windowOpacity: 40}});
+  assert.equal(windowOpacity(), 40);
+  const {Cls} = hubClass();
+  const sheet = new Cls({document: makeActor()});
+  const props = {};
+  sheet.element = {style: {setProperty: (k, v) => { props[k] = v; }}};
+  assert.equal(sheet.applyOpacity(), 40);
+  assert.deepEqual(props, {'--ag-window-opacity': '40%'});
+  const {saveOpacity} = await import('../scripts/sheet.mjs');
+  await saveOpacity(10);
+  assert.equal(game.settings.store.windowOpacity, 20, 'saved clamped');
+  assert.match(await sheet._renderHTML(), /value="20" data-opacity/);
 });

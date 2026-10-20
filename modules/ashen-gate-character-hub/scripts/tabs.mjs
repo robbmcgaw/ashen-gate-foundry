@@ -1,8 +1,8 @@
-/** Combat, Inventory (character or party stash), Magic, Features and Rest views. The paper doll is in character.mjs. */
+/** Combat, Inventory (character or party stash), Magic and Features views. The paper doll and rests are in character.mjs. */
 import {esc} from './constants.mjs';
 import {btn} from './buttons.mjs';
 import {inventoryData, combatData, spellsData, featuresData} from './items.mjs';
-import {partyStashHtml} from './partners.mjs';
+import {partyStashHtml, partyStashUsable} from './partners.mjs';
 import {headerData} from './data.mjs';
 
 const empty = text => `<p class="ag-empty">${esc(text)}</p>`;
@@ -33,18 +33,19 @@ function combatTab({actor, editable}) {
 
 // ---------- Inventory ----------
 function inventoryTab(ctx) {
-  const {actor, editable} = ctx, off = !editable, d = inventoryData(actor);
+  const {actor, editable} = ctx, off = !editable, d = inventoryData(actor), toParty = partyStashUsable();
   const currency = `<div class="agch-currency agch-coins" role="group" aria-label="Currency">${d.currency.map(c => `<label class="agch-coin"><span>${esc(c.abbr)}</span><input type="number" min="0" step="1" data-edit="currency" data-key="${esc(c.key)}" value="${c.value}" aria-label="${esc(c.label)}"${off ? ' disabled' : ''}></label>`).join('')}</div>`;
   const controls = r => [
     r.usable && r.type === 'consumable' ? useBtn(r, off) : '',
     `<span class="agch-qty">${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-minus', data: {id: r.id, step: -1}, title: `One fewer ${r.name}`, disabled: off || r.quantity <= 0})}<input type="number" min="0" step="1" data-edit="item-qty" data-id="${esc(r.id)}" value="${r.quantity}" aria-label="${esc(r.name)} quantity"${off ? ' disabled' : ''}>${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-plus', data: {id: r.id, step: 1}, title: `One more ${r.name}`, disabled: off})}</span>`,
     r.equippable ? btn(r.equipped ? 'item-unequip' : 'item-equip', r.equipped ? 'Unequip' : 'Equip', {kind: r.equipped ? 'primary' : 'sm', data: {id: r.id}, disabled: off}) : '',
-    r.canAttune ? btn('item-attune', r.attuned ? 'Unattune' : 'Attune', {kind: 'sm', data: {id: r.id, attuned: r.attuned ? 0 : 1}, title: r.attunement === 'optional' ? 'Attunement optional' : 'Requires attunement', disabled: off}) : ''
+    r.canAttune ? btn('item-attune', r.attuned ? 'Unattune' : 'Attune', {kind: 'sm', data: {id: r.id, attuned: r.attuned ? 0 : 1}, title: r.attunement === 'optional' ? 'Attunement optional' : 'Requires attunement', disabled: off}) : '',
+    toParty ? btn('item-deposit', '', {kind: 'sm', icon: 'fa-solid fa-people-carry-box', data: {id: r.id}, title: `Move ${r.name} to the party stash`, disabled: off}) : ''
   ].join('');
   const list = rows => `<ul class="ag-list agch-items">${rows.map(r => itemLine(r, controls(r)) + (r.contents?.length ? `<li class="agch-contents"><ul class="ag-list agch-items">${r.contents.map(c => itemLine(c, controls(c))).join('')}</ul></li>` : '')).join('')}</ul>`;
   const groups = d.groups.map(g => `<h3 class="agch-heading">${esc(g.label)}</h3>${list(g.items)}`).join('') || empty('No items.');
   return `${currency}${groups}
-    <p class="agch-muted agch-hint">Equipped items also show in the slots around the portrait: click or right-click a slot for its actions.</p>`;
+    <p class="agch-muted agch-hint">Equipped items also show in the slots around the portrait.${toParty ? ' <i class="fa-solid fa-people-carry-box" aria-hidden="true"></i> moves an item to the party stash; take items back from Party stash.' : ''}</p>`;
 }
 
 /** Inventory: this character's items, or (toggle) the Utilities party stash and purse. */
@@ -79,19 +80,9 @@ function featuresTab({actor, editable}) {
     + '<p class="agch-muted agch-hint">Level up and advancement choices are on the native sheet.</p>';
 }
 
-// ---------- Rest ----------
-function restTab({actor, editable}) {
-  const off = !editable, h = headerData(actor);
-  return `<div class="agch-rest">
-    <div class="ag-card"><h3>Short Rest</h3><p class="agch-muted">Spend hit dice${h.hd ? ` (${h.hd.value} / ${h.hd.max} left)` : ''} and recover short-rest uses.</p>${btn('rest', 'Short Rest', {kind: 'primary', icon: 'fa-solid fa-mug-hot', data: {type: 'short'}, disabled: off})}</div>
-    <div class="ag-card"><h3>Long Rest</h3><p class="agch-muted">Recover hit points, hit dice, spell slots and long-rest uses.</p>${btn('rest', 'Long Rest', {kind: 'primary', icon: 'fa-solid fa-campground', data: {type: 'long'}, disabled: off})}</div>
-  </div><p class="agch-muted agch-hint">Both open dnd5e's own rest dialog.</p>`;
-}
-
 export const ITEM_TABS = [
   {id: 'combat', label: 'Combat', icon: 'fa-solid fa-khanda', render: combatTab},
   {id: 'inventory', label: 'Inventory', icon: 'fa-solid fa-sack', render: inventoryShell},
   {id: 'magic', label: 'Magic', icon: 'fa-solid fa-wand-sparkles', render: magicTab},
-  {id: 'features', label: 'Features', icon: 'fa-solid fa-star', render: featuresTab},
-  {id: 'rest', label: 'Rest', icon: 'fa-solid fa-bed', render: restTab}
+  {id: 'features', label: 'Features', icon: 'fa-solid fa-star', render: featuresTab}
 ];
