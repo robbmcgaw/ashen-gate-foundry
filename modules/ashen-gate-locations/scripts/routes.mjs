@@ -50,7 +50,9 @@ export function normalizeRoute(raw = {}) {
     state: ROUTE_STATES.includes(r.state) ? r.state : 'unknown',
     unknownPath: bool(r.unknownPath, false),
     audience: normalizeAudience(r.audience),
-    notes: text(r.notes, 5000)
+    notes: text(r.notes, 5000),
+    // 1.12.0: the linked map Drawing (world-local binding; GM only, never exported).
+    drawingUuid: safeUuid(r.drawingUuid)
   };
 }
 
@@ -208,8 +210,8 @@ export function routeFromRecord(rec) {
   return {route, errors, given};
 }
 
-/** Play state an update never overwrites: discovery, who can see it, the GM's unknown-path choice and the player page binding. */
-const PLAY_STATE = ['viewKey', 'state', 'audience', 'unknownPath'];
+/** Play state an update never overwrites: discovery, who can see it, the GM's unknown-path choice, the player page binding and the linked drawing. */
+const PLAY_STATE = ['viewKey', 'state', 'audience', 'unknownPath', 'drawingUuid'];
 
 /**
  * Imports Route records into `existing` routes. Endpoints must be in `locationIds` (Manager imports locations first,

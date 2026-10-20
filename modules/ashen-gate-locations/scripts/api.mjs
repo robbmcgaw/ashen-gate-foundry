@@ -24,6 +24,7 @@ export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
  *        notes?: {readGM(locationId), readPlayer(pinKey), request(payload), userId(), isActive(id), nameOf(id), now?()},
  *        sharing?: {request({ref, userIds})}, playerIds?(), pinsOf?(loc),
  *        routes?: {readAll(), writeAll(list), readViews(), usedIds(), defaultLegKm()},
+ *        drawings?: {link(route, uuid), unlink(route, {remove}), draw(route, scene), info(route), viewedScene()},
  *        travel?: {read(), write(travel), readView(), drawHazard?({uuid, name}) → {text, fromTable, tableMissing}, chat?: {gm(html), public(html)},
  *                  rng?(), now?(), emit?(event, payload)}}
  */
@@ -338,8 +339,8 @@ export function createApi(deps) {
       let route = normalizeRoute(data);
       const problems = routeProblems(route, deps.readAll().map(l => l.id));
       if (problems.length) throw new Error(problems.join(' '));
-      route = old ? {...route, id: old.id, viewKey: old.viewKey, state: old.state, audience: old.audience}
-        : {...route, id: makeRouteId(route.fromId, route.toId, [...rd.usedIds(), ...all.map(r => r.id)]), state: 'unknown'};
+      route = old ? {...route, id: old.id, viewKey: old.viewKey, state: old.state, audience: old.audience, drawingUuid: old.drawingUuid}
+        : {...route, id: makeRouteId(route.fromId, route.toId, [...rd.usedIds(), ...all.map(r => r.id)]), state: 'unknown', drawingUuid: ''};
       await rd.writeAll([...all.filter(r => r.id !== route.id), route]);
       return routeOut(route);
     },
@@ -366,12 +367,16 @@ export function createApi(deps) {
       await routesDeps().writeAll(all);
       return clone(route.audience);
     },
-    /** GM: deletes a route. Its RTE id is never issued again. */
-    async deleteRoute(id) {
+    /**
+     * GM: deletes a route. Its RTE id is never issued again. Its linked drawing stays on the map (just unlinked) unless
+     * `deleteDrawing: true` (the window asks first).
+     */
+    async deleteRoute(id, {deleteDrawing = false} = {}) {
       requireGM();
-      const {all} = findRoute(id);
+      const {all, route} = findRoute(id);
       const j = deps.travel?.read().journey;
       if (j?.status === 'active' && j.routeId === id) throw new Error('The party is travelling this route. Abort the journey first.');
+      if (route.drawingUuid && deps.drawings) await deps.drawings.unlink(route, {remove: deleteDrawing === true});
       await routesDeps().writeAll(all.filter(r => r.id !== id));
     },
     /**
@@ -475,6 +480,46 @@ export function createApi(deps) {
     releasePartyNotes: ref => notesOp(ref, {op: 'release'}),
     /** GM: empty a location's notes. */
     async clearPartyNotes(ref) { requireGM(); return notesOp(ref, {op: 'clear'}); },
+
+    // ---------- 1.12.0 route drawings ----------
+    /** GM: {status: 'none'|'linked'|'missing'|'elsewhere', sceneName?, hidden?, hasText?, path?} for a route's map drawing. */
+    routeDrawing(id) {
+      requireGM();
+      const {route} = findRoute(id);
+      return deps.drawings ? deps.drawings.info(route) : {status: 'none'};
+    },
+    /** GM: links a scene Drawing (by uuid) to a route; Locations then sets only its `hidden` from the route. */
+    async linkRouteDrawing(id, drawingUuid) {
+      requireGM();
+      if (!deps.drawings) throw new Error('Drawings are unavailable.');
+      if (typeof drawingUuid !== 'string' || !drawingUuid) throw new Error('Select a drawing on the scene first.');
+      const {all, route} = findRoute(id);
+      if (route.drawingUuid && route.drawingUuid !== drawingUuid) await deps.drawings.unlink(route);
+      route.drawingUuid = await deps.drawings.link(route, drawingUuid);
+      await routesDeps().writeAll(all);
+      return routeOut(route);
+    },
+    /** GM: removes the link. The drawing stays on the map as it is. */
+    async unlinkRouteDrawing(id) {
+      requireGM();
+      const {all, route} = findRoute(id);
+      if (route.drawingUuid && deps.drawings) await deps.drawings.unlink(route);
+      route.drawingUuid = '';
+      await routesDeps().writeAll(all);
+      return routeOut(route);
+    },
+    /** GM: "Draw for me": a straight line between the two pins on the scene being viewed (or `scene`), linked to the route. */
+    async drawRoute(id, {scene = null} = {}) {
+      requireGM();
+      if (!deps.drawings) throw new Error('Drawings are unavailable.');
+      const {all, route} = findRoute(id);
+      const target = scene ?? deps.drawings.viewedScene?.() ?? null;
+      const uuid = await deps.drawings.draw(route, target);
+      if (route.drawingUuid && route.drawingUuid !== uuid) await deps.drawings.unlink(route);
+      route.drawingUuid = uuid;
+      await routesDeps().writeAll(all);
+      return routeOut(route);
+    },
 
     // ---------- 1.11.0 journeys ----------
     /**
