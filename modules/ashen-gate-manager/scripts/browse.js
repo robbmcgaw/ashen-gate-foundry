@@ -16,7 +16,7 @@ const TITLES = {'ashen-gate-manager': 'General Manager', 'ashen-gate-locations':
   'ashen-gate-factions': 'Factions & Renown', 'ashen-gate-skill-trees': 'Skill Trees', 'ashen-gate-headquarters': 'Headquarters',
   'ashen-gate-profession-ledger': 'Profession Ledger', world: 'World'};
 /** world-export section -> browse kind for each record; Skill Trees also adds one Perk entry per perk node. */
-const SECTION_KIND = {locations: 'Location', quests: 'Quest', factions: 'Faction', skill_trees: 'Tree', headquarters: 'Facility'};
+const SECTION_KIND = {locations: 'Location', routes: 'Route', quests: 'Quest', factions: 'Faction', skill_trees: 'Tree', headquarters: 'Facility'};
 const ID_RE = /^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/;
 export const FACETS = Object.freeze(['kind', 'entityType', 'owner', 'category', 'profession', 'tier', 'quality', 'status', 'visibility', 'folder']);
 export const FACET_LABELS = Object.freeze({kind: 'Kind', entityType: 'AG type', owner: 'Owner / module', category: 'Category', profession: 'Profession',

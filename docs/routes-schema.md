@@ -1,4 +1,4 @@
-# Route record schema (Ashen Gate Locations 1.10.0+)
+# Route record schema (Ashen Gate Locations 1.10.0+, General Manager 0.27.0+)
 
 A **Route** joins two Location records for point-crawl travel. Route records travel in the same
 `ag-foundry-import/0.2` package as Location records, so one package can create places and the routes between them.
@@ -40,14 +40,23 @@ reported), never quietly replaced by a default.
 
 ## Import behaviour
 
+- **Where:** General Manager → Import (a JSON package, or a ZIP holding it; a routes-only file in a ZIP is imported
+  after the other Manager files), or Locations → GM Setup → Import JSON (creates new routes only).
+- **Manager preview** shows each Route as create / update / skipped / blocked with the reason. Blocked in preview:
+  an endpoint neither in Locations nor created by the same import, the same endpoint twice, a missing or non-number
+  `distance_km`. Everything else is checked by Locations on Apply and reported per record in the Import results.
+- **Required refs** to a `LOC-*` id that exists only in Locations are accepted (Manager 0.27.0+); older Managers
+  report them as unresolved, so with an older Manager use `"mode": "optional"` refs or leave `refs` empty.
+
 - **Order:** routes are imported after the locations in the same run, whatever their order in the file.
+- **Drafts:** Manager imports `draft` records only with *Include drafts*; `superseded` / `retired` are blocked.
 - **Validation, per record** (reported in the import results, the rest of the import carries on): id not `RTE-*`,
   missing or non-`LOC-*` endpoint, same endpoint twice, endpoint not found, missing `distance_km`, bad numbers,
   unknown `discovery_state`, duplicate id in the same import, id of a deleted route.
-- **Existing route id:** kept unchanged by default (create-only / skip). With *update existing*, the definition
+- **Existing route id:** kept unchanged by default (create-only / skip). With Manager's *Update existing locations and routes* (or `importRoutes(records, {mode: 'update'})`), the definition
   (endpoints, km, leg, hazard, terrain, name, notes, one-way) is replaced, and fields the record leaves out keep the
   world's value. **Play state is never overwritten:** discovery state, who can see it, the GM's *Unknown path*
-  choice, its player page binding, and (from 1.11.0) any journey.
+  choice, its player page binding, its linked map drawing (1.12.0+) and any journey (1.11.0+).
 - **Players:** an imported route shows to a player only when it is discovered (not `unknown`), both ends are visible
   to that player, and the GM has not limited it to other players.
 
@@ -82,3 +91,8 @@ reported), never quietly replaced by a default.
 ```
 
 This route has 4 legs (32 ÷ 8). Exporting from Locations (GM Setup → Export JSON) writes routes in this shape.
+
+## Checking a file before import
+
+`node scripts/validate-content.mjs path/to/file.json` runs Route records through the same Locations checks
+(endpoints outside the file are listed as notes: they must already exist in Locations).

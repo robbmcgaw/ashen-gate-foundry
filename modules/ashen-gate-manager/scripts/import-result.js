@@ -8,7 +8,8 @@ const MODULES = Object.freeze({
   'Skill Tree': {label: 'Skill Trees', where: 'Skill Trees > Skill Trees tab (Actors sidebar launcher)'},
   Facility: {label: 'Headquarters', where: 'Headquarters > Facility library (shown until the Guildhall is activated), then GM Setup > Facility Catalog'},
   Faction: {label: 'Factions & Renown', where: 'Factions & Renown > GM Setup (Actors sidebar launcher)'},
-  Location: {label: 'Locations', where: 'Locations (Items sidebar launcher)'}
+  Location: {label: 'Locations', where: 'Locations (Items sidebar launcher)'},
+  Route: {label: 'Locations: routes', where: 'Locations (Items sidebar launcher) > Routes tab'}
 });
 const DOCUMENTS = {label: 'Manager documents', where: 'Items, Journals, Actors, Roll Tables and Macros in the "Ashen Gate — Imported …" folders; Manager > Library'};
 
