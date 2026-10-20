@@ -43,7 +43,7 @@ if (api?.embed?.mount) {
 
 ## Deity records
 
-A deity is a definition with `entity_type: "Deity"` in the same import/export file (`ag-factions-source-export/0.4`; `0.3` faction-only files still import). Deity fields: `deity.symbol` (image path, e.g. `assets/ashen-gate/deities/<name>.png`), `title`, `domain`, `tier` (`major`|`lesser`), `blurb`, `portfolio`, `teachings`, `followers`, `practices`, `saying {text, attribution}`, `relations [{deity_id, type: rival|ally}]`. The rank titles are the deity's `individual_track` milestones. Full field list, defaults and a synthetic example: [docs/renown-deity-schema.md](../../docs/renown-deity-schema.md).
+A deity is a definition with `entity_type: "Deity"` in the same import/export file (`ag-factions-source-export/0.4`; `0.3` faction-only files still import). Deity fields: `deity.symbol` (image path, e.g. `assets/ashen-gate/deities/<name>.png`), `title`, `domain`, `tier` (`major`|`lesser`), `blurb`, `portfolio`, `teachings`, `followers`, `practices`, `saying {text, attribution}`, `relations [{deity_id, resonance: 0..1}]` (0 Dissonance, 0.5 neutral, 1 Resonance; gains spread to related deities, damped and GM-confirmed). The rank titles are the deity's `individual_track` milestones. Full field list, defaults and a synthetic example: [docs/renown-deity-schema.md](../../docs/renown-deity-schema.md).
 
 ## Install
 

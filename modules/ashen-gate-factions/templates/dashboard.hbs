@@ -125,12 +125,25 @@
                 </div>{{/each}}<span class="agf-state">{{#if unlocked}}Unlocked{{else}}Locked{{/if}}</span></div>{{/each}}</div>
             </section>
             {{#if @root.isGM}}<section class="agf-panel agf-award" data-award-scope="individual"><h2>GM · Adjust favour for {{@root.pantheon.actorName}}</h2><div class="agf-award-row-v2"><label>Change<input name="renown-delta" type="number" value="1" min="-1000" max="1000"></label><label>Reason<input name="renown-reason" maxlength="400" placeholder="Deed, offering or transgression"></label><button type="button" data-action="award" data-scope="individual">Record</button></div></section>{{/if}}
-            <section class="agf-panel"><h2>Favour history</h2>{{#if history.length}}<ol class="agf-history">{{#each history}}<li><strong>{{displayDelta}}</strong> {{reason}} <small>{{previous_score}} → {{score_after}}</small></li>{{/each}}</ol>{{else}}<p class="agf-muted">No changes recorded yet.</p>{{/if}}</section>
+            <section class="agf-panel"><h2>Favour history</h2>{{#if history.length}}<ol class="agf-history">{{#each history}}<li><strong>{{displayDelta}}</strong> {{reason}} <small>{{previous_score}} → {{score_after}}{{#if @root.isGM}}{{#if canUndo}} <button type="button" class="agf-small" data-action="undoFavour" data-event="{{id}}">Undo</button>{{/if}}{{#if undone}} · undone{{/if}}{{/if}}</small></li>{{/each}}</ol>{{else}}<p class="agf-muted">No changes recorded yet.</p>{{/if}}</section>
           {{else}}
             <section class="agf-panel"><p class="agf-muted">This character has not discovered this deity yet.</p></section>
           {{/if}}
-          <section class="agf-panel"><h2>Allies and rivals</h2>{{#if relations.length}}<ul class="agf-relations">{{#each relations}}<li class="{{#if isRival}}is-rival{{/if}}{{#if isAlly}}is-ally{{/if}}"><span class="agf-chip">{{#if isRival}}Rival{{else}}Ally{{/if}}</span> {{name}}{{#if @root.isGM}} <button type="button" class="agf-small" data-action="removeRelation" data-target="{{deity_id}}">Remove</button>{{/if}}</li>{{/each}}</ul>{{else}}<p class="agf-muted">No known allies or rivals.</p>{{/if}}
-            {{#if @root.isGM}}{{#if gm.relationOptions.length}}<div class="agf-create-row"><label>Deity<select name="relation-deity">{{#each gm.relationOptions}}<option value="{{id}}">{{name}}</option>{{/each}}</select></label><label>Relation<select name="relation-type"><option value="rival">Rival</option><option value="ally">Ally</option></select></label><button type="button" data-action="addRelation">Add relation</button></div>{{/if}}<p class="agf-muted">Players see a relation only once both deities are revealed to them. Standing changes do not spread between deities yet.</p>{{/if}}
+          <section class="agf-panel"><h2>Related deities</h2>
+            {{#if @root.isGM}}
+              {{#each relations}}<div class="agf-resonance-row" data-resonance-row><strong>{{name}}</strong>
+                <span class="agf-resonance-slider"><small>Dissonance</small><input type="range" min="0" max="1" step="0.05" value="{{resonance}}" data-resonance-target="{{deity_id}}" aria-label="Resonance with {{name}}"><small>Resonance</small></span>
+                <span class="agf-muted" data-resonance-preview>{{label}} · {{preview}}</span>
+                <button type="button" class="agf-small" data-action="removeRelation" data-target="{{deity_id}}">Remove</button></div>
+              {{else}}<p class="agf-muted">No related deities.</p>{{/each}}
+              {{#if gm.relationOptions.length}}<div class="agf-resonance-row agf-resonance-add" data-resonance-row><label>Add related deity<select name="relation-deity">{{#each gm.relationOptions}}<option value="{{id}}">{{name}}</option>{{/each}}</select></label>
+                <span class="agf-resonance-slider"><small>Dissonance</small><input type="range" name="relation-resonance" min="0" max="1" step="0.05" value="0.5" aria-label="Resonance"><small>Resonance</small></span>
+                <span class="agf-muted" data-resonance-preview>Neutral · gain 10 → 0</span>
+                <button type="button" data-action="addRelation">Add</button></div>{{/if}}
+              <p class="agf-muted">Each slider works one way: gains with this deity move the other one. Middle = no effect. Effects are scaled by the damping in GM Setup ({{damping}}) and you confirm them on every award. Players see only Resonance or Dissonance, and only once both deities are revealed to them.</p>
+            {{else}}
+              {{#if relations.length}}<ul class="agf-relations">{{#each relations}}<li class="{{#if isDissonant}}is-dissonant{{/if}}{{#if isResonant}}is-resonant{{/if}}"><span class="agf-chip">{{label}}</span> {{name}}</li>{{/each}}</ul>{{else}}<p class="agf-muted">No known related deities.</p>{{/if}}
+            {{/if}}
           </section>
           <section class="agf-panel"><h2>Revealed lore</h2>{{#if entries.length}}{{#each entries}}<div class="agf-knowledge"><strong>{{name}}</strong>{{#if @root.isGM}} <small>{{#if discovered_party}}party{{else}}{{#if discovered}}this character{{else}}hidden{{/if}}{{/if}}</small>{{/if}}<p>{{text}}</p>{{#if uuid}}<button type="button" data-action="openLinked" data-uuid="{{uuid}}">Open linked document</button>{{else}}{{#if documentAccessRequired}}<small class="agf-muted">Linked document requires Foundry permission; ask the GM for access.</small>{{/if}}{{/if}}</div>{{/each}}{{else}}<p class="agf-muted">Nothing revealed yet.</p>{{/if}}</section>
           {{#if @root.isGM}}{{#with gm}}
@@ -237,6 +250,7 @@
     {{/if}}
     {{#if tabSetup}}
       <section class="agf-panel agf-player-access"><h2>GM · Player Access</h2><p class="agf-muted">Controls whether players can open this module from Actors, macros or Manager. Hidden access keeps Renown, claims, discoveries and character progress unchanged.</p><label class="agf-check"><input type="checkbox" name="player-access-enabled" {{#if playerAccessEnabled}}checked{{/if}}> Players can open Renown</label><button type="button" data-action="savePlayerAccess">Save Player Access</button></section>
+      <section class="agf-panel"><h2>GM · Pantheon knock-on damping</h2><p class="agf-muted">When a character gains favour with a deity, related deities change by gain × slider strength × this number (0 to {{pantheonDampingMax}}). At 0.5, a fully resonant deity gains half as much and a fully dissonant one loses half as much. You still confirm each change.</p><div class="agf-group-name-form"><label>Damping<input name="pantheon-damping" type="number" min="0" max="{{pantheonDampingMax}}" step="0.05" value="{{pantheonDamping}}"></label><button type="button" data-action="saveDamping">Save</button></div></section>
       <section class="agf-panel"><h2>GM · Group display name</h2><div class="agf-group-name-form"><label class="agf-check"><input type="checkbox" name="group-name-enabled" {{#if groupNameEnabled}}checked{{/if}}> Use custom group name</label><label>Name<input name="group-name" value="{{groupName}}"></label><button type="button" data-action="saveGroupLabel">Save</button></div></section>
     {{/if}}
     {{#if refreshNeeded}}<p class="agf-muted">Waiting for the GM to prepare your private faction view. Reopen after the GM connects.</p>{{/if}}

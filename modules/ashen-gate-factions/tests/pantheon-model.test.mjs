@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {sourceDefinition,validateFaction,upgradeFaction,milestoneProjection} from '../scripts/core.mjs';
-import {makeDeity,deityCard,visibleRelations,pantheonRows} from '../scripts/deity.mjs';
+import {makeDeity,deityCard,visibleRelations,pantheonRows,knockOnDelta,knockOns,resonancePreview,visibleHistory,relationLabel} from '../scripts/deity.mjs';
 import {planImport,runImport,IMPORT_SCHEMA} from '../scripts/import.mjs';
 
 const deity=(key,name,extra={})=>{const d=makeDeity({id:`DEITY-QA-${key}`,trackId:`RENOWN-QA-${key}`,name});Object.assign(d.deity,extra);return d;};
@@ -29,9 +29,10 @@ test('deity checks: id, tier, symbol, relations, group rewards and group-unlocke
   assert.ok(validateFaction({...deity('A','A'),id:'FACTION-QA-A'}).length,'deity id must be DEITY-');
   assert.ok(validateFaction(deity('A','A',{tier:'demigod'})).some(e=>e.includes('tier')));
   assert.ok(validateFaction(deity('A','A',{symbol:'javascript:alert(1)'})).some(e=>e.includes('symbol')));
-  assert.ok(validateFaction(deity('A','A',{relations:[{deity_id:'DEITY-QA-A',type:'rival'}]})).some(e=>e.includes('relation')),'no relation to itself');
-  assert.ok(validateFaction(deity('A','A',{relations:[{deity_id:'DEITY-QA-B',type:'enemy'}]})).some(e=>e.includes('rival or ally')));
-  assert.ok(validateFaction(deity('A','A',{relations:[{deity_id:'DEITY-QA-B',type:'ally'},{deity_id:'DEITY-QA-B',type:'rival'}]})).some(e=>e.includes('Duplicate')));
+  assert.ok(validateFaction(deity('A','A',{relations:[{deity_id:'DEITY-QA-A',resonance:0}]})).some(e=>e.includes('relation')),'no relation to itself');
+  assert.ok(validateFaction(deity('A','A',{relations:[{deity_id:'DEITY-QA-B',resonance:1.5}]})).some(e=>e.includes('resonance')));
+  assert.ok(validateFaction(deity('A','A',{relations:[{deity_id:'DEITY-QA-B',type:'rival'}]})).some(e=>e.includes('resonance')),'old rival/ally shape is refused');
+  assert.ok(validateFaction(deity('A','A',{relations:[{deity_id:'DEITY-QA-B',resonance:1},{deity_id:'DEITY-QA-B',resonance:0}]})).some(e=>e.includes('Duplicate')));
   const g=deity('A','A');g.rewards.push({id:'rw-G',key:'g',audience:'group',milestone_id:g.renown_track.milestones[0].id,name:'G',kind:'custom',tags:[],behavior:'passive',usage_limit:0});
   assert.ok(validateFaction(g).some(e=>e.includes('per character')));
   const l=deity('A','A');l.entries.push({id:'i1',name:'Lore',unlock:'group_renown',link_mode:'preview',threshold:1});
@@ -40,14 +41,14 @@ test('deity checks: id, tier, symbol, relations, group rewards and group-unlocke
 test('the deity source boundary is closed: unknown keys anywhere are refused, not dropped',()=>{
   assert.throws(()=>sourceDefinition({...deity('A','A'),favour:3}),/unclassified field favour/);
   const d=deity('A','A');d.deity.secret_name='x';assert.throws(()=>sourceDefinition(d),/unclassified field secret_name/);
-  const r=deity('A','A');r.deity.relations=[{deity_id:'DEITY-QA-B',type:'ally',ratio:0.5}];assert.throws(()=>sourceDefinition(r),/unclassified field ratio/);
+  const r=deity('A','A');r.deity.relations=[{deity_id:'DEITY-QA-B',resonance:0.5,ratio:0.5}];assert.throws(()=>sourceDefinition(r),/unclassified field ratio/);
 });
 test('player card and relations only expose what the viewer may see',()=>{
-  const a=deity('A','[TEST] A',{...EXAMPLE,relations:[{deity_id:'DEITY-QA-B',type:'rival'},{deity_id:'DEITY-QA-C',type:'ally'}]});
+  const a=deity('A','[TEST] A',{...EXAMPLE,relations:[{deity_id:'DEITY-QA-B',resonance:0},{deity_id:'DEITY-QA-C',resonance:0.9}]});
   const card=deityCard(a);
   assert.equal(card.saying.attribution,'[EXAMPLE] Lamplighter');assert.equal(card.tierLabel,'Lesser');
   assert.ok(!('discovery' in card)&&!('tags' in card)&&!('relations' in card));
-  assert.deepEqual(visibleRelations(a,new Map([['DEITY-QA-C','[TEST] C']])).map(r=>[r.deity_id,r.type]),[['DEITY-QA-C','ally']],'unrevealed rival is not listed');
+  assert.deepEqual(visibleRelations(a,new Map([['DEITY-QA-C','[TEST] C']])).map(r=>[r.deity_id,r.label]),[['DEITY-QA-C','Resonance']],'unrevealed rival is not listed');
   assert.deepEqual(deityCard(card),card,'a projected card reads back unchanged');
 });
 test('pantheonRows lists only deities with standing for the character, major first',()=>{
@@ -65,4 +66,26 @@ test('import: deities need the 0.4 schema, 0.3 faction files still import, and d
   assert.deepEqual(plan.errors,[]);
   await runImport(plan,io);
   assert.deepEqual(calls,[['create','DEITY-QA-A'],['group','DEITY-QA-A'],['personal','DEITY-QA-A','A1']],'existing deity B untouched; new A gets per-character state only');
+});
+test('resonance: 0 Dissonance, 0.5 neutral, 1 Resonance; only gains spread, damped, rounded toward the earlier rule',()=>{
+  assert.deepEqual([0,0.25,0.5,0.75,1].map(relationLabel),['Dissonance','Dissonance','Neutral','Resonance','Resonance']);
+  assert.equal(knockOnDelta(10,1,0.5),5,'full resonance at default damping: half');
+  assert.equal(knockOnDelta(10,0,0.5),-5,'full dissonance: minus half');
+  assert.equal(knockOnDelta(10,0.5,0.5),0,'neutral: nothing');
+  assert.equal(knockOnDelta(10,0.7,0.5),2,'0.7 -> factor 0.4 -> 2 (float noise rounded away)');
+  assert.equal(knockOnDelta(3,0.9,0.5),1,'gains round down: 1.2 -> 1');
+  assert.equal(knockOnDelta(3,0.1,0.5),-2,'losses round away from zero: -1.2 -> -2');
+  assert.equal(knockOnDelta(1,0.6,0.5),0,'tiny resonance on a small gain: 0.1 -> 0');
+  assert.equal(knockOnDelta(-5,0,0.5),0,'losses never spread');
+  assert.equal(knockOnDelta(10,1,1),0,'damping 1 is refused (never the same amount)');
+  assert.equal(resonancePreview(0.8,0.5),'gain 10 → +3');
+  const a=deity('A','[TEST] A',{relations:[{deity_id:'DEITY-QA-B',resonance:0},{deity_id:'DEITY-QA-C',resonance:0.5},{deity_id:'DEITY-QA-D',resonance:1}]});
+  assert.deepEqual(knockOns(a,4,0.5,new Map([['DEITY-QA-B','[TEST] B']])).map(k=>[k.deity_id,k.name,k.delta,k.label]),[['DEITY-QA-B','[TEST] B',-2,'Dissonance'],['DEITY-QA-D','DEITY-QA-D',2,'Resonance']],'neutral relation produces no knock-on');
+});
+test('history caused by a deity the viewer cannot see does not name it',()=>{
+  const ev=[{id:'E1',delta:2,reason:'[TEST] Offering'},{id:'E2',delta:-2,reason:'Dissonance with [TEST] Hidden: x',source_deity:'DEITY-QA-H',caused_by:'X'},{id:'E3',delta:2,reason:'Undo: Dissonance with [TEST] Hidden: x',source_deity:'DEITY-QA-H',reverses:'E2'}];
+  const out=visibleHistory(ev,new Map());
+  assert.ok(!JSON.stringify(out).includes('Hidden')&&!JSON.stringify(out).includes('DEITY-QA-H'));
+  assert.equal(out[0].reason,'[TEST] Offering');
+  assert.equal(visibleHistory(ev,new Map([['DEITY-QA-H','[TEST] Hidden']]))[1].reason,'Dissonance with [TEST] Hidden: x');
 });

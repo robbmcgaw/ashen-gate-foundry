@@ -2,13 +2,15 @@
 
 ## 0.11.0 — 2026-10-20
 
-- New **Pantheon** tab for players and GM: deities as holy-symbol tiles grouped Major/Lesser. Open one for its card, the chosen character's favour, rank ladder (each deity has its own rank titles), rewards, lore and allies/rivals.
+- New **Pantheon** tab for players and GM: deities as holy-symbol tiles grouped Major/Lesser. Open one for its card, the chosen character's favour, rank ladder (each deity has its own rank titles), rewards, lore and related deities.
 - Favour with a deity is **per character only**. The API refuses group standing, group rewards and group claims for a deity.
 - Players only ever receive deities revealed to one of their characters. A relation is listed only once both deities are revealed. The filtering happens in the GM-written player view, not just the UI.
 - GM: create a deity, edit its card, symbol path (with Browse), rank titles and thresholds, reveal it to the party or one character, adjust favour, and manage rewards, lore, relations and requests. These are the same controls factions have.
 - Import/export: deities live in the same file. Export is now `ag-factions-source-export/0.4`; `0.3` files still import. Re-import never changes deities already in the world.
 - New read API: `getDeities()`, `getPantheon(actor)`. `getFactions()` still lists factions only. Schema: `docs/renown-deity-schema.md`.
-- Standing changes do not spread between rival/ally deities yet; that rule is waiting for approval.
+- **Resonance / Dissonance:** each deity can list related deities with a one-way slider: 0 Dissonance, 0.5 neutral, 1 Resonance. A gain with one deity moves the related ones by gain × strength × damping. Damping is set in GM Setup (default 0.5). Positive results round down, negative ones round away from zero. Losses never spread and changes never chain. The GM confirms each change; they all start ticked.
+- Favour history names the cause of each related change, except to players who can't see that deity. GM **Undo** on a history entry adds reversing entries for it and the changes it caused.
+- Character Hub embed: a Pantheon section with the character's favour with each deity they know. `open({deityId, actorId, tab: 'pantheon'})`.
 - No change to existing factions or saved data.
 
 ## 0.10.0 — 2026-10-20

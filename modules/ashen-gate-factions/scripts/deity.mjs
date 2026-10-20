@@ -5,7 +5,30 @@
  * code paths keep working; sourceDefinition strips them, and they are never shown or scored.
  */
 export const DEITY_TIERS=Object.freeze(['major','lesser']);
-export const RELATION_TYPES=Object.freeze(['rival','ally']);
+/** Cross-deity effects (approved by Robb, 2026-10-20). Each relation is one direction, A -> B, with a
+ * `resonance` slider value 0..1: 0 = full Dissonance, 0.5 = neutral, 1 = full Resonance. Only GAINS with A spread:
+ * B changes by gain x factor x damping, factor = (resonance - 0.5) x 2 in [-1, 1], damping a GM world setting
+ * (default 0.5, always below 1, so B never moves by the full amount). Positive results round down, negative ones
+ * round away from zero (a dissonant loss is ceil). Knock-ons never chain. The GM confirms each one. */
+export const RESONANCE_NEUTRAL=0.5;
+export const DAMPING_DEFAULT=0.5;
+export const DAMPING_MAX=0.95;
+export const validResonance=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=1;
+export const validDamping=v=>typeof v==='number'&&Number.isFinite(v)&&v>=0&&v<=DAMPING_MAX;
+export const resonanceFactor=v=>validResonance(v)?(v-RESONANCE_NEUTRAL)*2:0;
+export const relationLabel=v=>v<RESONANCE_NEUTRAL?'Dissonance':v>RESONANCE_NEUTRAL?'Resonance':'Neutral';
+export function knockOnDelta(gain,resonance,damping=DAMPING_DEFAULT){
+  if(!Number.isSafeInteger(gain)||gain<=0||!validDamping(damping))return 0;
+  // Round away float noise first: (0.7 - 0.5) x 2 is 0.3999…, which must count as 0.4.
+  const raw=Math.round(gain*resonanceFactor(resonance)*damping*1e6)/1e6;
+  return raw>0?Math.floor(raw):raw<0?-Math.ceil(-raw):0;
+}
+/** The knock-ons a gain with `deity` would cause, one per relation with a nonzero effect. Pure; nothing is applied. */
+export function knockOns(deity,gain,damping,names=new Map()){
+  return (deity?.deity?.relations??[]).map(r=>({deity_id:r.deity_id,name:names.get(r.deity_id)??r.deity_id,resonance:r.resonance,label:relationLabel(r.resonance),delta:knockOnDelta(gain,r.resonance,damping)})).filter(k=>k.delta!==0);
+}
+/** "gain 10 -> +3" for the GM slider preview. */
+export const resonancePreview=(resonance,damping,sample=10)=>{const d=knockOnDelta(sample,resonance,damping);return `gain ${sample} → ${d>0?'+':''}${d}`;};
 export const DEITY_ID=/^DEITY-[A-Z0-9-]+$/;
 export const DEITY_TEXT_KEYS=Object.freeze(['title','domain','blurb','portfolio','teachings','followers','practices']);
 export const DEITY_KEYS=Object.freeze(['symbol',...DEITY_TEXT_KEYS,'tier','saying','relations']);
@@ -48,7 +71,7 @@ export function validateDeityParts(f){
     if(!DEITY_ID.test(r?.deity_id??'')||r.deity_id===f.id)e.push('Deity relation needs another DEITY- id.');
     else if(seen.has(r.deity_id))e.push(`Duplicate relation to ${r.deity_id}.`);
     seen.add(r?.deity_id);
-    if(!RELATION_TYPES.includes(r?.type))e.push('Deity relation type must be rival or ally.');
+    if(!validResonance(r?.resonance))e.push('Deity relation resonance must be a number from 0 (Dissonance) to 1 (Resonance).');
   }
   if(f.rewards.some(r=>r.audience!=='individual'))e.push('Deity rewards are per character only (audience individual).');
   if(f.entries.some(x=>x.unlock==='group_renown'))e.push('Deity information cannot unlock by group Renown.');
@@ -56,7 +79,12 @@ export function validateDeityParts(f){
 }
 /** Player-safe relation list: only relations to deities this viewer may already see. */
 export function visibleRelations(deity,visibleNames){
-  return (deity.deity?.relations??[]).filter(r=>visibleNames.has(r.deity_id)).map(r=>({deity_id:r.deity_id,name:visibleNames.get(r.deity_id),type:r.type,isRival:r.type==='rival',isAlly:r.type==='ally'}));
+  return (deity.deity?.relations??[]).filter(r=>visibleNames.has(r.deity_id)).map(r=>{const label=relationLabel(r.resonance);return{deity_id:r.deity_id,name:visibleNames.get(r.deity_id),label,isDissonant:label==='Dissonance',isResonant:label==='Resonance'};});
+}
+/** Player-safe favour history: an entry caused by, or undoing one caused by, a deity this viewer cannot see
+ * does not name it. Ids of unseen deities are dropped. */
+export function visibleHistory(events,visibleNames){
+  return (events??[]).map(e=>{if(!e.source_deity||visibleNames.has(e.source_deity))return e;const {source_deity,...rest}=e;return{...rest,reason:e.reverses?'Undo: favour shifted through a related deity':'Favour shifted through a related deity'};});
 }
 /** The player card: profile fields only, never discovery settings, tags or GM provenance. */
 export function deityCard(f){

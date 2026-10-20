@@ -57,7 +57,7 @@ export function assertReusableDeitySource(value){
  for(const key of DEITY_PROFILE.filter(k=>!['tier','saying','relations'].includes(k)))text(d[key],`Deity.deity.${key}`);
  choice(d.tier,['major','lesser'],'Deity.deity.tier');
  closed(d.saying,['text','attribution'],'Deity.deity.saying');text(d.saying.text,'Deity.deity.saying.text');text(d.saying.attribution,'Deity.deity.saying.attribution');
- list(d.relations,'Deity.deity.relations',(r,p)=>{closed(r,['deity_id','type'],p);if(!/^DEITY-[A-Z0-9-]+$/.test(r.deity_id??''))throw new Error(`${p}.deity_id: DEITY- id required`);choice(r.type,['rival','ally'],`${p}.type`);});
+ list(d.relations,'Deity.deity.relations',(r,p)=>{closed(r,['deity_id','resonance'],p);if(!/^DEITY-[A-Z0-9-]+$/.test(r.deity_id??''))throw new Error(`${p}.deity_id: DEITY- id required`);if(typeof r.resonance!=='number'||!Number.isFinite(r.resonance)||r.resonance<0||r.resonance>1)throw new TypeError(`${p}.resonance: number 0..1 required`);});
  return value;
 }
 /** Private GM state shape only; personal Actor grants never become party grants. */

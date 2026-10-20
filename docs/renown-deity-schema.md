@@ -40,7 +40,7 @@ Not allowed on a deity (these are faction-only): `leader`, `public_role`, `folde
 | `followers` | string | `""` | |
 | `practices` | string | `""` | |
 | `saying` | `{text: string, attribution: string}` | `{text:"", attribution:""}` | |
-| `relations` | `{deity_id: "DEITY-…", type: "rival" \| "ally"}[]` | `[]` | Never to itself, at most one relation per other deity. Players see a relation only once both deities are revealed to them |
+| `relations` | `{deity_id: "DEITY-…", resonance: number 0..1}[]` | `[]` | One direction (this deity → that one). `resonance` is the GM slider: 0 = full Dissonance, 0.5 = neutral (no effect), 1 = full Resonance. Never to itself, at most one per other deity. Players see only the word Resonance/Dissonance, and only once both deities are revealed to them |
 
 Text fields hold up to 4000 characters. Line breaks are kept.
 
@@ -104,7 +104,7 @@ Same as for factions: `{faction_id: "DEITY-…", party_discovered?, actors?: [{n
         "followers": "[EXAMPLE] Lamplighters and night wardens",
         "practices": "[EXAMPLE] A lamp left burning in a window",
         "saying": {"text": "[EXAMPLE] No road is dark while one lamp burns.", "attribution": "[EXAMPLE] Lamplighter's proverb"},
-        "relations": [{"deity_id": "DEITY-EXAMPLE-SHADOW", "type": "rival"}]
+        "relations": [{"deity_id": "DEITY-EXAMPLE-SHADOW", "resonance": 0.2}]
       }
     }
   ],
@@ -114,7 +114,24 @@ Same as for factions: `{faction_id: "DEITY-…", party_discovered?, actors?: [{n
 }
 ```
 
-(The example's rival `DEITY-EXAMPLE-SHADOW` would be a second definition in the same file or already in the world. A relation to an id that isn't there yet is allowed; it shows once that deity exists.)
+(The example's related deity `DEITY-EXAMPLE-SHADOW` would be a second definition in the same file or already in the world. A relation to an id that isn't there yet is allowed; it shows once that deity exists.)
+
+## Cross-deity effects (Resonance / Dissonance)
+
+These rules are approved by Robb. If a character **gains** N favour with deity A, then for each relation A → B:
+
+- factor = (resonance − 0.5) × 2. This runs from −1 (full Dissonance) through 0 (neutral) to +1 (full Resonance).
+- B changes by N × factor × damping. Damping is a GM Setup world setting: default 0.5, range 0 to 0.95, so B never moves by the full N.
+- Rounding: positive results round down. Negative results round away from zero, so −1.2 becomes −2. If the result is 0, nothing happens.
+- Example at damping 0.5: a gain of 10 gives +5 at resonance 1, +2 at 0.7, 0 at 0.5 and −5 at 0.
+
+Only gains spread; a loss with A changes no other deity. Effects don't chain: a change to B never spreads further. Effects apply even if the character hasn't discovered B. Favour never drops below 0.
+
+The GM confirms every award. A list shows each related change, all ticked; untick any you don't want, or Cancel to drop the whole award.
+
+History: B's entry reads "Resonance with A: <reason>" (or "Dissonance with A: …") and links back to A's entry with `caused_by` and `source_deity`. If a player can't see A, the entry shows as "Favour shifted through a related deity" and doesn't name A.
+
+Undo (GM): click **Undo** on a history entry. It adds reversing entries for that entry and for any related changes it caused. Nothing is deleted, an entry can only be undone once, and undo entries never spread.
 
 ## Read API (`game.modules.get('ashen-gate-factions').api`)
 

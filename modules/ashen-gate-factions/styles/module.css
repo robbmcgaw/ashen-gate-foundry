@@ -258,8 +258,6 @@
 .agf-favour-bar span{display:block;height:100%;background:var(--ag-accent)}
 .agf-relations{list-style:none;margin:0 0 10px;padding:0}
 .agf-relations li{padding:6px 0;border-bottom:1px solid var(--ag-border);font-size:13px}
-.agf-relations li.is-rival .agf-chip{border-color:var(--ag-danger);color:var(--ag-danger)}
-.agf-relations li.is-ally .agf-chip{border-color:var(--ag-ok);color:var(--ag-ok)}
 .agf-symbol-path{display:flex;gap:6px;align-items:center;margin-top:4px}
 .agf-symbol-path input{margin:0!important}
 .agf-actions-row{display:flex;justify-content:flex-end;margin-top:12px}
@@ -267,3 +265,10 @@
 .agf-embed .agf-embed__heading{font:600 var(--ag-text-md) var(--ag-font-display);margin:var(--ag-space-3) 0 var(--ag-space-1);border:0}
 .agf-symbol--small{width:28px;height:28px}
 .agf-symbol--small .agf-symbol-glyph{font-size:14px}
+.agf-resonance-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:8px 0;border-bottom:1px solid var(--ag-border);font-size:13px}
+.agf-resonance-row>strong{min-width:9rem}
+.agf-resonance-slider{display:flex;align-items:center;gap:6px}
+.agf-resonance-slider small{font-size:11px;color:var(--ag-muted)}
+.agf-shell .agf-resonance-slider input[type=range]{width:160px;padding:0!important;border:0!important;background:transparent!important}
+.agf-relations li.is-dissonant .agf-chip{border-color:var(--ag-danger);color:var(--ag-danger)}
+.agf-relations li.is-resonant .agf-chip{border-color:var(--ag-ok);color:var(--ag-ok)}
