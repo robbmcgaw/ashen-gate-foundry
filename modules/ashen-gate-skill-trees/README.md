@@ -17,7 +17,23 @@ Independent. General Manager owns import: tree files (`ag-skill-trees/0.3`, 0.2 
 
 ## Public API
 
-`game.modules.get('ashen-gate-skill-trees').api`: `open`, `playerAccess` (`ag-player-access/1`), `listTrees`, `actorProgress`, `unlock`, and GM-only `grantPoints`, `refund`, `resetTree`, `giveMissingPerks`, `publish`, `previewTreeImport`, `importTrees`.
+`game.modules.get('ashen-gate-skill-trees').api`: `open`, `playerAccess` (`ag-player-access/1`), `listTrees`, `actorProgress`, `pointsSummary`, `unlock`, and GM-only `grantPoints`, `refund`, `resetTree`, `giveMissingPerks`, `publish`, `previewTreeImport`, `importTrees`.
+
+### `pointsSummary(actor)` (0.13.0)
+
+Read-only points per tree for one character, for partner modules such as Character Hub.
+
+```js
+game.modules.get('ashen-gate-skill-trees').api.pointsSummary(actor)
+// → [{treeId, name, kind, level, earned, spent, available}, ...]  one row per tree the caller can see
+```
+
+- `kind`: the tree's provider (`profession`, `generic_points`, `cinder_milestone`).
+- **Profession trees:** `earned` is 1 point per Profession Ledger level (`level` is that level, 0 when the character doesn't have the profession). When the Ledger is missing or off, `level`, `earned` and `available` are `null` (no points can be spent then).
+- **Other trees:** `earned` is the GM-awarded points; `level` is `null`.
+- `spent` is the cost of perks unlocked on the tree; `available` is `earned − spent`, never below 0.
+- A character with no points or perks gets rows of zeros; with no trees published, `[]`. GMs see every tree; players see published trees only, with the same numbers the player tree window shows.
+- **Permission:** the GM, or a user who owns the Actor. Anyone else gets `Error('Actor access denied')`. Players are also refused while Skill Trees Player Access is off.
 
 ## Install
 

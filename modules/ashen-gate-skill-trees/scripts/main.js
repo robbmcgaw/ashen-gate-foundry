@@ -14,7 +14,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.12.0';
+const VERSION='0.13.0';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -372,6 +372,23 @@ function professionReport(actor,profId,{level}={}){
   const t=game.user.isGM?resolved(stored):stored;
   const st=professionStatus(t,readProgress(actor,stored),Number.isSafeInteger(level)?level:professionLevel(actor,stored));
   return {treeId:t.id,treeName:t.name,level:st.level,earned:st.earned,spent:st.spent,nodesAboveLevel:st.aboveLevel,overSpent:st.overSpent,overAllocated:st.overAllocated};
+}
+/**
+ * Points earned, spent and available on every tree the current user can see, for partner modules (Character Hub). Read-only.
+ * Profession trees earn 1 point per Ledger level (earned/available null when the Ledger is unavailable); other trees earn GM-awarded points.
+ */
+function pointsSummary(actor){
+  if(!actor)throw Error('No Actor given');
+  checkTreePlayerAccess();
+  if(!hasOwner(actor))throw Error('Actor access denied');
+  return readSelectedTrees(false).map(t=>{
+    const acc=readProgress(actor,t),spent=totalSpent(t,acc),kind=t.provider?.kind??'generic_points';
+    if(kind==='profession'){
+      const st=professionStatus(t,acc,professionLevel(actor,t));
+      return {treeId:t.id,name:t.name,kind,level:st.level,earned:st.ledger?st.earned:null,spent,available:st.ledger?Math.max(0,st.available):null};
+    }
+    return {treeId:t.id,name:t.name,kind,level:null,earned:acc.awarded,spent,available:Math.max(0,acc.awarded-spent)};
+  });
 }
 /** GM reconcile report: every character × profession tree with something to look at. Read-only. */
 function professionReconcile(){
@@ -1236,6 +1253,8 @@ Hooks.once('ready',()=>{
     playerAccess:{contract:PLAYER_ACCESS_CONTRACT,getState:()=>accessState(game,MODULE),setEnabled:enabled=>setPlayerAccess(game,MODULE,enabled)},
     listTrees:()=>{checkTreePlayerAccess();return copy(readSelectedTrees(false));},
     actorProgress:(actor,treeId)=>{checkTreePlayerAccess();if(!game.user.isGM&&!hasOwner(actor))throw Error('Actor access denied');const t=readSelectedTrees(false).find(x=>x.id===treeId);return t?readProgress(actor,t):null;},
+    /** 0.13.0: points per tree for one character, [{treeId,name,kind,level,earned,spent,available}]. Owner or GM only; read-only. */
+    pointsSummary:actor=>pointsSummary(actor),
     grantPoints:async(actor,treeId,amount,label)=>{
       if(!game.user.isGM)throw Error('GM only');const t=readPrivate().find(x=>x.id===treeId);if(!t)throw Error('Unknown tree');
       const next=grantPoints(t,readProgress(actor,t),amount,label);await persistAccount(actor,t,next);return next;

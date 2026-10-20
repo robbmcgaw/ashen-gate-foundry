@@ -1,3 +1,8 @@
+## 0.13.0 — 2026-10-20
+
+- **New read-only API `pointsSummary(actor)`** for partner modules (Character Hub): `[{treeId, name, kind, level, earned, spent, available}]`, one row per tree the caller can see. Profession trees earn 1 point per Profession Ledger level (`null` when the Ledger is unavailable); other trees earn GM-awarded points.
+- GM or the Actor's owner only; anyone else is refused (`Actor access denied`), and players are refused while Skill Trees Player Access is off. Additive only: no saved data changes.
+
 ## 0.12.0 — 2026-10-19
 
 Review, undo and older Ledger perk choices for profession trees.
