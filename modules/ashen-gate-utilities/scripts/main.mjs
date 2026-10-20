@@ -549,6 +549,13 @@ function purseStash(){const stash=stashActor();if(!stash)throw Error('There is n
 const logPurse=entry=>queueHistory(async()=>{await game.settings.set(ID,'stashHistory',appendHistory(game.settings.get(ID,'stashHistory'),entry,STASH_HISTORY_CAP));return entry;});
 const newPurseEntry=args=>purseEntry({id:crypto.randomUUID(),worldTime:game.time?.worldTime??null,realTime:Date.now(),...args});
 /** API: the purse totals, {cp,sp,ep,gp,pp}. Players see them while the stash is on for them. */
+/** 0.11.0: read-only stash item list for partner modules. Same gate as the stash tab: GM always; players need Player Access and the stash on. */
+function listStashItems(){
+ if(!permitted())throw Error('Utilities access is hidden by the GM.');
+ if(!isGM())playerStashGate(game.user);
+ const stash=stashActor();if(!stash)return [];
+ return [...stash.items].map(i=>stashRow(i,{typeLabel:itemTypeLabel})).sort((a,b)=>a.typeLabel.localeCompare(b.typeLabel)||a.name.localeCompare(b.name));
+}
 function purseTotals(){
  if(!permitted())throw Error('Utilities access is hidden by the GM.');
  if(!isGM())playerStashGate(game.user);
@@ -917,7 +924,7 @@ Hooks.once('ready',()=>{
  const m=game.modules.get(ID);
  m.api={version:VERSION,contract:'ag-utilities/0.2-alpha',open,playerAccess:{contract:'ag-player-access/1',getState:()=>({contract:'ag-player-access/1',moduleId:ID,audience:'player',playerAccessEnabled:game.settings.get(ID,'playerAccessEnabled'),configurable:true}),setEnabled:async enabled=>{if(!isGM())throw Error('GM only.');if(typeof enabled!=='boolean')throw TypeError('Boolean required.');await game.settings.set(ID,'playerAccessEnabled',enabled);return m.api.playerAccess.getState();}},
   conditions:{contract:'ag-utilities-conditions/1',isUnlocked:actorId=>isUnlocked(getUnlocks(),actorId),setUnlocked,canRemove:(actorId,statusId)=>canRemove(game.actors.get(actorId),statusId),remove:removeCondition,openOverlay:async()=>{await game.settings.set(ID,'overlayOpen',true);return openOverlay();},closeOverlay:()=>game.settings.set(ID,'overlayOpen',false)},
-  stash:{contract:'ag-utilities-stash/1',isEnabled:stashEnabled,setEnabled:setStashEnabled,isVoteRequired:stashVoteRequired,setVoteRequired:setStashVoteRequired,history:stashHistory,clearHistory:clearStashHistory,open:openStash,deposit:depositItem,withdraw:withdrawItem},
+  stash:{contract:'ag-utilities-stash/1',isEnabled:stashEnabled,setEnabled:setStashEnabled,isVoteRequired:stashVoteRequired,setVoteRequired:setStashVoteRequired,history:stashHistory,clearHistory:clearStashHistory,open:openStash,deposit:depositItem,withdraw:withdrawItem,listItems:listStashItems},
   purse:{contract:'ag-utilities-purse/1',coins:COINS,isVoteRequired:purseVoteRequired,setVoteRequired:setPurseVoteRequired,totals:purseTotals,deposit:depositCoins,take:takeCoins,adjust:adjustPurse,undo:undoPurseEntry,openAdjust:adjustPurseDialog},
   awardGold,undoGoldAward,gold:{contract:'ag-utilities-gold/1',award:awardGold,undo:undoGoldAward,defaultRecipients:()=>{if(!isGM())throw Error('GM only.');return goldDefaults();},openDialog:awardGoldDialog}};
  game.socket?.on?.(SOCKET,(msg,senderId)=>{void onSocket(msg,senderId).catch(error);});

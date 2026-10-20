@@ -1,3 +1,8 @@
+## 0.11.0 — 2026-10-20
+
+- **New read-only API `stash.listItems()`** for partner modules (Character Hub): `[{id, uuid, img, name, quantity, weight, value, type, typeLabel}]`, sorted by type then name; `[]` when there is no stash or it is empty.
+- Same gate as the stash tab: the GM always; players are refused while Player Access is off or the stash is off for players. Listing moves nothing; the take-out vote is unchanged. Additive only: no saved data changes.
+
 ## 0.10.1 — 2026-10-19
 
 - **New: separate coin vote setting.** GM Setup has **Party must accept when a player takes coins out**, independent of the item take-out vote. Off: a player's Take from the purse applies at once (same bounds, ownership and one-update-per-document rules) and the History entry reads "No vote needed". On: the existing vote prompt, unchanged.

@@ -23,7 +23,20 @@ Player actions that change shared state (stash moves, condition removal) are car
 
 ## Public API
 
-`game.modules.get('ashen-gate-utilities').api`: `open`, `playerAccess` (`ag-player-access/1`), `conditions` (`isUnlocked`, `setUnlocked`, `canRemove`, `remove`, `openOverlay`) and `stash` (`isEnabled`, `setEnabled`, `isVoteRequired`, `setVoteRequired`, `history`, `clearHistory`, `open`, `deposit`, `withdraw`), plus GM-only `awardGold({amount, mode, actorIds, reason, public})` and `undoGoldAward(entryId)` (also as `gold`).
+`game.modules.get('ashen-gate-utilities').api`: `open`, `playerAccess` (`ag-player-access/1`), `conditions` (`isUnlocked`, `setUnlocked`, `canRemove`, `remove`, `openOverlay`) and `stash` (`isEnabled`, `setEnabled`, `isVoteRequired`, `setVoteRequired`, `history`, `clearHistory`, `open`, `deposit`, `withdraw`, `listItems`), plus GM-only `awardGold({amount, mode, actorIds, reason, public})` and `undoGoldAward(entryId)` (also as `gold`).
+
+### `stash.listItems()` (0.11.0)
+
+Read-only list of the party stash's items, for partner modules such as Character Hub. `purse.totals()` gives the coins.
+
+```js
+game.modules.get('ashen-gate-utilities').api.stash.listItems()
+// → [{id, uuid, img, name, quantity, weight: '2 lb' | '—', value: '5 gp' | '—', type: 'loot', typeLabel: 'Loot'}, ...]
+```
+
+- One row per Item on the stash Actor, sorted by type label, then name. Weight and value are per item, as shown in the stash tab.
+- No stash Actor yet, or an empty stash → `[]`.
+- **Permission:** the GM always. Players see the same items as the stash tab: they get an error while Utilities Player Access is off (`Utilities access is hidden by the GM.`) or the GM has turned the stash off for players (`The GM has turned the party stash off.`). Listing never moves anything; taking an item out still follows the take-out vote (`stash.isVoteRequired()`).
 
 ## Install
 
