@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/recipe.schema.json",
+  "title": "Recipe",
+  "description": "Ledger recipe. Projected as an Item (usually consumable) players learn from.",
+  "allOf": [
+    {
+      "$ref": "ag-common.schema.json#/$defs/envelope"
+    }
+  ],
+  "type": "object",
+  "required": [
+    "entity_type",
+    "foundry",
+    "name",
+    "profession_id",
+    "ingredients",
+    "result_item_id"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^REC-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+    },
+    "entity_type": {
+      "const": "Recipe"
+    },
+    "foundry": {
+      "$ref": "ag-common.schema.json#/$defs/itemFoundry"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "profession_id": {
+      "type": "string",
+      "pattern": "^PROF-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+    },
+    "tier": {
+      "$ref": "ag-common.schema.json#/$defs/tier"
+    },
+    "starting": {
+      "type": "boolean"
+    },
+    "effort": {
+      "type": "string",
+      "examples": [
+        "short",
+        "long"
+      ]
+    },
+    "additional_gp": {
+      "type": "number",
+      "minimum": 0
+    },
+    "tool": {
+      "$ref": "ag-common.schema.json#/$defs/toolRef"
+    },
+    "required_tools": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "$ref": "ag-common.schema.json#/$defs/toolRef"
+      },
+      "description": "ALL listed tools are required."
+    },
+    "workstation": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Free text; shown on the recipe card."
+    },
+    "result_item_id": {
+      "$ref": "ag-common.schema.json#/$defs/canonicalId"
+    },
+    "rules_summary": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "market_gp": {
+      "type": "number"
+    },
+    "craft_gp": {
+      "type": "number"
+    },
+    "price_class": {
+      "type": "string"
+    },
+    "origin": {
+      "type": "string"
+    },
+    "ingredients": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "material_id",
+          "quantity"
+        ],
+        "properties": {
+          "material_id": {
+            "type": "string",
+            "pattern": "^MAT-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+          },
+          "quantity": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string"
+          },
+          "material_value_gp": {
+            "type": "number"
+          }
+        }
+      }
+    }
+  }
+}

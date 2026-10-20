@@ -1,0 +1,613 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/ag-common.schema.json",
+  "title": "Ashen Gate shared definitions",
+  "description": "Building blocks shared by every Ashen Gate import file. Generated from the module validators; see GPT_BUILD_REFERENCE.md.",
+  "$defs": {
+    "canonicalId": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$",
+      "description": "Permanent id: PREFIX-PART[-PART...], capital letters/digits, dash-separated, e.g. MAT-EXAMPLE-SUNLEAF. Never rename."
+    },
+    "status": {
+      "enum": [
+        "proposed",
+        "draft",
+        "approved",
+        "superseded",
+        "retired"
+      ],
+      "description": "approved imports in the Session-safe profile; draft/proposed only in Development; superseded/retired are blocked."
+    },
+    "visibility": {
+      "enum": [
+        "player",
+        "gm",
+        "reveal_gated"
+      ],
+      "description": "0.2 spelling (underscore)."
+    },
+    "scope": {
+      "enum": [
+        "generic_rules",
+        "setting_adapter",
+        "publication",
+        "campaign_state"
+      ],
+      "description": "campaign_state is never imported by Manager."
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "examples": [
+        "1.0.0"
+      ]
+    },
+    "provenance": {
+      "type": "object",
+      "required": [
+        "sources"
+      ],
+      "properties": {
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "LIST of source identifiers (strings). Not a single string; not 'source'."
+        },
+        "decision_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "ref": {
+      "type": "object",
+      "required": [
+        "relation",
+        "target_id",
+        "mode"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "relation": {
+          "type": "string",
+          "minLength": 1,
+          "examples": [
+            "requires_material",
+            "gathered_by",
+            "crafted_by",
+            "produces",
+            "created_by",
+            "perk_of",
+            "starting_recipe",
+            "targets_location",
+            "offers_objective",
+            "has_hireling_perk"
+          ]
+        },
+        "target_id": {
+          "$ref": "#/$defs/canonicalId"
+        },
+        "mode": {
+          "enum": [
+            "required",
+            "optional"
+          ]
+        }
+      }
+    },
+    "refs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ref"
+      }
+    },
+    "folderPath": {
+      "type": "string",
+      "pattern": "^Ashen Gate(?:/[^/<>\\\\\\u0000-\\u001f]{1,95}){0,3}$",
+      "description": "Slash path that starts with 'Ashen Gate', at most 4 levels in total (Foundry's folder depth limit)."
+    },
+    "html": {
+      "type": "string",
+      "description": "HTML. Links: [[AGREF:ID|Label]] in text (never inside a tag or attribute)."
+    },
+    "envelope": {
+      "type": "object",
+      "required": [
+        "id",
+        "entity_type",
+        "status",
+        "version",
+        "provenance",
+        "visibility",
+        "refs"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/canonicalId"
+        },
+        "entity_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "version": {
+          "$ref": "#/$defs/version"
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "visibility": {
+          "$ref": "#/$defs/visibility"
+        },
+        "scope": {
+          "$ref": "#/$defs/scope"
+        },
+        "refs": {
+          "$ref": "#/$defs/refs"
+        },
+        "name": {
+          "type": "string"
+        },
+        "legacy_source_id": {
+          "type": "string"
+        },
+        "template_ref": {
+          "type": "string"
+        },
+        "core_ref": {
+          "$ref": "#/$defs/coreRef"
+        }
+      }
+    },
+    "itemData": {
+      "type": "object",
+      "required": [
+        "name",
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string",
+          "minLength": 1,
+          "examples": [
+            "loot",
+            "consumable",
+            "feat",
+            "equipment",
+            "weapon",
+            "tool",
+            "spell",
+            "container"
+          ]
+        },
+        "img": {
+          "type": "string"
+        },
+        "system": {
+          "type": "object",
+          "properties": {
+            "description": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "$ref": "#/$defs/html"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "journalData": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "img": {
+          "type": "string"
+        },
+        "pages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "type",
+              "text"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "const": "text"
+              },
+              "text": {
+                "type": "object",
+                "required": [
+                  "content"
+                ],
+                "additionalProperties": false,
+                "properties": {
+                  "content": {
+                    "$ref": "#/$defs/html"
+                  },
+                  "format": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "actorData": {
+      "type": "object",
+      "required": [
+        "name",
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "enum": [
+            "npc",
+            "character"
+          ]
+        },
+        "img": {
+          "type": "string"
+        },
+        "system": {
+          "type": "object"
+        },
+        "prototypeToken": {
+          "type": "object"
+        },
+        "effects": {
+          "type": "array"
+        },
+        "flags": {
+          "type": "object"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "type"
+            ]
+          }
+        }
+      }
+    },
+    "rollTableData": {
+      "type": "object",
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "img": {
+          "type": "string"
+        },
+        "description": {
+          "$ref": "#/$defs/html"
+        },
+        "formula": {
+          "type": "string"
+        },
+        "replacement": {
+          "type": "boolean"
+        },
+        "displayRoll": {
+          "type": "boolean"
+        },
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "enum": [
+                  "text",
+                  "document"
+                ]
+              },
+              "name": {
+                "type": "string"
+              },
+              "description": {
+                "type": "string"
+              },
+              "weight": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "range": {
+                "type": "array",
+                "items": {
+                  "type": "number"
+                },
+                "minItems": 2,
+                "maxItems": 2
+              }
+            }
+          }
+        }
+      }
+    },
+    "macroData": {
+      "type": "object",
+      "required": [
+        "name",
+        "type",
+        "command"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "img": {
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "script",
+            "chat"
+          ]
+        },
+        "scope": {
+          "const": "global"
+        },
+        "command": {
+          "type": "string"
+        }
+      }
+    },
+    "foundry": {
+      "type": "object",
+      "required": [
+        "document_type",
+        "data"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "document_type": {
+          "enum": [
+            "Item",
+            "JournalEntry",
+            "Actor",
+            "RollTable",
+            "Macro"
+          ]
+        },
+        "folder_path": {
+          "$ref": "#/$defs/folderPath"
+        },
+        "data": {
+          "type": "object"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "document_type": {
+                "const": "Item"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/itemData"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "document_type": {
+                "const": "JournalEntry"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/journalData"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "document_type": {
+                "const": "Actor"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/actorData"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "document_type": {
+                "const": "RollTable"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/rollTableData"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "document_type": {
+                "const": "Macro"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "data": {
+                "$ref": "#/$defs/macroData"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "itemFoundry": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/foundry"
+        },
+        {
+          "properties": {
+            "document_type": {
+              "const": "Item"
+            }
+          }
+        }
+      ]
+    },
+    "tier": {
+      "enum": [
+        "apprentice",
+        "journeyman",
+        "expert",
+        "artisan",
+        "master",
+        "Apprentice",
+        "Journeyman",
+        "Expert",
+        "Artisan",
+        "Master"
+      ]
+    },
+    "toolRef": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "description": "dnd5e tool key (alchemist), tool name (Alchemist's Supplies) or Item UUID"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "key": {
+              "type": "string"
+            },
+            "uuid": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "coreRef": {
+      "description": "Manager 0.26.0 Core Links: the 2024 (5.5e) core item this Item stands for. Only read on Item records.",
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "object",
+          "required": [
+            "name"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1
+            },
+            "source": {
+              "type": "string",
+              "examples": [
+                "PHB'24",
+                "DMG'24",
+                "XDMG",
+                "SRD 5.2"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "examples": [
+                "consumable",
+                "weapon",
+                "equipment",
+                "loot",
+                "tool"
+              ]
+            },
+            "rarity": {
+              "type": "string",
+              "examples": [
+                "common",
+                "uncommon",
+                "rare",
+                "veryRare",
+                "legendary"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

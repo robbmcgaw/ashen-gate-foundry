@@ -1,0 +1,59 @@
+[
+  {
+    "id": "FAC-EXAMPLE-STILLROOM",
+    "entity_type": "Facility",
+    "status": "approved",
+    "version": "1.0.0",
+    "provenance": {
+      "sources": [
+        "[EXAMPLE] schema reference"
+      ]
+    },
+    "visibility": "player",
+    "refs": [
+      {
+        "relation": "supports_profession",
+        "target_id": "PROF-EXAMPLE-ALCHEMY",
+        "mode": "optional"
+      }
+    ],
+    "name": "[EXAMPLE] Stillroom",
+    "category": "Profession",
+    "placements": [
+      "shared",
+      "personal"
+    ],
+    "stages": [
+      {
+        "key": "base",
+        "label": "Basic",
+        "width": 3,
+        "height": 2,
+        "staffing_slots": 1,
+        "art": "",
+        "benefits": [
+          {
+            "name": "[EXAMPLE] Bench access",
+            "description": "Descriptive only. No automatic bonus.",
+            "recipient": "guild"
+          }
+        ]
+      },
+      {
+        "key": "expanded",
+        "label": "Expanded",
+        "width": 4,
+        "height": 3,
+        "staffing_slots": 2,
+        "art": "icons/svg/house.svg",
+        "benefits": [
+          {
+            "name": "[EXAMPLE] Quiet corner",
+            "description": "Descriptive only.",
+            "recipient": "room_owner"
+          }
+        ]
+      }
+    ]
+  }
+]

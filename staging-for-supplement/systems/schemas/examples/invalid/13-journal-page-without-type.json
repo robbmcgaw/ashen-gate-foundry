@@ -1,0 +1,40 @@
+{
+  "_expect_error": "use {name, type:\"text\", text:{content, format?}}",
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-EXAMPLE-MISTAKE",
+    "version": "1.0.0"
+  },
+  "records": [
+    {
+      "id": "JRN-EXAMPLE-FIELD-GUIDE",
+      "entity_type": "JournalEntry",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[EXAMPLE] Field Guide",
+      "foundry": {
+        "document_type": "JournalEntry",
+        "folder_path": "Ashen Gate/Examples/Journals",
+        "data": {
+          "name": "[EXAMPLE] Field Guide",
+          "pages": [
+            {
+              "name": "Overview",
+              "text": {
+                "content": "<p>x</p>"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

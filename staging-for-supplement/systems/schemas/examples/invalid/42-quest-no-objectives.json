@@ -1,0 +1,34 @@
+{
+  "_expect_error": "At least one objective is required",
+  "schema_version": "ag-quest-source/0.1",
+  "records": [
+    {
+      "id": "QUEST-EXAMPLE-SUNLEAF",
+      "entity_type": "Objective",
+      "objective_kind": "quest",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[EXAMPLE] Sunleaf for the Healer",
+      "public_summary": "The healer needs fresh Sunleaf from the meadow.",
+      "source": {
+        "description": "[EXAMPLE] GM-only issuer notes: the village healer."
+      },
+      "objectives": [],
+      "locations": [
+        "LOC-EXAMPLE-MEADOW"
+      ],
+      "parameters": {},
+      "outcomes": {
+        "description": "[EXAMPLE] 10 gp and the healer's thanks (GM grants separately)."
+      }
+    }
+  ]
+}

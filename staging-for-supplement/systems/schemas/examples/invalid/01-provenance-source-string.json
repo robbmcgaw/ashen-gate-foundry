@@ -1,0 +1,39 @@
+{
+  "_expect_error": "provenance.sources: array of source identifiers required",
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-EXAMPLE-MISTAKE",
+    "version": "1.0.0"
+  },
+  "records": [
+    {
+      "id": "ITEM-EXAMPLE-SUNLEAF-TONIC",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "source": "[EXAMPLE] notes"
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[EXAMPLE] Sunleaf Tonic",
+      "created_by_recipe_id": "REC-EXAMPLE-SUNLEAF-TONIC",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Examples/Items",
+        "data": {
+          "name": "[EXAMPLE] Sunleaf Tonic",
+          "type": "consumable",
+          "img": "icons/svg/item-bag.svg",
+          "system": {
+            "description": {
+              "value": "<p>[EXAMPLE] Placeholder item; no rules effect.</p>"
+            },
+            "rarity": "common"
+          }
+        }
+      }
+    }
+  ]
+}

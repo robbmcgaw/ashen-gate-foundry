@@ -1,0 +1,287 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/facilities-file.schema.json",
+  "title": "Headquarters facility catalog",
+  "description": "A JSON array of Facility definitions (or {records:[...]} with NO schema_version).",
+  "oneOf": [
+    {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 200,
+      "items": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "ag-common.schema.json#/$defs/envelope"
+          }
+        ],
+        "required": [
+          "scope",
+          "name",
+          "placements",
+          "stages"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^FAC-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+          },
+          "entity_type": {
+            "const": "Facility"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "approved",
+              "proposed"
+            ]
+          },
+          "visibility": {
+            "const": "player"
+          },
+          "scope": {
+            "enum": [
+              "generic_rules",
+              "setting_adapter"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "category": {
+            "type": "string"
+          },
+          "placements": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "enum": [
+                "shared",
+                "personal"
+              ]
+            }
+          },
+          "stages": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "required": [
+                "key",
+                "width",
+                "height",
+                "staffing_slots",
+                "benefits"
+              ],
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]*$"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "width": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100
+                },
+                "staffing_slots": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100
+                },
+                "art": {
+                  "type": "string",
+                  "description": "'' or a Foundry data path (modules/, worlds/, systems/, assets/, icons/) or https URL."
+                },
+                "benefits": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "name",
+                      "description",
+                      "recipient"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "description": {
+                        "type": "string"
+                      },
+                      "recipient": {
+                        "enum": [
+                          "guild",
+                          "facility",
+                          "individual",
+                          "room_owner"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "required": [
+        "records"
+      ],
+      "not": {
+        "required": [
+          "schema_version"
+        ]
+      },
+      "properties": {
+        "records": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 200,
+          "items": {
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "ag-common.schema.json#/$defs/envelope"
+              }
+            ],
+            "required": [
+              "scope",
+              "name",
+              "placements",
+              "stages"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^FAC-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+              },
+              "entity_type": {
+                "const": "Facility"
+              },
+              "status": {
+                "enum": [
+                  "draft",
+                  "approved",
+                  "proposed"
+                ]
+              },
+              "visibility": {
+                "const": "player"
+              },
+              "scope": {
+                "enum": [
+                  "generic_rules",
+                  "setting_adapter"
+                ]
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "category": {
+                "type": "string"
+              },
+              "placements": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "enum": [
+                    "shared",
+                    "personal"
+                  ]
+                }
+              },
+              "stages": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 20,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "key",
+                    "width",
+                    "height",
+                    "staffing_slots",
+                    "benefits"
+                  ],
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_-]*$"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "width": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 100
+                    },
+                    "height": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 100
+                    },
+                    "staffing_slots": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 100
+                    },
+                    "art": {
+                      "type": "string",
+                      "description": "'' or a Foundry data path (modules/, worlds/, systems/, assets/, icons/) or https URL."
+                    },
+                    "benefits": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "name",
+                          "description",
+                          "recipient"
+                        ],
+                        "properties": {
+                          "name": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "description": {
+                            "type": "string"
+                          },
+                          "recipient": {
+                            "enum": [
+                              "guild",
+                              "facility",
+                              "individual",
+                              "room_owner"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

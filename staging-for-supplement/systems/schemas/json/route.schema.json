@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/route.schema.json",
+  "title": "Route record",
+  "description": "Point-crawl route between two locations, inside a Manager ag-foundry-import/0.2 package. Manager passes it to Locations after the locations.",
+  "type": "object",
+  "allOf": [
+    {
+      "$ref": "ag-common.schema.json#/$defs/envelope"
+    }
+  ],
+  "required": [
+    "entity_type",
+    "name",
+    "route"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^RTE-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+    },
+    "entity_type": {
+      "const": "Route"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "visibility": {
+      "const": "gm",
+      "description": "Recommended; players' view is set by discovery_state."
+    },
+    "foundry": {
+      "description": "Not used for Routes; omit."
+    },
+    "route": {
+      "type": "object",
+      "required": [
+        "from_location_id",
+        "to_location_id",
+        "distance_km"
+      ],
+      "properties": {
+        "from_location_id": {
+          "type": "string",
+          "pattern": "^LOC-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+        },
+        "to_location_id": {
+          "type": "string",
+          "pattern": "^LOC-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+        },
+        "distance_km": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 100000
+        },
+        "leg_km": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 100000
+        },
+        "hazard_base_percent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "hazard_table": {
+          "type": "string",
+          "description": "RollTable UUID or RollTable name"
+        },
+        "terrain": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "discovery_state": {
+          "enum": [
+            "unknown",
+            "rumoured",
+            "known",
+            "explored"
+          ]
+        },
+        "directed": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "notes": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}

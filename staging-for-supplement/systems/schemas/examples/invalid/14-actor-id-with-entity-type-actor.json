@@ -1,0 +1,90 @@
+{
+  "_expect_error": "must use entity_type NPC",
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-EXAMPLE-MISTAKE",
+    "version": "1.0.0"
+  },
+  "records": [
+    {
+      "id": "ACTOR-EXAMPLE-WARDEN",
+      "entity_type": "Actor",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "gm",
+      "scope": "setting_adapter",
+      "refs": [],
+      "name": "[EXAMPLE] Meadow Warden",
+      "foundry": {
+        "document_type": "Actor",
+        "folder_path": "Ashen Gate/Examples/NPCs",
+        "data": {
+          "name": "[EXAMPLE] Meadow Warden",
+          "type": "npc",
+          "img": "icons/svg/mystery-man.svg",
+          "system": {
+            "abilities": {
+              "str": {
+                "value": 12
+              },
+              "dex": {
+                "value": 14
+              },
+              "con": {
+                "value": 12
+              },
+              "int": {
+                "value": 10
+              },
+              "wis": {
+                "value": 13
+              },
+              "cha": {
+                "value": 10
+              }
+            },
+            "attributes": {
+              "hp": {
+                "value": 11,
+                "max": 11
+              },
+              "ac": {
+                "flat": 13,
+                "calc": "flat"
+              }
+            },
+            "details": {
+              "cr": 0.5,
+              "biography": {
+                "value": "<p>[EXAMPLE] Watches the meadow. Carries [[AGREF:ITEM-EXAMPLE-SUNLEAF-TONIC|a tonic]].</p>"
+              }
+            }
+          },
+          "prototypeToken": {
+            "name": "[EXAMPLE] Warden",
+            "disposition": 0,
+            "texture": {
+              "src": "icons/svg/mystery-man.svg"
+            }
+          },
+          "items": [
+            {
+              "name": "[EXAMPLE] Walking Staff",
+              "type": "weapon",
+              "system": {
+                "description": {
+                  "value": "<p>[EXAMPLE] A plain staff.</p>"
+                }
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "_expect_error": "an Exotic material needs source_profession_id",
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-EXAMPLE-MISTAKE",
+    "version": "1.0.0"
+  },
+  "records": [
+    {
+      "id": "MAT-EXAMPLE-STARBLOOM",
+      "entity_type": "Material",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[EXAMPLE] Starbloom",
+      "tierId": "journeyman",
+      "quality": "Exotic",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Examples/Materials",
+        "data": {
+          "name": "[EXAMPLE] Starbloom",
+          "type": "loot"
+        }
+      }
+    }
+  ]
+}

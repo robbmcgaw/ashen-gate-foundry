@@ -1,0 +1,145 @@
+{
+  "_expect_error": "profession tree cannot use POWER-EXAMPLE-X",
+  "schema": "ag-skill-trees/0.3",
+  "trees": [
+    {
+      "id": "EXAMPLE-TREE-ALCHEMY",
+      "name": "[EXAMPLE] Alchemy Perks",
+      "description": "Profession tree: points come from the Profession Ledger level of PROF-EXAMPLE-ALCHEMY.",
+      "status": "test",
+      "visibility": "player",
+      "sourceRef": "PROF-EXAMPLE-ALCHEMY",
+      "provider": {
+        "kind": "profession",
+        "maxPoints": null
+      },
+      "nodeSize": "normal",
+      "background": {
+        "image": "worlds/example-world/art/tree-bg.webp",
+        "fit": "cover",
+        "opacity": 0.35
+      },
+      "tiers": [
+        {
+          "level": 1,
+          "label": "Apprentice",
+          "y": 40,
+          "icon": "icons/svg/book.svg"
+        },
+        {
+          "level": 4,
+          "label": "Journeyman",
+          "y": 260
+        }
+      ],
+      "nodes": [
+        {
+          "id": "EX-ALC-STEADY",
+          "perkId": "POWER-EXAMPLE-X",
+          "x": 120,
+          "y": 120,
+          "requiresAll": [],
+          "requiresAny": [],
+          "excludes": [],
+          "status": "test",
+          "visibility": "player",
+          "display": "shown"
+        },
+        {
+          "id": "EX-ALC-LATER",
+          "name": "[EXAMPLE] Custom node (no perk yet)",
+          "description": "Placeholder text.",
+          "x": 420,
+          "y": 320,
+          "minLevel": 4,
+          "requiresAll": [
+            "EX-ALC-STEADY"
+          ],
+          "requiresAny": [],
+          "excludes": [],
+          "status": "draft",
+          "visibility": "gm",
+          "display": "teaser"
+        }
+      ]
+    },
+    {
+      "id": "EXAMPLE-TREE-GENERIC",
+      "name": "[EXAMPLE] Generic Points",
+      "status": "test",
+      "visibility": "player",
+      "sourceRef": null,
+      "provider": {
+        "kind": "generic_points",
+        "maxPoints": 6
+      },
+      "nodes": [
+        {
+          "id": "EX-GEN-BASE",
+          "perkId": "PERK-EXAMPLE-STEADY-HANDS",
+          "x": 120,
+          "y": 120,
+          "cost": 1,
+          "requiresAll": [],
+          "requiresAny": [],
+          "excludes": [],
+          "status": "test",
+          "visibility": "player",
+          "display": "shown"
+        },
+        {
+          "id": "EX-GEN-LEFT",
+          "name": "[EXAMPLE] Left path",
+          "x": 420,
+          "y": 50,
+          "cost": 2,
+          "requiresAll": [
+            "EX-GEN-BASE"
+          ],
+          "requiresAny": [],
+          "excludes": [
+            "EX-GEN-RIGHT"
+          ],
+          "status": "test",
+          "visibility": "player",
+          "display": "shown"
+        },
+        {
+          "id": "EX-GEN-RIGHT",
+          "name": "[EXAMPLE] Right path",
+          "x": 420,
+          "y": 225,
+          "cost": 2,
+          "requiresAll": [
+            "EX-GEN-BASE"
+          ],
+          "requiresAny": [],
+          "excludes": [
+            "EX-GEN-LEFT"
+          ],
+          "status": "test",
+          "visibility": "player",
+          "display": "shown"
+        },
+        {
+          "id": "EX-GEN-FINAL",
+          "name": "[EXAMPLE] Capstone",
+          "x": 750,
+          "y": 145,
+          "cost": 3,
+          "requiresAll": [],
+          "requiresAny": [
+            [
+              "EX-GEN-LEFT",
+              "EX-GEN-RIGHT"
+            ]
+          ],
+          "excludes": [],
+          "status": "test",
+          "visibility": "player",
+          "display": "teaser"
+        }
+      ]
+    }
+  ]
+}

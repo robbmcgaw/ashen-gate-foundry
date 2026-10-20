@@ -1,0 +1,153 @@
+{
+  "_expect_error": "location.state \"visible\" was changed to \"hidden\"",
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-EXAMPLE-MISTAKE",
+    "version": "1.0.0"
+  },
+  "records": [
+    {
+      "id": "LOC-EXAMPLE-MEADOW",
+      "entity_type": "Location",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "reveal_gated",
+      "refs": [],
+      "name": "[EXAMPLE] Sunleaf Meadow",
+      "location": {
+        "name": "[EXAMPLE] Sunleaf Meadow",
+        "type": "Meadow",
+        "region": "[EXAMPLE] Lowlands",
+        "threat": "hot",
+        "state": "visible",
+        "unidentifiedLabel": "A bright field",
+        "teaser": "Something glitters among the grass.",
+        "parentLocationId": "LOC-EXAMPLE-VALE",
+        "placeable": true,
+        "audience": {
+          "mode": "everyone"
+        },
+        "img": "icons/svg/village.svg",
+        "description": "A sunny meadow full of herbs.",
+        "show": {
+          "region": true,
+          "threat": true
+        },
+        "sections": {
+          "resources": true,
+          "loot": true,
+          "notes": true,
+          "quests": true,
+          "related": true,
+          "conditions": true
+        },
+        "conditions": [
+          {
+            "key": "bees",
+            "label": "Bees",
+            "text": "Loud buzzing; disadvantage on Perception checks that rely on hearing."
+          }
+        ],
+        "conditionOverrides": [
+          {
+            "from": "LOC-EXAMPLE-VALE",
+            "conditionKey": "mist",
+            "disabled": true
+          }
+        ],
+        "resources": [
+          {
+            "id": "example-sunleaf-patch",
+            "label": "[EXAMPLE] Sunleaf patch",
+            "skill": "Herbalism",
+            "tier": 2,
+            "dc": 12,
+            "dcVisible": true,
+            "materialId": "MAT-EXAMPLE-SUNLEAF",
+            "quantity": 2,
+            "rareMaterialId": "MAT-EXAMPLE-DUSKPETAL",
+            "rareQuantity": 1,
+            "finite": true,
+            "available": true,
+            "visible": true,
+            "note": "Regrows each spring.",
+            "exotics": [
+              {
+                "materialId": "MAT-EXAMPLE-STARBLOOM",
+                "mode": "designated",
+                "chance": 15,
+                "condition": "rare"
+              }
+            ]
+          },
+          {
+            "id": "example-hedge",
+            "label": "[EXAMPLE] Hedge",
+            "skill": "Herbalism",
+            "tier": 3,
+            "dc": 15,
+            "materialId": "MAT-EXAMPLE-SUNLEAF",
+            "finite": false,
+            "exotics": [
+              {
+                "materialId": "MAT-EXAMPLE-STARBLOOM",
+                "mode": "discovery"
+              }
+            ]
+          }
+        ],
+        "quests": [
+          {
+            "questId": "QUEST-EXAMPLE-SUNLEAF"
+          }
+        ],
+        "related": [
+          {
+            "locationId": "LOC-EXAMPLE-VALE"
+          }
+        ],
+        "loot": [
+          {
+            "label": "[EXAMPLE] Lost satchel",
+            "text": "Holds a few coins.",
+            "status": "available"
+          }
+        ],
+        "notes": [
+          {
+            "title": "Rumour",
+            "text": "Travellers rest here at noon."
+          },
+          {
+            "title": "GM note",
+            "text": "[EXAMPLE] Hidden from players.",
+            "visible": false
+          }
+        ],
+        "details": [
+          {
+            "key": "weather",
+            "title": "Weather",
+            "text": "Usually sunny."
+          }
+        ],
+        "layout": [
+          "description",
+          "conditions",
+          "resources",
+          "detail:weather",
+          "loot",
+          "notes"
+        ],
+        "pin": {
+          "size": 64
+        }
+      }
+    }
+  ]
+}
