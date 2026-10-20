@@ -78,6 +78,8 @@ function docRecord(doc) {
   const data = typeof doc.toObject === 'function' ? doc.toObject() : doc;
   const system = doc.documentName === 'Actor' && PLAY_ACTOR_TYPES.has(doc.type) ? undefined : plain(data.system);
   const flags = plain(data.flags?.[MODULE_ID] ?? doc.flags?.[MODULE_ID] ?? {});
+  // NPC Codex reveals, learned text and GM notes are play state (0.33.0); the Codex export carries them.
+  delete flags.codex;
   const body = {kind: doc.documentName, type: doc.type ?? null, name: doc.name, folder_path: folderChain(doc), access: accessOf(doc),
     visibility: source.visibility ?? null, flags: {[MODULE_ID]: flags}, ...(system !== undefined ? {system} : {system_omitted: 'actor play state'})};
   return {key: `world/${doc.documentName}/${source.sourceId}`, section: 'world', id: source.sourceId, name: doc.name,

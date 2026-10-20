@@ -1,7 +1,7 @@
 <section class="agmanager-body">
   <header class="ag-header agmanager-top">
     <i class="agmanager-emblem fa-solid fa-dungeon" aria-hidden="true"></i>
-    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.32.0 Beta</small></h2></div>
+    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.33.0 Beta</small></h2></div>
     <button type="button" class="agmanager-help" data-ag-action="help" aria-label="Manager Help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button><span class="agmanager-chip">GM only</span>
   </header>
   <nav class="ag-tabs agmanager-nav" aria-label="Manager tabs">
@@ -324,6 +324,97 @@
     <p class="agmanager-tiny">Export includes system rules, active effects and other module flags. Review copyright/third-party content and hidden GM details before uploading.</p>
     </section>
     {{/if}}
+    {{#if libraryCodexActive}}
+    <div class="aglib-split agcodex">
+      <section class="aglib-list" aria-label="NPCs">
+        <div class="aglib-tools">
+          <input type="search" class="aglib-search" data-ag-codex-search value="{{codex.search}}" placeholder="Search NPC name, role, ID" aria-label="Search NPCs" />
+          <div class="aglib-chips" role="group" aria-label="Show">
+            <button type="button" class="aglib-chip {{#if codex.filterAll}}active{{/if}}" data-ag-codex-filter="all" aria-pressed="{{#if codex.filterAll}}true{{else}}false{{/if}}">All <span class="aglib-num">{{codex.total}}</span></button>
+            <button type="button" class="aglib-chip {{#if codex.filterKnown}}active{{/if}}" data-ag-codex-filter="known" aria-pressed="{{#if codex.filterKnown}}true{{else}}false{{/if}}">Known to players <span class="aglib-num">{{codex.known}}</span></button>
+            <button type="button" class="aglib-chip {{#if codex.filterHidden}}active{{/if}}" data-ag-codex-filter="hidden" aria-pressed="{{#if codex.filterHidden}}true{{else}}false{{/if}}">Hidden <span class="aglib-num">{{codex.hidden}}</span></button>
+          </div>
+        </div>
+        <div class="aglib-rows">
+          {{#each codex.rows}}<button type="button" class="agcodex-row {{#if focused}}is-focused{{/if}}" data-ag-codex-focus="{{id}}" {{#if focused}}aria-current="true"{{/if}}>
+            {{#if img}}<img class="agcodex-portrait" src="{{img}}" alt="">{{else}}<span class="agcodex-portrait" aria-hidden="true">{{initials}}</span>{{/if}}
+            <span class="agcodex-row__text"><span class="aglib-row__name">{{name}}</span>
+              <span class="aglib-row__meta">{{#if role}}<span class="agmanager-tiny">{{role}}</span>{{/if}}<span class="aglib-pill {{#if discovery.party}}aglib-status-active{{/if}}">{{discoveryLabel}}</span>{{#if revealedCount}}<span class="aglib-pill aglib-num">{{revealedCount}} field(s)</span>{{/if}}</span></span>
+          </button>{{else}}<p class="ag-empty aglib-empty">No NPCs here. NPC records (<code>entity_type: "NPC"</code>) appear once imported on the Import tab.</p>{{/each}}
+        </div>
+        <div class="aglib-selbar">
+          <details class="aglib-menu">
+            <summary class="ag-btn ag-btn--sm">Codex <i class="fa-solid fa-caret-down" aria-hidden="true"></i></summary>
+            <div class="aglib-menu__pop" role="menu">
+              <button type="button" role="menuitem" data-ag-action="codex-export"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export codex (GM file)</button>
+              <label class="agcodex-filelabel" role="menuitem" tabindex="0"><i class="fa-solid fa-file-import" aria-hidden="true"></i> Restore reveals from a codex export… <input type="file" accept=".json,application/json" data-ag-codex-import hidden></label>
+              <hr>
+              <button type="button" role="menuitem" data-ag-action="codex-player-view"><i class="fa-solid fa-eye" aria-hidden="true"></i> Open the player view</button>
+            </div>
+          </details>
+          <span class="agmanager-tiny aglib-end">{{#if codex.playerAccess}}Shared with players{{else}}Not shared with players (GM Setup){{/if}}</span>
+        </div>
+      </section>
+      <section class="aglib-detail" aria-label="NPC details">
+        {{#with codex.detail}}
+        <div class="aglib-detail__head">
+          {{#if img}}<img class="agcodex-portrait agcodex-portrait--lg" src="{{img}}" alt="">{{else}}<span class="agcodex-portrait agcodex-portrait--lg" aria-hidden="true">{{initials}}</span>{{/if}}
+          <div class="aglib-detail__title"><h3>{{name}}</h3>
+            <div class="aglib-row__meta"><code>{{id}}</code>{{#if status}}<span class="aglib-pill">{{status}}</span>{{/if}}</div></div>
+          <button type="button" class="ag-btn" data-ag-action="codex-open-actor"><i class="fa-solid fa-user" aria-hidden="true"></i> Actor sheet</button>
+          <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="codex-close" aria-label="Close details"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+        </div>
+        <div class="agcodex-field agcodex-field--discovery">
+          <div><div class="agcodex-label">Players know this NPC</div><p class="agmanager-tiny">Name and portrait. Nothing else shows to a player until this includes them.</p></div>
+          {{#with discoverySeg}}<div class="agcodex-control"><div class="agcodex-seg" role="group" aria-label="Who knows: {{label}}">
+            <button type="button" class="{{#if isHidden}}is-on{{/if}}" data-ag-codex-reveal="{{key}}" data-mode="hidden" aria-pressed="{{#if isHidden}}true{{else}}false{{/if}}">Hidden</button>
+            <button type="button" class="{{#if isParty}}is-on is-party{{/if}}" data-ag-codex-reveal="{{key}}" data-mode="party" aria-pressed="{{#if isParty}}true{{else}}false{{/if}}">Party</button>
+            <details class="aglib-menu agcodex-chars"><summary class="{{#if isActors}}is-on is-actors{{/if}}">Characters <i class="fa-solid fa-caret-down" aria-hidden="true"></i></summary>
+              <div class="aglib-menu__pop agcodex-chars__pop">{{#each chars}}<label><input type="checkbox" data-ag-codex-actor="{{../key}}" value="{{id}}" {{#if checked}}checked{{/if}}> {{name}}</label>{{else}}<p class="agmanager-tiny">No player characters yet (character Actors with a player owner).</p>{{/each}}</div>
+            </details></div>
+            {{#if isActors}}<p class="agcodex-who">Known by {{who}}</p>{{/if}}</div>{{/with}}
+        </div>
+        {{#each fields}}
+        <div class="agcodex-field">
+          <div class="agcodex-field__body"><div class="agcodex-label">{{label}}</div>
+            {{#if isLinks}}{{#if ../links.length}}<div class="agcodex-links">{{#each ../links}}<span class="agcodex-link agcodex-link--{{kind}}">{{name}}{{#if named}} <code>{{id}}</code>{{/if}}</span>{{/each}}</div>{{else}}<p class="agmanager-tiny">No connections. Add ids below or in the record's <code>codex.links</code>.</p>{{/if}}
+            {{else}}{{#if empty}}<p class="agmanager-tiny">Not set.</p>{{else}}<p class="agcodex-value">{{value}}</p>{{/if}}{{/if}}
+          </div>
+          <div class="agcodex-control"><div class="agcodex-seg" role="group" aria-label="Who knows: {{label}}">
+            <button type="button" class="{{#if isHidden}}is-on{{/if}}" data-ag-codex-reveal="{{key}}" data-mode="hidden" aria-pressed="{{#if isHidden}}true{{else}}false{{/if}}">Hidden</button>
+            <button type="button" class="{{#if isParty}}is-on is-party{{/if}}" data-ag-codex-reveal="{{key}}" data-mode="party" aria-pressed="{{#if isParty}}true{{else}}false{{/if}}">Party</button>
+            <details class="aglib-menu agcodex-chars"><summary class="{{#if isActors}}is-on is-actors{{/if}}">Characters <i class="fa-solid fa-caret-down" aria-hidden="true"></i></summary>
+              <div class="aglib-menu__pop agcodex-chars__pop">{{#each chars}}<label><input type="checkbox" data-ag-codex-actor="{{../key}}" value="{{id}}" {{#if checked}}checked{{/if}}> {{name}}</label>{{else}}<p class="agmanager-tiny">No player characters yet (character Actors with a player owner).</p>{{/each}}</div>
+            </details></div>
+            {{#if isActors}}<p class="agcodex-who">Known by {{who}}</p>{{/if}}</div>
+        </div>
+        {{/each}}
+        <div class="agcodex-gm">
+          <h4><i class="fa-solid fa-lock" aria-hidden="true"></i> GM only: never sent to players</h4>
+          {{#each gmFields}}<div class="agcodex-gmrow"><span class="agcodex-label">{{label}}</span>{{#if items}}<ul class="agcodex-value">{{#each items}}<li>{{this}}</li>{{/each}}</ul>{{else}}<p class="agcodex-value">{{text}}</p>{{/if}}</div>{{else}}<p class="agmanager-tiny">The record has no portrayal, session role, stat block or GM notes.</p>{{/each}}
+        </div>
+        <div class="agcodex-edit">
+          <label class="ag-field">What the party has learned <textarea rows="3" data-ag-codex-learned>{{learned}}</textarea></label>
+          <label class="ag-field">Connections (ids, space separated: LOC-, FAC-, QUEST-, NPC-) <input type="text" data-ag-codex-links value="{{linksText}}"></label>
+          <label class="ag-field">Your notes (GM only) <textarea rows="3" data-ag-codex-notes>{{notes}}</textarea></label>
+          <footer class="agcodex-footer">
+            <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="codex-cancel">Cancel</button>
+            <button type="button" class="ag-btn aglib-danger" data-ag-action="codex-hide-all"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Hide from players…</button>
+            <button type="button" class="ag-btn ag-btn--primary" data-ag-action="codex-save"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save Changes</button>
+          </footer>
+        </div>
+        <div class="agcodex-preview">
+          <label class="agcodex-preview__pick">Preview as <select data-ag-codex-preview>{{#each ../codex.previewOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+          {{#if ../codex.previewing}}{{{../codex.previewHtml}}}{{else}}<p class="agmanager-tiny">Choose the party or a character to see exactly what they receive.</p>{{/if}}
+        </div>
+        {{else}}
+        <div class="ag-empty aglib-empty"><i class="fa-solid fa-address-book" aria-hidden="true"></i><p>Choose an NPC to set who knows what.</p>
+          <p class="agmanager-tiny">Content comes from the imported NPC record. Reveals, what the party has learned, connections and your notes are kept on re-import.</p></div>
+        {{/with}}
+        <p class="aglib-status" role="status">{{codex.message}}</p>
+      </section>
+    </div>
+    {{/if}}
     </div>
   </div>
   {{/if}}
@@ -627,6 +718,10 @@
 
   {{#if setupActive}}
   <div class="agmanager-panel agmanager-organize">
+    <section class="ag-card" aria-label="NPC Codex">
+      <h3>NPC Codex <span class="agmanager-beta">GM only</span></h3>
+      <label class="agmanager-toggle"><input type="checkbox" data-ag-codex-access {{#if codexPlayerAccess}}checked{{/if}}> Players can open the NPC Codex (Configure Settings → Open NPC Codex, or the Character Hub later). They only ever get NPCs and fields you reveal to the party or their character. Saved when ticked.</label>
+    </section>
     <section class="ag-card" aria-label="Core sources">
       <h3>Core sources <span class="agmanager-beta">GM only</span></h3>
       <p class="agmanager-tiny">Where Core Links looks for 2024 (5.5e) core items. Legacy 2014 content is always left out, wherever it is.</p>
