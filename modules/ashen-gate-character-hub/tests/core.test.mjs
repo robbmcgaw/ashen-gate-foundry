@@ -1,0 +1,198 @@
+/** Registration, header write-through, permissions, roll delegation and the native fallback (mocked Foundry; logic only). */
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {installGlobals, makeActor, users, FakeActorSheetV2} from './foundry-mock.mjs';
+import {registerHubSheet, createApi, actorOf} from '../scripts/main.mjs';
+import * as act from '../scripts/actions.mjs';
+import {headerData, conditionsData, skillsData, abilitiesData} from '../scripts/data.mjs';
+import {shellHtml} from '../scripts/views.mjs';
+import {openNativeSheet} from '../scripts/native.mjs';
+import {VERSION, MODULE_ID} from '../scripts/constants.mjs';
+
+const manifest = JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url)));
+const hubClass = () => { const calls = []; const env = {Actor: {}, foundry: {applications: {sheets: {ActorSheetV2: FakeActorSheetV2}, apps: {DocumentSheetConfig: {registerSheet: (...a) => calls.push(a)}}}}}; return {Cls: registerHubSheet(env), calls, env}; };
+
+test('version constant matches module.json', () => assert.equal(VERSION, manifest.version));
+
+test('registers an alternative character sheet, never the default', () => {
+  installGlobals();
+  const {Cls, calls, env} = hubClass();
+  assert.equal(calls.length, 1);
+  const [docClass, scope, sheet, opts] = calls[0];
+  assert.equal(docClass, env.Actor);
+  assert.equal(scope, MODULE_ID);
+  assert.equal(sheet, Cls);
+  assert.deepEqual(opts, {types: ['character'], makeDefault: false, label: 'Ashen Gate Character Hub'});
+});
+
+test('missing ActorSheetV2 does not throw, it just skips registration', () => {
+  const orig = console.error; console.error = () => {};
+  assert.equal(registerHubSheet({foundry: {}}), null);
+  console.error = orig;
+});
+
+test('header data reads the live Actor (no copies)', () => {
+  installGlobals();
+  const actor = makeActor({items: [{id: 'c1', name: 'Fighter', type: 'class', system: {levels: 3, identifier: 'fighter'}}], statuses: ['prone']});
+  actor.classes.fighter.subclass = {name: 'Champion'};
+  const h = headerData(actor);
+  assert.equal(h.hp.value, 20); assert.equal(h.hp.temp, 5); assert.equal(h.ac, 15); assert.equal(h.init, 3);
+  assert.deepEqual(h.classes, [{name: 'Fighter', level: 3, subclass: 'Champion'}]);
+  assert.equal(h.species, '[TEST] Elf');
+  assert.deepEqual(h.speeds.map(s => s.key), ['walk'], 'zero speeds hidden');
+  assert.deepEqual(h.resources.map(r => r.label), ['Ki'], 'unused resources hidden');
+  assert.deepEqual(h.hd, {value: 2, max: 3});
+  actor.system.attributes.hp.value = 7;
+  assert.equal(headerData(actor).hp.value, 7, 'next render sees the change');
+  const conds = conditionsData(actor);
+  assert.deepEqual(conds.map(c => c.id), ['blinded', 'poisoned', 'prone'], 'exhaustion and pseudo conditions excluded');
+  assert.equal(conds.find(c => c.id === 'prone').active, true);
+});
+
+test('abilities and skills: totals, saves and proficiency come from dnd5e derived data', () => {
+  installGlobals();
+  const actor = makeActor();
+  const a = abilitiesData(actor);
+  assert.deepEqual(a.map(x => [x.key, x.mod, x.save, x.saveProficient]), [['str', 2, 4, true], ['dex', 3, 3, false]]);
+  const s = skillsData(actor);
+  assert.deepEqual(s.map(x => [x.key, x.total, x.prof, x.profLabel]), [['ath', 4, 1, 'Proficient'], ['ste', 7, 2, 'Expertise']]);
+});
+
+test('HP damage uses temp first; heal caps at effective max; writes through actor.update', async () => {
+  assert.deepEqual(act.hpAfter({value: 20, temp: 5, effectiveMax: 24}, -8), {value: 17, temp: 0});
+  assert.deepEqual(act.hpAfter({value: 2, temp: 0, effectiveMax: 24}, -10), {value: 0, temp: 0});
+  assert.deepEqual(act.hpAfter({value: 20, temp: 0, effectiveMax: 24}, 10), {value: 24, temp: 0});
+  installGlobals({user: users.owner});
+  const actor = makeActor();
+  assert.equal((await act.adjustHp(actor, -3)).ok, true);
+  assert.deepEqual(actor.calls[0], ['update', {'system.attributes.hp.value': 20, 'system.attributes.hp.temp': 2}]);
+  assert.equal((await act.setHp(actor, 'value', '12')).ok, true);
+  assert.deepEqual(actor.calls[1], ['update', {'system.attributes.hp.value': 12}]);
+  assert.equal((await act.setHp(actor, 'max', '99')).ok, false, 'only known fields');
+  assert.equal((await act.setHp(actor, 'value', 'abc')).ok, false, 'numbers only');
+});
+
+test('observers are refused in the action layer, not just by hidden buttons', async () => {
+  installGlobals({user: users.observer});
+  const actor = makeActor();
+  for (const r of [await act.adjustHp(actor, -1), await act.setHp(actor, 'temp', 3), await act.toggleCondition(actor, 'prone'),
+    await act.toggleInspiration(actor), await act.changeExhaustion(actor, 1), await act.rollSkill(actor, 'ath'), await act.rollSavingThrow(actor, 'str')]) {
+    assert.equal(r.ok, false); assert.match(r.error, /don't own/);
+  }
+  assert.equal(actor.calls.length, 0, 'nothing reached the Actor');
+});
+
+test('GM may act on any character', async () => {
+  installGlobals({user: users.gm});
+  const actor = makeActor({perms: {}});
+  assert.equal((await act.toggleInspiration(actor)).ok, true);
+  assert.deepEqual(actor.calls[0], ['update', {'system.attributes.inspiration': true}]);
+});
+
+test('rolls, conditions and exhaustion delegate to the dnd5e methods with the click event', async () => {
+  installGlobals();
+  const actor = makeActor(), event = {shiftKey: true};
+  await act.rollSkill(actor, 'ste', event);
+  await act.rollAbilityCheck(actor, 'dex', event);
+  await act.rollSavingThrow(actor, 'str', event);
+  await act.rollInitiative(actor, event);
+  await act.toggleCondition(actor, 'blinded');
+  await act.changeExhaustion(actor, -1);
+  assert.deepEqual(actor.calls, [
+    ['rollSkill', {skill: 'ste', event}], ['rollAbilityCheck', {ability: 'dex', event}], ['rollSavingThrow', {ability: 'str', event}],
+    ['rollInitiativeDialog', {event}], ['toggleStatusEffect', 'blinded', undefined], ['toggleStatusEffect', 'exhaustion', {levels: -1}]
+  ]);
+});
+
+test('a missing system method gives a clear refusal, not a crash', async () => {
+  installGlobals();
+  const actor = makeActor(); delete actor.rollSkill;
+  const orig = console.error; console.error = () => {};
+  const r = await act.rollSkill(actor, 'ath');
+  console.error = orig;
+  assert.equal(r.ok, false); assert.match(r.error, /no rollSkill/);
+});
+
+test('sheet renders header, tabs and Open native sheet; observers get a view-only notice and disabled controls', async () => {
+  installGlobals({user: users.owner, modules: {[MODULE_ID]: {version: VERSION}}});
+  const {Cls} = hubClass();
+  const sheet = new Cls({document: makeActor()});
+  const html = await sheet._renderHTML();
+  assert.match(html, /Ashen Gate \| Character Hub/);
+  assert.match(html, /data-action="open-native"/);
+  assert.match(html, /data-action="help"/);
+  assert.match(html, /data-action="roll-skill" data-skill="ste"/);
+  assert.doesNotMatch(html, /View only/);
+  installGlobals({user: users.observer});
+  const view = await new Cls({document: makeActor()})._renderHTML();
+  assert.match(view, /View only/);
+  assert.match(view, /data-action="roll-skill" data-skill="ath" disabled/);
+  assert.match(view, /data-action="open-native"[^>]*data-ag-always/, 'native sheet stays clickable');
+});
+
+test('limited viewers see only portrait and name', () => {
+  installGlobals({user: users.observer});
+  const actor = makeActor(); actor.limited = true;
+  const html = shellHtml({actor, limited: true, editable: false, tab: 'character'});
+  assert.match(html, /limited access/);
+  assert.doesNotMatch(html, /Athletics|HP/);
+});
+
+test('a render failure shows the error with Retry and the native sheet button, never a blank window', async () => {
+  installGlobals();
+  const {Cls} = hubClass();
+  const actor = makeActor(); Object.defineProperty(actor, 'classes', {get() { throw new Error('boom'); }});
+  const orig = console.error; console.error = () => {};
+  const html = await new Cls({document: actor})._renderHTML();
+  console.error = orig;
+  assert.match(html, /could not be drawn/);
+  assert.match(html, /boom/);
+  assert.match(html, /data-action="retry"/);
+  assert.match(html, /data-action="open-native"/);
+});
+
+test('dispatch reports refusals as a warning', async () => {
+  const notes = installGlobals({user: users.observer});
+  const {Cls} = hubClass();
+  const sheet = new Cls({document: makeActor()});
+  await sheet.dispatch('inspiration', {dataset: {}}, {});
+  assert.equal(notes[0][0], 'warn');
+  await sheet.dispatch('hub-tab', {dataset: {tab: 'character'}}, {});
+  assert.equal(sheet.renders.length, 1, 'tabs work for observers');
+});
+
+test('Open native sheet uses dnd5e CharacterActorSheet specifically and reuses an open one', async () => {
+  installGlobals();
+  const actor = makeActor();
+  assert.equal((await openNativeSheet(actor)).ok, false, 'clear error without dnd5e');
+  class CharacterActorSheet { constructor(o) { this.document = o.document; this.renders = 0; } async render() { this.renders++; } }
+  globalThis.dnd5e = {applications: {actor: {CharacterActorSheet}}};
+  const instances = new Map();
+  globalThis.foundry = {applications: {instances}};
+  const first = await openNativeSheet(actor);
+  assert.equal(first.ok, true);
+  assert.ok(first.result instanceof CharacterActorSheet);
+  instances.set('x', first.result);
+  const second = await openNativeSheet(actor);
+  assert.equal(second.result, first.result);
+  assert.equal(first.result.renders, 2);
+  delete globalThis.dnd5e; delete globalThis.foundry;
+});
+
+test('API open refuses non-characters and unseen actors', async () => {
+  installGlobals({user: users.observer});
+  hubClass();
+  const api = createApi();
+  assert.equal((await api.open({type: 'npc'})).ok, false);
+  assert.equal((await api.open(makeActor({perms: {}}))).ok, false);
+});
+
+test('actorOf finds the Actor behind items and item effects', () => {
+  const actor = {documentName: 'Actor'};
+  const item = {documentName: 'Item', parent: actor};
+  assert.equal(actorOf(actor), actor);
+  assert.equal(actorOf(item), actor);
+  assert.equal(actorOf({documentName: 'ActiveEffect', parent: item}), actor);
+  assert.equal(actorOf({documentName: 'Item', parent: null}), null);
+});
