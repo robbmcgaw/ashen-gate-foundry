@@ -17,7 +17,24 @@ Independent. General Manager hands facility files to `api.previewFacilityImport`
 
 ## Public API
 
-`game.modules.get('ashen-gate-headquarters').api`: `open`, `playerAccess` (`ag-player-access/1`), `inspectFacilityRef`, and GM-only `getState`, `exportState`, `getPersonnel`, `reconcileDepartures`, `previewFacilityImport`, `importFacilities`.
+`game.modules.get('ashen-gate-headquarters').api`: `open`, `playerAccess` (`ag-player-access/1`), `playerView`, `inspectFacilityRef`, and GM-only `getState`, `exportState`, `getPersonnel`, `reconcileDepartures`, `previewFacilityImport`, `importFacilities`.
+
+### `playerView(actor)` (0.9.0)
+
+Player-safe, read-only Guildhall view for one character, for partner modules such as Character Hub.
+
+```js
+game.modules.get('ashen-gate-headquarters').api.playerView(actor)
+// → {active: true, guildhall: {name, rank},
+//    facilities: [{key, facilityId: 'FAC-…', name, category, stage, room: 'shared'|'personal', roomOwner, benefits: [{name, description, recipient}]}],
+//    hirelings: [], hirelingsPublished: false}
+```
+
+- `facilities`: facilities installed in the shared Guildhall, plus those in the personal rooms of the players who own this character (`roomOwner` is that player's name; `null` for shared). Sorted personal first, then by name. Benefits are the installed stage's informational benefits.
+- `hirelings` is always `[]` and `hirelingsPublished` is `false`. The hireling roster, Working status and staffing are GM-private in Headquarters and are not published to players, so this API doesn't publish them either.
+- Built from the public projection for every caller, the GM included, so it never contains personnel, staffing occupants, history or the editor lease.
+- Guildhall not activated → `{active: false, guildhall: null, facilities: [], hirelings: [], hirelingsPublished: false}`.
+- **Permission:** the GM, or a user with **Owner** permission on the Actor. Anyone else gets `Error('Actor access denied')`. Players also get an error while Headquarters Player Access is off.
 
 ## Install
 
