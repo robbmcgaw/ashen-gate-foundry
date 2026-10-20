@@ -1,7 +1,7 @@
 <section class="agmanager-body">
   <header class="ag-header agmanager-top">
     <i class="agmanager-emblem fa-solid fa-dungeon" aria-hidden="true"></i>
-    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.31.0 Beta</small></h2></div>
+    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.32.0 Beta</small></h2></div>
     <button type="button" class="agmanager-help" data-ag-action="help" aria-label="Manager Help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button><span class="agmanager-chip">GM only</span>
   </header>
   <nav class="ag-tabs agmanager-nav" aria-label="Manager tabs">
@@ -143,98 +143,148 @@
   {{/if}}
 
   {{#if libraryActive}}
-  <div class="agmanager-panel">
-    <h3>Content Library <span class="agmanager-beta">BETA</span></h3>
-    <p>Browse <strong>imported world Items and Journals</strong> using permanent Ashen Gate IDs. Filters, inspection and reference navigation are read-only; existing lifecycle operations still require confirmation.</p>
-    <div class="agmanager-stats">
-      <div><strong>{{libraryTotal}}</strong><span>Managed records</span></div>
-      <div><strong>{{libraryActiveCount}}</strong><span>Active</span></div>
-      <div><strong>{{libraryEditedCount}}</strong><span>Locally edited</span></div>
-      <div><strong>{{librarySystemCount}}</strong><span>Categories</span></div>
-      <div><strong>{{librarySelectedCount}}</strong><span>Selected</span></div>
-    </div>
-    <div class="agmanager-row agmanager-row-wrap agmanager-browser-filters">
-      <label class="agmanager-search-label">Find <input type="search" data-ag-library-filter value="{{librarySearch}}" placeholder="Name, ID, package, type" /></label>
-      <label class="agmanager-search-label">System <select data-ag-library-system>{{#each librarySystemOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}{{#if count}} ({{count}}){{/if}}</option>{{/each}}</select></label>
-      <label class="agmanager-search-label">Status <select data-ag-library-status>{{#each libraryStatusOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}{{#if count}} ({{count}}){{/if}}</option>{{/each}}</select></label>
-      <label class="agmanager-search-label">Package <select data-ag-library-package>{{#each libraryPackageOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}{{#if count}} ({{count}}){{/if}}</option>{{/each}}</select></label>
-      <label class="agmanager-toggle"><input type="checkbox" data-ag-library-show-archived {{#if libraryShowArchived}}checked{{/if}}> Archived</label>
-    </div>
-    <div class="agmanager-row agmanager-row-wrap agmanager-browser-toolbar">
-      <span class="agmanager-tiny">Showing {{libraryPageLabel}} · {{libraryFilteredCount}} match</span>
-      <button type="button" data-ag-action="library-previous" class="agmanager-muted" {{#unless libraryHasPrevious}}disabled{{/unless}}>◀ Previous</button>
-      <button type="button" data-ag-action="library-next" class="agmanager-muted" {{#unless libraryHasNext}}disabled{{/unless}}>Next ▶</button>
-      <button type="button" data-ag-action="library-select-visible">Select shown</button>
-      <button type="button" data-ag-action="library-clear" class="agmanager-muted">Clear selection</button>
-    </div>
-    <div class="agmanager-table-scroll agmanager-browser-scroll"><table class="agmanager-table">
-      <thead><tr><th>Select</th><th>Name / ID</th><th>System</th><th>Type</th><th>Status</th><th>Version</th><th>Edits</th><th>Inspect</th></tr></thead>
-      <tbody>{{#each libraryRows}}<tr>
-        <td><input type="checkbox" data-ag-library-select="{{uuid}}" {{#if selected}}checked{{/if}} /></td>
-        <td><strong>{{name}}</strong><code>{{sourceId}}</code>{{#if archived}}<span class="agmanager-badge agmanager-blocked">ARCHIVED</span>{{/if}}</td>
-        <td>{{systemLabel}}</td><td>{{entityType}}<span class="agmanager-tiny agmanager-block">{{kind}}</span></td>
-        <td><span class="agmanager-badge agmanager-status-{{status}}">{{status}}</span></td><td>{{version}}</td><td>{{edited}}</td>
-        <td><button type="button" data-ag-library-inspect="{{uuid}}" class="agmanager-inspect-button">Details</button></td>
-      </tr>{{else}}<tr><td colspan="8">No matching managed records. Try adjusting the filters, or import an Ashen Gate package first.</td></tr>{{/each}}</tbody>
-    </table></div>
-    {{#if libraryHasDetail}}
-    <section class="agmanager-inspector" aria-label="Selected library document details">
-      <div class="agmanager-inspector-heading"><h3>{{libraryDetail.name}}</h3>
-        <button type="button" data-ag-library-open="{{libraryDetail.uuid}}">Open Foundry sheet</button>
-        <button type="button" data-ag-action="library-inspect-clear" class="agmanager-muted">Close</button></div>
-      <p class="agmanager-tiny"><code>{{libraryDetail.sourceId}}</code> · {{libraryDetail.systemLabel}} · {{libraryDetail.entityType}} · v{{libraryDetail.version}} · {{libraryDetail.status}}</p>
-      <div class="agmanager-detail-grid"><div><span>Package</span><strong>{{libraryDetail.packageId}}</strong></div>
-        <div><span>Visibility</span><strong>{{libraryDetail.visibility}}</strong></div>
-        <div><span>Scope</span><strong>{{libraryDetail.scope}}</strong></div>
-        <div><span>Foundry UUID</span><code>{{libraryDetail.uuid}}</code></div>
-        <div><span>References</span><strong>{{libraryDetail.refCount}} outward · {{libraryDetail.inboundCount}} inward</strong></div>
-        <div><span>Edited fields</span><strong>{{libraryDetail.edited}}</strong></div></div>
-      <p class="agmanager-tiny">Source: {{libraryDetail.provenanceSummary}}</p>
-      <div class="agmanager-relations">
-        <div><h4>References from this record ({{libraryDetail.refCount}})</h4>
-          {{#each libraryDetail.outgoing}}<div class="agmanager-relation">
-            {{#if uuid}}<button type="button" data-ag-library-jump="{{uuid}}">{{name}}</button>{{else}}<span class="agmanager-missing">{{targetId}} — {{name}}</span>{{/if}}
-            <div class="agmanager-tiny">{{relation}} · {{mode}} · {{targetId}}</div></div>
-          {{else}}<p class="agmanager-tiny">No outgoing typed references.</p>{{/each}}
+  <div class="aglib">
+    <nav class="aglib-rail" aria-label="Library sections">
+      {{#each librarySections}}<button type="button" class="aglib-rail__tab {{#if active}}active{{/if}}" data-ag-library-section-tab="{{id}}" title="{{label}}" aria-label="{{label}}" aria-pressed="{{#if active}}true{{else}}false{{/if}}"><i class="{{icon}}" aria-hidden="true"></i></button>{{/each}}
+    </nav>
+    <div class="aglib-main">
+    {{#if libraryRecordsActive}}
+    <div class="aglib-split">
+      <section class="aglib-list" aria-label="Managed records">
+        <div class="aglib-tools">
+          <input type="search" class="aglib-search" data-ag-library-filter value="{{librarySearch}}" placeholder="Search name, ID, package, type" aria-label="Search records" />
+          <div class="aglib-chips" role="group" aria-label="System">
+            {{#each librarySystemChips}}<button type="button" class="aglib-chip {{#if selected}}active{{/if}}" data-ag-library-system-chip="{{value}}" aria-pressed="{{#if selected}}true{{else}}false{{/if}}">{{label}} <span class="aglib-num">{{count}}</span></button>{{/each}}
+          </div>
+          <details class="aglib-filters" {{#if libraryHasFilters}}open{{/if}}>
+            <summary>More filters{{#if libraryHasFilters}} <span class="ag-badge ag-badge--accent">{{libraryFilterCount}}</span>{{/if}}</summary>
+            <div class="aglib-filter-grid">
+              <label>Status <select data-ag-library-status>{{#each libraryStatusOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}{{#if count}} ({{count}}){{/if}}</option>{{/each}}</select></label>
+              <label>Package <select data-ag-library-package>{{#each libraryPackageOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}{{#if count}} ({{count}}){{/if}}</option>{{/each}}</select></label>
+              <label class="aglib-check"><input type="checkbox" data-ag-library-show-archived {{#if libraryShowArchived}}checked{{/if}}> Show archived</label>
+            </div>
+          </details>
+          <div class="aglib-count"><span>{{libraryFilteredCount}} of {{libraryTotal}} records</span><span>{{libraryEditedCount}} edited · {{libraryActiveCount}} active</span></div>
         </div>
-        <div><h4>Records linking here ({{libraryDetail.inboundCount}})</h4>
-          {{#each libraryDetail.incoming}}<div class="agmanager-relation"><button type="button" data-ag-library-jump="{{uuid}}">{{name}}</button>
-            <div class="agmanager-tiny">{{relation}} · {{sourceId}}</div></div>
-          {{else}}<p class="agmanager-tiny">No managed records link to this ID.</p>{{/each}}
+        <div class="aglib-rows">
+          {{#each libraryGroups}}
+          <div class="aglib-group"><span>{{label}}</span><span class="aglib-num">{{count}}</span></div>
+          {{#each rows}}<div class="aglib-row {{#if focused}}is-focused{{/if}}">
+            <input type="checkbox" data-ag-library-select="{{uuid}}" {{#if selected}}checked{{/if}} aria-label="Select {{name}}" />
+            <button type="button" class="aglib-row__main" data-ag-library-inspect="{{uuid}}" {{#if focused}}aria-current="true"{{/if}}>
+              <span class="aglib-row__name">{{name}}</span>
+              <span class="aglib-row__meta"><code>{{sourceId}}</code><span class="aglib-pill aglib-status-{{status}}">{{status}}</span>{{#if archived}}<span class="aglib-pill aglib-pill--danger">archived</span>{{/if}}{{#if version}}<span class="aglib-pill">v{{version}}</span>{{/if}}{{#if edited}}<span class="aglib-pill aglib-pill--warn">{{edited}} edit(s)</span>{{/if}}</span>
+            </button>
+          </div>{{/each}}
+          {{else}}<p class="ag-empty aglib-empty">No matching managed records. Clear the search or filters, or import an Ashen Gate package first.</p>{{/each}}
         </div>
-      </div>
-      {{#if libraryDetail.editedFields.length}}<p class="agmanager-tiny">Locally edited fields (not overwritten by browsing): {{#each libraryDetail.editedFields}}{{this}} · {{/each}}</p>{{/if}}
+        <div class="aglib-selbar">
+          {{#if hasLibrarySelected}}<strong class="aglib-num">{{librarySelectedCount}} selected</strong>
+          <details class="aglib-menu">
+            <summary class="ag-btn ag-btn--sm">Actions <i class="fa-solid fa-caret-down" aria-hidden="true"></i></summary>
+            <div class="aglib-menu__pop" role="menu">
+              <button type="button" role="menuitem" data-ag-action="library-export"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export selected / local edits</button>
+              <button type="button" role="menuitem" data-ag-action="library-replace"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Replace from loaded JSON</button>
+              <button type="button" role="menuitem" data-ag-action="library-stage"><i class="fa-solid fa-box-archive" aria-hidden="true"></i> Copy to staging compendium</button>
+              <hr>
+              <button type="button" role="menuitem" data-ag-action="library-archive"><i class="fa-solid fa-folder-minus" aria-hidden="true"></i> Archive</button>
+              <button type="button" role="menuitem" data-ag-action="library-restore"><i class="fa-solid fa-folder-plus" aria-hidden="true"></i> Restore</button>
+              <hr>
+              <button type="button" role="menuitem" data-ag-action="library-delete" class="aglib-danger"><i class="fa-solid fa-trash" aria-hidden="true"></i> Delete archived… <small>asks first</small></button>
+            </div>
+          </details>
+          <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="library-clear">Clear</button>
+          {{else}}<span class="agmanager-tiny">Tick records to act on them.</span>{{/if}}
+          <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost aglib-end" data-ag-action="library-select-visible">Select shown</button>
+        </div>
+        <div class="aglib-pager">
+          <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="library-previous" aria-label="Previous page" {{#unless libraryHasPrevious}}disabled{{/unless}}><i class="fa-solid fa-chevron-left" aria-hidden="true"></i></button>
+          <span class="aglib-num">{{libraryPageLabel}}</span>
+          <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="library-next" aria-label="Next page" {{#unless libraryHasNext}}disabled{{/unless}}><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
+        </div>
+      </section>
+      <section class="aglib-detail" aria-label="Selected library document details">
+        {{#if libraryHasDetail}}
+        <div class="aglib-detail__head">
+          <div class="aglib-detail__title"><h3>{{libraryDetail.name}}</h3>
+            <div class="aglib-row__meta"><code>{{libraryDetail.sourceId}}</code><span class="aglib-pill aglib-status-{{libraryDetail.status}}">{{libraryDetail.status}}</span><span class="aglib-pill">{{libraryDetail.kind}} · {{libraryDetail.entityType}}</span>{{#if libraryDetail.archived}}<span class="aglib-pill aglib-pill--danger">archived</span>{{/if}}{{#if libraryDetail.edited}}<span class="aglib-pill aglib-pill--warn">{{libraryDetail.edited}} local edit(s)</span>{{/if}}</div>
+          </div>
+          <button type="button" class="ag-btn ag-btn--primary" data-ag-library-open="{{libraryDetail.uuid}}"><i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i> Open sheet</button>
+          <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="library-inspect-clear" aria-label="Close details"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+        </div>
+        <div class="aglib-kv">
+          <div><span>System</span><strong>{{libraryDetail.systemLabel}}</strong></div>
+          <div><span>Version</span><strong class="aglib-num">{{libraryDetail.version}}</strong></div>
+          <div><span>Package</span><strong>{{libraryDetail.packageId}}</strong></div>
+          <div><span>Visibility</span><strong>{{libraryDetail.visibility}}</strong></div>
+          <div><span>Scope</span><strong>{{libraryDetail.scope}}</strong></div>
+          <div><span>References</span><strong class="aglib-num">{{libraryDetail.refCount}} out · {{libraryDetail.inboundCount}} in</strong></div>
+          <div class="aglib-kv__wide"><span>Foundry UUID</span><code>{{libraryDetail.uuid}}</code></div>
+        </div>
+        <div class="aglib-refs">
+          <div><h4>Uses <span class="aglib-num">({{libraryDetail.refCount}})</span></h4>
+            {{#each libraryDetail.outgoing}}<div class="aglib-ref">
+              {{#if uuid}}<button type="button" class="aglib-link" data-ag-library-jump="{{uuid}}">{{name}}</button>{{else}}<span class="aglib-missing">Not in this world</span>{{/if}}
+              <code>{{targetId}}</code><span class="agmanager-tiny">{{relation}} · {{mode}}</span></div>
+            {{else}}<p class="agmanager-tiny">No outgoing typed references.</p>{{/each}}
+          </div>
+          <div><h4>Used by <span class="aglib-num">({{libraryDetail.inboundCount}})</span></h4>
+            {{#each libraryDetail.incoming}}<div class="aglib-ref"><button type="button" class="aglib-link" data-ag-library-jump="{{uuid}}">{{name}}</button>
+              <code>{{sourceId}}</code><span class="agmanager-tiny">{{relation}}</span></div>
+            {{else}}<p class="agmanager-tiny">No managed records link to this ID.</p>{{/each}}
+          </div>
+        </div>
+        {{#if libraryDetail.editedFields.length}}<div><h4>Local edits <span class="aglib-num">({{libraryDetail.edited}})</span></h4><p class="agmanager-tiny aglib-wrap">{{#each libraryDetail.editedFields}}<code>{{this}}</code> {{/each}}</p><p class="agmanager-tiny">Re-import keeps these. Replace from loaded JSON overwrites them.</p></div>{{/if}}
+        <p class="agmanager-tiny aglib-wrap">Source: {{libraryDetail.provenanceSummary}}</p>
+        {{else}}
+        <div class="ag-empty aglib-empty"><i class="fa-solid fa-layer-group" aria-hidden="true"></i><p>Choose a record to see its details, references and local edits.</p>
+          <p class="agmanager-tiny">Only Manager-managed world documents appear here. Live Profession Ledger, Skill Tree and other campaign state stays in those modules. Unclassified / Shared is used where content ownership is ambiguous.</p></div>
+        {{/if}}
+        <p class="aglib-status" role="status">{{libraryMessage}}</p>
+      </section>
+    </div>
+    {{/if}}
+
+    {{#if libraryCheckActive}}
+    <section class="ag-card aglib-section" aria-label="Check library">
+      <h3>Check library</h3>
+      <p class="agmanager-tiny">Looks for missing references, duplicate IDs and other problems in managed records. Read-only.</p>
+      <div class="aglib-actions"><button type="button" class="ag-btn ag-btn--primary" data-ag-action="library-check"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Check library</button></div>
+      {{#if hasAudit}}<div class="agmanager-audit" aria-label="Library check results">
+      {{#each audit}}<div class="agmanager-auditrow agmanager-{{level}}"><span>{{level}}</span> {{message}}</div>{{/each}}
+      </div>{{/if}}
+      <p class="aglib-status" role="status">{{libraryMessage}}</p>
     </section>
     {{/if}}
-    <section class="ag-card agmanager-worldexport">
+
+    {{#if libraryExportActive}}
+    <section class="ag-card aglib-section agmanager-worldexport" aria-label="Export Ashen Gate data">
       <h3>Export Ashen Gate data</h3>
       <p class="agmanager-tiny">One JSON file of all Ashen Gate tagged world records plus the other modules' definitions (no play state). GM only.</p>
-      <div class="agmanager-row agmanager-row-wrap">
-        <button type="button" class="ag-btn ag-btn--primary" data-ag-action="world-export-everything"><i class="fa-solid fa-file-export"></i> Export everything</button>
-        <button type="button" class="ag-btn" data-ag-action="world-export-changed"><i class="fa-solid fa-file-circle-exclamation"></i> Export changed since last export</button>
-        <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="world-export-copy"><i class="fa-solid fa-copy"></i> Copy summary</button>
-        <button type="button" class="ag-btn" data-ag-action="world-backup" title="Saves everything as AG_Backup_&lt;date&gt;.json. Does not change what counts as changed since last export."><i class="fa-solid fa-shield-halved"></i> Back up before play</button>
+      <div class="aglib-actions">
+        <button type="button" class="ag-btn ag-btn--primary" data-ag-action="world-export-everything"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export everything</button>
+        <button type="button" class="ag-btn" data-ag-action="world-backup" title="Saves everything as AG_Backup_&lt;date&gt;.json. Does not change what counts as changed since last export."><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Back up before play</button>
+        <details class="aglib-menu">
+          <summary class="ag-btn">More <i class="fa-solid fa-caret-down" aria-hidden="true"></i></summary>
+          <div class="aglib-menu__pop" role="menu">
+            <button type="button" role="menuitem" data-ag-action="world-export-changed"><i class="fa-solid fa-file-circle-exclamation" aria-hidden="true"></i> Export changed since last export</button>
+            <button type="button" role="menuitem" data-ag-action="world-export-copy"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy summary</button>
+          </div>
+        </details>
       </div>
       {{#if worldExportSummary}}<pre class="agmanager-tiny agmanager-worldexport-summary">{{worldExportSummary}}</pre>{{/if}}
+      <p class="agmanager-tiny">To export only some records with their local edits, tick them under Records and use <strong>Actions → Export selected / local edits</strong>.</p>
     </section>
-    <div class="agmanager-row agmanager-row-wrap agmanager-commands">
-      <button type="button" data-ag-action="library-check"><i class="fa-solid fa-magnifying-glass"></i> Check library</button>
-      <button type="button" data-ag-action="library-export" {{#unless hasLibrarySelected}}disabled{{/unless}}>Export selected / local edits</button>
-      <button type="button" data-ag-action="library-replace" {{#unless hasLibrarySelected}}disabled{{/unless}}>Replace from loaded JSON</button>
-      <button type="button" data-ag-action="library-archive" {{#unless hasLibrarySelected}}disabled{{/unless}}>Archive</button>
-      <button type="button" data-ag-action="library-restore" {{#unless hasLibrarySelected}}disabled{{/unless}}>Restore</button>
-      <button type="button" data-ag-action="library-stage" {{#unless hasLibrarySelected}}disabled{{/unless}}>Copy to staging compendium</button>
-      <button type="button" data-ag-action="library-delete" class="agmanager-danger" {{#unless hasLibrarySelected}}disabled{{/unless}}>Delete archived</button>
-    </div>
-    <details class="agmanager-adopt" data-ag-adopt {{#if adoptOpen}}open{{/if}}>
-    <summary><strong>Adopt &amp; export world Items for review</strong></summary>
+    {{/if}}
 
-    
+    {{#if libraryAdoptActive}}
+    <section class="ag-card aglib-section agmanager-adopt" aria-label="Adopt and export world Items for review">
+    <h3>Adopt &amp; export world Items for review</h3>
     <p>Assign <strong>review tags</strong> to world Items without editing their contents. A tag records a stable capture ID and suggested classification; <strong>it does not approve a record or make it importer-managed.</strong></p>
     <div class="agmanager-package">
-      <div><span>World Items</span><strong>{{worldItemCount}}</strong></div>
-      <div><span>Tagged for review</span><strong>{{taggedCount}}</strong></div>
-      <div><span>Visible rows</span><strong>{{captureVisibleCount}}</strong></div>
+      <div><span>World Items</span><strong class="aglib-num">{{worldItemCount}}</strong></div>
+      <div><span>Tagged for review</span><strong class="aglib-num">{{taggedCount}}</strong></div>
+      <div><span>Visible rows</span><strong class="aglib-num">{{captureVisibleCount}}</strong></div>
     </div>
     <div class="agmanager-row agmanager-row-wrap">
       <label class="agmanager-search-label">Find Item <input type="search" data-ag-capture-filter value="{{captureSearch}}" placeholder="Name or type" /></label>
@@ -248,7 +298,7 @@
         <tbody>
           {{#each captureRows}}
           <tr>
-            <td><input type="checkbox" data-ag-capture-select="{{id}}" {{#if selected}}checked{{/if}} /></td>
+            <td><input type="checkbox" data-ag-capture-select="{{id}}" {{#if selected}}checked{{/if}} aria-label="Select {{name}}" /></td>
             <td><strong>{{name}}</strong><code>{{uuid}}</code></td>
             <td>{{type}}</td>
             <td>{{#if tagged}}<span class="agmanager-badge agmanager-captured">TAGGED</span> {{kindLabel}}<code>{{capture.captureId}}</code>{{else}}<span class="agmanager-badge">Not tagged</span>{{/if}}{{#if source}}<div class="agmanager-tiny">Imported binding: {{source.sourceId}}</div>{{/if}}</td>
@@ -272,12 +322,9 @@
       <button type="button" class="agmanager-primary" data-ag-action="capture-export" {{#unless canCaptureExport}}disabled{{/unless}}><i class="fa-solid fa-file-export"></i> Export all tagged Items (JSON)</button>
     </div>
     <p class="agmanager-tiny">Export includes system rules, active effects and other module flags. Review copyright/third-party content and hidden GM details before uploading.</p>
-      </details>
-    {{#if hasAudit}}<div class="agmanager-audit" aria-label="Library check results">
-    {{#each audit}}<div class="agmanager-auditrow agmanager-{{level}}"><span>{{level}}</span> {{message}}</div>{{/each}}
-    </div>{{/if}}
-    <p class="agmanager-notice">{{libraryMessage}}</p>
-    <p class="agmanager-tiny">Only Manager-managed projected world documents appear here; this is <strong>not</strong> the live Profession Ledger, Skill Tree or campaign-state browser. Unclassified/Shared is intentional where content ownership is ambiguous. Delete retains existing safeguards and requires a world backup.</p>
+    </section>
+    {{/if}}
+    </div>
   </div>
   {{/if}}
 

@@ -48,6 +48,23 @@ export function browseLibrary(rows,filters={}) {
     systemOptions:aggregate('systemKey').map(x=>({...x,label:rows.find(r=>r.systemKey===x.value).systemLabel})),
     statusOptions:aggregate('status'),packageOptions:aggregate('packageId')};
 }
+/** Library list order (0.32.0): by system label, Unclassified / Shared last, then name. Stable for paging. */
+export function orderLibraryRows(rows) {
+  const rank=r=>r.systemKey==='unclassified'?1:0;
+  return [...rows].sort((a,b)=>rank(a)-rank(b)||String(a.systemLabel??'').localeCompare(String(b.systemLabel??''))
+    ||String(a.name??'').localeCompare(String(b.name??'')));
+}
+/** Split one page of ordered rows into system groups. `totals` counts the whole filtered list, not just the page. */
+export function groupLibraryRows(pageRows,allRows=pageRows) {
+  const totals=new Map();for(const r of allRows)totals.set(r.systemKey,(totals.get(r.systemKey)??0)+1);
+  const groups=[];
+  for(const row of pageRows){
+    let g=groups.at(-1);
+    if(!g||g.key!==row.systemKey){g={key:row.systemKey,label:row.systemLabel,count:totals.get(row.systemKey)??0,rows:[]};groups.push(g);}
+    g.rows.push(row);
+  }
+  return groups;
+}
 export function inspectLibrary(rows,uuid) {
   const selected=rows.find(r=>r.uuid===uuid); if(!selected) return null;
   const ids=new Map();for(const r of rows)if(!ids.has(r.sourceId))ids.set(r.sourceId,r);

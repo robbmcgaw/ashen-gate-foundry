@@ -1,3 +1,11 @@
+## 0.32.0 — 2026-10-20
+
+- **Library layout.** Library is now a list beside a detail pane, with an icon rail (like the Character Hub) for **Records**, **Check library**, **Export and backup** and **Adopt and tag**, so these no longer stack down one long page.
+- **Records:** one search box, system chips with counts, and *More filters* (status, package, show archived). Rows are grouped by system (Unclassified / Shared last) and show name, ID, status, version and edit count at one height. Click a row for its details on the right; nothing is clipped, numbers line up.
+- The seven command buttons are one **Actions** menu that appears when records are ticked. Archive, Restore and Delete confirmations now name the action on their button; the final Delete dialog lists the records it will delete.
+- Narrow windows: the detail pane moves under the list, and the rail goes across the top.
+- Layout only: every Library action, setting and API works as before. No saved-data changes.
+
 ## 0.31.0 — 2026-10-20
 
 - **Organize: 2014 and SRD 5.1 count as Core.** A non-Ashen-Gate Item now goes under **Core 5.5e** when it was imported by Plutonium, or its `system.source` says 2024 (as before) **or 2014 core**: rules `2014`, book PHB / DMG / MM (legacy codes, `PHB'14` too) or SRD 5.1. Items with no source, or a third-party or homebrew source, still go under **Homebrew**. Run Organize → Preview: 2014 / SRD 5.1 items an earlier run filed under Homebrew show as moves back to Core 5.5e.
