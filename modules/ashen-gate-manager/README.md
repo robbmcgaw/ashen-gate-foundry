@@ -8,7 +8,25 @@ Module ID `ashen-gate-manager` · Foundry V14 · dnd5e. The GM hub: one importer
 - **Library:** browse managed world documents, check the library, export local edits, archive / restore, copy to a staging compendium and adopt existing world Items. **Export Ashen Gate data** saves one JSON file (everything, or only what changed since the last export) of tagged world documents plus the definitions the other modules expose.
 - **Modules:** which Ashen Gate modules are installed and active, with shortcuts to open them.
 - **Appearance:** the world default skin, **Open My Appearance** for per-user choice, and a **Player Access** list that turns player access on or off for modules that support it.
+- **Organize:** files world (or unlocked world-compendium) Items, Actors and Journals into a rule-based folder tree; Preview, Apply, Undo; protected folders and Keep here; read-only housekeeping report.
+- **Core Links:** links Ashen Gate world Items that carry `core_ref` to 2024 (5.5e) core items (Plutonium imports, world compendiums, GM core sources, dnd5e 2024 packs) and, for exact matches, adopts the core item's image and data while keeping the Ashen Gate name and id. See *Core references* below.
+- **GM Setup:** which compendiums and folders count as core sources for Core Links.
 - **History:** recent import operations and downloadable snapshots taken before updates, archives and deletes. There is no automatic undo; a snapshot is not a world backup.
+
+## Core references (`core_ref`)
+
+An Ashen Gate Item or Material record that should become a 2024 core item carries `core_ref` in its source record (next to `id`, `entity_type` and the other definition fields, not inside `foundry.data`):
+
+```json
+"core_ref": {"name": "Potion of Healing", "source": "DMG'24", "type": "consumable", "rarity": "common"}
+```
+
+- `name` (required): the core item's name as it appears in the 2024 books / Plutonium / dnd5e packs. A plain string (`"core_ref": "Potion of Healing"`) also works.
+- `source` (optional): the book, e.g. `PHB'24`, `DMG'24`, `MM'24` (`XPHB`, `XDMG`, `XMM` and `SRD 5.2` are understood too). When given, a different book makes the match MEDIUM.
+- `type` (optional): the Foundry Item type (`weapon`, `equipment`, `consumable`, `tool`, `loot`, `container`, …). Defaults to the record's own Foundry type.
+- `rarity` (optional): dnd5e rarity (`common`, `uncommon`, `rare`, `veryRare`, `legendary`, `artifact`).
+
+Records without `core_ref` are never linked. Linking keeps the Ashen Gate name and id; the link is stored in `flags.ashen-gate-manager.coreLink`.
 
 ## Relation to other modules
 

@@ -187,14 +187,20 @@ export function planRecord(record, matches = [], sameNameUnmanaged = false, incl
   if (!flag || !isPlainObject(flag.managedFields)) return {action:"blocked", reason:"Missing previous managed-field baseline; manual repair required."};
   if (kind === "JournalEntry" && !equal(flag.pagesDefinition ?? [], data.pages ?? [])) return {action:"blocked", reason:"Journal page changes require a later page-aware updater; v0.1 preserves pages."};
   const fields = exportedFields(record);
+  // Core links (0.26.0): fields adopted from a 2024 core item belong to that item now. Re-import keeps them
+  // and reports them as a known local edit instead of updating, conflicting or blocking on them.
+  const link = doc.coreLink?.adopted ? doc.coreLink : null;
+  const coreOwned = path => Boolean(link) && (link.adoptedPaths ?? []).some(p => path === p || path.startsWith(`${p}.`));
+  const coreKept = [];
   for (const key of Object.keys(flag.managedFields)) {
-    if (!own(fields, key)) return {action:"blocked", reason:`Source removed ${key}; v0.1 requires manual review of removed fields.`};
+    if (!own(fields, key) && !coreOwned(key)) return {action:"blocked", reason:`Source removed ${key}; v0.1 requires manual review of removed fields.`};
   }
   const patch = {};
   const locallyEdited = [];
   const conflicting = [];
   for (const [path, incoming] of Object.entries(fields)) {
     const old = flag.managedFields[path];
+    if (coreOwned(path)) {if (!equal(incoming, old)) coreKept.push(path); continue;}
     if (!own(flag.managedFields, path)) {
       if (doc.get(path) === undefined) {patch[path] = incoming; continue;}
       return {action:"blocked", reason:`New managed field ${path} already has a live value; review before adopting.`};
@@ -206,8 +212,10 @@ export function planRecord(record, matches = [], sameNameUnmanaged = false, incl
     else if (sourceChanged && !equal(live, incoming)) patch[path] = incoming;
     else if (localChanged && !sourceChanged) locallyEdited.push(path);
   }
-  if (conflicting.length) return {action:"conflict", reason:`Both source and Foundry edited: ${conflicting.join(", ")}.`, conflicting};
-  if (Object.keys(patch).length) return {action:"update", reason:locallyEdited.length ? `Safely update ${Object.keys(patch).length} fields; preserve local edits to ${locallyEdited.join(", ")}.` : `${Object.keys(patch).length} source field(s) changed.`, patch};
-  if (locallyEdited.length) return {action:"local", reason:`No new source changes; preserves local edits to ${locallyEdited.join(", ")}.`};
+  const coreNote = link ? ` Core-linked to ${link.name ?? 'a 2024 core item'}: keeps the adopted core image and data${coreKept.length ? ` (${coreKept.length} source change(s) to those fields not applied)` : ''}.` : '';
+  if (conflicting.length) return {action:"conflict", reason:`Both source and Foundry edited: ${conflicting.join(", ")}.${coreNote}`, conflicting};
+  if (Object.keys(patch).length) return {action:"update", reason:(locallyEdited.length ? `Safely update ${Object.keys(patch).length} fields; preserve local edits to ${locallyEdited.join(", ")}.` : `${Object.keys(patch).length} source field(s) changed.`)+coreNote, patch};
+  if (locallyEdited.length) return {action:"local", reason:`No new source changes; preserves local edits to ${locallyEdited.join(", ")}.${coreNote}`};
+  if (link) return {action:"local", reason:coreNote.trim(), coreKept};
   return {action:"unchanged", reason:"Already matches last imported source."};
 }

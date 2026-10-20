@@ -163,3 +163,11 @@
 .agl-node__exotics { margin-top: 4px; }
 .agl-node__exotics > summary { cursor: pointer; }
 .agl-exotic { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* 1.10.0 routes */
+.ag-locations .agl-legs { margin: 0; padding: 4px 0; }
+.ag-locations .agl-label { font-weight: 600; }
+.ag-locations .agl-route-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ag-locations .agl-route-card h4 { margin: 0 0 4px; }
+.ag-locations .agl-route-card p { margin: 2px 0; }
+.ag-locations .agl-routes-player { padding: 8px; overflow: auto; }

@@ -89,9 +89,9 @@ export const FACTION_DOC_TYPES = Object.freeze(['Actor', 'JournalEntry']);
 
 export const clone = value => structuredClone(value);
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
-const text = (value, max = 20000) => String(value ?? '').slice(0, max);
-const line = (value, max = 200) => text(value, max).replace(/[\r\n]+/g, ' ').trim();
-const bool = (value, fallback) => typeof value === 'boolean' ? value : fallback;
+export const text = (value, max = 20000) => String(value ?? '').slice(0, max);
+export const line = (value, max = 200) => text(value, max).replace(/[\r\n]+/g, ' ').trim();
+export const bool = (value, fallback) => typeof value === 'boolean' ? value : fallback;
 const int = (value, fallback, min, max) => {
   const n = Number(value);
   return value !== '' && value !== null && Number.isInteger(n) && n >= min && n <= max ? n : fallback;
@@ -102,7 +102,7 @@ export const safePath = value => {
   const s = line(value, 500);
   return s && !/^(?:javascript|data|vbscript|file):/i.test(s) && !/[<>"'`]/.test(s) ? s : '';
 };
-const safeUuid = value => {
+export const safeUuid = value => {
   const s = line(value, 300);
   return /^[A-Za-z0-9._-]+$/.test(s) ? s : '';
 };
