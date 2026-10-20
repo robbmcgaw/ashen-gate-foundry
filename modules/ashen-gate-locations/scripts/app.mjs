@@ -4,6 +4,7 @@ import {MODULE_ID, THREATS, FIELDS, SECTIONS, BLOCKS, DETAIL_PREFIX, LOOT_STATUS
   hasUnpublishedChanges, wouldCycle, parentMap, PARTY_NOTES, isPlaceable, passesConditions, EXOTIC_MODES, EXOTIC_CONDITIONS, normalizeExotics, isTierDefaultDc} from './model.mjs';
 import {GROUP_MODES, SORTS, emptyFilters, hasFilters, searchText, matchesQuery, applyFilters, filterOptions, comparator, groupRows} from './list-filter.mjs';
 import {buildTree, withAncestors, breadcrumb, moveTargets, VIEW} from './tree.mjs';
+import {routesMixin} from './routes-ui.mjs';
 
 const QUEST_MODULE = 'ashen-gate-quest-manager';
 const FIELD_LABELS = {type: 'Type', region: 'Region', description: 'Description', img: 'Image', threat: 'Threat'};
@@ -171,6 +172,8 @@ export class LocationsApp extends Base {
   }
   clearFilters() { this.filters = emptyFilters(); this.query = ''; return this.render(); }
   async confirmDiscard() {
+    if (this.routeDirty && !(await this.confirmRouteDiscard())) return false;
+    this.routeDirty = false;
     if (!this.dirty) return true;
     return foundry.applications.api.DialogV2.confirm({window: {title: 'Discard changes?'}, content: '<p>You have unsaved changes to this location. Discard them?</p>',
       yes: {label: 'Discard Changes'}, no: {label: 'Keep Editing'}, rejectClose: false});
@@ -205,10 +208,13 @@ export class LocationsApp extends Base {
       if (this.gm && this.selectedId && !this.draft) this.select(this.selectedId);
     }
     const version = game.modules.get(MODULE_ID)?.version ?? '';
+    // 1.10.0: players get a Routes tab only once some route is visible to them.
+    const tabs = this.gm ? [['locations', 'Locations'], ['routes', 'Routes'], ['setup', 'GM Setup']]
+      : api().listRoutes().length ? [['locations', 'Locations'], ['routes', 'Routes']] : [['locations', 'Locations']];
     return `<div class="agl-root">
       <header class="ag-header"><h1>Ashen Gate | Locations</h1><div class="ag-header__actions"><span class="ag-version">v${esc(version)}</span>${btn('help', 'Help', {kind: 'ghost', icon: 'fa-solid fa-circle-question'})}</div></header>
-      ${this.gm ? `<nav class="ag-tabs" aria-label="Locations sections">${[['locations', 'Locations'], ['setup', 'GM Setup']].map(([k, l]) => `<button type="button" data-tab="${k}" class="${this.tab === k ? 'active' : ''}">${l}</button>`).join('')}</nav>` : ''}
-      ${this.tab === 'setup' && this.gm ? this.setupHtml() : this.locationsHtml(list)}
+      ${tabs.length > 1 ? `<nav class="ag-tabs" aria-label="Locations sections">${tabs.map(([k, l]) => `<button type="button" data-tab="${k}" class="${this.tab === k ? 'active' : ''}">${l}</button>`).join('')}</nav>` : ''}
+      ${this.tab === 'setup' && this.gm ? this.setupHtml() : this.tab === 'routes' && tabs.some(([k]) => k === 'routes') ? this.routesHtml() : this.locationsHtml(list)}
     </div>`;
   }
   _replaceHTML(result, content) {
@@ -716,8 +722,9 @@ export class LocationsApp extends Base {
         <div class="ag-field agl-field"><label for="agl-set-unknown">Default unidentified pin image</label><div class="agl-field__row"><input id="agl-set-unknown" type="text" value="${esc(setting('unknownPinImage', ''))}" placeholder="${PIN_DEFAULTS.unidentifiedImg}">${btn('browse-setup', '', {icon: 'fa-solid fa-folder-open', title: 'Browse'})}</div></div>
         <p class="agl-hint">Used when a location has no label or image of its own. Saving re-labels existing unidentified pins.</p>
         <div class="agl-add">${btn('save-setup', 'Save Pin Defaults', {kind: 'primary', icon: 'fa-solid fa-floppy-disk'})}</div></section>
+      ${this.routeSetupHtml()}
       <section class="ag-card"><h3>Import / Export</h3>
-        <p class="agl-hint">Location records in an <code>ag-foundry-import/0.2</code> package (see the module README). Locations already in this world are kept as they are.</p>
+        <p class="agl-hint">Location and Route records in an <code>ag-foundry-import/0.2</code> package (see the module README). Locations and routes already in this world are kept as they are.</p>
         <div class="agl-add">${btn('import', 'Import JSON', {icon: 'fa-solid fa-file-import'})}${btn('export', 'Export JSON', {icon: 'fa-solid fa-file-export'})}</div>
         <input type="file" id="agl-import-file" accept=".json,application/json" hidden></section>
       <details class="ag-card"><summary>Developer Tools</summary>
@@ -730,8 +737,9 @@ export class LocationsApp extends Base {
   bind(root) {
     for (const b of root.querySelectorAll('[data-tab]')) b.addEventListener('click', async () => {
       if (!(await this.confirmDiscard())) return;
-      this.tab = b.dataset.tab; if (this.dirty) this.select(this.selectedId); this.render();
+      this.tab = b.dataset.tab; if (this.dirty) this.select(this.selectedId); if (this.routeDraft) this.selectRoute(this.routeDraft.id || null); this.render();
     });
+    this.bindRoutes(root);
     root.querySelector('#agl-search')?.addEventListener('input', e => {
       this.query = e.target.value; const pos = e.target.selectionStart;
       this.render().then(() => { const s = this.element.querySelector('#agl-search'); s?.focus(); s?.setSelectionRange(pos, pos); });
@@ -925,6 +933,7 @@ export class LocationsApp extends Base {
     if (action === 'open-doc') return openDocument(el.dataset.uuid);
     if (action === 'open-quest') return openQuest(el.dataset.id);
     if (action.startsWith('notes-')) return this.onNotesAction(action, el);
+    if (action.startsWith('route-')) return this.onRouteAction(action, el);
     if (!this.gm) return;
     const root = this.element;
     switch (action) {
@@ -1213,8 +1222,11 @@ export class LocationsApp extends Base {
   }
   async importJson(pkg) {
     const r = await api().importPackage(pkg);
-    const msg = `Imported ${r.created.length} location(s)${r.skipped.length ? `, kept ${r.skipped.length} existing` : ''}${r.errors.length ? `, ${r.errors.length} invalid` : ''}.`;
-    if (r.errors.length) console.warn(`${MODULE_ID} | import problems:`, r.errors);
+    const rt = r.routes ?? {created: [], skipped: [], errors: []};
+    const routes = rt.created.length || rt.skipped.length || rt.errors.length
+      ? ` Routes: ${rt.created.length} imported${rt.skipped.length ? `, kept ${rt.skipped.length} existing` : ''}${rt.errors.length ? `, ${rt.errors.length} invalid` : ''}.` : '';
+    const msg = `Imported ${r.created.length} location(s)${r.skipped.length ? `, kept ${r.skipped.length} existing` : ''}${r.errors.length ? `, ${r.errors.length} invalid` : ''}.${routes}`;
+    if (r.errors.length || rt.errors.length) console.warn(`${MODULE_ID} | import problems:`, [...r.errors, ...rt.errors]);
     ui.notifications.info(msg);
     this.tab = 'locations';
     return this.render();
@@ -1240,3 +1252,4 @@ export class LocationsApp extends Base {
     return foundry.applications.api.DialogV2.prompt({window: {title: 'Locations Help'}, content: gm, ok: {label: 'Close'}, rejectClose: false});
   }
 }
+Object.assign(LocationsApp.prototype, routesMixin({btn, notifyError, worldPlayers}));

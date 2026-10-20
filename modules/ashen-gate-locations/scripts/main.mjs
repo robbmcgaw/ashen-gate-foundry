@@ -1,6 +1,7 @@
 import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL} from './model.mjs';
 import {readAll, writeAll, readViews, placeNote, legacyJournalCount, isGM, migrate, presentationOptions, readNotes, writeNotes, readPlayerNotes,
-  syncSharedNotes, readSharedNotes, writeSharedNotes, isSharedNotesPage, players, pinsOf} from './store.mjs';
+  syncSharedNotes, readSharedNotes, writeSharedNotes, isSharedNotesPage, players, pinsOf, readRoutes, writeRoutes, readRouteViews, usedRouteIds, defaultLegKm} from './store.mjs';
+import {ROUTE_DEFAULTS} from './routes.mjs';
 import {createApi} from './api.mjs';
 import {createNotesService, SOCKET} from './party-notes.mjs';
 import {createShareService} from './sharing.mjs';
@@ -8,7 +9,7 @@ import {LocationsApp} from './app.mjs';
 import {mountLocationLauncher} from './launcher.js';
 import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 
-const VERSION = '1.9.0';
+const VERSION = '1.10.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 const notifyError = err => { console.error(`${MODULE_ID} |`, err); ui.notifications?.error(err?.message ?? String(err)); };
@@ -37,6 +38,10 @@ Hooks.once('init', () => {
   game.settings.register(MODULE_ID, 'unknownPinImage', {
     name: 'Locations — Unidentified pin image', scope: 'world', config: false, type: String, default: '', restricted: true, onChange: resync
   });
+  // 1.10.0: leg length for routes that do not set their own (GM Setup). Changing it updates players' leg counts.
+  game.settings.register(MODULE_ID, 'defaultLegKm', {
+    name: 'Locations — Default leg length (km)', scope: 'world', config: false, type: Number, default: ROUTE_DEFAULTS.legKm, restricted: true, onChange: resync
+  });
 });
 
 Hooks.once('ready', () => {
@@ -57,6 +62,7 @@ Hooks.once('ready', () => {
     version: VERSION, isGM, playerAccessEnabled,
     setPlayerAccess: value => game.settings.set(MODULE_ID, 'playerAccessEnabled', value),
     readAll, writeAll, readViews, placeNote, viewOptions: presentationOptions, pinsOf, playerIds: () => players().map(u => u.id),
+    routes: {readAll: readRoutes, writeAll: writeRoutes, readViews: readRouteViews, usedIds: usedRouteIds, defaultLegKm},
     sharing: {request: sharing.request},
     open: () => LocationsApp.show(),
     openLocation: ref => LocationsApp.show(ref),
