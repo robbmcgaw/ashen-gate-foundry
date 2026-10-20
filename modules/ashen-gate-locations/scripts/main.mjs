@@ -1,6 +1,7 @@
 import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL} from './model.mjs';
 import {readAll, writeAll, readViews, placeNote, legacyJournalCount, isGM, migrate, presentationOptions, readNotes, writeNotes, readPlayerNotes,
-  syncSharedNotes, readSharedNotes, writeSharedNotes, isSharedNotesPage, players, pinsOf, readRoutes, writeRoutes, readRouteViews, usedRouteIds, defaultLegKm} from './store.mjs';
+  syncSharedNotes, readSharedNotes, writeSharedNotes, isSharedNotesPage, players, pinsOf, readRoutes, writeRoutes, readRouteViews, usedRouteIds, defaultLegKm,
+  readTravel, writeTravel, readJourneyView} from './store.mjs';
 import {ROUTE_DEFAULTS} from './routes.mjs';
 import {createApi} from './api.mjs';
 import {createNotesService, SOCKET} from './party-notes.mjs';
@@ -9,9 +10,26 @@ import {LocationsApp} from './app.mjs';
 import {mountLocationLauncher} from './launcher.js';
 import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 
-const VERSION = '1.10.0';
+const VERSION = '1.11.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
+/** Text of a TableResult (V13+ name/description; older text), without markup. */
+const resultText = r => String(r?.name || r?.description || r?.text || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+/** 1.11.0: rolls a route's hazard table by UUID, else by name. A missing or broken table gives "Hazard!" (the API never fails on it). */
+async function drawHazard({uuid, name} = {}) {
+  let table = null;
+  try { if (uuid) table = await fromUuid(uuid); } catch { table = null; }
+  if (!table && name) table = game.tables?.getName?.(name) ?? [...(game.tables ?? [])].find(t => t.name === name) ?? null;
+  if (table?.documentName && table.documentName !== 'RollTable') table = null;
+  if (typeof table?.draw !== 'function') return {text: 'Hazard!', fromTable: false, tableMissing: true};
+  const draw = await table.draw({displayChat: false});
+  const text = (draw?.results ?? []).map(resultText).filter(Boolean).join('; ');
+  return {text: text || 'Hazard!', fromTable: !!text, tableMissing: false};
+}
+const chat = {
+  gm: content => ChatMessage.create({content, speaker: {alias: 'Locations'}, whisper: [...(game.users ?? [])].filter(u => u.isGM).map(u => u.id)}),
+  public: content => ChatMessage.create({content, speaker: {alias: 'Locations'}})
+};
 const notifyError = err => { console.error(`${MODULE_ID} |`, err); ui.notifications?.error(err?.message ?? String(err)); };
 
 function attachActorsLauncher(app, html, visible = mayOpen()) {
@@ -63,6 +81,8 @@ Hooks.once('ready', () => {
     setPlayerAccess: value => game.settings.set(MODULE_ID, 'playerAccessEnabled', value),
     readAll, writeAll, readViews, placeNote, viewOptions: presentationOptions, pinsOf, playerIds: () => players().map(u => u.id),
     routes: {readAll: readRoutes, writeAll: writeRoutes, readViews: readRouteViews, usedIds: usedRouteIds, defaultLegKm},
+    // Hooks 'ashenGateLocations.journeyStart' / 'journeyLeg' / 'journeyArrived' (GM client): extension points for a campaign clock or a per-leg check.
+    travel: {read: readTravel, write: writeTravel, readView: readJourneyView, drawHazard, chat, emit: (event, payload) => Hooks.callAll(`ashenGateLocations.${event}`, payload)},
     sharing: {request: sharing.request},
     open: () => LocationsApp.show(),
     openLocation: ref => LocationsApp.show(ref),
@@ -92,6 +112,12 @@ Hooks.on('renderItemDirectory', (app, html) => {
 // A Map Note for a location opens the Locations window instead of the backing Journal page. Notes
 // carry only the opaque pinKey (1.2.x notes a locationId, until the GM's client migrates them).
 Hooks.on('activateNote', (note, options) => {
+  // 1.11.0 party marker: opens the Routes tab (progress only for players).
+  if (note?.document?.getFlag?.(MODULE_ID, 'partyMarker') === true) {
+    if (!mayOpen()) return;
+    LocationsApp.show().then(app => { app.tab = 'routes'; return app.render(); }).catch(notifyError);
+    return false;
+  }
   const ref = note?.document?.getFlag?.(MODULE_ID, 'pinKey') || note?.document?.getFlag?.(MODULE_ID, 'locationId');
   if (!ref) return;
   if (!mayOpen()) { ui.notifications.warn('Locations is hidden from players right now.'); return false; }

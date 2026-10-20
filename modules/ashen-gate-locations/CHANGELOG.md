@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.11.0 — 2026-10-20
+
+- **Journeys (GM).** On a saved route, **Start journey** (From → To, or To → From unless the route is one-way). The party marker sits on the start pin. **Next leg** travels one leg and rolls d100 against the current hazard chance:
+  - no hazard: the chance doubles for the next leg (at most 100%);
+  - hazard: the route's hazard table is rolled (or the result is just "Hazard!" when it has none or the table is missing), whispered to the GM and shown in the Journey card with **Reroll**, **Dismiss** and **Share with players** (posts the result to chat with no route or place names). The chance goes back to the route's base chance. The next leg waits until the hazard is dismissed or shared.
+  - Every journey starts at the base chance. Example with 25%: 25, 50, 100 (so leg 3 is certain), then back to 25 after the hazard.
+- **Arrival:** after the last leg the marker moves to the destination pin and the trip ("Travel: From → To, N km, N legs, N hazards.") is added to the destination's **Party Notes** through the existing GM Party Notes path. A place the readers of those notes cannot see is written as "an unknown place". If someone is editing those notes, the journey says so and **Retry log** adds it later.
+- **Turn back** (the legs travelled become the legs back; not on one-way routes) and **Abort journey** (asks first; writes nothing to Party Notes).
+- **Party marker:** a Map Note ("Party") on the scene you are viewing if it holds both route pins, otherwise the first scene that does, placed between the pins in proportion to the legs travelled. Double-clicking it opens the Routes tab.
+- **Players** see the marker and "The party is travelling from A to B: leg 3 of 4" (an end they may not all see is left out). Never the hazard chance, the rolls or a hazard the GM has not shared. Enforced in the data layer: the progress page carries nothing else.
+- Saved data: additive (`travel` on the GM Data Journal: the journey, the party's location and the last 20 journeys; a "Party" page in the Routes Journal). Route re-import never touches a journey. API: new `getJourney`, `startJourney`, `nextLeg`, `rerollHazard`, `dismissHazard`, `shareHazard`, `reverseJourney`, `abortJourney`, `retryTravelLog`. Hooks for later (not used yet): `ashenGateLocations.journeyStart`, `.journeyLeg`, `.journeyArrived` (GM client), e.g. for a campaign clock or a per-leg group check.
+- Not in this version yet: linking routes to map drawings (the marker moves in a straight line between pins).
+
 ## 1.10.0 — 2026-10-20
 
 - **Routes between locations (point-crawl, GM).** New **Routes** tab: join two locations, pick From and To by name, set the distance in km and, optionally, this route's own leg length (otherwise the world default from GM Setup → *Routes*, 10 km to start). Legs = distance ÷ leg length, rounded up. Optional name, one-way, terrain, hazard table (a world Roll Table; a missing one falls back to "Hazard!") and base hazard chance (10% to start), and GM notes. Search, grouped by discovery; Delete asks first.
