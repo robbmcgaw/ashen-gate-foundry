@@ -10,8 +10,10 @@ import {LocationsApp} from './app.mjs';
 import {mountLocationLauncher} from './launcher.js';
 import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
+import {TravelTracker} from './travel-app.mjs';
+import {createBehaviours} from './travel-view.mjs';
 
-const VERSION = '1.13.1';
+const VERSION = '1.14.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -46,7 +48,12 @@ function applyPlayerAccess(enabled) {
   embed.refreshAll();
   attachActorsLauncher(ui.actors, null, isGM() || enabled);
   if (!isGM() && !enabled && LocationsApp.instance?.rendered) LocationsApp.instance.close().catch(notifyError);
+  if (!isGM() && !enabled && TravelTracker.instance?.rendered) TravelTracker.instance.close().catch(notifyError);
+  try { ui.controls?.render?.({reset: true}); } catch {}
 }
+// 1.14.0: optional travel behaviour panels for the tracker (none ship; see travel-view.mjs).
+const behaviours = createBehaviours();
+TravelTracker.behaviours = behaviours;
 
 Hooks.once('init', () => {
   game.settings.register(MODULE_ID, 'playerAccessEnabled', {
@@ -67,6 +74,10 @@ Hooks.once('init', () => {
   game.settings.register(MODULE_ID, 'defaultLegKm', {
     name: 'Locations — Default leg length (km)', scope: 'world', config: false, type: Number, default: ROUTE_DEFAULTS.legKm, restricted: true, onChange: resync
   });
+  // 1.14.0 Travel tracker, per user: where the window was left and its background opacity (20–100%, 100 = opaque).
+  game.settings.register(MODULE_ID, 'trackerPosition', {name: 'Locations — Travel tracker position', scope: 'client', config: false, type: Object, default: {}});
+  game.settings.register(MODULE_ID, 'trackerOpacity', {name: 'Locations — Travel tracker opacity', scope: 'client', config: false, type: Number, default: 100,
+    onChange: v => TravelTracker.instance?.applyOpacity?.(v)});
 });
 
 Hooks.once('ready', () => {
@@ -93,6 +104,7 @@ Hooks.once('ready', () => {
     drawings: {link: linkDrawing, unlink: unlinkDrawing, draw: drawRouteLine, info: drawingInfo, viewedScene: () => game.scenes?.viewed ?? globalThis.canvas?.scene ?? null},
     travel: {read: readTravel, write: writeTravel, readView: readJourneyView, drawHazard, chat, emit: (event, payload) => Hooks.callAll(`ashenGateLocations.${event}`, payload)},
     sharing: {request: sharing.request},
+    tracker: {open: () => TravelTracker.show(), behaviours},
     open: () => LocationsApp.show(),
     openLocation: ref => LocationsApp.show(ref),
     notes: {readGM: readNotes, readPlayer: readPlayerNotes, request: notes.request, userId: () => game.user?.id, isActive: notes.isActive, nameOf: notes.nameOf}
@@ -110,6 +122,17 @@ Hooks.once('ready', () => {
   }
   attachActorsLauncher(ui.actors);
   console.info(`${MODULE_ID} | ${VERSION} ready`);
+});
+
+// 1.14.0: Travel tracker button in the Token controls (left of the map). Everyone who may open Locations gets it: the GM
+// sees the controls, players their progress view (the window and the API check again).
+Hooks.on('getSceneControlButtons', controls => {
+  const tokens = controls?.tokens ?? (Array.isArray(controls) ? controls.find(c => c?.name === 'tokens') : null);
+  if (!tokens?.tools) return;
+  const open = () => { game.modules.get(MODULE_ID)?.api?.travel.open().catch(notifyError); };
+  const tool = {name: 'agl-travel', title: 'Travel tracker (Ashen Gate)', icon: 'fa-solid fa-person-hiking', button: true, order: 90, visible: mayOpen(), onChange: open};
+  if (Array.isArray(tokens.tools)) tokens.tools.push({...tool, onClick: open});
+  else tokens.tools[tool.name] = tool;
 });
 
 // Player-facing viewer in the shared Actors group; GM-only builder in the Items sidebar.
@@ -164,6 +187,7 @@ function refresh() {
   pending = setTimeout(() => {
     const app = LocationsApp.instance;
     if (app?.rendered && !app.dirty && mayOpen()) app.render().catch(notifyError);
+    if (mayOpen()) TravelTracker.refresh();
   }, 100);
 }
 for (const hook of ['createJournalEntry', 'updateJournalEntry', 'createJournalEntryPage', 'updateJournalEntryPage', 'deleteJournalEntryPage']) {

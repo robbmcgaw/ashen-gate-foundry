@@ -140,6 +140,18 @@ export class LocationsApp extends Base {
     app.bringToFront?.();
     return app;
   }
+  /** 1.14.0: opens the Routes tab on a route (GM: RTE id; player: the route view key), e.g. from the Travel tracker. */
+  static async showRoute(ref = null) {
+    const app = await LocationsApp.show();
+    if (ref && ref !== app.routeId) {
+      if ((app.dirty || app.routeDirty) && !(await app.confirmDiscard())) return app;
+      if (app.dirty) app.select(app.selectedId);
+      app.selectRoute(ref);
+    }
+    app.tab = 'routes';
+    await app.render();
+    return app;
+  }
 
   constructor(options = {}) {
     super(options);
