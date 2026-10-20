@@ -15,7 +15,7 @@ export const AG_MODULES = Object.freeze([
   {id: 'ashen-gate-locations', title: 'Locations', min: '1.3.0', why: 'Location import and player previews'},
   {id: 'ashen-gate-quest-manager', title: 'Quest Log', min: '0.6.0', why: 'quest import'},
   {id: 'ashen-gate-skill-trees', title: 'Skill Trees', min: '0.7.0', why: 'skill tree import'},
-  {id: 'ashen-gate-factions', title: 'Factions & Renown', min: '0.7.0', why: 'faction import'},
+  {id: 'ashen-gate-factions', title: 'Renown', min: '0.7.0', why: 'faction import'},
   {id: 'ashen-gate-headquarters', title: 'Headquarters', min: '0.7.0', why: 'facility import'},
   {id: 'ashen-gate-profession-ledger', title: 'Profession Ledger', min: null},
   {id: 'ashen-gate-utilities', title: 'Utilities', min: null}
@@ -89,7 +89,7 @@ const STORES = [
     if (!Array.isArray(list)) throw new Error('listTrees did not return a list');
     return {count: list.length, noun: 'tree', emptyHint: 'the GM storage Journal may be missing: open Skill Trees > GM Setup and click Initialize GM Storage'};
   }},
-  {id: 'ashen-gate-factions', label: 'Factions definitions', fns: ['getFactions'], read: api => {
+  {id: 'ashen-gate-factions', label: 'Renown definitions', fns: ['getFactions'], read: api => {
     const list = api.getFactions();
     if (!Array.isArray(list)) throw new Error('getFactions did not return a list');
     return {count: list.length, noun: 'faction'};

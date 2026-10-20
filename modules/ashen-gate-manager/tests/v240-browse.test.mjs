@@ -224,7 +224,7 @@ test('open actions are feature-detected', async () => {
   const hq = await svc.open('ashen-gate-headquarters/FAC-TEST-GARDEN');
   assert.equal(hq.ok, true); assert.match(hq.message, /no open-at-record API/);
   const fac = await svc.open('ashen-gate-factions/FACTION-TEST-GUILD');
-  assert.equal(fac.ok, false); assert.match(fac.message, /Open it in Factions & Renown/);
+  assert.equal(fac.ok, false); assert.match(fac.message, /Open it in Renown/);
   // Merged world + Ledger row: Open goes to the Ledger only if it can open; Sheet always opens the Item.
   const herb = await svc.open('Item.i1');
   assert.equal(herb.ok, false); assert.match(herb.message, /Profession Ledger/);

@@ -43,7 +43,7 @@ export function classifyDelivery(input) {
       : `Valid canonical source manifest ${manifest.package_id} v${manifest.version}. This is not a Foundry import. ${projection ? `Extract the generated ${projection} (ag-foundry-import/0.2) and select that JSON.` : 'Ask the content author for an ag-foundry-import/0.2 projection.'} ZIP installation is not supported.`};
   }
   if(own(input,'guild_state')&&own(input,'headquarters_states'))return{kind:'domain_state',notice:'Guildhall and Headquarters campaign-state payloads must be imported by their owning module; Manager will not modify them.'};
-  if(own(input,'campaign_key')&&own(input,'track_ref')&&own(input,'scopes'))return{kind:'domain_state',notice:'Factions/Renown campaign standing and claims belong to Factions; Manager will not import them.'};
+  if(own(input,'campaign_key')&&own(input,'track_ref')&&own(input,'scopes'))return{kind:'domain_state',notice:'Renown campaign standing and claims belong to Renown; Manager will not import them.'};
   if(own(input,'location_ref')&&own(input,'base_world_revision')&&own(input,'world_revision'))return{kind:'domain_state',notice:'Location revision/sync payloads belong to the standalone Locations module; Manager will not import or publish them.'};
   return null;
 }

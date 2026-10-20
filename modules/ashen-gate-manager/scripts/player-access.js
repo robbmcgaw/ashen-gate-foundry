@@ -3,7 +3,7 @@ export const ACCESS_CONTRACT = 'ag-player-access/1';
 export const EXPECTED_ACCESS_MODULES = Object.freeze([
   {id:'ashen-gate-profession-ledger',title:'Profession Ledger'},
   {id:'ashen-gate-skill-trees',title:'Skill Trees'},
-  {id:'ashen-gate-factions',title:'Factions & Renown'},
+  {id:'ashen-gate-factions',title:'Renown'},
   {id:'ashen-gate-locations',title:'Locations'}
 ]);
 function isAshenModule(mod) {

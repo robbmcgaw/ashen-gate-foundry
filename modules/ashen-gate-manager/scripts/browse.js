@@ -13,7 +13,7 @@ const WORLD = [['Actor', 'actors'], ['Item', 'items'], ['JournalEntry', 'journal
 const PACK_TYPES = new Set(['Actor', 'Item', 'JournalEntry']);
 const PACK_FIELDS = ['type', 'folder', 'img', `flags.${MODULE_ID}.source`, 'system.rarity', '_stats.modifiedTime'];
 const TITLES = {'ashen-gate-manager': 'General Manager', 'ashen-gate-locations': 'Locations', 'ashen-gate-quest-manager': 'Quest Log',
-  'ashen-gate-factions': 'Factions & Renown', 'ashen-gate-skill-trees': 'Skill Trees', 'ashen-gate-headquarters': 'Headquarters',
+  'ashen-gate-factions': 'Renown', 'ashen-gate-skill-trees': 'Skill Trees', 'ashen-gate-headquarters': 'Headquarters',
   'ashen-gate-profession-ledger': 'Profession Ledger', world: 'World'};
 /** world-export section -> browse kind for each record; Skill Trees also adds one Perk entry per perk node. */
 const SECTION_KIND = {locations: 'Location', routes: 'Route', quests: 'Quest', factions: 'Faction', skill_trees: 'Tree', headquarters: 'Facility'};

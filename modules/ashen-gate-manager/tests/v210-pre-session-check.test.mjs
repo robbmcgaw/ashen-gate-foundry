@@ -46,7 +46,7 @@ function healthy({rec = recorder(), gm = true, overrides = {}} = {}) {
       playerAccess: access(rec, 'ashen-gate-quest-manager', true), ...writeApi(['setGMState', 'importQuests'])}},
     'ashen-gate-skill-trees': {id: 'ashen-gate-skill-trees', title: 'Ashen Gate | Skill Trees', active: true, version: '0.10.1', api: {
       listTrees: () => [{id: 'TREE-TEST', name: '[TEST] Tree'}], playerAccess: access(rec, 'ashen-gate-skill-trees', true), ...writeApi(['importTrees', 'publish', 'grantPoints'])}},
-    'ashen-gate-factions': {id: 'ashen-gate-factions', title: 'Ashen Gate | Factions', active: true, version: '0.8.3', api: {
+    'ashen-gate-factions': {id: 'ashen-gate-factions', title: 'Ashen Gate | Renown', active: true, version: '0.8.3', api: {
       getFactions: () => [{id: 'FAC-TEST', name: 'Guild'}], playerAccess: access(rec, 'ashen-gate-factions', true), ...writeApi(['importFactions', 'refreshPlayerViews'])}},
     'ashen-gate-headquarters': {id: 'ashen-gate-headquarters', title: 'Ashen Gate | Headquarters', active: true, version: '0.8.1', api: {
       exportState: () => ({catalog: [{id: 'FAC-1'}]}), playerAccess: access(rec, 'ashen-gate-headquarters', true), ...writeApi(['importFacilities'])}},
@@ -109,7 +109,7 @@ test('1 versions: inactive, too old and not installed modules', async () => {
     'ashen-gate-quest-manager': {id: 'ashen-gate-quest-manager', active: true, version: '0.5.2', api: {listQuests: () => [], getGMSource: () => null}},
     'ashen-gate-utilities': undefined}}});
   const rows = by(await runPreSessionCheck(game, {now}), 'Module versions');
-  assert.ok(rows.some(r => r.status === 'WARN' && /Factions & Renown 0\.8\.3 is installed but not active/.test(r.text)));
+  assert.ok(rows.some(r => r.status === 'WARN' && /Renown 0\.8\.3 is installed but not active/.test(r.text)));
   assert.ok(rows.some(r => r.status === 'WARN' && /Quest Log 0\.5\.2 is older than 0\.6\.0/.test(r.text)));
   assert.ok(rows.some(r => r.status === 'N-A' && r.text === 'Utilities is not installed.'));
   assert.ok(rows.some(r => r.status === 'PASS' && r.text === 'Locations 1.8.1 is active.'));
@@ -132,8 +132,8 @@ test('2 storage: missing API fails, throwing store fails, empty warns, not insta
   assert.match(find('Quest GM sources').text, /QUEST-TEST-SECRET/);
   assert.equal(find('Skill Trees definitions').status, 'WARN');
   assert.match(find('Skill Trees definitions').text, /Initialize GM Storage/);
-  assert.equal(find('Factions definitions').status, 'FAIL');
-  assert.match(find('Factions definitions').text, /no read API/);
+  assert.equal(find('Renown definitions').status, 'FAIL');
+  assert.match(find('Renown definitions').text, /no read API/);
   assert.equal(find('Headquarters vault').status, 'FAIL');
   assert.match(find('Headquarters vault').text, /vault journal missing/);
 });
@@ -193,7 +193,7 @@ test('5 leak scan: clean views pass; modules without a player projection say cou
   const rows = by(await runPreSessionCheck(game, {now}), 'Leak scan');
   assert.equal(rows[0].status, 'PASS');
   assert.match(rows[0].text, /No hidden name in 3 player views \(checked against 3 hidden records\)/);
-  for (const t of ['Factions & Renown', 'Skill Trees', 'Headquarters']) assert.ok(rows.some(r => r.status === 'N-A' && r.text.startsWith(`${t}: could not check`)), t);
+  for (const t of ['Renown', 'Skill Trees', 'Headquarters']) assert.ok(rows.some(r => r.status === 'N-A' && r.text.startsWith(`${t}: could not check`)), t);
   const old = healthy({overrides: {modules: {'ashen-gate-locations': {id: 'ashen-gate-locations', active: true, version: '1.2.0', api: {listLocations: () => []}}}}});
   assert.ok(by(await runPreSessionCheck(old.game, {now}), 'Leak scan').some(r => r.status === 'N-A' && /^Locations: could not check/.test(r.text)));
 });

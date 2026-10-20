@@ -1,6 +1,6 @@
 /** Pure helpers for browsing imported Ashen Gate content (no writes to world documents). */
 const SYSTEM_NAMES = Object.freeze({
-  'SYS-PROF':'Professions','SYS-MUT':'Cinders','SYS-FACTION':'Factions & Renown',
+  'SYS-PROF':'Professions','SYS-MUT':'Cinders','SYS-FACTION':'Renown',
   'SYS-HQ':'Headquarters','SYS-HIRE':'Hirelings','SYS-LOC':'Locations & Exploration',
   'SYS-QUEST':'Quests & Orders'
 });
