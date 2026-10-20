@@ -75,3 +75,25 @@ export async function infoDialog(title, html, {close = 'Close'} = {}) {
   if (fn) fn(String(html).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
   return undefined;
 }
+
+/**
+ * Tick-box list. items: [{key, label, checked}]. Resolves the array of ticked keys on the action button
+ * (possibly empty), or null when cancelled or closed. Without DialogV2 it asks one yes/no per item.
+ */
+export async function checklistDialog(title, intro, items, {ok = 'Apply', cancel = 'Cancel'} = {}) {
+  const D = dialogV2();
+  if (D?.wait) {
+    const rows = items.map((it, i) => `<div class="form-group"><label class="checkbox"><input type="checkbox" name="pick-${i}" data-key="${esc(it.key)}"${it.checked ? ' checked' : ''}> ${esc(it.label)}</label></div>`).join('');
+    const result = await D.wait({
+      window: {title}, content: paragraphs(intro) + rows, modal: true, rejectClose: false,
+      buttons: [{action: 'cancel', label: cancel, callback: () => null}, {action: 'ok', label: ok, default: true, callback: (event, button) => {
+        const form = button?.form ?? event?.currentTarget?.form;
+        return [...(form?.elements ?? [])].filter(el => el?.type === 'checkbox' && el.checked).map(el => el.dataset.key);
+      }}]
+    });
+    return Array.isArray(result) ? result : null;
+  }
+  const fn = native('confirm');
+  if (!fn) return null;
+  return items.filter(it => fn(`${intro}\n\n${it.label}?`)).map(it => it.key);
+}

@@ -1,4 +1,4 @@
-<section class="agf-shell agf-v3" aria-label="Renown">
+<section class="agf-shell agf-v3 {{#if tabPantheon}}agf-shell--pantheon{{/if}}" aria-label="Renown">
   <aside class="agf-sidebar">
     <header class="agf-aside-title"><span class="agf-eyebrow">ASHEN GATE / RENOWN</span><h2>Organizations</h2><p>Known allies, rivals & reputations</p></header>
     <div class="agf-folder-list">
@@ -19,6 +19,7 @@
     <nav class="ag-tabs agf-tabs" aria-label="Renown pages">
       <button type="button" data-agf-view="group" class="agf-tab {{#if tabGroup}}is-active{{/if}}"><i class="fa-solid fa-users"></i> Group</button>
       <button type="button" data-agf-view="player" class="agf-tab {{#if tabPlayer}}is-active{{/if}}"><i class="fa-solid fa-user"></i> Player</button>
+      <button type="button" data-agf-view="pantheon" class="agf-tab {{#if tabPantheon}}is-active{{/if}}"><i class="fa-solid fa-sun"></i> Pantheon</button>
       {{#if isGM}}<button type="button" data-agf-view="orgs" class="agf-tab {{#if tabOrgs}}is-active{{/if}}"><i class="fa-solid fa-landmark"></i> Organizations</button><button type="button" data-agf-view="setup" class="agf-tab {{#if tabSetup}}is-active{{/if}}"><i class="fa-solid fa-gears"></i> GM Setup</button>{{/if}}
     </nav>
     {{#if showHeader}}
@@ -71,6 +72,116 @@
         {{#if isGM}}<section class="agf-panel agf-award" data-award-scope="individual"><h2>GM · Adjust Personal Renown</h2><div class="agf-award-row-v2"><label>Change<input name="renown-delta" type="number" value="1" min="-1000" max="1000"></label><label>Reason<input name="renown-reason" maxlength="400" placeholder="Personal deed or consequence"></label><button type="button" data-action="award" data-scope="individual">Record</button></div></section>{{/if}}
         <section class="agf-panel"><h2>Personal activity</h2>{{#if detail.personalEvents.length}}<ol class="agf-history">{{#each detail.personalEvents}}<li><strong>{{displayDelta}}</strong> {{reason}} <small>{{previous_score}} → {{score_after}}</small></li>{{/each}}</ol>{{else}}<p class="agf-muted">No personal reputation changes recorded.</p>{{/if}}</section>
       {{else}}<div class="agf-welcome"><h1>Individual Renown</h1><p>Discover a faction to view personal standing.</p></div>{{/if}}
+    {{/if}}
+
+    {{#if tabPantheon}}
+      <section class="agf-pantheon" aria-label="Pantheon">
+        <div class="agf-pantheon-toolbar">
+          <label>Character<select name="actor-id">{{#each actorChoices}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{else}}<option value="">No assigned character</option>{{/each}}</select></label>
+          {{#if pantheon.open}}<button type="button" data-action="openDeity" data-id=""><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> All deities</button>{{/if}}
+          {{#if isGM}}<div class="agf-create-row agf-pantheon-create"><input name="new-deity-name" maxlength="120" placeholder="New deity name"><button type="button" data-action="createDeity"><i class="fa-solid fa-plus" aria-hidden="true"></i> Create deity</button></div>{{/if}}
+        </div>
+        {{#unless pantheon.open}}
+          {{#each pantheon.groups}}
+            <section class="agf-pantheon-group"><h2>{{label}}</h2><div class="agf-pantheon-grid">
+              {{#each tiles}}<button type="button" class="agf-deity-tile {{#unless known}}is-unknown{{/unless}}" data-action="openDeity" data-id="{{id}}">
+                <span class="agf-symbol">{{#if symbol}}<img class="agf-symbol-img" src="{{symbol}}" alt="">{{/if}}<i class="fa-solid fa-sun agf-symbol-glyph" aria-hidden="true"></i></span>
+                <strong>{{name}}</strong>{{#if title}}<small>{{title}}</small>{{/if}}
+                <span class="agf-deity-rank">{{#if known}}{{rank}} · {{score}}{{else}}Not known to this character{{/if}}</span>
+                {{#if @root.isGM}}<span class="agf-chip">{{chip}}</span>{{/if}}
+              </button>{{/each}}
+            </div></section>
+          {{else}}
+            <div class="agf-welcome"><i class="fa-solid fa-sun" aria-hidden="true"></i><h1>Pantheon</h1><p>{{#if isGM}}Create a deity above, or import a definitions file from Organizations.{{else}}No deities revealed yet.{{/if}}</p></div>
+          {{/each}}
+        {{/unless}}
+        {{#with pantheon.open}}
+          <article class="agf-deity-card agf-deity-card--{{card.tier}}">
+            <span class="agf-symbol agf-symbol--large">{{#if card.symbol}}<img class="agf-symbol-img" src="{{card.symbol}}" alt="Holy symbol of {{card.name}}">{{/if}}<i class="fa-solid fa-sun agf-symbol-glyph" aria-hidden="true"></i></span>
+            <div class="agf-deity-head">
+              <span class="agf-eyebrow">{{card.tierLabel}} deity{{#if card.domain}} · {{card.domain}}{{/if}}</span>
+              <h1>{{card.name}}</h1>{{#if card.title}}<p class="agf-deity-title">{{card.title}}</p>{{/if}}
+              {{#if card.blurb}}<p class="agf-deity-blurb">{{card.blurb}}</p>{{/if}}
+            </div>
+            {{#if known}}<div class="agf-rank-badge"><small>{{@root.pantheon.actorName}}</small><strong>{{score}}</strong><span>{{rank}}</span></div>{{/if}}
+            <dl class="agf-deity-facts">
+              {{#if card.portfolio}}<dt>Portfolio</dt><dd>{{card.portfolio}}</dd>{{/if}}
+              {{#if card.teachings}}<dt>Teachings</dt><dd>{{card.teachings}}</dd>{{/if}}
+              {{#if card.followers}}<dt>Followers</dt><dd>{{card.followers}}</dd>{{/if}}
+              {{#if card.practices}}<dt>Practices</dt><dd>{{card.practices}}</dd>{{/if}}
+            </dl>
+            {{#if card.saying.text}}<blockquote class="agf-deity-saying"><p>“{{card.saying.text}}”</p>{{#if card.saying.attribution}}<cite>— {{card.saying.attribution}}</cite>{{/if}}</blockquote>{{/if}}
+            {{#unless @root.isGM}}{{#if canShare}}<button type="button" data-action="share" class="agf-primary agf-share"><i class="fa-solid fa-share-nodes"></i> Share with Party</button>{{/if}}{{/unless}}
+          </article>
+          {{#if known}}
+            <section class="agf-panel"><h2>Favour</h2>
+              {{#if next}}<p class="agf-muted">{{remaining}} more to reach <strong>{{next.name}}</strong>.</p><div class="agf-favour-bar"><span style="width:{{percent}}%"></span></div>{{else}}<p class="agf-muted">Highest rank reached.</p>{{/if}}
+              <div class="agf-milestones">{{#each milestones}}<div class="agf-milestone {{#if unlocked}}is-unlocked{{/if}}"><div class="agf-step">{{order}}</div><div class="agf-milestone-name">{{name}}</div><div class="agf-threshold">{{threshold}} favour</div>
+                {{#if benefit}}<p>{{benefit}}</p>{{/if}}{{#each rewards}}<div class="agf-reward {{#unless unlocked}}agf-reward-locked{{/unless}}"><strong>{{name}}</strong>{{#if description}}<small>{{description}}</small>{{/if}}
+                  {{#if canViewGranted}}<button type="button" data-action="openLinked" data-uuid="{{grantedUuid}}">View granted Item</button>{{/if}}{{#if canView}}<button type="button" data-action="openLinked" data-uuid="{{uuid}}">View source</button>{{else}}{{#if documentAccessRequired}}<small class="agf-muted">Source document requires Foundry permission.</small>{{/if}}{{/if}}
+                  {{#if passive}}<span class="agf-claim-state">{{#if unlocked}}Available blessing{{else}}Locked{{/if}}</span>{{/if}}
+                  {{#if isClaimed}}<span class="agf-claim-state">Claimed</span>{{/if}}{{#if isPending}}<span class="agf-claim-state">Pending GM</span>{{/if}}{{#if isApproved}}<span class="agf-claim-state">Awaiting delivery</span>{{/if}}
+                  {{#if canClaim}}{{#if @root.hasActiveGM}}<button type="button" class="agf-claim" data-action="claim" data-audience="individual" data-reward="{{id}}">{{#if repeatable}}Request Service{{else}}Claim Reward{{/if}}</button>{{else}}<small>GM must be online</small>{{/if}}{{/if}}
+                </div>{{/each}}<span class="agf-state">{{#if unlocked}}Unlocked{{else}}Locked{{/if}}</span></div>{{/each}}</div>
+            </section>
+            {{#if @root.isGM}}<section class="agf-panel agf-award" data-award-scope="individual"><h2>GM · Adjust favour for {{@root.pantheon.actorName}}</h2><div class="agf-award-row-v2"><label>Change<input name="renown-delta" type="number" value="1" min="-1000" max="1000"></label><label>Reason<input name="renown-reason" maxlength="400" placeholder="Deed, offering or transgression"></label><button type="button" data-action="award" data-scope="individual">Record</button></div></section>{{/if}}
+            <section class="agf-panel"><h2>Favour history</h2>{{#if history.length}}<ol class="agf-history">{{#each history}}<li><strong>{{displayDelta}}</strong> {{reason}} <small>{{previous_score}} → {{score_after}}{{#if @root.isGM}}{{#if canUndo}} <button type="button" class="agf-small" data-action="undoFavour" data-event="{{id}}">Undo</button>{{/if}}{{#if undone}} · undone{{/if}}{{/if}}</small></li>{{/each}}</ol>{{else}}<p class="agf-muted">No changes recorded yet.</p>{{/if}}</section>
+          {{else}}
+            <section class="agf-panel"><p class="agf-muted">This character has not discovered this deity yet.</p></section>
+          {{/if}}
+          <section class="agf-panel"><h2>Related deities</h2>
+            {{#if @root.isGM}}
+              {{#each relations}}<div class="agf-resonance-row" data-resonance-row><strong>{{name}}</strong>
+                <span class="agf-resonance-slider"><small>Dissonance</small><input type="range" min="0" max="1" step="0.05" value="{{resonance}}" data-resonance-target="{{deity_id}}" aria-label="Resonance with {{name}}"><small>Resonance</small></span>
+                <span class="agf-muted" data-resonance-preview>{{label}} · {{preview}}</span>
+                <button type="button" class="agf-small" data-action="removeRelation" data-target="{{deity_id}}">Remove</button></div>
+              {{else}}<p class="agf-muted">No related deities.</p>{{/each}}
+              {{#if gm.relationOptions.length}}<div class="agf-resonance-row agf-resonance-add" data-resonance-row><label>Add related deity<select name="relation-deity">{{#each gm.relationOptions}}<option value="{{id}}">{{name}}</option>{{/each}}</select></label>
+                <span class="agf-resonance-slider"><small>Dissonance</small><input type="range" name="relation-resonance" min="0" max="1" step="0.05" value="0.5" aria-label="Resonance"><small>Resonance</small></span>
+                <span class="agf-muted" data-resonance-preview>Neutral · gain 10 → 0</span>
+                <button type="button" data-action="addRelation">Add</button></div>{{/if}}
+              <p class="agf-muted">Each slider works one way: gains with this deity move the other one. Middle = no effect. Effects are scaled by the damping in GM Setup ({{damping}}) and you confirm them on every award. Players see only Resonance or Dissonance, and only once both deities are revealed to them.</p>
+            {{else}}
+              {{#if relations.length}}<ul class="agf-relations">{{#each relations}}<li class="{{#if isDissonant}}is-dissonant{{/if}}{{#if isResonant}}is-resonant{{/if}}"><span class="agf-chip">{{label}}</span> {{name}}</li>{{/each}}</ul>{{else}}<p class="agf-muted">No known related deities.</p>{{/if}}
+            {{/if}}
+          </section>
+          <section class="agf-panel"><h2>Revealed lore</h2>{{#if entries.length}}{{#each entries}}<div class="agf-knowledge"><strong>{{name}}</strong>{{#if @root.isGM}} <small>{{#if discovered_party}}party{{else}}{{#if discovered}}this character{{else}}hidden{{/if}}{{/if}}</small>{{/if}}<p>{{text}}</p>{{#if uuid}}<button type="button" data-action="openLinked" data-uuid="{{uuid}}">Open linked document</button>{{else}}{{#if documentAccessRequired}}<small class="agf-muted">Linked document requires Foundry permission; ask the GM for access.</small>{{/if}}{{/if}}</div>{{/each}}{{else}}<p class="agf-muted">Nothing revealed yet.</p>{{/if}}</section>
+          {{#if @root.isGM}}{{#with gm}}
+            <details class="agf-config-section" data-agf-section="deity-profile" open><summary>GM · Deity card, discovery and ranks</summary>
+            <section class="agf-panel" data-deity-editor><h2>GM · {{name}} <small class="agf-muted">{{id}} · {{chip}}</small></h2>
+              <div class="agf-toolbar agf-setup-toolbar"><button type="button" data-action="discovery" data-mode="party">{{#if discovery.party}}Hide from party{{else}}Reveal to party{{/if}}</button><button type="button" data-action="discovery" data-mode="actor">{{#if actorKnows}}Hide from{{else}}Reveal to{{/if}} {{@root.pantheon.actorName}}</button></div>
+              <div class="agf-form-grid">
+                <label>Name<input name="deity-name" value="{{name}}" maxlength="120"></label>
+                <label>Title<input name="deity-title" value="{{profile.title}}" placeholder="Epithet shown under the name"></label>
+                <label>Rank<select name="deity-tier"><option value="major" {{#if isMajor}}selected{{/if}}>Major</option><option value="lesser" {{#if isLesser}}selected{{/if}}>Lesser</option></select></label>
+                <label>Domain<input name="deity-domain" value="{{profile.domain}}"></label>
+                <label class="agf-wide">Holy symbol image path<span class="agf-symbol-path"><input name="deity-symbol" value="{{profile.symbol}}" placeholder="assets/ashen-gate/deities/name.png"><button type="button" data-action="pickSymbol"><i class="fa-solid fa-folder-open" aria-hidden="true"></i> Browse</button></span></label>
+                <label class="agf-wide">Blurb<textarea name="deity-blurb" rows="2">{{profile.blurb}}</textarea></label>
+                <label class="agf-wide">Portfolio<textarea name="deity-portfolio" rows="2">{{profile.portfolio}}</textarea></label>
+                <label class="agf-wide">Teachings<textarea name="deity-teachings" rows="2">{{profile.teachings}}</textarea></label>
+                <label class="agf-wide">Followers<textarea name="deity-followers" rows="2">{{profile.followers}}</textarea></label>
+                <label class="agf-wide">Practices<textarea name="deity-practices" rows="2">{{profile.practices}}</textarea></label>
+                <label class="agf-wide">Saying<textarea name="deity-saying-text" rows="2">{{profile.saying.text}}</textarea></label>
+                <label>Saying attribution<input name="deity-saying-attribution" value="{{profile.saying.attribution}}"></label>
+                <label>Tags (GM only)<input name="deity-tags" value="{{tags}}"></label>
+              </div>
+              <div class="agf-toolbar agf-setup-toolbar"><label class="agf-check"><input name="deity-placeholder" type="checkbox" {{#if discovery.placeholder}}checked{{/if}}> Show undiscovered placeholder</label><label class="agf-check"><input name="deity-sharing" type="checkbox" {{#if discovery.sharing_enabled}}checked{{/if}}> Allow player Share with Party</label></div>
+              <h3>Rank titles (per character)</h3>
+              {{#each levels}}<div class="agf-milestone-editor agf-v3-editor" data-milestone-row="individual"><span>{{key}}</span><label>Rank<input data-field="name" value="{{name}}"></label><label>Threshold<input data-field="threshold" type="number" value="{{threshold}}"></label><label>Reward mode<select data-field="selection"><option value="all" {{#if isAll}}selected{{/if}}>All Rewards</option><option value="choose_one" {{#if isOne}}selected{{/if}}>Choose One</option></select></label><label>Text<textarea data-field="benefit" rows="2">{{benefit}}</textarea></label></div>{{/each}}
+              <div class="agf-actions-row"><button type="button" class="agf-primary" data-action="saveDeity">Save Deity</button></div>
+            </section></details>
+            <details class="agf-config-section" data-agf-section="deity-rewards"><summary>GM · Rewards by rank</summary><section class="agf-panel">
+              {{#each levels}}<div class="agf-v3-reward-level"><h3>{{name}}</h3><button type="button" class="agf-small" data-action="resetChoice" data-audience="individual" data-milestone="{{id}}">GM: Clear choice</button>{{#each rewards}}<div class="agf-reward-editor"><strong>{{name}}</strong><small>{{behavior}}</small><button type="button" data-action="editReward" data-reward="{{id}}">Edit</button><button type="button" data-action="removeReward" data-reward="{{id}}">×</button></div>{{/each}}<details class="agf-drop-zone" data-reward-drop data-audience="individual" data-milestone="{{id}}"><summary>Drop linked reward / add custom</summary><input name="reward-name" placeholder="Reward name"><input name="reward-description" placeholder="Description"><label>Behavior<select name="reward-behavior"><option value="one_time">One-time</option><option value="repeatable_service">Repeatable service</option><option value="passive">Passive benefit</option></select></label><label>Usage limit<input name="reward-limit" type="number" value="0" min="0"></label><button type="button" data-action="addReward">Add reward</button></details></div>{{/each}}
+            </section></details>
+            <details class="agf-config-section" data-agf-section="deity-lore"><summary>GM · Lore entries</summary><section class="agf-panel"><p class="agf-muted">Reveal manually or by this character's favour. Linked documents stay permission-checked.</p>
+              {{#each ../entries}}<div class="agf-entry-editor"><strong>{{name}}</strong> <small>{{unlock}}{{#if threshold}} · {{threshold}} favour{{/if}}</small><div class="agf-toolbar"><button type="button" data-action="showEntry" data-mode="party" data-entry="{{id}}">{{#if discovered_party}}Hide from party{{else}}Reveal to party{{/if}}</button><button type="button" data-action="showEntry" data-mode="actor" data-entry="{{id}}">Toggle for selected character</button><button type="button" data-action="showEntry" data-mode="edit" data-entry="{{id}}">Edit text</button>{{#if uuid}}<button type="button" data-action="showEntry" data-mode="mode" data-entry="{{id}}">Link: {{link_mode}}</button>{{/if}}<button type="button" data-action="showEntry" data-mode="remove" data-entry="{{id}}">Remove</button></div></div>{{/each}}
+              <details class="agf-drop-zone" data-entry-drop data-info-editor><summary>Add lore entry / drop document</summary><div class="agf-form-grid"><label>Title<input name="info-name" placeholder="Myth, rite, shrine"></label><label>Unlock<select name="info-unlock"><option value="manual">GM manually</option><option value="individual_renown">Character favour</option></select></label><label>Threshold<input name="info-threshold" type="number" value="0" min="0"></label><label class="agf-wide">Text<textarea name="info-text" rows="2"></textarea></label></div><button type="button" data-action="addEntry">Add lore</button></details>
+            </section></details>
+            <details class="agf-config-section" data-agf-section="deity-requests" open><summary>GM · Claims & service requests ({{queue.length}})</summary><section class="agf-panel">{{#each queue}}<div class="agf-request-row"><div><strong>{{actor}}</strong> · {{reward}} <small>({{status}})</small></div><div class="agf-toolbar">{{#if pending}}<button type="button" data-action="resolveRequest" data-doc="{{docId}}" data-key="{{requestKey}}" data-claim="{{#if claim}}1{{/if}}" data-mode="approve">Approve</button>{{/if}}{{#if approved}}<button type="button" data-action="resolveRequest" data-doc="{{docId}}" data-key="{{requestKey}}" data-claim="{{#if claim}}1{{/if}}" data-mode="fulfill">Mark fulfilled</button>{{/if}}<button type="button" data-action="resolveRequest" data-doc="{{docId}}" data-key="{{requestKey}}" data-claim="{{#if claim}}1{{/if}}" data-mode="deny">Deny</button></div></div>{{else}}<p class="agf-muted">No pending or approved requests.</p>{{/each}}
+              {{#each serviceRewards}}<div class="agf-request-row"><strong>{{name}}</strong><button type="button" data-action="resetUsage" data-audience="individual" data-reward="{{id}}">Reset uses for {{@root.pantheon.actorName}}</button></div>{{/each}}</section></details>
+          {{/with}}{{/if}}
+        {{/with}}
+      </section>
     {{/if}}
 
     {{#if tabOrgs}}
@@ -139,6 +250,7 @@
     {{/if}}
     {{#if tabSetup}}
       <section class="agf-panel agf-player-access"><h2>GM · Player Access</h2><p class="agf-muted">Controls whether players can open this module from Actors, macros or Manager. Hidden access keeps Renown, claims, discoveries and character progress unchanged.</p><label class="agf-check"><input type="checkbox" name="player-access-enabled" {{#if playerAccessEnabled}}checked{{/if}}> Players can open Renown</label><button type="button" data-action="savePlayerAccess">Save Player Access</button></section>
+      <section class="agf-panel"><h2>GM · Pantheon knock-on damping</h2><p class="agf-muted">When a character gains favour with a deity, related deities change by gain × slider strength × this number (0 to {{pantheonDampingMax}}). At 0.5, a fully resonant deity gains half as much and a fully dissonant one loses half as much. You still confirm each change.</p><div class="agf-group-name-form"><label>Damping<input name="pantheon-damping" type="number" min="0" max="{{pantheonDampingMax}}" step="0.05" value="{{pantheonDamping}}"></label><button type="button" data-action="saveDamping">Save</button></div></section>
       <section class="agf-panel"><h2>GM · Group display name</h2><div class="agf-group-name-form"><label class="agf-check"><input type="checkbox" name="group-name-enabled" {{#if groupNameEnabled}}checked{{/if}}> Use custom group name</label><label>Name<input name="group-name" value="{{groupName}}"></label><button type="button" data-action="saveGroupLabel">Save</button></div></section>
     {{/if}}
     {{#if refreshNeeded}}<p class="agf-muted">Waiting for the GM to prepare your private faction view. Reopen after the GM connects.</p>{{/if}}
