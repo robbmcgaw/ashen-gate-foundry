@@ -1,3 +1,14 @@
+## 0.33.0 — 2026-10-20
+
+- **NPC Codex** (Library → NPC Codex on the rail). Lists every imported NPC record (`entity_type: "NPC"`) with portrait, role and how much players know. For each NPC you set who knows it (name and portrait) and, field by field, who knows its role, appearance, signature line, wants, knows, *what the party has learned* and its connections: **Hidden**, **Party** or specific **Characters**.
+- Portrayal, session role, stat block, GM notes and your own Codex notes are GM-only and never sent to players. **Preview as** the party or one character shows exactly what that player gets. **Hide from players…** (with confirmation) hides an NPC and every field.
+- **Connections:** ids from the record's `codex.links` and `refs`, plus ones you add (`LOC-`, `FAC-`, `QUEST-`, `NPC-` …). Names come from Locations, Renown and Quests when they are active; the Codex never changes their state.
+- **Players:** GM Setup → *Players can open the NPC Codex* (off by default). Players open it from Configure Settings → *Open NPC Codex*. Their client asks the connected GM, who sends back only what is revealed to that player's characters.
+- **Import:** NPC records import exactly as before. New optional record block `codex` (`links`, `default_reveal`); `default_reveal` only applies until you change that NPC. Re-import never touches reveals, learned text or notes. Schema and example: `docs/npc-codex-schema.md`.
+- **Export:** Codex → *Export codex* (GM file: definitions plus reveals) and *Restore reveals from a codex export*. The world export leaves Codex state out.
+- **API:** `api.codex` (`list`, `get`, `setReveal`, `setDetails`, `previewAs`, `exportAll`, `forPlayer`, `openPlayerView`, `mount`). GM functions refuse players.
+- New: Actor flag `flags.ashen-gate-manager.codex` (written only from the Codex) and world setting `codexPlayerAccess`. No migration; nothing existing changes.
+
 ## 0.32.0 — 2026-10-20
 
 - **Library layout.** Library is now a list beside a detail pane, with an icon rail (like the Character Hub) for **Records**, **Check library**, **Export and backup** and **Adopt and tag**, so these no longer stack down one long page.

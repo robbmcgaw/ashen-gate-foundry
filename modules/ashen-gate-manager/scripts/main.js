@@ -5,6 +5,8 @@ import {createManagerDefinitionReader, READER_CONTRACT} from './native-definitio
 import {sourceMetadata as projectionSourceMetadata} from './source-projection.mjs';
 import {MODULE_ID, MANAGED_TYPES, validatePackage, planRecord, exportedFields, getPath, canonical} from "./core.js";
 import {checkContractGraph, isContractImport, selectionIssues, projectedReferences, finalReferenceResolution} from "./contract.js";
+import {createCodexService, CODEX_QUERY, CODEX_ACCESS_SETTING} from "./codex-service.js";
+import {renderPlayerCodexHtml} from "./codex.js";
 import {systemOf, browseLibrary, inspectLibrary, describeLaunchers, orderLibraryRows, groupLibraryRows} from "./browser.js";
 import {openAshenLauncher} from "./launchers.js";
 import {mountManagerLauncher} from "./items-launcher.js";
@@ -169,14 +171,15 @@ const LIBRARY_SECTIONS=Object.freeze([
   {id:'records',label:'Records',icon:'fa-solid fa-list'},
   {id:'check',label:'Check library',icon:'fa-solid fa-stethoscope'},
   {id:'export',label:'Export and backup',icon:'fa-solid fa-file-export'},
-  {id:'adopt',label:'Adopt and tag world Items',icon:'fa-solid fa-tags'}
+  {id:'adopt',label:'Adopt and tag world Items',icon:'fa-solid fa-tags'},
+  {id:'codex',label:'NPC Codex',icon:'fa-solid fa-address-book'}
 ]);
 
 class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.32.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.33.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -222,6 +225,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.libraryPageSize = 100;
     this.libraryShowArchived = true;
     this.librarySection = "records";
+    this.codexFocus = null;
+    this.codexSearch = "";
+    this.codexFilter = "all";
+    this.codexPreview = "";
+    this.codexMessage = "Reveal an NPC to the party or to single characters, field by field. Players only ever receive what is revealed.";
     this.libraryMessage = "Browse Manager-imported Items, Journals, Actors, Roll Tables and Macros by permanent ID.";
     this.profile = "session-safe";
     this.moodSceneId = "";
@@ -419,6 +427,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       librarySectionLabel:LIBRARY_SECTIONS.find(s=>s.id===librarySection).label,
       libraryRecordsActive:librarySection==='records',libraryCheckActive:librarySection==='check',
       libraryExportActive:librarySection==='export',libraryAdoptActive:librarySection==='adopt',
+      libraryCodexActive:librarySection==='codex',
+      codex:this.tab==='library'&&librarySection==='codex'?this.#codexContext():null,
       librarySystemChips:[{value:'all',label:'All',count:library.filter(r=>this.libraryShowArchived||!r.archived).length,selected:this.librarySystem==='all'},...browser.systemOptions],
       libraryMessage:this.libraryMessage, worldExportSummary:this.worldExportSummary??'',
       preSession:this.preSessionResult?{summary:this.preSessionResult.summary,rows:this.preSessionResult.rows.map(r=>({...r,css:r.status==='N-A'?'na':r.status.toLowerCase()})),hasText:Boolean(this.preSessionResult.text)}:null,
@@ -446,6 +456,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       setupActive: this.tab === "setup",
       setup: this.tab === "setup" ? coreLinks().describeSources() : null,
       setupMessage: this.setupMessage,
+      codexPlayerAccess: Boolean(game.settings.get(MODULE_ID,CODEX_ACCESS_SETTING)),
       hasPackage: Boolean(this.pkg || this.specialist),
       isSpecialist: Boolean(this.specialist),
       specialistLabel: this.specialist ? SPECIALISTS[this.specialist.kind].label : '',
@@ -547,6 +558,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     root.querySelectorAll('[data-ag-library-section-tab]').forEach(el=>el.addEventListener('click',event=>{
       event.preventDefault();this.librarySection=el.dataset.agLibrarySectionTab;void this.render();
     }));
+    this.#bindCodex(root);
     root.querySelectorAll('[data-ag-library-system-chip]').forEach(el=>el.addEventListener('click',event=>{
       event.preventDefault();this.librarySystem=el.dataset.agLibrarySystemChip;this.libraryPage=0;void this.render();
     }));
@@ -734,6 +746,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         await this.render();break;
       }
       case "library-next": this.libraryPage++;await this.render();break;
+      case "codex-save": case "codex-cancel": case "codex-close": case "codex-hide-all": case "codex-export": case "codex-player-view": case "codex-open-actor":
+        await this.#codexAction(name);break;
       case "library-previous": this.libraryPage=Math.max(0,this.libraryPage-1);await this.render();break;
       case "library-inspect-clear": this.libraryFocus=null;await this.render();break;
       case "library-clear": this.librarySelected.clear();await this.render();break;
@@ -1697,6 +1711,94 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     await this.render();
   }
+  #codexContext() {
+    const svc=codexService();
+    const all=svc.list(),chars=svc.characters();
+    const text=this.codexSearch.toLowerCase();
+    const rows=all.filter(e=>(this.codexFilter==='all'||(this.codexFilter==='hidden')===(e.discoveryMode==='hidden'))
+      &&(!text||[e.name,e.id,e.fields.find(f=>f.key==='role')?.value].some(v=>String(v??'').toLowerCase().includes(text))))
+      .map(e=>({...e,focused:e.id===this.codexFocus,role:e.fields.find(f=>f.key==='role')?.value??'',
+        initials:initialsOf(e.name)}));
+    const found=all.find(e=>e.id===this.codexFocus)??null;
+    const seg=(key,rule,mode)=>({key,isHidden:mode==='hidden',isParty:mode==='party',isActors:mode==='actors',
+      chars:chars.map(c=>({...c,checked:rule.actors.includes(c.id)}))});
+    const detail=found?{...found,initials:initialsOf(found.name),
+      discoverySeg:{...seg('discovery',found.discovery,found.discoveryMode),label:'who knows this NPC',who:found.discoveryLabel},
+      fields:found.fields.map(f=>({...f,...seg(f.key,f.rule,f.mode),isLinks:f.key==='links'})),
+      gmFields:found.gmFields.map(f=>Array.isArray(f.value)?{label:f.label,items:f.value}:{label:f.label,text:f.value}),
+      linksText:found.gmLinks.join(' ')}:null;
+    let previewHtml='';
+    if(detail&&this.codexPreview){
+      const ids=this.codexPreview==='party'?[]:[this.codexPreview];
+      const entry=svc.previewAs(ids).filter(e=>e.id===detail.id);
+      previewHtml=entry.length?renderPlayerCodexHtml(entry):renderPlayerCodexHtml([],{message:'This player does not know this NPC yet.'});
+    }
+    return {rows,total:all.length,known:all.filter(e=>e.discoveryMode!=='hidden').length,
+      hidden:all.filter(e=>e.discoveryMode==='hidden').length,detail,chars,hasChars:chars.length>0,
+      search:this.codexSearch,filterAll:this.codexFilter==='all',filterKnown:this.codexFilter==='known',filterHidden:this.codexFilter==='hidden',
+      previewOptions:[{value:'',label:'GM (everything)'},{value:'party',label:'The party'},...chars.map(c=>({value:c.id,label:c.name}))]
+        .map(o=>({...o,selected:o.value===this.codexPreview})),
+      previewHtml,previewing:Boolean(previewHtml),message:this.codexMessage,
+      playerAccess:Boolean(game.settings.get(MODULE_ID,CODEX_ACCESS_SETTING))};
+  }
+  #bindCodex(root) {
+    const run=fn=>fn().catch(err=>{this.codexMessage=err.message;toast(err.message,true);void this.render();});
+    root.querySelector('[data-ag-codex-search]')?.addEventListener('change',e=>{this.codexSearch=e.target.value.trim();void this.render();});
+    root.querySelectorAll('[data-ag-codex-filter]').forEach(el=>el.addEventListener('click',e=>{e.preventDefault();this.codexFilter=el.dataset.agCodexFilter;void this.render();}));
+    root.querySelectorAll('[data-ag-codex-focus]').forEach(el=>el.addEventListener('click',e=>{e.preventDefault();this.codexFocus=el.dataset.agCodexFocus;void this.render();}));
+    root.querySelector('[data-ag-codex-preview]')?.addEventListener('change',e=>{this.codexPreview=e.target.value;void this.render();});
+    root.querySelectorAll('[data-ag-codex-reveal]').forEach(el=>el.addEventListener('click',e=>{e.preventDefault();run(async()=>{
+      await codexService().setReveal(this.codexFocus,el.dataset.agCodexReveal,{mode:el.dataset.mode});
+      this.codexMessage='Saved. Players see the change next time they open the codex.';await this.render();});}));
+    root.querySelectorAll('[data-ag-codex-actor]').forEach(el=>el.addEventListener('change',e=>{run(async()=>{
+      await codexService().setReveal(this.codexFocus,el.dataset.agCodexActor,{mode:'actor',actorId:el.value,on:el.checked});
+      this.codexMessage='Saved. Players see the change next time they open the codex.';await this.render();});}));
+    root.querySelector('[data-ag-codex-import]')?.addEventListener('change',e=>{const f=e.target.files?.[0];e.target.value='';if(f)run(()=>this.#codexImport(f));});
+    root.querySelector('[data-ag-codex-access]')?.addEventListener('change',e=>{run(async()=>{
+      await game.settings.set(MODULE_ID,CODEX_ACCESS_SETTING,Boolean(e.target.checked));
+      this.setupMessage=e.target.checked?'Players can now open the NPC Codex (only revealed NPCs and fields).':'Players can no longer open the NPC Codex.';
+      await this.render();});});
+  }
+  async #codexAction(name) {
+    const svc=codexService();
+    switch(name){
+      case 'codex-save': {
+        const root=this.element;
+        const {rejected}=await svc.setDetails(this.codexFocus,{learned:root.querySelector('[data-ag-codex-learned]')?.value??'',
+          notes:root.querySelector('[data-ag-codex-notes]')?.value??'',links:root.querySelector('[data-ag-codex-links]')?.value??''});
+        this.codexMessage=rejected.length?`Saved. Not a linkable id, left out: ${rejected.join(', ')}. Use LOC-, FAC-, QUEST-, NPC- style ids.`:'Saved.';
+        toast(this.codexMessage,rejected.length>0);break;
+      }
+      case 'codex-cancel': this.codexMessage='Changes discarded.';break;
+      case 'codex-close': this.codexFocus=null;break;
+      case 'codex-hide-all': {
+        const entry=svc.get(this.codexFocus);
+        const yes=await DialogV2.confirm({window:{title:'Hide NPC from players'},modal:true,rejectClose:false,
+          content:`<p><strong>Hide ${escapeHtml(entry.name)} and every field from all players?</strong> What the party has learned and your notes are kept.</p>`,
+          yes:{label:'Hide from players'},no:{label:'Cancel'}});
+        if(!yes)return;
+        for(const key of ['discovery',...entry.fields.map(f=>f.key)])await svc.setReveal(entry.id,key,{mode:'hidden'});
+        this.codexMessage=`${entry.name} is hidden from players.`;break;
+      }
+      case 'codex-export': downloadJson(`AG_NPC_Codex_${new Date().toISOString().slice(0,10)}.json`,svc.exportAll());
+        this.codexMessage='Codex exported (GM file: it contains GM-only fields).';break;
+      case 'codex-player-view': await openCodexPlayerView();return;
+      case 'codex-open-actor': {const uuid=svc.get(this.codexFocus).uuid;const doc=uuid?await (globalThis.fromUuid??foundry.utils.fromUuid)(uuid):null;doc?.sheet?.render?.({force:true});return;}
+    }
+    await this.render();
+  }
+  async #codexImport(file) {
+    const svc=codexService();
+    const plan=svc.planImport(JSON.parse(await file.text()));
+    if(plan.errors.length){this.codexMessage=`${file.name} was not used: ${plan.errors.join(' ')}`;toast(this.codexMessage,true);await this.render();return;}
+    const yes=await DialogV2.confirm({window:{title:'Restore codex reveals'},modal:true,rejectClose:false,
+      content:`<p><strong>Replace reveals, learned text, links and notes for ${plan.apply.length} NPC(s)</strong> with the ones in ${escapeHtml(file.name)}?</p>${plan.missing.length?`<p>Not in this world, skipped: ${plan.missing.map(escapeHtml).join(', ')}</p>`:''}<p>NPC content is not changed; it comes from the package import.</p>`,
+      yes:{label:`Restore ${plan.apply.length} NPC(s)`},no:{label:'Cancel'}});
+    if(!yes)return;
+    const out=await svc.applyImport(plan);
+    this.codexMessage=`Restored ${out.done} NPC(s).${out.errors.length?` Failed: ${out.errors.join(' | ')}`:''}`;
+    toast(this.codexMessage,out.errors.length>0);await this.render();
+  }
   #fail(error) {
     console.error(`[${MODULE_ID}]`,error);
     this.message=String(error?.message??error);
@@ -1740,6 +1842,29 @@ class AshenGateMyAppearance extends HandlebarsApplicationMixin(ApplicationV2) {
   }
 }
 
+/** Read-only player Codex (0.33.0). Holds only the projection the GM sent; no Manager handlers. */
+class AshenGateCodexPlayer extends ApplicationV2 {
+  static DEFAULT_OPTIONS={id:'ashen-gate-codex-player',classes:['ag-app','ag-codex-window'],
+    window:{title:'Ashen Gate | NPC Codex',icon:'fa-solid fa-address-book',resizable:true},position:{width:620,height:640}};
+  constructor(options={}){super(options);codexPlayerApp=this;}
+  async _renderHTML(){
+    let entries=[],message='';
+    try{entries=await codexService().forPlayer();}catch(error){message=error.message;}
+    const version=game.modules.get(MODULE_ID)?.version??'';
+    return `<section class="ag-codex-body"><header class="ag-header"><div class="ag-header__title"><h2><span class="ag-header__brand">Ashen Gate</span> | NPC Codex</h2></div>`
+      +`<div class="ag-header__actions"><span class="ag-header__meta">v${escapeHtml(version)}</span><button type="button" class="ag-btn ag-btn--sm" data-ag-codex-refresh><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh</button></div></header>`
+      +renderPlayerCodexHtml(entries,{message})+`</section>`;
+  }
+  _replaceHTML(result,content){
+    content.innerHTML=result;
+    content.querySelector('[data-ag-codex-refresh]')?.addEventListener('click',e=>{e.preventDefault();void this.render();});
+  }
+}
+const initialsOf=name=>String(name??'').split(/\s+/).filter(w=>/^[A-Za-z]/.test(w)).slice(0,2).map(w=>w[0]).join('')||'?';
+let codexApi=null;
+let codexPlayerApp=null;
+const codexService=()=>codexApi??=createCodexService({game,moduleId:MODULE_ID});
+const openCodexPlayerView=()=>{codexPlayerApp??=new AshenGateCodexPlayer();return codexPlayerApp.render({force:true});};
 let appearanceController=null;
 let definitionsReader=null;
 let myAppearanceApp=null;
@@ -1764,6 +1889,10 @@ Hooks.once("init",()=>{
   game.settings.register(MODULE_ID,SOURCES_SETTING,{name:"Core sources",scope:"world",config:false,type:Object,default:{auto:true,packs:[],folders:[]}});
   game.settings.register(MODULE_ID,LINK_HISTORY_SETTING,{name:"Core link history",scope:"world",config:false,type:Array,default:[]});
   game.settings.register(MODULE_ID,HISTORY_SETTING,{name:"Organize history",scope:"world",config:false,type:Array,default:[]});
+  // NPC Codex (0.33.0): reveal state lives on each NPC Actor (flags.ashen-gate-manager.codex); this only gates the player view.
+  game.settings.register(MODULE_ID,CODEX_ACCESS_SETTING,{name:"NPC Codex player access",scope:"world",config:false,type:Boolean,default:false});
+  // Point-to-point query: a player's client asks the active GM, who answers with that player's projection only.
+  if(globalThis.CONFIG){CONFIG.queries??={};CONFIG.queries[CODEX_QUERY]=(data,options)=>codexService().handleQuery(data,options);}
   game.settings.registerMenu(MODULE_ID,"manager",{
     name:"Ashen Gate Manager", label:"Open Import Manager", icon:"fa-solid fa-boxes-stacked",
     hint:"GM-only package validation, preview, import and audit.", type:AshenGateManager, restricted:true
@@ -1772,6 +1901,11 @@ Hooks.once("init",()=>{
     name:'Ashen Gate | My Appearance',label:'Open My Appearance',
     hint:'Choose your own appearance or inherit the GM world default. Player-safe; no Manager administration.',
     icon:'fa-solid fa-palette',type:AshenGateMyAppearance,restricted:false
+  });
+  game.settings.registerMenu(MODULE_ID,'npcCodex',{
+    name:'Ashen Gate | NPC Codex',label:'Open NPC Codex',
+    hint:'The NPCs your GM has revealed to you. Read-only; needs the GM to share the codex and be connected.',
+    icon:'fa-solid fa-address-book',type:AshenGateCodexPlayer,restricted:false
   });
 });
 Hooks.once("ready",()=>{
@@ -1839,6 +1973,22 @@ Hooks.once("ready",()=>{
         auditTypedReferences({records,resolver,currentUser:()=>game.user}),
       renderMarkers:(text,resolver)=>renderGmReferenceMarkers({text,resolver,currentUser:()=>game.user})
     },
+    // NPC Codex (0.33.0). GM functions check the GM themselves; forPlayer/mount/openPlayerView are player-safe
+    // (a player gets only revealed NPCs and fields for their own characters, through the active GM).
+    codex:Object.freeze({
+      list:()=>codexService().list(), get:id=>codexService().get(id), characters:()=>codexService().characters(),
+      setReveal:(id,key,opts)=>codexService().setReveal(id,key,opts), setDetails:(id,patch)=>codexService().setDetails(id,patch),
+      previewAs:actorIds=>codexService().previewAs(actorIds), exportAll:()=>codexService().exportAll(),
+      forPlayer:()=>codexService().forPlayer(),
+      playerAccessEnabled:()=>codexService().playerAccessEnabled(),
+      openPlayerView:()=>openCodexPlayerView(),
+      /** Render the read-only player codex into an element (e.g. a Character Hub tab). Returns a refresh function. */
+      mount:async element=>{
+        const draw=async()=>{let entries=[],message='';try{entries=await codexService().forPlayer();}catch(e){message=e.message;}
+          element.innerHTML=renderPlayerCodexHtml(entries,{message});};
+        await draw();return draw;
+      }
+    }),
     playerAccess:{contract:"ag-player-access/1",getState:()=>({contract:"ag-player-access/1",moduleId:MODULE_ID,audience:"gm-only",playerAccessEnabled:false,configurable:false})},
     open:()=>{
       if(!game.user.isGM) return toast("Only GMs can open the Ashen Gate importer.",true);
@@ -1846,7 +1996,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.32.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.33.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */

@@ -328,3 +328,54 @@
   .ashen-gate-manager .aglib{grid-template-columns:minmax(0,1fr)}
   .ashen-gate-manager .aglib-rail{flex-direction:row;flex-wrap:wrap;position:static}
 }
+/* NPC Codex (0.33.0): GM view in the Library, read-only player window. */
+.ashen-gate-manager .agcodex-row{display:grid;grid-template-columns:40px minmax(0,1fr);gap:10px;align-items:center;width:100%;min-height:0;padding:6px 10px 6px 9px;border:0;border-left:3px solid transparent;border-radius:0;background:transparent;text-align:left;justify-content:stretch}
+.ashen-gate-manager .agcodex-row:hover{background:var(--ag-surface-hover)}
+.ashen-gate-manager .agcodex-row.is-focused{background:var(--ag-accent-soft);border-left-color:var(--ag-accent)}
+.ashen-gate-manager .agcodex-row__text{display:grid;gap:2px;min-width:0}
+.agcodex-portrait,.ag-codex-portrait{width:40px;height:40px;flex:none;display:grid;place-items:center;object-fit:cover;object-position:top;border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface-sunken);color:var(--ag-accent);font-weight:700}
+.agcodex-portrait--lg{width:88px;height:110px;font-size:24px}
+.ashen-gate-manager .agcodex-field{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 12px;align-items:start;padding:8px 0;border-bottom:1px solid var(--ag-border)}
+.ashen-gate-manager .agcodex-field--discovery{padding-top:0}
+.ashen-gate-manager .agcodex-field p{margin:2px 0 0}
+.ashen-gate-manager .agcodex-label{font-size:var(--ag-text-xs);letter-spacing:.06em;text-transform:uppercase;color:var(--ag-muted)}
+.ashen-gate-manager .agcodex-value{margin:2px 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
+.ashen-gate-manager ul.agcodex-value{white-space:normal;padding-left:18px}
+.ashen-gate-manager .agcodex-control{display:grid;justify-items:end;gap:4px}
+.ashen-gate-manager .agcodex-seg{display:inline-flex;border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface-sunken)}
+.ashen-gate-manager .agcodex-seg>button,.ashen-gate-manager .agcodex-seg summary{min-height:28px;padding:3px 10px;border:0;border-right:1px solid var(--ag-border);border-radius:0;background:transparent;color:var(--ag-muted);font-size:var(--ag-text-sm);display:inline-flex;align-items:center;gap:4px;cursor:pointer}
+.ashen-gate-manager .agcodex-seg summary{border-right:0;list-style:none}
+.ashen-gate-manager .agcodex-seg summary::-webkit-details-marker{display:none}
+.ashen-gate-manager .agcodex-seg .is-on{background:var(--ag-surface-hover);color:var(--ag-text)}
+.ashen-gate-manager .agcodex-seg .is-party{background:var(--ag-ok-soft);color:var(--ag-ok)}
+.ashen-gate-manager .agcodex-seg .is-actors{background:var(--ag-accent-soft);color:var(--ag-accent)}
+.ashen-gate-manager .agcodex-chars__pop{left:auto;right:0;bottom:auto;top:calc(100% + 4px);min-width:200px;max-height:240px;overflow:auto}
+.ashen-gate-manager .agcodex-chars__pop label{display:flex;align-items:center;gap:8px;padding:4px 8px}
+.ashen-gate-manager .agcodex-who{margin:0;font-size:var(--ag-text-xs);color:var(--ag-accent);text-align:right;max-width:220px}
+.ashen-gate-manager .agcodex-links,.ag-codex-player dd{display:flex;flex-wrap:wrap;gap:6px}
+.agcodex-link,.ag-codex-link{display:inline-flex;gap:6px;align-items:baseline;padding:2px 8px;border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface-raised);font-size:var(--ag-text-sm)}
+.agcodex-link code{font-size:var(--ag-text-xs);color:var(--ag-muted)}
+.ashen-gate-manager .agcodex-gm{padding:8px 12px;border:1px dashed color-mix(in srgb,var(--ag-danger) 50%,var(--ag-border));border-radius:var(--ag-radius);background:color-mix(in srgb,var(--ag-danger) 7%,var(--ag-surface-raised))}
+.ashen-gate-manager .agcodex-gm h4{color:var(--ag-danger)}
+.ashen-gate-manager .agcodex-gmrow{padding:4px 0}
+.ashen-gate-manager .agcodex-edit{display:grid;gap:var(--ag-space-2)}
+.ashen-gate-manager .agcodex-edit .ag-field{display:grid;gap:4px;font-size:var(--ag-text-sm);color:var(--ag-muted)}
+.ashen-gate-manager .agcodex-edit textarea,.ashen-gate-manager .agcodex-edit input{width:100%;color:var(--ag-text)}
+.ashen-gate-manager .agcodex-footer{display:flex;flex-wrap:wrap;gap:var(--ag-space-2);align-items:center}
+.ashen-gate-manager .agcodex-footer .ag-btn--primary{margin-left:auto}
+.ashen-gate-manager .agcodex-preview{display:grid;gap:var(--ag-space-2);padding-top:var(--ag-space-2);border-top:1px solid var(--ag-border)}
+.ashen-gate-manager .agcodex-preview__pick{display:flex;align-items:center;gap:8px;font-size:var(--ag-text-sm);color:var(--ag-muted)}
+.ashen-gate-manager .agcodex-filelabel{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:var(--ag-radius-sm);cursor:pointer}
+.ashen-gate-manager .agcodex-filelabel:hover{background:var(--ag-surface-hover)}
+.ag-codex-window .window-content{padding:0;overflow:auto}
+.ag-codex-body{display:flex;flex-direction:column;min-height:100%}
+.ag-codex-player{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:var(--ag-space-3);padding:var(--ag-space-3)}
+.ag-codex-player>.ag-empty{grid-column:1/-1}
+.ag-codex-card{display:grid;gap:var(--ag-space-2);align-content:start;min-width:0}
+.ag-codex-card__head{display:flex;gap:10px;align-items:center}
+.ag-codex-card__head h3{margin:0;font-size:var(--ag-text-lg)}
+.ag-codex-card__head p{margin:0;color:var(--ag-muted);font-size:var(--ag-text-sm)}
+.ag-codex-card dl{margin:0;display:grid;gap:6px}
+.ag-codex-card dt{font-size:var(--ag-text-xs);letter-spacing:.06em;text-transform:uppercase;color:var(--ag-muted)}
+.ag-codex-card dd{margin:0;overflow-wrap:anywhere}
+.ag-codex-card q{font-style:italic;color:var(--ag-accent)}

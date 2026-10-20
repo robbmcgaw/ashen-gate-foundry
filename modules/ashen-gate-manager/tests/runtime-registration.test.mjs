@@ -24,7 +24,9 @@ test("V14-shaped runtime registers GM-only settings menu and exposes launcher", 
   await import("../scripts/main.js");
   assert.ok(callbacks.has("init"));
   callbacks.get("init")();
-  assert.equal(menu.length,2);
+  assert.equal(menu.length,3);
+  assert.equal(menu[2].key,"npcCodex");
+  assert.equal(menu[2].restricted,false,"the player codex is player-safe; the GM side checks every request");
   assert.equal(menu[0].key,"manager");
   assert.equal(menu[1].key,"myAppearance");
   assert.equal(menu[1].restricted,false);
