@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.9.0 — 2026-10-20
+
+- **New read-only API `playerView(actor)`** for partner modules (Character Hub): `{active, guildhall: {name, rank}, facilities: [{key, facilityId, name, category, stage, room, roomOwner, benefits}], hirelings: [], hirelingsPublished: false}`. Facilities are the shared Guildhall's plus the character's owners' personal rooms.
+- Hirelings stay GM-private (as in the Hirelings tab), so `hirelings` is always empty. The view is always built from the public projection: no personnel, staffing or lease data, even for the GM.
+- GM or the Actor's owner only; anyone else is refused (`Actor access denied`), and players are refused while Headquarters Player Access is off. Additive only: no saved data changes.
+
 ## 0.8.1 — 2026-10-19
 
 - Uninstall / Return facility and Mark hireling departed now use Foundry dialogs instead of the browser's `confirm` (the desktop app has none), with a labelled action button and Cancel on the left. The fixture-delete prompt does the same.

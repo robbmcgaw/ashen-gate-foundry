@@ -10,6 +10,7 @@ import {hirelingState,stationed,derivePerkStatuses,markNonStacking,HIRE_REF} fro
 import {readNativeHirelingDefinitions} from './native-hireling-definitions.mjs';
 import {createPrivateStateStore,projectPublicState,VAULT_POINTER} from './private-state.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
+import {requirePlayerViewAccess,buildPlayerView} from './player-view.mjs';
 const {ApplicationV2,HandlebarsApplicationMixin}=foundry.applications.api;
 // Player edits are transported by server-attributed Actor document updates, not module socket packets.
 const ACK_TIMEOUT_MS=16000;
@@ -434,6 +435,8 @@ Hooks.once('init',()=>{
   exportState:()=>{if(!game.user.isGM)throw Error('Headquarters export is GM-only.');return structuredClone(read());},
   playerAccess:{contract:ACCESS_CONTRACT,getState:playerAccessState,setEnabled:setPlayerAccess},
   reconcileDepartures,
+  // 0.9.0: player-safe, read-only Guildhall view for one character (GM or the Actor's owner; Player Access applies). See player-view.mjs.
+  playerView:actor=>{requirePlayerViewAccess(actor,game.user,accessEnabled());return buildPlayerView(read(),actor,game.users);},
   getPersonnel:()=>{if(!game.user.isGM)throw Error('Personnel state API is GM-only.');return structuredClone(read().personnel??{format:'aghq-personnel/0.1',hirelings:[]});},
   // GM-only hand-off used by General Manager's single importer. Adds new facility definitions; existing ids are kept.
   previewFacilityImport:payload=>{
