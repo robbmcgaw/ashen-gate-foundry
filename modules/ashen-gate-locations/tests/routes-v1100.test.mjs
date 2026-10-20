@@ -52,10 +52,14 @@ test('legs are distance ÷ leg length rounded up, with the world default when th
   assert.equal(legsOf(normalizeRoute({distanceKm: 1.1, legKm: 0.1}), 10), 11, 'no extra leg from floating-point error');
   assert.equal(legsOf(normalizeRoute({distanceKm: 4}), 10), 1, 'a short route is one leg');
   assert.equal(legsOf(normalizeRoute({distanceKm: 25}), 5), 5, 'world default leg length');
-  assert.equal(legsOf(normalizeRoute({distanceKm: 25}), 'bad'), 3, 'bad setting falls back to the built-in default');
+  assert.equal(legsOf(normalizeRoute({distanceKm: 25}), 'bad'), 5, 'bad setting falls back to the built-in 5 km default');
+  assert.equal(legsOf(normalizeRoute({distanceKm: 25}), 10), 3, 'a world that saved 10 km keeps it');
   assert.equal(legsOf(normalizeRoute({}), 10), 0, 'no distance, no legs');
   const r = normalizeRoute({distanceKm: -4, legKm: 0, hazardBase: 140, state: 'nope'});
   assert.deepEqual([r.distanceKm, r.legKm, r.hazardBase, r.state], [0, null, ROUTE_DEFAULTS.hazardBase, 'unknown']);
+  assert.deepEqual({...ROUTE_DEFAULTS}, {legKm: 5, hazardBase: 5}, 'shipped defaults: 5 km legs, 5% base hazard');
+  assert.equal(normalizeRoute({hazardBase: 10}).hazardBase, 10, 'a saved base chance stays');
+  assert.equal(normalizeRoute({hazardBase: 0}).hazardBase, 0);
 });
 
 test('route ids come from the endpoints and are never reissued', () => {
@@ -255,7 +259,7 @@ test('Routes tab: GM editor and list; players see only discovered routes, read-o
   const papp = w.asUser('p1', () => { const a = new LocationsApp(); a.tab = 'routes'; return a; });
   const ph = await w.asUser('p1', () => papp._renderHTML());
   assert.match(ph, /\[TEST\] Harbor/);
-  assert.match(ph, /20 km · 2 legs/);
+  assert.match(ph, /20 km · 4 legs/);
   assert.doesNotMatch(ph, /Sunken|GM-only note|RTE-|New Route|data-rbind/);
   w.mod.api = w.gm;
 });
