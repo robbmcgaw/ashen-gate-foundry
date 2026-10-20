@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import {installGlobals, makeActor, users, FakeActorSheetV2} from './foundry-mock.mjs';
 import {registerHubSheet, createApi, actorOf} from '../scripts/main.mjs';
 import * as act from '../scripts/actions.mjs';
-import {headerData, conditionsData, skillsData, abilitiesData} from '../scripts/data.mjs';
+import {headerData, conditionsData, skillsData, abilitiesData, overviewData} from '../scripts/data.mjs';
 import {shellHtml} from '../scripts/views.mjs';
 import {openNativeSheet} from '../scripts/native.mjs';
 import {VERSION, MODULE_ID} from '../scripts/constants.mjs';
@@ -124,10 +124,18 @@ test('sheet renders header, tabs and Open native sheet; observers get a view-onl
   assert.match(html, /data-action="help"/);
   assert.match(html, /data-action="roll-skill" data-skill="ste"/);
   assert.doesNotMatch(html, /View only/);
+  assert.match(html, /class="agch-split"><aside class="agch-char"[\s\S]*<section class="agch-pane">/, 'character left, tabs right');
+  assert.match(html, /data-action="roll-check" data-ability="str"/);
+  assert.match(html, /data-action="roll-save" data-ability="str"/);
+  assert.match(html, /data-edit="hp.tempmax"/);
+  assert.match(html, /agch-ac__value">15</);
+  assert.match(html, /aria-selected="true" class="active"><i class="fa-solid fa-user" aria-hidden="true"><\/i> Overview/);
   installGlobals({user: users.observer});
   const view = await new Cls({document: makeActor()})._renderHTML();
   assert.match(view, /View only/);
   assert.match(view, /data-action="roll-skill" data-skill="ath" disabled/);
+  assert.match(view, /data-action="hp-damage"[^>]*disabled/);
+  assert.match(view, /data-action="roll-check" data-ability="str"[^>]*disabled/);
   assert.match(view, /data-action="open-native"[^>]*data-ag-always/, 'native sheet stays clickable');
 });
 
@@ -195,4 +203,43 @@ test('actorOf finds the Actor behind items and item effects', () => {
   assert.equal(actorOf(item), actor);
   assert.equal(actorOf({documentName: 'ActiveEffect', parent: item}), actor);
   assert.equal(actorOf({documentName: 'Item', parent: null}), null);
+});
+
+test('overview data: passives, senses and proficiency labels from dnd5e config, with fallbacks', () => {
+  installGlobals();
+  CONFIG.DND5E.skills.prc = {label: 'Perception'};
+  CONFIG.DND5E.armorProficiencies = {lgt: 'Light Armor'};
+  CONFIG.DND5E.languages = {standard: {label: 'Standard', children: {common: 'Common'}}};
+  const actor = makeActor({system: {
+    skills: {prc: {ability: 'wis', total: 2, passive: 12, proficient: 0}},
+    traits: {armorProf: {value: new Set(['lgt']), custom: ''}, weaponProf: {value: new Set(['sim'])}, languages: {value: new Set(['common', 'druidic']), custom: '[TEST] Ashtongue'}},
+    tools: {smith: {}}}});
+  actor.system.attributes.senses = {darkvision: 60, units: 'ft', special: ''};
+  const o = overviewData(actor);
+  assert.deepEqual(o.passives, [{key: 'prc', label: 'Perception', value: 12}]);
+  assert.deepEqual(o.senses, ['Darkvision 60 ft']);
+  assert.deepEqual(Object.fromEntries(o.proficiencies.map(p => [p.label, p.list])),
+    {Armor: ['Light Armor'], Weapons: ['Sim'], Tools: ['Smith'], Languages: ['Common', 'Druidic', '[TEST] Ashtongue']});
+  actor.system.attributes.senses = {ranges: {darkvision: 120}, units: 'ft'};
+  assert.deepEqual(overviewData(actor).senses, ['Darkvision 120 ft'], 'dnd5e ranges shape');
+});
+
+test('conditions carry their status icon when dnd5e provides one', () => {
+  installGlobals();
+  CONFIG.DND5E.conditionTypes.prone.img = 'prone.svg';
+  const c = conditionsData(makeActor());
+  assert.equal(c.find(x => x.id === 'prone').img, 'prone.svg');
+  assert.equal(c.find(x => x.id === 'blinded').img, '');
+});
+
+test('active conditions show as icons on the left; the full list opens in the conditions menu', async () => {
+  installGlobals();
+  const {Cls} = hubClass();
+  const sheet = new Cls({document: makeActor({statuses: ['prone']})});
+  let html = await sheet._renderHTML();
+  assert.match(html, /agch-foot__conds[\s\S]*data-action="condition" data-id="prone"/);
+  assert.doesNotMatch(html, /data-id="blinded"/, 'inactive ones only in the menu');
+  sheet.menu = 'conditions';
+  html = await sheet._renderHTML();
+  assert.match(html, /agch-menu--conditions[\s\S]*data-id="blinded"/);
 });

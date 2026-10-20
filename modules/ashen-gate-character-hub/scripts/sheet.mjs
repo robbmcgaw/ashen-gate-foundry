@@ -18,7 +18,14 @@ export const report = result => { if (result && result.ok === false && result.er
 
 /** Click handlers by data-action. Each receives (sheet, target, event). Views add their own entries. */
 export const ACTIONS = {
-  'hub-tab': (s, t) => { s.tab = t.dataset.tab; return s.render(); },
+  'hub-tab': (s, t) => { s.tab = t.dataset.tab; s.menu = null; return s.render(); },
+  'ag-subtab': (s, t) => { s.agTab = t.dataset.partner; return s.render(); },
+  'inv-view': (s, t) => { s.invView = t.dataset.view === 'party' ? 'party' : 'character'; return s.render(); },
+  'slot-menu': (s, t) => toggleMenu(s, `slot:${t.dataset.slot}`),
+  'conditions-menu': s => toggleMenu(s, 'conditions'),
+  'menu-close': s => toggleMenu(s, null),
+  'slot-equip': (s, t) => { s.menu = null; return items.equipItem(s.document, t.dataset.id, {slot: t.dataset.slot}); },
+  'slot-swap': (s, t) => items.swapSlots(s.document, t.dataset.id, t.dataset.slot, t.dataset.other, t.dataset.otherSlot),
   'retry': s => s.render({force: true}),
   'help': s => showHelp(s),
   'open-native': s => openNativeSheet(s.document),
@@ -46,6 +53,19 @@ export const ACTIONS = {
   'companion-detach': (s, t) => comp.detachPerk(s.document, t.dataset.entry, t.dataset.id),
   'doll-art': s => { s.dollArt = s.dollArt === 'token' ? 'portrait' : 'token'; return s.render(); }
 };
+/** One small menu at a time (a slot's actions or the conditions list); the same key again closes it. */
+function toggleMenu(sheet, key) {
+  sheet.menu = key && sheet.menu !== key ? key : null;
+  return sheet.render();
+}
+/** Hides inventory rows whose name does not contain the search text (no re-render, so typing keeps focus). */
+export function applyFilter(root, text) {
+  const q = String(text ?? '').trim().toLowerCase();
+  for (const row of root?.querySelectorAll?.('.agch-body .agch-item, .agch-body .agch-plist > li') ?? []) {
+    const name = (row.querySelector?.('.agch-item__name')?.textContent ?? row.textContent ?? '').toLowerCase();
+    row.hidden = !!q && !name.includes(q);
+  }
+}
 function hpButton(sheet, target, sign) {
   const input = target.closest('.agch-hp')?.querySelector('[data-hp-amount]');
   const amount = Math.abs(Math.trunc(Number(input?.value) || 0));
@@ -60,7 +80,6 @@ export const EDITS = {
   'hp.tempmax': (s, i) => act.setHp(s.document, 'tempmax', i.value),
   'currency': (s, i) => items.setCurrency(s.document, i.dataset.key, i.value),
   'item-qty': (s, i) => items.setQuantity(s.document, i.dataset.id, i.value),
-  'equip-slot': (s, i) => i.value ? items.equipItem(s.document, i.value, {slot: i.dataset.slot}) : null,
   'item-slot': (s, i) => items.setSlot(s.document, i.dataset.id, i.value),
   'companion-add': (s, i) => i.value ? comp.addCompanion(s.document, i.value, i.dataset.kind) : null,
   'companion-attach': (s, i) => i.value ? comp.attachPerk(s.document, i.dataset.entry, i.value) : null,
@@ -83,12 +102,17 @@ export function createHubSheetClass(Base) {
   return class CharacterHubSheet extends Base {
     static DEFAULT_OPTIONS = {
       classes: ['ag-app', 'ag-character-hub'],
-      position: {width: 860, height: 780},
+      position: {width: 1200, height: 800},
       window: {resizable: true},
       form: {submitOnChange: false, closeOnSubmit: false}
     };
     static LABEL = SHEET_LABEL;
-    tab = 'character';
+    tab = 'overview';
+    /** Open small menu: 'slot:<id>', 'conditions' or null. */
+    menu = null;
+    invView = 'character';
+    agTab = null;
+    filter = '';
 
     get hubContext() {
       const actor = this.document, user = globalThis.game?.user;
@@ -110,8 +134,13 @@ export function createHubSheetClass(Base) {
       content.innerHTML = result;
       const next = content.querySelector?.('.agch-body');
       if (next) next.scrollTop = scroll;
+      applyFilter(content, this.tab === 'inventory' ? this.filter : '');
       if (!this._agchBound) {   // listeners live on the stable content element, so bind once
         content.addEventListener?.('change', ev => this._onHubChange(ev));
+        content.addEventListener?.('input', ev => { if (ev.target?.matches?.('[data-filter]')) { this.filter = ev.target.value; applyFilter(content, this.filter); } });
+        content.addEventListener?.('contextmenu', ev => this._onContextMenu(ev));
+        content.addEventListener?.('click', ev => this._onOutsideClick(ev));
+        content.addEventListener?.('keydown', ev => { if (ev.key === 'Escape' && this.menu) { ev.stopPropagation(); toggleMenu(this, null); } });
         content.addEventListener?.('submit', ev => ev.preventDefault());
         content.addEventListener?.('dragover', ev => { if (ev.target?.closest?.('[data-drop-companion]')) ev.preventDefault(); });
         content.addEventListener?.('drop', ev => this._onCompanionDrop(ev));
@@ -138,6 +167,24 @@ export function createHubSheetClass(Base) {
         console.error(`${MODULE_ID} | ${action}`, err);
         return report({ok: false, error: err?.message ?? String(err)});
       }
+    }
+
+    /** Right-click on a slot opens its menu (the same one a click opens). */
+    _onContextMenu(event) {
+      const slot = event.target?.closest?.('[data-action="slot-menu"]');
+      if (!slot) return null;
+      event.preventDefault(); event.stopPropagation();
+      this.menu = `slot:${slot.dataset.slot}`;
+      return this.render();
+    }
+
+    /** A click outside the open menu (and not on a menu opener) closes it. */
+    _onOutsideClick(event) {
+      if (!this.menu) return null;
+      const t = event.target;
+      if (t?.closest?.('.agch-menu, [data-action="slot-menu"], [data-action="conditions-menu"]')) return null;
+      this.menu = null;
+      return this.render();
     }
 
     /** Drops on a Companions zone are handled here; other drops fall through to Foundry's own sheet handling. */

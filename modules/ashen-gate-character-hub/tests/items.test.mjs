@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {installGlobals, makeActor, users, FakeActorSheetV2} from './foundry-mock.mjs';
 import {inventoryData, combatData, spellsData, featuresData, equipmentLayout, equipChoices, naturalSlot, attunementData} from '../scripts/items.mjs';
 import * as ia from '../scripts/item-actions.mjs';
-import {createHubSheetClass} from '../scripts/sheet.mjs';
+import {createHubSheetClass, applyFilter} from '../scripts/sheet.mjs';
 import {MODULE_ID} from '../scripts/constants.mjs';
 
 const act = type => [{activation: {type}}];
@@ -207,14 +207,23 @@ test('every tab renders for owner and observer; observer controls disabled excep
   sheet.tab = 'inventory';
   const inv = await sheet._renderHTML();
   assert.match(inv, /Attuned 1 \/ 3/);
-  assert.match(inv, /data-slot="body"[\s\S]*Chain Mail/);
-  assert.match(inv, /data-edit="equip-slot" data-slot="feet"/);
-  assert.match(inv, /Other equipped[\s\S]*Odd Stone/);
+  assert.match(inv, /data-slot="body"[^>]*data-tooltip="\[TEST\] Chain Mail"/);
+  assert.match(inv, /data-slot="ring1"[^>]*is-attuned|is-attuned[^>]*data-slot="ring1"/);
+  assert.match(inv, /data-slot="other"[^>]*Other equipped: 1/, 'the odd stone fits no slot');
+  sheet.menu = 'slot:feet';
+  assert.match(await sheet._renderHTML(), /data-action="slot-equip" data-id="boots" data-slot="feet"/);
+  sheet.menu = 'slot:other';
+  assert.match(await sheet._renderHTML(), /agch-menu[\s\S]*Odd Stone[\s\S]*data-edit="item-slot" data-id="stone"/);
   installGlobals({user: users.observer});
   const view = new Cls({document: actorWith()}); view.tab = 'inventory';
   const vh = await view._renderHTML();
   assert.match(vh, /data-action="item-equip" data-id="bow" disabled/);
   assert.match(vh, /data-action="item-sheet" data-id="bow" data-ag-always/);
+  assert.match(vh, /data-action="slot-menu" data-slot="mainhand" data-ag-always/, 'observers can open a slot to look');
+  view.menu = 'slot:mainhand';
+  const vm = await view._renderHTML();
+  assert.match(vm, /data-action="item-unequip" data-id="sword" disabled/);
+  assert.match(vm, /data-action="item-sheet" data-id="sword" data-ag-always/);
 });
 
 test('sheet dispatch wires item buttons and edits to the actions', async () => {
@@ -230,4 +239,74 @@ test('sheet dispatch wires item buttons and edits to the actions', async () => {
   assert.equal(actor.calls.at(-1)[0], 'longRest');
   await sheet.dispatch('item-sheet', {dataset: {id: 'sword'}}, {});
   assert.equal(actor.items.get('sword').calls.at(-1)[0], 'sheet');
+});
+
+test('slot menu: click toggles, one menu at a time, right-click opens, outside click closes', async () => {
+  installGlobals();
+  const Cls = createHubSheetClass(FakeActorSheetV2);
+  const sheet = new Cls({document: actorWith()});
+  await sheet.dispatch('slot-menu', {dataset: {slot: 'head'}}, {});
+  assert.equal(sheet.menu, 'slot:head');
+  await sheet.dispatch('conditions-menu', {dataset: {}}, {});
+  assert.equal(sheet.menu, 'conditions', 'opening another replaces it');
+  await sheet.dispatch('conditions-menu', {dataset: {}}, {});
+  assert.equal(sheet.menu, null, 'same opener closes');
+  const slot = {dataset: {slot: 'feet'}};
+  let prevented = false;
+  sheet._onContextMenu({target: {closest: sel => sel.includes('slot-menu') ? slot : null}, preventDefault: () => { prevented = true; }, stopPropagation() {}});
+  assert.equal(sheet.menu, 'slot:feet'); assert.ok(prevented);
+  sheet._onOutsideClick({target: {closest: () => ({})}});
+  assert.equal(sheet.menu, 'slot:feet', 'clicks inside the menu keep it open');
+  sheet._onOutsideClick({target: {closest: () => null}});
+  assert.equal(sheet.menu, null);
+});
+
+test('slot equip goes through equipItem (attunement prompt kept) into the chosen slot', async () => {
+  installGlobals();
+  const Cls = createHubSheetClass(FakeActorSheetV2);
+  const actor = actorWith();
+  const sheet = new Cls({document: actor}); sheet.menu = 'slot:offhand';
+  await sheet.dispatch('slot-equip', {dataset: {id: 'shield', slot: 'offhand'}}, {});
+  assert.deepEqual(actor.items.get('shield').calls, [['update', {'system.equipped': true, [`flags.${MODULE_ID}.slot`]: 'offhand'}]]);
+  assert.equal(sheet.menu, null);
+});
+
+test('swap trades the two items\' slots; observers are refused', async () => {
+  installGlobals();
+  const actor = actorWith();
+  actor.items.get('shield').system.equipped = true;
+  assert.equal((await ia.swapSlots(actor, 'sword', 'mainhand', 'shield', 'offhand')).ok, true);
+  assert.deepEqual(actor.items.get('sword').calls.at(-1), ['update', {[`flags.${MODULE_ID}.slot`]: 'offhand'}]);
+  assert.deepEqual(actor.items.get('shield').calls.at(-1), ['update', {[`flags.${MODULE_ID}.slot`]: 'mainhand'}]);
+  const layout = equipmentLayout(actor);
+  assert.equal(layout.slots.find(s => s.id === 'mainhand').item.id, 'shield');
+  assert.equal(layout.slots.find(s => s.id === 'offhand').item.id, 'sword');
+  installGlobals({user: users.observer});
+  assert.equal((await ia.swapSlots(actorWith(), 'sword', 'mainhand', 'mail', 'body')).ok, false);
+});
+
+test('main hand menu offers Swap with the off-hand item', async () => {
+  installGlobals();
+  const Cls = createHubSheetClass(FakeActorSheetV2);
+  const actor = actorWith(); actor.items.get('shield').system.equipped = true;
+  const sheet = new Cls({document: actor}); sheet.menu = 'slot:mainhand';
+  const html = await sheet._renderHTML();
+  assert.match(html, /data-action="slot-swap" data-id="sword" data-slot="mainhand" data-other="shield" data-other-slot="offhand"/);
+});
+
+test('inventory toggle switches to the party view; search filter hides non-matching rows', async () => {
+  installGlobals();
+  const Cls = createHubSheetClass(FakeActorSheetV2);
+  const sheet = new Cls({document: actorWith()}); sheet.tab = 'inventory';
+  await sheet.dispatch('inv-view', {dataset: {view: 'party'}}, {});
+  assert.equal(sheet.invView, 'party');
+  const html = await sheet._renderHTML();
+  assert.match(html, /Party stash[\s\S]*Not installed or not active/);
+  assert.doesNotMatch(html, /Healing Potion/);
+  const row = (name) => ({hidden: false, querySelector: () => ({textContent: name})});
+  const rows = [row('[TEST] Rope'), row('[TEST] Longsword')];
+  applyFilter({querySelectorAll: () => rows}, 'rope');
+  assert.deepEqual(rows.map(r => r.hidden), [false, true]);
+  applyFilter({querySelectorAll: () => rows}, '');
+  assert.deepEqual(rows.map(r => r.hidden), [false, false]);
 });

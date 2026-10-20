@@ -105,7 +105,7 @@ function headquarters(actor, api) {
 }
 
 const STASH_SHOWN = 8;
-function utilities(actor, api) {
+function utilities(actor, api, {shown = STASH_SHOWN} = {}) {
   let purse = null;
   try { purse = api.purse?.totals?.(); } catch (err) { return `<p class="agch-muted">${esc(err?.message ?? 'Party purse unavailable.')}</p>`; }
   if (!purse) return '<p class="agch-muted">Party purse unavailable.</p>';
@@ -114,8 +114,8 @@ function utilities(actor, api) {
   let items = null;
   try { items = typeof api.stash?.listItems === 'function' ? api.stash.listItems() : null; } catch { items = null; }
   if (!Array.isArray(items)) return coins;
-  const rows = items.slice(0, STASH_SHOWN).map(i => `<li>${esc(i.name)}${num(i.quantity) > 1 ? ` <span class="agch-muted">×${num(i.quantity)}</span>` : ''}</li>`);
-  return coins + list(rows, 'The stash is empty.') + (items.length > STASH_SHOWN ? `<p class="agch-muted">and ${items.length - STASH_SHOWN} more</p>` : '');
+  const rows = items.slice(0, shown).map(i => `<li>${esc(i.name)}${num(i.quantity) > 1 ? ` <span class="agch-muted">×${num(i.quantity)}</span>` : ''}</li>`);
+  return coins + list(rows, 'The stash is empty.') + (items.length > shown ? `<p class="agch-muted">and ${items.length - shown} more</p>` : '');
 }
 
 /**
@@ -124,16 +124,16 @@ function utilities(actor, api) {
  * feature-detected inside each summary, which falls back to the older reads when they are absent.
  */
 export const PANELS = [
-  {id: 'ashen-gate-profession-ledger', label: 'Profession Ledger', icon: 'fa-solid fa-hammer', summary: professions,
+  {id: 'ashen-gate-profession-ledger', tab: 'Professions', label: 'Profession Ledger', icon: 'fa-solid fa-hammer', summary: professions,
     open: (api, actor) => api.open({actorId: actor.id, view: 'individual'})},
-  {id: 'ashen-gate-skill-trees', label: 'Skill Trees', icon: 'fa-solid fa-diagram-project', summary: skillTrees,
+  {id: 'ashen-gate-skill-trees', tab: 'Perks', label: 'Skill Trees', icon: 'fa-solid fa-diagram-project', summary: skillTrees,
     open: (api, actor) => api.open({actorId: actor.id})},
-  {id: 'ashen-gate-factions', label: 'Factions & Renown', icon: 'fa-solid fa-flag', summary: factions, open: api => api.open()},
-  {id: 'ashen-gate-quest-manager', label: 'Quest Log', icon: 'fa-solid fa-scroll', summary: quests,
+  {id: 'ashen-gate-factions', tab: 'Standing', label: 'Factions & Renown', icon: 'fa-solid fa-flag', summary: factions, open: api => api.open()},
+  {id: 'ashen-gate-quest-manager', tab: 'Quests', label: 'Quest Log', icon: 'fa-solid fa-scroll', summary: quests,
     open: (api, actor, ref) => ref ? api.openObjective(ref) : api.open()},
-  {id: 'ashen-gate-locations', label: 'Locations', icon: 'fa-solid fa-map-location-dot', summary: locations,
+  {id: 'ashen-gate-locations', tab: 'Locations', label: 'Locations', icon: 'fa-solid fa-map-location-dot', summary: locations,
     open: (api, actor, ref) => ref ? api.openLocation(ref) : api.open(), missing: 'the party\'s current or recent location'},
-  {id: 'ashen-gate-headquarters', label: 'Headquarters', icon: 'fa-solid fa-chess-rook', summary: headquarters,
+  {id: 'ashen-gate-headquarters', tab: 'Base', label: 'Headquarters', icon: 'fa-solid fa-chess-rook', summary: headquarters,
     open: api => api.open()},
   {id: 'ashen-gate-utilities', label: 'Utilities', icon: 'fa-solid fa-toolbox', summary: utilities,
     open: api => api.stash?.open ? api.stash.open() : api.open(), openLabel: 'Open party stash'}
@@ -151,12 +151,28 @@ export function panelState(panel, actor) {
   }
 }
 
-export function partnersTab({actor}) {
-  return `<div class="agch-panels">${PANELS.map(p => {
-    const s = panelState(p, actor);
-    return `<section class="ag-card agch-panel" data-partner="${p.id}" data-state="${s.state}"><header class="agch-panel__head"><h3><i class="${p.icon}" aria-hidden="true"></i> ${esc(p.label)}</h3>
-      ${s.state === 'missing' ? '' : btn('partner-open', p.openLabel ?? `Open ${p.label}`, {kind: 'sm', icon: 'fa-solid fa-up-right-from-square', data: {partner: p.id}, always: true})}</header>${s.html}</section>`;
-  }).join('')}</div><p class="agch-muted agch-hint">Each module keeps its own records; these are read-only summaries. Open a module to make changes there.</p>`;
+/** One partner panel as a card: heading, Open button (when the module is active) and its summary. */
+export function panelHtml(panel, actor) {
+  const s = panelState(panel, actor);
+  return `<section class="ag-card agch-panel" data-partner="${panel.id}" data-state="${s.state}"><header class="agch-panel__head"><h3><i class="${panel.icon}" aria-hidden="true"></i> ${esc(panel.label)}</h3>
+    ${s.state === 'missing' ? '' : btn('partner-open', panel.openLabel ?? `Open ${panel.label}`, {kind: 'sm', icon: 'fa-solid fa-up-right-from-square', data: {partner: panel.id}, always: true})}</header>${s.html}</section>`;
+}
+
+/** Panels shown as Ashen Gate sub-tabs (Utilities lives in Inventory → Party stash). */
+export const AG_PANELS = PANELS.filter(p => p.tab);
+
+/** Ashen Gate tab: one sub-tab per partner module; only the chosen one is read. */
+export function ashenGateTab({actor, sheet}) {
+  const current = AG_PANELS.find(p => p.id === sheet?.agTab) ?? AG_PANELS[0];
+  const tabs = AG_PANELS.map(p => `<button type="button" data-action="ag-subtab" data-partner="${p.id}" data-ag-always aria-pressed="${p === current}"${partnerApi(p.id) ? '' : ' class="is-missing"'}>${esc(p.tab)}</button>`).join('');
+  return `<div class="agch-toolbar"><div class="agch-seg agch-seg--wrap" role="group" aria-label="Ashen Gate section">${tabs}</div></div>
+    ${panelHtml(current, actor)}<p class="agch-muted agch-hint">Each module keeps its own records; these are read-only summaries. Open a module to make changes there.</p>`;
+}
+
+/** Inventory → Party stash: Utilities' purse and every stash item the user may see. */
+export function partyStashHtml(actor) {
+  const panel = PANELS.find(p => p.id === 'ashen-gate-utilities');
+  return panelHtml({...panel, label: 'Party stash', summary: (a, api) => utilities(a, api, {shown: Infinity})}, actor);
 }
 
 export async function openPartner(actor, id, ref = null) {
