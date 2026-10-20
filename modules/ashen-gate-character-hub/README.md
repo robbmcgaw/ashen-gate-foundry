@@ -5,7 +5,7 @@ An alternative character sheet for dnd5e 6 on Foundry V14. It shows and changes 
 ## Open it
 Open a character → the sheet's title-bar menu (**Sheet** / gear) → choose **Ashen Gate Character Hub**. Switch back the same way. It is never the default unless you pick it. **Open native sheet** in the Hub's header opens the standard dnd5e sheet at any time.
 
-## What it does (0.7.0)
+## What it does
 Layout: the character on the left, the chosen section in the middle (only it scrolls), and an icon rail of sections down the right edge (hover for names). Opens at 1240 × 800; under about 900 px wide everything stacks. A header slider fades the window background (per user, 100-20 %).
 - Left: portrait with AC, equipment slots around it, initiative roll, speed, proficiency, HP bar (Damage/Heal, edit HP/temp/max adj.), six abilities (check and save rolls), inspiration, conditions box (active ones; + to add), hit dice with Short/Long Rest, exhaustion, resources.
 - Equipment slots (display only, no slot rules): click opens the item, right-click unequips, ⋯ opens Use, Attune, Swap (hands, rings), Move to party stash, Move to…; an empty slot offers Equip… with carried items that fit. Equipping an item that needs attunement asks first; at the limit it lists attuned items to unattune.
@@ -16,7 +16,25 @@ Layout: the character on the left, the chosen section in the middle (only it scr
 - Features: class/species/background and features by type.
 - Ashen Gate: sub-tabs Professions, Perks, Renown, Quests, Locations, Base. Each shows that module's own view when it offers an embed (see below), else a read-only summary with an Open button.
 - Companions: one mount and GM-limited pets, each an Item on the character, with perk Items attached (display only).
-- GM Setup (GM only): default pet limit and per-character limits.
+- GM Setup (GM only): Player visibility (which parts players see), default pet limit and per-character limits.
+
+## Player visibility (0.9.0)
+The GM chooses which parts of the Hub players see, so systems can be introduced one at a time: **GM Setup → Player visibility**, one switch per part, plus quick **Everything** and **Core only** buttons (they just set the switches). Default: everything on, so nothing changes until the GM turns something off.
+
+Parts: Overview (skills, saves, senses), Combat, Inventory: character items, Inventory: party stash, Magic, Features, Short and Long Rest buttons, Equipment slots (paper doll), Companions, and each Ashen Gate sub-tab (Professions, Perks, Renown including Pantheon, Quests, Locations, Base). "Core only" keeps Overview, Combat, Inventory items, Magic, Features, Rests and the paper doll on and turns the rest off. The character column (HP, abilities, conditions, hit dice) always shows.
+
+- **Players** (anyone who is not a GM) don't get a part that is off: its tab, sub-tab, segment or buttons are removed, no placeholder. A tab whose parts are all off disappears from the rail. With the paper doll off, AC shows as a tile.
+- **Auto-hide:** a part backed by another module is also removed for players while that module is not active, or its own Player Access is off (read through its public `api.playerAccess.getState()`, contract `ag-player-access/1`; for the party stash also Utilities' `api.stash.isEnabled()`). A player whose summary that module refuses also gets no sub-tab for it. The Hub never reads another module's settings or flags.
+- **The GM** always sees everything; a part players can't see carries a badge saying why: "Hidden from players: turned off in GM Setup", "… Renown Player Access is off", "… Quest Log is not active", "… the party stash is off in Utilities". Hidden rail icons are dimmed with an eye-slash.
+- **Enforced, not just hidden:** while a part is hidden from players, the Hub's own actions for it refuse players: Companions add/remove/reorder/attach/detach, equipment slot overrides (Move to…, Swap, equip into a chosen slot), Short/Long Rest, and Move to party stash. Parts backed by other modules keep relying on those modules' own checks. Hiding a part never changes character data.
+- **Live:** changing a switch, or a partner module's Player Access (or the Utilities stash switch), re-draws open Hub sheets on every client (the Hub's setting `onChange` and Foundry's `createSetting`/`updateSetting`/`deleteSetting` hooks for partner module ids; only the key is looked at). Activating or deactivating a module needs Foundry's usual reload.
+
+Stored shape (world setting `ashen-gate-character-hub.playerVisibility`, GM only): `{partKey: boolean}`. A missing key means shown, so the default `{}` shows everything and parts added later start shown. Part keys: `overview`, `combat`, `inventory`, `partyStash`, `magic`, `features`, `rest`, `equipment`, `companions`, `professions`, `perks`, `renown`, `quests`, `locations`, `base`. Synthetic example (Combat and Renown hidden from players, everything else shown):
+
+```json
+{"overview": true, "combat": false, "inventory": true, "partyStash": true, "magic": true, "features": true, "rest": true,
+ "equipment": true, "companions": true, "professions": true, "perks": true, "renown": false, "quests": true, "locations": true, "base": true}
+```
 
 ## Embedded module views
 When a partner module offers `api.embed.mount(element, {actorId, mode})` (returning `{unmount, refresh}`), the Hub shows that module's own view in place of its summary. The partner draws it, handles its buttons and checks its own permissions; the Hub only provides the element and keeps the view alive across re-renders. Modes the Hub asks for: Utilities `stash` (Inventory → Party stash), Profession Ledger `individual`, Skill Trees, Factions, Quest Log, Locations and Headquarters `character`. A partner without the API, or that throws, falls back to the summary or a short note.
@@ -32,7 +50,7 @@ When a partner module offers `api.embed.mount(element, {actorId, mode})` (return
 | Ashen Gate → Base | Headquarters 0.10.0 | Guildhall, rank, this character's facilities and benefits, Open |
 
 ## Ashen Gate panels
-Each panel uses only that module's public API (`game.modules.get(id)?.api`) and shows only what that module lets the current user see. Missing, hidden or failing modules show "Not installed" or "Unavailable"; the sheet keeps working.
+Each panel uses only that module's public API (`game.modules.get(id)?.api`) and shows only what that module lets the current user see. Players don't get a panel for a missing or hidden module at all (see Player visibility); the GM sees "Not installed" or "Unavailable" with a badge, and the sheet keeps working.
 
 | Panel | Reads | Open goes to |
 |---|---|---|
@@ -53,6 +71,7 @@ APIs that would make the panels fuller (to request from the owning modules):
 ## Saved data
 - `flags.ashen-gate-character-hub.slot` on an Item, when the owner moves or swaps it to another equipment slot. It changes only where the item shows.
 - `flags.ashen-gate-character-hub.companions` on a character: the ordered companion list `[{id, kind: 'mount'|'pet', itemId, perkItemIds}]`. The Items themselves are ordinary Items on the character.
+- World setting `playerVisibility` (`{partKey: boolean}`, default `{}` = everything shown), GM only. See Player visibility.
 - World settings `petCap` (default 0) and `petCapOverrides` (`{actorId: number | 'none' | 'unlimited'}`), GM only.
 - Client setting `windowOpacity` (20-100, default 100): this user's window background opacity.
 
@@ -60,7 +79,7 @@ APIs that would make the panels fuller (to request from the owning modules):
 One mount per character; pets up to the GM's limit (world default 0, so no pets until the GM raises it; per-character override). A world that already saved a limit keeps it. Limits are checked in the add function itself, not just the UI, and lowering a limit never removes pets. Perk Items attached to a companion only display their own text: the Hub does not apply bonuses or Active Effects.
 
 ## Permissions
-Owners and the GM can change and roll. Observers can look only (the actions refuse them too, not just the buttons). Limited viewers see portrait and name.
+Owners and the GM can change and roll. Observers can look only (the actions refuse them too, not just the buttons). Limited viewers see portrait and name. Parts the GM hides from players are refused to players in the Hub's actions too (see Player visibility).
 
 ## Public API
 `game.modules.get('ashen-gate-character-hub')?.api`
@@ -68,6 +87,12 @@ Owners and the GM can change and roll. Observers can look only (the actions refu
 - `openNativeSheet(actor)` → opens dnd5e's standard character sheet.
 - `companions(actor)` → `{mount, pets, petCap}` (read only); `petCapFor(actor)`.
 - `registerPetSlotSource(id, fn)` / `unregisterPetSlotSource(id)`: reserved for a later companion skill tree. `fn(actor)` returns extra pet slots added to the GM's limit ('No pets' and 'Unlimited' overrides still win). Nothing registers one yet.
+- `playerVisibility` (0.9.0):
+  - `parts()` → `[{key, label, partner}]` (`partner` is the backing module id or null); `presets()` → `[{id, label}]` (`everything`, `core`).
+  - `get()` → the stored switches as `{partKey: boolean}` (every part, missing = true).
+  - `isShown(key)` → `true` when players see that part (the GM's switch and the partner's Player Access); `hiddenReason(key)` → the reason string, or `null`.
+  - `canSee(key)` → `true` for the current user (always for the GM).
+  - `set({partKey: boolean})` and `applyPreset(id)` → GM only, resolve to `{ok, result | error}`; unknown keys and non-booleans are refused.
 - `nativeSheetAvailable()`, `sheetClass`, `version`.
 
 ## Not yet

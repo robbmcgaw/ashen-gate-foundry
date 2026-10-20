@@ -6,6 +6,7 @@ import {MODULE_ID, VERSION, SHEET_LABEL} from './constants.mjs';
 import {createHubSheetClass} from './sheet.mjs';
 import {openNativeSheet, nativeSheetClass} from './native.mjs';
 import {registerCompanionSettings, petCapFor, companionsData, registerPetSlotSource, unregisterPetSlotSource} from './companions.mjs';
+import {registerVisibilitySetting, PARTS, PRESETS, readVisibility, setVisibility, applyPreset, hiddenReason, canSee} from './visibility.mjs';
 
 let HubSheet = null;
 
@@ -34,6 +35,17 @@ export function scheduleRender(actor, delay = 50) {
   clearTimeout(pending.get(actor));
   pending.set(actor, setTimeout(() => { pending.delete(actor); for (const app of openHubs(actor)) app.render(); }, delay));
 }
+/** Re-draws every open Hub (a world setting that changes what is shown). One render per burst. */
+let allPending = null;
+export function renderAllHubs(delay = 50) {
+  clearTimeout(allPending);
+  allPending = setTimeout(() => { allPending = null; for (const app of globalThis.foundry?.applications?.instances?.values?.() ?? []) if (HubSheet && app instanceof HubSheet && app.rendered) app.render(); }, delay);
+}
+/** Modules whose world settings (Player Access, the stash switch) change what players see in the Hub. */
+const PARTNER_IDS = new Set(PARTS.map(p => p.partner).filter(Boolean));
+/** True for a changed Setting document of a partner module. Only the key is looked at, never the value: the Hub re-reads their public APIs. */
+export const isPartnerSetting = setting => { const key = String(setting?.key ?? ''); return PARTNER_IDS.has(key.split('.')[0]); };
+
 /** The Actor a changed document belongs to (an effect may sit on an Item on the Actor). */
 export const actorOf = doc => { for (let d = doc, i = 0; d && i < 3; d = d.parent, i++) if (d.documentName === 'Actor') return d; return null; };
 
@@ -56,6 +68,21 @@ export function createApi() {
     companions: actor => { const d = companionsData(actor); return {mount: d.mount ? {itemId: d.mount.itemId, name: d.mount.item.name, perkItemIds: d.mount.perkItemIds} : null,
       pets: d.pets.map(p => ({itemId: p.itemId, name: p.item.name, perkItemIds: p.perkItemIds})), petCap: d.cap === Infinity ? null : d.cap}; },
     petCapFor,
+    /**
+     * Which Hub parts players see. parts() lists {key, label, partner}; get() is the stored {key: boolean}; isShown(key)
+     * is true when players see it (the GM's switch and the partner module's Player Access); hiddenReason(key) says why not.
+     * set(patch) and applyPreset(id) are GM-only and resolve to {ok, result | error}.
+     */
+    playerVisibility: Object.freeze({
+      parts: () => PARTS.map(({key, label, partner}) => ({key, label, partner: partner ?? null})),
+      presets: () => PRESETS.map(({id, label}) => ({id, label})),
+      get: () => readVisibility(),
+      isShown: key => hiddenReason(key) === null,
+      canSee: key => canSee(key),
+      hiddenReason: key => hiddenReason(key),
+      set: patch => setVisibility(patch),
+      applyPreset: id => applyPreset(id)
+    }),
     /** Reserved for a later companion skill tree: fn(actor) → extra pet slots added to the GM's limit. Unused today. */
     registerPetSlotSource,
     unregisterPetSlotSource
@@ -68,7 +95,8 @@ if (globalThis.Hooks) {
     // Per user (client scope): how see-through the Hub window background is. Changed with the slider in the Hub header.
     game.settings.register(MODULE_ID, 'windowOpacity', {scope: 'client', config: false, type: Number, default: 100,
       onChange: () => { for (const app of globalThis.foundry?.applications?.instances?.values?.() ?? []) if (HubSheet && app instanceof HubSheet && app.rendered) app.applyOpacity(); }});
-    registerCompanionSettings(game.settings, () => { for (const app of globalThis.foundry?.applications?.instances?.values?.() ?? []) if (HubSheet && app instanceof HubSheet && app.rendered) app.render(); });
+    registerCompanionSettings(game.settings, () => renderAllHubs());
+    registerVisibilitySetting(game.settings, () => renderAllHubs());
     const mod = game.modules.get(MODULE_ID);
     if (mod) mod.api = createApi();
   });
@@ -76,6 +104,8 @@ if (globalThis.Hooks) {
   for (const hook of ['updateActor', 'createItem', 'updateItem', 'deleteItem', 'createActiveEffect', 'updateActiveEffect', 'deleteActiveEffect']) {
     Hooks.on(hook, doc => scheduleRender(actorOf(doc)));
   }
+  // A partner's Player Access (or the Utilities stash switch) changed: re-draw so its part appears or vanishes for players.
+  for (const hook of ['createSetting', 'updateSetting', 'deleteSetting']) Hooks.on(hook, setting => { if (isPartnerSetting(setting)) renderAllHubs(); });
   // Profession Ledger announces progression changes (its public hook); refresh any open Hub for that Actor.
   Hooks.on('ashenGateLedger.progressionChanged', data => { const actor = game.actors?.get?.(data?.actorId); if (actor) scheduleRender(actor); });
 }

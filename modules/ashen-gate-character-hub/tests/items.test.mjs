@@ -307,14 +307,20 @@ test('main hand menu offers Swap with the off-hand item', async () => {
 });
 
 test('inventory toggle switches to the party view; search filter hides non-matching rows', async () => {
-  installGlobals();
+  installGlobals({user: users.gm});
   const Cls = createHubSheetClass(FakeActorSheetV2);
   const sheet = new Cls({document: actorWith()}); sheet.tab = 'inventory';
   await sheet.dispatch('inv-view', {dataset: {view: 'party'}}, {});
   assert.equal(sheet.invView, 'party');
   const html = await sheet._renderHTML();
   assert.match(html, /Party stash[\s\S]*Not installed or not active/);
+  assert.match(html, /Hidden from players: Utilities is not active/, 'the GM sees why players do not get it');
   assert.doesNotMatch(html, /Healing Potion/);
+  // A player without Utilities gets no Party stash view at all, only the character's items.
+  installGlobals({user: users.owner});
+  const player = await sheet._renderHTML();
+  assert.doesNotMatch(player, /data-view="party"|Not installed/);
+  assert.match(player, /Healing Potion/);
   const row = (name) => ({hidden: false, querySelector: () => ({textContent: name})});
   const rows = [row('[TEST] Rope'), row('[TEST] Longsword')];
   applyFilter({querySelectorAll: () => rows}, 'rope');

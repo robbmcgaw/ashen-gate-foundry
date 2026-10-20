@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {installGlobals, makeActor, users, FakeActorSheetV2} from './foundry-mock.mjs';
-import {PANELS, AG_PANELS, panelState, ashenGateTab, partyStashHtml, openPartner, mountEmbeds, unmountEmbeds, embedApi, partyStashUsable, depositToParty} from '../scripts/partners.mjs';
+import {PANELS, AG_PANELS, agPanelsFor, panelState, ashenGateTab, partyStashHtml, openPartner, mountEmbeds, unmountEmbeds, embedApi, partyStashUsable, depositToParty} from '../scripts/partners.mjs';
 import {canEdit} from '../scripts/actions.mjs';
 import {createHubSheetClass} from '../scripts/sheet.mjs';
 
@@ -40,8 +40,8 @@ function partners() {
 }
 const state = id => panelState(PANELS.find(p => p.id === id), makeActor());
 
-test('every panel shows "not installed" when its module is missing, and the tab still renders', () => {
-  installGlobals({modules: {}});
+test('every panel shows "not installed" to the GM when its module is missing, and the tab still renders', () => {
+  installGlobals({user: users.gm, modules: {}});
   for (const p of PANELS) assert.equal(panelState(p, makeActor()).state, 'missing', p.id);
   for (const p of AG_PANELS) {
     const html = ashenGateTab({actor: makeActor(), sheet: {agTab: p.id}});
@@ -49,6 +49,10 @@ test('every panel shows "not installed" when its module is missing, and the tab 
     assert.doesNotMatch(html, /data-action="partner-open"/, 'no Open button for a missing module');
   }
   assert.match(partyStashHtml(makeActor()), /data-state="missing"/);
+  // Players get no sub-tab (and no empty shell) for a missing module.
+  installGlobals({user: users.owner, modules: {}});
+  assert.equal(agPanelsFor().length, 0);
+  assert.doesNotMatch(ashenGateTab({actor: makeActor(), sheet: {}}), /data-state="missing"|Not installed/);
 });
 
 test('inactive modules count as missing even if an api object lingers', () => {
@@ -99,7 +103,14 @@ test('an erroring partner shows "unavailable" and never breaks the sheet', async
   const html = await sheet._renderHTML();
   console.warn = orig;
   assert.doesNotMatch(html, /could not be drawn/);
-  assert.match(html, /Lantern|Renown/);
+  // A player whose Renown summary is refused gets no Renown sub-tab; the next section shows instead.
+  assert.doesNotMatch(html, /data-partner="ashen-gate-factions"|Not available to you/);
+  assert.match(html, /data-partner="ashen-gate-profession-ledger" data-state="ok"/);
+  installGlobals({user: users.gm, modules: mods});
+  console.warn = () => {};
+  const gm = await sheet._renderHTML();
+  console.warn = orig;
+  assert.match(gm, /data-partner="ashen-gate-factions" data-state="error"[\s\S]*Not available to you right now/, 'the GM still sees the section');
 });
 
 test('the Hub never writes to partner modules or the Actor while summarising', () => {
