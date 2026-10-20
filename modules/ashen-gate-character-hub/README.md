@@ -14,12 +14,22 @@ Layout: the character on the left, the chosen section in the middle (only it scr
 - Inventory: search, Character / Party stash toggle, categories, containers, quantity, equip/attune, currency, Use for consumables, Move to party stash. Party stash is Utilities' own stash view (0.12.0+) or a read-only list.
 - Magic: spells by level with slots, **Cast** (dnd5e casting dialog), Prepare toggle where dnd5e allows.
 - Features: class/species/background and features by type.
-- Ashen Gate: sub-tabs Professions, Perks, Standing, Quests, Locations, Base. Each shows that module's own view when it offers an embed (see below), else a read-only summary with an Open button.
+- Ashen Gate: sub-tabs Professions, Perks, Renown, Quests, Locations, Base. Each shows that module's own view when it offers an embed (see below), else a read-only summary with an Open button.
 - Companions: one mount and GM-limited pets, each an Item on the character, with perk Items attached (display only).
 - GM Setup (GM only): default pet limit and per-character limits.
 
 ## Embedded module views
 When a partner module offers `api.embed.mount(element, {actorId, mode})` (returning `{unmount, refresh}`), the Hub shows that module's own view in place of its summary. The partner draws it, handles its buttons and checks its own permissions; the Hub only provides the element and keeps the view alive across re-renders. Modes the Hub asks for: Utilities `stash` (Inventory → Party stash), Profession Ledger `individual`, Skill Trees, Factions, Quest Log, Locations and Headquarters `character`. A partner without the API, or that throws, falls back to the summary or a short note.
+
+| Where in the Hub | Module (version with the embed) | What it shows |
+|---|---|---|
+| Inventory → Party stash | Utilities 0.12.0 | Its stash view: purse, items, Take, Deposit |
+| Ashen Gate → Professions | Profession Ledger 0.19.0 | Its Individual panel: professions, recipes, Learn, Craft |
+| Ashen Gate → Perks | Skill Trees 0.14.0 | Points, perks available now with Unlock, unlocked and locked perks, Open tree |
+| Ashen Gate → Renown | Renown 0.10.0 | Party and character standing per organization, next milestone, Open |
+| Ashen Gate → Quests | Quest Log 0.8.0 | Party and character quests, Track, objectives, Character notes |
+| Ashen Gate → Locations | Locations 1.13.0 | Journey progress, revealed places by region, Open |
+| Ashen Gate → Base | Headquarters 0.10.0 | Guildhall, rank, this character's facilities and benefits, Open |
 
 ## Ashen Gate panels
 Each panel uses only that module's public API (`game.modules.get(id)?.api`) and shows only what that module lets the current user see. Missing, hidden or failing modules show "Not installed" or "Unavailable"; the sheet keeps working.
@@ -28,7 +38,7 @@ Each panel uses only that module's public API (`game.modules.get(id)?.api`) and 
 |---|---|---|
 | Profession Ledger | `getProfessions(actor)` (Ledger 0.18.0+); else `getProfessionProgress` per profession id from Skill Trees' `listTrees`. Plus `getKnownRecipes` | `open({actorId, view: 'individual'})` |
 | Skill Trees | `listTrees`, `actorProgress`, and `pointsSummary(actor)` (Skill Trees 0.13.0+) for points to spend / spent | `open({actorId})` |
-| Factions & Renown | `getFactions` (the user's own filtered view) | `open()` |
+| Renown (ashen-gate-factions) | `getFactions` (the user's own filtered view) | `open()` |
 | Quest Log | `listVisible`, `tracking.getState` | `openObjective(id)` / `open()` |
 | Locations | `listLocations` (GM: revealed only) | `openLocation(id)` / `open()` |
 | Headquarters | `playerView(actor)` (Headquarters 0.9.0+): Guildhall name and rank, visible facilities; else a pointer to Headquarters | `open()` |

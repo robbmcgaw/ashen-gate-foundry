@@ -129,7 +129,7 @@ export const PANELS = [
     open: (api, actor) => api.open({actorId: actor.id, view: 'individual'})},
   {id: 'ashen-gate-skill-trees', embedMode: 'character', tab: 'Perks', label: 'Skill Trees', icon: 'fa-solid fa-diagram-project', summary: skillTrees,
     open: (api, actor) => api.open({actorId: actor.id})},
-  {id: 'ashen-gate-factions', embedMode: 'character', tab: 'Standing', label: 'Factions & Renown', icon: 'fa-solid fa-flag', summary: factions, open: api => api.open()},
+  {id: 'ashen-gate-factions', embedMode: 'character', tab: 'Renown', label: 'Renown', icon: 'fa-solid fa-flag', summary: factions, open: api => api.open()},
   {id: 'ashen-gate-quest-manager', embedMode: 'character', tab: 'Quests', label: 'Quest Log', icon: 'fa-solid fa-scroll', summary: quests,
     open: (api, actor, ref) => ref ? api.openObjective(ref) : api.open()},
   {id: 'ashen-gate-locations', embedMode: 'character', tab: 'Locations', label: 'Locations', icon: 'fa-solid fa-map-location-dot', summary: locations,

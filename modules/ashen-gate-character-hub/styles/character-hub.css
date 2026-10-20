@@ -219,3 +219,5 @@
 
 /* Embedded partner views (each partner styles its own content) */
 .ag-character-hub .agch-embed { min-width: 0; }
+/* An embedded partner view brings its own cards: the panel around it drops its own card look */
+.ag-character-hub .agch-panel:has(> .agch-embed) { background: transparent; border-color: transparent; padding: 0; box-shadow: none; }

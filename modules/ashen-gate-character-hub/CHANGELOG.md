@@ -1,3 +1,10 @@
+## 0.8.0 — 2026-10-20
+
+- **Every Ashen Gate section now shows its module's own view** once that module is updated: Perks (Skill Trees 0.14.0: Unlock works here), Renown (0.10.0: party and character standing), Quests (Quest Log 0.8.0: Track and Character notes), Locations (1.13.0: journey and revealed places), Base (Headquarters 0.10.0: this character's facilities). Professions (Ledger 0.19.0) and the Party stash (Utilities 0.12.0) already did. Each module keeps its own records and permissions; an older module still shows the summary with an Open button.
+- "Factions & Renown" is now **Renown** in the Hub (the module was renamed; its id is unchanged). The sub-tab is Renown.
+- An embedded view no longer sits inside a second card frame.
+- No saved data changes.
+
 ## 0.7.0 — 2026-10-20
 
 From Robb's 0.6.0 test:

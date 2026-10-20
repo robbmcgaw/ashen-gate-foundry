@@ -99,7 +99,7 @@ test('an erroring partner shows "unavailable" and never breaks the sheet', async
   const html = await sheet._renderHTML();
   console.warn = orig;
   assert.doesNotMatch(html, /could not be drawn/);
-  assert.match(html, /Lantern|Factions &amp; Renown/);
+  assert.match(html, /Lantern|Renown/);
 });
 
 test('the Hub never writes to partner modules or the Actor while summarising', () => {
@@ -193,7 +193,7 @@ test('newer APIs: empty, unavailable and refused cases', () => {
 
 test('Ashen Gate tab: one sub-tab per module, only the chosen one is read; Utilities moved to Inventory', () => {
   installGlobals({user: users.owner, modules: partners()});
-  assert.deepEqual(AG_PANELS.map(p => p.tab), ['Professions', 'Perks', 'Standing', 'Quests', 'Locations', 'Base']);
+  assert.deepEqual(AG_PANELS.map(p => p.tab), ['Professions', 'Perks', 'Renown', 'Quests', 'Locations', 'Base']);
   const first = ashenGateTab({actor: makeActor(), sheet: {}});
   assert.match(first, /data-action="ag-subtab" data-partner="ashen-gate-profession-ledger" data-ag-always aria-pressed="true"/);
   assert.equal((first.match(/class="ag-card agch-panel"/g) ?? []).length, 1, 'one panel at a time');
@@ -245,7 +245,7 @@ test('Ashen Gate tab uses the partner view when offered, else the summary', () =
   assert.match(prof, /data-agch-embed="ashen-gate-profession-ledger" data-mode="individual" data-actor="actor1"/);
   assert.match(prof, /own view/);
   const fac = ashenGateTab({actor: makeActor(), sheet: {agTab: 'ashen-gate-factions'}});
-  assert.doesNotMatch(fac, /data-agch-embed/, 'Factions has no embed yet: summary');
+  assert.doesNotMatch(fac, /data-agch-embed/, 'no Renown embed offered: summary');
   assert.match(fac, /Lantern Guild/);
 });
 
