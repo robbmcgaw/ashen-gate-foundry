@@ -39,7 +39,7 @@ const getFolders=d=>d?.getFlag(MODULE_ID,'folderIndex');
 // Foundry's Journal folder is storage organization only, independent from the in-dashboard faction folders.
 // Do not set player visibility on the Folder. Journal ownership controls actual document access.
 const STORAGE_FOLDER_NAME='Ashen Gate — Factions Data';
-const BUILD_VERSION='0.11.0';
+const BUILD_VERSION='0.11.1';
 const isModuleJournal=d=>Boolean(getFaction(d)||getGroup(d)||getPersonal(d)||getView(d)||getFolders(d));
 async function ensureStorageFolder(){
   assertGM();

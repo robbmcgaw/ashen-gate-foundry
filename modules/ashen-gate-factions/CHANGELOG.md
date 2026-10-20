@@ -1,5 +1,9 @@
 # Renown change history (formerly Factions & Renown)
 
+## 0.11.1 — 2026-10-20
+
+- Holy symbols (Pantheon tiles, deity card, Character Hub embed) now always sit on a light parchment plate, so line-art symbols stay readable in the dark theme and in a faded Hub window. The fallback glyph uses the same dark ink. Style only.
+
 ## 0.11.0 — 2026-10-20
 
 - New **Pantheon** tab for players and GM: deities as holy-symbol tiles grouped Major/Lesser. Open one for its card, the chosen character's favour, rank ladder (each deity has its own rank titles), rewards, lore and related deities.

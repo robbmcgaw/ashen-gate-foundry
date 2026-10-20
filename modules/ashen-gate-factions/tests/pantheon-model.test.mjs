@@ -89,3 +89,10 @@ test('history caused by a deity the viewer cannot see does not name it',()=>{
   assert.equal(out[0].reason,'[TEST] Offering');
   assert.equal(visibleHistory(ev,new Map([['DEITY-QA-H','[TEST] Hidden']]))[1].reason,'Dissonance with [TEST] Hidden: x');
 });
+test('holy symbols sit on a fixed light plate, not a theme surface (readable in dark theme)',async()=>{
+  const {readFileSync}=await import('node:fs');
+  const css=readFileSync(new URL('../styles/module.css',import.meta.url),'utf8');
+  assert.match(css,/\.agf-symbol\{[^}]*background:var\(--agf-symbol-plate\)/);
+  assert.match(css,/--agf-symbol-plate:#f3ead6/);
+  assert.doesNotMatch(css,/\.agf-symbol-img\{[^}]*background:var\(--ag-surface/);
+});

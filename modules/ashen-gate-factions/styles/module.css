@@ -236,11 +236,14 @@
 .agf-deity-tile strong{font:600 16px var(--ag-font-display);color:var(--ag-text);overflow-wrap:anywhere}
 .agf-deity-tile small{font-size:11px;color:var(--ag-muted);font-style:italic;overflow-wrap:anywhere}
 .agf-deity-rank{font-size:11px;color:var(--ag-accent)}
-.agf-symbol{position:relative;display:grid;place-items:center;width:64px;height:64px;border-radius:50%;border:1px solid var(--ag-border-strong);background:var(--ag-surface-sunken);overflow:hidden;flex:none}
+/* 0.11.1: holy symbols are line-art PNGs (dark ink, some on white). They always sit on a fixed light parchment plate,
+   whatever the theme or a host window's opacity, so the ink stays readable. Deliberately not a theme token. */
+.agf-shell,.agf-embed{--agf-symbol-plate:#f3ead6;--agf-symbol-ink:#4a3b22}
+.agf-symbol{position:relative;display:grid;place-items:center;width:64px;height:64px;border-radius:50%;border:2px solid var(--ag-border-strong);background:var(--agf-symbol-plate);box-shadow:inset 0 0 0 3px var(--agf-symbol-plate),inset 0 0 10px rgba(74,59,34,.25);overflow:hidden;flex:none;isolation:isolate}
 .agf-symbol--large{width:112px;height:112px}
-.agf-symbol-img{position:relative;z-index:1;width:100%;height:100%;object-fit:contain;border:0;background:var(--ag-surface-sunken)}
+.agf-symbol-img{position:relative;z-index:1;width:84%;height:84%;object-fit:contain;border:0;background:transparent;opacity:1}
 .agf-symbol.is-missing .agf-symbol-img{display:none}
-.agf-symbol-glyph{position:absolute;font-size:26px;color:var(--ag-accent)}
+.agf-symbol-glyph{position:absolute;font-size:26px;color:var(--agf-symbol-ink)}
 .agf-symbol--large .agf-symbol-glyph{font-size:44px}
 .agf-deity-card{display:grid;grid-template-columns:auto 1fr auto;gap:14px 18px;align-items:start;margin-top:18px;padding:18px;border:1px solid var(--ag-border-strong);border-radius:var(--ag-radius-lg);background:radial-gradient(circle at 8% 0,var(--ag-accent-soft) 0,transparent 45%),var(--ag-surface-raised)}
 .agf-deity-card--lesser{border-style:dashed}
