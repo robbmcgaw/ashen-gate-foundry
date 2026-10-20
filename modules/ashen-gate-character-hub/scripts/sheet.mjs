@@ -8,10 +8,11 @@ import {shellHtml, errorHtml} from './views.mjs';
 import * as act from './actions.mjs';
 import {openNativeSheet} from './native.mjs';
 import {showHelp} from './help.mjs';
+import * as items from './item-actions.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
 /** Shows a refusal or failure from an action; a success is silent (the sheet re-renders itself). */
-export const report = result => { if (result && result.ok === false) warn(result.error); return result; };
+export const report = result => { if (result && result.ok === false && result.error) warn(result.error); return result; };
 
 /** Click handlers by data-action. Each receives (sheet, target, event). Views add their own entries. */
 export const ACTIONS = {
@@ -27,7 +28,17 @@ export const ACTIONS = {
   'roll-initiative': (s, t, e) => act.rollInitiative(s.document, e),
   'roll-check': (s, t, e) => act.rollAbilityCheck(s.document, t.dataset.ability, e),
   'roll-save': (s, t, e) => act.rollSavingThrow(s.document, t.dataset.ability, e),
-  'roll-skill': (s, t, e) => act.rollSkill(s.document, t.dataset.skill, e)
+  'roll-skill': (s, t, e) => act.rollSkill(s.document, t.dataset.skill, e),
+  'roll-death': (s, t, e) => act.rollDeathSave(s.document, e),
+  'item-use': (s, t, e) => items.useItem(s.document, t.dataset.id, e),
+  'item-sheet': (s, t) => items.openItemSheet(s.document, t.dataset.id),
+  'item-qty': (s, t) => { const item = s.document.items?.get?.(t.dataset.id); return items.setQuantity(s.document, t.dataset.id, Number(item?.system?.quantity ?? 0) + Number(t.dataset.step)); },
+  'item-equip': (s, t) => items.equipItem(s.document, t.dataset.id),
+  'item-unequip': (s, t) => items.unequipItem(s.document, t.dataset.id),
+  'item-attune': (s, t) => items.setAttuned(s.document, t.dataset.id, t.dataset.attuned === '1'),
+  'spell-prepare': (s, t) => items.togglePrepared(s.document, t.dataset.id),
+  'rest': (s, t) => items.rest(s.document, t.dataset.type),
+  'doll-art': s => { s.dollArt = s.dollArt === 'token' ? 'portrait' : 'token'; return s.render(); }
 };
 function hpButton(sheet, target, sign) {
   const input = target.closest('.agch-hp')?.querySelector('[data-hp-amount]');
@@ -40,7 +51,11 @@ function hpButton(sheet, target, sign) {
 export const EDITS = {
   'hp.value': (s, i) => act.setHp(s.document, 'value', i.value),
   'hp.temp': (s, i) => act.setHp(s.document, 'temp', i.value),
-  'hp.tempmax': (s, i) => act.setHp(s.document, 'tempmax', i.value)
+  'hp.tempmax': (s, i) => act.setHp(s.document, 'tempmax', i.value),
+  'currency': (s, i) => items.setCurrency(s.document, i.dataset.key, i.value),
+  'item-qty': (s, i) => items.setQuantity(s.document, i.dataset.id, i.value),
+  'equip-slot': (s, i) => i.value ? items.equipItem(s.document, i.value, {slot: i.dataset.slot}) : null,
+  'item-slot': (s, i) => items.setSlot(s.document, i.dataset.id, i.value)
 };
 
 /** Builds the class on top of Foundry's ActorSheetV2 (passed in so tests can supply a stand-in). */
