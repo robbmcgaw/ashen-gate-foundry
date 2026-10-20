@@ -17,7 +17,7 @@ Independent. General Manager hands facility files to `api.previewFacilityImport`
 
 ## Public API
 
-`game.modules.get('ashen-gate-headquarters').api`: `open`, `playerAccess` (`ag-player-access/1`), `playerView`, `inspectFacilityRef`, and GM-only `getState`, `exportState`, `getPersonnel`, `reconcileDepartures`, `previewFacilityImport`, `importFacilities`.
+`game.modules.get('ashen-gate-headquarters').api`: `open`, `playerAccess` (`ag-player-access/1`), `playerView`, `embed.mount`, `inspectFacilityRef`, and GM-only `getState`, `exportState`, `getPersonnel`, `reconcileDepartures`, `previewFacilityImport`, `importFacilities`.
 
 ### `playerView(actor)` (0.9.0)
 
@@ -35,6 +35,24 @@ game.modules.get('ashen-gate-headquarters').api.playerView(actor)
 - Built from the public projection for every caller, the GM included, so it never contains personnel, staffing occupants, history or the editor lease.
 - Guildhall not activated → `{active: false, guildhall: null, facilities: [], hirelings: [], hirelingsPublished: false}`.
 - **Permission:** the GM, or a user with **Owner** permission on the Actor. Anyone else gets `Error('Actor access denied')`. Players also get an error while Headquarters Player Access is off.
+
+
+### `embed.mount(element, options)` (0.10.0)
+
+Shows a compact, **read-only** Guildhall view for one character inside another module's window, for example Character Hub's Ashen Gate → Base: the Guildhall's name and rank and the facilities that character may see (Guildhall rooms and their own room), each with its stage and benefits, and **Open Headquarters**. Building, staffing and everything else stay in the Headquarters window.
+
+```js
+const api = game.modules.get('ashen-gate-headquarters')?.api;
+if (api?.embed?.mount) {
+  const view = api.embed.mount(element, {actorId: actor.id, mode: 'character'});
+  // later: view.refresh();  view.unmount();
+}
+```
+
+- `element`: a DOM element the caller owns. Headquarters replaces its contents and adds the class `aghq-embed`.
+- `options.actorId`: the character. `options.mode`: `'character'` (the only mode; `api.embed.modes` lists them). An unknown mode or a missing element throws.
+- Returns `{unmount(), refresh()}`. It refreshes itself when the Guildhall or Player Access changes and unmounts itself if the element has left the page.
+- **Permission:** the same as `playerView`: players see "The GM has hidden Headquarters." while Player Access is off; only the GM or the Actor's owner sees the view; it shows only `playerView`'s player-safe data, so other players' rooms, hirelings and private state never appear.
 
 ## Install
 

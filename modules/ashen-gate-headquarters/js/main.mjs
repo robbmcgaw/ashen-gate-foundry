@@ -11,6 +11,7 @@ import {readNativeHirelingDefinitions} from './native-hireling-definitions.mjs';
 import {createPrivateStateStore,projectPublicState,VAULT_POINTER} from './private-state.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {requirePlayerViewAccess,buildPlayerView} from './player-view.mjs';
+import {createEmbed,EMBED_MODES,EMBED_CONTRACT} from './embed.mjs';
 const {ApplicationV2,HandlebarsApplicationMixin}=foundry.applications.api;
 // Player edits are transported by server-attributed Actor document updates, not module socket packets.
 const ACK_TIMEOUT_MS=16000;
@@ -20,6 +21,10 @@ const uiVersion=()=>game.modules.get(MODULE_ID)?.version || "0.6.0";
 // Existing v0.2.0 already exposed player canvas access. The first rollout must
 // preserve that access until the GM explicitly changes this world setting.
 const accessEnabled=()=>game.settings.get(MODULE_ID,'playerAccessEnabled');
+// 0.10.0: compact read-only view for partner modules (embed.mjs); same checks and data as api.playerView.
+const embed=createEmbed({canOpen:()=>canOpenPlayerInterface(game.user,accessEnabled()),isGM:()=>game.user?.isGM===true,
+ userOwns:actor=>actor?.testUserPermission?.(game.user,'OWNER')===true,view:actor=>buildPlayerView(read(),actor,game.users),
+ actorById:id=>game.actors?.get?.(id)??null,open:()=>open(),notifyError:e=>{console.error(e);ui.notifications?.error(friendly(e));}});
 const canView=()=>canOpenPlayerInterface(game.user,accessEnabled());
 const playerAccessState=()=>accessStatus(MODULE_ID,accessEnabled());
 function requireView(user=game.user){return requireInterfaceAccess(user,accessEnabled());}
@@ -29,6 +34,7 @@ async function setPlayerAccess(enabled){
  return playerAccessState();
 }
 function refreshPlayerAccess(){
+ embed.refreshAll();
  // Settings onChange runs on connected clients; never trust the DOM for access.
  document.querySelectorAll('[data-ag-launcher="ashen-gate-headquarters"]').forEach(button=>{
   if(!canView())button.remove();
@@ -424,7 +430,7 @@ class HeadquartersApp extends HandlebarsApplicationMixin(ApplicationV2){
  }
 }
 Hooks.once('init',()=>{
- game.settings.register(MODULE_ID,'state',{name:'Headquarters public layout projection (no private personnel)',scope:'world',config:false,type:Object,default:emptyState(),onChange:()=>{if(windowApp?.rendered&&canView())windowApp.render();}});
+ game.settings.register(MODULE_ID,'state',{name:'Headquarters public layout projection (no private personnel)',scope:'world',config:false,type:Object,default:emptyState(),onChange:()=>{embed.refreshAll();if(windowApp?.rendered&&canView())windowApp.render();}});
  game.settings.register(MODULE_ID,VAULT_POINTER,{name:'GM private Headquarters state document ID (no payload)',scope:'world',config:false,restricted:true,type:String,default:''});
  game.settings.register(MODULE_ID,'playerAccessEnabled',{name:'Player Access — Headquarters',hint:'Show or hide the Headquarters launcher and interface for players. This does not disable game mechanics or delete Guildhall state.',scope:'world',config:true,restricted:true,type:Boolean,default:true,onChange:refreshPlayerAccess});
  // Publish the opening contract before any asynchronous private-state migration.
@@ -437,6 +443,8 @@ Hooks.once('init',()=>{
   reconcileDepartures,
   // 0.9.0: player-safe, read-only Guildhall view for one character (GM or the Actor's owner; Player Access applies). See player-view.mjs.
   playerView:actor=>{requirePlayerViewAccess(actor,game.user,accessEnabled());return buildPlayerView(read(),actor,game.users);},
+  // 0.10.0: compact read-only Guildhall view for partner windows (see embed.mjs and the README).
+  embed:Object.freeze({contract:EMBED_CONTRACT,modes:EMBED_MODES,mount:embed.mount}),
   getPersonnel:()=>{if(!game.user.isGM)throw Error('Personnel state API is GM-only.');return structuredClone(read().personnel??{format:'aghq-personnel/0.1',hirelings:[]});},
   // GM-only hand-off used by General Manager's single importer. Adds new facility definitions; existing ids are kept.
   previewFacilityImport:payload=>{

@@ -141,3 +141,16 @@
 .aghq-chip{font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid var(--ag-border);color:var(--ag-muted)}
 .aghq-chip--unlocked,.aghq-chip--acquired{border-color:var(--ag-accent);color:var(--ag-accent)}
 .aghq-dev{margin-top:14px}
+/* 0.10.0: compact Guildhall view embedded in a partner module (api.embed.mount). The host element carries .aghq-embed. */
+.aghq-embed{display:block;min-width:0;color:var(--ag-text)}
+.aghq-embed .aghq-embed__body{display:grid;gap:var(--ag-space-2)}
+.aghq-embed .aghq-embed__hall{display:flex;flex-wrap:wrap;gap:var(--ag-space-2);align-items:center;padding:var(--ag-space-2) var(--ag-space-3);border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface-raised)}
+.aghq-embed .aghq-embed__open{margin-left:auto}
+.aghq-embed h4{margin:var(--ag-space-2) 0 var(--ag-space-1);font-size:var(--ag-text-sm);text-transform:uppercase;letter-spacing:.05em;color:var(--ag-muted)}
+.aghq-embed h4 small{font-size:inherit;opacity:.8}
+.aghq-embed .aghq-embed__list{list-style:none;margin:0;padding:0;display:grid;gap:var(--ag-space-1)}
+.aghq-embed .aghq-embed__list>li{padding:var(--ag-space-1) var(--ag-space-2);border:1px solid var(--ag-border);border-radius:var(--ag-radius-sm);background:var(--ag-surface-raised)}
+.aghq-embed .aghq-embed__head{display:flex;flex-wrap:wrap;gap:var(--ag-space-2);align-items:baseline}
+.aghq-embed .aghq-embed__stage{font-size:var(--ag-text-sm);border:1px solid var(--ag-border);border-radius:999px;padding:0 8px}
+.aghq-embed .aghq-embed__muted{color:var(--ag-muted);font-size:var(--ag-text-sm)}
+.aghq-embed .aghq-embed__benefits{margin:var(--ag-space-1) 0 0;padding-left:var(--ag-space-4);font-size:var(--ag-text-sm)}
