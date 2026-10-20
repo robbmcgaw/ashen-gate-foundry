@@ -9,8 +9,9 @@ import {createShareService} from './sharing.mjs';
 import {LocationsApp} from './app.mjs';
 import {mountLocationLauncher} from './launcher.js';
 import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
+import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 
-const VERSION = '1.12.0';
+const VERSION = '1.13.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -32,11 +33,17 @@ const chat = {
 };
 const notifyError = err => { console.error(`${MODULE_ID} |`, err); ui.notifications?.error(err?.message ?? String(err)); };
 
+// 1.13.0: compact read-only view for partner modules (embed.mjs).
+const embed = createEmbed({mayOpen, readViews, readJourneyView, api: () => game.modules.get(MODULE_ID)?.api, notifyError});
+for (const hook of ['createJournalEntryPage', 'updateJournalEntryPage', 'deleteJournalEntryPage', 'updateJournalEntry'])
+  Hooks.on(hook, doc => { if ((doc?.parent ?? doc)?.getFlag?.(MODULE_ID, 'role') !== undefined) embed.refreshAll(); });
+
 function attachActorsLauncher(app, html, visible = mayOpen()) {
   return mountLauncher(launcherRoot(app, html), {moduleId: MODULE_ID, label: 'Locations', icon: 'fa-solid fa-map-location-dot',
     onClick: () => game.modules.get(MODULE_ID).api.open(), visible});
 }
 function applyPlayerAccess(enabled) {
+  embed.refreshAll();
   attachActorsLauncher(ui.actors, null, isGM() || enabled);
   if (!isGM() && !enabled && LocationsApp.instance?.rendered) LocationsApp.instance.close().catch(notifyError);
 }
@@ -77,6 +84,7 @@ Hooks.once('ready', () => {
     else notes.onSocket(msg, senderId).catch(notifyError);
   });
   mod.api = createApi({
+    embed: {contract: EMBED_CONTRACT, modes: [...EMBED_MODES], mount: embed.mount},
     version: VERSION, isGM, playerAccessEnabled,
     setPlayerAccess: value => game.settings.set(MODULE_ID, 'playerAccessEnabled', value),
     readAll, writeAll, readViews, placeNote, viewOptions: presentationOptions, pinsOf, playerIds: () => players().map(u => u.id),

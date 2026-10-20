@@ -164,6 +164,8 @@ export function createApi(deps) {
     version: deps.version,
     GATHERING,
     STATES,
+    /** 1.13.0: partner embed (see README). Drawing checks Player Access itself; read-only. */
+    embed: deps.embed ? Object.freeze({...deps.embed, modes: Object.freeze([...deps.embed.modes])}) : undefined,
     open: () => { requireAccess(); return deps.open(); },
     openLocation: ref => { requireAccess(); return deps.openLocation(ref); },
 
