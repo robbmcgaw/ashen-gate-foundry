@@ -7,6 +7,7 @@
  *  - otherwise no hazard, and the chance doubles for the next leg (at most 100%).
  * After the last leg the journey has arrived. Reverse turns the party round mid-route (legs done become legs to go);
  * Abort ends it where it is. The record is campaign state owned by Locations: never in an export or import.
+ * 1.14.0: Pause holds the journey (no Next leg) until Resume; the Travel tracker shows it.
  */
 import {line} from './model.mjs';
 import {legsOf} from './routes.mjs';
@@ -47,6 +48,7 @@ export function normalizeJourney(raw) {
     startedAt: stamp(raw.startedAt), endedAt: stamp(raw.endedAt), status,
     log: (Array.isArray(raw.log) ? raw.log : []).slice(-MAX_LOG).map(normalizeEntry),
     pending: normalizePending(raw.pending),
+    paused: raw.paused === true,
     // Arrival note in the destination's Party Notes: '' not tried, 'ok', or 'failed' (the GM can retry).
     travelLog: ['ok', 'failed'].includes(raw.travelLog) ? raw.travelLog : '', travelLogError: line(raw.travelLogError, 300)
   };
@@ -79,6 +81,7 @@ export function nextLeg(raw, rng, {now = Date.now()} = {}) {
   const j = normalizeJourney(raw);
   if (!j || j.status !== 'active') throw new Error('There is no journey under way.');
   if (j.pending) throw new Error('Deal with the hazard first: Dismiss it or Share it with players.');
+  if (j.paused) throw new Error('The journey is paused. Resume it first.');
   const chance = j.currentChance, roll = d100(rng);
   const hazard = chance > 0 && roll <= chance;
   j.legIndex += 1;
@@ -131,8 +134,38 @@ export function reverseJourney(raw, route, {now = Date.now()} = {}) {
 export function abortJourney(raw, {now = Date.now()} = {}) {
   const j = normalizeJourney(raw);
   if (!j || j.status !== 'active') throw new Error('There is no journey under way.');
-  return {...j, status: 'aborted', endedAt: now, pending: null};
+  return {...j, status: 'aborted', endedAt: now, pending: null, paused: false};
 }
+
+/** 1.14.0: holds (true) or resumes (false) the journey. A hazard can still be dealt with while paused. */
+export function pauseJourney(raw, paused = true) {
+  const j = normalizeJourney(raw);
+  if (!j || j.status !== 'active') throw new Error('There is no journey under way.');
+  return {...j, paused: paused === true};
+}
+
+/** 1.14.0: legs in a row without a hazard, counted back from the latest leg (turning back does not break the run). */
+export function safeStreak(j) {
+  let n = 0;
+  for (const e of [...(j?.log ?? [])].reverse()) {
+    if (e.reversed) continue;
+    if (e.hazard) break;
+    n += 1;
+  }
+  return n;
+}
+
+/** 1.14.0: km travelled so far: legs × leg length (the last leg may be short), or a share of the distance without one. */
+export function kmTravelled(j, legKm = 0) {
+  if (!j?.legs) return 0;
+  if (j.legIndex >= j.legs) return j.distanceKm;
+  const km = legKm > 0 ? j.legIndex * legKm : j.distanceKm * j.legIndex / j.legs;
+  return Math.min(j.distanceKm, Math.round(km * 10) / 10);
+}
+
+/** 1.14.0: the lines of the journey players have been told: hazards the GM shared, and turning back. */
+export const revealedLog = j => (j?.log ?? []).filter(e => e.reversed || e.outcome === 'shared')
+  .map(e => e.reversed ? {leg: e.leg, text: 'The party turned back.'} : {leg: e.leg, text: e.result});
 
 /** How far along the route the party is, 0–1, measured from the route's own From end. */
 export function progressFromRouteStart(j) {
@@ -146,11 +179,15 @@ export const travelLine = (j, nameOf) =>
 
 /**
  * What players get: progress only. `ends`: {from, to} refs every player may see (or null), `routeKey` when every
- * player may see the route. Never the chance, the rolls, the hazards or any result.
+ * player may see the route. Never the chance, the rolls, or a hazard the GM has not shared (1.14.0: shared ones are in `log`).
  */
 export function journeyView(j, {from = null, to = null, routeKey = null} = {}) {
   if (!j) return null;
   const view = {status: j.status, leg: j.legIndex, legs: j.legs};
+  // 1.14.0: only when there is something to say, so a plain journey's view keeps its 1.11.0 shape.
+  if (j.paused && j.status === 'active') view.paused = true;
+  const told = revealedLog(j).slice(-20);
+  if (told.length) view.log = told;
   if (from) view.from = from;
   if (to) view.to = to;
   if (routeKey) view.routeKey = routeKey;

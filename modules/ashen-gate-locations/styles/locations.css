@@ -190,3 +190,44 @@
 .agl-embed .agl-embed__list > li:hover { background: var(--ag-surface-hover); }
 .agl-embed .agl-embed__open { width: auto; min-height: 0; padding: 0; border: 0; background: none; color: var(--ag-accent); text-align: left; cursor: pointer; text-decoration: underline; overflow-wrap: anywhere; }
 .agl-embed .agl-embed__muted { color: var(--ag-muted); font-size: var(--ag-text-sm); }
+/* 1.14.0: Travel tracker pop-out (.agl-travel window). --ag-window-opacity is set on the window by its slider (per user);
+   only backgrounds mix with it, so text and controls stay readable over the map (the Character Hub's approach). */
+.agl-travel { --agl-muted: var(--ag-muted); --agl-border: var(--ag-border); --aglt-alpha: var(--ag-window-opacity, 100%);
+  --aglt-bg: color-mix(in srgb, var(--ag-surface) var(--aglt-alpha), transparent);
+  --aglt-bg-raised: color-mix(in srgb, var(--ag-surface-raised) var(--aglt-alpha), transparent);
+  --aglt-bg-sunken: color-mix(in srgb, var(--ag-surface-sunken) var(--aglt-alpha), transparent); }
+.application.ag-app.agl-travel { background: var(--aglt-bg); }
+.application.ag-app.agl-travel > .window-header { background: var(--aglt-bg-sunken); }
+.application.ag-app.agl-travel > .window-content { background: transparent; padding: 0; }
+.agl-travel .agl-travel__root { display: flex; flex-direction: column; gap: var(--ag-space-2); min-height: 100%; padding: 0 0 var(--ag-space-2); color: var(--ag-text); }
+.agl-travel .agl-travel__head { padding: var(--ag-space-1) var(--ag-space-2); background: transparent; flex-wrap: nowrap; }
+.agl-travel .agl-travel__head h1 { font-size: var(--ag-text-md, 14px); }
+.agl-travel .agl-travel__opacity { display: flex; gap: var(--ag-space-1); align-items: center; padding: 0 var(--ag-space-2); color: var(--ag-muted); }
+.agl-travel .agl-travel__opacity input { flex: 1; min-width: 0; height: auto; padding: 0; accent-color: var(--ag-accent); }
+.agl-travel .agl-travel__root > :where(section, .ag-card, .ag-empty, p, button, .agl-travel__panels) { margin-left: var(--ag-space-2); margin-right: var(--ag-space-2); }
+.agl-travel .ag-card { background: var(--aglt-bg-raised); }
+.agl-travel .agl-travel__journey { display: grid; gap: var(--ag-space-1); padding: var(--ag-space-2); border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--aglt-bg-raised); }
+.agl-travel .agl-travel__title { display: flex; gap: var(--ag-space-2); align-items: baseline; justify-content: space-between; }
+.agl-travel .agl-travel__title strong { overflow-wrap: anywhere; }
+.agl-travel .agl-travel__stats { display: grid; gap: 2px; font-size: var(--ag-text-sm); }
+.agl-travel .agl-travel__strip { list-style: none; margin: var(--ag-space-1) 0; padding: 0; display: flex; gap: 2px; }
+.agl-travel .agl-travel__strip > li { flex: 1; height: 10px; border-radius: 2px; background: var(--aglt-bg-sunken); border: 1px solid var(--ag-border); }
+.agl-travel .agl-travel__strip > li.is-done { background: color-mix(in srgb, var(--ag-accent) 55%, transparent); border-color: transparent; }
+.agl-travel .agl-travel__strip > li.is-current { background: var(--ag-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ag-accent) 45%, transparent); }
+.agl-travel .agl-travel__strip > li.is-hazard { border-color: var(--ag-danger); border-width: 2px; }
+.agl-travel .agl-travel__strip--bar { height: 10px; border-radius: 3px; background: var(--aglt-bg-sunken); overflow: hidden; }
+.agl-travel .agl-travel__strip--bar i { display: block; height: 100%; background: var(--ag-accent); }
+.agl-travel .agl-travel__big { min-height: 40px; font-size: var(--ag-text-lg, 15px); justify-content: center; }
+.agl-travel .agl-travel__hazard { border-left: 4px solid var(--ag-danger); padding: var(--ag-space-2); }
+.agl-travel .agl-travel__hazard h3 { margin: 0; font-size: var(--ag-text-md, 14px); border: 0; }
+.agl-travel .agl-travel__result { margin: var(--ag-space-1) 0; font-weight: 600; overflow-wrap: anywhere; }
+.agl-travel .agl-travel__row, .agl-travel .agl-travel__foot { display: flex; flex-wrap: wrap; gap: var(--ag-space-1); }
+.agl-travel .agl-travel__row .ag-btn, .agl-travel .agl-travel__foot .ag-btn { flex: 1 1 auto; width: auto; }
+.agl-travel .agl-travel__foot { margin: auto var(--ag-space-2) 0; padding-top: var(--ag-space-2); border-top: 1px solid var(--ag-border); }
+.agl-travel .agl-travel__log h3 { margin: 0 0 var(--ag-space-1); font-size: var(--ag-text-sm); text-transform: uppercase; letter-spacing: .05em; color: var(--ag-muted); border: 0; }
+.agl-travel .agl-travel__log ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; font-size: var(--ag-text-sm); }
+.agl-travel .agl-travel__log li { overflow-wrap: anywhere; }
+.agl-travel .agl-travel__leg { color: var(--ag-muted); margin-right: var(--ag-space-1); }
+.agl-travel .agl-travel__panels { display: grid; gap: var(--ag-space-1); }
+.agl-travel .agl-travel__panel { padding: var(--ag-space-1) var(--ag-space-2); }
+.agl-travel .agl-travel__panel summary { cursor: pointer; font-weight: 600; }

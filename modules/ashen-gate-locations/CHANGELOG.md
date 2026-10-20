@@ -1,3 +1,13 @@
+## 1.14.0 — 2026-10-20
+
+- **Travel tracker:** a small pop-out window (about 320 × 420, resizable) to keep open over the map while travelling. Open it from the new **person-hiking** button in the Token controls (left of the map) or **Travel tracker** on a journey in Locations → Routes.
+  - **GM:** route name, From → To, a progress strip with a marker per leg (current leg highlighted, hazard legs outlined), "Leg 3 of 8, 15 of 40 km", the hazard chance and safe legs in a row, a big **Roll next leg**, the hazard card (**Reroll / Dismiss / Share to players**), **Pause / Resume**, **End journey** (asks first), **Open route** in Locations, and the latest legs. Same rules and API as the Routes tab; the tracker keeps no state of its own.
+  - **Players** (with Player Access): route name, strip and "Leg 3 of 8", plus only the hazards the GM shared (and turning back). Never the chance, rolls or table results. It updates for everyone when the GM rolls.
+  - **Fade slider** for the window background (per user, default opaque), and the window remembers its position and size per user (client settings).
+- **Pause journey** (new): a paused journey refuses Next leg until **Resume**; players see "Paused". API: `pauseJourney()`, `resumeJourney()`.
+- **New API `travel`:** `travel.open()`, `travel.state()` (read-only, player-safe), `travel.behaviours.register(...)`: an extension point for optional per-journey panels (no travel behaviours ship yet). See the README.
+- Saved data: additive only (`paused` on the journey; the players' progress page may carry `paused` and `log` with the shared lines). No migration.
+
 ## 1.13.1 — 2026-10-20
 
 - **Route defaults are now 5 km per leg and a 5% base hazard chance** (were 10 km and 10%). Only the shipped defaults change: a leg length saved in GM Setup → *Routes*, and the leg length and base chance saved on each route, stay as they are. New routes and imported routes without `leg_km` / `hazard_base_percent` get the new defaults. `docs/routes-schema.md` updated.

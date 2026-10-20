@@ -30,6 +30,7 @@ and Install. Updates arrive through Check for Updates / Forge's update button. E
 - **Routes (1.10.0):** the **Routes** tab joins two locations. **New Route**, pick **From** and **To** by name, set the **Distance (km)** and, if this route's legs differ from the world default (GM Setup → *Routes*), its **Leg length (km)**; legs = distance ÷ leg length, rounded up. Shipped defaults: 5 km legs and a 5% base hazard chance (1.13.1; were 10 km and 10%). Values already saved on a route or in GM Setup stay. Optional: a name, *One-way*, terrain, a **Hazard table** (a world Roll Table; a missing table falls back to "Hazard!") and a **Base hazard chance**, GM notes. The `RTE-*` ID is made from the two ends on first save, never changes and is never reused, even after a delete. **Discovery:** *Unknown* (new routes; players see nothing), *Rumoured*, *Known*, *Explored*. A player sees a discovered route only while **both ends are visible to them** (not Hidden, and allowed to see that place) and they are in the route's own **Who Can See It** (Everyone or Selected players). Tick *show "Unknown path"* to let a player who can see only one end see an unnamed path from that end instead of nothing. Players never see the hazard chance, table, GM notes or ID. **Delete** asks first.
 - **Journeys (1.11.0):** on a saved route, **Start journey** in either direction (one-way routes: From → To only). **Next leg** rolls d100 against the hazard chance: it starts at the route's base chance, doubles after each leg without a hazard (max 100%) and goes back to the base chance after a hazard. A hazard rolls the route's table (or says "Hazard!"), is whispered to you and waits for **Reroll**, **Dismiss** or **Share with players** (chat, no route or place names). After the last leg the party marker moves to the destination and the trip is added to that place's Party Notes. **Turn back** and **Abort journey** are there too. The party marker is a Map Note between the two route pins. Players see only the marker and "leg N of M".
 - **Route drawings (1.12.0):** on a route's *Map Drawing* card, **Link selected drawing** binds a drawing you selected on the canvas, **Draw for me** adds a straight line between the two pins (reshape it as you like), **Unlink** leaves it on the map. Locations only toggles the drawing's *hidden*: shown while every player can see the whole route, hidden otherwise. The party marker follows the line. Foundry still sends hidden drawings to every client, so never write secrets in a drawing's text.
+- **Travel tracker (1.14.0):** a small pop-out window to keep open over the map while travelling. Open it from the **person-hiking** button in the Token controls (left of the map), or **Travel tracker** on a journey in Locations → Routes. GM: the route, From → To, a strip with one marker per leg (current leg highlighted, hazard legs outlined), "Leg 3 of 8, 15 of 40 km", the hazard chance and safe legs in a row, **Roll next leg** (the same rules as *Next leg*), the hazard card with **Reroll / Dismiss / Share to players**, **Pause / Resume**, **End journey** (asks first), **Open route**, and the latest legs. Players (with Player Access): route name, strip, "Leg 3 of 8" and only what the GM shared; never chances, rolls or table results. It updates for everyone when the GM rolls. The slider fades the window background (per user); the window remembers its place and size per user.
 - **Players:** Actors sidebar → **Locations** (when *Player Access* is on in GM Setup). Players get a read-only view of revealed locations. Clicking a quest opens the Quest Log; in the Quest Log, a quest's *Locations* list opens the location.
 
 ## Storage
@@ -81,8 +82,12 @@ Journals from Locations 0.8.x are ignored (a one-line console note says how many
 | GM only: `saveRoute(data)`, `setRouteState(id, 'unknown'\|'rumoured'\|'known'\|'explored')`, `setRouteAudience(id, {mode, userIds})`, `deleteRoute(id)`, `importRoutes(records, {mode})` | Save keeps discovery and audience; a new route starts Unknown |
 | `ROUTE_STATES` | `['unknown', 'rumoured', 'known', 'explored']` |
 | GM only: `routeDrawing(id)`, `linkRouteDrawing(id, drawingUuid)`, `unlinkRouteDrawing(id)`, `drawRoute(id, {scene})`, `deleteRoute(id, {deleteDrawing})` | map drawing link (`routeDrawing` → `{status: 'none'\|'linked'\|'missing'\|'elsewhere', sceneName, hidden, hasText, path}`) |
-| `getJourney()` | GM: `{journey, partyLocationId, history}` (journey: `journeyId, routeId, direction, fromId, toId, legs, legIndex, baseChance, currentChance, hazardCount, startedAt, status, log, pending, travelLog`). Players: `{status, leg, legs, from?, to?, routeKey?}` or `null` |
+| `getJourney()` | GM: `{journey, partyLocationId, history}` (journey: `journeyId, routeId, direction, fromId, toId, legs, legIndex, baseChance, currentChance, hazardCount, startedAt, status, log, pending, travelLog`). Players: `{status, leg, legs, paused?, log?, from?, to?, routeKey?}` or `null` (`log`: lines the GM shared, 1.14.0) |
 | GM only: `startJourney(routeId, {direction: 'forward'\|'reverse'})`, `nextLeg()` → `{journey, roll, chance, hazard, result, arrived}`, `rerollHazard()`, `dismissHazard()`, `shareHazard()`, `reverseJourney()`, `abortJourney()`, `retryTravelLog()` | one journey at a time |
+| GM only: `pauseJourney()`, `resumeJourney()` (1.14.0) | a paused journey refuses `nextLeg` until resumed; players' progress shows `paused: true` |
+| `travel.open()` (1.14.0) | opens the Travel tracker (GM controls or the player view); refused for players while Player Access is off |
+| `travel.state()` (1.14.0) | read-only, player-safe: see below |
+| `travel.behaviours.register(def)`, `.unregister(id)`, `.list()` (1.14.0) | optional tracker panels: see below |
 | `playerAccess` | `ag-player-access/1` capability |
 
 ### `embed.mount(element, options)` (1.13.0)
@@ -101,6 +106,22 @@ if (api?.embed?.mount) {
 - `options.actorId` is accepted (places are party-wide); `options.mode`: `'character'` (the only mode; `api.embed.modes` lists them). An unknown mode or a missing element throws.
 - Returns `{unmount(), refresh()}`. It refreshes itself when Locations' journals or Player Access change and unmounts itself if the element has left the page.
 - **Permission:** it reads the same player views the window shows players, so players see only revealed places they may read (never hidden, unidentified details or GM fields) and the journey's progress only (never hazard chances or rolls). The GM sees the same list (what the party knows). Players see "The GM has hidden Locations." while Player Access is off; Open checks Player Access again. Nothing can be edited from the embed.
+
+### `travel` (1.14.0): the Travel tracker
+
+`api.travel.contract` is `'ag-locations-travel/1'`.
+
+- `await api.travel.open()`: opens the pop-out tracker (or brings it forward). Anyone who may open Locations.
+- `api.travel.state()`: the party's journey as players see it, for everyone (the GM gets the same), or `null`:
+  `{status: 'active'|'arrived'|'aborted', leg, legs, paused, routeName, routeKey, from: {name, key}|null, to: {name, key}|null, log: [{leg, text}]}`.
+  It is read from the players' progress page, so it never holds a hazard chance, roll, table, GM note or a hazard the GM has not shared. `routeName` is set only while every player can see the whole route; `from`/`to` only when every player can see that place. Read-only: change the journey with the GM calls above.
+- `api.travel.behaviours.register({id, label, icon?, audience: 'gm'|'everyone', appliesTo?(ctx), render(ctx)})` → `unregister()`: an optional panel in the tracker, for later travel behaviours (none ship yet). `ctx` is `{isGM, state, journey}` (`journey` is the full GM record on the GM's client, `null` for players). `render` returns HTML; `appliesTo` decides per journey whether it shows. `'gm'` panels are never drawn for players; a panel keeps its own data and is responsible for not sending GM-only data to players. The tracker redraws when the journey changes.
+
+```js
+const travel = game.modules.get('ashen-gate-locations')?.api?.travel;
+const s = travel?.state();          // e.g. {status: 'active', leg: 3, legs: 8, routeName: '[TEST] Old Road', ...}
+await travel?.open();
+```
 
 ## Import format
 

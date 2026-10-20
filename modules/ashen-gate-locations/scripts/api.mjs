@@ -13,10 +13,11 @@ import {MODULE_ID, GATHERING, STATES, PARTY_NOTES, notesLockHolder, clone, newLo
   publishable, hasUnpublishedChanges, previewView, wouldCycle, parentMap, normalizeAudience, AUDIENCE_MODES, isPlaceable, resolvePassConditions} from './model.mjs';
 import {checkMove} from './tree.mjs';
 import {ROUTE_STATES, normalizeRoute, makeRouteId, routeProblems, routeTouches, importRouteRecords, routeRecord, legsOf, legKmOf} from './routes.mjs';
-import {startJourney, nextLeg, setHazardResult, resolveHazard, reverseJourney, abortJourney, travelLine, HAZARD_FALLBACK} from './journey.mjs';
+import {startJourney, nextLeg, setHazardResult, resolveHazard, reverseJourney, abortJourney, pauseJourney, travelLine, HAZARD_FALLBACK} from './journey.mjs';
 import {covers, esc, DEFAULT_UNIDENTIFIED_LABEL} from './model.mjs';
 
 export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
+export const TRAVEL_CONTRACT = 'ag-locations-travel/1';
 
 /**
  * deps: {isGM(), playerAccessEnabled(), setPlayerAccess(bool), readAll(), writeAll(list), readViews(),
@@ -26,7 +27,8 @@ export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
  *        routes?: {readAll(), writeAll(list), readViews(), usedIds(), defaultLegKm()},
  *        drawings?: {link(route, uuid), unlink(route, {remove}), draw(route, scene), info(route), viewedScene()},
  *        travel?: {read(), write(travel), readView(), drawHazard?({uuid, name}) → {text, fromTable, tableMissing}, chat?: {gm(html), public(html)},
- *                  rng?(), now?(), emit?(event, payload)}}
+ *                  rng?(), now?(), emit?(event, payload)},
+ *        tracker?: {open(), behaviours: {register(def), unregister(id), list()}}}
  */
 export function createApi(deps) {
   const gm = () => deps.isGM() === true;
@@ -123,7 +125,7 @@ export function createApi(deps) {
   };
   const hazardCard = (j, route) => `<div class="agl-hazard-card"><h3>Hazard on leg ${j.pending.leg} of ${j.legs}</h3>
     <p class="agl-hint">GM only. ${esc(route?.name || route?.id || '')}: rolled ${j.pending.roll} against ${j.pending.chance}%.${j.pending.tableMissing ? ' The hazard table was not found.' : ''}</p>
-    <p>${esc(j.pending.result)}</p><p class="agl-hint">Locations → Routes: Reroll, Dismiss or Share with players.</p></div>`;
+    <p>${esc(j.pending.result)}</p><p class="agl-hint">Travel tracker or Locations → Routes: Reroll, Dismiss or Share with players.</p></div>`;
   const whisperHazard = async (j, route) => { try { await travelDeps().chat?.gm?.(hazardCard(j, route)); } catch (err) { console.warn('ashen-gate-locations | GM hazard card failed', err); } };
   /** Appends the arrival line to the destination's Party Notes through the GM path. Returns {travelLog, travelLogError}. */
   const writeTravelLog = async j => {
@@ -618,6 +620,22 @@ export function createApi(deps) {
       await travelDeps().write({...travel, journey: j});
       return clone(j);
     },
+    /** 1.14.0 GM: holds the journey (Next leg is refused) until resumeJourney. Players see "Paused". */
+    async pauseJourney() {
+      requireGM();
+      const travel = activeJourney();
+      const j = pauseJourney(travel.journey, true);
+      await travelDeps().write({...travel, journey: j});
+      return clone(j);
+    },
+    /** 1.14.0 GM: the paused journey goes on. */
+    async resumeJourney() {
+      requireGM();
+      const travel = activeJourney();
+      const j = pauseJourney(travel.journey, false);
+      await travelDeps().write({...travel, journey: j});
+      return clone(j);
+    },
     /** GM: tries again to add an arrived journey's line to the destination's Party Notes. */
     async retryTravelLog() {
       requireGM();
@@ -628,6 +646,42 @@ export function createApi(deps) {
       await travelDeps().write({...travel, journey: j});
       return clone(j);
     },
+
+    // ---------- 1.14.0 Travel tracker ----------
+    travel: Object.freeze({
+      contract: TRAVEL_CONTRACT,
+      /** Opens (or brings forward) the pop-out Travel tracker: the GM's controls, or a player's progress view. */
+      async open() {
+        requireAccess();
+        if (!deps.tracker?.open) throw new Error('The Travel tracker is unavailable.');
+        return deps.tracker.open();
+      },
+      /**
+       * Read-only, player-safe journey state for anyone who may open Locations (the GM gets exactly what players get):
+       * {status, leg, legs, paused, routeName, from: {name, key} | null, to: {...} | null, log: [{leg, text}]}, or null.
+       * Built from the players' progress page: never a hazard chance, roll, table, GM note or unshared hazard.
+       */
+      state() {
+        requireAccess();
+        const v = deps.travel?.readView?.() ?? null;
+        if (!v) return null;
+        let routeName = '';
+        if (v.routeKey && deps.routes) {
+          // routeKey is only set while every player sees the whole route, so its name is theirs to see.
+          routeName = gm() ? deps.routes.readAll().find(r => r.viewKey === v.routeKey)?.name ?? ''
+            : deps.routes.readViews().find(x => x.key === v.routeKey)?.name ?? '';
+        }
+        const end = e => e?.name ? {name: String(e.name), key: e.key ?? ''} : null;
+        return clone({status: v.status, leg: v.leg, legs: v.legs, paused: v.paused === true, routeName: String(routeName || ''),
+          from: end(v.from), to: end(v.to), routeKey: v.routeKey ?? '', log: (v.log ?? []).map(e => ({leg: e.leg, text: e.text}))});
+      },
+      /** Extension point for optional travel behaviour panels (none ship yet). See travel-view.mjs createBehaviours. */
+      behaviours: Object.freeze({
+        register: def => { if (!deps.tracker?.behaviours) throw new Error('The Travel tracker is unavailable.'); return deps.tracker.behaviours.register(def); },
+        unregister: id => deps.tracker?.behaviours?.unregister(id) ?? false,
+        list: () => deps.tracker?.behaviours?.list() ?? []
+      })
+    }),
 
     playerAccess: Object.freeze({
       contract: PLAYER_ACCESS_CONTRACT,

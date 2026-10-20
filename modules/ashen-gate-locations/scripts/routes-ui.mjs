@@ -68,7 +68,7 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
       const j = api().getJourney().journey;
       const banner = j?.status === 'active' ? `<div class="agl-undo agl-journey-banner" role="status"><span><i class="fa-solid fa-person-hiking" aria-hidden="true"></i>
           Journey under way: <strong>${esc(nameOf(j.fromId) || j.fromId)} → ${esc(nameOf(j.toId) || j.toId)}</strong>, leg ${j.legIndex} of ${j.legs}${j.pending ? ' · <strong>hazard waiting</strong>' : ''}.</span>
-          ${j.routeId !== this.routeId ? btn('route-select', 'Open', {data: {id: j.routeId}}) : ''}</div>` : '';
+          ${j.routeId !== this.routeId ? btn('route-select', 'Open', {data: {id: j.routeId}}) : ''}${btn('route-open-tracker', 'Travel tracker', {icon: 'fa-solid fa-person-hiking', title: 'Small pop-out window to roll legs over the map'})}</div>` : '';
       return `<div class="ag-toolbar"><input type="search" id="agl-route-search" placeholder="Search route, place or terrain…" value="${esc(this.routeQuery)}" aria-label="Search routes">
           ${btn('route-new', 'New Route', {kind: 'primary', icon: 'fa-solid fa-plus'})}</div>${banner}
         <div class="agl-body"><aside class="agl-list">${rows.length ? `<ul class="agl-groups">${groups}</ul>` : none}</aside>
@@ -177,6 +177,7 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
         ${j.pending ? this.hazardHtml(j) : ''}
         <div class="agl-add">${btn('route-next-leg', j.legIndex + 1 >= j.legs ? 'Next leg (last: arrive)' : 'Next leg', {kind: 'primary', icon: 'fa-solid fa-shoe-prints'})}
           ${saved.directed || !j.legIndex ? '' : btn('route-journey-reverse', 'Turn back', {icon: 'fa-solid fa-rotate-left', title: 'The party turns round; the legs travelled become the legs back'})}
+          ${btn('route-open-tracker', 'Travel tracker', {icon: 'fa-solid fa-person-hiking', title: 'Small pop-out window to roll legs over the map'})}
           ${btn('route-journey-abort', 'Abort journey', {kind: 'danger', icon: 'fa-solid fa-ban'})}</div>${log}</section>`;
     },
     /** 1.12.0: the route's map drawing: link the selected one, Draw for me, or unlink. */
@@ -209,7 +210,8 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
     playerJourneyHtml() {
       const v = api().getJourney();
       if (!v || v.status !== 'active') return v?.status === 'arrived' && v.to ? `<p class="agl-hint">The party arrived at ${esc(v.to.name)}.</p>` : '';
-      return `<div class="agl-undo agl-journey-banner" role="status"><span><i class="fa-solid fa-person-hiking" aria-hidden="true"></i> The party is travelling${v.from ? ` from <strong>${esc(v.from.name)}</strong>` : ''}${v.to ? ` to <strong>${esc(v.to.name)}</strong>` : ''}: leg ${v.leg} of ${v.legs}.</span></div>`;
+      return `<div class="agl-undo agl-journey-banner" role="status"><span><i class="fa-solid fa-person-hiking" aria-hidden="true"></i> The party is travelling${v.from ? ` from <strong>${esc(v.from.name)}</strong>` : ''}${v.to ? ` to <strong>${esc(v.to.name)}</strong>` : ''}: leg ${v.leg} of ${v.legs}${v.paused ? ' (paused)' : ''}.</span>
+        ${btn('route-open-tracker', 'Travel tracker', {icon: 'fa-solid fa-person-hiking'})}</div>`;
     },
     playerRoutesHtml(views) {
       const journey = this.playerJourneyHtml();
@@ -267,6 +269,8 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
     },
     async onRouteAction(action, el) {
       if (action === 'route-open-place') { this.tab = 'locations'; this.select(el.dataset.id); return this.render(); }
+      // 1.14.0: the pop-out tracker, for the GM and players (the API checks access).
+      if (action === 'route-open-tracker') return api().travel.open();
       if (action === 'route-select') {
         if (el.dataset.id === this.routeId || !(await this.confirmRouteDiscard())) return;
         this.selectRoute(el.dataset.id); return this.render();
