@@ -881,11 +881,74 @@ async function openStash(){
  if(!windowInstance||!windowInstance.rendered)windowInstance=new UtilitiesApp();
  windowInstance.tab='inventory';await windowInstance.render({force:true});return windowInstance;
 }
-function rerenderStash(doc){const stash=stashActor();if(!windowInstance?.rendered||windowInstance.tab!=='inventory')return;if(doc&&doc.parent?.id!==stash?.id&&doc.id!==stash?.id)return;windowInstance.render().catch(error);}
+/* ---- 0.12.0: embeddable party stash for partner modules (Character Hub's Inventory → Party stash).
+   The same Items/purse markup as the Party Inventory tab, mounted into the caller's element. Every action goes through
+   the same entry points as the window (depositItem, withdrawItem, depositCoins, takeCoins, adjustPurseDialog), so the
+   same gates apply: GM always; players need Player Access and the stash on; take-outs keep the party vote. ---- */
+const EMBED_ACTIONS=new Set(['stash-take','purse-deposit','purse-take','purse-adjust']);
+const EMBED_MODES=new Set(['stash']);
+const embeds=new Set();
+/** HTML for one embed: a refusal note when this user may not see the stash, else the stash body (purse + items). */
+function embedHTML(state){
+ if(!permitted())return empty('Utilities is hidden by the GM.');
+ if(!isGM()&&!stashEnabled())return empty(stashActor()?'The GM has turned the party stash off.':'There is no party stash yet.');
+ return stashBody(state);
+}
+/**
+ * api.embed.mount(element, {actorId, mode:'stash'}) → {unmount, refresh}.
+ * actorId preselects that character for Take and coin moves when this user may use it (GM: any character; player: owned).
+ */
+function mountEmbed(element,{actorId='',mode='stash'}={}){
+ if(!element||typeof element.addEventListener!=='function')throw TypeError('mount needs a DOM element.');
+ if(!EMBED_MODES.has(mode))throw Error(`Unknown embed mode "${mode}". Supported: ${[...EMBED_MODES].join(', ')}.`);
+ const ctrl={filter:'',takeActorId:String(actorId||''),purseCoin:'gp',purseAmount:'',mounted:true};
+ const abort=new AbortController(),on=(el,ev,fn)=>el.addEventListener(ev,fn,{signal:abort.signal});
+ element.classList?.add('ag-utilities','agu-embed');
+ ctrl.render=async()=>{
+  if(!ctrl.mounted)return;
+  if(element.isConnected===false){ctrl.unmount();return;}
+  const search=element.querySelector?.('#agu-stash-search'),focus=search&&search===globalThis.document?.activeElement?search.selectionStart:null;
+  element.innerHTML=`<div class="agu-embed__body">${embedHTML(ctrl)}</div>`;
+  if(focus!==null){const q=element.querySelector?.('#agu-stash-search');q?.focus?.();q?.setSelectionRange?.(focus,focus);}
+ };
+ ctrl.unmount=()=>{if(!ctrl.mounted)return;ctrl.mounted=false;abort.abort();embeds.delete(ctrl);element.innerHTML='';element.classList?.remove('ag-utilities','agu-embed');};
+ // One set of delegated listeners on the caller's element, so re-rendering the inside never re-binds.
+ on(element,'click',ev=>{
+  const t=ev.target;
+  const open=t?.closest?.('[data-open-item]');
+  if(open){const item=stashActor()?.items.get(open.dataset.openItem);if(!item?.sheet)return error(Error('That item could not be opened.'));item.sheet.render(true);return;}
+  const b=t?.closest?.('[data-action]');
+  if(!b||!element.contains(b)||!EMBED_ACTIONS.has(b.dataset.action))return;
+  ev.stopPropagation();
+  UtilitiesApp.prototype.handle.call(ctrl,b.dataset.action,b,element).catch(error);
+ });
+ on(element,'input',ev=>{
+  const t=ev.target;
+  if(t?.id==='agu-stash-search'){ctrl.filter=t.value;ctrl.render().catch(error);}
+  else if(t?.id==='agu-purse-amount')ctrl.purseAmount=t.value;
+ });
+ on(element,'change',ev=>{
+  const t=ev.target;ev.stopPropagation();
+  if(t?.id==='agu-stash-target')ctrl.takeActorId=t.value;
+  else if(t?.id==='agu-purse-actor'){ctrl.takeActorId=t.value;ctrl.render().catch(error);}
+  else if(t?.id==='agu-purse-coin'){ctrl.purseCoin=t.value;ctrl.render().catch(error);}
+ });
+ on(element,'dragstart',ev=>{const row=ev.target?.closest?.('[data-stash-item]');if(row)ev.dataTransfer?.setData('text/plain',JSON.stringify({type:'Item',uuid:row.dataset.uuid}));});
+ on(element,'dragover',ev=>{ev.preventDefault();element.classList?.add('agu-drop-over');});
+ on(element,'dragleave',ev=>{if(!element.contains(ev.relatedTarget))element.classList?.remove('agu-drop-over');});
+ on(element,'drop',ev=>{ev.preventDefault();ev.stopPropagation();element.classList?.remove('agu-drop-over');const data=dragData(ev);
+  if(data?.type!=='Item'||!data.uuid)return ui.notifications?.warn('Drop an item from a character sheet.');
+  if(stashItemFromUuid(data.uuid))return;notifyResult(depositItem(data.uuid));});
+ embeds.add(ctrl);
+ ctrl.render().catch(error);
+ return {unmount:ctrl.unmount,refresh:()=>ctrl.render()};
+}
+const refreshEmbeds=()=>{for(const e of [...embeds])e.render().catch(error);};
+function rerenderStash(doc){const stash=stashActor();if(!doc||doc.parent?.id===stash?.id||doc.id===stash?.id)refreshEmbeds();if(!windowInstance?.rendered||windowInstance.tab!=='inventory')return;if(doc&&doc.parent?.id!==stash?.id&&doc.id!==stash?.id)return;windowInstance.render().catch(error);}
 async function open(){if(!permitted())throw Error('Utilities access is hidden by the GM.');if(!windowInstance||!windowInstance.rendered)windowInstance=new UtilitiesApp();await windowInstance.render({force:true});return windowInstance;}
 function refreshWindows(){
  if(!permitted()&&!isGM()){
-  document.querySelectorAll(`[data-ag-launcher="${ID}"]`).forEach(x=>x.remove());if(windowInstance?.rendered)windowInstance.close().catch(error);closeOverlay().catch(error);
+  refreshEmbeds();document.querySelectorAll(`[data-ag-launcher="${ID}"]`).forEach(x=>x.remove());if(windowInstance?.rendered)windowInstance.close().catch(error);closeOverlay().catch(error);
  } else {rerenderStash();rerenderConditions();if(game.settings.get(ID,'overlayOpen')===true&&!overlayInstance?.rendered)openOverlay().catch(error);}
  addLauncher(ui?.actors,ui?.actors?.element);
 }
@@ -925,6 +988,7 @@ Hooks.once('ready',()=>{
  m.api={version:VERSION,contract:'ag-utilities/0.2-alpha',open,playerAccess:{contract:'ag-player-access/1',getState:()=>({contract:'ag-player-access/1',moduleId:ID,audience:'player',playerAccessEnabled:game.settings.get(ID,'playerAccessEnabled'),configurable:true}),setEnabled:async enabled=>{if(!isGM())throw Error('GM only.');if(typeof enabled!=='boolean')throw TypeError('Boolean required.');await game.settings.set(ID,'playerAccessEnabled',enabled);return m.api.playerAccess.getState();}},
   conditions:{contract:'ag-utilities-conditions/1',isUnlocked:actorId=>isUnlocked(getUnlocks(),actorId),setUnlocked,canRemove:(actorId,statusId)=>canRemove(game.actors.get(actorId),statusId),remove:removeCondition,openOverlay:async()=>{await game.settings.set(ID,'overlayOpen',true);return openOverlay();},closeOverlay:()=>game.settings.set(ID,'overlayOpen',false)},
   stash:{contract:'ag-utilities-stash/1',isEnabled:stashEnabled,setEnabled:setStashEnabled,isVoteRequired:stashVoteRequired,setVoteRequired:setStashVoteRequired,history:stashHistory,clearHistory:clearStashHistory,open:openStash,deposit:depositItem,withdraw:withdrawItem,listItems:listStashItems},
+  embed:{contract:'ag-utilities-embed/1',modes:[...EMBED_MODES],mount:mountEmbed},
   purse:{contract:'ag-utilities-purse/1',coins:COINS,isVoteRequired:purseVoteRequired,setVoteRequired:setPurseVoteRequired,totals:purseTotals,deposit:depositCoins,take:takeCoins,adjust:adjustPurse,undo:undoPurseEntry,openAdjust:adjustPurseDialog},
   awardGold,undoGoldAward,gold:{contract:'ag-utilities-gold/1',award:awardGold,undo:undoGoldAward,defaultRecipients:()=>{if(!isGM())throw Error('GM only.');return goldDefaults();},openDialog:awardGoldDialog}};
  game.socket?.on?.(SOCKET,(msg,senderId)=>{void onSocket(msg,senderId).catch(error);});

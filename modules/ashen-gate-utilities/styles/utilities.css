@@ -137,3 +137,7 @@
 .ag-utilities .agu-purse-move label {flex:1 1 140px;}
 .ag-utilities .agu-purse-move input[type=number] {width:100%;}
 .ag-utilities .agu-purse-move .agu-actions {margin:0;}
+/* 0.12.0: party stash embedded in a partner module (api.embed.mount). The host element carries .ag-utilities.agu-embed. */
+.ag-utilities.agu-embed {display:block;min-width:0;}
+.ag-utilities.agu-embed.agu-drop-over {outline:2px dashed var(--ag-accent);outline-offset:2px;border-radius:var(--ag-radius);}
+.ag-utilities.agu-embed.agu-drop-over .agu-dropzone {border-style:solid;border-color:var(--ag-accent);color:var(--ag-text);background:var(--ag-surface-hover);}
