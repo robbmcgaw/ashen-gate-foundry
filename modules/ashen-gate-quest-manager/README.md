@@ -28,7 +28,24 @@ const result = api?.resolveObjective('QUEST-EXAMPLE', {entityType: 'Objective'})
 const view = api?.getVisibleObjective('QUEST-EXAMPLE'); // sanitized player view
 ```
 
-Also: `open`, `openObjective`, `tracking`, `listVisible`, `consumer` (`resolveObjective`, `refreshCompendiums`, `getDefinitionReaderStatus`), `assignments` (`list`, `get`, `save`, `remove`; GM only), `listQuests`, `getGMSource`, `getGMState`, `setGMState`, `previewQuestImport`, `importQuests` (all GM only) and `playerAccess` (`ag-player-access/1`). Player reads need Player Access and a published, readable projection. Compendium-based definitions are configured by exact pack id in GM Setup → Advanced.
+Also: `open`, `openObjective`, `embed` (`mount`, see below), `tracking`, `listVisible`, `consumer` (`resolveObjective`, `refreshCompendiums`, `getDefinitionReaderStatus`), `assignments` (`list`, `get`, `save`, `remove`; GM only), `listQuests`, `getGMSource`, `getGMState`, `setGMState`, `previewQuestImport`, `importQuests` (all GM only) and `playerAccess` (`ag-player-access/1`). Player reads need Player Access and a published, readable projection. Compendium-based definitions are configured by exact pack id in GM Setup → Advanced.
+
+### `embed.mount(element, options)` (0.8.0)
+
+Shows one character's quests inside another module's window, for example Character Hub's Ashen Gate → Quests: the Party quests and that character's Individual quests on the left (search, **Track**), the selected quest's objectives, locations, shared party notes and **Character notes** (Save) on the right, and an **Open Quest Log** button.
+
+```js
+const api = game.modules.get('ashen-gate-quest-manager')?.api;
+if (api?.embed?.mount) {
+  const view = api.embed.mount(element, {actorId: actor.id, mode: 'character'});
+  // later: view.refresh();  view.unmount();
+}
+```
+
+- `element`: a DOM element the caller owns. Quest Log replaces its contents and adds the class `ag-quest-embed`.
+- `options.actorId`: the character whose Individual quests and notes are shown. `options.mode`: `'character'` (the only mode; `api.embed.modes` lists them). An unknown mode or a missing element throws.
+- Returns `{unmount(), refresh()}`. It refreshes itself whenever the Quest Log window would (quest, actor, user or setting changes) and unmounts itself if the element has left the page.
+- **Permission:** the same as the Quest Log window's Party and Individual tabs. Players see "The GM has hidden the Quest Log." while Player Access is off, and only quests whose published view they can read. Track and Save Character Notes go through the window's own checks (a quest must still be visible; notes need Owner on the character). GM authoring, reveal and progress are not in the embed.
 
 ## Install
 

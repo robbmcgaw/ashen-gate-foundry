@@ -77,3 +77,12 @@
 .ag-quest-setup label:not(.ag-check){display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
 .ag-quest-setup input:not([type=checkbox]){width:100%}
 @media(max-width:760px){.ag-quest-app .ag-quest-gm-left{max-height:none}}
+/* 0.8.0: quest view embedded in a partner module (api.embed.mount). The host element carries .ag-quest-embed. */
+.ag-quest-embed{display:block;min-width:0}
+.ag-quest-embed .ag-quest-embed__main{overflow:visible;border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface)}
+.ag-quest-embed .ag-quest-list{width:240px;min-width:190px;overflow:visible}
+.ag-quest-embed .ag-quest-list input,.ag-quest-embed textarea{width:100%}
+.ag-quest-embed .ag-quest-reading{padding:12px 16px;overflow:visible}
+.ag-quest-embed .ag-quest-embed__group{margin:4px 0 0;font-size:var(--ag-text-sm);text-transform:uppercase;letter-spacing:.05em;color:var(--ag-muted)}
+.ag-quest-embed .ag-quest-embed__group small{font-size:inherit;opacity:.8}
+@container (max-width:620px){.ag-quest-embed .ag-quest-embed__main{flex-direction:column}.ag-quest-embed .ag-quest-list{width:auto;border-right:0;border-bottom:1px solid var(--ag-border)}}
