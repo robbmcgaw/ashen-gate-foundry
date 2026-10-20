@@ -1,11 +1,13 @@
-/** Scene moods (0.22.0). Proves logic with mocked Foundry globals, not native Foundry rendering. */
+/** Scene moods (0.22.0; flags moved to the 0.35.0 stack). Proves logic with mocked Foundry globals, not native Foundry rendering. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createSceneMoods, validatePreset, DEFAULT_MOODS, MOODS_SETTING, MOOD_FIELDS} from '../scripts/scene-moods.js';
 
 const M = 'ashen-gate-manager';
-const V14_PATHS = ['environment', 'environment.darknessLevel', 'environment.darknessLock', 'environment.globalLight', 'environment.globalLight.enabled',
-  ...['base', 'dark'].flatMap(k => ['hue', 'intensity', 'luminosity', 'saturation', 'shadows'].map(f => `environment.${k}.${f}`)), 'weather'];
+const V14_PATHS = ['environment', 'environment.darknessLevel', 'environment.darknessLock', 'environment.cycle', 'environment.globalLight',
+  ...['enabled', 'bright', 'luminosity', 'color'].map(f => `environment.globalLight.${f}`),
+  ...['base', 'dark'].flatMap(k => ['hue', 'intensity', 'luminosity', 'saturation', 'shadows'].map(f => `environment.${k}.${f}`)), 'weather',
+  'fog', 'fog.colors', 'fog.colors.explored', 'fog.colors.unexplored'];
 
 const setPath = (obj, path, value) => {const keys = path.split('.'); const last = keys.pop(); keys.reduce((o, k) => (o[k] ??= {}), obj)[last] = value;};
 const getPath = (obj, path) => path.split('.').reduce((v, k) => v?.[k], obj);
@@ -51,27 +53,26 @@ test('applying a mood sets only the fields the preset lists, in one update', asy
   assert.equal(scene.environment.globalLight.enabled, true, 'untouched field kept');
   assert.equal(scene.environment.dark.luminosity, -0.25, 'untouched field kept');
   assert.deepEqual(scene.updates[0].options, {}, 'no animation unless asked');
-  assert.deepEqual(scene.getFlag(M, 'mood').id, 'twilight');
+  assert.equal(api.getState().mood.id, 'twilight');
 });
 
-test('base is captured once, never overwritten, and restore is exact', async () => {
+test('swapping moods keeps the originals as "before", and restore is exact', async () => {
   const {api, scene} = mkWorld();
   const before = structuredClone({environment: scene.environment, weather: scene.weather});
   await api.applyMood('twilight');
-  const firstBase = structuredClone(scene.getFlag(M, 'moodBase'));
   await api.applyMood('night');
   await api.applyMood('storm');
-  const base = scene.getFlag(M, 'moodBase');
-  for(const f of firstBase.fields) assert.deepEqual(base.fields.find(b => b.path === f.path), f, `${f.path} not overwritten`);
-  assert.equal(base.fields.find(f => f.path === 'environment.darknessLevel').value, 0.2, 'original darkness, not twilight');
-  assert.equal(base.fields.find(f => f.path === 'weather').value, 'fog', 'original weather');
-  assert.ok(base.fields.some(f => f.path === 'environment.base.saturation'), 'field first changed by storm is added');
-  assert.equal(scene.getFlag(M, 'mood').id, 'storm');
+  const stack = scene.getFlag(M, 'moodStack');
+  assert.equal(stack.entries.length, 1, 'one mood at a time');
+  const storm = stack.entries[0];
+  assert.equal(storm.id, 'storm');
+  assert.equal(storm.fields.find(f => f.path === 'environment.darknessLevel').before, 0.2, 'original darkness, not twilight');
+  assert.equal(storm.fields.find(f => f.path === 'weather').before, 'fog', 'original weather');
+  assert.equal(scene.environment.base.hue, 0, 'twilight hue undone when the mood was swapped');
   const out = await api.restore();
   assert.equal(out.ok, true);
   assert.deepEqual({environment: scene.environment, weather: scene.weather}, before);
-  assert.equal(scene.getFlag(M, 'moodBase'), null);
-  assert.equal(scene.getFlag(M, 'mood'), null);
+  assert.equal(scene.getFlag(M, 'moodStack'), null);
   assert.equal((await api.restore()).ok, false, 'nothing to restore twice');
 });
 
@@ -150,9 +151,9 @@ test('Scenes tab: GM-only tab with mood buttons, Back to normal, Cancel left / S
   assert.match(tpl, /data-ag-tab="scenes"/);
   assert.match(tpl, /data-ag-mood-apply="\{\{id\}\}"/);
   assert.match(tpl, /data-ag-action="mood-restore"[^>]*>.*Back to normal/);
-  assert.match(tpl, /mood-cancel">Cancel<\/button>\s*<button[^>]*mood-save"/);
+  assert.match(tpl, /mood-cancel">Cancel<\/button>.*\s*<button[^>]*mood-save"/);
   assert.match(tpl, /slow weaker player machines/);
-  assert.match(main, /yes:\{label:'Remove mood'\}/);
+  assert.match(main, /yes:\{label:`Remove \$\{noun\}`\}/);
   assert.match(main, /yes:\{label:'Reset moods to defaults'\}/);
-  assert.match(main, /scenes:\(\(\{listMoods,getState,applyMood,restore/);
+  assert.match(main, /scenes:\(\(\{listMoods,getState,applyMood,addLayer,removeEffect,restore/);
 });
