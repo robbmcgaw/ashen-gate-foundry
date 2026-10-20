@@ -7,6 +7,7 @@ import {headerData, abilitiesData, skillsData} from './data.mjs';
 import {btn} from './buttons.mjs';
 import {ITEM_TABS} from './tabs.mjs';
 import {partnersTab} from './partners.mjs';
+import {companionsTab, gmSetupTab} from './companion-views.mjs';
 
 export {btn};
 
@@ -68,11 +69,15 @@ function characterTab(ctx) {
 export const TABS = [
   {id: 'character', label: 'Character', icon: 'fa-solid fa-user', render: characterTab},
   ...ITEM_TABS,
-  {id: 'ashen-gate', label: 'Ashen Gate', icon: 'fa-solid fa-dungeon', render: partnersTab}
+  {id: 'companions', label: 'Companions', icon: 'fa-solid fa-horse', render: companionsTab},
+  {id: 'ashen-gate', label: 'Ashen Gate', icon: 'fa-solid fa-dungeon', render: partnersTab},
+  {id: 'gm-setup', label: 'GM Setup', icon: 'fa-solid fa-gear', render: gmSetupTab, gmOnly: true}
 ];
+/** Tabs this user may open (GM Setup is GM-only). */
+export const visibleTabs = () => TABS.filter(t => !t.gmOnly || globalThis.game?.user?.isGM === true);
 
 export function tabsHtml(active) {
-  return `<nav class="ag-tabs" role="tablist" aria-label="Character Hub sections">${TABS.map(t => `<button type="button" role="tab" data-action="hub-tab" data-tab="${t.id}" data-ag-always aria-selected="${t.id === active}" class="${t.id === active ? 'active' : ''}"><i class="${t.icon}" aria-hidden="true"></i> ${esc(t.label)}</button>`).join('')}</nav>`;
+  return `<nav class="ag-tabs" role="tablist" aria-label="Character Hub sections">${visibleTabs().map(t => `<button type="button" role="tab" data-action="hub-tab" data-tab="${t.id}" data-ag-always aria-selected="${t.id === active}" class="${t.id === active ? 'active' : ''}"><i class="${t.icon}" aria-hidden="true"></i> ${esc(t.label)}</button>`).join('')}</nav>`;
 }
 
 export function shellHtml(ctx) {
@@ -82,7 +87,7 @@ export function shellHtml(ctx) {
     ${btn('open-native', 'Open native sheet', {kind: 'ghost', icon: 'fa-solid fa-file-lines', always: true, title: 'Open the standard dnd5e character sheet'})}
     ${btn('help', 'Help', {kind: 'ghost', icon: 'fa-solid fa-circle-question', always: true})}</div></header>`;
   if (ctx.limited) return `<div class="agch-root">${top}<section class="agch-hero ag-card"><img class="agch-portrait" src="${esc(actor.img)}" alt=""><div class="agch-identity"><h2 class="agch-name">${esc(actor.name)}</h2><p class="agch-sub">You have limited access to this character.</p></div></section></div>`;
-  const current = TABS.find(t => t.id === tab) ?? TABS[0];
+  const tabs = visibleTabs(), current = tabs.find(t => t.id === tab) ?? tabs[0];
   const notice = ctx.editable ? '' : '<p class="agch-notice" role="note"><i class="fa-solid fa-eye" aria-hidden="true"></i> View only: you can look but not change or roll for this character.</p>';
   return `<div class="agch-root">${top}${headerHtml(ctx)}${tabsHtml(current.id)}${notice}
     <div class="agch-body" role="tabpanel" aria-label="${esc(current.label)}">${current.render(ctx)}</div></div>`;
