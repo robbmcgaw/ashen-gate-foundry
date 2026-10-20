@@ -1,5 +1,5 @@
 /**
- * Organize folders (0.24.0): GM-only, re-runnable filing of world (or unlocked world-compendium) Items,
+ * Organize folders (0.25.0): GM-only, re-runnable filing of world (or unlocked world-compendium) Items,
  * Actors and Journals into a folder tree described by an editable rule set.
  *
  * Organize only ever writes a document's `folder` field (and creates missing Folders). It never renames,

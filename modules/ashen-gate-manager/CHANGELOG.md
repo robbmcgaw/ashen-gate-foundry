@@ -1,4 +1,4 @@
-## 0.24.0 — 2026-10-20
+## 0.25.0 — 2026-10-20
 
 - **Organize folders** (new GM-only **Organize** tab). Files world Items, Actors and Journals (or one unlocked world compendium) into a structured folder tree, e.g. `Core 5.5e/Items/Uncommon Magic`, `Core 5.5e/Spells/Level 3`, `Ashen Gate/Professions/Apprentice/Materials`. Re-run any time: anything already in place is left alone, so a second run changes nothing.
 - **Preview** shows every move grouped by destination folder with counts, the folders that would be created, and what is skipped and why (protected, keep-here, player character, your own folder, no rule). **Apply** (with confirmation) re-plans, creates missing folders and changes **only the folder** of each document; nothing is renamed, edited or deleted and no folder is ever deleted (empty folders are listed). **Download backup** saves the current folders first; **Undo last organize** puts documents back (last 5 runs kept; anything you moved by hand since is left alone).
@@ -6,6 +6,15 @@
 - **Rules** are an editable first-match list (Edit as JSON, Export, Import, Reset to defaults). Ashen Gate records match on Manager's source data (kind, tier, visibility, status, id prefix); other content on dnd5e fields (item type, rarity, armor/consumable type, spell level, creature type, CR).
 - **Housekeeping report** (read-only): Ashen Gate ids found more than once across the world and compendiums, and likely temporary records ([TEST] names, example_only). Nothing is changed.
 - GM only, enforced in the API (`api.organize.preview / apply / undoLast / saveSchema / setFolderProtected / setKeepFolder / housekeeping`). New world settings `organizeSchema` (empty = defaults) and `organizeHistory`; new flags `organizeProtected` (Folder) and `keepFolder` (document), written only when the GM sets them. No migration.
+
+## 0.24.0 — 2026-10-20
+
+- **Browse** (new GM-only tab). One searchable list across world Actors, Items, Journals and Journal pages, the Ashen Gate records partner modules expose through their public APIs (Locations, Quest Log, Factions, Skill Trees with their perk nodes, Headquarters facilities, Profession Ledger materials), and compendium entries. Compendiums are read from pack indexes only (no full documents) and load when you press **Load compendiums**, then stay cached until Refresh.
+- **Ashen Gate / Non-Ashen Gate / All** selector at the top. Ashen Gate = Manager-imported documents (source flag) or partner-module records; everything else (core, system, other modules) is Non-Ashen Gate.
+- Search is instant, ignores case and accents, and matches name, id, tags and description text; every word must match. Prefixes: `id:MAT-HERB`, `tag:`, `type:`, `status:`, `tier:`, `pack:`, `owner:`. Filters with counts that combine: kind, AG type, owner/module, category, profession, tier, rarity/quality, status, visibility, pack/folder, **Only imported by Manager**, **Unlinked** (record with no world document); **Clear** resets them. Sort by name, type or recently changed; group by kind, category, owner, pack/folder, AG type, profession or tier. 100 rows per page.
+- Each row shows name, id, kind/type chips, status and visibility chips, tier/profession/quality when known, and where it was found (World, compendium name, or module). **Open** shows the world or compendium sheet, or the owning module at that record (Locations card, Quest Log quest, Skill Trees tree); a module with no open-at-record API opens its window with a hint. **Copy id**. Name opens a **details** panel with the key fields and related records by id (both directions). World and compendium rows drag like sidebar entries (`text/plain` drag data) onto sheets, the canvas or journals.
+- The same record never appears twice: rows with the same canonical id or uuid merge (world document first) and list every place they were found.
+- The index rebuilds after Actor/Item/Journal/page create/update/delete (debounced) and on **Refresh**. Strictly read-only: nothing here edits a record, setting or flag. GM only, also checked in the API (`api.browse.search / getIndex / detail / open / dragData / refresh / loadCompendiums / status`). No saved-data change, no migration. Saved searches are not in this version.
 
 ## 0.23.0 — 2026-10-20
 

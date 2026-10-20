@@ -1,4 +1,4 @@
-/** Organize folders (0.24.0). Proves planning/apply/undo logic with mocked Foundry documents, folders and packs, not native Foundry UI. */
+/** Organize folders (0.25.0). Proves planning/apply/undo logic with mocked Foundry documents, folders and packs, not native Foundry UI. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createOrganizer, DEFAULT_RULES, validateRules, matchRule, factsOf, SCHEMA_SETTING, HISTORY_SETTING, FLAG_PROTECTED, FLAG_KEEP} from '../scripts/organize.js';
