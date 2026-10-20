@@ -9,6 +9,7 @@ const ag = (sourceId, entityType, definition = {}, extra = {}) => ({[M]:{source:
 const item = (name, type, {flags = {}, system = {}, folder = null, id} = {}) => ({id:id ?? `I${++seq}`, name, type, folder, flags, system});
 const actor = (name, type, {flags = {}, system = {}, folder = null, hasPlayerOwner = false} = {}) => ({id:`A${++seq}`, name, type, folder, flags, system, hasPlayerOwner});
 const journal = (name, {flags = {}, folder = null} = {}) => ({id:`J${++seq}`, name, folder, flags});
+const PLUTO = {plutonium:{source:'XPHB', page:'items.html'}};
 const folder = (name, type, parent = null, flags = {}) => ({id:`F${++seq}`, name, type, folder:parent, flags,
   async setFlag(s, k, v) {(this.flags[s] ??= {})[k] = v;}, async unsetFlag(s, k) {delete this.flags[s]?.[k];}});
 
@@ -45,13 +46,17 @@ function sample() {
       item('Alchemy', 'feat', {flags:ag('PROF-ALCHEMY', 'Profession')}),
       item('Steady Hands', 'feat', {flags:ag('PERK-ALC-1', 'ProfessionPerk', {tierId:'expert'})}),
       item('[TEST] Practice Dagger', 'weapon', {flags:ag('ITEM-TEST-1', 'Item')}),
-      item('Cloak of Protection', 'equipment', {system:{rarity:'uncommon', type:{value:'wondrous'}}}),
-      item('Longsword', 'weapon', {system:{rarity:'', type:{value:'martialM'}}}),
-      item('Chain Mail', 'equipment', {system:{type:{value:'heavy'}}}),
-      item('Fire Bolt', 'spell', {system:{level:0, school:'evo'}}),
-      item('Fireball', 'spell', {system:{level:3, school:'evo'}}),
-      item('Potion of Healing', 'consumable', {system:{rarity:'common', type:{value:'potion'}}}),
-      item("Thieves' Tools", 'tool', {system:{type:{value:''}}})
+      item('Cloak of Protection', 'equipment', {flags:PLUTO, system:{rarity:'uncommon', type:{value:'wondrous'}}}),
+      item('Longsword', 'weapon', {system:{rarity:'', type:{value:'martialM'}, source:{book:'XPHB'}}}),
+      item('Chain Mail', 'equipment', {system:{type:{value:'heavy'}, source:{rules:'2024'}}}),
+      item('Fire Bolt', 'spell', {flags:PLUTO, system:{level:0, school:'evo'}}),
+      item('Fireball', 'spell', {system:{level:3, school:'evo', source:{book:"PHB'24"}}}),
+      item('Potion of Healing', 'consumable', {flags:PLUTO, system:{rarity:'common', type:{value:'potion'}}}),
+      item("Thieves' Tools", 'tool', {flags:PLUTO, system:{type:{value:''}}}),
+      item('Glimmer Blade', 'weapon', {system:{type:{value:'martialM'}}}),
+      item('Spark Bolt', 'spell', {system:{level:1, school:'evo', source:{book:'My Homebrew'}}}),
+      item('Ring of Sample Luck', 'equipment', {system:{rarity:'rare', type:{value:'ring'}}}),
+      item('Old Rope', 'loot', {system:{source:{rules:'2014', book:'PHB'}}})
     ],
     actors:[
       actor('Aria (PC)', 'character', {hasPlayerOwner:true}),
@@ -81,7 +86,7 @@ test('first matching rule wins; a rule with an empty placeholder falls through; 
   assert.deepEqual(validateRules([{id:'x', when:{bogus:1}, path:'A/B/C/D/E/{nope}'}]).length, 3);
 });
 
-test('default schema files sample Ashen Gate records and core dnd5e content where expected', async () => {
+test('default schema files Ashen Gate records, source-tagged items under Core 5.5e and untagged items under Homebrew', async () => {
   const s = sample();
   const {organizer} = mkWorld(s);
   const out = await organizer.preview();
@@ -101,6 +106,10 @@ test('default schema files sample Ashen Gate records and core dnd5e content wher
     'Fireball':'Core 5.5e/Spells/Level 3',
     'Potion of Healing':'Core 5.5e/Items/Common Magic',
     "Thieves' Tools":'Core 5.5e/Items/Tools',
+    'Glimmer Blade':'Homebrew/Items/Weapons',
+    'Spark Bolt':'Homebrew/Spells/Level 1',
+    'Ring of Sample Luck':'Homebrew/Items/Rare Magic',
+    'Old Rope':'Homebrew/Items/Loot',
     'Goblin':'Core 5.5e/Actors/Humanoid',
     'Ash Wraith':'Ashen Gate/Creatures/CR 5-10',
     'Mayor Venn':'Ashen Gate/NPCs',
@@ -188,7 +197,7 @@ function mkPack(collection, {locked = false, packageType = 'world', docs = []} =
     async getIndex() {return {contents:docs};}};
 }
 test('locked and module compendiums are inspect-only; unlocked world packs use pack folders', async () => {
-  const docs = () => [{_id:'p1', name:'Longsword', type:'weapon', folder:null, system:{}}, {_id:'p2', name:'Fireball', type:'spell', folder:null, system:{level:3}}];
+  const docs = () => [{_id:'p1', name:'Longsword', type:'weapon', folder:null, system:{}, flags:PLUTO}, {_id:'p2', name:'Fireball', type:'spell', folder:null, system:{level:3, source:{rules:'2024'}}}];
   const locked = mkPack('world.locked', {locked:true, docs:docs()});
   const system = mkPack('dnd5e.items', {packageType:'system', docs:docs()});
   const open = mkPack('world.open', {docs:docs()});
@@ -249,4 +258,24 @@ test('facts: tier from recipe index, rarity labels, CR bands', () => {
   assert.equal(f.tier, 'Master');
   assert.equal(factsOf({name:'Ring', type:'equipment', system:{rarity:'veryRare'}}, 'Item').rarity, 'Very Rare');
   assert.equal(factsOf({name:'Dragon', type:'npc', system:{details:{cr:17}}}, 'Actor').crBand, 'CR 17+');
+});
+
+test('0.30.0: sourceTagged fact and match key; saved custom rules are used unchanged', async () => {
+  assert.equal(factsOf({name:'A', type:'weapon', flags:PLUTO, system:{}}, 'Item').sourceTagged, true);
+  assert.equal(factsOf({name:'B', type:'weapon', system:{source:{book:'XDMG'}}}, 'Item').sourceTagged, true);
+  assert.equal(factsOf({name:'C', type:'weapon', system:{source:{book:'Homebrew'}}}, 'Item').sourceTagged, false);
+  assert.equal(factsOf({name:'D', type:'weapon', system:{}}, 'Item').sourceTagged, false);
+  assert.deepEqual(validateRules([{id:'x', when:{sourceTagged:false}, path:'Mine'}]), []);
+  const homebrew = DEFAULT_RULES.filter(r => r.id.startsWith('homebrew-'));
+  const core = DEFAULT_RULES.filter(r => r.id.startsWith('core-') && r.types.includes('Item'));
+  assert.equal(homebrew.length, core.length, 'Homebrew mirrors every Core 5.5e item rule');
+  assert.ok(homebrew.every(r => r.path.startsWith('Homebrew/') && r.when.sourceTagged === false && r.when.ag === false));
+  assert.ok(core.every(r => r.when.sourceTagged === true));
+  assert.ok(DEFAULT_RULES.filter(r => r.when?.ag === true).every(r => !('sourceTagged' in r.when)), 'Ashen Gate rules unchanged');
+  seq = 0;
+  const w = mkWorld({items:[item('Glimmer Blade', 'weapon')]});
+  const custom = [{id:'old-core', types:['Item'], when:{ag:false, itemType:'weapon'}, path:'Core 5.5e/Items/Weapons'}];
+  assert.equal((await w.organizer.saveSchema(custom)).ok, true);
+  const out = await w.organizer.preview();
+  assert.equal(out.parts.find(p => p.documentName === 'Item').moves[0].to, 'Core 5.5e/Items/Weapons', 'a saved custom rule set is not rewritten');
 });
