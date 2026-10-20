@@ -20,7 +20,7 @@ Independent. General Manager hands faction files to `api.previewFactionsImport` 
 
 ## Public API
 
-`game.modules.get('ashen-gate-factions').api`: `open` (optionally `open({factionId, actorId, tab: 'group' | 'player'})`, 0.10.0), `embed.mount` (below), `getFactions` (players get only their filtered view), `validateFaction`, `getDeities`, `getPantheon(actor)` (Pantheon, 0.11.0; see Deity records), `playerAccess` (`ag-player-access/1`), and GM-only `previewFactionsImport`, `importFactions`, `refreshPlayerViews`, `getObjectiveRefs`, `auditObjectiveRefs`.
+`game.modules.get('ashen-gate-factions').api`: `open` (optionally `open({factionId, actorId, tab: 'group' | 'player'})`, 0.10.0; `open({deityId, actorId, tab: 'pantheon'})`, 0.11.0), `embed.mount` (below), `getFactions` (players get only their filtered view), `validateFaction`, `getDeities`, `getPantheon(actor)` (Pantheon, 0.11.0; see Deity records), `playerAccess` (`ag-player-access/1`), and GM-only `previewFactionsImport`, `importFactions`, `refreshPlayerViews`, `getObjectiveRefs`, `auditObjectiveRefs`.
 
 
 ### `embed.mount(element, options)` (0.10.0)
@@ -38,6 +38,7 @@ if (api?.embed?.mount) {
 - `element`: a DOM element the caller owns. Factions replaces its contents and adds the class `agf-embed`.
 - `options.actorId`: the character whose personal standing is shown. `options.mode`: `'character'` (the only mode; `api.embed.modes` lists them). An unknown mode or a missing element throws.
 - Returns `{unmount(), refresh()}`. It refreshes itself when Renown's journals or settings change and unmounts itself if the element has left the page.
+- **Pantheon (0.11.0):** when `actorId` is given, a Pantheon section follows with that character's favour with each deity they know (symbol, name, title, rank, score, next rank, **Open**). Same rule as `getPantheon`: players only for characters they own, only revealed deities.
 - **Permission:** read from the same sources as the Renown window: the GM sees everything; a player sees only their own filtered player view (never undiscovered organizations, GM notes or other players' characters), and the character's personal standing only when they own it. Players see "The GM has hidden Renown." while Player Access is off. Claims, requests and Renown awards stay in the Renown window.
 
 ## Deity records

@@ -365,7 +365,7 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
   }
   static async select(e,t){this.#selected=t.dataset.id;await this.render({force:true});}
   /** 0.10.0: open on one faction (and the Player view for one character), for the embed's Open button. */
-  focus({factionId=null,actorId=null,tab=null}={}){if(factionId)this.#selected=factionId;if(actorId)this.#actor=actorId;if(tab==='player'||tab==='group')this.#tab=tab;}
+  focus({factionId=null,deityId=null,actorId=null,tab=null}={}){if(factionId)this.#selected=factionId;if(deityId)this.#deity=deityId;if(actorId)this.#actor=actorId;if(['player','group','pantheon'].includes(tab))this.#tab=tab;}
   static async openDeity(e,t){this.#deity=t.dataset.id||null;await this.render({force:true});}
   static async createDeity(){try{assertGM();const name=nameValue(this.element,'new-deity-name');if(!name||name.length>120)throw Error('Deity name required (up to 120 characters).');const f=makeDeity({...deityIdPair(),name});const doc=await JournalEntry.create({name,folder:(await ensureStorageFolder()).id,ownership:{default:NONE},flags:{[MODULE_ID]:{faction:sourceDefinition(f)}}});await ensureGroup(doc);this.#deity=f.id;await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
   static async saveDeity(){try{assertGM();const doc=definition(this.#deity),f=doc&&loadDef(doc);if(!isDeity(f))throw Error('Open a deity first.');const root=this.element.querySelector('[data-deity-editor]');if(!root)throw Error('Deity editor not found.');
@@ -503,7 +503,7 @@ const nextOf=(ms,score)=>[...ms].sort((a,b)=>a.threshold-b.threshold).find(m=>m.
 /** Rows for the embed. `personal` is null when this user may not see that character's standing (not theirs). */
 function standingRows(actorId){
   if(game.user.isGM){
-    return defs().map(d=>{const f=upgradeFaction(loadDef(d)),g=getGroup(groupDoc(f.id))??makeGroupRecord({factionId:f.id}),p=actorId?getPersonal(personalDoc(f.id,actorId)):null;
+    return factionDefs().map(d=>{const f=upgradeFaction(loadDef(d)),g=getGroup(groupDoc(f.id))??makeGroupRecord({factionId:f.id}),p=actorId?getPersonal(personalDoc(f.id,actorId)):null;
       const gs=g?.standing?.score??0,ps=p?.standing?.score??0;
       return {id:f.id,name:f.name,group:{score:gs,rank:progressFor(f.renown_track,gs).rank.name,next:nextOf(f.renown_track.milestones,gs)},
         personal:actorId?{score:ps,rank:progressFor(f.individual_track,ps).rank.name,next:nextOf(f.individual_track.milestones,ps)}:null};});
@@ -516,14 +516,18 @@ function standingRows(actorId){
 function embedHTML(ctrl){
   if(!playerMayOpen())return '<div class="ag-empty">The GM has hidden Renown.</div>';
   const actor=ctrl.actorId?game.actors.get(ctrl.actorId):null,rows=standingRows(ctrl.actorId);
-  if(!rows.length)return '<div class="ag-empty">No organizations known yet.</div>';
+  // 0.11.0: this character's favour with each deity they know (same permission path as api.getPantheon).
+  const gods=actor?pantheonFor(actor):[];
+  if(!rows.length&&!gods.length)return '<div class="ag-empty">No organizations or deities known yet.</div>';
   const signed=n=>n>0?`+${n}`:String(n);
   const cell=(label,s)=>s?`<div class="agf-embed__cell"><small>${esc(label)}</small><strong>${esc(s.rank)}</strong><span class="agf-embed__score">${signed(s.score)}</span>${s.next?`<span class="agf-embed__next">Next: ${esc(s.next.name)} at ${s.next.threshold}</span>`:'<span class="agf-embed__next">Top rank</span>'}</div>`:'';
   const hidden=!game.user.isGM&&actor&&rows.every(r=>!r.personal);
   return `<div class="agf-embed__body">${rows.map(r=>`<section class="agf-embed__row" data-faction="${esc(r.id)}"><header><strong>${esc(r.name||'Unknown Organization')}</strong>
       <button type="button" class="ag-btn ag-btn--sm" data-agf-embed="open" data-faction="${esc(r.id)}" title="Open in Renown">Open</button></header>
       <div class="agf-embed__cells">${cell(groupLabel(),r.group)}${cell(actor?.name??'Character',r.personal)}</div></section>`).join('')}
-    ${hidden?`<p class="agf-embed__note">${esc(actor.name)}'s own standing shows to their owner.</p>`:''}</div>`;
+    ${hidden?`<p class="agf-embed__note">${esc(actor.name)}'s own standing shows to their owner.</p>`:''}${gods.length?`<h3 class="agf-embed__heading">Pantheon</h3>${gods.map(g=>`<section class="agf-embed__row agf-embed__deity" data-deity="${esc(g.id)}"><header><span class="agf-symbol agf-symbol--small">${g.symbol?`<img class="agf-symbol-img" src="${esc(g.symbol)}" alt="">`:''}<i class="fa-solid fa-sun agf-symbol-glyph" aria-hidden="true"></i></span><strong>${esc(g.name)}</strong>${g.title?` <small>${esc(g.title)}</small>`:''}
+      <button type="button" class="ag-btn ag-btn--sm" data-agf-embed="open-deity" data-deity="${esc(g.id)}" title="Open in Renown">Open</button></header>
+      <div class="agf-embed__cells">${cell(`${g.tierLabel} deity`,{score:g.score,rank:g.rank,next:g.next})}</div></section>`).join('')}`:''}</div>`;
 }
 /** api.embed.mount(element, {actorId, mode:'character'}) → {unmount, refresh}. Read-only. */
 function mountEmbed(element,{actorId=null,mode='character'}={}){
@@ -533,7 +537,11 @@ function mountEmbed(element,{actorId=null,mode='character'}={}){
   element.classList?.add('agf-embed');
   ctrl.render=()=>{if(!ctrl.mounted)return;if(element.isConnected===false){ctrl.unmount();return;}element.innerHTML=embedHTML(ctrl);};
   ctrl.unmount=()=>{if(!ctrl.mounted)return;ctrl.mounted=false;abort.abort();embeds.delete(ctrl);element.innerHTML='';element.classList?.remove('agf-embed');};
+  // A missing holy-symbol image falls back to the glyph (error events do not bubble, so listen in capture).
+  element.addEventListener('error',e=>{if(e.target?.matches?.('img.agf-symbol-img'))e.target.closest('.agf-symbol')?.classList.add('is-missing');},{capture:true,signal:abort.signal});
   element.addEventListener('click',e=>{
+    const d=e.target?.closest?.('[data-agf-embed="open-deity"]');
+    if(d&&element.contains(d)){e.preventDefault?.();e.stopPropagation?.();try{openDashboard({deityId:d.dataset.deity,actorId:ctrl.actorId,tab:'pantheon'});}catch(err){notifyError(err);}return;}
     const b=e.target?.closest?.('[data-agf-embed="open"]');if(!b||!element.contains(b))return;
     e.preventDefault?.();e.stopPropagation?.();
     try{openDashboard({factionId:b.dataset.faction,actorId:ctrl.actorId,tab:ctrl.actorId?'player':'group'});}catch(err){notifyError(err);}

@@ -264,3 +264,6 @@
 .agf-symbol-path input{margin:0!important}
 .agf-actions-row{display:flex;justify-content:flex-end;margin-top:12px}
 @media (max-width:700px){.agf-deity-card{grid-template-columns:1fr}.agf-deity-facts{grid-template-columns:1fr}}
+.agf-embed .agf-embed__heading{font:600 var(--ag-text-md) var(--ag-font-display);margin:var(--ag-space-3) 0 var(--ag-space-1);border:0}
+.agf-symbol--small{width:28px;height:28px}
+.agf-symbol--small .agf-symbol-glyph{font-size:14px}
