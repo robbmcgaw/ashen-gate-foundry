@@ -1,3 +1,8 @@
+## 0.8.0 — 2026-10-20
+
+- **New API `embed.mount(element, {actorId, mode: 'character'})`** so a partner module (Character Hub) can show a character's quests inside its own window: Party and Individual quests with search and Track, and the selected quest's objectives, locations, party notes and Character notes (Save). Returns `{unmount, refresh}`; it refreshes itself on changes. See the README.
+- Same visibility and checks as the Quest Log window. GM authoring and progress stay in the window. The window itself is unchanged. No saved data changes.
+
 ## 0.7.2 — 2026-10-19
 
 - Delete quest, Delete assignment and the "discard unsaved source changes" question now use Foundry dialogs (the desktop app has no browser `confirm`), with a labelled action button and Cancel on the left.

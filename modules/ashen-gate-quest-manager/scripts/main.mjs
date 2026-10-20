@@ -9,7 +9,7 @@ import {selectTrackedViews,validTrackedId,trackingState} from './tracking.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,infoDialog} from './dialogs.mjs';
 
-const VERSION='0.7.2';
+const VERSION='0.8.0';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -249,7 +249,58 @@ function refreshLaunchers(){
 function addLauncher(app,html){
  mountLauncher(launcherRoot(app,html),{moduleId:MOD,label:'Quests',title:'Quest Log',icon:'fa-solid fa-scroll',onClick:()=>open().catch(notifyError),visible:openAllowed()});
 }
-function updateWindows(){refreshLaunchers();renderTracker();if(instance?.rendered&&!instance.unsavedSource)instance.render().catch(notifyError);}
+/* ---- 0.8.0: embed API. A partner module (Character Hub) mounts this character's quest view into its own element:
+   the Party quests and the character's Individual quests, the selected quest's objectives, locations, party notes and
+   character notes, with Track and Save Character Notes. Same functions and checks as the Quest Log window. ---- */
+const EMBED_MODES=new Set(['character']);
+const EMBED_ACTIONS=new Set(['select','track','save-note','open-location']);
+const embeds=new Set();
+function embedHTML(ctrl){
+ if(!openAllowed())return '<div class="ag-quest-empty">The GM has hidden the Quest Log.</div>';
+ const party=roleViewList('party',ctrl.actorId),mine=ctrl.actorId?roleViewList('individual',ctrl.actorId):[];
+ const q=ctrl.filter.trim().toLowerCase(),match=({view})=>!q||[view.name,view.summary,view.id].some(t=>String(t??'').toLowerCase().includes(q));
+ const shownParty=party.filter(match),shownMine=mine.filter(match),all=[...shownParty,...shownMine];
+ if(!all.some(x=>x.view.id===ctrl.selectedId))ctrl.selectedId=all[0]?.view.id??null;
+ const detail=all.find(x=>x.view.id===ctrl.selectedId)?.view??null;
+ const actor=ctrl.actorId?game.actors.get(ctrl.actorId):null;
+ return `<div class="ag-quest-main ag-quest-embed__main"><aside class="ag-quest-list"><label>Search<input id="ag-quest-search" placeholder="Search visible objectives" value="${E(ctrl.filter)}"></label>
+  <h3 class="ag-quest-embed__group">Party <small>${party.length}</small></h3><div class="ag-quest-embed__cards">${cards(shownParty,ctrl.selectedId)}</div>
+  <h3 class="ag-quest-embed__group">${E(actor?.name??'Character')} <small>${mine.length}</small></h3><div class="ag-quest-embed__cards">${cards(shownMine,ctrl.selectedId)}</div>
+  ${safeButton('Open Quest Log','open-log',{kind:'secondary'})}</aside>
+  <section class="ag-quest-reading">${readableDetail(detail,ctrl.actorId)}</section></div>`;
+}
+/** api.embed.mount(element, {actorId, mode:'character'}) → {unmount, refresh}. */
+function mountEmbed(element,{actorId=null,mode='character'}={}){
+ if(!element||typeof element.addEventListener!=='function')throw new TypeError('mount needs a DOM element.');
+ if(!EMBED_MODES.has(mode))throw new Error(`Unknown embed mode "${mode}". Supported: ${[...EMBED_MODES].join(', ')}.`);
+ const abort=new AbortController(),on=(ev,fn)=>element.addEventListener(ev,fn,{signal:abort.signal});
+ const ctrl={actorId:actorId?String(actorId):null,selectedId:null,filter:'',mounted:true};
+ element.classList?.add('ag-quest-embed');
+ ctrl.render=async()=>{
+  if(!ctrl.mounted)return;
+  if(element.isConnected===false){ctrl.unmount();return;}
+  const search=element.querySelector?.('#ag-quest-search'),at=search&&search===globalThis.document?.activeElement?search.selectionStart:null;
+  const note=element.querySelector?.('#ag-my-note'),draft=note&&note===globalThis.document?.activeElement?note.value:null;
+  element.innerHTML=embedHTML(ctrl);
+  if(at!==null){const q=element.querySelector?.('#ag-quest-search');q?.focus?.();q?.setSelectionRange?.(at,at);}
+  if(draft!==null){const n=element.querySelector?.('#ag-my-note');if(n){n.value=draft;n.focus?.();}}
+ };
+ ctrl.unmount=()=>{if(!ctrl.mounted)return;ctrl.mounted=false;abort.abort();embeds.delete(ctrl);element.innerHTML='';element.classList?.remove('ag-quest-embed');};
+ on('click',e=>{
+  const b=e.target?.closest?.('[data-action]');if(!b||!element.contains(b))return;
+  const action=b.dataset.action;
+  if(action==='open-log'){e.stopPropagation?.();(ctrl.selectedId?openObjective(ctrl.selectedId):open()).catch(notifyError);return;}
+  if(!EMBED_ACTIONS.has(action))return;
+  e.stopPropagation?.();
+  QuestLogApplication.prototype.action.call(ctrl,b,element);
+ });
+ on('input',e=>{if(e.target?.id==='ag-quest-search'){ctrl.filter=e.target.value;ctrl.render().catch(notifyError);}});
+ on('change',e=>e.stopPropagation?.());
+ embeds.add(ctrl);ctrl.render().catch(notifyError);
+ return {unmount:ctrl.unmount,refresh:()=>ctrl.render()};
+}
+const refreshEmbeds=()=>{for(const e of [...embeds])e.render().catch(notifyError);};
+function updateWindows(){refreshLaunchers();renderTracker();refreshEmbeds();if(instance?.rendered&&!instance.unsavedSource)instance.render().catch(notifyError);}
 Hooks.once('init',()=>{
  game.settings.register(MOD,'compendiumPackIds',{name:'Quest Definitions: Compendium Pack IDs',hint:'GM only: exact compendium collection IDs separated by commas, semicolons or whitespace (e.g. world.quests). Sources are read through the bundled pinned definition resolver; reload required after setting changes.',scope:'world',config:false,type:String,default:''});
  game.settings.register(MOD,'playerAccessEnabled',{name:'Quest Log: Player Access',hint:'Show the player Quest Log interface (new module defaults Hidden). Does not change gameplay, documents or GM access.',scope:'world',config:false,type:Boolean,default:false,onChange:updateWindows});
@@ -273,6 +324,7 @@ Hooks.once('ready',()=>{
   managerApi:()=>game.modules.get('ashen-gate-manager')?.active?game.modules.get('ashen-gate-manager')?.api?.definitions:null});
  module.api={contract:'ag-objectives/0.1-alpha',version:VERSION,
   open,openObjective,
+  embed:{contract:'ag-quest-embed/1',modes:[...EMBED_MODES],mount:mountEmbed},
   tracking:{get:()=>trackedSnapshot(),getState:()=>{assertUI(game.user,openAllowed());return trackingState(game.user?.getFlag?.(MOD,'tracking'));},set:changeTracking},
   consumer:{contract:objectiveConsumer.contract,resolveObjective:objectiveConsumer.resolveObjective,
    refreshCompendiums:async()=>{assertGM(game.user);if(!questDefinitionReader)return {status:'unavailable'};return questDefinitionReader.refreshCompendiums();},
