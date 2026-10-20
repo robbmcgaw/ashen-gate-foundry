@@ -1,12 +1,14 @@
 /**
  * The left column: the character itself. Portrait with the equipment slots around it (display only), AC, initiative,
  * speed, proficiency, hit points, the six abilities, and a compact footer (hit dice, exhaustion, resources, conditions).
- * Slot and condition controls live in one small menu at a time (sheet.menu), opened by click or right-click.
+ * Slots: click opens the item sheet, right-click unequips, the small ⋯ button opens the slot menu (sheet.menu).
+ * An empty slot's click or right-click opens its Equip… menu.
  */
 import {esc, signed} from './constants.mjs';
 import {btn} from './buttons.mjs';
 import {headerData, abilitiesData} from './data.mjs';
 import {equipmentLayout, equipChoices, SLOTS} from './items.mjs';
+import {partyStashUsable} from './partners.mjs';
 
 export const LEFT_SLOTS = ['head', 'neck', 'back', 'body', 'hands'];
 export const RIGHT_SLOTS = ['mainhand', 'offhand', 'waist', 'feet', 'other'];
@@ -28,6 +30,7 @@ function itemControls(row, slotId, layout, off) {
     row.usable ? menuBtn('item-use', 'Use', {icon: 'fa-solid fa-dice-d20', data: {id: row.id}, disabled: off}) : '',
     menuBtn('item-unequip', 'Unequip', {icon: 'fa-solid fa-hand', data: {id: row.id}, disabled: off}),
     row.canAttune ? menuBtn('item-attune', row.attuned ? 'Unattune' : 'Attune', {icon: 'fa-solid fa-sun', data: {id: row.id, attuned: row.attuned ? 0 : 1}, disabled: off}) : '',
+    partyStashUsable() ? menuBtn('item-deposit', 'Move to party stash', {icon: 'fa-solid fa-people-carry-box', data: {id: row.id}, disabled: off}) : '',
     partner ? menuBtn('slot-swap', `Swap with ${partner.name}`, {icon: 'fa-solid fa-right-left', data: {id: row.id, slot: slotId, other: partner.id, 'other-slot': pair}, disabled: off}) : '',
     moveSelect(row, off)
   ].join('');
@@ -49,18 +52,21 @@ function slotMenu(actor, slotId, layout, off) {
     : '<p class="agch-muted">No carried item fits here.</p>');
 }
 
+/** One slot: the square (click = open sheet, right-click = unequip) and a small ⋯ button for the menu. */
 function slotHtml(id, layout, menu) {
   const open = menu === `slot:${id}`;
+  const more = (label, filled) => filled ? `<button type="button" class="agch-slot__more" data-action="slot-menu" data-slot="${id}" data-ag-always aria-haspopup="menu" aria-expanded="${open}" title="More for ${esc(label)}" aria-label="More actions: ${esc(label)}"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>` : '';
   if (id === 'other') {
     const n = layout.other.length;
-    return `<button type="button" class="agch-slot${n ? ' is-filled' : ' is-empty'}${open ? ' is-open' : ''}" data-action="slot-menu" data-slot="other" data-ag-always
-      aria-haspopup="menu" aria-expanded="${open}" aria-label="Other equipped: ${n}" data-tooltip="Other equipped (${n})"><span class="agch-slot__empty">${n ? `+${n}` : SHORT.other}</span></button>`;
+    return `<div class="agch-slotwrap"><button type="button" class="agch-slot${n ? ' is-filled' : ' is-empty'}${open ? ' is-open' : ''}" data-action="slot-menu" data-slot="other" data-ag-always
+      aria-haspopup="menu" aria-expanded="${open}" aria-label="Other equipped: ${n}" title="Other equipped (${n}): click to list"><span class="agch-slot__empty">${n ? `+${n}` : SHORT.other}</span></button></div>`;
   }
   const s = layout.slots.find(x => x.id === id), item = s?.item;
-  const tip = item ? `${item.name}${item.attuned ? ' (attuned)' : ''}` : `${s.label}: empty`;
-  return `<button type="button" class="agch-slot${item ? ' is-filled' : ' is-empty'}${item?.attuned ? ' is-attuned' : ''}${open ? ' is-open' : ''}" data-action="slot-menu" data-slot="${id}" data-ag-always
-    aria-haspopup="menu" aria-expanded="${open}" aria-label="${esc(s.label)}: ${esc(tip)}" data-tooltip="${esc(tip)}">${item
-    ? `<img src="${esc(item.img)}" alt="">` : `<span class="agch-slot__empty">${esc(SHORT[id])}</span>`}</button>`;
+  if (!item) return `<div class="agch-slotwrap"><button type="button" class="agch-slot is-empty${open ? ' is-open' : ''}" data-action="slot-menu" data-slot="${id}" data-ag-always
+    aria-haspopup="menu" aria-expanded="${open}" aria-label="${esc(s.label)}: empty, equip" title="${esc(s.label)}: empty (click to equip)"><span class="agch-slot__empty">${esc(SHORT[id])}</span></button></div>`;
+  const tip = `${item.name}${item.attuned ? ' (attuned)' : ''}`;
+  return `<div class="agch-slotwrap"><button type="button" class="agch-slot is-filled${item.attuned ? ' is-attuned' : ''}${open ? ' is-open' : ''}" data-action="slot-open" data-slot="${id}" data-id="${esc(item.id)}" data-ag-always
+    aria-label="${esc(s.label)}: ${esc(tip)}. Click to open, right-click to unequip" title="${esc(tip)} (click: open, right-click: unequip)"><img src="${esc(item.img)}" alt=""></button>${more(s.label, true)}</div>`;
 }
 
 function dollHtml(ctx, h) {
@@ -96,7 +102,7 @@ function hpHtml(h, off) {
       <span class="agch-hp__text">${hp.value} / ${hp.effectiveMax} HP${hp.temp ? ` · +${hp.temp} temp` : ''}</span></div>
     <div class="agch-hp__row">${field('value', hp.value, 'HP')}${field('temp', hp.temp, 'Temp')}${field('tempmax', hp.tempmax, 'Max adj.')}
       <span class="agch-hp__adjust"><input type="number" min="0" step="1" class="agch-hp__amount" data-hp-amount placeholder="0" aria-label="Amount"${off ? ' disabled' : ''}>
-      ${btn('hp-damage', 'Damage', {kind: 'sm', icon: 'fa-solid fa-minus', disabled: off})}${btn('hp-heal', 'Heal', {kind: 'sm', icon: 'fa-solid fa-plus', disabled: off})}</span></div>
+      ${btn('hp-damage', 'Damage', {kind: 'sm', title: 'Damage: temp HP first, then HP', disabled: off})}${btn('hp-heal', 'Heal', {kind: 'sm', title: 'Heal up to max HP', disabled: off})}</span></div>
     ${hp.value <= 0 ? btn('roll-death', 'Death save', {kind: 'danger', icon: 'fa-solid fa-skull', disabled: off}) : ''}
   </div>`;
 }
@@ -110,17 +116,26 @@ function abilitiesHtml(actor, off) {
   return tiles ? `<div class="agch-abils" role="group" aria-label="Abilities: click for a check, Save for a saving throw">${tiles}</div>` : '';
 }
 
-function footHtml(h, off, menu) {
-  const exh = h.exhaustion, active = h.conditions.filter(c => c.active), open = menu === 'conditions';
-  const chip = c => `<button type="button" class="agch-cond${c.active ? ' is-active' : ''}" data-action="condition" data-id="${esc(c.id)}" aria-pressed="${c.active}" data-tooltip="${esc(c.label)}${c.active ? ' (click to remove)' : ''}" aria-label="${esc(c.label)}"${off ? ' disabled' : ''}>${c.img ? `<img src="${esc(c.img)}" alt="">` : `<span>${esc(c.label.slice(0, 2))}</span>`}</button>`;
-  const list = h.conditions.map(c => `<button type="button" class="agch-chip${c.active ? ' is-active' : ''}" data-action="condition" data-id="${esc(c.id)}" aria-pressed="${c.active}"${off ? ' disabled' : ''}>${esc(c.label)}</button>`).join('');
+/** Active conditions as name chips (click removes); + shows the others inline to add one. */
+function conditionsHtml(h, off, adding) {
+  if (!h.conditions.length) return '';
+  const active = h.conditions.filter(c => c.active), inactive = h.conditions.filter(c => !c.active);
+  const chip = c => `<button type="button" class="agch-chip${c.active ? ' is-active' : ''}" data-action="condition" data-id="${esc(c.id)}" aria-pressed="${c.active}" title="${c.active ? `Remove ${esc(c.label)}` : `Add ${esc(c.label)}`}"${off ? ' disabled' : ''}>${c.img ? `<img src="${esc(c.img)}" alt="">` : ''}${esc(c.label)}${c.active && !off ? '<i class="fa-solid fa-xmark" aria-hidden="true"></i>' : ''}</button>`;
+  return `<section class="agch-conds" aria-label="Conditions">
+    <span class="agch-tile__label">Conditions</span>
+    <div class="agch-chips">${active.map(chip).join('') || '<span class="agch-muted">None</span>'}
+      ${off ? '' : btn('cond-add', '', {kind: 'ghost', extra: 'agch-conds__add', icon: adding ? 'fa-solid fa-minus' : 'fa-solid fa-plus', title: adding ? 'Hide conditions' : 'Add a condition'})}</div>
+    ${adding && !off ? `<div class="agch-chips agch-conds__list" role="group" aria-label="Add a condition">${inactive.map(chip).join('')}</div>` : ''}
+  </section>`;
+}
+
+function footHtml(h, off) {
+  const exh = h.exhaustion;
   return `<div class="agch-foot">
-    ${h.hd ? `<span class="agch-pill" title="Hit dice left">Hit Dice <b>${h.hd.value} / ${h.hd.max}</b></span>` : ''}
+    <span class="agch-pill">${h.hd ? `<span title="Hit dice left">Hit Dice <b>${h.hd.value} / ${h.hd.max}</b></span>` : 'Rest'}
+      ${btn('rest', '', {kind: 'ghost', extra: 'agch-restbtn', icon: 'fa-solid fa-mug-hot', data: {type: 'short'}, title: 'Short Rest (dnd5e dialog: spend hit dice)', disabled: off})}${btn('rest', '', {kind: 'ghost', extra: 'agch-restbtn', icon: 'fa-solid fa-campground', data: {type: 'long'}, title: 'Long Rest (dnd5e dialog)', disabled: off})}</span>
     <span class="agch-pill">Exhaustion ${btn('exhaustion', '', {kind: 'ghost', icon: 'fa-solid fa-minus', data: {step: -1}, title: 'Reduce exhaustion', disabled: off || exh.value <= 0})}<b>${exh.value} / ${exh.max}</b>${btn('exhaustion', '', {kind: 'ghost', icon: 'fa-solid fa-plus', data: {step: 1}, title: 'Increase exhaustion', disabled: off || exh.value >= exh.max})}</span>
     ${h.resources.map(r => `<span class="agch-pill">${esc(r.label)} <b>${r.value} / ${r.max}</b></span>`).join('')}
-    ${h.conditions.length ? `<span class="agch-foot__conds" role="group" aria-label="Active conditions">${active.map(chip).join('')}
-      ${btn('conditions-menu', active.length ? '' : 'Conditions', {kind: 'sm', icon: 'fa-solid fa-heart-pulse', title: 'Turn conditions on or off', always: true})}</span>` : ''}
-    ${open ? `<div class="agch-menu agch-menu--conditions" role="menu" aria-label="Conditions"><header class="agch-menu__head"><strong>Conditions</strong>${btn('menu-close', '', {kind: 'ghost', icon: 'fa-solid fa-xmark', title: 'Close', always: true})}</header><div class="agch-chips">${list}</div></div>` : ''}
   </div>`;
 }
 
@@ -143,6 +158,7 @@ export function characterPanelHtml(ctx) {
     </div>
     ${hpHtml(h, off)}
     ${abilitiesHtml(actor, off)}
-    ${footHtml(h, off, sheet?.menu ?? null)}
+    ${conditionsHtml(h, off, sheet?.condAdd === true)}
+    ${footHtml(h, off)}
   </aside>`;
 }

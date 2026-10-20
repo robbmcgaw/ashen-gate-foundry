@@ -62,6 +62,9 @@ export function createApi() {
 if (globalThis.Hooks) {
   Hooks.once('init', () => {
     registerHubSheet();
+    // Per user (client scope): how see-through the Hub window background is. Changed with the slider in the Hub header.
+    game.settings.register(MODULE_ID, 'windowOpacity', {scope: 'client', config: false, type: Number, default: 100,
+      onChange: () => { for (const app of globalThis.foundry?.applications?.instances?.values?.() ?? []) if (HubSheet && app instanceof HubSheet && app.rendered) app.applyOpacity(); }});
     registerCompanionSettings(game.settings, () => { for (const app of globalThis.foundry?.applications?.instances?.values?.() ?? []) if (HubSheet && app instanceof HubSheet && app.rendered) app.render(); });
     const mod = game.modules.get(MODULE_ID);
     if (mod) mod.api = createApi();

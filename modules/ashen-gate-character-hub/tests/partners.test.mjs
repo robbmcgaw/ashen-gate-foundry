@@ -2,7 +2,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {installGlobals, makeActor, users, FakeActorSheetV2} from './foundry-mock.mjs';
-import {PANELS, AG_PANELS, panelState, ashenGateTab, partyStashHtml, openPartner} from '../scripts/partners.mjs';
+import {PANELS, AG_PANELS, panelState, ashenGateTab, partyStashHtml, openPartner, mountEmbeds, unmountEmbeds, embedApi, partyStashUsable, depositToParty} from '../scripts/partners.mjs';
+import {canEdit} from '../scripts/actions.mjs';
 import {createHubSheetClass} from '../scripts/sheet.mjs';
 
 const calls = [];
@@ -212,4 +213,108 @@ test('Inventory Party stash: Utilities purse and every stash item', () => {
   assert.match(html, /\[TEST\] Thing 9/);
   assert.doesNotMatch(html, /more<\/p>/, 'no 8-item cap in the full view');
   assert.match(html, /data-action="partner-open" data-partner="ashen-gate-utilities"/);
+});
+
+// ---------- 0.7.0: embedded partner views ----------
+
+/** Fake placeholder element: dataset, replaceWith, textContent/innerHTML. */
+function slotEl(id, mode, actor = 'actor1') {
+  const el = {dataset: {agchEmbed: id, mode, actor}, innerHTML: '<p>Loading…</p>', replacedBy: null,
+    set textContent(v) { this.innerHTML = v; }, replaceWith(other) { this.replacedBy = other; }};
+  return el;
+}
+const root = slots => ({querySelectorAll: () => slots});
+function embedPartner(id, modes, log) {
+  return {active: true, api: {embed: {modes, mount: (el, opts) => { log.push(['mount', id, opts]); el.innerHTML = `[${id} view]`;
+    return {unmount: () => log.push(['unmount', id]), refresh: () => log.push(['refresh', id])}; }}}};
+}
+
+test('embedApi: only an active partner offering that mode', () => {
+  const log = [];
+  installGlobals({modules: {'ashen-gate-profession-ledger': embedPartner('ledger', ['individual'], log), 'ashen-gate-factions': {active: false, api: {embed: {mount() {}}}}}});
+  assert.ok(embedApi('ashen-gate-profession-ledger', 'individual'));
+  assert.equal(embedApi('ashen-gate-profession-ledger', 'party'), null);
+  assert.equal(embedApi('ashen-gate-factions', 'character'), null, 'inactive');
+  assert.equal(embedApi('ashen-gate-locations', 'character'), null, 'missing');
+});
+
+test('Ashen Gate tab uses the partner view when offered, else the summary', () => {
+  const log = [];
+  installGlobals({user: users.owner, modules: {...partners(), 'ashen-gate-profession-ledger': embedPartner('ledger', ['individual'], log)}});
+  const prof = ashenGateTab({actor: makeActor(), sheet: {agTab: 'ashen-gate-profession-ledger'}});
+  assert.match(prof, /data-agch-embed="ashen-gate-profession-ledger" data-mode="individual" data-actor="actor1"/);
+  assert.match(prof, /own view/);
+  const fac = ashenGateTab({actor: makeActor(), sheet: {agTab: 'ashen-gate-factions'}});
+  assert.doesNotMatch(fac, /data-agch-embed/, 'Factions has no embed yet: summary');
+  assert.match(fac, /Lantern Guild/);
+});
+
+test('mountEmbeds mounts once, moves the live view into the next render, unmounts what is gone', () => {
+  const log = [];
+  installGlobals({modules: {'ashen-gate-profession-ledger': embedPartner('ledger', ['individual'], log)}});
+  const mounted = new Map();
+  const first = slotEl('ashen-gate-profession-ledger', 'individual');
+  mountEmbeds(root([first]), mounted);
+  assert.deepEqual(log, [['mount', 'ledger', {actorId: 'actor1', mode: 'individual'}]]);
+  assert.equal(first.innerHTML, '[ledger view]');
+  const second = slotEl('ashen-gate-profession-ledger', 'individual');
+  mountEmbeds(root([second]), mounted);
+  assert.equal(second.replacedBy, first, 'the same live element is reused (state kept)');
+  assert.deepEqual(log.at(-1), ['refresh', 'ledger']);
+  assert.equal(log.filter(x => x[0] === 'mount').length, 1);
+  mountEmbeds(root([]), mounted);
+  assert.deepEqual(log.at(-1), ['unmount', 'ledger']);
+  assert.equal(mounted.size, 0);
+  mountEmbeds(root([slotEl('ashen-gate-profession-ledger', 'individual')]), mounted);
+  unmountEmbeds(mounted);
+  assert.deepEqual(log.at(-1), ['unmount', 'ledger']);
+});
+
+test('a partner embed that throws leaves a note, not a broken sheet; a missing one keeps the placeholder', () => {
+  installGlobals({modules: {'ashen-gate-quest-manager': {active: true, api: {embed: {modes: ['character'], mount: () => { throw new Error('boom'); }}}}}});
+  const orig = console.warn; console.warn = () => {};
+  const bad = slotEl('ashen-gate-quest-manager', 'character'), gone = slotEl('ashen-gate-locations', 'character');
+  const mounted = new Map();
+  mountEmbeds(root([bad, gone]), mounted);
+  console.warn = orig;
+  assert.match(bad.innerHTML, /Unavailable right now/);
+  assert.doesNotMatch(bad.innerHTML, /boom/);
+  assert.equal(mounted.size, 0);
+});
+
+test('Party stash: Utilities embed when offered, summary otherwise', () => {
+  const log = [];
+  installGlobals({user: users.owner, modules: {'ashen-gate-utilities': {active: true, api: {...partners()['ashen-gate-utilities'].api, embed: {modes: ['stash'], mount() {}}}}}});
+  assert.match(partyStashHtml(makeActor()), /data-agch-embed="ashen-gate-utilities" data-mode="stash"/);
+  installGlobals({user: users.owner, modules: partners()});
+  assert.match(partyStashHtml(makeActor()), /42 gp, 5 sp/);
+});
+
+test('Move to party stash: owner only, goes through Utilities deposit with the item uuid; hidden when the stash is off for players', async () => {
+  const deposits = [];
+  const util = (enabled, access) => ({active: true, api: {stash: {deposit: async uuid => { deposits.push(uuid); return 'Stashed.'; }, isEnabled: () => enabled}, playerAccess: {getState: () => ({playerAccessEnabled: access})}}});
+  installGlobals({user: users.owner, modules: {'ashen-gate-utilities': util(true, true)}});
+  assert.equal(partyStashUsable(), true);
+  const actor = makeActor({items: [{id: 'rope', name: '[TEST] Rope', type: 'loot'}]});
+  actor.items.get('rope').uuid = 'Actor.actor1.Item.rope';
+  assert.equal((await depositToParty(actor, 'rope', canEdit)).ok, true);
+  assert.deepEqual(deposits, ['Actor.actor1.Item.rope']);
+  installGlobals({user: users.observer, modules: {'ashen-gate-utilities': util(true, true)}});
+  const r = await depositToParty(actor, 'rope', canEdit);
+  assert.equal(r.ok, false); assert.match(r.error, /don't own/);
+  assert.equal(deposits.length, 1, 'refused before reaching Utilities');
+  installGlobals({user: users.owner, modules: {'ashen-gate-utilities': util(false, true)}});
+  assert.equal(partyStashUsable(), false, 'stash off for players');
+  installGlobals({user: users.gm, modules: {'ashen-gate-utilities': util(false, false)}});
+  assert.equal(partyStashUsable(), true, 'GM always');
+  installGlobals({user: users.owner, modules: {}});
+  assert.equal(partyStashUsable(), false);
+});
+
+test('clicks inside an embedded view are left to the partner', async () => {
+  installGlobals();
+  const Cls = createHubSheetClass(FakeActorSheetV2);
+  const sheet = new Cls({document: makeActor()});
+  const inside = {dataset: {action: 'help'}, closest: sel => sel === '.agch-embed' ? {} : null};
+  assert.equal(await sheet._onClickAction({}, inside), null);
 });
