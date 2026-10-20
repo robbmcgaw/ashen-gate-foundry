@@ -6,6 +6,7 @@ import {MODULE_ID, esc, signed} from './constants.mjs';
 import {headerData, abilitiesData, skillsData} from './data.mjs';
 import {btn} from './buttons.mjs';
 import {ITEM_TABS} from './tabs.mjs';
+import {partnersTab} from './partners.mjs';
 
 export {btn};
 
@@ -66,7 +67,8 @@ function characterTab(ctx) {
 /** The tab registry, in display order. Later views are appended here; reorder by moving entries. */
 export const TABS = [
   {id: 'character', label: 'Character', icon: 'fa-solid fa-user', render: characterTab},
-  ...ITEM_TABS
+  ...ITEM_TABS,
+  {id: 'ashen-gate', label: 'Ashen Gate', icon: 'fa-solid fa-dungeon', render: partnersTab}
 ];
 
 export function tabsHtml(active) {

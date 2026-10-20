@@ -64,4 +64,6 @@ if (globalThis.Hooks) {
   for (const hook of ['updateActor', 'createItem', 'updateItem', 'deleteItem', 'createActiveEffect', 'updateActiveEffect', 'deleteActiveEffect']) {
     Hooks.on(hook, doc => scheduleRender(actorOf(doc)));
   }
+  // Profession Ledger announces progression changes (its public hook); refresh any open Hub for that Actor.
+  Hooks.on('ashenGateLedger.progressionChanged', data => { const actor = game.actors?.get?.(data?.actorId); if (actor) scheduleRender(actor); });
 }

@@ -9,6 +9,7 @@ import * as act from './actions.mjs';
 import {openNativeSheet} from './native.mjs';
 import {showHelp} from './help.mjs';
 import * as items from './item-actions.mjs';
+import {openPartner} from './partners.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
 /** Shows a refusal or failure from an action; a success is silent (the sheet re-renders itself). */
@@ -38,6 +39,7 @@ export const ACTIONS = {
   'item-attune': (s, t) => items.setAttuned(s.document, t.dataset.id, t.dataset.attuned === '1'),
   'spell-prepare': (s, t) => items.togglePrepared(s.document, t.dataset.id),
   'rest': (s, t) => items.rest(s.document, t.dataset.type),
+  'partner-open': (s, t) => openPartner(s.document, t.dataset.partner, t.dataset.ref),
   'doll-art': s => { s.dollArt = s.dollArt === 'token' ? 'portrait' : 'token'; return s.render(); }
 };
 function hpButton(sheet, target, sign) {

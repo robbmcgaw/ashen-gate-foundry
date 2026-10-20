@@ -8,6 +8,7 @@ export const HELP_HTML = `<p>The Character Hub is another way to look at the <st
   <li><strong>Use</strong> / <strong>Cast</strong> open dnd5e's own dialog, so attacks, slots and uses work as on the native sheet.</li>
   <li><strong>Equipment</strong> boxes are a display only. <em>Move to…</em> changes where an item shows; <em>Equip…</em> on an empty box lists items that fit.</li>
   <li>Equipping an item that needs attunement asks whether to attune. At your limit it lists attuned items so you can unattune one.</li>
+  <li><strong>Ashen Gate</strong> shows summaries from the other Ashen Gate modules. Changes are made in those modules: use each panel's Open button.</li>
   <li>If you only observe a character, you can look but not change or roll.</li>
   <li>To switch back for good: the window's sheet menu (<em>Sheet</em> in the title bar) → choose the dnd5e character sheet.</li>
 </ul>`;
