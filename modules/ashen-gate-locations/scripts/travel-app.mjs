@@ -95,7 +95,13 @@ export class TravelTracker extends Base {
       const b = event.target?.closest?.('[data-travel]');
       if (!b || b.disabled) return;
       event.preventDefault();
-      this.act(b.dataset.travel).catch(notifyError);
+      this.act(b.dataset.travel, b).catch(notifyError);
+    };
+    // 1.15.0: selects and checkboxes in behaviour panels.
+    content.onchange = event => {
+      const el = event.target?.closest?.('[data-travel-change]');
+      if (!el || el.disabled) return;
+      this.act(el.dataset.travelChange, el).catch(notifyError);
     };
     const slider = content.querySelector('[data-travel-opacity]');
     if (slider) {
@@ -107,9 +113,16 @@ export class TravelTracker extends Base {
   }
 
   /** Button actions. GM actions go through the API, which refuses them for players. One at a time. */
-  async act(action) {
+  async act(action, el = null) {
     const a = api();
     if (action === 'help') return this.help();
+    if (String(action).startsWith('bh:')) {
+      if (this.busy) return;
+      this.busy = true;
+      try { await TravelTracker.behaviours?.act(action, {isGM: this.gm, el}); }
+      finally { this.busy = false; if (this.rendered) await this.render(); }
+      return;
+    }
     if (action === 'open-routes' || action === 'open-route') {
       const ref = this.gm ? a.getJourney().journey?.routeId : a.travel.state()?.routeKey;
       return LocationsApp.showRoute(ref || null);
@@ -140,8 +153,9 @@ export class TravelTracker extends Base {
       <li>A hazard waits here (and in your whispered chat card): <strong>Reroll</strong>, <strong>Dismiss</strong> (players never know) or <strong>Share to players</strong> (posts the result to chat, no route or place names). The next leg waits until it is dismissed or shared.</li>
       <li><strong>Pause</strong> holds the journey (players see "Paused") until <strong>Resume</strong>. <strong>End journey</strong> stops where the party is and writes nothing to Party Notes.</li>
       <li>Start journeys on a route in Locations → Routes. On arrival the trip is added to the destination's Party Notes.</li>
+      <li><strong>Pace</strong>, <strong>Night watches</strong> and <strong>Foraging and navigation</strong> are tracking only: nothing is rolled or changed for you. Players see the pace and the watch order; each can be switched off for this journey. The checks open Utilities → Rolls filled in (needs Utilities 0.13.0+).</li>
       <li>The slider fades the window background for you only. The window remembers where you left it.</li></ul>`
-      : '<p>Where the party is on its journey, and what the GM has told you about the road. The slider fades the window background (only for you).</p>';
+      : '<p>Where the party is on its journey, what the GM has told you about the road, and the pace and watch order when the GM tracks them. The slider fades the window background (only for you).</p>';
     return foundry.applications.api.DialogV2.prompt({window: {title: 'Travel Help'}, content, ok: {label: 'Close'}, rejectClose: false});
   }
   async close(options = {}) {

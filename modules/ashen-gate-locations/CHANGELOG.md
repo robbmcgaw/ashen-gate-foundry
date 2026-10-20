@@ -1,3 +1,13 @@
+## 1.15.0 — 2026-10-20
+
+- **Travel behaviours in the Travel tracker, tracking only.** Three collapsible panels for the current journey, each with a **Track on this journey** switch (all on by default). Nothing is automated: no effect on rolls, the hazard chance, legs, supplies or rest.
+  - **Pace:** Slow / Normal / Fast, chosen by the GM; players see the current pace.
+  - **Night watches:** the GM ticks characters for the first, second and third watch; players see the watch order.
+  - **Foraging and navigation** (GM only): a skill for each (Survival by default, the GM can change it) and **Foraging check** / **Navigation check** buttons that open **Utilities → Rolls** with the check filled in (Group result, the party ticked; change anything, then Start Rolls). Needs Ashen Gate Utilities 0.13.0+ (`api.rolls.open`); without it the panel is hidden.
+- **API (`travel`, GM only):** `getBehaviours()`, `setBehaviours(patch)`, `openCheck('forage'|'navigate')`, plus `checksAvailable()`. Players' `travel.state()` may carry `behaviours: {pace?, watch?}`. Every write is rejected for players in the API.
+- **Extension point:** behaviour panels can now handle their own controls (`act(action, {isGM, el})` with `data-travel` / `data-travel-change="bh:<id>:<action>"`); a `'gm'` panel's actions are refused for players.
+- Saved data: additive only (`behaviours` on the journey; pace and watch names on the players' progress page). Old journeys read with the defaults. No migration. Stored shape: `docs/routes-schema.md`.
+
 ## 1.14.0 — 2026-10-20
 
 - **Travel tracker:** a small pop-out window (about 320 × 420, resizable) to keep open over the map while travelling. Open it from the new **person-hiking** button in the Token controls (left of the map) or **Travel tracker** on a journey in Locations → Routes.

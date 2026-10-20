@@ -231,7 +231,9 @@ export function journeyPageView(travel, routes, locations, label = presentationO
   const route = routes.find(r => r.id === j.routeId);
   const ids = players().map(u => u.id);
   const routeKey = route && ids.length && ids.every(u => routeVariantFor(route, byId, u) === 'full') ? route.viewKey : null;
-  return journeyView(j, {from: endForAll(byId.get(j.fromId), label), to: endForAll(byId.get(j.toId), label), routeKey});
+  // 1.15.0: watch names are character names, which players see on the party's sheets anyway.
+  const actorName = id => { const a = globalThis.game?.actors?.get?.(id); return a?.type === 'character' ? a.name : ''; };
+  return journeyView(j, {from: endForAll(byId.get(j.fromId), label), to: endForAll(byId.get(j.toId), label), routeKey, actorName});
 }
 async function syncTravel(travel, routes, locations) {
   const view = journeyPageView(travel, routes, locations);

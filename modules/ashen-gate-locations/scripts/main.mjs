@@ -12,8 +12,9 @@ import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
 import {TravelTracker} from './travel-app.mjs';
 import {createBehaviours} from './travel-view.mjs';
+import {travelBehaviours} from './travel-behaviours.mjs';
 
-const VERSION = '1.14.0';
+const VERSION = '1.15.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -51,9 +52,24 @@ function applyPlayerAccess(enabled) {
   if (!isGM() && !enabled && TravelTracker.instance?.rendered) TravelTracker.instance.close().catch(notifyError);
   try { ui.controls?.render?.({reset: true}); } catch {}
 }
-// 1.14.0: optional travel behaviour panels for the tracker (none ship; see travel-view.mjs).
+// 1.14.0: optional travel behaviour panels for the tracker (see travel-view.mjs). 1.15.0 ships pace, night watches and
+// foraging/navigation checks (travel-behaviours.mjs); other modules can still register their own.
 const behaviours = createBehaviours();
 TravelTracker.behaviours = behaviours;
+/** Characters the GM can put on watch: the dnd5e Primary Party's characters, else every character Actor. */
+const watchCandidates = () => {
+  const party = (game.actors?.party?.system?.members ?? []).map(m => m?.actor).filter(a => a?.type === 'character');
+  const list = party.length ? party : [...(game.actors ?? [])].filter(a => a?.type === 'character');
+  return list.map(a => ({id: a.id, name: a.name})).sort((a, b) => a.name.localeCompare(b.name));
+};
+/** Utilities' prefilled-roll API (Utilities 0.13.0+), or null. Feature-detected, never required. */
+const utilitiesRolls = () => {
+  const m = game.modules.get('ashen-gate-utilities');
+  return m?.active && typeof m.api?.rolls?.open === 'function' ? m.api.rolls : null;
+};
+for (const def of travelBehaviours({api: () => game.modules.get(MODULE_ID)?.api, characters: watchCandidates,
+  skillLabel: id => { const s = globalThis.CONFIG?.DND5E?.skills?.[id]; const l = s?.label ?? id; try { return game.i18n?.localize?.(l) ?? l; } catch { return l; } }}))
+  behaviours.register(def);
 
 Hooks.once('init', () => {
   game.settings.register(MODULE_ID, 'playerAccessEnabled', {
@@ -105,6 +121,7 @@ Hooks.once('ready', () => {
     travel: {read: readTravel, write: writeTravel, readView: readJourneyView, drawHazard, chat, emit: (event, payload) => Hooks.callAll(`ashenGateLocations.${event}`, payload)},
     sharing: {request: sharing.request},
     tracker: {open: () => TravelTracker.show(), behaviours},
+    rolls: utilitiesRolls,
     open: () => LocationsApp.show(),
     openLocation: ref => LocationsApp.show(ref),
     notes: {readGM: readNotes, readPlayer: readPlayerNotes, request: notes.request, userId: () => game.user?.id, isActive: notes.isActive, nameOf: notes.nameOf}

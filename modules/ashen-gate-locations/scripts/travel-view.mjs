@@ -112,9 +112,11 @@ export function playerTrackerHTML({state: s, version = '', opacity = 100, panels
 }
 
 /**
- * Extension point for travel behaviours (pace, watches, foraging, ...: not designed yet, none ship). A behaviour is an
- * optional panel the tracker shows for a journey:
- *   {id, label, icon?, audience: 'gm' | 'everyone', appliesTo?(ctx) → boolean, render(ctx) → HTML string}
+ * Extension point for travel behaviours. A behaviour is an optional panel the tracker shows for a journey
+ * (1.15.0 ships pace, night watches and foraging/navigation checks: travel-behaviours.mjs):
+ *   {id, label, icon?, audience: 'gm' | 'everyone', appliesTo?(ctx) → boolean, render(ctx) → HTML string, act?(action, ctx)}
+ * 1.15.0 act: a control in the panel with data-travel="bh:<id>:<action>" (click) or data-travel-change="bh:<id>:<action>"
+ * (change) calls act(action, {isGM, el}); el is the control. 'gm' behaviours' actions are refused for players.
  * ctx: {isGM, state (player-safe, api.travel.state()), journey (the full record, GM only; null for players)}.
  * 'gm' panels are never rendered on a player's client. A panel owns its own data (and must keep GM-only data off
  * players' clients itself); the tracker only gives it a place to draw. A panel that throws shows a one-line error.
@@ -126,8 +128,9 @@ export function createBehaviours() {
     if (!/^[A-Za-z0-9_.:-]{1,60}$/.test(id)) throw new Error('A travel behaviour needs an id (letters, digits, . _ : -).');
     if (typeof def.render !== 'function') throw new Error(`Travel behaviour "${id}" needs a render(ctx) function.`);
     const audience = def.audience === 'everyone' ? 'everyone' : 'gm';
+    if (def.act !== undefined && typeof def.act !== 'function') throw new Error(`Travel behaviour "${id}": act must be a function.`);
     list.set(id, Object.freeze({id, label: String(def.label || id), icon: def.icon ? String(def.icon) : '', audience,
-      appliesTo: typeof def.appliesTo === 'function' ? def.appliesTo : () => true, render: def.render}));
+      appliesTo: typeof def.appliesTo === 'function' ? def.appliesTo : () => true, render: def.render, act: def.act ?? null}));
     return () => unregister(id);
   }
   function unregister(id) { return list.delete(id); }
@@ -146,5 +149,13 @@ export function createBehaviours() {
     }
     return out;
   }
-  return {register, unregister, panels, list: () => [...list.values()].map(({id, label, audience}) => ({id, label, audience}))};
+  /** 1.15.0: runs a panel control's action ("bh:<id>:<action>"). */
+  async function act(action, ctx) {
+    const [, id, ...rest] = String(action).split(':');
+    const b = list.get(id);
+    if (!b?.act) throw new Error(`No travel behaviour handles "${action}".`);
+    if (b.audience === 'gm' && !ctx.isGM) throw new Error('Only the GM can do that.');
+    return b.act(rest.join(':'), ctx);
+  }
+  return {register, unregister, panels, act, list: () => [...list.values()].map(({id, label, audience}) => ({id, label, audience}))};
 }

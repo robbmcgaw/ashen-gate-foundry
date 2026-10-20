@@ -231,3 +231,8 @@
 .agl-travel .agl-travel__panels { display: grid; gap: var(--ag-space-1); }
 .agl-travel .agl-travel__panel { padding: var(--ag-space-1) var(--ag-space-2); }
 .agl-travel .agl-travel__panel summary { cursor: pointer; font-weight: 600; }
+.agl-travel .agl-travel__watch { width: 100%; border-collapse: collapse; }
+.agl-travel .agl-travel__watch :where(th, td) { padding: 2px var(--ag-space-1); text-align: center; }
+.agl-travel .agl-travel__watch tbody th { text-align: left; font-weight: normal; }
+.agl-travel .agl-travel__toggle { display: flex; align-items: center; gap: var(--ag-space-1); }
+.agl-travel .agl-travel__watches { margin: 0; padding-left: 1.2em; }
