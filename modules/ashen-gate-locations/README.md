@@ -27,6 +27,7 @@ and Install. Updates arrive through Check for Updates / Forge's update button. E
 - **Who Can See It (1.8.0):** **Everyone** (default) or **Selected players**. Only the ticked players get the card, its pins, its Party Notes and its quest links; everyone else gets exactly what they would for a Hidden place. Players who can see it may **Share with…** other players (adds only; the GM can turn sharing off per location). The card lists who shared with whom; untick a player to undo.
 - **Nesting & Scenes:** put a location inside another (any depth, no loops); any place can sit inside another, only Regions show as folders. Players see the places inside a revealed location once each is revealed (unidentified ones by label). Link scenes and open them with one click; only your view moves.
 - **Party Notes (1.5.0):** every location players can see (Revealed or Unidentified) has a shared **Party Notes** card that the whole party edits. One person edits at a time: **Edit** takes the lock, everyone else sees "*name* is editing", and **Save Notes** or **Cancel** lets it go (it also lapses after 2 minutes without typing, or when that player disconnects). A save based on an older copy is refused and the text stays in the box. The GM can edit any location's Party Notes, **Take Over** from a player, and **Clear** them. They are not your *Notes* section: Save Changes, Publish, imports and exports never touch them. Hiding a location hides its Party Notes from players until it is visible again. Since 1.7.0 players can save with no GM connected.
+- **Routes (1.10.0):** the **Routes** tab joins two locations. **New Route**, pick **From** and **To** by name, set the **Distance (km)** and, if this route's legs differ from the world default (GM Setup → *Routes*), its **Leg length (km)**; legs = distance ÷ leg length, rounded up. Optional: a name, *One-way*, terrain, a **Hazard table** (a world Roll Table; a missing table falls back to "Hazard!") and a **Base hazard chance**, GM notes. The `RTE-*` ID is made from the two ends on first save, never changes and is never reused, even after a delete. **Discovery:** *Unknown* (new routes; players see nothing), *Rumoured*, *Known*, *Explored*. A player sees a discovered route only while **both ends are visible to them** (not Hidden, and allowed to see that place) and they are in the route's own **Who Can See It** (Everyone or Selected players). Tick *show "Unknown path"* to let a player who can see only one end see an unnamed path from that end instead of nothing. Players never see the hazard chance, table, GM notes or ID. **Delete** asks first.
 - **Players:** Actors sidebar → **Locations** (when *Player Access* is on in GM Setup). Players get a read-only view of revealed locations. Clicking a quest opens the Quest Log; in the Quest Log, a quest's *Locations* list opens the location.
 
 ## Storage
@@ -38,7 +39,9 @@ and Install. Updates arrive through Check for Updates / Forge's update button. E
 - **Locations (Shared Notes)** Journal (1.7.0; players OBSERVER on the entry) holds one generic page per location visible to players, keyed by pin key, carrying only the notes copy. Players OWN those pages, so with no GM connected they save there directly (same lock and stamp rules). A Hidden location's page is blank with no player permission. The GM's client reconciles it with the GM store on login and after any player write: one-sided changes are taken; if both changed, the newer wins and the older text is kept under a divider. A player could console-edit the notes of a location they can already see (accepted trade-off).
 - Foundry sends every world document to every client, so a player who digs in the browser console could read the GM Data journal. Nothing in the normal Foundry UI shows it.
 
-All three Journals live in *Ashen Gate / Locations*. Don't edit them by hand.
+- **Routes (1.10.0):** full route records sit in the GM Data Journal (`routes`, plus `routeIds`: every route id ever used). A **Locations (Routes)** Journal holds one page named just "Route" per version of a route that some player may see, with only the player-safe view and a random key, readable only by those players (everyone else NONE). An Unknown route has no page.
+
+All these Journals live in *Ashen Gate / Locations*. Don't edit them by hand.
 
 Journals from Locations 0.8.x are ignored (a one-line console note says how many). Delete them when you no longer need them.
 
@@ -71,11 +74,17 @@ Journals from Locations 0.8.x are ignored (a one-line console note says how many
 | GM only: `getAudience(id)`, `setAudience(id, {mode, userIds, sharing})` | who may see it: `{mode: 'everyone'\|'selected', userIds, sharedBy: {userId: sharer}, sharing}`; applies at once |
 | `shareLocation(idOrPinKey, userIds)` | players: add players to a *Selected players* location they can see (a GM must be connected); `{added}` |
 | GM only: `pinsOf(id)` | scenes holding its Map Notes: `[{uuid, name, count}]` |
+| `listRoutes({locationId})` | GM: route records plus `legs`, `legKmInEffect`. Players: the routes they may see, `{key, variant: 'full'\|'from'\|'to', state, name, from, to, directed, distanceKm, legs, legKm, terrain?}` (an *Unknown path* has `state: 'unknown-path'`, `name: 'Unknown path'` and only its visible end); never an `RTE-*` id or hazard data |
+| `getRoute(id \| key)` | GM: by `RTE-*` id. Players: a visible route by its key, else `null` |
+| GM only: `saveRoute(data)`, `setRouteState(id, 'unknown'\|'rumoured'\|'known'\|'explored')`, `setRouteAudience(id, {mode, userIds})`, `deleteRoute(id)`, `importRoutes(records, {mode})` | Save keeps discovery and audience; a new route starts Unknown |
+| `ROUTE_STATES` | `['unknown', 'rumoured', 'known', 'explored']` |
 | `playerAccess` | `ag-player-access/1` capability |
 
 ## Import format
 
 Location records go in an `ag-foundry-import/0.2` package with `entity_type: "Location"`, so one test data pack can carry them. **General Manager imports them for you:** when Locations is active, its normal import creates the Items first and then passes the Location records to `api.importLocations` in the same run. Without Manager (or for a Locations-only file) use **GM Setup → Import JSON**, which reads the same records and skips other types. Either way a location whose ID already exists is kept as it is; Manager can also be told to update existing locations (`importLocations(records, {mode: 'update'})` replaces the definition but keeps its marker state, what players currently see, its pin key and exhausted nodes; publish to show the update). Imports never touch Map Notes.
+
+**Route records (1.10.0)** travel in the same package with `entity_type: "Route"` and a `route` block (`from_location_id`, `to_location_id`, `distance_km`, optional `leg_km`, `hazard_base_percent`, `hazard_table`, `terrain`, `discovery_state`, `directed`, `name`, `notes`). They are read after the package's locations, whatever their order in the file. The full schema, defaults and an example are in [`docs/routes-schema.md`](../../docs/routes-schema.md). A route whose id already exists is kept; `importRoutes(records, {mode: 'update'})` replaces its definition but never its discovery state, audience or *Unknown path* choice.
 
 ```json
 {

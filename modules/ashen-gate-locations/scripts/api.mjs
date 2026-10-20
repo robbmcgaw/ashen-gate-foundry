@@ -12,6 +12,7 @@
 import {MODULE_ID, GATHERING, STATES, PARTY_NOTES, notesLockHolder, clone, newLocation, normalizeLocation, parseImport, exportPackage, importRecords, resourcesOf, nodeForGM, nodeMatch,
   publishable, hasUnpublishedChanges, previewView, wouldCycle, parentMap, normalizeAudience, AUDIENCE_MODES, isPlaceable, resolvePassConditions} from './model.mjs';
 import {checkMove} from './tree.mjs';
+import {ROUTE_STATES, normalizeRoute, makeRouteId, routeProblems, routeTouches, importRouteRecords, routeRecord, legsOf, legKmOf} from './routes.mjs';
 
 export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
 
@@ -19,7 +20,8 @@ export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
  * deps: {isGM(), playerAccessEnabled(), setPlayerAccess(bool), readAll(), writeAll(list), readViews(),
  *        placeNote(loc, opts), open(), openLocation(idOrKey), version, viewOptions?(),
  *        notes?: {readGM(locationId), readPlayer(pinKey), request(payload), userId(), isActive(id), nameOf(id), now?()},
- *        sharing?: {request({ref, userIds})}, playerIds?(), pinsOf?(loc)}
+ *        sharing?: {request({ref, userIds})}, playerIds?(), pinsOf?(loc),
+ *        routes?: {readAll(), writeAll(list), readViews(), usedIds(), defaultLegKm()}}
  */
 export function createApi(deps) {
   const gm = () => deps.isGM() === true;
@@ -70,6 +72,28 @@ export function createApi(deps) {
     const target = notesTarget(ref), key = notesKey(ref);
     const rec = await notesDeps().request({...payload, ref: target});
     return notesOut(rec ?? (gm() ? notesDeps().readGM(target) : notesDeps().readPlayer(key)), key);
+  };
+
+  // ---------- 1.10.0 routes ----------
+  const routesDeps = () => { if (!deps.routes) throw new Error('Routes are unavailable.'); return deps.routes; };
+  const findRoute = id => {
+    const all = routesDeps().readAll();
+    const route = all.find(r => r.id === id);
+    if (!route) throw new Error(`No route ${id}.`);
+    return {all, route};
+  };
+  /** GM copy with what the editor shows: legs and the leg length in effect. */
+  const routeOut = r => ({...clone(r), legs: legsOf(r, routesDeps().defaultLegKm()), legKmInEffect: legKmOf(r, routesDeps().defaultLegKm())});
+  /** Every Route record of an import package, run against the world's locations. */
+  const importRouteList = async (records, mode) => {
+    const rd = routesDeps();
+    const all = rd.readAll();
+    const r = importRouteRecords(records, all, deps.readAll().map(l => l.id), {mode, used: rd.usedIds()});
+    if (r.created.length || r.updated.length) {
+      const replaced = new Map(r.updated.map(x => [x.id, x]));
+      await rd.writeAll([...all.map(x => replaced.get(x.id) ?? x), ...r.created]);
+    }
+    return {created: r.created.map(x => x.id), updated: r.updated.map(x => x.id), skipped: r.skipped};
   };
 
   /** Saves privately. State, published content and pin binding of an existing location are kept. New ones start Hidden. */
@@ -203,7 +227,12 @@ export function createApi(deps) {
       const result = parseImport(pkg, all);
       // Records from before 1.8.0 settle "Pass conditions" the way the migration does.
       if (result.created.length) await deps.writeAll(resolvePassConditions([...all, ...result.created]).list);
-      return {created: result.created.map(l => l.id), skipped: result.skipped, errors: result.errors};
+      // 1.10.0: Route records in the same package, after the locations they join. Existing routes are kept.
+      const routeRecords = pkg.records.filter(r => r?.entity_type === 'Route');
+      const routes = routeRecords.length && deps.routes ? await importRouteList(routeRecords, 'skip') : {created: [], updated: [], skipped: []};
+      return {created: result.created.map(l => l.id), skipped: result.skipped, errors: result.errors,
+        routes: {created: routes.created, skipped: routes.skipped.filter(s => /Already exists/.test(s.reason)).map(s => s.id),
+          errors: routes.skipped.filter(s => !/Already exists/.test(s.reason)).map(s => `${s.id}: ${s.reason}`)}};
     },
     /**
      * GM: imports Location records from an ag-foundry-import/0.2 package (General Manager calls this in its
@@ -220,9 +249,88 @@ export function createApi(deps) {
       }
       return {created: r.created.map(l => l.id), updated: r.updated.map(l => l.id), skipped: r.skipped};
     },
+    /** GM: locations, then (1.10.0) routes as Route records in the same package. */
     exportPackage() {
       requireGM();
-      return exportPackage(deps.readAll());
+      const pkg = exportPackage(deps.readAll());
+      if (deps.routes) pkg.records.push(...deps.routes.readAll().map(routeRecord));
+      return pkg;
+    },
+
+    // ---------- 1.10.0 routes ----------
+    ROUTE_STATES,
+    /**
+     * GM: every route (full record plus `legs` and `legKmInEffect`); `locationId` limits it to routes touching that place.
+     * Player: the route views they may see ({key, variant, state, name, from, to, ...}; see routes.mjs), never an RTE id.
+     */
+    listRoutes({locationId = ''} = {}) {
+      requireAccess();
+      if (gm()) return routesDeps().readAll().filter(r => !locationId || routeTouches(r, locationId)).map(routeOut);
+      const views = deps.routes ? deps.routes.readViews() : [];
+      return clone(locationId ? views.filter(v => [v.from, v.to].some(e => e && (e.id === locationId || e.key === locationId))) : views);
+    },
+    /** GM: one route by RTE id. Player: a route view by its key; null when they may not see it. */
+    getRoute(ref) {
+      requireAccess();
+      if (gm()) { const r = deps.routes?.readAll().find(x => x.id === ref); return r ? routeOut(r) : null; }
+      return clone((deps.routes ? deps.routes.readViews() : []).find(v => v.key === ref) ?? null);
+    },
+    /**
+     * GM: saves a route's definition (from, to, one-way, km, leg km, terrain, hazard table and base chance, GM notes,
+     * unknown-path choice). A new route gets its RTE id from its endpoints and starts Unknown. Discovery and audience
+     * of an existing route are kept: setRouteState and setRouteAudience change them.
+     */
+    async saveRoute(data) {
+      requireGM();
+      const rd = routesDeps();
+      const all = rd.readAll();
+      const old = data?.id ? all.find(r => r.id === data.id) : null;
+      if (data?.id && !old) throw new Error(`No route ${data.id}.`);
+      let route = normalizeRoute(data);
+      const problems = routeProblems(route, deps.readAll().map(l => l.id));
+      if (problems.length) throw new Error(problems.join(' '));
+      route = old ? {...route, id: old.id, viewKey: old.viewKey, state: old.state, audience: old.audience}
+        : {...route, id: makeRouteId(route.fromId, route.toId, [...rd.usedIds(), ...all.map(r => r.id)]), state: 'unknown'};
+      await rd.writeAll([...all.filter(r => r.id !== route.id), route]);
+      return routeOut(route);
+    },
+    /** GM: unknown (players see nothing), rumoured, known or explored. Takes effect at once. */
+    async setRouteState(id, state) {
+      requireGM();
+      if (!ROUTE_STATES.includes(state)) throw new Error(`Unknown route state "${state}"; use ${ROUTE_STATES.join(', ')}.`);
+      const {all, route} = findRoute(id);
+      route.state = state;
+      await routesDeps().writeAll(all);
+      return routeOut(route);
+    },
+    /** GM: who may see a route: {mode: 'everyone'|'selected', userIds}. Endpoint visibility still applies on top. */
+    async setRouteAudience(id, {mode, userIds} = {}) {
+      requireGM();
+      const {all, route} = findRoute(id);
+      const old = route.audience;
+      if (mode !== undefined && !AUDIENCE_MODES.includes(mode)) throw new Error(`Unknown audience "${mode}"; use ${AUDIENCE_MODES.join(' or ')}.`);
+      if (userIds !== undefined && !Array.isArray(userIds)) throw new TypeError('userIds must be a list of player user ids.');
+      const known = deps.playerIds ? new Set(deps.playerIds()) : null;
+      const unknown = known ? (userIds ?? []).filter(u => !known.has(u) && !old.userIds.includes(u)) : [];
+      if (unknown.length) throw new Error(`Not a player in this world: ${unknown.join(', ')}.`);
+      route.audience = normalizeAudience({mode: mode ?? old.mode, userIds: userIds ?? old.userIds, sharing: false});
+      await routesDeps().writeAll(all);
+      return clone(route.audience);
+    },
+    /** GM: deletes a route. Its RTE id is never issued again. */
+    async deleteRoute(id) {
+      requireGM();
+      const {all} = findRoute(id);
+      await routesDeps().writeAll(all.filter(r => r.id !== id));
+    },
+    /**
+     * GM: imports Route records (General Manager calls this in its import run, after importLocations). Endpoints must
+     * already exist. mode 'skip' keeps existing ids unchanged; 'update' replaces the definition but keeps discovery state,
+     * audience, the unknown-path choice and the player page binding. Returns {created: [id], updated: [id], skipped: [{id, reason}]}.
+     */
+    async importRoutes(records, {mode = 'skip'} = {}) {
+      requireGM();
+      return importRouteList(records, mode);
     },
     placeOnScene(id, opts) {
       requireGM();

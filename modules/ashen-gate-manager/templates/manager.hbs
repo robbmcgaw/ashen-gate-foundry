@@ -1,7 +1,7 @@
 <section class="agmanager-body">
   <header class="ag-header agmanager-top">
     <i class="agmanager-emblem fa-solid fa-dungeon" aria-hidden="true"></i>
-    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.24.0 Beta</small></h2></div>
+    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.26.0 Beta</small></h2></div>
     <button type="button" class="agmanager-help" data-ag-action="help" aria-label="Manager Help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button><span class="agmanager-chip">GM only</span>
   </header>
   <nav class="ag-tabs agmanager-nav" aria-label="Manager tabs">
@@ -11,6 +11,9 @@
     <button type="button" data-ag-tab="modules" class="{{#if modulesActive}}active{{/if}}"><i class="fa-solid fa-grip"></i> Modules</button>
     <button type="button" data-ag-tab="appearance" class="{{#if appearanceActive}}active{{/if}}"><i class="fa-solid fa-palette"></i> Appearance</button>
     <button type="button" data-ag-tab="scenes" class="{{#if scenesActive}}active{{/if}}"><i class="fa-solid fa-cloud-sun"></i> Scenes</button>
+    <button type="button" data-ag-tab="organize" class="{{#if organizeActive}}active{{/if}}"><i class="fa-solid fa-folder-tree"></i> Organize</button>
+    <button type="button" data-ag-tab="corelinks" class="{{#if coreLinksActive}}active{{/if}}"><i class="fa-solid fa-link"></i> Core Links</button>
+    <button type="button" data-ag-tab="setup" class="{{#if setupActive}}active{{/if}}"><i class="fa-solid fa-gear"></i> GM Setup</button>
     <button type="button" data-ag-tab="history" class="{{#if historyActive}}active{{/if}}"><i class="fa-solid fa-clock-rotate-left"></i> History</button>
   </nav>
 
@@ -415,6 +418,179 @@
       </footer>
     </section>
     {{/if}}
+  </div>
+  {{/if}}
+
+  {{#if organizeActive}}
+  <div class="agmanager-panel agmanager-organize">
+    <section class="ag-card" aria-label="Organize folders">
+      <h3>Organize folders <span class="agmanager-beta">GM only</span></h3>
+      <div class="agmanager-row agmanager-row-wrap">
+        <label>Where <select data-ag-org-source>{{#each org.sources}}<option value="{{key}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+        {{#each org.types}}<label class="agmanager-toggle"><input type="checkbox" data-ag-org-type="{{value}}" {{#if checked}}checked{{/if}}> {{label}}</label>{{/each}}
+        <label>Move <select data-ag-org-mode>
+          <option value="misfiled" {{#if org.modeMisfiled}}selected{{/if}}>Only unfiled and misfiled</option>
+          <option value="all" {{#if org.modeAll}}selected{{/if}}>Refile everything (also from your own folders)</option>
+        </select></label>
+        <button type="button" class="ag-btn" data-ag-action="org-preview"><i class="fa-solid fa-magnifying-glass"></i> Preview</button>
+      </div>
+      <p class="agmanager-tiny" role="status">{{org.message}}</p>
+      <p class="agmanager-tiny">Only the folder changes. Nothing is renamed, edited or deleted, and no folder is ever deleted. Player characters and player-owned actors stay where they are. Documents in a protected folder, or marked <strong>Keep here</strong>, are skipped. Locked, module and system compendiums are inspect-only.</p>
+
+      {{#if org.preview}}
+      <div class="agmanager-row agmanager-row-wrap">
+        <span class="agmanager-chip">Would move: {{org.preview.totals.moves}}</span>
+        <span class="agmanager-chip">New folders: {{org.preview.totals.createFolders}}</span>
+        <span class="agmanager-chip">Already in place: {{org.preview.totals.inPlace}}</span>
+        <span class="agmanager-chip">Skipped: {{org.preview.totals.skipped}}</span>
+        <span class="agmanager-chip">No rule: {{org.preview.totals.unmatched}}</span>
+      </div>
+      {{#each org.preview.parts}}
+      <div class="agmanager-org-part">
+        <h4>{{label}} — {{moveCount}} to move</h4>
+        {{#unless writable}}<p class="agmanager-warnings"><strong>Inspect only:</strong> {{blockedReason}}.</p>{{/unless}}
+        {{#each groups}}
+        <details class="agmanager-org-group"><summary><strong>{{path}}</strong> ({{count}})</summary>
+          <table class="agmanager-table"><thead><tr><th>Document</th><th>From</th><th></th></tr></thead><tbody>
+          {{#each rows}}<tr><td>{{name}}</td><td>{{from}}</td><td>{{#if @root.org.world}}<button type="button" class="ag-btn ag-btn--sm" data-ag-org-keep="{{id}}" data-ag-org-doctype="{{documentName}}" title="Never move this document">Keep here</button>{{/if}}</td></tr>{{/each}}
+          </tbody></table>
+        </details>
+        {{/each}}
+        {{#if hasCreates}}<details class="agmanager-org-group"><summary>Folders to create ({{createFolders.length}})</summary><ul>{{#each createFolders}}<li>{{this}}</li>{{/each}}</ul></details>{{/if}}
+        {{#if hasSkipped}}<details class="agmanager-org-group"><summary>Skipped ({{skipped.length}})</summary><ul>{{#each skipped}}<li><strong>{{name}}</strong> in {{from}}{{#if to}} (rule says {{to}}){{/if}} — {{reason}}</li>{{/each}}</ul></details>{{/if}}
+        {{#if hasUnmatched}}<details class="agmanager-org-group"><summary>No matching rule, left where they are ({{unmatched.length}})</summary><ul>{{#each unmatched}}<li><strong>{{name}}</strong> in {{from}}</li>{{/each}}</ul></details>{{/if}}
+      </div>
+      {{/each}}
+      <footer class="agmanager-row agmanager-mood-footer">
+        <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="org-clear">Cancel</button>
+        <span class="agmanager-row">
+          <button type="button" class="ag-btn" data-ag-action="org-backup" {{#unless org.preview.totals.moves}}disabled{{/unless}}><i class="fa-solid fa-download"></i> Download backup</button>
+          <button type="button" class="ag-btn ag-btn--primary" data-ag-action="org-apply" {{#unless org.preview.canApply}}disabled{{/unless}}><i class="fa-solid fa-folder-tree"></i> Apply…</button>
+        </span>
+      </footer>
+      {{/if}}
+      {{#if org.result}}<p class="agmanager-tiny"><strong>Last apply:</strong> {{org.result.message}}</p>
+        {{#if org.hasEmpty}}<details class="agmanager-org-group"><summary>Empty folders (report only, nothing deleted): {{org.result.emptyFolders.length}}</summary><ul>{{#each org.result.emptyFolders}}<li>{{this}}</li>{{/each}}</ul></details>{{/if}}{{/if}}
+    </section>
+
+    <section class="ag-card" aria-label="Organize history">
+      <div class="agmanager-row agmanager-row-wrap"><h3>Recent organize runs</h3>
+        <button type="button" class="ag-btn" data-ag-action="org-undo" {{#unless org.history.length}}disabled{{/unless}}><i class="fa-solid fa-rotate-left"></i> Undo last organize…</button></div>
+      {{#if org.history.length}}<ul>{{#each org.history}}<li>{{at}} · {{source}} · {{mode}} · {{moved}} moved</li>{{/each}}</ul>{{else}}<p class="agmanager-tiny">No organize runs yet. The last 5 are kept for Undo.</p>{{/if}}
+    </section>
+
+    {{#if org.world}}
+    <section class="ag-card" aria-label="Protected folders">
+      <h3>Protected folders</h3>
+      <p class="agmanager-tiny">Organize never moves anything in a protected folder or its sub-folders.</p>
+      <div class="agmanager-row agmanager-row-wrap">
+        <select data-ag-org-folder aria-label="Folder to protect">{{#each org.openFolders}}<option value="{{id}}">{{label}}</option>{{/each}}</select>
+        <button type="button" class="ag-btn" data-ag-org-protect><i class="fa-solid fa-lock"></i> Protect folder</button>
+      </div>
+      {{#if org.protectedFolders.length}}<ul>{{#each org.protectedFolders}}<li>{{label}} <button type="button" class="ag-btn ag-btn--sm" data-ag-org-unprotect="{{id}}">Unprotect</button></li>{{/each}}</ul>{{/if}}
+    </section>
+    {{/if}}
+
+    <section class="ag-card" aria-label="Organize rules">
+      <div class="agmanager-row agmanager-row-wrap"><h3>Rules {{#if org.schemaIsDefault}}<span class="ag-badge">Default</span>{{/if}}</h3>
+        <span class="agmanager-row">
+          <button type="button" class="ag-btn" data-ag-action="org-schema-edit"><i class="fa-solid fa-pen"></i> Edit rules (JSON)</button>
+          <button type="button" class="ag-btn" data-ag-action="org-schema-export"><i class="fa-solid fa-download"></i> Export</button>
+          <label class="ag-btn"><i class="fa-solid fa-upload"></i> Import <input type="file" accept=".json,application/json" data-ag-org-schema-file hidden></label>
+        </span></div>
+      <p class="agmanager-tiny">Checked top to bottom; the first rule that matches decides the folder. <code>{tier}</code>, <code>{rarity}</code>, <code>{spellLevel}</code>, <code>{creatureType}</code>, <code>{crBand}</code> and <code>{entityType}</code> fill in from the document; if one is empty the next rule is tried.</p>
+      {{#if org.editing}}
+        <textarea data-ag-org-schema-text rows="18" class="agmanager-org-json" aria-label="Organize rules JSON">{{org.schemaText}}</textarea>
+        <footer class="agmanager-row agmanager-mood-footer">
+          <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="org-schema-cancel">Cancel</button>
+          <button type="button" class="ag-btn ag-btn--primary" data-ag-action="org-schema-save"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
+        </footer>
+      {{else}}
+      <table class="agmanager-table"><thead><tr><th>#</th><th>Rule</th><th>For</th><th>When</th><th>Folder</th></tr></thead><tbody>
+        {{#each org.rules}}<tr><td>{{n}}</td><td>{{label}}</td><td>{{types}}</td><td><code>{{match}}</code></td><td>{{#if leave}}<em>leave where it is</em>{{else}}{{path}}{{/if}}</td></tr>{{/each}}
+      </tbody></table>
+      {{/if}}
+      <p class="agmanager-tiny"><button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="org-schema-reset">Reset rules to defaults…</button></p>
+    </section>
+
+    <section class="ag-card" aria-label="Housekeeping report">
+      <div class="agmanager-row agmanager-row-wrap"><h3>Housekeeping report</h3>
+        <button type="button" class="ag-btn" data-ag-action="org-housekeeping"><i class="fa-solid fa-clipboard-list"></i> Run report</button></div>
+      <p class="agmanager-tiny">Read-only. Lists Ashen Gate ids found more than once (world and all compendiums) and likely temporary records so you can decide. Nothing is changed or deleted.</p>
+      {{#if org.report}}
+        <h4>Duplicate ids ({{org.report.duplicates.length}})</h4>
+        {{#if org.report.hasDuplicates}}<ul>{{#each org.report.duplicates}}<li><code>{{sourceId}}</code> ×{{count}}: {{#each rows}}{{name}} ({{where}}, {{documentName}}){{#unless @last}}; {{/unless}}{{/each}}</li>{{/each}}</ul>{{else}}<p class="agmanager-tiny">None.</p>{{/if}}
+        <h4>Likely temporary ({{org.report.temporary.length}})</h4>
+        {{#if org.report.hasTemporary}}<ul>{{#each org.report.temporary}}<li>{{name}} {{#if sourceId}}<code>{{sourceId}}</code>{{/if}} — {{where}}, {{why}}</li>{{/each}}</ul>{{else}}<p class="agmanager-tiny">None.</p>{{/if}}
+        <p class="agmanager-tiny">Draft-status Ashen Gate records: {{org.report.draftCount}} (normal while content is in development).</p>
+      {{/if}}
+    </section>
+  </div>
+  {{/if}}
+
+  {{#if coreLinksActive}}
+  <div class="agmanager-panel agmanager-organize">
+    <section class="ag-card" aria-label="Core links">
+      <div class="agmanager-row agmanager-row-wrap"><h3>Core links <span class="agmanager-beta">GM only</span></h3>
+        <button type="button" class="ag-btn" data-ag-action="cl-scan"><i class="fa-solid fa-magnifying-glass"></i> Scan</button></div>
+      <p class="agmanager-tiny" role="status">{{cl.message}}</p>
+      <p class="agmanager-tiny">Only Ashen Gate world Items whose source data has <code>core_ref</code> are checked. Matches come from 2024 (5.5e) content only: Plutonium-imported and other 2024 world items, world compendiums, the core sources in <strong>GM Setup</strong>, then the dnd5e 2024 packs. <strong>Adopt</strong> replaces the item's image and data (description included) with the core item's and keeps its name, Ashen Gate id, folder, ownership and module data. Copies in player inventories are never touched.</p>
+      {{#if cl.preview}}
+      <div class="agmanager-row agmanager-row-wrap">
+        <span class="agmanager-chip">Core items found: {{cl.preview.poolSize}}</span>
+        <span class="agmanager-chip">Ashen Gate items without core_ref (untouched): {{cl.preview.withoutRef}}</span>
+        <span class="agmanager-chip">Ticked: {{cl.preview.tickedCount}}</span>
+      </div>
+      {{#each cl.preview.notes}}<p class="agmanager-warnings">{{this}}</p>{{/each}}
+      {{#each cl.preview.groups}}
+      <div class="agmanager-org-part">
+        <h4>{{label}} ({{rows.length}})</h4>
+        <table class="agmanager-table"><thead><tr><th></th><th>Ashen Gate item</th><th>core_ref</th><th>Core match</th><th>Notes</th></tr></thead><tbody>
+        {{#each rows}}<tr>
+          <td>{{#if selectable}}<input type="checkbox" data-ag-cl-tick="{{id}}" {{#if ticked}}checked{{/if}} aria-label="Link {{name}}">{{/if}}</td>
+          <td><strong>{{name}}</strong><code>{{sourceId}}</code></td>
+          <td>{{refText}}</td>
+          <td>{{#if best}}<strong>{{best.name}}</strong> <span class="ag-badge">{{best.confidence}}</span><div class="agmanager-tiny">{{best.sourceLabel}} · matched on {{matchedOn}}</div>
+            {{#if hasOthers}}<details><summary class="agmanager-tiny">Other candidates ({{others.length}})</summary><ul>{{#each others}}<li>{{name}} — {{confidence}}, {{sourceLabel}}</li>{{/each}}</ul></details>{{/if}}{{else}}—{{/if}}</td>
+          <td>{{reason}}
+            {{#if selectable}}{{#if canAdopt}}<label class="agmanager-toggle"><input type="checkbox" data-ag-cl-linkonly="{{id}}" {{#if linkOnly}}checked{{/if}}> Link only (keep my data)</label>{{/if}}{{/if}}
+            {{#if diffCount}}<details><summary class="agmanager-tiny">What Adopt changes ({{diffCount}} field(s))</summary>
+              <table class="agmanager-table"><thead><tr><th>Field</th><th>Now</th><th>Core</th></tr></thead><tbody>{{#each diff}}<tr><td><code>{{path}}</code></td><td>{{before}}</td><td>{{after}}</td></tr>{{/each}}</tbody></table></details>{{/if}}</td>
+        </tr>{{/each}}
+        </tbody></table>
+      </div>
+      {{/each}}
+      <footer class="agmanager-row agmanager-mood-footer">
+        <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="cl-clear">Cancel</button>
+        <span class="agmanager-row">
+          <button type="button" class="ag-btn" data-ag-action="cl-backup" {{#unless cl.preview.tickedCount}}disabled{{/unless}}><i class="fa-solid fa-download"></i> Download backup</button>
+          <button type="button" class="ag-btn ag-btn--primary" data-ag-action="cl-apply" {{#unless cl.preview.tickedCount}}disabled{{/unless}}><i class="fa-solid fa-link"></i> Apply ({{cl.preview.tickedCount}})…</button>
+        </span>
+      </footer>
+      {{/if}}
+    </section>
+    <section class="ag-card" aria-label="Core link history">
+      <div class="agmanager-row agmanager-row-wrap"><h3>Recent core-link runs</h3>
+        <button type="button" class="ag-btn" data-ag-action="cl-undo" {{#unless cl.history.length}}disabled{{/unless}}><i class="fa-solid fa-rotate-left"></i> Undo last core link…</button></div>
+      {{#if cl.history.length}}<ul>{{#each cl.history}}<li>{{at}} · {{count}} linked · {{adopted}} adopted</li>{{/each}}</ul>{{else}}<p class="agmanager-tiny">No core-link runs yet. The last 5 are kept for Undo.</p>{{/if}}
+    </section>
+  </div>
+  {{/if}}
+
+  {{#if setupActive}}
+  <div class="agmanager-panel agmanager-organize">
+    <section class="ag-card" aria-label="Core sources">
+      <h3>Core sources <span class="agmanager-beta">GM only</span></h3>
+      <p class="agmanager-tiny">Where Core Links looks for 2024 (5.5e) core items. Legacy 2014 content is always left out, wherever it is.</p>
+      <label class="agmanager-toggle"><input type="checkbox" data-ag-setup-auto {{#if setup.auto}}checked{{/if}}> Detect automatically: world items imported by Plutonium or marked 2024, 2024 entries in world compendiums, and the dnd5e 2024 packs</label>
+      <h4>Also use these compendiums</h4>
+      <div class="agmanager-row agmanager-row-wrap">{{#each setup.packs}}<label class="agmanager-toggle"><input type="checkbox" data-ag-setup-pack="{{id}}" {{#if configured}}checked{{/if}}> {{label}} <code>{{id}}</code>{{#if detected}} <span class="ag-badge">detected</span>{{/if}}</label>{{/each}}</div>
+      <h4>Also use world Item folders</h4>
+      <div class="agmanager-row agmanager-row-wrap">{{#each setup.folders}}<label class="agmanager-toggle"><input type="checkbox" data-ag-setup-folder="{{id}}" {{#if configured}}checked{{/if}}> {{name}}</label>{{else}}<span class="agmanager-tiny">No Item folders.</span>{{/each}}</div>
+      <p class="agmanager-tiny" role="status">{{setupMessage}}</p>
+      <footer class="agmanager-row agmanager-mood-footer"><span></span>
+        <button type="button" class="ag-btn ag-btn--primary" data-ag-action="setup-save"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button></footer>
+    </section>
   </div>
   {{/if}}
 

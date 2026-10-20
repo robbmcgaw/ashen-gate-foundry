@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.10.0 — 2026-10-20
+
+- **Routes between locations (point-crawl, GM).** New **Routes** tab: join two locations, pick From and To by name, set the distance in km and, optionally, this route's own leg length (otherwise the world default from GM Setup → *Routes*, 10 km to start). Legs = distance ÷ leg length, rounded up. Optional name, one-way, terrain, hazard table (a world Roll Table; a missing one falls back to "Hazard!") and base hazard chance (10% to start), and GM notes. Search, grouped by discovery; Delete asks first.
+- **Stable route ids.** Each route gets an `RTE-*` id from its two ends on first save. It never changes and is never reused, even after a delete (import refuses a deleted route's id too).
+- **Discovery and visibility.** Unknown (new routes; players get nothing), Rumoured, Known, Explored. A player sees a discovered route only while both ends are visible to them and they are in the route's **Who Can See It** (Everyone or Selected players). Optional per route: show an unnamed "Unknown path" from the one end a player can see. Players never get the hazard chance, table, GM notes, the route id, or anything of a place they cannot see. Enforced in the data layer: route pages are readable only by the players each version is for; every route write is GM-only in the API.
+- **Players** get a read-only **Routes** tab once a route is visible to them (ends, km, legs, terrain).
+- **Import / export.** Route records (`entity_type: "Route"`) go in the same `ag-foundry-import/0.2` package, after the locations they join; per-record problems (missing endpoint, duplicate id, bad numbers) are reported. Re-import keeps existing routes; update mode keeps discovery state and audience. Schema: `docs/routes-schema.md`.
+- Saved data: additive (`routes` and `routeIds` on the GM Data Journal, a new *Locations (Routes)* Journal). No migration. API: new `listRoutes`, `getRoute`, `saveRoute`, `setRouteState`, `setRouteAudience`, `deleteRoute`, `importRoutes`, `ROUTE_STATES`; `importPackage` also reports `routes`, `exportPackage` includes routes. Existing calls keep their shapes.
+- Not in this version yet: journeys (Next leg, hazard rolls), the party marker, and linking routes to map drawings.
+
 ## 1.9.0 — 2026-10-19
 
 - **Exotic materials on gathering nodes (optional, GM only).** Each node in *Gathering Resources* has an *Exotic materials* row. Pick an Exotic from the imported catalog by name (no ids to type), then choose its rule:
