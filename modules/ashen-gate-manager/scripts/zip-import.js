@@ -92,7 +92,9 @@ export async function readImportBundle(buffer, JSZipClass = globalThis.JSZip) {
     }
   });
   if(files.length > MAX_BUNDLE_FILES) throw new Error(`ZIP holds ${files.length} import files; the limit is ${MAX_BUNDLE_FILES}. Split it into smaller ZIPs. No world changes made.`);
-  files.sort((a, b) => (a.kind ? BUNDLE_ORDER.indexOf(a.kind) : 99) - (b.kind ? BUNDLE_ORDER.indexOf(b.kind) : 99) || a.filename.localeCompare(b.filename));
+  // A Manager file holding only Route records goes after the other Manager files, so the locations it joins import first.
+  const routesOnly = f => f.kind === 'manager' && f.count > 0 && f.payload.records.every(r => r?.entity_type === 'Route');
+  files.sort((a, b) => (a.kind ? BUNDLE_ORDER.indexOf(a.kind) : 99) - (b.kind ? BUNDLE_ORDER.indexOf(b.kind) : 99) || routesOnly(a) - routesOnly(b) || a.filename.localeCompare(b.filename));
   const owner = new Map();
   for(const file of files) {
     file.duplicateIds = [];

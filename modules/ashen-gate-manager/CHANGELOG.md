@@ -1,3 +1,13 @@
+## 0.27.0 — 2026-10-20
+
+- **Route records import** (needs Locations 1.10.0 or later). A Manager package can carry `entity_type: "Route"` records (point-crawl routes between locations; schema in `docs/routes-schema.md`). In the same run they go to Locations **after** the locations they join, whatever their order in the file.
+- **Preview** lists each route: *create*, *update* (with *Update existing locations and routes*), *skipped* (already exists, a draft, or Locations missing/too old) or *blocked* with the reason: an endpoint that is neither in Locations nor created by this import, the same location twice, or a bad `distance_km`. Locations checks every other field on Apply; its reason for any refusal (e.g. a bad `leg_km`) is shown per record in the **Import results** panel.
+- **Re-import never touches play state:** a route's discovery state, who can see it, its map drawing and any journey stay as they are, like a location's marker state.
+- A record that requires a location living only in Locations (a route's endpoint) no longer fails validation as an unresolved reference.
+- **ZIP bundles:** a Manager file holding only Route records is imported after the other Manager files in the ZIP, so its locations exist first.
+- **Browse** and **World export** list routes (export without play state). An older Locations shows them as not available.
+- The *Update existing locations* switch is now *Update existing locations and routes*. `scripts/validate-content.mjs` runs Route records through Locations' own checks. No saved-data changes.
+
 ## 0.26.0 — 2026-10-20
 
 - **Core Links** (new GM-only tab). **Scan** checks every Ashen Gate world Item whose source data has `core_ref` against 2024 (5.5e) core items. It looks in this order: world items imported by Plutonium or marked 2024, 2024 entries in world compendiums, the GM's core sources, then the dnd5e 2024 packs. Legacy 2014 content is never used. Items without `core_ref` are never touched.

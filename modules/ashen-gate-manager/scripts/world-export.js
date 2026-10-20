@@ -123,6 +123,10 @@ export function collectModuleSections(game) {
     catch (error) { sections[name] = {...head, status: 'not available', reason: String(error?.message ?? error), records: []}; }
   };
   run('locations', 'ashen-gate-locations', [a => a.listLocations], api => api.listLocations().map(l => record('locations', l.id, l.name, l)));
+  // Locations 1.10.0+: routes (GM records, endpoints by LOC id). Older Locations: listed as not available.
+  // Discovery, audience, the player-page key and the map-drawing binding are play/world state, not the definition.
+  run('routes', 'ashen-gate-locations', [a => a.listRoutes], api => api.listRoutes().map(({viewKey, drawingUuid, state, audience, unknownPath, legs, legKmInEffect, ...r}) =>
+    record('routes', r.id, r.name || r.id, {entity_type: 'Route', ...r})));
   run('quests', 'ashen-gate-quest-manager', [a => a.listQuests, a => a.getGMSource],
     api => api.listQuests().map(q => record('quests', q.id, q.name, {definitionStatus: q.definitionStatus, kind: q.kind, source: api.getGMSource(q.id)})));
   run('factions', 'ashen-gate-factions', [a => a.getFactions], api => api.getFactions().map(f => record('factions', f.id, f.name, f)));
