@@ -1,3 +1,8 @@
+## 1.13.1 — 2026-10-20
+
+- **Route defaults are now 5 km per leg and a 5% base hazard chance** (were 10 km and 10%). Only the shipped defaults change: a leg length saved in GM Setup → *Routes*, and the leg length and base chance saved on each route, stay as they are. New routes and imported routes without `leg_km` / `hazard_base_percent` get the new defaults. `docs/routes-schema.md` updated.
+- No saved data changes.
+
 ## 1.13.0 — 2026-10-20
 
 - **New API `embed.mount(element, {actorId, mode: 'character'})`** so a partner module (Character Hub) can show a compact, read-only Locations view: the party's journey progress and the revealed places the user can see, grouped by region, with search and Open. Returns `{unmount, refresh}`; it refreshes itself on changes. See the README.

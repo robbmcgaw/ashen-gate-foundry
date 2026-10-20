@@ -26,8 +26,8 @@ General Manager passes them to Locations (`api.importRoutes`) after the package'
 | `from_location_id` | string | yes | | A `LOC-*` id. Must exist in the world, or be created by the same import run. |
 | `to_location_id` | string | yes | | A `LOC-*` id, different from `from_location_id`. |
 | `distance_km` | number | yes | | Above 0, at most 100000. A JSON number, not a string. |
-| `leg_km` | number | no | world default (GM Setup → *Routes*, 10 km until changed) | Above 0, at most 100000. Legs = ceil(`distance_km` ÷ `leg_km`), at least 1. |
-| `hazard_base_percent` | number | no | `10` | 0 to 100 (rounded to a whole number). The chance a journey starts at on each journey. |
+| `leg_km` | number | no | world default (GM Setup → *Routes*, 5 km until changed; a world that saved its own value keeps it) | Above 0, at most 100000. Legs = ceil(`distance_km` ÷ `leg_km`), at least 1. |
+| `hazard_base_percent` | number | no | `5` | 0 to 100 (rounded to a whole number). The chance a journey starts at on each journey. |
 | `hazard_table` | string | no | none | A RollTable UUID (`RollTable.<id>` or `Compendium.<pack>.RollTable.<id>`) or a RollTable **name**. A missing table never breaks anything: the hazard result is just "Hazard!". |
 | `terrain` | string | no | `""` | Up to 80 characters. Players who can see the route see it. |
 | `discovery_state` | string | no | `"unknown"` | `unknown` (players see nothing), `rumoured`, `known`, `explored`. Used only when the route is **created**; never changed by a re-import. |
