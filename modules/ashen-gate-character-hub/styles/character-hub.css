@@ -77,3 +77,14 @@
 .ag-character-hub .agch-slot__controls { display: flex; flex-wrap: wrap; gap: var(--ag-space-1); }
 .ag-character-hub .agch-slot select { width: 100%; }
 @container (max-width: 620px) { .ag-character-hub .agch-doll { grid-template-columns: 1fr 1fr; } .ag-character-hub .agch-doll__art { grid-column: 1 / -1; grid-row: 1; position: static; } .ag-character-hub .agch-doll__art img { max-height: 12rem; width: auto; } }
+
+/* Ashen Gate panels */
+.ag-character-hub .agch-panels { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: var(--ag-space-3); }
+.ag-character-hub .agch-panel { display: grid; gap: var(--ag-space-2); align-content: start; }
+.ag-character-hub .agch-panel[data-state="missing"], .ag-character-hub .agch-panel[data-state="error"] { opacity: .75; }
+.ag-character-hub .agch-panel__head { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); align-items: center; justify-content: space-between; }
+.ag-character-hub .agch-panel__head h3 { margin: 0; font-size: var(--ag-text-md); }
+.ag-character-hub .agch-plist { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ag-space-1); }
+.ag-character-hub .agch-plist > li { overflow-wrap: anywhere; }
+.ag-character-hub .agch-plink { background: none; border: 0; padding: 0; width: auto; color: var(--ag-accent); text-decoration: underline; cursor: pointer; text-align: left; line-height: 1.3; }
+.ag-character-hub .agch-objectives { margin: var(--ag-space-1) 0 0 var(--ag-space-4); padding: 0; color: var(--ag-muted); font-size: var(--ag-text-sm); }

@@ -1,3 +1,16 @@
+## 0.3.0 — 2026-10-20
+
+- New **Ashen Gate** tab with one panel per Ashen Gate module. Each panel reads only that module's public API, has an **Open** button that deep-links to the character or record, and shows "Not installed" or "Unavailable" instead of breaking when the module is missing, hidden or fails.
+  - Profession Ledger: this character's professions (level, XP, perks to choose) and number of known recipes.
+  - Skill Trees: perks owned per tree, and points awarded on non-profession trees.
+  - Factions & Renown: revealed factions with party standing and this character's standing (from your own player view).
+  - Quest Log: active party quests and this character's personal quests, tracked first, with open objectives. Click one to open it.
+  - Locations: revealed locations (click to open).
+  - Headquarters: Open button only (no player-safe read API yet).
+  - Utilities: party purse totals and an Open party stash button.
+- The Hub refreshes when the Profession Ledger reports a progression change.
+- No saved-data changes. Nothing from other modules is copied or stored.
+
 ## 0.2.0 — 2026-10-20
 
 - **Combat** tab: initiative roll, death save at 0 HP, weapons (equipped first) and other usable items/features grouped as Actions, Bonus Actions, Reactions and Other. **Use** calls dnd5e's `item.use()`, so its usage dialog, attacks, damage and resource use apply.
