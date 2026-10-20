@@ -1,3 +1,10 @@
+## 0.23.0 — 2026-10-20
+
+- **ZIP bundles with several import files.** A ZIP may now hold Manager packages plus Quest, Skill Tree, Headquarters and Factions files (the same files Manager already recognises one at a time). Import shows a **ZIP contents** list: file, type, record count and status, with a checkbox per file (all ticked except files with errors). Other JSON is listed as skipped with the reason.
+- **Import selected files** runs the ticked files one at a time through the normal preview and Apply, Manager packages first, then Quests, Skill Trees, Headquarters, Factions (Locations stay inside Manager packages and go to Locations after their documents, as before). Each file gets its own entry in the Import results panel; a file that fails to load or validate gets a "Needs attention" result and the rest continue. **Skip this file** and **Stop ZIP import** are available. Nothing writes until you confirm each Apply.
+- Ids that appear in an earlier file of the same ZIP are reported and left out of the later file (never overwritten). Artwork with the same file name in two folders is reported and not uploaded. Over 50 import files in one ZIP is refused with a clear message before anything loads. Same safety limits as before (60 MB, 500 files, unsafe paths, 25 MB/100 MB expanded, 10 MB JSON); nothing in a ZIP is executed. GM only (`planBundleImport` refuses non-GMs).
+- A ZIP with exactly one Manager package and no other import file behaves exactly as before. No saved-data change, no migration.
+
 ## 0.22.0 — 2026-10-20
 
 - **Scene moods** (new GM-only **Scenes** tab). Shows the current scene (viewed, else active; or pick any scene) and its mood. One click applies **Day, Twilight, Windy (leaves), Storm** or **Night**; **Back to normal** puts the scene back exactly as it was. Optional 3-second darkness fade.

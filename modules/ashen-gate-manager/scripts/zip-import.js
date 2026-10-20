@@ -1,11 +1,16 @@
+import {classifyDelivery} from './delivery.js';
+import {SPECIALISTS, detectSpecialistFile, specialistCount, filterSpecialist} from './specialist-handoff.js';
 /** Non-executing import bundle loader. JSZip is bundled under its upstream license. */
-export async function readImportZip(buffer, JSZipClass = globalThis.JSZip) {
+const PROJECTIONS = ['ag-foundry-import/0.1', 'ag-foundry-import/0.2'];
+export const isProjection = obj => PROJECTIONS.includes(obj?.manifest?.schema_version);
+
+/** Opens the ZIP and applies every safety limit; calls onArt/onJson per entry. Nothing in the ZIP is executed. */
+async function walkZip(buffer, JSZipClass, {onArt, onJson}) {
   if (!JSZipClass?.loadAsync) throw new Error('Bundled ZIP reader unavailable. Reload Foundry and retry.');
   if (buffer.byteLength > 60_000_000) throw new Error('ZIP exceeds the 60 MB upload limit.');
   const zip = await JSZipClass.loadAsync(buffer, {checkCRC32: true});
   const entries = Object.entries(zip.files).filter(([,entry])=>!entry.dir);
   if(entries.length > 500) throw new Error('ZIP contains more than 500 files. Split the content package.');
-  const projections = [], assets = new Map();
   let total = 0;
   for(const [path, entry] of entries) {
     if(path.startsWith('/') || path.includes('\\') || path.split('/').some(part=>part==='..'||part==='.'||!part))
@@ -15,21 +20,121 @@ export async function readImportZip(buffer, JSZipClass = globalThis.JSZip) {
       total += size;
       if(size>25_000_000 || total>100_000_000) throw new Error('ZIP entry or expanded contents exceed safety limits.');
     }
-    if(/\.(png|webp|jpe?g)$/i.test(path)) {
-      const basename=path.split('/').at(-1);
-      if(assets.has(basename)) throw new Error(`ZIP contains duplicate artwork filename ${basename}; cannot choose automatically.`);
-      assets.set(basename,{path,entry});
-    } else if(/\.json$/i.test(path)) {
+    if(/\.(png|webp|jpe?g)$/i.test(path)) onArt(path.split('/').at(-1), path, entry);
+    else if(/\.json$/i.test(path)) {
       if(typeof size==='number' && size>10_000_000) throw new Error(`JSON file ${path} exceeds 10 MB.`);
-      let obj;
-      try {obj=JSON.parse(await entry.async('string'));} catch {throw new Error(`Invalid JSON inside ZIP: ${path}`);}
-      if(obj?.manifest?.schema_version==='ag-foundry-import/0.1' || obj?.manifest?.schema_version==='ag-foundry-import/0.2')
-        projections.push({filename:path,pkg:obj});
+      await onJson(path, await entry.async('string'));
     }
   }
+}
+
+export async function readImportZip(buffer, JSZipClass = globalThis.JSZip) {
+  const projections = [], assets = new Map();
+  await walkZip(buffer, JSZipClass, {
+    onArt(basename, path, entry) {
+      if(assets.has(basename)) throw new Error(`ZIP contains duplicate artwork filename ${basename}; cannot choose automatically.`);
+      assets.set(basename,{path,entry});
+    },
+    async onJson(path, text) {
+      let obj;
+      try {obj=JSON.parse(text);} catch {throw new Error(`Invalid JSON inside ZIP: ${path}`);}
+      if(isProjection(obj)) projections.push({filename:path,pkg:obj});
+    }
+  });
   if(!projections.length) throw new Error('ZIP contains no ag-foundry-import/0.1 or /0.2 projection JSON. Canonical source JSON and Macro JSON are not installed automatically.');
   if(projections.length!==1) throw new Error(`ZIP contains ${projections.length} Manager import projections; extract and choose the intended JSON directly. No world changes made.`);
   return {...projections[0],assets};
+}
+
+/** Import order: Manager packages first (specialist files such as Factions depend on their Actors), then each specialist. */
+export const BUNDLE_ORDER = Object.freeze(['manager', 'quests', 'skill-trees', 'headquarters', 'factions']);
+export const BUNDLE_LABELS = Object.freeze({manager: 'Manager package', ...Object.fromEntries(Object.entries(SPECIALISTS).map(([k, s]) => [k, s.label]))});
+export const MAX_BUNDLE_FILES = 50;
+
+/** Record ids a detected file carries (Manager records, trees, definitions or facilities). */
+export function bundleRecordIds(kind, payload) {
+  const list = kind === 'manager' ? payload?.records : kind === 'skill-trees' ? payload?.trees : kind === 'factions' ? payload?.definitions
+    : Array.isArray(payload) ? payload : payload?.records;
+  return Array.isArray(list) ? list.map(r => r?.id).filter(id => typeof id === 'string' && id) : [];
+}
+
+/**
+ * Reads a ZIP that may hold several import files: Manager projections and the specialist files Manager already
+ * recognises one at a time (Quest Log, Skill Trees, Headquarters, Factions). Other JSON is listed as skipped.
+ * Same safety limits as readImportZip; reading never writes to the world. Duplicate artwork basenames are left out
+ * of the asset map (cannot choose) and reported; ids already used by an earlier file in the ZIP are reported and
+ * dropped from the later file so one file never overwrites another.
+ */
+export async function readImportBundle(buffer, JSZipClass = globalThis.JSZip) {
+  const files = [], skipped = [], assets = new Map(), duplicateArt = new Set();
+  await walkZip(buffer, JSZipClass, {
+    onArt(basename, path, entry) {
+      if(assets.has(basename) || duplicateArt.has(basename)) {assets.delete(basename); duplicateArt.add(basename);}
+      else assets.set(basename, {path, entry});
+    },
+    async onJson(path, text) {
+      let obj;
+      try {obj = JSON.parse(text);} catch {files.push({filename: path, kind: null, label: 'Invalid JSON', count: 0, status: 'error', notice: 'Not valid JSON; this file cannot be imported.', payload: null}); return;}
+      if(isProjection(obj)) {
+        const count = Array.isArray(obj.records) ? obj.records.length : 0;
+        files.push({filename: path, kind: 'manager', label: BUNDLE_LABELS.manager, count, payload: obj,
+          status: count ? 'ok' : 'error', notice: !count ? 'The package has no records.' : obj.manifest.schema_version.endsWith('/0.1') ? 'Legacy 0.1 package: accepted for compatibility.' : ''});
+        return;
+      }
+      const kind = detectSpecialistFile(obj);
+      if(kind) {
+        const count = specialistCount(kind, obj);
+        files.push({filename: path, kind, label: BUNDLE_LABELS[kind], count, payload: obj, status: count ? 'ok' : 'error', notice: count ? '' : 'The file has no records.'});
+        return;
+      }
+      const delivery = classifyDelivery(obj);
+      skipped.push({filename: path, reason: delivery?.notice ?? 'Not a Manager package or a Quest, Skill Tree, Headquarters or Factions file.'});
+    }
+  });
+  if(files.length > MAX_BUNDLE_FILES) throw new Error(`ZIP holds ${files.length} import files; the limit is ${MAX_BUNDLE_FILES}. Split it into smaller ZIPs. No world changes made.`);
+  files.sort((a, b) => (a.kind ? BUNDLE_ORDER.indexOf(a.kind) : 99) - (b.kind ? BUNDLE_ORDER.indexOf(b.kind) : 99) || a.filename.localeCompare(b.filename));
+  const owner = new Map();
+  for(const file of files) {
+    file.duplicateIds = [];
+    for(const id of bundleRecordIds(file.kind, file.payload)) {
+      if(owner.has(id) && owner.get(id) !== file.filename) file.duplicateIds.push(id);
+      else owner.set(id, file.filename);
+    }
+    if(file.duplicateIds.length) {
+      const left = file.count - file.duplicateIds.length;
+      file.notice = [file.notice, `${file.duplicateIds.length} id(s) also in an earlier file of this ZIP are left out (not overwritten): ${file.duplicateIds.slice(0, 5).join(', ')}${file.duplicateIds.length > 5 ? ', …' : ''}.`].filter(Boolean).join(' ');
+      if(file.status === 'ok') file.status = left > 0 ? 'warning' : 'error';
+    }
+  }
+  return {files, skipped, assets, duplicateArt: [...duplicateArt]};
+}
+
+/** The file's payload without the ids an earlier file in the ZIP already carries. */
+export function withoutDuplicates(file) {
+  if(!file.duplicateIds?.length) return file.payload;
+  if(file.kind === 'manager') {const drop = new Set(file.duplicateIds); return {...file.payload, records: file.payload.records.filter(r => !drop.has(r?.id))};}
+  const drop = new Set(file.duplicateIds);
+  return filterSpecialist(file.kind, file.payload, bundleRecordIds(file.kind, file.payload).filter(id => !drop.has(id)));
+}
+
+/**
+ * The files the GM ticked, in import order, ready to load one at a time into the normal preview / Apply flow.
+ * GM-only: a player cannot plan a ZIP import. Files with errors are never queued.
+ */
+export function planBundleImport(bundle, picked, {isGM = false} = {}) {
+  if(!isGM) throw new Error('Only a GM may import content.');
+  const chosen = new Set(picked ?? []);
+  return bundle.files.filter(f => f.kind && f.status !== 'error' && chosen.has(f.filename))
+    .map(f => ({filename: f.filename, kind: f.kind, label: f.label, payload: withoutDuplicates(f)}));
+}
+
+/** Plain summary of the ZIP's contents for the Import tab. */
+export function bundleSummary(bundle) {
+  const importable = bundle.files.filter(f => f.kind && f.status !== 'error').length;
+  const parts = [`${bundle.files.length} import file(s) found, ${importable} can be imported`];
+  if(bundle.skipped.length) parts.push(`skipped (not an import file): ${bundle.skipped.map(s => s.filename).join(', ')}`);
+  if(bundle.duplicateArt.length) parts.push(`artwork with the same file name in more than one folder is not uploaded: ${bundle.duplicateArt.join(', ')}`);
+  return `${parts.join('; ')}.`;
 }
 
 export function mediaFilename(path) {

@@ -11,7 +11,7 @@ import {mountManagerLauncher} from "./items-launcher.js";
 import {collectPlayerAccess, changePlayerAccess, hideAllPlayerInterfaces} from "./player-access.js";
 import {chooseIcon,markerTargets,buildUuidIndex,resolveRichText,resolveTypedRefs,appendReferenceBlock} from "./import-fidelity.js";
 import {ensureFolder} from "./folders.js";
-import {readImportZip, adaptRecordArtwork, uploadMatchingArt} from "./zip-import.js";
+import {readImportZip, readImportBundle, planBundleImport, bundleSummary, adaptRecordArtwork, uploadMatchingArt} from "./zip-import.js";
 import {CAPTURE_TYPES, normalizeCaptureFlag, buildCapturePackage} from "./capture.js";
 import {compilePackage, dependencyOrder, normalizeRef, docManagerSnapshot, localEdits, planLifecycle, buildSourceReplacementPatch} from "./workflows.js";
 import {downloadJson, downloadText} from "./download.js";
@@ -163,7 +163,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.22.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.23.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -191,6 +191,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.auditEntries = [];
     this.message = "Choose a Manager-ready JSON projection or ZIP package; no world changes occur until Import.";
     this.zipMedia = new Map();
+    this.zipBundle = null;
     this.uploadZipArtwork = true;
     this.packageSource = null;
     this.captureSelected = new Set();
@@ -354,6 +355,12 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       ...ctx,
       importActive: this.tab === "import",
       importReports: this.importReports, hasImportReports: this.importReports.length>0,
+      zipBundle: this.zipBundle ? {source:this.zipBundle.source, running:Boolean(this.zipBundle.queue), summary:bundleSummary(this.zipBundle),
+        rows:this.zipBundle.files.map(f=>({filename:f.filename, label:f.label, count:f.count, notice:f.notice,
+          status:this.zipBundle.outcome.get(f.filename) ?? (f.status==='error'?'Error':f.status==='warning'?'Ready, with notes':'Ready'),
+          isError:f.status==='error', isCurrent:this.zipBundle.current===f.filename,
+          picked:this.zipBundle.picked.has(f.filename), canPick:Boolean(f.kind)&&f.status!=='error'&&!this.zipBundle.queue})),
+        skipped:this.zipBundle.skipped, pickedCount:this.zipBundle.files.filter(f=>f.kind&&f.status!=='error'&&this.zipBundle.picked.has(f.filename)).length} : null,
       libraryActive: this.tab === "library",
       modulesActive: this.tab === "modules",
       appearanceActive: this.tab === "appearance",
@@ -444,10 +451,20 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       event.target.value = '';
       if (!f) return;
       this.#clearLoaded(`Reading ${f.name}…`);
+      this.zipBundle=null;
       try {
         if(f.size>60_000_000)throw new Error('Maximum source file is 60 MB.');
         if(/\.zip$/i.test(f.name)) {
-          const result=await readImportZip(await f.arrayBuffer());
+          const buffer=await f.arrayBuffer();
+          const bundle=await readImportBundle(buffer);
+          const importable=bundle.files.filter(x=>x.kind);
+          // A ZIP with one Manager package (and no other import file) keeps the single-file path exactly as before.
+          if(importable.length>1 || importable[0]?.kind && importable[0].kind!=='manager') {
+            this.zipBundle={source:f.name,...bundle,picked:new Set(importable.filter(x=>x.status!=='error').map(x=>x.filename)),queue:null,current:null,outcome:new Map()};
+            this.message=`${f.name}: ${bundleSummary(bundle)} Tick the files to import, then press Import selected files. Nothing in your world has changed.`;
+            this.tab='import';await this.render();return;
+          }
+          const result=await readImportZip(buffer);
           this.zipMedia=result.assets;
           this.packageSource=`ZIP ${f.name} → ${result.filename}`;
           await this.#load(result.pkg,this.packageSource);
@@ -542,6 +559,12 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       else this.captureSelected.delete(e.target.dataset.agCaptureSelect);
       void this.render();
     }));
+    root.querySelectorAll("[data-ag-zip-pick]").forEach(el => el.addEventListener("change", event => {
+      const name=event.target.dataset.agZipPick;
+      if(!this.zipBundle||this.zipBundle.queue) return;
+      if(event.target.checked) this.zipBundle.picked.add(name); else this.zipBundle.picked.delete(name);
+      void this.render();
+    }));
     root.querySelectorAll("[data-ag-select]").forEach(el => el.addEventListener("change", event => {
       const id = event.target.dataset.agSelect;
       if (event.target.checked) this.selected.add(id);
@@ -558,13 +581,13 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case "demo": {
         const response = await fetch(`modules/${MODULE_ID}/samples/demo-package.json`, {cache:"no-store"});
         if (!response.ok) throw new Error(`Demo request failed (${response.status}).`);
-        this.zipMedia=new Map();this.packageSource="Included demonstration";
+        this.zipBundle=null;this.zipMedia=new Map();this.packageSource="Included demonstration";
         await this.#load(await response.json(), "Included demonstration");
         break;
       }
       case "help": {
         await DialogV2.confirm({window:{title:'Ashen Gate | General Manager Help'},
-          content:'<p><strong>Clean import:</strong> Choose Manager JSON or ZIP containing exactly one Manager projection; select Development for draft content, Validate & Preview, Select eligible, then Import.</p><p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro; no Scenes or Playlists. ZIP scripts never run. Bundled images are uploaded only if that option is enabled.</p><p><strong>Folders:</strong> foundry.folder_path creates nested folders per document type. <strong>Links:</strong> canonical refs bind after creation. Markers [[AGREF:MAT-EXAMPLE|Material]] are provisional pending Tim.</p><p>Back up a test world. Existing Tables and Macros are never replaced. Existing Actors change only if you tick <strong>Update existing actors</strong>: then their name, image, token settings and package items follow the file, and HP, XP, level, conditions, player items, notes, ownership, folders and other modules\' data are kept.</p>',
+          content:'<p><strong>Clean import:</strong> Choose Manager JSON or a ZIP; select Development for draft content, Validate & Preview, Select eligible, then Import.</p><p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro; no Scenes or Playlists. </p><p><strong>ZIP bundles:</strong> a ZIP holding several import files (Manager packages plus Quest, Skill Tree, Headquarters or Factions files) shows a ZIP contents list. Untick any you do not want, press Import selected files, then preview and Apply each file in turn (Manager packages first). Each file gets its own result; Skip this file or Stop ZIP import at any time. ZIP scripts never run. Bundled images are uploaded only if that option is enabled.</p><p><strong>Folders:</strong> foundry.folder_path creates nested folders per document type. <strong>Links:</strong> canonical refs bind after creation. Markers [[AGREF:MAT-EXAMPLE|Material]] are provisional pending Tim.</p><p>Back up a test world. Existing Tables and Macros are never replaced. Existing Actors change only if you tick <strong>Update existing actors</strong>: then their name, image, token settings and package items follow the file, and HP, XP, level, conditions, player items, notes, ownership, folders and other modules\' data are kept.</p>',
           modal:true,rejectClose:false});
         break;
       }
@@ -573,7 +596,28 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         this.selected = new Set(this.preview.filter(row => actionAllowed.has(row.action)).map(row => row.id));
         await this.render(); break;
       case "clear": this.selected.clear(); await this.render(); break;
-      case "apply": await this.#apply(); break;
+      case "apply": {
+        this.applyRan=false;
+        await this.#apply();
+        // In a ZIP bundle, a confirmed Apply records that file's outcome and loads the next ticked file.
+        if(this.zipBundle?.current && this.applyRan) {
+          this.zipBundle.outcome.set(this.zipBundle.current,this.importReports[0]?.toneLabel??'Done');
+          await this.#zipNext();
+        }
+        break;
+      }
+      case "zip-start": await this.#zipStart(); break;
+      case "zip-skip":
+        if(this.zipBundle?.current){this.zipBundle.outcome.set(this.zipBundle.current,'Skipped by GM');await this.#zipNext();}
+        break;
+      case "zip-cancel":
+        if(this.zipBundle){
+          for(const item of [...(this.zipBundle.queue??[]),...(this.zipBundle.current?[{filename:this.zipBundle.current}]:[])]) this.zipBundle.outcome.set(item.filename,'Not imported');
+          this.zipBundle.queue=null;this.zipBundle.current=null;
+          this.#clearLoaded(`${this.zipBundle.source}: the rest of the ZIP was not imported. Files already applied keep their results below.`);
+          await this.render();
+        }
+        break;
       case "backup-actors": {
         if(!game.user.isGM) throw new Error('GM access required.');
         const docs=this.preview.filter(r=>r.kind==='Actor'&&r.action==='update').flatMap(r=>foundDocuments(r.id));
@@ -645,7 +689,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         if(!response.ok) throw new Error(`Import template unavailable (${response.status}).`);
         downloadJson(file,await response.json());break;
       }
-      case "reset": this.#clearLoaded("Choose a Manager package or a Quest, Skill Tree, Headquarters or Factions file to begin."); await this.render();break;
+      case "reset": this.zipBundle=null; this.#clearLoaded("Choose a Manager package or a Quest, Skill Tree, Headquarters or Factions file to begin."); await this.render();break;
       default: throw new Error(`Unknown action: ${name}`);
     }
   }
@@ -693,6 +737,41 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.preview=[]; this.errors=[]; this.warnings=[]; this.selected.clear();
     this.message=message;
   }
+  /** Starts a multi-file ZIP: the ticked files, Manager package(s) first, each through the normal preview and Apply. */
+  async #zipStart() {
+    const bundle=this.zipBundle;
+    if(!bundle||bundle.queue) return;
+    const plan=planBundleImport(bundle,bundle.picked,{isGM:Boolean(game.user?.isGM)});
+    if(!plan.length){this.message='No files are ticked in the ZIP contents list, so nothing was imported.';await this.render();return;}
+    bundle.queue=plan;bundle.total=plan.length;
+    for(const f of bundle.files) if(!plan.some(p=>p.filename===f.filename)) bundle.outcome.set(f.filename,f.status==='error'?'Not imported (error)':'Not ticked');
+    await this.#zipNext();
+  }
+  /** Loads the next queued ZIP file. A file that cannot load or validate gets its own result entry; the rest continue. */
+  async #zipNext() {
+    const bundle=this.zipBundle;
+    if(!bundle?.queue) return;
+    const next=bundle.queue.shift();
+    if(!next) {
+      bundle.current=null;bundle.queue=null;
+      this.#clearLoaded(`${bundle.source}: ZIP import finished. Each file's result is in the ZIP contents list and the Import results panel.`);
+      await this.render();return;
+    }
+    const label=`ZIP ${bundle.source} → ${next.filename}`;
+    const step=`File ${bundle.total-bundle.queue.length} of ${bundle.total}`;
+    bundle.current=next.filename;bundle.outcome.set(next.filename,'In preview');
+    this.zipMedia=next.kind==='manager'?bundle.assets:new Map();this.packageSource=label;
+    try {await this.#load(next.payload,label);}
+    catch(error) {this.errors=[String(error?.message??error)];}
+    if(this.errors.length) {
+      this.importReports=pushReport(this.importReports,buildBlockedReport({file:label,module:next.label,
+        message:`${next.filename} was not imported: ${this.errors.slice(0,3).join(' ')}`,fix:'Correct this file and import it on its own; the other files in the ZIP continue.'}));
+      bundle.outcome.set(next.filename,'Needs attention');
+      return this.#zipNext();
+    }
+    this.message=`${step} from the ZIP: ${next.filename} (${next.label}). ${this.message} Select records and Apply, or press Skip this file.`;
+    await this.render();
+  }
   async #load(input, label) {
     const keepSource=this.packageSource, keepMedia=this.zipMedia;
     this.#clearLoaded(`Reading ${label}…`);
@@ -739,6 +818,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const yes=await DialogV2.confirm({window:{title:`Import into ${spec.label}`},modal:true,rejectClose:false,
       content:`<p><strong>${rows.length}</strong> ${escapeHtml(spec.kind.toLowerCase())} record(s) will be passed to <strong>${escapeHtml(spec.label)}</strong>, which stores and owns them.</p><p>${spec.canUpdate&&this.updateExisting?'Records already in the world are replaced; their progress and state are kept.':'Records already in the world are kept as they are.'} Back up your world first.</p>`});
     if(!yes)return;
+    this.applyRan=true;
     this.busy=true;
     const log={at:new Date().toISOString(),packageId:`${spec.label} file`,packageVersion:payload?.version??'—',results:[]};
     try {
@@ -906,6 +986,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       });
       if (!sure) return;
     }
+    this.applyRan=true;
     this.busy=true;
     const log = {at:new Date().toISOString(), packageId:this.pkg.manifest.package_id, packageVersion:this.pkg.manifest.version, results:[]};
     let originalMediaPaths=new Map();
@@ -1377,7 +1458,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.22.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.23.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */
