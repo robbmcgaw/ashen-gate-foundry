@@ -9,10 +9,10 @@ import {MODULE_ID} from '../scripts/constants.mjs';
 const ITEMS = () => ['horse', 'pony', 'cat', 'owl', 'rat', 'saddle', 'collar'].map(id => ({id, name: `[TEST] ${id}`, type: id === 'saddle' || id === 'collar' ? 'feat' : 'loot', system: {description: {value: `<p>${id} text</p>`}}}));
 const stored = actor => actor.flags[MODULE_ID]?.companions ?? [];
 
-test('default pet cap is 2; GM overrides per character: number, none, unlimited, back to default', async () => {
+test('default pet cap is 0; GM overrides per character: number, none, unlimited, back to default', async () => {
   installGlobals({user: users.gm});
   const actor = makeActor();
-  assert.equal(c.petCapFor(actor), 2);
+  assert.equal(c.petCapFor(actor), 0);
   await c.setDefaultPetCap(3); assert.equal(c.petCapFor(actor), 3);
   await c.setPetCapOverride(actor.id, 'none'); assert.equal(c.petCapFor(actor), 0);
   await c.setPetCapOverride(actor.id, 'unlimited'); assert.equal(c.petCapFor(actor), Infinity);
@@ -38,7 +38,7 @@ test('one mount per character', async () => {
 });
 
 test('pets up to the cap; the add function refuses beyond it (data layer)', async () => {
-  installGlobals({settings: {petCapOverrides: {}}});
+  installGlobals({settings: {petCap: 2, petCapOverrides: {}}});
   const actor = makeActor({items: ITEMS()});
   assert.equal((await c.addCompanion(actor, 'cat', 'pet')).ok, true);
   assert.equal((await c.addCompanion(actor, 'owl', 'pet')).ok, true);
@@ -52,7 +52,7 @@ test('pets up to the cap; the add function refuses beyond it (data layer)', asyn
 });
 
 test('a lowered cap never removes pets; it shows over-limit', async () => {
-  installGlobals();
+  installGlobals({settings: {petCap: 2}});
   const actor = makeActor({items: ITEMS()});
   await c.addCompanion(actor, 'cat', 'pet'); await c.addCompanion(actor, 'owl', 'pet');
   game.settings.store.petCap = 1;
@@ -61,7 +61,7 @@ test('a lowered cap never removes pets; it shows over-limit', async () => {
 });
 
 test('the same item cannot be two companions; unknown items refused', async () => {
-  installGlobals();
+  installGlobals({settings: {petCap: 2}});
   const actor = makeActor({items: ITEMS()});
   await c.addCompanion(actor, 'cat', 'pet');
   assert.match((await c.addCompanion(actor, 'cat', 'pet')).error, /already a companion/);
@@ -70,7 +70,7 @@ test('the same item cannot be two companions; unknown items refused', async () =
 });
 
 test('perk attach/detach, reorder and remove write one Actor update each; the item stays', async () => {
-  installGlobals();
+  installGlobals({settings: {petCap: 2}});
   const actor = makeActor({items: ITEMS()});
   await c.addCompanion(actor, 'horse', 'mount');
   await c.addCompanion(actor, 'cat', 'pet'); await c.addCompanion(actor, 'owl', 'pet');
@@ -99,7 +99,7 @@ test('observers cannot change companions', async () => {
 });
 
 test('dropping an outside Item makes one embedded copy, then lists it; cap is checked before copying', async () => {
-  installGlobals();
+  installGlobals({settings: {petCap: 2}});
   const actor = makeActor({items: ITEMS()});
   const outside = {...makeItem({id: 'world-wolf', name: '[TEST] Wolf', type: 'loot'}, null), toObject: () => ({_id: 'world-wolf', name: '[TEST] Wolf', type: 'loot'})};
   const r = await c.addDroppedCompanion(actor, outside, 'pet');
@@ -127,7 +127,7 @@ test('deleted items drop out of the list on read', () => {
 });
 
 test('Companions tab renders for owner and observer; GM Setup only for the GM', async () => {
-  installGlobals({user: users.owner});
+  installGlobals({user: users.owner, settings: {petCap: 2}});
   const Cls = createHubSheetClass(FakeActorSheetV2);
   const actor = makeActor({items: ITEMS()});
   await c.addCompanion(actor, 'horse', 'mount'); await c.attachPerk(actor, stored(actor)[0].id, 'saddle');
@@ -141,12 +141,12 @@ test('Companions tab renders for owner and observer; GM Setup only for the GM', 
   assert.doesNotMatch(html, /GM Setup|pet-cap-override/);
   sheet.tab = 'gm-setup';
   assert.doesNotMatch(await sheet._renderHTML(), /Pets per character/, 'players fall back to the first tab');
-  installGlobals({user: users.gm, actors: [actor]});
+  installGlobals({user: users.gm, actors: [actor], settings: {petCap: 2}});
   const gmSheet = new Cls({document: actor}); gmSheet.tab = 'gm-setup';
   html = await gmSheet._renderHTML();
   assert.match(html, /Pets per character/);
   assert.match(html, /data-edit="pet-cap-override" data-actor="actor1"/);
-  installGlobals({user: users.observer});
+  installGlobals({user: users.observer, settings: {petCap: 2}});
   const view = new Cls({document: actor}); view.tab = 'companions';
   html = await view._renderHTML();
   assert.doesNotMatch(html, /data-drop-companion/);
@@ -154,7 +154,7 @@ test('Companions tab renders for owner and observer; GM Setup only for the GM', 
 });
 
 test('sheet wiring: selects add and attach, GM cap select writes the setting', async () => {
-  installGlobals({user: users.gm});
+  installGlobals({user: users.gm, settings: {petCap: 2}});
   const Cls = createHubSheetClass(FakeActorSheetV2);
   const actor = makeActor({items: ITEMS()});
   const sheet = new Cls({document: actor});
@@ -165,8 +165,34 @@ test('sheet wiring: selects add and attach, GM cap select writes the setting', a
   assert.deepEqual(game.settings.store.petCapOverrides, {actor1: 'unlimited'});
 });
 
-test('settings are registered as GM-only world settings with default 2', () => {
+test('settings are registered as GM-only world settings with default 0', () => {
   const reg = [];
   c.registerCompanionSettings({register: (...a) => reg.push(a)});
-  assert.deepEqual(reg.map(([, key, o]) => [key, o.scope, o.default]), [['petCap', 'world', 2], ['petCapOverrides', 'world', {}]]);
+  assert.deepEqual(reg.map(([, key, o]) => [key, o.scope, o.default]), [['petCap', 'world', 0], ['petCapOverrides', 'world', {}]]);
+});
+
+test('with the shipped default no pet can be added; a saved world limit is kept', async () => {
+  installGlobals();
+  const actor = makeActor({items: ITEMS()});
+  assert.match((await c.addCompanion(actor, 'cat', 'pet')).error, /can't have pets/);
+  assert.equal((await c.addCompanion(actor, 'horse', 'mount')).ok, true, 'one mount is still allowed');
+  game.settings.store.petCap = 2;
+  assert.equal(c.petCapFor(actor), 2);
+  assert.equal((await c.addCompanion(actor, 'cat', 'pet')).ok, true);
+});
+
+test('pet slot sources (hook for a later skill tree) add to the limit; none/unlimited still win', async () => {
+  installGlobals();
+  const actor = makeActor({items: ITEMS()});
+  assert.equal(c.registerPetSlotSource('test', a => a.id === 'actor1' ? 1 : 0).ok, true);
+  try {
+    assert.equal(c.petCapFor(actor), 1);
+    game.settings.store.petCapOverrides = {actor1: 2}; assert.equal(c.petCapFor(actor), 3);
+    game.settings.store.petCapOverrides = {actor1: 'none'}; assert.equal(c.petCapFor(actor), 0);
+    game.settings.store.petCapOverrides = {actor1: 'unlimited'}; assert.equal(c.petCapFor(actor), Infinity);
+    c.registerPetSlotSource('broken', () => { throw new Error('x'); });
+    game.settings.store.petCapOverrides = {}; assert.equal(c.petCapFor(actor), 1, 'a throwing source grants nothing');
+    assert.equal(c.registerPetSlotSource('', () => 1).ok, false);
+  } finally { c.unregisterPetSlotSource('test'); c.unregisterPetSlotSource('broken'); }
+  assert.equal(c.petCapFor(actor), 0);
 });
