@@ -48,7 +48,7 @@ export function browseLibrary(rows,filters={}) {
     systemOptions:aggregate('systemKey').map(x=>({...x,label:rows.find(r=>r.systemKey===x.value).systemLabel})),
     statusOptions:aggregate('status'),packageOptions:aggregate('packageId')};
 }
-/** Library list order (0.31.0): by system label, Unclassified / Shared last, then name. Stable for paging. */
+/** Library list order (0.32.0): by system label, Unclassified / Shared last, then name. Stable for paging. */
 export function orderLibraryRows(rows) {
   const rank=r=>r.systemKey==='unclassified'?1:0;
   return [...rows].sort((a,b)=>rank(a)-rank(b)||String(a.systemLabel??'').localeCompare(String(b.systemLabel??''))

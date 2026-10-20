@@ -1,7 +1,7 @@
 /** Core links (0.26.0). Proves matching/adopt/link/undo logic with mocked Foundry items and packs, not native Foundry UI. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createCoreLinks, bookKey, rulesOf, isSourceTagged, nameKey, findMatches, coreRefOf, LINK_FLAG, SOURCES_SETTING, LINK_HISTORY_SETTING} from '../scripts/core-links.js';
+import {createCoreLinks, bookKey, rulesOf, isSource2024, isCoreSource, nameKey, findMatches, coreRefOf, LINK_FLAG, SOURCES_SETTING, LINK_HISTORY_SETTING} from '../scripts/core-links.js';
 import {planRecord} from '../scripts/core.js';
 
 const M = 'ashen-gate-manager';
@@ -201,10 +201,10 @@ test('a package record with core_ref validates and Manager stores it in the sour
   assert.deepEqual(coreRefOf({flags}), {name:'Potion of Healing', source:"DMG'24", type:null, rarity:null});
 });
 
-test('0.30.0: Core Links and Organize share isSourceTagged; a Plutonium item with an unknown book is a candidate, 2014 never', async () => {
-  assert.equal(isSourceTagged({flags:{plutonium:{source:'HB'}}}), true);
-  assert.equal(isSourceTagged({system:{source:{rules:'2024'}}}), true);
-  assert.equal(isSourceTagged({system:{source:{book:'Homebrew'}}}), false);
+test('0.30.0: Core Links uses isSource2024; a Plutonium item with an unknown book is a candidate, 2014 never', async () => {
+  assert.equal(isSource2024({flags:{plutonium:{source:'HB'}}}), true);
+  assert.equal(isSource2024({system:{source:{rules:'2024'}}}), true);
+  assert.equal(isSource2024({system:{source:{book:'Homebrew'}}}), false);
   const plutoOdd = mkItem({id:'po', name:'Potion of Healing', system:{source:{book:'Some Book'}}, flags:{plutonium:{source:'Some Book'}}});
   const pluto14 = core('p14', 'Potion of Healing', {plutonium:true, book:'DMG'});
   const plain = core('n1', 'Potion of Healing', {book:''});
@@ -213,4 +213,40 @@ test('0.30.0: Core Links and Organize share isSourceTagged; a Plutonium item wit
   const out = await api.preview();
   const uuids = [out.rows[0].best, ...out.rows[0].others].filter(Boolean).map(c => c.uuid);
   assert.deepEqual(uuids, ['Item.po']);
+});
+
+test('0.31.0: isCoreSource (Organize) counts 2014 core and SRD 5.1; isSource2024 (Core Links) stays 2024 only', async () => {
+  const cases = [
+    [{flags:{plutonium:{source:'HB'}}}, true, true],
+    [{system:{source:{rules:'2024'}}}, true, true],
+    [{system:{source:{book:'XPHB'}}}, true, true],
+    [{system:{source:{book:'SRD 5.2'}}}, true, true],
+    [{system:{source:{rules:'2014'}}}, true, false],
+    [{system:{source:{book:'PHB'}}}, true, false],
+    [{system:{source:{book:'DMG'}}}, true, false],
+    [{system:{source:{book:'MM'}}}, true, false],
+    [{system:{source:{book:"PHB'14"}}}, true, false],
+    [{system:{source:{book:'SRD 5.1'}}}, true, false],
+    [{system:{source:{book:'System Reference Document 5.1'}}}, true, false],
+    [{flags:{plutonium:{source:'PHB'}}}, true, false],
+    [{system:{source:{book:'PHB'}}, flags:{plutonium:{source:'PHB'}}}, true, false],
+    [{system:{source:{book:'Homebrew'}}}, false, false],
+    [{system:{source:{book:'[TEST] Third Party Tome'}}}, false, false],
+    [{system:{source:{book:''}}}, false, false],
+    [{system:{}}, false, false],
+    [{}, false, false]
+  ];
+  for(const [entry, isCore, is24] of cases) {
+    assert.equal(isCoreSource(entry), isCore, `isCoreSource ${JSON.stringify(entry)}`);
+    assert.equal(isSource2024(entry), is24, `isSource2024 ${JSON.stringify(entry)}`);
+  }
+  // Core Links never offers 2014 / SRD 5.1 world items, even though Organize now files them under Core.
+  const w14 = core('w14', 'Potion of Healing', {book:'SRD 5.1'});
+  const r14 = mkItem({id:'r14', name:'Potion of Healing', system:{source:{rules:'2014'}}});
+  const w24 = core('w24', 'Potion of Healing', {book:'XDMG'});
+  const ag = agItem('a1', 'Healing Draught', {name:'Potion of Healing'});
+  const {api} = mkWorld({items:[ag, w14, r14, w24]});
+  const out = await api.preview();
+  const uuids = [out.rows[0].best, ...out.rows[0].others].filter(Boolean).map(c => c.uuid);
+  assert.deepEqual(uuids, ['Item.w24']);
 });
