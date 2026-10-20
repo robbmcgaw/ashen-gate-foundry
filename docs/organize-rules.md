@@ -24,7 +24,15 @@ Rules are checked from top to bottom, and the first match decides the folder. If
 
 `documentType`, `ag` (has an Ashen Gate source id), `sourceIdPrefix`, `entityType`, `status`, `visibility`, `test` (`[TEST]` name or example_only), `tier`, `profession`, `quality`, `crafted`, `itemType`, `subtype`, `rarity`, `magic`, `spellLevel`, `spellSchool`, `actorType`, `playerOwned`, `creatureType`, `crBand`, `core` (copied from a dnd5e system compendium), and **`sourceTagged`** (0.30.0).
 
-`sourceTagged` is true when the document has `flags.plutonium` (it was imported by Plutonium), or when its `system.source` says 2024: `rules: "2024"`, or a book of PHB'24, DMG'24, MM'24 or SRD 5.2 (`XPHB`, `XDMG`, `XMM`, `PHB 2024` are understood too). Core Links uses the same test to choose world candidates.
+`sourceTagged` (Manager 0.31.0) is true when the document is a **core** source:
+
+- it has `flags.plutonium` (it was imported by Plutonium), or
+- its `system.source` says 2024: `rules: "2024"`, or a book of PHB'24, DMG'24, MM'24 or SRD 5.2 (`XPHB`, `XDMG`, `XMM`, `PHB 2024` are understood too), or
+- its `system.source` says 2014 core: `rules: "2014"`, or a book of PHB, DMG, MM (`PHB'14`, `PHB 2014` too) or SRD 5.1 (`SRD 5.1`, `SRD`, `System Reference Document 5.1`).
+
+It is false when the Item has no source at all, or a third-party or homebrew book. In 0.30.0 only 2024 counted; 2014 core and SRD 5.1 items now stay under Core too (*all considered core*).
+
+Core Links does **not** use this test. It picks world candidates with a narrower 2024-only test (Plutonium import or marked 2024, never anything marked 2014), so 2014 / SRD 5.1 content is never linked or adopted.
 
 ## Placeholders
 
@@ -47,5 +55,8 @@ Saved custom rules are never changed by an update. To get the new defaults, use 
 |---|---|---|
 | `Sample Longsword` with `flags.plutonium` | source-tagged | `Core 5.5e/Items/Weapons` |
 | `Lantern of Testing` with `system.source.book: "XPHB"` | source-tagged | `Core 5.5e/Items/Gear` |
+| `Old Rope` with `system.source: {book: "PHB", rules: "2014"}` | source-tagged (2014 core) | `Core 5.5e/Items/Loot` |
+| `Open Mace` with `system.source.book: "SRD 5.1"` | source-tagged (SRD 5.1) | `Core 5.5e/Items/Weapons` |
+| `Tome Blade` with `system.source.book: "[TEST] Third Party Tome"` | not tagged | `Homebrew/Items/Weapons` |
 | `Glimmer Blade` with no source | not tagged | `Homebrew/Items/Weapons` |
 | `Spark Bolt`, a level 1 spell with no source | not tagged | `Homebrew/Spells/Level 1` |

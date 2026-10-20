@@ -26,14 +26,16 @@ const clone = value => value === undefined ? undefined : JSON.parse(JSON.stringi
 const RANK = {HIGH:0, MEDIUM:1, LOW:2};
 const KIND_LABEL = {plutonium:'Plutonium world item', world:'World item', 'world-pack':'World compendium', configured:'Core source', system24:'dnd5e 2024 pack'};
 
-/** "PHB'24", "XPHB", "PHB 2024" → PHB24; "SRD 5.2" → SRD52; "SRD 5.1" → SRD51. */
+/** "PHB'24", "XPHB", "PHB 2024" → PHB24; "PHB'14", "PHB 2014" → PHB; "SRD 5.2" → SRD52; "SRD 5.1", "System Reference Document 5.1" → SRD51. */
 export function bookKey(value) {
   const u = String(value ?? '').toUpperCase().replace(/[^A-Z0-9.]/g, '');
   if(!u) return '';
   let m = u.match(/^X(PHB|DMG|MM)$/); if(m) return `${m[1]}24`;
   m = u.match(/^(PHB|DMG|MM)(2024|24)$/); if(m) return `${m[1]}24`;
+  m = u.match(/^(PHB|DMG|MM)(2014|14)$/); if(m) return m[1];
   if(/^SRD5\.?2/.test(u)) return 'SRD52';
-  if(/^SRD5\.?1/.test(u) || u === 'SRD') return 'SRD51';
+  if(/^SRD5\.?1/.test(u) || u === 'SRD' || /^SYSTEMREFERENCEDOCUMENT5\.?1/.test(u)) return 'SRD51';
+  if(/^SYSTEMREFERENCEDOCUMENT5\.?2/.test(u)) return 'SRD52';
   return u.replace(/\./g, '');
 }
 const BOOK_2024 = new Set(['PHB24', 'DMG24', 'MM24', 'SRD52']);
@@ -50,10 +52,16 @@ export function rulesOf(entry) {
   return null;
 }
 /**
- * Source-tagged = imported by Plutonium (flags.plutonium present) or marked 2024 (system.source rules/book).
- * Shared with Organize (0.30.0), which files source-tagged Items under Core 5.5e and everything else under Homebrew.
+ * Core Links (2024 only): imported by Plutonium (flags.plutonium present) or marked 2024 (system.source rules/book).
+ * Never true for content marked 2014. Use isCoreSource for Organize's Core vs Homebrew decision.
  */
-export const isSourceTagged = entry => Boolean(getPath(entry, 'flags.plutonium')) || rulesOf(entry) === true;
+export const isSource2024 = entry => (Boolean(getPath(entry, 'flags.plutonium')) && rulesOf(entry) !== false) || rulesOf(entry) === true;
+/**
+ * Organize (0.31.0): counts as Core when imported by Plutonium, or when system.source says 2024 or 2014 core
+ * (rules "2014"; books PHB/DMG/MM legacy codes; SRD 5.1 labels). No source, third-party or homebrew → false.
+ * Never used to pick Core Links candidates.
+ */
+export const isCoreSource = entry => Boolean(getPath(entry, 'flags.plutonium')) || rulesOf(entry) !== null;
 
 export function nameKey(value) {
   return String(value ?? '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[’']/g, '')
@@ -148,7 +156,7 @@ export function createCoreLinks({game,
       if(getPath(doc, `flags.${MODULE_ID}.source.sourceId`)) continue; // never link AG to AG
       const rules = rulesOf(doc), configured = inConfigured(doc);
       if(rules === false) continue;
-      if(s.auto && isSourceTagged(doc)) push(doc, getPath(doc, 'flags.plutonium') ? 'plutonium' : 'world', 0);
+      if(s.auto && isSource2024(doc)) push(doc, getPath(doc, 'flags.plutonium') ? 'plutonium' : 'world', 0);
       else if(configured) push(doc, 'configured', 1);
     }
     for(const pack of itemPacks()) {
@@ -162,7 +170,7 @@ export function createCoreLinks({game,
         if(getPath(e, `flags.${MODULE_ID}.source.sourceId`)) continue;
         const rules = rulesOf(e);
         if(rules === false) continue;
-        if(kind === 'world-pack' && !isSourceTagged(e)) continue;
+        if(kind === 'world-pack' && !isSource2024(e)) continue;
         push(e, kind, kind === 'system24' ? 2 : 1, pack.collection, `${KIND_LABEL[kind]}: ${pack.metadata?.label ?? pack.collection}`);
       }
     }

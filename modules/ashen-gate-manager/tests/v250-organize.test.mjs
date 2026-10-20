@@ -109,7 +109,7 @@ test('default schema files Ashen Gate records, source-tagged items under Core 5.
     'Glimmer Blade':'Homebrew/Items/Weapons',
     'Spark Bolt':'Homebrew/Spells/Level 1',
     'Ring of Sample Luck':'Homebrew/Items/Rare Magic',
-    'Old Rope':'Homebrew/Items/Loot',
+    'Old Rope':'Core 5.5e/Items/Loot',
     'Goblin':'Core 5.5e/Actors/Humanoid',
     'Ash Wraith':'Ashen Gate/Creatures/CR 5-10',
     'Mayor Venn':'Ashen Gate/NPCs',
@@ -278,4 +278,26 @@ test('0.30.0: sourceTagged fact and match key; saved custom rules are used uncha
   assert.equal((await w.organizer.saveSchema(custom)).ok, true);
   const out = await w.organizer.preview();
   assert.equal(out.parts.find(p => p.documentName === 'Item').moves[0].to, 'Core 5.5e/Items/Weapons', 'a saved custom rule set is not rewritten');
+});
+
+test('0.31.0: 2014 core and SRD 5.1 items count as Core; no source, third-party and homebrew stay Homebrew', async () => {
+  const f = system => factsOf({name:'X', type:'weapon', system}, 'Item').sourceTagged;
+  assert.equal(f({source:{rules:'2014'}}), true);
+  assert.equal(f({source:{book:'PHB'}}), true);
+  assert.equal(f({source:{book:'DMG'}}), true);
+  assert.equal(f({source:{book:'MM'}}), true);
+  assert.equal(f({source:{book:'SRD 5.1'}}), true);
+  assert.equal(f({source:{book:'SRD 5.1', rules:'2014'}}), true);
+  assert.equal(f({source:{book:'[TEST] Third Party Tome'}}), false);
+  assert.equal(f({source:{book:'Homebrew'}}), false);
+  assert.equal(f({}), false);
+  seq = 0;
+  const w = mkWorld({items:[
+    item('Legacy Longsword', 'weapon', {system:{source:{book:'PHB', rules:'2014'}}}),
+    item('Open Mace', 'weapon', {system:{source:{book:'SRD 5.1'}}}),
+    item('Glimmer Blade', 'weapon')
+  ]});
+  const out = await w.organizer.preview();
+  const to = Object.fromEntries(out.parts.find(p => p.documentName === 'Item').moves.map(m => [m.name, m.to]));
+  assert.deepEqual(to, {'Legacy Longsword':'Core 5.5e/Items/Weapons', 'Open Mace':'Core 5.5e/Items/Weapons', 'Glimmer Blade':'Homebrew/Items/Weapons'});
 });

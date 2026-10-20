@@ -1,3 +1,9 @@
+## 0.31.0 — 2026-10-20
+
+- **Organize: 2014 and SRD 5.1 count as Core.** A non-Ashen-Gate Item now goes under **Core 5.5e** when it was imported by Plutonium, or its `system.source` says 2024 (as before) **or 2014 core**: rules `2014`, book PHB / DMG / MM (legacy codes, `PHB'14` too) or SRD 5.1. Items with no source, or a third-party or homebrew source, still go under **Homebrew**. Run Organize → Preview: 2014 / SRD 5.1 items an earlier run filed under Homebrew show as moves back to Core 5.5e.
+- **Core Links is unchanged:** it still only links and adopts 2024 content; 2014 and SRD 5.1 items are never candidates. The two tests are now separate in code (`isCoreSource` for Organize, `isSource2024` for Core Links; `isSourceTagged` is gone).
+- The `sourceTagged` match key keeps its name so saved custom rules still work; it now means *core source*. `docs/organize-rules.md` updated. No saved-data changes.
+
 ## 0.30.0 — 2026-10-20
 
 - **Organize: Homebrew folder.** In the default rules, a non-Ashen-Gate Item goes under **Core 5.5e** only when it is *source-tagged*: imported by Plutonium (`flags.plutonium`) or marked 2024 in `system.source` (rules `2024`, or book PHB'24 / DMG'24 / MM'24 / SRD 5.2, `XPHB`-style names too). Every other non-Ashen-Gate Item goes under a new top-level **Homebrew** tree with the same sub-folders (`Homebrew/Spells/Level 3`, `Homebrew/Items/Rare Magic`, `Homebrew/Items/Weapons`, …). Ashen Gate records and Actor/Journal rules are unchanged.
