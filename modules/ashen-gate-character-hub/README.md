@@ -22,20 +22,19 @@ Each panel uses only that module's public API (`game.modules.get(id)?.api`) and 
 
 | Panel | Reads | Open goes to |
 |---|---|---|
-| Profession Ledger | `getProfessionProgress`, `getKnownRecipes` (profession ids from Skill Trees' `listTrees`) | `open({actorId, view: 'individual'})` |
-| Skill Trees | `listTrees`, `actorProgress` | `open({actorId})` |
+| Profession Ledger | `getProfessions(actor)` (Ledger 0.18.0+); else `getProfessionProgress` per profession id from Skill Trees' `listTrees`. Plus `getKnownRecipes` | `open({actorId, view: 'individual'})` |
+| Skill Trees | `listTrees`, `actorProgress`, and `pointsSummary(actor)` (Skill Trees 0.13.0+) for points to spend / spent | `open({actorId})` |
 | Factions & Renown | `getFactions` (the user's own filtered view) | `open()` |
 | Quest Log | `listVisible`, `tracking.getState` | `openObjective(id)` / `open()` |
 | Locations | `listLocations` (GM: revealed only) | `openLocation(id)` / `open()` |
-| Headquarters | nothing yet | `open()` |
-| Utilities | `purse.totals` | `stash.open()` |
+| Headquarters | `playerView(actor)` (Headquarters 0.9.0+): Guildhall name and rank, visible facilities; else a pointer to Headquarters | `open()` |
+| Utilities | `purse.totals`, and `stash.listItems()` (Utilities 0.11.0+) for the first 8 stash items | `stash.open()` |
+
+Newer APIs are feature-detected. When a partner is older, the panel shows what it showed before (for example, profession levels then need Skill Trees to list the professions).
 
 APIs that would make the panels fuller (to request from the owning modules):
-- Profession Ledger: list a character's professions with XP to next level (today the Hub needs Skill Trees to know which professions exist).
-- Skill Trees: points available/spent per tree for a character.
 - Locations: the party's current or recent location.
-- Headquarters: a player-safe read of a character's hirelings and facilities.
-- Utilities: a stash item list.
+- Headquarters: hirelings stay GM-private in Headquarters, so the panel says so instead of listing them.
 
 ## Saved data
 - `flags.ashen-gate-character-hub.slot` on an Item, when the owner moves it to another paper-doll box. It changes only where the item shows.
