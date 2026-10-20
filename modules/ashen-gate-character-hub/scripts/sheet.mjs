@@ -10,6 +10,7 @@ import {openNativeSheet} from './native.mjs';
 import {showHelp} from './help.mjs';
 import * as items from './item-actions.mjs';
 import {openPartner} from './partners.mjs';
+import * as comp from './companions.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
 /** Shows a refusal or failure from an action; a success is silent (the sheet re-renders itself). */
@@ -40,6 +41,9 @@ export const ACTIONS = {
   'spell-prepare': (s, t) => items.togglePrepared(s.document, t.dataset.id),
   'rest': (s, t) => items.rest(s.document, t.dataset.type),
   'partner-open': (s, t) => openPartner(s.document, t.dataset.partner, t.dataset.ref),
+  'companion-remove': (s, t) => comp.removeCompanion(s.document, t.dataset.entry),
+  'companion-move': (s, t) => comp.moveCompanion(s.document, t.dataset.entry, Number(t.dataset.step)),
+  'companion-detach': (s, t) => comp.detachPerk(s.document, t.dataset.entry, t.dataset.id),
   'doll-art': s => { s.dollArt = s.dollArt === 'token' ? 'portrait' : 'token'; return s.render(); }
 };
 function hpButton(sheet, target, sign) {
@@ -57,8 +61,22 @@ export const EDITS = {
   'currency': (s, i) => items.setCurrency(s.document, i.dataset.key, i.value),
   'item-qty': (s, i) => items.setQuantity(s.document, i.dataset.id, i.value),
   'equip-slot': (s, i) => i.value ? items.equipItem(s.document, i.value, {slot: i.dataset.slot}) : null,
-  'item-slot': (s, i) => items.setSlot(s.document, i.dataset.id, i.value)
+  'item-slot': (s, i) => items.setSlot(s.document, i.dataset.id, i.value),
+  'companion-add': (s, i) => i.value ? comp.addCompanion(s.document, i.value, i.dataset.kind) : null,
+  'companion-attach': (s, i) => i.value ? comp.attachPerk(s.document, i.dataset.entry, i.value) : null,
+  'pet-cap-override': (s, i) => comp.setPetCapOverride(i.dataset.actor, i.value),
+  'pet-cap-default': (s, i) => comp.setDefaultPetCap(i.value)
 };
+
+/** Reads the Item from a drop (sidebar, compendium or this sheet) the way dnd5e does. */
+export async function droppedItem(event) {
+  const TE = globalThis.foundry?.applications?.ux?.TextEditor?.implementation;
+  let data = null;
+  try { data = TE?.getDragEventData ? TE.getDragEventData(event) : JSON.parse(event.dataTransfer?.getData('text/plain') || 'null'); } catch { data = null; }
+  if (data?.type !== 'Item') return null;
+  const Item = globalThis.Item?.implementation ?? globalThis.Item;
+  return Item?.fromDropData ? Item.fromDropData(data) : null;
+}
 
 /** Builds the class on top of Foundry's ActorSheetV2 (passed in so tests can supply a stand-in). */
 export function createHubSheetClass(Base) {
@@ -95,6 +113,8 @@ export function createHubSheetClass(Base) {
       if (!this._agchBound) {   // listeners live on the stable content element, so bind once
         content.addEventListener?.('change', ev => this._onHubChange(ev));
         content.addEventListener?.('submit', ev => ev.preventDefault());
+        content.addEventListener?.('dragover', ev => { if (ev.target?.closest?.('[data-drop-companion]')) ev.preventDefault(); });
+        content.addEventListener?.('drop', ev => this._onCompanionDrop(ev));
         this._agchBound = true;
       }
       try { const a = globalThis.game?.modules?.get('ashen-gate-manager')?.api?.appearance; if (a?.contract === 'ag-appearance/0.1-beta') a.applyTo?.(content); } catch {}
@@ -118,6 +138,19 @@ export function createHubSheetClass(Base) {
         console.error(`${MODULE_ID} | ${action}`, err);
         return report({ok: false, error: err?.message ?? String(err)});
       }
+    }
+
+    /** Drops on a Companions zone are handled here; other drops fall through to Foundry's own sheet handling. */
+    async _onCompanionDrop(event) {
+      const zone = event.target?.closest?.('[data-drop-companion]');
+      if (!zone) return null;
+      event.preventDefault(); event.stopPropagation();
+      try {
+        const item = await droppedItem(event);
+        const kind = zone.dataset.dropCompanion;
+        const result = kind === 'perk' ? await comp.attachDroppedPerk(this.document, zone.dataset.entry, item) : await comp.addDroppedCompanion(this.document, item, kind);
+        return report(result);
+      } catch (err) { return report({ok: false, error: err?.message ?? String(err)}); }
     }
 
     async _onHubChange(event) {

@@ -5,6 +5,7 @@
 import {MODULE_ID, VERSION, SHEET_LABEL} from './constants.mjs';
 import {createHubSheetClass} from './sheet.mjs';
 import {openNativeSheet, nativeSheetClass} from './native.mjs';
+import {registerCompanionSettings, petCapFor, companionsData} from './companions.mjs';
 
 let HubSheet = null;
 
@@ -50,13 +51,18 @@ export function createApi() {
       return {ok: true, result: app};
     },
     openNativeSheet,
-    nativeSheetAvailable: () => !!nativeSheetClass()
+    nativeSheetAvailable: () => !!nativeSheetClass(),
+    /** Companions (read only here): {mount, pets, cap}. Writes go through the Hub's Companions tab. */
+    companions: actor => { const d = companionsData(actor); return {mount: d.mount ? {itemId: d.mount.itemId, name: d.mount.item.name, perkItemIds: d.mount.perkItemIds} : null,
+      pets: d.pets.map(p => ({itemId: p.itemId, name: p.item.name, perkItemIds: p.perkItemIds})), petCap: d.cap === Infinity ? null : d.cap}; },
+    petCapFor
   };
 }
 
 if (globalThis.Hooks) {
   Hooks.once('init', () => {
     registerHubSheet();
+    registerCompanionSettings(game.settings, () => { for (const app of globalThis.foundry?.applications?.instances?.values?.() ?? []) if (HubSheet && app instanceof HubSheet && app.rendered) app.render(); });
     const mod = game.modules.get(MODULE_ID);
     if (mod) mod.api = createApi();
   });

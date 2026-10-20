@@ -6,9 +6,11 @@ export const users = {
 };
 const LEVELS = {NONE: 0, LIMITED: 1, OBSERVER: 2, OWNER: 3};
 
-export function installGlobals({user = users.owner, modules = {}} = {}) {
+export function installGlobals({user = users.owner, modules = {}, settings = {}, actors = []} = {}) {
   const notes = [];
-  globalThis.game = {user, users: Object.values(users), modules: {get: id => modules[id] ?? null}, settings: {get: () => undefined}};
+  const store = {...settings};
+  globalThis.game = {user, users: Object.values(users), actors, modules: {get: id => modules[id] ?? null},
+    settings: {store, get: (scope, key) => store[key], async set(scope, key, value) { store[key] = structuredClone(value); return value; }}};
   globalThis.ui = {notifications: {warn: m => notes.push(['warn', m]), error: m => notes.push(['error', m]), info: m => notes.push(['info', m])}};
   globalThis.CONFIG = {
     statusEffects: [{id: 'blinded'}, {id: 'prone'}, {id: 'exhaustion'}, {id: 'poisoned'}],
@@ -62,6 +64,7 @@ export function makeActor({perms = {owner: 'OWNER', observer: 'OBSERVER'}, items
     get isOwner() { return this.testUserPermission(globalThis.game.user, 'OWNER'); },
     async update(diff) { actor.calls.push(['update', diff]); applyDiff(actor, diff); return actor; },
     async updateEmbeddedDocuments(type, rows) { actor.calls.push(['updateEmbedded', type, rows]); for (const r of rows) applyDiff(actor.items.get(r._id), Object.fromEntries(Object.entries(r).filter(([k]) => k !== '_id'))); return rows; },
+    async createEmbeddedDocuments(type, rows) { actor.calls.push(['createEmbedded', type, rows]); const made = rows.map((r, n) => makeItem({...r, id: r._id ?? `new${list.length + n}`}, actor)); list.push(...made); return made; },
     async toggleStatusEffect(id, options) { actor.calls.push(['toggleStatusEffect', id, options]); return true; },
     async rollSkill(...a) { actor.calls.push(['rollSkill', ...a]); return []; },
     async rollAbilityCheck(...a) { actor.calls.push(['rollAbilityCheck', ...a]); return []; },
