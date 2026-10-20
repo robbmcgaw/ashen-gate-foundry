@@ -3,7 +3,9 @@
  * definition, discovery and Renown are never touched. `starting_state` applies to NEW factions only.
  */
 import {sourceDefinition,validateFaction,adjustStanding} from './core.mjs';
-export const IMPORT_SCHEMA='ag-factions-source-export/0.3';
+// 0.4 adds deities (entity_type 'Deity'); 0.3 files (factions only) are still accepted.
+export const IMPORT_SCHEMA='ag-factions-source-export/0.4';
+export const IMPORT_SCHEMAS=Object.freeze(['ag-factions-source-export/0.3',IMPORT_SCHEMA]);
 const START_KEYS=['faction_id','party_discovered','group_renown','actors'];
 const ACTOR_KEYS=['name','discovered','renown'];
 const EVENT_KEYS=['delta','reason'];
@@ -24,7 +26,7 @@ function renownList(list,path,errors){
 export function planImport(data,existingIds=new Set()){
   const errors=[],rows=[];
   if(!isObj(data))return {errors:['The file is not a JSON object.'],rows};
-  if(data.schema_version!==IMPORT_SCHEMA)errors.push(`schema_version must be ${IMPORT_SCHEMA}.`);
+  if(!IMPORT_SCHEMAS.includes(data.schema_version))errors.push(`schema_version must be ${IMPORT_SCHEMAS.join(' or ')}.`);
   if(!Array.isArray(data.definitions)||!data.definitions.length)errors.push('definitions: a non-empty array is required.');
   if(data.starting_state!==undefined&&!Array.isArray(data.starting_state))errors.push('starting_state: array required.');
   if(errors.length)return {errors,rows};
@@ -52,9 +54,12 @@ export function planImport(data,existingIds=new Set()){
     const faults=validateFaction(clean);
     if(faults.length){errors.push(`definitions[${i}] ${clean.id}: ${faults.join(' ')}`);return;}
     if(seen.has(clean.id)){errors.push(`definitions[${i}]: duplicate id ${clean.id}.`);return;}
+    const deity=clean.entity_type==='Deity';
+    if(deity&&data.schema_version!==IMPORT_SCHEMA){errors.push(`definitions[${i}] ${clean.id}: deities need schema_version ${IMPORT_SCHEMA}.`);return;}
+    if(deity&&starts.get(clean.id)?.group_renown?.length)errors.push(`starting_state ${clean.id}: deities have no group Renown; use actors[].renown.`);
     seen.add(clean.id);
     const exists=existingIds.has(clean.id);
-    rows.push({id:clean.id,name:clean.name,action:exists?'skip':'new',reason:exists?'Already in this world; kept as is.':'',definition:clean,start:exists?null:starts.get(clean.id)??null});
+    rows.push({id:clean.id,name:clean.name,kind:deity?'deity':'faction',action:exists?'skip':'new',reason:exists?'Already in this world; kept as is.':'',definition:clean,start:exists?null:starts.get(clean.id)??null});
   });
   for(const id of starts.keys())if(!seen.has(id))errors.push(`starting_state: ${id} has no matching definition.`);
   return {errors,rows};

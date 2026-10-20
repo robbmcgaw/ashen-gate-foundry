@@ -6,6 +6,8 @@
  */
 const BASE=['id','entity_type','status','version','provenance','visibility','refs'];
 const FACTION=[...BASE,'scope','name','leader','public_role','folder_key','tags','discovery','renown_track','individual_track','entries','rewards'];
+const DEITY=[...BASE,'scope','name','tags','discovery','individual_track','entries','rewards','deity'];
+const DEITY_PROFILE=['symbol','title','domain','tier','blurb','portfolio','teachings','followers','practices','saying','relations'];
 const TRACK=[...BASE,'default_scope','milestones'];
 const MILESTONE=['id','key','name','threshold','benefit','selection_mode'];
 const ENTRY=['id','name','text','uuid','link_mode','unlock','threshold'];
@@ -35,12 +37,27 @@ function entry(value,path){closed(value,ENTRY,path);text(value.id,`${path}.id`,t
 function reward(value,path){closed(value,REWARD,path);for(const key of ['id','key','milestone_id','name'])text(value[key],`${path}.${key}`,true);choice(value.audience,['group','individual'],`${path}.audience`);choice(value.kind,['custom','uuid'],`${path}.kind`);choice(value.behavior,['one_time','repeatable_service','passive'],`${path}.behavior`);strings(value.tags,`${path}.tags`);natural(value.usage_limit,`${path}.usage_limit`);optional(value.teaser,`${path}.teaser`,text);optional(value.description,`${path}.description`,text);optional(value.uuid,`${path}.uuid`,text);if(value.kind==='uuid')text(value.uuid,`${path}.uuid`,true);}
 /** Reject arbitrary top-level AND nested data. This does not migrate or rewrite the input. */
 export function assertReusableFactionSource(value){
+ if(value?.entity_type==='Deity')return assertReusableDeitySource(value);
  closed(value,FACTION,'Faction');envelope(value,'Faction','Faction',ROOT_ID);
  choice(value.scope,SCOPE,'Faction.scope');text(value.name,'Faction.name',true);text(value.leader,'Faction.leader');text(value.public_role,'Faction.public_role');
  optional(value.folder_key,'Faction.folder_key',text);optional(value.tags,'Faction.tags',strings);
  closed(value.discovery,['placeholder','sharing_enabled'],'Faction.discovery');for(const key of ['placeholder','sharing_enabled'])if(typeof value.discovery[key]!=='boolean')throw new TypeError(`Faction.discovery.${key}: boolean required`);
  track(value.renown_track,'Faction.renown_track');track(value.individual_track,'Faction.individual_track');
  list(value.entries,'Faction.entries',entry);list(value.rewards,'Faction.rewards',reward);
+ return value;
+}
+/** Deity source: the faction envelope without group track, leader, description or folder, plus a closed `deity` profile. */
+export function assertReusableDeitySource(value){
+ closed(value,DEITY,'Deity');envelope(value,'Deity','Deity',/^DEITY-[A-Z0-9-]+$/);
+ choice(value.scope,SCOPE,'Deity.scope');text(value.name,'Deity.name',true);optional(value.tags,'Deity.tags',strings);
+ closed(value.discovery,['placeholder','sharing_enabled'],'Deity.discovery');for(const key of ['placeholder','sharing_enabled'])if(typeof value.discovery[key]!=='boolean')throw new TypeError(`Deity.discovery.${key}: boolean required`);
+ track(value.individual_track,'Deity.individual_track');
+ list(value.entries,'Deity.entries',entry);list(value.rewards,'Deity.rewards',reward);
+ const d=value.deity;closed(d,DEITY_PROFILE,'Deity.deity');
+ for(const key of DEITY_PROFILE.filter(k=>!['tier','saying','relations'].includes(k)))text(d[key],`Deity.deity.${key}`);
+ choice(d.tier,['major','lesser'],'Deity.deity.tier');
+ closed(d.saying,['text','attribution'],'Deity.deity.saying');text(d.saying.text,'Deity.deity.saying.text');text(d.saying.attribution,'Deity.deity.saying.attribution');
+ list(d.relations,'Deity.deity.relations',(r,p)=>{closed(r,['deity_id','type'],p);if(!/^DEITY-[A-Z0-9-]+$/.test(r.deity_id??''))throw new Error(`${p}.deity_id: DEITY- id required`);choice(r.type,['rival','ally'],`${p}.type`);});
  return value;
 }
 /** Private GM state shape only; personal Actor grants never become party grants. */

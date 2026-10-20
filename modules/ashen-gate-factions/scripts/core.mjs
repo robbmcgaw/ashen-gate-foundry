@@ -1,5 +1,6 @@
-/** Portable Factions & Renown model. No Foundry runtime required. */
+/** Portable Renown model (factions and deities). No Foundry runtime required. */
 import {checkObjectiveRefs} from './objective-refs.mjs';
+import {isDeity,deityProfile,unusedGroupTrack,validateDeityParts} from './deity.mjs';
 import {assertReusableFactionSource,assertPrivateFieldReveals,assertNoUnclassifiedLegacyRefKeys} from './source-allowlist.mjs';
 export const MODULE_ID='ashen-gate-factions';
 export const SCHEMA_VERSION='0.3.0';
@@ -51,7 +52,10 @@ export function revealField(input,key,{party=false,actorId=null,visible=true}={}
 }
 /** Compatible with v0.1/v0.2.1. Historical mutable state is kept temporarily for migration only. */
 export function upgradeFaction(input){
-  const f=structuredClone(input);if(!f?.id||!f?.renown_track?.id)throw Error('Unrecognized faction record.');
+  const f=structuredClone(input);
+  // A deity's source omits the group track; it gets an internal, never-scored copy of its own ladder.
+  if(isDeity(f)&&!f.renown_track&&f.individual_track?.id)f.renown_track=unusedGroupTrack(f.individual_track);
+  if(!f?.id||!f?.renown_track?.id)throw Error('Unrecognized faction record.');
   const fresh=makeFaction({id:f.id,trackId:f.renown_track.id,name:f.name,leader:f.leader,public_role:f.public_role});
   f.provenance=provenance(f.provenance,'Legacy faction import');
   f.refs=(f.refs??[]).map(r=>r.relation?{relation:r.relation,target_id:r.target_id,mode:r.mode??'optional'}:{relation:r.relation_type??'related_to',target_id:r.target_id,mode:'optional'});
@@ -66,6 +70,7 @@ export function upgradeFaction(input){
   f.folder_key??='';f.tags??=[];f.entries??=[];f.discovery??={party:false,actors:[],placeholder:false,sharing_enabled:true};
   f.discovery={party:false,actors:[],placeholder:false,sharing_enabled:true,...f.discovery};
   f.discovery.actors??=[];f.version=SCHEMA_VERSION;
+  if(isDeity(f)){f.leader??='';f.public_role??='';f.folder_key='';f.deity=deityProfile(f.deity);}
   return f;
 }
 /** Reusable definition projection: never serialize any mutable discovery or Renown state. */
@@ -77,6 +82,8 @@ export function sourceDefinition(input){
   // Legacy UI-only Foundry document type is derivable from its typed UUID.
   // It is NOT an approved reusable reward source field.
   f.rewards=f.rewards.map(r=>{const a=structuredClone(r);delete a.document_type;return a;});
+  // Deities export only their own fields: no leader/description, folders or group track.
+  if(isDeity(f)){delete f.leader;delete f.public_role;delete f.folder_key;delete f.renown_track;}
   // Fail closed on every unclassified key (including nested reward claims).
   // Known legacy disclosure is stripped above; arbitrary extras are never silently dropped.
   return assertReusableFactionSource(f);
@@ -100,7 +107,8 @@ export function validateStanding(s){
   if(current!==s.score)e.push('Score does not match event history.');return e;
 }
 export function validateFaction(raw){let f;try{f=upgradeFaction(raw)}catch(e){return [e.message]};const errors=[];
-  if(!/^FACTION-[A-Z0-9-]+$/.test(f.id)||f.entity_type!=='Faction'||!f.name?.trim())errors.push('Faction identity invalid.');
+  if(isDeity(f)){if(!f.name?.trim())errors.push('Deity name required.');errors.push(...validateDeityParts(f));}
+  else if(!/^FACTION-[A-Z0-9-]+$/.test(f.id)||f.entity_type!=='Faction'||!f.name?.trim())errors.push('Faction identity invalid.');
   if(!Array.isArray(f.refs)||!Array.isArray(f.provenance?.sources))errors.push('Invalid shared metadata.');
   for(const track of [f.renown_track,f.individual_track]){
     if(!/^RENOWN-[A-Z0-9-]+$/.test(track.id))errors.push('Invalid Renown track ID.');

@@ -223,3 +223,44 @@
 .agf-embed .agf-embed__cell small{font-size:var(--ag-text-xs);text-transform:uppercase;letter-spacing:.05em;color:var(--ag-muted);overflow-wrap:anywhere}
 .agf-embed .agf-embed__score{font-variant-numeric:tabular-nums;color:var(--ag-accent)}
 .agf-embed .agf-embed__next,.agf-embed .agf-embed__note{font-size:var(--ag-text-sm);color:var(--ag-muted)}
+/* Pantheon (0.11.0): deity tiles and card, inside the shared ag-ui tokens. */
+.agf-shell--pantheon .agf-sidebar{display:none}
+.agf-pantheon-toolbar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-top:16px}
+.agf-pantheon-toolbar .agf-pantheon-create{margin-left:auto;display:flex;gap:6px;align-items:center}
+.agf-pantheon-toolbar .agf-pantheon-create input{width:auto;min-width:180px}
+.agf-pantheon-group h2{font:600 19px var(--ag-font-display);color:var(--ag-text);margin:22px 0 10px;border:0;letter-spacing:.5px}
+.agf-pantheon-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.agf-shell button.agf-deity-tile{display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 10px 12px;text-align:center;border-radius:var(--ag-radius-lg);border-color:var(--ag-border-strong);background:radial-gradient(circle at 50% 18%,var(--ag-accent-soft) 0,transparent 62%),var(--ag-surface-raised);min-height:0}
+.agf-shell button.agf-deity-tile:hover{border-color:var(--ag-accent)}
+.agf-deity-tile.is-unknown{opacity:.72}
+.agf-deity-tile strong{font:600 16px var(--ag-font-display);color:var(--ag-text);overflow-wrap:anywhere}
+.agf-deity-tile small{font-size:11px;color:var(--ag-muted);font-style:italic;overflow-wrap:anywhere}
+.agf-deity-rank{font-size:11px;color:var(--ag-accent)}
+.agf-symbol{position:relative;display:grid;place-items:center;width:64px;height:64px;border-radius:50%;border:1px solid var(--ag-border-strong);background:var(--ag-surface-sunken);overflow:hidden;flex:none}
+.agf-symbol--large{width:112px;height:112px}
+.agf-symbol-img{position:relative;z-index:1;width:100%;height:100%;object-fit:contain;border:0;background:var(--ag-surface-sunken)}
+.agf-symbol.is-missing .agf-symbol-img{display:none}
+.agf-symbol-glyph{position:absolute;font-size:26px;color:var(--ag-accent)}
+.agf-symbol--large .agf-symbol-glyph{font-size:44px}
+.agf-deity-card{display:grid;grid-template-columns:auto 1fr auto;gap:14px 18px;align-items:start;margin-top:18px;padding:18px;border:1px solid var(--ag-border-strong);border-radius:var(--ag-radius-lg);background:radial-gradient(circle at 8% 0,var(--ag-accent-soft) 0,transparent 45%),var(--ag-surface-raised)}
+.agf-deity-card--lesser{border-style:dashed}
+.agf-deity-head h1{font:600 30px/1.15 var(--ag-font-display);color:var(--ag-text);margin:4px 0}
+.agf-deity-title{margin:0 0 8px;font-style:italic;color:var(--ag-accent)}
+.agf-deity-blurb{margin:0;color:var(--ag-text);font-size:13px;line-height:1.45}
+.agf-deity-facts{grid-column:1 / -1;display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;margin:0;font-size:13px}
+.agf-deity-facts dt{font:600 12px var(--ag-font-display);letter-spacing:.8px;text-transform:uppercase;color:var(--ag-accent)}
+.agf-deity-facts dd{margin:0;color:var(--ag-text);white-space:pre-line;overflow-wrap:anywhere}
+.agf-deity-saying{grid-column:1 / -1;margin:0;padding:10px 14px;border-left:3px solid var(--ag-accent);background:var(--ag-surface-sunken);border-radius:var(--ag-radius-sm)}
+.agf-deity-saying p{margin:0;font:italic 15px/1.4 var(--ag-font-display);color:var(--ag-text)}
+.agf-deity-saying cite{display:block;margin-top:4px;font-size:12px;color:var(--ag-muted)}
+.agf-deity-card .agf-share{grid-column:1 / -1;justify-self:end}
+.agf-favour-bar{height:6px;border-radius:3px;background:var(--ag-surface-sunken);margin:0 0 12px;overflow:hidden}
+.agf-favour-bar span{display:block;height:100%;background:var(--ag-accent)}
+.agf-relations{list-style:none;margin:0 0 10px;padding:0}
+.agf-relations li{padding:6px 0;border-bottom:1px solid var(--ag-border);font-size:13px}
+.agf-relations li.is-rival .agf-chip{border-color:var(--ag-danger);color:var(--ag-danger)}
+.agf-relations li.is-ally .agf-chip{border-color:var(--ag-ok);color:var(--ag-ok)}
+.agf-symbol-path{display:flex;gap:6px;align-items:center;margin-top:4px}
+.agf-symbol-path input{margin:0!important}
+.agf-actions-row{display:flex;justify-content:flex-end;margin-top:12px}
+@media (max-width:700px){.agf-deity-card{grid-template-columns:1fr}.agf-deity-facts{grid-template-columns:1fr}}
