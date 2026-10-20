@@ -13,6 +13,10 @@ export const SPECIALISTS = Object.freeze({
   factions: {kind: 'Faction', label: 'Renown', moduleId: 'ashen-gate-factions', preview: 'previewFactionsImport', run: 'importFactions', canUpdate: false}
 });
 
+/** Renown 0.11.0+ marks each preview row 'faction' or 'deity' (ag-factions-source-export/0.4); other rows keep the specialist's kind. */
+const ROW_KINDS = {deity: 'Deity', faction: 'Faction'};
+const rowKind = (spec, kind) => ROW_KINDS[kind] ?? spec.kind;
+
 const QUEST_SCHEMAS = ['ag-quest-source/0.1', 'ag-source-records/0.1'];
 const allType = (list, type) => list.length > 0 && list.every(r => r?.entity_type === type);
 
@@ -71,7 +75,7 @@ export function planSpecialist(kind, input, api, {updateExisting = false} = {}) 
   const result = api[spec.preview](input, spec.canUpdate ? {mode: updateExisting ? 'update' : 'skip'} : undefined);
   const rows = result.rows.map(r => {
     const action = r.action === 'new' ? 'create' : r.action === 'update' ? 'update' : 'skipped';
-    return {id: r.id, name: r.name, kind: spec.kind, lifecycle: '', action, patch: {},
+    return {id: r.id, name: r.name, kind: rowKind(spec, r.kind), lifecycle: '', action, patch: {},
       reason: action === 'create' ? `New; imported through ${spec.label}.` : r.reason};
   });
   return {errors: result.errors ?? [], rows};
