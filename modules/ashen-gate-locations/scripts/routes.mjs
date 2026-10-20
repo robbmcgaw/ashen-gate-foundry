@@ -17,7 +17,7 @@ export const ROUTE_ID = /^RTE-[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
 export const ROUTE_STATES = Object.freeze(['unknown', 'rumoured', 'known', 'explored']);
 export const ROUTE_STATE_LABELS = Object.freeze({unknown: 'Unknown', rumoured: 'Rumoured', known: 'Known', explored: 'Explored'});
 /** Starting values for a new route; the leg length is also the world setting's default. GM-editable. */
-export const ROUTE_DEFAULTS = Object.freeze({legKm: 10, hazardBase: 10});
+export const ROUTE_DEFAULTS = Object.freeze({legKm: 5, hazardBase: 5});
 export const UNKNOWN_PATH = 'Unknown path';
 const MAX_KM = 100000;
 

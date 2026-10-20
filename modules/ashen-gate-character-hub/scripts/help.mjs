@@ -13,7 +13,7 @@ export const HELP_HTML = `<p>The Character Hub is another way to look at the <st
   <li><strong>Equipment slots</strong> are a display only. Hover for the item name. <strong>Click</strong> opens the item; <strong>right-click</strong> unequips it. The small <strong>⋯</strong> on a slot has Use, Attune, Swap, Move to party stash and <em>Move to…</em>. Click an empty slot to equip a carried item that fits. A glow means attuned. <em>Other</em> holds equipped items that fit no slot.</li>
   <li><strong>Inventory</strong>: Character shows this character's items (the carry-box button moves one to the party stash); Party stash shows the Utilities stash and purse, where Take brings items back (with the party vote if the GM has it on).</li>
   <li>Equipping an item that needs attunement asks whether to attune. At your limit it lists attuned items so you can unattune one.</li>
-  <li><strong>Companions</strong>: drop a mount or pet Item (or pick one of your items), then drop perk Items onto it. One mount; pets up to the GM's limit. Perks only show their text.</li>
+  <li><strong>Companions</strong>: drop a mount or pet Item (or pick one of your items), then drop perk Items onto it. One mount; pets up to the GM's limit (no pet slots until the GM raises it). Perks only show their text.</li>
   <li><strong>Ashen Gate</strong> has one section per Ashen Gate module (Professions, Perks, Renown, Quests, Locations, Base). Where a module offers it, its own view shows here and works as in that module; otherwise a summary with an Open button.</li>
   <li>If you only observe a character, you can look but not change or roll.</li>
   <li>To switch back for good: the window's sheet menu (<em>Sheet</em> in the title bar) → choose the dnd5e character sheet.</li>

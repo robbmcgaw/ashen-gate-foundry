@@ -9,6 +9,7 @@
  * Every run is stored (previous folder ids) so the last organize can be undone.
  */
 import {MODULE_ID, getPath} from './core.js';
+import {isSourceTagged} from './core-links.js';
 
 export const SCHEMA_SETTING = 'organizeSchema';
 export const HISTORY_SETTING = 'organizeHistory';
@@ -62,12 +63,14 @@ export function factsOf(doc, documentName, tierIndex = new Map()) {
     playerOwned: documentName === 'Actor' && Boolean(doc.hasPlayerOwner),
     creatureType: documentName === 'Actor' && creature ? title(creature) : null,
     cr: cr ?? null, crBand: documentName === 'Actor' ? crBand(cr) : null,
-    core: String(getPath(doc, '_stats.compendiumSource') ?? '').startsWith('Compendium.dnd5e.')
+    core: String(getPath(doc, '_stats.compendiumSource') ?? '').startsWith('Compendium.dnd5e.'),
+    // 0.30.0: Plutonium-imported or marked 2024 (same test as Core Links). Untagged non-AG Items go to Homebrew.
+    sourceTagged: isSourceTagged(doc)
   };
 }
 export const MATCH_KEYS = Object.freeze(['documentType', 'ag', 'sourceIdPrefix', 'entityType', 'status', 'visibility', 'test', 'tier',
   'profession', 'quality', 'crafted', 'itemType', 'subtype', 'rarity', 'magic', 'spellLevel', 'spellSchool', 'actorType', 'playerOwned',
-  'creatureType', 'crBand', 'core']);
+  'creatureType', 'crBand', 'core', 'sourceTagged']);
 const PLACEHOLDERS = Object.freeze(['tier', 'rarity', 'spellLevel', 'creatureType', 'crBand', 'entityType', 'actorType', 'profession', 'quality', 'itemType']);
 
 const T = (types, id, label, when, path) => ({id, label, types, when, ...(path === null ? {leave:true} : {path})});
@@ -94,17 +97,28 @@ export const DEFAULT_RULES = Object.freeze([
   T(J, 'ag-lore', 'Lore journals', {ag:true, entityType:'Lore'}, 'Ashen Gate/Lore'),
   T(J, 'ag-handouts', 'Player handouts', {ag:true}, 'Ashen Gate/Handouts'),
   T(ALL, 'ag-other', 'Other Ashen Gate records by kind', {ag:true}, 'Ashen Gate/Other/{entityType}'),
-  T(I, 'core-spell', 'Spells by level', {ag:false, itemType:'spell'}, 'Core 5.5e/Spells/{spellLevel}'),
-  T(I, 'core-magic', 'Magic items by rarity', {ag:false, magic:true}, 'Core 5.5e/Items/{rarity} Magic'),
-  T(I, 'core-weapon', 'Weapons', {ag:false, itemType:'weapon'}, 'Core 5.5e/Items/Weapons'),
-  T(I, 'core-armor', 'Armor and shields', {ag:false, itemType:'equipment', subtype:['light', 'medium', 'heavy', 'natural', 'shield']}, 'Core 5.5e/Items/Armor'),
-  T(I, 'core-consumable', 'Consumables', {ag:false, itemType:'consumable'}, 'Core 5.5e/Items/Consumables'),
-  T(I, 'core-tool', 'Tools', {ag:false, itemType:'tool'}, 'Core 5.5e/Items/Tools'),
-  T(I, 'core-wondrous', 'Wondrous (no rarity set)', {ag:false, itemType:'equipment', subtype:'wondrous'}, 'Core 5.5e/Items/Wondrous'),
-  T(I, 'core-gear', 'Adventuring gear and containers', {ag:false, itemType:['equipment', 'container', 'backpack']}, 'Core 5.5e/Items/Gear'),
-  T(I, 'core-loot', 'Loot and treasure', {ag:false, itemType:'loot'}, 'Core 5.5e/Items/Loot'),
-  T(I, 'core-feature', 'Feats and features', {ag:false, itemType:'feat'}, 'Core 5.5e/Features'),
-  T(I, 'core-options', 'Classes, subclasses, backgrounds, species', {ag:false, itemType:['class', 'subclass', 'background', 'race', 'species']}, 'Core 5.5e/Character Options'),
+  T(I, 'core-spell', 'Spells by level', {ag:false, sourceTagged:true, itemType:'spell'}, 'Core 5.5e/Spells/{spellLevel}'),
+  T(I, 'core-magic', 'Magic items by rarity', {ag:false, sourceTagged:true, magic:true}, 'Core 5.5e/Items/{rarity} Magic'),
+  T(I, 'core-weapon', 'Weapons', {ag:false, sourceTagged:true, itemType:'weapon'}, 'Core 5.5e/Items/Weapons'),
+  T(I, 'core-armor', 'Armor and shields', {ag:false, sourceTagged:true, itemType:'equipment', subtype:['light', 'medium', 'heavy', 'natural', 'shield']}, 'Core 5.5e/Items/Armor'),
+  T(I, 'core-consumable', 'Consumables', {ag:false, sourceTagged:true, itemType:'consumable'}, 'Core 5.5e/Items/Consumables'),
+  T(I, 'core-tool', 'Tools', {ag:false, sourceTagged:true, itemType:'tool'}, 'Core 5.5e/Items/Tools'),
+  T(I, 'core-wondrous', 'Wondrous (no rarity set)', {ag:false, sourceTagged:true, itemType:'equipment', subtype:'wondrous'}, 'Core 5.5e/Items/Wondrous'),
+  T(I, 'core-gear', 'Adventuring gear and containers', {ag:false, sourceTagged:true, itemType:['equipment', 'container', 'backpack']}, 'Core 5.5e/Items/Gear'),
+  T(I, 'core-loot', 'Loot and treasure', {ag:false, sourceTagged:true, itemType:'loot'}, 'Core 5.5e/Items/Loot'),
+  T(I, 'core-feature', 'Feats and features', {ag:false, sourceTagged:true, itemType:'feat'}, 'Core 5.5e/Features'),
+  T(I, 'core-options', 'Classes, subclasses, backgrounds, species', {ag:false, sourceTagged:true, itemType:['class', 'subclass', 'background', 'race', 'species']}, 'Core 5.5e/Character Options'),
+  T(I, 'homebrew-spell', 'Homebrew spells by level', {ag:false, sourceTagged:false, itemType:'spell'}, 'Homebrew/Spells/{spellLevel}'),
+  T(I, 'homebrew-magic', 'Homebrew magic items by rarity', {ag:false, sourceTagged:false, magic:true}, 'Homebrew/Items/{rarity} Magic'),
+  T(I, 'homebrew-weapon', 'Homebrew weapons', {ag:false, sourceTagged:false, itemType:'weapon'}, 'Homebrew/Items/Weapons'),
+  T(I, 'homebrew-armor', 'Homebrew armor and shields', {ag:false, sourceTagged:false, itemType:'equipment', subtype:['light', 'medium', 'heavy', 'natural', 'shield']}, 'Homebrew/Items/Armor'),
+  T(I, 'homebrew-consumable', 'Homebrew consumables', {ag:false, sourceTagged:false, itemType:'consumable'}, 'Homebrew/Items/Consumables'),
+  T(I, 'homebrew-tool', 'Homebrew tools', {ag:false, sourceTagged:false, itemType:'tool'}, 'Homebrew/Items/Tools'),
+  T(I, 'homebrew-wondrous', 'Homebrew wondrous (no rarity set)', {ag:false, sourceTagged:false, itemType:'equipment', subtype:'wondrous'}, 'Homebrew/Items/Wondrous'),
+  T(I, 'homebrew-gear', 'Homebrew adventuring gear and containers', {ag:false, sourceTagged:false, itemType:['equipment', 'container', 'backpack']}, 'Homebrew/Items/Gear'),
+  T(I, 'homebrew-loot', 'Homebrew loot and treasure', {ag:false, sourceTagged:false, itemType:'loot'}, 'Homebrew/Items/Loot'),
+  T(I, 'homebrew-feature', 'Homebrew feats and features', {ag:false, sourceTagged:false, itemType:'feat'}, 'Homebrew/Features'),
+  T(I, 'homebrew-options', 'Homebrew classes, subclasses, backgrounds, species', {ag:false, sourceTagged:false, itemType:['class', 'subclass', 'background', 'race', 'species']}, 'Homebrew/Character Options'),
   T(A, 'core-npc', 'Monsters and NPCs by creature type', {ag:false, actorType:'npc'}, 'Core 5.5e/Actors/{creatureType}'),
   T(A, 'core-npc-other', 'Monsters and NPCs (no creature type)', {ag:false, actorType:'npc'}, 'Core 5.5e/Actors/Other'),
   T(A, 'core-vehicle', 'Vehicles', {ag:false, actorType:'vehicle'}, 'Core 5.5e/Actors/Vehicles')
@@ -247,7 +261,7 @@ export function emptyFolders(folders, docs) {
 }
 
 const INDEX_FIELDS = ['type', 'folder', 'system.rarity', 'system.type', 'system.level', 'system.school', 'system.details.cr', 'system.details.type',
-  `flags.${MODULE_ID}`, '_stats.compendiumSource'];
+  'system.source', 'flags.plutonium', `flags.${MODULE_ID}`, '_stats.compendiumSource'];
 
 /**
  * Foundry-facing organizer. `updateDocuments(documentName, updates, {pack})` and `createFolder(data, {pack})`

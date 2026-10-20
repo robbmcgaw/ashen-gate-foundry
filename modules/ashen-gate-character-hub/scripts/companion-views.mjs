@@ -31,7 +31,7 @@ export function companionsTab({actor, editable}) {
   const addZone = (kind, label, full) => off ? '' : full ? '' : `<div class="agch-drop" data-drop-companion="${kind}">Drop ${label} item here
     <select data-edit="companion-add" data-kind="${kind}" aria-label="Add a ${kind} from this character's items">${itemOptions(free, 'or choose one of this character\'s items…')}</select></div>`;
   const mount = d.mount ? companionCard(d.mount, {off, free, index: 0, count: 1}) : '<p class="agch-muted">No mount.</p>';
-  const pets = d.pets.map((p, i) => companionCard(p, {off, free, index: i, count: d.pets.length})).join('') || '<p class="agch-muted">No pets.</p>';
+  const pets = d.pets.map((p, i) => companionCard(p, {off, free, index: i, count: d.pets.length})).join('') || (d.cap === 0 ? '<p class="agch-muted">No pet slots yet. The GM can raise the pet limit.</p>' : '<p class="agch-muted">No pets.</p>');
   const override = petCapOverride(actor);
   const gmCap = gm ? `<label class="agch-gmcap">GM: pet limit for ${esc(actor.name)}
       <select data-edit="pet-cap-override" data-actor="${esc(actor.id)}">${capOptions(override)}</select></label>` : '';
@@ -53,6 +53,6 @@ export function gmSetupTab() {
     <td><select data-edit="pet-cap-override" data-actor="${esc(a.id)}" aria-label="Pet limit for ${esc(a.name)}">${capOptions(petCapOverride(a))}</select></td></tr>`; }).join('');
   return `<section class="ag-card"><h3>Companions</h3>
     <label class="ag-field">Pets per character (world default)<input type="number" min="0" step="1" data-edit="pet-cap-default" value="${defaultPetCap()}"></label>
-    <p class="agch-muted">Every character may have one mount. Pet limits apply when adding a pet; existing pets are never removed.</p>
+    <p class="agch-muted">Every character may have one mount. Pets start at 0: raise the world default or a character's limit to give pet slots. Limits apply when adding a pet; existing pets are never removed.</p>
     ${rows ? `<table class="agch-table"><thead><tr><th>Character</th><th>Mount</th><th>Pets</th><th>Pet limit</th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="ag-empty">No characters.</p>'}</section>`;
 }
