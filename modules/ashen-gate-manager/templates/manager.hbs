@@ -1,7 +1,7 @@
 <section class="agmanager-body">
   <header class="ag-header agmanager-top">
     <i class="agmanager-emblem fa-solid fa-dungeon" aria-hidden="true"></i>
-    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.21.2 Beta</small></h2></div>
+    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.22.0 Beta</small></h2></div>
     <button type="button" class="agmanager-help" data-ag-action="help" aria-label="Manager Help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button><span class="agmanager-chip">GM only</span>
   </header>
   <nav class="ag-tabs agmanager-nav" aria-label="Manager tabs">
@@ -9,6 +9,7 @@
     <button type="button" data-ag-tab="library" class="{{#if libraryActive}}active{{/if}}"><i class="fa-solid fa-layer-group"></i> Library</button>
     <button type="button" data-ag-tab="modules" class="{{#if modulesActive}}active{{/if}}"><i class="fa-solid fa-grip"></i> Modules</button>
     <button type="button" data-ag-tab="appearance" class="{{#if appearanceActive}}active{{/if}}"><i class="fa-solid fa-palette"></i> Appearance</button>
+    <button type="button" data-ag-tab="scenes" class="{{#if scenesActive}}active{{/if}}"><i class="fa-solid fa-cloud-sun"></i> Scenes</button>
     <button type="button" data-ag-tab="history" class="{{#if historyActive}}active{{/if}}"><i class="fa-solid fa-clock-rotate-left"></i> History</button>
   </nav>
 
@@ -333,6 +334,67 @@
       {{/if}}
       <p class="agmanager-tiny">Each module saves its own setting. Needs <code>ag-player-access/1</code>; older modules show Unsupported. Hiding never deletes progress.</p>
     </section>
+  </div>
+  {{/if}}
+
+  {{#if scenesActive}}
+  <div class="agmanager-panel agmanager-moods">
+    <section class="ag-card" aria-label="Scene mood">
+      <div class="agmanager-row agmanager-row-wrap agmanager-moods-head">
+        <div><h3>Scene moods <span class="agmanager-beta">GM only</span></h3>
+        <p class="agmanager-moods-now"><strong>{{moods.sceneName}}</strong> — {{moods.moodLabel}}</p></div>
+        <label>Scene <select data-ag-mood-scene>
+          <option value="" {{#if moods.currentSelected}}selected{{/if}}>Current scene (viewed, else active)</option>
+          {{#each moods.scenes}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}
+        </select></label>
+      </div>
+      <div class="agmanager-mood-buttons" role="group" aria-label="Apply a mood">
+        {{#each moods.presets}}<button type="button" class="ag-btn{{#if active}} ag-btn--primary{{/if}}" data-ag-mood-apply="{{id}}" {{#unless @root.moods.hasScene}}disabled{{/unless}} aria-pressed="{{#if active}}true{{else}}false{{/if}}">{{label}}</button>{{/each}}
+        <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="mood-restore" {{#unless moods.hasBase}}disabled{{/unless}}><i class="fa-solid fa-rotate-left"></i> Back to normal</button>
+      </div>
+      <label class="agmanager-toggle"><input type="checkbox" data-ag-mood-animate {{#if moods.animate}}checked{{/if}}> Fade darkness over 3 seconds (if this Foundry supports it)</label>
+      {{#if moods.darknessLock}}<p class="agmanager-tiny"><strong>Darkness is locked on this scene</strong> (Scene config), so Foundry may keep its darkness.</p>{{/if}}
+      <p class="agmanager-tiny" role="status">{{moods.message}}</p>
+      <p class="agmanager-tiny">Everyone on the scene sees the change. Weather effects can slow weaker player machines: give a mood <strong>No weather</strong> if that happens. Uses core Foundry lighting and weather only.</p>
+    </section>
+
+    <section class="ag-card" aria-label="Mood presets">
+      <div class="agmanager-row agmanager-row-wrap"><h3>Mood presets</h3><button type="button" class="ag-btn" data-ag-action="mood-new"><i class="fa-solid fa-plus"></i> Add mood</button></div>
+      <div class="agmanager-mood-list">
+      {{#each moods.presets}}
+        <div class="agmanager-mood-row">
+          <div><strong>{{label}}</strong> {{#if isDefault}}<span class="ag-badge">Default</span>{{/if}}<div class="agmanager-tiny">{{summary}}</div></div>
+          <div class="agmanager-row"><button type="button" class="ag-btn ag-btn--sm" data-ag-mood-edit="{{id}}">Edit</button><button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-ag-mood-remove="{{id}}">Remove…</button></div>
+        </div>
+      {{/each}}
+      </div>
+      {{#unless moods.hasWeather}}<p class="agmanager-tiny"><strong>No weather effects found</strong> in this Foundry (CONFIG.weatherEffects is empty); moods that set weather will refuse to apply.</p>{{/unless}}
+      <p class="agmanager-tiny">Defaults are a starting point; editing one makes it yours. <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="mood-reset">Reset moods to defaults…</button></p>
+    </section>
+
+    {{#if moods.edit}}
+    <section class="ag-card agmanager-mood-editor" aria-label="Edit mood">
+      <h3>{{#if moods.edit.isNew}}New mood{{else}}Edit mood: {{moods.edit.label}}{{/if}}</h3>
+      <div class="agmanager-row agmanager-row-wrap">
+        {{#if moods.edit.isNew}}<label>Id <input type="text" data-ag-mood-id value="{{moods.edit.id}}" placeholder="e.g. foggy-dawn" maxlength="40"></label>{{/if}}
+        <label>Label <input type="text" data-ag-mood-label value="{{moods.edit.label}}"></label>
+      </div>
+      <p class="agmanager-tiny">Tick the fields this mood sets. Unticked fields are left as the scene has them.</p>
+      <div class="agmanager-mood-fields">
+      {{#each moods.edit.fields}}
+        <label class="agmanager-mood-field"><input type="checkbox" data-ag-mood-use="{{path}}" {{#if used}}checked{{/if}}> <span>{{label}}</span>
+          {{#if isNumber}}<input type="number" data-ag-mood-value="{{path}}" value="{{value}}" min="{{min}}" max="{{max}}" step="{{step}}"> <small>{{min}} to {{max}}</small>{{/if}}
+          {{#if isBoolean}}<input type="checkbox" data-ag-mood-value="{{path}}" {{#if checked}}checked{{/if}}> <small>on</small>{{/if}}
+          {{#if isWeather}}<select data-ag-mood-value="{{path}}">{{#each weatherOptions}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>{{/if}}
+        </label>
+      {{/each}}
+      </div>
+      <footer class="agmanager-row agmanager-mood-footer">
+        <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="mood-cancel">Cancel</button>
+        <button type="button" class="ag-btn ag-btn--primary" data-ag-action="mood-save"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
+      </footer>
+    </section>
+    {{/if}}
   </div>
   {{/if}}
 
