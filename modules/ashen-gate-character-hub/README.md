@@ -56,7 +56,7 @@ Owners and the GM can change and roll. Observers can look only (the actions refu
 - `nativeSheetAvailable()`, `sheetClass`, `version`.
 
 ## Not yet
-Full parity with the dnd5e sheet, spell preparation beyond a toggle, advancement/level-up screens (use the native sheet), drag-reorder, polished mobile layout, a GM "set as default" option.
+Full parity with the dnd5e sheet, spell preparation beyond a toggle, advancement/level-up screens (use the native sheet), drag-reorder, polished mobile layout, a GM "set as default" option, applying companion perk bonuses or effects, Tidy5e support.
 
 ## Tests
 `node scripts/check.mjs ashen-gate-character-hub`. Tests use mocked Foundry: they prove logic and calls, not the live Foundry UI.
