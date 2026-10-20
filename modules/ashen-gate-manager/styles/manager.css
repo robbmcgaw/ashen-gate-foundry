@@ -203,3 +203,11 @@
 .ag-skin-card__text{display:flex;flex-direction:column;min-width:0}
 .ag-skin-card__name{font-weight:600}
 .ag-skin-card--inherit{flex-direction:column;align-items:flex-start;justify-content:center;gap:2px}
+.agmanager-moods-head {justify-content:space-between;align-items:flex-start}
+.agmanager-moods-now {margin:.25rem 0 .5rem}
+.agmanager-mood-buttons {display:flex;flex-wrap:wrap;gap:.4rem;margin:.5rem 0}
+.agmanager-mood-row {display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:4px 8px;margin-bottom:3px;background:var(--ag-surface-hover);word-break:break-word}
+.agmanager-mood-fields {display:grid;grid-template-columns:repeat(auto-fit,minmax(18rem,1fr));gap:.3rem .8rem}
+.agmanager-mood-field {display:flex;align-items:center;gap:.4rem}
+.agmanager-mood-field input[type=number] {width:5.5rem}
+.agmanager-mood-footer {justify-content:space-between;margin-top:.75rem}

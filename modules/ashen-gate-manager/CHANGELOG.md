@@ -1,3 +1,10 @@
+## 0.22.0 — 2026-10-20
+
+- **Scene moods** (new GM-only **Scenes** tab). Shows the current scene (viewed, else active; or pick any scene) and its mood. One click applies **Day, Twilight, Windy (leaves), Storm** or **Night**; **Back to normal** puts the scene back exactly as it was. Optional 3-second darkness fade.
+- A mood is a small preset listing only the scene fields it sets: darkness, global illumination, day/night tint (hue, intensity, luminosity, saturation, shadows) and core weather (or **No weather**). Edit, add and remove presets (saved per world); the shipped five are marked **Default**; **Reset moods to defaults** asks first.
+- Core Foundry only, no other module needed. Each field and weather id is checked on the live scene first; if one is missing, nothing changes and the GM gets a message naming it.
+- Before a scene's first mood, its original values are kept in a scene flag (`moodBase`, never overwritten) and the mood id in `mood`; Back to normal clears both. GM only, also checked in the API (`api.scenes.applyMood / restore / listMoods / savePreset / removePreset`). Existing scenes are untouched until a mood is applied. No migration.
+
 ## 0.21.2 — 2026-10-19
 
 - **Appearance cards are the selector.** In My Appearance and Manager → Appearance, the dropdown is gone: click a skin card to choose it (the chosen card is highlighted). My Appearance has an **Inherit world default** card for what the dropdown's "Use GM default" did. Cards are a keyboard radio group (Tab in, arrow keys move and choose, Space/Enter activate) and wrap at narrow widths. Save buttons, status lines and what gets saved are unchanged; nothing applies until you Save. Pure UI change, no saved-data change.
