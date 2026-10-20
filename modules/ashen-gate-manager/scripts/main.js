@@ -24,6 +24,8 @@ import {buildImportReport, buildBlockedReport, pushReport} from './import-result
 import {ITEM_FLAG, ACTOR_ITEMS_FLAG, itemKeys, matchActors, planActor, applyActorUpdate} from './actor-update.js';
 import {mediaFilename} from './zip-import.js';
 import {createSceneMoods, MOODS_SETTING, MOOD_FIELDS, NO_WEATHER} from './scene-moods.js';
+import {createBrowse, PAGE_SIZE} from './browse.js';
+import {toolbarHtml, bodyHtml, DEFAULT_STATE} from './browse-view.js';
 
 const {ApplicationV2, HandlebarsApplicationMixin, DialogV2} = foundry.applications.api;
 const FOLDER_NAMES = {Item: "Ashen Gate — Imported Items", JournalEntry: "Ashen Gate — Imported Journals",
@@ -163,7 +165,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.23.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.24.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -213,6 +215,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.moodSceneId = "";
     this.moodEdit = null;
     this.moodAnimate = false;
+    this.browseState = {...DEFAULT_STATE, filters:{}};
+    this.browseUnsub = null;
     this.moodMessage = "Pick a mood for the scene. Only the fields a mood lists change; Back to normal restores the scene exactly.";
     this.applyProfile();
   }
@@ -398,6 +402,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       captureMessage:this.captureMessage,
       historyActive: this.tab === "history",
       scenesActive: this.tab === "scenes",
+      browseActive: this.tab === "browse",
       moods: this.tab === "scenes" ? this.#moodContext() : null,
       hasPackage: Boolean(this.pkg || this.specialist),
       isSpecialist: Boolean(this.specialist),
@@ -437,6 +442,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     await super._onRender(context, options);
     const root = this.element;
     bindSkinPicker(root.querySelector('[data-ag-skin-picker="world"]'),value=>{this.appearanceSelection=value;});
+    this.browseUnsub?.();this.browseUnsub=null;
+    if(this.tab==='browse')this.#mountBrowse(root.querySelector('[data-ag-browse]'));
     root.querySelectorAll("[data-ag-action]").forEach(el => el.addEventListener("click", event => {
       event.preventDefault();
       this.#action(el.dataset.agAction).catch(err => this.#fail(err));
@@ -587,7 +594,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       }
       case "help": {
         await DialogV2.confirm({window:{title:'Ashen Gate | General Manager Help'},
-          content:'<p><strong>Clean import:</strong> Choose Manager JSON or a ZIP; select Development for draft content, Validate & Preview, Select eligible, then Import.</p><p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro; no Scenes or Playlists. </p><p><strong>ZIP bundles:</strong> a ZIP holding several import files (Manager packages plus Quest, Skill Tree, Headquarters or Factions files) shows a ZIP contents list. Untick any you do not want, press Import selected files, then preview and Apply each file in turn (Manager packages first). Each file gets its own result; Skip this file or Stop ZIP import at any time. ZIP scripts never run. Bundled images are uploaded only if that option is enabled.</p><p><strong>Folders:</strong> foundry.folder_path creates nested folders per document type. <strong>Links:</strong> canonical refs bind after creation. Markers [[AGREF:MAT-EXAMPLE|Material]] are provisional pending Tim.</p><p>Back up a test world. Existing Tables and Macros are never replaced. Existing Actors change only if you tick <strong>Update existing actors</strong>: then their name, image, token settings and package items follow the file, and HP, XP, level, conditions, player items, notes, ownership, folders and other modules\' data are kept.</p>',
+          content:'<p><strong>Browse:</strong> one search over world Actors, Items, Journals (and pages), Ashen Gate records from Locations, Quest Log, Factions, Skill Trees, Headquarters and the Profession Ledger, and (after Load compendiums) compendium indexes. Type words or prefixes such as id:MAT-HERB, tag:, status:, tier:. Filters combine and show counts; Clear resets them. Open shows the sheet or the owning module; drag a world or compendium row onto a sheet, the canvas or a journal. Read-only.</p><p><strong>Clean import:</strong> Choose Manager JSON or a ZIP; select Development for draft content, Validate & Preview, Select eligible, then Import.</p><p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro; no Scenes or Playlists. </p><p><strong>ZIP bundles:</strong> a ZIP holding several import files (Manager packages plus Quest, Skill Tree, Headquarters or Factions files) shows a ZIP contents list. Untick any you do not want, press Import selected files, then preview and Apply each file in turn (Manager packages first). Each file gets its own result; Skip this file or Stop ZIP import at any time. ZIP scripts never run. Bundled images are uploaded only if that option is enabled.</p><p><strong>Folders:</strong> foundry.folder_path creates nested folders per document type. <strong>Links:</strong> canonical refs bind after creation. Markers [[AGREF:MAT-EXAMPLE|Material]] are provisional pending Tim.</p><p>Back up a test world. Existing Tables and Macros are never replaced. Existing Actors change only if you tick <strong>Update existing actors</strong>: then their name, image, token settings and package items follow the file, and HP, XP, level, conditions, player items, notes, ownership, folders and other modules\' data are kept.</p>',
           modal:true,rejectClose:false});
         break;
       }
@@ -1327,6 +1334,78 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!entries.length) entries.push({level:"ok",message:`No ID or reference problems found among ${docs.length} managed world document(s). (Unmanaged content not audited.)`});
     this.auditEntries=entries;
   }
+  async _onClose(options) {
+    this.browseUnsub?.();this.browseUnsub=null;
+    return super._onClose?.(options);
+  }
+  /** Browse tab (0.24.0): read-only; repaints only its own body so the search box keeps focus while typing. */
+  #mountBrowse(el) {
+    if(!el)return;
+    const st=this.browseState;
+    el.innerHTML=`${toolbarHtml(st)}<div data-ag-browse-body></div>`;
+    const body=el.querySelector('[data-ag-browse-body]');
+    const paint=()=>{
+      try{
+        const svc=browse(),result=svc.search({...st,pageSize:PAGE_SIZE});
+        if(st.page!==result.page)st.page=result.page;
+        const status=svc.status();
+        body.innerHTML=bodyHtml(st,result,st.detailKey?svc.detail(st.detailKey):null,status);
+        const label=el.querySelector('[data-ag-browse-packs-label]');
+        if(label)label.textContent=status.loading?'Loading compendiums…':status.compendiums?'Reload compendiums':'Load compendiums';
+      }catch(error){body.innerHTML=`<p class="ag-badge ag-badge--danger">${escapeHtml(error.message??error)}</p>`;}
+    };
+    const again=()=>{st.page=0;paint();};
+    let typing=null;
+    el.querySelector('[data-ag-browse-query]')?.addEventListener('input',event=>{
+      clearTimeout(typing);typing=setTimeout(()=>{st.query=event.target.value;again();},150);
+    });
+    el.addEventListener('change',event=>{
+      const t=event.target,d=t.dataset;
+      if('agBrowseSort' in d)st.sort=t.value;
+      else if('agBrowseGroup' in d)st.group=t.value;
+      else if(d.agBrowseFacet)st.filters[d.agBrowseFacet]=t.value;
+      else if('agBrowseManaged' in d)st.managedOnly=t.checked;
+      else if('agBrowseUnlinked' in d)st.unlinkedOnly=t.checked;
+      else return;
+      again();
+    });
+    el.addEventListener('click',event=>{
+      const b=event.target.closest('button');if(!b||!el.contains(b))return;
+      const d=b.dataset;
+      if(d.agBrowseScope){st.scope=d.agBrowseScope;again();}
+      else if(d.agBrowseDetail){st.detailKey=d.agBrowseDetail;paint();}
+      else if('agBrowseClose' in d){st.detailKey=null;paint();}
+      else if(d.agBrowsePage){st.page+=Number(d.agBrowsePage);paint();el.querySelector('.agbrowse-results')?.scrollIntoView?.({block:'start'});}
+      else if('agBrowseClear' in d){Object.assign(st,{query:'',filters:{},managedOnly:false,unlinkedOnly:false,page:0});
+        const q=el.querySelector('[data-ag-browse-query]');if(q)q.value='';paint();}
+      else if('agBrowseRefresh' in d)void browse().refresh({compendiums:true}).then(()=>toast('Browse index refreshed.'),err=>toast(String(err.message??err),true));
+      else if('agBrowsePacks' in d){
+        const s=browse().status();
+        const run=s.compendiums?browse().refresh({compendiums:true}):browse().loadCompendiums();
+        paint();
+        void run.then(()=>toast(`Compendium indexes loaded (${browse().status().compendiumCount} entries).`),err=>toast(String(err.message??err),true));
+      }
+      else if(d.agBrowseOpen||d.agBrowseSheet){
+        void browse().open(d.agBrowseOpen??d.agBrowseSheet,{prefer:d.agBrowseSheet?'sheet':'auto'}).then(out=>{
+          if(!out.ok)toast(out.message,true);else if(out.message)toast(out.message);
+        });
+      }
+      else if(d.agBrowseCopy){
+        const id=d.agBrowseCopy;
+        Promise.resolve(game.clipboard?.copyPlainText?.(id)??navigator.clipboard.writeText(id)).then(()=>toast(`Copied ${id}.`),()=>toast(`Could not copy ${id}.`,true));
+      }
+      else return;
+      event.preventDefault();
+    });
+    // Same dataTransfer payload the core sidebar uses, so rows drop onto sheets, the canvas and journals.
+    el.addEventListener('dragstart',event=>{
+      const row=event.target.closest?.('[data-ag-browse-key]');if(!row)return;
+      const data=browse().dragData(row.dataset.agBrowseKey);
+      if(data)event.dataTransfer.setData('text/plain',JSON.stringify(data));else event.preventDefault();
+    });
+    this.browseUnsub=browse().subscribe(()=>{if(this.rendered&&this.tab==='browse'&&el.isConnected)paint();});
+    paint();
+  }
   #fail(error) {
     console.error(`[${MODULE_ID}]`,error);
     this.message=String(error?.message??error);
@@ -1375,6 +1454,8 @@ let definitionsReader=null;
 let myAppearanceApp=null;
 let activeApp;
 let sceneMoodsApi=null;
+let browseApi=null;
+const browse=()=>browseApi??=createBrowse({game,hooks:Hooks,fromUuid:uuid=>(globalThis.fromUuid??foundry.utils.fromUuid)(uuid)});
 const sceneMoods=()=>sceneMoodsApi??=createSceneMoods({game});
 Hooks.once("init",()=>{
   registerAppearanceSettings({game,namespace:MODULE_ID,onSettingChange:(key,value)=>appearanceController?.noteChange(key,value)});
@@ -1438,6 +1519,8 @@ Hooks.once("ready",()=>{
     // GM-only "Back up before play" (0.21.0): the everything export as AG_Backup_<date>.json; leaves the export snapshot alone.
     backup:()=>saveBackup(game,{save:downloadJson}),
     // GM-only scene moods (0.22.0); every function checks the GM itself and returns {ok,message}.
+    // GM-only, read-only Browse index (0.24.0); every function checks the GM itself.
+    browse:(({getIndex,search,detail,refresh,loadCompendiums,status,dragData,open})=>({getIndex,search,detail,refresh,loadCompendiums,status,dragData,open}))(browse()),
     scenes:(({listMoods,getState,applyMood,restore,savePreset,removePreset,resetDefaults})=>({listMoods,getState,applyMood,restore,savePreset,removePreset,resetDefaults}))(sceneMoods()),
     resolverBridge:{
       contract:'ag-definition-resolver/0.1-prototype-adapter',
@@ -1458,7 +1541,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.23.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.24.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */
