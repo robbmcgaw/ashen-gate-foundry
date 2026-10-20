@@ -5,17 +5,19 @@ An alternative character sheet for dnd5e 6 on Foundry V14. It shows and changes 
 ## Open it
 Open a character → the sheet's title-bar menu (**Sheet** / gear) → choose **Ashen Gate Character Hub**. Switch back the same way. It is never the default unless you pick it. **Open native sheet** in the Hub's header opens the standard dnd5e sheet at any time.
 
-## What it does (0.4.0)
-- Header: portrait, name, species, class/subclass, level, HP (Damage/Heal, edit current/temp/max adj.), AC, initiative roll, speed, proficiency, inspiration, exhaustion, hit dice, resources, conditions.
-- Character tab: abilities (check and save rolls), skills (rolls, proficiency markers, passive).
+## What it does (0.6.0)
+Layout: the character on the left, tabs on the right (only the tab content scrolls). Opens at 1200 × 800; under about 900 px wide the character stacks above the tabs.
+- Left: portrait with AC, equipment slots around it, initiative roll, speed, proficiency, HP bar (Damage/Heal, edit HP/temp/max adj.), six abilities (check and save rolls), inspiration, hit dice, exhaustion, resources, conditions (active ones as icons; the heart button lists all).
+- Equipment slots (display only, no slot rules): click or right-click for Open, Use, Unequip, Attune, Swap (hands, rings), Move to…; an empty slot offers Equip… with carried items that fit. Equipping an item that needs attunement asks first; at the limit it lists attuned items to unattune.
+- Overview: skills (rolls, proficiency markers, passive), saving throws, passives and senses, proficiencies.
 - Combat: initiative, death save at 0 HP, weapons and usable features with **Use** (dnd5e's `item.use()`).
-- Inventory: categories, containers, quantity, equip/attune, currency, Use for consumables, and the **Equipment** paper doll (display only, no slot rules). Equipping an item that needs attunement asks first; at the limit it lists attuned items to unattune.
+- Inventory: search, Character / Party stash toggle, categories, containers, quantity, equip/attune, currency, Use for consumables. Party stash reads Utilities (purse and stash items).
 - Magic: spells by level with slots, **Cast** (dnd5e casting dialog), Prepare toggle where dnd5e allows.
 - Features: class/species/background and features by type.
-- Rest: Short/Long Rest through dnd5e's rest dialogs.
+- Ashen Gate: sub-tabs Professions, Perks, Standing, Quests, Locations, Base, each a read-only panel with an Open button (see below).
 - Companions: one mount and GM-limited pets, each an Item on the character, with perk Items attached (display only).
+- Rest: Short/Long Rest through dnd5e's rest dialogs.
 - GM Setup (GM only): default pet limit and per-character limits.
-- Ashen Gate: read-only panels from the other Ashen Gate modules, each with an Open button (see below).
 
 ## Ashen Gate panels
 Each panel uses only that module's public API (`game.modules.get(id)?.api`) and shows only what that module lets the current user see. Missing, hidden or failing modules show "Not installed" or "Unavailable"; the sheet keeps working.
@@ -28,7 +30,7 @@ Each panel uses only that module's public API (`game.modules.get(id)?.api`) and 
 | Quest Log | `listVisible`, `tracking.getState` | `openObjective(id)` / `open()` |
 | Locations | `listLocations` (GM: revealed only) | `openLocation(id)` / `open()` |
 | Headquarters | `playerView(actor)` (Headquarters 0.9.0+): Guildhall name and rank, visible facilities; else a pointer to Headquarters | `open()` |
-| Utilities | `purse.totals`, and `stash.listItems()` (Utilities 0.11.0+) for the first 8 stash items | `stash.open()` |
+| Utilities (Inventory → Party stash) | `purse.totals`, and `stash.listItems()` (Utilities 0.11.0+) for the stash items | `stash.open()` |
 
 Newer APIs are feature-detected. When a partner is older, the panel shows what it showed before (for example, profession levels then need Skill Trees to list the professions).
 
@@ -37,7 +39,7 @@ APIs that would make the panels fuller (to request from the owning modules):
 - Headquarters: hirelings stay GM-private in Headquarters, so the panel says so instead of listing them.
 
 ## Saved data
-- `flags.ashen-gate-character-hub.slot` on an Item, when the owner moves it to another paper-doll box. It changes only where the item shows.
+- `flags.ashen-gate-character-hub.slot` on an Item, when the owner moves or swaps it to another equipment slot. It changes only where the item shows.
 - `flags.ashen-gate-character-hub.companions` on a character: the ordered companion list `[{id, kind: 'mount'|'pet', itemId, perkItemIds}]`. The Items themselves are ordinary Items on the character.
 - World settings `petCap` (default 2) and `petCapOverrides` (`{actorId: number | 'none' | 'unlimited'}`), GM only.
 

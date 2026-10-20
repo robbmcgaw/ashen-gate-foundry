@@ -153,3 +153,14 @@ export async function setSlot(actor, id, slot) {
   if (slot && !SLOT_IDS.has(slot)) return refuse(`Unknown slot ${slot}.`);
   return run('move the item', () => item.update({[`flags.${MODULE_ID}.slot`]: slot || null}));
 }
+
+/** Swaps two equipped items between their boxes (main hand ↔ off hand, ring ↔ ring). Display only. */
+export async function swapSlots(actor, idA, slotA, idB, slotB) {
+  const a = guard(actor, idA); if (a.error) return a.error;
+  const b = guard(actor, idB); if (b.error) return b.error;
+  if (!SLOT_IDS.has(slotA) || !SLOT_IDS.has(slotB)) return refuse('Unknown slot.');
+  return run('swap the items', async () => {
+    await a.item.update({[`flags.${MODULE_ID}.slot`]: slotB});
+    await b.item.update({[`flags.${MODULE_ID}.slot`]: slotA});
+  });
+}

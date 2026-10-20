@@ -2,7 +2,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {installGlobals, makeActor, users, FakeActorSheetV2} from './foundry-mock.mjs';
-import {PANELS, panelState, partnersTab, openPartner} from '../scripts/partners.mjs';
+import {PANELS, AG_PANELS, panelState, ashenGateTab, partyStashHtml, openPartner} from '../scripts/partners.mjs';
 import {createHubSheetClass} from '../scripts/sheet.mjs';
 
 const calls = [];
@@ -42,9 +42,12 @@ const state = id => panelState(PANELS.find(p => p.id === id), makeActor());
 test('every panel shows "not installed" when its module is missing, and the tab still renders', () => {
   installGlobals({modules: {}});
   for (const p of PANELS) assert.equal(panelState(p, makeActor()).state, 'missing', p.id);
-  const html = partnersTab({actor: makeActor()});
-  assert.equal((html.match(/data-state="missing"/g) ?? []).length, PANELS.length);
-  assert.doesNotMatch(html, /data-action="partner-open"/, 'no Open button for a missing module');
+  for (const p of AG_PANELS) {
+    const html = ashenGateTab({actor: makeActor(), sheet: {agTab: p.id}});
+    assert.match(html, new RegExp(`data-partner="${p.id}" data-state="missing"`));
+    assert.doesNotMatch(html, /data-action="partner-open"/, 'no Open button for a missing module');
+  }
+  assert.match(partyStashHtml(makeActor()), /data-state="missing"/);
 });
 
 test('inactive modules count as missing even if an api object lingers', () => {
@@ -91,7 +94,7 @@ test('an erroring partner shows "unavailable" and never breaks the sheet', async
   assert.match(state('ashen-gate-quest-manager').html, /Unavailable right now/);
   assert.doesNotMatch(state('ashen-gate-quest-manager').html, /boom/, 'raw errors stay in the console');
   const Cls = createHubSheetClass(FakeActorSheetV2);
-  const sheet = new Cls({document: makeActor()}); sheet.tab = 'ashen-gate';
+  const sheet = new Cls({document: makeActor()}); sheet.tab = 'ashen-gate'; sheet.agTab = 'ashen-gate-factions';
   const html = await sheet._renderHTML();
   console.warn = orig;
   assert.doesNotMatch(html, /could not be drawn/);
@@ -101,7 +104,8 @@ test('an erroring partner shows "unavailable" and never breaks the sheet', async
 test('the Hub never writes to partner modules or the Actor while summarising', () => {
   installGlobals({user: users.owner, modules: partners()});
   const actor = makeActor();
-  partnersTab({actor});
+  for (const p of AG_PANELS) ashenGateTab({actor, sheet: {agTab: p.id}});
+  partyStashHtml(actor);
   assert.equal(actor.calls.length, 0);
   assert.deepEqual(actor.flags, {}, 'no mirrored progress on the Actor');
   assert.ok(calls.every(c => c[0] === 'loc.list'), 'only read calls were made');
@@ -184,4 +188,28 @@ test('newer APIs: empty, unavailable and refused cases', () => {
   mods['ashen-gate-profession-ledger'].api.getProfessions = () => { throw new Error('Actor access denied'); };
   const orig = console.warn; console.warn = () => {};
   try { assert.match(state('ashen-gate-profession-ledger').html, /Not available to you right now/); } finally { console.warn = orig; }
+});
+
+test('Ashen Gate tab: one sub-tab per module, only the chosen one is read; Utilities moved to Inventory', () => {
+  installGlobals({user: users.owner, modules: partners()});
+  assert.deepEqual(AG_PANELS.map(p => p.tab), ['Professions', 'Perks', 'Standing', 'Quests', 'Locations', 'Base']);
+  const first = ashenGateTab({actor: makeActor(), sheet: {}});
+  assert.match(first, /data-action="ag-subtab" data-partner="ashen-gate-profession-ledger" data-ag-always aria-pressed="true"/);
+  assert.equal((first.match(/class="ag-card agch-panel"/g) ?? []).length, 1, 'one panel at a time');
+  assert.doesNotMatch(first, /Party purse/);
+  calls.length = 0;
+  const loc = ashenGateTab({actor: makeActor(), sheet: {agTab: 'ashen-gate-locations'}});
+  assert.match(loc, /Millbrook/);
+  assert.deepEqual(calls.map(c => c[0]), ['loc.list'], 'only the shown module is read');
+});
+
+test('Inventory Party stash: Utilities purse and every stash item', () => {
+  const mods = partners();
+  mods['ashen-gate-utilities'].api.stash.listItems = () => Array.from({length: 10}, (_, i) => ({name: `[TEST] Thing ${i}`, quantity: 1}));
+  installGlobals({user: users.owner, modules: mods});
+  const html = partyStashHtml(makeActor());
+  assert.match(html, /42 gp, 5 sp/);
+  assert.match(html, /\[TEST\] Thing 9/);
+  assert.doesNotMatch(html, /more<\/p>/, 'no 8-item cap in the full view');
+  assert.match(html, /data-action="partner-open" data-partner="ashen-gate-utilities"/);
 });

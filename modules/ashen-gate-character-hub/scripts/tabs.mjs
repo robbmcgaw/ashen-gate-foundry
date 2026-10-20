@@ -1,7 +1,8 @@
-/** Combat, Inventory (with the equipment paper doll), Magic, Features and Rest views. */
+/** Combat, Inventory (character or party stash), Magic, Features and Rest views. The paper doll is in character.mjs. */
 import {esc} from './constants.mjs';
 import {btn} from './buttons.mjs';
-import {inventoryData, combatData, spellsData, featuresData, equipmentLayout, equipChoices, SLOTS} from './items.mjs';
+import {inventoryData, combatData, spellsData, featuresData} from './items.mjs';
+import {partyStashHtml} from './partners.mjs';
 import {headerData} from './data.mjs';
 
 const empty = text => `<p class="ag-empty">${esc(text)}</p>`;
@@ -31,32 +32,9 @@ function combatTab({actor, editable}) {
 }
 
 // ---------- Inventory ----------
-function dollHtml(ctx) {
-  const {actor, editable, sheet} = ctx, off = !editable, layout = equipmentLayout(actor);
-  const token = sheet?.dollArt === 'token';
-  const art = token ? (actor.prototypeToken?.texture?.src || actor.img) : actor.img;
-  const moveSelect = row => `<select data-edit="item-slot" data-id="${esc(row.id)}" aria-label="Move ${esc(row.name)} to"${off ? ' disabled' : ''}><option value="">Move to…</option>${SLOTS.map(s => `<option value="${s.id}">${esc(s.label)}</option>`).join('')}<option value="">Automatic</option></select>`;
-  const box = s => {
-    if (s.item) return `<div class="agch-slot is-filled" data-slot="${s.id}"><span class="agch-slot__label">${esc(s.label)}</span>
-      <button type="button" class="agch-slot__item" data-action="item-sheet" data-id="${esc(s.item.id)}" data-ag-always title="Open ${esc(s.item.name)}"><img src="${esc(s.item.img)}" alt=""><span>${esc(s.item.name)}</span></button>
-      ${s.item.attuned ? '<span class="ag-badge ag-badge--accent">Attuned</span>' : ''}
-      <span class="agch-slot__controls">${btn('item-unequip', 'Unequip', {kind: 'sm', data: {id: s.item.id}, disabled: off})}${moveSelect(s.item)}</span></div>`;
-    const choices = equipChoices(actor, s.id);
-    return `<div class="agch-slot" data-slot="${s.id}"><span class="agch-slot__label">${esc(s.label)}</span>
-      ${choices.length ? `<select data-edit="equip-slot" data-slot="${s.id}" aria-label="Equip into ${esc(s.label)}"${off ? ' disabled' : ''}><option value="">Equip…</option>${choices.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('')}</select>` : '<span class="agch-muted">Empty</span>'}</div>`;
-  };
-  const by = id => box(layout.slots.find(s => s.id === id));
-  const other = layout.other.length ? `<h4 class="agch-subheading">Other equipped</h4><ul class="ag-list agch-items">${layout.other.map(r => itemLine(r, `${btn('item-unequip', 'Unequip', {kind: 'sm', data: {id: r.id}, disabled: off})}${moveSelect(r)}`)).join('')}</ul>` : '';
-  return `<section class="agch-doll" aria-label="Equipment">
-    <div class="agch-doll__col">${['head', 'neck', 'back', 'body', 'ring1', 'ring2'].map(by).join('')}</div>
-    <div class="agch-doll__art"><img src="${esc(art)}" alt="${esc(actor.name)}">${btn('doll-art', token ? 'Show portrait' : 'Show token art', {kind: 'sm', always: true})}</div>
-    <div class="agch-doll__col">${['mainhand', 'offhand', 'hands', 'waist', 'feet', 'trinket'].map(by).join('')}</div>
-  </section>${other}<p class="agch-muted agch-hint">Boxes are a display only: dnd5e has no worn-slot rules, so nothing limits what goes where. "Move to…" changes only where an item shows.</p>`;
-}
-
 function inventoryTab(ctx) {
   const {actor, editable} = ctx, off = !editable, d = inventoryData(actor);
-  const currency = `<div class="agch-currency" role="group" aria-label="Currency">${d.currency.map(c => `<label class="agch-coin"><span>${esc(c.abbr)}</span><input type="number" min="0" step="1" data-edit="currency" data-key="${esc(c.key)}" value="${c.value}" aria-label="${esc(c.label)}"${off ? ' disabled' : ''}></label>`).join('')}</div>`;
+  const currency = `<div class="agch-currency agch-coins" role="group" aria-label="Currency">${d.currency.map(c => `<label class="agch-coin"><span>${esc(c.abbr)}</span><input type="number" min="0" step="1" data-edit="currency" data-key="${esc(c.key)}" value="${c.value}" aria-label="${esc(c.label)}"${off ? ' disabled' : ''}></label>`).join('')}</div>`;
   const controls = r => [
     r.usable && r.type === 'consumable' ? useBtn(r, off) : '',
     `<span class="agch-qty">${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-minus', data: {id: r.id, step: -1}, title: `One fewer ${r.name}`, disabled: off || r.quantity <= 0})}<input type="number" min="0" step="1" data-edit="item-qty" data-id="${esc(r.id)}" value="${r.quantity}" aria-label="${esc(r.name)} quantity"${off ? ' disabled' : ''}>${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-plus', data: {id: r.id, step: 1}, title: `One more ${r.name}`, disabled: off})}</span>`,
@@ -65,8 +43,19 @@ function inventoryTab(ctx) {
   ].join('');
   const list = rows => `<ul class="ag-list agch-items">${rows.map(r => itemLine(r, controls(r)) + (r.contents?.length ? `<li class="agch-contents"><ul class="ag-list agch-items">${r.contents.map(c => itemLine(c, controls(c))).join('')}</ul></li>` : '')).join('')}</ul>`;
   const groups = d.groups.map(g => `<h3 class="agch-heading">${esc(g.label)}</h3>${list(g.items)}`).join('') || empty('No items.');
-  return `<div class="agch-toolbar"><span class="ag-badge${d.attunement.value > d.attunement.max ? ' ag-badge--danger' : ''}" title="Attuned items">Attuned ${d.attunement.value} / ${d.attunement.max}</span>${currency}</div>
-    <h3 class="agch-heading">Equipment</h3>${dollHtml(ctx)}${groups}`;
+  return `${currency}${groups}
+    <p class="agch-muted agch-hint">Equipped items also show in the slots around the portrait: click or right-click a slot for its actions.</p>`;
+}
+
+/** Inventory: this character's items, or (toggle) the Utilities party stash and purse. */
+function inventoryShell(ctx) {
+  const party = ctx.sheet?.invView === 'party', d = party ? null : inventoryData(ctx.actor);
+  const seg = (view, label) => `<button type="button" data-action="inv-view" data-view="${view}" data-ag-always aria-pressed="${(view === 'party') === party}">${esc(label)}</button>`;
+  const filter = ctx.sheet?.filter ?? '';
+  return `<div class="agch-toolbar"><div class="agch-seg" role="group" aria-label="Whose items">${seg('character', 'Character')}${seg('party', 'Party stash')}</div>
+    <input type="search" class="agch-search" data-filter placeholder="Search items" aria-label="Search items" value="${esc(filter)}" data-ag-always>
+    ${d ? `<span class="ag-badge${d.attunement.value > d.attunement.max ? ' ag-badge--danger' : ''}" title="Attuned items">Attuned ${d.attunement.value} / ${d.attunement.max}</span>` : ''}</div>
+    ${party ? partyStashHtml(ctx.actor) : inventoryTab(ctx)}`;
 }
 
 // ---------- Magic ----------
@@ -101,7 +90,7 @@ function restTab({actor, editable}) {
 
 export const ITEM_TABS = [
   {id: 'combat', label: 'Combat', icon: 'fa-solid fa-khanda', render: combatTab},
-  {id: 'inventory', label: 'Inventory', icon: 'fa-solid fa-sack', render: inventoryTab},
+  {id: 'inventory', label: 'Inventory', icon: 'fa-solid fa-sack', render: inventoryShell},
   {id: 'magic', label: 'Magic', icon: 'fa-solid fa-wand-sparkles', render: magicTab},
   {id: 'features', label: 'Features', icon: 'fa-solid fa-star', render: featuresTab},
   {id: 'rest', label: 'Rest', icon: 'fa-solid fa-bed', render: restTab}
