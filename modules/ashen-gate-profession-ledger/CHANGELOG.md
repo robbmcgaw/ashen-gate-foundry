@@ -1,3 +1,9 @@
+## 0.19.0 — 2026-10-20
+
+- **New API `embed.mount(element, {actorId, mode: 'individual'})`** so a partner module (Character Hub) can show this character's Individual panel inside its own window: professions with XP and perk choices, materials, recipes to learn (Learn) and known recipes (Craft). Returns `{unmount, refresh}` and refreshes itself on changes. See the README.
+- Same panel and action route as the Tidy5e Professions tab. Permission: GM or the Actor's owner; Player Access off hides it from players; XP awards stay GM-only.
+- The Ledger window is unchanged. No saved data changes.
+
 ## 0.18.0 — 2026-10-20
 
 - **New read-only API `getProfessions(actor)`** for partner modules (Character Hub): `[{professionId, name, level, xp, xpToNext, maxLevel, tier, unspentPerkChoices}]`, one row per profession the character has, sorted by name; `[]` when none. `xpToNext` is `null` at level 16. Works without Skill Trees.

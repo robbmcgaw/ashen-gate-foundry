@@ -14,7 +14,7 @@ import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,gatherOutcome,gather
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.18.0';
+const VERSION='0.19.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...}. */
@@ -55,6 +55,7 @@ const modeHint=preset=>preset.sources.length?`Preset from ${preset.sources.join(
 
 /** React on all clients. Neither hiding nor revealing mutates Actor/campaign state. */
 function syncLedgerPlayerAccess(enabled){
+  refreshEmbeds();
   if(game.user?.isGM&&current?.rendered)current.render();
   if(!game.user?.isGM&&enabled!==true){
     const windows=new Set([...openLedgerWindows,...(current?[current]:[])]);
@@ -1791,6 +1792,52 @@ function renderSheetTab(params){
     }catch(err){console.error(`[${ID}]`,err);say(`Profession Ledger: ${err.message}`,true);}
   });
 }
+/* ---- 0.19.0: embed API. A partner module (Character Hub) mounts this character's Individual panel into its own element.
+   Same panel and the same performAction route as the Tidy5e tab, so every action keeps its own checks. ---- */
+const EMBED_MODES=new Set(['individual']);
+const embeds=new Set();
+/** Why this user may not see the actor's panel here, or '' when they may (GM, or the Actor's owner). */
+function embedRefusal(actor){
+  if(!canOpenLedger())return 'The GM has hidden the Profession Ledger.';
+  if(!actor)return 'That character no longer exists.';
+  if(!game.user?.isGM&&actor.testUserPermission?.(game.user,'OWNER')!==true)return `Only ${actor.name}'s owner and the GM can see this.`;
+  return '';
+}
+/** api.embed.mount(element, {actorId, mode:'individual'}) → {unmount, refresh}. */
+function mountEmbed(element,{actorId,mode='individual'}={}){
+  if(!element||typeof element.addEventListener!=='function')throw TypeError('mount needs a DOM element.');
+  if(!EMBED_MODES.has(mode))throw Error(`Unknown embed mode "${mode}". Supported: ${[...EMBED_MODES].join(', ')}.`);
+  const abort=new AbortController(),ctrl={actorId:String(actorId??''),mounted:true};
+  element.classList?.add('agl-embed');
+  ctrl.render=()=>{
+    if(!ctrl.mounted)return;
+    if(element.isConnected===false){ctrl.unmount();return;}
+    const actor=game.actors?.get?.(ctrl.actorId)??null,refusal=embedRefusal(actor);
+    element.innerHTML=refusal?`<div class="ag-empty">${esc(refusal)}</div>`
+      :`<div class="agl-sheet agl-embed__body">${characterPanel(actor,catalog(),{surface:'sheet'})}</div>`;
+  };
+  ctrl.unmount=()=>{if(!ctrl.mounted)return;ctrl.mounted=false;abort.abort();embeds.delete(ctrl);element.innerHTML='';element.classList?.remove('agl-embed');};
+  element.addEventListener('click',async e=>{
+    const b=e.target?.closest?.('[data-action]');if(!b||b.disabled||!element.contains(b))return;
+    if(b.closest?.('summary'))e.preventDefault?.();
+    e.stopPropagation?.();
+    const actor=game.actors?.get?.(ctrl.actorId)??null;
+    try{
+      if(embedRefusal(actor))throw Error(embedRefusal(actor));
+      const input=b.dataset.action==='award-xp'?element.querySelector(`[data-xp-input="${b.dataset.id}"]`):null;
+      const q=n=>element.querySelector(`[data-xp-${n}="${b.dataset.id}"]`)?.value;
+      const adj=b.dataset.action==='adjust-xp';
+      const out=await performAction(b.dataset.action,{id:b.dataset.id,actorId:b.dataset.actor??actor.id,points:input?.value,delta:adj?q('delta'):null,set:adj?q('set'):null,reason:adj?q('reason'):''});
+      if(out)say(out.message,out.ok===false);
+      ctrl.render();
+    }catch(err){console.error(`[${ID}]`,err);say(`Profession Ledger: ${err.message}`,true);}
+  },{signal:abort.signal});
+  embeds.add(ctrl);ctrl.render();
+  return {unmount:ctrl.unmount,refresh:()=>ctrl.render()};
+}
+/** Redraw embeds (all, or those showing one character). */
+function refreshEmbeds(actorId=null){for(const e of [...embeds])if(!actorId||e.actorId===actorId)e.render();}
+
 /** Feature-detected: does nothing unless Tidy5e Sheet exposes its tab registration API. */
 function registerTidyTab(api){
   try{
@@ -1856,9 +1903,10 @@ Hooks.once('ready',()=>{
     assign:{preview:options=>{checkPlayerLedger();return structuredClone(assignPreview(options));},
       apply:options=>{checkPlayerLedger();return assignProfessions(options);}},
     hooks:{xpOpportunity:XP_HOOK,progressionChanged:PROGRESSION_HOOK},
+    embed:{contract:'ag-ledger-embed/1',modes:[...EMBED_MODES],mount:mountEmbed},
     version:VERSION,source:'Actor inventories, Manager tagged Items, and optional Ledger catalog'};
   game.socket?.on?.(SOCKET,(message,senderId)=>void onSocket(message,senderId));
-  const refresh=()=>{if(current?.rendered)current.render();};
+  const refresh=()=>{if(current?.rendered)current.render();refreshEmbeds();};
   for(const hook of ['updateActor','createItem','updateItem','deleteItem'])Hooks.on(hook,refresh);
   // Handle Actor Directory already rendered before ready hook ran.
   addActorDirectoryLauncher(globalThis.ui?.actors, globalThis.ui?.actors?.element);
