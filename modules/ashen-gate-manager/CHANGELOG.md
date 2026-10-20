@@ -1,3 +1,11 @@
+## 0.31.0 — 2026-10-20
+
+- **Library layout.** Library is now a list beside a detail pane, with an icon rail (like the Character Hub) for **Records**, **Check library**, **Export and backup** and **Adopt and tag**, so these no longer stack down one long page.
+- **Records:** one search box, system chips with counts, and *More filters* (status, package, show archived). Rows are grouped by system (Unclassified / Shared last) and show name, ID, status, version and edit count at one height. Click a row for its details on the right; nothing is clipped, numbers line up.
+- The seven command buttons are one **Actions** menu that appears when records are ticked. Archive, Restore and Delete confirmations now name the action on their button; the final Delete dialog lists the records it will delete.
+- Narrow windows: the detail pane moves under the list, and the rail goes across the top.
+- Layout only: every Library action, setting and API works as before. No saved-data changes.
+
 ## 0.30.0 — 2026-10-20
 
 - **Organize: Homebrew folder.** In the default rules, a non-Ashen-Gate Item goes under **Core 5.5e** only when it is *source-tagged*: imported by Plutonium (`flags.plutonium`) or marked 2024 in `system.source` (rules `2024`, or book PHB'24 / DMG'24 / MM'24 / SRD 5.2, `XPHB`-style names too). Every other non-Ashen-Gate Item goes under a new top-level **Homebrew** tree with the same sub-folders (`Homebrew/Spells/Level 3`, `Homebrew/Items/Rare Magic`, `Homebrew/Items/Weapons`, …). Ashen Gate records and Actor/Journal rules are unchanged.

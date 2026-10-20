@@ -5,7 +5,7 @@ import {createManagerDefinitionReader, READER_CONTRACT} from './native-definitio
 import {sourceMetadata as projectionSourceMetadata} from './source-projection.mjs';
 import {MODULE_ID, MANAGED_TYPES, validatePackage, planRecord, exportedFields, getPath, canonical} from "./core.js";
 import {checkContractGraph, isContractImport, selectionIssues, projectedReferences, finalReferenceResolution} from "./contract.js";
-import {systemOf, browseLibrary, inspectLibrary, describeLaunchers} from "./browser.js";
+import {systemOf, browseLibrary, inspectLibrary, describeLaunchers, orderLibraryRows, groupLibraryRows} from "./browser.js";
 import {openAshenLauncher} from "./launchers.js";
 import {mountManagerLauncher} from "./items-launcher.js";
 import {collectPlayerAccess, changePlayerAccess, hideAllPlayerInterfaces} from "./player-access.js";
@@ -164,11 +164,19 @@ function planDocument(record,pkg,{includeDrafts,updateActors,zipMedia}) {
   return {plan:planWithMetadata(record,matches,findSameNameUnmanaged(record),includeDrafts,pkg),docs:matches.map(m=>m.doc)};
 }
 
+/** Library rail sections (0.31.0). Records holds the list/detail browser; the others were stacked below it before. */
+const LIBRARY_SECTIONS=Object.freeze([
+  {id:'records',label:'Records',icon:'fa-solid fa-list'},
+  {id:'check',label:'Check library',icon:'fa-solid fa-stethoscope'},
+  {id:'export',label:'Export and backup',icon:'fa-solid fa-file-export'},
+  {id:'adopt',label:'Adopt and tag world Items',icon:'fa-solid fa-tags'}
+]);
+
 class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.30.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.31.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -213,6 +221,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.libraryPage = 0;
     this.libraryPageSize = 100;
     this.libraryShowArchived = true;
+    this.librarySection = "records";
     this.libraryMessage = "Browse Manager-imported Items, Journals, Actors, Roll Tables and Macros by permanent ID.";
     this.profile = "session-safe";
     this.moodSceneId = "";
@@ -362,10 +371,14 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const library=this.managedRows();
     const browser=browseLibrary(library,{search:this.librarySearch,system:this.librarySystem,
       status:this.libraryStatus,package:this.libraryPackage,showArchived:this.libraryShowArchived});
+    browser.rows=orderLibraryRows(browser.rows);
     const pageCount=Math.max(1,Math.ceil(browser.rows.length/this.libraryPageSize));
     this.libraryPage=Math.max(0,Math.min(this.libraryPage,pageCount-1));
     const libraryRows=browser.rows.slice(this.libraryPage*this.libraryPageSize,(this.libraryPage+1)*this.libraryPageSize);
     const libraryDetail=inspectLibrary(library,this.libraryFocus);
+    const libraryGroups=groupLibraryRows(libraryRows.map(row=>({...row,focused:row.uuid===this.libraryFocus})),browser.rows);
+    const librarySection=LIBRARY_SECTIONS.some(s=>s.id===this.librarySection)?this.librarySection:'records';
+    const libraryFilterCount=[this.libraryStatus!=='all',this.libraryPackage!=='all',!this.libraryShowArchived].filter(Boolean).length;
     const menus=game.settings?.menus ? [...game.settings.menus.entries()] : [];
     const playerAccessRows=game.user?.isGM ? await collectPlayerAccess(game.modules?.values?.()??[]) : [];
     const launcherRows=describeLaunchers(game.modules?.values?.()??[],menus).map(row=>({...row,playerAccessState:playerAccessRows.find(entry=>entry.id===row.id)?.state??'Unsupported'}));
@@ -401,6 +414,12 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       libraryPageLabel:`${browser.rows.length ? this.libraryPage*this.libraryPageSize+1 : 0}–${Math.min((this.libraryPage+1)*this.libraryPageSize,browser.rows.length)} of ${browser.rows.length}`,
       libraryHasPrevious:this.libraryPage>0,libraryHasNext:this.libraryPage+1<pageCount,
       libraryDetail,libraryHasDetail:Boolean(libraryDetail),
+      libraryGroups, libraryFilterCount, libraryHasFilters:libraryFilterCount>0,
+      librarySections:LIBRARY_SECTIONS.map(s=>({...s,active:s.id===librarySection})),
+      librarySectionLabel:LIBRARY_SECTIONS.find(s=>s.id===librarySection).label,
+      libraryRecordsActive:librarySection==='records',libraryCheckActive:librarySection==='check',
+      libraryExportActive:librarySection==='export',libraryAdoptActive:librarySection==='adopt',
+      librarySystemChips:[{value:'all',label:'All',count:library.filter(r=>this.libraryShowArchived||!r.archived).length,selected:this.librarySystem==='all'},...browser.systemOptions],
       libraryMessage:this.libraryMessage, worldExportSummary:this.worldExportSummary??'',
       preSession:this.preSessionResult?{summary:this.preSessionResult.summary,rows:this.preSessionResult.rows.map(r=>({...r,css:r.status==='N-A'?'na':r.status.toLowerCase()})),hasText:Boolean(this.preSessionResult.text)}:null,
       profile:this.profile,developmentProfile:this.profile==='development',sessionProfile:this.profile==='session-safe',
@@ -525,11 +544,19 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         this[attribute]=event.target.value;this.libraryPage=0;void this.render();
       });
     }
+    root.querySelectorAll('[data-ag-library-section-tab]').forEach(el=>el.addEventListener('click',event=>{
+      event.preventDefault();this.librarySection=el.dataset.agLibrarySectionTab;void this.render();
+    }));
+    root.querySelectorAll('[data-ag-library-system-chip]').forEach(el=>el.addEventListener('click',event=>{
+      event.preventDefault();this.librarySystem=el.dataset.agLibrarySystemChip;this.libraryPage=0;void this.render();
+    }));
+    // Menus are <details>: close the open one when one of its items is chosen.
+    root.querySelectorAll('.aglib-menu [data-ag-action]').forEach(el=>el.addEventListener('click',()=>el.closest('details')?.removeAttribute('open')));
     root.querySelectorAll('[data-ag-library-inspect]').forEach(el=>el.addEventListener('click',event=>{
       event.preventDefault();this.libraryFocus=el.dataset.agLibraryInspect;void this.render();
     }));
     root.querySelectorAll('[data-ag-library-jump]').forEach(el=>el.addEventListener('click',event=>{
-      event.preventDefault();this.libraryFocus=el.dataset.agLibraryJump;
+      event.preventDefault();this.libraryFocus=el.dataset.agLibraryJump;this.librarySection='records';
       this.librarySearch='';this.librarySystem='all';this.libraryStatus='all';this.libraryPackage='all';
       this.libraryShowArchived=true;this.libraryPage=0;void this.render();
     }));
@@ -680,7 +707,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case "org-preview": case "org-apply": case "org-backup": case "org-undo": case "org-clear": case "org-housekeeping":
       case "cl-scan": case "cl-apply": case "cl-backup": case "cl-undo": case "cl-clear": case "setup-save": await this.#coreLinkAction(name); break;
       case "org-schema-edit": case "org-schema-save": case "org-schema-cancel": case "org-schema-export": case "org-schema-reset": await this.#organizeAction(name); break;
-      case "library-check": this.#runAudit(); this.libraryMessage="Library check finished: results are listed above."; await this.render(); break;
+      case "library-check": this.#runAudit(); this.librarySection="check";this.libraryMessage="Library check finished: results are listed below."; await this.render(); break;
       case "appearance-save-world": {
         const choice=this.appearanceSelection??appearanceController?.getState()?.worldDefault;
         await appearanceController.setWorldDefault(choice);
@@ -1224,8 +1251,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   }
   #visibleLibraryRows() {
     const rows=this.managedRows();
-    const results=browseLibrary(rows,{search:this.librarySearch,system:this.librarySystem,
-      status:this.libraryStatus,package:this.libraryPackage,showArchived:this.libraryShowArchived}).rows;
+    const results=orderLibraryRows(browseLibrary(rows,{search:this.librarySearch,system:this.librarySystem,
+      status:this.libraryStatus,package:this.libraryPackage,showArchived:this.libraryShowArchived}).rows);
     return results.slice(this.libraryPage*this.libraryPageSize,(this.libraryPage+1)*this.libraryPageSize);
   }
   async #openOtherModule(moduleId) {
@@ -1267,11 +1294,13 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       content:`<p><strong>${accepted.length}</strong> managed world document(s) will be ${action}d.</p>${warning}
       <p>Existing Actor items, player progress, and unmanaged content are not modified. An automatic JSON snapshot download is made first.</p>
       ${action==='delete'?'<p><strong>PERMANENT DELETE.</strong> Only archived, unreferenced documents are eligible. Make a world backup first.</p>':''}`,
+      yes:{label:action==='delete'?'Continue':`${action[0].toUpperCase()}${action.slice(1)} ${accepted.length} record(s)`},no:{label:'Cancel'},
       modal:true,rejectClose:false});
     if(!first)return;
     if(action==='delete') {
       const second=await DialogV2.confirm({window:{title:'FINAL DELETE CONFIRMATION'},
-        content:`<p>Delete <strong>${accepted.length}</strong> archived Foundry documents permanently? A JSON snapshot is not a full world backup.</p>`,modal:true,rejectClose:false});
+        content:`<p>Delete <strong>${accepted.length}</strong> archived Foundry documents permanently? A JSON snapshot is not a full world backup.</p><ul>${accepted.map(r=>`<li>${escapeHtml(r.name)} <code>${escapeHtml(r.sourceId)}</code></li>`).join('')}</ul>`,
+        yes:{label:`Delete ${accepted.length} archived record(s)`},no:{label:'Cancel'},modal:true,rejectClose:false});
       if(!second)return;
     }
     this.#downloadSnapshots(accepted.map(r=>r.doc),`before-${action}-${Date.now()}`);
@@ -1817,7 +1846,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.30.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.31.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */
