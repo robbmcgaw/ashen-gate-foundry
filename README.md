@@ -1,9 +1,10 @@
 # Ashen Gate — Foundry VTT modules
 
-Eight Foundry VTT (V14, dnd5e) modules for the Ashen Gate D&D 2024 supplement. Each module installs on its own and keeps its own id, settings and public API (`game.modules.get(id)?.api`). **General Manager** is the optional GM hub: it owns source-definition import and shared appearance. Every other module opens and works without it and feature-detects its partners. Each module's own state (Actor progression, Renown, Headquarters, Locations, Quests) belongs to that module.
+Nine Foundry VTT (V14, dnd5e) modules for the Ashen Gate D&D 2024 supplement. Each module installs on its own and keeps its own id, settings and public API (`game.modules.get(id)?.api`). **General Manager** is the optional GM hub: it owns source-definition import and shared appearance. Every other module opens and works without it and feature-detects its partners. Each module's own state (Actor progression, Renown, Headquarters, Locations, Quests) belongs to that module.
 
 | Module | What it does | Where it opens |
 |---|---|---|
+| Character Hub (alpha) | Alternative dnd5e character sheet on the real Actor, with the native sheet one click away | Character sheet menu → Ashen Gate Character Hub |
 | Factions & Renown | Factions, group and personal Renown, discovery, rewards, service requests | Actors sidebar → Renown |
 | Headquarters | Shared Guildhall layout, facilities, hirelings, personal quarters | Actors sidebar → Headquarters |
 | Locations | Campaign places with threat, gathering nodes, party notes, map pins, per-player visibility | Actors sidebar → Locations; GM: Items sidebar → Location Builder |
@@ -22,6 +23,7 @@ After that, updates show up through Foundry's normal **Check for Updates** / For
 
 | Module | ID | Manifest URL |
 |---|---|---|
+| Character Hub | `ashen-gate-character-hub` | `https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-character-hub/module.json` |
 | Factions & Renown | `ashen-gate-factions` | `https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-factions/module.json` |
 | Headquarters | `ashen-gate-headquarters` | `https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-headquarters/module.json` |
 | Locations | `ashen-gate-locations` | `https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-locations/module.json` |
@@ -48,12 +50,21 @@ node scripts/check.mjs ashen-gate-factions   # one module
 
 Validates each `module.json` (id, version, manifest/download URLs, listed files), syntax-checks every script and runs the module's tests.
 
+To check authored content (import JSON, before it goes to Foundry) against the modules' own validators:
+
+```bash
+node scripts/validate-content.mjs path/to/files-or-folder
+```
+
+Files in a folder named `invalid` must be rejected (examples of common mistakes). Nothing is written.
+
 ## Layout
 
 ```
 modules/<module-id>/     module source, tests, README, CHANGELOG
 test-fixtures/           shared test data used by more than one module
 scripts/check.mjs        the one check script (CI runs this too)
+scripts/validate-content.mjs  runs content files through the import validators
 .github/workflows/       check.yml (branches/PRs) and release.yml (main)
 ```
 

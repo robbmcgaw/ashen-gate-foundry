@@ -136,6 +136,7 @@ export function buildSourceReplacementPatch(record, docWrapper, {allowLocalEdits
   const old=docWrapper.flag?.managedFields;
   if (!old) return {action:'blocked',reason:'No baseline; cannot replace unmanaged content.'};
   if (docWrapper.type!==record.foundry.data.type) return {action:'blocked',reason:'Item subtype mismatch.'};
+  if (docWrapper.coreLink?.adopted) return {action:'blocked',reason:`Uses data adopted from core item ${docWrapper.coreLink.name ?? ''}; undo that core link first (Core Links tab).`};
   const incoming=exportedFields(record);
   const removed=Object.keys(old).filter(p=>!has(incoming,p));
   if (removed.length) return {action:'blocked',reason:`Removed source fields require migration: ${removed.join(', ')}`};

@@ -32,12 +32,37 @@ export const DEFAULT_PROFESSION_TOOLS=Object.freeze({alchemy:'alchemist',blacksm
 /** GM Setup defaults: the skill a profession can roll instead of (or beside) its tool. Gathering professions use it to
  * gather; Enchanting is the one crafting profession whose main check is a skill (Arcana). The GM can change or clear it. */
 export const DEFAULT_GATHER_SKILLS=Object.freeze({herbalism:'nat',huntingskinning:'sur',archaeology:'his',fishing:'',mining:'',enchanting:'arc'});
-/** Stored GM choices win over defaults; an explicit '' means "none". */
-export function effectiveMapping(stored){
+/** Stored GM choices win over defaults; an explicit '' means "none".
+ * 0.16.0 crosswalk (AG-F01), additive: per profession, the skills and tools whose proficiency qualifies a character
+ * (any-of), and the advantage tools (proficiency with, or carrying, one gives advantage on that profession's checks).
+ * Layers: built-in defaults (the check tool/skill above) < Profession catalog `access` (`catalog`, GM-read) < GM lists
+ * saved in the setting. An explicit [] means "none". `gm` holds only the GM's saved lists. Checks only ever use the
+ * GM's advantage tools, so an unconfigured profession rolls exactly as before. */
+export const CROSSWALK_LISTS=Object.freeze(['qualifySkills','qualifyTools','advantageTools']);
+const TOOL_KEY=/^[a-z][a-z0-9]*$/;
+const cleanList=(v,valid)=>Array.isArray(v)?[...new Set(v.filter(x=>typeof x==='string'&&valid(x)))]:null;
+export function effectiveMapping(stored,{catalog=null}={}){
   const s=stored&&typeof stored==='object'?stored:{};
   const pick=(defaults,saved,valid)=>{const out={...defaults};
     for(const [k,v] of Object.entries(saved&&typeof saved==='object'?saved:{}))if(typeof v==='string'&&(v===''||valid(v)))out[PROFESSION_ALIASES[k]??k]=v;return out;};
-  return {tools:pick(DEFAULT_PROFESSION_TOOLS,s.tools,v=>/^[a-z][a-z0-9]*$/.test(v)),skills:pick(DEFAULT_GATHER_SKILLS,s.skills,v=>SKILL_IDS.includes(v))};
+  const tools=pick(DEFAULT_PROFESSION_TOOLS,s.tools,v=>TOOL_KEY.test(v)),skills=pick(DEFAULT_GATHER_SKILLS,s.skills,v=>SKILL_IDS.includes(v));
+  const validOf={qualifySkills:v=>SKILL_IDS.includes(v),qualifyTools:v=>TOOL_KEY.test(v),advantageTools:v=>TOOL_KEY.test(v)};
+  const gm={};
+  for(const list of CROSSWALK_LISTS){gm[list]={};
+    for(const [k,v] of Object.entries(s[list]&&typeof s[list]==='object'?s[list]:{})){const clean=cleanList(v,validOf[list]);if(clean)gm[list][PROFESSION_ALIASES[k]??k]=clean;}}
+  const keys=[...new Set([...Object.keys(tools),...Object.keys(skills)])];
+  const out={tools,skills,gm,qualifySkills:{},qualifyTools:{},advantageTools:{},origin:{}};
+  for(const k of keys){
+    const cat=catalog?.[k]??null;
+    const base={qualifySkills:skills[k]?[skills[k]]:[],qualifyTools:tools[k]?[tools[k]]:[],advantageTools:[]};
+    out.origin[k]={};
+    for(const list of CROSSWALK_LISTS){
+      const from=gm[list][k]?'gm':cat?'catalog':'default';
+      out[list][k]=[...(from==='gm'?gm[list][k]:from==='catalog'?cat[list]??[]:base[list])];
+      out.origin[k][list]=from;
+    }
+  }
+  return out;
 }
 
 const dnd5eTools=()=>globalThis.CONFIG?.DND5E?.tools??{};
@@ -114,7 +139,7 @@ const effectsOf=actor=>{
  * flags are honoured too. `assists` add advantage. Advantage and disadvantage cancel.
  * Returns {mode:-1|0|1, sources:string[]}; the roller can still change it.
  */
-export function rollModeFor(actor,{kind,key},{assists=[]}={}){
+export function rollModeFor(actor,{kind,key},{assists=[],advantageTools=[]}={}){
   const sys=actor?.system,entry=kind==='skill'?sys?.skills?.[key]:sys?.tools?.[key];
   const ability=entry?.ability??(kind==='skill'?SKILL_ABILITY[key]:dnd5eTools()[key]?.ability??TOOL_ABILITY[key]);
   const adv=[],dis=[];
@@ -130,6 +155,9 @@ export function rollModeFor(actor,{kind,key},{assists=[]}={}){
     }
   }
   for(const name of assists)adv.push(`assisted by ${name}`);
+  // GM-configured advantage tools (0.16.0): proficiency with, or carrying, one of them.
+  for(const tool of advantageTools){const ref={key:tool,uuid:null,name:null};
+    if(toolProficient(actor,tool)||heldTool(actor,ref))adv.push(toolLabel(tool));}
   const mode=adv.length&&dis.length?0:adv.length?1:dis.length?-1:0;
   return {mode,sources:[...adv.map(s=>`Advantage: ${s}`),...dis.map(s=>`Disadvantage: ${s}`)]};
 }
