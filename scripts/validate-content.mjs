@@ -22,6 +22,7 @@ import { detectSpecialistFile, describeUnrecognized } from '../modules/ashen-gat
 import { readImportBundle } from '../modules/ashen-gate-manager/scripts/zip-import.js';
 import { validatePreset } from '../modules/ashen-gate-manager/scripts/scene-moods.js';
 import { importRecords, normalizeExotics as locationExotics } from '../modules/ashen-gate-locations/scripts/model.mjs';
+import { importRouteRecords } from '../modules/ashen-gate-locations/scripts/routes.mjs';
 import { planQuestImport } from '../modules/ashen-gate-quest-manager/scripts/core.mjs';
 import { validatePackage as validateTrees } from '../modules/ashen-gate-skill-trees/scripts/engine.mjs';
 import { planImport as planFactions } from '../modules/ashen-gate-factions/scripts/import.mjs';
@@ -91,6 +92,17 @@ function domainChecks(pkg) {
         if (src[k] !== undefined && src[k] !== loc[k]) errors.push(`${loc.id}: location.${k} ${JSON.stringify(src[k])} was changed to ${JSON.stringify(loc[k])}.`);
       if (src.audience?.mode !== undefined && src.audience.mode !== loc.audience.mode) errors.push(`${loc.id}: audience.mode ${JSON.stringify(src.audience.mode)} is not everyone/selected.`);
     }
+  }
+  // Route records (Locations 1.10.0+): every field check Locations makes. Endpoints outside this file must already
+  // be in the world (Manager checks that at import), so they are noted here, not errors.
+  const routes = pkg.records.filter(r => r.entity_type === 'Route');
+  if (routes.length) {
+    const inFile = new Set(locations.map(l => l.id));
+    const ends = new Set(inFile);
+    for (const r of routes) for (const id of [r.route?.from_location_id, r.route?.to_location_id]) if (typeof id === 'string') ends.add(id);
+    const r = importRouteRecords(routes, [], ends, {mode: 'skip'});
+    for (const s of r.skipped) errors.push(`${s.id}: Locations skips it: ${s.reason}`);
+    for (const rt of r.created) for (const id of [rt.fromId, rt.toId]) if (!inFile.has(id)) notes.push(`${rt.id}: endpoint ${id} is not in this file; it must already exist in Locations.`);
   }
   return {errors, notes};
 }
