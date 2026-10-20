@@ -20,7 +20,7 @@ Independent: it opens without any other Ashen Gate module. General Manager impor
 
 ## Public API
 
-`game.modules.get('ashen-gate-profession-ledger').api`: `open`, `playerAccess` (`ag-player-access/1`), `getProfessions`, `getProfessionProgress`, `getKnownRecipes`, `inspectProfessionPerkChoices`, `learnRecipe`, `craft`, `awardProfessionXP` / `adjustProfessionXP` / `getProfessionXPHistory` (GM), and `gathering.{nodes, start, resolve, cancel, request}` (start/resolve/cancel are GM-only).
+`game.modules.get('ashen-gate-profession-ledger').api`: `open`, `playerAccess` (`ag-player-access/1`), `getProfessions`, `getProfessionProgress`, `getKnownRecipes`, `inspectProfessionPerkChoices`, `learnRecipe`, `craft`, `awardProfessionXP` / `adjustProfessionXP` / `getProfessionXPHistory` (GM), `gathering.{nodes, start, resolve, cancel, request}` (start/resolve/cancel are GM-only), and `embed.mount`.
 
 ### `getProfessions(actor)` (0.18.0)
 
@@ -35,6 +35,23 @@ game.modules.get('ashen-gate-profession-ledger').api.getProfessions(actor)
 - One row per `PROF-*` Profession Item on the Actor. A profession with no XP yet is level 1, 0 XP. `xpToNext` is XP still needed for the next level, `null` at `maxLevel` (16). `unspentPerkChoices` is 0 until the Ledger has tracked XP for that profession.
 - No professions → `[]`. Never returns XP history or chosen perk ids.
 - **Permission:** the GM, or a user with **Owner** permission on the Actor. Anyone else gets `Error('Actor access denied')`. Players also get an error while the GM has turned off the Ledger's Player Access. Players never see GM-only or reveal-gated Profession Items (same rule as the Ledger window).
+
+### `embed.mount(element, options)` (0.19.0)
+
+Shows one character's **Individual** panel (professions with XP and perk choices, materials, recipes to learn, known recipes with Craft) inside another module's window, for example Character Hub's Ashen Gate → Professions. The Ledger draws it and handles its buttons through the same code as its own window and the Tidy5e tab.
+
+```js
+const api = game.modules.get('ashen-gate-profession-ledger')?.api;
+if (api?.embed?.mount) {
+  const view = api.embed.mount(element, {actorId: actor.id, mode: 'individual'});
+  // later: view.refresh();  view.unmount();
+}
+```
+
+- `element`: a DOM element the caller owns. The Ledger replaces its contents and adds the class `agl-embed`.
+- `options.actorId`: the character to show. `options.mode`: `'individual'` (the only mode; `api.embed.modes` lists them). An unknown mode or a missing element throws.
+- Returns `{unmount(), refresh()}`. It refreshes itself when the character's Items or flags change or Player Access changes, and unmounts itself if the element has left the page.
+- **Permission:** the GM, or the Actor's **Owner** (same as `getProfessions`). Anyone else sees "Only <name>'s owner and the GM can see this." Players see "The GM has hidden the Profession Ledger." while Player Access is off. Every button is checked again when clicked (learning needs Owner; XP awards and adjustments stay GM-only). Players never see GM-only or reveal-gated records.
 
 ## Install
 
