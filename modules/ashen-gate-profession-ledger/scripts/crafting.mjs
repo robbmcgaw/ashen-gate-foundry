@@ -87,6 +87,37 @@ export function resultItemData(worldItem,{recipeId,resultId}){
   data.flags={...(data.flags??{}),[LEDGER_SCOPE]:{...(data.flags?.[LEDGER_SCOPE]??{}),entityType:'Item',sourceId:resultId,craftedFrom:recipeId}};
   return data;
 }
+/** Manager 0.26.0+ core link on the world `ITEM-*` definition (read-only here), or null. */
+export const coreLinkOf=worldItem=>worldItem?.flags?.['ashen-gate-manager']?.coreLink??null;
+/**
+ * 0.17.0: the crafted result as a fresh copy of the linked 2024 core item. Keeps the Ashen Gate name,
+ * the Manager source flags (AG id, coreLink) and the Ledger flags, so stacking and recipes still find it.
+ */
+export function coreResultData(worldItem,coreItem,{recipeId,resultId}){
+  const world=typeof worldItem?.toObject==='function'?worldItem.toObject():structuredClone(worldItem??{});
+  const data=typeof coreItem?.toObject==='function'?coreItem.toObject():structuredClone(coreItem??{});
+  for(const key of ['_id','id','folder','sort','ownership','_stats','uuid'])delete data[key];
+  data.name=world.name??data.name;
+  data.system={...(data.system??{}),quantity:1};
+  data.flags={...(data.flags??{}),'ashen-gate-manager':structuredClone(world.flags?.['ashen-gate-manager']??{}),
+    [LEDGER_SCOPE]:{...(world.flags?.[LEDGER_SCOPE]??{}),entityType:'Item',sourceId:resultId,craftedFrom:recipeId,coreItem:true}};
+  return data;
+}
+/**
+ * Which item a craft awards: the linked core item when `awardCore` is on and it can be loaded and stacked,
+ * else today's world item. `loadCore(uuid)` is Foundry's fromUuid (injectable for tests). Never throws.
+ */
+export async function craftResultData(worldItem,{recipeId,resultId,awardCore=true,loadCore}){
+  const fallback=note=>({data:resultItemData(worldItem,{recipeId,resultId}),core:false,note});
+  const link=coreLinkOf(worldItem);
+  if(!awardCore||!link?.uuid)return fallback(awardCore?'':'core awards are off');
+  let core=null;
+  try{core=await loadCore(link.uuid);}catch{core=null;}
+  if(!core)return fallback(`linked core item ${link.name??link.uuid} is missing`);
+  const raw=typeof core.toObject==='function'?core.toObject():core;
+  if(raw.system?.quantity===undefined)return fallback(`core item ${raw.name} cannot stack`);
+  return {data:coreResultData(worldItem,raw,{recipeId,resultId}),core:true,note:''};
+}
 const heldResult=(actor,resultId)=>Array.from(actor?.items??[]).find(i=>{
   const src=i.flags?.['ashen-gate-manager']?.source?.sourceId??i.flags?.[LEDGER_SCOPE]?.sourceId;
   return src===resultId;

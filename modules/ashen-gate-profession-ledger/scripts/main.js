@@ -4,7 +4,7 @@ import {GATHERING_PROFESSIONS,TIERS,ACCESS_LEVELS,gatherXP,knownRecipesOf,canLea
   nextProgress,adjustProgress,xpHistoryOf,XP_CAP,professionLevelOf,isMaterialAwardCandidate,xpForLevel} from './progression.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition,readWorldDefinition} from './definition-lookup.mjs';
-import {planCraft,craftBlockers,executeCraft,resultItemData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
+import {planCraft,craftBlockers,executeCraft,craftResultData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,requiredToolRef,toolRefLabel,heldTool,
   checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS} from './checks.mjs';
@@ -14,7 +14,7 @@ import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,gatherOutcome,gather
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.16.0';
+const VERSION='0.17.0';
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...}. */
 const XP_HOOK='ashenGateLedger.xpOpportunity';
@@ -690,7 +690,7 @@ async function runCraft(crafter,recipe,allocations,result,allowed,check=null){
   craftLocks.add(crafter.id);
   try{
     const out=await executeCraft({crafter,recipe,allocations,resultId:recipe.resultItemId,
-      resultData:resultItemData(result,{recipeId:recipe.id,resultId:recipe.resultItemId}),
+      resultData:(await craftResultData(result,{recipeId:recipe.id,resultId:recipe.resultItemId,awardCore:awardCoreItems(),loadCore:uuid=>fromUuid(uuid)})).data,
       actorOf:id=>game.actors?.get?.(id),canWrite:actor=>owned(actor)&&allowed(actor)});
     await craftChatCard(crafter,recipe,result,out.consumed,check);
     return out;
@@ -823,6 +823,9 @@ function professionKeyOfId(id){
   const key=professionKey(hit?.status==='ok'?hit.source?.definition?.name??hit.document?.name:'');
   return GATHERING_KEYS.includes(key)?key:professionKeyFromId(id);
 }
+// 0.17.0: crafting awards the linked 2024 core item (Manager Core Links) when one exists; GM Setup, default on.
+const CORE_AWARD_SETTING='awardCoreItems';
+const awardCoreItems=()=>game.settings.get(ID,CORE_AWARD_SETTING)!==false;
 const exoticPercent=()=>clampPercent(game.settings.get(ID,EXOTIC_SETTING));
 const requireGM=()=>{if(!game.user?.isGM)throw Error('Only the GM can read Exotic gathering setup');};
 /** Test seam: a scripted d100 for the Node suite. Production uses Foundry's dice RNG. */
@@ -1247,6 +1250,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       // Exotic picker filters: profession and tier default to the ad-hoc node's own.
       pick:{query:'',profession:'node',tier:'node'}};
     this.exoticDraft=null;
+    this.coreAwardDraft=null;
     this.assignState={target:'party',preview:null,selected:new Set()};
   }
   get actors(){return partyActors();}
@@ -1352,6 +1356,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       </section>
       ${this._toolSetup()}
       ${this._exoticSetup()}
+      ${this._coreAwardSetup()}
     </div>`;
   }
   /** GM Setup: the generic Exotic discovery chance (a setting only; candidates are chosen per node). */
@@ -1362,6 +1367,15 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       <label class="ag-field ag-field--inline">Discovery chance %<input type="number" min="0" max="100" step="1" data-exotic-chance value="${esc(value)}"></label>
     </section>`;
   }
+  /** GM Setup: award the linked 2024 core item instead of the world item (Manager Core Links). */
+  _coreAwardSetup(){
+    const on=this.coreAwardDraft??awardCoreItems();
+    return `<section class="ag-card agl-panel"><h2>Crafted items</h2>
+      <p class="agl-sub">When General Manager has linked a recipe's result to a 2024 core item, crafting gives a fresh copy of that core item, keeping the Ashen Gate name and id. Unlinked items, or a missing core item, give the world item as before. Saved with <b>Save Changes</b>.</p>
+      <label class="ag-field ag-field--inline"><input type="checkbox" data-core-award ${on?'checked':''}> Award the linked core item when crafting</label>
+    </section>`;
+  }
+  get coreAwardDirty(){return this.coreAwardDraft!=null&&this.coreAwardDraft!==awardCoreItems();}
   get exoticDirty(){return this.exoticDraft!==null&&clampPercent(this.exoticDraft,exoticPercent())!==exoticPercent();}
   /** Profession → tool (crafting default and gathering), gathering profession → check skill, and (0.16.0) the
    * Assign crosswalk: qualifying skills/tools and advantage tools. Unticked lists follow the catalog, else the check tool/skill. */
@@ -1588,6 +1602,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         const id=e.target.dataset.adhocExotic,k=e.target.dataset.exoticKey,entry=this.gather.adhoc.exotics.find(x=>x.materialId===id);
         if(entry&&['mode','chance','condition'].includes(k)){entry[k]=e.target.value;this.gather.adhoc.exotics=normalizeExotics(this.gather.adhoc.exotics.map(x=>x===entry?{chance:'',...x}:x));}
         this.render();return;}
+      if(e.target?.matches?.('[data-core-award]')&&game.user.isGM){this.coreAwardDraft=e.target.checked;this._syncRosterActions();return;}
       if(e.target?.matches?.('[data-exotic-chance]')&&game.user.isGM){this.exoticDraft=e.target.value;this._syncRosterActions();return;}
       if(e.target?.matches?.('[data-map-tool],[data-map-skill],[data-map-list]')&&game.user.isGM){this._rememberMapDraft(e.target);return;}
       if(e.target?.matches?.('[data-assign-target]')&&game.user.isGM){this.assignState={target:e.target.value,preview:null,selected:new Set()};this.render();return;}
@@ -1643,10 +1658,11 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(action==='roster-save'){if(!game.user.isGM)throw Error('GM only');
         const ids=[...this.element.querySelectorAll('[data-roster-actor]:checked')].map(el=>el.dataset.rosterActor).filter(id=>game.actors.get(id)?.type==='character');
         const saved=[];
-        if(this.rosterDirty||(!this.mapDirty&&!this.exoticDirty)){await game.settings.set(ID,'partyRoster',ids);saved.push(`party: ${plural(ids.length,'character')}`);}
+        if(this.rosterDirty||(!this.mapDirty&&!this.exoticDirty&&!this.coreAwardDirty)){await game.settings.set(ID,'partyRoster',ids);saved.push(`party: ${plural(ids.length,'character')}`);}
         if(this.mapDirty){await game.settings.set(ID,'checkMapping',structuredClone(this.mapDraft));saved.push('tools and checks');}
         if(this.exoticDirty){const pct=clampPercent(this.exoticDraft,exoticPercent());await game.settings.set(ID,EXOTIC_SETTING,pct);saved.push(`Exotic discovery ${pct}%`);}
-        this.rosterDraft=null;this.mapDraft=null;this.exoticDraft=null;this.notice=`Saved ${saved.join('; ')}.`;this.render();say(this.notice);return;}
+        if(this.coreAwardDirty){await game.settings.set(ID,CORE_AWARD_SETTING,this.coreAwardDraft);saved.push(`core item awards ${this.coreAwardDraft?'on':'off'}`);}
+        this.rosterDraft=null;this.mapDraft=null;this.exoticDraft=null;this.coreAwardDraft=null;this.notice=`Saved ${saved.join('; ')}.`;this.render();say(this.notice);return;}
       if(['learn-recipe','craft','award-xp','adjust-xp'].includes(action)){
         const actorId=data.actor??(String(id).includes(':')?String(id).split(':')[0]:this.actor?.id);
         const input=action==='award-xp'?this.element?.querySelector?.(`[data-xp-input="${id}"]`):null;
@@ -1718,20 +1734,20 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     }
     this._syncRosterActions();
   }
-  get setupStatus(){const n=[this.rosterDirty,this.mapDirty,this.exoticDirty].filter(Boolean).length;
-    return n>1?'Unsaved changes':this.rosterDirty?'Unsaved party changes':this.mapDirty?'Unsaved tool and check changes':this.exoticDirty?'Unsaved Exotic discovery change':'All changes saved';}
+  get setupStatus(){const n=[this.rosterDirty,this.mapDirty,this.exoticDirty,this.coreAwardDirty].filter(Boolean).length;
+    return n>1?'Unsaved changes':this.rosterDirty?'Unsaved party changes':this.mapDirty?'Unsaved tool and check changes':this.exoticDirty?'Unsaved Exotic discovery change':this.coreAwardDirty?'Unsaved crafted-item change':'All changes saved';}
   _syncRosterActions(){
     const save=this.element?.querySelector?.('[data-action="roster-save"]');
-    if(save)save.disabled=!this.rosterDirty&&!this.mapDirty&&!this.exoticDirty;
+    if(save)save.disabled=!this.rosterDirty&&!this.mapDirty&&!this.exoticDirty&&!this.coreAwardDirty;
     const status=this.element?.querySelector?.('[data-agl-roster-status]');
     if(status)status.textContent=this.setupStatus;
   }
   async _leaveGmSetup(){
-    if(!this.rosterDirty&&!this.mapDirty&&!this.exoticDirty){this.rosterDraft=null;this.mapDraft=null;this.exoticDraft=null;return true;}
+    if(!this.rosterDirty&&!this.mapDirty&&!this.exoticDirty&&!this.coreAwardDirty){this.rosterDraft=null;this.mapDraft=null;this.exoticDraft=null;this.coreAwardDraft=null;return true;}
     const discard=await DialogV2.confirm({window:{title:'Discard unsaved GM Setup changes?'},
       content:'<p>Your party or tool changes have not been saved. Discard these changes and leave GM Setup?</p>',modal:true,rejectClose:false});
     if(!discard)return false;
-    this.rosterDraft=null;this.mapDraft=null;this.exoticDraft=null;return true;
+    this.rosterDraft=null;this.mapDraft=null;this.exoticDraft=null;this.coreAwardDraft=null;return true;
   }
   async _upload(e){checkPlayerLedger();if(!game.user.isGM)return;const f=e.target.files?.[0];if(!f)return;
     try{const data=normalizeLibrary(JSON.parse(await f.text()));const approved=await DialogV2.confirm({window:{title:'Import Ledger Catalog'},
@@ -1782,6 +1798,7 @@ Hooks.once('init',()=>{
     onChange:value=>syncLedgerPlayerAccess(value)});
   game.settings.register(ID,'libraryData',{name:'Profession Ledger catalog',scope:'world',config:false,type:Object,
     default:{schema:SCHEMA,source:'empty',recipes:[],materials:[]},onChange:()=>current?.render()});
+  game.settings.register(ID,CORE_AWARD_SETTING,{name:'Award linked core items when crafting',scope:'world',config:false,type:Boolean,default:true});
   game.settings.register(ID,EXOTIC_SETTING,{name:'Exotic discovery chance (%)',scope:'world',config:false,type:Number,default:DEFAULT_EXOTIC_PERCENT,onChange:()=>{if(current?.rendered)current.render();}});
   game.settings.register(ID,'checkMapping',{name:'Profession tools and gathering checks',scope:'world',config:false,type:Object,default:{},onChange:()=>{if(current?.rendered)current.render();}});
   game.settings.register(ID,'partyRoster',{name:'Active party Actor IDs',scope:'world',config:false,type:Array,default:[],onChange:()=>{if(current?.rendered)current.render();}});
