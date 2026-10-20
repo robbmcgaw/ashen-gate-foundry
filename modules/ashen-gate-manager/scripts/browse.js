@@ -1,6 +1,7 @@
 /**
  * Browse (0.24.0): one GM-only, read-only, searchable index over world documents, compendium indexes and the
- * canonical records partner modules expose through their public APIs. Not a second source of truth: entries are
+ * canonical records partner modules expose through their public APIs (0.34.0: Renown deities and Manager's own
+ * NPC Codex too). Not a second source of truth: entries are
  * rebuilt from their owners on demand and never written back. Pure logic with injected Foundry globals so the
  * Node suite can cover it; main.js wires the DOM.
  */
@@ -16,7 +17,7 @@ const TITLES = {'ashen-gate-manager': 'General Manager', 'ashen-gate-locations':
   'ashen-gate-factions': 'Renown', 'ashen-gate-skill-trees': 'Skill Trees', 'ashen-gate-headquarters': 'Headquarters',
   'ashen-gate-profession-ledger': 'Profession Ledger', world: 'World'};
 /** world-export section -> browse kind for each record; Skill Trees also adds one Perk entry per perk node. */
-const SECTION_KIND = {locations: 'Location', routes: 'Route', quests: 'Quest', factions: 'Faction', skill_trees: 'Tree', headquarters: 'Facility'};
+const SECTION_KIND = {locations: 'Location', routes: 'Route', quests: 'Quest', factions: 'Faction', deities: 'Deity', skill_trees: 'Tree', headquarters: 'Facility'};
 const ID_RE = /^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/;
 export const FACETS = Object.freeze(['kind', 'entityType', 'owner', 'category', 'profession', 'tier', 'quality', 'status', 'visibility', 'folder']);
 export const FACET_LABELS = Object.freeze({kind: 'Kind', entityType: 'AG type', owner: 'Owner / module', category: 'Category', profession: 'Profession',
@@ -62,10 +63,11 @@ function definitionFields(def = {}, system = {}) {
 function entry(base) {
   const e = {id: null, uuid: null, docType: null, ag: false, managed: false, entityType: null, status: null, visibility: null,
     profession: null, tier: null, quality: null, tags: [], description: '', folder: null, category: null, modified: 0,
-    refIds: [], linked: false, draggable: false, pack: null, sources: [], open: null, ...base};
+    refIds: [], linked: false, draggable: false, pack: null, sources: [], open: null, chips: [], extraFields: [], searchText: [], ...base};
+  e.kinds = [e.kind];
   e.provenance ??= e.pack ? `Compendium: ${e.pack}` : e.owner === 'world' || e.owner === MODULE_ID && e.uuid ? 'World' : TITLES[e.owner] ?? e.owner;
   e.sources = [e.provenance];
-  e.hay = fold([e.name, e.id, e.kind, e.docType, e.entityType, e.category, e.profession, e.tier, e.quality, e.status, ...e.tags, e.folder, e.description].filter(Boolean).join(' \u0001 '));
+  e.hay = fold([e.name, e.id, e.kind, e.docType, e.entityType, e.category, e.profession, e.tier, e.quality, e.status, ...e.tags, e.folder, e.description, ...e.searchText].filter(Boolean).join(' \u0001 '));
   e.idFold = fold(e.id ?? '');
   return e;
 }
@@ -105,6 +107,45 @@ function worldEntries(game, docs) {
   return out;
 }
 
+/** Renown deity (source definition from getDeities): tier, domain and discovery chips; relations become related ids. */
+function deityEntry(r, owner) {
+  const d = r.data ?? {}, p = d.deity && typeof d.deity === 'object' ? d.deity : {};
+  const relations = (Array.isArray(p.relations) ? p.relations : []).filter(x => typeof x?.deity_id === 'string');
+  const tier = p.tier === 'lesser' ? 'lesser' : p.tier === 'major' ? 'major' : str(p.tier);
+  const disc = d.discovery ?? {};
+  const discovery = `${disc.placeholder ? 'placeholder until discovered' : 'hidden until discovered'}${disc.sharing_enabled === false ? ', no sharing' : ''}`;
+  const tone = v => typeof v !== 'number' ? '' : v < 0.5 ? 'Dissonance' : v > 0.5 ? 'Resonance' : 'Neutral';
+  return entry({key: `${owner}/${r.id}`, id: r.id, name: r.name ?? r.id, kind: 'Deity', owner, ag: true, entityType: 'Deity',
+    status: str(d.status), visibility: str(d.visibility), category: 'Renown', ...definitionFields({tags: d.tags, summary: p.blurb}),
+    tier, searchText: [p.title, p.domain, p.portfolio].map(str).filter(Boolean),
+    chips: [tier ? `${tier === 'lesser' ? 'Lesser' : tier === 'major' ? 'Major' : tier} deity` : null, p.domain ? `Domain: ${p.domain}` : null, `Discovery: ${discovery}`].filter(Boolean),
+    extraFields: [['Title', str(p.title)], ['Domain', str(p.domain)], ['Portfolio', str(p.portfolio)], ['Discovery', discovery],
+      ['Relations', relations.map(x => `${x.deity_id}${tone(x.resonance) ? ` (${tone(x.resonance)})` : ''}`).join(', ')]],
+    open: {type: 'module', module: owner, kind: 'Deity', id: r.id},
+    refIds: [...new Set([...relations.map(x => x.deity_id), ...scanIds(d)])].filter(id => id !== r.id)});
+}
+
+/** NPC Codex rows from Manager's own GM read API (api.codex.list). They merge into the NPC's world Actor row by id. */
+function codexEntries(game) {
+  const list = game.modules?.get?.(MODULE_ID)?.api?.codex?.list;
+  if (typeof list !== 'function') return [];
+  let npcs;
+  try { npcs = list() ?? []; } catch (error) { console.warn(`[${MODULE_ID}] Browse: NPC Codex not read`, error); return []; }
+  return npcs.filter(n => n?.id).map(n => {
+    const actors = n.discovery?.actors?.length ?? 0;
+    const known = n.discoveryMode === 'party' ? 'Known to party' : n.discoveryMode === 'actors' ? `Known to ${actors} character${actors === 1 ? '' : 's'}` : 'Hidden from players';
+    const links = Array.isArray(n.links) ? n.links : [];
+    const role = n.fields?.find?.(f => f.key === 'role')?.value ?? '';
+    return entry({key: `codex/${n.id}`, id: n.id, name: n.name ?? n.id, kind: 'NPC Codex', owner: MODULE_ID, ag: true, entityType: 'NPC',
+      status: str(n.status), category: systemOf({sourceId: n.id}).label, linked: true, provenance: 'NPC Codex', description: stripHtml(role).slice(0, 2000),
+      searchText: [n.discoveryLabel, ...links.map(l => l.name)].map(str).filter(Boolean),
+      chips: [known, `${n.revealedCount ?? 0} field${n.revealedCount === 1 ? '' : 's'} revealed`, `${links.length} link${links.length === 1 ? '' : 's'}`],
+      extraFields: [['Codex: known to', str(n.discoveryLabel)], ['Codex: fields revealed', `${n.revealedCount ?? 0} of ${n.fields?.length ?? 0}`],
+        ['Codex: connections', links.map(l => l.named ? `${l.name} (${l.id})` : l.id).join(', ')]],
+      open: {type: 'codex', id: n.id, label: 'Open in NPC Codex'}, refIds: links.map(l => l.id).filter(id => id && id !== n.id)});
+  });
+}
+
 /** Partner records through the same adapters World export uses (public APIs only, missing module = no records). */
 function partnerEntries(game) {
   const out = [];
@@ -112,6 +153,7 @@ function partnerEntries(game) {
   for (const [section, kind] of Object.entries(SECTION_KIND)) {
     const s = sections[section];
     if (s?.status !== 'ok') continue;
+    if (section === 'deities') { for (const r of s.records) out.push(deityEntry(r, s.module_id)); continue; }
     for (const r of s.records) {
       const d = r.data ?? {};
       const data = section === 'quests' ? {...(d.source ?? {}), definitionStatus: d.definitionStatus, kind: d.kind} : d;
@@ -142,7 +184,7 @@ function partnerEntries(game) {
         status: m.available === false ? 'unavailable' : null, open: {type: 'module', module: 'ashen-gate-profession-ledger', kind: 'Material', id: m.id}}));
     } catch (error) { console.warn(`[${MODULE_ID}] Browse: Profession Ledger materials not read`, error); }
   }
-  return out;
+  return [...out, ...codexEntries(game)];
 }
 
 /** Compendium entries from pack indexes only (no full documents). GM-only caller; packs the user cannot see are skipped. */
@@ -177,11 +219,16 @@ export async function compendiumEntries(game) {
 export function mergeEntries(...lists) {
   const out = [], byId = new Map(), byUuid = new Map();
   for (const e of lists.flat()) {
+    e.kinds ??= [e.kind]; e.chips ??= []; e.extraFields ??= [];
     const hit = (e.id && byId.get(e.id)) || (e.uuid && byUuid.get(e.uuid));
     if (hit) {
       if (!hit.sources.includes(e.provenance)) hit.sources.push(e.provenance);
-      if (e.open?.type === 'module' && hit.open?.type !== 'module') { hit.moduleOpen = e.open; hit.owner = e.owner; }
+      const jump = t => t?.type === 'module' || t?.type === 'codex';
+      if (jump(e.open) && !jump(hit.open)) { hit.moduleOpen = e.open; hit.owner = e.owner; }
       hit.refIds = [...new Set([...hit.refIds, ...e.refIds])];
+      for (const f of ['kinds', 'chips']) hit[f] = [...new Set([...hit[f], ...e[f]])];
+      hit.extraFields = [...hit.extraFields, ...e.extraFields.filter(([l]) => !hit.extraFields.some(([h]) => h === l))];
+      hit.description ||= e.description;
       for (const f of ['profession', 'tier', 'quality', 'status', 'visibility', 'entityType']) hit[f] ??= e[f];
       hit.hay += ' \u0001 ' + e.hay;
       continue;
@@ -209,7 +256,8 @@ const termMatch = (e, t) => {
   switch (t.field) {
     case 'id': return e.idFold.startsWith(t.value) || e.idFold.includes(t.value);
     case 'tag': return e.tags.some(tag => fold(tag).includes(t.value));
-    case 'type': case 'kind': return [e.kind, e.docType, e.entityType].some(v => fold(v).includes(t.value));
+    // "type:npc-codex" finds the NPC Codex kind (spaces read as hyphens); a merged row matches every kind it was found as.
+    case 'type': case 'kind': return [...(e.kinds ?? [e.kind]), e.docType, e.entityType].some(v => fold(v).includes(t.value) || fold(v).replace(/\s+/g, '-').includes(t.value));
     case 'status': return fold(e.status) === t.value;
     case 'tier': return fold(e.tier) === t.value;
     case 'pack': return fold(e.folder).includes(t.value) || fold(e.provenance).includes(t.value);
@@ -268,9 +316,9 @@ export function detailOf(entries, key) {
   const byId = new Map(entries.filter(x => x.id).map(x => [x.id, x]));
   const outgoing = e.refIds.map(id => ({id, name: byId.get(id)?.name ?? null, key: byId.get(id)?.key ?? null, kind: byId.get(id)?.kind ?? null}));
   const incoming = e.id ? entries.filter(x => x !== e && x.refIds.includes(e.id)).map(x => ({id: x.id, name: x.name, key: x.key, kind: x.kind})) : [];
-  const fields = [['Id', e.id], ['Kind', e.kind], ['Document type', e.docType], ['AG type', e.entityType], ['Category', e.category], ['Owner', ownerLabel(e.owner)],
+  const fields = [['Id', e.id], ['Kind', (e.kinds ?? [e.kind]).join(', ')], ['Document type', e.docType], ['AG type', e.entityType], ['Category', e.category], ['Owner', ownerLabel(e.owner)],
     ['Found in', e.sources.join(' • ')], ['Status', e.status], ['Visibility', e.visibility], ['Profession', e.profession], ['Tier', e.tier],
-    ['Rarity / quality', e.quality], ['Tags', e.tags.join(', ')], ['Pack / folder', e.folder], ['UUID', e.uuid]]
+    ['Rarity / quality', e.quality], ['Tags', e.tags.join(', ')], ...(e.extraFields ?? []), ['Pack / folder', e.folder], ['UUID', e.uuid]]
     .filter(([, v]) => v !== null && v !== undefined && v !== '').map(([label, value]) => ({label, value: String(value)}));
   return {entry: e, fields, description: e.description, outgoing, incoming};
 }
@@ -286,7 +334,7 @@ export function dragDataOf(e, doc = null) {
  * The Browse service: builds the index lazily, rebuilds after document hooks (debounced) or Refresh, and loads
  * compendium indexes only when asked. Every call checks the GM itself.
  */
-export function createBrowse({game, hooks = null, fromUuid = null, debounceMs = 250, now = () => Date.now()} = {}) {
+export function createBrowse({game, hooks = null, fromUuid = null, openCodex = null, debounceMs = 250, now = () => Date.now()} = {}) {
   let entries = null, packEntries = null, packsLoading = null, timer = null, builtAt = 0;
   const docs = new Map();
   const listeners = new Set();
@@ -348,6 +396,10 @@ export function createBrowse({game, hooks = null, fromUuid = null, debounceMs = 
           return {ok: false, message: `Could not load ${e.name} from ${e.pack}.`};
         }
         if (target?.type === 'module') return await openInModule(game, target, e);
+        if (target?.type === 'codex') {
+          if (typeof openCodex !== 'function') return {ok: false, message: `Open Library → NPC Codex and pick ${e.name} (${e.id}).`};
+          await openCodex(target.id); return {ok: true};
+        }
       } catch (error) { return {ok: false, message: `Could not open ${e.name}: ${error?.message ?? error}`}; }
       return {ok: false, message: `${e.name} cannot be opened from here.`};
     },
@@ -376,5 +428,6 @@ async function openInModule(game, target, e) {
     if (out?.status !== 'not_found') return {ok: true};
   }
   if (target.kind === 'Tree' && typeof api.open === 'function') { await api.open({treeId: target.id}); return {ok: true}; }
+  if (target.kind === 'Deity' && typeof api.open === 'function') { await api.open({deityId: target.id, tab: 'pantheon'}); return {ok: true}; }
   return fallback();
 }

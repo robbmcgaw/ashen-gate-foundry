@@ -14,7 +14,7 @@ const options = (map, current) => Object.entries(map).map(([value, label]) => `<
 /** Search box and the actions that never re-render while typing. */
 export function toolbarHtml(state) {
   return `<div class="ag-toolbar agbrowse-toolbar">
-    <input type="search" data-ag-browse-query value="${esc(state.query)}" placeholder="Search name, id, tag, text… (id:MAT-HERB, tag:, status:, tier:)" aria-label="Search Browse" />
+    <input type="search" data-ag-browse-query value="${esc(state.query)}" placeholder="Search name, id, tag, text… (id:MAT-HERB, id:DEITY-, type:deity, tag:, status:, tier:)" aria-label="Search Browse" />
     <label>Sort <select data-ag-browse-sort>${options(SORTS, state.sort)}</select></label>
     <label>Group <select data-ag-browse-group>${options(GROUPS, state.group)}</select></label>
     <button type="button" data-ag-browse-refresh><i class="fa-solid fa-rotate"></i> Refresh</button>
@@ -36,12 +36,13 @@ const statusTone = s => s === 'approved' ? 'ok' : s === 'draft' ? 'warn' : '';
 
 function rowHtml(e) {
   const meta = [e.tier ? `Tier ${e.tier}` : null, e.profession, e.quality].filter(Boolean).map(esc).join(' · ');
-  const openLabel = e.moduleOpen || e.open?.type === 'module' ? `Open in ${esc(ownerLabel(e.moduleOpen?.module ?? e.open.module))}` : 'Open';
+  const jump = e.moduleOpen ?? (e.open?.type === 'module' || e.open?.type === 'codex' ? e.open : null);
+  const openLabel = jump ? esc(jump.label ?? `Open in ${ownerLabel(jump.module)}`) : 'Open';
   return `<li class="agbrowse-row" data-ag-browse-key="${esc(e.key)}"${e.draggable && e.uuid ? ' draggable="true"' : ''}>
     <div class="agbrowse-main">
       <button type="button" class="agbrowse-name" data-ag-browse-detail="${esc(e.key)}">${esc(e.name)}</button>
       ${e.id ? `<code>${esc(e.id)}</code>` : ''}
-      <div class="agbrowse-chips">${chip(kindLabel(e.kind), 'accent')}${chip(e.entityType && e.entityType !== e.kind ? e.entityType : e.docType)}${chip(e.status, statusTone(e.status))}${chip(e.visibility, visTone(e.visibility))}${e.unlinked ? chip('no world document') : ''}</div>
+      <div class="agbrowse-chips">${(e.kinds ?? [e.kind]).map(k => chip(kindLabel(k), 'accent')).join('')}${chip(e.entityType && e.entityType !== e.kind ? e.entityType : e.docType)}${chip(e.status, statusTone(e.status))}${chip(e.visibility, visTone(e.visibility))}${(e.chips ?? []).map(c => chip(c)).join('')}${e.unlinked ? chip('no world document') : ''}</div>
       ${meta ? `<div class="agmanager-tiny">${meta}</div>` : ''}
       <div class="agmanager-tiny agbrowse-prov">${esc(e.sources.join(' • '))}${e.folder ? ` — ${esc(e.folder)}` : ''}</div>
     </div>
