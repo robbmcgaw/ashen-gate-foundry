@@ -10,21 +10,21 @@ Standing with a deity is **per character only**. A deity has no group score and 
 |---|---|---|---|
 | `id` | string | yes | Permanent canonical id, `DEITY-[A-Z0-9-]+` |
 | `entity_type` | `"Deity"` | yes | |
-| `status` | `proposed` \| `draft` \| `approved` \| `superseded` \| `retired` | yes | `draft` |
-| `version` | string | yes | `"0.3.0"` (record version, not the file schema) |
-| `provenance` | `{sources: string[≥1], decision_refs?: string[]}` | yes | |
-| `visibility` | `player` \| `gm` \| `reveal_gated` | yes | `reveal_gated` |
-| `refs` | `{relation, target_id, mode: required\|optional}[]` | yes | `[]` |
+| `status` | `proposed` \| `draft` \| `approved` \| `superseded` \| `retired` | yes | No default: missing is an error |
+| `version` | string | no | Always stored as `"0.3.0"` (record version, not the file schema); any value given is replaced |
+| `provenance` | `{sources: string[≥1], decision_refs?: string[]}` | no | Missing: `{sources: ["Legacy faction import"]}`. Write it |
+| `visibility` | `player` \| `gm` \| `reveal_gated` | yes | No default: missing is an error. Use `reveal_gated` |
+| `refs` | `{relation, target_id, mode: required\|optional}[]` | no | `[]` |
 | `scope` | `generic_rules` \| `setting_adapter` \| `publication` \| null | no | |
 | `name` | string, non-empty | yes | |
 | `tags` | string[] | no | GM-only keywords, never shown to players |
-| `discovery` | `{placeholder: boolean, sharing_enabled: boolean}` | yes | `{placeholder:false, sharing_enabled:true}`. Who has discovered it is play state and is never in the file |
+| `discovery` | `{placeholder: boolean, sharing_enabled: boolean}` | no | `{placeholder:false, sharing_enabled:true}`. Who has discovered it is play state and is never in the file |
 | `individual_track` | RenownTrack | yes | The deity's own rank ladder, see below |
-| `entries` | lore entry[] | yes | Same shape as faction information entries. `unlock` is `manual` or `individual_renown` (no `group_renown`) |
-| `rewards` | reward[] | yes | Same shape as faction rewards, but `audience` must be `individual` |
-| `deity` | Deity profile | yes | See below |
+| `entries` | lore entry[] | no | `[]`. Same shape as faction information entries. `unlock` is `manual` or `individual_renown` (no `group_renown`) |
+| `rewards` | reward[] | no | `[]`. Same shape as faction rewards, but `audience` must be `individual` |
+| `deity` | Deity profile | no | A blank `major` profile. See below |
 
-Not allowed on a deity (these are faction-only): `leader`, `public_role`, `folder_key`, `renown_track`. Any field not listed here, at any level, makes the import fail rather than being dropped.
+Faction-only fields (`leader`, `public_role`, `folder_key`, `renown_track`) are not kept on a deity: the importer drops them silently, so don't write them. Any other field not listed here, at any level, makes the import fail rather than being dropped (except the legacy keys `state`, `field_reveals` and `discovery.party` / `discovery.actors`, which are stripped).
 
 ## `deity` profile
 
@@ -42,12 +42,12 @@ Not allowed on a deity (these are faction-only): `leader`, `public_role`, `folde
 | `saying` | `{text: string, attribution: string}` | `{text:"", attribution:""}` | |
 | `relations` | `{deity_id: "DEITY-…", resonance: number 0..1}[]` | `[]` | One direction (this deity → that one). `resonance` is the GM slider: 0 = full Dissonance, 0.5 = neutral (no effect), 1 = full Resonance. Never to itself, at most one per other deity. Players see only the word Resonance/Dissonance, and only once both deities are revealed to them |
 
-Text fields hold up to 4000 characters. Line breaks are kept.
+The seven text fields (`title` … `practices`) hold up to 4000 characters each. Line breaks are kept. `tier` is lower case. A `saying` that isn't an object, or `relations` that isn't a list, is replaced by the default.
 
 ## RenownTrack (`individual_track`)
 
-Same as a faction track: `{id: "RENOWN-…", entity_type: "RenownTrack", status, version, provenance, visibility, refs, default_scope: "individual", milestones: [5 rows]}`.
-Each milestone is `{id, key, name, threshold, benefit, selection_mode: all|choose_one}`. `name` is the deity's rank title. The first threshold must be 0, and thresholds must go up. A new deity starts with `Rank I`–`Rank V` at 0 / 3 / 6 / 10 / 15, the same progression as factions.
+Same as a faction track: `{id: "RENOWN-…", entity_type: "RenownTrack", status, version, provenance, visibility, refs, default_scope: "individual", milestones: [5 rows]}`. `status`, `visibility`, `default_scope` and all five `milestones` are required in the file. Write `default_scope: "individual"`: the importer does not check it, but a deity has no group standing.
+Each milestone is `{id, key, name, threshold, benefit, selection_mode: all|choose_one}`. `name` is the deity's rank title. The first threshold must be 0, and thresholds must go up. A deity created in the Renown window starts with `Rank I`–`Rank V` at 0 / 3 / 6 / 10 / 15, the same progression as factions.
 
 ## `starting_state` for deities
 
