@@ -1,3 +1,8 @@
+## 0.10.0 — 2026-10-20
+
+- **New API `embed.mount(element, {actorId, mode: 'character'})`** so a partner module (Character Hub) can show a compact, read-only Guildhall view for one character: name and rank, the facilities that character may see with stage and benefits, and Open Headquarters. Returns `{unmount, refresh}`; it refreshes itself on changes. See the README.
+- Same checks and data as `playerView` (no hirelings, no other players' rooms). The Headquarters window is unchanged. No saved data changes.
+
 # Changelog
 
 ## 0.9.0 — 2026-10-20
