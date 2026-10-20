@@ -170,7 +170,7 @@ test('API: pause/resume are GM-only; travel.state() is the same player-safe view
   await w.gm.startJourney(w.route.id);
   const p = w.api('p1');
   const pState = () => as(w.users.get('p1'), () => p.travel.state());
-  assert.deepEqual(pState(), {status: 'active', leg: 0, legs: 4, paused: false, routeName: '[TEST] Old Road', routeKey: w.route.viewKey,
+  assert.deepEqual(pState(), {status: 'active', leg: 0, legs: 4, paused: false, behaviours: {pace: 'normal'}, routeName: '[TEST] Old Road', routeKey: w.route.viewKey,
     from: {name: '[TEST] Harbor', key: w.harbor.pinKey}, to: {name: '[TEST] Mill', key: w.mill.pinKey}, log: []});
   await w.gm.nextLeg();                       // 10 vs 25%: a hazard, waiting for the GM
   assert.doesNotMatch(JSON.stringify(pState()), /Fallen|chance|roll|25/, 'nothing about the waiting hazard');

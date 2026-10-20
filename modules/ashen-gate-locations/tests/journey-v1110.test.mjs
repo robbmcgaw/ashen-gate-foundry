@@ -114,7 +114,7 @@ test('GM journey: marker moves along the pins, players see only progress, arriva
   assert.equal(j0.currentChance, 25);
   assert.deepEqual(marker(w.scene).map(n => [n.x, n.y, n.text]), [[100, 100, 'Party']], 'marker on the start pin');
   const p1 = as(w.users.get('p1'), () => w.api('p1').getJourney());
-  assert.deepEqual(p1, {status: 'active', leg: 0, legs: 4, from: {id: w.harbor.id, key: w.harbor.pinKey, name: '[TEST] Harbor'},
+  assert.deepEqual(p1, {status: 'active', leg: 0, legs: 4, behaviours: {pace: 'normal'}, from: {id: w.harbor.id, key: w.harbor.pinKey, name: '[TEST] Harbor'},
     to: {id: w.mill.id, key: w.mill.pinKey, name: '[TEST] Mill'}, routeKey: w.route.viewKey});
   const leg1 = await w.gm.nextLeg();
   assert.deepEqual([leg1.hazard, leg1.roll, leg1.chance, leg1.journey.currentChance], [false, 80, 25, 50]);

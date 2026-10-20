@@ -13,7 +13,8 @@ import {MODULE_ID, GATHERING, STATES, PARTY_NOTES, notesLockHolder, clone, newLo
   publishable, hasUnpublishedChanges, previewView, wouldCycle, parentMap, normalizeAudience, AUDIENCE_MODES, isPlaceable, resolvePassConditions} from './model.mjs';
 import {checkMove} from './tree.mjs';
 import {ROUTE_STATES, normalizeRoute, makeRouteId, routeProblems, routeTouches, importRouteRecords, routeRecord, legsOf, legKmOf} from './routes.mjs';
-import {startJourney, nextLeg, setHazardResult, resolveHazard, reverseJourney, abortJourney, pauseJourney, travelLine, HAZARD_FALLBACK} from './journey.mjs';
+import {startJourney, nextLeg, setHazardResult, resolveHazard, reverseJourney, abortJourney, pauseJourney, travelLine, HAZARD_FALLBACK,
+  setBehaviours, CHECKS} from './journey.mjs';
 import {covers, esc, DEFAULT_UNIDENTIFIED_LABEL} from './model.mjs';
 
 export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
@@ -28,7 +29,8 @@ export const TRAVEL_CONTRACT = 'ag-locations-travel/1';
  *        drawings?: {link(route, uuid), unlink(route, {remove}), draw(route, scene), info(route), viewedScene()},
  *        travel?: {read(), write(travel), readView(), drawHazard?({uuid, name}) → {text, fromTable, tableMissing}, chat?: {gm(html), public(html)},
  *                  rng?(), now?(), emit?(event, payload)},
- *        tracker?: {open(), behaviours: {register(def), unregister(id), list()}}}
+ *        tracker?: {open(), behaviours: {register(def), unregister(id), list()}},
+ *        rolls?() → Utilities' api.rolls when it can open a prefilled roll (1.15.0), else null}
  */
 export function createApi(deps) {
   const gm = () => deps.isGM() === true;
@@ -672,8 +674,50 @@ export function createApi(deps) {
             : deps.routes.readViews().find(x => x.key === v.routeKey)?.name ?? '';
         }
         const end = e => e?.name ? {name: String(e.name), key: e.key ?? ''} : null;
-        return clone({status: v.status, leg: v.leg, legs: v.legs, paused: v.paused === true, routeName: String(routeName || ''),
-          from: end(v.from), to: end(v.to), routeKey: v.routeKey ?? '', log: (v.log ?? []).map(e => ({leg: e.leg, text: e.text}))});
+        const out = {status: v.status, leg: v.leg, legs: v.legs, paused: v.paused === true, routeName: String(routeName || ''),
+          from: end(v.from), to: end(v.to), routeKey: v.routeKey ?? '', log: (v.log ?? []).map(e => ({leg: e.leg, text: e.text}))};
+        // 1.15.0: pace and watch order, as on the players' page (only the parts the GM has switched on).
+        const b = v.behaviours;
+        if (b && (b.pace || b.watch)) out.behaviours = {
+          ...(b.pace ? {pace: String(b.pace)} : {}),
+          ...(Array.isArray(b.watch) ? {watch: b.watch.map(w => ({watch: String(w.watch), names: (w.names ?? []).map(String)}))} : {})};
+        return clone(out);
+      },
+      /**
+       * 1.15.0 GM: the current journey's travel behaviours (tracking only), or null with no journey:
+       * {pace: {enabled, value}, watch: {enabled, first, second, third}, checks: {enabled, forage, navigate}}.
+       */
+      getBehaviours() {
+        requireGM();
+        const j = deps.travel?.read().journey ?? null;
+        return j ? clone(j.behaviours) : null;
+      },
+      /**
+       * 1.15.0 GM: changes the journey's behaviours, e.g. {pace: {value: 'fast'}}, {watch: {first: [actorId]}},
+       * {checks: {enabled: false}}. Only while a journey is under way. Changes nothing else about the journey.
+       */
+      async setBehaviours(patch) {
+        requireGM();
+        const travel = activeJourney();
+        const j = setBehaviours(travel.journey, patch);
+        await travelDeps().write({...travel, journey: j});
+        return clone(j.behaviours);
+      },
+      /** 1.15.0: true when Utilities can open a prefilled roll (api.rolls.open) for the GM. */
+      checksAvailable: () => gm() && typeof deps.rolls?.()?.open === 'function',
+      /**
+       * 1.15.0 GM: opens Utilities' Rolls tab with a foraging ('forage') or navigation ('navigate') check filled in:
+       * Group result, the journey's skill for that check (Survival unless the GM changed it), the party ticked.
+       * Nothing is rolled until the GM clicks Start Rolls in Utilities. Refused without Utilities 0.13.0 or later.
+       */
+      async openCheck(check) {
+        requireGM();
+        if (!CHECKS.includes(check)) throw new Error(`Unknown check "${check}" (use ${CHECKS.join(' or ')}).`);
+        const j = activeJourney().journey;
+        if (!j.behaviours.checks.enabled) throw new Error('Foraging and navigation checks are off for this journey.');
+        const rolls = deps.rolls?.();
+        if (typeof rolls?.open !== 'function') throw new Error('Foraging and navigation checks need Ashen Gate Utilities 0.13.0 or later.');
+        return rolls.open({skills: [j.behaviours.checks[check]], mode: 'group', title: check === 'forage' ? 'Foraging' : 'Navigation'});
       },
       /** Extension point for optional travel behaviour panels (none ship yet). See travel-view.mjs createBehaviours. */
       behaviours: Object.freeze({

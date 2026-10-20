@@ -96,3 +96,30 @@ This route has 4 legs (32 ÷ 8). Exporting from Locations (GM Setup → Export J
 
 `node scripts/validate-content.mjs path/to/file.json` runs Route records through the same Locations checks
 (endpoints outside the file are listed as notes: they must already exist in Locations).
+
+## Journey behaviours (Locations 1.15.0)
+
+Journeys are play state (never in an import or export). From 1.15.0 the journey record in the GM Data Journal
+(`flags.ashen-gate-locations.travel.journey`, and each entry in `travel.history`) carries an additive `behaviours`
+field. **Tracking only:** nothing reads it to change a roll, the hazard chance, legs, supplies or rest. A journey without it
+reads with the defaults below; nothing is migrated.
+
+```json
+"behaviours": {
+  "pace":   {"enabled": true, "value": "normal"},
+  "watch":  {"enabled": true, "first": ["<actorId>"], "second": [], "third": []},
+  "checks": {"enabled": true, "forage": "sur", "navigate": "sur"}
+}
+```
+
+| Field | Type | Default | Rules |
+|---|---|---|---|
+| `pace.enabled`, `watch.enabled`, `checks.enabled` | boolean | `true` | Per-journey on/off for each behaviour. Turning one off keeps its values. |
+| `pace.value` | string | `"normal"` | `slow`, `normal` or `fast`. |
+| `watch.first` / `second` / `third` | array of Actor ids | `[]` | Character Actor ids (world-local), no duplicates, at most 8 per watch. |
+| `checks.forage`, `checks.navigate` | string | `"sur"` | A dnd5e skill id (`acr` … `sur`); the skill Utilities is prefilled with. |
+
+Players' progress page (`kind: "journey"` page in the Routes Journal) gets, while the journey is active, only
+`"behaviours": {"pace": "fast", "watch": [{"watch": "first", "names": ["<character name>"]}, ...]}`: pace while on,
+watch order while on and once someone is on watch. Check skills and anything turned off are never on it.
+

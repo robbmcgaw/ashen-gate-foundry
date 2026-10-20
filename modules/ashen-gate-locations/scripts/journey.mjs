@@ -8,6 +8,8 @@
  * After the last leg the journey has arrived. Reverse turns the party round mid-route (legs done become legs to go);
  * Abort ends it where it is. The record is campaign state owned by Locations: never in an export or import.
  * 1.14.0: Pause holds the journey (no Next leg) until Resume; the Travel tracker shows it.
+ * 1.15.0: `behaviours` (additive, defaults filled on read): pace, night watches and the skills for foraging and
+ * navigation checks. Tracking only: nothing here changes a roll, the hazard chance, supplies or rest.
  */
 import {line} from './model.mjs';
 import {legsOf} from './routes.mjs';
@@ -31,6 +33,79 @@ function normalizeEntry(e) {
 const normalizePending = p => p && typeof p === 'object' ? {leg: int(p.leg, 1, 100000, 1), roll: int(p.roll, 1, 100, 1), chance: int(p.chance, 0, 100, 0),
   result: line(p.result, 2000) || HAZARD_FALLBACK, fromTable: p.fromTable === true, tableMissing: p.tableMissing === true} : null;
 
+// ---------- 1.15.0 travel behaviours (tracking only) ----------
+export const PACES = Object.freeze(['slow', 'normal', 'fast']);
+export const WATCHES = Object.freeze(['first', 'second', 'third']);
+export const WATCH_LABELS = Object.freeze({first: 'First watch', second: 'Second watch', third: 'Third watch'});
+export const CHECKS = Object.freeze(['forage', 'navigate']);
+/** dnd5e skill ids a check may use (the same list as Utilities). */
+export const CHECK_SKILLS = Object.freeze(['acr', 'ani', 'arc', 'ath', 'dec', 'his', 'ins', 'itm', 'inv', 'med', 'nat', 'prc', 'prf', 'per', 'rel', 'slt', 'ste', 'sur']);
+export const DEFAULT_CHECK_SKILL = 'sur';
+export const BEHAVIOUR_IDS = Object.freeze(['pace', 'watch', 'checks']);
+const MAX_ON_WATCH = 8;
+const ACTOR = /^[A-Za-z0-9]{1,40}$/;
+const actorList = v => [...new Set((Array.isArray(v) ? v : []).filter(id => typeof id === 'string' && ACTOR.test(id)))].slice(0, MAX_ON_WATCH);
+const skillOf = v => CHECK_SKILLS.includes(v) ? v : DEFAULT_CHECK_SKILL;
+
+/** Every behaviour is on by default; pace normal, nobody on watch, Survival for both checks. Re-runnable. */
+export function normalizeBehaviours(raw) {
+  const r = raw && typeof raw === 'object' ? raw : {};
+  const on = b => b?.enabled !== false;
+  const pace = r.pace ?? {}, watch = r.watch ?? {}, checks = r.checks ?? {};
+  return {
+    pace: {enabled: on(pace), value: PACES.includes(pace.value) ? pace.value : 'normal'},
+    watch: {enabled: on(watch), ...Object.fromEntries(WATCHES.map(w => [w, actorList(watch[w])]))},
+    checks: {enabled: on(checks), ...Object.fromEntries(CHECKS.map(c => [c, skillOf(checks[c])]))}
+  };
+}
+
+/**
+ * Applies a GM change: {pace?: {enabled?, value?}, watch?: {enabled?, first?, second?, third?}, checks?: {enabled?, forage?, navigate?}}.
+ * Throws on an unknown behaviour, pace, watch or skill (nothing is guessed). Returns the journey with the new behaviours.
+ */
+export function setBehaviours(raw, patch = {}) {
+  const j = normalizeJourney(raw);
+  if (!j || j.status !== 'active') throw new Error('There is no journey under way.');
+  if (!patch || typeof patch !== 'object') throw new Error('Nothing to change.');
+  const b = j.behaviours;
+  for (const [id, change] of Object.entries(patch)) {
+    if (!BEHAVIOUR_IDS.includes(id)) throw new Error(`Unknown travel behaviour "${id}" (use ${BEHAVIOUR_IDS.join(', ')}).`);
+    if (!change || typeof change !== 'object') throw new Error(`Give ${id} an object of changes.`);
+    for (const [key, value] of Object.entries(change)) {
+      if (key === 'enabled') {
+        if (typeof value !== 'boolean') throw new Error(`${id}.enabled must be true or false.`);
+        b[id].enabled = value;
+      } else if (id === 'pace' && key === 'value') {
+        if (!PACES.includes(value)) throw new Error(`Pace must be ${PACES.join(', ')}.`);
+        b.pace.value = value;
+      } else if (id === 'watch' && WATCHES.includes(key)) {
+        if (!Array.isArray(value) || value.some(v => typeof v !== 'string' || !ACTOR.test(v))) throw new Error(`${WATCH_LABELS[key]} needs a list of Actor ids.`);
+        if (new Set(value).size > MAX_ON_WATCH) throw new Error(`At most ${MAX_ON_WATCH} characters on one watch.`);
+        b.watch[key] = actorList(value);
+      } else if (id === 'checks' && CHECKS.includes(key)) {
+        if (!CHECK_SKILLS.includes(value)) throw new Error(`Unknown skill "${value}".`);
+        b.checks[key] = value;
+      } else throw new Error(`Unknown setting ${id}.${key}.`);
+    }
+  }
+  return j;
+}
+
+/**
+ * What players see of the behaviours: the pace and the watch order (once someone is on watch), only while each is on.
+ * Never the check skills.
+ * `actorName(id)` gives the name players see; characters without one are left out. null when there is nothing to show.
+ */
+export function behavioursView(b, actorName = () => '') {
+  const out = {};
+  if (b?.pace?.enabled) out.pace = b.pace.value;
+  if (b?.watch?.enabled) {
+    const watch = WATCHES.map(w => ({watch: w, names: (b.watch[w] ?? []).map(id => String(actorName(id) ?? '')).filter(Boolean)}));
+    if (watch.some(w => w.names.length)) out.watch = watch;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 /** Fills defaults and drops anything malformed. Re-runnable. null for no journey. */
 export function normalizeJourney(raw) {
   if (!raw || typeof raw !== 'object') return null;
@@ -50,7 +125,8 @@ export function normalizeJourney(raw) {
     pending: normalizePending(raw.pending),
     paused: raw.paused === true,
     // Arrival note in the destination's Party Notes: '' not tried, 'ok', or 'failed' (the GM can retry).
-    travelLog: ['ok', 'failed'].includes(raw.travelLog) ? raw.travelLog : '', travelLogError: line(raw.travelLogError, 300)
+    travelLog: ['ok', 'failed'].includes(raw.travelLog) ? raw.travelLog : '', travelLogError: line(raw.travelLogError, 300),
+    behaviours: normalizeBehaviours(raw.behaviours)
   };
 }
 
@@ -181,7 +257,7 @@ export const travelLine = (j, nameOf) =>
  * What players get: progress only. `ends`: {from, to} refs every player may see (or null), `routeKey` when every
  * player may see the route. Never the chance, the rolls, or a hazard the GM has not shared (1.14.0: shared ones are in `log`).
  */
-export function journeyView(j, {from = null, to = null, routeKey = null} = {}) {
+export function journeyView(j, {from = null, to = null, routeKey = null, actorName} = {}) {
   if (!j) return null;
   const view = {status: j.status, leg: j.legIndex, legs: j.legs};
   // 1.14.0: only when there is something to say, so a plain journey's view keeps its 1.11.0 shape.
@@ -191,5 +267,8 @@ export function journeyView(j, {from = null, to = null, routeKey = null} = {}) {
   if (from) view.from = from;
   if (to) view.to = to;
   if (routeKey) view.routeKey = routeKey;
+  // 1.15.0: pace and watch order, only with an actorName lookup (the GM's client builds the players' page).
+  const shown = actorName && j.status === 'active' ? behavioursView(j.behaviours, actorName) : null;
+  if (shown) view.behaviours = shown;
   return view;
 }

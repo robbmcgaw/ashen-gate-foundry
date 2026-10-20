@@ -31,6 +31,10 @@ and Install. Updates arrive through Check for Updates / Forge's update button. E
 - **Journeys (1.11.0):** on a saved route, **Start journey** in either direction (one-way routes: From → To only). **Next leg** rolls d100 against the hazard chance: it starts at the route's base chance, doubles after each leg without a hazard (max 100%) and goes back to the base chance after a hazard. A hazard rolls the route's table (or says "Hazard!"), is whispered to you and waits for **Reroll**, **Dismiss** or **Share with players** (chat, no route or place names). After the last leg the party marker moves to the destination and the trip is added to that place's Party Notes. **Turn back** and **Abort journey** are there too. The party marker is a Map Note between the two route pins. Players see only the marker and "leg N of M".
 - **Route drawings (1.12.0):** on a route's *Map Drawing* card, **Link selected drawing** binds a drawing you selected on the canvas, **Draw for me** adds a straight line between the two pins (reshape it as you like), **Unlink** leaves it on the map. Locations only toggles the drawing's *hidden*: shown while every player can see the whole route, hidden otherwise. The party marker follows the line. Foundry still sends hidden drawings to every client, so never write secrets in a drawing's text.
 - **Travel tracker (1.14.0):** a small pop-out window to keep open over the map while travelling. Open it from the **person-hiking** button in the Token controls (left of the map), or **Travel tracker** on a journey in Locations → Routes. GM: the route, From → To, a strip with one marker per leg (current leg highlighted, hazard legs outlined), "Leg 3 of 8, 15 of 40 km", the hazard chance and safe legs in a row, **Roll next leg** (the same rules as *Next leg*), the hazard card with **Reroll / Dismiss / Share to players**, **Pause / Resume**, **End journey** (asks first), **Open route**, and the latest legs. Players (with Player Access): route name, strip, "Leg 3 of 8" and only what the GM shared; never chances, rolls or table results. It updates for everyone when the GM rolls. The slider fades the window background (per user); the window remembers its place and size per user.
+- **Travel behaviours (1.15.0), tracking only:** collapsible panels in the tracker for the current journey. Nothing is rolled or changed automatically: no effect on the hazard chance, legs, supplies or rest. Each has a per-journey **Track on this journey** switch (all on by default).
+  - **Pace:** Slow / Normal / Fast, set by the GM. Players see the current pace.
+  - **Night watches:** the GM ticks characters for the first, second and third watch (the dnd5e Primary Party's characters, else every character). Players see the watch order once someone is on watch.
+  - **Foraging and navigation** (GM only): a skill for each (Survival unless the GM changes it) and **Foraging check** / **Navigation check** buttons that open **Utilities → Rolls** with the check filled in (Group result, the party ticked). The GM can change anything there, including *Individual rolls*, then clicks **Start Rolls**. Needs Ashen Gate Utilities 0.13.0 or later; without it this panel is hidden.
 - **Players:** Actors sidebar → **Locations** (when *Player Access* is on in GM Setup). Players get a read-only view of revealed locations. Clicking a quest opens the Quest Log; in the Quest Log, a quest's *Locations* list opens the location.
 
 ## Storage
@@ -88,6 +92,7 @@ Journals from Locations 0.8.x are ignored (a one-line console note says how many
 | `travel.open()` (1.14.0) | opens the Travel tracker (GM controls or the player view); refused for players while Player Access is off |
 | `travel.state()` (1.14.0) | read-only, player-safe: see below |
 | `travel.behaviours.register(def)`, `.unregister(id)`, `.list()` (1.14.0) | optional tracker panels: see below |
+| GM only: `travel.getBehaviours()`, `travel.setBehaviours(patch)`, `travel.openCheck('forage'\|'navigate')`; `travel.checksAvailable()` (1.15.0) | travel behaviours (tracking only): see below |
 | `playerAccess` | `ag-player-access/1` capability |
 
 ### `embed.mount(element, options)` (1.13.0)
@@ -113,15 +118,26 @@ if (api?.embed?.mount) {
 
 - `await api.travel.open()`: opens the pop-out tracker (or brings it forward). Anyone who may open Locations.
 - `api.travel.state()`: the party's journey as players see it, for everyone (the GM gets the same), or `null`:
-  `{status: 'active'|'arrived'|'aborted', leg, legs, paused, routeName, routeKey, from: {name, key}|null, to: {name, key}|null, log: [{leg, text}]}`.
+  `{status: 'active'|'arrived'|'aborted', leg, legs, paused, routeName, routeKey, from: {name, key}|null, to: {name, key}|null, log: [{leg, text}], behaviours?}`.
+  1.15.0: `behaviours` is present while travelling and the GM has pace or watches switched on: `{pace?: 'slow'|'normal'|'fast', watch?: [{watch: 'first'|'second'|'third', names: [characterName]}]}` (`watch` once someone is on watch). Never the check skills.
   It is read from the players' progress page, so it never holds a hazard chance, roll, table, GM note or a hazard the GM has not shared. `routeName` is set only while every player can see the whole route; `from`/`to` only when every player can see that place. Read-only: change the journey with the GM calls above.
-- `api.travel.behaviours.register({id, label, icon?, audience: 'gm'|'everyone', appliesTo?(ctx), render(ctx)})` → `unregister()`: an optional panel in the tracker, for later travel behaviours (none ship yet). `ctx` is `{isGM, state, journey}` (`journey` is the full GM record on the GM's client, `null` for players). `render` returns HTML; `appliesTo` decides per journey whether it shows. `'gm'` panels are never drawn for players; a panel keeps its own data and is responsible for not sending GM-only data to players. The tracker redraws when the journey changes.
+- `api.travel.behaviours.register({id, label, icon?, audience: 'gm'|'everyone', appliesTo?(ctx), render(ctx), act?(action, ctx)})` → `unregister()`: an optional panel in the tracker (Locations' own pace, watch and checks panels use it, 1.15.0). 1.15.0: a control in the panel with `data-travel="bh:<id>:<action>"` (click) or `data-travel-change="bh:<id>:<action>"` (change) calls `act(action, {isGM, el})`; `'gm'` behaviours' actions are refused for players, and writes should go through a GM-only API. `ctx` is `{isGM, state, journey}` (`journey` is the full GM record on the GM's client, `null` for players). `render` returns HTML; `appliesTo` decides per journey whether it shows. `'gm'` panels are never drawn for players; a panel keeps its own data and is responsible for not sending GM-only data to players. The tracker redraws when the journey changes.
 
 ```js
 const travel = game.modules.get('ashen-gate-locations')?.api?.travel;
 const s = travel?.state();          // e.g. {status: 'active', leg: 3, legs: 8, routeName: '[TEST] Old Road', ...}
 await travel?.open();
 ```
+
+#### Travel behaviours (1.15.0, tracking only)
+
+Stored per journey in the additive `journey.behaviours` field (shape in [`docs/routes-schema.md`](../../docs/routes-schema.md#journey-behaviours-locations-1150)). A journey saved before 1.15.0 reads with the defaults; nothing is migrated.
+
+- `travel.getBehaviours()` (GM): `{pace: {enabled, value}, watch: {enabled, first, second, third}, checks: {enabled, forage, navigate}}` for the current journey, or `null`.
+- `await travel.setBehaviours(patch)` (GM, journey under way): changes only what the patch names and returns the new behaviours. Examples: `{pace: {value: 'fast'}}`, `{watch: {first: [actorId, ...]}}`, `{checks: {navigate: 'nat', enabled: true}}`. Throws on an unknown behaviour, pace, watch, skill id, or a non-boolean `enabled`. It never touches the hazard chance, legs, log or anything else.
+- `travel.checksAvailable()`: true for the GM when Utilities' `api.rolls.open` exists (Utilities 0.13.0+).
+- `await travel.openCheck('forage'|'navigate')` (GM, journey under way, checks on): calls Utilities' `api.rolls.open({skills: [skill], mode: 'group', title: 'Foraging'|'Navigation'})`. Starts nothing; the GM clicks Start Rolls in Utilities.
+- Players get `travel.state().behaviours` (above) and can change nothing: every write is rejected in the API.
 
 ## Import format
 
