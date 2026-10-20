@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.12.0 — 2026-10-20
+
+- **Routes on the map.** A route's new **Map Drawing** card:
+  - **Link selected drawing:** select one of your own Foundry drawings on the canvas (Drawing tools), then click it. The drawing is marked with the route (`flags['ashen-gate-locations'].routeId`) and the route remembers the drawing.
+  - **Draw for me:** adds a straight line between the two locations' pins on the scene you are viewing, already linked. Reshape it with Foundry's Drawing tools.
+  - **Unlink:** the drawing stays on the map as it is.
+- **Visibility:** Locations shows a linked drawing only while every player can see the whole route (discovered, both ends visible to each of them, nobody left out), and hides it otherwise. A drawing is shown to everyone or no one, so one player left out hides it. Locations only ever changes the drawing's *hidden* setting, never its line or text (the card warns when a drawing has text). Foundry still sends hidden drawings' data to every client, like any hidden document, so a drawing must hold nothing secret.
+- **Party marker** follows the linked line (when it is a simple, unrotated line on the marker's scene) instead of going straight between the pins.
+- **Deleting a route** with a drawing asks: *Delete Route, Keep Drawing* or *Delete Route and Drawing*. Nothing else ever deletes a drawing.
+- Saved data: additive (`drawingUuid` on routes; world-local, never exported, kept by re-import). API: new `routeDrawing`, `linkRouteDrawing`, `unlinkRouteDrawing`, `drawRoute`; `deleteRoute(id, {deleteDrawing})`.
+
 ## 1.11.0 — 2026-10-20
 
 - **Journeys (GM).** On a saved route, **Start journey** (From → To, or To → From unless the route is one-way). The party marker sits on the start pin. **Next leg** travels one leg and rolls d100 against the current hazard chance:

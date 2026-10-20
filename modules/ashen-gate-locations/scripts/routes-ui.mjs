@@ -122,6 +122,7 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
           <div class="ag-field agl-field"><label for="agl-route-terrain">Terrain (optional)</label><input id="agl-route-terrain" type="text" data-rbind="terrain" value="${esc(d.terrain)}" placeholder="e.g. Forest road"></div>
         </div>
         <div class="ag-field agl-field"><label for="agl-route-notes">GM notes (never shown to players)</label><textarea id="agl-route-notes" rows="3" data-rbind="notes">${esc(d.notes)}</textarea></div>
+        ${d.id ? this.drawingHtml(d) : ''}
         ${d.id ? this.journeyHtml(d, locations) : ''}
         ${this.routeVisibilityHtml(d, locations)}
         <p class="agl-hint">Players never see the hazard chance, the hazard table, these notes or the route's ID. Don't put a hidden place's name in the route name or terrain: players who can see both ends see them.</p>
@@ -177,6 +178,23 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
         <div class="agl-add">${btn('route-next-leg', j.legIndex + 1 >= j.legs ? 'Next leg (last: arrive)' : 'Next leg', {kind: 'primary', icon: 'fa-solid fa-shoe-prints'})}
           ${saved.directed || !j.legIndex ? '' : btn('route-journey-reverse', 'Turn back', {icon: 'fa-solid fa-rotate-left', title: 'The party turns round; the legs travelled become the legs back'})}
           ${btn('route-journey-abort', 'Abort journey', {kind: 'danger', icon: 'fa-solid fa-ban'})}</div>${log}</section>`;
+    },
+    /** 1.12.0: the route's map drawing: link the selected one, Draw for me, or unlink. */
+    drawingHtml(d) {
+      const info = api().routeDrawing(d.id);
+      const status = {
+        none: 'No drawing linked.',
+        missing: 'The linked drawing was deleted or its scene is gone. Link another or Draw for me.',
+        elsewhere: 'The linked drawing is now linked to another route. Link another or Draw for me.',
+        linked: `Linked to a drawing on <strong>${esc(info.sceneName || 'a scene')}</strong> · ${info.hidden ? 'hidden from players' : 'shown to players'}${info.path ? '' : ' · not a simple line, so the party marker goes straight between the pins'}.`
+      }[info.status];
+      return `<section class="ag-card agl-section"><header class="agl-section__head"><h3>Map Drawing</h3></header>
+        <p>${status}</p>
+        ${info.hasText ? '<p class="agl-hint ag-badge--warn">This drawing has text. Players read it whenever the drawing is shown: never name a hidden place there.</p>' : ''}
+        <div class="agl-add">${btn('route-link-drawing', 'Link selected drawing', {icon: 'fa-solid fa-link', title: 'Select a drawing on the canvas (Drawing tools), then click this'})}
+          ${btn('route-draw', 'Draw for me', {icon: 'fa-solid fa-pen-ruler', title: 'Adds a straight line between the two pins on the scene you are viewing; reshape it with the Drawing tools'})}
+          ${info.status !== 'none' ? btn('route-unlink-drawing', 'Unlink', {icon: 'fa-solid fa-link-slash', title: 'The drawing stays on the map as it is'}) : ''}</div>
+        <p class="agl-hint">Locations only shows or hides the drawing: it is shown only while every player can see this whole route, and hidden otherwise. It never changes the line or its text. The party marker follows the line on its scene. Foundry still sends hidden drawings' data to every client (like any hidden document), so the drawing itself must hold nothing secret.</p></section>`;
     },
     hazardHtml(j) {
       const p = j.pending;
@@ -278,13 +296,31 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
         }
         case 'route-delete': {
           const d = this.routeDraft;
-          const ok = await foundry.applications.api.DialogV2.confirm({window: {title: 'Delete route?'},
-            content: `<p>Delete the route <strong>${esc(d.name || d.id)}</strong>? Players who could see it lose it. Its ID <code>${esc(d.id)}</code> is never used again.</p>`,
-            yes: {label: 'Delete Route'}, no: {label: 'Keep'}, rejectClose: false});
-          if (!ok) return;
-          await api().deleteRoute(d.id);
+          const content = `<p>Delete the route <strong>${esc(d.name || d.id)}</strong>? Players who could see it lose it. Its ID <code>${esc(d.id)}</code> is never used again.</p>`;
+          const linked = api().routeDrawing(d.id).status === 'linked';
+          const choice = linked
+            ? await foundry.applications.api.DialogV2.wait({window: {title: 'Delete route?'}, content: `${content}<p>It has a map drawing. Keep the drawing on the map, or delete it too?</p>`, rejectClose: false,
+              buttons: [{action: 'keep', label: 'Delete Route, Keep Drawing'}, {action: 'both', label: 'Delete Route and Drawing'}, {action: 'cancel', label: 'Cancel', default: true}]})
+            : await foundry.applications.api.DialogV2.confirm({window: {title: 'Delete route?'}, content, yes: {label: 'Delete Route'}, no: {label: 'Keep'}, rejectClose: false}) ? 'keep' : 'cancel';
+          if (choice !== 'keep' && choice !== 'both') return;
+          await api().deleteRoute(d.id, {deleteDrawing: choice === 'both'});
           this.selectRoute(null); return this.render();
         }
+        case 'route-link-drawing': {
+          const saved = await this.saveRouteDraft();
+          const doc = globalThis.canvas?.drawings?.controlled?.[0]?.document ?? null;
+          if (!doc?.uuid) return ui.notifications.warn('Select a drawing on the canvas first (Drawing tools), then click Link selected drawing.');
+          await api().linkRouteDrawing(saved.id, doc.uuid);
+          ui.notifications.info('Drawing linked. Locations will show or hide it with the route.');
+          return this.render();
+        }
+        case 'route-draw': {
+          const saved = await this.saveRouteDraft();
+          await api().drawRoute(saved.id);
+          ui.notifications.info('Drew a line between the pins. Reshape it with the Drawing tools if you like.');
+          return this.render();
+        }
+        case 'route-unlink-drawing': await api().unlinkRouteDrawing(this.routeDraft.id); ui.notifications.info('Unlinked. The drawing stays on the map.'); return this.render();
         case 'route-journey-start': {
           const saved = await this.saveRouteDraft();
           const j = await api().startJourney(saved.id, {direction: el.dataset.direction});

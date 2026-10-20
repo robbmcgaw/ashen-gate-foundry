@@ -36,11 +36,15 @@
  * short history. Players read one more page in the Routes Journal (`kind: 'journey'`, every player OBSERVER) with
  * progress only (leg N of M; the ends and route only when every player may see them), and the party marker is a
  * Map Note (flag `partyMarker`) pointing at that page, moved between the route's two pins as legs are travelled.
+ *
+ * 1.12.0 drawings: a route may be linked to one scene Drawing (drawing.mjs). Its `hidden` follows the route (shown
+ * only while every player gets the full route); the party marker follows its path when it is on the marker's scene.
  */
 import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL, normalizeLocation, playerView, viewHtml, pinPresentation, notePatch, uniquePinKeys, PIN_KEY,
   normalizeNotes, notesMirror, reconcileNotes, inAudience, resolvePassConditions, newPinKey} from './model.mjs';
 import {normalizeRoute, routeAudiences, defaultLeg, endRef, routeVariantFor} from './routes.mjs';
 import {normalizeJourney, journeyView, progressFromRouteStart} from './journey.mjs';
+import {drawingShouldShow, drawingPatch, drawingPath, orientPath, pointAlong, routeLineData} from './drawing.mjs';
 
 const ROLE_GM = 'gm-data';
 const ROLE_VIEW = 'player-view';
@@ -109,6 +113,7 @@ export async function writeAll(list) {
   await syncSharedNotes(locations);
   // Endpoint visibility decides who sees a route, so route pages follow every location change.
   await syncRouteViews(readRoutes(), locations);
+  await syncRouteDrawings(readRoutes(), locations);
   await syncTravel(readTravel(), readRoutes(), locations);
   return locations;
 }
@@ -143,6 +148,7 @@ export async function writeRoutes(list, {locations = null} = {}) {
     ownership: {default: levels().NONE}, flags: {[MODULE_ID]: {role: ROLE_GM, locations: [], routes, routeIds}}});
   const locs = locations ?? readAll();
   await syncRouteViews(routes, locs);
+  await syncRouteDrawings(routes, locs);
   await syncTravel(readTravel(), routes, locs);
   return routes;
 }
@@ -268,8 +274,12 @@ export function partyMarkerSpot(travel, routes, locations, scenes = [...(game.sc
   const byId = new Map(locations.map(l => [l.id, l]));
   const a = byId.get(route?.fromId ?? ''), b = byId.get(route?.toId ?? '');
   const t = progressFromRouteStart(j);
+  const linked = route?.drawingUuid ? findDrawing(route.drawingUuid) : null;
   const spot = scene => {
     const pa = pinOn(scene, a), pb = pinOn(scene, b);
+    // 1.12.0: along the linked drawing when it is on this scene and is a simple line, else straight between the pins.
+    const path = linked?.scene === scene && pa && pb ? orientPath(drawingPath(linked.drawing), pa, pb) : null;
+    if (path) return {scene, ...(t === 0 ? pa : t === 1 ? pb : pointAlong(path, t))};
     if (pa && pb) return {scene, x: Math.round(pa.x + (pb.x - pa.x) * t), y: Math.round(pa.y + (pb.y - pa.y) * t)};
     if (pa && t === 0) return {scene, ...pa};
     if (pb && t === 1) return {scene, ...pb};
@@ -556,4 +566,67 @@ export async function migrate() {
 /** 0.8.x kept test-only data in differently-flagged Journals. Leave it alone; just say so once. */
 export function legacyJournalCount() {
   return [...game.journal].filter(j => LEGACY_ROLES.includes(j.getFlag(MODULE_ID, 'role'))).length;
+}
+
+// ---------- 1.12.0 route drawings ----------
+const DRAWING_UUID = /^Scene\.([A-Za-z0-9]+)\.Drawing\.([A-Za-z0-9]+)$/;
+/** A Drawing by uuid: {scene, drawing} or null (gone, or not a scene drawing). */
+export function findDrawing(uuid) {
+  const m = DRAWING_UUID.exec(uuid ?? '');
+  if (!m) return null;
+  const scene = [...(game.scenes ?? [])].find(s => s.id === m[1]);
+  const drawing = scene && [...(scene.drawings ?? [])].find(d => d.id === m[2]);
+  return drawing ? {scene, drawing} : null;
+}
+const routeIdOn = d => d?.getFlag?.(MODULE_ID, 'routeId') ?? d?.flags?.[MODULE_ID]?.routeId ?? null;
+const showFor = (route, locations) => drawingShouldShow(route, new Map(locations.map(l => { const n = normalizeLocation(l); return [n.id, n]; })), players().map(u => u.id));
+/** GM: sets each linked drawing's `hidden` to match its route. Touches nothing else, and no drawing re-linked elsewhere. */
+export async function syncRouteDrawings(routes = readRoutes(), locations = readAll()) {
+  assertGM();
+  for (const r of routes) {
+    const found = r.drawingUuid ? findDrawing(r.drawingUuid) : null;
+    if (!found || routeIdOn(found.drawing) !== r.id) continue;
+    const patch = drawingPatch(found.drawing, showFor(r, locations));
+    if (patch) await found.scene.updateEmbeddedDocuments('Drawing', [{_id: found.drawing.id, ...patch}]);
+  }
+}
+/** GM: binds a drawing to a route (flag on the drawing) and sets its visibility. Returns the drawing uuid. */
+export async function linkDrawing(route, uuid, locations = readAll()) {
+  assertGM();
+  const found = findDrawing(uuid);
+  if (!found) throw new Error('That drawing was not found. Select a drawing on a scene first.');
+  const other = routeIdOn(found.drawing);
+  if (other && other !== route.id) throw new Error(`That drawing is already linked to route ${other}. Unlink it there first.`);
+  await found.scene.updateEmbeddedDocuments('Drawing', [{_id: found.drawing.id, [`flags.${MODULE_ID}.routeId`]: route.id, hidden: !showFor(route, locations)}]);
+  return found.drawing.uuid ?? `${found.scene.uuid ?? `Scene.${found.scene.id}`}.Drawing.${found.drawing.id}`;
+}
+/** GM: removes the binding (the drawing itself stays, as it is). `remove`: also delete the drawing (the GM confirmed). */
+export async function unlinkDrawing(route, {remove = false} = {}) {
+  assertGM();
+  const found = route.drawingUuid ? findDrawing(route.drawingUuid) : null;
+  if (!found || routeIdOn(found.drawing) !== route.id) return false;
+  if (remove) await found.scene.deleteEmbeddedDocuments('Drawing', [found.drawing.id]);
+  else await found.scene.updateEmbeddedDocuments('Drawing', [{_id: found.drawing.id, [`flags.${MODULE_ID}.routeId`]: null}]);
+  return true;
+}
+/** GM: "Draw for me": a straight line between the two pins on `scene`, linked to the route. Returns the drawing uuid. */
+export async function drawRouteLine(route, scene, locations = readAll()) {
+  assertGM();
+  if (!scene) throw new Error('Open the scene with both pins first.');
+  const byId = new Map(locations.map(l => [l.id, l]));
+  const pa = pinOn(scene, byId.get(route.fromId)), pb = pinOn(scene, byId.get(route.toId));
+  if (!pa || !pb) throw new Error("Place both locations' pins on this scene first (Place on Scene), then Draw for me.");
+  const fillNone = globalThis.CONST?.DRAWING_FILL_TYPES?.NONE ?? 0;
+  const [d] = await scene.createEmbeddedDocuments('Drawing', [routeLineData(pa, pb, {routeId: route.id, hidden: !showFor(route, locations), fillNone})]);
+  return d.uuid ?? `${scene.uuid ?? `Scene.${scene.id}`}.Drawing.${d.id}`;
+}
+/** GM: the linked drawing's state for the editor: {status: 'none'|'linked'|'missing'|'elsewhere', sceneName, hidden, hasText}. */
+export function drawingInfo(route) {
+  assertGM();
+  if (!route.drawingUuid) return {status: 'none'};
+  const found = findDrawing(route.drawingUuid);
+  if (!found) return {status: 'missing'};
+  if (routeIdOn(found.drawing) !== route.id) return {status: 'elsewhere', sceneName: found.scene.name ?? ''};
+  return {status: 'linked', sceneName: found.scene.name ?? '', sceneUuid: found.scene.uuid ?? `Scene.${found.scene.id}`, hidden: found.drawing.hidden === true,
+    hasText: !!String(found.drawing.text ?? '').trim(), path: !!drawingPath(found.drawing)};
 }

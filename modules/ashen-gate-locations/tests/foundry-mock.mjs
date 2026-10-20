@@ -41,14 +41,16 @@ export class Journal {
   async deleteEmbeddedDocuments(_, ids) { this.pages = this.pages.filter(p => !ids.includes(p.id)); }
 }
 export class Scene {
-  constructor() { this.id = id(); this.notes = []; this.name = 'Test Scene'; }
-  async createEmbeddedDocuments(_, list) {
-    const made = list.map(d => ({id: id(), ...structuredClone(d), getFlag(s, k) { return this.flags?.[s]?.[k]; }}));
-    this.notes.push(...made); return made;
+  constructor() { this.id = id(); this.notes = []; this.drawings = []; this.name = 'Test Scene'; this.uuid = `Scene.${this.id}`; }
+  list(type) { return type === 'Drawing' ? 'drawings' : 'notes'; }
+  async createEmbeddedDocuments(type, list) {
+    const scene = this;
+    const made = list.map(d => { const did = id(); return {id: did, uuid: `${scene.uuid}.${type}.${did}`, ...structuredClone(d), getFlag(s, k) { return this.flags?.[s]?.[k]; }}; });
+    this[this.list(type)].push(...made); return made;
   }
   // Foundry merges object fields (flags, texture) on update; so does this.
-  async updateEmbeddedDocuments(_, list) { this.updates = (this.updates ?? 0) + 1; for (const d of list) merge(this.notes.find(n => n.id === d._id), d); }
-  async deleteEmbeddedDocuments(_, ids) { this.notes = this.notes.filter(n => !ids.includes(n.id)); }
+  async updateEmbeddedDocuments(type, list) { this.updates = (this.updates ?? 0) + 1; for (const d of list) merge(this[this.list(type)].find(n => n.id === d._id), expand(d)); }
+  async deleteEmbeddedDocuments(type, ids) { const k = this.list(type); this[k] = this[k].filter(n => !ids.includes(n.id)); }
 }
 
 export const gm = {id: 'gm', isGM: true};

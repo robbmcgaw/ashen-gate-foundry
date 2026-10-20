@@ -1,7 +1,7 @@
 import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL} from './model.mjs';
 import {readAll, writeAll, readViews, placeNote, legacyJournalCount, isGM, migrate, presentationOptions, readNotes, writeNotes, readPlayerNotes,
   syncSharedNotes, readSharedNotes, writeSharedNotes, isSharedNotesPage, players, pinsOf, readRoutes, writeRoutes, readRouteViews, usedRouteIds, defaultLegKm,
-  readTravel, writeTravel, readJourneyView} from './store.mjs';
+  readTravel, writeTravel, readJourneyView, linkDrawing, unlinkDrawing, drawRouteLine, drawingInfo} from './store.mjs';
 import {ROUTE_DEFAULTS} from './routes.mjs';
 import {createApi} from './api.mjs';
 import {createNotesService, SOCKET} from './party-notes.mjs';
@@ -10,7 +10,7 @@ import {LocationsApp} from './app.mjs';
 import {mountLocationLauncher} from './launcher.js';
 import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 
-const VERSION = '1.11.0';
+const VERSION = '1.12.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -82,6 +82,7 @@ Hooks.once('ready', () => {
     readAll, writeAll, readViews, placeNote, viewOptions: presentationOptions, pinsOf, playerIds: () => players().map(u => u.id),
     routes: {readAll: readRoutes, writeAll: writeRoutes, readViews: readRouteViews, usedIds: usedRouteIds, defaultLegKm},
     // Hooks 'ashenGateLocations.journeyStart' / 'journeyLeg' / 'journeyArrived' (GM client): extension points for a campaign clock or a per-leg check.
+    drawings: {link: linkDrawing, unlink: unlinkDrawing, draw: drawRouteLine, info: drawingInfo, viewedScene: () => game.scenes?.viewed ?? globalThis.canvas?.scene ?? null},
     travel: {read: readTravel, write: writeTravel, readView: readJourneyView, drawHazard, chat, emit: (event, payload) => Hooks.callAll(`ashenGateLocations.${event}`, payload)},
     sharing: {request: sharing.request},
     open: () => LocationsApp.show(),
