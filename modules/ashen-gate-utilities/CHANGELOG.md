@@ -1,3 +1,8 @@
+## 0.13.0 — 2026-10-20
+
+- **`api.rolls.open({skills, dc?, mode, actorIds?, title?})`** (GM only), for partner modules such as Locations' Travel tracker: opens Utilities on **Rolls** with the *Start Rolls* form filled in (mode *Group result* or *Individual rolls*, ticked skills, DC, characters, title). Nothing is sent to players until the GM clicks **Start Rolls**, and every field can still be changed. If a roll is already running, the Rolls tab shows it as usual and nothing is replaced. Players calling it get `GM only.`
+- No saved-data changes.
+
 ## 0.12.0 — 2026-10-20
 
 - **New API `embed.mount(element, {actorId, mode: 'stash'})`** so a partner module (Character Hub) can show the real party stash inside its own window: the purse strip and the Items list with search, open item, Take, drag in and out, coin Deposit / Take and the GM's Adjust Purse. Returns `{unmount, refresh}`; it refreshes itself on stash changes. See the README.

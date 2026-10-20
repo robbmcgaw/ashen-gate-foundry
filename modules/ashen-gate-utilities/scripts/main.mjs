@@ -1,4 +1,4 @@
-import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,conditionGroups,stashRow,historyEntry,appendHistory,approvalLabel,STASH_HISTORY_CAP,rollFormSession,normalizeTab,readGp,planGoldAward,goldAwardEntry,planGoldUndo,applyGoldUndo,goldCardHTML,COINS,COIN_LABELS,entryCoin,readCoin,readCoins,planCoinMove,planPurseAdjust,purseEntry,purseUndoable,planPurseUndo,applyPurseUndo,purseLine,PURSE_KINDS,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome} from './core.mjs';
+import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,conditionGroups,stashRow,historyEntry,appendHistory,approvalLabel,STASH_HISTORY_CAP,rollFormSession,normalizeTab,rollPrefill,ROLL_OPEN_MODES,readGp,planGoldAward,goldAwardEntry,planGoldUndo,applyGoldUndo,goldCardHTML,COINS,COIN_LABELS,entryCoin,readCoin,readCoins,planCoinMove,planPurseAdjust,purseEntry,purseUndoable,planPurseUndo,applyPurseUndo,purseLine,PURSE_KINDS,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome} from './core.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,infoDialog,formDialog} from './dialogs.mjs';
 
@@ -91,19 +91,19 @@ async function tellRejected(author,actor,reason){
  catch(e){console.warn(`[${ID}] Could not report the rejected roll`,e);}
 }
 function actorsCheckboxes(ticked=[]){const a=allCharacters(),on=new Set(ticked);return a.length?`<div class="agu-choices">${a.map(x=>`<label class="agu-inline"><input type="checkbox" name="agu-participant" value="${E(x.id)}" ${on.has(x.id)?'checked':''}> ${E(x.name)}</label>`).join('')}</div>`:empty('Create two disposable character Actors in the Actors directory before starting a check.');}
-function skillChoices(){return `<div class="agu-choices">${SKILL_IDS.map(s=>`<label class="agu-inline"><input type="checkbox" name="agu-skill" value="${E(s)}" ${['acr','ath','prc'].includes(s)?'checked':''}>${E(skillName(s))}</label>`).join('')}</div>`;}
+function skillChoices(ticked=['acr','ath','prc']){return `<div class="agu-choices">${SKILL_IDS.map(s=>`<label class="agu-inline"><input type="checkbox" name="agu-skill" value="${E(s)}" ${ticked.includes(s)?'checked':''}>${E(skillName(s))}</label>`).join('')}</div>`;}
 /** Characters ticked by default: the dnd5e Primary Party, else characters owned by connected players. */
 function partyDefaults(){try{return goldDefaults().actorIds;}catch{return [];}}
 /** One start form for both kinds: Group result (a Group Check) or Individual rolls (a Roll Request). */
 function createPanel(app){if(!isGM())return '';
  if(activeSession())return `<div class="agu-note">${E(notice())}</div>`;
- const group=app.rollMode!=='individual',radio=(v,label,hint,on)=>`<label class="agu-inline agu-mode"><input type="radio" name="agu-mode" value="${v}" ${on?'checked':''}><span><strong>${E(label)}</strong><br><small>${E(hint)}</small></span></label>`;
+ const pre=app.rollPrefill??null,group=app.rollMode!=='individual',radio=(v,label,hint,on)=>`<label class="agu-inline agu-mode"><input type="radio" name="agu-mode" value="${v}" ${on?'checked':''}><span><strong>${E(label)}</strong><br><small>${E(hint)}</small></span></label>`;
  return `<section class="ag-card agu-card"><h2>Start Rolls</h2>
  <fieldset><legend>Result</legend><div class="agu-choices">${radio('group','Group result','Everyone rolls; the average of the rolls is compared with the DC for one pass or fail.',group)}${radio('individual','Individual rolls','Each character makes one roll of one skill; each result is shown on its own.',!group)}</div></fieldset>
- <label>Title<input id="agu-title" maxlength="120" placeholder="${group?'New Group Check':'New Roll Request'}"></label>
- <fieldset><legend>Participating characters</legend>${actorsCheckboxes(partyDefaults())}</fieldset>
- <fieldset><legend>Skills</legend><p class="agu-note" id="agu-skill-hint">${group?'Characters choose from the ticked skills.':'Tick exactly one skill.'}</p>${skillChoices()}</fieldset>
- <div class="agu-compact"><label>DC <input id="agu-dc" type="number" min="0" max="100" value="15"></label><label data-group-only ${group?'':'hidden'}>Rolls per character <select id="agu-roll-count">${[1,2,3,4,5].map(n=>option(String(n),String(n),'1')).join('')}</select></label></div>
+ <label>Title<input id="agu-title" maxlength="120" placeholder="${group?'New Group Check':'New Roll Request'}" value="${E(pre?.title??'')}"></label>
+ <fieldset><legend>Participating characters</legend>${actorsCheckboxes(pre?.actorIds??partyDefaults())}</fieldset>
+ <fieldset><legend>Skills</legend><p class="agu-note" id="agu-skill-hint">${group?'Characters choose from the ticked skills.':'Tick exactly one skill.'}</p>${skillChoices(pre?.skills)}</fieldset>
+ <div class="agu-compact"><label>DC <input id="agu-dc" type="number" min="0" max="100" value="${pre?(pre.dc===null?'':E(pre.dc)):'15'}"></label><label data-group-only ${group?'':'hidden'}>Rolls per character <select id="agu-roll-count">${[1,2,3,4,5].map(n=>option(String(n),String(n),'1')).join('')}</select></label></div>
  <p class="agu-note">Leave the DC empty to record rolls without a pass or fail. Players pick advantage or disadvantage when they roll.</p>
  <div class="agu-actions">${btn('start','Start Rolls',{kind:'primary'})}</div></section>`;
 }
@@ -252,7 +252,7 @@ class UtilitiesApp extends ApplicationV2 {
   if(action==='start'){
    const val=q=>root.querySelector(q)?.value,checked=n=>[...root.querySelectorAll(`input[name="${n}"]:checked`)].map(x=>x.value);
    const session=await startRolls({mode:checked('agu-mode')[0]??this.rollMode??'group',title:val('#agu-title'),actors:checked('agu-participant'),skills:checked('agu-skill'),rollsPerActor:val('#agu-roll-count')??1,dc:val('#agu-dc')??''});
-   ui.notifications.info(`${sessionKind(session)} sent to selected players.`);return;
+   this.rollPrefill=null;ui.notifications.info(`${sessionKind(session)} sent to selected players.`);return;
   }
   if(action==='help'){await infoDialog('Utilities Help',helpHtml());return;}
   if(action==='roll'){await rollFromActor(root);return;}
@@ -945,6 +945,18 @@ function mountEmbed(element,{actorId='',mode='stash'}={}){
 }
 const refreshEmbeds=()=>{for(const e of [...embeds])e.render().catch(error);};
 function rerenderStash(doc){const stash=stashActor();if(!doc||doc.parent?.id===stash?.id||doc.id===stash?.id)refreshEmbeds();if(!windowInstance?.rendered||windowInstance.tab!=='inventory')return;if(doc&&doc.parent?.id!==stash?.id&&doc.id!==stash?.id)return;windowInstance.render().catch(error);}
+/**
+ * 0.13.0, GM only: opens Rolls with the Start Rolls form filled in from {skills, dc?, mode, actorIds?, title?}.
+ * Nothing is sent to players until the GM clicks Start Rolls; every field can still be changed.
+ */
+async function openRolls(request={}){
+ if(!isGM())throw Error('GM only.');
+ const prefill=rollPrefill(request,{characterIds:allCharacters().map(a=>a.id)});
+ if(!windowInstance||!windowInstance.rendered)windowInstance=new UtilitiesApp();
+ windowInstance.tab='rolls';windowInstance.rollMode=prefill.mode;windowInstance.rollPrefill=prefill;
+ await windowInstance.render({force:true});
+ return {app:windowInstance,prefill,busy:Boolean(activeSession())};
+}
 async function open(){if(!permitted())throw Error('Utilities access is hidden by the GM.');if(!windowInstance||!windowInstance.rendered)windowInstance=new UtilitiesApp();await windowInstance.render({force:true});return windowInstance;}
 function refreshWindows(){
  if(!permitted()&&!isGM()){
@@ -988,6 +1000,7 @@ Hooks.once('ready',()=>{
  m.api={version:VERSION,contract:'ag-utilities/0.2-alpha',open,playerAccess:{contract:'ag-player-access/1',getState:()=>({contract:'ag-player-access/1',moduleId:ID,audience:'player',playerAccessEnabled:game.settings.get(ID,'playerAccessEnabled'),configurable:true}),setEnabled:async enabled=>{if(!isGM())throw Error('GM only.');if(typeof enabled!=='boolean')throw TypeError('Boolean required.');await game.settings.set(ID,'playerAccessEnabled',enabled);return m.api.playerAccess.getState();}},
   conditions:{contract:'ag-utilities-conditions/1',isUnlocked:actorId=>isUnlocked(getUnlocks(),actorId),setUnlocked,canRemove:(actorId,statusId)=>canRemove(game.actors.get(actorId),statusId),remove:removeCondition,openOverlay:async()=>{await game.settings.set(ID,'overlayOpen',true);return openOverlay();},closeOverlay:()=>game.settings.set(ID,'overlayOpen',false)},
   stash:{contract:'ag-utilities-stash/1',isEnabled:stashEnabled,setEnabled:setStashEnabled,isVoteRequired:stashVoteRequired,setVoteRequired:setStashVoteRequired,history:stashHistory,clearHistory:clearStashHistory,open:openStash,deposit:depositItem,withdraw:withdrawItem,listItems:listStashItems},
+  rolls:{contract:'ag-utilities-rolls/1',modes:[...ROLL_OPEN_MODES],skills:[...SKILL_IDS],open:openRolls},
   embed:{contract:'ag-utilities-embed/1',modes:[...EMBED_MODES],mount:mountEmbed},
   purse:{contract:'ag-utilities-purse/1',coins:COINS,isVoteRequired:purseVoteRequired,setVoteRequired:setPurseVoteRequired,totals:purseTotals,deposit:depositCoins,take:takeCoins,adjust:adjustPurse,undo:undoPurseEntry,openAdjust:adjustPurseDialog},
   awardGold,undoGoldAward,gold:{contract:'ag-utilities-gold/1',award:awardGold,undo:undoGoldAward,defaultRecipients:()=>{if(!isGM())throw Error('GM only.');return goldDefaults();},openDialog:awardGoldDialog}};

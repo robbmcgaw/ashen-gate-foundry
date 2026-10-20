@@ -23,7 +23,27 @@ Player actions that change shared state (stash moves, condition removal) are car
 
 ## Public API
 
-`game.modules.get('ashen-gate-utilities').api`: `open`, `playerAccess` (`ag-player-access/1`), `conditions` (`isUnlocked`, `setUnlocked`, `canRemove`, `remove`, `openOverlay`) and `stash` (`isEnabled`, `setEnabled`, `isVoteRequired`, `setVoteRequired`, `history`, `clearHistory`, `open`, `deposit`, `withdraw`, `listItems`), `embed` (`mount`), plus GM-only `awardGold({amount, mode, actorIds, reason, public})` and `undoGoldAward(entryId)` (also as `gold`).
+`game.modules.get('ashen-gate-utilities').api`: `open`, `playerAccess` (`ag-player-access/1`), `conditions` (`isUnlocked`, `setUnlocked`, `canRemove`, `remove`, `openOverlay`) and `stash` (`isEnabled`, `setEnabled`, `isVoteRequired`, `setVoteRequired`, `history`, `clearHistory`, `open`, `deposit`, `withdraw`, `listItems`), `embed` (`mount`), `rolls` (`open`, GM only), plus GM-only `awardGold({amount, mode, actorIds, reason, public})` and `undoGoldAward(entryId)` (also as `gold`).
+
+### `rolls.open(request)` (0.13.0, GM only)
+
+Opens Utilities on the **Rolls** tab with the *Start Rolls* form filled in. It starts nothing: the GM reviews or changes the form and clicks **Start Rolls**.
+
+```js
+const rolls = game.modules.get('ashen-gate-utilities')?.api?.rolls;
+if (game.user.isGM && rolls?.open) {
+  await rolls.open({skills: ['sur'], mode: 'group', dc: 15, actorIds: ['<actorId>'], title: 'Foraging'});
+  // → {app, prefill: {mode, skills, dc, actorIds, title}, busy}
+}
+```
+
+- `skills`: dnd5e skill ids (`rolls.skills` lists them: `acr` … `sur`). Unknown ids are dropped; at least one must remain. *Individual rolls* keeps the first only.
+- `mode`: `'group'` (*Group result*) or `'individual'` (*Individual rolls*); anything else throws.
+- `dc` (optional): whole number 0–100; omitted → the form's usual 15; `null` → no DC.
+- `actorIds` (optional): character Actor ids to tick; ids that are not characters are dropped. Omitted → the usual party default.
+- `title` (optional, up to 120 characters).
+- `busy` is true when a roll is already running; the tab then shows that roll and the form waits until it ends.
+- **Permission:** GM only, rejected in the API (`GM only.`), not just hidden.
 
 ### `stash.listItems()` (0.11.0)
 
