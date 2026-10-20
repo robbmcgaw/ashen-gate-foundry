@@ -176,27 +176,52 @@ test('player requests: unrevealed, hidden, foreign and exhausted are refused wit
  assert.equal(nextSent('gather-request-result')?.toUserId,'u1');
 });
 
-test('player request → GM popup: decline tells the player; approve sends the roll prompt to the lead’s owner',async()=>{
- // Decline.
- game.user=alice;sent.length=0;
- let pending=api.gathering.request({actorId:'belwar',locationId:'LOC-TG-MEADOW',nodeId:'n1',helperIds:['tarra']});await flush();
- const req=nextSent('gather-request');assert.ok(req);
- game.user=gm;let handled=_test.onSocket(req,'u1');await flush();
- let popup=dialogs.at(-1);assert.match(popup.opts.content,/Alice<\/strong> asks for <strong>\[TEST\] Belwar/);assert.match(popup.opts.content,/Carries Herbalism Kit — gives advantage/);
- popup.click('decline');await handled;
- let res=nextSent('gather-request-result');game.user=alice;await _test.onSocket(res,'gm');
- assert.deepEqual(await pending,{ok:false,message:'The GM declined the gathering request.'});
- assert.equal(_test.gatherSessions.size,0);
- // Approve.
- pending=api.gathering.request({actorId:'belwar',locationId:'LOC-TG-MEADOW',nodeId:'n1',helperIds:['tarra']});await flush();
- game.user=gm;handled=_test.onSocket(nextSent('gather-request'),'u1');await flush();
- dialogs.at(-1).click('approve');await handled;
- assert.equal(_test.gatherSessions.size,1);
+test('player request → GM queue (0.21.0): decline with a reason tells the player; one per character, rate limited; approve sends the roll prompt to the lead’s owner',async()=>{
+ _test.setGatherRequestCooldown(0);
+ const ask=async()=>{game.user=alice;sent.length=0;const pending=api.gathering.request({actorId:'belwar',locationId:'LOC-TG-MEADOW',nodeId:'n1',helperIds:['tarra']});await flush();
+  const req=nextSent('gather-request');game.user=gm;await _test.onSocket(req,'u1');const res=nextSent('gather-request-result');game.user=alice;await _test.onSocket(res,'gm');return {res,out:await pending};};
+ // Queued: no popup, the player is told it waits, the GM sees it in the Gathering tab.
+ const popups=dialogs.length;
+ let {res,out}=await ask();
+ assert.equal(dialogs.length,popups,'no approval popup any more');
+ assert.equal(res.status,'queued');assert.equal(out.ok,true);assert.equal(out.status,'queued');
+ assert.match(await html('gathering'),/\[TEST\] Belwar’s request \(Herb patch at \[TEST\] Meadow\) is waiting for the GM/);
+ assert.match(await html('gathering'),/data-action="gather-request" disabled/);
+ assert.deepEqual(await api.gathering.request({actorId:'belwar',locationId:'LOC-TG-MEADOW',nodeId:'n1'}),{ok:false,status:'refused',message:'[TEST] Belwar already has a gathering request waiting for the GM.'});
+ game.user=gm;
+ let h=await html('gathering');
+ assert.match(h,/Alice<\/strong> asks for <strong>\[TEST\] Belwar<\/strong> to gather/);assert.match(h,/\[TEST\] Tarra \(Carries Herbalism Kit — gives advantage\)/);
+ assert.match(h,/data-action="gather-approve"/);assert.match(h,/data-action="gather-decline"/);
+ const [q]=api.gathering.requests();assert.deepEqual([q.actorName,q.requesterName,q.title],['[TEST] Belwar','Alice','Herb patch']);
+ assert.equal((await _test.handleGatherRequest({type:'gather-request',requestId:'dup',requesterId:'u1',actorId:'belwar',locationId:'LOC-TG-MEADOW',nodeId:'n1'},'u1')).ok,false,'a forged second request is refused on the GM side too');
+ // Players cannot see, approve or decline the queue.
+ game.user=alice;
+ assert.throws(()=>api.gathering.requests(),/Only the GM/);await assert.rejects(api.gathering.approve(q.requestId),/Only the GM/);assert.throws(()=>api.gathering.decline(q.requestId),/Only the GM/);
+ // Decline with a reason (plain text only).
+ game.user=gm;sent.length=0;
+ app.element={querySelector:sel=>sel===`[data-gather-decline-reason="${q.requestId}"]`?{value:'Not <b>tonight</b>'}:null,querySelectorAll:()=>[]};
+ await app._click('gather-decline',q.requestId);
+ res=nextSent('gather-request-result');
+ assert.deepEqual([res.toUserId,res.status,res.ok],['u1','declined',false]);assert.equal(res.message,'The GM declined [TEST] Belwar’s gathering request: Not btonight/b');
+ assert.deepEqual(api.gathering.requests(),[],'cleared when handled');assert.equal(_test.gatherSessions.size,0);
+ game.user=alice;await _test.onSocket({...res,message:'forged'},'u2');assert.equal(_test.myGatherRequests.size,1,'a result from a player is ignored');
+ errors.length=0;await _test.onSocket(res,'gm');
+ assert.equal(_test.myGatherRequests.size,0);assert.ok(errors.includes(res.message),'the player is notified');
+ // Rate limit per character.
+ _test.setGatherRequestCooldown(60000);
+ ({res,out}=await ask());assert.equal(out.ok,false);assert.match(out.message,/Wait \d+ s before asking again for \[TEST\] Belwar/);
+ _test.setGatherRequestCooldown(0);
+ // Approve: starts the gather exactly like the GM's Start.
+ ({res,out}=await ask());assert.equal(out.status,'queued');
+ game.user=gm;sent.length=0;
+ await app._click('gather-approve',api.gathering.requests()[0].requestId);
+ assert.equal(_test.gatherSessions.size,1);assert.deepEqual(api.gathering.requests(),[]);
  const prompt=nextSent('gather-roll');assert.deepEqual(prompt.toUserIds,['u1'],'only Belwar’s owner is asked to roll');
  assert.equal(prompt.title,'Herb patch at [TEST] Meadow');assert.equal(prompt.dc,10);assert.deepEqual(prompt.assists,['[TEST] Tarra']);
  assert.equal(prompt.selected,'skill:nat','no herbalism kit on Belwar: Nature is preselected');
- res=nextSent('gather-request-result');game.user=alice;await _test.onSocket(res,'gm');
- assert.equal((await pending).ok,true);
+ res=nextSent('gather-request-result');assert.equal(res.status,'approved');
+ game.user=alice;infos.length=0;await _test.onSocket(res,'gm');
+ assert.equal(_test.myGatherRequests.size,0);assert.ok(infos.some(m=>/Approved\. \[TEST\] Belwar’s gathering check is ready to roll/.test(m)));
  // Bob is not addressed and gets no popup; Alice does.
  game.user=bob;const n=dialogs.length;await _test.onSocket(prompt,'gm');assert.equal(dialogs.length,n);
  game.user=alice;await _test.onSocket(prompt,'gm');
@@ -520,4 +545,24 @@ test('0.14.1: a Locations node with no material reads "award by hand" for the GM
   assert.equal(out.ok,false);assert.equal(dialogs.length,before);
   assert.equal(out.message,'The GM handles this spot at the table: ask them.');
  }finally{locs.pop();game.user=gm;app.gather.nodeRef='';}
+});
+
+test('0.21.0: GM Send label, GM cannot request, stale approvals are removed, a GM reload clears players’ waiting requests',async()=>{
+ locs[0].resources.push({id:'n10',label:'Late patch',skill:'Herbalism',tier:1,dc:10,dcVisible:true,materialId:'MAT-TG-HERB',finite:true,visible:true});
+ game.user=gm;for(const id of [..._test.gatherSessions.keys()])_test.cancelGather(id);_test.resetGatherRequests();_test.setGatherRequestCooldown(0);
+ app.gather.source='location';app.gather.actorId='belwar';app.gather.nodeRef='LOC-TG-MEADOW|n10';
+ assert.match(await html('gathering'),/Send gathering check to Alice/);
+ await assert.rejects(api.gathering.request({actorId:'belwar',locationId:'LOC-TG-MEADOW',nodeId:'n10'}),/The GM starts gathering directly/);
+ sent.length=0;
+ const q=await _test.handleGatherRequest({type:'gather-request',requestId:'stale',requesterId:'u1',actorId:'belwar',locationId:'LOC-TG-MEADOW',nodeId:'n10'},'u1');
+ assert.equal(q.status,'queued',q.message);
+ values.partyRoster=['tarra'];
+ try{await assert.rejects(api.gathering.approve('stale'),/Request removed: That character is not in the party/);}
+ finally{values.partyRoster=['belwar','tarra'];}
+ assert.deepEqual(api.gathering.requests(),[]);assert.equal(_test.gatherSessions.size,0);
+ assert.equal(sent.filter(s=>s.msg.type==='gather-request-result').at(-1).msg.status,'declined','the player is told it cannot go ahead');
+ game.user=alice;_test.myGatherRequests.set('belwar',{requestId:'x',title:'t'});infos.length=0;
+ await _test.onSocket({type:'gather-requests-cleared'},'u2');assert.equal(_test.myGatherRequests.size,1,'only the GM can clear');
+ await _test.onSocket({type:'gather-requests-cleared'},'gm');assert.equal(_test.myGatherRequests.size,0);assert.ok(infos.some(m=>/GM reloaded/.test(m)));
+ game.user=gm;app.gather.nodeRef='';locs[0].resources.pop();
 });

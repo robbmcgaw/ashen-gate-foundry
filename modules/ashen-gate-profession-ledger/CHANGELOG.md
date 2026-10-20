@@ -1,3 +1,14 @@
+## 0.21.0 — 2026-10-20
+
+- **Gathering requests wait in a queue.** A player's **Request gather** (on a node they can see, for a character they own) no longer opens a popup on the GM's screen. It appears under **Requests** at the top of the GM's Gathering tab, with the node, helpers, and a profession or level warning when there is one.
+  - **Approve** starts the gather exactly as *Start gathering check* does: the lead's owner gets the roll prompt.
+  - **Decline** takes an optional reason (plain text), which the player is shown.
+  - The player is told the request is waiting, then told the answer.
+- One waiting request per character and a 30 s cooldown per character, checked on the GM's side. Requests are cleared when handled. A request that is no longer valid when approved (node gone, character left the party) is removed, and the player is told. The queue lives on the GM's client: after a GM reload, players are told their waiting requests were cleared.
+- The GM's start button now says **Send gathering check to <player>** when the lead's owner is online (or *Start gathering check (you roll)*).
+- API: `gathering.requests()`, `gathering.approve(requestId)`, `gathering.decline(requestId, {reason})`, all GM only. `gathering.request` is for players only. Players still can't start, resolve or cancel.
+- XP from gather cards is unchanged: the GM still confirms each award. No saved data changes.
+
 ## 0.20.0 — 2026-10-20
 
 - **Crosswalk items.** Each profession can list core items that qualify a character just by being carried. Items are matched by name in any case, or by an Item/Compendium UUID: the item's own, its compendium source, or General Manager's core link. Fishing's built-in qualifying item is **Fishing Tackle** (core 5.5e gear, not a tool). Assign proposes Fishing for a character carrying it, with the reason *Fishing Tackle (carried) → Fishing*. A stack of 0 doesn't count.
