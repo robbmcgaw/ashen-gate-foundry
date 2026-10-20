@@ -24,6 +24,7 @@ import {buildImportReport, buildBlockedReport, pushReport} from './import-result
 import {ITEM_FLAG, ACTOR_ITEMS_FLAG, itemKeys, matchActors, planActor, applyActorUpdate} from './actor-update.js';
 import {mediaFilename} from './zip-import.js';
 import {createSceneMoods, MOODS_SETTING, MOOD_FIELDS, NO_WEATHER} from './scene-moods.js';
+import {createCoreLinks, SOURCES_SETTING, LINK_HISTORY_SETTING} from './core-links.js';
 import {createOrganizer, folderIndex, ORGANIZE_TYPES, SCHEMA_SETTING, HISTORY_SETTING, FLAG_PROTECTED} from './organize.js';
 import {createBrowse, PAGE_SIZE} from './browse.js';
 import {toolbarHtml, bodyHtml, DEFAULT_STATE} from './browse-view.js';
@@ -55,6 +56,7 @@ function docWrapper(doc) {
     documentName: doc.documentName,
     type: doc.type,
     flag: sourceFlag(doc),
+    coreLink: doc.getFlag(MODULE_ID, "coreLink") ?? null,
     get: path => getPath(doc, path)
   };
 }
@@ -166,7 +168,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.25.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.26.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -227,6 +229,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.orgSchemaText = null;
     this.orgReport = null;
     this.orgMessage = "Preview shows exactly what would move. Organize only changes which folder a document is in.";
+    this.clPreview = null;
+    this.clTicked = new Set();
+    this.clLinkOnly = new Set();
+    this.clMessage = "Scan finds 2024 core items for Ashen Gate world Items that carry core_ref. Nothing changes until Apply.";
+    this.setupMessage = "";
     this.applyProfile();
   }
 
@@ -415,6 +422,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       moods: this.tab === "scenes" ? this.#moodContext() : null,
       organizeActive: this.tab === "organize",
       org: this.tab === "organize" ? this.#organizeContext() : null,
+      coreLinksActive: this.tab === "corelinks",
+      cl: this.tab === "corelinks" ? this.#coreLinkContext() : null,
+      setupActive: this.tab === "setup",
+      setup: this.tab === "setup" ? coreLinks().describeSources() : null,
+      setupMessage: this.setupMessage,
       hasPackage: Boolean(this.pkg || this.specialist),
       isSpecialist: Boolean(this.specialist),
       specialistLabel: this.specialist ? SPECIALISTS[this.specialist.kind].label : '',
@@ -591,6 +603,12 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       void this.render();
     }));
     this.#bindOrganize(root);
+    root.querySelectorAll('[data-ag-cl-tick]').forEach(el=>el.addEventListener('change',e=>{
+      const id=e.target.dataset.agClTick;if(e.target.checked)this.clTicked.add(id);else this.clTicked.delete(id);void this.render();
+    }));
+    root.querySelectorAll('[data-ag-cl-linkonly]').forEach(el=>el.addEventListener('change',e=>{
+      const id=e.target.dataset.agClLinkonly;if(e.target.checked)this.clLinkOnly.add(id);else this.clLinkOnly.delete(id);
+    }));
   }
 
   async #action(name) {
@@ -660,6 +678,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         break;
       }
       case "org-preview": case "org-apply": case "org-backup": case "org-undo": case "org-clear": case "org-housekeeping":
+      case "cl-scan": case "cl-apply": case "cl-backup": case "cl-undo": case "cl-clear": case "setup-save": await this.#coreLinkAction(name); break;
       case "org-schema-edit": case "org-schema-save": case "org-schema-cancel": case "org-schema-export": case "org-schema-reset": await this.#organizeAction(name); break;
       case "library-check": this.#runAudit(); this.libraryMessage="Library check finished: results are listed above."; await this.render(); break;
       case "appearance-save-world": {
@@ -1561,6 +1580,72 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.browseUnsub=browse().subscribe(()=>{if(this.rendered&&this.tab==='browse'&&el.isConnected)paint();});
     paint();
   }
+  #coreLinkContext() {
+    const p=this.clPreview;
+    const GROUPS=[['adopt','Adopt core data and link'],['link','Link only'],['relink','Re-link (linked core item is gone)'],['review','Needs your review (MEDIUM / LOW match)'],['nomatch','No 2024 core match'],['linked','Already linked']];
+    return {message:this.clMessage, history:coreLinks().history().map(h=>({at:h.at.replace('T',' ').slice(0,16),count:h.rows.length,adopted:h.rows.filter(r=>r.adopted).length})),
+      preview:p?{counts:p.counts,withoutRef:p.withoutRef,poolSize:p.poolSize,notes:p.notes,tickedCount:p.rows.filter(r=>this.clTicked.has(r.id)).length,
+        groups:GROUPS.map(([status,label])=>({status,label,rows:p.rows.filter(r=>r.status===status).map(r=>({...r,
+          selectable:['adopt','link','relink','review'].includes(r.status),ticked:this.clTicked.has(r.id),linkOnly:this.clLinkOnly.has(r.id),
+          refText:[r.coreRef.name,r.coreRef.source,r.coreRef.type,r.coreRef.rarity].filter(Boolean).join(' · '),
+          matchedOn:r.best?.matchedOn?.join(', ')??'',diffCount:r.diff.length,hasOthers:r.others.length>0}))})).filter(g=>g.rows.length)}:null};
+  }
+  async #coreLinkAction(name) {
+    const api=coreLinks();
+    const say=(text,error=false)=>{this.clMessage=text;toast(text,error);};
+    switch(name){
+      case 'cl-scan': {
+        const out=await api.preview();
+        if(!out.ok){say(out.message,true);break;}
+        this.clPreview=out;this.clTicked=new Set(out.rows.filter(r=>r.ticked).map(r=>r.id));this.clLinkOnly=new Set();
+        this.clMessage=`Scan: ${out.rows.length} item(s) with core_ref checked against ${out.poolSize} 2024 core item(s). HIGH matches are ticked. Nothing has changed yet.`;
+        break;
+      }
+      case 'cl-backup': {
+        if(!this.clPreview||!this.clTicked.size){say('Scan and tick at least one item first.',true);break;}
+        downloadJson(`AG_CoreLink_Backup_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`,api.backupOf(this.clPreview,[...this.clTicked]));
+        say('Downloaded the current image, data and link of every ticked item. Nothing in the world changed.');break;
+      }
+      case 'cl-apply': {
+        const rows=this.clPreview?.rows.filter(r=>this.clTicked.has(r.id))??[];
+        if(!rows.length){say('Scan and tick at least one item first.',true);break;}
+        const adopt=rows.filter(r=>r.canAdopt&&!this.clLinkOnly.has(r.id)).length;
+        const yes=await DialogV2.confirm({window:{title:'Link core items'},modal:true,rejectClose:false,
+          content:`<p><strong>Link ${rows.length} world item(s) to their 2024 core item, and replace the image and data of ${adopt} of them with the core item's?</strong></p><p>Names, Ashen Gate ids, folders, ownership and module data stay. Copies already in player inventories are not touched. You can <strong>Undo last core link</strong> afterwards.</p>`,
+          yes:{label:'Link core items'},no:{label:'Cancel'}});
+        if(!yes)return;
+        this.busy=true;
+        try{
+          const out=await api.apply({ids:[...this.clTicked],linkOnly:[...this.clLinkOnly]});
+          if(!out.ok){say(out.message,true);break;}
+          const again=await api.preview();
+          this.clPreview=again.ok?again:null;this.clTicked=new Set();this.clLinkOnly=new Set();
+          say(out.message+(out.failed.length?` ${out.failed.slice(0,5).join('; ')}`:''),out.failed.length>0);
+        }finally{this.busy=false;}
+        break;
+      }
+      case 'cl-undo': {
+        const last=api.history()[0];
+        if(!last){say('There is no core-link run to undo.',true);break;}
+        const yes=await DialogV2.confirm({window:{title:'Undo last core link'},modal:true,rejectClose:false,
+          content:`<p><strong>Put back the image, data and link of the ${last.rows.length} item(s) linked on ${escapeHtml(last.at.replace('T',' ').slice(0,16))}?</strong> Items changed since then are left as they are.</p>`,
+          yes:{label:'Undo last core link'},no:{label:'Cancel'}});
+        if(!yes)return;
+        const out=await api.undoLast();
+        this.clPreview=null;say(out.ok?out.message:out.message,!out.ok);break;
+      }
+      case 'cl-clear': this.clPreview=null;this.clTicked=new Set();this.clMessage='Scan cleared. Nothing changed.';break;
+      case 'setup-save': {
+        const root=this.element;
+        const out=await api.saveSources({auto:root.querySelector('[data-ag-setup-auto]')?.checked!==false,
+          packs:[...root.querySelectorAll('[data-ag-setup-pack]:checked')].map(el=>el.dataset.agSetupPack),
+          folders:[...root.querySelectorAll('[data-ag-setup-folder]:checked')].map(el=>el.dataset.agSetupFolder)});
+        this.setupMessage=out.ok?'Core sources saved. Scan again in Core Links to use them.':out.message;
+        toast(this.setupMessage,!out.ok);this.clPreview=null;break;
+      }
+    }
+    await this.render();
+  }
   #fail(error) {
     console.error(`[${MODULE_ID}]`,error);
     this.message=String(error?.message??error);
@@ -1613,6 +1698,8 @@ let browseApi=null;
 const browse=()=>browseApi??=createBrowse({game,hooks:Hooks,fromUuid:uuid=>(globalThis.fromUuid??foundry.utils.fromUuid)(uuid)});
 const sceneMoods=()=>sceneMoodsApi??=createSceneMoods({game});
 let organizerApi=null;
+let coreLinksApi=null;
+const coreLinks=()=>coreLinksApi??=createCoreLinks({game});
 const organizer=()=>organizerApi??=createOrganizer({game});
 Hooks.once("init",()=>{
   registerAppearanceSettings({game,namespace:MODULE_ID,onSettingChange:(key,value)=>appearanceController?.noteChange(key,value)});
@@ -1622,6 +1709,9 @@ Hooks.once("init",()=>{
   game.settings.register(MODULE_ID,MOODS_SETTING,{name:"Scene mood presets",scope:"world",config:false,type:Array,default:[]});
   // Organize folders (0.25.0). Empty schema means "use the shipped default rules"; history holds the last runs' previous folder ids for Undo.
   game.settings.register(MODULE_ID,SCHEMA_SETTING,{name:"Organize rules",scope:"world",config:false,type:Array,default:[]});
+  // Core links (0.26.0): which packs/folders count as 2024 core sources (auto-detect on by default) and the last runs for Undo.
+  game.settings.register(MODULE_ID,SOURCES_SETTING,{name:"Core sources",scope:"world",config:false,type:Object,default:{auto:true,packs:[],folders:[]}});
+  game.settings.register(MODULE_ID,LINK_HISTORY_SETTING,{name:"Core link history",scope:"world",config:false,type:Array,default:[]});
   game.settings.register(MODULE_ID,HISTORY_SETTING,{name:"Organize history",scope:"world",config:false,type:Array,default:[]});
   game.settings.registerMenu(MODULE_ID,"manager",{
     name:"Ashen Gate Manager", label:"Open Import Manager", icon:"fa-solid fa-boxes-stacked",
@@ -1680,6 +1770,8 @@ Hooks.once("ready",()=>{
     backup:()=>saveBackup(game,{save:downloadJson}),
     // GM-only scene moods (0.22.0); every function checks the GM itself and returns {ok,message}.
     // GM-only organize folders (0.25.0); every function checks the GM itself. Only the folder field is ever written.
+    // GM-only core links (0.26.0): link AG world Items with core_ref to 2024 core items; every function checks the GM itself.
+    coreLinks:(({preview,apply,undoLast,history,describeSources,saveSources})=>({preview,apply,undoLast,history,describeSources,saveSources}))(coreLinks()),
     organize:(({listSources,preview,apply,undoLast,history,getSchema,saveSchema,resetSchema,setFolderProtected,setKeepFolder,housekeeping})=>({listSources,preview,apply,undoLast,history,getSchema,saveSchema,resetSchema,setFolderProtected,setKeepFolder,housekeeping}))(organizer()),
     // GM-only, read-only Browse index (0.24.0); every function checks the GM itself.
     browse:(({getIndex,search,detail,refresh,loadCompendiums,status,dragData,open})=>({getIndex,search,detail,refresh,loadCompendiums,status,dragData,open}))(browse()),
@@ -1703,7 +1795,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.25.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.26.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */

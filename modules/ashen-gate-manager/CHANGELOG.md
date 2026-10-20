@@ -1,3 +1,12 @@
+## 0.26.0 — 2026-10-20
+
+- **Core Links** (new GM-only tab). **Scan** checks every Ashen Gate world Item whose source data has `core_ref` against 2024 (5.5e) core items. It looks in this order: world items imported by Plutonium or marked 2024, 2024 entries in world compendiums, the GM's core sources, then the dnd5e 2024 packs. Legacy 2014 content is never used. Items without `core_ref` are never touched.
+- Matches are HIGH (same name, type, and the `core_ref` book/rarity when given), MEDIUM (same name, something else differs) or LOW (similar name). Only HIGH is ticked; MEDIUM and LOW need your tick. Each row shows the source (e.g. "Plutonium world item", "dnd5e 2024 pack: …"), other candidates and a field diff.
+- **Apply** (with confirmation) always stores the link (`flags.ashen-gate-manager.coreLink`: uuid, source, name, type, matched on, confidence, date) and, by default, **adopts** the core item's image and data (description included). Name, Ashen Gate id, Manager source data, folder and ownership stay. Adopt falls back to **link only** (with the reason shown) when it would change the item type or lose the stack quantity the Ledger and Utilities use; any row can be set to Link only. **Download backup** and **Undo last core link** (last 5 runs). Re-running changes nothing; a link whose core item is gone shows as **Re-link**.
+- **Re-import:** an adopted item's image and data are a known local edit. The preview says "Core-linked to …: keeps the adopted core image and data" and does not overwrite, conflict or block on them; other fields (e.g. name) still update. Library's "replace from source" refuses core-adopted items until the link is undone.
+- **GM Setup** tab (new): **Core sources**: automatic detection on/off, plus extra compendiums and world Item folders to treat as core sources.
+- World Items only: copies in player inventories or on Actors are never touched. GM only, enforced in the API (`api.coreLinks.preview / apply / undoLast / describeSources / saveSources`). New world settings `coreSources` and `coreLinkHistory`. No migration.
+
 ## 0.25.0 — 2026-10-20
 
 - **Organize folders** (new GM-only **Organize** tab). Files world Items, Actors and Journals (or one unlocked world compendium) into a structured folder tree, e.g. `Core 5.5e/Items/Uncommon Magic`, `Core 5.5e/Spells/Level 3`, `Ashen Gate/Professions/Apprentice/Materials`. Re-run any time: anything already in place is left alone, so a second run changes nothing.
