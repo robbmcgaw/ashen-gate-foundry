@@ -4,9 +4,10 @@
  */
 import {MODULE_ID, esc, signed} from './constants.mjs';
 import {headerData, abilitiesData, skillsData} from './data.mjs';
+import {btn} from './buttons.mjs';
+import {ITEM_TABS} from './tabs.mjs';
 
-export const btn = (action, label, {kind = '', icon = '', data = {}, title = '', disabled = false, always = false, extra = ''} = {}) =>
-  `<button type="button" class="ag-btn${kind ? ` ag-btn--${kind}` : ''}${extra ? ` ${extra}` : ''}" data-action="${action}"${Object.entries(data).map(([k, v]) => ` data-${k}="${esc(v)}"`).join('')}${title ? ` title="${esc(title)}" aria-label="${esc(title)}"` : ''}${disabled ? ' disabled' : ''}${always ? ' data-ag-always' : ''}>${icon ? `<i class="${icon}" aria-hidden="true"></i>` : ''}${label ? `<span>${esc(label)}</span>` : ''}</button>`;
+export {btn};
 
 const stat = (label, value, extra = '') => `<div class="agch-stat"><span class="agch-stat__label">${esc(label)}</span><span class="agch-stat__value">${value}</span>${extra}</div>`;
 
@@ -64,7 +65,8 @@ function characterTab(ctx) {
 
 /** The tab registry, in display order. Later views are appended here; reorder by moving entries. */
 export const TABS = [
-  {id: 'character', label: 'Character', icon: 'fa-solid fa-user', render: characterTab}
+  {id: 'character', label: 'Character', icon: 'fa-solid fa-user', render: characterTab},
+  ...ITEM_TABS
 ];
 
 export function tabsHtml(active) {

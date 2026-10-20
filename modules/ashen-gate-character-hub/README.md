@@ -5,9 +5,17 @@ An alternative character sheet for dnd5e 6 on Foundry V14. It shows and changes 
 ## Open it
 Open a character → the sheet's title-bar menu (**Sheet** / gear) → choose **Ashen Gate Character Hub**. Switch back the same way. It is never the default unless you pick it. **Open native sheet** in the Hub's header opens the standard dnd5e sheet at any time.
 
-## What it does (0.1.0)
+## What it does (0.2.0)
 - Header: portrait, name, species, class/subclass, level, HP (Damage/Heal, edit current/temp/max adj.), AC, initiative roll, speed, proficiency, inspiration, exhaustion, hit dice, resources, conditions.
 - Character tab: abilities (check and save rolls), skills (rolls, proficiency markers, passive).
+- Combat: initiative, death save at 0 HP, weapons and usable features with **Use** (dnd5e's `item.use()`).
+- Inventory: categories, containers, quantity, equip/attune, currency, Use for consumables, and the **Equipment** paper doll (display only, no slot rules). Equipping an item that needs attunement asks first; at the limit it lists attuned items to unattune.
+- Magic: spells by level with slots, **Cast** (dnd5e casting dialog), Prepare toggle where dnd5e allows.
+- Features: class/species/background and features by type.
+- Rest: Short/Long Rest through dnd5e's rest dialogs.
+
+## Saved data
+Only `flags.ashen-gate-character-hub.slot` on an Item, when the owner moves it to another paper-doll box. It changes only where the item shows.
 
 ## Permissions
 Owners and the GM can change and roll. Observers can look only (the actions refuse them too, not just the buttons). Limited viewers see portrait and name.
