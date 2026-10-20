@@ -208,9 +208,9 @@ export class LocationsApp extends Base {
       if (this.gm && this.selectedId && !this.draft) this.select(this.selectedId);
     }
     const version = game.modules.get(MODULE_ID)?.version ?? '';
-    // 1.10.0: players get a Routes tab only once some route is visible to them.
+    // 1.10.0: players get a Routes tab only once some route is visible to them (1.11.0: or the party is travelling).
     const tabs = this.gm ? [['locations', 'Locations'], ['routes', 'Routes'], ['setup', 'GM Setup']]
-      : api().listRoutes().length ? [['locations', 'Locations'], ['routes', 'Routes']] : [['locations', 'Locations']];
+      : api().listRoutes().length || api().getJourney()?.status === 'active' ? [['locations', 'Locations'], ['routes', 'Routes']] : [['locations', 'Locations']];
     return `<div class="agl-root">
       <header class="ag-header"><h1>Ashen Gate | Locations</h1><div class="ag-header__actions"><span class="ag-version">v${esc(version)}</span>${btn('help', 'Help', {kind: 'ghost', icon: 'fa-solid fa-circle-question'})}</div></header>
       ${tabs.length > 1 ? `<nav class="ag-tabs" aria-label="Locations sections">${tabs.map(([k, l]) => `<button type="button" data-tab="${k}" class="${this.tab === k ? 'active' : ''}">${l}</button>`).join('')}</nav>` : ''}

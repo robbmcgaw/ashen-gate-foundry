@@ -93,7 +93,7 @@ export const routeTouches = (route, id) => route.fromId === id || route.toId ===
 /** May this player see this endpoint at all? (Not Hidden, has published content, in its audience.) */
 export const endVisibleTo = (loc, userId) => !!loc && loc.state !== 'hidden' && !!loc.published && inAudience(loc, userId);
 /** An endpoint as players see it: a revealed place by name (and id), an unidentified one by its label and key only. */
-const endRef = (loc, label) => loc.state === 'revealed'
+export const endRef = (loc, label) => loc.state === 'revealed'
   ? {id: loc.id, key: loc.pinKey, name: loc.published.name}
   : {key: loc.pinKey, name: loc.published.unidentifiedLabel || line(label, 80) || DEFAULT_UNIDENTIFIED_LABEL};
 

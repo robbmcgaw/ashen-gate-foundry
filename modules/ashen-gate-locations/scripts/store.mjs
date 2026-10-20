@@ -31,10 +31,16 @@
  * `route-view`): one page per version of a route that some player may see (see routes.mjs routeAudiences), named
  * just "Route", carrying only the player-safe view JSON and the route's random view key, and readable only by the
  * players that version is for (every other player explicitly NONE). An undiscovered route has no page at all.
+ *
+ * 1.11.0 journeys: the GM Data Journal's `travel` flag holds the party's journey (journey.mjs), its location and a
+ * short history. Players read one more page in the Routes Journal (`kind: 'journey'`, every player OBSERVER) with
+ * progress only (leg N of M; the ends and route only when every player may see them), and the party marker is a
+ * Map Note (flag `partyMarker`) pointing at that page, moved between the route's two pins as legs are travelled.
  */
 import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL, normalizeLocation, playerView, viewHtml, pinPresentation, notePatch, uniquePinKeys, PIN_KEY,
   normalizeNotes, notesMirror, reconcileNotes, inAudience, resolvePassConditions, newPinKey} from './model.mjs';
-import {normalizeRoute, routeAudiences, defaultLeg} from './routes.mjs';
+import {normalizeRoute, routeAudiences, defaultLeg, endRef, routeVariantFor} from './routes.mjs';
+import {normalizeJourney, journeyView, progressFromRouteStart} from './journey.mjs';
 
 const ROLE_GM = 'gm-data';
 const ROLE_VIEW = 'player-view';
@@ -103,6 +109,7 @@ export async function writeAll(list) {
   await syncSharedNotes(locations);
   // Endpoint visibility decides who sees a route, so route pages follow every location change.
   await syncRouteViews(readRoutes(), locations);
+  await syncTravel(readTravel(), readRoutes(), locations);
   return locations;
 }
 
@@ -134,7 +141,9 @@ export async function writeRoutes(list, {locations = null} = {}) {
       await doc.update({[`flags.${MODULE_ID}.routes`]: routes, [`flags.${MODULE_ID}.routeIds`]: routeIds});
   } else await JournalEntry.create({name: 'Locations (GM Data)', folder: await ensureFolder(),
     ownership: {default: levels().NONE}, flags: {[MODULE_ID]: {role: ROLE_GM, locations: [], routes, routeIds}}});
-  await syncRouteViews(routes, locations ?? readAll());
+  const locs = locations ?? readAll();
+  await syncRouteViews(routes, locs);
+  await syncTravel(readTravel(), routes, locs);
   return routes;
 }
 /** The page one version of a route needs: readable by exactly `userIds`, nothing on it but the safe view. */
@@ -160,7 +169,10 @@ export async function syncRouteViews(routes = readRoutes(), locations = readAll(
     ownership: {default: levels().OBSERVER}, flags: {[MODULE_ID]: {role: ROLE_ROUTE_VIEW}}});
   const have = new Map();
   const remove = [];
-  for (const p of journal.pages) { const k = routePageId(p); if (want.has(k) && !have.has(k)) have.set(k, p); else remove.push(p.id); }
+  for (const p of journal.pages) {
+    if (p.getFlag(MODULE_ID, 'kind') === 'journey') continue;
+    const k = routePageId(p); if (want.has(k) && !have.has(k)) have.set(k, p); else remove.push(p.id);
+  }
   const create = [], update = [];
   for (const [k, data] of want) {
     const page = have.get(k);
@@ -175,9 +187,110 @@ export async function syncRouteViews(routes = readRoutes(), locations = readAll(
 export function readRouteViews() {
   const journal = byRole(ROLE_ROUTE_VIEW);
   if (!journal) return [];
-  return [...journal.pages].filter(p => isGM() || p.testUserPermission(game.user, 'OBSERVER'))
+  return [...journal.pages].filter(p => p.getFlag(MODULE_ID, 'kind') !== 'journey' && (isGM() || p.testUserPermission(game.user, 'OBSERVER')))
     .map(p => { try { return JSON.parse(p.getFlag(MODULE_ID, 'view') || 'null'); } catch { return null; } })
     .filter(Boolean);
+}
+
+// ---------- 1.11.0 journeys ----------
+const LOC_ID = /^LOC-[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
+const MAX_HISTORY = 20;
+export const PARTY_MARKER_IMG = 'icons/svg/target.svg';
+/** GM: {journey, partyLocationId, history}. */
+export function readTravel() {
+  assertGM();
+  const raw = byRole(ROLE_GM)?.getFlag(MODULE_ID, 'travel') ?? {};
+  return {journey: normalizeJourney(raw.journey), partyLocationId: LOC_ID.test(raw.partyLocationId ?? '') ? raw.partyLocationId : '',
+    history: (Array.isArray(raw.history) ? raw.history : []).map(normalizeJourney).filter(Boolean).slice(-MAX_HISTORY)};
+}
+/** GM: stores the travel record, then the players' progress page and the party marker. */
+export async function writeTravel(travel, {routes = null, locations = null} = {}) {
+  assertGM();
+  const data = {journey: normalizeJourney(travel.journey), partyLocationId: LOC_ID.test(travel.partyLocationId ?? '') ? travel.partyLocationId : '',
+    history: (travel.history ?? []).map(normalizeJourney).filter(Boolean).slice(-MAX_HISTORY)};
+  const doc = byRole(ROLE_GM);
+  if (doc) await doc.update({[`flags.${MODULE_ID}.travel`]: data});
+  else await JournalEntry.create({name: 'Locations (GM Data)', folder: await ensureFolder(),
+    ownership: {default: levels().NONE}, flags: {[MODULE_ID]: {role: ROLE_GM, locations: [], travel: data}}});
+  await syncTravel(data, routes ?? readRoutes(), locations ?? readAll());
+  return data;
+}
+/** An end every player may see (not Hidden, audience Everyone), as players see it; otherwise null. */
+const endForAll = (loc, label) => loc && loc.state !== 'hidden' && loc.published && loc.audience?.mode !== 'selected' ? endRef(loc, label) : null;
+/** What every player gets about the party's journey. Exported for tests. */
+export function journeyPageView(travel, routes, locations, label = presentationOptions().label) {
+  const j = travel.journey;
+  if (!j) return null;
+  const byId = new Map(locations.map(l => { const n = normalizeLocation(l); return [n.id, n]; }));
+  const route = routes.find(r => r.id === j.routeId);
+  const ids = players().map(u => u.id);
+  const routeKey = route && ids.length && ids.every(u => routeVariantFor(route, byId, u) === 'full') ? route.viewKey : null;
+  return journeyView(j, {from: endForAll(byId.get(j.fromId), label), to: endForAll(byId.get(j.toId), label), routeKey});
+}
+async function syncTravel(travel, routes, locations) {
+  const view = journeyPageView(travel, routes, locations);
+  let journal = byRole(ROLE_ROUTE_VIEW);
+  if (!journal && !view) return;
+  journal ??= await JournalEntry.create({name: 'Locations (Routes)', folder: await ensureFolder(),
+    ownership: {default: levels().OBSERVER}, flags: {[MODULE_ID]: {role: ROLE_ROUTE_VIEW}}});
+  const L = levels();
+  const own = {default: L.OBSERVER};
+  for (const u of players()) own[u.id] = L.OBSERVER;
+  const json = view ? JSON.stringify(view) : '';
+  let page = [...journal.pages].find(p => p.getFlag(MODULE_ID, 'kind') === 'journey');
+  if (!page && !view) return;
+  if (!page) [page] = await journal.createEmbeddedDocuments('JournalEntryPage', [{name: 'Party', type: 'text', text: {content: '', format: htmlFormat()},
+    ownership: own, flags: {[MODULE_ID]: {kind: 'journey', view: json}}}]);
+  else if (page.getFlag(MODULE_ID, 'view') !== json || !sameOwnership(page.ownership, own))
+    await journal.updateEmbeddedDocuments('JournalEntryPage', [{_id: page.id, ownership: own, [`flags.${MODULE_ID}.view`]: json}]);
+  await syncPartyMarker(travel, routes, locations, journal, page);
+}
+/** Any user: the party's journey progress, or null. */
+export function readJourneyView() {
+  const page = [...(byRole(ROLE_ROUTE_VIEW)?.pages ?? [])].find(p => p.getFlag(MODULE_ID, 'kind') === 'journey');
+  if (!page || !(isGM() || page.testUserPermission(game.user, 'OBSERVER'))) return null;
+  try { return JSON.parse(page.getFlag(MODULE_ID, 'view') || 'null'); } catch { return null; }
+}
+/** A location's first pin on a scene: {x, y} or null. */
+const pinOn = (scene, loc) => {
+  const n = loc && [...(scene.notes ?? [])].find(x => x.getFlag?.(MODULE_ID, 'pinKey') === loc.pinKey);
+  return n ? {x: n.x, y: n.y} : null;
+};
+/**
+ * Where the marker goes: on the scene being viewed if it holds the pins it needs, else the first scene that does.
+ * Between the two pins in proportion to the legs travelled; with only one pin, on it while the party is there.
+ * Returns {scene, x, y} or null. Exported for tests.
+ */
+export function partyMarkerSpot(travel, routes, locations, scenes = [...(game.scenes ?? [])], viewed = game.scenes?.viewed ?? globalThis.canvas?.scene ?? null) {
+  const j = travel.journey;
+  if (!j) return null;
+  const route = routes.find(r => r.id === j.routeId);
+  const byId = new Map(locations.map(l => [l.id, l]));
+  const a = byId.get(route?.fromId ?? ''), b = byId.get(route?.toId ?? '');
+  const t = progressFromRouteStart(j);
+  const spot = scene => {
+    const pa = pinOn(scene, a), pb = pinOn(scene, b);
+    if (pa && pb) return {scene, x: Math.round(pa.x + (pb.x - pa.x) * t), y: Math.round(pa.y + (pb.y - pa.y) * t)};
+    if (pa && t === 0) return {scene, ...pa};
+    if (pb && t === 1) return {scene, ...pb};
+    return null;
+  };
+  const order = viewed ? [viewed, ...scenes.filter(s => s !== viewed)] : scenes;
+  const both = order.find(s => pinOn(s, a) && pinOn(s, b));
+  return both ? spot(both) : order.map(spot).find(Boolean) ?? null;
+}
+async function syncPartyMarker(travel, routes, locations, journal, page) {
+  const want = partyMarkerSpot(travel, routes, locations);
+  for (const scene of game.scenes ?? []) {
+    const mine = [...(scene.notes ?? [])].filter(n => n.getFlag?.(MODULE_ID, 'partyMarker') === true);
+    const keep = want && want.scene === scene ? mine[0] : null;
+    const extra = mine.filter(n => n !== keep).map(n => n.id);
+    if (extra.length) await scene.deleteEmbeddedDocuments('Note', extra);
+    if (want?.scene !== scene) continue;
+    if (!keep) await scene.createEmbeddedDocuments('Note', [{entryId: journal.id, pageId: page.id, x: want.x, y: want.y, text: 'Party',
+      texture: {src: PARTY_MARKER_IMG}, iconSize: 40, flags: {[MODULE_ID]: {partyMarker: true}}}]);
+    else if (keep.x !== want.x || keep.y !== want.y) await scene.updateEmbeddedDocuments('Note', [{_id: keep.id, x: want.x, y: want.y}]);
+  }
 }
 
 async function viewJournal() {

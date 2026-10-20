@@ -13,6 +13,8 @@ import {MODULE_ID, GATHERING, STATES, PARTY_NOTES, notesLockHolder, clone, newLo
   publishable, hasUnpublishedChanges, previewView, wouldCycle, parentMap, normalizeAudience, AUDIENCE_MODES, isPlaceable, resolvePassConditions} from './model.mjs';
 import {checkMove} from './tree.mjs';
 import {ROUTE_STATES, normalizeRoute, makeRouteId, routeProblems, routeTouches, importRouteRecords, routeRecord, legsOf, legKmOf} from './routes.mjs';
+import {startJourney, nextLeg, setHazardResult, resolveHazard, reverseJourney, abortJourney, travelLine, HAZARD_FALLBACK} from './journey.mjs';
+import {covers, esc, DEFAULT_UNIDENTIFIED_LABEL} from './model.mjs';
 
 export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
 
@@ -21,7 +23,9 @@ export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
  *        placeNote(loc, opts), open(), openLocation(idOrKey), version, viewOptions?(),
  *        notes?: {readGM(locationId), readPlayer(pinKey), request(payload), userId(), isActive(id), nameOf(id), now?()},
  *        sharing?: {request({ref, userIds})}, playerIds?(), pinsOf?(loc),
- *        routes?: {readAll(), writeAll(list), readViews(), usedIds(), defaultLegKm()}}
+ *        routes?: {readAll(), writeAll(list), readViews(), usedIds(), defaultLegKm()},
+ *        travel?: {read(), write(travel), readView(), drawHazard?({uuid, name}) → {text, fromTable, tableMissing}, chat?: {gm(html), public(html)},
+ *                  rng?(), now?(), emit?(event, payload)}}
  */
 export function createApi(deps) {
   const gm = () => deps.isGM() === true;
@@ -95,6 +99,51 @@ export function createApi(deps) {
     }
     return {created: r.created.map(x => x.id), updated: r.updated.map(x => x.id), skipped: r.skipped};
   };
+
+  // ---------- 1.11.0 journeys ----------
+  const travelDeps = () => { if (!deps.travel) throw new Error('Journeys are unavailable.'); return deps.travel; };
+  const now = () => deps.travel?.now?.() ?? Date.now();
+  const activeJourney = () => {
+    const travel = travelDeps().read();
+    if (travel.journey?.status !== 'active') throw new Error('There is no journey under way.');
+    return travel;
+  };
+  /** A name for a Party Notes line, as the readers of `reader`'s notes may see `loc`; never a place they cannot see. */
+  const safeName = (loc, reader) => {
+    if (!loc || loc.state === 'hidden' || !loc.published || !covers(loc, reader)) return 'an unknown place';
+    return loc.state === 'revealed' ? loc.published.name : loc.published.unidentifiedLabel || deps.viewOptions?.().label || DEFAULT_UNIDENTIFIED_LABEL;
+  };
+  /** Rolls the route's hazard table, or "Hazard!" when it has none or it is missing. Never throws. */
+  const drawHazard = async route => {
+    const t = route?.hazardTable ?? {};
+    if (!t.uuid && !t.name) return {text: HAZARD_FALLBACK, fromTable: false, tableMissing: false};
+    try { return (await travelDeps().drawHazard?.(t)) ?? {text: HAZARD_FALLBACK, fromTable: false, tableMissing: true}; }
+    catch (err) { console.warn('ashen-gate-locations | hazard table failed', err); return {text: HAZARD_FALLBACK, fromTable: false, tableMissing: true}; }
+  };
+  const hazardCard = (j, route) => `<div class="agl-hazard-card"><h3>Hazard on leg ${j.pending.leg} of ${j.legs}</h3>
+    <p class="agl-hint">GM only. ${esc(route?.name || route?.id || '')}: rolled ${j.pending.roll} against ${j.pending.chance}%.${j.pending.tableMissing ? ' The hazard table was not found.' : ''}</p>
+    <p>${esc(j.pending.result)}</p><p class="agl-hint">Locations → Routes: Reroll, Dismiss or Share with players.</p></div>`;
+  const whisperHazard = async (j, route) => { try { await travelDeps().chat?.gm?.(hazardCard(j, route)); } catch (err) { console.warn('ashen-gate-locations | GM hazard card failed', err); } };
+  /** Appends the arrival line to the destination's Party Notes through the GM path. Returns {travelLog, travelLogError}. */
+  const writeTravelLog = async j => {
+    try {
+      if (!deps.notes) throw new Error('Party Notes are unavailable.');
+      const all = deps.readAll();
+      const byId = new Map(all.map(l => [l.id, l]));
+      const dest = byId.get(j.toId);
+      if (!dest) throw new Error(`No location ${j.toId}.`);
+      const lineText = travelLine(j, id => safeName(byId.get(id), dest));
+      const rec = deps.notes.readGM(dest.id);
+      const text = rec.text ? `${rec.text}\n${lineText}` : lineText;
+      if (text.length > PARTY_NOTES.maxLength) throw new Error('The Party Notes there are full.');
+      await deps.notes.request({op: 'save', ref: dest.id, text, rev: rec.rev});
+      return {travelLog: 'ok', travelLogError: ''};
+    } catch (err) {
+      return {travelLog: 'failed', travelLogError: String(err?.message ?? err).slice(0, 300)};
+    }
+  };
+  const finish = (travel, j) => { travel.history = [...(travel.history ?? []), j]; };
+  const emit = (event, payload) => { try { deps.travel?.emit?.(event, payload); } catch (err) { console.warn('ashen-gate-locations | hook failed', err); } };
 
   /** Saves privately. State, published content and pin binding of an existing location are kept. New ones start Hidden. */
   async function saveLocation(data) {
@@ -321,6 +370,8 @@ export function createApi(deps) {
     async deleteRoute(id) {
       requireGM();
       const {all} = findRoute(id);
+      const j = deps.travel?.read().journey;
+      if (j?.status === 'active' && j.routeId === id) throw new Error('The party is travelling this route. Abort the journey first.');
       await routesDeps().writeAll(all.filter(r => r.id !== id));
     },
     /**
@@ -424,6 +475,112 @@ export function createApi(deps) {
     releasePartyNotes: ref => notesOp(ref, {op: 'release'}),
     /** GM: empty a location's notes. */
     async clearPartyNotes(ref) { requireGM(); return notesOp(ref, {op: 'clear'}); },
+
+    // ---------- 1.11.0 journeys ----------
+    /**
+     * GM: {journey, partyLocationId, history} (journey: see journey.mjs, including the current hazard chance and log).
+     * Player: progress only, {status, leg, legs, from?, to?, routeKey?}, or null. Never a chance, roll or hazard.
+     */
+    getJourney() {
+      requireAccess();
+      if (gm()) return deps.travel ? clone(deps.travel.read()) : {journey: null, partyLocationId: '', history: []};
+      return clone(deps.travel?.readView?.() ?? null);
+    },
+    /** GM: the party sets out along a route ('forward' = From → To; 'reverse' = To → From, not on a one-way route). */
+    async startJourney(routeId, {direction = 'forward'} = {}) {
+      requireGM();
+      const {route} = findRoute(routeId);
+      const travel = travelDeps().read();
+      if (travel.journey?.status === 'active') throw new Error('The party is already travelling. Finish or abort that journey first.');
+      const ids = new Set(deps.readAll().map(l => l.id));
+      const missing = [route.fromId, route.toId].filter(id => !ids.has(id));
+      if (missing.length) throw new Error(`This route's end no longer exists: ${missing.join(', ')}.`);
+      const j = startJourney(route, direction, {now: now(), defaultLegKm: routesDeps().defaultLegKm()});
+      await travelDeps().write({...travel, journey: j, partyLocationId: j.fromId});
+      emit('journeyStart', {journeyId: j.journeyId, routeId: j.routeId, fromId: j.fromId, toId: j.toId, legs: j.legs});
+      return clone(j);
+    },
+    /**
+     * GM: travels one leg: d100 against the current chance. No hazard doubles the chance (max 100%); a hazard rolls the
+     * route's table (or "Hazard!"), whispers it to the GM, waits for Dismiss/Share and resets the chance to the base.
+     * After the last leg the party arrives and the trip is added to the destination's Party Notes.
+     * Returns {journey, roll, chance, hazard, result, arrived}.
+     */
+    async nextLeg() {
+      requireGM();
+      const travel = activeJourney();
+      const route = routesDeps().readAll().find(r => r.id === travel.journey.routeId) ?? null;
+      const rng = deps.travel.rng ?? Math.random;
+      let {journey: j, roll, chance, hazard, arrived} = nextLeg(travel.journey, rng, {now: now()});
+      if (hazard) j = setHazardResult(j, await drawHazard(route));
+      if (arrived) { Object.assign(j, await writeTravelLog(j)); travel.partyLocationId = j.toId; finish(travel, j); }
+      await travelDeps().write({...travel, journey: j});
+      if (hazard) await whisperHazard(j, route);
+      // Extension point for a campaign clock or a per-leg group check (not built): GM client only.
+      emit('journeyLeg', {journeyId: j.journeyId, routeId: j.routeId, leg: j.legIndex, legs: j.legs, hazard, arrived});
+      if (arrived) emit('journeyArrived', {journeyId: j.journeyId, routeId: j.routeId, toId: j.toId, legs: j.legs, hazards: j.hazardCount});
+      return {journey: clone(j), roll, chance, hazard, result: hazard ? j.pending.result : '', arrived};
+    },
+    /** GM: rolls the waiting hazard again (replaces its result). */
+    async rerollHazard() {
+      requireGM();
+      const travel = travelDeps().read();
+      if (!travel.journey?.pending) throw new Error('There is no hazard waiting.');
+      const route = routesDeps().readAll().find(r => r.id === travel.journey.routeId) ?? null;
+      const j = setHazardResult(travel.journey, await drawHazard(route));
+      await travelDeps().write({...travel, journey: j});
+      await whisperHazard(j, route);
+      return clone(j.pending);
+    },
+    /** GM: closes the waiting hazard without telling players. */
+    async dismissHazard() {
+      requireGM();
+      const travel = travelDeps().read();
+      const j = resolveHazard(travel.journey, 'dismissed');
+      await travelDeps().write({...travel, journey: j});
+      return clone(j);
+    },
+    /** GM: posts the waiting hazard's result to chat for everyone (no route or place names), then closes it. */
+    async shareHazard() {
+      requireGM();
+      const travel = travelDeps().read();
+      if (!travel.journey?.pending) throw new Error('There is no hazard waiting.');
+      await travelDeps().chat?.public?.(`<div class="agl-hazard-card"><h3>Hazard on the road</h3><p>${esc(travel.journey.pending.result)}</p></div>`);
+      const j = resolveHazard(travel.journey, 'shared');
+      await travelDeps().write({...travel, journey: j});
+      return clone(j);
+    },
+    /** GM: the party turns back the way it came (legs travelled become legs to go). */
+    async reverseJourney() {
+      requireGM();
+      const travel = activeJourney();
+      const route = routesDeps().readAll().find(r => r.id === travel.journey.routeId) ?? null;
+      const j = reverseJourney(travel.journey, route, {now: now()});
+      await travelDeps().write({...travel, journey: j});
+      return clone(j);
+    },
+    /** GM: ends the journey where the party is. Nothing is written to Party Notes. */
+    async abortJourney() {
+      requireGM();
+      const travel = activeJourney();
+      const j = abortJourney(travel.journey, {now: now()});
+      if (j.legIndex === 0) travel.partyLocationId = j.fromId;
+      else if (j.legIndex >= j.legs) travel.partyLocationId = j.toId;
+      else travel.partyLocationId = '';
+      finish(travel, j);
+      await travelDeps().write({...travel, journey: j});
+      return clone(j);
+    },
+    /** GM: tries again to add an arrived journey's line to the destination's Party Notes. */
+    async retryTravelLog() {
+      requireGM();
+      const travel = travelDeps().read();
+      const j = travel.journey;
+      if (j?.status !== 'arrived' || j.travelLog === 'ok') throw new Error('There is no travel log waiting to be written.');
+      Object.assign(j, await writeTravelLog(j));
+      await travelDeps().write({...travel, journey: j});
+      return clone(j);
+    },
 
     playerAccess: Object.freeze({
       contract: PLAYER_ACCESS_CONTRACT,

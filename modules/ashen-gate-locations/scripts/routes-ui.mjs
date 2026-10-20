@@ -65,8 +65,12 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
       const groups = ROUTE_STATES.map(st => ({st, list: rows.filter(r => r.state === st)})).filter(g => g.list.length)
         .map(g => `<li class="agl-group"><h3>${ROUTE_STATE_LABELS[g.st]} <span class="agl-count">${g.list.length}</span></h3><ul class="ag-list">${g.list.map(row).join('')}</ul></li>`).join('');
       const none = routes.length ? '<p class="ag-empty">No routes match.</p>' : '<p class="ag-empty">No routes yet. Click <strong>New Route</strong> to join two locations.</p>';
+      const j = api().getJourney().journey;
+      const banner = j?.status === 'active' ? `<div class="agl-undo agl-journey-banner" role="status"><span><i class="fa-solid fa-person-hiking" aria-hidden="true"></i>
+          Journey under way: <strong>${esc(nameOf(j.fromId) || j.fromId)} → ${esc(nameOf(j.toId) || j.toId)}</strong>, leg ${j.legIndex} of ${j.legs}${j.pending ? ' · <strong>hazard waiting</strong>' : ''}.</span>
+          ${j.routeId !== this.routeId ? btn('route-select', 'Open', {data: {id: j.routeId}}) : ''}</div>` : '';
       return `<div class="ag-toolbar"><input type="search" id="agl-route-search" placeholder="Search route, place or terrain…" value="${esc(this.routeQuery)}" aria-label="Search routes">
-          ${btn('route-new', 'New Route', {kind: 'primary', icon: 'fa-solid fa-plus'})}</div>
+          ${btn('route-new', 'New Route', {kind: 'primary', icon: 'fa-solid fa-plus'})}</div>${banner}
         <div class="agl-body"><aside class="agl-list">${rows.length ? `<ul class="agl-groups">${groups}</ul>` : none}</aside>
         <section class="agl-detail">${this.routeEditorHtml([...locs.values()])}</section></div>`;
     },
@@ -118,6 +122,7 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
           <div class="ag-field agl-field"><label for="agl-route-terrain">Terrain (optional)</label><input id="agl-route-terrain" type="text" data-rbind="terrain" value="${esc(d.terrain)}" placeholder="e.g. Forest road"></div>
         </div>
         <div class="ag-field agl-field"><label for="agl-route-notes">GM notes (never shown to players)</label><textarea id="agl-route-notes" rows="3" data-rbind="notes">${esc(d.notes)}</textarea></div>
+        ${d.id ? this.journeyHtml(d, locations) : ''}
         ${this.routeVisibilityHtml(d, locations)}
         <p class="agl-hint">Players never see the hazard chance, the hazard table, these notes or the route's ID. Don't put a hidden place's name in the route name or terrain: players who can see both ends see them.</p>
         <footer class="agl-footer">
@@ -146,16 +151,58 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
         ${sees ? `<details><summary>Right now (saved route)</summary><ul class="ag-list">${sees}</ul></details>` : ''}</section>`;
     },
 
+    /** GM journey controls for this route: start (either way unless one-way), then Next leg, hazards, Reverse, Abort. */
+    journeyHtml(d, locations) {
+      const travel = api().getJourney();
+      const j = travel.journey;
+      const name = id => locations.find(l => l.id === id)?.name || id;
+      const saved = api().getRoute(d.id);
+      const start = `<div class="agl-add">${btn('route-journey-start', `Start journey: ${name(saved.fromId)} → ${name(saved.toId)}`, {icon: 'fa-solid fa-person-hiking', data: {direction: 'forward'}})}
+        ${saved.directed ? '' : btn('route-journey-start', `Start journey: ${name(saved.toId)} → ${name(saved.fromId)}`, {icon: 'fa-solid fa-person-hiking', data: {direction: 'reverse'}})}</div>
+        <p class="agl-hint">${saved.legs} leg${saved.legs === 1 ? '' : 's'}. Each leg rolls d100 against the hazard chance: it starts at ${saved.hazardBase}%, doubles after each leg without a hazard (up to 100%) and goes back to ${saved.hazardBase}% after a hazard. Players see the party marker and "leg N of M" only.</p>`;
+      const head = '<header class="agl-section__head"><h3>Journey</h3></header>';
+      if (j?.status === 'active' && j.routeId !== d.id) return `<section class="ag-card agl-section">${head}<p class="agl-hint">The party is travelling another route (${esc(name(j.fromId))} → ${esc(name(j.toId))}). Finish or abort that journey first.</p></section>`;
+      const log = j && j.routeId === d.id && j.log.length ? `<details${j.status === 'active' ? ' open' : ''}><summary>Legs (${j.log.filter(e => !e.reversed).length})</summary><ol class="agl-journey-log">${j.log.map(e => e.reversed
+        ? `<li><em>Turned back</em></li>`
+        : `<li>Leg ${e.leg}: rolled ${e.roll} vs ${e.chance}% · ${e.hazard ? `<strong>hazard</strong>: ${esc(e.result)} (${e.outcome})` : 'no hazard'}</li>`).join('')}</ol></details>` : '';
+      if (j?.status !== 'active' || j.routeId !== d.id) {
+        const last = j && j.routeId === d.id ? `<p>Last journey: ${esc(name(j.fromId))} → ${esc(name(j.toId))}, ${j.status === 'arrived' ? `arrived after ${j.legs} leg(s)` : `aborted after ${j.legIndex} leg(s)`}, ${j.hazardCount} hazard(s).</p>
+          ${j.status === 'arrived' ? j.travelLog === 'ok' ? `<p class="agl-hint">Logged in ${esc(name(j.toId))}'s Party Notes.</p>` : `<p class="agl-hint">Not logged in Party Notes: ${esc(j.travelLogError || 'unknown error')}</p>${btn('route-travel-retry', 'Retry log', {icon: 'fa-solid fa-rotate'})}` : ''}` : '';
+        const pend = j?.pending && j.routeId === d.id ? this.hazardHtml(j) : '';
+        return `<section class="ag-card agl-section">${head}${pend}${last}${log}${start}</section>`;
+      }
+      return `<section class="ag-card agl-section">${head}
+        <p><strong>${esc(name(j.fromId))} → ${esc(name(j.toId))}</strong>: leg ${j.legIndex} of ${j.legs} travelled · next leg's hazard chance <strong>${j.currentChance}%</strong> · hazards so far ${j.hazardCount}</p>
+        ${j.pending ? this.hazardHtml(j) : ''}
+        <div class="agl-add">${btn('route-next-leg', j.legIndex + 1 >= j.legs ? 'Next leg (last: arrive)' : 'Next leg', {kind: 'primary', icon: 'fa-solid fa-shoe-prints'})}
+          ${saved.directed || !j.legIndex ? '' : btn('route-journey-reverse', 'Turn back', {icon: 'fa-solid fa-rotate-left', title: 'The party turns round; the legs travelled become the legs back'})}
+          ${btn('route-journey-abort', 'Abort journey', {kind: 'danger', icon: 'fa-solid fa-ban'})}</div>${log}</section>`;
+    },
+    hazardHtml(j) {
+      const p = j.pending;
+      return `<div class="ag-card agl-hazard" role="alert"><h4>Hazard on leg ${p.leg} (rolled ${p.roll} vs ${p.chance}%)</h4><p>${esc(p.result)}</p>
+        ${p.tableMissing ? '<p class="agl-hint">The hazard table was not found, so this is the plain fallback.</p>' : ''}
+        <p class="agl-hint">Only you see this. Sharing posts the result to chat for everyone (no route or place names).</p>
+        <div class="agl-add">${btn('route-hazard-reroll', 'Reroll', {icon: 'fa-solid fa-dice'})}${btn('route-hazard-dismiss', 'Dismiss', {icon: 'fa-solid fa-xmark'})}
+          ${btn('route-hazard-share', 'Share with players', {kind: 'primary', icon: 'fa-solid fa-bullhorn'})}</div></div>`;
+    },
+
     // ---------- players ----------
+    playerJourneyHtml() {
+      const v = api().getJourney();
+      if (!v || v.status !== 'active') return v?.status === 'arrived' && v.to ? `<p class="agl-hint">The party arrived at ${esc(v.to.name)}.</p>` : '';
+      return `<div class="agl-undo agl-journey-banner" role="status"><span><i class="fa-solid fa-person-hiking" aria-hidden="true"></i> The party is travelling${v.from ? ` from <strong>${esc(v.from.name)}</strong>` : ''}${v.to ? ` to <strong>${esc(v.to.name)}</strong>` : ''}: leg ${v.leg} of ${v.legs}.</span></div>`;
+    },
     playerRoutesHtml(views) {
-      if (!views.length) return '<p class="ag-empty">No routes have been discovered yet.</p>';
+      const journey = this.playerJourneyHtml();
+      if (!views.length) return `${journey}<p class="ag-empty">No routes have been discovered yet.</p>`;
       const groups = [...ROUTE_STATES.filter(s => s !== 'unknown').map(st => ({label: ROUTE_STATE_LABELS[st], list: views.filter(v => v.state === st)})),
         {label: 'Unknown paths', list: views.filter(v => v.state === 'unknown-path')}].filter(g => g.list.length);
       const end = e => e ? `<a class="agl-link" data-action="route-open-place" data-id="${esc(e.key)}">${esc(e.name)}</a>${e.id ? '' : ' <small>(unidentified)</small>'}` : '<em>somewhere unknown</em>';
       const card = v => `<li class="ag-card agl-route-card"><h4>${esc(v.name || routeLabel(v))}</h4>
         <p>${end(v.from)} ${v.directed ? '→' : '–'} ${end(v.to)}</p>
         ${v.variant === 'full' ? `<p class="agl-hint">${esc(v.distanceKm)} km · ${v.legs} leg${v.legs === 1 ? '' : 's'}${v.terrain ? ` · ${esc(v.terrain)}` : ''}${v.directed ? ' · one-way' : ''}</p>` : ''}</li>`;
-      return `<div class="agl-routes-player">${groups.map(g => `<section><h3>${esc(g.label)}</h3><ul class="agl-route-cards">${g.list.map(card).join('')}</ul></section>`).join('')}</div>`;
+      return `<div class="agl-routes-player">${journey}${groups.map(g => `<section><h3>${esc(g.label)}</h3><ul class="agl-route-cards">${g.list.map(card).join('')}</ul></section>`).join('')}</div>`;
     },
 
     // ---------- events ----------
@@ -237,6 +284,36 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
           if (!ok) return;
           await api().deleteRoute(d.id);
           this.selectRoute(null); return this.render();
+        }
+        case 'route-journey-start': {
+          const saved = await this.saveRouteDraft();
+          const j = await api().startJourney(saved.id, {direction: el.dataset.direction});
+          ui.notifications.info(`The party sets out: ${j.legs} leg(s).`);
+          return this.render();
+        }
+        case 'route-next-leg': {
+          const r = await api().nextLeg();
+          const j = r.journey;
+          const msg = r.hazard ? `Leg ${j.legIndex} of ${j.legs}: HAZARD (rolled ${r.roll} vs ${r.chance}%). Chance back to ${j.currentChance}%.`
+            : `Leg ${j.legIndex} of ${j.legs}: no hazard (rolled ${r.roll} vs ${r.chance}%). Next chance ${j.currentChance}%.`;
+          (r.hazard ? ui.notifications.warn : ui.notifications.info).call(ui.notifications, msg);
+          if (r.arrived) ui.notifications[j.travelLog === 'ok' ? 'info' : 'warn'](j.travelLog === 'ok' ? 'Arrived. The trip is in the Party Notes there.' : `Arrived. The trip could not be added to Party Notes: ${j.travelLogError}`);
+          return this.render();
+        }
+        case 'route-hazard-reroll': await api().rerollHazard(); return this.render();
+        case 'route-hazard-dismiss': await api().dismissHazard(); return this.render();
+        case 'route-hazard-share': await api().shareHazard(); ui.notifications.info('Shared with players in chat.'); return this.render();
+        case 'route-journey-reverse': await api().reverseJourney(); ui.notifications.info('The party turns back.'); return this.render();
+        case 'route-journey-abort': {
+          const ok = await foundry.applications.api.DialogV2.confirm({window: {title: 'Abort journey?'},
+            content: '<p>End this journey where the party is? Nothing is written to Party Notes.</p>', yes: {label: 'Abort Journey'}, no: {label: 'Keep Travelling'}, rejectClose: false});
+          if (!ok) return;
+          await api().abortJourney(); return this.render();
+        }
+        case 'route-travel-retry': {
+          const j = await api().retryTravelLog();
+          ui.notifications[j.travelLog === 'ok' ? 'info' : 'warn'](j.travelLog === 'ok' ? 'Added to Party Notes.' : `Still could not add it: ${j.travelLogError}`);
+          return this.render();
         }
         case 'route-save-setup': {
           const v = Number(this.element.querySelector('#agl-set-leg')?.value);
