@@ -211,6 +211,12 @@
 .agmanager-mood-field {display:flex;align-items:center;gap:.4rem}
 .agmanager-mood-field input[type=number] {width:5.5rem}
 .agmanager-mood-footer {justify-content:space-between;margin-top:.75rem}
+/* Organize folders (0.25.0) */
+.ashen-gate-manager .agmanager-organize{display:flex;flex-direction:column;gap:12px}
+.ashen-gate-manager .agmanager-org-part h4{margin:10px 0 4px}
+.ashen-gate-manager .agmanager-org-group{margin:4px 0}
+.ashen-gate-manager .agmanager-org-group summary{cursor:pointer}
+.ashen-gate-manager .agmanager-org-json{width:100%;font-family:monospace;font-size:12px}
 /* Browse tab (0.24.0) */
 .agbrowse-toolbar {display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .agbrowse-toolbar input[type=search] {flex:1 1 240px;min-width:0}
