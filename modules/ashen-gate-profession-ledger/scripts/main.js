@@ -8,13 +8,13 @@ import {planCraft,craftBlockers,executeCraft,craftResultData,materialStock,tierL
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,requiredToolRef,toolRefLabel,heldTool,
   checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS} from './checks.mjs';
-import {PROFESSION_KEYS,professionTitle,catalogCrosswalk,unmappedProfessions,assignmentPlan,rowId} from './assign.mjs';
+import {PROFESSION_KEYS,professionTitle,catalogCrosswalk,unmappedProfessions,assignmentPlan,rowId,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
 import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,gatherOutcome,gatherReward,exhaustsNode,helperEligibility,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
   stackMaterial} from './gathering.mjs';
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.19.0';
+const VERSION='0.20.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...}. */
@@ -369,7 +369,11 @@ function craftContext(actor,recipe,lib){
 const extraCost=recipe=>{const gp=Number(recipe?.sourceDefinition?.additional_gp);return Number.isFinite(gp)&&gp>0?gp:null;};
 
 /** GM Setup: profession → tool, and gathering profession → check skill (defaults filled in). */
-const checkMapping=()=>effectiveMapping(game.settings.get(ID,'checkMapping'));
+const checkMapping=()=>effectiveMapping(game.settings.get(ID,'checkMapping'),{baseline:baselineLayer()});
+/** 0.20.0: the GM's imported baseline file layer ({key:{lists}}), or null. Stored in the world setting crosswalkBaseline. */
+const BASELINE_SETTING='crosswalkBaseline';
+const baselineRecord=()=>{try{const v=game.settings.get(ID,BASELINE_SETTING);return v&&typeof v==='object'&&v.professions&&typeof v.professions==='object'?v:null;}catch{return null;}};
+const baselineLayer=()=>baselineRecord()?.professions??null;
 /** The saved shape of the mapping (what GM Setup edits and saves): check tool/skill plus the GM's own crosswalk lists. */
 const mappingDraft=map=>({tools:{...map.tools},skills:{...map.skills},...Object.fromEntries(CROSSWALK_LISTS.map(l=>[l,structuredClone(map.gm[l])]))});
 const professionTool=name=>{const key=checkMapping().tools[professionKey(name)];return key?{key,uuid:null,name:null}:null;};
@@ -393,8 +397,26 @@ function professionDefinitions(){
 /** GM: the crosswalk with the catalog layer, for Assign and the GM Setup table. `stored` defaults to the saved setting. */
 function crosswalkInfo(stored=game.settings.get(ID,'checkMapping')){
   const defs=professionDefinitions(),cat=catalogCrosswalk(defs);
-  return {defs,...cat,map:effectiveMapping(stored,{catalog:cat.catalog})};
+  return {defs,...cat,map:effectiveMapping(stored,{catalog:cat.catalog,baseline:baselineLayer()})};
 }
+const requireCrosswalkGM=()=>{if(!game.user?.isGM)throw Error('Only the GM can import or export the profession crosswalk');};
+/** GM dry run of a baseline file: which rows it changes. Writes nothing. */
+function previewBaseline(data){
+  requireCrosswalkGM();
+  const parsed=parseBaselineFile(data),info=crosswalkInfo();
+  return {...parsed,changes:parsed.ok?baselineChanges(baselineLayer(),parsed.baseline,info.map):[],current:baselineRecord()?{fileName:baselineRecord().fileName??'',importedAt:baselineRecord().importedAt??''}:null};
+}
+/** GM: store a validated baseline file as the baseline layer (replaces the previous one). GM edits still win. */
+async function applyBaseline(data,{fileName=''}={}){
+  requireCrosswalkGM();
+  const parsed=parseBaselineFile(data);
+  if(!parsed.ok)throw Error(`Baseline file not applied: ${parsed.errors.join(' ')}`);
+  const record={schema:'ag-ledger-crosswalk-baseline/1',fileName:String(fileName??'').slice(0,200),importedAt:new Date().toISOString(),professions:parsed.baseline};
+  await game.settings.set(ID,BASELINE_SETTING,record);
+  return {professions:Object.keys(parsed.baseline).length,unresolved:parsed.unresolved,unknownProfessions:parsed.unknownProfessions};
+}
+/** GM: the current effective table (catalog and baseline included) in the baseline file shape. */
+function exportCurrentCrosswalk(){requireCrosswalkGM();return exportCrosswalk(crosswalkInfo().map,{version:VERSION});}
 const requireAssignGM=()=>{if(!game.user?.isGM)throw Error('Only the GM can assign professions');};
 /** Assign targets: the given characters, else the Ledger party, else dnd5e's Primary Party. */
 function assignActors(actorIds=null){
@@ -1393,26 +1415,47 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   _toolSetup(){
     const draft=this.mapDraft??mappingDraft(checkMapping());
     const {map,catalog,unresolved,conflicts}=crosswalkInfo(draft),keys=toolKeys();
-    const ORIGIN={gm:'set by you',catalog:'from the Profession catalog',default:'from the check tool/skill'};
+    const ORIGIN={gm:'set by you',baseline:'from the baseline file',catalog:'from the Profession catalog',default:'from the check tool/skill'};
+    const ITEM_ORIGIN={...ORIGIN,default:'built in'},fileLayer=baselineLayer();
     const multi=(k,name,list,options,labelOf,current)=>`<details class="agl-multi"><summary>${current.length?esc(current.map(labelOf).join(', ')):'<span class="agl-sub">None</span>'}</summary>
       <div class="agl-multi-list">${options.map(o=>`<label><input type="checkbox" data-map-list="${list}" data-map-prof="${esc(k)}" value="${esc(o)}" ${current.includes(o)?'checked':''}> ${esc(labelOf(o))}</label>`).join('')}</div></details>`;
     const rows=PROFESSION_NAMES.map(name=>{const k=professionKey(name),gathering=GATHERING_PROFESSIONS.includes(name),hasSkill=gathering||k==='enchanting';
-      const origin=map.origin[k]??{},adv=draft.advantageTools[k]??[],suggest=!draft.advantageTools[k]&&catalog[k]?.advantageTools?.length?catalog[k].advantageTools:[];
+      const origin=map.origin[k]??{},fileAdv=fileLayer?.[k]?.advantageTools,adv=draft.advantageTools[k]??fileAdv??[],suggest=!draft.advantageTools[k]&&!fileAdv&&catalog[k]?.advantageTools?.length?catalog[k].advantageTools:[];
       const custom=CROSSWALK_LISTS.some(l=>draft[l][k]);
       return `<tr><th scope="row">${esc(name)}${gathering?' <small class="agl-sub">gathering</small>':''}</th>
         <td><select data-map-tool="${esc(k)}" aria-label="${esc(name)} tool"><option value="">— None —</option>${keys.map(t=>`<option value="${esc(t)}" ${map.tools[k]===t?'selected':''}>${esc(toolLabel(t))}</option>`).join('')}</select></td>
         <td>${hasSkill?`<select data-map-skill="${esc(k)}" aria-label="${esc(name)} ${gathering?'gathering':'craft'} skill"><option value="">— None —</option>${SKILL_IDS.map(sk=>`<option value="${sk}" ${map.skills[k]===sk?'selected':''}>${esc(skillLabel(sk))}</option>`).join('')}</select>`:'<span class="agl-sub">—</span>'}</td>
         <td>${multi(k,name,'qualifySkills',SKILL_IDS,skillLabel,map.qualifySkills[k]??[])}<small class="agl-sub">${esc(ORIGIN[origin.qualifySkills]??'')}</small></td>
         <td>${multi(k,name,'qualifyTools',keys,toolLabel,map.qualifyTools[k]??[])}<small class="agl-sub">${esc(ORIGIN[origin.qualifyTools]??'')}</small></td>
-        <td>${multi(k,name,'advantageTools',keys,toolLabel,adv)}${suggest.length?`<small class="agl-sub">Catalog suggests ${esc(suggest.map(toolLabel).join(', '))}; tick to use</small>`:''}</td>
+        <td><input type="text" data-map-items="${esc(k)}" value="${esc((map.items[k]??[]).join(', '))}" placeholder="None" aria-label="${esc(name)} qualifying items (carried), comma separated"><small class="agl-sub">${esc(ITEM_ORIGIN[origin.items]??'')}</small></td>
+        <td>${multi(k,name,'advantageTools',keys,toolLabel,adv)}${draft.advantageTools[k]?'':fileAdv?`<small class="agl-sub">${esc(ORIGIN.baseline)}</small>`:''}${suggest.length?`<small class="agl-sub">Catalog suggests ${esc(suggest.map(toolLabel).join(', '))}; tick to use</small>`:''}</td>
         <td>${custom?`<button type="button" class="ag-btn" data-action="map-reset" data-id="${esc(k)}" title="Clear your qualifying and advantage choices for ${esc(name)}">Reset</button>`:''}</td></tr>`;}).join('');
     const notes=[...unresolved.map(u=>`${u.profession}: catalog ${u.field==='skillProficienciesAnyOf'?'skill':'tool'} “${u.name}” matches no dnd5e ${u.field==='skillProficienciesAnyOf'?'skill':'tool'} and is ignored.`),
       ...conflicts.map(c=>`${c}: several imported Profession definitions disagree, so the catalog is not used for it.`)];
     return `<section class="ag-card agl-panel"><h2>Tools and checks</h2>
       <p class="agl-sub">The tool each profession uses. A recipe with no tool or workstation of its own needs its profession’s tool, and crafting rolls a check with it (shown on the craft card; it doesn’t decide success yet). Gathering offers the tool check and, for gathering professions, the skill below; the roller can pick another skill. Enchanting’s main check is the Arcana skill: a craft offers it, and also the recipe’s own tool (such as Jeweler’s Tools) when it names one. Helpers carrying the tool give advantage. Saved with <b>Save Changes</b>.</p>
-      <p class="agl-sub"><b>Qualifying skills / tools</b> are what the <b>Assign</b> tab reads: proficiency in any one of them qualifies a character for the profession. Until you tick your own, they come from the imported Profession catalog, else the check tool and skill. <b>Advantage tools</b>: a character proficient with, or carrying, one of them starts that profession’s gathering and crafting checks with advantage. Only tools you tick here count.</p>
+      <p class="agl-sub"><b>Qualifying skills / tools / items</b> are what the <b>Assign</b> tab reads: proficiency in any one of the skills or tools, or carrying one of the items (core items by name or UUID, any case, comma separated; Fishing Tackle for Fishing by default), qualifies a character for the profession. Until you set your own, they come from the baseline file, else the imported Profession catalog, else the check tool and skill. <b>Advantage tools</b>: a character proficient with, or carrying, one of them starts that profession’s gathering and crafting checks with advantage. Only tools you tick here or the baseline file sets count.</p>
       ${notes.length?`<ul class="agl-sub">${notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`:''}
-      <div class="agl-map-wrap"><table class="agl-map"><thead><tr><th>Profession</th><th>Tool</th><th>Check skill (gathering / Enchanting)</th><th>Qualifying skills</th><th>Qualifying tools</th><th>Advantage tools</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+      ${this._baselinePanel()}
+      <div class="agl-map-wrap"><table class="agl-map"><thead><tr><th>Profession</th><th>Tool</th><th>Check skill (gathering / Enchanting)</th><th>Qualifying skills</th><th>Qualifying tools</th><th>Qualifying items (carried)</th><th>Advantage tools</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+  }
+  /** GM: baseline file import (file → preview → apply) and export of the current table. */
+  _baselinePanel(){
+    const rec=baselineRecord(),p=this.baselinePreview;
+    const LIST={qualifySkills:'Qualifying skills',qualifyTools:'Qualifying tools',advantageTools:'Advantage tools',items:'Qualifying items'};
+    const show=(list,v)=>v==null?'<span class="agl-sub">not set by the file</span>':v.length?esc(v.map(list==='qualifySkills'?skillLabel:list==='items'?String:toolLabel).join(', ')):'<span class="agl-sub">None</span>';
+    let preview='';
+    if(p){
+      const r=p.result,notes=[...r.errors,...r.unknownProfessions.map(n=>`“${n}” is not a profession; ignored.`),...r.unresolved.map(u=>`${u.profession}: ${LIST[u.list]} “${u.name}” matches no dnd5e ${u.list==='qualifySkills'?'skill':'tool'}; ignored.`)];
+      const rows=r.changes.map(c=>`<tr><th scope="row">${esc(c.profession)}</th><td>${esc(LIST[c.list])}</td><td>${show(c.list,c.before)}</td><td>${show(c.list,c.after)}</td><td>${c.gmWins?'<span class="agl-sub">Your edit still wins</span>':''}</td></tr>`).join('');
+      preview=`<div class="agl-baseline-preview" role="region" aria-label="Baseline file preview"><h3>Preview: ${esc(p.fileName||'baseline file')}</h3>
+        ${notes.length?`<ul class="agl-sub">${notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`:''}
+        ${r.ok?(rows?`<div class="agl-map-wrap"><table class="agl-map"><thead><tr><th>Profession</th><th>List</th><th>Baseline now</th><th>From this file</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:'<p class="agl-sub">This file changes nothing.</p>'):'<p class="agl-sub">Fix the file and import it again. Nothing was changed.</p>'}
+        <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="xwalk-cancel">Cancel</button>${r.ok?`<button type="button" class="ag-btn ag-btn--primary" data-action="xwalk-apply">Apply baseline</button>`:''}</div></div>`;
+    }
+    return `<div class="agl-baseline"><p class="agl-sub"><b>Baseline file</b>: ${rec?`${esc(rec.fileName||'imported file')}, imported ${esc(String(rec.importedAt??'').slice(0,10))}`:'none imported'}. Layers, lowest first: built in, Profession catalog, baseline file, your edits here (your edits always win; Reset a row to fall back).</p>
+      <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="xwalk-import">Import baseline file…</button><button type="button" class="ag-btn" data-action="xwalk-export">Export current table</button>
+      <input id="agl-xwalk-file" type="file" accept="application/json,.json" hidden></div>${preview}</div>`;
   }
   /** GM: assign the profession features characters qualify for (dry run, then confirm). Not part of GM Setup. */
   _assign(){
@@ -1451,8 +1494,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>Gathering:</strong> pick a gathering spot at a location your party knows and send a request; the GM approves it. The lead gatherer rolls one check for the party (skill or tool bonus shown, advantage preset from the sheet, effects and helpers). Success gives one common bundle, success by 5+ a rare one instead; failure exhausts the spot. The result is posted in chat.</p>
     <p><strong>Tools:</strong> a recipe shows the tool or workstation it needs and warns if your character doesn’t carry the tool. Crafting rolls a tool check; the result is on the craft card. Gold costs are shown, not deducted.</p>
     <p><strong>XP:</strong> the GM awards profession XP from the gather and craft chat cards.</p>
-    ${game.user.isGM?'<p><strong>Assign:</strong> preview which profession features each party character qualifies for from their skill and tool proficiencies, then add the missing ones. Re-running adds nothing new; XP is never changed.</p>':''}
-    ${game.user.isGM?'<p><strong>GM Setup:</strong> choose the party, Player Access, and the tool and check mapping. Recipe imports and Manager are in the Recipe Catalog tab; XP is awarded from the Individual tab.</p>':''}
+    ${game.user.isGM?'<p><strong>Assign:</strong> preview which profession features each party character qualifies for from their skill and tool proficiencies, or from carrying a qualifying item (Fishing Tackle for Fishing), then add the missing ones. Re-running adds nothing new; XP is never changed.</p>':''}
+    ${game.user.isGM?'<p><strong>GM Setup:</strong> choose the party, Player Access, and the tool and check mapping. <em>Tools and checks</em> can import a baseline crosswalk file (preview, then apply) and export the current table. Recipe imports and Manager are in the Recipe Catalog tab; XP is awarded from the Individual tab.</p>':''}
     <button type="button" class="ag-btn" data-action="help-back">Back</button>
   </section>`;}
   /** Ad-hoc node from the GM's form; same shape as a Locations entry. */
@@ -1598,6 +1641,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const signal=this._events.signal;
     this.element.addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b||b.disabled)return;if(b.closest('summary'))e.preventDefault();void this._click(b.dataset.action,b.dataset.id,b.dataset);},{signal});
     this.element.querySelector('#agl-file')?.addEventListener('change',e=>this._upload(e),{signal});
+    this.element.querySelector('#agl-xwalk-file')?.addEventListener('change',e=>this._uploadBaseline(e),{signal});
     this.element.addEventListener('toggle',e=>{const key=e.target?.dataset?.folder;if(!key||this.query)return;if(e.target.open)this.closedFolders.delete(key);else this.closedFolders.add(key);},{signal,capture:true});
     this.element.addEventListener('change',e=>{
       if(e.target?.matches?.('[data-agl-actor]')){this.actorId=e.target.value;this.render();return;}
@@ -1615,7 +1659,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         this.render();return;}
       if(e.target?.matches?.('[data-core-award]')&&game.user.isGM){this.coreAwardDraft=e.target.checked;this._syncRosterActions();return;}
       if(e.target?.matches?.('[data-exotic-chance]')&&game.user.isGM){this.exoticDraft=e.target.value;this._syncRosterActions();return;}
-      if(e.target?.matches?.('[data-map-tool],[data-map-skill],[data-map-list]')&&game.user.isGM){this._rememberMapDraft(e.target);return;}
+      if(e.target?.matches?.('[data-map-tool],[data-map-skill],[data-map-list],[data-map-items]')&&game.user.isGM){this._rememberMapDraft(e.target);return;}
       if(e.target?.matches?.('[data-assign-target]')&&game.user.isGM){this.assignState={target:e.target.value,preview:null,selected:new Set()};this.render();return;}
       if(e.target?.matches?.('[data-assign-row]')&&game.user.isGM){const id=e.target.dataset.assignRow;if(e.target.checked)this.assignState.selected.add(id);else this.assignState.selected.delete(id);this.render();return;}
       if(e.target?.matches?.('[data-roster-actor]')&&game.user.isGM)this._rememberRosterDraft();
@@ -1647,6 +1691,15 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(action==='actor'||action==='open-individual'){if(!myCharacters().some(a=>a.id===id))throw Error('You can only open your own character');this.actorId=id;this.view='individual';this.render();return;}
       if(action==='party-sort'){this.partySort=id==='profession'?'profession':'player';this.render();return;}
       if(action==='demo')throw Error('Demonstration mode was removed. Use an isolated test world with imported source definitions.');
+      if(action==='xwalk-import'){requireCrosswalkGM();this.element.querySelector('#agl-xwalk-file')?.click();return;}
+      if(action==='xwalk-cancel'){this.baselinePreview=null;this.render();return;}
+      if(action==='xwalk-apply'){requireCrosswalkGM();const p=this.baselinePreview;if(!p)throw Error('Import a baseline file first');
+        const out=await applyBaseline(p.data,{fileName:p.fileName});this.baselinePreview=null;
+        this.notice=`Baseline file applied: ${out.professions} profession${out.professions===1?'':'s'}. Your own edits still win.`;say(this.notice);this.render();return;}
+      if(action==='xwalk-export'){const data=exportCurrentCrosswalk();
+        const save=globalThis.foundry?.utils?.saveDataToFile??globalThis.saveDataToFile;
+        if(typeof save!=='function')throw Error('This Foundry version cannot download files here');
+        save(JSON.stringify(data,null,2),'application/json',`ag-profession-crosswalk-${data.exportedAt.slice(0,10)}.json`);return;}
       if(action==='map-reset'){if(!game.user.isGM)throw Error('GM only');this.mapDraft??=mappingDraft(checkMapping());for(const l of CROSSWALK_LISTS)delete this.mapDraft[l][id];this.render();return;}
       if(action==='assign-preview'){requireAssignGM();const a=this.assignState;
         a.preview=assignPreview({actorIds:a.target==='party'?null:[a.target]});a.selected=new Set(a.preview.rows.filter(r=>r.status==='propose').map(r=>r.id));this.render();return;}
@@ -1734,9 +1787,12 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     this.mapDraft??=mappingDraft(checkMapping());
     if(el.dataset.mapTool)this.mapDraft.tools[el.dataset.mapTool]=el.value;
     if(el.dataset.mapSkill)this.mapDraft.skills[el.dataset.mapSkill]=el.value;
+    if(el.dataset.mapItems){const k=el.dataset.mapItems,next=String(el.value??'').split(',').map(v=>v.trim()).filter(Boolean);
+      const current=crosswalkInfo(this.mapDraft).map.items[k]??[];
+      if(this.mapDraft.items?.[k]||JSON.stringify(next)!==JSON.stringify(current)){this.mapDraft.items??={};this.mapDraft.items[k]=next;}}
     if(el.dataset.mapList){
       const list=el.dataset.mapList,k=el.dataset.mapProf;
-      const current=this.mapDraft[list][k]??(list==='advantageTools'?[]:crosswalkInfo(this.mapDraft).map[list][k]??[]);
+      const current=this.mapDraft[list][k]??(list==='advantageTools'?baselineLayer()?.[k]?.advantageTools??[]:crosswalkInfo(this.mapDraft).map[list][k]??[]);
       const next=el.checked?[...new Set([...current,el.value])]:current.filter(v=>v!==el.value);
       this.mapDraft[list][k]=next;
       // Keep the picker open: refresh only its summary.
@@ -1760,6 +1816,10 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     if(!discard)return false;
     this.rosterDraft=null;this.mapDraft=null;this.exoticDraft=null;this.coreAwardDraft=null;return true;
   }
+  /** GM: read a baseline file and show its preview; nothing is saved until Apply baseline. */
+  async _uploadBaseline(e){if(!game.user.isGM)return;const f=e.target.files?.[0];if(!f)return;
+    try{const data=JSON.parse(await f.text());this.baselinePreview={fileName:f.name??'',data,result:previewBaseline(data)};this.render();}
+    catch(err){say(`Baseline file not read: ${err.message}`,true);}finally{if(e.target)e.target.value='';}}
   async _upload(e){checkPlayerLedger();if(!game.user.isGM)return;const f=e.target.files?.[0];if(!f)return;
     try{const data=normalizeLibrary(JSON.parse(await f.text()));const approved=await DialogV2.confirm({window:{title:'Import Ledger Catalog'},
       content:`<p>Source format: <b>${esc(data.sourceSchema)}</b>.</p><p>Import <b>${data.recipes.length} Recipes</b> and <b>${data.materials.length} Materials</b> into the Ledger's <b>world-visible read-only catalog</b>?</p><p>${data.importSummary.skippedRestricted} restricted/inactive entries excluded; ${data.importSummary.unmappedRecipes} recipes have no verified structured ingredients and cannot be crafted.</p><p>This REPLACES the previous Ledger catalog. It will not create or alter Foundry Items, Actor progression, or inventories. <strong>Only player-visible records may be stored here.</strong></p>`,modal:true,rejectClose:false});
@@ -1857,6 +1917,7 @@ Hooks.once('init',()=>{
     default:{schema:SCHEMA,source:'empty',recipes:[],materials:[]},onChange:()=>current?.render()});
   game.settings.register(ID,CORE_AWARD_SETTING,{name:'Award linked core items when crafting',scope:'world',config:false,type:Boolean,default:true});
   game.settings.register(ID,EXOTIC_SETTING,{name:'Exotic discovery chance (%)',scope:'world',config:false,type:Number,default:DEFAULT_EXOTIC_PERCENT,onChange:()=>{if(current?.rendered)current.render();}});
+  game.settings.register(ID,BASELINE_SETTING,{name:'Profession crosswalk baseline file',scope:'world',config:false,type:Object,default:{},onChange:()=>{if(current?.rendered)current.render();}});
   game.settings.register(ID,'checkMapping',{name:'Profession tools and gathering checks',scope:'world',config:false,type:Object,default:{},onChange:()=>{if(current?.rendered)current.render();}});
   game.settings.register(ID,'partyRoster',{name:'Active party Actor IDs',scope:'world',config:false,type:Array,default:[],onChange:()=>{if(current?.rendered)current.render();}});
   game.settings.registerMenu(ID,'open',{name:'Ashen Gate Profession Ledger',label:'Open Profession Ledger',
@@ -1902,6 +1963,9 @@ Hooks.once('ready',()=>{
     /** GM only (0.16.0): profession assignment from skill/tool proficiencies. preview changes nothing; apply adds missing PROF-* Items. */
     assign:{preview:options=>{checkPlayerLedger();return structuredClone(assignPreview(options));},
       apply:options=>{checkPlayerLedger();return assignProfessions(options);}},
+    /** GM only (0.20.0): baseline file import (preview, then apply) and export of the current crosswalk table. */
+    crosswalk:{previewBaseline:data=>structuredClone(previewBaseline(data)),applyBaseline:(data,options)=>applyBaseline(data,options),
+      exportTable:()=>exportCurrentCrosswalk(),baseline:()=>{requireCrosswalkGM();return structuredClone(baselineRecord());}},
     hooks:{xpOpportunity:XP_HOOK,progressionChanged:PROGRESSION_HOOK},
     embed:{contract:'ag-ledger-embed/1',modes:[...EMBED_MODES],mount:mountEmbed},
     version:VERSION,source:'Actor inventories, Manager tagged Items, and optional Ledger catalog'};

@@ -8,7 +8,8 @@ Module ID `ashen-gate-profession-ledger` · Foundry V14 · dnd5e. Owns each char
 - **Party:** all party members' materials and recipes, by player or by profession.
 - **Recipe Catalog:** recipes in folders by profession. Players see only recipes the party has found or learned; the GM sees all, with drafts marked. A GM-only **Catalog tools** panel holds recipe import (Ledger JSON), the Open General Manager shortcut and the draft visibility guide.
 - **Gathering:** one lead and one check per gathering node (from Locations, or ad-hoc). The GM starts it, or a player requests a node and the GM approves. Helpers with tools give advantage. Common bundle on success, rare on success by 5+, failure exhausts the node. Chat card for everyone.
-- **GM Setup** (GM): party roster, tool and check mapping (profession → tool, gathering profession → skill), Player Access.
+- **Assign** (GM): previews which profession features each party character qualifies for, then adds the missing ones. A character qualifies by proficiency in a qualifying skill or tool, or (0.20.0) by carrying a qualifying core item, matched by name or core UUID in any case. The default is Fishing Tackle for Fishing, and the reason reads *Fishing Tackle (carried) → Fishing*.
+- **GM Setup** (GM): party roster, tool and check mapping (profession → tool, gathering profession → skill), the crosswalk (qualifying skills, tools and items, advantage tools), Player Access. **Tools and checks → Import baseline file…** reads a crosswalk file, shows which rows change, and applies it on **Apply baseline**. **Export current table** downloads the effective table in the same shape. Layers, lowest first: built in < Profession catalog `access` < baseline file < GM edits (GM edits always win). File schema: [`docs/profession-crosswalk-schema.md`](../../docs/profession-crosswalk-schema.md).
 
 XP is never automatic: the GM awards it from the Individual tab or from the **Award XP** control on gather and craft chat cards (with **Undo award**). The `ashenGateLedger.xpOpportunity` hook fires for each card.
 
@@ -20,7 +21,7 @@ Independent: it opens without any other Ashen Gate module. General Manager impor
 
 ## Public API
 
-`game.modules.get('ashen-gate-profession-ledger').api`: `open`, `playerAccess` (`ag-player-access/1`), `getProfessions`, `getProfessionProgress`, `getKnownRecipes`, `inspectProfessionPerkChoices`, `learnRecipe`, `craft`, `awardProfessionXP` / `adjustProfessionXP` / `getProfessionXPHistory` (GM), `gathering.{nodes, start, resolve, cancel, request}` (start/resolve/cancel are GM-only), and `embed.mount`.
+`game.modules.get('ashen-gate-profession-ledger').api`: `open`, `playerAccess` (`ag-player-access/1`), `getProfessions`, `getProfessionProgress`, `getKnownRecipes`, `inspectProfessionPerkChoices`, `learnRecipe`, `craft`, `awardProfessionXP` / `adjustProfessionXP` / `getProfessionXPHistory` (GM), `gathering.{nodes, start, resolve, cancel, request}` (start/resolve/cancel are GM-only), `assign.{preview, apply}` and `crosswalk.{previewBaseline, applyBaseline, exportTable, baseline}` (GM only), and `embed.mount`.
 
 ### `getProfessions(actor)` (0.18.0)
 

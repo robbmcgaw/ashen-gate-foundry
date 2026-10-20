@@ -49,14 +49,15 @@ await import(pathToFileURL(entry));hooks.init();hooks.ready();
 const app=api.open({view:'assign'});
 const html=async view=>{app.view=view;return (await app._prepareContext({})).html;};
 
-test('crosswalk defaults cover all 14 professions; only Fishing has no qualifying skill or tool',()=>{
+test('crosswalk defaults cover all 14 professions; Fishing qualifies only by carrying Fishing Tackle (0.20.0)',()=>{
   const map=effectiveMapping({});
   assert.equal(PROFESSION_KEYS.length,14);
   for(const k of PROFESSION_KEYS)for(const l of ['qualifySkills','qualifyTools','advantageTools'])assert.ok(Array.isArray(map[l][k]),`${k} ${l}`);
   assert.deepEqual(map.qualifyTools.alchemy,['alchemist']);assert.deepEqual(map.qualifySkills.enchanting,['arc']);
   assert.deepEqual(map.qualifySkills.huntingskinning,['sur']);assert.deepEqual(map.qualifyTools.mining,['mason']);
   assert.deepEqual(map.advantageTools.herbalism,[],'no advantage tools by default');
-  assert.deepEqual(unmappedProfessions(map),['Fishing']);
+  assert.deepEqual(map.qualifySkills.fishing,[]);assert.deepEqual(map.qualifyTools.fishing,[]);assert.deepEqual(map.items.fishing,['Fishing Tackle']);
+  assert.deepEqual(unmappedProfessions(map),[]);
 });
 
 test('catalog-derived defaults: access lists replace built-in ones; empty access keeps the default; unknown names are reported',()=>{
@@ -85,7 +86,7 @@ test('GM overrides win over catalog and defaults; explicit [] means none; old si
   assert.deepEqual(map.qualifySkills.fishing,['sur']);assert.equal(map.tools.enchanting,'jeweler','old name still read');
   assert.deepEqual(map.advantageTools.fishing,['herb'],'invalid entries dropped');
   assert.equal(effectiveMapping({tools:{alchemy:''}}).tools.alchemy,'');assert.deepEqual(effectiveMapping({tools:{alchemy:''}}).qualifyTools.alchemy,[]);
-  assert.deepEqual(effectiveMapping({}).gm,{qualifySkills:{},qualifyTools:{},advantageTools:{}});
+  assert.deepEqual(effectiveMapping({}).gm,{qualifySkills:{},qualifyTools:{},advantageTools:{},items:{}});
 });
 
 test('advantage tools: only GM-configured ones change the roll; proficiency or carrying counts',()=>{

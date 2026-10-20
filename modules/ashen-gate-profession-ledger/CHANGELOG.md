@@ -1,3 +1,12 @@
+## 0.20.0 — 2026-10-20
+
+- **Crosswalk items.** Each profession can list core items that qualify a character just by being carried. Items are matched by name in any case, or by an Item/Compendium UUID: the item's own, its compendium source, or General Manager's core link. Fishing's built-in qualifying item is **Fishing Tackle** (core 5.5e gear, not a tool). Assign proposes Fishing for a character carrying it, with the reason *Fishing Tackle (carried) → Fishing*. A stack of 0 doesn't count.
+- GM Setup → Tools and checks has a new **Qualifying items (carried)** column (comma separated). The Profession catalog may set `access.itemsAnyOf` (additive); a catalog row without it keeps the built-in items.
+- **Baseline file.** Tools and checks → **Import baseline file…** (GM only) reads a `{professions:{<key>:{qualifySkills[], qualifyTools[], advantageTools[], items[]}}}` file. It shows a preview of which rows change and which unknown names are ignored, and nothing is saved until **Apply baseline**. Layers, lowest first: built in < Profession catalog < baseline file < your edits; your edits always win, and Reset falls back. **Export current table** downloads the effective table in the same shape, so it can be imported again. Schema: `docs/profession-crosswalk-schema.md`.
+- Advantage tools from the baseline file count in gathering and crafting checks, like the ones you tick. The catalog's are still only suggestions.
+- API (GM only, refused for players): `crosswalk.previewBaseline(data)`, `crosswalk.applyBaseline(data, {fileName})`, `crosswalk.exportTable()`, `crosswalk.baseline()`.
+- Saved data, additive: a new world setting `crosswalkBaseline`, and an optional `items` list in `checkMapping`. Existing settings read as before, and no migration is needed.
+
 ## 0.19.0 — 2026-10-20
 
 - **New API `embed.mount(element, {actorId, mode: 'individual'})`** so a partner module (Character Hub) can show this character's Individual panel inside its own window: professions with XP and perk choices, materials, recipes to learn (Learn) and known recipes (Craft). Returns `{unmount, refresh}` and refreshes itself on changes. See the README.

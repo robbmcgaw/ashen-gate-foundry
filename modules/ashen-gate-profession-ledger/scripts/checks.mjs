@@ -35,30 +35,44 @@ export const DEFAULT_GATHER_SKILLS=Object.freeze({herbalism:'nat',huntingskinnin
 /** Stored GM choices win over defaults; an explicit '' means "none".
  * 0.16.0 crosswalk (AG-F01), additive: per profession, the skills and tools whose proficiency qualifies a character
  * (any-of), and the advantage tools (proficiency with, or carrying, one gives advantage on that profession's checks).
- * Layers: built-in defaults (the check tool/skill above) < Profession catalog `access` (`catalog`, GM-read) < GM lists
- * saved in the setting. An explicit [] means "none". `gm` holds only the GM's saved lists. Checks only ever use the
- * GM's advantage tools, so an unconfigured profession rolls exactly as before. */
-export const CROSSWALK_LISTS=Object.freeze(['qualifySkills','qualifyTools','advantageTools']);
+ * 0.20.0 adds `items` (carried core items that qualify) and the baseline-file layer (see effectiveMapping).
+ * An explicit [] means "none". `gm` holds only the GM's saved lists. Checks use the GM's and the baseline file's
+ * advantage tools, never the catalog's, so an unconfigured profession rolls exactly as before. */
+export const CROSSWALK_LISTS=Object.freeze(['qualifySkills','qualifyTools','advantageTools','items']);
+/** 0.20.0: core items that qualify a character by being carried (name, or a core/Item UUID). Fishing Tackle is core 5.5e
+ * adventuring gear, not a tool, so Fishing qualifies by carrying it. */
+export const DEFAULT_QUALIFY_ITEMS=Object.freeze({fishing:Object.freeze(['Fishing Tackle'])});
 const TOOL_KEY=/^[a-z][a-z0-9]*$/;
+const ITEM_REF=v=>v.trim().length>0&&v.trim().length<=200;
 const cleanList=(v,valid)=>Array.isArray(v)?[...new Set(v.filter(x=>typeof x==='string'&&valid(x)))]:null;
-export function effectiveMapping(stored,{catalog=null}={}){
+/** Item references, trimmed, without case-insensitive duplicates. */
+export const cleanItemList=v=>{if(!Array.isArray(v))return null;const out=[],seen=new Set();
+  for(const x of v){if(typeof x!=='string'||!ITEM_REF(x))continue;const t=x.trim(),k=norm(t)||t.toLowerCase();if(!seen.has(k)){seen.add(k);out.push(t);}}return out;};
+const LIST_VALID={qualifySkills:v=>SKILL_IDS.includes(v),qualifyTools:v=>TOOL_KEY.test(v),advantageTools:v=>TOOL_KEY.test(v)};
+export const cleanCrosswalkList=(list,v)=>list==='items'?cleanItemList(v):cleanList(v,LIST_VALID[list]);
+/**
+ * Layers, lowest first, decided per profession and per list: built-in defaults < Profession catalog `access` (`catalog`,
+ * GM-read) < the GM's imported baseline file (`baseline`, 0.20.0) < GM lists saved in the setting. A layer only counts
+ * for a list it actually sets (an array, [] included).
+ */
+export function effectiveMapping(stored,{catalog=null,baseline=null}={}){
   const s=stored&&typeof stored==='object'?stored:{};
   const pick=(defaults,saved,valid)=>{const out={...defaults};
     for(const [k,v] of Object.entries(saved&&typeof saved==='object'?saved:{}))if(typeof v==='string'&&(v===''||valid(v)))out[PROFESSION_ALIASES[k]??k]=v;return out;};
   const tools=pick(DEFAULT_PROFESSION_TOOLS,s.tools,v=>TOOL_KEY.test(v)),skills=pick(DEFAULT_GATHER_SKILLS,s.skills,v=>SKILL_IDS.includes(v));
-  const validOf={qualifySkills:v=>SKILL_IDS.includes(v),qualifyTools:v=>TOOL_KEY.test(v),advantageTools:v=>TOOL_KEY.test(v)};
   const gm={};
   for(const list of CROSSWALK_LISTS){gm[list]={};
-    for(const [k,v] of Object.entries(s[list]&&typeof s[list]==='object'?s[list]:{})){const clean=cleanList(v,validOf[list]);if(clean)gm[list][PROFESSION_ALIASES[k]??k]=clean;}}
+    for(const [k,v] of Object.entries(s[list]&&typeof s[list]==='object'?s[list]:{})){const clean=cleanCrosswalkList(list,v);if(clean)gm[list][PROFESSION_ALIASES[k]??k]=clean;}}
   const keys=[...new Set([...Object.keys(tools),...Object.keys(skills)])];
-  const out={tools,skills,gm,qualifySkills:{},qualifyTools:{},advantageTools:{},origin:{}};
+  const out={tools,skills,gm,qualifySkills:{},qualifyTools:{},advantageTools:{},items:{},origin:{}};
   for(const k of keys){
-    const cat=catalog?.[k]??null;
-    const base={qualifySkills:skills[k]?[skills[k]]:[],qualifyTools:tools[k]?[tools[k]]:[],advantageTools:[]};
+    const cat=catalog?.[k]??null,file=baseline?.[k]??null;
+    const base={qualifySkills:skills[k]?[skills[k]]:[],qualifyTools:tools[k]?[tools[k]]:[],advantageTools:[],items:[...(DEFAULT_QUALIFY_ITEMS[k]??[])]};
     out.origin[k]={};
     for(const list of CROSSWALK_LISTS){
-      const from=gm[list][k]?'gm':cat?'catalog':'default';
-      out[list][k]=[...(from==='gm'?gm[list][k]:from==='catalog'?cat[list]??[]:base[list])];
+      const fileList=file?cleanCrosswalkList(list,file[list]):null;
+      const from=gm[list][k]?'gm':fileList?'baseline':cat&&Array.isArray(cat[list])?'catalog':'default';
+      out[list][k]=[...(from==='gm'?gm[list][k]:from==='baseline'?fileList:from==='catalog'?cat[list]:base[list])];
       out.origin[k][list]=from;
     }
   }
@@ -116,6 +130,16 @@ export function heldTool(actor,ref){
     (ref.key&&(i.system?.type?.baseItem===ref.key||i.system?.baseItem===ref.key))||
     (ref.uuid&&(i.uuid===ref.uuid||i._stats?.compendiumSource===ref.uuid||i.flags?.core?.sourceId===ref.uuid))||
     (ref.name&&norm(i.name)===norm(ref.name))))??null;
+}
+/** 0.20.0: the Item this character carries for a crosswalk item reference (an Item/Compendium UUID, matched against the
+ * Item, its compendium source and General Manager's core link; otherwise a name, any case), or null. Quantity 0 is not carried. */
+export function carriedItem(actor,ref){
+  const text=String(ref??'').trim();if(!text)return null;
+  const uuid=/^(Compendium|Item)\./.test(text)?text:null,name=norm(text);
+  return Array.from(actor?.items??[]).find(i=>{
+    if(!i||Number(i.system?.quantity??1)<=0)return false;
+    if(uuid)return [i.uuid,i._stats?.compendiumSource,i.flags?.core?.sourceId,i.flags?.['ashen-gate-manager']?.coreLink?.uuid].includes(uuid);
+    return norm(i.name)===name;})??null;
 }
 export const formatBonus=n=>Number.isFinite(n)?(n>=0?`+${n}`:`−${Math.abs(n)}`):'—';
 
