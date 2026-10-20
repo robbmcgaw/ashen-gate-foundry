@@ -6,8 +6,11 @@
 //   - ...unless it sits in a folder named "invalid" or is named *.invalid.json: then it must be REJECTED
 //     (used for "common mistakes" examples). Each such file may name the error it expects in a top-level
 //     "_expect_error" string (a substring of one validator message); it is removed before validating.
-//   - *.scene-moods.json (array of presets) and *.organize-rules.json (array of rules) are reference shapes:
-//     checked with the same validators the Manager UI uses, although Manager has no file import for them yet.
+//   - files the Import tab does not take are recognised by name and checked with their owner's own validator:
+//     *.scene-moods.json (moods file; Manager > Scenes > Export & import, 0.35.0+), *.organize-rules.json (array of rules
+//     or {rules}; Manager > Organize > Import), *.crosswalk.json (Profession Ledger baseline file; Ledger > GM Setup >
+//     Tools and checks > Import baseline file) and *.npc-codex.json (ag-npc-codex-export/0.1; Library > NPC Codex >
+//     Restore reveals). They are left out of the folder's ZIP bundle.
 //   - each folder's accepted import files are also zipped together and read as a Manager ZIP bundle.
 // Exit code 1 when any file does not behave as expected.
 import fs from 'node:fs';
@@ -20,7 +23,7 @@ import { classifyDelivery } from '../modules/ashen-gate-manager/scripts/delivery
 import { markerTargets } from '../modules/ashen-gate-manager/scripts/import-fidelity.js';
 import { detectSpecialistFile, describeUnrecognized } from '../modules/ashen-gate-manager/scripts/specialist-handoff.js';
 import { readImportBundle } from '../modules/ashen-gate-manager/scripts/zip-import.js';
-import { validatePreset } from '../modules/ashen-gate-manager/scripts/scene-moods.js';
+import { createSceneMoods } from '../modules/ashen-gate-manager/scripts/scene-moods.js';
 import { importRecords, normalizeExotics as locationExotics } from '../modules/ashen-gate-locations/scripts/model.mjs';
 import { importRouteRecords } from '../modules/ashen-gate-locations/scripts/routes.mjs';
 import { planQuestImport } from '../modules/ashen-gate-quest-manager/scripts/core.mjs';
@@ -31,8 +34,12 @@ import { normalizeRecipe } from '../modules/ashen-gate-profession-ledger/scripts
 import { materialMeta } from '../modules/ashen-gate-profession-ledger/scripts/exotic.mjs';
 import { catalogCrosswalk, PROFESSION_KEYS } from '../modules/ashen-gate-profession-ledger/scripts/assign.mjs';
 import { professionKey } from '../modules/ashen-gate-profession-ledger/scripts/checks.mjs';
+import { parseBaselineFile } from '../modules/ashen-gate-profession-ledger/scripts/assign.mjs';
+import { planRevealsImport, isLinkId, REVEAL_FIELDS } from '../modules/ashen-gate-manager/scripts/codex.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+/** Core V14 weather effect ids; a world may add more. */
+const CORE_WEATHER = Object.fromEntries(['leaves', 'rain', 'rainStorm', 'fog', 'snow', 'blizzard'].map(id => [id, {}]));
 const JSZip = globalThis.JSZip;
 
 /** Manager's own Organize rules validator, when this checkout has it (Manager 0.25.0+). */
@@ -40,6 +47,40 @@ async function organizeValidator() {
   const file = path.join(root, 'modules/ashen-gate-manager/scripts/organize.js');
   if (!fs.existsSync(file)) return null;
   return (await import(pathToFileURL(file))).validateRules;
+}
+
+/** NPC Codex (Manager 0.33.0) reads these without rejecting anything: a value it would drop or turn into other text is an error here. */
+function codexChecks(rec) {
+  const errors = [], id = rec.id;
+  for (const k of ['role', 'appearance', 'signature_line', 'wants', 'knows', 'portrayal', 'session_role', 'stat_block'])
+    if (rec[k] !== undefined && rec[k] !== null && typeof rec[k] !== 'string') errors.push(`${id}: ${k} must be text (the Codex would show ${JSON.stringify(String(rec[k]))}).`);
+  if (rec.gm_notes !== undefined && !(Array.isArray(rec.gm_notes) && rec.gm_notes.every(n => typeof n === 'string')) && typeof rec.gm_notes !== 'string')
+    errors.push(`${id}: gm_notes must be a list of strings.`);
+  if (rec.codex === undefined) return errors;
+  const codex = rec.codex;
+  if (!codex || typeof codex !== 'object' || Array.isArray(codex)) return [...errors, `${id}: codex must be an object {links?, default_reveal?}.`];
+  if (codex.links !== undefined) {
+    if (!Array.isArray(codex.links)) errors.push(`${id}: codex.links must be a list of ids.`);
+    else for (const l of codex.links) if (!isLinkId(l)) errors.push(`${id}: codex.links ${JSON.stringify(l)} is not a linkable id (LOC, FAC, FACTION, RENOWN, QUEST, ORDER, CONTRACT or NPC); the Codex drops it.`);
+  }
+  const dr = codex.default_reveal;
+  if (dr !== undefined) {
+    if (!dr || typeof dr !== 'object' || Array.isArray(dr)) errors.push(`${id}: codex.default_reveal must be an object {discovery?, fields?}.`);
+    else {
+      const rule = (path, v) => { if (v !== undefined && v !== 'hidden' && v !== 'party') errors.push(`${id}: ${path} ${JSON.stringify(v)} must be "hidden" or "party" (anything else reads as hidden).`); };
+      rule('codex.default_reveal.discovery', dr.discovery);
+      if (dr.fields !== undefined) {
+        if (!dr.fields || typeof dr.fields !== 'object' || Array.isArray(dr.fields)) errors.push(`${id}: codex.default_reveal.fields must be an object.`);
+        else for (const [k, v] of Object.entries(dr.fields)) {
+          if (!REVEAL_FIELDS.includes(k)) errors.push(`${id}: codex.default_reveal.fields.${k} is not revealable (use ${REVEAL_FIELDS.join(', ')}); the Codex drops it.`);
+          else rule(`codex.default_reveal.fields.${k}`, v);
+        }
+      }
+      for (const k of Object.keys(dr)) if (!['discovery', 'fields'].includes(k)) errors.push(`${id}: codex.default_reveal.${k} is not read (use discovery and fields).`);
+    }
+  }
+  for (const k of Object.keys(codex)) if (!['links', 'default_reveal'].includes(k)) errors.push(`${id}: codex.${k} is not read (use links and default_reveal).`);
+  return errors;
 }
 
 /** Extra checks on a valid Manager package: what the owning modules would make of its domain records. */
@@ -59,6 +100,8 @@ function domainChecks(pkg) {
       else for (const u of catalogCrosswalk([{sourceId: rec.id, name: rec.name, access: rec.access}]).unresolved)
         errors.push(`${rec.id}: access.${u.field} "${u.name}" matches no dnd5e ${u.field === 'skillProficienciesAnyOf' ? 'skill' : 'tool'} (the Ledger ignores it).`);
     }
+    if (rec.entity_type === 'NPC') errors.push(...codexChecks(rec));
+    else if (rec.codex !== undefined) notes.push(`${rec.id}: codex is only read on entity_type NPC records.`);
     if (rec.core_ref !== undefined && rec.foundry?.document_type !== 'Item') notes.push(`${rec.id}: core_ref is only read on Item records.`);
     if (rec.core_ref !== undefined && !(typeof rec.core_ref === 'string' ? rec.core_ref.trim() : rec.core_ref?.name))
       errors.push(`${rec.id}: core_ref must be a core item name or {name, source?, type?, rarity?}.`);
@@ -110,15 +153,40 @@ function domainChecks(pkg) {
 /** Validates one parsed file. Returns {kind, errors, notes}. */
 export async function checkContent(data, filename = '') {
   if (/\.scene-moods\.json$/i.test(filename)) {
-    if (!Array.isArray(data) || !data.length) return {kind: 'scene-moods', errors: ['Expected a non-empty array of presets.'], notes: []};
-    const seen = new Set(), errors = [];
-    data.forEach((p, i) => { for (const e of validatePreset(p)) errors.push(`presets[${i}] ${p?.id ?? '?'}: ${e}`); if (seen.has(p?.id)) errors.push(`presets[${i}]: id ${p.id} is used twice.`); seen.add(p?.id); });
-    return {kind: 'scene-moods', errors, notes: ['Reference shape: Manager has no file import for scene moods (add them in Manager > Scenes).']};
+    // Manager's own import preview, in a GM world with the shipped presets and core weather.
+    const scenes = createSceneMoods({game: {user: {isGM: true}, settings: {get: () => []}}, getConfig: () => ({weatherEffects: CORE_WEATHER})});
+    const preview = scenes.previewImport(data);
+    if (!preview.ok) return {kind: 'scene-moods', errors: [preview.message], notes: []};
+    const errors = [], notes = [], seen = new Set();
+    for (const item of preview.items) {
+      const label = `${item.kind} ${item.id || '?'}`;
+      if (item.status === 'invalid') errors.push(`${label}: skipped on import: ${item.problems.join(' ')}`);
+      if (seen.has(`${item.kind}:${item.id}`)) errors.push(`${label}: id is used twice in this file.`);
+      seen.add(`${item.kind}:${item.id}`);
+      if (item.unavailable) errors.push(`${label}: weather "${item.unavailable}" is not a core weather id (it imports but will not apply).`);
+      if (item.status === 'conflict') notes.push(`${label}: same id as a shipped preset with different values (the GM chooses Keep mine / Replace mine / Keep both).`);
+    }
+    return {kind: 'scene-moods', errors, notes: [...notes, 'Imported in Manager > Scenes > Export & import (not through Manager Import).']};
   }
   if (/\.organize-rules\.json$/i.test(filename)) {
     const validate = await organizeValidator();
     if (!validate) return {kind: 'organize-rules', errors: [], notes: ['Not checked: Organize (Manager 0.25.0) is not in this checkout.']};
     return {kind: 'organize-rules', errors: validate(Array.isArray(data) ? data : data?.rules), notes: []};
+  }
+  if (/\.crosswalk\.json$/i.test(filename)) {
+    const r = parseBaselineFile(data);
+    const errors = [...r.errors,
+      ...r.unknownProfessions.map(p => `"${p}" is not one of the Ledger's 14 professions (ignored).`),
+      ...r.unresolved.map(u => `${u.profession}: ${u.list} "${u.name}" matches no dnd5e ${u.list === 'qualifySkills' ? 'skill' : 'tool'} (ignored).`)];
+    for (const [name, row] of Object.entries(data?.professions ?? {})) if (Array.isArray(row?.items))
+      for (const v of row.items) if (typeof v === 'string' && (!v.trim() || v.trim().length > 200)) errors.push(`${name}: items entry ${JSON.stringify(v.slice(0, 40))} is empty or over 200 characters (dropped).`);
+    return {kind: 'crosswalk', errors, notes: ['Imported in Profession Ledger > GM Setup > Tools and checks > Import baseline file (not through Manager Import).']};
+  }
+  if (/\.npc-codex\.json$/i.test(filename)) {
+    const r = planRevealsImport(data, []);
+    const errors = [...r.errors];
+    for (const id of r.missing) if (!/^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/.test(id)) errors.push(`reveals: ${JSON.stringify(id)} is not a permanent NPC id.`);
+    return {kind: 'npc-codex', errors, notes: ['GM file: restored in Manager > Library > NPC Codex > Restore reveals (only NPCs already in the world). Not an Import-tab file.']};
   }
   const specialist = detectSpecialistFile(data);
   if (specialist === 'quests') return {kind: 'quests', errors: planQuestImport(data).errors, notes: []};
@@ -164,7 +232,7 @@ export async function validateTargets(targets) {
     }
     if (errors.length) { ok = false; lines.push(`FAIL ${rel} (${kind ?? 'unrecognised'}):\n  - ${errors.join('\n  - ')}`); continue; }
     lines.push(`ok   ${rel} (${kind})${notes.length ? `\n  note: ${notes.join('\n  note: ')}` : ''}`);
-    if (!['scene-moods', 'organize-rules'].includes(kind)) {
+    if (!['scene-moods', 'organize-rules', 'crosswalk', 'npc-codex'].includes(kind)) {
       const dir = path.dirname(file);
       if (!byFolder.has(dir)) byFolder.set(dir, []);
       byFolder.get(dir).push(file);

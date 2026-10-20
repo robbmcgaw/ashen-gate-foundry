@@ -62,11 +62,13 @@ test('files in an "invalid" folder must be rejected, with the error they name', 
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });
 
-test('scene mood presets are checked with the Scenes tab validator', async () => {
-  const good = [{id: 'test-fog', label: '[TEST] Fog', set: {'environment.darknessLevel': 0.2, weather: 'fog'}}];
+test('moods files are checked with the Scenes import preview', async () => {
+  const file = presets => ({format: 'ashen-gate.scene-moods', formatVersion: 1, presets});
+  const good = file([{id: 'test-fog', label: '[TEST] Fog', kind: 'layer', set: {weather: 'fog'}}, {id: 'test-dusk', label: '[TEST] Dusk', set: {'environment.darknessLevel': 0.5}, transitionMs: 3000}]);
   assert.deepEqual((await checkContent(good, 'x.scene-moods.json')).errors, []);
-  const bad = [{id: 'Test Fog', label: '', set: {'environment.darknessLevel': 2, 'lighting.colour': 'red'}}];
-  assert.equal((await checkContent(bad, 'x.scene-moods.json')).errors.length, 4);
+  assert.match((await checkContent([good.presets[0]], 'x.scene-moods.json')).errors[0], /not an Ashen Gate moods file/);
+  const bad = await checkContent(file([{id: 'Test Fog', label: '', set: {'environment.darknessLevel': 2, 'lighting.colour': 'red'}}, {id: 'test-ash', label: '[TEST] Ash', kind: 'layer', set: {weather: 'ashfall'}}]), 'x.scene-moods.json');
+  assert.match(bad.errors.join(' | '), /Id must be.*Label is required.*Darkness must be a number from 0 to 1.*lighting.colour is not a supported mood field.*weather "ashfall" is not a core weather id/);
 });
 
 test('Route records get every Locations check; endpoints outside the file are noted', async () => {
@@ -77,4 +79,43 @@ test('Route records get every Locations check; endpoints outside the file are no
   assert.match(ok.notes.join(' '), /LOC-TEST-MILL is not in this file/);
   const bad = await checkContent(pack([location(node()), route({distance_km: 0, hazard_base_percent: 150})]), 'routes.json');
   assert.match(bad.errors.join(' '), /distance_km must be a number above 0.*hazard_base_percent must be a number from 0 to 100/);
+});
+
+test('NPC Codex fields: what the Codex would drop or turn into other text is reported', async () => {
+  const npc = over => ({id: 'NPC-TEST-CLERK', entity_type: 'NPC', status: 'approved', version: '1.0.0', provenance: {sources: ['[TEST] synthetic']},
+    visibility: 'gm', refs: [], name: '[TEST] Clerk', role: '[TEST] Clerk', gm_notes: ['[TEST] note'],
+    codex: {links: ['LOC-TEST-FIELD', 'QUEST-TEST-ONE'], default_reveal: {discovery: 'hidden', fields: {role: 'party'}}},
+    foundry: {document_type: 'Actor', data: {name: '[TEST] Clerk', type: 'npc'}}, ...over});
+  assert.deepEqual((await checkContent(pack([npc()]))).errors, []);
+  const bad = await checkContent(pack([npc({wants: ['a', 'b'], codex: {links: ['ITEM-TEST-X'], default_reveal: {discovery: 'everyone', fields: {portrayal: 'party'}}}})]));
+  assert.match(bad.errors.join(' | '), /wants must be text.*codex.links "ITEM-TEST-X" is not a linkable id.*discovery "everyone" must be "hidden" or "party".*fields.portrayal is not revealable/);
+  assert.match((await checkContent(pack([item({codex: {links: []}})]))).notes.join(' '), /codex is only read on entity_type NPC/);
+});
+
+test('crosswalk baseline files go through the Ledger parser; unknown names are reported', async () => {
+  const good = {professions: {fishing: {qualifySkills: ['Survival'], items: ['Fishing Tackle']}, herbalism: {qualifyTools: ['Herbalism Kit'], advantageTools: ['herb']}}};
+  const ok = await checkContent(good, 'x.crosswalk.json');
+  assert.equal(ok.kind, 'crosswalk');
+  assert.deepEqual(ok.errors, []);
+  assert.deepEqual((await checkContent({professions: []}, 'x.crosswalk.json')).errors, ['The file needs a "professions" object.']);
+  const bad = await checkContent({professions: {Skinning: {qualifySkills: ['sur']}, 'Hunting/Skinning': {}, herbalism: {qualifyTools: ['[TEST] Press'], items: ['']}, Dancing: {}}}, 'x.crosswalk.json');
+  assert.match(bad.errors.join(' | '), /listed twice.*"Dancing" is not one of the Ledger's 14 professions.*"\[TEST\] Press" matches no dnd5e tool.*empty or over 200 characters/);
+});
+
+test('NPC Codex export files are checked with the restore planner and kept out of the ZIP', async () => {
+  const file = {schema_version: 'ag-npc-codex-export/0.1', visibility: 'gm', definitions: [], reveals: {'NPC-TEST-CLERK': {discovery: {party: true, actors: []}}}};
+  assert.deepEqual((await checkContent(file, 'x.npc-codex.json')).errors, []);
+  assert.deepEqual((await checkContent({...file, schema_version: 'x', reveals: []}, 'x.npc-codex.json')).errors,
+    ['schema_version must be ag-npc-codex-export/0.1.', 'reveals must be an object keyed by NPC id.']);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ag-content-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'a.json'), JSON.stringify(pack([item()])));
+    fs.writeFileSync(path.join(dir, 'b.json'), JSON.stringify(pack([item({id: 'ITEM-TEST-ROPE'})])));
+    fs.writeFileSync(path.join(dir, 'c.npc-codex.json'), JSON.stringify(file));
+    fs.writeFileSync(path.join(dir, 'd.crosswalk.json'), JSON.stringify({professions: {mining: {}}}));
+    const {ok, lines} = await validateTargets([dir]);
+    assert.ok(ok, lines.join('\n'));
+    assert.match(lines.at(-1), /ZIP of .*a\.json .*-> b\.json/);
+    assert.doesNotMatch(lines.at(-1), /npc-codex|crosswalk/);
+  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });
