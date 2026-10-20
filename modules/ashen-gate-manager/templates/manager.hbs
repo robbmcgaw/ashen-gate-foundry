@@ -1,7 +1,7 @@
 <section class="agmanager-body">
   <header class="ag-header agmanager-top">
     <i class="agmanager-emblem fa-solid fa-dungeon" aria-hidden="true"></i>
-    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.25.0 Beta</small></h2></div>
+    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.26.0 Beta</small></h2></div>
     <button type="button" class="agmanager-help" data-ag-action="help" aria-label="Manager Help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button><span class="agmanager-chip">GM only</span>
   </header>
   <nav class="ag-tabs agmanager-nav" aria-label="Manager tabs">
@@ -12,6 +12,8 @@
     <button type="button" data-ag-tab="appearance" class="{{#if appearanceActive}}active{{/if}}"><i class="fa-solid fa-palette"></i> Appearance</button>
     <button type="button" data-ag-tab="scenes" class="{{#if scenesActive}}active{{/if}}"><i class="fa-solid fa-cloud-sun"></i> Scenes</button>
     <button type="button" data-ag-tab="organize" class="{{#if organizeActive}}active{{/if}}"><i class="fa-solid fa-folder-tree"></i> Organize</button>
+    <button type="button" data-ag-tab="corelinks" class="{{#if coreLinksActive}}active{{/if}}"><i class="fa-solid fa-link"></i> Core Links</button>
+    <button type="button" data-ag-tab="setup" class="{{#if setupActive}}active{{/if}}"><i class="fa-solid fa-gear"></i> GM Setup</button>
     <button type="button" data-ag-tab="history" class="{{#if historyActive}}active{{/if}}"><i class="fa-solid fa-clock-rotate-left"></i> History</button>
   </nav>
 
@@ -522,6 +524,72 @@
         {{#if org.report.hasTemporary}}<ul>{{#each org.report.temporary}}<li>{{name}} {{#if sourceId}}<code>{{sourceId}}</code>{{/if}} — {{where}}, {{why}}</li>{{/each}}</ul>{{else}}<p class="agmanager-tiny">None.</p>{{/if}}
         <p class="agmanager-tiny">Draft-status Ashen Gate records: {{org.report.draftCount}} (normal while content is in development).</p>
       {{/if}}
+    </section>
+  </div>
+  {{/if}}
+
+  {{#if coreLinksActive}}
+  <div class="agmanager-panel agmanager-organize">
+    <section class="ag-card" aria-label="Core links">
+      <div class="agmanager-row agmanager-row-wrap"><h3>Core links <span class="agmanager-beta">GM only</span></h3>
+        <button type="button" class="ag-btn" data-ag-action="cl-scan"><i class="fa-solid fa-magnifying-glass"></i> Scan</button></div>
+      <p class="agmanager-tiny" role="status">{{cl.message}}</p>
+      <p class="agmanager-tiny">Only Ashen Gate world Items whose source data has <code>core_ref</code> are checked. Matches come from 2024 (5.5e) content only: Plutonium-imported and other 2024 world items, world compendiums, the core sources in <strong>GM Setup</strong>, then the dnd5e 2024 packs. <strong>Adopt</strong> replaces the item's image and data (description included) with the core item's and keeps its name, Ashen Gate id, folder, ownership and module data. Copies in player inventories are never touched.</p>
+      {{#if cl.preview}}
+      <div class="agmanager-row agmanager-row-wrap">
+        <span class="agmanager-chip">Core items found: {{cl.preview.poolSize}}</span>
+        <span class="agmanager-chip">Ashen Gate items without core_ref (untouched): {{cl.preview.withoutRef}}</span>
+        <span class="agmanager-chip">Ticked: {{cl.preview.tickedCount}}</span>
+      </div>
+      {{#each cl.preview.notes}}<p class="agmanager-warnings">{{this}}</p>{{/each}}
+      {{#each cl.preview.groups}}
+      <div class="agmanager-org-part">
+        <h4>{{label}} ({{rows.length}})</h4>
+        <table class="agmanager-table"><thead><tr><th></th><th>Ashen Gate item</th><th>core_ref</th><th>Core match</th><th>Notes</th></tr></thead><tbody>
+        {{#each rows}}<tr>
+          <td>{{#if selectable}}<input type="checkbox" data-ag-cl-tick="{{id}}" {{#if ticked}}checked{{/if}} aria-label="Link {{name}}">{{/if}}</td>
+          <td><strong>{{name}}</strong><code>{{sourceId}}</code></td>
+          <td>{{refText}}</td>
+          <td>{{#if best}}<strong>{{best.name}}</strong> <span class="ag-badge">{{best.confidence}}</span><div class="agmanager-tiny">{{best.sourceLabel}} · matched on {{matchedOn}}</div>
+            {{#if hasOthers}}<details><summary class="agmanager-tiny">Other candidates ({{others.length}})</summary><ul>{{#each others}}<li>{{name}} — {{confidence}}, {{sourceLabel}}</li>{{/each}}</ul></details>{{/if}}{{else}}—{{/if}}</td>
+          <td>{{reason}}
+            {{#if selectable}}{{#if canAdopt}}<label class="agmanager-toggle"><input type="checkbox" data-ag-cl-linkonly="{{id}}" {{#if linkOnly}}checked{{/if}}> Link only (keep my data)</label>{{/if}}{{/if}}
+            {{#if diffCount}}<details><summary class="agmanager-tiny">What Adopt changes ({{diffCount}} field(s))</summary>
+              <table class="agmanager-table"><thead><tr><th>Field</th><th>Now</th><th>Core</th></tr></thead><tbody>{{#each diff}}<tr><td><code>{{path}}</code></td><td>{{before}}</td><td>{{after}}</td></tr>{{/each}}</tbody></table></details>{{/if}}</td>
+        </tr>{{/each}}
+        </tbody></table>
+      </div>
+      {{/each}}
+      <footer class="agmanager-row agmanager-mood-footer">
+        <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="cl-clear">Cancel</button>
+        <span class="agmanager-row">
+          <button type="button" class="ag-btn" data-ag-action="cl-backup" {{#unless cl.preview.tickedCount}}disabled{{/unless}}><i class="fa-solid fa-download"></i> Download backup</button>
+          <button type="button" class="ag-btn ag-btn--primary" data-ag-action="cl-apply" {{#unless cl.preview.tickedCount}}disabled{{/unless}}><i class="fa-solid fa-link"></i> Apply ({{cl.preview.tickedCount}})…</button>
+        </span>
+      </footer>
+      {{/if}}
+    </section>
+    <section class="ag-card" aria-label="Core link history">
+      <div class="agmanager-row agmanager-row-wrap"><h3>Recent core-link runs</h3>
+        <button type="button" class="ag-btn" data-ag-action="cl-undo" {{#unless cl.history.length}}disabled{{/unless}}><i class="fa-solid fa-rotate-left"></i> Undo last core link…</button></div>
+      {{#if cl.history.length}}<ul>{{#each cl.history}}<li>{{at}} · {{count}} linked · {{adopted}} adopted</li>{{/each}}</ul>{{else}}<p class="agmanager-tiny">No core-link runs yet. The last 5 are kept for Undo.</p>{{/if}}
+    </section>
+  </div>
+  {{/if}}
+
+  {{#if setupActive}}
+  <div class="agmanager-panel agmanager-organize">
+    <section class="ag-card" aria-label="Core sources">
+      <h3>Core sources <span class="agmanager-beta">GM only</span></h3>
+      <p class="agmanager-tiny">Where Core Links looks for 2024 (5.5e) core items. Legacy 2014 content is always left out, wherever it is.</p>
+      <label class="agmanager-toggle"><input type="checkbox" data-ag-setup-auto {{#if setup.auto}}checked{{/if}}> Detect automatically: world items imported by Plutonium or marked 2024, 2024 entries in world compendiums, and the dnd5e 2024 packs</label>
+      <h4>Also use these compendiums</h4>
+      <div class="agmanager-row agmanager-row-wrap">{{#each setup.packs}}<label class="agmanager-toggle"><input type="checkbox" data-ag-setup-pack="{{id}}" {{#if configured}}checked{{/if}}> {{label}} <code>{{id}}</code>{{#if detected}} <span class="ag-badge">detected</span>{{/if}}</label>{{/each}}</div>
+      <h4>Also use world Item folders</h4>
+      <div class="agmanager-row agmanager-row-wrap">{{#each setup.folders}}<label class="agmanager-toggle"><input type="checkbox" data-ag-setup-folder="{{id}}" {{#if configured}}checked{{/if}}> {{name}}</label>{{else}}<span class="agmanager-tiny">No Item folders.</span>{{/each}}</div>
+      <p class="agmanager-tiny" role="status">{{setupMessage}}</p>
+      <footer class="agmanager-row agmanager-mood-footer"><span></span>
+        <button type="button" class="ag-btn ag-btn--primary" data-ag-action="setup-save"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button></footer>
     </section>
   </div>
   {{/if}}
