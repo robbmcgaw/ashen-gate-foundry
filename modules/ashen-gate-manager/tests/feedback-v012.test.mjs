@@ -47,7 +47,7 @@ test('JSON exports use Foundry file-save dialog API',()=>{
 
 test('header uses current version, module shortcuts, and no redundant workflow subtitle',()=>{
   const template=fs.readFileSync(new URL('../templates/manager.hbs',import.meta.url),'utf8');
-  assert.match(template,/v0\.28\.0 Beta/);
+  assert.match(template,/v0\.29\.0 Beta/);
   assert.match(template,/data-ag-module-open="\{\{id\}\}"/);
   assert.doesNotMatch(template,/Upload → Preview → Import/);
 });

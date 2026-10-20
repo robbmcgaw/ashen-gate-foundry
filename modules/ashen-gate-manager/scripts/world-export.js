@@ -130,6 +130,8 @@ export function collectModuleSections(game) {
   run('quests', 'ashen-gate-quest-manager', [a => a.listQuests, a => a.getGMSource],
     api => api.listQuests().map(q => record('quests', q.id, q.name, {definitionStatus: q.definitionStatus, kind: q.kind, source: api.getGMSource(q.id)})));
   run('factions', 'ashen-gate-factions', [a => a.getFactions], api => api.getFactions().map(f => record('factions', f.id, f.name, f)));
+  // Renown 0.11.0+: deities (GM gets source definitions; getFactions never lists them). Older Renown: listed as not available.
+  run('deities', 'ashen-gate-factions', [a => a.getDeities], api => api.getDeities().map(d => record('deities', d.id, d.name, d)));
   run('skill_trees', 'ashen-gate-skill-trees', [a => a.listTrees], api => api.listTrees().map(t => record('skill_trees', t.id, t.name, t)));
   run('headquarters', 'ashen-gate-headquarters', [a => a.exportState], api => {
     const catalog = api.exportState()?.catalog;

@@ -1,3 +1,10 @@
+## 0.29.0 — 2026-10-20
+
+- **Renown deities** (Renown 0.11.0 or later). A Renown file with `schema_version` `ag-factions-source-export/0.4` (factions and deities in `definitions[]`) is recognised and handed to Renown unchanged, as 0.3 files are.
+- **Import preview:** each row of a Renown file shows *Deity* or *Faction*, as Renown reports it. An older Renown that does not report it shows *Faction*, as before.
+- **World export** has a new `deities` section with each deity's definition, read from Renown's `getDeities()`. With an older Renown it is listed as not available. The `factions` section is unchanged.
+- No saved-data changes.
+
 ## 0.28.0 — 2026-10-20
 
 - **Renown naming.** The Factions module is now shown as **Renown** (Ashen Gate | Renown), so Manager's text follows: import results (*Renown > GM Setup (Actors sidebar launcher)*), Browse source labels and "Open it in Renown", the specialist-file handoff, the campaign-standing notice, Pre-session check rows (*Renown*, *Renown definitions*), Player access and the Browse help. Module id `ashen-gate-factions`, its API, flags, the `ag-factions-` file schema and "faction" entries are unchanged. No saved-data changes.
