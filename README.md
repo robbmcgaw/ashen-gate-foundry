@@ -5,7 +5,7 @@ Nine Foundry VTT (V14, dnd5e) modules for the Ashen Gate D&D 2024 supplement. Ea
 | Module | What it does | Where it opens |
 |---|---|---|
 | Character Hub (alpha) | Alternative dnd5e character sheet on the real Actor, with the native sheet one click away | Character sheet menu → Ashen Gate Character Hub |
-| Factions & Renown | Factions, group and personal Renown, discovery, rewards, service requests | Actors sidebar → Renown |
+| Renown (formerly Factions & Renown) | Factions, group and personal Renown, discovery, rewards, service requests | Actors sidebar → Renown |
 | Headquarters | Shared Guildhall layout, facilities, hirelings, personal quarters | Actors sidebar → Headquarters |
 | Locations | Campaign places with threat, gathering nodes, party notes, map pins, per-player visibility | Actors sidebar → Locations; GM: Items sidebar → Location Builder |
 | General Manager | GM-only importer, library, appearance and Player Access overview | GM: Items sidebar → General Manager |
@@ -24,7 +24,7 @@ After that, updates show up through Foundry's normal **Check for Updates** / For
 | Module | ID | Manifest URL |
 |---|---|---|
 | Character Hub | `ashen-gate-character-hub` | `https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-character-hub/module.json` |
-| Factions & Renown | `ashen-gate-factions` | `https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-factions/module.json` |
+| Renown | `ashen-gate-factions` | `https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-factions/module.json` |
 | Headquarters | `ashen-gate-headquarters` | `https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-headquarters/module.json` |
 | Locations | `ashen-gate-locations` | `https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-locations/module.json` |
 | General Manager | `ashen-gate-manager` | `https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-manager/module.json` |

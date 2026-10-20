@@ -1,3 +1,10 @@
+# Renown change history (formerly Factions & Renown)
+
+## 0.9.0 — 2026-10-20
+
+- Renamed to **Renown** (was *Factions & Renown*): window header `Ashen Gate | Renown`, launcher tooltip, Help, notifications, the Player Access setting and the module title in Forge.
+- Unchanged: module id `ashen-gate-factions`, settings and flags, API, socket, import/export schema and file name, and saved world data. Organizations are still called factions inside Renown.
+
 ## 0.8.3 — 2026-10-19
 
 - Faction actions that used the browser's `prompt`/`confirm` (rename folder, edit information, edit reward, remove entry/reward/reference, reset charges, clear a milestone choice, share with party, add example guilds) now use Foundry dialogs, so they work in the desktop app. Destructive confirms have a labelled action button. Editing a reward is now one form instead of six prompts; the same checks apply.
@@ -11,8 +18,6 @@
 ## 0.8.1 — 2026-10-19
 
 - Faster GM login: the startup check of each faction's group state now writes only when a missing field actually needs filling, instead of rewriting every faction's state journal on every load (which also re-rendered open Factions windows each time). Saved data is unchanged.
-
-# Factions & Renown change history
 
 ## 0.8.0 — 2026-10-19
 

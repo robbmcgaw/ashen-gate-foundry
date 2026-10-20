@@ -1,6 +1,6 @@
-<section class="agf-shell agf-v3" aria-label="Factions & Renown">
+<section class="agf-shell agf-v3" aria-label="Renown">
   <aside class="agf-sidebar">
-    <header class="agf-aside-title"><span class="agf-eyebrow">ASHEN GATE / FACTIONS</span><h2>Organizations</h2><p>Known allies, rivals & reputations</p></header>
+    <header class="agf-aside-title"><span class="agf-eyebrow">ASHEN GATE / RENOWN</span><h2>Organizations</h2><p>Known allies, rivals & reputations</p></header>
     <div class="agf-folder-list">
       {{#each folders}}
         <div class="agf-folder" data-folder-drop="{{key}}">
@@ -15,7 +15,7 @@
     </div>
   </aside>
   <main class="agf-main">
-    <header class="ag-header"><h1>Ashen Gate | Factions</h1><div class="ag-header__actions"><span class="ag-version">v{{version}}</span><button type="button" data-action="help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button></div></header>
+    <header class="ag-header"><h1>Ashen Gate | Renown</h1><div class="ag-header__actions"><span class="ag-version">v{{version}}</span><button type="button" data-action="help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button></div></header>
     <nav class="ag-tabs agf-tabs" aria-label="Renown pages">
       <button type="button" data-agf-view="group" class="agf-tab {{#if tabGroup}}is-active{{/if}}"><i class="fa-solid fa-users"></i> Group</button>
       <button type="button" data-agf-view="player" class="agf-tab {{#if tabPlayer}}is-active{{/if}}"><i class="fa-solid fa-user"></i> Player</button>
@@ -52,7 +52,7 @@
         {{#if isGM}}<section class="agf-panel agf-award" data-award-scope="group"><h2>GM · Adjust Group Renown</h2><div class="agf-award-row-v2"><label>Change<input name="renown-delta" type="number" value="1" min="-1000" max="1000"></label><label>Reason<input name="renown-reason" maxlength="400" placeholder="Action and consequence"></label><button type="button" data-action="award" data-scope="group">Record</button></div></section>{{/if}}
         <section class="agf-panel"><h2>Group activity</h2>{{#if detail.groupEvents.length}}<ol class="agf-history">{{#each detail.groupEvents}}<li><strong>{{displayDelta}}</strong> {{reason}} <small>{{previous_score}} → {{score_after}}</small></li>{{/each}}</ol>{{else}}<p class="agf-muted">No recorded reputation changes.</p>{{/if}}</section>
         <section class="agf-panel"><h2>Discovered information</h2>{{#if detail.entries.length}}{{#each detail.entries}}<div class="agf-knowledge"><strong>{{name}}</strong><p>{{text}}</p>{{#if uuid}}<button type="button" data-action="openLinked" data-uuid="{{uuid}}">Open linked document</button>{{else}}{{#if documentAccessRequired}}<small class="agf-muted">Linked document requires Foundry permission; ask the GM for access.</small>{{/if}}{{/if}}</div>{{/each}}{{else}}<p class="agf-muted">No additional information discovered.</p>{{/if}}</section>
-      {{else}}<div class="agf-welcome"><h1>Factions & Renown</h1><p>Choose a faction to view its group standing.</p></div>{{/if}}
+      {{else}}<div class="agf-welcome"><h1>Renown</h1><p>Choose a faction to view its group standing.</p></div>{{/if}}
     {{/if}}
 
     {{#if tabPlayer}}
@@ -138,7 +138,7 @@
       {{/if}}
     {{/if}}
     {{#if tabSetup}}
-      <section class="agf-panel agf-player-access"><h2>GM · Player Access</h2><p class="agf-muted">Controls whether players can open this module from Actors, macros or Manager. Hidden access keeps Renown, claims, discoveries and character progress unchanged.</p><label class="agf-check"><input type="checkbox" name="player-access-enabled" {{#if playerAccessEnabled}}checked{{/if}}> Players can open Factions &amp; Renown</label><button type="button" data-action="savePlayerAccess">Save Player Access</button></section>
+      <section class="agf-panel agf-player-access"><h2>GM · Player Access</h2><p class="agf-muted">Controls whether players can open this module from Actors, macros or Manager. Hidden access keeps Renown, claims, discoveries and character progress unchanged.</p><label class="agf-check"><input type="checkbox" name="player-access-enabled" {{#if playerAccessEnabled}}checked{{/if}}> Players can open Renown</label><button type="button" data-action="savePlayerAccess">Save Player Access</button></section>
       <section class="agf-panel"><h2>GM · Group display name</h2><div class="agf-group-name-form"><label class="agf-check"><input type="checkbox" name="group-name-enabled" {{#if groupNameEnabled}}checked{{/if}}> Use custom group name</label><label>Name<input name="group-name" value="{{groupName}}"></label><button type="button" data-action="saveGroupLabel">Save</button></div></section>
     {{/if}}
     {{#if refreshNeeded}}<p class="agf-muted">Waiting for the GM to prepare your private faction view. Reopen after the GM connects.</p>{{/if}}

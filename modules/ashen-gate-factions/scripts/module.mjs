@@ -1,4 +1,4 @@
-/** Factions & Renown v0.6.0 Beta; Foundry V14 target. No mandatory companion module. */
+/** Renown (formerly Factions & Renown; id unchanged). Originally v0.6.0 Beta; Foundry V14 target. No mandatory companion module. */
 import {MODULE_ID,SCHEMA_VERSION,RECOVERED_GUILDS_DRAFT,makeFaction,upgradeFaction,groupStateDefaults,sourceDefinition,validateFaction,blankStanding,adjustStanding,progressFor,milestoneProjection,discoverable,projectedFolders,grantAutoKnowledge,secureEntryPreview,claimEligible,chooseOneEligible,rewardUnlocked,makeGroupRecord,makePersonalRecord,keyFor,overlayCampaign,extractCampaignDiscovery,fieldDisclosure,disclosedField,revealField,FIELD_KEYS} from './core.mjs';
 import {confirmDialog,formDialog,promptText,infoDialog} from './dialogs.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
@@ -16,7 +16,7 @@ const PLAYER_ACCESS_CONTRACT='ag-player-access/1';
 const playerAccessEnabled=()=>game.settings.get(MODULE_ID,'playerAccessEnabled')===true;
 const playerMayOpen=()=>Boolean(game.user?.isGM||playerAccessEnabled());
 function requirePlayerAccess(){
-  if(!playerMayOpen())throw Error('Factions & Renown is hidden from players. Ask your GM to enable Player Access.');
+  if(!playerMayOpen())throw Error('Renown is hidden from players. Ask your GM to enable Player Access.');
 }
 const playerAccessState=()=>({contract:PLAYER_ACCESS_CONTRACT,moduleId:MODULE_ID,audience:'player',playerAccessEnabled:playerAccessEnabled(),configurable:true});
 async function setPlayerAccess(enabled){
@@ -37,7 +37,7 @@ const getFolders=d=>d?.getFlag(MODULE_ID,'folderIndex');
 // Foundry's Journal folder is storage organization only, independent from the in-dashboard faction folders.
 // Do not set player visibility on the Folder. Journal ownership controls actual document access.
 const STORAGE_FOLDER_NAME='Ashen Gate — Factions Data';
-const BUILD_VERSION='0.8.3';
+const BUILD_VERSION='0.9.0';
 const isModuleJournal=d=>Boolean(getFaction(d)||getGroup(d)||getPersonal(d)||getView(d)||getFolders(d));
 async function ensureStorageFolder(){
   assertGM();
@@ -69,7 +69,7 @@ const ownedActorIds=user=>accessibleActors(user).map(a=>a.id);
 // Infer Item identity from the canonical Foundry UUID without widening source data.
 const linkedItem=r=>r?.kind==='uuid'&&(r?.document_type==='Item'||String(r?.uuid??'').split('.').at(-2)==='Item');
 const groupLabel=()=>game.settings.get(MODULE_ID,'groupNameEnabled')&&game.settings.get(MODULE_ID,'groupName')?.trim()?`${game.settings.get(MODULE_ID,'groupName').trim()} Renown`:'Group Renown';
-const notifyError=e=>{console.error(`[${MODULE_ID}]`,e);ui.notifications?.error(`Factions: ${e.message??e}`);};
+const notifyError=e=>{console.error(`[${MODULE_ID}]`,e);ui.notifications?.error(`Renown: ${e.message??e}`);};
 const nameValue=(root,key)=>String(root.querySelector(`[name="${key}"]`)?.value??'').trim();
 const selectedValue=(root,key)=>String(root.querySelector(`[name="${key}"]`)?.value??'');
 const jsonDownload=(data,file)=>{const u=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=u;a.download=file;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),1000);};
@@ -181,10 +181,10 @@ const planFactionsImport=data=>{assertGM();return planImport(data,new Set(defs()
 async function importFactions(data){assertGM();return runImport(planFactionsImport(data),importIO());}
 const previewFactionsImport=data=>{const {errors,rows}=planFactionsImport(data);return {errors,rows:rows.map(({id,name,action,reason})=>({id,name,action,reason}))};};
 const findKnownUser=(id,user)=>buildPlayerPayload(user).factions.find(x=>x.id===id);
-function requestAuthorized(msg){if(!playerAccessEnabled())throw Error('Factions player interface is hidden.');const user=game.users.get(msg.userId),vdoc=user&&userViewDoc(user),v=getView(vdoc);if(!user?.active||user.isGM||!v||v.capability!==msg.capability||!vdoc.testUserPermission(user,OBS))throw Error('Invalid requester authentication.');return user;}
+function requestAuthorized(msg){if(!playerAccessEnabled())throw Error('Renown player interface is hidden.');const user=game.users.get(msg.userId),vdoc=user&&userViewDoc(user),v=getView(vdoc);if(!user?.active||user.isGM||!v||v.capability!==msg.capability||!vdoc.testUserPermission(user,OBS))throw Error('Invalid requester authentication.');return user;}
 function sendClientAction(message){
-  if(!activeGM())throw Error('An online GM is required to process Faction requests.');
-  if(!game.socket?.emit)throw Error('Factions socket is unavailable.');
+  if(!activeGM())throw Error('An online GM is required to process Renown requests.');
+  if(!game.socket?.emit)throw Error('Renown socket is unavailable.');
   const requestId=`action_${rid()}`;pendingReplies.set(requestId,{when:Date.now(),type:message.type});
   game.socket.emit(SOCKET,{...message,requestId});
   // Reconnecting/reloading clears pending UI notice, not campaign requests.
@@ -193,8 +193,8 @@ function sendClientAction(message){
 function clientReceipt(msg){
   if(msg?.type!=='receipt'||msg.userId!==game.user?.id||!pendingReplies.has(msg.requestId))return;
   pendingReplies.delete(msg.requestId);
-  if(msg.ok)ui.notifications.info(msg.message??'Faction action completed.');
-  else ui.notifications.error('Faction request was not accepted. Ask the GM to check their notifications.');
+  if(msg.ok)ui.notifications.info(msg.message??'Renown action completed.');
+  else ui.notifications.error('Renown request was not accepted. Ask the GM to check their notifications.');
 }
 const inFlight=new Set();
 async function incoming(msg){if(!['share','request'].includes(msg?.type)||!game.user.isGM||activeGM()?.id!==game.user.id)return;let accepted=false;const requestLock=[msg?.type,msg?.factionId,msg?.audience,msg?.actorId,msg?.rewardId,msg?.userId].join('/');if(inFlight.has(requestLock))return;inFlight.add(requestLock);try{
@@ -227,10 +227,10 @@ async function incoming(msg){if(!['share','request'].includes(msg?.type)||!game.
     state.claims[reward.id]={request_id:`AGF-CLAIM-${rid()}`,status:'pending',reward_id:reward.id,milestone_id:reward.milestone_id,requester_id:user.id,requested_at:new Date().toISOString()};
   }
   await stateDoc.setFlag(MODULE_ID,key,state);await reproject();ui.notifications.info(`${user.name} requested ${reward.name}.`);accepted=true;
-}catch(e){notifyError(e)}finally{inFlight.delete(requestLock);if(msg?.requestId&&msg?.userId)game.socket?.emit(SOCKET,{type:'receipt',userId:msg.userId,requestId:msg.requestId,ok:accepted,message:msg.type==='share'?'Discovery shared with party.':'Faction request received by GM.'});}}
+}catch(e){notifyError(e)}finally{inFlight.delete(requestLock);if(msg?.requestId&&msg?.userId)game.socket?.emit(SOCKET,{type:'receipt',userId:msg.userId,requestId:msg.requestId,ok:accepted,message:msg.type==='share'?'Discovery shared with party.':'Renown request received by GM.'});}}
 async function grantItem(actor,reward,claim,faction){const source=await fromUuid(reward.uuid);if(!source||source.documentName!=='Item')throw Error('Item source unavailable.');if(actor.items.some(i=>i.getFlag(MODULE_ID,'claimId')===claim.request_id))return;const data=source.toObject();delete data._id;delete data.folder;data.flags??={};data.flags[MODULE_ID]={...(data.flags[MODULE_ID]??{}),claimId:claim.request_id,rewardId:reward.id,factionId:faction.id};await actor.createEmbeddedDocuments('Item',[data]);}
 class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
-  static DEFAULT_OPTIONS={id:'ashen-gate-factions-window',classes:['ag-app','ashen-gate-factions'],window:{title:'Ashen Gate | Factions & Renown',icon:'fa-solid fa-shield-halved',resizable:true},position:{width:1180,height:800},actions:{help:Dashboard.help,savePlayerAccess:Dashboard.savePlayerAccess,select:Dashboard.select,create:Dashboard.create,seed:Dashboard.seed,save:Dashboard.save,award:Dashboard.award,saveGroupLabel:Dashboard.saveGroupLabel,createFolder:Dashboard.createFolder,saveFolder:Dashboard.saveFolder,discovery:Dashboard.discovery,share:Dashboard.share,addEntry:Dashboard.addEntry,showEntry:Dashboard.showEntry,claim:Dashboard.claim,resolveRequest:Dashboard.resolveRequest,resetUsage:Dashboard.resetUsage,addReward:Dashboard.addReward,editReward:Dashboard.editReward,removeReward:Dashboard.removeReward,openLinked:Dashboard.openLinked,resetChoice:Dashboard.resetChoice,saveFieldReveals:Dashboard.saveFieldReveals,addObjective:Dashboard.addObjective,removeObjective:Dashboard.removeObjective,exportAll:Dashboard.exportAll,importJson:Dashboard.importJson}};
+  static DEFAULT_OPTIONS={id:'ashen-gate-factions-window',classes:['ag-app','ashen-gate-factions'],window:{title:'Ashen Gate | Renown',icon:'fa-solid fa-shield-halved',resizable:true},position:{width:1180,height:800},actions:{help:Dashboard.help,savePlayerAccess:Dashboard.savePlayerAccess,select:Dashboard.select,create:Dashboard.create,seed:Dashboard.seed,save:Dashboard.save,award:Dashboard.award,saveGroupLabel:Dashboard.saveGroupLabel,createFolder:Dashboard.createFolder,saveFolder:Dashboard.saveFolder,discovery:Dashboard.discovery,share:Dashboard.share,addEntry:Dashboard.addEntry,showEntry:Dashboard.showEntry,claim:Dashboard.claim,resolveRequest:Dashboard.resolveRequest,resetUsage:Dashboard.resetUsage,addReward:Dashboard.addReward,editReward:Dashboard.editReward,removeReward:Dashboard.removeReward,openLinked:Dashboard.openLinked,resetChoice:Dashboard.resetChoice,saveFieldReveals:Dashboard.saveFieldReveals,addObjective:Dashboard.addObjective,removeObjective:Dashboard.removeObjective,exportAll:Dashboard.exportAll,importJson:Dashboard.importJson}};
   static PARTS={main:{template:`modules/${MODULE_ID}/templates/dashboard.hbs`}};
   #tab='group';#orgsView={...ORG_VIEW};#selected=null;#actor=null;#lastView=null;
   async render(options={}){
@@ -302,7 +302,7 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
   }
   static async select(e,t){this.#selected=t.dataset.id;await this.render({force:true});}
   static async create(){try{assertGM();const name=nameValue(this.element,'new-faction-name');if(!name||name.length>120)throw Error('Faction name required (up to 120 characters).');const f=makeFaction({...idPair(),name});const doc=await JournalEntry.create({name,folder:(await ensureStorageFolder()).id,ownership:{default:NONE},flags:{[MODULE_ID]:{faction:f}}});await ensureGroup(doc);this.#selected=f.id;await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
-  static async help(){const gm=game.user?.isGM;infoDialog('Factions Help',`<p><strong>Factions</strong> tracks the organizations your party has met and the Renown the group and each character have earned with them. Pick an organization on the left.</p><ul><li><strong>Group</strong> shows the party's standing with the selected organization, its milestones and what has been discovered.</li><li><strong>Player</strong> shows one character's personal Renown, information and rewards.${gm?'':' You can use <em>Share with Party</em> to share what you have discovered.'}</li>${gm?'<li><strong>Organizations</strong> lists every organization so you can search, create and edit them, add information entries and rewards, and manage folders.</li><li><strong>GM Setup</strong> holds settings such as Player Access, which hides the player interface without deleting any progress.</li>':''}</ul>${gm?'<p>Removing an entry, reward or objective reference, resetting service charges or clearing a milestone choice always asks you to confirm first.</p>':'<p>Rewards your character can claim are requested here and confirmed by the GM.</p>'}`)}
+  static async help(){const gm=game.user?.isGM;infoDialog('Renown Help',`<p><strong>Renown</strong> tracks the organizations your party has met and the Renown the group and each character have earned with them. Pick an organization on the left.</p><ul><li><strong>Group</strong> shows the party's standing with the selected organization, its milestones and what has been discovered.</li><li><strong>Player</strong> shows one character's personal Renown, information and rewards.${gm?'':' You can use <em>Share with Party</em> to share what you have discovered.'}</li>${gm?'<li><strong>Organizations</strong> lists every organization so you can search, create and edit them, add information entries and rewards, and manage folders.</li><li><strong>GM Setup</strong> holds settings such as Player Access, which hides the player interface without deleting any progress.</li>':''}</ul>${gm?'<p>Removing an entry, reward or objective reference, resetting service charges or clearing a milestone choice always asks you to confirm first.</p>':'<p>Rewards your character can claim are requested here and confirmed by the GM.</p>'}`)}
   static async seed(){try{assertGM();if(!await confirmDialog('Add four unapproved example guilds? Existing names are skipped.',{title:'Add example guilds',yes:'Add guilds'}))return;let count=0;for(const g of RECOVERED_GUILDS_DRAFT){if(defs().some(d=>getFaction(d).name.toLowerCase()===g.name.toLowerCase()))continue;const f=makeFaction({...idPair(),...g,initialBenefit:g.initial_benefit,source:'Recovered Fosstryn journal drafts; not canonical'});const d=await JournalEntry.create({name:f.name,folder:(await ensureStorageFolder()).id,ownership:{default:NONE},flags:{[MODULE_ID]:{faction:f}}});await ensureGroup(d);count++;}await reproject();ui.notifications.info(`${count} example guilds added.`);await this.render({force:true});}catch(e){notifyError(e)}}
   static async save(){try{assertGM();const doc=definition(this.#selected),f=loadDef(doc),root=this.element;f.name=nameValue(root,'faction-name');f.leader=nameValue(root,'faction-leader');f.public_role=nameValue(root,'faction-role');f.folder_key=selectedValue(root,'faction-folder');f.tags=nameValue(root,'faction-tags').split(',').map(s=>s.trim()).filter(Boolean);f.discovery.placeholder=Boolean(root.querySelector('[name=discovery-placeholder]')?.checked);f.discovery.sharing_enabled=Boolean(root.querySelector('[name=sharing-enabled]')?.checked);
     for(const [scope,track] of [['group',f.renown_track],['individual',f.individual_track]]){const rows=[...root.querySelectorAll(`[data-milestone-row="${scope}"]`)];if(rows.length!==5)throw Error('Five milestone rows expected.');track.milestones=rows.map((row,i)=>({...track.milestones[i],name:String(row.querySelector('[data-field=name]')?.value??'').trim(),threshold:Number(row.querySelector('[data-field=threshold]')?.value),benefit:String(row.querySelector('[data-field=benefit]')?.value??''),selection_mode:row.querySelector('[data-field=selection]')?.value??'all'}));}
@@ -324,7 +324,7 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
     assertGM();
     const checked=Boolean(this.element.querySelector('[name=player-access-enabled]')?.checked);
     await setPlayerAccess(checked);
-    ui.notifications.info(`Factions player interface ${checked?'visible':'hidden'}.`);
+    ui.notifications.info(`Renown player interface ${checked?'visible':'hidden'}.`);
     await this.render({force:true});
   }catch(e){notifyError(e)}}
   static async saveGroupLabel(){try{assertGM();const name=nameValue(this.element,'group-name');if(name.length>100)throw Error('Name too long.');await game.settings.set(MODULE_ID,'groupName',name);await game.settings.set(MODULE_ID,'groupNameEnabled',Boolean(this.element.querySelector('[name=group-name-enabled]')?.checked));await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
@@ -397,7 +397,7 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
       const ok=await foundry.applications.api.DialogV2.confirm({window:{title:'Import factions'},content:`<p>Add <strong>${fresh}</strong> of ${rows.length} factions from ${esc(file.name)}?</p>${list}<p>Existing factions, their Renown and discovery are never changed.</p>`,modal:true,rejectClose:false});
       if(!ok)return;
       const result=await importFactions(data);
-      ui.notifications.info(`Factions imported: ${result.added.length} added, ${result.skipped.length} kept as they were.${result.missingActors.length?` No character named: ${result.missingActors.join(', ')} (import the Manager pack first); their personal Renown was skipped.`:''}`);
+      ui.notifications.info(`Renown imported: ${result.added.length} added, ${result.skipped.length} kept as they were.${result.missingActors.length?` No character named: ${result.missingActors.join(', ')} (import the Manager pack first); their personal Renown was skipped.`:''}`);
       await this.render({force:true});
     }catch(e){notifyError(e)}
   }
@@ -412,7 +412,7 @@ const openDashboard=()=>{
   return dashboard;
 };
 function attachLauncher(app,html,visible=playerMayOpen()){
-  return mountLauncher(launcherRoot(app,html),{moduleId:MODULE_ID,label:'Renown',title:'Factions & Renown',icon:'fa-solid fa-shield-halved',onClick:openDashboard,visible});
+  return mountLauncher(launcherRoot(app,html),{moduleId:MODULE_ID,label:'Renown',title:'Renown',icon:'fa-solid fa-shield-halved',onClick:openDashboard,visible});
 }
 // Called after a world setting change and from the GM API. No campaign-state writes.
 async function applyPlayerAccess(enabled=playerAccessEnabled()){
@@ -433,8 +433,8 @@ Hooks.once('init',()=>{
   game.settings.register(MODULE_ID,'groupName',{name:'Group display name',scope:'world',config:false,type:String,default:''});
   game.settings.register(MODULE_ID,'groupNameEnabled',{name:'Custom group name enabled',scope:'world',config:false,type:Boolean,default:false});
   game.settings.register(MODULE_ID,'playerAccessEnabled',{
-    name:'Factions & Renown — Player Access',
-    hint:'Show or hide the Factions interface for players. This does not change Renown, claims, character abilities, or document permissions.',
+    name:'Renown — Player Access',
+    hint:'Show or hide the Renown interface for players. This does not change Renown, claims, character abilities, or document permissions.',
     scope:'world',config:true,type:Boolean,default:true,restricted:true,
     onChange:enabled=>{void applyPlayerAccess(enabled===true);}
   });
