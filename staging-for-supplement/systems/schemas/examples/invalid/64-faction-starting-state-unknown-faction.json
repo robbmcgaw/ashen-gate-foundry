@@ -1,0 +1,243 @@
+{
+  "_expect_error": "has no matching definition",
+  "schema_version": "ag-factions-source-export/0.3",
+  "note": "[EXAMPLE] Synthetic. starting_state applies to NEW factions only.",
+  "definitions": [
+    {
+      "id": "FACTION-EXAMPLE-HERBALISTS",
+      "entity_type": "Faction",
+      "status": "draft",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "reveal_gated",
+      "refs": [
+        {
+          "relation": "offers_objective",
+          "target_id": "QUEST-EXAMPLE-SUNLEAF",
+          "mode": "optional"
+        }
+      ],
+      "name": "[EXAMPLE] Herbalists' Circle",
+      "leader": "[EXAMPLE] Elder Moss",
+      "public_role": "Gathers and trades herbs.",
+      "folder_key": "",
+      "tags": [
+        "example"
+      ],
+      "discovery": {
+        "placeholder": true,
+        "sharing_enabled": true
+      },
+      "entries": [
+        {
+          "id": "ex-meeting-place",
+          "name": "[EXAMPLE] Meeting place",
+          "text": "They meet at the old mill.",
+          "link_mode": "preview",
+          "unlock": "manual",
+          "threshold": 0
+        },
+        {
+          "id": "ex-secret-garden",
+          "name": "[EXAMPLE] Secret garden",
+          "text": "Unlocks at group Renown 6.",
+          "link_mode": "preview",
+          "unlock": "group_renown",
+          "threshold": 6
+        }
+      ],
+      "renown_track": {
+        "id": "RENOWN-EXAMPLE-HERBALISTS",
+        "entity_type": "RenownTrack",
+        "status": "draft",
+        "version": "1.0.0",
+        "provenance": {
+          "sources": [
+            "[EXAMPLE] schema reference"
+          ]
+        },
+        "visibility": "player",
+        "refs": [
+          {
+            "relation": "for_faction",
+            "target_id": "FACTION-EXAMPLE-HERBALISTS",
+            "mode": "required"
+          }
+        ],
+        "default_scope": "group",
+        "milestones": [
+          {
+            "id": "RENOWN-EXAMPLE-HERBALISTS-M1",
+            "key": "milestone_1",
+            "name": "Unproven",
+            "threshold": 0,
+            "benefit": "[EXAMPLE] Benefit at Unproven.",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-EXAMPLE-HERBALISTS-M2",
+            "key": "milestone_2",
+            "name": "Recognized",
+            "threshold": 3,
+            "benefit": "[EXAMPLE] Benefit at Recognized.",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-EXAMPLE-HERBALISTS-M3",
+            "key": "milestone_3",
+            "name": "Trusted",
+            "threshold": 6,
+            "benefit": "[EXAMPLE] Benefit at Trusted.",
+            "selection_mode": "choose_one"
+          },
+          {
+            "id": "RENOWN-EXAMPLE-HERBALISTS-M4",
+            "key": "milestone_4",
+            "name": "Proven",
+            "threshold": 10,
+            "benefit": "[EXAMPLE] Benefit at Proven.",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-EXAMPLE-HERBALISTS-M5",
+            "key": "milestone_5",
+            "name": "Esteemed",
+            "threshold": 15,
+            "benefit": "[EXAMPLE] Benefit at Esteemed.",
+            "selection_mode": "all"
+          }
+        ]
+      },
+      "individual_track": {
+        "id": "RENOWN-EXAMPLE-HERBALISTS-IND",
+        "entity_type": "RenownTrack",
+        "status": "draft",
+        "version": "1.0.0",
+        "provenance": {
+          "sources": [
+            "[EXAMPLE] schema reference"
+          ]
+        },
+        "visibility": "player",
+        "refs": [
+          {
+            "relation": "for_faction",
+            "target_id": "FACTION-EXAMPLE-HERBALISTS",
+            "mode": "required"
+          }
+        ],
+        "default_scope": "individual",
+        "milestones": [
+          {
+            "id": "RENOWN-EXAMPLE-HERBALISTS-IND-M1",
+            "key": "milestone_1",
+            "name": "Unproven",
+            "threshold": 0,
+            "benefit": "",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-EXAMPLE-HERBALISTS-IND-M2",
+            "key": "milestone_2",
+            "name": "Recognized",
+            "threshold": 3,
+            "benefit": "",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-EXAMPLE-HERBALISTS-IND-M3",
+            "key": "milestone_3",
+            "name": "Trusted",
+            "threshold": 6,
+            "benefit": "",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-EXAMPLE-HERBALISTS-IND-M4",
+            "key": "milestone_4",
+            "name": "Proven",
+            "threshold": 10,
+            "benefit": "",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-EXAMPLE-HERBALISTS-IND-M5",
+            "key": "milestone_5",
+            "name": "Esteemed",
+            "threshold": 15,
+            "benefit": "",
+            "selection_mode": "all"
+          }
+        ]
+      },
+      "rewards": [
+        {
+          "id": "REWARD-EXAMPLE-DISCOUNT",
+          "key": "discount",
+          "audience": "group",
+          "milestone_id": "RENOWN-EXAMPLE-HERBALISTS-M2",
+          "name": "[EXAMPLE] Herb discount",
+          "teaser": "A friendly price.",
+          "description": "10% off herbs.",
+          "kind": "custom",
+          "tags": [],
+          "behavior": "passive",
+          "usage_limit": 0
+        },
+        {
+          "id": "REWARD-EXAMPLE-GUIDE",
+          "key": "guide",
+          "audience": "group",
+          "milestone_id": "RENOWN-EXAMPLE-HERBALISTS-M3",
+          "name": "[EXAMPLE] Hire a guide",
+          "teaser": "Someone who knows the paths.",
+          "kind": "custom",
+          "tags": [
+            "service"
+          ],
+          "behavior": "repeatable_service",
+          "usage_limit": 3
+        },
+        {
+          "id": "REWARD-EXAMPLE-SEEDS",
+          "key": "seeds",
+          "audience": "individual",
+          "milestone_id": "RENOWN-EXAMPLE-HERBALISTS-IND-M2",
+          "name": "[EXAMPLE] Pouch of seeds",
+          "kind": "custom",
+          "tags": [],
+          "behavior": "one_time",
+          "usage_limit": 0
+        }
+      ]
+    }
+  ],
+  "starting_state": [
+    {
+      "faction_id": "FACTION-EXAMPLE-OTHER",
+      "party_discovered": true,
+      "group_renown": [
+        {
+          "delta": 2,
+          "reason": "[EXAMPLE] Helped at the harvest"
+        }
+      ],
+      "actors": [
+        {
+          "name": "[EXAMPLE] Hero",
+          "discovered": true,
+          "renown": [
+            {
+              "delta": 1,
+              "reason": "[EXAMPLE] Returned a lost basket"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

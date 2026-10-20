@@ -1,0 +1,5 @@
+[
+  {"id": "example-dawn", "label": "[EXAMPLE] Dawn", "set": {"environment.darknessLevel": 0.3, "environment.base.hue": 0.08, "environment.base.intensity": 0.3, "weather": ""}},
+  {"id": "example-fog", "label": "[EXAMPLE] Fog", "set": {"environment.darknessLevel": 0.2, "environment.base.saturation": -0.5, "weather": "fog"}},
+  {"id": "example-midnight", "label": "[EXAMPLE] Midnight", "set": {"environment.darknessLevel": 1, "environment.globalLight.enabled": false, "environment.dark.luminosity": -0.4}}
+]

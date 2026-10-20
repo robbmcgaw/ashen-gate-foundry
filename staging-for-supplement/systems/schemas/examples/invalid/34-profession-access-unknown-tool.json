@@ -1,0 +1,48 @@
+{
+  "_expect_error": "access.toolProficienciesAnyOf \"Herb Kit\" matches no dnd5e tool",
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-EXAMPLE-MISTAKE",
+    "version": "1.0.0"
+  },
+  "records": [
+    {
+      "id": "PROF-EXAMPLE-HERBALISM",
+      "entity_type": "Profession",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[EXAMPLE] Herbalism",
+      "profession_kind": "gathering",
+      "access": {
+        "toolProficienciesAnyOf": [
+          "Herb Kit"
+        ],
+        "skillProficienciesAnyOf": [
+          "Nature Lore"
+        ]
+      },
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Examples/Professions",
+        "data": {
+          "name": "[EXAMPLE] Herbalism \u2014 Profession",
+          "type": "feat",
+          "img": "icons/svg/item-bag.svg",
+          "system": {
+            "description": {
+              "value": "<p>x</p>"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

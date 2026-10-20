@@ -1,0 +1,22 @@
+{
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-EXAMPLE-MINIMAL",
+    "version": "1.0.0"
+  },
+  "records": [
+    {
+      "id": "ITEM-EXAMPLE-LANTERN",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {"sources": ["[EXAMPLE] schema reference"]},
+      "visibility": "player",
+      "refs": [],
+      "foundry": {
+        "document_type": "Item",
+        "data": {"name": "[EXAMPLE] Brass Lantern", "type": "loot"}
+      }
+    }
+  ]
+}

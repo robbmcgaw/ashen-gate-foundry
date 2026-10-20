@@ -1,0 +1,55 @@
+{
+  "_expect_error": "Ledger cannot craft it",
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-EXAMPLE-MISTAKE",
+    "version": "1.0.0"
+  },
+  "records": [
+    {
+      "id": "REC-EXAMPLE-SUNLEAF-TONIC",
+      "entity_type": "Recipe",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[EXAMPLE] Sunleaf Tonic",
+      "profession_id": "PROF-EXAMPLE-ALCHEMY",
+      "tier": "apprentice",
+      "starting": true,
+      "effort": "short",
+      "additional_gp": 5,
+      "tool": "alchemist",
+      "required_tools": [
+        "Alchemist's Supplies",
+        "Herbalism Kit"
+      ],
+      "workstation": "[EXAMPLE] Alchemy Bench",
+      "result_item_id": "ITEM-EXAMPLE-SUNLEAF-TONIC",
+      "rules_summary": "[EXAMPLE] Placeholder recipe; no rules effect.",
+      "ingredients": [
+        "2 Sunleaf",
+        "1 Duskpetal"
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Examples/Recipes",
+        "data": {
+          "name": "Recipe: [EXAMPLE] Sunleaf Tonic",
+          "type": "consumable",
+          "system": {
+            "description": {
+              "value": "<p>x</p>"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

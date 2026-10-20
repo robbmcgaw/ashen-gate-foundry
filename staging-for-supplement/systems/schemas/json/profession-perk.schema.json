@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/profession-perk.schema.json",
+  "title": "ProfessionPerk",
+  "description": "Profession perk. Projected as a feat Item; Skill Trees nodes point at it by perkId.",
+  "allOf": [
+    {
+      "$ref": "ag-common.schema.json#/$defs/envelope"
+    }
+  ],
+  "type": "object",
+  "required": [
+    "entity_type",
+    "foundry",
+    "name",
+    "profession_id"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^PERK-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+    },
+    "entity_type": {
+      "const": "ProfessionPerk"
+    },
+    "foundry": {
+      "$ref": "ag-common.schema.json#/$defs/itemFoundry"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "profession_id": {
+      "type": "string",
+      "pattern": "^PROF-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+    },
+    "tier": {
+      "$ref": "ag-common.schema.json#/$defs/tier"
+    },
+    "point_cost": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100
+    }
+  }
+}

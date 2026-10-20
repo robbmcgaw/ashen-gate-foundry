@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/material.schema.json",
+  "title": "Material",
+  "description": "Crafting/gathering material. Projected as a loot Item.",
+  "allOf": [
+    {
+      "$ref": "ag-common.schema.json#/$defs/envelope"
+    },
+    {
+      "if": {
+        "properties": {
+          "quality": {
+            "const": "Exotic"
+          }
+        },
+        "required": [
+          "quality"
+        ]
+      },
+      "then": {
+        "required": [
+          "source_profession_id"
+        ]
+      },
+      "description": "An Exotic must name its gathering profession to be findable."
+    }
+  ],
+  "type": "object",
+  "required": [
+    "entity_type",
+    "foundry",
+    "name",
+    "quality",
+    "tierId"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^MAT-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+    },
+    "entity_type": {
+      "const": "Material"
+    },
+    "foundry": {
+      "$ref": "ag-common.schema.json#/$defs/itemFoundry"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tierId": {
+      "$ref": "ag-common.schema.json#/$defs/tier"
+    },
+    "quality": {
+      "enum": [
+        "Common",
+        "Rare",
+        "Exotic"
+      ]
+    },
+    "source_profession_id": {
+      "type": "string",
+      "pattern": "^PROF-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+    },
+    "unit": {
+      "type": "string"
+    },
+    "priceGp": {
+      "type": "number",
+      "minimum": 0
+    },
+    "weightLb": {
+      "type": "number",
+      "minimum": 0
+    },
+    "flavor": {
+      "type": "string"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

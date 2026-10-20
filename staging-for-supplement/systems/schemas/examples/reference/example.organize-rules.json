@@ -1,0 +1,6 @@
+[
+  {"id": "example-test-data", "label": "[EXAMPLE] Test data in one place", "when": {"test": true}, "path": "Ashen Gate/Test Data/{entityType}"},
+  {"id": "example-materials", "label": "[EXAMPLE] Materials by tier and quality", "types": ["Item"], "when": {"ag": true, "entityType": "Material"}, "path": "Ashen Gate/Materials/{tier}/{quality}"},
+  {"id": "example-quests-journals", "label": "[EXAMPLE] Leave handouts alone", "types": ["JournalEntry"], "when": {"sourceIdPrefix": ["JRN-HANDOUT-"]}, "leave": true},
+  {"id": "example-npcs", "label": "[EXAMPLE] NPCs by creature type", "types": ["Actor"], "when": {"actorType": "npc"}, "path": "Ashen Gate/NPCs/{creatureType}"}
+]

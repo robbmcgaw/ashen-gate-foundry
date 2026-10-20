@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/hireling-perk.schema.json",
+  "title": "HirelingPerk",
+  "description": "Hireling perk (Headquarters). Projected as a feat Item.",
+  "allOf": [
+    {
+      "$ref": "ag-common.schema.json#/$defs/envelope"
+    }
+  ],
+  "type": "object",
+  "required": [
+    "entity_type",
+    "foundry",
+    "name",
+    "contexts",
+    "conditions",
+    "stacking",
+    "implementation"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^HPERK-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+    },
+    "entity_type": {
+      "const": "HirelingPerk"
+    },
+    "foundry": {
+      "$ref": "ag-common.schema.json#/$defs/itemFoundry"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "contexts": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "headquarters",
+          "field",
+          "passive"
+        ]
+      }
+    },
+    "conditions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "requires_working": {
+          "type": "boolean"
+        },
+        "requires_presence": {
+          "type": "boolean"
+        },
+        "eligible_facility_refs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^FAC-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+          }
+        },
+        "required_capability_keys": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*$"
+          }
+        }
+      }
+    },
+    "stacking": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "overlap_group": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$"
+        },
+        "allow_overlap": {
+          "type": "boolean"
+        }
+      }
+    },
+    "implementation": {
+      "enum": [
+        "automatic",
+        "informational",
+        "gm_resolved",
+        "hybrid"
+      ]
+    }
+  }
+}

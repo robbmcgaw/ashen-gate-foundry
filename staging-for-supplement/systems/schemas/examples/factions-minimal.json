@@ -1,0 +1,27 @@
+{
+  "schema_version": "ag-factions-source-export/0.3",
+  "definitions": [
+    {
+      "id": "FACTION-EXAMPLE-FERRYMEN",
+      "entity_type": "Faction",
+      "status": "draft",
+      "version": "1.0.0",
+      "provenance": {"sources": ["[EXAMPLE] schema reference"]},
+      "visibility": "reveal_gated",
+      "refs": [],
+      "name": "[EXAMPLE] Ferrymen's Guild",
+      "leader": "",
+      "public_role": "Run the river crossings.",
+      "renown_track": {
+        "id": "RENOWN-EXAMPLE-FERRYMEN",
+        "entity_type": "RenownTrack",
+        "status": "draft",
+        "version": "1.0.0",
+        "provenance": {"sources": ["[EXAMPLE] schema reference"]},
+        "visibility": "player",
+        "refs": [{"relation": "for_faction", "target_id": "FACTION-EXAMPLE-FERRYMEN", "mode": "required"}],
+        "default_scope": "group"
+      }
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "_expect_error": "contexts: nonempty unique headquarters/field/passive values required",
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-EXAMPLE-MISTAKE",
+    "version": "1.0.0"
+  },
+  "records": [
+    {
+      "id": "HPERK-EXAMPLE-STEADY-WORK",
+      "entity_type": "HirelingPerk",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[EXAMPLE] Steady Work",
+      "contexts": [
+        "downtime"
+      ],
+      "conditions": {
+        "requires_working": true,
+        "requires_presence": true
+      },
+      "stacking": {
+        "overlap_group": "example_hq_benefit",
+        "allow_overlap": false
+      },
+      "implementation": "informational",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Examples/Hirelings",
+        "data": {
+          "name": "[EXAMPLE] Steady Work",
+          "type": "feat"
+        }
+      }
+    }
+  ]
+}

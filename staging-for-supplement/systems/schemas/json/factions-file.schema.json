@@ -1,0 +1,561 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/factions-file.schema.json",
+  "title": "Factions file (ag-factions-source-export/0.3)",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "definitions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "ag-factions-source-export/0.3"
+    },
+    "note": {
+      "type": "string"
+    },
+    "definitions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "entity_type",
+          "status",
+          "version",
+          "provenance",
+          "visibility",
+          "refs",
+          "name",
+          "renown_track",
+          "leader",
+          "public_role"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^FACTION-[A-Z0-9-]+$"
+          },
+          "entity_type": {
+            "const": "Faction"
+          },
+          "status": {
+            "$ref": "ag-common.schema.json#/$defs/status"
+          },
+          "version": {
+            "$ref": "ag-common.schema.json#/$defs/version"
+          },
+          "provenance": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sources"
+            ],
+            "properties": {
+              "sources": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "decision_refs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "visibility": {
+            "$ref": "ag-common.schema.json#/$defs/visibility"
+          },
+          "refs": {
+            "$ref": "ag-common.schema.json#/$defs/refs"
+          },
+          "scope": {
+            "enum": [
+              "generic_rules",
+              "setting_adapter",
+              "publication"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "leader": {
+            "type": "string"
+          },
+          "public_role": {
+            "type": "string"
+          },
+          "folder_key": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "discovery": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "placeholder",
+              "sharing_enabled"
+            ],
+            "properties": {
+              "placeholder": {
+                "type": "boolean"
+              },
+              "sharing_enabled": {
+                "type": "boolean"
+              }
+            }
+          },
+          "renown_track": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "entity_type",
+              "status",
+              "version",
+              "provenance",
+              "visibility",
+              "refs",
+              "default_scope"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^RENOWN-[A-Z0-9-]+$"
+              },
+              "entity_type": {
+                "const": "RenownTrack"
+              },
+              "status": {
+                "$ref": "ag-common.schema.json#/$defs/status"
+              },
+              "version": {
+                "$ref": "ag-common.schema.json#/$defs/version"
+              },
+              "provenance": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "sources"
+                ],
+                "properties": {
+                  "sources": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "decision_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "visibility": {
+                "$ref": "ag-common.schema.json#/$defs/visibility"
+              },
+              "refs": {
+                "$ref": "ag-common.schema.json#/$defs/refs"
+              },
+              "default_scope": {
+                "enum": [
+                  "group",
+                  "individual"
+                ]
+              },
+              "milestones": {
+                "type": "array",
+                "minItems": 5,
+                "maxItems": 5,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "id",
+                    "key",
+                    "name",
+                    "threshold",
+                    "benefit",
+                    "selection_mode"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "key": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "threshold": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "benefit": {
+                      "type": "string"
+                    },
+                    "selection_mode": {
+                      "enum": [
+                        "all",
+                        "choose_one"
+                      ]
+                    }
+                  }
+                },
+                "prefixItems": [
+                  {
+                    "properties": {
+                      "threshold": {
+                        "const": 0
+                      }
+                    }
+                  }
+                ],
+                "description": "Exactly five, thresholds strictly increasing, the first is 0."
+              }
+            }
+          },
+          "individual_track": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "entity_type",
+              "status",
+              "version",
+              "provenance",
+              "visibility",
+              "refs",
+              "default_scope",
+              "milestones"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^RENOWN-[A-Z0-9-]+$"
+              },
+              "entity_type": {
+                "const": "RenownTrack"
+              },
+              "status": {
+                "$ref": "ag-common.schema.json#/$defs/status"
+              },
+              "version": {
+                "$ref": "ag-common.schema.json#/$defs/version"
+              },
+              "provenance": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "sources"
+                ],
+                "properties": {
+                  "sources": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "decision_refs": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "visibility": {
+                "$ref": "ag-common.schema.json#/$defs/visibility"
+              },
+              "refs": {
+                "$ref": "ag-common.schema.json#/$defs/refs"
+              },
+              "default_scope": {
+                "enum": [
+                  "group",
+                  "individual"
+                ]
+              },
+              "milestones": {
+                "type": "array",
+                "minItems": 5,
+                "maxItems": 5,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "id",
+                    "key",
+                    "name",
+                    "threshold",
+                    "benefit",
+                    "selection_mode"
+                  ],
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "key": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "name": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "threshold": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "benefit": {
+                      "type": "string"
+                    },
+                    "selection_mode": {
+                      "enum": [
+                        "all",
+                        "choose_one"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "name",
+                "link_mode",
+                "unlock"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "text": {
+                  "type": "string"
+                },
+                "uuid": {
+                  "type": "string"
+                },
+                "link_mode": {
+                  "enum": [
+                    "preview",
+                    "document"
+                  ]
+                },
+                "unlock": {
+                  "enum": [
+                    "manual",
+                    "group_renown",
+                    "individual_renown"
+                  ]
+                },
+                "threshold": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          },
+          "rewards": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "id",
+                "key",
+                "audience",
+                "milestone_id",
+                "name",
+                "kind",
+                "tags",
+                "behavior",
+                "usage_limit"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "key": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "audience": {
+                  "enum": [
+                    "group",
+                    "individual"
+                  ]
+                },
+                "milestone_id": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "teaser": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "custom",
+                    "uuid"
+                  ]
+                },
+                "uuid": {
+                  "type": "string"
+                },
+                "tags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "behavior": {
+                  "enum": [
+                    "one_time",
+                    "repeatable_service",
+                    "passive"
+                  ]
+                },
+                "usage_limit": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "starting_state": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "faction_id"
+        ],
+        "properties": {
+          "faction_id": {
+            "type": "string"
+          },
+          "party_discovered": {
+            "type": "boolean"
+          },
+          "group_renown": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "delta",
+                "reason"
+              ],
+              "properties": {
+                "delta": {
+                  "type": "integer",
+                  "minimum": -1000,
+                  "maximum": 1000,
+                  "not": {
+                    "const": 0
+                  }
+                },
+                "reason": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 400
+                }
+              }
+            }
+          },
+          "actors": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "discovered": {
+                  "type": "boolean"
+                },
+                "renown": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "delta",
+                      "reason"
+                    ],
+                    "properties": {
+                      "delta": {
+                        "type": "integer",
+                        "minimum": -1000,
+                        "maximum": 1000,
+                        "not": {
+                          "const": 0
+                        }
+                      },
+                      "reason": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 400
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

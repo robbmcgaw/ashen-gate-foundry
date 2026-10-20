@@ -1,0 +1,563 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/location.schema.json",
+  "title": "Location record",
+  "description": "Location inside a Manager ag-foundry-import/0.2 package. Manager passes it to the Locations module (no Foundry projection).",
+  "type": "object",
+  "allOf": [
+    {
+      "$ref": "ag-common.schema.json#/$defs/envelope"
+    }
+  ],
+  "required": [
+    "entity_type",
+    "location"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^LOC-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+    },
+    "entity_type": {
+      "const": "Location"
+    },
+    "location": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "type": "string"
+        },
+        "region": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "img": {
+          "type": "string"
+        },
+        "threat": {
+          "enum": [
+            "settled",
+            "light",
+            "normal",
+            "hot",
+            "deadly"
+          ]
+        },
+        "state": {
+          "enum": [
+            "hidden",
+            "unidentified",
+            "revealed"
+          ]
+        },
+        "revealed": {
+          "type": "boolean",
+          "description": "Legacy (pre-1.3). Use state."
+        },
+        "show": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "type": {
+              "type": "boolean"
+            },
+            "region": {
+              "type": "boolean"
+            },
+            "description": {
+              "type": "boolean"
+            },
+            "img": {
+              "type": "boolean"
+            },
+            "threat": {
+              "type": "boolean"
+            }
+          }
+        },
+        "sections": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "conditions": {
+              "type": "boolean"
+            },
+            "resources": {
+              "type": "boolean"
+            },
+            "factions": {
+              "type": "boolean"
+            },
+            "quests": {
+              "type": "boolean"
+            },
+            "related": {
+              "type": "boolean"
+            },
+            "loot": {
+              "type": "boolean"
+            },
+            "notes": {
+              "type": "boolean"
+            }
+          }
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "label": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "visible": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 40,
+                "description": "Stable node key (or 'key')."
+              },
+              "key": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "label": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "skill": {
+                "type": "string",
+                "maxLength": 80,
+                "examples": [
+                  "Herbalism",
+                  "Mining",
+                  "Fishing",
+                  "Skinning & Harvesting",
+                  "Archaeology"
+                ]
+              },
+              "tier": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              "dc": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 40,
+                "description": "Default by tier: 10/12/15/18/20."
+              },
+              "dcVisible": {
+                "type": "boolean"
+              },
+              "materialId": {
+                "type": "string",
+                "pattern": "^MAT-[A-Z0-9-]+$"
+              },
+              "quantity": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 999
+              },
+              "rareMaterialId": {
+                "type": "string",
+                "pattern": "^(MAT-[A-Z0-9-]+)?$"
+              },
+              "rareQuantity": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 999
+              },
+              "finite": {
+                "type": "boolean"
+              },
+              "exhausted": {
+                "type": "boolean"
+              },
+              "available": {
+                "type": "boolean"
+              },
+              "visible": {
+                "type": "boolean"
+              },
+              "uuid": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "exotics": {
+                "type": "array",
+                "maxItems": 20,
+                "items": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "required": [
+                        "materialId",
+                        "mode"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "materialId": {
+                          "type": "string",
+                          "pattern": "^MAT-[A-Z0-9-]+$"
+                        },
+                        "mode": {
+                          "const": "discovery"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "required": [
+                        "materialId",
+                        "mode",
+                        "chance"
+                      ],
+                      "additionalProperties": false,
+                      "properties": {
+                        "materialId": {
+                          "type": "string",
+                          "pattern": "^MAT-[A-Z0-9-]+$"
+                        },
+                        "mode": {
+                          "const": "designated"
+                        },
+                        "chance": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 100
+                        },
+                        "condition": {
+                          "enum": [
+                            "success",
+                            "rare"
+                          ]
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "factions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "label": {
+                "type": "string"
+              },
+              "note": {
+                "type": "string"
+              },
+              "uuid": {
+                "type": "string"
+              },
+              "docType": {
+                "type": "string"
+              },
+              "visible": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "quests": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "questId"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "questId": {
+                "type": "string",
+                "pattern": "^(QUEST|ORDER|CONTRACT)-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+              },
+              "visible": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "related": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "locationId"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "locationId": {
+                "type": "string",
+                "pattern": "^LOC-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+              },
+              "visible": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "loot": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "label": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "img": {
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "available",
+                  "discovered",
+                  "taken"
+                ]
+              },
+              "uuid": {
+                "type": "string"
+              },
+              "docType": {
+                "type": "string"
+              },
+              "visible": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "title": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "uuid": {
+                "type": "string"
+              },
+              "docType": {
+                "type": "string"
+              },
+              "visible": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "details": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "title": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              },
+              "uuid": {
+                "type": "string"
+              },
+              "docType": {
+                "type": "string"
+              },
+              "visible": {
+                "type": "boolean"
+              }
+            }
+          }
+        },
+        "layout": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(description|conditions|children|resources|factions|quests|related|loot|notes|scenes|detail:.+)$"
+          }
+        },
+        "isRegion": {
+          "type": "boolean"
+        },
+        "passConditions": {
+          "type": "boolean"
+        },
+        "conditionOverrides": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "from",
+              "conditionKey"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "maxLength": 40
+              },
+              "from": {
+                "type": "string",
+                "pattern": "^LOC-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+              },
+              "conditionKey": {
+                "type": "string"
+              },
+              "disabled": {
+                "type": "boolean"
+              },
+              "label": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "parentLocationId": {
+          "type": "string",
+          "pattern": "^(LOC-[A-Z0-9]+(?:-[A-Z0-9]+)*)?$"
+        },
+        "unidentifiedLabel": {
+          "type": "string",
+          "maxLength": 80
+        },
+        "teaser": {
+          "type": "string",
+          "maxLength": 2000
+        },
+        "pin": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "img": {
+              "type": "string"
+            },
+            "unidentifiedImg": {
+              "type": "string"
+            },
+            "size": {
+              "type": "integer",
+              "minimum": 16,
+              "maximum": 256
+            }
+          }
+        },
+        "placeable": {
+          "type": "boolean"
+        },
+        "audience": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "mode": {
+              "enum": [
+                "everyone",
+                "selected"
+              ]
+            },
+            "userIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "sharedBy": {
+              "type": "object"
+            },
+            "sharing": {
+              "type": "boolean"
+            }
+          }
+        },
+        "pinKey": {
+          "type": "string",
+          "description": "Export only; do not author."
+        },
+        "published": {
+          "type": "object",
+          "description": "Export only; do not author."
+        },
+        "sceneUuids": {
+          "type": "array",
+          "description": "World-local; do not author."
+        },
+        "id": {
+          "type": "string"
+        }
+      }
+    },
+    "foundry": {
+      "description": "Not used for Locations; omit."
+    }
+  }
+}
