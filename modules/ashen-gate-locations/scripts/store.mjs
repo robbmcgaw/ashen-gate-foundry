@@ -25,14 +25,22 @@
  * player page and shared-notes page name every player user explicitly: the readers get access, everyone else NONE
  * (explicit, because Foundry merges ownership on update, so a removed player must be set back). Map Notes point at
  * the player page, so Foundry hides a pin from anyone who cannot open that page.
+ *
+ * 1.10.0 routes: the full records sit in the GM Data Journal's `routes` flag, beside `routeIds` (every RTE id ever
+ * issued, so a deleted route's id is never reused). Players read a fifth Journal, "Locations (Routes)" (role
+ * `route-view`): one page per version of a route that some player may see (see routes.mjs routeAudiences), named
+ * just "Route", carrying only the player-safe view JSON and the route's random view key, and readable only by the
+ * players that version is for (every other player explicitly NONE). An undiscovered route has no page at all.
  */
 import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL, normalizeLocation, playerView, viewHtml, pinPresentation, notePatch, uniquePinKeys, PIN_KEY,
-  normalizeNotes, notesMirror, reconcileNotes, inAudience, resolvePassConditions} from './model.mjs';
+  normalizeNotes, notesMirror, reconcileNotes, inAudience, resolvePassConditions, newPinKey} from './model.mjs';
+import {normalizeRoute, routeAudiences, defaultLeg} from './routes.mjs';
 
 const ROLE_GM = 'gm-data';
 const ROLE_VIEW = 'player-view';
 const ROLE_NOTES = 'party-notes';
 const ROLE_SHARED = 'shared-notes';
+const ROLE_ROUTE_VIEW = 'route-view';
 const LEGACY_ROLES = ['source', 'projection', 'map_registry'];
 const FOLDER_PATH = ['Ashen Gate', 'Locations'];
 
@@ -93,7 +101,83 @@ export async function writeAll(list) {
   await syncPlayerView(locations);
   await syncNotes(locations);
   await syncSharedNotes(locations);
+  // Endpoint visibility decides who sees a route, so route pages follow every location change.
+  await syncRouteViews(readRoutes(), locations);
   return locations;
+}
+
+// ---------- 1.10.0 routes ----------
+/** The world's default leg length in km (GM Setup). */
+export const defaultLegKm = () => defaultLeg(setting('defaultLegKm', null));
+/** GM: every route, full data, in stored order. */
+export function readRoutes() {
+  assertGM();
+  const raw = byRole(ROLE_GM)?.getFlag(MODULE_ID, 'routes');
+  return (Array.isArray(raw) ? raw : []).map(normalizeRoute).filter(r => r.id);
+}
+/** GM: every RTE id ever issued in this world (current and deleted). */
+export function usedRouteIds() {
+  assertGM();
+  const raw = byRole(ROLE_GM)?.getFlag(MODULE_ID, 'routeIds');
+  return [...new Set([...(Array.isArray(raw) ? raw.filter(id => typeof id === 'string') : []), ...readRoutes().map(r => r.id)])];
+}
+/** GM: replaces the stored routes (remembering their ids for good), then rebuilds the players' route pages. */
+export async function writeRoutes(list, {locations = null} = {}) {
+  assertGM();
+  const routes = list.map(normalizeRoute).filter(r => r.id);
+  const keys = new Set();
+  for (const r of routes) { while (keys.has(r.viewKey)) r.viewKey = newPinKey(); keys.add(r.viewKey); }
+  const routeIds = [...new Set([...usedRouteIds(), ...routes.map(r => r.id)])];
+  const doc = byRole(ROLE_GM);
+  if (doc) {
+    if (JSON.stringify(doc.getFlag(MODULE_ID, 'routes')) !== JSON.stringify(routes) || JSON.stringify(doc.getFlag(MODULE_ID, 'routeIds')) !== JSON.stringify(routeIds))
+      await doc.update({[`flags.${MODULE_ID}.routes`]: routes, [`flags.${MODULE_ID}.routeIds`]: routeIds});
+  } else await JournalEntry.create({name: 'Locations (GM Data)', folder: await ensureFolder(),
+    ownership: {default: levels().NONE}, flags: {[MODULE_ID]: {role: ROLE_GM, locations: [], routes, routeIds}}});
+  await syncRouteViews(routes, locations ?? readAll());
+  return routes;
+}
+/** The page one version of a route needs: readable by exactly `userIds`, nothing on it but the safe view. */
+function routePageData(route, group) {
+  const L = levels();
+  const own = {default: L.NONE};
+  for (const u of players()) own[u.id] = group.userIds.includes(u.id) ? L.OBSERVER : L.NONE;
+  return {name: 'Route', type: 'text', text: {content: '', format: htmlFormat()}, ownership: own,
+    flags: {[MODULE_ID]: {routeKey: route.viewKey, variant: group.variant, view: JSON.stringify(group.view)}}};
+}
+const routePageId = p => `${p.getFlag(MODULE_ID, 'routeKey')}:${p.getFlag(MODULE_ID, 'variant')}`;
+/** GM: makes the route pages match the routes and locations. Writes nothing when they already match. */
+export async function syncRouteViews(routes = readRoutes(), locations = readAll()) {
+  assertGM();
+  const byId = new Map(locations.map(l => { const n = normalizeLocation(l); return [n.id, n]; }));
+  const ids = players().map(u => u.id);
+  const opts = {label: presentationOptions().label, defaultLegKm: defaultLegKm()};
+  const want = new Map();
+  for (const r of routes) for (const g of routeAudiences(r, byId, ids, opts)) want.set(`${r.viewKey}:${g.variant}`, routePageData(r, g));
+  let journal = byRole(ROLE_ROUTE_VIEW);
+  if (!journal && !want.size) return;
+  journal ??= await JournalEntry.create({name: 'Locations (Routes)', folder: await ensureFolder(),
+    ownership: {default: levels().OBSERVER}, flags: {[MODULE_ID]: {role: ROLE_ROUTE_VIEW}}});
+  const have = new Map();
+  const remove = [];
+  for (const p of journal.pages) { const k = routePageId(p); if (want.has(k) && !have.has(k)) have.set(k, p); else remove.push(p.id); }
+  const create = [], update = [];
+  for (const [k, data] of want) {
+    const page = have.get(k);
+    if (!page) create.push(data);
+    else if (page.getFlag(MODULE_ID, 'view') !== data.flags[MODULE_ID].view || !sameOwnership(page.ownership, data.ownership)) update.push({_id: page.id, ownership: data.ownership, [`flags.${MODULE_ID}.view`]: data.flags[MODULE_ID].view});
+  }
+  if (create.length) await journal.createEmbeddedDocuments('JournalEntryPage', create);
+  if (update.length) await journal.updateEmbeddedDocuments('JournalEntryPage', update);
+  if (remove.length) await journal.deleteEmbeddedDocuments('JournalEntryPage', remove);
+}
+/** Any user: the route views this user may read (Foundry's own page permission decides). */
+export function readRouteViews() {
+  const journal = byRole(ROLE_ROUTE_VIEW);
+  if (!journal) return [];
+  return [...journal.pages].filter(p => isGM() || p.testUserPermission(game.user, 'OBSERVER'))
+    .map(p => { try { return JSON.parse(p.getFlag(MODULE_ID, 'view') || 'null'); } catch { return null; } })
+    .filter(Boolean);
 }
 
 async function viewJournal() {
