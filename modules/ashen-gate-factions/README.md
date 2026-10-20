@@ -1,4 +1,6 @@
-# Ashen Gate | Factions & Renown
+# Ashen Gate | Renown
+
+Formerly **Factions & Renown**. Only the display name changed: the module id is still `ashen-gate-factions`, and settings, flags, API, import schema and saved data are unchanged.
 
 Module ID `ashen-gate-factions` · Foundry V14 · dnd5e. Factions with group Renown, per-character Renown, discovery, rewards and service requests. Open it from **Actors sidebar → Renown** (players when **GM Setup → Player Access** is on).
 
@@ -13,7 +15,7 @@ Discovery can be all-or-nothing per faction, or field by field (Name, Leader, De
 
 ## Relation to other modules
 
-Independent. General Manager hands faction files to `api.previewFactionsImport` / `api.importFactions` (GM only): new factions are added, existing ones are never changed. A faction can hold typed Objective references; with Quest Manager active the GM-only `getObjectiveRefs` and `auditObjectiveRefs` report on them, and Factions never resolves or reveals Quest state itself.
+Independent. General Manager hands faction files to `api.previewFactionsImport` / `api.importFactions` (GM only): new factions are added, existing ones are never changed. A faction can hold typed Objective references; with Quest Manager active the GM-only `getObjectiveRefs` and `auditObjectiveRefs` report on them, and Renown never resolves or reveals Quest state itself.
 
 ## Public API
 
