@@ -171,3 +171,7 @@
 .ag-locations .agl-route-card h4 { margin: 0 0 4px; }
 .ag-locations .agl-route-card p { margin: 2px 0; }
 .ag-locations .agl-routes-player { padding: 8px; overflow: auto; }
+/* 1.11.0 journeys */
+.ag-locations .agl-journey-banner { margin: 4px 8px; }
+.ag-locations .agl-hazard { border-left: 4px solid var(--ag-danger, #b33); }
+.ag-locations .agl-journey-log { margin: 4px 0; padding-left: 20px; }

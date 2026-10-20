@@ -48,6 +48,7 @@ export class Scene {
   }
   // Foundry merges object fields (flags, texture) on update; so does this.
   async updateEmbeddedDocuments(_, list) { this.updates = (this.updates ?? 0) + 1; for (const d of list) merge(this.notes.find(n => n.id === d._id), d); }
+  async deleteEmbeddedDocuments(_, ids) { this.notes = this.notes.filter(n => !ids.includes(n.id)); }
 }
 
 export const gm = {id: 'gm', isGM: true};
