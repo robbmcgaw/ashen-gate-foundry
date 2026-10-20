@@ -179,7 +179,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.33.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.34.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -663,7 +663,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       }
       case "help": {
         await DialogV2.confirm({window:{title:'Ashen Gate | General Manager Help'},
-          content:'<p><strong>Browse:</strong> one search over world Actors, Items, Journals (and pages), Ashen Gate records from Locations, Quest Log, Renown, Skill Trees, Headquarters and the Profession Ledger, and (after Load compendiums) compendium indexes. Type words or prefixes such as id:MAT-HERB, tag:, status:, tier:. Filters combine and show counts; Clear resets them. Open shows the sheet or the owning module; drag a world or compendium row onto a sheet, the canvas or a journal. Read-only.</p><p><strong>Clean import:</strong> Choose Manager JSON or a ZIP; select Development for draft content, Validate & Preview, Select eligible, then Import.</p><p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro; no Scenes or Playlists. </p><p><strong>ZIP bundles:</strong> a ZIP holding several import files (Manager packages plus Quest, Skill Tree, Headquarters or Factions files) shows a ZIP contents list. Untick any you do not want, press Import selected files, then preview and Apply each file in turn (Manager packages first). Each file gets its own result; Skip this file or Stop ZIP import at any time. ZIP scripts never run. Bundled images are uploaded only if that option is enabled.</p><p><strong>Folders:</strong> foundry.folder_path creates nested folders per document type. <strong>Links:</strong> canonical refs bind after creation. Markers [[AGREF:MAT-EXAMPLE|Material]] are provisional pending Tim.</p><p>Back up a test world. Existing Tables and Macros are never replaced. Existing Actors change only if you tick <strong>Update existing actors</strong>: then their name, image, token settings and package items follow the file, and HP, XP, level, conditions, player items, notes, ownership, folders and other modules\' data are kept.</p>',
+          content:'<p><strong>Browse:</strong> one search over world Actors, Items, Journals (and pages), Ashen Gate records from Locations, Quest Log, Renown (factions and deities), Skill Trees, Headquarters, the Profession Ledger and the NPC Codex, and (after Load compendiums) compendium indexes. Type words or prefixes such as id:MAT-HERB, id:DEITY-, type:deity, type:npc-codex, tag:, status:, tier:major. An NPC Actor and its Codex entry are one row; Open on it jumps to Library → NPC Codex at that NPC, Open on a deity opens Renown\u2019s Pantheon at it. Filters combine and show counts; Clear resets them. Open shows the sheet or the owning module; drag a world or compendium row onto a sheet, the canvas or a journal. Read-only.</p><p><strong>Clean import:</strong> Choose Manager JSON or a ZIP; select Development for draft content, Validate & Preview, Select eligible, then Import.</p><p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro; no Scenes or Playlists. </p><p><strong>ZIP bundles:</strong> a ZIP holding several import files (Manager packages plus Quest, Skill Tree, Headquarters or Factions files) shows a ZIP contents list. Untick any you do not want, press Import selected files, then preview and Apply each file in turn (Manager packages first). Each file gets its own result; Skip this file or Stop ZIP import at any time. ZIP scripts never run. Bundled images are uploaded only if that option is enabled.</p><p><strong>Folders:</strong> foundry.folder_path creates nested folders per document type. <strong>Links:</strong> canonical refs bind after creation. Markers [[AGREF:MAT-EXAMPLE|Material]] are provisional pending Tim.</p><p>Back up a test world. Existing Tables and Macros are never replaced. Existing Actors change only if you tick <strong>Update existing actors</strong>: then their name, image, token settings and package items follow the file, and HP, XP, level, conditions, player items, notes, ownership, folders and other modules\' data are kept.</p>',
           modal:true,rejectClose:false});
         break;
       }
@@ -1871,7 +1871,9 @@ let myAppearanceApp=null;
 let activeApp;
 let sceneMoodsApi=null;
 let browseApi=null;
-const browse=()=>browseApi??=createBrowse({game,hooks:Hooks,fromUuid:uuid=>(globalThis.fromUuid??foundry.utils.fromUuid)(uuid)});
+const browse=()=>browseApi??=createBrowse({game,hooks:Hooks,fromUuid:uuid=>(globalThis.fromUuid??foundry.utils.fromUuid)(uuid),
+  // Browse → Open on an NPC Codex row: Library → NPC Codex with that NPC selected (GM-only; Browse checks the GM first).
+  openCodex:id=>{activeApp??=new AshenGateManager();Object.assign(activeApp,{tab:'library',librarySection:'codex',codexFocus:id});return activeApp.render({force:true});}});
 const sceneMoods=()=>sceneMoodsApi??=createSceneMoods({game});
 let organizerApi=null;
 let coreLinksApi=null;
@@ -1996,7 +1998,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.33.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.34.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */
