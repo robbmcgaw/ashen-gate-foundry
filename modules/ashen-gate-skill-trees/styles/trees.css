@@ -166,3 +166,21 @@
 .agst-roster-meta{color:var(--ag-muted)}
 .agst-history ol{margin:4px 0;padding-left:18px;font-size:var(--ag-text-sm);display:flex;flex-direction:column;gap:3px}
 .agst-prof-summary{margin:4px 0}
+/* 0.14.0: compact character list embedded in a partner module (api.embed.mount). The host element carries .agst-embed. */
+.agst-embed{display:block;min-width:0;color:var(--ag-text)}
+.agst-embed .agst-embed__body{display:grid;gap:var(--ag-space-2)}
+.agst-embed .agst-embed__tree{border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface-raised);padding:var(--ag-space-2) var(--ag-space-3)}
+.agst-embed .agst-embed__tree>summary{display:flex;flex-wrap:wrap;gap:var(--ag-space-2);align-items:center;cursor:pointer}
+.agst-embed .agst-embed__tree>summary .ag-btn{margin-left:auto}
+.agst-embed h4{margin:var(--ag-space-2) 0 var(--ag-space-1);font-size:var(--ag-text-sm);text-transform:uppercase;letter-spacing:.05em;color:var(--ag-muted)}
+.agst-embed .agst-embed__pts{font-size:var(--ag-text-sm);border:1px solid var(--ag-border);border-radius:999px;padding:0 8px}
+.agst-embed .agst-embed__pts.is-ready{color:var(--ag-accent);border-color:var(--ag-accent);background:var(--ag-accent-soft)}
+.agst-embed .agst-embed__muted{color:var(--ag-muted);font-size:var(--ag-text-sm)}
+.agst-embed .agst-embed__list{list-style:none;margin:0;padding:0;display:grid;gap:2px}
+.agst-embed .agst-embed__list>li{display:flex;flex-wrap:wrap;gap:var(--ag-space-2);align-items:center;padding:2px 4px;border-radius:var(--ag-radius-sm)}
+.agst-embed .agst-embed__list>li:hover{background:var(--ag-surface-hover)}
+.agst-embed .agst-embed__name{flex:1 1 10rem;min-width:0;overflow-wrap:anywhere}
+.agst-embed .agst-embed__text{flex-basis:100%;margin:0;color:var(--ag-muted);font-size:var(--ag-text-sm)}
+.agst-embed .agst-embed__chips{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:4px}
+.agst-embed .agst-embed__chips>li{border:1px solid color-mix(in srgb,var(--ag-accent) 55%,transparent);background:var(--ag-accent-soft);border-radius:999px;padding:0 8px;font-size:var(--ag-text-sm)}
+.agst-embed .agst-embed__locked>summary{cursor:pointer;color:var(--ag-muted);font-size:var(--ag-text-sm);margin-top:var(--ag-space-1)}

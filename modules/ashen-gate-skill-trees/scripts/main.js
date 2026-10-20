@@ -14,7 +14,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.13.0';
+const VERSION='0.14.0';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -27,6 +27,7 @@ const canOpenTrees=()=>playerAccessAllowed(game,MODULE);
 const checkTreePlayerAccess=()=>assertPlayerAccess(game,MODULE);
 const playerAccessEnabled=()=>game.settings.get(MODULE,PLAYER_ACCESS_SETTING)!==false;
 function syncTreePlayerAccess(enabled){
+  refreshEmbeds();
   if(game.user?.isGM && instance?.rendered)instance.render();
   if(!game.user?.isGM && enabled!==true){
     const windows=new Set([...openTreeWindows,...(instance?[instance]:[])]);
@@ -1198,6 +1199,7 @@ const openButton=(actor,tree,label,{resolve=false}={})=>`<button type="button" d
  * and tell the GM when a lower level leaves perks above it. Never changes any data.
  */
 async function onProgressionChanged({actorId,profId,previousLevel,level}={}){
+  refreshEmbeds(actorId);
   if(instance?.rendered)instance.render();
   if(!game.user?.isGM||game.users?.activeGM?.id!==game.user.id)return;
   const actor=game.actors?.get?.(actorId);if(!actor||!Number.isSafeInteger(level)||!Number.isSafeInteger(previousLevel)||level===previousLevel)return;
@@ -1223,6 +1225,109 @@ function wireChatButtons(_message,html){
     try{open({actorId:b.dataset.actorId,treeId:b.dataset.treeId,resolve:b.dataset.agstResolve==='1'&&game.user.isGM});}catch(error){notify(error.message,true);}
   }));
 }
+/* ---- 0.14.0: embed API. A partner module (Character Hub) mounts a compact, character-scoped list of this character's
+   trees: points, unlocked perks, perks available now (with the real Unlock), locked perks with the reason, and Open tree.
+   Players see the published projection only; Unlock uses the same checks and GM-client request as the window. ---- */
+const EMBED_MODES=new Set(['character']);
+const embeds=new Set();
+const shortText=x=>{const t=String(x??'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();return t.length>160?`${t.slice(0,157)}…`:t;};
+/** Why this user may not see the character's trees here, or '' (GM, or the Actor's owner, with Player Access on). */
+function embedRefusal(actor){
+  if(!canOpenTrees())return 'The GM has hidden Skill Trees.';
+  if(!actor)return 'That character no longer exists.';
+  if(!hasOwner(actor))return `Only ${actor.name}'s owner and the GM can see this.`;
+  return '';
+}
+/** One tree's rows for the embed. GM: the private tree resolved from world perks; players: the published projection. */
+function embedTreeModel(actor,stored){
+  const gm=game.user.isGM,t=gm?resolved(stored):stored,acc=readProgress(actor,stored),level=professionLevel(actor,stored);
+  const nodes=asArray(t.nodes).filter(n=>!n.silhouette).map(n=>{
+    const unlocked=acc.unlocks.includes(n.id);
+    const e=unlocked?{ok:false}:(gm?availability(t,acc,n.id,{level}):publicAvailability(t,acc,n.id,{level}));
+    return {id:n.id,name:n.name||'Unnamed',cost:n.cost??1,text:shortText(n.description),unlocked,available:!unlocked&&e.ok,reason:unlocked?'':String(e.reason??'')};
+  });
+  const spent=totalSpent(t,acc),profession=t.provider?.kind==='profession';
+  const st=profession?professionStatus(t,acc,level):null;
+  const earned=profession?(st.ledger?st.earned:null):acc.awarded,available=profession?(st.ledger?Math.max(0,st.available):null):Math.max(0,acc.awarded-spent);
+  return {id:t.id,name:t.name||t.id,profession,level:profession&&st.ledger?st.level:null,earned,spent,available,nodes};
+}
+function embedHTML(ctrl){
+  const actor=game.actors?.get?.(ctrl.actorId)??null,refusal=embedRefusal(actor);
+  if(refusal)return `<div class="ag-empty">${escape(refusal)}</div>`;
+  const models=readSelectedTrees(false).map(t=>embedTreeModel(actor,t));
+  const shown=models.filter(m=>m.nodes.some(n=>n.unlocked||n.available)||Number(m.earned)>0);
+  const plural=(n,w)=>`${n} ${w}${n===1?'':'s'}`;
+  const tree=m=>{
+    const unlocked=m.nodes.filter(n=>n.unlocked),avail=m.nodes.filter(n=>n.available),locked=m.nodes.filter(n=>!n.unlocked&&!n.available);
+    const pts=m.available===null?'<span class="agst-embed__pts">Points come from the Profession Ledger (not active)</span>'
+      :`<span class="agst-embed__pts${m.available?' is-ready':''}">${plural(m.available,'point')} to spend</span><span class="agst-embed__muted">${m.spent} of ${m.earned} spent${m.level!==null?` · level ${m.level}`:''}</span>`;
+    return `<details class="agst-embed__tree" data-tree="${escape(m.id)}" ${ctrl.closed.has(m.id)?'':'open'}><summary><strong>${escape(m.name)}</strong>${pts}
+        <button type="button" class="ag-btn ag-btn--sm" data-agst-embed="open" data-tree="${escape(m.id)}" title="Open the full tree">Open tree</button></summary>
+      ${avail.length?`<h4>Available now</h4><ul class="agst-embed__list">${avail.map(n=>`<li><span class="agst-embed__name">${escape(n.name)}</span><span class="agst-embed__muted">${plural(n.cost,'point')}</span>
+        <button type="button" class="ag-btn ag-btn--sm ag-btn--primary" data-agst-embed="unlock" data-tree="${escape(m.id)}" data-node="${escape(n.id)}">Unlock</button>${n.text?`<p class="agst-embed__text">${escape(n.text)}</p>`:''}</li>`).join('')}</ul>`:''}
+      <h4>Unlocked</h4>${unlocked.length?`<ul class="agst-embed__chips">${unlocked.map(n=>`<li title="${escape(n.text)}">${escape(n.name)}</li>`).join('')}</ul>`:'<p class="agst-embed__muted">None yet.</p>'}
+      ${locked.length?`<details class="agst-embed__locked"><summary>Locked (${locked.length})</summary><ul class="agst-embed__list">${locked.map(n=>`<li><span class="agst-embed__name">${escape(n.name)}</span><span class="agst-embed__muted">${escape(n.reason)}</span></li>`).join('')}</ul></details>`:''}
+    </details>`;
+  };
+  const others=models.length-shown.length;
+  return `<div class="agst-embed__body">${shown.map(tree).join('')||'<div class="ag-empty">No points or perks yet.</div>'}
+    ${others?`<p class="agst-embed__muted">${plural(others,'other tree')} with nothing to spend yet. <button type="button" class="ag-btn ag-btn--sm" data-agst-embed="open">Open Skill Trees</button></p>`:''}</div>`;
+}
+/** Unlock from the embed: the same confirm, checks and route as the window (GM unlocks here; a player asks the GM client). */
+async function embedUnlock(actor,treeId,nodeId){
+  checkTreePlayerAccess();
+  const refusal=embedRefusal(actor);if(refusal)throw Error(refusal);
+  const stored=readSelectedTrees(false).find(t=>t.id===treeId);if(!stored)throw Error('Unknown tree');
+  const level=professionLevel(actor,stored);
+  if(game.user.isGM){
+    const t=resolved(stored),n=t.nodes.find(x=>x.id===nodeId);if(!n)throw Error('Missing private node');
+    const ok=availability(t,readProgress(actor,t),n.id,{level});if(!ok.ok)throw Error(ok.reason);
+    if(!await confirm(`<p>Spend <strong>${ok.cost}</strong> point(s) and unlock <strong>${escape(n.name)}</strong> for ${escape(actor.name)}?</p><p>${n.perkId?'The perk is added to the character sheet.':'This older custom node has no perk, so nothing is added to the sheet.'}</p>`,'Unlock perk'))return null;
+    const {item}=await unlockNode(actor,t.id,n.id);
+    return item?`${n.name} unlocked and added to ${actor.name}.`:`${n.name} unlocked (no perk Item: custom node).`;
+  }
+  if(!actor.isOwner)throw Error('You do not own the selected character');
+  const n=stored.nodes.find(x=>x.id===nodeId);
+  const ok=publicAvailability(stored,readProgress(actor,stored),n?.id,{level});if(!ok.ok)throw Error(ok.reason);
+  if(!await confirm(`<p>Spend <strong>${n.cost??1}</strong> point(s) to unlock <strong>${escape(n.name)}</strong> for ${escape(actor.name)}?</p><p>The perk is added to the character sheet. Only the GM can undo it.</p>`,'Unlock perk'))return null;
+  const result=await requestUnlock(actor,stored.id,n.id);
+  return result.message;
+}
+/** api.embed.mount(element, {actorId, mode:'character'}) → {unmount, refresh}. */
+function mountEmbed(element,{actorId,mode='character'}={}){
+  if(!element||typeof element.addEventListener!=='function')throw TypeError('mount needs a DOM element.');
+  if(!EMBED_MODES.has(mode))throw Error(`Unknown embed mode "${mode}". Supported: ${[...EMBED_MODES].join(', ')}.`);
+  const abort=new AbortController(),ctrl={actorId:String(actorId??''),closed:new Set(),mounted:true,busy:false};
+  element.classList?.add('agst-embed');
+  ctrl.render=()=>{
+    if(!ctrl.mounted)return;
+    if(element.isConnected===false){ctrl.unmount();return;}
+    element.innerHTML=embedHTML(ctrl);
+  };
+  ctrl.unmount=()=>{if(!ctrl.mounted)return;ctrl.mounted=false;abort.abort();embeds.delete(ctrl);element.innerHTML='';element.classList?.remove('agst-embed');};
+  element.addEventListener('click',async e=>{
+    const b=e.target?.closest?.('[data-agst-embed]');if(!b||!element.contains(b))return;
+    e.preventDefault?.();e.stopPropagation?.();
+    if(ctrl.busy||b.disabled)return;
+    const actor=game.actors?.get?.(ctrl.actorId)??null;
+    try{
+      if(b.dataset.agstEmbed==='open'){open({actorId:ctrl.actorId,treeId:b.dataset.tree||null});return;}
+      if(b.dataset.agstEmbed==='unlock'){
+        ctrl.busy=true;b.disabled=true;
+        const message=await embedUnlock(actor,b.dataset.tree,b.dataset.node);
+        if(message)notify(message);
+        ctrl.render();
+      }
+    }catch(error){notify(`Skill Trees: ${error?.message??error}`,true);if(b.isConnected!==false)b.disabled=false;}
+    finally{ctrl.busy=false;}
+  },{signal:abort.signal});
+  element.addEventListener('toggle',e=>{const id=e.target?.dataset?.tree;if(!id||!e.target.matches?.('.agst-embed__tree'))return;if(e.target.open)ctrl.closed.delete(id);else ctrl.closed.add(id);},{signal:abort.signal,capture:true});
+  embeds.add(ctrl);ctrl.render();
+  return {unmount:ctrl.unmount,refresh:()=>ctrl.render()};
+}
+/** Redraw embeds (all, or those showing one character). */
+function refreshEmbeds(actorId=null){for(const e of [...embeds])if(!actorId||e.actorId===actorId)e.render();}
+
 function open({treeId=null,actorId=null,resolve=false}={}){
   checkTreePlayerAccess();
   if(!instance)instance=new SkillTreeApp();
@@ -1243,7 +1348,7 @@ Hooks.once('init',()=>{
     onChange:value=>syncTreePlayerAccess(value)});
   // Preserve v0.1 registration for explicit legacy migration/backup; never silently delete it.
   game.settings.register(MODULE,'treeData',{scope:'world',config:false,type:Object,default:{schema:'ag-skill-trees/0.1',trees:[]}});
-  game.settings.register(MODULE,SAFE_SETTING,{scope:'world',config:false,type:Object,default:{schema:SCHEMA,trees:[]},onChange:()=>instance?.rendered&&instance.render()});
+  game.settings.register(MODULE,SAFE_SETTING,{scope:'world',config:false,type:Object,default:{schema:SCHEMA,trees:[]},onChange:()=>{refreshEmbeds();if(instance?.rendered)instance.render();}});
   game.settings.registerMenu(MODULE,'open',{name:'Ashen Gate | Skill Trees',label:'Open Skill Trees',hint:'Interactive Skill Trees v0.6. GM-controlled player access; independent of Manager.',icon:'fa-solid fa-diagram-project',type:SkillTreeApp,restricted:false});
 });
 Hooks.once('ready',()=>{
@@ -1255,6 +1360,7 @@ Hooks.once('ready',()=>{
     actorProgress:(actor,treeId)=>{checkTreePlayerAccess();if(!game.user.isGM&&!hasOwner(actor))throw Error('Actor access denied');const t=readSelectedTrees(false).find(x=>x.id===treeId);return t?readProgress(actor,t):null;},
     /** 0.13.0: points per tree for one character, [{treeId,name,kind,level,earned,spent,available}]. Owner or GM only; read-only. */
     pointsSummary:actor=>pointsSummary(actor),
+    embed:{contract:'ag-trees-embed/1',modes:[...EMBED_MODES],mount:mountEmbed},
     grantPoints:async(actor,treeId,amount,label)=>{
       if(!game.user.isGM)throw Error('GM only');const t=readPrivate().find(x=>x.id===treeId);if(!t)throw Error('Unknown tree');
       const next=grantPoints(t,readProgress(actor,t),amount,label);await persistAccount(actor,t,next);return next;
@@ -1304,7 +1410,7 @@ Hooks.once('ready',()=>{
   };
   game.socket?.on?.(SOCKET,onSocket);
   if(ui.actors?.rendered) addDirectoryLauncher(ui.actors,ui.actors.element);
-  Hooks.on('updateActor',actor=>{if(instance?.rendered && instance.actorId===actor.id)instance.render();});
+  Hooks.on('updateActor',actor=>{refreshEmbeds(actor.id);if(instance?.rendered && instance.actorId===actor.id)instance.render();});
   // Profession Ledger (optional partner): its hook only says "look again"; the level is read through its API.
   Hooks.on('ashenGateLedger.progressionChanged',data=>void onProgressionChanged(data));
   Hooks.on('renderChatMessageHTML',wireChatButtons);
