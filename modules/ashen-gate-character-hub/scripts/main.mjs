@@ -5,7 +5,7 @@
 import {MODULE_ID, VERSION, SHEET_LABEL} from './constants.mjs';
 import {createHubSheetClass} from './sheet.mjs';
 import {openNativeSheet, nativeSheetClass} from './native.mjs';
-import {registerCompanionSettings, petCapFor, companionsData} from './companions.mjs';
+import {registerCompanionSettings, petCapFor, companionsData, registerPetSlotSource, unregisterPetSlotSource} from './companions.mjs';
 
 let HubSheet = null;
 
@@ -55,7 +55,10 @@ export function createApi() {
     /** Companions (read only here): {mount, pets, cap}. Writes go through the Hub's Companions tab. */
     companions: actor => { const d = companionsData(actor); return {mount: d.mount ? {itemId: d.mount.itemId, name: d.mount.item.name, perkItemIds: d.mount.perkItemIds} : null,
       pets: d.pets.map(p => ({itemId: p.itemId, name: p.item.name, perkItemIds: p.perkItemIds})), petCap: d.cap === Infinity ? null : d.cap}; },
-    petCapFor
+    petCapFor,
+    /** Reserved for a later companion skill tree: fn(actor) → extra pet slots added to the GM's limit. Unused today. */
+    registerPetSlotSource,
+    unregisterPetSlotSource
   };
 }
 

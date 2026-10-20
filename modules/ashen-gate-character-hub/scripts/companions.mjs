@@ -1,5 +1,5 @@
 /**
- * Companions (AG-F07, owned by the Hub): one mount and up to a GM-set number of pets per character, each an
+ * Companions (AG-F07, owned by the Hub): one mount and up to a GM-set number of pets per character (none until the GM raises the limit), each an
  * Item on the character with optional "perk" Items attached. The list lives in
  * flags['ashen-gate-character-hub'].companions on the character Actor: [{id, kind, itemId, perkItemIds}] in order.
  * Caps live in world settings, which only the GM can change. Perk Items only display; nothing is applied.
@@ -8,7 +8,7 @@ import {MODULE_ID, num} from './constants.mjs';
 import {canEdit} from './actions.mjs';
 
 export const KINDS = ['mount', 'pet'];
-export const DEFAULT_PET_CAP = 2;
+export const DEFAULT_PET_CAP = 0;
 const FLAG = 'companions';
 const refuse = error => ({ok: false, error});
 const newId = () => globalThis.foundry?.utils?.randomID?.(12) ?? Math.random().toString(36).slice(2, 14);
@@ -24,8 +24,23 @@ export function petCapFor(actor) {
   const o = petCapOverride(actor);
   if (o === 'unlimited') return Infinity;
   if (o === 'none') return 0;
-  if (o !== null && Number.isFinite(Number(o))) return Math.max(0, Math.trunc(Number(o)));
-  return defaultPetCap();
+  const base = o !== null && Number.isFinite(Number(o)) ? Math.max(0, Math.trunc(Number(o))) : defaultPetCap();
+  return base + bonusPetSlots(actor);
+}
+
+// Hook for a later companion skill tree (nothing uses it yet): another module may register a source that grants
+// extra pet slots to a character. Slots add to the GM's limit; 'none' and 'unlimited' overrides still win.
+const slotSources = new Map();
+export function registerPetSlotSource(id, fn) {
+  if (typeof id !== 'string' || !id || typeof fn !== 'function') return refuse('registerPetSlotSource(id, fn) needs an id and a function.');
+  slotSources.set(id, fn);
+  return {ok: true};
+}
+export const unregisterPetSlotSource = id => slotSources.delete(id);
+export function bonusPetSlots(actor) {
+  let total = 0;
+  for (const fn of slotSources.values()) { try { const n = Math.trunc(Number(fn(actor))); if (n > 0) total += n; } catch { /* a broken source grants nothing */ } }
+  return total;
 }
 const capLabel = cap => cap === Infinity ? 'unlimited' : String(cap);
 
@@ -170,7 +185,7 @@ export async function detachPerk(actor, entryId, perkItemId) {
 
 /** Registers the two world settings (GM-only by Foundry's world scope). */
 export function registerCompanionSettings(settings = globalThis.game?.settings, onChange = () => {}) {
-  settings?.register?.(MODULE_ID, 'petCap', {name: 'Character Hub: pets per character', hint: 'How many pets each character may have in the Companions tab (one mount is always allowed). The GM can override it per character.',
+  settings?.register?.(MODULE_ID, 'petCap', {name: 'Character Hub: pets per character', hint: 'How many pets each character may have in the Companions tab (default 0: no pets until you raise it; one mount is always allowed). The GM can override it per character.',
     scope: 'world', config: true, type: Number, default: DEFAULT_PET_CAP, onChange});
   settings?.register?.(MODULE_ID, 'petCapOverrides', {scope: 'world', config: false, type: Object, default: {}, onChange});
 }

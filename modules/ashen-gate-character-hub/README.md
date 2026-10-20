@@ -53,11 +53,11 @@ APIs that would make the panels fuller (to request from the owning modules):
 ## Saved data
 - `flags.ashen-gate-character-hub.slot` on an Item, when the owner moves or swaps it to another equipment slot. It changes only where the item shows.
 - `flags.ashen-gate-character-hub.companions` on a character: the ordered companion list `[{id, kind: 'mount'|'pet', itemId, perkItemIds}]`. The Items themselves are ordinary Items on the character.
-- World settings `petCap` (default 2) and `petCapOverrides` (`{actorId: number | 'none' | 'unlimited'}`), GM only.
+- World settings `petCap` (default 0) and `petCapOverrides` (`{actorId: number | 'none' | 'unlimited'}`), GM only.
 - Client setting `windowOpacity` (20-100, default 100): this user's window background opacity.
 
 ## Companions
-One mount per character; pets up to the GM's limit (world default 2, per-character override). Limits are checked in the add function itself, not just the UI, and lowering a limit never removes pets. Perk Items attached to a companion only display their own text: the Hub does not apply bonuses or Active Effects.
+One mount per character; pets up to the GM's limit (world default 0, so no pets until the GM raises it; per-character override). A world that already saved a limit keeps it. Limits are checked in the add function itself, not just the UI, and lowering a limit never removes pets. Perk Items attached to a companion only display their own text: the Hub does not apply bonuses or Active Effects.
 
 ## Permissions
 Owners and the GM can change and roll. Observers can look only (the actions refuse them too, not just the buttons). Limited viewers see portrait and name.
@@ -67,6 +67,7 @@ Owners and the GM can change and roll. Observers can look only (the actions refu
 - `open(actor)` → opens the Hub for a character (`{ok, error?}`).
 - `openNativeSheet(actor)` → opens dnd5e's standard character sheet.
 - `companions(actor)` → `{mount, pets, petCap}` (read only); `petCapFor(actor)`.
+- `registerPetSlotSource(id, fn)` / `unregisterPetSlotSource(id)`: reserved for a later companion skill tree. `fn(actor)` returns extra pet slots added to the GM's limit ('No pets' and 'Unlimited' overrides still win). Nothing registers one yet.
 - `nativeSheetAvailable()`, `sheetClass`, `version`.
 
 ## Not yet
