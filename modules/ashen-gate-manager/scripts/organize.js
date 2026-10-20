@@ -9,7 +9,7 @@
  * Every run is stored (previous folder ids) so the last organize can be undone.
  */
 import {MODULE_ID, getPath} from './core.js';
-import {isSourceTagged} from './core-links.js';
+import {isCoreSource} from './core-links.js';
 
 export const SCHEMA_SETTING = 'organizeSchema';
 export const HISTORY_SETTING = 'organizeHistory';
@@ -64,8 +64,9 @@ export function factsOf(doc, documentName, tierIndex = new Map()) {
     creatureType: documentName === 'Actor' && creature ? title(creature) : null,
     cr: cr ?? null, crBand: documentName === 'Actor' ? crBand(cr) : null,
     core: String(getPath(doc, '_stats.compendiumSource') ?? '').startsWith('Compendium.dnd5e.'),
-    // 0.30.0: Plutonium-imported or marked 2024 (same test as Core Links). Untagged non-AG Items go to Homebrew.
-    sourceTagged: isSourceTagged(doc)
+    // 0.31.0: Plutonium-imported, or marked 2024 or 2014 core / SRD 5.1. No source, third-party or homebrew → Homebrew.
+    // Wider than Core Links' 2024-only test (isSource2024). Key name kept so saved custom rules still match.
+    sourceTagged: isCoreSource(doc)
   };
 }
 export const MATCH_KEYS = Object.freeze(['documentType', 'ag', 'sourceIdPrefix', 'entityType', 'status', 'visibility', 'test', 'tier',
