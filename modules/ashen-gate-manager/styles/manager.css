@@ -211,6 +211,38 @@
 .agmanager-mood-field {display:flex;align-items:center;gap:.4rem}
 .agmanager-mood-field input[type=number] {width:5.5rem}
 .agmanager-mood-footer {justify-content:space-between;margin-top:.75rem}
+/* Scenes (0.35.0): rail | live controls + "on this scene now" stack, like the Library rail. Stacks when narrow. */
+.ashen-gate-manager .agscenes{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--ag-space-3);align-items:start}
+.ashen-gate-manager .agscenes-main{min-width:0;display:flex;flex-direction:column;gap:var(--ag-space-3);container-type:inline-size}
+.ashen-gate-manager .agscenes-live{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,30%);gap:var(--ag-space-3);align-items:start}
+.ashen-gate-manager .agscenes-col{display:flex;flex-direction:column;gap:var(--ag-space-3);min-width:0}
+.ashen-gate-manager .agscenes-sect{margin:0;font-size:var(--ag-text-xs);text-transform:uppercase;letter-spacing:.08em;color:var(--ag-muted)}
+.ashen-gate-manager .agscenes-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ashen-gate-manager .agscenes-addstrip{display:flex;flex-wrap:wrap;gap:6px}
+.ashen-gate-manager .agscenes-add{width:auto;min-height:0;height:26px;padding:0 10px;border:1px dashed var(--ag-border-strong);border-radius:13px;background:transparent;color:var(--ag-text);font-size:var(--ag-text-sm);white-space:nowrap;cursor:pointer}
+.ashen-gate-manager .agscenes-add:hover:not(:disabled){border-style:solid;background:var(--ag-surface-hover)}
+.ashen-gate-manager .agscenes-add:disabled{opacity:.45;cursor:not-allowed}
+.ashen-gate-manager .agscenes-tune{display:grid;grid-template-columns:repeat(auto-fit,minmax(17rem,1fr));gap:var(--ag-space-2) var(--ag-space-4)}
+.ashen-gate-manager .agscenes-grp{border:0;margin:0;padding:0;min-width:0}
+.ashen-gate-manager .agscenes-grp legend{font-size:var(--ag-text-sm);font-weight:600;color:var(--ag-muted);padding:0 0 4px}
+.ashen-gate-manager .agscenes-field{display:grid;grid-template-columns:minmax(8rem,40%) minmax(0,1fr) 3rem;gap:6px;align-items:center;font-size:var(--ag-text-sm);min-height:26px}
+.ashen-gate-manager .agscenes-field input[type=range]{width:100%;accent-color:var(--ag-accent)}
+.ashen-gate-manager .agscenes-field input[type=checkbox],.ashen-gate-manager .agscenes-field select,.ashen-gate-manager .agscenes-color{grid-column:2 / span 2;justify-self:start}
+.ashen-gate-manager .agscenes-field output{font-family:var(--ag-font-mono);font-size:var(--ag-text-xs);text-align:right;font-variant-numeric:tabular-nums}
+.ashen-gate-manager .agscenes-field.is-touched>span{color:var(--ag-accent)}
+.ashen-gate-manager .agscenes-color{display:inline-flex;gap:8px;align-items:center}
+.ashen-gate-manager .agscenes-color input[type=color]{width:36px;height:24px;padding:0}
+.ashen-gate-manager .agscenes-stack{display:flex;flex-direction:column;gap:var(--ag-space-2);position:sticky;top:0}
+.ashen-gate-manager .agscenes-entry{border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface-sunken);padding:6px 8px;display:flex;flex-direction:column;gap:2px;word-break:break-word}
+.ashen-gate-manager .agscenes-entry.is-mood{border-color:color-mix(in srgb,var(--ag-accent) 45%,var(--ag-border))}
+.ashen-gate-manager .agscenes-kind{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ag-muted)}
+.ashen-gate-manager .agscenes-entry s{opacity:.6}
+.ashen-gate-manager .agscenes-status{padding:6px 8px;border-radius:var(--ag-radius);background:var(--ag-surface-hover)}
+.ashen-gate-manager .agscenes-search{flex:1;min-width:12rem;width:auto}
+.ashen-gate-manager .agscenes-spacer{flex:1}
+.ashen-gate-manager .agmanager-mood-row.is-unavailable{opacity:.7}
+@container (max-width:680px){.ashen-gate-manager .agscenes-live{grid-template-columns:minmax(0,1fr)}.ashen-gate-manager .agscenes-stack{position:static}}
+@media (max-width:760px){.ashen-gate-manager .agscenes{grid-template-columns:minmax(0,1fr)}.ashen-gate-manager .agscenes .aglib-rail{flex-direction:row;flex-wrap:wrap;position:static}}
 /* Organize folders (0.25.0) */
 .ashen-gate-manager .agmanager-organize{display:flex;flex-direction:column;gap:12px}
 .ashen-gate-manager .agmanager-org-part h4{margin:10px 0 4px}

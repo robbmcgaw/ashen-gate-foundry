@@ -25,7 +25,9 @@ import {runPreSessionCheck} from './pre-session-check.js';
 import {buildImportReport, buildBlockedReport, pushReport} from './import-result.js';
 import {ITEM_FLAG, ACTOR_ITEMS_FLAG, itemKeys, matchActors, planActor, applyActorUpdate} from './actor-update.js';
 import {mediaFilename} from './zip-import.js';
-import {createSceneMoods, MOODS_SETTING, MOOD_FIELDS, NO_WEATHER} from './scene-moods.js';
+import {createSceneMoods, MOODS_SETTING, LAYERS_SETTING, MOOD_FIELDS, FIELD_GROUPS, NO_WEATHER, formatValue} from './scene-moods.js';
+const MOOD_VIEWS=[{id:'live',label:'Live: this scene',icon:'fa-solid fa-sun'},{id:'library',label:'Moods & layers',icon:'fa-solid fa-layer-group'},{id:'share',label:'Export & import',icon:'fa-solid fa-right-left'}];
+const MOOD_TRANSITIONS=[{value:'',label:'Preset default'},{value:0,label:'Instant'},{value:3000,label:'3 s'},{value:10000,label:'10 s'},{value:30000,label:'30 s'}];
 import {createCoreLinks, SOURCES_SETTING, LINK_HISTORY_SETTING} from './core-links.js';
 import {createOrganizer, folderIndex, ORGANIZE_TYPES, SCHEMA_SETTING, HISTORY_SETTING, FLAG_PROTECTED} from './organize.js';
 import {createBrowse, PAGE_SIZE} from './browse.js';
@@ -179,7 +181,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.34.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.35.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -234,10 +236,16 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.profile = "session-safe";
     this.moodSceneId = "";
     this.moodEdit = null;
-    this.moodAnimate = false;
+    this.moodView = "live";
+    this.moodTransition = "";
+    this.moodDraft = null;
+    this.moodSearch = "";
+    this.moodFilter = "all";
+    this.moodImport = null;
+    this.moodExport = {moods:true, layers:true};
     this.browseState = {...DEFAULT_STATE, filters:{}};
     this.browseUnsub = null;
-    this.moodMessage = "Pick a mood for the scene. Only the fields a mood lists change; Back to normal restores the scene exactly.";
+    this.moodMessage = "Pick a mood, then add layers on top. Each removes only its own changes; Back to normal undoes them all.";
     this.orgSource = "world";
     this.orgTypes = new Set(ORGANIZE_TYPES);
     this.orgMode = "misfiled";
@@ -294,20 +302,64 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const api=sceneMoods();
     const list=api.listMoods(), state=api.getState(this.moodSceneId||undefined);
     const weatherIds=list.weatherIds??[];
-    const presets=(list.presets??[]).map(p=>({...p,active:state.mood?.id===p.id,
-      summary:Object.entries(p.set).map(([path,v])=>`${MOOD_FIELDS.find(f=>f.path===path)?.label??path}: ${path==='weather'?(v||'none'):v}`).join(' · ')}));
-    const edit=this.moodEdit;
-    const fields=edit?MOOD_FIELDS.map(f=>{
-      const used=Object.hasOwn(edit.set,f.path), value=edit.set[f.path];
-      return {...f,used,value:used?value:(f.kind==='boolean'?false:f.kind==='weather'?NO_WEATHER:0),isNumber:f.kind==='number',isBoolean:f.kind==='boolean',isWeather:f.kind==='weather',
-        checked:used&&value===true,
-        weatherOptions:[{id:NO_WEATHER,label:'No weather',selected:used&&!value},...weatherIds.map(id=>({id,label:id,selected:used&&value===id})),
-          ...(used&&value&&!weatherIds.includes(value)?[{id:value,label:`${value} (not available here)`,selected:true}]:[])]};
-    }):[];
-    const scenes=(game.scenes?.contents??[]).map(s=>({id:s.id,name:s.name,selected:s.id===this.moodSceneId}));
-    return {sceneName:state.scene?.name??'No scene viewed or active',hasScene:Boolean(state.scene),moodLabel:state.mood?.label??'Normal (no mood applied)',
-      hasBase:state.hasBase,darknessLock:state.scene?.darknessLock,presets,scenes,currentSelected:!this.moodSceneId,animate:this.moodAnimate,
-      message:this.moodMessage,edit:edit?{...edit,fields}:null,hasWeather:weatherIds.length>0};
+    const favourites=new Set(state.favourites??[]);
+    const onLayers=new Set((state.layers??[]).map(l=>l.id));
+    const summary=p=>[...Object.entries(p.set).map(([path,v])=>`${MOOD_FIELDS.find(f=>f.path===path)?.label??path}: ${formatValue(path,v)}`),
+      ...(p.transitionMs?[`${p.transitionMs/1000} s`]:[])].join(' · ');
+    const decorate=p=>({...p,isMood:p.kind==='mood',summary:summary(p),favourite:favourites.has(p.id),
+      unavailable:p.set.weather&&!weatherIds.includes(p.set.weather)?p.set.weather:null});
+    const moods=(list.presets??[]).map(decorate), layers=(list.layers??[]).map(decorate);
+    const weatherOptions=(value,used=true)=>[{id:NO_WEATHER,label:'No weather',selected:used&&!value},...weatherIds.map(id=>({id,label:id,selected:used&&value===id})),
+      ...(used&&value&&!weatherIds.includes(value)?[{id:value,label:`${value} (not available here)`,selected:true}]:[])];
+    const fieldView=(f,value,extra={})=>({...f,value,isNumber:f.kind==='number',isBoolean:f.kind==='boolean',isWeather:f.kind==='weather',isColor:f.kind==='color',
+      checked:value===true,isNone:f.kind==='color'&&!value,colorValue:f.kind==='color'&&value?value:'#ffffff',
+      display:typeof value==='number'?value.toFixed(2):'',weatherOptions:f.kind==='weather'?weatherOptions(value,extra.used??true):[],...extra});
+    const transitions=selected=>MOOD_TRANSITIONS.map(t=>({...t,selected:String(t.value)===String(selected)}));
+    const ctx={views:MOOD_VIEWS.map(v=>({...v,active:v.id===this.moodView})),live:this.moodView==='live',library:this.moodView==='library',share:this.moodView==='share',
+      sceneName:state.scene?.name??'No scene viewed or active',hasScene:Boolean(state.scene),hasBase:state.hasBase,darknessLock:state.scene?.darknessLock,
+      regions:state.scene?.regions??{weather:0,darkness:0},scenes:(game.scenes?.contents??[]).map(s=>({id:s.id,name:s.name,selected:s.id===this.moodSceneId})),
+      currentSelected:!this.moodSceneId,message:this.moodMessage,hasWeather:weatherIds.length>0,transitions:transitions(this.moodTransition),
+      moodCount:moods.length,layerTotal:layers.length,exportMoods:this.moodExport.moods,exportLayers:this.moodExport.layers};
+    if(ctx.live){
+      ctx.liveMoods=[...moods.filter(m=>m.favourite),...moods.filter(m=>!m.favourite)].map(m=>({...m,active:state.mood?.id===m.id}));
+      ctx.liveLayers=layers.map(l=>({...l,on:onLayers.has(l.id)}));
+      ctx.stack=[...(state.layers??[]).slice().reverse(),...(state.mood?[state.mood]:[])].map(e=>({...e,isMood:e.kind==='mood'}));
+      const n=state.layers?.length??0;ctx.layerCount=`${n} layer${n===1?'':'s'}`;
+      // Draft: follows the scene for every field the GM has not touched since loading it.
+      const values=state.values??{};
+      let draft=this.moodDraft;
+      if(!draft||draft.sceneId!==state.scene?.id) draft={sceneId:state.scene?.id??null,values:{},touched:[]};
+      for(const [path,value] of Object.entries(values)) if(!draft.touched.includes(path)) draft.values[path]=value;
+      this.moodDraft=draft;
+      ctx.draftGroups=FIELD_GROUPS.map(g=>({...g,fields:MOOD_FIELDS.filter(f=>f.group===g.id&&Object.hasOwn(values,f.path))
+        .map(f=>fieldView(f,draft.values[f.path],{touched:draft.touched.includes(f.path)}))})).filter(g=>g.fields.length);
+      ctx.missingFields=state.scene?MOOD_FIELDS.filter(f=>!Object.hasOwn(values,f.path)).map(f=>f.label).join(', '):'';
+    }
+    if(ctx.library){
+      const q=this.moodSearch.trim().toLowerCase();
+      const match=p=>!q||p.label.toLowerCase().includes(q)||p.id.includes(q)||p.summary.toLowerCase().includes(q);
+      ctx.search=this.moodSearch;
+      ctx.filters=[['all','All'],['mood','Moods'],['layer','Layers']].map(([value,label])=>({value,label,selected:this.moodFilter===value}));
+      ctx.libraryGroups=[{kind:'mood',label:'Moods · the base look, one at a time',items:moods},{kind:'layer',label:'Layers · stack on top',items:layers}]
+        .filter(g=>this.moodFilter==='all'||this.moodFilter===g.kind).map(g=>({...g,items:g.items.filter(match)}));
+      const edit=this.moodEdit;
+      if(edit) ctx.edit={...edit,noun:edit.kind==='layer'?'layer':'mood',transitions:transitions(edit.transitionMs??0).filter(t=>t.value!==''),
+        groups:FIELD_GROUPS.map(g=>({...g,fields:MOOD_FIELDS.filter(f=>f.group===g.id).map(f=>{
+          const used=Object.hasOwn(edit.set,f.path), value=used?edit.set[f.path]:(f.kind==='boolean'?false:f.kind==='weather'?NO_WEATHER:f.kind==='color'?null:0);
+          return fieldView(f,value,{used});
+        })}))};
+    }
+    if(ctx.share&&this.moodImport) ctx.import={filename:this.moodImport.filename,items:this.moodImport.items.map(i=>{
+      const choice=this.moodImport.choices[`${i.kind}:${i.id}`]??'keep';
+      return {...i,isNew:i.status==='new',isSame:i.status==='same',isConflict:i.status==='conflict',isInvalid:i.status==='invalid',
+        problems:(i.problems??[]).join(' '),keep:choice==='keep',replace:choice==='replace',both:choice==='both'};
+    })};
+    return ctx;
+  }
+  /** Live transition picker: '' = each preset's own transition (Apply), 0 for restore/remove/fine-tune. */
+  #moodAnimate(forPreset=false) {
+    if(this.moodTransition==='')return forPreset?undefined:0;
+    return Number(this.moodTransition)||0;
   }
   async #moodResult(promise,okMessage) {
     const out=await promise;
@@ -317,12 +369,25 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     return out;
   }
   async #applyMood(id) {
-    await this.#moodResult(sceneMoods().applyMood(id,{sceneId:this.moodSceneId||undefined,animate:this.moodAnimate?3000:0}));
+    await this.#moodResult(sceneMoods().applyMood(id,{sceneId:this.moodSceneId||undefined,animate:this.#moodAnimate(true)}));
   }
-  async #editMood(id) {
-    const preset=sceneMoods().listMoods().presets?.find(p=>p.id===id);
-    if(!preset)return toast(`Mood ${id} not found.`,true);
-    this.moodEdit={isNew:false,id:preset.id,label:preset.label,set:{...preset.set}};
+  async #addLayer(id) {
+    await this.#moodResult(sceneMoods().addLayer(id,{sceneId:this.moodSceneId||undefined,animate:this.#moodAnimate(true)}));
+  }
+  async #removeEffect(ref) {
+    const [kind,id]=ref.split(':');
+    await this.#moodResult(sceneMoods().removeEffect(id,{kind,sceneId:this.moodSceneId||undefined,animate:this.#moodAnimate()}));
+  }
+  #findPreset(kind,id) {
+    const list=sceneMoods().listMoods();
+    return (kind==='layer'?list.layers:list.presets)?.find(p=>p.id===id)??null;
+  }
+  async #editMood(ref,{duplicate=false}={}) {
+    const [kind,id]=ref.split(':');
+    const preset=this.#findPreset(kind,id);
+    if(!preset)return toast(`${kind==='layer'?'Layer':'Mood'} ${id} not found.`,true);
+    this.moodEdit=duplicate?{isNew:true,kind,id:`${preset.id.slice(0,35)}-copy`,label:`${preset.label} (copy)`,set:{...preset.set},transitionMs:preset.transitionMs??0}
+      :{isNew:false,kind,id:preset.id,label:preset.label,set:{...preset.set},transitionMs:preset.transitionMs??0};
     await this.render();
   }
   async #saveMood() {
@@ -330,26 +395,84 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     if(!edit)return;
     const id=edit.isNew?String(root.querySelector('[data-ag-mood-id]')?.value??'').trim().toLowerCase():edit.id;
     const label=String(root.querySelector('[data-ag-mood-label]')?.value??'').trim();
+    const transitionMs=Number(root.querySelector('[data-ag-mood-edit-transition]')?.value??0)||0;
     const set={};
     for(const f of MOOD_FIELDS){
       if(!root.querySelector(`[data-ag-mood-use="${f.path}"]`)?.checked)continue;
       const input=root.querySelector(`[data-ag-mood-value="${f.path}"]`);
-      set[f.path]=f.kind==='number'?Number(input?.value):f.kind==='boolean'?Boolean(input?.checked):String(input?.value??'');
+      set[f.path]=f.kind==='number'?Number(input?.value):f.kind==='boolean'?Boolean(input?.checked)
+        :f.kind==='color'?(root.querySelector(`[data-ag-mood-none="${f.path}"]`)?.checked?null:String(input?.value??'').toLowerCase()):String(input?.value??'');
     }
-    if(edit.isNew&&sceneMoods().listMoods().presets?.some(p=>p.id===id))return toast(`A mood with id ${id} already exists.`,true);
-    this.moodEdit={...edit,id,label,set};
-    const out=await this.#moodResult(sceneMoods().savePreset({id,label,set}),`Mood "${label}" saved.`);
+    if(edit.isNew&&this.#findPreset(edit.kind,id))return toast(`A ${edit.kind} with id ${id} already exists.`,true);
+    this.moodEdit={...edit,id,label,set,transitionMs};
+    const out=await this.#moodResult(sceneMoods().savePreset({id,label,kind:edit.kind,set,...(transitionMs?{transitionMs}:{})}),`${edit.kind==='layer'?'Layer':'Mood'} "${label}" saved.`);
     if(out.ok){this.moodEdit=null;await this.render();}
   }
-  async #removeMood(id) {
-    const preset=sceneMoods().listMoods().presets?.find(p=>p.id===id);
+  async #removeMood() {
+    const edit=this.moodEdit;
+    const preset=edit&&this.#findPreset(edit.kind,edit.id);
     if(!preset)return;
-    const yes=await DialogV2.confirm({window:{title:'Remove scene mood'},modal:true,rejectClose:false,
-      content:`<p><strong>Remove the mood "${escapeHtml(preset.label)}"?</strong> Scenes already using it keep their look; Back to normal still restores them.</p>`,
-      yes:{label:'Remove mood'},no:{label:'Cancel'}});
+    const noun=edit.kind==='layer'?'layer':'mood';
+    const yes=await DialogV2.confirm({window:{title:`Remove scene ${noun}`},modal:true,rejectClose:false,
+      content:`<p><strong>Remove the ${noun} "${escapeHtml(preset.label)}"?</strong> Scenes already using it keep their look; removing it from a scene or Back to normal still restores them.</p>`,
+      yes:{label:`Remove ${noun}`},no:{label:'Cancel'}});
     if(!yes)return;
-    if(this.moodEdit?.id===id)this.moodEdit=null;
-    await this.#moodResult(sceneMoods().removePreset(id),`Mood "${preset.label}" removed.`);
+    this.moodEdit=null;
+    await this.#moodResult(sceneMoods().removePreset(preset.id,{kind:edit.kind}),`${noun==='layer'?'Layer':'Mood'} "${preset.label}" removed.`);
+  }
+  /** Reads one fine-tune control into the draft (no render, so dragging stays smooth). */
+  #readDraftControl(path) {
+    const root=this.element, f=MOOD_FIELDS.find(x=>x.path===path), draft=this.moodDraft;
+    if(!f||!draft)return;
+    const input=root.querySelector(`[data-ag-draft="${path}"]`);
+    const value=f.kind==='number'?Number(input?.value):f.kind==='boolean'?Boolean(input?.checked)
+      :f.kind==='color'?(root.querySelector(`[data-ag-draft-none="${path}"]`)?.checked?null:String(input?.value??'').toLowerCase()):String(input?.value??'');
+    draft.values[path]=value;
+    if(!draft.touched.includes(path))draft.touched.push(path);
+    input?.closest('.agscenes-field')?.classList.add('is-touched');
+    const out=root.querySelector(`[data-ag-draft-out="${path}"]`);
+    if(out&&typeof value==='number')out.textContent=value.toFixed(2);
+  }
+  #draftSet() {
+    const draft=this.moodDraft;
+    return Object.fromEntries((draft?.touched??[]).map(path=>[path,draft.values[path]]));
+  }
+  async #draftAction(name) {
+    if(name==='draft-cancel'){this.moodDraft=null;this.moodMessage='Fine-tune reset to what the scene shows now.';await this.render();return;}
+    const set=this.#draftSet();
+    if(!Object.keys(set).length)return toast('Move a fine-tune control first.',true);
+    if(name==='draft-apply'){
+      const out=await this.#moodResult(sceneMoods().applyDraft(set,{sceneId:this.moodSceneId||undefined,animate:this.#moodAnimate()}));
+      if(out.ok){this.moodDraft=null;await this.render();}
+      return;
+    }
+    const kind=name==='draft-save-layer'?'layer':'mood';
+    this.moodEdit={isNew:true,kind,id:'',label:'',set,transitionMs:0};
+    this.moodView='library';
+    await this.render();
+  }
+  async #moodImportFile(file) {
+    try{
+      const data=JSON.parse(await file.text());
+      const out=sceneMoods().previewImport(data);
+      if(!out.ok){this.moodImport=null;this.moodMessage=`${file.name} was not used: ${out.message}`;toast(this.moodMessage,true);}
+      else{this.moodImport={filename:file.name,data,items:out.items,choices:{}};this.moodMessage=`Check the preview of ${file.name}, then Import.`;}
+    }catch(error){this.moodImport=null;this.moodMessage=`${file.name} is not readable JSON: ${error.message??error}`;toast(this.moodMessage,true);}
+    await this.render();
+  }
+  async #moodShareAction(name) {
+    const api=sceneMoods();
+    if(name==='mood-export'){
+      const out=api.exportPresets(this.moodExport);
+      if(!out.ok)return toast(out.message,true);
+      downloadJson(out.filename,out.data);
+      this.moodMessage=`Saved ${out.filename} with ${out.data.presets.length} preset(s).`;toast(this.moodMessage);await this.render();return;
+    }
+    if(name==='mood-import-cancel'){this.moodImport=null;this.moodMessage='Import cancelled. Nothing changed.';await this.render();return;}
+    if(name==='mood-import-apply'&&this.moodImport){
+      const out=await this.#moodResult(api.importPresets(this.moodImport.data,{choices:this.moodImport.choices}));
+      if(out.ok){this.moodImport=null;await this.render();}
+    }
   }
   managedRows() {
     const docs=allBoundDocuments().sort((a,b)=>a.name.localeCompare(b.name));
@@ -582,14 +705,28 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       const enabled=el.dataset.agPlayerAccessEnabled==='true';
       void this.#togglePlayerAccess(id,enabled).catch(error=>this.#playerAccessFail(error));
     }));
-    root.querySelectorAll('[data-ag-mood-apply],[data-ag-mood-edit],[data-ag-mood-remove]').forEach(el=>el.addEventListener('click',event=>{
-      event.preventDefault();
-      const d=el.dataset;
-      const run=d.agMoodApply?this.#applyMood(d.agMoodApply):d.agMoodEdit?this.#editMood(d.agMoodEdit):this.#removeMood(d.agMoodRemove);
-      run.catch(err=>this.#fail(err));
+    const moodClick=(selector,run)=>root.querySelectorAll(selector).forEach(el=>el.addEventListener('click',event=>{
+      event.preventDefault();Promise.resolve(run(el.dataset)).catch(err=>this.#fail(err));
     }));
-    root.querySelector('[data-ag-mood-scene]')?.addEventListener('change',event=>{this.moodSceneId=event.target.value;void this.render();});
-    root.querySelector('[data-ag-mood-animate]')?.addEventListener('change',event=>{this.moodAnimate=event.target.checked;});
+    moodClick('[data-ag-mood-apply]',d=>this.#applyMood(d.agMoodApply));
+    moodClick('[data-ag-layer-add]',d=>this.#addLayer(d.agLayerAdd));
+    moodClick('[data-ag-effect-remove]',d=>this.#removeEffect(d.agEffectRemove));
+    moodClick('[data-ag-mood-edit]',d=>this.#editMood(d.agMoodEdit));
+    moodClick('[data-ag-mood-duplicate]',d=>this.#editMood(d.agMoodDuplicate,{duplicate:true}));
+    moodClick('[data-ag-mood-favourite]',d=>this.#moodResult(sceneMoods().toggleFavourite(d.agMoodFavourite,{sceneId:this.moodSceneId||undefined})));
+    moodClick('[data-ag-mood-view]',d=>{this.moodView=d.agMoodView;return this.render();});
+    moodClick('[data-ag-mood-filter]',d=>{this.moodFilter=d.agMoodFilter;return this.render();});
+    root.querySelector('[data-ag-mood-scene]')?.addEventListener('change',event=>{this.moodSceneId=event.target.value;this.moodDraft=null;void this.render();});
+    root.querySelector('[data-ag-mood-transition]')?.addEventListener('change',event=>{this.moodTransition=event.target.value;});
+    root.querySelector('[data-ag-mood-search]')?.addEventListener('change',event=>{this.moodSearch=event.target.value;void this.render();});
+    root.querySelectorAll('[data-ag-draft]').forEach(el=>el.addEventListener(el.type==='range'?'input':'change',()=>this.#readDraftControl(el.dataset.agDraft)));
+    root.querySelectorAll('[data-ag-draft-none]').forEach(el=>el.addEventListener('change',()=>this.#readDraftControl(el.dataset.agDraftNone)));
+    root.querySelectorAll('[data-ag-mood-export]').forEach(el=>el.addEventListener('change',()=>{this.moodExport[el.dataset.agMoodExport]=el.checked;}));
+    root.querySelectorAll('[data-ag-mood-import-choice]').forEach(el=>el.addEventListener('change',()=>{if(this.moodImport)this.moodImport.choices[el.dataset.agMoodImportChoice]=el.value;}));
+    root.querySelector('[data-ag-mood-import-file]')?.addEventListener('change',event=>{
+      const f=event.target.files?.[0];event.target.value='';
+      if(f)void this.#moodImportFile(f).catch(err=>this.#fail(err));
+    });
     root.querySelectorAll('[data-ag-module-open]').forEach(el=>el.addEventListener('click',event=>{
       event.preventDefault();this.#openOtherModule(el.dataset.agModuleOpen).catch(error=>{
         this.libraryMessage=error.message;toast(error.message,true);void this.render();
@@ -705,15 +842,18 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case "clear-results": this.importReports=[]; await this.render(); break;
       case "world-export-everything": case "world-export-changed": case "world-export-copy": case "world-backup": await this.#worldExport(name); break;
       case "presession-run": case "presession-copy": case "presession-download": await this.#preSession(name); break;
-      case "mood-restore": await this.#moodResult(sceneMoods().restore({sceneId:this.moodSceneId||undefined,animate:this.moodAnimate?3000:0})); break;
-      case "mood-new": this.moodEdit={isNew:true,id:'',label:'',set:{'environment.darknessLevel':0,weather:NO_WEATHER}}; await this.render(); break;
+      case "mood-restore": await this.#moodResult(sceneMoods().restore({sceneId:this.moodSceneId||undefined,animate:this.#moodAnimate()})); break;
+      case "mood-new": case "layer-new": this.moodEdit={isNew:true,kind:name==='layer-new'?'layer':'mood',id:'',label:'',set:name==='layer-new'?{weather:NO_WEATHER}:{'environment.darknessLevel':0,weather:NO_WEATHER},transitionMs:0}; await this.render(); break;
       case "mood-cancel": this.moodEdit=null; await this.render(); break;
       case "mood-save": await this.#saveMood(); break;
+      case "mood-remove": await this.#removeMood(); break;
+      case "draft-cancel": case "draft-apply": case "draft-save-layer": case "draft-save-mood": await this.#draftAction(name); break;
+      case "mood-export": case "mood-import-cancel": case "mood-import-apply": await this.#moodShareAction(name); break;
       case "mood-reset": {
-        const yes=await DialogV2.confirm({window:{title:'Reset scene moods to defaults'},modal:true,rejectClose:false,
-          content:'<p><strong>Replace every mood preset with the shipped defaults?</strong> Your own presets and edits are deleted. Scenes are not changed.</p>',
+        const yes=await DialogV2.confirm({window:{title:'Reset scene moods and layers to defaults'},modal:true,rejectClose:false,
+          content:'<p><strong>Replace every mood and layer preset with the shipped defaults?</strong> Your own presets and edits are deleted. Scenes are not changed.</p>',
           yes:{label:'Reset moods to defaults'},no:{label:'Cancel'}});
-        if(yes){this.moodEdit=null;await this.#moodResult(sceneMoods().resetDefaults(),'Mood presets reset to the defaults.');}
+        if(yes){this.moodEdit=null;await this.#moodResult(sceneMoods().resetDefaults(),'Moods and layers reset to the defaults.');}
         break;
       }
       case "org-preview": case "org-apply": case "org-backup": case "org-undo": case "org-clear": case "org-housekeeping":
@@ -1885,6 +2025,7 @@ Hooks.once("init",()=>{
   game.settings.register(MODULE_ID,"importHistory",{name:"Import History",scope:"world",config:false,type:Array,default:[]});
   // Empty means "use the shipped default moods"; written only by the GM from the Scenes tab.
   game.settings.register(MODULE_ID,MOODS_SETTING,{name:"Scene mood presets",scope:"world",config:false,type:Array,default:[]});
+  game.settings.register(MODULE_ID,LAYERS_SETTING,{name:"Scene layer presets",scope:"world",config:false,type:Array,default:[]});
   // Organize folders (0.25.0). Empty schema means "use the shipped default rules"; history holds the last runs' previous folder ids for Undo.
   game.settings.register(MODULE_ID,SCHEMA_SETTING,{name:"Organize rules",scope:"world",config:false,type:Array,default:[]});
   // Core links (0.26.0): which packs/folders count as 2024 core sources (auto-detect on by default) and the last runs for Undo.
@@ -1955,14 +2096,14 @@ Hooks.once("ready",()=>{
     preSessionCheck:()=>runPreSessionCheck(game),
     // GM-only "Back up before play" (0.21.0): the everything export as AG_Backup_<date>.json; leaves the export snapshot alone.
     backup:()=>saveBackup(game,{save:downloadJson}),
-    // GM-only scene moods (0.22.0); every function checks the GM itself and returns {ok,message}.
+    // GM-only scene moods (0.22.0) and layers (0.35.0); every function checks the GM itself and returns {ok,message}.
     // GM-only organize folders (0.25.0); every function checks the GM itself. Only the folder field is ever written.
     // GM-only core links (0.26.0): link AG world Items with core_ref to 2024 core items; every function checks the GM itself.
     coreLinks:(({preview,apply,undoLast,history,describeSources,saveSources})=>({preview,apply,undoLast,history,describeSources,saveSources}))(coreLinks()),
     organize:(({listSources,preview,apply,undoLast,history,getSchema,saveSchema,resetSchema,setFolderProtected,setKeepFolder,housekeeping})=>({listSources,preview,apply,undoLast,history,getSchema,saveSchema,resetSchema,setFolderProtected,setKeepFolder,housekeeping}))(organizer()),
     // GM-only, read-only Browse index (0.24.0); every function checks the GM itself.
     browse:(({getIndex,search,detail,refresh,loadCompendiums,status,dragData,open})=>({getIndex,search,detail,refresh,loadCompendiums,status,dragData,open}))(browse()),
-    scenes:(({listMoods,getState,applyMood,restore,savePreset,removePreset,resetDefaults})=>({listMoods,getState,applyMood,restore,savePreset,removePreset,resetDefaults}))(sceneMoods()),
+    scenes:(({listMoods,getState,applyMood,addLayer,removeEffect,restore,applyDraft,toggleFavourite,savePreset,removePreset,resetDefaults,exportPresets,previewImport,importPresets})=>({listMoods,getState,applyMood,addLayer,removeEffect,restore,applyDraft,toggleFavourite,savePreset,removePreset,resetDefaults,exportPresets,previewImport,importPresets}))(sceneMoods()),
     resolverBridge:{
       contract:'ag-definition-resolver/0.1-prototype-adapter',
       // Requires a caller-supplied source-reviewed resolver; no invented global provider.
@@ -1998,7 +2139,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.34.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.35.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */

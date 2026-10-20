@@ -1,3 +1,15 @@
+## 0.35.0 — 2026-10-20
+
+- **Scenes: layers.** You can now stack layers on top of the base mood from an *Add a layer* strip: Mist, Rain, Snow, Cold night, Blood moon, Hearth glow, Pitch black, Bright moon. They are editable like moods (Moods & layers → Edit / Duplicate / New layer). Core Foundry has one weather per scene, so a weather layer replaces the weather below it, and the message says which.
+- **Safe undo per layer.** *On this scene now* lists the mood and its layers, each with a remove button. Removing one puts back only the fields it changed. A field you changed since (Scene config or Fine-tune) is kept, and the message names it. If a higher layer also set the field, nothing visible changes until that layer goes. **Back to normal** removes everything the same way.
+- **Fine-tune this scene.** Sliders and switches for every supported field: darkness, global illumination (on, bright, glow, colour), day/night colour blending, day and night tint (hue, intensity, luminosity, saturation, shadows), weather, and explored/unexplored fog colours. It is a draft until **Apply to scene**, which writes only what you moved. *Save as layer… / Save as mood…* turns it into a preset.
+- **Transition picker** (Instant, 3 s, 10 s, 30 s or the preset's own) fades darkness using core's darkness animation. Presets can carry their own transition.
+- **Favourites per scene:** star a mood in Moods & layers and it's listed first on that scene.
+- **Export / import moods file** (`ashen-gate-moods.json`, format in `docs/scene-moods-schema.md`). Import shows a preview first: new, already the same, same id with different values (Keep mine / Replace mine / Keep both), or skipped. Scenes are never changed by import.
+- **Clearer feedback:** badges for core *Suppress Weather* / *Adjust Darkness* regions and Darkness Lock; layers whose weather isn't in this world are marked; fields this Foundry lacks are listed instead of shown.
+- New: world setting `sceneLayers`; scene flags `moodStack` and `moodFavourites`. **Migration:** a scene with the 0.22.0 `moodBase`/`mood` flags is read as a one-entry stack. Back to normal still restores it exactly, and the old flags are cleared on the next change. Safe to re-run. Saved mood presets are unchanged.
+- API `api.scenes` adds `addLayer`, `removeEffect`, `applyDraft`, `toggleFavourite`, `exportPresets`, `previewImport`, `importPresets`. Every function refuses players.
+
 ## 0.34.0 — 2026-10-20
 
 - **Browse: Renown deities.** With Renown 0.11.0 or later, each deity from Renown's `api.getDeities()` is a **Deity** row (Ashen Gate) with chips for tier (major / lesser), domain and discovery, plus status and visibility. Search finds it by name, id (`id:DEITY-`), tags, title, domain and portfolio; `type:deity` and `tier:lesser` work. Details list title, domain, portfolio, discovery and relations (with Resonance / Dissonance), and related deities by id. **Open in Renown** shows Renown's Pantheon at that deity. Without Renown (or an older one) there are no deity rows and nothing else changes. Discovery shows the source setting (placeholder / sharing); who has discovered a deity stays in Renown.
