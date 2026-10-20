@@ -212,3 +212,14 @@
 .agf-org-chips{display:flex;gap:6px;flex-wrap:wrap}
 .agf-chip{font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid var(--ag-border);color:var(--ag-muted)}
 .agf-chip--revealed-to-party{border-color:var(--ag-accent);color:var(--ag-accent)}
+/* 0.9.0: compact standing list embedded in a partner module (api.embed.mount). The host element carries .agf-embed. */
+.agf-embed{display:block;min-width:0;color:var(--ag-text)}
+.agf-embed .agf-embed__body{display:grid;gap:var(--ag-space-2)}
+.agf-embed .agf-embed__row{border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface-raised);padding:var(--ag-space-2) var(--ag-space-3)}
+.agf-embed .agf-embed__row>header{display:flex;flex-wrap:wrap;gap:var(--ag-space-2);align-items:center}
+.agf-embed .agf-embed__row>header .ag-btn{margin-left:auto}
+.agf-embed .agf-embed__cells{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:var(--ag-space-2);margin-top:var(--ag-space-1)}
+.agf-embed .agf-embed__cell{display:grid;gap:0;padding:var(--ag-space-1) var(--ag-space-2);border:1px solid var(--ag-border);border-radius:var(--ag-radius-sm);background:var(--ag-surface-sunken)}
+.agf-embed .agf-embed__cell small{font-size:var(--ag-text-xs);text-transform:uppercase;letter-spacing:.05em;color:var(--ag-muted);overflow-wrap:anywhere}
+.agf-embed .agf-embed__score{font-variant-numeric:tabular-nums;color:var(--ag-accent)}
+.agf-embed .agf-embed__next,.agf-embed .agf-embed__note{font-size:var(--ag-text-sm);color:var(--ag-muted)}

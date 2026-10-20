@@ -1,3 +1,9 @@
+## 0.9.0 — 2026-10-20
+
+- **New API `embed.mount(element, {actorId, mode: 'character'})`** so a partner module (Character Hub) can show a compact, read-only standing list: per organization the user may see, the party's and this character's rank and score, the next milestone, and Open. Returns `{unmount, refresh}`; it refreshes itself on changes. See the README.
+- `api.open()` can now take `{factionId, actorId, tab}` to open on one organization (and the Player view for one character). `open()` with no options is unchanged.
+- Same data and visibility as the Factions window (players: their own filtered view only). Claims and awards stay in the window. No saved data changes.
+
 ## 0.8.3 — 2026-10-19
 
 - Faction actions that used the browser's `prompt`/`confirm` (rename folder, edit information, edit reward, remove entry/reward/reference, reset charges, clear a milestone choice, share with party, add example guilds) now use Foundry dialogs, so they work in the desktop app. Destructive confirms have a labelled action button. Editing a reward is now one form instead of six prompts; the same checks apply.
