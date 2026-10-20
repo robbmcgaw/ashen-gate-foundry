@@ -1,3 +1,22 @@
+## 0.17.0 — 2026-10-20
+
+- **Crafting awards the real 2024 core item when linked.** If General Manager (0.26.0+, Core Links) has linked a recipe's result Item to a 2024 core item, crafting gives a fresh copy of that core item: its image, description and rules data, with the Ashen Gate name, the `ITEM-*` id, Manager's source data and the Ledger flags kept, so it stacks with earlier crafts as before.
+- Falls back to today's world item when the result is not linked, the core item can't be found, or it has no quantity to stack. Never fails a craft because of a link.
+- New **GM Setup → Crafted items** setting, **Award the linked core item when crafting** (default on), saved with Save Changes. No migration; nothing changes until Manager links an item.
+
+## 0.16.0 — 2026-10-20
+
+Assign professions (AG-F01) and a configurable profession crosswalk.
+- **Assign tab (GM only).** Pick the whole party (the Ledger party, else dnd5e's Primary Party) or one character, then **Preview**. Each row shows the character, profession, the reason (e.g. "Herbalism Kit + Nature → Herbalism") and the result: *Will add*, *Already has*, or why it can't be added (no imported Profession Item, or several). Tick rows and **Add selected**, or **Add all missing**; both confirm first.
+  - Reads skill and tool **proficiencies** only (not class, not carried tools).
+  - Adds the imported PROF-* Profession Item as-is (same Manager flags). Never adds a profession the character already has, never changes XP, levels, Skill Tree perks or existing Items. Re-running adds nothing.
+  - GM-only in the API too: `api.assign.preview({actorIds})` and `api.assign.apply({actorIds, rowIds})` refuse players.
+- **Tools and checks table** (GM Setup) gets three columns per profession: **Qualifying skills**, **Qualifying tools** (any one qualifies) and **Advantage tools**.
+  - Until the GM ticks their own, qualifying lists come from the imported Profession definitions' `access` (skill/tool any-of), else from the profession's check tool and skill. A catalog name that matches no dnd5e skill or tool is listed and ignored, not guessed. **Reset** returns a row to those defaults.
+  - **Advantage tools:** a character proficient with, or carrying, one starts that profession's gathering and crafting checks with advantage. Only tools the GM ticks count (a catalog suggestion is shown, not applied), so unconfigured professions roll exactly as before.
+  - Saved settings keep working; the new lists are added beside the old tool/skill entries. An empty list means none.
+- Fishing has no default skill or tool, so nobody is proposed for it until the GM sets one.
+
 ## 0.15.0 — 2026-10-19
 
 Exotic gathering, new tier DCs, recipes that need several tools.

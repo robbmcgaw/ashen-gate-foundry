@@ -1,0 +1,104 @@
+/* Ashen Gate | Character Hub. Built on the shared UI kit tokens (--ag-*), so Manager's skins apply. */
+.ag-character-hub .window-content { padding: 0; overflow: hidden; display: flex; flex-direction: column; }
+.ag-character-hub .agch-root { display: flex; flex-direction: column; gap: var(--ag-space-2); padding: var(--ag-space-3); min-height: 0; flex: 1; overflow: hidden; }
+.ag-character-hub .agch-body { flex: 1; min-height: 0; overflow-y: auto; padding-right: var(--ag-space-1); }
+.ag-character-hub .agch-muted { color: var(--ag-muted); }
+.ag-character-hub .agch-heading { margin: var(--ag-space-3) 0 var(--ag-space-2); font-size: var(--ag-text-lg); }
+.ag-character-hub .agch-notice { margin: 0; color: var(--ag-muted); font-size: var(--ag-text-sm); }
+.ag-character-hub .agch-error { display: grid; gap: var(--ag-space-2); }
+
+/* Persistent header */
+.ag-character-hub .agch-hero { display: grid; grid-template-columns: auto minmax(10rem, 1fr) auto; gap: var(--ag-space-3); align-items: start; }
+.ag-character-hub .agch-portrait { width: 84px; height: 84px; object-fit: cover; border-radius: var(--ag-radius); border: 1px solid var(--ag-border); }
+.ag-character-hub .agch-name { margin: 0; font-size: var(--ag-text-xl); overflow-wrap: anywhere; }
+.ag-character-hub .agch-sub { margin: var(--ag-space-1) 0 0; color: var(--ag-muted); overflow-wrap: anywhere; }
+.ag-character-hub .agch-hp { display: grid; gap: var(--ag-space-1); justify-items: end; }
+.ag-character-hub .agch-hp__value { font-size: var(--ag-text-xl); font-weight: 600; margin-left: var(--ag-space-2); }
+.ag-character-hub .agch-hp__adjust, .ag-character-hub .agch-hp__fields, .ag-character-hub .agch-step { display: flex; gap: var(--ag-space-1); align-items: center; flex-wrap: wrap; }
+.ag-character-hub .agch-hp__amount { width: 4.5rem; }
+.ag-character-hub .agch-hp__field { display: flex; gap: var(--ag-space-1); align-items: center; font-size: var(--ag-text-sm); color: var(--ag-muted); }
+.ag-character-hub .agch-hp__field input { width: 4rem; }
+.ag-character-hub .agch-stats { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--ag-space-2); }
+.ag-character-hub .agch-stat { display: grid; gap: 2px; padding: var(--ag-space-1) var(--ag-space-2); border: 1px solid var(--ag-border); border-radius: var(--ag-radius-sm); background: var(--ag-surface-sunken); min-width: 4.5rem; }
+.ag-character-hub .agch-stat__label { font-size: var(--ag-text-xs); color: var(--ag-muted); text-transform: uppercase; letter-spacing: .04em; }
+.ag-character-hub .agch-stat__value { font-weight: 600; }
+.ag-character-hub .agch-conditions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--ag-space-1); align-items: center; }
+.ag-character-hub .agch-chip { width: auto; padding: 2px var(--ag-space-2); border-radius: 999px; border: 1px solid var(--ag-border); background: transparent; color: var(--ag-muted); font-size: var(--ag-text-sm); line-height: 1.4; }
+.ag-character-hub .agch-chip.is-active { background: var(--ag-warn-soft); border-color: var(--ag-warn); color: var(--ag-text); }
+
+/* Character tab */
+.ag-character-hub .agch-abilities { display: grid; grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr)); gap: var(--ag-space-2); }
+.ag-character-hub .agch-ability { display: grid; gap: var(--ag-space-1); justify-items: center; text-align: center; }
+.ag-character-hub .agch-ability__label { font-weight: 600; letter-spacing: .05em; }
+.ag-character-hub .agch-ability__score { font-size: var(--ag-text-xl); }
+.ag-character-hub .agch-ability .ag-btn { width: 100%; justify-content: center; }
+.ag-character-hub .agch-skills { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 2px var(--ag-space-3); }
+.ag-character-hub .agch-row { display: flex; align-items: center; gap: var(--ag-space-2); width: 100%; text-align: left; background: transparent; border: 1px solid transparent; border-radius: var(--ag-radius-sm); padding: var(--ag-space-1) var(--ag-space-2); color: var(--ag-text); }
+.ag-character-hub .agch-row:hover:not(:disabled), .ag-character-hub .agch-row:focus-visible { background: var(--ag-surface-hover); border-color: var(--ag-border); }
+.ag-character-hub .agch-row__name { flex: 1; overflow-wrap: anywhere; }
+.ag-character-hub .agch-row__value { font-weight: 600; min-width: 2.5rem; text-align: right; }
+.ag-character-hub .agch-prof { color: var(--ag-accent); width: 1rem; }
+
+/* Narrow windows: stack the header */
+@container (max-width: 560px) { .ag-character-hub .agch-hero { grid-template-columns: auto 1fr; } .ag-character-hub .agch-hp { grid-column: 1 / -1; justify-items: start; } }
+.ag-character-hub .window-content { container-type: inline-size; }
+
+/* Item lists (Combat, Inventory, Magic, Features) */
+.ag-character-hub .agch-toolbar { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); align-items: center; margin-bottom: var(--ag-space-2); }
+.ag-character-hub .agch-hint { font-size: var(--ag-text-sm); margin: var(--ag-space-3) 0 0; }
+.ag-character-hub .agch-subheading { margin: var(--ag-space-3) 0 var(--ag-space-1); font-size: var(--ag-text-md); }
+.ag-character-hub .agch-items { display: grid; gap: 2px; }
+.ag-character-hub .agch-item { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); padding: var(--ag-space-1) var(--ag-space-2); border-radius: var(--ag-radius-sm); border: 1px solid transparent; }
+.ag-character-hub .agch-item:hover { background: var(--ag-surface-hover); border-color: var(--ag-border); }
+.ag-character-hub .agch-item.is-equipped { border-left: 3px solid var(--ag-accent); }
+.ag-character-hub .agch-item__img { width: 32px; height: 32px; border: 0; border-radius: var(--ag-radius-sm); flex: none; }
+.ag-character-hub .agch-item__name { flex: 1 1 10rem; min-width: 8rem; text-align: left; background: none; border: 0; padding: 0; color: var(--ag-text); overflow-wrap: anywhere; cursor: pointer; width: auto; line-height: 1.3; }
+.ag-character-hub .agch-item__name:hover, .ag-character-hub .agch-item__name:focus-visible { color: var(--ag-accent); text-decoration: underline; }
+.ag-character-hub .agch-item__badges, .ag-character-hub .agch-item__controls, .ag-character-hub .agch-qty { display: flex; flex-wrap: wrap; gap: var(--ag-space-1); align-items: center; }
+.ag-character-hub .agch-qty input { width: 3.5rem; text-align: center; }
+.ag-character-hub .agch-contents { padding-left: var(--ag-space-5); }
+.ag-character-hub .agch-currency { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); margin-left: auto; }
+.ag-character-hub .agch-coin { display: flex; gap: var(--ag-space-1); align-items: center; text-transform: uppercase; font-size: var(--ag-text-sm); color: var(--ag-muted); }
+.ag-character-hub .agch-coin input { width: 4.5rem; }
+.ag-character-hub .agch-rest { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: var(--ag-space-3); }
+.ag-character-hub .agch-rest h3 { margin-top: 0; }
+
+/* Equipment paper doll (display only) */
+.ag-character-hub .agch-doll { display: grid; grid-template-columns: minmax(10rem, 1fr) minmax(8rem, 12rem) minmax(10rem, 1fr); gap: var(--ag-space-2); align-items: start; }
+.ag-character-hub .agch-doll__col { display: grid; gap: var(--ag-space-2); }
+.ag-character-hub .agch-doll__art { display: grid; gap: var(--ag-space-2); justify-items: center; position: sticky; top: 0; }
+.ag-character-hub .agch-doll__art img { width: 100%; max-height: 22rem; object-fit: contain; border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--ag-surface-sunken); }
+.ag-character-hub .agch-slot { display: grid; gap: var(--ag-space-1); padding: var(--ag-space-2); border: 1px dashed var(--ag-border); border-radius: var(--ag-radius-sm); background: var(--ag-surface-sunken); min-height: 3.5rem; }
+.ag-character-hub .agch-slot.is-filled { border-style: solid; border-color: var(--ag-border-strong); background: var(--ag-surface-raised); }
+.ag-character-hub .agch-slot__label { font-size: var(--ag-text-xs); text-transform: uppercase; letter-spacing: .04em; color: var(--ag-muted); }
+.ag-character-hub .agch-slot__item { display: flex; gap: var(--ag-space-2); align-items: center; background: none; border: 0; padding: 0; color: var(--ag-text); text-align: left; width: auto; cursor: pointer; }
+.ag-character-hub .agch-slot__item img { width: 28px; height: 28px; border: 0; flex: none; }
+.ag-character-hub .agch-slot__item span { overflow-wrap: anywhere; }
+.ag-character-hub .agch-slot__controls { display: flex; flex-wrap: wrap; gap: var(--ag-space-1); }
+.ag-character-hub .agch-slot select { width: 100%; }
+@container (max-width: 620px) { .ag-character-hub .agch-doll { grid-template-columns: 1fr 1fr; } .ag-character-hub .agch-doll__art { grid-column: 1 / -1; grid-row: 1; position: static; } .ag-character-hub .agch-doll__art img { max-height: 12rem; width: auto; } }
+
+/* Ashen Gate panels */
+.ag-character-hub .agch-panels { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: var(--ag-space-3); }
+.ag-character-hub .agch-panel { display: grid; gap: var(--ag-space-2); align-content: start; }
+.ag-character-hub .agch-panel[data-state="missing"], .ag-character-hub .agch-panel[data-state="error"] { opacity: .75; }
+.ag-character-hub .agch-panel__head { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); align-items: center; justify-content: space-between; }
+.ag-character-hub .agch-panel__head h3 { margin: 0; font-size: var(--ag-text-md); }
+.ag-character-hub .agch-plist { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ag-space-1); }
+.ag-character-hub .agch-plist > li { overflow-wrap: anywhere; }
+.ag-character-hub .agch-plink { background: none; border: 0; padding: 0; width: auto; color: var(--ag-accent); text-decoration: underline; cursor: pointer; text-align: left; line-height: 1.3; }
+.ag-character-hub .agch-objectives { margin: var(--ag-space-1) 0 0 var(--ag-space-4); padding: 0; color: var(--ag-muted); font-size: var(--ag-text-sm); }
+
+/* Companions */
+.ag-character-hub .agch-companion { display: grid; gap: var(--ag-space-2); margin-bottom: var(--ag-space-2); }
+.ag-character-hub .agch-companion__head { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); align-items: center; }
+.ag-character-hub .agch-companion__head img { width: 48px; height: 48px; object-fit: cover; border: 1px solid var(--ag-border); border-radius: var(--ag-radius-sm); flex: none; }
+.ag-character-hub .agch-companion__desc, .ag-character-hub .agch-perk__desc { margin: 0; overflow-wrap: anywhere; }
+.ag-character-hub .agch-perk__desc { flex-basis: 100%; font-size: var(--ag-text-sm); }
+.ag-character-hub .agch-drop { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); align-items: center; padding: var(--ag-space-2) var(--ag-space-3); border: 2px dashed var(--ag-border-strong); border-radius: var(--ag-radius); color: var(--ag-muted); margin-bottom: var(--ag-space-2); }
+.ag-character-hub .agch-drop select { flex: 1 1 14rem; width: auto; }
+.ag-character-hub .agch-gmcap { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); align-items: center; margin-top: var(--ag-space-2); color: var(--ag-muted); }
+.ag-character-hub .agch-gmcap select { width: auto; }
+.ag-character-hub .agch-table { width: 100%; border-collapse: collapse; }
+.ag-character-hub .agch-table th, .ag-character-hub .agch-table td { text-align: left; padding: var(--ag-space-1) var(--ag-space-2); border-bottom: 1px solid var(--ag-border); overflow-wrap: anywhere; }
+.ag-character-hub .agch-table select { width: auto; }

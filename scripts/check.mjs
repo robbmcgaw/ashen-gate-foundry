@@ -88,6 +88,10 @@ if (!wanted.length) {
   const r = spawnSync(process.execPath, ['--test', path.join(root, 'scripts/playtest-pack.test.mjs')], { cwd: root, encoding: 'utf8' });
   console.log(`playtest data: ${(r.stdout.match(/^# (pass|fail) \d+$/gm) ?? []).join(', ')}`);
   if (r.status !== 0) fail('playtest-pack', `tests failed\n${r.stdout.split('\n').filter(l => /^not ok/.test(l)).join('\n')}`);
+  // scripts/validate-content.mjs (authored content through the real validators) keeps working.
+  const c = spawnSync(process.execPath, ['--test', path.join(root, 'scripts/validate-content.test.mjs')], { cwd: root, encoding: 'utf8' });
+  console.log(`content validator: ${(c.stdout.match(/^# (pass|fail) \d+$/gm) ?? []).join(', ')}`);
+  if (c.status !== 0) fail('validate-content', `tests failed\n${c.stdout.split('\n').filter(l => /^not ok/.test(l)).join('\n')}`);
 }
 
 // Shared files are copied into modules and must not drift: the Actors launcher helper
