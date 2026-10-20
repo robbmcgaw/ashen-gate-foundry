@@ -1,0 +1,65 @@
+{
+  "_expect_error": "distance_km must be a number above 0",
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-EXAMPLE-MISTAKE",
+    "version": "1.0.0"
+  },
+  "records": [
+    {
+      "id": "LOC-EXAMPLE-FORD",
+      "entity_type": "Location",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "refs": [],
+      "name": "[EXAMPLE] Old Ford",
+      "location": {
+        "name": "[EXAMPLE] Old Ford",
+        "state": "revealed"
+      }
+    },
+    {
+      "id": "LOC-EXAMPLE-INN",
+      "entity_type": "Location",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "refs": [],
+      "name": "[EXAMPLE] Crossroads Inn",
+      "location": {
+        "name": "[EXAMPLE] Crossroads Inn",
+        "state": "revealed"
+      }
+    },
+    {
+      "id": "RTE-EXAMPLE-FORD-INN",
+      "entity_type": "Route",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "gm",
+      "name": "[EXAMPLE] Road",
+      "refs": [],
+      "route": {
+        "from_location_id": "LOC-EXAMPLE-FORD",
+        "to_location_id": "LOC-EXAMPLE-INN",
+        "distance_km": 0
+      }
+    }
+  ]
+}

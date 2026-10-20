@@ -1,0 +1,153 @@
+{
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-EXAMPLE-ROUTES",
+    "version": "1.0.0"
+  },
+  "records": [
+    {
+      "id": "LOC-EXAMPLE-FORD",
+      "entity_type": "Location",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "refs": [],
+      "name": "[EXAMPLE] Old Ford",
+      "location": {
+        "name": "[EXAMPLE] Old Ford",
+        "state": "revealed"
+      }
+    },
+    {
+      "id": "LOC-EXAMPLE-INN",
+      "entity_type": "Location",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "refs": [],
+      "name": "[EXAMPLE] Crossroads Inn",
+      "location": {
+        "name": "[EXAMPLE] Crossroads Inn",
+        "state": "revealed"
+      }
+    },
+    {
+      "id": "LOC-EXAMPLE-FALLS",
+      "entity_type": "Location",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "refs": [],
+      "name": "[EXAMPLE] Falls",
+      "location": {
+        "name": "[EXAMPLE] Falls",
+        "state": "revealed"
+      }
+    },
+    {
+      "id": "RTE-EXAMPLE-FORD-INN",
+      "entity_type": "Route",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "gm",
+      "name": "[EXAMPLE] Ford to Inn",
+      "refs": [
+        {
+          "relation": "route_from",
+          "target_id": "LOC-EXAMPLE-FORD",
+          "mode": "required"
+        },
+        {
+          "relation": "route_to",
+          "target_id": "LOC-EXAMPLE-INN",
+          "mode": "required"
+        }
+      ],
+      "route": {
+        "from_location_id": "LOC-EXAMPLE-FORD",
+        "to_location_id": "LOC-EXAMPLE-INN",
+        "distance_km": 32,
+        "leg_km": 8,
+        "hazard_base_percent": 15,
+        "hazard_table": "[EXAMPLE] Road Hazards",
+        "terrain": "Muddy cart track",
+        "discovery_state": "rumoured",
+        "directed": false,
+        "name": "[EXAMPLE] Cart Track",
+        "notes": "[EXAMPLE] GM-only: the bridge is out in spring."
+      }
+    },
+    {
+      "id": "RTE-EXAMPLE-INN-FALLS",
+      "entity_type": "Route",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "gm",
+      "name": "[EXAMPLE] Inn down to Falls",
+      "refs": [
+        {
+          "relation": "route_from",
+          "target_id": "LOC-EXAMPLE-INN",
+          "mode": "required"
+        },
+        {
+          "relation": "route_to",
+          "target_id": "LOC-EXAMPLE-FALLS",
+          "mode": "required"
+        }
+      ],
+      "route": {
+        "from_location_id": "LOC-EXAMPLE-INN",
+        "to_location_id": "LOC-EXAMPLE-FALLS",
+        "distance_km": 5,
+        "directed": true,
+        "discovery_state": "unknown",
+        "terrain": "Steep slide"
+      }
+    },
+    {
+      "id": "RTE-EXAMPLE-FORD-FALLS",
+      "entity_type": "Route",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "gm",
+      "name": "[EXAMPLE] Ford to Falls",
+      "refs": [],
+      "route": {
+        "from_location_id": "LOC-EXAMPLE-FORD",
+        "to_location_id": "LOC-EXAMPLE-FALLS",
+        "distance_km": 12
+      }
+    }
+  ]
+}

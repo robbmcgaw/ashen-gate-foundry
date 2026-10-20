@@ -1,0 +1,76 @@
+{
+  "_expect_error": "schema_version must be ag-npc-codex-export/0.1",
+  "schema_version": "ag-npc-codex/0.1",
+  "exported_at": "2026-10-20T12:00:00.000Z",
+  "visibility": "gm",
+  "definitions": [
+    {
+      "id": "NPC-EXAMPLE-MIRA-VANE",
+      "entity_type": "NPC",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "gm",
+      "refs": [],
+      "name": "[EXAMPLE] Mira Vane",
+      "role": "[EXAMPLE] Ferry clerk at the gate",
+      "codex": {
+        "links": [],
+        "default_reveal": {
+          "discovery": "hidden",
+          "fields": {}
+        }
+      }
+    }
+  ],
+  "reveals": {
+    "NPC-EXAMPLE-MIRA-VANE": {
+      "version": 1,
+      "discovery": {
+        "party": true,
+        "actors": []
+      },
+      "fields": {
+        "role": {
+          "party": true,
+          "actors": []
+        },
+        "appearance": {
+          "party": true,
+          "actors": []
+        },
+        "signature_line": {
+          "party": false,
+          "actors": []
+        },
+        "wants": {
+          "party": false,
+          "actors": [
+            "ExampleActorId01"
+          ]
+        },
+        "knows": {
+          "party": false,
+          "actors": []
+        },
+        "learned": {
+          "party": true,
+          "actors": []
+        },
+        "links": {
+          "party": false,
+          "actors": []
+        }
+      },
+      "learned": "[EXAMPLE] She logs every crossing twice.",
+      "links": [
+        "QUEST-EXAMPLE-SUNLEAF"
+      ],
+      "notes": "[EXAMPLE] GM-only notes added in play."
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "professions": {
+    "fishing": {"qualifySkills": ["Survival"], "items": ["Fishing Tackle", "[EXAMPLE] Net"]},
+    "herbalism": {"qualifySkills": ["nat"], "qualifyTools": ["Herbalism Kit"], "advantageTools": ["herb"]},
+    "Alchemy": {"qualifyTools": ["alchemist", "Herbalism Kit"]},
+    "Hunting/Skinning": {"qualifySkills": ["Survival", "Nature"], "advantageTools": []},
+    "mining": {"qualifyTools": ["Smith's Tools"], "items": []}
+  }
+}

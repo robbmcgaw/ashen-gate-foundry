@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/npc.schema.json",
+  "title": "NPC record (Manager package, NPC Codex fields)",
+  "description": "entity_type NPC inside an ag-foundry-import/0.2 package. Manager 0.33.0+ shows every NPC record in Library > NPC Codex. Codex text fields are read as text and never rejected: a non-string is shown as String(value). Reveals made in play are stored on the Actor (flags.ashen-gate-manager.codex) and never touched by import.",
+  "type": "object",
+  "allOf": [
+    {
+      "$ref": "ag-common.schema.json#/$defs/envelope"
+    }
+  ],
+  "required": [
+    "entity_type",
+    "name",
+    "foundry"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^(?:NPC|ACTOR)-[A-Z0-9]+(?:-[A-Z0-9]+)*$",
+      "description": "Use NPC-* for new NPCs (ACTOR-* still works and also needs entity_type NPC). Neutral, no spoilers. Permanent."
+    },
+    "entity_type": {
+      "const": "NPC"
+    },
+    "name": {
+      "type": "string",
+      "description": "Shown in the Codex once the NPC is discovered (else the Actor name)."
+    },
+    "role": {
+      "type": "string",
+      "description": "Revealable. Shown under the name."
+    },
+    "appearance": {
+      "type": "string",
+      "description": "Revealable."
+    },
+    "signature_line": {
+      "type": "string",
+      "description": "Revealable. Shown as a quote."
+    },
+    "wants": {
+      "type": "string",
+      "description": "Revealable."
+    },
+    "knows": {
+      "type": "string",
+      "description": "Revealable."
+    },
+    "portrayal": {
+      "type": "string",
+      "description": "GM only, never revealable."
+    },
+    "session_role": {
+      "type": "string",
+      "description": "GM only."
+    },
+    "stat_block": {
+      "type": "string",
+      "description": "GM only."
+    },
+    "gm_notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "GM only."
+    },
+    "art": {
+      "type": "object",
+      "properties": {
+        "repo_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "forge_path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "description": "Not read by the Codex; the portrait is the Actor img."
+    },
+    "codex": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "links": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^(?:LOC|FAC|FACTION|RENOWN|QUEST|ORDER|CONTRACT|NPC)(?:-[A-Z0-9]+)+$"
+          },
+          "description": "Related ids shown as connections. Other prefixes are dropped. refs to linkable ids are shown too."
+        },
+        "default_reveal": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Starting reveals, used only until the GM changes anything for this NPC. Anything other than \"party\" reads as hidden.",
+          "properties": {
+            "discovery": {
+              "enum": [
+                "hidden",
+                "party"
+              ]
+            },
+            "fields": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "role": {
+                  "enum": [
+                    "hidden",
+                    "party"
+                  ]
+                },
+                "appearance": {
+                  "enum": [
+                    "hidden",
+                    "party"
+                  ]
+                },
+                "signature_line": {
+                  "enum": [
+                    "hidden",
+                    "party"
+                  ]
+                },
+                "wants": {
+                  "enum": [
+                    "hidden",
+                    "party"
+                  ]
+                },
+                "knows": {
+                  "enum": [
+                    "hidden",
+                    "party"
+                  ]
+                },
+                "learned": {
+                  "enum": [
+                    "hidden",
+                    "party"
+                  ]
+                },
+                "links": {
+                  "enum": [
+                    "hidden",
+                    "party"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "foundry": {
+      "type": "object",
+      "required": [
+        "document_type",
+        "data"
+      ],
+      "properties": {
+        "document_type": {
+          "const": "Actor"
+        },
+        "folder_path": {
+          "$ref": "ag-common.schema.json#/$defs/folderPath"
+        },
+        "data": {
+          "allOf": [
+            {
+              "$ref": "ag-common.schema.json#/$defs/actorData"
+            }
+          ],
+          "properties": {
+            "type": {
+              "const": "npc"
+            }
+          }
+        }
+      }
+    }
+  }
+}

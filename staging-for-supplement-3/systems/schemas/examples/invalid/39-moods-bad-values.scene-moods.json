@@ -1,0 +1,16 @@
+{
+  "_expect_error": "skipped on import",
+  "format": "ashen-gate.scene-moods",
+  "formatVersion": 1,
+  "presets": [
+    {
+      "id": "Example Fog",
+      "label": "[EXAMPLE] Fog",
+      "kind": "overlay",
+      "set": {
+        "environment.darknessLevel": 1.5,
+        "lighting.colour": "red"
+      }
+    }
+  ]
+}

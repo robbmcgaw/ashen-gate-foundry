@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/scene-moods.schema.json",
+  "title": "Scene moods file (ashen-gate.scene-moods v1, Manager 0.35.0+)",
+  "description": "Imported in Manager > Scenes > Export & import (not the Import tab). Presets only, never scene data. Import previews each preset as New / Already the same / Same id different values (Keep mine, Replace mine, Keep both) / Skipped (invalid); it never changes a scene.",
+  "type": "object",
+  "required": [
+    "format",
+    "formatVersion",
+    "presets"
+  ],
+  "properties": {
+    "format": {
+      "const": "ashen-gate.scene-moods"
+    },
+    "formatVersion": {
+      "const": 1
+    },
+    "exportedFrom": {
+      "type": "string"
+    },
+    "exportedAt": {
+      "type": "string"
+    },
+    "presets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "set"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,39}$",
+            "description": "Unique per kind."
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          },
+          "kind": {
+            "enum": [
+              "mood",
+              "layer"
+            ],
+            "default": "mood",
+            "description": "mood: the base look, one per scene. layer: stacks on top."
+          },
+          "set": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": false,
+            "properties": {
+              "environment.darknessLevel": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "environment.globalLight.enabled": {
+                "type": "boolean"
+              },
+              "environment.globalLight.bright": {
+                "type": "boolean"
+              },
+              "environment.globalLight.luminosity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "environment.globalLight.color": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "description": "\"#rrggbb\" or null (none)"
+              },
+              "environment.cycle": {
+                "type": "boolean"
+              },
+              "weather": {
+                "type": "string",
+                "description": "\"\" (no weather) or a CONFIG.weatherEffects key; core: leaves, rain, rainStorm, fog, snow, blizzard. Another id imports but is marked unavailable and will not apply."
+              },
+              "fog.colors.unexplored": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "description": "\"#rrggbb\" or null (none)"
+              },
+              "fog.colors.explored": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^#[0-9a-fA-F]{6}$",
+                "description": "\"#rrggbb\" or null (none)"
+              },
+              "environment.base.hue": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "environment.base.intensity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "environment.base.luminosity": {
+                "type": "number",
+                "minimum": -1,
+                "maximum": 1
+              },
+              "environment.base.saturation": {
+                "type": "number",
+                "minimum": -1,
+                "maximum": 1
+              },
+              "environment.base.shadows": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "environment.dark.hue": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "environment.dark.intensity": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "environment.dark.luminosity": {
+                "type": "number",
+                "minimum": -1,
+                "maximum": 1
+              },
+              "environment.dark.saturation": {
+                "type": "number",
+                "minimum": -1,
+                "maximum": 1
+              },
+              "environment.dark.shadows": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            }
+          },
+          "transitionMs": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 60000,
+            "description": "Darkness fade when the Live transition is \"Preset default\"."
+          }
+        }
+      }
+    }
+  }
+}

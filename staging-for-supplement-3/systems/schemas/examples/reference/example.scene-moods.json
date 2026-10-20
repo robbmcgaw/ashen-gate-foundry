@@ -1,0 +1,11 @@
+{
+  "format": "ashen-gate.scene-moods",
+  "formatVersion": 1,
+  "exportedFrom": "[EXAMPLE] hand-written",
+  "presets": [
+    {"id": "example-dawn", "label": "[EXAMPLE] Dawn", "kind": "mood", "set": {"environment.darknessLevel": 0.3, "environment.base.hue": 0.08, "environment.base.intensity": 0.3, "weather": ""}, "transitionMs": 10000},
+    {"id": "example-midnight", "label": "[EXAMPLE] Midnight", "kind": "mood", "set": {"environment.darknessLevel": 1, "environment.globalLight.enabled": false, "environment.dark.luminosity": -0.4, "environment.dark.saturation": -0.3}},
+    {"id": "example-ember-haze", "label": "[EXAMPLE] Ember haze", "kind": "layer", "set": {"environment.globalLight.enabled": true, "environment.globalLight.color": "#ff9a5c", "environment.globalLight.luminosity": 0.15, "environment.cycle": true, "fog.colors.unexplored": "#1a0f0a"}},
+    {"id": "example-drizzle", "label": "[EXAMPLE] Drizzle", "kind": "layer", "set": {"weather": "rain"}}
+  ]
+}

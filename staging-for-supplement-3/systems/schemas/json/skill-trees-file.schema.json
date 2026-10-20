@@ -1,0 +1,317 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/skill-trees-file.schema.json",
+  "title": "Skill Trees file (ag-skill-trees/0.3)",
+  "type": "object",
+  "required": [
+    "schema",
+    "trees"
+  ],
+  "properties": {
+    "schema": {
+      "enum": [
+        "ag-skill-trees/0.3",
+        "ag-skill-trees/0.2"
+      ]
+    },
+    "trees": {
+      "type": "array",
+      "maxItems": 120,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "status",
+          "visibility",
+          "provider",
+          "nodes"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][A-Za-z0-9_-]{2,100}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "description": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "test",
+              "approved"
+            ]
+          },
+          "visibility": {
+            "enum": [
+              "player",
+              "gm",
+              "reveal_gated"
+            ]
+          },
+          "sourceRef": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": "object",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "profession",
+                  "cinder_milestone",
+                  "generic_points"
+                ]
+              },
+              "maxPoints": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            }
+          },
+          "nodeSize": {
+            "enum": [
+              "compact",
+              "normal"
+            ]
+          },
+          "background": {
+            "type": "object",
+            "required": [
+              "image"
+            ],
+            "properties": {
+              "image": {
+                "type": "string",
+                "description": "Local Foundry data path or https://*.forge-vtt.com image (png/jpg/webp/gif/svg/avif)."
+              },
+              "fit": {
+                "enum": [
+                  "cover",
+                  "tile",
+                  "fixed"
+                ]
+              },
+              "opacity": {
+                "type": "number",
+                "minimum": 0.05,
+                "maximum": 1
+              }
+            }
+          },
+          "tiers": {
+            "type": "array",
+            "maxItems": 40,
+            "items": {
+              "type": "object",
+              "required": [
+                "level",
+                "y"
+              ],
+              "properties": {
+                "level": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 99
+                },
+                "label": {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                "y": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 6000
+                },
+                "icon": {
+                  "type": "string",
+                  "description": "Local Foundry data path or https://*.forge-vtt.com image (png/jpg/webp/gif/svg/avif)."
+                }
+              }
+            }
+          },
+          "nodes": {
+            "type": "array",
+            "maxItems": 300,
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "x",
+                "y",
+                "requiresAll",
+                "requiresAny",
+                "excludes",
+                "status",
+                "visibility",
+                "display"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z][A-Za-z0-9_-]{2,100}$"
+                },
+                "perkId": {
+                  "type": "string",
+                  "pattern": "^(PERK|POWER)-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+                },
+                "name": {
+                  "type": "string",
+                  "maxLength": 120
+                },
+                "description": {
+                  "type": "string"
+                },
+                "x": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 6000
+                },
+                "y": {
+                  "type": "number",
+                  "minimum": 0,
+                  "maximum": 6000
+                },
+                "cost": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 100
+                },
+                "minLevel": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 99
+                },
+                "requiresAll": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "requiresAny": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "excludes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "status": {
+                  "enum": [
+                    "approved",
+                    "test",
+                    "draft",
+                    "placeholder"
+                  ]
+                },
+                "visibility": {
+                  "enum": [
+                    "player",
+                    "gm",
+                    "reveal_gated"
+                  ]
+                },
+                "display": {
+                  "enum": [
+                    "shown",
+                    "teaser",
+                    "hidden"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "provider": {
+                  "properties": {
+                    "kind": {
+                      "const": "profession"
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "sourceRef": {
+                  "type": "string",
+                  "pattern": "^PROF-[A-Z0-9-]+$"
+                },
+                "nodes": {
+                  "items": {
+                    "properties": {
+                      "perkId": {
+                        "pattern": "^PERK-"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "provider": {
+                  "properties": {
+                    "kind": {
+                      "const": "cinder_milestone"
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "sourceRef": {
+                  "type": "string",
+                  "pattern": "^MUT-[A-Z0-9-]+$"
+                },
+                "provider": {
+                  "properties": {
+                    "maxPoints": {
+                      "const": 13
+                    }
+                  }
+                },
+                "nodes": {
+                  "items": {
+                    "properties": {
+                      "perkId": {
+                        "pattern": "^POWER-"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

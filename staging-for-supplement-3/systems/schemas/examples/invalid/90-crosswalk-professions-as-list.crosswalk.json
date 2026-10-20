@@ -1,0 +1,11 @@
+{
+  "_expect_error": "The file needs a \"professions\" object.",
+  "professions": [
+    {
+      "name": "herbalism",
+      "qualifySkills": [
+        "nat"
+      ]
+    }
+  ]
+}

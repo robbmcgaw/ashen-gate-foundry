@@ -1,0 +1,841 @@
+{
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-EXAMPLE-FULL",
+    "version": "1.0.0",
+    "description": "[EXAMPLE] Synthetic schema reference: one of every record type General Manager imports. Not canon."
+  },
+  "records": [
+    {
+      "id": "PROF-EXAMPLE-HERBALISM",
+      "entity_type": "Profession",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[EXAMPLE] Herbalism",
+      "profession_kind": "gathering",
+      "access": {
+        "toolProficienciesAnyOf": [
+          "Herbalism Kit"
+        ],
+        "skillProficienciesAnyOf": [
+          "nat"
+        ],
+        "toolMustBePresent": true
+      },
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Examples/Professions",
+        "data": {
+          "name": "[EXAMPLE] Herbalism — Profession",
+          "type": "feat",
+          "img": "icons/svg/item-bag.svg",
+          "system": {
+            "description": {
+              "value": "<p>[EXAMPLE] Gathering profession. Gathers [[AGREF:MAT-EXAMPLE-SUNLEAF|Sunleaf]].</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "PROF-EXAMPLE-ALCHEMY",
+      "entity_type": "Profession",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "starting_recipe",
+          "target_id": "REC-EXAMPLE-SUNLEAF-TONIC",
+          "mode": "required"
+        }
+      ],
+      "name": "[EXAMPLE] Alchemy",
+      "profession_kind": "crafting",
+      "access": {
+        "toolProficienciesAnyOf": [
+          "Alchemist's Supplies",
+          "Herbalism Kit"
+        ],
+        "advantageToolsAnyOf": [
+          "Alchemist's Supplies"
+        ],
+        "toolMustBePresent": true
+      },
+      "workstation": "[EXAMPLE] Alchemy Bench",
+      "progression": {
+        "professionLevels": 16,
+        "tiers": [
+          {
+            "id": "apprentice",
+            "startsAtLevel": 1,
+            "advancement": "tool-access"
+          },
+          {
+            "id": "journeyman",
+            "startsAtLevel": 4,
+            "advancement": "automatic"
+          },
+          {
+            "id": "expert",
+            "startsAtLevel": 7,
+            "advancement": "automatic"
+          },
+          {
+            "id": "artisan",
+            "startsAtLevel": 10,
+            "advancement": "dm-feat-required"
+          },
+          {
+            "id": "master",
+            "startsAtLevel": 13,
+            "advancement": "dm-feat-required"
+          }
+        ]
+      },
+      "starting_recipe_ids": [
+        "REC-EXAMPLE-SUNLEAF-TONIC"
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Examples/Professions",
+        "data": {
+          "name": "[EXAMPLE] Alchemy — Profession",
+          "type": "feat",
+          "img": "icons/svg/item-bag.svg",
+          "system": {
+            "description": {
+              "value": "<p>[EXAMPLE] Crafting profession. Starting recipe: [[AGREF:REC-EXAMPLE-SUNLEAF-TONIC|Sunleaf Tonic]].</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "MAT-EXAMPLE-SUNLEAF",
+      "entity_type": "Material",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "gathered_by",
+          "target_id": "PROF-EXAMPLE-HERBALISM",
+          "mode": "required"
+        }
+      ],
+      "name": "[EXAMPLE] Sunleaf",
+      "tierId": "apprentice",
+      "quality": "Common",
+      "source_profession_id": "PROF-EXAMPLE-HERBALISM",
+      "unit": "Bundle",
+      "priceGp": 2,
+      "weightLb": 0.5,
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Examples/Materials",
+        "data": {
+          "name": "[EXAMPLE] Sunleaf",
+          "type": "loot",
+          "system": {
+            "description": {
+              "value": "<p>[EXAMPLE] Apprentice · Common · Bundle.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "MAT-EXAMPLE-DUSKPETAL",
+      "entity_type": "Material",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "gathered_by",
+          "target_id": "PROF-EXAMPLE-HERBALISM",
+          "mode": "required"
+        }
+      ],
+      "name": "[EXAMPLE] Duskpetal",
+      "tierId": "journeyman",
+      "quality": "Rare",
+      "source_profession_id": "PROF-EXAMPLE-HERBALISM",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Examples/Materials",
+        "data": {
+          "name": "[EXAMPLE] Duskpetal",
+          "type": "loot"
+        }
+      }
+    },
+    {
+      "id": "MAT-EXAMPLE-STARBLOOM",
+      "entity_type": "Material",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "gathered_by",
+          "target_id": "PROF-EXAMPLE-HERBALISM",
+          "mode": "required"
+        }
+      ],
+      "name": "[EXAMPLE] Starbloom",
+      "tierId": "journeyman",
+      "quality": "Exotic",
+      "source_profession_id": "PROF-EXAMPLE-HERBALISM",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Examples/Materials",
+        "data": {
+          "name": "[EXAMPLE] Starbloom",
+          "type": "loot"
+        }
+      }
+    },
+    {
+      "id": "REC-EXAMPLE-SUNLEAF-TONIC",
+      "entity_type": "Recipe",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "crafted_by",
+          "target_id": "PROF-EXAMPLE-ALCHEMY",
+          "mode": "required"
+        },
+        {
+          "relation": "produces",
+          "target_id": "ITEM-EXAMPLE-SUNLEAF-TONIC",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-EXAMPLE-SUNLEAF",
+          "mode": "required"
+        },
+        {
+          "relation": "requires_material",
+          "target_id": "MAT-EXAMPLE-DUSKPETAL",
+          "mode": "required"
+        }
+      ],
+      "name": "[EXAMPLE] Sunleaf Tonic",
+      "profession_id": "PROF-EXAMPLE-ALCHEMY",
+      "tier": "apprentice",
+      "starting": true,
+      "effort": "short",
+      "additional_gp": 5,
+      "tool": "alchemist",
+      "required_tools": [
+        "Alchemist's Supplies",
+        "Herbalism Kit"
+      ],
+      "workstation": "[EXAMPLE] Alchemy Bench",
+      "result_item_id": "ITEM-EXAMPLE-SUNLEAF-TONIC",
+      "rules_summary": "[EXAMPLE] Placeholder recipe; no rules effect.",
+      "ingredients": [
+        {
+          "material_id": "MAT-EXAMPLE-SUNLEAF",
+          "quantity": 2
+        },
+        {
+          "material_id": "MAT-EXAMPLE-DUSKPETAL",
+          "quantity": 1
+        }
+      ],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Examples/Recipes",
+        "data": {
+          "name": "Recipe: [EXAMPLE] Sunleaf Tonic",
+          "type": "consumable",
+          "system": {
+            "description": {
+              "value": "<p>Requires 2 × [[AGREF:MAT-EXAMPLE-SUNLEAF|Sunleaf]], 1 × [[AGREF:MAT-EXAMPLE-DUSKPETAL|Duskpetal]]. Produces [[AGREF:ITEM-EXAMPLE-SUNLEAF-TONIC|Sunleaf Tonic]].</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ITEM-EXAMPLE-SUNLEAF-TONIC",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "created_by",
+          "target_id": "REC-EXAMPLE-SUNLEAF-TONIC",
+          "mode": "required"
+        }
+      ],
+      "name": "[EXAMPLE] Sunleaf Tonic",
+      "created_by_recipe_id": "REC-EXAMPLE-SUNLEAF-TONIC",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Examples/Items",
+        "data": {
+          "name": "[EXAMPLE] Sunleaf Tonic",
+          "type": "consumable",
+          "img": "icons/svg/item-bag.svg",
+          "system": {
+            "description": {
+              "value": "<p>[EXAMPLE] Placeholder item; no rules effect.</p>"
+            },
+            "rarity": "common"
+          }
+        }
+      }
+    },
+    {
+      "id": "ITEM-EXAMPLE-HEALING-POTION",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[EXAMPLE] Healing Draught",
+      "core_ref": {
+        "name": "Potion of Healing",
+        "source": "DMG'24",
+        "type": "consumable",
+        "rarity": "common"
+      },
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Examples/Items",
+        "data": {
+          "name": "[EXAMPLE] Healing Draught",
+          "type": "consumable",
+          "system": {
+            "description": {
+              "value": "<p>[EXAMPLE] Placeholder text until Core Links adopts the 2024 core item.</p>"
+            },
+            "quantity": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "PERK-EXAMPLE-STEADY-HANDS",
+      "entity_type": "ProfessionPerk",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "perk_of",
+          "target_id": "PROF-EXAMPLE-ALCHEMY",
+          "mode": "required"
+        }
+      ],
+      "name": "[EXAMPLE] Steady Hands",
+      "profession_id": "PROF-EXAMPLE-ALCHEMY",
+      "tier": "apprentice",
+      "point_cost": 1,
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Examples/Perks",
+        "data": {
+          "name": "[EXAMPLE] Steady Hands",
+          "type": "feat",
+          "system": {
+            "description": {
+              "value": "<p>[EXAMPLE] Perk of [[AGREF:PROF-EXAMPLE-ALCHEMY|Alchemy]]; no rules effect.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "HPERK-EXAMPLE-STEADY-WORK",
+      "entity_type": "HirelingPerk",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[EXAMPLE] Steady Work",
+      "contexts": [
+        "headquarters"
+      ],
+      "conditions": {
+        "requires_working": true,
+        "requires_presence": true
+      },
+      "stacking": {
+        "overlap_group": "example_hq_benefit",
+        "allow_overlap": false
+      },
+      "implementation": "informational",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Examples/Hirelings",
+        "data": {
+          "name": "[EXAMPLE] Steady Work",
+          "type": "feat"
+        }
+      }
+    },
+    {
+      "id": "JRN-EXAMPLE-FIELD-GUIDE",
+      "entity_type": "JournalEntry",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "describes",
+          "target_id": "MAT-EXAMPLE-SUNLEAF",
+          "mode": "optional"
+        }
+      ],
+      "name": "[EXAMPLE] Field Guide",
+      "foundry": {
+        "document_type": "JournalEntry",
+        "folder_path": "Ashen Gate/Examples/Journals",
+        "data": {
+          "name": "[EXAMPLE] Field Guide",
+          "pages": [
+            {
+              "name": "Overview",
+              "type": "text",
+              "text": {
+                "content": "<p>[EXAMPLE] Look for [[AGREF:MAT-EXAMPLE-SUNLEAF|Sunleaf]] in meadows.</p>",
+                "format": 1
+              }
+            },
+            {
+              "name": "Notes",
+              "type": "text",
+              "text": {
+                "content": "<p>[EXAMPLE] A second page.</p>"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "ACTOR-EXAMPLE-WARDEN",
+      "entity_type": "NPC",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "gm",
+      "scope": "setting_adapter",
+      "refs": [],
+      "name": "[EXAMPLE] Meadow Warden",
+      "foundry": {
+        "document_type": "Actor",
+        "folder_path": "Ashen Gate/Examples/NPCs",
+        "data": {
+          "name": "[EXAMPLE] Meadow Warden",
+          "type": "npc",
+          "img": "icons/svg/mystery-man.svg",
+          "system": {
+            "abilities": {
+              "str": {
+                "value": 12
+              },
+              "dex": {
+                "value": 14
+              },
+              "con": {
+                "value": 12
+              },
+              "int": {
+                "value": 10
+              },
+              "wis": {
+                "value": 13
+              },
+              "cha": {
+                "value": 10
+              }
+            },
+            "attributes": {
+              "hp": {
+                "value": 11,
+                "max": 11
+              },
+              "ac": {
+                "flat": 13,
+                "calc": "flat"
+              }
+            },
+            "details": {
+              "cr": 0.5,
+              "biography": {
+                "value": "<p>[EXAMPLE] Watches the meadow. Carries [[AGREF:ITEM-EXAMPLE-SUNLEAF-TONIC|a tonic]].</p>"
+              }
+            }
+          },
+          "prototypeToken": {
+            "name": "[EXAMPLE] Warden",
+            "disposition": 0,
+            "texture": {
+              "src": "icons/svg/mystery-man.svg"
+            }
+          },
+          "items": [
+            {
+              "name": "[EXAMPLE] Walking Staff",
+              "type": "weapon",
+              "system": {
+                "description": {
+                  "value": "<p>[EXAMPLE] A plain staff.</p>"
+                }
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "TABLE-EXAMPLE-MEADOW-FINDS",
+      "entity_type": "RollTable",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "gm",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[EXAMPLE] Meadow Finds",
+      "foundry": {
+        "document_type": "RollTable",
+        "folder_path": "Ashen Gate/Examples/Tables",
+        "data": {
+          "name": "[EXAMPLE] Meadow Finds",
+          "description": "<p>[EXAMPLE] Roll when searching the meadow.</p>",
+          "formula": "1d4",
+          "replacement": true,
+          "displayRoll": true,
+          "results": [
+            {
+              "type": "text",
+              "name": "Nothing",
+              "description": "Only grass.",
+              "weight": 2,
+              "range": [
+                1,
+                2
+              ]
+            },
+            {
+              "type": "text",
+              "name": "Feather",
+              "description": "A [EXAMPLE] blue feather.",
+              "weight": 1,
+              "range": [
+                3,
+                3
+              ]
+            },
+            {
+              "type": "text",
+              "name": "Coin",
+              "description": "A [EXAMPLE] copper coin.",
+              "weight": 1,
+              "range": [
+                4,
+                4
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "MACRO-EXAMPLE-ANNOUNCE",
+      "entity_type": "Macro",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "gm",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[EXAMPLE] Announce Dawn",
+      "foundry": {
+        "document_type": "Macro",
+        "folder_path": "Ashen Gate/Examples/Macros",
+        "data": {
+          "name": "[EXAMPLE] Announce Dawn",
+          "type": "chat",
+          "scope": "global",
+          "command": "The sun rises over the meadow."
+        }
+      }
+    },
+    {
+      "id": "LOC-EXAMPLE-VALE",
+      "entity_type": "Location",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "refs": [],
+      "name": "[EXAMPLE] Quiet Vale",
+      "location": {
+        "name": "[EXAMPLE] Quiet Vale",
+        "type": "Region",
+        "region": "[EXAMPLE] Lowlands",
+        "threat": "light",
+        "state": "revealed",
+        "isRegion": true,
+        "passConditions": true,
+        "placeable": false,
+        "description": "A wide, gentle valley.",
+        "sections": {
+          "conditions": true
+        },
+        "conditions": [
+          {
+            "key": "mist",
+            "label": "Morning mist",
+            "text": "Visibility is reduced until noon."
+          }
+        ]
+      }
+    },
+    {
+      "id": "LOC-EXAMPLE-MEADOW",
+      "entity_type": "Location",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "reveal_gated",
+      "refs": [
+        {
+          "relation": "has_resource_material",
+          "target_id": "MAT-EXAMPLE-SUNLEAF",
+          "mode": "optional"
+        }
+      ],
+      "name": "[EXAMPLE] Sunleaf Meadow",
+      "location": {
+        "name": "[EXAMPLE] Sunleaf Meadow",
+        "type": "Meadow",
+        "region": "[EXAMPLE] Lowlands",
+        "threat": "hot",
+        "state": "unidentified",
+        "unidentifiedLabel": "A bright field",
+        "teaser": "Something glitters among the grass.",
+        "parentLocationId": "LOC-EXAMPLE-VALE",
+        "placeable": true,
+        "audience": {
+          "mode": "everyone"
+        },
+        "img": "icons/svg/village.svg",
+        "description": "A sunny meadow full of herbs.",
+        "show": {
+          "region": true,
+          "threat": true
+        },
+        "sections": {
+          "resources": true,
+          "loot": true,
+          "notes": true,
+          "quests": true,
+          "related": true,
+          "conditions": true
+        },
+        "conditions": [
+          {
+            "key": "bees",
+            "label": "Bees",
+            "text": "Loud buzzing; disadvantage on Perception checks that rely on hearing."
+          }
+        ],
+        "conditionOverrides": [
+          {
+            "from": "LOC-EXAMPLE-VALE",
+            "conditionKey": "mist",
+            "disabled": true
+          }
+        ],
+        "resources": [
+          {
+            "id": "example-sunleaf-patch",
+            "label": "[EXAMPLE] Sunleaf patch",
+            "skill": "Herbalism",
+            "tier": 2,
+            "dc": 12,
+            "dcVisible": true,
+            "materialId": "MAT-EXAMPLE-SUNLEAF",
+            "quantity": 2,
+            "rareMaterialId": "MAT-EXAMPLE-DUSKPETAL",
+            "rareQuantity": 1,
+            "finite": true,
+            "available": true,
+            "visible": true,
+            "note": "Regrows each spring.",
+            "exotics": [
+              {
+                "materialId": "MAT-EXAMPLE-STARBLOOM",
+                "mode": "designated",
+                "chance": 15,
+                "condition": "rare"
+              }
+            ]
+          },
+          {
+            "id": "example-hedge",
+            "label": "[EXAMPLE] Hedge",
+            "skill": "Herbalism",
+            "tier": 3,
+            "dc": 15,
+            "materialId": "MAT-EXAMPLE-SUNLEAF",
+            "finite": false,
+            "exotics": [
+              {
+                "materialId": "MAT-EXAMPLE-STARBLOOM",
+                "mode": "discovery"
+              }
+            ]
+          }
+        ],
+        "quests": [
+          {
+            "questId": "QUEST-EXAMPLE-SUNLEAF"
+          }
+        ],
+        "related": [
+          {
+            "locationId": "LOC-EXAMPLE-VALE"
+          }
+        ],
+        "loot": [
+          {
+            "label": "[EXAMPLE] Lost satchel",
+            "text": "Holds a few coins.",
+            "status": "available"
+          }
+        ],
+        "notes": [
+          {
+            "title": "Rumour",
+            "text": "Travellers rest here at noon."
+          },
+          {
+            "title": "GM note",
+            "text": "[EXAMPLE] Hidden from players.",
+            "visible": false
+          }
+        ],
+        "details": [
+          {
+            "key": "weather",
+            "title": "Weather",
+            "text": "Usually sunny."
+          }
+        ],
+        "layout": [
+          "description",
+          "conditions",
+          "resources",
+          "detail:weather",
+          "loot",
+          "notes"
+        ],
+        "pin": {
+          "size": 64
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/route.schema.json",
+  "title": "Route record",
+  "description": "Point-crawl route between two locations, inside a Manager ag-foundry-import/0.2 package (Locations 1.10.0+, Manager 0.27.0+). Manager passes it to Locations after the locations. A wrong type or out-of-range number skips that route with a reason. Journeys (incl. behaviours) are play state and never in the record.",
+  "type": "object",
+  "allOf": [
+    {
+      "$ref": "ag-common.schema.json#/$defs/envelope"
+    }
+  ],
+  "required": [
+    "entity_type",
+    "name",
+    "route"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^RTE-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+    },
+    "entity_type": {
+      "const": "Route"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "visibility": {
+      "const": "gm",
+      "description": "Recommended; players' view is set by discovery_state."
+    },
+    "foundry": {
+      "description": "Not used for Routes; omit."
+    },
+    "route": {
+      "type": "object",
+      "required": [
+        "from_location_id",
+        "to_location_id",
+        "distance_km"
+      ],
+      "properties": {
+        "from_location_id": {
+          "type": "string",
+          "pattern": "^LOC-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+        },
+        "to_location_id": {
+          "type": "string",
+          "pattern": "^LOC-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+        },
+        "distance_km": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 100000
+        },
+        "leg_km": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 100000,
+          "description": "Default: the world setting (GM Setup > Routes; 5 km since Locations 1.13.1, a world that saved its own value keeps it). Legs = ceil(distance / leg), at least 1."
+        },
+        "hazard_base_percent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Default 5 (Locations 1.13.1+; was 10). Rounded to a whole number. After a leg with no hazard the chance doubles (max 100); after a hazard it resets. 0 = never."
+        },
+        "hazard_table": {
+          "type": "string",
+          "description": "RollTable UUID or RollTable name"
+        },
+        "terrain": {
+          "type": "string",
+          "maxLength": 80,
+          "description": "Longer text is cut to 80 characters. Players who can see the route see it."
+        },
+        "discovery_state": {
+          "enum": [
+            "unknown",
+            "rumoured",
+            "known",
+            "explored"
+          ],
+          "description": "Default unknown (players see nothing). Used only when the route is created; re-import never changes it."
+        },
+        "directed": {
+          "type": "boolean"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Longer text is cut to 200 characters. Players who can see the route see it: never name a hidden place."
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 5000,
+          "description": "GM only. Longer text is cut to 5000 characters."
+        }
+      }
+    }
+  }
+}

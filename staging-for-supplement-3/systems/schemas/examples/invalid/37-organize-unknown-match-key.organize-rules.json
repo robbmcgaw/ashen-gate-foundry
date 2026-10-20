@@ -1,0 +1,13 @@
+{
+  "_expect_error": "unknown match key",
+  "rules": [
+    {
+      "id": "example-test-data",
+      "label": "[EXAMPLE] Test data in one place",
+      "when": {
+        "colour": "red"
+      },
+      "path": "Ashen Gate/Test Data/{entityType}"
+    }
+  ]
+}

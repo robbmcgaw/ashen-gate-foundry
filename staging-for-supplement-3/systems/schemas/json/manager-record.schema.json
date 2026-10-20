@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/manager-record.schema.json",
+  "title": "Manager record",
+  "type": "object",
+  "allOf": [
+    {
+      "$ref": "ag-common.schema.json#/$defs/envelope"
+    }
+  ],
+  "required": [
+    "foundry"
+  ],
+  "properties": {
+    "foundry": {
+      "$ref": "ag-common.schema.json#/$defs/foundry"
+    }
+  }
+}

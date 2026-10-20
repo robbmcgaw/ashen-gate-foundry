@@ -1,0 +1,159 @@
+{
+  "_expect_error": "Deity information cannot unlock by group Renown",
+  "schema_version": "ag-factions-source-export/0.4",
+  "note": "[EXAMPLE] Synthetic common mistake.",
+  "definitions": [
+    {
+      "id": "DEITY-EXAMPLE-LANTERN",
+      "entity_type": "Deity",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ],
+        "decision_refs": []
+      },
+      "visibility": "reveal_gated",
+      "refs": [],
+      "scope": "setting_adapter",
+      "name": "[EXAMPLE] The Lantern",
+      "tags": [
+        "example",
+        "light"
+      ],
+      "discovery": {
+        "placeholder": false,
+        "sharing_enabled": true
+      },
+      "individual_track": {
+        "id": "RENOWN-EXAMPLE-LANTERN",
+        "entity_type": "RenownTrack",
+        "status": "approved",
+        "version": "1.0.0",
+        "provenance": {
+          "sources": [
+            "[EXAMPLE] schema reference"
+          ],
+          "decision_refs": []
+        },
+        "visibility": "player",
+        "refs": [
+          {
+            "relation": "for_faction",
+            "target_id": "DEITY-EXAMPLE-LANTERN",
+            "mode": "required"
+          }
+        ],
+        "default_scope": "individual",
+        "milestones": [
+          {
+            "id": "RENOWN-EXAMPLE-LANTERN-M1",
+            "key": "milestone_1",
+            "name": "[EXAMPLE] Wick",
+            "threshold": 0,
+            "benefit": "",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-EXAMPLE-LANTERN-M2",
+            "key": "milestone_2",
+            "name": "[EXAMPLE] Spark",
+            "threshold": 3,
+            "benefit": "[EXAMPLE] A shrine keeper will speak with you.",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-EXAMPLE-LANTERN-M3",
+            "key": "milestone_3",
+            "name": "[EXAMPLE] Flame",
+            "threshold": 6,
+            "benefit": "",
+            "selection_mode": "choose_one"
+          },
+          {
+            "id": "RENOWN-EXAMPLE-LANTERN-M4",
+            "key": "milestone_4",
+            "name": "[EXAMPLE] Beacon",
+            "threshold": 10,
+            "benefit": "",
+            "selection_mode": "all"
+          },
+          {
+            "id": "RENOWN-EXAMPLE-LANTERN-M5",
+            "key": "milestone_5",
+            "name": "[EXAMPLE] Dawn",
+            "threshold": 15,
+            "benefit": "",
+            "selection_mode": "all"
+          }
+        ]
+      },
+      "entries": [
+        {
+          "id": "info-example-lantern-rite",
+          "name": "[EXAMPLE] Evening rite",
+          "text": "[EXAMPLE] Lamps are lit at dusk.",
+          "link_mode": "preview",
+          "unlock": "group_renown",
+          "threshold": 3
+        },
+        {
+          "id": "info-example-lantern-shrine",
+          "name": "[EXAMPLE] Roadside shrines",
+          "text": "[EXAMPLE] Shrines stand at crossroads.",
+          "link_mode": "preview",
+          "unlock": "manual"
+        }
+      ],
+      "rewards": [
+        {
+          "id": "rw-example-lantern-light",
+          "key": "rw_example_lantern_light",
+          "audience": "individual",
+          "milestone_id": "RENOWN-EXAMPLE-LANTERN-M2",
+          "name": "[EXAMPLE] Blessing of light",
+          "teaser": "[EXAMPLE] A small blessing",
+          "description": "[EXAMPLE] Once per long rest, a candle-sized light.",
+          "kind": "custom",
+          "tags": [],
+          "behavior": "repeatable_service",
+          "usage_limit": 0
+        }
+      ],
+      "deity": {
+        "symbol": "assets/ashen-gate/deities/example-lantern.png",
+        "title": "[EXAMPLE] Keeper of the Last Light",
+        "domain": "[EXAMPLE] Light",
+        "tier": "lesser",
+        "blurb": "[EXAMPLE] A synthetic deity for documentation.",
+        "portfolio": "[EXAMPLE] Lamps, vigils, lost travellers",
+        "teachings": "[EXAMPLE] Keep a light for those still on the road.",
+        "followers": "[EXAMPLE] Lamplighters and night wardens",
+        "practices": "[EXAMPLE] A lamp left burning in a window",
+        "saying": {
+          "text": "[EXAMPLE] No road is dark while one lamp burns.",
+          "attribution": "[EXAMPLE] Lamplighter's proverb"
+        },
+        "relations": []
+      }
+    }
+  ],
+  "starting_state": [
+    {
+      "faction_id": "DEITY-EXAMPLE-LANTERN",
+      "actors": [
+        {
+          "name": "[EXAMPLE] Hero",
+          "discovered": true,
+          "renown": [
+            {
+              "delta": 3,
+              "reason": "[EXAMPLE] Kept the vigil"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

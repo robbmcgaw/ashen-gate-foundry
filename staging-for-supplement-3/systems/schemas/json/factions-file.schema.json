@@ -1,0 +1,764 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/factions-file.schema.json",
+  "title": "Renown file (ag-factions-source-export/0.4): Factions and Deities",
+  "description": "Renown (ashen-gate-factions) 0.11.0+. 0.4 may hold Faction and Deity definitions; 0.3 still imports but may hold only factions. Closed schema: an unknown field is rejected (\"unclassified field\"). Existing ids are always kept as they are (no update by import). Thresholds must start at 0 and strictly increase (not expressible here beyond the first).",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "definitions"
+  ],
+  "properties": {
+    "schema_version": {
+      "enum": [
+        "ag-factions-source-export/0.4",
+        "ag-factions-source-export/0.3"
+      ],
+      "description": "Author 0.4. A Deity in a 0.3 file is rejected."
+    },
+    "note": {
+      "type": "string"
+    },
+    "definitions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/faction"
+          },
+          {
+            "$ref": "#/$defs/deity"
+          }
+        ]
+      }
+    },
+    "starting_state": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/startingState"
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": "ag-factions-source-export/0.3"
+          }
+        },
+        "required": [
+          "schema_version"
+        ]
+      },
+      "then": {
+        "properties": {
+          "definitions": {
+            "items": {
+              "properties": {
+                "entity_type": {
+                  "const": "Faction"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sources"
+      ],
+      "properties": {
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "decision_refs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "track": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "entity_type",
+        "status",
+        "version",
+        "provenance",
+        "visibility",
+        "refs",
+        "default_scope"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^RENOWN-[A-Z0-9-]+$"
+        },
+        "entity_type": {
+          "const": "RenownTrack"
+        },
+        "status": {
+          "$ref": "ag-common.schema.json#/$defs/status"
+        },
+        "version": {
+          "$ref": "ag-common.schema.json#/$defs/version"
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "visibility": {
+          "$ref": "ag-common.schema.json#/$defs/visibility"
+        },
+        "refs": {
+          "$ref": "ag-common.schema.json#/$defs/refs"
+        },
+        "default_scope": {
+          "enum": [
+            "group",
+            "individual"
+          ]
+        },
+        "milestones": {
+          "type": "array",
+          "minItems": 5,
+          "maxItems": 5,
+          "prefixItems": [
+            {
+              "properties": {
+                "threshold": {
+                  "const": 0
+                }
+              }
+            }
+          ],
+          "description": "Exactly five; first threshold 0, then strictly increasing. Left out on a faction renown_track: the standard five ranks are filled in. Required on a deity individual_track.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "key",
+              "name",
+              "threshold",
+              "benefit",
+              "selection_mode"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "key": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "threshold": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "benefit": {
+                "type": "string"
+              },
+              "selection_mode": {
+                "enum": [
+                  "all",
+                  "choose_one"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "link_mode",
+        "unlock"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "text": {
+          "type": "string"
+        },
+        "uuid": {
+          "type": "string"
+        },
+        "link_mode": {
+          "enum": [
+            "preview",
+            "document"
+          ]
+        },
+        "unlock": {
+          "enum": [
+            "manual",
+            "group_renown",
+            "individual_renown"
+          ]
+        },
+        "threshold": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "reward": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "key",
+        "audience",
+        "milestone_id",
+        "name",
+        "kind",
+        "tags",
+        "behavior",
+        "usage_limit"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "audience": {
+          "enum": [
+            "group",
+            "individual"
+          ]
+        },
+        "milestone_id": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "One of the track's milestone ids."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "teaser": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "custom",
+            "uuid"
+          ]
+        },
+        "uuid": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "behavior": {
+          "enum": [
+            "one_time",
+            "repeatable_service",
+            "passive"
+          ]
+        },
+        "usage_limit": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "if": {
+        "properties": {
+          "kind": {
+            "const": "uuid"
+          }
+        },
+        "required": [
+          "kind"
+        ]
+      },
+      "then": {
+        "required": [
+          "uuid"
+        ]
+      }
+    },
+    "discovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "placeholder",
+        "sharing_enabled"
+      ],
+      "properties": {
+        "placeholder": {
+          "type": "boolean"
+        },
+        "sharing_enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "faction": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "entity_type",
+        "status",
+        "version",
+        "provenance",
+        "visibility",
+        "refs",
+        "name",
+        "leader",
+        "public_role",
+        "renown_track"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^FACTION-[A-Z0-9-]+$"
+        },
+        "status": {
+          "$ref": "ag-common.schema.json#/$defs/status"
+        },
+        "version": {
+          "$ref": "ag-common.schema.json#/$defs/version"
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "visibility": {
+          "$ref": "ag-common.schema.json#/$defs/visibility"
+        },
+        "refs": {
+          "$ref": "ag-common.schema.json#/$defs/refs"
+        },
+        "scope": {
+          "enum": [
+            "generic_rules",
+            "setting_adapter",
+            "publication",
+            null
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "entity_type": {
+          "const": "Faction"
+        },
+        "leader": {
+          "type": "string"
+        },
+        "public_role": {
+          "type": "string"
+        },
+        "folder_key": {
+          "type": "string"
+        },
+        "discovery": {
+          "$ref": "#/$defs/discovery"
+        },
+        "renown_track": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/track"
+            }
+          ],
+          "properties": {
+            "default_scope": {
+              "const": "group"
+            }
+          }
+        },
+        "individual_track": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/track"
+            }
+          ],
+          "properties": {
+            "default_scope": {
+              "const": "individual"
+            }
+          }
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/entry"
+          }
+        },
+        "rewards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/reward"
+          }
+        }
+      }
+    },
+    "deity": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Pantheon deity (Renown 0.11.0+). Standing is per character only: no renown_track, no group rewards or group_renown entries.",
+      "required": [
+        "id",
+        "entity_type",
+        "status",
+        "version",
+        "provenance",
+        "visibility",
+        "refs",
+        "name",
+        "discovery",
+        "individual_track",
+        "entries",
+        "rewards",
+        "deity"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^DEITY-[A-Z0-9-]+$"
+        },
+        "status": {
+          "$ref": "ag-common.schema.json#/$defs/status"
+        },
+        "version": {
+          "$ref": "ag-common.schema.json#/$defs/version"
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "visibility": {
+          "$ref": "ag-common.schema.json#/$defs/visibility"
+        },
+        "refs": {
+          "$ref": "ag-common.schema.json#/$defs/refs"
+        },
+        "scope": {
+          "enum": [
+            "generic_rules",
+            "setting_adapter",
+            "publication",
+            null
+          ]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "entity_type": {
+          "const": "Deity"
+        },
+        "discovery": {
+          "$ref": "#/$defs/discovery"
+        },
+        "individual_track": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/track"
+            }
+          ],
+          "required": [
+            "milestones"
+          ],
+          "properties": {
+            "default_scope": {
+              "const": "individual"
+            }
+          }
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/entry"
+              }
+            ],
+            "properties": {
+              "unlock": {
+                "enum": [
+                  "manual",
+                  "individual_renown"
+                ]
+              }
+            }
+          }
+        },
+        "rewards": {
+          "type": "array",
+          "items": {
+            "allOf": [
+              {
+                "$ref": "#/$defs/reward"
+              }
+            ],
+            "properties": {
+              "audience": {
+                "const": "individual"
+              }
+            }
+          }
+        },
+        "deity": {
+          "$ref": "#/$defs/deityProfile"
+        }
+      }
+    },
+    "deityProfile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "symbol": {
+          "type": "string",
+          "maxLength": 500,
+          "not": {
+            "pattern": "^\\s*(?:[Jj][Aa][Vv][Aa][Ss][Cc][Rr][Ii][Pp][Tt]|[Dd][Aa][Tt][Aa]|[Vv][Bb][Ss][Cc][Rr][Ii][Pp][Tt]):"
+          },
+          "description": "Image path of the holy symbol, e.g. assets/ashen-gate/deities/<name>.png. Empty = plain sun glyph."
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "domain": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "tier": {
+          "enum": [
+            "major",
+            "lesser"
+          ]
+        },
+        "blurb": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "portfolio": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "teachings": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "followers": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "practices": {
+          "type": "string",
+          "maxLength": 4000
+        },
+        "saying": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "attribution": {
+              "type": "string"
+            }
+          }
+        },
+        "relations": {
+          "type": "array",
+          "description": "One direction (this deity -> that one). Never to itself; at most one per other deity.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "deity_id",
+              "resonance"
+            ],
+            "properties": {
+              "deity_id": {
+                "type": "string",
+                "pattern": "^DEITY-[A-Z0-9-]+$"
+              },
+              "resonance": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1,
+                "description": "0 = full Dissonance, 0.5 = neutral, 1 = full Resonance."
+              }
+            }
+          }
+        }
+      }
+    },
+    "startingState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "faction_id"
+      ],
+      "properties": {
+        "faction_id": {
+          "type": "string",
+          "pattern": "^(?:FACTION|DEITY)-[A-Z0-9-]+$",
+          "description": "A FACTION-* or DEITY-* id defined in this file. Applied only when that definition is new to the world."
+        },
+        "party_discovered": {
+          "type": "boolean"
+        },
+        "group_renown": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "delta",
+              "reason"
+            ],
+            "properties": {
+              "delta": {
+                "type": "integer",
+                "minimum": -1000,
+                "maximum": 1000,
+                "not": {
+                  "const": 0
+                }
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 400
+              }
+            }
+          },
+          "description": "Factions only: a non-empty list on a DEITY-* row is rejected."
+        },
+        "actors": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "discovered": {
+                "type": "boolean"
+              },
+              "renown": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "delta",
+                    "reason"
+                  ],
+                  "properties": {
+                    "delta": {
+                      "type": "integer",
+                      "minimum": -1000,
+                      "maximum": 1000,
+                      "not": {
+                        "const": 0
+                      }
+                    },
+                    "reason": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 400
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "faction_id": {
+            "pattern": "^DEITY-"
+          }
+        },
+        "required": [
+          "faction_id"
+        ]
+      },
+      "then": {
+        "properties": {
+          "group_renown": {
+            "maxItems": 0
+          }
+        }
+      }
+    }
+  }
+}

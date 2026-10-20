@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/profession.schema.json",
+  "title": "Profession",
+  "description": "Profession Ledger profession. Projected as a feat Item; every top-level field is kept in the Item's source definition.",
+  "allOf": [
+    {
+      "$ref": "ag-common.schema.json#/$defs/envelope"
+    }
+  ],
+  "type": "object",
+  "required": [
+    "entity_type",
+    "foundry",
+    "name"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^PROF-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+    },
+    "entity_type": {
+      "const": "Profession"
+    },
+    "foundry": {
+      "$ref": "ag-common.schema.json#/$defs/itemFoundry"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Must contain one of: Alchemy, Blacksmithing, Cooking, Enchanting, Engineering, Inscription, Jewelcrafting, Leatherworking, Tailoring, Archaeology, Fishing, Herbalism, Hunting/Skinning, Mining (a [TAG] prefix is ignored)."
+    },
+    "profession_kind": {
+      "enum": [
+        "crafting",
+        "gathering"
+      ]
+    },
+    "access": {
+      "type": "object",
+      "description": "Who qualifies (Ledger 0.16.0 Assign tab and GM Setup tools table). Skill names ('Nature') or dnd5e ids ('nat'); tool names ('Herbalism Kit') or dnd5e keys ('herb'). Names that match no dnd5e skill/tool are ignored. Only read when the profession name is one of the Ledger's 14 professions.",
+      "additionalProperties": false,
+      "properties": {
+        "toolProficienciesAnyOf": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "skillProficienciesAnyOf": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "advantageToolsAnyOf": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Shown to the GM as a suggestion; only tools the GM ticks in GM Setup give advantage."
+        },
+        "toolMustBePresent": {
+          "type": "boolean",
+          "description": "Stored with the definition; not enforced by any module yet."
+        }
+      }
+    },
+    "workstation": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "Free text; shown on the recipe card."
+    },
+    "progression": {
+      "type": "object",
+      "description": "Reference data; the Ledger's level/XP rules are fixed in code (16 levels, cost 5+3n)."
+    },
+    "starting_recipe_ids": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^REC-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+      }
+    }
+  }
+}

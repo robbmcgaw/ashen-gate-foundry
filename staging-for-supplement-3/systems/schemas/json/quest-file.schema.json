@@ -1,0 +1,207 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/quest-file.schema.json",
+  "title": "Quest Log file (ag-quest-source/0.1)",
+  "description": "Quest, Work Order and Contract definitions. A separate file, not inside a Manager package.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "records"
+  ],
+  "properties": {
+    "schema_version": {
+      "enum": [
+        "ag-quest-source/0.1",
+        "ag-source-records/0.1"
+      ]
+    },
+    "domain": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "records": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "allOf": [
+          {
+            "$ref": "ag-common.schema.json#/$defs/envelope"
+          },
+          {
+            "if": {
+              "properties": {
+                "objective_kind": {
+                  "const": "quest"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "id": {
+                  "pattern": "^QUEST-"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "objective_kind": {
+                  "const": "work_order"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "work_order_domain"
+              ],
+              "properties": {
+                "id": {
+                  "pattern": "^ORDER-"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "objective_kind": {
+                  "const": "contract"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "id": {
+                  "pattern": "^CONTRACT-"
+                }
+              }
+            }
+          }
+        ],
+        "required": [
+          "entity_type",
+          "objective_kind",
+          "name",
+          "objectives",
+          "source",
+          "locations",
+          "parameters",
+          "outcomes"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^(QUEST|ORDER|CONTRACT)-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+          },
+          "entity_type": {
+            "const": "Objective"
+          },
+          "objective_kind": {
+            "enum": [
+              "quest",
+              "work_order",
+              "contract"
+            ]
+          },
+          "work_order_domain": {
+            "enum": [
+              "crafting",
+              "production"
+            ]
+          },
+          "scope": {
+            "enum": [
+              "generic_rules",
+              "setting_adapter",
+              "publication"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "public_summary": {
+            "type": "string"
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "description": {
+                "type": "string"
+              }
+            }
+          },
+          "objectives": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": [
+                "key",
+                "goal"
+              ],
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$"
+                },
+                "goal": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "visibility": {
+                  "enum": [
+                    "player",
+                    "reveal_gated",
+                    "gm"
+                  ]
+                },
+                "reveal_on_create": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^LOC-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "target_id"
+                  ],
+                  "properties": {
+                    "target_id": {
+                      "type": "string",
+                      "pattern": "^LOC-[A-Z0-9]+(?:-[A-Z0-9]+)*$"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "parameters": {
+            "type": "object"
+          },
+          "outcomes": {
+            "type": "object",
+            "properties": {
+              "description": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

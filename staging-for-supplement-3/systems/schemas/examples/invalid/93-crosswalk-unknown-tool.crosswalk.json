@@ -1,0 +1,10 @@
+{
+  "_expect_error": "matches no dnd5e tool",
+  "professions": {
+    "herbalism": {
+      "qualifyTools": [
+        "[EXAMPLE] Leaf Press"
+      ]
+    }
+  }
+}

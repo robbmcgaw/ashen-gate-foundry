@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/crosswalk-baseline.schema.json",
+  "title": "Profession crosswalk baseline file (Profession Ledger 0.20.0+)",
+  "description": "Imported only in Profession Ledger > GM Setup > Tools and checks > Import baseline file... (Manager Import does not recognise it). A list left out of a profession is not set by the file; [] means none. Unknown professions and unknown skill/tool names are listed in the preview and ignored. Any other field (including the extras Export writes) is ignored.",
+  "type": "object",
+  "required": [
+    "professions"
+  ],
+  "properties": {
+    "professions": {
+      "type": "object",
+      "minProperties": 1,
+      "description": "Keys: a profession key or name, any case, [TAG] prefixes ignored: alchemy, blacksmithing, cooking, enchanting (alias Arcana), engineering, inscription, jewelcrafting, leatherworking, tailoring, archaeology, fishing, herbalism, mining, huntingskinning (also 'Hunting/Skinning', 'Hunting & Skinning', 'Hunting', 'Skinning', 'Skinning/Harvesting'). The same profession twice, including through an alias, is an error.",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "qualifySkills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Proficiency in any one qualifies. dnd5e skill ids (nat, sur, his) or names (Nature, Survival)."
+          },
+          "qualifyTools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Proficiency in any one qualifies. dnd5e tool keys (herb, smith, alchemist) or names (Herbalism Kit, Smith's Tools)."
+          },
+          "advantageTools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Proficient with, or carrying, one of these gives advantage on that profession's checks. Same values as qualifyTools."
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "description": "Carrying any one of these Items qualifies. Item name (any case) or Item/Compendium UUID. Empty or over-200-character entries are silently dropped."
+          }
+        }
+      }
+    }
+  }
+}

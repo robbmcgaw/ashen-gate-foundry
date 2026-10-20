@@ -1,0 +1,66 @@
+{
+  "schema_version": "ag-quest-source/0.1",
+  "domain": "quests_orders",
+  "version": "1.0.0",
+  "records": [
+    {
+      "id": "QUEST-EXAMPLE-SUNLEAF",
+      "entity_type": "Objective",
+      "objective_kind": "quest",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {"sources": ["[EXAMPLE] schema reference"]},
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {"relation": "targets_location", "target_id": "LOC-EXAMPLE-MEADOW", "mode": "optional"},
+        {"relation": "requires_material", "target_id": "MAT-EXAMPLE-SUNLEAF", "mode": "optional"}
+      ],
+      "name": "[EXAMPLE] Sunleaf for the Healer",
+      "public_summary": "The healer needs fresh Sunleaf from the meadow.",
+      "source": {"description": "[EXAMPLE] GM-only issuer notes: the village healer."},
+      "objectives": [
+        {"key": "gather", "goal": "Gather two bundles of Sunleaf", "visibility": "player"},
+        {"key": "deliver", "goal": "Bring them to the healer", "visibility": "reveal_gated", "reveal_on_create": false},
+        {"key": "secret", "goal": "[EXAMPLE] GM-only step players never see", "visibility": "gm"}
+      ],
+      "locations": ["LOC-EXAMPLE-MEADOW"],
+      "parameters": {},
+      "outcomes": {"description": "[EXAMPLE] 10 gp and the healer's thanks (GM grants separately)."}
+    },
+    {
+      "id": "ORDER-EXAMPLE-TONICS",
+      "entity_type": "Objective",
+      "objective_kind": "work_order",
+      "work_order_domain": "crafting",
+      "status": "draft",
+      "version": "1.0.0",
+      "provenance": {"sources": ["[EXAMPLE] schema reference"]},
+      "visibility": "reveal_gated",
+      "refs": [],
+      "name": "[EXAMPLE] Five Tonics",
+      "public_summary": "Brew five Sunleaf Tonics for the garrison.",
+      "source": {"description": "[EXAMPLE] Garrison quartermaster."},
+      "objectives": [{"key": "brew", "goal": "Brew five Sunleaf Tonics"}],
+      "locations": [],
+      "parameters": {},
+      "outcomes": {}
+    },
+    {
+      "id": "CONTRACT-EXAMPLE-ESCORT",
+      "entity_type": "Objective",
+      "objective_kind": "contract",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {"sources": ["[EXAMPLE] schema reference"]},
+      "visibility": "gm",
+      "refs": [],
+      "name": "[EXAMPLE] Escort the Cart",
+      "source": {},
+      "objectives": [{"key": "escort", "goal": "See the cart safely across the vale"}],
+      "locations": [],
+      "parameters": {},
+      "outcomes": {}
+    }
+  ]
+}

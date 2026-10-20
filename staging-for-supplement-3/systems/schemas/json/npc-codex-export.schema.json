@@ -1,0 +1,223 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/npc-codex-export.schema.json",
+  "title": "NPC Codex export (ag-npc-codex-export/0.1, Manager 0.33.0+)",
+  "description": "Written by Library > NPC Codex > Export codex; read back only by Restore reveals from a codex export (replaces the stored reveals of listed NPCs already in the world; definitions are ignored). Not an Import-tab file. GM file: holds GM-only fields. Never commit one from a real campaign to the public repo.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "reveals"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "ag-npc-codex-export/0.1"
+    },
+    "exported_at": {
+      "type": "string"
+    },
+    "visibility": {
+      "const": "gm"
+    },
+    "definitions": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "NPC records without the foundry block. Ignored on restore."
+    },
+    "reveals": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "const": 1
+          },
+          "discovery": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "party",
+              "actors"
+            ],
+            "properties": {
+              "party": {
+                "type": "boolean"
+              },
+              "actors": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "World-local Actor ids of player characters."
+              }
+            }
+          },
+          "fields": {
+            "type": "object",
+            "properties": {
+              "role": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "party",
+                  "actors"
+                ],
+                "properties": {
+                  "party": {
+                    "type": "boolean"
+                  },
+                  "actors": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "World-local Actor ids of player characters."
+                  }
+                }
+              },
+              "appearance": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "party",
+                  "actors"
+                ],
+                "properties": {
+                  "party": {
+                    "type": "boolean"
+                  },
+                  "actors": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "World-local Actor ids of player characters."
+                  }
+                }
+              },
+              "signature_line": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "party",
+                  "actors"
+                ],
+                "properties": {
+                  "party": {
+                    "type": "boolean"
+                  },
+                  "actors": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "World-local Actor ids of player characters."
+                  }
+                }
+              },
+              "wants": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "party",
+                  "actors"
+                ],
+                "properties": {
+                  "party": {
+                    "type": "boolean"
+                  },
+                  "actors": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "World-local Actor ids of player characters."
+                  }
+                }
+              },
+              "knows": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "party",
+                  "actors"
+                ],
+                "properties": {
+                  "party": {
+                    "type": "boolean"
+                  },
+                  "actors": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "World-local Actor ids of player characters."
+                  }
+                }
+              },
+              "learned": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "party",
+                  "actors"
+                ],
+                "properties": {
+                  "party": {
+                    "type": "boolean"
+                  },
+                  "actors": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "World-local Actor ids of player characters."
+                  }
+                }
+              },
+              "links": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "party",
+                  "actors"
+                ],
+                "properties": {
+                  "party": {
+                    "type": "boolean"
+                  },
+                  "actors": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "World-local Actor ids of player characters."
+                  }
+                }
+              }
+            }
+          },
+          "learned": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "links": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^(?:LOC|FAC|FACTION|RENOWN|QUEST|ORDER|CONTRACT|NPC)(?:-[A-Z0-9]+)+$"
+            }
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 8000
+          }
+        }
+      }
+    }
+  }
+}

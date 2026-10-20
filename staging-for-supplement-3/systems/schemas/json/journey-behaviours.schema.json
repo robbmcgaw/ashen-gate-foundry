@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/journey-behaviours.schema.json",
+  "title": "Journey behaviours (Locations 1.15.0+): play state, NOT importable",
+  "description": "Shape of flags.ashen-gate-locations.travel.journey.behaviours in the GM Data Journal. Reference only: journeys are never in an import or export, and GPT never writes this. Tracking only: nothing reads it to change rolls, hazard chance, legs, supplies or rest. A journey without it reads with the defaults.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "pace": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "value": {
+          "enum": [
+            "slow",
+            "normal",
+            "fast"
+          ],
+          "default": "normal"
+        }
+      }
+    },
+    "watch": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "first": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9]{1,40}$"
+          }
+        },
+        "second": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9]{1,40}$"
+          }
+        },
+        "third": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9]{1,40}$"
+          }
+        }
+      }
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "forage": {
+          "enum": [
+            "acr",
+            "ani",
+            "arc",
+            "ath",
+            "dec",
+            "his",
+            "ins",
+            "itm",
+            "inv",
+            "med",
+            "nat",
+            "prc",
+            "prf",
+            "per",
+            "rel",
+            "slt",
+            "ste",
+            "sur"
+          ],
+          "default": "sur"
+        },
+        "navigate": {
+          "enum": [
+            "acr",
+            "ani",
+            "arc",
+            "ath",
+            "dec",
+            "his",
+            "ins",
+            "itm",
+            "inv",
+            "med",
+            "nat",
+            "prc",
+            "prf",
+            "per",
+            "rel",
+            "slt",
+            "ste",
+            "sur"
+          ],
+          "default": "sur"
+        }
+      }
+    }
+  }
+}

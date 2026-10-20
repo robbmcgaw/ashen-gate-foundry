@@ -1,0 +1,72 @@
+{
+  "_expect_error": "is not revealable",
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-EXAMPLE-MISTAKE",
+    "version": "1.0.0",
+    "description": "[EXAMPLE] Two NPC records with Codex content (Manager 0.33.0+)."
+  },
+  "records": [
+    {
+      "id": "NPC-EXAMPLE-MIRA-VANE",
+      "entity_type": "NPC",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "gm",
+      "scope": "setting_adapter",
+      "refs": [
+        {
+          "relation": "found_at",
+          "target_id": "LOC-EXAMPLE-FERRY-GATE",
+          "mode": "optional"
+        }
+      ],
+      "name": "[EXAMPLE] Mira Vane",
+      "role": "[EXAMPLE] Ferry clerk at the gate",
+      "appearance": "[EXAMPLE] Ink-stained cuffs, a brass tally chain.",
+      "signature_line": "[EXAMPLE] Toll's paid in coin or in names.",
+      "wants": "[EXAMPLE] To get her brother off the night-ferry roster.",
+      "knows": "[EXAMPLE] Which barges skip the toll ledger.",
+      "portrayal": "[EXAMPLE] Clipped, polite, counts things while talking.",
+      "session_role": "[EXAMPLE] Gatekeeper for the first ferry scene.",
+      "stat_block": "Commoner (2024)",
+      "gm_notes": [
+        "[EXAMPLE] Paid to look away; flips if the party helps her brother."
+      ],
+      "art": {
+        "repo_path": null,
+        "forge_path": null
+      },
+      "codex": {
+        "links": [
+          "FACTION-EXAMPLE-FERRYMEN",
+          "QUEST-EXAMPLE-SUNLEAF",
+          "NPC-EXAMPLE-OLD-TOM"
+        ],
+        "default_reveal": {
+          "discovery": "hidden",
+          "fields": {
+            "role": "party",
+            "appearance": "party",
+            "portrayal": "party"
+          }
+        }
+      },
+      "foundry": {
+        "document_type": "Actor",
+        "folder_path": "Ashen Gate/NPCs",
+        "data": {
+          "name": "[EXAMPLE] Mira Vane",
+          "type": "npc",
+          "img": "icons/svg/mystery-man.svg",
+          "system": {}
+        }
+      }
+    }
+  ]
+}

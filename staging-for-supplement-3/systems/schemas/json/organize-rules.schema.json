@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/organize-rules.schema.json",
+  "title": "Manager Organize rules (Manager 0.25.0+; sourceTagged 0.30.0+)",
+  "description": "Ordered rules; first match wins. Manager > Organize > Import accepts a bare array or any object with rules[] (Export writes {kind: \"ashen-gate-organize-rules\", version: 1, rules}). An empty list is rejected. Not an Import-tab file.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/rules"
+    },
+    {
+      "type": "object",
+      "required": [
+        "rules"
+      ],
+      "properties": {
+        "rules": {
+          "$ref": "#/$defs/rules"
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9-]{0,59}$"
+          },
+          "label": {
+            "type": "string"
+          },
+          "types": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "enum": [
+                "Item",
+                "Actor",
+                "JournalEntry"
+              ]
+            }
+          },
+          "when": {
+            "type": "object",
+            "propertyNames": {
+              "enum": [
+                "documentType",
+                "ag",
+                "sourceIdPrefix",
+                "entityType",
+                "status",
+                "visibility",
+                "test",
+                "tier",
+                "profession",
+                "quality",
+                "crafted",
+                "itemType",
+                "subtype",
+                "rarity",
+                "magic",
+                "spellLevel",
+                "spellSchool",
+                "actorType",
+                "playerOwned",
+                "creatureType",
+                "crBand",
+                "core",
+                "sourceTagged"
+              ]
+            },
+            "description": "Every key must match. A list value: any one matches. Strings compare without case, except sourceIdPrefix (case-sensitive startsWith). Booleans compare strictly (the string \"true\" is not true). sourceTagged (0.31.0 meaning): Plutonium flag, or system.source 2024 / 2014 core / SRD 5.1."
+          },
+          "path": {
+            "type": "string",
+            "description": "Up to 4 folder levels; placeholders {tier} {rarity} {spellLevel} {creatureType} {crBand} {entityType} {actorType} {profession} {quality} {itemType}.",
+            "pattern": "^[^/]+(/[^/]+){0,3}$"
+          },
+          "leave": {
+            "type": "boolean"
+          }
+        },
+        "anyOf": [
+          {
+            "required": [
+              "path"
+            ]
+          },
+          {
+            "required": [
+              "leave"
+            ],
+            "properties": {
+              "leave": {
+                "const": true
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "properties": {
+    "kind": {
+      "const": "ashen-gate-organize-rules"
+    },
+    "version": {
+      "const": 1
+    }
+  }
+}

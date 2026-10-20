@@ -1,0 +1,8 @@
+{
+  "_expect_error": "qualifyTools must be a list of names",
+  "professions": {
+    "herbalism": {
+      "qualifyTools": "Herbalism Kit"
+    }
+  }
+}

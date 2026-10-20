@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashen-gate.local/schemas/manager-package.schema.json",
+  "title": "General Manager import package (ag-foundry-import/0.2)",
+  "description": "One JSON file Manager imports: manifest + records. Records of the known entity types follow their own schema (Location, Route, Profession, Material, Recipe, ProfessionPerk, HirelingPerk, NPC).",
+  "type": "object",
+  "required": [
+    "manifest",
+    "records"
+  ],
+  "properties": {
+    "manifest": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "package_id",
+        "version"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "ag-foundry-import/0.2"
+        },
+        "package_id": {
+          "type": "string",
+          "minLength": 1,
+          "examples": [
+            "AG-EXAMPLE-FULL"
+          ]
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        }
+      }
+    },
+    "records": {
+      "type": "array",
+      "maxItems": 2000,
+      "items": {
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "entity_type": {
+                  "const": "Location"
+                }
+              },
+              "required": [
+                "entity_type"
+              ]
+            },
+            "then": {
+              "$ref": "location.schema.json"
+            },
+            "else": {
+              "if": {
+                "properties": {
+                  "entity_type": {
+                    "const": "Route"
+                  }
+                },
+                "required": [
+                  "entity_type"
+                ]
+              },
+              "then": {
+                "$ref": "route.schema.json"
+              },
+              "else": {
+                "$ref": "manager-record.schema.json"
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "entity_type": {
+                  "const": "Profession"
+                }
+              },
+              "required": [
+                "entity_type"
+              ]
+            },
+            "then": {
+              "$ref": "profession.schema.json"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "entity_type": {
+                  "const": "Material"
+                }
+              },
+              "required": [
+                "entity_type"
+              ]
+            },
+            "then": {
+              "$ref": "material.schema.json"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "entity_type": {
+                  "const": "Recipe"
+                }
+              },
+              "required": [
+                "entity_type"
+              ]
+            },
+            "then": {
+              "$ref": "recipe.schema.json"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "entity_type": {
+                  "const": "ProfessionPerk"
+                }
+              },
+              "required": [
+                "entity_type"
+              ]
+            },
+            "then": {
+              "$ref": "profession-perk.schema.json"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "entity_type": {
+                  "const": "HirelingPerk"
+                }
+              },
+              "required": [
+                "entity_type"
+              ]
+            },
+            "then": {
+              "$ref": "hireling-perk.schema.json"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "entity_type": {
+                  "const": "NPC"
+                }
+              },
+              "required": [
+                "entity_type"
+              ]
+            },
+            "then": {
+              "$ref": "npc.schema.json"
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "id": {
+                  "pattern": "^ACTOR-"
+                }
+              },
+              "required": [
+                "id"
+              ]
+            },
+            "then": {
+              "properties": {
+                "entity_type": {
+                  "const": "NPC"
+                }
+              }
+            }
+          },
+          {
+            "description": "A reusable NPC uses entity_type NPC, never Actor (Manager rejects entity_type Actor with an Actor projection).",
+            "if": {
+              "properties": {
+                "entity_type": {
+                  "const": "Actor"
+                }
+              },
+              "required": [
+                "entity_type"
+              ]
+            },
+            "then": {
+              "properties": {
+                "foundry": {
+                  "properties": {
+                    "document_type": {
+                      "not": {
+                        "const": "Actor"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    "templates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "document_type",
+          "defaults"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z][\\w.-]*$"
+          },
+          "document_type": {
+            "enum": [
+              "Item",
+              "JournalEntry",
+              "Actor",
+              "RollTable",
+              "Macro"
+            ]
+          },
+          "defaults": {
+            "type": "object"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "legacy_crosswalk": {
+      "type": "array"
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "_expect_error": "deeper than Foundry",
+  "rules": [
+    {
+      "id": "example-test-data",
+      "label": "[EXAMPLE] Test data in one place",
+      "when": {
+        "test": true
+      },
+      "path": "Ashen Gate/A/B/C/D"
+    }
+  ]
+}

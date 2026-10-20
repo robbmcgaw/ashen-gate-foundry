@@ -1,0 +1,33 @@
+{
+  "_expect_error": "unsupported document type Scene",
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-EXAMPLE-MISTAKE",
+    "version": "1.0.0"
+  },
+  "records": [
+    {
+      "id": "ITEM-EXAMPLE-SUNLEAF-TONIC",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[EXAMPLE] Sunleaf Tonic",
+      "created_by_recipe_id": "REC-EXAMPLE-SUNLEAF-TONIC",
+      "foundry": {
+        "document_type": "Scene",
+        "folder_path": "Ashen Gate/Examples/Items",
+        "data": {
+          "name": "[EXAMPLE] Scene"
+        }
+      }
+    }
+  ]
+}

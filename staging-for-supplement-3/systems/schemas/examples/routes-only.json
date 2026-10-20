@@ -1,0 +1,29 @@
+{
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-EXAMPLE-ROUTES-ONLY",
+    "version": "1.0.0"
+  },
+  "records": [
+    {
+      "id": "RTE-EXAMPLE-VALE-MEADOW",
+      "entity_type": "Route",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "[EXAMPLE] schema reference"
+        ]
+      },
+      "visibility": "gm",
+      "name": "[EXAMPLE] Vale to Meadow",
+      "refs": [],
+      "route": {
+        "from_location_id": "LOC-EXAMPLE-VALE",
+        "to_location_id": "LOC-EXAMPLE-MEADOW",
+        "distance_km": 3,
+        "discovery_state": "known"
+      }
+    }
+  ]
+}

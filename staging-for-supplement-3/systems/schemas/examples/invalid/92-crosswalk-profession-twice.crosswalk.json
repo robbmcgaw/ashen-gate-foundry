@@ -1,0 +1,15 @@
+{
+  "_expect_error": "is listed twice",
+  "professions": {
+    "Hunting/Skinning": {
+      "qualifySkills": [
+        "sur"
+      ]
+    },
+    "Skinning": {
+      "qualifySkills": [
+        "nat"
+      ]
+    }
+  }
+}
