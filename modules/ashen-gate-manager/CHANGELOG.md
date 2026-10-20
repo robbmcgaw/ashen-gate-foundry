@@ -1,3 +1,11 @@
+## 0.30.0 — 2026-10-20
+
+- **Organize: Homebrew folder.** In the default rules, a non-Ashen-Gate Item goes under **Core 5.5e** only when it is *source-tagged*: imported by Plutonium (`flags.plutonium`) or marked 2024 in `system.source` (rules `2024`, or book PHB'24 / DMG'24 / MM'24 / SRD 5.2, `XPHB`-style names too). Every other non-Ashen-Gate Item goes under a new top-level **Homebrew** tree with the same sub-folders (`Homebrew/Spells/Level 3`, `Homebrew/Items/Rare Magic`, `Homebrew/Items/Weapons`, …). Ashen Gate records and Actor/Journal rules are unchanged.
+- New rule match key `sourceTagged` (true/false) for custom rules. **Saved custom rules are untouched**; *Reset rules to defaults* picks up the new ones. Items an earlier run filed under Core 5.5e that are not source-tagged show in Preview as moves to Homebrew.
+- The Organize card says which items go to Core 5.5e and which to Homebrew.
+- **Core Links** uses the same source-tagged test for world Items and world compendiums, so a Plutonium item whose book Manager doesn't recognise is now a candidate too. 2014 content is still never a candidate.
+- Rule format documented in `docs/organize-rules.md`. No saved-data changes.
+
 ## 0.29.0 — 2026-10-20
 
 - **Renown deities** (Renown 0.11.0 or later). A Renown file with `schema_version` `ag-factions-source-export/0.4` (factions and deities in `definitions[]`) is recognised and handed to Renown unchanged, as 0.3 files are.

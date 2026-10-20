@@ -49,6 +49,11 @@ export function rulesOf(entry) {
   if(BOOK_2014.has(book)) return false;
   return null;
 }
+/**
+ * Source-tagged = imported by Plutonium (flags.plutonium present) or marked 2024 (system.source rules/book).
+ * Shared with Organize (0.30.0), which files source-tagged Items under Core 5.5e and everything else under Homebrew.
+ */
+export const isSourceTagged = entry => Boolean(getPath(entry, 'flags.plutonium')) || rulesOf(entry) === true;
 
 export function nameKey(value) {
   return String(value ?? '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[’']/g, '')
@@ -143,7 +148,7 @@ export function createCoreLinks({game,
       if(getPath(doc, `flags.${MODULE_ID}.source.sourceId`)) continue; // never link AG to AG
       const rules = rulesOf(doc), configured = inConfigured(doc);
       if(rules === false) continue;
-      if(s.auto && rules === true) push(doc, getPath(doc, 'flags.plutonium') ? 'plutonium' : 'world', 0);
+      if(s.auto && isSourceTagged(doc)) push(doc, getPath(doc, 'flags.plutonium') ? 'plutonium' : 'world', 0);
       else if(configured) push(doc, 'configured', 1);
     }
     for(const pack of itemPacks()) {
@@ -157,7 +162,7 @@ export function createCoreLinks({game,
         if(getPath(e, `flags.${MODULE_ID}.source.sourceId`)) continue;
         const rules = rulesOf(e);
         if(rules === false) continue;
-        if(kind === 'world-pack' && rules !== true) continue;
+        if(kind === 'world-pack' && !isSourceTagged(e)) continue;
         push(e, kind, kind === 'system24' ? 2 : 1, pack.collection, `${KIND_LABEL[kind]}: ${pack.metadata?.label ?? pack.collection}`);
       }
     }

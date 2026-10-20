@@ -1,7 +1,7 @@
 /** Core links (0.26.0). Proves matching/adopt/link/undo logic with mocked Foundry items and packs, not native Foundry UI. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createCoreLinks, bookKey, rulesOf, nameKey, findMatches, coreRefOf, LINK_FLAG, SOURCES_SETTING, LINK_HISTORY_SETTING} from '../scripts/core-links.js';
+import {createCoreLinks, bookKey, rulesOf, isSourceTagged, nameKey, findMatches, coreRefOf, LINK_FLAG, SOURCES_SETTING, LINK_HISTORY_SETTING} from '../scripts/core-links.js';
 import {planRecord} from '../scripts/core.js';
 
 const M = 'ashen-gate-manager';
@@ -199,4 +199,18 @@ test('a package record with core_ref validates and Manager stores it in the sour
   assert.deepEqual(validatePackage(pkg).filter(e => /core_ref/.test(e)), []);
   const flags = {[M]:{source:sourceMetadata(record, pkg, [])}};
   assert.deepEqual(coreRefOf({flags}), {name:'Potion of Healing', source:"DMG'24", type:null, rarity:null});
+});
+
+test('0.30.0: Core Links and Organize share isSourceTagged; a Plutonium item with an unknown book is a candidate, 2014 never', async () => {
+  assert.equal(isSourceTagged({flags:{plutonium:{source:'HB'}}}), true);
+  assert.equal(isSourceTagged({system:{source:{rules:'2024'}}}), true);
+  assert.equal(isSourceTagged({system:{source:{book:'Homebrew'}}}), false);
+  const plutoOdd = mkItem({id:'po', name:'Potion of Healing', system:{source:{book:'Some Book'}}, flags:{plutonium:{source:'Some Book'}}});
+  const pluto14 = core('p14', 'Potion of Healing', {plutonium:true, book:'DMG'});
+  const plain = core('n1', 'Potion of Healing', {book:''});
+  const ag = agItem('a1', 'Healing Draught', {name:'Potion of Healing'});
+  const {api} = mkWorld({items:[ag, plutoOdd, pluto14, plain]});
+  const out = await api.preview();
+  const uuids = [out.rows[0].best, ...out.rows[0].others].filter(Boolean).map(c => c.uuid);
+  assert.deepEqual(uuids, ['Item.po']);
 });
