@@ -120,22 +120,23 @@ function utilities(actor, api, {shown = STASH_SHOWN} = {}) {
 
 /**
  * Panel registry, in display order. `summary(actor, api)` returns HTML (or throws); `open(api, actor, ref)` deep-links.
+ * `embedMode` is the partner's api.embed mode for this character: when the partner offers it, its own view replaces the summary.
  * `missing` lists APIs the owner module would need for a fuller summary (also in the README). Newer partner APIs are
  * feature-detected inside each summary, which falls back to the older reads when they are absent.
  */
 export const PANELS = [
-  {id: 'ashen-gate-profession-ledger', tab: 'Professions', label: 'Profession Ledger', icon: 'fa-solid fa-hammer', summary: professions,
+  {id: 'ashen-gate-profession-ledger', embedMode: 'individual', tab: 'Professions', label: 'Profession Ledger', icon: 'fa-solid fa-hammer', summary: professions,
     open: (api, actor) => api.open({actorId: actor.id, view: 'individual'})},
-  {id: 'ashen-gate-skill-trees', tab: 'Perks', label: 'Skill Trees', icon: 'fa-solid fa-diagram-project', summary: skillTrees,
+  {id: 'ashen-gate-skill-trees', embedMode: 'character', tab: 'Perks', label: 'Skill Trees', icon: 'fa-solid fa-diagram-project', summary: skillTrees,
     open: (api, actor) => api.open({actorId: actor.id})},
-  {id: 'ashen-gate-factions', tab: 'Standing', label: 'Factions & Renown', icon: 'fa-solid fa-flag', summary: factions, open: api => api.open()},
-  {id: 'ashen-gate-quest-manager', tab: 'Quests', label: 'Quest Log', icon: 'fa-solid fa-scroll', summary: quests,
+  {id: 'ashen-gate-factions', embedMode: 'character', tab: 'Standing', label: 'Factions & Renown', icon: 'fa-solid fa-flag', summary: factions, open: api => api.open()},
+  {id: 'ashen-gate-quest-manager', embedMode: 'character', tab: 'Quests', label: 'Quest Log', icon: 'fa-solid fa-scroll', summary: quests,
     open: (api, actor, ref) => ref ? api.openObjective(ref) : api.open()},
-  {id: 'ashen-gate-locations', tab: 'Locations', label: 'Locations', icon: 'fa-solid fa-map-location-dot', summary: locations,
+  {id: 'ashen-gate-locations', embedMode: 'character', tab: 'Locations', label: 'Locations', icon: 'fa-solid fa-map-location-dot', summary: locations,
     open: (api, actor, ref) => ref ? api.openLocation(ref) : api.open(), missing: 'the party\'s current or recent location'},
-  {id: 'ashen-gate-headquarters', tab: 'Base', label: 'Headquarters', icon: 'fa-solid fa-chess-rook', summary: headquarters,
+  {id: 'ashen-gate-headquarters', embedMode: 'character', tab: 'Base', label: 'Headquarters', icon: 'fa-solid fa-chess-rook', summary: headquarters,
     open: api => api.open()},
-  {id: 'ashen-gate-utilities', label: 'Utilities', icon: 'fa-solid fa-toolbox', summary: utilities,
+  {id: 'ashen-gate-utilities', embedMode: 'stash', label: 'Utilities', icon: 'fa-solid fa-toolbox', summary: utilities,
     open: api => api.stash?.open ? api.stash.open() : api.open(), openLabel: 'Open party stash'}
 ];
 
@@ -164,15 +165,90 @@ export const AG_PANELS = PANELS.filter(p => p.tab);
 /** Ashen Gate tab: one sub-tab per partner module; only the chosen one is read. */
 export function ashenGateTab({actor, sheet}) {
   const current = AG_PANELS.find(p => p.id === sheet?.agTab) ?? AG_PANELS[0];
+  const embedded = embedApi(current.id, current.embedMode);
   const tabs = AG_PANELS.map(p => `<button type="button" data-action="ag-subtab" data-partner="${p.id}" data-ag-always aria-pressed="${p === current}"${partnerApi(p.id) ? '' : ' class="is-missing"'}>${esc(p.tab)}</button>`).join('');
   return `<div class="agch-toolbar"><div class="agch-seg agch-seg--wrap" role="group" aria-label="Ashen Gate section">${tabs}</div></div>
-    ${panelHtml(current, actor)}<p class="agch-muted agch-hint">Each module keeps its own records; these are read-only summaries. Open a module to make changes there.</p>`;
+    ${embedded ? panelHtml({...current, summary: () => embedSlot(current.id, current.embedMode, actor)}, actor) : panelHtml(current, actor)}
+    <p class="agch-muted agch-hint">${embedded ? `This is ${esc(current.label)}'s own view: it keeps its own records and permissions.` : 'Each module keeps its own records; this is a read-only summary. Open the module to make changes there.'}</p>`;
 }
 
-/** Inventory → Party stash: Utilities' purse and every stash item the user may see. */
+// ---------- Embedded partner views (api.embed.mount) ----------
+
+/**
+ * A partner's embed API when it is active and offers that mode, else null. Embeds draw and run the partner's own
+ * view inside an element we provide; the partner keeps its state and checks its own permissions.
+ */
+export function embedApi(id, mode) {
+  const embed = partnerApi(id)?.embed;
+  return typeof embed?.mount === 'function' && (!Array.isArray(embed.modes) || embed.modes.includes(mode)) ? embed : null;
+}
+/** Placeholder the sheet replaces with the partner's own view after rendering (see mountEmbeds). */
+export const embedSlot = (id, mode, actor) => `<div class="agch-embed" data-agch-embed="${esc(id)}" data-mode="${esc(mode)}" data-actor="${esc(actor.id)}"><p class="agch-muted">Loading…</p></div>`;
+const embedKey = el => `${el.dataset.agchEmbed}|${el.dataset.mode}|${el.dataset.actor}`;
+
+/**
+ * After a render: fills each placeholder with the partner's view. A view still mounted from the previous render is moved
+ * into the new placeholder (so its search text and scroll survive a re-render); views no longer wanted are unmounted.
+ * `mounted` is the sheet's Map key → {element, handle}. A partner that throws leaves a short note, never a broken sheet.
+ */
+export function mountEmbeds(root, mounted) {
+  const wanted = new Set();
+  for (const slot of root?.querySelectorAll?.('[data-agch-embed]') ?? []) {
+    const key = embedKey(slot), id = slot.dataset.agchEmbed;
+    wanted.add(key);
+    const prev = mounted.get(key);
+    if (prev) { slot.replaceWith(prev.element); prev.handle?.refresh?.(); continue; }
+    const embed = embedApi(id, slot.dataset.mode);
+    if (!embed) continue;
+    try {
+      slot.textContent = '';
+      const handle = embed.mount(slot, {actorId: slot.dataset.actor, mode: slot.dataset.mode});
+      mounted.set(key, {element: slot, handle});
+    } catch (err) {
+      console.warn(`ashen-gate-character-hub | ${id} embed unavailable`, err);
+      slot.innerHTML = '<p class="agch-muted">Unavailable right now. Use the Open button.</p>';
+    }
+  }
+  for (const [key, m] of mounted) if (!wanted.has(key)) { try { m.handle?.unmount?.(); } catch {} mounted.delete(key); }
+}
+/** Unmounts every embedded view (the sheet is closing). */
+export function unmountEmbeds(mounted) {
+  for (const m of mounted.values()) { try { m.handle?.unmount?.(); } catch {} }
+  mounted.clear();
+}
+
+// ---------- Party stash (Utilities) ----------
+
+/** Inventory → Party stash: Utilities' own stash view when it offers one (0.12.0+), else the purse and item list. */
 export function partyStashHtml(actor) {
   const panel = PANELS.find(p => p.id === 'ashen-gate-utilities');
+  if (embedApi(panel.id, 'stash')) return panelHtml({...panel, label: 'Party stash', summary: () => embedSlot(panel.id, 'stash', actor)}, actor);
   return panelHtml({...panel, label: 'Party stash', summary: (a, api) => utilities(a, api, {shown: Infinity})}, actor);
+}
+
+/** True when this user could put items in the party stash: Utilities offers deposit, and (for players) Player Access and the stash are on. */
+export function partyStashUsable(user = globalThis.game?.user) {
+  const api = partnerApi('ashen-gate-utilities');
+  if (typeof api?.stash?.deposit !== 'function') return false;
+  if (user?.isGM) return true;
+  try { return api.playerAccess?.getState?.()?.playerAccessEnabled === true && api.stash.isEnabled?.() === true; } catch { return false; }
+}
+
+/**
+ * Moves one of this character's items into the party stash through Utilities' own deposit (its checks apply: player
+ * deposits are carried out by the GM client). Only the character's owner may ask.
+ */
+export async function depositToParty(actor, itemId, canEdit) {
+  if (!canEdit(actor)) return {ok: false, error: `You don't own ${actor?.name ?? 'this character'}, so you can't move its items.`};
+  const item = actor?.items?.get?.(itemId);
+  if (!item) return {ok: false, error: 'That item is no longer on this character.'};
+  const api = partnerApi('ashen-gate-utilities');
+  if (typeof api?.stash?.deposit !== 'function') return {ok: false, error: 'Utilities (party stash) is not active.'};
+  try {
+    const message = await api.stash.deposit(item.uuid);
+    if (message) globalThis.ui?.notifications?.info?.(message);
+    return {ok: true, result: message};
+  } catch (err) { return {ok: false, error: `Party stash: ${err?.message ?? err}`}; }
 }
 
 export async function openPartner(actor, id, ref = null) {

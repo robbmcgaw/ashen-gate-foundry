@@ -207,7 +207,9 @@ test('every tab renders for owner and observer; observer controls disabled excep
   sheet.tab = 'inventory';
   const inv = await sheet._renderHTML();
   assert.match(inv, /Attuned 1 \/ 3/);
-  assert.match(inv, /data-slot="body"[^>]*data-tooltip="\[TEST\] Chain Mail"/);
+  assert.match(inv, /data-action="slot-open" data-slot="body" data-id="mail" data-ag-always[^>]*title="\[TEST\] Chain Mail \(click: open, right-click: unequip\)"/);
+  assert.match(inv, /data-action="slot-menu" data-slot="body"[^>]*aria-label="More actions: Body armor"/, 'small menu button');
+  assert.match(inv, /data-action="slot-menu" data-slot="feet"[^>]*title="Feet: empty \(click to equip\)"/);
   assert.match(inv, /data-slot="ring1"[^>]*is-attuned|is-attuned[^>]*data-slot="ring1"/);
   assert.match(inv, /data-slot="other"[^>]*Other equipped: 1/, 'the odd stone fits no slot');
   sheet.menu = 'slot:feet';
@@ -219,7 +221,7 @@ test('every tab renders for owner and observer; observer controls disabled excep
   const vh = await view._renderHTML();
   assert.match(vh, /data-action="item-equip" data-id="bow" disabled/);
   assert.match(vh, /data-action="item-sheet" data-id="bow" data-ag-always/);
-  assert.match(vh, /data-action="slot-menu" data-slot="mainhand" data-ag-always/, 'observers can open a slot to look');
+  assert.match(vh, /data-action="slot-open" data-slot="mainhand" data-id="sword" data-ag-always/, 'observers can open the item sheet');
   view.menu = 'slot:mainhand';
   const vm = await view._renderHTML();
   assert.match(vm, /data-action="item-unequip" data-id="sword" disabled/);
@@ -241,24 +243,34 @@ test('sheet dispatch wires item buttons and edits to the actions', async () => {
   assert.equal(actor.items.get('sword').calls.at(-1)[0], 'sheet');
 });
 
-test('slot menu: click toggles, one menu at a time, right-click opens, outside click closes', async () => {
+test('slots: click opens the item sheet, right-click unequips, ⋯ toggles the menu, outside click closes it', async () => {
   installGlobals();
   const Cls = createHubSheetClass(FakeActorSheetV2);
-  const sheet = new Cls({document: actorWith()});
+  const actor = actorWith();
+  const sheet = new Cls({document: actor});
+  await sheet.dispatch('slot-open', {dataset: {slot: 'mainhand', id: 'sword'}}, {});
+  assert.equal(actor.items.get('sword').calls.at(-1)[0], 'sheet');
   await sheet.dispatch('slot-menu', {dataset: {slot: 'head'}}, {});
   assert.equal(sheet.menu, 'slot:head');
-  await sheet.dispatch('conditions-menu', {dataset: {}}, {});
-  assert.equal(sheet.menu, 'conditions', 'opening another replaces it');
-  await sheet.dispatch('conditions-menu', {dataset: {}}, {});
-  assert.equal(sheet.menu, null, 'same opener closes');
-  const slot = {dataset: {slot: 'feet'}};
+  await sheet.dispatch('slot-menu', {dataset: {slot: 'head'}}, {});
+  assert.equal(sheet.menu, null, 'same button closes');
   let prevented = false;
-  sheet._onContextMenu({target: {closest: sel => sel.includes('slot-menu') ? slot : null}, preventDefault: () => { prevented = true; }, stopPropagation() {}});
-  assert.equal(sheet.menu, 'slot:feet'); assert.ok(prevented);
+  const filled = {dataset: {slot: 'body', id: 'mail'}};
+  await sheet._onContextMenu({target: {closest: sel => sel.includes('slot-open') ? filled : null}, preventDefault: () => { prevented = true; }, stopPropagation() {}});
+  assert.ok(prevented);
+  assert.deepEqual(actor.items.get('mail').calls.at(-1), ['update', {'system.equipped': false}], 'right-click unequips');
+  const empty = {dataset: {slot: 'feet'}};
+  sheet._onContextMenu({target: {closest: sel => sel.includes('slot-menu') ? empty : null}, preventDefault() {}, stopPropagation() {}});
+  assert.equal(sheet.menu, 'slot:feet', 'right-click on an empty slot opens Equip…');
   sheet._onOutsideClick({target: {closest: () => ({})}});
   assert.equal(sheet.menu, 'slot:feet', 'clicks inside the menu keep it open');
   sheet._onOutsideClick({target: {closest: () => null}});
   assert.equal(sheet.menu, null);
+  const notes = installGlobals({user: users.observer});
+  const view = new Cls({document: actorWith()});
+  const r = await view._onContextMenu({target: {closest: sel => sel.includes('slot-open') ? filled : null}, preventDefault() {}, stopPropagation() {}});
+  assert.equal(r.ok, false, 'observers cannot unequip');
+  assert.equal(notes[0]?.[0], 'warn', 'and are told why');
 });
 
 test('slot equip goes through equipItem (attunement prompt kept) into the chosen slot', async () => {

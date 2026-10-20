@@ -5,19 +5,21 @@ An alternative character sheet for dnd5e 6 on Foundry V14. It shows and changes 
 ## Open it
 Open a character → the sheet's title-bar menu (**Sheet** / gear) → choose **Ashen Gate Character Hub**. Switch back the same way. It is never the default unless you pick it. **Open native sheet** in the Hub's header opens the standard dnd5e sheet at any time.
 
-## What it does (0.6.0)
-Layout: the character on the left, tabs on the right (only the tab content scrolls). Opens at 1200 × 800; under about 900 px wide the character stacks above the tabs.
-- Left: portrait with AC, equipment slots around it, initiative roll, speed, proficiency, HP bar (Damage/Heal, edit HP/temp/max adj.), six abilities (check and save rolls), inspiration, hit dice, exhaustion, resources, conditions (active ones as icons; the heart button lists all).
-- Equipment slots (display only, no slot rules): click or right-click for Open, Use, Unequip, Attune, Swap (hands, rings), Move to…; an empty slot offers Equip… with carried items that fit. Equipping an item that needs attunement asks first; at the limit it lists attuned items to unattune.
+## What it does (0.7.0)
+Layout: the character on the left, the chosen section in the middle (only it scrolls), and an icon rail of sections down the right edge (hover for names). Opens at 1240 × 800; under about 900 px wide everything stacks. A header slider fades the window background (per user, 100-20 %).
+- Left: portrait with AC, equipment slots around it, initiative roll, speed, proficiency, HP bar (Damage/Heal, edit HP/temp/max adj.), six abilities (check and save rolls), inspiration, conditions box (active ones; + to add), hit dice with Short/Long Rest, exhaustion, resources.
+- Equipment slots (display only, no slot rules): click opens the item, right-click unequips, ⋯ opens Use, Attune, Swap (hands, rings), Move to party stash, Move to…; an empty slot offers Equip… with carried items that fit. Equipping an item that needs attunement asks first; at the limit it lists attuned items to unattune.
 - Overview: skills (rolls, proficiency markers, passive), saving throws, passives and senses, proficiencies.
 - Combat: initiative, death save at 0 HP, weapons and usable features with **Use** (dnd5e's `item.use()`).
-- Inventory: search, Character / Party stash toggle, categories, containers, quantity, equip/attune, currency, Use for consumables. Party stash reads Utilities (purse and stash items).
+- Inventory: search, Character / Party stash toggle, categories, containers, quantity, equip/attune, currency, Use for consumables, Move to party stash. Party stash is Utilities' own stash view (0.12.0+) or a read-only list.
 - Magic: spells by level with slots, **Cast** (dnd5e casting dialog), Prepare toggle where dnd5e allows.
 - Features: class/species/background and features by type.
-- Ashen Gate: sub-tabs Professions, Perks, Standing, Quests, Locations, Base, each a read-only panel with an Open button (see below).
+- Ashen Gate: sub-tabs Professions, Perks, Standing, Quests, Locations, Base. Each shows that module's own view when it offers an embed (see below), else a read-only summary with an Open button.
 - Companions: one mount and GM-limited pets, each an Item on the character, with perk Items attached (display only).
-- Rest: Short/Long Rest through dnd5e's rest dialogs.
 - GM Setup (GM only): default pet limit and per-character limits.
+
+## Embedded module views
+When a partner module offers `api.embed.mount(element, {actorId, mode})` (returning `{unmount, refresh}`), the Hub shows that module's own view in place of its summary. The partner draws it, handles its buttons and checks its own permissions; the Hub only provides the element and keeps the view alive across re-renders. Modes the Hub asks for: Utilities `stash` (Inventory → Party stash), Profession Ledger `individual`, Skill Trees, Factions, Quest Log, Locations and Headquarters `character`. A partner without the API, or that throws, falls back to the summary or a short note.
 
 ## Ashen Gate panels
 Each panel uses only that module's public API (`game.modules.get(id)?.api`) and shows only what that module lets the current user see. Missing, hidden or failing modules show "Not installed" or "Unavailable"; the sheet keeps working.
@@ -42,6 +44,7 @@ APIs that would make the panels fuller (to request from the owning modules):
 - `flags.ashen-gate-character-hub.slot` on an Item, when the owner moves or swaps it to another equipment slot. It changes only where the item shows.
 - `flags.ashen-gate-character-hub.companions` on a character: the ordered companion list `[{id, kind: 'mount'|'pet', itemId, perkItemIds}]`. The Items themselves are ordinary Items on the character.
 - World settings `petCap` (default 2) and `petCapOverrides` (`{actorId: number | 'none' | 'unlimited'}`), GM only.
+- Client setting `windowOpacity` (20-100, default 100): this user's window background opacity.
 
 ## Companions
 One mount per character; pets up to the GM's limit (world default 2, per-character override). Limits are checked in the add function itself, not just the UI, and lowering a limit never removes pets. Perk Items attached to a companion only display their own text: the Hub does not apply bonuses or Active Effects.
