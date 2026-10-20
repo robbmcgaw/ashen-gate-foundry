@@ -7,13 +7,14 @@ import {lookupWorldDefinition,readWorldDefinition} from './definition-lookup.mjs
 import {planCraft,craftBlockers,executeCraft,resultItemData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,requiredToolRef,toolRefLabel,heldTool,
-  checkOption,rollModeFor,rollCheck,formatBonus} from './checks.mjs';
+  checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS} from './checks.mjs';
+import {PROFESSION_KEYS,professionTitle,catalogCrosswalk,unmappedProfessions,assignmentPlan,rowId} from './assign.mjs';
 import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,gatherOutcome,gatherReward,exhaustsNode,helperEligibility,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
   stackMaterial} from './gathering.mjs';
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.15.0';
+const VERSION='0.16.0';
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...}. */
 const XP_HOOK='ashenGateLedger.xpOpportunity';
@@ -75,7 +76,7 @@ const heldRecipeItems=(actor)=>Array.from(actor?.items??[]).filter(item=>classif
 /** Players only ever see released recipe items; drafts are GM information, not player noise. */
 const recipeItems=(actor)=>heldRecipeItems(actor).filter(item=>game.user.isGM||sourceAvailableToPlayer(item));
 const itemStatus=item=>item?.flags?.['ashen-gate-manager']?.source?.status??'approved';
-const GM_VIEWS=new Set(['gm']);
+const GM_VIEWS=new Set(['gm','assign']);
 const LEGACY_VIEWS={materials:'party',recipes:'party',planner:'individual',learning:'individual',roster:'gm'};
 const HIDDEN_STATUSES=['draft','proposed','superseded','retired','placeholder'];
 const hiddenFromPlayers=(recipe)=>HIDDEN_STATUSES.includes(recipe?.status)||['gm','reveal_gated'].includes(recipe?.sourceVisibility);
@@ -358,7 +359,81 @@ const extraCost=recipe=>{const gp=Number(recipe?.sourceDefinition?.additional_gp
 
 /** GM Setup: profession → tool, and gathering profession → check skill (defaults filled in). */
 const checkMapping=()=>effectiveMapping(game.settings.get(ID,'checkMapping'));
+/** The saved shape of the mapping (what GM Setup edits and saves): check tool/skill plus the GM's own crosswalk lists. */
+const mappingDraft=map=>({tools:{...map.tools},skills:{...map.skills},...Object.fromEntries(CROSSWALK_LISTS.map(l=>[l,structuredClone(map.gm[l])]))});
 const professionTool=name=>{const key=checkMapping().tools[professionKey(name)];return key?{key,uuid:null,name:null}:null;};
+/** GM-configured advantage tools for a profession's checks (none unless the GM set them in GM Setup). */
+const advantageToolsFor=name=>{const k=professionKey(name);return k?[...(checkMapping().advantageTools[k]??[])]:[];};
+
+/** GM: imported, active PROF-* Profession Items with their definitions (the catalog layer and the Items to assign). */
+function professionDefinitions(){
+  if(!game.user?.isGM)return [];
+  const out=[];
+  for(const doc of game.items?.contents??[]){
+    const id=agSourceId(doc);if(!/^PROF-[A-Z0-9-]+$/.test(id??'')||classify(doc)!=='Profession')continue;
+    const hit=lookupWorldDefinition(game,id,{entityType:'Profession'});
+    if(hit.status!=='ok'||hit.document!==doc)continue;
+    const def=hit.source?.definition??{},name=def.name??professionDisplayName(doc);
+    const named=professionKey(name),key=PROFESSION_KEYS.includes(named)?named:professionKeyFromId(id);
+    out.push({sourceId:id,name,access:def.access??null,key:PROFESSION_KEYS.includes(key)?key:null,uuid:doc.uuid,itemName:doc.name,doc});
+  }
+  return out;
+}
+/** GM: the crosswalk with the catalog layer, for Assign and the GM Setup table. `stored` defaults to the saved setting. */
+function crosswalkInfo(stored=game.settings.get(ID,'checkMapping')){
+  const defs=professionDefinitions(),cat=catalogCrosswalk(defs);
+  return {defs,...cat,map:effectiveMapping(stored,{catalog:cat.catalog})};
+}
+const requireAssignGM=()=>{if(!game.user?.isGM)throw Error('Only the GM can assign professions');};
+/** Assign targets: the given characters, else the Ledger party, else dnd5e's Primary Party. */
+function assignActors(actorIds=null){
+  if(Array.isArray(actorIds)&&actorIds.length)return actorIds.map(id=>game.actors?.get?.(id)).filter(a=>a?.type==='character');
+  const party=partyActors();if(party.length)return party;
+  try{const members=game.settings.get('dnd5e','primaryParty')?.actor?.system?.members??[];
+    return [...members].map(m=>m?.actor??m).filter(a=>a?.type==='character');}catch{return [];}
+}
+/** Profession keys a character already holds: any profession feature, tagged or named, so nothing is duplicated. */
+const heldProfessionKeys=actor=>new Set(Array.from(actor?.items??[]).filter(i=>classify(i)==='Profession').map(i=>professionKey(professionDisplayName(i))).filter(Boolean));
+const heldProfessionIds=actor=>new Set(Array.from(actor?.items??[]).map(agSourceId).filter(id=>/^PROF-/.test(id??'')));
+/** GM dry run: what each character qualifies for, with the reason, and what is missing. Changes nothing. */
+function assignPreview({actorIds=null}={}){
+  requireAssignGM();
+  const info=crosswalkInfo(),items=new Map();
+  for(const d of info.defs)if(d.key){if(!items.has(d.key))items.set(d.key,[]);items.get(d.key).push(d);}
+  const actors=assignActors(actorIds);
+  const rows=assignmentPlan(actors,info.map,{professionItems:items,heldKeys:heldProfessionKeys,heldIds:heldProfessionIds}).map(r=>({...r,id:rowId(r)}));
+  return {actors:actors.map(a=>({id:a.id,name:a.name})),rows,unmapped:unmappedProfessions(info.map),unresolved:info.unresolved,conflicts:info.conflicts};
+}
+const assignLocks=new Set();
+/**
+ * GM: add the missing Profession Items. `rowIds` limits it to those proposals (from assignPreview); otherwise every
+ * proposal. Re-checks each character just before adding, so re-running adds nothing. Never touches XP, progression,
+ * Skill Tree perks or existing Items.
+ */
+async function assignProfessions({actorIds=null,rowIds=null}={}){
+  requireAssignGM();
+  const plan=assignPreview({actorIds});
+  const picked=plan.rows.filter(r=>r.status==='propose'&&(!Array.isArray(rowIds)||rowIds.includes(r.id)));
+  const defs=new Map(professionDefinitions().map(d=>[d.sourceId,d]));
+  const added=[],skipped=[];
+  for(const actorId of [...new Set(picked.map(r=>r.actorId))]){
+    const actor=game.actors?.get?.(actorId);
+    if(!actor||assignLocks.has(actorId)){skipped.push({actorId,reason:'busy or missing'});continue;}
+    assignLocks.add(actorId);
+    try{
+      const keys=heldProfessionKeys(actor),ids=heldProfessionIds(actor),data=[];
+      for(const row of picked.filter(r=>r.actorId===actorId)){
+        const def=defs.get(row.sourceId);
+        if(!def||ids.has(row.sourceId)||keys.has(row.key)){skipped.push({...row,reason:'already has it'});continue;}
+        const copy=def.doc.toObject();
+        for(const k of ['_id','folder','sort','ownership'])delete copy[k];
+        data.push(copy);ids.add(row.sourceId);keys.add(row.key);added.push({actorId,actorName:actor.name,profession:row.profession,sourceId:row.sourceId,reason:row.reason});
+      }
+      if(data.length)await actor.createEmbeddedDocuments('Item',data);
+    }finally{assignLocks.delete(actorId);}
+  }
+  return {added,skipped};
+}
 /**
  * What a recipe needs at the bench. Its own tool wins; a workstation-only recipe needs no tool; otherwise
  * the profession's tool. The tool check uses the recipe's tool, else the profession's tool.
@@ -662,7 +737,8 @@ async function craft(actor,recipeId,{confirm=true}={}){
   const req=craftRequirement(recipe,actor);
   const cplan=req.checkPlan,choiceOf=o=>`${o.kind}:${o.key??o.ref?.name??o.ref?.uuid}`;
   let picked=cplan?.selected??null;
-  const presetOf=o=>o?.key?rollModeFor(actor,{kind:o.kind,key:o.key}):{mode:0,sources:[]};
+  const advantageTools=advantageToolsFor(professionLabel(recipe));
+  const presetOf=o=>o?.key?rollModeFor(actor,{kind:o.kind,key:o.key},{advantageTools}):{mode:0,sources:[]};
   let option=picked?checkOption(actor,picked):null;
   const preset=presetOf(picked);
   let mode=preset.mode;
@@ -808,7 +884,7 @@ function gatherCheckPlan(lead,node){
   const hasTool=tool&&(heldTool(lead,tool)||checkOption(lead,{kind:'tool',key:toolKey}).proficient);
   const first=hasTool||!skill?options[0]:options.find(o=>o.kind==='skill'&&o.key===skill);
   const profItem=pk?professionItems(lead).find(i=>professionKey(professionDisplayName(i))===pk):null;
-  return {profession,professionKey:pk,toolKey,skill,options,selected:`${first.kind}:${first.key}`,
+  return {profession,professionKey:pk,toolKey,skill,options,selected:`${first.kind}:${first.key}`,advantageTools:pk?[...(map.advantageTools[pk]??[])]:[],
     professionId:profItem?agSourceId(profItem):null,professionName:profItem?professionDisplayName(profItem):profession};
 }
 const parseChoice=(plan,choice)=>plan.options.find(o=>`${o.kind}:${o.key}`===choice)??null;
@@ -819,7 +895,7 @@ function helperInfo(helpers,lead,plan){
 /** The roll prompt sent to whoever rolls for the lead. Only public node details. */
 function gatherProjection(session){
   return {sessionId:session.id,actorId:session.leadId,actorName:session.leadName,title:publicNodeTitle(session.node),
-    summary:nodeSummary(session.node,{forPlayers:true}),dc:session.node.dcVisible?session.node.dc:null,options:session.plan.options,selected:session.plan.selected,
+    summary:nodeSummary(session.node,{forPlayers:true}),dc:session.node.dcVisible?session.node.dc:null,options:session.plan.options,selected:session.plan.selected,advantageTools:session.plan.advantageTools??[],
     assists:session.helpers.filter(h=>h.eligible).map(h=>h.name)};
 }
 
@@ -932,7 +1008,7 @@ async function resolveGather(sessionId,{total,choice,mode=0,by=''}){
 function rollFields(actor,proj,prefix=''){
   const opts=proj.options.map(o=>{const c=checkOption(actor,o);return `<option value="${esc(`${o.kind}:${o.key}`)}" ${proj.selected===`${o.kind}:${o.key}`?'selected':''}>${esc(c.label)}${o.kind==='tool'?' (tool)':''} ${formatBonus(c.bonus)}</option>`;}).join('');
   const sel=parseChoice({options:proj.options},proj.selected);
-  const preset=rollModeFor(actor,sel??{},{assists:proj.assists});
+  const preset=rollModeFor(actor,sel??{},{assists:proj.assists,advantageTools:Array.isArray(proj.advantageTools)?proj.advantageTools:[]});
   return `<div class="agl-roll-fields"><label class="ag-field">Check (bonus)<select name="check" ${prefix?`data-gather-roll-check="${esc(prefix)}"`:''}>${opts}</select></label>
     <label class="ag-field">Roll ${modeSelect(preset.mode,`name="mode" ${prefix?`data-gather-roll-mode="${esc(prefix)}"`:''}`)}</label></div>
     <p class="agl-sub">${esc(modeHint(preset))}</p>`;
@@ -1171,11 +1247,12 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       // Exotic picker filters: profession and tier default to the ad-hoc node's own.
       pick:{query:'',profession:'node',tier:'node'}};
     this.exoticDraft=null;
+    this.assignState={target:'party',preview:null,selected:new Set()};
   }
   get actors(){return partyActors();}
   get library(){return catalog();}
   get actor(){const mine=myCharacters();return mine.find(a=>a.id===this.actorId)??mine[0]??null;}
-  _tabs(){const names=[['individual','Individual'],['party','Party'],['catalog','Recipe Catalog'],['gathering','Gathering'],...(game.user.isGM?[['gm','GM Setup']]:[])];
+  _tabs(){const names=[['individual','Individual'],['party','Party'],['catalog','Recipe Catalog'],['gathering','Gathering'],...(game.user.isGM?[['assign','Assign'],['gm','GM Setup']]:[])];
     return names.map(([key,title])=>`<button type="button" data-action="tab" data-id="${key}" class="${this.view===key?'active':''}" aria-current="${this.view===key?'page':'false'}">${title}</button>`).join('');}
   _search(placeholder){return `<input type="search" class="agl-search" data-agl-search value="${esc(this.query)}" placeholder="${esc(placeholder)}" aria-label="${esc(placeholder)}">`;}
   _noRoster(){return `<div class="ag-empty">The GM hasn’t chosen the party yet. ${game.user.isGM?'<button type="button" class="ag-btn" data-action="tab" data-id="gm">Choose the party in GM Setup →</button>':'Ask your GM to set up the party in the Profession Ledger.'}</div>`;}
@@ -1286,16 +1363,59 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     </section>`;
   }
   get exoticDirty(){return this.exoticDraft!==null&&clampPercent(this.exoticDraft,exoticPercent())!==exoticPercent();}
-  /** Profession → tool (crafting default and gathering), and gathering profession → check skill. */
+  /** Profession → tool (crafting default and gathering), gathering profession → check skill, and (0.16.0) the
+   * Assign crosswalk: qualifying skills/tools and advantage tools. Unticked lists follow the catalog, else the check tool/skill. */
   _toolSetup(){
-    const map=this.mapDraft??checkMapping(),keys=toolKeys();
+    const draft=this.mapDraft??mappingDraft(checkMapping());
+    const {map,catalog,unresolved,conflicts}=crosswalkInfo(draft),keys=toolKeys();
+    const ORIGIN={gm:'set by you',catalog:'from the Profession catalog',default:'from the check tool/skill'};
+    const multi=(k,name,list,options,labelOf,current)=>`<details class="agl-multi"><summary>${current.length?esc(current.map(labelOf).join(', ')):'<span class="agl-sub">None</span>'}</summary>
+      <div class="agl-multi-list">${options.map(o=>`<label><input type="checkbox" data-map-list="${list}" data-map-prof="${esc(k)}" value="${esc(o)}" ${current.includes(o)?'checked':''}> ${esc(labelOf(o))}</label>`).join('')}</div></details>`;
     const rows=PROFESSION_NAMES.map(name=>{const k=professionKey(name),gathering=GATHERING_PROFESSIONS.includes(name),hasSkill=gathering||k==='enchanting';
+      const origin=map.origin[k]??{},adv=draft.advantageTools[k]??[],suggest=!draft.advantageTools[k]&&catalog[k]?.advantageTools?.length?catalog[k].advantageTools:[];
+      const custom=CROSSWALK_LISTS.some(l=>draft[l][k]);
       return `<tr><th scope="row">${esc(name)}${gathering?' <small class="agl-sub">gathering</small>':''}</th>
         <td><select data-map-tool="${esc(k)}" aria-label="${esc(name)} tool"><option value="">— None —</option>${keys.map(t=>`<option value="${esc(t)}" ${map.tools[k]===t?'selected':''}>${esc(toolLabel(t))}</option>`).join('')}</select></td>
-        <td>${hasSkill?`<select data-map-skill="${esc(k)}" aria-label="${esc(name)} ${gathering?'gathering':'craft'} skill"><option value="">— None —</option>${SKILL_IDS.map(sk=>`<option value="${sk}" ${map.skills[k]===sk?'selected':''}>${esc(skillLabel(sk))}</option>`).join('')}</select>`:'<span class="agl-sub">—</span>'}</td></tr>`;}).join('');
+        <td>${hasSkill?`<select data-map-skill="${esc(k)}" aria-label="${esc(name)} ${gathering?'gathering':'craft'} skill"><option value="">— None —</option>${SKILL_IDS.map(sk=>`<option value="${sk}" ${map.skills[k]===sk?'selected':''}>${esc(skillLabel(sk))}</option>`).join('')}</select>`:'<span class="agl-sub">—</span>'}</td>
+        <td>${multi(k,name,'qualifySkills',SKILL_IDS,skillLabel,map.qualifySkills[k]??[])}<small class="agl-sub">${esc(ORIGIN[origin.qualifySkills]??'')}</small></td>
+        <td>${multi(k,name,'qualifyTools',keys,toolLabel,map.qualifyTools[k]??[])}<small class="agl-sub">${esc(ORIGIN[origin.qualifyTools]??'')}</small></td>
+        <td>${multi(k,name,'advantageTools',keys,toolLabel,adv)}${suggest.length?`<small class="agl-sub">Catalog suggests ${esc(suggest.map(toolLabel).join(', '))}; tick to use</small>`:''}</td>
+        <td>${custom?`<button type="button" class="ag-btn" data-action="map-reset" data-id="${esc(k)}" title="Clear your qualifying and advantage choices for ${esc(name)}">Reset</button>`:''}</td></tr>`;}).join('');
+    const notes=[...unresolved.map(u=>`${u.profession}: catalog ${u.field==='skillProficienciesAnyOf'?'skill':'tool'} “${u.name}” matches no dnd5e ${u.field==='skillProficienciesAnyOf'?'skill':'tool'} and is ignored.`),
+      ...conflicts.map(c=>`${c}: several imported Profession definitions disagree, so the catalog is not used for it.`)];
     return `<section class="ag-card agl-panel"><h2>Tools and checks</h2>
       <p class="agl-sub">The tool each profession uses. A recipe with no tool or workstation of its own needs its profession’s tool, and crafting rolls a check with it (shown on the craft card; it doesn’t decide success yet). Gathering offers the tool check and, for gathering professions, the skill below; the roller can pick another skill. Enchanting’s main check is the Arcana skill: a craft offers it, and also the recipe’s own tool (such as Jeweler’s Tools) when it names one. Helpers carrying the tool give advantage. Saved with <b>Save Changes</b>.</p>
-      <div class="agl-map-wrap"><table class="agl-map"><thead><tr><th>Profession</th><th>Tool</th><th>Check skill (gathering / Enchanting)</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+      <p class="agl-sub"><b>Qualifying skills / tools</b> are what the <b>Assign</b> tab reads: proficiency in any one of them qualifies a character for the profession. Until you tick your own, they come from the imported Profession catalog, else the check tool and skill. <b>Advantage tools</b>: a character proficient with, or carrying, one of them starts that profession’s gathering and crafting checks with advantage. Only tools you tick here count.</p>
+      ${notes.length?`<ul class="agl-sub">${notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`:''}
+      <div class="agl-map-wrap"><table class="agl-map"><thead><tr><th>Profession</th><th>Tool</th><th>Check skill (gathering / Enchanting)</th><th>Qualifying skills</th><th>Qualifying tools</th><th>Advantage tools</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+  }
+  /** GM: assign the profession features characters qualify for (dry run, then confirm). Not part of GM Setup. */
+  _assign(){
+    if(!game.user.isGM)return '<div class="ag-empty">Assign is restricted to the GM.</div>';
+    const a=this.assignState,party=assignActors(),chars=allCharacters();
+    const target=`<label class="ag-field ag-field--inline">Characters <select data-assign-target><option value="party" ${a.target==='party'?'selected':''}>Whole party (${party.length})</option>${chars.map(c=>`<option value="${esc(c.id)}" ${a.target===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label>`;
+    const p=a.preview;
+    let body='<p class="agl-sub">Preview shows each character’s profession matches. Nothing changes until you confirm.</p>';
+    if(p){
+      const proposals=p.rows.filter(r=>r.status==='propose');
+      const STATUS={has:['Already has','muted'],'no-item':['No imported Profession Item: import it with Manager','warn'],conflict:['Several imported Profession Items: archive the extra one in Manager','warn']};
+      const groups=p.actors.map(act=>{const rows=p.rows.filter(r=>r.actorId===act.id);
+        return `<tr class="agl-assign-actor"><th colspan="4" scope="rowgroup">${esc(act.name)}${rows.length?'':' <span class="agl-sub">— no skill or tool proficiency matches a profession</span>'}</th></tr>${rows.map(r=>`<tr>
+          <td>${r.status==='propose'?`<input type="checkbox" data-assign-row="${esc(r.id)}" ${a.selected.has(r.id)?'checked':''} aria-label="Add ${esc(r.profession)} to ${esc(r.actorName)}">`:''}</td>
+          <td>${esc(r.profession)}</td><td>${esc(r.reason)}</td>
+          <td>${r.status==='propose'?badge(`Will add ${r.itemName}`,'ok'):badge(...STATUS[r.status])}</td></tr>`).join('')}`;}).join('');
+      const notes=[p.unmapped.length?`No qualifying skill or tool is set for ${p.unmapped.join(', ')}, so nobody is proposed for ${p.unmapped.length===1?'it':'them'}. Set them in GM Setup → Tools and checks.`:'',
+        ...p.conflicts.map(c=>`${c}: imported Profession definitions disagree; check them in Manager.`)].filter(Boolean);
+      body=`${notes.map(n=>`<p class="agl-sub">${esc(n)}</p>`).join('')}
+        <div class="agl-map-wrap"><table class="agl-map agl-assign"><thead><tr><th></th><th>Profession</th><th>Reason</th><th>Result</th></tr></thead><tbody>${groups||'<tr><td colspan="4">No characters to check.</td></tr>'}</tbody></table></div>
+        <p class="agl-sub">${proposals.length?`${plural(proposals.length,'profession feature')} to add. Adding never changes XP, levels, perks or existing Items.`:'Nothing new to add.'}</p>
+        <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="assign-apply" data-id="selected" ${[...a.selected].some(id=>proposals.some(r=>r.id===id))?'':'disabled'}>Add selected</button>
+          <button type="button" class="ag-btn ag-btn--primary" data-action="assign-apply" data-id="all" ${proposals.length?'':'disabled'}>Add all missing (${proposals.length})</button></div>`;
+    }
+    return `<section class="ag-card agl-panel"><h2>Assign professions</h2>
+      <p class="agl-sub">Matches each character’s skill and tool <b>proficiencies</b> (not class) against GM Setup → Tools and checks, and proposes the imported PROF-* Profession features they don’t have yet.</p>
+      <div class="ag-toolbar agl-toolbar">${target}<button type="button" class="ag-btn" data-action="assign-preview"><i class="fa-solid fa-magnifying-glass"></i> Preview</button></div>
+      ${body}</section>`;
   }
   _help(){return `<section class="ag-card agl-panel agl-help"><h2>Profession Ledger Help</h2>
     <p><strong>Individual:</strong> your character’s crafting bench: professions with level and XP, materials, recipe items you can learn, and known recipes. <em>Craft</em> checks you know the recipe and have the materials, uses them up and puts the crafted item in your inventory, with a chat card. If a party member has what you’re missing, <em>Craft — ask the party</em> asks their owner on their screen; any decline cancels and nothing is used.</p>
@@ -1306,6 +1426,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>Gathering:</strong> pick a gathering spot at a location your party knows and send a request; the GM approves it. The lead gatherer rolls one check for the party (skill or tool bonus shown, advantage preset from the sheet, effects and helpers). Success gives one common bundle, success by 5+ a rare one instead; failure exhausts the spot. The result is posted in chat.</p>
     <p><strong>Tools:</strong> a recipe shows the tool or workstation it needs and warns if your character doesn’t carry the tool. Crafting rolls a tool check; the result is on the craft card. Gold costs are shown, not deducted.</p>
     <p><strong>XP:</strong> the GM awards profession XP from the gather and craft chat cards.</p>
+    ${game.user.isGM?'<p><strong>Assign:</strong> preview which profession features each party character qualifies for from their skill and tool proficiencies, then add the missing ones. Re-running adds nothing new; XP is never changed.</p>':''}
     ${game.user.isGM?'<p><strong>GM Setup:</strong> choose the party, Player Access, and the tool and check mapping. Recipe imports and Manager are in the Recipe Catalog tab; XP is awarded from the Individual tab.</p>':''}
     <button type="button" class="ag-btn" data-action="help-back">Back</button>
   </section>`;}
@@ -1438,7 +1559,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     this.view=LEGACY_VIEWS[this.view]??this.view;
     if(!game.user.isGM){this.rosterDraft=null;if(GM_VIEWS.has(this.view))this.view='individual';}
     const lib=this.library;
-    const content=({individual:()=>this._individual(lib),party:()=>this._party(lib),catalog:()=>this._catalog(lib),gathering:()=>this._gathering(),gm:()=>this._gmSetup(),help:()=>this._help()})[this.view]?.()??this._individual(lib);
+    const content=({individual:()=>this._individual(lib),party:()=>this._party(lib),catalog:()=>this._catalog(lib),gathering:()=>this._gathering(),assign:()=>this._assign(),gm:()=>this._gmSetup(),help:()=>this._help()})[this.view]?.()??this._individual(lib);
     const inGm=game.user.isGM&&this.view==='gm';
     return {...ctx,html:`<div class="agl-shell"><header class="ag-header agl-header"><div class="ag-header__title agl-title">Ashen Gate | <strong>Profession Ledger</strong></div>
       <div class="ag-header__meta agl-header-right"><span class="agl-version">v${esc(game.modules.get(ID)?.version??VERSION)}</span><button type="button" class="ag-btn" data-action="help">Help</button></div>
@@ -1468,7 +1589,9 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         if(entry&&['mode','chance','condition'].includes(k)){entry[k]=e.target.value;this.gather.adhoc.exotics=normalizeExotics(this.gather.adhoc.exotics.map(x=>x===entry?{chance:'',...x}:x));}
         this.render();return;}
       if(e.target?.matches?.('[data-exotic-chance]')&&game.user.isGM){this.exoticDraft=e.target.value;this._syncRosterActions();return;}
-      if(e.target?.matches?.('[data-map-tool],[data-map-skill]')&&game.user.isGM){this._rememberMapDraft(e.target);return;}
+      if(e.target?.matches?.('[data-map-tool],[data-map-skill],[data-map-list]')&&game.user.isGM){this._rememberMapDraft(e.target);return;}
+      if(e.target?.matches?.('[data-assign-target]')&&game.user.isGM){this.assignState={target:e.target.value,preview:null,selected:new Set()};this.render();return;}
+      if(e.target?.matches?.('[data-assign-row]')&&game.user.isGM){const id=e.target.dataset.assignRow;if(e.target.checked)this.assignState.selected.add(id);else this.assignState.selected.delete(id);this.render();return;}
       if(e.target?.matches?.('[data-roster-actor]')&&game.user.isGM)this._rememberRosterDraft();
     },{signal});
     this.element.querySelector('[data-agl-search]')?.addEventListener('input',e=>{this.query=e.target.value;this._applySearch();},{signal});
@@ -1498,6 +1621,18 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(action==='actor'||action==='open-individual'){if(!myCharacters().some(a=>a.id===id))throw Error('You can only open your own character');this.actorId=id;this.view='individual';this.render();return;}
       if(action==='party-sort'){this.partySort=id==='profession'?'profession':'player';this.render();return;}
       if(action==='demo')throw Error('Demonstration mode was removed. Use an isolated test world with imported source definitions.');
+      if(action==='map-reset'){if(!game.user.isGM)throw Error('GM only');this.mapDraft??=mappingDraft(checkMapping());for(const l of CROSSWALK_LISTS)delete this.mapDraft[l][id];this.render();return;}
+      if(action==='assign-preview'){requireAssignGM();const a=this.assignState;
+        a.preview=assignPreview({actorIds:a.target==='party'?null:[a.target]});a.selected=new Set(a.preview.rows.filter(r=>r.status==='propose').map(r=>r.id));this.render();return;}
+      if(action==='assign-apply'){requireAssignGM();const a=this.assignState;if(!a.preview)throw Error('Preview first');
+        const rows=a.preview.rows.filter(r=>r.status==='propose'&&(id==='all'||a.selected.has(r.id)));
+        if(!rows.length)throw Error('Nothing selected to add');
+        const ok=await DialogV2.confirm({window:{title:'Add profession features?'},modal:true,rejectClose:false,
+          content:`<p>Add these profession features:</p><ul>${rows.map(r=>`<li><strong>${esc(r.actorName)}</strong>: ${esc(r.profession)} <small>(${esc(r.reason)})</small></li>`).join('')}</ul><p>XP, levels, Skill Tree perks and existing Items are not changed.</p>`});
+        if(!ok)return;
+        const out=await assignProfessions({actorIds:a.target==='party'?null:[a.target],rowIds:rows.map(r=>r.id)});
+        a.preview=assignPreview({actorIds:a.target==='party'?null:[a.target]});a.selected=new Set();
+        this.notice=`Added ${plural(out.added.length,'profession feature')}${out.skipped.length?`; ${out.skipped.length} skipped (already there)`:''}.`;this.render();say(this.notice);return;}
       if(action==='toggle-player-access'){if(!game.user.isGM)throw Error('GM only');const next=!playerAccessEnabled();await setPlayerAccess(game,ID,next);this.notice=`Player interface ${next?'visible':'hidden'}. Actor progression and known recipes are unchanged.`;this.render();say(this.notice);return;}
       if(action==='manager'){if(!game.user.isGM)throw Error('GM only');const m=game.modules.get('ashen-gate-manager');const api=m?.active?m.api:null;if(api?.open)api.open();else say('Ashen Gate Manager is not enabled.',true);return;}
       if(action==='skilltree'){const module=game.modules.get('ashen-gate-skill-trees');const api=module?.active?module.api:null;
@@ -1561,16 +1696,26 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     this.rosterDraft=new Set(inputs.filter(el=>el.checked).map(el=>el.dataset.rosterActor));
     this._syncRosterActions();
   }
-  /** Unsaved tool/check mapping edits, compared with the effective saved mapping. */
+  /** Unsaved tool/check mapping edits, compared with the effective saved mapping (lists: with the GM's saved lists). */
   get mapDirty(){
     if(!this.mapDraft)return false;
-    const saved=checkMapping();
-    return ['tools','skills'].some(k=>{const a=this.mapDraft[k]??{},b=saved[k]??{};return [...new Set([...Object.keys(a),...Object.keys(b)])].some(x=>(a[x]??'')!==(b[x]??''));});
+    const saved=mappingDraft(checkMapping());
+    const flat=v=>Array.isArray(v)?JSON.stringify([...v].sort()):v??'';
+    return ['tools','skills',...CROSSWALK_LISTS].some(k=>{const a=this.mapDraft[k]??{},b=saved[k]??{};return [...new Set([...Object.keys(a),...Object.keys(b)])].some(x=>flat(a[x])!==flat(b[x]));});
   }
   _rememberMapDraft(el){
-    this.mapDraft??=structuredClone(checkMapping());
+    this.mapDraft??=mappingDraft(checkMapping());
     if(el.dataset.mapTool)this.mapDraft.tools[el.dataset.mapTool]=el.value;
     if(el.dataset.mapSkill)this.mapDraft.skills[el.dataset.mapSkill]=el.value;
+    if(el.dataset.mapList){
+      const list=el.dataset.mapList,k=el.dataset.mapProf;
+      const current=this.mapDraft[list][k]??(list==='advantageTools'?[]:crosswalkInfo(this.mapDraft).map[list][k]??[]);
+      const next=el.checked?[...new Set([...current,el.value])]:current.filter(v=>v!==el.value);
+      this.mapDraft[list][k]=next;
+      // Keep the picker open: refresh only its summary.
+      const summary=el.closest?.('details')?.querySelector?.('summary');
+      if(summary)summary.textContent=next.length?next.map(list==='qualifySkills'?skillLabel:toolLabel).join(', '):'None';
+    }
     this._syncRosterActions();
   }
   get setupStatus(){const n=[this.rosterDirty,this.mapDirty,this.exoticDirty].filter(Boolean).length;
@@ -1678,6 +1823,9 @@ Hooks.once('ready',()=>{
         eligibility:node=>{requireGM();return exoticRows(normalizeNode(node??{},{})??{}).map(({meta,...r})=>r);}}},
     /** Stable read contract for partner modules (Skill Trees). Never returns history or perk choices. */
     progression:{contract:PROGRESSION_CONTRACT,level:(actor,profId)=>progressionLevel(actor,profId)},
+    /** GM only (0.16.0): profession assignment from skill/tool proficiencies. preview changes nothing; apply adds missing PROF-* Items. */
+    assign:{preview:options=>{checkPlayerLedger();return structuredClone(assignPreview(options));},
+      apply:options=>{checkPlayerLedger();return assignProfessions(options);}},
     hooks:{xpOpportunity:XP_HOOK,progressionChanged:PROGRESSION_HOOK},
     version:VERSION,source:'Actor inventories, Manager tagged Items, and optional Ledger catalog'};
   game.socket?.on?.(SOCKET,(message,senderId)=>void onSocket(message,senderId));
