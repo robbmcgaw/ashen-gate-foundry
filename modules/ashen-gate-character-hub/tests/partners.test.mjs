@@ -120,3 +120,68 @@ test('Open buttons deep-link to the owning module with the character or record',
   installGlobals({modules: {}});
   assert.equal((await openPartner(actor, 'ashen-gate-factions')).ok, false);
 });
+
+/** 0.5.0: partners with the newer read APIs (Ledger 0.18, Skill Trees 0.13, Headquarters 0.9, Utilities 0.11). */
+function newerPartners() {
+  const mods = partners();
+  Object.assign(mods['ashen-gate-profession-ledger'].api, {getProfessions: () => [
+    {professionId: 'PROF-TEST-HERB', name: '[TEST] Herbalism', level: 3, xp: 20, xpToNext: 1, maxLevel: 16, tier: 'Apprentice', unspentPerkChoices: 0},
+    {professionId: 'PROF-TEST-MINE', name: '[TEST] Mining', level: 16, xp: 465, xpToNext: null, maxLevel: 16, tier: 'Master', unspentPerkChoices: 2}]});
+  mods['ashen-gate-skill-trees'].api.pointsSummary = () => [
+    {treeId: 'tree-smith', name: '[TEST] Smithing', kind: 'profession', level: 2, earned: 2, spent: 1, available: 1},
+    {treeId: 'tree-herb', name: '[TEST] Herbalism', kind: 'profession', level: 3, earned: 3, spent: 0, available: 3},
+    {treeId: 'tree-cinder', name: '[TEST] Cinders', kind: 'generic_points', level: null, earned: 2, spent: 1, available: 1}];
+  mods['ashen-gate-headquarters'].api.playerView = () => ({active: true, guildhall: {name: '[TEST] Lantern Hall', rank: 2},
+    facilities: [{key: 'k1', facilityId: 'FAC-TEST-DESK', name: '[TEST] Desk', stage: 'Basic', room: 'personal', roomOwner: 'Owner', benefits: []},
+      {key: 'k2', facilityId: 'FAC-TEST-FORGE', name: '[TEST] Forge', stage: 'Expanded', room: 'shared', roomOwner: null, benefits: []}],
+    hirelings: [], hirelingsPublished: false});
+  mods['ashen-gate-utilities'].api.stash.listItems = () => Array.from({length: 10}, (_, i) => ({id: `i${i}`, name: `[TEST] Item ${i}`, quantity: i === 0 ? 3 : 1}));
+  return mods;
+}
+
+test('newer partner APIs are used when present', () => {
+  installGlobals({user: users.owner, modules: newerPartners()});
+  const ledger = state('ashen-gate-profession-ledger').html;
+  assert.match(ledger, /\[TEST\] Herbalism.*Level 3.*20 XP · 1 XP to level 4/s);
+  assert.match(ledger, /\[TEST\] Mining.*Level 16.*maximum level.*2 perks to choose/s);
+  assert.doesNotMatch(ledger, /Smithing/, 'the Ledger list replaces the Skill Trees lookup');
+  assert.match(ledger, /2 known recipes/);
+  const trees = state('ashen-gate-skill-trees').html;
+  assert.match(trees, /Smithing.*1 point to spend.*1 of 2 spent.*Hammer Time/s);
+  assert.match(trees, /Herbalism.*3 points to spend/s, 'a tree with earned points shows even with no perks yet');
+  assert.match(trees, /Cinders.*1 point to spend.*1 of 2 spent/s);
+  assert.doesNotMatch(trees, /awarded/);
+  const hq = state('ashen-gate-headquarters').html;
+  assert.match(hq, /Lantern Hall · Rank 2/);
+  assert.match(hq, /\[TEST\] Desk.*Personal/s);
+  assert.match(hq, /\[TEST\] Forge.*Guildhall.*Expanded/s);
+  assert.match(hq, /Hirelings are managed by the GM/);
+  const util = state('ashen-gate-utilities').html;
+  assert.match(util, /42 gp, 5 sp/);
+  assert.match(util, /\[TEST\] Item 0.*×3/s);
+  assert.match(util, /\[TEST\] Item 7/);
+  assert.doesNotMatch(util, /\[TEST\] Item 8/);
+  assert.match(util, /and 2 more/);
+});
+
+test('newer APIs: empty, unavailable and refused cases', () => {
+  const mods = newerPartners();
+  mods['ashen-gate-profession-ledger'].api.getProfessions = () => [];
+  mods['ashen-gate-skill-trees'].api.pointsSummary = () => [{treeId: 'tree-smith', kind: 'profession', level: null, earned: null, spent: 1, available: null}];
+  mods['ashen-gate-headquarters'].api.playerView = () => ({active: false, guildhall: null, facilities: [], hirelings: [], hirelingsPublished: false});
+  mods['ashen-gate-utilities'].api.stash.listItems = () => { throw new Error('The GM has turned the party stash off.'); };
+  installGlobals({user: users.owner, modules: mods});
+  assert.match(state('ashen-gate-profession-ledger').html, /No professions yet/);
+  const trees = state('ashen-gate-skill-trees').html;
+  assert.match(trees, /Smithing/);
+  assert.doesNotMatch(trees, /to spend/, 'no points badge while the Ledger is unavailable');
+  assert.match(state('ashen-gate-headquarters').html, /Guildhall isn't open yet/);
+  const util = state('ashen-gate-utilities').html;
+  assert.match(util, /42 gp/);
+  assert.doesNotMatch(util, /stash is empty|turned the party stash off/, 'a refused stash list is left out quietly');
+  mods['ashen-gate-utilities'].api.stash.listItems = () => [];
+  assert.match(state('ashen-gate-utilities').html, /The stash is empty/);
+  mods['ashen-gate-profession-ledger'].api.getProfessions = () => { throw new Error('Actor access denied'); };
+  const orig = console.warn; console.warn = () => {};
+  try { assert.match(state('ashen-gate-profession-ledger').html, /Not available to you right now/); } finally { console.warn = orig; }
+});
