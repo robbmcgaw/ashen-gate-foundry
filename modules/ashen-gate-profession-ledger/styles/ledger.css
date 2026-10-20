@@ -144,3 +144,9 @@
 .agl-app .agl-exotic-list{list-style:none;margin:0;padding:0;display:grid;gap:var(--ag-space-1)}
 .agl-app .agl-exotic-row{display:flex;flex-wrap:wrap;align-items:center;gap:var(--ag-space-2)}
 .agl-app .agl-exotic-filters{flex-wrap:wrap;align-items:end}
+/* 0.16.0: crosswalk pickers and the Assign tab */
+.agl-multi summary{cursor:pointer;min-width:140px}
+.agl-multi-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:2px var(--ag-space-2);padding:var(--ag-space-1) 0}
+.agl-multi-list label{display:flex;gap:4px;align-items:center;white-space:nowrap}
+.agl-map td small.agl-sub{display:block}
+.agl-assign-actor th{padding-top:var(--ag-space-2)}
