@@ -173,7 +173,9 @@ test('API: pause/resume are GM-only; travel.state() is the same player-safe view
   assert.deepEqual(pState(), {status: 'active', leg: 0, legs: 4, paused: false, behaviours: {pace: 'normal'}, routeName: '[TEST] Old Road', routeKey: w.route.viewKey,
     from: {name: '[TEST] Harbor', key: w.harbor.pinKey}, to: {name: '[TEST] Mill', key: w.mill.pinKey}, log: []});
   await w.gm.nextLeg();                       // 10 vs 25%: a hazard, waiting for the GM
-  assert.doesNotMatch(JSON.stringify(pState()), /Fallen|chance|roll|25/, 'nothing about the waiting hazard');
+  // Random pin/route keys can contain "25" or "roll", so leave them out of the text checked.
+  const withoutKeys = JSON.stringify(pState(), (k, v) => /key$/i.test(k) ? undefined : v);
+  assert.doesNotMatch(withoutKeys, /Fallen|chance|roll|25/, 'nothing about the waiting hazard');
   await w.gm.shareHazard();
   assert.deepEqual(pState().log, [{leg: 1, text: '[TEST] Fallen tree'}]);
   await as(w.users.get('p1'), async () => {
