@@ -14,7 +14,8 @@ import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,gatherOutcome,gather
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.17.0';
+const VERSION='0.18.0';
+const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...}. */
 const XP_HOOK='ashenGateLedger.xpOpportunity';
@@ -108,6 +109,15 @@ function progressionLevel(actor,profId){
   if(!actor)throw Error('No Actor given');
   if(!game.user?.isGM&&actor.testUserPermission?.(game.user,'OBSERVER')!==true)throw Error('Actor access denied');
   return professionLevelOf(actor,profId,linkedProfession(actor,profId));
+}
+/** Public read (0.18.0) of a character's professions for partner modules (Character Hub). GM or the Actor's owner; never history or perk ids.
+ * Players never see GM-only or reveal-gated Profession Items (professionItems). Works without Skill Trees. */
+function listProfessions(actor){
+  if(!actor)throw Error('No Actor given');
+  checkPlayerLedger();
+  if(!game.user?.isGM&&actor.testUserPermission?.(game.user,'OWNER')!==true)throw Error('Actor access denied');
+  return professionsOf(actor).map(p=>({professionId:p.sourceId,name:p.name,level:p.level,xp:p.xp,xpToNext:p.toNext,maxLevel:MAX_PROFESSION_LEVEL,
+    tier:p.tier,unspentPerkChoices:progressOf(actor,p.sourceId)?.unspentPerkChoices??0}));
 }
 const xpEntry=(kind,extra={})=>({kind,at:Date.now(),by:game.user.id,byName:game.user.name,...extra});
 async function awardXP(actor,profId,points,extra={}){
@@ -1812,6 +1822,8 @@ Hooks.once('ready',()=>{
       if(view){const next=LEGACY_VIEWS[view]??view;current.view=!game.user.isGM&&GM_VIEWS.has(next)?'individual':next;}
       current.demo=false;current.render({force:true});return current;},
     getProfessionProgress:(actor,profId)=>{checkPlayerLedger();if(!actor?.testUserPermission?.(game.user,'OBSERVER')&&!game.user.isGM)throw Error('Actor access denied');return progressOf(actor,profId);},
+    /** 0.18.0: every profession this character has, as [{professionId,name,level,xp,xpToNext,maxLevel,tier,unspentPerkChoices}]. Owner or GM only. */
+    getProfessions:actor=>listProfessions(actor),
     awardProfessionXP:(actor,profId,amount)=>awardXP(actor,profId,amount),
     adjustProfessionXP:(actor,profId,options)=>adjustXP(actor,profId,options),
     getProfessionXPHistory:(actor,profId)=>{if(!game.user.isGM)throw Error('Only the GM can read XP history');return xpHistoryOf(actor,profId);},

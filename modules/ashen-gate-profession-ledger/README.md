@@ -20,7 +20,21 @@ Independent: it opens without any other Ashen Gate module. General Manager impor
 
 ## Public API
 
-`game.modules.get('ashen-gate-profession-ledger').api`: `open`, `playerAccess` (`ag-player-access/1`), `getProfessionProgress`, `getKnownRecipes`, `inspectProfessionPerkChoices`, `learnRecipe`, `craft`, `awardProfessionXP` / `adjustProfessionXP` / `getProfessionXPHistory` (GM), and `gathering.{nodes, start, resolve, cancel, request}` (start/resolve/cancel are GM-only).
+`game.modules.get('ashen-gate-profession-ledger').api`: `open`, `playerAccess` (`ag-player-access/1`), `getProfessions`, `getProfessionProgress`, `getKnownRecipes`, `inspectProfessionPerkChoices`, `learnRecipe`, `craft`, `awardProfessionXP` / `adjustProfessionXP` / `getProfessionXPHistory` (GM), and `gathering.{nodes, start, resolve, cancel, request}` (start/resolve/cancel are GM-only).
+
+### `getProfessions(actor)` (0.18.0)
+
+Read-only list of every profession the character has, for partner modules such as Character Hub. Works without Skill Trees.
+
+```js
+game.modules.get('ashen-gate-profession-ledger').api.getProfessions(actor)
+// → [{professionId: 'PROF-HERBALISM', name: 'Herbalism', level: 2, xp: 5, xpToNext: 8, maxLevel: 16,
+//     tier: 'Apprentice', unspentPerkChoices: 1}, ...]   sorted by name
+```
+
+- One row per `PROF-*` Profession Item on the Actor. A profession with no XP yet is level 1, 0 XP. `xpToNext` is XP still needed for the next level, `null` at `maxLevel` (16). `unspentPerkChoices` is 0 until the Ledger has tracked XP for that profession.
+- No professions → `[]`. Never returns XP history or chosen perk ids.
+- **Permission:** the GM, or a user with **Owner** permission on the Actor. Anyone else gets `Error('Actor access denied')`. Players also get an error while the GM has turned off the Ledger's Player Access. Players never see GM-only or reveal-gated Profession Items (same rule as the Ledger window).
 
 ## Install
 
