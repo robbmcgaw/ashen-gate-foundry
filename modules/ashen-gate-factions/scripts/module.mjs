@@ -1,6 +1,6 @@
 /** Renown (formerly Factions & Renown; id unchanged). Originally v0.6.0 Beta; Foundry V14 target. No mandatory companion module. */
 import {MODULE_ID,SCHEMA_VERSION,RECOVERED_GUILDS_DRAFT,makeFaction,upgradeFaction,groupStateDefaults,sourceDefinition,validateFaction,blankStanding,adjustStanding,progressFor,milestoneProjection,discoverable,projectedFolders,grantAutoKnowledge,secureEntryPreview,claimEligible,chooseOneEligible,rewardUnlocked,makeGroupRecord,makePersonalRecord,keyFor,overlayCampaign,extractCampaignDiscovery,fieldDisclosure,disclosedField,revealField,FIELD_KEYS} from './core.mjs';
-import {confirmDialog,formDialog,promptText,infoDialog} from './dialogs.mjs';
+import {confirmDialog,formDialog,promptText,infoDialog,esc} from './dialogs.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {addObjectiveRef,removeObjectiveRef,objectiveRefs,auditObjectiveRefs} from './objective-refs.mjs';
 import {planImport,runImport} from './import.mjs';
@@ -37,7 +37,7 @@ const getFolders=d=>d?.getFlag(MODULE_ID,'folderIndex');
 // Foundry's Journal folder is storage organization only, independent from the in-dashboard faction folders.
 // Do not set player visibility on the Folder. Journal ownership controls actual document access.
 const STORAGE_FOLDER_NAME='Ashen Gate — Factions Data';
-const BUILD_VERSION='0.9.0';
+const BUILD_VERSION='0.10.0';
 const isModuleJournal=d=>Boolean(getFaction(d)||getGroup(d)||getPersonal(d)||getView(d)||getFolders(d));
 async function ensureStorageFolder(){
   assertGM();
@@ -301,6 +301,8 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
     }catch(err){notifyError(err)}});
   }
   static async select(e,t){this.#selected=t.dataset.id;await this.render({force:true});}
+  /** 0.10.0: open on one faction (and the Player view for one character), for the embed's Open button. */
+  focus({factionId=null,actorId=null,tab=null}={}){if(factionId)this.#selected=factionId;if(actorId)this.#actor=actorId;if(tab==='player'||tab==='group')this.#tab=tab;}
   static async create(){try{assertGM();const name=nameValue(this.element,'new-faction-name');if(!name||name.length>120)throw Error('Faction name required (up to 120 characters).');const f=makeFaction({...idPair(),name});const doc=await JournalEntry.create({name,folder:(await ensureStorageFolder()).id,ownership:{default:NONE},flags:{[MODULE_ID]:{faction:f}}});await ensureGroup(doc);this.#selected=f.id;await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
   static async help(){const gm=game.user?.isGM;infoDialog('Renown Help',`<p><strong>Renown</strong> tracks the organizations your party has met and the Renown the group and each character have earned with them. Pick an organization on the left.</p><ul><li><strong>Group</strong> shows the party's standing with the selected organization, its milestones and what has been discovered.</li><li><strong>Player</strong> shows one character's personal Renown, information and rewards.${gm?'':' You can use <em>Share with Party</em> to share what you have discovered.'}</li>${gm?'<li><strong>Organizations</strong> lists every organization so you can search, create and edit them, add information entries and rewards, and manage folders.</li><li><strong>GM Setup</strong> holds settings such as Player Access, which hides the player interface without deleting any progress.</li>':''}</ul>${gm?'<p>Removing an entry, reward or objective reference, resetting service charges or clearing a milestone choice always asks you to confirm first.</p>':'<p>Rewards your character can claim are requested here and confirmed by the GM.</p>'}`)}
   static async seed(){try{assertGM();if(!await confirmDialog('Add four unapproved example guilds? Existing names are skipped.',{title:'Add example guilds',yes:'Add guilds'}))return;let count=0;for(const g of RECOVERED_GUILDS_DRAFT){if(defs().some(d=>getFaction(d).name.toLowerCase()===g.name.toLowerCase()))continue;const f=makeFaction({...idPair(),...g,initialBenefit:g.initial_benefit,source:'Recovered Fosstryn journal drafts; not canonical'});const d=await JournalEntry.create({name:f.name,folder:(await ensureStorageFolder()).id,ownership:{default:NONE},flags:{[MODULE_ID]:{faction:f}}});await ensureGroup(d);count++;}await reproject();ui.notifications.info(`${count} example guilds added.`);await this.render({force:true});}catch(e){notifyError(e)}}
@@ -404,10 +406,60 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
   static async exportAll(){try{assertGM();jsonDownload({schema_version:'ag-factions-source-export/0.3',definitions:defs().map(d=>sourceDefinition(getFaction(d))),note:'Excludes all mutable campaign state and user discovery state.'},'AG_Factions_Definitions.json');}catch(e){notifyError(e)}}
 }
 function rankOf(ms,score){return[...ms].reverse().find(m=>score>=m.threshold)?.name??'Unproven';}
+/* ---- 0.10.0: embed API. A partner module (Character Hub) mounts a compact, read-only standing list for one character:
+   each faction this user may see, with party and this character's rank and score, the next milestone, and Open.
+   Built from the same sources as the dashboard: GM state for the GM, the user's own filtered player view for players.
+   Claims, requests and GM awards stay in the Factions window. ---- */
+const EMBED_MODES=new Set(['character']);
+const embeds=new Set();
+const nextOf=(ms,score)=>[...ms].sort((a,b)=>a.threshold-b.threshold).find(m=>m.threshold>score)??null;
+/** Rows for the embed. `personal` is null when this user may not see that character's standing (not theirs). */
+function standingRows(actorId){
+  if(game.user.isGM){
+    return defs().map(d=>{const f=upgradeFaction(loadDef(d)),g=getGroup(groupDoc(f.id))??makeGroupRecord({factionId:f.id}),p=actorId?getPersonal(personalDoc(f.id,actorId)):null;
+      const gs=g?.standing?.score??0,ps=p?.standing?.score??0;
+      return {id:f.id,name:f.name,group:{score:gs,rank:progressFor(f.renown_track,gs).rank.name,next:nextOf(f.renown_track.milestones,gs)},
+        personal:actorId?{score:ps,rank:progressFor(f.individual_track,ps).rank.name,next:nextOf(f.individual_track.milestones,ps)}:null};});
+  }
+  const view=getView(userViewDoc(game.user))?.payload;
+  return (view?.factions??[]).map(f=>{const gms=f.groupTrack?.milestones??[],gs=f.group?.score??0,mine=f.personal?.[actorId];
+    const pms=mine?.milestones??f.individualTrack?.milestones??[],ps=mine?.score??0;
+    return {id:f.id,name:f.name,group:{score:gs,rank:rankOf(gms,gs),next:nextOf(gms,gs)},personal:mine?{score:ps,rank:rankOf(pms,ps),next:nextOf(pms,ps)}:null};});
+}
+function embedHTML(ctrl){
+  if(!playerMayOpen())return '<div class="ag-empty">The GM has hidden Renown.</div>';
+  const actor=ctrl.actorId?game.actors.get(ctrl.actorId):null,rows=standingRows(ctrl.actorId);
+  if(!rows.length)return '<div class="ag-empty">No organizations known yet.</div>';
+  const signed=n=>n>0?`+${n}`:String(n);
+  const cell=(label,s)=>s?`<div class="agf-embed__cell"><small>${esc(label)}</small><strong>${esc(s.rank)}</strong><span class="agf-embed__score">${signed(s.score)}</span>${s.next?`<span class="agf-embed__next">Next: ${esc(s.next.name)} at ${s.next.threshold}</span>`:'<span class="agf-embed__next">Top rank</span>'}</div>`:'';
+  const hidden=!game.user.isGM&&actor&&rows.every(r=>!r.personal);
+  return `<div class="agf-embed__body">${rows.map(r=>`<section class="agf-embed__row" data-faction="${esc(r.id)}"><header><strong>${esc(r.name||'Unknown Organization')}</strong>
+      <button type="button" class="ag-btn ag-btn--sm" data-agf-embed="open" data-faction="${esc(r.id)}" title="Open in Renown">Open</button></header>
+      <div class="agf-embed__cells">${cell(groupLabel(),r.group)}${cell(actor?.name??'Character',r.personal)}</div></section>`).join('')}
+    ${hidden?`<p class="agf-embed__note">${esc(actor.name)}'s own standing shows to their owner.</p>`:''}</div>`;
+}
+/** api.embed.mount(element, {actorId, mode:'character'}) → {unmount, refresh}. Read-only. */
+function mountEmbed(element,{actorId=null,mode='character'}={}){
+  if(!element||typeof element.addEventListener!=='function')throw TypeError('mount needs a DOM element.');
+  if(!EMBED_MODES.has(mode))throw Error(`Unknown embed mode "${mode}". Supported: ${[...EMBED_MODES].join(', ')}.`);
+  const abort=new AbortController(),ctrl={actorId:actorId?String(actorId):null,mounted:true};
+  element.classList?.add('agf-embed');
+  ctrl.render=()=>{if(!ctrl.mounted)return;if(element.isConnected===false){ctrl.unmount();return;}element.innerHTML=embedHTML(ctrl);};
+  ctrl.unmount=()=>{if(!ctrl.mounted)return;ctrl.mounted=false;abort.abort();embeds.delete(ctrl);element.innerHTML='';element.classList?.remove('agf-embed');};
+  element.addEventListener('click',e=>{
+    const b=e.target?.closest?.('[data-agf-embed="open"]');if(!b||!element.contains(b))return;
+    e.preventDefault?.();e.stopPropagation?.();
+    try{openDashboard({factionId:b.dataset.faction,actorId:ctrl.actorId,tab:ctrl.actorId?'player':'group'});}catch(err){notifyError(err);}
+  },{signal:abort.signal});
+  embeds.add(ctrl);ctrl.render();
+  return {unmount:ctrl.unmount,refresh:()=>ctrl.render()};
+}
+const refreshEmbeds=()=>{for(const e of [...embeds])e.render();};
 let dashboard=null;
-const openDashboard=()=>{
+const openDashboard=(options={})=>{
   requirePlayerAccess();
   dashboard??=new Dashboard();
+  if(options&&typeof options==='object')dashboard.focus(options);
   dashboard.render({force:true});
   return dashboard;
 };
@@ -443,6 +495,7 @@ Hooks.once('ready',()=>{
   const mod=game.modules.get(MODULE_ID);
   if(mod)mod.api=Object.freeze({
     open:openDashboard,
+    embed:Object.freeze({contract:'ag-factions-embed/1',modes:Object.freeze([...EMBED_MODES]),mount:mountEmbed}),
     getFactions:()=>{requirePlayerAccess();return game.user.isGM?defs().map(d=>sourceDefinition(getFaction(d))):getView(userViewDoc(game.user))?.payload.factions??[];},
     validateFaction,
     // GM-only, additive: adds factions that are not in the world yet (see scripts/import.mjs). Existing factions are never changed.
@@ -462,9 +515,11 @@ Hooks.once('ready',()=>{
     else if(msg?.type==='refresh'&&dashboard?.rendered&&playerMayOpen())void dashboard.render({force:true});
   });
   for(const hook of ['updateJournalEntry','createJournalEntry','deleteJournalEntry'])Hooks.on(hook,()=>{
+    refreshEmbeds();
     if(dashboard?.rendered&&playerMayOpen())void dashboard.render({force:true});
   });
   Hooks.on('updateSetting',setting=>{
+    refreshEmbeds();
     if(setting?.key===`${MODULE_ID}.playerAccessEnabled`){
       accessSettingChanged(setting);
       return; // Do not rerender a freshly restricted player window.

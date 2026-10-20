@@ -1,5 +1,11 @@
 # Renown change history (formerly Factions & Renown)
 
+## 0.10.0 — 2026-10-20
+
+- **New API `embed.mount(element, {actorId, mode: 'character'})`** so a partner module (Character Hub) can show a compact, read-only standing list: per organization the user may see, the party's and this character's rank and score, the next milestone, and Open. Returns `{unmount, refresh}`; it refreshes itself on changes. See the README.
+- `api.open()` can now take `{factionId, actorId, tab}` to open on one organization (and the Player view for one character). `open()` with no options is unchanged.
+- Same data and visibility as the Renown window (players: their own filtered view only). Claims and awards stay in the window. No saved data changes.
+
 ## 0.9.0 — 2026-10-20
 
 - Renamed to **Renown** (was *Factions & Renown*): window header `Ashen Gate | Renown`, launcher tooltip, Help, notifications, the Player Access setting and the module title in Forge.
