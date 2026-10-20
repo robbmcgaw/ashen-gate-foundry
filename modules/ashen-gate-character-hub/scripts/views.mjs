@@ -7,7 +7,8 @@ import {abilitiesData, skillsData, overviewData} from './data.mjs';
 import {characterPanelHtml} from './character.mjs';
 import {btn} from './buttons.mjs';
 import {ITEM_TABS} from './tabs.mjs';
-import {ashenGateTab} from './partners.mjs';
+import {ashenGateTab, AG_PANELS} from './partners.mjs';
+import {canSee, hiddenReason, hiddenBadge, partForPartner} from './visibility.mjs';
 import {companionsTab, gmSetupTab} from './companion-views.mjs';
 
 export {btn};
@@ -30,20 +31,29 @@ function overviewTab(ctx) {
     <p class="agch-muted agch-hint">Ability checks and saves also roll from the ability tiles on the left.</p>`;
 }
 
-/** The tab registry, in display order. Later views are appended here; reorder by moving entries. */
+/**
+ * The tab registry, in display order. Later views are appended here; reorder by moving entries. `parts` are the
+ * player-visibility parts a tab holds (visibility.mjs): players get the tab when they may see any of them.
+ */
 export const TABS = [
-  {id: 'overview', label: 'Overview', icon: 'fa-solid fa-user', render: overviewTab},
+  {id: 'overview', label: 'Overview', icon: 'fa-solid fa-user', render: overviewTab, parts: ['overview']},
   ...ITEM_TABS,
-  {id: 'ashen-gate', label: 'Ashen Gate', icon: 'fa-solid fa-dungeon', render: ashenGateTab},
-  {id: 'companions', label: 'Companions', icon: 'fa-solid fa-horse', render: companionsTab},
+  {id: 'ashen-gate', label: 'Ashen Gate', icon: 'fa-solid fa-dungeon', render: ashenGateTab, parts: AG_PANELS.map(p => partForPartner(p.id))},
+  {id: 'companions', label: 'Companions', icon: 'fa-solid fa-horse', render: companionsTab, parts: ['companions']},
   {id: 'gm-setup', label: 'GM Setup', icon: 'fa-solid fa-gear', render: gmSetupTab, gmOnly: true}
 ];
-/** Tabs this user may open (GM Setup is GM-only). */
-export const visibleTabs = () => TABS.filter(t => !t.gmOnly || globalThis.game?.user?.isGM === true);
+/** Tabs this user may open: GM Setup is GM-only; players don't get tabs whose parts are all hidden from them. */
+export const visibleTabs = (user = globalThis.game?.user) => TABS.filter(t => user?.isGM === true || (!t.gmOnly && (!t.parts || t.parts.some(k => canSee(k, user)))));
+/** For the GM: the reason a tab is hidden from players (every part hidden), else null. */
+const tabHiddenReason = t => t.parts?.length && t.parts.every(k => hiddenReason(k)) ? hiddenReason(t.parts[0]) : null;
 
 /** The tab rail down the right edge: icon buttons, label on hover (title) and for screen readers (aria-label). */
 export function tabsHtml(active) {
-  return `<nav class="agch-rail" role="tablist" aria-orientation="vertical" aria-label="Character Hub sections">${visibleTabs().map(t => `<button type="button" role="tab" data-action="hub-tab" data-tab="${t.id}" data-ag-always aria-selected="${t.id === active}" class="agch-rail__tab${t.id === active ? ' active' : ''}" title="${esc(t.label)}" aria-label="${esc(t.label)}"><i class="${t.icon}" aria-hidden="true"></i></button>`).join('')}</nav>`;
+  const gm = globalThis.game?.user?.isGM === true;
+  return `<nav class="agch-rail" role="tablist" aria-orientation="vertical" aria-label="Character Hub sections">${visibleTabs().map(t => {
+    const hidden = gm ? tabHiddenReason(t) : null, label = hidden ? `${t.label} (hidden from players: ${hidden})` : t.label;
+    return `<button type="button" role="tab" data-action="hub-tab" data-tab="${t.id}" data-ag-always aria-selected="${t.id === active}" class="agch-rail__tab${t.id === active ? ' active' : ''}${hidden ? ' is-hidden' : ''}" title="${esc(label)}" aria-label="${esc(label)}"><i class="${t.icon}" aria-hidden="true"></i>${hidden ? '<i class="fa-solid fa-eye-slash agch-rail__hidden" aria-hidden="true"></i>' : ''}</button>`;
+  }).join('')}</nav>`;
 }
 export function shellHtml(ctx) {
   const {actor, tab} = ctx;
@@ -56,8 +66,10 @@ export function shellHtml(ctx) {
   if (ctx.limited) return `<div class="agch-root agch-root--limited">${top}<section class="agch-hero ag-card"><img class="agch-portrait" src="${esc(actor.img)}" alt=""><div class="agch-identity"><h2 class="agch-name">${esc(actor.name)}</h2><p class="agch-sub">You have limited access to this character.</p></div></section></div>`;
   const tabs = visibleTabs(), current = tabs.find(t => t.id === tab) ?? tabs[0];
   const notice = ctx.editable ? '' : '<p class="agch-notice" role="note"><i class="fa-solid fa-eye" aria-hidden="true"></i> View only: you can look but not change or roll for this character.</p>';
+  if (!current) return `<div class="agch-root">${top}<div class="agch-split">${characterPanelHtml(ctx)}
+    <section class="agch-pane"><p class="ag-empty">The GM hasn't shared any other sections yet.</p></section></div></div>`;
   return `<div class="agch-root">${top}<div class="agch-split">${characterPanelHtml(ctx)}
-    <section class="agch-pane"><h2 class="agch-pane__title"><i class="${current.icon}" aria-hidden="true"></i> ${esc(current.label)}</h2>${notice}
+    <section class="agch-pane"><h2 class="agch-pane__title"><i class="${current.icon}" aria-hidden="true"></i> ${esc(current.label)}${current.parts ? hiddenBadge(current.parts) : ''}</h2>${notice}
     <div class="agch-body" role="tabpanel" aria-label="${esc(current.label)}">${current.render(ctx)}</div></section>${tabsHtml(current.id)}</div></div>`;
 }
 

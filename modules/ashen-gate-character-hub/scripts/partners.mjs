@@ -1,10 +1,12 @@
 /**
  * "Ashen Gate" panels: player-safe summaries from other Ashen Gate modules, read only through their public
- * APIs (game.modules.get(id)?.api). Those modules keep all their own state; nothing is copied here. A missing,
- * hidden or failing module shows an "unavailable" note and never breaks the sheet.
+ * APIs (game.modules.get(id)?.api). Those modules keep all their own state; nothing is copied here. A failing module
+ * shows an "unavailable" note and never breaks the sheet. Players don't get a section at all when the GM hides it, its
+ * module is missing, or its Player Access is off (see visibility.mjs); the GM sees it with a "Hidden from players" badge.
  */
 import {esc, num} from './constants.mjs';
 import {btn} from './buttons.mjs';
+import {canSee, requirePart, hiddenBadge, hiddenReason, partForPartner} from './visibility.mjs';
 
 /** The active module's API, or null. */
 export function partnerApi(id) {
@@ -147,28 +149,47 @@ export function panelState(panel, actor) {
   if (!panel.summary) return {state: 'ok', html: `<p class="agch-muted">Open ${esc(panel.label)} to see details.</p>`};
   try { return {state: 'ok', html: panel.summary(actor, api)}; } catch (err) {
     console.warn(`ashen-gate-character-hub | ${panel.id} summary unavailable`, err);
-    const msg = /hidden|access|not available|permission|denied/i.test(err?.message ?? '') ? 'Not available to you right now.' : 'Unavailable right now.';
-    return {state: 'error', html: `<p class="agch-muted">${msg}</p>`};
+    const refused = /hidden|access|not available|permission|denied/i.test(err?.message ?? '');
+    return {state: 'error', refused, html: `<p class="agch-muted">${refused ? 'Not available to you right now.' : 'Unavailable right now.'}</p>`};
   }
 }
 
 /** One partner panel as a card: heading, Open button (when the module is active) and its summary. */
-export function panelHtml(panel, actor) {
-  const s = panelState(panel, actor);
-  return `<section class="ag-card agch-panel" data-partner="${panel.id}" data-state="${s.state}"><header class="agch-panel__head"><h3><i class="${panel.icon}" aria-hidden="true"></i> ${esc(panel.label)}</h3>
+export function panelHtml(panel, actor, s = panelState(panel, actor)) {
+  return `<section class="ag-card agch-panel" data-partner="${panel.id}" data-state="${s.state}"><header class="agch-panel__head"><h3><i class="${panel.icon}" aria-hidden="true"></i> ${esc(panel.label)}${panel.badge ?? ''}</h3>
     ${s.state === 'missing' ? '' : btn('partner-open', panel.openLabel ?? `Open ${panel.label}`, {kind: 'sm', icon: 'fa-solid fa-up-right-from-square', data: {partner: panel.id}, always: true})}</header>${s.html}</section>`;
 }
 
 /** Panels shown as Ashen Gate sub-tabs (Utilities lives in Inventory → Party stash). */
 export const AG_PANELS = PANELS.filter(p => p.tab);
 
-/** Ashen Gate tab: one sub-tab per partner module; only the chosen one is read. */
+/**
+ * Ashen Gate sub-tabs this user gets. Players only get parts the GM shows whose module is active with Player Access on;
+ * the GM gets every one (hidden ones carry a badge).
+ */
+export const agPanelsFor = (user = globalThis.game?.user) => AG_PANELS.filter(p => canSee(partForPartner(p.id), user));
+
+/**
+ * Ashen Gate tab: one sub-tab per partner module; only the chosen one is read. For a player, a module whose summary
+ * refuses them is dropped like a hidden one (no empty shell) and the next sub-tab is shown.
+ */
 export function ashenGateTab({actor, sheet}) {
-  const current = AG_PANELS.find(p => p.id === sheet?.agTab) ?? AG_PANELS[0];
-  const embedded = embedApi(current.id, current.embedMode);
-  const tabs = AG_PANELS.map(p => `<button type="button" data-action="ag-subtab" data-partner="${p.id}" data-ag-always aria-pressed="${p === current}"${partnerApi(p.id) ? '' : ' class="is-missing"'}>${esc(p.tab)}</button>`).join('');
+  const gm = globalThis.game?.user?.isGM === true;
+  let panels = agPanelsFor(), current = null, state = null, embedded = null;
+  while (panels.length) {
+    current = panels.find(p => p.id === sheet?.agTab) ?? panels[0];
+    embedded = embedApi(current.id, current.embedMode);
+    state = embedded ? {state: 'ok', html: embedSlot(current.id, current.embedMode, actor)} : panelState(current, actor);
+    if (gm || !state.refused) break;
+    panels = panels.filter(p => p !== current); current = null;
+  }
+  if (!current) return '<p class="ag-empty">Nothing here yet.</p>';
+  const tabs = panels.map(p => {
+    const reason = gm ? hiddenReason(partForPartner(p.id)) : null;
+    return `<button type="button" data-action="ag-subtab" data-partner="${p.id}" data-ag-always aria-pressed="${p === current}"${partnerApi(p.id) ? '' : ' class="is-missing"'}${reason ? ` title="${esc(`Hidden from players: ${reason}`)}"` : ''}>${reason ? '<i class="fa-solid fa-eye-slash" aria-hidden="true"></i> ' : ''}${esc(p.tab)}</button>`;
+  }).join('');
   return `<div class="agch-toolbar"><div class="agch-seg agch-seg--wrap" role="group" aria-label="Ashen Gate section">${tabs}</div></div>
-    ${embedded ? panelHtml({...current, summary: () => embedSlot(current.id, current.embedMode, actor)}, actor) : panelHtml(current, actor)}
+    ${panelHtml({...current, badge: hiddenBadge(partForPartner(current.id))}, actor, state)}
     <p class="agch-muted agch-hint">${embedded ? `This is ${esc(current.label)}'s own view: it keeps its own records and permissions.` : 'Each module keeps its own records; this is a read-only summary. Open the module to make changes there.'}</p>`;
 }
 
@@ -221,16 +242,20 @@ export function unmountEmbeds(mounted) {
 
 /** Inventory → Party stash: Utilities' own stash view when it offers one (0.12.0+), else the purse and item list. */
 export function partyStashHtml(actor) {
-  const panel = PANELS.find(p => p.id === 'ashen-gate-utilities');
-  if (embedApi(panel.id, 'stash')) return panelHtml({...panel, label: 'Party stash', summary: () => embedSlot(panel.id, 'stash', actor)}, actor);
-  return panelHtml({...panel, label: 'Party stash', summary: (a, api) => utilities(a, api, {shown: Infinity})}, actor);
+  const panel = {...PANELS.find(p => p.id === 'ashen-gate-utilities'), label: 'Party stash', badge: hiddenBadge('partyStash')};
+  if (embedApi(panel.id, 'stash')) return panelHtml({...panel, summary: () => embedSlot(panel.id, 'stash', actor)}, actor);
+  return panelHtml({...panel, summary: (a, api) => utilities(a, api, {shown: Infinity})}, actor);
 }
 
-/** True when this user could put items in the party stash: Utilities offers deposit, and (for players) Player Access and the stash are on. */
+/**
+ * True when this user could put items in the party stash: Utilities offers deposit, and (for players) the GM shows the
+ * party stash in the Hub and Utilities' Player Access and stash are on.
+ */
 export function partyStashUsable(user = globalThis.game?.user) {
   const api = partnerApi('ashen-gate-utilities');
   if (typeof api?.stash?.deposit !== 'function') return false;
   if (user?.isGM) return true;
+  if (!canSee('partyStash', user)) return false;
   try { return api.playerAccess?.getState?.()?.playerAccessEnabled === true && api.stash.isEnabled?.() === true; } catch { return false; }
 }
 
@@ -240,6 +265,7 @@ export function partyStashUsable(user = globalThis.game?.user) {
  */
 export async function depositToParty(actor, itemId, canEdit) {
   if (!canEdit(actor)) return {ok: false, error: `You don't own ${actor?.name ?? 'this character'}, so you can't move its items.`};
+  const hidden = requirePart('partyStash'); if (hidden) return hidden;
   const item = actor?.items?.get?.(itemId);
   if (!item) return {ok: false, error: 'That item is no longer on this character.'};
   const api = partnerApi('ashen-gate-utilities');

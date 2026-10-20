@@ -4,6 +4,7 @@
  */
 import {MODULE_ID, esc, num} from './constants.mjs';
 import {canEdit} from './actions.mjs';
+import {requirePart} from './visibility.mjs';
 import {attunementData, SLOTS} from './items.mjs';
 
 const refuse = error => ({ok: false, error});
@@ -66,6 +67,7 @@ export async function togglePrepared(actor, id) {
 
 export async function rest(actor, type) {
   if (!canEdit(actor)) return notOwner(actor);
+  const hidden = requirePart('rest'); if (hidden) return hidden;
   const method = type === 'long' ? 'longRest' : 'shortRest';
   if (typeof actor[method] !== 'function') return refuse(`This version of dnd5e has no ${method}().`);
   return run(`take a ${type} rest`, () => actor[method]({}));
@@ -106,6 +108,7 @@ export async function equipItem(actor, id, {slot = null, ask = askDialog} = {}) 
   const {item, error} = guard(actor, id); if (error) return error;
   if (!('equipped' in (item.system ?? {}))) return refuse(`${item.name} can't be equipped.`);
   if (slot !== null && !SLOT_IDS.has(slot)) return refuse(`Unknown slot ${slot}.`);
+  if (slot) { const hidden = requirePart('equipment'); if (hidden) return hidden; }
   const diff = {'system.equipped': true};
   if (slot) diff[`flags.${MODULE_ID}.slot`] = slot;
   if (item.system.attunement === 'required' && !item.system.attuned) {
@@ -151,6 +154,7 @@ export async function setAttuned(actor, id, attuned) {
 export async function setSlot(actor, id, slot) {
   const {item, error} = guard(actor, id); if (error) return error;
   if (slot && !SLOT_IDS.has(slot)) return refuse(`Unknown slot ${slot}.`);
+  const hidden = requirePart('equipment'); if (hidden) return hidden;
   return run('move the item', () => item.update({[`flags.${MODULE_ID}.slot`]: slot || null}));
 }
 
@@ -159,6 +163,7 @@ export async function swapSlots(actor, idA, slotA, idB, slotB) {
   const a = guard(actor, idA); if (a.error) return a.error;
   const b = guard(actor, idB); if (b.error) return b.error;
   if (!SLOT_IDS.has(slotA) || !SLOT_IDS.has(slotB)) return refuse('Unknown slot.');
+  const hidden = requirePart('equipment'); if (hidden) return hidden;
   return run('swap the items', async () => {
     await a.item.update({[`flags.${MODULE_ID}.slot`]: slotB});
     await b.item.update({[`flags.${MODULE_ID}.slot`]: slotA});

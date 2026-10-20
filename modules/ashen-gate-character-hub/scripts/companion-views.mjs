@@ -1,7 +1,8 @@
-/** Companions tab and the GM Setup tab (pet limits). */
+/** Companions tab and the GM Setup tab (player visibility, pet limits). */
 import {esc} from './constants.mjs';
 import {btn} from './buttons.mjs';
 import {companionsData, freeItems, petCapOverride, defaultPetCap} from './companions.mjs';
+import {PARTS, PRESETS, readVisibility, hiddenReason} from './visibility.mjs';
 
 const plain = html => String(html ?? '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 const itemOptions = (items, placeholder) => `<option value="">${esc(placeholder)}</option>${items.map(i => `<option value="${esc(i.id)}">${esc(i.name)}</option>`).join('')}`;
@@ -46,12 +47,27 @@ const capOptions = current => [['', `World default (${defaultPetCap()})`], ['non
   .filter(([v], i, all) => all.findIndex(([x]) => x === v) === i)
   .map(([v, l]) => `<option value="${v}"${String(current ?? '') === v ? ' selected' : ''}>${esc(l)}</option>`).join('');
 
-/** GM Setup: settings only (pet limits). */
+/** GM Setup → Player visibility: one switch per part, quick presets, and why a part is hidden from players right now. */
+function visibilityCard() {
+  const on = readVisibility();
+  const rows = PARTS.map(p => {
+    const reason = hiddenReason(p.key, on);
+    const status = !reason ? '<span class="ag-badge">Players see it</span>'
+      : `<span class="ag-badge ag-badge--warn"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Hidden from players: ${esc(reason)}</span>`;
+    return `<li><label><input type="checkbox" data-edit="part-visibility" data-part="${esc(p.key)}"${on[p.key] ? ' checked' : ''}> ${esc(p.label)}</label>${status}</li>`;
+  }).join('');
+  return `<section class="ag-card"><h3>Player visibility</h3>
+    <p class="agch-muted">Choose which parts of the Character Hub players see, so you can bring systems in one at a time. You always see everything; hidden parts carry a "Hidden from players" badge. An Ashen Gate part is also hidden from players while its module is not active or its own Player Access is off (change that in the module's own GM Setup). Hiding a part changes no character data, and players can't use its Hub actions while it is hidden.</p>
+    <div class="agch-vis__presets"><span class="agch-muted">Quick set:</span>${PRESETS.map(p => btn('visibility-preset', p.label, {kind: 'sm', data: {preset: p.id}})).join('')}</div>
+    <ul class="agch-vis">${rows}</ul></section>`;
+}
+
+/** GM Setup: settings only (player visibility, pet limits). */
 export function gmSetupTab() {
   const chars = [...(globalThis.game?.actors ?? [])].filter(a => a.type === 'character').sort((a, b) => String(a.name).localeCompare(String(b.name)));
   const rows = chars.map(a => { const d = companionsData(a); return `<tr><th scope="row">${esc(a.name)}</th><td>${d.mount ? 1 : 0}</td><td>${d.pets.length} / ${esc(d.capLabel)}</td>
     <td><select data-edit="pet-cap-override" data-actor="${esc(a.id)}" aria-label="Pet limit for ${esc(a.name)}">${capOptions(petCapOverride(a))}</select></td></tr>`; }).join('');
-  return `<section class="ag-card"><h3>Companions</h3>
+  return `${visibilityCard()}<section class="ag-card"><h3>Companions</h3>
     <label class="ag-field">Pets per character (world default)<input type="number" min="0" step="1" data-edit="pet-cap-default" value="${defaultPetCap()}"></label>
     <p class="agch-muted">Every character may have one mount. Pets start at 0: raise the world default or a character's limit to give pet slots. Limits apply when adding a pet; existing pets are never removed.</p>
     ${rows ? `<table class="agch-table"><thead><tr><th>Character</th><th>Mount</th><th>Pets</th><th>Pet limit</th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="ag-empty">No characters.</p>'}</section>`;

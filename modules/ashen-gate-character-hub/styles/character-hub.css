@@ -221,3 +221,15 @@
 .ag-character-hub .agch-embed { min-width: 0; }
 /* An embedded partner view brings its own cards: the panel around it drops its own card look */
 .ag-character-hub .agch-panel:has(> .agch-embed) { background: transparent; border-color: transparent; padding: 0; box-shadow: none; }
+
+/* Player visibility (0.9.0): GM-only markers on parts hidden from players; the GM Setup toggle list. */
+.ag-character-hub .agch-tiles--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ag-character-hub .agch-rail__tab { position: relative; }
+.ag-character-hub .agch-rail__tab.is-hidden > i:first-child { opacity: 0.55; }
+.ag-character-hub .agch-rail__hidden { position: absolute; right: 1px; bottom: 1px; font-size: 10px; color: var(--ag-warn); }
+.ag-character-hub .agch-hidden { font-size: 0.75rem; font-weight: normal; white-space: normal; }
+.ag-character-hub .agch-hidden-note { margin: 0 0 var(--ag-space-1); }
+.ag-character-hub .agch-vis { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ag-space-1); }
+.ag-character-hub .agch-vis li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); }
+.ag-character-hub .agch-vis label { display: inline-flex; align-items: center; gap: var(--ag-space-2); }
+.ag-character-hub .agch-vis__presets { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); margin: var(--ag-space-2) 0; }

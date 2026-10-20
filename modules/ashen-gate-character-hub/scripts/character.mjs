@@ -9,6 +9,7 @@ import {btn} from './buttons.mjs';
 import {headerData, abilitiesData} from './data.mjs';
 import {equipmentLayout, equipChoices, SLOTS} from './items.mjs';
 import {partyStashUsable} from './partners.mjs';
+import {canSee, hiddenReason, hiddenBadge} from './visibility.mjs';
 
 export const LEFT_SLOTS = ['head', 'neck', 'back', 'body', 'hands'];
 export const RIGHT_SLOTS = ['mainhand', 'offhand', 'waist', 'feet', 'other'];
@@ -77,7 +78,7 @@ function dollHtml(ctx, h) {
   const openSlot = typeof menu === 'string' && menu.startsWith('slot:') ? menu.slice(5) : null;
   const where = !openSlot ? '' : LEFT_SLOTS.includes(openSlot) ? `is-left" style="--row:${LEFT_SLOTS.indexOf(openSlot)}` : RIGHT_SLOTS.includes(openSlot) ? `is-right" style="--row:${RIGHT_SLOTS.indexOf(openSlot)}` : 'is-bottom';
   const pop = openSlot ? `<div class="agch-menu agch-menu--slot ${where}" role="menu" aria-label="${esc(slotLabel(openSlot))}">${slotMenu(actor, openSlot, layout, off)}</div>` : '';
-  return `<section class="agch-doll" aria-label="Equipment (display only)">
+  return `${hiddenBadge('equipment') ? `<p class="agch-hidden-note">${hiddenBadge('equipment')}</p>` : ''}<section class="agch-doll" aria-label="Equipment (display only)">
     <div class="agch-doll__col">${col(LEFT_SLOTS)}</div>
     <div class="agch-doll__center">
       <div class="agch-doll__art"><img class="agch-doll__bg" src="${esc(art)}" alt="" aria-hidden="true"><img class="agch-doll__fg" src="${esc(art)}" alt="${esc(actor.name)}">
@@ -130,10 +131,13 @@ function conditionsHtml(h, off, adding) {
 }
 
 function footHtml(h, off) {
-  const exh = h.exhaustion;
+  const exh = h.exhaustion, rests = canSee('rest'), restHidden = hiddenReason('rest');
+  const restTip = what => `${what}${restHidden && rests ? ` (hidden from players: ${restHidden})` : ''}`;
+  const restBtns = rests ? `${btn('rest', '', {kind: 'ghost', extra: 'agch-restbtn', icon: 'fa-solid fa-mug-hot', data: {type: 'short'}, title: restTip('Short Rest (dnd5e dialog: spend hit dice)'), disabled: off})}${btn('rest', '', {kind: 'ghost', extra: 'agch-restbtn', icon: 'fa-solid fa-campground', data: {type: 'long'}, title: restTip('Long Rest (dnd5e dialog)'), disabled: off})}${restHidden ? '<i class="fa-solid fa-eye-slash agch-muted" aria-hidden="true"></i>' : ''}` : '';
+  const hd = h.hd ? `<span title="Hit dice left">Hit Dice <b>${h.hd.value} / ${h.hd.max}</b></span>` : rests ? 'Rest' : '';
   return `<div class="agch-foot">
-    <span class="agch-pill">${h.hd ? `<span title="Hit dice left">Hit Dice <b>${h.hd.value} / ${h.hd.max}</b></span>` : 'Rest'}
-      ${btn('rest', '', {kind: 'ghost', extra: 'agch-restbtn', icon: 'fa-solid fa-mug-hot', data: {type: 'short'}, title: 'Short Rest (dnd5e dialog: spend hit dice)', disabled: off})}${btn('rest', '', {kind: 'ghost', extra: 'agch-restbtn', icon: 'fa-solid fa-campground', data: {type: 'long'}, title: 'Long Rest (dnd5e dialog)', disabled: off})}</span>
+    ${hd || restBtns ? `<span class="agch-pill">${hd}
+      ${restBtns}</span>` : ''}
     <span class="agch-pill">Exhaustion ${btn('exhaustion', '', {kind: 'ghost', icon: 'fa-solid fa-minus', data: {step: -1}, title: 'Reduce exhaustion', disabled: off || exh.value <= 0})}<b>${exh.value} / ${exh.max}</b>${btn('exhaustion', '', {kind: 'ghost', icon: 'fa-solid fa-plus', data: {step: 1}, title: 'Increase exhaustion', disabled: off || exh.value >= exh.max})}</span>
     ${h.resources.map(r => `<span class="agch-pill">${esc(r.label)} <b>${r.value} / ${r.max}</b></span>`).join('')}
   </div>`;
@@ -150,8 +154,9 @@ export function characterPanelHtml(ctx) {
       <div class="agch-ident__text"><h2 class="agch-name">${esc(h.name)}</h2><p class="agch-sub">${h.species ? `${esc(h.species)} · ` : ''}${classLine}${h.level ? ` · Level ${h.level}` : ''}</p></div>
       ${btn('inspiration', '', {extra: `agch-insp${h.inspiration ? ' is-active' : ''}`, icon: 'fa-solid fa-star', title: h.inspiration ? 'Inspiration (click to spend)' : 'No inspiration (click to gain)', disabled: off})}
     </div>
-    ${dollHtml(ctx, h)}
-    <div class="agch-tiles">
+    ${canSee('equipment') ? dollHtml(ctx, h) : ''}
+    <div class="agch-tiles${canSee('equipment') ? '' : ' agch-tiles--4'}">
+      ${canSee('equipment') ? '' : tile('AC', `<span class="agch-tile__value">${h.ac}</span>`, {title: 'Armor Class'})}
       ${tile('Initiative', btn('roll-initiative', signed(h.init), {extra: 'agch-tile__roll', title: 'Roll initiative', disabled: off}))}
       ${tile('Speed', `<span class="agch-tile__value">${walk ? `${walk.value} ${esc(walk.units)}` : '—'}</span>`, {extra: otherSpeeds ? `<span class="agch-tile__more">${otherSpeeds}</span>` : ''})}
       ${tile('Proficiency', `<span class="agch-tile__value">${signed(h.prof)}</span>`)}

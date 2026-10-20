@@ -15,6 +15,7 @@ export const HELP_HTML = `<p>The Character Hub is another way to look at the <st
   <li>Equipping an item that needs attunement asks whether to attune. At your limit it lists attuned items so you can unattune one.</li>
   <li><strong>Companions</strong>: drop a mount or pet Item (or pick one of your items), then drop perk Items onto it. One mount; pets up to the GM's limit (no pet slots until the GM raises it). Perks only show their text.</li>
   <li><strong>Ashen Gate</strong> has one section per Ashen Gate module (Professions, Perks, Renown, Quests, Locations, Base). Where a module offers it, its own view shows here and works as in that module; otherwise a summary with an Open button.</li>
+  <li><strong>GM: Player visibility</strong> (GM Setup) chooses which parts players see. Parts that are off, or whose module is inactive or has Player Access off, disappear for players; you still see them with a <em>Hidden from players</em> badge saying why. Players can't use a hidden part's Hub actions either.</li>
   <li>If you only observe a character, you can look but not change or roll.</li>
   <li>To switch back for good: the window's sheet menu (<em>Sheet</em> in the title bar) → choose the dnd5e character sheet.</li>
 </ul>`;

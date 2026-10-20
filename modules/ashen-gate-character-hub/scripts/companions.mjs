@@ -6,6 +6,7 @@
  */
 import {MODULE_ID, num} from './constants.mjs';
 import {canEdit} from './actions.mjs';
+import {requirePart} from './visibility.mjs';
 
 export const KINDS = ['mount', 'pet'];
 export const DEFAULT_PET_CAP = 0;
@@ -89,6 +90,8 @@ export function freeItems(actor) {
 
 const write = (actor, entries) => actor.update({[`flags.${MODULE_ID}.${FLAG}`]: entries.map(({id, kind, itemId, perkItemIds}) => ({id, kind, itemId, perkItemIds}))});
 const notOwner = actor => refuse(`You don't own ${actor?.name ?? 'this character'}, so you can't change its companions.`);
+/** Owner only, and (for players) only while the GM shows Companions to players. */
+const cannotChange = actor => canEdit(actor) ? requirePart('companions') : notOwner(actor);
 
 /** Checks the one-mount rule and the pet cap for adding one more of `kind`. */
 export function canAdd(actor, kind) {
@@ -107,7 +110,7 @@ export function canAdd(actor, kind) {
  * which makes the embedded copy first.
  */
 export async function addCompanion(actor, itemId, kind) {
-  if (!canEdit(actor)) return notOwner(actor);
+  const blocked = cannotChange(actor); if (blocked) return blocked;
   const item = actor.items?.get?.(itemId);
   if (!item) return refuse('That item is not on this character.');
   const entries = storedCompanions(actor);
@@ -128,7 +131,7 @@ async function embedDropped(actor, item, kind) {
   return created?.id ?? null;
 }
 export async function addDroppedCompanion(actor, item, kind) {
-  if (!canEdit(actor)) return notOwner(actor);
+  const blocked = cannotChange(actor); if (blocked) return blocked;
   if (!item || item.documentName !== 'Item') return refuse('Drop an Item here.');
   const id = await embedDropped(actor, item, kind);
   if (id && typeof id === 'object') return id;
@@ -137,7 +140,7 @@ export async function addDroppedCompanion(actor, item, kind) {
 }
 
 export async function removeCompanion(actor, entryId) {
-  if (!canEdit(actor)) return notOwner(actor);
+  const blocked = cannotChange(actor); if (blocked) return blocked;
   const entries = storedCompanions(actor);
   if (!entries.some(e => e.id === entryId)) return refuse('That companion is no longer listed.');
   await write(actor, entries.filter(e => e.id !== entryId));
@@ -146,7 +149,7 @@ export async function removeCompanion(actor, entryId) {
 
 /** Moves a companion up (-1) or down (+1) within the list. */
 export async function moveCompanion(actor, entryId, step) {
-  if (!canEdit(actor)) return notOwner(actor);
+  const blocked = cannotChange(actor); if (blocked) return blocked;
   const entries = storedCompanions(actor), i = entries.findIndex(e => e.id === entryId), j = i + (step < 0 ? -1 : 1);
   if (i < 0) return refuse('That companion is no longer listed.');
   if (j < 0 || j >= entries.length) return {ok: true};
@@ -156,7 +159,7 @@ export async function moveCompanion(actor, entryId, step) {
 }
 
 export async function attachPerk(actor, entryId, perkItemId) {
-  if (!canEdit(actor)) return notOwner(actor);
+  const blocked = cannotChange(actor); if (blocked) return blocked;
   const entries = storedCompanions(actor), entry = entries.find(e => e.id === entryId);
   if (!entry) return refuse('That companion is no longer listed.');
   const perk = actor.items?.get?.(perkItemId);
@@ -167,7 +170,7 @@ export async function attachPerk(actor, entryId, perkItemId) {
   return {ok: true};
 }
 export async function attachDroppedPerk(actor, entryId, item) {
-  if (!canEdit(actor)) return notOwner(actor);
+  const blocked = cannotChange(actor); if (blocked) return blocked;
   if (!item || item.documentName !== 'Item') return refuse('Drop an Item here.');
   if (!storedCompanions(actor).some(e => e.id === entryId)) return refuse('That companion is no longer listed.');
   const id = await embedDropped(actor, item, null);
@@ -175,7 +178,7 @@ export async function attachDroppedPerk(actor, entryId, item) {
   return attachPerk(actor, entryId, id);
 }
 export async function detachPerk(actor, entryId, perkItemId) {
-  if (!canEdit(actor)) return notOwner(actor);
+  const blocked = cannotChange(actor); if (blocked) return blocked;
   const entries = storedCompanions(actor), entry = entries.find(e => e.id === entryId);
   if (!entry) return refuse('That companion is no longer listed.');
   entry.perkItemIds = entry.perkItemIds.filter(id => id !== perkItemId);

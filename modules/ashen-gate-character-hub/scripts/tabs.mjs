@@ -4,6 +4,7 @@ import {btn} from './buttons.mjs';
 import {inventoryData, combatData, spellsData, featuresData} from './items.mjs';
 import {partyStashHtml, partyStashUsable} from './partners.mjs';
 import {headerData} from './data.mjs';
+import {canSee, hiddenBadge} from './visibility.mjs';
 
 const empty = text => `<p class="ag-empty">${esc(text)}</p>`;
 const pips = (value, max) => `${value} / ${max}`;
@@ -48,12 +49,14 @@ function inventoryTab(ctx) {
     <p class="agch-muted agch-hint">Equipped items also show in the slots around the portrait.${toParty ? ' <i class="fa-solid fa-people-carry-box" aria-hidden="true"></i> moves an item to the party stash; take items back from Party stash.' : ''}</p>`;
 }
 
-/** Inventory: this character's items, or (toggle) the Utilities party stash and purse. */
+/** Inventory: this character's items, or (toggle) the Utilities party stash and purse. Players only get the views shown to them. */
 function inventoryShell(ctx) {
-  const party = ctx.sheet?.invView === 'party', d = party ? null : inventoryData(ctx.actor);
-  const seg = (view, label) => `<button type="button" data-action="inv-view" data-view="${view}" data-ag-always aria-pressed="${(view === 'party') === party}">${esc(label)}</button>`;
+  const mine = canSee('inventory'), stash = canSee('partyStash');
+  const party = stash && (ctx.sheet?.invView === 'party' || !mine), d = party ? null : inventoryData(ctx.actor);
+  const seg = (view, label, part) => `<button type="button" data-action="inv-view" data-view="${view}" data-ag-always aria-pressed="${(view === 'party') === party}">${esc(label)}${hiddenBadge(part)}</button>`;
   const filter = ctx.sheet?.filter ?? '';
-  return `<div class="agch-toolbar"><div class="agch-seg" role="group" aria-label="Whose items">${seg('character', 'Character')}${seg('party', 'Party stash')}</div>
+  const segs = mine && stash ? `<div class="agch-seg" role="group" aria-label="Whose items">${seg('character', 'Character', 'inventory')}${seg('party', 'Party stash', 'partyStash')}</div>` : '';
+  return `<div class="agch-toolbar">${segs}
     <input type="search" class="agch-search" data-filter placeholder="Search items" aria-label="Search items" value="${esc(filter)}" data-ag-always>
     ${d ? `<span class="ag-badge${d.attunement.value > d.attunement.max ? ' ag-badge--danger' : ''}" title="Attuned items">Attuned ${d.attunement.value} / ${d.attunement.max}</span>` : ''}</div>
     ${party ? partyStashHtml(ctx.actor) : inventoryTab(ctx)}`;
@@ -81,8 +84,8 @@ function featuresTab({actor, editable}) {
 }
 
 export const ITEM_TABS = [
-  {id: 'combat', label: 'Combat', icon: 'fa-solid fa-khanda', render: combatTab},
-  {id: 'inventory', label: 'Inventory', icon: 'fa-solid fa-sack', render: inventoryShell},
-  {id: 'magic', label: 'Magic', icon: 'fa-solid fa-wand-sparkles', render: magicTab},
-  {id: 'features', label: 'Features', icon: 'fa-solid fa-star', render: featuresTab}
+  {id: 'combat', label: 'Combat', icon: 'fa-solid fa-khanda', render: combatTab, parts: ['combat']},
+  {id: 'inventory', label: 'Inventory', icon: 'fa-solid fa-sack', render: inventoryShell, parts: ['inventory', 'partyStash']},
+  {id: 'magic', label: 'Magic', icon: 'fa-solid fa-wand-sparkles', render: magicTab, parts: ['magic']},
+  {id: 'features', label: 'Features', icon: 'fa-solid fa-star', render: featuresTab, parts: ['features']}
 ];

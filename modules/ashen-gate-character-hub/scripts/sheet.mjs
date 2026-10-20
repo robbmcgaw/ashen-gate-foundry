@@ -11,6 +11,7 @@ import {showHelp} from './help.mjs';
 import * as items from './item-actions.mjs';
 import {openPartner, mountEmbeds, unmountEmbeds, depositToParty} from './partners.mjs';
 import * as comp from './companions.mjs';
+import * as vis from './visibility.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
 /** Shows a refusal or failure from an action; a success is silent (the sheet re-renders itself). */
@@ -53,6 +54,7 @@ export const ACTIONS = {
   'companion-remove': (s, t) => comp.removeCompanion(s.document, t.dataset.entry),
   'companion-move': (s, t) => comp.moveCompanion(s.document, t.dataset.entry, Number(t.dataset.step)),
   'companion-detach': (s, t) => comp.detachPerk(s.document, t.dataset.entry, t.dataset.id),
+  'visibility-preset': (s, t) => vis.applyPreset(t.dataset.preset),
   'doll-art': s => { s.dollArt = s.dollArt === 'token' ? 'portrait' : 'token'; return s.render(); }
 };
 /** One small menu at a time (a slot's actions or the conditions list); the same key again closes it. */
@@ -90,7 +92,8 @@ export const EDITS = {
   'companion-add': (s, i) => i.value ? comp.addCompanion(s.document, i.value, i.dataset.kind) : null,
   'companion-attach': (s, i) => i.value ? comp.attachPerk(s.document, i.dataset.entry, i.value) : null,
   'pet-cap-override': (s, i) => comp.setPetCapOverride(i.dataset.actor, i.value),
-  'pet-cap-default': (s, i) => comp.setDefaultPetCap(i.value)
+  'pet-cap-default': (s, i) => comp.setDefaultPetCap(i.value),
+  'part-visibility': (s, i) => vis.setVisibility({[i.dataset.part]: i.checked === true})
 };
 
 /** Reads the Item from a drop (sidebar, compendium or this sheet) the way dnd5e does. */
