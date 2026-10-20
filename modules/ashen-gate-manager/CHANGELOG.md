@@ -10,6 +10,12 @@
 - New: world setting `sceneLayers`; scene flags `moodStack` and `moodFavourites`. **Migration:** a scene with the 0.22.0 `moodBase`/`mood` flags is read as a one-entry stack. Back to normal still restores it exactly, and the old flags are cleared on the next change. Safe to re-run. Saved mood presets are unchanged.
 - API `api.scenes` adds `addLayer`, `removeEffect`, `applyDraft`, `toggleFavourite`, `exportPresets`, `previewImport`, `importPresets`. Every function refuses players.
 
+## 0.34.0 — 2026-10-20
+
+- **Browse: Renown deities.** With Renown 0.11.0 or later, each deity from Renown's `api.getDeities()` is a **Deity** row (Ashen Gate) with chips for tier (major / lesser), domain and discovery, plus status and visibility. Search finds it by name, id (`id:DEITY-`), tags, title, domain and portfolio; `type:deity` and `tier:lesser` work. Details list title, domain, portfolio, discovery and relations (with Resonance / Dissonance), and related deities by id. **Open in Renown** shows Renown's Pantheon at that deity. Without Renown (or an older one) there are no deity rows and nothing else changes. Discovery shows the source setting (placeholder / sharing); who has discovered a deity stays in Renown.
+- **Browse: NPC Codex.** Each NPC Codex entry (`api.codex.list`) is listed, with chips for who knows it (party / *n* characters / hidden), how many fields are revealed and how many links. It merges with the NPC's world Actor (and any Journal with the same id) into one row: *Found in* World • NPC Codex. **Open in NPC Codex** jumps to Library → NPC Codex at that NPC; **Sheet** still opens the Actor. `type:npc-codex` finds them.
+- Browse stays read-only and GM-only (a player is refused before anything is read). Help text and README updated. No saved-data changes.
+
 ## 0.33.0 — 2026-10-20
 
 - **NPC Codex** (Library → NPC Codex on the rail). Lists every imported NPC record (`entity_type: "NPC"`) with portrait, role and how much players know. For each NPC you set who knows it (name and portrait) and, field by field, who knows its role, appearance, signature line, wants, knows, *what the party has learned* and its connections: **Hidden**, **Party** or specific **Characters**.
