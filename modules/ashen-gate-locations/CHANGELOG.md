@@ -1,3 +1,7 @@
+## 1.15.1 — 2026-10-20
+
+- Test fix only: a Travel tracker test could fail at random when a generated pin or route key contained "25". No change to the module's behaviour or saved data.
+
 ## 1.15.0 — 2026-10-20
 
 - **Travel behaviours in the Travel tracker, tracking only.** Three collapsible panels for the current journey, each with a **Track on this journey** switch (all on by default). Nothing is automated: no effect on rolls, the hazard chance, legs, supplies or rest.
