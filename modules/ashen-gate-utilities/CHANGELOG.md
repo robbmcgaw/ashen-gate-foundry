@@ -1,3 +1,9 @@
+## 0.12.0 — 2026-10-20
+
+- **New API `embed.mount(element, {actorId, mode: 'stash'})`** so a partner module (Character Hub) can show the real party stash inside its own window: the purse strip and the Items list with search, open item, Take, drag in and out, coin Deposit / Take and the GM's Adjust Purse. Returns `{unmount, refresh}`; it refreshes itself on stash changes. See the README.
+- Same permissions as the Utilities window, enforced in the same functions: GM always; players need Player Access and the stash on; take-outs keep the party vote.
+- The Utilities window is unchanged. No saved data changes.
+
 ## 0.11.0 — 2026-10-20
 
 - **New read-only API `stash.listItems()`** for partner modules (Character Hub): `[{id, uuid, img, name, quantity, weight, value, type, typeLabel}]`, sorted by type then name; `[]` when there is no stash or it is empty.

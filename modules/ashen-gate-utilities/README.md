@@ -23,7 +23,7 @@ Player actions that change shared state (stash moves, condition removal) are car
 
 ## Public API
 
-`game.modules.get('ashen-gate-utilities').api`: `open`, `playerAccess` (`ag-player-access/1`), `conditions` (`isUnlocked`, `setUnlocked`, `canRemove`, `remove`, `openOverlay`) and `stash` (`isEnabled`, `setEnabled`, `isVoteRequired`, `setVoteRequired`, `history`, `clearHistory`, `open`, `deposit`, `withdraw`, `listItems`), plus GM-only `awardGold({amount, mode, actorIds, reason, public})` and `undoGoldAward(entryId)` (also as `gold`).
+`game.modules.get('ashen-gate-utilities').api`: `open`, `playerAccess` (`ag-player-access/1`), `conditions` (`isUnlocked`, `setUnlocked`, `canRemove`, `remove`, `openOverlay`) and `stash` (`isEnabled`, `setEnabled`, `isVoteRequired`, `setVoteRequired`, `history`, `clearHistory`, `open`, `deposit`, `withdraw`, `listItems`), `embed` (`mount`), plus GM-only `awardGold({amount, mode, actorIds, reason, public})` and `undoGoldAward(entryId)` (also as `gold`).
 
 ### `stash.listItems()` (0.11.0)
 
@@ -37,6 +37,25 @@ game.modules.get('ashen-gate-utilities').api.stash.listItems()
 - One row per Item on the stash Actor, sorted by type label, then name. Weight and value are per item, as shown in the stash tab.
 - No stash Actor yet, or an empty stash → `[]`.
 - **Permission:** the GM always. Players see the same items as the stash tab: they get an error while Utilities Player Access is off (`Utilities access is hidden by the GM.`) or the GM has turned the stash off for players (`The GM has turned the party stash off.`). Listing never moves anything; taking an item out still follows the take-out vote (`stash.isVoteRequired()`).
+
+### `embed.mount(element, options)` (0.12.0)
+
+Shows the party stash (purse strip and Items list, the same as Party Inventory → Items) inside another module's window, for example Character Hub's Inventory → Party stash. Utilities draws it and handles its buttons; the caller only provides an element.
+
+```js
+const api = game.modules.get('ashen-gate-utilities')?.api;
+if (api?.embed?.mount) {
+  const view = api.embed.mount(element, {actorId: actor.id, mode: 'stash'});
+  // later: view.refresh();  view.unmount();
+}
+```
+
+- `element`: a DOM element the caller owns. Utilities replaces its contents and adds the classes `ag-utilities agu-embed` (so its styles apply).
+- `options.actorId` (optional): the character preselected for Take and for coin Deposit/Take, when this user may use it (GM: any character; player: a character they own). Otherwise the first allowed character.
+- `options.mode`: `'stash'` (the only mode; `api.embed.modes` lists them). An unknown mode or a missing element throws.
+- Returns `{unmount(), refresh()}`. `unmount` removes the listeners and empties the element. It refreshes itself when stash items, the purse or the stash settings change, and unmounts itself if the element has left the page.
+- Works in the embed: search, open an item sheet, **Take** into a character, drag a row onto a sheet, drop an item onto the embed to stash it, purse **Deposit** / **Take**, and the GM's **Adjust Purse**. Not in the embed: stash History, Award Gold, turning the stash on or off (use the Utilities window).
+- **Permission:** the same as the Utilities window, checked when drawing and again by every action: the GM always; players see "Utilities is hidden by the GM." while Player Access is off and "The GM has turned the party stash off." while the stash is off. Take-outs keep the party vote. Players never get GM-only controls.
 
 ## Install
 
