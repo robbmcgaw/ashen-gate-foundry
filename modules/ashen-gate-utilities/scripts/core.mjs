@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.12.0';
+export const VERSION = '0.13.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -474,4 +474,26 @@ export function purseLine(h) {
   if (h.kind === 'purse-deposit') return `${who} put ${amt} in the party purse`;
   if (h.kind === 'purse-take') return h.moved ? `${who} took ${amt} from the party purse` : `${who} tried to take ${amt} from the party purse`;
   return h.op === 'set' ? `${h.userName} set the party purse ${h.coin} to ${h.amount}` : `${h.userName} ${h.op === 'add' ? 'added' : 'removed'} ${amt} ${h.op === 'add' ? 'to' : 'from'} the party purse`;
+}
+
+export const ROLL_OPEN_MODES = Object.freeze(['group', 'individual']);
+/**
+ * 0.13.0: normalises an api.rolls.open() request into Start Rolls form values. Nothing is started.
+ * Unknown skills and characters are dropped; Individual rolls keep the first skill only.
+ * dc: undefined → the form's default 15, null/'' → no DC. actorIds: undefined → the party default.
+ */
+export function rollPrefill({skills, dc, mode = 'group', actorIds, title = ''} = {}, {characterIds = []} = {}) {
+  if (!ROLL_OPEN_MODES.includes(mode)) throw Error("mode must be 'group' or 'individual'.");
+  let picked = [...new Set((Array.isArray(skills) ? skills : [skills]).map(String))].filter(s => SKILL_IDS.includes(s));
+  if (!picked.length) throw Error(`Choose at least one skill (${SKILL_IDS.join(', ')}).`);
+  if (mode === 'individual') picked = picked.slice(0, 1);
+  let dcValue = 15;
+  if (dc === null || dc === '') dcValue = null;
+  else if (dc !== undefined) {
+    dcValue = Number(dc);
+    if (!Number.isInteger(dcValue) || dcValue < 0 || dcValue > 100) throw Error('DC must be a whole number from 0 to 100.');
+  }
+  const known = new Set(characterIds);
+  const actors = actorIds === undefined || actorIds === null ? null : [...new Set([].concat(actorIds).map(String))].filter(id => known.has(id));
+  return {mode, skills: picked, dc: dcValue, actorIds: actors, title: String(title ?? '').slice(0, 120)};
 }
