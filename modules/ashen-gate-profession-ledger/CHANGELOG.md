@@ -1,3 +1,8 @@
+## 0.18.0 — 2026-10-20
+
+- **New read-only API `getProfessions(actor)`** for partner modules (Character Hub): `[{professionId, name, level, xp, xpToNext, maxLevel, tier, unspentPerkChoices}]`, one row per profession the character has, sorted by name; `[]` when none. `xpToNext` is `null` at level 16. Works without Skill Trees.
+- GM or the Actor's owner only; anyone else is refused (`Actor access denied`), and players are refused while Ledger Player Access is off. Players never see GM-only or reveal-gated professions. Additive only: no saved data changes.
+
 ## 0.17.0 — 2026-10-20
 
 - **Crafting awards the real 2024 core item when linked.** If General Manager (0.26.0+, Core Links) has linked a recipe's result Item to a 2024 core item, crafting gives a fresh copy of that core item: its image, description and rules data, with the Ashen Gate name, the `ITEM-*` id, Manager's source data and the Ledger flags kept, so it stacks with earlier crafts as before.
