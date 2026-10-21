@@ -1,4 +1,4 @@
-# Cinder, Power, Backfire table and Strain config schema (Skill Trees 0.16.0+, General Manager 0.39.0+)
+# Cinder, Power, Backfire table and Strain config schema (Ashen Gate | Cinders 0.1.0+, Skill Trees 0.17.0+, General Manager 0.39.0+)
 
 This is the reference for writing Cinder content. It is generic: there is no setting content here, and every example uses synthetic `[TEST]` data. The campaign's Cinder names, powers, Backfire tables and Strain band names are written from this schema and kept in the private content repo.
 
@@ -14,13 +14,15 @@ Check your own files with `node scripts/validate-content.mjs <file-or-folder>`.
 
 | File | Holds | Imported by |
 |---|---|---|
-| Manager package (`ag-foundry-import/0.2`) | Cinder definitions (`MUT-*`), powers (`POWER-*`) and Backfire tables (`BF-*`) as ordinary records with a typed block | General Manager → Import. Skill Trees checks the typed blocks. |
+| Manager package (`ag-foundry-import/0.2`) | Cinder definitions (`MUT-*`), powers (`POWER-*`) and Backfire tables (`BF-*`) as ordinary records with a typed block | General Manager → Import. Ashen Gate \| Cinders checks the typed blocks. |
 | Skill Trees file (`ag-skill-trees/0.3`) | One `cinder_milestone` tree per Cinder; its nodes name the `POWER-*` ids | General Manager → Import (to Skill Trees) |
-| Strain config (`ag-strain-config/0.1`) | Band names, Backfire schedule, rest recovery and the effect-roll bonus | General Manager → Import (to Skill Trees), or Skill Trees → GM Setup → Strain |
+| Strain config (`ag-strain-config/0.1`) | Band names, Backfire schedule, rest recovery and the effect-roll bonus | General Manager → Import (to Ashen Gate \| Cinders), or Cinders → GM Setup → Strain |
 
 Import order (a ZIP bundle does this automatically): Manager package → tree file → Strain config.
 
-**Importing never touches live play state.** It never creates, moves or deletes a Cinder instance, never changes a bearer, points, unlocks or a character's Strain, and never applies a Backfire. Re-importing updates the definitions only; GM edits and live state are kept. Cinder instances are made and bound by the GM in Skill Trees → Cinders.
+Who uses what: **Skill Trees** holds the Cinder trees (points and unlocks). **Ashen Gate | Cinders** reads the `cinder`, `power` and `backfire` blocks and the Strain config, and runs Cinders, Push, Backfire and Strain.
+
+**Importing never touches live play state.** It never creates, moves or deletes a Cinder instance, never changes a bearer, points, unlocks or a character's Strain, and never applies a Backfire. Re-importing updates the definitions only; GM edits and live state are kept. Cinder instances are made and bound by the GM in Ashen Gate | Cinders → Manage.
 
 ## Cinder definition — `MUT-*`, `entity_type: "Mutation"`
 

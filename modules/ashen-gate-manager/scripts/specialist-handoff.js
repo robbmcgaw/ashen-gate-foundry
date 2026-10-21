@@ -11,8 +11,8 @@ export const SPECIALISTS = Object.freeze({
   'skill-trees': {kind: 'Skill Tree', label: 'Skill Trees', moduleId: 'ashen-gate-skill-trees', preview: 'previewTreeImport', run: 'importTrees', canUpdate: true},
   headquarters: {kind: 'Facility', label: 'Headquarters', moduleId: 'ashen-gate-headquarters', preview: 'previewFacilityImport', run: 'importFacilities', canUpdate: false},
   factions: {kind: 'Faction', label: 'Renown', moduleId: 'ashen-gate-factions', preview: 'previewFactionsImport', run: 'importFactions', canUpdate: false},
-  // 0.39.0: the Strain config (band names, Backfire schedule) goes to Skill Trees' api.strain. It never changes a character's Strain.
-  strain: {kind: 'Strain config', label: 'Strain (Skill Trees)', moduleId: 'ashen-gate-skill-trees', apiPath: 'strain', preview: 'previewConfigImport', run: 'importConfig', canUpdate: false}
+  // 0.39.0: the Strain config (band names, Backfire schedule) goes to Ashen Gate | Cinders' api.strain. It never changes a character's Strain.
+  strain: {kind: 'Strain config', label: 'Strain (Cinders)', moduleId: 'ashen-gate-cinders', apiPath: 'strain', preview: 'previewConfigImport', run: 'importConfig', canUpdate: false}
 });
 export const STRAIN_CONFIG_SCHEMA = 'ag-strain-config/0.1';
 export const STRAIN_CONFIG_ID = 'STRAIN-CONFIG';

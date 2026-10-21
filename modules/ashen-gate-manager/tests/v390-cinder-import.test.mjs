@@ -1,5 +1,5 @@
-// 0.39.0: Cinder / Power / Backfire-table definitions are checked by Skill Trees (feature-detected); the Strain config
-// file is handed to Skill Trees' api.strain. Plain data and stand-in module APIs: proves routing and checks, not the live UI.
+// 0.39.0: Cinder / Power / Backfire-table definitions are checked by Ashen Gate | Cinders (feature-detected); the Strain config
+// file is handed to Cinders' api.strain. Plain data and stand-in module APIs: proves routing and checks, not the live UI.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {cinderDefinitionChecks} from '../scripts/cinder-definitions.js';
@@ -8,17 +8,17 @@ import {BUNDLE_ORDER, bundleRecordIds} from '../scripts/zip-import.js';
 
 const power = {id: 'POWER-TEST-SPARK', entity_type: 'Power', power: {schema: 'ag-power/0.1', kind: 'power', push_modes: [{id: 'amplify', label: '[TEST] Amplify', strain_cost: 2}]}};
 const perk = {id: 'PERK-TEST-X', entity_type: 'ProfessionPerk'};
-const gameWith = api => ({modules: new Map([['ashen-gate-skill-trees', {active: true, api}]])});
+const gameWith = api => ({modules: new Map([['ashen-gate-cinders', {active: true, api}]])});
 
-test('typed definitions go to Skill Trees\' validator; its errors block, its warnings show', () => {
+test('typed definitions go to the Cinders validator; its errors block, its warnings show', () => {
   const seen = [];
   const game = gameWith({cinder: {validateDefinition: r => {seen.push(r.id); return r.id === 'POWER-TEST-SPARK' ? {errors: ['POWER-TEST-SPARK: [TEST] bad'], warnings: ['[TEST] note']} : {errors: [], warnings: []};}}});
   const r = cinderDefinitionChecks(game, [power, perk, {id: 'BF-TEST-A', entity_type: 'BackfireTable'}, {id: 'MUT-TEST-A', entity_type: 'Mutation'}]);
   assert.deepEqual(seen, ['POWER-TEST-SPARK', 'BF-TEST-A'], 'only records with a typed block (a Mutation without cinder is a plain document)');
   assert.deepEqual(r, {errors: ['POWER-TEST-SPARK: [TEST] bad'], warnings: ['[TEST] note']});
 });
-test('without Skill Trees (or an older one) the definitions still import, with a warning; no typed records, nothing to say', () => {
-  for (const game of [{modules: new Map()}, gameWith({}), {modules: new Map([['ashen-gate-skill-trees', {active: false, api: {cinder: {validateDefinition: () => ({errors: ['x']})}}}]])}]) {
+test('without Cinders (or with a module that has no validator) the definitions still import, with a warning; no typed records, nothing to say', () => {
+  for (const game of [{modules: new Map()}, gameWith({}), {modules: new Map([['ashen-gate-cinders', {active: false, api: {cinder: {validateDefinition: () => ({errors: ['x']})}}}]])}]) {
     const r = cinderDefinitionChecks(game, [power]);
     assert.deepEqual(r.errors, []);assert.match(r.warnings[0], /not checked/);
   }

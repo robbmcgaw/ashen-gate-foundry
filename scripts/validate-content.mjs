@@ -11,8 +11,8 @@
 //     or {rules}; Manager > Organize > Import), *.crosswalk.json (Profession Ledger baseline file; Ledger > GM Setup >
 //     Tools and checks > Import baseline file) and *.npc-codex.json (ag-npc-codex-export/0.1; Library > NPC Codex >
 //     Restore reveals). They are left out of the folder's ZIP bundle.
-//   - ag-strain-config/0.1 files (Skill Trees Strain bands and Backfire schedule) are checked with Skill Trees' own validator;
-//     Cinder / Power / BackfireTable records in a Manager package get Skill Trees' definition check (0.16.0+).
+//   - ag-strain-config/0.1 files (Strain bands and Backfire schedule) are checked with Ashen Gate | Cinders' own validator;
+//     Cinder / Power / BackfireTable records in a Manager package get Cinders' definition check.
 //   - each folder's accepted import files are also zipped together and read as a Manager ZIP bundle.
 // Exit code 1 when any file does not behave as expected.
 import fs from 'node:fs';
@@ -31,8 +31,8 @@ import { importRecords, normalizeExotics as locationExotics } from '../modules/a
 import { importRouteRecords } from '../modules/ashen-gate-locations/scripts/routes.mjs';
 import { planQuestImport } from '../modules/ashen-gate-quest-manager/scripts/core.mjs';
 import { validatePackage as validateTrees } from '../modules/ashen-gate-skill-trees/scripts/engine.mjs';
-import { validateDefinition as validateCinderDefinition, categoriesFor } from '../modules/ashen-gate-skill-trees/scripts/cinder.mjs';
-import { validateConfig as validateStrainConfig } from '../modules/ashen-gate-skill-trees/scripts/strain.mjs';
+import { validateDefinition as validateCinderDefinition, categoriesFor } from '../modules/ashen-gate-cinders/scripts/cinder.mjs';
+import { validateConfig as validateStrainConfig } from '../modules/ashen-gate-cinders/scripts/strain.mjs';
 import { planImport as planFactions } from '../modules/ashen-gate-factions/scripts/import.mjs';
 import { planFacilityImport } from '../modules/ashen-gate-headquarters/js/logic.mjs';
 import { normalizeRecipe } from '../modules/ashen-gate-profession-ledger/scripts/core.mjs';
@@ -109,7 +109,7 @@ function domainChecks(pkg) {
       else for (const u of catalogCrosswalk([{sourceId: rec.id, name: rec.name, access: rec.access}]).unresolved)
         errors.push(`${rec.id}: access.${u.field} "${u.name}" matches no dnd5e ${u.field === 'skillProficienciesAnyOf' ? 'skill' : 'tool'} (the Ledger ignores it).`);
     }
-    // Cinder (MUT-*), Power (POWER-*) and Backfire table (BF-*) blocks: Skill Trees' own check (Manager runs the same at import).
+    // Cinder (MUT-*), Power (POWER-*) and Backfire table (BF-*) blocks: Ashen Gate | Cinders' own check (Manager runs the same at import).
     if (['Mutation', 'Power', 'BackfireTable'].includes(rec.entity_type)) {
       const v = validateCinderDefinition(rec);
       errors.push(...v.errors); notes.push(...v.warnings);
@@ -208,7 +208,7 @@ export async function checkContent(data, filename = '') {
   const specialist = detectSpecialistFile(data);
   if (specialist === 'quests') return {kind: 'quests', errors: planQuestImport(data).errors, notes: []};
   if (specialist === 'skill-trees') { const v = validateTrees(data); return {kind: 'skill-trees', errors: v.errors, notes: v.warnings}; }
-  if (specialist === 'strain') { const v = validateStrainConfig(data); return {kind: 'strain', errors: v.errors, notes: [...v.warnings, 'Imported through Manager Import (to Skill Trees) or Skill Trees > GM Setup > Strain. Never changes a character\'s Strain.']}; }
+  if (specialist === 'strain') { const v = validateStrainConfig(data); return {kind: 'strain', errors: v.errors, notes: [...v.warnings, 'Imported through Manager Import (to Ashen Gate | Cinders) or Cinders > GM Setup > Strain. Never changes a character\'s Strain.']}; }
   if (specialist === 'factions') return {kind: 'factions', errors: planFactions(data).errors, notes: []};
   if (specialist === 'headquarters') return {kind: 'headquarters', errors: planFacilityImport(data).errors, notes: []};
   const delivery = data && typeof data === 'object' && !Array.isArray(data) ? classifyDelivery(data) : null;
