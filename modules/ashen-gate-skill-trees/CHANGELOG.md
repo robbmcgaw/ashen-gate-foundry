@@ -1,3 +1,11 @@
+## 0.19.0 — 2026-10-21
+
+- UI standard look: "Ashen Gate | Skill Trees" header with a muted version and Help, kit tabs (Tree Library and GM Setup marked GM, last), kit cards, empty states, notices and dialog fields; tokens for every size so Comfortable grows the window and text.
+- Perk nodes show their whole name: the box keeps its width and grows taller, and the arrows follow the real border. Hovering a node shows one tooltip (the corner card), no browser title.
+- Zoom buttons are icons (reset zoom is the ↺ icon). Button hover text uses Foundry tooltips.
+- Tree Library: a toolbar with search, a count and New tree on the right, and a list of the trees with status, visibility and Open.
+- GM Setup: Player Access is a checkbox saved with Save Changes (Cancel drops the change). Import Ledger perk choices and the legacy v0.1 tools move to their own "Data tools" card; Developer Tools at the bottom keeps only the QA install and reset. No saved data or setting keys change.
+
 ## 0.18.1 — 2026-10-21
 
 - Confirmations name the action (no more Yes/No), Help opens with a Close button, dialogs follow the Ashen Gate look; test wording removed from player views.

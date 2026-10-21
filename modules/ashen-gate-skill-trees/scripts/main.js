@@ -11,11 +11,12 @@ import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertP
 import {lookupWorldDefinition} from './definition-lookup.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,infoDialog} from './ag-dialogs.mjs';
+import {windowSize} from './ag-html.mjs';
 import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument,qaCleanupBlockers} from './qa-fixtures.mjs';
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.18.1';
+const VERSION='0.19.0';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -549,13 +550,28 @@ function relationsOf(nodes,n){
     leadsTo:nodes.filter(x=>asArray(x.requiresAll).includes(n.id)||asArray(x.requiresAny).some(g=>g.includes(n.id))).map(x=>ref(x.id))
   };
 }
+/** Node state as words and the kit badge tone (the corner tip and the inspector use the same pair). */
+const STATE_VIEW={UNLOCKED:{text:'Unlocked',badge:'ag-badge--ok'},AVAILABLE:{text:'Available',badge:'ag-badge--accent'},LOCKED:{text:'Locked',badge:''}};
+const TIP_BADGE={unlocked:'ag-badge--ok',available:'ag-badge--accent'};
 const HISTORY_LABELS={allocate:'Picked',override:'GM grant',remove:'Removed',keep:'Kept',reset:'Reset',undo:'Undo',migrate:'Imported from Ledger'};
 const relationText=r=>[r.all.length?`Requires ${r.all.map(x=>x.name).join(' and ')}`:'',
   ...r.any.map(g=>`Requires one of ${g.nodes.map(x=>x.name).join(' or ')}`),
   r.excludes.length?`Cannot be taken with ${r.excludes.map(x=>x.name).join(', ')}`:''].filter(Boolean).join('. ');
 
+const PROVIDER_TEXT={profession:'Profession',cinder_milestone:'Cinder',generic_points:'Generic points'};
+const STATUS_VIEW={draft:{text:'Draft',cls:''},test:{text:'Test',cls:'ag-badge--warn'},approved:{text:'Approved',cls:'ag-badge--ok'}};
+/** Tree Library rows (GM): one per private layout, sorted by name; search text is the lower-case name. */
+function libraryRows(trees,selectedId){
+  return trees.map(t=>{const n=asArray(t.nodes).length,st=STATUS_VIEW[t.status]??{text:String(t.status??''),cls:''};
+    return {id:t.id,name:t.name||t.id,search:String(t.name||t.id).toLowerCase(),kind:PROVIDER_TEXT[t.provider?.kind]??'Generic points',
+      nodeText:`${n} perk${n===1?'':'s'}`,statusText:st.text,statusClass:st.cls,playerVisible:t.visibility==='player',
+      visibilityText:t.visibility==='player'?'Player-visible':'GM only',selected:t.id===selectedId};})
+    .sort((a,b)=>a.name.localeCompare(b.name));
+}
+const countText=(shown,total)=>shown===total?`${total} tree${total===1?'':'s'}`:`${shown} of ${total} trees`;
+
 class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
-  static DEFAULT_OPTIONS={id:'agst-window-v2',classes:['ag-app','agst-window-v2'],window:{title:'Ashen Gate | Skill Trees',resizable:true,icon:'fa-solid fa-diagram-project'},position:{width:1120,height:740}};
+  static DEFAULT_OPTIONS={id:'agst-window-v2',classes:['ag-app','agst-window-v2'],window:{title:'Ashen Gate | Skill Trees',resizable:true,icon:'fa-solid fa-diagram-project'},position:{width:1120,height:740}}; // Compact; Comfortable scales it when the window opens (windowSize)
   static PARTS={main:{template:`modules/${MODULE}/templates/tree.hbs`}};
   render(options){
     checkTreePlayerAccess();
@@ -564,7 +580,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if(el?.querySelector)this._scroll={vp:[el.querySelector('.agst-viewport')?.scrollLeft??0,el.querySelector('.agst-viewport')?.scrollTop??0],side:el.querySelector('.agst-sidebar-scroll')?.scrollTop??0};
     return super.render(options);
   }
-  constructor(...args){super(...args);this.activeTab='trees';this.actorId=null;this.treeId=null;this.nodeId=null;this.editMode=false;this.playerPreview=false;this.linkFrom=null;this.zoom=1;this.search='';this.busy=false;this.listOpen=false;this.undo=[];this.redo=[];this.sidebarOpen=null;this._scroll=null;this._tips={};}
+  constructor(options={}){super({...options,position:{...windowSize(SkillTreeApp.DEFAULT_OPTIONS.position),...options.position}});this.activeTab='trees';this.actorId=null;this.treeId=null;this.nodeId=null;this.editMode=false;this.playerPreview=false;this.linkFrom=null;this.zoom=1;this.search='';this.busy=false;this.listOpen=false;this.undo=[];this.redo=[];this.sidebarOpen=null;this._scroll=null;this._tips={};}
   get actor(){return game.actors?.get(this.actorId)??null;}
   get trees(){return readSelectedTrees(this.playerPreview);}
   /** Raw stored tree (GM editor writes). Never save the resolved view: perk text must stay on the perk. */
@@ -591,13 +607,13 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const nodes=base.map(n=>{
       const unlocked=n.unlocked,e=t&&actor?
         (raw?availability(t,acc,n.id,{level}):publicAvailability(t,acc,n.id,{level})):{ok:false,reason:'Choose a character'};
-      const rel=relationsOf(base,n),flag=unlocked?'UNLOCKED':e.ok?'AVAILABLE':'LOCKED';
+      const rel=relationsOf(base,n),flag=unlocked?'UNLOCKED':e.ok?'AVAILABLE':'LOCKED',state=STATE_VIEW[flag];
       const overLevel=unlocked&&above.has(n.id),kept=unlocked&&Boolean(acc.kept[n.id]);
       return {...n,unlocked,eligible:!unlocked&&e.ok,overLevel,kept,reason:unlocked?(overLevel?`Unlocked, but needs level ${n.requiredLevel} (now ${level})`:kept?`Unlocked (kept by the GM at level ${acc.kept[n.id].level})`:'Unlocked'):e.reason,
         levelText:profession&&Number.isSafeInteger(n.requiredLevel)?`Level ${n.requiredLevel}`:'',
-        selected:n.id===this.nodeId,flag,rel,relText:relationText(rel),
+        selected:n.id===this.nodeId,flag,stateText:state.text,badgeClass:state.badge,rel,relText:relationText(rel),
         placeholder:n.status==='placeholder',silhouette:n.silhouette??false,img:n.silhouette?null:n.img??null,
-        label:[`${n.name}: ${flag}`,`${n.cost??1} point${(n.cost??1)===1?'':'s'}`,relationText(rel)].filter(Boolean).join('. '),
+        label:[`${n.name}: ${state.text}`,`${n.cost??1} point${(n.cost??1)===1?'':'s'}`,relationText(rel)].filter(Boolean).join('. '),
         blocked:!unlocked&&!e.ok,style:`left:${n.x}px;top:${n.y}px;`};
     });
     const selected=nodes.find(n=>n.id===this.nodeId)??null;
@@ -617,8 +633,9 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       .sort((a,b)=>a.name.localeCompare(b.name)):[];
     const setupReport=gm&&!preview&&this.activeTab==='library'?savedDataReport(readPrivate(),id=>Boolean(perkDoc(id))):[];
     const projectedCount=gm?readPublic().length:null;
+    const libraryTrees=gm&&this.activeTab==='library'?libraryRows(readPrivate(),this.treeId):[];
     return {...ctx,gm,editing:gm&&this.editMode&&!preview,preview,initialized:!gm||!!store,legacy,
-      moduleVersion:VERSION,playerAccessEnabled:gm?playerAccessEnabled():false,activeTrees:this.activeTab==='trees',activeSetup:gm&&this.activeTab==='setup',activeLibrary:gm&&this.activeTab==='library',gmPanel:gm&&(this.activeTab==='setup'||this.activeTab==='library'),
+      moduleVersion:game.modules?.get?.(MODULE)?.version??VERSION,libraryTrees,libraryCountText:countText(libraryTrees.length,libraryTrees.length),playerAccessEnabled:gm?(this._setupDraft?.playerAccessEnabled??playerAccessEnabled()):false,setupDirty:gm&&this._setupDirty(),activeTrees:this.activeTab==='trees',activeSetup:gm&&this.activeTab==='setup',activeLibrary:gm&&this.activeTab==='library',gmPanel:gm&&(this.activeTab==='setup'||this.activeTab==='library'),
       hasTree:!!t,tree:t,selected,canBuy:gm&&!preview&&!!selected&&!!actor&&availability(t,acc,selected.id,{level}).ok,
       canRequest:!gm&&!!selected&&!!actor&&publicAvailability(t,acc,selected.id,{level}).ok,
       canRefund:raw&&!!selected?.unlocked&&!!actor,
@@ -677,6 +694,8 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     },listenerOptions);
     root.querySelector('.agst-tree-list')?.addEventListener('toggle',e=>{this.listOpen=e.target.open;},listenerOptions);
     root.querySelector('#agst-feature-search')?.addEventListener('input',e=>{this.search=e.target.value;const cards=root.querySelectorAll('.agst-feature');for(const c of cards)c.hidden=!`${c.textContent}`.toLowerCase().includes(this.search.toLowerCase());},listenerOptions);
+    this._wireLibrarySearch(root,listenerOptions);
+    root.querySelector('[data-agst-setup]')?.addEventListener('change',()=>this._onSetupChange(),listenerOptions);
     const shell=root.querySelector('.agst-shell');
     this.sidebarOpen=initialSidebar(this.sidebarOpen,shell?.clientWidth);
     this._applySidebar();
@@ -691,6 +710,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const board=root.querySelector('.agst-board');
     if(board){
       board.style.zoom=String(this.zoom);
+      this._fitEdges();
       // Corner tooltip: hover or keyboard focus previews a node; the selected node shows when nothing else does.
       const nodeOf=e=>e.target.closest?.('.agst-node')?.dataset.id??null;
       board.addEventListener('pointerover',e=>{const id=nodeOf(e);if(id)this._showTip(id);},listenerOptions);
@@ -704,6 +724,55 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     root.querySelectorAll('.agst-feature').forEach(el=>el.addEventListener('dragstart',e=>e.dataTransfer?.setData('text/plain',JSON.stringify({type:'Item',uuid:el.dataset.uuid})),listenerOptions));
   }
+  /** Tree Library search: filters the rows as you type (no re-render) and keeps the count in step. */
+  _wireLibrarySearch(root,listenerOptions){
+    const input=root.querySelector('[data-agst-library-search]');if(!input)return;
+    const rows=[...root.querySelectorAll('[data-agst-library-row]')],count=root.querySelector('[data-agst-library-count]'),none=root.querySelector('[data-agst-library-nomatch]');
+    const apply=()=>{const q=input.value.trim().toLowerCase();let shown=0;
+      for(const row of rows){row.hidden=Boolean(q)&&!row.dataset.search.includes(q);if(!row.hidden)shown++;}
+      if(count)count.textContent=countText(shown,rows.length);if(none)none.hidden=!(rows.length&&!shown);};
+    input.addEventListener('input',apply,listenerOptions);
+    root.querySelector('[data-agst-library-clear]')?.addEventListener('click',()=>{input.value='';apply();input.focus();},listenerOptions);
+  }
+  /** GM Setup form values as shown (not yet saved). */
+  _readSetup(){
+    const box=this.element?.querySelector?.('[data-agst-setup] [name="playerAccessEnabled"]');
+    return {playerAccessEnabled:box?Boolean(box.checked):playerAccessEnabled()};
+  }
+  /** A GM Setup control changed: say so in the footer. Nothing is written until Save Changes (D4). */
+  _onSetupChange(){
+    this._setupDraft=this._readSetup();
+    const status=this.element?.querySelector?.('[data-agst-setup-status]');
+    if(status)status.textContent=this._setupDirty()?'Unsaved changes':'';
+  }
+  _setupDirty(){return Boolean(this._setupDraft)&&this._setupDraft.playerAccessEnabled!==playerAccessEnabled();}
+  /** Save Changes in GM Setup. GM only; writes only the settings that changed (same setting key as before). */
+  async _saveSetup(values={}){
+    if(!game.user.isGM)throw Error('GM only');
+    const next=values.playerAccessEnabled;
+    this._setupDraft=null;
+    if(typeof next!=='boolean'||next===playerAccessEnabled()){notify('No changes to save.');return false;}
+    await setPlayerAccess(game,MODULE,next);
+    notify(`Saved. Player Access: ${next?'players can open Skill Trees':'hidden from players'}. Points and unlocks are unchanged.`);
+    return true;
+  }
+  /**
+   * Nodes keep their width but grow in height to show the whole name, so redraw each edge to the node's real border.
+   * The height is read relative to the fixed width, so the board zoom does not matter.
+   */
+  _fitEdges(){
+    const board=this.element?.querySelector?.('.agst-board');if(!board||!this.tree)return;
+    const size=nodeSizeOf(this.tree),w=NODE_SIZES[size].w;
+    const box=id=>{const el=board.querySelector(`.agst-node[data-id="${CSS.escape(id)}"]`);if(!el)return null;
+      const h=el.offsetWidth?el.offsetHeight*w/el.offsetWidth:NODE_SIZES[size].h;
+      return {x:parseFloat(el.style.left),y:parseFloat(el.style.top),h};};
+    const boxes=new Map();const get=id=>{if(!boxes.has(id))boxes.set(id,box(id));return boxes.get(id);};
+    for(const el of board.querySelectorAll('[data-edge]')){
+      const src=get(el.dataset.from),dst=get(el.dataset.to);if(!src||!dst)continue;
+      const line=edgeLine(src,dst,size);
+      if(el.tagName.toLowerCase()==='path')el.setAttribute('d',line.d);else{el.setAttribute('x',line.mx);el.setAttribute('y',line.my);}
+    }
+  }
   _applySidebar(){
     const open=this.sidebarOpen!==false,layout=this.element?.querySelector?.('.agst-layout');
     layout?.classList.toggle('agst-sidebar-open',open);
@@ -716,7 +785,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     card.hidden=!tip;
     if(!tip){card.replaceChildren();return;}
     const make=(tag,cls,text)=>{const e=document.createElement(tag);if(cls)e.className=cls;e.textContent=text;return e;};
-    const head=make('div','agst-tip-head','');head.append(make('strong','',tip.name),make('span',`ag-badge agst-tip-state agst-tip-${tip.statusKey}`,tip.status));
+    const head=make('div','agst-tip-head','');head.append(make('strong','',tip.name),make('span',`ag-badge ${TIP_BADGE[tip.statusKey]??''}`.trim(),tip.status));
     card.replaceChildren(head);
     if(tip.costText)card.append(make('div','agst-tip-line',tip.costText));
     if(tip.text)card.append(make('p','agst-tip-text',tip.text));
@@ -732,6 +801,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     try{checkTreePlayerAccess();}catch(error){notify(error.message,true);await this.close?.({animate:false});return;}
     const el=event.target.closest('[data-act]');if(!el||this.busy)return;
     const action=el.dataset.act,id=el.dataset.id;
+    if(action.startsWith('tab-'))this._setupDraft=null;
     if(action==='tab-trees'){this.activeTab='trees';this.render();return;}
     if(action==='tab-library'){if(!game.user.isGM){notify('Tree Library is restricted to the GM.',true);return;}this.activeTab='library';this.editMode=false;this.playerPreview=false;this.render();return;}
     if(action==='tab-setup'){if(!game.user.isGM){notify('GM Setup is restricted to the GM.',true);return;}this.activeTab='setup';this.editMode=false;this.playerPreview=false;this.render();return;}
@@ -747,7 +817,9 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     try{
       switch(action){
         case 'help': await this._help();break;
-        case 'toggle-player-access':if(!game.user.isGM)throw Error('GM only');{const next=!playerAccessEnabled();await setPlayerAccess(game,MODULE,next);notify(`Player tree interface ${next?'visible':'hidden'}; purchased nodes and point pools are unchanged.`);}break;
+        // D4: GM Setup settings are written only by Save Changes; Cancel drops the edits (the re-render shows the saved values).
+        case 'setup-save':await this._saveSetup(this._readSetup());break;
+        case 'setup-cancel':this._setupDraft=null;break;
         case 'initialize': await initializeStore();break;
         case 'qa-install':await this._installQa();break;
         case 'qa-reset':await this._resetQa();break;
@@ -764,7 +836,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
         case 'undo-history':await this._undoHistory(id);break;
         case 'ledger-import':await this._ledgerImport();break;
         case 'pick-actor':this.actorId=id;break;
-        case 'open-row':this.treeId=el.dataset.tree;this.actorId=el.dataset.actor;this.nodeId=null;this.activeTab='trees';break;
+        case 'open-row':this.treeId=el.dataset.tree;this.actorId=el.dataset.actor??this.actorId;this.nodeId=null;this.activeTab='trees';break;
         case 'reset-tree':await this._resetTree();break;
         case 'give-missing':await this._giveMissing();break;
         case 'edit-node':await this._editNode();break;
@@ -787,7 +859,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     }catch(error){console.error(`[${MODULE}]`,error);notify(`Skill Trees: ${error.message}`,true);}finally{this.busy=false;}
   }
   async _help(){
-    await infoDialog('Skill Trees help','<p><strong>Tree View</strong> shows a character’s tree. Each node is a perk. Arrows point from a prerequisite to the perk it opens; a dashed arrow marked OR means any one of that group is enough; a red dotted line marked ✕ joins perks that cannot both be taken. Select a node to read the same information as text.</p><p><strong>Unlock</strong> spends the character’s points and adds the perk to their sheet. Players unlock their own characters while a GM is logged in; the GM can unlock, refund or reset (refund removes the perk from the sheet).</p><p><strong>GM Setup</strong> has publishing, export (backups) and the saved-data check. Tree files are imported through General Manager.</p><p><strong>Review</strong> (GM): when a lower level leaves perks above it, the banner’s <strong>Review</strong> button (or the whisper’s) lists them: keep or remove each. Every change in a character’s History can be undone.</p><p><strong>Profession trees</strong> get 1 point per profession level from the Profession Ledger (level 16 = 16 points; a tree has 24 perks, so players choose 16). Each perk needs the level of its tier (Apprentice 1, Journeyman 4, Expert 7, Artisan 10, Master 13). Players pick their own; only the GM can remove a perk, grant one as an override, or keep one the level no longer covers. A character with perks above their level waits on GM review before picking again.</p>');
+    await infoDialog('Skill Trees help','<p><strong>Tree View</strong> shows a character’s tree. Each node is a perk. Arrows point from a prerequisite to the perk it opens; a dashed arrow marked OR means any one of that group is enough; a red dotted line marked ✕ joins perks that cannot both be taken. Select a node to read the same information as text.</p><p><strong>Unlock</strong> spends the character’s points and adds the perk to their sheet. Players unlock their own characters while a GM is logged in; the GM can unlock, refund or reset (refund removes the perk from the sheet).</p><p><strong>Tree Library</strong> (GM) lists the trees and has publishing, export (backups) and the saved-data check. Tree files are imported through General Manager. <strong>GM Setup</strong> has Player Access (saved with Save Changes) and the data tools.</p><p><strong>Review</strong> (GM): when a lower level leaves perks above it, the banner’s <strong>Review</strong> button (or the whisper’s) lists them: keep or remove each. Every change in a character’s History can be undone.</p><p><strong>Profession trees</strong> get 1 point per profession level from the Profession Ledger (level 16 = 16 points; a tree has 24 perks, so players choose 16). Each perk needs the level of its tier (Apprentice 1, Journeyman 4, Expert 7, Artisan 10, Master 13). Players pick their own; only the GM can remove a perk, grant one as an override, or keep one the level no longer covers. A character with perks above their level waits on GM review before picking again.</p>');
   }
   async _installQa(){
     if(!game.user.isGM)throw Error('GM only');
@@ -841,10 +913,10 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
   }
   async _newTree(){
     if(!game.user.isGM)throw Error('GM only');
-    const f=await input('Create tree',`<div class="agst-form"><label>Name<input name="name" value="New Tree" maxlength="120" required></label>
-      <label>Provider<select name="kind"><option value="generic_points">Generic points</option><option value="cinder_milestone">Cinder • ${CINDER_MAX_POINTS} milestones</option><option value="profession">Profession • Ledger read-only</option></select></label>
-      <label>Canonical source ID (PROF-* / MUT-* when applicable)<input name="sourceRef" placeholder="MUT-EXAMPLE or PROF-EXAMPLE"></label>
-      <label>Generic point limit (1–999)<input type="number" name="maxPoints" value="10" min="1" max="999"></label>
+    const f=await input('Create tree',`<div class="ag-form-grid agst-dialog"><label class="ag-field">Name<input name="name" value="New Tree" maxlength="120" required></label>
+      <label class="ag-field">Provider<select name="kind"><option value="generic_points">Generic points</option><option value="cinder_milestone">Cinder • ${CINDER_MAX_POINTS} milestones</option><option value="profession">Profession • Ledger read-only</option></select></label>
+      <label class="ag-field">Canonical source ID (PROF-* / MUT-* when applicable)<input name="sourceRef" placeholder="MUT-EXAMPLE or PROF-EXAMPLE"></label>
+      <label class="ag-field">Generic point limit (1–999)<input type="number" name="maxPoints" value="10" min="1" max="999"></label>
       <p>Created as a hidden draft. Only explicitly released nodes become player-visible.</p></div>`,'Create');
     if(!f)return;
     const kind=f.kind||'generic_points';const t={id:newKey('LOCAL-TREE'),name:String(f.name??'').trim(),description:'New draft tree.',sourceRef:String(f.sourceRef??'').trim()||null,
@@ -861,11 +933,11 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
   }
   async _treeSettings(){
     if(!game.user.isGM||!this.editMode||!this.tree)throw Error('GM editor only');
-    const t=copy(this.storedTree);const f=await input('Tree settings',`<div class="agst-form"><label>Name<input name="name" value="${escape(t.name)}" maxlength="120"></label>
-      <label>Description (player-readable when published)<textarea name="description" rows="3">${escape(t.description)}</textarea></label>
-      <label>Release status<select name="status"><option value="draft" ${t.status==='draft'?'selected':''}>Draft: GM only</option><option value="test" ${t.status==='test'?'selected':''}>Test: not canon</option><option value="approved" ${t.status==='approved'?'selected':''}>Approved</option></select></label>
-      <label>Visibility<select name="visibility"><option value="gm" ${t.visibility==='gm'?'selected':''}>GM only</option><option value="player" ${t.visibility==='player'?'selected':''}>Player-visible</option></select></label>
-      ${t.provider.kind==='generic_points'?`<label>Max points<input type="number" min="1" max="999" name="maxPoints" value="${t.provider.maxPoints??10}"></label>`:''}
+    const t=copy(this.storedTree);const f=await input('Tree settings',`<div class="ag-form-grid agst-dialog"><label class="ag-field">Name<input name="name" value="${escape(t.name)}" maxlength="120"></label>
+      <label class="ag-field">Description (player-readable when published)<textarea name="description" rows="3">${escape(t.description)}</textarea></label>
+      <label class="ag-field">Release status<select name="status"><option value="draft" ${t.status==='draft'?'selected':''}>Draft: GM only</option><option value="test" ${t.status==='test'?'selected':''}>Test: not canon</option><option value="approved" ${t.status==='approved'?'selected':''}>Approved</option></select></label>
+      <label class="ag-field">Visibility<select name="visibility"><option value="gm" ${t.visibility==='gm'?'selected':''}>GM only</option><option value="player" ${t.visibility==='player'?'selected':''}>Player-visible</option></select></label>
+      ${t.provider.kind==='generic_points'?`<label class="ag-field">Max points<input type="number" min="1" max="999" name="maxPoints" value="${t.provider.maxPoints??10}"></label>`:''}
       <p>Only release source content you have permission to show. Editing does not change a Profession's XP rules.</p></div>`);
     if(!f)return;
     t.name=String(f.name??'').trim();t.description=String(f.description??'');t.status=f.status;t.visibility=f.visibility;
@@ -908,7 +980,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const used=new Set(t.nodes.filter(x=>x.id!==n.id).map(x=>x.perkId).filter(Boolean));
     const perks=this._worldPerks(t).filter(i=>!used.has(sourceFlag(i).sourceId));
     if(!perks.length)throw Error('No unused perks of the right type in this world. Import perks through General Manager first.');
-    const f=await input('Assign perk',`<div class="agst-form"><label>Perk<select name="perk">${perks.map(i=>{const id=sourceFlag(i).sourceId;
+    const f=await input('Assign perk',`<div class="ag-form-grid agst-dialog"><label class="ag-field">Perk<select name="perk">${perks.map(i=>{const id=sourceFlag(i).sourceId;
       return `<option value="${escape(id)}" ${id===n.perkId?'selected':''}>${escape(i.name)} (${escape(id)})</option>`;}).join('')}</select></label>
       <p>The node takes its name, text, picture and point cost from the perk. Position and prerequisites stay as they are.</p></div>`,'Assign');
     if(!f?.perk)return;
@@ -926,17 +998,17 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const rows=others.map((x,i)=>`<tr><th scope="row">${escape(nameOf(x.id))}</th><td><select name="req_${i}" aria-label="${escape(nameOf(x.id))} as a prerequisite">${opts(x.id)}</select></td>
       <td><input type="checkbox" name="ex_${i}" aria-label="Cannot be taken with ${escape(nameOf(x.id))}" ${n.excludes.includes(x.id)?'checked':''}></td></tr>`).join('');
     const custom=!n.perkId;
-    const f=await input(`Edit node • ${nameOf(n.id)}`,`<div class="agst-form">
-      ${custom?`<p class="agst-warn">Older custom node with no perk: it records an unlock but gives no Item. Use <strong>Assign Perk</strong> to turn it into a perk node.</p>
-        <label>Name<input name="name" value="${escape(n.name)}" maxlength="120"></label>
-        <label>Description<textarea name="description" rows="3">${escape(n.description)}</textarea></label>
-        <label>Point cost<input type="number" name="cost" min="1" max="100" value="${n.cost??1}"></label>`
+    const f=await input(`Edit node • ${nameOf(n.id)}`,`<div class="ag-form-grid agst-dialog">
+      ${custom?`<div class="ag-notice ag-notice--warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>Older custom node with no perk: it records an unlock but gives no Item. Use <strong>Assign Perk</strong> to turn it into a perk node.</span></div>
+        <label class="ag-field">Name<input name="name" value="${escape(n.name)}" maxlength="120"></label>
+        <label class="ag-field">Description<textarea name="description" rows="3">${escape(n.description)}</textarea></label>
+        <label class="ag-field">Point cost<input type="number" name="cost" min="1" max="100" value="${n.cost??1}"></label>`
         :`<p>Perk <code>${escape(n.perkId)}</code>: name, text, picture and point cost come from the perk.</p>`}
-      ${others.length?`<table class="agst-prereq-table"><caption>Before this node can be unlocked</caption><thead><tr><th scope="col">Node</th><th scope="col">Needed?</th><th scope="col">Cannot be taken with</th></tr></thead><tbody>${rows}</tbody></table>
+      ${others.length?`<div class="ag-table-wrap"><table class="ag-table"><caption>Before this node can be unlocked</caption><thead><tr><th scope="col">Node</th><th scope="col">Needed?</th><th scope="col">Cannot be taken with</th></tr></thead><tbody>${rows}</tbody></table></div>
       <p class="agst-help"><strong>Required</strong>: every one is needed. <strong>OR group</strong>: any one node of that group is enough (each group must be met).</p>`:''}
-      <label>Status<select name="status">${['draft','test','approved','placeholder'].map(k=>`<option value="${k}" ${n.status===k?'selected':''}>${k}</option>`).join('')}</select></label>
-      <label>Visibility<select name="visibility"><option value="gm" ${n.visibility==='gm'?'selected':''}>GM only</option><option value="player" ${n.visibility==='player'?'selected':''}>Player-visible</option><option value="reveal_gated" ${n.visibility==='reveal_gated'?'selected':''}>Reveal-gated (hidden until source released)</option></select></label>
-      <label>Display<select name="display"><option value="hidden" ${n.display==='hidden'?'selected':''}>Hidden</option><option value="teaser" ${n.display==='teaser'?'selected':''}>Silhouette</option><option value="shown" ${n.display==='shown'?'selected':''}>Shown</option></select></label>
+      <label class="ag-field">Status<select name="status">${['draft','test','approved','placeholder'].map(k=>`<option value="${k}" ${n.status===k?'selected':''}>${k}</option>`).join('')}</select></label>
+      <label class="ag-field">Visibility<select name="visibility"><option value="gm" ${n.visibility==='gm'?'selected':''}>GM only</option><option value="player" ${n.visibility==='player'?'selected':''}>Player-visible</option><option value="reveal_gated" ${n.visibility==='reveal_gated'?'selected':''}>Reveal-gated (hidden until source released)</option></select></label>
+      <label class="ag-field">Display<select name="display"><option value="hidden" ${n.display==='hidden'?'selected':''}>Hidden</option><option value="teaser" ${n.display==='teaser'?'selected':''}>Silhouette</option><option value="shown" ${n.display==='shown'?'selected':''}>Shown</option></select></label>
       <p class="agst-help">A placeholder is always GM-only; the editor enforces this even if other fields are selected.</p></div>`);
     if(!f)return;
     if(custom){n.name=String(f.name??'').trim();n.description=String(f.description??'');n.cost=Number(f.cost);}
@@ -960,18 +1032,18 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       <td><input name="tierLabel" maxlength="40" value="${escape(x.label??'')}" placeholder="Optional name" aria-label="Tier name"></td>
       <td><input type="number" name="tierY" min="0" max="6000" step="10" value="${escape(x.y??'')}" aria-label="Starts at (px from top)"></td>
       <td class="agst-pick"><input name="tierIcon" value="${escape(x.icon??'')}" placeholder="No icon" aria-label="Icon file"><button type="button" class="ag-btn ag-btn--sm" data-pick="tierIcon">Browse</button></td>
-      <td><button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-del-tier aria-label="Remove tier">✕</button></td></tr>`;
-    const content=`<div class="agst-form agst-appearance">
-      <label>Node size<select name="nodeSize">${Object.keys(NODE_SIZES).map(k=>`<option value="${k}" ${nodeSizeOf(t)===k?'selected':''}>${k==='compact'?'Compact (default; best for tall trees)':'Normal'}</option>`).join('')}</select></label>
+      <td><button type="button" class="ag-btn ag-btn--sm ag-btn--ghost ag-btn--icon" data-del-tier aria-label="Remove tier" data-tooltip="Remove tier" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></td></tr>`;
+    const content=`<div class="ag-form-grid agst-dialog agst-appearance">
+      <label class="ag-field">Node size<select name="nodeSize">${Object.keys(NODE_SIZES).map(k=>`<option value="${k}" ${nodeSizeOf(t)===k?'selected':''}>${k==='compact'?'Compact (default; best for tall trees)':'Normal'}</option>`).join('')}</select></label>
       <fieldset><legend>Canvas background</legend>
-        <label>Image<span class="agst-pick"><input name="bgImage" value="${escape(bg.image??'')}" placeholder="No background"><button type="button" class="ag-btn ag-btn--sm" data-pick="bgImage">Browse</button></span></label>
-        <label>Fit<select name="bgFit">${BG_FITS.map(k=>`<option value="${k}" ${(bg.fit??'cover')===k?'selected':''}>${{cover:'Cover (fill the tree)',tile:'Tile (repeat)',fixed:'Fixed (stays put while scrolling)'}[k]}</option>`).join('')}</select></label>
-        <label>Opacity <output data-opacity>${Math.round((bg.opacity??.35)*100)}%</output><input type="range" name="bgOpacity" min="5" max="100" step="5" value="${Math.round((bg.opacity??.35)*100)}"></label>
+        <label class="ag-field">Image<span class="agst-pick"><input name="bgImage" value="${escape(bg.image??'')}" placeholder="No background"><button type="button" class="ag-btn ag-btn--sm" data-pick="bgImage">Browse</button></span></label>
+        <label class="ag-field">Fit<select name="bgFit">${BG_FITS.map(k=>`<option value="${k}" ${(bg.fit??'cover')===k?'selected':''}>${{cover:'Cover (fill the tree)',tile:'Tile (repeat)',fixed:'Fixed (stays put while scrolling)'}[k]}</option>`).join('')}</select></label>
+        <label class="ag-field">Opacity <output data-opacity>${Math.round((bg.opacity??.35)*100)}%</output><input type="range" name="bgOpacity" min="5" max="100" step="5" value="${Math.round((bg.opacity??.35)*100)}"></label>
       </fieldset>
       <fieldset><legend>Level / tier bands</legend>
         <p class="agst-help">A band starts at the position (pixels from the top) and runs to the next band. The icon shows behind the level badge; with no icon a built-in one is used. Players see bands and icons.</p>
-        <table class="agst-prereq-table"><thead><tr><th scope="col">Level</th><th scope="col">Name</th><th scope="col">Starts at</th><th scope="col">Icon</th><th></th></tr></thead><tbody data-tiers>${tiers.map(row).join('')}</tbody></table>
-        <button type="button" class="ag-btn ag-btn--sm" data-add-tier>Add tier</button>
+        <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">Level</th><th scope="col">Name</th><th scope="col">Starts at</th><th scope="col">Icon</th><th scope="col"><span class="agst-sr">Remove</span></th></tr></thead><tbody data-tiers>${tiers.map(row).join('')}</tbody></table></div>
+        <button type="button" class="ag-btn ag-btn--sm" data-add-tier><i class="fa-solid fa-plus" aria-hidden="true"></i> Add tier</button>
       </fieldset></div>`;
     const wire=(event,dialog)=>{
       const el=dialog.element,body=el.querySelector('[data-tiers]');
@@ -1031,9 +1103,9 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
   async _grant(){
     if(!game.user.isGM||!this.actor||!this.tree)throw Error('Choose tree and Actor');
     if(this.tree.provider.kind==='profession')throw Error('Profession XP/points belong to the Ledger');
-    const f=await input('Award progression points',`<div class="agst-form"><p><strong>${escape(this.actor.name)}</strong> · ${escape(this.tree.name)}</p>
-      <label>Award label (unique per Actor/track)<input name="label" maxlength="100" value="Milestone ${readProgress(this.actor,this.tree).grants.length+1}"></label>
-      <label>Points to award<input type="number" min="1" max="${this.tree.provider.kind==='cinder_milestone'?'1':'100'}" name="amount" value="1"></label>
+    const f=await input('Award progression points',`<div class="ag-form-grid agst-dialog"><p><strong>${escape(this.actor.name)}</strong> · ${escape(this.tree.name)}</p>
+      <label class="ag-field">Award label (unique per Actor/track)<input name="label" maxlength="100" value="Milestone ${readProgress(this.actor,this.tree).grants.length+1}"></label>
+      <label class="ag-field">Points to award<input type="number" min="1" max="${this.tree.provider.kind==='cinder_milestone'?'1':'100'}" name="amount" value="1"></label>
       <p>Cinder: one point per uniquely labeled manifestation/milestone, ${CINDER_MAX_POINTS} lifetime points maximum. GM only.</p></div>`,'Award');
     if(!f)return;
     const a=readProgress(this.actor,this.tree),next=grantPoints(this.tree,a,Number(f.amount),String(f.label??''));
@@ -1065,8 +1137,8 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const items=grantedItems(actor,this.tree,n.id).map(i=>i.name);
     let reason='';
     if(this.tree.provider.kind==='profession'){
-      const f=await input('Remove perk',`<div class="agst-form"><p>Remove <strong>${escape(n.name)}</strong> from ${escape(actor.name)}?</p><p>The point goes back to the character${items.length?` and <strong>${items.map(escape).join(', ')}</strong> is removed from the sheet`:''}. Recorded in the history.</p>
-        <label>Reason (optional)<input name="reason" maxlength="200" placeholder="Player asked to swap perks"></label></div>`,'Remove perk');
+      const f=await input('Remove perk',`<div class="ag-form-grid agst-dialog"><p>Remove <strong>${escape(n.name)}</strong> from ${escape(actor.name)}?</p><p>The point goes back to the character${items.length?` and <strong>${items.map(escape).join(', ')}</strong> is removed from the sheet`:''}. Recorded in the history.</p>
+        <label class="ag-field">Reason (optional)<input name="reason" maxlength="200" placeholder="Player asked to swap perks"></label></div>`,'Remove perk');
       if(!f)return;reason=String(f.reason??'');
     }else if(!await confirm(`Refund ${n.name} for ${actor.name}?\nThe point(s) go back to the character${items.length?` and ${items.join(', ')} is removed from the sheet`:''}.`,{title:'Refund this perk?',yes:'Refund points',danger:true}))return;
     const {removed}=await refundNode(actor,this.tree.id,n.id,{reason});
@@ -1076,10 +1148,10 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if(!game.user.isGM||!this.tree||!this.actor||!this.nodeId)throw Error('GM, character and node required');
     const actor=this.actor,t=this.tree,n=t.nodes.find(x=>x.id===this.nodeId);if(!n)throw Error('Missing node');
     const check=availability(t,readProgress(actor,t),n.id,{level:professionLevel(actor,t)});
-    const f=await input('Grant perk (GM override)',`<div class="agst-form"><p>Give <strong>${escape(n.name)}</strong> to ${escape(actor.name)} as a GM override.</p>
-      ${check.ok?'<p>The normal rules allow this pick.</p>':`<p class="agst-warn">Overrides: ${escape(check.reason)}.</p>`}
+    const f=await input('Grant perk (GM override)',`<div class="ag-form-grid agst-dialog"><p>Give <strong>${escape(n.name)}</strong> to ${escape(actor.name)} as a GM override.</p>
+      ${check.ok?'<p>The normal rules allow this pick.</p>':`<div class="ag-notice ag-notice--warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>Overrides: ${escape(check.reason)}.</span></div>`}
       <p>It uses 1 point and is kept at the current level, so it does not flag the character for review. Recorded in the history.</p>
-      <label>Reason (required)<input name="reason" maxlength="200" required placeholder="Story reward"></label></div>`,'Grant perk');
+      <label class="ag-field">Reason (required)<input name="reason" maxlength="200" required placeholder="Story reward"></label></div>`,'Grant perk');
     if(!f)return;
     const {item}=await overrideNode(actor,t.id,n.id,{reason:String(f.reason??'')});
     notify(`${n.name} granted to ${actor.name}${item?' and added to the sheet':''}.`);
@@ -1091,13 +1163,13 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const rows=reviewCandidates(t,readProgress(actor,t),level);
     if(!rows.length){notify(`${actor.name} has nothing to review on ${t.name}.`);return;}
     const st=professionStatus(t,readProgress(actor,t),level);
-    const f=await input(`Review ${actor.name}`,`<div class="agst-form agst-resolve"><p><strong>${escape(actor.name)}</strong> · ${escape(t.name)} · level ${escape(level)}: ${st.spent} of ${st.earned} points used.</p>
+    const f=await input(`Review ${actor.name}`,`<div class="ag-form-grid agst-dialog"><p><strong>${escape(actor.name)}</strong> · ${escape(t.name)} · level ${escape(level)}: ${st.spent} of ${st.earned} points used.</p>
       <p>Keep: the perk stays and still uses its point. Remove: the perk leaves the sheet and its point comes back (undo is in the History).</p>
-      <table class="agst-resolve-table"><thead><tr><th scope="col">Perk</th><th scope="col">Needs</th><th scope="col">Keep</th><th scope="col">Remove</th></tr></thead><tbody>
-      ${rows.map(r=>`<tr><th scope="row">${escape(r.name)}</th><td>level ${escape(r.threshold)}${r.aboveLevel?' ⚠':''}</td>
+      <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">Perk</th><th scope="col">Needs</th><th scope="col">Keep</th><th scope="col">Remove</th></tr></thead><tbody>
+      ${rows.map(r=>`<tr><th scope="row">${escape(r.name)}</th><td>level ${escape(r.threshold)}${r.aboveLevel?' <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span class="agst-sr"> above the current level</span>':''}</td>
         <td><input type="radio" name="n-${escape(r.nodeId)}" value="keep" checked aria-label="Keep ${escape(r.name)}"></td>
         <td><input type="radio" name="n-${escape(r.nodeId)}" value="remove" aria-label="Remove ${escape(r.name)}"></td></tr>`).join('')}
-      </tbody></table><label>Reason (optional)<input name="reason" maxlength="200" placeholder="XP corrected"></label></div>`,'Apply');
+      </tbody></table></div><label class="ag-field">Reason (optional)<input name="reason" maxlength="200" placeholder="XP corrected"></label></div>`,'Apply');
     if(!f)return;
     const remove=rows.filter(r=>f[`n-${r.nodeId}`]==='remove').map(r=>r.nodeId),keep=rows.filter(r=>f[`n-${r.nodeId}`]!=='remove').map(r=>r.nodeId);
     const out=await resolveNodes(actor,t.id,{remove,keep,reason:String(f.reason??'')});
@@ -1121,7 +1193,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const table=rows.map(r=>`<tr><td>${escape(r.actorName)}</td><td>${escape(r.treeName)}</td><td>${escape(r.name??r.perkId)}</td><td>${escape(r.reason)}</td></tr>`).join('');
     const intro=`Profession Ledger perk choices found. Nothing has been changed yet. ${todo.length} will be allocated; the Ledger keeps its own record untouched. Safe to run again.`;
     if(!todo.length){
-      await infoDialog('Nothing to import',`<p>${escape(intro)}</p><table class="agst-resolve-table"><thead><tr><th scope="col">Character</th><th scope="col">Tree</th><th scope="col">Perk</th><th scope="col">What happens</th></tr></thead><tbody>${table}</tbody></table>`);
+      await infoDialog('Nothing to import',`<p>${escape(intro)}</p><div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">Character</th><th scope="col">Tree</th><th scope="col">Perk</th><th scope="col">What happens</th></tr></thead><tbody>${table}</tbody></table></div>`);
       return;
     }
     const lines=rows.map(r=>`${r.actorName} · ${r.treeName} · ${r.name??r.perkId}: ${r.reason}`).join('\n');
@@ -1133,9 +1205,9 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
   async _keep(){
     if(!game.user.isGM||!this.tree||!this.actor||!this.nodeId)throw Error('GM, character and node required');
     const actor=this.actor,n=this.tree.nodes.find(x=>x.id===this.nodeId);if(!n)throw Error('Missing node');
-    const f=await input('Keep perk',`<div class="agst-form"><p>Keep <strong>${escape(n.name)}</strong> on ${escape(actor.name)} although it needs level ${escape(n.requiredLevel)}?</p>
+    const f=await input('Keep perk',`<div class="ag-form-grid agst-dialog"><p>Keep <strong>${escape(n.name)}</strong> on ${escape(actor.name)} although it needs level ${escape(n.requiredLevel)}?</p>
       <p>It still uses its point, so new picks wait until the level gives enough points. If the level drops further it is flagged again.</p>
-      <label>Reason (optional)<input name="reason" maxlength="200"></label></div>`,'Keep perk');
+      <label class="ag-field">Reason (optional)<input name="reason" maxlength="200"></label></div>`,'Keep perk');
     if(!f)return;
     await keepNode(actor,this.tree.id,n.id,{reason:String(f.reason??'')});
     notify(`${n.name} kept for ${actor.name}.`);
@@ -1229,8 +1301,9 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       target.style.top=`${Math.max(0,Math.min(6000,original.y+dy))}px`;
       // Edges (and their arrowheads and labels) follow the node live. Positions are saved on pointer-up.
       const board=this.element.querySelector('.agst-board');
+      const w=NODE_SIZES[nodeSizeOf(this.tree)].w;
       const pos=nodeId=>{const el=board?.querySelector(`.agst-node[data-id="${CSS.escape(nodeId)}"]`);
-        return el?{x:parseFloat(el.style.left),y:parseFloat(el.style.top)}:null;};
+        return el?{x:parseFloat(el.style.left),y:parseFloat(el.style.top),...(el.offsetWidth?{h:el.offsetHeight*w/el.offsetWidth}:{})}:null;};
       for(const el of board?.querySelectorAll('[data-edge]')??[]){
         if(el.dataset.from!==id && el.dataset.to!==id)continue;
         const src=pos(el.dataset.from),dst=pos(el.dataset.to);if(!src||!dst)continue;
@@ -1327,10 +1400,10 @@ function embedHTML(ctrl){
     const pts=m.available===null?'<span class="agst-embed__pts">Points come from the Profession Ledger (not active)</span>'
       :`<span class="agst-embed__pts${m.available?' is-ready':''}">${plural(m.available,'point')} to spend</span><span class="agst-embed__muted">${m.spent} of ${m.earned} spent${m.level!==null?` · level ${m.level}`:''}</span>`;
     return `<details class="agst-embed__tree" data-tree="${escape(m.id)}" ${ctrl.closed.has(m.id)?'':'open'}><summary><strong>${escape(m.name)}</strong>${pts}
-        <button type="button" class="ag-btn ag-btn--sm" data-agst-embed="open" data-tree="${escape(m.id)}" title="Open the full tree">Open tree</button></summary>
+        <button type="button" class="ag-btn ag-btn--sm" data-agst-embed="open" data-tree="${escape(m.id)}" data-tooltip="Open the full tree" data-tooltip-class="ag-tooltip">Open tree</button></summary>
       ${avail.length?`<h4>Available now</h4><ul class="agst-embed__list">${avail.map(n=>`<li><span class="agst-embed__name">${escape(n.name)}</span><span class="agst-embed__muted">${plural(n.cost,'point')}</span>
         <button type="button" class="ag-btn ag-btn--sm ag-btn--primary" data-agst-embed="unlock" data-tree="${escape(m.id)}" data-node="${escape(n.id)}">Unlock</button>${n.text?`<p class="agst-embed__text">${escape(n.text)}</p>`:''}</li>`).join('')}</ul>`:''}
-      <h4>Unlocked</h4>${unlocked.length?`<ul class="agst-embed__chips">${unlocked.map(n=>`<li title="${escape(n.text)}">${escape(n.name)}</li>`).join('')}</ul>`:'<p class="agst-embed__muted">None yet.</p>'}
+      <h4>Unlocked</h4>${unlocked.length?`<ul class="agst-embed__chips">${unlocked.map(n=>`<li data-tooltip="${escape(n.text)}" data-tooltip-class="ag-tooltip">${escape(n.name)}</li>`).join('')}</ul>`:'<p class="agst-embed__muted">None yet.</p>'}
       ${locked.length?`<details class="agst-embed__locked"><summary>Locked (${locked.length})</summary><ul class="agst-embed__list">${locked.map(n=>`<li><span class="agst-embed__name">${escape(n.name)}</span><span class="agst-embed__muted">${escape(n.reason)}</span></li>`).join('')}</ul></details>`:''}
     </details>`;
   };
