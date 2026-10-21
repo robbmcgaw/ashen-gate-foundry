@@ -1,3 +1,9 @@
+## 0.29.1 — 2026-10-21
+
+- **Fix: level backups no longer show as characters in Companions.** GM Setup → Companions lists only real characters; "<Name> - level X" backup copies are left out, and a backup's own Companions tab has no GM pet-limit control.
+- The data layer refuses a backup copy as a pet-limit override target, as a linked companion, or as the character whose companions change ("That is a level backup copy, not a playable character."). Normal characters work as before; backup and restore are unchanged.
+- Saved data: no change. No migration.
+
 ## 0.29.0 — 2026-10-21
 
 - **Window opacity removed.** The see-through slider is gone and the Hub window is always opaque. An opacity a user saved before (client setting `windowOpacity`) is no longer read, so it changes nothing and can't cause an error. It just sits unused in that browser's local settings. Ashen Gate | Locations has its own, separate opacity, which is unchanged.

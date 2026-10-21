@@ -15,11 +15,14 @@ import {companionRole, routeForRole} from './companion-items.mjs';
 import {canEdit} from './actions.mjs';
 import {requirePart} from './visibility.mjs';
 import {grantBundle} from './ag-item-drop.mjs';
+import {isBackup} from './level-backup.mjs';
 
 export const KINDS = ['mount', 'pet'];
 export const DEFAULT_PET_CAP = 0;
 const FLAG = 'companions';
 const refuse = error => ({ok: false, error});
+/** Level backup copies (0.27.0) are not playable characters: never a pet-cap or companion target. */
+export const BACKUP_REFUSAL = 'That is a level backup copy, not a playable character.';
 const newId = () => globalThis.foundry?.utils?.randomID?.(12) ?? Math.random().toString(36).slice(2, 14);
 
 // ---------- Caps (GM-only world settings) ----------
@@ -63,6 +66,7 @@ export async function setDefaultPetCap(value) {
 /** value: '' (use the default), 'none', 'unlimited' or a whole number. */
 export async function setPetCapOverride(actorId, value) {
   if (!globalThis.game?.user?.isGM) return refuse('Only the GM can change a character\'s pet limit.');
+  if (isBackup(globalThis.game?.actors?.get?.(actorId))) return refuse(BACKUP_REFUSAL);
   const all = {...getSetting('petCapOverrides', {})};
   if (value === '' || value === null || value === undefined) delete all[actorId];
   else if (value === 'none' || value === 'unlimited') all[actorId] = value;
@@ -125,7 +129,7 @@ const write = (actor, entries) => actor.update({[`flags.${MODULE_ID}.${FLAG}`]: 
 })});
 const notOwner = actor => refuse(`You don't own ${actor?.name ?? 'this character'}, so you can't change its companions.`);
 /** Owner only, and (for players) only while the GM shows Companions to players. */
-const cannotChange = actor => canEdit(actor) ? requirePart('companions') : notOwner(actor);
+const cannotChange = actor => isBackup(actor) ? refuse(BACKUP_REFUSAL) : canEdit(actor) ? requirePart('companions') : notOwner(actor);
 
 /** Checks the one-mount rule and the pet cap for adding one more of `kind`. */
 export function canAdd(actor, kind) {
@@ -174,6 +178,7 @@ async function embedDropped(actor, item, kind) {
 export async function addActorCompanion(actor, other, kind) {
   const blocked = cannotChange(actor); if (blocked) return blocked;
   if (!other || other.documentName !== 'Actor') return refuse('Drop an Actor here.');
+  if (isBackup(other)) return refuse(BACKUP_REFUSAL);
   if (other === actor || other.uuid === actor.uuid) return refuse(`${actor.name} can't be its own companion.`);
   if (other.pack || !String(other.uuid ?? '').startsWith('Actor.')) return refuse(`Import ${other.name} into the world first, then drop it from the Actors sidebar.`);
   const user = globalThis.game?.user;
