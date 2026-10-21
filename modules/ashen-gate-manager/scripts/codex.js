@@ -17,8 +17,11 @@ export const FIELD_LABELS = Object.freeze({
   learned: 'What the party has learned', links: 'Connections',
   portrayal: 'Portrayal', session_role: 'Session role', stat_block: 'Stat block', gm_notes: 'GM notes'
 });
-/** Ids a Codex link may point at. FAC- is a Headquarters facility elsewhere, but GPT drafts use it for factions too. */
-const LINK_PREFIXES = ['LOC', 'FAC', 'FACTION', 'RENOWN', 'QUEST', 'ORDER', 'CONTRACT', 'NPC'];
+/** Ids a Codex link may point at. FAC- is a Headquarters facility elsewhere, but GPT drafts use it for factions too.
+ * DEITY- (0.40.0) is a Renown Pantheon deity: a player only ever sees one they have discovered in Renown. */
+export const LINK_PREFIXES = Object.freeze(['LOC', 'FAC', 'FACTION', 'RENOWN', 'DEITY', 'QUEST', 'ORDER', 'CONTRACT', 'NPC']);
+/** Shown for a deity link the player has not discovered: no id, no name. */
+export const UNKNOWN_DEITY = 'Unknown';
 const ID_RE = /^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/;
 
 const str = v => (typeof v === 'string' ? v : v == null ? '' : String(v));
@@ -32,7 +35,7 @@ export function isLinkId(id) {
 }
 export function linkKind(id) {
   const p = str(id).split('-')[0];
-  return p === 'LOC' ? 'location' : p === 'NPC' ? 'npc' : ['QUEST', 'ORDER', 'CONTRACT'].includes(p) ? 'quest' : 'renown';
+  return p === 'LOC' ? 'location' : p === 'NPC' ? 'npc' : p === 'DEITY' ? 'deity' : ['QUEST', 'ORDER', 'CONTRACT'].includes(p) ? 'quest' : 'renown';
 }
 
 export function emptyRule() { return {party: false, actors: []}; }
@@ -135,8 +138,10 @@ export function gmEntry(npc, {nameOf = () => null, characters = []} = {}) {
  * actorIds: the characters that player owns. Name and portrait show once the NPC is discovered by the party or
  * one of those characters. Each field shows only when its own rule includes the party or one of those characters.
  * `nameOf` must only return names the GM is happy to show (the GM revealed the links field).
+ * `deityName(id)` (0.40.0) returns the deity's name only when Renown says this player has discovered it, else null.
+ * An undiscovered deity link is sent as {id: null, name: 'Unknown', unknown: true}: no id, no name.
  */
-export function playerEntry(npc, actorIds = [], {nameOf = () => null} = {}) {
+export function playerEntry(npc, actorIds = [], {nameOf = () => null, deityName = () => null} = {}) {
   const def = npc.def ?? {}, state = normalizeState(npc.state, def);
   if (!knowsRule(state.discovery, actorIds)) return null;
   const out = {id: def.id, name: str(def.name) || str(npc.name) || def.id, img: npc.img ?? null, fields: []};
@@ -145,7 +150,12 @@ export function playerEntry(npc, actorIds = [], {nameOf = () => null} = {}) {
     if (!knowsRule(rule, actorIds)) continue;
     const onlyYou = !rule.party;
     if (key === 'links') {
-      const links = linksOf(def, state).map(id => ({id, kind: linkKind(id), name: str(nameOf(id) ?? id)}));
+      const links = linksOf(def, state).map(id => {
+        const kind = linkKind(id);
+        if (kind !== 'deity') return {id, kind, name: str(nameOf(id) ?? id)};
+        const name = deityName(id);
+        return name ? {id, kind, name: str(name)} : {id: null, kind, name: UNKNOWN_DEITY, unknown: true};
+      });
       if (links.length) out.fields.push({key, label: FIELD_LABELS[key], links, onlyYou});
       continue;
     }
@@ -188,8 +198,25 @@ export function planRevealsImport(file, knownIds = []) {
 }
 
 const esc = v => str(v).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
-/** Read-only player Codex markup (window body and api.codex.mount). Input is already a player projection. */
-export function renderPlayerCodexHtml(entries, {message = ''} = {}) {
+/** Tooltip for a deity link that cannot open. */
+export const DEITY_TIPS = Object.freeze({
+  unknown: 'A deity you have not discovered yet.',
+  noRenown: 'Renown is not active, so this deity cannot be opened.',
+  hidden: 'Renown is hidden from players right now.',
+  missing: 'This deity is not in this world (Renown does not know it).'
+});
+/** One player-view link. `deityLink(link)` -> {open, title}: whether Renown can open that deity here (0.40.0). */
+function linkHtml(l, deityLink) {
+  if (l.kind !== 'deity') return `<span class="ag-codex-link">${esc(l.name)}</span>`;
+  if (l.unknown || !l.id) return `<span class="ag-codex-link ag-codex-link--deity is-unknown" title="${esc(DEITY_TIPS.unknown)}">${esc(UNKNOWN_DEITY)}</span>`;
+  const how = deityLink(l) ?? {};
+  if (how.unknown) return `<span class="ag-codex-link ag-codex-link--deity is-unknown" title="${esc(DEITY_TIPS.unknown)}">${esc(UNKNOWN_DEITY)}</span>`;
+  if (how.open) return `<a class="ag-codex-link ag-codex-link--deity" role="button" data-ag-codex-deity="${esc(l.id)}" title="${esc(how.title || 'Open in the Renown Pantheon')}"><i class="fa-solid fa-sun" aria-hidden="true"></i> ${esc(l.name)}</a>`;
+  return `<span class="ag-codex-link ag-codex-link--deity" title="${esc(how.title || DEITY_TIPS.noRenown)}">${esc(l.name)}</span>`;
+}
+/** Read-only player Codex markup (window body and api.codex.mount). Input is already a player projection.
+ * Deity links open only when `deityLink` says so; the default never links (plain text with a tooltip). */
+export function renderPlayerCodexHtml(entries, {message = '', deityLink = () => ({open: false, title: DEITY_TIPS.noRenown})} = {}) {
   if (message) return `<div class="ag-codex-player"><p class="ag-empty">${esc(message)}</p></div>`;
   if (!entries.length) return `<div class="ag-codex-player"><p class="ag-empty">No one has been added to your codex yet.</p></div>`;
   const card = e => {
@@ -198,7 +225,7 @@ export function renderPlayerCodexHtml(entries, {message = ''} = {}) {
     const role = e.fields.find(f => f.key === 'role');
     const rows = e.fields.filter(f => f.key !== 'role').map(f => {
       const only = f.onlyYou ? ' <span class="ag-badge ag-badge--accent">only you</span>' : '';
-      const body = f.links ? f.links.map(l => `<span class="ag-codex-link">${esc(l.name)}</span>`).join(' ')
+      const body = f.links ? f.links.map(l => linkHtml(l, deityLink)).join(' ')
         : f.key === 'signature_line' ? `<q>${esc(f.value)}</q>` : esc(f.value);
       return `<dt>${esc(f.label)}${only}</dt><dd>${body}</dd>`;
     }).join('');

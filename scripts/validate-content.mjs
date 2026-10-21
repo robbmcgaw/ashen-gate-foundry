@@ -40,7 +40,7 @@ import { materialMeta } from '../modules/ashen-gate-profession-ledger/scripts/ex
 import { catalogCrosswalk, PROFESSION_KEYS } from '../modules/ashen-gate-profession-ledger/scripts/assign.mjs';
 import { professionKey } from '../modules/ashen-gate-profession-ledger/scripts/checks.mjs';
 import { parseBaselineFile } from '../modules/ashen-gate-profession-ledger/scripts/assign.mjs';
-import { planRevealsImport, isLinkId, REVEAL_FIELDS } from '../modules/ashen-gate-manager/scripts/codex.js';
+import { planRevealsImport, isLinkId, REVEAL_FIELDS, LINK_PREFIXES } from '../modules/ashen-gate-manager/scripts/codex.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** Core V14 weather effect ids; a world may add more. */
@@ -66,7 +66,7 @@ function codexChecks(rec) {
   if (!codex || typeof codex !== 'object' || Array.isArray(codex)) return [...errors, `${id}: codex must be an object {links?, default_reveal?}.`];
   if (codex.links !== undefined) {
     if (!Array.isArray(codex.links)) errors.push(`${id}: codex.links must be a list of ids.`);
-    else for (const l of codex.links) if (!isLinkId(l)) errors.push(`${id}: codex.links ${JSON.stringify(l)} is not a linkable id (LOC, FAC, FACTION, RENOWN, QUEST, ORDER, CONTRACT or NPC); the Codex drops it.`);
+    else for (const l of codex.links) if (!isLinkId(l)) errors.push(`${id}: codex.links ${JSON.stringify(l)} is not a linkable id (${LINK_PREFIXES.join(', ')}); the Codex drops it.`);
   }
   const dr = codex.default_reveal;
   if (dr !== undefined) {

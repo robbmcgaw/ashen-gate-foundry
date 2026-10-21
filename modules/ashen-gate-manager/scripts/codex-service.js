@@ -5,10 +5,11 @@
  * player projection for that user's characters. Nothing hidden is sent.
  */
 import {CODEX_FLAG, isNpcDefinition, normalizeState, setReveal, setDetails, gmEntry, playerCodex,
-  buildCodexExport, planRevealsImport, linkKind} from './codex.js';
+  buildCodexExport, planRevealsImport, linkKind, DEITY_TIPS} from './codex.js';
 
 export const CODEX_QUERY = 'ashen-gate-manager.codexForPlayer';
 export const CODEX_ACCESS_SETTING = 'codexPlayerAccess';
+const RENOWN = 'ashen-gate-factions';
 
 export function createCodexService({game, moduleId}) {
   const isGM = () => Boolean(game.user?.isGM);
@@ -32,16 +33,37 @@ export function createCodexService({game, moduleId}) {
     const owned = actors().filter(a => a.type === 'character' && a.testUserPermission?.(user, 'OWNER')).map(a => a.id);
     return [...new Set([...owned, ...(user.character?.id ? [user.character.id] : [])])];
   };
+  const partner = mid => game.modules?.get(mid)?.active ? game.modules.get(mid).api ?? null : null;
   /** GM side only. Partner names by feature detection through their public APIs; any failure falls back to the id. */
   const nameOf = id => {
     try {
-      const kind = linkKind(id), api = mid => game.modules?.get(mid)?.active ? game.modules.get(mid).api : null;
+      const kind = linkKind(id), api = partner;
       if (kind === 'npc') return npcs().find(n => n.def.id === id)?.def.name ?? null;
+      if (kind === 'deity') return (api(RENOWN)?.getDeities?.() ?? []).find(d => d.id === id)?.name ?? null;
       if (kind === 'location') return api('ashen-gate-locations')?.getLocation?.(id)?.name ?? null;
       if (kind === 'quest') return (api('ashen-gate-quest-manager')?.listQuests?.() ?? []).find(q => q.id === id)?.name ?? null;
       const r = api('ashen-gate-factions');
       return [...(r?.getFactions?.() ?? []), ...(r?.getDeities?.() ?? [])].find(f => f.id === id)?.name ?? null;
     } catch { return null; }
+  };
+  /**
+   * 0.40.0, GM side: the deities these characters have discovered, by Renown's own player filter (api.getPantheon(actor)
+   * returns only deities discovered by the party or that character). [] = party level: deities every player character
+   * knows. Renown missing, hidden or failing = none known, so a player never gets a deity's id or name from the Codex.
+   */
+  const deityNamer = (actorIds = []) => {
+    const r = partner(RENOWN);
+    if (typeof r?.getPantheon !== 'function') return () => null;
+    const known = id => { try { return new Map((r.getPantheon(id) ?? []).map(d => [d.id, d.name])); } catch { return new Map(); } };
+    let names;
+    if (actorIds.length) {
+      names = new Map();
+      for (const id of actorIds) for (const [k, v] of known(id)) names.set(k, v);
+    } else {
+      const all = characters().map(c => known(c.id));
+      names = all.length ? new Map([...all[0]].filter(([k]) => all.every(m => m.has(k)))) : new Map();
+    }
+    return id => names.get(id) ?? null;
   };
   const write = async (npc, state) => { await npc.actor.setFlag(moduleId, CODEX_FLAG, state); return state; };
   const accessOn = () => { try { return Boolean(game.settings.get(moduleId, CODEX_ACCESS_SETTING)); } catch { return false; } };
@@ -58,14 +80,15 @@ export function createCodexService({game, moduleId}) {
       await write(n, state); return {state, rejected};
     },
     /** GM preview: exactly what a player owning these characters would get ([] = party-level only). */
-    previewAs: (actorIds = []) => { requireGM(); return playerCodex(npcs(), actorIds, {nameOf}); },
+    previewAs: (actorIds = []) => { requireGM(); return playerCodex(npcs(), actorIds, {nameOf, deityName: deityNamer(actorIds)}); },
     /** Runs on the GM's client for a query from userId. Re-checks everything; never trusts the payload. */
     forUser(userId) {
       requireGM();
       const user = game.users?.get?.(userId);
       if (!user) throw new Error('Unknown user.');
       if (!user.isGM && !accessOn()) throw new Error('The NPC Codex is not shared with players. Ask your GM.');
-      return playerCodex(npcs(), user.isGM ? [] : actorIdsFor(user), {nameOf});
+      const ids = user.isGM ? [] : actorIdsFor(user);
+      return playerCodex(npcs(), ids, {nameOf, deityName: deityNamer(ids)});
     },
     /** Any client. A GM gets the party-level view; a player asks the active GM. */
     async forPlayer() {
@@ -92,7 +115,33 @@ export function createCodexService({game, moduleId}) {
       }
       return {done, errors};
     },
-    playerAccessEnabled: accessOn
+    playerAccessEnabled: accessOn,
+    /**
+     * 0.40.0, any client: how this client shows a deity link, as a function link -> {open, title, unknown?}.
+     * Feature-detects Renown's api.open and asks Renown's own getDeities (a player gets only deities they discovered).
+     * Never throws: anything missing becomes plain text with a tooltip.
+     */
+    deityLinks() {
+      const r = partner(RENOWN);
+      if (typeof r?.open !== 'function' || typeof r?.getDeities !== 'function') return () => ({open: false, title: DEITY_TIPS.noRenown});
+      let ids;
+      try { ids = new Set((r.getDeities() ?? []).map(d => d?.id)); }
+      catch { return () => ({open: false, title: isGM() ? DEITY_TIPS.noRenown : DEITY_TIPS.hidden}); }
+      return link => ids.has(link?.id) ? {open: true, title: 'Open in the Renown Pantheon'}
+        : isGM() ? {open: false, title: DEITY_TIPS.missing} : {open: false, unknown: true, title: DEITY_TIPS.unknown};
+    },
+    /** Opens Renown's Pantheon on a deity. A player opens it as one of their characters that knows the deity. */
+    openDeity(deityId) {
+      const r = partner(RENOWN);
+      if (typeof r?.open !== 'function') throw new Error('Renown is not active, so this deity cannot be opened.');
+      if (!isGM() && !new Set((r.getDeities?.() ?? []).map(d => d?.id)).has(deityId)) throw new Error('You have not discovered this deity yet.');
+      let actorId = null;
+      if (!isGM()) {
+        const mine = actorIdsFor(game.user);
+        actorId = mine.find(id => { try { return (r.getPantheon?.(id) ?? []).some(d => d.id === deityId); } catch { return false; } }) ?? mine[0] ?? null;
+      }
+      return r.open({deityId, ...(actorId ? {actorId} : {}), tab: 'pantheon'});
+    }
   };
   return service;
 }
