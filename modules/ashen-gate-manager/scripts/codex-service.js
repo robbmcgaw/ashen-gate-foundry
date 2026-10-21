@@ -5,11 +5,21 @@
  * player projection for that user's characters. Nothing hidden is sent.
  */
 import {CODEX_FLAG, isNpcDefinition, normalizeState, setReveal, setDetails, gmEntry, playerCodex,
-  buildCodexExport, planRevealsImport, linkKind, DEITY_TIPS} from './codex.js';
+  buildCodexExport, planRevealsImport, linkKind, isLinkId, knowsRule, resolvePlayerLinks, DEITY_TIPS} from './codex.js';
 
 export const CODEX_QUERY = 'ashen-gate-manager.codexForPlayer';
 export const CODEX_ACCESS_SETTING = 'codexPlayerAccess';
 const RENOWN = 'ashen-gate-factions';
+/** Renown's player view names a discovered faction whose name is not revealed like this; the Codex shows Unknown. */
+const RENOWN_MASKED = 'Unknown Organization';
+/** 0.40.1: where a player's own client reads the records it can see, by link kind (owning module, API, filter). */
+const PLAYER_SOURCES = [
+  {kind: 'location', module: 'ashen-gate-locations', fn: 'listLocations'},
+  {kind: 'quest', module: 'ashen-gate-quest-manager', fn: 'listVisible'},
+  {kind: 'renown', module: RENOWN, fn: 'getFactions', ok: f => f.name !== RENOWN_MASKED}
+];
+const CLAIM_KINDS = new Set(PLAYER_SOURCES.map(p => p.kind));
+const MAX_CLAIMS = 5000;
 
 export function createCodexService({game, moduleId}) {
   const isGM = () => Boolean(game.user?.isGM);
@@ -34,7 +44,8 @@ export function createCodexService({game, moduleId}) {
     return [...new Set([...owned, ...(user.character?.id ? [user.character.id] : [])])];
   };
   const partner = mid => game.modules?.get(mid)?.active ? game.modules.get(mid).api ?? null : null;
-  /** GM side only. Partner names by feature detection through their public APIs; any failure falls back to the id. */
+  /** GM view only (list/get): partner names by feature detection through their public APIs; any failure falls back to the id.
+   * Never used for a player payload (0.40.1): on the GM's client these APIs return GM data. */
   const nameOf = id => {
     try {
       const kind = linkKind(id), api = partner;
@@ -65,6 +76,41 @@ export function createCodexService({game, moduleId}) {
     }
     return id => names.get(id) ?? null;
   };
+  /**
+   * 0.40.1, GM side: what a player owning these characters may know of a linked record, for playerEntry's linkFor.
+   * NPC: Manager's own Codex discovery rule. Deity: Renown's per-character getPantheon (deityNamer).
+   * Location, quest, faction: the GM's client cannot run those modules' player filters for another user, so only ids the
+   * player's own client claimed (from its own player-filtered APIs) come back, with no name; that client names them.
+   * Claims never name NPCs or deities, and never add a name: a forged claim learns nothing but that the link exists.
+   */
+  const playerLinker = (actorIds = [], claimed = new Set()) => {
+    const deityName = deityNamer(actorIds), all = npcs();
+    return (id, kind) => {
+      if (kind === 'deity') return deityName(id);
+      if (kind === 'npc') {
+        const n = all.find(x => x.def.id === id);
+        return n && knowsRule(normalizeState(n.state, n.def).discovery, actorIds) ? (String(n.def.name ?? '') || n.name || null) : null;
+      }
+      return CLAIM_KINDS.has(kind) && claimed.has(id) ? true : null;
+    };
+  };
+  const claimsOf = data => new Set((Array.isArray(data?.known) ? data.known : []).slice(0, MAX_CLAIMS)
+    .filter(id => isLinkId(id) && CLAIM_KINDS.has(linkKind(id))));
+  /** 0.40.1, player client: id -> name of the linked records this client can see, by each owning module's own player API.
+   * Missing, hidden or failing modules add nothing. */
+  const knownLinkNames = () => {
+    const names = new Map();
+    for (const src of PLAYER_SOURCES) {
+      try {
+        const api = partner(src.module);
+        if (typeof api?.[src.fn] !== 'function') continue;
+        for (const r of api[src.fn]() ?? []) {
+          if (isLinkId(r?.id) && linkKind(r.id) === src.kind && typeof r.name === 'string' && r.name && (!src.ok || src.ok(r))) names.set(r.id, r.name);
+        }
+      } catch { /* not known */ }
+    }
+    return names;
+  };
   const write = async (npc, state) => { await npc.actor.setFlag(moduleId, CODEX_FLAG, state); return state; };
   const accessOn = () => { try { return Boolean(game.settings.get(moduleId, CODEX_ACCESS_SETTING)); } catch { return false; } };
 
@@ -80,15 +126,15 @@ export function createCodexService({game, moduleId}) {
       await write(n, state); return {state, rejected};
     },
     /** GM preview: exactly what a player owning these characters would get ([] = party-level only). */
-    previewAs: (actorIds = []) => { requireGM(); return playerCodex(npcs(), actorIds, {nameOf, deityName: deityNamer(actorIds)}); },
+    previewAs: (actorIds = []) => { requireGM(); return playerCodex(npcs(), actorIds, {linkFor: playerLinker(actorIds)}); },
     /** Runs on the GM's client for a query from userId. Re-checks everything; never trusts the payload. */
-    forUser(userId) {
+    forUser(userId, data = {}) {
       requireGM();
       const user = game.users?.get?.(userId);
       if (!user) throw new Error('Unknown user.');
       if (!user.isGM && !accessOn()) throw new Error('The NPC Codex is not shared with players. Ask your GM.');
       const ids = user.isGM ? [] : actorIdsFor(user);
-      return playerCodex(npcs(), ids, {nameOf, deityName: deityNamer(ids)});
+      return playerCodex(npcs(), ids, {linkFor: playerLinker(ids, claimsOf(data))});
     },
     /** Any client. A GM gets the party-level view; a player asks the active GM. */
     async forPlayer() {
@@ -97,13 +143,14 @@ export function createCodexService({game, moduleId}) {
       const gm = game.users?.activeGM;
       if (!gm) throw new Error('The NPC Codex needs a GM to be connected.');
       if (typeof gm.query !== 'function') throw new Error('The NPC Codex needs Foundry V13 or later.');
-      const result = await gm.query(CODEX_QUERY, {}, {timeout: 10000});
+      const names = knownLinkNames();
+      const result = await gm.query(CODEX_QUERY, {known: [...names.keys()]}, {timeout: 10000});
       if (!result?.ok) throw new Error(result?.message ?? 'The GM could not send the codex.');
-      return result.entries;
+      return resolvePlayerLinks(result.entries, names);
     },
     /** CONFIG.queries handler (registered on every client; only a GM answers). */
-    async handleQuery(_data, {userId} = {}) {
-      try { return {ok: true, entries: service.forUser(userId)}; }
+    async handleQuery(data, {userId} = {}) {
+      try { return {ok: true, entries: service.forUser(userId, data)}; }
       catch (error) { return {ok: false, message: error.message}; }
     },
     exportAll: () => { requireGM(); return buildCodexExport(npcs()); },

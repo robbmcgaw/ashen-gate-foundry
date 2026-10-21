@@ -39,7 +39,23 @@ The fields GPT drafts already use. `codex` is new and optional.
 
 ### Linkable ids
 
-`LOC-` (Locations), `FAC-`, `FACTION-` and `RENOWN-` (Renown), `DEITY-` (Renown Pantheon deities, Manager 0.40.0+), `QUEST-`, `ORDER-` and `CONTRACT-` (Quests), and `NPC-` (other Codex entries). Anything else in `codex.links` is ignored (`scripts/validate-content.mjs` reports it). Links are by id only. The Codex shows a link's name when the owning module is active and knows the id, through that module's public API; otherwise it shows the id. The Codex never stores or changes Locations, Renown or Quest state.
+`LOC-` (Locations), `FAC-`, `FACTION-` and `RENOWN-` (Renown), `DEITY-` (Renown Pantheon deities, Manager 0.40.0+), `QUEST-`, `ORDER-` and `CONTRACT-` (Quests), and `NPC-` (other Codex entries). Anything else in `codex.links` is ignored (`scripts/validate-content.mjs` reports it). Links are by id only. The GM's Codex shows a link's name when the owning module is active and knows the id, through that module's public API; otherwise it shows the id. The Codex never stores or changes Locations, Renown or Quest state.
+
+#### What a player sees of a link (Manager 0.40.1+)
+
+With Connections revealed, a player gets a link's name only when that player can already see the record in the **owning module's own player view**:
+
+| Kind | Known to the player when |
+|---|---|
+| `LOC-` | the player's Locations lists it as revealed (`api.listLocations()` on their client) |
+| `QUEST-`, `ORDER-`, `CONTRACT-` | the player's Quest Log shows it (`api.listVisible()` on their client) |
+| `FAC-`, `FACTION-`, `RENOWN-` | the player's Renown shows the faction with its name (`api.getFactions()` on their client; a discovered faction whose name is still hidden stays Unknown) |
+| `NPC-` | that NPC is discovered in the Codex for the party or one of the player's characters |
+| `DEITY-` | Renown says the party or one of the player's characters discovered it (see below) |
+
+Everything else is sent as **Unknown**: no id, no name, no link. A link whose module is missing, hidden from players or failing is Unknown too.
+
+How: the player's client reads its own Locations, Quest Log and Renown views and sends only those ids with the Codex request. The GM's client returns those links without a name and the player's client names them from its own views; NPC and deity links are checked on the GM side. A forged request can learn at most that an NPC links to an id the player already guessed, never a name. **Preview as player** cannot run another user's Locations, Quest Log or Renown view, so it shows those links as Unknown (and says so).
 
 #### Deity links (`DEITY-`)
 

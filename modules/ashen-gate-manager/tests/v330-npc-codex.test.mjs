@@ -71,10 +71,12 @@ test('0.33.0: connections come from codex.links, refs and GM-added ids; shown to
   assert.deepEqual(linksOf(d, s.state), ['FAC-TEST-WARDENS', 'LOC-TEST-FERRY', 'QUEST-TEST-LEDGER'], 'self-links dropped');
   let st = setReveal(s.state, 'discovery', {mode: 'party'});
   const nameOf = id => ({'LOC-TEST-FERRY': '[TEST] Ferry Gate'}[id] ?? null);
-  assert.equal(playerEntry({def: d, state: st}, [], {nameOf}).fields.length, 0);
+  const linkFor = nameOf;
+  assert.equal(playerEntry({def: d, state: st}, [], {linkFor}).fields.length, 0);
   st = setReveal(st, 'links', {mode: 'party'});
-  const links = playerEntry({def: d, state: st}, [], {nameOf}).fields[0].links;
-  assert.deepEqual(links.map(l => l.name), ['FAC-TEST-WARDENS', '[TEST] Ferry Gate', 'QUEST-TEST-LEDGER']);
+  const links = playerEntry({def: d, state: st}, [], {linkFor}).fields[0].links;
+  // 0.40.1: a link the player does not know shows as Unknown, never as its id.
+  assert.deepEqual(links.map(l => [l.id, l.name]), [[null, 'Unknown'], ['LOC-TEST-FERRY', '[TEST] Ferry Gate'], [null, 'Unknown']]);
   const gm = gmEntry({def: d, state: st}, {nameOf, characters: [{id: 'a1', name: '[TEST] Ash'}]});
   assert.equal(gm.links.find(l => l.id === 'QUEST-TEST-LEDGER').gmAdded, true);
   assert.deepEqual(gm.gmFields.map(f => f.key), ['portrayal', 'session_role', 'stat_block', 'gm_notes']);
