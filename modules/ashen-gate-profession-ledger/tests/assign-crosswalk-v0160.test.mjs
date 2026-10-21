@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {pathToFileURL,fileURLToPath} from 'node:url';
 import path from 'node:path';
-import {effectiveMapping,rollModeFor,professionKey} from '../scripts/checks.mjs';
+import {effectiveMapping,rollModeFor,professionKey,migrateCheckMapping} from '../scripts/checks.mjs';
 import {PROFESSION_KEYS,professionTitle,catalogCrosswalk,unmappedProfessions,qualifications,assignmentPlan} from '../scripts/assign.mjs';
 // 0.16.0 (AG-F01): configurable profession crosswalk and GM-only profession assignment from proficiencies.
 const hooks={},errors=[],infos=[];let api,confirmAnswer=true;
@@ -57,7 +57,7 @@ test('crosswalk defaults cover all 14 professions; Fishing is accessed by Surviv
   assert.deepEqual(map.qualifySkills.huntingskinning,['sur']);assert.deepEqual(map.qualifyTools.mining,['mason']);
   assert.deepEqual(map.advantageTools.herbalism,[],'no advantage tools by default');
   assert.deepEqual(map.qualifySkills.fishing,['sur']);assert.deepEqual(map.qualifyTools.fishing,[]);assert.deepEqual(map.items.fishing,[]);
-  assert.equal(map.skills.fishing,'','the Fishing gather check skill is unchanged');
+  assert.equal(map.skills.fishing,'sur','Survival is also the Fishing gather check by default');
   assert.deepEqual(unmappedProfessions(map),[]);
 });
 
@@ -185,7 +185,7 @@ test('GM Setup table (0.22.0): one dropdown per cell, crafting and gathering gro
   assert.deepEqual(unmappedProfessions(effectiveMapping(values.checkMapping)),[]);
   await app._click('map-reset','fishing');await app._click('map-reset','mining');await app._click('roster-save');
   assert.deepEqual(values.checkMapping.qualifySkills,{});assert.deepEqual(values.checkMapping.qualifyTools,{});
-  assert.equal(values.checkMapping.skills.fishing,'');assert.equal(values.checkMapping.tools.mining,'mason','Reset goes back to the default');
+  assert.equal(values.checkMapping.skills.fishing,'sur');assert.equal(values.checkMapping.tools.mining,'mason','Reset goes back to the default');
   assert.deepEqual(effectiveMapping(values.checkMapping).qualifySkills.fishing,['sur']);
 });
 
@@ -214,4 +214,14 @@ test('0.22.0: Hunting/Skinning is shown as Hunting; keys and name matching are u
   assert.equal(professionTitle('huntingskinning'),'Hunting');assert.equal(professionTitle('fishing'),'Fishing');
   for(const n of ['Hunting','Hunting/Skinning','Hunting & Skinning','Skinning & Harvesting'])assert.equal(professionKey(n),'huntingskinning');
   assert.ok(PROFESSION_KEYS.includes('huntingskinning'));
+});
+
+test('0.22.0 migration: a saved Fishing check skill of "" (the old default) becomes Survival; nothing else changes; re-runnable',()=>{
+  const old={tools:{alchemy:'herb'},skills:{fishing:'',mining:'',herbalism:'med'},qualifyTools:{alchemy:['herb']},items:{cooking:['[TEST] Pan']}};
+  const next=migrateCheckMapping(old);
+  assert.deepEqual(next,{...old,skills:{fishing:'sur',mining:'',herbalism:'med'}});assert.equal(old.skills.fishing,'','input not mutated');
+  assert.equal(migrateCheckMapping(next),null,'running again changes nothing');
+  assert.equal(migrateCheckMapping({skills:{fishing:'nat'}}),null,'a GM choice is kept');
+  assert.equal(migrateCheckMapping({}),null);assert.equal(migrateCheckMapping(null),null);
+  assert.equal(effectiveMapping(next).skills.fishing,'sur');assert.deepEqual(effectiveMapping(next).qualifySkills.fishing,['sur']);
 });

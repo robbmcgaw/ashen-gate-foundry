@@ -31,7 +31,15 @@ export const DEFAULT_PROFESSION_TOOLS=Object.freeze({alchemy:'alchemist',blacksm
   mining:'mason',huntingskinning:'leatherworker',enchanting:'',archaeology:'',fishing:''});
 /** GM Setup defaults: the skill a profession can roll instead of (or beside) its tool. Gathering professions use it to
  * gather; Enchanting is the one crafting profession whose main check is a skill (Arcana). The GM can change or clear it. */
-export const DEFAULT_GATHER_SKILLS=Object.freeze({herbalism:'nat',huntingskinning:'sur',archaeology:'his',fishing:'',mining:'',enchanting:'arc'});
+export const DEFAULT_GATHER_SKILLS=Object.freeze({herbalism:'nat',huntingskinning:'sur',archaeology:'his',fishing:'sur',mining:'',enchanting:'arc'});
+/** 0.22.0 migration of the saved checkMapping (version 0 → 1): Fishing's check skill default became Survival. Before 0.22.0
+ * every Save wrote the old default (fishing: '') with the rest, so a saved '' is that old default and becomes 'sur'.
+ * Nothing else is touched. Returns the new value, or null when there is nothing to change. Safe to run again. */
+export function migrateCheckMapping(stored){
+  const s=stored&&typeof stored==='object'?stored:null;
+  if(!s||!s.skills||typeof s.skills!=='object'||s.skills.fishing!=='')return null;
+  return {...s,skills:{...s.skills,fishing:'sur'}};
+}
 /** Stored GM choices win over defaults; an explicit '' means "none".
  * 0.16.0 crosswalk (AG-F01), additive: per profession, the skills and tools whose proficiency qualifies a character
  * (any-of), and the advantage tools (proficiency with, or carrying, one gives advantage on that profession's checks).

@@ -7,7 +7,7 @@ import {lookupWorldDefinition,readWorldDefinition} from './definition-lookup.mjs
 import {planCraft,craftBlockers,executeCraft,craftResultData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,requiredToolRef,toolRefLabel,heldTool,
-  checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS,DEFAULT_PROFESSION_TOOLS,DEFAULT_GATHER_SKILLS} from './checks.mjs';
+  checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS,DEFAULT_PROFESSION_TOOLS,DEFAULT_GATHER_SKILLS,migrateCheckMapping} from './checks.mjs';
 import {PROFESSION_KEYS,professionTitle,catalogCrosswalk,unmappedProfessions,assignmentPlan,rowId,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
 import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,gatherOutcome,gatherReward,exhaustsNode,helperEligibility,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
   stackMaterial} from './gathering.mjs';
@@ -1990,6 +1990,7 @@ Hooks.once('init',()=>{
   game.settings.register(ID,EXOTIC_SETTING,{name:'Exotic discovery chance (%)',scope:'world',config:false,type:Number,default:DEFAULT_EXOTIC_PERCENT,onChange:()=>{if(current?.rendered)current.render();}});
   game.settings.register(ID,BASELINE_SETTING,{name:'Profession crosswalk baseline file',scope:'world',config:false,type:Object,default:{},onChange:()=>{if(current?.rendered)current.render();}});
   game.settings.register(ID,'checkMapping',{name:'Profession tools and gathering checks',scope:'world',config:false,type:Object,default:{},onChange:()=>{if(current?.rendered)current.render();}});
+  game.settings.register(ID,'checkMappingVersion',{name:'Profession tools and checks data version',scope:'world',config:false,type:Number,default:0});
   game.settings.register(ID,'partyRoster',{name:'Active party Actor IDs',scope:'world',config:false,type:Array,default:[],onChange:()=>{if(current?.rendered)current.render();}});
   game.settings.registerMenu(ID,'open',{name:'Ashen Gate Profession Ledger',label:'Open Profession Ledger',
     hint:'Professions, materials, recipes and crafting for your character and party. Player interface visibility is GM-controlled.',icon:'fa-solid fa-book-open',type:LedgerApp,restricted:false});
@@ -2044,6 +2045,7 @@ Hooks.once('ready',()=>{
     embed:{contract:'ag-ledger-embed/1',modes:[...EMBED_MODES],mount:mountEmbed},
     version:VERSION,source:'Actor inventories, Manager tagged Items, and optional Ledger catalog'};
   game.socket?.on?.(SOCKET,(message,senderId)=>void onSocket(message,senderId));
+  if(game.user?.isGM&&activeGM()?.id===game.user.id)void migrateMapping();
   // 0.21.0: the request queue lives on the GM's client; after a GM reload tell players their waiting requests are gone.
   if(game.user?.isGM&&activeGM()?.id===game.user.id)sendSocket({type:'gather-requests-cleared'});
   const refresh=()=>{if(current?.rendered)current.render();refreshEmbeds();};
@@ -2053,6 +2055,15 @@ Hooks.once('ready',()=>{
   console.info(`[${ID}] v${VERSION} ready. Open from the Actors directory, Module Settings or game.modules.get('${ID}').api.open()`);
 });
 
+/** 0.22.0, active GM once per world: Fishing's saved check skill '' (the old default) becomes Survival. See migrateCheckMapping. */
+async function migrateMapping(){
+  try{
+    if(Number(game.settings.get(ID,'checkMappingVersion'))>=1)return;
+    const next=migrateCheckMapping(game.settings.get(ID,'checkMapping'));
+    if(next)await game.settings.set(ID,'checkMapping',next);
+    await game.settings.set(ID,'checkMappingVersion',1);
+  }catch(err){console.warn(`[${ID}] tools and checks migration`,err);}
+}
 /** Open Ledger on the Actors directory for both GM and players; idempotent across renders. */
 function addActorDirectoryLauncher(application, renderedElement){
   mountLauncher(launcherRoot(application,renderedElement),{moduleId:ID,label:'Professions',title:'Profession Ledger',icon:'fa-solid fa-book-open',
