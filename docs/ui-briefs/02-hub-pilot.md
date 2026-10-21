@@ -58,7 +58,28 @@ What exists today (Hub 0.15–0.17; `scripts/character.mjs` `hpBar()` / `hpHtml(
 - **Text:** "X / Y HP", centred over the bar.
 - **Editing:** double-click (or Enter) opens the Current / Temp / Max adj. editor with Cancel / Apply. Right-click opens dnd5e's Hit Points settings. Damage / amount / Heal sits under the bar, and damage uses temp HP first.
 
-**Keep all of that exactly:** the same colours (they are game meaning, not skin colours, so they stay as literal values with an `ag-lint-allow` comment), the same segments and text, the same interactions and the same `data-action` names. The only allowed visual change is readability on light skins: the white bar text gets a dark backing (for example a dark text halo or a pill behind the text) so it reads where the unfilled bar is light. The colours stay.
+**Health colours (Robb, 2026-10-21, supersedes "no colour change"):** the fill colour shows health as a share of the **effective max** (`max + tempmax`, the "Y" in "X / Y HP"). Temp HP doesn't count.
+- **Green** when `value * 100 >= 70 * eff`
+- **Yellow** when `value * 100 >= 30 * eff` (and not green)
+- **Red** otherwise, and also when `eff <= 0`
+- Use integer maths (no rounded percent), so the boundaries are exact.
+  - With max 100: 70 is green, 69 is yellow, 30 is yellow, 29 is red.
+  - With max 45: 32 is green (71.1%), 31 is yellow (68.9%), 14 is yellow (31.1%), 13 is red (28.9%).
+- Add `hpBand(value, effectiveMax)` → `'high' | 'mid' | 'low'` in `character.mjs`, and set `data-band` on `.agch-hp__bar`.
+
+**Keeping every treatment distinct.** Each one differs by pattern and lightness as well as colour, so it reads for colour-blind players too. Preview of every combination: https://claude.ai/artifact/sgGZnPz8kP1uwFsgasf9mK
+
+| Treatment | Look (new) | Why |
+|---|---|---|
+| Fill (current HP) | **Solid, no pattern**: green `#3a9d52`, yellow `#d9a21b`, red as today (`color-mix(var(--ag-danger) 70%, #400)`) | "Your HP" is the only solid colour |
+| Temp HP | **Light silver diagonal stripes** (`#f3f6f9` / `#8fa3b4`, 4px/3px at 45°) inset 2px top and bottom, with a 1.5px near-black outline, layered **on top of** the fill | Today's yellow stripes would vanish into the yellow band; silver plus outline reads on green, yellow, red, dark and light tracks |
+| Reduced max (`tempmax < 0`) | **Dark olive cross-hatch** (`#3c4520` / `#20250f` plus a dark diagonal) with a 3px sickly-green left edge (`#8fae3a`) | Stays "sickly", but dark and patterned, so it never looks like the green fill |
+| Raised max (`tempmax > 0`) | **Blue frame**: 3px top and bottom bands plus a 2px left edge (`#4a90e2`), light blue tint inside, layered **above** temp | Stays blue and visible even when temp HP sits in the same range |
+| Text | "X / Y HP", "(+T TEMP)" (light silver), "(+M MAX)" (light blue, new), "(−M MAX)" (light green), all white-ish with a dark halo (stacked `text-shadow`) | Reads on every fill and skin without hiding segments |
+
+Layer order, bottom to top: track, fill, reduced max, temp, raised-max frame, text. The temp segment is capped at the start of the reduced-max part (`lostLeft`). These colours are game meaning, not skin colours: they stay literal values with an `ag-lint-allow` comment, the same in every skin.
+
+Everything else stays exactly as today: segment positions from `hpBar()`, the editor, double-click and right-click, and Damage/Heal.
 
 **New requirement: both adjustments visible together.** When a character has temp HP **and** an adjusted max HP, the yellow temp treatment and the blue or green max treatment must both be visible. Neither may hide the other.
 
@@ -83,7 +104,9 @@ What the builder must change:
 2. **Temp wider than the room left by a reduced max:** cap the temp segment at the start of the green part (`lostLeft`), and keep "(+X TEMP)" text showing the full amount. Layer the green part above the temp if they must touch.
 3. **Don't change `hpBar()`'s existing numbers** for the cases the current test covers. Extend its return value only if needed (for example `boostText`).
 
-Tests to add (`tests/polish.test.mjs` or a new `hp-combined.test.mjs`):
+Tests to add (`tests/polish.test.mjs` or a new `hp-states.test.mjs`):
+- `hpBand` boundaries: (70,100) high, (69,100) mid, (30,100) mid, (29,100) low, (32,45) high, (31,45) mid, (14,45) mid, (13,45) low, (0,0) low.
+- The full matrix: 3 bands × {no max change, max +6, max −6} × {no temp, +5 temp} (18 renders, max 30). Each render has the right `data-band` and the expected segment classes, and text with every label that applies.
 - Both, raised max, near full (24 HP, +4 temp, adj +5): the rendered HTML contains both `agch-hp__temp` and `agch-hp__boost`, the boost layer sits above temp (by class or order, matching the CSS), and the text has "(+4 TEMP)" and "(+5 MAX)".
 - Both, reduced max, full HP (15 HP, +4 temp, adj −5): temp ends at or before `lostLeft`, and both texts are present.
 - Temp larger than the room (adj −5, +20 temp): the temp segment ends at `lostLeft`, and the text still says "(+20 TEMP)".
@@ -128,7 +151,7 @@ Tests to add (`tests/polish.test.mjs` or a new `hp-combined.test.mjs`):
 ## Versions
 - Hub: **minor** above the version brief 1 sets. On 2026-10-21 that is 0.22.0, if brief 1 gives 0.21.0.
 - Update `module.json` (version and download URL), the CHANGELOG and any hard-coded version string.
-- CHANGELOG: "Sheet takes the Ashen Gate UI standard look (same layout): rounded controls, round slots, labelled confirmations, Foundry tooltips, Comfortable size supported."
+- CHANGELOG: "Sheet takes the Ashen Gate UI standard look (same layout): rounded controls, round slots, labelled confirmations, Foundry tooltips, Comfortable size supported. HP bar turns green, yellow or red with health; temp HP is now a silver striped shield, and temp HP and max-HP changes always show together."
 
 ## Acceptance checks
 1. `node scripts/check.mjs ashen-gate-character-hub`, then the full `node scripts/check.mjs`: green. Existing tests keep passing. Add tests for:
@@ -141,8 +164,8 @@ Tests to add (`tests/polish.test.mjs` or a new `hp-combined.test.mjs`):
    - Diff review finds no change to the grid or region structure in `views.mjs` or `character.mjs`, and no change to the `.agch-split` / `.agch-char` / `.agch-railcol` grid rules apart from token values.
 3. **HP bar unchanged and combined:**
    - Renders of the HP bar for each case in the "HP bar" table, in Standard, Stone Tablet, Parchment and Tome Pages, Compact and Comfortable.
-   - The colours match today's in the dark skins.
-   - Where a max adjustment and temp HP exist together, both are visible.
+   - Plus every cell of the 18-case matrix above, at Compact and Comfortable, in a dark skin (Standard) and a light skin (Parchment). Match the preview artifact.
+   - Fill colour follows the band; temp, reduced max and raised max are each visible in every combination.
    - Double-click and right-click behaviour is unchanged (existing tests).
 4. **Chromium renders** of the real Hub views (call the view functions in `scripts/views.mjs` and friends with the mocks in `tests/foundry-mock.mjs`):
    - Overview, Combat, Inventory, Cinders, Journey and companion GM table
@@ -154,9 +177,11 @@ Tests to add (`tests/polish.test.mjs` or a new `hp-combined.test.mjs`):
 ## Forge click steps for Robb (after merge)
 1. Open a character in the Hub as GM:
    - Same layout as before: art with the slots around it on the left, content on the right, icon rail on the far right.
-   - HP bar looks and behaves as before: red fill, yellow temp, blue raised max, green reduced max. Double-click edits it and right-click opens dnd5e's settings.
-   - Give a character +5 temp HP and a max adjustment of +5: yellow stripes and the blue band both show, with "(+5 TEMP)" and "(+5 MAX)". Try near full HP and at low HP.
-   - Then set the max adjustment to −5: yellow and green both show, with "(+5 TEMP)" and "(−5 MAX)".
+   - The HP fill is green at 70% and up, yellow at 30–69%, red below 30%. Set HP to exactly 70% and 69%, and to 30% and 29%, of max to see the switches. Double-click still edits and right-click still opens dnd5e's settings.
+   - Temp HP now shows as silver stripes with an outline (no longer yellow).
+   - Give a character +5 temp HP and a max adjustment of +5: silver stripes and the blue frame both show, with "(+5 TEMP)" and "(+5 MAX)". Try at green, yellow and red HP.
+   - Then set the max adjustment to −5: silver stripes and the dark green cross-hatch both show, with "(+5 TEMP)" and "(−5 MAX)".
+   - Repeat once in Parchment and once with Comfortable.
 2. Hover each icon on the right rail: a Foundry tooltip names the tab.
 3. Equipped and quick bar: round slots with rarity colours. Hover one for the item card.
 4. Cinders tab:
