@@ -5,7 +5,7 @@
   </header>
   <nav class="ag-tabs agst-tabs" aria-label="Skill Trees views">
     <button type="button" data-act="tab-trees" class="agst-tab {{#if activeTrees}}agst-active{{/if}}" aria-current="{{#if activeTrees}}page{{else}}false{{/if}}">Skill Trees</button>
-    {{#if gm}}<button type="button" data-act="tab-library" class="agst-tab {{#if activeLibrary}}agst-active{{/if}}" aria-current="{{#if activeLibrary}}page{{else}}false{{/if}}">Tree Library</button><button type="button" data-act="tab-cinders" class="agst-tab {{#if activeCinders}}agst-active{{/if}}" aria-current="{{#if activeCinders}}page{{else}}false{{/if}}">Cinders</button><button type="button" data-act="tab-setup" class="agst-tab {{#if activeSetup}}agst-active{{/if}}" aria-current="{{#if activeSetup}}page{{else}}false{{/if}}">GM Setup</button>{{/if}}
+    {{#if gm}}<button type="button" data-act="tab-library" class="agst-tab {{#if activeLibrary}}agst-active{{/if}}" aria-current="{{#if activeLibrary}}page{{else}}false{{/if}}">Tree Library</button><button type="button" data-act="tab-setup" class="agst-tab {{#if activeSetup}}agst-active{{/if}}" aria-current="{{#if activeSetup}}page{{else}}false{{/if}}">GM Setup</button>{{/if}}
   </nav>
   {{#if gmPanel}}{{#unless initialized}}
     <section class="agst-start"><h3>Set up your private Skill Tree workspace</h3><p>Tree definitions are stored in a GM-only Journal. Players receive a separate, sanitized view. This does not migrate or overwrite existing v0.1 trees or Actor flags.</p>
@@ -83,17 +83,6 @@
                 <div class="agst-inspector-line"><strong>Node status:</strong> {{selected.status}} · {{selected.visibility}} · {{selected.display}}</div>
               {{/unless}}{{/if}}
             </div>
-            {{#if cinderPush}}
-            <section class="agst-cinder-push" aria-label="Push this power">
-              <h3>Push</h3>
-              <p class="agst-cinder-strain">Strain <strong>{{cinderPush.strain}}</strong> · {{cinderPush.band}} · Backfire {{cinderPush.chance}}%</p>
-              {{#if cinderPush.normalUseBackfires}}<p class="agst-bad">At this Strain every use of this power backfires, Push or not.</p>{{/if}}
-              {{#if cinderPush.hasModes}}<ul class="agst-cinder-modes">{{#each cinderPush.modes}}<li>
-                <div><strong>{{label}}</strong> <small>+{{cost}} Strain → {{after}} · Backfire {{chance}}%{{#if guaranteed}} (guaranteed){{/if}}</small>{{#if effect}}<p>{{effect}}</p>{{/if}}</div>
-                <button type="button" class="ag-btn ag-btn--sm" data-act="push" data-power="{{../cinderPush.powerId}}" data-mode="{{id}}"><i class="fa-solid fa-fire"></i> Push</button>
-              </li>{{/each}}</ul>{{else}}<p>No Push available for this power yet.</p>{{/if}}
-            </section>
-            {{/if}}
             <div class="agst-inspector-actions">
               {{#if canBuy}}<button type="button" data-act="purchase" class="ag-btn ag-btn--primary"><i class="fa-solid fa-unlock"></i> Unlock for {{actorName}}</button>{{/if}}
               {{#if canRequest}}<button type="button" data-act="request" class="ag-btn ag-btn--primary"><i class="fa-solid fa-unlock"></i> Unlock ({{selected.cost}} pt)</button>{{/if}}
@@ -226,29 +215,6 @@
   </div>
   {{/if}}
   {{/if}}{{!-- activeLibrary --}}
-  {{#if activeCinders}}{{#if cinderPanel}}
-  <div class="agst-setup-main" aria-label="Cinders">
-    <section class="agst-setup-card">
-      <div class="agst-cinder-toolbar"><h2>Cinders</h2><button type="button" class="ag-btn ag-btn--primary" data-act="cinder-new" {{#unless cinderPanel.definitions}}disabled title="Import Cinder (MUT-*) definitions through General Manager first"{{/unless}}><i class="fa-solid fa-plus"></i> New Cinder</button></div>
-      <p>Each Cinder keeps its own points and unlocked powers and moves between bearers with them. A bearer cannot release a Cinder; only the GM binds, transfers or unbinds it. Strain stays with each character. Limit: {{cinderPanel.limit}} per character · starting points: {{cinderPanel.initial}} (first binding only; change both in Configure Settings).</p>
-      {{#if cinderPanel.migrate}}<div class="agst-inline-setting"><span><strong>{{cinderPanel.migrate}}</strong> character(s) have Cinder progress from before Cinders.</span><button type="button" class="ag-btn" data-act="cinder-migrate"><i class="fa-solid fa-right-left"></i> Move existing Cinder progress</button></div>{{/if}}
-      {{#if cinderPanel.hasCinders}}
-        {{#each cinderPanel.groups}}<h3 class="agst-cinder-group">{{name}} <small>({{definitionId}})</small></h3>
-        <table class="agst-cinder-table"><thead><tr><th scope="col">Bearer</th><th scope="col">Points</th><th scope="col">Powers</th><th scope="col">Actions</th></tr></thead><tbody>
-          {{#each rows}}<tr><td>{{#if bearerName}}{{bearerName}}{{else}}<em>{{#if lost}}Lost{{else}}Unbound{{/if}}</em>{{#if lastName}} <small>(last: {{lastName}})</small>{{/if}}{{/if}}{{#if migrated}} <small>moved from older data</small>{{/if}}</td>
-            <td>{{spent}} of {{awarded}} spent</td><td>{{unlocks}} unlocked</td>
-            <td class="agst-cinder-actions">{{#if bound}}<button type="button" class="ag-btn ag-btn--sm" data-act="cinder-transfer" data-instance="{{instanceId}}"><i class="fa-solid fa-right-left"></i> Transfer</button><button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-act="cinder-unbind" data-instance="{{instanceId}}">Unbind</button>{{else}}<button type="button" class="ag-btn ag-btn--sm" data-act="cinder-bind" data-instance="{{instanceId}}"><i class="fa-solid fa-link"></i> Bind</button>{{/if}}</td></tr>{{/each}}
-        </tbody></table>{{/each}}
-      {{else}}<p>No Cinders yet. Click <strong>New Cinder</strong>, then <strong>Bind</strong> it to a character.</p>{{/if}}
-    </section>
-    <section class="agst-setup-card" aria-label="Cinder check">
-      <h2>Check</h2>
-      {{#if cinderPanel.hasReport}}<ul class="agst-report">{{#each cinderPanel.report}}<li><strong>{{name}}</strong>: {{text}}</li>{{/each}}</ul>
-        {{#if cinderPanel.canRepair}}<div class="agst-setup-actions"><button type="button" class="ag-btn" data-act="cinder-repair"><i class="fa-solid fa-screwdriver-wrench"></i> Repair</button></div><p><small>Repair copies each Cinder's progress back to its bearer, gives missing powers and removes Cinder powers from characters who don't bear that Cinder. It never changes a Cinder's points or unlocks.</small></p>{{/if}}
-      {{else}}<p>Every Cinder, bearer and power Item agrees.</p>{{/if}}
-    </section>
-  </div>
-  {{/if}}{{/if}}{{!-- activeCinders --}}
   {{#if activeSetup}}
   {{#if initialized}}
   <div class="agst-setup-main" aria-label="GM Setup for Skill Trees">
@@ -256,28 +222,6 @@
       <span><strong>Player Access:</strong> {{#if playerAccessEnabled}}Visible{{else}}Hidden{{/if}} <small>Controls player launcher and window only; not Actor progress or document permissions.</small></span>
       <button type="button" class="ag-btn" data-act="toggle-player-access">{{#if playerAccessEnabled}}Hide from Players{{else}}Show to Players{{/if}}</button>
     </div>
-    {{#if strainSetup}}
-    <section class="agst-setup-card" aria-label="Strain settings">
-      <h2>Strain</h2>
-      <p>One Strain value per character, shared by every system that adds or removes it. These are the band names and Backfire chances; character Strain is never changed here. Campaign band names come in with a Strain config file (also importable through General Manager).</p>
-      <table class="agst-strain-bands">
-        <thead><tr><th scope="col">Strain</th><th scope="col">Band</th><th scope="col">Backfire chance</th></tr></thead>
-        <tbody>{{#each strainSetup.bands}}<tr><td>{{range}}</td><td>{{label}}</td><td>{{chance}}</td></tr>{{/each}}</tbody>
-      </table>
-      <ul class="agst-strain-rules">
-        <li>A Push at Strain {{strainSetup.guaranteeAt}} or more always backfires{{#if strainSetup.prevention}} unless a modifier prevents it{{/if}}.</li>
-        <li>A normal use backfires at Strain {{strainSetup.normalUseAt}} or more.</li>
-        <li>Maximum Strain: {{strainSetup.hardMax}}.</li>
-        <li>Rest recovery: long rest −{{strainSetup.restLong}}, short rest −{{strainSetup.restShort}}.</li>
-        <li>Backfire effect roll bonus from Strain (higher = more severe): {{strainSetup.effectBonus}}.</li>
-      </ul>
-      <div class="agst-setup-actions">
-        <button type="button" class="ag-btn" data-act="strain-import"><i class="fa-solid fa-file-import"></i> Import Strain Config</button>
-        <button type="button" class="ag-btn" data-act="strain-export"><i class="fa-solid fa-file-export"></i> Export Strain Config</button>
-        <button type="button" class="ag-btn ag-btn--danger" data-act="strain-reset"><i class="fa-solid fa-rotate-left"></i> Reset to Defaults</button>
-      </div>
-    </section>
-    {{/if}}
     <details class="agst-dev-tools">
       <summary><i class="fa-solid fa-flask"></i> Developer Tools — Experimental / GM only</summary>
       <div class="agst-dev-content"><p>Use a disposable world. QA installation creates real, clearly marked native Foundry documents and private tree layouts; they are not approved Cinder or Profession content.</p>

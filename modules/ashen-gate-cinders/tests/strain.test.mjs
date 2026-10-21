@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-// 0.15.0: Strain. Pure rules (strain.mjs) and the api.strain door with mocked Foundry globals: proves logic, not the live UI.
+// Strain (moved from Skill Trees 0.15.0). Pure rules (strain.mjs) and the api.strain door with mocked Foundry globals: proves logic, not the live UI.
 import {DEFAULT_CONFIG,defaultConfig,validateConfig,normalizeConfig,bandFor,chanceFor,applyChange,normalizeState,restRecovery,summarize,STRAIN_SCOPE,STRAIN_HISTORY_LIMIT} from '../scripts/strain.mjs';
 
 const SRC={module:'ashen-gate-test',kind:'hazard',ref:'LOC-TEST-PIT'};
@@ -72,7 +72,7 @@ const oneTime=new Map(),hooks=new Map(),called=[],saved=new Map();
 globalThis.Hooks={once:(e,fn)=>oneTime.set(e,fn),on:(e,fn)=>hooks.set(e,[...(hooks.get(e)??[]),fn]),callAll:(e,data)=>called.push([e,data])};
 const setProperty=(obj,path,value)=>{const keys=path.split('.');let o=obj;for(const k of keys.slice(0,-1))o=o[k]??={};o[keys.at(-1)]=value;};
 globalThis.foundry={applications:{api:{ApplicationV2:FakeApplication,HandlebarsApplicationMixin:B=>B,DialogV2:{confirm:async()=>true}}},utils:{escapeHTML:x=>String(x),randomID:()=>'r'}};
-const MOD='ashen-gate-skill-trees';
+const MOD='ashen-gate-cinders';
 const gm={id:'gm',isGM:true,name:'GM'},owner={id:'u1',isGM:false,name:'Owner'},other={id:'u2',isGM:false,name:'Other'};
 const updates=[];
 const actorOf=id=>({id,name:`[TEST] ${id}`,type:'character',flags:{},items:[],
@@ -81,12 +81,12 @@ const actorOf=id=>({id,name:`[TEST] ${id}`,type:'character',flags:{},items:[],
   async update(data){updates.push(data);const diff={};for(const [k,v] of Object.entries(data)){setProperty(this,k,structuredClone(v));setProperty(diff,k,v);}
     for(const fn of hooks.get('updateActor')??[])fn(this,diff);return this;}});
 const hero=actorOf('hero'),villain=actorOf('villain');
-globalThis.game={modules:new Map([[MOD,{id:MOD,active:true}]]),
+globalThis.game={modules:new Map([[MOD,{id:MOD,active:true}]]),i18n:{localize:x=>x},journal:{contents:[]},
   settings:{register:()=>{},registerMenu:()=>{},get:(_m,k)=>saved.has(k)?saved.get(k):(k==='playerAccessEnabled'?true:undefined),set:async(_m,k,v)=>{saved.set(k,v);return v;}},
-  journal:{contents:[]},items:{contents:[]},actors:{contents:[hero,villain],get(id){return this.contents.find(a=>a.id===id)??null;}},
+  items:{contents:[]},actors:{contents:[hero,villain],get(id){return this.contents.find(a=>a.id===id)??null;}},
   user:gm,users:{contents:[gm,owner,other],get:id=>[gm,owner,other].find(u=>u.id===id),activeGM:gm},socket:{on:()=>{},emit:()=>{}}};
 globalThis.ui={actors:null,notifications:{info:()=>{},error:()=>{}}};
-await import('../scripts/main.js');
+await import('../scripts/main.mjs');
 oneTime.get('init')();oneTime.get('ready')();
 const strain=game.modules.get(MOD).api.strain;
 const restMessage=(id,type,author=owner,actorId='hero')=>({id,type:'rest',system:{type},speaker:{actor:actorId},author});
@@ -97,8 +97,8 @@ test('api.strain: contract, GM writes into its own flag scope with one update, h
   assert.equal(strain.contract,'ag-strain/1');assert.equal(strain.scope,STRAIN_SCOPE);
   const r=await strain.add(hero,4,{source:{module:'ashen-gate-test',kind:'crafting',ref:'REC-TEST-1'},reason:'[TEST] mishap',opId:'op-a'});
   assert.deepEqual([r.from,r.to],[0,4]);
-  assert.equal(updates.length,1);assert.deepEqual(Object.keys(updates[0]),['flags.ashen-gate-strain.state'],'own scope, not the Skill Trees flag');
-  assert.equal(hero.flags['ashen-gate-strain'].state.value,4);assert.equal(hero.flags[MOD],undefined);
+  assert.equal(updates.length,1);assert.deepEqual(Object.keys(updates[0]),['flags.ashen-gate-strain.state'],'the same own scope as Skill Trees 0.15.0 used: no data change');
+  assert.equal(hero.flags['ashen-gate-strain'].state.value,4);assert.equal(hero.flags[MOD],undefined);assert.equal(hero.flags['ashen-gate-skill-trees'],undefined);
   assert.deepEqual(called.at(-1),['ashenGateStrain.changed',{actorId:'hero',from:0,to:4,source:{module:'ashen-gate-test',kind:'crafting',ref:'REC-TEST-1'},opId:'op-a'}]);
   await strain.add(hero,4,{source:{module:'ashen-gate-test',kind:'crafting'},reason:'[TEST] retry',opId:'op-a'});
   assert.equal(strain.get(hero).value,4,'retry with the same opId does not charge twice');assert.equal(updates.length,1);
@@ -142,4 +142,12 @@ test('config import: preview, import, skip identical, reject bad, reset; GM only
   game.user=owner;assert.throws(()=>strain.previewConfigImport(file),/GM only/);await assert.rejects(strain.importConfig(file),/GM only/);
   assert.equal(strain.config().bands[0].label,'[TEST] Calm','players can read the config for display');
   game.user=gm;await strain.resetConfig();assert.equal(strain.config().bands[0].label,'Band 0');
+});
+test('Strain bar: fills to the guarantee point, then shows how far past it', async () => {
+  const {strainBar} = await import('../scripts/main.mjs');
+  const base = {band: {label: 'Band 3'}, chance: 35, guaranteed: false, normalUseBackfires: false, guaranteeAt: 10};
+  assert.deepEqual([strainBar({...base, value: 5}).fill, strainBar({...base, value: 5}).label, strainBar({...base, value: 5}).over], [50, '5 / 10', 0]);
+  const over = strainBar({...base, value: 13});
+  assert.deepEqual([over.fill, over.label, over.over], [100, '13 / 10+', 3]);
+  assert.equal(game.modules.get(MOD).api.status().status, 'missing', 'Skill Trees is not in this test world; Strain works anyway');
 });

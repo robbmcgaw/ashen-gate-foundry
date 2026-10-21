@@ -1,5 +1,5 @@
-/** Strain (0.15.0): one shared number per character. Pure rules, no Foundry globals.
- * Kept apart from the trees on purpose: its Actor data lives under its own flag scope, so it can move to its own module later unchanged. */
+/** Ashen Gate | Cinders: Strain, one shared number per character. Pure rules, no Foundry globals (moved from Skill Trees 0.15.0).
+ * Its Actor data lives under its own flag scope (flags.ashen-gate-strain), unchanged by the move between modules. */
 export const STRAIN_SCOPE = 'ashen-gate-strain';
 export const STRAIN_CONTRACT = 'ag-strain/1';
 export const CONFIG_SCHEMA = 'ag-strain-config/0.1';
@@ -24,7 +24,7 @@ export const DEFAULT_CONFIG = Object.freeze({
   ].map(Object.freeze)),
   hard_max: null,
   rest_recovery: Object.freeze({long: 1, short: 0}),
-  // 0.16.0: higher Strain pushes the Backfire effect roll toward the severe end of the table: +1 per `per` Strain from `from`.
+  // Higher Strain pushes the Backfire effect roll toward the severe end of the table: +1 per `per` Strain from `from`.
   effect_roll: Object.freeze({strain_bonus: Object.freeze({enabled: true, from: 5, per: 2})})
 });
 export const defaultConfig = () => structuredClone({...DEFAULT_CONFIG, backfire_schedule: [...DEFAULT_CONFIG.backfire_schedule],

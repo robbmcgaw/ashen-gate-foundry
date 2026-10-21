@@ -1,6 +1,5 @@
-/** Cinders (0.16.0): Cinder instances, Push and Backfire. Pure rules, no Foundry globals.
+/** Ashen Gate | Cinders: Cinder instances, Push and Backfire. Pure rules, no Foundry globals (moved from Skill Trees 0.16.0).
  * A Cinder instance owns its progression (points, unlocks) and moves between bearers with it. Strain stays on each character. */
-import {cleanAccount} from './engine.mjs';
 import {applyChange,chanceFor,strainEffectBonus} from './strain.mjs';
 
 export const CINDER_CONTRACT = 'ag-cinder/1';
@@ -19,6 +18,16 @@ const plain = v => Boolean(v) && typeof v === 'object' && !Array.isArray(v);
 const int = v => Number.isSafeInteger(v);
 const arr = v => Array.isArray(v) ? v : [];
 const text = (v, max) => typeof v === 'string' && v.trim().length > 0 && v.length <= max;
+/** A Cinder's progression, in the shape Skill Trees keeps for a tree account ({awarded, unlocks, grants, revision, …}).
+ * Skill Trees owns the meaning of these fields; Cinders only stores the account with the Cinder and adds the starting point. */
+export function cleanAccount(raw) {
+  const r = plain(raw) ? raw : {};
+  return {...structuredClone(r),
+    awarded: int(r.awarded) && r.awarded >= 0 ? r.awarded : 0,
+    unlocks: [...new Set(arr(r.unlocks).filter(x => typeof x === 'string'))],
+    grants: arr(r.grants).filter(g => plain(g) && typeof g.key === 'string').map(g => ({key: g.key, amount: Math.max(0, Number(g.amount) || 0)})),
+    revision: int(r.revision) && r.revision >= 0 ? r.revision : 0};
+}
 
 // ---- Definitions (imported content) ----
 export const cinderBlock = def => plain(def?.cinder) ? def.cinder : {};

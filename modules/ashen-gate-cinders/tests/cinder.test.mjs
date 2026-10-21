@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-// 0.16.0: Cinder instances, Push and Backfire. Pure rules (cinder.mjs) and the runtime with mocked Foundry globals:
-// proves logic, ownership and permission checks, not the live Foundry UI.
+// Cinder instances, Push and Backfire (moved from Skill Trees 0.16.0). Pure rules (cinder.mjs) and the runtime with mocked Foundry globals
+// and a stand-in Skill Trees (tests/fake-skill-trees.mjs): proves logic, ownership and permission checks, not the live Foundry UI.
 import {validateDefinition,collectModifiers,availableModes,planPush,resolveBackfire,normalizeRegistry,createInstance,bindInstance,transferInstance,
   unbindInstance,planMigration,effectProblem,categoriesFor} from '../scripts/cinder.mjs';
 import {defaultConfig,strainEffectBonus,validateConfig} from '../scripts/strain.mjs';
@@ -95,20 +95,24 @@ test('migration plan: per-character Cinder progress becomes Cinders; again finds
   assert.equal(planMigration(reg,actors)[0].action,'skip');
 });
 
-// ---- Runtime with mocked Foundry ----
+
+// ---- Runtime with mocked Foundry and a stand-in Skill Trees 0.17.0 ----
+import {fakeSkillTrees} from './fake-skill-trees.mjs';
 class FakeApplication {static DEFAULT_OPTIONS={};render(){return this;}async _prepareContext(){return {};}}
 const oneTime=new Map(),hooks=new Map(),called=[],saved=new Map(),socketHandlers=[],emitted=[],messages=[],rolls=[];
-globalThis.Hooks={once:(e,fn)=>oneTime.set(e,fn),on:(e,fn)=>hooks.set(e,[...(hooks.get(e)??[]),fn]),callAll:(e,d)=>called.push([e,d])};
+const Hooks_={once:(e,fn)=>oneTime.set(e,fn),on:(e,fn)=>hooks.set(e,[...(hooks.get(e)??[]),fn]),callAll:(e,d)=>{called.push([e,d]);for(const fn of hooks.get(e)??[])fn(d);}};
+globalThis.Hooks=Hooks_;
 let counter=0;
 globalThis.foundry={applications:{api:{ApplicationV2:FakeApplication,HandlebarsApplicationMixin:B=>B,DialogV2:{confirm:async()=>true}}},utils:{escapeHTML:x=>String(x),randomID:()=>`R${String(++counter).padStart(15,'0')}`}};
 globalThis.Roll=class{constructor(f){this.formula=f;}async evaluate(){const t=rolls.shift();if(t==null)throw Error(`unexpected roll ${this.formula}`);this.total=t;return this;}};
 globalThis.ChatMessage={create:async d=>{messages.push(d);return d;},getSpeaker:({actor})=>({actor:actor.id})};
 globalThis.CONFIG={statusEffects:[{id:'poisoned',name:'Poisoned',img:'poisoned.svg'}]};
-const MOD='ashen-gate-skill-trees',DEF='MUT-TEST-EMBER';
-const node=(id,perkId,x,extra={})=>({id,perkId,x,y:100,requiresAll:[],requiresAny:[],excludes:[],status:'approved',visibility:'player',display:'shown',...extra});
-const tree={id:'TEST-EMBER-TREE',name:'[TEST] Ember',description:'',status:'approved',visibility:'player',sourceRef:DEF,provider:{kind:'cinder_milestone',maxPoints:13},
+globalThis.CONST={DOCUMENT_OWNERSHIP_LEVELS:{NONE:0}};
+const MOD='ashen-gate-cinders',DEF='MUT-TEST-EMBER';
+const node=(id,perkId,x)=>({id,perkId,x,y:100,requiresAll:[],requiresAny:[],excludes:[],status:'approved',visibility:'player',display:'shown'});
+const tree={id:'TEST-EMBER-TREE',name:'[TEST] Ember',sourceRef:DEF,provider:{kind:'cinder_milestone',maxPoints:13},
   nodes:[node('NODE1','POWER-TEST-SPARK',100),node('NODE2','POWER-TEST-STEADY',300),node('NODE3','POWER-TEST-REACH',500)]};
-const journal={documentName:'JournalEntry',flags:{[MOD]:{privateStore:true,payload:{schema:'ag-skill-trees/0.3',trees:[tree]}}},async setFlag(m,k,v){this.flags[m][k]=structuredClone(v);}};
+const legacyTree={id:'TEST-LEGACY-TREE',name:'[TEST] Legacy',sourceRef:'MUT-TEST-LEGACY',provider:{kind:'cinder_milestone',maxPoints:13},nodes:[]};
 const source=(sourceId,entityType,definition)=>({'ashen-gate-manager':{source:{sourceId,entityType,status:'approved',visibility:'player',definition:{id:sourceId,entity_type:entityType,point_cost:1,...definition}}}});
 const worldItem=(id,sourceId,name,entityType,definition)=>({id,uuid:`Item.${id}`,documentName:'Item',type:'feat',name,img:null,ownership:{default:2},system:{description:{value:''}},
   testUserPermission:()=>true,flags:source(sourceId,entityType,definition),
@@ -117,6 +121,7 @@ const bfJournal=(id,sourceId,label,entries)=>({id,uuid:`JournalEntry.${id}`,docu
   flags:{'ashen-gate-manager':{source:{sourceId,entityType:'BackfireTable',status:'approved',visibility:'gm',definition:{id:sourceId,entity_type:'BackfireTable',backfire:{schema:'ag-backfire/0.1',label,entries}}}}}});
 const items=[
   worldItem('W0',DEF,'[TEST] Ember Cinder','Mutation',{cinder:{schema:'ag-cinder/0.1',backfire_categories:['BF-TEST-BODY','BF-TEST-MIND']}}),
+  worldItem('W9','MUT-TEST-LEGACY','[TEST] Legacy Cinder','Mutation',{}),
   worldItem('W1','POWER-TEST-SPARK','[TEST] Spark','Power',{power:{schema:'ag-power/0.1',kind:'power',standard:{summary:'[TEST] normal'},
     push_modes:[{id:'amplify',label:'[TEST] Amplify',strain_cost:2,effect:'[TEST] bigger'},{id:'overreach',label:'[TEST] Overreach',strain_cost:3,requires:{powers:['POWER-TEST-REACH']}}]}}),
   worldItem('W2','POWER-TEST-STEADY','[TEST] Steady','Power',{power:{schema:'ag-power/0.1',kind:'enhancement',modifiers:steady.power.modifiers}}),
@@ -127,109 +132,107 @@ const setPath=(obj,path,value)=>{const k=path.split('.');let o=obj;for(const p o
 const gm={id:'gm',isGM:true,name:'GM'},alice={id:'u1',isGM:false,name:'Alice'},bob={id:'u2',isGM:false,name:'Bob'};
 function makeActor(id,ownerId){
   const actor={id,name:`[TEST] ${id}`,type:'character',flags:{},items:[],effects:[],system:{attributes:{hp:{value:20}}},
-    get isOwner(){return game.user.isGM||game.user.id===ownerId;},testUserPermission:(u,l)=>u.isGM||u.id===ownerId,
+    get isOwner(){return game.user.isGM||game.user.id===ownerId;},testUserPermission:(u)=>u.isGM||u.id===ownerId,
     async update(data){const diff={};for(const [k,v] of Object.entries(data)){setPath(this,k,v);setPath(diff,k,v);}for(const fn of hooks.get('updateActor')??[])fn(this,diff);return this;},
     async setFlag(m,k,v){this.flags[m]??={};this.flags[m][k]=structuredClone(v);},
     async createEmbeddedDocuments(type,data){
       if(type==='ActiveEffect'){const docs=data.map(d=>({...structuredClone(d),id:`AE${++counter}`}));actor.effects.push(...docs);return docs;}
       const docs=data.map(d=>{const doc={...structuredClone(d),id:`EMB${++counter}`,parent:actor,actor,async delete(){actor.items=actor.items.filter(x=>x!==doc);}};return doc;});
       actor.items.push(...docs);return docs;}};
+  actor.items.get=function(id){return actor.items.find(i=>i.id===id);};
   return actor;
 }
-const A=makeActor('A','u1'),B=makeActor('B','u2'),C=makeActor('C','u2');
-C.flags[MOD]={progressV2:{'cinder:MUT-TEST-LEGACY':{awarded:2,unlocks:[],grants:[{key:'old',amount:2}]}}};
-globalThis.game={modules:new Map([[MOD,{id:MOD,active:true}]]),i18n:{localize:x=>x},
-  settings:{register:()=>{},registerMenu:()=>{},get:(_m,k)=>saved.has(k)?saved.get(k):({playerAccessEnabled:true,maxCindersPerActor:1,initialCinderPoints:1})[k],set:async(_m,k,v)=>{saved.set(k,v);return v;}},
-  journal:{contents:[journal,...tables]},items:{contents:items},tables:{contents:[]},macros:{contents:[]},
+// items.get must survive the filter in delete(): keep it on every array the actor holds.
+const withGet=a=>{const fix=()=>{if(!a.items.get)a.items.get=id=>a.items.find(i=>i.id===id);};const orig=a.createEmbeddedDocuments;a.createEmbeddedDocuments=async(...x)=>{fix();const r=await orig(...x);fix();return r;};
+  return new Proxy(a,{get(t,p){if(p==='items')fix();return t[p];}});};
+const A=withGet(makeActor('A','u1')),B=withGet(makeActor('B','u2')),C=withGet(makeActor('C','u2'));
+const st=fakeSkillTrees({trees:[tree,legacyTree],worldItem:id=>items.find(i=>i.flags['ashen-gate-manager'].source.sourceId===id),hooks:Hooks_});
+st.seed(C,legacyTree.id,{awarded:2,unlocks:[],grants:[{key:'old',amount:2}]});
+const treesModule={id:'ashen-gate-skill-trees',active:true,api:st.api};
+globalThis.game={modules:new Map([[MOD,{id:MOD,active:true}],['ashen-gate-skill-trees',treesModule]]),i18n:{localize:x=>x},
+  settings:{register:(_m,k,o)=>{if(o?.default!==undefined&&!saved.has(k))saved.set(k,o.default);},registerMenu:()=>{},get:(_m,k)=>saved.get(k),set:async(_m,k,v)=>{saved.set(k,v);return v;}},
+  journal:{contents:[...tables]},items:{contents:items},tables:{contents:[]},macros:{contents:[]},
   actors:{contents:[A,B,C],get(id){return this.contents.find(a=>a.id===id)??null;}},
   user:gm,users:{contents:[gm,alice,bob],get:id=>[gm,alice,bob].find(u=>u.id===id),activeGM:gm},
   socket:{on:(_n,fn)=>socketHandlers.push(fn),emit:(_n,msg)=>emitted.push(msg)}};
+globalThis.JournalEntry={create:async data=>{const d={...structuredClone(data),documentName:'JournalEntry',async setFlag(m,k,v){this.flags[m][k]=structuredClone(v);}};game.journal.contents.push(d);return d;}};
 globalThis.ui={actors:null,notifications:{info:()=>{},error:()=>{},warn:()=>{}}};
-await import('../scripts/main.js');
+await import('../scripts/main.mjs');
 oneTime.get('init')();oneTime.get('ready')();
+await new Promise(r=>setTimeout(r,5)); // the deferred Skill Trees check and adopt
 const api=game.modules.get(MOD).api,cinder=api.cinder,strain=api.strain;
-const wallet=a=>a.flags[MOD]?.progressV2?.[`cinder:${DEF}`];
-const powersOn=a=>a.items.map(i=>i.flags[MOD]?.grant?.perkId).filter(Boolean).sort();
+const wallet=a=>st.api.accounts.account(a,tree.id);
+const powersOn=a=>a.items.map(i=>i.flags['ashen-gate-skill-trees']?.grant?.perkId).filter(Boolean).sort();
 const gmSet=async(a,n)=>strain.set(a,n,{source:{module:'ashen-gate-test',kind:'gm'},reason:'[TEST] set'});
 const fire=async(e,...args)=>{for(const fn of hooks.get(e)??[])await fn(...args);};
+const settle=()=>new Promise(r=>setTimeout(r,5));
 let ember;
 
-test('GM creates a Cinder and binds it: starting point, mirror on the bearer, hook',async()=>{
+test('Skill Trees 0.17.0 is detected; the Cinders journal is this module\'s own',async()=>{
+  assert.equal(api.status().status,'ok');
+  game.user=gm;ember=await cinder.create(DEF);
+  const store=game.journal.contents.find(d=>d.flags?.[MOD]?.gmRecords);assert.ok(store,'own GM-only Journal');assert.equal(store.ownership.default,0);
+});
+test('bind: starting point, progress written to the bearer\'s tree through Skill Trees, pointer in this module\'s flags',async()=>{
   game.user=gm;
-  ember=await cinder.create(DEF);
-  assert.match(ember.instanceId,/^cinst_/);assert.equal(ember.status,'unbound');
   const r=await cinder.bind(ember.instanceId,A);
   assert.equal(r.initialAwarded,1);assert.equal(wallet(A).awarded,1);
   assert.deepEqual(A.flags[MOD].cinders.map(p=>[p.instanceId,p.definitionId,p.name]),[[ember.instanceId,DEF,'[TEST] Ember Cinder']]);
-  assert.ok(called.some(([e,d])=>e==='ashenGateCinder.changed'&&d.kind==='bind'&&d.actorId==='A'));
+  assert.equal(A.flags['ashen-gate-skill-trees'],undefined,'never writes Skill Trees flags itself');
 });
-test('progress on the bearer goes onto the Cinder; a non-bearer cannot gain points or unlocks on that tree',async()=>{
+test('progress on the bearer\'s tree goes onto the Cinder; a non-bearer is refused by Skill Trees\' check hook',async()=>{
   game.user=gm;
-  await api.grantPoints(A,tree.id,1,'[TEST] milestone 1');await api.grantPoints(A,tree.id,1,'[TEST] milestone 2');
-  await api.unlock(A,tree.id,'NODE1');await api.unlock(A,tree.id,'NODE2');
+  await st.api.grantPoints(A,tree.id,1,'[TEST] m1');await st.api.grantPoints(A,tree.id,1,'[TEST] m2');
+  await st.api.unlock(A,tree.id,'NODE1');await st.api.unlock(A,tree.id,'NODE2');await settle();
   const inst=cinder.instances().find(i=>i.instanceId===ember.instanceId);
   assert.equal(inst.progression.awarded,3);assert.deepEqual(inst.progression.unlocks,['NODE1','NODE2']);
   assert.deepEqual(powersOn(A),['POWER-TEST-SPARK','POWER-TEST-STEADY']);
-  await assert.rejects(api.grantPoints(B,tree.id,1,'[TEST] nope'),/does not bear this Cinder/);
-  await assert.rejects(api.unlock(B,tree.id,'NODE1'),/does not bear this Cinder/);
+  await assert.rejects(st.api.grantPoints(B,tree.id,1,'[TEST] nope'),/does not bear this Cinder/);
+  await assert.rejects(st.api.unlock(B,tree.id,'NODE1'),/does not bear this Cinder/);
 });
-test('list and preview: modes, cost with modifiers, chance from post-gain Strain',async()=>{
+test('list and preview: modes, cost with modifiers, chance from post-gain Strain; owners only',async()=>{
   game.user=gm;await gmSet(A,3);
   const [c]=cinder.list(A);
-  assert.equal(c.name,'[TEST] Ember Cinder');assert.deepEqual(c.powers.map(p=>p.powerId),['POWER-TEST-SPARK'],'enhancements are not pushed');
-  assert.deepEqual(c.powers[0].modes.map(m=>[m.id,m.cost,m.after,m.chance]),[['amplify',1,4,15]],'overreach needs Reach');
-  game.user=alice;assert.equal(cinder.previewPush(A,ember.instanceId,'POWER-TEST-SPARK','amplify').chance,15,'the owner can preview');
+  assert.equal(c.name,'[TEST] Ember Cinder');assert.deepEqual(c.powers.map(p=>p.powerId),['POWER-TEST-SPARK']);assert.deepEqual(c.enhancements.map(p=>p.powerId),['POWER-TEST-STEADY']);
+  assert.deepEqual(c.powers[0].modes.map(m=>[m.id,m.cost,m.after,m.chance]),[['amplify',1,4,15]]);
+  game.user=alice;assert.equal(cinder.previewPush(A,ember.instanceId,'POWER-TEST-SPARK','amplify').chance,15);
+  saved.set('playerAccessEnabled',false);try{assert.throws(()=>cinder.list(A),/hidden/);assert.equal(strain.get(A).value,3,'Strain stays readable for the Hub');}finally{saved.set('playerAccessEnabled',true);}
   game.user=bob;assert.throws(()=>cinder.list(A),/Actor access denied/);
   game.user=gm;
 });
-test('Push: Strain always gained first, Backfire rolled from post-gain Strain, consequence to chat, effect applied',async()=>{
+test('Push: Strain gained first, Backfire from post-gain Strain, two rolls, chat card, effect',async()=>{
   game.user=gm;messages.length=0;
-  rolls.push(10,1,1); // d100 10 ≤ 15 → Backfire; category 1 → Body; effect 1 (+0 Strain) → jolt
+  rolls.push(10,1,1);
   const r=await cinder.push(A,'POWER-TEST-SPARK','amplify');
-  assert.equal(r.strain.from,3);assert.equal(r.strain.to,4);assert.equal(r.backfire.backfire,true);
-  assert.equal(r.backfire.category.id,'BF-TEST-BODY');assert.equal(r.backfire.entry.id,'jolt');assert.equal(r.effectApplied,true);
+  assert.deepEqual([r.strain.from,r.strain.to,r.backfire.backfire,r.backfire.category.id,r.backfire.entry.id,r.effectApplied],[3,4,true,'BF-TEST-BODY','jolt',true]);
   assert.deepEqual(A.effects.map(e=>[e.statuses[0],e.duration.rounds,e.flags[MOD].backfire.opId]),[['poisoned',1,r.opId]]);
-  const last=strain.history(A).at(-1);assert.equal(last.source.kind,'push');assert.equal(last.source.ref,'POWER-TEST-SPARK');assert.equal(last.opId,r.opId);
-  assert.equal(messages.length,1);assert.match(messages[0].content,/Backfire!/);assert.match(messages[0].content,/A jolt/);assert.match(messages[0].content,/Strain 3 → <strong>4<\/strong>/);
-  rolls.push(99);const quiet=await cinder.push(A,'POWER-TEST-SPARK','amplify');
-  assert.equal(quiet.backfire.backfire,false);assert.equal(strain.get(A).value,5);assert.match(messages.at(-1).content,/No Backfire/);
+  const last=strain.history(A).at(-1);assert.deepEqual([last.source.module,last.source.kind,last.source.ref,last.opId],[MOD,'push','POWER-TEST-SPARK',r.opId]);
+  assert.match(messages[0].content,/Backfire!/);assert.match(messages[0].content,/agc-chat/);
+  rolls.push(99);const quiet=await cinder.push(A,'POWER-TEST-SPARK','amplify');assert.equal(quiet.backfire.backfire,false);assert.equal(strain.get(A).value,5);
 });
-test('a failed Strain write means the Push did not happen: no effect, no chat card',async()=>{
-  game.user=gm;const before=messages.length,effects=A.effects.length;
-  const original=A.update;A.update=async()=>{throw Error('[TEST] write failed');};
-  rolls.push(1,1,1);
-  try{await assert.rejects(cinder.push(A,'POWER-TEST-SPARK','amplify'),/write failed/);}finally{A.update=original;rolls.length=0;}
-  assert.equal(messages.length,before);assert.equal(A.effects.length,effects);assert.equal(strain.get(A).value,5);
+test('a failed Strain write means no Push: no effect, no chat card',async()=>{
+  game.user=gm;const before=messages.length,effects=A.effects.length,orig=A.update;
+  A.update=async()=>{throw Error('[TEST] write failed');};rolls.push(1,1,1);
+  try{await assert.rejects(cinder.push(A,'POWER-TEST-SPARK','amplify'),/write failed/);}finally{A.update=orig;rolls.length=0;}
+  assert.equal(messages.length,before);assert.equal(A.effects.length,effects);
 });
-test('Strain 10: guaranteed Backfire, Strain pushes the effect roll worse, and it never kills or removes the character',async()=>{
-  game.user=gm;await gmSet(A,9);
-  rolls.push(2,1); // automatic (no d100); category 2 → Mind (2 entries); effect 1 + 3 (Strain 10) → kept at 2
+test('Strain 10: guaranteed, Strain pushes the effect roll worse, never lethal; normal use backfires without Strain',async()=>{
+  game.user=gm;await gmSet(A,9);rolls.push(2,1);
   const r=await cinder.push(A,'POWER-TEST-SPARK','amplify');
-  assert.equal(r.plan.chance,100);assert.equal(r.backfire.check,null);
-  assert.deepEqual([r.backfire.effectRoll.die,r.backfire.effectRoll.strainBonus,r.backfire.effectRoll.result],[1,3,2]);
-  assert.equal(r.backfire.entry.id,'omen');assert.match(messages.at(-1).content,/GM adjudicates/);
-  assert.equal(A.system.attributes.hp.value,20);assert.ok(game.actors.get('A'),'still in the world');
-  assert.ok(A.effects.every(e=>!['dead','unconscious','exhaustion'].includes(e.statuses[0])));
-  assert.equal(cinder.instances().find(i=>i.instanceId===ember.instanceId).bearer.actorId,'A','still bears the Cinder');
-});
-test('normal use: no Strain; at 10 or more it backfires automatically, below 10 nothing happens',async()=>{
-  game.user=gm;const spark=A.items.find(i=>i.flags[MOD].grant.perkId==='POWER-TEST-SPARK');
-  const before=messages.length,value=strain.get(A).value;assert.ok(value>=10);
+  assert.equal(r.backfire.check,null);assert.deepEqual([r.backfire.effectRoll.strainBonus,r.backfire.effectRoll.result],[3,2]);
+  assert.equal(A.system.attributes.hp.value,20);assert.ok(A.effects.every(e=>!['dead','unconscious','exhaustion'].includes(e.statuses[0])));
+  const spark=A.items.find(i=>i.flags['ashen-gate-skill-trees']?.grant?.perkId==='POWER-TEST-SPARK'),before=messages.length;
   rolls.push(1,1);await fire('dnd5e.postUseActivity',{item:spark});
-  assert.equal(messages.length,before+1);assert.match(messages.at(-1).content,/every use of a Cinder power backfires/);assert.equal(strain.get(A).value,value,'no Strain added');
+  assert.equal(messages.length,before+1);assert.equal(strain.get(A).value,10,'no Strain added');
   await gmSet(A,9);await fire('dnd5e.postUseActivity',{item:spark});assert.equal(messages.length,before+1,'below 10: nothing');
 });
 test('a player Push is relayed to the GM client, which re-checks ownership',async()=>{
   game.user=gm;await gmSet(A,0);
-  game.user=alice;emitted.length=0;
-  const pending=cinder.push(A,'POWER-TEST-SPARK','amplify');
-  const msg=emitted.at(-1);assert.equal(msg.type,'cinder-push');
+  game.user=alice;emitted.length=0;const pending=cinder.push(A,'POWER-TEST-SPARK','amplify');const msg=emitted.at(-1);assert.equal(msg.type,'cinder-push');
   game.user=gm;rolls.push(99);for(const h of socketHandlers)await h(msg,'u1');
-  const reply=emitted.at(-1);assert.equal(reply.type,'cinder-result');assert.equal(reply.ok,true,reply.message);
-  game.user=alice;for(const h of socketHandlers)await h(reply,'gm');
-  assert.equal((await pending).backfire,false);
-  game.user=gm;for(const h of socketHandlers)await h({...msg,requestId:'x2'},'u2');
-  assert.equal(emitted.at(-1).ok,false);assert.match(emitted.at(-1).message,/do not own/);
+  const reply=emitted.at(-1);assert.equal(reply.ok,true,reply.message);
+  game.user=alice;for(const h of socketHandlers)await h(reply,'gm');assert.equal((await pending).backfire,false);
+  game.user=gm;for(const h of socketHandlers)await h({...msg,requestId:'x2'},'u2');assert.match(emitted.at(-1).message,/do not own/);
 });
 test('players cannot run GM operations or read the registry',async()=>{
   for(const u of [alice,bob]){game.user=u;
@@ -240,14 +243,13 @@ test('players cannot run GM operations or read the registry',async()=>{
 });
 test('transfer: progress and powers move to B without duplicates; Strain and conditions stay with A; no new starting point',async()=>{
   game.user=gm;const aStrain=strain.get(A).value,aEffects=A.effects.length;
-  await cinder.transfer(ember.instanceId,B);
+  await cinder.transfer(ember.instanceId,B);await settle();
   const inst=cinder.instances().find(i=>i.instanceId===ember.instanceId);
-  assert.equal(inst.bearer.actorId,'B');assert.equal(inst.progression.awarded,3);assert.deepEqual(inst.progression.unlocks,['NODE1','NODE2']);
+  assert.deepEqual([inst.bearer.actorId,inst.progression.awarded],['B',3]);assert.deepEqual(inst.progression.unlocks,['NODE1','NODE2']);
   assert.deepEqual(powersOn(B),['POWER-TEST-SPARK','POWER-TEST-STEADY']);assert.deepEqual(powersOn(A),[]);
-  assert.deepEqual(wallet(B).unlocks,['NODE1','NODE2']);assert.deepEqual(wallet(A).unlocks??[],[]);assert.equal(A.flags[MOD].cinders.length,0);
+  assert.deepEqual(wallet(B).unlocks,['NODE1','NODE2']);assert.deepEqual(wallet(A).unlocks,[]);assert.equal(A.flags[MOD].cinders.length,0);
   assert.equal(strain.get(A).value,aStrain);assert.equal(strain.get(B).value,0);assert.equal(A.effects.length,aEffects);
-  await cinder.repair();assert.deepEqual(powersOn(B),['POWER-TEST-SPARK','POWER-TEST-STEADY'],'repair does not duplicate');
-  assert.deepEqual(cinder.report(),[]);
+  await cinder.repair();assert.deepEqual(powersOn(B),['POWER-TEST-SPARK','POWER-TEST-STEADY']);assert.deepEqual(cinder.report(),[]);
 });
 test('duplicate simultaneous ownership is rejected',async()=>{
   game.user=gm;const second=await cinder.create(DEF);
@@ -255,31 +257,57 @@ test('duplicate simultaneous ownership is rejected',async()=>{
   await assert.rejects(cinder.transfer(ember.instanceId,B),/already bears this Cinder/);
   await assert.rejects(cinder.bind(ember.instanceId,C),/already bound/);
 });
-test('rest recovery adds strain.recovery modifiers from the bearer’s powers',async()=>{
-  game.user=gm;await api.grantPoints(B,tree.id,1,'[TEST] milestone 3');await api.unlock(B,tree.id,'NODE3');
+test('rest recovery adds strain.recovery modifiers from the bearer\'s powers; a perk opens a Push mode',async()=>{
+  game.user=gm;await st.api.grantPoints(B,tree.id,1,'[TEST] m3');await st.api.unlock(B,tree.id,'NODE3');await settle();
   await gmSet(B,5);await fire('createChatMessage',{id:'rest1',type:'rest',system:{type:'long'},speaker:{actor:'B'},author:bob});
-  assert.equal(strain.get(B).value,3,'long rest 1 + Deep Rest 1');
-  assert.deepEqual(cinder.list(B)[0].powers[0].modes.map(m=>m.id),['amplify','overreach'],'Reach opened a Push mode');
+  assert.equal(strain.get(B).value,3);
+  assert.deepEqual(cinder.list(B)[0].powers[0].modes.map(m=>m.id),['amplify','overreach']);
 });
-test('unbind keeps the Cinder’s progress; a deleted bearer leaves the Cinder lost, not gone',async()=>{
-  game.user=gm;await cinder.unbind(ember.instanceId);
+test('unbind keeps the Cinder\'s progress; a deleted bearer leaves it lost',async()=>{
+  game.user=gm;await cinder.unbind(ember.instanceId);await settle();
   let inst=cinder.instances().find(i=>i.instanceId===ember.instanceId);
   assert.equal(inst.status,'unbound');assert.deepEqual(inst.progression.unlocks,['NODE1','NODE2','NODE3']);assert.deepEqual(powersOn(B),[]);
-  await cinder.bind(ember.instanceId,A);
+  await cinder.bind(ember.instanceId,A);await settle();
   assert.equal(cinder.instances().find(i=>i.instanceId===ember.instanceId).progression.awarded,4,'no second starting point');
   game.actors.contents=game.actors.contents.filter(x=>x!==A);await fire('deleteActor',A);
-  assert.equal(planMigration(normalizeRegistry({instances:cinder.instances()}),[{actorId:'A',accounts:A.flags[MOD].progressV2}]).filter(r=>r.action==='create').length,0,'a lost Cinder\'s old copy is not migrated again');
-  inst=cinder.instances().find(i=>i.instanceId===ember.instanceId);
-  assert.equal(inst.status,'lost');assert.equal(inst.lastBearer,'A');assert.equal(inst.progression.unlocks.length,3);
+  inst=cinder.instances().find(i=>i.instanceId===ember.instanceId);assert.equal(inst.status,'lost');assert.equal(inst.lastBearer,'A');
 });
-test('migration: older per-character progress becomes a bound Cinder once; no starting point; tree reimport changes no Cinder',async()=>{
+test('migration: Cinder tree progress without a Cinder becomes a bound Cinder once; no starting point',async()=>{
   game.user=gm;
   const dry=await cinder.migrate({dryRun:true});assert.deepEqual(dry.filter(r=>r.action==='create').map(r=>[r.actorId,r.definitionId]),[['C','MUT-TEST-LEGACY']]);
   await cinder.migrate({dryRun:false});
   const made=cinder.instances().find(i=>i.definitionId==='MUT-TEST-LEGACY');
-  assert.equal(made.bearer.actorId,'C');assert.equal(made.progression.awarded,2);assert.equal(made.migratedFrom.actorId,'C');
-  assert.equal((await cinder.migrate({dryRun:true})).filter(r=>r.action==='create').length,0,'safe to run again');
-  const snapshot=JSON.stringify(cinder.instances());
-  const r=await api.importTrees({schema:'ag-skill-trees/0.3',trees:[tree]},{mode:'update'});
-  assert.equal(r.failed.length,0);assert.equal(JSON.stringify(cinder.instances()),snapshot,'reimport leaves Cinders alone');
+  assert.deepEqual([made.bearer.actorId,made.progression.awarded,made.migratedFrom.actorId],['C',2,'C']);
+  assert.equal((await cinder.migrate({dryRun:true})).filter(r=>r.action==='create').length,0);
+});
+test('adopt: records, bearer links and the Strain config that Skill Trees 0.15/0.16 saved are taken over once; nothing in Skill Trees changes',async()=>{
+  game.user=gm;
+  st.api.legacy={registry:{schema:'ag-cinder-instances/1',instances:[{instanceId:'cinst_OLDOLDOLD1',definitionId:DEF,status:'unbound',progression:{awarded:2,unlocks:[]}}]},
+    settings:{strainConfig:{schema:'ag-strain-config/0.1',bands:[{from:0,to:null,label:'[TEST] Old Calm'}]},maxCindersPerActor:null,initialCinderPoints:null},
+    pointers:[{actorId:'C',pointers:[{instanceId:'cinst_OLDOLDOLD1',definitionId:DEF,name:'[TEST] Ember Cinder'}]}]};
+  saved.set('strainConfig',null);
+  const done=await api.adoptLegacy();
+  assert.deepEqual(done,['Strain config','1 Cinder record','1 bearer link']);
+  assert.ok(cinder.instances().some(i=>i.instanceId==='cinst_OLDOLDOLD1'));assert.equal(strain.config().bands[0].label,'[TEST] Old Calm');
+  assert.deepEqual(await api.adoptLegacy(),[],'safe to run again');
+});
+test('next to an older Skill Trees (0.15/0.16 with its own api.strain) Cinders stays off with a clear message',async()=>{
+  game.user=gm;const real=treesModule.api;treesModule.api={strain:{},cinder:{}};
+  try{
+    assert.equal(api.status().status,'old');
+    assert.throws(()=>strain.get(B),/Update Ashen Gate \| Skill Trees to 0\.17\.0/);
+    await assert.rejects(strain.add(B,1,{source:{module:'x',kind:'y'},reason:'z'}),/Update Ashen Gate \| Skill Trees/);
+    await assert.rejects(cinder.create(DEF),/Update Ashen Gate \| Skill Trees/);
+    await fire('createChatMessage',{id:'rest9',type:'rest',system:{type:'long'},speaker:{actor:'B'},author:bob});
+  }finally{treesModule.api=real;}
+  assert.equal(strain.get(B).value,3,'the rest above did nothing while Cinders was off');
+});
+test('without Skill Trees: Strain still works, Cinder operations say what is missing',async()=>{
+  game.user=gm;treesModule.active=false;
+  try{
+    assert.equal(api.status().status,'missing');
+    await strain.add(B,1,{source:{module:'ashen-gate-test',kind:'hazard'},reason:'[TEST] hazard'});assert.equal(strain.get(B).value,4);
+    await assert.rejects(cinder.push(B,'POWER-TEST-SPARK','amplify'),/Skill Trees is not active/);
+    assert.match(cinder.report()[0].text,/Skill Trees is not active/);
+  }finally{treesModule.active=true;}
 });

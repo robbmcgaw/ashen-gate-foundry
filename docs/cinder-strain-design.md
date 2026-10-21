@@ -1,6 +1,6 @@
 # Cinder instances, Strain, Push and Backfire — design (DRAFT, lean)
 
-Status: **Approved lean design.** PR 1 (Skill Trees 0.15.0, Strain) and PR 2 (Skill Trees 0.16.0, Cinders, Push, Backfire) built. Revision 6: two-roll Backfire (category, then effect, Strain-weighted), starting point once per Cinder, transfer included; the Skill Trees README holds the exact content blocks. Revision 4: re-scoped to Robb's lean picture — "just a value with some logic to roll and spit out the consequence in chat, maybe apply an effect if the consequence can have one." Campaign rules below are configurable defaults; campaign names (Cinder types, band names, powers) arrive through content import, never in code. Examples use synthetic `[TEST]` data.
+Status: **Approved lean design.** Revision 7: **Strain, Cinder instances, Push and Backfire live in their own module, Ashen Gate | Cinders (`ashen-gate-cinders` 0.1.0)**, split out of Skill Trees (where 0.15.0–0.16.0 first built them). Skill Trees 0.17.0 keeps the Cinder trees and offers a generic `api.accounts`. Data shapes and rules below are unchanged by the move; where this document says Skill Trees owns Strain or Cinder records, read Cinders.
 
 Target: Foundry V14 on The Forge, dnd5e 6.0.6 (2024 rules).
 
@@ -8,11 +8,12 @@ Target: Foundry V14 on The Forge, dnd5e 6.0.6 (2024 rules).
 
 | Capability | Owner |
 |---|---|
-| Strain value + small API, band/Backfire config | **Skill Trees**, as a separate part (`scripts/strain.mjs`, `api.strain`) with its data under its **own flag scope** `ashen-gate-strain` so it can become its own module later with no data change |
-| Cinder instances (bearer, points, unlocks), assign/transfer/unbind, POWER Item grants, Push and Backfire rolls | **Skill Trees** |
-| Import + validation of MUT-* / POWER-* / BF-* records and the Strain config file; `scripts/validate-content.mjs` | **General Manager** (delegates the typed blocks to Skill Trees when present) |
-| Showing Strain, band, Backfire chance, the Cinder and a Push button | **Character Hub** (display only; reads `api.strain`, mounts Skill Trees `embed` modes) |
-| Other Strain writers (crafting, hazards, items, spells) | each module, through `api.strain` (feature-detected) — no other Strain pools |
+| Strain value + `api.strain` (contract `ag-strain/1`), band/Backfire config, rest recovery | **Ashen Gate \| Cinders** (`ashen-gate-cinders`); data under its own flag scope `flags.ashen-gate-strain` (unchanged since Skill Trees 0.15.0) |
+| Cinder instances (bearer, points, unlocks), bind/transfer/unbind, Push and Backfire, `api.cinder` (`ag-cinder/1`) | **Ashen Gate \| Cinders**: records in its own GM-only Journal; a bearer's progress written to their Cinder tree through Skill Trees' `api.accounts` |
+| Cinder trees (`cinder_milestone`, POWER-* nodes, 13-point wallet, unlocks, perk Items) | **Skill Trees**, which offers the generic `api.accounts` (`ag-tree-accounts/1`) and the hooks `progressChanged` / `checkProgress`; it names no partner and never depends on Cinders |
+| Import + validation of MUT-* / POWER-* / BF-* and the Strain config; `scripts/validate-content.mjs` | **General Manager** (delegates the typed blocks and the Strain config to Cinders when present) |
+| Strain bar, Cinder panel, Push button | **Character Hub** (display only, through `api.strain` / `api.cinder` of `ashen-gate-cinders`) |
+| Other Strain writers (crafting, hazards, items, spells) | each module, through `game.modules.get('ashen-gate-cinders')?.api?.strain` (feature-detected) |
 
 Missing partners never stop a module opening: without Skill Trees there is no Strain or Cinder panel; without Manager definitions can't be (re)imported; without the Hub everything works from the Skill Trees window.
 
@@ -93,7 +94,7 @@ Shipped defaults: the schedule above and neutral labels `Band 0…Band 6`; the c
 - A write carrying an `opId` already in history does nothing (a double click or a relayed retry can't charge twice).
 - Written with `actor.update({'flags.ashen-gate-strain.state': …})`, because `setFlag` only accepts active module ids. **Forge check in PR 1:** confirm V14 keeps a flag scope that is not an installed module (fallback: `flags.ashen-gate-skill-trees.strain`, with a one-time copy if it is ever split out).
 
-### 3.2 Cinder instance (Skill Trees, GM-only Journal, like the private trees)
+### 3.2 Cinder instance (Cinders, its own GM-only Journal)
 
 ```json
 {"instanceId": "cinst_Ab12Cd34Ef56Gh78", "definitionId": "MUT-TEST-EMBER", "treeId": "TEST-EMBER-TREE",
@@ -104,7 +105,7 @@ Shipped defaults: the schedule above and neutral labels `Band 0…Band 6`; the c
 - `instanceId` is world-local and permanent, separate from the MUT-* definition id.
 - `progression` is the existing tree account shape, so prerequisites, refunds and the 13-point wallet work unchanged; it just lives on the Cinder instead of the Actor.
 - `status`: `unbound` | `bound` | `lost` (bearer deleted; progress kept).
-- The bearer's Actor gets a pointer `flags['ashen-gate-skill-trees'].cinders = [instanceId]` and the player-safe view of their own Cinder; other Cinders and GM-only nodes never reach players.
+- The bearer's Actor gets a pointer `flags['ashen-gate-cinders'].cinders = [{instanceId, definitionId, name}]` and the player-safe view of their own Cinder; other Cinders and GM-only nodes never reach players.
 - Rules: one bearer per Cinder; at most `maxCindersPerActor` (setting, default 1) per Actor.
 
 ## 4. Modifiers (few, typed, simple)
@@ -154,11 +155,11 @@ All on the active GM client (players' clicks are relayed by the Skill Trees sock
 ## 7. Import, reimport, migration
 
 - Import creates/updates definitions only. It never creates or moves Cinders, never writes Strain and never resets progress. Tree reimport already protects purchased nodes; that check will also read Cinder instances.
-- Migration (GM Setup → Developer Tools, dry run first, safe to run again): each Actor's existing `progressV2['cinder:MUT-*']` becomes one bound instance with that Actor as bearer; existing POWER Items are re-tagged, none created or deleted; the old record is left in place, marked migrated.
+- Migration (Cinders → Manage → Move existing Cinder progress, dry run first, safe to run again). Also a one-time, re-runnable **take-over** of anything Skill Trees 0.15/0.16 saved (Strain config, Cinder records, bearer pointers), read through `api.accounts.legacyData()`. each Actor's existing `progressV2['cinder:MUT-*']` becomes one bound instance with that Actor as bearer; existing POWER Items are re-tagged, none created or deleted; the old record is left in place, marked migrated.
 
 ## 8. API
 
-`game.modules.get('ashen-gate-skill-trees').api.strain` — `contract: 'ag-strain/1'`
+`game.modules.get('ashen-gate-cinders').api.strain` — `contract: 'ag-strain/1'`
 - `get(actor)` → `{value, band, chance}` (GM or owner)
 - `add(actor, n, {source, reason, opId})`, `remove(...)`, `set(...)` — GM client only; integers; returns `{from, to}`
 - `history(actor)`, `config()`; GM: `previewConfigImport(file)`, `importConfig(file)`
@@ -191,7 +192,8 @@ Confirmed since: starting point once per Cinder at first bind; transfer leaves S
 
 1. **Skill Trees 0.15.0** — Strain part: value, API, history, config + import, bands, rest recovery, tests.
 2. **Skill Trees 0.16.0** — Cinder instances, GM assign/transfer/unbind, migration, Push and normal-use Backfire, chat card, effects, tests.
-3. **General Manager** — import routing and validation of the `cinder`/`power`/`backfire` blocks and the Strain config; `validate-content.mjs`; schema doc for GPT.
-4. **Character Hub** — a **Strain bar** next to HP / hit dice / exhaustion: value with a 0–10 scale that clearly shows over-10 (the bar fills to 10, then an overflow segment and the number, e.g. "13 / 10+"), band name and current Backfire %. Read-only for players (Strain changes only through allowed actions such as a Push); the GM gets add / remove / set with a reason (through `api.strain`). Plus the Cinder panel with Push.
+2a. **Split (Robb):** Skill Trees 0.17.0 removes Strain and Cinders and adds `api.accounts`; **Ashen Gate | Cinders 0.1.0** takes them over (own window, Manage tab, GM Setup → Strain, launcher, take-over of 0.15/0.16 data). Merged back to back.
+3. **General Manager** — import routing and validation of the `cinder`/`power`/`backfire` blocks and the Strain config (to `ashen-gate-cinders`); `validate-content.mjs`; schema doc for GPT.
+4. **Character Hub** — through `ashen-gate-cinders`' API: a **Strain bar** next to HP / hit dice / exhaustion: value with a 0–10 scale that clearly shows over-10 (the bar fills to 10, then an overflow segment and the number, e.g. "13 / 10+"), band name and current Backfire %. Read-only for players (Strain changes only through allowed actions such as a Push); the GM gets add / remove / set with a reason (through `api.strain`). Plus the Cinder panel with Push.
 
 Automated tests use mocked Foundry globals; they prove logic, not the live UI. Each PR lists the Forge click steps.

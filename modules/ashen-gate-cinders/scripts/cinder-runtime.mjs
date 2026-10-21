@@ -1,102 +1,98 @@
-/** Cinders (0.16.0), Foundry side: the GM-only Cinder registry, bind / transfer / unbind, Push and normal-use Backfire, chat cards.
- * Authoritative records live in the GM-only definitions Journal (flag "cinders"). The bearer's Actor carries a mirror: the Cinder's
- * progression in progressV2['cinder:MUT-*'] (so the tree window works unchanged) and a pointer in flags.<module>.cinders. */
-import {cleanAccount} from './engine.mjs';
-import {CINDER_CONTRACT,normalizeRegistry,createInstance,bindInstance,unbindInstance,transferInstance,withProgression,boundTo,bearerInstance,
-  planMigration,bearerView,powerBlock,availableModes,planPush,resolveBackfire,categoriesFor,backfireBlock,effectProblem,collectModifiers,validateDefinition} from './cinder.mjs';
+/** Cinders, Foundry side: the GM-only Cinder registry, bind / transfer / unbind, Push and normal-use Backfire, chat cards.
+ * Records live in this module's GM-only Journal. A bearer's progress is written to their Cinder tree through Skill Trees' public
+ * api.accounts (ag-tree-accounts/1), so the tree window keeps working; Skill Trees knows nothing about Cinders. */
+import {CINDER_CONTRACT,cleanAccount,normalizeRegistry,createInstance,bindInstance,unbindInstance,transferInstance,withProgression,boundTo,bearerInstance,
+  planMigration,powerBlock,availableModes,planPush,resolveBackfire,categoriesFor,backfireBlock,effectProblem,collectModifiers,validateDefinition} from './cinder.mjs';
 
 export const CINDER_HOOK='ashenGateCinder.changed';
 export const MAX_CINDERS_SETTING='maxCindersPerActor';
 export const INITIAL_POINTS_SETTING='initialCinderPoints';
+export const STORE_FLAG='gmRecords';
 const walletOf=definitionId=>`cinder:${definitionId}`;
+const emptyAccount=()=>({awarded:0,unlocks:[],grants:[],revision:0});
 
+/**
+ * deps: module, socket, strain (Strain runtime), lookup(id) → world definition hit, escape,
+ * trees() → {status: 'ok'|'missing'|'old', accounts?, api?, message?} (Skill Trees, looked up at call time),
+ * blocked() → a reason while Cinders must stay off, else null.
+ */
 export function createCinders(deps){
-  const {module,socket,readPrivate,resolved,givePerk,removeGrants,grantedItems,gmPrivate,createStore,lookup,strain,escape}=deps;
+  const {module,socket,strain,lookup,escape,trees,blocked}=deps;
   const sourceOf=doc=>doc?.flags?.['ashen-gate-manager']?.source??null;
-  const grantOf=item=>item?.flags?.[module]?.grant??null;
-  const requireGM=()=>{if(!game.user?.isGM)throw Error('GM only');};
+  const requireOn=()=>{const why=blocked();if(why)throw Error(why);};
+  const requireGM=()=>{requireOn();if(!game.user?.isGM)throw Error('GM only');};
   const setting=key=>{const v=game.settings.get(module,key);return Number.isSafeInteger(v)?v:1;};
+  /** Skill Trees' accounts API; throws a clear message when Skill Trees is missing or too old. */
+  const accounts=()=>{const t=trees();if(t.status!=='ok')throw Error(t.message);return t.accounts;};
 
-  // ---- Registry ----
-  const readRegistry=()=>{requireGM();return normalizeRegistry(gmPrivate()?.flags?.[module]?.cinders);};
-  async function saveRegistry(registry){
-    let store=gmPrivate();if(!store)store=await createStore();
-    await store.setFlag(module,'cinders',registry);
+  // ---- Registry (this module's GM-only Journal) ----
+  const store=()=>game.user?.isGM?game.journal?.contents?.find(d=>d.flags?.[module]?.[STORE_FLAG]===true)??null:null;
+  const readRegistry=()=>{requireGM();return normalizeRegistry(store()?.flags?.[module]?.registry);};
+  async function createStore(){
+    const d=await JournalEntry.create({name:'[AG] Cinders — GM Records',ownership:{default:CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE},
+      flags:{[module]:{[STORE_FLAG]:true,registry:{schema:'ag-cinder-instances/1',instances:[]}}}});
+    if(!d)throw Error('Unable to create the GM-only Cinders Journal');
+    return d;
   }
+  async function saveRegistry(registry){let s=store();if(!s)s=await createStore();await s.setFlag(module,'registry',registry);}
   let chain=Promise.resolve();
   // One registry change at a time (bind, transfer, unbind, progress sync), so two GM actions cannot overwrite each other.
   const withRegistry=fn=>{const run=chain.then(fn);chain=run.catch(()=>{});return run;};
 
-  const cinderTree=definitionId=>readPrivate().find(t=>t.provider?.kind==='cinder_milestone'&&t.sourceRef===definitionId)??null;
+  const cinderTree=definitionId=>accounts().treeBySource(definitionId,{kind:'cinder_milestone'});
   const definition=id=>{const hit=lookup(id);return hit?.status==='ok'?sourceOf(hit.document)?.definition??null:null;};
   const definitionName=id=>{const hit=lookup(id);return hit?.status==='ok'?hit.document.name:id;};
   const actorById=id=>game.actors?.get?.(id)??null;
   const changed=(kind,instance,extra={})=>Hooks.callAll(CINDER_HOOK,{kind,instanceId:instance.instanceId,definitionId:instance.definitionId,actorId:instance.bearer?.actorId??null,...extra});
 
-  // ---- Bearer mirror ----
-  const accountsOf=actor=>structuredClone(actor?.flags?.[module]?.progressV2??{});
+  // ---- Bearer: the tree account (through Skill Trees) and a pointer in this module's Actor flags ----
   const pointersOf=actor=>Array.isArray(actor?.flags?.[module]?.cinders)?actor.flags[module].cinders.filter(p=>p&&typeof p.instanceId==='string'):[];
-  async function writeMirror(actor,instance){
-    const records=accountsOf(actor);records[walletOf(instance.definitionId)]=cleanAccount(instance.progression);
-    const pointers=[...pointersOf(actor).filter(p=>p.instanceId!==instance.instanceId),{instanceId:instance.instanceId,definitionId:instance.definitionId,name:definitionName(instance.definitionId)}];
-    await actor.update({[`flags.${module}.progressV2`]:records,[`flags.${module}.cinders`]:pointers});
+  async function setPointers(actor,pointers){await actor.setFlag(module,'cinders',pointers);}
+  function treeFor(instance){const t=cinderTree(instance.definitionId);if(!t)throw Error(`No Cinder tree uses ${instance.definitionId}. Import it into Skill Trees first.`);return t;}
+  async function writeBearer(actor,instance){
+    const tree=treeFor(instance);
+    await accounts().setAccount(actor,tree.id,instance.progression);
+    await setPointers(actor,[...pointersOf(actor).filter(p=>p.instanceId!==instance.instanceId),{instanceId:instance.instanceId,definitionId:instance.definitionId,name:definitionName(instance.definitionId)}]);
   }
-  async function clearMirror(actor,instance){
-    const records=accountsOf(actor);
-    // Kept on disk with a note (reads as empty): the progress now lives on the Cinder.
-    records[walletOf(instance.definitionId)]={...cleanAccount({}),released:{instanceId:instance.instanceId,at:Date.now()}};
-    await actor.update({[`flags.${module}.progressV2`]:records,[`flags.${module}.cinders`]:pointersOf(actor).filter(p=>p.instanceId!==instance.instanceId)});
+  async function clearBearer(actor,instance){
+    const tree=cinderTree(instance.definitionId);
+    if(tree)await accounts().setAccount(actor,tree.id,emptyAccount());
+    await setPointers(actor,pointersOf(actor).filter(p=>p.instanceId!==instance.instanceId));
   }
-  async function giveCinderPerks(actor,instance){
-    const tree=cinderTree(instance.definitionId);if(!tree)return [];
-    const t=resolved(tree),out=[];
-    for(const node of t.nodes)if(node.perkId&&instance.progression.unlocks.includes(node.id)&&!node.perkMissing)out.push(await givePerk(actor,tree,node));
-    return out;
-  }
-  const takeCinderPerks=async(actor,instance)=>{const tree=cinderTree(instance.definitionId);return tree?removeGrants(actor,tree,null):{removed:[]};};
-  const hasProgress=(actor,definitionId)=>{const a=cleanAccount(actor?.flags?.[module]?.progressV2?.[walletOf(definitionId)]);return a.awarded>0||a.unlocks.length>0;};
+  const hasProgress=(actor,definitionId)=>{const t=cinderTree(definitionId);if(!t)return false;const a=cleanAccount(accounts().account(actor,t.id));return a.awarded>0||a.unlocks.length>0;};
 
   // ---- GM operations ----
   async function create(definitionId){
     requireGM();
-    if(!definition(definitionId)&&lookup(definitionId)?.status!=='ok')throw Error(`${definitionId} is not in this world. Import it through General Manager first.`);
+    if(lookup(definitionId)?.status!=='ok')throw Error(`${definitionId} is not in this world. Import it through General Manager first.`);
     return withRegistry(async()=>{
       const {registry,instance}=createInstance(readRegistry(),definitionId,{instanceId:`cinst_${foundry.utils.randomID(16)}`,at:Date.now()});
       await saveRegistry(registry);changed('create',instance);return instance;
     });
   }
   async function bind(instanceId,actor){
-    requireGM();if(!actor)throw Error('Choose a character');
+    requireGM();if(!actor)throw Error('Choose a character');accounts();
     return withRegistry(async()=>{
       const {registry,instance,initialAwarded}=bindInstance(readRegistry(),instanceId,actor.id,{max:setting(MAX_CINDERS_SETTING),at:Date.now(),initialPoints:game.settings.get(module,INITIAL_POINTS_SETTING)??1});
       if(hasProgress(actor,instance.definitionId))throw Error(`${actor.name} already has progress on this Cinder's tree from before Cinders. Use Move existing Cinder progress first.`);
-      const given=[];
-      try{await writeMirror(actor,instance);given.push(...await giveCinderPerks(actor,instance));await saveRegistry(registry);}
-      catch(error){await undoGive(actor,instance,given);throw error;}
+      try{await writeBearer(actor,instance);await saveRegistry(registry);}
+      catch(error){await clearBearer(actor,instance).catch(e=>console.error(`[${module}] Could not undo bind`,e));throw error;}
       changed('bind',instance);return {instance,initialAwarded};
     });
   }
-  async function undoGive(actor,instance,given){
-    for(const g of given)if(g?.created)await g.item.delete().catch(e=>console.error(`[${module}] Could not undo perk Item`,e));
-    await clearMirror(actor,instance).catch(e=>console.error(`[${module}] Could not undo Cinder mirror`,e));
-  }
   /** Move a bound Cinder to another character: points and unlocks go with it; Strain and Backfire conditions stay where they are. */
   async function transfer(instanceId,toActor){
-    requireGM();if(!toActor)throw Error('Choose a character');
+    requireGM();if(!toActor)throw Error('Choose a character');accounts();
     return withRegistry(async()=>{
       const {registry,instance,from}=transferInstance(readRegistry(),instanceId,toActor.id,{max:setting(MAX_CINDERS_SETTING),at:Date.now()});
       if(hasProgress(toActor,instance.definitionId))throw Error(`${toActor.name} already has progress on this Cinder's tree from before Cinders. Use Move existing Cinder progress first.`);
       // New bearer first, then the record, then the old bearer: an interruption never leaves the Cinder with nobody.
-      const given=[];
-      try{await writeMirror(toActor,instance);given.push(...await giveCinderPerks(toActor,instance));await saveRegistry(registry);}
-      catch(error){await undoGive(toActor,instance,given);throw error;}
-      const old=actorById(from),left=[];
-      if(old){
-        try{await takeCinderPerks(old,instance);}catch(error){left.push(error.message);}
-        try{await clearMirror(old,instance);}catch(error){left.push(error.message);}
-      }
+      try{await writeBearer(toActor,instance);await saveRegistry(registry);}
+      catch(error){await clearBearer(toActor,instance).catch(e=>console.error(`[${module}] Could not undo transfer`,e));throw error;}
+      const old=actorById(from);let left=null;
+      if(old){try{await clearBearer(old,instance);}catch(error){left=error.message;}}
       changed('transfer',instance,{fromActorId:from});
-      if(left.length)throw Error(`Cinder moved to ${toActor.name}, but cleaning up the previous bearer failed: ${left.join('; ')}. Run Cinders → Check.`);
+      if(left)throw Error(`Cinder moved to ${toActor.name}, but cleaning up the previous bearer failed: ${left}. Run Manage → Check.`);
       return {instance,from};
     });
   }
@@ -105,34 +101,42 @@ export function createCinders(deps){
     return withRegistry(async()=>{
       const {registry,instance,from}=unbindInstance(readRegistry(),instanceId);
       await saveRegistry(registry);
-      const old=actorById(from);
-      if(old){await takeCinderPerks(old,instance);await clearMirror(old,instance);}
+      const old=actorById(from);if(old)await clearBearer(old,instance);
       changed('unbind',instance,{fromActorId:from});return {instance,from};
     });
   }
   /** Deleted bearer: the Cinder is kept with its progress, marked lost (active GM only). */
   async function onDeleteActor(actor){
-    if(!game.user?.isGM||game.users?.activeGM?.id!==game.user.id||!gmPrivate())return;
+    if(blocked()||!game.user?.isGM||game.users?.activeGM?.id!==game.user.id||!store())return;
     await withRegistry(async()=>{
       let registry=readRegistry(),hit=false;
       for(const inst of boundTo(registry,actor.id)){({registry}=unbindInstance(registry,inst.instanceId,{lost:true}));hit=true;}
-      if(hit){await saveRegistry(registry);ui.notifications?.warn?.(`${actor.name} was deleted while bearing a Cinder. The Cinder and its progress are kept as Lost in Skill Trees → Cinders.`);}
+      if(hit){await saveRegistry(registry);ui.notifications?.warn?.(`${actor.name} was deleted while bearing a Cinder. The Cinder and its progress are kept as Lost in Cinders → Manage.`);}
     }).catch(error=>console.error(`[${module}] Could not mark Cinder lost`,error));
   }
-  /** Called after every tree progress write: a bearer's change goes onto the Cinder record too. */
-  async function syncProgress(actor,tree,account){
-    if(tree?.provider?.kind!=='cinder_milestone'||!game.user?.isGM||!gmPrivate())return;
+  /** Skill Trees hook after any account write: a bearer's change goes onto the Cinder record too. */
+  async function onProgressChanged(data){
+    if(blocked()||data?.kind!=='cinder_milestone'||!game.user?.isGM||game.users?.activeGM?.id!==game.user.id||!store())return;
     await withRegistry(async()=>{
-      const {registry,instance}=withProgression(readRegistry(),actor.id,tree.sourceRef,account);
-      if(instance){await saveRegistry(registry);changed('progress',instance);}
-    });
+      const registry=readRegistry(),inst=bearerInstance(registry,data.actorId,data.sourceRef);
+      if(!inst||JSON.stringify(cleanAccount(inst.progression))===JSON.stringify(cleanAccount(data.account)))return;
+      const next=withProgression(registry,data.actorId,data.sourceRef,data.account);
+      await saveRegistry(next.registry);changed('progress',next.instance);
+    }).catch(error=>console.error(`[${module}] Could not record Cinder progress`,error));
+  }
+  /** Skill Trees hook before points or an unlock: once a Cinder of a kind exists, only its bearer progresses on that tree. */
+  function onCheckProgress(check){
+    if(blocked()||check?.kind!=='cinder_milestone'||!game.user?.isGM||!store())return;
+    const mine=readRegistry().instances.filter(i=>i.definitionId===check.sourceRef);
+    if(mine.length&&!mine.some(i=>i.bearer?.actorId===check.actorId))check.blocked=`${check.actorName||'This character'} does not bear this Cinder. Bind or transfer it in Cinders → Manage first.`;
   }
   function migrationPlan(){
     requireGM();
-    const actors=(game.actors?.contents??[]).map(a=>({actorId:a.id,name:a.name,accounts:a.flags?.[module]?.progressV2??{}}));
+    const acc=accounts(),cinderTrees=(trees().api?.listTrees?.()??[]).filter(t=>t.provider?.kind==='cinder_milestone'&&t.sourceRef);
+    const actors=(game.actors?.contents??[]).map(a=>({actorId:a.id,name:a.name,accounts:Object.fromEntries(cinderTrees.map(t=>[walletOf(t.sourceRef),acc.account(a,t.id)]))}));
     return planMigration(readRegistry(),actors,{max:setting(MAX_CINDERS_SETTING)});
   }
-  /** Move per-character Cinder progress (before 0.16.0) onto Cinders bound to that character. Items stay; safe to run again. */
+  /** Turn per-character Cinder tree progress (no Cinder yet) into Cinders bound to that character. Items stay; safe to run again. */
   async function migrate({dryRun=true}={}){
     requireGM();
     const rows=migrationPlan();
@@ -143,71 +147,93 @@ export function createCinders(deps){
         const instanceId=`cinst_${foundry.utils.randomID(16)}`,at=Date.now();
         ({registry}=createInstance(registry,row.definitionId,{instanceId,at}));
         registry.instances=registry.instances.map(i=>i.instanceId===instanceId?{...i,progression:row.account,migratedFrom:{actorId:row.actorId,at}}:i);
-        // max: Infinity here; going over the limit is reported in the plan, not refused (nothing is taken away).
+        // max: Infinity; going over the limit is reported in the plan, not refused (nothing is taken away).
         ({registry}=bindInstance(registry,instanceId,row.actorId,{max:Infinity,at,initialPoints:0}));
-        const actor=actorById(row.actorId),inst=registry.instances.find(i=>i.instanceId===instanceId);
-        if(actor)await actor.update({[`flags.${module}.cinders`]:[...pointersOf(actor).filter(p=>p.definitionId!==row.definitionId),{instanceId,definitionId:row.definitionId,name:definitionName(row.definitionId)}]});
-        row.instanceId=inst.instanceId;
+        const actor=actorById(row.actorId);
+        if(actor)await setPointers(actor,[...pointersOf(actor).filter(p=>p.definitionId!==row.definitionId),{instanceId,definitionId:row.definitionId,name:definitionName(row.definitionId)}]);
+        row.instanceId=instanceId;
       }
       await saveRegistry(registry);
       return rows;
     });
   }
-  /** GM check: bearers that no longer exist, mirrors out of date, Cinder Items on the wrong character. Read-only. */
+  /** One-time adopt of what Skill Trees 0.15.0/0.16.0 saved (Cinder records, bearer pointers). Re-runnable: ids already here are skipped. */
+  async function adoptLegacy(){
+    requireGM();
+    const t=trees();if(t.status!=='ok'||typeof t.accounts.legacyData!=='function')return {instances:0,pointers:0};
+    const legacy=t.accounts.legacyData();
+    return withRegistry(async()=>{
+      const registry=readRegistry(),known=new Set(registry.instances.map(i=>i.instanceId));
+      const incoming=normalizeRegistry(legacy.registry).instances.filter(i=>!known.has(i.instanceId));
+      if(incoming.length)await saveRegistry({...registry,instances:[...registry.instances,...incoming]});
+      let pointers=0;
+      for(const {actorId,pointers:list} of legacy.pointers??[]){
+        const actor=actorById(actorId);if(!actor)continue;
+        const have=new Set(pointersOf(actor).map(p=>p.instanceId)),add=(Array.isArray(list)?list:[]).filter(p=>p?.instanceId&&!have.has(p.instanceId));
+        if(add.length){await setPointers(actor,[...pointersOf(actor),...add]);pointers+=add.length;}
+      }
+      return {instances:incoming.length,pointers};
+    });
+  }
+  /** GM check: bearers that no longer exist, tree accounts out of date, Cinder powers on the wrong character. Read-only. */
   function report(){
     requireGM();
-    const registry=readRegistry(),rows=[];
+    const registry=readRegistry(),rows=[],t=trees();
+    if(t.status!=='ok'){rows.push({instanceId:null,name:'Skill Trees',text:t.message});return rows;}
     for(const inst of registry.instances){
-      const name=definitionName(inst.definitionId),actor=inst.bearer?actorById(inst.bearer.actorId):null;
-      if(!cinderTree(inst.definitionId))rows.push({instanceId:inst.instanceId,name,text:`No Cinder tree uses ${inst.definitionId}; its powers cannot be unlocked.`});
+      const name=definitionName(inst.definitionId),actor=inst.bearer?actorById(inst.bearer.actorId):null,tree=cinderTree(inst.definitionId);
+      if(!tree)rows.push({instanceId:inst.instanceId,name,text:`No Cinder tree uses ${inst.definitionId}; its powers cannot be unlocked.`});
       if(inst.bearer&&!actor)rows.push({instanceId:inst.instanceId,name,text:'Its bearer is not in this world.'});
-      if(actor){
-        const mirror=cleanAccount(actor.flags?.[module]?.progressV2?.[walletOf(inst.definitionId)]);
-        if(JSON.stringify(mirror.unlocks)!==JSON.stringify(inst.progression.unlocks)||mirror.awarded!==inst.progression.awarded)rows.push({instanceId:inst.instanceId,name,repair:true,text:`${actor.name}'s copy of the progress differs from the Cinder.`});
+      if(actor&&tree){
+        const mirror=cleanAccount(t.accounts.account(actor,tree.id));
+        if(JSON.stringify(mirror.unlocks)!==JSON.stringify(inst.progression.unlocks)||mirror.awarded!==inst.progression.awarded)rows.push({instanceId:inst.instanceId,name,repair:true,text:`${actor.name}'s tree progress differs from the Cinder.`});
       }
     }
-    for(const actor of game.actors?.contents??[])for(const item of actor.items??[]){
-      const tag=grantOf(item);if(!tag?.wallet?.startsWith('cinder:'))continue;
-      const definitionId=tag.wallet.slice(7);
+    for(const actor of game.actors?.contents??[])for(const g of t.accounts.grants(actor)){
+      if(!g.wallet?.startsWith('cinder:'))continue;const definitionId=g.wallet.slice(7);
       if(registry.instances.some(i=>i.definitionId===definitionId)&&!bearerInstance(registry,actor.id,definitionId))
-        rows.push({instanceId:null,name:item.name,actorId:actor.id,repair:true,text:`${actor.name} has a Cinder power (${item.name}) but does not bear that Cinder.`});
+        rows.push({instanceId:null,name:actor.items?.get?.(g.itemId)?.name??g.perkId,actorId:actor.id,repair:true,text:`${actor.name} has a Cinder power (${g.perkId}) but does not bear that Cinder.`});
     }
     return rows;
   }
-  /** Repair what report() flags: rewrite bearers' copies from the Cinder, give missing Items, remove Cinder Items from non-bearers. Never changes a Cinder's progress. */
+  /** Repair what report() flags: bearers' tree progress rewritten from the Cinder; Cinder progress taken off non-bearers. Never changes a Cinder. */
   async function repair(){
     requireGM();
+    const acc=accounts();
     return withRegistry(async()=>{
       const registry=readRegistry(),done=[];
-      for(const inst of registry.instances){const actor=inst.bearer?actorById(inst.bearer.actorId):null;if(!actor)continue;
-        await writeMirror(actor,inst);const given=await giveCinderPerks(actor,inst);if(given.some(g=>g.created))done.push(`Gave missing powers to ${actor.name}`);}
-      for(const actor of game.actors?.contents??[])for(const item of [...(actor.items??[])]){
-        const tag=grantOf(item);if(!tag?.wallet?.startsWith('cinder:'))continue;const definitionId=tag.wallet.slice(7);
-        if(registry.instances.some(i=>i.definitionId===definitionId)&&!bearerInstance(registry,actor.id,definitionId)){await item.delete();done.push(`Removed ${item.name} from ${actor.name}`);}
+      for(const inst of registry.instances){const actor=inst.bearer?actorById(inst.bearer.actorId):null,tree=cinderTree(inst.definitionId);if(!actor||!tree)continue;
+        const r=await acc.setAccount(actor,tree.id,inst.progression);if(r.given.length||r.removed.length)done.push(`${actor.name}: ${[...r.given.map(x=>`+${x}`),...r.removed.map(x=>`−${x}`)].join(', ')}`);}
+      for(const actor of game.actors?.contents??[]){
+        const stray=new Set(acc.grants(actor).filter(g=>g.wallet?.startsWith('cinder:')).map(g=>g.wallet.slice(7)).filter(d=>registry.instances.some(i=>i.definitionId===d)&&!bearerInstance(registry,actor.id,d)));
+        for(const d of stray){const tree=cinderTree(d);if(!tree)continue;const r=await acc.setAccount(actor,tree.id,emptyAccount());done.push(`${actor.name}: removed ${r.removed.join(', ')}`);}
       }
       return done;
     });
   }
 
-  // ---- What a character can do (works for the bearer's owner from the Items on the sheet; the GM re-checks on Push) ----
-  /** Unlocked Cinder powers of one Cinder, read from the granted Items: [{powerId, name, nodeId, item, power}]. */
+  // ---- What a character can do (the bearer's owner can read it from the Items on the sheet; the GM re-checks on Push) ----
+  /** Unlocked Cinder powers of one Cinder, from the perk Items Skill Trees gave: [{powerId, name, nodeId, item, power}]. */
   function sheetPowers(actor,definitionId){
-    return [...(actor?.items??[])].filter(i=>grantOf(i)?.wallet===walletOf(definitionId)).map(i=>{
-      const def=sourceOf(i)?.definition??null;
-      return {powerId:grantOf(i).perkId,name:i.name,nodeId:grantOf(i).nodeId,item:i,power:powerBlock(def)};
-    }).filter(p=>p.powerId);
+    const t=trees();if(t.status!=='ok')return [];
+    return t.accounts.grants(actor).filter(g=>g.wallet===walletOf(definitionId)).map(g=>{
+      const item=actor.items?.get?.(g.itemId)??[...(actor.items??[])].find(i=>i.id===g.itemId);
+      return {powerId:g.perkId,name:item?.name??g.perkId,nodeId:g.nodeId,item,power:powerBlock(sourceOf(item)?.definition??null)};
+    }).filter(p=>p.powerId&&p.item);
   }
   const canRead=actor=>Boolean(actor)&&(game.user?.isGM||actor.isOwner);
+  const requirePlayerAccess=()=>{if(!game.user?.isGM&&!deps.playerAccess())throw Error('The GM has hidden Cinders.');};
   function list(actor){
-    if(!canRead(actor))throw Error('Actor access denied');
+    requireOn();requirePlayerAccess();if(!canRead(actor))throw Error('Actor access denied');
     const strainState=strain.readState(actor),config=strain.config();
     return pointersOf(actor).map(p=>{
-      const powers=sheetPowers(actor,p.definitionId),ids=powers.map(x=>x.powerId),account=cleanAccount(actor.flags?.[module]?.progressV2?.[walletOf(p.definitionId)]);
-      return {instanceId:p.instanceId,definitionId:p.definitionId,name:p.name??p.definitionId,awarded:account.awarded,unlocks:account.unlocks.length,
-        powers:powers.filter(x=>x.power?.kind==='power').map(x=>({powerId:x.powerId,name:x.name,itemId:x.item.id,standard:x.power.standard?.summary??'',
+      const powers=sheetPowers(actor,p.definitionId),ids=powers.map(x=>x.powerId);
+      return {instanceId:p.instanceId,definitionId:p.definitionId,name:p.name??p.definitionId,
+        powers:powers.filter(x=>x.power?.kind==='power').map(x=>({powerId:x.powerId,name:x.name,itemId:x.item.id,nodeId:x.nodeId,standard:x.power.standard?.summary??'',
           modes:availableModes({power:x.power},ids).map(m=>{const plan=planPush({strainValue:strainState.value,config,mode:m,unlocked:powers,powerId:x.powerId});
             return {id:m.id,label:m.label,effect:m.effect??'',cost:plan.cost,after:plan.after,chance:plan.chance,guaranteed:plan.guaranteed,
-              modifiers:[...plan.modifiers.cost.used,...plan.modifiers.chance.used,...plan.modifiers.severity.used]};})}))};
+              modifiers:[...plan.modifiers.cost.used,...plan.modifiers.chance.used,...plan.modifiers.severity.used]};})})),
+        enhancements:powers.filter(x=>x.power?.kind==='enhancement').map(x=>({powerId:x.powerId,name:x.name}))};
     });
   }
   function previewPush(actor,instanceId,powerId,modeId){
@@ -222,13 +248,13 @@ export function createCinders(deps){
   function tablesFor(cinderDef,powerDef,mode){
     return categoriesFor(cinderDef,powerDef,mode).map(id=>{const b=backfireBlock(definition(id));return b?{id,label:b.label??id,weight:b.weight??1,entries:b.entries??[]}:null;}).filter(Boolean);
   }
-  async function applyEffect(actor,effect,{opId,origin}){
+  async function applyEffect(actor,effect,{opId}){
     const problem=effectProblem(effect);if(problem)throw Error(problem);
     const status=CONFIG.statusEffects?.find?.(s=>s.id===effect.status);
     await actor.createEmbeddedDocuments('ActiveEffect',[{name:status?game.i18n.localize(status.name??status.label??effect.status):effect.status,img:status?.img??status?.icon??null,
-      statuses:[effect.status],duration:effect.rounds?{rounds:effect.rounds}:{seconds:effect.minutes*60},origin:origin??null,flags:{[module]:{backfire:{opId}}}}]);
+      statuses:[effect.status],duration:effect.rounds?{rounds:effect.rounds}:{seconds:effect.minutes*60},flags:{[module]:{backfire:{opId}}}}]);
   }
-  /** Checks shared by Push and normal use; returns everything the GM client needs. Throws when the character cannot use the power. */
+  /** Checks shared by Push and normal use; throws when the character cannot use the power. */
   function context(actor,powerId){
     const registry=readRegistry();
     for(const inst of boundTo(registry,actor.id)){
@@ -241,7 +267,7 @@ export function createCinders(deps){
     throw Error('This character does not bear a Cinder with that power');
   }
   async function push(actor,powerId,modeId,{forUser=null}={}){
-    requireGM();if(!actor)throw Error('No character');
+    requireGM();if(!actor)throw Error('No character');accounts();
     const ctx=context(actor,powerId),power=powerBlock(ctx.powerDef);
     if(power?.kind!=='power')throw Error('That power has no Push');
     const mode=availableModes(ctx.powerDef,ctx.unlocked.map(u=>u.powerId)).find(m=>m.id===modeId);
@@ -259,7 +285,7 @@ export function createCinders(deps){
   }
   /** Normal use at or above the threshold: an automatic Backfire. No Strain is added; the use itself is never blocked or undone. */
   async function useBackfire(actor,powerId,{forUser=null}={}){
-    requireGM();if(!actor)throw Error('No character');
+    requireGM();if(!actor)throw Error('No character');accounts();
     const config=strain.config(),value=strain.readState(actor).value;
     if(value<config.normal_use_backfire_at)return null;
     const ctx=context(actor,powerId);if(powerBlock(ctx.powerDef)?.kind!=='power')return null;
@@ -278,7 +304,7 @@ export function createCinders(deps){
   }
   function card(actor,r){
     const b=r.backfire,e=escape,parts=[];
-    parts.push(`<div class="agst-cinder-card"><h3>${e(r.kind==='push'?`Push: ${r.powerName}`:`${r.powerName}: Backfire`)}</h3>`);
+    parts.push(`<div class="agc-chat"><h3>${e(r.kind==='push'?`Push: ${r.powerName}`:`${r.powerName}: Backfire`)}</h3>`);
     if(r.mode)parts.push(`<p><strong>${e(r.mode.label)}</strong>${r.mode.effect?` — ${e(r.mode.effect)}`:''}</p>`);
     const band=strain.api.get(actor).band.label;
     parts.push(r.kind==='push'?`<p>Strain ${r.strain.from} → <strong>${r.strain.to}</strong> (${e(band)})${r.strain.overflow?`, ${r.strain.overflow} over the maximum`:''}</p>`
@@ -289,7 +315,7 @@ export function createCinders(deps){
     }
     if(!b.backfire)parts.push('<p><strong>No Backfire.</strong></p>');
     else{
-      parts.push('<p class="agst-cinder-backfire"><strong>Backfire!</strong></p>');
+      parts.push('<p class="agc-backfire"><strong>Backfire!</strong></p>');
       if(b.category)parts.push(`<p>Category: <strong>${e(b.category.label)}</strong>${b.categoryRoll?` (${e(b.categoryRoll.formula)} = ${b.categoryRoll.total})`:''}</p>`);
       if(b.effectRoll){const x=b.effectRoll,adds=[x.strainBonus?`${x.strainBonus>0?'+':''}${x.strainBonus} Strain`:'',x.severity?`${x.severity>0?'+':''}${x.severity} perks`:''].filter(Boolean);
         parts.push(`<p>Effect ${e(x.formula)} = ${x.die}${adds.length?` ${e(adds.join(' '))}`:''} → <strong>${x.result} of ${x.of}</strong></p>`);}
@@ -315,6 +341,7 @@ export function createCinders(deps){
     });
   }
   async function onSocket(message,senderId){
+    if(!message||typeof message!=='object')return;
     if(message.type==='cinder-result'){
       const wait=pending.get(message.requestId);if(!wait||message.userId!==game.user.id)return;
       pending.delete(message.requestId);clearTimeout(wait.timer);
@@ -326,6 +353,7 @@ export function createCinders(deps){
     try{
       const user=game.users?.get(userId),actor=actorById(message.actorId);
       if(!user||user.isGM)throw Error('Unknown player');
+      if(!deps.playerAccess())throw Error('Cinders is hidden from players right now');
       if(!actor||actor.testUserPermission?.(user,'OWNER')!==true)throw Error('You do not own that character');
       const r=message.type==='cinder-push'?await push(actor,message.powerId,message.modeId,{forUser:user}):await useBackfire(actor,message.powerId,{forUser:user});
       reply(true,r?{opId:r.opId,backfire:r.backfire.backfire}:null);
@@ -333,23 +361,26 @@ export function createCinders(deps){
   }
   /** api.cinder.push: the GM pushes directly; an owner's Push is rolled and recorded by the active GM client. */
   async function requestPush(actor,powerId,modeId){
-    if(!actor)throw Error('No character');
+    requireOn();if(!actor)throw Error('No character');
     if(game.user.isGM)return push(actor,powerId,modeId);
-    if(!actor.isOwner)throw Error('Actor access denied');
+    requirePlayerAccess();if(!actor.isOwner)throw Error('Actor access denied');
     return request('cinder-push',{actorId:actor.id,powerId,modeId});
   }
-  /** dnd5e activity use on the using client: a granted Cinder power used at or above the threshold backfires. */
+  /** dnd5e activity use on the using client: a Cinder power used at or above the threshold backfires. */
   async function onUseActivity(activity){
-    const item=activity?.item,actor=item?.actor??activity?.actor,tag=grantOf(item);
-    if(!actor||!tag?.wallet?.startsWith('cinder:'))return;
+    if(blocked())return;
+    const item=activity?.item,actor=item?.actor??activity?.actor;if(!actor)return;
+    const t=trees();if(t.status!=='ok')return;
+    let grant;try{grant=t.accounts.grants(actor).find(g=>g.itemId===item.id&&g.wallet?.startsWith('cinder:'));}catch{return;}
+    if(!grant)return;
     if(strain.readState(actor).value<strain.config().normal_use_backfire_at)return;
     if(powerBlock(sourceOf(item)?.definition)?.kind!=='power')return;
     try{
-      if(game.user.isGM)await useBackfire(actor,tag.perkId);
-      else if(actor.isOwner)await request('cinder-use',{actorId:actor.id,powerId:tag.perkId});
+      if(game.user.isGM)await useBackfire(actor,grant.perkId);
+      else if(actor.isOwner)await request('cinder-use',{actorId:actor.id,powerId:grant.perkId});
     }catch(error){console.error(`[${module}] Cinder Backfire on use failed`,error);ui.notifications?.error?.(`Cinder Backfire: ${error?.message??error}`);}
   }
-  /** Strain recovery modifiers from the bearer's unlocked Cinder powers (for rest recovery). */
+  /** Strain recovery modifiers from the bearer's unlocked Cinder powers (added to rest recovery). */
   function recoveryBonus(actor){
     return pointersOf(actor).reduce((s,p)=>s+collectModifiers(sheetPowers(actor,p.definitionId),'strain.recovery').total,0);
   }
@@ -358,9 +389,9 @@ export function createCinders(deps){
     contract:CINDER_CONTRACT,hook:CINDER_HOOK,
     list,previewPush,push:requestPush,validateDefinition,
     instances:()=>readRegistry().instances,
-    create,bind,transfer,unbind,migrate,report,repair
+    create,bind,transfer,unbind,migrate,adoptLegacy,report,repair
   };
-  return {api,syncProgress,onDeleteActor,onSocket,onUseActivity,recoveryBonus,readRegistry,migrationPlan,definitionName,cinderTree,
+  return {api,onDeleteActor,onProgressChanged,onCheckProgress,onSocket,onUseActivity,recoveryBonus,readRegistry,migrationPlan,definitionName,cinderTree,store,
     register(){
       game.settings.register(module,MAX_CINDERS_SETTING,{name:'Cinders per character',hint:'GM: the most Cinders one character can bear at once (default 1).',scope:'world',config:true,type:Number,default:1,range:{min:1,max:9,step:1}});
       game.settings.register(module,INITIAL_POINTS_SETTING,{name:'Starting Cinder points',hint:'GM: points a Cinder gets the first time it is bound (once per Cinder; a transferred Cinder keeps its points and gets none).',scope:'world',config:true,type:Number,default:1,range:{min:0,max:13,step:1}});

@@ -1,19 +1,22 @@
-/** Strain (0.15.0), Foundry side: the api.strain door, the config setting and long/short rest recovery.
- * Actor data: flags['ashen-gate-strain'].state (its own scope, not this module's), written only by a GM client. */
+/** Strain, Foundry side: the api.strain door, the config setting and long/short rest recovery.
+ * Actor data: flags['ashen-gate-strain'].state (its own scope, unchanged since Skill Trees 0.15.0), written only by a GM client.
+ * blocked(): a reason while this module must stay off (an older Skill Trees still runs its own Strain), else null. */
 import {STRAIN_SCOPE,STRAIN_CONTRACT,CONFIG_SCHEMA,defaultConfig,validateConfig,normalizeConfig,normalizeState,applyChange,restRecovery,summarize} from './strain.mjs';
 
 export const STRAIN_SETTING='strainConfig';
 export const STRAIN_HOOK='ashenGateStrain.changed';
 const CONFIG_ROW={id:'STRAIN-CONFIG',name:'Strain config'};
 
-export function createStrain({module,onConfigChange=()=>{},recoveryBonus=()=>0}){
+export function createStrain({module,onConfigChange=()=>{},recoveryBonus=()=>0,blocked=()=>null}){
   const config=()=>normalizeConfig(game.settings.get(module,STRAIN_SETTING));
   const readState=actor=>normalizeState(actor?.flags?.[STRAIN_SCOPE]?.state);
   const requireReader=actor=>{
     if(!actor)throw Error('No Actor');
+    requireOn();
     if(!game.user?.isGM&&!actor.isOwner)throw Error('Actor access denied');
   };
-  const requireGM=()=>{if(!game.user?.isGM)throw Error('GM only: Strain changes run on the GM client');};
+  const requireOn=()=>{const why=blocked();if(why)throw Error(why);};
+  const requireGM=()=>{requireOn();if(!game.user?.isGM)throw Error('GM only: Strain changes run on the GM client');};
 
   // One change at a time per character, so two quick calls cannot both read the same old value.
   const locks=new Map();
@@ -54,7 +57,7 @@ export function createStrain({module,onConfigChange=()=>{},recoveryBonus=()=>0})
   // Long/short rest: dnd5e posts a "rest" chat message for the character. The active GM's client takes the recovery off once
   // per message (opId rest:<message id>), only for a character the message's author owns. No message (rest chat off) = no recovery.
   async function onRestMessage(message){
-    if(!game.user?.isGM||game.users?.activeGM?.id!==game.user.id)return null;
+    if(!game.user?.isGM||game.users?.activeGM?.id!==game.user.id||blocked())return null;
     if(message?.type!=='rest')return null;
     const type=message.system?.type;if(!['long','short'].includes(type))return null;
     const actor=game.actors?.get?.(message.speaker?.actor);if(!actor)return null;
@@ -72,7 +75,7 @@ export function createStrain({module,onConfigChange=()=>{},recoveryBonus=()=>0})
 
   // Every client: tell subscribers when an Actor's Strain changed (from the latest history entry).
   function onUpdateActor(actor,changes){
-    if(!changes?.flags?.[STRAIN_SCOPE]?.state)return;
+    if(!changes?.flags?.[STRAIN_SCOPE]?.state||blocked())return;
     const s=readState(actor),last=s.history.at(-1)??null;
     Hooks.callAll(STRAIN_HOOK,{actorId:actor.id,from:last?last.to-last.delta:null,to:s.value,source:last?.source??null,opId:last?.opId??null});
   }
