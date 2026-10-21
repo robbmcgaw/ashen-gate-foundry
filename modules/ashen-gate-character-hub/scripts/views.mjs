@@ -2,9 +2,10 @@
  * HTML for the hub. Tabs are a plain ordered registry so sections can be reordered or added later
  * without touching the sheet class. Every value is read from the live Actor at render time.
  */
-import {MODULE_ID, esc, signed, OPACITY_MIN, windowOpacity} from './constants.mjs';
+import {MODULE_ID, esc, signed} from './constants.mjs';
 import {abilitiesData, skillsData, overviewData} from './data.mjs';
-import {characterPanelHtml} from './character.mjs';
+import {characterPanelHtml, compactPanelHtml} from './character.mjs';
+import {canPopOut, isPoppedOut} from './popout.mjs';
 import {btn} from './buttons.mjs';
 import {ITEM_TABS} from './tabs.mjs';
 import {ashenGateTab, AG_PANELS, agPanelsFor, partnerApi, embedApi, panelState} from './partners.mjs';
@@ -120,16 +121,32 @@ function restoreBtn(actor) {
   return btn('level-restore', copy ? 'Restore this backup' : 'Restore backup', {kind: 'ghost', icon: 'fa-solid fa-clock-rotate-left', always: true,
     title: copy ? `Put this copy back onto ${source} (GM; asks first)` : `Put one of ${actor.name}'s ${count} level backup${count === 1 ? '' : 's'} back onto it (GM; asks first)`});
 }
+/**
+ * Compact / Full (0.29.0): one toggle button, pressed while Compact is on. The label says what it is now; the tooltip
+ * says what a click does. Only for you (client setting).
+ */
+export function compactBtn(compact) {
+  const tip = compact ? 'Compact view is on: click for the Full Hub (only for you)' : 'Compact view: only the art, equipment slots, HP and quick bar, in a small window (only for you)';
+  return `<button type="button" class="ag-btn ag-btn--ghost agch-compact" data-action="compact-toggle" data-ag-always aria-pressed="${compact}" data-tooltip="${esc(tip)}" aria-label="${esc(tip)}"><i class="fa-solid ${compact ? 'fa-up-right-and-down-left-from-center' : 'fa-down-left-and-up-right-to-center'}" aria-hidden="true"></i><span>${compact ? 'Full' : 'Compact'}</span></button>`;
+}
+/** Pop out / Pop in (0.29.0): Foundry's own detach into a separate browser window; not shown where Foundry can't. */
+export function popOutBtn(sheet) {
+  if (!sheet || !canPopOut(sheet)) return '';
+  const out = isPoppedOut(sheet);
+  return btn('pop-out', out ? 'Pop in' : 'Pop out', {kind: 'ghost', icon: out ? 'fa-solid fa-arrow-right-to-bracket' : 'fa-solid fa-arrow-up-right-from-square', always: true,
+    title: out ? 'Put the Hub back in the main Foundry window' : 'Open the Hub in its own browser window (e.g. on a second screen)'});
+}
 export function shellHtml(ctx) {
-  const {actor, tab} = ctx;
+  const {actor, tab} = ctx, compact = ctx.compact === true && !ctx.limited;
   const version = globalThis.game?.modules?.get?.(MODULE_ID)?.version ?? '';
   const top = `<header class="ag-header"><h1><span class="ag-header__brand">Ashen Gate</span> | Character Hub</h1><div class="ag-header__actions">
-    <label class="agch-opacity" data-tooltip="Window background opacity (only for you): slide left to see the map behind"><i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i><input type="range" min="${OPACITY_MIN}" max="100" step="5" value="${windowOpacity()}" data-opacity data-ag-always aria-label="Window background opacity"></label>
-    ${ctx.limited ? '' : `${levelUpBtn(actor)}${restoreBtn(actor)}`}
-    ${btn('open-native', 'Open native sheet', {kind: 'ghost', icon: 'fa-solid fa-file-lines', always: true, title: 'Open the standard dnd5e character sheet'})}
+    ${ctx.limited ? '' : compactBtn(compact)}${popOutBtn(ctx.sheet)}
+    ${ctx.limited || compact ? '' : `${levelUpBtn(actor)}${restoreBtn(actor)}`}
+    ${compact ? '' : btn('open-native', 'Open native sheet', {kind: 'ghost', icon: 'fa-solid fa-file-lines', always: true, title: 'Open the standard dnd5e character sheet'})}
     <span class="ag-version">v${esc(version)}</span>
     ${btn('help', 'Help', {kind: 'ghost', extra: 'ag-btn--sm', icon: 'fa-solid fa-circle-question', always: true})}</div></header>`;
   if (ctx.limited) return `<div class="agch-root agch-root--limited">${top}<section class="agch-hero ag-card"><img class="agch-portrait" src="${esc(actor.img)}" alt=""><div class="agch-ident__text"><h2 class="agch-name">${esc(actor.name)}</h2><p class="agch-sub">You have limited access to this character.</p></div></section></div>`;
+  if (compact) return `<div class="agch-root agch-root--compact">${top}${compactPanelHtml(ctx)}${hotbarsHtml(ctx)}</div>`;
   const tabs = visibleTabs(), current = tabs.find(t => t.id === tab) ?? tabs[0];
   const notice = ctx.editable ? '' : '<p class="ag-notice ag-notice--info agch-notice" role="note"><i class="fa-solid fa-eye" aria-hidden="true"></i> View only: you can look but not change or roll for this character.</p>';
   if (!current) return `<div class="agch-root">${top}<div class="agch-split">${characterPanelHtml(ctx)}

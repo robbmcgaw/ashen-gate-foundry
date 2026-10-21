@@ -2,7 +2,7 @@
  * Ashen Gate | Character Hub: registers an alternative dnd5e character sheet (not the default)
  * and a small public API. The Actor stays the only store of character data.
  */
-import {MODULE_ID, VERSION, SHEET_LABEL} from './constants.mjs';
+import {MODULE_ID, VERSION, SHEET_LABEL, COMPACT_SETTING} from './constants.mjs';
 import {createHubSheetClass} from './sheet.mjs';
 import {openNativeSheet, nativeSheetClass} from './native.mjs';
 import {registerCompanionSettings, petCapFor, companionsData, registerPetSlotSource, unregisterPetSlotSource} from './companions.mjs';
@@ -118,9 +118,9 @@ export function createApi() {
 if (globalThis.Hooks) {
   Hooks.once('init', () => {
     registerHubSheet();
-    // Per user (client scope): how see-through the Hub window background is. Changed with the slider in the Hub header.
-    game.settings.register(MODULE_ID, 'windowOpacity', {scope: 'client', config: false, type: Number, default: 100,
-      onChange: () => { for (const app of globalThis.foundry?.applications?.instances?.values?.() ?? []) if (HubSheet && app instanceof HubSheet && app.rendered) app.applyOpacity(); }});
+    // Per user (client scope): Compact or Full (0.29.0). Changed with the Compact/Full button; read when a Hub opens.
+    // (The 0.10.0-0.28.x windowOpacity setting is no longer registered: a saved value is ignored.)
+    game.settings.register(MODULE_ID, COMPACT_SETTING, {scope: 'client', config: false, type: Boolean, default: false});
     // Per user (client scope): which Hub sections and inventory containers are collapsed.
     registerCollapseSetting(game.settings);
     // Per user (client scope): Magic and Features group/sort choices.

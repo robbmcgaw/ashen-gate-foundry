@@ -1,3 +1,12 @@
+## 0.29.0 — 2026-10-21
+
+- **Window opacity removed.** The see-through slider is gone and the Hub window is always opaque. An opacity a user saved before (client setting `windowOpacity`) is no longer read, so it changes nothing and can't cause an error. It just sits unused in that browser's local settings. Ashen Gate | Locations has its own, separate opacity, which is unchanged.
+- **Compact mode.** The **Compact** button in the Hub header switches to one narrow column: the character's name, the art with its equipment slots around it (AC shield and Portrait/Token art toggle included), the HP bar with damage/heal, and the quick bar. No tab rail, no middle content, no marks bar, no hit dice, abilities or conditions. The button then reads **Full** and switches back. The window shrinks to a narrow size and gets back the size it had in Full (and the other way round) while it stays open. Comfortable size scales both.
+  - Everything in the column works as in Full: double-click the art to change portrait/token art, slot clicks, right-click and the ⋯ menu, the HP editor (double-click or Enter on the bar), damage/heal and the quick bar (click to use, drop to fill, right-click to clear with Undo).
+  - Remembered per user (client setting `compactMode`) and used when a Hub opens. The GM opening a player's Hub gets the GM's own choice. Player visibility still applies: hidden equipment slots or hotbars stay hidden in Compact.
+- **Pop out.** A **Pop out** button in the header uses Foundry V14's own ApplicationV2 detach (`detachWindow`) to move the Hub into its own browser window, e.g. a compact quick bar on a second screen. In the popped-out window the button reads **Pop in** and brings it back (`attachWindow`). Closing the Hub works as usual. If Foundry doesn't offer detaching for the window, the button isn't shown.
+- Migration: none needed. The old opacity value is ignored, and `compactMode` defaults to Full.
+
 ## 0.28.1 — 2026-10-21
 
 - **Fix: blank cloak, waist and bracers slots.** Their silhouettes were drawn from a relative path inside an inline CSS variable, which the browser resolved under the module's `styles/` folder and 404'd. Every image and silhouette placeholder now goes through Foundry's `foundry.utils.getRoute` (leading slash, route prefix and The Forge handled), so all empty-slot art loads. Paths in the `SLOT_PLACEHOLDERS` table are written the same way as before.

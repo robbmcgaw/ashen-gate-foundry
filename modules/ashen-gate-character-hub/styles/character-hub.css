@@ -2,22 +2,15 @@
    skins and the Compact / Comfortable size apply. 0.22.0: the UI standard look (direction D), same layout as before. */
 .agch-app .window-content { position: relative; padding: 0; overflow: hidden; display: flex; flex-direction: column; container-type: inline-size; }
 
-/* Window background opacity (per-user slider in the header). --ag-window-opacity is set on the window element; only
-   backgrounds mix with it, so text, icons, slots and controls stay fully readable over the map. */
-.agch-app { --agch-alpha: var(--ag-window-opacity, 100%);
-  --agch-bg: color-mix(in srgb, var(--ag-surface) var(--agch-alpha), transparent);
-  --agch-bg-raised: color-mix(in srgb, var(--ag-surface-raised) var(--agch-alpha), transparent);
-  --agch-bg-sunken: color-mix(in srgb, var(--ag-surface-sunken) var(--agch-alpha), transparent); }
+/* Window backgrounds. Always opaque since 0.29.0 (the opacity slider is gone); the --agch-bg* names stay for the rules below. */
+.agch-app { --agch-bg: var(--ag-surface); --agch-bg-raised: var(--ag-surface-raised); --agch-bg-sunken: var(--ag-surface-sunken); }
 .application.ag-app.agch-app { background: var(--agch-bg); }
-.application.ag-app.agch-app > .window-header { background: color-mix(in srgb, var(--ag-surface-sunken) var(--agch-alpha), transparent); }
-/* 0.10.0: the whole window fades, not only the character pane. Core/theme rules may paint the window, its content or a
-   pseudo-element; the sheet also sets the window background inline (applyOpacity), these cover the rest. */
+.application.ag-app.agch-app > .window-header { background: var(--agch-bg-sunken); }
+/* As in 0.10.0-0.28.x at 100 %: the window itself is painted once; core/theme layers on top of it stay off. */
 .application.ag-app.agch-app > .window-content { background: transparent !important; }
 .application.ag-app.agch-app::before, .application.ag-app.agch-app::after { background: none !important; }
 .agch-app .ag-header { background: transparent; }
 .agch-app .ag-card { background: var(--agch-bg-raised); }
-.agch-app .agch-opacity { display: inline-flex; gap: var(--ag-space-1); align-items: center; color: var(--ag-muted); }
-.agch-app .agch-opacity input { width: 6rem; height: auto; padding: 0; accent-color: var(--ag-accent); }
 .agch-app .agch-root { display: flex; flex-direction: column; gap: var(--ag-space-2); padding: var(--ag-space-2) var(--ag-space-3) var(--ag-space-3); min-height: 0; flex: 1; overflow: hidden; }
 .agch-app .agch-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--ag-space-2) var(--ag-space-1) 0 0; container-type: inline-size; }
 .agch-app .agch-muted { color: var(--ag-muted); }
@@ -484,3 +477,11 @@
 
 /* Level up (0.27.0): not ready yet, but still clickable so it can say why. */
 .agch-levelup[aria-disabled="true"] { cursor: not-allowed; color: var(--ag-muted-strong); }
+
+/* Compact mode (0.29.0): one column (name, art with slots, HP) and the quick bar; no tab rail or middle content. */
+.agch-app .agch-root--compact .ag-header { flex-wrap: wrap; row-gap: var(--ag-space-1); }
+.agch-app .agch-root--compact .ag-header__actions { flex-wrap: wrap; }
+.agch-app .agch-char--compact { flex: 1; min-height: 0; }
+.agch-app .agch-char--compact .agch-name { margin: 0; text-align: center; }
+.agch-app .agch-root--compact .agch-hotbar { grid-template-columns: minmax(0, 1fr); }
+.agch-app .agch-root--compact .agch-hotbar__head { min-width: 0; padding-top: 0; }

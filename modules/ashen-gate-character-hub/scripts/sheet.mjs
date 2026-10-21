@@ -3,7 +3,7 @@
  * from the live Actor and sends every change through the Actor/Item (see actions.mjs). It never
  * mounts or hides the native sheet; "Open native sheet" opens that one separately.
  */
-import {MODULE_ID, SHEET_LABEL, clampOpacity, windowOpacity} from './constants.mjs';
+import {MODULE_ID, SHEET_LABEL, COMPACT_SETTING, compactPreference} from './constants.mjs';
 import {shellHtml, errorHtml} from './views.mjs';
 import * as act from './actions.mjs';
 import {openNativeSheet} from './native.mjs';
@@ -28,6 +28,7 @@ import {stepStrain, pushFromHub, socketFromHub, dropOnSocket} from './cinders.mj
 import {confirmDialog, formDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
 import {readDrop, resolveItemDrop} from './ag-item-drop.mjs';
+import {togglePopOut} from './popout.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
 /** Push asks first through the shared dialog: "Push [power]?" with Cancel and Push. */
@@ -106,7 +107,9 @@ export const ACTIONS = {
   'companion-unattach': (s, t) => comp.detachExtra(s.document, t.dataset.entry, t.dataset.id),
   'companion-open': (s, t) => openLinkedActor(s.document, t.dataset.entry),
   'visibility-preset': (s, t) => vis.applyPreset(t.dataset.preset),
-  'doll-art': s => { s.dollArt = s.dollArt === 'token' ? 'portrait' : 'token'; return s.render(); }
+  'doll-art': s => { s.dollArt = s.dollArt === 'token' ? 'portrait' : 'token'; return s.render(); },
+  'compact-toggle': s => s.setCompact(!s.compact),
+  'pop-out': s => togglePopOut(s)
 };
 /** Level up (0.27.0): dnd5e's own flow. The shared form dialog asks which class to advance, or to add one. */
 export const levelClassPick = async options => (await formDialog('Level up', [{name: 'cls', label: 'Class', type: 'select', value: options[0]?.value ?? '', options,
@@ -225,10 +228,13 @@ function toggleMore(sheet, target) {
   if ('textContent' in target) target.textContent = open ? 'Less' : 'More';
   return {ok: true, result: open};
 }
-/** Saves this user's window opacity (client setting). */
-export function saveOpacity(value) {
-  try { return globalThis.game?.settings?.set?.(MODULE_ID, 'windowOpacity', clampOpacity(value)); } catch (err) { console.warn(`${MODULE_ID} | opacity not saved`, err); return null; }
+/** Saves this user's Compact / Full choice (client setting); a failure only logs, the open Hub still switches. */
+export function saveCompact(on) {
+  try { return globalThis.game?.settings?.set?.(MODULE_ID, COMPACT_SETTING, on === true); } catch (err) { console.warn(`${MODULE_ID} | compact choice not saved`, err); return null; }
 }
+/** Window sizes before Comfortable scaling (windowSize): Full is the Hub's default, Compact a narrow column. */
+export const FULL_SIZE = {width: 1240, height: 800};
+export const COMPACT_SIZE = {width: 500, height: 780};
 /** Apply in the HP editor: one update with the three values, then the editor closes. */
 async function hpApply(sheet, target) {
   const box = target.closest?.('.agch-hpedit');
@@ -313,15 +319,24 @@ export function createHubSheetClass(Base) {
   return class CharacterHubSheet extends Base {
     static DEFAULT_OPTIONS = {
       classes: ['ag-app', 'agch-app'],
-      position: {width: 1240, height: 800},  // Compact; Comfortable scales it when the sheet opens (windowSize)
+      position: {...FULL_SIZE},  // kit Compact size; Comfortable scales it when the sheet opens (windowSize)
       window: {resizable: true},
       form: {submitOnChange: false, closeOnSubmit: false}
     };
     static LABEL = SHEET_LABEL;
-    /** The default size follows the kit size set (Comfortable is 1.2x); an explicit position still wins. */
+    /**
+     * The default size follows the kit size set (Comfortable is 1.2x) and this user's Compact choice (0.29.0); an
+     * explicit position still wins.
+     */
     constructor(options = {}) {
-      super({...options, position: {...windowSize(CharacterHubSheet.DEFAULT_OPTIONS.position), ...options.position}});
+      const compact = compactPreference();
+      super({...options, position: {...windowSize(compact ? COMPACT_SIZE : CharacterHubSheet.DEFAULT_OPTIONS.position), ...options.position}});
+      this.compact = compact;
     }
+    /** Compact view (0.29.0): only the art with its slots, HP and the quick bar. */
+    compact = false;
+    /** The last Full and Compact window sizes while this Hub is open, so toggling back restores them. */
+    _sizes = {};
     tab = 'overview';
     /** Open slot menu: 'slot:<id>' or null. */
     menu = null;
@@ -341,7 +356,7 @@ export function createHubSheetClass(Base) {
     get hubContext() {
       const actor = this.document, user = globalThis.game?.user;
       const limited = !user?.isGM && actor.limited === true;
-      return {actor, sheet: this, tab: this.tab, limited, editable: !limited && act.canEdit(actor, user) && this.isEditable !== false};
+      return {actor, sheet: this, tab: this.tab, limited, compact: this.compact === true, editable: !limited && act.canEdit(actor, user) && this.isEditable !== false};
     }
 
     /** Never a blank window: a failure while drawing shows the error inside the sheet with Retry. */
@@ -359,16 +374,13 @@ export function createHubSheetClass(Base) {
       mountEmbeds(content, this._embeds);
       const next = content.querySelector?.('.agch-body');
       if (next) next.scrollTop = scroll;
-      this.applyOpacity();
       applyFilter(content, this.filters[this.tab] ?? '');
       this._drawUndo(content);
       if (!this._agchBound) {   // listeners live on the stable content element, so bind once
         content.addEventListener?.('change', ev => this._onHubChange(ev));
         content.addEventListener?.('input', ev => {
           if (ev.target?.matches?.('[data-filter]')) { this.filters[this.tab] = ev.target.value; applyFilter(content, ev.target.value); }
-          if (ev.target?.matches?.('[data-opacity]')) this.applyOpacity(ev.target.value);
         });
-        content.addEventListener?.('change', ev => { if (ev.target?.matches?.('[data-opacity]')) saveOpacity(ev.target.value); });
         content.addEventListener?.('contextmenu', ev => this._onContextMenu(ev));
         content.addEventListener?.('click', ev => this._onOutsideClick(ev));
         content.addEventListener?.('dblclick', ev => ev.target?.closest?.('[data-art-edit]') ? this._onArtEdit(ev) : this._onHpBarOpen(ev));
@@ -462,19 +474,21 @@ export function createHubSheetClass(Base) {
     }
 
     /**
-     * Sets the window background opacity. The value goes into --ag-window-opacity (the Hub's own backgrounds mix with
-     * it), and the window's own background is set inline with !important so no core, system or theme rule keeps the
-     * window opaque behind the content. Text, icons, slots and controls stay solid.
+     * Switches Compact / Full (0.29.0) and saves the choice for this user. The size being left is remembered while the
+     * Hub is open, and the other one comes back (first time: its default size, scaled for Comfortable).
      */
-    applyOpacity(value = windowOpacity()) {
-      const v = clampOpacity(value), el = this.element;
-      el?.style?.setProperty?.('--ag-window-opacity', `${v}%`);
-      el?.style?.setProperty?.('background', 'var(--agch-bg)', 'important');
-      const content = el?.querySelector?.(':scope > .window-content'), header = el?.querySelector?.(':scope > .window-header');
-      content?.style?.setProperty?.('background', 'transparent', 'important');
-      header?.style?.setProperty?.('background', 'var(--agch-bg-sunken)', 'important');
-      return v;
+    setCompact(on) {
+      const next = on === true, pos = this.position;
+      if (pos?.width && pos?.height) this._sizes[this.compact ? 'compact' : 'full'] = {width: pos.width, height: pos.height};
+      this.compact = next; this.menu = null;
+      saveCompact(next);
+      const size = this._sizes[next ? 'compact' : 'full'] ?? windowSize(next ? COMPACT_SIZE : FULL_SIZE);
+      return this.render({position: {...size}});
     }
+
+    /** After Foundry moves the Hub to its own browser window or back (V14), redraw so Pop out / Pop in is right. */
+    _onDetach(from, to) { super._onDetach?.(from, to); this.render(); }
+    _onAttach(from, to) { super._onAttach?.(from, to); this.render(); }
 
     /** Pending quick-bar Undo notices (5 seconds each); redrawn over the content when one is added, used or expires. */
     get undoList() {
