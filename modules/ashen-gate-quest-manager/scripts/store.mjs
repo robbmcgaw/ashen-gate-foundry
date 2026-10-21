@@ -1,4 +1,4 @@
-import {MOD,assertGM,validSource,validState,initialState,publicView,projectionOwnership,accessSignature,cleanText,normalizePackage,planQuestImport,itemRewardIds} from './core.mjs';
+import {MOD,assertGM,validSource,validState,initialState,publicView,projectionOwnership,accessSignature,cleanText,normalizePackage,planQuestImport,itemRewardIds,isLevelBackup,LEVEL_BACKUP_ERROR} from './core.mjs';
 import {listAssignments} from './assignments.mjs';
 import {worldItemById} from './ag-item-drop.mjs';
 const FLAG = `flags.${MOD}`;
@@ -39,7 +39,7 @@ async function publish(source,state){
   const v=publicView(source,state,{itemById}), old=findProjection(source.id);
   if(!v){if(old)await old.delete();await synchronizeNotes(source,state,false);return null;}
   const actor=state.scope==='individual'?game.actors.get(state.actorId):null;
-  if(state.scope==='individual'&&!actor){if(old)await old.delete();await synchronizeNotes(source,state,false);return null;}
+  if(state.scope==='individual'&&(!actor||isLevelBackup(actor))){if(old)await old.delete();await synchronizeNotes(source,state,false);return null;}
   const ownership=projectionOwnership(state,actor,[...game.users]);
   const sig=accessSignature(state,ownership);
   // Recreate on ANY audience change instead of merging ownership: stale per-user grants must not survive.
@@ -55,7 +55,7 @@ async function publish(source,state){
 }
 async function synchronizeNotes(source,state,visible){
   assertGM(game.user);const id=source.id,users=[...game.users];
-  const actors=visible?(state.scope==='individual'?[game.actors.get(state.actorId)].filter(Boolean):[...game.actors].filter(a=>users.some(u=>!u.isGM&&a.testUserPermission(u,'OWNER')))):[];
+  const actors=visible?(state.scope==='individual'?[game.actors.get(state.actorId)].filter(a=>a&&!isLevelBackup(a)):[...game.actors].filter(a=>!isLevelBackup(a)&&users.some(u=>!u.isGM&&a.testUserPermission(u,'OWNER')))):[];
   const permitted=new Map(actors.map(a=>[a.id,a]));
   for(const doc of noteDocs(id))if(!permitted.has(doc.getFlag(MOD,'noteActorId'))){
     const priv=getPrivate(id),existing=priv?.getFlag(MOD,'notesArchive')||[];
@@ -137,7 +137,7 @@ export async function importQuests(payload,{mode='skip'}={}){
 }
 export async function savePersonalNote(id,actorId,text){
   const entry=visibleById(id);if(!entry)throw new Error('Objective is not visible to you.');
-  const actor=game.actors.get(actorId);if(!actor||(!game.user.isGM&&!actor.testUserPermission(game.user,'OWNER')))throw new Error('Actor ownership required.');
+  const actor=game.actors.get(actorId);if(isLevelBackup(actor))throw new Error(LEVEL_BACKUP_ERROR);if(!actor||(!game.user.isGM&&!actor.testUserPermission(game.user,'OWNER')))throw new Error('Actor ownership required.');
   if(entry.view.scope==='individual'&&entry.view.actorId!==actorId)throw new Error('Objective belongs to a different Actor.');
   const notes=noteDoc(id,actorId);if(!notes||!notes.testUserPermission(game.user,'OWNER'))throw new Error('No authorized Character Notes Journal. Ask your GM to republish the Objective.');
   const page=[...notes.pages][0];if(!page)throw new Error('Character Notes page is missing.');
@@ -150,6 +150,7 @@ export async function reconcileActorAudience(actorId=null){
   assertGM(game.user);for(const {source,state} of allPrivate()){if(state.scope==='individual'&&(!actorId||state.actorId===actorId))await publish(source,state);}
 }
 function preflightAudience(source,state){
+  if(state.scope==='individual'&&isLevelBackup(game.actors.get(state.actorId)))throw new Error(LEVEL_BACKUP_ERROR);
   if(publicView(source,state)&&state.scope==='individual'){
     const actor=game.actors.get(state.actorId);if(!actor)throw new Error('Individual Actor unavailable: cannot publish.');
     projectionOwnership(state,actor,[...game.users]);

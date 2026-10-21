@@ -6,6 +6,9 @@ const KINDS = { 'QUEST': 'quest', 'ORDER': 'work_order', 'CONTRACT': 'contract' 
 const PERMANENT = /^(QUEST|ORDER|CONTRACT)-[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
 const REF = /^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/;
 const STATES = ['pending','complete','failed'];
+// Character Hub level-up backups: GM-only copies flagged ashen-gate-character-hub.levelBackup. Never a playable character.
+export const LEVEL_BACKUP_ERROR='That is a level backup copy, not a playable character.';
+export function isLevelBackup(actor){return !!actor?.flags?.['ashen-gate-character-hub']?.levelBackup;}
 export function assertGM(user) {if (!user?.isGM) throw new Error('GM permission required.');}
 export function assertUI(user, enabled) {if (!user?.isGM && !enabled) throw new Error('Quest Log is hidden by the GM.');}
 export function cleanText(s) {return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}

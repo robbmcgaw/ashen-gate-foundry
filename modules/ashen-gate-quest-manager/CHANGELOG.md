@@ -1,3 +1,9 @@
+## 0.13.1 — 2026-10-21
+
+- Character Hub level-up backups ("<Name> - level X") no longer appear in the character selector or the individual-quest character picker, and are not counted as party reward recipients.
+- Assigning an individual quest to a backup, giving it a reward (Give rewards or drag onto its sheet) or saving character notes on it is refused: "That is a level backup copy, not a playable character."
+- Saved data: no change. No migration.
+
 ## 0.13.0 — 2026-10-21
 
 - Quest files can list item rewards (`outcomes.item_rewards`: `item_id`, `quantity`, `visibility`, `recipient`, GM-only `note`). They appear in the quest's Item rewards list and are given like any other reward.
