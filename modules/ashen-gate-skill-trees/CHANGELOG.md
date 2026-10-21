@@ -1,3 +1,9 @@
+## 0.19.3 — 2026-10-21
+
+- Tree board drops (GM edit mode) read the drag with the shared item-drop helper (`ag-item-drop/1`), so any normal Foundry Item drag works, including ones that don't carry plain JSON (e.g. General Manager's Browse tab).
+- A folder, a missing item or a non-Item (Actor, Journal) now gives a clear warning ("Drop items one at a time.", "Drop an item.", …). The perk rules are unchanged: feat only, a `PERK-*`/`POWER-*` id, the one world Item, no duplicates.
+- No change to unlocks, perk grants or saved data.
+
 ## 0.19.2 — 2026-10-21
 
 - Repo check only: the Tree appearance window (a custom dialog with the kit classes) is marked as allowed for the stricter UI lint, and the board-size CSS exemptions now give a full reason.

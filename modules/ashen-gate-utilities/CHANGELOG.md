@@ -1,3 +1,13 @@
+## 0.18.0 — 2026-10-21
+
+- **Present a shop** to all players (also those who log in later) or to chosen players: **Present…** on a shop row or in the editor, **Stop showing** to end it, **Open** to see it as players do. Rows show "Shown to all players" / "Shown to N players".
+- **Players buy:** the shop opens in its own window for the players it is shown to (and in a new player **Shops** tab → Open shops). **Buy…** asks how many, which of your characters gets it, and who pays (party purse or a character's coins), then shows the total, what you pay, the change and what is left before **Confirm purchase**. Refusals end "Nothing was charged."
+- **All or nothing on the GM client:** every purchase is checked again (Player Access, shops on, shown to you, item still for sale and unchanged, stock, your characters), then items, coins and the shop's stock and coins change in that order; a failure puts the earlier steps back, and the GM is whispered what to fix by hand if that fails too. One purchase at a time per shop; a repeated request is never carried out twice; a late GM answer is whispered to the buyer.
+- **Party purse purchases** use the party vote when *Party must accept when a player spends the party purse* is on (GM Setup → Shopping; follows the coin vote until saved), and are listed in stash History. The merchant can't make change: exact payment if possible, else refused, with a **Top up shop purse** button whispered to the GM.
+- **GM Setup → Shopping:** *Shops on for players* (off by default) and the purse vote above, saved with Save Changes.
+- **API** (`api.shops`): `present`, `stopShowing`, `presented` (GM); `open`, `forMe`, `quote`, `buy` (player or GM).
+- Saved data: new and additive only. A Journal **Utilities Shops (Player View)** (one page per presented shop, Observer only for the players it is shown to), two new world settings, a new stash History kind `shop-purchase`. Players never read the GM Data journal. No migration.
+
 ## 0.17.0 — 2026-10-21
 
 - **New Shops tab (GM only for now)**, between Party Inventory and Roll Tables, with two parts: **Shops** and **Shop editor**. Players see nothing new yet.
