@@ -14,7 +14,7 @@ export const richTooltipsAvailable = () => !!globalThis.game?.dnd5e?.tooltips;
 export function loadingSection(uuid) {
   const helper = globalThis.dnd5e?.utils?.loadingTooltip;
   if (typeof helper === 'function') return helper({uuid});
-  return `<section class="loading" data-uuid="${esc(uuid)}"><i class="fas fa-spinner fa-spin-pulse" inert></i></section>`;
+  return `<section class="loading" data-uuid="${esc(uuid)}"><i class="fa-solid fa-spinner fa-spin-pulse" inert></i></section>`;
 }
 
 /**

@@ -15,7 +15,7 @@ const str = v => v === undefined || v === null || v === '' ? null : String(v);
 /** dnd5e's lazy tooltip: its tooltip manager sees the loading section, fetches the uuid and fills in richTooltip(). */
 export function itemTooltipAttrs(uuid) {
   if (!uuid) return '';
-  const html = `<section class="loading" data-uuid="${esc(uuid)}"><i class="fas fa-spinner fa-spin-pulse"></i></section>`;
+  const html = `<section class="loading" data-uuid="${esc(uuid)}"><i class="fa-solid fa-spinner fa-spin-pulse"></i></section>`;
   return ` data-tooltip-html="${esc(html)}" data-tooltip-class="item-tooltip" data-tooltip-direction="LEFT"`;
 }
 

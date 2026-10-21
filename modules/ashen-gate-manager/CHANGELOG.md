@@ -1,3 +1,10 @@
+## 0.42.0 — 2026-10-21
+
+- Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.
+- **Size setting:** new per-device **Size** switch (Compact / Comfortable) in My Appearance and in the GM Appearance popover. It is a client setting (`uiSize`, this browser only), any player can change it, and it applies right away: Manager writes `data-ag-size` on the page and every Ashen Gate window follows. Compact is the default; without Manager every module stays Compact. The General Manager window opens 1.2× larger at Comfortable. `api.appearance.listSizes()` / `setSize()`; `getState()` gains `size`.
+- Rarity colours now come from the kit (Common is grey so it shows on light skins); Manager's own rarity pills keep their classes.
+- Stone Tablet and Tome Pages keep their own corners and shape the new kit parts.
+
 ## 0.41.2 — 2026-10-21
 
 - **Organize rules import checks the file first.** A file of the wrong kind (for example an Organize backup), with no rules list, with no rules or with an invalid rule is refused with the reason before anything is asked. It no longer asks "Replace with 0 rules?" first.

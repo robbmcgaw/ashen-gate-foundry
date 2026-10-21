@@ -1,3 +1,7 @@
+## 0.23.0 — 2026-10-21
+
+- Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.
+
 ## 0.22.1 — 2026-10-21
 
 - **Fix: Export then re-import no longer turns catalog values into baseline ones.** Export writes a list only when you (GM Setup) or a baseline file set it. Built-in and catalog lists, including catalog advantage tools (which checks never use), stay where they were after a re-import. The full table in effect is still in the file, under `inEffect`, which import ignores.

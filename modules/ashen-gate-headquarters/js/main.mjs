@@ -1,5 +1,5 @@
 import {MODULE_ID,emptyState,applyOperation,activeLock,site,rankConfig,stageFor,facilities,owned,validateDefinition,planFacilityImport} from './logic.mjs';
-import {confirmDialog} from './dialogs.mjs';
+import {confirmDialog} from './ag-dialogs.mjs';
 import {facilitiesPanel,facilityRow,listFacilitiesTab,DEFAULT_VIEW as FAC_VIEW} from './facilities-tab.mjs';
 import {ACCESS_CONTRACT,accessStatus,canOpenPlayerInterface,requireGMToSetAccess,requireInterfaceAccess} from './access.mjs';
 import {createPlayerIntentBridge,REQUEST_PATH,RECEIPT_FLAG,checkIntent} from './player-intent-bridge.mjs';

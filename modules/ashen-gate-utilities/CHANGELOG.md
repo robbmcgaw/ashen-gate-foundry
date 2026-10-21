@@ -1,3 +1,8 @@
+## 0.14.0 — 2026-10-21
+
+- Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.
+- Dialogs now come from the shared `ag-dialogs.mjs` (same behaviour, now skinned). Local result/check-bar classes renamed from `.ag-` to `.agu-` (no visual change).
+
 ## 0.13.2 — 2026-10-21
 
 - **New GM Setup setting: Use electrum** (world setting, default **off**). Off: electrum (ep) is left out of the party purse (cp/sp/gp/pp), Award Gold, coin Deposit/Take, Adjust Purse and the embedded stash (Character Hub); an item priced in ep shows the same value in gp/sp/cp. ep moves and awards are also refused in the API and on the GM client, so nothing new is ever made in electrum. On: everything as before.

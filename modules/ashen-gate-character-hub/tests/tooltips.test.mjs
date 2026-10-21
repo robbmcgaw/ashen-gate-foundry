@@ -34,7 +34,7 @@ test('dnd5e\'s loading section with the item UUID, its tooltip classes, and no d
   assert.match(a, /data-tooltip-class="dnd5e2 dnd5e-tooltip item-tooltip" data-tooltip-direction="LEFT"$/);
   assert.doesNotMatch(a, /title=/);
   delete globalThis.dnd5e;
-  assert.equal(loadingSection('x"y'), '<section class="loading" data-uuid="x&quot;y"><i class="fas fa-spinner fa-spin-pulse" inert></i></section>', 'same markup without the helper, escaped');
+  assert.equal(loadingSection('x"y'), '<section class="loading" data-uuid="x&quot;y"><i class="fa-solid fa-spinner fa-spin-pulse" inert></i></section>', 'same markup without the helper, escaped');
   installGlobals();
   assert.equal(richTooltipsAvailable(), false);
   assert.equal(tooltipAttrs('Actor.a.Item.b', 'Open b'), ' title="Open b"', 'plain title when dnd5e tooltips are not running');

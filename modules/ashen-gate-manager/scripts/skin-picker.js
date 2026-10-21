@@ -1,4 +1,4 @@
-// Appearance cards as a radio group: click or arrow keys choose, Space/Enter activate (cards are buttons).
+// Appearance cards (and the Size switch) as a radio group: click or arrow keys choose, Space/Enter activate (cards are buttons).
 const NEXT=['ArrowRight','ArrowDown'],PREV=['ArrowLeft','ArrowUp'];
 
 export function nextRadioIndex(key,index,count){
@@ -10,7 +10,8 @@ export function nextRadioIndex(key,index,count){
   return null;
 }
 
-export function bindSkinPicker(group,onChange){
+// valueKey: the dataset key holding each radio's value (skin cards: agSkinValue; Size switch: agSizeValue).
+export function bindSkinPicker(group,onChange,{valueKey='agSkinValue'}={}){
   if(!group)return;
   const radios=()=>[...group.querySelectorAll('[role="radio"]')];
   const select=(radio,focus)=>{
@@ -21,7 +22,7 @@ export function bindSkinPicker(group,onChange){
       r.classList?.toggle('is-selected',on);
     }
     if(focus)radio.focus?.();
-    onChange(radio.dataset.agSkinValue??'');
+    onChange(radio.dataset[valueKey]??'');
   };
   group.addEventListener('click',event=>{
     const radio=event.target?.closest?.('[role="radio"]');
