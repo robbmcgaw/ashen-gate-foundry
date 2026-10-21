@@ -152,4 +152,6 @@ if (globalThis.Hooks) {
   Hooks.on('ashenGateLedger.progressionChanged', data => { const actor = game.actors?.get?.(data?.actorId); if (actor) scheduleRender(actor); });
   // Ashen Gate | Cinders announces Cinder changes (bind, transfer, progress); Strain changes arrive as updateActor.
   Hooks.on('ashenGateCinder.changed', data => { for (const id of [data?.actorId, data?.fromActorId]) { const actor = game.actors?.get?.(id); if (actor) scheduleRender(actor); } });
+  // 0.19.0: Cinder sockets changed (attach, detach, swap, lock, count): redraw that character's Hub.
+  Hooks.on('ashenGateSockets.changed', data => { const actor = game.actors?.get?.(data?.actorId); if (actor) scheduleRender(actor); });
 }

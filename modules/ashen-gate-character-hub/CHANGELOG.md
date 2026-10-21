@@ -17,6 +17,18 @@
   - Actor flag `journey`;
   - a GM-only JournalEntry "Ashen Gate Hub • Journey (GM only)", created when the GM first hides an entry;
   - world setting `journeyQuestSeen`.
+## 0.19.0 — 2026-10-21
+
+- **Cinder sockets in the Cinders sub-tab (read only).** Under each Cinder the Hub shows its sockets from Ashen Gate | Cinders 0.3.0+ (`api.sockets.hosts`, contract `ag-sockets/1`):
+  - how many are in use out of how many;
+  - each attached item, with its modifiers in plain words (e.g. "Push cost −1");
+  - items marked "inactive: over capacity" when the Cinder has fewer sockets than items;
+  - empty sockets;
+  - "locked by the GM" when the GM has locked them.
+- Attaching, detaching and swapping stay in the Cinders window: the Hub has no socket buttons and stores nothing.
+- Redraws when sockets change (`ashenGateSockets.changed`).
+- With an older Cinders, or when Cinders refuses (Player Access hidden, not the owner), the panel shows as before, without sockets.
+- No saved data changes; no migration.
 
 ## 0.18.1 — 2026-10-21
 

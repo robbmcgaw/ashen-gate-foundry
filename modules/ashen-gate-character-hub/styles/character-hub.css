@@ -491,3 +491,8 @@
 .ag-character-hub .agch-journey__add { margin-bottom: var(--ag-space-2); padding: var(--ag-space-2); border: 1px dashed var(--ag-border-strong); border-radius: var(--ag-radius-sm); }
 .ag-character-hub .agch-journey__formbtns { display: flex; justify-content: space-between; gap: var(--ag-space-2); margin-left: auto; }
 .ag-character-hub .agch-journey__hide { display: inline-flex; gap: 4px; align-items: center; font-size: var(--ag-text-sm); color: var(--ag-muted); }
+/* 0.19.0: Cinder sockets (read only) */
+.ag-character-hub .agch-cinder__sockets { border-top: 1px solid var(--ag-border); margin-top: var(--ag-space-1); padding-top: var(--ag-space-1); }
+.ag-character-hub .agch-cinder__sockets-head { margin: 0 0 var(--ag-space-1); }
+.ag-character-hub .agch-socket.is-empty { opacity: .8; font-style: italic; }
+.ag-character-hub .agch-socket.is-inactive { opacity: .75; }

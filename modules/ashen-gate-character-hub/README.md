@@ -95,7 +95,7 @@ Each panel uses only that module's public API (`game.modules.get(id)?.api`) and 
 |---|---|---|
 | Profession Ledger | `getProfessions(actor)` (Ledger 0.18.0+); else `getProfessionProgress` per profession id from Skill Trees' `listTrees`. Plus `getKnownRecipes` | `open({actorId, view: 'individual'})` |
 | Skill Trees | `listTrees`, `actorProgress`, and `pointsSummary(actor)` (Skill Trees 0.13.0+) for points to spend / spent | `open({actorId})` |
-| Cinders (ashen-gate-cinders, 0.18.0) | `cinder.list(actor)`: the character's Cinders, powers and Push modes with cost and Backfire chance. **Push** uses `cinder.previewPush` for the confirmation, then `cinder.push` (a player's Push is rolled by the GM client) | `open({actorId})` |
+| Cinders (ashen-gate-cinders, 0.18.0) | `cinder.list(actor)`: the character's Cinders, powers and Push modes with cost and Backfire chance. **Push** uses `cinder.previewPush` for the confirmation, then `cinder.push` (a player's Push is rolled by the GM client). **Sockets** (0.19.0, Cinders 0.3.0+): `sockets.hosts(actor)` (contract `ag-sockets/1`), shown read-only under each Cinder: attached items with their modifiers, inactive ones over capacity, empty sockets, the GM lock. Changes happen in Cinders | `open({actorId})` |
 | Renown (ashen-gate-factions) | `getFactions` (the user's own filtered view) | `open()` |
 | Quest Log | `listVisible`, `tracking.getState` | `openObjective(id)` / `open()` |
 | Locations | `listLocations` (GM: revealed only) | `openLocation(id)` / `open()` |
