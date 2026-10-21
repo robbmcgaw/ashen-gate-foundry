@@ -190,10 +190,10 @@ test('GM window: Tree mode renders folders with counts, drop targets, create-ins
   let html = await asUser('gm', () => app._renderHTML());
   assert.match(html, /id="agl-tree" aria-pressed="true"/);
   assert.match(html, /data-folder="LOC-TEST-OVERWORLD"/);
-  assert.match(html, /title="1 directly inside, 5 in total">1 · 5</);
+  assert.match(html, /data-tooltip="1 directly inside, 5 in total" data-tooltip-class="ag-tooltip">1 · 5</);
   assert.match(html, /data-action="new-child" data-parent="LOC-TEST-OVERWORLD"/);
   assert.match(html, /data-action="tree-all" data-open="1"/);
-  const listPart = h => h.slice(0, h.indexOf('<section class="agl-detail">'));
+  const listPart = h => h.slice(0, h.indexOf('<section class="agl-detail'));
   assert.doesNotMatch(listPart(html), /\[TEST\] Guildhall/, 'folders start closed');
   LocationsApp.treeOpen.clear();
   app.select(ids.hall);
@@ -348,7 +348,7 @@ test('GM card: Who Can See It lists players with "shared by"; players get Share 
   const html = await asUser('gm', () => app._renderHTML());
   assert.match(html, /Who Can See It/);
   assert.match(html, /value="selected" checked/);
-  assert.match(html, /value="p2" checked> \[TEST\] Bram<\/label>\s*<span class="ag-badge ag-badge--warn" title="Untick to undo">shared by \[TEST\] Ava/);
+  assert.match(html, /value="p2" checked> \[TEST\] Bram<\/label>\s*<span class="ag-badge ag-badge--warn" data-tooltip="Untick to undo" data-tooltip-class="ag-tooltip">shared by \[TEST\] Ava/);
   assert.match(html, /data-action-change="audience-sharing" checked/);
   const pApp = new LocationsApp();
   const pHtml = await asUser('p1', () => { pApp.select(secret.pinKey); return pApp._renderHTML(); });
