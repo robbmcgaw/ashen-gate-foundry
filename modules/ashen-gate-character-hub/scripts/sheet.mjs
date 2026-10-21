@@ -33,6 +33,7 @@ export const ACTIONS = {
   'ag-jump': (s, t) => { s.tab = 'ashen-gate'; s.agTab = t.dataset.partner; s.menu = null; return s.render(); },
   'hp-apply': (s, t) => hpApply(s, t),
   'item-more': (s, t) => toggleMore(s, t),
+  'list-filter': (s, t) => { setListFilter(s, t.dataset.tab, t.dataset.key, t.dataset.value); return s.render(); },
   'mark-apply': async (s, t) => { const r = await marks.applyMark(s.document, t.dataset.mark); if (r.ok) s.render(); return r; },
   'mark-remove': async (s, t) => { const r = await marks.removePlaced(s.document, t.dataset.scene, t.dataset.token, t.dataset.mark); if (r.ok) s.render(); return r; },
   'hotbar-use': (s, t, e) => hotbar.useHotbarSlot(s.document, t.dataset.hotbarSlot, e),
@@ -97,6 +98,18 @@ export function applyFilter(root, text) {
     const cards = [...sec.querySelectorAll('.agch-card')];
     sec.classList.toggle('is-filtered-out', !!q && cards.length > 0 && cards.every(r => r.hidden));
   }
+}
+/**
+ * Magic/Features filters (kept on the open sheet). level and action pick one value (the same again clears it);
+ * the others switch on and off; 'clear' turns everything off.
+ */
+export function setListFilter(sheet, tab, key, value) {
+  if (!['magic', 'features'].includes(tab)) return null;
+  const f = {...(sheet.listFilters[tab] ?? {})};
+  if (key === 'clear') sheet.listFilters[tab] = {};
+  else if (key === 'level' || key === 'action') { const v = key === 'level' ? Number(value) : String(value); f[key] = f[key] === v ? null : v; sheet.listFilters[tab] = f; }
+  else if (['prepared', 'ritual', 'castable', 'uses', 'left'].includes(key)) { f[key] = !f[key]; sheet.listFilters[tab] = f; }
+  return sheet.listFilters[tab];
 }
 /** "More" on a card: shows or hides its full description in place; the sheet remembers it until it closes. */
 function toggleMore(sheet, target) {
@@ -193,6 +206,8 @@ export function createHubSheetClass(Base) {
     filters = {};
     /** Cards whose "More" is open (detail keys), kept across re-renders while the sheet is open. */
     expanded = new Set();
+    /** Magic and Features filters while the sheet is open: {magic: {level, prepared, ritual, castable}, features: {action, uses, left}}. */
+    listFilters = {magic: {}, features: {}};
 
     get hubContext() {
       const actor = this.document, user = globalThis.game?.user;

@@ -130,7 +130,7 @@ test('sheet renders header, tabs and Open native sheet; observers get a view-onl
   assert.doesNotMatch(html, /data-edit="hp\./, 'no HP text inputs; the bar opens the editor');
   assert.match(html, /agch-hp__text">20 \/ 24 HP <span class="agch-hp__temptext">\(\+5 TEMP\)<\/span>/);
   assert.match(html, /data-action="hp-damage"[\s\S]*data-hp-amount[\s\S]*data-action="hp-heal"/, 'minus, amount, plus');
-  assert.match(html, /agch-hp__row">[\s\S]*Hit Dice[\s\S]*Exhaustion/, 'hit dice and exhaustion sit under the HP bar');
+  assert.match(html, /agch-hp__row">[\s\S]*Hit Dice<\/span> <b>2 \/ 3<\/b>[\s\S]*fa-skull[\s\S]*Exhaustion<\/span>[\s\S]*<b>1<\/b>/, 'hit dice and exhaustion (skull, − n +) sit under the HP bar');
   assert.match(html, /agch-ac__value">15</);
   assert.match(html, /data-tab="overview" data-ag-always aria-selected="true" class="agch-rail__tab active" title="Overview" aria-label="Overview"/);
   assert.match(html, /agch-pane__title"><i class="fa-solid fa-user" aria-hidden="true"><\/i> Overview/);

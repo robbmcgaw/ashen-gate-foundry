@@ -98,7 +98,7 @@ test('Combat: no initiative in the tab (it is on the left), weapons and actions 
   const {html} = await renderTab('combat');
   assert.doesNotMatch(body(html), /roll-initiative|Roll initiative/);
   assert.match(html, /agch-tile[^>]*data-config="initiative"[\s\S]*data-action="roll-initiative"/, 'initiative still on the character column');
-  assert.match(body(html), /<span>Damage<\/span><span>To hit<\/span><span>Range<\/span><span>Properties<\/span>/);
+  assert.match(body(html), /<span>DMG\/HEAL<\/span><span>To hit<\/span><span>Range<\/span><span>Properties<\/span>/);
   assert.match(body(html), /data-action="item-use" data-id="sw"/);
   assert.match(body(html), /Not equipped/);
 });
@@ -131,7 +131,7 @@ test('group and sort choices: per user, safe defaults, unknown values refused', 
   assert.deepEqual(sortRows(rows, 'name').map(r => r.name), ['A', 'B', 'C']);
   assert.deepEqual(sortRows(rows, 'level').map(r => r.name), ['C', 'B', 'A']);
   assert.deepEqual(sortRows(rows, 'prepared').map(r => r.name), ['C', 'A', 'B']);
-  assert.ok(ORGANIZE.magic.sorts.some(([k]) => k === 'school') && ORGANIZE.features.groups.length === 3);
+  assert.ok(ORGANIZE.magic.sorts.some(([k]) => k === 'school') && ORGANIZE.features.groups.length === 5);
 });
 
 test('Magic: toolbar with search, group and sort; group by school; columns follow the grouping', async () => {
@@ -156,10 +156,10 @@ test('Magic: toolbar with search, group and sort; group by school; columns follo
   assert.match(b, /All spells[\s\S]*\[TEST\] Bless[\s\S]*\[TEST\] Fire Bolt[\s\S]*\[TEST\] Alarm/, 'prepared first, then level, then name');
 });
 
-test('Features: group by use time, sort by uses; Use kept', async () => {
+test('Features: group by action type, sort by uses; Use kept', async () => {
   installGlobals({user: users.owner, settings: {listSort: {features: {group: 'activation', sort: 'uses'}}}});
   const b = body((await renderTab('features')).html);
-  assert.match(b, /data-key="features:activation-1BonusAction"[\s\S]*data-key="features:activation-Special"/);
+  assert.match(b, /data-key="features:activation-bonus"[\s\S]*data-key="features:activation-special"/, 'grouped by dnd5e activation type');
   assert.match(b, /<span>Type<\/span><span>Uses<\/span><span>Recovery<\/span>/);
   assert.match(b, /data-action="item-use" data-id="su"/);
 });

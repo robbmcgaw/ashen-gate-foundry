@@ -13,7 +13,7 @@ export function itemRow(item) {
   const s = item.system ?? {}, uses = s.uses ?? {};
   const details = plainText(s.description?.value), {summary, more} = summaryOf(details);
   return {
-    facts: itemFacts(item), summary, more, details, sort: num(item.sort), uuid: item.uuid ?? (item.parent?.uuid ? `${item.parent.uuid}.Item.${item.id}` : null),
+    facts: itemFacts(item), summary, more, details, sort: num(item.sort), actType: activitiesOf(item)[0]?.activation?.type ?? '', uuid: item.uuid ?? (item.parent?.uuid ? `${item.parent.uuid}.Item.${item.id}` : null),
     id: item.id, name: item.name, img: item.img, type: item.type, quantity: num(s.quantity, 1),
     equippable: 'equipped' in s, equipped: !!s.equipped,
     canAttune: s.attunement === 'required' || s.attunement === 'optional', attunement: s.attunement ?? '', attuned: !!s.attuned,
@@ -73,7 +73,8 @@ export function spellsData(actor) {
     const level = num(sp.system?.level);
     if (!levels.has(level)) levels.set(level, []);
     const prepared = num(sp.system?.prepared);
-    levels.get(level).push({...itemRow(sp), level, prepared, always: prepared === 2, canPrepare: sp.system?.canPrepare === true && level > 0});
+    levels.get(level).push({...itemRow(sp), level, prepared, always: prepared === 2, canPrepare: sp.system?.canPrepare === true && level > 0,
+      usesSlots: typeof sp.system?.usesSlots === 'boolean' ? sp.system.usesSlots : level > 0});
   }
   const slotOf = level => { const s = slots[`spell${level}`]; return s && num(s.max) > 0 ? {value: num(s.value), max: num(s.max)} : null; };
   const out = [...levels.keys()].sort((a, b) => a - b).map(level => ({level, label: labelOf(cfg.spellLevels?.[level]) || (level ? `Level ${level}` : 'Cantrips'), slots: level ? slotOf(level) : null, spells: levels.get(level)}));
@@ -81,20 +82,29 @@ export function spellsData(actor) {
   out.sort((a, b) => a.level - b.level);
   const p = slots.pact;
   const pact = p && num(p.max) > 0 ? {level: num(p.level), value: num(p.value), max: num(p.max)} : null;
-  return {levels: out, pact};
+  const slotsLeft = Object.fromEntries(out.filter(l => l.slots).map(l => [l.level, l.slots.value]));
+  return {levels: out, pact, slotsLeft};
 }
 
 // ---------- Features ----------
 
+/** Where a feature came from, the way dnd5e's own sheet names it: the item that granted it (flags.dnd5e.advancementOrigin). */
+export function featureSource(actor, item) {
+  const origin = item.flags?.dnd5e?.advancementOrigin ?? (typeof item.getFlag === 'function' ? item.getFlag('dnd5e', 'advancementOrigin') : null);
+  const granting = origin ? actor.items?.get?.(String(origin).split('.')[0]) : null;
+  return granting ? {sourceId: granting.id, sourceName: granting.name} : {sourceId: '', sourceName: ''};
+}
+
 export function featuresData(actor) {
   const cfg = dnd5eConfig().featureTypes ?? {};
   const items = [...(actor.items ?? [])].sort(bySortThenName);
-  const identity = items.filter(i => ['class', 'subclass', 'background', 'race'].includes(i.type)).map(i => ({...itemRow(i), detail: i.type === 'class' ? `Level ${num(i.system?.levels)}` : i.type === 'race' ? 'Species' : i.type[0].toUpperCase() + i.type.slice(1)}));
+  const ID_ORDER = ['class', 'subclass', 'race', 'background'];
+  const identity = items.filter(i => ID_ORDER.includes(i.type)).sort((a, b) => ID_ORDER.indexOf(a.type) - ID_ORDER.indexOf(b.type)).map(i => ({...itemRow(i), detail: i.type === 'class' ? `Level ${num(i.system?.levels)}` : i.type === 'race' ? 'Species' : i.type[0].toUpperCase() + i.type.slice(1)}));
   const groups = new Map();
   for (const f of items.filter(i => i.type === 'feat')) {
     const key = f.system?.type?.value || 'other';
     if (!groups.has(key)) groups.set(key, {key, label: labelOf(cfg[key]) || (key === 'other' ? 'Other Features' : key), items: []});
-    groups.get(key).items.push(itemRow(f));
+    groups.get(key).items.push({...itemRow(f), ...featureSource(actor, f)});
   }
   return {identity, groups: [...groups.values()]};
 }
