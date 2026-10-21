@@ -1,3 +1,25 @@
+## 0.14.0 — 2026-10-21
+
+From Robb's feedback:
+- **Class, species and background** are now one small card at the top of the character (class, subclass, species, background; click one to open it). They're no longer a group in Features, and the subtitle under the name just shows the level.
+- **Features:** Favourites is the first group in the list.
+- **Hit dice and exhaustion** are tidied into one line under the HP bar:
+  - Hit dice: a d20 icon with dice left, plus the rest buttons.
+  - Exhaustion: a skull icon (red when above 0) with − level +.
+- **Combat:** the damage column is now **DMG/HEAL** (dnd5e's damage labels include healing).
+- **Favourite star:** it has its own fixed column before the item image in every list tab, and never overlaps the image. Combat and Inventory rows get the star too (dnd5e's own favourites).
+- **Magic:**
+  - Group by spell level, school, **prepared**, **ritual** or **action type** (Action, Bonus Action, Reaction first, then dnd5e's other activation types).
+  - Sort by name, level, school, prepared first, **ritual first** or **action type**.
+  - The spell-slot buttons at the top (e.g. "Level 1 0 / 4") are clickable: one shows only that level; click again for all.
+  - Toggles: **Prepared only**, **Ritual only**, **Castable only**. A spell counts as castable when it's a cantrip, or it's prepared (or its method needs no preparing) and the character has a dnd5e spell slot of its level or higher left (pact slots count). A spell that doesn't use slots needs uses left.
+- **Features:**
+  - Group by feature type, **action type**, **source** (the class, species or other item that granted it, from dnd5e's advancement origin) or **uses**.
+  - Sort by name, type, has-uses first or **action type**.
+  - Filters: one button per action type, **Has uses**, **Uses left**.
+- Filters are kept while the sheet is open and aren't saved. A Features grouping saved as "Use time" now groups by action type.
+- No saved data changes.
+
 ## 0.13.0 — 2026-10-21
 
 Combat helpers (part 4 of Robb's alpha feedback). Tracking only: nothing is automated and no rules are worked out by the Hub.

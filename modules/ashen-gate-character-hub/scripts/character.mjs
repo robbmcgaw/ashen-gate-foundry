@@ -8,7 +8,7 @@
 import {esc, signed, SLOT_PLACEHOLDERS, placeholderKind} from './constants.mjs';
 import {btn} from './buttons.mjs';
 import {headerData, abilitiesData} from './data.mjs';
-import {equipmentLayout, equipChoices, SLOTS} from './items.mjs';
+import {equipmentLayout, equipChoices, SLOTS, featuresData} from './items.mjs';
 import {partyStashUsable} from './partners.mjs';
 import {canSee, hiddenReason, hiddenBadge} from './visibility.mjs';
 import {configAttrs} from './configure.mjs';
@@ -138,12 +138,21 @@ function hitDiceHtml(h, off) {
   const rests = canSee('rest'), restHidden = hiddenReason('rest');
   const restTip = what => `${what}${restHidden && rests ? ` (hidden from players: ${restHidden})` : ''}`;
   const restBtns = rests ? `${btn('rest', '', {kind: 'ghost', extra: 'agch-restbtn', icon: 'fa-solid fa-mug-hot', data: {type: 'short'}, title: restTip('Short Rest (dnd5e dialog: spend hit dice)'), disabled: off})}${btn('rest', '', {kind: 'ghost', extra: 'agch-restbtn', icon: 'fa-solid fa-campground', data: {type: 'long'}, title: restTip('Long Rest (dnd5e dialog)'), disabled: off})}${restHidden ? '<i class="fa-solid fa-eye-slash agch-muted" aria-hidden="true"></i>' : ''}` : '';
-  const hd = h.hd ? `<span title="Hit dice left${off ? '' : ' (right-click to configure)'}"${off ? '' : configAttrs('hitDice')}>Hit Dice <b>${h.hd.value} / ${h.hd.max}</b></span>` : rests ? 'Rest' : '';
-  return hd || restBtns ? `<span class="agch-pill">${hd}${restBtns}</span>` : '';
+  const hd = h.hd ? `<span class="agch-hd" title="Hit Dice left${off ? '' : ' (right-click to configure)'}"${off ? '' : configAttrs('hitDice')}><i class="fa-solid fa-dice-d20" aria-hidden="true"></i><span class="agch-vh">Hit Dice</span> <b>${h.hd.value} / ${h.hd.max}</b></span>` : '';
+  return hd || restBtns ? `<span class="agch-pill agch-pill--hd">${hd}${restBtns}</span>` : '';
 }
+/** Exhaustion on one line: a skull, − level +. */
 function exhaustionHtml(h, off) {
   const exh = h.exhaustion;
-  return `<span class="agch-pill">Exhaustion ${btn('exhaustion', '', {kind: 'ghost', icon: 'fa-solid fa-minus', data: {step: -1}, title: 'Reduce exhaustion', disabled: off || exh.value <= 0})}<b>${exh.value} / ${exh.max}</b>${btn('exhaustion', '', {kind: 'ghost', icon: 'fa-solid fa-plus', data: {step: 1}, title: 'Increase exhaustion', disabled: off || exh.value >= exh.max})}</span>`;
+  return `<span class="agch-pill agch-pill--exh${exh.value ? ' is-on' : ''}" title="Exhaustion ${exh.value} of ${exh.max}"><i class="fa-solid fa-skull" aria-hidden="true"></i><span class="agch-vh">Exhaustion</span>${btn('exhaustion', '', {kind: 'ghost', icon: 'fa-solid fa-minus', data: {step: -1}, title: 'Reduce exhaustion', disabled: off || exh.value <= 0})}<b>${exh.value}</b>${btn('exhaustion', '', {kind: 'ghost', icon: 'fa-solid fa-plus', data: {step: 1}, title: 'Increase exhaustion', disabled: off || exh.value >= exh.max})}</span>`;
+}
+
+/** Class, species and background as one small card at the top (they rarely change). Click one to open its sheet. */
+function identityCard(actor) {
+  const rows = featuresData(actor).identity;
+  if (!rows.length) return '';
+  return `<section class="agch-idcard" aria-label="Class, species and background">${rows.map(r => `<button type="button" class="agch-idcard__item" data-action="item-sheet" data-id="${esc(r.id)}" data-ag-always title="Open ${esc(r.name)}">
+    <img src="${esc(r.img)}" alt=""><span class="agch-idcard__text"><span class="agch-idcard__name">${esc(r.name)}</span><span class="agch-idcard__detail">${esc(r.detail)}</span></span></button>`).join('')}</section>`;
 }
 
 function hpHtml(h, off, menu) {
@@ -198,9 +207,10 @@ export function characterPanelHtml(ctx) {
   const rc = off ? '' : ' (right-click to configure)';
   return `<aside class="agch-char" aria-label="Character">
     <div class="agch-ident">
-      <div class="agch-ident__text"><h2 class="agch-name">${esc(h.name)}</h2><p class="agch-sub">${h.species ? `${esc(h.species)} · ` : ''}${classLine}${h.level ? ` · Level ${h.level}` : ''}</p></div>
+      <div class="agch-ident__text"><h2 class="agch-name">${esc(h.name)}</h2><p class="agch-sub">${featuresData(actor).identity.length ? (h.level ? `Level ${h.level}` : '') : `${h.species ? `${esc(h.species)} · ` : ''}${classLine}${h.level ? ` · Level ${h.level}` : ''}`}</p></div>
       ${btn('inspiration', '', {extra: `agch-insp${h.inspiration ? ' is-active' : ''}`, icon: 'fa-solid fa-star', title: h.inspiration ? 'Inspiration (click to spend)' : 'No inspiration (click to gain)', disabled: off})}
     </div>
+    ${identityCard(actor)}
     ${canSee('equipment') ? dollHtml(ctx, h) : ''}
     <div class="agch-tiles${canSee('equipment') ? '' : ' agch-tiles--4'}">
       ${canSee('equipment') ? '' : tile('AC', `<span class="agch-tile__value">${h.ac}</span>`, {title: `Armor Class${rc}`, attrs: cfg('armorClass')})}

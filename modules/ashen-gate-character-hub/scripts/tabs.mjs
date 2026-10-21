@@ -10,7 +10,7 @@ import {headerData} from './data.mjs';
 import {canSee, hiddenBadge} from './visibility.mjs';
 import {sectionHtml, sectionKey} from './collapse.mjs';
 import {cardList, COLUMNS as C, containerLead, containerAttrs} from './cards.mjs';
-import {ORGANIZE, listChoice, sortRows, groupRows} from './organize.mjs';
+import {ORGANIZE, listChoice, sortRows, groupRows, GROUP_BY, orderGroups, filterRows, FILTERS, actionLabel} from './organize.mjs';
 import {favoritesSupported, isFavorite} from './item-actions.mjs';
 
 const empty = text => `<p class="ag-empty">${esc(text)}</p>`;
@@ -44,10 +44,12 @@ function combatTab(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, d = combatData(actor), h = headerData(actor), expanded = sheet?.expanded;
   const top = `<div class="agch-toolbar">${searchBox(ctx, 'weapons and actions')}
     ${h.hp.value <= 0 ? btn('roll-death', 'Death save', {kind: 'danger', icon: 'fa-solid fa-skull', disabled: off}) : ''}</div>`;
-  const weaponCols = [C.damage, C.toHit, C.range, C.properties], actionCols = [C.range, C.damage, C.uses, C.recovery];
+  // dnd5e's damage labels include healing (heal activities), so the column says both.
+  const dmg = {...C.damage, label: 'DMG/HEAL'};
+  const weaponCols = [dmg, C.toHit, C.range, C.properties], actionCols = [C.range, dmg, C.uses, C.recovery];
   const weapons = d.weapons.length ? cardList(d.weapons, weaponCols, {expanded, listKey: 'combat-weapons',
-    card: w => ({controls: useBtn(w, off), badges: `${w.equipped ? '' : '<span class="ag-badge">Not equipped</span>'}${attunedBadge(w)}`})}) : empty('No weapons.');
-  const groups = d.groups.map(g => sectionHtml(sectionKey('combat', g.key), esc(g.label), cardList(g.items, actionCols, {expanded, listKey: `combat-${g.key}`, card: r => ({controls: useBtn(r, off)})}))).join('');
+    card: w => ({controls: useBtn(w, off), star: starBtn(actor, w, off), badges: `${w.equipped ? '' : '<span class="ag-badge">Not equipped</span>'}${attunedBadge(w)}`})}) : empty('No weapons.');
+  const groups = d.groups.map(g => sectionHtml(sectionKey('combat', g.key), esc(g.label), cardList(g.items, actionCols, {expanded, listKey: `combat-${g.key}`, card: r => ({controls: useBtn(r, off), star: starBtn(actor, r, off)})}))).join('');
   return `${top}${sectionHtml(sectionKey('combat', 'weapons'), 'Weapons', weapons)}${groups}
     <p class="agch-muted agch-hint">Use opens dnd5e's own usage dialog: attacks, damage, targets and resource use happen there. Initiative rolls from the tile on the left.</p>`;
 }
@@ -64,7 +66,7 @@ function inventoryTab(ctx) {
     r.canAttune ? btn('item-attune', r.attuned ? 'Unattune' : 'Attune', {kind: 'sm', data: {id: r.id, attuned: r.attuned ? 0 : 1}, title: r.attunement === 'optional' ? 'Attunement optional' : 'Requires attunement', disabled: off}) : '',
     toParty ? btn('item-deposit', '', {kind: 'sm', icon: 'fa-solid fa-people-carry-box', data: {id: r.id}, title: `Move ${r.name} to the party stash`, disabled: off}) : ''
   ].join('');
-  const card = r => ({controls: controls(r), lead: containerLead(r), badges: attunedBadge(r)});
+  const card = r => ({controls: controls(r), lead: containerLead(r), star: starBtn(actor, r, off), badges: attunedBadge(r)});
   // A container's contents sit in a folding row under it (fold state shared with headings).
   const after = r => r.contents?.length ? `<li class="agch-contents"${containerAttrs(r)}>${cardList(r.contents, columns, {card, expanded, listKey: `inv-${r.id}`})}</li>` : '';
   const groups = d.groups.map(g => sectionHtml(sectionKey('inventory', g.type), esc(g.label), cardList(g.items, columns, {card, after, expanded, listKey: `inv-${g.type}`}))).join('') || empty('No items.');
@@ -84,49 +86,64 @@ function inventoryShell(ctx) {
     ${party ? partyStashHtml(ctx.actor) : inventoryTab(ctx)}`;
 }
 
+// ---------- Filters (Magic, Features) ----------
+
+const filterBtn = (tab, key, value, label, on, title = '') => `<button type="button" class="agch-filter" data-action="list-filter" data-tab="${tab}" data-key="${key}" data-value="${esc(value)}" data-ag-always aria-pressed="${on}"${title ? ` title="${esc(title)}"` : ''}>${label}</button>`;
+/** Toggle buttons for a tab's filters, plus Clear when any is on. f is the sheet's filter state for the tab. */
+function filterToggles(tab, f) {
+  const any = Object.values(f).some(v => v !== null && v !== undefined && v !== false);
+  return `${FILTERS[tab].map(([k, label]) => filterBtn(tab, k, '1', esc(label), !!f[k])).join('')}${any ? `<button type="button" class="agch-filter agch-filter--clear" data-action="list-filter" data-tab="${tab}" data-key="clear" data-ag-always>Clear filters</button>` : ''}`;
+}
+
 // ---------- Magic ----------
 function magicTab(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, d = spellsData(actor), expanded = sheet?.expanded;
   if (!d.levels.length && !d.pact) return empty('No spells.');
-  const {group, sort} = listChoice('magic');
+  const {group, sort} = listChoice('magic'), f = sheet?.listFilters?.magic ?? {};
   const prep = s => s.always ? '<span class="ag-badge" title="Always prepared">Always</span>'
     : s.canPrepare ? btn('spell-prepare', s.prepared ? 'Prepared' : 'Prepare', {kind: s.prepared ? 'primary' : 'sm', data: {id: s.id}, title: s.prepared ? 'Unprepare' : 'Prepare', disabled: off}) : '';
   const columns = [...(group === 'level' ? [] : [{...C.level, render: r => esc(r.facts.level || (r.level ? `Level ${r.level}` : 'Cantrip'))}]), ...(group === 'school' ? [] : [C.school]), C.castTime, C.range, C.duration, C.components];
   const card = s => ({controls: `${prep(s)}${btn('item-use', 'Cast', {kind: 'sm', icon: 'fa-solid fa-wand-sparkles', data: {id: s.id}, title: `Cast ${s.name}`, disabled: off})}`, star: starBtn(actor, s, off)});
-  const all = d.levels.flatMap(l => l.spells);
+  const all = d.levels.flatMap(l => l.spells), shown = filterRows(all, f, {slotsLeft: d.slotsLeft, pact: d.pact});
   const slotBadge = l => l.slots ? ` <span class="ag-badge" title="Slots left">${pips(l.slots.value, l.slots.max)} slots</span>` : '';
-  const pact = d.pact ? `<h3 class="agch-heading">Pact Magic <span class="ag-badge">Level ${d.pact.level} · ${pips(d.pact.value, d.pact.max)} slots</span></h3>` : '';
-  const slotStrip = group === 'level' ? '' : (() => { const ls = d.levels.filter(l => l.slots); return ls.length ? `<p class="agch-slotstrip">${ls.map(l => `<span class="ag-badge" title="${esc(l.label)} slots left">${esc(l.label)} ${pips(l.slots.value, l.slots.max)}</span>`).join(' ')}</p>` : ''; })();
+  // Spell-level buttons (dnd5e's slots): click to show only that level, again to show all.
+  const strip = `<div class="agch-slotstrip" role="group" aria-label="Show one spell level">${d.levels.filter(l => l.spells.length || l.slots).map(l =>
+    filterBtn('magic', 'level', String(l.level), `${esc(l.label)}${l.slots ? ` <b>${pips(l.slots.value, l.slots.max)}</b>` : ''}`, f.level !== null && f.level !== undefined && Number(f.level) === l.level, `Show only ${l.label}${l.slots ? ` (${l.slots.value} of ${l.slots.max} slots left)` : ''}`)).join('')}
+    ${d.pact ? `<span class="ag-badge" title="Pact Magic slots">Pact (level ${d.pact.level}) ${pips(d.pact.value, d.pact.max)}</span>` : ''}</div>`;
   let sections;
   if (group === 'level') {
-    sections = d.levels.map(l => sectionHtml(sectionKey('magic', l.level), `${esc(l.label)}${slotBadge(l)}`,
-      l.spells.length ? cardList(sortRows(l.spells, sort), columns, {card, expanded, listKey: `magic-${l.level}`}) : empty('No spells at this level.'))).join('');
+    sections = d.levels.filter(l => f.level === null || f.level === undefined || Number(f.level) === l.level).map(l => {
+      const rows = sortRows(shown.filter(s => s.level === l.level), sort);
+      return rows.length || !l.spells.length ? sectionHtml(sectionKey('magic', l.level), `${esc(l.label)}${slotBadge(l)}`, rows.length ? cardList(rows, columns, {card, expanded, listKey: `magic-${l.level}`}) : empty('No spells at this level.')) : '';
+    }).join('');
   } else {
-    const groups = groupRows(sortRows(all, sort), r => group === 'school' ? {key: r.facts.school || 'none', label: r.facts.school || 'No school'} : null, {allLabel: 'All spells'});
-    if (group === 'school') groups.sort((a, b) => a.label.localeCompare(b.label));
+    const groups = groupRows(sortRows(shown, sort), group === 'none' ? () => null : GROUP_BY[group], {allLabel: 'All spells'});
+    orderGroups(groups, group);
     sections = groups.map(g => sectionHtml(sectionKey('magic', group, g.key), esc(g.label), cardList(g.items, columns, {card, expanded, listKey: `magic-${group}-${g.key}`}))).join('');
   }
-  return `<div class="agch-toolbar">${searchBox(ctx, 'spells')}${organizeSelects('magic')}</div>${slotStrip}${pact}
-    ${favouritesSection(actor, 'magic', sortRows(all, sort), columns, card, expanded)}${sections}
-    <p class="agch-muted agch-hint">Cast opens dnd5e's casting dialog (slot level, upcasting and consumption). The star is dnd5e's own favourite (also on the standard sheet). Full spell preparation is on the native sheet.</p>`;
+  return `<div class="agch-toolbar">${searchBox(ctx, 'spells')}${organizeSelects('magic')}</div>${strip}
+    <div class="agch-filters" role="group" aria-label="Spell filters">${filterToggles('magic', {...f, level: null})}</div>
+    ${favouritesSection(actor, 'magic', sortRows(shown, sort), columns, card, expanded)}${sections || empty('No spells match these filters.')}
+    <p class="agch-muted agch-hint">Cast opens dnd5e's casting dialog (slot level, upcasting and consumption). Castable only: cantrips, and prepared spells with a slot of their level or higher left. The star is dnd5e's own favourite (also on the standard sheet).</p>`;
 }
 
 // ---------- Features ----------
 function featuresTab(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, d = featuresData(actor), expanded = sheet?.expanded;
-  const {group, sort} = listChoice('features');
-  const identity = d.identity.length ? cardList(d.identity, [{key: 'detail', label: 'Detail', render: r => esc(r.detail)}], {expanded, listKey: 'features-identity'}) : '';
+  const {group, sort} = listChoice('features'), f = sheet?.listFilters?.features ?? {};
   const columns = [...(group === 'type' ? [] : [{...C.type, render: r => esc(r.typeLabel || r.facts.type || '—')}]), ...(group === 'activation' ? [] : [C.activation]), C.uses, C.recovery];
   const card = r => ({controls: useBtn(r, off), star: starBtn(actor, r, off)});
-  const all = d.groups.flatMap(g => g.items.map(r => ({...r, typeKey: g.key, typeLabel: g.label})));
-  const groups = group === 'type' ? d.groups.map(g => ({key: g.key, label: g.label, items: sortRows(all.filter(r => r.typeKey === g.key), sort)}))
-    : groupRows(sortRows(all, sort), r => group === 'activation' ? {key: r.facts.activation || 'none', label: r.facts.activation || 'No use time'} : null, {allLabel: 'All features'});
-  if (group === 'activation') groups.sort((a, b) => (a.key === 'none') - (b.key === 'none') || a.label.localeCompare(b.label));
+  const all = d.groups.flatMap(g => g.items.map(r => ({...r, typeKey: g.key, typeLabel: g.label}))), shown = filterRows(all, f);
+  const groups = group === 'type' ? d.groups.map(g => ({key: g.key, label: g.label, items: sortRows(shown.filter(r => r.typeKey === g.key), sort)})).filter(g => g.items.length)
+    : orderGroups(groupRows(sortRows(shown, sort), group === 'none' ? () => null : GROUP_BY[group], {allLabel: 'All features'}), group);
   const sections = groups.map(g => sectionHtml(sectionKey('features', group === 'type' ? g.key : `${group}-${g.key}`), esc(g.label), cardList(g.items, columns, {card, expanded, listKey: `features-${group}-${g.key}`}))).join('');
+  // Action-type buttons for the dnd5e activation types these features have.
+  const types = orderGroups([...new Set(all.map(r => r.actType || 'none'))].map(k => ({key: k, label: actionLabel(k === 'none' ? '' : k)})), 'action').map(g => g.key);
+  const actBtns = types.length > 1 ? types.map(t => filterBtn('features', 'action', t, esc(actionLabel(t === 'none' ? '' : t)), f.action === t, `Show only ${actionLabel(t === 'none' ? '' : t)}`)).join('') : '';
   return `<div class="agch-toolbar">${searchBox(ctx, 'features')}${organizeSelects('features')}</div>
-    ${identity ? sectionHtml(sectionKey('features', 'identity'), 'Class, Species &amp; Background', identity) : ''}
-    ${favouritesSection(actor, 'features', sortRows(all, sort), columns, card, expanded)}${sections || empty('No features.')}
-    <p class="agch-muted agch-hint">Level up and advancement choices are on the native sheet. The star is dnd5e's own favourite (also on the standard sheet).</p>`;
+    <div class="agch-filters" role="group" aria-label="Feature filters">${actBtns}${filterToggles('features', f)}</div>
+    ${favouritesSection(actor, 'features', sortRows(shown, sort), columns, card, expanded)}${sections || empty(all.length ? 'No features match these filters.' : 'No features.')}
+    <p class="agch-muted agch-hint">Class, species and background are on the card at the top of the character. Level up and advancement choices are on the native sheet. The star is dnd5e's own favourite (also on the standard sheet).</p>`;
 }
 
 export const ITEM_TABS = [
