@@ -9,6 +9,7 @@ import {speedsData} from './data.mjs';
 import {tooltipAttrs, itemUuid} from './tooltips.mjs';
 import {PARTS, PRESETS, readVisibility, hiddenReason} from './visibility.mjs';
 import {sectionHtml, sectionKey, toggleButton, bodyAttrs} from './collapse.mjs';
+import {isBackup} from './level-backup.mjs';
 
 const itemOptions = (items, placeholder) => `<option value="">${esc(placeholder)}</option>${items.map(i => `<option value="${esc(i.id)}">${esc(i.name)}</option>`).join('')}`;
 const GIVES = {key: 'gives', label: 'Gives', render: r => esc(r.gives || '—')};
@@ -92,7 +93,7 @@ export function companionsTab({actor, editable}) {
   const mount = d.mount ? mountCard(d.mount, {off, free, actor}) : '<p class="agch-muted">No mount.</p>';
   const pets = d.pets.map((p, i) => petCard(p, {off, index: i, count: d.pets.length, actor})).join('') || (d.cap === 0 ? '<p class="agch-muted">No pet slots yet. The GM can raise the pet limit.</p>' : '<p class="agch-muted">No pets.</p>');
   const override = petCapOverride(actor);
-  const gmCap = gm ? `<label class="agch-gmcap">GM: pet limit for ${esc(actor.name)}
+  const gmCap = gm && !isBackup(actor) ? `<label class="agch-gmcap">GM: pet limit for ${esc(actor.name)}
       <select data-edit="pet-cap-override" data-actor="${esc(actor.id)}">${capOptions(override)}</select></label>` : '';
   return `${sectionHtml(sectionKey('companions', 'mount'), `Mount <span class="ag-badge">${d.mount ? 1 : 0} / 1</span>`, `${mount}${addZone('mount', 'Drop the mount Actor (from the Actors sidebar) or a mount Item here', !!d.mount)}`)}
     ${sectionHtml(sectionKey('companions', 'pets'), `Pets <span class="ag-badge${d.overCap ? ' ag-badge--danger' : ''}">${d.pets.length} / ${esc(d.capLabel)}</span>`, `
@@ -123,7 +124,7 @@ function visibilityCard() {
 
 /** GM Setup: settings only (player visibility, pet limits). */
 export function gmSetupTab() {
-  const chars = [...(globalThis.game?.actors ?? [])].filter(a => a.type === 'character').sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const chars = [...(globalThis.game?.actors ?? [])].filter(a => a.type === 'character' && !isBackup(a)).sort((a, b) => String(a.name).localeCompare(String(b.name)));
   const rows = chars.map(a => { const d = companionsData(a); return `<tr><th scope="row">${esc(a.name)}</th><td class="is-num">${d.mount ? 1 : 0}</td><td class="is-num">${d.pets.length} / ${esc(d.capLabel)}</td>
     <td><select data-edit="pet-cap-override" data-actor="${esc(a.id)}" aria-label="Pet limit for ${esc(a.name)}">${capOptions(petCapOverride(a))}</select></td></tr>`; }).join('');
   const key = sectionKey('gm', 'companions');
