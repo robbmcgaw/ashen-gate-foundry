@@ -1,3 +1,8 @@
+## 0.19.4 — 2026-10-21
+
+- Character Hub level-up backup copies ("<Name> - level X") no longer appear in the character picker and are refused as a target for points, unlocks, refunds, resets and partner account writes ("That is a level backup copy, not a playable character."). The embed and profession level notes skip them too. Works with or without Character Hub.
+- Saved data: no change. No migration.
+
 ## 0.19.3 — 2026-10-21
 
 - Tree board drops (GM edit mode) read the drag with the shared item-drop helper (`ag-item-drop/1`), so any normal Foundry Item drag works, including ones that don't carry plain JSON (e.g. General Manager's Browse tab).
