@@ -27,6 +27,55 @@
 .agc-socket-list > .agc-inactive{opacity:.75}
 .agc-drop.agc-drop-over{outline:2px solid var(--ag-accent);outline-offset:-2px}
 .agc-socket-actions{justify-content:flex-start}
+/* Cinder sheet (0.6.0): orb stage (Strain ring, sockets on an orbit) beside the sheet column; the column stacks under the orb on a narrow window. */
+.agc-sheet{display:grid;gap:var(--ag-space-4);grid-template-columns:minmax(0,1fr);align-items:start}
+@container (min-width: 40rem){.agc-sheet{grid-template-columns:minmax(15rem,24rem) minmax(0,1fr)}}
+.agc-stage-col{display:grid;gap:var(--ag-space-3);justify-items:center;min-width:0}
+.agc-col{display:grid;gap:var(--ag-space-3);min-width:0}
+.agc-stage{position:relative;width:min(100%,calc(var(--ag-slot) * 9));aspect-ratio:1}
+.agc-ring{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+.agc-ring__orbit{fill:none;stroke:var(--ag-border);stroke-width:1;stroke-dasharray:2 5}
+.agc-ring__seg{fill:none;stroke:var(--ag-surface-sunken);stroke-width:9;stroke-linecap:round;transition:stroke var(--ag-dur) var(--ag-ease)}
+.agc-ring__seg.is-on{stroke:var(--ag-warn)}
+.agc-ring.is-hot .agc-ring__seg.is-on{stroke:var(--ag-danger)}
+.agc-ring__pip{fill:var(--ag-danger)}
+/* The orb: the Cinder's own image, else the shared default orb whose colour follows Strain only. */
+.agc-orb{--agc-core:var(--ag-accent);position:absolute;left:50%;top:50%;width:36%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;overflow:hidden;
+  box-shadow:0 0 var(--ag-space-5) color-mix(in srgb,var(--agc-core) 45%,transparent);transition:box-shadow var(--ag-dur) var(--ag-ease)}
+.agc-orb[data-tone="warm"]{--agc-core:var(--ag-warn)}
+.agc-orb[data-tone="ember"]{--agc-core:color-mix(in srgb,var(--ag-warn) 45%,var(--ag-danger))}
+.agc-orb[data-tone="hot"]{--agc-core:var(--ag-danger);box-shadow:0 0 var(--ag-space-6) color-mix(in srgb,var(--agc-core) 70%,transparent)}
+.agc-orb__default,.agc-orb__img{display:block;width:100%;height:100%;border-radius:50%}
+.agc-orb__img{object-fit:cover;border:0}
+.agc-orb__default{background:radial-gradient(circle at 34% 28%,color-mix(in srgb,var(--ag-text) 75%,transparent) 0 5%,transparent 18%),
+  radial-gradient(circle at 50% 62%,var(--agc-core) 0%,color-mix(in srgb,var(--agc-core) 55%,var(--ag-surface-sunken)) 35%,var(--ag-surface-sunken) 100%)}
+.agc-orb[data-tone="hot"] .agc-orb__default{animation:agc-pulse 1.8s ease-in-out infinite}
+@keyframes agc-pulse{50%{opacity:.7}}
+@media (prefers-reduced-motion: reduce){.agc-orb__default{animation:none!important}.agc-ring__seg,.agc-orb{transition:none}}
+/* Sockets on the orbit: circles sized by the stage, so the layout is the same in both sizes. */
+.agc-socket{position:absolute;left:calc(var(--agc-x) * 1%);top:calc(var(--agc-y) * 1%);width:24%;aspect-ratio:1;transform:translate(-50%,-50%);box-sizing:border-box;
+  display:grid;place-items:center;padding:5%;margin:0;border-radius:50%;border:2px solid color-mix(in srgb,var(--ag-accent) 70%,var(--ag-border));
+  background:var(--ag-surface-raised);color:var(--ag-text);font:600 var(--ag-text-xs)/1.15 var(--ag-font-body);text-align:center;overflow-wrap:break-word;hyphens:auto;min-height:0}
+button.agc-socket{cursor:pointer}
+button.agc-socket:hover{border-color:var(--ag-accent);background:var(--ag-surface-hover)}
+.agc-socket.is-empty{border-style:dashed;border-color:var(--ag-border-strong);background:transparent;color:var(--ag-muted)}
+.agc-socket.agc-drop-over{border-color:var(--ag-focus);box-shadow:0 0 0 var(--ag-space-1) var(--ag-accent-soft)}
+.agc-socket__tag{position:absolute;bottom:calc(var(--ag-space-2) * -1);left:50%;transform:translateX(-50%);padding:0 var(--ag-space-1);border-radius:var(--ag-radius-control);
+  border:1px solid var(--ag-border);background:var(--ag-surface);color:var(--ag-accent);font:600 var(--ag-text-xs)/1.4 var(--ag-font-body);white-space:nowrap}
+.agc-lock{position:absolute;top:0;right:0}
+.agc-legend{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:var(--ag-space-2);margin:0}
+.agc-inactive-row,.agc-tray__row{display:flex;flex-wrap:wrap;justify-content:center;gap:var(--ag-space-2)}
+.agc-inactive{opacity:.75}
+.agc-tray{width:100%;box-sizing:border-box;display:grid;gap:var(--ag-space-2);padding:var(--ag-space-3);border:1px dashed var(--ag-border-strong);border-radius:var(--ag-radius)}
+.agc-tray .ag-section__head{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:var(--ag-space-2)}
+.agc-tray .ag-eyebrow{margin:0}
+.agc-chip{cursor:grab}
+.agc-name{overflow-wrap:anywhere}
+.agc-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(9rem,1fr));gap:var(--ag-space-3);margin:0}
+.agc-facts dd{margin:var(--ag-space-1) 0 0;display:flex;flex-wrap:wrap;align-items:center;gap:var(--ag-space-2);overflow-wrap:anywhere}
+.agc-mode__stats{margin:var(--ag-space-1) 0;font-size:var(--ag-text-sm);font-variant-numeric:tabular-nums}
+.agc-chance.is-guaranteed{color:var(--ag-danger);font-weight:600}
+.agc-gm-card{border-color:color-mix(in srgb,var(--ag-warn) 35%,var(--ag-border))}
 /* Manage */
 .agc-group{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--ag-space-2);margin:var(--ag-space-4) 0 var(--ag-space-2);font-size:var(--ag-text-md);font-weight:650}
 .agc-row-actions{display:inline-flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--ag-space-1)}

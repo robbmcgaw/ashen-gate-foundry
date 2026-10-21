@@ -5,6 +5,7 @@ import {CINDER_CONTRACT,CINDER_WALLET_CAP,cleanAccount,normalizeRegistry,createI
   planMigration,powerBlock,availableModes,planPush,resolveBackfire,categoriesFor,backfireBlock,effectProblem,collectModifiers,validateDefinition,
   MODIFIER_CONTRACT,MODIFIER_SCOPE,MODIFIER_TARGETS,validateModifiers,blockModifiers} from './cinder.mjs';
 import {SOCKETS_CONTRACT,SOCKETS_HOOK,MAX_SOCKETS,normalizeSockets,socketMirror,socketPlan,applySocketOp,withoutItem} from './sockets.mjs';
+import {cleanArt,artInput} from './orb.mjs';
 
 export const CINDER_HOOK='ashenGateCinder.changed';
 export const MAX_CINDERS_SETTING='maxCindersPerActor';
@@ -61,7 +62,7 @@ export function createCinders(deps){
   async function writeBearer(actor,instance){
     const tree=treeFor(instance);
     await accounts().setAccount(actor,tree.id,instance.progression);
-    await setPointers(actor,[...pointersOf(actor).filter(p=>p.instanceId!==instance.instanceId),{instanceId:instance.instanceId,definitionId:instance.definitionId,name:definitionName(instance.definitionId),sockets:socketMirror(instance.sockets)}]);
+    await setPointers(actor,[...pointersOf(actor).filter(p=>p.instanceId!==instance.instanceId),{instanceId:instance.instanceId,definitionId:instance.definitionId,name:definitionName(instance.definitionId),sockets:socketMirror(instance.sockets),art:instance.art??null}]);
   }
   async function clearBearer(actor,instance){
     const tree=cinderTree(instance.definitionId);
@@ -266,13 +267,25 @@ export function createCinders(deps){
   const pointerFor=(actor,instanceId)=>pointersOf(actor).find(p=>p.instanceId===instanceId)??null;
   const canRead=actor=>Boolean(actor)&&(game.user?.isGM||actor.isOwner);
   const requirePlayerAccess=()=>{if(!game.user?.isGM&&!deps.playerAccess())throw Error('The GM has hidden Cinders.');};
+  /** The Cinder's tree and its unspent points, through Skill Trees' public reads (listTrees, pointsSummary: GM or the owner). Null when not available. */
+  function treePoints(actor,definitionId){
+    const t=trees();if(t.status!=='ok')return {treeId:null,unspent:null};
+    let tree=null,row=null;
+    try{tree=(t.api.listTrees?.()??[]).find(x=>x?.provider?.kind==='cinder_milestone'&&x.sourceRef===definitionId)??null;}catch{tree=null;}
+    if(!tree)return {treeId:null,unspent:null};
+    try{row=(t.api.pointsSummary?.(actor)??[]).find(r=>r.treeId===tree.id)??null;}catch{row=null;}
+    return {treeId:tree.id,unspent:Number.isSafeInteger(row?.available)?row.available:null};
+  }
   function list(actor){
     requireOn();requirePlayerAccess();if(!canRead(actor))throw Error('Actor access denied');
     const strainState=strain.readState(actor),config=strain.config();
+    // GM only: when the bearer got the Cinder (the registry is never read for players).
+    const since=game.user?.isGM&&store()?new Map(readRegistry().instances.map(i=>[i.instanceId,i.bearer?.since||null])):null;
     return pointersOf(actor).map(p=>{
       const st=socketState(actor,p.definitionId,p.sockets),extra=[...st.perks,...st.activeItems];
       const powers=st.powers,ids=powers.map(x=>x.powerId);
-      return {instanceId:p.instanceId,definitionId:p.definitionId,name:p.name??p.definitionId,
+      return {instanceId:p.instanceId,definitionId:p.definitionId,name:p.name??p.definitionId,art:cleanArt(p.art),...treePoints(actor,p.definitionId),
+        ...(since?{bearerSince:since.get(p.instanceId)??null}:{}),
         powers:powers.filter(x=>x.power?.kind==='power').map(x=>({powerId:x.powerId,name:x.name,itemId:x.item.id,nodeId:x.nodeId,standard:x.power.standard?.summary??'',
           modes:availableModes({power:x.power},ids).map(m=>{const plan=planPush({strainValue:strainState.value,config,mode:m,unlocked:powers,powerId:x.powerId,extra});
             return {id:m.id,label:m.label,effect:m.effect??'',cost:plan.cost,after:plan.after,chance:plan.chance,guaranteed:plan.guaranteed,
@@ -378,8 +391,8 @@ export function createCinders(deps){
   const putInstance=(registry,next)=>({...registry,instances:registry.instances.map(i=>i.instanceId===next.instanceId?next:i)});
   async function mirrorSockets(inst){
     const actor=inst.bearer?actorById(inst.bearer.actorId):null;if(!actor)return;
-    const want=socketMirror(inst.sockets),p=pointerFor(actor,inst.instanceId);
-    if(p&&JSON.stringify(p.sockets??null)!==JSON.stringify(want))await setPointers(actor,pointersOf(actor).map(x=>x.instanceId===inst.instanceId?{...x,sockets:want}:x));
+    const want=socketMirror(inst.sockets),art=inst.art??null,p=pointerFor(actor,inst.instanceId);
+    if(p&&(JSON.stringify(p.sockets??null)!==JSON.stringify(want)||cleanArt(p.art)!==art))await setPointers(actor,pointersOf(actor).map(x=>x.instanceId===inst.instanceId?{...x,sockets:want,art}:x));
   }
   /** Attach, detach or swap on the GM client. One registry write, then the bearer's copy and the item markers. */
   async function socketOp(actor,instanceId,op,{user=game.user}={}){
@@ -479,6 +492,17 @@ export function createCinders(deps){
     if(count!==null&&!(Number.isSafeInteger(count)&&count>=0&&count<=MAX_SOCKETS))throw Error(`Socket count must be 0 to ${MAX_SOCKETS}, or empty for the default`);
     return gmSocketSetting(instanceId,{count});
   }
+  /** GM: this Cinder's own orb image (a path, or null for the default orb). Saved on the record, copied to the bearer for the sheet. */
+  async function setArt(instanceId,path){
+    requireGM();const art=artInput(path);
+    return withRegistry(async()=>{
+      const registry=readRegistry(),inst=registry.instances.find(i=>i.instanceId===instanceId);if(!inst)throw Error('Unknown Cinder');
+      if((inst.art??null)===art)return {changed:false,art};
+      const updated={...inst,art,revision:inst.revision+1};
+      await saveRegistry(putInstance(registry,updated));await mirrorSockets(updated);
+      changed('art',updated,{art});return {changed:true,art};
+    });
+  }
   /** GM drop target: an Item dropped on a socket. A world Item is copied into the bearer's inventory first (and removed again if attaching fails). */
   async function attachDropped(instanceId,itemDoc,{slot=null}={}){
     requireGM();
@@ -502,6 +526,7 @@ export function createCinders(deps){
       if(p&&JSON.stringify(normalizeSockets(p.sockets).attached.map(({slot,itemId})=>[slot,itemId]))!==JSON.stringify(inst.sockets.attached.map(({slot,itemId})=>[slot,itemId]))||
         (p&&(normalizeSockets(p.sockets).locked!==inst.sockets.locked||normalizeSockets(p.sockets).count!==inst.sockets.count)))
         rows.push({instanceId:inst.instanceId,name,repair:true,text:`${actor.name}'s copy of this Cinder's sockets differs from the Cinder.`});
+      if(p&&cleanArt(p.art)!==(inst.art??null))rows.push({instanceId:inst.instanceId,name,repair:true,text:`${actor.name}'s copy of this Cinder's art differs from the Cinder.`});
       for(const a of inst.sockets.attached){const item=itemOf(actor,a.itemId);
         if(!item)rows.push({instanceId:inst.instanceId,name,repair:true,text:`A socketed item (${a.sourceId??a.itemId}) is no longer on ${actor.name}; its socket reads as empty.`});
         else if(JSON.stringify(markerOf(item))!==JSON.stringify({instanceId:inst.instanceId,slot:a.slot}))rows.push({instanceId:inst.instanceId,name,repair:true,text:`${item.name} is in a socket but not marked as attached.`});}
@@ -521,8 +546,10 @@ export function createCinders(deps){
     }
     if(dirty)await saveRegistry(next);
     for(const inst of next.instances){const actor=inst.bearer?actorById(inst.bearer.actorId):null;if(!actor)continue;
-      const before=JSON.stringify(pointerFor(actor,inst.instanceId)?.sockets??null);await mirrorSockets(inst);
-      if(before!==JSON.stringify(pointerFor(actor,inst.instanceId)?.sockets??null))done.push(`${actor.name}: socket copy updated`);
+      const old=pointerFor(actor,inst.instanceId),before=JSON.stringify(old?.sockets??null),artBefore=cleanArt(old?.art);await mirrorSockets(inst);
+      const p=pointerFor(actor,inst.instanceId);
+      if(before!==JSON.stringify(p?.sockets??null))done.push(`${actor.name}: socket copy updated`);
+      if(p&&artBefore!==cleanArt(p.art))done.push(`${actor.name}: Cinder art copy updated`);
       for(const a of inst.sockets.attached){const item=itemOf(actor,a.itemId);if(item&&JSON.stringify(markerOf(item))!==JSON.stringify({instanceId:inst.instanceId,slot:a.slot})){await setMarker(item,{instanceId:inst.instanceId,slot:a.slot});done.push(`${actor.name}: ${item.name} marked attached`);}}}
     for(const actor of game.actors?.contents??[])for(const item of actor.items??[]){const m=markerOf(item);if(!m)continue;
       const inst=next.instances.find(i=>i.instanceId===m.instanceId);
@@ -598,7 +625,7 @@ export function createCinders(deps){
 
   const api={
     contract:CINDER_CONTRACT,hook:CINDER_HOOK,
-    list,previewPush,push:requestPush,validateDefinition,
+    list,previewPush,push:requestPush,validateDefinition,setArt,
     instances:()=>readRegistry().instances,
     create,bind,transfer,unbind,migrate,adoptLegacy,report,repair
   };

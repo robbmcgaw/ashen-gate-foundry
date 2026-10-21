@@ -24,7 +24,10 @@ Needs **Ashen Gate | Skill Trees 0.17.0 or later** for Cinder trees (the powers 
 
 ## Tabs
 
-- **Cinders**: a character's Strain bar (fills to 10, then shows how far past it), band and Backfire %, and their Cinders with each power's Push modes, cost and chance. The GM gets Add / Remove / Set Strain with a reason.
+- **Cinders** (the Cinder sheet, 0.6.0): the Cinder as an orb ringed by the bearer's Strain (10 segments, then one pip per point over 10, with a "+N over 10" badge), its sockets on an orbit around it, and beside it (under it on a narrow window): bearer, **Unspent** points with **Open skill tree**, the Strain bar with band and Backfire %, each power's Push modes (cost, Strain after, Backfire % with perk and socket modifiers), and the perks and socket items that count. The GM gets Add / Remove / Set Strain with a reason, and a GM-only **Binding** card (current bearer and since when).
+  - **Sockets on the orbit** follow attach order (no reordering). Items are active up to the number of sockets; a socket added by a perk, power or item shows **+1**; an item over capacity sits under the orb, dimmed, as inactive. Tap an empty socket to attach, a filled one to swap or detach; or drag an item from **Items that fit** (or the bearer's sheet) onto a socket. The bearer's owner can do this while Player Access is on and the GM has not locked the Cinder; the GM always can, and can also drop an Item from the Items sidebar (it is copied to the bearer).
+  - **Art:** a shared default orb whose colour follows Strain, or the Cinder's own image. Only the GM changes it: double-click the orb (or **Change art…** on the Binding card) to pick a file, best kept in the Assets Library under `ashen-gate/cinders/`; **Reset to default orb** goes back. Players see it but cannot change it.
+  - **Push** asks first (Cancel on the left, Push on the right; red when the Backfire is guaranteed).
 - **Manage** (GM): New Cinder; Bind / Transfer / Unbind; Move existing Cinder progress (characters with Cinder tree progress but no Cinder); Take over from Skill Trees (data saved by Skill Trees 0.15/0.16); Check and Repair.
 - **GM Setup** (GM): Player Access (saved with **Save Changes**); Strain bands, chances and rules with Import / Export / Reset; Cinder limits.
 
@@ -52,11 +55,11 @@ if (strain?.contract === 'ag-strain/1') {
 
 ### `api.cinder` (contract `ag-cinder/1`)
 
-- `list(actor)`: the Cinders the character bears, with each power's Push modes, cost and chance. Allowed for the GM or the owner (players only while Player Access is on).
+- `list(actor)`: the Cinders the character bears, with each power's Push modes, cost and chance, and (0.6.0) `art` (image path or null), `treeId` and `unspent` (from Skill Trees' `listTrees` and `pointsSummary`; null when not available). For the GM only, `bearerSince`. Allowed for the GM or the owner (players only while Player Access is on).
 - `previewPush(actor, instanceId, powerId, modeId)`. `push(actor, powerId, modeId)`: the GM does it directly; an owner's Push is relayed to the active GM client.
-- GM only: `instances()`, `create(definitionId)`, `bind(instanceId, actor)`, `transfer(instanceId, actor)`, `unbind(instanceId)`, `migrate({dryRun})`, `adoptLegacy()`, `report()`, `repair()`.
+- GM only: `setArt(instanceId, path | null)` (0.6.0; rejected for players; null = the default orb), `instances()`, `create(definitionId)`, `bind(instanceId, actor)`, `transfer(instanceId, actor)`, `unbind(instanceId)`, `migrate({dryRun})`, `adoptLegacy()`, `report()`, `repair()`.
 - `validateDefinition(record)` → `{errors, warnings}` for Mutation / Power / BackfireTable records (used by General Manager and `scripts/validate-content.mjs`).
-- Hook `ashenGateCinder.changed` `{kind, instanceId, definitionId, actorId, fromActorId?}`.
+- Hook `ashenGateCinder.changed` `{kind, instanceId, definitionId, actorId, fromActorId?, art?}` (kind `art` from 0.6.0).
 
 ### `api.modifiers` (contract `ag-modifier/1`, scope `cinder`; 0.2.0+)
 
@@ -82,7 +85,7 @@ Independent module with its own id, settings and flags. It uses Skill Trees only
 
 Skill Trees does not depend on this module. General Manager imports the definitions; Character Hub can show the Strain bar and Cinders through this API.
 
-Records: a GM-only Journal `[AG] Cinders — GM Records` (flag `registry`). Bearers carry `flags.ashen-gate-cinders.cinders` pointers. Backfire statuses carry `flags.ashen-gate-cinders.backfire`.
+Records: a GM-only Journal `[AG] Cinders — GM Records` (flag `registry`; each Cinder may have an `art` path, 0.6.0+). Bearers carry `flags.ashen-gate-cinders.cinders` pointers (with a copy of `sockets` and `art`). Backfire statuses carry `flags.ashen-gate-cinders.backfire`.
 
 ## Install
 

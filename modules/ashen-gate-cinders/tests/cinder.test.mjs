@@ -383,6 +383,101 @@ test('sockets (0.3.0): attach / detach / swap on the GM client, player relay and
   const done=await cinder.repair();assert.ok(done.some(x=>/emptied 1 socket/.test(x)),done.join());assert.deepEqual(cinder.report(),[]);
   assert.deepEqual(L2.flags[MOD].attachedTo,{instanceId:id,slot:1});
 });
+// 0.6.0: the Cinder sheet. The orb's art (GM only, API-enforced), the new list fields, and the sheet's socket wiring through api.sockets.
+test('art (0.6.0): only the GM sets it (rejected in the API), saved on the record, copied to the bearer, hook; null goes back to the default orb',async()=>{
+  const id=ember.instanceId,path='ashen-gate/cinders/[TEST]-ember.webp';
+  for(const u of [alice,bob]){game.user=u;await assert.rejects(cinder.setArt(id,path),/GM only/);}
+  game.user=gm;assert.equal(cinder.instances().find(i=>i.instanceId===id).art,null,'records saved before 0.6.0 read as no art');
+  called.length=0;
+  assert.deepEqual(await cinder.setArt(id,path),{changed:true,art:path});
+  assert.equal(cinder.instances().find(i=>i.instanceId===id).art,path,'on the GM record');
+  assert.equal(B.flags[MOD].cinders.find(p=>p.instanceId===id).art,path,'copied to the bearer\'s pointer');
+  assert.deepEqual(called.find(([e])=>e==='ashenGateCinder.changed')[1],{kind:'art',instanceId:id,definitionId:DEF,actorId:'B',art:path});
+  assert.deepEqual(await cinder.setArt(id,path),{changed:false,art:path},'same path: nothing written');
+  game.user=bob;assert.equal(cinder.list(B)[0].art,path,'the owner reads it from the pointer');
+  game.user=gm;
+  for(const bad of ['javascript:alert(1)','data:image/png;base64,AAAA','a"b.webp','<x>.png',42])await assert.rejects(cinder.setArt(id,bad),/Choose an image file/);
+  assert.equal((await cinder.setArt(id,'https://assets.forge-vtt.com/x/ashen-gate/cinders/e.png')).changed,true);
+  // Check and Repair keep the bearer's copy in step.
+  B.flags[MOD].cinders=B.flags[MOD].cinders.map(p=>p.instanceId===id?{...p,art:null}:p);
+  assert.match(cinder.report().map(r=>r.text).join('\n'),/copy of this Cinder's art differs/);
+  assert.ok((await cinder.repair()).some(x=>/art copy updated/.test(x)));assert.deepEqual(cinder.report(),[]);
+  assert.deepEqual(await cinder.setArt(id,null),{changed:true,art:null});
+  assert.equal(B.flags[MOD].cinders.find(p=>p.instanceId===id).art,null);assert.equal(cinder.list(B)[0].art,null);
+  await assert.rejects(cinder.setArt('cinst_NOPE0000',null),/Unknown Cinder/);
+});
+test('list (0.6.0): art, unspent points and the tree id for the owner; bearerSince only for the GM',async()=>{
+  game.user=gm;const id=ember.instanceId,w=st.api.accounts.account(B,tree.id);
+  let [c]=cinder.list(B);
+  assert.equal(c.treeId,tree.id);assert.equal(c.unspent,w.awarded-w.unlocks.length,'awarded minus the cost of the unlocked nodes');
+  assert.equal(c.bearerSince,cinder.instances().find(i=>i.instanceId===id).bearer.since);assert.ok(c.bearerSince>0);
+  game.user=bob;[c]=cinder.list(B);
+  assert.equal(c.treeId,tree.id);assert.equal(c.unspent,w.awarded-w.unlocks.length);assert.equal(c.art,null);
+  assert.equal('bearerSince' in c,false,'never sent to players');
+  // Skill Trees without a points read: the sheet says "not available", nothing breaks.
+  const ps=st.api.pointsSummary;delete st.api.pointsSummary;try{[c]=cinder.list(B);assert.deepEqual([c.treeId,c.unspent],[tree.id,null]);}finally{st.api.pointsSummary=ps;}
+  game.user=gm;
+});
+test('sheet (0.6.0): orbit from api.sockets (+1 extra, inactive off the orbit, locked read-only), drag and drop, socket menu, Push confirm',async()=>{
+  const {sheetView}=await import('../scripts/main.mjs');
+  game.user=gm;const sock=api.sockets,id=ember.instanceId,strainBefore=strain.get(B).value;
+  for(const s of sock.slots(B,id).slots)await sock.detach(B,id,s.slot);
+  const mods={modifiers:{schema:'ag-modifiers/0.1',scope:'cinder',list:[{target:'backfire.chance',value:-1,label:'[TEST] Calm'}]}};
+  const gear=n=>{const it={id:`G${n}`,uuid:`Actor.B.Item.G${n}`,parent:B,name:`[TEST] Gem ${n}`,type:'loot',flags:source(`ITEM-TEST-GEM${n}`,'Item',mods),
+    async setFlag(m,k,v){this.flags[m]??={};this.flags[m][k]=structuredClone(v);}};B.items.push(it);return it;};
+  const g1=gear(1),g2=gear(2),g3=gear(3),g4=gear(4);
+  await sock.setCount(id,2);await sock.attach(B,id,g1.id);
+  const view=()=>{const [c]=cinder.list(B);return sheetView(B,c,sock.slots(B,id),{fits:sock.socketable(B),perks:api.modifiers.forActor(B),strainState:strain.get(B),gm:game.user.isGM,uuidOf:i=>B.items.get(i)?.uuid});};
+  let v=view();
+  assert.deepEqual(v.sockets.map(s=>[s.empty,s.extra,s.name??null]),[[false,false,'[TEST] Gem 1'],[true,false,null]],'2 sockets: one filled, one free');
+  assert.equal(v.sockets[1].slot,1,'a free socket carries the slot an attach uses');
+  assert.ok(v.spare.some(f=>f.itemId==='G2'&&f.uuid==='Actor.B.Item.G2'),'items that fit can be dragged (Foundry Item drag data)');
+  assert.ok(v.gm&&v.gm.bearer===B.name,'GM binding card');
+  // Owner drags an item from the bearer's inventory onto the free socket: attach through api.sockets, re-checked on the GM client.
+  globalThis.foundry.utils.fromUuid=async uuid=>B.items.find(i=>i.uuid===uuid)??null;
+  const app=api.open({actorId:'B'});app.actorId='B';
+  const drop=item=>({dataTransfer:{getData:()=>JSON.stringify({type:'Item',uuid:item.uuid})}});
+  const relay=async()=>{const msg=emitted.at(-1);game.user=gm;for(const fn of socketHandlers)await fn(msg,'u2');const reply=emitted.at(-1);game.user=bob;for(const fn of socketHandlers)await fn(reply,'gm');return reply;};
+  game.user=bob;emitted.length=0;let pending=app._drop(drop(g2),id,'1',false);await settle();
+  assert.deepEqual([emitted.at(-1).type,emitted.at(-1).op.kind,emitted.at(-1).op.slot,emitted.at(-1).op.itemId],['cinder-socket','attach',1,'G2']);
+  assert.equal((await relay()).ok,true);await pending;
+  game.user=gm;assert.deepEqual(sock.slots(B,id).slots.map(x=>[x.slot,x.itemId]),[[0,'G1'],[1,'G2']]);
+  // Dropped on a filled socket: swap.
+  game.user=bob;emitted.length=0;pending=app._drop(drop(g3),id,'0',true);await settle();
+  assert.deepEqual([emitted.at(-1).op.kind,emitted.at(-1).op.slot,emitted.at(-1).op.itemId],['swap',0,'G3']);await relay();await pending;
+  game.user=gm;assert.deepEqual(sock.slots(B,id).slots.map(x=>[x.slot,x.itemId]),[[0,'G3'],[1,'G2']]);
+  // A player cannot drop an item that is not on the bearer (world Items are the GM's attachDropped).
+  game.user=bob;emitted.length=0;const world=worldItem('W6','ITEM-TEST-WORLD','[TEST] World Gem','Item',mods);
+  globalThis.foundry.utils.fromUuid=async()=>world;await app._drop(drop(world),id,'1',true);assert.equal(emitted.length,0,'nothing sent');
+  globalThis.foundry.utils.fromUuid=async uuid=>B.items.find(i=>i.uuid===uuid)??null;
+  // A perk adds a socket: the extra position is tagged +1; with fewer sockets the extra item is inactive and off the orbit.
+  game.user=gm;await sock.setCount(id,3);await sock.attach(B,id,g4.id);await sock.setCount(id,2);
+  v=view();assert.deepEqual([v.sockets.length,v.inactive.map(x=>x.itemId)],[2,['G4']]);
+  const perk={id:'PK1',name:'[TEST] Wide Setting',type:'feat',flags:source('PERK-TEST-WIDE','ProfessionPerk',{modifiers:{schema:'ag-modifiers/0.1',scope:'cinder',list:[{target:'sockets.count',value:1,label:'[TEST] Wide'}]}})};
+  B.items.push(perk);v=view();
+  assert.deepEqual(v.sockets.map(s=>[s.itemId,s.extra]),[['G3',false],['G2',false],['G4',true]],'third socket comes from the perk: +1');
+  assert.ok(v.rows.some(r=>r.kind==='Perk'&&r.name==='[TEST] Wide Setting'&&/sockets \+1/.test(r.text)),'perks and their modifiers are listed');
+  B.items.splice(B.items.indexOf(perk),1);
+  // Locked: the owner sees the sockets read-only; the GM can still edit.
+  await sock.setLocked(id,true);game.user=bob;v=view();
+  assert.equal(v.canEdit,false);assert.ok(v.sockets.every(s=>!s.canEdit));assert.equal(v.gm,null,'no GM card for players');
+  game.user=gm;v=view();assert.equal(v.canEdit,true);await sock.setLocked(id,false);
+  // Socket menu on a filled socket: Swap or Detach (Detach asks again, red).
+  const dialogs=foundry.applications.api,before=dialogs.DialogV2,picks=['detach','confirm'],seen=[];
+  dialogs.DialogV2={wait:async o=>{seen.push(o);const want=picks.shift(),b=o.buttons.find(x=>x.action===want);if(!b)throw Error(`no button ${want} in ${o.buttons.map(x=>x.action)}`);return b.callback();}};
+  try{
+    await app._socketMenu(id,1,false);
+    assert.deepEqual(seen[0].buttons.map(b=>b.label),['Cancel','Swap item…','Detach item']);assert.ok(seen[1].classes.includes('ag-dialog--danger'));
+    assert.ok(!sock.slots(B,id).slots.some(x=>x.slot===1),'detached');
+    // Push confirm: Cancel left, Push right; red when the Backfire is guaranteed.
+    await gmSet(B,10);seen.length=0;picks.push('cancel');
+    await app._push(id,'POWER-TEST-SPARK','amplify');
+    assert.deepEqual(seen[0].buttons.map(b=>b.label),['Cancel','Push']);assert.ok(seen[0].classes.includes('ag-dialog--danger'));
+    await gmSet(B,0);seen.length=0;picks.push('cancel');await app._push(id,'POWER-TEST-SPARK','amplify');assert.ok(!seen[0].classes.includes('ag-dialog--danger'));
+  }finally{dialogs.DialogV2=before;await gmSet(B,strainBefore);}
+  await sock.setCount(id,null);for(const s of sock.slots(B,id).slots)await sock.detach(B,id,s.slot);
+  for(const g of [g1,g2,g3,g4])B.items.splice(B.items.indexOf(g),1);
+});
 // 0.5.0: the window's Unbind asks first ("Unbind Cinder", red); Cancel leaves the Cinder bound. Manage toolbar counts Cinders.
 test('Manage: Unbind is a danger confirm and Cancel changes nothing; toolbar count and New Cinder stay enabled with definitions',async()=>{
   game.user=gm;
