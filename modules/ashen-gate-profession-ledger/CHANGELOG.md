@@ -1,5 +1,6 @@
 ## 0.23.1 — 2026-10-21
 
+- Help opens as a dialog with a Close button instead of replacing the window content.
 - Confirmations name the action (no more Yes/No) and dialogs follow the Ashen Gate look.
 - Buttons: Undo award (red), Learn [recipe], Adjust XP, Add features, Import catalog, Craft; leaving GM Setup with unsaved changes asks Discard changes / Keep editing. Cancel is always on the left.
 - The material consent and gathering roll windows use the Ashen Gate dialog style. No behaviour or saved data changes.

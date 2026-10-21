@@ -6,7 +6,7 @@ import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertP
 import {lookupWorldDefinition,readWorldDefinition} from './definition-lookup.mjs';
 import {planCraft,craftBlockers,executeCraft,craftResultData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
-import {confirmDialog} from './ag-dialogs.mjs';
+import {confirmDialog,infoDialog} from './ag-dialogs.mjs';
 import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,requiredToolRef,toolRefLabel,heldTool,
   checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS,DEFAULT_PROFESSION_TOOLS,DEFAULT_GATHER_SKILLS,migrateCheckMapping,advantageToolsOf} from './checks.mjs';
 import {PROFESSION_KEYS,professionTitle,catalogCrosswalk,definitionProfessionKey,unmappedProfessions,assignmentPlan,rowId,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
@@ -1319,7 +1319,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   static DEFAULT_OPTIONS={id:'agl-window',classes:['agl-app','ag-app'],window:{title:'Ashen Gate | Profession Ledger',resizable:true,icon:'fa-solid fa-book-open'},position:{width:1180,height:800}};
   static PARTS={main:{template:`modules/${ID}/templates/ledger.hbs`}};
   render(options){checkPlayerLedger();return super.render(options);}
-  constructor(...args){super(...args);this.view='individual';this.previousView='individual';this.actorId=null;this.demo=false;this.query='';
+  constructor(...args){super(...args);this.view='individual';this.actorId=null;this.demo=false;this.query='';
     this.closedFolders=new Set();this.partySort='player';this.lastAward=null;this.notice='';this.rosterDraft=null;this._events=null;
     this.mapDraft=null;
     this.gather={source:'location',actorId:null,nodeRef:'',helperIds:[],pending:false,
@@ -1531,7 +1531,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       <div class="ag-toolbar agl-toolbar">${target}<button type="button" class="ag-btn" data-action="assign-preview"><i class="fa-solid fa-magnifying-glass"></i> Preview</button></div>
       ${body}</section>`;
   }
-  _help(){return `<section class="ag-card agl-panel agl-help"><h2>Profession Ledger Help</h2>
+  _help(){return `
     <p><strong>Individual:</strong> your character’s crafting bench: professions with level and XP, materials, recipe items you can learn, and known recipes. <em>Craft</em> checks you know the recipe and have the materials, uses them up and puts the crafted item in your inventory, with a chat card. If a party member has what you’re missing, <em>Craft — ask the party</em> asks their owner on their screen; any decline cancels and nothing is used.</p>
     <p><strong>Learn:</strong> a recipe item in your inventory has a Learn button. Learning uses up one recipe item and the recipe stays known.</p>
     <p><strong>Party:</strong> every party member’s materials and recipes, by player or by profession.</p>
@@ -1542,8 +1542,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>XP:</strong> the GM awards profession XP from the gather and craft chat cards.</p>
     ${game.user.isGM?'<p><strong>Assign:</strong> preview which profession features each party character qualifies for from their skill and tool proficiencies (the Skill to Access and Tool to Access in GM Setup → Tools and checks), then add the missing ones. Re-running adds nothing new; XP is never changed.</p>':''}
     ${game.user.isGM?'<p><strong>GM Setup:</strong> choose the party and Player Access. <em>Tools and checks</em> has one row per profession, crafting then gathering: the skill or tool that gives access (either one qualifies; they are also the profession’s checks) and, for gathering, the tool that gives advantage (advantage tools apply to gathering professions only; ignored for crafting). It can import a baseline crosswalk file (preview, then apply) and export the current table. Recipe imports and Manager are in the Recipe Catalog tab; XP is awarded from the Individual tab.</p>':''}
-    <button type="button" class="ag-btn" data-action="help-back">Back</button>
-  </section>`;}
+  `;}
   /** Ad-hoc node from the GM's form; same shape as a Locations entry. */
   _adhocNode(){
     const a=this.gather.adhoc;
@@ -1696,7 +1695,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     this.view=LEGACY_VIEWS[this.view]??this.view;
     if(!game.user.isGM){this.rosterDraft=null;if(GM_VIEWS.has(this.view))this.view='individual';}
     const lib=this.library;
-    const content=({individual:()=>this._individual(lib),party:()=>this._party(lib),catalog:()=>this._catalog(lib),gathering:()=>this._gathering(),assign:()=>this._assign(),gm:()=>this._gmSetup(),help:()=>this._help()})[this.view]?.()??this._individual(lib);
+    const content=({individual:()=>this._individual(lib),party:()=>this._party(lib),catalog:()=>this._catalog(lib),gathering:()=>this._gathering(),assign:()=>this._assign(),gm:()=>this._gmSetup()})[this.view]?.()??this._individual(lib);
     const inGm=game.user.isGM&&this.view==='gm';
     return {...ctx,html:`<div class="agl-shell"><header class="ag-header agl-header"><div class="ag-header__title agl-title">Ashen Gate | <strong>Profession Ledger</strong></div>
       <div class="ag-header__meta agl-header-right"><span class="agl-version">v${esc(game.modules.get(ID)?.version??VERSION)}</span><button type="button" class="ag-btn" data-action="help">Help</button></div>
@@ -1767,8 +1766,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         if(!game.user.isGM&&GM_VIEWS.has(next))throw Error('GM only');
         if(this.view==='gm'&&next!=='gm'&&!await this._leaveGmSetup())return;
         this.view=next;this.render();return;}
-      if(action==='help'){this.previousView=this.view;this.view='help';this.render();return;}
-      if(action==='help-back'){this.view=(!game.user.isGM&&GM_VIEWS.has(this.previousView))?'individual':this.previousView;this.render();return;}
+      if(action==='help'){await infoDialog('Profession Ledger help',this._help());return;}
       if(action==='gm-cancel'){if(!game.user.isGM)throw Error('GM only');if(!await this._leaveGmSetup())return;this.view='individual';this.render();return;}
       if(action==='actor'||action==='open-individual'){if(!myCharacters().some(a=>a.id===id))throw Error('You can only open your own character');this.actorId=id;this.view='individual';this.render();return;}
       if(action==='party-sort'){this.partySort=id==='profession'?'profession':'player';this.render();return;}

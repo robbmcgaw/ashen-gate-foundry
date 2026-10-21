@@ -15,7 +15,7 @@ const vault={id:'vault',ownership:{default:0},flags:{},update:async d=>{writes.p
 globalThis.foundry={applications:{api:{
   ApplicationV2:class{constructor(o){this.options=o;}render(){}close(){}},
   HandlebarsApplicationMixin:B=>class extends B{},
-  DialogV2:{wait:async o=>{dialog=o;return o.buttons.find(b=>b.action===answer).callback();}}
+  DialogV2:{wait:async o=>{dialog=o;return o.buttons.find(b=>b.action===answer).callback();},prompt:async o=>{dialog=o;}}
 }}};
 globalThis.Hooks={once:(k,f)=>{hooks.once[k]=f;},on:(k,f)=>{(hooks.on[k]??=[]).push(f);return k;},off:()=>{}};
 globalThis.ui={notifications:{warn:m=>warnings.push(m),info:()=>{},error:m=>warnings.push(m)}};
@@ -53,6 +53,17 @@ for(const [action,data,label] of [['remove-decor',{},'Remove decoration'],['unas
 test('player-visible wording: no revision numbers, (test default), Alpha header or Management tab',()=>{
   const code=readFileSync(new URL('../js/main.mjs',import.meta.url),'utf8');
   for(const s of ['Shared revision','(test default)','· Alpha</span>','Management tab',' · revision ${'])assert.ok(!code.includes(s),s);
-  assert.match(code,/Back to \$\{esc\(this\.tabLabel\(this\.previousTab\)\)\}/);
+  for(const s of ['This Alpha','in this Alpha','No Foundry V14 live verification','disposable test world'])assert.ok(!code.includes(s),s);
   assert.ok(!readFileSync(new URL('../js/facilities-tab.mjs',import.meta.url),'utf8').includes('activated in GM Setup'));
+});
+
+test('Help opens as a dialog with one Close button and the kit classes; the tab stays put',async()=>{
+  const app=new menuClass();clearInterval(app.leaseTimer);
+  const btn={dataset:{action:'help'}};dialog=null;
+  await app.click({target:{closest:sel=>sel==='button'?btn:null},preventDefault(){}},{querySelector:()=>null});
+  assert.equal(dialog.ok.label,'Close');
+  assert.ok(dialog.classes.includes('ag-app')&&dialog.classes.includes('ag-dialog'));
+  assert.equal(dialog.window.title,'Headquarters help');
+  assert.match(dialog.content,/Guildhall Builder/);
+  assert.equal(app.tab,'builder');
 });
