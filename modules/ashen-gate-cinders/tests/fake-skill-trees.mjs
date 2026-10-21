@@ -34,6 +34,10 @@ export function fakeSkillTrees({trees,worldItem,hooks}){
     version:'0.17.0',
     listTrees:()=>trees.map(clone),
     open:opts=>{api.opened=opts;},
+    /** Points per tree for one character (GM or owner), like Skill Trees 0.13.0+ pointsSummary. */
+    pointsSummary:actor=>{if(!game.user.isGM&&!actor.isOwner)throw Error('Actor access denied');
+      return trees.map(t=>{const a=clean(accounts.get(key(actor,t.id))),spent=t.nodes.filter(n=>a.unlocks.includes(n.id)).reduce((s,n)=>s+(n.cost??1),0);
+        return {treeId:t.id,name:t.name,kind:t.provider.kind,level:null,earned:a.awarded,spent,available:Math.max(0,a.awarded-spent)};});},
     grantPoints:async(actor,treeId,amount,label)=>{gmOnly();const t=byId(treeId);check(actor,t,'points');const a=clean(accounts.get(key(actor,treeId)));
       a.awarded+=amount;a.grants.push({key:label,amount});await write(actor,t,a);return a;},
     unlock:async(actor,treeId,nodeId)=>{gmOnly();const t=byId(treeId);check(actor,t,'unlock');const a=clean(accounts.get(key(actor,treeId)));
