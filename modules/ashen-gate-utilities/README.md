@@ -19,6 +19,7 @@ Open it from **Actors sidebar → Utilities**. The GM always sees it; players se
 - **Conditions:** one party view of native conditions. Removal is locked per character; the GM unlocks a character so its owner can remove that character's native conditions. **Pop Out Overlay** opens a transparent per-user conditions window.
 - **History** (GM): finished and cancelled rolls, labelled Group Check or Roll Request, with per-character results, average and outcome.
 - **GM Setup** (GM): Player Access and other settings.
+- **Shops** (coming): 0.14.0 adds only the shop rules (prices, change-making, the Bank quote) as tested code; there is nothing to see in Foundry yet.
 
 Player actions that change shared state (stash moves, condition removal) are carried out by the active GM client, which re-checks ownership and the lock, so a GM must be logged in for those.
 

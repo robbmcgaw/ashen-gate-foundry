@@ -1,3 +1,8 @@
+## 0.14.0 — 2026-10-21
+
+- Shop rules for the coming Shopping feature (no visible change yet): prices in whole copper, change-making with an optional shop purse (exact payment, else "The merchant can't make change"), purchase checks, the Bank's exchange quote, the player view of a shop or service (no GM data) and History entries. Electrum stays out of all of it while *Use electrum* is off. Selling to a shop is not included yet.
+- No saved-data changes, no new settings, nothing to click in Forge.
+
 ## 0.13.2 — 2026-10-21
 
 - **New GM Setup setting: Use electrum** (world setting, default **off**). Off: electrum (ep) is left out of the party purse (cp/sp/gp/pp), Award Gold, coin Deposit/Take, Adjust Purse and the embedded stash (Character Hub); an item priced in ep shows the same value in gp/sp/cp. ep moves and awards are also refused in the API and on the GM client, so nothing new is ever made in electrum. On: everything as before.
