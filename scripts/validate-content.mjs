@@ -11,6 +11,8 @@
 //     or {rules}; Manager > Organize > Import), *.crosswalk.json (Profession Ledger baseline file; Ledger > GM Setup >
 //     Tools and checks > Import baseline file) and *.npc-codex.json (ag-npc-codex-export/0.1; Library > NPC Codex >
 //     Restore reveals). They are left out of the folder's ZIP bundle.
+//   - ag-strain-config/0.1 files (Skill Trees Strain bands and Backfire schedule) are checked with Skill Trees' own validator;
+//     Cinder / Power / BackfireTable records in a Manager package get Skill Trees' definition check (0.16.0+).
 //   - each folder's accepted import files are also zipped together and read as a Manager ZIP bundle.
 // Exit code 1 when any file does not behave as expected.
 import fs from 'node:fs';
@@ -29,6 +31,8 @@ import { importRecords, normalizeExotics as locationExotics } from '../modules/a
 import { importRouteRecords } from '../modules/ashen-gate-locations/scripts/routes.mjs';
 import { planQuestImport } from '../modules/ashen-gate-quest-manager/scripts/core.mjs';
 import { validatePackage as validateTrees } from '../modules/ashen-gate-skill-trees/scripts/engine.mjs';
+import { validateDefinition as validateCinderDefinition, categoriesFor } from '../modules/ashen-gate-skill-trees/scripts/cinder.mjs';
+import { validateConfig as validateStrainConfig } from '../modules/ashen-gate-skill-trees/scripts/strain.mjs';
 import { planImport as planFactions } from '../modules/ashen-gate-factions/scripts/import.mjs';
 import { planFacilityImport } from '../modules/ashen-gate-headquarters/js/logic.mjs';
 import { normalizeRecipe } from '../modules/ashen-gate-profession-ledger/scripts/core.mjs';
@@ -104,6 +108,14 @@ function domainChecks(pkg) {
       if (!PROFESSION_KEYS.includes(professionKey(rec.name))) notes.push(`${rec.id}: name ${JSON.stringify(rec.name)} is not one of the Ledger's 14 professions, so Assign and the tools table ignore it.`);
       else for (const u of catalogCrosswalk([{sourceId: rec.id, name: rec.name, access: rec.access}]).unresolved)
         errors.push(`${rec.id}: access.${u.field} "${u.name}" matches no dnd5e ${u.field === 'skillProficienciesAnyOf' ? 'skill' : 'tool'} (the Ledger ignores it).`);
+    }
+    // Cinder (MUT-*), Power (POWER-*) and Backfire table (BF-*) blocks: Skill Trees' own check (Manager runs the same at import).
+    if (['Mutation', 'Power', 'BackfireTable'].includes(rec.entity_type)) {
+      const v = validateCinderDefinition(rec);
+      errors.push(...v.errors); notes.push(...v.warnings);
+      const refs = [...categoriesFor(rec, rec, null), ...(rec.power?.push_modes ?? []).flatMap(m => [...(m?.backfire_categories ?? []), ...(m?.requires?.powers ?? [])])];
+      for (const id of new Set(refs)) if (typeof id === 'string' && !ids.has(id)) notes.push(`${rec.id}: ${id} is not in this file; it must already be in the world (imported earlier).`);
+      if (rec.entity_type === 'BackfireTable' && rec.visibility !== 'gm') notes.push(`${rec.id}: Backfire tables are usually visibility "gm" (players see the rolled effect in chat, not the whole table).`);
     }
     if (rec.entity_type === 'NPC') errors.push(...codexChecks(rec));
     else if (rec.codex !== undefined) notes.push(`${rec.id}: codex is only read on entity_type NPC records.`);
@@ -196,6 +208,7 @@ export async function checkContent(data, filename = '') {
   const specialist = detectSpecialistFile(data);
   if (specialist === 'quests') return {kind: 'quests', errors: planQuestImport(data).errors, notes: []};
   if (specialist === 'skill-trees') { const v = validateTrees(data); return {kind: 'skill-trees', errors: v.errors, notes: v.warnings}; }
+  if (specialist === 'strain') { const v = validateStrainConfig(data); return {kind: 'strain', errors: v.errors, notes: [...v.warnings, 'Imported through Manager Import (to Skill Trees) or Skill Trees > GM Setup > Strain. Never changes a character\'s Strain.']}; }
   if (specialist === 'factions') return {kind: 'factions', errors: planFactions(data).errors, notes: []};
   if (specialist === 'headquarters') return {kind: 'headquarters', errors: planFacilityImport(data).errors, notes: []};
   const delivery = data && typeof data === 'object' && !Array.isArray(data) ? classifyDelivery(data) : null;

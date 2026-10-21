@@ -1,0 +1,70 @@
+{
+  "_expect_error": "is not allowed: a Backfire never kills",
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-TEST-CINDER",
+    "version": "1.0.0",
+    "description": "Synthetic Cinder, powers and Backfire tables for testing (not canon)."
+  },
+  "records": [
+    {
+      "id": "BF-TEST-BODY",
+      "entity_type": "BackfireTable",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "gm",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Backfire: Body",
+      "backfire": {
+        "schema": "ag-backfire/0.1",
+        "label": "[TEST] Body",
+        "weight": 2,
+        "entries": [
+          {
+            "id": "jolt",
+            "text": "[TEST] A brief jolt.",
+            "effect": {
+              "status": "dead",
+              "rounds": 1
+            }
+          },
+          {
+            "id": "stumble",
+            "text": "[TEST] You stumble.",
+            "effect": {
+              "status": "prone",
+              "rounds": 1
+            }
+          },
+          {
+            "id": "ache",
+            "text": "[TEST] A lasting ache until your next rest. The GM adjudicates."
+          }
+        ]
+      },
+      "foundry": {
+        "document_type": "JournalEntry",
+        "folder_path": "Ashen Gate/Test/Cinders",
+        "data": {
+          "name": "[TEST] Backfire: Body",
+          "pages": [
+            {
+              "name": "Table",
+              "type": "text",
+              "text": {
+                "content": "<p>[TEST] Backfire: Body: synthetic Backfire table.</p>",
+                "format": 1
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

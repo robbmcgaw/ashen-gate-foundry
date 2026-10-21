@@ -1,3 +1,11 @@
+## 0.39.0 — 2026-10-21
+
+- **Cinder content imports and is checked.** Cinder definitions (`MUT-*` with a `cinder` block), powers (`POWER-*` with a `power` block) and Backfire tables (`BF-*`, `entity_type: "BackfireTable"`) import as ordinary documents. Their typed blocks are checked by Skill Trees 0.16.0+ (`api.cinder.validateDefinition`) in the Import preview and again just before Apply, so a mistake (a lethal Backfire effect, a Push with no Strain cost, an unknown modifier) blocks the import with Skill Trees' message. Without Skill Trees the records still import, with a warning that their blocks were not checked.
+- **Strain config files** (`ag-strain-config/0.1`: band names, Backfire schedule, rest recovery, effect-roll bonus) are recognised on the Import tab and handed to Skill Trees (`api.strain.previewConfigImport` / `importConfig`). They are also read from a ZIP bundle, after tree files. It only changes the Strain config, never a character's Strain.
+- **Importing never touches live play state:** no Cinder instance, bearer, points, unlocks, Strain or Backfire is created or changed by an import or a re-import.
+- `scripts/validate-content.mjs` checks the same blocks and the Strain config file (and notes references to records outside the file). New schema reference for content writers: `docs/cinder-strain-schema.md`, with a complete synthetic set in `test-fixtures/cinder/`.
+- No saved data changes; no migration.
+
 ## 0.38.1 — 2026-10-21
 
 - **Fix: hand-made Homebrew items were filed under Core 5.5e.** dnd5e 6.0.6 gives every new Item `system.source.rules: "2024"` (or `"2014"` in a legacy-rules world) and `revision: 1` with an empty book, and Organize, Clean compendiums, the Items Origin filter and Core Links' world candidates all treated that rules value as core. Core now needs **positive evidence**: a Plutonium import, a core source book (PHB/DMG/MM 2014 or 2024, SRD 5.1/5.2, `XPHB`…, and full titles like `Player's Handbook (2024)`), or a dnd5e system compendium. A copy from a dnd5e compendium or a D&D Beyond import with no core book is **weak** evidence. An item with only the default rules, no source, a custom source or a third-party/homebrew book is **Homebrew**. 2014 core and SRD 5.1 still count as Core.

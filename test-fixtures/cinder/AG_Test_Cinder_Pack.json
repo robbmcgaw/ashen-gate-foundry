@@ -1,0 +1,306 @@
+{
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-TEST-CINDER",
+    "version": "1.0.0",
+    "description": "Synthetic Cinder, powers and Backfire tables for testing (not canon)."
+  },
+  "records": [
+    {
+      "id": "MUT-TEST-EMBER",
+      "entity_type": "Mutation",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Ember Cinder",
+      "cinder": {
+        "schema": "ag-cinder/0.1",
+        "backfire_categories": [
+          "BF-TEST-BODY",
+          "BF-TEST-MIND"
+        ]
+      },
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Cinders",
+        "data": {
+          "name": "[TEST] Ember Cinder",
+          "type": "feat",
+          "system": {
+            "description": {
+              "value": "<p>[TEST] Ember Cinder: synthetic test definition; no setting content.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "POWER-TEST-SPARK",
+      "entity_type": "Power",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Spark",
+      "point_cost": 1,
+      "power": {
+        "schema": "ag-power/0.1",
+        "kind": "power",
+        "standard": {
+          "summary": "[TEST] A small spark lights a candle."
+        },
+        "push_modes": [
+          {
+            "id": "amplify",
+            "label": "[TEST] Amplify",
+            "strain_cost": 2,
+            "effect": "[TEST] The spark becomes a bright flare."
+          },
+          {
+            "id": "overreach",
+            "label": "[TEST] Overreach",
+            "strain_cost": 3,
+            "effect": "[TEST] Use the spark beyond its normal uses.",
+            "requires": {
+              "powers": [
+                "POWER-TEST-REACH"
+              ]
+            },
+            "backfire_categories": [
+              "BF-TEST-BODY"
+            ]
+          }
+        ]
+      },
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Cinders",
+        "data": {
+          "name": "[TEST] Spark",
+          "type": "feat",
+          "system": {
+            "description": {
+              "value": "<p>[TEST] Spark: synthetic test definition; no setting content.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "POWER-TEST-STEADY",
+      "entity_type": "Power",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Steady Hands",
+      "point_cost": 1,
+      "power": {
+        "schema": "ag-power/0.1",
+        "kind": "enhancement",
+        "modifiers": [
+          {
+            "target": "backfire.chance",
+            "value": -10,
+            "stack": "steady",
+            "label": "[TEST] Steady Hands"
+          },
+          {
+            "target": "push.cost",
+            "value": -1,
+            "modes": [
+              "amplify"
+            ],
+            "label": "[TEST] Light Touch"
+          }
+        ]
+      },
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Cinders",
+        "data": {
+          "name": "[TEST] Steady Hands",
+          "type": "feat",
+          "system": {
+            "description": {
+              "value": "<p>[TEST] Steady Hands: synthetic test definition; no setting content.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "POWER-TEST-REACH",
+      "entity_type": "Power",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Reach",
+      "point_cost": 2,
+      "power": {
+        "schema": "ag-power/0.1",
+        "kind": "enhancement",
+        "modifiers": [
+          {
+            "target": "backfire.severity",
+            "value": 1,
+            "label": "[TEST] Reckless Reach"
+          },
+          {
+            "target": "strain.recovery",
+            "value": 1,
+            "label": "[TEST] Deep Rest"
+          }
+        ]
+      },
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Cinders",
+        "data": {
+          "name": "[TEST] Reach",
+          "type": "feat",
+          "system": {
+            "description": {
+              "value": "<p>[TEST] Reach: synthetic test definition; no setting content.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "BF-TEST-BODY",
+      "entity_type": "BackfireTable",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "gm",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Backfire: Body",
+      "backfire": {
+        "schema": "ag-backfire/0.1",
+        "label": "[TEST] Body",
+        "weight": 2,
+        "entries": [
+          {
+            "id": "jolt",
+            "text": "[TEST] A brief jolt.",
+            "effect": {
+              "status": "poisoned",
+              "rounds": 1
+            }
+          },
+          {
+            "id": "stumble",
+            "text": "[TEST] You stumble.",
+            "effect": {
+              "status": "prone",
+              "rounds": 1
+            }
+          },
+          {
+            "id": "ache",
+            "text": "[TEST] A lasting ache until your next rest. The GM adjudicates."
+          }
+        ]
+      },
+      "foundry": {
+        "document_type": "JournalEntry",
+        "folder_path": "Ashen Gate/Test/Cinders",
+        "data": {
+          "name": "[TEST] Backfire: Body",
+          "pages": [
+            {
+              "name": "Table",
+              "type": "text",
+              "text": {
+                "content": "<p>[TEST] Backfire: Body: synthetic Backfire table.</p>",
+                "format": 1
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "BF-TEST-MIND",
+      "entity_type": "BackfireTable",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "gm",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Backfire: Mind",
+      "backfire": {
+        "schema": "ag-backfire/0.1",
+        "label": "[TEST] Mind",
+        "entries": [
+          {
+            "id": "whisper",
+            "text": "[TEST] A faint whisper distracts you.",
+            "effect": {
+              "status": "frightened",
+              "minutes": 1
+            }
+          },
+          {
+            "id": "omen",
+            "text": "[TEST] Something notices you. The GM adjudicates."
+          }
+        ]
+      },
+      "foundry": {
+        "document_type": "JournalEntry",
+        "folder_path": "Ashen Gate/Test/Cinders",
+        "data": {
+          "name": "[TEST] Backfire: Mind",
+          "pages": [
+            {
+              "name": "Table",
+              "type": "text",
+              "text": {
+                "content": "<p>[TEST] Backfire: Mind: synthetic Backfire table.</p>",
+                "format": 1
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

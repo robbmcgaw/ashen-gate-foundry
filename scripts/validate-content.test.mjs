@@ -141,3 +141,15 @@ test('Item effects (Manager 0.37.0): valid effects pass, bad ones fail with the 
   assert.ok(notes.some(n => /flags not imported .*core\.statusId/.test(n)), JSON.stringify(notes));
   assert.ok(notes.some(n => /transfer on/.test(n)), JSON.stringify(notes));
 });
+
+test('Cinder examples: the package, tree and Strain config pass; the documented mistakes are rejected; import order Manager → trees → Strain', async () => {
+  const {ok, lines} = await validateTargets([path.join(root, 'test-fixtures/cinder')]);
+  assert.ok(ok, lines.join('\n'));
+  assert.match(lines.at(-1), /AG_Test_Cinder_Pack\.json \(Manager package, 6\) -> AG_Test_Cinder_Tree\.json \(Skill Trees, 1\) -> AG_Test_Strain\.json \(Strain \(Skill Trees\), 1\)/);
+  const power = JSON.parse(fs.readFileSync(path.join(root, 'test-fixtures/cinder/AG_Test_Cinder_Pack.json'), 'utf8')).records.find(r => r.id === 'POWER-TEST-SPARK');
+  const alone = await checkContent(pack([power]));
+  assert.deepEqual(alone.errors, []);
+  assert.ok(alone.notes.some(n => n.includes('POWER-TEST-REACH is not in this file')), 'a reference outside the file is a note');
+  const strain = await checkContent({schema: 'ag-strain-config/0.1', bands: [{from: 0, to: 3, label: '[TEST] A'}]});
+  assert.ok(strain.errors.some(e => e.includes('open-ended')));
+});
