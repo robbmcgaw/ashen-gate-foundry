@@ -149,3 +149,24 @@ Full parity with the dnd5e sheet, spell preparation beyond a toggle, advancement
 
 ## Tests
 `node scripts/check.mjs ashen-gate-character-hub`. Tests use mocked Foundry: they prove logic and calls, not the live Foundry UI.
+
+## Level backups (0.27.0)
+Each Hub level-up keeps a GM-only copy of the character as it was before, named `<name> - level X`, in the Actor folder **Ashen Gate / Level backups**. Delete old copies by hand. The copy keeps dnd5e data, items and effects; its live Ashen Gate flag scopes are removed (all `ashen-gate-*` except `ashen-gate-manager` source ids) so it is never a second bearer or progression. Cinder instance records stay in Cinders and are not touched. There is no Restore button yet; the removed flags are kept so one can be built:
+
+```
+flags['ashen-gate-character-hub'].levelBackup = {
+  sourceId,        // the character's Actor id
+  sourceName,      // its name at the time
+  levelBefore,     // character level before the level-up
+  classesBefore,   // [{id, name, identifier, levels}] before the level-up
+  date,            // YYYY-MM-DD
+  opId, by,        // request id (one copy per id) and the user who levelled
+  archivedFlags: {
+    actor:       {scope: flags},                     // the Actor's removed scopes
+    items:       {itemId: {scope: flags}},           // each item's removed scopes
+    effects:     {effectId: {scope: flags}},         // the Actor's effects
+    itemEffects: {itemId: {effectId: {scope: flags}}} // effects on items
+  }                // each key present only when something was removed; ids are the copy's (= the source's) ids
+}
+```
+To restore, put each archived scope back on the document its id names and remove `levelBackup`.

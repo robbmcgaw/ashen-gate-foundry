@@ -11,8 +11,11 @@
  *   - Copies are inert for Ashen Gate: every flag scope starting "ashen-gate-" is removed from the Actor, its items
  *     and its effects (Cinders bearer and socket markers, Strain, Skill Trees, Ledger, Renown, Quest Log, Locations,
  *     Utilities, HQ and this Hub's Journey, quick bar and companions), except "ashen-gate-manager" (the permanent
- *     source ids of imported items). dnd5e data, items and effects are kept. The Hub's recorders skip copies.
- *   - flags['ashen-gate-character-hub'].levelBackup = {sourceId, sourceName, levelBefore, date, opId, by} marks a copy.
+ *     source ids of imported items). They are not thrown away: levelBackup.archivedFlags keeps them (see splitSnapshot)
+ *     for a later restore. Cinder instance records live in Cinders and are never touched. dnd5e data, items and
+ *     effects are kept. The Hub's recorders skip copies.
+ *   - flags['ashen-gate-character-hub'].levelBackup = {sourceId, sourceName, levelBefore, classesBefore, date, opId,
+ *     by, archivedFlags} marks a copy.
  */
 import {MODULE_ID} from './constants.mjs';
 import {canEdit} from './actions.mjs';
@@ -30,19 +33,34 @@ const newOpId = () => globalThis.foundry?.utils?.randomID?.(16) ?? Math.random()
 /** Is this Actor a level backup? */
 export const isBackup = actor => !!actor?.flags?.[MODULE_ID]?.[BACKUP_FLAG];
 
-/** Removes Ashen Gate flag scopes (all but KEEP_SCOPES) from a flags object. */
-function stripFlags(flags) {
-  const out = {};
-  for (const [scope, v] of Object.entries(flags ?? {})) if (!scope.startsWith('ashen-gate-') || KEEP_SCOPES.has(scope)) out[scope] = v;
-  return out;
+/** Splits a flags object into what stays live (non-Ashen Gate scopes and KEEP_SCOPES) and the Ashen Gate scopes taken off. */
+function splitScopes(flags) {
+  const live = {}, off = {};
+  for (const [scope, v] of Object.entries(flags ?? {})) (!scope.startsWith('ashen-gate-') || KEEP_SCOPES.has(scope) ? live : off)[scope] = v;
+  if (off[MODULE_ID]) { const {[QUEUE_FLAG]: _q, ...rest} = off[MODULE_ID]; if (Object.keys(rest).length) off[MODULE_ID] = rest; else delete off[MODULE_ID]; }
+  return {live, off};
 }
-/** The snapshot, inert: Ashen Gate state off the Actor, its items and effects; nothing else changed. */
-export function inertCopy(snapshot) {
-  const data = structuredClone(snapshot);
-  data.flags = stripFlags(data.flags);
-  for (const list of [data.items, data.effects, ...(data.items ?? []).map(i => i.effects)]) for (const d of list ?? []) d.flags = stripFlags(d.flags);
-  return data;
+/**
+ * The snapshot made inert, plus what was taken off it. Ashen Gate scopes (all but KEEP_SCOPES) leave the Actor, its
+ * items, its effects and its items' effects; nothing else changes. `archived` has the shape documented in the README:
+ * {actor: {scope: flags}, items: {itemId: {scope: flags}}, effects: {effectId: {…}}, itemEffects: {itemId: {effectId: {…}}}},
+ * each present only when something was taken off. Putting each back where its id says restores the flags exactly.
+ */
+export function splitSnapshot(snapshot) {
+  const data = structuredClone(snapshot), archived = {};
+  const take = (doc, put) => { const {live, off} = splitScopes(doc.flags); doc.flags = live; if (Object.keys(off).length) put(off); };
+  take(data, off => { archived.actor = off; });
+  for (const e of data.effects ?? []) take(e, off => { (archived.effects ??= {})[e._id] = off; });
+  for (const i of data.items ?? []) {
+    take(i, off => { (archived.items ??= {})[i._id] = off; });
+    for (const e of i.effects ?? []) take(e, off => { ((archived.itemEffects ??= {})[i._id] ??= {})[e._id] = off; });
+  }
+  return {data, archived};
 }
+export const inertCopy = snapshot => splitSnapshot(snapshot).data;
+/** The classes in a snapshot: [{id, name, identifier, levels}]. */
+export const classesBefore = snapshot => (snapshot.items ?? []).filter(i => i.type === 'class')
+  .map(i => ({id: i._id, name: i.name, identifier: i.system?.identifier ?? null, levels: Number(i.system?.levels) || 0}));
 
 /** "<name> - level X", with " (2)", " (3)" … when an Actor already has that name. */
 export function backupName(name, levelBefore, actors = globalThis.game?.actors ?? []) {
@@ -72,10 +90,13 @@ export async function createBackup(snapshot, meta) {
   const g = globalThis.game, Actor = globalThis.Actor;
   const done = [...(g.actors ?? [])].find(a => a.flags?.[MODULE_ID]?.[BACKUP_FLAG]?.opId === meta.opId);
   if (done) return {ok: true, result: done.id, duplicate: true};
-  const data = inertCopy(snapshot);
+  const split = splitSnapshot(snapshot), data = split.data;
+  // A queued snapshot was made inert when queued; its archive travels with it in meta.
+  const archivedFlags = Object.keys(split.archived).length ? split.archived : meta.archivedFlags ?? {};
   for (const k of ['_id', '_stats', 'sort']) delete data[k];
   const folder = await ensureFolder();
-  const flag = {sourceId: meta.sourceId, sourceName: snapshot.name, levelBefore: meta.levelBefore, date: meta.date ?? new Date().toISOString().slice(0, 10), opId: meta.opId, by: meta.by ?? g.user?.id ?? null};
+  const flag = {sourceId: meta.sourceId, sourceName: snapshot.name, levelBefore: meta.levelBefore, date: meta.date ?? new Date().toISOString().slice(0, 10), opId: meta.opId, by: meta.by ?? g.user?.id ?? null,
+    classesBefore: meta.classesBefore ?? classesBefore(snapshot), archivedFlags};
   Object.assign(data, {name: backupName(snapshot.name, meta.levelBefore), folder: folder?.id ?? null, ownership: {default: 0}});
   data.flags = {...data.flags, [MODULE_ID]: {[BACKUP_FLAG]: flag}};
   const made = await Actor.create(data, {keepEmbeddedIds: true});
@@ -113,7 +134,8 @@ export async function saveBackup(actor, snapshot, levelBefore) {
 async function queueBackup(actor, snapshot, meta) {
   const list = readQueue(actor);
   if (list.length >= QUEUE_MAX) return refuse(`${QUEUE_MAX} level backups are already waiting for the GM; this one was not kept.`);
-  await actor.update({[`flags.${MODULE_ID}.${QUEUE_FLAG}`]: [...list, {...meta, snapshot: inertCopy(snapshot)}]});
+  const {data, archived} = splitSnapshot(snapshot);
+  await actor.update({[`flags.${MODULE_ID}.${QUEUE_FLAG}`]: [...list, {...meta, classesBefore: classesBefore(snapshot), archivedFlags: archived, snapshot: data}]});
   return {ok: true, result: 'queued'};
 }
 export const readQueue = actor => (Array.isArray(actor?.flags?.[MODULE_ID]?.[QUEUE_FLAG]) ? actor.flags[MODULE_ID][QUEUE_FLAG] : []).filter(e => e && typeof e === 'object' && e.opId && e.snapshot);

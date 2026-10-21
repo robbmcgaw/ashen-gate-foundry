@@ -196,6 +196,31 @@ test('the copy: GM-only, in Ashen Gate / Level backups, marked, inert for Ashen 
   assert.equal(actor.name, '[TEST] Hero', 'the source is not renamed');
 });
 
+test('archive round-trip: every stripped scope is kept in levelBackup.archivedFlags; no live ashen-gate-* scope but Manager', async () => {
+  const {actor} = setup({user: users.gm, steps: 0});
+  actor.flags['ashen-gate-cinders'] = {cinders: ['i1']}; actor.flags['ashen-gate-skill-trees'] = {progressV2: {t: 3}};
+  actor.items.get('fig').flags = {'ashen-gate-cinders': {attachedTo: {instanceId: 'i1', slot: 1}}, 'ashen-gate-manager': {source: {id: 'REC-1'}}};
+  const snap = actor.toObject();
+  snap.effects = [{_id: 'e1', flags: {'ashen-gate-strain': {s: 1}, core: {c: 1}}}];
+  snap.items[0].effects = [{_id: 'ie1', flags: {'ashen-gate-factions': {f: 1}}}];
+  await bk.createBackup(snap, {sourceId: actor.id, levelBefore: 3, opId: 'rt'});
+  const [copy] = copies(), a = copy.flags[MODULE_ID].levelBackup.archivedFlags;
+  // Stripped scopes equal archived scopes, document by document.
+  const ag = f => Object.fromEntries(Object.entries(f).filter(([k]) => k.startsWith('ashen-gate-') && k !== 'ashen-gate-manager'));
+  assert.deepEqual(a.actor, ag(snap.flags));
+  assert.deepEqual(a.items, {fig: ag(snap.items[0].flags)});
+  assert.deepEqual(a.effects, {e1: ag(snap.effects[0].flags)});
+  assert.deepEqual(a.itemEffects, {fig: {ie1: ag(snap.items[0].effects[0].flags)}});
+  // Restoring puts the original flags back exactly.
+  const restored = {...copy.flags}; delete restored[MODULE_ID]; Object.assign(restored, a.actor);
+  assert.deepEqual(restored, snap.flags);
+  // Nothing live is left on the copy but dnd5e/core, Manager source ids and the backup marker.
+  const live = [copy.flags, ...copy.items.map(i => i.flags), ...copy.effects.map(e => e.flags), ...copy.items.flatMap(i => (i.effects ?? []).map(e => e.flags))];
+  for (const f of live) for (const k of Object.keys(f)) assert.ok(!k.startsWith('ashen-gate-') || k === 'ashen-gate-manager' || (k === MODULE_ID && f === copy.flags), k);
+  assert.deepEqual(Object.keys(copy.flags[MODULE_ID]), ['levelBackup']);
+  assert.deepEqual(copy.flags[MODULE_ID].levelBackup.classesBefore, [{id: 'fig', name: '[TEST] Fighter', identifier: 'fighter', levels: 3}]);
+});
+
 test('copy names: "<name> - level X", then " (2)" when taken', () => {
   assert.equal(bk.backupName('[TEST] Hero', 4, [{name: 'x'}]), '[TEST] Hero - level 4');
   assert.equal(bk.backupName('[TEST] Hero', 4, [{name: '[TEST] Hero - level 4'}, {name: '[TEST] Hero - level 4 (2)'}]), '[TEST] Hero - level 4 (3)');
@@ -246,6 +271,7 @@ test('player with no GM on: level-up goes ahead, the copy is queued and made whe
   globalThis.game.user = users.gm; globalThis.game.users[0].active = true;
   assert.equal(await bk.flushQueue(), 1);
   assert.equal(copies().length, 1); assert.equal(copies()[0].name, '[TEST] Hero - level 3');
+  assert.deepEqual(copies()[0].flags[MODULE_ID].levelBackup.archivedFlags.actor['ashen-gate-strain'], {state: {value: 2}}, 'queued copies keep the archive');
   assert.deepEqual(bk.readQueue(actor), []);
   assert.equal(await bk.flushQueue(), 0, 're-run makes nothing');
 });
