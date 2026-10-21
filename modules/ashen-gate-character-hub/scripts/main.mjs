@@ -92,8 +92,9 @@ export function createApi() {
     unregisterPetSlotSource,
     /**
      * Journey (0.20.0, alpha). entries(actor) is what this user may see (players: their own characters' visible
-     * entries). recordReward(actor, {questId, questName, coins}) is GM-only and idempotent per quest: the hook for
-     * the rewards build. addNote(actor, {text, date, hidden}) is GM-only.
+     * entries). recordReward(actor, {questId, questName, coins, text, items, grantId}) is GM-only and idempotent per
+     * quest, or per quest + grantId (0.25.0: items [{name, img, quantity, itemId}] and grantId are optional).
+     * addNote(actor, {text, date, hidden}) is GM-only.
      */
     journey: Object.freeze({
       entries: actor => journey.journeyFor(actor),
