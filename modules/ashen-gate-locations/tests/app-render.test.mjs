@@ -35,14 +35,15 @@ test('GM builder: list, editor with toggles, quest picker, no ID input', async (
   await world();
   const app = new LocationsApp();
   const html = await app._renderHTML();
-  assert.match(html, /Ashen Gate \| Locations/);
+  assert.match(html, /<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Locations<\/h1>/);
   assert.match(html, /GM Setup/);
   for (const name of ['[TEST] Millbrook', '[TEST] Hidden Cave', '[TEST] Ash Wastes']) assert.ok(html.includes(name), name);
   assert.equal(app.selectedId, 'LOC-TEST-ASH-WASTES', 'first location by name is selected');
   app.select('LOC-TEST-MILLBROOK');
   const editor = await app._renderHTML();
   assert.match(editor, /data-action="state" data-state="revealed"/);
-  assert.match(editor, /ag-btn ag-btn--primary" data-action="state" data-state="revealed"/, 'current state is highlighted');
+  assert.match(editor, /role="radio" aria-checked="true" data-action="state" data-state="revealed"/, 'current state is checked in the segmented control');
+  assert.match(editor, /role="radio" aria-checked="false" data-action="state" data-state="hidden"/);
   assert.match(editor, /data-action="publish"/);
   assert.match(editor, /data-action="preview"/);
   assert.match(editor, /data-bind="unidentifiedLabel"/);
@@ -124,7 +125,7 @@ test('player: unidentified place shows only its label and teaser; children list 
   game.user = player;
   const app = new LocationsApp();
   const list = await app._renderHTML();
-  assert.match(list, /<h3>Unidentified<\/h3>/);
+  assert.match(list, /<h3[^>]*>Unidentified<\/h3>/);
   assert.doesNotMatch(list, /Ash Wastes|ASH-WASTES|Hidden Cave|HIDDEN-CAVE/);
   app.select(key);   // what a click on its Map Note does
   const view = await app._renderHTML();
@@ -149,6 +150,6 @@ test('GM: nesting picker offers no place that would loop; state shown on rows', 
   assert.doesNotMatch(picker, /Old Quarry|Hidden Cave|value="LOC-TEST-MILLBROOK"/, 'its own children and itself are not offered');
   assert.match(picker, /Ash Wastes/);
   assert.match(html, /Places inside/);
-  assert.match(html, /fa-circle-question agl-row__rev" title="Unidentified"/);
+  assert.match(html, /fa-circle-question agl-row__rev" data-tooltip="Unidentified"/);
   assert.match(html, /data-action="new-child"/);
 });

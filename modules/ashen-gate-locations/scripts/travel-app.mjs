@@ -7,6 +7,7 @@ import {MODULE_ID, esc} from './model.mjs';
 import {confirmDialog, infoDialog} from './ag-dialogs.mjs';
 import {gmTrackerHTML, playerTrackerHTML, clampOpacity} from './travel-view.mjs';
 import {LocationsApp} from './app.mjs';
+import {windowSize} from './ag-html.mjs';
 
 const api = () => game.modules.get(MODULE_ID)?.api;
 const notifyError = err => { console.error(`${MODULE_ID} |`, err); ui.notifications?.error(err?.message ?? String(err)); };
@@ -38,7 +39,8 @@ export class TravelTracker extends Base {
   }
 
   constructor(options = {}) {
-    super({...options, position: {...TravelTracker.DEFAULT_OPTIONS.position, ...savedPosition(), ...(options.position ?? {})}});
+    // Compact size by default (Comfortable opens 1.2× larger); where the user left it wins.
+    super({...options, position: {...windowSize(TravelTracker.DEFAULT_OPTIONS.position), ...savedPosition(), ...(options.position ?? {})}});
     this.busy = false; this.saveTimer = null; this.savePending = null;
   }
   get gm() { return game.user.isGM === true; }

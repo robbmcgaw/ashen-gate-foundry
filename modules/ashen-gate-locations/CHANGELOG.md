@@ -1,3 +1,13 @@
+## 1.17.0 — 2026-10-21
+
+- **UI standard look** (same layout): header reads *Ashen Gate | Locations* with the version and Help on the right; tabs scroll sideways on narrow windows, GM Setup last and marked GM.
+- **Toolbar:** search, filters (inline), count, then Import / Export and a plain **New location** on the right. Tree is a toggle chip.
+- **Lists:** compact kit rows (no double padding); groups still fold and show counts. Threat badges use the kit colours; Deadly is a solid red fill.
+- **Editors:** Cancel bottom-left, Save Changes bottom-right (the only gold button). **Delete location** / **Delete route** moved to the top of the editor, away from Cancel. Marker state and route discovery are segmented controls.
+- **GM Setup:** settings only, one **Save Changes** for Player Access, Unidentified Pins and the default leg length (Player Access no longer saves the moment you tick it). Cancel puts the fields back. Import/Export moved to the Locations toolbar; Developer Tools is a collapsed section at the end.
+- **Travel tracker:** same header style; the night-watch table is a striped kit table; opacity slider unchanged. A disabled Roll button says why under it.
+- Foundry tooltips replace native hover text; icon-only buttons have labels. Comfortable size (General Manager → My Appearance) opens the windows 1.2× larger. No saved-data, setting or flag changes.
+
 ## 1.16.1 — 2026-10-21
 
 - Confirmations name the action (no more Yes/No), Help opens with a Close button, dialogs follow the Ashen Gate look; test wording removed from player views.

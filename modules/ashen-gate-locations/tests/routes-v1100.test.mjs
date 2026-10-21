@@ -247,7 +247,7 @@ test('Routes tab: GM editor and list; players see only discovered routes, read-o
   app.tab = 'routes';
   const html = await app._renderHTML();
   assert.match(html, /data-tab="routes"/);
-  assert.match(html, /New Route/);
+  assert.match(html, /New route/);
   assert.match(html, /\[TEST\] Coast Hazards/);
   assert.match(html, /data-rbind="fromId"/);
   assert.match(html, /Delete Route|route-delete/);
@@ -260,6 +260,6 @@ test('Routes tab: GM editor and list; players see only discovered routes, read-o
   const ph = await w.asUser('p1', () => papp._renderHTML());
   assert.match(ph, /\[TEST\] Harbor/);
   assert.match(ph, /20 km · 4 legs/);
-  assert.doesNotMatch(ph, /Sunken|GM-only note|RTE-|New Route|data-rbind/);
+  assert.doesNotMatch(ph, /Sunken|GM-only note|RTE-|New route|route-new|data-rbind/);
   w.mod.api = w.gm;
 });
