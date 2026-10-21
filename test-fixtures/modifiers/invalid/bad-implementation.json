@@ -1,0 +1,40 @@
+{
+  "_expect_error": "implementation must be one of",
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-TEST-MODIFIERS",
+    "version": "1.0.0",
+    "description": "Synthetic modifier items and perks for testing (not canon)."
+  },
+  "records": [
+    {
+      "id": "PERK-TEST-QUIET-WORD",
+      "entity_type": "ProfessionPerk",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Quiet Word",
+      "implementation": "sometimes",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Perks",
+        "data": {
+          "name": "[TEST] Quiet Word",
+          "type": "feat",
+          "system": {
+            "description": {
+              "value": "<p>[TEST] The GM decides when this helps.</p>"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

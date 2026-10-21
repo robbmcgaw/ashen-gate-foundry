@@ -21,6 +21,7 @@ import {compilePackage, dependencyOrder, normalizeRef, docManagerSnapshot, local
 import {downloadJson, downloadText} from "./download.js";
 import {isLocationRecord, locationsApi, planLocation, locationsNote, applyLocations, isRouteRecord, routesApi, planRoute, routesNote, applyRoutes, withLocationIds} from './location-handoff.js';
 import {cinderDefinitionChecks} from './cinder-definitions.js';
+import {modifierDefinitionChecks} from './modifier-definitions.js';
 import {SPECIALISTS, detectSpecialistFile, specialistCount, specialistApi, describeUnrecognized, planSpecialist, applySpecialist} from './specialist-handoff.js';
 import {classifyDelivery} from './delivery.js';
 import {buildWorldExport, saveWorldExport, saveBackup, SNAPSHOT_SETTING} from './world-export.js';
@@ -197,7 +198,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.39.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.40.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -1096,9 +1097,12 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const externalIds = withLocationIds(existingSourceIndex(), locationsApi(game));
     this.errors = validatePackage(this.pkg, externalIds);
     this.warnings = [];
-    // Cinder / Power / Backfire-table blocks are checked by Skill Trees when it is active (0.39.0).
+    // Cinder / Power / Backfire-table blocks are checked by Ashen Gate | Cinders when it is active (0.39.0).
     const cinderChecks = cinderDefinitionChecks(game, this.pkg.records);
     this.errors.push(...cinderChecks.errors); this.warnings.push(...cinderChecks.warnings);
+    // Record-level modifiers go to the module that owns each scope (0.40.0).
+    const modifierChecks = modifierDefinitionChecks(game, this.pkg.records);
+    this.errors.push(...modifierChecks.errors); this.warnings.push(...modifierChecks.warnings);
     if (this.pkg.manifest.schema_version === 'ag-foundry-import/0.1') {
       this.warnings.push('Legacy import package: accepted for compatibility; future exports should use Archie typed references and v0.2 metadata.');
     } else if (isContractImport(this.pkg) && !this.errors.length) {
@@ -1266,6 +1270,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       const externalIds = withLocationIds(existingSourceIndex(), locationsApi(game));
       const issues = validatePackage(this.pkg, externalIds);
       issues.push(...cinderDefinitionChecks(game, this.pkg.records).errors);
+      issues.push(...modifierDefinitionChecks(game, this.pkg.records).errors);
       issues.push(...selectionIssues(this.pkg.records,targetRows.map(r=>r.id),externalIds.keys()));
       if (issues.length) throw new Error(`Package validation changed: ${issues.join("; ")}`);
       if(this.uploadZipArtwork && this.zipMedia.size) {
@@ -2450,7 +2455,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.39.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.40.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */

@@ -13,6 +13,8 @@
 //     Restore reveals). They are left out of the folder's ZIP bundle.
 //   - ag-strain-config/0.1 files (Strain bands and Backfire schedule) are checked with Ashen Gate | Cinders' own validator;
 //     Cinder / Power / BackfireTable records in a Manager package get Cinders' definition check.
+//   - record-level modifiers blocks (ag-modifiers/0.1): Manager checks the shape, then each scope's owner checks its entries
+//     (scope cinder: Cinders' exported validateModifiers, when that Cinders version has it).
 //   - each folder's accepted import files are also zipped together and read as a Manager ZIP bundle.
 // Exit code 1 when any file does not behave as expected.
 import fs from 'node:fs';
@@ -32,6 +34,8 @@ import { importRouteRecords } from '../modules/ashen-gate-locations/scripts/rout
 import { planQuestImport } from '../modules/ashen-gate-quest-manager/scripts/core.mjs';
 import { validatePackage as validateTrees } from '../modules/ashen-gate-skill-trees/scripts/engine.mjs';
 import { validateDefinition as validateCinderDefinition, categoriesFor } from '../modules/ashen-gate-cinders/scripts/cinder.mjs';
+import * as cinderEngine from '../modules/ashen-gate-cinders/scripts/cinder.mjs';
+import { modifierDefinitionChecks, MODIFIER_SCOPES } from '../modules/ashen-gate-manager/scripts/modifier-definitions.js';
 import { validateConfig as validateStrainConfig } from '../modules/ashen-gate-cinders/scripts/strain.mjs';
 import { planImport as planFactions } from '../modules/ashen-gate-factions/scripts/import.mjs';
 import { planFacilityImport } from '../modules/ashen-gate-headquarters/js/logic.mjs';
@@ -89,9 +93,16 @@ function codexChecks(rec) {
 }
 
 /** Extra checks on a valid Manager package: what the owning modules would make of its domain records. */
+// The scope owners as Manager would find them in a world: a module whose engine exports validateModifiers counts as active.
+const ownerEngines = {[MODIFIER_SCOPES.cinder.moduleId]: cinderEngine};
+const ownerGame = {modules: new Map(Object.entries(ownerEngines).map(([id, engine]) => [id,
+  {active: true, api: typeof engine.validateModifiers === 'function' ? {modifiers: {validate: engine.validateModifiers}} : {}}]))};
+
 function domainChecks(pkg) {
   const errors = [], notes = [];
   const ids = new Set(pkg.records.map(r => r.id));
+  const owned = modifierDefinitionChecks(ownerGame, pkg.records);
+  errors.push(...owned.errors); notes.push(...owned.warnings);
   for (const rec of pkg.records) {
     // Apply refuses a marker whose target is neither in the package nor already in the world.
     for (const id of markerTargets(rec)) if (!ids.has(id)) notes.push(`${rec.id}: AGREF ${id} must already exist in the world (not in this package).`);

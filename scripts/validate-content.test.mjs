@@ -153,3 +153,14 @@ test('Cinder examples: the package, tree and Strain config pass; the documented 
   const strain = await checkContent({schema: 'ag-strain-config/0.1', bands: [{from: 0, to: 3, label: '[TEST] A'}]});
   assert.ok(strain.errors.some(e => e.includes('open-ended')));
 });
+
+test('Modifier examples: the package passes (a note until the scope owner checks modifiers); the documented mistakes are rejected', async () => {
+  const {ok, lines} = await validateTargets([path.join(root, 'test-fixtures/modifiers')]);
+  assert.ok(ok, lines.join('\n'));
+  const file = JSON.parse(fs.readFileSync(path.join(root, 'test-fixtures/modifiers/AG_Test_Modifier_Items.json'), 'utf8'));
+  const r = await checkContent(file);
+  assert.deepEqual(r.errors, []);
+  const lens = file.records[0];
+  const bad = await checkContent(pack([{...lens, modifiers: {...lens.modifiers, list: [{target: 'push.cost', value: 1, label: 'x', op: 'multiply'}]}}]));
+  assert.ok(bad.errors.some(e => e.includes('op must be "add"')), bad.errors.join('\n'));
+});
