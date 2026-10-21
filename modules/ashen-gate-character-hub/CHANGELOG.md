@@ -1,3 +1,10 @@
+## 0.25.0 — 2026-10-21
+
+- **Journey shows item rewards.** `api.journey.recordReward` (GM only) now also takes `items` (up to 50 of name, picture, quantity and permanent item id) and a `grantId`. The entry reads `Reward for "<quest>": 2 × Healing Draught, Rusted Blade` (coins added as before), with small item pictures after the text; hover shows the name and quantity. No ids are shown. There is no separate Rewards panel (D12).
+- **One entry per grant:** with a `grantId` the entry id is `reward-<questId>-<grantId>`, so a second grant or Grant again adds its own entry and re-firing the same grant adds nothing. The old call (no items, no `grantId`) gives the same entry and text as before.
+- **Companion drops use the shared item-drop standard** (`ag-item-drop/1`, copied from Quest Log). Dropping a folder, a non-item or a missing item now shows a warning instead of a vague message. A dropped container brings its contents. Mount and pet slots still take Actors; the quick bar reads drops the same way with unchanged rules.
+- No migration: existing Journey entries and companion data read unchanged. New reward entries may carry `data.items` and `data.grantId`. Hidden entries still stay in the GM-only store.
+
 ## 0.24.0 — 2026-10-21
 
 - **Cinders sub-tab: a compact Cinder orb** (Cinders 0.6.0's look, smaller). Each Cinder is a card: a mini orb on the left, ringed by the bearer's Strain (10 segments, then a pip per point over), with a dot for each socket; on the right the Push lines (cost, Strain after, Backfire %; the Push button is red when the Backfire is guaranteed) and the socket rows. In a narrow window the orb sits above the lines. The Hub layout (art and slots, content, icon rail) is unchanged.
