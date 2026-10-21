@@ -20,7 +20,10 @@ Check your own files with `node scripts/validate-content.mjs <file-or-folder>`.
 
 Import order (a ZIP bundle does this automatically): Manager package → tree file → Strain config.
 
-Who uses what: **Skill Trees** holds the Cinder trees (points and unlocks). **Ashen Gate | Cinders** reads the `cinder`, `power` and `backfire` blocks and the Strain config, and runs Cinders, Push, Backfire and Strain.
+Who uses what:
+- **Skill Trees** (`ashen-gate-skill-trees`) holds the Cinder trees: points, unlocks and perk Items.
+- **Ashen Gate | Cinders** (`ashen-gate-cinders`) reads the `cinder`, `power` and `backfire` blocks and the Strain config, and runs Cinder instances, Push, Backfire and Strain (`api.strain`).
+- Cinders reaches the trees only through Skill Trees' public `api.accounts` (`ag-tree-accounts/1`). Content files don't depend on that boundary: the same records and tree file work either way.
 
 **Importing never touches live play state.** It never creates, moves or deletes a Cinder instance, never changes a bearer, points, unlocks or a character's Strain, and never applies a Backfire. Re-importing updates the definitions only; GM edits and live state are kept. Cinder instances are made and bound by the GM in Ashen Gate | Cinders → Manage.
 
