@@ -3,6 +3,7 @@ import {domainHandoff} from './delivery.js';
 import {validateLogicalProjection} from './source-projection.mjs';
 import {validateImportPresentation} from './import-fidelity.js';
 import {validateItemEffects, validateItemFlags, allowedItemFlags} from './item-effects.js';
+import {modifierRecordProblems} from './modifier-definitions.js';
 /** Ashen Gate Manager — pure, side-effect-free import planning tools. v0.1.0 */
 export const MODULE_ID = "ashen-gate-manager";
 export const MANAGED_TYPES = ["Item", "JournalEntry", "Actor", "RollTable", "Macro"];
@@ -79,6 +80,8 @@ export function validatePackage(input, existingIds = new Set()) {
     errors.push(...validateImportPresentation(record));
     if (strict) errors.push(...validateLogicalProjection(record));
     if (strict) errors.push(...checkContractRecord(record,label));
+    // Record-level modifiers block and implementation field (0.41.0); scope owners check targets and values.
+    errors.push(...modifierRecordProblems(record, typeof record.id === 'string' && record.id ? record.id : label));
     const id = record.id;
     if (typeof id !== "string" || !(strict ? CONTRACT_ID : SOURCE_ID_PATTERN).test(id)) errors.push(`${label}.id: invalid permanent ID.`);
     if (ids.has(id)) errors.push(`${label}.id: duplicate ID ${id}.`);

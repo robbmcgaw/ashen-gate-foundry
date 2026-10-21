@@ -1,0 +1,139 @@
+{
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-TEST-MODIFIERS",
+    "version": "1.0.0",
+    "description": "Synthetic modifier items and perks for testing (not canon)."
+  },
+  "records": [
+    {
+      "id": "ITEM-TEST-EMBER-LENS",
+      "entity_type": "Item",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Ember Lens",
+      "implementation": "automatic",
+      "modifiers": {
+        "schema": "ag-modifiers/0.1",
+        "scope": "cinder",
+        "list": [
+          {
+            "target": "push.cost",
+            "value": -1,
+            "label": "[TEST] Ember Lens"
+          },
+          {
+            "target": "backfire.chance",
+            "value": -5,
+            "label": "[TEST] Ember Lens (steady)",
+            "stack": "lens",
+            "applies": {
+              "powers": [
+                "POWER-TEST-SPARK"
+              ],
+              "modes": [
+                "amplify"
+              ]
+            }
+          }
+        ]
+      },
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Items",
+        "data": {
+          "name": "[TEST] Ember Lens",
+          "type": "loot",
+          "system": {
+            "description": {
+              "value": "<p>[TEST] Ember Lens: synthetic socket item; no setting content.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "PERK-TEST-STEADY-GRIP",
+      "entity_type": "ProfessionPerk",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Steady Grip",
+      "implementation": "automatic",
+      "modifiers": {
+        "schema": "ag-modifiers/0.1",
+        "list": [
+          {
+            "scope": "cinder",
+            "op": "add",
+            "target": "strain.recovery",
+            "value": 1,
+            "label": "[TEST] Steady Grip",
+            "requires": {
+              "powers": [
+                "POWER-TEST-SPARK"
+              ]
+            }
+          }
+        ]
+      },
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Perks",
+        "data": {
+          "name": "[TEST] Steady Grip",
+          "type": "feat",
+          "system": {
+            "description": {
+              "value": "<p>[TEST] Steady Grip: synthetic perk; no setting content.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "PERK-TEST-QUIET-WORD",
+      "entity_type": "ProfessionPerk",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Quiet Word",
+      "implementation": "gm_resolved",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Perks",
+        "data": {
+          "name": "[TEST] Quiet Word",
+          "type": "feat",
+          "system": {
+            "description": {
+              "value": "<p>[TEST] The GM decides when this helps.</p>"
+            }
+          }
+        }
+      }
+    }
+  ]
+}
