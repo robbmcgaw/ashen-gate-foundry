@@ -3,7 +3,7 @@
 //   - CHANGELOG.md starts with this version, and any hard-coded VERSION/BUILD_VERSION constant matches it
 //   - every runtime script parses
 //   - styles/ag-ui.css is listed first and identical in every module; shared helpers (ag-launchers.mjs,
-//     ag-dialogs.mjs, ag-html.mjs) are identical wherever they ship
+//     ag-dialogs.mjs, ag-html.mjs, ag-item-drop.mjs) are identical wherever they ship
 //   - the UI drift lint (scripts/ui-lint.mjs): every rule at zero, except the STRICT_EXCEPTIONS it lists
 //   - the module's automated tests pass
 //   - (full run only) the playtest data pack loads, ids are unique and references resolve
@@ -103,8 +103,9 @@ if (!wanted.length) {
 }
 
 // Shared files are copied into modules and must not drift: the Actors launcher helper
-// (player-facing modules), the UI kit stylesheet (every module), the dialog helper and the HTML helper.
-for (const shared of ['ag-launchers.mjs', 'ag-ui.css', 'ag-dialogs.mjs', 'ag-html.mjs']) {
+// (player-facing modules), the UI kit stylesheet (every module), the dialog helper, the HTML helper and the
+// item-drop helper (modules that accept item drops).
+for (const shared of ['ag-launchers.mjs', 'ag-ui.css', 'ag-dialogs.mjs', 'ag-html.mjs', 'ag-item-drop.mjs']) {
   const copies = fs.readdirSync(modulesDir).sort()
     .flatMap(id => walk(path.join(modulesDir, id)).filter(f => path.basename(f) === shared));
   if (new Set(copies.map(f => fs.readFileSync(f, 'utf8'))).size > 1) {

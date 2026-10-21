@@ -10,7 +10,7 @@ import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,infoDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
 
-const VERSION='0.10.1';
+const VERSION='0.10.2';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
