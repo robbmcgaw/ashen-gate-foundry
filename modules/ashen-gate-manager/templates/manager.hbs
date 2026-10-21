@@ -1,7 +1,7 @@
 <section class="agmanager-body">
   <header class="ag-header agmanager-top">
     <i class="agmanager-emblem fa-solid fa-dungeon" aria-hidden="true"></i>
-    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.38.0 Beta</small></h2></div>
+    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.38.1 Beta</small></h2></div>
     <div class="agmanager-appearance-menu" data-ag-appearance-menu>
       <button type="button" class="agmanager-help agmanager-appearance-toggle" data-ag-appearance-toggle aria-haspopup="dialog" aria-controls="agmanager-appearance-pop" aria-expanded="{{#if appearanceOpen}}true{{else}}false{{/if}}"><i class="fa-solid fa-palette" aria-hidden="true"></i> Appearance <i class="fa-solid fa-caret-down" aria-hidden="true"></i></button>
       <div id="agmanager-appearance-pop" class="agmanager-appearance-pop agmanager-appearance" role="dialog" aria-label="Appearance: GM world default" data-ag-appearance-pop {{#unless appearanceOpen}}hidden{{/unless}}>
@@ -475,6 +475,8 @@
             <span class="agmanager-chip">Skipped (protected / Keep here / left alone): {{totals.skipped}}</span>
             <span class="agmanager-chip">No rule: {{totals.unmatched}}</span>
           </div>
+          {{#if weak}}<p class="agmanager-warnings">{{weak}} move(s) to Core 5.5e rest on weak evidence (copied from a dnd5e compendium, or a D&amp;D Beyond import with no core source book) and start <strong>unticked</strong>. Tick them only if they really are core items.</p>{{/if}}
+          <p class="agmanager-tiny">Each move says why. Core 5.5e needs real evidence: a Plutonium import, a core source book (PHB, DMG, MM 2014 or 2024, SRD 5.1 or 5.2) or a dnd5e compendium. dnd5e gives every new item rules "2024", so that alone counts as Homebrew. To keep your own items where they are, press <strong>Keep here</strong> on a row, or protect their folder under <strong>Protected folders</strong> below.</p>
           {{#each withMoves}}
           <div class="agmanager-org-part">
             <h4>{{label}} — {{moveCount}} to move</h4>
@@ -486,8 +488,10 @@
               {{#if skippedCount}}<p class="agmanager-tiny">{{skippedCount}} skipped (protected folder, Keep here, or a rule that leaves them alone){{#if protectedFolders}}: protected {{protectedFolders}}{{/if}}.</p>{{/if}}
               {{#each groups}}
               <details class="agmanager-org-group"><summary>→ <strong>{{path}}</strong> ({{count}})</summary>
-                <table class="agmanager-table"><thead><tr><th>Move</th><th>Document</th><th>From</th></tr></thead><tbody>
-                {{#each rows}}<tr><td><input type="checkbox" data-ag-clean-move="{{key}}" {{#if checked}}checked{{/if}} aria-label="Move {{name}}"></td><td>{{name}}</td><td>{{from}}</td></tr>{{/each}}
+                <table class="agmanager-table"><thead><tr><th>Move</th><th>Document</th><th>From</th><th>Why</th><th></th></tr></thead><tbody>
+                {{#each rows}}<tr><td><input type="checkbox" data-ag-clean-move="{{key}}" {{#if checked}}checked{{/if}} aria-label="Move {{name}}"></td><td>{{name}}</td><td>{{from}}</td>
+                  <td>{{why}}{{#if weak}} <span class="ag-badge ag-badge--warn">weak evidence, unticked</span>{{/if}}</td>
+                  <td>{{#if keep}}<button type="button" class="ag-btn ag-btn--sm" data-ag-clean-keep="{{keep.id}}" data-ag-clean-doctype="{{keep.documentName}}" data-ag-clean-key="{{key}}" title="Never move this document">Keep here</button>{{/if}}</td></tr>{{/each}}
                 </tbody></table>
               </details>
               {{/each}}
@@ -527,7 +531,7 @@
           <p class="agmanager-tiny" role="status">{{org.message}}</p>
           <p class="agmanager-tiny">To organize one folder, pick it under <strong>Folder</strong> above and choose <strong>This selection or folder</strong>. To filter first (e.g. Origin: DDB / Plutonium), do the same: Preview then lists only those documents. To keep a folder as it is, protect it below.</p>
           <p class="agmanager-tiny">Only the folder changes. Nothing is renamed, edited or deleted, and no folder is ever deleted. Player characters and player-owned actors stay where they are. Documents in a protected folder, or marked <strong>Keep here</strong>, are skipped. Locked, module and system compendiums are inspect-only.</p>
-          <p class="agmanager-tiny">Default rules: Ashen Gate records go to <strong>Ashen Gate</strong>. Other Items go to <strong>Core 5.5e</strong> when they carry a core source tag (imported by Plutonium, or marked 2024 / PHB'24, DMG'24, MM'24, SRD 5.2, or 2014 core / PHB, DMG, MM, SRD 5.1); items with no source or a third-party or homebrew source go to <strong>Homebrew</strong>, with the same sub-folders. Your own saved rules are used instead if you have them.</p>
+          <p class="agmanager-tiny">Default rules: Ashen Gate records go to <strong>Ashen Gate</strong>. Other Items go to <strong>Core 5.5e</strong> only with real evidence: imported by Plutonium, a core source book (PHB'24, DMG'24, MM'24, SRD 5.2, or 2014 PHB, DMG, MM, SRD 5.1), or copied from a dnd5e compendium or imported from D&amp;D Beyond (these two are weak evidence and marked so). dnd5e gives every new item rules "2024", so a hand-made item with no source book goes to <strong>Homebrew</strong>, as do items with no source or a third-party or homebrew source, with the same sub-folders. Each move in the preview says why. Your own saved rules are used instead if you have them.</p>
 
           {{#if org.preview}}
           <div class="agmanager-row agmanager-row-wrap">
@@ -543,8 +547,8 @@
             {{#unless writable}}<p class="agmanager-warnings"><strong>Inspect only:</strong> {{blockedReason}}.</p>{{/unless}}
             {{#each groups}}
             <details class="agmanager-org-group"><summary><strong>{{path}}</strong> ({{count}})</summary>
-              <table class="agmanager-table"><thead><tr><th>Document</th><th>From</th><th></th></tr></thead><tbody>
-              {{#each rows}}<tr><td>{{name}}</td><td>{{from}}</td><td>{{#if @root.org.world}}<button type="button" class="ag-btn ag-btn--sm" data-ag-org-keep="{{id}}" data-ag-org-doctype="{{documentName}}" title="Never move this document">Keep here</button>{{/if}}</td></tr>{{/each}}
+              <table class="agmanager-table"><thead><tr><th>Document</th><th>From</th><th>Why</th><th></th></tr></thead><tbody>
+              {{#each rows}}<tr><td>{{name}}</td><td>{{from}}</td><td>{{why}}{{#if weak}} <span class="ag-badge ag-badge--warn">weak evidence: check it</span>{{/if}}</td><td>{{#if @root.org.world}}<button type="button" class="ag-btn ag-btn--sm" data-ag-org-keep="{{id}}" data-ag-org-doctype="{{documentName}}" title="Never move this document">Keep here</button>{{/if}}</td></tr>{{/each}}
               </tbody></table>
             </details>
             {{/each}}

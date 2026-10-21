@@ -1,4 +1,4 @@
-# Organize rules (General Manager 0.30.0)
+# Organize rules (General Manager 0.38.1)
 
 General Manager → **Organize** files world Items, Actors and Journals (or one unlocked world compendium) into folders using a list of rules. The GM can view the rules, edit them as JSON, and export or import them. The rules are stored in the world setting `ashen-gate-manager.organizeSchema`; an empty list means the shipped defaults are used. Organize only ever changes a document's `folder`.
 
@@ -24,13 +24,16 @@ Rules are checked from top to bottom, and the first match decides the folder. If
 
 `documentType`, `ag` (has an Ashen Gate source id), `sourceIdPrefix`, `entityType`, `status`, `visibility`, `test` (`[TEST]` name or example_only), `tier`, `profession`, `quality`, `crafted`, `itemType`, `subtype`, `rarity`, `magic`, `spellLevel`, `spellSchool`, `actorType`, `playerOwned`, `creatureType`, `crBand`, `core` (copied from a dnd5e system compendium), and **`sourceTagged`** (0.30.0).
 
-`sourceTagged` (Manager 0.31.0) is true when the document is a **core** source:
+`sourceTagged` (Manager 0.31.0; positive evidence since 0.38.1) is true only when there is **real evidence** the Item is core content:
 
-- it has `flags.plutonium` (it was imported by Plutonium), or
-- its `system.source` says 2024: `rules: "2024"`, or a book of PHB'24, DMG'24, MM'24 or SRD 5.2 (`XPHB`, `XDMG`, `XMM`, `PHB 2024` are understood too), or
-- its `system.source` says 2014 core: `rules: "2014"`, or a book of PHB, DMG, MM (`PHB'14`, `PHB 2014` too) or SRD 5.1 (`SRD 5.1`, `SRD`, `System Reference Document 5.1`).
+- **Strong:** it has `flags.plutonium` (imported by Plutonium); or its `system.source.book` is a core book: 2024 PHB'24, DMG'24, MM'24, SRD 5.2 (`XPHB`, `XDMG`, `XMM`, `PHB 2024`, `Player's Handbook (2024)` are understood too) or 2014 PHB, DMG, MM (`PHB'14`, `PHB 2014`, `Player's Handbook`), SRD 5.1 (`SRD 5.1`, `SRD`, `System Reference Document 5.1`); or it sits in a dnd5e system compendium.
+- **Weak:** it was copied from a dnd5e system compendium (`_stats.compendiumSource` is `Compendium.dnd5e.…`, including a book dnd5e fills in from that compendium), or it was imported by D&D Beyond Importer (`flags.ddbimporter`) with no core book. These go to Core 5.5e but are marked *weak evidence*, and **Clean compendiums leaves them unticked**.
 
-It is false when the Item has no source at all, or a third-party or homebrew book. In 0.30.0 only 2024 counted; 2014 core and SRD 5.1 items now stay under Core too (*all considered core*).
+`system.source.rules` alone is **not evidence**: dnd5e 6.x gives every new Item `rules: "2024"` (or `"2014"` in a legacy-rules world) and `revision: 1` with an empty book, so a hand-made handout has it too. Such Items, and Items with no source, a `custom` source, a third-party or homebrew book, or a D&D Beyond homebrew flag, are **Homebrew**. 2014 core and SRD 5.1 Items still count as Core (*all considered core*). The same evidence drives the Items tab **Origin** filter.
+
+Every move in the Organize and Clean compendiums previews shows **why**, for example `Core 5.5e: source book PHB 2024` or `Homebrew: no source book (rules "2024" alone is dnd5e's default for new items)`.
+
+**Keeping your own items where they are:** press **Keep here** on the row in the Organize or Clean compendiums preview (sets `flags.ashen-gate-manager.keepFolder` on that document), or put them in a folder and protect it under **Protected folders** (protection covers its sub-folders). Both are skipped by Organize and Clean compendiums.
 
 Core Links does **not** use this test. It picks world candidates with a narrower 2024-only test (Plutonium import or marked 2024, never anything marked 2014), so 2014 / SRD 5.1 content is never linked or adopted.
 
@@ -43,7 +46,7 @@ Core Links does **not** use this test. It picks world candidates with a narrower
 1. Player characters and player-owned Actors stay where they are.
 2. Playtest records (`[TEST]`, example_only) → `Ashen Gate/Playtest`.
 3. Ashen Gate records → `Ashen Gate/…` (professions, materials, recipes, crafted items and perks by tier; items, creatures by CR, NPCs, locations, journals).
-4. Source-tagged non-Ashen-Gate Items → `Core 5.5e/…`: `Spells/{spellLevel}`, `Items/{rarity} Magic`, `Items/Weapons`, `Items/Armor`, `Items/Consumables`, `Items/Tools`, `Items/Wondrous`, `Items/Gear`, `Items/Loot`, `Features`, `Character Options`.
+4. Source-tagged (positive evidence) non-Ashen-Gate Items → `Core 5.5e/…`: `Spells/{spellLevel}`, `Items/{rarity} Magic`, `Items/Weapons`, `Items/Armor`, `Items/Consumables`, `Items/Tools`, `Items/Wondrous`, `Items/Gear`, `Items/Loot`, `Features`, `Character Options`.
 5. All other non-Ashen-Gate Items → `Homebrew/…`, using the same sub-folders as Core 5.5e.
 6. Non-Ashen-Gate Actors → `Core 5.5e/Actors/{creatureType}`, `Core 5.5e/Actors/Other`, `Core 5.5e/Actors/Vehicles`. Actors don't use the source tag.
 
@@ -59,4 +62,6 @@ Saved custom rules are never changed by an update. To get the new defaults, use 
 | `Open Mace` with `system.source.book: "SRD 5.1"` | source-tagged (SRD 5.1) | `Core 5.5e/Items/Weapons` |
 | `Tome Blade` with `system.source.book: "[TEST] Third Party Tome"` | not tagged | `Homebrew/Items/Weapons` |
 | `Glimmer Blade` with no source | not tagged | `Homebrew/Items/Weapons` |
+| `Note from the Mayor`, made by hand: `system.source: {rules: "2024", revision: 1, book: ""}` | not tagged (rules alone is not evidence) | `Homebrew/Items/Loot` |
+| `Sample Torch` copied from `dnd5e.equipment24` | source-tagged, weak (unticked in Clean) | `Core 5.5e/Items/Loot` |
 | `Spark Bolt`, a level 1 spell with no source | not tagged | `Homebrew/Spells/Level 1` |

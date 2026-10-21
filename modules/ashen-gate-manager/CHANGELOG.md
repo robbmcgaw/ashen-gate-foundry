@@ -1,3 +1,12 @@
+## 0.38.1 — 2026-10-21
+
+- **Fix: hand-made Homebrew items were filed under Core 5.5e.** dnd5e 6.0.6 gives every new Item `system.source.rules: "2024"` (or `"2014"` in a legacy-rules world) and `revision: 1` with an empty book, and Organize, Clean compendiums, the Items Origin filter and Core Links' world candidates all treated that rules value as core. Core now needs **positive evidence**: a Plutonium import, a core source book (PHB/DMG/MM 2014 or 2024, SRD 5.1/5.2, `XPHB`…, and full titles like `Player's Handbook (2024)`), or a dnd5e system compendium. A copy from a dnd5e compendium or a D&D Beyond import with no core book is **weak** evidence. An item with only the default rules, no source, a custom source or a third-party/homebrew book is **Homebrew**. 2014 core and SRD 5.1 still count as Core.
+- **Why, per move:** the Organize and Clean compendiums previews show the reason for each move (e.g. `Core 5.5e: source book PHB 2024`, `Homebrew: no source book (rules "2024" alone is dnd5e's default for new items)`).
+- **Weak evidence starts unticked** in Clean compendiums, with a note; Organize marks it "weak evidence: check it".
+- **Keep here in Clean compendiums:** world rows now have Keep here (same flag as Organize's). Protected folders also hold items in place.
+- `docs/organize-rules.md` updated.
+- **Migration:** none; no saved data changes. Saved custom rules are unchanged (`sourceTagged` just reads the new evidence). Items already moved by a previous run go back with **Undo last organize** if that run is still the most recent and the items have not been moved since.
+
 ## 0.38.0 — 2026-10-21
 
 - **Item preview.** In Items → All items, picking an Item's name shows dnd5e's own item card (the same `richTooltip` card the native sheet's tooltip uses) in the details pane, with below it: where it lives (World, or Compendium: label and id, locked or not), the full folder path, the uuid, and type, rarity, source (book, page, 2024/2014 rules), origin, core_ref, Ashen Gate id, price, weight and attunement when present. Ashen Gate records shows the same preview for an Item. Hovering an Item name there (and in Adopt and tag) shows dnd5e's tooltip through its `data-tooltip-html` + uuid mechanism. Read-only and GM-only (the preview checks the GM itself); a compendium item is loaded on its own by uuid, never the whole pack.

@@ -36,6 +36,9 @@ export function bookKey(value) {
   if(/^SRD5\.?2/.test(u)) return 'SRD52';
   if(/^SRD5\.?1/.test(u) || u === 'SRD' || /^SYSTEMREFERENCEDOCUMENT5\.?1/.test(u)) return 'SRD51';
   if(/^SYSTEMREFERENCEDOCUMENT5\.?2/.test(u)) return 'SRD52';
+  // Full titles (D&D Beyond writes these): "Player's Handbook (2024)", "2024 Dungeon Master's Guide", "Monster Manual 2014".
+  m = u.match(/^(2024|2014)?(PLAYERSHANDBOOK|DUNGEONMASTERSGUIDE|MONSTERMANUAL)(2024|2014)?$/);
+  if(m) return `${{PLAYERSHANDBOOK:'PHB', DUNGEONMASTERSGUIDE:'DMG', MONSTERMANUAL:'MM'}[m[2]]}${(m[1] ?? m[3]) === '2024' ? '24' : ''}`;
   return u.replace(/\./g, '');
 }
 const BOOK_2024 = new Set(['PHB24', 'DMG24', 'MM24', 'SRD52']);
@@ -51,17 +54,51 @@ export function rulesOf(entry) {
   if(BOOK_2014.has(book)) return false;
   return null;
 }
+const CORE_PACK = /^Compendium\.dnd5e\.([^.]+)\./;
+const editionOfPack = name => /24$/.test(name) ? '2024' : '2014';
+const editionOf = entry => rulesOf(entry) === false ? '2014' : '2024';
 /**
- * Core Links (2024 only): imported by Plutonium (flags.plutonium present) or marked 2024 (system.source rules/book).
- * Never true for content marked 2014. Use isCoreSource for Organize's Core vs Homebrew decision.
+ * Why an Item counts as core content, or why not (0.38.1). Core needs POSITIVE evidence; `system.source.rules` alone
+ * is never enough, because dnd5e (6.0.6 SourceField) gives every new Item rules "2024" (or "2014" in a legacy-rules
+ * world), revision 1 and an empty book, so a hand-made homebrew Item carries it too. Evidence, strongest first:
+ *   strong  flags.plutonium (Plutonium import); a core book in system.source (PHB/DMG/MM 2014 or 2024, SRD 5.1/5.2,
+ *           XPHB…, full titles); being in a dnd5e system compendium (`packId` dnd5e.*)
+ *   weak    copied from a dnd5e system compendium (_stats.compendiumSource Compendium.dnd5e.…, or a book dnd5e filled
+ *           in from that compendium) or a D&D Beyond import (flags.ddbimporter) with no core book: may have been
+ *           edited into something else, so Clean compendiums leaves these unticked.
+ * Returns {core, edition ('2024'|'2014'|null), strong, reason}.
  */
-export const isSource2024 = entry => (Boolean(getPath(entry, 'flags.plutonium')) && rulesOf(entry) !== false) || rulesOf(entry) === true;
+export function coreEvidence(entry, packId = null) {
+  const raw = getPath(entry, '_source.system.source.book');
+  const derived = getPath(entry, '_source') !== undefined && !raw && getPath(entry, 'system.source.book');
+  const bookText = String((derived ? '' : getPath(entry, 'system.source.book')) || getPath(entry, 'flags.plutonium.source') || '').trim();
+  const book = bookKey(bookText);
+  const bookEdition = BOOK_2024.has(book) ? '2024' : BOOK_2014.has(book) ? '2014' : null;
+  const from = String(getPath(entry, '_stats.compendiumSource') ?? getPath(entry, 'flags.core.sourceId') ?? '').match(CORE_PACK);
+  const [pkg, pack] = String(packId ?? '').split('.');
+  if(getPath(entry, 'flags.plutonium')) return {core:true, edition:bookEdition ?? editionOf(entry), strong:true, reason:`Plutonium import${bookText ? ` (${bookText})` : ''}`};
+  if(bookEdition) return {core:true, edition:bookEdition, strong:true, reason:`source book ${bookText}`};
+  if(pkg === 'dnd5e' && pack) return {core:true, edition:editionOfPack(pack), strong:true, reason:`dnd5e system compendium ${packId}`};
+  if(from) return {core:true, edition:editionOfPack(from[1]), strong:false, reason:`copied from dnd5e compendium dnd5e.${from[1]} (may have been edited)`};
+  const ddb = getPath(entry, 'flags.ddbimporter');
+  if(ddb && !getPath(ddb, 'dndbeyond.homebrew') && !getPath(ddb, 'isHomebrew'))
+    return {core:true, edition:editionOf(entry), strong:false, reason:`D&D Beyond import with ${bookText ? `book ${bookText}` : 'no core source book'} (could be D&D Beyond homebrew)`};
+  const custom = String(getPath(entry, 'system.source.custom') ?? '').trim();
+  const rules = String(getPath(entry, 'system.source.rules') ?? '');
+  return {core:false, edition:null, strong:true, reason:bookText ? `source book "${bookText}" is not a core book`
+    : custom ? `custom source "${custom}"` : rules ? `no source book (rules "${rules}" alone is dnd5e's default for new items)` : 'no source'};
+}
 /**
- * Organize (0.31.0): counts as Core when imported by Plutonium, or when system.source says 2024 or 2014 core
- * (rules "2014"; books PHB/DMG/MM legacy codes; SRD 5.1 labels). No source, third-party or homebrew → false.
- * Never used to pick Core Links candidates.
+ * Core Links (2024 only): core evidence (coreEvidence) of the 2024 edition. Never true for content marked 2014, and
+ * never for a hand-made item that only has dnd5e's default rules "2024" (0.38.1).
  */
-export const isCoreSource = entry => Boolean(getPath(entry, 'flags.plutonium')) || rulesOf(entry) !== null;
+export const isSource2024 = entry => {const e = coreEvidence(entry); return e.core && e.edition === '2024' && rulesOf(entry) !== false;};
+/**
+ * Organize (0.31.0; 0.38.1 needs positive evidence): Core when coreEvidence finds a Plutonium import, a 2024 or
+ * 2014 core / SRD book, a dnd5e system compendium origin, or a D&D Beyond import. No source, only a default rules
+ * value, custom, third-party or homebrew → false. Never used to pick Core Links candidates.
+ */
+export const isCoreSource = (entry, packId = null) => coreEvidence(entry, packId).core;
 
 export function nameKey(value) {
   return String(value ?? '').normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[’']/g, '')

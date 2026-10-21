@@ -11,7 +11,7 @@
  * sub-folders (`folderId`) inside the chosen world or compendium.
  */
 import {MODULE_ID, getPath} from './core.js';
-import {isCoreSource} from './core-links.js';
+import {coreEvidence} from './core-links.js';
 
 export const SCHEMA_SETTING = 'organizeSchema';
 export const HISTORY_SETTING = 'organizeHistory';
@@ -37,7 +37,7 @@ function crBand(cr) {
  * The facts a rule can match on. Ashen Gate records use Manager's source flag; everything else uses dnd5e fields.
  * `tierIndex` maps recipe ids to tiers so crafted Items can be filed under their recipe's tier.
  */
-export function factsOf(doc, documentName, tierIndex = new Map()) {
+export function factsOf(doc, documentName, tierIndex = new Map(), packId = null) {
   const source = getPath(doc, `flags.${MODULE_ID}.source`) ?? null;
   const def = source?.definition ?? {};
   const sys = doc.system ?? {};
@@ -48,6 +48,7 @@ export function factsOf(doc, documentName, tierIndex = new Map()) {
   const level = documentName === 'Item' && doc.type === 'spell' ? Number(sys.level) : null;
   const cr = getPath(sys, 'details.cr');
   const creature = getPath(sys, 'details.type.value');
+  const evidence = documentName === 'Item' ? coreEvidence(doc, packId) : {core:false, strong:true, reason:''};
   return {
     documentType: documentName, ag, sourceId: source?.sourceId ?? null, entityType: source?.entityType ?? null,
     status, visibility: source?.visibility ?? null,
@@ -68,8 +69,11 @@ export function factsOf(doc, documentName, tierIndex = new Map()) {
     cr: cr ?? null, crBand: documentName === 'Actor' ? crBand(cr) : null,
     core: String(getPath(doc, '_stats.compendiumSource') ?? '').startsWith('Compendium.dnd5e.'),
     // 0.31.0: Plutonium-imported, or marked 2024 or 2014 core / SRD 5.1. No source, third-party or homebrew → Homebrew.
+    // 0.38.1: positive evidence only (coreEvidence); dnd5e's default rules "2024" on a hand-made item is not.
     // Wider than Core Links' 2024-only test (isSource2024). Key name kept so saved custom rules still match.
-    sourceTagged: isCoreSource(doc)
+    sourceTagged: evidence.core,
+    // Not match keys: why sourceTagged is what it is, shown per move (0.38.1); weak = Clean compendiums leaves it unticked.
+    sourceReason: evidence.reason, sourceWeak: evidence.core && !evidence.strong
   };
 }
 export const MATCH_KEYS = Object.freeze(['documentType', 'ag', 'sourceIdPrefix', 'entityType', 'status', 'visibility', 'test', 'tier',
@@ -218,7 +222,7 @@ export function folderIndex(folders) {
  * `include(doc)` narrows which docs are planned; every doc still feeds the recipe-tier lookup, so a narrowed run
  * files a crafted item exactly where a full run would.
  */
-export function planSource({documentName, docs, folders, rules, mode = 'misfiled', writable = true, blockedReason = '', include = null}) {
+export function planSource({documentName, docs, folders, rules, mode = 'misfiled', writable = true, blockedReason = '', include = null, pack = null}) {
   const index = folderIndex(folders);
   const roots = new Set(rules.filter(r => !r.leave).map(r => pathSegments(r.path)[0]));
   // Manager's own import folders ("Ashen Gate — Imported Items") count as managed too.
@@ -238,7 +242,7 @@ export function planSource({documentName, docs, folders, rules, mode = 'misfiled
     if(getPath(doc, `flags.${MODULE_ID}.${FLAG_KEEP}`)) {skipped.push({...row, reason:'Keep my folder is set on this document'}); continue;}
     const guard = fromId && index.isProtected(fromId);
     if(guard) {skipped.push({...row, reason:`In protected folder ${index.pathOf(guard.id)}`}); continue;}
-    const facts = factsOf(doc, documentName, tierIndex);
+    const facts = factsOf(doc, documentName, tierIndex, pack?.collection ?? null);
     const hit = matchRule(rules, facts);
     if(!hit) {unmatched.push({...row, reason:'No rule matches'}); continue;}
     if(!hit.path) {skipped.push({...row, reason:hit.rule.label ?? `Left alone by rule ${hit.rule.id}`, rule:hit.rule.id}); continue;}
@@ -251,7 +255,7 @@ export function planSource({documentName, docs, folders, rules, mode = 'misfiled
     if(found.ambiguous) {skipped.push({...row, to:hit.path, reason:`Two folders named ${found.ambiguous}; rename one first`, rule:hit.rule.id}); continue;}
     if(found.folder?.id === fromId) {inPlace++; continue;}
     if(found.missingAt !== undefined) for(let n = found.missingAt; n < segments.length; n++) creates.add(segments.slice(0, n + 1).join('/'));
-    moves.push({...row, to:hit.path, toId:found.folder?.id ?? null, rule:hit.rule.id});
+    moves.push({...row, to:hit.path, toId:found.folder?.id ?? null, rule:hit.rule.id, ...whyOf(hit.rule, facts)});
   }
   const groups = [...groupBy(moves, r => r.to)]
     .sort(([a], [b]) => a.localeCompare(b)).map(([path, rows]) => ({path, count:rows.length, rows}));
@@ -260,6 +264,18 @@ export function planSource({documentName, docs, folders, rules, mode = 'misfiled
 }
 
 const OWN_FOLDER = 'In your own folder (use Refile everything to move it)';
+/**
+ * Why a move goes where it does (0.38.1): the rule's label, plus the source evidence when the rule depends on it
+ * ("Core 5.5e: source book PHB 2024", "Homebrew: no source book …"). `weak` = Core-bound on weak evidence.
+ */
+export function whyOf(rule, facts) {
+  const tagged = rule?.when?.sourceTagged;
+  if(tagged === true || tagged === false) {
+    const side = tagged ? (pathSegments(rule.path)[0] ?? 'Core') : (pathSegments(rule.path)[0] ?? 'Homebrew');
+    return {why:`${side}: ${facts.sourceReason || (tagged ? 'core source' : 'no core source')}`, weak:Boolean(tagged && facts.sourceWeak)};
+  }
+  return {why:rule?.label ?? rule?.id ?? '', weak:false};
+}
 /** History `source` of a Clean compendiums run; each of its moves carries its own source (0.36.0). */
 export const CLEAN_SOURCE = 'clean';
 /** Documents per updateDocuments call. */
@@ -313,7 +329,7 @@ export function emptyFolders(folders, docs) {
 }
 
 const INDEX_FIELDS = ['type', 'folder', 'system.rarity', 'system.type', 'system.level', 'system.school', 'system.details.cr', 'system.details.type',
-  'system.source', 'flags.plutonium', `flags.${MODULE_ID}`, '_stats.compendiumSource'];
+  'system.source', 'flags.plutonium', 'flags.ddbimporter', `flags.${MODULE_ID}`, '_stats.compendiumSource'];
 
 /**
  * Foundry-facing organizer. `updateDocuments(documentName, updates, {pack})` and `createFolder(data, {pack})`

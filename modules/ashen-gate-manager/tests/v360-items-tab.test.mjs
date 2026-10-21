@@ -18,10 +18,12 @@ test('origin comes from importer flags and system.source, never from names', () 
   assert.equal(originOf({flags: {[M]: {source: {sourceId: 'MAT-TEST-A'}}}, system: {source: {rules: '2024'}}}), 'ag', 'Ashen Gate wins');
   assert.equal(originOf({flags: {ddbimporter: {id: 1}}}), 'ddb');
   assert.equal(originOf({flags: {plutonium: {page: 'items.html'}}, system: {source: {book: 'XPHB'}}}), 'ddb');
-  assert.equal(originOf({system: {source: {rules: '2024'}}}), 'core24');
+  assert.equal(originOf({system: {source: {rules: '2024'}}}), 'homebrew', '0.38.1: dnd5e default rules alone');
+  assert.equal(originOf({system: {source: {rules: '2024', book: 'XPHB'}}}), 'core24');
   assert.equal(originOf({system: {source: {book: "DMG'24"}}}), 'core24');
   assert.equal(originOf({system: {source: {book: 'SRD 5.1'}}}), 'core14');
-  assert.equal(originOf({system: {source: {rules: '2014'}}}), 'core14');
+  assert.equal(originOf({system: {source: {rules: '2014'}}}), 'homebrew', '0.38.1: legacy-world default rules alone');
+  assert.equal(originOf({system: {source: {rules: '2014', book: 'PHB'}}}), 'core14');
   assert.equal(originOf({system: {}}, 'dnd5e.equipment24'), 'core24', 'dnd5e 2024 pack');
   assert.equal(originOf({system: {}}, 'dnd5e.items'), 'core14', 'dnd5e legacy SRD pack');
   assert.equal(originOf({system: {source: {book: 'My Homebrew'}}}), 'homebrew');
@@ -86,7 +88,7 @@ test('Browse entries carry source, origin, rarity, folder chain and core_ref; se
   const items = [
     itemDoc('a', '[TEST] DDB Blade', {type: 'weapon', system: {rarity: 'rare'}, flags: {ddbimporter: {id: 9}}, folder: sub}),
     itemDoc('b', '[TEST] DDB Cloak', {type: 'equipment', system: {rarity: 'veryRare'}, flags: {ddbimporter: {id: 10}}, folder: ddbFolder}),
-    itemDoc('c', '[TEST] Core Potion', {type: 'consumable', system: {rarity: 'common', source: {rules: '2024'}}}),
+    itemDoc('c', '[TEST] Core Potion', {type: 'consumable', system: {rarity: 'common', source: {rules: '2024', book: 'XDMG'}}}),
     itemDoc('d', '[TEST] AG Tonic', {type: 'consumable', flags: {[M]: {source: {sourceId: 'ITEM-TEST-TONIC', entityType: 'Item', definition: {core_ref: {name: 'Potion of Healing'}}}}}})
   ];
   const pack = {collection: 'world.loot', documentName: 'Item', metadata: {label: 'Loot', packageName: 'world'}, folders: coll([{id: 'PF', name: 'Gems', folder: null}]),
