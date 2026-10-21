@@ -565,3 +565,21 @@ test('0.21.0: GM Send label, GM cannot request, stale approvals are removed, a G
  await _test.onSocket({type:'gather-requests-cleared'},'gm');assert.equal(_test.myGatherRequests.size,0);assert.ok(infos.some(m=>/GM reloaded/.test(m)));
  game.user=gm;app.gather.nodeRef='';locs[0].resources.pop();
 });
+
+test('0.22.0: a re-render keeps the scroll position of the same tab (Gathering, GM Setup tables); a new tab starts at the top',async()=>{
+ const fakeEl=(top=0,lefts=[0])=>{const wraps=lefts.map(scrollLeft=>({scrollLeft}));const main={scrollTop:top,querySelectorAll:s=>s==='.agl-map-wrap'?wraps:[]};
+  return {main,wraps,querySelector:s=>s==='.agl-main'?main:null};};
+ const saved=app.element;
+ try{
+  app.view='gathering';app._renderedView='gathering';
+  app.element=fakeEl(640,[]);await app._preRender({},{});
+  let next=fakeEl();app.element=next;app._restoreScroll();
+  assert.equal(next.main.scrollTop,640,'Gathering stays put after an action');
+  app.view='gm';app._renderedView='gm';app.element=fakeEl(900,[120]);await app._preRender({},{});
+  next=fakeEl(0,[0]);app.element=next;app._restoreScroll();
+  assert.equal(next.main.scrollTop,900);assert.equal(next.wraps[0].scrollLeft,120,'the Tools and checks table keeps its sideways scroll');
+  app.element=fakeEl(500,[]);await app._preRender({},{});app.view='party';
+  next=fakeEl();app.element=next;app._restoreScroll();
+  assert.equal(next.main.scrollTop,0,'switching tab starts at the top');
+ }finally{app.element=saved;}
+});

@@ -1704,7 +1704,20 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         :`<span class="agl-footer-status">${esc(this.notice||'')}</span>`}
       </footer></div>`};
   }
-  async _onRender(context,options){await super._onRender(context,options);if(!canOpenLedger()){await this.close?.({animate:false});return;}openLedgerWindows.add(this);this._events?.abort();this._events=new AbortController();
+  /** 0.22.0: every action re-renders the whole part, which replaces the .agl-main scroll box (and the tables' sideways
+   * scroll) and so jumped back to the top. The positions are kept across a re-render of the same tab; a new tab starts at the top. */
+  _captureScroll(){
+    const main=this.element?.querySelector?.('.agl-main');
+    this._scrollState=main?{view:this._renderedView,top:main.scrollTop,wraps:[...(main.querySelectorAll?.('.agl-map-wrap')??[])].map(w=>w.scrollLeft)}:null;
+  }
+  _restoreScroll(){
+    const s=this._scrollState,main=this.element?.querySelector?.('.agl-main');
+    this._scrollState=null;
+    if(main&&s&&s.view===this.view){main.scrollTop=s.top;[...(main.querySelectorAll?.('.agl-map-wrap')??[])].forEach((w,i)=>{if(s.wraps[i])w.scrollLeft=s.wraps[i];});}
+    this._renderedView=this.view;
+  }
+  async _preRender(context,options){await super._preRender?.(context,options);this._captureScroll();}
+  async _onRender(context,options){await super._onRender(context,options);if(!canOpenLedger()){await this.close?.({animate:false});return;}openLedgerWindows.add(this);this._restoreScroll();this._events?.abort();this._events=new AbortController();
     const signal=this._events.signal;
     this.element.addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b||b.disabled)return;if(b.closest('summary'))e.preventDefault();void this._click(b.dataset.action,b.dataset.id,b.dataset);},{signal});
     this.element.querySelector('#agl-file')?.addEventListener('change',e=>this._upload(e),{signal});
