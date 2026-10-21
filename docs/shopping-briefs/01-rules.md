@@ -8,7 +8,7 @@ Self-contained brief for a build chat. Read `CLAUDE.md` first, then `docs/shoppi
 All shop maths and checks as pure functions in `modules/ashen-gate-utilities/scripts/core.mjs`, fully tested, so the UI PRs only wire them up. No Foundry globals, no saved data, no visible change in Forge.
 
 ## Reuse what is there
-`COINS`, `COIN_LABELS`, `CP_VALUE`, `coinValueCp`, `coinChoices(electrum)`, `readCoins`, `ELECTRUM_OFF`, `containedItems`, `moveBundle`, `escapeHTML`. Don't copy them.
+`COINS`, `COIN_LABELS`, `CP_VALUE` (export it; it is module-private today), `coinValueCp`, `coinChoices(electrum)`, `readCoins`, `ELECTRUM_OFF`, `containedItems`, `moveBundle`, `escapeHTML`. Don't copy them.
 
 ## Functions to add (names are suggestions; keep them in one `/* ---- 0.14.0: shops ---- */` block)
 
