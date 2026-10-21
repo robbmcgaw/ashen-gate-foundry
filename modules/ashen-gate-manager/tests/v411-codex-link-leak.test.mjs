@@ -1,5 +1,5 @@
 /**
- * 0.40.1 security: a player's NPC Codex never carries the name or id of a linked record that player cannot already see
+ * 0.41.1 security: a player's NPC Codex never carries the name or id of a linked record that player cannot already see
  * in the owning module (Locations, Quest Log, Renown, NPC Codex). Proves logic with mocked Foundry and mocked partner
  * APIs, not the live Forge UI.
  */
@@ -120,12 +120,12 @@ test('pure model: no resolver means every link is Unknown; resolvePlayerLinks fi
     {id: null, kind: 'location', name: UNKNOWN_LINK, unknown: true}]);
 });
 
-test('docs and version 0.40.1 are consistent', () => {
-  assert.match(read('../../../docs/npc-codex-schema.md'), /0\.40\.1/);
+test('docs and version 0.41.1 are consistent', () => {
+  assert.match(read('../../../docs/npc-codex-schema.md'), /0\.41\.1/);
   const manifest = JSON.parse(read('../module.json'));
-  assert.equal(manifest.version, '0.40.1');
-  assert.match(manifest.download, /ashen-gate-manager-v0\.40\.1\/ashen-gate-manager\.zip$/);
-  assert.match(read('../templates/manager.hbs'), /v0\.40\.1 Beta/);
-  assert.match(read('../scripts/main.js'), /General Manager v0\.40\.1 Beta/);
-  assert.match(read('../CHANGELOG.md'), /## 0\.40\.1/);
+  assert.equal(manifest.version, '0.41.1');
+  assert.match(manifest.download, /ashen-gate-manager-v0\.41\.1\/ashen-gate-manager\.zip$/);
+  assert.match(read('../templates/manager.hbs'), /v0\.41\.1 Beta/);
+  assert.match(read('../scripts/main.js'), /General Manager v0\.41\.1 Beta/);
+  assert.match(read('../CHANGELOG.md'), /## 0\.41\.1/);
 });

@@ -20,7 +20,7 @@ export const FIELD_LABELS = Object.freeze({
 /** Ids a Codex link may point at. FAC- is a Headquarters facility elsewhere, but GPT drafts use it for factions too.
  * DEITY- (0.40.0) is a Renown Pantheon deity: a player only ever sees one they have discovered in Renown. */
 export const LINK_PREFIXES = Object.freeze(['LOC', 'FAC', 'FACTION', 'RENOWN', 'DEITY', 'QUEST', 'ORDER', 'CONTRACT', 'NPC']);
-/** Shown for a link the player does not know (0.40.1: every kind; 0.40.0: deities): no id, no name. */
+/** Shown for a link the player does not know (0.41.1: every kind; 0.40.0: deities): no id, no name. */
 export const UNKNOWN_LINK = 'Unknown';
 export const UNKNOWN_DEITY = UNKNOWN_LINK;
 export const unknownLink = kind => ({id: null, kind, name: UNKNOWN_LINK, unknown: true});
@@ -139,7 +139,7 @@ export function gmEntry(npc, {nameOf = () => null, characters = []} = {}) {
  * What one player may receive about one NPC, or null. Built on the GM side; nothing hidden is ever in the result.
  * actorIds: the characters that player owns. Name and portrait show once the NPC is discovered by the party or
  * one of those characters. Each field shows only when its own rule includes the party or one of those characters.
- * `linkFor(id, kind)` (0.40.1) says what this player may know of one linked record, by the owning module's own player
+ * `linkFor(id, kind)` (0.41.1) says what this player may know of one linked record, by the owning module's own player
  * filter: a name, `true` (the player's own client claimed the id and fills in the name itself) or null (not known).
  * A link that is not known is sent as {id: null, kind, name: 'Unknown', unknown: true}: no id, no name, no link.
  * The default knows nothing, so every link is Unknown.
@@ -172,7 +172,7 @@ export function playerCodex(npcs, actorIds = [], opts = {}) {
   return npcs.map(n => playerEntry(n, actorIds, opts)).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
 }
 /**
- * 0.40.1, player client: fill in the links the GM sent back as {id, name: null} (ids this client claimed) from
+ * 0.41.1, player client: fill in the links the GM sent back as {id, name: null} (ids this client claimed) from
  * `names` (id -> name, read from the owning modules' player-filtered APIs on this client). Anything the client cannot
  * name becomes Unknown with no id.
  */
@@ -212,7 +212,7 @@ export function planRevealsImport(file, knownIds = []) {
 }
 
 const esc = v => str(v).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
-/** Tooltip for a non-deity link the player does not know (0.40.1). */
+/** Tooltip for a non-deity link the player does not know (0.41.1). */
 export const UNKNOWN_TIP = 'Something you have not learned about yet.';
 /** Tooltip for a deity link that cannot open. */
 export const DEITY_TIPS = Object.freeze({

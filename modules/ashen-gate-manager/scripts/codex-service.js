@@ -12,7 +12,7 @@ export const CODEX_ACCESS_SETTING = 'codexPlayerAccess';
 const RENOWN = 'ashen-gate-factions';
 /** Renown's player view names a discovered faction whose name is not revealed like this; the Codex shows Unknown. */
 const RENOWN_MASKED = 'Unknown Organization';
-/** 0.40.1: where a player's own client reads the records it can see, by link kind (owning module, API, filter). */
+/** 0.41.1: where a player's own client reads the records it can see, by link kind (owning module, API, filter). */
 const PLAYER_SOURCES = [
   {kind: 'location', module: 'ashen-gate-locations', fn: 'listLocations'},
   {kind: 'quest', module: 'ashen-gate-quest-manager', fn: 'listVisible'},
@@ -45,7 +45,7 @@ export function createCodexService({game, moduleId}) {
   };
   const partner = mid => game.modules?.get(mid)?.active ? game.modules.get(mid).api ?? null : null;
   /** GM view only (list/get): partner names by feature detection through their public APIs; any failure falls back to the id.
-   * Never used for a player payload (0.40.1): on the GM's client these APIs return GM data. */
+   * Never used for a player payload (0.41.1): on the GM's client these APIs return GM data. */
   const nameOf = id => {
     try {
       const kind = linkKind(id), api = partner;
@@ -77,7 +77,7 @@ export function createCodexService({game, moduleId}) {
     return id => names.get(id) ?? null;
   };
   /**
-   * 0.40.1, GM side: what a player owning these characters may know of a linked record, for playerEntry's linkFor.
+   * 0.41.1, GM side: what a player owning these characters may know of a linked record, for playerEntry's linkFor.
    * NPC: Manager's own Codex discovery rule. Deity: Renown's per-character getPantheon (deityNamer).
    * Location, quest, faction: the GM's client cannot run those modules' player filters for another user, so only ids the
    * player's own client claimed (from its own player-filtered APIs) come back, with no name; that client names them.
@@ -96,7 +96,7 @@ export function createCodexService({game, moduleId}) {
   };
   const claimsOf = data => new Set((Array.isArray(data?.known) ? data.known : []).slice(0, MAX_CLAIMS)
     .filter(id => isLinkId(id) && CLAIM_KINDS.has(linkKind(id))));
-  /** 0.40.1, player client: id -> name of the linked records this client can see, by each owning module's own player API.
+  /** 0.41.1, player client: id -> name of the linked records this client can see, by each owning module's own player API.
    * Missing, hidden or failing modules add nothing. */
   const knownLinkNames = () => {
     const names = new Map();

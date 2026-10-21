@@ -75,7 +75,7 @@ test('0.33.0: connections come from codex.links, refs and GM-added ids; shown to
   assert.equal(playerEntry({def: d, state: st}, [], {linkFor}).fields.length, 0);
   st = setReveal(st, 'links', {mode: 'party'});
   const links = playerEntry({def: d, state: st}, [], {linkFor}).fields[0].links;
-  // 0.40.1: a link the player does not know shows as Unknown, never as its id.
+  // 0.41.1: a link the player does not know shows as Unknown, never as its id.
   assert.deepEqual(links.map(l => [l.id, l.name]), [[null, 'Unknown'], ['LOC-TEST-FERRY', '[TEST] Ferry Gate'], [null, 'Unknown']]);
   const gm = gmEntry({def: d, state: st}, {nameOf, characters: [{id: 'a1', name: '[TEST] Ash'}]});
   assert.equal(gm.links.find(l => l.id === 'QUEST-TEST-LEDGER').gmAdded, true);
