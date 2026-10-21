@@ -1,7 +1,8 @@
 /* ---- 0.17.0: the GM's Shops tab (design §2–4, brief 2). Shops are GM data: one Journal, "Utilities Shops (GM Data)",
    no player permission, found by flags.ashen-gate-utilities.store = 'shops-gm' and created on the first save. One page
    per shop holds the record (flags.<id>.shop) and its log (flags.<id>.log); one page holds retiredIds and lists.
-   Every API call checks GM inside the API. Players see nothing from this version. ---- */
+   Every API call checks GM inside the API. 0.18.0: presenting and buying live in shop-buy.mjs, which uses the storage
+   helpers exported here. ---- */
 import {ID,escapeHTML as E,COIN_LABELS,CP_VALUE,coinChoices,shownCoins,strandedElectrum,coinsText,containedItems,normalizeShop,normalizeLine,normalizePurse,
  priceToCp,shopIdFromName,validId,SHOPS_CONTRACT,SHOP_SORTS,SHOP_BUY_TYPES,SHOP_LOG_CAP,listShops,shopPlace,initials,lineFromItem,lineRepeats,
  duplicateShop,restockLines,planShopPurseAdjust,shopLogEntry,MERCHANT_NAME_MAX,SHOP_FLAVOUR_MAX,LINE_FLAVOUR_MAX} from './core.mjs';
@@ -11,13 +12,13 @@ export const STORE='shops-gm',JOURNAL_NAME='Utilities Shops (GM Data)';
 const isGM=()=>Boolean(game.user?.isGM);
 const gmOnly=()=>{if(!isGM())throw Error('GM only.');};
 const electrumEnabled=()=>game.settings.get(ID,'electrumEnabled')===true;
-const randomId=()=>foundry.utils?.randomID?.(16)??Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[b%62]).join('');
+export const randomId=()=>foundry.utils?.randomID?.(16)??Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[b%62]).join('');
 const clone=v=>structuredClone(v);
 
 /* ---------- Storage ---------- */
 let queue=Promise.resolve();
 /** One write at a time, so two changes never read the same record. */
-const queueShops=run=>{const next=queue.then(run);queue=next.catch(()=>{});return next;};
+export const queueShops=run=>{const next=queue.then(run);queue=next.catch(()=>{});return next;};
 export const shopsJournal=()=>[...(game.journal??[])].find(j=>j?.flags?.[ID]?.store===STORE)??null;
 let creating=null;
 /** Finds the GM Data journal, or creates it (no player permission). Safe to run again: found by flag, never by name. */
@@ -31,7 +32,7 @@ async function ensureJournal(){
 const pagesOf=j=>[...(j?.pages??[])];
 const shopPage=(id,j=shopsJournal())=>pagesOf(j).find(p=>p?.flags?.[ID]?.shop?.id===id)??null;
 const metaPage=(j=shopsJournal())=>pagesOf(j).find(p=>p?.flags?.[ID]?.meta)??null;
-const readAll=()=>pagesOf(shopsJournal()).map(p=>p.flags?.[ID]?.shop).filter(s=>s&&typeof s==='object'&&s.id);
+export const readAll=()=>pagesOf(shopsJournal()).map(p=>p.flags?.[ID]?.shop).filter(s=>s&&typeof s==='object'&&s.id);
 const readMeta=()=>{const m=metaPage()?.flags?.[ID]?.meta??{};return {retiredIds:Array.isArray(m.retiredIds)?[...m.retiredIds]:[],lists:Array.isArray(m.lists)?clone(m.lists):[]};};
 const pageText='<p>Utilities shop data (GM only). Edit it in Utilities → Shops.</p>';
 /** Replaces our flags on a page (recursive: false, so coins and keys a record no longer has don't linger). */
@@ -39,7 +40,7 @@ async function writeFlags(page,ours,extra={}){
  const flags={...(page._source?.flags??page.flags??{}),[ID]:{...(page.flags?.[ID]??{}),...ours}};
  await page.update({...extra,flags},{recursive:false});
 }
-async function writeShop(record,{log=null}={}){
+export async function writeShop(record,{log=null}={}){
  const j=await ensureJournal(),page=shopPage(record.id,j);
  if(page){await writeFlags(page,{shop:record,...(log?{log}:{})},{name:record.name});return;}
  await j.createEmbeddedDocuments('JournalEntryPage',[{name:record.name,type:'text',text:{content:pageText},flags:{[ID]:{shop:record,log:log??[]}}}]);
@@ -50,12 +51,12 @@ async function writeMeta(meta){
  await j.createEmbeddedDocuments('JournalEntryPage',[{name:'Shop lists and retired ids',type:'text',text:{content:pageText},flags:{[ID]:{meta}}}]);
 }
 const logOf=id=>{const l=shopPage(id)?.flags?.[ID]?.log;return Array.isArray(l)?l:[];};
-const appendLog=(id,entry)=>[...logOf(id),entry].slice(-SHOP_LOG_CAP);
+export const appendLog=(id,entry)=>[...logOf(id),entry].slice(-SHOP_LOG_CAP);
 
 /* ---------- Locations (optional partner) ---------- */
-function locationsApi(){const m=game.modules?.get?.('ashen-gate-locations');const a=m?.active?m.api:null;return typeof a?.listLocations==='function'?a:null;}
+export function locationsApi(){const m=game.modules?.get?.('ashen-gate-locations');const a=m?.active?m.api:null;return typeof a?.listLocations==='function'?a:null;}
 /** id → {name, parentLocationId}; empty when Locations is not active or refuses. */
-function locationMap(){try{return new Map((locationsApi()?.listLocations()??[]).filter(l=>l?.id).map(l=>[l.id,l]));}catch{return new Map();}}
+export function locationMap(){try{return new Map((locationsApi()?.listLocations()??[]).filter(l=>l?.id).map(l=>[l.id,l]));}catch{return new Map();}}
 
 /* ---------- Drops (local item-drop helper; gives way to the shared one from design/rewards-loot when it lands) ---------- */
 async function folderItems(folder){
@@ -107,10 +108,10 @@ function linesFor(found,lines){
 }
 
 /* ---------- API (contract ag-utilities-shops/1). Every call is GM only. ---------- */
-function mustGet(id){const s=readAll().find(x=>x.id===id);if(!s)throw Error('That shop no longer exists.');return s;}
+export function mustGet(id){const s=readAll().find(x=>x.id===id);if(!s)throw Error('That shop no longer exists.');return s;}
 const stamp=()=>({updatedAt:Date.now(),updatedBy:game.user?.id??null});
 const withLines=data=>({...data,lines:(Array.isArray(data?.lines)?data.lines:[]).map(l=>normalizeLine(l,{randomId}))});
-const norm=data=>normalizeShop(withLines(data),{electrum:electrumEnabled()});
+export const norm=data=>normalizeShop(withLines(data),{electrum:electrumEnabled()});
 function list({search='',sort='location'}={}){gmOnly();return listShops(readAll(),{search,sort,locations:locationMap()}).flatMap(g=>g.shops).map(clone);}
 function get(id){gmOnly();const s=readAll().find(x=>x.id===id);return s?clone(s):null;}
 async function create(data={}){
@@ -210,20 +211,25 @@ export function shopsApi(){
 }
 
 /* ---------- View (GM only): sub-tabs Shops and Shop editor ---------- */
-const tip=text=>`data-tooltip="${E(text)}" data-tooltip-class="ag-tooltip"`;
-const icon=name=>`<i class="fa-solid ${E(name)}" aria-hidden="true"></i>`;
-const button=(action,label,{kind='',ic='',attrs='',disabled=false}={})=>`<button type="button" class="${['ag-btn',...kind.split(/\s+/).filter(Boolean).map(k=>`ag-btn--${k}`)].join(' ')}" data-action="${E(action)}"${disabled?' disabled':''} ${attrs}>${ic?`${icon(ic)} `:''}${E(label)}</button>`;
+export const tip=text=>`data-tooltip="${E(text)}" data-tooltip-class="ag-tooltip"`;
+export const icon=name=>`<i class="fa-solid ${E(name)}" aria-hidden="true"></i>`;
+export const button=(action,label,{kind='',ic='',attrs='',disabled=false}={})=>`<button type="button" class="${['ag-btn',...kind.split(/\s+/).filter(Boolean).map(k=>`ag-btn--${k}`)].join(' ')}" data-action="${E(action)}"${disabled?' disabled':''} ${attrs}>${ic?`${icon(ic)} `:''}${E(label)}</button>`;
 const opt=(v,label,sel)=>`<option value="${E(v)}"${String(v)===String(sel)?' selected':''}>${E(label)}</option>`;
-const art=(merchant,cls)=>merchant?.img?`<img class="${cls}" src="${E(merchant.img)}" alt="">`:`<span class="${cls}" aria-hidden="true">${E(initials(merchant?.name))}</span>`;
+export const art=(merchant,cls)=>merchant?.img?`<img class="${cls}" src="${E(merchant.img)}" alt="">`:`<span class="${cls}" aria-hidden="true">${E(initials(merchant?.name))}</span>`;
 const SORT_LABELS={location:'Group by city',name:'Name',merchant:'Merchant',updated:'Recently changed'};
 const typeLabel=t=>{const l=CONFIG?.Item?.typeLabels?.[t];return l?game.i18n.localize(l):t;};
 const cashText=s=>s.purse?coinsText(s.purse):'Unlimited cash';
 
+/** 0.18.0: who a shop is shown to, as a badge; '' when it isn't shown. */
+export const shownBadge=s=>!s.presented?'':`<span class="ag-badge ag-badge--ok">${icon('fa-eye')} ${s.presented.mode==='all'?'Shown to all players':`Shown to ${s.presented.userIds.length} ${s.presented.userIds.length===1?'player':'players'}`}</span>`;
+/** 0.18.0: Present… or, while shown, Open and Stop showing. */
+export const presentButtons=s=>s.presented?`${button('shop-view','Open',{kind:'sm',ic:'fa-store',attrs:`data-shop="${E(s.id)}" aria-label="Open ${E(s.name)} as players see it"`})}${button('shop-stop','Stop showing',{kind:'sm',ic:'fa-eye-slash',attrs:`data-shop="${E(s.id)}" aria-label="Stop showing ${E(s.name)}"`})}`
+ :button('shop-present','Present…',{kind:'sm',ic:'fa-eye',attrs:`data-shop="${E(s.id)}" aria-label="Present ${E(s.name)}"`});
 function shopRow(s,locations){
  const {place}=shopPlace(s,locations),lines=s.lines??[],hidden=lines.filter(l=>l.hidden).length;
  const meta=[s.merchant?.name,place,`${lines.length} ${lines.length===1?'item':'items'}`].filter(Boolean).map(E).join(' · ');
  return `<li class="ag-row agu-shop-row" data-shop-row="${E(s.id)}">${art(s.merchant,'ag-row__icon agu-shop-avatar')}<div class="ag-row__main"><span class="ag-row__title">${E(s.name)}</span><span class="ag-row__meta">${meta} · <code>${E(s.id)}</code></span></div>
- <div class="ag-row__end">${hidden?`<span class="ag-badge">${icon('fa-eye-slash')} ${hidden} hidden</span>`:''}<span class="ag-badge${s.purse?'':' ag-badge--accent'}">${icon('fa-coins')} ${E(cashText(s))}</span>${button('shop-edit','Edit',{kind:'sm',ic:'fa-pen',attrs:`data-shop="${E(s.id)}" aria-label="Edit ${E(s.name)}"`})}${button('shop-duplicate','Duplicate',{kind:'sm',ic:'fa-copy',attrs:`data-shop="${E(s.id)}" aria-label="Duplicate ${E(s.name)}"`})}</div></li>`;
+ <div class="ag-row__end">${shownBadge(s)}${hidden?`<span class="ag-badge">${icon('fa-eye-slash')} ${hidden} hidden</span>`:''}<span class="ag-badge${s.purse?'':' ag-badge--accent'}">${icon('fa-coins')} ${E(cashText(s))}</span>${button('shop-edit','Edit',{kind:'sm',ic:'fa-pen',attrs:`data-shop="${E(s.id)}" aria-label="Edit ${E(s.name)}"`})}${button('shop-duplicate','Duplicate',{kind:'sm',ic:'fa-copy',attrs:`data-shop="${E(s.id)}" aria-label="Duplicate ${E(s.name)}"`})}${presentButtons(s)}</div></li>`;
 }
 function listView(app){
  const all=readAll(),locations=locationMap(),groups=listShops(all,{search:app.shopSearch,sort:app.shopSort,locations});
@@ -296,7 +302,7 @@ function editorView(app){
  const locs=loc?[...locationMap().values()].sort((a,b)=>String(a.name).localeCompare(String(b.name))):[];
  const locField=loc?`<label class="ag-field">Linked location<select data-shop-field="locationId"><option value="">None</option>${locs.map(l=>opt(l.id,l.name,d.locationId)).join('')}${d.locationId&&!locs.some(l=>l.id===d.locationId)?opt(d.locationId,d.locationId,d.locationId):''}</select><span class="ag-field__hint">Players see the place only once it is revealed in Locations.</span></label>`:'';
  const restockable=d.lines.some(l=>l.stockStart!==null&&l.stockStart!==undefined);
- return `<div class="agu-shop-editor"><div class="agu-shop-editor__head"><h2>${E(d.saved?d.name||'Unnamed shop':'New shop')}</h2>${d.id?`<code>${E(d.id)}</code>`:''}</div>
+ return `<div class="agu-shop-editor"><div class="agu-shop-editor__head"><h2>${E(d.saved?d.name||'Unnamed shop':'New shop')}</h2>${d.id?`<code>${E(d.id)}</code>`:''}${saved?`${shownBadge(saved)}<span class="ag-btn-group">${presentButtons(saved)}</span>`:''}</div>
  <div class="ag-form-grid">
   <label class="ag-field">Shop name<input type="text" maxlength="${MERCHANT_NAME_MAX}" data-shop-field="name" value="${E(d.name)}" required><span class="ag-field__hint">Required.</span></label>
   <label class="ag-field">Merchant name<input type="text" maxlength="${MERCHANT_NAME_MAX}" data-shop-field="merchantName" value="${E(d.merchant?.name??'')}"></label>
@@ -374,7 +380,7 @@ export function bindShops(app,root,{error,render}){
  }
 }
 /** Shop purse change from the editor: form, then a labelled confirmation with before → after. */
-async function purseDialog(id){
+export async function purseDialog(id){
  const s=mustGet(id),ep=electrumEnabled();if(!s.purse)throw Error('This shop has no coin purse.');
  const form=await formDialog('Change the merchant\'s coins',[
   {name:'coin',label:'Coin',type:'select',value:'gp',options:coinChoices(ep).map(c=>({value:c,label:`${COIN_LABELS[c]} (${c}): ${s.purse[c]??0}`}))},
