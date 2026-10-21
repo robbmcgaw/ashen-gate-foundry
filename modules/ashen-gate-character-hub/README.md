@@ -54,7 +54,8 @@ Tracking only: nothing is automated.
   - A button toggles the mark on the user's targeted tokens.
   - A mark is an ActiveEffect with status `agch-<id>`, no changes, and the rules link in its description.
   - Tokens the player doesn't own are changed by the coordinating GM client after it checks the request (socket; a GM must be connected).
-  - The table is `MARKS` in `scripts/marks.mjs`.
+  - The table is `MARKS` in `scripts/marks.mjs`. Spell marks: Hunter's Mark, Hex, Bane, Faerie Fire, Guiding Bolt, Vicious Mockery, Ensnaring Strike; 0.28.0 added Bless, Searing Smite, Wrathful Smite and Shining Smite (also offered by a spell with identifier `branding-smite`).
+  - **Strain** (0.28.0): with Ashen Gate | Cinders active, the character's own Strain shows read-only at the end of the row (value, band; the tooltip has the Push Backfire chance), from `api.strain.get`. Hidden when Cinders is missing or the GM hides the Strain bar from players. It is not a mark and is never put on targets.
 - **Quick bar:** 10 slots per character (flag `hotbar`) for the character's own items or world macros. Click to use; right-click to clear. After a clear, an **Undo** notice shows for 5 seconds (0.26.0): Undo puts that slot back as it was, unless the item or macro is gone or something else was put in the slot meanwhile (it says so); otherwise the clear stands.
 
 ## Player visibility (0.9.0)
@@ -151,7 +152,7 @@ Full parity with the dnd5e sheet, spell preparation beyond a toggle, advancement
 `node scripts/check.mjs ashen-gate-character-hub`. Tests use mocked Foundry: they prove logic and calls, not the live Foundry UI.
 
 ## Level backups (0.27.0)
-Each Hub level-up keeps a GM-only copy of the character as it was before, named `<name> - level X`, in the Actor folder **Ashen Gate / Level backups**. Delete old copies by hand. The copy keeps dnd5e data, items and effects; its live Ashen Gate flag scopes are removed (all `ashen-gate-*` except `ashen-gate-manager` source ids) so it is never a second bearer or progression. Cinder instance records stay in Cinders and are not touched. There is no Restore button yet; the removed flags are kept so one can be built:
+Each Hub level-up keeps a GM-only copy of the character as it was before, named `<name> - level X`, in the Actor folder **Ashen Gate / Level backups**. Delete old copies by hand. The copy keeps dnd5e data, items and effects; its live Ashen Gate flag scopes are removed (all `ashen-gate-*` except `ashen-gate-manager` source ids) so it is never a second bearer or progression. Cinder instance records stay in Cinders and are not touched. The removed flags are kept (0.28.0 Restore uses them):
 
 ```
 flags['ashen-gate-character-hub'].levelBackup = {
@@ -170,3 +171,14 @@ flags['ashen-gate-character-hub'].levelBackup = {
 }
 ```
 To restore, put each archived scope back on the document its id names and remove `levelBackup`.
+
+### Restore (0.28.0, GM only)
+**Restore backup** in the Hub header (GM only, shown when the character has copies; on a copy itself it reads **Restore this backup**) picks a copy, newest first, then asks in a red confirmation that says what will happen. Restore:
+1. saves the character as it is now as another copy, `<name> - level X` by the same rule (`levelBackup.reason = 'restore'`); if that fails nothing changes;
+2. replaces the character's `system` (class levels come with the class items; HP, abilities, everything dnd5e keeps), items, effects and flags with the copy's, with `archivedFlags` put back on each document;
+3. keeps the character's id, name, portrait, ownership, prototype token, folder, `core` flags (sheet choice) and any queued level backups;
+4. is all or nothing: if a step fails, the character is put back as it was just before (the safety copy stays).
+
+Items and effects on both sides are replaced in place by id; the rest are created with their ids or deleted. The live character records `flags['ashen-gate-character-hub'].levelRestore = {opId, backupId, backupName, levelBefore, levelAfter, safetyId, date, by}`; the same opId again does nothing. The copy is not changed. Players are refused in the data layer (`api.levelBackups.restore`), not only by the hidden button. There is no cleanup tool: delete old copies by hand.
+
+API: `api.levelBackups.list(actor)` (copies' ids, names and markers, newest first) and `api.levelBackups.restore(backupActor, {opId})`.

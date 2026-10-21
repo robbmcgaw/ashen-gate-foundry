@@ -35,7 +35,12 @@ export const MARKS = [
   {id: 'faerie-fire', kind: 'spell', identifiers: ['faerie-fire'], label: 'Faerie Fire', icon: 'icons/svg/light.svg'},
   {id: 'guiding-bolt', kind: 'spell', identifiers: ['guiding-bolt'], label: 'Guiding Bolt', icon: 'icons/svg/sun.svg'},
   {id: 'vicious-mockery', kind: 'spell', identifiers: ['vicious-mockery'], label: 'Vicious Mockery', icon: 'icons/svg/sound.svg'},
-  {id: 'ensnaring-strike', kind: 'spell', identifiers: ['ensnaring-strike'], label: 'Ensnared', icon: 'icons/svg/net.svg'}
+  {id: 'ensnaring-strike', kind: 'spell', identifiers: ['ensnaring-strike'], label: 'Ensnared', icon: 'icons/svg/net.svg'},
+  // 0.28.0: more standard dnd5e spells that leave a lasting effect on a creature until it ends (same tracking-only label).
+  {id: 'bless', kind: 'spell', identifiers: ['bless'], label: 'Blessed', icon: 'icons/svg/angel.svg'},
+  {id: 'searing-smite', kind: 'spell', identifiers: ['searing-smite'], label: 'Searing Smite', icon: 'icons/svg/fire.svg'},
+  {id: 'wrathful-smite', kind: 'spell', identifiers: ['wrathful-smite'], label: 'Wrathful Smite', icon: 'icons/svg/skull.svg'},
+  {id: 'shining-smite', kind: 'spell', identifiers: ['shining-smite', 'branding-smite'], label: 'Shining Smite', icon: 'icons/svg/aura.svg'}
 ];
 const BY_ID = new Map(MARKS.map(m => [m.id, m]));
 export const markById = id => BY_ID.get(id) ?? null;

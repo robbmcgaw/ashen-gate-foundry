@@ -15,6 +15,8 @@ import {hotbarsHtml} from './hotbar-views.mjs';
 import {journeyTab} from './journey-views.mjs';
 import {sectionHtml, sectionKey} from './collapse.mjs';
 import {levelUpState} from './level-up.mjs';
+import {backupsFor} from './level-restore.mjs';
+import {isBackup} from './level-backup.mjs';
 
 export {btn};
 
@@ -106,12 +108,24 @@ function levelUpBtn(actor) {
   const s = levelUpState(actor);
   return `<button type="button" class="ag-btn ag-btn--ghost agch-levelup" data-action="level-up" data-ag-always${s.ok ? '' : ' aria-disabled="true"'} data-tooltip="${esc(s.ok ? 'Start dnd5e\'s level-up for this character' : s.reason)}" aria-label="${esc(s.ok ? 'Level up' : `Level up: ${s.reason}`)}"><i class="fa-solid fa-arrow-up-right-dots" aria-hidden="true"></i><span>Level up</span></button>`;
 }
+/**
+ * Restore (0.28.0): GM only. On a character with level backups, "Restore backup"; on a backup copy, "Restore this
+ * backup". Nothing for players (restoreBackup refuses them anyway).
+ */
+function restoreBtn(actor) {
+  if (globalThis.game?.user?.isGM !== true) return '';
+  const copy = isBackup(actor), count = copy ? 1 : backupsFor(actor).length;
+  if (!count) return '';
+  const source = copy ? actor.flags[MODULE_ID].levelBackup.sourceName ?? 'the character' : null;
+  return btn('level-restore', copy ? 'Restore this backup' : 'Restore backup', {kind: 'ghost', icon: 'fa-solid fa-clock-rotate-left', always: true,
+    title: copy ? `Put this copy back onto ${source} (GM; asks first)` : `Put one of ${actor.name}'s ${count} level backup${count === 1 ? '' : 's'} back onto it (GM; asks first)`});
+}
 export function shellHtml(ctx) {
   const {actor, tab} = ctx;
   const version = globalThis.game?.modules?.get?.(MODULE_ID)?.version ?? '';
   const top = `<header class="ag-header"><h1><span class="ag-header__brand">Ashen Gate</span> | Character Hub</h1><div class="ag-header__actions">
     <label class="agch-opacity" data-tooltip="Window background opacity (only for you): slide left to see the map behind"><i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i><input type="range" min="${OPACITY_MIN}" max="100" step="5" value="${windowOpacity()}" data-opacity data-ag-always aria-label="Window background opacity"></label>
-    ${ctx.limited ? '' : levelUpBtn(actor)}
+    ${ctx.limited ? '' : `${levelUpBtn(actor)}${restoreBtn(actor)}`}
     ${btn('open-native', 'Open native sheet', {kind: 'ghost', icon: 'fa-solid fa-file-lines', always: true, title: 'Open the standard dnd5e character sheet'})}
     <span class="ag-version">v${esc(version)}</span>
     ${btn('help', 'Help', {kind: 'ghost', extra: 'ag-btn--sm', icon: 'fa-solid fa-circle-question', always: true})}</div></header>`;

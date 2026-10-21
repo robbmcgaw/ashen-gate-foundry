@@ -11,6 +11,7 @@ import {registerListSortSetting} from './organize.mjs';
 import * as journey from './journey.mjs';
 import {registerMarksSocket} from './marks.mjs';
 import {flushQueue, QUEUE_FLAG} from './level-backup.mjs';
+import {backupsFor, restoreBackup} from './level-restore.mjs';
 import {registerVisibilitySetting, PARTS, PRESETS, readVisibility, setVisibility, applyPreset, hiddenReason, canSee} from './visibility.mjs';
 
 let HubSheet = null;
@@ -97,6 +98,15 @@ export function createApi() {
      * quest, or per quest + grantId (0.25.0: items [{name, img, quantity, itemId}] and grantId are optional).
      * addNote(actor, {text, date, hidden}) is GM-only.
      */
+    /**
+     * Level backups (0.28.0). list(actor) is the character's backup copies, newest first ([] for players: copies are
+     * GM-only). restore(backup, {opId}) is GM-only: it puts the copy back onto its character after saving the character
+     * as it is now as another copy; all or nothing; the same opId again does nothing. Resolves {ok, result | error}.
+     */
+    levelBackups: Object.freeze({
+      list: actor => backupsFor(actor).map(a => { const {archivedFlags: _a, ...f} = a.flags[MODULE_ID].levelBackup; return {id: a.id, name: a.name, ...structuredClone(f)}; }),
+      restore: (backup, options) => restoreBackup(backup, options)
+    }),
     journey: Object.freeze({
       entries: actor => journey.journeyFor(actor),
       recordReward: (actor, reward) => journey.recordReward(actor, reward),
