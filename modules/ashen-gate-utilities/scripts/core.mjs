@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.16.1';
+export const VERSION = '0.17.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -964,4 +964,112 @@ export function shopLine(h) {
   }
   if (h.kind === 'bank-exchange') return `${h.userName} changed ${h.total} ${h.from} into ${h.receive} ${h.to} at ${h.serviceName}${h.fee ? ` (fee ${h.fee} ${h.from})` : ''}, ${purse ? 'party purse' : own}`;
   return '';
+}
+
+/* ---- 0.17.0: the GM's Shops tab. Pure helpers for the shop list, the editor, drops and the shop purse. ---- */
+export const SHOPS_CONTRACT = 'ag-utilities-shops/1';
+export const SHOP_SORTS = Object.freeze(['location', 'name', 'merchant', 'updated']);
+/** Physical item types a shop may buy (design §7c S2); containers are never bought. */
+export const SHOP_BUY_TYPES = Object.freeze(['weapon', 'equipment', 'consumable', 'tool', 'loot']);
+export const SHOP_LOG_CAP = 200;
+export const NO_LOCATION = 'No location';
+/**
+ * Where a shop is, for the list: `place` is the linked location's name, `city` the top of its Locations tree (the
+ * location itself when it has no parent). `locations` maps id → {name, parentLocationId}. An id Locations doesn't
+ * know is shown as the id; no link reads "No location".
+ */
+export function shopPlace(shop, locations = new Map()) {
+  const id = shop?.locationId;
+  if (!id) return {place: '', city: NO_LOCATION};
+  const loc = locations.get(id);
+  if (!loc) return {place: id, city: id};
+  let top = loc;
+  for (const seen = new Set([id]); top.parentLocationId && locations.has(top.parentLocationId) && !seen.has(top.parentLocationId);) {
+    seen.add(top.parentLocationId);top = locations.get(top.parentLocationId);
+  }
+  return {place: String(loc.name ?? id), city: String(top.name ?? id)};
+}
+const lineName = l => String(l?.item?.name ?? '');
+/** Search: name, merchant, place, item names and id, any case. */
+export function shopMatches(shop, search, locations) {
+  const q = String(search ?? '').trim().toLowerCase();
+  if (!q) return true;
+  const {place, city} = shopPlace(shop, locations);
+  return [shop.name, shop.merchant?.name, place, city === NO_LOCATION ? '' : city, shop.id, ...(shop.lines ?? []).map(lineName)].some(t => String(t ?? '').toLowerCase().includes(q));
+}
+const byText = (a, b) => String(a ?? '').localeCompare(String(b ?? ''));
+/**
+ * Filters and sorts shops. `location` (default) sorts by city, then place, then name, "No location" last; `updated` is
+ * newest first. Returns [{group, shops}]: one group per city for `location`, a single group otherwise.
+ */
+export function listShops(shops, {search = '', sort = 'location', locations = new Map()} = {}) {
+  const how = SHOP_SORTS.includes(sort) ? sort : 'location';
+  const at = new Map((shops ?? []).map(s => [s.id, shopPlace(s, locations)]));
+  const list = (shops ?? []).filter(s => shopMatches(s, search, locations));
+  const cmp = {
+    name: (a, b) => byText(a.name, b.name) || byText(a.id, b.id),
+    merchant: (a, b) => byText(a.merchant?.name, b.merchant?.name) || byText(a.name, b.name),
+    updated: (a, b) => (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0) || byText(a.name, b.name),
+    location: (a, b) => {const x = at.get(a.id), y = at.get(b.id), nx = x.city === NO_LOCATION, ny = y.city === NO_LOCATION;
+      return (nx - ny) || byText(x.city, y.city) || byText(x.place, y.place) || byText(a.name, b.name);}
+  }[how];
+  list.sort(cmp);
+  if (how !== 'location') return list.length ? [{group: null, shops: list}] : [];
+  const groups = new Map();
+  for (const s of list) { const g = at.get(s.id).city; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(s); }
+  return [...groups].map(([group, list]) => ({group, shops: list}));
+}
+/** "AB" from "[TEST] Ada Brin"; "?" when there are no letters. */
+export const initials = name => (String(name ?? '').replace(/\[[^\]]*\]/g, ' ').match(/\p{L}[\p{L}'’-]*/gu) ?? []).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
+/** The permanent id General Manager gives an item (`flags.ashen-gate-manager.source.sourceId`), else null. */
+export const itemSourceId = data => { const id = data?.flags?.['ashen-gate-manager']?.source?.sourceId; return typeof id === 'string' && id ? id : null; };
+const SNAPSHOT_STRIP = ['folder', 'ownership', 'sort', '_stats'];
+const snapshot = data => { const o = structuredClone(data ?? {}); for (const k of SNAPSHOT_STRIP) delete o[k]; return o; };
+/** dnd5e `system.price` in whole copper (ep = 50 cp); a price that isn't whole copper rounds to the nearest copper. */
+export function itemPriceCp(data) {
+  const p = data?.system?.price, v = Number(p?.value), d = COINS.includes(p?.denomination) ? p.denomination : 'gp';
+  return Number.isFinite(v) && v > 0 ? Math.round(v * CP_VALUE[d]) : 0;
+}
+/**
+ * A new shop line from an item's data (`toObject()`) and its contents' data (containers). The shop keeps a copy:
+ * the source is never changed. The price starts at the item's own price, shown in its own coin (ep shows as sp
+ * while electrum is off). Stock starts unlimited.
+ */
+export function lineFromItem(data, contents = [], {randomId, uuid = null, electrum = false, sort = 0} = {}) {
+  if (typeof randomId !== 'function') throw new TypeError('lineFromItem needs randomId.');
+  const d = data?.system?.price?.denomination, coin = COINS.includes(d) ? (d === 'ep' && !electrum ? 'sp' : d) : 'gp';
+  return normalizeLine({lineId: `ln_${randomId()}`, itemId: itemSourceId(data), itemUuid: uuid, priceCp: itemPriceCp(data), priceCoin: coin,
+    stock: null, hidden: false, costCp: null, sort, item: snapshot(data), contents: contents.map(snapshot)});
+}
+/** The same item is already a line here: same permanent id, same source uuid, or (no id) the same name and type. */
+export function lineRepeats(lines, line) {
+  const it = line?.item ?? {};
+  return (lines ?? []).some(l => l !== line && ((line.itemId && l.itemId === line.itemId) || (line.itemUuid && l.itemUuid === line.itemUuid)
+    || (!line.itemId && !l.itemId && l.item?.name === it.name && l.item?.type === it.type)));
+}
+/** A copy of a shop under a new id: lines (stock as it is) and the purse are kept, live state is not. */
+export function duplicateShop(shop, {taken = [], retired = [], now = Date.now(), userId = null} = {}) {
+  const name = `${shop.name} (copy)`.slice(0, MERCHANT_NAME_MAX);
+  return {...structuredClone(shop), id: shopIdFromName(name, taken, 'SHOP', retired), name, presented: null, rev: 0, createdAt: now, updatedAt: now, updatedBy: userId};
+}
+/** Stock back to where it started; `lineIds` limits it to those lines. Unlimited stays unlimited. */
+export function restockLines(lines, lineIds = null) {
+  const only = lineIds ? new Set([].concat(lineIds)) : null;
+  return (lines ?? []).map(l => (!only || only.has(l.lineId)) && l.stockStart !== undefined ? {...l, stock: l.stockStart} : l);
+}
+/** GM change to a shop purse: 'add', 'remove' (never below 0) or 'set'. Returns the coins before and after. */
+export function planShopPurseAdjust({purse, op, coin, amount, electrum = false} = {}) {
+  if (!purse) throw Error('This shop has no coin purse. Turn on "This shop has its own coin purse" first.');
+  if (!['add', 'remove', 'set'].includes(op)) throw Error('Adjust must be add, remove or set.');
+  checkCoin(coin, electrum);const amt = wholeAmount(amount, {min: op === 'set' ? 0 : 1});
+  const has = Number(purse[coin]) || 0;
+  if (op === 'remove' && has < amt) throw Error(`The shop purse has ${has} ${coin}, fewer than ${amt} ${coin}.`);
+  const after = op === 'add' ? has + amt : op === 'remove' ? has - amt : amt;
+  if (after === has) throw Error(`The shop purse already has ${has} ${coin}.`);
+  if (after > GOLD_MAX) throw Error('Shop coins must be whole numbers from 0.');
+  return {op, coin, amount: amt, before: {...purse}, after: {...purse, [coin]: after}};
+}
+/** Shop log entry (GM data, on the shop's own page): purse changes now; sales from a later version. */
+export function shopLogEntry({id, kind, shopId, before = null, after = null, reason = '', user, realTime = Date.now(), ...rest} = {}) {
+  return {id, kind, shopId, before, after, reason: String(reason ?? '').trim().slice(0, 300), userId: user?.id ?? null, userName: user?.name ?? 'Unknown', realTime, ...rest};
 }

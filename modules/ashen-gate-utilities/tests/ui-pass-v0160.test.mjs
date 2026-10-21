@@ -44,20 +44,20 @@ test('header: brand title, then Appearance, version (from module.json at runtime
   assert.doesNotMatch(css,/agu-header \.ag-header__meta button/,'no header button shrink override');
  }finally{modules.delete('ashen-gate-manager');}
 });
-test('tabs: role="tab" with aria-selected, icons hidden from screen readers, GM tabs last with .ag-tab--gm',async()=>{
+test('tabs: role="tab" with aria-selected, icons hidden from screen readers, GM tabs marked .ag-tab--gm (0.17.0: Shops, GM only for now, sits after Party Inventory)',async()=>{
  const html=await tabHtml('setup');
  assert.match(html,/<nav class="ag-tabs ag-tabs--scroll agu-tabs" role="tablist"/);
  const tabs=[...html.matchAll(/<button type="button" role="tab" data-tab="([a-z]+)" aria-selected="(true|false)" class="([^"]*)"><i class="fa-solid [a-z0-9-]+" aria-hidden="true"><\/i>/g)];
- assert.deepEqual(tabs.map(t=>t[1]),['rolls','inventory','tables','conditions','history','setup']);
- assert.deepEqual(tabs.filter(t=>t[3].includes('ag-tab--gm')).map(t=>t[1]),['history','setup']);
+ assert.deepEqual(tabs.map(t=>t[1]),['rolls','inventory','shops','tables','conditions','history','setup']);
+ assert.deepEqual(tabs.filter(t=>t[3].includes('ag-tab--gm')).map(t=>t[1]),['shops','history','setup']);
  assert.deepEqual(tabs.filter(t=>t[2]==='true').map(t=>t[1]),['setup']);
  await game.settings.set(ID,'playerAccessEnabled',true);
  const player=await tabHtml('rolls',{...alice});
- assert.doesNotMatch(player,/ag-tab--gm|data-tab="setup"/);
+ assert.doesNotMatch(player,/ag-tab--gm|data-tab="setup"|data-tab="shops"/);
 });
 test('buttons use kit classes only; Award Gold is one button everywhere; no title= tooltips',async()=>{
  await game.settings.set(ID,'playerAccessEnabled',true);
- for(const tab of ['rolls','inventory','tables','conditions','history','setup']){
+ for(const tab of ['rolls','inventory','shops','tables','conditions','history','setup']){
   const html=await tabHtml(tab);
   for(const [,cls] of html.matchAll(/<button type="button" class="([^"]*)" data-action=/g)){
    assert.match(cls,/^ag-btn( ag-btn--(primary|danger|ghost|sm))*( agu-[a-z-]+)?$/,`${tab}: ${cls}`);
