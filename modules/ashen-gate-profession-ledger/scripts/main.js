@@ -8,13 +8,13 @@ import {planCraft,craftBlockers,executeCraft,craftResultData,materialStock,tierL
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,requiredToolRef,toolRefLabel,heldTool,
   checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS,DEFAULT_PROFESSION_TOOLS,DEFAULT_GATHER_SKILLS,migrateCheckMapping,advantageToolsOf} from './checks.mjs';
-import {PROFESSION_KEYS,professionTitle,catalogCrosswalk,unmappedProfessions,assignmentPlan,rowId,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
+import {PROFESSION_KEYS,professionTitle,catalogCrosswalk,definitionProfessionKey,unmappedProfessions,assignmentPlan,rowId,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
 import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,gatherOutcome,gatherReward,exhaustsNode,helperEligibility,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
   stackMaterial} from './gathering.mjs';
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.22.0';
+const VERSION='0.22.1';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...}. */
@@ -394,8 +394,7 @@ function professionDefinitions(){
     const hit=lookupWorldDefinition(game,id,{entityType:'Profession'});
     if(hit.status!=='ok'||hit.document!==doc)continue;
     const def=hit.source?.definition??{},name=def.name??professionDisplayName(doc);
-    const named=professionKey(name),key=PROFESSION_KEYS.includes(named)?named:professionKeyFromId(id);
-    out.push({sourceId:id,name,access:def.access??null,key:PROFESSION_KEYS.includes(key)?key:null,uuid:doc.uuid,itemName:doc.name,doc});
+    out.push({sourceId:id,name,access:def.access??null,key:definitionProfessionKey(id,name),uuid:doc.uuid,itemName:doc.name,doc});
   }
   return out;
 }
@@ -1518,7 +1517,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
           <td>${esc(r.profession)}</td><td>${esc(r.reason)}</td>
           <td>${r.status==='propose'?badge(`Will add ${r.itemName}`,'ok'):badge(...STATUS[r.status])}</td></tr>`).join('')}`;}).join('');
       const notes=[p.unmapped.length?`No qualifying skill or tool is set for ${p.unmapped.join(', ')}, so nobody is proposed for ${p.unmapped.length===1?'it':'them'}. Set them in GM Setup → Tools and checks.`:'',
-        ...p.conflicts.map(c=>`${c}: imported Profession definitions disagree; check them in Manager.`)].filter(Boolean);
+        ...p.conflicts.map(c=>`${c}: imported Profession definitions disagree; check them in Manager.`),
+        ...p.unresolved.map(u=>`${u.profession}: catalog ${u.field==='skillProficienciesAnyOf'?'skill':'tool'} “${u.name}” matches no dnd5e ${u.field==='skillProficienciesAnyOf'?'skill':'tool'} and is ignored.`)].filter(Boolean);
       body=`${notes.map(n=>`<p class="agl-sub">${esc(n)}</p>`).join('')}
         <div class="agl-map-wrap"><table class="agl-map agl-assign"><thead><tr><th></th><th>Profession</th><th>Reason</th><th>Result</th></tr></thead><tbody>${groups||'<tr><td colspan="4">No characters to check.</td></tr>'}</tbody></table></div>
         <p class="agl-sub">${proposals.length?`${plural(proposals.length,'profession feature')} to add. Adding never changes XP, levels, perks or existing Items.`:'Nothing new to add.'}</p>
