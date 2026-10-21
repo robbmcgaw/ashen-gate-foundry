@@ -12,7 +12,7 @@ Design: `robbmcgaw/ashen-gate-foundry` → `docs/shopping-design.md` (branch `de
 - A **service** is a place that does something other than sell items. The only service type now is `bank` (changes coins at the standard rates). Don't invent other types; Robb will add them.
 - A **merchant list** groups shops and services, usually one city. The GM can let players browse it (read only).
 
-- A shop may have a **purse**: the merchant's cash. Buyers' coins go in, change comes out. No purse means unlimited cash.
+- A shop may have a **purse**: the merchant's cash. Buyers' coins go in, change comes out. No purse means unlimited cash. Players see the merchant's coins unless the GM hides them.
 
 ChatGPT writes the definitions, including a shop's starting cash. It never writes live state: who the shop is shown to, stock sold, sales, or characters' coins.
 
@@ -42,7 +42,8 @@ Records go in an `ag-foundry-import/0.2` package, next to the Items they sell.
 | `shop.flavour` | string | optional | players see it; up to 1000 characters |
 | `shop.location_id` | string | optional | a `LOC-*` id; players see the place name only once it is revealed |
 | `shop.gm_notes` | string | optional | GM only |
-| `shop.purse` | object | optional | the merchant's starting cash, e.g. `{"cp": 50, "sp": 30, "gp": 20, "pp": 0}`; whole numbers ≥ 0, no `ep`. Leave it out for unlimited cash. Used only when the shop is first created; GM only |
+| `shop.purse` | object | optional | the merchant's starting cash, e.g. `{"cp": 50, "sp": 30, "gp": 20, "pp": 0}`; whole numbers ≥ 0, no `ep`. Leave it out for unlimited cash. Used only when the shop is first created |
+| `shop.show_purse` | boolean | optional | default `true`: players see the merchant's coins in the shop window. `false` hides the amount from players |
 | `shop.lines` | array | yes | at least one line |
 
 ### Line (`shop.lines[]`)

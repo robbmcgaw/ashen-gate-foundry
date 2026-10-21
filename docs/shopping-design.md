@@ -10,7 +10,7 @@ Mockup (private artifact): https://claude.ai/artifact/8danqfZAjEWaTi1o55rprj
 - The GM saves, searches and sorts shops in a new **Shops** tab.
 - **Present** opens a shop for one, some or all players. Only those players can buy from it, until the GM clicks **Stop showing**.
 - A player buys an item: picks a quantity and who pays (the **party purse** or **their own character's coins**), sees the total and the change, confirms. The item goes to their character.
-- **Shop purse (optional):** the merchant's cash on hand. Purchases add coins to it and change comes out of it. Later it pays for buying items back (D4). No purse = unlimited cash. The amount is GM only unless the GM shows it.
+- **Shop purse (optional):** the merchant's cash on hand. Purchases add coins to it and change comes out of it. Later it pays for buying items back (D4). No purse = unlimited cash. Players see the merchant's coins in the shop window by default; the GM can hide them per shop.
 - **No electrum.** Shops use cp, sp, gp and pp. Electrum appears only if the GM turns on Utilities' *Use electrum* setting (§7).
 - **Services:** a second kind of entry beside shops, for things that are not items for sale. They use the same Present and merchant-list rules. The first service is a **Bank** that changes coins between denominations (§7b). Robb will add other service types later; the record is built so a new type is a small addition.
 - **Merchant lists:** a named list of shops and services (usually one city). The GM switches a list on to let players **browse** it, read only. Buying still needs the GM to present that shop.
@@ -56,7 +56,7 @@ Creating the journals is lazy (first save) and re-runnable: found by flag `flags
   "gmNotes": "GM only text.",
   "purse": {"cp": 40, "sp": 25, "gp": 30, "pp": 0},
   "purseStart": {"cp": 40, "sp": 25, "gp": 30, "pp": 0},
-  "showPurse": false,
+  "showPurse": true,
   "lines": [ /* shop lines, below */ ],
   "presented": null,
   "createdAt": 0, "updatedAt": 0, "updatedBy": "userId"
@@ -67,7 +67,7 @@ Creating the journals is lazy (first save) and re-runnable: found by flag `flags
 - `locationId`: optional `LOC-*` id. Resolved through Locations' public API when it is active; ignored when it is not.
 - `purse`: the shop's coins now, or `null` = no purse (unlimited cash: change is always available and takings are not counted). Whole numbers ≥ 0 per coin. `ep` appears only while *Use electrum* is on.
 - `purseStart`: what **Restock cash** resets the purse to (GM button, never automatic).
-- `showPurse`: `false` (default) keeps the amount GM only. `true` shows players the merchant's coins in the shop window.
+- `showPurse`: `true` (default) shows players the merchant's coins in the shop window. `false` keeps the amount GM only (per shop, **Show merchant's coins to players**).
 - `presented`: `null`, or `{mode: 'all' | 'users', userIds: [...], since, by}`. Live state, never imported.
 
 ### Shop line
@@ -164,12 +164,12 @@ Built on the GM client, written to the Player View journal, never containing GM 
  "lines": [{"lineId": "ln_…", "name": "Rope, Hempen (50 ft)", "img": "…", "type": "Gear", "per": 1,
             "priceCp": 100, "priceText": "1 gp", "flavour": "…", "stock": 3, "soldOut": false,
             "description": "<item description, enriched for players>"}],
- "purse": null,
+ "purse": {"cp": 40, "sp": 25, "gp": 30, "pp": 0},
  "rev": 12}
 ```
 
-- `purse`: the shop's coins only when `showPurse` is on, else `null`.
-- Left out: `hidden` lines, `costCp`, the shop purse (unless shown), `gmNotes`, `itemUuid`, `itemId`, snapshots, sales, who else it is presented to.
+- `purse`: the shop's current coins when the shop has a purse and `showPurse` is on (the default); `null` when there is no purse or the GM hid it. Rebuilt after every sale and every GM purse change.
+- Left out: `hidden` lines, `costCp`, the shop purse when hidden, `purseStart`, `gmNotes`, `itemUuid`, `itemId`, snapshots, sales, who else it is presented to.
 - `location` only when Locations says the place is revealed to everyone; otherwise left out.
 - Unidentified items show their unidentified name and description (dnd5e `system.identified === false`).
 - `description` is the item's own player-facing description; secret blocks (`<section class="secret">`) are stripped.
@@ -195,7 +195,7 @@ Built on the GM client, written to the Player View journal, never containing GM 
 | `open(id?)` | anyone allowed | opens the Shops tab, or the shop window |
 | `forMe()` | player or GM | projections of shops presented to this user |
 | `browse()` | player or GM | projections of shops in visible merchant lists (read only) |
-| `quote({shopId, lineId, quantity, payFrom, actorId})` | player or GM | the payment plan (or the "can't make change" refusal), nothing changes; never reveals the shop purse unless shown |
+| `quote({shopId, lineId, quantity, payFrom, actorId})` | player or GM | the payment plan (or the "can't make change" refusal), nothing changes; reveals the shop purse only when it is shown |
 | `buy({shopId, lineId, quantity, payFrom, actorId, rev})` | player or GM | §7; `payFrom`: `'purse'` or `'actor'` |
 
 Refusals use the existing wording style: `GM only.`, `Utilities is hidden for players.`, `The GM has turned shops off.`, `This shop is not open for you.`
@@ -225,7 +225,7 @@ Refusals use the existing wording style: `GM only.`, `Utilities is hidden for pl
   2. else **exact payment** from the payer's coins (no change needed), if their coins allow it;
   3. else the purchase is refused: "The merchant can't make change for this. Pay with the other purse, or ask the GM." Nothing is charged.
 - The GM gets the same refusal as a whisper, with a **Top up shop purse** button (Add / Remove / Set, reason, labelled confirmation, like Adjust Purse). There is no automatic top-up.
-- Players are never told how much the shop holds unless `showPurse` is on.
+- Players see how much the shop holds while `showPurse` is on (default). When the GM hides it, refusals still say "can't make change" but never give amounts.
 - Later, buying items back (D4) pays from the shop purse; refused when it holds too little, unlimited when there is no purse.
 
 ### Who may buy
@@ -310,7 +310,7 @@ Shop records go in an `ag-foundry-import/0.2` package with `entity_type: "Shop"`
 - A shop whose `id` exists is **kept as it is** (default). `mode: 'update'` replaces name, merchant, flavour and lines from the file, but keeps stock left, presentation, sales and lines the GM added by hand.
 - Each line names `item_id` (an `ITEM-*` or other canonical id, found by `flags.ashen-gate-manager.source.sourceId`) or `item_uuid` (e.g. a compendium Item). Not found: that line is skipped and reported; the rest of the shop imports.
 - Import never creates live state: `presented` is always `null` and merchant lists import hidden.
-- `shop.purse` (optional) is the starting cash. It sets `purse` and `purseStart` only when the shop is **created**; an update never changes the cash the shop has now. Leave it out for no purse (unlimited cash).
+- `shop.purse` (optional) is the starting cash. It sets `purse` and `purseStart` only when the shop is **created**; an update never changes the cash the shop has now. Leave it out for no purse (unlimited cash). `shop.show_purse` (optional, default `true`) sets `showPurse`.
 - Prices in the file are `{value, denomination}` with `cp`, `sp`, `gp` or `pp`; they are stored as copper. `ep` is refused while *Use electrum* is off.
 
 Synthetic example:
@@ -378,7 +378,7 @@ Field rules are in `docs/shopping-for-gpt.md`. A `validate-content.mjs` check co
 | D1 | Making change | Shops make change (§7); the party purse's Deposit/Take stays exact-coin | Exact coin only (buyer must hold the price's coin) |
 | D1a | The shop purse can't make change | Try exact payment; else refuse with a clear message and give the GM a **Top up shop purse** button. Never auto top-up | Always require exact coin; or top up automatically |
 | D1b | Shop purse by default | New shops start with **no purse** (unlimited cash); the GM adds one per shop | Every shop has a purse, starting empty |
-| D1c | Players see the shop's cash | Hidden; per-shop **Show merchant's coins to players** | Always shown |
+| D1c | Players see the shop's cash | **Shown** by default (Robb, 2026-10-21); the GM can hide it per shop | Always hidden |
 | D2 | Spending the party purse in a shop | Needs the party vote when *Party must accept when a player spends the party purse* is on; until saved it follows the coin vote | Never vote; always vote |
 | D3 | Haggling | Not in v1. Later: the GM sets a per-presentation discount or markup % for a player when presenting | Player asks, GM approves a price in a prompt |
 | D4 | Selling items back | Not in v1. Later: GM-presented "buys" list, default half price (2024 rules), paid from the shop purse, GM approves each sale | Never |
@@ -393,7 +393,7 @@ Field rules are in `docs/shopping-for-gpt.md`. A `validate-content.mjs` check co
 
 ## 10. Build plan (small PRs, each a Utilities minor version)
 
-1. **0.14.0 Shop rules (no UI).** Pure functions in `core.mjs`: price to copper, `planShopPayment` (with and without a shop purse, electrum on/off), line validation, projection, id making, purchase plan. Tests for change-making, the exact-payment fallback, "can't make change", no negatives, no ep while electrum is off, sold out, hidden lines and the shop purse never projected unless shown. Needs 0.13.2 (*Use electrum*) on main first.
+1. **0.14.0 Shop rules (no UI).** Pure functions in `core.mjs`: price to copper, `planShopPayment` (with and without a shop purse, electrum on/off), line validation, projection, id making, purchase plan. Tests for change-making, the exact-payment fallback, "can't make change", no negatives, no ep while electrum is off, sold out, hidden lines never projected, the shop purse projected only while shown. Needs 0.13.2 (*Use electrum*) on main first.
 2. **0.15.0 Shops tab for the GM.** GM Data journal, Shops list with search/sort/grouping, editor (with the shop purse: Add / Remove / Set, Restock cash, show to players), drop zone (with the shared drop helper), duplicate/delete with confirmation, GM API (`list/get/create/save/duplicate/delete/addItems`). Players see nothing yet.
 3. **0.16.0 Present and buy.** Player View journal, `present/stopShowing/forMe/quote/buy`, the socket purchase with rollback, purse vote, History kind `shop-purchase`, player shop window. GM Setup → Shopping settings.
 4. **0.17.0 Merchant lists.** Lists, read-only browse, Locations link (feature-detected).
