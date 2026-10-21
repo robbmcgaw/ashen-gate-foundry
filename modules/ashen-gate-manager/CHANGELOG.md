@@ -1,3 +1,12 @@
+## 0.41.0 — 2026-10-21
+
+- **Modifiers on items and perks.** `ITEM-*` and `PERK-*` records may carry a record-level `modifiers` block (`ag-modifiers/0.1`): a list of `ag-modifier/1` entries `{target, value, label, scope?, op?, applies?, stack?, requires?}`. Manager checks the shape (schema, 1–20 entries, a known scope on the entry or the block, no unknown fields, `op` only `add`, a whole-number value that isn't 0, a label, `applies` an object, `requires` lists of canonical ids). The only scope is `cinder`. A modifiers block on any other record (a `POWER-*` uses `power.modifiers`) is refused.
+- **The scope's module checks the rest.** Each scope's entries go to its owner's public `api.modifiers.validate(entries, {recordId, record})` (feature-detected) in the Import preview and again just before Apply; its errors block the import. Ashen Gate | Cinders 0.1.0 has no modifier check yet, so these records import with one "not checked" warning. Manager never applies a modifier.
+- **`implementation`** (optional, display only) on any perk-like record: `automatic`, `informational` or `gm_resolved`. Anything else is refused. `HPERK-*` keeps Headquarters' own rule (which also allows `hybrid`).
+- The blocks are stored as written in the record's definition (`source.definition`), like `power`. Import never touches Cinder instances, sockets, bearers or Strain.
+- `scripts/validate-content.mjs` runs the same checks (and the scope owner's exported `validateModifiers` once it has one). New schema reference: `docs/modifiers-schema.md`, synthetic set in `test-fixtures/modifiers/`. `docs/perks-and-modifiers-architecture.md` (approved, with Robb's decisions) and the ChatGPT brief `docs/perks-and-modifiers-for-gpt.md` are now on main.
+- No saved data changes; no migration.
+
 ## 0.40.0 — 2026-10-21
 
 - **NPC Codex links to deities.** `codex.links` (and Connections added in the Codex) now accept `DEITY-*` ids. In the GM and player Codex a deity link opens **Ashen Gate | Renown**'s Pantheon on that deity (`api.open({deityId, actorId, tab: 'pantheon'})`, feature-detected).

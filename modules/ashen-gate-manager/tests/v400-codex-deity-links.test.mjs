@@ -108,13 +108,13 @@ test('client: deity opens Renown Pantheon via api.open; a player cannot open one
   assert.deepEqual(hidden.svc.deityLinks()({id: 'DEITY-TEST-SUN'}), {open: false, title: 'Renown is hidden from players right now.'});
 });
 
-test('docs, template and version 0.40.0 are consistent', () => {
+test('docs, template and version 0.41.0 are consistent', () => {
   assert.match(read('../../../docs/npc-codex-schema.md'), /`DEITY-`/);
   assert.match(read('../templates/manager.hbs'), /data-ag-codex-deity/);
   const manifest = JSON.parse(read('../module.json'));
-  assert.equal(manifest.version, '0.40.0');
-  assert.match(manifest.download, /ashen-gate-manager-v0\.40\.0\/ashen-gate-manager\.zip$/);
-  assert.match(read('../templates/manager.hbs'), /v0\.40\.0 Beta/);
-  assert.match(read('../scripts/main.js'), /General Manager v0\.40\.0 Beta/);
-  assert.match(read('../scripts/main.js'), /v0\.40\.0 ready/);
+  assert.equal(manifest.version, '0.41.0');
+  assert.match(manifest.download, /ashen-gate-manager-v0\.41\.0\/ashen-gate-manager\.zip$/);
+  assert.match(read('../templates/manager.hbs'), /v0\.41\.0 Beta/);
+  assert.match(read('../scripts/main.js'), /General Manager v0\.41\.0 Beta/);
+  assert.match(read('../scripts/main.js'), /v0\.41\.0 ready/);
 });
