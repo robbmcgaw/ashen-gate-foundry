@@ -1,4 +1,4 @@
-import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,conditionGroups,hasStatus,isReadOnlyStatus,READ_ONLY_STATUS_HINT,stashRow,historyEntry,containedItems,moveBundle,contentsNote,appendHistory,approvalLabel,STASH_HISTORY_CAP,rollFormSession,normalizeTab,rollPrefill,ROLL_OPEN_MODES,readGp,planGoldAward,goldAwardEntry,planGoldUndo,applyGoldUndo,goldCardHTML,COINS,COIN_LABELS,entryCoin,readCoin,readCoins,planCoinMove,planPurseAdjust,purseEntry,purseUndoable,planPurseUndo,applyPurseUndo,purseLine,PURSE_KINDS,ELECTRUM_OFF,coinChoices,shownCoins,strandedElectrum,planElectrumConvert,convertPreview,convertEntry,convertLine,planConvertUndo,applyConvertUndo,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome,shopLine} from './core.mjs';
+import {ID,VERSION,isLevelBackup,LEVEL_BACKUP_REFUSAL,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,conditionGroups,hasStatus,isReadOnlyStatus,READ_ONLY_STATUS_HINT,stashRow,historyEntry,containedItems,moveBundle,contentsNote,appendHistory,approvalLabel,STASH_HISTORY_CAP,rollFormSession,normalizeTab,rollPrefill,ROLL_OPEN_MODES,readGp,planGoldAward,goldAwardEntry,planGoldUndo,applyGoldUndo,goldCardHTML,COINS,COIN_LABELS,entryCoin,readCoin,readCoins,planCoinMove,planPurseAdjust,purseEntry,purseUndoable,planPurseUndo,applyPurseUndo,purseLine,PURSE_KINDS,ELECTRUM_OFF,coinChoices,shownCoins,strandedElectrum,planElectrumConvert,convertPreview,convertEntry,convertLine,planConvertUndo,applyConvertUndo,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome,shopLine} from './core.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,infoDialog,formDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
@@ -27,8 +27,10 @@ const getSession=()=>game.settings.get(ID,'activeSession')||{};
 const getHistory=()=>game.settings.get(ID,'history')||[];
 const getResult=()=>{const s=game.settings.get(ID,'lastResult');return s?.schema==='ag-utilities-session/0.1'&&s.status==='completed'?s:null;};
 const activeSession=()=>{const s=getSession();return s?.schema==='ag-utilities-session/0.1'&&s.status==='active'?s:null;};
-const isOwned=(actor,user=game.user)=>Boolean(actor&&(user?.isGM||actor.testUserPermission?.(user,'OWNER')));
-const allCharacters=()=>[...game.actors].filter(a=>a.type==='character').sort((a,b)=>a.name.localeCompare(b.name));
+const isOwned=(actor,user=game.user)=>Boolean(actor&&!isLevelBackup(actor)&&(user?.isGM||actor.testUserPermission?.(user,'OWNER')));
+const allCharacters=()=>[...game.actors].filter(a=>a.type==='character'&&!isLevelBackup(a)).sort((a,b)=>a.name.localeCompare(b.name));
+/** An Actor named by id as the target of an action; refuses a level backup copy. */
+const targetActor=id=>{const a=game.actors.get(id);if(isLevelBackup(a))throw Error(LEVEL_BACKUP_REFUSAL);return a;};
 const permittedActors=()=>allCharacters().filter(a=>isOwned(a));
 const ownedIds=()=>permittedActors().map(a=>a.id);
 const skillName=k=>game.i18n.localize(CONFIG.DND5E?.skills?.[k]?.label??k);
@@ -127,6 +129,7 @@ async function startRolls(form){
  if(!isGM())throw Error('GM only.');
  if(activeSession())throw Error('Resolve or cancel the active interaction first.');
  const dcText=String(form.dc??'').trim();
+ for(const id of [].concat(form.actors??[]))targetActor(id);
  const session=rollFormSession({...form,dc:dcText===''?null:Number(dcText),id:crypto.randomUUID(),createdBy:game.user.id});
  await queueSession(async()=>{if(activeSession())throw Error('An active interaction already exists.');if(getResult())await game.settings.set(ID,'lastResult',{});await storeSession(session);});
  return session;
@@ -397,7 +400,7 @@ async function rollFromActor(root){
 /* ---- Conditions: removal goes through one gate. A GM removes directly; anyone else asks the
    primary GM client over the module socket, and that client re-checks ownership and the lock. ---- */
 async function setUnlocked(actorId,unlocked){
- if(!isGM())throw Error('GM only.');if(typeof unlocked!=='boolean')throw TypeError('Boolean required.');if(!game.actors.get(actorId))throw Error('Character not found.');
+ if(!isGM())throw Error('GM only.');if(typeof unlocked!=='boolean')throw TypeError('Boolean required.');if(!targetActor(actorId))throw Error('Character not found.');
  await game.settings.set(ID,'conditionUnlocks',withUnlocked(getUnlocks(),actorId,unlocked));
 }
 /** Never claim a removal that didn't happen: a write another module refuses resolves without error, so re-read the Actor. */
@@ -542,7 +545,7 @@ async function clearStashHistory(){
 function goldDefaults(){
  let party=null;try{party=game.actors?.party??null;}catch{party=null;}
  if(!party){try{party=game.settings.get('dnd5e','primaryParty')?.actor??null;}catch{party=null;}}
- const members=[...(party?.system?.members??[])].map(m=>m?.actor??m).filter(a=>a?.id&&game.actors.get(a.id));
+ const members=[...(party?.system?.members??[])].map(m=>m?.actor??m).filter(a=>a?.id&&game.actors.get(a.id)&&!isLevelBackup(game.actors.get(a.id)));
  if(members.length)return {source:'party',partyName:party.name??'Primary Party',actorIds:[...new Set(members.map(a=>a.id))]};
  const players=[...game.users].filter(u=>u.active&&!u.isGM);
  return {source:'players',partyName:null,actorIds:allCharacters().filter(a=>players.some(u=>a.testUserPermission?.(u,'OWNER'))).map(a=>a.id)};
@@ -554,7 +557,7 @@ async function awardGold({amount,mode='each',actorIds,reason='',public:isPublic=
  if(coin==='ep'&&!electrumEnabled())throw Error(ELECTRUM_OFF);
  if(!isGM())throw Error('GM only.');
  return queueHistory(async()=>{
-  const actors=[...new Set(actorIds??[])].map(id=>{const a=game.actors.get(id);if(!a)throw Error(`Character ${id} was not found.`);return a;});
+  const actors=[...new Set(actorIds??[])].map(id=>{const a=targetActor(id);if(!a)throw Error(`Character ${id} was not found.`);return a;});
   const plan=planGoldAward({amount,mode,coin,recipients:actors.map(a=>({id:a.id,name:a.name,held:gpOrThrow(a,coin)}))});
   const paid=[],failed=[];
   for(const r of plan.recipients){
@@ -639,7 +642,7 @@ async function moveCoins(from,to,coin,{fromAfter,toAfter,toBefore}){
  catch(e){await to.update({[coinKey(coin)]:toBefore}).catch(err=>console.error(`[${ID}] Could not restore ${to.name} ${coin}`,err));throw e;}
 }
 function purseActor(actorId,user){
- const actor=game.actors.get(actorId),stash=stashActor();
+ const actor=targetActor(actorId),stash=stashActor();
  if(!actor||actor.id===stash?.id)throw Error('Choose a character.');
  if(!(user.isGM||actor.testUserPermission?.(user,'OWNER')))throw Error(`You do not own ${actor.name}.`);
  return actor;
@@ -833,6 +836,7 @@ async function executeDeposit(uuid,user){
   if(missing){await removeCopies(stash,data);throw Error(`Could not copy ${item.name}: ${missing} of ${data.length} items did not arrive. Nothing was added.`);}
   await logQuietly({kind:'deposit',approval:'gm',user,actor:null,item:{...stashRow(item),contents}});return `Copied ${item.name}${contentsNote(contents)} into the party stash.`;
  }
+ if(isLevelBackup(from))throw Error(LEVEL_BACKUP_REFUSAL);
  if(from.documentName!=='Actor'||!(user.isGM||from.testUserPermission?.(user,'OWNER')))throw Error('You can only stash items from a character you own.');
  const row=stashRow(item);const {made,contents}=await moveItem(item,stash);
  await logQuietly({kind:'deposit',approval:user.isGM?'gm':'not-required',user,actor:from,item:{...row,uuid:made?.uuid??row.uuid,contents}});
@@ -841,7 +845,7 @@ async function executeDeposit(uuid,user){
 const takingItems=new Set();
 async function executeWithdraw(itemId,actorId,user){
  playerStashGate(user);
- const stash=stashActor(),item=stash?.items.get(itemId),actor=game.actors.get(actorId);
+ const stash=stashActor(),item=stash?.items.get(itemId),actor=targetActor(actorId);
  if(!item)throw Error('That item is no longer in the stash.');
  if(!actor||actor.id===stash.id)throw Error('Choose a character to receive the item.');
  if(!(user.isGM||actor.testUserPermission?.(user,'OWNER')))throw Error(`You do not own ${actor.name}.`);
