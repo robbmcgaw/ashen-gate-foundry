@@ -3,8 +3,12 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {makeFaction,revealField,fieldDisclosure,projectedFolders} from '../scripts/core.mjs';
 import {addObjectiveRef} from '../scripts/objective-refs.mjs';
-import {orgRow,visibilityChip,listOrgsTab,CONTENT_ACTIONS,SETUP_ACTIONS,CHIPS} from '../scripts/orgs-tab.mjs';
-const template=readFileSync(new URL('../templates/dashboard.hbs',import.meta.url),'utf8');
+import {orgRow,visibilityChip,chipBadge,listOrgsTab,CONTENT_ACTIONS,SETUP_ACTIONS,DEV_ACTIONS,CHIPS} from '../scripts/orgs-tab.mjs';
+const raw=readFileSync(new URL('../templates/dashboard.hbs',import.meta.url),'utf8');
+// Inline partials ({{#*inline}} at the top) are expanded where they are used, so sections are checked as rendered.
+const partials=new Map([...raw.matchAll(/\{\{#\*inline "(\w+)"\}\}([\s\S]*?)\{\{\/inline\}\}/g)].map(m=>[m[1],m[2]]));
+const expand=t=>{for(let i=0;i<3;i++)t=t.replace(/\{\{> (\w+)[^}]*\}\}/g,(_,n)=>partials.get(n)??'');return t;};
+const template=expand(raw.replace(/\{\{#\*inline "\w+"\}\}[\s\S]*?\{\{\/inline\}\}\n?/g,''));
 const code=readFileSync(new URL('../scripts/module.mjs',import.meta.url),'utf8');
 const mk=(n,discovery={})=>{const f=makeFaction({id:`FACTION-TEST-${n}`,trackId:`RENOWN-TEST-${n}`,name:`[TEST] ${n}`});f.discovery={...f.discovery,...discovery};return f;};
 const hidden=mk('Hidden'),chars=mk('Chars',{actors:['A1']}),party=mk('Party',{party:true,placeholder:true});
@@ -34,12 +38,21 @@ test('players do not get hidden factions from the projection',()=>{
  assert.deepEqual(shown,[party.id]);
 });
 test('GM Setup holds settings only; Organizations holds all content actions',()=>{
- const setup=template.slice(template.indexOf('\n    {{#if tabSetup}}\n'),template.indexOf('{{#if refreshNeeded}}'));
- const orgs=template.slice(template.indexOf('\n    {{#if tabOrgs}}\n'),template.indexOf('\n    {{#if tabSetup}}\n'));
+ const setup=template.slice(template.indexOf('{{#if tabSetup}}\n'));
+ const orgs=template.slice(template.indexOf('{{#if tabOrgs}}\n'),template.indexOf('{{#if tabPantheon}}\n'));
+ const dev=setup.slice(setup.indexOf('<details class="ag-devtools">'),setup.indexOf('</details>'));
+ const settings=setup.replace(dev,'');
  for(const a of CONTENT_ACTIONS){assert.ok(!setup.includes(`data-action="${a}"`),`${a} must not be in GM Setup`);}
- for(const a of SETUP_ACTIONS){assert.ok(setup.includes(`data-action="${a}"`));assert.ok(!orgs.includes(`data-action="${a}"`));}
- for(const a of ['create','seed','save','importJson','exportAll','addObjective','createFolder','saveFieldReveals','resolveRequest'])assert.ok(orgs.includes(`data-action="${a}"`),`${a} missing from Organizations`);
+ for(const a of SETUP_ACTIONS){assert.ok(settings.includes(`data-action="${a}"`));assert.ok(!orgs.includes(`data-action="${a}"`));}
+ // Demo loaders live only in the collapsed Developer Tools at the end of GM Setup.
+ for(const a of DEV_ACTIONS){assert.ok(dev.includes(`data-action="${a}"`),`${a} belongs in Developer Tools`);assert.ok(!settings.includes(`data-action="${a}"`));assert.ok(!orgs.includes(`data-action="${a}"`));}
+ assert.ok(setup.indexOf('ag-devtools')>setup.indexOf('name="group-name"'),'Developer Tools come last');
+ for(const a of ['create','save','importJson','exportAll','addObjective','createFolder','saveFieldReveals','resolveRequest'])assert.ok(orgs.includes(`data-action="${a}"`),`${a} missing from Organizations`);
  assert.match(template,/data-agf-view="orgs"[\s\S]*data-agf-view="setup"/);
+});
+test('visibility badges: Revealed ok, Characters only accent, Hidden plain',()=>{
+ assert.equal(chipBadge('Revealed to party'),'ag-badge--ok');assert.equal(chipBadge('Characters only'),'ag-badge--accent');assert.equal(chipBadge('Hidden'),'');
+ assert.deepEqual(rows.map(r=>r.badgeClass),['','ag-badge--accent','ag-badge--ok']);
 });
 test('GM-only tabs are refused for players in the shell',()=>{
  assert.match(code,/\['orgs','setup'\]\.includes\(this\.#tab\)\)this\.#tab='group'/);

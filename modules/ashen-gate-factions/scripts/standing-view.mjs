@@ -1,0 +1,22 @@
+// Display helpers for a standing track (no Foundry globals): the rank-dot ladder, the meter toward the next rank,
+// and which milestone card is the current one. Works on GM milestones and on players' projected milestones alike.
+
+/** {current, next, remaining, percent, steps:[{id,name,threshold,done,current}]} for a score on a milestone list. */
+export function standingView(milestones = [], score = 0) {
+  const ms = [...(milestones ?? [])].sort((a, b) => a.threshold - b.threshold);
+  const s = Number(score) || 0;
+  const index = ms.reduce((at, m, k) => s >= m.threshold ? k : at, -1);
+  const next = ms[index + 1] ?? null, base = index >= 0 ? ms[index].threshold : 0;
+  const percent = next ? Math.max(0, Math.min(100, Math.round(100 * (s - base) / Math.max(1, next.threshold - base)))) : 100;
+  return {
+    score: s, current: index >= 0 ? ms[index].name : '', currentId: index >= 0 ? ms[index].id : null,
+    next: next ? {name: next.name, threshold: next.threshold} : null, remaining: next ? Math.max(0, next.threshold - s) : 0, percent,
+    steps: ms.map((m, k) => ({id: m.id, name: m.name, threshold: m.threshold, done: k <= index, current: k === index}))
+  };
+}
+
+/** The milestone list with isActive on the current (highest reached) milestone. */
+export function markCurrent(milestones = [], score = 0) {
+  const {currentId} = standingView(milestones, score);
+  return (milestones ?? []).map(m => ({...m, isActive: currentId !== null && m.id === currentId}));
+}

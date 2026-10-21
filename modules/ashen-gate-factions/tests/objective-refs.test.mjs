@@ -56,8 +56,8 @@ test('players never receive GM-only Objective refs through faction projections',
   assert.ok(start>0&&end>start);
   assert.doesNotMatch(project,/refs\s*:/);
   assert.doesNotMatch(project,/objectiveRefs\(/);
-  assert.ok(template.indexOf('GM · Related Objectives')>template.indexOf('{{#if tabOrgs}}'));
-  assert.match(template,/\{\{#if tabOrgs\}\}[\s\S]*\{\{#if detail\}\}[\s\S]*GM · Related Objectives/);
+  assert.ok(template.indexOf('Related quests and contracts')>template.indexOf('{{#if tabOrgs}}'));
+  assert.match(template,/\{\{#if tabOrgs\}\}[\s\S]*\{\{#if detail\}\}[\s\S]*Related quests and contracts/);
   assert.match(runtime,/assertGM\(\);const doc=definition\(this\.#selected\)/);
 });
 test('theme styling is local and tolerates absent optional appearance controller',async()=>{
@@ -68,7 +68,9 @@ test('theme styling is local and tolerates absent optional appearance controller
   assert.doesNotMatch(css,/--ag-[a-z-]+\s*:/);
   const kit=readFileSync(new URL('../styles/ag-ui.css',import.meta.url),'utf8');
   for(const token of ['--ag-surface','--ag-text','--ag-accent','--ag-focus'])assert.match(kit,new RegExp(`${token}:\\s*#`));
-  const last=css.slice(css.indexOf('/* AG-WORK-0009 / AG-WORK-0016'));
-  assert.doesNotMatch(last,/(^|\})\s*(body|html|:root)\s*\{/);
-  assert.match(last,/\.ashen-gate-factions/);
+  assert.doesNotMatch(css,/(^|\})\s*(body|html|:root)\s*\{/);
+  assert.match(css,/\.ashen-gate-factions/);
+  // Kit tokens only: no legacy aliases, no module re-aliases of kit tokens.
+  assert.doesNotMatch(css,/var\(--ag-(?:bg|panel)\)/);
+  assert.doesNotMatch(css,/--agf-(?:gold|ink|muted|border)\b/);
 });
