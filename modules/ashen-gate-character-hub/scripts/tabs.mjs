@@ -2,7 +2,7 @@
  * Combat, Inventory (character or party stash), Magic and Features views. Every list is a column-headed list of item
  * cards (cards.mjs). The paper doll, initiative and rests are in character.mjs.
  */
-import {esc} from './constants.mjs';
+import {esc, DIAMOND_PRESENT, DIAMOND_ABSENT} from './constants.mjs';
 import {btn} from './buttons.mjs';
 import {inventoryData, combatData, spellsData, featuresData} from './items.mjs';
 import {partyStashHtml, partyStashUsable} from './partners.mjs';
@@ -55,6 +55,13 @@ function combatTab(ctx) {
 }
 
 // ---------- Inventory ----------
+/** True when any item the character owns (containers' contents too: they are Items on the Actor) has "diamond" in its name. */
+export const hasDiamond = actor => [...(actor?.items ?? [])].some(i => /diamond/i.test(String(i.name ?? '')));
+/** The display-only banner at the top of Inventory. Not stored, not clickable. */
+export const diamondBanner = actor => hasDiamond(actor)
+  ? `<p class="agch-diamond is-present" role="note">${esc(DIAMOND_PRESENT)}</p>`
+  : `<p class="agch-diamond is-absent" role="note">${esc(DIAMOND_ABSENT)}</p>`;
+
 function inventoryTab(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, d = inventoryData(actor), toParty = partyStashUsable(), expanded = sheet?.expanded;
   const currency = `<div class="agch-currency agch-coins" role="group" aria-label="Currency">${d.currency.map(c => `<label class="agch-coin"><span>${esc(c.abbr)}</span><input type="number" min="0" step="1" data-edit="currency" data-key="${esc(c.key)}" value="${c.value}" aria-label="${esc(c.label)}"${off ? ' disabled' : ''}></label>`).join('')}</div>`;
@@ -70,7 +77,7 @@ function inventoryTab(ctx) {
   // A container's contents sit in a folding row under it (fold state shared with headings).
   const after = r => r.contents?.length ? `<li class="agch-contents"${containerAttrs(r)}>${cardList(r.contents, columns, {card, expanded, listKey: `inv-${r.id}`})}</li>` : '';
   const groups = d.groups.map(g => sectionHtml(sectionKey('inventory', g.type), esc(g.label), cardList(g.items, columns, {card, after, expanded, listKey: `inv-${g.type}`}))).join('') || empty('No items.');
-  return `${currency}${groups}
+  return `${diamondBanner(actor)}${currency}${groups}
     <p class="agch-muted agch-hint">Equipped items also show in the slots around the portrait.${toParty ? ' <i class="fa-solid fa-people-carry-box" aria-hidden="true"></i> moves an item to the party stash; take items back from Party stash.' : ''}</p>`;
 }
 

@@ -435,3 +435,7 @@
 .ag-character-hub .agch-filter[aria-pressed="true"] { border-color: var(--ag-accent); background: var(--ag-accent-soft); color: var(--ag-accent); }
 .ag-character-hub .agch-filter--clear { border-style: dashed; }
 .ag-character-hub .agch-cards .agch-card__main { padding-left: 4px; }
+/* Resurrection diamond banner (Inventory, display only). Signika is what the Hub loads; the fantasy look uses a serif. */
+.ag-character-hub .agch-diamond { margin: 0 0 var(--ag-space-2); text-align: center; font-family: "Modesto Condensed", "Amiri", Georgia, "Times New Roman", serif; font-size: var(--ag-text-lg); font-style: italic; letter-spacing: .04em; }
+.ag-character-hub .agch-diamond.is-present { color: color-mix(in srgb, var(--ag-accent) 75%, var(--ag-ok)); }
+.ag-character-hub .agch-diamond.is-absent { color: var(--ag-danger); }

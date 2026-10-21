@@ -17,6 +17,10 @@ From Robb's feedback:
   - Group by feature type, **action type**, **source** (the class, species or other item that granted it, from dnd5e's advancement origin) or **uses**.
   - Sort by name, type, has-uses first or **action type**.
   - Filters: one button per action type, **Has uses**, **Uses left**.
+- **Inventory banner** (display only, in a fantasy serif: dnd5e's Modesto Condensed or Foundry's Amiri, else Georgia):
+  - If the character owns any item with "diamond" in its name, including items inside containers, any case (e.g. "Diamond Dust"), it reads "Your soul may be returned" in muted gold.
+  - Otherwise it reads "You do not possess a resurrection diamond" in red.
+  - The texts are constants in `scripts/constants.mjs`. Nothing is stored or automated.
 - Filters are kept while the sheet is open and aren't saved. A Features grouping saved as "Use time" now groups by action type.
 - No saved data changes.
 
