@@ -83,7 +83,7 @@
 /* Hirelings */
 .aghq-roster { padding:var(--ag-space-4); display:grid; grid-template-columns:minmax(0,1fr) minmax(16rem,19rem); gap:var(--ag-space-4); align-items:start; }
 .aghq-roster > * { min-width:0; margin:0; }
-.aghq-roster select { flex:2 1 10rem; min-width:0; max-width:22rem; }
+.aghq-roster select { flex:2 1 10rem; min-width:0; }
 .aghq-hire-card { display:flex; gap:var(--ag-space-3); margin:0 0 var(--ag-space-3); overflow-wrap:anywhere; }
 .aghq-hire-card[draggable="true"] { cursor:grab; }
 .aghq-hire-photo { flex:0 0 var(--ag-portrait); width:var(--ag-portrait); height:var(--ag-portrait); border:1px solid var(--ag-border); border-radius:50%; display:grid; place-items:center; background:var(--ag-surface-sunken); color:var(--ag-muted); font-size:calc(var(--ag-text-xl) * 1.3); overflow:hidden; }
