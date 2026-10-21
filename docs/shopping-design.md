@@ -344,11 +344,12 @@ The item is removed last, so a failure at any step leaves the player holding the
 
 ## 8. Import (GPT-authored shops and services)
 
-Shop records go in an `ag-foundry-import/0.2` package with `entity_type: "Shop"`, `"Service"` and `"MerchantList"`. General Manager, when it sees Utilities with `api.shops.importShops`, creates the package's Items first, then hands the Shop records to Utilities in the same run. Utilities **GM Setup → Import JSON** (Shops tab → Import JSON) reads the same records for a shops-only file.
+Shop records go in an `ag-foundry-import/0.2` package (a `manifest` block with `schema_version`, `package_id`, `version`, then `records`) with `entity_type: "Shop"`, `"Service"` and `"MerchantList"`, next to the Items they sell. Every record has the standard envelope: `id`, `entity_type`, `status`, `version`, `provenance`, `visibility`, `refs`.
 
-- A shop whose `id` exists is **kept as it is** (default). `mode: 'update'` replaces name, merchant, flavour and lines from the file, but keeps stock left, presentation, sales and lines the GM added by hand.
+- **Built in Utilities 0.21.0** (GM only): **Shops → Import JSON** previews each record (Create, Update, Kept, Skipped with the reason) and imports; **Shops → Export** writes the same format. General Manager checks these packages; routing them from Manager's Import is a later Manager update. Full field rules: `docs/shop-schema.md`; test files: `test-fixtures/shops/`.
+- A record whose `id` exists is **kept as it is** by default. With **Update shops that already exist**, a shop's name, merchant, flavour and lines come from the file (a service: name, merchant, flavour, settings; a list: name and entries).
+- **An update never touches play state:** nothing is presented by an import, lists come in hidden (a shown list stays shown), and an update keeps stock left, hand-added lines, lines bought from players, the merchant's coins now, the sales log, and the shop's linked location and GM notes. `purse`, `show_purse` and `buys` apply only when a shop is created.
 - Each line names `item_id` (an `ITEM-*` or other canonical id, found by `flags.ashen-gate-manager.source.sourceId`) or `item_uuid` (e.g. a compendium Item). Not found: that line is skipped and reported; the rest of the shop imports.
-- Import never creates live state: `presented` is always `null` and merchant lists import hidden.
 - `shop.purse` (optional) is the starting cash. It sets `purse` and `purseStart` only when the shop is **created**; an update never changes the cash the shop has now. Leave it out for no purse (unlimited cash). `shop.show_purse` (optional, default `true`) sets `showPurse`.
 - Prices in the file are `{value, denomination}` with `cp`, `sp`, `gp` or `pp`; they are stored as copper. `ep` is refused while *Use electrum* is off.
 
@@ -356,28 +357,99 @@ Synthetic example:
 
 ```json
 {
-  "format": "ag-foundry-import/0.2",
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-TEST-SHOPS",
+    "version": "1.0.0",
+    "description": "Synthetic shop, bank and merchant list for testing (not canon)."
+  },
   "records": [
+    {
+      "id": "ITEM-TEST-LEATHER-ARMOR",
+      "entity_type": "Item",
+      "status": "draft",
+      "version": "1.0.0",
+      "provenance": {"sources": ["Synthetic test data (not canon)"]},
+      "visibility": "player",
+      "refs": [],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Shops",
+        "data": {
+          "name": "[TEST] Leather Armor",
+          "type": "equipment",
+          "system": {"quantity": 1, "price": {"value": 10, "denomination": "gp"}}
+        }
+      }
+    },
+    {
+      "id": "ITEM-TEST-WATERSKIN",
+      "entity_type": "Item",
+      "status": "draft",
+      "version": "1.0.0",
+      "provenance": {"sources": ["Synthetic test data (not canon)"]},
+      "visibility": "player",
+      "refs": [],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Shops",
+        "data": {
+          "name": "[TEST] Waterskin",
+          "type": "loot",
+          "system": {"quantity": 1, "price": {"value": 2, "denomination": "sp"}}
+        }
+      }
+    },
+    {
+      "id": "ITEM-TEST-HIDE-BUNDLE",
+      "entity_type": "Item",
+      "status": "draft",
+      "version": "1.0.0",
+      "provenance": {"sources": ["Synthetic test data (not canon)"]},
+      "visibility": "player",
+      "refs": [],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Shops",
+        "data": {
+          "name": "[TEST] Hide Bundle",
+          "type": "loot",
+          "system": {"quantity": 1, "price": {"value": 3, "denomination": "gp"}}
+        }
+      }
+    },
     {
       "id": "SHOP-TEST-TANNER",
       "entity_type": "Shop",
       "status": "draft",
       "version": "1.0.0",
-      "name": "[TEST] Tanner's Stall",
+      "provenance": {"sources": ["Synthetic test data (not canon)"]},
       "visibility": "gm",
       "refs": [{"relation": "located_at", "target_id": "LOC-TEST-MARKET", "mode": "optional"}],
+      "name": "[TEST] Tanner's Stall",
       "shop": {
         "merchant_name": "[TEST] Hollis Reed",
-        "merchant_img": "assets/test/merchant-test.webp",
         "flavour": "Smells of oak bark and fresh leather.",
         "location_id": "LOC-TEST-MARKET",
         "gm_notes": "Synthetic test shop.",
         "purse": {"cp": 50, "sp": 30, "gp": 20, "pp": 0},
+        "show_purse": true,
+        "buys": {"enabled": true, "percent": 50, "types": ["equipment", "loot"]},
         "lines": [
-          {"item_id": "ITEM-TEST-LEATHER-ARMOR", "price": {"value": 10, "denomination": "gp"}, "stock": 2, "flavour": "Supple and well stitched.", "cost": {"value": 6, "denomination": "gp"}},
+          {
+            "item_id": "ITEM-TEST-LEATHER-ARMOR",
+            "price": {"value": 10, "denomination": "gp"},
+            "stock": 2,
+            "flavour": "Supple and well stitched.",
+            "cost": {"value": 6, "denomination": "gp"}
+          },
           {"item_id": "ITEM-TEST-WATERSKIN", "price": {"value": 2, "denomination": "sp"}},
-          {"item_uuid": "Compendium.dnd5e.equipment24.Item.EXAMPLEID000001", "price": {"value": 5, "denomination": "sp"}, "stock": 6},
-          {"item_id": "ITEM-TEST-HIDE-BUNDLE", "price": {"value": 3, "denomination": "gp"}, "hidden": true}
+          {
+            "item_id": "ITEM-TEST-HIDE-BUNDLE",
+            "price": {"value": 3, "denomination": "gp"},
+            "hidden": true,
+            "cost": {"value": 1, "denomination": "gp"}
+          }
         ]
       }
     },
@@ -386,8 +458,10 @@ Synthetic example:
       "entity_type": "Service",
       "status": "draft",
       "version": "1.0.0",
-      "name": "[TEST] Counting House",
+      "provenance": {"sources": ["Synthetic test data (not canon)"]},
       "visibility": "gm",
+      "refs": [],
+      "name": "[TEST] Counting House",
       "service": {
         "type": "bank",
         "merchant_name": "[TEST] Clerk Ames",
@@ -401,6 +475,9 @@ Synthetic example:
       "entity_type": "MerchantList",
       "status": "draft",
       "version": "1.0.0",
+      "provenance": {"sources": ["Synthetic test data (not canon)"]},
+      "visibility": "gm",
+      "refs": [],
       "name": "[TEST] Testford merchants",
       "merchant_list": {"location_id": "LOC-TEST-TESTFORD", "shop_ids": ["SHOP-TEST-TANNER", "SVC-TEST-COUNTING-HOUSE"]}
     }
@@ -408,7 +485,7 @@ Synthetic example:
 }
 ```
 
-Field rules are in `docs/shopping-for-gpt.md`. A `validate-content.mjs` check comes with the import PR.
+This is `test-fixtures/shops/AG_Test_Shops.json` (main); it passes `node scripts/validate-content.mjs`. Field rules: `docs/shop-schema.md` and `docs/shopping-for-gpt.md`.
 
 ## 9. Decisions (Robb, 2026-10-21)
 
@@ -441,7 +518,7 @@ Version numbers assume nothing else takes those Utilities versions first; if som
 | 0.16.0 | `03-present-buy.md` | Present, player shop window, buying | After 0.15.0 |
 | 0.17.0 | `04-sell.md` | Selling to a shop (§7c) | After 0.16.0 |
 | 0.18.0 | `05-lists-services-bank.md` | Merchant lists, services, the Bank | After 0.16.0 (can run beside 0.17.0) |
-| 0.19.0 | `06-import.md` | Import/export, schema doc, validator; then a Manager PR | After 0.18.0 |
+| 0.19.0 | `06-import.md` | Import/export, schema doc, validator; then a Manager PR | **Built as Utilities 0.21.0** (PR #205); Manager routing still to do |
 
 Later, each once Robb asks: Undo (D8), haggling (D3), restock rules (D5), new service types, a Character Hub embed.
 

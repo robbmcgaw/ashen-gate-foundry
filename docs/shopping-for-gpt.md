@@ -1,6 +1,6 @@
 # Shops, services and merchant lists: brief for ChatGPT (FINAL)
 
-**Status: FINAL format, not built yet.** Robb approved the design on 2026-10-21. The import arrives in Utilities 0.19.0 (with a General Manager update); until then you can write records, but they can't be imported yet. Mark records `status: draft` until Robb approves their content. `shop.buys` (selling to a shop) is decided and may be used.
+**Status: FINAL, import built in Utilities 0.21.0.** Robb approved the design on 2026-10-21. The GM imports with Utilities **Shops → Import JSON** (GM only); General Manager checks these packages but doesn't route them from its own Import yet. Mark records `status: draft` until Robb approves their content. `shop.buys` (selling to a shop) is decided and may be used.
 
 Design: `robbmcgaw/ashen-gate-foundry` → `docs/shopping-design.md` (branch `design/shopping`).
 
@@ -26,7 +26,9 @@ ChatGPT writes the definitions, including a shop's starting cash. It never write
 
 ## 3. Record format
 
-Records go in an `ag-foundry-import/0.2` package, next to the Items they sell.
+Records go in an `ag-foundry-import/0.2` package, next to the Items they sell. The package starts with a `manifest` block (`schema_version: "ag-foundry-import/0.2"`, `package_id`, `version`, optional `description`), then `records`. Not `format`.
+
+Every record (Items, shops, services, lists) has the standard envelope: `id`, `entity_type`, `status`, `version`, `provenance: {"sources": ["…"]}`, `visibility` (`"gm"` for shops, services and lists), `refs` (`[]` when none). Shops, services and lists also need `name`.
 
 ### Shop
 
@@ -85,35 +87,140 @@ How many come per purchase is the Item's own `system.quantity` (an "Arrows (20)"
 
 Merchant lists always import hidden. The GM switches them on.
 
+### On import and update
+
+- Utilities 0.21.0 (GM only): **Shops → Import JSON** previews each record (Create, Update, Kept, Skipped with the reason) and imports; **Shops → Export** writes the same format. General Manager checks these packages; routing them from Manager's Import is a later Manager update. Full field rules: `docs/shop-schema.md`; test files: `test-fixtures/shops/`.
+- A record whose `id` exists is **kept as it is** by default. With **Update shops that already exist**, a shop's name, merchant, flavour and lines come from the file (a service: name, merchant, flavour, settings; a list: name and entries).
+- **An update never touches play state:** nothing is presented by an import, lists come in hidden (a shown list stays shown), and an update keeps stock left, hand-added lines, lines bought from players, the merchant's coins now, the sales log, and the shop's linked location and GM notes. `purse`, `show_purse` and `buys` apply only when a shop is created.
+
+
 ## 4. Synthetic example
+
+The same file as `test-fixtures/shops/AG_Test_Shops.json` in the public repo; it passes `node scripts/validate-content.mjs`. Copy its shape.
 
 ```json
 {
-  "format": "ag-foundry-import/0.2",
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-TEST-SHOPS",
+    "version": "1.0.0",
+    "description": "Synthetic shop, bank and merchant list for testing (not canon)."
+  },
   "records": [
     {
-      "id": "SHOP-TEST-TANNER", "entity_type": "Shop", "status": "draft", "version": "1.0.0",
-      "name": "[TEST] Tanner's Stall", "visibility": "gm",
+      "id": "ITEM-TEST-LEATHER-ARMOR",
+      "entity_type": "Item",
+      "status": "draft",
+      "version": "1.0.0",
+      "provenance": {"sources": ["Synthetic test data (not canon)"]},
+      "visibility": "player",
+      "refs": [],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Shops",
+        "data": {
+          "name": "[TEST] Leather Armor",
+          "type": "equipment",
+          "system": {"quantity": 1, "price": {"value": 10, "denomination": "gp"}}
+        }
+      }
+    },
+    {
+      "id": "ITEM-TEST-WATERSKIN",
+      "entity_type": "Item",
+      "status": "draft",
+      "version": "1.0.0",
+      "provenance": {"sources": ["Synthetic test data (not canon)"]},
+      "visibility": "player",
+      "refs": [],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Shops",
+        "data": {
+          "name": "[TEST] Waterskin",
+          "type": "loot",
+          "system": {"quantity": 1, "price": {"value": 2, "denomination": "sp"}}
+        }
+      }
+    },
+    {
+      "id": "ITEM-TEST-HIDE-BUNDLE",
+      "entity_type": "Item",
+      "status": "draft",
+      "version": "1.0.0",
+      "provenance": {"sources": ["Synthetic test data (not canon)"]},
+      "visibility": "player",
+      "refs": [],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Shops",
+        "data": {
+          "name": "[TEST] Hide Bundle",
+          "type": "loot",
+          "system": {"quantity": 1, "price": {"value": 3, "denomination": "gp"}}
+        }
+      }
+    },
+    {
+      "id": "SHOP-TEST-TANNER",
+      "entity_type": "Shop",
+      "status": "draft",
+      "version": "1.0.0",
+      "provenance": {"sources": ["Synthetic test data (not canon)"]},
+      "visibility": "gm",
       "refs": [{"relation": "located_at", "target_id": "LOC-TEST-MARKET", "mode": "optional"}],
+      "name": "[TEST] Tanner's Stall",
       "shop": {
         "merchant_name": "[TEST] Hollis Reed",
         "flavour": "Smells of oak bark and fresh leather.",
         "location_id": "LOC-TEST-MARKET",
+        "gm_notes": "Synthetic test shop.",
         "purse": {"cp": 50, "sp": 30, "gp": 20, "pp": 0},
+        "show_purse": true,
+        "buys": {"enabled": true, "percent": 50, "types": ["equipment", "loot"]},
         "lines": [
-          {"item_id": "ITEM-TEST-LEATHER-ARMOR", "price": {"value": 10, "denomination": "gp"}, "stock": 2, "flavour": "Supple and well stitched."},
+          {
+            "item_id": "ITEM-TEST-LEATHER-ARMOR",
+            "price": {"value": 10, "denomination": "gp"},
+            "stock": 2,
+            "flavour": "Supple and well stitched.",
+            "cost": {"value": 6, "denomination": "gp"}
+          },
           {"item_id": "ITEM-TEST-WATERSKIN", "price": {"value": 2, "denomination": "sp"}},
-          {"item_id": "ITEM-TEST-HIDE-BUNDLE", "price": {"value": 3, "denomination": "gp"}, "hidden": true, "cost": {"value": 1, "denomination": "gp"}}
+          {
+            "item_id": "ITEM-TEST-HIDE-BUNDLE",
+            "price": {"value": 3, "denomination": "gp"},
+            "hidden": true,
+            "cost": {"value": 1, "denomination": "gp"}
+          }
         ]
       }
     },
     {
-      "id": "SVC-TEST-COUNTING-HOUSE", "entity_type": "Service", "status": "draft", "version": "1.0.0",
-      "name": "[TEST] Counting House", "visibility": "gm",
-      "service": {"type": "bank", "merchant_name": "[TEST] Clerk Ames", "location_id": "LOC-TEST-MARKET", "settings": {"fee_percent": 0}}
+      "id": "SVC-TEST-COUNTING-HOUSE",
+      "entity_type": "Service",
+      "status": "draft",
+      "version": "1.0.0",
+      "provenance": {"sources": ["Synthetic test data (not canon)"]},
+      "visibility": "gm",
+      "refs": [],
+      "name": "[TEST] Counting House",
+      "service": {
+        "type": "bank",
+        "merchant_name": "[TEST] Clerk Ames",
+        "flavour": "Brass scales and a bored clerk.",
+        "location_id": "LOC-TEST-MARKET",
+        "settings": {"fee_percent": 0}
+      }
     },
     {
-      "id": "MLIST-TEST-TESTFORD", "entity_type": "MerchantList", "status": "draft", "version": "1.0.0",
+      "id": "MLIST-TEST-TESTFORD",
+      "entity_type": "MerchantList",
+      "status": "draft",
+      "version": "1.0.0",
+      "provenance": {"sources": ["Synthetic test data (not canon)"]},
+      "visibility": "gm",
+      "refs": [],
       "name": "[TEST] Testford merchants",
       "merchant_list": {"location_id": "LOC-TEST-TESTFORD", "shop_ids": ["SHOP-TEST-TANNER", "SVC-TEST-COUNTING-HOUSE"]}
     }
@@ -124,9 +231,10 @@ Merchant lists always import hidden. The GM switches them on.
 ## 5. Don'ts
 
 - Don't write `presented`, sold counts, sales, or any character's coins. A shop's starting `purse` is fine. Import writes definitions only.
+- Don't use `"format"`; use the `manifest` block. Don't leave out `provenance`, `visibility` or `refs`.
 - Don't price in two coins at once (`"1 gp 5 sp"`); use one coin (`15 sp`). Don't use `ep`.
 - Don't link items by world UUID (`Item.abc…`); world UUIDs differ per world.
-- Don't invent fields, prefixes, service types or haggling/selling-back rules. Those are open decisions for Robb.
+- Don't invent fields, prefixes, service types or haggling rules.
 - Don't mark anything `approved` yourself.
 
 ## 6. Where things live
@@ -138,7 +246,8 @@ Merchant lists always import hidden. The GM switches them on.
 | Shopping design | `robbmcgaw/ashen-gate-foundry` → `docs/shopping-design.md`: **final** (branch `design/shopping`; build briefs in `docs/shopping-briefs/`) |
 | Item records and effects | `docs/item-effects-schema.md`: **built** |
 | Locations (for `location_id`) | Locations README, import section: **built** |
-| Check a file | `node scripts/validate-content.mjs <file>` (Shop checks come with the import PR) |
+| Full field rules and test files | `docs/shop-schema.md`, `test-fixtures/shops/` (valid file and common mistakes in `invalid/`): **built** |
+| Check a file | `node scripts/validate-content.mjs <file>` in the public repo |
 
 ## 7. When in doubt
 
