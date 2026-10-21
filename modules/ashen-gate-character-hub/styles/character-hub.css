@@ -472,3 +472,22 @@
 /* 0.18.1: electrum shown only because a character still has some while Utilities' "Use electrum" is off */
 .ag-character-hub .agch-coin.is-off { opacity: .55; }
 .ag-character-hub .agch-ep-off { margin: var(--ag-space-1) 0 0; font-size: var(--ag-text-xs); }
+
+/* Journey (0.20.0, alpha): accomplishments, newest first */
+.ag-character-hub .agch-journey__alpha { margin: 0 0 var(--ag-space-2); font-size: var(--ag-text-sm); color: var(--ag-muted); }
+.ag-character-hub .agch-journey { list-style: none; margin: 0; padding: 0; display: grid; border: 1px solid var(--ag-border); border-radius: var(--ag-radius-sm); }
+.ag-character-hub .agch-journey__entry { display: grid; grid-template-columns: 1.5rem 6.5rem minmax(0, 1fr) auto; gap: var(--ag-space-2); align-items: baseline; padding: var(--ag-space-1) var(--ag-space-2); border-bottom: 1px solid var(--ag-border); }
+.ag-character-hub .agch-journey__entry:last-child { border-bottom: 0; }
+.ag-character-hub .agch-journey__entry:nth-child(even) { background: color-mix(in srgb, var(--ag-text) 6%, transparent); }
+.ag-character-hub .agch-journey__entry.is-hidden { opacity: .7; }
+.ag-character-hub .agch-journey__icon { color: var(--ag-accent); text-align: center; }
+.ag-character-hub .agch-journey__when { font-size: var(--ag-text-xs); color: var(--ag-muted); font-variant-numeric: tabular-nums; }
+.ag-character-hub .agch-journey__text { overflow-wrap: anywhere; }
+.ag-character-hub .agch-journey__ctl { display: inline-flex; gap: 2px; }
+.ag-character-hub .agch-journey__ctl .ag-btn { min-height: 0; padding: 0 4px; }
+.ag-character-hub .agch-journey__form { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); align-items: center; grid-column: 1 / -1; }
+.ag-character-hub .agch-journey__form input[type="text"] { flex: 1 1 14rem; min-width: 0; }
+.ag-character-hub .agch-journey__form input[type="date"] { width: auto; }
+.ag-character-hub .agch-journey__add { margin-bottom: var(--ag-space-2); padding: var(--ag-space-2); border: 1px dashed var(--ag-border-strong); border-radius: var(--ag-radius-sm); }
+.ag-character-hub .agch-journey__formbtns { display: flex; justify-content: space-between; gap: var(--ag-space-2); margin-left: auto; }
+.ag-character-hub .agch-journey__hide { display: inline-flex; gap: 4px; align-items: center; font-size: var(--ag-text-sm); color: var(--ag-muted); }

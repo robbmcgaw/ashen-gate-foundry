@@ -22,6 +22,7 @@ export const PARTS = [
   {key: 'rest', label: 'Short and Long Rest buttons', core: true},
   {key: 'equipment', label: 'Equipment slots (paper doll)', core: true},
   {key: 'companions', label: 'Companions'},
+  {key: 'journey', label: 'Journey (alpha): accomplishments log', core: true},
   {key: 'hotbars', label: 'Hotbars (mastery & marks, quick bar)', core: true},
   // 0.18.0: Strain is a character resource, so only this toggle hides the bar (Cinders' Player Access hides the Cinders panel).
   {key: 'strain', label: 'Strain bar (Ashen Gate | Cinders)'},

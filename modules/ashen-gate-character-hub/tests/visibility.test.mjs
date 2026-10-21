@@ -35,7 +35,7 @@ test('default: nothing stored, every part shown; setting is a GM-only world sett
   const reg = [];
   v.registerVisibilitySetting({register: (...a) => reg.push(a)});
   assert.deepEqual(reg.map(([, key, o]) => [key, o.scope, o.config, o.default]), [['playerVisibility', 'world', false, {}]]);
-  assert.deepEqual(visibleTabs(users.owner).map(t => t.id), ['overview', 'combat', 'inventory', 'magic', 'features', 'ashen-gate', 'companions']);
+  assert.deepEqual(visibleTabs(users.owner).map(t => t.id), ['overview', 'combat', 'inventory', 'magic', 'features', 'ashen-gate', 'companions', 'journey']);
 });
 
 test('only the GM can change toggles; unknown parts and non-booleans are refused; presets just set the toggles', async () => {

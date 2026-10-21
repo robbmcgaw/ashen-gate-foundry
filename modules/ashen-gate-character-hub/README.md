@@ -27,6 +27,27 @@ Layout: the character on the left, the chosen section in the middle (only it scr
   - What an item is for comes from its id prefix or a Hub flag: see `docs/companion-items-schema.md`.
 - GM Setup (GM only): Player visibility (which parts players see), default pet limit and per-character limits.
 
+## Journey (0.20.0, alpha)
+A per-character log of accomplishments, newest first, in the **Journey (alpha)** tab. It records **from now on**; nothing earlier is back-filled.
+- **Automatic entries**, only from existing events and public APIs:
+  - **Level-ups:** dnd5e's character level (`system.details.level`) rising.
+  - **Renown tier changes:** a character's personal rank and the party's rank with each faction, and its rank with each deity. Read through Renown's public `getFactions()` / `getPantheon()` as the owning player sees them, so they are recorded while that player is online and Renown's Player Access is on. The GM's view has no standings.
+  - **Quests completed:** Quest Log's GM `listQuests()` / `getGMState()`. A personal quest is logged for its character; a party quest for every player character.
+  - **Quest currency rewards:** recorded only when a quest awards them. Quest Log grants nothing itself today, so `api.journey.recordReward(actor, {questId, questName, coins})` (GM only) is ready for the rewards build.
+- **Idempotent:** every automatic entry has a stable id per event (`level-5`, `quest-<id>`, `renown-<faction>:<scope>-<rank>-<event>`, `reward-<questId>`), so a re-fire never duplicates. At most 300 entries per character are kept.
+- **Players** see their own characters' visible entries. Observers and other players see nothing.
+- **The GM** sees every character's journey (a character picker) and can:
+  - add notes (text and an optional date, optionally hidden);
+  - edit any entry;
+  - hide or show any entry;
+  - delete GM notes (automatic entries can only be hidden).
+  All of these are refused for players in the data layer.
+- **Storage:**
+  - Visible entries: `flags.ashen-gate-character-hub.journey` on the Actor (`{v, entries, seen}`).
+  - Hidden entries: a GM-only JournalEntry ("Ashen Gate Hub • Journey (GM only)", no player permission), flag `journeyHidden`, so players never receive them with their Actor.
+  - Quest statuses last seen: world setting `journeyQuestSeen`.
+- **Writers:** one client writes for each character, the first active GM, else the character's first active owner. Renown entries are written by the owner's client.
+
 ## Combat helpers (0.13.0)
 Tracking only: nothing is automated.
 - **Mastery & marks** (bottom of the Hub): buttons for the marks this character may place, read from dnd5e data: equipped weapons' `system.masteryOptions` and owned spells by `system.identifier`.
