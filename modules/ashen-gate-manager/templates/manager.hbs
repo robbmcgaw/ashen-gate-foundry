@@ -1,7 +1,7 @@
 <section class="agmanager-body">
   <header class="ag-header agmanager-top">
     <i class="agmanager-emblem fa-solid fa-dungeon" aria-hidden="true"></i>
-    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.35.0 Beta</small></h2></div>
+    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.35.1 Beta</small></h2></div>
     <button type="button" class="agmanager-help" data-ag-action="help" aria-label="Manager Help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button><span class="agmanager-chip">GM only</span>
   </header>
   <nav class="ag-tabs agmanager-nav" aria-label="Manager tabs">
@@ -176,7 +176,7 @@
               <span class="aglib-row__meta"><code>{{sourceId}}</code><span class="aglib-pill aglib-status-{{status}}">{{status}}</span>{{#if archived}}<span class="aglib-pill aglib-pill--danger">archived</span>{{/if}}{{#if version}}<span class="aglib-pill">v{{version}}</span>{{/if}}{{#if edited}}<span class="aglib-pill aglib-pill--warn">{{edited}} edit(s)</span>{{/if}}</span>
             </button>
           </div>{{/each}}
-          {{else}}<p class="ag-empty aglib-empty">No matching managed records. Clear the search or filters, or import an Ashen Gate package first.</p>{{/each}}
+          {{else}}{{#if libraryTotal}}<p class="ag-empty aglib-empty">No matching managed records. Clear the search or filters.</p>{{else}}<p class="ag-empty aglib-empty">Library shows only Ashen Gate records imported through the Import tab, so it is empty until you import an Ashen Gate package. Items from D&amp;D Beyond, Plutonium or compendiums are not listed here: use Browse to search them.</p>{{/if}}{{/each}}
         </div>
         <div class="aglib-selbar">
           {{#if hasLibrarySelected}}<strong class="aglib-num">{{librarySelectedCount}} selected</strong>
@@ -691,6 +691,7 @@
         <button type="button" class="ag-btn" data-ag-action="org-preview"><i class="fa-solid fa-magnifying-glass"></i> Preview</button>
       </div>
       <p class="agmanager-tiny" role="status">{{org.message}}</p>
+      <p class="agmanager-tiny"><strong>Where</strong> is the whole world sidebar or one compendium; Organize does not work on a single folder. To keep a folder as it is, protect it below.</p>
       <p class="agmanager-tiny">Only the folder changes. Nothing is renamed, edited or deleted, and no folder is ever deleted. Player characters and player-owned actors stay where they are. Documents in a protected folder, or marked <strong>Keep here</strong>, are skipped. Locked, module and system compendiums are inspect-only.</p>
       <p class="agmanager-tiny">Default rules: Ashen Gate records go to <strong>Ashen Gate</strong>. Other Items go to <strong>Core 5.5e</strong> when they carry a core source tag (imported by Plutonium, or marked 2024 / PHB'24, DMG'24, MM'24, SRD 5.2, or 2014 core / PHB, DMG, MM, SRD 5.1); items with no source or a third-party or homebrew source go to <strong>Homebrew</strong>, with the same sub-folders. Your own saved rules are used instead if you have them.</p>
 
@@ -791,6 +792,7 @@
       <div class="agmanager-row agmanager-row-wrap"><h3>Core links <span class="agmanager-beta">GM only</span></h3>
         <button type="button" class="ag-btn" data-ag-action="cl-scan"><i class="fa-solid fa-magnifying-glass"></i> Scan</button></div>
       <p class="agmanager-tiny" role="status">{{cl.message}}</p>
+      {{#if cl.noRefs}}<p class="ag-empty">Nothing to link: Core Links only works on Ashen Gate items whose data names a matching official item (a <code>core_ref</code>), and this world has none, so nothing needs doing: to use it, add a <code>core_ref</code> to Ashen Gate items in their source data and re-import them, otherwise ignore this tab.</p>{{/if}}
       <p class="agmanager-tiny">Only Ashen Gate world Items whose source data has <code>core_ref</code> are checked. Matches come from 2024 (5.5e) content only: Plutonium-imported and other 2024 world items, world compendiums, the core sources in <strong>GM Setup</strong>, then the dnd5e 2024 packs. <strong>Adopt</strong> replaces the item's image and data (description included) with the core item's and keeps its name, Ashen Gate id, folder, ownership and module data. Copies in player inventories are never touched.</p>
       {{#if cl.preview}}
       <div class="agmanager-row agmanager-row-wrap">
@@ -838,15 +840,20 @@
   <div class="agmanager-panel agmanager-organize">
     <section class="ag-card" aria-label="NPC Codex">
       <h3>NPC Codex <span class="agmanager-beta">GM only</span></h3>
-      <label class="agmanager-toggle"><input type="checkbox" data-ag-codex-access {{#if codexPlayerAccess}}checked{{/if}}> Players can open the NPC Codex (Configure Settings → Open NPC Codex, or the Character Hub later). They only ever get NPCs and fields you reveal to the party or their character. Saved when ticked.</label>
+      <label class="agmanager-toggle"><input type="checkbox" data-ag-codex-access {{#if codexPlayerAccess}}checked{{/if}}> Let players open the NPC Codex</label>
+      <p class="agmanager-tiny"><strong>On:</strong> players get an <strong>Open NPC Codex</strong> button (Game Settings → Configure Settings → Ashen Gate | General Manager). It shows only the NPCs, and only the details, you have revealed to the whole party or to that player's character. Hidden NPCs and your GM notes are never sent to them.</p>
+      <p class="agmanager-tiny"><strong>Off</strong> (default): players cannot open the codex at all. You still can, and your reveals are kept for when you turn it on. The change saves as soon as you tick or untick.</p>
     </section>
     <section class="ag-card" aria-label="Core sources">
       <h3>Core sources <span class="agmanager-beta">GM only</span></h3>
-      <p class="agmanager-tiny">Where Core Links looks for 2024 (5.5e) core items. Legacy 2014 content is always left out, wherever it is.</p>
-      <label class="agmanager-toggle"><input type="checkbox" data-ag-setup-auto {{#if setup.auto}}checked{{/if}}> Detect automatically: world items imported by Plutonium or marked 2024, 2024 entries in world compendiums, and the dnd5e 2024 packs</label>
+      <p class="agmanager-tiny">These boxes only tell the <strong>Core Links</strong> tab where to find official 2024 (5.5e) items to compare your Ashen Gate items with. They are GM-only, players never see them, and ticking or unticking them never changes or moves any item. Old 2014 items are always ignored.</p>
+      <label class="agmanager-toggle"><input type="checkbox" data-ag-setup-auto {{#if setup.auto}}checked{{/if}}> Find 2024 items automatically (recommended)</label>
+      <p class="agmanager-tiny"><strong>On:</strong> Core Links looks in world items imported by Plutonium or marked 2024, in your world compendiums, and in the dnd5e 2024 compendiums. <strong>Off:</strong> it looks only in the compendiums and folders you tick below.</p>
       <h4>Also use these compendiums</h4>
+      <p class="agmanager-tiny">Tick a compendium to always include it, for example one your D&amp;D Beyond importer filled. <span class="ag-badge">detected</span> means automatic search already uses it.</p>
       <div class="agmanager-row agmanager-row-wrap">{{#each setup.packs}}<label class="agmanager-toggle"><input type="checkbox" data-ag-setup-pack="{{id}}" {{#if configured}}checked{{/if}}> {{label}} <code>{{id}}</code>{{#if detected}} <span class="ag-badge">detected</span>{{/if}}</label>{{/each}}</div>
       <h4>Also use world Item folders</h4>
+      <p class="agmanager-tiny">Tick a sidebar Item folder to include the items in it.</p>
       <div class="agmanager-row agmanager-row-wrap">{{#each setup.folders}}<label class="agmanager-toggle"><input type="checkbox" data-ag-setup-folder="{{id}}" {{#if configured}}checked{{/if}}> {{name}}</label>{{else}}<span class="agmanager-tiny">No Item folders.</span>{{/each}}</div>
       <p class="agmanager-tiny" role="status">{{setupMessage}}</p>
       <footer class="agmanager-row agmanager-mood-footer"><span></span>

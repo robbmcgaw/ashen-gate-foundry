@@ -1,3 +1,14 @@
+## 0.35.1 — 2026-10-21
+
+Alpha-test fixes.
+
+- **Scenes: Cold night and Blood moon now show.** Foundry only blends the night tint in as the scene gets dark, and only when *Blend day and night colours with darkness* is on. Both layers now turn that on, and on a bright scene the message says to add a darker mood or raise Darkness. Saved, unedited copies of these two default layers are read as the fixed version (nothing rewritten); layers you edited are left alone.
+- **Scenes: Back to normal restores the scene's original values.** It used to undo only moods and layers, so a fine-tune change (or swapping moods after one) could leave the scene dark. Manager now records each field's value before it first changes it (mood, layer or fine-tune) in the scene's `moodStack` flag, and Back to normal writes all of them back and clears the fine-tune draft. Removing a single layer still keeps your own edits. Scenes from 0.35.0 restore from their stored stack; no migration step needed.
+- **Organize: buttons work again.** Preview, Apply, Download backup, Undo, Cancel and Run report were wired to the Core Links handler since 0.26.0 and did nothing. Every Preview now also says what it checked and why nothing would move (e.g. items in your own folders need *Move: Refile everything*). Organize works on the whole world sidebar or one compendium, not a single folder; the toolbar now says so.
+- **Core Links:** a scan with no Ashen Gate items carrying `core_ref` now explains that and what to do.
+- **Library:** the empty state says Library lists only Ashen Gate records imported through Manager, and points to Browse for other items.
+- **GM Setup:** plain-language labels and hints for *Let players open the NPC Codex* and *Core sources*. Behaviour unchanged.
+
 ## 0.35.0 — 2026-10-20
 
 - **Scenes: layers.** You can now stack layers on top of the base mood from an *Add a layer* strip: Mist, Rain, Snow, Cold night, Blood moon, Hearth glow, Pitch black, Bright moon. They are editable like moods (Moods & layers → Edit / Duplicate / New layer). Core Foundry has one weather per scene, so a weather layer replaces the weather below it, and the message says which.
