@@ -1,3 +1,9 @@
+## 0.24.3 — 2026-10-21
+
+- Character Hub's level-up backup copies ("<Name> - level X") no longer appear in the Party Roster picker, party lists or the Assign view, and a backup id already saved in the roster is ignored.
+- Backups are refused as targets everywhere (assign, XP award/adjust, learn, craft, gathering lead/request, character panel embed) with "That is a level backup copy, not a playable character."
+- Saved data: no change. No migration.
+
 ## 0.24.2 — 2026-10-21
 
 - Repo check only: the material consent, craft confirmation and gathering check windows (custom dialogs with the kit classes) are marked as allowed for the stricter UI lint.

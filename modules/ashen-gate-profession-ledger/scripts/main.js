@@ -1,5 +1,5 @@
 import {SCHEMA,PROFESSION_NAMES,norm,professionFromTreeName,classify,normalizeRecipe,normalizeLibrary,
-  sourceVisibility,sourceAvailableToPlayer,agSourceId,quantity} from './core.mjs';
+  sourceVisibility,sourceAvailableToPlayer,agSourceId,quantity,isLevelBackup,LEVEL_BACKUP_REFUSAL} from './core.mjs';
 import {GATHERING_PROFESSIONS,TIERS,ACCESS_LEVELS,gatherXP,knownRecipesOf,canLearnRecipe,progressOf,emptyProgress,
   nextProgress,adjustProgress,xpHistoryOf,XP_CAP,professionLevelOf,isMaterialAwardCandidate,xpForLevel} from './progression.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
@@ -16,7 +16,7 @@ import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,gatherOutcome,gather
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.24.2';
+const VERSION='0.24.3';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...}. */
@@ -51,6 +51,10 @@ const openLedgerWindows=new Set();
 const learnLocks=new Set();
 const xpLocks=new Set();
 const craftLocks=new Set();
+/** The one target check: a Character Hub level backup is refused; anything else (or null) passes through. */
+const playable=actor=>{if(isLevelBackup(actor))throw Error(LEVEL_BACKUP_REFUSAL);return actor;};
+/** Every actor-id entry point resolves here: null when missing, an error for a level backup. */
+const actorById=id=>playable(game.actors?.get?.(id)??null);
 const owned=(actor)=>game.user.isGM||Boolean(actor?.testUserPermission?.(game.user,'OWNER'));
 const userOwns=(user,actor)=>Boolean(user?.isGM||actor?.testUserPermission?.(user,'OWNER'));
 const canOpenLedger=()=>playerAccessAllowed(game,ID);
@@ -137,6 +141,7 @@ function listProfessions(actor){
 const xpEntry=(kind,extra={})=>({kind,at:Date.now(),by:game.user.id,byName:game.user.name,...extra});
 async function awardXP(actor,profId,points,extra={}){
   if(!game.user.isGM)throw Error('Only the GM can award Profession XP');
+  playable(actor);
   if(!actor||!linkedProfession(actor,profId))throw Error('Actor must own a matching Manager-tagged PROF-* Profession Item');
   const key=`${actor.id}:${profId}`;
   if(xpLocks.has(key))throw Error('Profession XP award already in progress');
@@ -170,6 +175,7 @@ function dependentsText(plan,name,actor=null,profId=null){
 /** GM-only data-layer XP change (signed amount or exact value). Never deletes perks; records history. */
 async function adjustXP(actor,profId,{delta=null,set=null,reason='',messageId=null,kind=null}={}){
   if(!game.user.isGM)throw Error('Only the GM can adjust Profession XP');
+  playable(actor);
   if(!actor||!linkedProfession(actor,profId))throw Error('Actor must own a matching Manager-tagged PROF-* Profession Item');
   const key=`${actor.id}:${profId}`;
   if(xpLocks.has(key))throw Error('Profession XP change already in progress');
@@ -192,6 +198,7 @@ async function whisperXpNote(actor,html){
 }
 /** Consumes a real Actor-owned Recipe Item; writes only a permanent REC-* knowledge ID. */
 async function learnRecipe(actor,item){
+  playable(actor);
   if(!actor||!item||!owned(actor))throw Error('You need OWNER permission on that character to learn a recipe');
   if(game.user.isGM&&actor.hasPlayerOwner)throw Error(`${actor.name}'s player learns this recipe from their own Ledger or character sheet`);
   if(!Array.from(actor.items??[]).some(i=>i.id===item.id))throw Error('The Recipe Item must be held by the selected character');
@@ -226,7 +233,7 @@ async function learnRecipe(actor,item){
 }
 /** The roster is an explicit GM-owned world selection, not a permission grant. */
 function rosterIds(){const stored=game.settings.get(ID,'partyRoster');return Array.isArray(stored)?stored.filter(x=>typeof x==='string'):[];}
-function allCharacters(){return (game.actors?.contents??[]).filter(a=>a.type==='character').sort((a,b)=>a.name.localeCompare(b.name));}
+function allCharacters(){return (game.actors?.contents??[]).filter(a=>a.type==='character'&&!isLevelBackup(a)).sort((a,b)=>a.name.localeCompare(b.name));}
 /** Party = roster characters this user can see in the Actors sidebar (at least LIMITED).
  * Only Ledger data is shown for them: name, professions, materials, recipes and held recipe items. */
 function partyActorsFor(user){const ids=new Set(rosterIds());return allCharacters().filter(a=>ids.has(a.id)&&(user?.isGM||a.testUserPermission?.(user,'LIMITED')));}
@@ -236,7 +243,7 @@ function myCharacters(){
   if(game.user.isGM){const party=partyActors();return party.length?party:allCharacters().filter(a=>a.hasPlayerOwner);}
   const mine=partyActors().filter(a=>owned(a));
   const assigned=game.user.character;
-  if(assigned?.type==='character'&&owned(assigned)&&!mine.some(a=>a.id===assigned.id))mine.push(assigned);
+  if(assigned?.type==='character'&&!isLevelBackup(assigned)&&owned(assigned)&&!mine.some(a=>a.id===assigned.id))mine.push(assigned);
   return mine;
 }
 /** Known and found recipes for the given party. Never mutates Actors. */
@@ -439,10 +446,10 @@ function exportCurrentCrosswalk(){requireCrosswalkGM();return exportCrosswalk(cr
 const requireAssignGM=()=>{if(!game.user?.isGM)throw Error('Only the GM can assign professions');};
 /** Assign targets: the given characters, else the Ledger party, else dnd5e's Primary Party. */
 function assignActors(actorIds=null){
-  if(Array.isArray(actorIds)&&actorIds.length)return actorIds.map(id=>game.actors?.get?.(id)).filter(a=>a?.type==='character');
+  if(Array.isArray(actorIds)&&actorIds.length)return actorIds.map(actorById).filter(a=>a?.type==='character');
   const party=partyActors();if(party.length)return party;
   try{const members=game.settings.get('dnd5e','primaryParty')?.actor?.system?.members??[];
-    return [...members].map(m=>m?.actor??m).filter(a=>a?.type==='character');}catch{return [];}
+    return [...members].map(m=>m?.actor??m).filter(a=>a?.type==='character'&&!isLevelBackup(a));}catch{return [];}
 }
 /** Profession keys a character already holds: any profession feature, tagged or named, so nothing is duplicated. */
 const heldProfessionKeys=actor=>new Set(Array.from(actor?.items??[]).filter(i=>classify(i)==='Profession').map(i=>professionKey(professionDisplayName(i))).filter(Boolean));
@@ -698,6 +705,7 @@ async function orchestrateCraft(request,senderId){
   const requester=userById(request.requesterId);
   if(!requester||(senderId&&senderId!==request.requesterId))return reply(false,'Craft request could not be verified');
   const crafter=game.actors?.get?.(request.crafterId);
+  if(isLevelBackup(crafter))return reply(false,LEVEL_BACKUP_REFUSAL);
   if(!crafter||!userOwns(requester,crafter))return reply(false,'You need to own the crafting character');
   const lib=catalog(),recipe=lib.recipes.find(r=>r.id===request.recipeId);
   if(!recipe||(!requester.isGM&&hiddenFromPlayers(recipe)))return reply(false,'This recipe is not available');
@@ -779,6 +787,7 @@ async function craftChatCard(crafter,recipe,result,consumed,check=null){
 /** Player/GM entry point: checks, confirms, then crafts locally or asks the party through the GM. */
 async function craft(actor,recipeId,{confirm=true}={}){
   checkPlayerLedger();
+  playable(actor);
   if(!actor||!owned(actor))throw Error('You need to own that character to craft');
   if(!knownRecipesOf(actor).includes(recipeId))throw Error(`${actor.name} has not learned this recipe`);
   const lib=catalog(),recipe=partyRecipeDefinition(recipeId,lib);
@@ -962,7 +971,7 @@ function gatherProjection(session){
 /** GM: start a gathering check for a node (Locations or ad-hoc). The lead's owner gets the roll prompt. */
 async function startGather({node,leadId,helperIds=[],requesterId=null}){
   if(!canRunGathering(game.user))throw Error('Only the GM can start gathering');
-  const party=partyActors(),lead=game.actors?.get?.(leadId);
+  const party=partyActors(),lead=actorById(leadId);
   const blocked=startBlocker({rosterCount:rosterIds().length,partyCount:party.length,leadInParty:Boolean(lead)&&party.some(a=>a.id===lead.id),node,
     materialFound:Boolean(node&&worldMaterial(node.materialId)),busy:Boolean(node)&&[...gatherSessions.values()].some(s=>s.node.key===node.key)});
   if(blocked)throw Error(blocked);
@@ -1120,7 +1129,7 @@ async function receiveGatherRoll(message,senderId){
 async function requestGather({actorId,locationId,nodeId,helperIds=[]}){
   checkPlayerLedger();
   if(game.user?.isGM)throw Error('The GM starts gathering directly: use Start gathering check');
-  const actor=game.actors?.get?.(actorId);
+  const actor=actorById(actorId);
   if(!actor||!owned(actor))throw Error('Choose a character you own');
   if(!locationId||!nodeId)throw Error('Choose an available gathering spot');
   if(myGatherRequests.has(actor.id))return {ok:false,status:'refused',message:`${actor.name} already has a gathering request waiting for the GM.`};
@@ -1152,7 +1161,7 @@ function verifyGatherRequest(request,requester,{ignoreId=null}={}){
   const actor=game.actors?.get?.(request.actorId);
   const {location,node}=findNode(request.locationId,typeof request.nodeId==='string'?request.nodeId:null);
   const busy=Boolean(node)&&([...gatherSessions.values()].some(s=>s.node.key===node.key)||[...gatherRequests.values()].some(r=>r.requestId!==ignoreId&&r.node.key===node.key));
-  const verdict=checkGatherRequest({ownsActor:Boolean(actor)&&!requester.isGM&&userOwns(requester,actor),inParty:Boolean(actor)&&rosterIds().includes(actor.id),location,node,busy});
+  const verdict=checkGatherRequest({ownsActor:Boolean(actor)&&!requester.isGM&&userOwns(requester,actor),inParty:Boolean(actor)&&!isLevelBackup(actor)&&rosterIds().includes(actor.id),location,node,busy});
   return {verdict,actor,node};
 }
 /**
@@ -1282,7 +1291,7 @@ function decorateChatCard(message,html){
 /** Learn / Craft / Award XP, shared by the Ledger window and the sheet tab. Returns {message} or null if cancelled. */
 async function performAction(action,{id,actorId,points,delta=null,set=null,reason='',messageId=null}){
   checkPlayerLedger();
-  const actor=game.actors?.get?.(actorId)??null;
+  const actor=actorById(actorId);
   if(action==='learn-recipe'){
     const itemId=String(id).includes(':')?String(id).split(':')[1]:id;
     const item=itemOf(actor,itemId);if(!actor||!item)throw Error('Recipe Item is missing or no longer held');
@@ -1827,7 +1836,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(action==='roster-all'||action==='roster-clear'){if(!game.user.isGM)throw Error('GM only');
         for(const input of this.element.querySelectorAll('[data-roster-actor]')){const a=game.actors.get(input.dataset.rosterActor);input.checked=action==='roster-all'?Boolean(a?.hasPlayerOwner):false;}this._rememberRosterDraft();return;}
       if(action==='roster-save'){if(!game.user.isGM)throw Error('GM only');
-        const ids=[...this.element.querySelectorAll('[data-roster-actor]:checked')].map(el=>el.dataset.rosterActor).filter(id=>game.actors.get(id)?.type==='character');
+        const ids=[...this.element.querySelectorAll('[data-roster-actor]:checked')].map(el=>el.dataset.rosterActor).filter(id=>allCharacters().some(a=>a.id===id));
         const saved=[];
         if(this.rosterDirty||!this.setupDirty){await game.settings.set(ID,'partyRoster',ids);saved.push(`party: ${plural(ids.length,'character')}`);}
         if(this.mapDirty){await game.settings.set(ID,'checkMapping',structuredClone(this.mapDraft));saved.push('tools and checks');}
@@ -1966,6 +1975,7 @@ const embeds=new Set();
 function embedRefusal(actor){
   if(!canOpenLedger())return 'The GM has hidden the Profession Ledger.';
   if(!actor)return 'That character no longer exists.';
+  if(isLevelBackup(actor))return LEVEL_BACKUP_REFUSAL;
   if(!game.user?.isGM&&actor.testUserPermission?.(game.user,'OWNER')!==true)return `Only ${actor.name}'s owner and the GM can see this.`;
   return '';
 }
