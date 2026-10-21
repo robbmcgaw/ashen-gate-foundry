@@ -40,7 +40,7 @@ Self-contained brief for a build chat. Read `CLAUDE.md`, `docs/ui-standard.md` Â
 1. `node scripts/check.mjs` is green, with identical copies of `ag-dialogs.mjs` (and `ag-ui.css` if touched).
 2. In Character Hub: `js-dialogv2-direct` is 0 and `css-kit-prefix-class` is 0. In Locations: `js-dialogv2-direct` is 0. The contrast check passes for danger buttons and for row meta on selected and striped rows in all 7 skins. A `hidden` `.ag-empty` stays hidden. Update the baseline. The lint baseline is shared: merge `main` last, then run `node scripts/ui-lint.mjs --update-baseline` and check that only intended entries changed.
 3. **Chromium render** of `choiceDialog` markup in Standard, Stone Tablet and Tome Pages, at Compact and Comfortable.
-4. **Diff review:** only `ag-dialogs.mjs` copies, version and CHANGELOG lines in other modules, plus the Hub items above.
+4. **Diff review:** only the `ag-dialogs.mjs` and `ag-ui.css` copies, version and CHANGELOG lines in other modules, plus the Hub and Locations items above.
 
 ## Forge click steps for Robb (after merge)
 - Character Hub: equip an item that needs attunement. The choice dialog matches the skin: Cancel on the left, the choices on the right. Cancel changes nothing.
