@@ -47,9 +47,9 @@ test('ag-modifier/1: applies and requires, perk sources, the scope owner check f
   // The check Manager calls for record-level blocks: entries arrive with their scope filled in.
   const ok=validateModifiers([{index:0,scope:'cinder',modifier:{target:'strain.recovery',value:1,label:'[TEST] Rest'}}],{recordId:'PERK-TEST-A'});
   assert.deepEqual(ok,{errors:[],warnings:[]});
-  const v=validateModifiers([{index:1,scope:'cinder',modifier:{target:'sockets.count',value:200,label:''}}],{recordId:'ITEM-TEST-LENS'});
+  const v=validateModifiers([{index:1,scope:'cinder',modifier:{target:'push.bonus',value:200,label:''}}],{recordId:'ITEM-TEST-LENS'});
   assert.match(v.errors.join('\n'),/ITEM-TEST-LENS: modifiers\.list\[1\]: target must be one of/);assert.match(v.errors.join(),/-100 to 100/);assert.match(v.errors.join(),/label/);
-  assert.match(v.warnings[0],/only while it is attached/,'items count only once sockets exist');
+  assert.match(v.warnings[0],/only while the item is attached to a Cinder socket/);
   // Normalised shape; block scope is the default; another scope or a bad entry is left out.
   assert.deepEqual(normalizeModifier({target:'push.cost',value:-1,label:'x',powers:['POWER-TEST-SPARK']}),{target:'push.cost',value:-1,label:'x',stack:null,powers:['POWER-TEST-SPARK'],modes:[],requires:[]});
   assert.deepEqual(blockModifiers({modifiers:{schema:'ag-modifiers/0.1',scope:'cinder',list:[{target:'push.cost',value:-1,label:'a'},{target:'push.cost',value:-2,label:'b',scope:'hq'},{target:'nope',value:1,label:'c'}]}}).map(m=>m.label),['a']);
@@ -163,7 +163,8 @@ function makeActor(id,ownerId){
     async setFlag(m,k,v){this.flags[m]??={};this.flags[m][k]=structuredClone(v);},
     async createEmbeddedDocuments(type,data){
       if(type==='ActiveEffect'){const docs=data.map(d=>({...structuredClone(d),id:`AE${++counter}`}));actor.effects.push(...docs);return docs;}
-      const docs=data.map(d=>{const doc={...structuredClone(d),id:`EMB${++counter}`,parent:actor,actor,async delete(){actor.items=actor.items.filter(x=>x!==doc);}};return doc;});
+      const docs=data.map(d=>{const doc={...structuredClone(d),id:`EMB${++counter}`,parent:actor,actor,documentName:'Item',async delete(){actor.items=actor.items.filter(x=>x!==doc);},
+        async setFlag(m,k,v){this.flags??={};this.flags[m]??={};this.flags[m][k]=structuredClone(v);}};return doc;});
       actor.items.push(...docs);return docs;}};
   actor.items.get=function(id){return actor.items.find(i=>i.id===id);};
   return actor;
@@ -308,7 +309,7 @@ test('perk modifiers (PERK-* Items with a modifiers block) change Push, Backfire
     await gmSet(B,5);await fire('createChatMessage',{id:'rest2',type:'rest',system:{type:'long'},speaker:{actor:'B'},author:bob});
     assert.equal(strain.get(B).value,2,'1 base + Deep Rest 1 + Grip rest 1 (counted once)');
     // The scope owner API.
-    assert.equal(api.modifiers.contract,'ag-modifier/1');assert.equal(api.modifiers.scope,'cinder');assert.deepEqual(api.modifiers.targets,['push.cost','backfire.chance','backfire.severity','strain.recovery']);
+    assert.equal(api.modifiers.contract,'ag-modifier/1');assert.equal(api.modifiers.scope,'cinder');assert.deepEqual(api.modifiers.targets,['push.cost','backfire.chance','backfire.severity','strain.recovery','sockets.count']);
     assert.deepEqual(api.modifiers.validate([{index:0,scope:'cinder',modifier:{target:'push.cost',value:-1,label:'x'}}],{recordId:'PERK-TEST-A'}).errors,[]);
     assert.deepEqual(api.modifiers.forActor(B).map(m=>[m.sourceId,m.target,m.value]),[['PERK-TEST-GRIP','push.cost',-1],['PERK-TEST-GRIP','backfire.chance',-20],['PERK-TEST-GRIP','strain.recovery',1]]);
     game.user=bob;assert.equal(api.modifiers.forActor(B).length,3,'the owner reads their own');
@@ -318,10 +319,72 @@ test('perk modifiers (PERK-* Items with a modifiers block) change Push, Backfire
   await gmSet(B,3);
   assert.deepEqual(cinder.list(B)[0].powers[0].modes.map(m=>[m.id,m.cost,m.chance]),before,'removing the perk removes its modifiers');
 });
+test('sockets (0.3.0): attach / detach / swap on the GM client, player relay and lock, capacity drop keeps items, drop target, check and repair',async()=>{
+  game.user=gm;const sock=api.sockets,id=ember.instanceId;
+  const mods=list=>({modifiers:{schema:'ag-modifiers/0.1',scope:'cinder',list}});
+  const gear=(iid,sourceId,list,extra={})=>({id:iid,name:`[TEST] ${sourceId}`,type:'loot',flags:source(sourceId,'Item',list?mods(list):{}),...extra,
+    async setFlag(m,k,v){this.flags[m]??={};this.flags[m][k]=structuredClone(v);}});
+  const L1=gear('L1','ITEM-TEST-LENS',[{target:'push.cost',value:-1,label:'[TEST] Lens',applies:{modes:['overreach']}}]);
+  const L2=gear('L2','ITEM-TEST-SOCKET',[{target:'sockets.count',value:1,label:'[TEST] Extra socket'}]);
+  const L3=gear('L3','ITEM-TEST-CALM',[{target:'backfire.chance',value:-1,label:'[TEST] Calm'}]),L4=gear('L4','ITEM-TEST-REST',[{target:'strain.recovery',value:1,label:'[TEST] Rest'}]);
+  const L5=gear('L5','ITEM-TEST-SPARE',[{target:'push.cost',value:-1,label:'[TEST] Spare'}]),plainItem=gear('P1','ITEM-TEST-PLAIN',null);
+  B.items.push(L1,L2,L3,L4,L5,plainItem);
+  const overreach=()=>cinder.list(B)[0].powers[0].modes.find(m=>m.id==='overreach').cost,base=overreach();
+  let h=sock.slots(B,id);assert.deepEqual([h.capacity,h.free,h.slots.length,h.locked],[3,3,0,false],'default 3 sockets');
+  assert.deepEqual(sock.socketable(B).map(x=>x.itemId).sort(),['L1','L2','L3','L4','L5'],'only ITEM-* with cinder modifiers fit');
+  assert.deepEqual(sock.canAttach(B,id,'P1').reasons,['[TEST] ITEM-TEST-PLAIN has no Cinder modifiers, so it does not fit a socket']);
+  await assert.rejects(sock.attach(B,id,'P1'),/does not fit a socket/);
+  // GM attaches: the Push preview and the GM-side Push count it; the item is marked; the bearer's copy is updated.
+  assert.deepEqual(await sock.attach(B,id,'L1'),{changed:true,slot:0});
+  assert.equal(overreach(),base-1);assert.deepEqual(L1.flags[MOD].attachedTo,{instanceId:id,slot:0});
+  assert.deepEqual(B.flags[MOD].cinders[0].sockets.attached,[{slot:0,itemId:'L1',sourceId:'ITEM-TEST-LENS'}]);
+  rolls.push(99);assert.equal((await cinder.push(B,'POWER-TEST-SPARK','overreach')).plan.cost,base-1);await gmSet(B,3);
+  // A repeated opId does nothing; an item adding a socket raises the capacity.
+  await sock.attach(B,id,'L2',{opId:'sock:test-1'});assert.deepEqual(await sock.attach(B,id,'L3',{opId:'sock:test-1'}),{changed:false,duplicate:true,slot:null});
+  h=sock.slots(B,id);assert.deepEqual([h.capacity,h.free],[4,2]);
+  await sock.attach(B,id,'L3');await sock.attach(B,id,'L4');
+  await assert.rejects(sock.attach(B,id,'L5'),/All 4 sockets are in use/);
+  // Fewer sockets: extras stay attached but inactive (nothing deleted); removing one lets the next one count.
+  await sock.setCount(id,1);h=sock.slots(B,id);
+  assert.deepEqual([h.capacity,h.slots.map(x=>[x.itemId,x.active])],[1,[['L1',true],['L2',false],['L3',false],['L4',false]]]);
+  assert.ok(['L1','L2','L3','L4'].every(i=>B.items.get(i)),'nothing deleted');
+  await sock.detach(B,id,0);assert.equal(L1.flags[MOD].attachedTo,null);
+  h=sock.slots(B,id);assert.deepEqual([h.capacity,h.slots.map(x=>[x.itemId,x.active])],[2,[['L2',true],['L3',true],['L4',false]]],'L2 is active again and adds its socket');
+  assert.equal(overreach(),base,'a detached item no longer counts');
+  await sock.setCount(id,null);assert.equal(sock.slots(B,id).capacity,4);
+  // Swap keeps the socket; the old item comes out.
+  await sock.swap(B,id,3,'L1');assert.deepEqual(sock.slots(B,id).slots.map(x=>[x.slot,x.itemId]),[[1,'L2'],[2,'L3'],[3,'L1']]);assert.equal(L4.flags[MOD].attachedTo,null);
+  // The owner's request goes to the GM client, which re-checks; the GM lock and Player Access are enforced there.
+  game.user=bob;emitted.length=0;const pending=sock.detach(B,id,3);const msg=emitted.at(-1);assert.equal(msg.type,'cinder-socket');
+  game.user=gm;for(const fn of socketHandlers)await fn(msg,'u2');const reply=emitted.at(-1);assert.equal(reply.ok,true,reply.message);
+  game.user=bob;for(const fn of socketHandlers)await fn(reply,'gm');assert.equal((await pending).changed,true);
+  game.user=gm;for(const fn of socketHandlers)await fn({...msg,requestId:'s2',op:{kind:'attach',itemId:'L4'}},'u1');assert.match(emitted.at(-1).message,/do not own/,'Alice is not the owner');
+  await sock.setLocked(id,true);
+  game.user=bob;await assert.rejects(sock.attach(B,id,'L4'),/locked/);assert.equal(sock.slots(B,id).canEdit,false);
+  game.user=gm;for(const fn of socketHandlers)await fn({...msg,requestId:'s3',op:{kind:'attach',itemId:'L4'}},'u2');assert.match(emitted.at(-1).message,/locked/,'a forged request is refused on the GM client too');
+  await sock.attach(B,id,'L4');assert.ok(sock.slots(B,id).slots.some(x=>x.itemId==='L4'),'the GM is not locked out');
+  await sock.setLocked(id,false);
+  saved.set('playerAccessEnabled',false);game.user=bob;try{assert.throws(()=>sock.hosts(B),/hidden/);await assert.rejects(sock.detach(B,id,1),/hidden/);}finally{saved.set('playerAccessEnabled',true);game.user=gm;}
+  game.user=alice;assert.throws(()=>sock.hosts(B),/Actor access denied/);game.user=gm;
+  // Drop target: a world Item is copied to the bearer and attached.
+  await sock.detach(B,id,0).catch(()=>{});await sock.detach(B,id,2);
+  const world=worldItem('W7','ITEM-TEST-DROPPED','[TEST] Dropped Lens','Item',mods([{target:'push.cost',value:-1,label:'[TEST] Dropped'}]));
+  const r=await sock.attachDropped(id,world);assert.ok(r.created);assert.equal(B.items.get(r.created).name,'[TEST] Dropped Lens');
+  assert.ok(sock.slots(B,id).slots.some(x=>x.itemId===r.created));
+  await assert.rejects(sock.attachDropped(id,worldItem('W8','ITEM-TEST-NONE','[TEST] None','Item',{})),/does not fit/);
+  assert.equal(B.items.filter(i=>i.name==='[TEST] None').length,0,'nothing copied when it does not fit');
+  // Check and repair: a lost marker and an item that left the bearer.
+  assert.deepEqual(cinder.report(),[]);
+  L2.flags[MOD].attachedTo=null;B.items.splice(B.items.indexOf(B.items.get(r.created)),1);
+  const rows=cinder.report().map(x=>x.text).join('\n');assert.match(rows,/not marked as attached/);assert.match(rows,/no longer on/);
+  const done=await cinder.repair();assert.ok(done.some(x=>/emptied 1 socket/.test(x)),done.join());assert.deepEqual(cinder.report(),[]);
+  assert.deepEqual(L2.flags[MOD].attachedTo,{instanceId:id,slot:1});
+});
 test('unbind keeps the Cinder\'s progress; a deleted bearer leaves it lost',async()=>{
   game.user=gm;await cinder.unbind(ember.instanceId);await settle();
   let inst=cinder.instances().find(i=>i.instanceId===ember.instanceId);
   assert.equal(inst.status,'unbound');assert.deepEqual(inst.progression.unlocks,['NODE1','NODE2','NODE3']);assert.deepEqual(powersOn(B),[]);
+  assert.deepEqual(inst.sockets.attached,[],'socket items are detached');assert.ok(B.items.every(i=>!i.flags?.[MOD]?.attachedTo),'and unmarked');assert.ok(B.items.get('L2'),'they stay with the old bearer');
   await cinder.bind(ember.instanceId,A);await settle();
   assert.equal(cinder.instances().find(i=>i.instanceId===ember.instanceId).progression.awarded,4,'no second starting point');
   game.actors.contents=game.actors.contents.filter(x=>x!==A);await fire('deleteActor',A);

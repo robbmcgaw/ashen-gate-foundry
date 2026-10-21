@@ -14,7 +14,7 @@ Ashen Gate is a set of Foundry VTT modules for Robb's D&D campaign: Foundry V14 
 |---|---|
 | General Manager (`ashen-gate-manager`) | Importing every content file; validation; shared appearance |
 | Skill Trees (`ashen-gate-skill-trees`) | Profession and generic trees; grants `PERK-*` Items on unlock |
-| Cinders (`ashen-gate-cinders`) | Cinder instances, `POWER-*` powers, Push, Backfire, Strain, sockets (planned) |
+| Cinders (`ashen-gate-cinders`) | Cinder instances, `POWER-*` powers, Push, Backfire, Strain, Cinder sockets |
 | Character Hub (`ashen-gate-character-hub`) | Character view; mounts, pets and their items (display only) |
 | Profession Ledger (`ashen-gate-profession-ledger`) | Professions, materials, recipes, crafting |
 | Renown (`ashen-gate-factions`) | Factions, deities, standing, reward claims |
@@ -47,9 +47,10 @@ Ashen Gate is a set of Foundry VTT modules for Robb's D&D campaign: Foundry V14 
 | A crafted item | An `ITEM-*` Item, plus a `REC-*` recipe whose `result_item_id` names it | built |
 | A faction or deity reward | A reward entry on the faction or deity (`docs/renown-deity-schema.md`); GM-approved | built |
 | A quest reward | Text in `outcomes.description`; the GM grants it | built |
-| A module number on an `ITEM-*` or `PERK-*` record (for example a Cinder socket item that lowers Push cost) | A record-level `modifiers` block (`ag-modifiers/0.1`), scope `cinder` (`docs/modifiers-schema.md`) | **built**: Manager 0.41.0 imports it, Cinders 0.2.0 checks it and applies a `PERK-*`'s modifiers; an `ITEM-*`'s apply only once sockets ship (planned) |
+| A module number on an `ITEM-*` or `PERK-*` record (for example a Cinder socket item that lowers Push cost) | A record-level `modifiers` block (`ag-modifiers/0.1`), scope `cinder` (`docs/modifiers-schema.md`) | **built**: Manager 0.41.0 imports it; Cinders checks it, applies a `PERK-*`'s modifiers (0.2.0) and an `ITEM-*`'s while it is in a Cinder socket (0.3.0) |
 | Say how a perk is applied | Optional `implementation`: `automatic`, `informational` or `gm_resolved` (display only; `docs/modifiers-schema.md`) | **built in Manager 0.41.0** |
-| Mark an item as fitting a Cinder socket | A `socketable` block | **planned: don't use yet** |
+| Make an item fit a Cinder socket | Nothing extra: an `ITEM-*` with at least one `cinder` modifier fits (`docs/cinder-strain-schema.md` → Sockets). Effects `transfer: false`. There is **no** `socketable` block | **built** (Cinders 0.3.0) |
+| Add a socket to a Cinder | A `sockets.count` modifier (scope `cinder`) on a perk, power or socket item | **built** (Cinders 0.3.0) |
 
 **Modifier entry** (`ag-modifier/1`, the same in `power.modifiers` and in a `modifiers` block):
 
@@ -57,7 +58,7 @@ Ashen Gate is a set of Foundry VTT modules for Robb's D&D campaign: Foundry V14 
 {target, value, label, scope?, op?, applies?, stack?, requires?}
 ```
 
-- `target` comes from the scope's published list. Today the only scope is `cinder`, with `push.cost`, `backfire.chance`, `backfire.severity`, `strain.recovery`.
+- `target` comes from the scope's published list. Today the only scope is `cinder`, with `push.cost`, `backfire.chance`, `backfire.severity`, `strain.recovery`, `sockets.count`.
 - `value` is a whole number and never 0 (Cinders: −100 to 100).
 - `label` is shown to players.
 - `scope` is required in a `modifiers` block, on the entry or once on the block. In `power.modifiers` it is always `cinder`.
@@ -90,7 +91,7 @@ Ashen Gate is a set of Foundry VTT modules for Robb's D&D campaign: Foundry V14 
 - Don't put `transfer: true` on mount, pet or socket items.
 - Don't write a lethal Backfire effect, or HP changes in an `effect`.
 - Don't link rewards by Foundry UUID when a canonical id would do. Name the `ITEM-*` / `PERK-*` id in `rules_summary` too.
-- Don't create live play state: no bearers, points, Strain, attachments or claims. Import writes definitions only.
+- Don't create live play state: no bearers, points, Strain, socket attachments or claims. Import writes definitions only.
 - Don't invent modifier targets, scopes, prefixes or blocks. Only `cinder` is a scope today.
 - Don't put a `modifiers` block on anything but `ITEM-*` / `PERK-*` records; a `POWER-*` uses `power.modifiers`.
 - Don't mark anything `approved` yourself.
@@ -110,7 +111,7 @@ Ashen Gate is a set of Foundry VTT modules for Robb's D&D campaign: Foundry V14 
 | Deities | `docs/renown-deity-schema.md`: **built** |
 | Profession crosswalk | `docs/profession-crosswalk-schema.md`: **built** |
 | Routes, NPC Codex, scene moods, organize rules | `docs/routes-schema.md`, `docs/npc-codex-schema.md`, `docs/scene-moods-schema.md`, `docs/organize-rules.md`: **built** |
-| Perks/modifiers/sockets architecture | `docs/perks-and-modifiers-architecture.md`: **approved** (decisions in §8); sockets are planned |
+| Perks/modifiers/sockets architecture | `docs/perks-and-modifiers-architecture.md`: **approved** (decisions in §8); Cinder sockets built in Cinders 0.3.0 without a `socketable` block |
 | Check a file before handing it over | `node scripts/validate-content.mjs <file>` in the public repo |
 
 ## 6. When in doubt

@@ -1,3 +1,16 @@
+## 0.3.0 — 2026-10-21
+
+- **Cinder sockets.** Each Cinder has sockets that hold items: by default 3, set by the new GM setting **Sockets per Cinder**, or a number the GM sets on one Cinder (Manage → Sockets → Socket count). An item fits when it is an `ITEM-*` imported by General Manager whose record has `cinder` modifiers. No new content block is needed. Its modifiers count for that Cinder while it is in an active socket: in the Push preview, the Push itself, Backfire severity and rest recovery.
+- **New modifier target `sockets.count`:** a perk, a power or a socket item can add (or remove) sockets. A socket item's own `sockets.count` counts only while that item is active without it.
+- **Fewer sockets than items:** nothing is deleted or detached. Items are active in socket order up to the number of sockets; the rest show as "inactive: over capacity" until one is removed.
+- **Attach, Detach, Swap** in the Cinders tab, for the bearer's owner while Player Access is on, and for the GM. **Manage → Sockets** for the GM: the same actions, Lock / Unlock for players, Socket count, and a **drop target**. Drag an Item from the Items sidebar onto a socket and it is copied to the bearer and attached, or swapped in if the socket is full. If it doesn't fit, nothing is copied.
+- **Enforced on the GM client:** every change is checked there. The checks are bearer ownership, Player Access, the GM lock, that the item is on the bearer and fits, and free capacity. A repeated operation id does nothing. One registry write, then the bearer's copy (`flags.ashen-gate-cinders.cinders[].sockets`) and the item's marker (`flags.ashen-gate-cinders.attachedTo`).
+- **Transfer or unbind:** attached items stay with the old bearer, detached and unmarked. An item that leaves the bearer's inventory leaves its socket empty.
+- **Manage → Check** reports socket copies and markers that disagree with the Cinder, and items that left the bearer. **Repair** fixes them and never deletes an item.
+- `api.sockets` (contract `ag-sockets/1`): `hosts`, `slots`, `socketable`, `canAttach`, `attach`, `detach`, `swap`; GM: `setLocked`, `setCount`, `attachDropped`. Hook `ashenGateSockets.changed`.
+- **Migration:** none needed. Cinders saved before 0.3.0 read as having no attached items, the default count and no lock, and the new fields are written on their next change. Nothing is rewritten on load.
+- Docs: `docs/cinder-strain-schema.md` → Sockets, `docs/modifiers-schema.md`, `docs/perks-and-modifiers-for-gpt.md`.
+
 ## 0.2.0 — 2026-10-21
 
 - **Perks can change Cinders.** A `PERK-*` Item on the character whose record has a `modifiers` block (`ag-modifiers/0.1`, scope `cinder`, General Manager 0.41.0+) now counts in the Push preview, the Push itself (cost and Backfire chance), the Backfire effect roll and rest recovery, for every Cinder the character bears. Its labels show in the preview and on the chat card like a power's. A perk shares `stack` groups with the powers (largest counts); two copies of one perk count once; for rest recovery a perk counts once per character. Removing the perk Item removes its effect.

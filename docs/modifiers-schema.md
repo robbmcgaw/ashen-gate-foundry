@@ -42,13 +42,13 @@ Any other field is refused. A scope may allow a few aliases (Cinders: `powers`, 
 
 | Scope | Owner | Targets | `applies` / aliases | `requires` | Stacking |
 |---|---|---|---|---|---|
-| `cinder` | Ashen Gate \| Cinders | `push.cost`, `backfire.chance`, `backfire.severity`, `strain.recovery` (see [cinder-strain-schema.md](cinder-strain-schema.md) → Modifiers); value −100 to 100 | `applies.powers` (`POWER-*` ids), `applies.modes` (Push mode ids); `powers` / `modes` at the top level mean the same | `powers` | Same `stack` name: only the largest size counts. No `stack`: always adds. |
+| `cinder` | Ashen Gate \| Cinders | `push.cost`, `backfire.chance`, `backfire.severity`, `strain.recovery`, `sockets.count` (0.3.0+) (see [cinder-strain-schema.md](cinder-strain-schema.md) → Modifiers); value −100 to 100 | `applies.powers` (`POWER-*` ids), `applies.modes` (Push mode ids); `powers` / `modes` at the top level mean the same | `powers` | Same `stack` name: only the largest size counts. No `stack`: always adds. |
 
 A new scope, or a new target in a scope, is added by the owning module's own release and then listed here. Don't write one before it is listed.
 
 For reference, the other rules already in the suite (these are not `modifiers` scopes yet): Headquarters hireling perks use "first eligible perk per `overlap_group` wins, unless `allow_overlap`"; Character Hub adds up companion item Active Effects for display.
 
-**When a modifier counts** is the scope owner's call, documented in its own schema. For `cinder` (Cinders 0.2.0+): a `PERK-*`'s modifiers count while the character has the perk Item, for every Cinder they bear; an `ITEM-*`'s count only while it is attached to a Cinder socket (a later Cinders release). Details: [cinder-strain-schema.md](cinder-strain-schema.md) → Modifiers.
+**When a modifier counts** is the scope owner's call, documented in its own schema. For `cinder` (Cinders 0.2.0+): a `PERK-*`'s modifiers count while the character has the perk Item, for every Cinder they bear; an `ITEM-*`'s count only while it is in an active socket of a Cinder (Cinders 0.3.0+; an `ITEM-*` with cinder modifiers is what fits a socket). Details: [cinder-strain-schema.md](cinder-strain-schema.md) → Modifiers.
 
 ## The `implementation` field
 
@@ -69,7 +69,7 @@ An optional, **display-only** field on any perk-like record (`PERK-*`, `POWER-*`
 - **Asks the scope owner** to check each entry's target, range, `applies` and `requires`, through the owner's public API, in the Import preview and again just before Apply. If the owner is not active, or is a version that does not check modifiers yet, the records **still import** with one warning ("not checked").
 - **Never touches live play state**: no Cinder, socket, bearer or Strain changes. A re-import updates the definition only.
 
-Ashen Gate | Cinders 0.2.0+ checks `cinder` modifiers (with 0.1.0 they import with the "not checked" warning). An `ITEM-*` with cinder modifiers gets a preview note that it counts only once attached to a Cinder socket.
+Ashen Gate | Cinders 0.2.0+ checks `cinder` modifiers (with 0.1.0 they import with the "not checked" warning). An `ITEM-*` with cinder modifiers gets a preview note that it counts only while attached to a Cinder socket.
 
 ### For module builders: the owner check
 

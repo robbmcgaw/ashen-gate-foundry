@@ -1,6 +1,7 @@
 /** Ashen Gate | Cinders: Cinder instances, Push and Backfire. Pure rules, no Foundry globals (moved from Skill Trees 0.16.0).
  * A Cinder instance owns its progression (points, unlocks) and moves between bearers with it. Strain stays on each character. */
 import {applyChange,chanceFor,strainEffectBonus} from './strain.mjs';
+import {normalizeSockets,emptied} from './sockets.mjs';
 
 export const CINDER_CONTRACT = 'ag-cinder/1';
 export const REGISTRY_SCHEMA = 'ag-cinder-instances/1';
@@ -9,7 +10,7 @@ export const POWER_SCHEMA = 'ag-power/0.1';
 export const BACKFIRE_SCHEMA = 'ag-backfire/0.1';
 export const CINDER_WALLET_CAP = 13;
 export const INSTANCE_ID = /^cinst_[A-Za-z0-9]{8,32}$/;
-export const MODIFIER_TARGETS = ['push.cost', 'backfire.chance', 'backfire.severity', 'strain.recovery'];
+export const MODIFIER_TARGETS = ['push.cost', 'backfire.chance', 'backfire.severity', 'strain.recovery', 'sockets.count'];
 /** The shared modifier shape (docs/modifiers-schema.md) and this module's scope in it. */
 export const MODIFIER_CONTRACT = 'ag-modifier/1';
 export const MODIFIER_SCOPE = 'cinder';
@@ -98,7 +99,7 @@ export function validateModifiers(entries, {recordId = '?'} = {}) {
     const at = `${recordId}: modifiers.list[${int(e?.index) ? e.index : '?'}]`;
     errors.push(...modifierEntryProblems({...(plain(e?.modifier) ? e.modifier : {}), scope: e?.scope ?? e?.modifier?.scope}, at));
   }
-  if (arr(entries).length && !/^PERK-/.test(String(recordId))) warnings.push(`${recordId}: Cinders reads these modifiers from an item only while it is attached to a Cinder (sockets, coming in a later Cinders version).`);
+  if (arr(entries).length && !/^PERK-/.test(String(recordId))) warnings.push(`${recordId}: these modifiers count only while the item is attached to a Cinder socket (Cinders → sockets).`);
   return {errors, warnings};
 }
 /** A usable cinder modifier in one shape ({target, value, label, stack, powers, modes, requires}), or null. */
@@ -285,7 +286,9 @@ export function normalizeInstance(raw) {
     lastBearer: typeof r.lastBearer === 'string' ? r.lastBearer : null,
     progression: cleanAccount(r.progression), firstBoundAt: Number(r.firstBoundAt) || null,
     createdAt: Number(r.createdAt) || 0, revision: int(r.revision) && r.revision >= 0 ? r.revision : 0,
-    migratedFrom: plain(r.migratedFrom) ? {actorId: String(r.migratedFrom.actorId ?? ''), at: Number(r.migratedFrom.at) || 0} : null
+    migratedFrom: plain(r.migratedFrom) ? {actorId: String(r.migratedFrom.actorId ?? ''), at: Number(r.migratedFrom.at) || 0} : null,
+    // 0.3.0. Records saved before sockets have none: that reads as no item attached, default count, unlocked.
+    sockets: normalizeSockets(r.sockets)
   };
 }
 export function normalizeRegistry(raw) {
@@ -338,8 +341,8 @@ export function bindInstance(registry, instanceId, actorId, {max = 1, at = 0, in
 export function unbindInstance(registry, instanceId, {lost = false} = {}) {
   const inst = getInstance(registry, instanceId);
   if (!inst.bearer) throw Error('This Cinder has no bearer');
-  const next = {...inst, status: lost ? 'lost' : 'unbound', bearer: null, lastBearer: inst.bearer.actorId, revision: inst.revision + 1};
-  return {registry: replace(registry, next), instance: next, from: inst.bearer.actorId};
+  const next = {...inst, status: lost ? 'lost' : 'unbound', bearer: null, lastBearer: inst.bearer.actorId, sockets: emptied(inst.sockets), revision: inst.revision + 1};
+  return {registry: replace(registry, next), instance: next, from: inst.bearer.actorId, detached: inst.sockets.attached};
 }
 /** Move a bound Cinder to another character, keeping its progression. No new starting point. */
 export function transferInstance(registry, instanceId, toActorId, {max = 1, at = 0} = {}) {
@@ -348,8 +351,9 @@ export function transferInstance(registry, instanceId, toActorId, {max = 1, at =
   if (inst.bearer.actorId === toActorId) throw Error('That character already bears this Cinder');
   const problem = bearerProblem(registry, inst, toActorId, max);
   if (problem) throw Error(problem);
-  const next = {...inst, status: 'bound', bearer: {actorId: toActorId, since: at}, lastBearer: inst.bearer.actorId, revision: inst.revision + 1};
-  return {registry: replace(registry, next), instance: next, from: inst.bearer.actorId};
+  // Attached socket items stay with the previous bearer, detached from the Cinder.
+  const next = {...inst, status: 'bound', bearer: {actorId: toActorId, since: at}, lastBearer: inst.bearer.actorId, sockets: emptied(inst.sockets), revision: inst.revision + 1};
+  return {registry: replace(registry, next), instance: next, from: inst.bearer.actorId, detached: inst.sockets.attached};
 }
 /** Record a progression change made on the bearer's tree. Returns the registry unchanged when the actor is not the bearer. */
 export function withProgression(registry, actorId, definitionId, account) {
