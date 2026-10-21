@@ -119,12 +119,12 @@ test('sheet renders header, tabs and Open native sheet; observers get a view-onl
   const {Cls} = hubClass();
   const sheet = new Cls({document: makeActor()});
   const html = await sheet._renderHTML();
-  assert.match(html, /Ashen Gate \| Character Hub/);
+  assert.match(html, /<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Character Hub<\/h1>/);
   assert.match(html, /data-action="open-native"/);
   assert.match(html, /data-action="help"/);
   assert.match(html, /data-action="roll-skill" data-skill="ste"/);
   assert.doesNotMatch(html, /View only/);
-  assert.match(html, /class="agch-split"><aside class="agch-char"[\s\S]*<section class="agch-pane">[\s\S]*<nav class="agch-rail"/, 'character left, content, then the tab rail');
+  assert.match(html, /class="agch-split"><aside class="agch-char"[\s\S]*<section class="agch-pane">[\s\S]*<nav class="ag-siderail agch-rail"/, 'character left, content, then the tab rail');
   assert.match(html, /data-action="roll-check" data-ability="str"/);
   assert.match(html, /data-action="roll-save" data-ability="str"/);
   assert.doesNotMatch(html, /data-edit="hp\./, 'no HP text inputs; the bar opens the editor');
@@ -132,7 +132,7 @@ test('sheet renders header, tabs and Open native sheet; observers get a view-onl
   assert.match(html, /data-action="hp-damage"[\s\S]*data-hp-amount[\s\S]*data-action="hp-heal"/, 'minus, amount, plus');
   assert.match(html, /agch-hp__row">[\s\S]*Hit Dice<\/span> <b>2 \/ 3<\/b>[\s\S]*fa-skull[\s\S]*Exhaustion<\/span>[\s\S]*<b>1<\/b>/, 'hit dice and exhaustion (skull, − n +) sit under the HP bar');
   assert.match(html, /agch-ac__value">15</);
-  assert.match(html, /data-tab="overview" data-ag-always aria-selected="true" class="agch-rail__tab active" title="Overview" aria-label="Overview"/);
+  assert.match(html, /data-tab="overview" data-ag-always aria-selected="true" class="agch-rail__tab active" aria-label="Overview" data-tooltip="Overview" data-tooltip-direction="LEFT"/);
   assert.match(html, /agch-pane__title"><i class="fa-solid fa-user" aria-hidden="true"><\/i> Overview/);
   assert.doesNotMatch(html, /data-tab="rest"/, 'rests moved to the character column');
   assert.match(html, /data-action="rest" data-type="short"/);
@@ -244,12 +244,12 @@ test('conditions box lists only active conditions; + shows the others inline to 
   const {Cls} = hubClass();
   const sheet = new Cls({document: makeActor({statuses: ['prone']})});
   let html = await sheet._renderHTML();
-  assert.match(html, /agch-conds[\s\S]*data-action="condition" data-id="prone" aria-pressed="true" title="Remove Prone"/);
+  assert.match(html, /agch-conds[\s\S]*data-action="condition" data-id="prone" aria-pressed="true" data-tooltip="Remove Prone"/);
   assert.doesNotMatch(html, /data-id="blinded"/, 'inactive ones hidden until +');
   await sheet.dispatch('cond-add', {dataset: {}}, {});
   assert.equal(sheet.condAdd, true);
   html = await sheet._renderHTML();
-  assert.match(html, /agch-conds__list[\s\S]*data-id="blinded" aria-pressed="false" title="Add Blinded"/);
+  assert.match(html, /agch-conds__list[\s\S]*data-id="blinded" aria-pressed="false" data-tooltip="Add Blinded"/);
   installGlobals({user: users.observer});
   const view = await new Cls({document: makeActor({statuses: ['prone']})})._renderHTML();
   assert.doesNotMatch(view, /data-action="cond-add"/, 'observers cannot add');

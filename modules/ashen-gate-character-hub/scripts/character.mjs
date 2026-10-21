@@ -66,11 +66,11 @@ function slotMenu(actor, slotId, layout, off) {
 function slotHtml(id, layout, menu) {
   const open = menu === `slot:${id}`;
   const s = layout.slots.find(x => x.id === id), item = s?.item;
-  if (!item) return `<div class="agch-slotwrap"><button type="button" class="agch-slot is-empty${open ? ' is-open' : ''}" data-action="slot-menu" data-slot="${id}" data-ag-always
-    aria-haspopup="menu" aria-expanded="${open}" aria-label="${esc(s.label)}: empty, equip" title="${esc(s.label)}: empty (click to equip)">${placeholder(id)}</button></div>`;
+  if (!item) return `<div class="agch-slotwrap"><button type="button" class="ag-slot agch-slot is-empty${open ? ' is-open is-active' : ''}" data-action="slot-menu" data-slot="${id}" data-ag-always
+    aria-haspopup="menu" aria-expanded="${open}" aria-label="${esc(s.label)}: empty, equip" data-tooltip="${esc(s.label)}: empty (click to equip)">${placeholder(id)}</button></div>`;
   const tip = `${item.name}${item.attuned ? ' (attuned)' : ''}`;
-  const more = `<button type="button" class="agch-slot__more" data-action="slot-menu" data-slot="${id}" data-ag-always aria-haspopup="menu" aria-expanded="${open}" title="More for ${esc(s.label)}" aria-label="More actions: ${esc(s.label)}"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>`;
-  return `<div class="agch-slotwrap"><button type="button" class="agch-slot is-filled${item.attuned ? ' is-attuned' : ''}${item.rarity ? ' has-rarity' : ''}${open ? ' is-open' : ''}" data-action="slot-open" data-slot="${id}" data-id="${esc(item.id)}" data-ag-always${item.rarity ? ` data-rarity="${item.rarity}"` : ''}
+  const more = `<button type="button" class="agch-slot__more" data-action="slot-menu" data-slot="${id}" data-ag-always aria-haspopup="menu" aria-expanded="${open}" data-tooltip="More for ${esc(s.label)}" aria-label="More actions: ${esc(s.label)}"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>`;
+  return `<div class="agch-slotwrap"><button type="button" class="ag-slot agch-slot is-filled${item.attuned ? ' is-attuned' : ''}${item.rarity ? ' has-rarity' : ''}${open ? ' is-open is-active' : ''}" data-action="slot-open" data-slot="${id}" data-id="${esc(item.id)}" data-ag-always${item.rarity ? ` data-rarity="${item.rarity}"` : ''}
     aria-label="${esc(s.label)}: ${esc(tip)}. Click to open, right-click to unequip"${tooltipAttrs(item.uuid, `${tip} (click: open, right-click: unequip)`)}><img src="${esc(item.img)}" alt=""></button>${more}</div>`;
 }
 
@@ -79,9 +79,9 @@ function otherHtml(layout, menu, off) {
   const n = layout.other.length, key = 'doll:other';
   const rows = layout.other.map(r => {
     const open = menu === `other:${r.id}`;
-    return `<li class="agch-other__row${r.rarity ? ' has-rarity' : ''}"${r.rarity ? ` data-rarity="${r.rarity}"` : ''}>
-      <img src="${esc(r.img)}" alt=""><button type="button" class="agch-other__name" data-action="slot-open" data-id="${esc(r.id)}" data-ag-always${tooltipAttrs(r.uuid, `${r.name} (click: open, right-click: unequip)`)}>${esc(r.name)}${r.attuned ? ' <i class="fa-solid fa-sun agch-other__att" title="Attuned" aria-label="Attuned"></i>' : ''}</button>
-      <button type="button" class="agch-slot__more is-shown" data-action="other-menu" data-id="${esc(r.id)}" data-ag-always aria-haspopup="menu" aria-expanded="${open}" title="More for ${esc(r.name)}" aria-label="More actions: ${esc(r.name)}"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>
+    return `<li class="agch-other__row${r.rarity ? ' has-rarity ag-rarity-edge' : ''}"${r.rarity ? ` data-rarity="${r.rarity}"` : ''}>
+      <img src="${esc(r.img)}" alt=""><button type="button" class="agch-other__name" data-action="slot-open" data-id="${esc(r.id)}" data-ag-always${tooltipAttrs(r.uuid, `${r.name} (click: open, right-click: unequip)`)}>${esc(r.name)}${r.attuned ? ' <i class="fa-solid fa-sun agch-other__att" data-tooltip="Attuned" aria-label="Attuned"></i>' : ''}</button>
+      <button type="button" class="agch-slot__more is-shown" data-action="other-menu" data-id="${esc(r.id)}" data-ag-always aria-haspopup="menu" aria-expanded="${open}" data-tooltip="More for ${esc(r.name)}" aria-label="More actions: ${esc(r.name)}"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>
       ${open ? `<div class="agch-menu agch-menu--inline" role="menu" aria-label="${esc(r.name)}">${menuHead(r.name)}${itemControls(r, 'other', layout, off)}</div>` : ''}</li>`;
   }).join('');
   return `<div class="agch-other">${toggleButton(key, `Other equipped <span class="ag-badge">${n}</span>`)}
@@ -99,9 +99,9 @@ function dollHtml(ctx, h) {
   return `${hiddenBadge('equipment') ? `<p class="agch-hidden-note">${hiddenBadge('equipment')}</p>` : ''}<section class="agch-doll" aria-label="Equipment (display only)">
     <div class="agch-doll__col">${col(LEFT_SLOTS)}</div>
     <div class="agch-doll__center">
-      <div class="agch-doll__art${off ? '' : ' is-editable'}"${off ? '' : ` data-art-edit="${token ? 'token' : 'portrait'}" title="Double-click to change ${token ? 'token art' : 'portrait'}"`}><img class="agch-doll__bg" src="${esc(art)}" alt="" aria-hidden="true"><img class="agch-doll__fg" src="${esc(art)}" alt="${esc(actor.name)}">
+      <div class="agch-doll__art${off ? '' : ' is-editable'}"${off ? '' : ` data-art-edit="${token ? 'token' : 'portrait'}" data-tooltip="Double-click to change ${token ? 'token art' : 'portrait'}"`}><img class="agch-doll__bg" src="${esc(art)}" alt="" aria-hidden="true"><img class="agch-doll__fg" src="${esc(art)}" alt="${esc(actor.name)}">
         ${btn('doll-art', token ? 'Portrait' : 'Token art', {kind: 'sm', extra: 'agch-doll__toggle', title: token ? 'Show portrait' : 'Show token art', always: true})}
-        <div class="agch-ac" title="Armor Class${off ? '' : ' (right-click to configure)'}"${off ? '' : configAttrs('armorClass')}><span class="agch-ac__value">${h.ac}</span><span class="agch-ac__label">AC</span></div></div>
+        <div class="agch-ac" data-tooltip="Armor Class${off ? '' : ' (right-click to configure)'}"${off ? '' : configAttrs('armorClass')}><span class="agch-ac__value">${h.ac}</span><span class="agch-ac__label">AC</span></div></div>
     </div>
     <div class="agch-doll__col">${col(RIGHT_SLOTS)}</div>
     <div class="agch-doll__row">${col(BOTTOM_SLOTS)}</div>
@@ -109,12 +109,23 @@ function dollHtml(ctx, h) {
   </section>${otherHtml(layout, menu, off)}`;
 }
 
-const tile = (label, value, {extra = '', title = '', attrs = ''} = {}) => `<div class="agch-tile"${title ? ` title="${esc(title)}"` : ''}${attrs}><span class="agch-tile__label">${esc(label)}</span>${value}${extra}</div>`;
+const tile = (label, value, {extra = '', title = '', attrs = ''} = {}) => `<div class="agch-tile"${title ? ` data-tooltip="${esc(title)}"` : ''}${attrs}><span class="agch-tile__label">${esc(label)}</span>${value}${extra}</div>`;
+
+/**
+ * Health band of the HP fill colour, as a share of the effective max (max + max adjustment; temp HP doesn't count).
+ * Integer maths, so the edges are exact: 70% and up is 'high' (green), 30% and up 'mid' (yellow), else 'low' (red).
+ */
+export function hpBand(value, effectiveMax) {
+  const v = Math.max(0, Math.trunc(Number(value) || 0)), eff = Math.trunc(Number(effectiveMax) || 0);
+  if (eff <= 0) return 'low';
+  return v * 100 >= 70 * eff ? 'high' : v * 100 >= 30 * eff ? 'mid' : 'low';
+}
 
 /**
  * The HP bar's pieces as percentages of the bar. The bar is the larger of normal max and effective max (max + max
- * adjustment). A positive max adjustment is the blue part at the right end; a negative one is the sickly-green "lost"
- * part at the right end. Temp HP is the yellow overshield after the current HP (pushed back when it would not fit).
+ * adjustment). A positive max adjustment is the blue frame at the right end; a negative one is the olive "lost" part
+ * at the right end. Temp HP is the silver overshield after the current HP (pushed back when it would not fit, and
+ * never into the lost part). The temp and lost/boost texts always show, so neither change hides the other.
  */
 export function hpBar(hp) {
   const max = Math.max(0, Number(hp.max) || 0), adj = Number(hp.tempmax) || 0;
@@ -123,9 +134,22 @@ export function hpBar(hp) {
   const value = Math.max(0, Number(hp.value) || 0), temp = Math.max(0, Number(hp.temp) || 0);
   const pct = x => Math.max(0, Math.min(100, x / scale * 100));
   const fill = pct(value), tempW = pct(temp), boostW = adj > 0 ? pct(adj) : 0, lostW = adj < 0 ? pct(-adj) : 0;
-  const room = 100 - lostW;
-  return {fill, temp: tempW, tempLeft: Math.max(0, Math.min(fill, room - tempW)), boost: boostW, boostLeft: 100 - boostW, lost: lostW, lostLeft: room,
-    text: `${value} / ${eff} HP`, tempText: temp > 0 ? `(+${temp} TEMP)` : '', lostText: adj < 0 ? `(−${-adj} MAX)` : ''};
+  const room = 100 - lostW, tempLeft = Math.max(0, Math.min(fill, room - tempW));
+  return {fill, temp: Math.min(tempW, room - tempLeft), tempLeft, boost: boostW, boostLeft: 100 - boostW, lost: lostW, lostLeft: room,
+    band: hpBand(value, eff), text: `${value} / ${eff} HP`, tempText: temp > 0 ? `(+${temp} TEMP)` : '',
+    boostText: adj > 0 ? `(+${adj} MAX)` : '', lostText: adj < 0 ? `(−${-adj} MAX)` : ''};
+}
+
+/**
+ * The bar itself. Layers, bottom to top: track, fill, reduced max, temp, raised-max frame, text (DOM order matches the
+ * CSS z-index), so temp HP and a max change always show together.
+ */
+export function hpBarHtml(hp, off = false) {
+  const b = hpBar(hp), f = n => n.toFixed(1);
+  const tip = off ? 'Hit points' : 'Hit points: double-click to edit, right-click for dnd5e\'s hit point settings';
+  return `<div class="agch-hp__bar${off ? '' : ' is-editable'}" data-hp-bar data-band="${b.band}"${off ? '' : ` tabindex="0"${configAttrs('hitPoints')}`} role="meter" aria-valuemin="0" aria-valuemax="${hp.effectiveMax}" aria-valuenow="${hp.value}" aria-label="${esc(`${b.text} ${b.tempText} ${b.boostText} ${b.lostText}`.replace(/\s+/g, ' ').trim())}" data-tooltip="${esc(tip)}">
+      <span class="agch-hp__fill" style="width:${f(b.fill)}%"></span>${b.lost ? `<span class="agch-hp__lost" style="left:${f(b.lostLeft)}%;width:${f(b.lost)}%"></span>` : ''}${b.temp ? `<span class="agch-hp__temp" style="left:${f(b.tempLeft)}%;width:${f(b.temp)}%"></span>` : ''}${b.boost ? `<span class="agch-hp__boost" style="left:${f(b.boostLeft)}%;width:${f(b.boost)}%"></span>` : ''}
+      <span class="agch-hp__text">${esc(b.text)}${b.tempText ? ` <span class="agch-hp__temptext">${esc(b.tempText)}</span>` : ''}${b.boostText ? ` <span class="agch-hp__boosttext">${esc(b.boostText)}</span>` : ''}${b.lostText ? ` <span class="agch-hp__losttext">${esc(b.lostText)}</span>` : ''}</span></div>`;
 }
 
 /** Double-click on the bar: a small editor for current, temp and max adjustment (one update on Apply). */
@@ -141,13 +165,13 @@ function hitDiceHtml(h, off) {
   const rests = canSee('rest'), restHidden = hiddenReason('rest');
   const restTip = what => `${what}${restHidden && rests ? ` (hidden from players: ${restHidden})` : ''}`;
   const restBtns = rests ? `${btn('rest', '', {kind: 'ghost', extra: 'agch-restbtn', icon: 'fa-solid fa-mug-hot', data: {type: 'short'}, title: restTip('Short Rest (dnd5e dialog: spend hit dice)'), disabled: off})}${btn('rest', '', {kind: 'ghost', extra: 'agch-restbtn', icon: 'fa-solid fa-campground', data: {type: 'long'}, title: restTip('Long Rest (dnd5e dialog)'), disabled: off})}${restHidden ? '<i class="fa-solid fa-eye-slash agch-muted" aria-hidden="true"></i>' : ''}` : '';
-  const hd = h.hd ? `<span class="agch-hd" title="Hit Dice left${off ? '' : ' (right-click to configure)'}"${off ? '' : configAttrs('hitDice')}><i class="fa-solid fa-dice-d20" aria-hidden="true"></i><span class="agch-vh">Hit Dice</span> <b>${h.hd.value} / ${h.hd.max}</b></span>` : '';
-  return hd || restBtns ? `<span class="agch-pill agch-pill--hd">${hd}${restBtns}</span>` : '';
+  const hd = h.hd ? `<span class="agch-hd" data-tooltip="Hit Dice left${off ? '' : ' (right-click to configure)'}"${off ? '' : configAttrs('hitDice')}><i class="fa-solid fa-dice-d20" aria-hidden="true"></i><span class="agch-vh">Hit Dice</span> <b>${h.hd.value} / ${h.hd.max}</b></span>` : '';
+  return hd || restBtns ? `<span class="ag-badge agch-pill agch-pill--hd">${hd}${restBtns}</span>` : '';
 }
 /** Exhaustion on one line: a skull, − level +. */
 function exhaustionHtml(h, off) {
   const exh = h.exhaustion;
-  return `<span class="agch-pill agch-pill--exh${exh.value ? ' is-on' : ''}" title="Exhaustion ${exh.value} of ${exh.max}"><i class="fa-solid fa-skull" aria-hidden="true"></i><span class="agch-vh">Exhaustion</span>${btn('exhaustion', '', {kind: 'ghost', icon: 'fa-solid fa-minus', data: {step: -1}, title: 'Reduce exhaustion', disabled: off || exh.value <= 0})}<b>${exh.value}</b>${btn('exhaustion', '', {kind: 'ghost', icon: 'fa-solid fa-plus', data: {step: 1}, title: 'Increase exhaustion', disabled: off || exh.value >= exh.max})}</span>`;
+  return `<span class="ag-badge agch-pill agch-pill--exh${exh.value ? ' is-on' : ''}" data-tooltip="Exhaustion ${exh.value} of ${exh.max}"><i class="fa-solid fa-skull" aria-hidden="true"></i><span class="agch-vh">Exhaustion</span>${btn('exhaustion', '', {kind: 'ghost', icon: 'fa-solid fa-minus', data: {step: -1}, title: 'Reduce exhaustion', disabled: off || exh.value <= 0})}<b>${exh.value}</b>${btn('exhaustion', '', {kind: 'ghost', icon: 'fa-solid fa-plus', data: {step: 1}, title: 'Increase exhaustion', disabled: off || exh.value >= exh.max})}</span>`;
 }
 
 /** Class, species and background as one small card at the top (they rarely change). Click one to open its sheet. */
@@ -159,23 +183,20 @@ function identityCard(actor) {
 }
 
 function hpHtml(h, off, menu) {
-  const hp = h.hp, b = hpBar(hp), f = n => n.toFixed(1);
-  const tip = off ? 'Hit points' : 'Hit points: double-click to edit, right-click for dnd5e\'s hit point settings';
+  const hp = h.hp;
   return `<div class="agch-hp" role="group" aria-label="Hit points">
-    <div class="agch-hp__bar${off ? '' : ' is-editable'}" data-hp-bar${off ? '' : ` tabindex="0"${configAttrs('hitPoints')}`} role="meter" aria-valuemin="0" aria-valuemax="${hp.effectiveMax}" aria-valuenow="${hp.value}" aria-label="${esc(`${b.text} ${b.tempText} ${b.lostText}`.replace(/\s+/g, ' ').trim())}" title="${esc(tip)}">
-      <span class="agch-hp__fill" style="width:${f(b.fill)}%"></span>${b.boost ? `<span class="agch-hp__boost" style="left:${f(b.boostLeft)}%;width:${f(b.boost)}%" title="Max HP adjustment +${hp.tempmax}"></span>` : ''}${b.lost ? `<span class="agch-hp__lost" style="left:${f(b.lostLeft)}%;width:${f(b.lost)}%" title="Max HP adjustment ${hp.tempmax}"></span>` : ''}${b.temp ? `<span class="agch-hp__temp" style="left:${f(b.tempLeft)}%;width:${f(b.temp)}%"></span>` : ''}
-      <span class="agch-hp__text">${esc(b.text)}${b.tempText ? ` <span class="agch-hp__temptext">${esc(b.tempText)}</span>` : ''}${b.lostText ? ` <span class="agch-hp__losttext">${esc(b.lostText)}</span>` : ''}</span></div>
+    ${hpBarHtml(hp, off)}
     ${menu === 'hp' && !off ? hpEditor(hp) : ''}
     <div class="agch-hp__row">
       <span class="agch-hp__adjust" role="group" aria-label="Damage or heal">${btn('hp-damage', '', {kind: 'sm', icon: 'fa-solid fa-minus', title: 'Damage: subtract the amount (temp HP first, then HP)', disabled: off})}<input type="number" min="0" step="1" class="agch-hp__amount" data-hp-amount placeholder="0" aria-label="Amount to add or subtract"${off ? ' disabled' : ''}>${btn('hp-heal', '', {kind: 'sm', icon: 'fa-solid fa-plus', title: 'Heal: add the amount (up to max HP)', disabled: off})}</span>
       ${hitDiceHtml(h, off)}${exhaustionHtml(h, off)}</div>
-    ${hp.value <= 0 ? `<span${off ? '' : configAttrs('death')}>${btn('roll-death', 'Death save', {kind: 'danger', icon: 'fa-solid fa-skull', title: off ? 'Death save' : 'Death save (right-click to configure)', disabled: off})}</span>` : ''}
+    ${hp.value <= 0 ? `<span${off ? '' : configAttrs('death')}>${btn('roll-death', 'Death save', {icon: 'fa-solid fa-dice-d20', title: off ? 'Death save' : 'Death save (right-click to configure)', disabled: off})}</span>` : ''}
   </div>`;
 }
 
 function abilitiesHtml(actor, off) {
   const tiles = abilitiesData(actor).map(a => `<div class="agch-abil"${off ? '' : configAttrs('ability', a.key)}>
-      <button type="button" class="agch-abil__check" data-action="roll-check" data-ability="${esc(a.key)}" title="${esc(a.label)} check${off ? '' : ' (right-click to configure)'}" aria-label="${esc(a.label)} check ${signed(a.mod)}, score ${a.value}"${off ? ' disabled' : ''}>
+      <button type="button" class="agch-abil__check" data-action="roll-check" data-ability="${esc(a.key)}" data-tooltip="${esc(a.label)} check${off ? '' : ' (right-click to configure)'}" aria-label="${esc(a.label)} check ${signed(a.mod)}, score ${a.value}"${off ? ' disabled' : ''}>
         <span class="agch-abil__key">${esc(String(a.abbr).toUpperCase())}</span><span class="agch-abil__mod">${signed(a.mod)}</span><span class="agch-abil__score">${a.value}</span></button>
       ${btn('roll-save', `Save ${signed(a.save)}`, {extra: `agch-abil__save${a.saveProficient ? ' is-prof' : ''}`, data: {ability: a.key}, title: `${a.label} saving throw${a.saveProficient ? ' (proficient)' : ''}`, disabled: off})}
     </div>`).join('');
@@ -186,7 +207,7 @@ function abilitiesHtml(actor, off) {
 function conditionsHtml(h, off, adding) {
   if (!h.conditions.length) return '';
   const active = h.conditions.filter(c => c.active), inactive = h.conditions.filter(c => !c.active);
-  const chip = c => `<button type="button" class="agch-chip${c.active ? ' is-active' : ''}" data-action="condition" data-id="${esc(c.id)}" aria-pressed="${c.active}" title="${c.active ? `Remove ${esc(c.label)}` : `Add ${esc(c.label)}`}"${off ? ' disabled' : ''}>${c.img ? `<img src="${esc(c.img)}" alt="">` : ''}${esc(c.label)}${c.active && !off ? '<i class="fa-solid fa-xmark" aria-hidden="true"></i>' : ''}</button>`;
+  const chip = c => `<button type="button" class="ag-chip agch-chip${c.active ? ' is-active' : ''}" data-action="condition" data-id="${esc(c.id)}" aria-pressed="${c.active}" data-tooltip="${c.active ? `Remove ${esc(c.label)}` : `Add ${esc(c.label)}`}"${off ? ' disabled' : ''}>${c.img ? `<img src="${esc(c.img)}" alt="">` : ''}${esc(c.label)}${c.active && !off ? '<i class="fa-solid fa-xmark" aria-hidden="true"></i>' : ''}</button>`;
   return `<section class="agch-conds" aria-label="Conditions">
     <span class="agch-tile__label">Conditions</span>
     <div class="agch-chips">${active.map(chip).join('') || '<span class="agch-muted">None</span>'}
@@ -197,7 +218,7 @@ function conditionsHtml(h, off, adding) {
 
 /** Resources (Ki and the like) as small pills. */
 function footHtml(h) {
-  return h.resources.length ? `<div class="agch-foot">${h.resources.map(r => `<span class="agch-pill">${esc(r.label)} <b>${r.value} / ${r.max}</b></span>`).join('')}</div>` : '';
+  return h.resources.length ? `<div class="agch-foot">${h.resources.map(r => `<span class="ag-badge agch-pill">${esc(r.label)} <b>${r.value} / ${r.max}</b></span>`).join('')}</div>` : '';
 }
 
 /** The whole left column. */

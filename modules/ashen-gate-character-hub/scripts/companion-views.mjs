@@ -31,7 +31,7 @@ function statsBox(entry, owner) {
   return `<section class="agch-stats" aria-label="What ${esc(entry.displayName)} gets">
     <h4 class="agch-subheading">${entry.kind === 'mount' ? 'From gear and perks' : 'From clothing and perks'}</h4>${baseLine}
     ${rows ? `<dl class="agch-kv">${rows}</dl>` : '<p class="agch-muted">Nothing yet. Bonuses show here from the items\' own effects.</p>'}
-    ${warnings.map(w => `<p class="agch-notice" role="note"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> ${esc(w)}</p>`).join('')}</section>`;
+    ${warnings.map(w => `<p class="ag-notice ag-notice--warn agch-notice" role="note"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> ${esc(w)}</p>`).join('')}</section>`;
 }
 
 /** The companion's own text (Item description or Actor biography), shown until the player writes their own. */
@@ -45,9 +45,9 @@ function cardHead(entry, {off, index, count}) {
   const source = entry.actor ? 'Actor' : entry.item ? 'Item' : 'Missing';
   return `<header class="agch-companion__head"><div class="agch-companion__art"><img src="${esc(entry.art)}" alt=""></div>
     <div class="agch-companion__id"><input type="text" class="agch-companion__name" data-edit="companion-name" data-entry="${esc(entry.id)}" value="${esc(entry.name)}" maxlength="${NAME_MAX}" placeholder="${esc(entry.actor?.name || entry.item?.name || 'Name')}" aria-label="Name for ${esc(entry.displayName)}"${off ? ' disabled' : ''}>
-      <span class="agch-companion__badges"><span class="ag-badge">${entry.kind === 'mount' ? 'Mount' : 'Pet'}</span><span class="ag-badge" title="${entry.missing ? 'The linked Actor is gone' : `Linked ${source.toLowerCase()}`}">${source}</span></span></div>
-    <span class="agch-item__controls">${open}${moves}${btn('companion-remove', 'Remove', {kind: 'sm', icon: 'fa-solid fa-xmark', data: {entry: entry.id}, title: `Remove ${entry.displayName} from companions (the Actor or Item is kept)`, disabled: off})}</span></header>
-    ${entry.missing ? '<p class="agch-notice" role="note">The linked Actor is gone. Remove this companion, or ask the GM.</p>' : ''}
+      <span class="agch-companion__badges"><span class="ag-badge">${entry.kind === 'mount' ? 'Mount' : 'Pet'}</span><span class="ag-badge" data-tooltip="${entry.missing ? 'The linked Actor is gone' : `Linked ${source.toLowerCase()}`}">${source}</span></span></div>
+    <span class="agch-item__controls">${open}${moves}${btn('companion-remove', 'Remove', {kind: 'danger', extra: 'ag-btn--sm', icon: 'fa-solid fa-trash', data: {entry: entry.id}, title: `Remove ${entry.displayName} from companions (the Actor or Item is kept)`, disabled: off})}</span></header>
+    ${entry.missing ? '<p class="ag-notice ag-notice--warn agch-notice" role="note"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> The linked Actor is gone. Remove this companion, or ask the GM.</p>' : ''}
     <textarea class="agch-companion__desc" data-edit="companion-desc" data-entry="${esc(entry.id)}" rows="3" maxlength="${DESC_MAX}" placeholder="${esc(ownText(entry) || `Description (your own notes for this ${entry.kind})`)}" aria-label="Description for ${esc(entry.displayName)}"${off ? ' disabled' : ''}>${esc(entry.description)}</textarea>`;
 }
 
@@ -67,9 +67,9 @@ function mountCard(entry, {off, free, actor}) {
 function clothingSlots(entry, off, actor) {
   const choices = freeItemsFor(actor, 'pet', 'clothing');
   return `<div class="agch-clothing" role="group" aria-label="${esc(entry.displayName)}'s clothing">${entry.clothingItems.map((item, i) => item
-    ? `<div class="agch-clothing__slot is-filled"><button type="button" class="agch-slot is-filled" data-action="item-sheet" data-id="${esc(item.id)}" data-ag-always${tooltipAttrs(itemUuid(item), item.name)} aria-label="Clothing ${i + 1}: ${esc(item.name)}"><img src="${esc(item.img)}" alt=""></button>
+    ? `<div class="agch-clothing__slot is-filled"><button type="button" class="ag-slot agch-slot is-filled" data-action="item-sheet" data-id="${esc(item.id)}" data-ag-always${tooltipAttrs(itemUuid(item), item.name)} aria-label="Clothing ${i + 1}: ${esc(item.name)}"><img src="${esc(item.img)}" alt=""></button>
         ${btn('companion-unattach', '', {kind: 'ghost', extra: 'agch-clothing__off', icon: 'fa-solid fa-xmark', data: {entry: entry.id, id: item.id}, title: `Take ${item.name} off`, disabled: off})}</div>`
-    : `<div class="agch-clothing__slot"${off ? '' : ` data-drop-companion="clothing" data-entry="${esc(entry.id)}" data-slot="${i}"`}><span class="agch-slot is-empty" title="Clothing slot ${i + 1}: drop pet clothing here"><i class="fa-solid fa-shirt agch-slot__icon" aria-hidden="true"></i></span>
+    : `<div class="agch-clothing__slot"${off ? '' : ` data-drop-companion="clothing" data-entry="${esc(entry.id)}" data-slot="${i}"`}><span class="ag-slot agch-slot is-empty" data-tooltip="Clothing slot ${i + 1}: drop pet clothing here"><i class="fa-solid fa-shirt agch-slot__icon" aria-hidden="true"></i></span>
         ${off || !choices.length ? '' : `<select data-edit="companion-clothing" data-entry="${esc(entry.id)}" data-slot="${i}" aria-label="Put clothing in slot ${i + 1}">${itemOptions(choices, 'Wear…')}</select>`}</div>`).join('')}</div>`;
 }
 
@@ -96,7 +96,7 @@ export function companionsTab({actor, editable}) {
       <select data-edit="pet-cap-override" data-actor="${esc(actor.id)}">${capOptions(override)}</select></label>` : '';
   return `${sectionHtml(sectionKey('companions', 'mount'), `Mount <span class="ag-badge">${d.mount ? 1 : 0} / 1</span>`, `${mount}${addZone('mount', 'Drop the mount Actor (from the Actors sidebar) or a mount Item here', !!d.mount)}`)}
     ${sectionHtml(sectionKey('companions', 'pets'), `Pets <span class="ag-badge${d.overCap ? ' ag-badge--danger' : ''}">${d.pets.length} / ${esc(d.capLabel)}</span>`, `
-    ${d.overCap ? `<p class="agch-notice" role="note">More pets than the current limit (${esc(d.capLabel)}). Nothing was removed; remove one or ask the GM.</p>` : ''}
+    ${d.overCap ? `<p class="ag-notice ag-notice--warn agch-notice" role="note"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> More pets than the current limit (${esc(d.capLabel)}). Nothing was removed; remove one or ask the GM.</p>` : ''}
     ${pets}${addZone('pet', 'Drop a pet Actor or Item here', d.pets.length >= d.cap)}`)}${gmCap}
     <p class="agch-muted agch-hint">A mount or pet is a world Actor or an Item on this character. Gear, clothing and perks are Items on this character. The stats box only reads their own effects; the Hub applies nothing to the mount or the character. Removing a companion or taking an item off keeps the Actor and Items.</p>`;
 }
@@ -124,11 +124,11 @@ function visibilityCard() {
 /** GM Setup: settings only (player visibility, pet limits). */
 export function gmSetupTab() {
   const chars = [...(globalThis.game?.actors ?? [])].filter(a => a.type === 'character').sort((a, b) => String(a.name).localeCompare(String(b.name)));
-  const rows = chars.map(a => { const d = companionsData(a); return `<tr><th scope="row">${esc(a.name)}</th><td>${d.mount ? 1 : 0}</td><td>${d.pets.length} / ${esc(d.capLabel)}</td>
+  const rows = chars.map(a => { const d = companionsData(a); return `<tr><th scope="row">${esc(a.name)}</th><td class="is-num">${d.mount ? 1 : 0}</td><td class="is-num">${d.pets.length} / ${esc(d.capLabel)}</td>
     <td><select data-edit="pet-cap-override" data-actor="${esc(a.id)}" aria-label="Pet limit for ${esc(a.name)}">${capOptions(petCapOverride(a))}</select></td></tr>`; }).join('');
   const key = sectionKey('gm', 'companions');
   return `${visibilityCard()}<section class="ag-card"><h3 class="agch-sec__head">${toggleButton(key, 'Companions')}</h3><div${bodyAttrs(key)}>
     <label class="ag-field">Pets per character (world default)<input type="number" min="0" step="1" data-edit="pet-cap-default" value="${defaultPetCap()}"></label>
     <p class="agch-muted">Every character may have one mount. Pets start at 0: raise the world default or a character's limit to give pet slots. Limits apply when adding a pet; existing pets are never removed.</p>
-    ${rows ? `<table class="agch-table"><thead><tr><th>Character</th><th>Mount</th><th>Pets</th><th>Pet limit</th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="ag-empty">No characters.</p>'}</div></section>`;
+    ${rows ? `<div class="ag-table-wrap"><table class="ag-table agch-table"><thead><tr><th scope="col">Character</th><th scope="col" class="is-num">Mount</th><th scope="col" class="is-num">Pets</th><th scope="col">Pet limit</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div class="ag-empty"><p class="ag-empty__title">No characters yet.</p><p class="ag-empty__text">Player characters show here once they exist in the world.</p></div>'}</div></section>`;
 }

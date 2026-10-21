@@ -1,14 +1,14 @@
 {
   "ashen-gate-character-hub": {
-    "css-colour-literal": 17,
-    "css-raw-font-size": 11,
+    "css-colour-literal": 0,
+    "css-raw-font-size": 0,
     "css-legacy-alias": 0,
     "css-viewport-media": 0,
-    "css-raw-px-box": 114,
-    "css-kit-prefix-class": 5,
+    "css-raw-px-box": 3,
+    "css-kit-prefix-class": 4,
     "js-dialogv2-direct": 0,
-    "header-brand-version": 1,
-    "button-title-attr": 14
+    "header-brand-version": 0,
+    "button-title-attr": 0
   },
   "ashen-gate-cinders": {
     "css-colour-literal": 0,

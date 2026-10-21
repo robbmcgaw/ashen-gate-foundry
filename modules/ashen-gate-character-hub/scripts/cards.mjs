@@ -90,7 +90,7 @@ export const COLUMNS = {
   level: {key: 'level', label: 'Level'},
   school: {key: 'school', label: 'School'},
   castTime: {key: 'activation', label: 'Casting time'},
-  duration: {key: 'duration', label: 'Duration', render: r => `${esc(r.facts.duration || '—')}${r.facts.concentration ? ' <span class="ag-badge" title="Concentration">C</span>' : ''}${r.facts.ritual ? ' <span class="ag-badge" title="Ritual">R</span>' : ''}`},
+  duration: {key: 'duration', label: 'Duration', render: r => `${esc(r.facts.duration || '—')}${r.facts.concentration ? ' <span class="ag-badge" data-tooltip="Concentration">C</span>' : ''}${r.facts.ritual ? ' <span class="ag-badge" data-tooltip="Ritual">R</span>' : ''}`},
   components: {key: 'components', label: 'Components'},
   quantity: {key: 'quantity', label: 'Qty'},
   weight: {key: 'weight', label: 'Weight'},
@@ -108,7 +108,7 @@ const cell = (col, row) => `<span class="agch-card__fact" data-label="${esc(col.
 export function cardHtml(row, columns, {controls = '', lead = '', star = '', badges = '', alt = false, expanded = null, listKey = ''} = {}) {
   const detailKey = sectionKey('more', listKey, row.id), open = expanded?.has?.(detailKey) === true;
   const more = row.more ? `<button type="button" class="agch-card__more" data-action="item-more" data-id="${esc(row.id)}" data-key="${esc(detailKey)}" data-ag-always aria-expanded="${open}" aria-controls="${esc(detailKey)}">${open ? 'Less' : 'More'}</button>` : '';
-  return `<li class="agch-card${alt ? ' is-alt' : ''}${row.equipped ? ' is-equipped' : ''}${row.rarity ? ' has-rarity' : ''}" data-item-id="${esc(row.id)}"${row.rarity ? ` data-rarity="${row.rarity}"` : ''}${row.uuid ? ` draggable="true" data-drag-uuid="${esc(row.uuid)}"` : ''}>
+  return `<li class="agch-card${alt ? ' is-alt' : ''}${row.equipped ? ' is-equipped' : ''}${row.rarity ? ' has-rarity ag-rarity-edge' : ''}" data-item-id="${esc(row.id)}"${row.rarity ? ` data-rarity="${row.rarity}"` : ''}${row.uuid ? ` draggable="true" data-drag-uuid="${esc(row.uuid)}"` : ''}>
     <span class="agch-card__lead">${lead}${star}</span>
     <img class="agch-item__img" src="${esc(row.img)}" alt="">
     <span class="agch-card__main"><button type="button" class="agch-item__name" data-action="item-sheet" data-id="${esc(row.id)}" data-ag-always${tooltipAttrs(row.uuid, `Open ${row.name}`)}>${esc(row.name)}</button>${badges ? `<span class="agch-item__badges">${badges}</span>` : ''}

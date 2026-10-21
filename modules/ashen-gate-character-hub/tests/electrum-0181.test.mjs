@@ -35,7 +35,7 @@ test('Inventory coin strip: no ep box while electrum is off; ep left over shows 
   assert.doesNotMatch(html, /data-key="ep"/); assert.match(html, /data-key="pp"[\s\S]*data-key="gp"[\s\S]*data-key="sp"[\s\S]*data-key="cp"/);
   assert.doesNotMatch(html, /agch-ep-off/);
   ({html} = await inventory(4));
-  assert.match(html, /<label class="agch-coin is-off" title="Electrum is off in Utilities[^"]*"><span>ep<\/span><input type="number" min="0" step="1" max="4" data-edit="currency" data-key="ep" value="4"/, 'never hides money');
+  assert.match(html, /<label class="agch-coin is-off" data-tooltip="Electrum is off in Utilities[^"]*"><span>ep<\/span><input type="number" min="0" step="1" max="4" data-edit="currency" data-key="ep" value="4"/, 'never hides money');
   assert.match(html, /agch-ep-off">Electrum is off in Utilities: it only shows because this character still has some/);
   assert.doesNotMatch(html, /convert-electrum|data-action="[^"]*convert/, 'no convert action in the Hub (GM-only in Utilities)');
   world({electrum: true}); ({html} = await inventory(0));

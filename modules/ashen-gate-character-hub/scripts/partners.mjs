@@ -200,12 +200,12 @@ export function ashenGateTab({actor, sheet}) {
     if (gm || !state.refused) break;
     panels = panels.filter(p => p !== current); current = null;
   }
-  if (!current) return '<p class="ag-empty">Nothing here yet.</p>';
+  if (!current) return '<div class="ag-empty"><i class="fa-solid fa-dungeon" aria-hidden="true"></i><p class="ag-empty__title">Nothing here yet.</p><p class="ag-empty__text">Ashen Gate sections show here once your GM shares them.</p></div>';
   const tabs = panels.map(p => {
     const reason = gm ? hiddenReason(partForPartner(p.id)) : null;
-    return `<button type="button" data-action="ag-subtab" data-partner="${p.id}" data-ag-always aria-pressed="${p === current}"${partnerApi(p.id) ? '' : ' class="is-missing"'}${reason ? ` title="${esc(`Hidden from players: ${reason}`)}"` : ''}>${reason ? '<i class="fa-solid fa-eye-slash" aria-hidden="true"></i> ' : ''}${esc(p.tab)}</button>`;
+    return `<button type="button" data-action="ag-subtab" data-partner="${p.id}" data-ag-always role="radio" aria-checked="${p === current}"${partnerApi(p.id) ? '' : ' class="is-missing"'}${reason ? ` data-tooltip="${esc(`Hidden from players: ${reason}`)}"` : ''}>${reason ? '<i class="fa-solid fa-eye-slash" aria-hidden="true"></i> ' : ''}${esc(p.tab)}</button>`;
   }).join('');
-  return `<div class="agch-toolbar"><div class="agch-seg agch-seg--wrap" role="group" aria-label="Ashen Gate section">${tabs}</div></div>
+  return `<div class="ag-toolbar agch-toolbar"><div class="ag-segmented agch-seg" role="radiogroup" aria-label="Ashen Gate section">${tabs}</div></div>
     ${panelHtml({...current, badge: hiddenBadge(partForPartner(current.id))}, actor, state)}
     <p class="agch-muted agch-hint">${embedded ? `This is ${esc(current.label)}'s own view: it keeps its own records and permissions.` : 'Each module keeps its own records; this is a read-only summary. Open the module to make changes there.'}</p>`;
 }

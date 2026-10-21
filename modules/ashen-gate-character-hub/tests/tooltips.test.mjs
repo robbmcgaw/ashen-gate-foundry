@@ -37,8 +37,8 @@ test('dnd5e\'s loading section with the item UUID, its tooltip classes, and no d
   assert.equal(loadingSection('x"y'), '<section class="loading" data-uuid="x&quot;y"><i class="fa-solid fa-spinner fa-spin-pulse" inert></i></section>', 'same markup without the helper, escaped');
   installGlobals();
   assert.equal(richTooltipsAvailable(), false);
-  assert.equal(tooltipAttrs('Actor.a.Item.b', 'Open b'), ' title="Open b"', 'plain title when dnd5e tooltips are not running');
-  assert.equal(tooltipAttrs(null, 'Macro'), ' title="Macro"');
+  assert.equal(tooltipAttrs('Actor.a.Item.b', 'Open b'), ' data-tooltip="Open b"', 'a Foundry tooltip when dnd5e tooltips are not running');
+  assert.equal(tooltipAttrs(null, 'Macro'), ' data-tooltip="Macro"');
 });
 
 test('every item element in the Hub gets the rich tooltip: list rows, slots, Other equipped, identity card, quick bar, mastery buttons', async () => {

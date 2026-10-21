@@ -71,7 +71,7 @@ test('Push from the Hub: confirm with Cinders\' preview, then Cinders\' push; ca
   const data = {instance: 'cinst_TEST00001', power: 'POWER-TEST-SPARK', mode: 'amplify'};
   let shown = '';
   assert.equal((await pushFromHub(makeActor(), data, async html => { shown = html; return false; })).result, null);
-  assert.match(shown, /Strain 4 → <strong>5<\/strong> \(\+1\)/);assert.equal(calls.length, 0);
+  assert.match(shown, /Strain 4 → 5 \(\+1\)/);assert.equal(calls.length, 0);
   await pushFromHub(makeActor(), data, async () => true);
   assert.deepEqual(calls, [['push', 'POWER-TEST-SPARK', 'amplify']]);
   installGlobals({user: users.owner, modules: {}});

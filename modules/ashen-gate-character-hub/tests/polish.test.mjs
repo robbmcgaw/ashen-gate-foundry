@@ -83,7 +83,7 @@ test('HP editor: one update with current/temp/max adj.; blanks left alone; owner
 test('HP block: no text inputs; double-click opens the editor for owners only; Apply writes and closes', async () => {
   installGlobals({user: users.owner});
   const {sheet, html} = await render();
-  assert.match(html, /data-hp-bar tabindex="0" data-config="hitPoints"/);
+  assert.match(html, /data-hp-bar data-band="high" tabindex="0" data-config="hitPoints"/);
   assert.doesNotMatch(html, /agch-hpedit/);
   sheet._onHpBarOpen({target: {closest: () => ({})}, preventDefault() {}});
   assert.equal(sheet.menu, 'hp');
@@ -216,10 +216,10 @@ test('paper doll: bracer slot where Other was, three trinkets, icons for empty s
   assert.equal(equipChoices(makeActor({items: [{id: 'x', name: '[TEST] Lucky Coin', type: 'equipment', system: {equipped: false, type: {value: 'trinket'}}}]}), 'trinket3')[0].id, 'x');
   const {html} = await render({actor});
   assert.match(html, /data-slot="bracer" data-id="br" data-ag-always data-rarity="rare"/);
-  assert.match(html, /class="agch-slot is-filled has-rarity" data-action="slot-open" data-slot="hands" data-id="gl" data-ag-always data-rarity="uncommon"/);
-  assert.match(html, /data-slot="head"[^>]*title="Head: empty \(click to equip\)"><i class="fa-solid fa-hat-wizard agch-slot__icon"/);
+  assert.match(html, /class="ag-slot agch-slot is-filled has-rarity" data-action="slot-open" data-slot="hands" data-id="gl" data-ag-always data-rarity="uncommon"/);
+  assert.match(html, /data-slot="head"[^>]*data-tooltip="Head: empty \(click to equip\)"><i class="fa-solid fa-hat-wizard agch-slot__icon"/);
   assert.match(html, /data-slot="waist"[^>]*><span class="agch-slot__mask" style="--agch-mask: url\('modules\/ashen-gate-character-hub\/assets\/slots\/waist-white\.png'\)"/, 'Robb\'s waist silhouette (0.17.0)');
-  assert.match(html, /agch-other__row has-rarity" data-rarity="artifact"/);
+  assert.match(html, /agch-other__row has-rarity ag-rarity-edge" data-rarity="artifact"/);
   assert.match(html, /data-key="doll:other"/);
   assert.doesNotMatch(html, /data-slot="other"/, 'the old overflow slot is gone');
   assert.equal(itemRow({system: {rarity: 'nonsense'}}).rarity, '', 'unknown rarity gets no colour');
@@ -233,12 +233,12 @@ test('Ashen Gate quick bar: module views jump to the sub-tab; HQ and Locations o
   };
   installGlobals({user: users.gm, modules: mods});
   const bar = agBarHtml();
-  assert.match(bar, /data-action="ag-jump" data-partner="ashen-gate-profession-ledger" data-ag-always title="Professions \(show here\)"/);
-  assert.match(bar, /data-action="partner-open" data-partner="ashen-gate-headquarters" data-ag-always title="Open Headquarters"/);
-  assert.match(bar, /is-missing" data-action="partner-open" data-partner="ashen-gate-locations" disabled title="Locations \(module not active\)"/);
+  assert.match(bar, /data-action="ag-jump" data-partner="ashen-gate-profession-ledger" data-ag-always aria-label="Professions \(show here\)" data-tooltip="Professions \(show here\)"/);
+  assert.match(bar, /data-action="partner-open" data-partner="ashen-gate-headquarters" data-ag-always aria-label="Open Headquarters" data-tooltip="Open Headquarters"/);
+  assert.match(bar, /is-missing" data-action="partner-open" data-partner="ashen-gate-locations" disabled aria-label="Locations \(module not active\)" data-tooltip="Locations \(module not active\)"/);
   for (const label of ['Skill Trees', 'Renown', 'Quests']) assert.match(bar, new RegExp(`${label} \\(module not active\\)`));
   const {sheet, html} = await render();
-  assert.match(html, /<div class="agch-railcol"><nav class="agch-rail"[\s\S]*<\/nav><nav class="agch-rail agch-agbar"/, 'a separate bar under the tab rail');
+  assert.match(html, /<div class="agch-railcol"><nav class="ag-siderail agch-rail"[\s\S]*<\/nav><nav class="ag-siderail agch-rail agch-agbar"/, 'a separate bar under the tab rail');
   await ACTIONS['ag-jump'](sheet, {dataset: {partner: 'ashen-gate-profession-ledger'}});
   assert.equal(sheet.tab, 'ashen-gate'); assert.equal(sheet.agTab, 'ashen-gate-profession-ledger');
   assert.match(await sheet._renderHTML(), /agch-agbar__btn active" data-action="ag-jump" data-partner="ashen-gate-profession-ledger"/);

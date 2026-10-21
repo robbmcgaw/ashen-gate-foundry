@@ -15,7 +15,7 @@ test('sockets: attached items with their effects, inactive over capacity, empty 
   const html = cindersSummary(makeActor(), api({contract: 'ag-sockets/1', hosts: () => [host]}));
   assert.match(html, /Sockets<\/strong> <span class="agch-muted">2 of 2 in use · locked by the GM/);
   assert.match(html, /\[TEST\] &lt;Lens&gt;/, 'names are escaped');assert.match(html, /\[TEST\] Lens: Push cost -1/);
-  assert.equal((html.match(/inactive: over capacity/g) ?? []).length, 1);
+  assert.equal((html.match(/Inactive: over capacity/g) ?? []).length, 1);
   assert.doesNotMatch(html, /data-action=/, 'read only: changes happen in Cinders');
   assert.match(socketsHtml({...host, slots: [], free: 2, locked: false}), /(Empty socket[\s\S]*){2}/);
   assert.match(socketsHtml({...host, slots: [], free: 0, capacity: 0}), /no sockets/);
