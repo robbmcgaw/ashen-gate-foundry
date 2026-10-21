@@ -3,7 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {installGlobals, makeActor, users, FakeActorSheetV2} from './foundry-mock.mjs';
 import * as act from '../scripts/actions.mjs';
-import {hpBar, SLOT_ICONS, BOTTOM_SLOTS, RIGHT_SLOTS} from '../scripts/character.mjs';
+import {hpBar, placeholder, BOTTOM_SLOTS, RIGHT_SLOTS} from '../scripts/character.mjs';
+import {SLOT_PLACEHOLDERS, placeholderKind} from '../scripts/constants.mjs';
 import {openConfig, CONFIGS} from '../scripts/configure.mjs';
 import {isCollapsed, setCollapsed, collapsedState, sectionHtml, sectionKey, toggleSection, COLLAPSE_MAX} from '../scripts/collapse.mjs';
 import {speedsData, headerData} from '../scripts/data.mjs';
@@ -33,7 +34,36 @@ test('HP bar: fill, yellow temp overshield, blue max-adjustment overlay, "X / X 
   b = hpBar({value: 30, temp: 0, max: 20, tempmax: 10, effectiveMax: 30});
   assert.equal(b.text, '30 / 30 HP'); assert.equal(b.tempText, '');
   assert.ok(Math.abs(b.boost - 33.33) < 0.01); assert.ok(Math.abs(b.boostLeft - 66.67) < 0.01, 'blue part is the max HP above normal max');
-  assert.equal(hpBar({value: 5, temp: 0, max: 20, tempmax: -5, effectiveMax: 15}).boost, 0, 'a negative adjustment draws no blue part');
+  b = hpBar({value: 10, temp: 0, max: 20, tempmax: -5, effectiveMax: 15});
+  assert.equal(b.boost, 0, 'a negative adjustment draws no blue part');
+  assert.equal(b.text, '10 / 15 HP'); assert.equal(b.lostText, '(−5 MAX)');
+  assert.equal(b.fill, 50, 'the bar keeps the normal max as its length');
+  assert.equal(b.lost, 25); assert.equal(b.lostLeft, 75, 'sickly-green lost part at the right end');
+  b = hpBar({value: 14, temp: 4, max: 20, tempmax: -5, effectiveMax: 15});
+  assert.equal(b.tempLeft + b.temp, 75, 'temp HP is kept out of the lost part');
+  assert.equal(hpBar({value: 10, temp: 0, max: 20, tempmax: 0, effectiveMax: 20}).lostText, '');
+});
+
+test('HP bar renders the lost part and "(−X MAX)" for a negative max adjustment', async () => {
+  installGlobals({user: users.owner});
+  const base = makeActor().system.attributes;
+  const {html} = await render({actor: makeActor({system: {attributes: {...base, hp: {value: 10, temp: 0, max: 20, tempmax: -5, effectiveMax: 15}}}})});
+  assert.match(html, /<span class="agch-hp__lost" style="left:75.0%;width:25.0%"/);
+  assert.match(html, /10 \/ 15 HP <span class="agch-hp__losttext">\(−5 MAX\)<\/span>/);
+});
+
+test('empty-slot placeholders: one table, Font Awesome classes, Foundry image paths or a word', () => {
+  for (const id of [...RIGHT_SLOTS, ...BOTTOM_SLOTS, 'head', 'neck', 'back', 'body', 'hands']) assert.ok(SLOT_PLACEHOLDERS[id], id);
+  assert.equal(placeholderKind('fa-solid fa-ring'), 'icon');
+  assert.equal(placeholderKind('icons/equipment/finger/ring-band-gold.webp'), 'image');
+  assert.equal(placeholderKind('Waist'), 'text');
+  const orig = SLOT_PLACEHOLDERS.head;
+  SLOT_PLACEHOLDERS.head = 'icons/equipment/head/helm-barbute-steel.webp';
+  assert.equal(placeholder('head'), '<img class="agch-slot__ph" src="icons/equipment/head/helm-barbute-steel.webp" alt="">');
+  SLOT_PLACEHOLDERS.head = 'Hat & <Hood>';
+  assert.equal(placeholder('head'), '<span class="agch-slot__empty">Hat &amp; &lt;Hood&gt;</span>', 'text is escaped');
+  SLOT_PLACEHOLDERS.head = orig;
+  assert.equal(placeholder('head'), '<i class="fa-solid fa-hat-wizard agch-slot__icon" aria-hidden="true"></i>', 'current icons are the defaults');
 });
 
 test('HP editor: one update with current/temp/max adj.; blanks left alone; owner only', async () => {
@@ -189,7 +219,6 @@ test('paper doll: bracer slot where Other was, three trinkets, icons for empty s
   assert.match(html, /class="agch-slot is-filled has-rarity" data-action="slot-open" data-slot="hands" data-id="gl" data-ag-always data-rarity="uncommon"/);
   assert.match(html, /data-slot="head"[^>]*title="Head: empty \(click to equip\)"><i class="fa-solid fa-hat-wizard agch-slot__icon"/);
   assert.match(html, /data-slot="waist"[^>]*><span class="agch-slot__empty">Waist<\/span>/, 'a word where no icon fits');
-  assert.equal(Object.keys(SLOT_ICONS).includes('bracer'), false);
   assert.match(html, /agch-other__row has-rarity" data-rarity="artifact"/);
   assert.match(html, /data-key="doll:other"/);
   assert.doesNotMatch(html, /data-slot="other"/, 'the old overflow slot is gone');

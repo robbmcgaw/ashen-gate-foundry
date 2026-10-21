@@ -5,7 +5,7 @@
  * (sheet.menu). An empty slot's click opens its Equip… menu. Right-click on a stat opens dnd5e's own configuration
  * window for it (configure.mjs), like the standard sheet.
  */
-import {esc, signed} from './constants.mjs';
+import {esc, signed, SLOT_PLACEHOLDERS, placeholderKind} from './constants.mjs';
 import {btn} from './buttons.mjs';
 import {headerData, abilitiesData} from './data.mjs';
 import {equipmentLayout, equipChoices, SLOTS} from './items.mjs';
@@ -20,13 +20,14 @@ export const BOTTOM_SLOTS = ['ring1', 'ring2', 'trinket', 'trinket2', 'trinket3'
 /** Slots that trade places with each other ("Swap"). */
 export const SLOT_PAIRS = {mainhand: 'offhand', offhand: 'mainhand', ring1: 'ring2', ring2: 'ring1'};
 
-/** Empty-slot placeholders: a Font Awesome icon where one fits, else a short word. */
-export const SLOT_ICONS = {head: 'fa-solid fa-hat-wizard', neck: 'fa-solid fa-gem', body: 'fa-solid fa-shirt', hands: 'fa-solid fa-mitten',
-  mainhand: 'fa-solid fa-khanda', offhand: 'fa-solid fa-shield-halved', feet: 'fa-solid fa-shoe-prints', ring1: 'fa-solid fa-ring', ring2: 'fa-solid fa-ring',
-  trinket: 'fa-solid fa-feather', trinket2: 'fa-solid fa-feather', trinket3: 'fa-solid fa-feather'};
-const SHORT = {back: 'Back', waist: 'Waist', bracer: 'Bracer'};
+/** Empty-slot placeholder from the SLOT_PLACEHOLDERS table in constants.mjs: an icon, an image or a short word. */
+export function placeholder(id) {
+  const v = SLOT_PLACEHOLDERS[id] ?? id, kind = placeholderKind(v);
+  if (kind === 'icon') return `<i class="${esc(v)} agch-slot__icon" aria-hidden="true"></i>`;
+  if (kind === 'image') return `<img class="agch-slot__ph" src="${esc(v)}" alt="">`;
+  return `<span class="agch-slot__empty">${esc(v)}</span>`;
+}
 const slotLabel = id => SLOTS.find(s => s.id === id)?.label ?? id;
-const placeholder = id => SLOT_ICONS[id] ? `<i class="${SLOT_ICONS[id]} agch-slot__icon" aria-hidden="true"></i>` : `<span class="agch-slot__empty">${esc(SHORT[id] ?? id)}</span>`;
 
 const moveSelect = (row, off) => `<select data-edit="item-slot" data-id="${esc(row.id)}" aria-label="Move ${esc(row.name)} to"${off ? ' disabled' : ''}><option value="">Move to…</option>${SLOTS.map(s => `<option value="${s.id}">${esc(s.label)}</option>`).join('')}<option value="">Automatic</option></select>`;
 const menuBtn = (action, label, opts = {}) => btn(action, label, {...opts, extra: 'agch-menu__btn'});
@@ -108,17 +109,20 @@ function dollHtml(ctx, h) {
 const tile = (label, value, {extra = '', title = '', attrs = ''} = {}) => `<div class="agch-tile"${title ? ` title="${esc(title)}"` : ''}${attrs}><span class="agch-tile__label">${esc(label)}</span>${value}${extra}</div>`;
 
 /**
- * The HP bar's pieces as percentages of the bar. The bar is the effective max (max + max adjustment). A positive
- * max adjustment is the blue part at the right end; temp HP is the yellow overshield after the current HP (pushed back
- * from the end when it would not fit).
+ * The HP bar's pieces as percentages of the bar. The bar is the larger of normal max and effective max (max + max
+ * adjustment). A positive max adjustment is the blue part at the right end; a negative one is the sickly-green "lost"
+ * part at the right end. Temp HP is the yellow overshield after the current HP (pushed back when it would not fit).
  */
 export function hpBar(hp) {
-  const max = Math.max(0, Number(hp.max) || 0), adj = Number(hp.tempmax) || 0, eff = Math.max(1, Number(hp.effectiveMax) || max + adj);
+  const max = Math.max(0, Number(hp.max) || 0), adj = Number(hp.tempmax) || 0;
+  const eff = Number.isFinite(Number(hp.effectiveMax)) && hp.effectiveMax !== undefined && hp.effectiveMax !== null ? Number(hp.effectiveMax) : max + adj;
+  const scale = Math.max(1, eff, max);
   const value = Math.max(0, Number(hp.value) || 0), temp = Math.max(0, Number(hp.temp) || 0);
-  const pct = x => Math.max(0, Math.min(100, x / eff * 100));
-  const fill = pct(value), tempW = pct(temp), boostW = adj > 0 ? pct(adj) : 0;
-  return {fill, temp: tempW, tempLeft: Math.max(0, Math.min(fill, 100 - tempW)), boost: boostW, boostLeft: 100 - boostW,
-    text: `${value} / ${Number(hp.effectiveMax) || max + adj} HP`, tempText: temp > 0 ? `(+${temp} TEMP)` : ''};
+  const pct = x => Math.max(0, Math.min(100, x / scale * 100));
+  const fill = pct(value), tempW = pct(temp), boostW = adj > 0 ? pct(adj) : 0, lostW = adj < 0 ? pct(-adj) : 0;
+  const room = 100 - lostW;
+  return {fill, temp: tempW, tempLeft: Math.max(0, Math.min(fill, room - tempW)), boost: boostW, boostLeft: 100 - boostW, lost: lostW, lostLeft: room,
+    text: `${value} / ${eff} HP`, tempText: temp > 0 ? `(+${temp} TEMP)` : '', lostText: adj < 0 ? `(−${-adj} MAX)` : ''};
 }
 
 /** Double-click on the bar: a small editor for current, temp and max adjustment (one update on Apply). */
@@ -146,9 +150,9 @@ function hpHtml(h, off, menu) {
   const hp = h.hp, b = hpBar(hp), f = n => n.toFixed(1);
   const tip = off ? 'Hit points' : 'Hit points: double-click to edit, right-click for dnd5e\'s hit point settings';
   return `<div class="agch-hp" role="group" aria-label="Hit points">
-    <div class="agch-hp__bar${off ? '' : ' is-editable'}" data-hp-bar${off ? '' : ` tabindex="0"${configAttrs('hitPoints')}`} role="meter" aria-valuemin="0" aria-valuemax="${hp.effectiveMax}" aria-valuenow="${hp.value}" aria-label="${esc(`${b.text} ${b.tempText}`.trim())}" title="${esc(tip)}">
-      <span class="agch-hp__fill" style="width:${f(b.fill)}%"></span>${b.boost ? `<span class="agch-hp__boost" style="left:${f(b.boostLeft)}%;width:${f(b.boost)}%" title="Max HP adjustment +${hp.tempmax}"></span>` : ''}${b.temp ? `<span class="agch-hp__temp" style="left:${f(b.tempLeft)}%;width:${f(b.temp)}%"></span>` : ''}
-      <span class="agch-hp__text">${esc(b.text)}${b.tempText ? ` <span class="agch-hp__temptext">${esc(b.tempText)}</span>` : ''}</span></div>
+    <div class="agch-hp__bar${off ? '' : ' is-editable'}" data-hp-bar${off ? '' : ` tabindex="0"${configAttrs('hitPoints')}`} role="meter" aria-valuemin="0" aria-valuemax="${hp.effectiveMax}" aria-valuenow="${hp.value}" aria-label="${esc(`${b.text} ${b.tempText} ${b.lostText}`.replace(/\s+/g, ' ').trim())}" title="${esc(tip)}">
+      <span class="agch-hp__fill" style="width:${f(b.fill)}%"></span>${b.boost ? `<span class="agch-hp__boost" style="left:${f(b.boostLeft)}%;width:${f(b.boost)}%" title="Max HP adjustment +${hp.tempmax}"></span>` : ''}${b.lost ? `<span class="agch-hp__lost" style="left:${f(b.lostLeft)}%;width:${f(b.lost)}%" title="Max HP adjustment ${hp.tempmax}"></span>` : ''}${b.temp ? `<span class="agch-hp__temp" style="left:${f(b.tempLeft)}%;width:${f(b.temp)}%"></span>` : ''}
+      <span class="agch-hp__text">${esc(b.text)}${b.tempText ? ` <span class="agch-hp__temptext">${esc(b.tempText)}</span>` : ''}${b.lostText ? ` <span class="agch-hp__losttext">${esc(b.lostText)}</span>` : ''}</span></div>
     ${menu === 'hp' && !off ? hpEditor(hp) : ''}
     <div class="agch-hp__row">
       <span class="agch-hp__adjust" role="group" aria-label="Damage or heal">${btn('hp-damage', '', {kind: 'sm', icon: 'fa-solid fa-minus', title: 'Damage: subtract the amount (temp HP first, then HP)', disabled: off})}<input type="number" min="0" step="1" class="agch-hp__amount" data-hp-amount placeholder="0" aria-label="Amount to add or subtract"${off ? ' disabled' : ''}>${btn('hp-heal', '', {kind: 'sm', icon: 'fa-solid fa-plus', title: 'Heal: add the amount (up to max HP)', disabled: off})}</span>
