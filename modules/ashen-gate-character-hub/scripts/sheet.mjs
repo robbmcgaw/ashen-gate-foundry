@@ -24,6 +24,7 @@ import {journeyActor} from './journey-views.mjs';
 import * as marks from './marks.mjs';
 import * as hotbar from './hotbar.mjs';
 import {undoNoticesHtml} from './hotbar-views.mjs';
+import {syncEscape, unbindEscape} from './escape.mjs';
 import {stepStrain, pushFromHub, socketFromHub, dropOnSocket} from './cinders.mjs';
 import {confirmDialog, formDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
@@ -389,7 +390,6 @@ export function createHubSheetClass(Base) {
         content.addEventListener?.('click', ev => this._onOutsideClick(ev));
         content.addEventListener?.('dblclick', ev => ev.target?.closest?.('[data-art-edit]') ? this._onArtEdit(ev) : this._onHpBarOpen(ev));
         content.addEventListener?.('keydown', ev => {
-          if (ev.key === 'Escape' && this.menu) { ev.stopPropagation(); toggleMenu(this, null); return; }
           if ((ev.key === 'Enter' || ev.key === ' ') && ev.target?.matches?.('[data-hp-bar]')) { this._onHpBarOpen(ev); return; }
           if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(ev.key) && ev.target?.matches?.('.ag-segmented > [role="radio"]')) { ev.preventDefault(); segmentStep(ev.target, ev.key === 'ArrowLeft' || ev.key === 'ArrowUp' ? -1 : 1); return; }
           if (ev.key === 'Enter' && ev.target?.matches?.('[data-hpedit]')) { ev.preventDefault(); this.dispatch('hp-apply', ev.target, ev); }
@@ -405,6 +405,7 @@ export function createHubSheetClass(Base) {
         content.addEventListener?.('dragstart', ev => onItemDragStart(ev));
         this._agchBound = true;
       }
+      syncEscape(this);   // Escape closes an open menu/editor only, wherever focus is (escape.mjs)
       try { const a = globalThis.game?.modules?.get('ashen-gate-manager')?.api?.appearance; if (a?.contract === 'ag-appearance/0.1-beta') a.applyTo?.(content); } catch {}
     }
 
@@ -491,8 +492,8 @@ export function createHubSheetClass(Base) {
     }
 
     /** After Foundry moves the Hub to its own browser window or back (V14), redraw so Pop out / Pop in is right. */
-    _onDetach(from, to) { super._onDetach?.(from, to); this.render(); }
-    _onAttach(from, to) { super._onAttach?.(from, to); this.render(); }
+    _onDetach(from, to) { unbindEscape(this); super._onDetach?.(from, to); this.render(); }
+    _onAttach(from, to) { unbindEscape(this); super._onAttach?.(from, to); this.render(); }
 
     /** Pending quick-bar Undo notices (5 seconds each); redrawn over the content when one is added, used or expires. */
     get undoList() {
@@ -509,6 +510,7 @@ export function createHubSheetClass(Base) {
     _onClose(options) {
       unmountEmbeds(this._embeds);
       this._undo?.clear();
+      unbindEscape(this);
       return super._onClose?.(options);
     }
 
