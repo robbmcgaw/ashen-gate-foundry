@@ -1,3 +1,10 @@
+## 0.29.2 — 2026-10-21
+
+- **Fix: Escape closed the whole Hub when a menu was open.** With a slot menu open (click, right-click or the ⋯ button on an equipment slot, or an Other row's ⋯), pressing Escape now closes only the menu; the Hub stays open. This works wherever focus is (after a mouse click it is on the page, not the Hub) and in a popped-out Hub as well as the main window.
+- The same goes for the Hub's other popovers and inline editors: the HP editor (closes without applying), the conditions **+** list and a Journey entry being edited (Cancel). With several open, Escape closes the innermost first. With nothing open, Escape closes the Hub as before. Foundry dialogs (level-up, restore and the like) keep their own Escape.
+- A click outside a menu still closes it, in the main window and in a popped-out Hub.
+- Saved data: no change. No migration.
+
 ## 0.29.1 — 2026-10-21
 
 - **Fix: level backups no longer show as characters in Companions.** GM Setup → Companions lists only real characters; "<Name> - level X" backup copies are left out, and a backup's own Companions tab has no GM pet-limit control.
