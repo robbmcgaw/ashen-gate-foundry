@@ -46,7 +46,7 @@
 /* Level / tier bands (board geometry: px, matched to the stored band positions) */
 .agst-tier{position:absolute;left:0;right:0;z-index:1;pointer-events:none;border-top:1px dashed var(--ag-border-strong)}
 .agst-tier-alt{background:color-mix(in srgb,var(--ag-surface-hover) 45%,transparent)}
-.agst-tier-badge{position:absolute;left:6px;top:6px;width:34px;height:34px;display:grid;place-items:center;overflow:hidden;border-radius:50%;border:1px solid var(--ag-border-strong);background:var(--ag-surface-raised);isolation:isolate} /* ag-lint-allow: board geometry */
+.agst-tier-badge{position:absolute;left:6px;top:6px;width:34px;height:34px;display:grid;place-items:center;overflow:hidden;border-radius:50%;border:1px solid var(--ag-border-strong);background:var(--ag-surface-raised);isolation:isolate} /* ag-lint-allow: fixed board node geometry */
 .agst-tier-badge::before{content:"";position:absolute;inset:0;z-index:-1;background:var(--agst-tier-icon,none) center/cover no-repeat;opacity:.75}
 .agst-tier-badge b{position:relative;font-size:var(--ag-text-md);text-shadow:0 0 3px var(--ag-surface),0 0 3px var(--ag-surface)}
 .agst-tier-fallback{position:absolute;inset:0;z-index:-1;display:grid;place-items:center;color:var(--ag-muted);opacity:.35;font-size:var(--ag-text-lg)}
@@ -68,13 +68,13 @@
 
 /* Nodes: fixed width per size (arrows use it); the height grows so the whole name shows, and the edges are refitted after render. */
 .agst-window-v2 button.agst-node{position:absolute;z-index:3;display:flex;align-items:center;gap:8px;width:181px;min-height:67px;height:auto;padding:8px 10px;text-align:left;white-space:normal;overflow-wrap:anywhere;background:var(--ag-surface-hover);border:2px solid var(--ag-border-strong);border-radius:var(--ag-radius);box-shadow:0 2px 8px color-mix(in srgb,var(--ag-surface-sunken) 70%,transparent);cursor:pointer} /* ag-lint-allow: board geometry (NODE_SIZES.normal) */
-.agst-node-icon{flex:none;width:32px;height:32px;display:grid;place-items:center;overflow:hidden;color:var(--ag-text);background:var(--ag-surface-raised);border:1px solid var(--ag-border-strong);border-radius:50%;font-size:var(--ag-text-md)} /* ag-lint-allow: board geometry */
+.agst-node-icon{flex:none;width:32px;height:32px;display:grid;place-items:center;overflow:hidden;color:var(--ag-text);background:var(--ag-surface-raised);border:1px solid var(--ag-border-strong);border-radius:50%;font-size:var(--ag-text-md)} /* ag-lint-allow: fixed board node geometry */
 .agst-node-icon img{width:100%;height:100%;object-fit:cover;border:0}
-.agst-node-main{min-width:0;display:flex;flex-direction:column;gap:2px} /* ag-lint-allow: board geometry */
+.agst-node-main{min-width:0;display:flex;flex-direction:column;gap:2px} /* ag-lint-allow: fixed board node geometry */
 .agst-node-main strong{font-size:var(--ag-text-sm);line-height:1.16}
 .agst-node-main small{font-size:var(--ag-text-xs);letter-spacing:.03em;color:var(--ag-text);white-space:normal}
 .agst-size-compact button.agst-node{width:132px;min-height:46px;padding:4px 7px;gap:6px;border-width:2px} /* ag-lint-allow: board geometry (NODE_SIZES.compact) */
-.agst-size-compact .agst-node-icon{width:24px;height:24px;font-size:var(--ag-text-xs)} /* ag-lint-allow: board geometry */
+.agst-size-compact .agst-node-icon{width:24px;height:24px;font-size:var(--ag-text-xs)} /* ag-lint-allow: fixed board node geometry */
 .agst-size-compact .agst-node-main{gap:0}
 .agst-size-compact .agst-node-main strong{font-size:var(--ag-text-xs);line-height:1.12}
 .agst-size-compact .agst-flag{display:none}
