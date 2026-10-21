@@ -47,3 +47,7 @@ export function placeholderKind(value) {
   if (/\/|\.(webp|png|jpe?g|svg|gif|avif)$/i.test(v)) return 'image';
   return 'text';
 }
+
+/** Inventory banner (display only): shown when the character owns any item with "diamond" in its name, or not. */
+export const DIAMOND_PRESENT = 'Your soul may be returned';
+export const DIAMOND_ABSENT = 'You do not possess a resurrection diamond';
