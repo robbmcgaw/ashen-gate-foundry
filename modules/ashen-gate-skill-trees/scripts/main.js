@@ -12,11 +12,12 @@ import {lookupWorldDefinition} from './definition-lookup.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,infoDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
+import {readDrop,resolveItemDrop} from './ag-item-drop.mjs';
 import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument,qaCleanupBlockers} from './qa-fixtures.mjs';
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.19.2';
+const VERSION='0.19.3';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -1267,10 +1268,10 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if(!game.user.isGM||!this.editMode||this.playerPreview||!this.tree)return;
     event.preventDefault();
     try{
-      const raw=event.dataTransfer?.getData('text/plain')??'';
-      let data;try{data=JSON.parse(raw);}catch{throw Error('Drop a perk Item from the Items sidebar or the perk list');}
-      if(data?.type!=='Item')throw Error('Drop a perk Item from the Items sidebar or the perk list');
-      const doc=await fromUuid(data.uuid);
+      // ag-item-drop/1: any Foundry Item drag (sidebar, perk list, Manager Browse); folders and non-Items are refused with a warning.
+      const dropped=await resolveItemDrop(readDrop(event));
+      if(!dropped.ok)return ui.notifications.warn(`Perk drop: ${dropped.reason}`);
+      const doc=dropped.items[0];
       const board=this.element.querySelector('.agst-board'),rect=board.getBoundingClientRect();
       const x=Math.round(Math.max(0,Math.min(6000,(event.clientX-rect.left)/this.zoom-NODE_SIZES[nodeSizeOf(this.tree)].w/2))/10)*10;
       const y=Math.round(Math.max(0,Math.min(6000,(event.clientY-rect.top)/this.zoom-NODE_SIZES[nodeSizeOf(this.tree)].h/2))/10)*10;
