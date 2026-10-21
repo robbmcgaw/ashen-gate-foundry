@@ -1,6 +1,6 @@
 // Quest item rewards (contract ag-quest-rewards/1): the GM's reward list on a quest, and giving it to characters (0.12.0).
 // Every call is GM only and every write goes through updateState (assertGM, validState, publish).
-import {MOD,REWARD_VISIBILITY,REWARD_RECIPIENTS,MAX_ADDED_REWARDS,MAX_GRANTS,emptyRewards,rewardRows,grantedKeys,givenTo} from './core.mjs';
+import {MOD,REWARD_VISIBILITY,REWARD_RECIPIENTS,MAX_ADDED_REWARDS,MAX_GRANTS,emptyRewards,rewardRows,grantedKeys,givenTo,isLevelBackup,LEVEL_BACKUP_ERROR} from './core.mjs';
 import {getPrivate,allPrivate,updateState} from './store.mjs';
 import {resolveItemDrop,itemRef,resolveRef,bundleOf,grantBundle,dragPayload} from './ag-item-drop.mjs';
 
@@ -118,9 +118,9 @@ const actorName=id=>game.actors?.get?.(id)?.name??'a character';
 /** The characters a quest goes to: its character on individual quests; on party quests the characters players own
     (the same set that gets character notes). */
 export function partyActors(state){
- if(state?.scope==='individual'){const a=game.actors?.get?.(state.actorId);return a?[a]:[];}
+ if(state?.scope==='individual'){const a=game.actors?.get?.(state.actorId);return a&&!isLevelBackup(a)?[a]:[];}
  const users=[...(game.users??[])].filter(u=>!u.isGM);
- return [...(game.actors??[])].filter(a=>users.some(u=>a.testUserPermission?.(u,'OWNER')));
+ return [...(game.actors??[])].filter(a=>!isLevelBackup(a)&&users.some(u=>a.testUserPermission?.(u,'OWNER')));
 }
 /** Items on an Actor tagged as this reward (questId, rewardKey, round). */
 function taggedItems(actor,questId,rewardKey,round){
@@ -205,6 +205,7 @@ export function executeGrant(questId,plan){
   for(const {actorId,lines} of plan){
    const actor=game.actors?.get?.(actorId),name=actor?.name??'a character',todo=[],items=[];
    if(!actor){for(const l of lines)record.push({...l,actorId,itemIds:[],status:'failed',reason:'Character not found.'});results.push({actorId,name,ok:false,items,reason:'Character not found.'});continue;}
+   if(isLevelBackup(actor)){for(const l of lines)record.push({...l,actorId,itemIds:[],status:'failed',reason:LEVEL_BACKUP_ERROR});results.push({actorId,name,ok:false,items,reason:LEVEL_BACKUP_ERROR});continue;}
    let fail='';
    for(const l of lines){
     const row=rows.get(l.rewardKey);
@@ -289,6 +290,7 @@ export function rewardDragData(questId,row){
 export function onActorSheetDrop(actor,data,{notify=globalThis.ui?.notifications}={}){
  const tag=data?.agQuestReward;if(!tag)return undefined;
  if(!game.user?.isGM){notify?.warn?.('Only the GM can give quest rewards.');return false;}
+ if(isLevelBackup(actor)){notify?.warn?.(LEVEL_BACKUP_ERROR);return false;}
  try{
   const {source,state}=questOf(tag.questId);
   const row=rewardRows(source,state).find(r=>r.key===tag.rewardKey&&!r.removed&&!r.gone);

@@ -1,4 +1,4 @@
-import {MOD,assertGM,assertUI,cleanText,publicView,validSource,exportPackage,STATUSES} from './core.mjs';
+import {MOD,assertGM,assertUI,isLevelBackup,cleanText,publicView,validSource,exportPackage,STATUSES} from './core.mjs';
 import {safeButton,options,questCards,questsToolbar,setupPanel,emptyState,statusBadge,progressMeter} from './gm-panels.mjs';
 import {DEFAULT_VIEW,listQuestsTab} from './quests-tab.mjs';
 import {getPrivate,allPrivate,visibleViews,visibleById,saveRecord,updateState,removeRecord,importSources,previewQuestImport,importQuests,savePersonalNote,reconcileActorAudience,noteText,ensureFolder} from './store.mjs';
@@ -13,7 +13,7 @@ import {readDrop} from './ag-item-drop.mjs';
 import {rewardsApi,grantableRewards,addFromDrop,updateReward,removeReward,grantRewards,grantAgain,rewardDragData,onActorSheetDrop} from './rewards.mjs';
 import {rewardsSection,playerRewardsSection,grantPanel,grantSummary,receiveList,defaultChoices} from './rewards-ui.mjs';
 
-const VERSION='0.13.0';
+const VERSION='0.13.1';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -21,7 +21,7 @@ const E=cleanText;
 const appBase=()=>foundry?.applications?.api?.ApplicationV2;
 const openAllowed=()=>game.user?.isGM||game.settings.get(MOD,'playerAccessEnabled');
 const hasGM=()=>!!game.user?.isGM;
-function actorsOwned(){return [...game.actors].filter(a=>hasGM()||a.testUserPermission(game.user,'OWNER'));}
+function actorsOwned(){return [...game.actors].filter(a=>!isLevelBackup(a)&&(hasGM()||a.testUserPermission(game.user,'OWNER')));}
 function notifyError(err){console.error(`[${MOD}]`,err);ui.notifications?.error(err.message??String(err));}
 function dialogDownload(name,text){const blob=new Blob([text],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function blankTemplate(){return {
