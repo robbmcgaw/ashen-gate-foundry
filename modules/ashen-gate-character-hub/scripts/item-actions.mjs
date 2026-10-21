@@ -65,6 +65,26 @@ export async function togglePrepared(actor, id) {
   return run('change preparation', () => item.update({'system.prepared': Number(!item.system.prepared)}));
 }
 
+/** dnd5e's own favourite id for an item on its actor (a relative UUID, ".Item.<id>"). */
+export const favoriteId = (actor, item) => (typeof item?.getRelativeUUID === 'function' ? item.getRelativeUUID(actor) : null) ?? `.Item.${item?.id}`;
+/** True when this dnd5e version keeps favourites on the character (system.favorites, dnd5e 3+). */
+export const favoritesSupported = actor => typeof actor?.system?.addFavorite === 'function' && typeof actor?.system?.removeFavorite === 'function';
+export const isFavorite = (actor, item) => {
+  try { return favoritesSupported(actor) && (actor.system.hasFavorite?.(favoriteId(actor, item)) ?? (actor.system.favorites ?? []).some(f => f.id === favoriteId(actor, item))); } catch { return false; }
+};
+/**
+ * Star / unstar an item. Uses dnd5e's own character favourites (the same list the standard sheet's Favorites shows),
+ * so nothing new is stored. Owner or GM only.
+ */
+export async function toggleFavorite(actor, id) {
+  const {item, error} = guard(actor, id); if (error) return error;
+  if (!favoritesSupported(actor)) return refuse('This version of dnd5e has no favourites for this character.');
+  const fid = favoriteId(actor, item);
+  return isFavorite(actor, item)
+    ? run('remove the favourite', () => actor.system.removeFavorite(fid))
+    : run('add the favourite', () => actor.system.addFavorite({type: 'item', id: fid}));
+}
+
 export async function rest(actor, type) {
   if (!canEdit(actor)) return notOwner(actor);
   const hidden = requirePart('rest'); if (hidden) return hidden;

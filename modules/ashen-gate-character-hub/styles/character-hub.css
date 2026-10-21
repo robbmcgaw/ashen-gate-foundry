@@ -323,3 +323,42 @@
 .ag-character-hub .agch-item__img, .ag-character-hub .agch-other__row img { min-height: 0; max-height: none; aspect-ratio: 1; }
 /* An image placeholder (SLOT_PLACEHOLDERS) sits small and faint in the middle of an empty slot */
 .ag-character-hub .agch-slot img.agch-slot__ph { position: static; inset: auto; width: 70%; height: 70%; object-fit: contain; object-position: center; opacity: .55; border: 0; }
+
+/* Item cards (0.11.0): Combat, Inventory, Magic and Features lists. One grid per list, each row a subgrid, so the
+   column headers line up with every row. Stripes, a rarity edge, a short summary with More, facts in columns. */
+.ag-character-hub .agch-body { container-type: inline-size; }
+.ag-character-hub .agch-cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: auto 32px minmax(12rem, 1fr) repeat(var(--agch-cols, 0), auto) auto;
+  border: 1px solid var(--ag-border); border-radius: var(--ag-radius-sm); }
+.ag-character-hub .agch-cards > li { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; align-items: center; column-gap: var(--ag-space-2); padding: 4px var(--ag-space-2); margin: 0; border: 0; }
+.ag-character-hub .agch-cards > .agch-card__headrow { padding-block: 3px; font-size: var(--ag-text-xs); text-transform: uppercase; letter-spacing: .05em; color: var(--ag-muted); background: var(--agch-bg-sunken); border-bottom: 1px solid var(--ag-border); border-radius: var(--ag-radius-sm) var(--ag-radius-sm) 0 0; }
+.ag-character-hub .agch-card.is-alt { background: color-mix(in srgb, var(--ag-text) 6%, transparent); }
+.ag-character-hub .agch-card:hover { background: var(--ag-surface-hover); }
+.ag-character-hub .agch-card.has-rarity { box-shadow: inset 3px 0 0 var(--agch-rarity); }
+.ag-character-hub .agch-card.has-rarity .agch-item__img { outline: 1px solid var(--agch-rarity); outline-offset: 1px; }
+.ag-character-hub .agch-card.is-equipped .agch-item__name { font-weight: 600; }
+.ag-character-hub .agch-card__lead { display: inline-flex; align-items: center; gap: 2px; min-width: 0; }
+.ag-character-hub .agch-card__main { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--ag-space-2); min-width: 0; }
+.ag-character-hub .agch-card__main .agch-item__name { flex: 0 1 auto; min-width: 0; }
+.ag-character-hub .agch-card__summary { flex-basis: 100%; font-size: var(--ag-text-xs); color: var(--ag-muted); line-height: 1.35; overflow-wrap: anywhere; }
+.ag-character-hub .agch-card__more { width: auto; min-height: 0; padding: 0; border: 0; background: none; color: var(--ag-accent); font-size: var(--ag-text-xs); text-decoration: underline; cursor: pointer; }
+.ag-character-hub .agch-card__fact { font-size: var(--ag-text-sm); font-variant-numeric: tabular-nums; max-width: 12rem; overflow-wrap: break-word; }
+.ag-character-hub .agch-card__actions { justify-content: flex-end; }
+.ag-character-hub .agch-card__detail { grid-column: 1 / -1; margin: var(--ag-space-1) 0 2px; padding: var(--ag-space-2); border-radius: var(--ag-radius-sm); background: var(--agch-bg-sunken); font-size: var(--ag-text-sm); white-space: pre-line; overflow-wrap: anywhere; }
+.ag-character-hub .agch-card__detail[hidden] { display: none; }
+.ag-character-hub .agch-cards > li.agch-contents { display: block; padding: 0 0 var(--ag-space-1) var(--ag-space-5); }
+.ag-character-hub .agch-cards > li[hidden] { display: none; }
+.ag-character-hub .agch-sec.is-filtered-out { display: none; }
+.ag-character-hub .agch-star { width: 22px; height: 22px; min-height: 0; padding: 0; display: grid; place-items: center; border: 0; background: none; color: var(--ag-muted); cursor: pointer; }
+.ag-character-hub .agch-star.is-on, .ag-character-hub .agch-star__head { color: var(--ag-accent); }
+.ag-character-hub .agch-orgsel { display: inline-flex; align-items: center; gap: var(--ag-space-1); font-size: var(--ag-text-sm); color: var(--ag-muted); }
+.ag-character-hub .agch-orgsel select { width: auto; height: 28px; }
+.ag-character-hub .agch-slotstrip { display: flex; flex-wrap: wrap; gap: var(--ag-space-1); margin: 0 0 var(--ag-space-2); }
+/* Narrow: each card wraps; facts show their own label instead of the header row */
+@container (max-width: 640px) {
+  .ag-character-hub .agch-cards { display: block; }
+  .ag-character-hub .agch-cards > li { display: flex; flex-wrap: wrap; }
+  .ag-character-hub .agch-cards > .agch-card__headrow { display: none; }
+  .ag-character-hub .agch-card__main { flex: 1 1 12rem; }
+  .ag-character-hub .agch-card__fact::before { content: attr(data-label) ": "; color: var(--ag-muted); }
+  .ag-character-hub .agch-card__actions { flex-basis: 100%; }
+}

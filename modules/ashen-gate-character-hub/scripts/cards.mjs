@@ -1,0 +1,136 @@
+/**
+ * Item rows as small cards with column headers (Combat, Inventory, Magic, Features). Every fact is read from dnd5e's
+ * own prepared item data (item.labels, system.uses, weight, price): the Hub works out no rules of its own. A row shows
+ * a short summary of the description; "More" opens the whole text in place (plain text, never HTML from the item).
+ */
+import {esc, num} from './constants.mjs';
+import {toggleButton, bodyAttrs, sectionKey} from './collapse.mjs';
+
+// ---------- Description text ----------
+
+const ENTITIES = {amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'", apos: "'", nbsp: ' '};
+/**
+ * Item description HTML → plain text. Paragraphs and line breaks become new lines; enricher links like
+ * @UUID[...]{Name} keep their name and inline rolls like [[/r 1d6]] keep their formula. Never returns HTML.
+ */
+export function plainText(html) {
+  return String(html ?? '')
+    .replace(/@\w+\[[^\]]*\]\{([^}]*)\}/g, '$1')
+    .replace(/@\w+\[([^\]]*)\]/g, (m, ref) => ref.split(/[.#]/).pop())
+    .replace(/\[\[\/?\w*\s*([^\]]*)\]\](\{([^}]*)\})?/g, (m, f, l, label) => label ?? f)
+    .replace(/<\s*br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h[1-6]|tr|blockquote)>/gi, '\n')
+    .replace(/<li[^>]*>/gi, '• ')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&(#?\w+);/g, (m, e) => ENTITIES[e] ?? (e.startsWith('#') ? String.fromCodePoint(Number(e.slice(1)) || 32) : m))
+    .replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+export const SUMMARY_LENGTH = 140;
+/** The first sentence or so of the description (whole words), and whether there is more to show. */
+export function summaryOf(text, max = SUMMARY_LENGTH) {
+  const first = String(text ?? '').split('\n').find(l => l.trim()) ?? '';
+  if (first.length <= max) return {summary: first, more: first.length < String(text ?? '').trim().length};
+  const cut = first.slice(0, max), at = cut.lastIndexOf(' ');
+  return {summary: `${(at > max * 0.6 ? cut.slice(0, at) : cut).replace(/[,;:.\s]+$/, '')}…`, more: true};
+}
+
+// ---------- Key facts (dnd5e's own labels) ----------
+
+const str = v => (v === null || v === undefined ? '' : String(v)).trim();
+const joinLabels = list => (Array.isArray(list) ? list : []).map(x => str(x?.label ?? x)).filter(Boolean).join(', ');
+const damageText = labels => {
+  const d = Array.isArray(labels?.damages) ? labels.damages : [];
+  if (d.length) return d.map(x => str(x.label) || [str(x.formula), str(x.damageType && (globalThis.CONFIG?.DND5E?.damageTypes?.[x.damageType]?.label ?? x.damageType))].filter(Boolean).join(' ')).filter(Boolean).join(', ');
+  return [str(labels?.damage), str(labels?.damageTypes)].filter(Boolean).join(' ');
+};
+const usesText = s => num(s?.uses?.max) > 0 ? `${num(s.uses.value, num(s.uses.max) - num(s.uses.spent))} / ${num(s.uses.max)}` : '';
+const weightText = s => { const w = s?.weight, v = typeof w === 'object' ? num(w?.value) : num(w); return v ? `${v} ${str(typeof w === 'object' ? w?.units : '') || 'lb'}` : ''; };
+const priceText = s => { try { const p = s?.priceLabel; if (p) return str(p); } catch {} const v = num(s?.price?.value); return v ? `${v} ${str(s?.price?.denomination) || 'gp'}` : ''; };
+
+/** Every fact the Hub can show for an item, keyed by column. Empty strings are shown as "—". */
+export function itemFacts(item) {
+  const s = item?.system ?? {}, l = item?.labels ?? {};
+  const concentration = item?.requiresConcentration === true || (s.properties?.has?.('concentration') ?? false);
+  return {
+    damage: damageText(l),
+    toHit: str(l.toHit ?? l.modifier),
+    range: [str(l.range), str(l.reach)].filter(Boolean).join(', '),
+    properties: joinLabels(l.properties?.filter?.(p => p?.abbr !== 'concentration') ?? l.properties),
+    activation: str(l.activation),
+    uses: usesText(s),
+    recovery: str(l.recharge ?? l.recovery),
+    level: str(l.level),
+    school: str(l.school),
+    duration: str(l.concentrationDuration ?? l.duration),
+    concentration,
+    ritual: s.properties?.has?.('ritual') ?? false,
+    components: str(l.components?.vsm),
+    quantity: String(num(s.quantity, 1)),
+    weight: weightText(s),
+    value: priceText(s),
+    type: str(l.featType ?? l.type)
+  };
+}
+
+// ---------- Lists with column headers ----------
+
+/**
+ * Columns a list shows: {key, label} for a fact, rendered from row.facts[key] unless the column has its own
+ * render(row). Every list also has the item (image + name + summary) first and Actions last.
+ */
+export const COLUMNS = {
+  damage: {key: 'damage', label: 'Damage'},
+  toHit: {key: 'toHit', label: 'To hit'},
+  range: {key: 'range', label: 'Range'},
+  properties: {key: 'properties', label: 'Properties'},
+  activation: {key: 'activation', label: 'Use time'},
+  uses: {key: 'uses', label: 'Uses'},
+  recovery: {key: 'recovery', label: 'Recovery'},
+  level: {key: 'level', label: 'Level'},
+  school: {key: 'school', label: 'School'},
+  castTime: {key: 'activation', label: 'Casting time'},
+  duration: {key: 'duration', label: 'Duration', render: r => `${esc(r.facts.duration || '—')}${r.facts.concentration ? ' <span class="ag-badge" title="Concentration">C</span>' : ''}${r.facts.ritual ? ' <span class="ag-badge" title="Ritual">R</span>' : ''}`},
+  components: {key: 'components', label: 'Components'},
+  quantity: {key: 'quantity', label: 'Qty'},
+  weight: {key: 'weight', label: 'Weight'},
+  value: {key: 'value', label: 'Value'},
+  type: {key: 'type', label: 'Type'}
+};
+
+const cell = (col, row) => `<span class="agch-card__fact" data-label="${esc(col.label)}">${col.render ? col.render(row) : esc(row.facts?.[col.key] || '—')}</span>`;
+
+/**
+ * One item card. `expanded` (Set of item ids) keeps "More" open across re-renders. `lead` is HTML before the image
+ * (a container's fold toggle), `star` the favourite button, `controls` the row's actions, `extra` HTML after the card
+ * (a container's contents).
+ */
+export function cardHtml(row, columns, {controls = '', lead = '', star = '', badges = '', alt = false, expanded = null, listKey = ''} = {}) {
+  const detailKey = sectionKey('more', listKey, row.id), open = expanded?.has?.(detailKey) === true;
+  const more = row.more ? `<button type="button" class="agch-card__more" data-action="item-more" data-id="${esc(row.id)}" data-key="${esc(detailKey)}" data-ag-always aria-expanded="${open}" aria-controls="${esc(detailKey)}">${open ? 'Less' : 'More'}</button>` : '';
+  return `<li class="agch-card${alt ? ' is-alt' : ''}${row.equipped ? ' is-equipped' : ''}${row.rarity ? ' has-rarity' : ''}" data-item-id="${esc(row.id)}"${row.rarity ? ` data-rarity="${row.rarity}"` : ''}>
+    <span class="agch-card__lead">${lead}${star}</span>
+    <img class="agch-item__img" src="${esc(row.img)}" alt="">
+    <span class="agch-card__main"><button type="button" class="agch-item__name" data-action="item-sheet" data-id="${esc(row.id)}" data-ag-always title="Open ${esc(row.name)}">${esc(row.name)}</button>${badges ? `<span class="agch-item__badges">${badges}</span>` : ''}
+      ${row.summary ? `<span class="agch-card__summary">${esc(row.summary)} ${more}</span>` : more}</span>
+    ${columns.map(c => cell(c, row)).join('')}
+    <span class="agch-item__controls agch-card__actions">${controls}</span>
+    ${row.more ? `<div class="agch-card__detail" id="${esc(detailKey)}"${open ? '' : ' hidden'}>${esc(row.details)}</div>` : ''}</li>`;
+}
+
+/** Column header row for a list. */
+export const headHtml = columns => `<li class="agch-card__headrow" aria-hidden="true"><span></span><span></span><span>Item</span>${columns.map(c => `<span>${esc(c.label)}</span>`).join('')}<span>Actions</span></li>`;
+
+/**
+ * A list of cards with a header row and stripes. `card(row, i)` returns a row's card options; `after(row)` adds HTML
+ * after a row (container contents). Stripes count only item rows.
+ */
+export function cardList(rows, columns, {card = () => ({}), after = () => '', listKey = '', expanded = null} = {}) {
+  let i = 0;
+  const body = rows.map(r => cardHtml(r, columns, {alt: (i++ % 2) === 1, expanded, listKey, ...card(r)}) + after(r)).join('');
+  return `<ul class="ag-list agch-cards" style="--agch-cols:${columns.length}">${headHtml(columns)}${body}</ul>`;
+}
+
+/** A container's fold toggle and the attributes for its contents row (fold state shared with 0.10.0 sections). */
+export const containerKey = row => sectionKey('container', row.id);
+export const containerLead = row => row.contents?.length ? toggleButton(containerKey(row), row.name, {icon: true}) : '';
+export const containerAttrs = row => bodyAttrs(containerKey(row));

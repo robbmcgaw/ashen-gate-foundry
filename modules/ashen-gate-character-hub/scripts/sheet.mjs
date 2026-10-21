@@ -14,6 +14,7 @@ import * as comp from './companions.mjs';
 import * as vis from './visibility.mjs';
 import {openConfig} from './configure.mjs';
 import {toggleSection} from './collapse.mjs';
+import {setListChoice} from './organize.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
 /** Shows a refusal or failure from an action; a success is silent (the sheet re-renders itself). */
@@ -29,6 +30,8 @@ export const ACTIONS = {
   'section-toggle': (s, t) => toggleSection(s.element ?? t.closest?.('.agch-root'), t.dataset.key),
   'ag-jump': (s, t) => { s.tab = 'ashen-gate'; s.agTab = t.dataset.partner; s.menu = null; return s.render(); },
   'hp-apply': (s, t) => hpApply(s, t),
+  'item-more': (s, t) => toggleMore(s, t),
+  'item-favorite': (s, t) => items.toggleFavorite(s.document, t.dataset.id),
   'slot-open': (s, t) => items.openItemSheet(s.document, t.dataset.id),
   'menu-close': s => toggleMenu(s, null),
   'cond-add': s => { s.condAdd = !s.condAdd; return s.render(); },
@@ -68,13 +71,35 @@ function toggleMenu(sheet, key) {
   sheet.menu = key && sheet.menu !== key ? key : null;
   return sheet.render();
 }
-/** Hides inventory rows whose name does not contain the search text (no re-render, so typing keeps focus). */
+/**
+ * Hides list rows whose name does not contain the search text (no re-render, so typing keeps focus). A section left
+ * with no matching rows is hidden too; a container stays visible while something inside it matches.
+ */
 export function applyFilter(root, text) {
   const q = String(text ?? '').trim().toLowerCase();
-  for (const row of root?.querySelectorAll?.('.agch-body .agch-item, .agch-body .agch-plist > li') ?? []) {
+  for (const row of root?.querySelectorAll?.('.agch-body .agch-card, .agch-body .agch-plist > li') ?? []) {
     const name = (row.querySelector?.('.agch-item__name')?.textContent ?? row.textContent ?? '').toLowerCase();
     row.hidden = !!q && !name.includes(q);
   }
+  for (const box of root?.querySelectorAll?.('.agch-body .agch-contents') ?? []) {
+    const any = [...(box.querySelectorAll?.('.agch-card') ?? [])].some(r => !r.hidden);
+    if (any && box.previousElementSibling) box.previousElementSibling.hidden = false;
+  }
+  for (const sec of root?.querySelectorAll?.('.agch-body .agch-sec') ?? []) {
+    if (typeof sec.querySelectorAll !== 'function' || !sec.classList) continue;
+    const cards = [...sec.querySelectorAll('.agch-card')];
+    sec.classList.toggle('is-filtered-out', !!q && cards.length > 0 && cards.every(r => r.hidden));
+  }
+}
+/** "More" on a card: shows or hides its full description in place; the sheet remembers it until it closes. */
+function toggleMore(sheet, target) {
+  const key = target.dataset.key, open = !sheet.expanded.has(key);
+  if (open) sheet.expanded.add(key); else sheet.expanded.delete(key);
+  const detail = target.closest?.('.agch-card')?.querySelector?.('.agch-card__detail');
+  if (detail) detail.hidden = !open;
+  target.setAttribute?.('aria-expanded', String(open));
+  if ('textContent' in target) target.textContent = open ? 'Less' : 'More';
+  return {ok: true, result: open};
 }
 /** Saves this user's window opacity (client setting). */
 export function saveOpacity(value) {
@@ -104,7 +129,8 @@ export const EDITS = {
   'companion-attach': (s, i) => i.value ? comp.attachPerk(s.document, i.dataset.entry, i.value) : null,
   'pet-cap-override': (s, i) => comp.setPetCapOverride(i.dataset.actor, i.value),
   'pet-cap-default': (s, i) => comp.setDefaultPetCap(i.value),
-  'part-visibility': (s, i) => vis.setVisibility({[i.dataset.part]: i.checked === true})
+  'part-visibility': (s, i) => vis.setVisibility({[i.dataset.part]: i.checked === true}),
+  'list-sort': async (s, i) => { const r = await setListChoice(i.dataset.tab, i.dataset.field, i.value); if (r.ok) s.render(); return r; }
 };
 
 /** Reads the Item from a drop (sidebar, compendium or this sheet) the way dnd5e does. */
@@ -136,7 +162,10 @@ export function createHubSheetClass(Base) {
     _embeds = new Map();
     invView = 'character';
     agTab = null;
-    filter = '';
+    /** Search text per tab (Combat, Inventory, Magic, Features). */
+    filters = {};
+    /** Cards whose "More" is open (detail keys), kept across re-renders while the sheet is open. */
+    expanded = new Set();
 
     get hubContext() {
       const actor = this.document, user = globalThis.game?.user;
@@ -160,11 +189,11 @@ export function createHubSheetClass(Base) {
       const next = content.querySelector?.('.agch-body');
       if (next) next.scrollTop = scroll;
       this.applyOpacity();
-      applyFilter(content, this.tab === 'inventory' ? this.filter : '');
+      applyFilter(content, this.filters[this.tab] ?? '');
       if (!this._agchBound) {   // listeners live on the stable content element, so bind once
         content.addEventListener?.('change', ev => this._onHubChange(ev));
         content.addEventListener?.('input', ev => {
-          if (ev.target?.matches?.('[data-filter]')) { this.filter = ev.target.value; applyFilter(content, this.filter); }
+          if (ev.target?.matches?.('[data-filter]')) { this.filters[this.tab] = ev.target.value; applyFilter(content, ev.target.value); }
           if (ev.target?.matches?.('[data-opacity]')) this.applyOpacity(ev.target.value);
         });
         content.addEventListener?.('change', ev => { if (ev.target?.matches?.('[data-opacity]')) saveOpacity(ev.target.value); });
