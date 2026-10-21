@@ -196,12 +196,3 @@ test('Manager wires effects into preview, create and update', () => {
   delete live['flags.ashen-gate-character-hub.companion.role'];
   assert.deepEqual(planRecord(rec, [before], false, false).patch, {'flags.ashen-gate-character-hub.companion.role': 'mount-gear'});
 });
-
-test('version 0.37.0 is consistent', () => {
-  const manifest = JSON.parse(read('../module.json'));
-  assert.equal(manifest.version, '0.37.0');
-  assert.match(manifest.download, /ashen-gate-manager-v0\.37\.0\/ashen-gate-manager\.zip$/);
-  assert.match(read('../templates/manager.hbs'), /v0\.37\.0 Beta/);
-  assert.match(read('../scripts/main.js'), /General Manager v0\.37\.0 Beta/);
-  assert.match(read('../scripts/main.js'), /v0\.37\.0 ready/);
-});

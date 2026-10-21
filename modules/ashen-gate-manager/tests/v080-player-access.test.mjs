@@ -72,8 +72,9 @@ test('player access: UI remains GM-only and no Manager-owned access setting is r
  assert.match(main,/if\(!game\.user\?\.isGM\) throw new Error\('Only GMs can change Player Access/);
  assert.match(main,/hideAllPlayerInterfaces\(modules,/);
  assert.doesNotMatch(main,/settings\.register\(MODULE_ID,\s*["']playerAccessEnabled/);
- assert.doesNotMatch(tpl,/data-ag-tab="player-access"/,'Player Access now lives under Appearance');
- assert.ok(tpl.indexOf('agmanager-access-compact')>tpl.indexOf('data-ag-world-skin'),'access section sits beneath the appearance selector');
+ assert.doesNotMatch(tpl,/data-ag-tab="player-access"/,'Player Access lives on the Modules tab (0.38.0)');
+ const mods=tpl.indexOf('\n  {{#if modulesActive}}'),end=tpl.indexOf('{{/if}}\n\n  {{#if scenesActive}}');
+ assert.ok(tpl.indexOf('data-ag-player-access-toggle')>mods&&tpl.indexOf('data-ag-player-access-toggle')<end,'access toggles sit on the Modules tab');
  assert.match(tpl,/data-ag-action="player-access-hide-all"/);
 });
 

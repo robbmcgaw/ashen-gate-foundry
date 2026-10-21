@@ -42,7 +42,7 @@ test('arrow keys move and select with wrap, move focus, and ignore other keys',(
 for(const [name,path] of [['My Appearance','../templates/my-appearance.hbs'],['Manager world default','../templates/manager.hbs']]){
   test(`${name}: picker is a radiogroup of radio cards and no <select> remains for it`,()=>{
     let t=read(path);
-    if(path.includes('manager'))t=t.slice(t.indexOf('agmanager-appearance'),t.indexOf('For all players'));
+    if(path.includes('manager'))t=t.slice(t.indexOf('data-ag-appearance-pop'),t.indexOf('For all players'));
     assert.match(t,/role="radiogroup"/);assert.match(t,/role="radio"/);assert.match(t,/aria-checked=/);assert.match(t,/aria-describedby=/);
     assert.doesNotMatch(t,/<select/);assert.doesNotMatch(t,/<option/);
   });

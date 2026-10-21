@@ -4,6 +4,7 @@
  */
 import {FACETS, FACET_LABELS, SORTS, GROUPS, ownerLabel} from './browse.js';
 import {ORIGINS, RARITIES} from './item-filters.js';
+import {itemTooltipAttrs} from './item-preview.js';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const KIND_LABELS = {JournalEntry: 'Journal', JournalEntryPage: 'Journal page'};
@@ -43,7 +44,7 @@ function rowHtml(e) {
   const openLabel = jump ? esc(jump.label ?? `Open in ${ownerLabel(jump.module)}`) : 'Open';
   return `<li class="agbrowse-row" data-ag-browse-key="${esc(e.key)}"${e.draggable && e.uuid ? ' draggable="true"' : ''}>
     <div class="agbrowse-main">
-      <button type="button" class="agbrowse-name" data-ag-browse-detail="${esc(e.key)}">${esc(e.name)}</button>
+      <button type="button" class="agbrowse-name" data-ag-browse-detail="${esc(e.key)}"${e.kind === 'Item' ? itemTooltipAttrs(e.uuid) : ''}>${esc(e.name)}</button>
       ${e.id ? `<code>${esc(e.id)}</code>` : ''}
       <div class="agbrowse-chips">${(e.kinds ?? [e.kind]).map(k => chip(kindLabel(k), 'accent')).join('')}${chip(e.entityType && e.entityType !== e.kind ? e.entityType : e.docType)}${chip(e.status, statusTone(e.status))}${chip(e.visibility, visTone(e.visibility))}${(e.chips ?? []).map(c => chip(c)).join('')}${e.unlinked ? chip('no world document') : ''}${rarityPill(e.rarity)}${e.origin && e.origin !== 'ag' ? chip(ORIGINS[e.origin]) : ''}${e.coreRef ? chip('core_ref') : ''}</div>
       ${meta ? `<div class="agmanager-tiny">${meta}</div>` : ''}
@@ -60,8 +61,10 @@ function rowHtml(e) {
 function detailHtml(d) {
   if (!d) return '<p class="agmanager-tiny">Pick a name to see its details and related records.</p>';
   const link = r => r.key ? `<button type="button" class="agbrowse-link" data-ag-browse-detail="${esc(r.key)}">${esc(r.name)}</button> <code>${esc(r.id)}</code>` : `<code>${esc(r.id)}</code> <span class="agmanager-tiny">not in the index</span>`;
+  const item = d.entry.kind === 'Item' && d.entry.uuid;
   return `<h3>${esc(d.entry.name)}</h3>
-    <dl class="agbrowse-fields">${d.fields.map(f => `<dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd>`).join('')}</dl>
+    ${item ? `<div class="agpreview" data-ag-item-preview="${esc(d.entry.key)}" aria-live="polite"><p class="agmanager-tiny">Loading item card…</p></div>` : ''}
+    ${item ? '<details class="agbrowse-more"><summary>Index fields</summary>' : ''}<dl class="agbrowse-fields">${d.fields.map(f => `<dt>${esc(f.label)}</dt><dd>${esc(f.value)}</dd>`).join('')}</dl>${item ? '</details>' : ''}
     ${d.description ? `<p class="agbrowse-desc">${esc(d.description)}</p>` : ''}
     <h4>Names (${d.outgoing.length})</h4>${d.outgoing.length ? `<ul>${d.outgoing.map(r => `<li>${link(r)}</li>`).join('')}</ul>` : '<p class="agmanager-tiny">No related ids.</p>'}
     <h4>Named by (${d.incoming.length})</h4>${d.incoming.length ? `<ul>${d.incoming.map(r => `<li>${link(r)}</li>`).join('')}</ul>` : '<p class="agmanager-tiny">Nothing names this id.</p>'}

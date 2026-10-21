@@ -70,14 +70,14 @@ test('every load attempt clears the previous file banner; failures say the new f
   assert.match(main,/was not loaded\. Nothing in your world changed\./);
   assert.match(main,/event\.target\.value = ''/);
 });
-test('Manager UI: no Export or Player Access tab, export lives in Items (was Library), access under Appearance',()=>{
+test('Manager UI: no Export or Player Access tab, export lives in Items (was Library), access on Modules',()=>{
   assert.doesNotMatch(tpl,/data-ag-tab="capture"|data-ag-tab="player-access"/);
   const lib=tpl.indexOf('\n  {{#if itemsActive}}'),modules=tpl.indexOf('\n  {{#if modulesActive}}');
   const adopt=tpl.indexOf('data-ag-action="capture-export"');
   assert.ok(adopt>lib&&adopt<modules,'tagged export is inside the Library tab');
   assert.ok(tpl.indexOf('data-ag-action="library-export"')>lib);
-  const app=tpl.indexOf('\n  {{#if appearanceActive}}');
-  assert.ok(tpl.indexOf('data-ag-action="player-access-hide-all"')>tpl.indexOf('data-ag-world-skin',app));
+  assert.ok(tpl.indexOf('data-ag-action="player-access-hide-all"')>modules,'Hide all is on the Modules tab');
+  assert.doesNotMatch(tpl,/appearanceActive/);
 });
 
 test('a player client that reads the old value inside onChange still gets the new skin',()=>{

@@ -164,12 +164,26 @@
 .ashen-gate-manager .agmanager-footer .agmanager-primary{background:var(--ag-accent);border-color:var(--ag-accent);color:var(--ag-accent-contrast)}
 .ashen-gate-manager .agmanager-panel .ag-btn--primary{background:var(--ag-accent);border-color:var(--ag-accent);color:var(--ag-accent-contrast)}
 
-.ashen-gate-manager .agmanager-access-compact{margin-top:var(--ag-space-4);padding-top:var(--ag-space-3);border-top:1px solid var(--ag-border)}
-.ashen-gate-manager .agmanager-access-compact h4{margin:0 0 var(--ag-space-2)}
-.ashen-gate-manager .agmanager-access-list{list-style:none;margin:var(--ag-space-2) 0;padding:0;display:grid;gap:2px}
-.ashen-gate-manager .agmanager-access-list li{display:flex;align-items:center;gap:var(--ag-space-3);padding:3px 0;border-bottom:1px solid var(--ag-border)}
-.ashen-gate-manager .agmanager-access-name{flex:1 1 auto;min-width:0}
-.ashen-gate-manager .agmanager-access-list button{flex:0 0 auto;width:auto}
+/* 0.38.0 — Player Access on the Modules tab cards. */
+.ashen-gate-manager .agmanager-access-bar{margin-top:var(--ag-space-3)}
+.ashen-gate-manager .agmanager-access-bar .agmanager-access-actions>span{flex:1 1 240px}
+.ashen-gate-manager .agmanager-module-card{align-items:flex-start;flex-wrap:wrap}
+.ashen-gate-manager .agmanager-module-card__info{flex:1 1 200px;min-width:0}
+.ashen-gate-manager .agmanager-module-card__badge{margin:4px 0}
+.ashen-gate-manager .agmanager-module-card__actions{display:flex;flex-direction:column;align-items:stretch;gap:6px;flex:0 0 auto}
+/* 0.38.0 — Appearance dropdown in the header (was a tab). */
+.ashen-gate-manager .agmanager-appearance-menu{position:relative;margin-left:auto;flex:0 0 auto}
+.ashen-gate-manager .agmanager-appearance-menu .agmanager-help{margin-left:0}
+.ashen-gate-manager .agmanager-appearance-menu+.agmanager-help{margin-left:0}
+.ashen-gate-manager .agmanager-appearance-pop{position:absolute;right:0;top:calc(100% + 6px);z-index:50;width:min(560px,calc(100vw - 32px));max-height:min(70vh,640px);overflow:auto;
+  padding:var(--ag-space-3);background:var(--ag-surface-raised);color:var(--ag-text);border:1px solid var(--ag-border-strong);border-radius:6px;box-shadow:0 8px 24px rgba(0,0,0,.35);font-size:13px;text-align:left}
+.ashen-gate-manager .agmanager-appearance-pop[hidden]{display:none}
+.ashen-gate-manager .agmanager-appearance-pop h3{margin:0 0 6px;font-size:16px}
+.ashen-gate-manager .agmanager-appearance-pop .ag-skin-picker{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}
+.ashen-gate-manager .agmanager-appearance-actions{justify-content:space-between;flex-wrap:wrap}
+.ashen-gate-manager .agmanager-appearance-pop button{min-height:33px;border:1px solid var(--ag-border-strong);background:var(--ag-surface-hover);color:var(--ag-text);border-radius:4px;padding:5px 12px;cursor:pointer}
+.ashen-gate-manager .agmanager-appearance-pop .ag-btn--primary{background:var(--ag-accent);border-color:var(--ag-accent);color:var(--ag-accent-contrast)}
+.ashen-gate-manager .agmanager-appearance-pop .ag-skin-card{min-height:0;padding:8px 10px}
 .ashen-gate-manager .agmanager-adopt{margin-top:var(--ag-space-3)}
 .ashen-gate-manager .agmanager-adopt>summary{cursor:pointer;margin-bottom:var(--ag-space-2)}
 
@@ -432,3 +446,12 @@
 .ashen-gate-manager .agclean{border-color:var(--ag-accent)}
 .ashen-gate-manager .agclean-go{font-size:var(--ag-text-md);padding:6px 16px}
 .ashen-gate-manager .agclean-part{margin:6px 0 10px}
+
+/* 0.38.0 — Item preview: dnd5e's item card with location and attributes below. */
+.agpreview{margin:0 0 8px}
+.agpreview-card{position:relative;max-width:100%;border:1px solid var(--ag-border-strong);border-radius:4px;padding:6px;margin:0 0 8px;background:var(--ag-surface);overflow:hidden}
+.agpreview-card img{max-width:100%}
+.agpreview-facts{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;font-size:12px;margin:0 0 6px;overflow-wrap:anywhere}
+.agpreview-facts dt{font-weight:600}
+.agpreview-facts dd{margin:0}
+.agbrowse-more>summary{cursor:pointer;font-size:12px;margin:4px 0}
