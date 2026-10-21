@@ -1,3 +1,10 @@
+## 0.20.1 — 2026-10-21
+
+- **Fix:** a container dropped from a compendium into the party stash now brings its contents (nested containers too, links kept).
+- The party stash and the shop editor now read drops with the shared Ashen Gate item-drop helper (`ag-item-drop.mjs`, same file as Quest Log and the other modules). Refusals use its wording: "Drop an item.", "Drop items one at a time." (a folder on the stash list), "That item no longer exists or you can't see it." The shop editor still takes folders (up to 100 items per folder) and a compendium container dropped on a shop now lists its contents too.
+- Unchanged: moving items between characters and the stash (all or nothing), the take-out vote, history, purse, gold and shops. Players still can only stash items from their own characters.
+- Saved data: no change. No migration.
+
 ## 0.20.0 — 2026-10-21
 
 - **Merchant lists** (GM: Shops → Merchant lists): group a city's shops and services in order, then **Show to players (read only)**. Players get Shops → **Merchant list**: each entry with **Look inside** (read only, Buy / Sell / Bank off with "Ask the GM to open this") and an **Open** badge when it is presented to them. A list never lets anyone buy, sell or use a service, also in the API and on the GM client.

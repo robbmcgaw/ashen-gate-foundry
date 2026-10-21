@@ -86,13 +86,14 @@ function mkPage(data,j){const page={...structuredClone(data),id:`p${++jn}`,paren
 globalThis.JournalEntry={create:async d=>{const j={...structuredClone(d),id:`j${++jn}`,pages:[],createEmbeddedDocuments:async(type,list)=>{assert.equal(type,'JournalEntryPage');for(const p of list)j.pages.push(mkPage(p,j));}};journals.push(j);return j;}};
 // World items, a container with two items inside, an actor's item, folders.
 const docs=new Map();const sourceUpdates=[];
-function mkItem(id,name,{type='loot',price={value:1,denomination:'gp'},container=null,parent=null,flags={},qty=1}={}){
- const it={id,name,type,documentName:'Item',uuid:parent?`Actor.${parent.id}.Item.${id}`:`Item.${id}`,parent,flags,system:{price,container,quantity:qty},
+function mkItem(id,name,{type='loot',price={value:1,denomination:'gp'},container=null,parent=null,flags={},qty=1,folder=null}={}){
+ const it={id,name,type,folder,documentName:'Item',uuid:parent?`Actor.${parent.id}.Item.${id}`:`Item.${id}`,parent,flags,system:{price,container,quantity:qty},
   toObject(){return structuredClone({_id:id,name,type,img:`icons/${id}.webp`,folder:'f',flags,system:this.system});},update:async()=>sourceUpdates.push(id),delete:async()=>sourceUpdates.push(id)};
  docs.set(it.uuid,it);return it;}
-const worldItems=[mkItem('rope','Rope, Hempen (50 ft)',{flags:{'ashen-gate-manager':{source:{sourceId:'ITEM-TEST-ROPE'}}}}),mkItem('pack','Backpack',{type:'container',price:{value:2,denomination:'gp'}}),
- mkItem('bedroll','Bedroll',{container:'pack'}),mkItem('skin','Waterskin',{container:'pack',price:{value:2,denomination:'sp'}}),mkItem('torch','Torch',{price:{value:1,denomination:'cp'}}),
+const worldItems=[mkItem('rope','Rope, Hempen (50 ft)',{folder:'fold',flags:{'ashen-gate-manager':{source:{sourceId:'ITEM-TEST-ROPE'}}}}),mkItem('pack','Backpack',{type:'container',price:{value:2,denomination:'gp'}}),
+ mkItem('bedroll','Bedroll',{container:'pack'}),mkItem('skin','Waterskin',{container:'pack',price:{value:2,denomination:'sp'}}),mkItem('torch','Torch',{folder:'fold',price:{value:1,denomination:'cp'}}),
  mkItem('gem','Gem',{price:{value:3,denomination:'ep'}})];
+worldItems.contents=worldItems;// a Foundry collection's .contents
 const hero={id:'hero',name:'[TEST] Wren',documentName:'Actor',uuid:'Actor.hero',items:[]};docs.set('Actor.hero',hero);
 hero.items.push(mkItem('sword','Longsword',{type:'weapon',parent:hero,price:{value:15,denomination:'gp'}}));
 const itemFolder={id:'fold',name:'[TEST] Kettle stock',documentName:'Folder',type:'Item',uuid:'Folder.fold',contents:[worldItems[0],worldItems[4]],getSubfolders:()=>[]};docs.set(itemFolder.uuid,itemFolder);
@@ -145,7 +146,7 @@ test('drops: a folder adds each item, a container brings its contents, non-Items
  const id='SHOP-TEST-THE-COPPER-KETTLE';
  const r=await api.addItems(id,[{type:'Folder',uuid:'Folder.fold'},{type:'Item',uuid:'Item.pack'},{type:'Item',uuid:'Actor.hero.Item.sword'},{type:'Actor',uuid:'Actor.hero'},{type:'Folder',uuid:'Folder.afold'},'Item.missing']);
  assert.deepEqual(r.added.map(a=>a.name),['Rope, Hempen (50 ft)','Torch','Backpack','Longsword']);
- assert.deepEqual(r.skipped.map(s=>[s.name,s.reason]),[['[TEST] Wren','Not an item.'],['[TEST] NPCs','Not a folder of items.'],['Item.missing','Could not be found.']]);
+ assert.deepEqual(r.skipped.map(s=>[s.name,s.reason]),[['[TEST] Wren','Drop an item.'],['[TEST] NPCs','Drop an item.'],['Item.missing',"That item no longer exists or you can't see it."]],'the shared ag-item-drop reasons');
  const s=api.get(id),bag=s.lines.find(l=>l.item.name==='Backpack');
  assert.deepEqual(bag.contents.map(c=>c.name),['Bedroll','Waterskin']);assert.equal(s.lines.length,4,'contents ride with the container, not as lines');
  assert.deepEqual(s.lines.map(l=>[l.priceCp,l.stock]),[[100,null],[1,null],[200,null],[1500,null]]);
@@ -156,6 +157,17 @@ test('drops: a folder adds each item, a container brings its contents, non-Items
  const both=await api.addItems(id,['Item.pack','Item.skin']);
  assert.deepEqual(both.added.map(a=>a.name),['Backpack'],'an item inside a dropped container comes with it');
  assert.equal(api.get(id).rev,3);
+});
+test('0.20.1: a compendium container dropped on a shop brings its contents (read from its own pack)',async()=>{
+ const id='SHOP-TEST-THE-COPPER-KETTLE',entries=new Map(),pack={collection:'world.test-gear',index:[],getIndex:async()=>pack.index,getDocument:async k=>entries.get(k)??null};
+ const add=(pid,name,type,container=null)=>{const d={id:pid,name,type,pack:pack.collection,parent:null,documentName:'Item',uuid:`Compendium.world.test-gear.Item.${pid}`,system:{container,quantity:1,price:{value:1,denomination:'sp'}},
+  toObject(){return structuredClone({_id:pid,name,type,system:this.system});}};entries.set(pid,d);docs.set(d.uuid,d);pack.index.push({_id:pid,system:{container}});return d;};
+ const bag=add('cbag','[TEST] Satchel','container');add('cink','[TEST] Ink','loot','cbag');add('cquill','[TEST] Quill','loot','cbag');
+ game.packs=new Map([[pack.collection,pack]]);
+ const saved=structuredClone(page(id).flags[ID].shop),before=api.get(id).lines.length,r=await api.addItems(id,[bag.uuid]);
+ assert.deepEqual(r.added.map(a=>[a.name,a.contents]),[['[TEST] Satchel',2]]);
+ const line=api.get(id).lines.at(-1);assert.equal(api.get(id).lines.length,before+1);assert.deepEqual(line.contents.map(c=>c.name),['[TEST] Ink','[TEST] Quill']);
+ delete game.packs;page(id).flags[ID].shop=saved;// later tests count this shop's lines
 });
 test('duplicate keeps lines and drops presented; delete needs confirm, is refused while presented, retires the id',async()=>{
  const id='SHOP-TEST-THE-COPPER-KETTLE',p=page(id);
