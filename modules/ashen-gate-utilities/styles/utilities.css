@@ -170,3 +170,22 @@
 .ag-utilities .agu-shop-drop.agu-drop-over {border-style:solid;border-color:var(--ag-accent);color:var(--ag-text);background:var(--ag-surface-hover);}
 .ag-utilities .agu-shops .ag-chip-group {margin-top:var(--ag-space-1);}
 .ag-utilities .agu-danger-zone .ag-section__title {color:var(--ag-danger);}
+
+/* ---------- 0.18.0 Shops for players: the shop window, coin strips, wares ---------- */
+.ag-utilities.agu-shop-window .window-content {padding:0;}
+.ag-utilities .agu-shop-window__body {height:100%;overflow-y:auto;padding:var(--ag-space-4);box-sizing:border-box;container-type:inline-size;}
+.ag-utilities .agu-shop-head {display:flex;align-items:flex-start;flex-wrap:wrap;gap:var(--ag-space-3);margin:0 0 var(--ag-space-3);}
+.ag-utilities .agu-shop-head__text {flex:1 1 12rem;min-width:0;overflow-wrap:anywhere;}
+.ag-utilities .agu-shop-head__text h2 {margin:0;}
+.ag-utilities .agu-shop-head__text p {margin:var(--ag-space-1) 0 0;}
+.ag-utilities .agu-shop-portrait {display:grid;place-items:center;flex:none;width:calc(var(--ag-control-h) * 2);height:calc(var(--ag-control-h) * 2);border-radius:var(--ag-radius);border:1px solid var(--ag-border);background:var(--ag-surface-sunken);color:var(--ag-accent);font-weight:700;object-fit:cover;}
+.ag-utilities .agu-shop-strips {display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:var(--ag-space-3);margin:0 0 var(--ag-space-3);}
+.ag-utilities .agu-shop-coins > .ag-eyebrow {margin:0 0 var(--ag-space-1);}
+.ag-utilities .agu-shop-coins > select {width:100%;}
+.ag-utilities .agu-wares .ag-row {flex-wrap:wrap;}
+.ag-utilities .agu-wares .ag-row__main {flex:1 1 12rem;min-width:0;overflow-wrap:anywhere;}
+.ag-utilities .agu-wares .ag-row__end {flex-wrap:wrap;justify-content:flex-end;}
+.ag-utilities .agu-ware__price {font-variant-numeric:tabular-nums;white-space:nowrap;}
+.ag-utilities .agu-ware__desc {margin-top:var(--ag-space-1);font-size:var(--ag-text-sm);}
+.ag-utilities .agu-ware__desc summary {cursor:pointer;color:var(--ag-muted);}
+.ag-utilities .agu-setup > h3 {margin-top:var(--ag-space-4);}

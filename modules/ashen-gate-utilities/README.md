@@ -19,13 +19,13 @@ Open it from **Actors sidebar → Utilities**. The GM always sees it; players se
 - **Conditions:** one party view of native conditions. Removal is locked per character; the GM unlocks a character so its owner can remove that character's native conditions. **Pop Out Overlay** opens a transparent per-user conditions window.
 - **History** (GM): finished and cancelled rolls, labelled Group Check or Roll Request, with per-character results, average and outcome.
 - **GM Setup** (GM): Player Access and other settings.
-- **Shops** (GM only for now): see *Shops (GM)* below. Players see nothing yet; presenting shops and buying come in a later version.
+- **Shops**: GM: see *Shops (GM)* below. Players: **Open shops**, the shops the GM presents to them (see *Shops: presenting and buying*). The tab shows for players while Player Access and *Shops on for players* are both on.
 
 Player actions that change shared state (stash moves, condition removal) are carried out by the active GM client, which re-checks ownership and the lock, so a GM must be logged in for those.
 
 ## Shops (GM)
 
-**Utilities → Shops** (GM only in 0.17.0). Two parts:
+**Utilities → Shops**. The GM has two parts:
 
 - **Shops:** every saved shop, grouped by city (the top of the shop's linked location in Locations; "No location" last), or sorted by name, merchant or recently changed. Search matches the shop name, merchant, place, item names and id. **Edit** opens a shop in the editor; **Duplicate** makes a copy (same items and coins, not shown to anyone).
 - **Shop editor:** name, merchant name and art (initials when empty), linked location (Locations active only), flavour text (players will see it), GM notes.
@@ -36,7 +36,19 @@ Player actions that change shared state (stash moves, condition removal) are car
 
 Shops are stored in a Journal **Utilities Shops (GM Data)** with no player permission (one page per shop), found by its flag, so renaming it is safe. Don't edit its pages by hand.
 
-API, GM only (`GM only.` for anyone else): `api.shops` (`ag-utilities-shops/1`): `list({search, sort})`, `get(id)`, `create(data)`, `save(record)`, `duplicate(id)`, `delete(id, {confirm: true})`, `addItems(id, uuids | dropData)` → `{added, skipped}`, `restock(id, lineIds?)`, `adjustPurse(id, {op, coin, amount, reason, asStart})`, `setPurse(id, coins | null)`, `restockCash(id)`, `log(id)`.
+API, GM only (`GM only.` for anyone else; the presenting and buying calls are below): `api.shops` (`ag-utilities-shops/1`): `list({search, sort})`, `get(id)`, `create(data)`, `save(record)`, `duplicate(id)`, `delete(id, {confirm: true})`, `addItems(id, uuids | dropData)` → `{added, skipped}`, `restock(id, lineIds?)`, `adjustPurse(id, {op, coin, amount, reason, asStart})`, `setPurse(id, coins | null)`, `restockCash(id)`, `log(id)`.
+
+## Shops: presenting and buying
+
+- **Present…** (a shop row or the editor): *All players* (players who log in later too) or *Chosen players* (ticked, with their characters). **Stop showing** ends it; **Open** shows the shop as players see it. A shop shown to players can't be deleted.
+- Players it is shown to get the shop in its own window (and in Shops → **Open shops**): merchant, place (only once revealed in Locations), flavour, the party purse, their character's coins, the merchant's coins (unless hidden: "Change comes from here"), and the wares with stock and price. Hidden items, cost, GM notes and other players' presentations never reach them.
+- **Buy…**: how many, which of your characters gets it, and who pays (the party purse or one of your characters' coins). Review shows the total, what you pay, the change and what is left; **Confirm purchase** buys. A refusal says why and ends "Nothing was charged."
+- The GM client checks every purchase again and carries it out all or nothing: the items arrive first, then one coin update, then the shop's stock and coins. If a step fails the earlier ones are put back; if putting back fails, the GM gets a whisper saying exactly what to fix. Two players buying the last one: the second gets "Sold out. Nothing was charged."
+- Paying from the party purse asks the party first when *Party must accept when a player spends the party purse* is on (same 60-second vote as the stash; the GM is never asked). Purse purchases are listed in Party Inventory → History; every sale is in the shop's own log.
+- If the merchant can't make change, the buyer pays the exact amount when their coins allow it; otherwise it is refused and the GM gets a whisper with **Top up shop purse**.
+- **GM Setup → Shopping**: *Shops on for players* (off by default) and *Party must accept when a player spends the party purse* (follows the coin vote until you save GM Setup). They save with Save Changes.
+- Storage: a Journal **Utilities Shops (Player View)**, one page per presented shop, rebuilt by the GM client; each page is readable only by the players the shop is shown to. Don't edit it by hand.
+- API (`api.shops`, added): GM only `present(id, {mode: 'all' | 'users', userIds})`, `stopShowing(id)`, `presented()`; player or GM `open(id?)`, `forMe()`, `quote({shopId, lineId, quantity, actorId, payFrom: 'purse' | 'actor', payerId?, rev})`, `buy({...same})` → the receipt text. Players are refused with `Utilities is hidden for players.`, `The GM has turned shops off.` or `This shop is not open for you.`
 
 ## Public API
 
