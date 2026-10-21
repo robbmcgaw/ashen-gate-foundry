@@ -187,3 +187,17 @@
 .agst-embed .agst-embed__chips{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:4px}
 .agst-embed .agst-embed__chips>li{border:1px solid color-mix(in srgb,var(--ag-accent) 55%,transparent);background:var(--ag-accent-soft);border-radius:999px;padding:0 8px;font-size:var(--ag-text-sm)}
 .agst-embed .agst-embed__locked>summary{cursor:pointer;color:var(--ag-muted);font-size:var(--ag-text-sm);margin-top:var(--ag-space-1)}
+/* 0.16.0: Cinders tab, Push section, chat card */
+.agst-cinder-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.agst-cinder-group{font-size:15px;margin:12px 0 4px}
+.agst-cinder-table{border-collapse:collapse;width:100%;font-size:var(--ag-text-sm)}
+.agst-cinder-table th,.agst-cinder-table td{padding:4px 8px 4px 0;text-align:left;border-bottom:1px solid var(--ag-border);vertical-align:middle}
+.agst-cinder-actions{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+.agst-cinder-push{margin:8px 0;padding:8px;border:1px solid var(--ag-border-strong);border-radius:6px}
+.agst-cinder-push h3{margin:0 0 4px;font-size:14px}
+.agst-cinder-push p{margin:2px 0;font-size:var(--ag-text-sm)}
+.agst-cinder-modes{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.agst-cinder-modes li{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.agst-cinder-card h3{margin:0 0 4px}
+.agst-cinder-card p{margin:2px 0}
+.agst-cinder-backfire{color:var(--ag-danger)}

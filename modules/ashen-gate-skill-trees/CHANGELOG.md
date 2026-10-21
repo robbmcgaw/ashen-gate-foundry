@@ -1,3 +1,24 @@
+## 0.16.0 — 2026-10-21
+
+Cinders: each Cinder keeps its own progress and moves between bearers; Push and Backfire.
+- **Cinder instances.** A Cinder is now a thing of its own, made from a Cinder (MUT-*) definition. It keeps its points and unlocked powers wherever it goes. New GM-only **Cinders** tab: **New Cinder**, **Bind**, **Transfer**, **Unbind**, and a **Check** with **Repair**.
+  - A bearer cannot release a Cinder; only the GM binds, transfers or unbinds it. One bearer per Cinder; a character bears at most **Cinders per character** (setting, default 1) and never two of the same kind.
+  - The first time a Cinder is bound it gets **Starting Cinder points** (setting, default 1), once per Cinder. A transferred Cinder keeps its points and powers and gets no new starting point.
+  - **Transfer** gives the new bearer the Cinder's power Items (never duplicates), then removes them from the previous bearer. Strain and Backfire conditions stay with the previous bearer.
+  - A deleted bearer leaves the Cinder **Lost** with all its progress; bind it again any time.
+  - The bearer's copy of the progress stays where the tree window reads it, so the tree, points and unlocks work as before. Once a Cinder of a kind exists, only its bearer can gain points or unlocks on that tree.
+- **Move existing Cinder progress** (Cinders tab, shown when there is any): turns each character's Cinder tree progress from before 0.16.0 into a Cinder bound to that character. It shows what it will do first. It keeps the Items, adds no starting point and is safe to run again. Until it runs, those trees work as before.
+- **Push.** Select an unlocked Cinder power in the tree: the **Push** section lists the Push modes it has now, with the Strain cost and Backfire chance. Push confirms first; the GM client then does the rest:
+  - every Push gains Strain (at least 1), and the Backfire chance uses the Strain after the gain;
+  - on a Backfire it rolls the **category** (one of the Backfire tables for that power), then the **effect** on that table, mildest first. Higher Strain adds to the effect roll (default +1 at Strain 5, +1 more every 2 Strain; Strain config `effect_roll.strain_bonus`). Perk severity modifiers add on top;
+  - one chat card shows everything. If the effect names a dnd5e status with a duration, it is applied; otherwise the GM adjudicates from the card. A player's Push is rolled and recorded by the GM client (a GM must be logged in).
+  - If the Strain change can't be saved, the Push doesn't happen at all.
+- **Normal use at Strain 10+.** Using a Cinder power (dnd5e activity) at or above `normal_use_backfire_at` (10) backfires automatically. It adds no Strain, and the use itself is never blocked.
+- **Never lethal.** Backfire effects are temporary statuses only. Dead, unconscious, exhaustion, petrified, sleeping and HP changes are refused by the definition check and by the engine. Backfire never deletes a character or a Cinder or takes its progress.
+- **Perk modifiers** (on POWER-* definitions): `push.cost`, `backfire.chance`, `backfire.severity`, `strain.recovery`. They are added together; modifiers sharing a `stack` name count only the strongest. A perk opens a new Push mode by being listed in that mode's `requires.powers`. `strain.recovery` adds to a rest that already recovers Strain.
+- New API `api.cinder` (contract `ag-cinder/1`), hook `ashenGateCinder.changed`. Strain config gains `effect_roll`. See the README.
+- **Saved data:** additive. Cinders are stored in the GM-only definitions Journal (flag `cinders`). Bearers get `flags.ashen-gate-skill-trees.cinders` pointers. Nothing existing is rewritten until the GM runs Move existing Cinder progress.
+
 ## 0.15.0 — 2026-10-21
 
 - **New: Strain**, one shared number per character, kept as a separate part of Skill Trees. Its data is saved on the Actor under its own flag name (`flags.ashen-gate-strain.state`), not the Skill Trees one, so it can become its own module later without changing saved data.
