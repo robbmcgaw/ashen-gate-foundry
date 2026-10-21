@@ -136,10 +136,14 @@ test('scope, facets with counts, combined filters, managed/unlinked and Clear', 
   assert.equal(svc.search({managedOnly: true}).total, 3);
   assert.ok(svc.search({unlinkedOnly: true}).groups.flatMap(g => g.rows).every(e => e.unlinked));
   const html = bodyHtml({...DEFAULT_STATE, filters: {kind: 'Item'}}, r, null, {});
-  assert.match(html, /Clear \(1\)/);
+  // 0.43.0: one Clear filters and one Load compendiums, both in the Items toolbar; the body has neither.
+  assert.doesNotMatch(html, /data-ag-browse-clear|data-ag-browse-packs/);
   assert.match(html, /Ashen Gate \(\d+\)/);
   assert.match(html, /Non-Ashen Gate \(4\)/);
-  assert.match(toolbarHtml(DEFAULT_STATE), /id:MAT-HERB/);
+  const tools = toolbarHtml(DEFAULT_STATE);
+  assert.match(tools, /data-ag-browse-sort/);
+  assert.match(tools, /data-ag-browse-refresh[^>]*aria-label="Refresh the index"[^>]*data-tooltip="Refresh the index"/);
+  assert.doesNotMatch(tools, /ag-toolbar|type="search"|data-ag-browse-packs/, 'no second toolbar, search box or Load compendiums');
 });
 
 test('sort and group', () => {

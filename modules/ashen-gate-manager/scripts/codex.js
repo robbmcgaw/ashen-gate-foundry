@@ -226,22 +226,22 @@ export const DEITY_TIPS = Object.freeze({
 /** One player-view link. `deityLink(link)` -> {open, title}: whether Renown can open that deity here (0.40.0). */
 function linkHtml(l, deityLink) {
   if (l.kind !== 'deity') return l.unknown || !l.id || !l.name
-    ? `<span class="ag-codex-link is-unknown" title="${esc(UNKNOWN_TIP)}">${esc(UNKNOWN_LINK)}</span>`
-    : `<span class="ag-codex-link">${esc(l.name)}</span>`;
-  if (l.unknown || !l.id) return `<span class="ag-codex-link ag-codex-link--deity is-unknown" title="${esc(DEITY_TIPS.unknown)}">${esc(UNKNOWN_DEITY)}</span>`;
+    ? `<span class="agm-codex-link is-unknown" data-tooltip-class="ag-tooltip" data-tooltip="${esc(UNKNOWN_TIP)}">${esc(UNKNOWN_LINK)}</span>`
+    : `<span class="agm-codex-link">${esc(l.name)}</span>`;
+  if (l.unknown || !l.id) return `<span class="agm-codex-link agm-codex-link--deity is-unknown" data-tooltip-class="ag-tooltip" data-tooltip="${esc(DEITY_TIPS.unknown)}">${esc(UNKNOWN_DEITY)}</span>`;
   const how = deityLink(l) ?? {};
-  if (how.unknown) return `<span class="ag-codex-link ag-codex-link--deity is-unknown" title="${esc(DEITY_TIPS.unknown)}">${esc(UNKNOWN_DEITY)}</span>`;
-  if (how.open) return `<a class="ag-codex-link ag-codex-link--deity" role="button" data-ag-codex-deity="${esc(l.id)}" title="${esc(how.title || 'Open in the Renown Pantheon')}"><i class="fa-solid fa-sun" aria-hidden="true"></i> ${esc(l.name)}</a>`;
-  return `<span class="ag-codex-link ag-codex-link--deity" title="${esc(how.title || DEITY_TIPS.noRenown)}">${esc(l.name)}</span>`;
+  if (how.unknown) return `<span class="agm-codex-link agm-codex-link--deity is-unknown" data-tooltip-class="ag-tooltip" data-tooltip="${esc(DEITY_TIPS.unknown)}">${esc(UNKNOWN_DEITY)}</span>`;
+  if (how.open) return `<a class="agm-codex-link agm-codex-link--deity" role="button" data-ag-codex-deity="${esc(l.id)}" data-tooltip-class="ag-tooltip" data-tooltip="${esc(how.title || 'Open in the Renown Pantheon')}"><i class="fa-solid fa-sun" aria-hidden="true"></i> ${esc(l.name)}</a>`;
+  return `<span class="agm-codex-link agm-codex-link--deity" data-tooltip-class="ag-tooltip" data-tooltip="${esc(how.title || DEITY_TIPS.noRenown)}">${esc(l.name)}</span>`;
 }
 /** Read-only player Codex markup (window body and api.codex.mount). Input is already a player projection.
  * Deity links open only when `deityLink` says so; the default never links (plain text with a tooltip). */
 export function renderPlayerCodexHtml(entries, {message = '', deityLink = () => ({open: false, title: DEITY_TIPS.noRenown})} = {}) {
-  if (message) return `<div class="ag-codex-player"><p class="ag-empty">${esc(message)}</p></div>`;
-  if (!entries.length) return `<div class="ag-codex-player"><p class="ag-empty">No one has been added to your codex yet.</p></div>`;
+  if (message) return `<div class="agm-codex-player"><p class="ag-notice ag-notice--danger" role="alert"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i> ${esc(message)}</p></div>`;
+  if (!entries.length) return `<div class="agm-codex-player"><div class="ag-empty"><i class="fa-solid fa-address-book" aria-hidden="true"></i><p class="ag-empty__title">No NPCs yet</p><p class="ag-empty__text">Your GM hasn't revealed anyone yet. People you meet appear here once your GM shares them.</p></div></div>`;
   const card = e => {
     const initials = esc(e.name.split(/\s+/).filter(w => /^[A-Za-z]/.test(w)).slice(0, 2).map(w => w[0]).join('') || '?');
-    const portrait = e.img ? `<img class="ag-codex-portrait" src="${esc(e.img)}" alt="">` : `<span class="ag-codex-portrait" aria-hidden="true">${initials}</span>`;
+    const portrait = e.img ? `<img class="agm-codex-portrait" src="${esc(e.img)}" alt="">` : `<span class="agm-codex-portrait" aria-hidden="true">${initials}</span>`;
     const role = e.fields.find(f => f.key === 'role');
     const rows = e.fields.filter(f => f.key !== 'role').map(f => {
       const only = f.onlyYou ? ' <span class="ag-badge ag-badge--accent">only you</span>' : '';
@@ -249,8 +249,8 @@ export function renderPlayerCodexHtml(entries, {message = '', deityLink = () => 
         : f.key === 'signature_line' ? `<q>${esc(f.value)}</q>` : esc(f.value);
       return `<dt>${esc(f.label)}${only}</dt><dd>${body}</dd>`;
     }).join('');
-    return `<article class="ag-card ag-codex-card" data-npc="${esc(e.id)}"><header class="ag-codex-card__head">${portrait}<div><h3>${esc(e.name)}</h3>`
+    return `<article class="ag-card agm-codex-card" data-npc="${esc(e.id)}"><header class="agm-codex-card__head">${portrait}<div><h3>${esc(e.name)}</h3>`
       + `<p>${role ? esc(role.value) : '<em>Role not known yet</em>'}</p></div></header>${rows ? `<dl>${rows}</dl>` : ''}</article>`;
   };
-  return `<div class="ag-codex-player">${entries.map(card).join('')}</div>`;
+  return `<div class="agm-codex-player">${entries.map(card).join('')}</div>`;
 }
