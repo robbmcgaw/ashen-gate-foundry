@@ -383,6 +383,19 @@ test('sockets (0.3.0): attach / detach / swap on the GM client, player relay and
   const done=await cinder.repair();assert.ok(done.some(x=>/emptied 1 socket/.test(x)),done.join());assert.deepEqual(cinder.report(),[]);
   assert.deepEqual(L2.flags[MOD].attachedTo,{instanceId:id,slot:1});
 });
+// 0.5.0: the window's Unbind asks first ("Unbind Cinder", red); Cancel leaves the Cinder bound. Manage toolbar counts Cinders.
+test('Manage: Unbind is a danger confirm and Cancel changes nothing; toolbar count and New Cinder stay enabled with definitions',async()=>{
+  game.user=gm;
+  const dialogs=foundry.applications.api,before=dialogs.DialogV2;
+  const app=api.open();app.tab='manage';
+  const ctx=await app._prepareContext({});
+  assert.equal(ctx.manage.count,cinder.instances().length);assert.ok(ctx.manage.definitions>0,'New Cinder is enabled: a MUT-* definition exists');
+  let seen;dialogs.DialogV2={wait:async o=>{seen=o;return o.buttons.find(b=>b.action==='cancel').callback();}};
+  await app._act({dataset:{act:'cinder-unbind',instance:ember.instanceId}});
+  assert.deepEqual(seen.buttons.map(b=>b.label),['Cancel','Unbind Cinder']);assert.ok(seen.classes.includes('ag-dialog--danger'));
+  assert.equal(cinder.instances().find(i=>i.instanceId===ember.instanceId).status,'bound','Cancel leaves the Cinder bound');
+  dialogs.DialogV2=before;app.tab='cinders';
+});
 test('unbind keeps the Cinder\'s progress; a deleted bearer leaves it lost',async()=>{
   game.user=gm;await cinder.unbind(ember.instanceId);await settle();
   let inst=cinder.instances().find(i=>i.instanceId===ember.instanceId);

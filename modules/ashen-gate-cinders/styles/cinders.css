@@ -1,43 +1,52 @@
-/* Ashen Gate | Cinders: scoped to .agc-window; colours and sizes come from the shared kit (ag-ui.css) tokens. */
+/* Ashen Gate | Cinders: layout only, scoped to .agc-window. Colours, sizes, spacing and radii come from the shared kit (ag-ui.css) tokens. */
 .agc-window .window-content{padding:0;background:var(--ag-surface);color:var(--ag-text)}
-.agc-shell{display:flex;flex-direction:column;height:100%;min-height:0}
-.agc-title{display:flex;align-items:center;gap:8px}
-.agc-version{font-size:var(--ag-text-sm);color:var(--ag-muted)}
-.agc-tab.agc-active{border-bottom:2px solid var(--ag-accent)}
-.agc-content{flex:1 1 auto;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:10px}
-.agc-toolbar{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
-.agc-card{padding:12px;border:1px solid var(--ag-border-strong);border-radius:8px;background:var(--ag-surface-raised)}
-.agc-card h2{font-size:16px;margin:0 0 6px}
-.agc-card h3{font-size:14px;margin:8px 0 2px}
-.agc-card p{margin:3px 0;font-size:var(--ag-text-sm);line-height:1.5}
-.agc-warn{border-color:var(--ag-danger)}
-.agc-note{font-size:var(--ag-text-sm);color:var(--ag-muted)}
-.agc-bad{color:var(--ag-danger)}
-.agc-strain-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
-.agc-strain-band{font-weight:600}
-.agc-bar{position:relative;height:14px;border:1px solid var(--ag-border-strong);border-radius:7px;background:var(--ag-surface);overflow:hidden;margin:6px 0}
-.agc-bar-fill{height:100%;background:var(--ag-accent)}
-.agc-bar-over{position:absolute;right:6px;top:-1px;font-size:11px;font-weight:700;color:var(--ag-danger)}
-.agc-actions,.agc-row-actions{display:flex;gap:6px;flex-wrap:wrap}
-.agc-row-actions{justify-content:flex-end}
-.agc-power{border-top:1px solid var(--ag-border);padding-top:6px;margin-top:6px}
-.agc-modes{list-style:none;margin:4px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
-.agc-modes li{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
-.agc-inline{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:8px;border:1px solid var(--ag-border);border-radius:6px;margin:6px 0}
-.agc-inline span{font-size:var(--ag-text-sm);flex:1 1 240px}
-.agc-group{font-size:15px;margin:12px 0 4px}
-.agc-table{border-collapse:collapse;width:100%;font-size:var(--ag-text-sm)}
-.agc-table th,.agc-table td{padding:4px 8px 4px 0;text-align:left;border-bottom:1px solid var(--ag-border);vertical-align:middle}
-.agc-bands{width:auto}
-.agc-list{margin:6px 0;padding-left:18px;font-size:var(--ag-text-sm);display:flex;flex-direction:column;gap:3px}
-/* Chat card (outside the window) */
-.agc-chat h3{margin:0 0 4px}
-.agc-chat p{margin:2px 0;overflow-wrap:anywhere}
+.agc-content{flex:1 1 auto;padding:var(--ag-space-3) var(--ag-space-4);display:flex;flex-direction:column;gap:var(--ag-space-3)}
+.agc-content > .ag-card,.agc-content > .ag-toolbar{margin:0}
+.agc-content p{margin:var(--ag-space-1) 0;line-height:1.5}
+.agc-actor > select{width:auto;min-width:12rem;max-width:100%}
+.agc-meta{color:var(--ag-muted);font-size:var(--ag-text-sm)}
+.agc-hint{align-self:center}
+.agc-id{color:var(--ag-muted);font:400 var(--ag-text-xs)/1.4 var(--ag-font-mono)}
+/* Strain: the same row as Character Hub's (kit meter, number beside the track, band, chance, "+N over" badge). */
+.agc-strain{display:flex;flex-wrap:wrap;align-items:center;gap:var(--ag-space-2);font-size:var(--ag-text-sm)}
+.agc-strain__label{font-weight:600;white-space:nowrap}
+.agc-strain__meter{flex:1 1 6rem;min-width:6rem;grid-template-columns:minmax(0,1fr)}
+.agc-strain__text{color:var(--ag-text);font-weight:700}
+.agc-strain__band{font-weight:600}
+.agc-strain__chance{color:var(--ag-muted)}
+/* Cinder cards: powers and their Push modes. */
+.agc-power{border-top:1px solid var(--ag-border);padding-top:var(--ag-space-2);margin-top:var(--ag-space-2)}
+.agc-power__name{margin:0 0 var(--ag-space-1);font-size:var(--ag-text-md);font-weight:650}
+.agc-modes{list-style:none;margin:var(--ag-space-1) 0 0;padding:0;display:flex;flex-direction:column;gap:var(--ag-space-2)}
+.agc-modes li{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--ag-space-2)}
+/* Sockets */
+.agc-sockets{border-top:1px solid var(--ag-border);padding-top:var(--ag-space-2);margin-top:var(--ag-space-2)}
+.agc-sockets .ag-section__title{display:flex;flex-wrap:wrap;align-items:center;gap:var(--ag-space-2)}
+.agc-socket-list{margin:var(--ag-space-1) 0}
+.agc-socket-list > .agc-socket--empty{border:1px dashed var(--ag-border-strong);background:transparent}
+.agc-socket-list > .agc-inactive{opacity:.75}
+.agc-drop.agc-drop-over{outline:2px solid var(--ag-accent);outline-offset:-2px}
+.agc-socket-actions{justify-content:flex-start}
+/* Manage */
+.agc-group{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--ag-space-2);margin:var(--ag-space-4) 0 var(--ag-space-2);font-size:var(--ag-text-md);font-weight:650}
+.agc-row-actions{display:inline-flex;flex-wrap:wrap;justify-content:flex-end;gap:var(--ag-space-1)}
+.agc-notice-action{align-items:center;flex-wrap:wrap;margin:var(--ag-space-2) 0}
+.agc-notice-action > span{flex:1 1 15rem}
+.agc-notice-action > i{margin-top:0}
+/* GM Setup */
+.agc-bands{width:fit-content;max-width:100%}
+.agc-rules{margin:var(--ag-space-2) 0;padding-left:var(--ag-space-5);display:flex;flex-direction:column;gap:var(--ag-space-1);font-size:var(--ag-text-sm)}
+/* Narrow window: the Manage table becomes labelled stacked rows. */
+@container (max-width: 40rem){
+  .agc-manage-table thead{display:none}
+  .agc-manage-table,.agc-manage-table tbody,.agc-manage-table tr,.agc-manage-table td{display:block;box-sizing:border-box;width:auto}
+  .agc-manage-table tr{padding:var(--ag-space-2) var(--ag-space-3);border-bottom:1px solid var(--ag-border)}
+  .ag-table.agc-manage-table td{padding:var(--ag-space-1) 0;text-align:left;white-space:normal}
+  .agc-manage-table td::before{content:attr(data-label);display:block;color:var(--ag-muted);font-size:var(--ag-text-xs);font-weight:650;letter-spacing:.05em;text-transform:uppercase}
+  .agc-manage-table td .ag-badge{white-space:normal}
+  .agc-manage-table .agc-row-actions{justify-content:flex-start}
+}
+/* Chat card (outside the window): :root tokens from the kit, so it reads with or without General Manager. */
+.agc-chat h3{margin:0 0 var(--ag-space-1)}
+.agc-chat p{margin:var(--ag-space-1) 0;overflow-wrap:anywhere}
 .agc-backfire{color:var(--ag-danger)}
-/* 0.3.0 sockets */
-.agc-sockets{border-top:1px solid var(--ag-border);padding-top:6px;margin-top:6px}
-.agc-socket-list{list-style:none;margin:4px 0;padding:0;display:flex;flex-direction:column;gap:4px}
-.agc-socket-list li{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:4px 6px;border:1px solid var(--ag-border);border-radius:4px}
-.agc-socket-list li.agc-empty{border-style:dashed;opacity:.85}
-.agc-socket-list li.agc-inactive{opacity:.7}
-.agc-drop.agc-drop-over{outline:2px solid var(--ag-accent,currentColor);outline-offset:1px}
