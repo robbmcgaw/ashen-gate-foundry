@@ -138,7 +138,7 @@ test('unknown statuses are traced to their effect and the GM can remove them',as
  game.user=gm;globalThis.CONFIG={DND5E:{skills:{}},statusEffects:[{id:'prone',name:'Prone'}]};game.i18n={localize:x=>x};globalThis.confirm=()=>true;
  const deleted=[];
  const effect={id:'fx1',name:'Mind Haze',statuses:new Set(['thinking']),origin:'Actor.pc01.Item.spell1',disabled:false,parent:null};
- const actor={id:'pc01',name:'PC',type:'character',statuses:new Set(['prone','thinking']),effects:[effect],items:[],testUserPermission:()=>true,getFlag:()=>null,deleteEmbeddedDocuments:async(t,ids)=>{deleted.push(...ids);effect.disabled=true;}};
+ const actor={id:'pc01',name:'PC',type:'character',statuses:new Set(['prone','thinking']),effects:[effect],items:[],testUserPermission:()=>true,getFlag:()=>null,deleteEmbeddedDocuments:async(t,ids)=>{deleted.push(...ids);effect.disabled=true;actor.statuses.delete('thinking');}};
  effect.parent=actor;
  game.actors=[actor];game.actors.get=id=>game.actors.find(a=>a.id===id);
  const app=await game.modules.get(ID).api.open();app.tab='conditions';app.actorId='pc01';
