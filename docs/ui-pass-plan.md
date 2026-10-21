@@ -54,7 +54,7 @@ The kit's size tokens get two value sets. Everything that has a size reads a tok
 ### Cost: build it in now vs. retrofit later
 
 **Built in from the start (recommended):**
-- **Kit release (PR 2):** two token blocks (about 40 lines) plus about 5 new tokens.
+- **Kit release (PR 1):** two token blocks (about 40 lines) plus about 5 new tokens.
 - **Manager:**
   - the setting plus the controller writing `data-ag-size` (about 40 lines);
   - the switch in My Appearance and the GM popover;
