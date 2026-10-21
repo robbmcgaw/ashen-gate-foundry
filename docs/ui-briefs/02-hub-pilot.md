@@ -67,7 +67,7 @@ What exists today (Hub 0.15–0.17; `scripts/character.mjs` `hpBar()` / `hpHtml(
   - With max 45: 32 is green (71.1%), 31 is yellow (68.9%), 14 is yellow (31.1%), 13 is red (28.9%).
 - Add `hpBand(value, effectiveMax)` → `'high' | 'mid' | 'low'` in `character.mjs`, and set `data-band` on `.agch-hp__bar`.
 
-**Keeping every treatment distinct.** Each one differs by pattern and lightness as well as colour, so it reads for colour-blind players too. Preview of every combination: https://claude.ai/artifact/sgGZnPz8kP1uwFsgasf9mK
+**Keeping every treatment distinct.** Each one differs by pattern and lightness as well as colour, so it reads for colour-blind players too. Preview of every combination: https://claude.ai/artifact/L1GP5SFYiLfMnTq8TKbvzt
 
 | Treatment | Look (new) | Why |
 |---|---|---|
