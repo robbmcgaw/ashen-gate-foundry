@@ -1,6 +1,6 @@
 /** Ashen Gate Profession Ledger: profession assignment (0.16.0, AG-F01).
  * Which professions a character qualifies for from their dnd5e skill and tool PROFICIENCIES (never class), or (0.20.0)
- * from carrying a qualifying core item such as Fishing Tackle, using the crosswalk from effectiveMapping, and which
+ * from carrying a qualifying core item (legacy `items` lists only since 0.22.0), using the crosswalk from effectiveMapping, and which
  * imported PROF-* Profession Items they still lack.
  * Pure rules; main.js reads Foundry, enforces the GM gate and creates the Items.
  */
@@ -8,7 +8,9 @@ import {PROFESSION_NAMES,norm} from './core.mjs';
 import {SKILL_IDS,SKILL_LABELS,professionKey,requiredToolRef,toolLabel,skillLabel,toolProficient,carriedItem,cleanItemList,CROSSWALK_LISTS,toolKeys} from './checks.mjs';
 
 export const PROFESSION_KEYS=Object.freeze(PROFESSION_NAMES.map(professionKey));
-export const professionTitle=key=>PROFESSION_NAMES.find(n=>professionKey(n)===key)??key;
+/** 0.22.0: shown names. Keys, ids and stored names never change; "Hunting" still matches huntingskinning (see professionKey). */
+const PROFESSION_DISPLAY_NAMES=Object.freeze({huntingskinning:'Hunting'});
+export const professionTitle=key=>PROFESSION_DISPLAY_NAMES[key]??PROFESSION_NAMES.find(n=>professionKey(n)===key)??key;
 
 /** A catalog skill name ("Nature") as a dnd5e skill id, or null. No aliases are guessed. */
 const skillIdOf=name=>{const t=String(name??'').trim();if(SKILL_IDS.includes(t))return t;return SKILL_IDS.find(k=>norm(SKILL_LABELS[k])===norm(t))??null;};
@@ -50,7 +52,7 @@ export const unmappedProfessions=map=>PROFESSION_KEYS.filter(k=>!(map.qualifySki
 
 const skillProficient=(actor,key)=>Number(actor?.system?.skills?.[key]?.value??0)>0;
 /** [{key, profession, reason}] for each profession the character qualifies for, e.g. "Herbalism Kit + Nature → Herbalism"
- * or "Fishing Tackle (carried) → Fishing". */
+ * or, from a legacy items list, "Fishing Tackle (carried) → Fishing". */
 export function qualifications(actor,map){
   const out=[];
   for(const key of PROFESSION_KEYS){
@@ -104,10 +106,11 @@ export function baselineChanges(oldBaseline,newBaseline,map){
   return rows;
 }
 
-/** The current table as a file the baseline import reads back: {schema, exportedAt, professions:{key:{...lists, checkTool, checkSkill}}}. */
+/** The current table as a file the baseline import reads back: {schema, exportedAt, professions:{key:{...lists, checkTool, checkSkill}}}.
+ * 0.22.0: the legacy `items` list is written only when a profession has one. */
 export function exportCrosswalk(map,{exportedAt=new Date().toISOString(),version=''}={}){
   const professions={};
-  for(const key of PROFESSION_KEYS)professions[key]={name:professionTitle(key),...Object.fromEntries(CROSSWALK_LISTS.map(l=>[l,[...(map[l]?.[key]??[])]])),
+  for(const key of PROFESSION_KEYS)professions[key]={name:professionTitle(key),...Object.fromEntries(CROSSWALK_LISTS.filter(l=>l!=='items'||map.items?.[key]?.length).map(l=>[l,[...(map[l]?.[key]??[])]])),
     checkTool:map.tools?.[key]||null,checkSkill:map.skills?.[key]||null,origin:{...(map.origin?.[key]??{})}};
   return {schema:'ag-ledger-crosswalk/1',module:'ashen-gate-profession-ledger',version,exportedAt,professions};
 }

@@ -64,19 +64,22 @@ test('carried items: name any case, core uuid, Manager core link; quantity 0 is 
   assert.equal(carriedItem({items:[{name:'Fishing Tackle',system:{quantity:0}}]},'Fishing Tackle'),null);
 });
 
-test('Assign: carrying Fishing Tackle qualifies for Fishing, with the reason shown',()=>{
-  const map=effectiveMapping({});
+test('Assign: a legacy items list still qualifies by carrying (0.22.0: none built in, Fishing is accessed by Survival)',()=>{
+  assert.deepEqual(qualifications(bo,effectiveMapping({})).map(q=>q.profession),['Cooking','Mining'],'no built-in Fishing Tackle');
+  values.checkMapping={items:{fishing:['Fishing Tackle']}};
+  const map=effectiveMapping(values.checkMapping);
   assert.deepEqual(qualifications(bo,map).map(q=>q.reason),['Cook’s Utensils → Cooking','fishing tackle (carried) → Fishing','Mason’s Tools → Mining']);
   const p=api.assign.preview();
   const row=p.rows.find(r=>r.profession==='Fishing');
   assert.deepEqual([row.actorName,row.reason,row.status,row.sourceId],['[TEST] Bo','fishing tackle (carried) → Fishing','propose','PROF-TG-FISHING']);
   assert.ok(!p.rows.some(r=>r.actorName==='[TEST] Ana'&&r.profession==='Fishing'));
+  values.checkMapping={};
 });
 
-test('catalog itemsAnyOf is additive; a catalog row without it keeps the built-in items',()=>{
+test('catalog itemsAnyOf is additive; a catalog row without it has no items (0.22.0)',()=>{
   const {catalog}=catalogCrosswalk([{name:'Fishing',access:{skillProficienciesAnyOf:['Nature']}},{name:'Cooking',access:{itemsAnyOf:['[TEST] Pan','[test] pan']}}]);
   const map=effectiveMapping({},{catalog});
-  assert.deepEqual(map.items.fishing,['Fishing Tackle']);assert.equal(map.origin.fishing.items,'default');
+  assert.deepEqual(map.items.fishing,[]);assert.equal(map.origin.fishing.items,'default');
   assert.deepEqual(map.items.cooking,['[TEST] Pan']);assert.equal(map.origin.cooking.items,'catalog');
 });
 
@@ -114,12 +117,12 @@ test('GM imports a baseline file: preview writes nothing, Apply stores it, check
   app.baselinePreview={fileName:'[TEST] baseline.json',data:FILE,result:p};
   let h=await html('gm');
   assert.match(h,/Preview: \[TEST\] baseline\.json/);assert.match(h,/data-action="xwalk-apply"/);assert.match(h,/“Juggling” is not a profession/);
-  assert.match(h,/data-map-items="fishing" value="Fishing Tackle"/);
+  assert.doesNotMatch(h,/data-map-items/,'0.22.0: no items column');
   await app._click('xwalk-apply');
   assert.equal(values.crosswalkBaseline.fileName,'[TEST] baseline.json');
   assert.deepEqual(values.crosswalkBaseline.professions.fishing.qualifySkills,['sur']);
   assert.equal(app.baselinePreview,null);
-  h=await html('gm');assert.match(h,/from the baseline file/);assert.match(h,/Baseline file<\/b>: \[TEST\] baseline\.json/);
+  h=await html('gm');assert.match(h,/data-map-cell="advantageTools" data-map-prof="herbalism"[^>]*>\s*<option value="" >None<\/option>[\s\S]*?<option value="herb" selected>/,'file advantage tool shown');assert.match(h,/Baseline file<\/b>: \[TEST\] baseline\.json/);
   const out=api.crosswalk.exportTable();
   assert.equal(out.schema,'ag-ledger-crosswalk/1');
   assert.deepEqual(out.professions.fishing.items,['Fishing Tackle','Compendium.dnd5e.equipment24.Item.net']);
@@ -130,16 +133,16 @@ test('GM imports a baseline file: preview writes nothing, Apply stores it, check
   values.crosswalkBaseline={};
 });
 
-test('GM edits to items save in the GM layer; Reset falls back; bad files never apply',async()=>{
+test('legacy GM items are kept by edits and Reset (no items UI); bad files never apply',async()=>{
+  values.checkMapping={items:{fishing:['Fishing Tackle','[TEST] Rod']}};
   app.mapDraft=null;app.element={querySelector:()=>null,querySelectorAll:()=>[]};app.rosterDraft=new Set(values.partyRoster);
-  app._rememberMapDraft({dataset:{mapItems:'fishing'},value:'Fishing Tackle'});
-  assert.equal(app.mapDirty,false,'unchanged text is not an edit');
-  app._rememberMapDraft({dataset:{mapItems:'fishing'},value:' Fishing Tackle , [TEST] Rod '});
+  app._rememberMapDraft({dataset:{mapCell:'qualifyTools',mapProf:'fishing'},value:'navg'});
   await app._click('roster-save');
   assert.deepEqual(values.checkMapping.items,{fishing:['Fishing Tackle','[TEST] Rod']});
   assert.equal(effectiveMapping(values.checkMapping).origin.fishing.items,'gm');
   await app._click('map-reset','fishing');await app._click('roster-save');
-  assert.deepEqual(values.checkMapping.items,{});
+  assert.deepEqual(values.checkMapping.qualifyTools,{});assert.deepEqual(values.checkMapping.items,{fishing:['Fishing Tackle','[TEST] Rod']},'Reset leaves the legacy list');
+  values.checkMapping={};
   await assert.rejects(api.crosswalk.applyBaseline({professions:[]}),/not applied/);
   assert.deepEqual(values.crosswalkBaseline,{});
 });

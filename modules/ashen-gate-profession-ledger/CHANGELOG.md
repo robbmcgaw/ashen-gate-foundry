@@ -1,3 +1,13 @@
+## 0.22.0 — 2026-10-21
+
+- **GM Setup → Tools and checks is simpler.** One row per profession, in two groups (*Crafting professions*, then *Gathering professions*), with three columns: **Skill to Access**, **Tool to Access** and **Tool for Advantage** (gathering rows only; crafting rows show a dash). Each cell is one dropdown with *None*. Either the skill or the tool qualifies a character in Assign, as before.
+- The separate Tool / Check skill columns are gone. Picking a Tool to Access also sets the profession's check tool (the craft tool when a recipe names none, and the gather tool check). For gathering professions and Enchanting, picking a Skill to Access also sets the check skill. A list with several values (from a baseline file, the catalog or an older edit) shows as **Several (n)**, with the values on hover, and is kept until you pick something else in that cell.
+- Removed: the Qualifying items column, the tick-box pickers, and the “set by you / from the check tool/skill / built in” notes. **Reset** puts a row back to the default.
+- Names: the table, Assign and the gathering windows show **Hunting** (was Hunting/Skinning) and no “gathering” tag. Profession keys and ids are unchanged (`huntingskinning`).
+- **Fishing is accessed by the Survival skill** by default. Fishing Tackle is no longer a built-in qualifying item. Fishing's gather check skill default is unchanged (none); pick Survival in its row to make it the roll as well.
+- Carried items (0.20.0) have no UI any more. An `items` list in saved GM edits, the catalog or a baseline file still qualifies, as before. Export writes `items` only where a profession has one.
+- Saved data: same settings, same shape; nothing is migrated or rewritten.
+
 ## 0.21.0 — 2026-10-20
 
 - **Gathering requests wait in a queue.** A player's **Request gather** (on a node they can see, for a character they own) no longer opens a popup on the GM's screen. It appears under **Requests** at the top of the GM's Gathering tab, with the node, helpers, and a profession or level warning when there is one.

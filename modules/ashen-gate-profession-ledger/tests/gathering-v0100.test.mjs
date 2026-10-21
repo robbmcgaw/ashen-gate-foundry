@@ -384,10 +384,9 @@ test('recipes: tool, workstation or the profession’s tool; warning when not ca
 test('GM Setup maps profession → tool and gathering skill; saved with Save Changes',async()=>{
  game.user=gm;
  const h=await html('gm');
- assert.match(h,/Tools and checks/);assert.match(h,/data-map-tool="alchemy"/);assert.match(h,/data-map-skill="herbalism"/);
- assert.doesNotMatch(h,/data-map-skill="alchemy"/,'crafting professions have no gathering skill');
+ assert.match(h,/Tools and checks/);assert.match(h,/data-map-cell="qualifyTools" data-map-prof="alchemy"/);assert.match(h,/data-map-cell="qualifySkills" data-map-prof="herbalism"/);
  app.element={querySelector:()=>null,querySelectorAll:s=>s.includes('roster-actor')?[{dataset:{rosterActor:'belwar'},checked:true},{dataset:{rosterActor:'tarra'},checked:true}].filter(x=>s.endsWith(']')||x.checked):[]};
- app._rememberMapDraft({dataset:{mapTool:'alchemy'},value:'herb'});
+ app._rememberMapDraft({dataset:{mapCell:'qualifyTools',mapProf:'alchemy'},value:'herb'});
  assert.equal(app.mapDirty,true);assert.equal(app.setupStatus,'Unsaved tool and check changes');
  await app._click('roster-save');
  assert.equal(values.checkMapping.tools.alchemy,'herb');assert.deepEqual(values.partyRoster,['belwar','tarra']);

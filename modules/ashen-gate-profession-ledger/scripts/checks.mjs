@@ -39,9 +39,11 @@ export const DEFAULT_GATHER_SKILLS=Object.freeze({herbalism:'nat',huntingskinnin
  * An explicit [] means "none". `gm` holds only the GM's saved lists. Checks use the GM's and the baseline file's
  * advantage tools, never the catalog's, so an unconfigured profession rolls exactly as before. */
 export const CROSSWALK_LISTS=Object.freeze(['qualifySkills','qualifyTools','advantageTools','items']);
-/** 0.20.0: core items that qualify a character by being carried (name, or a core/Item UUID). Fishing Tackle is core 5.5e
- * adventuring gear, not a tool, so Fishing qualifies by carrying it. */
-export const DEFAULT_QUALIFY_ITEMS=Object.freeze({fishing:Object.freeze(['Fishing Tackle'])});
+/** 0.20.0: core items that qualify a character by being carried (name, or a core/Item UUID). 0.22.0: none built in (Fishing
+ * is accessed by the Survival skill instead); `items` from saved GM edits, the catalog or a baseline file still count. */
+export const DEFAULT_QUALIFY_ITEMS=Object.freeze({});
+/** 0.22.0: built-in qualifying skills for professions with no check skill to seed them. Fishing is accessed by Survival. */
+export const DEFAULT_QUALIFY_SKILLS=Object.freeze({fishing:Object.freeze(['sur'])});
 const TOOL_KEY=/^[a-z][a-z0-9]*$/;
 const ITEM_REF=v=>v.trim().length>0&&v.trim().length<=200;
 const cleanList=(v,valid)=>Array.isArray(v)?[...new Set(v.filter(x=>typeof x==='string'&&valid(x)))]:null;
@@ -67,7 +69,7 @@ export function effectiveMapping(stored,{catalog=null,baseline=null}={}){
   const out={tools,skills,gm,qualifySkills:{},qualifyTools:{},advantageTools:{},items:{},origin:{}};
   for(const k of keys){
     const cat=catalog?.[k]??null,file=baseline?.[k]??null;
-    const base={qualifySkills:skills[k]?[skills[k]]:[],qualifyTools:tools[k]?[tools[k]]:[],advantageTools:[],items:[...(DEFAULT_QUALIFY_ITEMS[k]??[])]};
+    const base={qualifySkills:skills[k]?[skills[k]]:[...(DEFAULT_QUALIFY_SKILLS[k]??[])],qualifyTools:tools[k]?[tools[k]]:[],advantageTools:[],items:[...(DEFAULT_QUALIFY_ITEMS[k]??[])]};
     out.origin[k]={};
     for(const list of CROSSWALK_LISTS){
       const fileList=file?cleanCrosswalkList(list,file[list]):null;
