@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.13.1';
+export const VERSION = '0.13.2';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -230,14 +230,20 @@ export function conditionGroups(actors, {label = id => id, isNative = () => true
 /* ---- v0.5.0: party stash rows and the take-out consent poll ---- */
 const num = v => { const n = Number(v); return Number.isFinite(n) ? n : null; };
 /** Display row for one stash Item. Weight and value are per item, as dnd5e stores them. */
-export function stashRow(item, {typeLabel = t => t} = {}) {
+export function stashRow(item, {typeLabel = t => t, electrum = true} = {}) {
   const sys = item?.system ?? {};
   const w = sys.weight !== null && typeof sys.weight === 'object' ? sys.weight : {value: sys.weight, units: ''};
   const weight = num(w.value), price = sys.price !== null && typeof sys.price === 'object' ? sys.price : {value: sys.price, denomination: 'gp'};
   const value = num(price.value);
   return {id: item?.id, uuid: item?.uuid ?? null, img: typeof item?.img === 'string' ? item.img : null, name: String(item?.name ?? 'Unnamed Item'),
-    quantity: num(sys.quantity) ?? 1, weight: weight ? `${weight} ${w.units || 'lb'}` : '—', value: value ? `${value} ${price.denomination || 'gp'}` : '—',
+    quantity: num(sys.quantity) ?? 1, weight: weight ? `${weight} ${w.units || 'lb'}` : '—', value: value ? priceText(value, price.denomination || 'gp', electrum) : '—',
     type: item?.type ?? 'item', typeLabel: typeLabel(item?.type ?? 'item')};
+}
+/** 0.13.2: an ep price is shown in gp, sp or cp (same value) while electrum is off; the item itself is not changed. */
+export function priceText(value, denomination = 'gp', electrum = true) {
+  if (denomination !== 'ep' || electrum) return `${value} ${denomination}`;
+  const cp = Math.round(value * 50 * 1e6) / 1e6;
+  return cp % 100 === 0 ? `${cp / 100} gp` : cp % 10 === 0 ? `${cp / 10} sp` : `${cp} cp`;
 }
 export const CONSENT_TIMEOUT_MS = 60000;
 /** Who must approve a take-out: every other active, non-GM user. */
@@ -335,10 +341,12 @@ export function readGp(actor) {
  * whole gp; the remainder is not paid to anyone (it stays with the GM) and is returned so it can be shown.
  * recipients: [{id, name, held}] with `held` (or the 0.8 name `gp`) read fresh from the actor for the chosen coin.
  * v0.10.0: `coin` picks the dnd5e denomination (cp/sp/ep/gp/pp, default gp); nothing is converted.
+ * v0.13.2: `electrum: false` (GM Setup "Use electrum" off) refuses ep.
  */
-export function planGoldAward({amount, mode = 'each', recipients, coin = 'gp'} = {}) {
+export function planGoldAward({amount, mode = 'each', recipients, coin = 'gp', electrum = true} = {}) {
   const amt = Number(amount);
   if (!COINS.includes(coin)) throw Error(`Coin must be one of ${COINS.join(', ')}.`);
+  if (coin === 'ep' && !electrum) throw Error(ELECTRUM_OFF);
   if (!Number.isInteger(amt) || amt < 1 || amt > GOLD_MAX) throw Error(`${coin === 'gp' ? 'Gold' : COIN_LABELS[coin]} must be a whole number from 1 to ${GOLD_MAX}.`);
   if (!['each', 'split'].includes(mode)) throw Error('Mode must be "each" or "split".');
   const list = [...new Map((recipients ?? []).filter(r => r?.id).map(r => [r.id, {...r, held: r.held ?? r.gp}])).values()];
@@ -435,14 +443,14 @@ const wholeAmount = (amount, {min = 1} = {}) => {
   if (amount === '' || amount === null || !Number.isInteger(n) || n < min || n > GOLD_MAX) throw Error(`Amount must be a whole number from ${min} to ${GOLD_MAX}.`);
   return n;
 };
-const checkCoin = coin => { if (!COINS.includes(coin)) throw Error(`Coin must be one of ${COINS.join(', ')}.`); return coin; };
+const checkCoin = (coin, electrum = true) => { if (!COINS.includes(coin)) throw Error(`Coin must be one of ${COINS.join(', ')}.`); if (coin === 'ep' && !electrum) throw Error(ELECTRUM_OFF); return coin; };
 /**
  * A character ↔ purse move. 'deposit' takes coins from the character into the purse; 'take' the reverse.
  * Never more than the giver holds, so neither side can go negative. `actorHas`/`purseHas` are the current amounts.
  */
-export function planCoinMove({kind, coin, amount, actorHas, purseHas, actorName = 'The character'} = {}) {
+export function planCoinMove({kind, coin, amount, actorHas, purseHas, actorName = 'The character', electrum = true} = {}) {
   if (!['deposit', 'take'].includes(kind)) throw Error('Move must be deposit or take.');
-  checkCoin(coin);const amt = wholeAmount(amount);
+  checkCoin(coin, electrum);const amt = wholeAmount(amount);
   if (!Number.isFinite(actorHas)) throw Error(`${actorName} has no dnd5e ${coinWord(coin)} (system.currency.${coin}).`);
   if (!Number.isFinite(purseHas)) throw Error(`The party purse has no dnd5e currency (system.currency.${coin}).`);
   if (kind === 'deposit' && actorHas < amt) throw Error(`${actorName} has ${actorHas} ${coin}, fewer than ${amt} ${coin}.`);
@@ -451,9 +459,9 @@ export function planCoinMove({kind, coin, amount, actorHas, purseHas, actorName 
   return {kind, coin, amount: amt, actorBefore: actorHas, actorAfter: actorHas - sign * amt, purseBefore: purseHas, purseAfter: purseHas + sign * amt};
 }
 /** GM purse change: 'add', 'remove' (never below 0) or 'set' (0 allowed). */
-export function planPurseAdjust({op, coin, amount, purseHas} = {}) {
+export function planPurseAdjust({op, coin, amount, purseHas, electrum = true} = {}) {
   if (!['add', 'remove', 'set'].includes(op)) throw Error('Adjust must be add, remove or set.');
-  checkCoin(coin);const amt = wholeAmount(amount, {min: op === 'set' ? 0 : 1});
+  checkCoin(coin, electrum);const amt = wholeAmount(amount, {min: op === 'set' ? 0 : 1});
   if (!Number.isFinite(purseHas)) throw Error(`The party purse has no dnd5e currency (system.currency.${coin}).`);
   if (op === 'remove' && purseHas < amt) throw Error(`The party purse has ${purseHas} ${coin}, fewer than ${amt} ${coin}.`);
   const after = op === 'add' ? purseHas + amt : op === 'remove' ? purseHas - amt : amt;
@@ -508,6 +516,65 @@ export function purseLine(h) {
   if (h.kind === 'purse-deposit') return `${who} put ${amt} in the party purse`;
   if (h.kind === 'purse-take') return h.moved ? `${who} took ${amt} from the party purse` : `${who} tried to take ${amt} from the party purse`;
   return h.op === 'set' ? `${h.userName} set the party purse ${h.coin} to ${h.amount}` : `${h.userName} ${h.op === 'add' ? 'added' : 'removed'} ${amt} ${h.op === 'add' ? 'to' : 'from'} the party purse`;
+}
+
+/* ---- 0.13.2: GM Setup "Use electrum" (world setting, default off). Off: ep is left out of every coin choice and
+   coin display, except a balance that still holds ep, which keeps a dimmed ep line until the GM converts it.
+   The purse still stores ep (dnd5e system.currency.ep); nothing is ever converted without the GM confirming. ---- */
+export const ELECTRUM_OFF = 'Electrum is turned off in Utilities GM Setup.';
+export const EP_IN_SP = 5, EP_IN_CP = 50;
+const CP_VALUE = Object.freeze({cp: 1, sp: 10, ep: 50, gp: 100, pp: 1000});
+/** Total value of a coin set in copper. */
+export const coinValueCp = coins => COINS.reduce((n, c) => n + (Number(coins?.[c]) || 0) * CP_VALUE[c], 0);
+/** Coins offered in a choice (Award Gold, Deposit/Take, Adjust): no ep while electrum is off. */
+export const coinChoices = (electrum = true) => (electrum ? [...COINS] : COINS.filter(c => c !== 'ep'));
+/** True when a balance still holds ep although electrum is off: show the dimmed ep line, never hide the money. */
+export const strandedElectrum = (coins, electrum = true) => !electrum && Number(coins?.ep) > 0;
+/** Coin counters to show for a balance. */
+export const shownCoins = (coins, electrum = true) => (electrum || strandedElectrum(coins, electrum) ? [...COINS] : coinChoices(false));
+/**
+ * GM conversion of all the purse's electrum. to 'sp': each ep → 5 sp. to 'gp': each pair of ep → 1 gp and an odd
+ * one → 5 sp. Value is kept exactly (1 ep = 5 sp = 50 cp); `coins` is the purse as readCoins gives it.
+ */
+export function planElectrumConvert({to, coins} = {}) {
+  if (!['sp', 'gp'].includes(to)) throw Error('Convert electrum to silver (sp) or gold (gp).');
+  if (!coins || typeof coins !== 'object') throw Error('The party purse has no dnd5e currency (system.currency).');
+  const before = Object.fromEntries(COINS.map(c => [c, Number(coins[c]) || 0])), ep = before.ep;
+  if (!Number.isInteger(ep) || ep < 1) throw Error('The party purse holds no electrum to convert.');
+  const addGp = to === 'gp' ? Math.floor(ep / 2) : 0, addSp = to === 'gp' ? (ep % 2) * EP_IN_SP : ep * EP_IN_SP;
+  const after = {...before, ep: 0, sp: before.sp + addSp, gp: before.gp + addGp};
+  if (coinValueCp(before) !== coinValueCp(after)) throw Error('That conversion would change the purse value; nothing was changed.');
+  return {to, ep, addSp, addGp, valueCp: ep * EP_IN_CP, before, after};
+}
+const gotText = (gp, sp) => [gp ? `${gp} gp` : '', sp ? `${sp} sp` : ''].filter(Boolean).join(' + ');
+/** Confirmation preview lines for a conversion plan. */
+export function convertPreview(plan) {
+  const {before: b, after: a} = plan;
+  return [`Convert ${plan.ep} ep → ${gotText(plan.addGp, plan.addSp)}.`, `Electrum: ${b.ep} → ${a.ep} ep`,
+    ...(plan.addGp ? [`Gold: ${b.gp} → ${a.gp} gp`] : []), ...(plan.addSp ? [`Silver: ${b.sp} → ${a.sp} sp`] : []),
+    `Value kept exactly: ${plan.valueCp} cp (1 ep = 5 sp = 50 cp). Total purse value ${coinValueCp(b)} cp before and after.`];
+}
+/** History record of a conversion; lives in the stash history next to the other purse rows. */
+export function convertEntry({id, plan, user, reason = '', worldTime = null, realTime = Date.now()} = {}) {
+  if (!plan?.ep) throw new TypeError('A conversion entry needs a conversion plan.');
+  return {id: String(id ?? `x${realTime}`), kind: 'purse-convert', approval: 'gm', moved: true, userId: str(user?.id), userName: str(user?.name) ?? 'Unknown',
+    coin: 'ep', amount: plan.ep, to: plan.to, addSp: plan.addSp, addGp: plan.addGp, valueCp: plan.valueCp, before: {...plan.before}, after: {...plan.after},
+    reason: str(reason, 300) ?? '', worldTime: num(worldTime), realTime, undone: false, undo: []};
+}
+export const convertLine = h => `${h.userName} converted ${h.amount} ep to ${gotText(h.addGp, h.addSp)} in the party purse (value kept: ${h.valueCp} cp)`;
+/** Undo puts the ep back and removes the coins it added; refused if those coins have since left the purse. */
+export function planConvertUndo(entry, coins) {
+  if (entry?.kind !== 'purse-convert') throw Error('That history entry is not an electrum conversion.');
+  if (entry.undone) throw Error('This conversion was already undone.');
+  if (coins === undefined) return {ok: false, reason: 'The party stash no longer exists.'};
+  if (!coins) return {ok: false, reason: 'The party purse has no dnd5e currency (system.currency).'};
+  if (coins.gp < entry.addGp) return {ok: false, reason: `The party purse has ${coins.gp} gp, fewer than the ${entry.addGp} gp the conversion added.`};
+  if (coins.sp < entry.addSp) return {ok: false, reason: `The party purse has ${coins.sp} sp, fewer than the ${entry.addSp} sp the conversion added.`};
+  return {ok: true, reason: '', next: {ep: coins.ep + entry.amount, sp: coins.sp - entry.addSp, gp: coins.gp - entry.addGp}};
+}
+export function applyConvertUndo(entry, result, {user, realTime = Date.now()} = {}) {
+  const attempt = {userId: str(user?.id), userName: str(user?.name) ?? 'Unknown', realTime, ok: result.ok, reason: result.reason ?? ''};
+  return {...entry, undone: entry.undone || result.ok, undo: [...(entry.undo ?? []), attempt]};
 }
 
 export const ROLL_OPEN_MODES = Object.freeze(['group', 'individual']);

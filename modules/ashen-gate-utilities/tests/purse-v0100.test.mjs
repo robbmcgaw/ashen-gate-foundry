@@ -201,7 +201,8 @@ test('GM History shows purse rows with before → after, reason and Undo only wh
  const undoable=hist().filter(purseUndoable).length;assert.equal((html.match(/data-action="purse-undo"/g)??[]).length,undoable);
  assert.match(html,/Coins awarded|awarded 4 sp each/);
 });
-test('Items tab: purse strip with five labelled counters; header and rows render the same cells',async()=>{
+test('Items tab: purse strip with five labelled counters (electrum on); header and rows render the same cells',async()=>{
+ await game.settings.set(ID,'electrumEnabled',true);
  stash.items.add({id:'it1',name:'Potion',type:'consumable',img:'p.webp',system:{quantity:2,weight:{value:0.5,units:'lb'},price:{value:50,denomination:'gp'}}});
  game.user=alice;
  try{
@@ -215,6 +216,7 @@ test('Items tab: purse strip with five labelled counters; header and rows render
   assert.match(row,/Consumable/);assert.match(row,/data-action="stash-take"/);
  }finally{game.user=gm;}
  const gmHtml=await (await api.stash.open())._renderHTML();assert.match(gmHtml,/data-action="purse-adjust"/);
+ await game.settings.set(ID,'electrumEnabled',false);
 });
 test('GM adjust dialog: coin/op/amount/reason, labelled confirmation, Cancel changes nothing',async()=>{
  const seen=[];const sp=stash.system.currency.sp;

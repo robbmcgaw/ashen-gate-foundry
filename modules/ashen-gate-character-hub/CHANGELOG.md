@@ -1,3 +1,13 @@
+## 0.18.1 — 2026-10-21
+
+- **Electrum follows Utilities' "Use electrum"** (Utilities 0.13.2+, GM Setup; default off). The Hub reads it through Utilities' public `api.currency.electrumEnabled()` and redraws on its `ashen-gate-utilities.electrumChanged` hook.
+  - **Inventory coin boxes:** while electrum is off, the ep box is gone (pp, gp, sp, cp only). If a character still has electrum it isn't hidden: the ep box shows dimmed with a note, and the GM converts it in Utilities (the Hub has no convert action).
+  - **Coin changes:** while electrum is off, the Hub can lower a character's electrum but not add any. This is checked in the action itself.
+  - **Party purse summary** (shown when Utilities has no stash view): ep is left out while off. Any leftover ep shows as a short note.
+  - Utilities' own embedded stash view already follows its setting.
+  - Without Utilities, or with an older one, everything works as before.
+- No saved data changes.
+
 ## 0.18.0 — 2026-10-21
 
 - **Strain bar** under hit points, next to hit dice, rests and exhaustion, from Ashen Gate | Cinders (`api.strain`). It fills to 10, then reads e.g. **13 / 10+** with a **+3 over** badge and turns red. It shows the band name and the Backfire chance on a Push from there. Players see it read-only; the GM gets − / + (each recorded by Cinders with a reason). A new Player visibility toggle, **Strain bar**, hides it from players.

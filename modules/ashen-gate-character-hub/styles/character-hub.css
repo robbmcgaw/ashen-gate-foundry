@@ -468,3 +468,7 @@
 .ag-character-hub .agch-strain__chance { color: var(--ag-muted); }
 .ag-character-hub .agch-cinder h4 { margin: var(--ag-space-1) 0; }
 .ag-character-hub .agch-cinder__modes li { display: flex; justify-content: space-between; align-items: center; gap: var(--ag-space-1); }
+
+/* 0.18.1: electrum shown only because a character still has some while Utilities' "Use electrum" is off */
+.ag-character-hub .agch-coin.is-off { opacity: .55; }
+.ag-character-hub .agch-ep-off { margin: var(--ag-space-1) 0 0; font-size: var(--ag-text-xs); }

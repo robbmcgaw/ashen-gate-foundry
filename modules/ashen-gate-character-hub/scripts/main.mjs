@@ -114,6 +114,8 @@ if (globalThis.Hooks) {
     const by = effect?.flags?.[MODULE_ID]?.mark?.by;
     if (by) { try { scheduleRender(globalThis.fromUuidSync?.(by)); } catch {} }
   });
+  // Utilities' "Use electrum" changed: redraw so the coin boxes follow it.
+  Hooks.on('ashen-gate-utilities.electrumChanged', () => renderAllHubs());
   // The marks bar shows how many tokens you target.
   Hooks.on('targetToken', user => { if (user === game.user) renderAllHubs(100); });
   // Foundry re-renders the sheet for its own Actor changes too; these cover embedded Items/Effects and bursts.
