@@ -1,3 +1,9 @@
+## 0.22.2 — 2026-10-21
+
+- **Fix: Character Hub level backups are not party characters.** A copy the Hub keeps on level-up ("<Name> - level X", in Ashen Gate / Level backups) no longer shows in Conditions, Rolls, Award Gold, the stash's take list or shop buyer lists, and is not ticked from the dnd5e Primary Party.
+- A copy is refused as a target in the API too, for the GM as well: rolls, gold awards, purse deposit/take, stash withdraw and deposit from its sheet, condition locks, and shop buy/sell/services ("That is a level backup copy, not a playable character."). Detected by the Hub's `levelBackup` flag only; nothing is imported from the Hub, and nothing changes without it.
+- Saved data: no change. No migration.
+
 ## 0.22.1 — 2026-10-21
 
 - **Strain chip read only:** statuses whose id starts with `ag-strain-` (the Cinders 0.8.0 Strain chip) show in Conditions and the overlay with a **Read only** marker ("Changed in Ashen Gate | Cinders or the Character Hub Strain bar") and no Remove / ×, for the GM and for owners of unlocked characters. They are left out of the GM **Apply** list.

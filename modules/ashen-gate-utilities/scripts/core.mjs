@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.22.1';
+export const VERSION = '0.22.2';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -206,6 +206,13 @@ export const READ_ONLY_STATUS_PREFIXES = Object.freeze(['ag-strain-']);
 export const isReadOnlyStatus = id => typeof id === 'string' && READ_ONLY_STATUS_PREFIXES.some(p => id.startsWith(p));
 export const READ_ONLY_STATUS_HINT = 'Changed in Ashen Gate | Cinders or the Character Hub Strain bar';
 /** Removal is locked unless the GM unlocked the character. `unlocks` is the world setting {actorId: true}. */
+/**
+ * 0.22.2: Character Hub level backups ("<Name> - level X", flag `ashen-gate-character-hub.levelBackup`) are copies,
+ * not party members: never listed, never a target for rolls, gold, the purse, the stash or shops. Read by flag only
+ * (nothing is imported from the Hub); false when the Hub or the flag is absent.
+ */
+export const isLevelBackup = actor => Boolean(actor?.flags?.['ashen-gate-character-hub']?.levelBackup);
+export const LEVEL_BACKUP_REFUSAL = 'That is a level backup copy, not a playable character.';
 export const isUnlocked = (unlocks, actorId) => unlocks?.[actorId] === true;
 export function withUnlocked(unlocks, actorId, unlocked) {
   if (typeof actorId !== 'string' || !actorId) throw Error('Character id required.');

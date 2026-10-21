@@ -4,7 +4,7 @@
    presented shop, readable (Observer) only by the players it is shown to. Players read only that Journal, never the
    GM Data one. A purchase is a request to the GM client, which checks everything again on its own records and carries
    it out all or nothing: A items, B coins, C shop page, D history. Each failure puts the earlier steps back. ---- */
-import {ID,escapeHTML as E,COIN_LABELS,coinChoices,shownCoins,strandedElectrum,coinsText,readCoins,projectShop,planShopPayment,checkPurchase,
+import {ID,isLevelBackup,escapeHTML as E,COIN_LABELS,coinChoices,shownCoins,strandedElectrum,coinsText,readCoins,projectShop,planShopPayment,checkPurchase,
  shopPurchaseEntry,shopPriceText,SHOP_REFUSALS,CONSENT_TIMEOUT_MS,consentVoters,createPoll,initials,shopLineName,purchaseCount,purchaseItemData,
  nothingCharged,purchaseText,presentedOwnership,quotePurchase,projectService,projectMerchantList,entrySummary,tradeCardHTML} from './core.mjs';
 import {readAll,mustGet,writeShop,queueShops,appendLog,norm,locationsApi,randomId,purseDialog,button,icon,tip,writeService,readMeta} from './shops.mjs';
@@ -27,7 +27,7 @@ const clone=v=>structuredClone(v);
 const levels=()=>globalThis.CONST?.DOCUMENT_OWNERSHIP_LEVELS??{NONE:0,OBSERVER:2};
 const players=()=>[...(game.users??[])].filter(u=>u?.id&&!u.isGM);
 export const gmIds=()=>[...(game.users??[])].filter(u=>u.isGM).map(u=>u.id);
-export const owns=(actor,user)=>Boolean(actor&&(user?.isGM||actor.testUserPermission?.(user,'OWNER')));
+export const owns=(actor,user)=>Boolean(actor&&!isLevelBackup(actor)&&(user?.isGM||actor.testUserPermission?.(user,'OWNER')));
 export const warn=what=>e=>console.warn(`[${ID}] ${what}: ${e?.message??e}`);
 
 /** Set by main.mjs on ready: the party stash, the consent poll, the GM request channel and the history writer live there. */
