@@ -15,7 +15,8 @@
  *     for a later restore. Cinder instance records live in Cinders and are never touched. dnd5e data, items and
  *     effects are kept. The Hub's recorders skip copies.
  *   - flags['ashen-gate-character-hub'].levelBackup = {sourceId, sourceName, levelBefore, classesBefore, date, opId,
- *     by, archivedFlags} marks a copy.
+ *     by, archivedFlags, reason?} marks a copy (0.28.0: reason 'restore' on the copy made just before a Restore,
+ *     level-restore.mjs).
  */
 import {MODULE_ID} from './constants.mjs';
 import {canEdit} from './actions.mjs';
@@ -96,7 +97,7 @@ export async function createBackup(snapshot, meta) {
   for (const k of ['_id', '_stats', 'sort']) delete data[k];
   const folder = await ensureFolder();
   const flag = {sourceId: meta.sourceId, sourceName: snapshot.name, levelBefore: meta.levelBefore, date: meta.date ?? new Date().toISOString().slice(0, 10), opId: meta.opId, by: meta.by ?? g.user?.id ?? null,
-    classesBefore: meta.classesBefore ?? classesBefore(snapshot), archivedFlags};
+    classesBefore: meta.classesBefore ?? classesBefore(snapshot), archivedFlags, ...(meta.reason ? {reason: String(meta.reason)} : {})};
   Object.assign(data, {name: backupName(snapshot.name, meta.levelBefore), folder: folder?.id ?? null, ownership: {default: 0}});
   data.flags = {...data.flags, [MODULE_ID]: {[BACKUP_FLAG]: flag}};
   const made = await Actor.create(data, {keepEmbeddedIds: true});

@@ -8,6 +8,8 @@ import {shellHtml, errorHtml} from './views.mjs';
 import * as act from './actions.mjs';
 import {openNativeSheet} from './native.mjs';
 import {startLevelUp, levelUpState} from './level-up.mjs';
+import {restoreBackup, backupsFor, sourceOf, restoreLines} from './level-restore.mjs';
+import {isBackup} from './level-backup.mjs';
 import {showHelp} from './help.mjs';
 import * as items from './item-actions.mjs';
 import {openPartner, mountEmbeds, unmountEmbeds, depositToParty} from './partners.mjs';
@@ -71,6 +73,7 @@ export const ACTIONS = {
   'help': s => showHelp(s),
   'open-native': s => openNativeSheet(s.document),
   'level-up': s => levelUp(s),
+  'level-restore': s => restoreAsk(s),
   'hp-damage': (s, t) => hpButton(s, t, -1),
   'hp-heal': (s, t) => hpButton(s, t, 1),
   'inspiration': s => act.toggleInspiration(s.document),
@@ -118,6 +121,32 @@ async function levelUp(sheet) {
   if (r?.notice) n?.info?.(r.notice);
   return r;
 }
+/**
+ * Restore (0.28.0, GM): on a character, pick one of its level backups (newest first); on a backup copy, that copy.
+ * Then a labelled red confirmation says what will happen. restoreBackup() checks GM again.
+ */
+export const backupPick = async backups => (await formDialog('Restore a level backup', [{name: 'id', label: 'Backup', type: 'select', value: backups[0]?.id ?? '',
+  options: backups.map(b => ({value: b.id, label: b.name})), hint: 'The newest is first. You confirm on the next step.'}], {ok: 'Next'}))?.id ?? null;
+export async function restoreAsk(sheet, {pick = backupPick, confirm = confirmDialog} = {}) {
+  const n = globalThis.ui?.notifications, doc = sheet.document;
+  if (globalThis.game?.user?.isGM !== true) { n?.warn?.('Only a GM can restore a level backup.'); return refuse('Only a GM can restore a level backup.'); }
+  let backup = doc;
+  if (!isBackup(doc)) {
+    const all = backupsFor(doc);
+    if (!all.length) { n?.info?.(`${doc.name} has no level backups.`); return null; }
+    const id = all.length === 1 ? all[0].id : await pick(all);
+    backup = all.find(b => b.id === id);
+    if (!backup) return null;
+  }
+  const actor = sourceOf(backup);
+  if (!actor) { n?.warn?.('The character this backup was made from is gone.'); return null; }
+  if (!await confirm(restoreLines(backup, actor).join('\n'), {title: `Restore ${actor.name}?`, yes: 'Restore from backup', danger: true})) return null;
+  const r = await restoreBackup(backup);
+  if (r.ok) { n?.info?.(`${actor.name} was restored from "${backup.name}". The character as it was is kept as a new copy in Ashen Gate / Level backups.`); if (r.warning) n?.warn?.(r.warning); }
+  else n?.error?.(r.error);
+  return r;
+}
+const refuse = error => ({ok: false, error});
 /** One small menu at a time (a slot's actions or the conditions list); the same key again closes it. */
 function toggleMenu(sheet, key) {
   sheet.menu = key && sheet.menu !== key ? key : null;

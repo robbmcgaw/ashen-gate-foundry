@@ -1,3 +1,15 @@
+## 0.28.0 — 2026-10-21
+
+- **Restore a level backup (GM only).** **Restore backup** in the Hub header (shown to the GM when the character has level backups; on a backup copy it reads **Restore this backup**). Pick a copy (newest first), then a red confirmation says exactly what happens. Players never see it, and the restore itself refuses anyone but a GM.
+  - First the character as it is now is saved as another copy, `<name> - level X` in Ashen Gate / Level backups, so nothing is lost. If that copy can't be made, nothing changes.
+  - Then the copy's class levels, HP, abilities and the rest of the dnd5e data, its items and effects, and the Ashen Gate flags the copy kept aside (`archivedFlags`) are put back onto the character. Its id, name, portrait, owners, token, folder, sheet choice, **Journey** (it does not revert) and any queued backups stay.
+  - **Cinders:** the Cinder records stay the truth. With Ashen Gate | Cinders 0.7.0 the restored character is re-linked to the Cinders the records say it bears (bearer links, Cinder tree progress, socket markers) through Cinders' `api.cinder.rehook`, as part of the all-or-nothing restore. The safety copy never holds a bearer link. With an older Cinders the restore still happens and says to run Cinders → Manage → Check; without Cinders nothing is called.
+  - All or nothing: if a step fails, the character is put back as it was and the GM is told. Each restore has an opId (recorded as `levelRestore` on the character); repeating it does nothing. The backup copy is not changed. No cleanup tool: delete old copies by hand.
+  - API: `api.levelBackups.list(actor)` and `api.levelBackups.restore(backup, {opId})` (GM only).
+- **Mastery & marks:** four more standard dnd5e spell marks, same tracking-only labels as Hunter's Mark: **Bless** (Blessed), **Searing Smite**, **Wrathful Smite**, **Shining Smite** (also from a spell with identifier `branding-smite`). They appear when the character has the spell.
+- **Strain in the marks bar:** with Ashen Gate | Cinders active, the character's own Strain shows read-only at the end of the row (value and band; hover for the Push Backfire chance). Nothing shows without Cinders, or when the GM hides the Strain bar from players.
+- No migration: existing backups, marks and flags read unchanged.
+
 ## 0.27.0 — 2026-10-21
 
 - **Level up button** in the header, next to Open native sheet. It starts dnd5e's own level-up and adds no rules. A dialog lists each class to advance (dnd5e's advancement window, or just the new level when there is nothing to choose) and **Add a class**, which opens dnd5e's own class browser (classes the character has are left out) and its advancement. dnd5e 6.0.6 does not check multiclass ability-score prerequisites, and neither does the Hub.

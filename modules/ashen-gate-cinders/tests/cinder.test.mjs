@@ -383,6 +383,33 @@ test('sockets (0.3.0): attach / detach / swap on the GM client, player relay and
   const done=await cinder.repair();assert.ok(done.some(x=>/emptied 1 socket/.test(x)),done.join());assert.deepEqual(cinder.report(),[]);
   assert.deepEqual(L2.flags[MOD].attachedTo,{instanceId:id,slot:1});
 });
+test('rehook (0.7.0): a character whose Actor data was replaced in place is re-linked from the records; records unchanged; GM only',async()=>{
+  game.user=gm;const id=ember.instanceId;
+  const recordBefore=JSON.stringify(cinder.instances()),pointersBefore=JSON.stringify(B.flags[MOD].cinders),powersBefore=powersOn(B),walletBefore=JSON.stringify(wallet(B));
+  const markers=()=>B.items.filter(i=>!i.flags?.['ashen-gate-skill-trees']?.grant).map(i=>[i.id,i.flags?.[MOD]?.attachedTo??null]),markersBefore=JSON.stringify(markers());
+  assert.ok(markers().some(([,m])=>m),'B has socketed items');
+  // What a restore from an older copy leaves behind: an old pointer list, old tree progress, old item markers.
+  B.flags[MOD].cinders=[{instanceId:'cinst_old',definitionId:DEF,name:'[TEST] old',sockets:{attached:[]},art:null}];
+  // Written straight onto the Actor like a restore does (no Skill Trees call, so no progress hook onto the record).
+  st.seed(B,tree.id,{awarded:0,unlocks:[],grants:[]});for(const i of B.items.filter(i=>i.flags?.['ashen-gate-skill-trees']?.grant))B.items.splice(B.items.indexOf(i),1);
+  const socketed=B.items.find(i=>i.flags?.[MOD]?.attachedTo);socketed.flags[MOD].attachedTo=null;
+  const loose=B.items.find(i=>!i.flags?.[MOD]?.attachedTo&&i.setFlag);loose.flags[MOD]??={};loose.flags[MOD].attachedTo={instanceId:'cinst_old',slot:9};
+  assert.ok(cinder.report().length>0,'Check sees the mismatch');
+  game.user=bob;await assert.rejects(cinder.rehook(B),/GM only/);game.user=gm;
+  const r=await cinder.rehook(B);
+  assert.deepEqual(r.instances,[id]);assert.ok(r.done.length>0);
+  assert.equal(JSON.stringify(B.flags[MOD].cinders),pointersBefore,'bearer link back, stale one gone');
+  assert.deepEqual(powersOn(B),powersBefore);assert.equal(JSON.stringify(wallet(B)),walletBefore,'tree progress from the Cinder');
+  assert.equal(JSON.stringify(markers()),markersBefore,'socket markers from the record');
+  assert.equal(JSON.stringify(cinder.instances()),recordBefore,'the records are the truth and are not changed');
+  assert.deepEqual(cinder.report(),[]);
+  assert.deepEqual((await cinder.rehook(B)).done,[],'re-runnable: nothing left to do');
+  assert.ok(called.some(([e,d])=>e==='ashenGateCinder.changed'&&d.kind==='rehook'&&d.actorId==='B'));
+  // A character that bears nothing (e.g. one restored from a copy made while it bore a Cinder) loses the stale link.
+  C.flags[MOD]??={};C.flags[MOD].cinders=[{instanceId:id,definitionId:DEF,name:'[TEST] stale',sockets:{attached:[]},art:null}];
+  assert.deepEqual((await cinder.rehook(C)).instances,[]);assert.deepEqual(C.flags[MOD].cinders,[]);
+  assert.equal(cinder.instances().find(i=>i.instanceId===id).bearer.actorId,'B','still borne by B');
+});
 // 0.6.0: the Cinder sheet. The orb's art (GM only, API-enforced), the new list fields, and the sheet's socket wiring through api.sockets.
 test('art (0.6.0): only the GM sets it (rejected in the API), saved on the record, copied to the bearer, hook; null goes back to the default orb',async()=>{
   const id=ember.instanceId,path='ashen-gate/cinders/[TEST]-ember.webp';
