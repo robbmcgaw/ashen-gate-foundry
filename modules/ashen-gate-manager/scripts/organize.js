@@ -7,6 +7,8 @@
  * The GM can protect a folder (flag on the Folder, inherited by sub-folders) or a single document
  * (`keepFolder` flag); both are skipped. Player characters and player-owned Actors are left alone by default.
  * Every run is stored (previous folder ids) so the last organize can be undone.
+ * 0.36.0: a run can be narrowed to some documents (`ids`, the Items tab selection) and/or one folder and its
+ * sub-folders (`folderId`) inside the chosen world or compendium.
  */
 import {MODULE_ID, getPath} from './core.js';
 import {isCoreSource} from './core-links.js';
@@ -21,6 +23,7 @@ export const ORGANIZE_TYPES = Object.freeze(['Item', 'Actor', 'JournalEntry']);
 const GM_ONLY = 'Only the GM can organize folders.';
 const fail = message => ({ok:false, message});
 const clone = value => JSON.parse(JSON.stringify(value));
+const groupBy = (list, key) => {const m = new Map(); for(const x of list) {const k = key(x); if(!m.has(k)) m.set(k, []); m.get(k).push(x);} return m;};
 
 const RARITY = {common:'Common', uncommon:'Uncommon', rare:'Rare', veryrare:'Very Rare', legendary:'Legendary', artifact:'Artifact'};
 const title = s => String(s).replace(/[-_]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').replace(/\b\w/g, c => c.toUpperCase());
@@ -212,8 +215,10 @@ export function folderIndex(folders) {
  * Plans one source. Pure: reads documents/folders, writes nothing.
  * mode 'misfiled' (default): move unfiled docs and docs already inside the schema's own top folders.
  * mode 'all': refile every matched doc, wherever the GM put it (protected ones still skipped).
+ * `include(doc)` narrows which docs are planned; every doc still feeds the recipe-tier lookup, so a narrowed run
+ * files a crafted item exactly where a full run would.
  */
-export function planSource({documentName, docs, folders, rules, mode = 'misfiled', writable = true, blockedReason = ''}) {
+export function planSource({documentName, docs, folders, rules, mode = 'misfiled', writable = true, blockedReason = '', include = null}) {
   const index = folderIndex(folders);
   const roots = new Set(rules.filter(r => !r.leave).map(r => pathSegments(r.path)[0]));
   // Manager's own import folders ("Ashen Gate — Imported Items") count as managed too.
@@ -226,6 +231,7 @@ export function planSource({documentName, docs, folders, rules, mode = 'misfiled
   const moves = [], skipped = [], unmatched = [], creates = new Set();
   let inPlace = 0;
   for(const doc of docs) {
+    if(include && !include(doc)) continue;
     const fromId = folderIdOf(doc);
     const from = index.pathOf(fromId);
     const row = {id:doc._id ?? doc.id, name:doc.name, documentName, fromId, from:from || '(no folder)'};
@@ -247,13 +253,32 @@ export function planSource({documentName, docs, folders, rules, mode = 'misfiled
     if(found.missingAt !== undefined) for(let n = found.missingAt; n < segments.length; n++) creates.add(segments.slice(0, n + 1).join('/'));
     moves.push({...row, to:hit.path, toId:found.folder?.id ?? null, rule:hit.rule.id});
   }
-  const groups = [...moves.reduce((m, r) => m.set(r.to, [...(m.get(r.to) ?? []), r]), new Map())]
+  const groups = [...groupBy(moves, r => r.to)]
     .sort(([a], [b]) => a.localeCompare(b)).map(([path, rows]) => ({path, count:rows.length, rows}));
   return {documentName, writable, blockedReason, moves, groups, skipped, unmatched, inPlace,
     createFolders:[...creates].sort(), protectedFolders:[...index.protectedIds].map(id => index.pathOf(id))};
 }
 
 const OWN_FOLDER = 'In your own folder (use Refile everything to move it)';
+/** History `source` of a Clean compendiums run; each of its moves carries its own source (0.36.0). */
+export const CLEAN_SOURCE = 'clean';
+/** Documents per updateDocuments call. */
+const BATCH = 250;
+
+/**
+ * Narrowing for one loaded scope (0.36.0): `ids` keeps only those document ids, `folderId` only documents in that
+ * folder or its sub-folders. Returns null when nothing narrows (plan everything).
+ */
+export function scopeFilter(scope, {ids = null, folderId = null} = {}) {
+  if(!ids && !folderId) return null;
+  const want = ids ? new Set(ids.map(String)) : null;
+  const byId = new Map(scope.folders.map(f => [f.id, f]));
+  const inFolder = doc => {
+    for(let id = folderIdOf(doc), n = 0; id && n < 10; id = parentId(byId.get(id)), n++) if(id === folderId) return true;
+    return false;
+  };
+  return doc => (!want || want.has(String(doc._id ?? doc.id))) && (!folderId || inFolder(doc));
+}
 /**
  * Plain one-paragraph summary of a preview, so every Preview says what it did or why nothing would move (0.35.1).
  * `sourceLabel` names the World or compendium that was checked.
@@ -337,13 +362,23 @@ export function createOrganizer({game,
     createFolders:parts.reduce((n, p) => n + p.createFolders.length, 0)
   });
 
+  /** Checks ids/folderId (0.36.0); returns an error message or ''. */
+  function narrowProblem(scopes, ids, folderId) {
+    if(ids !== null && ids !== undefined && !(Array.isArray(ids) && ids.every(id => typeof id === 'string' || typeof id === 'number'))) return 'ids must be a list of document ids.';
+    if(folderId && !scopes.some(s => s.folders.some(f => f.id === folderId))) return 'That folder is not in the chosen world or compendium (or not of a ticked kind).';
+    return '';
+  }
+
   /** Dry run: exactly what Apply would do. Writes nothing. */
-  async function preview({source = 'world', types = ORGANIZE_TYPES, mode = 'misfiled'} = {}) {
+  async function preview({source = 'world', types = ORGANIZE_TYPES, mode = 'misfiled', ids = null, folderId = null} = {}) {
     if(!isGM()) return fail(GM_ONLY);
     try {
       const schema = rules();
-      const parts = (await load(source, types)).map(s => planSource({...s, rules:schema, mode}));
-      return {ok:true, source, types, mode, parts, totals:summarize(parts)};
+      const scopes = await load(source, types);
+      const problem = narrowProblem(scopes, ids, folderId);
+      if(problem) return fail(problem);
+      const parts = scopes.map(s => planSource({...s, rules:schema, mode, include:scopeFilter(s, {ids, folderId})}));
+      return {ok:true, source, types, mode, ids:ids ?? null, folderId:folderId ?? null, parts, totals:summarize(parts)};
     } catch(error) {return fail(String(error.message ?? error));}
   }
 
@@ -370,16 +405,18 @@ export function createOrganizer({game,
   }
 
   /** Re-plans (so it always equals a fresh Preview), creates missing folders, then changes only `folder`. */
-  async function apply({source = 'world', types = ORGANIZE_TYPES, mode = 'misfiled'} = {}) {
+  async function apply({source = 'world', types = ORGANIZE_TYPES, mode = 'misfiled', ids = null, folderId = null} = {}) {
     if(!isGM()) return fail(GM_ONLY);
     try {
       const schema = rules();
       const scopes = await load(source, types);
+      const problem = narrowProblem(scopes, ids, folderId);
+      if(problem) return fail(`${problem} Nothing was changed.`);
       const blocked = scopes.find(s => !s.writable);
       if(blocked) return fail(`${blocked.blockedReason}. Nothing was changed.`);
       const moved = [], created = [];
       for(const scope of scopes) {
-        const plan = planSource({...scope, rules:schema, mode});
+        const plan = planSource({...scope, rules:schema, mode, include:scopeFilter(scope, {ids, folderId})});
         if(!plan.moves.length) continue;
         const cache = new Map();
         const updates = [];
@@ -389,10 +426,11 @@ export function createOrganizer({game,
           moved.push({documentName:scope.documentName, id:move.id, name:move.name, fromId:move.fromId, from:move.from, toId, to:move.to});
         }
         const opts = scope.pack ? {pack:scope.pack.collection} : {};
-        for(let n = 0; n < updates.length; n += 250) await updateDocuments(scope.documentName, updates.slice(n, n + 250), opts);
+        for(let n = 0; n < updates.length; n += BATCH) await updateDocuments(scope.documentName, updates.slice(n, n + BATCH), opts);
       }
       if(moved.length) {
-        const entry = {at:new Date().toISOString(), source, types, mode, moves:moved, createdFolders:created};
+        const entry = {at:new Date().toISOString(), source, types, mode, moves:moved, createdFolders:created,
+          ...(ids || folderId ? {narrowed:{count:ids?.length ?? null, folderId:folderId ?? null}} : {})};
         await game.settings.set(MODULE_ID, HISTORY_SETTING, [entry, ...history()].slice(0, HISTORY_LIMIT));
       }
       const after = await load(source, types);
@@ -403,34 +441,144 @@ export function createOrganizer({game,
   }
 
   /** Puts documents from the last run back where they were, if they are still where Organize put them. */
+  /** Puts one source's moves back, if each document is still where Organize put it. */
+  async function restoreMoves(source, types, moves, notes) {
+    const scopes = await load(source, types);
+    const blocked = scopes.find(s => !s.writable);
+    if(blocked) {notes.push(`${source === 'world' ? 'World' : source.slice(5)}: ${blocked.blockedReason}, left as it is`); return 0;}
+    let restored = 0;
+    for(const scope of scopes) {
+      const docs = new Map(scope.docs.map(d => [d._id ?? d.id, d]));
+      const folderIds = new Set(scope.folders.map(f => f.id));
+      const updates = [];
+      for(const move of moves.filter(m => m.documentName === scope.documentName)) {
+        const doc = docs.get(move.id);
+        if(!doc) {notes.push(`${move.name}: no longer exists`); continue;}
+        if(folderIdOf(doc) !== move.toId) {notes.push(`${move.name}: moved since, left where it is`); continue;}
+        if(move.fromId && !folderIds.has(move.fromId)) {notes.push(`${move.name}: original folder was deleted, left where it is`); continue;}
+        updates.push({_id:move.id, folder:move.fromId ?? null});
+      }
+      const opts = scope.pack ? {pack:scope.pack.collection} : {};
+      for(let n = 0; n < updates.length; n += BATCH) await updateDocuments(scope.documentName, updates.slice(n, n + BATCH), opts);
+      restored += updates.length;
+    }
+    return restored;
+  }
+
+  /** Puts documents from the last run back where they were, if they are still where Organize put them. A Clean compendiums run is undone source by source. */
   async function undoLast() {
     if(!isGM()) return fail(GM_ONLY);
     const [last, ...rest] = history();
     if(!last) return fail('There is no organize run to undo.');
     try {
-      const scopes = await load(last.source, last.types);
-      const blocked = scopes.find(s => !s.writable);
-      if(blocked) return fail(`${blocked.blockedReason}. Nothing was changed.`);
-      let restored = 0;
       const notes = [];
-      for(const scope of scopes) {
-        const docs = new Map(scope.docs.map(d => [d._id ?? d.id, d]));
-        const folderIds = new Set(scope.folders.map(f => f.id));
-        const updates = [];
-        for(const move of last.moves.filter(m => m.documentName === scope.documentName)) {
-          const doc = docs.get(move.id);
-          if(!doc) {notes.push(`${move.name}: no longer exists`); continue;}
-          if(folderIdOf(doc) !== move.toId) {notes.push(`${move.name}: moved since, left where it is`); continue;}
-          if(move.fromId && !folderIds.has(move.fromId)) {notes.push(`${move.name}: original folder was deleted, left where it is`); continue;}
-          updates.push({_id:move.id, folder:move.fromId ?? null});
-        }
-        const opts = scope.pack ? {pack:scope.pack.collection} : {};
-        for(let n = 0; n < updates.length; n += 250) await updateDocuments(scope.documentName, updates.slice(n, n + 250), opts);
-        restored += updates.length;
+      let restored = 0;
+      if(last.source === CLEAN_SOURCE) {
+        const bySource = groupBy(last.moves, m => m.source);
+        for(const [source, moves] of bySource) restored += await restoreMoves(source, last.types, moves, notes);
+      } else {
+        const scopes = await load(last.source, last.types);
+        const blocked = scopes.find(s => !s.writable);
+        if(blocked) return fail(`${blocked.blockedReason}. Nothing was changed.`);
+        restored = await restoreMoves(last.source, last.types, last.moves, notes);
       }
       await game.settings.set(MODULE_ID, HISTORY_SETTING, rest);
       return {ok:true, restored, notes, message:`Put ${restored} document(s) back.${notes.length ? ` ${notes.length} left as they are.` : ''} Folders Organize created are kept (empty ones are listed after the next Preview).`};
     } catch(error) {return fail(`Undo stopped: ${error.message ?? error}`);}
+  }
+
+  /**
+   * Clean compendiums (0.36.0), preview: every writable place (world sidebar, then each unlocked world compendium)
+   * planned with Refile everything, so imported sets sitting in their own folders are found too. Locked, module and
+   * system compendiums are not read; they are listed with the reason. Protected folders and Keep here still skip.
+   * `onProgress({done, total, label})` reports each place as it is read. Writes nothing.
+   */
+  async function cleanPreview({types = ORGANIZE_TYPES, onProgress = null} = {}) {
+    if(!isGM()) return fail(GM_ONLY);
+    try {
+      const schema = rules();
+      const packs = packList().filter(p => types.includes(p.documentName));
+      const places = [{key:'world', label:'World (sidebar)', pack:null}, ...packs.map(p => ({key:`pack:${p.collection}`, label:`${p.metadata?.label ?? p.title ?? p.collection} (${p.documentName})`, pack:p}))];
+      const sources = [];
+      for(const [n, place] of places.entries()) {
+        onProgress?.({done:n, total:places.length, label:place.label});
+        const access = place.pack ? packAccess(place.pack) : {writable:true, reason:''};
+        if(!access.writable) {
+          const locked = place.pack.metadata?.packageType === 'world' && place.pack.locked;
+          sources.push({key:place.key, label:place.label, writable:false, locked, reason:access.reason, parts:[], size:place.pack.index?.size ?? null});
+          continue;
+        }
+        try {
+          const parts = (await load(place.key, types)).map(sc => planSource({...sc, rules:schema, mode:'all'}));
+          sources.push({key:place.key, label:place.label, writable:true, locked:false, reason:'', parts});
+        } catch(error) {
+          sources.push({key:place.key, label:place.label, writable:false, locked:false, reason:`Could not be read: ${error.message ?? error}`, parts:[]});
+        }
+      }
+      onProgress?.({done:places.length, total:places.length, label:''});
+      const parts = sources.flatMap(x => x.parts);
+      return {ok:true, kind:'clean', types, mode:'all', sources, totals:summarize(parts), skippedSources:sources.filter(x => !x.writable).length};
+    } catch(error) {return fail(String(error.message ?? error));}
+  }
+
+  /** Key of one planned move, used to tick and untick it: `<source>|<documentName>|<id>`. */
+  const moveKey = (source, documentName, id) => `${source}|${documentName}|${id}`;
+
+  /**
+   * Clean compendiums, commit: re-plans each place and moves only the ticked moves that are still planned the same
+   * way (a document changed since the preview is left alone and named). Writes in batches of BATCH; one history
+   * entry so Undo last organize puts the whole run back. `onProgress({done, total})` counts documents written.
+   */
+  async function cleanApply({moves = [], types = ORGANIZE_TYPES, onProgress = null} = {}) {
+    if(!isGM()) return fail(GM_ONLY);
+    if(!Array.isArray(moves) || !moves.every(k => typeof k === 'string')) return fail('moves must be a list of move keys from the preview.');
+    try {
+      const schema = rules();
+      const bySource = groupBy(moves, k => k.split('|')[0]);
+      const total = moves.length;
+      const moved = [], created = [], notes = [];
+      let done = 0;
+      for(const [source, keys] of bySource) {
+        const want = new Set(keys);
+        const scopes = await load(source, types);
+        const blocked = scopes.find(sc => !sc.writable);
+        if(blocked) {notes.push(`${source.slice(5)}: ${blocked.blockedReason}, skipped`); done += keys.length; continue;}
+        for(const scope of scopes) {
+          const plan = planSource({...scope, rules:schema, mode:'all'});
+          const chosen = plan.moves.filter(m => want.has(moveKey(source, scope.documentName, m.id)));
+          const cache = new Map(), updates = [];
+          for(const move of chosen) {
+            const toId = await ensurePath(scope, move.to, cache, created);
+            updates.push({_id:move.id, folder:toId});
+            moved.push({source, documentName:scope.documentName, id:move.id, name:move.name, fromId:move.fromId, from:move.from, toId, to:move.to});
+          }
+          const opts = scope.pack ? {pack:scope.pack.collection} : {};
+          for(let n = 0; n < updates.length; n += BATCH) {
+            await updateDocuments(scope.documentName, updates.slice(n, n + BATCH), opts);
+            done += Math.min(BATCH, updates.length - n);
+            onProgress?.({done, total});
+          }
+        }
+      }
+      const planned = new Set(moved.map(m => moveKey(m.source, m.documentName, m.id)));
+      const gone = moves.filter(k => !planned.has(k)).length;
+      if(gone) notes.push(`${gone} ticked document(s) changed since the preview (moved, protected, deleted or locked) and were left as they are`);
+      if(moved.length) {
+        const entry = {at:new Date().toISOString(), source:CLEAN_SOURCE, types, mode:'all', moves:moved, createdFolders:created};
+        await game.settings.set(MODULE_ID, HISTORY_SETTING, [entry, ...history()].slice(0, HISTORY_LIMIT));
+      }
+      onProgress?.({done:total, total});
+      return {ok:true, moved:moved.length, createdFolders:created.length, notes, moves:moved,
+        message:moved.length ? `Moved ${moved.length} document(s) in ${new Set(moved.map(m => m.source)).size} place(s); created ${created.length} folder(s).${notes.length ? ` ${notes.join('. ')}.` : ''}` : `Nothing was moved.${notes.length ? ` ${notes.join('. ')}.` : ''}`};
+    } catch(error) {return fail(`Clean stopped: ${error.message ?? error}. Moves already written are in Undo last organize only if the run finished; download the backup before committing.`);}
+  }
+
+  /** Backup of current folders for every ticked move of a Clean compendiums preview. */
+  function cleanBackupOf(result, keys) {
+    const want = new Set(keys);
+    return {kind:'ashen-gate-organize-backup', module:MODULE_ID, at:new Date().toISOString(), source:CLEAN_SOURCE, mode:'all',
+      documents:result.sources.flatMap(src => src.parts.flatMap(p => p.moves.filter(m => want.has(moveKey(src.key, p.documentName, m.id)))
+        .map(m => ({source:src.key, documentName:p.documentName, id:m.id, name:m.name, folderId:m.fromId, folder:m.from, plannedFolder:m.to}))))};
   }
 
   /** Backup of current folder assignments for everything the plan would move. */
@@ -489,5 +637,5 @@ export function createOrganizer({game,
   }
 
   return {listSources, preview, apply, undoLast, backupOf, history:() => isGM() ? history() : [], getSchema, saveSchema, resetSchema,
-    setFolderProtected, setKeepFolder, housekeeping};
+    setFolderProtected, setKeepFolder, housekeeping, cleanPreview, cleanApply, cleanBackupOf, moveKey};
 }

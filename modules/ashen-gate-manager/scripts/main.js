@@ -30,7 +30,8 @@ const MOOD_VIEWS=[{id:'live',label:'Live: this scene',icon:'fa-solid fa-sun'},{i
 const MOOD_TRANSITIONS=[{value:'',label:'Preset default'},{value:0,label:'Instant'},{value:3000,label:'3 s'},{value:10000,label:'10 s'},{value:30000,label:'30 s'}];
 import {createCoreLinks, SOURCES_SETTING, LINK_HISTORY_SETTING} from './core-links.js';
 import {createOrganizer, folderIndex, describePreview, ORGANIZE_TYPES, SCHEMA_SETTING, HISTORY_SETTING, FLAG_PROTECTED} from './organize.js';
-import {createBrowse, PAGE_SIZE} from './browse.js';
+import {createBrowse, PAGE_SIZE, filterEntries} from './browse.js';
+import {ITEM_VIEWS, ORIGINS, RARITIES, DEFAULT_FILTERS, activeFilterCount, resolveTab} from './item-filters.js';
 import {toolbarHtml, bodyHtml, DEFAULT_STATE} from './browse-view.js';
 
 const {ApplicationV2, HandlebarsApplicationMixin, DialogV2} = foundry.applications.api;
@@ -168,20 +169,14 @@ function planDocument(record,pkg,{includeDrafts,updateActors,zipMedia}) {
   return {plan:planWithMetadata(record,matches,findSameNameUnmanaged(record),includeDrafts,pkg),docs:matches.map(m=>m.doc)};
 }
 
-/** Library rail sections (0.32.0). Records holds the list/detail browser; the others were stacked below it before. */
-const LIBRARY_SECTIONS=Object.freeze([
-  {id:'records',label:'Records',icon:'fa-solid fa-list'},
-  {id:'check',label:'Check library',icon:'fa-solid fa-stethoscope'},
-  {id:'export',label:'Export and backup',icon:'fa-solid fa-file-export'},
-  {id:'adopt',label:'Adopt and tag world Items',icon:'fa-solid fa-tags'},
-  {id:'codex',label:'NPC Codex',icon:'fa-solid fa-address-book'}
-]);
+const TYPE_LABEL={Item:'Items',Actor:'Actors',JournalEntry:'Journals'};
+const capitalize=s=>String(s??'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/^\w/,c=>c.toUpperCase());
 
 class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.35.1 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.36.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -218,7 +213,6 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.captureKind = "Item";
     this.captureMessage = "Tag world Items for review without changing their stats or claiming approval.";
     this.librarySelected = new Set();
-    this.librarySearch = "";
     this.librarySystem = "all";
     this.libraryStatus = "all";
     this.libraryPackage = "all";
@@ -226,7 +220,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.libraryPage = 0;
     this.libraryPageSize = 100;
     this.libraryShowArchived = true;
-    this.librarySection = "records";
+    this.librarySection = null; // pre-0.36.0 Library rail id; read once by resolveTab, then the Items rail (itemsView) rules
+    this.itemsView = "all";
+    this.itemFilters = {...DEFAULT_FILTERS};
+    this.browsePaint = null;
     this.codexFocus = null;
     this.codexSearch = "";
     this.codexFilter = "all";
@@ -246,7 +243,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.browseState = {...DEFAULT_STATE, filters:{}};
     this.browseUnsub = null;
     this.moodMessage = "Pick a mood, then add layers on top. Each removes only its own changes; Back to normal puts the scene's original values back, fine-tune included.";
-    this.orgSource = "world";
+    this.orgScope = "all";
     this.orgTypes = new Set(ORGANIZE_TYPES);
     this.orgMode = "misfiled";
     this.orgPreview = null;
@@ -254,6 +251,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.orgSchemaText = null;
     this.orgReport = null;
     this.orgMessage = "Preview shows exactly what would move. Organize only changes which folder a document is in.";
+    this.housekeepingMessage = "";
+    this.cleanPreview = null;
+    this.cleanUnticked = new Set();
+    this.cleanStatus = "";
     this.clPreview = null;
     this.clTicked = new Set();
     this.clLinkOnly = new Set();
@@ -499,16 +500,16 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.preview.forEach(row => {summary[row.action] = (summary[row.action] ?? 0) + 1;});
     const history = game.settings.get(MODULE_ID,"importHistory") ?? [];
     const allItems = allCaptureRows();
-    const library=this.managedRows();
-    const browser=browseLibrary(library,{search:this.librarySearch,system:this.librarySystem,
-      status:this.libraryStatus,package:this.libraryPackage,showArchived:this.libraryShowArchived});
-    browser.rows=orderLibraryRows(browser.rows);
+    // Old tab ids (browse, library, organize, corelinks) open the matching Items rail entry (0.36.0).
+    ({tab:this.tab,view:this.itemsView}=resolveTab(this.tab,{view:this.itemsView,librarySection:this.librarySection}));
+    this.librarySection=null;
+    const items=this.tab==='items', view=this.itemsView;
+    const {all:library,rows:libraryInScope,browser}=this.#libraryBrowser();
     const pageCount=Math.max(1,Math.ceil(browser.rows.length/this.libraryPageSize));
     this.libraryPage=Math.max(0,Math.min(this.libraryPage,pageCount-1));
     const libraryRows=browser.rows.slice(this.libraryPage*this.libraryPageSize,(this.libraryPage+1)*this.libraryPageSize);
     const libraryDetail=inspectLibrary(library,this.libraryFocus);
     const libraryGroups=groupLibraryRows(libraryRows.map(row=>({...row,focused:row.uuid===this.libraryFocus})),browser.rows);
-    const librarySection=LIBRARY_SECTIONS.some(s=>s.id===this.librarySection)?this.librarySection:'records';
     const libraryFilterCount=[this.libraryStatus!=='all',this.libraryPackage!=='all',!this.libraryShowArchived].filter(Boolean).length;
     const menus=game.settings?.menus ? [...game.settings.menus.entries()] : [];
     const playerAccessRows=game.user?.isGM ? await collectPlayerAccess(game.modules?.values?.()??[]) : [];
@@ -525,7 +526,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
           isError:f.status==='error', isCurrent:this.zipBundle.current===f.filename,
           picked:this.zipBundle.picked.has(f.filename), canPick:Boolean(f.kind)&&f.status!=='error'&&!this.zipBundle.queue})),
         skipped:this.zipBundle.skipped, pickedCount:this.zipBundle.files.filter(f=>f.kind&&f.status!=='error'&&this.zipBundle.picked.has(f.filename)).length} : null,
-      libraryActive: this.tab === "library",
+      itemsActive: items,
+      itemsViews: ITEM_VIEWS.map(v=>({...v,active:v.id===view})),
+      itemsViewLabel: ITEM_VIEWS.find(v=>v.id===view)?.label??'',
+      itemsAll: items&&view==='all',
+      itemFilters: items ? this.#filterBarContext() : null,
       modulesActive: this.tab === "modules",
       appearanceActive: this.tab === "appearance",
       appearanceMessage:this.appearanceMessage,
@@ -536,9 +541,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       playerAccessHasVisible:accessVisibleCount>0&&!this.busy,
       launcherRows, launcherCount:launcherRows.length,
       libraryRows, libraryTotal:library.length, librarySelectedCount:this.librarySelected.size,
+      libraryInScope:libraryInScope.length, libraryNarrowed:libraryInScope.length!==library.length,
       libraryFilteredCount:browser.rows.length, libraryActiveCount:browser.summary.active,
       libraryEditedCount:browser.summary.edited, librarySystemCount:browser.summary.systems,
-      librarySearch:this.librarySearch, libraryShowArchived:this.libraryShowArchived,
+      libraryShowArchived:this.libraryShowArchived,
       librarySystemOptions:[{value:'all',label:'All systems',selected:this.librarySystem==='all'},...browser.systemOptions],
       libraryStatusOptions:[{value:'all',label:'All statuses',selected:this.libraryStatus==='all'},...browser.statusOptions.map(r=>({...r,label:r.value}))],
       libraryPackageOptions:[{value:'all',label:'All packages',selected:this.libraryPackage==='all'},...browser.packageOptions.map(r=>({...r,label:r.value}))],
@@ -546,13 +552,12 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       libraryHasPrevious:this.libraryPage>0,libraryHasNext:this.libraryPage+1<pageCount,
       libraryDetail,libraryHasDetail:Boolean(libraryDetail),
       libraryGroups, libraryFilterCount, libraryHasFilters:libraryFilterCount>0,
-      librarySections:LIBRARY_SECTIONS.map(s=>({...s,active:s.id===librarySection})),
-      librarySectionLabel:LIBRARY_SECTIONS.find(s=>s.id===librarySection).label,
-      libraryRecordsActive:librarySection==='records',libraryCheckActive:librarySection==='check',
-      libraryExportActive:librarySection==='export',libraryAdoptActive:librarySection==='adopt',
-      libraryCodexActive:librarySection==='codex',
-      codex:this.tab==='library'&&librarySection==='codex'?this.#codexContext():null,
-      librarySystemChips:[{value:'all',label:'All',count:library.filter(r=>this.libraryShowArchived||!r.archived).length,selected:this.librarySystem==='all'},...browser.systemOptions],
+      libraryRecordsActive:items&&view==='records',libraryCheckActive:items&&view==='checks',
+      libraryExportActive:items&&view==='export',libraryAdoptActive:items&&view==='adopt',
+      libraryCodexActive:items&&view==='codex',
+      codex:items&&view==='codex'?this.#codexContext():null,
+      housekeeping:items&&view==='checks'?{report:this.orgReport,message:this.housekeepingMessage}:null,
+      librarySystemChips:[{value:'all',label:'All',count:libraryInScope.filter(r=>this.libraryShowArchived||!r.archived).length,selected:this.librarySystem==='all'},...browser.systemOptions],
       libraryMessage:this.libraryMessage, worldExportSummary:this.worldExportSummary??'',
       preSession:this.preSessionResult?{summary:this.preSessionResult.summary,rows:this.preSessionResult.rows.map(r=>({...r,css:r.status==='N-A'?'na':r.status.toLowerCase()})),hasText:Boolean(this.preSessionResult.text)}:null,
       profile:this.profile,developmentProfile:this.profile==='development',sessionProfile:this.profile==='session-safe',
@@ -570,12 +575,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       captureMessage:this.captureMessage,
       historyActive: this.tab === "history",
       scenesActive: this.tab === "scenes",
-      browseActive: this.tab === "browse",
       moods: this.tab === "scenes" ? this.#moodContext() : null,
-      organizeActive: this.tab === "organize",
-      org: this.tab === "organize" ? this.#organizeContext() : null,
-      coreLinksActive: this.tab === "corelinks",
-      cl: this.tab === "corelinks" ? this.#coreLinkContext() : null,
+      organizeActive: items&&view==='folders',
+      org: items&&view==='folders' ? this.#organizeContext() : null,
+      coreLinksActive: items&&view==='corelinks',
+      cl: items&&view==='corelinks' ? this.#coreLinkContext() : null,
       setupActive: this.tab === "setup",
       setup: this.tab === "setup" ? coreLinks().describeSources() : null,
       setupMessage: this.setupMessage,
@@ -618,8 +622,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     await super._onRender(context, options);
     const root = this.element;
     bindSkinPicker(root.querySelector('[data-ag-skin-picker="world"]'),value=>{this.appearanceSelection=value;});
-    this.browseUnsub?.();this.browseUnsub=null;
-    if(this.tab==='browse')this.#mountBrowse(root.querySelector('[data-ag-browse]'));
+    this.browseUnsub?.();this.browseUnsub=null;this.browsePaint=null;
+    if(this.tab==='items'&&this.itemsView==='all')this.#mountBrowse(root.querySelector('[data-ag-browse]'));
+    this.#bindItems(root);
     root.querySelectorAll("[data-ag-action]").forEach(el => el.addEventListener("click", event => {
       event.preventDefault();
       this.#action(el.dataset.agAction).catch(err => this.#fail(err));
@@ -670,17 +675,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     root.querySelector("[data-ag-profile]")?.addEventListener("change", async event => {
       this.profile=event.target.value;this.applyProfile();await this.#preview();
     });
-    root.querySelector("[data-ag-library-filter]")?.addEventListener("change", event=>{
-      this.librarySearch=event.target.value.trim();this.libraryPage=0;void this.render();
-    });
     for(const [field,attribute] of [['system','librarySystem'],['status','libraryStatus'],['package','libraryPackage']]) {
       root.querySelector(`[data-ag-library-${field}]`)?.addEventListener('change',event=>{
         this[attribute]=event.target.value;this.libraryPage=0;void this.render();
       });
     }
-    root.querySelectorAll('[data-ag-library-section-tab]').forEach(el=>el.addEventListener('click',event=>{
-      event.preventDefault();this.librarySection=el.dataset.agLibrarySectionTab;void this.render();
-    }));
     this.#bindCodex(root);
     root.querySelectorAll('[data-ag-library-system-chip]').forEach(el=>el.addEventListener('click',event=>{
       event.preventDefault();this.librarySystem=el.dataset.agLibrarySystemChip;this.libraryPage=0;void this.render();
@@ -691,8 +690,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       event.preventDefault();this.libraryFocus=el.dataset.agLibraryInspect;void this.render();
     }));
     root.querySelectorAll('[data-ag-library-jump]').forEach(el=>el.addEventListener('click',event=>{
-      event.preventDefault();this.libraryFocus=el.dataset.agLibraryJump;this.librarySection='records';
-      this.librarySearch='';this.librarySystem='all';this.libraryStatus='all';this.libraryPackage='all';
+      event.preventDefault();this.libraryFocus=el.dataset.agLibraryJump;this.itemsView='records';
+      this.itemFilters={...DEFAULT_FILTERS};this.orgPreview=null;this.librarySystem='all';this.libraryStatus='all';this.libraryPackage='all';
       this.libraryShowArchived=true;this.libraryPage=0;void this.render();
     }));
     root.querySelectorAll('[data-ag-library-open]').forEach(el=>el.addEventListener('click',event=>{
@@ -800,7 +799,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       }
       case "help": {
         await DialogV2.confirm({window:{title:'Ashen Gate | General Manager Help'},
-          content:'<p><strong>Browse:</strong> one search over world Actors, Items, Journals (and pages), Ashen Gate records from Locations, Quest Log, Renown (factions and deities), Skill Trees, Headquarters, the Profession Ledger and the NPC Codex, and (after Load compendiums) compendium indexes. Type words or prefixes such as id:MAT-HERB, id:DEITY-, type:deity, type:npc-codex, tag:, status:, tier:major. An NPC Actor and its Codex entry are one row; Open on it jumps to Library → NPC Codex at that NPC, Open on a deity opens Renown\u2019s Pantheon at it. Filters combine and show counts; Clear resets them. Open shows the sheet or the owning module; drag a world or compendium row onto a sheet, the canvas or a journal. Read-only.</p><p><strong>Clean import:</strong> Choose Manager JSON or a ZIP; select Development for draft content, Validate & Preview, Select eligible, then Import.</p><p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro; no Scenes or Playlists. </p><p><strong>ZIP bundles:</strong> a ZIP holding several import files (Manager packages plus Quest, Skill Tree, Headquarters or Factions files) shows a ZIP contents list. Untick any you do not want, press Import selected files, then preview and Apply each file in turn (Manager packages first). Each file gets its own result; Skip this file or Stop ZIP import at any time. ZIP scripts never run. Bundled images are uploaded only if that option is enabled.</p><p><strong>Folders:</strong> foundry.folder_path creates nested folders per document type. <strong>Links:</strong> canonical refs bind after creation. Markers [[AGREF:MAT-EXAMPLE|Material]] are provisional pending Tim.</p><p>Back up a test world. Existing Tables and Macros are never replaced. Existing Actors change only if you tick <strong>Update existing actors</strong>: then their name, image, token settings and package items follow the file, and HP, XP, level, conditions, player items, notes, ownership, folders and other modules\' data are kept.</p>',
+          content:'<p><strong>Items:</strong> one tab with a side rail: <strong>All items</strong> (search), <strong>Ashen Gate records</strong> (the old Library), <strong>Folders</strong> (Organize), <strong>Core links</strong>, <strong>Checks</strong>, plus Export, Adopt and NPC Codex. The filters at the top (search, source, type, origin, rarity, folder, has core_ref) stay as you move between rail entries, so you can filter to DDB / Plutonium items and then Preview organize for just those.</p><p><strong>All items:</strong> one search over world Actors, Items, Journals (and pages), Ashen Gate records from Locations, Quest Log, Renown (factions and deities), Skill Trees, Headquarters, the Profession Ledger and the NPC Codex, and (after Load compendiums) compendium indexes. Type words or prefixes such as id:MAT-HERB, id:DEITY-, type:deity, type:npc-codex, tag:, status:, tier:major. An NPC Actor and its Codex entry are one row; Open on it jumps to Items → NPC Codex at that NPC, Open on a deity opens Renown\u2019s Pantheon at it. Open shows the sheet or the owning module; drag a world or compendium row onto a sheet, the canvas or a journal. Read-only; 100 rows per page.</p><p><strong>Clean import:</strong> Choose Manager JSON or a ZIP; select Development for draft content, Validate & Preview, Select eligible, then Import.</p><p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro; no Scenes or Playlists. </p><p><strong>ZIP bundles:</strong> a ZIP holding several import files (Manager packages plus Quest, Skill Tree, Headquarters or Factions files) shows a ZIP contents list. Untick any you do not want, press Import selected files, then preview and Apply each file in turn (Manager packages first). Each file gets its own result; Skip this file or Stop ZIP import at any time. ZIP scripts never run. Bundled images are uploaded only if that option is enabled.</p><p><strong>Folders:</strong> foundry.folder_path creates nested folders per document type. <strong>Links:</strong> canonical refs bind after creation. Markers [[AGREF:MAT-EXAMPLE|Material]] are provisional pending Tim.</p><p>Back up a test world. Existing Tables and Macros are never replaced. Existing Actors change only if you tick <strong>Update existing actors</strong>: then their name, image, token settings and package items follow the file, and HP, XP, level, conditions, player items, notes, ownership, folders and other modules\' data are kept.</p>',
           modal:true,rejectClose:false});
         break;
       }
@@ -860,8 +859,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       // 0.35.1: these org-* actions used to fall through to the Core Links handler, which ignored them silently.
       case "org-preview": case "org-apply": case "org-backup": case "org-undo": case "org-clear": case "org-housekeeping": await this.#organizeAction(name); break;
       case "cl-scan": case "cl-apply": case "cl-backup": case "cl-undo": case "cl-clear": case "setup-save": await this.#coreLinkAction(name); break;
+      case "clean-scan": case "clean-cancel": case "clean-backup": case "clean-commit": await this.#cleanAction(name); break;
       case "org-schema-edit": case "org-schema-save": case "org-schema-cancel": case "org-schema-export": case "org-schema-reset": await this.#organizeAction(name); break;
-      case "library-check": this.#runAudit(); this.librarySection="check";this.libraryMessage="Library check finished: results are listed below."; await this.render(); break;
+      case "library-check": this.#runAudit(); this.itemsView="checks";this.libraryMessage="Library check finished: results are listed below."; await this.render(); break;
       case "appearance-save-world": {
         const choice=this.appearanceSelection??appearanceController?.getState()?.worldDefault;
         await appearanceController.setWorldDefault(choice);
@@ -1406,10 +1406,48 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     return pack;
   }
   #visibleLibraryRows() {
-    const rows=this.managedRows();
-    const results=orderLibraryRows(browseLibrary(rows,{search:this.librarySearch,system:this.librarySystem,
-      status:this.libraryStatus,package:this.libraryPackage,showArchived:this.libraryShowArchived}).rows);
-    return results.slice(this.libraryPage*this.libraryPageSize,(this.libraryPage+1)*this.libraryPageSize);
+    const {browser}=this.#libraryBrowser();
+    return browser.rows.slice(this.libraryPage*this.libraryPageSize,(this.libraryPage+1)*this.libraryPageSize);
+  }
+  /** Shared filters without the search text (search is matched by the Browse query parser). */
+  #sharedFilters() {const {query,...rest}=this.itemFilters;return rest;}
+  /** The Items tab selection (0.36.0): every Browse entry matching the shared search and filters, unpaged. */
+  #selection() {return filterEntries(browse().getIndex(),{query:this.itemFilters.query,shared:this.#sharedFilters()});}
+  /** uuids/keys in the selection, or null when no shared filter is on (then nothing is narrowed). */
+  #selectionKeys() {
+    if(!activeFilterCount(this.itemFilters))return null;
+    return new Set(this.#selection().flatMap(e=>[e.key,e.uuid].filter(Boolean)));
+  }
+  /** Ashen Gate records narrowed by the shared filters, then by Library's own system/status/package/archived filters. */
+  #libraryBrowser() {
+    const all=this.managedRows(), keys=this.#selectionKeys();
+    const rows=keys?all.filter(r=>keys.has(r.uuid)):all;
+    const browser=browseLibrary(rows,{search:'',system:this.librarySystem,status:this.libraryStatus,package:this.libraryPackage,showArchived:this.libraryShowArchived});
+    browser.rows=orderLibraryRows(browser.rows);
+    return {all,rows,browser};
+  }
+  /** Source, type, origin, rarity, folder and core_ref controls shared by every Items rail entry. */
+  #filterBarContext() {
+    const f=this.itemFilters;
+    const opt=(value,label,extra={})=>({value,label,selected:String(f[extra.key])===String(value),...extra});
+    const packs=[...(game.packs?.contents??game.packs?.values?.()??[])].filter(p=>ORGANIZE_TYPES.includes(p.documentName)&&p.visible!==false);
+    const pack=f.source!=='all'&&f.source!=='world'?packs.find(p=>p.collection===f.source):null;
+    let index=[];
+    try{index=browse().getIndex();}catch(error){console.warn(`[${MODULE_ID}] Items: index not built`,error);}
+    const types=[...new Set(index.filter(e=>(e.kind==='Item'||e.kind==='Actor')&&e.docType).map(e=>e.docType))].sort();
+    if(f.type!=='all'&&!types.includes(f.type))types.push(f.type);
+    const folderRows=pack?(()=>{const idx=folderIndex([...(pack.folders?.contents??pack.folders??[])]);return [...idx.byId.values()].map(x=>({id:x.id,label:idx.pathOf(x.id)}));})()
+      :ORGANIZE_TYPES.flatMap(t=>{const idx=folderIndex([...(game.folders?.contents??game.folders??[])].filter(x=>x.type===t));return [...idx.byId.values()].map(x=>({id:x.id,label:`${TYPE_LABEL[t]}: ${idx.pathOf(x.id)}`}));});
+    folderRows.sort((a,b)=>a.label.localeCompare(b.label));
+    const status=browse().status();
+    return {query:f.query,coreRef:f.coreRef,active:activeFilterCount(f),
+      sources:[opt('all','All sources',{key:'source'}),opt('world','World',{key:'source'}),...packs.map(p=>opt(p.collection,`${p.metadata?.label??p.title??p.collection} (${p.documentName})`,{key:'source'}))],
+      types:[opt('all','All types',{key:'type'}),...types.map(t=>opt(t,capitalize(t),{key:'type'}))],
+      origins:[opt('all','All origins',{key:'origin'}),...Object.entries(ORIGINS).map(([k,l])=>opt(k,l,{key:'origin'}))],
+      rarities:[opt('all','Any rarity',{key:'rarity'}),...Object.entries(RARITIES).map(([k,l])=>opt(k,l,{key:'rarity'}))],
+      folders:[opt('all','All folders',{key:'folder'}),...folderRows.map(r=>opt(r.id,r.label,{key:'folder'}))],
+      needsPacks:f.source!=='all'&&f.source!=='world'&&!status.compendiums,
+      packsNote:status.loading?'Loading compendium indexes…':status.compendiums?'':'Compendiums are not loaded yet: All items lists only the world until you press Load compendiums (or pick a compendium under Source).'};
   }
   async #openOtherModule(moduleId) {
     if(!game.user.isGM) throw new Error('Only a GM can launch modules from Manager.');
@@ -1574,39 +1612,201 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!entries.length) entries.push({level:"ok",message:`No ID or reference problems found among ${docs.length} managed world document(s). (Unmanaged content not audited.)`});
     this.auditEntries=entries;
   }
-  #organizeSourceLabel() {return this.orgSource==='world'?'the world sidebar':(organizer().listSources().find(s=>s.key===this.orgSource)?.label??'that compendium');}
-  #organizeOptions() {return {source:this.orgSource, types:ORGANIZE_TYPES.filter(t=>this.orgTypes.has(t)), mode:this.orgMode};}
+  /** Organize works where the shared Source filter points: the world sidebar (World or All sources) or one compendium. */
+  #organizeSource() {const s=this.itemFilters.source;return s==='all'||s==='world'?'world':`pack:${s}`;}
+  #organizeSourceLabel(source=this.#organizeSource()) {
+    const where=source==='world'?'the world sidebar':(organizer().listSources().find(s=>s.key===source)?.label??'that compendium');
+    return this.orgScope==='selection'&&activeFilterCount(this.itemFilters)?`the selection in ${where}`:where;
+  }
+  /** Selected documents Organize can file: Items, Actors and Journals in the Organize source (0.36.0). */
+  #organizeSelection() {
+    const source=this.#organizeSource(), place=source==='world'?'world':source.slice(5);
+    return this.#selection().filter(e=>ORGANIZE_TYPES.includes(e.kind)&&e.source===place&&e.docId);
+  }
+  #organizeOptions() {
+    const o={source:this.#organizeSource(), types:ORGANIZE_TYPES.filter(t=>this.orgTypes.has(t)), mode:this.orgMode};
+    // With no filter on there is no selection: plan everything in the source.
+    if(this.orgScope==='selection'&&activeFilterCount(this.itemFilters)){
+      o.ids=this.#organizeSelection().map(e=>e.docId);
+      if(this.itemFilters.folder!=='all')o.folderId=this.itemFilters.folder;
+    }
+    return o;
+  }
   #organizeContext() {
-    const api=organizer(), TYPE_LABEL={Item:'Items',Actor:'Actors',JournalEntry:'Journals'};
+    const api=organizer();
     const schema=api.getSchema();
     const p=this.orgPreview;
-    const world=this.orgSource==='world';
+    const source=this.#organizeSource();
+    const world=source==='world';
+    const where=api.listSources().find(s=>s.key===source);
+    const filtered=activeFilterCount(this.itemFilters)>0;
+    const selected=filtered?this.#organizeSelection().filter(e=>this.orgTypes.has(e.kind)).length:null;
     const worldFolders=world?[...(game.folders?.contents??[])].filter(f=>ORGANIZE_TYPES.includes(f.type)):[];
     const byType=ORGANIZE_TYPES.map(t=>[t,folderIndex(worldFolders.filter(f=>f.type===t))]);
     const folders=byType.flatMap(([t,idx])=>[...idx.byId.values()].map(f=>({id:f.id,label:`${TYPE_LABEL[t]}: ${idx.pathOf(f.id)}`,
       isProtected:Boolean(f.getFlag?.(MODULE_ID,FLAG_PROTECTED))}))).sort((a,b)=>a.label.localeCompare(b.label));
     return {
-      sources:api.listSources().map(s=>({...s,selected:s.key===this.orgSource,label:s.writable?s.label:`${s.label} — inspect only`})),
+      whereLabel:where?.label??'World (sidebar)', whereWritable:where?.writable!==false, whereReason:where?.reason??'',
+      allSources:this.itemFilters.source==='all',
+      scopeAll:!(this.orgScope==='selection'&&filtered), scopeSelection:this.orgScope==='selection'&&filtered, filtered, selectedCount:selected??0,
+      folderFilter:this.itemFilters.folder!=='all',
+      packsMissing:!world&&!browse().status().compendiums,
       types:ORGANIZE_TYPES.map(t=>({value:t,label:TYPE_LABEL[t],checked:this.orgTypes.has(t)})),
       modeMisfiled:this.orgMode!=='all', modeAll:this.orgMode==='all', world, message:this.orgMessage,
-      preview:p?{totals:p.totals,canApply:p.totals.moves>0&&p.parts.every(x=>x.writable),parts:p.parts.map(x=>({...x,label:TYPE_LABEL[x.documentName],
+      preview:p?{totals:p.totals,narrowed:Boolean(p.ids||p.folderId),canApply:p.totals.moves>0&&p.parts.every(x=>x.writable),parts:p.parts.map(x=>({...x,label:TYPE_LABEL[x.documentName],
         hasSkipped:x.skipped.length>0,hasUnmatched:x.unmatched.length>0,hasCreates:x.createFolders.length>0,moveCount:x.moves.length}))}:null,
       result:this.orgResult, hasEmpty:Boolean(this.orgResult?.emptyFolders?.length),
-      history:api.history().map(h=>({at:h.at.replace('T',' ').slice(0,16),moved:h.moves.length,mode:h.mode==='all'?'Refile everything':'Unfiled and misfiled',source:h.source==='world'?'World':h.source.slice(5)})),
+      history:api.history().map(h=>({at:h.at.replace('T',' ').slice(0,16),moved:h.moves.length,mode:h.mode==='all'?'Refile everything':'Unfiled and misfiled',
+        source:h.source==='clean'?`Clean compendiums (${new Set(h.moves.map(m=>m.source)).size} place(s))`:`${h.source==='world'?'World':h.source.slice(5)}${h.narrowed?' (selection)':''}`})),
       protectedFolders:folders.filter(f=>f.isProtected), openFolders:folders.filter(f=>!f.isProtected),
       rules:schema.rules?.map((r,n)=>({n:n+1,...r,types:(r.types??ORGANIZE_TYPES).map(t=>TYPE_LABEL[t]).join(', '),
         match:Object.entries(r.when??{}).map(([k,v])=>`${k}=${[v].flat().join('|')}`).join(', ')||'anything'}))??[],
       schemaIsDefault:schema.isDefault, schemaText:this.orgSchemaText, editing:this.orgSchemaText!==null,
-      report:this.orgReport
+      report:this.orgReport,
+      clean:this.#cleanContext()
     };
   }
+  /** Clean compendiums preview (0.36.0): every move grouped by place and document type, each with its own tick. */
+  #cleanContext() {
+    const p=this.cleanPreview, api=organizer();
+    if(!p)return {status:this.cleanStatus,preview:null};
+    const hint=x=>x.locked?'Locked, skipped. Unlock it in the Compendium sidebar (right-click → Toggle Edit Lock), then press Clean compendiums again.'
+      :/inspect-only/.test(x.reason)?'Module or system compendium, skipped: Foundry does not allow changing these. Import its entries into the sidebar or a world compendium to sort them.'
+      :`Skipped: ${x.reason}.`;
+    const sources=p.sources.map(x=>{
+      const parts=x.parts.map(part=>({documentName:part.documentName,label:TYPE_LABEL[part.documentName],partKey:`${x.key}|${part.documentName}`,moveCount:part.moves.length,
+        skippedCount:part.skipped.length,unmatchedCount:part.unmatched.length,inPlace:part.inPlace,createCount:part.createFolders.length,
+        protectedFolders:part.protectedFolders.join(', '),
+        groups:part.groups.map(g=>({path:g.path,count:g.count,rows:g.rows.map(r=>{const key=api.moveKey(x.key,part.documentName,r.id);return {key,name:r.name,from:r.from,checked:!this.cleanUnticked.has(key)};})}))}));
+      return {...x,hint:x.writable?'':hint(x),moveCount:parts.reduce((n,pt)=>n+pt.moveCount,0),parts:parts.filter(pt=>pt.moveCount||pt.skippedCount)};
+    });
+    const ticked=this.#cleanTicked().length;
+    return {status:this.cleanStatus,preview:{totals:p.totals,ticked,skippedSources:sources.filter(x=>!x.writable),
+      withMoves:sources.filter(x=>x.writable&&x.moveCount),clean:sources.filter(x=>x.writable&&!x.moveCount).map(x=>x.label).join(', ')}};
+  }
+  /** Ticked move keys of the Clean compendiums preview. */
+  #cleanTicked() {
+    const p=this.cleanPreview, api=organizer();
+    if(!p)return [];
+    return p.sources.flatMap(x=>x.parts.flatMap(part=>part.moves.map(m=>api.moveKey(x.key,part.documentName,m.id)))).filter(k=>!this.cleanUnticked.has(k));
+  }
+  /** Progress in the Clean card and, where Foundry supports it, a progress notification. */
+  #cleanProgress(first) {
+    let note=null;
+    try{note=ui.notifications?.info?.(first,{progress:true});}catch{note=null;}
+    return (pct,text)=>{
+      this.cleanStatus=text;
+      try{note?.update?.({pct,message:text});}catch{/* older notification API: the card text still updates */}
+      const el=this.element?.querySelector('[data-ag-clean-status]');if(el)el.textContent=text;
+    };
+  }
+  async #cleanAction(name) {
+    const api=organizer();
+    const say=(text,error=false)=>{this.cleanStatus=text;toast(text,error);};
+    switch(name){
+      case 'clean-scan': {
+        const progress=this.#cleanProgress('Clean compendiums: reading the world and compendiums…');
+        this.busy=true;
+        try{
+          const out=await api.cleanPreview({onProgress:({done,total,label})=>progress(total?done/total:1,label?`Reading ${label} (${done+1} of ${total})…`:'Read everything.')});
+          if(!out.ok){say(out.message,true);break;}
+          this.cleanPreview=out;this.cleanUnticked=new Set();
+          const places=out.sources.filter(x=>x.writable).length;
+          say(out.totals.moves?`Clean compendiums: ${out.totals.moves} document(s) in ${places} place(s) are not in their folder. Untick any to leave, then Commit. Nothing has moved yet.${out.skippedSources?` ${out.skippedSources} compendium(s) skipped (see below).`:''}`
+            :`Everything checked is already in its folder (${places} place(s)).${out.skippedSources?` ${out.skippedSources} compendium(s) skipped (see below).`:''} Nothing changed.`);
+        }finally{this.busy=false;}
+        break;
+      }
+      case 'clean-cancel': this.cleanPreview=null;this.cleanUnticked=new Set();this.cleanStatus='Clean preview cleared. Nothing changed.';break;
+      case 'clean-backup': {
+        const keys=this.#cleanTicked();
+        if(!keys.length)return say('Press Clean compendiums and leave at least one move ticked first.',true);
+        downloadJson(`AG_Clean_Backup_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`,api.cleanBackupOf(this.cleanPreview,keys));
+        say(`Downloaded the current folders of the ${keys.length} ticked document(s). Nothing changed.`);break;
+      }
+      case 'clean-commit': {
+        const keys=this.#cleanTicked();
+        if(!keys.length)return say('Nothing is ticked to move.',true);
+        const places=new Set(keys.map(k=>k.split('|')[0])).size;
+        const yes=await DialogV2.confirm({window:{title:'Clean compendiums'},modal:true,rejectClose:false,
+          content:`<p><strong>Move ${keys.length} ticked document(s) in ${places} place(s) into the folders shown?</strong> Missing folders are created.</p><p>Only the folder changes; nothing is renamed, edited or deleted, and protected folders are not touched. Download the backup first if you want a file copy. You can <strong>Undo last organize</strong> afterwards.</p>`,
+          yes:{label:`Commit ${keys.length} move(s)`},no:{label:'Cancel'}});
+        if(!yes)return;
+        const progress=this.#cleanProgress(`Clean compendiums: moving ${keys.length} document(s)…`);
+        this.busy=true;
+        try{
+          const out=await api.cleanApply({moves:keys,onProgress:({done,total})=>progress(total?done/total:1,`Moved ${done} of ${total}…`)});
+          if(!out.ok){say(out.message,true);break;}
+          this.cleanPreview=null;this.cleanUnticked=new Set();this.orgPreview=null;
+          say(`${out.message} Undo last organize puts this whole run back.`,out.notes.length>0);
+        }finally{this.busy=false;}
+        break;
+      }
+    }
+    await this.render();
+  }
+  /** Items tab: rail and the shared filter bar (kept across rail entries). */
+  #bindItems(root) {
+    root.querySelectorAll('[data-ag-items-view]').forEach(el=>el.addEventListener('click',event=>{
+      event.preventDefault();this.itemsView=el.dataset.agItemsView;this.libraryPage=0;void this.render();
+    }));
+    const changed=()=>{this.orgPreview=null;this.orgResult=null;this.libraryPage=0;this.browseState.page=0;};
+    const query=root.querySelector('[data-ag-items-query]');
+    let typing=null;
+    query?.addEventListener('input',event=>{
+      this.itemFilters.query=event.target.value;
+      if(this.browsePaint){clearTimeout(typing);typing=setTimeout(()=>this.browsePaint?.(),150);}
+    });
+    // Other rail entries re-render on Enter or leaving the box, so typing never loses focus.
+    query?.addEventListener('change',event=>{this.itemFilters.query=event.target.value;changed();if(!this.browsePaint)void this.render();});
+    root.querySelectorAll('[data-ag-items-filter]').forEach(el=>el.addEventListener('change',event=>{
+      const key=el.dataset.agItemsFilter;
+      this.itemFilters[key]=event.target.value;
+      if(key==='source'){
+        this.itemFilters.folder='all';
+        const s=browse().status();
+        if(!['all','world'].includes(event.target.value)&&!s.compendiums&&!s.loading)
+          void browse().loadCompendiums().then(()=>this.rendered&&this.render(),err=>toast(String(err.message??err),true));
+      }
+      changed();void this.render();
+    }));
+    root.querySelector('[data-ag-items-coreref]')?.addEventListener('change',event=>{this.itemFilters.coreRef=event.target.checked;changed();void this.render();});
+    root.querySelector('[data-ag-items-clear]')?.addEventListener('click',event=>{
+      event.preventDefault();this.itemFilters={...DEFAULT_FILTERS};changed();void this.render();
+    });
+    root.querySelector('[data-ag-items-packs]')?.addEventListener('click',event=>{
+      event.preventDefault();
+      void browse().loadCompendiums().then(()=>{toast(`Compendium indexes loaded (${browse().status().compendiumCount} entries).`);if(this.rendered)void this.render();},err=>toast(String(err.message??err),true));
+      void this.render();
+    });
+  }
   #bindOrganize(root) {
-    root.querySelector('[data-ag-org-source]')?.addEventListener('change',e=>{this.orgSource=e.target.value;this.orgPreview=null;this.orgResult=null;void this.render();});
+    root.querySelectorAll('[data-ag-org-scope]').forEach(el=>el.addEventListener('change',e=>{
+      if(!e.target.checked)return;
+      this.orgScope=e.target.value;this.orgPreview=null;this.orgResult=null;
+      // Picking the selection means "file these": include ones sitting in the GM's own folders (Preview still shows every move first).
+      if(this.orgScope==='selection'&&this.orgMode!=='all'){this.orgMode='all';this.orgMessage='Move is set to Refile everything so the selected documents in your own folders are included. Press Preview to see what would move.';}
+      void this.render();
+    }));
     root.querySelectorAll('[data-ag-org-type]').forEach(el=>el.addEventListener('change',e=>{
       if(e.target.checked)this.orgTypes.add(e.target.dataset.agOrgType);else this.orgTypes.delete(e.target.dataset.agOrgType);
       this.orgPreview=null;void this.render();
     }));
     root.querySelector('[data-ag-org-mode]')?.addEventListener('change',e=>{this.orgMode=e.target.value;this.orgPreview=null;this.orgMessage='Move option changed. Press Preview to see what would move.';void this.render();});
+    // Clean compendiums ticks: no re-render (a preview can hold thousands of rows), just the counter and Commit label.
+    const cleanCount=()=>{const n=this.#cleanTicked().length;root.querySelectorAll('[data-ag-clean-count]').forEach(el=>{el.textContent=String(n);});
+      root.querySelectorAll('[data-ag-clean-needs-ticks]').forEach(el=>{el.disabled=!n;});};
+    root.querySelectorAll('[data-ag-clean-move]').forEach(el=>el.addEventListener('change',e=>{
+      if(e.target.checked)this.cleanUnticked.delete(e.target.dataset.agCleanMove);else this.cleanUnticked.add(e.target.dataset.agCleanMove);cleanCount();
+    }));
+    root.querySelectorAll('[data-ag-clean-part]').forEach(el=>el.addEventListener('click',e=>{
+      e.preventDefault();
+      const on=el.dataset.on==='true';
+      root.querySelectorAll(`[data-ag-clean-move^="${CSS.escape(el.dataset.agCleanPart)}|"]`).forEach(box=>{
+        box.checked=on;if(on)this.cleanUnticked.delete(box.dataset.agCleanMove);else this.cleanUnticked.add(box.dataset.agCleanMove);
+      });
+      cleanCount();
+    }));
     root.querySelector('[data-ag-org-schema-text]')?.addEventListener('input',e=>{this.orgSchemaText=e.target.value;});
     root.querySelectorAll('[data-ag-org-keep]').forEach(el=>el.addEventListener('click',e=>{
       e.preventDefault();
@@ -1648,7 +1848,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     switch(name) {
       case 'org-preview': {
         if(!this.orgTypes.size)return say('Tick at least one of Items, Actors or Journals.',true);
-        const out=await api.preview(this.#organizeOptions());
+        const options=this.#organizeOptions();
+        if(options.ids&&!options.ids.length)return say(`No ${[...this.orgTypes].map(t=>TYPE_LABEL[t]).join(', ')} in ${this.#organizeSourceLabel()} match the filters above. Change the filters or choose Everything.`,true);
+        const out=await api.preview(options);
         if(!out.ok){say(out.message,true);break;}
         this.orgPreview=out;this.orgResult=null;
         const text=message??describePreview(out,this.#organizeSourceLabel());
@@ -1665,15 +1867,17 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         const p=this.orgPreview;
         if(!p?.totals.moves)return say('Run Preview first; there is nothing to move.',true);
         const yes=await DialogV2.confirm({window:{title:'Organize folders'},modal:true,rejectClose:false,
-          content:`<p><strong>Move ${p.totals.moves} document(s) into the folders shown and create ${p.totals.createFolders} folder(s)?</strong></p><p>Only the folder changes; names, data, ownership and Actor progression are untouched and no folder is deleted. You can <strong>Undo last organize</strong> afterwards.</p>`,
+          content:`<p><strong>Move ${p.totals.moves} document(s)${p.ids?' from the selection':''} into the folders shown and create ${p.totals.createFolders} folder(s)?</strong></p><p>Only the folder changes; names, data, ownership and Actor progression are untouched and no folder is deleted. You can <strong>Undo last organize</strong> afterwards.</p>`,
           yes:{label:'Apply organize'},no:{label:'Cancel'}});
         if(!yes)return;
         this.busy=true;
         try{
-          const out=await api.apply(this.#organizeOptions());
+          // Apply exactly what was previewed (same place, kinds, mode and selection), even if the filters moved since.
+          const planned={source:p.source,types:p.types,mode:p.mode,ids:p.ids,folderId:p.folderId};
+          const out=await api.apply(planned);
           if(!out.ok){say(out.message,true);break;}
           this.orgResult=out;
-          const again=await api.preview(this.#organizeOptions());
+          const again=await api.preview(planned);
           this.orgPreview=again.ok?again:null;
           say(out.message);
         }finally{this.busy=false;}
@@ -1695,7 +1899,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         const out=await api.housekeeping();
         if(!out.ok){say(out.message,true);break;}
         this.orgReport={...out,hasDuplicates:out.duplicates.length>0,hasTemporary:out.temporary.length>0,draftCount:out.drafts.length};
-        this.orgMessage='Housekeeping report ready. It is read-only: nothing was changed or deleted.';break;
+        this.housekeepingMessage='Housekeeping report ready. It is read-only: nothing was changed or deleted.';break;
       }
       case 'org-schema-edit': this.orgSchemaText=JSON.stringify(api.getSchema().rules,null,2);break;
       case 'org-schema-cancel': this.orgSchemaText=null;break;
@@ -1721,15 +1925,19 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.browseUnsub?.();this.browseUnsub=null;
     return super._onClose?.(options);
   }
-  /** Browse tab (0.24.0): read-only; repaints only its own body so the search box keeps focus while typing. */
+  /**
+   * Items → All items (Browse, 0.24.0): read-only; repaints only its own body so the shared search box keeps focus
+   * while typing. Search and the shared filters come from the Items filter bar (0.36.0); only PAGE_SIZE rows are drawn.
+   */
   #mountBrowse(el) {
     if(!el)return;
     const st=this.browseState;
-    el.innerHTML=`${toolbarHtml(st)}<div data-ag-browse-body></div>`;
+    el.innerHTML=`${toolbarHtml(st,{search:false})}<div data-ag-browse-body></div>`;
     const body=el.querySelector('[data-ag-browse-body]');
     const paint=()=>{
       try{
-        const svc=browse(),result=svc.search({...st,pageSize:PAGE_SIZE});
+        st.query=this.itemFilters.query;
+        const svc=browse(),result=svc.search({...st,shared:this.#sharedFilters(),pageSize:PAGE_SIZE});
         if(st.page!==result.page)st.page=result.page;
         const status=svc.status();
         body.innerHTML=bodyHtml(st,result,st.detailKey?svc.detail(st.detailKey):null,status);
@@ -1738,10 +1946,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       }catch(error){body.innerHTML=`<p class="ag-badge ag-badge--danger">${escapeHtml(error.message??error)}</p>`;}
     };
     const again=()=>{st.page=0;paint();};
-    let typing=null;
-    el.querySelector('[data-ag-browse-query]')?.addEventListener('input',event=>{
-      clearTimeout(typing);typing=setTimeout(()=>{st.query=event.target.value;again();},150);
-    });
+    this.browsePaint=again;
     el.addEventListener('change',event=>{
       const t=event.target,d=t.dataset;
       if('agBrowseSort' in d)st.sort=t.value;
@@ -1760,7 +1965,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       else if('agBrowseClose' in d){st.detailKey=null;paint();}
       else if(d.agBrowsePage){st.page+=Number(d.agBrowsePage);paint();el.querySelector('.agbrowse-results')?.scrollIntoView?.({block:'start'});}
       else if('agBrowseClear' in d){Object.assign(st,{query:'',filters:{},managedOnly:false,unlinkedOnly:false,page:0});
-        const q=el.querySelector('[data-ag-browse-query]');if(q)q.value='';paint();}
+        this.itemFilters.query='';const q=this.element?.querySelector('[data-ag-items-query]');if(q)q.value='';paint();}
       else if('agBrowseRefresh' in d)void browse().refresh({compendiums:true}).then(()=>toast('Browse index refreshed.'),err=>toast(String(err.message??err),true));
       else if('agBrowsePacks' in d){
         const s=browse().status();
@@ -1786,15 +1991,23 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       const data=browse().dragData(row.dataset.agBrowseKey);
       if(data)event.dataTransfer.setData('text/plain',JSON.stringify(data));else event.preventDefault();
     });
-    this.browseUnsub=browse().subscribe(()=>{if(this.rendered&&this.tab==='browse'&&el.isConnected)paint();});
+    this.browseUnsub=browse().subscribe(()=>{if(this.rendered&&this.tab==='items'&&this.itemsView==='all'&&el.isConnected)paint();});
     paint();
   }
+  /** Core Links rows inside the shared filters (all rows when none is on). Apply and backup act only on these. */
+  #coreLinkShown() {
+    const rows=this.clPreview?.rows??[], keys=this.#selectionKeys();
+    return keys?rows.filter(r=>keys.has(game.items?.get?.(r.id)?.uuid??`Item.${r.id}`)):rows;
+  }
+  #coreLinkChosen() {const shown=new Set(this.#coreLinkShown().map(r=>r.id));return [...this.clTicked].filter(id=>shown.has(id));}
   #coreLinkContext() {
     const p=this.clPreview;
+    const shown=p?this.#coreLinkShown():[], chosen=new Set(this.#coreLinkChosen());
     const GROUPS=[['adopt','Adopt core data and link'],['link','Link only'],['relink','Re-link (linked core item is gone)'],['review','Needs your review (MEDIUM / LOW match)'],['nomatch','No 2024 core match'],['linked','Already linked']];
     return {message:this.clMessage, noRefs:Boolean(p&&!p.rows.length), history:coreLinks().history().map(h=>({at:h.at.replace('T',' ').slice(0,16),count:h.rows.length,adopted:h.rows.filter(r=>r.adopted).length})),
-      preview:p?{counts:p.counts,withoutRef:p.withoutRef,poolSize:p.poolSize,notes:p.notes,tickedCount:p.rows.filter(r=>this.clTicked.has(r.id)).length,
-        groups:GROUPS.map(([status,label])=>({status,label,rows:p.rows.filter(r=>r.status===status).map(r=>({...r,
+      preview:p?{counts:p.counts,withoutRef:p.withoutRef,poolSize:p.poolSize,notes:p.notes,tickedCount:chosen.size,
+        hiddenByFilters:p.rows.length-shown.length,
+        groups:GROUPS.map(([status,label])=>({status,label,rows:shown.filter(r=>r.status===status).map(r=>({...r,
           selectable:['adopt','link','relink','review'].includes(r.status),ticked:this.clTicked.has(r.id),linkOnly:this.clLinkOnly.has(r.id),
           refText:[r.coreRef.name,r.coreRef.source,r.coreRef.type,r.coreRef.rarity].filter(Boolean).join(' · '),
           matchedOn:r.best?.matchedOn?.join(', ')??'',diffCount:r.diff.length,hasOthers:r.others.length>0}))})).filter(g=>g.rows.length)}:null};
@@ -1812,12 +2025,15 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         break;
       }
       case 'cl-backup': {
-        if(!this.clPreview||!this.clTicked.size){say('Scan and tick at least one item first.',true);break;}
-        downloadJson(`AG_CoreLink_Backup_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`,api.backupOf(this.clPreview,[...this.clTicked]));
+        const ids=this.#coreLinkChosen();
+        if(!this.clPreview||!ids.length){say('Scan and tick at least one item first.',true);break;}
+        downloadJson(`AG_CoreLink_Backup_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`,api.backupOf(this.clPreview,ids));
         say('Downloaded the current image, data and link of every ticked item. Nothing in the world changed.');break;
       }
       case 'cl-apply': {
-        const rows=this.clPreview?.rows.filter(r=>this.clTicked.has(r.id))??[];
+        // Only ticked rows that the shared filters show (0.36.0): a hidden tick is never applied.
+        const ids=new Set(this.#coreLinkChosen());
+        const rows=this.clPreview?.rows.filter(r=>ids.has(r.id))??[];
         if(!rows.length){say('Scan and tick at least one item first.',true);break;}
         const adopt=rows.filter(r=>r.canAdopt&&!this.clLinkOnly.has(r.id)).length;
         const yes=await DialogV2.confirm({window:{title:'Link core items'},modal:true,rejectClose:false,
@@ -1826,7 +2042,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         if(!yes)return;
         this.busy=true;
         try{
-          const out=await api.apply({ids:[...this.clTicked],linkOnly:[...this.clLinkOnly]});
+          const out=await api.apply({ids:[...ids],linkOnly:[...this.clLinkOnly]});
           if(!out.ok){say(out.message,true);break;}
           const again=await api.preview();
           this.clPreview=again.ok?again:null;this.clTicked=new Set();this.clLinkOnly=new Set();
@@ -2017,8 +2233,8 @@ let activeApp;
 let sceneMoodsApi=null;
 let browseApi=null;
 const browse=()=>browseApi??=createBrowse({game,hooks:Hooks,fromUuid:uuid=>(globalThis.fromUuid??foundry.utils.fromUuid)(uuid),
-  // Browse → Open on an NPC Codex row: Library → NPC Codex with that NPC selected (GM-only; Browse checks the GM first).
-  openCodex:id=>{activeApp??=new AshenGateManager();Object.assign(activeApp,{tab:'library',librarySection:'codex',codexFocus:id});return activeApp.render({force:true});}});
+  // Items → All items → Open on an NPC Codex row: Items → NPC Codex with that NPC selected (GM-only; Browse checks the GM first).
+  openCodex:id=>{activeApp??=new AshenGateManager();Object.assign(activeApp,{tab:'items',itemsView:'codex',codexFocus:id});return activeApp.render({force:true});}});
 const sceneMoods=()=>sceneMoodsApi??=createSceneMoods({game});
 let organizerApi=null;
 let coreLinksApi=null;
@@ -2105,7 +2321,8 @@ Hooks.once("ready",()=>{
     // GM-only organize folders (0.25.0); every function checks the GM itself. Only the folder field is ever written.
     // GM-only core links (0.26.0): link AG world Items with core_ref to 2024 core items; every function checks the GM itself.
     coreLinks:(({preview,apply,undoLast,history,describeSources,saveSources})=>({preview,apply,undoLast,history,describeSources,saveSources}))(coreLinks()),
-    organize:(({listSources,preview,apply,undoLast,history,getSchema,saveSchema,resetSchema,setFolderProtected,setKeepFolder,housekeeping})=>({listSources,preview,apply,undoLast,history,getSchema,saveSchema,resetSchema,setFolderProtected,setKeepFolder,housekeeping}))(organizer()),
+    // 0.36.0 adds cleanPreview/cleanApply (Clean compendiums); existing names unchanged.
+    organize:(({listSources,preview,apply,undoLast,history,getSchema,saveSchema,resetSchema,setFolderProtected,setKeepFolder,housekeeping,cleanPreview,cleanApply})=>({listSources,preview,apply,undoLast,history,getSchema,saveSchema,resetSchema,setFolderProtected,setKeepFolder,housekeeping,cleanPreview,cleanApply}))(organizer()),
     // GM-only, read-only Browse index (0.24.0); every function checks the GM itself.
     browse:(({getIndex,search,detail,refresh,loadCompendiums,status,dragData,open})=>({getIndex,search,detail,refresh,loadCompendiums,status,dragData,open}))(browse()),
     scenes:(({listMoods,getState,applyMood,addLayer,removeEffect,restore,applyDraft,toggleFavourite,savePreset,removePreset,resetDefaults,exportPresets,previewImport,importPresets})=>({listMoods,getState,applyMood,addLayer,removeEffect,restore,applyDraft,toggleFavourite,savePreset,removePreset,resetDefaults,exportPresets,previewImport,importPresets}))(sceneMoods()),
@@ -2144,7 +2361,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.35.1 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.36.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */

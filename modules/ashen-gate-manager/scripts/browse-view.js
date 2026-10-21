@@ -3,6 +3,7 @@
  * what a GM sees; main.js mounts them and wires the events. Read-only: no control here edits a record.
  */
 import {FACETS, FACET_LABELS, SORTS, GROUPS, ownerLabel} from './browse.js';
+import {ORIGINS, RARITIES} from './item-filters.js';
 
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
 const KIND_LABELS = {JournalEntry: 'Journal', JournalEntryPage: 'Journal page'};
@@ -11,10 +12,10 @@ export const DEFAULT_STATE = Object.freeze({query: '', scope: 'all', filters: {}
 
 const options = (map, current) => Object.entries(map).map(([value, label]) => `<option value="${value}"${value === current ? ' selected' : ''}>${esc(label)}</option>`).join('');
 
-/** Search box and the actions that never re-render while typing. */
-export function toolbarHtml(state) {
+/** Search box and the actions that never re-render while typing. In the Items tab (0.36.0) the shared filter bar owns the search box. */
+export function toolbarHtml(state, {search = true} = {}) {
   return `<div class="ag-toolbar agbrowse-toolbar">
-    <input type="search" data-ag-browse-query value="${esc(state.query)}" placeholder="Search name, id, tag, text… (id:MAT-HERB, id:DEITY-, type:deity, tag:, status:, tier:)" aria-label="Search Browse" />
+    ${search ? `<input type="search" data-ag-browse-query value="${esc(state.query)}" placeholder="Search name, id, tag, text… (id:MAT-HERB, id:DEITY-, type:deity, tag:, status:, tier:)" aria-label="Search Browse" />` : ''}
     <label>Sort <select data-ag-browse-sort>${options(SORTS, state.sort)}</select></label>
     <label>Group <select data-ag-browse-group>${options(GROUPS, state.group)}</select></label>
     <button type="button" data-ag-browse-refresh><i class="fa-solid fa-rotate"></i> Refresh</button>
@@ -31,6 +32,8 @@ function facetSelect(f, list, current) {
 }
 
 const chip = (text, tone = '') => text ? `<span class="ag-badge${tone ? ` ag-badge--${tone}` : ''}">${esc(text)}</span>` : '';
+/** Rarity pill in the shared rarity colours (--ag-rarity-*, manager.css). */
+export const rarityPill = key => RARITIES[key] ? `<span class="ag-rarity ag-rarity--${key}"><i aria-hidden="true"></i>${esc(RARITIES[key])}</span>` : '';
 const visTone = v => v === 'gm' ? 'danger' : v === 'reveal_gated' || v === 'reveal-gated' ? 'warn' : v === 'player' ? 'ok' : '';
 const statusTone = s => s === 'approved' ? 'ok' : s === 'draft' ? 'warn' : '';
 
@@ -42,7 +45,7 @@ function rowHtml(e) {
     <div class="agbrowse-main">
       <button type="button" class="agbrowse-name" data-ag-browse-detail="${esc(e.key)}">${esc(e.name)}</button>
       ${e.id ? `<code>${esc(e.id)}</code>` : ''}
-      <div class="agbrowse-chips">${(e.kinds ?? [e.kind]).map(k => chip(kindLabel(k), 'accent')).join('')}${chip(e.entityType && e.entityType !== e.kind ? e.entityType : e.docType)}${chip(e.status, statusTone(e.status))}${chip(e.visibility, visTone(e.visibility))}${(e.chips ?? []).map(c => chip(c)).join('')}${e.unlinked ? chip('no world document') : ''}</div>
+      <div class="agbrowse-chips">${(e.kinds ?? [e.kind]).map(k => chip(kindLabel(k), 'accent')).join('')}${chip(e.entityType && e.entityType !== e.kind ? e.entityType : e.docType)}${chip(e.status, statusTone(e.status))}${chip(e.visibility, visTone(e.visibility))}${(e.chips ?? []).map(c => chip(c)).join('')}${e.unlinked ? chip('no world document') : ''}${rarityPill(e.rarity)}${e.origin && e.origin !== 'ag' ? chip(ORIGINS[e.origin]) : ''}${e.coreRef ? chip('core_ref') : ''}</div>
       ${meta ? `<div class="agmanager-tiny">${meta}</div>` : ''}
       <div class="agmanager-tiny agbrowse-prov">${esc(e.sources.join(' • '))}${e.folder ? ` — ${esc(e.folder)}` : ''}</div>
     </div>

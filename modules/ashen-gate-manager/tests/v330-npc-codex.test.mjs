@@ -145,7 +145,8 @@ test('0.33.0: a player cannot read or write GM data and gets the codex only thro
 test('0.33.0: Codex sits in the Library rail with labelled hide confirmation and a GM Setup access switch', () => {
   const tpl = fs.readFileSync(new URL('../templates/manager.hbs', import.meta.url), 'utf8');
   const main = fs.readFileSync(new URL('../scripts/main.js', import.meta.url), 'utf8');
-  assert.match(main, /\{id:'codex',label:'NPC Codex'/);
+  const views = fs.readFileSync(new URL('../scripts/item-filters.js', import.meta.url), 'utf8');
+  assert.match(views, /\{id: 'codex', label: 'NPC Codex'/); // 0.36.0: Items rail (was the Library rail)
   for (const hook of ['data-ag-codex-reveal="{{key}}"', 'data-ag-codex-actor="{{../key}}"', 'data-ag-codex-preview', 'data-ag-codex-import',
     'data-ag-action="codex-save"', 'data-ag-action="codex-export"', 'data-ag-codex-access'])
     assert.ok(tpl.includes(hook), hook);

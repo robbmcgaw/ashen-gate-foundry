@@ -300,12 +300,12 @@ test('mergeEntries dedupes by uuid too', async () => {
   assert.equal(searchIndex([], {}).total, 0);
 });
 
-test('Browse is a Manager tab and a GM-gated API; GM Setup is untouched', async () => {
+test('Browse is Items → All items (0.36.0) and a GM-gated API; GM Setup is untouched', async () => {
   const fs = await import('node:fs');
   const template = fs.readFileSync(new URL('../templates/manager.hbs', import.meta.url), 'utf8');
   const main = fs.readFileSync(new URL('../scripts/main.js', import.meta.url), 'utf8');
-  assert.match(template, /data-ag-tab="browse"/);
-  assert.match(template, /\{\{#if browseActive\}\}\s*<div class="agmanager-panel agbrowse" data-ag-browse><\/div>/);
+  assert.match(template, /data-ag-tab="items"/);
+  assert.match(template, /\{\{#if itemsAll\}\}\s*<div class="agbrowse" data-ag-browse><\/div>/);
   assert.match(main, /browse:\(\(\{getIndex,search,detail,refresh,loadCompendiums,status,dragData,open\}\)/);
   assert.match(main, /dataTransfer\.setData\('text\/plain',JSON\.stringify\(data\)\)/);
 });
