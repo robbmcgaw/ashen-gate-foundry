@@ -41,6 +41,8 @@ const emptyState=(title,text='',action='')=>`<div class="ag-empty"><p class="ag-
 /** Kit notice; the message is HTML. */
 const notice=(html,kind='info')=>`<div class="ag-notice ag-notice--${kind}"><i class="fa-solid ${kind==='warn'?'fa-triangle-exclamation':'fa-circle-info'}" aria-hidden="true"></i><span>${html}</span></div>`;
 /** A Material's quality from the catalog the current user may read, or null. */
+/** A kit row's meta line, or nothing when there is nothing to show. */
+const rowMeta=html=>html?`<span class="ag-row__meta">${html}</span>`:'';
 const materialQuality=(sourceId,lib)=>sourceId?lib.materials.find(m=>m.id===sourceId)?.quality??null:null;
 const say=(message,error=false)=>error?ui.notifications.error(message):ui.notifications.info(message);
 const plural=(n,one,many=`${one}s`)=>`${n} ${n===1?one:many}`;
@@ -619,7 +621,7 @@ function characterPanel(actor,lib,{closed=new Set(),lastAward=null,surface='app'
         ${profs.length?`<p class="agl-sub agl-where"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> XP is stored on ${esc(actor.name)} by the Profession Ledger, and also shown in each profession feature’s description on the character sheet.</p>`:''}
       </div>
       <div class="agl-section"><h3>Materials</h3>
-        ${mats.length?`<ul class="ag-rows">${mats.map(i=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(i.name)}</span></span><span class="ag-row__end">${qualityBadge(materialQuality(i.sourceId,lib))}<b>× ${i.qty}</b></span></li>`).join('')}</ul>`
+        ${mats.length?`<ul class="ag-rows">${mats.map(i=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(i.name)}</span>${rowMeta(qualityBadge(materialQuality(i.sourceId,lib)))}</span><span class="ag-row__end"><b>× ${i.qty}</b></span></li>`).join('')}</ul>`
           :emptyState('No crafting materials yet.','Materials appear here when the character gathers or carries them.')}
       </div>
     </section>
@@ -1395,7 +1397,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
           ${recipes||emptyState('No party recipes yet.','Recipes appear here once someone in the party finds a recipe item or learns a recipe.')}</div></section>
         <section class="agl-col-side">
           <div class="agl-section"><h3>Party materials <span class="ag-badge">${mats.length}</span></h3>
-            ${mats.length?`<ul class="ag-rows">${mats.map(m=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(m.name)}</span><span class="ag-row__meta agl-holders">${m.holders.map(h=>badge(`${h.actor.name} ${h.qty}`)).join('')}</span></span><span class="ag-row__end">${qualityBadge(materialQuality(m.key,lib))}<b>× ${m.total}</b></span></li>`).join('')}</ul>`
+            ${mats.length?`<ul class="ag-rows">${mats.map(m=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(m.name)}</span><span class="ag-row__meta agl-holders">${qualityBadge(materialQuality(m.key,lib))}${m.holders.map(h=>badge(`${h.actor.name} ${h.qty}`)).join('')}</span></span><span class="ag-row__end"><b>× ${m.total}</b></span></li>`).join('')}</ul>`
               :emptyState('No crafting materials in the party yet.','Materials appear here when party characters gather or carry them.')}
             <p class="agl-sub">Characters keep their own items. A craft that needs someone else’s materials asks their owner first.</p></div>
           <div class="agl-section"><h3>Professions</h3><ul class="ag-rows">${profRows}</ul></div>
