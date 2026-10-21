@@ -59,10 +59,11 @@ export function createCinders(deps){
   const pointersOf=actor=>Array.isArray(actor?.flags?.[module]?.cinders)?actor.flags[module].cinders.filter(p=>p&&typeof p.instanceId==='string'):[];
   async function setPointers(actor,pointers){await actor.setFlag(module,'cinders',pointers);}
   function treeFor(instance){const t=cinderTree(instance.definitionId);if(!t)throw Error(`No Cinder tree uses ${instance.definitionId}. Import it into Skill Trees first.`);return t;}
+  const pointerData=instance=>({instanceId:instance.instanceId,definitionId:instance.definitionId,name:definitionName(instance.definitionId),sockets:socketMirror(instance.sockets),art:instance.art??null});
   async function writeBearer(actor,instance){
     const tree=treeFor(instance);
     await accounts().setAccount(actor,tree.id,instance.progression);
-    await setPointers(actor,[...pointersOf(actor).filter(p=>p.instanceId!==instance.instanceId),{instanceId:instance.instanceId,definitionId:instance.definitionId,name:definitionName(instance.definitionId),sockets:socketMirror(instance.sockets),art:instance.art??null}]);
+    await setPointers(actor,[...pointersOf(actor).filter(p=>p.instanceId!==instance.instanceId),pointerData(instance)]);
   }
   async function clearBearer(actor,instance){
     const tree=cinderTree(instance.definitionId);
@@ -113,6 +114,36 @@ export function createCinders(deps){
       await saveRegistry(registry);
       const old=actorById(from);if(old){await clearBearer(old,instance);await clearMarkers(old,detached);}
       changed('unbind',instance,{fromActorId:from});if(detached.length)socketsChanged('unbind',instance,from);return {instance,from};
+    });
+  }
+  /**
+   * Re-hook (0.7.0, GM): after a character's Actor data was replaced in place (Character Hub's level-backup Restore keeps the
+   * Actor id), rewrite everything this module mirrors on it from the records, which stay the truth. Never changes a record.
+   *   - a bearer pointer for each Cinder bound to it (sockets and art copied from the record); pointers to Cinders it does not bear dropped;
+   *   - its Cinder tree accounts set from each Cinder's progression, and Cinder progress on trees of Cinders it does not bear
+   *     removed (through Skill Trees; skipped, and said so, when Skill Trees is missing);
+   *   - item socket markers: set for its items in its Cinders' sockets, cleared on the rest.
+   * Re-runnable. Resolves {instances: [instanceId], done: [text]}.
+   */
+  async function rehook(actor){
+    requireGM();if(!actor?.id)throw Error('Choose a character');
+    return withRegistry(async()=>{
+      const registry=readRegistry(),mine=boundTo(registry,actor.id),done=[],t=trees();
+      const want=mine.map(pointerData),before=JSON.stringify(pointersOf(actor));
+      if(JSON.stringify(want)!==before){await setPointers(actor,want);done.push(`${actor.name}: bearer links rewritten (${mine.length} Cinder${mine.length===1?'':'s'})`);}
+      if(t.status==='ok'){
+        for(const inst of mine){const tree=cinderTree(inst.definitionId);if(!tree)continue;
+          const r=await t.accounts.setAccount(actor,tree.id,inst.progression);if(r.given?.length||r.removed?.length)done.push(`${actor.name}: ${[...r.given.map(x=>`+${x}`),...r.removed.map(x=>`−${x}`)].join(', ')}`);}
+        const stray=new Set(t.accounts.grants(actor).filter(g=>g.wallet?.startsWith('cinder:')).map(g=>g.wallet.slice(7)).filter(d=>registry.instances.some(i=>i.definitionId===d)&&!bearerInstance(registry,actor.id,d)));
+        for(const d of stray){const tree=cinderTree(d);if(!tree)continue;const r=await t.accounts.setAccount(actor,tree.id,emptyAccount());done.push(`${actor.name}: removed ${r.removed.join(', ')}`);}
+      }else done.push(`Cinder tree progress not checked: ${t.message}`);
+      for(const item of actor.items??[]){
+        const inst=mine.find(i=>i.sockets.attached.some(a=>a.itemId===item.id)),slot=inst?.sockets.attached.find(a=>a.itemId===item.id).slot;
+        const marker=inst?{instanceId:inst.instanceId,slot}:null;
+        if(JSON.stringify(markerOf(item))!==JSON.stringify(marker)&&(marker||markerOf(item))){await setMarker(item,marker);done.push(`${actor.name}: ${item.name} ${marker?'marked attached':'unmarked'}`);}
+      }
+      for(const inst of mine)changed('rehook',inst);
+      return {instances:mine.map(i=>i.instanceId),done};
     });
   }
   /** Deleted bearer: the Cinder is kept with its progress, marked lost (active GM only). */
@@ -627,7 +658,7 @@ export function createCinders(deps){
     contract:CINDER_CONTRACT,hook:CINDER_HOOK,
     list,previewPush,push:requestPush,validateDefinition,setArt,
     instances:()=>readRegistry().instances,
-    create,bind,transfer,unbind,migrate,adoptLegacy,report,repair
+    create,bind,transfer,unbind,rehook,migrate,adoptLegacy,report,repair
   };
   /** The scope owner for "cinder" modifiers (contract ag-modifier/1): General Manager 0.41.0+ calls validate on import. */
   const modifiersApi={contract:MODIFIER_CONTRACT,scope:MODIFIER_SCOPE,targets:[...MODIFIER_TARGETS],validate:validateModifiers,forActor:perkModifiers};

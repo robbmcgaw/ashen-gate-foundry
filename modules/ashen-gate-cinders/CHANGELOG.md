@@ -1,3 +1,8 @@
+## 0.7.0 — 2026-10-21
+
+- **`api.cinder.rehook(actor)`** (GM only): re-links one character to the Cinders it bears after its Actor data was replaced in place (Character Hub 0.28.0 calls it when the GM restores a level backup). The Cinder records stay the truth and are never changed: the character's bearer links are rewritten from them (links to Cinders it no longer bears are dropped), its Cinder tree progress is set from each Cinder through Skill Trees (Cinder powers it doesn't bear are removed), and its items' socket markers are set from the sockets. Re-running it changes nothing more. Fires `ashenGateCinder.changed` with kind `rehook`. Without Skill Trees the links and markers are still fixed and the result says the tree progress was not checked.
+- No saved-data or setting change.
+
 ## 0.6.0 — 2026-10-21
 
 - **Cinder sheet** in the Cinders tab: the Cinder is an orb ringed by the bearer's Strain (10 segments, then exact "+N over 10" pips that players see too), with its sockets on an orbit around it. Beside it: bearer, "Unspent: n" with **Open skill tree**, Strain, powers with each Push mode's cost, Strain after and Backfire % (perk and socket modifiers included), and the perks and socket items that count. A character with more than one Cinder gets a Cinder picker.

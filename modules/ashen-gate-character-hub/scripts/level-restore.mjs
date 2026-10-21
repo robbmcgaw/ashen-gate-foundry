@@ -4,7 +4,12 @@
  * effects, and the Ashen Gate flags kept in levelBackup.archivedFlags, each put back on the document its id names.
  *
  *   - Kept from the live character: its id, name, portrait, ownership, prototype token, folder, its `core` flags
- *     (sheet choice) and any level backups still queued for the GM (levelBackupQueue).
+ *     (sheet choice), its Journey (Robb: the Journey does not revert) and any level backups still queued for the GM.
+ *   - Cinders (Robb: the Cinder records stay the truth): with Ashen Gate | Cinders active, its api.cinder.rehook(actor)
+ *     then re-links the restored character to the Cinders the records say it bears (bearer links, Cinder tree
+ *     progress, socket markers). It is part of the all-or-nothing restore. The safety copy is inert like every copy
+ *     (no live Cinders flags, a new id the records never name), so it never holds a bearer link. Without rehook (no
+ *     Cinders, or one older than 0.7.0) the restore still happens and says to run Cinders → Manage → Check.
  *   - First the character as it is now is saved as another backup copy, named by the usual rule (createBackup), so
  *     nothing is lost. If that copy can't be made, nothing is changed.
  *   - All or nothing: if a step fails part-way, the character is put back to how it was just before the restore (the
@@ -18,6 +23,8 @@
  */
 import {MODULE_ID} from './constants.mjs';
 import {BACKUP_FLAG, QUEUE_FLAG, isBackup, createBackup, FOLDER_PATH} from './level-backup.mjs';
+import {JOURNEY_FLAG} from './journey.mjs';
+import {CINDERS_ID} from './cinders.mjs';
 
 export const RESTORE_FLAG = 'levelRestore';
 const refuse = error => ({ok: false, error});
@@ -50,6 +57,8 @@ export function restoredState(copyData, liveData, record = null) {
   const hub = {...(archived.actor?.[MODULE_ID] ?? {})};
   const queue = liveData.flags?.[MODULE_ID]?.[QUEUE_FLAG];
   if (Array.isArray(queue) && queue.length) hub[QUEUE_FLAG] = structuredClone(queue);
+  const journey = liveData.flags?.[MODULE_ID]?.[JOURNEY_FLAG];
+  if (journey) hub[JOURNEY_FLAG] = structuredClone(journey); else delete hub[JOURNEY_FLAG];
   if (record) hub[RESTORE_FLAG] = record;
   delete hub[BACKUP_FLAG];
   if (Object.keys(hub).length) flags[MODULE_ID] = hub; else delete flags[MODULE_ID];
@@ -87,6 +96,15 @@ async function applyState(actor, state) {
     (item, row) => syncEmbedded(item, 'ActiveEffect', list(item.effects), row.effects ?? []));
 }
 
+/** Cinders' rehook when Cinders is active and offers it (0.7.0+); 'old' when Cinders is active without it; else null. */
+export function cindersRehook() {
+  const m = globalThis.game?.modules?.get?.(CINDERS_ID);
+  if (!m?.active) return null;
+  const c = m.api?.cinder;
+  return c?.contract === 'ag-cinder/1' && typeof c.rehook === 'function' ? actor => c.rehook(actor) : 'old';
+}
+const OLD_CINDERS = 'Ashen Gate | Cinders is older than 0.7.0, so the Cinders were not re-linked: update it, or run Cinders → Manage → Check and Repair.';
+
 /**
  * GM: restores `backup` onto its character. Resolves {ok, result: {actorId, backupId, safetyId, opId}} or
  * {ok: false, error} (with `rolledBack` when a failed restore was undone).
@@ -109,18 +127,25 @@ export async function restoreBackup(backup, {opId = newOpId(), user = globalThis
     catch (err) { safety = refuse(err?.message ?? String(err)); }
     if (!safety.ok || !safety.result) return refuse(`Nothing was changed: the copy of ${actor.name} as it is now could not be made (${safety.error ?? 'no copy came back'}).`);
     const record = {opId, backupId: backup.id, backupName: backup.name, levelBefore: level, levelAfter: Number(flag.levelBefore) || 0, safetyId: safety.result, date: new Date().toISOString().slice(0, 10), by: user.id};
+    const rehook = cindersRehook();
+    let cinders = null;
     try {
       await applyState(actor, restoredState(backup.toObject(), before, record));
+      if (typeof rehook === 'function') cinders = await rehook(actor);
     } catch (err) {
       console.error(`${MODULE_ID} | level restore`, err);
-      try { await applyState(actor, stateOf(before)); }
+      try {
+        await applyState(actor, stateOf(before));
+        if (typeof rehook === 'function') await rehook(actor).catch(e => console.warn(`${MODULE_ID} | Cinders re-link after rollback`, e));
+      }
       catch (err2) {
         console.error(`${MODULE_ID} | level restore rollback`, err2);
         return {...refuse(`The restore failed (${err?.message ?? err}) and ${actor.name} could not be put back automatically (${err2?.message ?? err2}). Its state from just before is in the copy in ${FOLDER_PATH.join(' / ')}.`), rolledBack: false};
       }
       return {...refuse(`The restore failed (${err?.message ?? err}). ${actor.name} was put back as it was; nothing changed. The copy made just before is kept in ${FOLDER_PATH.join(' / ')}.`), rolledBack: true};
     }
-    return {ok: true, result: {actorId: actor.id, backupId: backup.id, safetyId: safety.result, opId}};
+    return {ok: true, result: {actorId: actor.id, backupId: backup.id, safetyId: safety.result, opId, cinders: cinders?.instances ?? null},
+      ...(rehook === 'old' ? {warning: OLD_CINDERS} : {})};
   } finally { running.delete(actor.id); }
 }
 
@@ -128,7 +153,8 @@ export async function restoreBackup(backup, {opId = newOpId(), user = globalThis
 export function restoreLines(backup, actor) {
   const f = backupFlag(backup) ?? {}, now = Number(actor?.system?.details?.level) || 0;
   return [`Restore ${actor.name} to "${backup.name}" (level ${f.levelBefore ?? '?'}, saved ${f.date ?? '?'})?`,
-    `${actor.name}'s class levels, hit points, abilities, items, effects and Ashen Gate data (Cinders and Strain markers, Skill Trees, Ledger, Renown, Quest Log, Journey, quick bar, companions) are replaced with the copy's.`,
+    `${actor.name}'s class levels, hit points, abilities, items, effects and Ashen Gate data (Strain, Skill Trees, Ledger, Renown, Quest Log, quick bar, companions) are replaced with the copy's. The Journey stays as it is now.`,
+    ...(cindersRehook() ? [`Cinders: ${actor.name} is re-linked to the Cinders that Cinders' records say it bears now (records unchanged).`] : []),
     `First, ${actor.name} as it is now (level ${now}) is saved as a new copy in ${FOLDER_PATH.join(' / ')}, so nothing is lost.`,
     'The name, portrait, owners and token stay. The backup copy itself is kept. If anything fails, the character is put back as it was.'];
 }

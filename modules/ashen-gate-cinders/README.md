@@ -57,7 +57,7 @@ if (strain?.contract === 'ag-strain/1') {
 
 - `list(actor)`: the Cinders the character bears, with each power's Push modes, cost and chance, and (0.6.0) `art` (image path or null), `treeId` and `unspent` (from Skill Trees' `listTrees` and `pointsSummary`; null when not available). For the GM only, `bearerSince`. Allowed for the GM or the owner (players only while Player Access is on).
 - `previewPush(actor, instanceId, powerId, modeId)`. `push(actor, powerId, modeId)`: the GM does it directly; an owner's Push is relayed to the active GM client.
-- GM only: `setArt(instanceId, path | null)` (0.6.0; rejected for players; null = the default orb), `instances()`, `create(definitionId)`, `bind(instanceId, actor)`, `transfer(instanceId, actor)`, `unbind(instanceId)`, `migrate({dryRun})`, `adoptLegacy()`, `report()`, `repair()`.
+- GM only: `setArt(instanceId, path | null)` (0.6.0; rejected for players; null = the default orb), `instances()`, `create(definitionId)`, `bind(instanceId, actor)`, `transfer(instanceId, actor)`, `unbind(instanceId)`, `rehook(actor)` (0.7.0: rewrites the bearer links, Cinder tree progress and item socket markers on one character from the records, e.g. after Character Hub restores a level backup onto it; never changes a record; resolves `{instances, done}`), `migrate({dryRun})`, `adoptLegacy()`, `report()`, `repair()`.
 - `validateDefinition(record)` → `{errors, warnings}` for Mutation / Power / BackfireTable records (used by General Manager and `scripts/validate-content.mjs`).
 - Hook `ashenGateCinder.changed` `{kind, instanceId, definitionId, actorId, fromActorId?, art?}` (kind `art` from 0.6.0).
 

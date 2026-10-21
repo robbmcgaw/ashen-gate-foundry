@@ -10,6 +10,7 @@ import {strainChip, hotbarsHtml} from '../scripts/hotbar-views.mjs';
 import {availableMarks, MARKS} from '../scripts/marks.mjs';
 import {createApi} from '../scripts/main.mjs';
 import {MODULE_ID} from '../scripts/constants.mjs';
+import * as journey from '../scripts/journey.mjs';
 
 /**
  * A stored Actor with real-ish embedded collections: update() honours recursive: false (replace, not merge),
@@ -93,7 +94,7 @@ test('restore brings the copy back onto the live character (same id, owners, tok
   // Ashen Gate flags back on the documents they came from.
   assert.deepEqual(live.flags['ashen-gate-strain'], {state: {value: 2}});
   assert.deepEqual(live.flags['ashen-gate-skill-trees'], {progressV2: {t: 1}});
-  assert.deepEqual(live.flags[MODULE_ID].journey.seen, {level: 3});
+  assert.deepEqual(live.flags[MODULE_ID].journey, {v: 1, entries: [{id: 'level-4'}], seen: {level: 4}}, 'the Journey does not revert (Robb)');
   assert.equal(live.flags[MODULE_ID].levelBackup, undefined, 'the marker does not come along');
   assert.deepEqual(live.items.get('sword').flags['ashen-gate-cinders'], {attachedTo: {instanceId: 'i1', slot: 1}});
   assert.deepEqual(live.items.get('sword').effects.get('se').flags, {'ashen-gate-factions': {f: 1}});
@@ -204,6 +205,93 @@ test('backupsFor lists a character\'s copies newest first; the API list hides ar
   assert.deepEqual(rs.backupsFor(old), [], 'a copy has no copies');
   const listed = createApi().levelBackups.list(live);
   assert.equal(listed[1].levelBefore, 3); assert.equal(listed[1].archivedFlags, undefined); assert.equal(listed[1].id, old.id);
+});
+
+test('Journey: kept as it is now through a restore; the recorder adds nothing for the lower level and the next new level once', async () => {
+  const {live} = setup();
+  const copy = await makeOldCopy(live);
+  await rs.restoreBackup(copy, {opId: 'j'});
+  assert.deepEqual(live.flags[MODULE_ID].journey.entries, [{id: 'level-4'}]);
+  live.testUserPermission = () => true;
+  assert.deepEqual(journey.levelEntries(live).entries, [], 'level 3 below the recorded 4: nothing');
+  live.system.details.level = 4; assert.deepEqual(journey.levelEntries(live).entries, [], 'level 4 again: already recorded');
+  live.system.details.level = 5; assert.deepEqual(journey.levelEntries(live).entries.map(e => e.id), ['level-5']);
+});
+
+// ---------- Cinders re-link (Robb: the records stay the truth) ----------
+
+/**
+ * Cinders 0.7.0 stand-in: a registry (instanceId → bearer actor id) and api.cinder.rehook(actor), which rewrites the
+ * actor's bearer pointers and its items' socket markers from the registry, like the real one. `fail` throws once.
+ */
+function fakeCinders({registry = {'cinst-1': {bearer: 'hero', sockets: [{itemId: 'sword', slot: 0}]}}, rehook = true} = {}) {
+  const calls = [], c = {fail: false, calls, registry};
+  const api = {contract: 'ag-cinder/1', async rehook(actor) {
+    calls.push(actor.id);
+    if (c.fail) { c.fail = false; throw new Error('Cinders said no'); }
+    const mine = Object.entries(registry).filter(([, r]) => r.bearer === actor.id);
+    await actor.update({flags: {...actor.flags, 'ashen-gate-cinders': {cinders: mine.map(([id]) => ({instanceId: id}))}}}, {recursive: false});
+    for (const item of actor.items) {
+      const at = mine.flatMap(([id, r]) => r.sockets.filter(x => x.itemId === item.id).map(x => ({instanceId: id, slot: x.slot})))[0] ?? null;
+      item.flags = {...item.flags, 'ashen-gate-cinders': {...item.flags['ashen-gate-cinders'], attachedTo: at}};
+    }
+    return {instances: mine.map(([id]) => id), done: []};
+  }};
+  if (!rehook) delete api.rehook;
+  globalThis.game.modules = {get: id => id === 'ashen-gate-cinders' ? {active: true, api: {cinder: api}} : null};
+  return c;
+}
+
+test('Cinders: after the restore the character is re-linked from Cinders\' records (not the copy\'s old links)', async () => {
+  const {live} = setup();
+  const copy = await makeOldCopy(live);
+  const cin = fakeCinders();
+  const r = await rs.restoreBackup(copy, {opId: 'c1'});
+  assert.equal(r.ok, true, r.error);
+  assert.deepEqual(cin.calls, ['hero'], 'rehook ran for the restored character');
+  assert.deepEqual(r.result.cinders, ['cinst-1']);
+  assert.deepEqual(live.flags['ashen-gate-cinders'], {cinders: [{instanceId: 'cinst-1'}]});
+  assert.deepEqual(live.items.get('sword').flags['ashen-gate-cinders'].attachedTo, {instanceId: 'cinst-1', slot: 0}, 'record wins over the copy\'s old marker (i1 slot 1)');
+  assert.equal(live.system.details.level, 3, 'the rest of the restore stands');
+});
+
+test('Cinders: the safety copy never keeps a live bearer link (inert flags, new id the records never name)', async () => {
+  const {live} = setup();
+  live.flags['ashen-gate-cinders'] = {cinders: [{instanceId: 'cinst-1'}]};
+  const copy = await makeOldCopy(live);
+  const cin = fakeCinders();
+  const r = await rs.restoreBackup(copy, {opId: 'c2'});
+  const safety = globalThis.game.actors.get(r.result.safetyId);
+  assert.notEqual(safety.id, 'hero');
+  assert.equal(safety.flags['ashen-gate-cinders'], undefined, 'no live Cinders flags on the copy');
+  for (const i of safety.items) assert.equal(i.flags['ashen-gate-cinders'], undefined, `${i.name}: no socket marker`);
+  assert.deepEqual(safety.flags[MODULE_ID].levelBackup.archivedFlags.actor['ashen-gate-cinders'], {cinders: [{instanceId: 'cinst-1'}]}, 'kept only in the archive');
+  assert.ok(!Object.values(cin.registry).some(x => x.bearer === safety.id));
+  assert.deepEqual(cin.calls, ['hero'], 'rehook never runs on the copy');
+});
+
+test('Cinders: a failed re-link rolls the whole restore back (and re-links the character as it was)', async () => {
+  const {live} = setup();
+  const copy = await makeOldCopy(live);
+  const before = live.toObject();
+  const cin = fakeCinders(); cin.fail = true;
+  const r = await rs.restoreBackup(copy, {opId: 'c3'});
+  assert.equal(r.ok, false); assert.equal(r.rolledBack, true); assert.match(r.error, /Cinders said no/);
+  assert.deepEqual(live.system, before.system);
+  assert.deepEqual([...live.items].map(i => [i.id, i.system]), before.items.map(i => [i._id, i.system]));
+  assert.deepEqual(cin.calls, ['hero', 'hero'], 're-linked again after the rollback');
+});
+
+test('Cinders missing: restore works, nothing called; Cinders without rehook (older than 0.7.0): restore works and warns', async () => {
+  let {live} = setup();
+  let copy = await makeOldCopy(live);
+  const r = await rs.restoreBackup(copy, {opId: 'm'});
+  assert.equal(r.ok, true); assert.equal(r.warning, undefined); assert.equal(r.result.cinders, null);
+  ({live} = setup()); copy = await makeOldCopy(live);
+  fakeCinders({rehook: false});
+  const old = await rs.restoreBackup(copy, {opId: 'o'});
+  assert.equal(old.ok, true); assert.match(old.warning, /older than 0\.7\.0.*Check and Repair/);
+  assert.equal(live.system.details.level, 3);
 });
 
 // ---------- The button and the confirmation ----------

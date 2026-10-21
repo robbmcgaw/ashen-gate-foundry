@@ -176,8 +176,9 @@ To restore, put each archived scope back on the document its id names and remove
 **Restore backup** in the Hub header (GM only, shown when the character has copies; on a copy itself it reads **Restore this backup**) picks a copy, newest first, then asks in a red confirmation that says what will happen. Restore:
 1. saves the character as it is now as another copy, `<name> - level X` by the same rule (`levelBackup.reason = 'restore'`); if that fails nothing changes;
 2. replaces the character's `system` (class levels come with the class items; HP, abilities, everything dnd5e keeps), items, effects and flags with the copy's, with `archivedFlags` put back on each document;
-3. keeps the character's id, name, portrait, ownership, prototype token, folder, `core` flags (sheet choice) and any queued level backups;
-4. is all or nothing: if a step fails, the character is put back as it was just before (the safety copy stays).
+3. keeps the character's id, name, portrait, ownership, prototype token, folder, `core` flags (sheet choice), its Journey (the Journey does not revert) and any queued level backups;
+4. with Ashen Gate | Cinders 0.7.0+, calls `api.cinder.rehook(actor)` so the character is re-linked to the Cinders the Cinder records say it bears (the records are the truth; the copy's old links are not used). Older Cinders: the restore happens and warns to run Cinders → Manage → Check. The safety copy is inert and has a new id, so it never holds a bearer link;
+5. is all or nothing: if a step fails (the Cinders re-link included), the character is put back as it was just before and re-linked again (the safety copy stays).
 
 Items and effects on both sides are replaced in place by id; the rest are created with their ids or deleted. The live character records `flags['ashen-gate-character-hub'].levelRestore = {opId, backupId, backupName, levelBefore, levelAfter, safetyId, date, by}`; the same opId again does nothing. The copy is not changed. Players are refused in the data layer (`api.levelBackups.restore`), not only by the hidden button. There is no cleanup tool: delete old copies by hand.
 
