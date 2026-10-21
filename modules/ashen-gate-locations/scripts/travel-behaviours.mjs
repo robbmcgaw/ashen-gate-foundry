@@ -15,7 +15,7 @@ const CHECK_LABELS = Object.freeze({forage: 'Foraging', navigate: 'Navigation'})
 const NOTE = '<p class="agl-hint">Tracking only: nothing is rolled or changed automatically.</p>';
 
 const option = (value, label, selected) => `<option value="${esc(value)}"${selected ? ' selected' : ''}>${esc(label)}</option>`;
-const toggle = (id, on) => `<label class="agl-travel__toggle"><input type="checkbox" data-travel-change="bh:${id}:enabled"${on ? ' checked' : ''}> Track on this journey</label>`;
+const toggle = (id, on) => `<label class="ag-field ag-field--inline agl-travel__toggle"><input type="checkbox" data-travel-change="bh:${id}:enabled"${on ? ' checked' : ''}> Track on this journey</label>`;
 const gmActive = ctx => ctx.isGM && ctx.journey?.status === 'active';
 
 /** Reads a control's value: checkbox state or select value. */
@@ -32,7 +32,7 @@ export function travelBehaviours({api, characters = () => [], skillLabel = id =>
       if (!ctx.isGM) return `<p>Pace: <strong>${esc(PACE_LABELS[ctx.state.behaviours.pace] ?? ctx.state.behaviours.pace)}</strong></p>${NOTE}`;
       const b = ctx.journey.behaviours.pace;
       if (!b.enabled) return `${toggle('pace', false)}<p class="agl-hint">Off for this journey. Players don't see a pace.</p>`;
-      return `<label>Pace <select data-travel-change="bh:pace:value">${PACES.map(p => option(p, PACE_LABELS[p], p === b.value)).join('')}</select></label>
+      return `<label class="ag-field ag-field--inline">Pace <select data-travel-change="bh:pace:value">${PACES.map(p => option(p, PACE_LABELS[p], p === b.value)).join('')}</select></label>
         ${toggle('pace', true)}<p class="agl-hint">Players see the pace.</p>${NOTE}`;
     },
     async act(action, {el}) {
@@ -60,7 +60,7 @@ export function travelBehaviours({api, characters = () => [], skillLabel = id =>
       const head = WATCHES.map(w => `<th scope="col">${esc(WATCH_LABELS[w].replace(' watch', ''))}</th>`).join('');
       const rows = ids.map(id => `<tr><th scope="row">${esc(names.get(id) ?? id)}</th>${WATCHES.map(w => `<td><input type="checkbox" aria-label="${esc(`${names.get(id) ?? id}: ${WATCH_LABELS[w]}`)}"
         data-travel-change="bh:watch:toggle" data-watch="${w}" data-actor="${esc(id)}"${b[w].includes(id) ? ' checked' : ''}></td>`).join('')}</tr>`).join('');
-      return `<table class="agl-travel__watch"><thead><tr><th scope="col">Character</th>${head}</tr></thead><tbody>${rows}</tbody></table>
+      return `<div class="ag-table-wrap"><table class="ag-table agl-travel__watch"><thead><tr><th scope="col">Character</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>
         ${toggle('watch', true)}<p class="agl-hint">Players see who is on each watch.</p>${NOTE}`;
     },
     async act(action, {el}) {
@@ -81,7 +81,7 @@ export function travelBehaviours({api, characters = () => [], skillLabel = id =>
     render(ctx) {
       const b = ctx.journey.behaviours.checks;
       if (!b.enabled) return `${toggle('checks', false)}<p class="agl-hint">Off for this journey.</p>`;
-      const rows = CHECKS.map(c => `<div class="agl-travel__row"><label>${esc(CHECK_LABELS[c])} skill <select data-travel-change="bh:checks:skill" data-check="${c}">
+      const rows = CHECKS.map(c => `<div class="agl-travel__row"><label class="ag-field ag-field--inline">${esc(CHECK_LABELS[c])} skill <select data-travel-change="bh:checks:skill" data-check="${c}">
         ${CHECK_SKILLS.map(s => option(s, skillLabel(s), s === b[c])).join('')}</select></label>
         <button type="button" class="ag-btn" data-travel="bh:checks:${c}"><i class="fa-solid fa-dice-d20" aria-hidden="true"></i><span>${esc(CHECK_LABELS[c])} check</span></button></div>`).join('');
       return `${rows}${toggle('checks', true)}<p class="agl-hint">Opens Utilities → Rolls with the check filled in (Group result, the party ticked). Change anything there, including Individual rolls, then Start Rolls. Only you see this panel.</p>${NOTE}`;

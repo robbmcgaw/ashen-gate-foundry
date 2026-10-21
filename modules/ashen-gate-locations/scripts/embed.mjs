@@ -28,7 +28,7 @@ export function embedHTML(deps, filter = '') {
       <span class="agl-embed__bar" aria-hidden="true"><i style="width:${pct}%"></i></span></section>` : '';
   const list = [...groups.entries()].sort(([a], [b]) => a === OTHER ? 1 : b === OTHER ? -1 : a.localeCompare(b))
     .map(([g, rows]) => `<h4>${esc(g)} <small>${rows.length}</small></h4>
-    <ul class="agl-embed__list">${rows.map(v => `<li><button type="button" class="agl-embed__open" data-agl-embed="open" data-ref="${esc(v.id)}" title="Open ${esc(v.name)} in Locations">${esc(v.name)}</button>${v.type ? `<span class="agl-embed__muted">${esc(v.type)}</span>` : ''}</li>`).join('')}</ul>`).join('');
+    <ul class="agl-embed__list">${rows.map(v => `<li><button type="button" class="agl-embed__open" data-agl-embed="open" data-ref="${esc(v.id)}" data-tooltip="Open ${esc(v.name)} in Locations" data-tooltip-class="ag-tooltip">${esc(v.name)}</button>${v.type ? `<span class="agl-embed__muted">${esc(v.type)}</span>` : ''}</li>`).join('')}</ul>`).join('');
   return `<div class="agl-embed__body">${trip}
     <div class="agl-embed__tools"><input type="search" class="agl-embed__search" placeholder="Search places" aria-label="Search places" value="${esc(filter)}"><button type="button" class="ag-btn ag-btn--sm" data-agl-embed="open-all">Open Locations</button></div>
     ${list || `<div class="ag-empty">${q ? 'No places match.' : 'No places revealed yet.'}</div>`}</div>`;

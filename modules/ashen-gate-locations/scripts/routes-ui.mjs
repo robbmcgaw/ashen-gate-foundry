@@ -5,7 +5,7 @@
  */
 import {MODULE_ID, esc, clone, normalizeLocation, AUDIENCE_MODES, STATE_LABELS} from './model.mjs';
 import {confirmDialog} from './ag-dialogs.mjs';
-import {ROUTE_STATES, ROUTE_STATE_LABELS, ROUTE_DEFAULTS, MIN_KM, kmOk, normalizeRoute, legsOf, routeLabel, routeVariantFor, UNKNOWN_PATH} from './routes.mjs';
+import {ROUTE_STATES, ROUTE_STATE_LABELS, ROUTE_DEFAULTS, normalizeRoute, legsOf, routeLabel, routeVariantFor, UNKNOWN_PATH} from './routes.mjs';
 
 const api = () => game.modules.get(MODULE_ID)?.api;
 const ROUTE_STATE_ICONS = {unknown: 'fa-solid fa-eye-slash', rumoured: 'fa-solid fa-ear-listen', known: 'fa-solid fa-route', explored: 'fa-solid fa-flag-checkered'};
@@ -17,6 +17,8 @@ const ROUTE_STATE_HINTS = {
 };
 const setting = (key, fallback) => { try { return game.settings.get(MODULE_ID, key) ?? fallback; } catch { return fallback; } };
 /** World RollTables by name: [{uuid, name}]. */
+/** Foundry tooltip in the kit's skin (replaces native title=). */
+const tip = text => text ? ` data-tooltip="${esc(text)}" data-tooltip-class="ag-tooltip"` : '';
 const tableChoices = () => [...(game.tables ?? [])].map(t => ({uuid: t.uuid ?? `RollTable.${t.id}`, name: t.name ?? ''})).sort((a, b) => a.name.localeCompare(b.name));
 
 export function routesMixin({btn, notifyError, worldPlayers}) {
@@ -34,6 +36,8 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
       this.routeDirty = true;
       const save = this.element?.querySelector('[data-action="route-save"] span');
       if (save) save.textContent = 'Save Changes •';
+      const status = this.element?.querySelector('.agl-editor .ag-footer__status');
+      if (status) status.textContent = 'Unsaved changes';
     },
 
     routesHtml() {
@@ -57,28 +61,32 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
         .sort((a, b) => routeLabel(a, nameOf).localeCompare(routeLabel(b, nameOf)));
       const row = r => {
         const broken = !locs.has(r.fromId) || !locs.has(r.toId);
-        return `<li><button type="button" class="agl-row${r.id === this.routeId ? ' active' : ''}" data-action="route-select" data-id="${esc(r.id)}">
-          <span class="agl-row__name">${esc(routeLabel(r, nameOf))}</span>
-          ${broken ? '<i class="fa-solid fa-triangle-exclamation agl-row__rev" title="An endpoint location no longer exists"></i>' : ''}
-          <span class="agl-count" title="${r.distanceKm} km in ${r.legs} leg(s)">${esc(r.distanceKm)} km · ${r.legs}</span>
-          <i class="${ROUTE_STATE_ICONS[r.state]} agl-row__rev" title="${ROUTE_STATE_LABELS[r.state]}"></i></button></li>`;
+        const selected = r.id === this.routeId;
+        return `<button type="button" class="ag-row agl-row${selected ? ' is-selected' : ''}"${selected ? ' aria-current="true"' : ''} data-action="route-select" data-id="${esc(r.id)}">
+          <span class="ag-row__main"><span class="ag-row__title agl-row__name">${esc(routeLabel(r, nameOf))}</span></span>
+          <span class="ag-row__end">${broken ? `<i class="fa-solid fa-triangle-exclamation agl-row__rev agl-row__warn"${tip('An endpoint location no longer exists')} aria-label="An endpoint location no longer exists"></i>` : ''}
+          <span class="agl-count"${tip(`${r.distanceKm} km in ${r.legs} leg(s)`)}>${esc(r.distanceKm)} km · ${r.legs}</span>
+          <i class="${ROUTE_STATE_ICONS[r.state]} agl-row__rev"${tip(ROUTE_STATE_LABELS[r.state])} aria-label="${ROUTE_STATE_LABELS[r.state]}"></i></span></button>`;
       };
       const groups = ROUTE_STATES.map(st => ({st, list: rows.filter(r => r.state === st)})).filter(g => g.list.length)
-        .map(g => `<li class="agl-group"><h3>${ROUTE_STATE_LABELS[g.st]} <span class="agl-count">${g.list.length}</span></h3><ul class="ag-list">${g.list.map(row).join('')}</ul></li>`).join('');
-      const none = routes.length ? '<p class="ag-empty">No routes match.</p>' : '<p class="ag-empty">No routes yet. Click <strong>New Route</strong> to join two locations.</p>';
+        .map(g => `<li class="agl-group"><h3 class="agl-group__title ag-eyebrow">${ROUTE_STATE_LABELS[g.st]} <span class="agl-count">${g.list.length}</span></h3><div class="ag-rows">${g.list.map(row).join('')}</div></li>`).join('');
+      const none = routes.length
+        ? '<div class="ag-empty"><p class="ag-empty__title">Nothing matches</p><p class="ag-empty__text">No routes match this search.</p></div>'
+        : `<div class="ag-empty"><i class="fa-solid fa-route" aria-hidden="true"></i><p class="ag-empty__title">No routes yet</p><p class="ag-empty__text">Join two locations with New route.</p>${btn('route-new', 'New route', {kind: 'sm', icon: 'fa-solid fa-plus'})}</div>`;
       const j = api().getJourney().journey;
       const banner = j?.status === 'active' ? `<div class="agl-undo agl-journey-banner" role="status"><span><i class="fa-solid fa-person-hiking" aria-hidden="true"></i>
           Journey under way: <strong>${esc(nameOf(j.fromId) || j.fromId)} → ${esc(nameOf(j.toId) || j.toId)}</strong>, leg ${j.legIndex} of ${j.legs}${j.pending ? ' · <strong>hazard waiting</strong>' : ''}.</span>
-          ${j.routeId !== this.routeId ? btn('route-select', 'Open', {data: {id: j.routeId}}) : ''}${btn('route-open-tracker', 'Travel tracker', {icon: 'fa-solid fa-person-hiking', title: 'Small pop-out window to roll legs over the map'})}</div>` : '';
-      return `<div class="ag-toolbar"><input type="search" id="agl-route-search" placeholder="Search route, place or terrain…" value="${esc(this.routeQuery)}" aria-label="Search routes">
-          ${btn('route-new', 'New Route', {kind: 'primary', icon: 'fa-solid fa-plus'})}</div>${banner}
-        <div class="agl-body"><aside class="agl-list">${rows.length ? `<ul class="agl-groups">${groups}</ul>` : none}</aside>
-        <section class="agl-detail">${this.routeEditorHtml([...locs.values()])}</section></div>`;
+          <span class="ag-btn-group">${j.routeId !== this.routeId ? btn('route-select', 'Open', {kind: 'sm', data: {id: j.routeId}}) : ''}${btn('route-open-tracker', 'Travel tracker', {kind: 'sm', icon: 'fa-solid fa-person-hiking', title: 'Small pop-out window to roll legs over the map'})}</span></div>` : '';
+      return `<div class="ag-toolbar agl-toolbar"><label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="agl-route-search" placeholder="Search route, place or terrain…" value="${esc(this.routeQuery)}" aria-label="Search routes"></label>
+          <span class="ag-toolbar__count" aria-live="polite">Showing ${rows.length} of ${routes.length}</span>
+          <div class="ag-toolbar__end">${btn('route-new', 'New route', {icon: 'fa-solid fa-plus'})}</div></div>${banner}
+        <div class="agl-body ag-split"><aside class="agl-list ag-split__list">${rows.length ? `<ul class="agl-groups">${groups}</ul>` : none}</aside>
+        <section class="agl-detail ag-split__detail">${this.routeEditorHtml([...locs.values()])}</section></div>`;
     },
 
     routeEditorHtml(locations) {
       const d = this.routeDraft;
-      if (!d) return '<p class="ag-empty">Select a route, or create a new one.</p>';
+      if (!d) return '<div class="ag-empty"><p class="ag-empty__title">No route selected</p><p class="ag-empty__text">Pick one from the list, or create one with New route.</p></div>';
       const r = normalizeRoute(d);
       const defLeg = setting('defaultLegKm', ROUTE_DEFAULTS.legKm);
       const legs = legsOf(r, defLeg);
@@ -100,10 +108,10 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
         ${tableKnown ? '' : `<option value="${esc(t.uuid)}" selected>Missing table${t.name ? `: ${esc(t.name)}` : ''} (falls back to "Hazard!")</option>`}
         ${byName ? `<option value="name:${esc(t.name)}" selected>By name: ${esc(t.name)}${tables.some(x => x.name === t.name) ? '' : ' (not in this world: falls back to "Hazard!")'}</option>` : ''}
         ${tables.map(x => `<option value="${esc(x.uuid)}" ${x.uuid === t.uuid ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></div>`;
-      const states = d.id ? `<div class="agl-state" role="group" aria-label="Route discovery">${ROUTE_STATES.map(st =>
-        btn('route-state', ROUTE_STATE_LABELS[st], {kind: d.state === st ? 'primary' : '', icon: ROUTE_STATE_ICONS[st], data: {state: st},
-          title: d.state === st ? `${ROUTE_STATE_LABELS[st]} (current)` : `Save, then mark ${ROUTE_STATE_LABELS[st].toLowerCase()}`})).join('')}</div>` : '';
+      const states = d.id ? `<div class="ag-segmented agl-state" role="radiogroup" aria-label="Route discovery">${ROUTE_STATES.map(st => `<button type="button" role="radio" aria-checked="${d.state === st}" data-action="route-state" data-state="${st}"${
+        tip(d.state === st ? `${ROUTE_STATE_LABELS[st]} (current)` : `Save, then mark ${ROUTE_STATE_LABELS[st].toLowerCase()}`)}><i class="${ROUTE_STATE_ICONS[st]}" aria-hidden="true"></i> ${ROUTE_STATE_LABELS[st]}</button>`).join('')}</div>` : '';
       return `<form class="agl-editor" autocomplete="off" onsubmit="return false">
+        ${d.id ? `<div class="agl-editor__head"><span class="agl-hint">Route</span><div class="ag-btn-group">${btn('route-delete', 'Delete route', {kind: 'danger sm', icon: 'fa-solid fa-trash'})}</div></div>` : ''}
         <div class="agl-title">
           <div class="ag-field agl-name"><label for="agl-route-name">Name (optional)</label><input id="agl-route-name" type="text" data-rbind="name" value="${esc(d.name)}" placeholder="${esc(routeLabel(r, id => locations.find(l => l.id === id)?.name ?? ''))}"></div>
           ${states}
@@ -113,7 +121,7 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
         <div class="agl-grid">
           ${pick('fromId', 'From')}${pick('toId', 'To')}
         </div>
-        <label class="agl-switch"><input type="checkbox" data-rtoggle="directed" ${d.directed ? 'checked' : ''}> One-way (From → To only)</label>
+        <label class="ag-field ag-field--inline agl-switch"><input type="checkbox" data-rtoggle="directed" ${d.directed ? 'checked' : ''}> One-way (From → To only)</label>
         <div class="agl-grid">
           ${num('distanceKm', 'Distance (km)', {min: 0.01, placeholder: 'e.g. 30'})}
           ${num('legKm', 'Leg length (km)', {min: 0.01, placeholder: `${defLeg} (world default)`})}
@@ -127,9 +135,9 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
         ${d.id ? this.journeyHtml(d, locations) : ''}
         ${this.routeVisibilityHtml(d, locations)}
         <p class="agl-hint">Players never see the hazard chance, the hazard table, these notes or the route's ID. Don't put a hidden place's name in the route name or terrain: players who can see both ends see them.</p>
-        <footer class="agl-footer">
-          <div>${btn('route-cancel', 'Cancel', {kind: 'ghost'})}${d.id ? btn('route-delete', 'Delete', {kind: 'danger', icon: 'fa-solid fa-trash'}) : ''}</div>
-          <div>${btn('route-save', this.routeDirty ? 'Save Changes •' : 'Save Changes', {kind: 'primary', icon: 'fa-solid fa-floppy-disk'})}</div>
+        <footer class="ag-footer agl-footer">
+          ${btn('route-cancel', 'Cancel', {kind: 'ghost'})}<span class="ag-footer__status" role="status">${this.routeDirty ? 'Unsaved changes' : ''}</span>
+          ${btn('route-save', this.routeDirty ? 'Save Changes •' : 'Save Changes', {kind: 'primary', icon: 'fa-solid fa-floppy-disk'})}
         </footer></form>`;
     },
 
@@ -137,8 +145,8 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
     routeVisibilityHtml(d, locations) {
       const a = d.audience ?? {mode: 'everyone', userIds: []};
       const players = worldPlayers();
-      const radio = (mode, label) => `<label class="agl-switch"><input type="radio" name="agl-route-audience" data-raudience="mode" value="${mode}" ${a.mode === mode ? 'checked' : ''} ${d.id ? '' : 'disabled'}> ${label}</label>`;
-      const list = a.mode !== 'selected' ? '' : players.length ? `<ul class="ag-list agl-entries agl-audience">${players.map(u => `<li><label class="agl-switch">
+      const radio = (mode, label) => `<label class="ag-field ag-field--inline agl-switch"><input type="radio" name="agl-route-audience" data-raudience="mode" value="${mode}" ${a.mode === mode ? 'checked' : ''} ${d.id ? '' : 'disabled'}> ${label}</label>`;
+      const list = a.mode !== 'selected' ? '' : players.length ? `<ul class="ag-list agl-entries agl-audience">${players.map(u => `<li><label class="ag-field ag-field--inline agl-switch">
           <input type="checkbox" data-raudience="user" value="${esc(u.id)}" ${a.userIds.includes(u.id) ? 'checked' : ''}> ${esc(u.name)}</label></li>`).join('')}</ul>` : '<p class="ag-empty">No player accounts in this world yet.</p>';
       const byId = new Map(locations.map(l => { const n = normalizeLocation(l); return [n.id, n]; }));
       const saved = d.id ? api().getRoute(d.id) : null;
@@ -147,7 +155,7 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
         return `<li>${esc(u.name)}: ${v === 'full' ? 'sees the route' : v ? `sees "${UNKNOWN_PATH}" from the end they know` : 'nothing'}</li>`;
       }).join('') : '';
       return `<section class="ag-card agl-section"><header class="agl-section__head"><h3>Who Can See It</h3></header>
-        <label class="agl-switch"><input type="checkbox" data-rtoggle="unknownPath" ${d.unknownPath ? 'checked' : ''}> When a player can't see one end, show "${UNKNOWN_PATH}" from the end they can see (otherwise they see nothing)</label>
+        <label class="ag-field ag-field--inline agl-switch"><input type="checkbox" data-rtoggle="unknownPath" ${d.unknownPath ? 'checked' : ''}> When a player can't see one end, show "${UNKNOWN_PATH}" from the end they can see (otherwise they see nothing)</label>
         <div class="agl-add">${radio('everyone', 'Everyone')}${radio('selected', 'Selected players')}</div>${list}
         <p class="agl-hint">${d.id ? 'Applies at once.' : 'Save the route first.'} On top of this, a player sees a discovered route only while both ends are visible to them (not Hidden, and they are allowed to see that place).</p>
         ${sees ? `<details><summary>Right now (saved route)</summary><ul class="ag-list">${sees}</ul></details>` : ''}</section>`;
@@ -176,10 +184,10 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
       return `<section class="ag-card agl-section">${head}
         <p><strong>${esc(name(j.fromId))} → ${esc(name(j.toId))}</strong>: leg ${j.legIndex} of ${j.legs} travelled · next leg's hazard chance <strong>${j.currentChance}%</strong> · hazards so far ${j.hazardCount}</p>
         ${j.pending ? this.hazardHtml(j) : ''}
-        <div class="agl-add">${btn('route-next-leg', j.legIndex + 1 >= j.legs ? 'Next leg (last: arrive)' : 'Next leg', {kind: 'primary', icon: 'fa-solid fa-shoe-prints'})}
+        <div class="agl-add">${btn('route-next-leg', j.legIndex + 1 >= j.legs ? 'Next leg (last: arrive)' : 'Next leg', {icon: 'fa-solid fa-shoe-prints'})}
           ${saved.directed || !j.legIndex ? '' : btn('route-journey-reverse', 'Turn back', {icon: 'fa-solid fa-rotate-left', title: 'The party turns round; the legs travelled become the legs back'})}
           ${btn('route-open-tracker', 'Travel tracker', {icon: 'fa-solid fa-person-hiking', title: 'Small pop-out window to roll legs over the map'})}
-          ${btn('route-journey-abort', 'Abort journey', {kind: 'danger', icon: 'fa-solid fa-ban'})}</div>${log}</section>`;
+          ${btn('route-journey-abort', 'End journey', {kind: 'danger', icon: 'fa-solid fa-ban'})}</div>${log}</section>`;
     },
     /** 1.12.0: the route's map drawing: link the selected one, Draw for me, or unlink. */
     drawingHtml(d) {
@@ -192,7 +200,7 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
       }[info.status];
       return `<section class="ag-card agl-section"><header class="agl-section__head"><h3>Map Drawing</h3></header>
         <p>${status}</p>
-        ${info.hasText ? '<p class="agl-hint ag-badge--warn">This drawing has text. Players read it whenever the drawing is shown: never name a hidden place there.</p>' : ''}
+        ${info.hasText ? '<p class="ag-notice ag-notice--warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> This drawing has text. Players read it whenever the drawing is shown: never name a hidden place there.</p>' : ''}
         <div class="agl-add">${btn('route-link-drawing', 'Link selected drawing', {icon: 'fa-solid fa-link', title: 'Select a drawing on the canvas (Drawing tools), then click this'})}
           ${btn('route-draw', 'Draw for me', {icon: 'fa-solid fa-pen-ruler', title: 'Adds a straight line between the two pins on the scene you are viewing; reshape it with the Drawing tools'})}
           ${info.status !== 'none' ? btn('route-unlink-drawing', 'Unlink', {icon: 'fa-solid fa-link-slash', title: 'The drawing stays on the map as it is'}) : ''}</div>
@@ -204,7 +212,7 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
         ${p.tableMissing ? '<p class="agl-hint">The hazard table was not found, so this is the plain fallback.</p>' : ''}
         <p class="agl-hint">Only you see this. Sharing posts the result to chat for everyone (no route or place names).</p>
         <div class="agl-add">${btn('route-hazard-reroll', 'Reroll', {icon: 'fa-solid fa-dice'})}${btn('route-hazard-dismiss', 'Dismiss', {icon: 'fa-solid fa-xmark'})}
-          ${btn('route-hazard-share', 'Share with players', {kind: 'primary', icon: 'fa-solid fa-bullhorn'})}</div></div>`;
+          ${btn('route-hazard-share', 'Share with players', {icon: 'fa-solid fa-bullhorn'})}</div></div>`;
     },
 
     // ---------- players ----------
@@ -212,18 +220,18 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
       const v = api().getJourney();
       if (!v || v.status !== 'active') return v?.status === 'arrived' && v.to ? `<p class="agl-hint">The party arrived at ${esc(v.to.name)}.</p>` : '';
       return `<div class="agl-undo agl-journey-banner" role="status"><span><i class="fa-solid fa-person-hiking" aria-hidden="true"></i> The party is travelling${v.from ? ` from <strong>${esc(v.from.name)}</strong>` : ''}${v.to ? ` to <strong>${esc(v.to.name)}</strong>` : ''}: leg ${v.leg} of ${v.legs}${v.paused ? ' (paused)' : ''}.</span>
-        ${btn('route-open-tracker', 'Travel tracker', {icon: 'fa-solid fa-person-hiking'})}</div>`;
+        ${btn('route-open-tracker', 'Travel tracker', {kind: 'sm', icon: 'fa-solid fa-person-hiking'})}</div>`;
     },
     playerRoutesHtml(views) {
       const journey = this.playerJourneyHtml();
-      if (!views.length) return `${journey}<p class="ag-empty">No routes have been discovered yet.</p>`;
+      if (!views.length) return `<div class="agl-routes-player">${journey}<div class="ag-empty"><i class="fa-solid fa-route" aria-hidden="true"></i><p class="ag-empty__title">No routes yet</p><p class="ag-empty__text">Routes appear here once your GM reveals them.</p></div></div>`;
       const groups = [...ROUTE_STATES.filter(s => s !== 'unknown').map(st => ({label: ROUTE_STATE_LABELS[st], list: views.filter(v => v.state === st)})),
         {label: 'Unknown paths', list: views.filter(v => v.state === 'unknown-path')}].filter(g => g.list.length);
       const end = e => e ? `<a class="agl-link" data-action="route-open-place" data-id="${esc(e.key)}">${esc(e.name)}</a>${e.id ? '' : ' <small>(unidentified)</small>'}` : '<em>somewhere unknown</em>';
       const card = v => `<li class="ag-card agl-route-card"><h4>${esc(v.name || routeLabel(v))}</h4>
         <p>${end(v.from)} ${v.directed ? '→' : '–'} ${end(v.to)}</p>
         ${v.variant === 'full' ? `<p class="agl-hint">${esc(v.distanceKm)} km · ${v.legs} leg${v.legs === 1 ? '' : 's'}${v.terrain ? ` · ${esc(v.terrain)}` : ''}${v.directed ? ' · one-way' : ''}</p>` : ''}</li>`;
-      return `<div class="agl-routes-player">${journey}${groups.map(g => `<section><h3>${esc(g.label)}</h3><ul class="agl-route-cards">${g.list.map(card).join('')}</ul></section>`).join('')}</div>`;
+      return `<div class="agl-routes-player">${journey}${groups.map(g => `<section class="ag-section"><h3 class="ag-eyebrow">${esc(g.label)} <span class="agl-count">${g.list.length}</span></h3><ul class="agl-route-cards">${g.list.map(card).join('')}</ul></section>`).join('')}</div>`;
     },
 
     // ---------- events ----------
@@ -357,20 +365,12 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
           ui.notifications[j.travelLog === 'ok' ? 'info' : 'warn'](j.travelLog === 'ok' ? 'Added to Party Notes.' : `Still could not add it: ${j.travelLogError}`);
           return this.render();
         }
-        case 'route-save-setup': {
-          const v = Number(this.element.querySelector('#agl-set-leg')?.value);
-          if (!kmOk(v)) return ui.notifications.warn(`Leg length must be from ${MIN_KM} to 100000 km.`);
-          await game.settings.set(MODULE_ID, 'defaultLegKm', v);
-          ui.notifications.info(`Default leg length is now ${v} km.`);
-          return this.render();
-        }
       }
     },
     routeSetupHtml() {
       return `<section class="ag-card"><h3>Routes</h3>
         <div class="ag-field agl-field"><label for="agl-set-leg">Default leg length (km)</label><input id="agl-set-leg" type="number" min="0.01" step="any" value="${esc(setting('defaultLegKm', ROUTE_DEFAULTS.legKm))}"></div>
-        <p class="agl-hint">Used by routes that don't set their own leg length. Legs = distance ÷ leg length, rounded up.</p>
-        <div class="agl-add">${btn('route-save-setup', 'Save Leg Length', {kind: 'primary', icon: 'fa-solid fa-floppy-disk'})}</div></section>`;
+        <p class="agl-hint">Used by routes that don't set their own leg length. Legs = distance ÷ leg length, rounded up.</p></section>`;
     }
   };
 }

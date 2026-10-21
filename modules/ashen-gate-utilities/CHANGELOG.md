@@ -1,3 +1,10 @@
+## 0.16.0 — 2026-10-21
+
+- UI standard look (same layout): header shows Appearance, then the version, then Help; tabs scroll sideways on narrow windows and History / GM Setup are marked GM-only; buttons, badges, fields, empty states and tooltips use the shared kit. Award Gold looks the same everywhere; a finished check shows a big Success / Failure verdict.
+- **GM Setup:** Cancel bottom-left and Save Changes bottom-right in the window footer. Player Access saves only with Save Changes, like every other GM Setup setting (same setting); Cancel puts the boxes back to the saved values.
+- Party stash rows are striped; the search box and item count sit in the stash toolbar. Window sizes follow General Manager's Comfortable size; narrow windows reflow by window width, not screen width.
+- No saved-data, setting or flag changes.
+
 ## 0.15.1 — 2026-10-21
 
 - Confirmations name the action (no more Yes/No), Help opens with a Close button, dialogs follow the Ashen Gate look; test wording removed from player views.
