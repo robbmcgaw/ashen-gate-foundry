@@ -1,3 +1,9 @@
+## 0.44.2 — 2026-10-21
+
+- **Import preview:** an optional link to a record another Ashen Gate module owns and imports itself (Locations `LOC-`/`RTE-`, Renown `FACTION-`/`RENOWN-`/`DEITY-`, Quest Log `QUEST-`/`ORDER-`/`CONTRACT-`/`ASSIGN-`, Headquarters `FAC-`) is no longer listed as an "absent" reference in Import review notes. It shows in a separate info box, **Links to other Ashen Gate modules**, as "links to Renown record FACTION-… (imported separately)", adding "Renown is not active in this world" when that module is off. Links to ids no module owns are still warnings.
+- A *required* link to such a record still blocks the import as before; its message now says which module it comes from and to import it there first.
+- No import-behaviour or saved-data changes.
+
 ## 0.44.1 — 2026-10-21
 
 - **Import fix:** choosing a file in the Import tab while an import was running cleared the loaded package and aborted the import part way ("Cannot read properties of null (reading 'records')"). While an import is writing, the file picker and the other Import options (profile, drafts, update switches, ZIP ticks, record ticks, portrait upload) are now disabled, and their handlers ignore any change, so the running import always finishes. Choosing a file (the same one included) works again as soon as it ends.
