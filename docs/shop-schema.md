@@ -1,8 +1,9 @@
-# Shop, Service and MerchantList record schema (Ashen Gate Utilities 0.21.0+)
+# Shop, Service and MerchantList record schema (Ashen Gate Utilities 0.21.0+, General Manager 0.44.0+)
 
 Shops, services and merchant lists travel in an `ag-foundry-import/0.2` package, next to the Items they sell. They
-belong to Utilities (`ashen-gate-utilities`). Import them with Utilities **Shops → Import JSON**, or (once General
-Manager routes them) with General Manager → Import, which creates the package's Items first. Check a file with
+belong to Utilities (`ashen-gate-utilities`). Import them with General Manager → Import (0.44.0+), which creates the
+package's Items first and then hands these records to Utilities in the same run, or with Utilities **Shops → Import
+JSON** for a shops-only file (its Items must already be in the world). Check a file with
 `node scripts/validate-content.mjs <file>`. This file is generic: no setting content.
 
 ## Envelope (all three types)

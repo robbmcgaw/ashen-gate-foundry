@@ -23,7 +23,7 @@ export function planLocation(record, {existingIds = null, includeDrafts = false,
   if (!existingIds.has(record.id)) return {action: 'create', reason: 'New location; imported through Locations.'};
   return updateExisting
     ? {action: 'update', reason: 'Replaces the definition; keeps revealed and exhausted state.'}
-    : skipped('Location already exists; kept unchanged. Turn on "Update existing locations and routes" to replace its definition.');
+    : skipped('Location already exists; kept unchanged. Turn on "Update existing locations, routes and shops" to replace its definition.');
 }
 
 /** Warning shown with the preview when Location records cannot be imported. */
@@ -83,7 +83,7 @@ export function planRoute(record, {existingIds = null, locationIds = new Set(), 
   if (!existingIds.has(record.id)) return {action: 'create', reason: 'New route; imported through Locations after the locations.'};
   return updateExisting
     ? {action: 'update', reason: 'Replaces the definition; keeps discovery state, who can see it, its map drawing and any journey.'}
-    : skipped('Route already exists; kept unchanged. Turn on "Update existing locations and routes" to replace its definition.');
+    : skipped('Route already exists; kept unchanged. Turn on "Update existing locations, routes and shops" to replace its definition.');
 }
 
 /** Warning shown with the preview when Route records cannot be imported. */

@@ -22,6 +22,7 @@ import {CAPTURE_TYPES, normalizeCaptureFlag, buildCapturePackage} from "./captur
 import {compilePackage, dependencyOrder, normalizeRef, docManagerSnapshot, localEdits, planLifecycle, buildSourceReplacementPatch} from "./workflows.js";
 import {downloadJson, downloadText} from "./download.js";
 import {isLocationRecord, locationsApi, planLocation, locationsNote, applyLocations, isRouteRecord, routesApi, planRoute, routesNote, applyRoutes, withLocationIds} from './location-handoff.js';
+import {isShopRecord, shopsApi, shopIds, planShop, shopsNote, applyShops} from './shop-handoff.js';
 import {cinderDefinitionChecks} from './cinder-definitions.js';
 import {modifierDefinitionChecks} from './modifier-definitions.js';
 import {SPECIALISTS, detectSpecialistFile, specialistCount, specialistApi, describeUnrecognized, planSpecialist, applySpecialist} from './specialist-handoff.js';
@@ -637,7 +638,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       zipPortraitCount:this.zipMedia.size, hasZipPortraits:this.zipMedia.size>0,
       uploadZipArtwork:this.uploadZipArtwork, packageSource:this.packageSource??'—',
       includeDrafts: this.includeDrafts,
-      hasLocationRecords: Boolean(this.pkg?.records?.some(r=>isLocationRecord(r)||isRouteRecord(r))),
+      hasLocationRecords: Boolean(this.pkg?.records?.some(r=>isLocationRecord(r)||isRouteRecord(r)||isShopRecord(r))),
       updateExisting: this.updateExisting,
       hasActorRecords: Boolean(this.pkg?.records?.some(r=>r.foundry?.document_type==='Actor')),
       updateActors: this.updateActors,
@@ -1143,6 +1144,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const routeNote=routesNote(records,rteApi);
     if(routeNote) this.warnings.push(routeNote);
     const routeIds=rteApi ? new Set(rteApi.listRoutes().map(r=>r.id)) : null;
+    const shpApi=shopsApi(game);
+    const shopNote=shopsNote(records,shpApi);
+    if(shopNote) this.warnings.push(shopNote);
+    const existingShopIds=shopIds(shpApi);
     // Endpoints a route may use: locations already in Locations, and those this run passes to it.
     const endpointIds=new Set(locationIds ?? []);
     for (const record of records) if (isLocationRecord(record) && ['create','update'].includes(planLocation(record,{existingIds:locationIds,includeDrafts:this.includeDrafts,updateExisting:this.updateExisting}).action)) endpointIds.add(record.id);
@@ -1156,6 +1161,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       if (isRouteRecord(record)) {
         const {action,reason}=planRoute(record,{existingIds:routeIds,locationIds:endpointIds,includeDrafts:this.includeDrafts,updateExisting:this.updateExisting});
         this.preview.push({id:record.id, name:record.route?.name || record.name || record.id, kind:'Route', lifecycle:record.status, action, reason, patch:{}});
+        continue;
+      }
+      if (isShopRecord(record)) {
+        const {action,reason}=planShop(record,{existingIds:existingShopIds,includeDrafts:this.includeDrafts,updateExisting:this.updateExisting});
+        this.preview.push({id:record.id, name:record.name || record.id, kind:record.entity_type, lifecycle:record.status, action, reason, patch:{}});
         continue;
       }
       const {action,reason,patch={},changes=[],effects=null}=planDocument(record,this.pkg,this).plan;
@@ -1250,10 +1260,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const cycleNotice=pendingGraph.cycles.length ? `${pendingGraph.cycles.length} circular reference path(s). These are allowed because the Manager stores stable Ashen Gate ids. If a required target fails to create, its references are not finalized and the error is logged.` : '';
     const locRows=targetRows.filter(r=>r.kind==='Location');
     const routeRows=targetRows.filter(r=>r.kind==='Route');
-    const docRows=targetRows.filter(r=>r.kind!=='Location'&&r.kind!=='Route');
+    const shopRows=targetRows.filter(r=>isShopRecord({entity_type:r.kind}));
+    const docRows=targetRows.filter(r=>r.kind!=='Location'&&r.kind!=='Route'&&!isShopRecord({entity_type:r.kind}));
     const actorUpdates=docRows.filter(r=>r.kind==='Actor'&&r.action==='update');
     const wantsScriptMacros=targetRows.some(r=>this.pkg.records.find(rec=>rec.id===r.id)?.foundry?.document_type==='Macro' && this.pkg.records.find(rec=>rec.id===r.id)?.foundry?.data?.type==='script');
-    const decision = await confirmDialog(`${docRows.length} document(s)${locRows.length?` and ${locRows.length} location(s) (passed to Locations, after the documents)`:''}${routeRows.length?` and ${routeRows.length} route(s) (passed to Locations, after the locations)`:''} will be created or updated in this world.${cycleNotice?`\n${cycleNotice}`:''}\nBack up your world first. If anything fails part way, the changes already made stay.\nActors: ${actorUpdates.length?`${actorUpdates.length} existing Actor(s) will have their definition updated (you confirm this separately next).`:'only new NPC/character definitions; existing Actors are not changed.'} HP, XP, level, conditions and player items are never replaced.${wantsScriptMacros?' Warning: this import installs untrusted Script Macro source as GM-only, but never runs it.':''}\n${this.uploadZipArtwork&&this.zipMedia.size?`${this.zipMedia.size} bundled assets may be uploaded to the current world before importing documents.`:'ZIP artwork will not be uploaded. If actor images reference missing world paths, upload them manually.'}`,
+    const decision = await confirmDialog(`${docRows.length} document(s)${locRows.length?` and ${locRows.length} location(s) (passed to Locations, after the documents)`:''}${routeRows.length?` and ${routeRows.length} route(s) (passed to Locations, after the locations)`:''}${shopRows.length?` and ${shopRows.length} shop(s), service(s) or merchant list(s) (passed to Utilities, after the Items)`:''} will be created or updated in this world.${cycleNotice?`\n${cycleNotice}`:''}\nBack up your world first. If anything fails part way, the changes already made stay.\nActors: ${actorUpdates.length?`${actorUpdates.length} existing Actor(s) will have their definition updated (you confirm this separately next).`:'only new NPC/character definitions; existing Actors are not changed.'} HP, XP, level, conditions and player items are never replaced.${wantsScriptMacros?' Warning: this import installs untrusted Script Macro source as GM-only, but never runs it.':''}\n${this.uploadZipArtwork&&this.zipMedia.size?`${this.zipMedia.size} bundled assets may be uploaded to the current world before importing documents.`:'ZIP artwork will not be uploaded. If actor images reference missing world paths, upload them manually.'}`,
       {title:'Apply this import to the world?',yes:'Import'});
     if (!decision) return;
     if (actorUpdates.length) {
@@ -1319,6 +1330,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       if(locRows.length) log.results.push(...await applyLocations(locRows.map(row=>this.pkg.records.find(r=>r.id===row.id)),locationsApi(game),{updateExisting:this.updateExisting}));
       // Routes come after the locations they join (Locations checks every endpoint exists).
       if(routeRows.length) log.results.push(...await applyRoutes(routeRows.map(row=>this.pkg.records.find(r=>r.id===row.id)),routesApi(game),{updateExisting:this.updateExisting}));
+      // Shops, services and merchant lists come after the Items their lines sell (Utilities finds them by permanent id).
+      if(shopRows.length) log.results.push(...await applyShops(shopRows.map(row=>this.pkg.records.find(r=>r.id===row.id)),shopsApi(game),{updateExisting:this.updateExisting}));
       // Complete-world UUID index: only actual saved documents are addressable.
       // Resolve after the *whole* batch; record order and reference cycles do not matter.
       const uuidIndex=buildUuidIndex(allBoundDocuments());
@@ -1409,8 +1422,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       const locSkipped=log.results.filter(r=>r.kind==='Location'&&r.status==='skipped').length;
       const rteOk=log.results.filter(r=>r.kind==='Route'&&r.status==='ok').length;
       const rteBad=log.results.filter(r=>r.kind==='Route'&&r.status!=='ok').length;
+      const shopOk=log.results.filter(r=>isShopRecord({entity_type:r.kind})&&r.status==='ok').length;
+      const shopBad=log.results.filter(r=>isShopRecord({entity_type:r.kind})&&r.status!=='ok').length;
       const locNote=(locOk||locSkipped?` (${locOk} location(s) imported${locSkipped?`, ${locSkipped} location(s) skipped: see History for reasons`:''})`:'')
-        +(rteOk||rteBad?` (${rteOk} route(s) imported${rteBad?`, ${rteBad} route(s) skipped or failed: see the result panel`:''})`:'');
+        +(rteOk||rteBad?` (${rteOk} route(s) imported${rteBad?`, ${rteBad} route(s) skipped or failed: see the result panel`:''})`:'')
+        +(shopOk||shopBad?` (${shopOk} shop record(s) imported${shopBad?`, ${shopBad} skipped or failed: see the result panel`:''})`:'');
       this.message=`Import results: ${created} created, ${updated} updated, ${folders} folders, ${icons} icon fallbacks, ${links} UUID links, ${errors} errors, ${skipped} skipped${locNote}. Review History.`;
       toast(this.message,Boolean(errors));
     } catch(error) {
@@ -1435,8 +1451,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         const locSkipped=last.results.filter(x=>x.kind==='Location'&&x.status==='skipped').length;
         const rteOk=last.results.filter(x=>x.kind==='Route'&&x.status==='ok').length;
         const rteBad=last.results.filter(x=>x.kind==='Route'&&x.status!=='ok').length;
+        const shopOk=last.results.filter(x=>isShopRecord({entity_type:x.kind})&&x.status==='ok').length;
+        const shopBad=last.results.filter(x=>isShopRecord({entity_type:x.kind})&&x.status!=='ok').length;
         const locText=(locOk||locSkipped?` ${locOk} location(s) imported${locSkipped?`, ${locSkipped} skipped (reasons in History)`:''}.`:'')
-          +(rteOk||rteBad?` ${rteOk} route(s) imported${rteBad?`, ${rteBad} skipped or failed (reasons below)`:''}.`:'');
+          +(rteOk||rteBad?` ${rteOk} route(s) imported${rteBad?`, ${rteBad} skipped or failed (reasons below)`:''}.`:'')
+          +(shopOk||shopBad?` ${shopOk} shop record(s) imported${shopBad?`, ${shopBad} skipped or failed (reasons below)`:''}.`:'');
         this.message=`Imported ${okay} document(s), created ${folders} folder(s), bound ${links} reference(s); ${bad} error(s).${locText} Details are in the result panel below.`;
         this.importReports=pushReport(this.importReports,buildImportReport({file:this.packageSource??log.packageId,at:log.at,results:last.results,
           names:new Map(this.pkg?.records?.map(r=>[r.id,r.name??r.id])??[])}));

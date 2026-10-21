@@ -1,3 +1,10 @@
+## 0.44.0 — 2026-10-21
+
+- **Import:** `Shop`, `Service` and `MerchantList` records (shopping, Utilities 0.21.0+) are listed in the preview like Routes (create / update / kept, with drafts and blocked statuses as usual) and handed to Utilities' `api.shops.importShops` after the package's Items are created, in the same run. The results panel shows each one, with any item line Utilities couldn't find.
+- Without Utilities 0.21.0 (or with it off) they are skipped as "Needs Utilities 0.21.0 or later"; nothing else in the import changes.
+- The update switch is now **Update existing locations, routes and shops**. Shop stock left, coins, sales and who a shop is shown to are always kept.
+- No saved-data changes.
+
 ## 0.43.1 — 2026-10-21
 
 - Shared UI kit 2.1.0 and dialog helper: choice dialogs follow the Ashen Gate look (Cancel on the left, the choices on the right); red buttons, badges and grey text on selected or striped rows are easier to read in every skin (at least 4.5:1); a hidden empty state stays hidden; disabled list rows keep readable text.

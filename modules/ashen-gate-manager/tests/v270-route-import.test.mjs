@@ -93,7 +93,7 @@ test('re-import: kept by default; update replaces the definition but never disco
   const p2 = pkg([route('RTE-TEST-A-B', 'LOC-TEST-A', 'LOC-TEST-B', {distance_km: 55, discovery_state: 'unknown'})]);
   const kept = preview(p2, api);
   assert.equal(kept[0].action, 'skipped');
-  assert.match(kept[0].reason, /Update existing locations and routes/);
+  assert.match(kept[0].reason, /Update existing locations, routes and shops/);
   const rows = preview(p2, api, {updateExisting: true});
   assert.equal(rows[0].action, 'update');
   await apply(p2, api, rows, {updateExisting: true});
