@@ -1,4 +1,4 @@
-# Shopping in Utilities: design (DRAFT)
+# Shopping and services in Utilities: design (DRAFT)
 
 **Status: DRAFT, not built.** Nothing here is approved until Robb says so. Module: Ashen Gate | Utilities (`ashen-gate-utilities`, now 0.13.1). Target: Foundry V14 on The Forge, dnd5e 6.0.6, 2024 rules.
 
@@ -12,7 +12,8 @@ Mockup (private artifact): https://claude.ai/artifact/8danqfZAjEWaTi1o55rprj
 - A player buys an item: picks a quantity and who pays (the **party purse** or **their own character's coins**), sees the total and the change, confirms. The item goes to their character.
 - **Shop purse (optional):** the merchant's cash on hand. Purchases add coins to it and change comes out of it. Later it pays for buying items back (D4). No purse = unlimited cash. The amount is GM only unless the GM shows it.
 - **No electrum.** Shops use cp, sp, gp and pp. Electrum appears only if the GM turns on Utilities' *Use electrum* setting (§7).
-- **Merchant lists:** a named list of shops (usually one city). The GM switches a list on to let players **browse** it, read only. Buying still needs the GM to present that shop.
+- **Services:** a second kind of entry beside shops, for things that are not items for sale. They use the same Present and merchant-list rules. The first service is a **Bank** that changes coins between denominations (§7b). Robb will add other service types later; the record is built so a new type is a small addition.
+- **Merchant lists:** a named list of shops and services (usually one city). The GM switches a list on to let players **browse** it, read only. Buying still needs the GM to present that shop.
 
 Robb's answers this design keeps: the buyer chooses the payer every time; stock is optional per item; items go to the buyer's inventory; shops are shown only to players the GM presents them to, plus the read-only merchant list.
 
@@ -97,12 +98,36 @@ Creating the journals is lazy (first save) and re-runnable: found by flag `flags
 - Per-purchase amount is the snapshot's own `system.quantity` (Arrows (20) sells 20 per purchase).
 - `hidden` and `cost` are GM only.
 
+### Service record
+
+A service is stored like a shop (same GM Data journal, same `presented`, `merchant`, `flavour`, `locationId`, `gmNotes`), with no item lines and no shop purse:
+
+```json
+{
+  "schema": "ag-utilities-service/1",
+  "id": "SVC-TEST-COUNTING-HOUSE",
+  "kind": "service",
+  "name": "[TEST] Counting House",
+  "merchant": {"name": "[TEST] Clerk Ames", "img": ""},
+  "flavour": "Brass scales and a bored clerk.",
+  "locationId": "LOC-TEST-MARKET",
+  "service": {"type": "bank", "settings": {"feePercent": 0}},
+  "presented": null
+}
+```
+
+- `id`: permanent, `SVC-` + upper-case letters, digits, single hyphens.
+- `service.type`: a registered service type id (`bank` for now). `service.settings`: that type's own settings, checked by the type.
+- A record whose type this Utilities version doesn't know is kept untouched, listed for the GM as "Unknown service type", and never offered to players.
+
 ### Merchant list
 
 ```json
 {"id": "MLIST-TEST-TESTFORD", "name": "[TEST] Testford merchants", "locationId": "LOC-TEST-TESTFORD",
- "shopIds": ["SHOP-TEST-KETTLE", "SHOP-TEST-ANVIL"], "visible": false}
+ "shopIds": ["SHOP-TEST-KETTLE", "SHOP-TEST-ANVIL", "SVC-TEST-COUNTING-HOUSE"], "visible": false}
 ```
+
+`shopIds` holds shops and services, in the order players see them.
 
 ### Sale record (sales log and stash History)
 
@@ -164,6 +189,8 @@ Built on the GM client, written to the Player View journal, never containing GM 
 | `adjustPurse(id, {op: 'add' \| 'remove' \| 'set', coin, amount, reason})`, `setPurse(id, coins \| null)`, `restockCash(id)` | GM | the shop purse; `null` removes it (unlimited cash); never below 0; logged |
 | `importShops(records, {mode: 'create' | 'update'})`, `exportShops(ids?)` | GM | §8 |
 | `sales(id)` | GM | the shop's sales log |
+| `services.list()`, `services.get(id)`, `services.create(data)` and the other CRUD calls | GM | same as shops; `services.types()` lists known types |
+| `services.quote({serviceId, ...request})`, `services.use({serviceId, ...request})` | player or GM | Bank request: `{payFrom: 'purse' \| 'actor', actorId, from, to, receive}` |
 | `merchants.list()`, `merchants.save(list)`, `merchants.setVisible(id, bool)`, `merchants.delete(id)` | GM | |
 | `open(id?)` | anyone allowed | opens the Shops tab, or the shop window |
 | `forMe()` | player or GM | projections of shops presented to this user |
@@ -239,9 +266,46 @@ GM:     D. log to stash History (purse purchases), receipt to the buyer, optiona
 
 Two players buying the last one: the GM client handles them in order; the second gets "Sold out. Nothing was charged."
 
-## 8. Import (GPT-authored shops)
+## 7b. Services
 
-Shop records go in an `ag-foundry-import/0.2` package with `entity_type: "Shop"` (and `"MerchantList"`). General Manager, when it sees Utilities with `api.shops.importShops`, creates the package's Items first, then hands the Shop records to Utilities in the same run. Utilities **GM Setup → Import JSON** (Shops tab → Import JSON) reads the same records for a shops-only file.
+### How a service type plugs in
+
+Each type is one entry in a registry inside Utilities (not a public extension point for now):
+
+```js
+SERVICE_TYPES.bank = {
+  id: 'bank', label: 'Bank',
+  defaults: () => ({feePercent: 0}),
+  checkSettings(settings),             // throws on bad settings; used by the editor and import
+  renderEditor(settings),              // GM settings block in the editor
+  renderPlayer(projection, ctx),       // the player window
+  quote(request, ctx),                 // pure plan: what changes, or a refusal; nothing written
+  execute(request, ctx)                // GM client only: carries out the plan, all or nothing
+};
+```
+
+- Players call `api.services.quote(...)` / `api.services.use({serviceId, ...request})`. `use` goes over the same socket as purchases (`service-use`). The GM client runs the shared checks (Player Access, shops on, presented to this user, owns the character, party vote if one applies), then the type's `quote` on fresh data, then its `execute`.
+- `execute` gets the same helpers as a purchase: one currency update per actor with put-back on failure, item create with delete on failure, a History write, and the receipt. A new type mostly writes `quote` and the two renderers.
+- A service shows in merchant lists like a shop. Browsing is read only, so the player window shows the service but its action button is disabled unless the service is presented.
+
+### The Bank (first service)
+
+A UI element, no special mechanics.
+
+- The player picks **whose coins** (their character or the party purse), **from** coin, **to** coin and **how many to receive**. Coins: cp, sp, gp, pp (ep only while *Use electrum* is on).
+- Standard rates, exact: 1 sp = 10 cp, 1 gp = 10 sp, 1 pp = 10 gp. Whole copper only, so nothing is rounded.
+- The player says how many coins they want to **get**; the bank works out what they give. "Get 2 gp" from copper uses exactly 200 cp. "Get 20 sp" from gold uses 2 gp; asking for 25 sp from gold is refused with "Ask for a multiple of 10 sp", because 2.5 gp is not a whole coin.
+- Preview, then **Confirm**: "You give 200 cp, you get 2 gp. Copper 245 → 45, gold 7 → 9." Refused if the coins aren't there.
+- One currency update on the chosen actor (both coins in the same update), so it is all or nothing by itself.
+- Recorded in stash History as kind `bank-exchange` (who, whose coins, from, to, amounts, fee). Players see their own exchanges and party purse exchanges.
+- The bank has unlimited coins. It has no purse.
+- **Party purse:** changing the purse's coins needs **no party vote**. Nothing leaves the party, and the History line shows it (D13).
+- **Fee (optional, cheap, so included):** per-bank setting `feePercent`, 0 to 50, default 0 (none). The fee is taken in the *from* coin, rounded **up** to a whole coin, added on top: getting 2 gp from silver at 10 % costs 20 sp + 2 sp. It costs one multiplication and one round-up in `quote`, and one line in the preview. Nothing else.
+
+
+## 8. Import (GPT-authored shops and services)
+
+Shop records go in an `ag-foundry-import/0.2` package with `entity_type: "Shop"`, `"Service"` and `"MerchantList"`. General Manager, when it sees Utilities with `api.shops.importShops`, creates the package's Items first, then hands the Shop records to Utilities in the same run. Utilities **GM Setup → Import JSON** (Shops tab → Import JSON) reads the same records for a shops-only file.
 
 - A shop whose `id` exists is **kept as it is** (default). `mode: 'update'` replaces name, merchant, flavour and lines from the file, but keeps stock left, presentation, sales and lines the GM added by hand.
 - Each line names `item_id` (an `ITEM-*` or other canonical id, found by `flags.ashen-gate-manager.source.sourceId`) or `item_uuid` (e.g. a compendium Item). Not found: that line is skipped and reported; the rest of the shop imports.
@@ -279,12 +343,27 @@ Synthetic example:
       }
     },
     {
+      "id": "SVC-TEST-COUNTING-HOUSE",
+      "entity_type": "Service",
+      "status": "draft",
+      "version": "1.0.0",
+      "name": "[TEST] Counting House",
+      "visibility": "gm",
+      "service": {
+        "type": "bank",
+        "merchant_name": "[TEST] Clerk Ames",
+        "flavour": "Brass scales and a bored clerk.",
+        "location_id": "LOC-TEST-MARKET",
+        "settings": {"fee_percent": 0}
+      }
+    },
+    {
       "id": "MLIST-TEST-TESTFORD",
       "entity_type": "MerchantList",
       "status": "draft",
       "version": "1.0.0",
       "name": "[TEST] Testford merchants",
-      "merchant_list": {"location_id": "LOC-TEST-TESTFORD", "shop_ids": ["SHOP-TEST-TANNER"]}
+      "merchant_list": {"location_id": "LOC-TEST-TESTFORD", "shop_ids": ["SHOP-TEST-TANNER", "SVC-TEST-COUNTING-HOUSE"]}
     }
   ]
 }
@@ -308,6 +387,8 @@ Field rules are in `docs/shopping-for-gpt.md`. A `validate-content.mjs` check co
 | D7 | Merchant portrait | Image path per shop (Foundry file picker), initials when empty | Use an NPC Actor's portrait (link to an Actor) |
 | D8 | Undo a purchase | GM **Undo** in History in a later PR: takes the items back if still held, refunds coins | No undo; GM fixes by hand |
 | D9 | Who may receive | Only a character the buyer owns | Any party member (goes to their inventory, not the buyer's) |
+| D13 | Bank: changing the party purse's coins | No party vote (value stays in the party), logged in History | Follow the coin vote |
+| D14 | Bank fee | Per-bank `feePercent`, default 0 | No fee at all; one world-wide fee in GM Setup |
 | D10 | A shop presented to "all players" | Includes players who log in later, until Stop showing | Only players connected at that moment |
 
 ## 10. Build plan (small PRs, each a Utilities minor version)
@@ -316,7 +397,8 @@ Field rules are in `docs/shopping-for-gpt.md`. A `validate-content.mjs` check co
 2. **0.15.0 Shops tab for the GM.** GM Data journal, Shops list with search/sort/grouping, editor (with the shop purse: Add / Remove / Set, Restock cash, show to players), drop zone (with the shared drop helper), duplicate/delete with confirmation, GM API (`list/get/create/save/duplicate/delete/addItems`). Players see nothing yet.
 3. **0.16.0 Present and buy.** Player View journal, `present/stopShowing/forMe/quote/buy`, the socket purchase with rollback, purse vote, History kind `shop-purchase`, player shop window. GM Setup → Shopping settings.
 4. **0.17.0 Merchant lists.** Lists, read-only browse, Locations link (feature-detected).
-5. **0.18.0 Import/export** in Utilities, plus `docs/shop-schema.md` and a `validate-content.mjs` check. Then a **Manager** PR to route `Shop`/`MerchantList` records to Utilities.
-6. Later (each only once Robb decides): Undo (D8), restock rules (D5), haggling (D3), selling back (D4), Character Hub embed.
+5. **0.18.0 Services and the Bank.** Service records and the type registry, editor kind switch (Shop / Service), `api.services`, the `service-use` socket, the Bank (quote, execute, player window, History kind `bank-exchange`, optional fee). Services appear in merchant lists. Tests for exact conversion, fee round-up, no ep while off, refusals, unknown types never shown to players.
+6. **0.19.0 Import/export** in Utilities for shops, services and lists, plus `docs/shop-schema.md` and a `validate-content.mjs` check. Then a **Manager** PR to route `Shop`/`Service`/`MerchantList` records to Utilities.
+7. Later (each only once Robb decides): new service types (one small PR each), Undo (D8), restock rules (D5), haggling (D3), selling back (D4), Character Hub embed.
 
 Each PR: version bump in `module.json` (version and download URL) and `core.mjs`, CHANGELOG entry, `node scripts/check.mjs ashen-gate-utilities`, README section, and what to click in Forge to test it.

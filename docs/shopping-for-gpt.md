@@ -1,6 +1,6 @@
-# Shops and merchant lists: brief for ChatGPT (DRAFT)
+# Shops, services and merchant lists: brief for ChatGPT (DRAFT)
 
-**Status: DRAFT.** Shopping is designed, not built. Don't write `Shop` or `MerchantList` records for a real import until Robb approves the design and the import is built (Utilities 0.18.0 in the plan). Drafts for Robb to review are fine; mark them `status: draft`.
+**Status: DRAFT.** Shopping is designed, not built. Don't write `Shop`, `Service` or `MerchantList` records for a real import until Robb approves the design and the import is built (Utilities 0.18.0 in the plan). Drafts for Robb to review are fine; mark them `status: draft`.
 
 Design: `robbmcgaw/ashen-gate-foundry` → `docs/shopping-design.md` (branch `design/shopping`).
 
@@ -9,7 +9,8 @@ Design: `robbmcgaw/ashen-gate-foundry` → `docs/shopping-design.md` (branch `de
 - A **shop** belongs to the Utilities module (`ashen-gate-utilities`). It has a merchant (name, picture), flavour text, an optional location and a list of items for sale.
 - Each item line names an existing item by its permanent id, plus a price, optional stock and optional flavour text.
 - The GM presents a shop to players at the table. Players pay from the party purse or their own coins.
-- A **merchant list** groups shops, usually one city. The GM can let players browse it (read only).
+- A **service** is a place that does something other than sell items. The only service type now is `bank` (changes coins at the standard rates). Don't invent other types; Robb will add them.
+- A **merchant list** groups shops and services, usually one city. The GM can let players browse it (read only).
 
 - A shop may have a **purse**: the merchant's cash. Buyers' coins go in, change comes out. No purse means unlimited cash.
 
@@ -17,7 +18,7 @@ ChatGPT writes the definitions, including a shop's starting cash. It never write
 
 ## 2. Rules that always apply
 
-- **Stable ids.** `SHOP-` for shops, `MLIST-` for merchant lists, upper-case letters, digits and single hyphens, e.g. `SHOP-TEST-TANNER`. Never rename or reuse an id.
+- **Stable ids.** `SHOP-` for shops, `SVC-` for services, `MLIST-` for merchant lists, upper-case letters, digits and single hyphens, e.g. `SHOP-TEST-TANNER`. Never rename or reuse an id.
 - **Items by id, not by UUID.** A line names `item_id` (an `ITEM-*` or other canonical id of an Item in the same package or already imported). Use `item_uuid` only for a compendium item that has no canonical id.
 - **Prices** are a whole number in one coin: `{"value": 10, "denomination": "gp"}`. Coins: `cp`, `sp`, `gp`, `pp`. **No electrum (`ep`)**: Robb doesn't use it, and imports refuse it unless the GM has turned on *Use electrum*. Prices are stored as copper, so `{"value": 15, "denomination": "sp"}` and `{"value": 150, "denomination": "cp"}` are the same price. Use the item's normal 2024 price unless Robb sets another.
 - **GM-only fields** (`gm_notes`, `cost`, `hidden: true`) are never shown to players. Still: no setting spoilers in a public test file.
@@ -58,6 +59,18 @@ Records go in an `ag-foundry-import/0.2` package, next to the Items they sell.
 
 How many come per purchase is the Item's own `system.quantity` (an "Arrows (20)" item sells 20 at a time).
 
+### Service
+
+| Key | Type | Required | Notes |
+|---|---|---|---|
+| `id` | string | yes | `SVC-…` |
+| `entity_type` | `"Service"` | yes | |
+| `status`, `version`, `name` | string | yes | `name` is what players see |
+| `visibility` | string | recommended | `"gm"` |
+| `service.type` | string | yes | `"bank"` (the only type) |
+| `service.merchant_name`, `service.merchant_img`, `service.flavour`, `service.location_id`, `service.gm_notes` | | | as for a shop |
+| `service.settings` | object | optional | bank: `{"fee_percent": 0}` (whole number 0–50; default 0 = no fee) |
+
 ### Merchant list
 
 | Key | Type | Required | Notes |
@@ -66,7 +79,7 @@ How many come per purchase is the Item's own `system.quantity` (an "Arrows (20)"
 | `entity_type` | `"MerchantList"` | yes | |
 | `status`, `version`, `name` | string | yes | |
 | `merchant_list.location_id` | string | optional | the city's `LOC-*` id |
-| `merchant_list.shop_ids` | array | yes | `SHOP-*` ids |
+| `merchant_list.shop_ids` | array | yes | `SHOP-*` and `SVC-*` ids, in display order |
 
 Merchant lists always import hidden. The GM switches them on.
 
@@ -93,9 +106,14 @@ Merchant lists always import hidden. The GM switches them on.
       }
     },
     {
+      "id": "SVC-TEST-COUNTING-HOUSE", "entity_type": "Service", "status": "draft", "version": "1.0.0",
+      "name": "[TEST] Counting House", "visibility": "gm",
+      "service": {"type": "bank", "merchant_name": "[TEST] Clerk Ames", "location_id": "LOC-TEST-MARKET", "settings": {"fee_percent": 0}}
+    },
+    {
       "id": "MLIST-TEST-TESTFORD", "entity_type": "MerchantList", "status": "draft", "version": "1.0.0",
       "name": "[TEST] Testford merchants",
-      "merchant_list": {"location_id": "LOC-TEST-TESTFORD", "shop_ids": ["SHOP-TEST-TANNER"]}
+      "merchant_list": {"location_id": "LOC-TEST-TESTFORD", "shop_ids": ["SHOP-TEST-TANNER", "SVC-TEST-COUNTING-HOUSE"]}
     }
   ]
 }
@@ -106,7 +124,7 @@ Merchant lists always import hidden. The GM switches them on.
 - Don't write `presented`, sold counts, sales, or any character's coins. A shop's starting `purse` is fine. Import writes definitions only.
 - Don't price in two coins at once (`"1 gp 5 sp"`); use one coin (`15 sp`). Don't use `ep`.
 - Don't link items by world UUID (`Item.abc…`); world UUIDs differ per world.
-- Don't invent fields, prefixes or haggling/selling-back rules. Those are open decisions for Robb.
+- Don't invent fields, prefixes, service types or haggling/selling-back rules. Those are open decisions for Robb.
 - Don't mark anything `approved` yourself.
 
 ## 6. Where things live
