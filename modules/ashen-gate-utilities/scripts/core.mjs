@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.18.0';
+export const VERSION = '0.19.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -686,7 +686,7 @@ export function normalizeLine(raw = {}, {randomId} = {}) {
   const stock = optWhole(raw.stock, STOCK_MSG), start = raw.stockStart === undefined ? stock : optWhole(raw.stockStart, STOCK_MSG);
   const coin = COINS.includes(raw.priceCoin) ? raw.priceCoin : COINS.includes(raw.price?.denomination) ? raw.price.denomination : 'gp';
   return {lineId, itemId: str(raw.itemId) || null, itemUuid: str(raw.itemUuid, 400) || null, priceCp, priceCoin: coin, flavour, stock, stockStart: start,
-    hidden: raw.hidden === true, costCp, sort: Number.isFinite(Number(raw.sort)) ? Number(raw.sort) : 0,
+    hidden: raw.hidden === true, costCp, sort: Number.isFinite(Number(raw.sort)) ? Number(raw.sort) : 0, ...(raw.soldIn === true ? {soldIn: true} : {}),
     ...(raw.item && typeof raw.item === 'object' ? {item: raw.item} : {}), ...(Array.isArray(raw.contents) ? {contents: raw.contents} : {})};
 }
 /** A shop purse: null = none (unlimited cash), else whole coins ≥ 0. ep is refused while electrum is off. */
@@ -830,7 +830,11 @@ export function projectShop(shop, {electrum = false, locationName = null, typeLa
       description: stripSecrets(unid ? sys.unidentified?.description : sys.description?.value)};
   });
   const purse = shop?.purse && shop.showPurse !== false ? coinSet(shop.purse, coinChoices(electrum)) : null;
-  return {...projectBase(shop, locationName), lines, purse};
+  // 0.19.0: what the shop buys (§7c). `purse` says only whether the merchant's coins are shown, hidden or unlimited.
+  const b = shop?.buys, buys = b?.enabled === true ? {percent: Number.isInteger(b.percent) ? b.percent : SELL_DEFAULTS.percent,
+    types: Array.isArray(b.types) && b.types.length ? SELL_DEFAULTS.types.filter(t => b.types.includes(t)) : [...SELL_DEFAULTS.types],
+    purse: !shop.purse ? 'none' : shop.showPurse !== false ? 'shown' : 'hidden'} : null;
+  return {...projectBase(shop, locationName), lines, purse, buys};
 }
 /** The player view of a service; null for a type this version doesn't know. */
 export function projectService(service, {locationName = null} = {}) {
@@ -910,9 +914,10 @@ export function sellStockChange(shop, item, quantity = 1, {randomId} = {}) {
   });
   if (line) return {kind: 'raise', lineId: line.lineId, stockBefore: line.stock ?? null, stockAfter: line.stock === null || line.stock === undefined ? null : line.stock + quantity};
   const coin = COINS.includes(item?.system?.price?.denomination) ? item.system.price.denomination : 'gp';
-  const snapshot = {...item, system: {...(item?.system ?? {}), quantity: 1, equipped: false}};
+  const copy = snapshot(item);delete copy._id;
+  copy.system = {...(copy.system ?? {}), quantity: 1, equipped: false, attuned: false, container: null};
   return {kind: 'add', line: normalizeLine({itemId, itemUuid: null, priceCp: Math.floor(unitPriceCp(item) + 1e-9), priceCoin: coin === 'ep' ? 'sp' : coin,
-    stock: quantity, hidden: SELL_DEFAULTS.newLineHidden, sort: Math.max(0, ...(shop?.lines ?? []).map(l => Number(l.sort) || 0)) + 10, item: snapshot}, {randomId})};
+    stock: quantity, hidden: SELL_DEFAULTS.newLineHidden, soldIn: true, sort: Math.max(0, ...(shop?.lines ?? []).map(l => Number(l.sort) || 0)) + 10, item: copy}, {randomId})};
 }
 
 /* History (stash History and the sales log), same style as purseEntry / purseLine. */
@@ -1130,3 +1135,48 @@ export function quotePurchase({view, lineId, quantity, rev, hold, electrum = fal
   if (!plan.ok) return plan;
   return {...plan, line, quantity: q, count: line.per * q, totalText: shopPriceText(totalCp, line.priceCoin ?? 'gp', {electrum})};
 }
+
+/* ---- 0.19.0: selling to a shop (design §7c, brief 4). Pure helpers; the GM client carries the sale out. ---- */
+/** dnd5e item types listed in the Sell view at all (physical items and containers, so a container shows why it can't be sold). */
+export const SELL_LISTED_TYPES = Object.freeze([...SELL_DEFAULTS.types, 'container']);
+/** A shop-shaped record from the player view, so checkSell runs the same rules on the player's client. */
+const shopFromView = view => ({presented: {mode: 'all', userIds: []}, rev: view?.rev ?? 0,
+  buys: view?.buys ? {enabled: true, percent: view.buys.percent, types: view.buys.types ?? []} : {enabled: false}});
+/** How many of an item the character holds (1 when dnd5e has no quantity). */
+export const heldQuantity = item => (Number(item?.system?.quantity) > 0 ? Math.floor(Number(item.system.quantity)) : 1);
+/**
+ * The Sell view rows for one character (`items`: the character's items as data). Only physical items and containers are
+ * listed; each says whether this shop buys it (`ok`) or why not (`reason`), and what the shop pays for one (`eachCp`).
+ */
+export function sellRows(view, items, {electrum = false} = {}) {
+  const shop = shopFromView(view);
+  return [...(items ?? [])].filter(i => SELL_LISTED_TYPES.includes(i?.type)).map(item => {
+    // Checked for the whole stack, so a stack of cheap things worth under 1 cp each can still be sold.
+    const n = heldQuantity(item), c = checkSell({shop, item, actorOwned: true, quantity: n, userId: 'player'});
+    const eachCp = c.ok ? sellValueCp(item, c.percent, 1) : 0, text = cp => shopPriceText(cp, 'gp', {electrum});
+    return {id: item._id ?? item.id, name: String(item.name ?? 'Unnamed Item'), img: typeof item.img === 'string' ? item.img : '', quantity: n,
+      ok: c.ok, reason: c.ok ? '' : c.reason, eachCp, priceText: !c.ok ? '' : eachCp > 0 ? `Shop pays ${text(eachCp)} each` : `Shop pays ${text(c.valueCp)} for all ${n}`};
+  }).sort((a, b) => (b.ok - a.ok) || a.name.localeCompare(b.name));
+}
+/** Coins after receiving `pay` (only the coins in play; ep never comes in). */
+export const coinsPlus = (hold, pay, electrum = false) => { const use = coinChoices(electrum), h = coinSet(hold, use); return Object.fromEntries(use.map(c => [c, h[c] + (Number(pay?.[c]) || 0)])); };
+/**
+ * The sale a seller sees before confirming, from the player view. The merchant's coins are checked here only when they
+ * are shown; the GM client checks everything again on its own records. `hold`: the receiver's coins.
+ */
+export function quoteSale({view, item, quantity, rev, hold, electrum = false} = {}) {
+  if (!view) return refuse(SHOP_REFUSALS.notOpen);
+  if (!view.buys) return refuse(SELL_REFUSALS.notBuying);
+  const c = checkSell({shop: shopFromView(view), item, actorOwned: true, quantity, userId: 'player', rev});
+  if (!c.ok) return c;
+  const payout = view.buys.purse === 'shown' ? planShopPayout({amountCp: c.valueCp, shopPurse: view.purse ?? {}, showPurse: true, electrum}) : planShopPayout({amountCp: c.valueCp, electrum});
+  if (!payout.ok) return payout;
+  if (!hold || typeof hold !== 'object') return refuse("Those coins can't be read (no dnd5e currency).");
+  return {ok: true, quantity: c.quantity, percent: c.percent, valueCp: c.valueCp, totalText: shopPriceText(c.valueCp, 'gp', {electrum}), pay: payout.pay,
+    paidFrom: view.buys.purse === 'none' ? 'unlimited' : 'purse', shopAfter: view.buys.purse === 'shown' ? payout.shopAfter : null,
+    before: coinsPlus(hold, {}, electrum), after: coinsPlus(hold, payout.pay, electrum)};
+}
+/** "Sold 3 [TEST] Arrows to [TEST] The Copper Kettle for 7 cp, paid to [TEST] Kestrel." */
+export const saleText = ({quantity, name, shopName, totalText, payTo, receiverName}) =>
+  `Sold ${quantity > 1 ? `${quantity} ` : ''}${name} to ${shopName} for ${totalText}, paid to ${payTo === 'purse' ? 'the party purse' : receiverName}.`;
+

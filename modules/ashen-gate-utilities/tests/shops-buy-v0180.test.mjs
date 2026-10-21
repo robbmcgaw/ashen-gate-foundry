@@ -74,7 +74,7 @@ const actors=[kestrel,wren,stash];actors.get=id=>actors.find(a=>a.id===id);
 const chat=[];globalThis.ChatMessage={create:async d=>{chat.push(d);return d;},getSpeaker:()=>({})};
 globalThis.CONST={DOCUMENT_OWNERSHIP_LEVELS:{NONE:0,OBSERVER:2}};
 globalThis.fromUuid=async()=>null;
-const modules=new Map([[ID,{id:ID,active:true,version:'0.18.0'}]]);
+const modules=new Map([[ID,{id:ID,active:true,version:'0.19.0'}]]);
 let locs=[{id:'LOC-TEST-MARKET',name:'[TEST] Market Ward',revealed:false,published:null}];
 modules.set('ashen-gate-locations',{active:true,api:{listLocations:({revealedOnly}={})=>locs.filter(l=>!revealedOnly||l.revealed)}});
 const sent=[];let socketFn=null;
