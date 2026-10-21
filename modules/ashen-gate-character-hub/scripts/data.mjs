@@ -30,7 +30,7 @@ export function headerData(actor) {
     name: actor.name, img: actor.img, species: speciesName(actor), classes, level: num(sys.details?.level),
     hp: {value: num(hp.value), temp: num(hp.temp), max: num(hp.max), tempmax: num(hp.tempmax), effectiveMax: num(hp.effectiveMax, num(hp.max) + num(hp.tempmax))},
     ac: num(attr.ac?.value), prof: num(attr.prof), init: num(attr.init?.total ?? attr.init?.mod),
-    speeds, hover: mv.hover === true, inspiration: !!attr.inspiration,
+    speeds, walk: walkSpeed(mv, cfg), hover: mv.hover === true, inspiration: !!attr.inspiration,
     exhaustion: {value: num(attr.exhaustion), max: num(cfg.conditionTypes?.exhaustion?.levels, 6)},
     hd: attr.hd ? {value: num(attr.hd.value), max: num(attr.hd.max)} : null,
     resources, conditions: conditionsData(actor)
@@ -45,6 +45,16 @@ export function speedsData(mv, cfg = dnd5eConfig()) {
   const units = mv.units ?? 'ft', speeds = mv.speeds && typeof mv.speeds === 'object' ? mv.speeds : mv;
   return Object.keys(cfg.movementTypes ?? {walk: 1, burrow: 1, climb: 1, fly: 1, jump: 1, swim: 1})
     .filter(k => num(speeds[k] ?? mv[k]) > 0).map(k => ({key: k, label: labelOf(cfg.movementTypes?.[k]) || k, value: num(speeds[k] ?? mv[k]), units}));
+}
+
+/**
+ * The walk speed for the header's Speed tile, 0 included (0.28.1: a walk 0 character showed dnd5e 6's derived jump
+ * speed there, unlabelled). Null only when the data has no walk value at all; other speeds are listed under the tile.
+ */
+export function walkSpeed(mv, cfg = dnd5eConfig()) {
+  const speeds = mv.speeds && typeof mv.speeds === 'object' ? mv.speeds : mv, raw = speeds.walk ?? mv.walk;
+  if (raw === undefined || raw === null || raw === '') return null;
+  return {key: 'walk', label: labelOf(cfg.movementTypes?.walk) || 'walk', value: Math.max(0, num(raw)), units: mv.units ?? 'ft'};
 }
 
 /** dnd5e conditions (not exhaustion, which has levels), with whether each is active on the Actor. */

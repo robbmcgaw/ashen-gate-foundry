@@ -1,5 +1,5 @@
 export const MODULE_ID = 'ashen-gate-character-hub';
-export const VERSION = '0.28.0';
+export const VERSION = '0.28.1';
 export const SHEET_LABEL = 'Ashen Gate Character Hub';
 
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
@@ -42,6 +42,19 @@ export const SLOT_PLACEHOLDERS = {
   trinket2: 'fa-solid fa-feather',
   trinket3: 'fa-solid fa-feather'
 };
+/**
+ * A module or core asset path as a URL that works anywhere it is used, including inside an inline CSS custom property
+ * (a relative url() there is resolved against the stylesheet, not the page). Relative paths go through Foundry's
+ * getRoute (leading slash, route prefix / The Forge); without Foundry (tests) they just get a leading slash. Absolute
+ * paths, data:/blob: URLs and full URLs are returned unchanged.
+ */
+export function assetUrl(path) {
+  const v = String(path ?? '').trim();
+  if (!v || v.startsWith('/') || /^[a-z][a-z0-9+.-]*:/i.test(v)) return v;
+  const route = globalThis.foundry?.utils?.getRoute;
+  if (typeof route === 'function') { try { const r = route(v); if (typeof r === 'string' && r) return r; } catch { /* fall through */ } }
+  return `/${v}`;
+}
 /** How a placeholder value is drawn: 'icon' (Font Awesome), 'image' (path or URL) or 'text'. */
 export function placeholderKind(value) {
   const v = String(value ?? '').trim();

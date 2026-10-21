@@ -59,7 +59,7 @@ test('empty-slot placeholders: one table, Font Awesome classes, Foundry image pa
   assert.equal(placeholderKind('Waist'), 'text');
   const orig = SLOT_PLACEHOLDERS.head;
   SLOT_PLACEHOLDERS.head = 'icons/equipment/head/helm-barbute-steel.webp';
-  assert.equal(placeholder('head'), '<img class="agch-slot__ph" src="icons/equipment/head/helm-barbute-steel.webp" alt="">');
+  assert.equal(placeholder('head'), '<img class="agch-slot__ph" src="/icons/equipment/head/helm-barbute-steel.webp" alt="">', 'root-relative (0.28.1)');
   SLOT_PLACEHOLDERS.head = 'Hat & <Hood>';
   assert.equal(placeholder('head'), '<span class="agch-slot__empty">Hat &amp; &lt;Hood&gt;</span>', 'text is escaped');
   SLOT_PLACEHOLDERS.head = orig;
@@ -150,6 +150,25 @@ test('speeds: dnd5e 6 movement.speeds (jump included), hover flag; older flat da
   const actor = makeActor({system: {attributes: {...makeActor().system.attributes, movement: {speeds: {walk: 30, fly: 60}, hover: true, units: 'ft'}}}});
   const h = headerData(actor);
   assert.deepEqual(h.speeds.map(s => s.key), ['walk', 'fly']); assert.equal(h.hover, true);
+  assert.deepEqual(h.walk, {key: 'walk', label: 'Walk', value: 30, units: 'ft'});
+});
+
+test('Speed tile (0.28.1): shows walk, 0 included; dnd5e 6 derived jump never stands in for it unlabelled', async () => {
+  installGlobals();
+  globalThis.CONFIG.DND5E.movementTypes = {walk: 'Walk', fly: 'Fly', jump: 'Jump'};
+  const {characterPanelHtml} = await import('../scripts/character.mjs');
+  const mv = movement => makeActor({system: {attributes: {...makeActor().system.attributes, movement}}});
+  const zero = mv({speeds: {walk: 0, jump: 5}, units: 'ft'});
+  assert.deepEqual(headerData(zero).walk, {key: 'walk', label: 'Walk', value: 0, units: 'ft'});
+  const html = characterPanelHtml({actor: zero, editable: true});
+  assert.match(html, /<span class="agch-tile__value">0 ft<\/span>/, 'walk 0 shows 0 ft');
+  assert.doesNotMatch(html, /<span class="agch-tile__value">5 ft<\/span>/, 'the jump speed is not the headline');
+  assert.match(html, /<span class="agch-tile__more">Jump 5<\/span>/, 'jump listed with its label');
+  assert.match(characterPanelHtml({actor: mv({speeds: {walk: 30, fly: 60}, units: 'ft'}), editable: true}), /<span class="agch-tile__value">30 ft<\/span><span class="agch-tile__more">Fly 60<\/span>/, 'real characters unchanged');
+  assert.match(characterPanelHtml({actor: mv({walk: 25, units: 'ft'}), editable: true}), /<span class="agch-tile__value">25 ft<\/span>/, 'pre-6.0 shape');
+  const none = characterPanelHtml({actor: mv({speeds: {fly: 40}, units: 'ft'}), editable: true});
+  assert.match(none, /<span class="agch-tile__value">—<\/span>/, 'no walk value at all: a dash, not another speed');
+  assert.match(none, /<span class="agch-tile__more">Fly 40<\/span>/);
 });
 
 test('collapsible sections: client setting, safe when missing, remembered per key, pruned', async () => {
@@ -218,7 +237,7 @@ test('paper doll: bracer slot where Other was, three trinkets, icons for empty s
   assert.match(html, /data-slot="bracer" data-id="br" data-ag-always data-rarity="rare"/);
   assert.match(html, /class="ag-slot agch-slot is-filled has-rarity" data-action="slot-open" data-slot="hands" data-id="gl" data-ag-always data-rarity="uncommon"/);
   assert.match(html, /data-slot="head"[^>]*data-tooltip="Head: empty \(click to equip\)"><i class="fa-solid fa-hat-wizard agch-slot__icon"/);
-  assert.match(html, /data-slot="waist"[^>]*><span class="agch-slot__mask" style="--agch-mask: url\('modules\/ashen-gate-character-hub\/assets\/slots\/waist-white\.png'\)"/, 'Robb\'s waist silhouette (0.17.0)');
+  assert.match(html, /data-slot="waist"[^>]*><span class="agch-slot__mask" style="--agch-mask: url\('\/modules\/ashen-gate-character-hub\/assets\/slots\/waist-white\.png'\)"/, 'Robb\'s waist silhouette (0.17.0), root-relative URL (0.28.1)');
   assert.match(html, /agch-other__row has-rarity ag-rarity-edge" data-rarity="artifact"/);
   assert.match(html, /data-key="doll:other"/);
   assert.doesNotMatch(html, /data-slot="other"/, 'the old overflow slot is gone');
@@ -279,6 +298,32 @@ test('list item icons are a fixed square that never shrinks and show the whole i
   assert.equal(last('.agch-slot img', 'object-fit'), 'cover', 'slot art keeps its own rule');
 });
 
+/** Foundry's getRoute (leading slash, optional route prefix such as a sub-path) installed for the duration of fn. */
+function withRoute(prefix, fn) {
+  const prev = globalThis.foundry;
+  globalThis.foundry = {utils: {getRoute: path => `/${[prefix, String(path).replace(/^\/+|\/+$/g, '')].filter(Boolean).join('/')}`}};
+  try { return fn(); } finally { if (prev === undefined) delete globalThis.foundry; else globalThis.foundry = prev; }
+}
+
+test('slot URLs (0.28.1): every image and silhouette placeholder is root-relative, through getRoute when Foundry has it', async () => {
+  const {SLOT_PLACEHOLDERS, placeholderKind, assetUrl} = await import('../scripts/constants.mjs');
+  const {placeholder} = await import('../scripts/character.mjs');
+  const urls = () => Object.keys(SLOT_PLACEHOLDERS).filter(id => ['image', 'silhouette'].includes(placeholderKind(SLOT_PLACEHOLDERS[id])))
+    .map(id => [id, placeholder(id).match(/url\('([^']+)'\)|src="([^"]+)"/)]).map(([id, m]) => [id, m?.[1] ?? m?.[2]]);
+  assert.ok(urls().length >= 3, 'cloak, waist and bracers at least');
+  for (const prefix of [null, '', 'forge-world']) {
+    const check = () => { for (const [id, u] of urls()) assert.match(u, prefix ? new RegExp(`^/${prefix}/(?!/)`) : /^\/(?!\/)/, `${id}: ${u} is not relative`); };
+    if (prefix === null) check(); else withRoute(prefix, check);
+  }
+  assert.equal(withRoute('', () => assetUrl('modules/x/a.png')), '/modules/x/a.png');
+  assert.equal(assetUrl('/already/rooted.png'), '/already/rooted.png');
+  assert.equal(assetUrl('https://example.test/a.png'), 'https://example.test/a.png');
+  assert.equal(assetUrl('data:image/png;base64,AAAA'), 'data:image/png;base64,AAAA');
+  assert.equal(withRoute('p', () => assetUrl('icons/equipment/head/helm.webp')), '/p/icons/equipment/head/helm.webp', 'core icons too');
+  const prev = globalThis.foundry; globalThis.foundry = {utils: {getRoute: () => { throw new Error('boom'); }}};
+  try { assert.equal(assetUrl('modules/x/a.png'), '/modules/x/a.png', 'a failing getRoute falls back'); } finally { if (prev === undefined) delete globalThis.foundry; else globalThis.foundry = prev; }
+});
+
 test('slot silhouettes (0.17.0): cloak, waist and bracers files exist in the module, the table points to them, drawn as tinted masks', async () => {
   const fs = await import('node:fs');
   const {SLOT_PLACEHOLDERS, placeholderKind} = await import('../scripts/constants.mjs');
@@ -291,7 +336,8 @@ test('slot silhouettes (0.17.0): cloak, waist and bracers files exist in the mod
     const head = fs.readFileSync(new URL(`../assets/slots/${file}`, import.meta.url)).subarray(0, 8);
     assert.deepEqual([...head], [137, 80, 78, 71, 13, 10, 26, 10], `${file} is a PNG`);
     assert.equal(placeholderKind(path), 'silhouette');
-    assert.equal(placeholder(slot), `<span class="agch-slot__mask" style="--agch-mask: url('${path}')" aria-hidden="true"></span>`);
+    assert.equal(placeholder(slot), `<span class="agch-slot__mask" style="--agch-mask: url('/${path}')" aria-hidden="true"></span>`, 'root-relative without Foundry (0.28.1)');
+    withRoute('game', () => assert.equal(placeholder(slot), `<span class="agch-slot__mask" style="--agch-mask: url('/game/${path}')" aria-hidden="true"></span>`, 'built with foundry.utils.getRoute (0.28.1)'));
   }
   assert.equal(placeholderKind('icons/equipment/head/helm.webp'), 'image', 'other images are drawn as they are');
   const css = fs.readFileSync(new URL('../styles/character-hub.css', import.meta.url), 'utf8');

@@ -1,3 +1,9 @@
+## 0.28.1 — 2026-10-21
+
+- **Fix: blank cloak, waist and bracers slots.** Their silhouettes were drawn from a relative path inside an inline CSS variable, which the browser resolved under the module's `styles/` folder and 404'd. Every image and silhouette placeholder now goes through Foundry's `foundry.utils.getRoute` (leading slash, route prefix and The Forge handled), so all empty-slot art loads. Paths in the `SLOT_PLACEHOLDERS` table are written the same way as before.
+- **Fix: Speed with walk 0.** The Speed tile always shows the walk speed, 0 included (`0 ft`); before, a character with walk 0 showed dnd5e 6's derived jump speed there with no label. Other speeds (jump included) are listed under it with their labels, as before. With no walk value at all the tile shows `—`. Characters with a walk speed look exactly as before.
+- No migration.
+
 ## 0.28.0 — 2026-10-21
 
 - **Restore a level backup (GM only).** **Restore backup** in the Hub header (shown to the GM when the character has level backups; on a backup copy it reads **Restore this backup**). Pick a copy (newest first), then a red confirmation says exactly what happens. Players never see it, and the restore itself refuses anyone but a GM.
