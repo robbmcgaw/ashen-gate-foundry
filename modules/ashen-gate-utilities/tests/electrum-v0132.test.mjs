@@ -100,7 +100,7 @@ test('setting: world, default off, GM Setup checkbox; API reads it; players cann
  game.user=alice;try{await assert.rejects(api.currency.setElectrumEnabled(true),/GM only/);}finally{game.user=gm;}
  assert.equal(api.currency.electrumEnabled(),false);
  const app=await api.open();app.tab='setup';const html=await app._renderHTML();
- assert.match(html,/<input id="agu-electrum" type="checkbox" >Use electrum<\/label>/);
+ assert.match(html,/<input id="agu-electrum" type="checkbox" data-setup-field >Use electrum<\/label>/);
 });
 test('off, purse holds no ep: no electrum in the purse strip, coin choices or notes (GM, player and embed)',async()=>{
  for(const html of [purseOf(await itemsHtml()),purseOf(await itemsHtml(alice)),await embedHtml()]){

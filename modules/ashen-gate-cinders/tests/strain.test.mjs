@@ -67,7 +67,7 @@ test('rest recovery and display summary',()=>{
 });
 
 // ---- Runtime: api.strain with mocked Foundry ----
-class FakeApplication {static DEFAULT_OPTIONS={};render(){return this;}async _prepareContext(){return {};}}
+class FakeApplication {static DEFAULT_OPTIONS={};constructor(options={}){this.options=options;}render(){return this;}async _prepareContext(){return {};}}
 const oneTime=new Map(),hooks=new Map(),called=[],saved=new Map();
 globalThis.Hooks={once:(e,fn)=>oneTime.set(e,fn),on:(e,fn)=>hooks.set(e,[...(hooks.get(e)??[]),fn]),callAll:(e,data)=>called.push([e,data])};
 const setProperty=(obj,path,value)=>{const keys=path.split('.');let o=obj;for(const k of keys.slice(0,-1))o=o[k]??={};o[keys.at(-1)]=value;};
@@ -173,4 +173,84 @@ test('Unbind and Detach are labelled danger confirms; no DialogV2.confirm or .in
   assert.match(src,/yes:'Unbind Cinder',danger:true/);assert.match(src,/yes:'Detach item',danger:true/);
   assert.match(src,/title:`Push \$\{pv\.powerName\}\?`,yes:'Push'/);
   assert.doesNotMatch(src,/DialogV2\.(confirm|prompt|input)\(/);
+});
+
+// ---- 0.5.0: UI standard pass ----
+const fs=await import('node:fs/promises');
+const hbs=await fs.readFile(new URL('../templates/cinders.hbs',import.meta.url),'utf8');
+const kitSequence=html=>[...html.matchAll(/class="([^"{]*)/g)].flatMap(m=>m[1].split(/\s+/)).filter(c=>/^ag-(meter|badge)/.test(c));
+
+test('Strain bar: same tone as Character Hub (warn once a Push can backfire, danger when guaranteed or over) and a full tooltip',()=>{
+  return import('../scripts/main.mjs').then(({strainBar})=>{
+    const base={band:{label:'[TEST] Band'},guaranteed:false,normalUseBackfires:false,guaranteeAt:10};
+    assert.equal(strainBar({...base,value:0,chance:0}).tone,'');
+    assert.equal(strainBar({...base,value:4,chance:25}).tone,'warn');
+    assert.equal(strainBar({...base,value:10,chance:100,guaranteed:true}).tone,'danger');
+    const over=strainBar({...base,value:13,chance:100,guaranteed:true,normalUseBackfires:true});
+    assert.deepEqual([over.tone,over.now,over.over],['danger',10,3]);
+    assert.equal(over.tip,'Strain 13 / 10+: [TEST] Band. Backfire on a Push from here: 100% (guaranteed). Every use of a Cinder power backfires at this Strain.');
+  });
+});
+test('Strain row uses the same kit meter and badge markup as Character Hub',async()=>{
+  const row=hbs.slice(hbs.indexOf('<div class="agc-strain'),hbs.indexOf('</section>',hbs.indexOf('<div class="agc-strain')));
+  assert.deepEqual(kitSequence(row),['ag-meter','ag-meter__track','ag-meter__fill','ag-meter__value','ag-badge','ag-badge--danger']);
+  assert.match(row,/role="progressbar"/);assert.match(row,/style="--ag-meter:\{\{bar\.fill\}\}%"/);assert.match(row,/\+\{\{bar\.over\}\} over/);
+  let hub=null;try{hub=await fs.readFile(new URL('../../ashen-gate-character-hub/scripts/cinders.mjs',import.meta.url),'utf8');}catch{hub=null;}
+  if(hub){const fn=hub.slice(hub.indexOf('export function strainHtml'),hub.indexOf('export async function stepStrain'));
+    assert.deepEqual(kitSequence(fn.replace(/\$\{tone \? ` ag-meter--\$\{tone\}` : ''\}/,'')),kitSequence(row),'same kit parts in the same order as the Hub');
+    for(const part of ['label','meter','bar','fill','text','band','chance'])assert.ok(fn.includes(`agch-strain__${part}`)&&row.includes(`agc-strain__${part}`),part);}
+});
+test('header, tabs, toolbar, empty states and tooltips follow the UI standard',()=>{
+  assert.match(hbs,/<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Cinders<\/h1>/);
+  assert.match(hbs,/<span class="ag-version">v\{\{version\}\}<\/span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-act="help">/);
+  assert.match(hbs,/class="ag-tabs ag-tabs--scroll" role="tablist"/);
+  assert.equal((hbs.match(/role="tab"/g)??[]).length,3);assert.equal((hbs.match(/aria-selected=/g)??[]).length,3);
+  assert.equal((hbs.match(/class="ag-tab--gm /g)??[]).length,2,'Manage and GM Setup are marked GM and come last');
+  assert.doesNotMatch(hbs,/agc-active|agc-card|agc-table|agc-toolbar|agc-note|title=/);
+  const end=hbs.slice(hbs.indexOf('ag-toolbar__end'),hbs.indexOf('</div>',hbs.indexOf('ag-toolbar__end')));
+  assert.match(end,/<button type="button" class="ag-btn" data-act="cinder-new"/,'New Cinder is a plain button on the right');
+  assert.match(end,/<span class="ag-field__hint agc-hint">Import Cinder \(MUT-\*\) definitions through General Manager first\.<\/span>/,'its disabled reason is visible text');
+  for(const t of ['No Cinder bound to this character yet.','No powers unlocked yet.','No Cinders yet.'])assert.ok(hbs.includes(`<p class="ag-empty__title">${t}</p>`),t);
+  assert.ok(hbs.includes('<p class="ag-empty__text">Unlock them in Skill Trees.</p>'));
+  assert.ok(hbs.includes('<p class="ag-empty__text">Create one with New Cinder, then bind it.</p>'));
+  assert.ok(hbs.includes('<span class="ag-badge">Moved from older data</span>'));
+  assert.match(hbs,/<table class="ag-table agc-manage-table">/);
+  for(const m of hbs.matchAll(/<i class="fa-solid[^"]*"([^>]*)>/g))assert.match(m[1],/aria-hidden="true"/,m[0]);
+  assert.equal((hbs.match(/ag-btn--primary/g)??[]).length,1,'one gold primary: Save Changes');
+  assert.match(hbs,/<footer class="ag-footer">\s*<button type="button" class="ag-btn ag-btn--ghost" data-act="setup-cancel">Cancel<\/button>\s*<span class="ag-footer__status"[^>]*>.*<\/span>\s*<button type="button" class="ag-btn ag-btn--primary" data-act="setup-save">/s);
+  assert.doesNotMatch(hbs,/toggle-access/);
+});
+test('D4: Player Access saves only with GM Setup Save Changes; Cancel and a player change nothing',async()=>{
+  game.user=gm;saved.delete('playerAccessEnabled');
+  const app=game.modules.get(MOD).api.open();app.tab='setup';
+  let ctx=await app._prepareContext({});assert.equal(ctx.setup.accessChecked,true);assert.equal(ctx.setup.dirty,false);
+  app._stageAccess(false);
+  assert.equal(game.settings.get(MOD,'playerAccessEnabled'),true,'unticking the box writes nothing');
+  ctx=await app._prepareContext({});assert.deepEqual([ctx.setup.accessChecked,ctx.setup.dirty],[false,true],'a re-render keeps the unsaved choice');
+  await app._act({dataset:{act:'setup-cancel'}});
+  assert.equal(game.settings.get(MOD,'playerAccessEnabled'),true,'Cancel writes nothing');
+  ctx=await app._prepareContext({});assert.deepEqual([ctx.setup.accessChecked,ctx.setup.dirty],[true,false],'Cancel restores the saved value');
+  app._stageAccess(false);await app._act({dataset:{act:'tab',tab:'cinders'}});app.tab='setup';
+  assert.equal(game.settings.get(MOD,'playerAccessEnabled'),true,'leaving the tab drops the unsaved choice');
+  ctx=await app._prepareContext({});assert.equal(ctx.setup.accessChecked,true);
+  app._stageAccess(false);await app._act({dataset:{act:'setup-save'}});
+  assert.equal(game.settings.get(MOD,'playerAccessEnabled'),false,'Save Changes writes the same setting key');
+  game.user=owner;app._stageAccess(true);await app._act({dataset:{act:'setup-save'}});
+  assert.equal(game.settings.get(MOD,'playerAccessEnabled'),false,'a player cannot save GM Setup');
+  game.user=gm;app.pendingAccess=null;saved.delete('playerAccessEnabled');app.tab='cinders';
+});
+test('the window opens at the kit size: Comfortable is 1.2x, Compact unchanged; version comes from module.json',async()=>{
+  game.user=gm;
+  const reopen=async size=>{
+    globalThis.document={documentElement:{dataset:size?{agSize:size}:{}}};
+    for(const fn of hooks.get('closeApplicationV2')??[])fn(game.modules.get(MOD).api.open());
+    return game.modules.get(MOD).api.open();
+  };
+  const prevDoc=globalThis.document,prevW=globalThis.innerWidth,prevH=globalThis.innerHeight;
+  globalThis.innerWidth=4000;globalThis.innerHeight=4000;
+  assert.deepEqual((await reopen('comfortable')).options.position,{width:912,height:816});
+  assert.deepEqual((await reopen(null)).options.position,{width:760,height:680});
+  game.modules.get(MOD).version='9.9.9-test';
+  assert.equal((await (await reopen(null))._prepareContext({})).version,'9.9.9-test');
+  delete game.modules.get(MOD).version;globalThis.document=prevDoc;globalThis.innerWidth=prevW;globalThis.innerHeight=prevH;
 });

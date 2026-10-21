@@ -117,7 +117,7 @@ test('open item, search and an element that left the page',async()=>{
  el.fire('click',opener);
  assert.deepEqual(notes,[['sheet','[TEST] Rope']]);
  el.fire('input',{id:'agu-stash-search',value:'zzz'});await tick();
- assert.match(el.innerHTML,/No items match/);
+ assert.match(el.innerHTML,/Nothing matches/);
  el.isConnected=false;
  await set('stashEnabled',true);await tick();
  assert.equal(el.listeners.length,0,'unmounted itself once detached');
