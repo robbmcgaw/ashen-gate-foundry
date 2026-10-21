@@ -8,6 +8,7 @@ import {routesMixin} from './routes-ui.mjs';
 import {MIN_KM, kmOk} from './routes.mjs';
 import {confirmDialog, formDialog, infoDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
+import {readDrop, resolveItemDrop, itemIdOf} from './ag-item-drop.mjs';
 
 const QUEST_MODULE = 'ashen-gate-quest-manager';
 const FIELD_LABELS = {type: 'Type', region: 'Region', description: 'Description', img: 'Image', threat: 'Threat'};
@@ -83,10 +84,11 @@ const userName = id => game.users?.get?.(id)?.name ?? 'A former player';
 const worldPlayers = () => [...(game.users ?? [])].filter(u => u?.id && !u.isGM).sort((a, b) => String(a.name).localeCompare(String(b.name)));
 const MOVE_TYPES = new Set(['AshenGateLocation', 'AshenGateLocationMove']);
 
-function dragData(event) {
-  const TE = foundry.applications?.ux?.TextEditor?.implementation ?? globalThis.TextEditor;
-  try { return TE?.getDragEventData?.(event) ?? JSON.parse(event.dataTransfer.getData('text/plain')); } catch { return null; }
-}
+/** Drag data of a drop event via the shared item-drop helper; {} when unreadable. */
+const dragData = event => readDrop(event);
+/** Locations' own drag payloads (rows, folder moves, reorder handles): never a document, so drop zones ignore them quietly. */
+const OWN_TYPES = new Set([...MOVE_TYPES, 'AshenGateReorder']);
+const MISSING_DOC = "That document no longer exists or you can't see it.";
 /** Can this user open the linked document? The GM always; a player only if Foundry's own permissions allow it. */
 function canOpen(uuid) {
   if (!uuid) return false;
@@ -933,21 +935,26 @@ export class LocationsApp extends Base {
     return this.render();
   }
   async onDrop(section, data) {
-    if (!data?.uuid) return;
-    const doc = await fromUuid(data.uuid);
-    if (!doc) return;
-    const type = doc.documentName;
-    if (section === 'resources') {
-      if (type !== 'Item') return ui.notifications.warn('Drop an Item (a material) here.');
-      const materialId = materialIdOf(doc);
-      if (!materialId) ui.notifications.info(`${doc.name} has no MAT-* id; added as a linked item.`);
-      return this.addNode({label: doc.name, materialId, uuid: doc.uuid});
-    }
-    if (section === 'loot') {
+    // Nothing readable, or one of Locations' own drags (a row, a folder move, a reorder handle): not a document drop.
+    if (!data?.type && !data?.uuid) return;
+    if (OWN_TYPES.has(data.type)) return;
+    if (section === 'resources' || section === 'loot') {
+      const {ok, items, reason} = await resolveItemDrop(data);
+      if (!ok) return ui.notifications.warn(reason);
+      const doc = items[0];
+      if (section === 'resources') {
+        const materialId = materialIdOf(doc);
+        if (!materialId) ui.notifications.info(`${doc.name} has no MAT-* id; added as a linked item.`);
+        return this.addNode({label: doc.name, materialId, uuid: doc.uuid});
+      }
       // A link only. Nothing is created, copied or given to any Actor; players see just the title, text and image the GM approves here.
-      if (type !== 'Item') return ui.notifications.warn('Drop an Item here (world or compendium).');
-      return this.addEntry('loot', {label: doc.name, text: '', img: doc.img ?? '', uuid: doc.uuid, docType: 'Item', status: 'available'});
+      return this.addEntry('loot', {label: doc.name, text: '', img: doc.img ?? '', uuid: doc.uuid, itemId: itemIdOf(doc), docType: 'Item', status: 'available'});
     }
+    if (!data.uuid) return ui.notifications.warn(MISSING_DOC);
+    let doc = null;
+    try { doc = await fromUuid(data.uuid); } catch { doc = null; }
+    if (!doc) return ui.notifications.warn(MISSING_DOC);
+    const type = doc.documentName;
     if (section.startsWith(DETAIL_PREFIX)) {
       if (!NOTE_DOC_TYPES.includes(type)) return ui.notifications.warn('Drop an Actor, Item, Journal or Roll Table here.');
       const det = this.draft.details.find(x => x.key === section.slice(DETAIL_PREFIX.length));
