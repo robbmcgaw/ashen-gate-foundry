@@ -4,15 +4,15 @@ Module ID `ashen-gate-quest-manager` · Foundry V14 · dnd5e. Quest, Work Order 
 
 ## Tabs
 
-- **Party** and **Individual:** what players can see. Tick **Track** on an objective, then **Show Objectives Overlay** for a small on-screen tracker (display only; it does not change progress). Individual is scoped to the character's owner.
-- **Quests** (GM): every quest, order and contract (Draft, Hidden, Available, Active, Completed, Failed) with search, filters (type, status, location, visible to players), sort and grouping. Pick one to edit it in the same tab, or **New quest**. Import JSON and Export Sources are in its toolbar. Drafts are never shown to players.
-- **GM Setup** (GM): Player Access, objectives overlay and compendium pack IDs (Advanced).
+- **Party** and **Individual:** what players can see. Tick **Track** on an objective, then **Show objectives overlay** for a small on-screen tracker (display only; it does not change progress). Individual is scoped to the character's owner.
+- **Quests** (GM): every quest, order and contract (Draft, Hidden, Available, Active, Completed, Failed) with search, filters (type, status, location, visible to players), sort and grouping. Pick one to edit it in the same tab, or **New quest**. Status chips, Import and Export are in its toolbar; New quest is on the right. Drafts are never shown to players.
+- **GM Setup** (GM): Player Access, compendium pack IDs and the objectives overlay. Player Access and pack IDs save together with **Save Changes**.
 
 Three objective types share one model: `QUEST-*`, `ORDER-*` (crafting/production work order) and `CONTRACT-*`. Hidden / Available / Active / Completed / Failed are campaign statuses, separate from a source definition's own `status` (draft, approved, …). `ASSIGN-*` Assignments are GM-only execution records attached to an objective; they make no automatic Faction, Profession, Location or Headquarters changes.
 
 ## Relation to other modules
 
-Independent. General Manager can hand Quest files to `api.previewQuestImport` / `api.importQuests` (GM only); Quest's own Import JSON keeps working. Locations links appear on quests when Locations is active. Factions can reference Objective ids and only reads Quest data through feature-detected, GM-only diagnostics.
+Independent. General Manager can hand Quest files to `api.previewQuestImport` / `api.importQuests` (GM only); Quest's own Import keeps working. Locations links appear on quests when Locations is active. Factions can reference Objective ids and only reads Quest data through feature-detected, GM-only diagnostics.
 
 ## Privacy
 
@@ -28,7 +28,7 @@ const result = api?.resolveObjective('QUEST-EXAMPLE', {entityType: 'Objective'})
 const view = api?.getVisibleObjective('QUEST-EXAMPLE'); // sanitized player view
 ```
 
-Also: `open`, `openObjective`, `embed` (`mount`, see below), `tracking`, `listVisible`, `consumer` (`resolveObjective`, `refreshCompendiums`, `getDefinitionReaderStatus`), `assignments` (`list`, `get`, `save`, `remove`; GM only), `listQuests`, `getGMSource`, `getGMState`, `setGMState`, `previewQuestImport`, `importQuests` (all GM only) and `playerAccess` (`ag-player-access/1`). Player reads need Player Access and a published, readable projection. Compendium-based definitions are configured by exact pack id in GM Setup → Advanced.
+Also: `open`, `openObjective`, `embed` (`mount`, see below), `tracking`, `listVisible`, `consumer` (`resolveObjective`, `refreshCompendiums`, `getDefinitionReaderStatus`), `assignments` (`list`, `get`, `save`, `remove`; GM only), `listQuests`, `getGMSource`, `getGMState`, `setGMState`, `previewQuestImport`, `importQuests` (all GM only) and `playerAccess` (`ag-player-access/1`). Player reads need Player Access and a published, readable projection. Compendium-based definitions are configured by exact pack id in GM Setup → Compendium packs.
 
 ### `embed.mount(element, options)` (0.8.0)
 
@@ -42,10 +42,10 @@ if (api?.embed?.mount) {
 }
 ```
 
-- `element`: a DOM element the caller owns. Quest Log replaces its contents and adds the class `ag-quest-embed`.
+- `element`: a DOM element the caller owns. Quest Log replaces its contents and adds the class `agq-embed` (and, until 0.11, the old name `ag-quest-embed`; nothing is styled by it).
 - `options.actorId`: the character whose Individual quests and notes are shown. `options.mode`: `'character'` (the only mode; `api.embed.modes` lists them). An unknown mode or a missing element throws.
 - Returns `{unmount(), refresh()}`. It refreshes itself whenever the Quest Log window would (quest, actor, user or setting changes) and unmounts itself if the element has left the page.
-- **Permission:** the same as the Quest Log window's Party and Individual tabs. Players see "The GM has hidden the Quest Log." while Player Access is off, and only quests whose published view they can read. Track and Save Character Notes go through the window's own checks (a quest must still be visible; notes need Owner on the character). GM authoring, reveal and progress are not in the embed.
+- **Permission:** the same as the Quest Log window's Party and Individual tabs. Players see "Quest Log is hidden" while Player Access is off, and only quests whose published view they can read. Track and Save Character Notes go through the window's own checks (a quest must still be visible; notes need Owner on the character). GM authoring, reveal and progress are not in the embed.
 
 ## Install
 
