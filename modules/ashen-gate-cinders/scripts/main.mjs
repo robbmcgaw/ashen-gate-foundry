@@ -6,9 +6,10 @@ import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertP
 import {lookupWorldDefinition} from './definition-lookup.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,infoDialog,formDialog} from './ag-dialogs.mjs';
+import {windowSize} from './ag-html.mjs';
 
 const MODULE='ashen-gate-cinders';
-const VERSION='0.4.1';
+const VERSION='0.5.0';
 const SOCKET=`module.${MODULE}`;
 const TREES_ID='ashen-gate-skill-trees';
 const ACCOUNTS_CONTRACT='ag-tree-accounts/1';
@@ -84,11 +85,14 @@ function pickJsonFile(){
   });
 }
 const characters=()=>(game.actors?.contents??[]).filter(a=>a.type==='character'&&(game.user.isGM||a.isOwner)).sort((a,b)=>a.name.localeCompare(b.name));
-/** Strain bar: fills to the guarantee point (10), then shows how far past it the character is. */
+/** Strain bar: fills to the guarantee point (10), then shows how far past it the character is.
+ * The same model and kit meter as Character Hub's Strain row: tone warn once a Push can backfire, danger when guaranteed or over. */
 export function strainBar(s){
-  const top=Math.max(1,s.guaranteeAt??10),over=Math.max(0,s.value-top);
-  return {value:s.value,top,over,fill:Math.round(Math.min(s.value,top)/top*100),label:over?`${s.value} / ${top}+`:`${s.value} / ${top}`,
-    band:s.band.label,chance:s.chance,guaranteed:s.guaranteed,normalUseBackfires:s.normalUseBackfires};
+  const top=Math.max(1,s.guaranteeAt??10),over=Math.max(0,s.value-top),label=over?`${s.value} / ${top}+`:`${s.value} / ${top}`;
+  return {value:s.value,now:Math.min(s.value,top),top,over,fill:Math.round(Math.min(s.value,top)/top*100),label,
+    band:s.band.label,chance:s.chance,guaranteed:s.guaranteed,normalUseBackfires:s.normalUseBackfires,
+    tone:over||s.guaranteed?'danger':s.chance>0?'warn':'',
+    tip:`Strain ${label}: ${s.band.label}. Backfire on a Push from here: ${s.chance}%${s.guaranteed?' (guaranteed)':''}${s.normalUseBackfires?'. Every use of a Cinder power backfires at this Strain':''}.`};
 }
 function cinderDefinitions(){
   return [...(game.items?.contents??[]),...(game.journal?.contents??[])].map(d=>({d,src:sourceFlag(d)}))
@@ -116,7 +120,7 @@ function manageView(){
       own:inst.sockets.count,countLabel:inst.sockets.count==null?`default (${game.settings.get(MODULE,'socketsPerCinder')})`:`${inst.sockets.count} (this Cinder)`});
   }
   sockets.sort((a,b)=>a.name.localeCompare(b.name)||a.bearerName.localeCompare(b.bearerName));
-  return {groups:[...groups.values()].sort((a,b)=>a.name.localeCompare(b.name)),hasCinders:registry.instances.length>0,report,hasReport:report.length>0,
+  return {groups:[...groups.values()].sort((a,b)=>a.name.localeCompare(b.name)),hasCinders:registry.instances.length>0,count:registry.instances.length,countOne:registry.instances.length===1,report,hasReport:report.length>0,
     sockets,hasSockets:sockets.length>0,socketDefault:game.settings.get(MODULE,'socketsPerCinder'),
     canRepair:report.some(r=>r.repair),migrate,legacy:legacyWaiting(),definitions:cinderDefinitions().length,
     limit:game.settings.get(MODULE,'maxCindersPerActor'),initial:game.settings.get(MODULE,'initialCinderPoints')};
@@ -132,7 +136,8 @@ function socketView(h,fits){
     empties,hasSlots:h.slots.length>0||empties.length>0,canAttach:h.canEdit&&spare.length>0&&h.free>0,canSwap:h.canEdit&&spare.length>0,
     overCapacity:h.slots.some(x=>!x.active)};
 }
-function setupView(){
+/** GM Setup. `pendingAccess` is the Player Access box before Save Changes (null = unchanged). */
+function setupView(pendingAccess=null){
   const c=strain.config();
   const pct=v=>c.backfire_schedule[Math.min(v,c.backfire_schedule.length-1)]??0;
   const shown=(v,top)=>v>=c.guarantee_at&&!c.allow_prevention_at_guarantee?100:pct(Math.min(v,top));
@@ -142,13 +147,14 @@ function setupView(){
     guaranteeAt:c.guarantee_at,normalUseAt:c.normal_use_backfire_at,prevention:c.allow_prevention_at_guarantee,hardMax:c.hard_max??'none',
     restLong:c.rest_recovery.long,restShort:c.rest_recovery.short,
     effectBonus:c.effect_roll.strain_bonus.enabled?`+1 at Strain ${c.effect_roll.strain_bonus.from}, then +1 more every ${c.effect_roll.strain_bonus.per} Strain`:'off',
-    playerAccess:playerAccess(),limit:game.settings.get(MODULE,'maxCindersPerActor'),initial:game.settings.get(MODULE,'initialCinderPoints')
+    playerAccess:playerAccess(),accessChecked:pendingAccess??playerAccess(),dirty:pendingAccess!=null&&pendingAccess!==playerAccess(),limit:game.settings.get(MODULE,'maxCindersPerActor'),initial:game.settings.get(MODULE,'initialCinderPoints')
   };
 }
 class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
   static DEFAULT_OPTIONS={id:'agc-window',classes:['ag-app','agc-window'],window:{title:'Ashen Gate | Cinders',resizable:true,icon:'fa-solid fa-fire'},position:{width:760,height:680}};
   static PARTS={main:{template:`modules/${MODULE}/templates/cinders.hbs`}};
-  constructor(options={}){super(options);this.tab='cinders';this.actorId=options.actorId??null;}
+  /** The default size follows the kit size set (Comfortable is 1.2x); an explicit position still wins. */
+  constructor(options={}){super({...options,position:{...windowSize(CindersApp.DEFAULT_OPTIONS.position),...options.position}});this.tab='cinders';this.actorId=options.actorId??null;this.pendingAccess=null;}
   get actor(){return game.actors?.get(this.actorId)??null;}
   async _prepareContext(options){
     const ctx=await super._prepareContext(options),gm=game.user.isGM,why=blocked(),t=trees();
@@ -162,16 +168,18 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
         list=list.map(c=>{const h=hosts.find(x=>x.instanceId===c.instanceId);return h?{...c,sockets:socketView(h,fits)}:c;});
       }catch(e){error=e.message;}
     }
-    return {...ctx,gm,version:VERSION,blocked:why,treesMessage:t.status==='missing'?t.message:null,canOpenTree:t.status==='ok'&&typeof t.api?.open==='function',
+    return {...ctx,gm,version:game.modules?.get?.(MODULE)?.version??VERSION,blocked:why,treesMessage:t.status==='missing'?t.message:null,canOpenTree:t.status==='ok'&&typeof t.api?.open==='function',
       tabCinders:this.tab==='cinders',tabManage:gm&&this.tab==='manage',tabSetup:gm&&this.tab==='setup',
       actors:choices.map(a=>({id:a.id,name:a.name,selected:a.id===this.actorId})),hasActor:Boolean(actor),actorName:actor?.name??'',
       bar,cinders:list,hasCinders:list.length>0,error,
-      manage:gm&&this.tab==='manage'&&!why?manageView():null,setup:gm&&this.tab==='setup'&&!why?setupView():null};
+      manage:gm&&this.tab==='manage'&&!why?manageView():null,setup:gm&&this.tab==='setup'&&!why?setupView(this.pendingAccess):null};
   }
   async _onRender(context,options){
     await super._onRender?.(context,options);
     const el=this.element;
     el.querySelector('[data-agc-actor]')?.addEventListener('change',ev=>{this.actorId=ev.target.value;this.render();});
+    // GM Setup: Player Access waits for Save Changes (D4); the footer says when something is unsaved.
+    el.querySelector('[data-agc-access]')?.addEventListener('change',ev=>this._stageAccess(ev.target.checked));
     for(const b of el.querySelectorAll('[data-act]'))b.addEventListener('click',ev=>this._act(ev.currentTarget));
     // GM drop target: drag an Item from the Items sidebar (or the bearer's sheet) onto a socket.
     for(const z of el.querySelectorAll('[data-agc-drop]')){
@@ -184,7 +192,7 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
     const act=el.dataset.act;
     try{
       switch(act){
-        case 'tab':this.tab=game.user.isGM?el.dataset.tab:'cinders';break;
+        case 'tab':this.tab=game.user.isGM?el.dataset.tab:'cinders';this.pendingAccess=null;break;
         case 'help':await this._help();return;
         case 'push':await this._push(el.dataset.instance,el.dataset.power,el.dataset.mode);break;
         case 'open-tree':{const t=trees(),actor=this.actor;const tree=t.status==='ok'&&game.user.isGM?cinders.cinderTree(el.dataset.definition):null;
@@ -202,13 +210,27 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
         case 'cinder-migrate':await this._migrate();break;
         case 'cinder-adopt':await adoptLegacy();break;
         case 'cinder-repair':{if(!game.user.isGM)throw Error('GM only');const done=await cinders.api.repair();notify(done.length?done.join('; '):'Nothing needed repair.');}break;
-        case 'toggle-access':if(!game.user.isGM)throw Error('GM only');await setPlayerAccess(game,MODULE,!playerAccess());break;
+        case 'setup-save':await this._saveSetup();break;
+        case 'setup-cancel':this.pendingAccess=null;break;
         case 'strain-import':await this._strainImport();break;
         case 'strain-export':if(!game.user.isGM)throw Error('GM only');download('ag-strain-config.json',strain.config());return;
         case 'strain-reset':if(!game.user.isGM)throw Error('GM only');if(await confirm('Reset the Strain config to the module defaults (neutral band names, default Backfire schedule)?\nCharacter Strain is not changed.',{title:'Reset Strain settings?',yes:'Reset to defaults',danger:true})){await strain.api.resetConfig();notify('Strain config reset to defaults.');}break;
       }
       this.render();
     }catch(error){console.error(`[${MODULE}]`,error);notify(`Cinders: ${error.message}`,true);}
+  }
+  /** Player Access box changed: remember it until Save Changes or Cancel; nothing is written yet. */
+  _stageAccess(checked){
+    this.pendingAccess=Boolean(checked);
+    const status=this.element?.querySelector?.('[data-agc-status]');
+    if(status)status.textContent=this.pendingAccess!==playerAccess()?'Unsaved changes':'';
+  }
+  /** Save Changes in GM Setup: writes Player Access (same setting key) only if it changed. */
+  async _saveSetup(){
+    if(!game.user.isGM)throw Error('GM only');
+    const next=this.pendingAccess;this.pendingAccess=null;
+    if(next==null||next===playerAccess()){notify('No changes to save.');return;}
+    await setPlayerAccess(game,MODULE,next);notify('GM Setup saved.');
   }
   async _help(){
     await infoDialog('Cinders help',`<p><strong>Strain</strong> is one number per character. Pushes, crafting, hazards, items and spells can change it; a long rest removes ${strain.config().rest_recovery.long}. The band name and Backfire chance come from the GM's Strain config.</p>

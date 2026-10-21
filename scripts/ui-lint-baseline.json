@@ -12,14 +12,14 @@
   },
   "ashen-gate-cinders": {
     "css-colour-literal": 0,
-    "css-raw-font-size": 4,
+    "css-raw-font-size": 0,
     "css-legacy-alias": 0,
     "css-viewport-media": 0,
-    "css-raw-px-box": 33,
+    "css-raw-px-box": 0,
     "css-kit-prefix-class": 0,
     "js-dialogv2-direct": 0,
-    "header-brand-version": 1,
-    "button-title-attr": 1
+    "header-brand-version": 0,
+    "button-title-attr": 0
   },
   "ashen-gate-factions": {
     "css-colour-literal": 3,
