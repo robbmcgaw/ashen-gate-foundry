@@ -1,3 +1,16 @@
+## 0.24.0 — 2026-10-21
+
+- **Cinders sub-tab: a compact Cinder orb** (Cinders 0.6.0's look, smaller). Each Cinder is a card: a mini orb on the left, ringed by the bearer's Strain (10 segments, then a pip per point over), with a dot for each socket; on the right the Push lines (cost, Strain after, Backfire %; the Push button is red when the Backfire is guaranteed) and the socket rows. In a narrow window the orb sits above the lines. The Hub layout (art and slots, content, icon rail) is unchanged.
+- **Orb art:** the Cinder's own image when the GM set one in Cinders, else the default orb whose colour follows Strain only. The Hub can't change art.
+- **Socket rows with Attach / Swap / Detach**, through Cinders' `api.sockets` (`canAttach`, `attach`, `swap`, `detach`). Who can: the bearer's owner while Cinders' Player Access is on and the GM has not locked the Cinder; the GM always. Detach asks first. A locked Cinder shows a **Locked** badge and no buttons for players.
+  - Drag an item onto a socket row: an empty socket attaches it, a full one swaps it in. The GM can also drop an Item from the Items sidebar (Cinders copies it to the bearer).
+  - **Items that fit:** this character's items that fit a socket, as chips to drag. Hidden when the player can't change the sockets.
+  - A socket added by a perk, power or item shows **+1**. An item over capacity is dimmed with **inactive** (Detach still works).
+  - The "change sockets in the Cinders window" note is gone.
+- Works with an older Cinders: no art field means the default orb; without `ag-sockets/1` the card shows the orb and Push lines without socket rows.
+- Internal: the last raw px box in the Hub CSS (card icon column) now uses a kit token, so the Hub has no UI-lint exception left.
+- No saved data, flag or setting changes; the Hub stores nothing for Cinders.
+
 ## 0.23.0 — 2026-10-21
 
 - Shared UI kit 2.1.0 and dialog helper: choice dialogs follow the Ashen Gate look (Cancel on the left, the choices on the right); red buttons, badges and grey text on selected or striped rows are easier to read in every skin (at least 4.5:1); a hidden empty state stays hidden; disabled list rows keep readable text.

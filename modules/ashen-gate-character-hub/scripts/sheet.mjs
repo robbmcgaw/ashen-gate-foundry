@@ -20,13 +20,17 @@ import * as journey from './journey.mjs';
 import {journeyActor} from './journey-views.mjs';
 import * as marks from './marks.mjs';
 import * as hotbar from './hotbar.mjs';
-import {stepStrain, pushFromHub} from './cinders.mjs';
-import {confirmDialog} from './ag-dialogs.mjs';
+import {stepStrain, pushFromHub, socketFromHub, dropOnSocket} from './cinders.mjs';
+import {confirmDialog, formDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
 /** Push asks first through the shared dialog: "Push [power]?" with Cancel and Push. */
 export const cinderConfirm = (message, {power = ''} = {}) => confirmDialog(message, {title: power ? `Push ${power}?` : 'Push?', yes: 'Push'});
+/** Socket item picker (Attach / Swap): one select of the items that fit; resolves the item id or null. */
+export const socketPick = async (title, options, ok) => (await formDialog(title, [{name: 'item', label: 'Item', type: 'select', value: options[0]?.value ?? '', options,
+  hint: 'The item stays in this character\'s inventory. Its Cinder modifiers count while it is in an active socket.'}], {ok}))?.item ?? null;
+const socketUi = {pick: socketPick, confirm: confirmDialog};
 /** Shows a refusal or failure from an action; a success is silent (the sheet re-renders itself). */
 export const report = result => { if (result && result.ok === false && result.error) warn(result.error); return result; };
 
@@ -69,6 +73,10 @@ export const ACTIONS = {
   // 0.18.0: Strain (GM) and Cinder Push go to Ashen Gate | Cinders' public API; it checks permissions again.
   'strain-step': (s, t) => stepStrain(s.document, Number(t.dataset.step)),
   'cinder-push': (s, t) => pushFromHub(s.document, {instance: t.dataset.instance, power: t.dataset.power, mode: t.dataset.mode}, cinderConfirm),
+  // 0.24.0: socket rows change sockets through Cinders' api.sockets (Detach asks first); Cinders checks again.
+  'cinder-attach': (s, t) => socketFromHub(s.document, 'attach', {instance: t.dataset.instance, slot: t.dataset.slot}, socketUi),
+  'cinder-swap': (s, t) => socketFromHub(s.document, 'swap', {instance: t.dataset.instance, slot: t.dataset.slot}, socketUi),
+  'cinder-detach': (s, t) => socketFromHub(s.document, 'detach', {instance: t.dataset.instance, slot: t.dataset.slot}, socketUi),
   'condition': (s, t) => act.toggleCondition(s.document, t.dataset.id),
   'roll-initiative': (s, t, e) => act.rollInitiative(s.document, e),
   'roll-check': (s, t, e) => act.rollAbilityCheck(s.document, t.dataset.ability, e),
@@ -312,8 +320,13 @@ export function createHubSheetClass(Base) {
           if (ev.key === 'Enter' && ev.target?.matches?.('[data-hpedit]')) { ev.preventDefault(); this.dispatch('hp-apply', ev.target, ev); }
         });
         content.addEventListener?.('submit', ev => ev.preventDefault());
-        content.addEventListener?.('dragover', ev => { if (ev.target?.closest?.('[data-drop-companion], [data-hotbar-slot]')) ev.preventDefault(); });
-        content.addEventListener?.('drop', ev => ev.target?.closest?.('[data-hotbar-slot]') ? this._onHotbarDrop(ev) : this._onCompanionDrop(ev));
+        content.addEventListener?.('dragover', ev => {
+          if (ev.target?.closest?.('[data-drop-companion], [data-hotbar-slot], [data-cinder-drop]')) ev.preventDefault();
+          this._dropHighlight(ev.target?.closest?.('[data-cinder-drop]'));
+        });
+        content.addEventListener?.('dragleave', ev => { if (!ev.relatedTarget?.closest?.('[data-cinder-drop]')) this._dropHighlight(null); });
+        content.addEventListener?.('drop', ev => ev.target?.closest?.('[data-hotbar-slot]') ? this._onHotbarDrop(ev)
+          : ev.target?.closest?.('[data-cinder-drop]') ? this._onSocketDrop(ev) : this._onCompanionDrop(ev));
         content.addEventListener?.('dragstart', ev => onItemDragStart(ev));
         this._agchBound = true;
       }
@@ -421,6 +434,24 @@ export function createHubSheetClass(Base) {
       if (!slot) return null;
       event.preventDefault(); event.stopPropagation();
       try { return report(await hotbar.setHotbarSlot(this.document, slot.dataset.hotbarSlot, await droppedItem(event, ['Item', 'Macro']))); }
+      catch (err) { return report({ok: false, error: err?.message ?? String(err)}); }
+    }
+
+    /** The socket row under a drag gets the drop highlight (one at a time). */
+    _dropHighlight(row) {
+      if (this._dropRow === row) return;
+      this._dropRow?.classList?.remove?.('is-drop');
+      this._dropRow = row ?? null;
+      row?.classList?.add?.('is-drop');
+    }
+
+    /** Drops on a Cinder socket row: attach to an empty socket, swap into a full one (through Cinders' api.sockets). */
+    async _onSocketDrop(event) {
+      const row = event.target?.closest?.('[data-cinder-drop]');
+      this._dropHighlight(null);
+      if (!row) return null;
+      event.preventDefault(); event.stopPropagation();
+      try { return report(await dropOnSocket(this.document, {instance: row.dataset.instance, slot: row.dataset.slot, filled: row.dataset.filled}, await droppedItem(event))); }
       catch (err) { return report({ok: false, error: err?.message ?? String(err)}); }
     }
 
