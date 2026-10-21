@@ -1,3 +1,8 @@
+## 0.14.1 — 2026-10-21
+
+- Confirmations name the action (no more Yes/No), Help opens with a Close button, dialogs follow the Ashen Gate look; test wording removed from player views.
+- Header shows just the version (no "Alpha · GM/Player"); the "live acceptance pending" footer text is gone; the no-characters hint now reads "Add at least two characters to start a check." Confirm titles are questions; clearing history and undoing an award, conversion, purse change or condition removal use a red action button.
+
 ## 0.14.0 — 2026-10-21
 
 - Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.

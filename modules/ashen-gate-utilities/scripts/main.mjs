@@ -92,7 +92,7 @@ async function tellRejected(author,actor,reason){
  try{await ChatMessage.create({content:`Roll not counted${actor?` for ${E(actor.name)}`:''}: ${E(reason)}`,speaker:ChatMessage.getSpeaker?.()??{},whisper:[...new Set([...[...game.users].filter(u=>u.isGM).map(u=>u.id),author.id])]});}
  catch(e){console.warn(`[${ID}] Could not report the rejected roll`,e);}
 }
-function actorsCheckboxes(ticked=[]){const a=allCharacters(),on=new Set(ticked);return a.length?`<div class="agu-choices">${a.map(x=>`<label class="agu-inline"><input type="checkbox" name="agu-participant" value="${E(x.id)}" ${on.has(x.id)?'checked':''}> ${E(x.name)}</label>`).join('')}</div>`:empty('Create two disposable character Actors in the Actors directory before starting a check.');}
+function actorsCheckboxes(ticked=[]){const a=allCharacters(),on=new Set(ticked);return a.length?`<div class="agu-choices">${a.map(x=>`<label class="agu-inline"><input type="checkbox" name="agu-participant" value="${E(x.id)}" ${on.has(x.id)?'checked':''}> ${E(x.name)}</label>`).join('')}</div>`:empty('Add at least two characters to start a check.');}
 function skillChoices(ticked=['acr','ath','prc']){return `<div class="agu-choices">${SKILL_IDS.map(s=>`<label class="agu-inline"><input type="checkbox" name="agu-skill" value="${E(s)}" ${ticked.includes(s)?'checked':''}>${E(skillName(s))}</label>`).join('')}</div>`;}
 /** Characters ticked by default: the dnd5e Primary Party, else characters owned by connected players. */
 function partyDefaults(){try{return goldDefaults().actorIds;}catch{return [];}}
@@ -228,7 +228,7 @@ class UtilitiesApp extends ApplicationV2 {
  constructor(...args){super(...args);this.tab='rolls';this.rollMode='group';this.actorId='';this.rollActorId='';this.tableDraft='';this.tableAuto=false;this.lastDraw=[];this.filter='';this.takeActorId='';this.stashTab='items';this.historyShown=HISTORY_PAGE;this.purseCoin='gp';this.purseAmount='';}
  async _renderHTML(){if(!permitted())throw Error('Utilities is hidden for players.');this.tab=normalizeTab(this.tab);const tabs=[['rolls','Rolls'],['inventory','Party Inventory'],['tables','Roll Tables'],['conditions','Conditions'],...(isGM()?[['history','History'],['setup','GM Setup']]:[])];
   const body=this.tab==='rolls'?rollsView(this):this.tab==='inventory'?inventoryView(this):this.tab==='tables'?tableView(this):this.tab==='conditions'?conditionsView(this):this.tab==='history'&&isGM()?historyView(this):this.tab==='setup'&&isGM()?setupView():empty('Unavailable view.');
-  return `<div class="agu-root"><header class="ag-header agu-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Utilities</h1><p>Group challenges, individual requests and party utilities</p></div><div class="ag-header__meta">${appearanceOpener()?`<button type="button" class="ag-btn ag-btn--ghost" data-open-appearance title="Choose your Ashen Gate appearance"><i class="fa-solid fa-palette" aria-hidden="true"></i>Appearance</button>`:''}<button type="button" class="ag-btn ag-btn--ghost" data-action="help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i>Help</button><span class="agu-version">v${VERSION} Alpha · ${isGM()?'GM':'Player'}</span></div></header><nav class="ag-tabs agu-tabs" aria-label="Utility sections">${tabs.map(([id,label])=>`<button type="button" data-tab="${id}" aria-current="${this.tab===id?'page':'false'}" class="${this.tab===id?'active':''}">${E(label)}</button>`).join('')}</nav><main class="agu-main">${body}</main><footer class="ag-footer agu-footer"><span>Foundry V14 · dnd5e 6.0.6 target · live acceptance pending</span><span>${this.tab==='inventory'?`Party stash: ${stashEnabled()?'on':'off'} for players`:'Native permissions apply'}</span></footer></div>`;
+  return `<div class="agu-root"><header class="ag-header agu-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Utilities</h1><p>Group challenges, individual requests and party utilities</p></div><div class="ag-header__meta">${appearanceOpener()?`<button type="button" class="ag-btn ag-btn--ghost" data-open-appearance title="Choose your Ashen Gate appearance"><i class="fa-solid fa-palette" aria-hidden="true"></i>Appearance</button>`:''}<button type="button" class="ag-btn ag-btn--ghost" data-action="help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i>Help</button><span class="ag-version agu-version">v${VERSION}</span></div></header><nav class="ag-tabs agu-tabs" aria-label="Utility sections">${tabs.map(([id,label])=>`<button type="button" data-tab="${id}" aria-current="${this.tab===id?'page':'false'}" class="${this.tab===id?'active':''}">${E(label)}</button>`).join('')}</nav><main class="agu-main">${body}</main><footer class="ag-footer agu-footer"><span>${this.tab==='inventory'?`Party stash: ${stashEnabled()?'on':'off'} for players`:'Native permissions apply'}</span></footer></div>`;
  }
  // Appearance needs no wiring here: the kit's --ag-* tokens are inherited from the document,
  // which General Manager (when active) keeps in sync with the user's skin.
@@ -262,7 +262,7 @@ class UtilitiesApp extends ApplicationV2 {
   if(action==='skip'||action==='resolve'||action==='cancel'){
    if(!isGM())throw Error('GM only.');const session=activeSession();if(!session)throw Error('No active check.');
    const msg=action==='skip'?`Skip one contribution for ${game.actors.get(b.dataset.actor)?.name||'the character'}?`:action==='resolve'?'End now? All remaining contributions will be marked Skipped and the result saved to History.':'Cancel this interaction and save it in History?';
-   if(!await confirmDialog(msg,{title:action==='skip'?'Skip contribution':action==='resolve'?'End check':'Cancel interaction',yes:action==='skip'?'Skip contribution':action==='resolve'?'End and record':'Cancel interaction',no:'Keep going'}))return;
+   if(!await confirmDialog(msg,{title:action==='skip'?'Skip this contribution?':action==='resolve'?'End this check?':'Cancel this interaction?',yes:action==='skip'?'Skip contribution':action==='resolve'?'End and record':'Cancel interaction',no:'Keep going'}))return;
    await queueSession(async()=>{const latest=activeSession();if(!latest||latest.id!==session.id)throw Error('Session has changed.');
     if(action==='skip')skipRoll(latest,{actorId:b.dataset.actor,reason:'GM-confirmed',userId:game.user.id});
     if(action==='resolve')resolveNow(latest,{userId:game.user.id});
@@ -274,11 +274,11 @@ class UtilitiesApp extends ApplicationV2 {
   if(action==='create-stash'){if(!isGM())throw Error('GM only.');if(stashActor())throw Error('Party Stash already exists.');await Actor.create({name:'Ashen Gate | Party Stash',type:'npc',ownership:{default:stashEnabled()?OBSERVER():0},flags:{[ID]:{partyStash:true}}});await this.render();return;}
   if(action==='stash-take'){await notifyResult(withdrawItem(b.dataset.item,root.querySelector('#agu-stash-target')?.value));return;}
   if(action==='stash-history-more'){this.historyShown+=HISTORY_PAGE;await this.render();return;}
-  if(action==='stash-history-clear'){if(!await confirmDialog('Clear the whole stash history? This cannot be undone.',{title:'Clear stash history',yes:'Clear history'}))return;await clearStashHistory();this.historyShown=HISTORY_PAGE;ui.notifications?.info('Stash history cleared.');await this.render();return;}
+  if(action==='stash-history-clear'){if(!await confirmDialog('Clear the whole stash history? This cannot be undone.',{title:'Clear stash history?',yes:'Clear history',danger:true}))return;await clearStashHistory();this.historyShown=HISTORY_PAGE;ui.notifications?.info('Stash history cleared.');await this.render();return;}
   if(action==='gold-award'){if(await awardGoldDialog())await this.render();return;}
   if(action==='gold-undo'){
    if(!isGM())throw Error('GM only.');
-   if(!await confirmDialog('Take this gold back from every character who still has it? Anyone who has already spent it keeps it, and you will be told who.',{title:'Undo gold award',yes:'Undo award'}))return;
+   if(!await confirmDialog('Take this gold back from every character who still has it? Anyone who has already spent it keeps it, and you will be told who.',{title:'Undo gold award?',yes:'Undo award',danger:true}))return;
    const res=await undoGoldAward(b.dataset.entry),ok=res.filter(r=>r.ok),no=res.filter(r=>!r.ok);
    const msg=`${ok.length?`Took back ${ok.map(r=>`${r.removed} ${r.coin??'gp'} from ${r.actorName}`).join(', ')}.`:'Nothing was taken back.'}${no.length?` Not undone: ${no.map(r=>r.reason).join(' ')}`:''}`;
    (no.length?ui.notifications?.warn:ui.notifications?.info)?.call(ui.notifications,msg);await this.render();return;
@@ -291,13 +291,13 @@ class UtilitiesApp extends ApplicationV2 {
   if(action==='purse-convert'){if(await convertElectrumDialog())await this.render?.();return;}
   if(action==='purse-convert-undo'){
    if(!isGM())throw Error('GM only.');
-   if(!await confirmDialog('Undo this electrum conversion? The electrum goes back into the purse and the silver/gold it added comes out, only if the purse still holds that silver/gold.',{title:'Undo conversion',yes:'Undo conversion'}))return;
+   if(!await confirmDialog('Undo this electrum conversion? The electrum goes back into the purse and the silver/gold it added comes out, only if the purse still holds that silver/gold.',{title:'Undo this conversion?',yes:'Undo conversion',danger:true}))return;
    const r=await undoElectrumConvert(b.dataset.entry);
    (r.ok?ui.notifications?.info:ui.notifications?.warn)?.call(ui.notifications,r.ok?'Conversion undone.':`Not undone: ${r.reason}`);await this.render();return;
   }
   if(action==='purse-undo'){
    if(!isGM())throw Error('GM only.');
-   if(!await confirmDialog('Undo this purse change? A take is undone only if the character still holds the coins; nothing goes below 0.',{title:'Undo purse change',yes:'Undo change'}))return;
+   if(!await confirmDialog('Undo this purse change? A take is undone only if the character still holds the coins; nothing goes below 0.',{title:'Undo purse change?',yes:'Undo change',danger:true}))return;
    const r=await undoPurseEntry(b.dataset.entry);
    (r.ok?ui.notifications?.info:ui.notifications?.warn)?.call(ui.notifications,r.ok?'Purse change undone.':`Not undone: ${r.reason}`);await this.render();return;
   }
@@ -364,7 +364,7 @@ async function removeCondition(actorId,statusId){
 }
 async function removeFromUI(actor,statusId){
  if(!actor)throw Error('Character not found.');
- if(isGM()&&!statusConfig(statusId)&&!await confirmDialog(`Remove "${statusName(statusId)}" from ${actor.name}? It is not a native status, so its source effect will be removed.`,{title:'Remove condition',yes:'Remove condition'}))return;
+ if(isGM()&&!statusConfig(statusId)&&!await confirmDialog(`Remove "${statusName(statusId)}" from ${actor.name}? It is not a native status, so its source effect will be removed.`,{title:'Remove this condition?',yes:'Remove condition',danger:true}))return;
  ui.notifications?.info(await removeCondition(actor.id,statusId));
 }
 const pendingRequests=new Map();
@@ -548,7 +548,7 @@ async function awardGoldDialog(){
  const lines=[mode==='split'?`Split ${plan.amount} ${coin} evenly: ${plan.share} ${coin} each.`:`${plan.share} ${coin} to each character.`,...plan.recipients.map(r=>`${r.actorName}: ${r.before} → ${r.after} ${coin}`)];
  if(plan.remainder)lines.push(`${plan.remainder} ${coin} left over will NOT be handed out; it stays with you.`);
  lines.push(isPublic?'The chat card will be public.':'The chat card will be whispered to the GM only.');
- if(!await confirmDialog(lines.join('\n'),{title:'Award Gold',yes:`Award ${plan.total} ${coin}`}))return null;
+ if(!await confirmDialog(lines.join('\n'),{title:'Award gold?',yes:`Award ${plan.total} ${coin}`}))return null;
  const out=await awardGold({amount,mode,actorIds,reason:form.reason??'',public:isPublic,coin});
  ui.notifications?.info(`Awarded ${out.entry.recipients.reduce((n,r)=>n+r.added,0)} ${coin}.${out.failed.length?` Not paid: ${out.failed.map(f=>`${f.actorName} (${f.reason})`).join(', ')}.`:''}`);
  return out;
@@ -677,7 +677,7 @@ async function adjustPurseDialog(){
  if(!form)return null;
  const coin=COINS.includes(form.coin)?form.coin:'gp',op=['add','remove','set'].includes(form.op)?form.op:'add';
  const plan=planPurseAdjust({op,coin,amount:form.amount,purseHas:now[coin],electrum:electrumEnabled()});
- if(!await confirmDialog(`Party purse ${COIN_LABELS[coin]}: ${plan.purseBefore} → ${plan.purseAfter} ${coin}.${form.reason?.trim()?`\nReason: ${form.reason.trim()}`:''}`,{title:'Adjust Party Purse',yes:`Set purse to ${plan.purseAfter} ${coin}`}))return null;
+ if(!await confirmDialog(`Party purse ${COIN_LABELS[coin]}: ${plan.purseBefore} → ${plan.purseAfter} ${coin}.${form.reason?.trim()?`\nReason: ${form.reason.trim()}`:''}`,{title:'Adjust the party purse?',yes:`Set purse to ${plan.purseAfter} ${coin}`}))return null;
  const entry=await adjustPurse({coin,op,amount:form.amount,reason:form.reason??''});
  ui.notifications?.info(`Party purse ${coin}: ${entry.purseBefore} → ${entry.purseAfter}.`);
  return entry;
@@ -713,7 +713,7 @@ async function convertElectrumDialog(){
  ],{ok:'Review Conversion'});
  if(!form)return null;
  const plan=planElectrumConvert({to:form.to==='sp'?'sp':'gp',coins:now});
- if(!await confirmDialog(convertPreview(plan).join('\n'),{title:'Convert Electrum',yes:`Convert ${plan.ep} ep`}))return null;
+ if(!await confirmDialog(convertPreview(plan).join('\n'),{title:'Convert electrum?',yes:`Convert ${plan.ep} ep`}))return null;
  const entry=await convertElectrum({to:plan.to,reason:form.reason??'',expectEp:plan.ep});
  ui.notifications?.info(`${convertLine(entry)}.`);
  return entry;
@@ -1106,5 +1106,5 @@ Hooks.once('ready',()=>{
  Hooks.on('updateUser',refreshWindows);addLauncher(ui?.actors,ui?.actors?.element);
  lastPromptedSession=activeSession()?.id||null;
  syncOverlay();
- console.info(`${ID} ${VERSION} Alpha initialized. Foundry V14/dnd5e 6.0.6 live acceptance pending.`);
+ console.info(`${ID} ${VERSION} initialized.`);
 });
