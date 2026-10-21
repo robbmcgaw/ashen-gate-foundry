@@ -3,10 +3,11 @@
    per shop holds the record (flags.<id>.shop) and its log (flags.<id>.log); one page holds retiredIds and lists.
    Every API call checks GM inside the API. 0.18.0: presenting and buying live in shop-buy.mjs, which uses the storage
    helpers exported here. ---- */
-import {ID,escapeHTML as E,COIN_LABELS,CP_VALUE,coinChoices,shownCoins,strandedElectrum,coinsText,containedItems,normalizeShop,normalizeLine,normalizePurse,
+import {ID,escapeHTML as E,COIN_LABELS,CP_VALUE,coinChoices,shownCoins,strandedElectrum,coinsText,normalizeShop,normalizeLine,normalizePurse,
  priceToCp,shopIdFromName,validId,SHOPS_CONTRACT,SHOP_SORTS,SHOP_BUY_TYPES,SHOP_LOG_CAP,listShops,shopPlace,initials,lineFromItem,lineRepeats,
  duplicateShop,restockLines,planShopPurseAdjust,shopLogEntry,MERCHANT_NAME_MAX,SHOP_FLAVOUR_MAX,LINE_FLAVOUR_MAX} from './core.mjs';
 import {confirmDialog,formDialog} from './ag-dialogs.mjs';
+import {readDrop,resolveItemDrop,bundleOf} from './ag-item-drop.mjs';
 import {servicesAll,servicesApi,serviceSettingsHTML,serviceType,typeLabel as serviceTypeLabel,UNKNOWN_TYPE} from './services.mjs';
 import {listsView,listsFooter,bindLists,handleLists} from './merchant-lists.mjs';
 
@@ -69,42 +70,29 @@ export function locationsApi(){const m=game.modules?.get?.('ashen-gate-locations
 /** id → {name, parentLocationId}; empty when Locations is not active or refuses. */
 export function locationMap(){try{return new Map((locationsApi()?.listLocations()??[]).filter(l=>l?.id).map(l=>[l.id,l]));}catch{return new Map();}}
 
-/* ---------- Drops (local item-drop helper; gives way to the shared one from design/rewards-loot when it lands) ---------- */
-async function folderItems(folder){
- const folders=[folder,...(folder.getSubfolders?.(true)??[])];
- if(folder.pack){const pack=game.packs?.get?.(folder.pack);if(!pack?.getDocuments)return [];return (await Promise.all(folders.map(f=>pack.getDocuments({folder:f.id})))).flat();}
- return folders.flatMap(f=>[...(f.contents??[])]);
-}
-async function contentsOf(item){
- if(item.parent?.items)return containedItems(item,item.parent.items).slice(1);
- if(item.pack){try{const all=await item.system?.allContainedItems;return all?[...all]:[];}catch{return [];}}
- return containedItems(item,game.items??[]).slice(1);
-}
+/* ---------- Drops (shared ag-item-drop helper; the shop editor takes folders) ---------- */
+const asDrop=raw=>{
+ const x=typeof raw==='string'?{uuid:raw}:raw;
+ return x?.uuid&&!x.type?{...x,type:/(^|\.)Folder\./.test(x.uuid)?'Folder':'Item'}:x;
+};
+async function nameOf(x){let doc=null;try{doc=x?.uuid?await fromUuid(x.uuid):null;}catch{doc=null;}return doc?.name??x?.name??x?.uuid??x?.type??'Unknown';}
 /**
  * Items from drop data: an Item (sheet, Items sidebar, compendium), a Folder of Items (sub-folders too), a uuid, or a
- * list of them. Anything else is skipped with a reason. A container comes with its contents; an item inside a
- * container that is also dropped comes with that container, not on its own line. Nothing is changed at the source.
+ * list of them. Anything else is skipped with the shared reason. A container comes with its contents (from its own
+ * pack for a compendium container); an item inside a container that is also dropped comes with that container, not
+ * on its own line. Nothing is changed at the source.
  */
 export async function itemsFromDrop(input){
  const out=[],skipped=[];
  for(const raw of [].concat(input??[])){
-  const x=typeof raw==='string'?{type:'Item',uuid:raw}:raw;
-  let doc=null;try{doc=x?.uuid?await fromUuid(x.uuid):null;}catch{doc=null;}
-  if(x?.type==='Folder'||doc?.documentName==='Folder'){
-   if(!doc)skipped.push({name:'Folder',reason:'That folder could not be found.'});
-   else if(doc.type!=='Item')skipped.push({name:doc.name??'Folder',reason:'Not a folder of items.'});
-   else{const docs=await folderItems(doc);if(!docs.length)skipped.push({name:doc.name??'Folder',reason:'The folder has no items.'});out.push(...docs);}
-   continue;
-  }
-  if(doc?.documentName==='Item')out.push(doc);
-  else if(!doc&&x?.uuid)skipped.push({name:x.name??x.uuid,reason:'Could not be found.'});
-  else skipped.push({name:doc?.name??x?.name??x?.type??'Unknown',reason:doc?'Not an item.':'Nothing to add.'});
+  const x=asDrop(raw),r=await resolveItemDrop(x,{folders:true});
+  if(r.ok)out.push(...r.items);else skipped.push({name:await nameOf(x),reason:r.reason});
  }
  const ids=new Set(out.map(i=>i.id));
  const items=[];
  for(const item of out.filter((i,n)=>out.indexOf(i)===n)){
   if(item.system?.container&&ids.has(item.system.container))continue;
-  items.push({item,contents:await contentsOf(item)});
+  items.push({item,contents:(await bundleOf(item)).slice(1)});
  }
  return {items,skipped};
 }
@@ -379,10 +367,7 @@ export function shopsFooter(app){
 
 /* ---------- Wiring ---------- */
 const markDirty=(app,root)=>{app.shopDirty=true;app.shopStatus='Unsaved changes';const st=root.querySelector?.('[data-shop-status]');if(st)st.textContent=app.shopStatus;};
-export function dragData(event){
- const TE=foundry.applications?.ux?.TextEditor?.implementation??globalThis.TextEditor;
- try{return TE?.getDragEventData?TE.getDragEventData(event):JSON.parse(event.dataTransfer?.getData('text/plain')||'{}');}catch{return {};}
-}
+export const dragData=event=>readDrop(event);
 const report=(added,skipped)=>{
  const repeats=added.filter(a=>a.repeat).map(a=>a.name);
  if(added.length)ui.notifications?.info(`Added ${added.length} ${added.length===1?'item':'items'}: ${added.map(a=>a.name).join(', ')}.`);

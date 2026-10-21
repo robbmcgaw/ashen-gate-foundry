@@ -12,7 +12,7 @@ let nextId=0;const freshId=()=>`id${String(++nextId).padStart(14,'0')}`;
 globalThis.foundry={utils:{randomID:freshId},applications:{api:{ApplicationV2:class{constructor(o){this.options=o;this.rendered=false;}async render(){this.rendered=true;return this;}async close(){this.rendered=false;}}}}};
 const gm={id:'gm',name:'GM',isGM:true,active:true},alice={id:'alice',name:'Alice',isGM:false,active:true},bob={id:'bob',name:'Bob',isGM:false,active:true};
 const docs=new Map();
-function mkItems(actor){const m=new Map();return {get:id=>m.get(id),get size(){return m.size;},[Symbol.iterator]:()=>m.values(),
+function mkItems(actor){const m=new Map();return {get:id=>m.get(id),get size(){return m.size;},get contents(){return [...m.values()];},[Symbol.iterator]:()=>m.values(),
  add(data){const id=data._id??freshId();const item={...structuredClone(data),id,documentName:'Item',parent:actor,
    toObject(){const {id:_i,documentName:_d,parent:_p,uuid:_u,toObject:_t,delete:_x,...rest}=this;return structuredClone({...rest,_id:this.id});},
    // dnd5e: deleting a container on its own (no deleteContents) leaves its contents on the Actor.
@@ -36,7 +36,7 @@ globalThis.game={user:gm,users,actors,items:worldItems,time:{worldTime:0},module
  settings:{register:(ns,key,o)=>settings.set(`${ns}.${key}`,{value:o.default,onChange:o.onChange}),get:(ns,key)=>settings.get(`${ns}.${key}`)?.value,set:async(ns,key,v)=>{const x=settings.get(`${ns}.${key}`);x.value=v;x.onChange?.(v);}},
  socket:{emit:(ch,msg)=>sent.push(msg),on:(ch,fn)=>{socketHandler=fn;}}};
 globalThis.CONFIG={DND5E:{skills:{}},statusEffects:[],Item:{typeLabels:{loot:'Loot',container:'Container'}}};
-globalThis.ui={notifications:{info:()=>{},warn:()=>{},error:()=>{}}};
+const warns=[];globalThis.ui={notifications:{info:()=>{},warn:m=>warns.push(m),error:()=>{}}};
 globalThis.Hooks={once:(k,fn)=>handlers.once.set(k,fn),on:(k,fn)=>handlers.on.set(k,fn),off:()=>{}};
 await import('../scripts/main.mjs');
 handlers.once.get('init')();handlers.once.get('ready')();
@@ -163,4 +163,48 @@ test('plain items still move alone, with no contents note',async()=>{
  clear(stash,pcA,pcB);const rope=pcA.items.add({name:'[TEST] Rope',type:'loot',system:{quantity:3}});
  assert.equal(await api.stash.deposit(rope.uuid),'[TEST] Wren put [TEST] Rope in the party stash.');
  assert.equal(stash.items.size,1);assert.equal(pcA.items.size,0);assert.ok(!('contents' in last()));
+});
+
+// ---- 0.20.1: the shared ag-item-drop helper (compendium containers bring their contents) ----
+/** A mocked compendium: a Backpack holding Rope ×3 and a Pouch, the Pouch holding Gem ×2, read through the pack index. */
+function mkPack(){
+ const entries=new Map(),pack={collection:'world.test-gear',index:[],getIndex:async()=>pack.index,getDocument:async id=>entries.get(id)??null};
+ const add=data=>{const id=freshId(),doc={...structuredClone(data),id,pack:pack.collection,parent:null,documentName:'Item',uuid:`Compendium.${pack.collection}.Item.${id}`,
+  toObject(){const {id:_i,documentName:_d,parent:_p,uuid:_u,pack:_k,toObject:_t,...rest}=this;return structuredClone({...rest,_id:this.id,folder:'PF',sort:5});}};
+  entries.set(id,doc);docs.set(doc.uuid,doc);pack.index.push({_id:id,system:{container:doc.system.container??null}});return doc;};
+ const bag=add({name:'[TEST] Backpack',type:'container',system:{quantity:1,container:null,equipped:true,weight:{value:5,units:'lb'}},flags:{test:{mark:'pack'}}});
+ add({name:'[TEST] Rope',type:'loot',system:{quantity:3,container:bag.id,price:{value:1,denomination:'gp'}},flags:{test:{mark:'rope'}}});
+ const pouch=add({name:'[TEST] Pouch',type:'container',system:{quantity:1,container:bag.id}});
+ add({name:'[TEST] Gem',type:'loot',system:{quantity:2,container:pouch.id,attuned:true}});
+ game.packs=new Map([[pack.collection,pack]]);return {pack,bag};
+}
+test('bug fix: a GM copying a container from a compendium brings everything inside it, links remapped, no folder',async()=>{
+ clear(stash,pcA,pcB);const {bag}=mkPack();
+ assert.equal(await api.stash.deposit(bag.uuid),'Copied [TEST] Backpack (with 3 items inside) into the party stash.');
+ assertPackOn(stash);assert.equal(stash.items.size,4);assert.ok([...stash.items].every(i=>i.folder===undefined));
+ assert.ok([...stash.items].every(i=>!docs.has(`Compendium.world.test-gear.Item.${i.id}`)),'every copy has a fresh id');
+ assert.equal(last().contents,3);
+});
+test('a player still cannot copy from a compendium or the Items sidebar (enforced on the GM side)',async()=>{
+ clear(stash,pcA,pcB);const {bag}=mkPack();
+ await socketHandler({type:'stash-deposit',requestId:'c1',userId:'alice',itemUuid:bag.uuid},'alice');await tick();
+ assert.match(receipt('c1').message,/own character sheet/);assert.equal(stash.items.size,0);
+});
+function fakeElement(){
+ const listeners=[];const el={innerHTML:'',isConnected:true,listeners,classList:{add(){},remove(){}},
+  addEventListener(type,fn,{signal}={}){const l={type,fn};listeners.push(l);signal?.addEventListener('abort',()=>listeners.splice(listeners.indexOf(l),1));},
+  contains:()=>true,querySelector:()=>null,querySelectorAll:()=>[]};return el;
+}
+const dropOn=async(el,data)=>{const ev={preventDefault(){},stopPropagation(){},dataTransfer:{getData:()=>JSON.stringify(data)}};for(const l of el.listeners.filter(l=>l.type==='drop'))l.fn(ev);await tick();};
+test('drops on the stash list: a folder or a non-Item is refused with the shared text; an Item moves as before',async()=>{
+ clear(stash,pcA,pcB);const el=fakeElement();const view=api.embed.mount(el,{actorId:'pcA'});await tick();
+ warns.length=0;
+ await dropOn(el,{type:'Folder',uuid:'Folder.f1'});await dropOn(el,{type:'Actor',uuid:'Actor.pcA'});await dropOn(el,{type:'Item',uuid:'Item.gone'});
+ assert.deepEqual(warns,['Drop items one at a time.','Drop an item.',"That item no longer exists or you can't see it."]);
+ assert.equal(stash.items.size,0);
+ const pack=packFor(pcA);await dropOn(el,{type:'Item',uuid:pack.uuid});
+ assertPackOn(stash);noneOf(pcA);
+ const before=stash.items.size;await dropOn(el,{type:'Item',uuid:byName(stash,'[TEST] Rope').uuid});
+ assert.equal(stash.items.size,before,'dropping a stash row back on the list does nothing');
+ view.unmount();
 });

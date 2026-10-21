@@ -2,6 +2,7 @@ import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,sk
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,infoDialog,formDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
+import {readDrop,resolveItemDrop,grantBundle} from './ag-item-drop.mjs';
 import {shopsApi,shopsView,shopsFooter,bindShops,handleShops,shopHooks} from './shops.mjs';
 import {configureTrade,tradeApi,tradeHooks,tradeSocketHandlers,handleTrade,playerShopsView,bindPlayerShops,shopsVisible,shopsOn,shopVoteRequired,executeBuy,refreshShopWindows} from './shop-buy.mjs';
 import {executeSell} from './shop-sell.mjs';
@@ -817,8 +818,8 @@ async function executeDeposit(uuid,user){
  if(from===stash||from?.id===stash.id)return `${item.name} is already in the stash.`;
  if(!from){
   if(!user.isGM)throw Error('Only items from your own character sheet can go in the stash.');
-  // A world item is copied, not moved: a world container's contents are world items pointing at it.
-  const {data,contents}=moveBundle(item,game.items,{randomId,strip:['folder']});
+  // A world or compendium item is copied, not moved; a container comes with everything inside it (from its own pack too).
+  const {data,contents}=await grantBundle(item,{quantity:item.system?.quantity});
   try{await stash.createEmbeddedDocuments('Item',data,{keepId:true});}
   catch(e){await removeCopies(stash,data);throw Error(`Could not copy ${item.name}: ${e?.message??e}. Nothing was added.`);}
   const missing=data.filter(d=>!stash.items.get(d._id)).length;
@@ -912,12 +913,15 @@ async function withdrawItem(itemId,actorId){
  return requestGM('stash-withdraw',{itemId,actorId},CONSENT_TIMEOUT_MS+15000);
 }
 const notifyResult=p=>p.then(msg=>{if(msg)ui.notifications?.info(msg);},error);
-/** Drag data from a drop event, via Foundry's helper when present. */
-function dragData(event){
- const TE=foundry.applications?.ux?.TextEditor?.implementation??globalThis.TextEditor;
- try{return TE?.getDragEventData?TE.getDragEventData(event):JSON.parse(event.dataTransfer?.getData('text/plain')||'{}');}catch{return {};}
-}
+/** Drag data from a drop event (shared ag-item-drop parser). */
+const dragData=event=>readDrop(event);
 const stashItemFromUuid=uuid=>{const stash=stashActor();if(!stash||typeof uuid!=='string')return null;let doc=null;try{doc=fromUuidSync(uuid);}catch{}return doc?.parent&&doc.parent.id===stash.id?doc:null;};
+/** A drop on the stash list (window or embed): one Item, not a folder; dragging a stash row onto the list does nothing. */
+async function stashListDrop(data){
+ const {ok,items:[item],reason}=await resolveItemDrop(data);
+ if(!ok)return ui.notifications?.warn(reason);
+ if(stashItemFromUuid(item.uuid))return;notifyResult(depositItem(item.uuid));
+}
 /** Native actor-sheet drops: out of the stash goes through consent, into the stash is a move, not a copy. */
 function onSheetDrop(actor,sheet,data){
  if(data?.type!=='Item'||!actor)return;
@@ -1016,9 +1020,7 @@ UtilitiesApp.prototype.bindStash=function(root){
   if(this.tab!=='inventory'||!zone||!root.querySelector('.agu-stash'))return;
   zone.addEventListener('dragover',ev=>{ev.preventDefault();zone.classList.add('agu-drop-over');});
   zone.addEventListener('dragleave',ev=>{if(!zone.contains(ev.relatedTarget))zone.classList.remove('agu-drop-over');});
-  zone.addEventListener('drop',ev=>{ev.preventDefault();zone.classList.remove('agu-drop-over');const data=dragData(ev);
-   if(data?.type!=='Item'||!data.uuid)return ui.notifications?.warn('Drop an item from a character sheet.');
-   if(stashItemFromUuid(data.uuid))return;notifyResult(depositItem(data.uuid));});
+  zone.addEventListener('drop',ev=>{ev.preventDefault();zone.classList.remove('agu-drop-over');stashListDrop(dragData(ev)).catch(error);});
 };
 /** API open(): the stash lives in the Utilities window, Party Inventory tab. */
 async function openStash(){
@@ -1083,9 +1085,7 @@ function mountEmbed(element,{actorId='',mode='stash'}={}){
  on(element,'dragstart',ev=>{const row=ev.target?.closest?.('[data-stash-item]');if(row)ev.dataTransfer?.setData('text/plain',JSON.stringify({type:'Item',uuid:row.dataset.uuid}));});
  on(element,'dragover',ev=>{ev.preventDefault();element.classList?.add('agu-drop-over');});
  on(element,'dragleave',ev=>{if(!element.contains(ev.relatedTarget))element.classList?.remove('agu-drop-over');});
- on(element,'drop',ev=>{ev.preventDefault();ev.stopPropagation();element.classList?.remove('agu-drop-over');const data=dragData(ev);
-  if(data?.type!=='Item'||!data.uuid)return ui.notifications?.warn('Drop an item from a character sheet.');
-  if(stashItemFromUuid(data.uuid))return;notifyResult(depositItem(data.uuid));});
+ on(element,'drop',ev=>{ev.preventDefault();ev.stopPropagation();element.classList?.remove('agu-drop-over');stashListDrop(dragData(ev)).catch(error);});
  embeds.add(ctrl);
  ctrl.render().catch(error);
  return {unmount:ctrl.unmount,refresh:()=>ctrl.render()};
