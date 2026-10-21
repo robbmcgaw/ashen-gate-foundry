@@ -1,3 +1,12 @@
+## 0.21.0 — 2026-10-21
+
+- **Import JSON** and **Export** on the Shops toolbar (GM). Import reads `Shop`, `Service` and `MerchantList` records from an `ag-foundry-import/0.2` file, shows a preview (Create / Update / Kept / Skipped with the reason, item lines not found), then **Import N**. **Update shops that already exist** switches between keeping and updating existing ids.
+- Lines find their Item by permanent id (`item_id`), then `item_uuid`; a line whose item isn't found is skipped and reported, the rest of the shop imports. Prices are stored as copper; ep is refused while *Use electrum* is off. Deleted ids are refused.
+- Import writes definitions only: nothing is shown to players, merchant lists come in hidden, and an update keeps stock left, hand-added lines, the merchant's coins now, the location, GM notes, who it is shown to and the sales log.
+- **API** (`api.shops`, GM only): `importShops(records, {mode})`, `previewImport(records, {mode})`, `exportShops(ids?)`.
+- `scripts/validate-content.mjs` checks Shop, Service and MerchantList records with the same rules; field reference in `docs/shop-schema.md`.
+- Saved data: additive only. Imported lines carry an `importKey` so a later update finds them again; existing shops are unchanged. No migration.
+
 ## 0.20.1 — 2026-10-21
 
 - **Fix:** a container dropped from a compendium into the party stash now brings its contents (nested containers too, links kept).

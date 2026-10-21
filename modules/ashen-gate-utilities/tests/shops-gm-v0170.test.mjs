@@ -226,8 +226,7 @@ test('list: toolbar (search, sort, count, New shop), city groups with counts, ro
  assert.match(html,/<div class="ag-segmented agu-shop-subtabs" role="radiogroup" aria-label="Shops sections"><button type="button" role="radio" data-shop-sub="list" aria-checked="true">Shops<\/button><button type="button" role="radio" data-shop-sub="editor" aria-checked="false">Shop editor<\/button>/);
  assert.match(html,/<label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"><\/i><input type="search" id="agu-shop-search"/);
  assert.match(html,/<select id="agu-shop-sort" aria-label="Sort shops"><option value="location" selected>Group by city<\/option><option value="name">Name<\/option><option value="merchant">Merchant<\/option><option value="updated">Recently changed<\/option>/);
- assert.match(html,/<span class="ag-toolbar__count">2 shops<\/span><div class="ag-toolbar__end"><button type="button" class="ag-btn" data-action="shop-new"/);
- assert.doesNotMatch(html,/Import JSON/);
+ assert.match(html,/<span class="ag-toolbar__count">2 shops<\/span><div class="ag-toolbar__end"><button type="button" class="ag-btn ag-btn--sm" data-action="shop-import"[^>]*><i class="fa-solid fa-file-import" aria-hidden="true"><\/i> Import JSON<\/button><button type="button" class="ag-btn ag-btn--sm" data-action="shop-export"[\s\S]*?<input type="file" id="agu-shop-import-file" accept=".json,application\/json" hidden><button type="button" class="ag-btn" data-action="shop-new"/,'0.21.0: Import JSON and Export (--sm) before New shop');
  assert.match(html,/<h3 class="ag-eyebrow">\[TEST\] Testford · 1<\/h3>[\s\S]*<h3 class="ag-eyebrow">No location · 1<\/h3>/);
  assert.match(html,/<span class="ag-row__icon agu-shop-avatar" aria-hidden="true">BT<\/span>/);
  assert.match(html,/\[TEST\] Brin Tallow · \[TEST\] Market Ward · 7 items · <code>SHOP-TEST-THE-COPPER-KETTLE<\/code>/);

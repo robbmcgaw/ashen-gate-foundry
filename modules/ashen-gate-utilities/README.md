@@ -79,6 +79,15 @@ API, GM only (`GM only.` for anyone else; the presenting and buying calls are be
 - A service whose type this Utilities version doesn't know (from a later version) is kept as it is, listed for the GM as "Unknown service type", and never shown to players.
 - API (`api.shops.services`): GM only `list()`, `get(id)`, `create(data)`, `save(record)`, `duplicate(id)`, `delete(id, {confirm: true})`, `types()`; player or GM `quote({serviceId, payFrom: 'actor' | 'purse', actorId, from, to, receive, rev})` and `use({...same})` → the receipt text. `present` / `stopShowing` take a service id too.
 
+## Shops: import and export
+
+- **Shops → Import JSON** (GM): pick an `ag-foundry-import/0.2` file. It reads the `Shop`, `Service` and `MerchantList` records (field rules: `docs/shop-schema.md` in the repo) and shows a preview first: each record with **Create**, **Update**, **Kept** or **Skipped** and the reason, and any item lines it couldn't find. **Update shops that already exist** (off by default) switches between keeping and updating existing ids. **Import N** imports; **Cancel** writes nothing.
+- Items: each line names an Item by its permanent id (`item_id`, the id General Manager gives it), or by `item_uuid` (a compendium Item). Import the file's Items first with General Manager. A line whose item isn't found is skipped and reported; the rest of the shop imports.
+- Existing id, Update off: kept as it is. Update on: name, merchant, flavour and items come from the file (a service: its settings; a list: its name and entries). Stock left, items you added by hand, items bought from players, the merchant's coins now, the linked location, GM notes, who it is shown to, the sales log and whether a list is shown all stay.
+- New records: `purse` is the starting cash (left out: unlimited cash); merchant lists start hidden; nothing is shown to players. A deleted id is never reused (refused). Prices in ep are refused while *Use electrum* is off.
+- **Export** writes every shop, service and merchant list as one file that Import JSON reads back (definitions only: starting stock and starting cash, never stock left, sales or who it is shown to).
+- API (`api.shops`, added, GM only): `importShops(records | package, {mode: 'create' | 'update'})` → `[{id, type, name, result: 'created' | 'updated' | 'kept' | 'skipped', reason?, lines?: {imported, skipped: [{ref, reason}]}, notes}]`, `previewImport(...same)` (nothing written), `exportShops(ids?)` → the package.
+
 ## Public API
 
 `game.modules.get('ashen-gate-utilities').api`: `open`, `playerAccess` (`ag-player-access/1`), `conditions` (`isUnlocked`, `setUnlocked`, `canRemove`, `remove`, `openOverlay`) and `stash` (`isEnabled`, `setEnabled`, `isVoteRequired`, `setVoteRequired`, `history`, `clearHistory`, `open`, `deposit`, `withdraw`, `listItems`), `embed` (`mount`), `rolls` (`open`, GM only), `currency` (`electrumEnabled`, `coins`, `setElectrumEnabled`), `purse` (`totals`, `deposit`, `take`, `adjust`, `undo`, `convertElectrum`, `undoConvert`, …), plus GM-only `awardGold({amount, mode, actorIds, reason, public})` and `undoGoldAward(entryId)` (also as `gold`).

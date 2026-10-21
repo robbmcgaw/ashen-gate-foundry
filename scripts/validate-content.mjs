@@ -17,6 +17,7 @@
 //     (scope cinder: Cinders' exported validateModifiers, when that Cinders version has it).
 //   - each folder's accepted import files are also zipped together and read as a Manager ZIP bundle.
 //   - quest files: an item reward (outcomes.item_rewards) whose ITEM id is not defined in the same file or folder gets a note.
+//   - Shop / Service / MerchantList records: Utilities' own import rules (shop items named by id outside the file get a note).
 // Exit code 1 when any file does not behave as expected.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -39,6 +40,7 @@ import * as cinderEngine from '../modules/ashen-gate-cinders/scripts/cinder.mjs'
 import { modifierDefinitionChecks, MODIFIER_SCOPES } from '../modules/ashen-gate-manager/scripts/modifier-definitions.js';
 import { validateConfig as validateStrainConfig } from '../modules/ashen-gate-cinders/scripts/strain.mjs';
 import { planImport as planFactions } from '../modules/ashen-gate-factions/scripts/import.mjs';
+import { planShopImport, importItemRefs, SHOP_IMPORT_TYPES } from '../modules/ashen-gate-utilities/scripts/core.mjs';
 import { planFacilityImport } from '../modules/ashen-gate-headquarters/js/logic.mjs';
 import { normalizeRecipe } from '../modules/ashen-gate-profession-ledger/scripts/core.mjs';
 import { materialMeta } from '../modules/ashen-gate-profession-ledger/scripts/exotic.mjs';
@@ -175,6 +177,26 @@ function domainChecks(pkg) {
     const r = importRouteRecords(routes, [], ends, {mode: 'skip'});
     for (const s of r.skipped) errors.push(`${s.id}: Locations skips it: ${s.reason}`);
     for (const rt of r.created) for (const id of [rt.fromId, rt.toId]) if (!inFile.has(id)) notes.push(`${rt.id}: endpoint ${id} is not in this file; it must already exist in Locations.`);
+  }
+  // Shop, Service and MerchantList records (Utilities 0.21.0+): Utilities' own import rules, in an empty world with
+  // electrum off. Items named by item_id outside this file must already be in the world, so they are notes.
+  const shopRecs = pkg.records.filter(r => SHOP_IMPORT_TYPES.includes(r.entity_type));
+  if (shopRecs.length) {
+    const items = new Map(importItemRefs(shopRecs).map(k => [k, {data: {name: k, type: 'loot', system: {quantity: 1, price: {value: 0, denomination: 'gp'}}}, contents: []}]));
+    let n = 0;
+    const r = planShopImport(shopRecs, {items, randomId: () => `v${++n}`});
+    for (const row of r.results) {
+      if (row.result === 'skipped') errors.push(`${row.id}: Utilities skips it: ${row.reason}`);
+      for (const note of row.notes ?? []) notes.push(`${row.id}: ${note}`);
+    }
+    for (const rec of shopRecs.filter(x => x.entity_type === 'Shop')) {
+      const lines = Array.isArray(rec.shop?.lines) ? rec.shop.lines : [];
+      if (!lines.length) errors.push(`${rec.id}: shop.lines needs at least one line.`);
+      for (const [i, l] of lines.entries()) {
+        if (typeof l?.item_id === 'string' && !ids.has(l.item_id)) notes.push(`${rec.id}: line ${i + 1} item ${l.item_id} is not in this file; it must already be in the world (imported earlier).`);
+        if (typeof l?.item_uuid === 'string' && /^(Item|Actor)\./.test(l.item_uuid)) notes.push(`${rec.id}: line ${i + 1} item_uuid ${l.item_uuid} is a world UUID; it only works in the world it came from (use item_id).`);
+      }
+    }
   }
   return {errors, notes};
 }

@@ -1,0 +1,213 @@
+{
+  "_expect_error": "line 2 needs item_id or item_uuid",
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-TEST-SHOPS",
+    "version": "1.0.0",
+    "description": "Synthetic shop, bank and merchant list for testing (not canon)."
+  },
+  "records": [
+    {
+      "id": "ITEM-TEST-LEATHER-ARMOR",
+      "entity_type": "Item",
+      "status": "draft",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "refs": [],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Shops",
+        "data": {
+          "name": "[TEST] Leather Armor",
+          "type": "equipment",
+          "system": {
+            "quantity": 1,
+            "price": {
+              "value": 10,
+              "denomination": "gp"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ITEM-TEST-WATERSKIN",
+      "entity_type": "Item",
+      "status": "draft",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "refs": [],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Shops",
+        "data": {
+          "name": "[TEST] Waterskin",
+          "type": "loot",
+          "system": {
+            "quantity": 1,
+            "price": {
+              "value": 2,
+              "denomination": "sp"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "ITEM-TEST-HIDE-BUNDLE",
+      "entity_type": "Item",
+      "status": "draft",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "refs": [],
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Shops",
+        "data": {
+          "name": "[TEST] Hide Bundle",
+          "type": "loot",
+          "system": {
+            "quantity": 1,
+            "price": {
+              "value": 3,
+              "denomination": "gp"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "SHOP-TEST-TANNER",
+      "entity_type": "Shop",
+      "status": "draft",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "gm",
+      "refs": [
+        {
+          "relation": "located_at",
+          "target_id": "LOC-TEST-MARKET",
+          "mode": "optional"
+        }
+      ],
+      "name": "[TEST] Tanner's Stall",
+      "shop": {
+        "merchant_name": "[TEST] Hollis Reed",
+        "flavour": "Smells of oak bark and fresh leather.",
+        "location_id": "LOC-TEST-MARKET",
+        "gm_notes": "Synthetic test shop.",
+        "purse": {
+          "cp": 50,
+          "sp": 30,
+          "gp": 20,
+          "pp": 0
+        },
+        "show_purse": true,
+        "buys": {
+          "enabled": true,
+          "percent": 50,
+          "types": [
+            "equipment",
+            "loot"
+          ]
+        },
+        "lines": [
+          {
+            "item_id": "ITEM-TEST-LEATHER-ARMOR",
+            "price": {
+              "value": 10,
+              "denomination": "gp"
+            },
+            "stock": 2,
+            "flavour": "Supple and well stitched.",
+            "cost": {
+              "value": 6,
+              "denomination": "gp"
+            }
+          },
+          {
+            "price": {
+              "value": 2,
+              "denomination": "sp"
+            }
+          },
+          {
+            "item_id": "ITEM-TEST-HIDE-BUNDLE",
+            "price": {
+              "value": 3,
+              "denomination": "gp"
+            },
+            "hidden": true,
+            "cost": {
+              "value": 1,
+              "denomination": "gp"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "SVC-TEST-COUNTING-HOUSE",
+      "entity_type": "Service",
+      "status": "draft",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "gm",
+      "refs": [],
+      "name": "[TEST] Counting House",
+      "service": {
+        "type": "bank",
+        "merchant_name": "[TEST] Clerk Ames",
+        "flavour": "Brass scales and a bored clerk.",
+        "location_id": "LOC-TEST-MARKET",
+        "settings": {
+          "fee_percent": 0
+        }
+      }
+    },
+    {
+      "id": "MLIST-TEST-TESTFORD",
+      "entity_type": "MerchantList",
+      "status": "draft",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "gm",
+      "refs": [],
+      "name": "[TEST] Testford merchants",
+      "merchant_list": {
+        "location_id": "LOC-TEST-TESTFORD",
+        "shop_ids": [
+          "SHOP-TEST-TANNER",
+          "SVC-TEST-COUNTING-HOUSE"
+        ]
+      }
+    }
+  ]
+}

@@ -8,6 +8,7 @@ import {configureTrade,tradeApi,tradeHooks,tradeSocketHandlers,handleTrade,playe
 import {executeSell} from './shop-sell.mjs';
 import {servicesApi,executeServiceUse} from './services.mjs';
 import {merchantsApi} from './merchant-lists.mjs';
+import {importApi} from './shop-import.mjs';
 
 const {ApplicationV2}=foundry.applications.api;
 let windowInstance=null;
@@ -260,7 +261,7 @@ function footerHTML(app){
 class UtilitiesApp extends ApplicationV2 {
  static DEFAULT_OPTIONS={id:'ashen-gate-utilities-window',classes:['ag-app','ag-utilities','agu-window'],window:{title:'Ashen Gate | Utilities',resizable:true,minimizable:true},position:{width:900,height:690}};
  // Compact size; Comfortable (General Manager → My Appearance) scales it when the window is created.
- constructor(options={}){super({...options,position:{...windowSize(UtilitiesApp.DEFAULT_OPTIONS.position),...options.position}});this.setupStatus='';this.tab='rolls';this.rollMode='group';this.actorId='';this.rollActorId='';this.tableDraft='';this.tableAuto=false;this.lastDraw=[];this.filter='';this.takeActorId='';this.stashTab='items';this.historyShown=HISTORY_PAGE;this.purseCoin='gp';this.purseAmount='';this.shopSub='list';this.shopSearch='';this.shopSort='location';this.shopDraft=null;this.shopDirty=false;this.shopStatus='';this.playerShopSub='open';this.listDraft=null;this.listDirty=false;this.listStatus='';}
+ constructor(options={}){super({...options,position:{...windowSize(UtilitiesApp.DEFAULT_OPTIONS.position),...options.position}});this.setupStatus='';this.tab='rolls';this.rollMode='group';this.actorId='';this.rollActorId='';this.tableDraft='';this.tableAuto=false;this.lastDraw=[];this.filter='';this.takeActorId='';this.stashTab='items';this.historyShown=HISTORY_PAGE;this.purseCoin='gp';this.purseAmount='';this.shopSub='list';this.shopSearch='';this.shopSort='location';this.shopDraft=null;this.shopDirty=false;this.shopStatus='';this.playerShopSub='open';this.listDraft=null;this.listDirty=false;this.listStatus='';this.shopImport=null;}
  async _renderHTML(){if(!permitted())throw Error('Utilities is hidden for players.');this.tab=normalizeTab(this.tab);const tabs=[['rolls','Rolls','fa-dice-d20'],['inventory','Party Inventory','fa-sack-dollar'],...(isGM()?[['shops','Shops','fa-store',true]]:shopsVisible()?[['shops','Shops','fa-store']]:[]),['tables','Roll Tables','fa-table-list'],['conditions','Conditions','fa-heart-pulse'],...(isGM()?[['history','History','fa-clock-rotate-left',true],['setup','GM Setup','fa-gears',true]]:[])];
   if(!tabs.some(t=>t[0]===this.tab))this.tab='rolls';
   const body=this.tab==='rolls'?rollsView(this):this.tab==='inventory'?inventoryView(this):this.tab==='shops'?(isGM()?shopsView(this):playerShopsView(this)):this.tab==='tables'?tableView(this):this.tab==='conditions'?conditionsView(this):this.tab==='history'&&isGM()?historyView(this):this.tab==='setup'&&isGM()?setupView():empty('Nothing to show here');
@@ -1158,7 +1159,7 @@ Hooks.once('ready',()=>{
   embed:{contract:'ag-utilities-embed/1',modes:[...EMBED_MODES],mount:mountEmbed},
   purse:{contract:'ag-utilities-purse/1',coins:COINS,isVoteRequired:purseVoteRequired,setVoteRequired:setPurseVoteRequired,totals:purseTotals,deposit:depositCoins,take:takeCoins,adjust:adjustPurse,undo:undoPurseEntry,openAdjust:adjustPurseDialog,convertElectrum,undoConvert:undoElectrumConvert,openConvert:convertElectrumDialog},
   currency:{contract:'ag-utilities-currency/1',electrumEnabled,setElectrumEnabled,coins:()=>coinChoices(electrumEnabled()),hook:`${ID}.electrumChanged`},
-  shops:{...shopsApi(),...tradeApi(),services:servicesApi(),merchants:merchantsApi()},
+  shops:{...shopsApi(),...tradeApi(),...importApi(),services:servicesApi(),merchants:merchantsApi()},
   awardGold,undoGoldAward,gold:{contract:'ag-utilities-gold/1',award:awardGold,undo:undoGoldAward,defaultRecipients:()=>{if(!isGM())throw Error('GM only.');return goldDefaults();},openDialog:awardGoldDialog}};
  game.socket?.on?.(SOCKET,(msg,senderId)=>{void onSocket(msg,senderId).catch(error);});
  Hooks.on('renderActorDirectory',addLauncher);Hooks.on('createChatMessage',msg=>{void processSubmission(msg).catch(error);});
