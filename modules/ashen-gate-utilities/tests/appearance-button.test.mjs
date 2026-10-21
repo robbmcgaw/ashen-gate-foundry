@@ -36,5 +36,5 @@ test('players see the Appearance button when Manager offers My Appearance',async
   const html=await render();
   assert.match(html,/data-open-appearance/);
   assert.match(html,/class="ag-header agu-header"/);
-  assert.match(html,/class="ag-tabs agu-tabs"/);
+  assert.match(html,/class="ag-tabs ag-tabs--scroll agu-tabs" role="tablist"/);
 });
