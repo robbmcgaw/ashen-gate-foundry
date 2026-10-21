@@ -449,3 +449,6 @@
 .ag-character-hub .agch-other__row img { --agch-icon: 24px; }
 .ag-character-hub .agch-cards > li > .agch-item__img { justify-self: center; align-self: center; }
 .ag-character-hub .agch-card__main { min-width: 0; }
+
+/* 0.16.0: the art pane can be double-clicked to change the art (owners and the GM only; others get no hint) */
+.ag-character-hub .agch-doll__art.is-editable { cursor: pointer; }

@@ -3,6 +3,7 @@ export const HELP_HTML = `<p>The Character Hub is another way to look at the <st
 <ul>
   <li><strong>Open native sheet</strong> (top right) opens the standard dnd5e sheet at any time.</li>
   <li><strong>Left side</strong> is the character: portrait with equipment slots around it, AC, initiative, speed, proficiency, hit points, the six abilities, conditions, hit dice and rests. The icon buttons down the right edge switch what the middle shows (hover for the name).</li>
+  <li><strong>Change the art:</strong> double-click the big picture to choose a new portrait (or new token art, when Token art is shown). Only if you own the character.</li>
   <li><strong>See-through window:</strong> the slider in the header fades the whole window background so you can see the map. Only for you; text stays solid.</li>
   <li><strong>Fold sections:</strong> click a heading (or the arrow on a container in Inventory) to fold it away. The Hub remembers it for you on this computer.</li>
   <li><strong>Hit points:</strong> type an amount and press <strong>−</strong> (damage, temp HP first) or <strong>+</strong> (heal). <strong>Double-click</strong> the HP bar to set current HP, temp HP and the max adjustment. Yellow on the bar is temp HP; blue is extra max HP.</li>
