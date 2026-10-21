@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.13.0';
+export const VERSION = '0.13.1';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -274,7 +274,41 @@ export function historyEntry({id, kind, approval, user, actor, item, worldTime =
   return {id: String(id ?? `h${realTime}`), kind, approval, moved: approval !== 'denied' && approval !== 'timed-out',
     userId: str(user?.id), userName: str(user?.name) ?? 'Unknown', actorId: str(actor?.id), actorName: str(actor?.name),
     itemName: str(row.name) ?? 'Unnamed Item', itemUuid: str(row.uuid, 400), img: str(row.img, 400), quantity: num(row.quantity) ?? 1,
+    ...(num(row.contents) > 0 ? {contents: num(row.contents)} : {}),
     worldTime: num(worldTime), realTime: num(realTime) ?? Date.now()};
+}
+/** 0.13.1: " (with 3 items inside)" for a container entry; '' for anything else, including entries from before 0.13.1. */
+export const contentsNote = n => (num(n) > 0 ? ` (with ${n} ${n === 1 ? 'item' : 'items'} inside)` : '');
+/* ---- 0.13.1: a container moves with everything inside it ---- */
+/**
+ * The item followed by everything inside it, nested containers included, parents before children. dnd5e keeps a
+ * container's contents as separate Items on the same Actor (or in the world) whose `system.container` is the
+ * container's id; `items` is that collection. A cycle or a repeated id is visited once.
+ */
+export function containedItems(item, items) {
+  const all = [...(items ?? [])], out = [item], seen = new Set([item?.id]);
+  for (let i = 0; i < out.length; i++) {
+    for (const c of all) if (c?.system?.container === out[i].id && !seen.has(c.id)) { seen.add(c.id); out.push(c); }
+  }
+  return out;
+}
+/**
+ * Creation data for moving `item` and its contents: every copy gets a fresh `_id` (create with `keepId`) and each
+ * `system.container` points at the new id of its copied container. The moved item itself leaves any container it was
+ * in on the source. Everything else in the data is kept as is. `strip` lists top-level keys to drop (e.g. `folder`).
+ */
+export function moveBundle(item, items, {randomId, strip = []} = {}) {
+  if (typeof randomId !== 'function') throw new TypeError('moveBundle needs randomId.');
+  const docs = containedItems(item, items), ids = new Map(docs.map(d => [d.id, randomId()]));
+  const data = docs.map((d, i) => {
+    const o = d.toObject();
+    for (const k of strip) delete o[k];
+    o._id = ids.get(d.id);
+    if (i > 0) o.system = {...(o.system ?? {}), container: ids.get(d.system.container)};
+    else if (o.system?.container) o.system = {...o.system, container: null};
+    return o;
+  });
+  return {sourceIds: docs.map(d => d.id), data, contents: docs.length - 1};
 }
 /** Newest last; the oldest entries are trimmed once the cap is passed. Never mutates the input. */
 export function appendHistory(list, entry, cap = STASH_HISTORY_CAP) {
