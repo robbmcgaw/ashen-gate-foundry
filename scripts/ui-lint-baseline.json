@@ -44,15 +44,15 @@
     "button-title-attr": 0
   },
   "ashen-gate-locations": {
-    "css-colour-literal": 2,
-    "css-raw-font-size": 12,
+    "css-colour-literal": 0,
+    "css-raw-font-size": 0,
     "css-legacy-alias": 0,
-    "css-viewport-media": 1,
-    "css-raw-px-box": 114,
-    "css-kit-prefix-class": 1,
+    "css-viewport-media": 0,
+    "css-raw-px-box": 0,
+    "css-kit-prefix-class": 0,
     "js-dialogv2-direct": 0,
-    "header-brand-version": 2,
-    "button-title-attr": 7
+    "header-brand-version": 0,
+    "button-title-attr": 0
   },
   "ashen-gate-manager": {
     "css-colour-literal": 3,

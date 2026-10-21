@@ -5,16 +5,21 @@ import {MODULE_ID, THREATS, FIELDS, SECTIONS, BLOCKS, DETAIL_PREFIX, LOOT_STATUS
 import {GROUP_MODES, SORTS, emptyFilters, hasFilters, searchText, matchesQuery, applyFilters, filterOptions, comparator, groupRows} from './list-filter.mjs';
 import {buildTree, withAncestors, breadcrumb, moveTargets, VIEW} from './tree.mjs';
 import {routesMixin} from './routes-ui.mjs';
+import {MIN_KM, kmOk} from './routes.mjs';
 import {confirmDialog, formDialog, infoDialog} from './ag-dialogs.mjs';
+import {windowSize} from './ag-html.mjs';
 
 const QUEST_MODULE = 'ashen-gate-quest-manager';
 const FIELD_LABELS = {type: 'Type', region: 'Region', description: 'Description', img: 'Image', threat: 'Threat'};
 const api = () => game.modules.get(MODULE_ID)?.api;
 const notifyError = err => { console.error(`${MODULE_ID} |`, err); ui.notifications?.error(err?.message ?? String(err)); };
 const questApi = () => { const m = game.modules.get(QUEST_MODULE); return m?.active ? m.api ?? null : null; };
-const btn = (action, label, {kind = '', icon = '', data = {}, title = ''} = {}) =>
-  `<button type="button" class="ag-btn${kind ? ` ag-btn--${kind}` : ''}" data-action="${action}"${Object.entries(data).map(([k, v]) => ` data-${k}="${esc(v)}"`).join('')}${title ? ` title="${esc(title)}"` : ''}>${icon ? `<i class="${icon}" aria-hidden="true"></i>` : ''}${label ? `<span>${esc(label)}</span>` : ''}</button>`;
-const eye = (bind, on, what) => `<label class="agl-eye" title="${on ? 'Visible' : 'Hidden'} to players: ${esc(what)}"><input type="checkbox" data-toggle="${esc(bind)}" ${on ? 'checked' : ''}><i class="fa-solid ${on ? 'fa-eye' : 'fa-eye-slash'}" aria-hidden="true"></i><span class="agl-sr">Show ${esc(what)} to players</span></label>`;
+/** Foundry tooltip in the kit's skin (replaces native title=). */
+const tip = text => text ? ` data-tooltip="${esc(text)}" data-tooltip-class="ag-tooltip"` : '';
+/** A kit button. kind: primary | ghost | danger | sm | icon (or several, space-separated). Icon-only buttons take their label from title. */
+const btn = (action, label, {kind = '', icon = '', data = {}, title = '', cls = ''} = {}) =>
+  `<button type="button" class="ag-btn${kind ? kind.split(' ').map(k => ` ag-btn--${k}`).join('') : ''}${!label && icon && !kind.includes('icon') ? ' ag-btn--icon' : ''}${cls ? ` ${cls}` : ''}" data-action="${action}"${Object.entries(data).map(([k, v]) => ` data-${k}="${esc(v)}"`).join('')}${!label && title ? ` aria-label="${esc(title)}"` : ''}${tip(title)}>${icon ? `<i class="${icon}" aria-hidden="true"></i>` : ''}${label ? `<span>${esc(label)}</span>` : ''}</button>`;
+const eye = (bind, on, what) => `<label class="agl-eye"${tip(`${on ? 'Visible' : 'Hidden'} to players: ${what}`)}><input type="checkbox" data-toggle="${esc(bind)}" ${on ? 'checked' : ''}><i class="fa-solid ${on ? 'fa-eye' : 'fa-eye-slash'}" aria-hidden="true"></i><span class="agl-sr">Show ${esc(what)} to players</span></label>`;
 /** "section:key" -> [section, key] (a key may itself contain a colon). */
 const splitEntry = v => { const i = v.indexOf(':'); return [v.slice(0, i), v.slice(i + 1)]; };
 const NUMERIC = new Set(['tier', 'dc', 'quantity', 'rareQuantity']);
@@ -70,7 +75,9 @@ const STATE_HINTS = {
 };
 const setting = (key, fallback) => { try { return game.settings.get(MODULE_ID, key) || fallback; } catch { return fallback; } };
 const sceneName = uuid => { try { return globalThis.fromUuidSync?.(uuid)?.name ?? null; } catch { return null; } };
-const threatBadge = value => `<span class="ag-badge agl-threat agl-threat--${esc(value)}">${esc(threatLabel(value))}</span>`;
+/** Threat as a kit badge: Settled plain, Light and Normal ok, Hot warn, Deadly a solid danger fill (agl-threat--deadly). */
+const THREAT_TONES = {light: 'ok', normal: 'ok', hot: 'warn', deadly: 'danger'};
+const threatBadge = value => `<span class="ag-badge${THREAT_TONES[value] ? ` ag-badge--${THREAT_TONES[value]}` : ''} agl-threat agl-threat--${esc(value)}">${esc(threatLabel(value))}</span>`;
 const userName = id => game.users?.get?.(id)?.name ?? 'A former player';
 /** The world's players (not GMs), by name. */
 const worldPlayers = () => [...(game.users ?? [])].filter(u => u?.id && !u.isGM).sort((a, b) => String(a.name).localeCompare(String(b.name)));
@@ -127,7 +134,7 @@ function questName(id, choices) {
 
 const Base = foundry.applications.api.ApplicationV2;
 export class LocationsApp extends Base {
-  static DEFAULT_OPTIONS = {id: 'ag-locations', classes: ['ag-app', 'ag-locations'], window: {title: 'Ashen Gate | Locations', resizable: true}, position: {width: 980, height: 720}};
+  static DEFAULT_OPTIONS = {id: 'ag-locations', classes: ['ag-app', 'agl-app'], window: {title: 'Ashen Gate | Locations', resizable: true}, position: {width: 980, height: 720}};
   static instance = null;
   /** Tree mode folders the GM (or player) opened. Kept while the game is open, across closing and reopening the window. */
   static treeOpen = new Set();
@@ -155,7 +162,8 @@ export class LocationsApp extends Base {
   }
 
   constructor(options = {}) {
-    super(options);
+    // Compact size; Comfortable (General Manager → My Appearance) opens it 1.2× larger.
+    super({...options, position: {...windowSize(LocationsApp.DEFAULT_OPTIONS.position), ...(options.position ?? {})}});
     this.tab = 'locations'; this.query = ''; this.selectedId = null; this.draft = null; this.dirty = false;
     // Party Notes being edited: {ref, text, rev, renewed}. Kept across re-renders so live updates never wipe typing.
     this.notesEdit = null; this.notesTimer = null;
@@ -222,12 +230,15 @@ export class LocationsApp extends Base {
     }
     const version = game.modules.get(MODULE_ID)?.version ?? '';
     // 1.10.0: players get a Routes tab only once some route is visible to them (1.11.0: or the party is travelling).
-    const tabs = this.gm ? [['locations', 'Locations'], ['routes', 'Routes'], ['setup', 'GM Setup']]
-      : api().listRoutes().length || api().getJourney()?.status === 'active' ? [['locations', 'Locations'], ['routes', 'Routes']] : [['locations', 'Locations']];
-    return `<div class="agl-root">
-      <header class="ag-header"><h1>Ashen Gate | Locations</h1><div class="ag-header__actions"><span class="ag-version">v${esc(version)}</span>${btn('help', 'Help', {kind: 'ghost', icon: 'fa-solid fa-circle-question'})}</div></header>
-      ${tabs.length > 1 ? `<nav class="ag-tabs" aria-label="Locations sections">${tabs.map(([k, l]) => `<button type="button" data-tab="${k}" class="${this.tab === k ? 'active' : ''}">${l}</button>`).join('')}</nav>` : ''}
-      ${this.tab === 'setup' && this.gm ? this.setupHtml() : this.tab === 'routes' && tabs.some(([k]) => k === 'routes') ? this.routesHtml() : this.locationsHtml(list)}
+    const tabs = this.gm ? [['locations', 'Locations', 'fa-map-location-dot'], ['routes', 'Routes', 'fa-route'], ['setup', 'GM Setup', 'fa-gears', true]]
+      : api().listRoutes().length || api().getJourney()?.status === 'active' ? [['locations', 'Locations', 'fa-map-location-dot'], ['routes', 'Routes', 'fa-route']] : [['locations', 'Locations', 'fa-map-location-dot']];
+    const tab = this.tab === 'setup' && this.gm ? 'setup' : this.tab === 'routes' && tabs.some(([k]) => k === 'routes') ? 'routes' : 'locations';
+    return `<div class="agl-root ag-window">
+      <header class="ag-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Locations</h1></div>
+        <div class="ag-header__meta"><span class="ag-version">v${esc(version)}</span>${btn('help', 'Help', {kind: 'ghost sm', icon: 'fa-solid fa-circle-question'})}</div></header>
+      ${tabs.length > 1 ? `<nav class="ag-tabs ag-tabs--scroll" role="tablist" aria-label="Locations sections">${tabs.map(([k, l, icon, gmOnly]) =>
+        `<button type="button" role="tab" data-tab="${k}" aria-selected="${tab === k}" class="${tab === k ? 'active' : ''}${gmOnly ? ' ag-tab--gm' : ''}"><i class="fa-solid ${icon}" aria-hidden="true"></i> ${l}</button>`).join('')}</nav>` : ''}
+      ${tab === 'setup' ? this.setupHtml() : tab === 'routes' ? this.routesHtml() : this.locationsHtml(list)}
     </div>`;
   }
   _replaceHTML(result, content) {
@@ -245,7 +256,7 @@ export class LocationsApp extends Base {
 
   // ---------- list ----------
   locationsHtml(list) {
-    let rows = list, total = list.length, gmTools = '';
+    let rows = list, total = list.length, filters = '';
     if (this.gm) {
       const questChoicesList = questChoices();
       const qName = id => questName(id, questChoicesList) ?? id;
@@ -253,57 +264,62 @@ export class LocationsApp extends Base {
       if (this.query.trim()) rows = rows.filter(l => matchesQuery(searchText(l, {questName: qName, materialName: id => mats.get(id) ?? id}), this.query));
       const searched = rows;
       rows = applyFilters(rows, this.filters).sort(comparator(this.sort, this.sortDesc));
-      gmTools = this.filterBarHtml(filterOptions(searched, this.filters, qName), rows.length, total);
+      filters = this.filterBarHtml(filterOptions(searched, this.filters, qName));
       this.qName = qName;
     } else {
       const q = this.query.toLowerCase();
       rows = list.filter(l => !q || [l.name, l.type, l.region].some(s => String(s ?? '').toLowerCase().includes(q)));
     }
-    const row = l => `<li>${this.rowButton(l)}</li>`;
+    const filtering = hasFilters(this.filters) || !!this.query.trim();
     let items;
-    if (this.gm && this.treeMode) items = this.treeHtml(list, rows, hasFilters(this.filters) || !!this.query.trim());
+    if (this.gm && this.treeMode) items = this.treeHtml(list, rows, filtering);
     else if (!this.gm) items = this.playerTreeHtml(list, rows, !!this.query.trim());
-    else if (this.gm) {
+    else {
       items = groupRows(rows, this.groupBy, this.qName).map(g => {
-        if (this.groupBy === 'none') return `<li class="agl-group"><ul class="ag-list">${g.rows.map(row).join('')}</ul></li>`;
+        if (this.groupBy === 'none') return `<li class="agl-group"><div class="ag-rows">${g.rows.map(l => this.rowButton(l)).join('')}</div></li>`;
         const folded = this.collapsed.has(`${this.groupBy}:${g.key}`);
-        return `<li class="agl-group"><h3><button type="button" class="agl-group__head" data-action="toggle-group" data-group="${esc(g.key)}" aria-expanded="${!folded}"
-          title="Fold or unfold"><i class="fa-solid ${folded ? 'fa-chevron-right' : 'fa-chevron-down'}" aria-hidden="true"></i><span>${esc(g.label)}</span><span class="agl-count">${g.rows.length}</span></button></h3>
-          ${folded ? '' : `<ul class="ag-list">${g.rows.map(row).join('')}</ul>`}</li>`;
+        return `<li class="agl-group"><h3 class="agl-group__title"><button type="button" class="agl-group__head ag-eyebrow" data-action="toggle-group" data-group="${esc(g.key)}" aria-expanded="${!folded}"
+          ${tip(folded ? 'Unfold' : 'Fold')}><i class="fa-solid ${folded ? 'fa-chevron-right' : 'fa-chevron-down'}" aria-hidden="true"></i><span>${esc(g.label)}</span><span class="agl-count">${g.rows.length}</span></button></h3>
+          ${folded ? '' : `<div class="ag-rows">${g.rows.map(l => this.rowButton(l)).join('')}</div>`}</li>`;
       }).join('');
     }
-    const empty = this.gm ? 'No locations yet. Click <strong>New Location</strong> to create one.' : 'No locations have been revealed yet.';
+    const empty = (icon, title, text, action = '') => `<div class="ag-empty"><i class="fa-solid ${icon}" aria-hidden="true"></i><p class="ag-empty__title">${title}</p><p class="ag-empty__text">${text}</p>${action}</div>`;
     const none = list.length
-      ? `<p class="ag-empty">${this.gm ? 'No locations match these filters.' : 'No matches.'}</p>${this.gm ? btn('clear-filters', 'Clear filters', {icon: 'fa-solid fa-filter-circle-xmark'}) : ''}`
-      : `<p class="ag-empty">${empty}</p>`;
-    return `<div class="ag-toolbar"><input type="search" id="agl-search" placeholder="${this.gm ? 'Search name, region, skill, material, quest…' : 'Search locations'}" value="${esc(this.query)}" aria-label="Search locations">
-        ${this.gm ? btn('new', 'New Location', {kind: 'primary', icon: 'fa-solid fa-plus'}) : ''}</div>${gmTools}
-      <div class="agl-body"><aside class="agl-list">${this.undoHtml()}${rows.length ? `<ul class="agl-groups">${items}</ul>` : none}
+      ? empty('fa-filter', 'Nothing matches', this.gm ? 'No locations match this search and these filters.' : 'No places match this search.',
+        this.gm || this.query ? btn('clear-filters', 'Clear filters', {kind: 'sm', icon: 'fa-solid fa-filter-circle-xmark'}) : '')
+      : this.gm ? empty('fa-map-location-dot', 'No locations yet', 'Create one with New location, or import a file.', btn('new', 'New location', {kind: 'sm', icon: 'fa-solid fa-plus'}))
+        : empty('fa-map-location-dot', 'No locations yet', "Your GM hasn't revealed any places yet.");
+    const end = this.gm ? `<div class="ag-toolbar__end">${btn('import', 'Import', {kind: 'sm', icon: 'fa-solid fa-file-import', title: 'Location and Route records (ag-foundry-import/0.2). Records already in this world are kept as they are.'})}${btn('export', 'Export', {kind: 'sm', icon: 'fa-solid fa-file-export', title: 'Every location and route as one JSON file'})}
+        <input type="file" id="agl-import-file" accept=".json,application/json" hidden>${btn('new', 'New location', {icon: 'fa-solid fa-plus'})}</div>` : '';
+    return `<div class="ag-toolbar agl-toolbar"><label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="agl-search" placeholder="${this.gm ? 'Search name, region, skill, material, quest…' : 'Search locations'}" value="${esc(this.query)}" aria-label="Search locations"></label>
+        ${filters}${this.gm ? `<span class="ag-toolbar__count" aria-live="polite">Showing ${rows.length} of ${total}</span>` : ''}${end}</div>
+      <div class="agl-body ag-split"><aside class="agl-list ag-split__list">${this.undoHtml()}${rows.length ? `<ul class="agl-groups">${items}</ul>` : none}
         ${this.gm && rows.length ? `<p class="agl-hint">Drag a placeable location onto the scene to place a Map Note${this.treeMode ? '; drag one onto a folder to move it inside' : ''}.</p>` : ''}</aside>
-      <section class="agl-detail">${this.gm ? this.editorHtml() : this.viewerHtml(list.find(l => this.rid(l) === this.selectedId))}</section></div>`;
+      <section class="agl-detail ag-split__detail">${this.gm ? this.editorHtml() : this.viewerHtml(list.find(l => this.rid(l) === this.selectedId))}</section></div>`;
   }
 
   /** One list row. GM: draggable onto the canvas (placeable ones, or all with "Show representative-only too") or onto a folder. */
   rowButton(l) {
-    const gm = this.gm, rep = gm && !isPlaceable(l);
+    const gm = this.gm, rep = gm && !isPlaceable(l), selected = this.rid(l) === this.selectedId;
     const drag = gm ? ` draggable="true" data-drag-type="${!rep || this.showRep ? 'AshenGateLocation' : 'AshenGateLocationMove'}"` : '';
     const restricted = gm ? l.audience?.mode === 'selected' : !!l.share;
-    return `<button type="button" class="agl-row${this.rid(l) === this.selectedId ? ' active' : ''}" data-action="select" data-id="${esc(this.rid(l))}"${drag}>
-        ${gm && l.isRegion ? '<i class="fa-solid fa-folder agl-row__icon" title="Region (folder)"></i>' : ''}
-        <span class="agl-row__name">${esc(l.name)}</span>
-        ${rep && !l.isRegion ? '<i class="fa-solid fa-layer-group agl-row__rev" title="Representative only: not placed on maps"></i>' : ''}
-        ${restricted ? `<i class="fa-solid fa-user-lock agl-row__rev" title="${gm ? 'Selected players only' : 'Shared with selected players'}"></i>` : ''}
+    const mark = (icon, text) => `<i class="fa-solid ${icon} agl-row__rev"${tip(text)} aria-label="${esc(text)}"></i>`;
+    return `<button type="button" class="ag-row agl-row${selected ? ' is-selected' : ''}"${selected ? ' aria-current="true"' : ''} data-action="select" data-id="${esc(this.rid(l))}"${drag}>
+        ${gm && l.isRegion ? `<i class="fa-solid fa-folder agl-row__icon"${tip('Region (folder)')} aria-label="Region"></i>` : ''}
+        <span class="ag-row__main"><span class="ag-row__title agl-row__name">${esc(l.name)}</span></span>
+        <span class="ag-row__end">${rep && !l.isRegion ? mark('fa-layer-group', 'Representative only: not placed on maps') : ''}
+        ${restricted ? mark('fa-user-lock', gm ? 'Selected players only' : 'Shared with selected players') : ''}
         ${l.threat ? threatBadge(l.threat) : ''}
-        ${gm ? `${hasUnpublishedChanges(l) ? '<span class="agl-dot" title="Saved changes not published yet"></span>' : ''}<i class="${STATE_ICONS[l.state]} agl-row__rev" title="${STATE_LABELS[l.state]}"></i>` : ''}
+        ${gm ? `${hasUnpublishedChanges(l) ? `<span class="agl-dot"${tip('Saved changes not published yet')} aria-label="Saved changes not published yet"></span>` : ''}${mark(STATE_ICONS[l.state].replace('fa-solid ', ''), STATE_LABELS[l.state])}` : ''}</span>
       </button>`;
   }
   /** One tree node and, if open, its children. GM Regions are folders: counts, drop target, New place inside. */
   treeNodeHtml(n, {open, path = null}) {
     const l = n.item, kids = n.children.length > 0, isOpen = kids && open(n.id), folder = this.gm && l.isRegion;
-    const toggle = kids ? `<button type="button" class="agl-tree__toggle" data-action="tree-toggle" data-id="${esc(n.id)}" aria-expanded="${isOpen}" aria-label="${isOpen ? 'Close' : 'Open'} ${esc(l.name)}" title="${isOpen ? 'Close' : 'Open'}"><i class="fa-solid ${isOpen ? 'fa-chevron-down' : 'fa-chevron-right'}" aria-hidden="true"></i></button>`
+    const toggle = kids ? `<button type="button" class="agl-tree__toggle" data-action="tree-toggle" data-id="${esc(n.id)}" aria-expanded="${isOpen}" aria-label="${isOpen ? 'Close' : 'Open'} ${esc(l.name)}"${tip(isOpen ? 'Close' : 'Open')}><i class="fa-solid ${isOpen ? 'fa-chevron-down' : 'fa-chevron-right'}" aria-hidden="true"></i></button>`
       : '<span class="agl-tree__toggle" aria-hidden="true"></span>';
-    const counts = this.gm && (folder || n.direct) ? `<span class="agl-count" title="${n.direct} directly inside, ${n.total} in total">${n.direct}${n.total !== n.direct ? ` · ${n.total}` : ''}</span>` : '';
-    const add = folder ? btn('new-child', '', {kind: 'ghost', icon: 'fa-solid fa-plus', data: {parent: l.id}, title: `New place inside ${l.name}`}) : '';
+    const counts = this.gm && (folder || n.direct) ? `<span class="agl-count"${tip(`${n.direct} directly inside, ${n.total} in total`)}>${n.direct}${n.total !== n.direct ? ` · ${n.total}` : ''}</span>` : '';
+    const add = folder ? btn('new-child', '', {kind: 'ghost sm', icon: 'fa-solid fa-plus', data: {parent: l.id}, title: `New place inside ${l.name}`}) : '';
     return `<li class="agl-tree__item${path && !path.has(n.id) ? ' agl-tree__item--path' : ''}">
       <div class="agl-tree__row"${folder ? ` data-folder="${esc(l.id)}"` : ''}>${toggle}${this.rowButton(l)}${counts}${add}</div>
       ${isOpen ? `<ul class="agl-tree">${n.children.map(c => this.treeNodeHtml(c, {open, path})).join('')}</ul>` : ''}</li>`;
@@ -318,7 +334,7 @@ export class LocationsApp extends Base {
     const show = filtering ? withAncestors(list, rows) : null;
     const nodes = buildTree(list, {show, sort: comparator(this.sort, this.sortDesc)});
     const open = this.treeOpener(list, filtering);
-    const tools = `<li class="agl-tree__tools" data-folder="">${btn('tree-all', 'Expand all', {kind: 'ghost', icon: 'fa-solid fa-folder-open', data: {open: 1}})}${btn('tree-all', 'Collapse all', {kind: 'ghost', icon: 'fa-solid fa-folder-closed', data: {open: 0}})}
+    const tools = `<li class="agl-tree__tools" data-folder="">${btn('tree-all', 'Expand all', {kind: 'ghost sm', icon: 'fa-solid fa-folder-open', data: {open: 1}})}${btn('tree-all', 'Collapse all', {kind: 'ghost sm', icon: 'fa-solid fa-folder-closed', data: {open: 0}})}
       <span class="agl-hint">Drop here for top level</span></li>`;
     return `${tools}<li><ul class="agl-tree agl-tree--root" aria-label="Locations by folder">${nodes.map(n => this.treeNodeHtml(n, {open, path: show && new Set(rows.map(l => l.id))})).join('')}</ul></li>`;
   }
@@ -334,32 +350,33 @@ export class LocationsApp extends Base {
     for (const n of nodes) { const g = n.item.state === 'unidentified' ? UNID : n.item.region || 'No region'; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(n); }
     const last = g => g === 'No region' || g === UNID;
     return [...groups.entries()].sort(([a], [b]) => last(a) - last(b) || (a === UNID) - (b === UNID) || a.localeCompare(b))
-      .map(([group, ns]) => `<li class="agl-group"><h3>${esc(group)}</h3><ul class="agl-tree agl-tree--root">${ns.map(n => this.treeNodeHtml(n, {open})).join('')}</ul></li>`).join('');
+      .map(([group, ns]) => `<li class="agl-group"><h3 class="agl-group__title ag-eyebrow">${esc(group)}</h3><ul class="agl-tree agl-tree--root">${ns.map(n => this.treeNodeHtml(n, {open})).join('')}</ul></li>`).join('');
   }
   /** After a move: what happened, with Undo (GM). */
   undoHtml() {
     const m = this.lastMove;
     if (!m || !this.gm) return '';
-    return `<div class="agl-undo" role="status"><span>Moved <strong>${esc(m.name)}</strong> ${m.to ? `into ${esc(m.toName)}` : 'to the top level'}.</span>${btn('undo-move', 'Undo', {icon: 'fa-solid fa-rotate-left'})}</div>`;
+    return `<div class="agl-undo" role="status"><span>Moved <strong>${esc(m.name)}</strong> ${m.to ? `into ${esc(m.toName)}` : 'to the top level'}.</span>${btn('undo-move', 'Undo', {kind: 'sm', icon: 'fa-solid fa-rotate-left'})}</div>`;
   }
 
-  /** GM list controls: filters (AND, each with counts), sort, group, Clear filters and "Showing N of M". */
-  filterBarHtml(opts, shown, total) {
-    const sel = (key, label, all, extra = '') => `<label class="agl-ctl">${label}<select data-filter="${key}" aria-label="Filter by ${label.toLowerCase()}"><option value="">${all}</option>${extra}${opts[key].map(o =>
+  /** GM list controls in the toolbar's filters slot: filters (AND, each with counts), sort, group, Tree, Clear filters. */
+  filterBarHtml(opts) {
+    const sel = (key, label, all, extra = '') => `<label class="ag-field ag-field--inline agl-ctl"><span>${label}</span><select data-filter="${key}" aria-label="Filter by ${label.toLowerCase()}"><option value="">${all}</option>${extra}${opts[key].map(o =>
       `<option value="${esc(o.value)}" ${this.filters[key] === o.value ? 'selected' : ''}>${esc(o.label)} (${o.count})</option>`).join('')}</select></label>`;
-    const plain = (id, label, list, cur) => `<label class="agl-ctl">${label}<select id="${id}" aria-label="${label}">${list.map(m => `<option value="${m.value}" ${cur === m.value ? 'selected' : ''}>${m.label}</option>`).join('')}</select></label>`;
-    return `<div class="agl-filters" role="group" aria-label="Filter, sort and group the list">
+    const plain = (id, label, list, cur) => `<label class="ag-field ag-field--inline agl-ctl"><span>${label}</span><select id="${id}" aria-label="${label}">${list.map(m => `<option value="${m.value}" ${cur === m.value ? 'selected' : ''}>${m.label}</option>`).join('')}</select></label>`;
+    const dir = this.sortDesc ? 'Descending (click for ascending)' : 'Ascending (click for descending)';
+    return `<div class="ag-toolbar__filters agl-filters" role="group" aria-label="Filter, sort and group the list">
       ${sel('threat', 'Threat', 'All')}${sel('region', 'Region', 'All')}${sel('profession', 'Profession', 'All')}${sel('quest', 'Quest', 'Any')}${sel('status', 'Status', 'All')}${sel('placeable', 'Placeable', 'All')}
-      ${plain('agl-sort', 'Sort by', SORTS, this.sort)}<button type="button" class="ag-btn" id="agl-sortdir" aria-label="Sort direction: ${this.sortDesc ? 'descending' : 'ascending'}" title="${this.sortDesc ? 'Descending (click for ascending)' : 'Ascending (click for descending)'}"><i class="fa-solid ${this.sortDesc ? 'fa-arrow-down-wide-short' : 'fa-arrow-up-short-wide'}" aria-hidden="true"></i></button>
+      ${plain('agl-sort', 'Sort by', SORTS, this.sort)}<button type="button" class="ag-btn ag-btn--icon" id="agl-sortdir" aria-label="Sort direction: ${this.sortDesc ? 'descending' : 'ascending'}"${tip(dir)}><i class="fa-solid ${this.sortDesc ? 'fa-arrow-down-wide-short' : 'fa-arrow-up-short-wide'}" aria-hidden="true"></i></button>
       ${this.treeMode ? '' : plain('agl-groupby', 'Group by', GROUP_MODES, this.groupBy)}
-      <button type="button" class="ag-btn${this.treeMode ? ' ag-btn--primary' : ''}" id="agl-tree" aria-pressed="${this.treeMode}" title="Show locations inside their Regions, as folders"><i class="fa-solid fa-folder-tree" aria-hidden="true"></i><span>Tree</span></button>
-      <label class="agl-switch" title="Representative-only locations (most Regions) are not offered for placing on a map unless this is on"><input type="checkbox" id="agl-showrep" ${this.showRep ? 'checked' : ''}> Show representative-only too</label>
-      <span class="agl-showing" aria-live="polite">Showing ${shown} of ${total}</span>${hasFilters(this.filters) || this.query ? btn('clear-filters', 'Clear filters', {kind: 'ghost', icon: 'fa-solid fa-filter-circle-xmark'}) : ''}</div>`;
+      <button type="button" class="ag-chip" id="agl-tree" aria-pressed="${this.treeMode}"${tip('Show locations inside their Regions, as folders')}><i class="fa-solid fa-folder-tree" aria-hidden="true"></i> Tree</button>
+      <label class="ag-field ag-field--inline agl-switch"${tip('Representative-only locations (most Regions) are not offered for placing on a map unless this is on')}><input type="checkbox" id="agl-showrep" ${this.showRep ? 'checked' : ''}> Show representative-only too</label>
+      ${hasFilters(this.filters) || this.query ? btn('clear-filters', 'Clear filters', {kind: 'ghost sm', icon: 'fa-solid fa-filter-circle-xmark'}) : ''}</div>`;
   }
 
   // ---------- player viewer ----------
   viewerHtml(v, {partyNotes = true} = {}) {
-    if (!v) return '<p class="ag-empty">Select a location.</p>';
+    if (!v) return '<div class="ag-empty"><p class="ag-empty__title">No place selected</p><p class="ag-empty__text">Pick a place from the list.</p></div>';
     const go = r => `<a class="agl-link" data-action="select" data-id="${esc(r.key || r.id)}">${esc(r.name)}</a>${r.id ? '' : ' <small>(unidentified)</small>'}`;
     const share = partyNotes ? this.shareHtml(v) : '';
     if (v.state === 'unidentified') return `<article class="agl-view">
@@ -373,7 +390,7 @@ export class LocationsApp extends Base {
     const ul = items => items.length ? `<ul class="ag-list agl-entries">${items.map(i => `<li>${i}</li>`).join('')}</ul>` : '';
     const paras = t => esc(t).replace(/\n/g, '<br>');
     const questItems = (v.quests ?? []).map(id => [id, questName(id, quests)]).filter(([, n]) => n)
-      .map(([id, n]) => `<a class="agl-link" data-action="open-quest" data-id="${esc(id)}"><i class="fa-solid fa-scroll"></i> ${esc(n)}</a>`);
+      .map(([id, n]) => `<a class="agl-link" data-action="open-quest" data-id="${esc(id)}"><i class="fa-solid fa-scroll" aria-hidden="true"></i> ${esc(n)}</a>`);
     // Loot: only the approved title, text, image and status. A link opens only if Foundry says this user may open the document.
     const lootItem = l => `${l.img ? `<img class="agl-loot__img" src="${esc(l.img)}" alt="">` : ''}<span class="agl-entry">${canOpen(l.uuid) ? link(l.label || 'Item', l.uuid) : esc(l.label)}
       ${l.text ? `<small>${esc(l.text)}</small>` : ''}</span><span class="ag-badge ${l.status === 'available' ? 'ag-badge--ok' : ''}">${esc(LOOT_STATUS_LABELS[l.status] ?? 'Available')}</span>`;
@@ -434,12 +451,12 @@ export class LocationsApp extends Base {
     if (editing) {
       body = `<textarea id="agl-party-text" rows="6" maxlength="${PARTY_NOTES.maxLength}" aria-label="Party Notes">${esc(this.notesEdit.text)}</textarea>
         <p class="agl-hint">Only you can edit now; others see that you are editing. Save or Cancel when you are done (the lock lapses after ${Math.round(PARTY_NOTES.lockMs / 60000)} minutes without typing).</p>
-        <div class="agl-party__actions"><div>${btn('notes-cancel', 'Cancel', {kind: 'ghost', data})}</div><div>${btn('notes-save', 'Save Notes', {kind: 'primary', icon: 'fa-solid fa-floppy-disk', data})}</div></div>`;
+        <div class="agl-party__actions"><div>${btn('notes-cancel', 'Cancel', {kind: 'ghost', data})}</div><div>${btn('notes-save', 'Save Notes', {kind: this.gm ? '' : 'primary', icon: 'fa-solid fa-floppy-disk', data})}</div></div>`;
     } else {
       const text = n.text ? `<p class="agl-party__text">${esc(n.text).replace(/\n/g, '<br>')}</p>` : '<p class="ag-empty">No party notes yet.</p>';
       const edit = other && this.gm
         ? btn('notes-edit', 'Take Over', {icon: 'fa-solid fa-pen', data: {...data, takeover: 1}, title: `Edit now. ${other.name}'s unsaved text will be refused when they save.`})
-        : `<button type="button" class="ag-btn" data-action="notes-edit" data-ref="${esc(ref)}"${other ? ` disabled title="${esc(other.name)} is editing"` : ''}><i class="fa-solid fa-pen" aria-hidden="true"></i><span>Edit</span></button>`;
+        : `<button type="button" class="ag-btn" data-action="notes-edit" data-ref="${esc(ref)}"${other ? ' disabled' : ''}><i class="fa-solid fa-pen" aria-hidden="true"></i><span>Edit</span></button>${other ? `<span class="agl-hint">${esc(other.name)} is editing; you can edit when they are done.</span>` : ''}`;
       const clear = this.gm && n.text ? btn('notes-clear', 'Clear', {kind: 'danger', icon: 'fa-solid fa-eraser', data, title: 'Empty these Party Notes'}) : '';
       body = `${text}${meta}<div class="agl-party__actions"><div>${clear}</div><div>${edit}</div></div>`;
     }
@@ -465,23 +482,23 @@ export class LocationsApp extends Base {
   // ---------- GM editor ----------
   editorHtml() {
     const d = this.draft;
-    if (!d) return '<p class="ag-empty">Select a location, or create a new one.</p>';
+    if (!d) return '<div class="ag-empty"><p class="ag-empty__title">No location selected</p><p class="ag-empty__text">Pick one from the list, or create one with New location.</p></div>';
     const all = api().listLocations();
     const quests = questChoices();
     const fld = (f, control) => `<div class="ag-field agl-field"><label for="agl-${f}">${FIELD_LABELS[f]}</label><div class="agl-field__row">${control}${eye(`show.${f}`, d.show[f], FIELD_LABELS[f])}</div></div>`;
     const label = key => BLOCKS.find(b => b.key === key)?.label ?? key;
     const blockTools = (key, title) => `<span class="agl-block-tools"><span class="agl-handle" draggable="true" data-drag-block="${esc(key)}" tabindex="0" role="button"
-        aria-label="Move ${esc(title)}. Drag, or press Alt+Up or Alt+Down." title="Drag to reorder (Alt+Up / Alt+Down)"><i class="fa-solid fa-grip-vertical" aria-hidden="true"></i></span>
-      ${btn('move-block', '', {kind: 'ghost', icon: 'fa-solid fa-arrow-up', data: {key, dir: -1}, title: `Move ${title} up`})}${btn('move-block', '', {kind: 'ghost', icon: 'fa-solid fa-arrow-down', data: {key, dir: 1}, title: `Move ${title} down`})}</span>`;
+        aria-label="Move ${esc(title)}. Drag, or press Alt+Up or Alt+Down."${tip('Drag to reorder (Alt+Up / Alt+Down)')}><i class="fa-solid fa-grip-vertical" aria-hidden="true"></i></span>
+      ${btn('move-block', '', {kind: 'ghost sm', icon: 'fa-solid fa-arrow-up', data: {key, dir: -1}, title: `Move ${title} up`})}${btn('move-block', '', {kind: 'ghost sm', icon: 'fa-solid fa-arrow-down', data: {key, dir: 1}, title: `Move ${title} down`})}</span>`;
     const block = (key, titleHtml, plainTitle, body, head = '', drop = key) => `<section class="ag-card agl-section" data-block="${esc(key)}"${drop ? ` data-drop="${esc(drop)}"` : ''}>
         <header class="agl-section__head"><h3>${titleHtml}</h3><span class="agl-head-tools">${head}${blockTools(key, plainTitle)}</span></header>${body}</section>`;
     const sec = (key, body, add, dropHint) => block(key, label(key), label(key), `${body || `<p class="ag-empty">${dropHint}</p>`}<div class="agl-add">${add}</div>`,
-      `<label class="agl-switch"><input type="checkbox" data-toggle="sections.${key}" ${d.sections[key] ? 'checked' : ''}> Show section to players</label>`);
-    const entryTools = (key, e) => `${btn('move-entry', '', {kind: 'ghost', icon: 'fa-solid fa-arrow-up', data: {section: key, key: e.key, dir: -1}, title: 'Move up'})}${btn('move-entry', '', {kind: 'ghost', icon: 'fa-solid fa-arrow-down', data: {section: key, key: e.key, dir: 1}, title: 'Move down'})}${eye(`${key}.${e.key}.visible`, e.visible, 'this entry')}${btn('remove', '', {kind: 'ghost', icon: 'fa-solid fa-trash', data: {section: key, key: e.key}, title: 'Remove'})}`;
-    const handle = (key, e) => `<span class="agl-handle" draggable="true" data-drag-entry="${esc(key)}:${esc(e.key)}" tabindex="0" role="button" aria-label="Move this entry. Drag, or press Alt+Up or Alt+Down." title="Drag to reorder (Alt+Up / Alt+Down)"><i class="fa-solid fa-grip-vertical" aria-hidden="true"></i></span>`;
+      `<label class="ag-field ag-field--inline agl-switch"><input type="checkbox" data-toggle="sections.${key}" ${d.sections[key] ? 'checked' : ''}> Show section to players</label>`);
+    const entryTools = (key, e) => `${btn('move-entry', '', {kind: 'ghost sm', icon: 'fa-solid fa-arrow-up', data: {section: key, key: e.key, dir: -1}, title: 'Move up'})}${btn('move-entry', '', {kind: 'ghost sm', icon: 'fa-solid fa-arrow-down', data: {section: key, key: e.key, dir: 1}, title: 'Move down'})}${eye(`${key}.${e.key}.visible`, e.visible, 'this entry')}${btn('remove', '', {kind: 'ghost sm', icon: 'fa-solid fa-trash', data: {section: key, key: e.key}, title: 'Remove'})}`;
+    const handle = (key, e) => `<span class="agl-handle" draggable="true" data-drag-entry="${esc(key)}:${esc(e.key)}" tabindex="0" role="button" aria-label="Move this entry. Drag, or press Alt+Up or Alt+Down."${tip('Drag to reorder (Alt+Up / Alt+Down)')}><i class="fa-solid fa-grip-vertical" aria-hidden="true"></i></span>`;
     const docLink = (label, uuid) => uuid ? `<a class="agl-link" data-action="open-doc" data-uuid="${esc(uuid)}">${esc(label)}</a>` : `<span>${esc(label)}</span>`;
     const rows = (key, fn) => d[key].length ? `<ul class="ag-list agl-entries">${d[key].map(e => `<li data-entry="${esc(key)}:${esc(e.key)}" class="${e.visible ? '' : 'agl-hidden'}">${handle(key, e)}${fn(e)}<span class="agl-tools">${entryTools(key, e)}</span></li>`).join('')}</ul>` : '';
-    const addText = (key, placeholder) => `<input type="text" id="agl-add-${key}" placeholder="${placeholder}">${btn('add-text', 'Add', {data: {section: key}, icon: 'fa-solid fa-plus'})}`;
+    const addText = (key, placeholder) => `<input type="text" id="agl-add-${key}" placeholder="${placeholder}">${btn('add-text', 'Add', {kind: 'sm', data: {section: key}, icon: 'fa-solid fa-plus'})}`;
     const text = (bind, v, placeholder, aria) => `<input type="text" data-bind="${esc(bind)}" value="${esc(v)}" placeholder="${esc(placeholder)}" aria-label="${esc(aria)}">`;
 
     const resources = d.resources.length ? `<datalist id="agl-skills">${GATHERING.skills.map(k => `<option value="${esc(k)}">`).join('')}</datalist>
@@ -490,16 +507,16 @@ export class LocationsApp extends Base {
     const factions = rows('factions', e => `<span class="agl-entry">${docLink(e.label, e.uuid)}</span>`);
     const questRows = rows('quests', e => {
       const name = questName(e.questId, quests);
-      return `<span class="agl-entry"><a class="agl-link" data-action="open-quest" data-id="${esc(e.questId)}"><i class="fa-solid fa-scroll"></i> ${esc(name ?? e.questId)}</a>${name ? '' : ' <small>(not found in Quest Manager)</small>'}</span>`;
+      return `<span class="agl-entry"><a class="agl-link" data-action="open-quest" data-id="${esc(e.questId)}"><i class="fa-solid fa-scroll" aria-hidden="true"></i> ${esc(name ?? e.questId)}</a>${name ? '' : ' <small>(not found in Quest Manager)</small>'}</span>`;
     });
     const linkedQuests = new Set(d.quests.map(q => q.questId));
     const questAdd = questApi()
-      ? `<select id="agl-add-quests"><option value="">Choose a quest…</option>${quests.filter(q => !linkedQuests.has(q.id)).map(q => `<option value="${esc(q.id)}">${esc(questLabel(q))}</option>`).join('')}</select>${btn('add-quest', 'Link', {icon: 'fa-solid fa-link'})}`
+      ? `<select id="agl-add-quests"><option value="">Choose a quest…</option>${quests.filter(q => !linkedQuests.has(q.id)).map(q => `<option value="${esc(q.id)}">${esc(questLabel(q))}</option>`).join('')}</select>${btn('add-quest', 'Link', {kind: 'sm', icon: 'fa-solid fa-link'})}`
       : '<p class="agl-hint">Activate Quest Manager to link quests.</p>';
     const byId = new Map(all.map(l => [l.id, l.name]));
     const relatedRows = rows('related', e => `<span class="agl-entry">${byId.has(e.locationId) ? `<a class="agl-link" data-action="select" data-id="${esc(e.locationId)}">${esc(byId.get(e.locationId))}</a>` : `${esc(e.locationId)} <small>(deleted)</small>`}</span>`);
     const linkedRel = new Set(d.related.map(r => r.locationId));
-    const relatedAdd = `<select id="agl-add-related"><option value="">Choose a location…</option>${all.filter(l => l.id !== d.id && !linkedRel.has(l.id)).map(l => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('')}</select>${btn('add-related', 'Link', {icon: 'fa-solid fa-link'})}`;
+    const relatedAdd = `<select id="agl-add-related"><option value="">Choose a location…</option>${all.filter(l => l.id !== d.id && !linkedRel.has(l.id)).map(l => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('')}</select>${btn('add-related', 'Link', {kind: 'sm', icon: 'fa-solid fa-link'})}`;
     const notes = d.notes.length ? d.notes.map(n => `<div class="agl-note ${n.visible ? '' : 'agl-hidden'}" data-entry="notes:${esc(n.key)}">
         <div class="agl-field__row">${handle('notes', n)}<input type="text" data-bind="notes.${n.key}.title" value="${esc(n.title)}" placeholder="Title" aria-label="Note title"><span class="agl-tools">${entryTools('notes', n)}</span></div>
         ${n.uuid ? `<p>${docLink(`Linked ${n.docType || 'document'}`, n.uuid)}</p>` : ''}
@@ -530,9 +547,8 @@ export class LocationsApp extends Base {
         <select data-bind="loot.${e.key}.status" aria-label="Loot status">${LOOT_STATUSES.map(st => `<option value="${st}" ${e.status === st ? 'selected' : ''}>${LOOT_STATUS_LABELS[st]}</option>`).join('')}</select></span>`);
 
     const unpublished = d.id && hasUnpublishedChanges(d);
-    const stateBar = `<div class="agl-state" role="group" aria-label="What players see">${STATES.map(st =>
-        btn('state', STATE_LABELS[st], {kind: d.state === st ? 'primary' : '', icon: STATE_ICONS[st], data: {state: st},
-          title: d.state === st ? `${STATE_LABELS[st]} (current)` : `Make ${STATE_LABELS[st].toLowerCase()}${st === 'hidden' ? '' : ' and publish the saved content'}`})).join('')}</div>`;
+    const stateBar = `<div class="ag-segmented agl-state" role="radiogroup" aria-label="What players see">${STATES.map(st => `<button type="button" role="radio" aria-checked="${d.state === st}" data-action="state" data-state="${st}"${
+        tip(d.state === st ? `${STATE_LABELS[st]} (current)` : `Make ${STATE_LABELS[st].toLowerCase()}${st === 'hidden' ? '' : ' and publish the saved content'}`)}><i class="${STATE_ICONS[st]}" aria-hidden="true"></i> ${STATE_LABELS[st]}</button>`).join('')}</div>`;
     const order = normalizeLayout(d.layout, d.details);
     const blocks = {
       description: block('description', 'Description', 'Description', `<div class="agl-field__row"><textarea id="agl-description" rows="4" data-bind="description" aria-label="Description">${esc(d.description)}</textarea>${eye('show.description', d.show.description, 'Description')}</div>`, '', ''),
@@ -543,20 +559,23 @@ export class LocationsApp extends Base {
       quests: sec('quests', questRows, questAdd, 'No quests linked.'),
       related: sec('related', relatedRows, relatedAdd, 'No related locations.'),
       loot: sec('loot', lootRows, addText('loot', 'Plain reward (coins, clue, favour, key)'), 'Drag an Item here (world or compendium), or add a plain reward. A link never gives anyone the item.'),
-      notes: sec('notes', notes, btn('add-note', 'Add Note', {icon: 'fa-solid fa-plus'}), 'Add a note, or drop an Actor, Item, Journal or Roll Table here.'),
+      notes: sec('notes', notes, btn('add-note', 'Add note', {kind: 'sm', icon: 'fa-solid fa-plus'}), 'Add a note, or drop an Actor, Item, Journal or Roll Table here.'),
       scenes: this.scenesHtml(d, block)
     };
     for (const det of d.details) blocks[DETAIL_PREFIX + det.key] = block(DETAIL_PREFIX + det.key,
       `<input type="text" class="agl-detail-title" data-bind="details.${esc(det.key)}.title" value="${esc(det.title)}" placeholder="Detail title" aria-label="Detail title">`, det.title || 'Detail',
       `<textarea rows="3" data-bind="details.${esc(det.key)}.text" placeholder="Text" aria-label="Detail text">${esc(det.text)}</textarea>
         ${det.uuid ? `<p>${docLink(`Linked ${det.docType || 'document'}`, det.uuid)}</p>` : '<p class="agl-hint">Drop an Actor, Item, Journal or Roll Table here to link it (optional).</p>'}`,
-      `${eye(`details.${det.key}.visible`, det.visible, 'this block')}${btn('remove', '', {kind: 'ghost', icon: 'fa-solid fa-trash', data: {section: 'details', key: det.key}, title: 'Remove this detail'})}`, `${DETAIL_PREFIX}${det.key}`);
+      `${eye(`details.${det.key}.visible`, det.visible, 'this block')}${btn('remove', '', {kind: 'ghost sm', icon: 'fa-solid fa-trash', data: {section: 'details', key: det.key}, title: 'Remove this detail'})}`, `${DETAIL_PREFIX}${det.key}`);
 
     const pins = d.id ? api().pinsOf(d.id) : [];
     const crumbs = d.id ? breadcrumb(all, d.id) : d.parentLocationId ? [...breadcrumb(all, d.parentLocationId), ...all.filter(l => l.id === d.parentLocationId)] : [];
     return `<form class="agl-editor" autocomplete="off" onsubmit="return false">
-      <nav class="agl-crumbs" aria-label="Where this is">${crumbs.length ? crumbs.map(c => `<a class="agl-link" data-action="select" data-id="${esc(c.id)}">${esc(c.name)}</a> <span aria-hidden="true">›</span> `).join('') : '<span class="agl-hint">Top level ›</span> '}
-        <span>${esc(d.name || 'New location')}</span>${d.id ? btn('move-to', 'Move to…', {kind: 'sm', icon: 'fa-solid fa-folder-tree', title: 'Put this location inside a Region (or at the top level). Keyboard-friendly.'}) : ''}</nav>
+      <div class="agl-editor__head">
+        <nav class="agl-crumbs" aria-label="Where this is">${crumbs.length ? crumbs.map(c => `<a class="agl-link" data-action="select" data-id="${esc(c.id)}">${esc(c.name)}</a> <span aria-hidden="true">›</span> `).join('') : '<span class="agl-hint">Top level ›</span> '}
+          <span>${esc(d.name || 'New location')}</span></nav>
+        ${d.id ? `<div class="ag-btn-group">${btn('move-to', 'Move to…', {kind: 'sm', icon: 'fa-solid fa-folder-tree', title: 'Put this location inside a Region (or at the top level). Keyboard-friendly.'})}${btn('delete', 'Delete location', {kind: 'danger sm', icon: 'fa-solid fa-trash'})}</div>` : ''}
+      </div>
       <div class="agl-title">
         <div class="ag-field agl-name"><label for="agl-name">Name</label><input id="agl-name" type="text" data-bind="name" value="${esc(d.name)}" placeholder="Location name"></div>
         ${stateBar}
@@ -564,8 +583,8 @@ export class LocationsApp extends Base {
       <div class="agl-publish">
         <p class="agl-hint">${d.id ? esc(STATE_HINTS[d.state]) : 'New locations start hidden.'} Save Changes keeps edits private${d.state === 'hidden' ? '' : ' until you publish'}.</p>
         ${unpublished ? '<span class="ag-badge ag-badge--warn">Players see an older version</span>' : ''}
-        ${d.id ? btn('preview', 'Player Preview', {icon: 'fa-solid fa-user', title: 'What players would see after Publish. Nothing is changed.'}) : ''}
-        ${d.id && d.state !== 'hidden' ? btn('publish', 'Publish', {kind: unpublished ? 'primary' : '', icon: 'fa-solid fa-bullhorn', title: 'Save, then show players the current content'}) : ''}
+        ${d.id ? btn('preview', 'Player Preview', {kind: 'sm', icon: 'fa-solid fa-user', title: 'What players would see after Publish. Nothing is changed.'}) : ''}
+        ${d.id && d.state !== 'hidden' ? btn('publish', 'Publish', {kind: 'sm', icon: 'fa-solid fa-bullhorn', title: 'Save, then show players the current content'}) : ''}
       </div>
       <p class="agl-id">${d.id ? `ID <code>${esc(d.id)}</code> · made from the name when first saved; it never changes. Pins and player pages never carry it.` : 'The ID is made from the name when you save.'}</p>
       <div class="agl-grid">
@@ -579,12 +598,13 @@ export class LocationsApp extends Base {
       ${this.markerHtml(d)}
       ${this.placeHtml(d, all, pins)}
       ${order.map(k => blocks[k] ?? '').join('')}
-      <div class="agl-add agl-add-detail">${btn('add-detail', 'Add Detail', {icon: 'fa-solid fa-plus', title: 'A custom block on this location: a title, text and an optional linked document'})}
+      <div class="agl-add agl-add-detail">${btn('add-detail', 'Add detail', {kind: 'sm', icon: 'fa-solid fa-plus', title: 'A custom block on this location: a title, text and an optional linked document'})}
         <span class="agl-hint">Drag the grip, or use the arrows (Alt+Up / Alt+Down on a grip), to reorder blocks and the entries in them. Players see published blocks in this order.</span></div>
       ${d.id ? this.partyNotesHtml(d.id, {gmHint: d.state === 'hidden' ? ' Players cannot see or edit them while this location is hidden.' : ''}) : ''}
-      <footer class="agl-footer">
-        <div>${btn('cancel', 'Cancel', {kind: 'ghost'})}${btn('delete', 'Delete', {kind: 'danger', icon: 'fa-solid fa-trash'})}</div>
-        <div>${isPlaceable(d) || this.showRep || pins.length ? btn('place', 'Place on Scene', {icon: 'fa-solid fa-map-pin', title: 'Adds a Map Note at the centre of your current view'}) : ''}${btn('save', this.dirty ? 'Save Changes •' : 'Save Changes', {kind: 'primary', icon: 'fa-solid fa-floppy-disk'})}</div>
+      <footer class="ag-footer agl-footer">
+        ${btn('cancel', 'Cancel', {kind: 'ghost'})}
+        <span class="ag-footer__status" role="status">${this.dirty ? 'Unsaved changes' : ''}</span>
+        <div class="ag-btn-group">${isPlaceable(d) || this.showRep || pins.length ? btn('place', 'Place on Scene', {icon: 'fa-solid fa-map-pin', title: 'Adds a Map Note at the centre of your current view'}) : ''}${btn('save', this.dirty ? 'Save Changes •' : 'Save Changes', {kind: 'primary', icon: 'fa-solid fa-floppy-disk'})}</div>
       </footer></form>`;
   }
 
@@ -616,18 +636,18 @@ export class LocationsApp extends Base {
     const a = d.audience;
     const players = worldPlayers();
     const ids = new Set(a.userIds);
-    const radio = (mode, label) => `<label class="agl-switch"><input type="radio" name="agl-audience" data-action-change="audience-mode" value="${mode}" ${a.mode === mode ? 'checked' : ''}> ${label}</label>`;
+    const radio = (mode, label) => `<label class="ag-field ag-field--inline agl-switch"><input type="radio" name="agl-audience" data-action-change="audience-mode" value="${mode}" ${a.mode === mode ? 'checked' : ''}> ${label}</label>`;
     const known = new Set(players.map(u => u.id));
     const gone = a.userIds.filter(u => !known.has(u));
     const list = a.mode !== 'selected' ? '' : players.length || gone.length ? `<ul class="ag-list agl-entries agl-audience">${[...players.map(u => u.id), ...gone].map(u => `<li>
-        <label class="agl-switch"><input type="checkbox" data-action-change="audience-user" value="${esc(u)}" ${ids.has(u) ? 'checked' : ''}> ${esc(userName(u))}</label>
-        ${a.sharedBy[u] ? `<span class="ag-badge ag-badge--warn" title="Untick to undo">shared by ${esc(userName(a.sharedBy[u]))}</span>` : ''}</li>`).join('')}</ul>`
+        <label class="ag-field ag-field--inline agl-switch"><input type="checkbox" data-action-change="audience-user" value="${esc(u)}" ${ids.has(u) ? 'checked' : ''}> ${esc(userName(u))}</label>
+        ${a.sharedBy[u] ? `<span class="ag-badge ag-badge--warn"${tip('Untick to undo')}>shared by ${esc(userName(a.sharedBy[u]))}</span>` : ''}</li>`).join('')}</ul>`
       : '<p class="ag-empty">No player accounts in this world yet.</p>';
     return `<section class="ag-card agl-section">
       <header class="agl-section__head"><h3>Who Can See It</h3><span class="agl-hint">GM only</span></header>
       <div class="agl-state" role="radiogroup" aria-label="Who can see this location">${radio('everyone', 'Everyone')}${radio('selected', 'Selected players')}</div>
       ${list}
-      ${a.mode === 'selected' ? `<label class="agl-switch"><input type="checkbox" data-action-change="audience-sharing" ${a.sharing ? 'checked' : ''}> Players who see it can share it with others</label>` : ''}
+      ${a.mode === 'selected' ? `<label class="ag-field ag-field--inline agl-switch"><input type="checkbox" data-action-change="audience-sharing" ${a.sharing ? 'checked' : ''}> Players who see it can share it with others</label>` : ''}
       <p class="agl-hint">${a.mode === 'selected' ? 'Only ticked players get this card, its pins and its Party Notes, and only while it is Unidentified or Revealed. Everyone else sees nothing, exactly as if it were Hidden.' : 'Every player sees it once it is Unidentified or Revealed.'}${d.id ? ' Changes here apply at once.' : ''}</p>
     </section>`;
   }
@@ -643,11 +663,11 @@ export class LocationsApp extends Base {
     return `<section class="ag-card agl-section">
       <header class="agl-section__head"><h3>Place</h3><span class="agl-hint">GM only</span></header>
       <div class="ag-field agl-field"><label for="agl-parent">Inside</label>${parentSel}</div>
-      <label class="agl-switch"><input type="checkbox" data-toggle="isRegion" ${d.isRegion ? 'checked' : ''}> This is a Region (a folder)</label>
+      <label class="ag-field ag-field--inline agl-switch"><input type="checkbox" data-toggle="isRegion" ${d.isRegion ? 'checked' : ''}> This is a Region (a folder)</label>
       <p class="agl-hint">A Region is a container: in Tree view it is a folder other places can go in, to any depth. Any place can sit inside another; only Regions show as folders.</p>
-      ${d.isRegion ? `<label class="agl-switch"><input type="checkbox" data-toggle="passConditions" ${passesConditions(d) ? 'checked' : ''}> Pass conditions to places inside</label>
+      ${d.isRegion ? `<label class="ag-field ag-field--inline agl-switch"><input type="checkbox" data-toggle="passConditions" ${passesConditions(d) ? 'checked' : ''}> Pass conditions to places inside</label>
       <p class="agl-hint">Off by default. When on, this Region's <em>Conditions</em> apply to every place inside it, at any depth (players see them after Publish). Nothing else is inherited; a place can turn one off or change it for itself.</p>` : ''}
-      <label class="agl-switch"><input type="checkbox" data-toggle="placeable" ${isPlaceable(d) ? 'checked' : ''}> Placeable on a map</label>
+      <label class="ag-field ag-field--inline agl-switch"><input type="checkbox" data-toggle="placeable" ${isPlaceable(d) ? 'checked' : ''}> Placeable on a map</label>
       <p class="agl-hint">${pins.length ? `Pinned on ${pins.map(p => `${esc(p.name)}${p.count > 1 ? ` (${p.count})` : ''}`).join(', ')}. ` : ''}Turn off for places that only group others (most Regions start off). They are left out of Place on Scene and dragging onto the map unless you tick <em>Show representative-only too</em>.</p>
     </section>`;
   }
@@ -655,43 +675,43 @@ export class LocationsApp extends Base {
   childrenHtml(d, all, block) {
     const kids = d.id ? all.filter(l => l.parentLocationId === d.id) : [];
     const kidRows = kids.length ? `<ul class="ag-list agl-entries">${kids.map(k => `<li><span class="agl-entry"><a class="agl-link" data-action="select" data-id="${esc(k.id)}">${esc(k.name)}</a></span>
-      <i class="${STATE_ICONS[k.state]} agl-row__rev" title="${STATE_LABELS[k.state]}"></i></li>`).join('')}</ul>` : '<p class="ag-empty">No places inside this one.</p>';
-    return block('children', 'Places Inside', 'Places Inside', `${kidRows}${d.id ? `<div class="agl-add">${btn('new-child', 'New place inside', {icon: 'fa-solid fa-plus'})}</div>` : ''}
+      <i class="${STATE_ICONS[k.state]} agl-row__rev"${tip(STATE_LABELS[k.state])} aria-label="${STATE_LABELS[k.state]}"></i></li>`).join('')}</ul>` : '<p class="ag-empty">No places inside this one.</p>';
+    return block('children', 'Places Inside', 'Places Inside', `${kidRows}${d.id ? `<div class="agl-add">${btn('new-child', 'New place inside', {kind: 'sm', icon: 'fa-solid fa-plus'})}</div>` : ''}
       <p class="agl-hint">Each place is shown to players on its own state; this list follows them.</p>`, '', '');
   }
   /** Linked scenes: GM only, never in any player view. */
   scenesHtml(d, block) {
     const linked = new Set(d.sceneUuids);
     const sceneRows = d.sceneUuids.length ? `<ul class="ag-list agl-entries">${d.sceneUuids.map(u => `<li><span class="agl-entry">${esc(sceneName(u) ?? `${u} (missing)`)}</span>
-      <span class="agl-tools">${btn('open-scene', 'Open scene', {kind: 'sm', icon: 'fa-solid fa-map', data: {uuid: u}, title: 'Views the scene for you only. Players are not moved.'})}${btn('remove-scene', '', {kind: 'ghost', icon: 'fa-solid fa-trash', data: {uuid: u}, title: 'Unlink'})}</span></li>`).join('')}</ul>` : '';
+      <span class="agl-tools">${btn('open-scene', 'Open scene', {kind: 'sm', icon: 'fa-solid fa-map', data: {uuid: u}, title: 'Views the scene for you only. Players are not moved.'})}${btn('remove-scene', '', {kind: 'ghost sm', icon: 'fa-solid fa-trash', data: {uuid: u}, title: 'Unlink'})}</span></li>`).join('')}</ul>` : '';
     const sceneOpts = [...(game.scenes ?? [])].filter(sc => !linked.has(sc.uuid)).sort((a, b) => a.name.localeCompare(b.name))
       .map(sc => `<option value="${esc(sc.uuid)}">${esc(sc.name)}</option>`).join('');
     return block('scenes', 'Linked Scenes', 'Linked Scenes', `${sceneRows}
-      <div class="agl-add"><select id="agl-add-scene"><option value="">Choose a scene…</option>${sceneOpts}</select>${btn('add-scene', 'Link', {icon: 'fa-solid fa-link'})}</div>
+      <div class="agl-add"><select id="agl-add-scene"><option value="">Choose a scene…</option>${sceneOpts}</select>${btn('add-scene', 'Link', {kind: 'sm', icon: 'fa-solid fa-link'})}</div>
       <p class="agl-hint">GM only; players never see this block. Open scene never switches players.</p>`, '<span class="agl-hint">GM only</span>', '');
   }
 
   /** One gathering node, edited inline. Exhausted nodes are struck through with Restore. */
   nodeHtml(e, entryTools, docLink) {
     const b = f => `data-bind="resources.${esc(e.key)}.${f}"`;
-    const num = (f, v, min, max, label) => `<label class="agl-mini">${label}<input type="number" min="${min}" max="${max}" step="1" ${b(f)} value="${v}"></label>`;
+    const num = (f, v, min, max, label) => `<label class="ag-field ag-field--inline agl-mini">${label}<input type="number" min="${min}" max="${max}" step="1" ${b(f)} value="${v}"></label>`;
     return `<li class="agl-node${e.visible ? '' : ' agl-hidden'}${e.exhausted ? ' agl-exhausted' : ''}" data-entry="resources:${esc(e.key)}">
       <div class="agl-node__row">
-        <span class="agl-handle" draggable="true" data-drag-entry="resources:${esc(e.key)}" tabindex="0" role="button" aria-label="Move this node. Drag, or press Alt+Up or Alt+Down." title="Drag to reorder (Alt+Up / Alt+Down)"><i class="fa-solid fa-grip-vertical" aria-hidden="true"></i></span>
+        <span class="agl-handle" draggable="true" data-drag-entry="resources:${esc(e.key)}" tabindex="0" role="button" aria-label="Move this node. Drag, or press Alt+Up or Alt+Down."${tip('Drag to reorder (Alt+Up / Alt+Down)')}><i class="fa-solid fa-grip-vertical" aria-hidden="true"></i></span>
         <input type="text" class="agl-node__name" ${b('label')} value="${esc(e.label)}" placeholder="Node name" aria-label="Node name">
-        ${e.uuid ? docLink('', e.uuid).replace('></a>', '><i class="fa-solid fa-up-right-from-square"></i></a>') : ''}
+        ${e.uuid ? docLink('', e.uuid).replace('></a>', ` aria-label="Open linked item"${tip('Open linked item')}><i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i></a>`) : ''}
         <input type="text" list="agl-skills" class="agl-node__skill" ${b('skill')} value="${esc(e.skill)}" placeholder="Skill" aria-label="Gathering skill">
-        <label class="agl-mini">Tier<select ${b('tier')}>${[1, 2, 3, 4, 5].map(t => `<option value="${t}" ${e.tier === t ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+        <label class="ag-field ag-field--inline agl-mini">Tier<select ${b('tier')}>${[1, 2, 3, 4, 5].map(t => `<option value="${t}" ${e.tier === t ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
         ${num('dc', e.dc, 1, 40, 'DC')}${eye(`resources.${e.key}.dcVisible`, e.dcVisible, 'the DC')}
         <span class="agl-tools">${entryTools('resources', e)}</span>
       </div>
       <div class="agl-node__row">
-        <label class="agl-mini">Common<input type="text" list="agl-mats" ${b('materialId')} value="${esc(e.materialId)}" placeholder="MAT-…"></label>${num('quantity', e.quantity, 1, 999, '×')}
-        <label class="agl-mini">Rare (by 5+)<input type="text" list="agl-mats" ${b('rareMaterialId')} value="${esc(e.rareMaterialId)}" placeholder="MAT-… (optional)"></label>${num('rareQuantity', e.rareQuantity, 1, 999, '×')}
+        <label class="ag-field ag-field--inline agl-mini">Common<input type="text" list="agl-mats" ${b('materialId')} value="${esc(e.materialId)}" placeholder="MAT-…"></label>${num('quantity', e.quantity, 1, 999, '×')}
+        <label class="ag-field ag-field--inline agl-mini">Rare (by 5+)<input type="text" list="agl-mats" ${b('rareMaterialId')} value="${esc(e.rareMaterialId)}" placeholder="MAT-… (optional)"></label>${num('rareQuantity', e.rareQuantity, 1, 999, '×')}
       </div>
       <div class="agl-node__row">
-        <label class="agl-switch"><input type="checkbox" data-toggle="resources.${esc(e.key)}.finite" ${e.finite ? 'checked' : ''}> Finite</label>
-        <label class="agl-switch"><input type="checkbox" data-toggle="resources.${esc(e.key)}.available" ${e.available ? 'checked' : ''}> Available</label>
+        <label class="ag-field ag-field--inline agl-switch"><input type="checkbox" data-toggle="resources.${esc(e.key)}.finite" ${e.finite ? 'checked' : ''}> Finite</label>
+        <label class="ag-field ag-field--inline agl-switch"><input type="checkbox" data-toggle="resources.${esc(e.key)}.available" ${e.available ? 'checked' : ''}> Available</label>
         <input type="text" class="agl-node__note" ${b('note')} value="${esc(e.note)}" placeholder="Source and limit (note)" aria-label="Note">
         ${e.exhausted ? `<span class="ag-badge">Exhausted</span>${btn('restore', 'Restore', {kind: 'sm', icon: 'fa-solid fa-rotate-left', data: {key: e.key}})}`
           : e.finite ? btn('exhaust', 'Mark exhausted', {kind: 'sm', data: {key: e.key}}) : ''}
@@ -709,10 +729,10 @@ export class LocationsApp extends Base {
       return `<li class="agl-exotic">
         <span class="agl-entry">${esc(names.get(x.materialId) ?? x.materialId)}${names.has(x.materialId) ? '' : ' <small>(not in this world)</small>'}</span>
         ${c ? `<span class="ag-badge${c.eligible ? ' ag-badge--ok' : ' ag-badge--warn'}">${esc(c.eligible ? 'Eligible' : c.reason)}</span>` : ''}
-        <label class="agl-mini">Rule<select ${f(x, 'mode')}>${EXOTIC_MODES.map(m => `<option value="${m}" ${x.mode === m ? 'selected' : ''}>${m === 'designated' ? 'Designated source' : 'Random discovery'}</option>`).join('')}</select></label>
-        ${x.mode === 'designated' ? `<label class="agl-mini">Chance %<input type="number" min="1" max="100" step="1" ${f(x, 'chance')} value="${x.chance ?? ''}" placeholder="required"></label>
-        <label class="agl-mini">When<select ${f(x, 'condition')}>${Object.entries(EXOTIC_CONDITIONS).map(([k, l]) => `<option value="${k}" ${x.condition === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>` : ''}
-        ${btn('exotic-remove', '', {kind: 'ghost', icon: 'fa-solid fa-trash', data: {key: e.key, mat: x.materialId}, title: 'Remove this Exotic'})}</li>`;
+        <label class="ag-field ag-field--inline agl-mini">Rule<select ${f(x, 'mode')}>${EXOTIC_MODES.map(m => `<option value="${m}" ${x.mode === m ? 'selected' : ''}>${m === 'designated' ? 'Designated source' : 'Random discovery'}</option>`).join('')}</select></label>
+        ${x.mode === 'designated' ? `<label class="ag-field ag-field--inline agl-mini">Chance %<input type="number" min="1" max="100" step="1" ${f(x, 'chance')} value="${x.chance ?? ''}" placeholder="required"></label>
+        <label class="ag-field ag-field--inline agl-mini">When<select ${f(x, 'condition')}>${Object.entries(EXOTIC_CONDITIONS).map(([k, l]) => `<option value="${k}" ${x.condition === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>` : ''}
+        ${btn('exotic-remove', '', {kind: 'ghost sm', icon: 'fa-solid fa-trash', data: {key: e.key, mat: x.materialId}, title: 'Remove this Exotic'})}</li>`;
     }).join('');
     const {filtered, list: choices} = exoticChoices(e);
     // Draft or GM-only Exotics are listed but disabled, with what to fix in General Manager.
@@ -724,26 +744,42 @@ export class LocationsApp extends Base {
         Adding one makes it eligible, not a sure award. Random discovery uses the Ledger’s discovery chance on a success; a designated source needs a chance and uses it instead. Players never see this list.</p></details>`;
   }
 
+  /**
+   * GM Setup: settings only, all saved together by Save Changes (Player Access too, decision D4). Cancel puts the fields
+   * back to the saved values. Import/Export live on the Locations toolbar; the [TEST] seeder is in Developer Tools.
+   */
   setupHtml() {
     const access = api().playerAccess.getState().playerAccessEnabled;
     return `<div class="agl-setup">
+      <div class="agl-setup__body">
       <section class="ag-card"><h3>Player Access</h3>
-        <label class="agl-switch"><input type="checkbox" data-action-change="player-access" ${access ? 'checked' : ''}> Players can open Locations</label>
+        <label class="ag-field ag-field--inline agl-switch"><input type="checkbox" id="agl-set-access" ${access ? 'checked' : ''}> Players can open Locations</label>
         <p class="agl-hint">Shows the Locations button in the players' Actors sidebar. Players only ever see revealed locations and the parts you mark visible.</p></section>
       <section class="ag-card"><h3>Unidentified Pins</h3>
         <div class="ag-field agl-field"><label for="agl-set-label">Default unidentified label</label><input id="agl-set-label" type="text" value="${esc(setting('unidentifiedLabel', DEFAULT_UNIDENTIFIED_LABEL))}"></div>
         <div class="ag-field agl-field"><label for="agl-set-unknown">Default unidentified pin image</label><div class="agl-field__row"><input id="agl-set-unknown" type="text" value="${esc(setting('unknownPinImage', ''))}" placeholder="${PIN_DEFAULTS.unidentifiedImg}">${btn('browse-setup', '', {icon: 'fa-solid fa-folder-open', title: 'Browse'})}</div></div>
-        <p class="agl-hint">Used when a location has no label or image of its own. Saving re-labels existing unidentified pins.</p>
-        <div class="agl-add">${btn('save-setup', 'Save Pin Defaults', {kind: 'primary', icon: 'fa-solid fa-floppy-disk'})}</div></section>
+        <p class="agl-hint">Used when a location has no label or image of its own. Saving re-labels existing unidentified pins.</p></section>
       ${this.routeSetupHtml()}
-      <section class="ag-card"><h3>Import / Export</h3>
-        <p class="agl-hint">Location and Route records in an <code>ag-foundry-import/0.2</code> package (see the module README). Locations and routes already in this world are kept as they are.</p>
-        <div class="agl-add">${btn('import', 'Import JSON', {icon: 'fa-solid fa-file-import'})}${btn('export', 'Export JSON', {icon: 'fa-solid fa-file-export'})}</div>
-        <input type="file" id="agl-import-file" accept=".json,application/json" hidden></section>
-      <details class="ag-card"><summary>Developer Tools</summary>
+      <details class="ag-devtools"><summary>Developer Tools</summary>
         <p class="agl-hint">Adds four synthetic <code>[TEST]</code> locations. Existing locations are not changed.</p>
-        ${btn('import-sample', 'Import [TEST] sample locations', {icon: 'fa-solid fa-flask'})}</details>
+        ${btn('import-sample', 'Import [TEST] sample locations', {kind: 'sm', icon: 'fa-solid fa-flask'})}</details>
+      </div>
+      <footer class="ag-footer">${btn('setup-cancel', 'Cancel', {kind: 'ghost'})}<span class="ag-footer__status" role="status">Nothing here changes until you click Save Changes.</span>
+        ${btn('save-setup', 'Save Changes', {kind: 'primary', icon: 'fa-solid fa-floppy-disk'})}</footer>
     </div>`;
+  }
+  /** GM Setup's Save Changes: checks every field first, then saves Player Access, the pin defaults and the leg length. */
+  async saveSetup(root = this.element) {
+    const leg = Number(root?.querySelector('#agl-set-leg')?.value);
+    if (!kmOk(leg)) { ui.notifications.warn(`Leg length must be from ${MIN_KM} to 100000 km.`); return false; }
+    const access = root?.querySelector('#agl-set-access')?.checked === true;
+    if (access !== api().playerAccess.getState().playerAccessEnabled) await api().playerAccess.setEnabled(access);
+    await game.settings.set(MODULE_ID, 'unidentifiedLabel', root?.querySelector('#agl-set-label')?.value.trim() || DEFAULT_UNIDENTIFIED_LABEL);
+    await game.settings.set(MODULE_ID, 'unknownPinImage', root?.querySelector('#agl-set-unknown')?.value.trim() ?? '');
+    await game.settings.set(MODULE_ID, 'defaultLegKm', leg);
+    ui.notifications.info('Saved GM Setup.');
+    await this.render();
+    return true;
   }
 
   // ---------- events ----------
@@ -764,7 +800,6 @@ export class LocationsApp extends Base {
     root.querySelector('#agl-showrep')?.addEventListener('change', e => { this.showRep = e.target.checked; this.render(); });
     for (const el of root.querySelectorAll('[data-filter]')) el.addEventListener('change', () => { this.filters[el.dataset.filter] = el.value; this.render(); });
     for (const el of root.querySelectorAll('[data-action]')) el.addEventListener('click', ev => { ev.preventDefault(); this.onAction(el).catch(notifyError); });
-    root.querySelector('[data-action-change="player-access"]')?.addEventListener('change', e => api().playerAccess.setEnabled(e.target.checked).then(() => this.render()).catch(notifyError));
     root.querySelector('#agl-import-file')?.addEventListener('change', e => this.importFile(e.target.files?.[0]).catch(notifyError));
     root.querySelector('#agl-party-text')?.addEventListener('input', e => { if (this.notesEdit) { this.notesEdit.text = e.target.value; this.renewNotesLock(); } });
     if (!this.gm) return;
@@ -843,6 +878,8 @@ export class LocationsApp extends Base {
     this.dirty = true;
     const save = this.element?.querySelector('[data-action="save"] span');
     if (save) save.textContent = 'Save Changes •';
+    const status = this.element?.querySelector('.agl-editor .ag-footer__status');
+    if (status) status.textContent = 'Unsaved changes';
   }
   /** Order only: moves a block in `layout`. Nothing else about the location changes. */
   moveBlock(key, opts) {
@@ -1027,12 +1064,8 @@ export class LocationsApp extends Base {
         const input = root.querySelector('#agl-set-unknown');
         return new FP({type: 'image', current: input?.value, callback: p => { if (input) input.value = p; }}).render(true);
       }
-      case 'save-setup': {
-        await game.settings.set(MODULE_ID, 'unidentifiedLabel', root.querySelector('#agl-set-label')?.value.trim() || DEFAULT_UNIDENTIFIED_LABEL);
-        await game.settings.set(MODULE_ID, 'unknownPinImage', root.querySelector('#agl-set-unknown')?.value.trim() ?? '');
-        ui.notifications.info('Saved pin defaults.');
-        return this.render();
-      }
+      case 'save-setup': return this.saveSetup(root);
+      case 'setup-cancel': return this.render();
       case 'cancel': this.select(this.draft?.id || null); return this.render();
       case 'delete': {
         if (!this.draft.id) { this.select(null); return this.render(); }
@@ -1216,7 +1249,7 @@ export class LocationsApp extends Base {
       const v = api().previewLocation(d, st);
       return `<section class="agl-preview__part"><h3>${STATE_LABELS[st]}${this.draft.state === st ? ' (current)' : ''}</h3>${this.viewerHtml(v, {partyNotes: false})}</section>`;
     };
-    const content = `<div class="ag-locations agl-preview">
+    const content = `<div class="agl-app agl-preview">
       <p class="agl-hint">${this.draft.state === 'hidden' ? 'Hidden: players see nothing now. ' : ''}This is what players would see after you publish your current edits. Quest names follow Quest Manager's own visibility.</p>
       ${part('unidentified')}${part('revealed')}</div>`;
     // Stays a custom DialogV2 window for its 560px width; same kit classes and single Close button as infoDialog.
