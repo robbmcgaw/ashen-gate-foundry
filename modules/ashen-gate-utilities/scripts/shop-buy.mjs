@@ -6,11 +6,12 @@
    it out all or nothing: A items, B coins, C shop page, D history. Each failure puts the earlier steps back. ---- */
 import {ID,escapeHTML as E,COIN_LABELS,coinChoices,shownCoins,strandedElectrum,coinsText,readCoins,projectShop,planShopPayment,checkPurchase,
  shopPurchaseEntry,shopPriceText,SHOP_REFUSALS,CONSENT_TIMEOUT_MS,consentVoters,createPoll,initials,shopLineName,purchaseCount,purchaseItemData,
- nothingCharged,purchaseText,presentedOwnership,quotePurchase} from './core.mjs';
-import {readAll,mustGet,writeShop,queueShops,appendLog,norm,locationsApi,randomId,purseDialog,button,icon,tip} from './shops.mjs';
+ nothingCharged,purchaseText,presentedOwnership,quotePurchase,projectService,projectMerchantList,entrySummary} from './core.mjs';
+import {readAll,mustGet,writeShop,queueShops,appendLog,norm,locationsApi,randomId,purseDialog,button,icon,tip,writeService,readMeta} from './shops.mjs';
 import {confirmDialog,formDialog,choiceDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
 import {modeSwitch,sellViewHTML,sellFlow,sellDrop,quoteSell,sell} from './shop-sell.mjs';
+import {servicesAll,serviceViewHTML,bindServiceView,UNKNOWN_TYPE} from './services.mjs';
 
 export const VIEW_STORE='shops-player',VIEW_JOURNAL_NAME='Utilities Shops (Player View)';
 const SOCKET=`module.${ID}`;
@@ -49,6 +50,14 @@ function revealedPlace(id){
  try{const l=api.listLocations({revealedOnly:true}).find(x=>x?.id===id);return l&&l.revealed===true&&l.audience?.mode!=='selected'?(l.published?.name||l.name||null):null;}catch{return null;}
 }
 export const projectionOf=shop=>projectShop(shop,{electrum:electrum(),locationName:revealedPlace(shop.locationId),typeLabel});
+/** 0.20.0: a service's player view; null for a type this version doesn't know (never shown to players). */
+export const serviceProjectionOf=svc=>svc?.known?projectService(svc,{locationName:revealedPlace(svc.locationId)}):null;
+/** Shops and known services shown to someone right now (GM data). */
+const presentedRecords=()=>[...readAll().filter(s=>s.presented).map(s=>({rec:s,view:projectionOf(s)})),...servicesAll().filter(s=>s.presented&&s.known).map(s=>({rec:s,view:serviceProjectionOf(s)}))].filter(x=>x.view);
+/** The projection of a saved shop or known service by id, for a merchant list; null when missing or unknown. */
+function projectAny(id){const shop=readAll().find(s=>s.id===id);if(shop)return projectionOf(shop);const svc=servicesAll().find(s=>s.id===id);return svc?serviceProjectionOf(svc):null;}
+/** Merchant lists the GM switched on, as players see them. */
+const visibleListViews=()=>readMeta().lists.filter(l=>l.visible===true).map(l=>projectMerchantList(l,{project:projectAny,locationName:revealedPlace(l.locationId)}));
 export const viewJournal=()=>[...(game.journal??[])].find(j=>j?.flags?.[ID]?.store===VIEW_STORE)??null;
 const pagesOf=j=>[...(j?.pages??[])];
 const VIEW_TEXT='<p>What players see of a shop (Utilities). Rebuilt by Utilities; don\'t edit it by hand.</p>';
@@ -69,17 +78,20 @@ export function syncPlayerView(){
  if(!isGM())return Promise.resolve();
  const run=async()=>{
   const ids=players().map(u=>u.id);
-  const want=new Map(readAll().filter(s=>s.presented).map(s=>[s.id,{name:s.name,type:'text',text:{content:VIEW_TEXT},ownership:presentedOwnership(s.presented,ids,levels()),
-   flags:{[ID]:{shopId:s.id,shopView:JSON.stringify(projectionOf(s))}}}]));
+  const want=new Map(presentedRecords().map(({rec,view})=>[rec.id,{name:rec.name,type:'text',text:{content:VIEW_TEXT},ownership:presentedOwnership(rec.presented,ids,levels()),
+   flags:{[ID]:{shopId:rec.id,shopView:JSON.stringify(view)}}}]));
+  // 0.20.0: a shown merchant list is one page every player can read (read only; it never lets anyone buy).
+  for(const v of visibleListViews())want.set(v.id,{name:v.name,type:'text',text:{content:VIEW_TEXT},ownership:presentedOwnership({mode:'all'},ids,levels()),flags:{[ID]:{listId:v.id,listView:JSON.stringify(v)}}});
   let j=viewJournal();if(!j&&!want.size)return;j??=await ensureViewJournal();
   const have=new Map(),remove=[];
-  for(const p of pagesOf(j)){const id=p.flags?.[ID]?.shopId;if(want.has(id)&&!have.has(id))have.set(id,p);else remove.push(p.id);}
+  for(const p of pagesOf(j)){const id=p.flags?.[ID]?.shopId??p.flags?.[ID]?.listId;if(want.has(id)&&!have.has(id)&&Boolean(p.flags?.[ID]?.listId)===Boolean(want.get(id).flags[ID].listId))have.set(id,p);else remove.push(p.id);}
   const create=[],update=[];
   for(const [id,data] of want){
    const p=have.get(id);
    if(!p)create.push(data);
    // shopView is a JSON string, so an update always replaces it whole (nothing the GM just hid can linger).
-   else if(p.flags?.[ID]?.shopView!==data.flags[ID].shopView||p.name!==data.name||!sameOwnership(p.ownership,data.ownership))update.push({_id:p.id,name:data.name,ownership:data.ownership,[`flags.${ID}.shopView`]:data.flags[ID].shopView});
+   else{const key=data.flags[ID].listId?'listView':'shopView';
+    if(p.flags?.[ID]?.[key]!==data.flags[ID][key]||p.name!==data.name||!sameOwnership(p.ownership,data.ownership))update.push({_id:p.id,name:data.name,ownership:data.ownership,[`flags.${ID}.${key}`]:data.flags[ID][key]});}
   }
   if(create.length)await j.createEmbeddedDocuments('JournalEntryPage',create);
   if(update.length)await j.updateEmbeddedDocuments('JournalEntryPage',update);
@@ -95,14 +107,22 @@ export function scheduleSync(){
 }
 
 /* ---------- Reading (player or GM) ---------- */
-const parseView=p=>{try{return JSON.parse(p.flags?.[ID]?.shopView||'null');}catch{return null;}};
-/** Projections of the shops presented to this user. A player reads only the pages Foundry lets them observe. */
+const parseView=(p,key='shopView')=>{try{return JSON.parse(p.flags?.[ID]?.[key]||'null');}catch{return null;}};
+/** Projections of the shops and services presented to this user. A player reads only the pages Foundry lets them observe. */
 export function forMe(){
- if(isGM())return readAll().filter(s=>s.presented).map(projectionOf);
+ if(isGM())return presentedRecords().map(x=>x.view);
  playerGate();
- return pagesOf(viewJournal()).filter(p=>p.testUserPermission?.(game.user,'OBSERVER')).map(parseView).filter(v=>v?.id);
+ return pagesOf(viewJournal()).filter(p=>p.flags?.[ID]?.shopView&&p.testUserPermission?.(game.user,'OBSERVER')).map(p=>parseView(p)).filter(v=>v?.id);
 }
 export const viewOf=id=>forMe().find(v=>v.id===id)??null;
+/** 0.20.0, api.shops.browse: the merchant lists the GM shows, read only. Browsing never lets anyone buy, sell or use. */
+export function browse(){
+ if(isGM())return visibleListViews();
+ playerGate();
+ return pagesOf(viewJournal()).filter(p=>p.flags?.[ID]?.listView&&p.testUserPermission?.(game.user,'OBSERVER')).map(p=>parseView(p,'listView')).filter(v=>v?.id);
+}
+/** An entry's read-only view from a shown merchant list, or null. */
+export function browseViewOf(id){for(const l of browse()){const v=l.entries.find(e=>e.id===id);if(v)return v;}return null;}
 /** Characters this user may send a purchase to (D9): owned characters; the GM: every character. */
 export function receivers(user=game.user){
  const stash=ctx.stashActor?.();
@@ -133,12 +153,22 @@ export function quote(req={}){
 }
 
 /* ---------- Present (GM) ---------- */
+/** 0.20.0: a shop or a service by id (GM data), with how to store it again. */
+export function getRecord(id){
+ if(String(id).startsWith('SVC-')){const s=servicesAll().find(x=>x.id===id);if(!s)throw Error('That service no longer exists.');return s;}
+ return mustGet(id);
+}
+async function writeRecord(old,patch){
+ if(old.kind==='service'){const {known,...rec}=old;const next={...rec,...patch};await writeService(next);return next;}
+ const next=norm({...old,...patch});await writeShop(next);return next;
+}
 async function present(id,{mode='all',userIds=[]}={}){
  gmOnly();
  if(!['all','users'].includes(mode))throw Error("Present to 'all' players or to chosen 'users'.");
  const known=new Set(players().map(u=>u.id)),ids=mode==='users'?[...new Set([].concat(userIds??[]))].filter(u=>known.has(u)):[];
  if(mode==='users'&&!ids.length)throw Error('Choose at least one player.');
- const shop=await queueShops(async()=>{const old=mustGet(id);const next=norm({...old,presented:{mode,userIds:ids,since:Date.now(),by:game.user?.id??null}});await writeShop(next);return next;});
+ const shop=await queueShops(async()=>{const old=getRecord(id);if(old.kind==='service'&&!old.known)throw Error(`${UNKNOWN_TYPE}: this Utilities version can't show it to players.`);
+  return writeRecord(old,{presented:{mode,userIds:ids,since:Date.now(),by:game.user?.id??null}});});
  await syncPlayerView();
  // No shop id or name in the broadcast: a player it isn't shown to learns nothing.
  game.socket?.emit?.(SOCKET,{type:'shop-presented',to:mode==='all'?'all':ids});
@@ -146,20 +176,20 @@ async function present(id,{mode='all',userIds=[]}={}){
 }
 async function stopShowing(id){
  gmOnly();
- const shop=await queueShops(async()=>{const old=mustGet(id);const next=norm({...old,presented:null});await writeShop(next);return next;});
+ const shop=await queueShops(async()=>writeRecord(getRecord(id),{presented:null}));
  await syncPlayerView();
  return clone(shop);
 }
-function presented(){gmOnly();return readAll().filter(s=>s.presented).map(s=>({id:s.id,name:s.name,presented:clone(s.presented)}));}
+function presented(){gmOnly();return [...readAll(),...servicesAll()].filter(s=>s.presented).map(s=>({id:s.id,name:s.name,presented:clone(s.presented)}));}
 const userLabel=u=>{const chars=[...(game.actors??[])].filter(a=>a.type==='character'&&a.testUserPermission?.(u,'OWNER')).map(a=>a.name);return `${u.name}${chars.length?` (${chars.join(', ')})`:''}${u.active?'':' · not logged in'}`;};
 /** GM dialog: All players, or Chosen players with their characters. */
 export async function presentDialog(id){
- gmOnly();const s=mustGet(id),pl=players();
+ gmOnly();const s=getRecord(id),pl=players();
  if(!pl.length)throw Error('There are no player users yet.');
  const form=await formDialog(`Present ${s.name}`,[
   {name:'mode',label:'Show to',type:'select',value:'all',options:[{value:'all',label:'All players (also players who log in later)'},{value:'users',label:'Chosen players (tick them below)'}]},
-  {name:'users',label:'Chosen players',type:'checklist',options:pl.map(u=>({value:u.id,label:userLabel(u)})),hint:'Only these players see the shop and can buy from it, until you click Stop showing.'}
- ],{ok:'Present shop'});
+  {name:'users',label:'Chosen players',type:'checklist',options:pl.map(u=>({value:u.id,label:userLabel(u)})),hint:s.kind==='service'?'Only these players see the service and can use it, until you click Stop showing.':'Only these players see the shop and can buy from it, until you click Stop showing.'}
+ ],{ok:s.kind==='service'?'Present service':'Present shop'});
  if(!form)return null;
  return present(id,{mode:form.mode==='users'?'users':'all',userIds:[].concat(form.users??[])});
 }
@@ -301,9 +331,10 @@ const stockBadge=l=>l.soldOut?'<span class="ag-badge ag-badge--danger">Sold out<
 export const empty=(title,text)=>`<div class="ag-empty">${icon('fa-store')}<p class="ag-empty__title">${E(title)}</p><p class="ag-empty__text">${E(text)}</p></div>`;
 /** One presented shop as the buyer sees it (the shop window). `state.actorId`: whose coins the strip shows. */
 export function shopViewHTML(view,state={}){
- const ep=electrum(),chars=receivers(),actor=chars.find(a=>a.id===state.actorId)??chars[0]??null,purse=readablePurse();
+ if(view.kind==='service')return serviceViewHTML(view,state);
+ const ro=state.readOnly===true,ep=electrum(),chars=receivers(),actor=chars.find(a=>a.id===state.actorId)??chars[0]??null,purse=readablePurse();
  const meta=[view.merchant?.name,view.location?.name].filter(Boolean).map(E).join(' · ');
- const head=`<header class="agu-shop-head">${portrait(view.merchant)}<div class="agu-shop-head__text"><h2>${E(view.name)}</h2>${meta?`<p class="agu-note">${meta}</p>`:''}${view.flavour?`<p>${E(view.flavour)}</p>`:''}</div><span class="ag-badge ag-badge--ok">${icon('fa-door-open')} Open for you</span></header>`;
+ const head=`<header class="agu-shop-head">${portrait(view.merchant)}<div class="agu-shop-head__text"><h2>${E(view.name)}</h2>${meta?`<p class="agu-note">${meta}</p>`:''}${view.flavour?`<p>${E(view.flavour)}</p>`:''}</div>${ro?`<span class="ag-badge">${icon('fa-book-open')} Browsing only</span>`:`<span class="ag-badge ag-badge--ok">${icon('fa-door-open')} Open for you</span>`}</header>`;
  const own=actor?readCoins(actor):null;
  const strips=[
   purse?`<section class="agu-shop-coins"><h3 class="ag-eyebrow">Party purse</h3>${coinStrip(readCoins(purse),ep)}</section>`:'',
@@ -311,21 +342,37 @@ export function shopViewHTML(view,state={}){
   view.purse?`<section class="agu-shop-coins"><h3 class="ag-eyebrow">Merchant's coins</h3>${coinStrip(view.purse,ep)}<p class="ag-field__hint">Change comes from here.</p></section>`:''
  ].filter(Boolean).join('');
  const rows=view.lines.map(l=>`<li class="ag-row agu-ware${l.soldOut?' is-disabled':''}" data-line="${E(l.lineId)}">${l.img?`<img class="ag-row__icon" src="${E(l.img)}" alt="">`:`<span class="ag-row__icon" aria-hidden="true">${icon('fa-box')}</span>`}<div class="ag-row__main"><span class="ag-row__title">${E(l.name)}</span><span class="ag-row__meta">${E([`${l.per} per purchase`,l.type].filter(Boolean).join(' · '))}</span>${l.flavour?`<span class="ag-row__meta">${E(l.flavour)}</span>`:''}${l.description?`<details class="agu-ware__desc"><summary>Description</summary><div>${l.description}</div></details>`:''}</div>
-  <div class="ag-row__end">${stockBadge(l)}<strong class="agu-ware__price">${E(l.priceText)}</strong>${button('shop-buy','Buy…',{kind:'sm',ic:'fa-cart-shopping',disabled:l.soldOut||!chars.length,attrs:`data-shop="${E(view.id)}" data-line-id="${E(l.lineId)}" aria-label="Buy ${E(l.name)}"`})}</div></li>`).join('');
+  <div class="ag-row__end">${stockBadge(l)}<strong class="agu-ware__price">${E(l.priceText)}</strong>${button('shop-buy','Buy…',{kind:'sm',ic:'fa-cart-shopping',disabled:ro||l.soldOut||!chars.length,attrs:`data-shop="${E(view.id)}" data-line-id="${E(l.lineId)}" aria-label="Buy ${E(l.name)}"`})}</div></li>`).join('');
  const wares=view.lines.length?`<ul class="ag-rows agu-wares">${rows}</ul>`:empty('Nothing for sale right now','The merchant has nothing out on the counter yet.');
- const none=chars.length?'':`<p class="ag-notice ag-notice--warn">${icon('fa-triangle-exclamation')}<span>You need a character of your own to ${view.buys?'buy or sell':'buy'} here.</span></p>`;
+ const none=ro?`<p class="ag-notice ag-notice--info">${icon('fa-circle-info')}<span>Ask the GM to open this. You can look, but you can't buy${view.buys?' or sell':''} here until your GM shows you this shop.</span></p>`:chars.length?'':`<p class="ag-notice ag-notice--warn">${icon('fa-triangle-exclamation')}<span>You need a character of your own to ${view.buys?'buy or sell':'buy'} here.</span></p>`;
  // 0.19.0: a shop that buys from players gets a Buy / Sell switch.
- const mode=view.buys&&state.mode==='sell'?'sell':'buy';
+ const mode=!ro&&view.buys&&state.mode==='sell'?'sell':'buy';
  const body=mode==='sell'?sellViewHTML(view,actor,state):`<h3 class="ag-eyebrow">For sale · ${view.lines.length}</h3>${wares}`;
- return `<section class="agu-shop-view" aria-label="${E(view.name)}">${head}${strips?`<div class="agu-shop-strips">${strips}</div>`:''}${none}${view.buys?modeSwitch(view,mode):''}${body}</section>`;
+ return `<section class="agu-shop-view" aria-label="${E(view.name)}">${head}${strips?`<div class="agu-shop-strips">${strips}</div>`:''}${none}${view.buys&&!ro?modeSwitch(view,mode):''}${body}</section>`;
 }
-/** The player's Shops tab: Open shops (shops presented to this user). */
-export function playerShopsView(){
+const avatar=v=>v.merchant?.img?`<img class="ag-row__icon agu-shop-avatar" src="${E(v.merchant.img)}" alt="">`:`<span class="ag-row__icon agu-shop-avatar" aria-hidden="true">${E(initials(v.merchant?.name))}</span>`;
+const entryRow=(v,end)=>`<li class="ag-row agu-shop-row">${avatar(v)}<div class="ag-row__main"><span class="ag-row__title">${E(v.name)}</span><span class="ag-row__meta">${[v.merchant?.name,v.location?.name,entrySummary(v)].filter(Boolean).map(E).join(' · ')}</span></div><div class="ag-row__end">${end}</div></li>`;
+function openShopsHTML(){
  let views;try{views=forMe();}catch(e){return empty('Shops are closed',e.message);}
- if(!views.length)return `<section class="agu-shops" aria-label="Shops">${empty('No shops open for you','When your GM shows you a shop, it opens here and in its own window.')}</section>`;
- const rows=views.map(v=>{const meta=[v.merchant?.name,v.location?.name,`${v.lines.length} ${v.lines.length===1?'item':'items'}`].filter(Boolean).map(E).join(' · ');
-  return `<li class="ag-row agu-shop-row">${v.merchant?.img?`<img class="ag-row__icon agu-shop-avatar" src="${E(v.merchant.img)}" alt="">`:`<span class="ag-row__icon agu-shop-avatar" aria-hidden="true">${E(initials(v.merchant?.name))}</span>`}<div class="ag-row__main"><span class="ag-row__title">${E(v.name)}</span><span class="ag-row__meta">${meta}</span></div><div class="ag-row__end">${button('shop-view','Open shop',{kind:'sm',ic:'fa-store',attrs:`data-shop="${E(v.id)}" aria-label="Open ${E(v.name)}"`})}</div></li>`;}).join('');
- return `<section class="agu-shops" aria-label="Shops"><h3 class="ag-eyebrow">Open shops · ${views.length}</h3><ul class="ag-rows">${rows}</ul></section>`;
+ if(!views.length)return empty('No shops open for you','When your GM shows you a shop, it opens here and in its own window.');
+ return `<h3 class="ag-eyebrow">Open shops · ${views.length}</h3><ul class="ag-rows">${views.map(v=>entryRow(v,button('shop-view',v.kind==='service'?'Open':'Open shop',{kind:'sm',ic:'fa-store',attrs:`data-shop="${E(v.id)}" aria-label="Open ${E(v.name)}"`}))).join('')}</ul>`;
+}
+/** 0.20.0: the lists the GM shows, read only. An entry presented to this user is marked Open. */
+function merchantListHTML(){
+ let lists,open;try{lists=browse();open=new Set(forMe().map(v=>v.id));}catch(e){return empty('Shops are closed',e.message);}
+ if(!lists.length)return empty('No merchant list yet',"Your GM hasn't shared a merchant list.");
+ return lists.map(l=>`<section class="agu-shop-group"><h3 class="ag-eyebrow">${E([l.name,l.location?.name].filter(Boolean).join(' · '))} · ${l.entries.length}</h3>${l.entries.length?`<ul class="ag-rows">${l.entries.map(v=>entryRow(v,`${open.has(v.id)?`<span class="ag-badge ag-badge--ok">${icon('fa-door-open')} Open</span>`:''}${button('shop-view','Look inside',{kind:'sm',ic:'fa-eye',attrs:`data-shop="${E(v.id)}" aria-label="Look inside ${E(v.name)}"`})}`)).join('')}</ul>`:'<p class="ag-field__hint">Nothing on this list yet.</p>'}</section>`).join('');
+}
+/** The player's Shops tab: Open shops (presented to this user) and Merchant list (read only). */
+export function playerShopsView(app={}){
+ const sub=app.playerShopSub==='lists'?'lists':'open';
+ const seg=`<div class="ag-segmented agu-shop-subtabs" role="radiogroup" aria-label="Shops sections">${[['open','Open shops'],['lists','Merchant list']].map(([id,label])=>`<button type="button" role="radio" data-player-shop-sub="${id}" aria-checked="${sub===id}">${label}</button>`).join('')}</div>`;
+ return `<section class="agu-shops" aria-label="Shops">${seg}${sub==='lists'?merchantListHTML():openShopsHTML()}</section>`;
+}
+/** Wires the player's Shops sub-tabs. */
+export function bindPlayerShops(app,root,{render}){
+ if(app.tab!=='shops'||isGM())return;
+ for(const b of root.querySelectorAll('[data-player-shop-sub]'))b.addEventListener('click',()=>{app.playerShopSub=b.dataset.playerShopSub;render();});
 }
 /** The plan (or the refusal) as dialog HTML, kit parts only. */
 function quoteHTML(q,name){
@@ -364,10 +411,14 @@ function shopWindowClass(){
  if(ShopWindowClass)return ShopWindowClass;
  ShopWindowClass=class extends foundry.applications.api.ApplicationV2 {
   static DEFAULT_OPTIONS={classes:['ag-app','ag-utilities','agu-shop-window'],window:{title:'Shop',resizable:true,minimizable:true},position:{width:560,height:640}};
-  constructor(shopId){super({id:`ashen-gate-utilities-shop-${String(shopId).toLowerCase()}`,position:windowSize(ShopWindowClass.DEFAULT_OPTIONS.position)});this.shopId=shopId;this.actorId='';this.mode='buy';this.payTo='actor';}
-  get title(){let v=null;try{v=viewOf(this.shopId);}catch{v=null;}return v?.name??'Shop';}
-  async _renderHTML(){let v=null;try{v=viewOf(this.shopId);}catch{v=null;}return `<div class="agu-shop-window__body">${v?shopViewHTML(v,this):empty('This shop is closed now','It opens again when your GM shows it to you.')}</div>`;}
+  constructor(shopId){super({id:`ashen-gate-utilities-shop-${String(shopId).toLowerCase()}`,position:windowSize(ShopWindowClass.DEFAULT_OPTIONS.position)});this.shopId=shopId;this.actorId='';this.mode='buy';this.payTo='actor';this.readOnly=false;this.bank={};}
+  /** The live view when this shop is presented to the user, else its read-only view from a shown merchant list. */
+  current(){let v=null,ro=false;try{v=viewOf(this.shopId);if(!v){v=browseViewOf(this.shopId);ro=Boolean(v);}}catch{v=null;}return {v,ro};}
+  get title(){return this.current().v?.name??'Shop';}
+  async _renderHTML(){const {v,ro}=this.current();this.readOnly=ro;return `<div class="agu-shop-window__body">${v?shopViewHTML(v,this):empty('This shop is closed now','It opens again when your GM shows it to you.')}</div>`;}
   _replaceHTML(html,content){content.innerHTML=html;
+   // 0.20.0: a service's own controls (the Bank form).
+   if(!this.readOnly){const {v}=this.current();if(v?.kind==='service')bindServiceView(this,content,v,()=>this.render().catch(ctx.error??console.error));}
    content.querySelector('[data-shop-actor]')?.addEventListener('change',e=>{this.actorId=e.target.value;this.render().catch(ctx.error??console.error);});
    for(const b of content.querySelectorAll('[data-action="shop-buy"]'))b.addEventListener('click',()=>{if(b.disabled)return;b.disabled=true;buyFlow(b.dataset.shop,b.dataset.lineId,{actorId:this.actorId}).finally(()=>{b.disabled=false;});});
    // 0.19.0: Buy / Sell, where the coins go, Sell…, and a drop from the player's own sheet.
@@ -380,7 +431,8 @@ function shopWindowClass(){
    if(body){
     body.addEventListener('dragover',ev=>ev.preventDefault());
     body.addEventListener('drop',ev=>{ev.preventDefault();let v=null;try{v=viewOf(this.shopId);}catch{v=null;}
-     if(!v?.buys){ui.notifications?.warn('This shop doesn\'t buy items.');return;}
+     if(!v){ui.notifications?.warn('Ask the GM to open this.');return;}
+     if(!v.buys){ui.notifications?.warn('This shop doesn\'t buy items.');return;}
      this.mode='sell';sellDrop(this.shopId,ev,{payTo:this.payTo}).finally(again);});
    }
   }
@@ -396,7 +448,7 @@ export function buyFlow(shopId,lineId,opts){
 export async function openShop(id){
  if(!isGM())playerGate();
  if(!id)return ctx.openTab?.('shops');
- if(!viewOf(id))throw Error(SHOP_REFUSALS.notOpen);
+ if(!viewOf(id)&&!browseViewOf(id))throw Error(SHOP_REFUSALS.notOpen);
  let w=windows.get(id);if(!w){w=new (shopWindowClass())(id);windows.set(id,w);}
  await w.render({force:true});return w;
 }
@@ -425,8 +477,8 @@ export async function handleTrade(app,action,b,{render}){
  if(action==='shop-view'){await openShop(b.dataset.shop);return true;}
  if(action==='shop-present'){gmOnly();const s=await presentDialog(b.dataset.shop);if(s)ui.notifications?.info(`${s.name} is shown to ${s.presented.mode==='all'?'all players':`${s.presented.userIds.length} ${s.presented.userIds.length===1?'player':'players'}`}.`);await render();return true;}
  if(action==='shop-stop'){
-  gmOnly();const s=mustGet(b.dataset.shop);
-  if(!await confirmDialog(`Stop showing ${s.name}? Players can no longer see it or buy from it. Its items, stock and coins stay as they are.`,{title:'Stop showing this shop?',yes:'Stop showing'}))return true;
+  gmOnly();const s=getRecord(b.dataset.shop),svc=s.kind==='service';
+  if(!await confirmDialog(svc?`Stop showing ${s.name}? Players can no longer use it. Its settings stay as they are.`:`Stop showing ${s.name}? Players can no longer see it or buy from it. Its items, stock and coins stay as they are.`,{title:svc?'Stop showing this service?':'Stop showing this shop?',yes:'Stop showing'}))return true;
   await stopShowing(s.id);ui.notifications?.info(`${s.name} is no longer shown to players.`);await render();return true;
  }
  return false;
@@ -441,7 +493,7 @@ export function bindChatCard(message,html){
 }
 /** The added `api.shops` calls (contract ag-utilities-shops/1). */
 export function tradeApi(){
- return {present,stopShowing,presented,open:openShop,forMe:()=>clone(forMe()),quote:req=>clone(quote(req)),buy,quoteSell:req=>clone(quoteSell(req)),sell};
+ return {present,stopShowing,presented,open:openShop,forMe:()=>clone(forMe()),browse:()=>clone(browse()),quote:req=>clone(quote(req)),buy,quoteSell:req=>clone(quoteSell(req)),sell};
 }
 /** Hooks: GM rebuilds the player view on shop, electrum and Locations changes; everyone re-renders on view changes. */
 export function tradeHooks(rerender){

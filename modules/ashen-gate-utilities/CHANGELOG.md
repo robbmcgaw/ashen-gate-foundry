@@ -1,3 +1,11 @@
+## 0.20.0 — 2026-10-21
+
+- **Merchant lists** (GM: Shops → Merchant lists): group a city's shops and services in order, then **Show to players (read only)**. Players get Shops → **Merchant list**: each entry with **Look inside** (read only, Buy / Sell / Bank off with "Ask the GM to open this") and an **Open** badge when it is presented to them. A list never lets anyone buy, sell or use a service, also in the API and on the GM client.
+- **Services:** **New service** on the Shops toolbar; the editor shows a service type and its settings instead of items and coins. Present / Stop showing / Duplicate / Delete as for shops. A service type this version doesn't know is kept, listed as "Unknown service type", and never shown to players.
+- **Bank** (first service): whose coins (character or party purse, no vote), change from, into, how many to get, a preview, **Confirm exchange**. Standard rates, whole coins only ("Ask for a multiple of 10 sp"), optional per-bank fee (0–50 %, default 0, rounded up, in the coin given), no electrum while it is off, unlimited coins. One coin update on the GM client; stash History `bank-exchange`.
+- **API** (`api.shops`): `services.*` (`list`, `get`, `create`, `save`, `duplicate`, `delete`, `types`, `quote`, `use`), `merchants.*` (`list`, `get`, `save`, `setVisible`, `delete`), `browse()`. Socket `service-use`.
+- Saved data: additive only. Services are new pages in the GM Data journal, lists use its existing lists page, shown lists are new Player View pages, and stash History gets `bank-exchange` entries. No migration.
+
 ## 0.19.0 — 2026-10-21
 
 - **Selling to a shop** (design §7c, S1–S9): a shown shop with **Buys from players** on gets a **Buy / Sell** switch in its window. Sell lists the character's items with what the shop pays, and greyed items with the reason they can't be sold (containers, equipped or attuned, wrong type, *Not for sale*, no value). **Coins go to** the character or the party purse.

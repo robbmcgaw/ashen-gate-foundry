@@ -19,7 +19,7 @@ Open it from **Actors sidebar → Utilities**. The GM always sees it; players se
 - **Conditions:** one party view of native conditions. Removal is locked per character; the GM unlocks a character so its owner can remove that character's native conditions. **Pop Out Overlay** opens a transparent per-user conditions window.
 - **History** (GM): finished and cancelled rolls, labelled Group Check or Roll Request, with per-character results, average and outcome.
 - **GM Setup** (GM): Player Access and other settings.
-- **Shops**: GM: see *Shops (GM)* below. Players: **Open shops**, the shops the GM presents to them (see *Shops: presenting and buying*). The tab shows for players while Player Access and *Shops on for players* are both on.
+- **Shops**: GM: see *Shops (GM)* below. Players: **Open shops**, the shops and services the GM presents to them (see *Shops: presenting and buying*), and **Merchant list**, the lists the GM shares (read only, see *Merchant lists*). The tab shows for players while Player Access and *Shops on for players* are both on.
 
 Player actions that change shared state (stash moves, condition removal) are carried out by the active GM client, which re-checks ownership and the lock, so a GM must be logged in for those.
 
@@ -60,6 +60,24 @@ API, GM only (`GM only.` for anyone else; the presenting and buying calls are be
 - All or nothing on the GM client, in the same queue as purchases: the shop's coins, stock and log first, then the coins to the seller, then the item is taken last. A failure puts the earlier steps back (the GM gets a whisper if that fails too). Sales into the party purse are listed in Party Inventory → History; every sale is in the shop's own log.
 - An open shop editor follows sales and purchases on that shop (new lines, stock you haven't edited, the merchant's coins), so Save Changes never drops an item a player just sold.
 - API (`api.shops`, added): `quoteSell({shopId, itemId, actorId, quantity, payTo: 'actor' | 'purse', rev})` and `sell({...same})` → the receipt text (player or GM).
+
+## Merchant lists
+
+- **Shops → Merchant lists** (GM): a card per list with its city, its shops and services in order, and *Players can browse* or *Hidden*. **New merchant list** / **Edit** open a small editor: name, city (Locations active only), and the shops and services on it (**Add to list**, move up or down, take off). Save Changes / Cancel. **Delete** asks first; the shops and services stay.
+- **Show to players (read only)** on a card lets every player browse the list straight away. A new list is hidden.
+- Players: Shops → **Merchant list** shows each shared list (city name only once revealed in Locations) with name, merchant, place and "3 items" or "Bank"; **Open** marks an entry presented to them. **Look inside** opens it read only: Buy, Sell and the Bank form are off with "Ask the GM to open this". With nothing shared: "Your GM hasn't shared a merchant list."
+- A list never lets anyone buy, sell or use a service, also in the API and on the GM client: that still needs **Present…**.
+- Stored on the GM Data journal's lists page. A shown list is one page in the Player View journal that every player can read, holding only the player view of its entries (no hidden items, cost, GM notes or unknown service types).
+- API (`api.shops`, added): GM only `merchants.list()`, `merchants.get(id)`, `merchants.save(list)` (no id: a new `MLIST-*` list), `merchants.setVisible(id, bool)`, `merchants.delete(id, {confirm: true})`; player or GM `browse()` → the shown lists.
+
+## Services: Bank
+
+- **New service** (Shops toolbar) opens the editor with the shop fields, a **Service type** select and that type's settings instead of items and coins. The only type is **Bank**, with **Fee (%)**: 0 to 50, default 0 (none). Services are listed with the shops (with their type), and **Present…**, **Stop showing**, **Duplicate** and **Delete service** work as for shops.
+- Players it is shown to get the Bank in its own window: **Whose coins** (their character or the party purse; no vote needed), **Change from**, **Into**, **How many to get**, then a preview (You give, You get, before → after) and **Confirm exchange**. Refusals are shown in red and end "No coins changed."
+- Standard rates, exact: 1 pp = 10 gp = 100 sp = 1000 cp. You say how many coins you want to get: 25 sp from gold is refused with "Ask for a multiple of 10 sp". The fee is taken in the coin you give, rounded up, on top (2 gp from silver at 10 % costs 20 sp + 2 sp). Electrum only while *Use electrum* is on. The bank has unlimited coins.
+- The GM client checks it again on fresh coins and makes one coin update with both coins (all or nothing by itself). Every exchange is in Party Inventory → History (players see their own and the party purse's).
+- A service whose type this Utilities version doesn't know (from a later version) is kept as it is, listed for the GM as "Unknown service type", and never shown to players.
+- API (`api.shops.services`): GM only `list()`, `get(id)`, `create(data)`, `save(record)`, `duplicate(id)`, `delete(id, {confirm: true})`, `types()`; player or GM `quote({serviceId, payFrom: 'actor' | 'purse', actorId, from, to, receive, rev})` and `use({...same})` → the receipt text. `present` / `stopShowing` take a service id too.
 
 ## Public API
 
