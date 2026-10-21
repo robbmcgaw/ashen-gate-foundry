@@ -155,3 +155,20 @@ test('Journey tab: alpha badge; players see their list; the GM gets the picker, 
   await EDITS['journey-actor'](mine, {value: 'other'});
   assert.equal(mine.journeyActorId, null, 'players can\'t switch to another character\'s journey');
 });
+
+test('order does not depend on the clock: entries made in one batch share a time, so a millisecond tick never reorders them (0.20.1)', async () => {
+  world();
+  const realNow = Date.now;
+  let t = 1_700_000_000_000;
+  Date.now = () => (t += 7);   // every call is later, as on a busy machine
+  try {
+    const actor = hero(3);
+    await j.recordLevel(actor);
+    actor.system.details.level = 6;
+    await j.recordLevel(actor);
+    assert.deepEqual(visible(actor).map(e => e.id), ['level-6', 'level-5', 'level-4'], 'highest level first, whatever the clock does');
+    assert.equal(new Set(visible(actor).map(e => e.at)).size, 1, 'one time for the batch');
+    const {entries} = j.renownEntries(actor, {getFactions: () => []}, {seen: {}});
+    assert.deepEqual(entries, []);
+  } finally { Date.now = realNow; }
+});
