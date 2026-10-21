@@ -107,7 +107,7 @@ const cell = (col, row) => `<span class="agch-card__fact" data-label="${esc(col.
 export function cardHtml(row, columns, {controls = '', lead = '', star = '', badges = '', alt = false, expanded = null, listKey = ''} = {}) {
   const detailKey = sectionKey('more', listKey, row.id), open = expanded?.has?.(detailKey) === true;
   const more = row.more ? `<button type="button" class="agch-card__more" data-action="item-more" data-id="${esc(row.id)}" data-key="${esc(detailKey)}" data-ag-always aria-expanded="${open}" aria-controls="${esc(detailKey)}">${open ? 'Less' : 'More'}</button>` : '';
-  return `<li class="agch-card${alt ? ' is-alt' : ''}${row.equipped ? ' is-equipped' : ''}${row.rarity ? ' has-rarity' : ''}" data-item-id="${esc(row.id)}"${row.rarity ? ` data-rarity="${row.rarity}"` : ''}>
+  return `<li class="agch-card${alt ? ' is-alt' : ''}${row.equipped ? ' is-equipped' : ''}${row.rarity ? ' has-rarity' : ''}" data-item-id="${esc(row.id)}"${row.rarity ? ` data-rarity="${row.rarity}"` : ''}${row.uuid ? ` draggable="true" data-drag-uuid="${esc(row.uuid)}"` : ''}>
     <span class="agch-card__lead">${lead}${star}</span>
     <img class="agch-item__img" src="${esc(row.img)}" alt="">
     <span class="agch-card__main"><button type="button" class="agch-item__name" data-action="item-sheet" data-id="${esc(row.id)}" data-ag-always title="Open ${esc(row.name)}">${esc(row.name)}</button>${badges ? `<span class="agch-item__badges">${badges}</span>` : ''}

@@ -22,6 +22,7 @@ export const PARTS = [
   {key: 'rest', label: 'Short and Long Rest buttons', core: true},
   {key: 'equipment', label: 'Equipment slots (paper doll)', core: true},
   {key: 'companions', label: 'Companions'},
+  {key: 'hotbars', label: 'Hotbars (mastery & marks, quick bar)', core: true},
   {key: 'professions', label: 'Ashen Gate: Professions', partner: 'ashen-gate-profession-ledger', partnerLabel: 'Profession Ledger'},
   {key: 'perks', label: 'Ashen Gate: Perks', partner: 'ashen-gate-skill-trees', partnerLabel: 'Skill Trees'},
   {key: 'renown', label: 'Ashen Gate: Renown (and Pantheon)', partner: 'ashen-gate-factions', partnerLabel: 'Renown'},

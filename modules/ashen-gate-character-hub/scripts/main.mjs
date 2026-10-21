@@ -8,6 +8,7 @@ import {openNativeSheet, nativeSheetClass} from './native.mjs';
 import {registerCompanionSettings, petCapFor, companionsData, registerPetSlotSource, unregisterPetSlotSource} from './companions.mjs';
 import {registerCollapseSetting} from './collapse.mjs';
 import {registerListSortSetting} from './organize.mjs';
+import {registerMarksSocket} from './marks.mjs';
 import {registerVisibilitySetting, PARTS, PRESETS, readVisibility, setVisibility, applyPreset, hiddenReason, canSee} from './visibility.mjs';
 
 let HubSheet = null;
@@ -106,6 +107,15 @@ if (globalThis.Hooks) {
     const mod = game.modules.get(MODULE_ID);
     if (mod) mod.api = createApi();
   });
+  // Target marks for tokens the player doesn't own go through the GM client (marks.mjs).
+  Hooks.once('ready', () => registerMarksSocket());
+  // A mark placed or removed on someone else's token: redraw the Hub of the character who placed it.
+  for (const hook of ['createActiveEffect', 'deleteActiveEffect']) Hooks.on(hook, effect => {
+    const by = effect?.flags?.[MODULE_ID]?.mark?.by;
+    if (by) { try { scheduleRender(globalThis.fromUuidSync?.(by)); } catch {} }
+  });
+  // The marks bar shows how many tokens you target.
+  Hooks.on('targetToken', user => { if (user === game.user) renderAllHubs(100); });
   // Foundry re-renders the sheet for its own Actor changes too; these cover embedded Items/Effects and bursts.
   for (const hook of ['updateActor', 'createItem', 'updateItem', 'deleteItem', 'createActiveEffect', 'updateActiveEffect', 'deleteActiveEffect']) {
     Hooks.on(hook, doc => scheduleRender(actorOf(doc)));

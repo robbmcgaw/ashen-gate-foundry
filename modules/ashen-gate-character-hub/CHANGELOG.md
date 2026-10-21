@@ -1,3 +1,25 @@
+## 0.13.0 — 2026-10-21
+
+Combat helpers (part 4 of Robb's alpha feedback). Tracking only: nothing is automated and no rules are worked out by the Hub.
+- **Mastery & marks hotbar** (bottom of the Hub, folds away):
+  - One button per mark the character may place, from dnd5e data only: each **equipped weapon's own mastery options** (dnd5e 6: the weapon's mastery when the character has mastery of that weapon type, plus bonus masteries), and **spells the character has** from the marks table.
+  - A button puts the mark on every **targeted** token, or takes it off again.
+  - The bar lists the marks this character has placed in the scene, each with ✕.
+- **Marks are real ActiveEffects** on the target's Actor, with a status (`agch-<id>`, so the token shows the icon). They have **no changes**; the description says who placed it and links dnd5e's own rules page for masteries. For a token the player doesn't own, the coordinating GM client makes the change. Before doing so it checks:
+  - the requester owns the character;
+  - the mark is one that character may place;
+  - the GM shows the hotbars to players.
+  A GM must be connected for this. The module now declares `"socket": true`.
+- **The marks table** is one constant (`MARKS` in `scripts/marks.mjs`), one line per mark:
+  - the 8 weapon masteries: Cleave, Graze, Nick, Push, Sap, Slow, Topple, Vex;
+  - Hunter's Mark, Hex, Bane, Faerie Fire, Guiding Bolt, Vicious Mockery and Ensnaring Strike, matched by dnd5e spell identifier.
+- **Quick bar:**
+  - 10 free slots per character (saved on the character in `flags.ashen-gate-character-hub.hotbar`).
+  - Drag in the character's own weapons, spells, features or items (item rows in the Hub can now be dragged) or a world macro you can use.
+  - Click uses it (dnd5e's `item.use()` / the macro); right-click clears the slot.
+- **Player visibility:** new part "Hotbars" (on by default). While it is off, players don't see the hotbars and their hotbar and mark actions are refused.
+- **Saved data:** one new character flag (`hotbar`), and mark ActiveEffects on target Actors (flag `mark`). No migration needed.
+
 ## 0.12.0 — 2026-10-21
 
 Companions (part 3 of Robb's alpha feedback):

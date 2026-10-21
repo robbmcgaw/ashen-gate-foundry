@@ -11,6 +11,7 @@ import {ashenGateTab, AG_PANELS, agPanelsFor, partnerApi, embedApi, panelState} 
 import {canSee, hiddenReason, hiddenBadge, partForPartner} from './visibility.mjs';
 import {companionsTab, gmSetupTab} from './companion-views.mjs';
 import {configAttrs} from './configure.mjs';
+import {hotbarsHtml} from './hotbar-views.mjs';
 import {sectionHtml, sectionKey} from './collapse.mjs';
 
 export {btn};
@@ -105,10 +106,10 @@ export function shellHtml(ctx) {
   const tabs = visibleTabs(), current = tabs.find(t => t.id === tab) ?? tabs[0];
   const notice = ctx.editable ? '' : '<p class="agch-notice" role="note"><i class="fa-solid fa-eye" aria-hidden="true"></i> View only: you can look but not change or roll for this character.</p>';
   if (!current) return `<div class="agch-root">${top}<div class="agch-split">${characterPanelHtml(ctx)}
-    <section class="agch-pane"><p class="ag-empty">The GM hasn't shared any other sections yet.</p></section></div></div>`;
+    <section class="agch-pane"><p class="ag-empty">The GM hasn't shared any other sections yet.</p></section></div>${hotbarsHtml(ctx)}</div>`;
   return `<div class="agch-root">${top}<div class="agch-split">${characterPanelHtml(ctx)}
     <section class="agch-pane"><h2 class="agch-pane__title"><i class="${current.icon}" aria-hidden="true"></i> ${esc(current.label)}${current.parts ? hiddenBadge(current.parts) : ''}</h2>${notice}
-    <div class="agch-body" role="tabpanel" aria-label="${esc(current.label)}">${current.render(ctx)}</div></section>${tabsHtml(current.id, ctx.sheet)}</div></div>`;
+    <div class="agch-body" role="tabpanel" aria-label="${esc(current.label)}">${current.render(ctx)}</div></section>${tabsHtml(current.id, ctx.sheet)}</div>${hotbarsHtml(ctx)}</div>`;
 }
 
 export function errorHtml(err) {

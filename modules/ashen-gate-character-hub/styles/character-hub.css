@@ -381,3 +381,26 @@
 .ag-character-hub .agch-clothing__slot select { width: 8rem; }
 .ag-character-hub .agch-clothing__off { position: absolute; top: -6px; right: -6px; min-height: 0; padding: 0 4px; background: var(--ag-surface-sunken); border-radius: 50%; }
 .ag-character-hub .agch-drop--add { margin-top: var(--ag-space-2); }
+
+/* Hotbars at the bottom of the Hub (0.13.0): mastery & marks, and the free quick bar. Each folds away. */
+.ag-character-hub .agch-hotbars { flex: none; display: grid; gap: var(--ag-space-1); padding-top: var(--ag-space-1); border-top: 1px solid var(--ag-border); }
+.ag-character-hub .agch-hotbar { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: var(--ag-space-2); }
+.ag-character-hub .agch-hotbar__head { margin: 0; font-size: var(--ag-text-sm); color: var(--ag-muted); white-space: nowrap; padding-top: 6px; min-width: 9rem; }
+.ag-character-hub .agch-hotbar__body { min-width: 0; }
+.ag-character-hub .agch-hotbar__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1); }
+.ag-character-hub .agch-hotbar__targets { margin-left: auto; font-size: var(--ag-text-xs); }
+.ag-character-hub .agch-hotbtn { display: inline-flex; align-items: center; gap: 4px; width: auto; min-height: 30px; padding: 2px var(--ag-space-2); border: 1px solid var(--ag-border-strong); border-radius: var(--ag-radius-sm); background: var(--agch-bg-raised); color: var(--ag-text); font-size: var(--ag-text-sm); cursor: pointer; }
+.ag-character-hub .agch-hotbtn img { width: 20px; height: 20px; border: 0; object-fit: contain; }
+.ag-character-hub .agch-hotbtn:hover:not(:disabled) { border-color: var(--ag-accent); }
+.ag-character-hub .agch-placed { list-style: none; margin: var(--ag-space-1) 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--ag-space-1); font-size: var(--ag-text-xs); }
+.ag-character-hub .agch-placed > li { display: inline-flex; align-items: center; gap: 4px; padding: 1px 2px 1px var(--ag-space-2); border: 1px solid var(--ag-border); border-radius: 999px; background: var(--agch-bg-sunken); }
+.ag-character-hub .agch-placed img { width: 14px; height: 14px; border: 0; }
+.ag-character-hub .agch-placed__off { width: 18px; height: 18px; min-height: 0; padding: 0; border: 0; background: none; color: var(--ag-muted); cursor: pointer; }
+.ag-character-hub .agch-quick { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
+.ag-character-hub .agch-quick__slot { position: relative; width: 40px; height: 40px; min-height: 0; padding: 0; display: grid; place-items: center; border: 1px solid var(--ag-border-strong); border-radius: var(--ag-radius-sm); background: var(--agch-bg-sunken); cursor: pointer; overflow: hidden; }
+.ag-character-hub .agch-quick__slot.is-empty { border-style: dashed; border-color: var(--ag-border); cursor: default; }
+.ag-character-hub .agch-quick__slot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center top; border: 0; }
+.ag-character-hub .agch-quick__slot.is-missing img { filter: grayscale(1); opacity: .5; }
+.ag-character-hub .agch-quick__n { position: absolute; left: 2px; bottom: 0; font-size: 9px; color: var(--ag-text); text-shadow: 0 1px 2px #000; pointer-events: none; }
+.ag-character-hub .agch-quick__slot:hover:not(:disabled), .ag-character-hub .agch-quick__slot.is-empty:hover { border-color: var(--ag-accent); }
+@container (max-width: 900px) { .ag-character-hub .agch-hotbar { grid-template-columns: minmax(0, 1fr); } }

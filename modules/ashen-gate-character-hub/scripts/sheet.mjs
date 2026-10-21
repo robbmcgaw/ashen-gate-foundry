@@ -15,6 +15,8 @@ import * as vis from './visibility.mjs';
 import {openConfig} from './configure.mjs';
 import {toggleSection} from './collapse.mjs';
 import {setListChoice} from './organize.mjs';
+import * as marks from './marks.mjs';
+import * as hotbar from './hotbar.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
 /** Shows a refusal or failure from an action; a success is silent (the sheet re-renders itself). */
@@ -31,6 +33,9 @@ export const ACTIONS = {
   'ag-jump': (s, t) => { s.tab = 'ashen-gate'; s.agTab = t.dataset.partner; s.menu = null; return s.render(); },
   'hp-apply': (s, t) => hpApply(s, t),
   'item-more': (s, t) => toggleMore(s, t),
+  'mark-apply': async (s, t) => { const r = await marks.applyMark(s.document, t.dataset.mark); if (r.ok) s.render(); return r; },
+  'mark-remove': async (s, t) => { const r = await marks.removePlaced(s.document, t.dataset.scene, t.dataset.token, t.dataset.mark); if (r.ok) s.render(); return r; },
+  'hotbar-use': (s, t, e) => hotbar.useHotbarSlot(s.document, t.dataset.hotbarSlot, e),
   'item-favorite': (s, t) => items.toggleFavorite(s.document, t.dataset.id),
   'slot-open': (s, t) => items.openItemSheet(s.document, t.dataset.id),
   'menu-close': s => toggleMenu(s, null),
@@ -148,6 +153,13 @@ export async function droppedItem(event, types = ['Item']) {
   const Cls = globalThis[data.type]?.implementation ?? globalThis[data.type];
   return Cls?.fromDropData ? Cls.fromDropData(data) : null;
 }
+/** Item cards can be dragged (to the quick bar, Foundry's hotbar or another sheet) as ordinary Item drag data. */
+export function onItemDragStart(event) {
+  const card = event.target?.closest?.('[data-drag-uuid]');
+  if (!card || !event.dataTransfer) return null;
+  event.dataTransfer.setData('text/plain', JSON.stringify({type: 'Item', uuid: card.dataset.dragUuid}));
+  return true;
+}
 /** Opens a linked mount/pet Actor's own sheet; Foundry's permissions decide what the user sees there. */
 async function openLinkedActor(actor, entryId) {
   const entry = comp.storedCompanions(actor).find(e => e.id === entryId), other = comp.linkedActor(entry?.actorUuid);
@@ -221,8 +233,9 @@ export function createHubSheetClass(Base) {
           if (ev.key === 'Enter' && ev.target?.matches?.('[data-hpedit]')) { ev.preventDefault(); this.dispatch('hp-apply', ev.target, ev); }
         });
         content.addEventListener?.('submit', ev => ev.preventDefault());
-        content.addEventListener?.('dragover', ev => { if (ev.target?.closest?.('[data-drop-companion]')) ev.preventDefault(); });
-        content.addEventListener?.('drop', ev => this._onCompanionDrop(ev));
+        content.addEventListener?.('dragover', ev => { if (ev.target?.closest?.('[data-drop-companion], [data-hotbar-slot]')) ev.preventDefault(); });
+        content.addEventListener?.('drop', ev => ev.target?.closest?.('[data-hotbar-slot]') ? this._onHotbarDrop(ev) : this._onCompanionDrop(ev));
+        content.addEventListener?.('dragstart', ev => onItemDragStart(ev));
         this._agchBound = true;
       }
       try { const a = globalThis.game?.modules?.get('ashen-gate-manager')?.api?.appearance; if (a?.contract === 'ag-appearance/0.1-beta') a.applyTo?.(content); } catch {}
@@ -255,6 +268,8 @@ export function createHubSheetClass(Base) {
      */
     _onContextMenu(event) {
       if (event.target?.closest?.('.agch-embed')) return null;
+      const quick = event.target?.closest?.('.agch-quick__slot.is-filled');
+      if (quick) { event.preventDefault(); event.stopPropagation(); return hotbar.clearHotbarSlot(this.document, quick.dataset.hotbarSlot).then(report); }
       const filled = event.target?.closest?.('[data-action="slot-open"]');
       const slot = filled ?? event.target?.closest?.('[data-action="slot-menu"]');
       if (slot) {
@@ -306,6 +321,15 @@ export function createHubSheetClass(Base) {
       if (t?.closest?.('.agch-menu, [data-action="slot-menu"], [data-action="other-menu"]')) return null;
       this.menu = null;
       return this.render();
+    }
+
+    /** Drops on a quick bar slot: one of this character's Items or a Macro. */
+    async _onHotbarDrop(event) {
+      const slot = event.target?.closest?.('[data-hotbar-slot]');
+      if (!slot) return null;
+      event.preventDefault(); event.stopPropagation();
+      try { return report(await hotbar.setHotbarSlot(this.document, slot.dataset.hotbarSlot, await droppedItem(event, ['Item', 'Macro']))); }
+      catch (err) { return report({ok: false, error: err?.message ?? String(err)}); }
     }
 
     /** Drops on a Companions zone are handled here; other drops fall through to Foundry's own sheet handling. */
