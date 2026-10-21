@@ -28,6 +28,7 @@ import {SPECIALISTS, detectSpecialistFile, specialistCount, specialistApi, descr
 import {classifyDelivery} from './delivery.js';
 import {buildWorldExport, saveWorldExport, saveBackup, SNAPSHOT_SETTING} from './world-export.js';
 import {runPreSessionCheck} from './pre-session-check.js';
+import {readGmSetupForm, saveGmSetup} from './gm-setup.js';
 import {buildImportReport, buildBlockedReport, pushReport} from './import-result.js';
 import {ITEM_FLAG, ACTOR_ITEMS_FLAG, itemKeys, matchActors, planActor, applyActorUpdate} from './actor-update.js';
 import {mediaFilename} from './zip-import.js';
@@ -195,15 +196,22 @@ function withItemEffects(record,plan,matches) {
 
 const TYPE_LABEL={Item:'Items',Actor:'Actors',JournalEntry:'Journals'};
 const capitalize=s=>String(s??'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/^\w/,c=>c.toUpperCase());
+/** Kit badge tones for import preview actions and record status (0.43.0). */
+const ACTION_TONE={create:'ok',update:'ok',metadata:'ok',blocked:'danger',conflict:'danger'};
+/** Items toolbar (0.43.0): one Load compendiums button and one Clear filters count for the shared filters and the All items facets. */
+const packsLabel=status=>status.loading?'Loading compendiums…':status.compendiums?'Reload compendiums':'Load compendiums';
+const browseFacetCount=st=>Object.values(st.filters??{}).filter(v=>v!==undefined&&v!==null&&v!==''&&v!=='all').length+(st.managedOnly?1:0)+(st.unlinkedOnly?1:0);
+const statusTone=status=>['active','approved'].includes(status)?'ok':status==='draft'?'warn':'';
 
 class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.42.1", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
-  static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
+  // One scroll region per pane (header and tabs stay put); the Items list column scrolls on its own. Both keep their place on re-render.
+  static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`, scrollable: [".agm-pane", ".aglib-rows"]}};
 
   constructor(options={}) {
     // Kit 2: the default size grows with the Comfortable size set (read when the window is created).
@@ -539,7 +547,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.libraryPage=Math.max(0,Math.min(this.libraryPage,pageCount-1));
     const libraryRows=browser.rows.slice(this.libraryPage*this.libraryPageSize,(this.libraryPage+1)*this.libraryPageSize);
     const libraryDetail=inspectLibrary(library,this.libraryFocus);
-    const libraryGroups=groupLibraryRows(libraryRows.map(row=>({...row,focused:row.uuid===this.libraryFocus,tooltip:row.kind==='Item'?itemTooltipAttrs(row.uuid):''})),browser.rows);
+    const libraryGroups=groupLibraryRows(libraryRows.map(row=>({...row,statusTone:statusTone(row.status),focused:row.uuid===this.libraryFocus,tooltip:row.kind==='Item'?itemTooltipAttrs(row.uuid):''})),browser.rows);
     const libraryFilterCount=[this.libraryStatus!=='all',this.libraryPackage!=='all',!this.libraryShowArchived].filter(Boolean).length;
     const menus=game.settings?.menus ? [...game.settings.menus.entries()] : [];
     const playerAccessRows=game.user?.isGM ? await collectPlayerAccess(game.modules?.values?.()??[]) : [];
@@ -548,6 +556,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const captureRows = allItems.filter(row => (!this.captureTaggedOnly || row.capture) && (!this.captureSearch || row.name.toLowerCase().includes(this.captureSearch.toLowerCase()) || row.type.toLowerCase().includes(this.captureSearch.toLowerCase())));
     return {
       ...ctx,
+      version: game.modules.get(MODULE_ID)?.version ?? '',
       importActive: this.tab === "import",
       importReports: this.importReports, hasImportReports: this.importReports.length>0,
       zipBundle: this.zipBundle ? {source:this.zipBundle.source, running:Boolean(this.zipBundle.queue), summary:bundleSummary(this.zipBundle),
@@ -565,7 +574,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       appearanceOpen: this.appearanceOpen,
       appearanceMessage:this.appearanceMessage,
       appearanceCurrent: appearanceController?.getState?.()??null,
-      appearanceSkinRows:(appearanceController?.listSkins?.()??[]).map(skin=>({...skin,selected:skin.id===(this.appearanceSelection??appearanceController.getState().worldDefault)})),
+      appearanceSkinRows:(appearanceController?.listSkins?.()??[]).map(skin=>({...skin,current:skin.id===appearanceController.getState().worldDefault,selected:skin.id===(this.appearanceSelection??appearanceController.getState().worldDefault)})),
       appearanceSizes:appearanceController?.listSizes?.()??[],
       playerAccessRows, playerAccessMessage:this.playerAccessMessage, playerAccessReport:this.playerAccessReport,
       playerAccessVisibleCount:accessVisibleCount,
@@ -581,7 +590,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       libraryPackageOptions:[{value:'all',label:'All packages',selected:this.libraryPackage==='all'},...browser.packageOptions.map(r=>({...r,label:r.value}))],
       libraryPageLabel:`${browser.rows.length ? this.libraryPage*this.libraryPageSize+1 : 0}–${Math.min((this.libraryPage+1)*this.libraryPageSize,browser.rows.length)} of ${browser.rows.length}`,
       libraryHasPrevious:this.libraryPage>0,libraryHasNext:this.libraryPage+1<pageCount,
-      libraryDetail:libraryDetail?{...libraryDetail,isItem:libraryDetail.kind==='Item'}:null,libraryHasDetail:Boolean(libraryDetail),
+      libraryDetail:libraryDetail?{...libraryDetail,statusTone:statusTone(libraryDetail.status),isItem:libraryDetail.kind==='Item'}:null,libraryHasDetail:Boolean(libraryDetail),
       libraryGroups, libraryFilterCount, libraryHasFilters:libraryFilterCount>0,
       libraryRecordsActive:items&&view==='records',libraryCheckActive:items&&view==='checks',
       libraryExportActive:items&&view==='export',libraryAdoptActive:items&&view==='adopt',
@@ -614,6 +623,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       setupActive: this.tab === "setup",
       setup: this.tab === "setup" ? coreLinks().describeSources() : null,
       setupMessage: this.setupMessage,
+      setupSkins: this.tab === "setup" ? (appearanceController?.listSkins?.()??[]).map(skin=>({id:skin.id,label:skin.label,selected:skin.id===appearanceController.getState().worldDefault})) : [],
       codexPlayerAccess: Boolean(game.settings.get(MODULE_ID,CODEX_ACCESS_SETTING)),
       hasPackage: Boolean(this.pkg || this.specialist),
       isSpecialist: Boolean(this.specialist),
@@ -642,7 +652,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       canApply: !this.busy && this.errors.length === 0 && this.preview.some(row => actionAllowed.has(row.action) && this.selected.has(row.id)),
       busy: this.busy,
       summary,
-      rows: this.preview.map(row => ({...row, selected:this.selected.has(row.id), canSelect: actionAllowed.has(row.action), badge:row.action.toUpperCase()})),
+      rows: this.preview.map(row => ({...row, selected:this.selected.has(row.id), canSelect: actionAllowed.has(row.action), badge:capitalize(row.action), badgeTone:ACTION_TONE[row.action]??''})),
       audit: this.auditEntries,
       hasAudit: this.auditEntries.length > 0,
       history: [...history].reverse(),
@@ -827,13 +837,13 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case "demo": {
         const response = await fetch(`modules/${MODULE_ID}/samples/demo-package.json`, {cache:"no-store"});
         if (!response.ok) throw new Error(`Demo request failed (${response.status}).`);
-        this.zipBundle=null;this.zipMedia=new Map();this.packageSource="Included demonstration";
+        this.zipBundle=null;this.zipMedia=new Map();this.packageSource="Included demonstration";this.tab="import";
         await this.#load(await response.json(), "Included demonstration");
         break;
       }
       case "help": {
         await infoDialog('General Manager help',
-          '<p><strong>Items:</strong> one tab with a side rail: <strong>All items</strong> (search), <strong>Ashen Gate records</strong> (the old Library), <strong>Folders</strong> (Organize), <strong>Core links</strong>, <strong>Checks</strong>, plus Export, Adopt and NPC Codex. The filters at the top (search, source, type, origin, rarity, folder, has core_ref) stay as you move between rail entries, so you can filter to DDB / Plutonium items and then Preview organize for just those.</p><p><strong>All items:</strong> one search over world Actors, Items, Journals (and pages), Ashen Gate records from Locations, Quest Log, Renown (factions and deities), Skill Trees, Headquarters, the Profession Ledger and the NPC Codex, and (after Load compendiums) compendium indexes. Type words or prefixes such as id:MAT-HERB, id:DEITY-, type:deity, type:npc-codex, tag:, status:, tier:major. An NPC Actor and its Codex entry are one row; Open on it jumps to Items → NPC Codex at that NPC, Open on a deity opens Renown\u2019s Pantheon at it. Open shows the sheet or the owning module; drag a world or compendium row onto a sheet, the canvas or a journal. Read-only; 100 rows per page.</p><p><strong>Item preview:</strong> pick an item\u2019s name in All items (or an Item in Ashen Gate records) to see dnd5e\u2019s own item card, with where it lives (world or compendium, full folder path, uuid) and its type, rarity, source, origin, core_ref, Ashen Gate id, price, weight and attunement below. Hover an item name for the same card as a tooltip. Read-only; a compendium item is loaded on its own, never the whole compendium.</p><p><strong>Modules:</strong> open each Ashen Gate module, and see on each card whether it is <strong>Visible to players</strong> or <strong>Hidden</strong>. <strong>Reveal to players</strong> / <strong>Hide from players</strong> change that module\u2019s own Player Access setting; <strong>Refresh</strong> re-reads them and <strong>Hide all</strong> (asks first) hides every visible one. Hiding never deletes progress.</p><p><strong>Appearance</strong> (top bar, next to Help): pick the world default skin, Save World Default, or Open My Appearance for your own choice. Escape or a click outside closes it.</p><p><strong>Clean import:</strong> Choose Manager JSON or a ZIP; select Development for draft content, Validate & Preview, Select eligible, then Import.</p><p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro; no Scenes or Playlists. </p><p><strong>Item effects:</strong> an Item record can bring its Active Effects (each with a permanent eff_id). The preview lists them under the Item as New, Update, Kept or Untouched. Effects you edited in Foundry keep your edits, effects missing from the file are never deleted, and effects you made by hand are never touched. Nothing in an effect runs.</p><p><strong>ZIP bundles:</strong> a ZIP holding several import files (Manager packages plus Quest, Skill Tree, Headquarters or Factions files) shows a ZIP contents list. Untick any you do not want, press Import selected files, then preview and Apply each file in turn (Manager packages first). Each file gets its own result; Skip this file or Stop ZIP import at any time. ZIP scripts never run. Bundled images are uploaded only if that option is enabled.</p><p><strong>Folders:</strong> foundry.folder_path creates nested folders per document type. <strong>Links:</strong> canonical refs bind after creation. Markers such as [[AGREF:MAT-EXAMPLE|Material]] link to the record with that id.</p><p>Back up a test world. Existing Tables and Macros are never replaced. Existing Actors change only if you tick <strong>Update existing actors</strong>: then their name, image, token settings and package items follow the file, and HP, XP, level, conditions, player items, notes, ownership, folders and other modules\' data are kept.</p>');
+          '<p><strong>Items:</strong> one tab with a side rail: <strong>All items</strong> (search), <strong>Ashen Gate records</strong> (the old Library), <strong>Folders</strong> (Organize), <strong>Core links</strong>, <strong>Checks</strong>, plus Export, Adopt and NPC Codex. The filters at the top (search, source, type, origin, rarity, folder, has core_ref) stay as you move between rail entries, so you can filter to DDB / Plutonium items and then Preview organize for just those.</p><p><strong>All items:</strong> one search over world Actors, Items, Journals (and pages), Ashen Gate records from Locations, Quest Log, Renown (factions and deities), Skill Trees, Headquarters, the Profession Ledger and the NPC Codex, and (after Load compendiums) compendium indexes. Type words or prefixes such as id:MAT-HERB, id:DEITY-, type:deity, type:npc-codex, tag:, status:, tier:major. An NPC Actor and its Codex entry are one row; Open on it jumps to Items → NPC Codex at that NPC, Open on a deity opens Renown\u2019s Pantheon at it. Open shows the sheet or the owning module; drag a world or compendium row onto a sheet, the canvas or a journal. Read-only; 100 rows per page.</p><p><strong>Item preview:</strong> pick an item\u2019s name in All items (or an Item in Ashen Gate records) to see dnd5e\u2019s own item card, with where it lives (world or compendium, full folder path, uuid) and its type, rarity, source, origin, core_ref, Ashen Gate id, price, weight and attunement below. Hover an item name for the same card as a tooltip. Read-only; a compendium item is loaded on its own, never the whole compendium.</p><p><strong>Modules:</strong> open each Ashen Gate module, and see on each card whether it is <strong>Visible to players</strong> or <strong>Hidden</strong>. <strong>Reveal to players</strong> / <strong>Hide from players</strong> change that module\u2019s own Player Access setting; <strong>Refresh</strong> re-reads them and <strong>Hide all</strong> (asks first) hides every visible one. Hiding never deletes progress.</p><p><strong>Appearance</strong> (top bar, next to Help): pick the world default skin, Save World Default, or Open My Appearance for your own choice. Escape or a click outside closes it.</p><p><strong>GM Setup:</strong> world appearance, whether players can open the NPC Codex, and the Core links sources. Changes save only with <strong>Save Changes</strong>; Cancel drops them. <strong>Developer Tools</strong> at the bottom loads the example package.</p><p><strong>Clean import:</strong> Choose Manager JSON or a ZIP; select Development for draft content, Validate & Preview, Select eligible, then Import.</p><p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro; no Scenes or Playlists. </p><p><strong>Item effects:</strong> an Item record can bring its Active Effects (each with a permanent eff_id). The preview lists them under the Item as New, Update, Kept or Untouched. Effects you edited in Foundry keep your edits, effects missing from the file are never deleted, and effects you made by hand are never touched. Nothing in an effect runs.</p><p><strong>ZIP bundles:</strong> a ZIP holding several import files (Manager packages plus Quest, Skill Tree, Headquarters or Factions files) shows a ZIP contents list. Untick any you do not want, press Import selected files, then preview and Apply each file in turn (Manager packages first). Each file gets its own result; Skip this file or Stop ZIP import at any time. ZIP scripts never run. Bundled images are uploaded only if that option is enabled.</p><p><strong>Folders:</strong> foundry.folder_path creates nested folders per document type. <strong>Links:</strong> canonical refs bind after creation. Markers such as [[AGREF:MAT-EXAMPLE|Material]] link to the record with that id.</p><p>Back up a test world. Existing Tables and Macros are never replaced. Existing Actors change only if you tick <strong>Update existing actors</strong>: then their name, image, token settings and package items follow the file, and HP, XP, level, conditions, player items, notes, ownership, folders and other modules\' data are kept.</p>');
         break;
       }
       case "preview": await this.#preview(); break;
@@ -890,7 +900,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       }
       // 0.35.1: these org-* actions used to fall through to the Core Links handler, which ignored them silently.
       case "org-preview": case "org-apply": case "org-backup": case "org-undo": case "org-clear": case "org-housekeeping": await this.#organizeAction(name); break;
-      case "cl-scan": case "cl-apply": case "cl-backup": case "cl-undo": case "cl-clear": case "setup-save": await this.#coreLinkAction(name); break;
+      case "cl-scan": case "cl-apply": case "cl-backup": case "cl-undo": case "cl-clear": await this.#coreLinkAction(name); break;
+      case "setup-save": await this.#saveSetup(); break;
+      case "setup-cancel": this.setupMessage="Changes discarded."; await this.render(); break;
       case "clean-scan": case "clean-cancel": case "clean-backup": case "clean-commit": await this.#cleanAction(name); break;
       case "org-schema-edit": case "org-schema-save": case "org-schema-cancel": case "org-schema-export": case "org-schema-reset": await this.#organizeAction(name); break;
       case "library-check": this.#runAudit(); this.itemsView="checks";this.libraryMessage="Library check finished: results are listed below."; await this.render(); break;
@@ -900,6 +912,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         this.appearanceMessage=`World default saved: ${appearanceController.listSkins().find(s=>s.id===choice)?.label??choice}. Players with no personal override see it right away; anyone who has not reloaded since a module update needs one refresh (F5).`;
         await this.render();break;
       }
+      case "appearance-cancel": this.appearanceSelection=null; this.appearanceOpen=false; await this.render(); break;
       case "appearance-my-appearance": {
         myAppearanceApp ??= new AshenGateMyAppearance();
         await myAppearanceApp.render({force:true});break;
@@ -1473,7 +1486,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       :ORGANIZE_TYPES.flatMap(t=>{const idx=folderIndex([...(game.folders?.contents??game.folders??[])].filter(x=>x.type===t));return [...idx.byId.values()].map(x=>({id:x.id,label:`${TYPE_LABEL[t]}: ${idx.pathOf(x.id)}`}));});
     folderRows.sort((a,b)=>a.label.localeCompare(b.label));
     const status=browse().status();
-    return {query:f.query,coreRef:f.coreRef,active:activeFilterCount(f),
+    return {query:f.query,coreRef:f.coreRef,active:activeFilterCount(f)+(this.itemsView==='all'?browseFacetCount(this.browseState):0),
+      packsLabel:packsLabel(status),
       sources:[opt('all','All sources',{key:'source'}),opt('world','World',{key:'source'}),...packs.map(p=>opt(p.collection,`${p.metadata?.label??p.title??p.collection} (${p.documentName})`,{key:'source'}))],
       types:[opt('all','All types',{key:'type'}),...types.map(t=>opt(t,capitalize(t),{key:'type'}))],
       origins:[opt('all','All origins',{key:'origin'}),...Object.entries(ORIGINS).map(([k,l])=>opt(k,l,{key:'origin'}))],
@@ -1804,11 +1818,12 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     }));
     root.querySelector('[data-ag-items-coreref]')?.addEventListener('change',event=>{this.itemFilters.coreRef=event.target.checked;changed();void this.render();});
     root.querySelector('[data-ag-items-clear]')?.addEventListener('click',event=>{
-      event.preventDefault();this.itemFilters={...DEFAULT_FILTERS};changed();void this.render();
+      event.preventDefault();this.itemFilters={...DEFAULT_FILTERS};Object.assign(this.browseState,{query:'',filters:{},managedOnly:false,unlinkedOnly:false});changed();void this.render();
     });
     root.querySelector('[data-ag-items-packs]')?.addEventListener('click',event=>{
       event.preventDefault();
-      void browse().loadCompendiums().then(()=>{toast(`Compendium indexes loaded (${browse().status().compendiumCount} entries).`);if(this.rendered)void this.render();},err=>toast(String(err.message??err),true));
+      const run=browse().status().compendiums?browse().refresh({compendiums:true}):browse().loadCompendiums();
+      void run.then(()=>{toast(`Compendium indexes loaded (${browse().status().compendiumCount} entries).`);if(this.rendered)void this.render();},err=>toast(String(err.message??err),true));
       void this.render();
     });
   }
@@ -2008,7 +2023,10 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
   #mountBrowse(el) {
     if(!el)return;
     const st=this.browseState;
-    el.innerHTML=`${toolbarHtml(st,{search:false})}<div data-ag-browse-body></div>`;
+    // Sort, Group and Refresh sit in the Items toolbar (one toolbar, 0.43.0); the handlers below listen there too.
+    const tools=this.element?.querySelector('[data-ag-browse-tools]');
+    if(tools)tools.innerHTML=toolbarHtml(st);
+    el.innerHTML='<div data-ag-browse-body></div>';
     const body=el.querySelector('[data-ag-browse-body]');
     const paint=()=>{
       try{
@@ -2017,14 +2035,16 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
         if(st.page!==result.page)st.page=result.page;
         const status=svc.status();
         body.innerHTML=bodyHtml(st,result,st.detailKey?svc.detail(st.detailKey):null,status);
-        const label=el.querySelector('[data-ag-browse-packs-label]');
-        if(label)label.textContent=status.loading?'Loading compendiums…':status.compendiums?'Reload compendiums':'Load compendiums';
+        const label=this.element?.querySelector('[data-ag-items-packs-label]');
+        if(label)label.textContent=packsLabel(status);
+        const n=activeFilterCount(this.itemFilters)+browseFacetCount(st),clear=this.element?.querySelector('[data-ag-items-clear]');
+        if(clear){clear.disabled=!n;const count=clear.querySelector('[data-ag-items-clear-count]');if(count)count.textContent=String(n);}
         this.#fillItemPreview(body);
       }catch(error){body.innerHTML=`<p class="ag-notice ag-notice--danger"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> ${escapeHtml(error.message??error)}</p>`;}
     };
     const again=()=>{st.page=0;paint();};
     this.browsePaint=again;
-    el.addEventListener('change',event=>{
+    const onChange=event=>{
       const t=event.target,d=t.dataset;
       if('agBrowseSort' in d)st.sort=t.value;
       else if('agBrowseGroup' in d)st.group=t.value;
@@ -2033,23 +2053,15 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       else if('agBrowseUnlinked' in d)st.unlinkedOnly=t.checked;
       else return;
       again();
-    });
-    el.addEventListener('click',event=>{
-      const b=event.target.closest('button');if(!b||!el.contains(b))return;
+    };
+    const onClick=event=>{
+      const b=event.target.closest('button');if(!b||!event.currentTarget.contains(b))return;
       const d=b.dataset;
       if(d.agBrowseScope){st.scope=d.agBrowseScope;again();}
       else if(d.agBrowseDetail){st.detailKey=d.agBrowseDetail;paint();}
       else if('agBrowseClose' in d){st.detailKey=null;paint();}
       else if(d.agBrowsePage){st.page+=Number(d.agBrowsePage);paint();el.querySelector('.agbrowse-results')?.scrollIntoView?.({block:'start'});}
-      else if('agBrowseClear' in d){Object.assign(st,{query:'',filters:{},managedOnly:false,unlinkedOnly:false,page:0});
-        this.itemFilters.query='';const q=this.element?.querySelector('[data-ag-items-query]');if(q)q.value='';paint();}
       else if('agBrowseRefresh' in d)void browse().refresh({compendiums:true}).then(()=>toast('Browse index refreshed.'),err=>toast(String(err.message??err),true));
-      else if('agBrowsePacks' in d){
-        const s=browse().status();
-        const run=s.compendiums?browse().refresh({compendiums:true}):browse().loadCompendiums();
-        paint();
-        void run.then(()=>toast(`Compendium indexes loaded (${browse().status().compendiumCount} entries).`),err=>toast(String(err.message??err),true));
-      }
       else if(d.agBrowseOpen||d.agBrowseSheet){
         void browse().open(d.agBrowseOpen??d.agBrowseSheet,{prefer:d.agBrowseSheet?'sheet':'auto'}).then(out=>{
           if(!out.ok)toast(out.message,true);else if(out.message)toast(out.message);
@@ -2061,7 +2073,8 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       }
       else return;
       event.preventDefault();
-    });
+    };
+    for(const host of [el,tools].filter(Boolean)){host.addEventListener('change',onChange);host.addEventListener('click',onClick);}
     // Same dataTransfer payload the core sidebar uses, so rows drop onto sheets, the canvas and journals.
     el.addEventListener('dragstart',event=>{
       const row=event.target.closest?.('[data-ag-browse-key]');if(!row)return;
@@ -2136,15 +2149,14 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
         this.clPreview=null;say(out.ok?out.message:out.message,!out.ok);break;
       }
       case 'cl-clear': this.clPreview=null;this.clTicked=new Set();this.clMessage='Scan cleared. Nothing changed.';break;
-      case 'setup-save': {
-        const root=this.element;
-        const out=await api.saveSources({auto:root.querySelector('[data-ag-setup-auto]')?.checked!==false,
-          packs:[...root.querySelectorAll('[data-ag-setup-pack]:checked')].map(el=>el.dataset.agSetupPack),
-          folders:[...root.querySelectorAll('[data-ag-setup-folder]:checked')].map(el=>el.dataset.agSetupFolder)});
-        this.setupMessage=out.ok?'Core sources saved. Scan again in Core Links to use them.':out.message;
-        toast(this.setupMessage,!out.ok);this.clPreview=null;break;
-      }
     }
+    await this.render();
+  }
+  /** GM Setup → Save Changes: world appearance, NPC Codex access and core sources save together (D4). */
+  async #saveSetup() {
+    const out=await saveGmSetup(readGmSetupForm(this.element),{game,moduleId:MODULE_ID,codexAccessKey:CODEX_ACCESS_SETTING,appearance:appearanceController,coreLinks:coreLinks()});
+    this.setupMessage=out.message;toast(out.message,!out.ok);
+    if(out.saved.includes('core sources'))this.clPreview=null;
     await this.render();
   }
   #codexContext() {
@@ -2196,10 +2208,6 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
       this.codexMessage='Saved. Players see the change next time they open the codex.';await this.render();});}));
     bindDeityLinks(root);
     root.querySelector('[data-ag-codex-import]')?.addEventListener('change',e=>{const f=e.target.files?.[0];e.target.value='';if(f)run(()=>this.#codexImport(f));});
-    root.querySelector('[data-ag-codex-access]')?.addEventListener('change',e=>{run(async()=>{
-      await game.settings.set(MODULE_ID,CODEX_ACCESS_SETTING,Boolean(e.target.checked));
-      this.setupMessage=e.target.checked?'Players can now open the NPC Codex (only revealed NPCs and fields).':'Players can no longer open the NPC Codex.';
-      await this.render();});});
   }
   async #codexAction(name) {
     const svc=codexService();
@@ -2251,18 +2259,18 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
 // Separate player-safe view; never inherits General Manager's Library or Import handlers.
 class AshenGateMyAppearance extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS={
-    id:'ashen-gate-my-appearance',classes:['ag-app','ag-my-appearance'],
+    id:'ashen-gate-my-appearance',classes:['ag-app','agm-my-appearance'],
     window:{title:'Ashen Gate | My Appearance',icon:'fa-solid fa-palette',resizable:true},
     position:{width:560,height:520}
   };
   static PARTS={main:{template:`modules/${MODULE_ID}/templates/my-appearance.hbs`}};
-  constructor(options={}){super(options);myAppearanceApp=this;this.selection=null;this.status='Select a skin, or inherit the GM world default.';}
+  constructor(options={}){super({...options,position:{...windowSize(AshenGateMyAppearance.DEFAULT_OPTIONS.position),...options.position}});myAppearanceApp=this;this.selection=null;this.status='Select a skin, or inherit the GM world default.';}
   async _prepareContext(options){
     const ctx=await super._prepareContext(options);
     if(!game.user?.id)throw new Error('Sign in to change My Appearance');
     const state=appearanceController.getState();
     const selected=this.selection===null ? (state.userOverride??'') : this.selection;
-    return {...ctx,worldDefault:appearanceController.listSkins().find(s=>s.id===state.worldDefault)?.label??state.worldDefault,
+    return {...ctx,version:game.modules.get(MODULE_ID)?.version??'',worldDefault:appearanceController.listSkins().find(s=>s.id===state.worldDefault)?.label??state.worldDefault,
       effective:appearanceController.listSkins().find(s=>s.id===state.effective)?.label??state.effective,
       selected,isInherit:selected==='',status:this.status,
       skins:appearanceController.listSkins().map(s=>({...s,current:s.id===state.effective,selected:s.id===selected})),
@@ -2286,15 +2294,15 @@ class AshenGateMyAppearance extends HandlebarsApplicationMixin(ApplicationV2) {
 
 /** Read-only player Codex (0.33.0). Holds only the projection the GM sent; no Manager handlers. */
 class AshenGateCodexPlayer extends ApplicationV2 {
-  static DEFAULT_OPTIONS={id:'ashen-gate-codex-player',classes:['ag-app','ag-codex-window'],
+  static DEFAULT_OPTIONS={id:'ashen-gate-codex-player',classes:['ag-app','agm-codex-window'],
     window:{title:'Ashen Gate | NPC Codex',icon:'fa-solid fa-address-book',resizable:true},position:{width:620,height:640}};
-  constructor(options={}){super(options);codexPlayerApp=this;}
+  constructor(options={}){super({...options,position:{...windowSize(AshenGateCodexPlayer.DEFAULT_OPTIONS.position),...options.position}});codexPlayerApp=this;}
   async _renderHTML(){
     let entries=[],message='';
     try{entries=await codexService().forPlayer();}catch(error){message=error.message;}
     const version=game.modules.get(MODULE_ID)?.version??'';
-    return `<section class="ag-codex-body"><header class="ag-header"><div class="ag-header__title"><h2><span class="ag-header__brand">Ashen Gate</span> | NPC Codex</h2></div>`
-      +`<div class="ag-header__actions"><span class="ag-header__meta">v${escapeHtml(version)}</span><button type="button" class="ag-btn ag-btn--sm" data-ag-codex-refresh><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh</button></div></header>`
+    return `<section class="agm-codex-body"><header class="ag-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | NPC Codex</h1></div>`
+      +`<div class="ag-header__meta"><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-ag-codex-refresh><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh</button><span class="ag-version">v${escapeHtml(version)}</span></div></header>`
       +renderPlayerCodexHtml(entries,{message,deityLink:codexService().deityLinks()})+`</section>`;
   }
   _replaceHTML(result,content){
@@ -2355,7 +2363,7 @@ Hooks.once("init",()=>{
   // Point-to-point query: a player's client asks the active GM, who answers with that player's projection only.
   if(globalThis.CONFIG){CONFIG.queries??={};CONFIG.queries[CODEX_QUERY]=(data,options)=>codexService().handleQuery(data,options);}
   game.settings.registerMenu(MODULE_ID,"manager",{
-    name:"Ashen Gate Manager", label:"Open Import Manager", icon:"fa-solid fa-boxes-stacked",
+    name:"General Manager", label:"Open General Manager", icon:"fa-solid fa-boxes-stacked",
     hint:"GM-only package validation, preview, import and audit.", type:AshenGateManager, restricted:true
   });
   game.settings.registerMenu(MODULE_ID,'myAppearance',{
@@ -2461,7 +2469,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.42.1 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v${game.modules.get(MODULE_ID)?.version??""} ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */

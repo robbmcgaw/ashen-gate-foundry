@@ -1,3 +1,15 @@
+## 0.13.0 — 2026-10-21
+
+- UI standard look (kit 2): the header spans the whole window with the tabs below it (they no longer overlap), and only the content scrolls. Group, Player and Organizations keep the folder list on the left; Pantheon and GM Setup use the full width.
+- Organizations toolbar: search filters as you type; Visibility, Sort and Group by; a "6 of 12" count; Import, Export and **New faction** on the right (New faction asks for a name). Visibility badges: Revealed green, Characters only gold, Hidden plain.
+- Pantheon toolbar: **All deities** back button, character picker and **New deity** (asks for a name). One character picker in Player, Pantheon and Organizations; the profile now shows the character's name instead of an id.
+- Standing shows a progress bar to the next rank and rank dots; the current milestone is outlined.
+- Editors (faction profile, field visibility, deity, GM Setup) end with Cancel on the left and Save on the right. Field visibility has its own section.
+- **GM Setup:** Player Access, damping and the group name now save together with one **Save Changes** (same settings). "Load four draft guilds" moved to Developer Tools at the bottom of GM Setup.
+- Remove, reset and clear buttons are red and ask first; **Deny request now asks first**. Icon-only buttons have labels and tooltips.
+- Window opens 1.2x larger with the Comfortable size, and works down to a narrow width (the list stacks above the details).
+- No changes to saved data, flags or setting keys.
+
 ## 0.12.0 — 2026-10-21
 
 - Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.

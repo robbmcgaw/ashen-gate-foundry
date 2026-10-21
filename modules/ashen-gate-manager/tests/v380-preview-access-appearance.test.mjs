@@ -136,7 +136,7 @@ test('Modules tab has Reveal / Hide per card plus Refresh and Hide all; Appearan
 test('Appearance is a header dropdown, not a tab; the old tab id opens it on the previous tab', () => {
   assert.doesNotMatch(tpl, /data-ag-tab="appearance"/);
   const header = tpl.slice(0, tpl.indexOf('</header>'));
-  for (const s of ['data-ag-appearance-toggle', 'aria-haspopup="dialog"', 'aria-expanded=', 'data-ag-skin-picker="world"', 'ag-skin-card', 'ag-swatch',
+  for (const s of ['data-ag-appearance-toggle', 'aria-haspopup="dialog"', 'aria-expanded=', 'data-ag-skin-picker="world"', 'agm-skin-card', 'agm-swatch',
     'data-ag-action="appearance-save-world"', 'data-ag-action="appearance-my-appearance"', 'Effective on your screen', '{{appearanceMessage}}'])
     assert.ok(header.includes(s), s);
   assert.ok(header.indexOf('data-ag-appearance-menu') < header.indexOf('data-ag-action="help"'), 'next to Help');
@@ -148,13 +148,16 @@ test('Appearance is a header dropdown, not a tab; the old tab id opens it on the
   assert.match(main, /event\.key==='Escape'/);
   assert.match(main, /document\.addEventListener\('pointerdown',outside,true\)/);
   assert.match(main, /this\.appearanceOff\?\.\(\);this\.appearanceOff=null;this\.appearanceOpen=false;/);
-  assert.match(css, /\.agmanager-appearance-pop\{position:absolute;[^}]*width:min\(560px,calc\(100vw - 32px\)\)/);
+  assert.match(css, /\.agmanager-appearance-pop\{position:absolute;[^}]*width:min\(35rem,calc\(100cqw - 2 \* var\(--ag-space-4\)\)\)/);
 });
 
 test('Help and GM Setup point to the new places', () => {
   assert.match(main, /<strong>Appearance<\/strong> \(top bar, next to Help\)/);
   assert.match(main, /Reveal to players<\/strong> \/ <strong>Hide from players/);
-  const setup = tpl.slice(tpl.indexOf('\n  {{#if setupActive}}'), tpl.indexOf('\n  {{#if historyActive}}'));
-  assert.match(setup, /<strong>Appearance<\/strong> dropdown at the top/);
+  const setup = tpl.slice(tpl.indexOf('\n  {{#if setupActive}}'), tpl.indexOf('agm-setup-footer'));
+  // 0.43.0: GM Setup holds the world appearance itself (same setting as the header dropdown).
+  assert.match(setup, /World appearance/);
+  assert.match(setup, /data-ag-setup-skin/);
+  assert.match(setup, /The Appearance menu in the header changes the same setting/);
   assert.match(setup, /<strong>Modules<\/strong> tab/);
 });

@@ -1,3 +1,13 @@
+## 0.10.0 — 2026-10-21
+
+- Ashen Gate UI standard look (same layout): header with the overlay toggle, version and Help on the right; scrolling tabs with icons; GM tabs marked.
+- Quests tab: one toolbar with search, status chips, filters, count, and **New quest** on the right (Import and Export beside it). The list is left-aligned rows with objectives done (e.g. 2/4), a thin progress bar and status badges, grouped under headings with counts.
+- Quest editor: Cancel bottom-left and Save bottom-right for the definition and for progress & reveal; **Delete quest** sits in the editor header (red, asks first). Fields use the kit layout.
+- GM Setup: **Player Access now saves with Save Changes** together with the compendium pack IDs (Cancel puts the form back). Same setting keys.
+- Objectives overlay: theme colours, round close button with a label.
+- Empty states, notices and tooltips follow the kit; works at narrow window sizes and the Comfortable size. The embedded view (Character Hub) keeps its layout.
+- No saved data, flag or setting changes.
+
 ## 0.9.1 — 2026-10-21
 
 - Confirmations name the action and follow the Ashen Gate look: Delete quest asks "Delete [quest name]?" (red, no id), Delete assignment is red, and leaving unsaved quest changes asks Discard changes / Keep editing. Cancel is on the left. No behaviour or saved data changes.

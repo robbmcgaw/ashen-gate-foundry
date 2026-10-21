@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {originOf, rarityKey, sharedMatch, activeFilterCount, resolveTab, folderChain, itemFacts, ITEM_VIEWS, DEFAULT_FILTERS} from '../scripts/item-filters.js';
 import {createBrowse, searchIndex, filterEntries, PAGE_SIZE} from '../scripts/browse.js';
-import {bodyHtml, DEFAULT_STATE} from '../scripts/browse-view.js';
+import {bodyHtml, rarityPill, DEFAULT_STATE} from '../scripts/browse-view.js';
 import {createOrganizer, describePreview, SCHEMA_SETTING, HISTORY_SETTING} from '../scripts/organize.js';
 
 const M = 'ashen-gate-manager';
@@ -41,7 +41,9 @@ test('rarity keys follow dnd5e; the colours are shared CSS variables', () => {
   for (const [k, colour] of [['common', '#b9b4aa'], ['uncommon', '#3fbf5a'], ['rare', '#3d8bfd'], ['very-rare', '#a35ce6'], ['legendary', '#ff8c1a'], ['artifact', '#e5383b']])
     assert.ok(kit.includes(`--ag-rarity-${k}: ${colour};`), k);
   assert.doesNotMatch(css, /--ag-rarity-[a-z-]+:#/, 'Manager CSS no longer declares the hues');
-  assert.match(css, /\.ag-rarity--veryrare\{--ag-rarity-color:var\(--ag-rarity-very-rare\)\}/, 'veryrare markup keeps its colour');
+  // 0.43.0: rarity uses the kit badge keyed by dnd5e keys (veryrare -> veryRare); Manager has no rarity CSS of its own.
+  assert.doesNotMatch(css, /\.ag-rarity/, 'no local rarity classes');
+  assert.match(rarityPill('veryrare'), /class="ag-rarity-badge" data-rarity="veryRare">Very rare</);
 });
 
 test('folder chain walks objects or ids up to the root', () => {
@@ -123,7 +125,7 @@ test('Browse entries carry source, origin, rarity, folder chain and core_ref; se
   // Unpaged selection = same filters plus the search text.
   assert.deepEqual(filterEntries(svc.getIndex(), {query: 'blade', shared: {origin: 'ddb'}}).map(e => e.docId), ['a']);
   const html = bodyHtml(DEFAULT_STATE, searchIndex(svc.getIndex(), {shared: {rarity: 'legendary'}}), null, {});
-  assert.match(html, /class="ag-rarity ag-rarity--legendary"><i aria-hidden="true"><\/i>Legendary/);
+  assert.match(html, /class="ag-rarity-badge" data-rarity="legendary">Legendary/);
 });
 
 test('a world with 2500 items: one page of 100 rows, filtered quickly', () => {

@@ -174,12 +174,13 @@ test('3. Preview always shows its result as a notice, and the toolbar says how t
 // ---- Wording ----
 test('4. Core Links: a scan with no core_ref items explains itself in one sentence', () => {
   assert.match(main, /noRefs:Boolean\(p&&!p\.rows\.length\)/);
-  assert.match(tpl, /\{\{#if cl\.noRefs\}\}<p class="ag-empty">Nothing to link: Core Links only works on Ashen Gate items/);
+  // 0.43.0: kit empty state, shorter text.
+  assert.match(tpl, /\{\{#if cl\.noRefs\}\}<div class="ag-empty"><p class="ag-empty__title">Nothing to link<\/p><p class="ag-empty__text">No Ashen Gate item in this world has a <code>core_ref<\/code>/);
 });
 
 test('5. Library (now Items → Ashen Gate records) empty state says what it shows', () => {
-  assert.match(tpl, /Ashen Gate records lists only records imported through the Import tab/);
-  assert.match(tpl, /use All items to search them/);
+  assert.match(tpl, /No Ashen Gate records yet<\/p><p class="ag-empty__text">Import an Ashen Gate package on the Import tab/);
+  assert.match(tpl, /compendiums are under All items/);
 });
 
 test('6. GM Setup explains the NPC Codex and Core sources boxes in plain words (same controls)', () => {

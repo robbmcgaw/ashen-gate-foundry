@@ -47,7 +47,8 @@ test('JSON exports use Foundry file-save dialog API',()=>{
 
 test('header uses current version, module shortcuts, and no redundant workflow subtitle',()=>{
   const template=fs.readFileSync(new URL('../templates/manager.hbs',import.meta.url),'utf8');
-  assert.match(template,/v0\.42\.1</);
+  assert.match(template,/<span class="ag-version">v\{\{version\}\}<\/span>/,'version comes from module.json at runtime');
+  assert.doesNotMatch(template,/v\d+\.\d+\.\d+/,'no typed version in the template');
   assert.doesNotMatch(template,/Beta|Alpha/);
   assert.match(template,/data-ag-module-open="\{\{id\}\}"/);
   assert.doesNotMatch(template,/Upload → Preview → Import/);

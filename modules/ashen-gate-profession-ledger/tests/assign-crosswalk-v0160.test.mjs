@@ -164,7 +164,7 @@ test('GM gate: players are refused in the API, and do not see the Assign tab',as
 test('GM Setup table (0.22.0): one dropdown per cell, crafting and gathering groups, saved additively over the old shape',async()=>{
   app.mapDraft=null;
   const h=await html('gm');
-  assert.match(h,/<th>Profession<\/th><th>Skill to Access<\/th><th>Tool to Access<\/th><th>Tool for Advantage<\/th>/);
+  assert.match(h,/<table class="ag-table agl-map"><thead><tr><th scope="col">Profession<\/th><th scope="col">Skill to Access<\/th><th scope="col">Tool to Access<\/th><th scope="col">Tool for Advantage<\/th>/);
   assert.ok(h.indexOf('Crafting professions')<h.indexOf('>Alchemy<')&&h.indexOf('>Tailoring<')<h.indexOf('Gathering professions')&&h.indexOf('Gathering professions')<h.indexOf('>Archaeology<'));
   assert.match(h,/<th scope="row">Hunting<\/th>/);assert.doesNotMatch(h,/Hunting\/Skinning|<small class="agl-sub">gathering/);
   assert.doesNotMatch(h,/Qualifying items|data-map-items|agl-multi|set by you|from the check tool|built in<\/small>/);
@@ -193,7 +193,7 @@ test('GM Setup table (0.22.0): a saved list of several shows "Several (n)" and i
   values.checkMapping={...values.checkMapping,qualifyTools:{alchemy:['alchemist','herb']},items:{cooking:['[TEST] Pan']}};
   app.mapDraft=null;
   const h=await html('gm');
-  assert.match(h,/data-map-cell="qualifyTools" data-map-prof="alchemy"[^>]*title="Alchemist’s Supplies, Herbalism Kit · Check uses Alchemist’s Supplies"/);
+  assert.match(h,/data-map-cell="qualifyTools" data-map-prof="alchemy"[^>]*data-tooltip="Alchemist’s Supplies, Herbalism Kit · Check uses Alchemist’s Supplies" data-tooltip-class="ag-tooltip"/);assert.doesNotMatch(h,/<select[^>]*\stitle=/);
   assert.match(h,/<option value="__several__" selected>Several \(2\)<\/option>/);
   app._rememberMapDraft({dataset:{mapCell:'qualifySkills',mapProf:'alchemy'},value:'arc'});
   await app._click('roster-save');
