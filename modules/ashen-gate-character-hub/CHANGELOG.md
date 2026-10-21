@@ -1,3 +1,22 @@
+## 0.20.0 — 2026-10-21
+
+- **Journey (new, alpha):** a per-character log of accomplishments in a new **Journey (alpha)** tab, newest first, recorded from now on (no back-fill).
+  - **Automatic entries:**
+    - level-ups (dnd5e character level);
+    - Renown tier changes: the character's personal rank, the party's rank and deity ranks, through Renown's public API as the owning player sees it;
+    - quests completed, through Quest Log's GM API: personal quests for their character, party quests for every player character.
+  - **Currency** is only ever logged when a quest awards it. Quest Log doesn't award any itself yet, so a GM-only `api.journey.recordReward()` is ready for the rewards build.
+  - **No duplicates:** every automatic entry has a stable id per event.
+  - **Who sees what:**
+    - Players see their own characters' visible entries.
+    - The GM sees every character's journey and can add notes (text, optional date), edit, hide/show and delete GM notes.
+    - All GM actions are refused for players in the data layer.
+    - Hidden entries are moved to a GM-only journal, so players never receive them with their Actor.
+- **Player visibility:** a new "Journey (alpha)" part (on by default) in GM Setup.
+- **Saved data (new, additive; no migration):**
+  - Actor flag `journey`;
+  - a GM-only JournalEntry "Ashen Gate Hub • Journey (GM only)", created when the GM first hides an entry;
+  - world setting `journeyQuestSeen`.
 ## 0.19.0 — 2026-10-21
 
 - **Cinder sockets in the Cinders sub-tab (read only).** Under each Cinder the Hub shows its sockets from Ashen Gate | Cinders 0.3.0+ (`api.sockets.hosts`, contract `ag-sockets/1`):

@@ -12,6 +12,7 @@ import {canSee, hiddenReason, hiddenBadge, partForPartner} from './visibility.mj
 import {companionsTab, gmSetupTab} from './companion-views.mjs';
 import {configAttrs} from './configure.mjs';
 import {hotbarsHtml} from './hotbar-views.mjs';
+import {journeyTab} from './journey-views.mjs';
 import {sectionHtml, sectionKey} from './collapse.mjs';
 
 export {btn};
@@ -47,6 +48,7 @@ export const TABS = [
   ...ITEM_TABS,
   {id: 'ashen-gate', label: 'Ashen Gate', icon: 'fa-solid fa-dungeon', render: ashenGateTab, parts: AG_PANELS.map(p => partForPartner(p.id))},
   {id: 'companions', label: 'Companions', icon: 'fa-solid fa-horse', render: companionsTab, parts: ['companions']},
+  {id: 'journey', label: 'Journey (alpha)', icon: 'fa-solid fa-book-open', render: journeyTab, parts: ['journey']},
   {id: 'gm-setup', label: 'GM Setup', icon: 'fa-solid fa-gear', render: gmSetupTab, gmOnly: true}
 ];
 /** Tabs this user may open: GM Setup is GM-only; players don't get tabs whose parts are all hidden from them. */
