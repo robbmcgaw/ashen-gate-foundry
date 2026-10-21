@@ -28,6 +28,8 @@ Base tokens are what a skin sets; scale tokens never change; derived tokens are 
 | `--ag-ok` `--ag-warn` `--ag-danger` | Status only, never decoration |
 | `--ag-focus` | Focus ring; also the info tone |
 
+**Kit 2.1.0 adds** derived text tokens for 4.5:1 text on tinted fills: `--ag-accent-ink`, `--ag-ok-ink`, `--ag-warn-ink` and `--ag-danger-ink` (each tone mixed 80% with `--ag-text`), used for coloured text on the tone's own soft fill (badges, danger buttons, notices). Also `--ag-muted-strong` (muted mixed 70% with text), for secondary text on selected, striped, hovered or disabled rows. Use the ink tokens whenever coloured text sits on a tinted background; use the plain tone only for icons, edges and fills.
+
 Derived (do not set in modules): `--ag-surface-hover`, `--ag-border-strong`, `--ag-accent-soft`, `--ag-accent-hover`, `--ag-ok-soft`, `--ag-warn-soft`, `--ag-danger-soft`, `--ag-shadow`. New in kit 2: `--ag-row-alt` (stripe), `--ag-row-selected`, `--ag-info`, `--ag-info-soft`, `--ag-shadow-sm`, `--ag-rarity-ink-*`.
 
 Legacy aliases `--ag-bg` and `--ag-panel` stay working but are not used in new CSS; passes replace them with `--ag-surface` and `--ag-surface-raised`.
@@ -130,7 +132,7 @@ Character Hub keeps its side rail (`.ag-siderail`) because it is a sheet, not a 
   </div>
 </div>
 ```
-Order is fixed: search (grows), filters, count, then create on the right. Search filters as you type. Filters are selects (many options) or chips (2–5 toggles). Import/Export sit in `__end` as `--sm` buttons or in a "More" menu; seed/demo actions go to Developer Tools.
+Order is fixed: search (grows), filters, count, then create on the right. `.ag-search` grows only as a direct child of `.ag-toolbar` (kit 2.1.0); anywhere else (a list sidebar, a card) it is simply full width. Search filters as you type. Filters are selects (many options) or chips (2–5 toggles). Import/Export sit in `__end` as `--sm` buttons or in a "More" menu; seed/demo actions go to Developer Tools.
 
 ### Buttons
 | Class | Use | Example |
@@ -156,6 +158,7 @@ All dialogs use one shared helper file, `ag-dialogs.mjs`. It is the superset of 
 | `infoDialog(title, html, {close})` | Close | Help, read-only details |
 | `formDialog(title, fields, {ok, cancel})`, `promptText(...)` | Cancel · ok | Small forms (name a folder, set a value); fields include checkbox and checklist |
 | `checklistDialog(title, intro, items, {ok, cancel})` | Cancel · ok | Pick several (Renown) |
+| `choiceDialog(title, html, choices, {cancel})` (kit 2.1.0) | Cancel (left) · each choice (right) | One of several actions (attunement, "delete route and its drawing?"). `choices: [{action, label, icon?, default?, danger?}]`; resolves the `action` or `null`. The default choice is gold; danger choices are red |
 
 Wording: title is a question in sentence case ("Delete this faction?"); body says what happens and what is not undone, using names, never ids; action label repeats the verb ("Delete faction"). `danger: true` adds `.ag-dialog--danger` (red action). Confirm every destructive action, including removes that look small (companion, decoration, hireling, request deny).
 
@@ -168,6 +171,7 @@ Wording: title is a question in sentence case ("Delete this faction?"); body say
 ### Tables and rows
 - `.ag-table` inside `.ag-table-wrap`: real `<table>`, sticky head, `th scope="col"`, even-row stripes, numbers right-aligned (`.is-num`), actions column `.is-actions`. Use for data with 3+ comparable columns.
 - `.ag-rows` with `.ag-row` (`__icon`, `__main` → `__title` + `__meta`, `__end`): record lists (factions, quests, locations, rooms). Optional `.ag-rows__head`. Selected row: `.is-selected` + `aria-current="true"`. Stripes on.
+- **Disabled rows** (kit 2.1.0): `.ag-row.is-disabled` or `aria-disabled="true"` gives a muted (`--ag-muted-strong`) but readable title, with no hover highlight. Never fade disabled text with opacity.
 - `.ag-list` stays for short plain stacks (settings, notes). Don't put buttons with their own padding inside `.ag-list` items.
 - Group long lists under `.ag-eyebrow` headings with counts. Never truncate a name; wrap it.
 
@@ -226,6 +230,8 @@ Rules:
 - Contrast: body text 4.5:1, large text and icons 3:1, in every skin. Text on an accent fill uses `--ag-accent-contrast`, text on a danger fill uses `--ag-surface`. The style guide checks the pairs.
 - Reduced motion: no transitions or spinners loop under `prefers-reduced-motion` (kit rule extends to animations in kit 2).
 - Status messages use `role="status"`; errors `role="alert"`.
+- Screen-reader-only text uses the kit's `.ag-sr-only` (kit 2.1.0), for example labels for icon-only table columns. Modules don't keep their own copies.
+- The `hidden` attribute always wins: the kit has `:where(.ag-app) [hidden]{display:none !important}`, so toggle visibility with `el.hidden`, never with a kit class.
 
 ## 6. Responsive rules
 
