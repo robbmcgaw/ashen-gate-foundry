@@ -1,3 +1,9 @@
+## 0.27.0 — 2026-10-21
+
+- **Level up button** in the header, next to Open native sheet. It starts dnd5e's own level-up (the same steps as raising a class level on the native sheet: dnd5e's advancement window, or just the new level when there is nothing to choose). It adds no rules. With several classes it asks which class first; a new class is still added on the native sheet.
+- It is ready when you own the character (or are the GM), it has a class, it is below level 20 and, unless the world uses dnd5e's milestone levelling (no XP), its XP has reached dnd5e's next-level amount. Otherwise it looks greyed and clicking it says why.
+- Nothing extra is recorded: the Journey records the new level once, as before. The Hub layout is unchanged otherwise; no saved-data change.
+
 ## 0.26.0 — 2026-10-21
 
 - **Undo after clearing a quick-bar slot.** Right-clicking a quick slot still clears it, and now a short notice shows over the top-right of the sheet for about 5 seconds: "Cleared slot N: <item>" with an **Undo** button. Undo puts that slot back exactly as it was. When the notice goes away, the clear stands.

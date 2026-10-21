@@ -3,7 +3,7 @@
 An alternative character sheet for dnd5e 6 on Foundry V14. It shows and changes the **real** Actor: there is no separate character data, so the standard dnd5e sheet and the Hub always agree. Rolls, item use, rests, advancement and item configuration go through dnd5e's own dialogs.
 
 ## Open it
-Open a character → the sheet's title-bar menu (**Sheet** / gear) → choose **Ashen Gate Character Hub**. Switch back the same way. It is never the default unless you pick it. **Open native sheet** in the Hub's header opens the standard dnd5e sheet at any time.
+Open a character → the sheet's title-bar menu (**Sheet** / gear) → choose **Ashen Gate Character Hub**. Switch back the same way. It is never the default unless you pick it. **Open native sheet** in the Hub's header opens the standard dnd5e sheet at any time. **Level up** next to it starts dnd5e's own level-up (it adds no rules of its own).
 
 ## What it does
 Layout: the character on the left, the chosen section in the middle (only it scrolls), and an icon rail of sections down the right edge (hover for names). Opens at 1240 × 800; under about 900 px wide everything stacks. A header slider fades the whole window background (per user, 100-20 %) so the map shows through; text and controls stay solid. Every section heading (and each inventory container) folds open and closed; which ones are folded is remembered per user on that computer (client setting `collapsedSections`).

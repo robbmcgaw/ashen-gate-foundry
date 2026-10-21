@@ -14,6 +14,7 @@ import {configAttrs} from './configure.mjs';
 import {hotbarsHtml} from './hotbar-views.mjs';
 import {journeyTab} from './journey-views.mjs';
 import {sectionHtml, sectionKey} from './collapse.mjs';
+import {levelUpState} from './level-up.mjs';
 
 export {btn};
 
@@ -97,11 +98,20 @@ export function agBarHtml(active = null, sheet = null) {
   });
   return buttons.length ? `<nav class="ag-siderail agch-rail agch-agbar" aria-label="Ashen Gate modules">${buttons.join('')}</nav>` : '';
 }
+/**
+ * Level up (0.27.0): starts dnd5e's own level-up. When it isn't ready it stays clickable but aria-disabled, so a
+ * click can say why (a disabled button shows no tooltip); the reason is also its tooltip.
+ */
+function levelUpBtn(actor) {
+  const s = levelUpState(actor);
+  return `<button type="button" class="ag-btn ag-btn--ghost agch-levelup" data-action="level-up" data-ag-always${s.ok ? '' : ' aria-disabled="true"'} data-tooltip="${esc(s.ok ? 'Start dnd5e\'s level-up for this character' : s.reason)}" aria-label="${esc(s.ok ? 'Level up' : `Level up: ${s.reason}`)}"><i class="fa-solid fa-arrow-up-right-dots" aria-hidden="true"></i><span>Level up</span></button>`;
+}
 export function shellHtml(ctx) {
   const {actor, tab} = ctx;
   const version = globalThis.game?.modules?.get?.(MODULE_ID)?.version ?? '';
   const top = `<header class="ag-header"><h1><span class="ag-header__brand">Ashen Gate</span> | Character Hub</h1><div class="ag-header__actions">
     <label class="agch-opacity" data-tooltip="Window background opacity (only for you): slide left to see the map behind"><i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i><input type="range" min="${OPACITY_MIN}" max="100" step="5" value="${windowOpacity()}" data-opacity data-ag-always aria-label="Window background opacity"></label>
+    ${ctx.limited ? '' : levelUpBtn(actor)}
     ${btn('open-native', 'Open native sheet', {kind: 'ghost', icon: 'fa-solid fa-file-lines', always: true, title: 'Open the standard dnd5e character sheet'})}
     <span class="ag-version">v${esc(version)}</span>
     ${btn('help', 'Help', {kind: 'ghost', extra: 'ag-btn--sm', icon: 'fa-solid fa-circle-question', always: true})}</div></header>`;

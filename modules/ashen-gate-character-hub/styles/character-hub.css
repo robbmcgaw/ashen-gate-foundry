@@ -481,3 +481,6 @@
 .agch-app .agch-companion__head img, .agch-app .agch-chip img { object-fit: cover; object-position: center top; }
 
 @media (prefers-reduced-motion: reduce) { .agch-app .agch-sec__chev, .agch-app .agch-slot__more { transition: none; } }
+
+/* Level up (0.27.0): not ready yet, but still clickable so it can say why. */
+.agch-levelup[aria-disabled="true"] { cursor: not-allowed; color: var(--ag-muted-strong); }

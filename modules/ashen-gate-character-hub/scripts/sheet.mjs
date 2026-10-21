@@ -7,6 +7,7 @@ import {MODULE_ID, SHEET_LABEL, clampOpacity, windowOpacity} from './constants.m
 import {shellHtml, errorHtml} from './views.mjs';
 import * as act from './actions.mjs';
 import {openNativeSheet} from './native.mjs';
+import {startLevelUp, levelUpState} from './level-up.mjs';
 import {showHelp} from './help.mjs';
 import * as items from './item-actions.mjs';
 import {openPartner, mountEmbeds, unmountEmbeds, depositToParty} from './partners.mjs';
@@ -69,6 +70,7 @@ export const ACTIONS = {
   'retry': s => s.render({force: true}),
   'help': s => showHelp(s),
   'open-native': s => openNativeSheet(s.document),
+  'level-up': s => levelUp(s),
   'hp-damage': (s, t) => hpButton(s, t, -1),
   'hp-heal': (s, t) => hpButton(s, t, 1),
   'inspiration': s => act.toggleInspiration(s.document),
@@ -103,6 +105,16 @@ export const ACTIONS = {
   'visibility-preset': (s, t) => vis.applyPreset(t.dataset.preset),
   'doll-art': s => { s.dollArt = s.dollArt === 'token' ? 'portrait' : 'token'; return s.render(); }
 };
+/** Level up (0.27.0): dnd5e's own flow; with several classes the shared form dialog asks which one. */
+export const levelClassPick = async options => (await formDialog('Level up', [{name: 'cls', label: 'Class', type: 'select', value: options[0]?.value ?? '', options,
+  hint: 'dnd5e\'s level-up opens for this class. To take a new class, add it on the native sheet.'}], {ok: 'Level up'}))?.cls ?? null;
+async function levelUp(sheet) {
+  const state = levelUpState(sheet.document);
+  if (!state.ok) { globalThis.ui?.notifications?.info?.(state.reason); return null; }
+  const r = await startLevelUp(sheet.document, {pickClass: levelClassPick, sheet});
+  if (r?.notice) globalThis.ui?.notifications?.info?.(r.notice);
+  return r;
+}
 /** One small menu at a time (a slot's actions or the conditions list); the same key again closes it. */
 function toggleMenu(sheet, key) {
   sheet.menu = key && sheet.menu !== key ? key : null;
