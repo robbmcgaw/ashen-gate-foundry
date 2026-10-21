@@ -20,7 +20,11 @@ Layout: the character on the left, the chosen section in the middle (only it scr
 - Features: class/species/background, then features; **Group** by feature type, use time or none; **Sort** by name, type or has-uses first.
 - Favourites (Magic, Features): the star is dnd5e's own character favourite (`system.favorites`, the same list as the standard sheet's Favorites); starred items also show in a Favourites group at the top. Owner or GM only; no star on a dnd5e version without favourites. Group/sort choices are remembered per user on that computer (client setting `listSort`).
 - Ashen Gate: sub-tabs Professions, Perks, Renown, Quests, Locations, Base. Each shows that module's own view when it offers an embed (see below), else a read-only summary with an Open button.
-- Companions: one mount and GM-limited pets, each an Item on the character, with perk Items attached (display only).
+- Companions (0.12.0):
+  - One mount and GM-limited pets. Each is a world Actor (dropped from the Actors sidebar, linked by UUID) or an Item on the character.
+  - The mount card has art, the player's name and description, a stats box and gear/perk rows. The stats box shows what gear and perks give, from their own Active Effects and armour value; it's display only and nothing is applied.
+  - Pets have three clothing slots and perks.
+  - What an item is for comes from its id prefix or a Hub flag: see `docs/companion-items-schema.md`.
 - GM Setup (GM only): Player visibility (which parts players see), default pet limit and per-character limits.
 
 ## Player visibility (0.9.0)

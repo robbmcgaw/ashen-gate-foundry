@@ -63,6 +63,8 @@ export const ACTIONS = {
   'companion-remove': (s, t) => comp.removeCompanion(s.document, t.dataset.entry),
   'companion-move': (s, t) => comp.moveCompanion(s.document, t.dataset.entry, Number(t.dataset.step)),
   'companion-detach': (s, t) => comp.detachPerk(s.document, t.dataset.entry, t.dataset.id),
+  'companion-unattach': (s, t) => comp.detachExtra(s.document, t.dataset.entry, t.dataset.id),
+  'companion-open': (s, t) => openLinkedActor(s.document, t.dataset.entry),
   'visibility-preset': (s, t) => vis.applyPreset(t.dataset.preset),
   'doll-art': s => { s.dollArt = s.dollArt === 'token' ? 'portrait' : 'token'; return s.render(); }
 };
@@ -127,20 +129,33 @@ export const EDITS = {
   'item-slot': (s, i) => items.setSlot(s.document, i.dataset.id, i.value),
   'companion-add': (s, i) => i.value ? comp.addCompanion(s.document, i.value, i.dataset.kind) : null,
   'companion-attach': (s, i) => i.value ? comp.attachPerk(s.document, i.dataset.entry, i.value) : null,
+  'companion-extra': (s, i) => i.value ? comp.attachExtra(s.document, i.dataset.entry, i.value) : null,
+  'companion-clothing': (s, i) => i.value ? comp.attachExtra(s.document, i.dataset.entry, i.value, {slot: i.dataset.slot, list: 'clothing'}) : null,
+  'companion-name': (s, i) => comp.setCompanionText(s.document, i.dataset.entry, 'name', i.value),
+  'companion-desc': (s, i) => comp.setCompanionText(s.document, i.dataset.entry, 'description', i.value),
   'pet-cap-override': (s, i) => comp.setPetCapOverride(i.dataset.actor, i.value),
   'pet-cap-default': (s, i) => comp.setDefaultPetCap(i.value),
   'part-visibility': (s, i) => vis.setVisibility({[i.dataset.part]: i.checked === true}),
   'list-sort': async (s, i) => { const r = await setListChoice(i.dataset.tab, i.dataset.field, i.value); if (r.ok) s.render(); return r; }
 };
 
-/** Reads the Item from a drop (sidebar, compendium or this sheet) the way dnd5e does. */
-export async function droppedItem(event) {
+/** Reads the Item (or, where `types` allows, the Actor) from a drop (sidebar, compendium or this sheet) the way dnd5e does. */
+export async function droppedItem(event, types = ['Item']) {
   const TE = globalThis.foundry?.applications?.ux?.TextEditor?.implementation;
   let data = null;
   try { data = TE?.getDragEventData ? TE.getDragEventData(event) : JSON.parse(event.dataTransfer?.getData('text/plain') || 'null'); } catch { data = null; }
-  if (data?.type !== 'Item') return null;
-  const Item = globalThis.Item?.implementation ?? globalThis.Item;
-  return Item?.fromDropData ? Item.fromDropData(data) : null;
+  if (!types.includes(data?.type)) return null;
+  const Cls = globalThis[data.type]?.implementation ?? globalThis[data.type];
+  return Cls?.fromDropData ? Cls.fromDropData(data) : null;
+}
+/** Opens a linked mount/pet Actor's own sheet; Foundry's permissions decide what the user sees there. */
+async function openLinkedActor(actor, entryId) {
+  const entry = comp.storedCompanions(actor).find(e => e.id === entryId), other = comp.linkedActor(entry?.actorUuid);
+  if (!other) return {ok: false, error: 'That Actor is gone.'};
+  const user = globalThis.game?.user;
+  if (!user?.isGM && other.testUserPermission?.(user, 'LIMITED') !== true) return {ok: false, error: `You can't see ${other.name}.`};
+  await other.sheet?.render?.({force: true});
+  return {ok: true};
 }
 
 /** Builds the class on top of Foundry's ActorSheetV2 (passed in so tests can supply a stand-in). */
@@ -299,9 +314,12 @@ export function createHubSheetClass(Base) {
       if (!zone) return null;
       event.preventDefault(); event.stopPropagation();
       try {
-        const item = await droppedItem(event);
-        const kind = zone.dataset.dropCompanion;
-        const result = kind === 'perk' ? await comp.attachDroppedPerk(this.document, zone.dataset.entry, item) : await comp.addDroppedCompanion(this.document, item, kind);
+        const kind = zone.dataset.dropCompanion, entry = zone.dataset.entry;
+        const item = await droppedItem(event, kind === 'mount' || kind === 'pet' ? ['Actor', 'Item'] : ['Item']);
+        const result = kind === 'perk' ? await comp.attachDroppedPerk(this.document, entry, item)
+          : kind === 'extra' ? await comp.attachDroppedExtra(this.document, entry, item)
+          : kind === 'clothing' ? await comp.attachDroppedExtra(this.document, entry, item, {slot: zone.dataset.slot, list: 'clothing'})
+          : await comp.addDroppedCompanion(this.document, item, kind);
         return report(result);
       } catch (err) { return report({ok: false, error: err?.message ?? String(err)}); }
     }
