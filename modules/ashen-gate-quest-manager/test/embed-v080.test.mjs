@@ -41,7 +41,7 @@ const origError=console.error;console.error=()=>{};
 function fakeElement(){
  const listeners=[];
  const el={innerHTML:'',isConnected:true,classes:new Set(),listeners,
-  classList:{add:c=>el.classes.add(c),remove:c=>el.classes.delete(c)},
+  classList:{add:(...c)=>c.forEach(x=>el.classes.add(x)),remove:(...c)=>c.forEach(x=>el.classes.delete(x))},
   addEventListener(type,fn,{signal}={}){const l={type,fn};listeners.push(l);signal?.addEventListener('abort',()=>listeners.splice(listeners.indexOf(l),1));},
   contains:()=>true,querySelector:()=>null,
   fire(type,target){for(const l of listeners.filter(x=>x.type===type))l.fn({target,stopPropagation(){},preventDefault(){}});}};
@@ -52,12 +52,12 @@ const button=(action,data={},extra={})=>{const b={dataset:{action,...data},...ex
 test('owner: party and own individual quests, first one selected with its objectives',async()=>{
  game.user=alice;playerAccess=true;
  const el=fakeElement();const view=api.embed.mount(el,{actorId:'actorA',mode:'character'});await tick();
- assert.ok(el.classes.has('ag-quest-embed'));
+ assert.ok(el.classes.has('agq-embed'));assert.ok(el.classes.has('ag-quest-embed'),'old class name kept for one release');
  assert.match(el.innerHTML,/Safe &amp; Public/);
  assert.match(el.innerHTML,/Find &lt;trail&gt;/,'objectives escaped');
- assert.match(el.innerHTML,/Alice actor <small>0<\/small>/,'secret individual quest is not visible to Alice (no permission on its projection)');
+ assert.match(el.innerHTML,/Alice actor <span class="agq-group__count">0<\/span>/,'secret individual quest is not visible to Alice (no permission on its projection)');
  assert.match(el.innerHTML,/data-action="open-log"/);
- view.unmount();assert.equal(el.innerHTML,'');assert.equal(el.listeners.length,0);
+ view.unmount();assert.equal(el.innerHTML,'');assert.equal(el.listeners.length,0);assert.equal(el.classes.size,0,'both class names removed');
 });
 
 test('GM sees the individual quest for that character',async()=>{

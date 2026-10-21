@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {initialState} from '../scripts/core.mjs';
 import {statusChip,questRow,filterRows,sortRows,groupRows,listQuestsTab,CONTENT_ACTIONS,SETUP_ACTIONS,CHIPS} from '../scripts/quests-tab.mjs';
-import {setupPanel,questsToolbar,questCards} from '../scripts/gm-panels.mjs';
+import {setupPanel,questsToolbar,questCards,safeButton} from '../scripts/gm-panels.mjs';
 import {publicView} from '../scripts/core.mjs';
 const src=(id,name,o={})=>({id,entity_type:'Objective',objective_kind:id.startsWith('ORDER')?'work_order':id.startsWith('CONTRACT')?'contract':'quest',status:'approved',version:'1',provenance:{sources:['[TEST]']},visibility:'reveal_gated',refs:[],name,public_summary:'',source:{},objectives:[{key:'a',goal:'g',visibility:'player'}],locations:[],parameters:{},outcomes:{},...(id.startsWith('ORDER')?{work_order_domain:'crafting'}:{}),...o});
 const entry=(s,st={})=>({source:s,state:{...initialState(s),...st}});
@@ -62,5 +62,38 @@ test('Quests tab toolbar offers New, Import and Export; cards are selectable',()
  for(const a of ['new','import','export'])assert.match(html,new RegExp(`data-action="${a}"`));
  const g=listQuestsTab(data).groups;
  assert.match(questCards(g,'QUEST-ACT'),/data-id="QUEST-ACT"/);
- assert.match(questCards([],null),/No matching/);
+ assert.match(questCards([],null,{total:3}),/Nothing matches[\s\S]*data-action="clear-filters"/);
+ assert.match(questCards([],null,{total:0}),/No quests yet[\s\S]*data-action="new"/);
+});
+test('toolbar order: search, status chips, filters, count, then New quest (plain, not gold) with Import/Export small',()=>{
+ const html=questsToolbar({status:'Active'},['LOC-PIER'],{shown:2,total:8});
+ const at=k=>html.indexOf(k);
+ assert.ok(at('ag-search')<at('ag-chip-group')&&at('ag-chip-group')<at('ag-toolbar__count')&&at('ag-toolbar__count')<at('ag-toolbar__end'));
+ assert.match(html,/2 of 8 quests/);
+ assert.match(html,/data-qv-status="Active" aria-pressed="true"/);
+ assert.match(html,/data-qv-status="Failed" aria-pressed="false"/);
+ assert.match(html,/data-action="new" class="ag-btn"><i class="fa-solid fa-plus" aria-hidden="true"><\/i> New quest/);
+ assert.match(html,/data-action="import" class="ag-btn ag-btn--sm"/);
+ assert.doesNotMatch(html,/ag-btn--primary|\stitle=/);
+});
+test('quest rows: left-aligned kit rows with objectives done/total, bar and status badge, grouped with counts',()=>{
+ const rows=[entry(src('QUEST-TWO','[TEST] Two',{objectives:[{key:'a',goal:'g',visibility:'player'},{key:'b',goal:'h',visibility:'player'}]}),{status:'Active',revealed:true,progress:{a:'complete'}})];
+ const r=listQuestsTab(rows);
+ assert.equal(r.groups[0].rows[0].done,1);assert.equal(r.groups[0].rows[0].total,2);
+ const html=questCards(r.groups,'QUEST-TWO',{total:1});
+ assert.match(html,/<h3 class="ag-eyebrow agq-group__head">Active <span class="agq-group__count">1<\/span>/);
+ assert.match(html,/<button type="button" class="ag-row agq-row is-selected" data-action="gm-select" data-id="QUEST-TWO" aria-current="true">/);
+ assert.match(html,/aria-valuenow="1"[^>]*>|aria-valuemax="2" aria-valuenow="1"/);
+ assert.match(html,/>1\/2</);assert.match(html,/--ag-meter:50%/);
+ assert.match(html,/<span class="ag-badge ag-badge--accent">Active<\/span>/);
+ assert.match(html,/ag-badge--ok"[^>]*data-tooltip="Players can see this quest"/);
+});
+test('buttons: kit classes, tooltips instead of title, icon-only buttons are labelled',()=>{
+ assert.equal(safeButton('Save','save-source',{kind:'primary'}),'<button type="button" data-action="save-source" class="ag-btn ag-btn--primary">Save</button>');
+ assert.match(safeButton('Delete quest','delete',{kind:'danger',sm:true,icon:'fa-trash'}),/class="ag-btn ag-btn--danger ag-btn--sm"><i class="fa-solid fa-trash" aria-hidden="true"><\/i> Delete quest/);
+ assert.match(safeButton('Import','import',{title:'From a file'}),/data-tooltip="From a file" data-tooltip-class="ag-tooltip"/);
+ assert.doesNotMatch(safeButton('Import','import',{title:'From a file'}),/\stitle=/);
+ const icon=safeButton('Close overlay','x',{iconOnly:true,icon:'fa-xmark'});
+ assert.match(icon,/ag-btn--icon/);assert.match(icon,/aria-label="Close overlay"/);assert.match(icon,/data-tooltip="Close overlay"/);
+ assert.doesNotMatch(icon,/> Close overlay</);
 });
