@@ -50,7 +50,7 @@ async function writeMeta(meta){
  if(page){await writeFlags(page,{meta});return;}
  await j.createEmbeddedDocuments('JournalEntryPage',[{name:'Shop lists and retired ids',type:'text',text:{content:pageText},flags:{[ID]:{meta}}}]);
 }
-const logOf=id=>{const l=shopPage(id)?.flags?.[ID]?.log;return Array.isArray(l)?l:[];};
+export const logOf=id=>{const l=shopPage(id)?.flags?.[ID]?.log;return Array.isArray(l)?l:[];};
 export const appendLog=(id,entry)=>[...logOf(id),entry].slice(-SHOP_LOG_CAP);
 
 /* ---------- Locations (optional partner) ---------- */
@@ -246,7 +246,7 @@ const shownCoin=c=>c==='ep'&&!electrumEnabled()?'sp':c;
 function lineDraft(l){const coin=shownCoin(l.priceCoin);return {...clone(l),_price:fmt(l.priceCp,coin),_coin:coin,_cost:l.costCp===null||l.costCp===undefined?'':fmt(l.costCp,coin),_stock:l.stock===null||l.stock===undefined?'':String(l.stock),_stockEdited:false};}
 export function draftFrom(record){
  const r=record?clone(record):{id:null,name:'',merchant:{name:'',img:''},locationId:null,flavour:'',gmNotes:'',purse:null,purseStart:null,showPurse:true,buys:{enabled:false,percent:50,types:[]},lines:[]};
- return {...r,saved:Boolean(record),lines:(r.lines??[]).map(lineDraft),buys:{enabled:r.buys?.enabled===true,percent:r.buys?.percent??50,types:[...(r.buys?.types??[])]}};
+ return {...r,saved:Boolean(record),knownLineIds:(r.lines??[]).map(l=>l.lineId),lines:(r.lines??[]).map(lineDraft),buys:{enabled:r.buys?.enabled===true,percent:r.buys?.percent??50,types:[...(r.buys?.types??[])]}};
 }
 const lineName=l=>l.item?.name||'Unnamed item';
 /** The record a draft saves as. Throws a plain message naming the item when a price, cost or stock can't be kept. */
@@ -260,7 +260,7 @@ export function recordFrom(d){
   return {...line,priceCp,priceCoin:_coin,costCp,stock,stockStart:_stockEdited?stock:line.stockStart===undefined?stock:line.stockStart};
  });
  const percent=Number(d.buys.percent);
- const {saved,...rest}=d;
+ const {saved,knownLineIds,...rest}=d;
  return {...rest,merchant:{name:d.merchant?.name??'',img:d.merchant?.img??''},buys:{enabled:d.buys.enabled===true,percent:Number.isFinite(percent)?percent:d.buys.percent,types:[...d.buys.types]},lines};
 }
 
@@ -280,13 +280,13 @@ function buysSection(d){
  return `<section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Buys from players</h3></div>
  <label class="ag-field ag-field--inline"><input type="checkbox" role="switch" data-shop-field="buysEnabled"${d.buys.enabled?' checked':''}> This shop buys items from players</label>
  <div class="ag-form-grid"><label class="ag-field">Pays (% of the item's price)<input type="number" min="1" max="100" step="1" data-shop-field="buysPercent" value="${E(d.buys.percent)}"></label></div>
- <div class="ag-field"><span id="agu-shop-buy-types">Item types it buys</span><div class="ag-chip-group" role="group" aria-labelledby="agu-shop-buy-types">${SHOP_BUY_TYPES.map(t=>`<button type="button" class="ag-chip" data-shop-buy-type="${E(t)}" aria-pressed="${types.has(t)}">${E(typeLabel(t))}</button>`).join('')}</div><p class="ag-field__hint">None picked: every type here. Containers are never bought. Selling to a shop comes in a later version; this is saved now.</p></div></section>`;
+ <div class="ag-field"><span id="agu-shop-buy-types">Item types it buys</span><div class="ag-chip-group" role="group" aria-labelledby="agu-shop-buy-types">${SHOP_BUY_TYPES.map(t=>`<button type="button" class="ag-chip" data-shop-buy-type="${E(t)}" aria-pressed="${types.has(t)}">${E(typeLabel(t))}</button>`).join('')}</div><p class="ag-field__hint">None picked: every type here. Containers are never bought. Players sell from the shop window while the shop is shown to them; an item the shop doesn't stock yet comes in as a hidden line for you to show or remove.</p></div></section>`;
 }
 function linesTable(d){
  const coins=coinChoices(electrumEnabled());
  if(!d.lines.length)return `<div class="ag-empty">${icon('fa-box-open')}<p class="ag-empty__title">No items yet</p><p class="ag-empty__text">Drop items below from a character sheet, the Items sidebar, a compendium or a folder.</p></div>`;
  const row=l=>{const it=l.item??{},qty=Number(it.system?.quantity)||1,n=lineName(l),contents=(l.contents??[]).length,coinOpts=[...new Set([...coins,l._coin])].map(c=>opt(c,c,l._coin)).join('');
-  return `<tr data-line="${E(l.lineId)}"><td><div class="agu-shop-item">${it.img?`<img class="agu-shop-thumb" src="${E(it.img)}" alt="">`:''}<div class="agu-shop-item__text"><strong>${E(n)}</strong>${qty>1?` <span class="ag-badge">Sold as ${E(qty)}</span>`:''}${contents?` <span class="ag-badge">With ${contents} ${contents===1?'item':'items'} inside</span>`:''}${lineRepeats(d.lines,l)?` <span class="ag-badge ag-badge--warn">Already in this shop</span>`:''}<code>${E(l.itemId??'No permanent id')}</code></div></div></td>
+  return `<tr data-line="${E(l.lineId)}"><td><div class="agu-shop-item">${it.img?`<img class="agu-shop-thumb" src="${E(it.img)}" alt="">`:''}<div class="agu-shop-item__text"><strong>${E(n)}</strong>${qty>1?` <span class="ag-badge">Sold as ${E(qty)}</span>`:''}${contents?` <span class="ag-badge">With ${contents} ${contents===1?'item':'items'} inside</span>`:''}${lineRepeats(d.lines,l)?` <span class="ag-badge ag-badge--warn">Already in this shop</span>`:''}${l.soldIn&&l.hidden?` <span class="ag-badge ag-badge--warn">${icon('fa-hand-holding-dollar')} Bought from players</span>`:''}<code>${E(l.itemId??'No permanent id')}</code></div></div></td>
   <td><div class="agu-shop-price"><input type="number" min="0" step="any" data-line-field="_price" value="${E(l._price)}" aria-label="Price of ${E(n)}"><select data-line-field="_coin" aria-label="Price coin of ${E(n)}">${coinOpts}</select></div></td>
   <td><input class="agu-shop-num" type="number" min="0" step="1" data-line-field="_stock" value="${E(l._stock)}" placeholder="∞" aria-label="Stock of ${E(n)} (blank: unlimited)">${l.stock===0&&!l._stockEdited?' <span class="ag-badge ag-badge--danger">Sold out</span>':''}</td>
   <td><input type="text" maxlength="${LINE_FLAVOUR_MAX}" data-line-field="flavour" value="${E(l.flavour??'')}" placeholder="Optional" aria-label="Flavour text for ${E(n)}"></td>
@@ -332,7 +332,7 @@ export function shopsFooter(app){
 
 /* ---------- Wiring ---------- */
 const markDirty=(app,root)=>{app.shopDirty=true;app.shopStatus='Unsaved changes';const st=root.querySelector?.('[data-shop-status]');if(st)st.textContent=app.shopStatus;};
-function dragData(event){
+export function dragData(event){
  const TE=foundry.applications?.ux?.TextEditor?.implementation??globalThis.TextEditor;
  try{return TE?.getDragEventData?TE.getDragEventData(event):JSON.parse(event.dataTransfer?.getData('text/plain')||'{}');}catch{return {};}
 }
@@ -448,9 +448,22 @@ export async function handleShops(app,action,b,{render}){
  }
  await render();return true;
 }
+/**
+ * 0.19.0: an open editor follows sales and purchases on its shop, so Save Changes never drops an item a player just
+ * sold or puts back stock that was bought: new lines come in, untouched stock and the merchant's coins follow the record.
+ * Lines the GM removed in the draft stay removed.
+ */
+export function followRecord(d,stored){
+ if(!d?.id||!stored||stored.id!==d.id)return false;
+ const known=new Set([...(d.knownLineIds??[]),...d.lines.map(l=>l.lineId)]),fresh=(stored.lines??[]).filter(l=>!known.has(l.lineId));let changed=false;
+ if(fresh.length){d.lines=[...d.lines,...fresh.map(lineDraft)];d.knownLineIds=[...known,...fresh.map(l=>l.lineId)];changed=true;}
+ for(const l of d.lines){const s=(stored.lines??[]).find(x=>x.lineId===l.lineId);if(s&&!l._stockEdited&&l.stock!==s.stock){l.stock=s.stock;l._stock=s.stock===null||s.stock===undefined?'':String(s.stock);changed=true;}}
+ if(d.purse&&stored.purse&&JSON.stringify(d.purse)!==JSON.stringify(stored.purse)){d.purse=clone(stored.purse);changed=true;}
+ return changed;
+}
 /** The GM's window follows saved shops, electrum and Locations changes. */
-export function shopHooks(rerender){
- const onPage=page=>{if(page?.parent?.flags?.[ID]?.store===STORE)rerender();};
+export function shopHooks(rerender,app=()=>null){
+ const onPage=page=>{if(page?.parent?.flags?.[ID]?.store!==STORE)return;const d=app()?.shopDraft,stored=page.flags?.[ID]?.shop;if(d&&stored)followRecord(d,stored);rerender();};
  for(const ev of ['createJournalEntryPage','updateJournalEntryPage','deleteJournalEntryPage'])Hooks.on(ev,onPage);
  Hooks.on(`${ID}.electrumChanged`,()=>rerender());
 }
