@@ -63,6 +63,12 @@ export async function writeService(record){
  await j.createEmbeddedDocuments('JournalEntryPage',[{name:record.name,type:'text',text:{content:pageText},flags:{[ID]:{service:record,log:[]}}}]);
 }
 export const deleteServicePage=id=>servicePage(id)?.delete();
+/** 0.22.0: a service's own log (bank exchanges) on its GM Data page. Players never get that page. Run inside queueShops. */
+export const serviceLogOf=id=>{const l=servicePage(id)?.flags?.[ID]?.log;return Array.isArray(l)?l:[];};
+export async function appendServiceLog(id,entry){
+ const page=servicePage(id);if(!page)throw Error('That service no longer exists.');
+ await writeFlags(page,{log:[...serviceLogOf(id),entry].slice(-SHOP_LOG_CAP)});
+}
 export const logOf=id=>{const l=shopPage(id)?.flags?.[ID]?.log;return Array.isArray(l)?l:[];};
 export const appendLog=(id,entry)=>[...logOf(id),entry].slice(-SHOP_LOG_CAP);
 
@@ -335,6 +341,16 @@ function editorView(app){
  ${d.saved?`<section class="ag-section agu-danger-zone"><div class="ag-section__head"><h3 class="ag-section__title">Danger zone</h3></div><p class="ag-field__hint">Deleting removes the shop and its items list. Its id is never reused.</p>${button('shop-delete','Delete shop',{kind:'danger',ic:'fa-trash'})}</section>`:''}
  </div>`;
 }
+/** 0.22.0: one bank exchange in its log: who, whose coins, from → to, the fee. */
+const bankLogLine=h=>`${h.userName??'Unknown'} (${h.payFrom==='purse'?'Party purse':h.payerName??'Unknown'}): ${h.total} ${h.from} → ${h.receive} ${h.to}${h.fee?`, fee ${h.fee} ${h.from} (included)`:', no fee'}`;
+/** 0.22.0: the bank's own log, newest first (GM only: it lives on the GM Data page and the API refuses players). */
+function serviceLogSection(id){
+ const log=serviceLogOf(id).filter(h=>h?.kind==='bank-exchange').reverse();
+ const rows=log.map(h=>`<li class="ag-row"><span class="ag-row__icon" aria-hidden="true">${icon('fa-scale-balanced')}</span><div class="ag-row__main"><span class="ag-row__title">${E(bankLogLine(h))}</span><span class="ag-row__meta">${E(new Date(h.realTime).toLocaleString())}</span></div></li>`).join('');
+ return `<section class="ag-section agu-service-log"><div class="ag-section__head"><h3 class="ag-section__title">Log · ${log.length} <span class="ag-gm-flag">${icon('fa-eye-slash')} GM only</span></h3></div>
+ <p class="ag-field__hint">Every coin exchange at this bank, newest first (the last ${SHOP_LOG_CAP} are kept). Players never see this log.</p>
+ ${log.length?`<ul class="ag-rows">${rows}</ul>`:`<div class="ag-empty">${icon('fa-scale-balanced')}<p class="ag-empty__title">No exchanges yet</p><p class="ag-empty__text">Each exchange made here is listed with who made it and when.</p></div>`}</section>`;
+}
 /** 0.20.0: the editor for a service: the shared fields, then the type select and that type's settings (no items, no purse). */
 function serviceEditorView(d){
  const saved=d.id?servicesAll().find(s=>s.id===d.id)??null:null,loc=locationsApi(),known=Boolean(serviceType(d.service?.type));
@@ -349,7 +365,7 @@ function serviceEditorView(d){
   <label class="ag-field ag-field--wide"><span>GM notes <span class="ag-gm-flag">${icon('fa-eye-slash')} GM only</span></span><textarea data-shop-field="gmNotes" rows="2">${E(d.gmNotes??'')}</textarea></label>
  </div>`:'';
  return `<div class="agu-shop-editor"><div class="agu-shop-editor__head"><h2>${E(d.saved?d.name||'Unnamed service':'New service')}</h2>${d.id?`<code>${E(d.id)}</code>`:''}${saved?`${shownBadge(saved)}<span class="ag-btn-group">${presentButtons(saved)}</span>`:''}</div>
- ${fields}${serviceSettingsHTML(d)}
+ ${fields}${serviceSettingsHTML(d)}${saved&&known&&d.service?.type==='bank'?serviceLogSection(d.id):''}
  ${d.saved?`<section class="ag-section agu-danger-zone"><div class="ag-section__head"><h3 class="ag-section__title">Danger zone</h3></div><p class="ag-field__hint">Deleting removes the service. Its id is never reused. Merchant lists that name it skip it.</p>${button('shop-delete','Delete service',{kind:'danger',ic:'fa-trash'})}</section>`:''}
  </div>`;
 }

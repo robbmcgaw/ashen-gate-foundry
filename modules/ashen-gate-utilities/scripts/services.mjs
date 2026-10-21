@@ -7,8 +7,8 @@
    (D13); the fee is per bank, 0 by default (D14). ---- */
 import {ID,escapeHTML as E,COIN_LABELS,coinChoices,readCoins,normalizeService,shopIdFromName,validId,SERVICE_TYPES,SHOP_REFUSALS,
  presentedTo,bankQuote,bankExchangeEntry,bankText,listShops,initials} from './core.mjs';
-import {readAll,readServices,writeService,deleteServicePage,readMeta,writeMeta,queueShops,randomId,locationMap,icon,button} from './shops.mjs';
-import {tradeCtx,playerGate,viewOf,readablePurse,owns,queueBuy,whisper,gmIds,warn,receivers,empty} from './shop-buy.mjs';
+import {readAll,readServices,writeService,deleteServicePage,readMeta,writeMeta,queueShops,randomId,locationMap,icon,button,serviceLogOf,appendServiceLog} from './shops.mjs';
+import {tradeCtx,playerGate,viewOf,readablePurse,owns,queueBuy,whisper,gmIds,warn,receivers,empty,postTradeCard} from './shop-buy.mjs';
 
 export const SERVICE_TIMEOUT_MS=15000;
 /** What a customer is told when the GM is slow; the GM still finishes or refuses it and whispers the real result. */
@@ -68,6 +68,9 @@ const bank={
   catch(e){warn('Could not change the coins')(e);throw Error('The exchange failed.');}
   const entry=bankExchangeEntry({id:randomId(),service,quote:q,payFrom:r.payFrom,payer,user,worldTime:game.time?.worldTime??null,realTime:Date.now()});
   await tradeCtx().logStash?.(entry)?.catch?.(warn('Could not write stash history'));
+  // 0.22.0: the bank's own log (GM data, on its page) and the card. Neither can undo or refuse the exchange.
+  await queueShops(()=>appendServiceLog(service.id,entry)).catch(warn('Could not write the bank log'));
+  postTradeCard(entry,user);
   return bankText(q,r.payFrom==='purse'?'the party purse':payer.name);
  }
 };
@@ -161,6 +164,8 @@ async function remove(id,{confirm=false}={}){
  });
 }
 const types=()=>Object.values(SERVICE_REGISTRY).map(t=>({id:t.id,label:t.label,defaults:t.defaults()}));
+/** 0.22.0: the service's own log (bank exchanges), oldest first, at most SHOP_LOG_CAP. GM only. */
+function log(id){gmOnly();mustGetService(id);return clone(serviceLogOf(id));}
 
 /* ---------- Using a service (player or GM) ---------- */
 function cleanReq(r={}){
@@ -256,5 +261,5 @@ export function serviceSettingsHTML(d){
 }
 
 export function servicesApi(){
- return {list,get,create,save,duplicate,delete:remove,types,quote:req=>clone(quote(req)),use};
+ return {list,get,create,save,duplicate,delete:remove,types,log,quote:req=>clone(quote(req)),use};
 }

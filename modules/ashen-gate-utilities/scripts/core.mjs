@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.21.0';
+export const VERSION = '0.22.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -970,6 +970,23 @@ export function shopLine(h) {
   }
   if (h.kind === 'bank-exchange') return `${h.userName} changed ${h.total} ${h.from} into ${h.receive} ${h.to} at ${h.serviceName}${h.fee ? ` (fee ${h.fee} ${h.from})` : ''}, ${purse ? 'party purse' : own}`;
   return '';
+}
+
+/**
+ * 0.22.0: the chat card for a purchase, a sale or a bank exchange (an entry from shopPurchaseEntry, shopSaleEntry or
+ * bankExchangeEntry), whispered to the player who made it and the GM. Names and the total as the shop shows it, no ids.
+ */
+export function tradeCardHTML(h) {
+  const E = escapeHTML, purse = h?.payFrom === 'purse' || h?.payTo === 'purse';
+  const li = (k, v) => `<li><strong>${E(k)}:</strong> ${E(v)}</li>`;
+  if (h?.kind === 'bank-exchange') {
+    return `<div class="ag-utilities-trade"><h3>Coins changed at ${E(h.serviceName)}</h3><ul>${li('Who', h.userName)}${li('Character', purse ? 'Party purse' : h.payerName ?? 'Unknown')}
+${li('Gave', `${h.total} ${h.from}`)}${li('Got', `${h.receive} ${h.to}`)}${h.fee ? li('Fee', `${h.fee} ${h.from} (included above)`) : ''}</ul></div>`;
+  }
+  const sale = h?.kind === 'shop-sale', item = `${h?.itemName ?? 'Unnamed Item'} ×${h?.quantity ?? 1}`;
+  const money = sale ? li('Paid into', purse ? 'the party purse' : `${h.receiverName ?? 'their own'}'s coins`) : li('Paid from', purse ? 'the party purse' : `${h.payerName ?? 'their own'}'s coins`);
+  return `<div class="ag-utilities-trade"><h3>${sale ? 'Sold to' : 'Bought at'} ${E(h?.shopName)}</h3><ul>${li(sale ? 'Seller' : 'Buyer', h?.userName)}${li('Character', h?.actorName ?? 'Unknown')}
+${li(sale ? 'Sold' : 'Bought', item)}${li('Total', h?.totalText)}${money}</ul></div>`;
 }
 
 /* ---- 0.17.0: the GM's Shops tab. Pure helpers for the shop list, the editor, drops and the shop purse. ---- */

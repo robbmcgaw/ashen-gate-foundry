@@ -6,7 +6,7 @@
    it out all or nothing: A items, B coins, C shop page, D history. Each failure puts the earlier steps back. ---- */
 import {ID,escapeHTML as E,COIN_LABELS,coinChoices,shownCoins,strandedElectrum,coinsText,readCoins,projectShop,planShopPayment,checkPurchase,
  shopPurchaseEntry,shopPriceText,SHOP_REFUSALS,CONSENT_TIMEOUT_MS,consentVoters,createPoll,initials,shopLineName,purchaseCount,purchaseItemData,
- nothingCharged,purchaseText,presentedOwnership,quotePurchase,projectService,projectMerchantList,entrySummary} from './core.mjs';
+ nothingCharged,purchaseText,presentedOwnership,quotePurchase,projectService,projectMerchantList,entrySummary,tradeCardHTML} from './core.mjs';
 import {readAll,mustGet,writeShop,queueShops,appendLog,norm,locationsApi,randomId,purseDialog,button,icon,tip,writeService,readMeta} from './shops.mjs';
 import {confirmDialog,formDialog,choiceDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
@@ -223,6 +223,14 @@ function gate(r,user){
  return {shop,line:c.line,quantity:c.quantity,stockAfter:c.stockAfter,totalCp:c.totalCp,receiver,payer,hold,plan,name:shopLineName(c.line),count:purchaseCount(c.line,c.quantity)};
 }
 export const whisper=(content,ids)=>ChatMessage.create({content,whisper:[...new Set(ids)],speaker:{alias:'Utilities'}});
+/**
+ * 0.22.0: the purchase, sale or bank card, whispered to the player who made it and the GM (never public). Called
+ * without waiting after the change is done: a chat failure is only a console warning, never a refusal or a rollback.
+ */
+export function postTradeCard(entry,user){
+ const run=async()=>{await whisper(tradeCardHTML(entry),[user?.id,...gmIds()].filter(Boolean));};
+ void run().catch(warn('Could not post the chat card'));
+}
 /** D1a: the GM gets the refusal with a Top up shop purse button (no automatic top-up). */
 async function topUpWhisper(shop,totalCp,line){
  return whisper(`<p><strong>${E(shop.name)}</strong>: a purchase was refused because the merchant can't make change for ${E(shopPriceText(totalCp,line.priceCoin,{electrum:electrum()}))}. Merchant's coins: ${E(coinsText(shop.purse))}.</p><p><button type="button" class="ag-btn ag-btn--sm" data-agu-shop-topup="${E(shop.id)}"><i class="fa-solid fa-coins" aria-hidden="true"></i> Top up shop purse</button></p>`,gmIds());
@@ -270,6 +278,7 @@ async function carryOut(r,user,approval){
  // D. History (purse purchases), the rebuilt player view, the receipt.
  if(r.payFrom==='purse')await ctx.logStash?.(entry)?.catch?.(warn('Could not write stash history'));
  await syncPlayerView().catch(warn('Could not update the shop player view'));
+ postTradeCard(entry,user);
  return purchaseText({count:g.count,name:g.name,receiverName:g.receiver.name,plan:g.plan,payFrom:r.payFrom});
 }
 async function runBuy(r,user){

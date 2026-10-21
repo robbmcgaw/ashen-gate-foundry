@@ -1,3 +1,9 @@
+## 0.22.0 — 2026-10-21
+
+- **Chat cards:** every purchase, sale and Bank exchange posts a card whispered to the player who made it and the GM (no public card): who, character, item ×quantity (or coins given and got, with the fee), the total as the shop shows it, and the shop or bank name. The card is posted after the change is done; if chat fails, nothing is refused or put back (a console warning only).
+- **Bank log** (GM): each bank keeps its own log of exchanges (who, whose coins, from → to, fee, time), the last 200, shown newest first in a **Log** section of the bank's editor. It lives on the bank's page in the GM Data journal (no player permission); `api.shops.services.log(id)` is GM only. Writing the log can't undo or refuse an exchange.
+- Saved data: additive only. Exchanges are appended to the `log` on the bank's own GM Data page (created empty with the bank; a page without one reads as an empty log). Stash History is unchanged. No migration.
+
 ## 0.21.0 — 2026-10-21
 
 - **Import JSON** and **Export** on the Shops toolbar (GM). Import reads `Shop`, `Service` and `MerchantList` records from an `ag-foundry-import/0.2` file, shows a preview (Create / Update / Kept / Skipped with the reason, item lines not found), then **Import N**. **Update shops that already exist** switches between keeping and updating existing ids.

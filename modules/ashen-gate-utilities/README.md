@@ -76,8 +76,14 @@ API, GM only (`GM only.` for anyone else; the presenting and buying calls are be
 - Players it is shown to get the Bank in its own window: **Whose coins** (their character or the party purse; no vote needed), **Change from**, **Into**, **How many to get**, then a preview (You give, You get, before → after) and **Confirm exchange**. Refusals are shown in red and end "No coins changed."
 - Standard rates, exact: 1 pp = 10 gp = 100 sp = 1000 cp. You say how many coins you want to get: 25 sp from gold is refused with "Ask for a multiple of 10 sp". The fee is taken in the coin you give, rounded up, on top (2 gp from silver at 10 % costs 20 sp + 2 sp). Electrum only while *Use electrum* is on. The bank has unlimited coins.
 - The GM client checks it again on fresh coins and makes one coin update with both coins (all or nothing by itself). Every exchange is in Party Inventory → History (players see their own and the party purse's).
+- **Log** (GM only, in the bank's editor): every exchange at that bank, newest first: who, whose coins, from → to, the fee, and when. The last 200 are kept, on the bank's page in the GM Data journal; players can't read it and `services.log(id)` refuses them.
 - A service whose type this Utilities version doesn't know (from a later version) is kept as it is, listed for the GM as "Unknown service type", and never shown to players.
-- API (`api.shops.services`): GM only `list()`, `get(id)`, `create(data)`, `save(record)`, `duplicate(id)`, `delete(id, {confirm: true})`, `types()`; player or GM `quote({serviceId, payFrom: 'actor' | 'purse', actorId, from, to, receive, rev})` and `use({...same})` → the receipt text. `present` / `stopShowing` take a service id too.
+- API (`api.shops.services`): GM only `list()`, `get(id)`, `create(data)`, `save(record)`, `duplicate(id)`, `delete(id, {confirm: true})`, `types()`, `log(id)` (the bank's log, oldest first); player or GM `quote({serviceId, payFrom: 'actor' | 'purse', actorId, from, to, receive, rev})` and `use({...same})` → the receipt text. `present` / `stopShowing` take a service id too.
+
+## Chat cards for purchases, sales and the Bank
+
+- Each purchase, sale and bank exchange posts a card in chat, whispered to the player who made it and to the GM (never public): who, which character, the item ×quantity (or the coins given and got, with any fee), the total as the shop shows it, and the shop or bank name.
+- The card is posted after the change is done. If chat fails, the purchase, sale or exchange still stands; Utilities only writes a warning to the console.
 
 ## Shops: import and export
 
