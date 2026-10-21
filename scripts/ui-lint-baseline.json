@@ -33,14 +33,14 @@
     "button-title-attr": 2
   },
   "ashen-gate-headquarters": {
-    "css-colour-literal": 2,
-    "css-raw-font-size": 24,
-    "css-legacy-alias": 2,
-    "css-viewport-media": 3,
-    "css-raw-px-box": 94,
+    "css-colour-literal": 0,
+    "css-raw-font-size": 0,
+    "css-legacy-alias": 0,
+    "css-viewport-media": 0,
+    "css-raw-px-box": 0,
     "css-kit-prefix-class": 0,
     "js-dialogv2-direct": 0,
-    "header-brand-version": 3,
+    "header-brand-version": 0,
     "button-title-attr": 0
   },
   "ashen-gate-locations": {
