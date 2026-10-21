@@ -14,6 +14,18 @@ export function partnerApi(id) {
   const m = globalThis.game?.modules?.get?.(id);
   return m?.active ? m.api ?? null : null;
 }
+/**
+ * Electrum follows Utilities' GM setting "Use electrum" (0.13.2+, api.currency.electrumEnabled()). Returns true/false,
+ * or null when Utilities (or that API) is not there: then the Hub keeps showing electrum as before.
+ */
+export function electrumEnabled() {
+  const api = partnerApi('ashen-gate-utilities')?.currency;
+  if (typeof api?.electrumEnabled !== 'function') return null;
+  try { return api.electrumEnabled() === true; } catch { return null; }
+}
+/** Hide electrum? Only when Utilities says it is off. */
+export const electrumHidden = () => electrumEnabled() === false;
+
 const list = (rows, empty) => rows.length ? `<ul class="agch-plist">${rows.join('')}</ul>` : `<p class="agch-muted">${esc(empty)}</p>`;
 const signedScore = n => (num(n) > 0 ? `+${num(n)}` : String(num(n)));
 
@@ -112,7 +124,9 @@ function utilities(actor, api, {shown = STASH_SHOWN} = {}) {
   let purse = null;
   try { purse = api.purse?.totals?.(); } catch (err) { return `<p class="agch-muted">${esc(err?.message ?? 'Party purse unavailable.')}</p>`; }
   if (!purse) return '<p class="agch-muted">Party purse unavailable.</p>';
-  const coins = `<p>Party purse: ${['pp', 'gp', 'ep', 'sp', 'cp'].filter(k => num(purse[k])).map(k => `${num(purse[k])} ${k}`).join(', ') || 'empty'}</p>`;
+  const offEp = electrumHidden();
+  const coins = `<p>Party purse: ${['pp', 'gp', 'ep', 'sp', 'cp'].filter(k => num(purse[k]) && !(offEp && k === 'ep')).map(k => `${num(purse[k])} ${k}`).join(', ') || 'empty'}</p>`
+    + (offEp && num(purse.ep) ? `<p class="agch-muted agch-ep-off">Also ${num(purse.ep)} ep (electrum is off in Utilities; the GM can convert it there).</p>` : '');
   // Stash items (Utilities 0.11.0+). Same gate as the purse; a refusal just leaves the item list out.
   let items = null;
   try { items = typeof api.stash?.listItems === 'function' ? api.stash.listItems() : null; } catch { items = null; }
