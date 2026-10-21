@@ -30,15 +30,17 @@ Self-contained brief for a build chat. Read `CLAUDE.md`, `docs/ui-standard.md` �
    - **b. Muted meta on rows:** `.ag-row__meta` on a selected or striped `.ag-row` is about 3.9:1 in Parchment. Raise the meta colour on `.ag-row.is-selected` and striped rows (for example `color-mix(in srgb, var(--ag-muted) 70%, var(--ag-text))`), or soften the row tints, until it reaches at least 4.5:1 in all 7 skins.
    - **c. `[hidden]` lost:** `.ag-empty:has(> .ag-empty__title){display:flex}` beats the `hidden` attribute. Add `:where(.ag-app) [hidden]{display:none !important}` to the kit (or scope the `display` rule to `:not([hidden])`). Check every kit part that sets `display`.
    - **d. Visually-hidden helper:** add `.ag-sr-only` to the kit (the standard clip pattern). Remove the local `.agl-sr` from Locations here (a one-line markup rename in Locations' own files, which gets its patch bump with this PR anyway). Note `.ag-sr-only` in `docs/ui-standard.md` §5.
+   - **e. Badge contrast:** plain `.ag-badge` and `.ag-badge--danger` text is 4.48:1 in Standard. Fix it the same way as (a), so every badge tone reaches at least 4.5:1 in all 7 skins.
+   - **f. `.ag-search` grows tall:** `.ag-search{flex:1 1 220px}` makes it 220px tall inside a column flex container, such as a list sidebar. Drop the flex-basis from the base rule and scope the grow to the toolbar: `.ag-toolbar > .ag-search{flex:1 1 220px}`. The base `.ag-search` stays `min-width:0` and full width.
    - Anything else reported by 04–12 goes here too.
-   - Each of these makes `ag-ui.css` **2.1.0**, copied to all ten modules (so every module gets at least a patch bump). List each fix in the PR, with a contrast table for a and b.
+   - Each of these makes `ag-ui.css` **2.1.0**, copied to all ten modules (so every module gets at least a patch bump). List each fix in the PR, with a contrast table for a, b and e, and a render of `.ag-search` in a list sidebar for f.
    - `ag-ui.css` becomes `2.1.0` (a new part is a minor kit version).
    - Copy it to all ten modules (then every module gets at least a patch bump).
    - List each fix in the PR. If there are none, leave `ag-ui.css` alone.
 
 ## Acceptance checks
 1. `node scripts/check.mjs` is green, with identical copies of `ag-dialogs.mjs` (and `ag-ui.css` if touched).
-2. In Character Hub: `js-dialogv2-direct` is 0 and `css-kit-prefix-class` is 0. In Locations: `js-dialogv2-direct` is 0. The contrast check passes for danger buttons and for row meta on selected and striped rows in all 7 skins. A `hidden` `.ag-empty` stays hidden. Update the baseline. The lint baseline is shared: merge `main` last, then run `node scripts/ui-lint.mjs --update-baseline` and check that only intended entries changed.
+2. In Character Hub: `js-dialogv2-direct` is 0 and `css-kit-prefix-class` is 0. In Locations: `js-dialogv2-direct` is 0. The contrast check passes for danger buttons, every badge tone, and row meta on selected and striped rows in all 7 skins. A `hidden` `.ag-empty` stays hidden. Update the baseline. The lint baseline is shared: merge `main` last, then run `node scripts/ui-lint.mjs --update-baseline` and check that only intended entries changed.
 3. **Chromium render** of `choiceDialog` markup in Standard, Stone Tablet and Tome Pages, at Compact and Comfortable.
 4. **Diff review:** only the `ag-dialogs.mjs` and `ag-ui.css` copies, version and CHANGELOG lines in other modules, plus the Hub and Locations items above.
 
