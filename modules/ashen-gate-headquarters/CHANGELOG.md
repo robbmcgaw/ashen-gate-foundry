@@ -1,3 +1,8 @@
+## 0.12.1 — 2026-10-21
+
+- Shared UI kit 2.1.0 and dialog helper: choice dialogs follow the Ashen Gate look (Cancel on the left, the choices on the right); red buttons, badges and grey text on selected or striped rows are easier to read in every skin (at least 4.5:1); a hidden empty state stays hidden; disabled list rows keep readable text.
+- No behaviour or saved-data changes.
+
 ## 0.12.0 — 2026-10-21
 
 - UI standard look, same three-column builder: header "Ashen Gate | Headquarters" with the Guildhall name, rank and capacity underneath; version and Help on the right. Tabs match the other modules (Facilities and GM Setup marked GM, last); the active-button tint is gone.

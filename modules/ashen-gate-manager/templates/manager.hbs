@@ -503,7 +503,7 @@
               {{#if skippedCount}}<p class="agmanager-tiny">{{skippedCount}} skipped (protected folder, Keep here, or a rule that leaves them alone){{#if protectedFolders}}: protected {{protectedFolders}}{{/if}}.</p>{{/if}}
               {{#each groups}}
               <details class="agmanager-org-group"><summary>→ <strong>{{path}}</strong> ({{count}})</summary>
-                <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">Move</th><th scope="col">Document</th><th scope="col">From</th><th scope="col">Why</th><th scope="col" class="is-actions"><span class="agm-sr-only">Actions</span></th></tr></thead><tbody>
+                <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">Move</th><th scope="col">Document</th><th scope="col">From</th><th scope="col">Why</th><th scope="col" class="is-actions"><span class="ag-sr-only">Actions</span></th></tr></thead><tbody>
                 {{#each rows}}<tr><td><input type="checkbox" data-ag-clean-move="{{key}}" {{#if checked}}checked{{/if}} aria-label="Move {{name}}"></td><td>{{name}}</td><td>{{from}}</td>
                   <td>{{why}}{{#if weak}} <span class="ag-badge ag-badge--warn">weak evidence, unticked</span>{{/if}}</td>
                   <td class="is-actions">{{#if keep}}<button type="button" class="ag-btn ag-btn--sm" data-ag-clean-keep="{{keep.id}}" data-ag-clean-doctype="{{keep.documentName}}" data-ag-clean-key="{{key}}" data-tooltip="Never move this document" data-tooltip-class="ag-tooltip">Keep here</button>{{/if}}</td></tr>{{/each}}
@@ -563,7 +563,7 @@
             {{#unless writable}}<p class="ag-notice ag-notice--warn"><i class="fa-solid fa-lock" aria-hidden="true"></i> <span><strong>Inspect only:</strong> {{blockedReason}}.</span></p>{{/unless}}
             {{#each groups}}
             <details class="agmanager-org-group"><summary><strong>{{path}}</strong> ({{count}})</summary>
-              <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">Document</th><th scope="col">From</th><th scope="col">Why</th><th scope="col" class="is-actions"><span class="agm-sr-only">Actions</span></th></tr></thead><tbody>
+              <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">Document</th><th scope="col">From</th><th scope="col">Why</th><th scope="col" class="is-actions"><span class="ag-sr-only">Actions</span></th></tr></thead><tbody>
               {{#each rows}}<tr><td>{{name}}</td><td>{{from}}</td><td>{{why}}{{#if weak}} <span class="ag-badge ag-badge--warn">weak evidence: check it</span>{{/if}}</td><td class="is-actions">{{#if @root.org.world}}<button type="button" class="ag-btn ag-btn--sm" data-ag-org-keep="{{id}}" data-ag-org-doctype="{{documentName}}" data-tooltip="Never move this document" data-tooltip-class="ag-tooltip">Keep here</button>{{/if}}</td></tr>{{/each}}
               </tbody></table></div>
             </details>
@@ -647,7 +647,7 @@
           {{#each cl.preview.groups}}
           <div class="agmanager-org-part">
             <h4>{{label}} ({{rows.length}})</h4>
-            <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col"><span class="agm-sr-only">Link</span></th><th scope="col">Ashen Gate item</th><th scope="col">core_ref</th><th scope="col">Core match</th><th scope="col">Notes</th></tr></thead><tbody>
+            <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col"><span class="ag-sr-only">Link</span></th><th scope="col">Ashen Gate item</th><th scope="col">core_ref</th><th scope="col">Core match</th><th scope="col">Notes</th></tr></thead><tbody>
             {{#each rows}}<tr>
               <td>{{#if selectable}}<input type="checkbox" data-ag-cl-tick="{{id}}" {{#if ticked}}checked{{/if}} aria-label="Link {{name}}">{{/if}}</td>
               <td><strong>{{name}}</strong><code class="agm-id">{{sourceId}}</code></td>

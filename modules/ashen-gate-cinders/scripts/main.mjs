@@ -9,7 +9,7 @@ import {confirmDialog,infoDialog,formDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
 
 const MODULE='ashen-gate-cinders';
-const VERSION='0.5.0';
+const VERSION='0.5.1';
 const SOCKET=`module.${MODULE}`;
 const TREES_ID='ashen-gate-skill-trees';
 const ACCOUNTS_CONTRACT='ag-tree-accounts/1';

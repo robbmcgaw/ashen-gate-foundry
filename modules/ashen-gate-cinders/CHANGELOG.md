@@ -1,3 +1,8 @@
+## 0.5.1 — 2026-10-21
+
+- Shared UI kit 2.1.0 and dialog helper: choice dialogs follow the Ashen Gate look (Cancel on the left, the choices on the right); red buttons, badges and grey text on selected or striped rows are easier to read in every skin (at least 4.5:1); a hidden empty state stays hidden; disabled list rows keep readable text.
+- No behaviour or saved-data changes.
+
 ## 0.5.0 — 2026-10-21
 
 - UI standard look: "Ashen Gate | Cinders" header with version and Help on the right, tabs that scroll sideways on narrow windows (Manage and GM Setup marked GM), kit cards, tables, badges and empty states. The window opens 1.2× larger in Comfortable size.

@@ -45,4 +45,4 @@ test('Facilities tab is GM-only in the shell and the data layer still enforces G
  assert.match(code,/Headquarters facility import is GM-only/);
  for(const k of ['importFacilities','previewFacilityImport'])assert.match(code,new RegExp(k));
 });
-test('manifest bumped',()=>{assert.equal(manifest.version,'0.12.0');assert.ok(manifest.download.includes('ashen-gate-headquarters-v0.12.0'));});
+test('manifest bumped',()=>{assert.equal(manifest.version,'0.12.1');assert.ok(manifest.download.includes('ashen-gate-headquarters-v0.12.1'));});

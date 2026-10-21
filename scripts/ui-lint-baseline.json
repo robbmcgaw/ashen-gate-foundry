@@ -4,8 +4,8 @@
     "css-raw-font-size": 0,
     "css-legacy-alias": 0,
     "css-viewport-media": 0,
-    "css-raw-px-box": 3,
-    "css-kit-prefix-class": 4,
+    "css-raw-px-box": 1,
+    "css-kit-prefix-class": 0,
     "js-dialogv2-direct": 0,
     "header-brand-version": 0,
     "button-title-attr": 0
