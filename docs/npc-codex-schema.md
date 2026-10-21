@@ -39,7 +39,15 @@ The fields GPT drafts already use. `codex` is new and optional.
 
 ### Linkable ids
 
-`LOC-` (Locations), `FAC-`, `FACTION-` and `RENOWN-` (Renown), `QUEST-`, `ORDER-` and `CONTRACT-` (Quests), and `NPC-` (other Codex entries). Anything else in `codex.links` is ignored. Links are by id only. The Codex shows a link's name when the owning module is active and knows the id, through that module's public API; otherwise it shows the id. The Codex never stores or changes Locations, Renown or Quest state.
+`LOC-` (Locations), `FAC-`, `FACTION-` and `RENOWN-` (Renown), `DEITY-` (Renown Pantheon deities, Manager 0.40.0+), `QUEST-`, `ORDER-` and `CONTRACT-` (Quests), and `NPC-` (other Codex entries). Anything else in `codex.links` is ignored (`scripts/validate-content.mjs` reports it). Links are by id only. The Codex shows a link's name when the owning module is active and knows the id, through that module's public API; otherwise it shows the id. The Codex never stores or changes Locations, Renown or Quest state.
+
+#### Deity links (`DEITY-`)
+
+Use the deity's permanent Renown id, e.g. `"DEITY-EXAMPLE-LANTERN-MOTHER"`. Keep the id neutral; a player who has discovered the deity can see it.
+
+- **Opens the Pantheon.** When **Ashen Gate | Renown** is active and has the deity, the link opens Renown's Pantheon on that deity (`api.open({deityId, actorId, tab: 'pantheon'})`; a player opens it as one of their characters who knows the deity).
+- **Visibility follows Renown, not the Codex alone.** Even with Connections revealed, a player only sees a deity link if Renown says one of their characters (or the party) has discovered that deity (Renown's player-filtered `getPantheon`/`getDeities`). Otherwise the link shows as **Unknown**, unlinked, and the player's data carries neither the deity's id nor its name. The party-level view and preview show a deity only when every player character knows it.
+- **Missing partner.** Renown not active, hidden from players, or the deity not in this world: the link is plain text with a tooltip (for players with Renown missing: **Unknown**). Never an error.
 
 ### `codex.default_reveal`
 
@@ -103,7 +111,7 @@ Each rule is `{party: boolean, actors: string[]}`, the same shape Renown uses fo
   "stat_block": "Commoner (2024)",
   "art": {"repo_path": null, "forge_path": null},
   "codex": {
-    "links": ["FAC-EXAMPLE-TOLL-WARDENS", "QUEST-EXAMPLE-DOUBLE-LEDGER"],
+    "links": ["FAC-EXAMPLE-TOLL-WARDENS", "QUEST-EXAMPLE-DOUBLE-LEDGER", "DEITY-EXAMPLE-LANTERN-MOTHER"],
     "default_reveal": {"discovery": "hidden", "fields": {"role": "party", "appearance": "party"}}
   },
   "foundry": {
@@ -137,6 +145,6 @@ It is a GM file: it contains GM-only fields. **Restore reveals from a codex expo
 | `forPlayer()` | anyone | The calling player's codex. A player's client asks the active GM over a Foundry query (V13+); the GM's client re-checks access and returns only that player's projection. A GM gets the party view. |
 | `playerAccessEnabled()` | anyone | Whether players can open the codex |
 | `openPlayerView()` | anyone | Opens the read-only player window |
-| `mount(element)` | anyone | Renders the read-only player codex into `element`, for example a Character Hub tab. Returns an async refresh function. Display only. |
+| `mount(element)` | anyone | Renders the read-only player codex into `element`, for example a Character Hub tab. Returns an async refresh function. Display only, except that a discovered deity link opens Renown's Pantheon. |
 
 GM functions throw for players. Errors are plain-language messages.

@@ -80,7 +80,7 @@ export function validatePackage(input, existingIds = new Set()) {
     errors.push(...validateImportPresentation(record));
     if (strict) errors.push(...validateLogicalProjection(record));
     if (strict) errors.push(...checkContractRecord(record,label));
-    // Record-level modifiers block and implementation field (0.40.0); scope owners check targets and values.
+    // Record-level modifiers block and implementation field (0.41.0); scope owners check targets and values.
     errors.push(...modifierRecordProblems(record, typeof record.id === 'string' && record.id ? record.id : label));
     const id = record.id;
     if (typeof id !== "string" || !(strict ? CONTRACT_ID : SOURCE_ID_PATTERN).test(id)) errors.push(`${label}.id: invalid permanent ID.`);

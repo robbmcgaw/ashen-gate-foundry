@@ -1,6 +1,6 @@
 # Perks, items and modifiers — shared architecture
 
-Status: **Approved by Robb, 2026-10-21** (all 12 decisions; see §8). Built in steps, one module per release: the first is General Manager 0.40.0 (the `modifiers` block and `implementation` field, [modifiers-schema.md](modifiers-schema.md)). Sections 1–7 are the original proposal; where §8 differs, §8 wins.
+Status: **Approved by Robb, 2026-10-21** (all 12 decisions; see §8). Built in steps, one module per release: the first is General Manager 0.41.0 (the `modifiers` block and `implementation` field, [modifiers-schema.md](modifiers-schema.md)). Sections 1–7 are the original proposal; where §8 differs, §8 wins.
 
 Target: Foundry V14 on The Forge, dnd5e 6.0.6 (2024 rules). Examples use synthetic `[TEST]` data. **No mechanics or numbers here are rules.** They show shape only.
 
@@ -395,4 +395,4 @@ Build order once agreed:
 11. **Renown and Quest rewards** carry the canonical item id next to the uuid (a separate build: rewards and loot).
 12. **`implementation`** is an optional, display-only field on perk-like records: `automatic`, `informational` or `gm_resolved`.
 
-Build order: (1) the schema and Manager's check (Manager 0.40.0); (2) Cinders reads `modifiers` blocks from attached items and perks; (3) Cinders sockets (`ag-sockets/1`); (4) Character Hub shows sockets read-only. Skill Trees never depends on Cinders.
+Build order: (1) the schema and Manager's check (Manager 0.41.0); (2) Cinders reads `modifiers` blocks from attached items and perks; (3) Cinders sockets (`ag-sockets/1`); (4) Character Hub shows sockets read-only. Skill Trees never depends on Cinders.

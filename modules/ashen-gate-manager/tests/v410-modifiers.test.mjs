@@ -1,4 +1,4 @@
-// 0.40.0: record-level modifiers blocks (ag-modifiers/0.1) and the implementation field. Manager checks the shape and
+// 0.41.0: record-level modifiers blocks (ag-modifiers/0.1) and the implementation field. Manager checks the shape and
 // hands each scope's entries to the owner's api.modifiers.validate (feature-detected). Plain data and stand-in module
 // APIs: proves validation and routing, not the live UI.
 import test from 'node:test';

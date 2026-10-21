@@ -1,4 +1,4 @@
-# Modifiers and implementation schema (General Manager 0.40.0+)
+# Modifiers and implementation schema (General Manager 0.41.0+)
 
 This is the reference for giving an ordinary item or perk a **module number**: something only one Ashen Gate module understands, such as the Strain cost of a Push. It is generic: there is no setting content here, and every example uses synthetic `[TEST]` data. **No number in this file is a rule**; the examples show shape only.
 

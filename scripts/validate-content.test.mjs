@@ -84,11 +84,11 @@ test('Route records get every Locations check; endpoints outside the file are no
 test('NPC Codex fields: what the Codex would drop or turn into other text is reported', async () => {
   const npc = over => ({id: 'NPC-TEST-CLERK', entity_type: 'NPC', status: 'approved', version: '1.0.0', provenance: {sources: ['[TEST] synthetic']},
     visibility: 'gm', refs: [], name: '[TEST] Clerk', role: '[TEST] Clerk', gm_notes: ['[TEST] note'],
-    codex: {links: ['LOC-TEST-FIELD', 'QUEST-TEST-ONE'], default_reveal: {discovery: 'hidden', fields: {role: 'party'}}},
+    codex: {links: ['LOC-TEST-FIELD', 'QUEST-TEST-ONE', 'DEITY-TEST-SUN'], default_reveal: {discovery: 'hidden', fields: {role: 'party'}}},
     foundry: {document_type: 'Actor', data: {name: '[TEST] Clerk', type: 'npc'}}, ...over});
   assert.deepEqual((await checkContent(pack([npc()]))).errors, []);
   const bad = await checkContent(pack([npc({wants: ['a', 'b'], codex: {links: ['ITEM-TEST-X'], default_reveal: {discovery: 'everyone', fields: {portrayal: 'party'}}}})]));
-  assert.match(bad.errors.join(' | '), /wants must be text.*codex.links "ITEM-TEST-X" is not a linkable id.*discovery "everyone" must be "hidden" or "party".*fields.portrayal is not revealable/);
+  assert.match(bad.errors.join(' | '), /wants must be text.*codex.links "ITEM-TEST-X" is not a linkable id \(LOC, FAC, FACTION, RENOWN, DEITY, .*discovery "everyone" must be "hidden" or "party".*fields.portrayal is not revealable/);
   assert.match((await checkContent(pack([item({codex: {links: []}})]))).notes.join(' '), /codex is only read on entity_type NPC/);
 });
 

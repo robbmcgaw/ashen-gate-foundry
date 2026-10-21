@@ -1,5 +1,5 @@
 /**
- * Record-level modifiers and implementation (0.40.0). Format: docs/modifiers-schema.md.
+ * Record-level modifiers and implementation (0.41.0). Format: docs/modifiers-schema.md.
  * Manager checks the shared ag-modifier/1 shape; each entry's target, value range, applies and requires belong to the
  * module that owns its scope, so Manager hands them to that module's public api.modifiers.validate (feature-detected).
  * Nothing here applies a modifier: the owning module reads the imported definition at play time.

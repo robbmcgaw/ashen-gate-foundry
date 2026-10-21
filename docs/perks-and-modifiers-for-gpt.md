@@ -47,8 +47,8 @@ Ashen Gate is a set of Foundry VTT modules for Robb's D&D campaign: Foundry V14 
 | A crafted item | An `ITEM-*` Item, plus a `REC-*` recipe whose `result_item_id` names it | built |
 | A faction or deity reward | A reward entry on the faction or deity (`docs/renown-deity-schema.md`); GM-approved | built |
 | A quest reward | Text in `outcomes.description`; the GM grants it | built |
-| A module number on an `ITEM-*` or `PERK-*` record (for example a Cinder socket item that lowers Push cost) | A record-level `modifiers` block (`ag-modifiers/0.1`), scope `cinder` (`docs/modifiers-schema.md`) | **built in Manager 0.40.0** (imports and is checked); Cinders applies it from a later release |
-| Say how a perk is applied | Optional `implementation`: `automatic`, `informational` or `gm_resolved` (display only; `docs/modifiers-schema.md`) | **built in Manager 0.40.0** |
+| A module number on an `ITEM-*` or `PERK-*` record (for example a Cinder socket item that lowers Push cost) | A record-level `modifiers` block (`ag-modifiers/0.1`), scope `cinder` (`docs/modifiers-schema.md`) | **built in Manager 0.41.0** (imports and is checked); Cinders applies it from a later release |
+| Say how a perk is applied | Optional `implementation`: `automatic`, `informational` or `gm_resolved` (display only; `docs/modifiers-schema.md`) | **built in Manager 0.41.0** |
 | Mark an item as fitting a Cinder socket | A `socketable` block | **planned: don't use yet** |
 
 **Modifier entry** (`ag-modifier/1`, the same in `power.modifiers` and in a `modifiers` block):
@@ -105,7 +105,7 @@ Ashen Gate is a set of Foundry VTT modules for Robb's D&D campaign: Foundry V14 
 | Item Active Effects and flags (Manager 0.37.0+) | `robbmcgaw/ashen-gate-foundry` → `docs/item-effects-schema.md`: **built** |
 | Mount and pet items (Hub 0.12.0+) | `docs/companion-items-schema.md`: **built** |
 | Cinder, Power, Backfire, Strain content | `docs/cinder-strain-schema.md`: **built** (Cinders 0.1.0, Manager 0.39.0) |
-| Modifiers block and `implementation` | `docs/modifiers-schema.md`: **built** (Manager 0.40.0); examples in `test-fixtures/modifiers/` |
+| Modifiers block and `implementation` | `docs/modifiers-schema.md`: **built** (Manager 0.41.0); examples in `test-fixtures/modifiers/` |
 | Cinder engine design | `docs/cinder-strain-design.md`: **built**, in `ashen-gate-cinders` 0.1.0 |
 | Deities | `docs/renown-deity-schema.md`: **built** |
 | Profession crosswalk | `docs/profession-crosswalk-schema.md`: **built** |

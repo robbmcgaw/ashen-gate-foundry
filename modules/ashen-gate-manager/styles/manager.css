@@ -400,6 +400,9 @@
 .ashen-gate-manager .agcodex-who{margin:0;font-size:var(--ag-text-xs);color:var(--ag-accent);text-align:right;max-width:220px}
 .ashen-gate-manager .agcodex-links,.ag-codex-player dd{display:flex;flex-wrap:wrap;gap:6px}
 .agcodex-link,.ag-codex-link{display:inline-flex;gap:6px;align-items:baseline;padding:2px 8px;border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface-raised);font-size:var(--ag-text-sm)}
+a.agcodex-link,a.ag-codex-link{cursor:pointer;color:var(--ag-accent,inherit);text-decoration:none}
+a.agcodex-link:hover,a.ag-codex-link:hover{text-decoration:underline}
+.ag-codex-link.is-unknown{font-style:italic;color:var(--ag-muted)}
 .agcodex-link code{font-size:var(--ag-text-xs);color:var(--ag-muted)}
 .ashen-gate-manager .agcodex-gm{padding:8px 12px;border:1px dashed color-mix(in srgb,var(--ag-danger) 50%,var(--ag-border));border-radius:var(--ag-radius);background:color-mix(in srgb,var(--ag-danger) 7%,var(--ag-surface-raised))}
 .ashen-gate-manager .agcodex-gm h4{color:var(--ag-danger)}
