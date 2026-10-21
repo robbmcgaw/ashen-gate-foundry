@@ -1,0 +1,10 @@
+{
+  "name": "ashen-gate-cinders",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Foundry V14 Ashen Gate Cinders; no runtime dependencies",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs"
+  }
+}

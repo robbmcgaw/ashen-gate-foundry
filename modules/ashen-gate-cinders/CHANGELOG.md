@@ -1,0 +1,11 @@
+## 0.1.0 — 2026-10-21
+
+First release. Strain, Cinder instances, Push and Backfire move here from Ashen Gate | Skill Trees 0.15.0–0.16.0, unchanged in behaviour.
+- **Needs Skill Trees 0.17.0 or later** for Cinder trees, powers and points; update both together. Next to Skill Trees 0.15.0/0.16.0, which still run their own Strain and Cinders, this module stays off and says "Update Ashen Gate | Skill Trees to 0.17.0 or later". Without Skill Trees, Strain still works and the Cinder parts say what is missing.
+- **Strain:** one value per character, under the same flag as before (`flags.ashen-gate-strain`, so no data changes). `api.strain` (contract `ag-strain/1`) is the single door for every system that changes it. Bands and Backfire % come from the Strain config. A long rest removes 1. GM Setup → Strain has Import / Export / Reset.
+- **Cinders:** each Cinder keeps its own points and unlocked powers and moves with them. The **Manage** tab (GM) has New Cinder, Bind, Transfer, Unbind, Check and Repair, and Move existing Cinder progress. One bearer per Cinder, up to the per-character limit (default 1), never two of a kind. The starting point(s) come once per Cinder at first binding. Transfer leaves Strain and conditions with the previous bearer.
+- **Push and Backfire:** from the **Cinders** tab. Strain is always gained, and the chance is taken from the Strain after the gain. On a Backfire there are two rolls (category, then effect, with higher Strain pushing toward the severe end). One chat card, plus an optional temporary status. Normal use at Strain 10 or more backfires automatically, without adding Strain. A Backfire never kills or removes a character.
+- **Strain bar** on the Cinders tab: it fills to 10 and then shows how far past 10, with the band name and current Backfire %. The GM gets Add / Remove / Set with a reason.
+- **Skill Trees link:** through its public `api.accounts` (`ag-tree-accounts/1`) and hooks only. A bearer's progress goes onto their Cinder tree, and only a Cinder's bearer can gain points or unlocks on that tree.
+- **Takes over from Skill Trees 0.15/0.16 once:** any Strain config, Cinder limits, Cinder records and bearer links they saved. This happens automatically on the first GM login and can be re-run from Manage. Nothing in Skill Trees is changed.
+- Actors-sidebar launcher; GM-controlled **Player Access**.
