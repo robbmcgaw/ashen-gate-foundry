@@ -53,6 +53,22 @@ export const setHp = (actor, field, raw) => {
   if (!Number.isFinite(v)) return Promise.resolve(refuse('Enter a whole number.'));
   return guarded(actor, 'change hit points', () => actor.update({[`system.attributes.hp.${field}`]: field === 'tempmax' ? v : Math.max(0, v)}));
 };
+/**
+ * The HP bar editor: current, temp and max adjustment in one update. Blank fields are left as they are; current and
+ * temp never go below 0 (max adjustment may be negative, as in dnd5e).
+ */
+export const setHpValues = (actor, values = {}) => {
+  const diff = {};
+  for (const field of HP_FIELDS) {
+    const raw = values[field];
+    if (raw === undefined || raw === null || String(raw).trim() === '') continue;
+    const v = Math.trunc(num(raw, NaN));
+    if (!Number.isFinite(v)) return Promise.resolve(refuse('Enter whole numbers.'));
+    diff[`system.attributes.hp.${field}`] = field === 'tempmax' ? v : Math.max(0, v);
+  }
+  if (!Object.keys(diff).length) return Promise.resolve(done(null));
+  return guarded(actor, 'change hit points', () => actor.update(diff));
+};
 
 // ---------- Inspiration, exhaustion, conditions (the same calls the dnd5e sheet and token HUD use) ----------
 

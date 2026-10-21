@@ -280,6 +280,9 @@ export async function depositToParty(actor, itemId, canEdit) {
 export async function openPartner(actor, id, ref = null) {
   const panel = PANELS.find(p => p.id === id), api = partnerApi(id);
   if (!panel || !api) return {ok: false, error: 'That module is not active.'};
+  // A part hidden from players can't be opened from the Hub either (the module still checks its own permissions).
+  const part = partForPartner(id), hidden = part ? requirePart(part) : null;
+  if (hidden) return hidden;
   try { return {ok: true, result: await panel.open(api, actor, ref || null)}; } catch (err) {
     return {ok: false, error: `${panel.label}: ${err?.message ?? err}`};
   }

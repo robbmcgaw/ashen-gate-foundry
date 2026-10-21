@@ -23,19 +23,28 @@ export function headerData(actor) {
   const hp = attr.hp ?? {};
   const mv = attr.movement ?? {};
   const units = mv.units ?? 'ft';
-  const speeds = Object.keys(cfg.movementTypes ?? {walk: 1, fly: 1, swim: 1, climb: 1, burrow: 1})
-    .filter(k => num(mv[k]) > 0).map(k => ({key: k, label: labelOf(cfg.movementTypes?.[k]) || k, value: num(mv[k]), units}));
+  const speeds = speedsData(mv, cfg);
   const resources = Object.entries(sys.resources ?? {})
     .filter(([, r]) => num(r?.max) > 0).map(([key, r]) => ({key, label: r.label || key, value: num(r.value), max: num(r.max)}));
   return {
     name: actor.name, img: actor.img, species: speciesName(actor), classes, level: num(sys.details?.level),
     hp: {value: num(hp.value), temp: num(hp.temp), max: num(hp.max), tempmax: num(hp.tempmax), effectiveMax: num(hp.effectiveMax, num(hp.max) + num(hp.tempmax))},
     ac: num(attr.ac?.value), prof: num(attr.prof), init: num(attr.init?.total ?? attr.init?.mod),
-    speeds, inspiration: !!attr.inspiration,
+    speeds, hover: mv.hover === true, inspiration: !!attr.inspiration,
     exhaustion: {value: num(attr.exhaustion), max: num(cfg.conditionTypes?.exhaustion?.levels, 6)},
     hd: attr.hd ? {value: num(attr.hd.value), max: num(attr.hd.max)} : null,
     resources, conditions: conditionsData(actor)
   };
+}
+
+/**
+ * Speeds above 0, in dnd5e's movement-type order. dnd5e 6 keeps them in movement.speeds (the old movement.walk etc.
+ * still read through a shim); older data has them directly on movement. Jump is a dnd5e 6 movement type too.
+ */
+export function speedsData(mv, cfg = dnd5eConfig()) {
+  const units = mv.units ?? 'ft', speeds = mv.speeds && typeof mv.speeds === 'object' ? mv.speeds : mv;
+  return Object.keys(cfg.movementTypes ?? {walk: 1, burrow: 1, climb: 1, fly: 1, jump: 1, swim: 1})
+    .filter(k => num(speeds[k] ?? mv[k]) > 0).map(k => ({key: k, label: labelOf(cfg.movementTypes?.[k]) || k, value: num(speeds[k] ?? mv[k]), units}));
 }
 
 /** dnd5e conditions (not exhaustion, which has levels), with whether each is active on the Actor. */

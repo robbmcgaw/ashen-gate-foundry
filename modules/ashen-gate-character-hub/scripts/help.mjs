@@ -3,17 +3,20 @@ export const HELP_HTML = `<p>The Character Hub is another way to look at the <st
 <ul>
   <li><strong>Open native sheet</strong> (top right) opens the standard dnd5e sheet at any time.</li>
   <li><strong>Left side</strong> is the character: portrait with equipment slots around it, AC, initiative, speed, proficiency, hit points, the six abilities, conditions, hit dice and rests. The icon buttons down the right edge switch what the middle shows (hover for the name).</li>
-  <li><strong>See-through window:</strong> the slider in the header fades the window background so you can see the map. Only for you; text stays solid.</li>
-  <li><strong>Hit points:</strong> type an amount and press Damage or Heal (damage uses temp HP first), or edit HP / Temp / Max adj. directly.</li>
+  <li><strong>See-through window:</strong> the slider in the header fades the whole window background so you can see the map. Only for you; text stays solid.</li>
+  <li><strong>Fold sections:</strong> click a heading (or the arrow on a container in Inventory) to fold it away. The Hub remembers it for you on this computer.</li>
+  <li><strong>Hit points:</strong> type an amount and press <strong>−</strong> (damage, temp HP first) or <strong>+</strong> (heal). <strong>Double-click</strong> the HP bar to set current HP, temp HP and the max adjustment. Yellow on the bar is temp HP; blue is extra max HP.</li>
+  <li><strong>Right-click</strong> AC, initiative, speed, the HP bar, hit dice, an ability, a skill, a save, senses or proficiencies to open dnd5e's own settings for it (the same as the standard sheet), e.g. to set an override or extra speeds.</li>
   <li><strong>Abilities:</strong> click a tile for an ability check, or its Save line for a saving throw.</li>
   <li><strong>Rolls</strong> (skills, checks, saves, initiative) use the system's own roll dialog. Hold Shift/Alt/Ctrl as usual to skip it or roll with advantage/disadvantage.</li>
   <li><strong>Conditions</strong>: the box on the left lists active conditions (click one to remove it); <strong>+</strong> lists the others to add. Same as the token HUD.</li>
   <li><strong>Rests</strong>: the cup (Short Rest) and tent (Long Rest) beside Hit Dice open dnd5e's rest dialogs.</li>
   <li><strong>Use</strong> / <strong>Cast</strong> open dnd5e's own dialog, so attacks, slots and uses work as on the native sheet.</li>
-  <li><strong>Equipment slots</strong> are a display only. Hover for the item name. <strong>Click</strong> opens the item; <strong>right-click</strong> unequips it. The small <strong>⋯</strong> on a slot has Use, Attune, Swap, Move to party stash and <em>Move to…</em>. Click an empty slot to equip a carried item that fits. A glow means attuned. <em>Other</em> holds equipped items that fit no slot.</li>
+  <li><strong>Equipment slots</strong> are a display only. Hover for the item name. <strong>Click</strong> opens the item; <strong>right-click</strong> unequips it. The small <strong>⋯</strong> on a slot has Use, Attune, Swap, Move to party stash and <em>Move to…</em>. Click an empty slot to equip a carried item that fits. A glow means attuned; the border colour is the item's rarity. <em>Other equipped</em> under the rings and trinkets lists equipped items that fit no slot.</li>
   <li><strong>Inventory</strong>: Character shows this character's items (the carry-box button moves one to the party stash); Party stash shows the Utilities stash and purse, where Take brings items back (with the party vote if the GM has it on).</li>
   <li>Equipping an item that needs attunement asks whether to attune. At your limit it lists attuned items so you can unattune one.</li>
   <li><strong>Companions</strong>: drop a mount or pet Item (or pick one of your items), then drop perk Items onto it. One mount; pets up to the GM's limit (no pet slots until the GM raises it). Perks only show their text.</li>
+  <li><strong>Ashen Gate quick bar</strong> (bottom of the right edge): Professions, Skill Trees, Renown and Quests jump to that module's view here; Headquarters and Locations open their own window.</li>
   <li><strong>Ashen Gate</strong> has one section per Ashen Gate module (Professions, Perks, Renown, Quests, Locations, Base). Where a module offers it, its own view shows here and works as in that module; otherwise a summary with an Open button.</li>
   <li><strong>GM: Player visibility</strong> (GM Setup) chooses which parts players see. Parts that are off, or whose module is inactive or has Player Access off, disappear for players; you still see them with a <em>Hidden from players</em> badge saying why. Players can't use a hidden part's Hub actions either.</li>
   <li>If you only observe a character, you can look but not change or roll.</li>

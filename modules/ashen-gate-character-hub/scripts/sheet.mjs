@@ -12,6 +12,8 @@ import * as items from './item-actions.mjs';
 import {openPartner, mountEmbeds, unmountEmbeds, depositToParty} from './partners.mjs';
 import * as comp from './companions.mjs';
 import * as vis from './visibility.mjs';
+import {openConfig} from './configure.mjs';
+import {toggleSection} from './collapse.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
 /** Shows a refusal or failure from an action; a success is silent (the sheet re-renders itself). */
@@ -23,6 +25,10 @@ export const ACTIONS = {
   'ag-subtab': (s, t) => { s.agTab = t.dataset.partner; return s.render(); },
   'inv-view': (s, t) => { s.invView = t.dataset.view === 'party' ? 'party' : 'character'; return s.render(); },
   'slot-menu': (s, t) => toggleMenu(s, `slot:${t.dataset.slot}`),
+  'other-menu': (s, t) => toggleMenu(s, `other:${t.dataset.id}`),
+  'section-toggle': (s, t) => toggleSection(s.element ?? t.closest?.('.agch-root'), t.dataset.key),
+  'ag-jump': (s, t) => { s.tab = 'ashen-gate'; s.agTab = t.dataset.partner; s.menu = null; return s.render(); },
+  'hp-apply': (s, t) => hpApply(s, t),
   'slot-open': (s, t) => items.openItemSheet(s.document, t.dataset.id),
   'menu-close': s => toggleMenu(s, null),
   'cond-add': s => { s.condAdd = !s.condAdd; return s.render(); },
@@ -74,6 +80,14 @@ export function applyFilter(root, text) {
 export function saveOpacity(value) {
   try { return globalThis.game?.settings?.set?.(MODULE_ID, 'windowOpacity', clampOpacity(value)); } catch (err) { console.warn(`${MODULE_ID} | opacity not saved`, err); return null; }
 }
+/** Apply in the HP editor: one update with the three values, then the editor closes. */
+async function hpApply(sheet, target) {
+  const box = target.closest?.('.agch-hpedit');
+  const values = Object.fromEntries([...(box?.querySelectorAll?.('[data-hpedit]') ?? [])].map(i => [i.dataset.hpedit, i.value]));
+  const result = await act.setHpValues(sheet.document, values);
+  if (result.ok) { sheet.menu = null; sheet.render(); }
+  return result;
+}
 function hpButton(sheet, target, sign) {
   const input = target.closest('.agch-hp')?.querySelector('[data-hp-amount]');
   const amount = Math.abs(Math.trunc(Number(input?.value) || 0));
@@ -83,9 +97,6 @@ function hpButton(sheet, target, sign) {
 
 /** Change handlers by data-edit. Each receives (sheet, input). */
 export const EDITS = {
-  'hp.value': (s, i) => act.setHp(s.document, 'value', i.value),
-  'hp.temp': (s, i) => act.setHp(s.document, 'temp', i.value),
-  'hp.tempmax': (s, i) => act.setHp(s.document, 'tempmax', i.value),
   'currency': (s, i) => items.setCurrency(s.document, i.dataset.key, i.value),
   'item-qty': (s, i) => items.setQuantity(s.document, i.dataset.id, i.value),
   'item-slot': (s, i) => items.setSlot(s.document, i.dataset.id, i.value),
@@ -159,7 +170,12 @@ export function createHubSheetClass(Base) {
         content.addEventListener?.('change', ev => { if (ev.target?.matches?.('[data-opacity]')) saveOpacity(ev.target.value); });
         content.addEventListener?.('contextmenu', ev => this._onContextMenu(ev));
         content.addEventListener?.('click', ev => this._onOutsideClick(ev));
-        content.addEventListener?.('keydown', ev => { if (ev.key === 'Escape' && this.menu) { ev.stopPropagation(); toggleMenu(this, null); } });
+        content.addEventListener?.('dblclick', ev => this._onHpBarOpen(ev));
+        content.addEventListener?.('keydown', ev => {
+          if (ev.key === 'Escape' && this.menu) { ev.stopPropagation(); toggleMenu(this, null); return; }
+          if ((ev.key === 'Enter' || ev.key === ' ') && ev.target?.matches?.('[data-hp-bar]')) { this._onHpBarOpen(ev); return; }
+          if (ev.key === 'Enter' && ev.target?.matches?.('[data-hpedit]')) { ev.preventDefault(); this.dispatch('hp-apply', ev.target, ev); }
+        });
         content.addEventListener?.('submit', ev => ev.preventDefault());
         content.addEventListener?.('dragover', ev => { if (ev.target?.closest?.('[data-drop-companion]')) ev.preventDefault(); });
         content.addEventListener?.('drop', ev => this._onCompanionDrop(ev));
@@ -189,21 +205,47 @@ export function createHubSheetClass(Base) {
       }
     }
 
-    /** Right-click on a filled slot unequips it; on an empty slot (or Other) it opens the slot's menu. */
+    /**
+     * Right-click: on a filled slot (or an Other equipped row) it unequips; on an empty slot it opens the slot's menu;
+     * on a stat marked data-config it opens dnd5e's own configuration window for it. Embedded partner views keep theirs.
+     */
     _onContextMenu(event) {
+      if (event.target?.closest?.('.agch-embed')) return null;
       const filled = event.target?.closest?.('[data-action="slot-open"]');
       const slot = filled ?? event.target?.closest?.('[data-action="slot-menu"]');
-      if (!slot) return null;
+      if (slot) {
+        event.preventDefault(); event.stopPropagation();
+        if (filled) { this.menu = null; return items.unequipItem(this.document, filled.dataset.id).then(report); }
+        this.menu = `slot:${slot.dataset.slot}`;
+        return this.render();
+      }
+      const cfg = event.target?.closest?.('[data-config]');
+      if (!cfg) return null;
       event.preventDefault(); event.stopPropagation();
-      if (filled) { this.menu = null; return items.unequipItem(this.document, filled.dataset.id).then(report); }
-      this.menu = `slot:${slot.dataset.slot}`;
+      return openConfig(this.document, cfg.dataset.config, cfg.dataset.configKey ?? null).then(report);
+    }
+
+    /** Double-click (or Enter) on the HP bar opens the small HP editor. Only for users who can edit the character. */
+    _onHpBarOpen(event) {
+      const bar = event.target?.closest?.('[data-hp-bar]');
+      if (!bar || !this.hubContext.editable) return null;
+      event.preventDefault?.();
+      this.menu = 'hp';
       return this.render();
     }
 
-    /** Sets the window background opacity (a CSS custom property; only backgrounds use it). */
+    /**
+     * Sets the window background opacity. The value goes into --ag-window-opacity (the Hub's own backgrounds mix with
+     * it), and the window's own background is set inline with !important so no core, system or theme rule keeps the
+     * window opaque behind the content. Text, icons, slots and controls stay solid.
+     */
     applyOpacity(value = windowOpacity()) {
-      const v = clampOpacity(value);
-      this.element?.style?.setProperty?.('--ag-window-opacity', `${v}%`);
+      const v = clampOpacity(value), el = this.element;
+      el?.style?.setProperty?.('--ag-window-opacity', `${v}%`);
+      el?.style?.setProperty?.('background', 'var(--agch-bg)', 'important');
+      const content = el?.querySelector?.(':scope > .window-content'), header = el?.querySelector?.(':scope > .window-header');
+      content?.style?.setProperty?.('background', 'transparent', 'important');
+      header?.style?.setProperty?.('background', 'var(--agch-bg-sunken)', 'important');
       return v;
     }
 
@@ -217,7 +259,7 @@ export function createHubSheetClass(Base) {
     _onOutsideClick(event) {
       if (!this.menu) return null;
       const t = event.target;
-      if (t?.closest?.('.agch-menu, [data-action="slot-menu"]')) return null;
+      if (t?.closest?.('.agch-menu, [data-action="slot-menu"], [data-action="other-menu"]')) return null;
       this.menu = null;
       return this.render();
     }
