@@ -5,7 +5,7 @@
 import {esc, DIAMOND_PRESENT, DIAMOND_ABSENT} from './constants.mjs';
 import {btn} from './buttons.mjs';
 import {inventoryData, combatData, spellsData, featuresData} from './items.mjs';
-import {partyStashHtml, partyStashUsable} from './partners.mjs';
+import {partyStashHtml, partyStashUsable, electrumHidden} from './partners.mjs';
 import {headerData} from './data.mjs';
 import {canSee, hiddenBadge} from './visibility.mjs';
 import {sectionHtml, sectionKey} from './collapse.mjs';
@@ -64,7 +64,11 @@ export const diamondBanner = actor => hasDiamond(actor)
 
 function inventoryTab(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, d = inventoryData(actor), toParty = partyStashUsable(), expanded = sheet?.expanded;
-  const currency = `<div class="agch-currency agch-coins" role="group" aria-label="Currency">${d.currency.map(c => `<label class="agch-coin"><span>${esc(c.abbr)}</span><input type="number" min="0" step="1" data-edit="currency" data-key="${esc(c.key)}" value="${c.value}" aria-label="${esc(c.label)}"${off ? ' disabled' : ''}></label>`).join('')}</div>`;
+  // Electrum follows Utilities' "Use electrum" (off: no ep box, unless the character still has some: then it shows dimmed).
+  const offEp = electrumHidden(), coins = d.currency.filter(c => !(offEp && c.key === 'ep' && !c.value));
+  const coinBox = c => { const dim = offEp && c.key === 'ep';
+    return `<label class="agch-coin${dim ? ' is-off' : ''}"${dim ? ' title="Electrum is off in Utilities. This character still has some; the GM can convert it there."' : ''}><span>${esc(c.abbr)}</span><input type="number" min="0" step="1"${dim ? ` max="${c.value}"` : ''} data-edit="currency" data-key="${esc(c.key)}" value="${c.value}" aria-label="${esc(c.label)}"${off ? ' disabled' : ''}></label>`; };
+  const currency = `<div class="agch-currency agch-coins" role="group" aria-label="Currency">${coins.map(coinBox).join('')}</div>${offEp && coins.some(c => c.key === 'ep') ? '<p class="agch-muted agch-ep-off">Electrum is off in Utilities: it only shows because this character still has some. The GM can convert it there.</p>' : ''}`;
   const qty = {...C.quantity, render: r => `<span class="agch-qty">${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-minus', data: {id: r.id, step: -1}, title: `One fewer ${r.name}`, disabled: off || r.quantity <= 0})}<input type="number" min="0" step="1" data-edit="item-qty" data-id="${esc(r.id)}" value="${r.quantity}" aria-label="${esc(r.name)} quantity"${off ? ' disabled' : ''}>${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-plus', data: {id: r.id, step: 1}, title: `One more ${r.name}`, disabled: off})}</span>`};
   const columns = [qty, C.weight, C.value, C.uses];
   const controls = r => [
