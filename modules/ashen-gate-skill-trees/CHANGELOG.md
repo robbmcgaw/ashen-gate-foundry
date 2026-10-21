@@ -1,3 +1,12 @@
+## 0.15.0 — 2026-10-21
+
+- **New: Strain**, one shared number per character, kept as a separate part of Skill Trees. Its data is saved on the Actor under its own flag name (`flags.ashen-gate-strain.state`), not the Skill Trees one, so it can become its own module later without changing saved data.
+- **New API `api.strain`** (contract `ag-strain/1`), the single way for any module (crafting, hazards, items, spells, rests) to change Strain: `get`, `history`, `add`, `remove`, `set`, `config`, plus GM-only `previewConfigImport`, `importConfig` and `resetConfig`. Every change needs a source and a reason and goes into a short history (last 30). A change sent twice with the same `opId` only counts once. Writes run on a GM client only; players can read their own characters' Strain. Hook `ashenGateStrain.changed` fires on every client. See the README.
+- **Bands and Backfire chance** come from a Strain config: the default schedule 0/5/10/20/25/35/50/60/75/90/100% for Strain 0–10, guaranteed from 10, neutral band names (`Band 0`–`Band 6`), no maximum (Strain can go past 10). Campaign band names arrive by importing a config file (`ag-strain-config/0.1`).
+- **Rest recovery:** a long rest removes 1 Strain and a short rest 0 (both in the config). It is taken from dnd5e's rest chat message, once per rest.
+- **GM Setup → Strain** shows the bands, chances and rules, with Import / Export / Reset to Defaults for the config. It never changes character Strain.
+- Cinder Push and Backfire are not in this version. No existing saved data changes; no migration needed.
+
 ## 0.14.0 — 2026-10-20
 
 - **New API `embed.mount(element, {actorId, mode: 'character'})`** so a partner module (Character Hub) can show a compact list of a character's trees: points, Available now perks with a real **Unlock**, Unlocked perks, Locked perks with the reason, and Open tree. Returns `{unmount, refresh}` and refreshes itself on changes. See the README.

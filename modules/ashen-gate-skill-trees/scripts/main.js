@@ -10,11 +10,12 @@ import {tooltipModel,initialSidebar,toggledSidebar,isNarrow} from './layout.mjs'
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition} from './definition-lookup.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
+import {createStrain} from './strain-runtime.mjs';
 import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument,qaCleanupBlockers} from './qa-fixtures.mjs';
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.14.0';
+const VERSION='0.15.0';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -22,6 +23,8 @@ const LEDGER_ID='ashen-gate-profession-ledger';
 const LEDGER_CONTRACT='ag-ledger-progression/1';
 const SAFE_SETTING='publicTreesV2';
 let instance=null;
+// 0.15.0: Strain, a separate part with its own Actor flag scope and api.strain (see strain.mjs / strain-runtime.mjs).
+const strain=createStrain({module:MODULE,onConfigChange:()=>{if(instance?.rendered)instance.render();}});
 const openTreeWindows=new Set();
 const canOpenTrees=()=>playerAccessAllowed(game,MODULE);
 const checkTreePlayerAccess=()=>assertPlayerAccess(game,MODULE);
@@ -478,6 +481,26 @@ function requestUnlock(actor,treeId,nodeId){
     game.socket.emit(SOCKET,{type:'unlock-request',requestId,userId:game.user.id,actorId:actor.id,treeId,nodeId});
   });
 }
+/** GM Setup → Strain card: bands with their Backfire % range, and the rules in words. */
+function strainSetupView(c){
+  const pct=v=>c.backfire_schedule[Math.min(v,c.backfire_schedule.length-1)]??0;
+  const shown=(v,top)=>v>=c.guarantee_at&&!c.allow_prevention_at_guarantee?100:pct(Math.min(v,top));
+  return {
+    bands:c.bands.map(b=>{const to=b.to??Math.max(b.from,c.backfire_schedule.length-1);const lo=shown(b.from,to),hi=shown(to,to);
+      return {label:b.label,range:b.to===null?`${b.from}+`:b.from===b.to?`${b.from}`:`${b.from}–${b.to}`,chance:lo===hi?`${lo}%`:`${lo}–${hi}%`};}),
+    guaranteeAt:c.guarantee_at,normalUseAt:c.normal_use_backfire_at,prevention:c.allow_prevention_at_guarantee,
+    hardMax:c.hard_max??'none',restLong:c.rest_recovery.long,restShort:c.rest_recovery.short
+  };
+}
+/** A .json file chosen by the GM, or null when the picker is closed without one. */
+function pickJsonFile(){
+  return new Promise(resolve=>{
+    const input=document.createElement('input');input.type='file';input.accept='.json,application/json';
+    input.addEventListener('change',()=>resolve(input.files?.[0]??null),{once:true});
+    input.addEventListener('cancel',()=>resolve(null),{once:true});
+    input.click();
+  });
+}
 /** Readable prerequisite lists for a node: the keyboard/screen-reader version of the arrows. */
 function relationsOf(nodes,n){
   const by=new Map(nodes.map(x=>[x.id,x]));
@@ -558,7 +581,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const setupReport=gm&&!preview&&this.activeTab==='library'?savedDataReport(readPrivate(),id=>Boolean(perkDoc(id))):[];
     const projectedCount=gm?readPublic().length:null;
     return {...ctx,gm,editing:gm&&this.editMode&&!preview,preview,initialized:!gm||!!store,legacy,
-      moduleVersion:VERSION,playerAccessEnabled:gm?playerAccessEnabled():false,activeTrees:this.activeTab==='trees',activeSetup:gm&&this.activeTab==='setup',activeLibrary:gm&&this.activeTab==='library',gmPanel:gm&&(this.activeTab==='setup'||this.activeTab==='library'),
+      moduleVersion:VERSION,playerAccessEnabled:gm?playerAccessEnabled():false,strainSetup:gm&&this.activeTab==='setup'?strainSetupView(strain.config()):null,activeTrees:this.activeTab==='trees',activeSetup:gm&&this.activeTab==='setup',activeLibrary:gm&&this.activeTab==='library',gmPanel:gm&&(this.activeTab==='setup'||this.activeTab==='library'),
       hasTree:!!t,tree:t,selected,canBuy:gm&&!preview&&!!selected&&!!actor&&availability(t,acc,selected.id,{level}).ok,
       canRequest:!gm&&!!selected&&!!actor&&publicAvailability(t,acc,selected.id,{level}).ok,
       canRefund:raw&&!!selected?.unlocked&&!!actor,
@@ -689,6 +712,9 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
         case 'help': await this._help();break;
         case 'toggle-player-access':if(!game.user.isGM)throw Error('GM only');{const next=!playerAccessEnabled();await setPlayerAccess(game,MODULE,next);notify(`Player tree interface ${next?'visible':'hidden'}; purchased nodes and point pools are unchanged.`);}break;
         case 'initialize': await initializeStore();break;
+        case 'strain-import':await this._strainImport();break;
+        case 'strain-export':if(!game.user.isGM)throw Error('GM only');download('ag-strain-config.json',strain.config());break;
+        case 'strain-reset':if(!game.user.isGM)throw Error('GM only');if(await confirm('<p>Reset the Strain config to the module defaults (neutral band names, default Backfire schedule)?</p><p>Character Strain is not changed.</p>','Reset Strain config')){await strain.api.resetConfig();notify('Strain config reset to defaults.');}break;
         case 'qa-install':await this._installQa();break;
         case 'qa-reset':await this._resetQa();break;
         case 'create-tree':await this._newTree();break;
@@ -725,6 +751,21 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       }
       this.render();
     }catch(error){console.error(`[${MODULE}]`,error);notify(`Skill Trees: ${error.message}`,true);}finally{this.busy=false;}
+  }
+  /** GM Setup → Strain: import a config file (ag-strain-config/0.1); shows the check first. Never changes character Strain. */
+  async _strainImport(){
+    if(!game.user.isGM)throw Error('GM only');
+    const file=await pickJsonFile();if(!file)return;
+    let data;try{data=JSON.parse(await file.text());}catch{throw Error(`${file.name} is not valid JSON`);}
+    const plan=strain.api.previewConfigImport(data);
+    if(plan.errors.length)throw Error(`Strain config not imported: ${plan.errors.slice(0,5).join('; ')}`);
+    const row=plan.rows[0];
+    if(row.action==='skip'){notify('That Strain config is the same as the current one; nothing changed.');return;}
+    const warn=plan.warnings.length?`<p>Warnings:</p><ul>${plan.warnings.map(w=>`<li>${escape(w)}</li>`).join('')}</ul>`:'';
+    if(!await confirm(`<p>${escape(row.reason)}</p>${warn}`,'Import Strain config'))return;
+    const result=await strain.api.importConfig(data);
+    if(result.failed.length)throw Error(result.failed[0].reason);
+    notify('Strain config imported.');
   }
   async _help(){
     await confirm('<p><strong>Tree View</strong> shows a character’s tree. Each node is a perk. Arrows point from a prerequisite to the perk it opens; a dashed arrow marked OR means any one of that group is enough; a red dotted line marked ✕ joins perks that cannot both be taken. Select a node to read the same information as text.</p><p><strong>Unlock</strong> spends the character’s points and adds the perk to their sheet. Players unlock their own characters while a GM is logged in; the GM can unlock, refund or reset (refund removes the perk from the sheet).</p><p><strong>GM Setup</strong> has publishing, export (backups) and the saved-data check. Tree files are imported through General Manager.</p><p><strong>Review</strong> (GM): when a lower level leaves perks above it, the banner’s <strong>Review</strong> button (or the whisper’s) lists them: keep or remove each. Every change in a character’s History can be undone.</p><p><strong>Profession trees</strong> get 1 point per profession level from the Profession Ledger (level 16 = 16 points; a tree has 24 perks, so players choose 16). Each perk needs the level of its tier (Apprentice 1, Journeyman 4, Expert 7, Artisan 10, Master 13). Players pick their own; only the GM can remove a perk, grant one as an override, or keep one the level no longer covers. A character with perks above their level waits on GM review before picking again.</p>','Skill Trees help');
@@ -1341,6 +1382,7 @@ function open({treeId=null,actorId=null,resolve=false}={}){
   return instance;
 }
 Hooks.once('init',()=>{
+  strain.register();
   Hooks.on('renderActorDirectory',addDirectoryLauncher);
   Hooks.on('closeApplicationV2',app=>{openTreeWindows.delete(app);if(instance===app)instance=null;});
   // Existing player-facing Skill Trees retains player access on upgrade.
@@ -1361,6 +1403,8 @@ Hooks.once('ready',()=>{
     /** 0.13.0: points per tree for one character, [{treeId,name,kind,level,earned,spent,available}]. Owner or GM only; read-only. */
     pointsSummary:actor=>pointsSummary(actor),
     embed:{contract:'ag-trees-embed/1',modes:[...EMBED_MODES],mount:mountEmbed},
+    /** 0.15.0: the shared Strain door (contract ag-strain/1). Reads: GM or owner. add/remove/set: GM client only. */
+    strain:strain.api,
     grantPoints:async(actor,treeId,amount,label)=>{
       if(!game.user.isGM)throw Error('GM only');const t=readPrivate().find(x=>x.id===treeId);if(!t)throw Error('Unknown tree');
       const next=grantPoints(t,readProgress(actor,t),amount,label);await persistAccount(actor,t,next);return next;
@@ -1414,6 +1458,8 @@ Hooks.once('ready',()=>{
   // Profession Ledger (optional partner): its hook only says "look again"; the level is read through its API.
   Hooks.on('ashenGateLedger.progressionChanged',data=>void onProgressionChanged(data));
   Hooks.on('renderChatMessageHTML',wireChatButtons);
+  Hooks.on('updateActor',(actor,changes)=>strain.onUpdateActor(actor,changes));
+  Hooks.on('createChatMessage',message=>void strain.onRestMessage(message));
   if(game.user.isGM){
     // World perks feed node names/text; an Item on a character sheet does not change the published view.
     // A failed publish leaves players on the old tree, so tell the GM (once until a publish works again).

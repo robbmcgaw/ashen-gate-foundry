@@ -148,6 +148,9 @@
 .agst-inline-setting{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;padding:11px 14px;background:var(--agst-panel);border:1px solid var(--agst-border);border-radius:7px}
 .agst-inline-setting span{font-size:14px;min-width:0;flex:1 1 240px}.agst-inline-setting small{color:var(--agst-muted);font-size:12px}
 .agst-report{margin:6px 0;padding-left:18px;font-size:var(--ag-text-sm);display:flex;flex-direction:column;gap:4px}
+.agst-strain-bands{border-collapse:collapse;font-size:var(--ag-text-sm);margin:6px 0}
+.agst-strain-bands th,.agst-strain-bands td{padding:3px 12px 3px 0;text-align:left;border-bottom:1px solid var(--ag-border)}
+.agst-strain-rules{margin:6px 0;padding-left:18px;font-size:var(--ag-text-sm);display:flex;flex-direction:column;gap:2px}
 
 /* Narrow windows: the sidebar becomes a drawer over the canvas (Menu button opens and closes it). */
 @container (max-width: 759px){
