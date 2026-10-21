@@ -29,6 +29,7 @@ import {confirmDialog, formDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
 import {readDrop, resolveItemDrop} from './ag-item-drop.mjs';
 import {togglePopOut} from './popout.mjs';
+import {applyCompactOpacity, saveCompactOpacity} from './compact-opacity.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
 /** Push asks first through the shared dialog: "Push [power]?" with Cancel and Push. */
@@ -375,12 +376,15 @@ export function createHubSheetClass(Base) {
       const next = content.querySelector?.('.agch-body');
       if (next) next.scrollTop = scroll;
       applyFilter(content, this.filters[this.tab] ?? '');
+      applyCompactOpacity(this);
       this._drawUndo(content);
       if (!this._agchBound) {   // listeners live on the stable content element, so bind once
         content.addEventListener?.('change', ev => this._onHubChange(ev));
         content.addEventListener?.('input', ev => {
           if (ev.target?.matches?.('[data-filter]')) { this.filters[this.tab] = ev.target.value; applyFilter(content, ev.target.value); }
+          if (ev.target?.matches?.('[data-compact-opacity]')) applyCompactOpacity(this, ev.target.value);
         });
+        content.addEventListener?.('change', ev => { if (ev.target?.matches?.('[data-compact-opacity]')) saveCompactOpacity(ev.target.value); });
         content.addEventListener?.('contextmenu', ev => this._onContextMenu(ev));
         content.addEventListener?.('click', ev => this._onOutsideClick(ev));
         content.addEventListener?.('dblclick', ev => ev.target?.closest?.('[data-art-edit]') ? this._onArtEdit(ev) : this._onHpBarOpen(ev));

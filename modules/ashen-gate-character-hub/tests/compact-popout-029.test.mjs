@@ -128,3 +128,37 @@ test('compact CSS uses kit tokens only', () => {
   assert.ok(block.length > 40);
   assert.doesNotMatch(block, /\d+px/);
 });
+
+test('Compact see-through (experimental): slider only in Compact, 60-100 %, only the Compact window gets the variable', async () => {
+  const {clampCompactOpacity, applyCompactOpacity, COMPACT_OPACITY_MIN} = await import('../scripts/compact-opacity.mjs');
+  assert.equal(COMPACT_OPACITY_MIN, 60);
+  assert.equal(clampCompactOpacity(10), 60); assert.equal(clampCompactOpacity(150), 100); assert.equal(clampCompactOpacity('75'), 75);
+  assert.equal(clampCompactOpacity(undefined), 100); assert.equal(clampCompactOpacity('x'), 100);
+  setup({settings: {compactMode: true, compactOpacity: 70}});
+  const sheet = new Hub({document: makeActor()});
+  const props = {};
+  sheet.element = {style: {setProperty: (k, v) => { props[k] = v; }, removeProperty: k => { delete props[k]; }}};
+  const html = await sheet._renderHTML();
+  assert.match(head(html), /<input type="range" min="60" max="100" step="5" value="70" data-compact-opacity data-ag-always aria-label="[^"]+">/);
+  assert.equal(applyCompactOpacity(sheet), 70);
+  assert.deepEqual(props, {'--agch-compact-alpha': '70%'});
+  sheet.compact = false;
+  assert.equal(applyCompactOpacity(sheet), 100);
+  assert.deepEqual(props, {}, 'Full removes it: always opaque');
+  assert.doesNotMatch(head(await sheet._renderHTML()), /data-compact-opacity/, 'no slider in Full');
+  const {saveCompactOpacity} = await import('../scripts/compact-opacity.mjs');
+  await saveCompactOpacity(5);
+  assert.equal(game.settings.store.compactOpacity, 60, 'saved clamped');
+  const css = fs.readFileSync(new URL('../styles/character-hub.css', import.meta.url), 'utf8');
+  assert.match(css, /--agch-bg: color-mix\(in srgb, var\(--ag-surface\) var\(--agch-compact-alpha, 100%\), transparent\)/, 'one variable, opaque when unset');
+  assert.doesNotMatch(css, /--agch-bg-raised: color-mix|--agch-bg-sunken: color-mix/, 'HP box, slots and header stay solid');
+});
+
+test('Ashen Gate bottom bar: wraps on narrow windows; hidden in Compact', async () => {
+  const css = fs.readFileSync(new URL('../styles/character-hub.css', import.meta.url), 'utf8');
+  assert.match(css, /\.agch-app \.agch-agbar \{[^}]*flex-wrap: wrap/);
+  setup({user: users.gm, settings: {compactMode: true}, modules: {'ashen-gate-headquarters': {active: true, api: {open() {}}}}});
+  assert.doesNotMatch(await new Hub({document: makeActor()})._renderHTML(), /agch-agbar/);
+  setup({user: users.gm, modules: {'ashen-gate-headquarters': {active: true, api: {open() {}}}}});
+  assert.match(await new Hub({document: makeActor()})._renderHTML(), /<nav class="agch-agbar"/);
+});

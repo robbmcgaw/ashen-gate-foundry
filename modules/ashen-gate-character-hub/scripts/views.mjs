@@ -6,6 +6,7 @@ import {MODULE_ID, esc, signed} from './constants.mjs';
 import {abilitiesData, skillsData, overviewData} from './data.mjs';
 import {characterPanelHtml, compactPanelHtml} from './character.mjs';
 import {canPopOut, isPoppedOut} from './popout.mjs';
+import {compactOpacityHtml} from './compact-opacity.mjs';
 import {btn} from './buttons.mjs';
 import {ITEM_TABS} from './tabs.mjs';
 import {ashenGateTab, AG_PANELS, agPanelsFor, partnerApi, embedApi, panelState} from './partners.mjs';
@@ -61,16 +62,17 @@ export const visibleTabs = (user = globalThis.game?.user) => TABS.filter(t => us
 const tabHiddenReason = t => t.parts?.length && t.parts.every(k => hiddenReason(k)) ? hiddenReason(t.parts[0]) : null;
 
 /** The tab rail down the right edge (kit .ag-siderail): icon buttons, label in a Foundry tooltip and for screen readers. */
-export function tabsHtml(active, sheet = null) {
+export function tabsHtml(active) {
   const gm = globalThis.game?.user?.isGM === true;
   return `<div class="agch-railcol"><nav class="ag-siderail agch-rail" role="tablist" aria-orientation="vertical" aria-label="Character Hub sections">${visibleTabs().map(t => {
     const hidden = gm ? tabHiddenReason(t) : null, label = hidden ? `${t.label} (hidden from players: ${hidden})` : t.label;
     return `<button type="button" role="tab" data-action="hub-tab" data-tab="${t.id}" data-ag-always aria-selected="${t.id === active}" class="agch-rail__tab${t.id === active ? ' active' : ''}${hidden ? ' is-hidden' : ''}" aria-label="${esc(label)}" data-tooltip="${esc(label)}" data-tooltip-direction="LEFT"><i class="${t.icon}" aria-hidden="true"></i>${hidden ? '<i class="fa-solid fa-eye-slash agch-rail__hidden" aria-hidden="true"></i>' : ''}</button>`;
-  }).join('')}</nav>${agBarHtml(active, sheet)}</div>`;
+  }).join('')}</nav></div>`;
 }
 
 /**
- * Ashen Gate quick bar: a second button group at the bottom of the rail, growing upward. The first four show that
+ * Ashen Gate quick bar: a thin bar along the bottom edge of the Hub (0.29.0; it sat under the tab rail before), hidden
+ * in Compact. The first four show that
  * module's own view in the Ashen Gate tab; Headquarters and Locations open their module's main window. Players only
  * get the ones shown to them (the GM's switch, the module active, its Player Access on); the GM also sees missing
  * modules, greyed out.
@@ -97,9 +99,9 @@ export function agBarHtml(active = null, sheet = null) {
     const api = partnerApi(b.id), usable = !!api && (b.view || typeof api.open === 'function');
     const current = b.view && active === 'ashen-gate' && (sheet?.agTab ?? agPanelsFor()[0]?.id) === b.id;
     const label = !api ? `${b.label} (module not active)` : b.view ? `${b.label} (show here)` : `Open ${b.label}`;
-    return `<button type="button" class="agch-rail__tab agch-agbar__btn${current ? ' active' : ''}${usable ? '' : ' is-missing'}" data-action="${b.view ? 'ag-jump' : 'partner-open'}" data-partner="${b.id}"${usable ? ' data-ag-always' : ' disabled'} aria-label="${esc(label)}" data-tooltip="${esc(label)}" data-tooltip-direction="LEFT"${b.view ? ` aria-pressed="${current}"` : ''}><i class="${b.icon}" aria-hidden="true"></i></button>`;
+    return `<button type="button" class="ag-btn ag-btn--ghost ag-btn--icon agch-agbar__btn${current ? ' active' : ''}${usable ? '' : ' is-missing'}" data-action="${b.view ? 'ag-jump' : 'partner-open'}" data-partner="${b.id}"${usable ? ' data-ag-always' : ' disabled'} aria-label="${esc(label)}" data-tooltip="${esc(label)}" data-tooltip-direction="UP"${b.view ? ` aria-pressed="${current}"` : ''}><i class="${b.icon}" aria-hidden="true"></i></button>`;
   });
-  return buttons.length ? `<nav class="ag-siderail agch-rail agch-agbar" aria-label="Ashen Gate modules">${buttons.join('')}</nav>` : '';
+  return buttons.length ? `<nav class="agch-agbar" aria-label="Ashen Gate modules">${buttons.join('')}</nav>` : '';
 }
 /**
  * Level up (0.27.0): starts dnd5e's own level-up. When it isn't ready it stays clickable but aria-disabled, so a
@@ -140,7 +142,7 @@ export function shellHtml(ctx) {
   const {actor, tab} = ctx, compact = ctx.compact === true && !ctx.limited;
   const version = globalThis.game?.modules?.get?.(MODULE_ID)?.version ?? '';
   const top = `<header class="ag-header"><h1><span class="ag-header__brand">Ashen Gate</span> | Character Hub</h1><div class="ag-header__actions">
-    ${ctx.limited ? '' : compactBtn(compact)}${popOutBtn(ctx.sheet)}
+    ${ctx.limited ? '' : compactBtn(compact)}${compact ? compactOpacityHtml() : ''}${popOutBtn(ctx.sheet)}
     ${ctx.limited || compact ? '' : `${levelUpBtn(actor)}${restoreBtn(actor)}`}
     ${compact ? '' : btn('open-native', 'Open native sheet', {kind: 'ghost', icon: 'fa-solid fa-file-lines', always: true, title: 'Open the standard dnd5e character sheet'})}
     <span class="ag-version">v${esc(version)}</span>
@@ -153,7 +155,7 @@ export function shellHtml(ctx) {
     <section class="agch-pane"><div class="ag-empty"><p class="ag-empty__title">Nothing shared yet.</p><p class="ag-empty__text">Your GM hasn't shared any other sections yet.</p></div></section></div>${hotbarsHtml(ctx)}</div>`;
   return `<div class="agch-root">${top}<div class="agch-split">${characterPanelHtml(ctx)}
     <section class="agch-pane"><h2 class="agch-pane__title"><i class="${current.icon}" aria-hidden="true"></i> ${esc(current.label)}${current.parts ? hiddenBadge(current.parts) : ''}</h2>${notice}
-    <div class="agch-body" role="tabpanel" aria-label="${esc(current.label)}">${current.render(ctx)}</div></section>${tabsHtml(current.id, ctx.sheet)}</div>${hotbarsHtml(ctx)}</div>`;
+    <div class="agch-body" role="tabpanel" aria-label="${esc(current.label)}">${current.render(ctx)}</div></section>${tabsHtml(current.id)}</div>${hotbarsHtml(ctx)}${agBarHtml(current.id, ctx.sheet)}</div>`;
 }
 
 export function errorHtml(err) {
