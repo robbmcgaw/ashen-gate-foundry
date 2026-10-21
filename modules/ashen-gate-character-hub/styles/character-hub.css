@@ -472,3 +472,8 @@
 /* 0.18.1: electrum shown only because a character still has some while Utilities' "Use electrum" is off */
 .ag-character-hub .agch-coin.is-off { opacity: .55; }
 .ag-character-hub .agch-ep-off { margin: var(--ag-space-1) 0 0; font-size: var(--ag-text-xs); }
+/* 0.19.0: Cinder sockets (read only) */
+.ag-character-hub .agch-cinder__sockets { border-top: 1px solid var(--ag-border); margin-top: var(--ag-space-1); padding-top: var(--ag-space-1); }
+.ag-character-hub .agch-cinder__sockets-head { margin: 0 0 var(--ag-space-1); }
+.ag-character-hub .agch-socket.is-empty { opacity: .8; font-style: italic; }
+.ag-character-hub .agch-socket.is-inactive { opacity: .75; }
