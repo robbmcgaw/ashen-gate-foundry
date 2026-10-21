@@ -1,112 +1,32 @@
 {
   "ashen-gate-character-hub": {
-    "css-colour-literal": 0,
-    "css-raw-font-size": 0,
-    "css-legacy-alias": 0,
-    "css-viewport-media": 0,
-    "css-raw-px-box": 1,
-    "css-kit-prefix-class": 0,
-    "js-dialogv2-direct": 0,
-    "header-brand-version": 0,
-    "button-title-attr": 0
+    "css-raw-px-box": 1
   },
   "ashen-gate-cinders": {
-    "css-colour-literal": 0,
-    "css-raw-font-size": 0,
-    "css-legacy-alias": 0,
-    "css-viewport-media": 0,
-    "css-raw-px-box": 0,
-    "css-kit-prefix-class": 0,
-    "js-dialogv2-direct": 0,
-    "header-brand-version": 0,
-    "button-title-attr": 0
+    "css-raw-px-box": 0
   },
   "ashen-gate-factions": {
-    "css-colour-literal": 0,
-    "css-raw-font-size": 0,
-    "css-legacy-alias": 0,
-    "css-viewport-media": 0,
-    "css-raw-px-box": 0,
-    "css-kit-prefix-class": 0,
-    "js-dialogv2-direct": 0,
-    "header-brand-version": 0,
-    "button-title-attr": 0
+    "css-raw-px-box": 0
   },
   "ashen-gate-headquarters": {
-    "css-colour-literal": 0,
-    "css-raw-font-size": 0,
-    "css-legacy-alias": 0,
-    "css-viewport-media": 0,
-    "css-raw-px-box": 0,
-    "css-kit-prefix-class": 0,
-    "js-dialogv2-direct": 0,
-    "header-brand-version": 0,
-    "button-title-attr": 0
+    "css-raw-px-box": 0
   },
   "ashen-gate-locations": {
-    "css-colour-literal": 0,
-    "css-raw-font-size": 0,
-    "css-legacy-alias": 0,
-    "css-viewport-media": 0,
-    "css-raw-px-box": 0,
-    "css-kit-prefix-class": 0,
-    "js-dialogv2-direct": 0,
-    "header-brand-version": 0,
-    "button-title-attr": 0
+    "css-raw-px-box": 0
   },
   "ashen-gate-manager": {
-    "css-colour-literal": 0,
-    "css-raw-font-size": 0,
-    "css-legacy-alias": 0,
-    "css-viewport-media": 0,
-    "css-raw-px-box": 0,
-    "css-kit-prefix-class": 0,
-    "js-dialogv2-direct": 0,
-    "header-brand-version": 0,
-    "button-title-attr": 0
+    "css-raw-px-box": 0
   },
   "ashen-gate-profession-ledger": {
-    "css-colour-literal": 0,
-    "css-raw-font-size": 0,
-    "css-legacy-alias": 0,
-    "css-viewport-media": 0,
-    "css-raw-px-box": 0,
-    "css-kit-prefix-class": 0,
-    "js-dialogv2-direct": 0,
-    "header-brand-version": 0,
-    "button-title-attr": 0
+    "css-raw-px-box": 0
   },
   "ashen-gate-quest-manager": {
-    "css-colour-literal": 0,
-    "css-raw-font-size": 0,
-    "css-legacy-alias": 0,
-    "css-viewport-media": 0,
-    "css-raw-px-box": 0,
-    "css-kit-prefix-class": 0,
-    "js-dialogv2-direct": 0,
-    "header-brand-version": 0,
-    "button-title-attr": 0
+    "css-raw-px-box": 0
   },
   "ashen-gate-skill-trees": {
-    "css-colour-literal": 0,
-    "css-raw-font-size": 0,
-    "css-legacy-alias": 0,
-    "css-viewport-media": 0,
-    "css-raw-px-box": 0,
-    "css-kit-prefix-class": 0,
-    "js-dialogv2-direct": 0,
-    "header-brand-version": 0,
-    "button-title-attr": 0
+    "css-raw-px-box": 0
   },
   "ashen-gate-utilities": {
-    "css-colour-literal": 0,
-    "css-raw-font-size": 0,
-    "css-legacy-alias": 0,
-    "css-viewport-media": 0,
-    "css-raw-px-box": 0,
-    "css-kit-prefix-class": 0,
-    "js-dialogv2-direct": 0,
-    "header-brand-version": 0,
-    "button-title-attr": 0
+    "css-raw-px-box": 0
   }
 }
