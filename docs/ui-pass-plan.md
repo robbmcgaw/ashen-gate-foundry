@@ -83,12 +83,12 @@ The kit's size tokens get two value sets. Everything that has a size reads a tok
 
 ## Order (final)
 
-Builds are prepared now and held as draft PRs until after **Friday 2026-10-23** (see "Holding PRs" below). Versions shown are the next ones above `main` on 2026-10-21; recompute them on merge day.
+Each PR merges when green (see "Merging" below). Versions shown are the next ones above `main` on 2026-10-21; recompute them when building.
 
 | # | PR | Version (as of today's main) | Scope | Risk | What users notice |
 |---|---|---|---|---|---|
 | 1 | **Shared kit 2 release**, brief `docs/ui-briefs/01-kit-2.md` | minor for every module | D shape and size tokens, both size sets, new kit parts, `ag-dialogs.mjs` superset, Manager size setting, skins cover new parts, rarity tokens in the kit, lint in ratchet mode | Medium: the look changes everywhere | Rounded compact kit parts in every window; Comfortable in My Appearance |
-| 2 | **Character Hub pilot**, brief `docs/ui-briefs/02-hub-pilot.md` | Hub minor | Hub fully on the standard: HP ring portrait, round slots, Strain orb, rail tooltips, kit rows, confirms, light-skin fixes | Medium (biggest player window) | The sheet looks like the mockup |
+| 2 | **Character Hub pilot**, brief `docs/ui-briefs/02-hub-pilot.md` | Hub minor | Hub on the standard **with its layout unchanged** (art + slots column, content column, icon rail): type, spacing, shapes, controls, icons, round slots, rail tooltips, kit rows, confirms, light-skin fixes | Medium (biggest player window) | Same sheet layout, D look and feel |
 | 3 | **Dialogs and words sweep**, brief `docs/ui-briefs/03-dialogs-sweep.md` | patch for each touched module | Help as an info dialog, labelled and danger confirms through `ag-dialogs.mjs`, player-visible debug text removed (not Hub, not Renown) | Low | No more Yes/No; no "acceptance pending" |
 | 4 | Profession Ledger | minor | Header, badges, table, quality uses rarity colours (D6), container queries | Low–medium | Ledger matches the Hub |
 | 5 | Renown | minor | See "Renown pass" below (includes the parked toolbar polish) | Medium | Renown matches; toolbar fixed |
@@ -103,30 +103,19 @@ Builds are prepared now and held as draft PRs until after **Friday 2026-10-23** 
 
 PRs 2 and 3 both stack on PR 1 and don't depend on each other. From PR 4 on, passes can run in parallel chats, one module each, once PR 1 is merged. Each module pass also brings that module's remaining dialogs to `ag-dialogs.mjs` if PR 3 didn't.
 
-## Holding PRs until after Friday without drifting
+## Merging (normal: merge when green)
 
-1. **Draft PRs.** Open each one as a draft, titled `[HOLD → after 2026-10-23] …`, so the merge button stays disabled. Merging to `main` triggers the Release workflow, so a draft can't release by accident. Pushes to branches only run the Check workflow.
-2. **Stack:**
-   - `ui/kit-2` branches from `main`.
-   - `ui/hub-pilot` and `ui/dialogs-sweep` branch from `ui/kit-2`, and their PRs target `ui/kit-2`, so each diff shows only its own work.
-   - When PR 1 merges and its branch is deleted, GitHub retargets the other two PRs to `main` automatically.
-3. **Keep up with `main`:**
-   - Whenever `main` gets a release (it moved 15 commits on 2026-10-21 alone), merge `main` into `ui/kit-2`, then `ui/kit-2` into the two child branches.
-   - Use merge commits, no rebase and no force-push, so review comments and the build chats' checkouts stay valid.
-   - Run `node scripts/check.mjs` after each sync.
-4. **Version conflicts are expected.** If `main` released a module that a held PR also bumps:
-   - keep `main`'s version and CHANGELOG section;
-   - re-bump the PR to the next version above it and move the PR's CHANGELOG entry on top;
-   - update every hard-coded copy of the version (`module.json` version and download URL, `VERSION` constants, header text such as Manager's `manager.hbs` and window title).
-   - `check.mjs` catches mismatches. Never reuse a released version.
-5. **Shared files.** If `main` changes `ag-ui.css`, `ag-launchers.mjs` or a `dialogs.mjs` copy while PRs are held, merge it into `ui/kit-2` first, so the copies stay byte-identical across all modules in every branch.
-6. **Merge day (Saturday 2026-10-24 or later, when Robb says):**
-   - Sync all three branches one last time.
-   - Merge PR 1 and let it release. Robb updates in Forge and opens each window once in Standard, Stone Tablet and Comfortable.
-   - Then merge PR 2, and Robb checks the Hub.
-   - Then merge PR 3, and Robb checks the dialogs.
-   - Leave one Forge check between merges, so a problem points at one PR.
-7. **No new feature work on these branches.** Fixes found while holding go on the branch they belong to (kit issues on `ui/kit-2`, then merged down).
+Robb accepts that the rework ships before full testing, so each PR merges as soon as it is green and reviewed. Keep each one **small and single-purpose**, so any single PR can be reverted on its own.
+
+1. **Order.**
+   - PR 1 (kit) merges first.
+   - PRs 2 and 3 branch from `main` after PR 1 is merged. If they are built in parallel, branch from `ui/kit-2` and retarget them to `main` once PR 1 merges; GitHub does this when the base branch is deleted.
+2. **One purpose per PR.** Don't mix a module pass with kit changes. A kit problem found during a module pass gets its own small kit PR, merged first, which touches every module's copy.
+3. **Before merging,** merge `main` into the branch, re-check versions against `main` (re-bump if a release landed), and run `node scripts/check.mjs`.
+4. **Reverting.**
+   - A revert is a new PR that restores the previous files **with a new version bump**, because a released version is never reused. Never force-push `main`.
+   - Reverting PR 1 also needs the module PRs that depend on kit-2 classes reverted first, so revert in reverse merge order.
+5. **Robb checks in Forge after each merge**, so a problem points at one PR.
 
 ## Decisions (all taken by Robb, 2026-10-21)
 
@@ -143,7 +132,8 @@ PRs 2 and 3 both stack on PR 1 and don't depend on each other. From PR 4 on, pas
 | D9 | No Alpha/Beta in window headers. |
 | D10 | Renown keeps the folder list beside Group, Player and Organizations; Pantheon is full width. |
 | D11 | Foundry tooltips (`data-tooltip`) replace native `title` hover text, module by module. |
-| Order | Character Hub is the pilot, after the shared kit release; then Profession Ledger, then Renown, then the rest. |
+| Order | Character Hub is the pilot, after the shared kit release; then Profession Ledger, then Renown, then the rest. PRs merge when green; no hold. |
+| Hub layout | The Character Hub layout stays exactly as it is: the roughly 40/60 split with the character art and equipped-slot boxes around it on the left, content on the right, and the right icon rail. The pass changes only type, spacing, shapes, controls and icons. |
 
 GPT sync: none needed. This work is UI only and changes no content schema GPT authors against.
 

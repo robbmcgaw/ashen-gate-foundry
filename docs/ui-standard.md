@@ -79,7 +79,7 @@ Nothing is smaller than 11px. The only font is Signika, which ships with Foundry
 | `--ag-radius-lg` | 14px | Cards |
 | `--ag-radius-window` (new) | 16px | Ashen Gate windows and dialogs |
 
-Circles are reserved for things that are one thing: portrait (with the HP ring), slots, icon chips, icon-only buttons, the Strain orb and rank dots. Structural skins set their own radii (Stone Tablet ~0, Tome Pages ~3px), including `--ag-radius-control`.
+Circles are reserved for things that are one thing: portraits (with the HP ring, where a window has a small portrait), slots, icon chips, icon-only buttons, orbs and rank dots. Character Hub keeps its large art and HP bar; its layout doesn't change. Structural skins set their own radii (Stone Tablet ~0, Tome Pages ~3px), including `--ag-radius-control`.
 
 ### Elevation and motion
 - Flat by default. `--ag-shadow-sm` marks a selected segment; `--ag-shadow` is for windows and popovers only. Borders separate cards.

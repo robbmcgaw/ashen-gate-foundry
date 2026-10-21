@@ -2,7 +2,7 @@
 
 Self-contained brief for a build chat. Read `CLAUDE.md`, `docs/ui-standard.md` §3 ("Confirmations and dialogs") and §7 ("Copy and tone"), and `docs/ui-audit.md` §2 items 1–3 and 8 and §4 "Confirmations and dialogs", on branch `design/ui-standard`.
 
-**Depends on brief 1**, which ships `ag-dialogs.mjs` and the `.ag-dialog` styles. Branch `ui/dialogs-sweep` from `ui/kit-2`. Open a **draft PR** targeting `ui/kit-2`, titled `[HOLD → after 2026-10-23] Dialogs and words sweep …`. Do not merge; follow "Holding PRs" in `docs/ui-pass-plan.md`. It is independent of brief 2.
+**Depends on brief 1**, which ships `ag-dialogs.mjs` and the `.ag-dialog` styles. Branch `ui/dialogs-sweep` from `main` once brief 1 has merged. If you build in parallel, branch from `ui/kit-2` and retarget later. Merge when green. It is independent of brief 2.
 
 ## Goal
 Remove the most visible problems in one small, low-risk PR:
@@ -108,7 +108,7 @@ Line references are from the audit at `b2cd06b`; `main` has moved, so re-locate 
 - **Patch bump** above the version brief 1 sets, for each module touched:
   - Manager, Skill Trees, Cinders, Ledger, Locations, Utilities, HQ, Quest Log.
   - With brief 1's numbers from 2026-10-21: 0.42.1, 0.18.1, 0.4.1, 0.23.1, 1.16.1, 0.14.1, 0.11.1, 0.9.1.
-  - Recompute on merge day.
+  - Recompute when building.
 - **Update hard-coded versions** (Manager header, title, ready log).
 - **CHANGELOG line:** "Confirmations name the action (no more Yes/No), Help opens with a Close button, dialogs follow the Ashen Gate look; test wording removed from player views."
 
