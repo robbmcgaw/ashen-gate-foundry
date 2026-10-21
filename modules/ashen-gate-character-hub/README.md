@@ -3,7 +3,7 @@
 An alternative character sheet for dnd5e 6 on Foundry V14. It shows and changes the **real** Actor: there is no separate character data, so the standard dnd5e sheet and the Hub always agree. Rolls, item use, rests, advancement and item configuration go through dnd5e's own dialogs.
 
 ## Open it
-Open a character → the sheet's title-bar menu (**Sheet** / gear) → choose **Ashen Gate Character Hub**. Switch back the same way. It is never the default unless you pick it. **Open native sheet** in the Hub's header opens the standard dnd5e sheet at any time.
+Open a character → the sheet's title-bar menu (**Sheet** / gear) → choose **Ashen Gate Character Hub**. Switch back the same way. It is never the default unless you pick it. **Open native sheet** in the Hub's header opens the standard dnd5e sheet at any time. **Level up** next to it starts dnd5e's own level-up, or adds a class through dnd5e's class browser (it adds no rules of its own). Each level-up keeps a GM-only copy of the character as it was, named `<name> - level X`, in the Actor folder Ashen Gate / Level backups.
 
 ## What it does
 Layout: the character on the left, the chosen section in the middle (only it scrolls), and an icon rail of sections down the right edge (hover for names). Opens at 1240 × 800; under about 900 px wide everything stacks. A header slider fades the whole window background (per user, 100-20 %) so the map shows through; text and controls stay solid. Every section heading (and each inventory container) folds open and closed; which ones are folded is remembered per user on that computer (client setting `collapsedSections`).
@@ -149,3 +149,24 @@ Full parity with the dnd5e sheet, spell preparation beyond a toggle, advancement
 
 ## Tests
 `node scripts/check.mjs ashen-gate-character-hub`. Tests use mocked Foundry: they prove logic and calls, not the live Foundry UI.
+
+## Level backups (0.27.0)
+Each Hub level-up keeps a GM-only copy of the character as it was before, named `<name> - level X`, in the Actor folder **Ashen Gate / Level backups**. Delete old copies by hand. The copy keeps dnd5e data, items and effects; its live Ashen Gate flag scopes are removed (all `ashen-gate-*` except `ashen-gate-manager` source ids) so it is never a second bearer or progression. Cinder instance records stay in Cinders and are not touched. There is no Restore button yet; the removed flags are kept so one can be built:
+
+```
+flags['ashen-gate-character-hub'].levelBackup = {
+  sourceId,        // the character's Actor id
+  sourceName,      // its name at the time
+  levelBefore,     // character level before the level-up
+  classesBefore,   // [{id, name, identifier, levels}] before the level-up
+  date,            // YYYY-MM-DD
+  opId, by,        // request id (one copy per id) and the user who levelled
+  archivedFlags: {
+    actor:       {scope: flags},                     // the Actor's removed scopes
+    items:       {itemId: {scope: flags}},           // each item's removed scopes
+    effects:     {effectId: {scope: flags}},         // the Actor's effects
+    itemEffects: {itemId: {effectId: {scope: flags}}} // effects on items
+  }                // each key present only when something was removed; ids are the copy's (= the source's) ids
+}
+```
+To restore, put each archived scope back on the document its id names and remove `levelBackup`.

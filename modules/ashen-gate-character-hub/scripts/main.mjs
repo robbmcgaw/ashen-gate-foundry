@@ -10,6 +10,7 @@ import {registerCollapseSetting} from './collapse.mjs';
 import {registerListSortSetting} from './organize.mjs';
 import * as journey from './journey.mjs';
 import {registerMarksSocket} from './marks.mjs';
+import {flushQueue, QUEUE_FLAG} from './level-backup.mjs';
 import {registerVisibilitySetting, PARTS, PRESETS, readVisibility, setVisibility, applyPreset, hiddenReason, canSee} from './visibility.mjs';
 
 let HubSheet = null;
@@ -134,6 +135,10 @@ if (globalThis.Hooks) {
   for (const hook of ['createJournalEntry', 'updateJournalEntry']) Hooks.on(hook, () => { renownSoon(); questsSoon(); });
   // Target marks for tokens the player doesn't own go through the GM client (marks.mjs).
   Hooks.once('ready', () => registerMarksSocket());
+  // Level backups (0.27.0) a player queued while no GM was on: the coordinating GM makes them (level-backup.mjs).
+  const flushSoon = later(() => flushQueue(), 1000);
+  Hooks.once('ready', () => flushSoon());
+  Hooks.on('updateActor', (actor, changes) => { if (changes?.flags?.[MODULE_ID]?.[QUEUE_FLAG]?.length) flushSoon(); });
   // A mark placed or removed on someone else's token: redraw the Hub of the character who placed it.
   for (const hook of ['createActiveEffect', 'deleteActiveEffect']) Hooks.on(hook, effect => {
     const by = effect?.flags?.[MODULE_ID]?.mark?.by;

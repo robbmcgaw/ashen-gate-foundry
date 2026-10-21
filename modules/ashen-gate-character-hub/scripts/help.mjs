@@ -4,6 +4,7 @@ import {infoDialog} from './ag-dialogs.mjs';
 export const HELP_HTML = `<p>The Character Hub is another way to look at the <strong>same</strong> character. Everything you change here changes the real character, and the standard dnd5e sheet shows it straight away (and the other way round).</p>
 <ul>
   <li><strong>Open native sheet</strong> (top right) opens the standard dnd5e sheet at any time.</li>
+  <li><strong>Level up</strong> (top right) starts dnd5e's own level-up: pick the class to advance, or <strong>Add a class</strong> to multiclass (dnd5e's class browser). The GM can always level; a player can when the world uses milestone levelling (or, in XP worlds, once there is enough XP). A copy of the character as it was before is kept for the GM in Actors → Ashen Gate → Level backups. The Journey records the new level as before.</li>
   <li><strong>Left side</strong> is the character: portrait with equipment slots around it, AC, initiative, speed, proficiency, hit points, the six abilities, conditions, hit dice and rests. The icon buttons down the right edge switch what the middle shows (hover for the name).</li>
   <li><strong>Change the art:</strong> double-click the big picture to choose a new portrait (or new token art, when Token art is shown). Only if you own the character.</li>
   <li><strong>See-through window:</strong> the slider in the header fades the whole window background so you can see the map. Only for you; text stays solid.</li>
