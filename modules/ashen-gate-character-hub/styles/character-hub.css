@@ -460,6 +460,9 @@
 .agch-app .agch-journey__icon { display: inline-grid; place-items: center; width: var(--ag-icon-chip); height: var(--ag-icon-chip); border-radius: 50%; background: var(--ag-accent-soft); color: var(--ag-accent); font-size: var(--ag-icon); }
 .agch-app .agch-journey__when { font-size: var(--ag-text-xs); color: var(--ag-muted); font-variant-numeric: tabular-nums; }
 .agch-app .agch-journey__text { overflow-wrap: anywhere; }
+/* Reward item pictures (0.25.0), after the entry text */
+.agch-app .agch-journey__items { display: inline-flex; flex-wrap: wrap; gap: var(--ag-space-1); vertical-align: middle; }
+.agch-app .agch-journey__items img { width: var(--ag-icon-chip); height: var(--ag-icon-chip); flex: none; border: 0; border-radius: var(--ag-radius-sm); object-fit: cover; object-position: center top; }
 .agch-app .agch-journey__ctl { display: inline-flex; gap: var(--ag-space-1); }
 .agch-app .agch-journey__form { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); align-items: center; grid-column: 1 / -1; }
 .agch-app .agch-journey__form input[type="text"] { flex: 1 1 14rem; min-width: 0; }

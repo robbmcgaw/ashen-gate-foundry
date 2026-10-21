@@ -23,6 +23,7 @@ import * as hotbar from './hotbar.mjs';
 import {stepStrain, pushFromHub, socketFromHub, dropOnSocket} from './cinders.mjs';
 import {confirmDialog, formDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
+import {readDrop, resolveItemDrop} from './ag-item-drop.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
 /** Push asks first through the shared dialog: "Push [power]?" with Cancel and Push. */
@@ -215,14 +216,25 @@ export const EDITS = {
   'list-sort': async (s, i) => { const r = await setListChoice(i.dataset.tab, i.dataset.field, i.value); if (r.ok) s.render(); return r; }
 };
 
-/** Reads the Item (or, where `types` allows, the Actor) from a drop (sidebar, compendium or this sheet) the way dnd5e does. */
+/** Reads the Item (or, where `types` allows, the Actor or Macro) from a drop the way dnd5e does; parsing is the shared readDrop. */
 export async function droppedItem(event, types = ['Item']) {
-  const TE = globalThis.foundry?.applications?.ux?.TextEditor?.implementation;
-  let data = null;
-  try { data = TE?.getDragEventData ? TE.getDragEventData(event) : JSON.parse(event.dataTransfer?.getData('text/plain') || 'null'); } catch { data = null; }
+  const data = readDrop(event);
   if (!types.includes(data?.type)) return null;
   const Cls = globalThis[data.type]?.implementation ?? globalThis[data.type];
   return Cls?.fromDropData ? Cls.fromDropData(data) : null;
+}
+/**
+ * Companion zones (0.25.0): Items go through the shared item-drop standard, so a folder, a non-Item or a missing item
+ * is refused with the shared text ({ok: false, error}). Mount and pet slots also take an Actor, read as before.
+ */
+export async function droppedCompanionDoc(event, actors = false) {
+  const raw = readDrop(event);
+  if (actors && raw.type === 'Actor') {
+    const Cls = globalThis.Actor?.implementation ?? globalThis.Actor;
+    return {ok: true, doc: (await Cls?.fromDropData?.(raw)) ?? null};
+  }
+  const r = await resolveItemDrop(raw);
+  return r.ok ? {ok: true, doc: r.items[0]} : {ok: false, error: r.reason};
 }
 /** Item cards can be dragged (to the quick bar, Foundry's hotbar or another sheet) as ordinary Item drag data. */
 export function onItemDragStart(event) {
@@ -462,7 +474,9 @@ export function createHubSheetClass(Base) {
       event.preventDefault(); event.stopPropagation();
       try {
         const kind = zone.dataset.dropCompanion, entry = zone.dataset.entry;
-        const item = await droppedItem(event, kind === 'mount' || kind === 'pet' ? ['Actor', 'Item'] : ['Item']);
+        const drop = await droppedCompanionDoc(event, kind === 'mount' || kind === 'pet');
+        if (!drop.ok) return report(drop);
+        const item = drop.doc;
         const result = kind === 'perk' ? await comp.attachDroppedPerk(this.document, entry, item)
           : kind === 'extra' ? await comp.attachDroppedExtra(this.document, entry, item)
           : kind === 'clothing' ? await comp.attachDroppedExtra(this.document, entry, item, {slot: zone.dataset.slot, list: 'clothing'})

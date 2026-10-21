@@ -1,8 +1,11 @@
 import {MOD,assertGM,validSource,validState,initialState,publicView,projectionOwnership,accessSignature,cleanText,normalizePackage,planQuestImport} from './core.mjs';
 import {listAssignments} from './assignments.mjs';
+import {worldItemById} from './ag-item-drop.mjs';
 const FLAG = `flags.${MOD}`;
 const GM_ONLY = {default:0};
 const FLAGROOT = `flags.${MOD}`;
+// Imported rewards are named from the world Item bound to their permanent id; none bound -> left out of the player view.
+const itemById=id=>{const item=worldItemById(id);return item?{name:item.name,img:item.img}:null;};
 export async function ensureFolder(segment){
   if(typeof Folder==='undefined'||!game.folders)return null;
   let parent=null;
@@ -33,7 +36,7 @@ function journalPageHtml(v){
 function projectionFlags(v,sig){return {[MOD]:{public:true,view:v,accessSignature:sig}};}
 async function publish(source,state){
   assertGM(game.user);
-  const v=publicView(source,state), old=findProjection(source.id);
+  const v=publicView(source,state,{itemById}), old=findProjection(source.id);
   if(!v){if(old)await old.delete();await synchronizeNotes(source,state,false);return null;}
   const actor=state.scope==='individual'?game.actors.get(state.actorId):null;
   if(state.scope==='individual'&&!actor){if(old)await old.delete();await synchronizeNotes(source,state,false);return null;}

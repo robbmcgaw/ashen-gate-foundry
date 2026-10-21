@@ -13,8 +13,8 @@
  * Automatic entries come only from existing events and public APIs (no new rules): level-ups (dnd5e
  * system.details.level), Renown tier changes (Renown's public getFactions()/getPantheon() as the player sees them) and
  * quests completed (Quest Log's GM API listQuests()/getGMState()). Each has a stable id per event, so a re-fire never
- * duplicates. Currency is only ever recorded when a quest awards it: Quest Log grants nothing itself today, so
- * recordReward() is the entry point for the coming rewards build.
+ * duplicates. Quest rewards (items and coins) come only through recordReward() (GM API, called by Quest Log when it
+ * grants; 0.25.0 added items and grantId). Nothing else records currency.
  * Permissions are checked here: players read only their own characters' visible entries and can't add, edit, hide or
  * delete anything; the recorders only append new automatic entries.
  */
@@ -153,16 +153,39 @@ export function questCompletions(api, seen, partyActorIds) {
   return {done, seen: next};
 }
 
+export const REWARD_ITEMS_MAX = 50;
+export const REWARD_NAME_MAX = 120;
+const ITEM_ID_RE = /^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/, GRANT_ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
+/** A reward's item list, cleaned: at most 50 of {name, img, quantity, itemId}; anything else is dropped. */
+export function cleanRewardItems(items) {
+  if (!Array.isArray(items)) return [];
+  const out = [];
+  for (const i of items) {
+    if (out.length >= REWARD_ITEMS_MAX) break;
+    const name = typeof i?.name === 'string' ? i.name.trim().slice(0, REWARD_NAME_MAX) : '';
+    if (!name) continue;
+    const q = i.quantity === undefined || i.quantity === null ? 1 : Number(i.quantity);
+    out.push({name, img: typeof i.img === 'string' && i.img ? i.img : null, quantity: Number.isInteger(q) && q >= 1 ? q : 1,
+      itemId: typeof i.itemId === 'string' && ITEM_ID_RE.test(i.itemId) ? i.itemId : null});
+  }
+  return out;
+}
+
 /**
- * For the coming rewards build (GM only): record what a quest awarded a character (currency and, later, items).
- * Idempotent by questId + actor. Nothing else records currency.
+ * GM only: record what a quest awarded a character (items and coins), for Quest Log's grants. One entry per questId,
+ * or per questId + grantId when a grantId is given (a later grant or Grant again gets its own entry); re-firing the
+ * same grant adds nothing. Older callers (no items, no grantId) get the same entry id and text as before 0.25.0.
  */
-export async function recordReward(actor, {questId, questName = '', coins = null, text = ''} = {}) {
+export async function recordReward(actor, {questId, questName = '', coins = null, text = '', items = null, grantId = null} = {}) {
   if (!isGM()) return refuse('Only the GM can record quest rewards.');
   if (!questId) return refuse('A reward needs the quest it came from.');
-  const parts = coins && typeof coins === 'object' ? Object.entries(coins).filter(([, n]) => Number(n) > 0).map(([k, n]) => `${Number(n)} ${k}`) : [];
+  if (grantId !== null && grantId !== undefined && grantId !== '' && !(typeof grantId === 'string' && GRANT_ID_RE.test(grantId))) return refuse('A grant id uses letters, digits, - and _ (up to 40).');
+  const grant = grantId || null, list = cleanRewardItems(items);
+  const parts = [...list.map(i => i.quantity > 1 ? `${i.quantity} × ${i.name}` : i.name),
+    ...(coins && typeof coins === 'object' ? Object.entries(coins).filter(([, n]) => Number(n) > 0).map(([k, n]) => `${Number(n)} ${k}`) : [])];
   const body = text || `Reward${questName ? ` for "${questName}"` : ''}: ${parts.join(', ') || 'recorded'}`;
-  return appendAuto(actor, [{id: `reward-${questId}`, type: 'reward', text: body, at: now(), data: {questId, coins: coins ?? null}}]);
+  return appendAuto(actor, [{id: grant ? `reward-${questId}-${grant}` : `reward-${questId}`, type: 'reward', text: body, at: now(),
+    data: {questId, grantId: grant, coins: coins ?? null, items: list}}]);
 }
 
 // ---------- GM edits (manual entries, edit, hide, show, delete) ----------

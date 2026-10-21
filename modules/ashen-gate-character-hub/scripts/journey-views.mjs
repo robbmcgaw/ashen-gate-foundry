@@ -16,6 +16,16 @@ export function journeyActor(ctx) {
   return gm && picked ? globalThis.game?.actors?.get?.(picked) ?? ctx.actor : ctx.actor;
 }
 
+/** A reward's item pictures (0.25.0): image, name as alt text, name and quantity as the tooltip. Never ids. */
+function rewardItems(e) {
+  const list = Array.isArray(e.data?.items) ? e.data.items.filter(i => typeof i?.name === 'string' && i.name) : [];
+  if (!list.length) return '';
+  return ` <span class="agch-journey__items">${list.map(i => {
+    const tip = Number(i.quantity) > 1 ? `${i.quantity} × ${i.name}` : i.name;
+    return `<img src="${esc(i.img || 'icons/svg/item-bag.svg')}" alt="${esc(i.name)}" data-tooltip="${esc(tip)}">`;
+  }).join('')}</span>`;
+}
+
 function row(e, gm, editing) {
   const controls = gm ? `<span class="agch-journey__ctl">${btn('journey-edit', '', {kind: 'ghost', icon: 'fa-solid fa-pen', data: {id: e.id}, title: 'Edit'})}
     ${btn(e.hidden ? 'journey-show' : 'journey-hide', '', {kind: 'ghost', icon: e.hidden ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash', data: {id: e.id}, title: e.hidden ? 'Show to the player' : 'Hide from the player'})}
@@ -25,7 +35,7 @@ function row(e, gm, editing) {
     <span class="agch-journey__formbtns">${btn('journey-cancel', 'Cancel', {kind: 'ghost'})}${btn('journey-save', 'Save Changes', {kind: 'primary', data: {id: e.id}})}</span></form></li>`;
   return `<li class="agch-journey__entry${e.hidden ? ' is-hidden' : ''}" data-entry="${esc(e.id)}" data-type="${esc(e.type)}">
     <i class="${ICONS[e.type] ?? 'fa-solid fa-circle'} agch-journey__icon" data-tooltip="${esc(TYPES[e.type] ?? e.type)}" aria-hidden="true"></i>
-    <span class="agch-journey__when">${esc(when(e))}</span><span class="agch-journey__text">${esc(e.text)}${e.hidden ? ' <span class="ag-badge ag-badge--warn"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Hidden from player</span> <span class="ag-gm-flag"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> GM only</span>' : ''}</span>${controls}</li>`;
+    <span class="agch-journey__when">${esc(when(e))}</span><span class="agch-journey__text">${esc(e.text)}${rewardItems(e)}${e.hidden ? ' <span class="ag-badge ag-badge--warn"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Hidden from player</span> <span class="ag-gm-flag"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> GM only</span>' : ''}</span>${controls}</li>`;
 }
 
 export function journeyTab(ctx) {

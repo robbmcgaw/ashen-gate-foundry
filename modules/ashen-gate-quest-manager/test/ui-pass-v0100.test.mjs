@@ -29,7 +29,7 @@ test('header: brand, overlay toggle, then version, then Help; tabs are typed, la
  const at=k=>head.indexOf(k);
  assert.ok(at('toggle-overlay')<at('ag-version')&&at('ag-version')<at('data-action="help"'),'overlay, version, Help');
  assert.match(head,/data-action="help" class="ag-btn ag-btn--ghost ag-btn--sm"/);
- assert.match(head,/<span class="ag-version">v0\.10\.2<\/span>/);
+ assert.match(head,/<span class="ag-version">v0\.11\.0<\/span>/);
  assert.match(html,/<nav class="ag-tabs ag-tabs--scroll" role="tablist"/);
  const tabs=[...html.matchAll(/<button type="button" role="tab" data-tab="(\w+)" aria-selected="(true|false)" class="([^"]*)">/g)].map(m=>[m[1],m[2],m[3]]);
  assert.deepEqual(tabs.map(t=>t[0]),['party','individual','quests','setup']);
@@ -117,4 +117,18 @@ test('Clear filters puts the Quests list back to every quest',async()=>{
  await app.action({dataset:{action:'clear-filters'}},null);
  assert.equal(app.qv.search,'');assert.equal(app.qv.status,'all');
  console.error=origError;
+});
+test('0.11.0: Item rewards sits after Campaign status and before the assignments; api.rewards is GM only',async()=>{
+ reset();app.tab='quests';app.gmId='QUEST-TEST-WELL';
+ const html=await app.render();
+ const state=html.indexOf('Campaign status and reveal'),rewards=html.indexOf('<section class="agq-rewards ag-section" data-reward-zone>'),assign=html.indexOf('Delegated assignments');
+ assert.ok(state>0&&rewards>state&&assign>rewards,'state, then rewards, then assignments');
+ assert.match(html,/No item rewards yet/);
+ assert.match(html,/id="ag-reward-recorded" type="checkbox" > Rewards handled outside Quest Log<\/label>/);
+ assert.equal(module.api.rewards.contract,'ag-quest-rewards/1');
+ assert.deepEqual(await module.api.rewards.list('QUEST-TEST-WELL'),[]);
+ game.user=alice;
+ await assert.rejects(()=>module.api.rewards.list('QUEST-TEST-WELL'),/GM only\./);
+ await assert.rejects(()=>module.api.rewards.addFromDrop('QUEST-TEST-WELL',{type:'Item',uuid:'Item.x'}),/GM only\./);
+ game.user=gm;
 });

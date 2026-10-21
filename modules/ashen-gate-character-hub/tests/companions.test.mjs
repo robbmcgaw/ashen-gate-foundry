@@ -105,7 +105,7 @@ test('dropping an outside Item makes one embedded copy, then lists it; cap is ch
   const r = await c.addDroppedCompanion(actor, outside, 'pet');
   assert.equal(r.ok, true);
   const create = actor.calls.find(x => x[0] === 'createEmbedded');
-  assert.equal(create[2][0]._id, undefined, 'no id reuse');
+  assert.notEqual(create[2][0]._id, 'world-wolf', 'no id reuse (a fresh id, created with keepId)');
   assert.equal(stored(actor)[0].itemId, actor.items.at(-1).id);
   await c.addCompanion(actor, 'cat', 'pet');
   actor.calls.length = 0;

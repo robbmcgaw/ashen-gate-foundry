@@ -10,6 +10,16 @@ Module ID `ashen-gate-quest-manager` · Foundry V14 · dnd5e. Quest, Work Order 
 
 Three objective types share one model: `QUEST-*`, `ORDER-*` (crafting/production work order) and `CONTRACT-*`. Hidden / Available / Active / Completed / Failed are campaign statuses, separate from a source definition's own `status` (draft, approved, …). `ASSIGN-*` Assignments are GM-only execution records attached to an objective; they make no automatic Faction, Profession, Location or Headquarters changes.
 
+## Item rewards (0.11.0)
+
+In the quest editor (Quests tab), **Item rewards** sits under *Campaign status and reveal*. Drop items on it from a character or NPC sheet, a compendium or the Items sidebar; each change saves at once.
+- Per row: quantity, **Shown to players** (after it's completed, the default; while the quest is visible; never), and **Goes to** (one chosen character, the default; each character; split). Goes to is fixed on individual quests.
+- An item dropped from a sheet is copied into a GM-only Items folder, **Ashen Gate Rewards (Quest Log)**; the character or NPC keeps its item. Removing the row (asks first) deletes that held copy.
+- Folders are refused ("Drop items one at a time."), and so is anything that isn't an item.
+- Players see the rewards their row allows (name, picture and quantity only) under **Rewards** in the quest.
+- **Nothing is granted yet**: giving rewards to characters comes in a later version. *Rewards handled outside Quest Log* is the old checkbox, unchanged.
+- API (GM only, contract `ag-quest-rewards/1`): `api.rewards.list(questId)`, `addFromDrop(questId, dropData)`, `update(questId, key, {quantity, visibility, recipient})`, `remove(questId, key)`.
+
 ## Relation to other modules
 
 Independent. General Manager can hand Quest files to `api.previewQuestImport` / `api.importQuests` (GM only); Quest's own Import keeps working. Locations links appear on quests when Locations is active. Factions can reference Objective ids and only reads Quest data through feature-detected, GM-only diagnostics.

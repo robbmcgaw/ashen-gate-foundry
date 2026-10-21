@@ -1,3 +1,11 @@
+## 0.11.0 — 2026-10-21
+
+- Quest editor: new **Item rewards** list. Drop items from a character or NPC sheet, a compendium or the Items sidebar; set quantity, who sees it and who it goes to. Changes save at once.
+- Items dropped from a sheet are copied into a GM-only Items folder, *Ashen Gate Rewards (Quest Log)*; the character or NPC is never changed. Folders are refused.
+- Players see the rewards each row allows (name, picture, quantity) under **Rewards** in the quest.
+- Nothing is granted to characters yet. The old checkbox now reads *Rewards handled outside Quest Log*.
+- New GM-only API `api.rewards` (`ag-quest-rewards/1`). Saved data: an optional `rewards` block on quest state; quests without it work as before, so no migration.
+
 ## 0.10.2 — 2026-10-21
 
 - Shared item-drop helper (`ag-item-drop/1`); no visible change.
