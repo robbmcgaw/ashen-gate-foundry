@@ -14,6 +14,7 @@ import {canSee, hiddenReason, hiddenBadge} from './visibility.mjs';
 import {configAttrs} from './configure.mjs';
 import {toggleButton, bodyAttrs} from './collapse.mjs';
 import {tooltipAttrs} from './tooltips.mjs';
+import {strainHtml} from './cinders.mjs';
 
 export const LEFT_SLOTS = ['head', 'neck', 'back', 'body', 'hands'];
 export const RIGHT_SLOTS = ['mainhand', 'offhand', 'waist', 'feet', 'bracer'];
@@ -221,6 +222,7 @@ export function characterPanelHtml(ctx) {
       ${tile('Proficiency', `<span class="agch-tile__value">${signed(h.prof)}</span>`)}
     </div>
     ${hpHtml(h, off, sheet?.menu ?? null)}
+    ${canSee('strain') ? strainHtml(actor, off) : ''}
     ${abilitiesHtml(actor, off)}
     ${conditionsHtml(h, off, sheet?.condAdd === true)}
     ${footHtml(h)}

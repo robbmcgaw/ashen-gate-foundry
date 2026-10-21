@@ -204,7 +204,7 @@ test('newer APIs: empty, unavailable and refused cases', () => {
 
 test('Ashen Gate tab: one sub-tab per module, only the chosen one is read; Utilities moved to Inventory', () => {
   installGlobals({user: users.owner, modules: partners()});
-  assert.deepEqual(AG_PANELS.map(p => p.tab), ['Professions', 'Perks', 'Renown', 'Quests', 'Locations', 'Base']);
+  assert.deepEqual(AG_PANELS.map(p => p.tab), ['Professions', 'Perks', 'Cinders', 'Renown', 'Quests', 'Locations', 'Base']);
   const first = ashenGateTab({actor: makeActor(), sheet: {}});
   assert.match(first, /data-action="ag-subtab" data-partner="ashen-gate-profession-ledger" data-ag-always aria-pressed="true"/);
   assert.equal((first.match(/class="ag-card agch-panel"/g) ?? []).length, 1, 'one panel at a time');

@@ -23,8 +23,11 @@ export const PARTS = [
   {key: 'equipment', label: 'Equipment slots (paper doll)', core: true},
   {key: 'companions', label: 'Companions'},
   {key: 'hotbars', label: 'Hotbars (mastery & marks, quick bar)', core: true},
+  // 0.18.0: Strain is a character resource, so only this toggle hides the bar (Cinders' Player Access hides the Cinders panel).
+  {key: 'strain', label: 'Strain bar (Ashen Gate | Cinders)'},
   {key: 'professions', label: 'Ashen Gate: Professions', partner: 'ashen-gate-profession-ledger', partnerLabel: 'Profession Ledger'},
   {key: 'perks', label: 'Ashen Gate: Perks', partner: 'ashen-gate-skill-trees', partnerLabel: 'Skill Trees'},
+  {key: 'cinders', label: 'Ashen Gate: Cinders', partner: 'ashen-gate-cinders', partnerLabel: 'Cinders'},
   {key: 'renown', label: 'Ashen Gate: Renown (and Pantheon)', partner: 'ashen-gate-factions', partnerLabel: 'Renown'},
   {key: 'quests', label: 'Ashen Gate: Quests', partner: 'ashen-gate-quest-manager', partnerLabel: 'Quest Log'},
   {key: 'locations', label: 'Ashen Gate: Locations', partner: 'ashen-gate-locations', partnerLabel: 'Locations'},

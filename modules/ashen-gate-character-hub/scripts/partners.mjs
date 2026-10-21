@@ -7,6 +7,7 @@
 import {esc, num} from './constants.mjs';
 import {btn} from './buttons.mjs';
 import {canSee, requirePart, hiddenBadge, hiddenReason, partForPartner} from './visibility.mjs';
+import {cindersSummary} from './cinders.mjs';
 
 /** The active module's API, or null. */
 export function partnerApi(id) {
@@ -130,6 +131,8 @@ export const PANELS = [
   {id: 'ashen-gate-profession-ledger', embedMode: 'individual', tab: 'Professions', label: 'Profession Ledger', icon: 'fa-solid fa-hammer', summary: professions,
     open: (api, actor) => api.open({actorId: actor.id, view: 'individual'})},
   {id: 'ashen-gate-skill-trees', embedMode: 'character', tab: 'Perks', label: 'Skill Trees', icon: 'fa-solid fa-diagram-project', summary: skillTrees,
+    open: (api, actor) => api.open({actorId: actor.id})},
+  {id: 'ashen-gate-cinders', tab: 'Cinders', label: 'Cinders', icon: 'fa-solid fa-fire', summary: cindersSummary,
     open: (api, actor) => api.open({actorId: actor.id})},
   {id: 'ashen-gate-factions', embedMode: 'character', tab: 'Renown', label: 'Renown', icon: 'fa-solid fa-flag', summary: factions, open: api => api.open()},
   {id: 'ashen-gate-quest-manager', embedMode: 'character', tab: 'Quests', label: 'Quest Log', icon: 'fa-solid fa-scroll', summary: quests,

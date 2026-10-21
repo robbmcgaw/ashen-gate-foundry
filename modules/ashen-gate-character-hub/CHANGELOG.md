@@ -1,3 +1,10 @@
+## 0.18.0 — 2026-10-21
+
+- **Strain bar** under hit points, next to hit dice, rests and exhaustion, from Ashen Gate | Cinders (`api.strain`). It fills to 10, then reads e.g. **13 / 10+** with a **+3 over** badge and turns red. It shows the band name and the Backfire chance on a Push from there. Players see it read-only; the GM gets − / + (each recorded by Cinders with a reason). A new Player visibility toggle, **Strain bar**, hides it from players.
+- **Cinders** sub-tab in Ashen Gate (and on the quick bar). It shows the character's Cinders, unlocked powers and their Push modes with Strain cost and Backfire chance, plus perks. **Push** asks for confirmation with Cinders' own preview, then pushes; a player's Push is rolled and recorded by the GM client. **Open Cinders** opens its window at this character. Hidden from players with the **Ashen Gate: Cinders** toggle or when Cinders' Player Access is off.
+- Everything goes through Ashen Gate | Cinders' public API; without that module there is no bar and the panel says "Not installed". The Hub re-draws on Cinders' `ashenGateCinder.changed` hook (Strain changes arrive as Actor updates).
+- No saved data changes. The two new visibility toggles start shown.
+
 ## 0.17.0 — 2026-10-21
 
 - **New empty-slot icons from Robb:** Back is a cloak, Waist a belt, Bracers a pair of bracers. They're white silhouettes in `assets/slots/`, which ship in the release zip, and `SLOT_PLACEHOLDERS` points to them by module path (`modules/ashen-gate-character-hub/assets/slots/…`).

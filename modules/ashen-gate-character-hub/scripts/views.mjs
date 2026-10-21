@@ -72,6 +72,7 @@ export function tabsHtml(active, sheet = null) {
 export const AG_BAR = [
   {id: 'ashen-gate-profession-ledger', label: 'Professions', icon: 'fa-solid fa-hammer', view: true},
   {id: 'ashen-gate-skill-trees', label: 'Skill Trees', icon: 'fa-solid fa-diagram-project', view: true},
+  {id: 'ashen-gate-cinders', label: 'Cinders', icon: 'fa-solid fa-fire', view: true},
   {id: 'ashen-gate-factions', label: 'Renown', icon: 'fa-solid fa-flag', view: true},
   {id: 'ashen-gate-quest-manager', label: 'Quests', icon: 'fa-solid fa-scroll', view: true},
   {id: 'ashen-gate-headquarters', label: 'Headquarters', icon: 'fa-solid fa-chess-rook'},

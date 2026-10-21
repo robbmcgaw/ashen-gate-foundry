@@ -124,4 +124,6 @@ if (globalThis.Hooks) {
   for (const hook of ['createSetting', 'updateSetting', 'deleteSetting']) Hooks.on(hook, setting => { if (isPartnerSetting(setting)) renderAllHubs(); });
   // Profession Ledger announces progression changes (its public hook); refresh any open Hub for that Actor.
   Hooks.on('ashenGateLedger.progressionChanged', data => { const actor = game.actors?.get?.(data?.actorId); if (actor) scheduleRender(actor); });
+  // Ashen Gate | Cinders announces Cinder changes (bind, transfer, progress); Strain changes arrive as updateActor.
+  Hooks.on('ashenGateCinder.changed', data => { for (const id of [data?.actorId, data?.fromActorId]) { const actor = game.actors?.get?.(id); if (actor) scheduleRender(actor); } });
 }
