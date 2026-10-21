@@ -2,7 +2,7 @@ import test from 'node:test';import assert from 'node:assert/strict';
 // Cinder instances, Push and Backfire (moved from Skill Trees 0.16.0). Pure rules (cinder.mjs) and the runtime with mocked Foundry globals
 // and a stand-in Skill Trees (tests/fake-skill-trees.mjs): proves logic, ownership and permission checks, not the live Foundry UI.
 import {validateDefinition,validateModifiers,normalizeModifier,blockModifiers,collectModifiers,availableModes,planPush,resolveBackfire,normalizeRegistry,createInstance,bindInstance,transferInstance,
-  unbindInstance,planMigration,effectProblem,categoriesFor} from '../scripts/cinder.mjs';
+  unbindInstance,planMigration,CINDER_WALLET_CAP,effectProblem,categoriesFor} from '../scripts/cinder.mjs';
 import {defaultConfig,strainEffectBonus,validateConfig} from '../scripts/strain.mjs';
 
 const fakeRoll=queue=>async formula=>{const total=queue.shift();if(total==null)throw Error(`unexpected roll ${formula}`);return {total,formula};};
@@ -111,6 +111,9 @@ test('instances: one bearer, one of a kind per character, the limit, the startin
   r=unbindInstance(reg,'cinst_AAAAAAAA1');reg=r.registry;
   r=bindInstance(reg,'cinst_AAAAAAAA1','C',{max:1,initialPoints:1});
   assert.equal(r.initialAwarded,0,'re-binding later gives no second starting point');assert.equal(r.instance.progression.awarded,1);
+  assert.equal(CINDER_WALLET_CAP,16);
+  ({registry:reg}=createInstance(reg,'MUT-TEST-BIG',{instanceId:'cinst_AAAAAAAA5'}));
+  assert.equal(bindInstance(reg,'cinst_AAAAAAAA5','D',{max:1,initialPoints:20}).initialAwarded,16,'starting points stay inside the 16-point wallet');
 });
 test('migration plan: per-character Cinder progress becomes Cinders; again finds nothing',()=>{
   const actors=[{actorId:'A',name:'[TEST] A',accounts:{'cinder:MUT-TEST-EMBER':{awarded:3,unlocks:['n1']},'tree:X':{awarded:2},'cinder:MUT-TEST-OTHER':{awarded:0,unlocks:[]}}}];
@@ -136,7 +139,7 @@ globalThis.CONFIG={statusEffects:[{id:'poisoned',name:'Poisoned',img:'poisoned.s
 globalThis.CONST={DOCUMENT_OWNERSHIP_LEVELS:{NONE:0}};
 const MOD='ashen-gate-cinders',DEF='MUT-TEST-EMBER';
 const node=(id,perkId,x)=>({id,perkId,x,y:100,requiresAll:[],requiresAny:[],excludes:[],status:'approved',visibility:'player',display:'shown'});
-const tree={id:'TEST-EMBER-TREE',name:'[TEST] Ember',sourceRef:DEF,provider:{kind:'cinder_milestone',maxPoints:13},
+const tree={id:'TEST-EMBER-TREE',name:'[TEST] Ember',sourceRef:DEF,provider:{kind:'cinder_milestone',maxPoints:16},
   nodes:[node('NODE1','POWER-TEST-SPARK',100),node('NODE2','POWER-TEST-STEADY',300),node('NODE3','POWER-TEST-REACH',500)]};
 const legacyTree={id:'TEST-LEGACY-TREE',name:'[TEST] Legacy',sourceRef:'MUT-TEST-LEGACY',provider:{kind:'cinder_milestone',maxPoints:13},nodes:[]};
 const source=(sourceId,entityType,definition)=>({'ashen-gate-manager':{source:{sourceId,entityType,status:'approved',visibility:'player',definition:{id:sourceId,entity_type:entityType,point_cost:1,...definition}}}});

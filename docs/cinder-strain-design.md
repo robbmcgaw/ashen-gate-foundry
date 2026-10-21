@@ -10,7 +10,7 @@ Target: Foundry V14 on The Forge, dnd5e 6.0.6 (2024 rules).
 |---|---|
 | Strain value + `api.strain` (contract `ag-strain/1`), band/Backfire config, rest recovery | **Ashen Gate \| Cinders** (`ashen-gate-cinders`); data under its own flag scope `flags.ashen-gate-strain` (unchanged since Skill Trees 0.15.0) |
 | Cinder instances (bearer, points, unlocks), bind/transfer/unbind, Push and Backfire, `api.cinder` (`ag-cinder/1`) | **Ashen Gate \| Cinders**: records in its own GM-only Journal; a bearer's progress written to their Cinder tree through Skill Trees' `api.accounts` |
-| Cinder trees (`cinder_milestone`, POWER-* nodes, 13-point wallet, unlocks, perk Items) | **Skill Trees**, which offers the generic `api.accounts` (`ag-tree-accounts/1`) and the hooks `progressChanged` / `checkProgress`; it names no partner and never depends on Cinders |
+| Cinder trees (`cinder_milestone`, POWER-* nodes, 16-point wallet, unlocks, perk Items) | **Skill Trees**, which offers the generic `api.accounts` (`ag-tree-accounts/1`) and the hooks `progressChanged` / `checkProgress`; it names no partner and never depends on Cinders |
 | Import + validation of MUT-* / POWER-* / BF-* and the Strain config; `scripts/validate-content.mjs` | **General Manager** (delegates the typed blocks and the Strain config to Cinders when present) |
 | Strain bar, Cinder panel, Push button | **Character Hub** (display only, through `api.strain` / `api.cinder` of `ashen-gate-cinders`) |
 | Other Strain writers (crafting, hazards, items, spells) | each module, through `game.modules.get('ashen-gate-cinders')?.api?.strain` (feature-detected) |
@@ -103,7 +103,7 @@ Shipped defaults: the schedule above and neutral labels `Band 0…Band 6`; the c
 ```
 
 - `instanceId` is world-local and permanent, separate from the MUT-* definition id.
-- `progression` is the existing tree account shape, so prerequisites, refunds and the 13-point wallet work unchanged; it just lives on the Cinder instead of the Actor.
+- `progression` is the existing tree account shape, so prerequisites, refunds and the 16-point wallet work unchanged; it just lives on the Cinder instead of the Actor.
 - `status`: `unbound` | `bound` | `lost` (bearer deleted; progress kept).
 - The bearer's Actor gets a pointer `flags['ashen-gate-cinders'].cinders = [{instanceId, definitionId, name}]` and the player-safe view of their own Cinder; other Cinders and GM-only nodes never reach players.
 - Rules: one bearer per Cinder; at most `maxCindersPerActor` (setting, default 1) per Actor.
@@ -148,7 +148,7 @@ All on the active GM client (players' clicks are relayed by the Skill Trees sock
 
 `cinder.create(definitionId)`, `assign(instanceId, actor)`, `transfer(instanceId, toActor)`, `unbind(instanceId)`.
 - A Cinder is **bound**: players cannot release it; only the GM unbinds or transfers it when the story allows. No attunement step.
-- First binding awards **Starting Cinder points** (Skill Trees setting, default 1) once per Cinder (grant key `initial`, inside the 13-point wallet). A transferred Cinder keeps its points and unlocks and gets none. **Cinders per character** (setting, default 1).
+- First binding awards **Starting Cinder points** (Skill Trees setting, default 1) once per Cinder (grant key `initial`, inside the 16-point wallet). A transferred Cinder keeps its points and unlocks and gets none. **Cinders per character** (setting, default 1).
 - Transfer: give the Cinder's POWER Items to the new bearer (reusing any already tagged), save the new bearer, then remove them from the old one. If something fails part-way, the GM sees which step; Tree Library → Saved data check lists missing or orphan POWER Items and **Give Missing Perks** fixes them. Strain is never read or written by a transfer.
 - Deleted bearer → the Cinder becomes `lost` with its progress; the GM can assign it again.
 

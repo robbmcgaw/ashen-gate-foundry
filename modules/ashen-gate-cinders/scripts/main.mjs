@@ -7,7 +7,7 @@ import {lookupWorldDefinition} from './definition-lookup.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 
 const MODULE='ashen-gate-cinders';
-const VERSION='0.3.0';
+const VERSION='0.3.1';
 const SOCKET=`module.${MODULE}`;
 const TREES_ID='ashen-gate-skill-trees';
 const ACCOUNTS_CONTRACT='ag-tree-accounts/1';

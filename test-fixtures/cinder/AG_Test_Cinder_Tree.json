@@ -10,7 +10,7 @@
       "sourceRef": "MUT-TEST-EMBER",
       "provider": {
         "kind": "cinder_milestone",
-        "maxPoints": 13
+        "maxPoints": 16
       },
       "nodes": [
         {

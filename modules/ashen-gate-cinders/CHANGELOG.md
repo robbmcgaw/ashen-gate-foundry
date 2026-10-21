@@ -1,3 +1,7 @@
+## 0.3.1 — 2026-10-21
+
+- **Cinder point cap is now 16** (was 13), matching Skill Trees 0.17.1. Starting Cinder points stay inside the 16-point wallet; the setting now goes up to 16. Default (1 at first bind) unchanged. Saved Cinders are not rewritten.
+
 ## 0.3.0 — 2026-10-21
 
 - **Cinder sockets.** Each Cinder has sockets that hold items: by default 3, set by the new GM setting **Sockets per Cinder**, or a number the GM sets on one Cinder (Manage → Sockets → Socket count). An item fits when it is an `ITEM-*` imported by General Manager whose record has `cinder` modifiers. No new content block is needed. Its modifiers count for that Cinder while it is in an active socket: in the Push preview, the Push itself, Backfire severity and rest recovery.

@@ -8,7 +8,7 @@ export const REGISTRY_SCHEMA = 'ag-cinder-instances/1';
 export const CINDER_SCHEMA = 'ag-cinder/0.1';
 export const POWER_SCHEMA = 'ag-power/0.1';
 export const BACKFIRE_SCHEMA = 'ag-backfire/0.1';
-export const CINDER_WALLET_CAP = 13;
+export const CINDER_WALLET_CAP = 16;
 export const INSTANCE_ID = /^cinst_[A-Za-z0-9]{8,32}$/;
 export const MODIFIER_TARGETS = ['push.cost', 'backfire.chance', 'backfire.severity', 'strain.recovery', 'sockets.count'];
 /** The shared modifier shape (docs/modifiers-schema.md) and this module's scope in it. */
@@ -322,7 +322,7 @@ function bearerProblem(registry, inst, actorId, max) {
 }
 /**
  * Bind an unbound (or lost) Cinder to a character. The first time a Cinder is ever bound it receives `initialPoints` (once per Cinder,
- * grant key "initial", within the 13-point wallet). Returns {registry, instance, initialAwarded}.
+ * grant key "initial", within the 16-point wallet). Returns {registry, instance, initialAwarded}.
  */
 export function bindInstance(registry, instanceId, actorId, {max = 1, at = 0, initialPoints = 0} = {}) {
   const inst = getInstance(registry, instanceId);

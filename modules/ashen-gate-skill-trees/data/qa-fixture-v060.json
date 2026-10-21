@@ -235,13 +235,13 @@
     {
       "id": "QA-ST-CINDER",
       "name": "[AG QA] Cinder Milestones",
-      "description": "QA-only 13-point wallet test; does not implement Cinder mechanics.",
+      "description": "QA-only 16-point wallet test; does not implement Cinder mechanics.",
       "status": "test",
       "visibility": "player",
       "sourceRef": "MUT-QA-SKILL-TREES",
       "provider": {
         "kind": "cinder_milestone",
-        "maxPoints": 13
+        "maxPoints": 16
       },
       "nodes": [
         {

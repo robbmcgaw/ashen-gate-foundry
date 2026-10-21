@@ -133,7 +133,7 @@ At Strain 10 or more, a **normal** (non-Push) use of a power also backfires auto
 
 These fields go in the existing Skill Trees file:
 - `provider.kind`: `"cinder_milestone"`
-- `provider.maxPoints`: `13`
+- `provider.maxPoints`: `16` (the Cinder point cap). Files that still say `13` import fine and are treated as 16.
 - `sourceRef`: the Cinder's `MUT-*` id
 
 Each node's `perkId` is a `POWER-*` id, and a node costs its power's `point_cost`. There is one tree per Cinder; two trees cannot share a `sourceRef`.
