@@ -20,8 +20,10 @@ export const FIELD_LABELS = Object.freeze({
 /** Ids a Codex link may point at. FAC- is a Headquarters facility elsewhere, but GPT drafts use it for factions too.
  * DEITY- (0.40.0) is a Renown Pantheon deity: a player only ever sees one they have discovered in Renown. */
 export const LINK_PREFIXES = Object.freeze(['LOC', 'FAC', 'FACTION', 'RENOWN', 'DEITY', 'QUEST', 'ORDER', 'CONTRACT', 'NPC']);
-/** Shown for a deity link the player has not discovered: no id, no name. */
-export const UNKNOWN_DEITY = 'Unknown';
+/** Shown for a link the player does not know (0.41.1: every kind; 0.40.0: deities): no id, no name. */
+export const UNKNOWN_LINK = 'Unknown';
+export const UNKNOWN_DEITY = UNKNOWN_LINK;
+export const unknownLink = kind => ({id: null, kind, name: UNKNOWN_LINK, unknown: true});
 const ID_RE = /^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/;
 
 const str = v => (typeof v === 'string' ? v : v == null ? '' : String(v));
@@ -137,11 +139,12 @@ export function gmEntry(npc, {nameOf = () => null, characters = []} = {}) {
  * What one player may receive about one NPC, or null. Built on the GM side; nothing hidden is ever in the result.
  * actorIds: the characters that player owns. Name and portrait show once the NPC is discovered by the party or
  * one of those characters. Each field shows only when its own rule includes the party or one of those characters.
- * `nameOf` must only return names the GM is happy to show (the GM revealed the links field).
- * `deityName(id)` (0.40.0) returns the deity's name only when Renown says this player has discovered it, else null.
- * An undiscovered deity link is sent as {id: null, name: 'Unknown', unknown: true}: no id, no name.
+ * `linkFor(id, kind)` (0.41.1) says what this player may know of one linked record, by the owning module's own player
+ * filter: a name, `true` (the player's own client claimed the id and fills in the name itself) or null (not known).
+ * A link that is not known is sent as {id: null, kind, name: 'Unknown', unknown: true}: no id, no name, no link.
+ * The default knows nothing, so every link is Unknown.
  */
-export function playerEntry(npc, actorIds = [], {nameOf = () => null, deityName = () => null} = {}) {
+export function playerEntry(npc, actorIds = [], {linkFor = () => null} = {}) {
   const def = npc.def ?? {}, state = normalizeState(npc.state, def);
   if (!knowsRule(state.discovery, actorIds)) return null;
   const out = {id: def.id, name: str(def.name) || str(npc.name) || def.id, img: npc.img ?? null, fields: []};
@@ -152,9 +155,10 @@ export function playerEntry(npc, actorIds = [], {nameOf = () => null, deityName 
     if (key === 'links') {
       const links = linksOf(def, state).map(id => {
         const kind = linkKind(id);
-        if (kind !== 'deity') return {id, kind, name: str(nameOf(id) ?? id)};
-        const name = deityName(id);
-        return name ? {id, kind, name: str(name)} : {id: null, kind, name: UNKNOWN_DEITY, unknown: true};
+        let known = null;
+        try { known = linkFor(id, kind); } catch { known = null; }
+        if (known === true) return {id, kind, name: null};
+        return typeof known === 'string' && known ? {id, kind, name: known} : unknownLink(kind);
       });
       if (links.length) out.fields.push({key, label: FIELD_LABELS[key], links, onlyYou});
       continue;
@@ -166,6 +170,16 @@ export function playerEntry(npc, actorIds = [], {nameOf = () => null, deityName 
 }
 export function playerCodex(npcs, actorIds = [], opts = {}) {
   return npcs.map(n => playerEntry(n, actorIds, opts)).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
+}
+/**
+ * 0.41.1, player client: fill in the links the GM sent back as {id, name: null} (ids this client claimed) from
+ * `names` (id -> name, read from the owning modules' player-filtered APIs on this client). Anything the client cannot
+ * name becomes Unknown with no id.
+ */
+export function resolvePlayerLinks(entries, names = new Map()) {
+  const link = l => l?.unknown || !l?.id ? unknownLink(l?.kind) : l.name ? l : names.get(l.id) ? {...l, name: names.get(l.id)} : unknownLink(l.kind);
+  return (entries ?? []).map(e => !Array.isArray(e?.fields) ? e
+    : {...e, fields: e.fields.map(f => Array.isArray(f?.links) ? {...f, links: f.links.map(link)} : f)});
 }
 
 /** One GM file: canonical definitions (no Foundry projection) and play state, keyed by NPC id. GM only: holds GM fields. */
@@ -198,6 +212,8 @@ export function planRevealsImport(file, knownIds = []) {
 }
 
 const esc = v => str(v).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+/** Tooltip for a non-deity link the player does not know (0.41.1). */
+export const UNKNOWN_TIP = 'Something you have not learned about yet.';
 /** Tooltip for a deity link that cannot open. */
 export const DEITY_TIPS = Object.freeze({
   unknown: 'A deity you have not discovered yet.',
@@ -207,7 +223,9 @@ export const DEITY_TIPS = Object.freeze({
 });
 /** One player-view link. `deityLink(link)` -> {open, title}: whether Renown can open that deity here (0.40.0). */
 function linkHtml(l, deityLink) {
-  if (l.kind !== 'deity') return `<span class="ag-codex-link">${esc(l.name)}</span>`;
+  if (l.kind !== 'deity') return l.unknown || !l.id || !l.name
+    ? `<span class="ag-codex-link is-unknown" title="${esc(UNKNOWN_TIP)}">${esc(UNKNOWN_LINK)}</span>`
+    : `<span class="ag-codex-link">${esc(l.name)}</span>`;
   if (l.unknown || !l.id) return `<span class="ag-codex-link ag-codex-link--deity is-unknown" title="${esc(DEITY_TIPS.unknown)}">${esc(UNKNOWN_DEITY)}</span>`;
   const how = deityLink(l) ?? {};
   if (how.unknown) return `<span class="ag-codex-link ag-codex-link--deity is-unknown" title="${esc(DEITY_TIPS.unknown)}">${esc(UNKNOWN_DEITY)}</span>`;

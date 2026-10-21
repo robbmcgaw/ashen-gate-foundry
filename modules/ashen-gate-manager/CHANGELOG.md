@@ -1,3 +1,11 @@
+## 0.41.1 — 2026-10-21
+
+- **Security fix: the NPC Codex could show players linked records they had not found.** A player's Codex is built on the GM's client, where Locations, Quest Log and Renown answer with GM data, so the Connections list could carry the name (or, when no name was found, the id) of a hidden location, unrevealed quest, undiscovered faction or undiscovered NPC.
+- Now every link kind follows the owning module's own player view: a **location** only if the player's Locations shows it as revealed, a **quest** only if the player's Quest Log shows it, a **faction** only if the player's Renown shows it with its name, an **NPC** only if that NPC is discovered in the Codex for the party or one of the player's characters, a **deity** only if Renown says they discovered it (as in 0.40.0). The player's own client lists what it can see and sends only those ids to the GM; the GM never adds a name for them.
+- Anything else shows as **Unknown**, with no id, no name and no link. A link whose module is missing, hidden or failing is Unknown too.
+- **Preview as player** shows locations, quests and factions as Unknown (the GM's client cannot run those modules' player views for someone else) and says so under the preview.
+- No saved data changes; no migration.
+
 ## 0.41.0 — 2026-10-21
 
 - **Modifiers on items and perks.** `ITEM-*` and `PERK-*` records may carry a record-level `modifiers` block (`ag-modifiers/0.1`): a list of `ag-modifier/1` entries `{target, value, label, scope?, op?, applies?, stack?, requires?}`. Manager checks the shape (schema, 1–20 entries, a known scope on the entry or the block, no unknown fields, `op` only `add`, a whole-number value that isn't 0, a label, `applies` an object, `requires` lists of canonical ids). The only scope is `cinder`. A modifiers block on any other record (a `POWER-*` uses `power.modifiers`) is refused.

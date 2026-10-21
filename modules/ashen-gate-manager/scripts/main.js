@@ -198,7 +198,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.41.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.41.1 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -2189,6 +2189,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       const ids=this.codexPreview==='party'?[]:[this.codexPreview];
       const entry=svc.previewAs(ids).filter(e=>e.id===detail.id);
       previewHtml=entry.length?renderPlayerCodexHtml(entry,{deityLink:svc.deityLinks()}):renderPlayerCodexHtml([],{message:'This player does not know this NPC yet.'});
+      // 0.41.1: Locations, Quest Log and Renown factions can only be checked on the player's own client, so the preview shows them as Unknown.
+      if(entry.some(e=>e.fields.some(f=>f.links?.some(l=>l.unknown&&['location','quest','renown'].includes(l.kind)))))
+        previewHtml+=`<p class="agmanager-tiny">Locations, quests and factions show as Unknown here. The player sees a name only if their own Locations, Quest Log or Renown shows it to them.</p>`;
     }
     return {rows,total:all.length,known:all.filter(e=>e.discoveryMode!=='hidden').length,
       hidden:all.filter(e=>e.discoveryMode==='hidden').length,detail,chars,hasChars:chars.length>0,
@@ -2464,7 +2467,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.41.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.41.1 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */

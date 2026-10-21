@@ -21,14 +21,13 @@ test('DEITY-* is a linkable id of kind deity; GM can add one by hand', () => {
 });
 
 test('a player gets a deity link only when Renown says they discovered it; otherwise no id and no name', () => {
-  const nameOf = id => ({'DEITY-TEST-SUN': '[TEST] Sun', 'DEITY-TEST-MOON': 'SECRET-MOON'}[id] ?? null);
-  const deityName = id => id === 'DEITY-TEST-SUN' ? '[TEST] Sun' : null;
-  const links = playerEntry({def: def(), state: revealed()}, ['a1'], {nameOf, deityName}).fields[0].links;
+  const linkFor = (id, kind) => kind === 'deity' && id === 'DEITY-TEST-SUN' ? '[TEST] Sun' : null;
+  const links = playerEntry({def: def(), state: revealed()}, ['a1'], {linkFor}).fields[0].links;
   assert.deepEqual(links[0], {id: 'DEITY-TEST-SUN', kind: 'deity', name: '[TEST] Sun'});
   assert.deepEqual(links[1], {id: null, kind: 'deity', name: UNKNOWN_DEITY, unknown: true});
   assert.ok(!JSON.stringify(links).includes('MOON'), 'undiscovered deity id and name never reach the player');
-  // Default (no deityName): every deity link is Unknown.
-  const safe = playerEntry({def: def(), state: revealed()}, ['a1'], {nameOf}).fields[0].links;
+  // Default (no linkFor): every deity link is Unknown.
+  const safe = playerEntry({def: def(), state: revealed()}, ['a1']).fields[0].links;
   assert.ok(safe.filter(l => l.kind === 'deity').every(l => l.unknown && l.id === null));
 });
 
@@ -108,13 +107,7 @@ test('client: deity opens Renown Pantheon via api.open; a player cannot open one
   assert.deepEqual(hidden.svc.deityLinks()({id: 'DEITY-TEST-SUN'}), {open: false, title: 'Renown is hidden from players right now.'});
 });
 
-test('docs, template and version 0.41.0 are consistent', () => {
+test('docs and template carry deity links (version checks live in the newest test)', () => {
   assert.match(read('../../../docs/npc-codex-schema.md'), /`DEITY-`/);
   assert.match(read('../templates/manager.hbs'), /data-ag-codex-deity/);
-  const manifest = JSON.parse(read('../module.json'));
-  assert.equal(manifest.version, '0.41.0');
-  assert.match(manifest.download, /ashen-gate-manager-v0\.41\.0\/ashen-gate-manager\.zip$/);
-  assert.match(read('../templates/manager.hbs'), /v0\.41\.0 Beta/);
-  assert.match(read('../scripts/main.js'), /General Manager v0\.41\.0 Beta/);
-  assert.match(read('../scripts/main.js'), /v0\.41\.0 ready/);
 });
