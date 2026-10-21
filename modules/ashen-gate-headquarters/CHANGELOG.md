@@ -1,3 +1,8 @@
+## 0.11.1 — 2026-10-21
+
+- Confirmations name the action (no more Yes/No), Help opens with a Close button, dialogs follow the Ashen Gate look; test wording removed from player views.
+- Footer no longer shows shared/state revision numbers (and Personal Quarters no longer shows a room revision); "(test default)" and "Alpha" removed from the header. Help opens as a dialog with a Close button instead of replacing the tab; its "this Alpha" and test-world notes are gone, as is "in this Alpha" on the player Hirelings tab. Empty Personal Quarters text points to the GM Setup tab; the Facilities hint points to the Activation tab. Removing a decoration and unassigning a hireling now ask first; the departure confirm names the hireling instead of its HIRE id.
+
 ## 0.11.0 — 2026-10-21
 
 - Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.

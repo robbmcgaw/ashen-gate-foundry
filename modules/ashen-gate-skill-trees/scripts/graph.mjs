@@ -3,11 +3,12 @@
 import {NODE_SIZES} from './appearance.mjs';
 export const NODE_W = 181, NODE_H = 67;
 const GAP = 3;
-const dims = size => NODE_SIZES[size] ?? {w: NODE_W, h: NODE_H};
-export const nodeCenter = (n, size) => { const {w, h} = dims(size); return {x: n.x + w / 2, y: n.y + h / 2}; };
+// A node keeps its width; its height grows with a long name, so a measured n.h (board px) overrides the default height.
+const dims = (size, n) => { const d = NODE_SIZES[size] ?? {w: NODE_W, h: NODE_H}; return Number.isFinite(n?.h) && n.h > d.h ? {w: d.w, h: n.h} : d; };
+export const nodeCenter = (n, size) => { const {w, h} = dims(size, n); return {x: n.x + w / 2, y: n.y + h / 2}; };
 /** Where the line from box centre a toward point b leaves the node box (plus a small gap). */
-function borderPoint(c, toward, size) {
-  const {w: NODE_W, h: NODE_H} = dims(size);
+function borderPoint(c, toward, size, n) {
+  const {w: NODE_W, h: NODE_H} = dims(size, n);
   const dx = toward.x - c.x, dy = toward.y - c.y;
   if (!dx && !dy) return {...c};
   const scale = Math.min(dx ? (NODE_W / 2 + GAP) / Math.abs(dx) : Infinity, dy ? (NODE_H / 2 + GAP) / Math.abs(dy) : Infinity);
@@ -17,7 +18,7 @@ const r = v => Math.round(v * 10) / 10;
 /** Straight segment between two node positions ({x,y} top-left), with its midpoint for a label. */
 export function edgeLine(from, to, size) {
   const a = nodeCenter(from, size), b = nodeCenter(to, size);
-  const s = borderPoint(a, b, size), e = borderPoint(b, a, size);
+  const s = borderPoint(a, b, size, from), e = borderPoint(b, a, size, to);
   return {d: `M ${r(s.x)} ${r(s.y)} L ${r(e.x)} ${r(e.y)}`, mx: r((s.x + e.x) / 2), my: r((s.y + e.y) / 2)};
 }
 /**

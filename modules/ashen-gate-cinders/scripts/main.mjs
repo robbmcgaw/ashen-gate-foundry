@@ -5,14 +5,16 @@ import {createCinders,CINDER_HOOK} from './cinder-runtime.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition} from './definition-lookup.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
+import {confirmDialog,infoDialog,formDialog} from './ag-dialogs.mjs';
+import {windowSize} from './ag-html.mjs';
 
 const MODULE='ashen-gate-cinders';
-const VERSION='0.4.0';
+const VERSION='0.5.0';
 const SOCKET=`module.${MODULE}`;
 const TREES_ID='ashen-gate-skill-trees';
 const ACCOUNTS_CONTRACT='ag-tree-accounts/1';
 const ADOPTED_SETTING='legacyAdopted';
-const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
+const {ApplicationV2,HandlebarsApplicationMixin}=foundry.applications.api;
 
 /** Skill Trees as seen right now: 'ok' (0.17.0+ with api.accounts), 'missing', or 'old' (0.15/0.16, which still run their own Strain and Cinders). */
 function trees(){
@@ -65,9 +67,10 @@ const legacyWaiting=()=>{
 };
 
 // ---- Window ----
-const confirm=async(content,title='Confirm')=>Boolean(await DialogV2.confirm({window:{title},content,modal:true,rejectClose:false}));
-const formValues=v=>v&&typeof v.entries==='function'?Object.fromEntries(v.entries()):v??{};
-const input=async(title,content,label='Save')=>{const r=await DialogV2.input({window:{title},content,ok:{label}});return r?formValues(r):null;};
+// Plain-text message (one paragraph per line); the action button repeats the verb, Cancel on the left.
+const confirm=(message,{title='Confirm',yes='Confirm',danger=false}={})=>confirmDialog(message,{title,yes,danger});
+// Small forms resolve {name: value}, or null when cancelled.
+const input=(title,fields,label='Save')=>formDialog(title,fields,{ok:label});
 const download=(filename,data)=>{
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;
@@ -82,11 +85,14 @@ function pickJsonFile(){
   });
 }
 const characters=()=>(game.actors?.contents??[]).filter(a=>a.type==='character'&&(game.user.isGM||a.isOwner)).sort((a,b)=>a.name.localeCompare(b.name));
-/** Strain bar: fills to the guarantee point (10), then shows how far past it the character is. */
+/** Strain bar: fills to the guarantee point (10), then shows how far past it the character is.
+ * The same model and kit meter as Character Hub's Strain row: tone warn once a Push can backfire, danger when guaranteed or over. */
 export function strainBar(s){
-  const top=Math.max(1,s.guaranteeAt??10),over=Math.max(0,s.value-top);
-  return {value:s.value,top,over,fill:Math.round(Math.min(s.value,top)/top*100),label:over?`${s.value} / ${top}+`:`${s.value} / ${top}`,
-    band:s.band.label,chance:s.chance,guaranteed:s.guaranteed,normalUseBackfires:s.normalUseBackfires};
+  const top=Math.max(1,s.guaranteeAt??10),over=Math.max(0,s.value-top),label=over?`${s.value} / ${top}+`:`${s.value} / ${top}`;
+  return {value:s.value,now:Math.min(s.value,top),top,over,fill:Math.round(Math.min(s.value,top)/top*100),label,
+    band:s.band.label,chance:s.chance,guaranteed:s.guaranteed,normalUseBackfires:s.normalUseBackfires,
+    tone:over||s.guaranteed?'danger':s.chance>0?'warn':'',
+    tip:`Strain ${label}: ${s.band.label}. Backfire on a Push from here: ${s.chance}%${s.guaranteed?' (guaranteed)':''}${s.normalUseBackfires?'. Every use of a Cinder power backfires at this Strain':''}.`};
 }
 function cinderDefinitions(){
   return [...(game.items?.contents??[]),...(game.journal?.contents??[])].map(d=>({d,src:sourceFlag(d)}))
@@ -114,7 +120,7 @@ function manageView(){
       own:inst.sockets.count,countLabel:inst.sockets.count==null?`default (${game.settings.get(MODULE,'socketsPerCinder')})`:`${inst.sockets.count} (this Cinder)`});
   }
   sockets.sort((a,b)=>a.name.localeCompare(b.name)||a.bearerName.localeCompare(b.bearerName));
-  return {groups:[...groups.values()].sort((a,b)=>a.name.localeCompare(b.name)),hasCinders:registry.instances.length>0,report,hasReport:report.length>0,
+  return {groups:[...groups.values()].sort((a,b)=>a.name.localeCompare(b.name)),hasCinders:registry.instances.length>0,count:registry.instances.length,countOne:registry.instances.length===1,report,hasReport:report.length>0,
     sockets,hasSockets:sockets.length>0,socketDefault:game.settings.get(MODULE,'socketsPerCinder'),
     canRepair:report.some(r=>r.repair),migrate,legacy:legacyWaiting(),definitions:cinderDefinitions().length,
     limit:game.settings.get(MODULE,'maxCindersPerActor'),initial:game.settings.get(MODULE,'initialCinderPoints')};
@@ -130,7 +136,8 @@ function socketView(h,fits){
     empties,hasSlots:h.slots.length>0||empties.length>0,canAttach:h.canEdit&&spare.length>0&&h.free>0,canSwap:h.canEdit&&spare.length>0,
     overCapacity:h.slots.some(x=>!x.active)};
 }
-function setupView(){
+/** GM Setup. `pendingAccess` is the Player Access box before Save Changes (null = unchanged). */
+function setupView(pendingAccess=null){
   const c=strain.config();
   const pct=v=>c.backfire_schedule[Math.min(v,c.backfire_schedule.length-1)]??0;
   const shown=(v,top)=>v>=c.guarantee_at&&!c.allow_prevention_at_guarantee?100:pct(Math.min(v,top));
@@ -140,13 +147,14 @@ function setupView(){
     guaranteeAt:c.guarantee_at,normalUseAt:c.normal_use_backfire_at,prevention:c.allow_prevention_at_guarantee,hardMax:c.hard_max??'none',
     restLong:c.rest_recovery.long,restShort:c.rest_recovery.short,
     effectBonus:c.effect_roll.strain_bonus.enabled?`+1 at Strain ${c.effect_roll.strain_bonus.from}, then +1 more every ${c.effect_roll.strain_bonus.per} Strain`:'off',
-    playerAccess:playerAccess(),limit:game.settings.get(MODULE,'maxCindersPerActor'),initial:game.settings.get(MODULE,'initialCinderPoints')
+    playerAccess:playerAccess(),accessChecked:pendingAccess??playerAccess(),dirty:pendingAccess!=null&&pendingAccess!==playerAccess(),limit:game.settings.get(MODULE,'maxCindersPerActor'),initial:game.settings.get(MODULE,'initialCinderPoints')
   };
 }
 class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
   static DEFAULT_OPTIONS={id:'agc-window',classes:['ag-app','agc-window'],window:{title:'Ashen Gate | Cinders',resizable:true,icon:'fa-solid fa-fire'},position:{width:760,height:680}};
   static PARTS={main:{template:`modules/${MODULE}/templates/cinders.hbs`}};
-  constructor(options={}){super(options);this.tab='cinders';this.actorId=options.actorId??null;}
+  /** The default size follows the kit size set (Comfortable is 1.2x); an explicit position still wins. */
+  constructor(options={}){super({...options,position:{...windowSize(CindersApp.DEFAULT_OPTIONS.position),...options.position}});this.tab='cinders';this.actorId=options.actorId??null;this.pendingAccess=null;}
   get actor(){return game.actors?.get(this.actorId)??null;}
   async _prepareContext(options){
     const ctx=await super._prepareContext(options),gm=game.user.isGM,why=blocked(),t=trees();
@@ -160,16 +168,18 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
         list=list.map(c=>{const h=hosts.find(x=>x.instanceId===c.instanceId);return h?{...c,sockets:socketView(h,fits)}:c;});
       }catch(e){error=e.message;}
     }
-    return {...ctx,gm,version:VERSION,blocked:why,treesMessage:t.status==='missing'?t.message:null,canOpenTree:t.status==='ok'&&typeof t.api?.open==='function',
+    return {...ctx,gm,version:game.modules?.get?.(MODULE)?.version??VERSION,blocked:why,treesMessage:t.status==='missing'?t.message:null,canOpenTree:t.status==='ok'&&typeof t.api?.open==='function',
       tabCinders:this.tab==='cinders',tabManage:gm&&this.tab==='manage',tabSetup:gm&&this.tab==='setup',
       actors:choices.map(a=>({id:a.id,name:a.name,selected:a.id===this.actorId})),hasActor:Boolean(actor),actorName:actor?.name??'',
       bar,cinders:list,hasCinders:list.length>0,error,
-      manage:gm&&this.tab==='manage'&&!why?manageView():null,setup:gm&&this.tab==='setup'&&!why?setupView():null};
+      manage:gm&&this.tab==='manage'&&!why?manageView():null,setup:gm&&this.tab==='setup'&&!why?setupView(this.pendingAccess):null};
   }
   async _onRender(context,options){
     await super._onRender?.(context,options);
     const el=this.element;
     el.querySelector('[data-agc-actor]')?.addEventListener('change',ev=>{this.actorId=ev.target.value;this.render();});
+    // GM Setup: Player Access waits for Save Changes (D4); the footer says when something is unsaved.
+    el.querySelector('[data-agc-access]')?.addEventListener('change',ev=>this._stageAccess(ev.target.checked));
     for(const b of el.querySelectorAll('[data-act]'))b.addEventListener('click',ev=>this._act(ev.currentTarget));
     // GM drop target: drag an Item from the Items sidebar (or the bearer's sheet) onto a socket.
     for(const z of el.querySelectorAll('[data-agc-drop]')){
@@ -182,7 +192,7 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
     const act=el.dataset.act;
     try{
       switch(act){
-        case 'tab':this.tab=game.user.isGM?el.dataset.tab:'cinders';break;
+        case 'tab':this.tab=game.user.isGM?el.dataset.tab:'cinders';this.pendingAccess=null;break;
         case 'help':await this._help();return;
         case 'push':await this._push(el.dataset.instance,el.dataset.power,el.dataset.mode);break;
         case 'open-tree':{const t=trees(),actor=this.actor;const tree=t.status==='ok'&&game.user.isGM?cinders.cinderTree(el.dataset.definition):null;
@@ -200,24 +210,38 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
         case 'cinder-migrate':await this._migrate();break;
         case 'cinder-adopt':await adoptLegacy();break;
         case 'cinder-repair':{if(!game.user.isGM)throw Error('GM only');const done=await cinders.api.repair();notify(done.length?done.join('; '):'Nothing needed repair.');}break;
-        case 'toggle-access':if(!game.user.isGM)throw Error('GM only');await setPlayerAccess(game,MODULE,!playerAccess());break;
+        case 'setup-save':await this._saveSetup();break;
+        case 'setup-cancel':this.pendingAccess=null;break;
         case 'strain-import':await this._strainImport();break;
         case 'strain-export':if(!game.user.isGM)throw Error('GM only');download('ag-strain-config.json',strain.config());return;
-        case 'strain-reset':if(!game.user.isGM)throw Error('GM only');if(await confirm('<p>Reset the Strain config to the module defaults (neutral band names, default Backfire schedule)?</p><p>Character Strain is not changed.</p>','Reset Strain config')){await strain.api.resetConfig();notify('Strain config reset to defaults.');}break;
+        case 'strain-reset':if(!game.user.isGM)throw Error('GM only');if(await confirm('Reset the Strain config to the module defaults (neutral band names, default Backfire schedule)?\nCharacter Strain is not changed.',{title:'Reset Strain settings?',yes:'Reset to defaults',danger:true})){await strain.api.resetConfig();notify('Strain config reset to defaults.');}break;
       }
       this.render();
     }catch(error){console.error(`[${MODULE}]`,error);notify(`Cinders: ${error.message}`,true);}
   }
+  /** Player Access box changed: remember it until Save Changes or Cancel; nothing is written yet. */
+  _stageAccess(checked){
+    this.pendingAccess=Boolean(checked);
+    const status=this.element?.querySelector?.('[data-agc-status]');
+    if(status)status.textContent=this.pendingAccess!==playerAccess()?'Unsaved changes':'';
+  }
+  /** Save Changes in GM Setup: writes Player Access (same setting key) only if it changed. */
+  async _saveSetup(){
+    if(!game.user.isGM)throw Error('GM only');
+    const next=this.pendingAccess;this.pendingAccess=null;
+    if(next==null||next===playerAccess()){notify('No changes to save.');return;}
+    await setPlayerAccess(game,MODULE,next);notify('GM Setup saved.');
+  }
   async _help(){
-    await confirm(`<p><strong>Strain</strong> is one number per character. Pushes, crafting, hazards, items and spells can change it; a long rest removes ${strain.config().rest_recovery.long}. The band name and Backfire chance come from the GM's Strain config.</p>
+    await infoDialog('Cinders help',`<p><strong>Strain</strong> is one number per character. Pushes, crafting, hazards, items and spells can change it; a long rest removes ${strain.config().rest_recovery.long}. The band name and Backfire chance come from the GM's Strain config.</p>
       <p><strong>Push</strong> a Cinder power for a stronger effect. Every Push gains Strain, and the Backfire chance uses the Strain after that gain. From Strain ${strain.config().guarantee_at} every Push backfires, and every normal use of a Cinder power does too. A Backfire never kills or removes a character.</p>
-      <p><strong>A Cinder</strong> keeps its own points and powers. Only the GM binds, transfers or unbinds it (Manage tab). Unlock powers in the Skill Trees window.</p>`,'Cinders help');
+      <p><strong>A Cinder</strong> keeps its own points and powers. Only the GM binds, transfers or unbinds it (Manage tab). Unlock powers in the Skill Trees window.</p>`);
   }
   async _push(instanceId,powerId,modeId){
     const actor=this.actor;if(!actor)throw Error('Choose a character');
     const pv=cinders.api.previewPush(actor,instanceId,powerId,modeId);
-    const mods=pv.modifiers.length?`<p>Modifiers: ${pv.modifiers.map(m=>escape(`${m.label} (${m.value>0?'+':''}${m.value})`)).join(', ')}</p>`:'';
-    if(!await confirm(`<p><strong>${escape(pv.powerName)}: ${escape(pv.label)}</strong></p>${pv.effect?`<p>${escape(pv.effect)}</p>`:''}<p>Strain ${pv.strain} → <strong>${pv.after}</strong> (+${pv.cost}). Backfire chance <strong>${pv.chance}%</strong>${pv.guaranteed?' (guaranteed)':''}.</p>${mods}<p>Every Push gains Strain. The result is posted to chat.</p>`,'Push'))return;
+    const mods=pv.modifiers.length?`\nModifiers: ${pv.modifiers.map(m=>`${m.label} (${m.value>0?'+':''}${m.value})`).join(', ')}`:'';
+    if(!await confirm(`${pv.powerName}: ${pv.label}${pv.effect?`\n${pv.effect}`:''}\nStrain ${pv.strain} → ${pv.after} (+${pv.cost}). Backfire chance ${pv.chance}%${pv.guaranteed?' (guaranteed)':''}.${mods}\nEvery Push gains Strain. The result is posted to chat.`,{title:`Push ${pv.powerName}?`,yes:'Push'}))return;
     await cinders.api.push(actor,powerId,modeId);
   }
   _socketActor(actorId){const actor=actorId?game.actors?.get(actorId):this.actor;if(!actor)throw Error('Choose a character');return actor;}
@@ -226,18 +250,20 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
     const fits=cinders.socketsApi.socketable(actor).filter(f=>!host.slots.some(x=>x.itemId===f.itemId));
     if(!fits.length)throw Error(`${actor.name} has no item that fits a Cinder socket (an Ashen Gate ITEM-* with Cinder modifiers).`);
     const where=f=>f.attachedTo?' (in another Cinder\'s socket: it moves here)':'';
-    const f=await input(kind==='swap'?'Swap socket item':'Attach to a socket',`<label>Item<select name="item">${fits.map(x=>`<option value="${escape(x.itemId)}">${escape(x.name)}${escape(where(x))}</option>`).join('')}</select></label><p>The item stays in ${escape(actor.name)}'s inventory. Its Cinder modifiers count while it is in an active socket.</p>`,kind==='swap'?'Swap':'Attach');
+    const f=await input(kind==='swap'?'Swap socket item':'Attach to a socket',[{name:'item',label:'Item',type:'select',value:fits[0].itemId,options:fits.map(x=>({value:x.itemId,label:`${x.name}${where(x)}`})),
+      hint:`The item stays in ${actor.name}'s inventory. Its Cinder modifiers count while it is in an active socket.`}],kind==='swap'?'Swap':'Attach');
     if(!f?.item)return;
     await cinders.socketsApi[kind](actor,instanceId,...(kind==='swap'?[slot,f.item]:[f.item]));notify(kind==='swap'?'Item swapped.':'Item attached.');
   }
   async _detach(instanceId,slot,actorId){
     const actor=this._socketActor(actorId),x=cinders.socketsApi.slots(actor,instanceId)?.slots.find(s=>s.slot===slot);if(!x)throw Error('That socket is empty');
-    if(!await confirm(`<p>Detach <strong>${escape(x.name)}</strong> from this Cinder?</p><p>The item stays in ${escape(actor.name)}'s inventory.</p>`,'Detach'))return;
+    if(!await confirm(`Detach ${x.name} from this Cinder?\nThe item stays in ${actor.name}'s inventory.`,{title:'Detach this item?',yes:'Detach item',danger:true}))return;
     await cinders.socketsApi.detach(actor,instanceId,slot);notify('Item detached.');
   }
   async _socketCount(instanceId){
     if(!game.user.isGM)throw Error('GM only');
-    const f=await input('Sockets on this Cinder',`<label>Sockets<input type="number" name="count" min="0" max="12" step="1" placeholder="default (${escape(game.settings.get(MODULE,'socketsPerCinder'))})"></label><p>Leave it empty to use the default from Configure Settings. Perks and items can add more. If the number drops, extra items stay attached but inactive until one is removed; nothing is deleted.</p>`,'Save');
+    const f=await input('Sockets on this Cinder',[{name:'count',label:'Sockets',type:'number',value:'',
+      hint:`0 to 12. Leave it empty to use the default (${game.settings.get(MODULE,'socketsPerCinder')}) from Configure Settings. Perks and items can add more. If the number drops, extra items stay attached but inactive until one is removed; nothing is deleted.`}],'Save');
     if(!f)return;const raw=String(f.count??'').trim();
     await cinders.socketsApi.setCount(instanceId,raw===''?null:Number(raw));
   }
@@ -255,14 +281,14 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
   async _adjust(op){
     if(!game.user.isGM)throw Error('GM only');const actor=this.actor;if(!actor)throw Error('Choose a character');
     const label={add:'Add Strain',remove:'Remove Strain',set:'Set Strain'}[op];
-    const f=await input(`${label}: ${actor.name}`,`<label>${op==='set'?'New value':'Amount'}<input type="number" name="amount" min="${op==='set'?0:1}" step="1" value="${op==='set'?strain.api.get(actor).value:1}"></label><label>Reason (recorded)<input type="text" name="reason" maxlength="200" required></label>`,label);
+    const f=await input(`${label}: ${actor.name}`,[{name:'amount',label:op==='set'?'New value':'Amount',type:'number',value:op==='set'?strain.api.get(actor).value:1},{name:'reason',label:'Reason (recorded)',value:''}],label);
     if(!f)return;
     await strain.api[op](actor,Number(f.amount),{source:{module:MODULE,kind:'gm'},reason:String(f.reason??'').trim()||'GM adjustment'});
   }
   async _new(){
     if(!game.user.isGM)throw Error('GM only');
     const defs=cinderDefinitions();if(!defs.length)throw Error('No Cinder (MUT-*) definitions in this world. Import them through General Manager first.');
-    const f=await input('New Cinder',`<label>Cinder<select name="def">${defs.map(d=>`<option value="${escape(d.id)}">${escape(d.name)} (${escape(d.id)})</option>`).join('')}</select></label><p>The new Cinder starts with no bearer. Bind it to a character next.</p>`,'Create');
+    const f=await input('New Cinder',[{name:'def',label:'Cinder',type:'select',value:defs[0].id,options:defs.map(d=>({value:d.id,label:`${d.name} (${d.id})`})),hint:'The new Cinder starts with no bearer. Bind it to a character next.'}],'Create');
     if(!f?.def)return;await cinders.api.create(f.def);notify('Cinder created.');
   }
   async _bind(instanceId,isTransfer){
@@ -271,8 +297,8 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
     const choices=(game.actors?.contents??[]).filter(a=>a.type==='character'&&a.id!==inst.bearer?.actorId).sort((a,b)=>a.name.localeCompare(b.name));
     if(!choices.length)throw Error('No other characters to choose from');
     const name=cinders.definitionName(inst.definitionId);
-    const note=isTransfer?'<p>The Cinder keeps its points and unlocked powers; its powers move to the new bearer. Strain and Backfire conditions stay with the previous bearer.</p>':`<p>A bearer cannot release a Cinder; only the GM can unbind or transfer it.${inst.firstBoundAt?'':' The first binding gives the starting point(s).'}</p>`;
-    const f=await input(isTransfer?`Transfer ${name}`:`Bind ${name}`,`<label>Character<select name="actor">${choices.map(a=>`<option value="${a.id}">${escape(a.name)}</option>`).join('')}</select></label>${note}`,isTransfer?'Transfer':'Bind');
+    const note=isTransfer?'The Cinder keeps its points and unlocked powers; its powers move to the new bearer. Strain and Backfire conditions stay with the previous bearer.':`A bearer cannot release a Cinder; only the GM can unbind or transfer it.${inst.firstBoundAt?'':' The first binding gives the starting point(s).'}`;
+    const f=await input(isTransfer?`Transfer ${name}`:`Bind ${name}`,[{name:'actor',label:'Character',type:'select',value:choices[0].id,options:choices.map(a=>({value:a.id,label:a.name})),hint:note}],isTransfer?'Transfer':'Bind');
     const target=f?.actor?game.actors.get(f.actor):null;if(!target)return;
     if(isTransfer){await cinders.api.transfer(instanceId,target);notify(`${name} transferred to ${target.name}.`);}
     else{const r=await cinders.api.bind(instanceId,target);notify(`${name} bound to ${target.name}${r.initialAwarded?` (+${r.initialAwarded} starting point${r.initialAwarded>1?'s':''})`:''}.`);}
@@ -281,15 +307,15 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
     if(!game.user.isGM)throw Error('GM only');
     const inst=cinders.readRegistry().instances.find(i=>i.instanceId===instanceId);if(!inst?.bearer)throw Error('That Cinder has no bearer');
     const name=cinders.definitionName(inst.definitionId),bearer=game.actors?.get(inst.bearer.actorId)?.name??'its bearer';
-    if(!await confirm(`<p>Unbind <strong>${escape(name)}</strong> from <strong>${escape(bearer)}</strong>?</p><p>Its powers leave ${escape(bearer)}'s sheet. The Cinder keeps its points and unlocks. Strain is not changed.</p>`,'Unbind Cinder'))return;
+    if(!await confirm(`Unbind ${name} from ${bearer}?\nIts powers leave ${bearer}'s sheet. The Cinder keeps its points and unlocks. Strain is not changed.`,{title:'Unbind this Cinder?',yes:'Unbind Cinder',danger:true}))return;
     await cinders.api.unbind(instanceId);notify(`${name} unbound.`);
   }
   async _migrate(){
     if(!game.user.isGM)throw Error('GM only');
     const rows=await cinders.api.migrate({dryRun:true}),todo=rows.filter(r=>r.action==='create');
     if(!todo.length){notify('No per-character Cinder progress to move.');return;}
-    const list=rows.map(r=>`<li><strong>${escape(r.name)}</strong> · ${escape(cinders.definitionName(r.definitionId))}: ${escape(r.reason)}</li>`).join('');
-    if(!await confirm(`<p>Move existing Cinder tree progress onto Cinders bound to those characters:</p><ul>${list}</ul><p>Points, unlocks and power Items stay as they are. Safe to run again.</p>`,'Move existing Cinder progress'))return;
+    const list=rows.map(r=>`${r.name} · ${cinders.definitionName(r.definitionId)}: ${r.reason}`).join('\n');
+    if(!await confirm(`Move existing Cinder tree progress onto Cinders bound to those characters:\n${list}\nPoints, unlocks and power Items stay as they are. Safe to run again.`,{title:'Move existing Cinder progress?',yes:'Move progress'}))return;
     await cinders.api.migrate({dryRun:false});notify(`${todo.length} Cinder${todo.length>1?'s':''} created from existing progress.`);
   }
   async _strainImport(){
@@ -300,8 +326,8 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
     if(plan.errors.length)throw Error(`Strain config not imported: ${plan.errors.slice(0,5).join('; ')}`);
     const row=plan.rows[0];
     if(row.action==='skip'){notify('That Strain config is the same as the current one; nothing changed.');return;}
-    const warn=plan.warnings.length?`<p>Warnings:</p><ul>${plan.warnings.map(w=>`<li>${escape(w)}</li>`).join('')}</ul>`:'';
-    if(!await confirm(`<p>${escape(row.reason)}</p>${warn}`,'Import Strain config'))return;
+    const warn=plan.warnings.length?`\nWarnings:\n${plan.warnings.join('\n')}`:'';
+    if(!await confirm(`${row.reason}${warn}`,{title:'Import this Strain config?',yes:'Import'}))return;
     const result=await strain.api.importConfig(data);
     if(result.failed.length)throw Error(result.failed[0].reason);
     notify('Strain config imported.');

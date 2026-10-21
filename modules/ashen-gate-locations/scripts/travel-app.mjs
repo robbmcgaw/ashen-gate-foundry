@@ -4,6 +4,7 @@
  * and what the GM shared. Position and background opacity are per-user client settings.
  */
 import {MODULE_ID, esc} from './model.mjs';
+import {confirmDialog, infoDialog} from './ag-dialogs.mjs';
 import {gmTrackerHTML, playerTrackerHTML, clampOpacity} from './travel-view.mjs';
 import {LocationsApp} from './app.mjs';
 
@@ -129,8 +130,7 @@ export class TravelTracker extends Base {
     }
     if (this.busy) return;
     if (action === 'end') {
-      const ok = await foundry.applications.api.DialogV2.confirm({window: {title: 'End journey?'},
-        content: '<p>End this journey where the party is? Nothing is written to Party Notes.</p>', yes: {label: 'End Journey'}, no: {label: 'Keep Travelling'}, rejectClose: false});
+      const ok = await confirmDialog('End this journey where the party is? Nothing is written to Party Notes.', {title: 'End journey?', yes: 'End journey'});
       if (!ok) return;
     }
     const call = {'next-leg': 'nextLeg', reroll: 'rerollHazard', dismiss: 'dismissHazard', share: 'shareHazard', pause: 'pauseJourney', resume: 'resumeJourney',
@@ -156,7 +156,7 @@ export class TravelTracker extends Base {
       <li><strong>Pace</strong>, <strong>Night watches</strong> and <strong>Foraging and navigation</strong> are tracking only: nothing is rolled or changed for you. Players see the pace and the watch order; each can be switched off for this journey. The checks open Utilities → Rolls filled in (needs Utilities 0.13.0+).</li>
       <li>The slider fades the window background for you only. The window remembers where you left it.</li></ul>`
       : '<p>Where the party is on its journey, what the GM has told you about the road, and the pace and watch order when the GM tracks them. The slider fades the window background (only for you).</p>';
-    return foundry.applications.api.DialogV2.prompt({window: {title: 'Travel Help'}, content, ok: {label: 'Close'}, rejectClose: false});
+    return infoDialog('Travel Help', content);
   }
   async close(options = {}) {
     clearTimeout(this.saveTimer);

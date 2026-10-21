@@ -1,6 +1,7 @@
 import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,conditionGroups,stashRow,historyEntry,containedItems,moveBundle,contentsNote,appendHistory,approvalLabel,STASH_HISTORY_CAP,rollFormSession,normalizeTab,rollPrefill,ROLL_OPEN_MODES,readGp,planGoldAward,goldAwardEntry,planGoldUndo,applyGoldUndo,goldCardHTML,COINS,COIN_LABELS,entryCoin,readCoin,readCoins,planCoinMove,planPurseAdjust,purseEntry,purseUndoable,planPurseUndo,applyPurseUndo,purseLine,PURSE_KINDS,ELECTRUM_OFF,coinChoices,shownCoins,strandedElectrum,planElectrumConvert,convertPreview,convertEntry,convertLine,planConvertUndo,applyConvertUndo,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome} from './core.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,infoDialog,formDialog} from './ag-dialogs.mjs';
+import {windowSize} from './ag-html.mjs';
 
 const {ApplicationV2}=foundry.applications.api;
 let windowInstance=null;
@@ -33,8 +34,13 @@ const partyCharacters=(user=game.user)=>allCharacters().filter(a=>user?.isGM||a.
 const canRemove=(actor,id,user=game.user)=>removalDecision({user,actor,statusId:id,unlocks:getUnlocks(),nativeIds:nativeIds()}).ok;
 const error=e=>{console.error(`[${ID}]`,e);ui.notifications?.error(e?.message||String(e));};
 const option=(id,title,selected)=>`<option value="${E(id)}" ${id===selected?'selected':''}>${E(title)}</option>`;
-const btn=(action,title,{disabled=false,kind='',attrs=''}={})=>`<button type="button" class="${E(kind)}" data-action="${E(action)}" ${disabled?'disabled':''} ${attrs}>${E(title)}</button>`;
-const empty=msg=>`<div class="ag-empty agu-empty">${E(msg)}</div>`;
+/** Button kinds map only to kit classes: primary, danger, ghost, sm (space-separated to combine, e.g. 'ghost sm'). */
+const BTN_KINDS=new Set(['primary','danger','ghost','sm']);
+const btnClass=(kind='',cls='')=>['ag-btn',...String(kind).split(/\s+/).filter(k=>BTN_KINDS.has(k)).map(k=>`ag-btn--${k}`),...(cls?[cls]:[])].join(' ');
+const tip=text=>`data-tooltip="${E(text)}" data-tooltip-class="ag-tooltip"`;
+const btn=(action,title,{disabled=false,kind='',cls='',icon='',attrs=''}={})=>`<button type="button" class="${E(btnClass(kind,cls))}" data-action="${E(action)}" ${disabled?'disabled':''} ${attrs}>${icon?`<i class="fa-solid ${E(icon)}" aria-hidden="true"></i> `:''}${E(title)}</button>`;
+/** Kit empty state: a short title and, optionally, the next step. */
+const empty=(title,text='')=>`<div class="ag-empty"><p class="ag-empty__title">${E(title)}</p>${text?`<p class="ag-empty__text">${E(text)}</p>`:''}</div>`;
 /** Manager's player-safe My Appearance window, or null when Manager (or that API) is absent. */
 const appearanceOpener=()=>{const m=game.modules.get('ashen-gate-manager');const open=m?.active?m.api?.appearance?.openMyAppearance:null;return typeof open==='function'?open:null;};
 const labelSkill=skill=>skillName(skill);
@@ -92,22 +98,22 @@ async function tellRejected(author,actor,reason){
  try{await ChatMessage.create({content:`Roll not counted${actor?` for ${E(actor.name)}`:''}: ${E(reason)}`,speaker:ChatMessage.getSpeaker?.()??{},whisper:[...new Set([...[...game.users].filter(u=>u.isGM).map(u=>u.id),author.id])]});}
  catch(e){console.warn(`[${ID}] Could not report the rejected roll`,e);}
 }
-function actorsCheckboxes(ticked=[]){const a=allCharacters(),on=new Set(ticked);return a.length?`<div class="agu-choices">${a.map(x=>`<label class="agu-inline"><input type="checkbox" name="agu-participant" value="${E(x.id)}" ${on.has(x.id)?'checked':''}> ${E(x.name)}</label>`).join('')}</div>`:empty('Create two disposable character Actors in the Actors directory before starting a check.');}
-function skillChoices(ticked=['acr','ath','prc']){return `<div class="agu-choices">${SKILL_IDS.map(s=>`<label class="agu-inline"><input type="checkbox" name="agu-skill" value="${E(s)}" ${ticked.includes(s)?'checked':''}>${E(skillName(s))}</label>`).join('')}</div>`;}
+function actorsCheckboxes(ticked=[]){const a=allCharacters(),on=new Set(ticked);return a.length?`<div class="agu-choices">${a.map(x=>`<label class="ag-field ag-field--inline"><input type="checkbox" name="agu-participant" value="${E(x.id)}" ${on.has(x.id)?'checked':''}> ${E(x.name)}</label>`).join('')}</div>`:empty('No characters yet','Add at least two characters to start a check.');}
+function skillChoices(ticked=['acr','ath','prc']){return `<div class="agu-choices">${SKILL_IDS.map(s=>`<label class="ag-field ag-field--inline"><input type="checkbox" name="agu-skill" value="${E(s)}" ${ticked.includes(s)?'checked':''}>${E(skillName(s))}</label>`).join('')}</div>`;}
 /** Characters ticked by default: the dnd5e Primary Party, else characters owned by connected players. */
 function partyDefaults(){try{return goldDefaults().actorIds;}catch{return [];}}
 /** One start form for both kinds: Group result (a Group Check) or Individual rolls (a Roll Request). */
 function createPanel(app){if(!isGM())return '';
  if(activeSession())return `<div class="agu-note">${E(notice())}</div>`;
- const pre=app.rollPrefill??null,group=app.rollMode!=='individual',radio=(v,label,hint,on)=>`<label class="agu-inline agu-mode"><input type="radio" name="agu-mode" value="${v}" ${on?'checked':''}><span><strong>${E(label)}</strong><br><small>${E(hint)}</small></span></label>`;
+ const pre=app.rollPrefill??null,group=app.rollMode!=='individual',radio=(v,label,hint,on)=>`<label class="ag-field ag-field--inline agu-mode"><input type="radio" name="agu-mode" value="${v}" ${on?'checked':''}><span><strong>${E(label)}</strong><br><small>${E(hint)}</small></span></label>`;
  return `<section class="ag-card agu-card"><h2>Start Rolls</h2>
  <fieldset><legend>Result</legend><div class="agu-choices">${radio('group','Group result','Everyone rolls; the average of the rolls is compared with the DC for one pass or fail.',group)}${radio('individual','Individual rolls','Each character makes one roll of one skill; each result is shown on its own.',!group)}</div></fieldset>
- <label>Title<input id="agu-title" maxlength="120" placeholder="${group?'New Group Check':'New Roll Request'}" value="${E(pre?.title??'')}"></label>
+ <label class="ag-field">Title<input id="agu-title" maxlength="120" placeholder="${group?'New Group Check':'New Roll Request'}" value="${E(pre?.title??'')}"></label>
  <fieldset><legend>Participating characters</legend>${actorsCheckboxes(pre?.actorIds??partyDefaults())}</fieldset>
  <fieldset><legend>Skills</legend><p class="agu-note" id="agu-skill-hint">${group?'Characters choose from the ticked skills.':'Tick exactly one skill.'}</p>${skillChoices(pre?.skills)}</fieldset>
- <div class="agu-compact"><label>DC <input id="agu-dc" type="number" min="0" max="100" value="${pre?(pre.dc===null?'':E(pre.dc)):'15'}"></label><label data-group-only ${group?'':'hidden'}>Rolls per character <select id="agu-roll-count">${[1,2,3,4,5].map(n=>option(String(n),String(n),'1')).join('')}</select></label></div>
+ <div class="agu-compact"><label class="ag-field">DC<input id="agu-dc" type="number" min="0" max="100" value="${pre?(pre.dc===null?'':E(pre.dc)):'15'}"></label><label class="ag-field" data-group-only ${group?'':'hidden'}>Rolls per character<select id="agu-roll-count">${[1,2,3,4,5].map(n=>option(String(n),String(n),'1')).join('')}</select></label></div>
  <p class="agu-note">Leave the DC empty to record rolls without a pass or fail. Players pick advantage or disadvantage when they roll.</p>
- <div class="agu-actions">${btn('start','Start Rolls',{kind:'primary'})}</div></section>`;
+ <div class="agu-actions">${btn('start','Start Rolls',{kind:'primary',icon:'fa-dice-d20'})}</div></section>`;
 }
 /** GM-only start. Reads the Rolls form; one active slot, so a second start is refused whatever its mode. */
 async function startRolls(form){
@@ -126,6 +132,8 @@ function checkBar(slots){
  const done=slots.filter(x=>x.status!=='pending').length;
  return `<div class="agu-checkbar" role="progressbar" aria-valuemin="0" aria-valuemax="${slots.length}" aria-valuenow="${done}" aria-label="Rolls resolved">${slots.map(x=>`<span class="agu-checkbar-seg ${E(x.status)}"></span>`).join('')}</div>`;
 }
+/** Slot status → kit badge variant: accepted reads as ok, waiting and skipped stay plain. */
+const slotBadge=status=>status==='accepted'?'ag-badge--ok':'';
 function verdictOf(s,sm){return s.dc===null?'Recorded':sm.result==='success'?'Success':sm.result==='failure'?'Failure':'No Result';}
 function resultView(res){const kind=res.kind;
  const projected=projectSession(res,{userId:game.user.id,isGM:isGM(),ownedActorIds:ownedIds()}),sm=summary(projected);
@@ -134,12 +142,12 @@ function resultView(res){const kind=res.kind;
  const rows=projected.actors.map(id=>{
   const cells=projected.slots.filter(x=>x.actorId===id).map(sl=>{
    const text=sl.status==='accepted'?(sl.total===null?'Roll hidden':`${labelSkill(sl.skill)} ${sl.total}${kind==='request'&&res.dc!==null?` · ${sl.total>=res.dc?'Success':'Failure'}`:''}`):sl.status==='skipped'?'Skipped':'No roll';
-   return `<span class="ag-badge agu-pill ${E(sl.status)}">${E(text)}</span>`;
+   return `<span class="ag-badge ${slotBadge(sl.status)}">${E(text)}</span>`;
   }).join('');
   return `<div class="agu-participant"><strong>${E(game.actors.get(id)?.name||'Unavailable Actor')}</strong><div class="agu-contributions">${cells}</div></div>`;
  }).join('');
  const avg=kind==='group'&&sm.average!==null?`<div class="agu-result-score"><span class="agu-result-num">${E(sm.average.toFixed(1))}</span><span class="agu-result-vs">average${res.dc===null?'':` vs DC ${E(res.dc)}`}</span></div>`:'';
- return `<section class="agu-card ag-card agu-result ${cls}"><div class="agu-line"><h2>${E(res.name)}</h2><span class="ag-badge agu-pill">${E(sessionKind(res))} · finished</span></div><div class="agu-result-verdict">${E(verdict)}</div>${avg}${rows}${isGM()?`<div class="agu-actions">${btn('clear-result','Clear Result',{kind:'primary ag-btn'})}</div><p class="agu-note">Everyone sees this result until you clear it or start the next check.</p>`:''}</section>`;
+ return `<section class="agu-card ag-card agu-result ${cls}"><div class="agu-line"><h2>${E(res.name)}</h2><span class="ag-badge">${E(sessionKind(res))} · finished</span></div><div class="agu-verdict">${E(verdict)}</div>${avg}${rows}${isGM()?`<div class="agu-actions">${btn('clear-result','Clear Result')}</div><p class="agu-note">Everyone sees this result until you clear it or start the next check.</p>`:''}</section>`;
 }
 function sessionView(session,app){
  const projected=projectSession(session,{userId:game.user.id,isGM:isGM(),ownedActorIds:ownedIds()});
@@ -152,24 +160,24 @@ function sessionView(session,app){
  const headline=session.kind==='group'?'Team progress':'Responses';
  const rows=projected.actors.map(id=>{
   const actor=game.actors.get(id),slots=projected.slots.filter(x=>x.actorId===id);
-  const cells=slots.map(s=>`<span class="ag-badge agu-pill ${E(s.status)}">${E(slotText(s,session.kind))}</span>`).join('');
+  const cells=slots.map(s=>`<span class="ag-badge ${slotBadge(s.status)}">${E(slotText(s,session.kind))}</span>`).join('');
   const bonuses=isGM()&&actor&&slots.some(x=>x.status==='pending')?`<small class="agu-bonuses">${session.skills.map(k=>`${E(skillName(k))} ${E(bonusText(actor,k))}`).join(' · ')}</small>`:'';
-  return `<div class="agu-participant"><div class="agu-who"><strong>${E(actor?.name||'Unavailable Actor')}</strong>${bonuses}</div><div class="agu-contributions">${cells}</div>${isGM()&&slots.some(x=>x.status==='pending')?btn('skip','Skip One',{attrs:`data-actor="${E(id)}"`}):''}</div>`;
+  return `<div class="agu-participant"><div class="agu-who"><strong>${E(actor?.name||'Unavailable Actor')}</strong>${bonuses}</div><div class="agu-contributions">${cells}</div>${isGM()&&slots.some(x=>x.status==='pending')?btn('skip','Skip One',{kind:'sm',attrs:`data-actor="${E(id)}"`}):''}</div>`;
  }).join('');
  const preset=selectedActor&&skills[0]?skillRollMode(selectedActor,skills[0]):{mode:0,sources:[]};
  const skillOptions=skills.map(x=>option(x,`${skillName(x)} (${bonusText(selectedActor,x)})`,x)).join('');
- const rollForm=actorIds.length?`<section class="agu-action-panel"><h3>Your roll is requested</h3><p class="agu-note">${E(session.name)} · ${session.kind==='group'?'Choose one of the allowed skills.':'Roll the requested skill.'}</p><div class="agu-compact"><label>Character<select id="agu-roll-actor">${actorIds.map(id=>option(id,game.actors.get(id)?.name??'Unavailable',selected)).join('')}</select></label><label>Skill (bonus)<select id="agu-roll-skill">${skillOptions}</select></label><label>Roll<select id="agu-roll-mode">${['0','1','-1'].map(m=>option(m,modeLabels[m],String(preset.mode))).join('')}</select></label></div><p class="agu-note" id="agu-mode-hint">${E(modeHint(preset))}</p>${btn('roll','Roll Now',{kind:'primary ag-btn agu-roll-large',disabled:!skills.length})}</section>`:'';
- return `<section class="ag-card agu-card"><div class="agu-line"><h2>${E(session.name)}</h2><span class="ag-badge ag-badge--accent agu-pill">${E(sessionKind(session))}</span></div>
+ const rollForm=actorIds.length?`<section class="agu-action-panel"><h3>Your roll is requested</h3><p class="agu-note">${E(session.name)} · ${session.kind==='group'?'Choose one of the allowed skills.':'Roll the requested skill.'}</p><div class="agu-compact"><label class="ag-field">Character<select id="agu-roll-actor">${actorIds.map(id=>option(id,game.actors.get(id)?.name??'Unavailable',selected)).join('')}</select></label><label class="ag-field">Skill (bonus)<select id="agu-roll-skill">${skillOptions}</select></label><label class="ag-field">Roll<select id="agu-roll-mode">${['0','1','-1'].map(m=>option(m,modeLabels[m],String(preset.mode))).join('')}</select></label></div><p class="agu-note" id="agu-mode-hint">${E(modeHint(preset))}</p>${btn('roll','Roll Now',{kind:'primary',cls:'agu-roll-large',icon:'fa-dice-d20',disabled:!skills.length})}</section>`:'';
+ return `<section class="ag-card agu-card"><div class="agu-line"><h2>${E(session.name)}</h2><span class="ag-badge ag-badge--accent">${E(sessionKind(session))}</span></div>
  <p class="agu-note agu-big">${session.kind==='group'?`DC ${E(session.dc??'none')} · ${session.rollsPerActor} per character · unique skills`:`Public ${E(skillName(session.skills[0]))} request · ${session.dc===null?'No DC':`DC ${E(session.dc)}`}`}</p>
  <div class="agu-line agu-big"><strong>${E(headline)}</strong><strong>${sum.accepted+sum.skipped}/${sum.totalSlots} resolved</strong></div>
  ${checkBar(projected.slots)}
  ${isGM()?`<p class="agu-note agu-big">${session.kind==='group'?`Average ${sum.average===null?'—':sum.average.toFixed(1)}`:`${sum.accepted} responses accepted`}</p>`:''}
  ${isGM()?rows+rollForm:rollForm+`<p class="agu-note">${sum.pending} contribution(s) still pending.</p>`}
- ${isGM()?`<div class="agu-actions">${btn('resolve','End & Record',{kind:'primary ag-btn'})}${btn('cancel','Cancel Session',{kind:'danger ag-btn'})}</div>`:''}
+ ${isGM()?`<div class="agu-actions">${btn('cancel','Cancel Session')}${btn('resolve','End & Record')}</div>`:''}
  </section>`;
 }
 function rollsView(app){const active=activeSession(),res=getResult();
- const idle=res?resultView(res):isGM()?empty('No rolls running. Start one below.'):empty('No active roll request for your character.');
+ const idle=res?resultView(res):isGM()?empty('No rolls running','Start one with Start Rolls below.'):empty('No roll requested yet','When your GM asks for a roll, it appears here.');
  return (active?sessionView(active,app):idle)+createPanel(app);}
 function stashActor(){return game.actors.find(a=>a.getFlag(ID,'partyStash')===true);}
 const stashEnabled=()=>game.settings.get(ID,'stashEnabled')===true;
@@ -179,18 +187,20 @@ const stashVoteRequired=()=>game.settings.get(ID,'stashVoteRequired')!==false;
 const purseVoteRequired=()=>{const v=game.settings.get(ID,'purseVoteRequired');return v==='on'?true:v==='off'?false:stashVoteRequired();};
 function inventoryView(app){
  const stash=stashActor(),on=stashEnabled();
- if(!isGM())return on&&stash?stashPanel(app):`<section class="ag-card agu-card"><h2>Party Stash</h2>${empty(stash?'The GM has turned the party stash off.':'There is no party stash yet.')}</section>`;
+ if(!isGM())return on&&stash?stashPanel(app):`<section class="ag-card agu-card"><h2>Party Stash</h2>${stash?empty('The party stash is off','Your GM has turned the party stash off for now.'):empty('No party stash yet','Your GM hasn\'t set up a party stash yet.')}</section>`;
  const count=stash?stash.items.size??[...stash.items].length:0;
- return `<section class="ag-card agu-card"><div class="agu-line"><h2>Party Stash</h2><span class="ag-badge agu-pill ${on?'ag-badge--ok':''}">${on?'On for players':'Off for players'}</span></div><p class="agu-note">The stash is an NPC Actor kept by Utilities. While it is on, players get Observer permission on it so they can read item sheets; Utilities moves items for them through the GM client. You can move items freely.</p>${stash?`<p>Stash: <strong>${E(stash.name)}</strong> · ${E(count)} item(s)</p><div class="agu-actions">${btn('toggle-stash',on?'Turn Off for Players':'Turn On for Players',{kind:on?'danger':''})}${btn('gold-award','Award Gold',{kind:'primary'})}</div>`:empty('No party stash yet.')+`<div class="agu-actions">${btn('gold-award','Award Gold')}${btn('create-stash','Create Party Stash',{kind:'primary'})}</div>`}</section>${stash?stashPanel(app):''}`;
+ return `<section class="ag-card agu-card"><div class="agu-line"><h2>Party Stash</h2><span class="ag-badge ${on?'ag-badge--ok':''}">${on?'On for players':'Off for players'}</span></div><p class="agu-note">The stash is an NPC Actor kept by Utilities. While it is on, players get Observer permission on it so they can read item sheets; Utilities moves items for them through the GM client. You can move items freely.</p>${stash?`<p>Stash: <strong>${E(stash.name)}</strong> · ${E(count)} item(s)</p><div class="agu-actions">${btn('toggle-stash',on?'Turn Off for Players':'Turn On for Players')}${awardGoldBtn()}</div>`:empty('No party stash yet','Create one with Create Party Stash.')+`<div class="agu-actions">${awardGoldBtn()}${btn('create-stash','Create Party Stash',{kind:'primary',icon:'fa-plus'})}</div>`}</section>${stash?stashPanel(app):''}`;
 }
+/** Award Gold looks the same wherever it appears. */
+const awardGoldBtn=()=>btn('gold-award','Award Gold',{icon:'fa-coins'});
 async function openUuid(uuid){const doc=await fromUuid(uuid);if(!doc?.sheet)throw Error('That document could not be found or has no sheet.');doc.sheet.render(true);}
-function tableView(app){if(!isGM())return empty('Only the GM can roll and distribute RollTable messages.');
+function tableView(app){if(!isGM())return empty('Roll tables are run by the GM','Results your GM shares appear in chat.');
  const tables=[...game.tables].sort((a,b)=>a.name.localeCompare(b.name));
- const recipients=[...game.users].filter(u=>!u.isGM).map(u=>`<label class="agu-inline"><input type="checkbox" name="agu-recipient" value="${E(u.id)}">${E(u.name)}</label>`).join('');
- return `<section class="ag-card agu-card"><h2>RollTable Messenger</h2><p class="agu-note">Rolls with Foundry's own RollTable draw. Text, document and compendium results are supported; documents are linked in the message.</p><label>Foundry RollTable<select id="agu-table">${tables.map(t=>option(t.id,t.name,t.id)).join('')}</select></label><div class="agu-actions">${btn('table-roll','Roll Privately',{disabled:!tables.length})}</div><label>Outgoing message<textarea id="agu-table-message" rows="3">${E(app.tableDraft)}</textarea></label><fieldset><legend>Recipients (none = public to all)</legend><div class="agu-choices">${recipients||empty('No players connected.')}</div></fieldset><label class="agu-inline"><input type="checkbox" id="agu-table-auto" ${app.tableAuto?'checked':''}>Auto-Send drawn results</label><div class="agu-actions">${btn('table-send','Send Message',{kind:'primary',disabled:!app.tableDraft.trim()})}</div></section>${drawPanel(app)}`;
+ const recipients=[...game.users].filter(u=>!u.isGM).map(u=>`<label class="ag-field ag-field--inline"><input type="checkbox" name="agu-recipient" value="${E(u.id)}">${E(u.name)}</label>`).join('');
+ return `<section class="ag-card agu-card"><h2>RollTable Messenger</h2><p class="agu-note">Rolls with Foundry's own RollTable draw. Text, document and compendium results are supported; documents are linked in the message.</p><label class="ag-field">Foundry RollTable<select id="agu-table">${tables.map(t=>option(t.id,t.name,t.id)).join('')}</select></label><div class="agu-actions">${btn('table-roll','Roll Privately',{icon:'fa-dice',disabled:!tables.length})}</div><label class="ag-field">Outgoing message<textarea id="agu-table-message" rows="3">${E(app.tableDraft)}</textarea></label><fieldset><legend>Recipients (none = public to all)</legend><div class="agu-choices">${recipients||empty('No players connected','Players appear here when they join.')}</div></fieldset><label class="ag-field ag-field--inline"><input type="checkbox" id="agu-table-auto" ${app.tableAuto?'checked':''}>Auto-Send drawn results</label><div class="agu-actions">${btn('table-send','Send Message',{kind:'primary',disabled:!app.tableDraft.trim()})}</div></section>${drawPanel(app)}`;
 }
 function drawPanel(app){const d=app.lastDraw;if(!d?.length)return '';
- return `<section class="ag-card agu-card"><h3>Last draw</h3>${d.map(r=>r.kind==='document'?`<div class="agu-participant"><span class="agu-status-title">${r.img?`<img class="agu-status-icon" src="${E(r.img)}" alt="">`:''}<strong>${E(r.label)}</strong><span class="ag-badge agu-pill">Document</span></span>${btn('open-uuid','Open',{attrs:`data-open-uuid="${E(r.uuid)}"`})}</div>`:`<div class="agu-participant"><span>${E(r.label)}</span></div>`).join('')}</section>`;}
+ return `<section class="ag-card agu-card"><h3>Last draw</h3>${d.map(r=>r.kind==='document'?`<div class="agu-participant"><span class="agu-status-title">${r.img?`<img class="agu-status-icon" src="${E(r.img)}" alt="">`:''}<strong>${E(r.label)}</strong><span class="ag-badge">Document</span></span>${btn('open-uuid','Open',{kind:'sm',attrs:`data-open-uuid="${E(r.uuid)}"`})}</div>`:`<div class="agu-participant"><span>${E(r.label)}</span></div>`).join('')}</section>`;}
 function conditionIcon(id){const cfg=statusConfig(id),img=cfg?.img??cfg?.icon;return typeof img==='string'&&img&&!/^\s*javascript:/i.test(img)?`<img class="agu-status-icon" src="${E(img)}" alt="">`:'';}
 function statusSourceLine(actor,id){
  const sources=resolveStatusSources(actor,id);
@@ -203,38 +213,56 @@ function statusSourceLine(actor,id){
   return `<small class="agu-source">Effect: <strong>${E(x.name)}</strong>${origin}${x.onActor?'':' (item effect: Remove disables it)'}${x.disabled?' (disabled)':''}</small>`;
  }).join('');
 }
-function lockBadge(actor){return isUnlocked(getUnlocks(),actor.id)?`<span class="ag-badge ag-badge--ok agu-pill" title="Its owner can remove native conditions"><i class="fa-solid fa-lock-open" aria-hidden="true"></i>Unlocked</span>`:`<span class="ag-badge agu-pill" title="Only the GM can remove conditions"><i class="fa-solid fa-lock" aria-hidden="true"></i>Locked</span>`;}
+function lockBadge(actor){return isUnlocked(getUnlocks(),actor.id)?`<span class="ag-badge ag-badge--ok" ${tip('Its owner can remove native conditions')}><i class="fa-solid fa-lock-open" aria-hidden="true"></i>Unlocked</span>`:`<span class="ag-badge" ${tip('Only the GM can remove conditions')}><i class="fa-solid fa-lock" aria-hidden="true"></i>Locked</span>`;}
 function conditionsView(app){const characters=partyCharacters();const actor=characters.find(a=>a.id===app.actorId)||characters[0];const statuses=actor?[...(actor.statuses||[])]:[],known=CONFIG.statusEffects||[];
  const showSources=actor&&(isGM()||actor.testUserPermission?.(game.user,'OBSERVER'));
- const roster=characters.map(a=>`<button type="button" data-condition-actor="${E(a.id)}" class="agu-roster-row ${actor?.id===a.id?'active':''}"><span class="agu-who"><span>${E(a.name)}</span>${lockBadge(a)}</span><span class="agu-roster-status">${[...(a.statuses||[])].map(s=>conditionIcon(s)+`<span title="${E(statusName(s))}">${E(statusName(s))}</span>`).join('')||'No conditions'}</span></button>`).join('');
+ const roster=characters.map(a=>`<button type="button" data-condition-actor="${E(a.id)}" class="agu-roster-row ${actor?.id===a.id?'active':''}"><span class="agu-who"><span>${E(a.name)}</span>${lockBadge(a)}</span><span class="agu-roster-status">${[...(a.statuses||[])].map(s=>conditionIcon(s)+`<span>${E(statusName(s))}</span>`).join('')||'No conditions'}</span></button>`).join('');
  const details=statuses.length?statuses.map(id=>{const unknown=!statusConfig(id);
-  return `<div class="agu-participant"><div class="agu-who"><span class="agu-status-title">${conditionIcon(id)}${E(statusName(id))}${unknown?'<span class="ag-badge agu-pill" title="Not a native Foundry status">Custom</span>':''}</span>${unknown&&showSources?statusSourceLine(actor,id):''}</div>${canRemove(actor,id)?btn('remove-status','Remove',{attrs:`data-status="${E(id)}"`}):''}</div>`;}).join(''):empty('No conditions on this character.');
+  return `<div class="agu-participant"><div class="agu-who"><span class="agu-status-title">${conditionIcon(id)}${E(statusName(id))}${unknown?`<span class="ag-badge ag-badge--warn" ${tip('Not a native Foundry status')}>Custom</span>`:''}</span>${unknown&&showSources?statusSourceLine(actor,id):''}</div>${canRemove(actor,id)?btn('remove-status','Remove',{kind:'sm',attrs:`data-status="${E(id)}"`}):''}</div>`;}).join(''):empty('No conditions','This character has no conditions right now.');
  const unlocked=actor&&isUnlocked(getUnlocks(),actor.id);
- const lockLine=actor?`<div class="agu-line agu-lock-line"><span>Removal by owner: ${lockBadge(actor)}</span>${isGM()?btn('toggle-lock',unlocked?'Lock Removal':'Unlock for Owner',{kind:'ag-btn ag-btn--sm',attrs:`data-actor="${E(actor.id)}"`}):''}</div>`:'';
+ const lockLine=actor?`<div class="agu-line agu-lock-line"><span>Removal by owner: ${lockBadge(actor)}</span>${isGM()?btn('toggle-lock',unlocked?'Lock Removal':'Unlock for Owner',{kind:'sm',icon:unlocked?'fa-lock':'fa-lock-open',attrs:`data-actor="${E(actor.id)}"`}):''}</div>`:'';
  const overlayOn=game.settings.get(ID,'overlayOpen')===true;
- return `<section class="ag-card agu-card"><div class="agu-line"><h2>Party Conditions</h2>${btn('toggle-overlay',overlayOn?'Close Overlay':'Pop Out Overlay',{kind:'ag-btn ag-btn--sm',attrs:`aria-pressed="${overlayOn}"`})}</div><div class="agu-party-panes"><section><h3>Party Characters</h3>${roster||empty('No characters you can see. The GM can give you Limited or Observer permission on party characters.')}</section><section><h3>${E(actor?.name||'Select a character')}</h3>${lockLine}${details}${isGM()&&actor?`<div class="agu-compact"><label>Native condition<select id="agu-condition-status">${known.map(x=>option(x.id,statusName(x.id),x.id)).join('')}</select></label>${btn('add-status','Apply',{kind:'primary'})}</div>`:''}</section></div><p class="agu-note">Condition removal is locked for every character until the GM unlocks it; an unlocked character's owner can then remove its native conditions. Statuses Foundry does not list (shown as Custom) are traced to the effect that grants them, and only the GM can remove them. Automatic duration, exhaustion and concentration management are not part of Utilities.</p></section>`;
+ return `<section class="ag-card agu-card"><div class="agu-line"><h2>Party Conditions</h2>${btn('toggle-overlay',overlayOn?'Close Overlay':'Pop Out Overlay',{kind:'sm',icon:'fa-up-right-from-square',attrs:`aria-pressed="${overlayOn}"`})}</div><div class="agu-party-panes"><section><h3>Party Characters</h3>${roster||empty('No characters to show',isGM()?'Create a character to see its conditions here.':'Party characters appear here once your GM shares them with you.')}</section><section><h3>${E(actor?.name||'Select a character')}</h3>${lockLine}${details}${isGM()&&actor?`<div class="agu-compact"><label class="ag-field">Native condition<select id="agu-condition-status">${known.map(x=>option(x.id,statusName(x.id),x.id)).join('')}</select></label>${btn('add-status','Apply',{kind:'primary'})}</div>`:''}</section></div><p class="agu-note">Condition removal is locked for every character until the GM unlocks it; an unlocked character's owner can then remove its native conditions. Statuses Foundry does not list (shown as Custom) are traced to the effect that grants them, and only the GM can remove them. Automatic duration, exhaustion and concentration management are not part of Utilities.</p></section>`;
 }
-function historyView(app){if(!isGM())return empty('History is GM-only.');
+function historyView(app){if(!isGM())return empty('History is GM-only');
  const history=getHistory();return `<section class="ag-card agu-card"><h2>Completed & Cancelled Checks</h2>${history.length?history.map(s=>{
   const sm=summary(s),detail=s.slots.map(sl=>`${game.actors.get(sl.actorId)?.name??'Unavailable Actor'}: ${sl.status==='accepted'?`${sl.skill?skillName(sl.skill):'Roll'} ${sl.total}${s.kind==='request'&&s.dc!==null?` (${sl.total>=s.dc?'Success':'Failure'} vs DC ${s.dc})`:''}`:sl.status}`).join(' · ');
   const outcome=s.status==='cancelled'?'Cancelled':sm.result==='no-result'?'No Result':sm.result==='completed'?'Recorded':sm.result==='success'?'Success':'Failure';
-  return `<div class="agu-history"><div class="agu-line"><strong>${E(s.name)}</strong><span>${E(sessionKind(s))} · ${E(outcome)}</span></div><p>${E(detail)}</p><small>${E(new Date(s.closedAt||s.createdAt).toLocaleString())}${s.kind==='group'&&sm.average!==null?` · Average ${E(sm.average.toFixed(1))}`:''}</small></div>`;
- }).join(''):empty('No completed interactions yet.')}</section>`;
+  return `<div class="agu-history"><div class="agu-line"><strong>${E(s.name)}</strong><span class="ag-badge ${outcome==='Success'?'ag-badge--ok':outcome==='Failure'?'ag-badge--danger':''}">${E(sessionKind(s))} · ${E(outcome)}</span></div><p>${E(detail)}</p><small>${E(new Date(s.closedAt||s.createdAt).toLocaleString())}${s.kind==='group'&&sm.average!==null?` · Average ${E(sm.average.toFixed(1))}`:''}</small></div>`;
+ }).join(''):empty('No finished checks yet','Group Checks and Roll Requests appear here when they end.')}</section>`;
 }
 function helpHtml(){const gm=isGM();return `<p><strong>Utilities</strong> holds the party tools for running a session.</p><ul><li><strong>Rolls</strong>: ${gm?'pick characters and skills and send a roll to players. <em>Group result</em> averages everyone\'s rolls against the DC for one pass or fail (a Group Check); <em>Individual rolls</em> asks each character for one roll of one skill and shows each result (a Roll Request). Only one can run at a time; it ends when everyone has rolled, or you can end it early.':'when the GM asks for a roll, roll it here for your character.'}</li><li><strong>Party Inventory</strong>: the shared party stash${gm?', which you turn on or off for players':''}, and the <strong>Party purse</strong> (copper to platinum${gm?'; electrum only while <em>Use electrum</em> is on in GM Setup':''}): deposit coins from your character or take them out${gm?'; you can also Adjust the purse directly and Undo adjustments and takes in History, and turn the coin vote on or off in GM Setup':' (taking out uses the party vote when the GM has it on for coins)'}.</li><li><strong>Roll Tables</strong>: roll a table and ${gm?'send the result to chat or selected players':'view results the GM shares'}.</li><li><strong>Conditions</strong>: see and remove the native conditions on party characters.</li>${gm?'<li><strong>History</strong>: finished Group Checks and Roll Requests.</li><li><strong>GM Setup</strong>: Player Access and other settings.</li>':''}</ul>${gm?'<p>Skipping a contribution, ending or cancelling a check, clearing stash history and removing a non-native condition ask you to confirm first.</p>':''}`;}
-function setupView(){return `<section class="ag-card agu-card"><h2>GM Setup</h2><label class="agu-inline"><input id="agu-access" type="checkbox" ${game.settings.get(ID,'playerAccessEnabled')?'checked':''}>Enable Player Access</label><p class="agu-note">This controls the player-facing Utilities launcher, not native Actor ownership.</p><label class="agu-inline"><input id="agu-stash-enabled" type="checkbox" ${stashEnabled()?'checked':''}>Party Stash on for players</label><p class="agu-note">Off: players can't see the stash or move items in or out. You can always manage it.</p><label class="agu-inline"><input id="agu-stash-vote" type="checkbox" ${stashVoteRequired()?'checked':''}>Party must accept when a player takes an item out</label><p class="agu-note">On: any other player can deny, and no answer in 60 seconds cancels. Off: players take items out freely. You are never voted on. Every move is recorded in the stash History tab either way.</p><label class="agu-inline"><input id="agu-purse-vote" type="checkbox" ${purseVoteRequired()?'checked':''}>Party must accept when a player takes coins out</label><p class="agu-note">Same rules as the item vote, but for the party purse and set separately. Until you save GM Setup it follows the item setting above.</p><label class="agu-inline"><input id="agu-electrum" type="checkbox" ${electrumEnabled()?'checked':''}>Use electrum</label><p class="agu-note">Off: electrum (ep) is left out of the party purse, Award Gold and coin Deposit/Take/Adjust. If the purse still holds electrum it stays visible (dimmed) until you convert it to silver or gold; nothing is converted without you confirming. Character sheets are not changed.</p><div class="agu-actions">${btn('save-access','Save Changes',{kind:'primary'})}</div></section>`;}
+/** GM Setup: settings only. Nothing saves until Save Changes in the footer (D4: Player Access too); Cancel discards. */
+function setupView(){
+ const box=(id,on,label,hint)=>`<div class="agu-setting"><label class="ag-field ag-field--inline"><input id="${id}" type="checkbox" data-setup-field ${on?'checked':''}>${E(label)}</label><p class="ag-field__hint agu-setting__hint">${E(hint)}</p></div>`;
+ return `<section class="ag-card agu-card agu-setup"><h2>GM Setup</h2>${[
+  box('agu-access',game.settings.get(ID,'playerAccessEnabled')===true,'Player Access','Shows the Utilities launcher to players. Native Actor ownership is not changed.'),
+  box('agu-stash-enabled',stashEnabled(),'Party Stash on for players','Off: players can\'t see the stash or move items in or out. You can always manage it.'),
+  box('agu-stash-vote',stashVoteRequired(),'Party must accept when a player takes an item out','On: any other player can deny, and no answer in 60 seconds cancels. Off: players take items out freely. You are never voted on. Every move is recorded in the stash History tab either way.'),
+  box('agu-purse-vote',purseVoteRequired(),'Party must accept when a player takes coins out','Same rules as the item vote, but for the party purse and set separately. Until you save GM Setup it follows the item setting above.'),
+  box('agu-electrum',electrumEnabled(),'Use electrum','Off: electrum (ep) is left out of the party purse, Award Gold and coin Deposit/Take/Adjust. If the purse still holds electrum it stays visible (dimmed) until you convert it to silver or gold; nothing is converted without you confirming. Character sheets are not changed.')
+ ].join('')}</section>`;}
+/** Window footer: GM Setup gets Cancel / status / Save Changes; other tabs a one-line status. */
+function footerHTML(app){
+ if(app.tab==='setup'&&isGM())return `<footer class="ag-footer agu-footer">${btn('setup-cancel','Cancel',{kind:'ghost'})}<span class="ag-footer__status" role="status" data-setup-status>${E(app.setupStatus??'')}</span>${btn('save-access','Save Changes',{kind:'primary'})}</footer>`;
+ return `<footer class="ag-footer agu-footer"><span class="ag-footer__status agu-footer__status" role="status">${app.tab==='inventory'?`Party stash: ${stashEnabled()?'on':'off'} for players`:'Native permissions apply'}</span></footer>`;
+}
 class UtilitiesApp extends ApplicationV2 {
- static DEFAULT_OPTIONS={id:'ashen-gate-utilities-window',classes:['ag-app','ag-utilities'],window:{title:'Ashen Gate | Utilities',resizable:true,minimizable:true},position:{width:900,height:690}};
- constructor(...args){super(...args);this.tab='rolls';this.rollMode='group';this.actorId='';this.rollActorId='';this.tableDraft='';this.tableAuto=false;this.lastDraw=[];this.filter='';this.takeActorId='';this.stashTab='items';this.historyShown=HISTORY_PAGE;this.purseCoin='gp';this.purseAmount='';}
- async _renderHTML(){if(!permitted())throw Error('Utilities is hidden for players.');this.tab=normalizeTab(this.tab);const tabs=[['rolls','Rolls'],['inventory','Party Inventory'],['tables','Roll Tables'],['conditions','Conditions'],...(isGM()?[['history','History'],['setup','GM Setup']]:[])];
-  const body=this.tab==='rolls'?rollsView(this):this.tab==='inventory'?inventoryView(this):this.tab==='tables'?tableView(this):this.tab==='conditions'?conditionsView(this):this.tab==='history'&&isGM()?historyView(this):this.tab==='setup'&&isGM()?setupView():empty('Unavailable view.');
-  return `<div class="agu-root"><header class="ag-header agu-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Utilities</h1><p>Group challenges, individual requests and party utilities</p></div><div class="ag-header__meta">${appearanceOpener()?`<button type="button" class="ag-btn ag-btn--ghost" data-open-appearance title="Choose your Ashen Gate appearance"><i class="fa-solid fa-palette" aria-hidden="true"></i>Appearance</button>`:''}<button type="button" class="ag-btn ag-btn--ghost" data-action="help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i>Help</button><span class="agu-version">v${VERSION} Alpha · ${isGM()?'GM':'Player'}</span></div></header><nav class="ag-tabs agu-tabs" aria-label="Utility sections">${tabs.map(([id,label])=>`<button type="button" data-tab="${id}" aria-current="${this.tab===id?'page':'false'}" class="${this.tab===id?'active':''}">${E(label)}</button>`).join('')}</nav><main class="agu-main">${body}</main><footer class="ag-footer agu-footer"><span>Foundry V14 · dnd5e 6.0.6 target · live acceptance pending</span><span>${this.tab==='inventory'?`Party stash: ${stashEnabled()?'on':'off'} for players`:'Native permissions apply'}</span></footer></div>`;
+ static DEFAULT_OPTIONS={id:'ashen-gate-utilities-window',classes:['ag-app','ag-utilities','agu-window'],window:{title:'Ashen Gate | Utilities',resizable:true,minimizable:true},position:{width:900,height:690}};
+ // Compact size; Comfortable (General Manager → My Appearance) scales it when the window is created.
+ constructor(options={}){super({...options,position:{...windowSize(UtilitiesApp.DEFAULT_OPTIONS.position),...options.position}});this.setupStatus='';this.tab='rolls';this.rollMode='group';this.actorId='';this.rollActorId='';this.tableDraft='';this.tableAuto=false;this.lastDraw=[];this.filter='';this.takeActorId='';this.stashTab='items';this.historyShown=HISTORY_PAGE;this.purseCoin='gp';this.purseAmount='';}
+ async _renderHTML(){if(!permitted())throw Error('Utilities is hidden for players.');this.tab=normalizeTab(this.tab);const tabs=[['rolls','Rolls','fa-dice-d20'],['inventory','Party Inventory','fa-sack-dollar'],['tables','Roll Tables','fa-table-list'],['conditions','Conditions','fa-heart-pulse'],...(isGM()?[['history','History','fa-clock-rotate-left',true],['setup','GM Setup','fa-gears',true]]:[])];
+  const body=this.tab==='rolls'?rollsView(this):this.tab==='inventory'?inventoryView(this):this.tab==='tables'?tableView(this):this.tab==='conditions'?conditionsView(this):this.tab==='history'&&isGM()?historyView(this):this.tab==='setup'&&isGM()?setupView():empty('Nothing to show here');
+  const version=game.modules.get(ID)?.version??VERSION;
+  const appearance=appearanceOpener()?`<button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-open-appearance ${tip('Choose your Ashen Gate appearance')}><i class="fa-solid fa-palette" aria-hidden="true"></i> Appearance</button>`:'';
+  const tabBar=tabs.map(([id,label,icon,gm])=>`<button type="button" role="tab" data-tab="${id}" aria-selected="${this.tab===id}" class="${[this.tab===id?'active':'',gm?'ag-tab--gm':''].filter(Boolean).join(' ')}"><i class="fa-solid ${icon}" aria-hidden="true"></i>${E(label)}</button>`).join('');
+  return `<div class="agu-root"><header class="ag-header agu-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Utilities</h1><p>Group challenges, individual requests and party utilities</p></div><div class="ag-header__meta">${appearance}<span class="ag-version">v${E(version)}</span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button></div></header><nav class="ag-tabs ag-tabs--scroll agu-tabs" role="tablist" aria-label="Utility sections">${tabBar}</nav><main class="agu-main">${body}</main>${footerHTML(this)}</div>`;
  }
  // Appearance needs no wiring here: the kit's --ag-* tokens are inherited from the document,
  // which General Manager (when active) keeps in sync with the user's skin.
  _replaceHTML(html,content){content.innerHTML=html;this.bind(content);}
  bind(root){
-  for(const el of root.querySelectorAll('[data-tab]'))el.addEventListener('click',async()=>{this.tab=el.dataset.tab;await this.render();});
+  for(const el of root.querySelectorAll('[data-tab]'))el.addEventListener('click',async()=>{this.tab=el.dataset.tab;this.setupStatus='';await this.render();});
   for(const r of root.querySelectorAll('input[name="agu-mode"]'))r.addEventListener('change',()=>{this.rollMode=r.value;const group=r.value==='group';
    for(const el of root.querySelectorAll('[data-group-only]'))el.hidden=!group;
    const hint=root.querySelector('#agu-skill-hint');if(hint)hint.textContent=group?'Characters choose from the ticked skills.':'Tick exactly one skill.';
@@ -247,6 +275,7 @@ class UtilitiesApp extends ApplicationV2 {
   for(const b of root.querySelectorAll('[data-open-uuid]'))b.addEventListener('click',ev=>{ev.preventDefault();openUuid(b.dataset.openUuid).catch(error);});
   root.querySelector('#agu-table-message')?.addEventListener('input',e=>{this.tableDraft=e.target.value;const b=root.querySelector('[data-action="table-send"]');if(b)b.disabled=!this.tableDraft.trim();});
   root.querySelector('#agu-table-auto')?.addEventListener('change',e=>{this.tableAuto=e.target.checked;});
+  for(const el of root.querySelectorAll('[data-setup-field]'))el.addEventListener('change',()=>{this.setupStatus='Unsaved changes';const st=root.querySelector('[data-setup-status]');if(st)st.textContent=this.setupStatus;});
   this.bindStash(root);
   for(const b of root.querySelectorAll('[data-action]'))b.addEventListener('click',()=>this.handle(b.dataset.action,b,root).catch(error));
  }
@@ -262,7 +291,7 @@ class UtilitiesApp extends ApplicationV2 {
   if(action==='skip'||action==='resolve'||action==='cancel'){
    if(!isGM())throw Error('GM only.');const session=activeSession();if(!session)throw Error('No active check.');
    const msg=action==='skip'?`Skip one contribution for ${game.actors.get(b.dataset.actor)?.name||'the character'}?`:action==='resolve'?'End now? All remaining contributions will be marked Skipped and the result saved to History.':'Cancel this interaction and save it in History?';
-   if(!await confirmDialog(msg,{title:action==='skip'?'Skip contribution':action==='resolve'?'End check':'Cancel interaction',yes:action==='skip'?'Skip contribution':action==='resolve'?'End and record':'Cancel interaction',no:'Keep going'}))return;
+   if(!await confirmDialog(msg,{title:action==='skip'?'Skip this contribution?':action==='resolve'?'End this check?':'Cancel this interaction?',yes:action==='skip'?'Skip contribution':action==='resolve'?'End and record':'Cancel interaction',no:'Keep going'}))return;
    await queueSession(async()=>{const latest=activeSession();if(!latest||latest.id!==session.id)throw Error('Session has changed.');
     if(action==='skip')skipRoll(latest,{actorId:b.dataset.actor,reason:'GM-confirmed',userId:game.user.id});
     if(action==='resolve')resolveNow(latest,{userId:game.user.id});
@@ -274,11 +303,11 @@ class UtilitiesApp extends ApplicationV2 {
   if(action==='create-stash'){if(!isGM())throw Error('GM only.');if(stashActor())throw Error('Party Stash already exists.');await Actor.create({name:'Ashen Gate | Party Stash',type:'npc',ownership:{default:stashEnabled()?OBSERVER():0},flags:{[ID]:{partyStash:true}}});await this.render();return;}
   if(action==='stash-take'){await notifyResult(withdrawItem(b.dataset.item,root.querySelector('#agu-stash-target')?.value));return;}
   if(action==='stash-history-more'){this.historyShown+=HISTORY_PAGE;await this.render();return;}
-  if(action==='stash-history-clear'){if(!await confirmDialog('Clear the whole stash history? This cannot be undone.',{title:'Clear stash history',yes:'Clear history'}))return;await clearStashHistory();this.historyShown=HISTORY_PAGE;ui.notifications?.info('Stash history cleared.');await this.render();return;}
+  if(action==='stash-history-clear'){if(!await confirmDialog('Clear the whole stash history? This cannot be undone.',{title:'Clear stash history?',yes:'Clear history',danger:true}))return;await clearStashHistory();this.historyShown=HISTORY_PAGE;ui.notifications?.info('Stash history cleared.');await this.render();return;}
   if(action==='gold-award'){if(await awardGoldDialog())await this.render();return;}
   if(action==='gold-undo'){
    if(!isGM())throw Error('GM only.');
-   if(!await confirmDialog('Take this gold back from every character who still has it? Anyone who has already spent it keeps it, and you will be told who.',{title:'Undo gold award',yes:'Undo award'}))return;
+   if(!await confirmDialog('Take this gold back from every character who still has it? Anyone who has already spent it keeps it, and you will be told who.',{title:'Undo gold award?',yes:'Undo award',danger:true}))return;
    const res=await undoGoldAward(b.dataset.entry),ok=res.filter(r=>r.ok),no=res.filter(r=>!r.ok);
    const msg=`${ok.length?`Took back ${ok.map(r=>`${r.removed} ${r.coin??'gp'} from ${r.actorName}`).join(', ')}.`:'Nothing was taken back.'}${no.length?` Not undone: ${no.map(r=>r.reason).join(' ')}`:''}`;
    (no.length?ui.notifications?.warn:ui.notifications?.info)?.call(ui.notifications,msg);await this.render();return;
@@ -291,13 +320,13 @@ class UtilitiesApp extends ApplicationV2 {
   if(action==='purse-convert'){if(await convertElectrumDialog())await this.render?.();return;}
   if(action==='purse-convert-undo'){
    if(!isGM())throw Error('GM only.');
-   if(!await confirmDialog('Undo this electrum conversion? The electrum goes back into the purse and the silver/gold it added comes out, only if the purse still holds that silver/gold.',{title:'Undo conversion',yes:'Undo conversion'}))return;
+   if(!await confirmDialog('Undo this electrum conversion? The electrum goes back into the purse and the silver/gold it added comes out, only if the purse still holds that silver/gold.',{title:'Undo this conversion?',yes:'Undo conversion',danger:true}))return;
    const r=await undoElectrumConvert(b.dataset.entry);
    (r.ok?ui.notifications?.info:ui.notifications?.warn)?.call(ui.notifications,r.ok?'Conversion undone.':`Not undone: ${r.reason}`);await this.render();return;
   }
   if(action==='purse-undo'){
    if(!isGM())throw Error('GM only.');
-   if(!await confirmDialog('Undo this purse change? A take is undone only if the character still holds the coins; nothing goes below 0.',{title:'Undo purse change',yes:'Undo change'}))return;
+   if(!await confirmDialog('Undo this purse change? A take is undone only if the character still holds the coins; nothing goes below 0.',{title:'Undo purse change?',yes:'Undo change',danger:true}))return;
    const r=await undoPurseEntry(b.dataset.entry);
    (r.ok?ui.notifications?.info:ui.notifications?.warn)?.call(ui.notifications,r.ok?'Purse change undone.':`Not undone: ${r.reason}`);await this.render();return;
   }
@@ -323,7 +352,8 @@ class UtilitiesApp extends ApplicationV2 {
   }
   if(action==='toggle-lock'){await setUnlocked(b.dataset.actor,!isUnlocked(getUnlocks(),b.dataset.actor));return;}
   if(action==='toggle-overlay'){await game.settings.set(ID,'overlayOpen',game.settings.get(ID,'overlayOpen')!==true);await this.render();return;}
-  if(action==='save-access'){if(!isGM())throw Error('GM only.');await game.settings.set(ID,'playerAccessEnabled',Boolean(root.querySelector('#agu-access')?.checked));const stashBox=root.querySelector('#agu-stash-enabled');if(stashBox&&stashBox.checked!==stashEnabled())await setStashEnabled(stashBox.checked);const voteBox=root.querySelector('#agu-stash-vote');if(voteBox&&voteBox.checked!==stashVoteRequired())await setStashVoteRequired(voteBox.checked);const coinBox=root.querySelector('#agu-purse-vote');if(coinBox)await setPurseVoteRequired(coinBox.checked);const epBox=root.querySelector('#agu-electrum');if(epBox&&epBox.checked!==electrumEnabled())await setElectrumEnabled(epBox.checked);ui.notifications.info('GM Setup saved.');return;}
+  if(action==='setup-cancel'){if(!isGM())throw Error('GM only.');this.setupStatus='';await this.render();return;}
+  if(action==='save-access'){if(!isGM())throw Error('GM only.');await game.settings.set(ID,'playerAccessEnabled',Boolean(root.querySelector('#agu-access')?.checked));const stashBox=root.querySelector('#agu-stash-enabled');if(stashBox&&stashBox.checked!==stashEnabled())await setStashEnabled(stashBox.checked);const voteBox=root.querySelector('#agu-stash-vote');if(voteBox&&voteBox.checked!==stashVoteRequired())await setStashVoteRequired(voteBox.checked);const coinBox=root.querySelector('#agu-purse-vote');if(coinBox)await setPurseVoteRequired(coinBox.checked);const epBox=root.querySelector('#agu-electrum');if(epBox&&epBox.checked!==electrumEnabled())await setElectrumEnabled(epBox.checked);this.setupStatus='Saved';const st=root.querySelector?.('[data-setup-status]');if(st)st.textContent=this.setupStatus;ui.notifications.info('GM Setup saved.');return;}
  }finally{b.disabled=false;}}
 }
 async function sendMessage(raw,root){if(!isGM())throw Error('GM only.');const content=String(raw).trim();if(!content||content.length>3000)throw Error('Message must be 1–3000 characters.');const selected=[...root.querySelectorAll('input[name="agu-recipient"]:checked')].map(x=>x.value),valid=selected.filter(id=>game.users.get(id)&&!game.users.get(id).isGM);if(valid.length!==selected.length)throw Error('Invalid recipients.');
@@ -364,7 +394,7 @@ async function removeCondition(actorId,statusId){
 }
 async function removeFromUI(actor,statusId){
  if(!actor)throw Error('Character not found.');
- if(isGM()&&!statusConfig(statusId)&&!await confirmDialog(`Remove "${statusName(statusId)}" from ${actor.name}? It is not a native status, so its source effect will be removed.`,{title:'Remove condition',yes:'Remove condition'}))return;
+ if(isGM()&&!statusConfig(statusId)&&!await confirmDialog(`Remove "${statusName(statusId)}" from ${actor.name}? It is not a native status, so its source effect will be removed.`,{title:'Remove this condition?',yes:'Remove condition',danger:true}))return;
  ui.notifications?.info(await removeCondition(actor.id,statusId));
 }
 const pendingRequests=new Map();
@@ -412,7 +442,7 @@ async function onSocket(msg,senderId){
 /* ---- Conditions overlay: a mostly transparent, per-user pop-out. ---- */
 function overlayHTML(){
  const groups=conditionGroups(partyCharacters(),{label:statusName,isNative:id=>Boolean(statusConfig(id)),canRemove:(a,id)=>canRemove(a,id)});
- return `<div class="agu-overlay">${groups.length?groups.map(g=>`<section class="agu-ov-group"><h3>${E(g.name)}</h3><ul>${g.conditions.map(c=>`<li><span>${E(c.label)}${c.custom?' <small>(Custom)</small>':''}</span>${c.removable?`<button type="button" class="agu-ov-x" data-ov-remove data-actor="${E(g.actorId)}" data-status="${E(c.id)}" title="Remove ${E(c.label)}" aria-label="Remove ${E(c.label)} from ${E(g.name)}">×</button>`:''}</li>`).join('')}</ul></section>`).join(''):'<p class="agu-ov-empty">No conditions.</p>'}</div>`;
+ return `<div class="agu-overlay">${groups.length?groups.map(g=>`<section class="agu-ov-group"><h3>${E(g.name)}</h3><ul>${g.conditions.map(c=>`<li><span>${E(c.label)}${c.custom?' <small>(Custom)</small>':''}</span>${c.removable?`<button type="button" class="agu-ov-x" data-ov-remove data-actor="${E(g.actorId)}" data-status="${E(c.id)}" ${tip(`Remove ${c.label}`)} aria-label="Remove ${E(c.label)} from ${E(g.name)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>`:''}</li>`).join('')}</ul></section>`).join(''):empty('No conditions','No party character has a condition right now.')}</div>`;
 }
 const savedOverlayPosition=()=>{const p=game.settings.get(ID,'overlayPosition')||{};return Object.fromEntries(['left','top','width','height'].filter(k=>Number.isFinite(p[k])).map(k=>[k,p[k]]));};
 let positionTimer=null;
@@ -427,7 +457,7 @@ class ConditionsOverlay extends ApplicationV2 {
  // Closing the window with its own X turns the overlay off for this user; closing it for a permission change does not.
  _onClose(options){super._onClose?.(options);if(overlayInstance===this)overlayInstance=null;if(!this.silentClose&&game.settings.get(ID,'overlayOpen'))game.settings.set(ID,'overlayOpen',false).catch(error);}
 }
-async function openOverlay(){if(!permitted())throw Error('Utilities access is hidden by the GM.');overlayInstance??=new ConditionsOverlay({position:savedOverlayPosition()});await overlayInstance.render({force:true});return overlayInstance;}
+async function openOverlay(){if(!permitted())throw Error('Utilities access is hidden by the GM.');if(!overlayInstance){const saved=savedOverlayPosition();overlayInstance=new ConditionsOverlay({position:Number.isFinite(saved.width)?saved:{width:windowSize(ConditionsOverlay.DEFAULT_OPTIONS.position).width,...saved}});}await overlayInstance.render({force:true});return overlayInstance;}
 async function closeOverlay(){if(!overlayInstance?.rendered)return;overlayInstance.silentClose=true;await overlayInstance.close();}
 function syncOverlay(){(game.settings.get(ID,'overlayOpen')===true&&permitted()?openOverlay():closeOverlay()).catch(error);}
 function rerenderConditions(){if(windowInstance?.rendered&&!activeRoll)windowInstance.render().catch(error);if(overlayInstance?.rendered)overlayInstance.render().catch(error);}
@@ -548,7 +578,7 @@ async function awardGoldDialog(){
  const lines=[mode==='split'?`Split ${plan.amount} ${coin} evenly: ${plan.share} ${coin} each.`:`${plan.share} ${coin} to each character.`,...plan.recipients.map(r=>`${r.actorName}: ${r.before} → ${r.after} ${coin}`)];
  if(plan.remainder)lines.push(`${plan.remainder} ${coin} left over will NOT be handed out; it stays with you.`);
  lines.push(isPublic?'The chat card will be public.':'The chat card will be whispered to the GM only.');
- if(!await confirmDialog(lines.join('\n'),{title:'Award Gold',yes:`Award ${plan.total} ${coin}`}))return null;
+ if(!await confirmDialog(lines.join('\n'),{title:'Award gold?',yes:`Award ${plan.total} ${coin}`}))return null;
  const out=await awardGold({amount,mode,actorIds,reason:form.reason??'',public:isPublic,coin});
  ui.notifications?.info(`Awarded ${out.entry.recipients.reduce((n,r)=>n+r.added,0)} ${coin}.${out.failed.length?` Not paid: ${out.failed.map(f=>`${f.actorName} (${f.reason})`).join(', ')}.`:''}`);
  return out;
@@ -677,7 +707,7 @@ async function adjustPurseDialog(){
  if(!form)return null;
  const coin=COINS.includes(form.coin)?form.coin:'gp',op=['add','remove','set'].includes(form.op)?form.op:'add';
  const plan=planPurseAdjust({op,coin,amount:form.amount,purseHas:now[coin],electrum:electrumEnabled()});
- if(!await confirmDialog(`Party purse ${COIN_LABELS[coin]}: ${plan.purseBefore} → ${plan.purseAfter} ${coin}.${form.reason?.trim()?`\nReason: ${form.reason.trim()}`:''}`,{title:'Adjust Party Purse',yes:`Set purse to ${plan.purseAfter} ${coin}`}))return null;
+ if(!await confirmDialog(`Party purse ${COIN_LABELS[coin]}: ${plan.purseBefore} → ${plan.purseAfter} ${coin}.${form.reason?.trim()?`\nReason: ${form.reason.trim()}`:''}`,{title:'Adjust the party purse?',yes:`Set purse to ${plan.purseAfter} ${coin}`}))return null;
  const entry=await adjustPurse({coin,op,amount:form.amount,reason:form.reason??''});
  ui.notifications?.info(`Party purse ${coin}: ${entry.purseBefore} → ${entry.purseAfter}.`);
  return entry;
@@ -713,7 +743,7 @@ async function convertElectrumDialog(){
  ],{ok:'Review Conversion'});
  if(!form)return null;
  const plan=planElectrumConvert({to:form.to==='sp'?'sp':'gp',coins:now});
- if(!await confirmDialog(convertPreview(plan).join('\n'),{title:'Convert Electrum',yes:`Convert ${plan.ep} ep`}))return null;
+ if(!await confirmDialog(convertPreview(plan).join('\n'),{title:'Convert electrum?',yes:`Convert ${plan.ep} ep`}))return null;
  const entry=await convertElectrum({to:plan.to,reason:form.reason??'',expectEp:plan.ep});
  ui.notifications?.info(`${convertLine(entry)}.`);
  return entry;
@@ -722,14 +752,14 @@ async function convertElectrumDialog(){
 function purseStrip(app,takers,target){
  const stash=stashActor();if(!stash)return '';
  const coins=readCoins(stash);
- if(!coins)return `<section class="agu-purse" aria-label="Party purse"><h3>Party purse</h3>${empty('The stash Actor has no dnd5e currency, so there is no purse.')}</section>`;
+ if(!coins)return `<section class="agu-purse" aria-label="Party purse"><h3>Party purse</h3>${empty('No purse','The stash Actor has no dnd5e currency, so there is no purse.')}</section>`;
  const ep=electrumEnabled(),stranded=strandedElectrum(coins,ep),choices=coinChoices(ep);
  if(!choices.includes(app.purseCoin))app.purseCoin='gp';
- const counters=shownCoins(coins,ep).map(c=>`<div class="agu-coin${c==='ep'&&stranded?' agu-coin--off':''}" role="group" aria-label="${E(COIN_LABELS[c])}: ${E(coins[c])}${c==='ep'&&stranded?' (electrum is off)':''}"><span class="agu-coin__label">${E(COIN_LABELS[c])} <abbr title="${E(COIN_LABELS[c])}">${c}</abbr></span><strong class="agu-coin__value">${E(coins[c])}</strong></div>`).join('');
- const coinSel=`<label>Coin<select id="agu-purse-coin">${choices.map(c=>option(c,`${COIN_LABELS[c]} (${c})`,app.purseCoin)).join('')}</select></label>`;
- const move=takers.length?`<div class="agu-purse-move"><label>Character<select id="agu-purse-actor">${takers.map(a=>option(a.id,`${a.name} (${readCoin(a,app.purseCoin)??'—'} ${app.purseCoin})`,target)).join('')}</select></label>${coinSel}<label>Amount<input type="number" id="agu-purse-amount" min="1" step="1" value="${E(app.purseAmount)}" inputmode="numeric"></label><div class="agu-actions">${btn('purse-deposit','Deposit',{kind:'ag-btn ag-btn--sm'})}${btn('purse-take','Take',{kind:'ag-btn ag-btn--sm'})}</div></div>`:'';
- const gm=isGM()?`<div class="ag-toolbar__end">${stranded?btn('purse-convert','Convert electrum to silver/gold',{kind:'ag-btn ag-btn--sm'}):''}${btn('purse-adjust','Adjust Purse',{kind:'ag-btn ag-btn--sm'})}</div>`:'';
- const epNote=stranded?`<p class="agu-note agu-note--warn">The purse still holds ${E(coins.ep)} electrum (ep), worth ${E(coins.ep*5)} sp. Electrum is off, so it can't be moved here; ${isGM()?'use <strong>Convert electrum to silver/gold</strong> (value kept exactly, undo in History) or turn electrum back on in GM Setup.':'the GM can convert it.'}</p>`:'';
+ const counters=shownCoins(coins,ep).map(c=>`<div class="agu-coin${c==='ep'&&stranded?' agu-coin--off':''}" role="group" aria-label="${E(COIN_LABELS[c])}: ${E(coins[c])}${c==='ep'&&stranded?' (electrum is off)':''}"><span class="agu-coin__label">${E(COIN_LABELS[c])} <abbr ${tip(COIN_LABELS[c])}>${c}</abbr></span><strong class="agu-coin__value">${E(coins[c])}</strong></div>`).join('');
+ const coinSel=`<label class="ag-field">Coin<select id="agu-purse-coin">${choices.map(c=>option(c,`${COIN_LABELS[c]} (${c})`,app.purseCoin)).join('')}</select></label>`;
+ const move=takers.length?`<div class="agu-purse-move"><label class="ag-field">Character<select id="agu-purse-actor">${takers.map(a=>option(a.id,`${a.name} (${readCoin(a,app.purseCoin)??'—'} ${app.purseCoin})`,target)).join('')}</select></label>${coinSel}<label class="ag-field">Amount<input type="number" id="agu-purse-amount" min="1" step="1" value="${E(app.purseAmount)}" inputmode="numeric"></label><div class="agu-actions">${btn('purse-deposit','Deposit',{kind:'sm',attrs:'data-purse-move="deposit"'})}${btn('purse-take','Take',{kind:'sm',attrs:'data-purse-move="take"'})}</div></div>`:'';
+ const gm=isGM()?`<div class="ag-toolbar__end">${stranded?btn('purse-convert','Convert electrum to silver/gold',{kind:'sm'}):''}${btn('purse-adjust','Adjust Purse',{kind:'sm'})}</div>`:'';
+ const epNote=stranded?`<p class="ag-notice ag-notice--warn agu-ep-note"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>The purse still holds ${E(coins.ep)} electrum (ep), worth ${E(coins.ep*5)} sp. Electrum is off, so it can't be moved here; ${isGM()?'use <strong>Convert electrum to silver/gold</strong> (value kept exactly, undo in History) or turn electrum back on in GM Setup.':'the GM can convert it.'}</span></p>`:'';
  const note=isGM()?`<p class="agu-note">Coin vote: ${purseVoteRequired()?'on':'off'} (change it in GM Setup).</p>`:`<p class="agu-note">Deposit moves coins from your character to the purse${purseVoteRequired()?'; Take needs every other connected player to accept':''}. Coins are never converted unless the GM does it.</p>`;
  return `<section class="agu-purse" aria-label="Party purse"><div class="agu-line"><h3>Party purse</h3>${gm}</div><div class="agu-coins">${counters}</div>${epNote}${move}${note}</section>`;
 }
@@ -835,9 +865,9 @@ function receiveVote(msg,senderId){
 const votePrompts=new Map();
 class StashVotePrompt extends ApplicationV2 {
  static DEFAULT_OPTIONS={classes:['ag-app','ag-utilities','agu-vote-app'],window:{title:'Party Stash: Approve?',minimizable:false},position:{width:380,height:'auto'}};
- constructor(request){super({id:`ashen-gate-utilities-vote-${request.pollId}`});this.request=request;}
+ constructor(request){super({id:`ashen-gate-utilities-vote-${request.pollId}`,position:windowSize(StashVotePrompt.DEFAULT_OPTIONS.position)});this.request=request;}
  async _renderHTML(){const r=this.request,secs=Math.max(0,Math.round((r.expiresAt-Date.now())/1000));
-  return `<div class="agu-vote"><p><strong>${E(r.requester)}</strong> wants to take <strong>${E(r.item)}</strong>${Number(r.quantity)>1?` (×${E(r.quantity)})`:''}${E(contentsNote(Number(r.contents)))} from the party stash for <strong>${E(r.actor)}</strong>.</p><p class="agu-note">If anyone denies, or not everyone answers within ${E(secs)} seconds, the item stays in the stash.</p><div class="agu-vote-actions">${btn('vote-deny','Deny',{kind:'danger'})}${btn('vote-accept','Accept',{kind:'primary'})}</div></div>`;}
+  return `<div class="agu-vote"><p><strong>${E(r.requester)}</strong> wants to take <strong>${E(r.item)}</strong>${Number(r.quantity)>1?` (×${E(r.quantity)})`:''}${E(contentsNote(Number(r.contents)))} from the party stash for <strong>${E(r.actor)}</strong>.</p><p class="agu-note">If anyone denies, or not everyone answers within ${E(secs)} seconds, the item stays in the stash.</p><div class="agu-vote-actions">${btn('vote-deny','Deny')}${btn('vote-accept','Accept',{kind:'primary'})}</div></div>`;}
  _replaceHTML(html,content){content.innerHTML=html;
   for(const b of content.querySelectorAll('[data-action^="vote-"]'))b.addEventListener('click',()=>{this.answer(b.dataset.action==='vote-accept'?'accept':'deny');});
  }
@@ -879,8 +909,8 @@ function onSheetDrop(actor,sheet,data){
 const STASH_COLUMNS=[['icon',''],['item','Item'],['qty','Qty'],['weight','Weight (each)'],['value','Value (each)'],['type','Type'],['action','Action']];
 function stashBody(app){
  const stash=stashActor(),on=stashEnabled();
- if(!stash)return empty(isGM()?'No party stash yet. Create one in Utilities → Party Inventory.':'There is no party stash yet.');
- if(!on&&!isGM())return empty('The GM has turned the party stash off.');
+ if(!stash)return empty('No party stash yet',isGM()?'Create one in Utilities → Party Inventory.':'Your GM hasn\'t set up a party stash yet.');
+ if(!on&&!isGM())return empty('The party stash is off','Your GM has turned the party stash off for now.');
  const rows=[...stash.items].map(i=>stashRow(i,{typeLabel:itemTypeLabel,electrum:electrumEnabled()}));
  const q=app.filter.trim().toLowerCase(),shown=q?rows.filter(r=>r.name.toLowerCase().includes(q)||r.typeLabel.toLowerCase().includes(q)):rows;
  const takers=isGM()?allCharacters():permittedActors();
@@ -890,15 +920,16 @@ function stashBody(app){
  // so every header sits over its column at every width.
  const cell=(col,html)=>`<span class="agu-stash-cell agu-col-${col}" role="${col==='icon'?'presentation':'cell'}">${html}</span>`;
  const head=`<div class="agu-stash-grid agu-stash-head" role="row">${STASH_COLUMNS.map(([col,label])=>`<span class="agu-stash-cell agu-col-${col}" role="${col==='icon'?'presentation':'columnheader'}">${E(label)}</span>`).join('')}</div>`;
- const rowHTML=r=>`<div class="agu-stash-grid agu-stash-row" role="row" draggable="true" data-stash-item="${E(r.id)}" data-uuid="${E(r.uuid??'')}">${cell('icon',r.img?`<img class="agu-stash-icon" src="${E(r.img)}" alt="">`:'')}${cell('item',`<button type="button" class="agu-stash-name" data-open-item="${E(r.id)}" title="Open ${E(r.name)}">${E(r.name)}</button>`)}${cell('qty',E(r.quantity))}${cell('weight',E(r.weight))}${cell('value',E(r.value))}${cell('type',E(r.typeLabel))}${cell('action',target?btn('stash-take','Take',{kind:'ag-btn ag-btn--sm',attrs:`data-item="${E(r.id)}" aria-label="Take ${E(r.name)}"`}):'')}</div>`;
+ const rowHTML=r=>`<div class="agu-stash-grid agu-stash-row" role="row" draggable="true" data-stash-item="${E(r.id)}" data-uuid="${E(r.uuid??'')}">${cell('icon',r.img?`<img class="agu-stash-icon" src="${E(r.img)}" alt="">`:'')}${cell('item',`<button type="button" class="agu-stash-name" data-open-item="${E(r.id)}" ${tip(`Open ${r.name}`)}>${E(r.name)}</button>`)}${cell('qty',E(r.quantity))}${cell('weight',E(r.weight))}${cell('value',E(r.value))}${cell('type',E(r.typeLabel))}${cell('action',target?btn('stash-take','Take',{kind:'sm',attrs:`data-item="${E(r.id)}" aria-label="Take ${E(r.name)}"`}):'')}</div>`;
  const table=groups.map(g=>`<section class="agu-stash-group"><h3 id="agu-stash-g-${E(g.replace(/\W+/g,'-'))}">${E(g)}</h3><div class="agu-stash-table" role="table" aria-labelledby="agu-stash-g-${E(g.replace(/\W+/g,'-'))}">${head}${shown.filter(r=>r.typeLabel===g).map(rowHTML).join('')}</div></section>`).join('');
- const toolbar=`<div class="ag-toolbar"><input type="search" id="agu-stash-search" placeholder="Search items" value="${E(app.filter)}" aria-label="Search the stash"><div class="ag-toolbar__end">${takers.length?`<label class="agu-inline">Take into <select id="agu-stash-target">${takers.map(a=>option(a.id,a.name,target)).join('')}</select></label>`:''}</div></div>`;
+ const count=q?`${shown.length} of ${rows.length}`:`${rows.length} ${rows.length===1?'item':'items'}`;
+ const toolbar=`<div class="ag-toolbar"><label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="agu-stash-search" placeholder="Search items" value="${E(app.filter)}" aria-label="Search the stash"></label>${takers.length?`<div class="ag-toolbar__filters"><label class="ag-field ag-field--inline agu-take-into">Take into<select id="agu-stash-target">${takers.map(a=>option(a.id,a.name,target)).join('')}</select></label></div>`:''}<span class="ag-toolbar__count">${E(count)}</span></div>`;
  const note=isGM()?`<p class="agu-note">${on?'On for players.':'Off for players; only you can see and use it.'} You move items freely: drag from any sheet onto this tab, drag a row onto a sheet, or use Take.</p>`:`<p class="agu-note">Drag an item from your character sheet onto this tab to stash it. To take one out, drag its row onto your sheet or use Take${stashVoteRequired()?'; every other connected player must accept':''}.</p>`;
- return purseStrip(app,takers,target)+toolbar+(rows.length?(table||empty('No items match.')):empty('The stash is empty.'))+`<div class="agu-dropzone">Drop items anywhere on this tab to put them in the stash</div>`+note;
+ return purseStrip(app,takers,target)+toolbar+(rows.length?(table||empty('Nothing matches','Clear the search to see every item.')):empty('No items yet','Drag an item from a character sheet onto this tab.'))+`<div class="agu-dropzone"><i class="fa-solid fa-hand-holding" aria-hidden="true"></i> Drop items anywhere on this tab to put them in the stash</div>`+note;
 }
 function stashPanel(app){
  const stash=stashActor();if(!stash||(!stashEnabled()&&!isGM()))return '';
- const tabs=`<nav class="ag-tabs agu-subtabs" aria-label="Stash sections">${[['items','Items'],['history','History']].map(([id,label])=>`<button type="button" data-stash-tab="${id}" aria-current="${app.stashTab===id?'page':'false'}" class="${app.stashTab===id?'active':''}">${label}</button>`).join('')}</nav>`;
+ const tabs=`<nav class="ag-tabs ag-tabs--scroll agu-subtabs" role="tablist" aria-label="Stash sections">${[['items','Items'],['history','History']].map(([id,label])=>`<button type="button" role="tab" data-stash-tab="${id}" aria-selected="${app.stashTab===id}" class="${app.stashTab===id?'active':''}">${label}</button>`).join('')}</nav>`;
  return `<section class="agu-stash" aria-label="Party stash">${tabs}<div class="agu-stash-body">${app.stashTab==='history'?historyBody(app):stashBody(app)}</div></section>`;
 }
 const HISTORY_PAGE=50;
@@ -908,14 +939,14 @@ function goldDetail(h){
  const c=entryCoin(h),per=(h.recipients??[]).map(r=>`${r.actorName} +${r.added} ${c}${Number.isFinite(r.before)?` (${r.before} → ${r.after})`:''}${r.undone?' · undone':''}`).join('; ');
  const left=(h.recipients??[]).some(r=>!r.undone);
  const undo=(h.undo??[]).flatMap(u=>u.results.filter(r=>!r.ok).map(r=>r.reason)).filter(Boolean);
- return `${h.reason?`<p>${E(h.reason)}</p>`:''}<p>${E(per)}${h.remainder?` · ${E(h.remainder)} ${c} not handed out`:''}</p>${isGM()&&undo.length&&left?`<p class="agu-note">Last undo refused: ${E(undo.slice(-3).join(' '))}</p>`:''}${isGM()&&left?`<div class="agu-actions">${btn('gold-undo',(h.undo??[]).length?'Undo Remaining':'Undo',{kind:'ag-btn ag-btn--sm',attrs:`data-entry="${E(h.id)}"`})}</div>`:''}`;
+ return `${h.reason?`<p>${E(h.reason)}</p>`:''}<p>${E(per)}${h.remainder?` · ${E(h.remainder)} ${c} not handed out`:''}</p>${isGM()&&undo.length&&left?`<p class="agu-note">Last undo refused: ${E(undo.slice(-3).join(' '))}</p>`:''}${isGM()&&left?`<div class="agu-actions">${btn('gold-undo',(h.undo??[]).length?'Undo Remaining':'Undo',{kind:'sm',attrs:`data-entry="${E(h.id)}"`})}</div>`:''}`;
 }
 /** Extra lines for an electrum conversion row: before → after, reason, undo state and the GM's Undo button. */
 function convertDetail(h){
  const b=h.before??{},a=h.after??{},parts=[`Purse ${b.ep} → ${a.ep} ep`,...(h.addGp?[`${b.gp} → ${a.gp} gp`]:[]),...(h.addSp?[`${b.sp} → ${a.sp} sp`]:[])];
  if(h.undone)parts.push('undone');
  const refused=(h.undo??[]).filter(u=>!u.ok).map(u=>u.reason).filter(Boolean);
- return `${h.reason?`<p>${E(h.reason)}</p>`:''}<p>${E(parts.join(' · '))}</p>${isGM()&&refused.length&&!h.undone?`<p class="agu-note">Last undo refused: ${E(refused.at(-1))}</p>`:''}${isGM()&&!h.undone?`<div class="agu-actions">${btn('purse-convert-undo','Undo',{kind:'ag-btn ag-btn--sm',attrs:`data-entry="${E(h.id)}"`})}</div>`:''}`;
+ return `${h.reason?`<p>${E(h.reason)}</p>`:''}<p>${E(parts.join(' · '))}</p>${isGM()&&refused.length&&!h.undone?`<p class="agu-note">Last undo refused: ${E(refused.at(-1))}</p>`:''}${isGM()&&!h.undone?`<div class="agu-actions">${btn('purse-convert-undo','Undo',{kind:'sm',attrs:`data-entry="${E(h.id)}"`})}</div>`:''}`;
 }
 /** Extra lines for a purse row: before → after, reason, undo state and the GM's Undo button. */
 function purseDetail(h){
@@ -926,7 +957,7 @@ function purseDetail(h){
  if(h.moved&&Number.isFinite(h.actorBefore))parts.push(`${h.actorName} ${h.actorBefore} → ${h.actorAfter} ${h.coin}`);
  if(h.undone)parts.push('undone');
  const refused=(h.undo??[]).filter(u=>!u.ok).map(u=>u.reason).filter(Boolean);
- return `${h.reason?`<p>${E(h.reason)}</p>`:''}${parts.length?`<p>${E(parts.join(' · '))}</p>`:''}${isGM()&&refused.length&&!h.undone?`<p class="agu-note">Last undo refused: ${E(refused.at(-1))}</p>`:''}${isGM()&&purseUndoable(h)?`<div class="agu-actions">${btn('purse-undo','Undo',{kind:'ag-btn ag-btn--sm',attrs:`data-entry="${E(h.id)}"`})}</div>`:''}`;
+ return `${h.reason?`<p>${E(h.reason)}</p>`:''}${parts.length?`<p>${E(parts.join(' · '))}</p>`:''}${isGM()&&refused.length&&!h.undone?`<p class="agu-note">Last undo refused: ${E(refused.at(-1))}</p>`:''}${isGM()&&purseUndoable(h)?`<div class="agu-actions">${btn('purse-undo','Undo',{kind:'sm',attrs:`data-entry="${E(h.id)}"`})}</div>`:''}`;
 }
 const worldClock=t=>{if(!Number.isFinite(t))return '';const d=Math.floor(t/86400),r=((t%86400)+86400)%86400,p=n=>String(Math.floor(n)).padStart(2,'0');return `World day ${d}, ${p(r/3600)}:${p((r%3600)/60)}`;};
 function historyLine(h){
@@ -938,13 +969,13 @@ function historyLine(h){
  return h.kind==='deposit'?`${who} put ${what} in the stash`:h.moved?`${who} took ${what} out of the stash`:`${who} tried to take ${what} out of the stash`;
 }
 function historyBody(app){
- let list;try{list=stashHistory();}catch(e){return empty(e.message);}
+ let list;try{list=stashHistory();}catch(e){return empty('History is unavailable',e.message);}
  const rows=list.slice().reverse(),shown=rows.slice(0,app.historyShown);
  const tone=a=>a==='denied'||a==='timed-out'?'ag-badge--danger':a==='accepted'?'ag-badge--ok':a==='gm'?'ag-badge--accent':'';
  const items=shown.map(h=>`<div class="agu-history agu-stash-log"><div class="agu-line"><span class="agu-stash-log__what">${h.img?`<img class="agu-stash-icon" src="${E(h.img)}" alt="">`:''}<strong>${E(historyLine(h))}</strong></span><span class="ag-badge ${tone(h.approval)}">${E(h.kind==='gold-award'?(entryCoin(h)==='gp'?'Gold':'Coins'):(PURSE_KINDS.includes(h.kind)||h.kind==='purse-convert')&&h.approval==='gm'?'Purse · GM':approvalLabel(h))}</span></div>${goldDetail(h)}${purseDetail(h)}<small>${E(new Date(h.realTime).toLocaleString())}${Number.isFinite(h.worldTime)?` · ${E(worldClock(h.worldTime))}`:''}</small></div>`).join('');
- const more=rows.length>shown.length?`<div class="agu-actions">${btn('stash-history-more',`Show more (${rows.length-shown.length} older)`,{kind:'ag-btn'})}</div>`:'';
- const clear=isGM()?`<div class="ag-toolbar__end">${btn('gold-award','Award Gold',{kind:'ag-btn'})}${btn('stash-history-clear','Clear History',{kind:'ag-btn ag-btn--danger',disabled:!rows.length})}</div>`:'';
- return `<div class="ag-toolbar"><span class="agu-note">${rows.length} ${rows.length===1?'entry':'entries'}, newest first. The log keeps the latest ${STASH_HISTORY_CAP}.</span>${clear}</div>${rows.length?items+more:empty('Nothing has moved in or out of the stash yet.')}`;
+ const more=rows.length>shown.length?`<div class="agu-actions">${btn('stash-history-more',`Show more (${rows.length-shown.length} older)`)}</div>`:'';
+ const clear=isGM()?`<div class="ag-toolbar__end">${awardGoldBtn()}${btn('stash-history-clear','Clear History',{kind:'danger',icon:'fa-trash',disabled:!rows.length})}</div>`:'';
+ return `<div class="ag-toolbar"><span class="ag-toolbar__count">${rows.length} ${rows.length===1?'entry':'entries'}, newest first. The log keeps the latest ${STASH_HISTORY_CAP}.</span>${clear}</div>${rows.length?items+more:empty('Nothing has moved yet','Items and coins moved in or out of the stash are listed here.')}`;
 }
 /** Wires the stash panel inside the Utilities window: tabs, search, take-into, sheet links, row drag-out, and drop-in over the whole tab. */
 UtilitiesApp.prototype.bindStash=function(root){
@@ -981,8 +1012,8 @@ const EMBED_MODES=new Set(['stash']);
 const embeds=new Set();
 /** HTML for one embed: a refusal note when this user may not see the stash, else the stash body (purse + items). */
 function embedHTML(state){
- if(!permitted())return empty('Utilities is hidden by the GM.');
- if(!isGM()&&!stashEnabled())return empty(stashActor()?'The GM has turned the party stash off.':'There is no party stash yet.');
+ if(!permitted())return empty('Party stash unavailable','Utilities is hidden by the GM for now.');
+ if(!isGM()&&!stashEnabled())return stashActor()?empty('The party stash is off','Your GM has turned the party stash off for now.'):empty('No party stash yet','Your GM hasn\'t set up a party stash yet.');
  return stashBody(state);
 }
 /**
@@ -1106,5 +1137,5 @@ Hooks.once('ready',()=>{
  Hooks.on('updateUser',refreshWindows);addLauncher(ui?.actors,ui?.actors?.element);
  lastPromptedSession=activeSession()?.id||null;
  syncOverlay();
- console.info(`${ID} ${VERSION} Alpha initialized. Foundry V14/dnd5e 6.0.6 live acceptance pending.`);
+ console.info(`${ID} ${VERSION} initialized.`);
 });

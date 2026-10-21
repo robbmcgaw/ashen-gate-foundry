@@ -1,3 +1,8 @@
+## 1.16.1 — 2026-10-21
+
+- Confirmations name the action (no more Yes/No), Help opens with a Close button, dialogs follow the Ashen Gate look; test wording removed from player views.
+- Delete location, Delete route, Clear Party Notes and discarding unsaved changes show a red action button; Abort journey now reads End journey. Move to… and Share with… use the shared form dialog.
+
 ## 1.16.0 — 2026-10-21
 
 - Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.

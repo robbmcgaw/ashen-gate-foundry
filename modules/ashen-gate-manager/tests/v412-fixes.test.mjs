@@ -35,7 +35,7 @@ test('(b) organize rules import checks the file before asking', () => {
   const main = read('../scripts/main.js');
   const at = main.indexOf('[data-ag-org-schema-file]');
   const block = main.slice(at, at + 1500);
-  assert.ok(block.indexOf('readRulesFile(data)') < block.indexOf('DialogV2.confirm'));
+  assert.ok(block.indexOf('readRulesFile(data)') < block.indexOf('confirmDialog('));
   assert.doesNotMatch(block, /Array\.isArray\(rules\)\?rules\.length:0/);
 });
 

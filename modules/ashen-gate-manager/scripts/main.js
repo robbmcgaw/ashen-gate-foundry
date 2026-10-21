@@ -1,5 +1,6 @@
 import {bindSkinPicker} from "./skin-picker.js";
 import {windowSize} from "./ag-html.mjs";
+import {confirmDialog, infoDialog} from "./ag-dialogs.mjs";
 import {createAppearanceController, registerAppearanceSettings, makeFoundryAppearanceController, syncSkinStylesheet, APPEARANCE_CONTRACT, DEFAULT_SKIN_ID} from "./appearance.js";
 import {auditTypedReferences, renderGmReferenceMarkers} from "./manager-resolver-bridge.mjs";
 import {createManagerDefinitionReader, READER_CONTRACT} from './native-definition-reader.mjs';
@@ -40,7 +41,7 @@ import {createBrowse, PAGE_SIZE, filterEntries} from './browse.js';
 import {ITEM_VIEWS, ORIGINS, RARITIES, DEFAULT_FILTERS, activeFilterCount, resolveTab} from './item-filters.js';
 import {toolbarHtml, bodyHtml, DEFAULT_STATE} from './browse-view.js';
 
-const {ApplicationV2, HandlebarsApplicationMixin, DialogV2} = foundry.applications.api;
+const {ApplicationV2, HandlebarsApplicationMixin} = foundry.applications.api;
 const FOLDER_NAMES = {Item: "Ashen Gate — Imported Items", JournalEntry: "Ashen Gate — Imported Journals",
   Actor: "Ashen Gate — Imported Actors", RollTable: "Ashen Gate — Imported Roll Tables", Macro: "Ashen Gate — Imported Macros"};
 const actionAllowed = new Set(["create", "update", "metadata"]);
@@ -199,7 +200,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.42.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.42.1", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -440,9 +441,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const preset=edit&&this.#findPreset(edit.kind,edit.id);
     if(!preset)return;
     const noun=edit.kind==='layer'?'layer':'mood';
-    const yes=await DialogV2.confirm({window:{title:`Remove scene ${noun}`},modal:true,rejectClose:false,
-      content:`<p><strong>Remove the ${noun} "${escapeHtml(preset.label)}"?</strong> Scenes already using it keep their look; removing it from a scene or Back to normal still restores them.</p>`,
-      yes:{label:`Remove ${noun}`},no:{label:'Cancel'}});
+    const yes=await confirmDialog(`Remove the ${noun} "${preset.label}"? Scenes already using it keep their look; removing it from a scene or Back to normal still restores them.`,
+      {title:`Remove this scene ${noun}?`,yes:`Remove ${noun}`,danger:true});
     if(!yes)return;
     this.moodEdit=null;
     await this.#moodResult(sceneMoods().removePreset(preset.id,{kind:edit.kind}),`${noun==='layer'?'Layer':'Mood'} "${preset.label}" removed.`);
@@ -832,9 +832,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         break;
       }
       case "help": {
-        await DialogV2.confirm({window:{title:'Ashen Gate | General Manager Help'},
-          content:'<p><strong>Items:</strong> one tab with a side rail: <strong>All items</strong> (search), <strong>Ashen Gate records</strong> (the old Library), <strong>Folders</strong> (Organize), <strong>Core links</strong>, <strong>Checks</strong>, plus Export, Adopt and NPC Codex. The filters at the top (search, source, type, origin, rarity, folder, has core_ref) stay as you move between rail entries, so you can filter to DDB / Plutonium items and then Preview organize for just those.</p><p><strong>All items:</strong> one search over world Actors, Items, Journals (and pages), Ashen Gate records from Locations, Quest Log, Renown (factions and deities), Skill Trees, Headquarters, the Profession Ledger and the NPC Codex, and (after Load compendiums) compendium indexes. Type words or prefixes such as id:MAT-HERB, id:DEITY-, type:deity, type:npc-codex, tag:, status:, tier:major. An NPC Actor and its Codex entry are one row; Open on it jumps to Items → NPC Codex at that NPC, Open on a deity opens Renown\u2019s Pantheon at it. Open shows the sheet or the owning module; drag a world or compendium row onto a sheet, the canvas or a journal. Read-only; 100 rows per page.</p><p><strong>Item preview:</strong> pick an item\u2019s name in All items (or an Item in Ashen Gate records) to see dnd5e\u2019s own item card, with where it lives (world or compendium, full folder path, uuid) and its type, rarity, source, origin, core_ref, Ashen Gate id, price, weight and attunement below. Hover an item name for the same card as a tooltip. Read-only; a compendium item is loaded on its own, never the whole compendium.</p><p><strong>Modules:</strong> open each Ashen Gate module, and see on each card whether it is <strong>Visible to players</strong> or <strong>Hidden</strong>. <strong>Reveal to players</strong> / <strong>Hide from players</strong> change that module\u2019s own Player Access setting; <strong>Refresh</strong> re-reads them and <strong>Hide all</strong> (asks first) hides every visible one. Hiding never deletes progress.</p><p><strong>Appearance</strong> (top bar, next to Help): pick the world default skin, Save World Default, or Open My Appearance for your own choice. Escape or a click outside closes it.</p><p><strong>Clean import:</strong> Choose Manager JSON or a ZIP; select Development for draft content, Validate & Preview, Select eligible, then Import.</p><p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro; no Scenes or Playlists. </p><p><strong>Item effects:</strong> an Item record can bring its Active Effects (each with a permanent eff_id). The preview lists them under the Item as New, Update, Kept or Untouched. Effects you edited in Foundry keep your edits, effects missing from the file are never deleted, and effects you made by hand are never touched. Nothing in an effect runs.</p><p><strong>ZIP bundles:</strong> a ZIP holding several import files (Manager packages plus Quest, Skill Tree, Headquarters or Factions files) shows a ZIP contents list. Untick any you do not want, press Import selected files, then preview and Apply each file in turn (Manager packages first). Each file gets its own result; Skip this file or Stop ZIP import at any time. ZIP scripts never run. Bundled images are uploaded only if that option is enabled.</p><p><strong>Folders:</strong> foundry.folder_path creates nested folders per document type. <strong>Links:</strong> canonical refs bind after creation. Markers [[AGREF:MAT-EXAMPLE|Material]] are provisional pending Tim.</p><p>Back up a test world. Existing Tables and Macros are never replaced. Existing Actors change only if you tick <strong>Update existing actors</strong>: then their name, image, token settings and package items follow the file, and HP, XP, level, conditions, player items, notes, ownership, folders and other modules\' data are kept.</p>',
-          modal:true,rejectClose:false});
+        await infoDialog('General Manager help',
+          '<p><strong>Items:</strong> one tab with a side rail: <strong>All items</strong> (search), <strong>Ashen Gate records</strong> (the old Library), <strong>Folders</strong> (Organize), <strong>Core links</strong>, <strong>Checks</strong>, plus Export, Adopt and NPC Codex. The filters at the top (search, source, type, origin, rarity, folder, has core_ref) stay as you move between rail entries, so you can filter to DDB / Plutonium items and then Preview organize for just those.</p><p><strong>All items:</strong> one search over world Actors, Items, Journals (and pages), Ashen Gate records from Locations, Quest Log, Renown (factions and deities), Skill Trees, Headquarters, the Profession Ledger and the NPC Codex, and (after Load compendiums) compendium indexes. Type words or prefixes such as id:MAT-HERB, id:DEITY-, type:deity, type:npc-codex, tag:, status:, tier:major. An NPC Actor and its Codex entry are one row; Open on it jumps to Items → NPC Codex at that NPC, Open on a deity opens Renown\u2019s Pantheon at it. Open shows the sheet or the owning module; drag a world or compendium row onto a sheet, the canvas or a journal. Read-only; 100 rows per page.</p><p><strong>Item preview:</strong> pick an item\u2019s name in All items (or an Item in Ashen Gate records) to see dnd5e\u2019s own item card, with where it lives (world or compendium, full folder path, uuid) and its type, rarity, source, origin, core_ref, Ashen Gate id, price, weight and attunement below. Hover an item name for the same card as a tooltip. Read-only; a compendium item is loaded on its own, never the whole compendium.</p><p><strong>Modules:</strong> open each Ashen Gate module, and see on each card whether it is <strong>Visible to players</strong> or <strong>Hidden</strong>. <strong>Reveal to players</strong> / <strong>Hide from players</strong> change that module\u2019s own Player Access setting; <strong>Refresh</strong> re-reads them and <strong>Hide all</strong> (asks first) hides every visible one. Hiding never deletes progress.</p><p><strong>Appearance</strong> (top bar, next to Help): pick the world default skin, Save World Default, or Open My Appearance for your own choice. Escape or a click outside closes it.</p><p><strong>Clean import:</strong> Choose Manager JSON or a ZIP; select Development for draft content, Validate & Preview, Select eligible, then Import.</p><p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro; no Scenes or Playlists. </p><p><strong>Item effects:</strong> an Item record can bring its Active Effects (each with a permanent eff_id). The preview lists them under the Item as New, Update, Kept or Untouched. Effects you edited in Foundry keep your edits, effects missing from the file are never deleted, and effects you made by hand are never touched. Nothing in an effect runs.</p><p><strong>ZIP bundles:</strong> a ZIP holding several import files (Manager packages plus Quest, Skill Tree, Headquarters or Factions files) shows a ZIP contents list. Untick any you do not want, press Import selected files, then preview and Apply each file in turn (Manager packages first). Each file gets its own result; Skip this file or Stop ZIP import at any time. ZIP scripts never run. Bundled images are uploaded only if that option is enabled.</p><p><strong>Folders:</strong> foundry.folder_path creates nested folders per document type. <strong>Links:</strong> canonical refs bind after creation. Markers such as [[AGREF:MAT-EXAMPLE|Material]] link to the record with that id.</p><p>Back up a test world. Existing Tables and Macros are never replaced. Existing Actors change only if you tick <strong>Update existing actors</strong>: then their name, image, token settings and package items follow the file, and HP, XP, level, conditions, player items, notes, ownership, folders and other modules\' data are kept.</p>');
         break;
       }
       case "preview": await this.#preview(); break;
@@ -884,9 +883,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case "draft-cancel": case "draft-apply": case "draft-save-layer": case "draft-save-mood": await this.#draftAction(name); break;
       case "mood-export": case "mood-import-cancel": case "mood-import-apply": await this.#moodShareAction(name); break;
       case "mood-reset": {
-        const yes=await DialogV2.confirm({window:{title:'Reset scene moods and layers to defaults'},modal:true,rejectClose:false,
-          content:'<p><strong>Replace every mood and layer preset with the shipped defaults?</strong> Your own presets and edits are deleted. Scenes are not changed.</p>',
-          yes:{label:'Reset moods to defaults'},no:{label:'Cancel'}});
+        const yes=await confirmDialog('Replace every mood and layer preset with the shipped defaults? Your own presets and edits are deleted. Scenes are not changed.',
+          {title:'Reset scene moods and layers?',yes:'Reset moods to defaults',danger:true});
         if(yes){this.moodEdit=null;await this.#moodResult(sceneMoods().resetDefaults(),'Moods and layers reset to the defaults.');}
         break;
       }
@@ -976,8 +974,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const targets=rows.filter(r=>r.canToggle && r.playerAccessEnabled);
     if(!targets.length){this.playerAccessMessage='No visible supported player interfaces need hiding.';await this.render();return;}
     const names=targets.map(r=>r.title).join(', ');
-    const confirmed=await DialogV2.confirm({window:{title:'Hide All Player Interfaces — confirm'},modal:true,rejectClose:false,
-      content:`<p>Hide <strong>${targets.length}</strong> currently visible player interface(s)?</p><p>Each specialist module saves its own access setting. <strong>No character or campaign progress will be deleted.</strong></p><p>${escapeHtml(names)}</p><p>This is not an atomic operation; any failures will be reported.</p>`});
+    const confirmed=await confirmDialog(`Hide ${targets.length} currently visible player window(s)?\nEach module saves its own access setting. No character or campaign progress will be deleted.\n${names}\nModules are hidden one at a time; any failures will be reported.`,
+      {title:'Hide all player windows?',yes:'Hide all',danger:true});
     if(!confirmed)return;
     this.busy=true;
     try{
@@ -1072,8 +1070,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       this.errors=[`${message} Enable or update it.`];
       this.importReports=pushReport(this.importReports,buildBlockedReport({file:fileLabel,module:spec.label,message}));
       await this.render();return;}
-    const yes=await DialogV2.confirm({window:{title:`Import into ${spec.label}`},modal:true,rejectClose:false,
-      content:`<p><strong>${rows.length}</strong> ${escapeHtml(spec.kind.toLowerCase())} record(s) will be passed to <strong>${escapeHtml(spec.label)}</strong>, which stores and owns them.</p><p>${spec.canUpdate&&this.updateExisting?'Records already in the world are replaced; their progress and state are kept.':'Records already in the world are kept as they are.'} Back up your world first.</p>`});
+    const yes=await confirmDialog(`${rows.length} ${spec.kind.toLowerCase()} record(s) will be passed to ${spec.label}, which stores and owns them.\n${spec.canUpdate&&this.updateExisting?'Records already in the world are replaced; their progress and state are kept.':'Records already in the world are kept as they are.'} Back up your world first.`,
+      {title:`Import into ${spec.label}?`,yes:'Import'});
     if(!yes)return;
     this.applyRan=true;
     this.busy=true;
@@ -1164,11 +1162,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!CAPTURE_TYPES.includes(this.captureKind)) throw new Error("Choose a valid classification.");
     const docs=[...this.captureSelected].map(id=>game.items.get(id)).filter(Boolean);
     if (!docs.length) return toast("Select at least one world Item to tag.");
-    const yes=await DialogV2.confirm({
-      window:{title:"Tag existing Items for review"},
-      content:`<p>Tag <strong>${docs.length}</strong> world Items as <strong>${this.captureKind}</strong> candidates?</p><p>This adds only a private module flag. It does not change the Item rules, make it canonical, or link it to a GitHub record. Re-tagging updates the classification but retains the capture ID.</p>`,
-      rejectClose:false,modal:true
-    });
+    const yes=await confirmDialog(`Tag ${docs.length} world Items as ${this.captureKind} candidates?\nThis adds only a private module flag. It does not change the Item rules, make it canonical, or link it to a GitHub record. Re-tagging updates the classification but keeps the capture tag.`,
+      {title:'Tag Items for review?',yes:'Tag Items'});
     if (!yes) return;
     this.busy=true;
     let tagged=0, failures=0;
@@ -1193,9 +1188,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!game.user.isGM) throw new Error("GM access required.");
     const docs=[...this.captureSelected].map(id=>game.items.get(id)).filter(doc=>doc&&captureOf(doc));
     if (!docs.length) return toast("No tagged world Items selected.");
-    const yes=await DialogV2.confirm({window:{title:"Remove recovery tags"},
-      content:`<p>Remove the review tags from <strong>${docs.length}</strong> world Items?</p><p>Item contents and imported source bindings will remain unchanged. Removing a tag discards its local capture ID; later re-tagging creates a new capture ID.</p>`,
-      rejectClose:false,modal:true});
+    const yes=await confirmDialog(`Remove the review tags from ${docs.length} world Items?\nItem contents and imported source bindings stay unchanged. Removing a tag discards its local capture tag; tagging again later starts a new one.`,
+      {title:'Remove recovery tags?',yes:'Remove tags',danger:true});
     if (!yes) return;
     this.busy=true;let done=0,failures=0;
     try {for (const doc of docs) {try{await doc.unsetFlag(MODULE_ID,"capture");done++;}catch(err){failures++;console.error(`[${MODULE_ID}] untag failed`,err);}}}
@@ -1208,9 +1202,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     // Export ALL tagged world Items, regardless of the filter or selection currently displayed.
     const tagged=game.items.contents.filter(doc=>captureOf(doc));
     if (!tagged.length) return toast("No tagged world Items to export.");
-    const yes=await DialogV2.confirm({window:{title:"Export tagged Items for review"},
-      content:`<p>Download a JSON review package containing <strong>${tagged.length}</strong> tagged world Items?</p><p>The export contains rules text, descriptions, system data, effects, images and other modules' Item flags. <strong>Review for GM secrets and third-party material before sharing.</strong> This does not publish to GitHub and does not authorize any Item as approved.</p>`,
-      rejectClose:false,modal:true});
+    const yes=await confirmDialog(`Download a JSON review package containing ${tagged.length} tagged world Items?\nThe export contains rules text, descriptions, system data, effects, images and other modules' Item flags. Review it for GM secrets and third-party material before sharing. This does not publish to GitHub and does not mark any Item as approved.`,
+      {title:'Export tagged Items for review?',yes:'Export Items'});
     if(!yes)return;
     const pack=buildCapturePackage(tagged.map(doc=>({
       id:doc.id,uuid:doc.uuid,capture:captureOf(doc),source:sourceFlag(doc),raw:doc.toObject()
@@ -1241,28 +1234,19 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     if(markerProblems.length){this.errors=markerProblems;blocked(`Source markers need their targets: ${markerProblems.slice(0,3).join(' ')}`,'Select the target records too, or import them first, then apply again.');this.message='Source markers need all their targets; no documents were imported.';await this.render();return;}
     const pendingGraph=dependencyOrder(this.pkg.records.filter(r=>targetRows.some(row=>row.id===r.id)));
-    const cycleNotice=pendingGraph.cycles.length ? `<p><strong>${pendingGraph.cycles.length} circular reference path(s).</strong> These are permitted because the Manager stores stable Ashen Gate IDs. If any required target fails creation, its references are not finalized and the error is logged.</p>` : '';
+    const cycleNotice=pendingGraph.cycles.length ? `${pendingGraph.cycles.length} circular reference path(s). These are allowed because the Manager stores stable Ashen Gate ids. If a required target fails to create, its references are not finalized and the error is logged.` : '';
     const locRows=targetRows.filter(r=>r.kind==='Location');
     const routeRows=targetRows.filter(r=>r.kind==='Route');
     const docRows=targetRows.filter(r=>r.kind!=='Location'&&r.kind!=='Route');
     const actorUpdates=docRows.filter(r=>r.kind==='Actor'&&r.action==='update');
     const wantsScriptMacros=targetRows.some(r=>this.pkg.records.find(rec=>rec.id===r.id)?.foundry?.document_type==='Macro' && this.pkg.records.find(rec=>rec.id===r.id)?.foundry?.data?.type==='script');
-    const decision = await DialogV2.confirm({
-      window:{title:"Confirm Foundry world changes"},
-      content:`<p><strong>${docRows.length} document(s)</strong>${locRows.length?` and <strong>${locRows.length} location(s)</strong> (passed to Locations, after the documents)`:''}${routeRows.length?` and <strong>${routeRows.length} route(s)</strong> (passed to Locations, after the locations)`:''} will be created/updated in this world.</p>${cycleNotice}<p>Back up your test world. This import is non-transactional: partial writes may remain if anything fails.</p><p><strong>Actors:</strong> ${actorUpdates.length?`${actorUpdates.length} existing Actor(s) will have their definition updated (you confirm this separately next).`:'only new NPC/character definitions; existing Actors are not changed.'} HP, XP, level, conditions and player items are never replaced. ${wantsScriptMacros?'<strong>Warning: this import installs untrusted Script Macro source as GM-only, but never executes it.</strong>':''}</p><p>${this.uploadZipArtwork&&this.zipMedia.size?`${this.zipMedia.size} bundled assets may be uploaded to the current world before importing documents.`:'ZIP artwork will not be uploaded. If actor images reference missing world paths, upload them manually.'}</p>`,
-      rejectClose:false,
-      modal:true
-    });
+    const decision = await confirmDialog(`${docRows.length} document(s)${locRows.length?` and ${locRows.length} location(s) (passed to Locations, after the documents)`:''}${routeRows.length?` and ${routeRows.length} route(s) (passed to Locations, after the locations)`:''} will be created or updated in this world.${cycleNotice?`\n${cycleNotice}`:''}\nBack up your world first. If anything fails part way, the changes already made stay.\nActors: ${actorUpdates.length?`${actorUpdates.length} existing Actor(s) will have their definition updated (you confirm this separately next).`:'only new NPC/character definitions; existing Actors are not changed.'} HP, XP, level, conditions and player items are never replaced.${wantsScriptMacros?' Warning: this import installs untrusted Script Macro source as GM-only, but never runs it.':''}\n${this.uploadZipArtwork&&this.zipMedia.size?`${this.zipMedia.size} bundled assets may be uploaded to the current world before importing documents.`:'ZIP artwork will not be uploaded. If actor images reference missing world paths, upload them manually.'}`,
+      {title:'Apply this import to the world?',yes:'Import'});
     if (!decision) return;
     if (actorUpdates.length) {
-      const list=actorUpdates.map(r=>`<li><strong>${escapeHtml(r.name)}</strong> <code>${escapeHtml(r.id)}</code><ul>${r.changes.map(c=>`<li>${escapeHtml(c)}</li>`).join('')}</ul></li>`).join('');
-      const sure=await DialogV2.confirm({
-        window:{title:'Update existing Actors'},
-        content:`<p><strong>This changes ${actorUpdates.length} Actor(s) already in your world.</strong> Only the listed definition fields and package items change. HP, XP, level, conditions, player-added items, notes, ownership, folders and other modules' data are kept.</p><ul>${list}</ul><p>A JSON backup of these Actors downloads automatically before anything is written.</p>`,
-        yes:{label:`Update ${actorUpdates.length} existing Actor(s)`,icon:'fa-solid fa-triangle-exclamation'},
-        no:{label:'Cancel'},
-        rejectClose:false,modal:true
-      });
+      const list=actorUpdates.map(r=>`• ${r.name}: ${r.changes.join('; ')}`).join('\n');
+      const sure=await confirmDialog(`This changes ${actorUpdates.length} Actor(s) already in your world. Only the listed definition fields and package items change. HP, XP, level, conditions, player-added items, notes, ownership, folders and other modules' data are kept.\n${list}\nA JSON backup of these Actors downloads automatically before anything is written.`,
+        {title:'Update existing Actors?',yes:`Update ${actorUpdates.length} existing Actor(s)`,danger:true});
       if (!sure) return;
     }
     this.applyRan=true;
@@ -1509,8 +1493,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const rows=this.#getLibrarySelected();
     if(!rows.length) return toast('Select managed documents first.');
     const editing=rows.map(r=>({source_id:r.sourceId,uuid:r.uuid,local_edits:localEdits(r.doc),snapshot:docManagerSnapshot(r.doc)}));
-    const yes=await DialogV2.confirm({window:{title:'Export managed world documents'},
-      content:`<p>Export <strong>${editing.length}</strong> managed documents and their local edits for review?</p><p>This includes rules text and potentially GM-only content. Review before sharing. No changes are made.</p>`,rejectClose:false,modal:true});
+    const yes=await confirmDialog(`Export ${editing.length} managed documents and their local edits for review?\nThis includes rules text and possibly GM-only content. Review it before sharing. Nothing in the world changes.`,
+      {title:'Export managed documents?',yes:'Export documents'});
     if (!yes) return;
     downloadJson(`ag-managed-review-${Date.now()}.json`,{
       schema_version:'ag-foundry-review/0.3',review_status:'unreviewed',
@@ -1532,18 +1516,15 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       (check.allowed?accepted:denied).push({...row,reason:check.reason});
     }
     if(!accepted.length){this.libraryMessage=`No ${action} eligible records. ${denied.map(r=>`${r.sourceId}: ${r.reason}`).join(' | ')}`;await this.render();return;}
-    const warning=denied.length?`<p>Skipped ${denied.length}: ${denied.map(r=>r.sourceId).join(', ')}</p>`:'';
-    const first=await DialogV2.confirm({window:{title:`${action.toUpperCase()} managed content`},
-      content:`<p><strong>${accepted.length}</strong> managed world document(s) will be ${action}d.</p>${warning}
-      <p>Existing Actor items, player progress, and unmanaged content are not modified. An automatic JSON snapshot download is made first.</p>
-      ${action==='delete'?'<p><strong>PERMANENT DELETE.</strong> Only archived, unreferenced documents are eligible. Make a world backup first.</p>':''}`,
-      yes:{label:action==='delete'?'Continue':`${action[0].toUpperCase()}${action.slice(1)} ${accepted.length} record(s)`},no:{label:'Cancel'},
-      modal:true,rejectClose:false});
+    const warning=denied.length?`\nSkipped ${denied.length}: ${denied.map(r=>r.name??r.sourceId).join(', ')}`:'';
+    const verb=`${action[0].toUpperCase()}${action.slice(1)}`;
+    const first=await confirmDialog(`${accepted.length} managed world document(s) will be ${action}d.${warning}
+Existing Actor items, player progress and unmanaged content are not changed. A JSON snapshot downloads first.${action==='delete'?'\nThis deletes permanently. Only archived documents that nothing refers to can be deleted. Make a world backup first.':''}`,
+      {title:`${verb} managed content?`,yes:action==='delete'?'Continue':`${verb} ${accepted.length} record(s)`,danger:action!=='restore'});
     if(!first)return;
     if(action==='delete') {
-      const second=await DialogV2.confirm({window:{title:'FINAL DELETE CONFIRMATION'},
-        content:`<p>Delete <strong>${accepted.length}</strong> archived Foundry documents permanently? A JSON snapshot is not a full world backup.</p><ul>${accepted.map(r=>`<li>${escapeHtml(r.name)} <code>${escapeHtml(r.sourceId)}</code></li>`).join('')}</ul>`,
-        yes:{label:`Delete ${accepted.length} archived record(s)`},no:{label:'Cancel'},modal:true,rejectClose:false});
+      const second=await confirmDialog(`Delete ${accepted.length} archived Foundry documents permanently? A JSON snapshot is not a full world backup.\n${accepted.map(r=>`• ${r.name}`).join('\n')}`,
+        {title:'Delete managed content permanently?',yes:`Delete ${accepted.length} archived record(s)`,danger:true});
       if(!second)return;
     }
     this.#downloadSnapshots(accepted.map(r=>r.doc),`before-${action}-${Date.now()}`);
@@ -1593,10 +1574,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       if(result.action==='replace') candidates.push({row,record,patch:result.patch,local:result.localPaths});
     }
     if(!candidates.length){this.libraryMessage=`Nothing eligible to replace. ${denied.join(' | ')}`;await this.render();return;}
-    const yes=await DialogV2.confirm({window:{title:'REPLACE fields from source — confirm'},modal:true,rejectClose:false,
-      content:`<p>Replace <strong>${candidates.length}</strong> managed Item(s) with values from <strong>${this.pkg.manifest.package_id}</strong>?</p>
-      <p>This can overwrite manually edited source-owned fields: <strong>${candidates.flatMap(c=>c.local.map(p=>c.row.sourceId+'.'+p)).join(', ')||'None'}</strong>.</p>
-      <p>Preserves Foundry IDs, other non-managed fields, and Actor inventories. JSON snapshots will download automatically.</p>`});
+    const yes=await confirmDialog(`Replace ${candidates.length} managed Item(s) with values from ${this.pkg.manifest.package_id}?
+This can overwrite source-owned fields you edited by hand: ${candidates.flatMap(c=>c.local.map(p=>`${c.row.name??c.row.sourceId} (${p})`)).join(', ')||'none'}.
+Foundry links, other fields and Actor inventories are kept. JSON snapshots download automatically.`,
+      {title:'Replace fields from the source?',yes:'Replace fields',danger:true});
     if(!yes)return;
     this.#downloadSnapshots(candidates.map(c=>c.row.doc),`before-replace-${Date.now()}`);
     this.busy=true;let done=0,errors=[];
@@ -1610,8 +1591,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   async #stageCompendium() {
     const items=this.#getLibrarySelected().filter(r=>r.kind==='Item' && r.entityType!=='Location' && r.entityType!=='Region' && !String(r.sourceId).startsWith('LOC-'));
     if(!items.length)return toast('Select one or more managed world Items.');
-    const yes=await DialogV2.confirm({window:{title:'Copy into staging Compendium (EXPERIMENTAL)'},modal:true,rejectClose:false,
-      content:`<p>Copy <strong>${items.length}</strong> world Items into an Ashen Gate staging Compendium?</p><p>Existing matching source IDs will be skipped, not replaced. This makes a copy, not an independent sandbox or synchronization.</p>`});
+    const yes=await confirmDialog(`Copy ${items.length} world Items into an Ashen Gate staging compendium?\nItems already in it are skipped, not replaced. This makes a copy; it is not kept in sync.`,
+      {title:'Copy into a staging compendium?',yes:'Copy Items'});
     if(!yes)return;
     const cls=foundry.documents.collections.CompendiumCollection;
     const name='ashen-gate-staging-items';
@@ -1780,9 +1761,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         const keys=this.#cleanTicked();
         if(!keys.length)return say('Nothing is ticked to move.',true);
         const places=new Set(keys.map(k=>k.split('|')[0])).size;
-        const yes=await DialogV2.confirm({window:{title:'Clean compendiums'},modal:true,rejectClose:false,
-          content:`<p><strong>Move ${keys.length} ticked document(s) in ${places} place(s) into the folders shown?</strong> Missing folders are created.</p><p>Only the folder changes; nothing is renamed, edited or deleted, and protected folders are not touched. Download the backup first if you want a file copy. You can <strong>Undo last organize</strong> afterwards.</p>`,
-          yes:{label:`Commit ${keys.length} move(s)`},no:{label:'Cancel'}});
+        const yes=await confirmDialog(`Move ${keys.length} ticked document(s) in ${places} place(s) into the folders shown? Missing folders are created.\nOnly the folder changes; nothing is renamed, edited or deleted, and protected folders are not touched. Download the backup first if you want a file copy. You can Undo last organize afterwards.`,
+          {title:'Clean compendiums?',yes:`Commit ${keys.length} move(s)`});
         if(!yes)return;
         const progress=this.#cleanProgress(`Clean compendiums: moving ${keys.length} document(s)…`);
         this.busy=true;
@@ -1897,9 +1877,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         const read=readRulesFile(data);
         if(!read.ok){this.orgMessage=`Rules not imported from ${f.name}: ${read.message}`;toast(read.message,true);await this.render();return;}
         const rules=read.rules;
-        const yes=await DialogV2.confirm({window:{title:'Import organize rules'},modal:true,rejectClose:false,
-          content:`<p><strong>Replace the organize rules with the ${rules.length} rule(s) in ${escapeHtml(f.name)}?</strong> No document moves until you Preview and Apply.</p>`,
-          yes:{label:'Replace rules'},no:{label:'Cancel'}});
+        const yes=await confirmDialog(`Replace the organize rules with the ${rules.length} rule(s) in ${f.name}? No document moves until you Preview and Apply.`,
+          {title:'Replace the organize rules?',yes:'Replace rules',danger:true});
         if(!yes)return;
         const out=await organizer().saveSchema(rules);
         this.orgMessage=out.ok?`Rules imported from ${f.name}.`:`Rules not imported: ${out.message}`;
@@ -1932,9 +1911,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case 'org-apply': {
         const p=this.orgPreview;
         if(!p?.totals.moves)return say('Run Preview first; there is nothing to move.',true);
-        const yes=await DialogV2.confirm({window:{title:'Organize folders'},modal:true,rejectClose:false,
-          content:`<p><strong>Move ${p.totals.moves} document(s)${p.ids?' from the selection':''} into the folders shown and create ${p.totals.createFolders} folder(s)?</strong></p><p>Only the folder changes; names, data, ownership and Actor progression are untouched and no folder is deleted. You can <strong>Undo last organize</strong> afterwards.</p>`,
-          yes:{label:'Apply organize'},no:{label:'Cancel'}});
+        const yes=await confirmDialog(`Move ${p.totals.moves} document(s)${p.ids?' from the selection':''} into the folders shown and create ${p.totals.createFolders} folder(s)?\nOnly the folder changes; names, data, ownership and Actor progression are untouched and no folder is deleted. You can Undo last organize afterwards.`,
+          {title:'Organize folders?',yes:'Apply organize'});
         if(!yes)return;
         this.busy=true;
         try{
@@ -1952,9 +1930,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case 'org-undo': {
         const last=api.history()[0];
         if(!last)return say('There is no organize run to undo.',true);
-        const yes=await DialogV2.confirm({window:{title:'Undo last organize'},modal:true,rejectClose:false,
-          content:`<p><strong>Put the ${last.moves.length} document(s) moved on ${escapeHtml(last.at.replace('T',' ').slice(0,16))} back where they were?</strong> Documents you moved yourself since then stay where they are. Folders are not deleted.</p>`,
-          yes:{label:'Undo last organize'},no:{label:'Cancel'}});
+        const yes=await confirmDialog(`Put the ${last.moves.length} document(s) moved on ${last.at.replace('T',' ').slice(0,16)} back where they were? Documents you moved yourself since then stay where they are. Folders are not deleted.`,
+          {title:'Undo the last organize?',yes:'Undo last organize',danger:true});
         if(!yes)return;
         const out=await api.undoLast();
         this.orgPreview=null;this.orgResult=null;
@@ -1978,9 +1955,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       }
       case 'org-schema-export': downloadJson('AG_Organize_Rules.json',{kind:'ashen-gate-organize-rules',version:1,rules:api.getSchema().rules});say('Rules downloaded.');break;
       case 'org-schema-reset': {
-        const yes=await DialogV2.confirm({window:{title:'Reset organize rules'},modal:true,rejectClose:false,
-          content:'<p><strong>Replace your organize rules with the shipped defaults?</strong> Your own rules are deleted (export them first to keep a copy). No document moves.</p>',
-          yes:{label:'Reset rules to defaults'},no:{label:'Cancel'}});
+        const yes=await confirmDialog('Replace your organize rules with the shipped defaults? Your own rules are deleted (export them first to keep a copy). No document moves.',
+          {title:'Reset organize rules?',yes:'Reset rules to defaults',danger:true});
         if(!yes)return;
         await api.resetSchema();this.orgSchemaText=null;this.orgPreview=null;say('Organize rules reset to the defaults.');break;
       }
@@ -2004,7 +1980,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       if(token!==this.previewToken||!slot.isConnected)return;
       const html=p?previewHtml(p):'<p class="agmanager-tiny">No item preview: this is not an Item.</p>';
       this.previewCache={key,html};slot.innerHTML=html;
-    },error=>{if(slot.isConnected)slot.innerHTML=`<p class="ag-badge ag-badge--danger">Preview failed: ${escapeHtml(error?.message??error)}</p>`;});
+    },error=>{if(slot.isConnected)slot.innerHTML=`<p class="ag-notice ag-notice--danger"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> Preview failed: ${escapeHtml(error?.message??error)}</p>`;});
   }
   /**
    * Header Appearance dropdown (0.38.0, was a tab): toggles without a re-render; closes on outside click, Escape
@@ -2044,7 +2020,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         const label=el.querySelector('[data-ag-browse-packs-label]');
         if(label)label.textContent=status.loading?'Loading compendiums…':status.compendiums?'Reload compendiums':'Load compendiums';
         this.#fillItemPreview(body);
-      }catch(error){body.innerHTML=`<p class="ag-badge ag-badge--danger">${escapeHtml(error.message??error)}</p>`;}
+      }catch(error){body.innerHTML=`<p class="ag-notice ag-notice--danger"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> ${escapeHtml(error.message??error)}</p>`;}
     };
     const again=()=>{st.page=0;paint();};
     this.browsePaint=again;
@@ -2137,9 +2113,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         const rows=this.clPreview?.rows.filter(r=>ids.has(r.id))??[];
         if(!rows.length){say('Scan and tick at least one item first.',true);break;}
         const adopt=rows.filter(r=>r.canAdopt&&!this.clLinkOnly.has(r.id)).length;
-        const yes=await DialogV2.confirm({window:{title:'Link core items'},modal:true,rejectClose:false,
-          content:`<p><strong>Link ${rows.length} world item(s) to their 2024 core item, and replace the image and data of ${adopt} of them with the core item's?</strong></p><p>Names, Ashen Gate ids, folders, ownership and module data stay. Copies already in player inventories are not touched. You can <strong>Undo last core link</strong> afterwards.</p>`,
-          yes:{label:'Link core items'},no:{label:'Cancel'}});
+        const yes=await confirmDialog(`Link ${rows.length} world item(s) to their 2024 core item, and replace the image and data of ${adopt} of them with the core item's?\nNames, Ashen Gate ids, folders, ownership and module data stay. Copies already in player inventories are not touched. You can Undo last core link afterwards.`,
+          {title:'Link core items?',yes:'Link core items',danger:adopt>0});
         if(!yes)return;
         this.busy=true;
         try{
@@ -2154,9 +2129,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case 'cl-undo': {
         const last=api.history()[0];
         if(!last){say('There is no core-link run to undo.',true);break;}
-        const yes=await DialogV2.confirm({window:{title:'Undo last core link'},modal:true,rejectClose:false,
-          content:`<p><strong>Put back the image, data and link of the ${last.rows.length} item(s) linked on ${escapeHtml(last.at.replace('T',' ').slice(0,16))}?</strong> Items changed since then are left as they are.</p>`,
-          yes:{label:'Undo last core link'},no:{label:'Cancel'}});
+        const yes=await confirmDialog(`Put back the image, data and link of the ${last.rows.length} item(s) linked on ${last.at.replace('T',' ').slice(0,16)}? Items changed since then are left as they are.`,
+          {title:'Undo the last core link?',yes:'Undo last core link',danger:true});
         if(!yes)return;
         const out=await api.undoLast();
         this.clPreview=null;say(out.ok?out.message:out.message,!out.ok);break;
@@ -2241,9 +2215,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case 'codex-close': this.codexFocus=null;break;
       case 'codex-hide-all': {
         const entry=svc.get(this.codexFocus);
-        const yes=await DialogV2.confirm({window:{title:'Hide NPC from players'},modal:true,rejectClose:false,
-          content:`<p><strong>Hide ${escapeHtml(entry.name)} and every field from all players?</strong> What the party has learned and your notes are kept.</p>`,
-          yes:{label:'Hide from players'},no:{label:'Cancel'}});
+        const yes=await confirmDialog(`Hide ${entry.name} and every field from all players? What the party has learned and your notes are kept.`,
+          {title:'Hide this NPC from players?',yes:'Hide from players',danger:true});
         if(!yes)return;
         for(const key of ['discovery',...entry.fields.map(f=>f.key)])await svc.setReveal(entry.id,key,{mode:'hidden'});
         this.codexMessage=`${entry.name} is hidden from players.`;break;
@@ -2259,9 +2232,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const svc=codexService();
     const plan=svc.planImport(JSON.parse(await file.text()));
     if(plan.errors.length){this.codexMessage=`${file.name} was not used: ${plan.errors.join(' ')}`;toast(this.codexMessage,true);await this.render();return;}
-    const yes=await DialogV2.confirm({window:{title:'Restore codex reveals'},modal:true,rejectClose:false,
-      content:`<p><strong>Replace reveals, learned text, links and notes for ${plan.apply.length} NPC(s)</strong> with the ones in ${escapeHtml(file.name)}?</p>${plan.missing.length?`<p>Not in this world, skipped: ${plan.missing.map(escapeHtml).join(', ')}</p>`:''}<p>NPC content is not changed; it comes from the package import.</p>`,
-      yes:{label:`Restore ${plan.apply.length} NPC(s)`},no:{label:'Cancel'}});
+    const yes=await confirmDialog(`Replace reveals, learned text, links and notes for ${plan.apply.length} NPC(s) with the ones in ${file.name}?${plan.missing.length?`\nNot in this world, skipped: ${plan.missing.join(', ')}`:''}\nNPC content is not changed; it comes from the package import.`,
+      {title:'Restore codex reveals?',yes:`Restore ${plan.apply.length} NPC(s)`,danger:true});
     if(!yes)return;
     const out=await svc.applyImport(plan);
     this.codexMessage=`Restored ${out.done} NPC(s).${out.errors.length?` Failed: ${out.errors.join(' | ')}`:''}`;
@@ -2489,7 +2461,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.42.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.42.1 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */

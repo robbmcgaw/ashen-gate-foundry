@@ -5,6 +5,7 @@ import {MODULE_ID, THREATS, FIELDS, SECTIONS, BLOCKS, DETAIL_PREFIX, LOOT_STATUS
 import {GROUP_MODES, SORTS, emptyFilters, hasFilters, searchText, matchesQuery, applyFilters, filterOptions, comparator, groupRows} from './list-filter.mjs';
 import {buildTree, withAncestors, breadcrumb, moveTargets, VIEW} from './tree.mjs';
 import {routesMixin} from './routes-ui.mjs';
+import {confirmDialog, formDialog, infoDialog} from './ag-dialogs.mjs';
 
 const QUEST_MODULE = 'ashen-gate-quest-manager';
 const FIELD_LABELS = {type: 'Type', region: 'Region', description: 'Description', img: 'Image', threat: 'Threat'};
@@ -187,8 +188,8 @@ export class LocationsApp extends Base {
     if (this.routeDirty && !(await this.confirmRouteDiscard())) return false;
     this.routeDirty = false;
     if (!this.dirty) return true;
-    return foundry.applications.api.DialogV2.confirm({window: {title: 'Discard changes?'}, content: '<p>You have unsaved changes to this location. Discard them?</p>',
-      yes: {label: 'Discard Changes'}, no: {label: 'Keep Editing'}, rejectClose: false});
+    return confirmDialog('You have unsaved changes to this location. Discard them?',
+      {title: 'Discard changes?', yes: 'Discard changes', no: 'Keep editing', danger: true});
   }
   async close(options = {}) {
     if (!(await this.confirmDiscard())) return this;
@@ -968,9 +969,8 @@ export class LocationsApp extends Base {
         const state = el.dataset.state;
         if (this.draft.id && this.draft.state === state && !this.dirty) return;
         if (state === 'revealed') {
-          const ok = await foundry.applications.api.DialogV2.confirm({window: {title: 'Reveal location?'},
-            content: `<p>Reveal <strong>${esc(this.draft.name)}</strong>? Players will see its name and everything marked visible, and its pins show the name.</p>`,
-            yes: {label: 'Reveal to Players'}, no: {label: 'Cancel'}, rejectClose: false});
+          const ok = await confirmDialog(`Reveal ${this.draft.name}? Players will see its name and everything marked visible, and its pins show the name.`,
+            {title: 'Reveal location?', yes: 'Reveal location'});
           if (!ok) return;
         }
         const saved = await this.saveDraft();
@@ -1036,9 +1036,8 @@ export class LocationsApp extends Base {
       case 'cancel': this.select(this.draft?.id || null); return this.render();
       case 'delete': {
         if (!this.draft.id) { this.select(null); return this.render(); }
-        const ok = await foundry.applications.api.DialogV2.confirm({window: {title: 'Delete location?'},
-          content: `<p>Delete <strong>${esc(this.draft.name)}</strong>? Links to it from other locations stop working, and its Map Notes stop opening it.</p>`,
-          yes: {label: 'Delete Location'}, no: {label: 'Keep'}, rejectClose: false});
+        const ok = await confirmDialog(`Delete ${this.draft.name}? Links to it from other locations stop working, and its Map Notes stop opening it.`,
+          {title: 'Delete location?', yes: 'Delete location', danger: true});
         if (!ok) return;
         await api().deleteLocation(this.draft.id);
         this.select(null); return this.render();
@@ -1115,9 +1114,8 @@ export class LocationsApp extends Base {
     if (action === 'notes-edit') {
       const takeover = el.dataset.takeover === '1';
       if (takeover) {
-        const ok = await foundry.applications.api.DialogV2.confirm({window: {title: 'Take over Party Notes?'},
-          content: '<p>Edit these Party Notes now? Whoever is editing keeps their text on screen, but their Save will be refused.</p>',
-          yes: {label: 'Take Over'}, no: {label: 'Cancel'}, rejectClose: false});
+        const ok = await confirmDialog('Edit these Party Notes now? Whoever is editing keeps their text on screen, but their Save will be refused.',
+          {title: 'Take over Party Notes?', yes: 'Take over'});
         if (!ok) return;
       }
       const n = await api().editPartyNotes(ref, {takeover});
@@ -1135,8 +1133,8 @@ export class LocationsApp extends Base {
     }
     if (action === 'notes-cancel') { this.stopNotesEdit(); return this.render(); }
     if (action === 'notes-clear') {
-      const ok = await foundry.applications.api.DialogV2.confirm({window: {title: 'Clear Party Notes?'},
-        content: '<p>Empty these Party Notes for everyone? This cannot be undone.</p>', yes: {label: 'Clear Party Notes'}, no: {label: 'Keep'}, rejectClose: false});
+      const ok = await confirmDialog('Empty these Party Notes for everyone? This cannot be undone.',
+        {title: 'Clear Party Notes?', yes: 'Clear Party Notes', danger: true});
       if (!ok) return;
       await api().clearPartyNotes(ref);
       if (this.notesEdit?.ref === ref) this.notesEdit = null;
@@ -1166,13 +1164,11 @@ export class LocationsApp extends Base {
     const all = api().listLocations();
     const targets = moveTargets(all, d.id).sort((a, b) => a.name.localeCompare(b.name));
     const path = l => [...breadcrumb(all, l.id), l].map(x => x.name).join(' › ');
-    const content = `<div class="ag-field"><label for="agl-move-target">Move ${esc(d.name)} into</label><select id="agl-move-target" name="target" autofocus>
-      <option value="" ${d.parentLocationId ? '' : 'selected'}>Top level</option>${targets.map(l => `<option value="${esc(l.id)}" ${d.parentLocationId === l.id ? 'selected' : ''}>${esc(path(l))}</option>`).join('')}</select>
-      <p class="agl-hint">Only Regions are listed, and never one inside ${esc(d.name)}.</p></div>`;
-    const to = await foundry.applications.api.DialogV2.prompt({window: {title: 'Move to…'}, content, rejectClose: false,
-      ok: {label: 'Move', callback: (_event, button) => button.form.elements.target.value}});
-    if (to === null || to === undefined) return;
-    return this.move(d.id, to);
+    const r = await formDialog('Move to…', [{name: 'target', label: `Move ${d.name} into`, type: 'select', value: d.parentLocationId || '',
+      options: [{value: '', label: 'Top level'}, ...targets.map(l => ({value: l.id, label: path(l)}))],
+      hint: `Only Regions are listed, and never one inside ${d.name}.`}], {ok: 'Move'});
+    if (!r) return;
+    return this.move(d.id, r.target ?? '');
   }
   /** GM: Who Can See It. Saved locations change at once through the API; a new one changes its draft. */
   async onAudience(el) {
@@ -1184,8 +1180,7 @@ export class LocationsApp extends Base {
     if (kind === 'audience-user') next.userIds = el.checked ? [...new Set([...next.userIds, el.value])] : next.userIds.filter(u => u !== el.value);
     if (kind === 'audience-sharing') next.sharing = el.checked;
     if (next.mode === 'everyone' && a.mode === 'selected' && d.id && d.state !== 'hidden') {
-      const ok = await foundry.applications.api.DialogV2.confirm({window: {title: 'Show to every player?'},
-        content: `<p>Let <strong>every</strong> player see <strong>${esc(d.name)}</strong>, not just the selected ones?</p>`, yes: {label: 'Show to Everyone'}, no: {label: 'Cancel'}, rejectClose: false});
+      const ok = await confirmDialog(`Let every player see ${d.name}, not just the selected ones?`, {title: 'Show to every player?', yes: 'Show to everyone'});
       if (!ok) return this.render();
     }
     if (!d.id) { d.audience = {...a, ...next}; this.touch(); return this.render(); }
@@ -1198,11 +1193,9 @@ export class LocationsApp extends Base {
     if (!v?.share?.canShare) return;
     const choices = worldPlayers().filter(u => !v.share.userIds.includes(u.id));
     if (!choices.length) return ui.notifications.info('Every player can already see this place.');
-    const content = `<fieldset class="agl-share-pick"><legend>Share ${esc(v.name)} with</legend>${choices.map(u =>
-      `<label class="agl-switch"><input type="checkbox" name="user" value="${esc(u.id)}"> ${esc(u.name)}</label>`).join('')}</fieldset>
-      <p class="agl-hint">They will see this place, its pin and its Party Notes. Only the GM can take it back.</p>`;
-    const ids = await foundry.applications.api.DialogV2.prompt({window: {title: 'Share with…'}, content, rejectClose: false,
-      ok: {label: 'Share', callback: (_event, button) => [...button.form.querySelectorAll('input[name="user"]:checked')].map(i => i.value)}});
+    const picked = await formDialog('Share with…', [{name: 'user', label: `Share ${v.name} with`, type: 'checklist',
+      options: choices.map(u => ({value: u.id, label: u.name})), hint: 'They will see this place, its pin and its Party Notes. Only the GM can take it back.'}], {ok: 'Share'});
+    const ids = picked?.user;
     if (!ids?.length) return;
     const r = await api().shareLocation(ref, ids);
     ui.notifications.info(r.added ? `Shared with ${r.added} player(s).` : 'They could already see it.');
@@ -1226,7 +1219,9 @@ export class LocationsApp extends Base {
     const content = `<div class="ag-locations agl-preview">
       <p class="agl-hint">${this.draft.state === 'hidden' ? 'Hidden: players see nothing now. ' : ''}This is what players would see after you publish your current edits. Quest names follow Quest Manager's own visibility.</p>
       ${part('unidentified')}${part('revealed')}</div>`;
-    return foundry.applications.api.DialogV2.prompt({window: {title: `Player Preview: ${this.draft.name}`}, position: {width: 560}, content, ok: {label: 'Close'}, rejectClose: false});
+    // Stays a custom DialogV2 window for its 560px width; same kit classes and single Close button as infoDialog.
+    return foundry.applications.api.DialogV2.wait({classes: ['ag-app', 'ag-dialog'], window: {title: `Player Preview: ${this.draft.name}`}, position: {width: 560}, content,
+      buttons: [{action: 'close', label: 'Close', default: true}], rejectClose: false});
   }
   async importFile(file) {
     if (!file) return;
@@ -1261,7 +1256,7 @@ export class LocationsApp extends Base {
       <li>Quests come from Quest Manager. Clicking one opens the Quest Log.</li>
       <li><strong>Party Notes</strong> are written by the players, one at a time, on any location they can see. They are not your <em>Notes</em> section and are never published, exported or changed by an import. You can edit, take over or clear them. Hiding a location hides its Party Notes until it is visible again.</li></ul>`
       : '<p>These are the places your GM has revealed. Places under <em>Unidentified</em> show only what you have heard so far. Click a linked quest, faction, document or place to open it.</p><p><strong>Party Notes</strong> are shared by the whole party. Click <em>Edit</em>, type, then <em>Save Notes</em>. One person edits at a time; everyone else sees who is editing. Saving works whether or not a GM is connected.</p><p>A place marked with <i class="fa-solid fa-user-lock"></i> is known only to some players. If the GM allows it, <em>Share with…</em> lets other players see it too (a GM must be connected).</p>';
-    return foundry.applications.api.DialogV2.prompt({window: {title: 'Locations Help'}, content: gm, ok: {label: 'Close'}, rejectClose: false});
+    return infoDialog('Locations Help', gm);
   }
 }
 Object.assign(LocationsApp.prototype, routesMixin({btn, notifyError, worldPlayers}));

@@ -1,3 +1,10 @@
+## 0.42.1 — 2026-10-21
+
+- Confirmations name the action (no more Yes/No), Help opens with a Close button, dialogs follow the Ashen Gate look; test wording removed from player views.
+- All 24 confirmations use the shared dialog helper with sentence-case question titles ("Delete managed content permanently?", "Replace fields from the source?", "Hide all player windows?", "Copy into a staging compendium?"). Delete, archive, replace, hide, undo and reset are marked as danger. Messages name documents instead of ids.
+- "Beta" is gone from the window header; "pending Tim confirmation" and the "Other workstreams" note are gone from the Import and Modules tabs.
+- Preview and item-card errors show as a red notice instead of a badge.
+
 ## 0.42.0 — 2026-10-21
 
 - Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.

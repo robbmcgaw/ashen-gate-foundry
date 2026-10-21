@@ -1,3 +1,16 @@
+## 0.5.0 — 2026-10-21
+
+- UI standard look: "Ashen Gate | Cinders" header with version and Help on the right, tabs that scroll sideways on narrow windows (Manage and GM Setup marked GM), kit cards, tables, badges and empty states. The window opens 1.2× larger in Comfortable size.
+- Strain is the same row as Character Hub's: slim bar with the number beside it, band, Backfire chance, yellow then red as it rises, and a red "+N over" badge.
+- Manage: **New Cinder** is a plain + button at the top right; when it can't be used, the reason is shown as text. The Cinders table stacks into labelled rows on narrow windows.
+- **GM Setup → Player Access** is now a checkbox saved with **Save Changes** (Cancel bottom-left). Same setting; nothing changes until you save.
+- No saved-data changes.
+
+## 0.4.1 — 2026-10-21
+
+- Confirmations name the action (no more Yes/No), Help opens with a Close button, dialogs follow the Ashen Gate look; test wording removed from player views.
+- Unbind, Detach and Reset to defaults use a red action button; Push asks "Push [power]?". The Bind, Transfer, Create, Attach, Swap, Sockets and Strain forms use the shared form dialog (same fields).
+
 ## 0.4.0 — 2026-10-21
 
 - Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.

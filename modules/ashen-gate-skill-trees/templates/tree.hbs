@@ -1,15 +1,19 @@
 <div class="agst-shell">
-  <header class="ag-header agst-toolbar">
-    <div class="agst-title"><span class="agst-mark"><i class="fa-solid fa-diagram-project"></i></span><strong>Ashen Gate | Skill Trees</strong></div>
-    <div class="ag-header__meta agst-toolbar-right"><span class="agst-version" aria-label="Skill Trees version">v{{moduleVersion}}</span><button type="button" class="ag-btn ag-btn--sm" data-act="help" title="Skill Trees help"><i class="fa-solid fa-circle-question"></i> Help</button></div>
+  <header class="ag-header">
+    <div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Skill Trees</h1></div>
+    <div class="ag-header__meta"><span class="ag-version">v{{moduleVersion}}</span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-act="help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button></div>
   </header>
-  <nav class="ag-tabs agst-tabs" aria-label="Skill Trees views">
-    <button type="button" data-act="tab-trees" class="agst-tab {{#if activeTrees}}agst-active{{/if}}" aria-current="{{#if activeTrees}}page{{else}}false{{/if}}">Skill Trees</button>
-    {{#if gm}}<button type="button" data-act="tab-library" class="agst-tab {{#if activeLibrary}}agst-active{{/if}}" aria-current="{{#if activeLibrary}}page{{else}}false{{/if}}">Tree Library</button><button type="button" data-act="tab-setup" class="agst-tab {{#if activeSetup}}agst-active{{/if}}" aria-current="{{#if activeSetup}}page{{else}}false{{/if}}">GM Setup</button>{{/if}}
+  <nav class="ag-tabs ag-tabs--scroll" role="tablist" aria-label="Skill Trees views">
+    <button type="button" role="tab" data-act="tab-trees" class="{{#if activeTrees}}active{{/if}}" aria-selected="{{#if activeTrees}}true{{else}}false{{/if}}"><i class="fa-solid fa-diagram-project" aria-hidden="true"></i> Skill Trees</button>
+    {{#if gm}}<button type="button" role="tab" data-act="tab-library" class="ag-tab--gm {{#if activeLibrary}}active{{/if}}" aria-selected="{{#if activeLibrary}}true{{else}}false{{/if}}"><i class="fa-solid fa-book" aria-hidden="true"></i> Tree Library</button><button type="button" role="tab" data-act="tab-setup" class="ag-tab--gm {{#if activeSetup}}active{{/if}}" aria-selected="{{#if activeSetup}}true{{else}}false{{/if}}"><i class="fa-solid fa-gears" aria-hidden="true"></i> GM Setup</button>{{/if}}
   </nav>
   {{#if gmPanel}}{{#unless initialized}}
-    <section class="agst-start"><h3>Set up your private Skill Tree workspace</h3><p>Tree definitions are stored in a GM-only Journal. Players receive a separate, sanitized view. This does not migrate or overwrite existing v0.1 trees or Actor flags.</p>
-      <button data-act="initialize" type="button" class="ag-btn ag-btn--primary"><i class="fa-solid fa-lock"></i> Initialize GM Storage</button></section>
+    <div class="agst-pane-pad">
+      <div class="ag-empty"><i class="fa-solid fa-lock" aria-hidden="true"></i>
+        <p class="ag-empty__title">No tree workspace yet</p>
+        <p class="ag-empty__text">Tree definitions are stored in a GM-only Journal. Players receive a separate, sanitized view. Nothing old is migrated or overwritten.</p>
+        <button data-act="initialize" type="button" class="ag-btn ag-btn--primary"><i class="fa-solid fa-lock" aria-hidden="true"></i> Initialize GM Storage</button></div>
+    </div>
   {{/unless}}{{/if}}
 
   {{#if activeTrees}}{{#if initialized}}
@@ -24,95 +28,95 @@
         <section class="agst-side-section" aria-label="Points">
           {{#if prof}}
           <div class="agst-pool">
-            <span class="agst-stat"><small>LEVEL</small><b>{{prof.levelText}}</b></span>
-            <span class="agst-stat"><small>TO CHOOSE</small><b>{{prof.available}}</b></span>
-            <span class="agst-stat"><small>USED</small><b>{{prof.spent}}</b></span>
+            <span class="agst-stat"><small class="ag-eyebrow">Level</small><b>{{prof.levelText}}</b></span>
+            <span class="agst-stat"><small class="ag-eyebrow">To choose</small><b>{{prof.available}}</b></span>
+            <span class="agst-stat"><small class="ag-eyebrow">Used</small><b>{{prof.spent}}</b></span>
           </div>
           <p class="agst-help agst-prof-summary">{{prof.spent}} of {{prof.earned}} points used (1 per profession level, {{prof.maxPoints}} at most) · {{prof.nodeCount}} perks in this tree</p>
           {{else}}
           <div class="agst-pool">
-            <span class="agst-stat"><small>AWARDED</small><b>{{progress.awarded}}</b></span>
-            <span class="agst-stat"><small>AVAILABLE</small><b>{{progress.available}}</b></span>
-            <span class="agst-stat"><small>UNLOCKED</small><b>{{progress.unlocks}}</b></span>
+            <span class="agst-stat"><small class="ag-eyebrow">Awarded</small><b>{{progress.awarded}}</b></span>
+            <span class="agst-stat"><small class="ag-eyebrow">Available</small><b>{{progress.available}}</b></span>
+            <span class="agst-stat"><small class="ag-eyebrow">Unlocked</small><b>{{progress.unlocks}}</b></span>
           </div>
           {{/if}}
-          <span class="ag-badge agst-provider" title="Provider owns the progression rules">{{mode}}</span>
-          {{#if canGrant}}<button type="button" class="ag-btn ag-btn--primary" data-act="grant"><i class="fa-solid fa-plus"></i> Award Points</button>{{/if}}
-          {{#if canReset}}<button type="button" class="ag-btn ag-btn--danger" data-act="reset-tree" title="Refund every unlock on this tree and remove its perks from the sheet"><i class="fa-solid fa-rotate-left"></i> Reset Tree for {{actorName}}</button>{{/if}}
+          <span class="ag-badge agst-provider" data-tooltip="Provider owns the progression rules" data-tooltip-class="ag-tooltip">{{mode}}</span>
+          {{#if canGrant}}<button type="button" class="ag-btn" data-act="grant"><i class="fa-solid fa-plus" aria-hidden="true"></i> Award Points</button>{{/if}}
+          {{#if canReset}}<button type="button" class="ag-btn ag-btn--danger" data-act="reset-tree" data-tooltip="Refund every unlock on this tree and remove its perks from the sheet" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Reset Tree for {{actorName}}</button>{{/if}}
         </section>
         {{/if}}
         {{#if roster.length}}
         <section class="agst-side-section agst-roster" aria-label="Characters on this profession tree">
-          <h3>Characters <small>(GM)</small></h3>
-          <ul class="agst-roster-list">{{#each roster}}<li class="{{#if selected}}agst-active{{/if}}"><button type="button" class="agst-linklike" data-act="pick-actor" data-id="{{id}}">{{name}}</button>
+          <h3 class="ag-eyebrow">Characters</h3>
+          <ul class="agst-roster-list">{{#each roster}}<li class="{{#if selected}}is-selected{{/if}}"><button type="button" class="agst-linklike" data-act="pick-actor" data-id="{{id}}">{{name}}</button>
             <span class="agst-roster-meta">Lvl {{level}} · {{spent}}/{{earned}} pts</span> <span class="ag-badge {{#if review}}ag-badge--warn{{else}}{{#if toChoose}}ag-badge--ok{{/if}}{{/if}}">{{status}}</span></li>{{/each}}</ul>
         </section>
         {{/if}}
         {{#if history.length}}
         <details class="agst-side-section agst-history"><summary>History for {{actorName}} ({{history.length}})</summary>
-          <ol>{{#each history}}<li><strong>{{label}}</strong> {{node}}{{#if level}} · level {{level}}{{/if}} · {{byName}} · <small>{{when}}</small>{{#if undone}} <span class="ag-badge">undone</span>{{/if}}{{#if reason}}<br><small>{{reason}}</small>{{/if}}{{#if canUndo}} <button type="button" class="ag-btn ag-btn--sm" data-act="undo-history" data-id="{{id}}" title="Undo this change"><i class="fa-solid fa-rotate-left"></i> Undo</button>{{/if}}</li>{{/each}}</ol>
+          <ol>{{#each history}}<li><strong>{{label}}</strong> {{node}}{{#if level}} · level {{level}}{{/if}} · {{byName}} · <small>{{when}}</small>{{#if undone}} <span class="ag-badge">undone</span>{{/if}}{{#if reason}}<br><small>{{reason}}</small>{{/if}}{{#if canUndo}} <button type="button" class="ag-btn ag-btn--sm" data-act="undo-history" data-id="{{id}}" data-tooltip="Undo this change" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Undo</button>{{/if}}</li>{{/each}}</ol>
         </details>
         {{/if}}
         {{#if gm}}
         <section class="agst-side-section" aria-label="GM tools">
           <div class="agst-btn-row">
-            <button type="button" data-act="player-preview" class="ag-btn ag-btn--sm {{#if preview}}agst-active{{/if}}" title="Show the sanitized public projection"><i class="fa-solid fa-eye"></i> {{#if preview}}Exit Preview{{else}}Player Preview{{/if}}</button>
-            {{#unless preview}}<button type="button" data-act="edit-mode" class="ag-btn ag-btn--sm {{#if editing}}agst-active{{/if}}"><i class="fa-solid fa-pen-to-square"></i> {{#if editing}}Finish Editing{{else}}Edit Layout{{/if}}</button>{{/unless}}
+            <button type="button" data-act="player-preview" class="ag-btn ag-btn--sm {{#if preview}}agst-active{{/if}}" aria-pressed="{{#if preview}}true{{else}}false{{/if}}" data-tooltip="Show the sanitized player view" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-eye" aria-hidden="true"></i> {{#if preview}}Exit Preview{{else}}Player Preview{{/if}}</button>
+            {{#unless preview}}<button type="button" data-act="edit-mode" class="ag-btn ag-btn--sm {{#if editing}}agst-active{{/if}}" aria-pressed="{{#if editing}}true{{else}}false{{/if}}"><i class="fa-solid fa-pen-to-square" aria-hidden="true"></i> {{#if editing}}Finish Editing{{else}}Edit Layout{{/if}}</button>{{/unless}}
           </div>
           {{#if editing}}<div class="agst-btn-row">
-            <button type="button" class="ag-btn ag-btn--sm" data-act="appearance" title="Node size, canvas background, level/tier bands and icons"><i class="fa-solid fa-image"></i> Appearance</button>
-            <button type="button" class="ag-btn ag-btn--sm" data-act="tree-settings"><i class="fa-solid fa-sliders"></i> Tree Settings</button>
-            <button type="button" class="ag-btn ag-btn--sm" data-act="undo"><i class="fa-solid fa-rotate-left"></i> Undo</button>
-            <button type="button" class="ag-btn ag-btn--sm" data-act="redo"><i class="fa-solid fa-rotate-right"></i> Redo</button>
+            <button type="button" class="ag-btn ag-btn--sm" data-act="appearance" data-tooltip="Node size, canvas background, level/tier bands and icons" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-image" aria-hidden="true"></i> Appearance</button>
+            <button type="button" class="ag-btn ag-btn--sm" data-act="tree-settings"><i class="fa-solid fa-sliders" aria-hidden="true"></i> Tree Settings</button>
+            <button type="button" class="ag-btn ag-btn--sm" data-act="undo"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Undo</button>
+            <button type="button" class="ag-btn ag-btn--sm" data-act="redo"><i class="fa-solid fa-rotate-right" aria-hidden="true"></i> Redo</button>
           </div>{{/if}}
         </section>
         {{/if}}
         {{#if hasTree}}
         <section class="agst-side-section agst-inspector" aria-label="Selected perk">
           {{#if selected}}
-            <div class="agst-inspector-head">{{#if selected.img}}<img class="agst-inspector-img" src="{{selected.img}}" alt="">{{/if}}<small>SELECTED PERK</small><h2>{{selected.name}}</h2><span class="ag-badge agst-state">{{selected.flag}}</span></div>
+            <div class="agst-inspector-head">{{#if selected.img}}<img class="agst-inspector-img" src="{{selected.img}}" alt="">{{/if}}<small class="ag-eyebrow">Selected perk</small><h2>{{selected.name}}</h2><span class="ag-badge {{selected.badgeClass}}">{{selected.stateText}}</span></div>
             <div class="agst-inspector-body">{{#if selected.description}}<p>{{selected.description}}</p>{{/if}}<div class="agst-inspector-line"><strong>Points:</strong> {{selected.cost}}</div>
               <div class="agst-inspector-line"><strong>Unlock:</strong> {{selected.reason}}</div>
-              {{#if selected.rel.all.length}}<div class="agst-rel"><strong>Requires all of</strong><ul>{{#each selected.rel.all}}<li><button type="button" class="agst-linklike" data-act="select" data-id="{{id}}">{{name}}</button>{{#if unlocked}} <span class="agst-ok">✓ unlocked</span>{{/if}}</li>{{/each}}</ul></div>{{/if}}
-              {{#each selected.rel.any}}<div class="agst-rel agst-rel-any"><strong>Requires one of (OR group {{index}})</strong><ul>{{#each nodes}}<li><button type="button" class="agst-linklike" data-act="select" data-id="{{id}}">{{name}}</button>{{#if unlocked}} <span class="agst-ok">✓ unlocked</span>{{/if}}</li>{{/each}}</ul></div>{{/each}}
+              {{#if selected.rel.all.length}}<div class="agst-rel"><strong>Requires all of</strong><ul>{{#each selected.rel.all}}<li><button type="button" class="agst-linklike" data-act="select" data-id="{{id}}">{{name}}</button>{{#if unlocked}} <span class="agst-ok"><i class="fa-solid fa-check" aria-hidden="true"></i> unlocked</span>{{/if}}</li>{{/each}}</ul></div>{{/if}}
+              {{#each selected.rel.any}}<div class="agst-rel agst-rel-any"><strong>Requires one of (OR group {{index}})</strong><ul>{{#each nodes}}<li><button type="button" class="agst-linklike" data-act="select" data-id="{{id}}">{{name}}</button>{{#if unlocked}} <span class="agst-ok"><i class="fa-solid fa-check" aria-hidden="true"></i> unlocked</span>{{/if}}</li>{{/each}}</ul></div>{{/each}}
               {{#if selected.rel.excludes.length}}<div class="agst-rel agst-rel-exclude"><strong>Cannot be taken with</strong><ul>{{#each selected.rel.excludes}}<li><button type="button" class="agst-linklike" data-act="select" data-id="{{id}}">{{name}}</button>{{#if unlocked}} <span class="agst-bad">taken</span>{{/if}}</li>{{/each}}</ul></div>{{/if}}
               {{#if selected.rel.leadsTo.length}}<div class="agst-rel"><strong>Opens the way to</strong><ul>{{#each selected.rel.leadsTo}}<li><button type="button" class="agst-linklike" data-act="select" data-id="{{id}}">{{name}}</button></li>{{/each}}</ul></div>{{/if}}
               {{#if gm}}{{#unless preview}}
-                {{#if bindingNote}}<div class="agst-inspector-line"><strong>Perk:</strong><br><code>{{bindingNote}}</code> {{#if selectedBinding}}✓ in this world{{else}}⚠ not in this world: import it through General Manager{{/if}}</div>{{/if}}
+                {{#if bindingNote}}<div class="agst-inspector-line"><strong>Perk:</strong><br><code>{{bindingNote}}</code> {{#if selectedBinding}}<span class="agst-ok"><i class="fa-solid fa-check" aria-hidden="true"></i> in this world</span>{{else}}<span class="agst-warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> not in this world: import it through General Manager</span>{{/if}}</div>{{/if}}
                 {{#if selectedCustom}}<div class="agst-inspector-line agst-warn">Older custom node: no perk assigned, so unlocking gives no Item. Edit Layout → Assign Perk.</div>{{/if}}
                 <div class="agst-inspector-line"><strong>Node status:</strong> {{selected.status}} · {{selected.visibility}} · {{selected.display}}</div>
               {{/unless}}{{/if}}
             </div>
             <div class="agst-inspector-actions">
-              {{#if canBuy}}<button type="button" data-act="purchase" class="ag-btn ag-btn--primary"><i class="fa-solid fa-unlock"></i> Unlock for {{actorName}}</button>{{/if}}
-              {{#if canRequest}}<button type="button" data-act="request" class="ag-btn ag-btn--primary"><i class="fa-solid fa-unlock"></i> Unlock ({{selected.cost}} pt)</button>{{/if}}
-              {{#if canOverride}}<button type="button" data-act="override" class="ag-btn" title="Give this perk whatever the points, level or prerequisites, with a reason"><i class="fa-solid fa-gavel"></i> Grant (GM override)</button>{{/if}}
-              {{#if canKeep}}<button type="button" data-act="keep" class="ag-btn" title="Keep this perk although the level no longer covers it"><i class="fa-solid fa-thumbtack"></i> Keep at this level</button>{{/if}}
-              {{#if canRefund}}<button type="button" data-act="refund" class="ag-btn ag-btn--danger"><i class="fa-solid fa-rotate-left"></i> {{#if isProfession}}Remove (point returned){{else}}Refund (removes perk from sheet){{/if}}</button>{{/if}}
+              {{#if canBuy}}<button type="button" data-act="purchase" class="ag-btn ag-btn--primary"><i class="fa-solid fa-unlock" aria-hidden="true"></i> Unlock for {{actorName}}</button>{{/if}}
+              {{#if canRequest}}<button type="button" data-act="request" class="ag-btn ag-btn--primary"><i class="fa-solid fa-unlock" aria-hidden="true"></i> Unlock ({{selected.cost}} pt)</button>{{/if}}
+              {{#if canOverride}}<button type="button" data-act="override" class="ag-btn" data-tooltip="Give this perk whatever the points, level or prerequisites, with a reason" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-gavel" aria-hidden="true"></i> Grant (GM override)</button>{{/if}}
+              {{#if canKeep}}<button type="button" data-act="keep" class="ag-btn" data-tooltip="Keep this perk although the level no longer covers it" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-thumbtack" aria-hidden="true"></i> Keep at this level</button>{{/if}}
+              {{#if canRefund}}<button type="button" data-act="refund" class="ag-btn ag-btn--danger"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> {{#if isProfession}}Remove (point returned){{else}}Refund (removes perk from sheet){{/if}}</button>{{/if}}
               {{#if editing}}
-                <button type="button" class="ag-btn" data-act="assign-perk"><i class="fa-solid fa-star"></i> {{#if selectedCustom}}Assign Perk{{else}}Change Perk{{/if}}</button>
-                <button type="button" class="ag-btn" data-act="edit-node"><i class="fa-solid fa-sliders"></i> Edit Properties</button>
-                <button type="button" class="ag-btn" data-act="link"><i class="fa-solid fa-link"></i> Connect Prerequisite</button>
-                <button type="button" class="ag-btn ag-btn--danger" data-act="remove-node"><i class="fa-solid fa-trash"></i> Remove Node</button>
+                <button type="button" class="ag-btn" data-act="assign-perk"><i class="fa-solid fa-star" aria-hidden="true"></i> {{#if selectedCustom}}Assign Perk{{else}}Change Perk{{/if}}</button>
+                <button type="button" class="ag-btn" data-act="edit-node"><i class="fa-solid fa-sliders" aria-hidden="true"></i> Edit Properties</button>
+                <button type="button" class="ag-btn" data-act="link"><i class="fa-solid fa-link" aria-hidden="true"></i> Connect Prerequisite</button>
+                <button type="button" class="ag-btn ag-btn--danger" data-act="remove-node"><i class="fa-solid fa-trash" aria-hidden="true"></i> Remove Node</button>
               {{/if}}
             </div>
           {{else}}
-            <div class="agst-no-selection"><i class="fa-regular fa-hand-pointer"></i><h3>Choose a perk</h3><p>Select a node on the canvas (or in “Tree as a list”) to see what it needs and what it opens.</p></div>
+            <div class="ag-empty"><i class="fa-solid fa-hand-pointer" aria-hidden="true"></i><p class="ag-empty__title">No perk selected</p><p class="ag-empty__text">Select a node on the canvas (or in “Tree as a list”) to see what it needs and what it opens.</p></div>
           {{/if}}
-          {{#if linkFrom}}<div class="agst-link-alert">Connecting: select the node this one opens. The arrow will point from this node to it (required).</div>{{/if}}
+          {{#if linkFrom}}<div class="ag-notice ag-notice--info" role="status"><i class="fa-solid fa-link" aria-hidden="true"></i><span>Connecting: select the node this one opens. The arrow will point from this node to it (required).</span></div>{{/if}}
         </section>
         {{/if}}
         {{#if editing}}
         <section class="agst-side-section agst-feature-shelf" aria-label="Perks in this world"><h3>Perks</h3><p class="agst-help">Drag a perk onto the canvas (from here or the Items sidebar), or press <strong>Add</strong>. The node takes its name, text, picture and point cost from the perk.</p>
-          <input id="agst-feature-search" type="search" placeholder="Search perks / IDs" value="{{search}}" aria-label="Search perks">
+          <label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input id="agst-feature-search" type="search" placeholder="Search perks / IDs" value="{{search}}" aria-label="Search perks"></label>
           <div class="agst-feature-list">
-            {{#each features}}<div class="agst-feature {{#if onTree}}agst-feature-used{{/if}}" draggable="true" data-uuid="{{uuid}}" title="{{id}}">{{#if img}}<img class="agst-feature-img" src="{{img}}" alt="">{{else}}<i class="fa-solid fa-grip-vertical"></i>{{/if}}<div><strong>{{name}}</strong><small>{{id}} · {{status}}</small></div>{{#if onTree}}<span class="agst-on-tree">On tree</span>{{else}}<button type="button" class="ag-btn ag-btn--sm agst-add-perk" data-act="add-perk" data-uuid="{{uuid}}" aria-label="Add {{name}} to this tree">Add</button>{{/if}}</div>{{else}}<p class="agst-empty">No perk Items of the right type in this world. Import perks through General Manager first.</p>{{/each}}
+            {{#each features}}<div class="agst-feature {{#if onTree}}agst-feature-used{{/if}}" draggable="true" data-uuid="{{uuid}}">{{#if img}}<img class="agst-feature-img" src="{{img}}" alt="">{{else}}<i class="fa-solid fa-grip-vertical" aria-hidden="true"></i>{{/if}}<div><strong>{{name}}</strong><small>{{id}} · {{status}}</small></div>{{#if onTree}}<span class="ag-badge">On tree</span>{{else}}<button type="button" class="ag-btn ag-btn--sm agst-add-perk" data-act="add-perk" data-uuid="{{uuid}}" aria-label="Add {{name}} to this tree">Add</button>{{/if}}</div>{{else}}<div class="ag-empty"><p class="ag-empty__title">No perks yet</p><p class="ag-empty__text">No perk Items of the right type are in this world. Import perks through General Manager first.</p></div>{{/each}}
           </div>
         </section>
         {{/if}}
         {{#if hasTree}}
         <details class="agst-tree-list agst-side-section" {{#if listOpen}}open{{/if}}><summary>Tree as a list ({{nodes.length}})</summary>
-          <ol>{{#each nodes}}<li><button type="button" class="agst-linklike" data-act="select" data-id="{{id}}">{{name}}</button> — {{flag}}{{#unless silhouette}}, {{cost}} pt{{/unless}}{{#if relText}}. {{relText}}{{/if}}</li>{{/each}}</ol>
+          <ol>{{#each nodes}}<li><button type="button" class="agst-linklike" data-act="select" data-id="{{id}}">{{name}}</button> — {{stateText}}{{#unless silhouette}}, {{cost}} pt{{/unless}}{{#if relText}}. {{relText}}{{/if}}</li>{{/each}}</ol>
         </details>
         {{/if}}
       </div>
@@ -121,21 +125,21 @@
 
     <section class="agst-canvas-pane" aria-label="Skill tree canvas">
       <div class="agst-canvas-bar">
-        <button type="button" class="ag-btn ag-btn--sm agst-menu-toggle" data-act="toggle-sidebar" aria-controls="agst-sidebar" aria-expanded="{{#if sidebarOpen}}true{{else}}false{{/if}}" title="Show or hide the menu"><i class="fa-solid fa-bars"></i> Menu</button>
+        <button type="button" class="ag-btn ag-btn--sm agst-menu-toggle" data-act="toggle-sidebar" aria-controls="agst-sidebar" aria-expanded="{{#if sidebarOpen}}true{{else}}false{{/if}}" data-tooltip="Show or hide the menu" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-bars" aria-hidden="true"></i> Menu</button>
         <span class="agst-canvas-title">{{#if hasTree}}{{tree.name}}{{/if}}</span>
-        <span class="agst-zoom"><button type="button" class="ag-btn ag-btn--sm" data-act="zoom-out" title="Zoom out" aria-label="Zoom out">−</button><span class="agst-zoom-label">{{zoomText}}</span><button type="button" class="ag-btn ag-btn--sm" data-act="zoom-in" title="Zoom in" aria-label="Zoom in">+</button><button type="button" class="ag-btn ag-btn--sm" data-act="zoom-reset" title="Reset zoom" aria-label="Reset zoom">⟲</button></span>
+        <span class="agst-zoom"><button type="button" class="ag-btn ag-btn--sm ag-btn--icon" data-act="zoom-out" data-tooltip="Zoom out" data-tooltip-class="ag-tooltip" aria-label="Zoom out"><i class="fa-solid fa-minus" aria-hidden="true"></i></button><span class="agst-zoom-label">{{zoomText}}</span><button type="button" class="ag-btn ag-btn--sm ag-btn--icon" data-act="zoom-in" data-tooltip="Zoom in" data-tooltip-class="ag-tooltip" aria-label="Zoom in"><i class="fa-solid fa-plus" aria-hidden="true"></i></button><button type="button" class="ag-btn ag-btn--sm ag-btn--icon" data-act="zoom-reset" data-tooltip="Reset zoom" data-tooltip-class="ag-tooltip" aria-label="Reset zoom"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i></button></span>
       </div>
-      {{#if ledgerMissing}}<div class="agst-banner"><i class="fa-solid fa-link-slash"></i> Profession Ledger is not active, so profession points are unavailable. Nothing is removed; picks wait until it is on again.</div>{{/if}}
-      {{#if prof.overAllocated}}<div class="agst-banner agst-banner-review" role="alert"><i class="fa-solid fa-triangle-exclamation"></i> <strong>{{actorName}} needs GM review.</strong> Level {{prof.levelText}} no longer covers {{#if prof.aboveText}}{{prof.aboveText}}{{else}}{{prof.overSpent}} point(s) used{{/if}}. Nothing was removed. {{#if gm}}<button type="button" class="ag-btn ag-btn--sm ag-btn--primary" data-act="resolve"><i class="fa-solid fa-scale-balanced"></i> Review</button>{{else}}New picks wait until the GM has looked at it.{{/if}}</div>{{/if}}
-      {{#if isTest}}<div class="agst-banner agst-banner-test"><i class="fa-solid fa-flask"></i> Test tree. Unlocking adds the perk Item to the sheet; perks with no rules effect do nothing else.</div>{{/if}}
-      {{#if preview}}<div class="agst-banner agst-banner-info">GM player preview shows the shared sanitized tree. Test again from an actual player account to verify document permissions.</div>{{/if}}
+      {{#if ledgerMissing}}<div class="agst-banner agst-banner--warn"><i class="fa-solid fa-link-slash" aria-hidden="true"></i> Profession Ledger is not active, so profession points are unavailable. Nothing is removed; picks wait until it is on again.</div>{{/if}}
+      {{#if prof.overAllocated}}<div class="agst-banner agst-banner--warn agst-banner-review" role="alert"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> <strong>{{actorName}} needs GM review.</strong> Level {{prof.levelText}} no longer covers {{#if prof.aboveText}}{{prof.aboveText}}{{else}}{{prof.overSpent}} point(s) used{{/if}}. Nothing was removed. {{#if gm}}<button type="button" class="ag-btn ag-btn--sm" data-act="resolve"><i class="fa-solid fa-scale-balanced" aria-hidden="true"></i> Review</button>{{else}}New picks wait until the GM has looked at it.{{/if}}</div>{{/if}}
+      {{#if isTest}}<div class="agst-banner agst-banner--info"><i class="fa-solid fa-flask" aria-hidden="true"></i> Test tree. Unlocking adds the perk Item to the sheet; perks with no rules effect do nothing else.</div>{{/if}}
+      {{#if preview}}<div class="agst-banner agst-banner--info"><i class="fa-solid fa-eye" aria-hidden="true"></i> Player preview: this is the shared sanitized tree. Test again from a player account to check document permissions.</div>{{/if}}
       {{#if hasTree}}
         <div class="agst-stage">
           {{#if bg.fixed}}<div class="agst-bg agst-bg-fixed" style="{{bg.style}}" aria-hidden="true"></div>{{/if}}
           <div class="agst-viewport">
             <div class="agst-board {{sizeClass}}" style="width:{{mapWidth}}px;height:{{mapHeight}}px;" tabindex="0" aria-label="Skill tree. Scroll to move around; Ctrl and mouse wheel zooms.">
               {{#if bg}}{{#unless bg.fixed}}<div class="agst-bg {{#if bg.tile}}agst-bg-tile{{else}}agst-bg-cover{{/if}}" style="{{bg.style}}" aria-hidden="true"></div>{{/unless}}{{/if}}
-              {{#each tiers}}<div class="agst-tier {{#if alt}}agst-tier-alt{{/if}}" style="top:{{top}}px;height:{{height}}px;"><span class="agst-tier-badge" style="{{iconStyle}}" title="{{text}}"><span class="agst-tier-fallback" aria-hidden="true"><i class="fa-solid fa-layer-group"></i></span><b>{{level}}</b></span><span class="agst-tier-name">{{text}}</span></div>{{/each}}
+              {{#each tiers}}<div class="agst-tier {{#if alt}}agst-tier-alt{{/if}}" style="top:{{top}}px;height:{{height}}px;"><span class="agst-tier-badge" style="{{iconStyle}}"><span class="agst-tier-fallback" aria-hidden="true"><i class="fa-solid fa-layer-group"></i></span><b>{{level}}</b></span><span class="agst-tier-name">{{text}}</span></div>{{/each}}
               <svg class="agst-links" width="{{mapWidth}}" height="{{mapHeight}}" aria-hidden="true">
                 <defs>
                   <marker id="agst-arrow-all" class="agst-arrow agst-arrow-all" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" markerUnits="strokeWidth" orient="auto"><path d="M0,0 L10,5 L0,10 z"></path></marker>
@@ -146,12 +150,12 @@
                 {{#each edges}}{{#if label}}<text data-edge data-from="{{from}}" data-to="{{to}}" x="{{mx}}" y="{{my}}" class="agst-edge-label agst-edge-label-{{kind}}" text-anchor="middle" dominant-baseline="central">{{label}}</text>{{/if}}{{/each}}
               </svg>
               {{#each nodes}}
-                <button type="button" class="agst-node {{#if selected}}agst-selected{{/if}} {{#if eligible}}agst-eligible{{/if}} {{#if unlocked}}agst-unlocked{{/if}} {{#if silhouette}}agst-silhouette{{/if}} {{#if perkMissing}}agst-node-warn{{/if}} {{#if overLevel}}agst-node-review{{/if}}" data-act="select" data-id="{{id}}" style="{{style}}" aria-label="{{label}}" aria-pressed="{{#if selected}}true{{else}}false{{/if}}" title="{{name}} · {{reason}}">
-                  <span class="agst-node-icon">{{#if img}}<img src="{{img}}" alt="">{{else}}<i class="fa-solid {{#if silhouette}}fa-question{{else}}fa-star{{/if}}"></i>{{/if}}</span>
-                  <span class="agst-node-main"><strong>{{name}}</strong><small><i class="fa-solid {{#if unlocked}}fa-check{{else}}{{#if eligible}}fa-unlock{{else}}fa-lock{{/if}}{{/if}}" aria-hidden="true"></i><span class="agst-flag"> {{flag}}</span>{{#unless silhouette}} · {{cost}} pt{{/unless}}{{#if levelText}} · {{levelText}}{{/if}}{{#if overLevel}} · ⚠<span class="agst-flag"> review</span>{{/if}}{{#if perkMissing}} · ⚠<span class="agst-flag"> perk missing</span>{{/if}}{{#if custom}}<span class="agst-flag"> · custom</span>{{/if}}</small></span>
+                <button type="button" class="agst-node {{#if selected}}agst-selected{{/if}} {{#if eligible}}agst-eligible{{/if}} {{#if unlocked}}agst-unlocked{{/if}} {{#if silhouette}}agst-silhouette{{/if}} {{#if perkMissing}}agst-node-warn{{/if}} {{#if overLevel}}agst-node-review{{/if}}" data-act="select" data-id="{{id}}" style="{{style}}" aria-label="{{label}}" aria-pressed="{{#if selected}}true{{else}}false{{/if}}">
+                  <span class="agst-node-icon">{{#if img}}<img src="{{img}}" alt="">{{else}}<i class="fa-solid {{#if silhouette}}fa-question{{else}}fa-star{{/if}}" aria-hidden="true"></i>{{/if}}</span>
+                  <span class="agst-node-main"><strong>{{name}}</strong><small><i class="fa-solid {{#if unlocked}}fa-check{{else}}{{#if eligible}}fa-unlock{{else}}fa-lock{{/if}}{{/if}}" aria-hidden="true"></i><span class="agst-flag"> {{stateText}}</span>{{#unless silhouette}} · {{cost}} pt{{/unless}}{{#if levelText}} · {{levelText}}{{/if}}{{#if overLevel}} · <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span class="agst-flag"> review</span>{{/if}}{{#if perkMissing}} · <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span class="agst-flag"> perk missing</span>{{/if}}{{#if custom}}<span class="agst-flag"> · custom</span>{{/if}}</small></span>
                 </button>
               {{/each}}
-              {{#unless nodes}}<div class="agst-board-hint">Empty tree. Enter Edit Layout and add perks from the Perks list.</div>{{/unless}}
+              {{#unless nodes}}<div class="agst-board-empty"><div class="ag-empty"><i class="fa-solid fa-diagram-project" aria-hidden="true"></i><p class="ag-empty__title">No perks on this tree yet</p><p class="ag-empty__text">{{#if gm}}Choose Edit Layout, then add perks from the Perks list.{{else}}Your GM hasn't revealed any perks on this tree yet.{{/if}}</p></div></div>{{/unless}}
             </div>
           </div>
           <div class="agst-tip" role="status" aria-live="polite" hidden></div>
@@ -164,52 +168,64 @@
         </div>
         {{#if editing}}<div class="agst-canvas-help">Drag nodes to move them · Add perks from the Perks list · Select a node, then Connect Prerequisite (required) or Edit Properties (OR groups, exclusions).</div>{{/if}}
       {{else}}
-        <div class="agst-no-tree"><i class="fa-regular fa-map"></i><h3>No visible tree layouts</h3><p>{{#if gm}}Initialize, add demo trees, or create a new draft.{{else}}A GM has not published any player-visible trees yet.{{/if}}</p></div>
+        <div class="agst-pane-pad"><div class="ag-empty"><i class="fa-solid fa-map" aria-hidden="true"></i><p class="ag-empty__title">No skill trees yet</p><p class="ag-empty__text">{{#if gm}}Create one with New tree in the Tree Library tab, or import a tree file through General Manager.{{else}}Your GM hasn't revealed any skill trees yet.{{/if}}</p></div></div>
       {{/if}}
     </section>
   </div>
 
   {{/if}}{{!-- initialized --}}
   {{#unless initialized}}
-    <section class="agst-start agst-start-inline"><h3>No tree workspace is available yet</h3><p>{{#if gm}}Open <strong>GM Setup</strong> or <strong>Tree Library</strong> to initialize the private tree library.{{else}}The GM has not published any accessible tree layouts.{{/if}}</p></section>
+    <div class="agst-pane-pad"><div class="ag-empty"><i class="fa-solid fa-lock" aria-hidden="true"></i><p class="ag-empty__title">No tree workspace yet</p><p class="ag-empty__text">Open <strong>Tree Library</strong> or <strong>GM Setup</strong> and choose Initialize GM Storage.</p></div></div>
   {{/unless}}
   {{/if}}{{!-- activeTrees --}}
 
   {{#if activeLibrary}}
   {{#if initialized}}
   <div class="agst-setup-main" aria-label="Tree Library for Skill Trees">
-    <section class="agst-setup-card">
-      <h2>Tree management</h2>
-      <p>Manage the private layout library. This module does not import Profession XP or overwrite General Manager source definitions.</p>
-      <div class="agst-setup-meta"><span><strong>{{privateCount}}</strong> private layouts</span><span><strong>{{publishedCount}}</strong> public tree projections</span><span><strong>v{{moduleVersion}}</strong> Alpha release</span></div>
-      <div class="agst-setup-actions">
-        <button type="button" data-act="create-tree" class="ag-btn ag-btn--primary"><i class="fa-solid fa-plus"></i> New Tree</button>
-        <button type="button" class="ag-btn" data-act="export" {{#unless hasPrivateTree}}disabled title="Select a tree in the Skill Trees tab first"{{/unless}}><i class="fa-solid fa-file-export"></i> Export Selected Tree</button>
-        <button type="button" class="ag-btn" data-act="export-all"><i class="fa-solid fa-download"></i> Export All Trees</button>
+    <div class="ag-toolbar">
+      <label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-agst-library-search placeholder="Search trees" aria-label="Search trees"></label>
+      <span class="ag-toolbar__count" data-agst-library-count>{{libraryCountText}}</span>
+      <div class="ag-toolbar__end"><button type="button" data-act="create-tree" class="ag-btn"><i class="fa-solid fa-plus" aria-hidden="true"></i> New tree</button></div>
+    </div>
+    <section class="ag-card" aria-label="Trees">
+      <div class="ag-card__head"><h2 class="ag-card__title">Trees</h2><span class="ag-card__meta">{{publishedCount}} published to players</span></div>
+      {{#if libraryTrees.length}}
+      <ul class="ag-rows" data-agst-library-list>{{#each libraryTrees}}<li class="ag-row {{#if selected}}is-selected{{/if}}" {{#if selected}}aria-current="true"{{/if}} data-agst-library-row data-search="{{search}}">
+        <div class="ag-row__main"><div class="ag-row__title">{{name}}</div><div class="ag-row__meta">{{kind}} · {{nodeText}}</div></div>
+        <div class="ag-row__end"><span class="ag-badge {{statusClass}}">{{statusText}}</span><span class="ag-badge {{#if playerVisible}}ag-badge--ok{{/if}}">{{#unless playerVisible}}<i class="fa-solid fa-eye-slash" aria-hidden="true"></i> {{/unless}}{{visibilityText}}</span><button type="button" class="ag-btn ag-btn--sm" data-act="open-row" data-tree="{{id}}" aria-label="Open {{name}}"><i class="fa-solid fa-diagram-project" aria-hidden="true"></i> Open</button></div></li>{{/each}}</ul>
+      <div class="ag-empty" data-agst-library-nomatch hidden><p class="ag-empty__title">Nothing matches</p><p class="ag-empty__text">No tree name matches the search.</p><button type="button" class="ag-btn ag-btn--sm" data-agst-library-clear>Clear search</button></div>
+      {{else}}
+      <div class="ag-empty"><i class="fa-solid fa-diagram-project" aria-hidden="true"></i><p class="ag-empty__title">No trees yet</p><p class="ag-empty__text">Create one with New tree, or import a tree file through General Manager → Import.</p></div>
+      {{/if}}
+      <div class="ag-card__actions">
+        <button type="button" class="ag-btn ag-btn--sm" data-act="export" {{#unless hasPrivateTree}}disabled{{/unless}}><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export Selected Tree</button>
+        <button type="button" class="ag-btn ag-btn--sm" data-act="export-all"><i class="fa-solid fa-download" aria-hidden="true"></i> Export All Trees</button>
       </div>
+      {{#unless hasPrivateTree}}<p class="ag-field__hint agst-hint-right">Export Selected Tree: select a tree in the Skill Trees tab first.</p>{{/unless}}
       <p class="agst-help">Exports are backups of the GM layouts (<code>ag-skill-trees/0.3</code>). Tree files are imported through <strong>General Manager → Import</strong>, which hands them to Skill Trees.</p>
     </section>
-    <section class="agst-setup-card" aria-label="Saved data check">
-      <h2>Saved data check</h2>
+    <section class="ag-card" aria-label="Saved data check">
+      <h2 class="ag-card__title">Saved data check</h2>
       {{#if hasSetupReport}}<p>These nodes need attention. Nothing has been changed or removed.</p>
         <ul class="agst-report">{{#each setupReport}}<li><strong>{{treeName}}</strong> · {{nodeName}} <small>({{nodeId}})</small>: {{text}}</li>{{/each}}</ul>
       {{else}}<p>Every node has a perk that is in this world.</p>{{/if}}
       <p>{{#if missingGrants}}<strong>{{missingGrants}}</strong> unlocked perk(s) are not on their character sheet yet.{{else}}Every unlocked perk is on its character sheet.{{/if}}</p>
-      <div class="agst-setup-actions"><button type="button" class="ag-btn" data-act="give-missing" {{#unless missingGrants}}disabled{{/unless}}><i class="fa-solid fa-user-plus"></i> Give Missing Perks</button></div>
+      <div class="ag-card__actions"><button type="button" class="ag-btn" data-act="give-missing" {{#unless missingGrants}}disabled{{/unless}}><i class="fa-solid fa-user-plus" aria-hidden="true"></i> Give Missing Perks</button></div>
+      {{#unless missingGrants}}<p class="ag-field__hint agst-hint-right">Give Missing Perks: nothing is missing.</p>{{/unless}}
     </section>
-    <section class="agst-setup-card" aria-label="Profession perk check">
-      <h2>Profession perk check</h2>
+    <section class="ag-card" aria-label="Profession perk check">
+      <h2 class="ag-card__title">Profession perk check</h2>
       {{#if professionReport.length}}<p>Characters whose profession perks need a look. Nothing has been changed or removed. Open the tree with the character selected to fix it.</p>
         <ul class="agst-report">{{#each professionReport}}<li><strong>{{actorName}}</strong> · {{treeName}} (level {{level}}, {{spent}} of {{earned}} points)<ul>{{#each issues}}<li><code>{{code}}</code> {{detail}}</li>{{/each}}</ul>
-          <button type="button" class="ag-btn ag-btn--sm" data-act="open-row" data-tree="{{treeId}}" data-actor="{{actorId}}"><i class="fa-solid fa-diagram-project"></i> Open</button></li>{{/each}}</ul>
+          <button type="button" class="ag-btn ag-btn--sm" data-act="open-row" data-tree="{{treeId}}" data-actor="{{actorId}}"><i class="fa-solid fa-diagram-project" aria-hidden="true"></i> Open</button></li>{{/each}}</ul>
       {{else}}<p>Every character's profession perks match their level, and every allocated perk is on its sheet.</p>{{/if}}
     </section>
-    <section class="agst-setup-card">
-      <h2>Publication and backups</h2>
+    <section class="ag-card" aria-label="Publication and backups">
+      <h2 class="ag-card__title">Publication and backups</h2>
       <p>Player views use a separately sanitized tree projection. Publish does not grant Features, XP, or Actor ownership.</p>
-      <div class="agst-setup-actions">
-        <button type="button" data-act="publish" class="ag-btn ag-btn--primary"><i class="fa-solid fa-arrows-rotate"></i> Publish Player View</button>
-        <button type="button" class="ag-btn" data-act="backup-progress"><i class="fa-solid fa-box-archive"></i> Backup Actor Tree Progress</button>
+      <div class="ag-card__actions">
+        <button type="button" class="ag-btn" data-act="backup-progress"><i class="fa-solid fa-box-archive" aria-hidden="true"></i> Backup Actor Tree Progress</button>
+        <button type="button" data-act="publish" class="ag-btn ag-btn--primary"><i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i> Publish Player View</button>
       </div>
     </section>
   </div>
@@ -217,22 +233,35 @@
   {{/if}}{{!-- activeLibrary --}}
   {{#if activeSetup}}
   {{#if initialized}}
-  <div class="agst-setup-main" aria-label="GM Setup for Skill Trees">
-    <div class="agst-inline-setting" role="group" aria-label="GM-controlled Player Access">
-      <span><strong>Player Access:</strong> {{#if playerAccessEnabled}}Visible{{else}}Hidden{{/if}} <small>Controls player launcher and window only; not Actor progress or document permissions.</small></span>
-      <button type="button" class="ag-btn" data-act="toggle-player-access">{{#if playerAccessEnabled}}Hide from Players{{else}}Show to Players{{/if}}</button>
-    </div>
-    <details class="agst-dev-tools">
-      <summary><i class="fa-solid fa-flask"></i> Developer Tools — Experimental / GM only</summary>
-      <div class="agst-dev-content"><p>Use a disposable world. QA installation creates real, clearly marked native Foundry documents and private tree layouts; they are not approved Cinder or Profession content.</p>
-        <div class="agst-setup-actions">
-          <button type="button" class="ag-btn" data-act="qa-install"><i class="fa-solid fa-vial"></i> Install QA Fixture Records</button>
-          <button type="button" data-act="qa-reset" class="ag-btn ag-btn--danger"><i class="fa-solid fa-trash-can"></i> Reset QA Fixture</button>
-          <button type="button" class="ag-btn" data-act="ledger-import" title="Allocate perks chosen in older Profession Ledger data on profession trees; shows what would happen first"><i class="fa-solid fa-file-import"></i> Import Ledger perk choices</button>
-          {{#if legacy}}<button type="button" class="ag-btn" data-act="legacy-preview"><i class="fa-solid fa-clock-rotate-left"></i> Review Legacy ({{legacy}})</button><button type="button" data-act="legacy-clear" class="ag-btn ag-btn--danger">Backup &amp; Clear Legacy</button>{{/if}}
+  <div class="agst-setup" role="group" aria-label="GM Setup for Skill Trees" data-agst-setup>
+    <div class="agst-setup-main">
+      <section class="ag-card" aria-label="Player access">
+        <h2 class="ag-card__title">Player access</h2>
+        <label class="ag-field ag-field--inline"><input type="checkbox" name="playerAccessEnabled" {{#if playerAccessEnabled}}checked{{/if}}> Show Skill Trees to players</label>
+        <p class="ag-field__hint">Controls the players' launcher and window only. Points, unlocks and character sheets never change. Saved with Save Changes.</p>
+      </section>
+      <section class="ag-card" aria-label="Data tools">
+        <h2 class="ag-card__title">Data tools</h2>
+        <p>One-time moves of older saved data. Each one shows what will happen and asks before it changes anything.</p>
+        <div class="ag-card__actions agst-actions-start">
+          <button type="button" class="ag-btn" data-act="ledger-import" data-tooltip="Allocate perks chosen in older Profession Ledger data on profession trees; shows what would happen first" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-file-import" aria-hidden="true"></i> Import Ledger perk choices</button>
+          {{#if legacy}}<button type="button" class="ag-btn" data-act="legacy-preview"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> Review Legacy ({{legacy}})</button><button type="button" data-act="legacy-clear" class="ag-btn ag-btn--danger"><i class="fa-solid fa-box-archive" aria-hidden="true"></i> Backup &amp; Clear Legacy</button>{{/if}}
         </div>
-      </div>
-    </details>
+      </section>
+      <details class="ag-devtools">
+        <summary><i class="fa-solid fa-flask" aria-hidden="true"></i> Developer Tools</summary>
+        <p>For a disposable test world. Install creates clearly marked [AG QA] test documents and tree layouts; Reset removes only those.</p>
+        <div class="ag-card__actions agst-actions-start">
+          <button type="button" class="ag-btn" data-act="qa-install"><i class="fa-solid fa-vial" aria-hidden="true"></i> Install QA Fixture Records</button>
+          <button type="button" data-act="qa-reset" class="ag-btn ag-btn--danger"><i class="fa-solid fa-trash-can" aria-hidden="true"></i> Reset QA Fixture</button>
+        </div>
+      </details>
+    </div>
+    <footer class="ag-footer">
+      <button type="button" class="ag-btn ag-btn--ghost" data-act="setup-cancel">Cancel</button>
+      <span class="ag-footer__status" role="status" data-agst-setup-status>{{#if setupDirty}}Unsaved changes{{/if}}</span>
+      <button type="button" class="ag-btn ag-btn--primary" data-act="setup-save"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save Changes</button>
+    </footer>
   </div>
   {{/if}}
   {{/if}}{{!-- activeSetup --}}

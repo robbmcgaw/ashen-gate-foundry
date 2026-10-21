@@ -12,14 +12,14 @@
   },
   "ashen-gate-cinders": {
     "css-colour-literal": 0,
-    "css-raw-font-size": 4,
+    "css-raw-font-size": 0,
     "css-legacy-alias": 0,
     "css-viewport-media": 0,
-    "css-raw-px-box": 33,
+    "css-raw-px-box": 0,
     "css-kit-prefix-class": 0,
-    "js-dialogv2-direct": 1,
-    "header-brand-version": 1,
-    "button-title-attr": 1
+    "js-dialogv2-direct": 0,
+    "header-brand-version": 0,
+    "button-title-attr": 0
   },
   "ashen-gate-factions": {
     "css-colour-literal": 3,
@@ -40,7 +40,7 @@
     "css-raw-px-box": 94,
     "css-kit-prefix-class": 0,
     "js-dialogv2-direct": 0,
-    "header-brand-version": 4,
+    "header-brand-version": 3,
     "button-title-attr": 0
   },
   "ashen-gate-locations": {
@@ -50,7 +50,7 @@
     "css-viewport-media": 1,
     "css-raw-px-box": 114,
     "css-kit-prefix-class": 1,
-    "js-dialogv2-direct": 15,
+    "js-dialogv2-direct": 0,
     "header-brand-version": 2,
     "button-title-attr": 7
   },
@@ -61,7 +61,7 @@
     "css-viewport-media": 4,
     "css-raw-px-box": 241,
     "css-kit-prefix-class": 39,
-    "js-dialogv2-direct": 24,
+    "js-dialogv2-direct": 0,
     "header-brand-version": 3,
     "button-title-attr": 9
   },
@@ -72,7 +72,7 @@
     "css-viewport-media": 2,
     "css-raw-px-box": 42,
     "css-kit-prefix-class": 0,
-    "js-dialogv2-direct": 7,
+    "js-dialogv2-direct": 0,
     "header-brand-version": 1,
     "button-title-attr": 4
   },
@@ -89,24 +89,24 @@
   },
   "ashen-gate-skill-trees": {
     "css-colour-literal": 0,
-    "css-raw-font-size": 33,
+    "css-raw-font-size": 0,
     "css-legacy-alias": 0,
     "css-viewport-media": 0,
-    "css-raw-px-box": 110,
+    "css-raw-px-box": 0,
     "css-kit-prefix-class": 0,
-    "js-dialogv2-direct": 2,
-    "header-brand-version": 1,
-    "button-title-attr": 15
+    "js-dialogv2-direct": 0,
+    "header-brand-version": 0,
+    "button-title-attr": 0
   },
   "ashen-gate-utilities": {
     "css-colour-literal": 0,
-    "css-raw-font-size": 11,
-    "css-legacy-alias": 1,
-    "css-viewport-media": 2,
-    "css-raw-px-box": 55,
-    "css-kit-prefix-class": 3,
+    "css-raw-font-size": 0,
+    "css-legacy-alias": 0,
+    "css-viewport-media": 0,
+    "css-raw-px-box": 0,
+    "css-kit-prefix-class": 0,
     "js-dialogv2-direct": 0,
-    "header-brand-version": 1,
-    "button-title-attr": 3
+    "header-brand-version": 0,
+    "button-title-attr": 0
   }
 }

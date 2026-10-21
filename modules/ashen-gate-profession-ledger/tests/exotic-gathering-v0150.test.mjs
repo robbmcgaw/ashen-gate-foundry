@@ -148,7 +148,7 @@ const values={partyRoster:['belwar'],libraryData:{schema:'ag-ledger/0.1',recipes
 const gm={id:'gm',isGM:true,name:'GM',active:true},alice={id:'u1',isGM:false,name:'Alice',active:true};
 const users=[gm,alice];
 const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
-class FakeDialog{constructor(o){this.opts=o;}render(){return this;}async close(){}static async confirm(o){FakeDialog.last=o;return true;}}
+class FakeDialog{constructor(o){this.opts=o;}render(){return this;}async close(){}static async wait(o){FakeDialog.last=o;return true;}}
 globalThis.foundry={applications:{api:{ApplicationV2:class{async _prepareContext(){return {};}render(){this.rendered=true;return this;}},HandlebarsApplicationMixin:c=>c,DialogV2:FakeDialog}},utils:{escapeHTML:esc,randomID:()=>`id${Math.random().toString(36).slice(2,10)}`}};
 globalThis.Hooks={once:(n,f)=>hooks[n]=f,on:()=>{},callAll:()=>{}};
 globalThis.ui={notifications:{info:()=>{},error:e=>errors.push(String(e))}};
