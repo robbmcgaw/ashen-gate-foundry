@@ -28,7 +28,7 @@ Rules are checked from top to bottom, and the first match decides the folder. If
 {"kind": "ashen-gate-organize-rules", "version": 1, "rules": [ … ]}
 ```
 
-**Import** accepts that object or a bare JSON array of rules. `kind` and `version` are not checked: any object with a `rules` list is read. After a confirmation the list replaces the saved rules, checked exactly like *Edit rules (JSON)* → *Save Changes*; if any rule is invalid nothing is saved and the first problems are shown. An empty list is refused (use *Reset rules to defaults…* instead). Importing or saving never moves a document.
+**Import** accepts that object or a bare JSON array of rules. `version` is not checked; `kind`, when present, must be `ashen-gate-organize-rules` (Manager 0.41.2+: another kind, such as an Organize backup `ashen-gate-organize-backup`, is refused with a message saying what the file is). The file is checked first, exactly like *Edit rules (JSON)* → *Save Changes*: a wrong kind, no `rules` list, an empty list (use *Reset rules to defaults…* instead) or an invalid rule is refused with the reason **before** any question. Only a good file asks for confirmation, with its real rule count, and then replaces the saved rules. Importing or saving never moves a document.
 
 ## Match keys
 
@@ -45,7 +45,7 @@ Every move in the Organize and Clean compendiums previews shows **why**, for exa
 
 **Keeping your own items where they are:** press **Keep here** on a world row in the Organize or Clean compendiums preview (sets `flags.ashen-gate-manager.keepFolder` on that document), or put them in a folder and protect it under **Protected folders** (protection covers its sub-folders). Both are skipped by Organize and Clean compendiums.
 
-Core Links does **not** use this test. It picks world candidates with a narrower 2024-only test (the same positive evidence, of the 2024 edition: a Plutonium import, a 2024 core book, a copy from a dnd5e 2024 compendium or a D&D Beyond import; never anything marked 2014, and never dnd5e's default rules alone), so 2014 / SRD 5.1 content is never linked or adopted.
+Core Links does **not** use this test. It picks world candidates with a narrower 2024-only test (the same positive evidence, of the 2024 edition: a Plutonium import, a 2024 core book, a copy from a dnd5e 2024 compendium or a D&D Beyond import with a 2024 core book; never anything marked 2014, and never dnd5e's default rules alone: a D&D Beyond import with no core book has no edition, Manager 0.41.2+), so 2014 / SRD 5.1 content is never linked or adopted.
 
 ## Placeholders
 

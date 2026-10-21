@@ -120,12 +120,7 @@ test('pure model: no resolver means every link is Unknown; resolvePlayerLinks fi
     {id: null, kind: 'location', name: UNKNOWN_LINK, unknown: true}]);
 });
 
-test('docs and version 0.41.1 are consistent', () => {
-  assert.match(read('../../../docs/npc-codex-schema.md'), /0\.41\.1/);
-  const manifest = JSON.parse(read('../module.json'));
-  assert.equal(manifest.version, '0.41.1');
-  assert.match(manifest.download, /ashen-gate-manager-v0\.41\.1\/ashen-gate-manager\.zip$/);
-  assert.match(read('../templates/manager.hbs'), /v0\.41\.1 Beta/);
-  assert.match(read('../scripts/main.js'), /General Manager v0\.41\.1 Beta/);
+test('docs describe the player link filter (version checks live in the newest test)', () => {
+  assert.match(read('../../../docs/npc-codex-schema.md'), /What a player sees of a link/);
   assert.match(read('../CHANGELOG.md'), /## 0\.41\.1/);
 });

@@ -152,7 +152,7 @@ test('0.34.0: an NPC Actor and its Codex entry are one row listing both places; 
   // Without an injected opener, Open says where to look.
   const plain = await createBrowse({game}).open(row.key);
   assert.equal(plain.ok, false);
-  assert.match(plain.message, /Library → NPC Codex/);
+  assert.match(plain.message, /Items → NPC Codex/);
   // Browse never writes.
   assert.deepEqual(warden.writes, []);
 });

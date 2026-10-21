@@ -82,7 +82,8 @@ export function coreEvidence(entry, packId = null) {
   if(from) return {core:true, edition:editionOfPack(from[1]), strong:false, reason:`copied from dnd5e compendium dnd5e.${from[1]} (may have been edited)`};
   const ddb = getPath(entry, 'flags.ddbimporter');
   if(ddb && !getPath(ddb, 'dndbeyond.homebrew') && !getPath(ddb, 'isHomebrew'))
-    return {core:true, edition:editionOf(entry), strong:false, reason:`D&D Beyond import with ${bookText ? `book ${bookText}` : 'no core source book'} (could be D&D Beyond homebrew)`};
+    // 0.41.2: no core book means no edition: dnd5e's default rules value alone never makes a 2024 (Core Links) candidate.
+    return {core:true, edition:null, strong:false, reason:`D&D Beyond import with ${bookText ? `book ${bookText}` : 'no core source book'} (could be D&D Beyond homebrew)`};
   const custom = String(getPath(entry, 'system.source.custom') ?? '').trim();
   const rules = String(getPath(entry, 'system.source.rules') ?? '');
   return {core:false, edition:null, strong:true, reason:bookText ? `source book "${bookText}" is not a core book`

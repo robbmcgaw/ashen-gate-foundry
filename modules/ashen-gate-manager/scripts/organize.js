@@ -136,6 +136,22 @@ export function pathSegments(path) {
   return String(path ?? '').split('/').map(s => s.trim()).filter(Boolean);
 }
 /** Problems with a rule set (empty = valid). */
+export const RULES_FILE_KIND = 'ashen-gate-organize-rules';
+/**
+ * 0.41.2: reads an imported organize rules file before anything is asked or saved. Accepts a bare array of rules or
+ * {kind: 'ashen-gate-organize-rules', rules: [...]} (a missing kind is allowed). Returns {ok, rules} or {ok:false, message}.
+ */
+export function readRulesFile(data) {
+  const kind = data && typeof data === 'object' && !Array.isArray(data) ? data.kind : undefined;
+  if(kind !== undefined && kind !== RULES_FILE_KIND)
+    return {ok:false, message:`This is not an organize rules file (its kind is "${kind}", expected "${RULES_FILE_KIND}").${kind === 'ashen-gate-organize-backup' ? ' It is an Organize backup: use Undo or restore it instead.' : ''}`};
+  const rules = Array.isArray(data) ? data : data?.rules;
+  if(!Array.isArray(rules)) return {ok:false, message:'This file has no list of organize rules (expected a "rules" list or a JSON array of rules).'};
+  if(!rules.length) return {ok:false, message:'This rules file has no rules. To go back to the shipped rules, use Reset rules to defaults.'};
+  const problems = validateRules(rules);
+  if(problems.length) return {ok:false, message:problems.slice(0, 5).join(' ')};
+  return {ok:true, rules};
+}
 export function validateRules(rules) {
   if(!Array.isArray(rules) || !rules.length) return ['The schema needs at least one rule.'];
   const problems = [], ids = new Set();

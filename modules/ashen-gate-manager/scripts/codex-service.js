@@ -32,7 +32,7 @@ export function createCodexService({game, moduleId}) {
   const find = id => {
     const hits = npcs().filter(n => n.def.id === id);
     if (!hits.length) throw new Error(`No NPC ${id} in this world. Import its record first.`);
-    if (hits.length > 1) throw new Error(`Two Actors carry ${id}. Fix the duplicate in the Library first.`);
+    if (hits.length > 1) throw new Error(`Two Actors carry ${id}. Fix the duplicate in Items → Ashen Gate records first.`);
     return hits[0];
   };
   /** Player characters a GM can reveal to: character Actors with a player owner. */
@@ -53,8 +53,8 @@ export function createCodexService({game, moduleId}) {
       if (kind === 'deity') return (api(RENOWN)?.getDeities?.() ?? []).find(d => d.id === id)?.name ?? null;
       if (kind === 'location') return api('ashen-gate-locations')?.getLocation?.(id)?.name ?? null;
       if (kind === 'quest') return (api('ashen-gate-quest-manager')?.listQuests?.() ?? []).find(q => q.id === id)?.name ?? null;
-      const r = api('ashen-gate-factions');
-      return [...(r?.getFactions?.() ?? []), ...(r?.getDeities?.() ?? [])].find(f => f.id === id)?.name ?? null;
+      // Renown deities always have DEITY- ids (kind 'deity', above), so only factions are looked up here.
+      return (api(RENOWN)?.getFactions?.() ?? []).find(f => f.id === id)?.name ?? null;
     } catch { return null; }
   };
   /**
