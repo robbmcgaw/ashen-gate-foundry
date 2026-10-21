@@ -8,6 +8,7 @@ import {isDeity,makeDeity,deityProfile,deityCard,visibleRelations,pantheonRows,D
 import {visibilityChip,chipBadge,orgRow,listOrgsTab,CHIPS as ORG_CHIPS,SORTS as ORG_SORTS,GROUPS as ORG_GROUPS,DEFAULT_VIEW as ORG_VIEW} from './orgs-tab.mjs';
 import {standingView,markCurrent} from './standing-view.mjs';
 import {windowSize} from './ag-html.mjs';
+import {readDrop,resolveItemDrop,itemIdOf,worldItemById,grantBundle,bundleOf} from './ag-item-drop.mjs';
 const {ApplicationV2,HandlebarsApplicationMixin}=foundry.applications.api;
 const OBS=CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER,NONE=CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE,OWNER=CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER;
 const rid=()=>foundry.utils.randomID(24).toUpperCase().replace(/[^A-Z0-9]/g,'');
@@ -116,7 +117,8 @@ function grantedItemUuid(claim,user,actorIds){
 }
 function scrubMilestones(milestones,user,claims={},actorIds=[]){return milestones.map(m=>({...m,rewards:(m.rewards??[]).map(r=>{
   const grantedUuid=grantedItemUuid(claims[r.id],user,actorIds);
-  const safe={...r,grantedUuid,canViewGranted:Boolean(grantedUuid)};
+  // Player payloads carry no permanent item ids or reward pictures (0.14.0).
+  const {item_id,img,...rest}=r,safe={...rest,grantedUuid,canViewGranted:Boolean(grantedUuid)};
   if(!r.uuid||nativeReadableUuid(r.uuid,user))return safe;
   return {...safe,uuid:null,canView:false,documentAccessRequired:true};
 })}));}
@@ -268,14 +270,102 @@ async function incoming(msg){if(!['share','request'].includes(msg?.type)||!game.
   }
   await stateDoc.setFlag(MODULE_ID,key,state);await reproject();ui.notifications.info(`${user.name} requested ${reward.name}.`);accepted=true;
 }catch(e){notifyError(e)}finally{inFlight.delete(requestLock);if(msg?.requestId&&msg?.userId)game.socket?.emit(SOCKET,{type:'receipt',userId:msg.userId,requestId:msg.requestId,ok:accepted,message:msg.type==='share'?'Discovery shared with party.':'Renown request received by GM.'});}}
-async function grantItem(actor,reward,claim,faction){const source=await fromUuid(reward.uuid);if(!source||source.documentName!=='Item')throw Error('Item source unavailable.');if(actor.items.some(i=>i.getFlag(MODULE_ID,'claimId')===claim.request_id))return;const data=source.toObject();delete data._id;delete data.folder;data.flags??={};data.flags[MODULE_ID]={...(data.flags[MODULE_ID]??{}),claimId:claim.request_id,rewardId:reward.id,factionId:faction.id};await actor.createEmbeddedDocuments('Item',[data]);}
+/* ---- 0.14.0: item rewards follow the shared item-drop standard (ag-item-drop/1). ---- */
+const HOLDING_FOLDER_NAME='Ashen Gate Rewards (Renown)';
+const missingItemText=reward=>`The reward item is missing (${reward.name}). Fix the reward, then approve again.`;
+async function loadDoc(uuid){if(typeof uuid!=='string'||!uuid)return null;try{return (await fromUuid(uuid))??null;}catch{return null;}}
+// An item reward points at an Item uuid or carries a permanent id. Older rewards may link a Journal: those grant nothing.
+const isItemReward=r=>r?.kind==='uuid'&&(linkedItem(r)||Boolean(r.item_id));
+/** The Item behind a reward: the permanent id first, then the uuid. Null when neither resolves to an Item. */
+async function rewardSource(reward){
+  const byId=worldItemById(reward?.item_id);if(byId)return byId;
+  const doc=await loadDoc(reward?.uuid);return doc?.documentName==='Item'?doc:null;
+}
+/** What the reward editor shows for one reward: picture, permanent id, and whether the item is missing. */
+async function rewardLook(reward){
+  if(reward?.kind!=='uuid')return {isItemReward:false};
+  const source=await rewardSource(reward);
+  if(!source&&!isItemReward(reward)&&await loadDoc(reward.uuid))return {isItemReward:false};
+  return {isItemReward:true,rowImg:reward.img||source?.img||null,rowItemId:reward.item_id??null,rowMissing:!source};
+}
+async function rewardLooks(rewards=[]){return new Map(await Promise.all(rewards.map(async r=>[r.id,await rewardLook(r)])));}
+const holdingFolder=()=>game.folders?.find?.(d=>d.type==='Item'&&d.getFlag?.(MODULE_ID,'store')==='reward-holding')??null;
+async function ensureHoldingFolder(){
+  assertGM();let folder=holdingFolder();if(folder)return folder;
+  folder=await Folder.create({name:HOLDING_FOLDER_NAME,type:'Item',sorting:'a',flags:{[MODULE_ID]:{store:'reward-holding'}}});
+  if(!folder)throw Error('Could not create the reward holding folder.');
+  return folder;
+}
+const ItemClass=()=>Item.implementation??Item;
+async function deleteWorldItems(ids){if(ids.length)await ItemClass().deleteDocuments(ids);}
+/** D2: an Item dropped from an Actor is copied to a GM-only world Item (contents included), so the reward survives
+ * the Actor or token being deleted. The dropped Item is never changed. */
+async function createHoldingCopy(item){
+  assertGM();const folder=await ensureHoldingFolder();
+  const {data}=await grantBundle(item,{quantity:item.system?.quantity??1,scope:MODULE_ID,tag:{holding:{from:item.parent?.uuid??null,at:new Date().toISOString()}}});
+  for(const row of data){row.folder=folder.id;row.ownership={default:NONE};}
+  let made=[];
+  try{made=(await ItemClass().createDocuments(data,{keepId:true}))??[];if(made.length!==data.length)throw Error('The holding copy was not fully created.');}
+  catch(e){await deleteWorldItems(data.map(d=>d._id).filter(id=>game.items?.get?.(id)));throw e;}
+  return made[0];
+}
+const isHoldingCopy=doc=>Boolean(doc?.documentName==='Item'&&!doc.parent&&!doc.pack&&doc.getFlag?.(MODULE_ID,'holding'));
+/** The reward record for a dropped Item: world and compendium Items are linked, Actor Items get a holding copy. */
+async function itemRewardFields(item){
+  assertGM();const embedded=item.parent?.documentName==='Actor';
+  const stored=embedded?await createHoldingCopy(item):item,itemId=itemIdOf(item);
+  return {name:item.name,teaser:item.name,kind:'uuid',uuid:stored.uuid,...(itemId?{item_id:itemId}:{}),...(item.img?{img:item.img}:{})};
+}
+/** GM-only grant of one item reward: the Item and its contents in one create call; rolled back if it fails part-way.
+ * An Item already tagged with this claim on the Actor means it was granted: nothing is created again. */
+async function grantItem(actor,reward,claim,faction,source=null){
+  assertGM();
+  if(actor.items.some(i=>i.getFlag(MODULE_ID,'claimId')===claim.request_id))return {created:0,skipped:true};
+  source??=await rewardSource(reward);if(!source)throw Error(missingItemText(reward));
+  const {data}=await grantBundle(source,{quantity:source.system?.quantity??1,scope:MODULE_ID,tag:{claimId:claim.request_id,rewardId:reward.id,factionId:faction.id}});
+  for(const row of data)delete row.flags?.[MODULE_ID]?.holding;
+  let made=[];
+  try{made=(await actor.createEmbeddedDocuments('Item',data,{keepId:true}))??[];if(made.length!==data.length)throw Error('The reward item was not fully created.');}
+  catch(e){const ids=new Set(data.map(d=>d._id)),left=[...actor.items].map(i=>i.id??i._id).filter(id=>ids.has(id));if(left.length)await actor.deleteEmbeddedDocuments('Item',left);throw e;}
+  return {created:made.length,skipped:false};
+}
+/** Saving a reward fills its own empty item_id (and picture) from the Item it links, when that Item has one. */
+async function fillRewardItemId(reward){
+  if(reward?.kind!=='uuid'||reward.item_id)return reward;
+  const item=await loadDoc(reward.uuid);if(item?.documentName!=='Item')return reward;
+  const itemId=itemIdOf(item);if(itemId)reward.item_id=itemId;if(!reward.img&&item.img)reward.img=item.img;
+  return reward;
+}
+/** Design §7: fill in the permanent item id of item rewards that lack one. Dry run by default. Never overwrites an
+ * item_id, never changes a uuid and never touches claims; re-running changes nothing. GM only. */
+async function backfillItemIds({dryRun=true}={}){
+  assertGM();const report={dryRun:dryRun!==false,fill:[],noId:[],missing:[],written:0};
+  for(const doc of defs()){
+    const stored=getFaction(doc),changes=new Map();
+    for(const r of stored?.rewards??[]){
+      if(r.kind!=='uuid'||r.item_id)continue;
+      const row={factionId:stored.id,faction:stored.name,rewardId:r.id,reward:r.name},found=await loadDoc(r.uuid);
+      if(!found){report.missing.push(row);continue;}
+      if(found.documentName!=='Item')continue;
+      const itemId=itemIdOf(found);
+      if(!itemId){report.noId.push(row);continue;}
+      report.fill.push({...row,itemId});changes.set(r.id,itemId);
+    }
+    if(report.dryRun||!changes.size)continue;
+    const next=structuredClone(stored);for(const r of next.rewards)if(changes.has(r.id)&&!r.item_id)r.item_id=changes.get(r.id);
+    const clean=sourceDefinition(next),faults=validateFaction(clean);if(faults.length)throw Error(faults.join(' '));
+    await doc.update({[`flags.${MODULE_ID}.faction`]:clean});report.written+=changes.size;
+  }
+  if(report.written)await reproject();
+  return report;
+}
 const SEARCH_DELAY=200;
 class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
-  static DEFAULT_OPTIONS={id:'ashen-gate-factions-window',classes:['ag-app','ashen-gate-factions'],window:{title:'Ashen Gate | Renown',icon:'fa-solid fa-shield-halved',resizable:true},position:{width:1180,height:800},actions:{help:Dashboard.help,saveSetup:Dashboard.saveSetup,cancelEdit:Dashboard.cancelEdit,clearOrgFilters:Dashboard.clearOrgFilters,openDeity:Dashboard.openDeity,createDeity:Dashboard.createDeity,saveDeity:Dashboard.saveDeity,pickSymbol:Dashboard.pickSymbol,addRelation:Dashboard.addRelation,removeRelation:Dashboard.removeRelation,undoFavour:Dashboard.undoFavour,select:Dashboard.select,create:Dashboard.create,seed:Dashboard.seed,save:Dashboard.save,award:Dashboard.award,createFolder:Dashboard.createFolder,saveFolder:Dashboard.saveFolder,discovery:Dashboard.discovery,share:Dashboard.share,addEntry:Dashboard.addEntry,showEntry:Dashboard.showEntry,claim:Dashboard.claim,resolveRequest:Dashboard.resolveRequest,resetUsage:Dashboard.resetUsage,addReward:Dashboard.addReward,editReward:Dashboard.editReward,removeReward:Dashboard.removeReward,openLinked:Dashboard.openLinked,resetChoice:Dashboard.resetChoice,saveFieldReveals:Dashboard.saveFieldReveals,addObjective:Dashboard.addObjective,removeObjective:Dashboard.removeObjective,exportAll:Dashboard.exportAll,importJson:Dashboard.importJson}};
+  static DEFAULT_OPTIONS={id:'ashen-gate-factions-window',classes:['ag-app','ashen-gate-factions'],window:{title:'Ashen Gate | Renown',icon:'fa-solid fa-shield-halved',resizable:true},position:{width:1180,height:800},actions:{help:Dashboard.help,saveSetup:Dashboard.saveSetup,cancelEdit:Dashboard.cancelEdit,checkRewardIds:Dashboard.checkRewardIds,fillRewardIds:Dashboard.fillRewardIds,clearOrgFilters:Dashboard.clearOrgFilters,openDeity:Dashboard.openDeity,createDeity:Dashboard.createDeity,saveDeity:Dashboard.saveDeity,pickSymbol:Dashboard.pickSymbol,addRelation:Dashboard.addRelation,removeRelation:Dashboard.removeRelation,undoFavour:Dashboard.undoFavour,select:Dashboard.select,create:Dashboard.create,seed:Dashboard.seed,save:Dashboard.save,award:Dashboard.award,createFolder:Dashboard.createFolder,saveFolder:Dashboard.saveFolder,discovery:Dashboard.discovery,share:Dashboard.share,addEntry:Dashboard.addEntry,showEntry:Dashboard.showEntry,claim:Dashboard.claim,resolveRequest:Dashboard.resolveRequest,resetUsage:Dashboard.resetUsage,addReward:Dashboard.addReward,editReward:Dashboard.editReward,removeReward:Dashboard.removeReward,openLinked:Dashboard.openLinked,resetChoice:Dashboard.resetChoice,saveFieldReveals:Dashboard.saveFieldReveals,addObjective:Dashboard.addObjective,removeObjective:Dashboard.removeObjective,exportAll:Dashboard.exportAll,importJson:Dashboard.importJson}};
   static PARTS={main:{template:`modules/${MODULE_ID}/templates/dashboard.hbs`}};
   /** Compact size by default; Comfortable (General Manager → My Appearance) opens it 1.2x larger. An explicit position still wins. */
   constructor(options={}){super({...options,position:{...windowSize(Dashboard.DEFAULT_OPTIONS.position),...options.position}});}
-  #tab='group';#searchTimer=null;#orgsView={...ORG_VIEW};#selected=null;#deity=null;#actor=null;#lastView=null;
+  #tab='group';#searchTimer=null;#orgsView={...ORG_VIEW};#selected=null;#deity=null;#actor=null;#lastView=null;#backfill=null;
   // Actions shared by factions and deities act on the open deity in the Pantheon tab, else the selected faction.
   get #cur(){return this.#tab==='pantheon'?this.#deity:this.#selected;}
   async render(options={}){
@@ -313,17 +403,18 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
     const factionMap=new Map(known.map(f=>[f.id,f.name]));const folders=(data.folders??[]).map(folder=>({...folder,factions:folder.known.map(id=>({id,name:factionMap.get(id),selected:id===this.#selected})),unknown:Array.from({length:folder.unknown_count??0},(_,i)=>({index:i})),count:folder.known.length+(folder.unknown_count??0)}));
     const requestRows=isGM&&gf?this.#queue(gf):[];
     if(!isGM&&['orgs','setup'].includes(this.#tab))this.#tab='group';
-    const pantheon=this.#tab==='pantheon'?this.#pantheonContext(isGM):null;
+    const looks=gf?await rewardLooks(gf.rewards):null,openDeity=isGM&&this.#tab==='pantheon'&&this.#deity?definition(this.#deity):null;
+    const pantheon=this.#tab==='pantheon'?this.#pantheonContext(isGM,openDeity?await rewardLooks(loadDef(openDeity)?.rewards):null):null;
     const orgsView=this.#orgsView,orgs=isGM?this.#orgsList(orgsView):{total:0,shown:0,groups:[]};
     for(const g of orgs.groups)for(const r of g.rows){r.selected=r.id===this.#selected;r.chipKey=r.chip.toLowerCase().replace(/[^a-z]+/g,'-');}
     const opt=(items,v)=>items.map(x=>{const [value,label]=Array.isArray(x)?x:[x,x];return{value,label,selected:value===v};});
     const orgsOptions={status:opt([['all','All'],...ORG_CHIPS],orgsView.status),sort:opt(ORG_SORTS,orgsView.sort),group:opt(ORG_GROUPS,orgsView.group)};
     const actorName=actorChoices.find(a=>a.id===this.#actor)?.name??'selected character';
-    return {...ctx,isGM,version:moduleVersion(),actorName,showFolders:['group','player'].includes(this.#tab)||(isGM&&this.#tab==='orgs'),hasFolders:folderList().length>0,detail,folders,hasData:Boolean(detail),pantheon,tabPantheon:this.#tab==='pantheon',tabGroup:this.#tab==='group',tabPlayer:this.#tab==='player',tabOrgs:isGM&&this.#tab==='orgs',tabSetup:isGM&&this.#tab==='setup',showHeader:Boolean(detail)&&['group','player'].includes(this.#tab),orgs,orgsView,orgsOptions,groupLabel:groupLabel(),actorChoices:actorChoices.map(a=>({id:a.id,name:a.name,selected:a.id===this.#actor})),actorId:this.#actor,gmQueue:requestRows,foldersForSelect:[{key:'',name:'Other Factions',selected:!detail?.folder_key},...folderList().map(q=>({...q,selected:detail?.folder_key===q.key}))],groupName:game.settings.get(MODULE_ID,'groupName'),groupNameEnabled:game.settings.get(MODULE_ID,'groupNameEnabled'),pantheonDamping:pantheonDamping(),pantheonDampingMax:DAMPING_MAX,playerAccessEnabled:playerAccessEnabled(),hasActiveGM:Boolean(activeGM()),gmKnown:gf,gmObjectiveRefs:gf?auditObjectiveRefs(gf,game.modules.get('ashen-gate-quest-manager')):[],gmGroupLevels:gf?editorLevels(gf.renown_track,gf.rewards,'group').map(m=>({...m,groupTitle:`Group: ${m.name}`})):[],gmPersonalLevels:gf?editorLevels(gf.individual_track,gf.rewards,'individual').map(m=>({...m,personalTitle:`Individual: ${m.name}`})):[],serviceRewards:gf?.rewards.filter(r=>r.behavior==='repeatable_service').map(r=>({...r,resetLabel:r.audience==='group'?'Reset group uses':`Reset uses for ${actorName}`}))??[],shareEnabled:gf?.discovery?.sharing_enabled,fieldSelective:gf?.field_reveals?.mode==='selective',gmFieldReveals:gf?FIELD_KEYS.map(key=>({key,label:key==='public_role'?'Description':key==='leader'?'Leader':'Name',party:Boolean(gf.field_reveals?.fields?.[key]?.party),actor:Boolean(gf.field_reveals?.fields?.[key]?.actors?.includes(this.#actor))})):[],canEdit:!!gf,refreshNeeded:!isGM&&!userViewDoc(game.user)};
+    return {...ctx,isGM,version:moduleVersion(),actorName,showFolders:['group','player'].includes(this.#tab)||(isGM&&this.#tab==='orgs'),hasFolders:folderList().length>0,detail,folders,hasData:Boolean(detail),pantheon,tabPantheon:this.#tab==='pantheon',tabGroup:this.#tab==='group',tabPlayer:this.#tab==='player',tabOrgs:isGM&&this.#tab==='orgs',tabSetup:isGM&&this.#tab==='setup',showHeader:Boolean(detail)&&['group','player'].includes(this.#tab),orgs,orgsView,orgsOptions,groupLabel:groupLabel(),actorChoices:actorChoices.map(a=>({id:a.id,name:a.name,selected:a.id===this.#actor})),actorId:this.#actor,gmQueue:requestRows,foldersForSelect:[{key:'',name:'Other Factions',selected:!detail?.folder_key},...folderList().map(q=>({...q,selected:detail?.folder_key===q.key}))],groupName:game.settings.get(MODULE_ID,'groupName'),groupNameEnabled:game.settings.get(MODULE_ID,'groupNameEnabled'),pantheonDamping:pantheonDamping(),pantheonDampingMax:DAMPING_MAX,playerAccessEnabled:playerAccessEnabled(),hasActiveGM:Boolean(activeGM()),gmKnown:gf,gmObjectiveRefs:gf?auditObjectiveRefs(gf,game.modules.get('ashen-gate-quest-manager')):[],gmGroupLevels:gf?editorLevels(gf.renown_track,gf.rewards,'group',looks).map(m=>({...m,groupTitle:`Group: ${m.name}`})):[],gmPersonalLevels:gf?editorLevels(gf.individual_track,gf.rewards,'individual',looks).map(m=>({...m,personalTitle:`Individual: ${m.name}`})):[],serviceRewards:gf?.rewards.filter(r=>r.behavior==='repeatable_service').map(r=>({...r,resetLabel:r.audience==='group'?'Reset group uses':`Reset uses for ${actorName}`}))??[],shareEnabled:gf?.discovery?.sharing_enabled,fieldSelective:gf?.field_reveals?.mode==='selective',gmFieldReveals:gf?FIELD_KEYS.map(key=>({key,label:key==='public_role'?'Description':key==='leader'?'Leader':'Name',party:Boolean(gf.field_reveals?.fields?.[key]?.party),actor:Boolean(gf.field_reveals?.fields?.[key]?.actors?.includes(this.#actor))})):[],backfill:isGM&&this.#tab==='setup'?backfillView(this.#backfill):null,canEdit:!!gf,refreshNeeded:!isGM&&!userViewDoc(game.user)};
   }
   /** Pantheon tab: symbol tiles grouped by tier and, when a deity is open, its card and this character's standing.
    * Players only ever read their projected view (revealed deities only); the GM reads the definitions. */
-  #pantheonContext(isGM){
+  #pantheonContext(isGM,looks=null){
     const actorId=this.#actor,actor=actorId?game.actors.get(actorId):null;
     const list=isGM?deityDefs().map(d=>upgradeFaction(loadDef(d))):(getView(userViewDoc(game.user))?.payload?.deities??[]);
     if(this.#deity&&!list.some(x=>x.id===this.#deity))this.#deity=null;
@@ -351,7 +442,7 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
       damping:pantheonDamping(),
       entries:x.entries.map(e=>({...e,discovered:Boolean(e.discovered_party||e.discovered_actors?.includes(actorId))})),
       gm:{id:x.id,name:x.name,tags:(x.tags??[]).join(', '),profile,isMajor:profile.tier==='major',isLesser:profile.tier==='lesser',discovery:x.discovery,chip:visibilityChip(x),badgeClass:chipBadge(visibilityChip(x)),actorKnows:discoverable({discovery:x.discovery,actorIds:actorId?[actorId]:[]}),
-        levels:editorLevels(x.individual_track,x.rewards),
+        levels:editorLevels(x.individual_track,x.rewards,null,looks),
         relationOptions:list.filter(d=>d.id!==x.id&&!profile.relations.some(r=>r.deity_id===d.id)).map(d=>({id:d.id,name:d.name})),
         queue:this.#queue(x),serviceRewards:x.rewards.filter(r=>r.behavior==='repeatable_service').map(r=>({...r,audience:'individual',resetLabel:`Reset uses for ${actorName||'the selected character'}`}))}}};
   }
@@ -388,7 +479,12 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
     root.addEventListener('dragstart',e=>{const el=e.target.closest('[data-faction-drag]');if(!game.user.isGM||!el)return;e.dataTransfer.setData('text/ashen-gate-faction',el.dataset.factionDrag);e.dataTransfer.effectAllowed='move';});
     root.addEventListener('dragover',e=>{if(game.user.isGM&&e.target.closest('[data-folder-drop], [data-reward-drop], [data-entry-drop]'))e.preventDefault();});
     root.addEventListener('drop',async e=>{try{if(!game.user.isGM)return;const folder=e.target.closest('[data-folder-drop]');if(folder){const id=e.dataTransfer.getData('text/ashen-gate-faction');if(!id)return;e.preventDefault();const doc=definition(id),f=loadDef(doc);f.folder_key=folder.dataset.folderDrop;await saveChange(doc,f);await this.render({force:true});return;}
-      const rewardZone=e.target.closest('[data-reward-drop]'),entryZone=e.target.closest('[data-entry-drop]');if(!rewardZone&&!entryZone)return;e.preventDefault();let drag;try{drag=TextEditor.getDragEventData(e)}catch{drag=JSON.parse(e.dataTransfer.getData('text/plain'))}let uuid=drag?.uuid;if(!uuid&&drag?.id&&drag?.type)uuid=`${drag.type}.${drag.id}`;if(!uuid)throw Error('Drop a Foundry document with a UUID.');const linked=await fromUuid(uuid);if(!linked)throw Error('Document not found.');const doc=definition(this.#cur),f=loadDef(doc);if(rewardZone){f.rewards.push({id:`rw-${rid()}`,key:keyFor('rw_'+rid()),audience:rewardZone.dataset.audience,milestone_id:rewardZone.dataset.milestone,name:linked.name,teaser:linked.name,kind:'uuid',uuid,description:'',tags:[],behavior:'one_time',usage_limit:0});}else{f.entries.push({id:`info_${keyFor(rid())}`,name:linked.name,text:'',uuid,link_mode:'document',unlock:'manual',threshold:0,discovered_party:false,discovered_actors:[]});}await saveChange(doc,f);await this.render({force:true});
+      const rewardZone=e.target.closest('[data-reward-drop]'),entryZone=e.target.closest('[data-entry-drop]');if(!rewardZone&&!entryZone)return;e.preventDefault();const drag=readDrop(e),doc=definition(this.#cur);if(!doc)throw Error('Choose a faction or deity first.');
+      // D13: reward zones take Items only (world, compendium or from an Actor); journals and other documents go to the info list.
+      if(rewardZone){const found=await resolveItemDrop(drag);if(!found.ok){if(found.reason==='Drop an item.')ui.notifications.warn('Rewards take items. Drop journals and other documents on the info list.');else ui.notifications.warn(found.reason);return;}
+        const fields=await itemRewardFields(found.items[0]),f=loadDef(doc);f.rewards.push({id:`rw-${rid()}`,key:keyFor('rw_'+rid()),audience:rewardZone.dataset.audience,milestone_id:rewardZone.dataset.milestone,description:'',tags:[],behavior:'one_time',usage_limit:0,...fields});
+        try{await saveChange(doc,f);}catch(err){const copy=await loadDoc(fields.uuid);if(isHoldingCopy(copy)&&copy.uuid!==found.items[0].uuid)await deleteWorldItems((await bundleOf(copy)).map(i=>i.id));throw err;}await this.render({force:true});return;}
+      let uuid=drag?.uuid;if(!uuid&&drag?.id&&drag?.type)uuid=`${drag.type}.${drag.id}`;if(!uuid)throw Error('Drop a Foundry document with a UUID.');const linked=await fromUuid(uuid);if(!linked)throw Error('Document not found.');const f=loadDef(doc);{f.entries.push({id:`info_${keyFor(rid())}`,name:linked.name,text:'',uuid,link_mode:'document',unlock:'manual',threshold:0,discovered_party:false,discovered_actors:[]});}await saveChange(doc,f);await this.render({force:true});
     }catch(err){notifyError(err)}});
   }
   static async select(e,t){this.#selected=t.dataset.id;await this.render({force:true});}
@@ -450,6 +546,13 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
   }catch(e){notifyError(e)}}
   /** Cancel in an editor footer: drop unsaved edits by drawing the saved values again. */
   static async cancelEdit(){await this.render({force:true});}
+  /** GM Setup → Fill in permanent item ids: Check rewards is a dry run; Fill in ids asks first, then writes. */
+  static async checkRewardIds(){try{assertGM();this.#backfill=await backfillItemIds({dryRun:true});await this.render({force:true});}catch(e){notifyError(e)}}
+  static async fillRewardIds(){try{assertGM();const plan=await backfillItemIds({dryRun:true});this.#backfill=plan;
+    if(!plan.fill.length){ui.notifications.info('Renown: no reward needs a permanent item id.');await this.render({force:true});return;}
+    const n=plan.fill.length;if(!await confirmDialog(`Fill in the permanent item id of ${n} item reward${n===1?'':'s'}? Links, claims and rewards that already have an id are not changed.`,{title:'Fill in permanent item ids?',yes:'Fill in ids'})){await this.render({force:true});return;}
+    const done=await backfillItemIds({dryRun:false});this.#backfill={...await backfillItemIds({dryRun:true}),written:done.written};
+    ui.notifications.info(`Renown: filled in ${done.written} permanent item id${done.written===1?'':'s'}.`);await this.render({force:true});}catch(e){notifyError(e)}}
   static async clearOrgFilters(){this.#orgsView={...ORG_VIEW};await this.render({force:true});}
   static async award(e,t){try{assertGM();const doc=definition(this.#cur),f=loadDef(doc),scope=t.dataset.scope,zone=t.closest('[data-award-scope]');if(!zone||!['group','individual'].includes(scope))throw Error('Invalid Renown award scope.');if(isDeity(f)&&scope!=='individual')throw Error('Deities have no group standing; award a character.');const delta=Number(zone.querySelector('[name=renown-delta]')?.value),reason=nameValue(zone,'renown-reason'),args={delta,reason,eventId:`RENOWN-EVT-${rid()}`,when:new Date().toISOString()};
     const actor=scope==='individual'?game.actors.get(this.#actor):null;if(scope==='individual'&&!actor)throw Error('Select a character.');const stateDoc=scope==='group'?await ensureGroup(doc):await ensurePersonal(doc,actor),key=scope==='group'?'groupClaims':'individual',state=structuredClone(stateDoc.getFlag(MODULE_ID,key)),result=adjustStanding(state.standing,args);if(!result.applied)return ui.notifications.warn('No change applied.');
@@ -490,8 +593,8 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
   static async addEntry(e,t){try{assertGM();const zone=t.closest('[data-info-editor]'),doc=definition(this.#cur),f=loadDef(doc),name=nameValue(zone,'info-name');if(!name)throw Error('Entry needs a title.');f.entries.push({id:`info_${keyFor(rid())}`,name,text:nameValue(zone,'info-text'),link_mode:'preview',unlock:zone.querySelector('[name=info-unlock]')?.value??'manual',threshold:Number(zone.querySelector('[name=info-threshold]')?.value??0),discovered_party:false,discovered_actors:[]});await saveChange(doc,f);await this.render({force:true});}catch(e){notifyError(e)}}
   static async showEntry(e,t){try{assertGM();const doc=definition(this.#cur),f=loadDef(doc),entry=f.entries.find(r=>r.id===t.dataset.entry);if(!entry)throw Error('Entry not found.');const action=t.dataset.mode;if(action==='party')entry.discovered_party=!entry.discovered_party;else if(action==='actor'){const actor=game.actors.get(this.#actor);if(!actor)throw Error('Select character first.');entry.discovered_actors??=[];entry.discovered_actors=entry.discovered_actors.includes(actor.id)?entry.discovered_actors.filter(i=>i!==actor.id):[...entry.discovered_actors,actor.id];}else if(action==='mode'){entry.link_mode=entry.link_mode==='preview'?'document':'preview';}else if(action==='edit'){const txt=await promptText('Edit information',`Information for ${entry.name}:`,entry.text??'',{multiline:true});if(txt===null)return;entry.text=txt;}else if(action==='remove'){if(!await confirmDialog(`Remove "${entry.name}" from ${f.name}? This is not undone.`,{title:'Remove this entry?',yes:'Remove entry',danger:true}))return;f.entries=f.entries.filter(x=>x.id!==entry.id);}await saveChange(doc,f);await this.render({force:true});}catch(e){notifyError(e)}}
   static async addReward(e,t){try{assertGM();const zone=t.closest('[data-reward-drop]'),doc=definition(this.#cur),f=loadDef(doc),name=nameValue(zone,'reward-name');if(!name)throw Error('Reward name required.');f.rewards.push({id:`rw-${rid()}`,key:keyFor('rw_'+rid()),audience:zone.dataset.audience,milestone_id:zone.dataset.milestone,name,teaser:name,description:nameValue(zone,'reward-description'),kind:'custom',tags:[],behavior:zone.querySelector('[name=reward-behavior]')?.value??'one_time',usage_limit:Number(zone.querySelector('[name=reward-limit]')?.value??0)});await saveChange(doc,f);await this.render({force:true});}catch(e){notifyError(e)}}
-  static async editReward(e,t){try{assertGM();const doc=definition(this.#cur),f=loadDef(doc),reward=f.rewards.find(r=>r.id===t.dataset.reward);if(!reward)throw Error('Reward not found.');const v=await formDialog('Edit reward',[{name:'name',label:'Reward name',value:reward.name},{name:'teaser',label:'Locked reward teaser',value:reward.teaser??reward.name},{name:'description',label:'Unlocked description',value:reward.description??'',type:'textarea'},{name:'tags',label:'Tags (comma separated)',value:(reward.tags??[]).join(', ')},{name:'behavior',label:'Behavior',value:reward.behavior??'one_time',type:'select',options:[{value:'one_time',label:'One time'},{value:'repeatable_service',label:'Repeatable service'},{value:'passive',label:'Passive'}]},{name:'usage_limit',label:'Usage limit (0 = unlimited)',value:reward.usage_limit??0,type:'number'}]);if(v===null)return;const {name,teaser,description,tags,behavior}=v;if(!['one_time','repeatable_service','passive'].includes(behavior))throw Error('Invalid reward behavior.');const limit=Number(v.usage_limit);if(!Number.isSafeInteger(limit)||limit<0)throw Error('Invalid usage limit.');Object.assign(reward,{name:name.trim(),teaser,description,tags:tags.split(',').map(s=>s.trim()).filter(Boolean),behavior,usage_limit:limit});await saveChange(doc,f);await this.render({force:true});}catch(e){notifyError(e)}}
-  static async removeReward(e,t){try{assertGM();const doc=definition(this.#cur),f=loadDef(doc),id=t.dataset.reward;if(game.journal.some(d=>{const state=getGroup(d)??getPersonal(d);return state&&(state.claims?.[id]||Object.values(state.requests??{}).some(r=>r.reward_id===id))}))throw Error('Reward has recorded claims or requests; do not delete its identity.');if(!await confirmDialog(`Remove "${f.rewards.find(r=>r.id===id)?.name??'this reward'}" from ${f.name}? This is not undone.`,{title:'Remove this reward?',yes:'Remove reward',danger:true}))return;f.rewards=f.rewards.filter(r=>r.id!==id);await saveChange(doc,f);await this.render({force:true});}catch(e){notifyError(e)}}
+  static async editReward(e,t){try{assertGM();const doc=definition(this.#cur),f=loadDef(doc),reward=f.rewards.find(r=>r.id===t.dataset.reward);if(!reward)throw Error('Reward not found.');const v=await formDialog('Edit reward',[{name:'name',label:'Reward name',value:reward.name},{name:'teaser',label:'Locked reward teaser',value:reward.teaser??reward.name},{name:'description',label:'Unlocked description',value:reward.description??'',type:'textarea'},{name:'tags',label:'Tags (comma separated)',value:(reward.tags??[]).join(', ')},{name:'behavior',label:'Behavior',value:reward.behavior??'one_time',type:'select',options:[{value:'one_time',label:'One time'},{value:'repeatable_service',label:'Repeatable service'},{value:'passive',label:'Passive'}]},{name:'usage_limit',label:'Usage limit (0 = unlimited)',value:reward.usage_limit??0,type:'number'}]);if(v===null)return;const {name,teaser,description,tags,behavior}=v;if(!['one_time','repeatable_service','passive'].includes(behavior))throw Error('Invalid reward behavior.');const limit=Number(v.usage_limit);if(!Number.isSafeInteger(limit)||limit<0)throw Error('Invalid usage limit.');Object.assign(reward,{name:name.trim(),teaser,description,tags:tags.split(',').map(s=>s.trim()).filter(Boolean),behavior,usage_limit:limit});await fillRewardItemId(reward);await saveChange(doc,f);await this.render({force:true});}catch(e){notifyError(e)}}
+  static async removeReward(e,t){try{assertGM();const doc=definition(this.#cur),f=loadDef(doc),id=t.dataset.reward;if(game.journal.some(d=>{const state=getGroup(d)??getPersonal(d);return state&&(state.claims?.[id]||Object.values(state.requests??{}).some(r=>r.reward_id===id))}))throw Error('Reward has recorded claims or requests; do not delete its identity.');const reward=f.rewards.find(r=>r.id===id),held=reward?.kind==='uuid'?await loadDoc(reward.uuid):null,holding=isHoldingCopy(held)?held:null;if(!await confirmDialog(`Remove "${reward?.name??'this reward'}" from ${f.name}?${holding?' Its GM-only holding copy in the Items sidebar is deleted too.':''} This is not undone.`,{title:'Remove this reward?',yes:'Remove reward',danger:true}))return;f.rewards=f.rewards.filter(r=>r.id!==id);await saveChange(doc,f);if(holding&&!defs().some(d=>(getFaction(d)?.rewards??[]).some(r=>r.uuid===holding.uuid)))await deleteWorldItems((await bundleOf(holding)).map(i=>i.id));await this.render({force:true});}catch(e){notifyError(e)}}
   static async claim(e,t){try{requirePlayerAccess();if(game.user.isGM){ui.notifications.warn('Test claims as a player.');return;}const view=getView(userViewDoc(game.user)),f=viewEntry(view,this.#cur);if(!f||!activeGM())throw Error('Entry or online GM unavailable.');const audience=t.dataset.audience,actor=audience==='individual'?game.actors.get(this.#actor):null;if(audience==='individual'&&!actor)throw Error('Choose your assigned character.');const msg={type:'request',factionId:f.id,actorId:actor?.id??null,rewardId:t.dataset.reward,audience,userId:game.user.id,capability:view.capability};sendClientAction(msg);ui.notifications.info('Request sent; awaiting GM confirmation...');}catch(e){notifyError(e)}}
   static async resolveRequest(e,t){try{assertGM();const doc=game.journal.get(t.dataset.doc),group=Boolean(getGroup(doc)),key=group?'groupClaims':'individual',state=structuredClone(doc?.getFlag(MODULE_ID,key)),fdoc=definition(state?.faction_id),f=loadDef(fdoc),action=t.dataset.mode;const one=Boolean(t.dataset.claim),id=t.dataset.key;
     if(!state||!fdoc)throw Error('Request record missing.');const record=one?state.claims?.[id]:state.requests?.[id],reward=f.rewards.find(r=>r.id===(one?id:record?.reward_id));if(!record||!reward)throw Error('Request no longer exists.');
@@ -503,8 +606,11 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
       if(!['pending','requested'].includes(record.status))throw Error('Request already reviewed.');if(!rewardUnlocked(reward,f,state.standing.score))throw Error('Renown no longer qualifies.');if(!chooseOneEligible({faction:f,reward,claims:state.claims,choices:state.choices}))throw Error('Another Choose One reward already confirmed.');
       record.status='approved';record.gm_confirmed_by=game.user.id;state.choices??={};const milestone=(reward.audience==='group'?f.renown_track:f.individual_track).milestones.find(m=>m.id===reward.milestone_id);if(milestone?.selection_mode==='choose_one')state.choices[milestone.id]=reward.id;
       if(one&&reward.kind==='uuid'){
-        const item=await fromUuid(reward.uuid);let recipient=group?game.actors.get(this.element.querySelector(`[name="recipient-${id}"]`)?.value):game.actors.get(state.actor_id);
-        if(item?.documentName==='Item'&&recipient){if(!group||assignedActors().some(a=>a.id===recipient.id)){await grantItem(recipient,reward,record,f);record.status='claimed';record.delivered_to=recipient.id;}else throw Error('Recipient is not an assigned player character.');}
+        const recipient=group?game.actors.get(this.element.querySelector(`[name="recipient-${id}"]`)?.value):game.actors.get(state.actor_id);
+        // A missing item keeps the request pending (nothing is written) so the GM can fix the reward and approve again.
+        if(recipient&&isItemReward(reward)){if(group&&!assignedActors().some(a=>a.id===recipient.id))throw Error('Recipient is not an assigned player character.');
+          const source=await rewardSource(reward);if(!source){ui.notifications.error(`Renown: ${missingItemText(reward)}`);return;}
+          await grantItem(recipient,reward,record,f,source);record.status='claimed';record.delivered_to=recipient.id;}
       }
     }else if(action==='fulfill'){
       if(!['approved'].includes(record.status))throw Error('Only approved requests can be fulfilled.');
@@ -551,10 +657,15 @@ function pantheonFor(actorOrId){
   return pantheonRows(list,f=>{const score=getPersonal(personalDoc(f.id,actor.id))?.standing?.score??0,p=progressFor(f.individual_track,score);return{score,rank:p.rank.name,next:p.next?{name:p.next.name,threshold:p.next.threshold}:null,remaining:p.remaining,percent:p.percent};});
 }
 const viewEntry=(view,id)=>[...(view?.payload?.factions??[]),...(view?.payload?.deities??[])].find(x=>x.id===id);
+/** GM Setup backfill card: the last Check rewards result, grouped (null before the first check). */
+const backfillView=r=>{if(!r)return null;const row=x=>({...x,label:`${x.faction} · ${x.reward}`});
+  const n=r.written??0;
+  return {checked:true,written:n,writtenText:`Filled in ${n} permanent item id${n===1?'':'s'}.`,fill:r.fill.map(row),noId:r.noId.map(row),missing:r.missing.map(row),empty:!r.fill.length&&!r.noId.length&&!r.missing.length};};
 /** Milestone cards for the template: current milestone marked, rewards carrying their claim wording. */
 const decorateTrack=(ms,score,{audience,claimLabel,passiveLabel})=>markCurrent(ms,score).map(m=>({...m,rewards:(m.rewards??[]).map(r=>({...r,audience,claimLabel,passiveLabel}))}));
 const GROUP_TRACK={audience:'group',claimLabel:'Claim for group',passiveLabel:'Available privilege'},PERSONAL_TRACK={audience:'individual',claimLabel:'Claim reward',passiveLabel:'Available privilege'},FAVOUR_TRACK={audience:'individual',claimLabel:'Claim reward',passiveLabel:'Available blessing'};
-const editorLevels=(track,rewards,audience=null)=>track.milestones.map((m,i)=>({...m,order:i+1,rewards:rewards.filter(r=>(!audience||r.audience===audience)&&r.milestone_id===m.id),isAll:m.selection_mode==='all',isOne:m.selection_mode==='choose_one'}));
+// `looks` (reward id → rewardLook) adds the item picture, permanent id and Missing badge in the GM reward editor.
+const editorLevels=(track,rewards,audience=null,looks=null)=>track.milestones.map((m,i)=>({...m,order:i+1,rewards:rewards.filter(r=>(!audience||r.audience===audience)&&r.milestone_id===m.id).map(r=>({...r,...(looks?.get(r.id)??{})})),isAll:m.selection_mode==='all',isOne:m.selection_mode==='choose_one'}));
 function rankOf(ms,score){return[...ms].reverse().find(m=>score>=m.threshold)?.name??'Unproven';}
 /* ---- 0.10.0: embed API. A partner module (Character Hub) mounts a compact, read-only standing list for one character:
    each faction this user may see, with party and this character's rank and score, the next milestone, and Open.
@@ -668,7 +779,9 @@ Hooks.once('ready',()=>{
     getObjectiveRefs:(factionId)=>{assertGM();const doc=definition(factionId);if(!doc)throw Error('Faction not found.');return structuredClone(objectiveRefs(getFaction(doc)));},
     // GM-only diagnostic: Quest owns Objective kind, adoption and reveal, not Factions.
     auditObjectiveRefs:(factionId)=>{assertGM();const doc=definition(factionId);if(!doc)throw Error('Faction not found.');return structuredClone(auditObjectiveRefs(getFaction(doc),game.modules.get('ashen-gate-quest-manager')));},
-    playerAccess:Object.freeze({contract:PLAYER_ACCESS_CONTRACT,getState:playerAccessState,setEnabled:setPlayerAccess})
+    playerAccess:Object.freeze({contract:PLAYER_ACCESS_CONTRACT,getState:playerAccessState,setEnabled:setPlayerAccess}),
+    // 0.14.0, GM only: fill in permanent item ids of item rewards (dry run unless {dryRun:false}).
+    rewards:Object.freeze({contract:'ag-renown-rewards/1',backfillItemIds:options=>backfillItemIds(options)})
   });
   attachLauncher(ui.actors);
   game.socket.on(SOCKET,msg=>{
