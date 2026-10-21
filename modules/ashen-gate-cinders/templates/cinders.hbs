@@ -1,128 +1,149 @@
-<div class="agc-shell">
+<div class="ag-window agc-shell">
   <header class="ag-header">
-    <div class="agc-title"><i class="fa-solid fa-fire"></i> <strong>Ashen Gate | Cinders</strong></div>
-    <div class="ag-header__meta"><span class="agc-version">v{{version}}</span><button type="button" class="ag-btn ag-btn--sm" data-act="help"><i class="fa-solid fa-circle-question"></i> Help</button></div>
+    <div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Cinders</h1></div>
+    <div class="ag-header__meta"><span class="ag-version">v{{version}}</span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-act="help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button></div>
   </header>
-  <nav class="ag-tabs" aria-label="Cinders views">
-    <button type="button" class="agc-tab {{#if tabCinders}}agc-active{{/if}}" data-act="tab" data-tab="cinders" aria-current="{{#if tabCinders}}page{{else}}false{{/if}}">Cinders</button>
-    {{#if gm}}<button type="button" class="agc-tab {{#if tabManage}}agc-active{{/if}}" data-act="tab" data-tab="manage" aria-current="{{#if tabManage}}page{{else}}false{{/if}}">Manage</button>
-    <button type="button" class="agc-tab {{#if tabSetup}}agc-active{{/if}}" data-act="tab" data-tab="setup" aria-current="{{#if tabSetup}}page{{else}}false{{/if}}">GM Setup</button>{{/if}}
+  <nav class="ag-tabs ag-tabs--scroll" role="tablist" aria-label="Cinders views">
+    <button type="button" role="tab" class="{{#if tabCinders}}active{{/if}}" aria-selected="{{#if tabCinders}}true{{else}}false{{/if}}" data-act="tab" data-tab="cinders"><i class="fa-solid fa-fire" aria-hidden="true"></i> Cinders</button>
+    {{#if gm}}<button type="button" role="tab" class="ag-tab--gm {{#if tabManage}}active{{/if}}" aria-selected="{{#if tabManage}}true{{else}}false{{/if}}" data-act="tab" data-tab="manage"><i class="fa-solid fa-list-check" aria-hidden="true"></i> Manage</button>
+    <button type="button" role="tab" class="ag-tab--gm {{#if tabSetup}}active{{/if}}" aria-selected="{{#if tabSetup}}true{{else}}false{{/if}}" data-act="tab" data-tab="setup"><i class="fa-solid fa-gears" aria-hidden="true"></i> GM Setup</button>{{/if}}
   </nav>
-  <div class="agc-content">
+  <div class="ag-scroll agc-content" role="tabpanel">
   {{#if blocked}}
-    <section class="agc-card agc-warn" role="alert"><h2>Cinders is off</h2><p>{{blocked}}</p></section>
+    <div class="ag-notice ag-notice--danger" role="alert"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><div><strong>Cinders is off.</strong> {{blocked}}</div></div>
   {{else}}
-  {{#if treesMessage}}<p class="agc-note" role="status">{{treesMessage}}</p>{{/if}}
+  {{#if treesMessage}}<p class="ag-notice ag-notice--warn" role="status"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><span>{{treesMessage}}</span></p>{{/if}}
 
   {{#if tabCinders}}
-    <div class="agc-toolbar"><label class="ag-field">Character<select data-agc-actor aria-label="Choose character">{{#each actors}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select></label></div>
+    <div class="ag-toolbar"><label class="ag-field ag-field--inline agc-actor">Character <select data-agc-actor aria-label="Choose character">{{#each actors}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select></label></div>
     {{#if hasActor}}
-      {{#if error}}<p class="agc-note">{{error}}</p>{{/if}}
+      {{#if error}}<p class="ag-notice ag-notice--danger" role="alert"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>{{error}}</span></p>{{/if}}
       {{#if bar}}
-      <section class="agc-card" aria-label="Strain">
-        <div class="agc-strain-head"><h2>Strain</h2><span class="agc-strain-band">{{bar.band}}</span></div>
-        <div class="agc-bar" role="meter" aria-valuemin="0" aria-valuemax="{{bar.top}}" aria-valuenow="{{bar.value}}" aria-label="Strain {{bar.label}}">
-          <div class="agc-bar-fill" style="width:{{bar.fill}}%"></div>{{#if bar.over}}<span class="agc-bar-over">+{{bar.over}} over</span>{{/if}}
+      <section class="ag-card" aria-label="Strain">
+        <div class="agc-strain{{#if bar.over}} is-over{{/if}}" role="group" aria-label="Strain">
+          <span class="agc-strain__label"><i class="fa-solid fa-fire" aria-hidden="true"></i> Strain</span>
+          <span class="ag-meter{{#if bar.tone}} ag-meter--{{bar.tone}}{{/if}} agc-strain__meter" data-tooltip="{{bar.tip}}" data-tooltip-class="ag-tooltip"><span class="ag-meter__track agc-strain__bar" role="progressbar" aria-valuemin="0" aria-valuemax="{{bar.top}}" aria-valuenow="{{bar.now}}" aria-valuetext="{{bar.label}}" aria-label="{{bar.tip}}" style="--ag-meter:{{bar.fill}}%"><span class="ag-meter__fill agc-strain__fill"></span></span></span>
+          <span class="ag-meter__value agc-strain__text">{{bar.label}}</span>
+          <span class="agc-strain__band">{{bar.band}}</span><span class="agc-strain__chance" data-tooltip="Backfire chance on a Push from this Strain" data-tooltip-class="ag-tooltip">{{bar.chance}}%</span>
+          {{#if bar.over}}<span class="ag-badge ag-badge--danger">+{{bar.over}} over</span>{{/if}}
         </div>
-        <p class="agc-strain-line"><strong>{{bar.label}}</strong> · Backfire on a Push from here: <strong>{{bar.chance}}%</strong>{{#if bar.guaranteed}} (guaranteed){{/if}}</p>
-        {{#if bar.normalUseBackfires}}<p class="agc-bad">At this Strain every use of a Cinder power backfires, Push or not.</p>{{/if}}
-        {{#if gm}}<div class="agc-actions"><button type="button" class="ag-btn ag-btn--sm" data-act="strain-adjust" data-op="add"><i class="fa-solid fa-plus"></i> Add</button><button type="button" class="ag-btn ag-btn--sm" data-act="strain-adjust" data-op="remove"><i class="fa-solid fa-minus"></i> Remove</button><button type="button" class="ag-btn ag-btn--sm" data-act="strain-adjust" data-op="set">Set…</button></div>{{/if}}
+        <p class="agc-meta">Backfire on a Push from here: <strong>{{bar.chance}}%</strong>{{#if bar.guaranteed}} (guaranteed){{/if}}</p>
+        {{#if bar.normalUseBackfires}}<p class="ag-notice ag-notice--danger" role="note"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>At this Strain every use of a Cinder power backfires, Push or not.</span></p>{{/if}}
+        {{#if gm}}<div class="ag-card__actions"><button type="button" class="ag-btn ag-btn--sm" data-act="strain-adjust" data-op="add"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add</button><button type="button" class="ag-btn ag-btn--sm" data-act="strain-adjust" data-op="remove"><i class="fa-solid fa-minus" aria-hidden="true"></i> Remove</button><button type="button" class="ag-btn ag-btn--sm" data-act="strain-adjust" data-op="set"><i class="fa-solid fa-pen" aria-hidden="true"></i> Set…</button></div>{{/if}}
       </section>
       {{/if}}
       {{#if hasCinders}}
         {{#each cinders}}
-        <section class="agc-card" aria-label="{{name}}">
-          <div class="agc-strain-head"><h2>{{name}}</h2>{{#if ../canOpenTree}}<button type="button" class="ag-btn ag-btn--sm" data-act="open-tree" data-definition="{{definitionId}}"><i class="fa-solid fa-diagram-project"></i> Open tree</button>{{/if}}</div>
+        <section class="ag-card" aria-label="{{name}}">
+          <div class="ag-card__head"><h2 class="ag-card__title">{{name}}</h2>{{#if ../canOpenTree}}<button type="button" class="ag-btn ag-btn--sm" data-act="open-tree" data-definition="{{definitionId}}"><i class="fa-solid fa-diagram-project" aria-hidden="true"></i> Open tree</button>{{/if}}</div>
           {{#each powers}}
           <div class="agc-power">
-            <h3>{{name}}</h3>{{#if standard}}<p>{{standard}}</p>{{/if}}
+            <h3 class="agc-power__name">{{name}}</h3>{{#if standard}}<p>{{standard}}</p>{{/if}}
             {{#if modes.length}}<ul class="agc-modes">{{#each modes}}<li>
-              <div><strong>{{label}}</strong> <small>+{{cost}} Strain → {{after}} · Backfire {{chance}}%{{#if guaranteed}} (guaranteed){{/if}}</small>{{#if effect}}<p>{{effect}}</p>{{/if}}</div>
-              <button type="button" class="ag-btn ag-btn--sm" data-act="push" data-instance="{{../../instanceId}}" data-power="{{../powerId}}" data-mode="{{id}}"><i class="fa-solid fa-fire"></i> Push</button>
-            </li>{{/each}}</ul>{{else}}<p><small>No Push available for this power yet.</small></p>{{/if}}
+              <div><strong>{{label}}</strong> <span class="agc-meta">+{{cost}} Strain → {{after}} · Backfire {{chance}}%{{#if guaranteed}} (guaranteed){{/if}}</span>{{#if effect}}<p>{{effect}}</p>{{/if}}</div>
+              <button type="button" class="ag-btn ag-btn--sm" data-act="push" data-instance="{{../../instanceId}}" data-power="{{../powerId}}" data-mode="{{id}}"><i class="fa-solid fa-fire" aria-hidden="true"></i> Push</button>
+            </li>{{/each}}</ul>{{else}}<p class="agc-meta">No Push available for this power yet.</p>{{/if}}
           </div>
-          {{else}}<p>No powers unlocked yet. Unlock them in the Skill Trees window.</p>{{/each}}
-          {{#if enhancements.length}}<p class="agc-enh"><small>Perks: {{#each enhancements}}{{name}}{{#unless @last}}, {{/unless}}{{/each}}</small></p>{{/if}}
+          {{else}}<div class="ag-empty"><p class="ag-empty__title">No powers unlocked yet.</p><p class="ag-empty__text">Unlock them in Skill Trees.</p></div>{{/each}}
+          {{#if enhancements.length}}<p class="agc-meta">Perks: {{#each enhancements}}{{name}}{{#unless @last}}, {{/unless}}{{/each}}</p>{{/if}}
           {{#if sockets}}<div class="agc-sockets" aria-label="Sockets of {{name}}">
-            <div class="agc-strain-head"><h3>Sockets <small>{{sockets.used}} of {{sockets.capacity}} in use{{#if sockets.locked}} · locked by the GM{{/if}}</small></h3>
-              {{#if sockets.canAttach}}<button type="button" class="ag-btn ag-btn--sm" data-act="socket-attach" data-instance="{{instanceId}}"><i class="fa-solid fa-plus"></i> Attach…</button>{{/if}}</div>
-            {{#if sockets.hasSlots}}<ul class="agc-socket-list">
-              {{#each sockets.slots}}<li class="{{#unless active}}agc-inactive{{/unless}}"><div><strong>{{name}}</strong>{{#unless active}} <span class="agc-bad">inactive: over capacity</span>{{/unless}}{{#if effects}}<br><small>{{effects}}</small>{{/if}}</div>
-                {{#if ../sockets.canEdit}}<span class="agc-row-actions">{{#if ../sockets.canSwap}}<button type="button" class="ag-btn ag-btn--sm" data-act="socket-swap" data-instance="{{../instanceId}}" data-slot="{{slot}}">Swap…</button>{{/if}}<button type="button" class="ag-btn ag-btn--sm" data-act="socket-detach" data-instance="{{../instanceId}}" data-slot="{{slot}}">Detach</button></span>{{/if}}</li>{{/each}}
-              {{#each sockets.empties}}<li class="agc-empty"><em>Empty socket</em></li>{{/each}}
-            </ul>{{else}}<p><small>This Cinder has no sockets.</small></p>{{/if}}
-            {{#if sockets.overCapacity}}<p><small>More items are attached than this Cinder has sockets. The extra ones do nothing until one is removed; nothing is deleted.</small></p>{{/if}}
+            <div class="ag-section__head"><h3 class="ag-section__title">Sockets <span class="agc-meta">{{sockets.used}} of {{sockets.capacity}} in use</span>{{#if sockets.locked}} <span class="ag-badge"><i class="fa-solid fa-lock" aria-hidden="true"></i> Locked by the GM</span>{{/if}}</h3>
+              {{#if sockets.canAttach}}<button type="button" class="ag-btn ag-btn--sm" data-act="socket-attach" data-instance="{{instanceId}}"><i class="fa-solid fa-plus" aria-hidden="true"></i> Attach…</button>{{/if}}</div>
+            {{#if sockets.hasSlots}}<ul class="ag-rows agc-socket-list">
+              {{#each sockets.slots}}<li class="ag-row{{#unless active}} agc-inactive{{/unless}}"><div class="ag-row__main"><span class="ag-row__title">{{name}}{{#unless active}} <span class="ag-badge ag-badge--warn">Inactive: over capacity</span>{{/unless}}</span>{{#if effects}}<span class="ag-row__meta">{{effects}}</span>{{/if}}</div>
+                {{#if ../sockets.canEdit}}<span class="ag-row__end">{{#if ../sockets.canSwap}}<button type="button" class="ag-btn ag-btn--sm" data-act="socket-swap" data-instance="{{../instanceId}}" data-slot="{{slot}}"><i class="fa-solid fa-right-left" aria-hidden="true"></i> Swap…</button>{{/if}}<button type="button" class="ag-btn ag-btn--sm" data-act="socket-detach" data-instance="{{../instanceId}}" data-slot="{{slot}}"><i class="fa-solid fa-link-slash" aria-hidden="true"></i> Detach</button></span>{{/if}}</li>{{/each}}
+              {{#each sockets.empties}}<li class="ag-row agc-socket--empty"><span class="ag-row__meta">Empty socket</span></li>{{/each}}
+            </ul>{{else}}<p class="agc-meta">This Cinder has no sockets.</p>{{/if}}
+            {{#if sockets.overCapacity}}<p class="agc-meta">More items are attached than this Cinder has sockets. The extra ones do nothing until one is removed; nothing is deleted.</p>{{/if}}
           </div>{{/if}}
         </section>
         {{/each}}
-      {{else}}<p class="agc-note">{{actorName}} does not bear a Cinder.{{#if gm}} Bind one in <strong>Manage</strong>.{{/if}}</p>{{/if}}
-    {{else}}<p class="agc-note">No character to show.</p>{{/if}}
+      {{else}}<div class="ag-empty"><i class="fa-solid fa-fire" aria-hidden="true"></i><p class="ag-empty__title">No Cinder bound to this character yet.</p>{{#if gm}}<p class="ag-empty__text">Bind one to {{actorName}} in the Manage tab.</p>{{/if}}</div>{{/if}}
+    {{else}}<div class="ag-empty"><i class="fa-solid fa-user" aria-hidden="true"></i><p class="ag-empty__title">No character to show.</p></div>{{/if}}
   {{/if}}
 
   {{#if tabManage}}{{#if manage}}
-    <section class="agc-card">
-      <div class="agc-strain-head"><h2>Cinders</h2><button type="button" class="ag-btn ag-btn--primary" data-act="cinder-new" {{#unless manage.definitions}}disabled title="Import Cinder (MUT-*) definitions through General Manager first"{{/unless}}><i class="fa-solid fa-plus"></i> New Cinder</button></div>
+    <div class="ag-toolbar">
+      <span class="ag-toolbar__count">{{manage.count}} {{#if manage.countOne}}Cinder{{else}}Cinders{{/if}}</span>
+      <div class="ag-toolbar__end">
+        {{#unless manage.definitions}}<span class="ag-field__hint agc-hint">Import Cinder (MUT-*) definitions through General Manager first.</span>{{/unless}}
+        <button type="button" class="ag-btn" data-act="cinder-new" {{#unless manage.definitions}}disabled{{/unless}}><i class="fa-solid fa-plus" aria-hidden="true"></i> New Cinder</button>
+      </div>
+    </div>
+    <section class="ag-card" aria-label="Cinders">
+      <h2 class="ag-card__title">Cinders</h2>
       <p>Each Cinder keeps its own points and unlocked powers and moves between bearers with them. A bearer cannot release a Cinder; only the GM binds, transfers or unbinds it. Strain stays with each character. Limit: {{manage.limit}} per character · starting points: {{manage.initial}} (first binding only).</p>
-      {{#if manage.legacy}}<div class="agc-inline"><span>Skill Trees 0.15/0.16 saved Cinder data that is not here yet.</span><button type="button" class="ag-btn" data-act="cinder-adopt"><i class="fa-solid fa-file-import"></i> Take over from Skill Trees</button></div>{{/if}}
-      {{#if manage.migrate}}<div class="agc-inline"><span><strong>{{manage.migrate}}</strong> character(s) have Cinder tree progress but no Cinder.</span><button type="button" class="ag-btn" data-act="cinder-migrate"><i class="fa-solid fa-right-left"></i> Move existing Cinder progress</button></div>{{/if}}
+      {{#if manage.legacy}}<div class="ag-notice ag-notice--warn agc-notice-action"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><span>Skill Trees 0.15/0.16 saved Cinder data that is not here yet.</span><button type="button" class="ag-btn ag-btn--sm" data-act="cinder-adopt"><i class="fa-solid fa-file-import" aria-hidden="true"></i> Take over from Skill Trees</button></div>{{/if}}
+      {{#if manage.migrate}}<div class="ag-notice ag-notice--warn agc-notice-action"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><span><strong>{{manage.migrate}}</strong> character(s) have Cinder tree progress but no Cinder.</span><button type="button" class="ag-btn ag-btn--sm" data-act="cinder-migrate"><i class="fa-solid fa-right-left" aria-hidden="true"></i> Move existing Cinder progress</button></div>{{/if}}
       {{#if manage.hasCinders}}
-        {{#each manage.groups}}<h3 class="agc-group">{{name}} <small>({{definitionId}})</small></h3>
-        <table class="agc-table"><thead><tr><th scope="col">Bearer</th><th scope="col">Points</th><th scope="col">Powers</th><th scope="col">Actions</th></tr></thead><tbody>
-          {{#each rows}}<tr><td>{{#if bearerName}}{{bearerName}}{{else}}<em>{{#if lost}}Lost{{else}}Unbound{{/if}}</em>{{#if lastName}} <small>(last: {{lastName}})</small>{{/if}}{{/if}}{{#if migrated}} <small>moved from older data</small>{{/if}}</td>
-            <td>{{spent}} of {{awarded}} spent</td><td>{{unlocks}} unlocked</td>
-            <td class="agc-row-actions">{{#if bound}}<button type="button" class="ag-btn ag-btn--sm" data-act="cinder-transfer" data-instance="{{instanceId}}"><i class="fa-solid fa-right-left"></i> Transfer</button><button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-act="cinder-unbind" data-instance="{{instanceId}}">Unbind</button>{{else}}<button type="button" class="ag-btn ag-btn--sm" data-act="cinder-bind" data-instance="{{instanceId}}"><i class="fa-solid fa-link"></i> Bind</button>{{/if}}</td></tr>{{/each}}
-        </tbody></table>{{/each}}
-      {{else}}<p>No Cinders yet. Click <strong>New Cinder</strong>, then <strong>Bind</strong> it to a character.</p>{{/if}}
+        {{#each manage.groups}}<h3 class="agc-group">{{name}} <span class="agc-id">{{definitionId}}</span></h3>
+        <div class="ag-table-wrap"><table class="ag-table agc-manage-table"><thead><tr><th scope="col">Bearer</th><th scope="col">Points</th><th scope="col">Powers</th><th scope="col" class="is-actions">Actions</th></tr></thead><tbody>
+          {{#each rows}}<tr><td data-label="Bearer">{{#if bearerName}}{{bearerName}}{{else}}<em>{{#if lost}}Lost{{else}}Unbound{{/if}}</em>{{#if lastName}} <span class="agc-meta">(last: {{lastName}})</span>{{/if}}{{/if}}{{#if migrated}} <span class="ag-badge">Moved from older data</span>{{/if}}</td>
+            <td data-label="Points">{{spent}} of {{awarded}} spent</td><td data-label="Powers">{{unlocks}} unlocked</td>
+            <td class="is-actions" data-label="Actions"><span class="agc-row-actions">{{#if bound}}<button type="button" class="ag-btn ag-btn--sm" data-act="cinder-transfer" data-instance="{{instanceId}}"><i class="fa-solid fa-right-left" aria-hidden="true"></i> Transfer</button><button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-act="cinder-unbind" data-instance="{{instanceId}}"><i class="fa-solid fa-link-slash" aria-hidden="true"></i> Unbind</button>{{else}}<button type="button" class="ag-btn ag-btn--sm" data-act="cinder-bind" data-instance="{{instanceId}}"><i class="fa-solid fa-link" aria-hidden="true"></i> Bind</button>{{/if}}</span></td></tr>{{/each}}
+        </tbody></table></div>{{/each}}
+      {{else}}<div class="ag-empty"><i class="fa-solid fa-fire" aria-hidden="true"></i><p class="ag-empty__title">No Cinders yet.</p><p class="ag-empty__text">Create one with New Cinder, then bind it.</p></div>{{/if}}
     </section>
-    <section class="agc-card" aria-label="Sockets">
-      <h2>Sockets</h2>
+    <section class="ag-card" aria-label="Sockets">
+      <h2 class="ag-card__title">Sockets</h2>
       <p>Default: <strong>{{manage.socketDefault}}</strong> per Cinder (Configure Settings). Drag an Item from the Items sidebar onto a socket to copy it to the bearer and attach it. Attached items stay in the bearer's inventory; on a transfer or unbind they stay with the old bearer, detached.</p>
       {{#if manage.hasSockets}}{{#each manage.sockets}}
-        <h3 class="agc-group">{{name}} <small>· {{bearerName}} · {{used}} of {{capacity}} in use · count: {{countLabel}}</small></h3>
-        <ul class="agc-socket-list">
-          {{#each slots}}<li class="agc-drop {{#unless active}}agc-inactive{{/unless}}" data-agc-drop data-instance="{{../instanceId}}" data-slot="{{slot}}"><div><strong>{{name}}</strong>{{#unless active}} <span class="agc-bad">inactive: over capacity</span>{{/unless}}{{#if effects}}<br><small>{{effects}}</small>{{/if}}</div>
-            <span class="agc-row-actions"><button type="button" class="ag-btn ag-btn--sm" data-act="socket-swap" data-instance="{{../instanceId}}" data-slot="{{slot}}" data-actor="{{../bearerId}}">Swap…</button><button type="button" class="ag-btn ag-btn--sm" data-act="socket-detach" data-instance="{{../instanceId}}" data-slot="{{slot}}" data-actor="{{../bearerId}}">Detach</button></span></li>{{/each}}
-          {{#each empties}}<li class="agc-drop agc-empty" data-agc-drop data-instance="{{../instanceId}}" data-slot=""><em>Empty socket: drop an Item here</em></li>{{/each}}
+        <h3 class="agc-group">{{name}} <span class="agc-meta">· {{bearerName}} · {{used}} of {{capacity}} in use · count: {{countLabel}}</span>{{#if locked}} <span class="ag-badge"><i class="fa-solid fa-lock" aria-hidden="true"></i> Locked for players</span>{{/if}}</h3>
+        <ul class="ag-rows agc-socket-list">
+          {{#each slots}}<li class="ag-row agc-drop{{#unless active}} agc-inactive{{/unless}}" data-agc-drop data-instance="{{../instanceId}}" data-slot="{{slot}}"><div class="ag-row__main"><span class="ag-row__title">{{name}}{{#unless active}} <span class="ag-badge ag-badge--warn">Inactive: over capacity</span>{{/unless}}</span>{{#if effects}}<span class="ag-row__meta">{{effects}}</span>{{/if}}</div>
+            <span class="ag-row__end"><button type="button" class="ag-btn ag-btn--sm" data-act="socket-swap" data-instance="{{../instanceId}}" data-slot="{{slot}}" data-actor="{{../bearerId}}"><i class="fa-solid fa-right-left" aria-hidden="true"></i> Swap…</button><button type="button" class="ag-btn ag-btn--sm" data-act="socket-detach" data-instance="{{../instanceId}}" data-slot="{{slot}}" data-actor="{{../bearerId}}"><i class="fa-solid fa-link-slash" aria-hidden="true"></i> Detach</button></span></li>{{/each}}
+          {{#each empties}}<li class="ag-row agc-drop agc-socket--empty" data-agc-drop data-instance="{{../instanceId}}" data-slot=""><span class="ag-row__meta">Empty socket: drop an Item here</span></li>{{/each}}
         </ul>
-        <div class="agc-actions">
-          <button type="button" class="ag-btn ag-btn--sm" data-act="socket-attach" data-instance="{{instanceId}}" data-actor="{{bearerId}}" {{#unless canAttach}}disabled{{/unless}}><i class="fa-solid fa-plus"></i> Attach…</button>
-          <button type="button" class="ag-btn ag-btn--sm" data-act="socket-lock" data-instance="{{instanceId}}" data-locked="{{locked}}"><i class="fa-solid {{#if locked}}fa-lock-open{{else}}fa-lock{{/if}}"></i> {{#if locked}}Unlock for players{{else}}Lock for players{{/if}}</button>
-          <button type="button" class="ag-btn ag-btn--sm" data-act="socket-count" data-instance="{{instanceId}}">Socket count…</button>
+        <div class="ag-card__actions agc-socket-actions">
+          {{#unless canAttach}}<span class="ag-field__hint agc-hint">Attach needs a free socket and a fitting item on {{bearerName}}.</span>{{/unless}}
+          <button type="button" class="ag-btn ag-btn--sm" data-act="socket-attach" data-instance="{{instanceId}}" data-actor="{{bearerId}}" {{#unless canAttach}}disabled{{/unless}}><i class="fa-solid fa-plus" aria-hidden="true"></i> Attach…</button>
+          <button type="button" class="ag-btn ag-btn--sm" data-act="socket-lock" data-instance="{{instanceId}}" data-locked="{{locked}}"><i class="fa-solid {{#if locked}}fa-lock-open{{else}}fa-lock{{/if}}" aria-hidden="true"></i> {{#if locked}}Unlock for players{{else}}Lock for players{{/if}}</button>
+          <button type="button" class="ag-btn ag-btn--sm" data-act="socket-count" data-instance="{{instanceId}}"><i class="fa-solid fa-hashtag" aria-hidden="true"></i> Socket count…</button>
         </div>
-      {{/each}}{{else}}<p>No bound Cinders. Sockets appear once a Cinder has a bearer.</p>{{/if}}
+      {{/each}}{{else}}<div class="ag-empty"><p class="ag-empty__title">No bound Cinders yet.</p><p class="ag-empty__text">Sockets appear once a Cinder has a bearer.</p></div>{{/if}}
     </section>
-    <section class="agc-card" aria-label="Cinder check">
-      <h2>Check</h2>
-      {{#if manage.hasReport}}<ul class="agc-list">{{#each manage.report}}<li><strong>{{name}}</strong>: {{text}}</li>{{/each}}</ul>
-        {{#if manage.canRepair}}<div class="agc-actions"><button type="button" class="ag-btn" data-act="cinder-repair"><i class="fa-solid fa-screwdriver-wrench"></i> Repair</button></div><p><small>Repair copies each Cinder's progress back to its bearer's tree and takes Cinder powers off characters who don't bear that Cinder. It never changes a Cinder's points or unlocks.</small></p>{{/if}}
-      {{else}}<p>Every Cinder, bearer and power Item agrees.</p>{{/if}}
+    <section class="ag-card" aria-label="Cinder check">
+      <h2 class="ag-card__title">Check</h2>
+      {{#if manage.hasReport}}<ul class="ag-list agc-report">{{#each manage.report}}<li><span><strong>{{name}}</strong>: {{text}}</span></li>{{/each}}</ul>
+        {{#if manage.canRepair}}<p class="agc-meta">Repair copies each Cinder's progress back to its bearer's tree and takes Cinder powers off characters who don't bear that Cinder. It never changes a Cinder's points or unlocks.</p><div class="ag-card__actions"><button type="button" class="ag-btn" data-act="cinder-repair"><i class="fa-solid fa-screwdriver-wrench" aria-hidden="true"></i> Repair</button></div>{{/if}}
+      {{else}}<p class="ag-notice ag-notice--ok" role="status"><i class="fa-solid fa-check" aria-hidden="true"></i><span>Every Cinder, bearer and power Item agrees.</span></p>{{/if}}
     </section>
   {{/if}}{{/if}}
 
   {{#if tabSetup}}{{#if setup}}
-    <div class="agc-inline" role="group" aria-label="Player Access"><span><strong>Player Access:</strong> {{#if setup.playerAccess}}Visible{{else}}Hidden{{/if}} <small>The Cinders window and launcher for players. Strain and Cinders are unchanged.</small></span>
-      <button type="button" class="ag-btn" data-act="toggle-access">{{#if setup.playerAccess}}Hide from Players{{else}}Show to Players{{/if}}</button></div>
-    <section class="agc-card" aria-label="Strain settings">
-      <h2>Strain</h2>
+    <section class="ag-card" aria-label="Player Access">
+      <h2 class="ag-card__title">Player Access</h2>
+      <label class="ag-field ag-field--inline"><input type="checkbox" data-agc-access {{#if setup.accessChecked}}checked{{/if}}> Show the Cinders window to players</label>
+      <p class="ag-field__hint">The Cinders window and launcher for players. Strain and Cinders are unchanged. Saved with Save Changes.</p>
+    </section>
+    <section class="ag-card" aria-label="Strain settings">
+      <h2 class="ag-card__title">Strain</h2>
       <p>One Strain value per character, shared by every system that adds or removes it. These are the band names and Backfire chances; character Strain is never changed here. Campaign band names come in with a Strain config file (also importable through General Manager).</p>
-      <table class="agc-table agc-bands"><thead><tr><th scope="col">Strain</th><th scope="col">Band</th><th scope="col">Backfire chance</th></tr></thead>
-        <tbody>{{#each setup.bands}}<tr><td>{{range}}</td><td>{{label}}</td><td>{{chance}}</td></tr>{{/each}}</tbody></table>
-      <ul class="agc-list">
+      <div class="ag-table-wrap agc-bands"><table class="ag-table"><thead><tr><th scope="col">Strain</th><th scope="col">Band</th><th scope="col">Backfire chance</th></tr></thead>
+        <tbody>{{#each setup.bands}}<tr><td>{{range}}</td><td>{{label}}</td><td>{{chance}}</td></tr>{{/each}}</tbody></table></div>
+      <ul class="agc-rules">
         <li>A Push at Strain {{setup.guaranteeAt}} or more always backfires{{#if setup.prevention}} unless a modifier prevents it{{/if}}.</li>
         <li>A normal use backfires at Strain {{setup.normalUseAt}} or more.</li>
         <li>Maximum Strain: {{setup.hardMax}}.</li>
         <li>Rest recovery: long rest −{{setup.restLong}}, short rest −{{setup.restShort}}.</li>
         <li>Backfire effect roll bonus from Strain (higher = more severe): {{setup.effectBonus}}.</li>
       </ul>
-      <div class="agc-actions">
-        <button type="button" class="ag-btn" data-act="strain-import"><i class="fa-solid fa-file-import"></i> Import Strain Config</button>
-        <button type="button" class="ag-btn" data-act="strain-export"><i class="fa-solid fa-file-export"></i> Export Strain Config</button>
-        <button type="button" class="ag-btn ag-btn--danger" data-act="strain-reset"><i class="fa-solid fa-rotate-left"></i> Reset to Defaults</button>
+      <div class="ag-card__actions">
+        <button type="button" class="ag-btn" data-act="strain-import"><i class="fa-solid fa-file-import" aria-hidden="true"></i> Import Strain Config</button>
+        <button type="button" class="ag-btn" data-act="strain-export"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export Strain Config</button>
+        <button type="button" class="ag-btn ag-btn--danger" data-act="strain-reset"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Reset to Defaults</button>
       </div>
     </section>
-    <section class="agc-card" aria-label="Cinder rules"><h2>Cinders</h2>
+    <section class="ag-card" aria-label="Cinder rules"><h2 class="ag-card__title">Cinders</h2>
       <p>Cinders per character: <strong>{{setup.limit}}</strong> · Starting Cinder points: <strong>{{setup.initial}}</strong> (first binding only). Change them in <strong>Configure Settings → Ashen Gate | Cinders</strong>.</p></section>
   {{/if}}{{/if}}
   {{/if}}
   </div>
+  {{#if tabSetup}}{{#if setup}}
+  <footer class="ag-footer">
+    <button type="button" class="ag-btn ag-btn--ghost" data-act="setup-cancel">Cancel</button>
+    <span class="ag-footer__status" role="status" data-agc-status>{{#if setup.dirty}}Unsaved changes{{/if}}</span>
+    <button type="button" class="ag-btn ag-btn--primary" data-act="setup-save"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save Changes</button>
+  </footer>
+  {{/if}}{{/if}}
 </div>
