@@ -1,7 +1,7 @@
 /** Cinders, Foundry side: the GM-only Cinder registry, bind / transfer / unbind, Push and normal-use Backfire, chat cards.
  * Records live in this module's GM-only Journal. A bearer's progress is written to their Cinder tree through Skill Trees' public
  * api.accounts (ag-tree-accounts/1), so the tree window keeps working; Skill Trees knows nothing about Cinders. */
-import {CINDER_CONTRACT,cleanAccount,normalizeRegistry,createInstance,bindInstance,unbindInstance,transferInstance,withProgression,boundTo,bearerInstance,
+import {CINDER_CONTRACT,CINDER_WALLET_CAP,cleanAccount,normalizeRegistry,createInstance,bindInstance,unbindInstance,transferInstance,withProgression,boundTo,bearerInstance,
   planMigration,powerBlock,availableModes,planPush,resolveBackfire,categoriesFor,backfireBlock,effectProblem,collectModifiers,validateDefinition,
   MODIFIER_CONTRACT,MODIFIER_SCOPE,MODIFIER_TARGETS,validateModifiers,blockModifiers} from './cinder.mjs';
 import {SOCKETS_CONTRACT,SOCKETS_HOOK,MAX_SOCKETS,normalizeSockets,socketMirror,socketPlan,applySocketOp,withoutItem} from './sockets.mjs';
@@ -617,7 +617,7 @@ export function createCinders(deps){
     register(){
       game.settings.register(module,MAX_CINDERS_SETTING,{name:'Cinders per character',hint:'GM: the most Cinders one character can bear at once (default 1).',scope:'world',config:true,type:Number,default:1,range:{min:1,max:9,step:1}});
       game.settings.register(module,SOCKETS_SETTING,{name:'Sockets per Cinder',hint:'GM: how many items a Cinder can hold in its sockets (default 3). A Cinder can have its own number (Manage), and perks or items can add sockets.',scope:'world',config:true,type:Number,default:3,range:{min:0,max:MAX_SOCKETS,step:1}});
-      game.settings.register(module,INITIAL_POINTS_SETTING,{name:'Starting Cinder points',hint:'GM: points a Cinder gets the first time it is bound (once per Cinder; a transferred Cinder keeps its points and gets none).',scope:'world',config:true,type:Number,default:1,range:{min:0,max:13,step:1}});
+      game.settings.register(module,INITIAL_POINTS_SETTING,{name:'Starting Cinder points',hint:'GM: points a Cinder gets the first time it is bound (once per Cinder; a transferred Cinder keeps its points and gets none).',scope:'world',config:true,type:Number,default:1,range:{min:0,max:CINDER_WALLET_CAP,step:1}});
     }
   };
 }

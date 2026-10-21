@@ -42,6 +42,7 @@ Ashen Gate is a set of Foundry VTT modules for Robb's D&D campaign: Foundry V14 
 | A dnd5e number to change (AC, speed, saves, skills, resistances, a condition) | An **Active Effect** in `foundry.data.effects`, with an `eff_id` and an explicit `transfer` (`docs/item-effects-schema.md`) | built |
 | A character perk from a tree | A `feat` Item, id `PERK-*`, with Active Effects for its numbers; `transfer: true` | built |
 | A Cinder power or enhancement | A `POWER-*` record with a `power` block; numbers go in `power.modifiers` with the targets `push.cost`, `backfire.chance`, `backfire.severity`, `strain.recovery` (`docs/cinder-strain-schema.md`) | built |
+| A Cinder's tree | One `cinder_milestone` tree per Cinder (`sourceRef` = its `MUT-*` id), `provider.maxPoints: 16` (the Cinder point cap; was 13). Its nodes are `POWER-*` ids (`docs/cinder-strain-schema.md`) | built |
 | Mount gear, mount perk, pet clothing, pet perk | `ITEM-MOUNT-` / `PERK-MOUNT-` / `ITEM-PET-` / `PERK-PET-` Items; Active Effects with **`transfer: false`** (`docs/companion-items-schema.md`) | built (display only) |
 | A hireling perk | An `HPERK-*` record with `contexts`, `conditions`, `stacking`, `implementation` | built (display only) |
 | A crafted item | An `ITEM-*` Item, plus a `REC-*` recipe whose `result_item_id` names it | built |
