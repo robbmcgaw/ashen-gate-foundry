@@ -1,3 +1,11 @@
+## 0.12.0 — 2026-10-21
+
+- UI standard look, same three-column builder: header "Ashen Gate | Headquarters" with the Guildhall name, rank and capacity underneath; version and Help on the right. Tabs match the other modules (Facilities and GM Setup marked GM, last); the active-button tint is gone.
+- **GM Setup has one Save Changes** (bottom right, Cancel bottom left) for Player Access, Guildhall and canvas settings, and the five-rank table. Player Access no longer saves on its own button; only the parts you changed are written. Set Rank and Create Missing Player Rooms stay as their own actions. Developer Tools (Seed Test Facility Records) moved from Facilities to a collapsed section at the end of GM Setup.
+- Kit buttons everywhere; Uninstall, Remove decoration, Unassign and permanent departure are red and ask first. Tile, missing-portrait and room glyphs are Font Awesome icons; zoom − and + have labels and tooltips. Personal Quarters rooms use a segmented picker (2–4 rooms) or a tab strip.
+- Facilities tab: kit toolbar (search, filters, count, Import on the right), grouped rows with status badges. Benefits are rows with Active/Inactive badges; hirelings are cards with status badges; the rank table is a kit table. Empty states use the kit. Facility and copy ids show for the GM only.
+- Styles use kit tokens only (Compact and Comfortable sizes, all skins); narrow windows use container queries; the window opens 1.2× larger in Comfortable. No saved-data, setting-key or API changes.
+
 ## 0.11.1 — 2026-10-21
 
 - Confirmations name the action (no more Yes/No), Help opens with a Close button, dialogs follow the Ashen Gate look; test wording removed from player views.
