@@ -1,3 +1,8 @@
+## 0.44.1 — 2026-10-21
+
+- **Import fix:** choosing a file in the Import tab while an import was running cleared the loaded package and aborted the import part way ("Cannot read properties of null (reading 'records')"). While an import is writing, the file picker and the other Import options (profile, drafts, update switches, ZIP ticks, record ticks, portrait upload) are now disabled, and their handlers ignore any change, so the running import always finishes. Choosing a file (the same one included) works again as soon as it ends.
+- No saved-data changes.
+
 ## 0.44.0 — 2026-10-21
 
 - **Import:** `Shop`, `Service` and `MerchantList` records (shopping, Utilities 0.21.0+) are listed in the preview like Routes (create / update / kept, with drafts and blocked statuses as usual) and handed to Utilities' `api.shops.importShops` after the package's Items are created, in the same run. The results panel shows each one, with any item line Utilities couldn't find.

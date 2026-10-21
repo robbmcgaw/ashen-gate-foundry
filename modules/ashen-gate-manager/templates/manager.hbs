@@ -42,7 +42,7 @@
   {{#if importActive}}
   <section class="ag-section agm-import" aria-label="Import a package">
     <div class="ag-cluster">
-      <label class="ag-btn agmanager-filelabel"><i class="fa-solid fa-folder-open" aria-hidden="true"></i> Choose JSON or ZIP package <input type="file" data-ag-file accept=".json,.zip,application/json,application/zip" /></label>
+      <label class="ag-btn agmanager-filelabel"><i class="fa-solid fa-folder-open" aria-hidden="true"></i> Choose JSON or ZIP package <input type="file" data-ag-file accept=".json,.zip,application/json,application/zip" {{#if busy}}disabled{{/if}} /></label>
       <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="reset">Clear</button>
       <button type="button" class="ag-btn" data-ag-action="export" {{#unless hasPackage}}disabled{{/unless}}><i class="fa-solid fa-download" aria-hidden="true"></i> Download report</button>
     </div>
@@ -57,7 +57,7 @@
       <p class="agmanager-tiny">{{zipBundle.summary}} Files import one at a time in this order (Manager packages first), each through the normal preview and Apply; nothing changes until you confirm each Apply.</p>
       <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">Import</th><th scope="col">File</th><th scope="col">Type</th><th scope="col" class="is-num">Records</th><th scope="col">Status</th></tr></thead><tbody>
       {{#each zipBundle.rows}}<tr class="{{#if isCurrent}}is-selected{{/if}}">
-        <td><input type="checkbox" data-ag-zip-pick="{{filename}}" {{#if picked}}{{#unless isError}}checked{{/unless}}{{/if}} {{#unless canPick}}disabled{{/unless}} aria-label="Import {{filename}}" /></td>
+        <td><input type="checkbox" data-ag-zip-pick="{{filename}}" {{#if picked}}{{#unless isError}}checked{{/unless}}{{/if}} {{#unless canPick}}disabled{{else}}{{#if @root.busy}}disabled{{/if}}{{/unless}} aria-label="Import {{filename}}" /></td>
         <td><code>{{filename}}</code></td><td>{{label}}</td><td class="is-num">{{count}}</td>
         <td>{{status}}{{#if notice}}<div class="agmanager-tiny">{{notice}}</div>{{/if}}</td></tr>{{/each}}
       {{#each zipBundle.skipped}}<tr><td></td><td><code>{{filename}}</code></td><td>Skipped</td><td class="is-num">—</td><td class="agmanager-tiny">{{reason}}</td></tr>{{/each}}
@@ -69,11 +69,11 @@
     </div>{{/if}}
     <p class="agmanager-tiny"><strong>Source:</strong> {{packageSource}}. Supported: a Manager package (Item, Journal, Actor, RollTable, Macro, Location) or a Quest, Skill Tree, Headquarters facility or Factions file, which Manager recognises and hands to that module. A ZIP can hold one Manager package, or several import files (Manager packages plus Quest, Skill Tree, Headquarters and Factions files) that you pick from a ZIP contents list; source JSON and executable scripts are not run.</p>
     {{#if hasPackage}}<div class="ag-cluster">{{#each typeSummary}}<span class="ag-badge">{{name}}: {{count}}</span>{{/each}}</div>{{/if}}
-    {{#if hasZipPortraits}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-upload-assets {{#if uploadZipArtwork}}checked{{/if}}> Upload matching ZIP portraits into this world's <code>ashen-gate-imports</code> folder before creating documents ({{zipPortraitCount}} images available).</label>{{/if}}
+    {{#if hasZipPortraits}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-upload-assets {{#if uploadZipArtwork}}checked{{/if}} {{#if busy}}disabled{{/if}}> Upload matching ZIP portraits into this world's <code>ashen-gate-imports</code> folder before creating documents ({{zipPortraitCount}} images available).</label>{{/if}}
     <details class="agm-details"><summary>Advanced import options</summary>
     <div class="ag-cluster">
       <label class="agmanager-search-label">Import profile
-        <select data-ag-profile>
+        <select data-ag-profile {{#if busy}}disabled{{/if}}>
           <option value="development" {{#if developmentProfile}}selected{{/if}}>Development — include unapproved</option>
           <option value="session-safe" {{#if sessionProfile}}selected{{/if}}>Session-safe — approved only</option>
         </select>
@@ -83,10 +83,10 @@
     <p class="agmanager-tiny"><strong>Advanced / sample files.</strong> Package templates (<code>templates</code> + <code>template_ref</code> in the JSON) are compiled automatically on load; they do not rewrite existing Items.</p>
     <div class="ag-cluster"><button type="button" class="ag-btn ag-btn--sm" data-ag-action="template-example"><i class="fa-solid fa-download" aria-hidden="true"></i> Download sample template package</button><button type="button" class="ag-btn ag-btn--sm" data-ag-action="import-format-example"><i class="fa-solid fa-download" aria-hidden="true"></i> Download v0.2 Import JSON starter</button><button type="button" class="ag-btn ag-btn--sm" data-ag-action="source-manifest-template"><i class="fa-solid fa-download" aria-hidden="true"></i> Download canonical source manifest</button></div>
     </details>
-    {{#unless isSpecialist}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-drafts {{#if includeDrafts}}checked{{/if}}> Include <strong>draft / proposed / example</strong> records (sandbox testing only)</label>{{/unless}}
-    {{#if isSpecialist}}{{#if specialistCanUpdate}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-update-existing {{#if updateExisting}}checked{{/if}}> <strong>Update existing {{specialistNoun}}</strong> (otherwise ones already in the world are kept as they are)</label>{{else}}<p class="agmanager-tiny">{{specialistLabel}} keeps {{specialistNoun}} that are already in the world; this file only adds new ones.</p>{{/if}}
-    {{else}}{{#if hasLocationRecords}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-update-existing {{#if updateExisting}}checked{{/if}}> <strong>Update existing locations, routes and shops</strong> (otherwise those already in the world are kept as they are; discovery, reveal and journey state, and shop stock, coins and sales are always kept)</label>{{/if}}
-    {{#if hasActorRecords}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-update-actors {{#if updateActors}}checked{{/if}}> <strong>Update existing actors</strong> (name, image, token settings and package items only; HP, XP, level, conditions, player items, notes, ownership, folders and other modules' data are always kept. Off: actors already in the world are kept as they are)</label>{{/if}}{{/if}}
+    {{#unless isSpecialist}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-drafts {{#if includeDrafts}}checked{{/if}} {{#if busy}}disabled{{/if}}> Include <strong>draft / proposed / example</strong> records (sandbox testing only)</label>{{/unless}}
+    {{#if isSpecialist}}{{#if specialistCanUpdate}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-update-existing {{#if updateExisting}}checked{{/if}} {{#if busy}}disabled{{/if}}> <strong>Update existing {{specialistNoun}}</strong> (otherwise ones already in the world are kept as they are)</label>{{else}}<p class="agmanager-tiny">{{specialistLabel}} keeps {{specialistNoun}} that are already in the world; this file only adds new ones.</p>{{/if}}
+    {{else}}{{#if hasLocationRecords}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-update-existing {{#if updateExisting}}checked{{/if}} {{#if busy}}disabled{{/if}}> <strong>Update existing locations, routes and shops</strong> (otherwise those already in the world are kept as they are; discovery, reveal and journey state, and shop stock, coins and sales are always kept)</label>{{/if}}
+    {{#if hasActorRecords}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-update-actors {{#if updateActors}}checked{{/if}} {{#if busy}}disabled{{/if}}> <strong>Update existing actors</strong> (name, image, token settings and package items only; HP, XP, level, conditions, player items, notes, ownership, folders and other modules' data are always kept. Off: actors already in the world are kept as they are)</label>{{/if}}{{/if}}
     <div class="ag-cluster">
       <button type="button" class="ag-btn" data-ag-action="preview" {{#unless hasPackage}}disabled{{/unless}}><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Validate &amp; Preview</button>
       <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="select" {{#unless hasPreview}}disabled{{/unless}}>Select eligible</button>
@@ -142,7 +142,7 @@
       <tbody>
       {{#each rows}}
       <tr>
-        <td><input type="checkbox" data-ag-select="{{id}}" {{#if selected}}checked{{/if}} {{#unless canSelect}}disabled{{/unless}} aria-label="Select {{name}}" /></td>
+        <td><input type="checkbox" data-ag-select="{{id}}" {{#if selected}}checked{{/if}} {{#unless canSelect}}disabled{{else}}{{#if @root.busy}}disabled{{/if}}{{/unless}} aria-label="Select {{name}}" /></td>
         <td><strong>{{name}}</strong><code class="agm-id">{{id}}</code></td>
         <td>{{kind}}<div class="agmanager-tiny">{{lifecycle}}</div></td>
         <td><span class="ag-badge{{#if badgeTone}} ag-badge--{{badgeTone}}{{/if}}">{{badge}}</span></td>

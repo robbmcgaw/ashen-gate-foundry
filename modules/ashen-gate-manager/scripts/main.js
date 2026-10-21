@@ -682,7 +682,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     root.querySelector("[data-ag-file]")?.addEventListener("change", async event => {
       const f = event.target.files?.[0];
       event.target.value = '';
-      if (!f) return;
+      // 0.44.1: never swap the loaded file while an import is writing; it would null this.pkg mid-apply.
+      if (!f || this.busy) return;
       this.#clearLoaded(`Reading ${f.name}…`);
       this.zipBundle=null;
       try {
@@ -714,10 +715,12 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       }
     });
     root.querySelector('[data-ag-upload-assets]')?.addEventListener('change',async e=>{
+      if(this.busy)return;
       this.uploadZipArtwork=Boolean(e.target.checked);
       await this.render();
     });
     root.querySelector("[data-ag-profile]")?.addEventListener("change", async event => {
+      if(this.busy)return;
       this.profile=event.target.value;this.applyProfile();await this.#preview();
     });
     for(const [field,attribute] of [['system','librarySystem'],['status','libraryStatus'],['package','libraryPackage']]) {
@@ -785,15 +788,18 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       void this.render();
     }));
     root.querySelector("[data-ag-drafts]")?.addEventListener("change", async event => {
+      if (this.busy) return;
       this.includeDrafts = event.target.checked;
       await this.#preview();
     });
     root.querySelector("[data-ag-adopt]")?.addEventListener("toggle", event => {this.adoptOpen = event.target.open;});
     root.querySelector("[data-ag-update-existing]")?.addEventListener("change", async event => {
+      if (this.busy) return;
       this.updateExisting = event.target.checked;
       await this.#preview();
     });
     root.querySelector("[data-ag-update-actors]")?.addEventListener("change", async event => {
+      if (this.busy) return;
       this.updateActors = event.target.checked;
       await this.#preview();
     });
@@ -811,11 +817,12 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     }));
     root.querySelectorAll("[data-ag-zip-pick]").forEach(el => el.addEventListener("change", event => {
       const name=event.target.dataset.agZipPick;
-      if(!this.zipBundle||this.zipBundle.queue) return;
+      if(this.busy||!this.zipBundle||this.zipBundle.queue) return;
       if(event.target.checked) this.zipBundle.picked.add(name); else this.zipBundle.picked.delete(name);
       void this.render();
     }));
     root.querySelectorAll("[data-ag-select]").forEach(el => el.addEventListener("change", event => {
+      if (this.busy) return;
       const id = event.target.dataset.agSelect;
       if (event.target.checked) this.selected.add(id);
       else this.selected.delete(id);
@@ -1089,6 +1096,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     if(!yes)return;
     this.applyRan=true;
     this.busy=true;
+    await this.render();
     const log={at:new Date().toISOString(),packageId:`${spec.label} file`,packageVersion:payload?.version??'—',results:[]};
     try {
       log.results.push(...await applySpecialist(kind,payload,api,{ids:rows.map(r=>r.id),updateExisting:this.updateExisting}));
@@ -1275,6 +1283,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     }
     this.applyRan=true;
     this.busy=true;
+    await this.render();
     const log = {at:new Date().toISOString(), packageId:this.pkg.manifest.package_id, packageVersion:this.pkg.manifest.version, results:[]};
     let originalMediaPaths=new Map();
     try {
