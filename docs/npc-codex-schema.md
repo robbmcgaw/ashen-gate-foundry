@@ -41,9 +41,17 @@ The fields GPT drafts already use. `codex` is new and optional.
 
 ### Linkable ids
 
-`LOC-` (Locations), `FAC-`, `FACTION-` and `RENOWN-` (Renown), `QUEST-`, `ORDER-` and `CONTRACT-` (Quests), and `NPC-` (other Codex entries). Ids must be upper-case letters and digits in dash-separated parts (`LOC-EXAMPLE-FERRY-GATE`). Ids typed in the Codex are upper-cased first; ids in `codex.links` and `refs` are not. Anything else in `codex.links` or `refs` is ignored, and an NPC never links to itself. Links are by id only.
+`LOC-` (Locations), `FAC-`, `FACTION-` and `RENOWN-` (Renown), `DEITY-` (Renown Pantheon deities, Manager 0.40.0+), `QUEST-`, `ORDER-` and `CONTRACT-` (Quests), and `NPC-` (other Codex entries). Ids must be upper-case letters and digits in dash-separated parts (`LOC-EXAMPLE-FERRY-GATE`). Ids typed in the Codex are upper-cased first; ids in `codex.links` and `refs` are not. Anything else in `codex.links` or `refs` is ignored (`scripts/validate-content.mjs` reports it), and an NPC never links to itself. Links are by id only.
 
-`FAC-` means a Headquarters facility elsewhere, but here it is always a Renown link, like `FACTION-` and `RENOWN-`: its name is looked up among Renown's factions and deities (`ashen-gate-factions` API `getFactions()` and `getDeities()`). Locations names come from `getLocation(id)`, Quest names from `listQuests()`, `NPC-` names from the other NPC's record. A link whose module is inactive or does not know the id shows the id. The GM view shows the name with the id beside it; the player view shows the name only. The Codex never stores or changes Locations, Renown or Quest state.
+`FAC-` means a Headquarters facility elsewhere, but here it is always a Renown link, like `FACTION-` and `RENOWN-`: its name is looked up among Renown's factions and deities (`ashen-gate-factions` API `getFactions()` and `getDeities()`). Locations names come from `getLocation(id)`, Quest names from `listQuests()`, `NPC-` names from the other NPC's record. A link whose module is inactive or does not know the id shows the id. The GM view shows the name with the id beside it; the player view shows the name only. `DEITY-` links work differently (below). The Codex never stores or changes Locations, Renown or Quest state.
+
+#### Deity links (`DEITY-`)
+
+Use the deity's permanent Renown id, e.g. `"DEITY-EXAMPLE-LANTERN-MOTHER"`. Keep the id neutral; a player who has discovered the deity can see it.
+
+- **Opens the Pantheon.** When **Ashen Gate | Renown** is active and has the deity, the link opens Renown's Pantheon on that deity (`api.open({deityId, actorId, tab: 'pantheon'})`; a player opens it as one of their characters who knows the deity).
+- **Visibility follows Renown, not the Codex alone.** Even with Connections revealed, a player only sees a deity link if Renown says one of their characters (or the party) has discovered that deity (Renown's player-filtered `getPantheon`/`getDeities`). Otherwise the link shows as **Unknown**, unlinked, and the player's data carries neither the deity's id nor its name. The party-level view and preview show a deity only when every player character knows it.
+- **Missing partner.** Renown not active, hidden from players, or the deity not in this world: the link is plain text with a tooltip (for players with Renown missing: **Unknown**). Never an error.
 
 ### `codex.default_reveal`
 
@@ -59,7 +67,7 @@ Each rule is `{party: boolean, actors: string[]}`, the same shape Renown uses fo
 
 - **Discovery** (`discovery`): whether a player knows the NPC at all (name and portrait). A player who has not discovered the NPC receives nothing about them.
 - **Fields** (`fields.<key>`): each revealable field separately. A field shows to a player only if the NPC is discovered by them **and** the field's rule includes the party or one of their characters. A field revealed to one character is marked *only you* in that player's view.
-- `learned` is text the GM writes in the Codex ("What the party has learned"). `links` reveals the connections list. A revealed connection shows the linked record's name as the GM's client resolves it (see Linkable ids), whether or not that record is revealed in its own module.
+- `learned` is text the GM writes in the Codex ("What the party has learned"). `links` reveals the connections list. A revealed connection shows the linked record's name as the GM's client resolves it (see Linkable ids), whether or not that record is revealed in its own module; the exception is a `DEITY-` link, which a player sees only once Renown says they discovered that deity.
 - GM-only fields and GM notes are never in a player's data.
 
 ### Stored state (`flags.ashen-gate-manager.codex`)
@@ -107,7 +115,7 @@ Each rule is `{party: boolean, actors: string[]}`, the same shape Renown uses fo
   "stat_block": "Commoner (2024)",
   "art": {"repo_path": null, "forge_path": null},
   "codex": {
-    "links": ["FAC-EXAMPLE-TOLL-WARDENS", "QUEST-EXAMPLE-DOUBLE-LEDGER"],
+    "links": ["FAC-EXAMPLE-TOLL-WARDENS", "QUEST-EXAMPLE-DOUBLE-LEDGER", "DEITY-EXAMPLE-LANTERN-MOTHER"],
     "default_reveal": {"discovery": "hidden", "fields": {"role": "party", "appearance": "party"}}
   },
   "foundry": {
@@ -141,6 +149,6 @@ It is a GM file: it contains GM-only fields. **Restore reveals from a codex expo
 | `forPlayer()` | anyone | The calling player's codex. A player's client asks the active GM over a Foundry query (V13+); the GM's client re-checks access and returns only that player's projection. A GM gets the party view. |
 | `playerAccessEnabled()` | anyone | Whether players can open the codex |
 | `openPlayerView()` | anyone | Opens the read-only player window |
-| `mount(element)` | anyone | Renders the read-only player codex into `element`, for example a Character Hub tab. Returns an async refresh function. Display only. |
+| `mount(element)` | anyone | Renders the read-only player codex into `element`, for example a Character Hub tab. Returns an async refresh function. Display only, except that a discovered deity link opens Renown's Pantheon. |
 
-GM functions throw `Only a GM can see or change the full NPC Codex.` for players. An unknown id throws `No NPC <id> in this world. Import its record first.`; an id on two Actors throws `Two Actors carry <id>. Fix the duplicate in the Library first.` `forPlayer()` throws `The NPC Codex is not shared with players. Ask your GM.` while player access is off, and `The NPC Codex needs a GM to be connected.` when no GM is online; `mount()` and the player window show that message instead of throwing.
+GM functions throw `Only a GM can see or change the full NPC Codex.` for players. An unknown id throws `No NPC <id> in this world. Import its record first.`; an id on two Actors throws `Two Actors carry <id>. Fix the duplicate in the Library first.` `forPlayer()` throws `The NPC Codex is not shared with players. Ask your GM.` while player access is off, and `The NPC Codex needs a GM to be connected.` when no GM is online; `mount()` and the player window show that message instead of throwing. Clicking a deity link that cannot open shows a warning: `Renown is not active, so this deity cannot be opened.` or, for a player, `You have not discovered this deity yet.`

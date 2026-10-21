@@ -1,3 +1,11 @@
+## 0.40.0 — 2026-10-21
+
+- **NPC Codex links to deities.** `codex.links` (and Connections added in the Codex) now accept `DEITY-*` ids. In the GM and player Codex a deity link opens **Ashen Gate | Renown**'s Pantheon on that deity (`api.open({deityId, actorId, tab: 'pantheon'})`, feature-detected).
+- **Players never learn about an undiscovered deity.** The GM side asks Renown which deities each player's characters have discovered (`getPantheon`); any other deity link is sent as **Unknown**, with no id or name. The player's own client double-checks with Renown's player-filtered `getDeities`.
+- Renown missing or hidden, or the deity not in this world: the link is plain text with a tooltip, never an error.
+- `scripts/validate-content.mjs` accepts `DEITY-` in `codex.links`. `docs/npc-codex-schema.md` updated.
+- No saved data changes; no migration.
+
 ## 0.39.0 — 2026-10-21
 
 - **Cinder content imports and is checked.** Cinder definitions (`MUT-*` with a `cinder` block), powers (`POWER-*` with a `power` block) and Backfire tables (`BF-*`, `entity_type: "BackfireTable"`) import as ordinary documents. Their typed blocks are checked by **Ashen Gate | Cinders** (`api.cinder.validateDefinition`) in the Import preview and again just before Apply, so a mistake (a lethal Backfire effect, a Push with no Strain cost, an unknown modifier) blocks the import with Cinders' message. Without Cinders the records still import, with a warning that their blocks were not checked.
