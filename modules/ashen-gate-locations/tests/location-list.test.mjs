@@ -94,7 +94,7 @@ test('filters combine with AND, counts follow the other filters, Clear filters r
   assert.deepEqual(opts.threat.filter(o => o.count).map(o => [o.value, o.count]), [['light', 1], ['hot', 1]], 'threat counts ignore the threat filter itself');
   app.filters.threat = 'deadly';
   html = await app._renderHTML();
-  assert.match(html, /No locations match these filters/);
+  assert.match(html, /Nothing matches[\s\S]*No locations match this search and these filters/);
   assert.match(html, /data-action="clear-filters"/);
   assert.match(html, /agl-detail/, 'the editor is not blanked');
   await app.onAction({dataset: {action: 'clear-filters'}});
@@ -130,7 +130,7 @@ test('player list stays simple: revealed only, plain headings, no grouping contr
   const html = await new LocationsApp()._renderHTML();
   assert.match(html, /\[TEST\] Open/);
   assert.doesNotMatch(html, /Secret|agl-groupby|agl-onlygroup|toggle-group|agl-count/);
-  assert.match(html, /<h3>North<\/h3>/);
+  assert.match(html, /<h3[^>]*>North<\/h3>/);
 });
 
 test('100+ locations group quickly', async () => {

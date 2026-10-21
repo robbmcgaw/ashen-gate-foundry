@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {facilityRow,listFacilitiesTab,facilitiesPanel,CONTENT_ACTIONS,CONTENT_FORMS,SETUP_ACTIONS,SETUP_FORMS,CHIPS} from '../js/facilities-tab.mjs';
+import {facilityRow,listFacilitiesTab,facilitiesPanel,CONTENT_ACTIONS,CONTENT_FORMS,SETUP_ACTIONS,SETUP_FORMS,DEV_ACTIONS,CHIPS} from '../js/facilities-tab.mjs';
 const code=readFileSync(new URL('../js/main.mjs',import.meta.url),'utf8');
 const manifest=JSON.parse(readFileSync(new URL('../module.json',import.meta.url),'utf8'));
 const def=(n,extra={})=>({id:`FAC-TEST-${n}`,name:`[TEST] ${n}`,status:'draft',version:'0.1.0',scope:'generic_rules',placements:['shared'],stages:[{key:'s1'}],...extra});
@@ -32,10 +32,11 @@ test('GM Setup panel holds settings only; the Facilities tab holds the content a
  for(const x of CONTENT_ACTIONS)assert.ok(!setup.includes(`data-action="${x}"`),`${x} must not be in GM Setup`);
  for(const x of CONTENT_FORMS)assert.ok(!setup.includes(`data-aghq-form="${x}"`));
  for(const x of SETUP_ACTIONS)assert.ok(setup.includes(`data-action="${x}"`),`${x} missing from GM Setup`);
- for(const x of SETUP_FORMS)assert.ok(setup.includes(`data-aghq-form="${x}"`),`${x} missing from GM Setup`);
+ for(const x of SETUP_FORMS)assert.ok(code.includes('data-aghq-form="${SETUP_FORM}"')&&x==='setup',`${x} missing from GM Setup`);
+ for(const x of DEV_ACTIONS)assert.ok(setup.includes(`data-action="${x}"`)&&setup.indexOf(`data-action="${x}"`)>setup.indexOf('ag-devtools'),`${x} must be in GM Setup Developer Tools`);
  const panel=facilitiesPanel({},listFacilitiesTab(rows));
  for(const x of CONTENT_ACTIONS)assert.ok(panel.includes(`data-action="${x}"`),`${x} missing from Facilities`);
- for(const x of SETUP_ACTIONS)assert.ok(!panel.includes(`data-action="${x}"`));
+ for(const x of [...SETUP_ACTIONS,...DEV_ACTIONS])assert.ok(!panel.includes(`data-action="${x}"`));
 });
 test('Facilities tab is GM-only in the shell and the data layer still enforces GM',()=>{
  assert.match(code,/facilities\(s\)\{if\(!game\.user\.isGM\)return '';/);
@@ -44,4 +45,4 @@ test('Facilities tab is GM-only in the shell and the data layer still enforces G
  assert.match(code,/Headquarters facility import is GM-only/);
  for(const k of ['importFacilities','previewFacilityImport'])assert.match(code,new RegExp(k));
 });
-test('manifest bumped',()=>{assert.equal(manifest.version,'0.11.1');assert.ok(manifest.download.includes('ashen-gate-headquarters-v0.11.1'));});
+test('manifest bumped',()=>{assert.equal(manifest.version,'0.12.0');assert.ok(manifest.download.includes('ashen-gate-headquarters-v0.12.0'));});
