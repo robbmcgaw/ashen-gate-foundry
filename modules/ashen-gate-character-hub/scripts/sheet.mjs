@@ -15,6 +15,7 @@ import * as vis from './visibility.mjs';
 import {openConfig} from './configure.mjs';
 import {toggleSection} from './collapse.mjs';
 import {setListChoice} from './organize.mjs';
+import {changeArt} from './art.mjs';
 import * as marks from './marks.mjs';
 import * as hotbar from './hotbar.mjs';
 
@@ -241,7 +242,7 @@ export function createHubSheetClass(Base) {
         content.addEventListener?.('change', ev => { if (ev.target?.matches?.('[data-opacity]')) saveOpacity(ev.target.value); });
         content.addEventListener?.('contextmenu', ev => this._onContextMenu(ev));
         content.addEventListener?.('click', ev => this._onOutsideClick(ev));
-        content.addEventListener?.('dblclick', ev => this._onHpBarOpen(ev));
+        content.addEventListener?.('dblclick', ev => ev.target?.closest?.('[data-art-edit]') ? this._onArtEdit(ev) : this._onHpBarOpen(ev));
         content.addEventListener?.('keydown', ev => {
           if (ev.key === 'Escape' && this.menu) { ev.stopPropagation(); toggleMenu(this, null); return; }
           if ((ev.key === 'Enter' || ev.key === ' ') && ev.target?.matches?.('[data-hp-bar]')) { this._onHpBarOpen(ev); return; }
@@ -297,6 +298,19 @@ export function createHubSheetClass(Base) {
       if (!cfg) return null;
       event.preventDefault(); event.stopPropagation();
       return openConfig(this.document, cfg.dataset.config, cfg.dataset.configKey ?? null).then(report);
+    }
+
+    /**
+     * Double-click on the big art pane: change the art that is shown (portrait or token). The Portrait/Token art
+     * button and the AC shield inside it keep their own clicks. Owner or GM only (changeArt checks it too).
+     */
+    _onArtEdit(event) {
+      const pane = event.target?.closest?.('[data-art-edit]');
+      if (!pane || event.target?.closest?.('.agch-doll__toggle, .agch-ac, button')) return null;
+      if (!this.hubContext.editable) return null;
+      event.preventDefault?.();
+      const pos = this.position ? {top: (this.position.top ?? 0) + 40, left: (this.position.left ?? 0) + 10} : null;
+      return changeArt(this.document, pane.dataset.artEdit === 'token' ? 'token' : 'portrait', {position: pos}).then(report);
     }
 
     /** Double-click (or Enter) on the HP bar opens the small HP editor. Only for users who can edit the character. */

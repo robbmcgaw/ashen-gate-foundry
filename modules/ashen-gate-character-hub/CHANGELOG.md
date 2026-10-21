@@ -1,3 +1,14 @@
+## 0.16.0 — 2026-10-21
+
+- **Change the art from the Hub:** double-click the big art pane to change what it shows.
+  - With Portrait shown it changes the character's portrait (`img`). With Token art shown it changes the prototype token's image (`prototypeToken.texture.src`).
+  - It uses Foundry's own file picker the way the standard sheet does: it starts at the current image, falls back to the default artwork, and is The Forge's Assets Library picker on The Forge. Token art may be an image or a video, as on the dnd5e sheet.
+  - A token set to random images opens its Prototype Token settings instead, as the dnd5e sheet does.
+  - Cancelling, or picking the same file, changes nothing.
+- **Permissions:** owner or GM only, checked in the action itself. Others get no hint, no pointer cursor and no picker.
+- The Portrait / Token art button and the AC shield keep their own clicks. New art still never stretches.
+- No saved data changes.
+
 ## 0.15.0 — 2026-10-21
 
 - **Item tooltips:** hovering an item shows dnd5e's own rich tooltip, the same one the standard sheet shows (name, rarity, description, properties, uses). It works on:
