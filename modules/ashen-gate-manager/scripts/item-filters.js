@@ -100,11 +100,17 @@ const LIBRARY_SECTION_VIEW = Object.freeze({records: 'records', check: 'checks',
 
 /**
  * Old top-bar tab ids keep working (saved links, other modules, macros): browse → All items, library → Ashen Gate
- * records (or the Library rail section it was on), organize → Folders, corelinks → Core links. Anything else is unchanged.
+ * records (or the Library rail section it was on), organize → Folders, corelinks → Core links. appearance (a tab
+ * until 0.38.0) stays on the `previous` tab (Import when there is none) and asks for the header Appearance dropdown
+ * (`appearance: true`). Anything else is unchanged.
  */
-export function resolveTab(tab, {view = 'all', librarySection = null} = {}) {
+export function resolveTab(tab, {view = 'all', librarySection = null, previous = null} = {}) {
   const known = id => ITEM_VIEWS.some(v => v.id === id);
   switch (tab) {
+    case 'appearance': {
+      const back = previous && previous !== 'appearance' ? resolveTab(previous, {view, librarySection}) : {tab: 'import', view: known(view) ? view : 'all'};
+      return {...back, appearance: true};
+    }
     case 'browse': return {tab: 'items', view: 'all'};
     case 'library': return {tab: 'items', view: LIBRARY_SECTION_VIEW[librarySection] ?? 'records'};
     case 'organize': return {tab: 'items', view: 'folders'};

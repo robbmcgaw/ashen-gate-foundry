@@ -8,6 +8,7 @@
 import {collectModuleSections, sourceFlagOf} from './world-export.js';
 import {systemOf, normalizeSourceRef} from './browser.js';
 import {FILTER_INDEX_FIELDS, itemFacts, rarityKey, sharedMatch} from './item-filters.js';
+import {loadItemPreview} from './item-preview.js';
 
 const MODULE_ID = 'ashen-gate-manager';
 const GM_ONLY = 'Only the GM can browse Ashen Gate data.';
@@ -385,6 +386,13 @@ export function createBrowse({game, hooks = null, fromUuid = null, openCodex = n
       return packsLoading;
     },
     status() { assertGM(game); return {built: Boolean(entries), builtAt, count: entries?.length ?? 0, compendiums: packsLoaded(), compendiumCount: packEntries?.length ?? 0, loading: Boolean(packsLoading)}; },
+    /** Item preview (0.38.0): dnd5e's item card plus where it lives. One document by uuid; never a whole pack. */
+    async preview(keyOrUuid) {
+      assertGM(game);
+      const list = entries ?? build();
+      const e = list.find(x => x.key === keyOrUuid) ?? list.find(x => x.uuid === keyOrUuid) ?? null;
+      return loadItemPreview({game, entry: e, uuid: e?.uuid ?? keyOrUuid, doc: e ? docs.get(e.key) ?? null : null, fromUuid});
+    },
     dragData(key) { assertGM(game); const e = (entries ?? build()).find(x => x.key === key); return dragDataOf(e, docs.get(key)); },
     /** Opens the original: a world sheet, the compendium document, or the owning module at that record when it offers a way. */
     async open(key, {prefer = 'auto'} = {}) {
