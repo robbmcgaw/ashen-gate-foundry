@@ -1,15 +1,19 @@
 /** Ashen Gate | Cinders: Cinder instances, Push and Backfire. Pure rules, no Foundry globals (moved from Skill Trees 0.16.0).
  * A Cinder instance owns its progression (points, unlocks) and moves between bearers with it. Strain stays on each character. */
 import {applyChange,chanceFor,strainEffectBonus} from './strain.mjs';
+import {normalizeSockets,emptied} from './sockets.mjs';
 
 export const CINDER_CONTRACT = 'ag-cinder/1';
 export const REGISTRY_SCHEMA = 'ag-cinder-instances/1';
 export const CINDER_SCHEMA = 'ag-cinder/0.1';
 export const POWER_SCHEMA = 'ag-power/0.1';
 export const BACKFIRE_SCHEMA = 'ag-backfire/0.1';
-export const CINDER_WALLET_CAP = 13;
+export const CINDER_WALLET_CAP = 16;
 export const INSTANCE_ID = /^cinst_[A-Za-z0-9]{8,32}$/;
-export const MODIFIER_TARGETS = ['push.cost', 'backfire.chance', 'backfire.severity', 'strain.recovery'];
+export const MODIFIER_TARGETS = ['push.cost', 'backfire.chance', 'backfire.severity', 'strain.recovery', 'sockets.count'];
+/** The shared modifier shape (docs/modifiers-schema.md) and this module's scope in it. */
+export const MODIFIER_CONTRACT = 'ag-modifier/1';
+export const MODIFIER_SCOPE = 'cinder';
 /** Statuses a Backfire may never apply: it must not kill, knock out, exhaust or remove a character from play. */
 export const FORBIDDEN_STATUSES = new Set(['dead', 'unconscious', 'exhaustion', 'petrified', 'sleeping', 'stable', 'transformed', 'dying']);
 const REF = /^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/;
@@ -50,21 +54,68 @@ export function effectProblem(effect) {
   for (const k of Object.keys(effect)) if (!['status', 'rounds', 'minutes'].includes(k)) return `effect.${k} is not allowed (only status, rounds, minutes; no HP or other changes)`;
   return null;
 }
-function modifierProblems(list, where) {
+/** Problems with one cinder-scope modifier (ag-modifier/1), shared by power.modifiers and record-level modifiers blocks. */
+function modifierEntryProblems(m, at) {
+  if (!plain(m)) return [`${at} must be an object`];
   const errors = [];
-  if (list == null) return errors;
-  if (!Array.isArray(list)) return [`${where}: modifiers must be a list`];
-  list.forEach((m, i) => {
-    const at = `${where}.modifiers[${i}]`;
-    if (!plain(m)) {errors.push(`${at} must be an object`); return;}
-    if (!MODIFIER_TARGETS.includes(m.target)) errors.push(`${at}: target must be one of ${MODIFIER_TARGETS.join(', ')}`);
-    if (!int(m.value) || m.value === 0 || Math.abs(m.value) > 100) errors.push(`${at}: value must be a whole number from -100 to 100, not 0`);
-    if (m.powers != null && (!Array.isArray(m.powers) || m.powers.some(p => !REF.test(String(p)) || !String(p).startsWith('POWER-')))) errors.push(`${at}: powers must list POWER-* ids`);
-    if (m.modes != null && (!Array.isArray(m.modes) || m.modes.some(x => !KEY.test(String(x))))) errors.push(`${at}: modes must list Push mode ids`);
-    if (m.stack != null && !KEY.test(String(m.stack))) errors.push(`${at}: stack must be a short lower-case name`);
-    if (!text(m.label, 80)) errors.push(`${at}: label (1–80 characters) is required, it is shown to players`);
-  });
+  if (m.scope != null && m.scope !== MODIFIER_SCOPE) errors.push(`${at}: scope must be "${MODIFIER_SCOPE}" here`);
+  if (m.op != null && m.op !== 'add') errors.push(`${at}: op must be "add"`);
+  if (!MODIFIER_TARGETS.includes(m.target)) errors.push(`${at}: target must be one of ${MODIFIER_TARGETS.join(', ')}`);
+  if (!int(m.value) || m.value === 0 || Math.abs(m.value) > 100) errors.push(`${at}: value must be a whole number from -100 to 100, not 0`);
+  const powersOk = v => v == null || (Array.isArray(v) && v.every(p => REF.test(String(p)) && String(p).startsWith('POWER-')));
+  const modesOk = v => v == null || (Array.isArray(v) && v.every(x => KEY.test(String(x))));
+  if (!powersOk(m.powers)) errors.push(`${at}: powers must list POWER-* ids`);
+  if (!modesOk(m.modes)) errors.push(`${at}: modes must list Push mode ids`);
+  if (m.applies != null) {
+    if (!plain(m.applies)) errors.push(`${at}: applies must be an object {powers?, modes?}`);
+    else {
+      const extra = Object.keys(m.applies).filter(k => !['powers', 'modes'].includes(k));
+      if (extra.length) errors.push(`${at}: applies only takes powers and modes (not ${extra.join(', ')})`);
+      if (!powersOk(m.applies.powers)) errors.push(`${at}: applies.powers must list POWER-* ids`);
+      if (!modesOk(m.applies.modes)) errors.push(`${at}: applies.modes must list Push mode ids`);
+      for (const k of ['powers', 'modes']) if (m[k] != null && m.applies[k] != null) errors.push(`${at}: give ${k} once (in applies or at the top level, not both)`);
+    }
+  }
+  if (m.requires != null) {
+    if (!plain(m.requires) || Object.keys(m.requires).some(k => k !== 'powers')) errors.push(`${at}: requires only takes powers (POWER-* ids)`);
+    else if (!powersOk(m.requires.powers)) errors.push(`${at}: requires.powers must list POWER-* ids`);
+  }
+  if (m.stack != null && !KEY.test(String(m.stack))) errors.push(`${at}: stack must be a short lower-case name`);
+  if (!text(m.label, 80)) errors.push(`${at}: label (1–80 characters) is required, it is shown to players`);
   return errors;
+}
+function modifierProblems(list, where) {
+  if (list == null) return [];
+  if (!Array.isArray(list)) return [`${where}: modifiers must be a list`];
+  return list.flatMap((m, i) => modifierEntryProblems(m, `${where}.modifiers[${i}]`));
+}
+/**
+ * The scope owner's check for record-level modifiers blocks (Manager 0.41.0+ calls it as api.modifiers.validate).
+ * entries: [{index, scope, modifier}] with scope filled in. Returns {errors, warnings}.
+ */
+export function validateModifiers(entries, {recordId = '?'} = {}) {
+  const errors = [], warnings = [];
+  for (const e of arr(entries)) {
+    const at = `${recordId}: modifiers.list[${int(e?.index) ? e.index : '?'}]`;
+    errors.push(...modifierEntryProblems({...(plain(e?.modifier) ? e.modifier : {}), scope: e?.scope ?? e?.modifier?.scope}, at));
+  }
+  if (arr(entries).length && !/^PERK-/.test(String(recordId))) warnings.push(`${recordId}: these modifiers count only while the item is attached to a Cinder socket (Cinders → sockets).`);
+  return {errors, warnings};
+}
+/** A usable cinder modifier in one shape ({target, value, label, stack, powers, modes, requires}), or null. */
+export function normalizeModifier(m, defaultScope = MODIFIER_SCOPE) {
+  if (!plain(m) || (m.scope ?? defaultScope) !== MODIFIER_SCOPE || (m.op != null && m.op !== 'add')) return null;
+  if (!MODIFIER_TARGETS.includes(m.target) || !int(m.value) || m.value === 0 || Math.abs(m.value) > 100) return null;
+  const ids = v => arr(v).filter(x => typeof x === 'string');
+  const applies = plain(m.applies) ? m.applies : {};
+  return {target: m.target, value: m.value, label: typeof m.label === 'string' ? m.label : '', stack: typeof m.stack === 'string' ? m.stack : null,
+    powers: ids(applies.powers ?? m.powers), modes: ids(applies.modes ?? m.modes), requires: ids(plain(m.requires) ? m.requires.powers : null)};
+}
+/** The cinder modifiers of a record-level modifiers block (block scope is the default for its entries). */
+export function blockModifiers(definition) {
+  const block = definition?.modifiers;
+  if (!plain(block) || !Array.isArray(block.list)) return [];
+  return block.list.map(m => plain(m) ? normalizeModifier({...m, scope: m.scope ?? block.scope}, null) : null).filter(Boolean);
 }
 const refList = (v, prefix, at, errors) => {
   if (v == null) return;
@@ -143,18 +194,24 @@ export function validateDefinition(record) {
 
 // ---- Modifiers ----
 /**
- * Add up the modifiers for one target from the powers unlocked on the Cinder.
- * unlocked: [{powerId, name, power}] where power is the power block. Scope: modifier.powers / modifier.modes (empty = all).
+ * Add up the modifiers for one target.
+ * unlocked: [{powerId, name, power}], the powers unlocked on the Cinder (power = the power block; its modifiers count).
+ * extra: [{sourceId, name, modifiers}] from other sources (perks on the bearer; modifiers already in normalizeModifier's shape).
+ * A modifier counts when its powers / modes include this Push (empty = all) and every requires power is unlocked on the Cinder.
  * Modifiers sharing a stack name do not add up: only the one with the largest size counts. Returns {total, used:[{label,value,from}]}.
  */
-export function collectModifiers(unlocked, target, {powerId = null, modeId = null} = {}) {
+export function collectModifiers(unlocked, target, {powerId = null, modeId = null, extra = []} = {}) {
+  const have = new Set(arr(unlocked).map(u => u?.powerId));
+  const sources = [...arr(unlocked).map(u => ({sourceId: u?.powerId, name: u?.name, modifiers: arr(u?.power?.modifiers).map(m => normalizeModifier(m))})),
+    ...arr(extra).map(x => ({sourceId: x?.sourceId, name: x?.name, modifiers: arr(x?.modifiers)}))];
   const groups = new Map();
-  for (const u of arr(unlocked)) for (const [i, m] of arr(u?.power?.modifiers).entries()) {
-    if (!plain(m) || m.target !== target || !int(m.value)) continue;
-    if (arr(m.powers).length && !m.powers.includes(powerId)) continue;
-    if (arr(m.modes).length && !m.modes.includes(modeId)) continue;
-    const key = m.stack ? `stack:${m.stack}` : `${u.powerId}#${i}`;
-    const entry = {label: String(m.label ?? u.name ?? u.powerId), value: m.value, from: u.powerId};
+  for (const src of sources) for (const [i, m] of src.modifiers.entries()) {
+    if (!m || m.target !== target) continue;
+    if (m.powers.length && !m.powers.includes(powerId)) continue;
+    if (m.modes.length && !m.modes.includes(modeId)) continue;
+    if (!m.requires.every(id => have.has(id))) continue;
+    const key = m.stack ? `stack:${m.stack}` : `${src.sourceId}#${i}`;
+    const entry = {label: String(m.label || src.name || src.sourceId), value: m.value, from: src.sourceId};
     const prev = groups.get(key);
     if (!prev || Math.abs(entry.value) > Math.abs(prev.value)) groups.set(key, entry);
   }
@@ -172,8 +229,8 @@ export function availableModes(powerDef, unlockedPowerIds) {
  * Work out a Push before anything is rolled or written. Cost is never below 1 (every Push gains Strain); the Backfire chance uses the
  * Strain after the gain. Returns {cost, before, after, overflow, chance, guaranteed, modifiers:{cost, chance, severity}}.
  */
-export function planPush({strainValue, config, mode, unlocked, powerId}) {
-  const scope = {powerId, modeId: mode?.id ?? null};
+export function planPush({strainValue, config, mode, unlocked, powerId, extra = []}) {
+  const scope = {powerId, modeId: mode?.id ?? null, extra};
   const costMods = collectModifiers(unlocked, 'push.cost', scope);
   const chanceMods = collectModifiers(unlocked, 'backfire.chance', scope);
   const severityMods = collectModifiers(unlocked, 'backfire.severity', scope);
@@ -229,7 +286,9 @@ export function normalizeInstance(raw) {
     lastBearer: typeof r.lastBearer === 'string' ? r.lastBearer : null,
     progression: cleanAccount(r.progression), firstBoundAt: Number(r.firstBoundAt) || null,
     createdAt: Number(r.createdAt) || 0, revision: int(r.revision) && r.revision >= 0 ? r.revision : 0,
-    migratedFrom: plain(r.migratedFrom) ? {actorId: String(r.migratedFrom.actorId ?? ''), at: Number(r.migratedFrom.at) || 0} : null
+    migratedFrom: plain(r.migratedFrom) ? {actorId: String(r.migratedFrom.actorId ?? ''), at: Number(r.migratedFrom.at) || 0} : null,
+    // 0.3.0. Records saved before sockets have none: that reads as no item attached, default count, unlocked.
+    sockets: normalizeSockets(r.sockets)
   };
 }
 export function normalizeRegistry(raw) {
@@ -263,7 +322,7 @@ function bearerProblem(registry, inst, actorId, max) {
 }
 /**
  * Bind an unbound (or lost) Cinder to a character. The first time a Cinder is ever bound it receives `initialPoints` (once per Cinder,
- * grant key "initial", within the 13-point wallet). Returns {registry, instance, initialAwarded}.
+ * grant key "initial", within the 16-point wallet). Returns {registry, instance, initialAwarded}.
  */
 export function bindInstance(registry, instanceId, actorId, {max = 1, at = 0, initialPoints = 0} = {}) {
   const inst = getInstance(registry, instanceId);
@@ -282,8 +341,8 @@ export function bindInstance(registry, instanceId, actorId, {max = 1, at = 0, in
 export function unbindInstance(registry, instanceId, {lost = false} = {}) {
   const inst = getInstance(registry, instanceId);
   if (!inst.bearer) throw Error('This Cinder has no bearer');
-  const next = {...inst, status: lost ? 'lost' : 'unbound', bearer: null, lastBearer: inst.bearer.actorId, revision: inst.revision + 1};
-  return {registry: replace(registry, next), instance: next, from: inst.bearer.actorId};
+  const next = {...inst, status: lost ? 'lost' : 'unbound', bearer: null, lastBearer: inst.bearer.actorId, sockets: emptied(inst.sockets), revision: inst.revision + 1};
+  return {registry: replace(registry, next), instance: next, from: inst.bearer.actorId, detached: inst.sockets.attached};
 }
 /** Move a bound Cinder to another character, keeping its progression. No new starting point. */
 export function transferInstance(registry, instanceId, toActorId, {max = 1, at = 0} = {}) {
@@ -292,8 +351,9 @@ export function transferInstance(registry, instanceId, toActorId, {max = 1, at =
   if (inst.bearer.actorId === toActorId) throw Error('That character already bears this Cinder');
   const problem = bearerProblem(registry, inst, toActorId, max);
   if (problem) throw Error(problem);
-  const next = {...inst, status: 'bound', bearer: {actorId: toActorId, since: at}, lastBearer: inst.bearer.actorId, revision: inst.revision + 1};
-  return {registry: replace(registry, next), instance: next, from: inst.bearer.actorId};
+  // Attached socket items stay with the previous bearer, detached from the Cinder.
+  const next = {...inst, status: 'bound', bearer: {actorId: toActorId, since: at}, lastBearer: inst.bearer.actorId, sockets: emptied(inst.sockets), revision: inst.revision + 1};
+  return {registry: replace(registry, next), instance: next, from: inst.bearer.actorId, detached: inst.sockets.attached};
 }
 /** Record a progression change made on the bearer's tree. Returns the registry unchanged when the actor is not the bearer. */
 export function withProgression(registry, actorId, definitionId, account) {

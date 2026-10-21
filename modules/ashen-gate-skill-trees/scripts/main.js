@@ -2,7 +2,7 @@ import {
   SCHEMA,clone,asArray,cleanAccount,walletKey,normalizeTree,validateTree,validatePackage,allowedSourceForProvider,
   availability,publicAvailability,publicTree,totalSpent,grantPoints,purchase,changedPurchasedNodes,planTreeImport,
   resolveTree,perkCost,refund,resetUnlocks,grantTag,isGrantFor,missingGrants,savedDataReport,dependentsBlockingRefund,
-  professionStatus,overrideGrant,reconcile,withHistory,reviewCandidates,removalOrder,planLedgerImport
+  professionStatus,overrideGrant,reconcile,withHistory,reviewCandidates,removalOrder,planLedgerImport,CINDER_MAX_POINTS
 } from './engine.mjs';
 import {graphEdges,edgeLine} from './graph.mjs';
 import {NODE_SIZES,nodeSizeOf,tierBands,backgroundView,appearanceFromForm,BG_FITS,MAX_TIERS} from './appearance.mjs';
@@ -14,7 +14,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.17.0';
+const VERSION='0.17.1';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -633,7 +633,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       professionReport:gm&&!preview&&this.activeTab==='library'?professionReconcile().filter(r=>r.issues.length):[],
       actorName:actor?.name??'',
       canGrant:gm&&!preview&&!!actor&&!!t&&t.provider.kind!=='profession',
-      mode:t?.provider?.kind==='profession'?'Profession • points from Profession Ledger level':t?.provider?.kind==='cinder_milestone'?'Cinder • 13-point milestone wallet': 'Generic • GM-awarded points',
+      mode:t?.provider?.kind==='profession'?'Profession • points from Profession Ledger level':t?.provider?.kind==='cinder_milestone'?`Cinder • ${CINDER_MAX_POINTS}-point milestone wallet`: 'Generic • GM-awarded points',
       trees:this.trees.map(x=>({id:x.id,name:x.name,selected:x.id===this.treeId})),
       actors:actorChoices().map(x=>({id:x.id,name:x.name,selected:x.id===this.actorId})),
       nodes,sizeClass:`agst-size-${size}`,nodeSize:size,bg:backgroundView(t),tiers:tierBands(t?.tiers,Math.ceil(maxY)),canAppearance:gm&&!preview&&this.editMode,
@@ -840,13 +840,13 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
   async _newTree(){
     if(!game.user.isGM)throw Error('GM only');
     const f=await input('Create tree',`<div class="agst-form"><label>Name<input name="name" value="New Tree" maxlength="120" required></label>
-      <label>Provider<select name="kind"><option value="generic_points">Generic points</option><option value="cinder_milestone">Cinder • 13 milestones</option><option value="profession">Profession • Ledger read-only</option></select></label>
+      <label>Provider<select name="kind"><option value="generic_points">Generic points</option><option value="cinder_milestone">Cinder • ${CINDER_MAX_POINTS} milestones</option><option value="profession">Profession • Ledger read-only</option></select></label>
       <label>Canonical source ID (PROF-* / MUT-* when applicable)<input name="sourceRef" placeholder="MUT-EXAMPLE or PROF-EXAMPLE"></label>
       <label>Generic point limit (1–999)<input type="number" name="maxPoints" value="10" min="1" max="999"></label>
       <p>Created as a hidden draft. Only explicitly released nodes become player-visible.</p></div>`,'Create');
     if(!f)return;
     const kind=f.kind||'generic_points';const t={id:newKey('LOCAL-TREE'),name:String(f.name??'').trim(),description:'New draft tree.',sourceRef:String(f.sourceRef??'').trim()||null,
-      provider:{kind,maxPoints:kind==='cinder_milestone'?13:kind==='profession'?null:Number(f.maxPoints)},status:'draft',visibility:'gm',nodes:[]};
+      provider:{kind,maxPoints:kind==='cinder_milestone'?CINDER_MAX_POINTS:kind==='profession'?null:Number(f.maxPoints)},status:'draft',visibility:'gm',nodes:[]};
     const v=validateTree(t);if(v.errors.length)throw Error(v.errors.join('; '));
     await saveTrees([...readPrivate(),t]);this.treeId=t.id;this.activeTab='trees';this.editMode=true;this.nodeId=null;notify('Draft tree created.');
   }
@@ -1031,7 +1031,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const f=await input('Award progression points',`<div class="agst-form"><p><strong>${escape(this.actor.name)}</strong> · ${escape(this.tree.name)}</p>
       <label>Award label (unique per Actor/track)<input name="label" maxlength="100" value="Milestone ${readProgress(this.actor,this.tree).grants.length+1}"></label>
       <label>Points to award<input type="number" min="1" max="${this.tree.provider.kind==='cinder_milestone'?'1':'100'}" name="amount" value="1"></label>
-      <p>Cinder: one point per uniquely labeled manifestation/milestone, 13 lifetime points maximum. GM only.</p></div>`,'Award');
+      <p>Cinder: one point per uniquely labeled manifestation/milestone, ${CINDER_MAX_POINTS} lifetime points maximum. GM only.</p></div>`,'Award');
     if(!f)return;
     const a=readProgress(this.actor,this.tree),next=grantPoints(this.tree,a,Number(f.amount),String(f.label??''));
     if(!await confirm(`<p>Grant ${Number(f.amount)} point(s) to ${escape(this.actor.name)} for <strong>${escape(this.tree.name)}</strong>?</p>`,'Confirm award'))return;

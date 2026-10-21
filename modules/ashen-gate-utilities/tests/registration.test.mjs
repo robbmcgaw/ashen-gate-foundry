@@ -11,7 +11,7 @@ globalThis.ui={actors:null,notifications:{info:()=>{},error:()=>{}}};
 globalThis.Hooks={once:(k,fn)=>handlers.once.set(k,fn),on:(k,fn)=>{handlers.on.set(k,fn);return 123;},off:()=>{}};
 await import('../scripts/main.mjs');
 handlers.once.get('init')();handlers.once.get('ready')();
-test('registers module-owned settings',()=>{assert.equal(settings.size,11);assert.equal(settings.get(`${ID}.playerAccessEnabled`).value,false);});
+test('registers module-owned settings',()=>{assert.equal(settings.size,12);assert.equal(settings.get(`${ID}.electrumEnabled`).value,false);assert.equal(settings.get(`${ID}.playerAccessEnabled`).value,false);});
 test('publishes working and versioned public Open API',()=>{const api=game.modules.get(ID).api;assert.equal(api.version,VERSION);assert.equal(typeof api.open,'function');});
 test('Player Access conforms to ag-player-access/1',()=>{const s=game.modules.get(ID).api.playerAccess.getState();assert.deepEqual(s,{contract:'ag-player-access/1',moduleId:ID,audience:'player',playerAccessEnabled:false,configurable:true});});
 test('Player Access rejects unauthorized user writes',async()=>{const api=game.modules.get(ID).api.playerAccess;game.user={id:'player',isGM:false};await assert.rejects(api.setEnabled(true),/GM only/);game.user=gm;assert.equal(game.settings.get(ID,'playerAccessEnabled'),false);});

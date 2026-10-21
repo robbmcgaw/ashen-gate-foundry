@@ -43,6 +43,16 @@
           </div>
           {{else}}<p>No powers unlocked yet. Unlock them in the Skill Trees window.</p>{{/each}}
           {{#if enhancements.length}}<p class="agc-enh"><small>Perks: {{#each enhancements}}{{name}}{{#unless @last}}, {{/unless}}{{/each}}</small></p>{{/if}}
+          {{#if sockets}}<div class="agc-sockets" aria-label="Sockets of {{name}}">
+            <div class="agc-strain-head"><h3>Sockets <small>{{sockets.used}} of {{sockets.capacity}} in use{{#if sockets.locked}} · locked by the GM{{/if}}</small></h3>
+              {{#if sockets.canAttach}}<button type="button" class="ag-btn ag-btn--sm" data-act="socket-attach" data-instance="{{instanceId}}"><i class="fa-solid fa-plus"></i> Attach…</button>{{/if}}</div>
+            {{#if sockets.hasSlots}}<ul class="agc-socket-list">
+              {{#each sockets.slots}}<li class="{{#unless active}}agc-inactive{{/unless}}"><div><strong>{{name}}</strong>{{#unless active}} <span class="agc-bad">inactive: over capacity</span>{{/unless}}{{#if effects}}<br><small>{{effects}}</small>{{/if}}</div>
+                {{#if ../sockets.canEdit}}<span class="agc-row-actions">{{#if ../sockets.canSwap}}<button type="button" class="ag-btn ag-btn--sm" data-act="socket-swap" data-instance="{{../instanceId}}" data-slot="{{slot}}">Swap…</button>{{/if}}<button type="button" class="ag-btn ag-btn--sm" data-act="socket-detach" data-instance="{{../instanceId}}" data-slot="{{slot}}">Detach</button></span>{{/if}}</li>{{/each}}
+              {{#each sockets.empties}}<li class="agc-empty"><em>Empty socket</em></li>{{/each}}
+            </ul>{{else}}<p><small>This Cinder has no sockets.</small></p>{{/if}}
+            {{#if sockets.overCapacity}}<p><small>More items are attached than this Cinder has sockets. The extra ones do nothing until one is removed; nothing is deleted.</small></p>{{/if}}
+          </div>{{/if}}
         </section>
         {{/each}}
       {{else}}<p class="agc-note">{{actorName}} does not bear a Cinder.{{#if gm}} Bind one in <strong>Manage</strong>.{{/if}}</p>{{/if}}
@@ -63,6 +73,23 @@
             <td class="agc-row-actions">{{#if bound}}<button type="button" class="ag-btn ag-btn--sm" data-act="cinder-transfer" data-instance="{{instanceId}}"><i class="fa-solid fa-right-left"></i> Transfer</button><button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-act="cinder-unbind" data-instance="{{instanceId}}">Unbind</button>{{else}}<button type="button" class="ag-btn ag-btn--sm" data-act="cinder-bind" data-instance="{{instanceId}}"><i class="fa-solid fa-link"></i> Bind</button>{{/if}}</td></tr>{{/each}}
         </tbody></table>{{/each}}
       {{else}}<p>No Cinders yet. Click <strong>New Cinder</strong>, then <strong>Bind</strong> it to a character.</p>{{/if}}
+    </section>
+    <section class="agc-card" aria-label="Sockets">
+      <h2>Sockets</h2>
+      <p>Default: <strong>{{manage.socketDefault}}</strong> per Cinder (Configure Settings). Drag an Item from the Items sidebar onto a socket to copy it to the bearer and attach it. Attached items stay in the bearer's inventory; on a transfer or unbind they stay with the old bearer, detached.</p>
+      {{#if manage.hasSockets}}{{#each manage.sockets}}
+        <h3 class="agc-group">{{name}} <small>· {{bearerName}} · {{used}} of {{capacity}} in use · count: {{countLabel}}</small></h3>
+        <ul class="agc-socket-list">
+          {{#each slots}}<li class="agc-drop {{#unless active}}agc-inactive{{/unless}}" data-agc-drop data-instance="{{../instanceId}}" data-slot="{{slot}}"><div><strong>{{name}}</strong>{{#unless active}} <span class="agc-bad">inactive: over capacity</span>{{/unless}}{{#if effects}}<br><small>{{effects}}</small>{{/if}}</div>
+            <span class="agc-row-actions"><button type="button" class="ag-btn ag-btn--sm" data-act="socket-swap" data-instance="{{../instanceId}}" data-slot="{{slot}}" data-actor="{{../bearerId}}">Swap…</button><button type="button" class="ag-btn ag-btn--sm" data-act="socket-detach" data-instance="{{../instanceId}}" data-slot="{{slot}}" data-actor="{{../bearerId}}">Detach</button></span></li>{{/each}}
+          {{#each empties}}<li class="agc-drop agc-empty" data-agc-drop data-instance="{{../instanceId}}" data-slot=""><em>Empty socket: drop an Item here</em></li>{{/each}}
+        </ul>
+        <div class="agc-actions">
+          <button type="button" class="ag-btn ag-btn--sm" data-act="socket-attach" data-instance="{{instanceId}}" data-actor="{{bearerId}}" {{#unless canAttach}}disabled{{/unless}}><i class="fa-solid fa-plus"></i> Attach…</button>
+          <button type="button" class="ag-btn ag-btn--sm" data-act="socket-lock" data-instance="{{instanceId}}" data-locked="{{locked}}"><i class="fa-solid {{#if locked}}fa-lock-open{{else}}fa-lock{{/if}}"></i> {{#if locked}}Unlock for players{{else}}Lock for players{{/if}}</button>
+          <button type="button" class="ag-btn ag-btn--sm" data-act="socket-count" data-instance="{{instanceId}}">Socket count…</button>
+        </div>
+      {{/each}}{{else}}<p>No bound Cinders. Sockets appear once a Cinder has a bearer.</p>{{/if}}
     </section>
     <section class="agc-card" aria-label="Cinder check">
       <h2>Check</h2>

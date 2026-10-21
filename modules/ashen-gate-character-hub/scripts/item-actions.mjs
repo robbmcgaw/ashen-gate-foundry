@@ -6,6 +6,7 @@ import {MODULE_ID, esc, num} from './constants.mjs';
 import {canEdit} from './actions.mjs';
 import {requirePart} from './visibility.mjs';
 import {attunementData, SLOTS} from './items.mjs';
+import {electrumHidden} from './partners.mjs';
 
 const refuse = error => ({ok: false, error});
 const SLOT_IDS = new Set(SLOTS.map(s => s.id));
@@ -54,6 +55,8 @@ export async function setCurrency(actor, key, raw) {
   if (!(key in (actor.system?.currency ?? {}))) return refuse(`Unknown currency ${key}.`);
   const v = Math.trunc(num(raw, NaN));
   if (!Number.isFinite(v) || v < 0) return refuse('Coins must be 0 or more.');
+  // Electrum off in Utilities: the Hub may lower what a character still has, never add any.
+  if (key === 'ep' && electrumHidden() && v > num(actor.system.currency.ep)) return refuse('Electrum is off (Utilities GM setting). Ask the GM to convert it or turn it on.');
   return run('change currency', () => actor.update({[`system.currency.${key}`]: v}));
 }
 

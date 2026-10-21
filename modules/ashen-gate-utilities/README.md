@@ -12,8 +12,9 @@ Open it from **Actors sidebar → Utilities**. The GM always sees it; players se
 
   Eligible connected players are prompted and roll from the compact player view (**Roll Now**, with advantage/disadvantage). Only one roll can run at a time. **End & Record** closes an incomplete one and records the remaining slots as Skipped; **Cancel Session** files it as cancelled.
 - **Party Inventory:** one shared stash (a Utilities-flagged NPC Actor). Drop an item from any character sheet onto the tab to stash it; drag a row onto a character sheet to take it out. Taking an item out needs every other connected player to accept (GM can turn the vote off; the GM is never asked; 60 second timeout). A container (backpack, pouch…) moves with everything inside it, nested containers included; the move is all or nothing. An Items / History sub-tab lists contents and movements. The GM turns the stash on or off for players.
-- **Party purse:** the five dnd5e coin totals (`system.currency` cp/sp/ep/gp/pp) held by the stash Actor, at the top of Party Inventory → Items. Players Deposit from / Take to their own characters (Take uses the separate GM Setup setting *Party must accept when a player takes coins out*; until the GM saves it, it follows the item vote; the GM sees "Coin vote: on/off" by the purse); the GM can Add / Remove / Set any coin with a reason. Every change is logged in stash History; the GM can Undo adjustments and takes. No currency conversion.
-- **Award Gold (GM):** pay coins (gp by default, or cp/sp/ep/pp) to ticked characters (each, or split evenly in whole coins; a remainder is not handed out). Writes only `system.currency.<coin>`, posts a chat card and logs to stash History, where the GM can Undo it for anyone who still has the gold.
+- **Party purse:** the five dnd5e coin totals (`system.currency` cp/sp/ep/gp/pp) held by the stash Actor, at the top of Party Inventory → Items. Players Deposit from / Take to their own characters (Take uses the separate GM Setup setting *Party must accept when a player takes coins out*; until the GM saves it, it follows the item vote; the GM sees "Coin vote: on/off" by the purse); the GM can Add / Remove / Set any coin with a reason. Every change is logged in stash History; the GM can Undo adjustments and takes. No automatic currency conversion.
+- **Use electrum (GM Setup, default off):** off leaves electrum (ep) out of the purse, Award Gold, coin Deposit/Take/Adjust and the embedded stash; ep moves and awards are refused. If the purse still holds ep it stays visible (dimmed) with a note, and the GM can **Convert electrum to silver/gold** (1 ep = 5 sp; 2 ep = 1 gp, an odd one → 5 sp) after an exact preview; the conversion is logged in History with Undo. The purse still stores ep, and character sheets are not changed.
+- **Award Gold (GM):** pay coins (gp by default, or cp/sp/pp, and ep while electrum is on) to ticked characters (each, or split evenly in whole coins; a remainder is not handed out). Writes only `system.currency.<coin>`, posts a chat card and logs to stash History, where the GM can Undo it for anyone who still has the gold.
 - **Roll Tables:** draws a native RollTable and shows the result with an editable preview, whisper to chosen players, and Auto-Send. Document results are sent as `@UUID` links.
 - **Conditions:** one party view of native conditions. Removal is locked per character; the GM unlocks a character so its owner can remove that character's native conditions. **Pop Out Overlay** opens a transparent per-user conditions window.
 - **History** (GM): finished and cancelled rolls, labelled Group Check or Roll Request, with per-character results, average and outcome.
@@ -23,7 +24,24 @@ Player actions that change shared state (stash moves, condition removal) are car
 
 ## Public API
 
-`game.modules.get('ashen-gate-utilities').api`: `open`, `playerAccess` (`ag-player-access/1`), `conditions` (`isUnlocked`, `setUnlocked`, `canRemove`, `remove`, `openOverlay`) and `stash` (`isEnabled`, `setEnabled`, `isVoteRequired`, `setVoteRequired`, `history`, `clearHistory`, `open`, `deposit`, `withdraw`, `listItems`), `embed` (`mount`), `rolls` (`open`, GM only), plus GM-only `awardGold({amount, mode, actorIds, reason, public})` and `undoGoldAward(entryId)` (also as `gold`).
+`game.modules.get('ashen-gate-utilities').api`: `open`, `playerAccess` (`ag-player-access/1`), `conditions` (`isUnlocked`, `setUnlocked`, `canRemove`, `remove`, `openOverlay`) and `stash` (`isEnabled`, `setEnabled`, `isVoteRequired`, `setVoteRequired`, `history`, `clearHistory`, `open`, `deposit`, `withdraw`, `listItems`), `embed` (`mount`), `rolls` (`open`, GM only), `currency` (`electrumEnabled`, `coins`, `setElectrumEnabled`), `purse` (`totals`, `deposit`, `take`, `adjust`, `undo`, `convertElectrum`, `undoConvert`, …), plus GM-only `awardGold({amount, mode, actorIds, reason, public})` and `undoGoldAward(entryId)` (also as `gold`).
+
+### `currency` (0.13.2)
+
+Whether this world uses electrum, so partner modules (Character Hub, the future Shopping feature) can show the same coins as Utilities. Feature-detect it; an older Utilities has no `currency`.
+
+```js
+const cur = game.modules.get('ashen-gate-utilities')?.api?.currency;
+const useEp = cur?.electrumEnabled?.() ?? true;   // older Utilities: assume dnd5e's five coins
+const coins = cur?.coins?.() ?? ['cp', 'sp', 'ep', 'gp', 'pp'];  // ['cp','sp','gp','pp'] while electrum is off
+Hooks.on('ashen-gate-utilities.electrumChanged', on => { /* re-render */ });
+```
+
+- `electrumEnabled()`: the GM Setup *Use electrum* setting (world, default `false`). Anyone can read it.
+- `coins()`: the coins to offer in a choice. While it is off, still show an existing ep balance rather than hiding money.
+- `setElectrumEnabled(bool)`: GM only (`GM only.`).
+- `contract`: `'ag-utilities-currency/1'`; `hook`: the hook name above, called with the new value.
+- Related, GM only: `purse.convertElectrum({to: 'sp' | 'gp', reason})` converts all the purse's ep (value kept exactly) and returns the History entry; `purse.undoConvert(entryId)`; `purse.openConvert()` opens the dialog with the preview.
 
 ### `rolls.open(request)` (0.13.0, GM only)
 

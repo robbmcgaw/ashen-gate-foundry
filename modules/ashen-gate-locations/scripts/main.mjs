@@ -14,7 +14,7 @@ import {TravelTracker} from './travel-app.mjs';
 import {createBehaviours} from './travel-view.mjs';
 import {travelBehaviours} from './travel-behaviours.mjs';
 
-const VERSION = '1.15.1';
+const VERSION = '1.15.2';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -121,6 +121,7 @@ Hooks.once('ready', () => {
     travel: {read: readTravel, write: writeTravel, readView: readJourneyView, drawHazard, chat, emit: (event, payload) => Hooks.callAll(`ashenGateLocations.${event}`, payload)},
     sharing: {request: sharing.request},
     tracker: {open: () => TravelTracker.show(), behaviours},
+    characters: watchCandidates,
     rolls: utilitiesRolls,
     open: () => LocationsApp.show(),
     openLocation: ref => LocationsApp.show(ref),

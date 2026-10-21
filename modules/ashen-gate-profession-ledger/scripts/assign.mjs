@@ -14,7 +14,17 @@ export const professionTitle=key=>PROFESSION_DISPLAY_NAMES[key]??PROFESSION_NAME
 
 /** A catalog skill name ("Nature") as a dnd5e skill id, or null. No aliases are guessed. */
 const skillIdOf=name=>{const t=String(name??'').trim();if(SKILL_IDS.includes(t))return t;return SKILL_IDS.find(k=>norm(SKILL_LABELS[k])===norm(t))??null;};
-const toolIdOf=name=>requiredToolRef(name)?.key??null;
+/** 0.22.1: a tool name or key as a dnd5e tool key, only when dnd5e (or the built-in list) has that tool; else null. */
+const toolIdOf=name=>{const key=requiredToolRef(name)?.key??null;return key&&toolKeys().includes(key)?key:null;};
+/** 0.22.1: the profession a PROF-* definition is for, the same for the catalog and Assign: from the PROF id first
+ * (PROF-TG-HERBALISM → herbalism), else from its name. Null when neither names a profession. */
+export function definitionProfessionKey(sourceId,name){
+  const id=String(sourceId??'');
+  if(/^PROF-[A-Z0-9-]+$/.test(id)){const parts=id.split('-').slice(1);
+    for(let i=0;i<parts.length;i++){const k=professionKey(parts.slice(i).join(' '));if(PROFESSION_KEYS.includes(k))return k;}}
+  const named=professionKey(name);
+  return PROFESSION_KEYS.includes(named)?named:null;
+}
 
 /**
  * Catalog layer of the crosswalk, from imported Profession definitions [{sourceId, name, access}].
@@ -29,8 +39,8 @@ export function catalogCrosswalk(definitions=[]){
     if(!access||typeof access!=='object')continue;
     const lists={skillProficienciesAnyOf:'qualifySkills',toolProficienciesAnyOf:'qualifyTools',advantageToolsAnyOf:'advantageTools'};
     if(![...Object.keys(lists),'itemsAnyOf'].some(f=>Array.isArray(access[f])))continue;
-    const key=professionKey(d.name);
-    if(!PROFESSION_KEYS.includes(key))continue;
+    const key=definitionProfessionKey(d.sourceId,d.name);
+    if(!key)continue;
     const entry={qualifySkills:[],qualifyTools:[],advantageTools:[]};
     for(const [field,list] of Object.entries(lists))for(const name of Array.isArray(access[field])?access[field]:[]){
       const id=list==='qualifySkills'?skillIdOf(name):toolIdOf(name);
@@ -86,7 +96,7 @@ export function parseBaselineFile(data){
       if(!Array.isArray(row[list])||row[list].some(v=>typeof v!=='string')){errors.push(`${name}: ${list} must be a list of names.`);continue;}
       if(list==='items'){entry.items=cleanItemList(row.items);continue;}
       const ids=[];
-      for(const v of row[list]){const tool=list==='qualifySkills'?null:toolIdOf(v),id=list==='qualifySkills'?skillIdOf(v):toolKeys().includes(tool)?tool:null;
+      for(const v of row[list]){const id=list==='qualifySkills'?skillIdOf(v):toolIdOf(v);
         if(id){if(!ids.includes(id))ids.push(id);}else unresolved.push({profession:professionTitle(key),list,name:v});}
       entry[list]=ids;
     }
@@ -106,12 +116,15 @@ export function baselineChanges(oldBaseline,newBaseline,map){
   return rows;
 }
 
-/** The current table as a file the baseline import reads back: {schema, exportedAt, professions:{key:{...lists, checkTool, checkSkill}}}.
+/** The current table as a file the baseline import reads back: {schema, exportedAt, professions:{key:{...lists, checkTool, checkSkill, origin, inEffect}}}.
+ * 0.22.1: only lists the GM or the baseline file set are written as lists (overrides), so a re-import never turns built-in
+ * or catalog values (catalog advantage tools above all) into baseline ones. `inEffect` shows the whole table; import ignores it.
  * 0.22.0: the legacy `items` list is written only when a profession has one. */
 export function exportCrosswalk(map,{exportedAt=new Date().toISOString(),version=''}={}){
   const professions={};
-  for(const key of PROFESSION_KEYS)professions[key]={name:professionTitle(key),...Object.fromEntries(CROSSWALK_LISTS.filter(l=>l!=='items'||map.items?.[key]?.length).map(l=>[l,[...(map[l]?.[key]??[])]])),
-    checkTool:map.tools?.[key]||null,checkSkill:map.skills?.[key]||null,origin:{...(map.origin?.[key]??{})}};
+  for(const key of PROFESSION_KEYS){const origin={...(map.origin?.[key]??{})},shown=CROSSWALK_LISTS.filter(l=>l!=='items'||map.items?.[key]?.length);
+    professions[key]={name:professionTitle(key),...Object.fromEntries(shown.filter(l=>origin[l]==='gm'||origin[l]==='baseline').map(l=>[l,[...(map[l]?.[key]??[])]])),
+      checkTool:map.tools?.[key]||null,checkSkill:map.skills?.[key]||null,origin,inEffect:Object.fromEntries(shown.map(l=>[l,[...(map[l]?.[key]??[])]]))};}
   return {schema:'ag-ledger-crosswalk/1',module:'ashen-gate-profession-ledger',version,exportedAt,professions};
 }
 

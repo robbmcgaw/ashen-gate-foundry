@@ -62,12 +62,15 @@ export function normalizeBehaviours(raw) {
 /**
  * Applies a GM change: {pace?: {enabled?, value?}, watch?: {enabled?, first?, second?, third?}, checks?: {enabled?, forage?, navigate?}}.
  * Throws on an unknown behaviour, pace, watch or skill (nothing is guessed). Returns the journey with the new behaviours.
+ * 1.15.2: `characterIds` (the characters the GM may put on watch) refuses any other Actor id; one already on a watch
+ * in this journey may stay (a character who has left the party can still be kept or taken off).
  */
-export function setBehaviours(raw, patch = {}) {
+export function setBehaviours(raw, patch = {}, {characterIds} = {}) {
   const j = normalizeJourney(raw);
   if (!j || j.status !== 'active') throw new Error('There is no journey under way.');
   if (!patch || typeof patch !== 'object') throw new Error('Nothing to change.');
   const b = j.behaviours;
+  const allowed = characterIds ? new Set([...characterIds, ...WATCHES.flatMap(w => b.watch[w])]) : null;
   for (const [id, change] of Object.entries(patch)) {
     if (!BEHAVIOUR_IDS.includes(id)) throw new Error(`Unknown travel behaviour "${id}" (use ${BEHAVIOUR_IDS.join(', ')}).`);
     if (!change || typeof change !== 'object') throw new Error(`Give ${id} an object of changes.`);
@@ -81,6 +84,10 @@ export function setBehaviours(raw, patch = {}) {
       } else if (id === 'watch' && WATCHES.includes(key)) {
         if (!Array.isArray(value) || value.some(v => typeof v !== 'string' || !ACTOR.test(v))) throw new Error(`${WATCH_LABELS[key]} needs a list of Actor ids.`);
         if (new Set(value).size > MAX_ON_WATCH) throw new Error(`At most ${MAX_ON_WATCH} characters on one watch.`);
+        if (allowed) {
+          const bad = value.filter(v => !allowed.has(v));
+          if (bad.length) throw new Error(`Only player characters can go on watch (the party's characters, or every character Actor when there is no party). Not one: ${[...new Set(bad)].join(', ')}.`);
+        }
         b.watch[key] = actorList(value);
       } else if (id === 'checks' && CHECKS.includes(key)) {
         if (!CHECK_SKILLS.includes(value)) throw new Error(`Unknown skill "${value}".`);

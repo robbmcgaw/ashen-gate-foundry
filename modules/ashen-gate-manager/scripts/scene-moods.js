@@ -310,17 +310,23 @@ export function createSceneMoods({game, getConfig = () => globalThis.CONFIG, get
     return {weather, darkness};
   }
 
-  async function savePresets(kind, presetList) {
-    if(!isGM()) return fail(GM_ONLY);
-    if(!KINDS.includes(kind)) return fail('Kind must be mood or layer.');
-    if(!Array.isArray(presetList) || !presetList.length) return fail(`Keep at least one ${NOUN[kind]}.`);
+  /** Problem with a whole list of one kind, or null. Nothing is written. */
+  function listProblem(kind, presetList) {
+    if(!KINDS.includes(kind)) return 'Kind must be mood or layer.';
+    if(!Array.isArray(presetList) || !presetList.length) return `Keep at least one ${NOUN[kind]}.`;
     const ids = new Set();
     for(const preset of presetList) {
       const problems = validatePreset({...preset, kind});
       if(ids.has(preset?.id)) problems.push(`Id ${preset.id} is used twice.`);
-      if(problems.length) return fail(`${preset?.label || preset?.id || 'Preset'}: ${problems.join(' ')}`);
+      if(problems.length) return `${preset?.label || preset?.id || 'Preset'}: ${problems.join(' ')}`;
       ids.add(preset.id);
     }
+    return null;
+  }
+  async function savePresets(kind, presetList) {
+    if(!isGM()) return fail(GM_ONLY);
+    const problem = listProblem(kind, presetList);
+    if(problem) return fail(problem);
     const tidy = presetList.map(p => tidyPreset({...p, kind}));
     await game.settings.set(MODULE_ID, SETTING[kind], tidy);
     return {ok:true, presets:clone(tidy)};
@@ -331,14 +337,19 @@ export function createSceneMoods({game, getConfig = () => globalThis.CONFIG, get
     if(!data || typeof data !== 'object' || data.format !== FILE_FORMAT) return {problems:[`This is not an Ashen Gate moods file (format must be "${FILE_FORMAT}").`], presets:[]};
     if(data.formatVersion !== FILE_VERSION) return {problems:[`Moods file version ${data.formatVersion} is not supported (expected ${FILE_VERSION}).`], presets:[]};
     if(!Array.isArray(data.presets)) return {problems:['The moods file has no presets list.'], presets:[]};
-    return {problems:[], presets:data.presets.map(p => ({...p, kind:kindOf(p)}))};
+    // 0.41.2: a missing kind means mood; any other value is kept as written so validatePreset reports it.
+    return {problems:[], presets:data.presets.map(p => ({...p, kind:p?.kind === undefined ? 'mood' : p.kind}))};
   }
   function previewImport(data) {
     const {problems, presets} = readFile(data);
     if(problems.length) return {ok:false, message:problems.join(' '), items:[]};
-    const known = new Set(weatherIds());
+    const known = new Set(weatherIds()), seen = new Set();
     const items = presets.map(p => {
       const issues = validatePreset(p);
+      // 0.41.2: the same kind and id twice in one file: only the first one counts; later ones are reported and skipped.
+      const key = `${p.kind}:${p.id}`;
+      if(!issues.length && seen.has(key)) issues.push(`Id ${p.id} is used twice in this file; only the first one is imported.`);
+      seen.add(key);
       if(issues.length) return {kind:p.kind, id:String(p.id ?? ''), label:String(p.label ?? p.id ?? 'Preset'), status:'invalid', problems:issues};
       const mine = find(p.kind, p.id);
       const same = mine && mine.label === String(p.label).trim() && JSON.stringify(Object.entries(mine.set).sort()) === JSON.stringify(Object.entries(p.set).sort()) && (mine.transitionMs ?? 0) === (p.transitionMs ?? 0);
@@ -549,9 +560,21 @@ export function createSceneMoods({game, getConfig = () => globalThis.CONFIG, get
           target.push({...p, id, label:`${p.label} (imported)`}); counts.copied++; changed.add(item.kind);
         } else counts.kept++;
       });
+      // 0.41.2: all or nothing. Check every changed list before writing any; if a later write fails, restore the earlier ones.
       for(const kind of changed) {
-        const out = await savePresets(kind, lists[kind]);
-        if(!out.ok) return out;
+        const problem = listProblem(kind, lists[kind]);
+        if(problem) return fail(`Moods file not imported, nothing was changed: ${problem}`);
+      }
+      const written = [];
+      try {
+        for(const kind of changed) {
+          const before = clone(game.settings.get(MODULE_ID, SETTING[kind]) ?? []);
+          await game.settings.set(MODULE_ID, SETTING[kind], lists[kind].map(p => tidyPreset({...p, kind})));
+          written.push([kind, before]);
+        }
+      } catch(error) {
+        for(const [kind, before] of written.reverse()) { try { await game.settings.set(MODULE_ID, SETTING[kind], before); } catch { /* reported below */ } }
+        return fail(`Moods file not imported, nothing was changed: ${error?.message ?? error}`);
       }
       const parts = [['added', counts.added], ['replaced', counts.replaced], ['added as copies', counts.copied], ['kept as they were', counts.kept], ['skipped (invalid)', counts.skipped]]
         .filter(([, n]) => n).map(([w, n]) => `${n} ${w}`);

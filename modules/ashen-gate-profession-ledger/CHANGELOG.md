@@ -1,3 +1,10 @@
+## 0.22.1 — 2026-10-21
+
+- **Fix: Export then re-import no longer turns catalog values into baseline ones.** Export writes a list only when you (GM Setup) or a baseline file set it. Built-in and catalog lists, including catalog advantage tools (which checks never use), stay where they were after a re-import. The full table in effect is still in the file, under `inEffect`, which import ignores.
+- **Fix: catalog tools are checked against dnd5e.** A Profession definition's `access` tool (name or key) that dnd5e doesn't have is ignored and reported in GM Setup → Tools and checks and in the Assign preview, the same as a baseline file. Nothing is guessed.
+- **Fix: the catalog finds a definition the same way Assign does**: by its PROF id first (`PROF-TG-HERBALISM` → Herbalism), then its name. A definition whose name doesn't match a profession now has its `access` block used. Definitions that matched before still match.
+- No change to crafting (no advantage from advantage tools) or Fishing (Survival). Saved data: same shape, no migration.
+
 ## 0.22.0 — 2026-10-21
 
 - **GM Setup → Tools and checks is simpler.** One row per profession, in two groups (*Crafting professions*, then *Gathering professions*), with three columns: **Skill to Access**, **Tool to Access** and **Tool for Advantage** (gathering rows only; crafting rows show a dash). Each cell is one dropdown with *None*. Either the skill or the tool qualifies a character in Assign, as before.

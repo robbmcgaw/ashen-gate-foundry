@@ -21,6 +21,7 @@ import {compilePackage, dependencyOrder, normalizeRef, docManagerSnapshot, local
 import {downloadJson, downloadText} from "./download.js";
 import {isLocationRecord, locationsApi, planLocation, locationsNote, applyLocations, isRouteRecord, routesApi, planRoute, routesNote, applyRoutes, withLocationIds} from './location-handoff.js';
 import {cinderDefinitionChecks} from './cinder-definitions.js';
+import {modifierDefinitionChecks} from './modifier-definitions.js';
 import {SPECIALISTS, detectSpecialistFile, specialistCount, specialistApi, describeUnrecognized, planSpecialist, applySpecialist} from './specialist-handoff.js';
 import {classifyDelivery} from './delivery.js';
 import {buildWorldExport, saveWorldExport, saveBackup, SNAPSHOT_SETTING} from './world-export.js';
@@ -33,7 +34,7 @@ import {createSceneMoods, MOODS_SETTING, LAYERS_SETTING, MOOD_FIELDS, FIELD_GROU
 const MOOD_VIEWS=[{id:'live',label:'Live: this scene',icon:'fa-solid fa-sun'},{id:'library',label:'Moods & layers',icon:'fa-solid fa-layer-group'},{id:'share',label:'Export & import',icon:'fa-solid fa-right-left'}];
 const MOOD_TRANSITIONS=[{value:'',label:'Preset default'},{value:0,label:'Instant'},{value:3000,label:'3 s'},{value:10000,label:'10 s'},{value:30000,label:'30 s'}];
 import {createCoreLinks, SOURCES_SETTING, LINK_HISTORY_SETTING} from './core-links.js';
-import {createOrganizer, folderIndex, describePreview, ORGANIZE_TYPES, SCHEMA_SETTING, HISTORY_SETTING, FLAG_PROTECTED} from './organize.js';
+import {createOrganizer, folderIndex, describePreview, readRulesFile, ORGANIZE_TYPES, SCHEMA_SETTING, HISTORY_SETTING, FLAG_PROTECTED} from './organize.js';
 import {createBrowse, PAGE_SIZE, filterEntries} from './browse.js';
 import {ITEM_VIEWS, ORIGINS, RARITIES, DEFAULT_FILTERS, activeFilterCount, resolveTab} from './item-filters.js';
 import {toolbarHtml, bodyHtml, DEFAULT_STATE} from './browse-view.js';
@@ -197,7 +198,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.39.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.41.2 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -1096,9 +1097,12 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const externalIds = withLocationIds(existingSourceIndex(), locationsApi(game));
     this.errors = validatePackage(this.pkg, externalIds);
     this.warnings = [];
-    // Cinder / Power / Backfire-table blocks are checked by Skill Trees when it is active (0.39.0).
+    // Cinder / Power / Backfire-table blocks are checked by Ashen Gate | Cinders when it is active (0.39.0).
     const cinderChecks = cinderDefinitionChecks(game, this.pkg.records);
     this.errors.push(...cinderChecks.errors); this.warnings.push(...cinderChecks.warnings);
+    // Record-level modifiers go to the module that owns each scope (0.41.0).
+    const modifierChecks = modifierDefinitionChecks(game, this.pkg.records);
+    this.errors.push(...modifierChecks.errors); this.warnings.push(...modifierChecks.warnings);
     if (this.pkg.manifest.schema_version === 'ag-foundry-import/0.1') {
       this.warnings.push('Legacy import package: accepted for compatibility; future exports should use Archie typed references and v0.2 metadata.');
     } else if (isContractImport(this.pkg) && !this.errors.length) {
@@ -1266,6 +1270,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       const externalIds = withLocationIds(existingSourceIndex(), locationsApi(game));
       const issues = validatePackage(this.pkg, externalIds);
       issues.push(...cinderDefinitionChecks(game, this.pkg.records).errors);
+      issues.push(...modifierDefinitionChecks(game, this.pkg.records).errors);
       issues.push(...selectionIssues(this.pkg.records,targetRows.map(r=>r.id),externalIds.keys()));
       if (issues.length) throw new Error(`Package validation changed: ${issues.join("; ")}`);
       if(this.uploadZipArtwork && this.zipMedia.size) {
@@ -1884,9 +1889,12 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       if(!f)return;
       try{
         const data=JSON.parse(await f.text());
-        const rules=Array.isArray(data)?data:data?.rules;
+        // 0.41.2: check the file first; a wrong or empty file is refused before anything is asked.
+        const read=readRulesFile(data);
+        if(!read.ok){this.orgMessage=`Rules not imported from ${f.name}: ${read.message}`;toast(read.message,true);await this.render();return;}
+        const rules=read.rules;
         const yes=await DialogV2.confirm({window:{title:'Import organize rules'},modal:true,rejectClose:false,
-          content:`<p><strong>Replace the organize rules with the ${Array.isArray(rules)?rules.length:0} rule(s) in ${escapeHtml(f.name)}?</strong> No document moves until you Preview and Apply.</p>`,
+          content:`<p><strong>Replace the organize rules with the ${rules.length} rule(s) in ${escapeHtml(f.name)}?</strong> No document moves until you Preview and Apply.</p>`,
           yes:{label:'Replace rules'},no:{label:'Cancel'}});
         if(!yes)return;
         const out=await organizer().saveSchema(rules);
@@ -2177,11 +2185,16 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       fields:found.fields.map(f=>({...f,...seg(f.key,f.rule,f.mode),isLinks:f.key==='links'})),
       gmFields:found.gmFields.map(f=>Array.isArray(f.value)?{label:f.label,items:f.value}:{label:f.label,text:f.value}),
       linksText:found.gmLinks.join(' ')}:null;
+    // 0.40.0: a deity link opens Renown's Pantheon when Renown is active and knows it; otherwise plain text with a tooltip.
+    if(detail){const how=svc.deityLinks();detail.links=detail.links.map(l=>l.kind==='deity'?{...l,isDeity:true,...how(l)}:l);}
     let previewHtml='';
     if(detail&&this.codexPreview){
       const ids=this.codexPreview==='party'?[]:[this.codexPreview];
       const entry=svc.previewAs(ids).filter(e=>e.id===detail.id);
-      previewHtml=entry.length?renderPlayerCodexHtml(entry):renderPlayerCodexHtml([],{message:'This player does not know this NPC yet.'});
+      previewHtml=entry.length?renderPlayerCodexHtml(entry,{deityLink:svc.deityLinks()}):renderPlayerCodexHtml([],{message:'This player does not know this NPC yet.'});
+      // 0.41.1: Locations, Quest Log and Renown factions can only be checked on the player's own client, so the preview shows them as Unknown.
+      if(entry.some(e=>e.fields.some(f=>f.links?.some(l=>l.unknown&&['location','quest','renown'].includes(l.kind)))))
+        previewHtml+=`<p class="agmanager-tiny">Locations, quests and factions show as Unknown here. The player sees a name only if their own Locations, Quest Log or Renown shows it to them.</p>`;
     }
     return {rows,total:all.length,known:all.filter(e=>e.discoveryMode!=='hidden').length,
       hidden:all.filter(e=>e.discoveryMode==='hidden').length,detail,chars,hasChars:chars.length>0,
@@ -2203,6 +2216,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     root.querySelectorAll('[data-ag-codex-actor]').forEach(el=>el.addEventListener('change',e=>{run(async()=>{
       await codexService().setReveal(this.codexFocus,el.dataset.agCodexActor,{mode:'actor',actorId:el.value,on:el.checked});
       this.codexMessage='Saved. Players see the change next time they open the codex.';await this.render();});}));
+    bindDeityLinks(root);
     root.querySelector('[data-ag-codex-import]')?.addEventListener('change',e=>{const f=e.target.files?.[0];e.target.value='';if(f)run(()=>this.#codexImport(f));});
     root.querySelector('[data-ag-codex-access]')?.addEventListener('change',e=>{run(async()=>{
       await game.settings.set(MODULE_ID,CODEX_ACCESS_SETTING,Boolean(e.target.checked));
@@ -2216,7 +2230,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         const root=this.element;
         const {rejected}=await svc.setDetails(this.codexFocus,{learned:root.querySelector('[data-ag-codex-learned]')?.value??'',
           notes:root.querySelector('[data-ag-codex-notes]')?.value??'',links:root.querySelector('[data-ag-codex-links]')?.value??''});
-        this.codexMessage=rejected.length?`Saved. Not a linkable id, left out: ${rejected.join(', ')}. Use LOC-, FAC-, QUEST-, NPC- style ids.`:'Saved.';
+        this.codexMessage=rejected.length?`Saved. Not a linkable id, left out: ${rejected.join(', ')}. Use LOC-, FAC-, DEITY-, QUEST-, NPC- style ids.`:'Saved.';
         toast(this.codexMessage,rejected.length>0);break;
       }
       case 'codex-cancel': this.codexMessage='Changes discarded.';break;
@@ -2303,12 +2317,18 @@ class AshenGateCodexPlayer extends ApplicationV2 {
     const version=game.modules.get(MODULE_ID)?.version??'';
     return `<section class="ag-codex-body"><header class="ag-header"><div class="ag-header__title"><h2><span class="ag-header__brand">Ashen Gate</span> | NPC Codex</h2></div>`
       +`<div class="ag-header__actions"><span class="ag-header__meta">v${escapeHtml(version)}</span><button type="button" class="ag-btn ag-btn--sm" data-ag-codex-refresh><i class="fa-solid fa-rotate" aria-hidden="true"></i> Refresh</button></div></header>`
-      +renderPlayerCodexHtml(entries,{message})+`</section>`;
+      +renderPlayerCodexHtml(entries,{message,deityLink:codexService().deityLinks()})+`</section>`;
   }
   _replaceHTML(result,content){
     content.innerHTML=result;
     content.querySelector('[data-ag-codex-refresh]')?.addEventListener('click',e=>{e.preventDefault();void this.render();});
+    bindDeityLinks(content);
   }
+}
+/** 0.40.0: Codex deity links open Renown's Pantheon (api.open, feature-detected). A failure is a notice, never a crash. */
+function bindDeityLinks(root){
+  root?.querySelectorAll?.('[data-ag-codex-deity]').forEach(el=>el.addEventListener('click',e=>{e.preventDefault();
+    try{codexService().openDeity(el.dataset.agCodexDeity);}catch(err){ui.notifications?.warn?.(err.message);}}));
 }
 const initialsOf=name=>String(name??'').split(/\s+/).filter(w=>/^[A-Za-z]/.test(w)).slice(0,2).map(w=>w[0]).join('')||'?';
 let codexApi=null;
@@ -2381,7 +2401,7 @@ Hooks.once("ready",()=>{
       getState:()=>appearanceController.getState(),
       applyTo:root=>appearanceController.applyTo(root),
       subscribe:callback=>appearanceController.subscribe(callback),
-      refresh:()=>appearanceController.refresh(),
+      refresh:()=>{if(!game.user?.isGM)throw new Error('Only a GM can refresh the shared appearance.');return appearanceController.refresh();},
       setWorldDefault:id=>appearanceController.setWorldDefault(id),
       setUserOverride:id=>appearanceController.setUserOverride(id),
       // Player-safe personal appearance window (never the GM Manager).
@@ -2400,7 +2420,7 @@ Hooks.once("ready",()=>{
       validateReferences:()=>definitionsReader.validateReferences(),
       refresh:()=>definitionsReader.refresh(),
       loadCompendiums:(packIds)=>definitionsReader.loadCompendiums(packIds),
-      dispose:()=>definitionsReader.dispose()
+      dispose:()=>{if(!game.user?.isGM)throw new Error('Only a GM can dispose the definitions reader.');return definitionsReader.dispose();}
     },
     // GM-only, read-only health report (0.21.0); the gate is inside runPreSessionCheck.
     preSessionCheck:()=>runPreSessionCheck(game),
@@ -2439,7 +2459,7 @@ Hooks.once("ready",()=>{
       /** Render the read-only player codex into an element (e.g. a Character Hub tab). Returns a refresh function. */
       mount:async element=>{
         const draw=async()=>{let entries=[],message='';try{entries=await codexService().forPlayer();}catch(e){message=e.message;}
-          element.innerHTML=renderPlayerCodexHtml(entries,{message});};
+          element.innerHTML=renderPlayerCodexHtml(entries,{message,deityLink:codexService().deityLinks()});bindDeityLinks(element);};
         await draw();return draw;
       }
     }),
@@ -2450,7 +2470,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.39.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.41.2 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */

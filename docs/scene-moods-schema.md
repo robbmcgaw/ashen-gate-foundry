@@ -42,13 +42,13 @@ General Manager 0.35.0 and later. Scenes tab → **Export & import** (rail) save
 | `format` | yes | Exactly `ashen-gate.scene-moods` |
 | `formatVersion` | yes | `1` |
 | `exportedFrom`, `exportedAt` | no | Information only |
-| `presets[].id` | yes | 1–40 characters: lowercase letters, digits, dashes; starts with a letter or digit. Unique per kind |
+| `presets[].id` | yes | 1–40 characters: lowercase letters, digits, dashes; starts with a letter or digit. Should be unique per kind (see below) |
 | `presets[].label` | yes | Non-empty text shown on the button |
-| `presets[].kind` | no | `mood` (default): the base look, one per scene. `layer`: stacks on top |
+| `presets[].kind` | no | `mood` (default): the base look, one per scene. `layer`: stacks on top. Any other value is invalid and the preset is skipped (Manager 0.41.2+) |
 | `presets[].set` | yes | At least one field from the table below → value |
 | `presets[].transitionMs` | no | Whole milliseconds 0–60000. Fades darkness when the Live transition is "Preset default" |
 
-Unknown fields, out-of-range numbers and bad ids make that preset **skipped** on import; the rest still import. A preset whose weather id is not in the target world imports but is marked unavailable and refuses to apply until edited.
+A preset that breaks any rule above is **skipped** on import with the reason (bad id, missing label, bad `kind`, bad `transitionMs`, empty `set`), and so is one whose `set` has a path not in the table below or a value of the wrong type or out of range; the rest still import. Other keys on a preset are ignored and not imported. The same kind and id twice inside the file (Manager 0.41.2+): the first one is imported and each later one shows as **Skipped** in the preview with `Id <id> is used twice in this file`. Import is all or nothing: every changed list is checked before anything is saved, and if saving one kind fails the other is put back, so a file is never half imported. A preset whose weather id is not in the target world imports but is marked unavailable and refuses to apply until edited.
 
 ### Fields a preset may set
 
@@ -74,7 +74,7 @@ All are core V14 Scene fields (checked against fvtt-types 14.366 and feature-det
 
 ### Import choices
 
-For each preset the preview shows **New** (added), **Already the same** (nothing to do), **Same id, different values** (choose *Keep mine*, *Replace mine* or *Keep both*: the copy gets id `<id>-2` and label "… (imported)"), or **Skipped** (invalid, with the reason).
+For each preset the preview shows **New** (added), **Already the same** (nothing to do), **Same id, different values** (choose *Keep mine*, *Replace mine* or *Keep both*: the copy gets id `<id>-2` (or the next free number) and label "… (imported)"), or **Skipped** (invalid, with the reason).
 
 ## Scene stack (`moodStack`)
 
@@ -100,6 +100,6 @@ Older scenes may carry `flags.ashen-gate-manager.moodBase` (`{capturedAt, fields
 
 ## API (`game.modules.get('ashen-gate-manager').api.scenes`)
 
-All functions are GM-only and return `{ok, message, …}`; players get `{ok:false}` and nothing is written. Optional `{sceneId}` targets a scene other than the viewed/active one; `{animate}` is a darkness fade in ms.
+All functions are GM-only and return `{ok, …}` with a `message` on failures and on scene changes; players get `{ok:false, message:"Only the GM can change scene moods."}` and nothing is written. Optional `{sceneId}` targets a scene other than the viewed/active one; `{animate}` is a darkness fade in ms.
 
 `listMoods()`, `getState(sceneId)`, `applyMood(id, opts)`, `addLayer(id, opts)`, `removeEffect(id, {kind, ...opts})`, `restore(opts)`, `applyDraft({path: value}, opts)`, `toggleFavourite(moodId, opts)`, `savePreset(preset)`, `removePreset(id, {kind})`, `resetDefaults()`, `exportPresets({moods, layers})`, `previewImport(data)`, `importPresets(data, {choices: {"kind:id": "keep"|"replace"|"both"}})`.

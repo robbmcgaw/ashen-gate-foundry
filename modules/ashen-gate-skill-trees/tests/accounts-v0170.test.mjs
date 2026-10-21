@@ -9,7 +9,7 @@ let n=0;
 globalThis.foundry={applications:{api:{ApplicationV2:FakeApplication,HandlebarsApplicationMixin:B=>B,DialogV2:{confirm:async()=>true}}},utils:{escapeHTML:x=>String(x),randomID:()=>`r${++n}`}};
 const MOD='ashen-gate-skill-trees';
 const node=(id,perkId)=>({id,perkId,x:100,y:100,requiresAll:[],requiresAny:[],excludes:[],status:'approved',visibility:'player',display:'shown'});
-const tree={id:'TEST-EMBER-TREE',name:'[TEST] Ember',description:'',status:'approved',visibility:'player',sourceRef:'MUT-TEST-EMBER',provider:{kind:'cinder_milestone',maxPoints:13},
+const tree={id:'TEST-EMBER-TREE',name:'[TEST] Ember',description:'',status:'approved',visibility:'player',sourceRef:'MUT-TEST-EMBER',provider:{kind:'cinder_milestone',maxPoints:16},
   nodes:[node('EMBER-SPARK','POWER-TEST-SPARK'),node('EMBER-STEADY','POWER-TEST-STEADY')]};
 const legacy={schema:'ag-cinder-instances/1',instances:[{instanceId:'cinst_LEGACY0001',definitionId:'MUT-TEST-EMBER'}]};
 const journal={flags:{[MOD]:{privateStore:true,payload:{schema:'ag-skill-trees/0.3',trees:[tree]},cinders:legacy}},async setFlag(m,k,v){this.flags[m][k]=structuredClone(v);}};

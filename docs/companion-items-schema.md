@@ -10,7 +10,7 @@ Character Hub 0.12.0 and later. In the Hub's **Companions** tab a character has 
 | What the item is for (gear, perk, clothing) | The permanent id prefix (below) | The record's `id` | Never rename the id |
 | Which companion wears it | `flags.ashen-gate-character-hub.companions` on the **character** Actor (the Hub's own state) | The player or GM in the Hub | **Never touched** by import |
 | The player's name and description for a mount or pet | The same companion entry | The player or GM in the Hub | **Never touched** |
-| Pet limit | World settings `ashen-gate-character-hub.petCap` and `petCapOverrides` (0.9.0) | GM only | n/a |
+| Pet limit | World settings `ashen-gate-character-hub.petCap` (default 0: no pets until the GM raises it) and `petCapOverrides` (per character: a whole number, `none` or `unlimited`) (0.9.0) | GM only | n/a |
 
 A mount or pet can be either of these:
 - a **world Actor**, dropped from the Actors sidebar. It is linked by UUID, and the Hub never copies or changes it.
@@ -29,11 +29,11 @@ Same pattern as every Ashen Gate id: `^[A-Z][A-Z0-9]*(-[A-Z0-9]+)+$`, permanent,
 | `ITEM-PET-` | `pet-clothing` | `equipment` or `loot` | one of a pet's three clothing slots |
 | `PERK-PET-` | `pet-perk` | `feat` | a pet's perk list |
 
-The Hub reads the prefix from `flags.ashen-gate-manager.source.sourceId`, which Manager writes on import. An Item made by hand in Foundry can carry the role instead as `flags.ashen-gate-character-hub.companion.role` (one of the four role names). An unmarked Item still works:
+The Hub reads the prefix from `flags.ashen-gate-manager.source.sourceId`, which Manager writes on import. An Item made by hand in Foundry can carry the role instead as `flags.ashen-gate-character-hub.companion.role` (one of the four role names, exact lower case). When that flag holds a valid role it wins over the id prefix, on any Item. An unmarked Item still works:
 - a `feat` counts as a perk;
 - anything else counts as mount gear or pet clothing.
 
-An Item marked for the other kind of companion is refused, e.g. pet clothing on a mount.
+An Item marked for the other kind of companion is refused, e.g. pet clothing on a mount. So is an Item dropped on the wrong spot, e.g. a perk into a clothing slot.
 
 ## How a stat bonus is expressed
 
@@ -125,4 +125,4 @@ The companion entry on the character Actor (`flags.ashen-gate-character-hub.comp
  "perkItemIds": ["perkItemId"], "gearItemIds": ["saddleItemId"], "clothing": []}
 ```
 
-`clothing` holds 3 entries (an item id or `null`) for a pet, and is empty for a mount. Entries saved before 0.12.0 are `{id, kind, itemId, perkItemIds}`. They read unchanged, with the new fields defaulted, and are written in the new shape on the next change. No migration step is needed, and reading never changes saved data.
+`clothing` holds 3 entries (an item id or `null`) for a pet, and is empty for a mount; `gearItemIds` is always empty for a pet. `name` is cut to 80 characters and `description` to 2000. Id lists drop duplicates and non-text entries. Entries saved before 0.12.0 are `{id, kind, itemId, perkItemIds}`. They read unchanged, with the new fields defaulted, and are written in the new shape on the next change. No migration step is needed, and reading never changes saved data. When read, an entry with an unknown `kind` or with neither `itemId` nor `actorUuid` is ignored, and so is an Item companion whose Item is no longer on the character (an Actor companion whose Actor is gone stays, shown as missing); the next change to the list writes it without them.

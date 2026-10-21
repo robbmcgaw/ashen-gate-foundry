@@ -8,6 +8,7 @@ import {openNativeSheet, nativeSheetClass} from './native.mjs';
 import {registerCompanionSettings, petCapFor, companionsData, registerPetSlotSource, unregisterPetSlotSource} from './companions.mjs';
 import {registerCollapseSetting} from './collapse.mjs';
 import {registerListSortSetting} from './organize.mjs';
+import * as journey from './journey.mjs';
 import {registerMarksSocket} from './marks.mjs';
 import {registerVisibilitySetting, PARTS, PRESETS, readVisibility, setVisibility, applyPreset, hiddenReason, canSee} from './visibility.mjs';
 
@@ -88,7 +89,17 @@ export function createApi() {
     }),
     /** Reserved for a later companion skill tree: fn(actor) → extra pet slots added to the GM's limit. Unused today. */
     registerPetSlotSource,
-    unregisterPetSlotSource
+    unregisterPetSlotSource,
+    /**
+     * Journey (0.20.0, alpha). entries(actor) is what this user may see (players: their own characters' visible
+     * entries). recordReward(actor, {questId, questName, coins}) is GM-only and idempotent per quest: the hook for
+     * the rewards build. addNote(actor, {text, date, hidden}) is GM-only.
+     */
+    journey: Object.freeze({
+      entries: actor => journey.journeyFor(actor),
+      recordReward: (actor, reward) => journey.recordReward(actor, reward),
+      addNote: (actor, note) => journey.addManual(actor, note)
+    })
   };
 }
 
@@ -102,11 +113,24 @@ if (globalThis.Hooks) {
     registerCollapseSetting(game.settings);
     // Per user (client scope): Magic and Features group/sort choices.
     registerListSortSetting(game.settings);
+    journey.registerJourneySettings(game.settings);
     registerCompanionSettings(game.settings, () => renderAllHubs());
     registerVisibilitySetting(game.settings, () => renderAllHubs());
     const mod = game.modules.get(MODULE_ID);
     if (mod) mod.api = createApi();
   });
+  // Journey (0.20.0): record level-ups, Renown tier changes and completed quests from now on (journey.mjs).
+  const later = (fn, ms = 400) => { let t = null; return (...a) => { clearTimeout(t); t = setTimeout(() => { void Promise.resolve(fn(...a)).catch(err => console.warn(`${MODULE_ID} | journey`, err)); }, ms); }; };
+  const levelLater = new Map(), recordLevelSoon = actor => { if (actor?.type !== 'character') return; if (!levelLater.has(actor.id)) levelLater.set(actor.id, later(a => journey.recordLevel(a))); levelLater.get(actor.id)(actor); };
+  const renownSoon = later(() => journey.recordRenown(), 800), questsSoon = later(() => journey.recordQuests(), 800);
+  Hooks.once('ready', () => {
+    for (const a of game.actors ?? []) if (a.type === 'character') recordLevelSoon(a);
+    renownSoon(); questsSoon();
+  });
+  Hooks.on('updateActor', actor => recordLevelSoon(actor));
+  for (const hook of ['createItem', 'updateItem', 'deleteItem']) Hooks.on(hook, item => { if (item?.type === 'class') recordLevelSoon(actorOf(item)); });
+  // Renown keeps players' views and Quest Log its state in journals: any journal change re-checks (through their public APIs only).
+  for (const hook of ['createJournalEntry', 'updateJournalEntry']) Hooks.on(hook, () => { renownSoon(); questsSoon(); });
   // Target marks for tokens the player doesn't own go through the GM client (marks.mjs).
   Hooks.once('ready', () => registerMarksSocket());
   // A mark placed or removed on someone else's token: redraw the Hub of the character who placed it.
@@ -114,6 +138,8 @@ if (globalThis.Hooks) {
     const by = effect?.flags?.[MODULE_ID]?.mark?.by;
     if (by) { try { scheduleRender(globalThis.fromUuidSync?.(by)); } catch {} }
   });
+  // Utilities' "Use electrum" changed: redraw so the coin boxes follow it.
+  Hooks.on('ashen-gate-utilities.electrumChanged', () => renderAllHubs());
   // The marks bar shows how many tokens you target.
   Hooks.on('targetToken', user => { if (user === game.user) renderAllHubs(100); });
   // Foundry re-renders the sheet for its own Actor changes too; these cover embedded Items/Effects and bursts.
@@ -126,4 +152,6 @@ if (globalThis.Hooks) {
   Hooks.on('ashenGateLedger.progressionChanged', data => { const actor = game.actors?.get?.(data?.actorId); if (actor) scheduleRender(actor); });
   // Ashen Gate | Cinders announces Cinder changes (bind, transfer, progress); Strain changes arrive as updateActor.
   Hooks.on('ashenGateCinder.changed', data => { for (const id of [data?.actorId, data?.fromActorId]) { const actor = game.actors?.get?.(id); if (actor) scheduleRender(actor); } });
+  // 0.19.0: Cinder sockets changed (attach, detach, swap, lock, count): redraw that character's Hub.
+  Hooks.on('ashenGateSockets.changed', data => { const actor = game.actors?.get?.(data?.actorId); if (actor) scheduleRender(actor); });
 }

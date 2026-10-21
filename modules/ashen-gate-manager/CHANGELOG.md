@@ -1,3 +1,39 @@
+## 0.41.2 — 2026-10-21
+
+- **Organize rules import checks the file first.** A file of the wrong kind (for example an Organize backup), with no rules list, with no rules or with an invalid rule is refused with the reason before anything is asked. It no longer asks "Replace with 0 rules?" first.
+- **Scene moods import:** a preset with a `kind` other than `mood` or `layer` is now reported and skipped (it was silently read as a mood). The same id twice in one file shows in the preview (the later copy is skipped) instead of showing as New and then failing at Import. Import is all or nothing: both lists are checked before anything is saved, and a failed save puts the other back.
+- **Core Links:** a D&D Beyond import with no core source book no longer counts as 2024 from dnd5e's default `rules` value alone, so it is not offered as a weak 2024 candidate.
+- **NPC Codex:** re-importing an NPC whose record text changed (role, wants, codex block, ...) but whose Actor did not now updates the stored record (with *Update existing actors* on), so the Codex shows the new text. Before, it said Unchanged.
+- **NPC Codex:** revealing an unknown field now says it is not a Codex field and lists the ones you can reveal (it used to say GM-only). The GM view no longer looks among Renown deities for a faction link (deities are `DEITY-` links).
+- `api.definitions.dispose()` and `api.appearance.refresh()` now refuse non-GM callers.
+- Messages say **Items** where they still said Library.
+- No saved data changes; no migration.
+
+## 0.41.1 — 2026-10-21
+
+- **Security fix: the NPC Codex could show players linked records they had not found.** A player's Codex is built on the GM's client, where Locations, Quest Log and Renown answer with GM data, so the Connections list could carry the name (or, when no name was found, the id) of a hidden location, unrevealed quest, undiscovered faction or undiscovered NPC.
+- Now every link kind follows the owning module's own player view: a **location** only if the player's Locations shows it as revealed, a **quest** only if the player's Quest Log shows it, a **faction** only if the player's Renown shows it with its name, an **NPC** only if that NPC is discovered in the Codex for the party or one of the player's characters, a **deity** only if Renown says they discovered it (as in 0.40.0). The player's own client lists what it can see and sends only those ids to the GM; the GM never adds a name for them.
+- Anything else shows as **Unknown**, with no id, no name and no link. A link whose module is missing, hidden or failing is Unknown too.
+- **Preview as player** shows locations, quests and factions as Unknown (the GM's client cannot run those modules' player views for someone else) and says so under the preview.
+- No saved data changes; no migration.
+
+## 0.41.0 — 2026-10-21
+
+- **Modifiers on items and perks.** `ITEM-*` and `PERK-*` records may carry a record-level `modifiers` block (`ag-modifiers/0.1`): a list of `ag-modifier/1` entries `{target, value, label, scope?, op?, applies?, stack?, requires?}`. Manager checks the shape (schema, 1–20 entries, a known scope on the entry or the block, no unknown fields, `op` only `add`, a whole-number value that isn't 0, a label, `applies` an object, `requires` lists of canonical ids). The only scope is `cinder`. A modifiers block on any other record (a `POWER-*` uses `power.modifiers`) is refused.
+- **The scope's module checks the rest.** Each scope's entries go to its owner's public `api.modifiers.validate(entries, {recordId, record})` (feature-detected) in the Import preview and again just before Apply; its errors block the import. Ashen Gate | Cinders 0.1.0 has no modifier check yet, so these records import with one "not checked" warning. Manager never applies a modifier.
+- **`implementation`** (optional, display only) on any perk-like record: `automatic`, `informational` or `gm_resolved`. Anything else is refused. `HPERK-*` keeps Headquarters' own rule (which also allows `hybrid`).
+- The blocks are stored as written in the record's definition (`source.definition`), like `power`. Import never touches Cinder instances, sockets, bearers or Strain.
+- `scripts/validate-content.mjs` runs the same checks (and the scope owner's exported `validateModifiers` once it has one). New schema reference: `docs/modifiers-schema.md`, synthetic set in `test-fixtures/modifiers/`. `docs/perks-and-modifiers-architecture.md` (approved, with Robb's decisions) and the ChatGPT brief `docs/perks-and-modifiers-for-gpt.md` are now on main.
+- No saved data changes; no migration.
+
+## 0.40.0 — 2026-10-21
+
+- **NPC Codex links to deities.** `codex.links` (and Connections added in the Codex) now accept `DEITY-*` ids. In the GM and player Codex a deity link opens **Ashen Gate | Renown**'s Pantheon on that deity (`api.open({deityId, actorId, tab: 'pantheon'})`, feature-detected).
+- **Players never learn about an undiscovered deity.** The GM side asks Renown which deities each player's characters have discovered (`getPantheon`); any other deity link is sent as **Unknown**, with no id or name. The player's own client double-checks with Renown's player-filtered `getDeities`.
+- Renown missing or hidden, or the deity not in this world: the link is plain text with a tooltip, never an error.
+- `scripts/validate-content.mjs` accepts `DEITY-` in `codex.links`. `docs/npc-codex-schema.md` updated.
+- No saved data changes; no migration.
+
 ## 0.39.0 — 2026-10-21
 
 - **Cinder content imports and is checked.** Cinder definitions (`MUT-*` with a `cinder` block), powers (`POWER-*` with a `power` block) and Backfire tables (`BF-*`, `entity_type: "BackfireTable"`) import as ordinary documents. Their typed blocks are checked by **Ashen Gate | Cinders** (`api.cinder.validateDefinition`) in the Import preview and again just before Apply, so a mistake (a lethal Backfire effect, a Push with no Strain cost, an unknown modifier) blocks the import with Cinders' message. Without Cinders the records still import, with a warning that their blocks were not checked.

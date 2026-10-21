@@ -14,8 +14,8 @@ export function qaTreeLayouts(){return [
   node('QA-ST-LEFT','QA Left Path',420,50,{requiresAll:['QA-ST-BASE'],excludes:['QA-ST-RIGHT']}),
   node('QA-ST-RIGHT','QA Right Path',420,225,{requiresAll:['QA-ST-BASE'],excludes:['QA-ST-LEFT']}),
   node('QA-ST-FINAL','QA Final Node',750,145,{requiresAny:[['QA-ST-LEFT','QA-ST-RIGHT']]})]},
- {id:QA_TREES.cinder,name:'[AG QA] Cinder Milestones',description:'QA-only 13-point wallet test; does not implement Cinder mechanics.',status:'test',visibility:'player',sourceRef:QA_SOURCE_IDS.mutation,
-  provider:{kind:'cinder_milestone',maxPoints:13},nodes:[
+ {id:QA_TREES.cinder,name:'[AG QA] Cinder Milestones',description:'QA-only 16-point wallet test; does not implement Cinder mechanics.',status:'test',visibility:'player',sourceRef:QA_SOURCE_IDS.mutation,
+  provider:{kind:'cinder_milestone',maxPoints:16},nodes:[
   node('QA-CIN-START','QA Manifestation',150,140),node('QA-CIN-NEXT','QA Next Milestone',430,140,{requiresAll:['QA-CIN-START']}),
   node('QA-CIN-HIDDEN','QA GM-only Source',710,180,{visibility:'gm',display:'hidden'})]},
  {id:QA_TREES.profession,name:'[AG QA] Profession Reference',description:'Read-only QA layout; Profession XP and perk selection belong to Ledger.',status:'draft',visibility:'gm',sourceRef:QA_SOURCE_IDS.profession,

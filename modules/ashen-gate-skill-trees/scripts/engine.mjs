@@ -91,12 +91,18 @@ export function nodePerkId(n) {
   const ref=n?.contentRef?.target_id;
   return typeof ref==='string'&&/^(PERK|POWER)-/.test(ref)?ref:null;
 }
+/** Cinder wallet limit (lifetime points per Cinder). Was 13 before Skill Trees 0.17.1. */
+export const CINDER_MAX_POINTS=16;
+/** maxPoints values a cinder_milestone tree file may declare: 16, or the legacy 13 (read as 16). */
+export const CINDER_MAX_POINTS_ACCEPTED=Object.freeze([13,16]);
 export function normalizeTree(raw) {
   const tree=clone(raw);
   tree.description=tree.description??'';
   tree.status=tree.status??'draft';
   tree.visibility=tree.visibility??'gm';
   tree.provider=tree.provider??{kind:'generic_points',maxPoints:10};
+  // Cinder wallets are always CINDER_MAX_POINTS. A tree saved with the old 13 reads as 16 here; the saved data is not rewritten.
+  if(tree.provider.kind==='cinder_milestone')tree.provider={...tree.provider,maxPoints:CINDER_MAX_POINTS};
   tree.nodes=asArray(tree.nodes).map(n=>{
     const perkId=nodePerkId(n);
     return {
@@ -145,7 +151,7 @@ export function validateTree(input) {
   if(!VISIBILITY.includes(t.visibility))errors.push('Invalid tree visibility');
   if(t.provider.kind==='cinder_milestone' && !/^MUT-[A-Z0-9-]+$/.test(t.sourceRef??''))errors.push('Cinder trees need a MUT-* identity');
   if(t.provider.kind==='profession' && !/^PROF-[A-Z0-9-]+$/.test(t.sourceRef??''))errors.push('Profession trees need a PROF-* identity');
-  if(t.provider.kind==='cinder_milestone' && t.provider.maxPoints!==13)errors.push('Cinder prototype wallet limit must be 13');
+  if(t.provider.kind==='cinder_milestone' && input?.provider?.maxPoints!=null && !CINDER_MAX_POINTS_ACCEPTED.includes(input.provider.maxPoints))errors.push(`Cinder wallet limit must be ${CINDER_MAX_POINTS}`);
   if(t.provider.kind==='generic_points' && (t.provider.maxPoints!=null && (!Number.isSafeInteger(t.provider.maxPoints)||t.provider.maxPoints<1||t.provider.maxPoints>999)))errors.push('Invalid generic maximum points');
   if(nodes.length>300)errors.push('Maximum 300 nodes per layout');
   const by=new Map();
@@ -282,7 +288,7 @@ export function grantPoints(tree,rawAccount,amount,grantKey) {
   if(typeof grantKey!=='string'||!grantKey.trim()||grantKey.length>100)throw Error('Name this point award uniquely');
   const a=cleanAccount(rawAccount),key=grantKey.trim().toLowerCase();
   if(a.grants.some(g=>g.key.toLowerCase()===key))throw Error('This award label was already used for this character and tree');
-  const cap=tree.provider.kind==='cinder_milestone'?13:tree.provider.maxPoints??null;
+  const cap=tree.provider.kind==='cinder_milestone'?CINDER_MAX_POINTS:tree.provider.maxPoints??null;
   if(cap!=null && a.awarded+amount>cap)throw Error(`Award would exceed the ${cap}-point limit`);
   a.awarded+=amount;a.grants.push({key:grantKey.trim(),amount});a.revision++;
   return a;

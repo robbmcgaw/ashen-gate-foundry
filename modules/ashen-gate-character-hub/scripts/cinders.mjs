@@ -3,6 +3,8 @@
  * strain, contract ag-strain/1, and cinder, contract ag-cinder/1). The Hub stores nothing: Strain and Cinders stay Cinders' state.
  * Players only see their own character (Cinders refuses others); Strain changes for players happen only through allowed actions
  * (a Push); the GM gets − / + here, each recorded with a reason by Cinders.
+ * 0.19.0: each Cinder's sockets are shown read-only from Cinders' api.sockets (contract ag-sockets/1, Cinders 0.3.0+);
+ * attaching, detaching and swapping happen in Cinders.
  */
 import {MODULE_ID, esc, num} from './constants.mjs';
 import {btn} from './buttons.mjs';
@@ -53,18 +55,42 @@ export async function stepStrain(actor, step) {
   catch (error) { return refuse(String(error?.message ?? error)); }
 }
 
-/** Cinders panel summary: each Cinder the character bears, its powers and their Push modes with cost and Backfire chance. */
+const TARGET_WORDS = {'push.cost': 'Push cost', 'backfire.chance': 'Backfire chance', 'backfire.severity': 'Backfire severity', 'strain.recovery': 'rest recovery', 'sockets.count': 'sockets'};
+const signed = v => `${num(v) > 0 ? '+' : ''}${num(v)}`;
+/** The character's Cinder sockets by instance id, read through api.sockets.hosts. Empty when Cinders is older or refuses. */
+export function socketHosts(actor, api) {
+  const s = api?.sockets;
+  if (s?.contract !== 'ag-sockets/1' || typeof s.hosts !== 'function') return new Map();
+  try { return new Map((s.hosts(actor) ?? []).map(h => [h.instanceId, h])); } catch { return new Map(); }
+}
+/** Read-only sockets of one Cinder: what is attached, which items are active, and empty sockets. */
+export function socketsHtml(h) {
+  if (!h) return '';
+  const capacity = num(h.capacity), slots = Array.isArray(h.slots) ? h.slots : [], used = slots.filter(x => x.active).length;
+  const items = slots.map(x => {
+    const effects = (x.modifiers ?? []).map(m => `${m.label}: ${TARGET_WORDS[m.target] ?? m.target} ${signed(m.value)}`).join(' · ');
+    return `<li class="agch-socket${x.active ? '' : ' is-inactive'}"><span><strong>${esc(x.name)}</strong>${x.active ? '' : ' <span class="ag-badge ag-badge--danger">inactive: over capacity</span>'}${effects ? `<br><span class="agch-muted">${esc(effects)}</span>` : ''}</span></li>`;
+  });
+  for (let i = 0; i < num(h.free); i++) items.push('<li class="agch-socket is-empty"><span class="agch-muted">Empty socket</span></li>');
+  const head = `<p class="agch-cinder__sockets-head"><strong>Sockets</strong> <span class="agch-muted">${used} of ${capacity} in use${h.locked ? ' · locked by the GM' : ''}</span></p>`;
+  return `<div class="agch-cinder__sockets" aria-label="Sockets">${head}${items.length ? `<ul class="agch-plist">${items.join('')}</ul>` : '<p class="agch-muted">This Cinder has no sockets.</p>'}
+    ${slots.some(x => !x.active) ? '<p class="agch-muted">More items are attached than this Cinder has sockets; the extra ones do nothing until one is removed.</p>' : ''}
+    <p class="agch-muted">Attach, swap or detach socket items in the Cinders window.</p></div>`;
+}
+
+/** Cinders panel summary: each Cinder the character bears, its powers and their Push modes with cost and Backfire chance, and its sockets. */
 export function cindersSummary(actor, api) {
   const c = api?.cinder;
   if (c?.contract !== 'ag-cinder/1') return '<p class="agch-muted">Update Ashen Gate | Cinders to see Cinders here.</p>';
   const list = c.list(actor) ?? [];
+  const sockets = socketHosts(actor, api);
   if (!list.length) return '<p class="agch-muted">No Cinder bound to this character.</p>';
   return list.map(ci => {
     const powers = (ci.powers ?? []).map(p => `<li><strong>${esc(p.name)}</strong>${p.standard ? ` <span class="agch-muted">${esc(p.standard)}</span>` : ''}
       ${(p.modes ?? []).length ? `<ul class="agch-plist agch-cinder__modes">${p.modes.map(m => `<li><span>${esc(m.label)} <span class="agch-muted">+${num(m.cost)} Strain → ${num(m.after)} · Backfire ${num(m.chance)}%${m.guaranteed ? ' (guaranteed)' : ''}</span></span>
         ${btn('cinder-push', 'Push', {kind: 'sm', icon: 'fa-solid fa-fire', data: {instance: ci.instanceId, power: p.powerId, mode: m.id}, title: `Push ${p.name}: ${m.label}`})}</li>`).join('')}</ul>` : ''}</li>`).join('');
     const perks = (ci.enhancements ?? []).map(e => esc(e.name)).join(', ');
-    return `<div class="agch-cinder"><h4>${esc(ci.name)}</h4>${powers ? `<ul class="agch-plist">${powers}</ul>` : '<p class="agch-muted">No powers unlocked yet (Skill Trees).</p>'}${perks ? `<p class="agch-muted">Perks: ${perks}</p>` : ''}</div>`;
+    return `<div class="agch-cinder"><h4>${esc(ci.name)}</h4>${powers ? `<ul class="agch-plist">${powers}</ul>` : '<p class="agch-muted">No powers unlocked yet (Skill Trees).</p>'}${perks ? `<p class="agch-muted">Perks: ${perks}</p>` : ''}${socketsHtml(sockets.get(ci.instanceId))}</div>`;
   }).join('');
 }
 

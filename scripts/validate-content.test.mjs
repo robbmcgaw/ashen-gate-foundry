@@ -78,17 +78,17 @@ test('Route records get every Locations check; endpoints outside the file are no
   assert.deepEqual(ok.errors, []);
   assert.match(ok.notes.join(' '), /LOC-TEST-MILL is not in this file/);
   const bad = await checkContent(pack([location(node()), route({distance_km: 0, hazard_base_percent: 150})]), 'routes.json');
-  assert.match(bad.errors.join(' '), /distance_km must be a number above 0.*hazard_base_percent must be a number from 0 to 100/);
+  assert.match(bad.errors.join(' '), /distance_km must be a number from 0.01 to 100000.*hazard_base_percent must be a number from 0 to 100/);
 });
 
 test('NPC Codex fields: what the Codex would drop or turn into other text is reported', async () => {
   const npc = over => ({id: 'NPC-TEST-CLERK', entity_type: 'NPC', status: 'approved', version: '1.0.0', provenance: {sources: ['[TEST] synthetic']},
     visibility: 'gm', refs: [], name: '[TEST] Clerk', role: '[TEST] Clerk', gm_notes: ['[TEST] note'],
-    codex: {links: ['LOC-TEST-FIELD', 'QUEST-TEST-ONE'], default_reveal: {discovery: 'hidden', fields: {role: 'party'}}},
+    codex: {links: ['LOC-TEST-FIELD', 'QUEST-TEST-ONE', 'DEITY-TEST-SUN'], default_reveal: {discovery: 'hidden', fields: {role: 'party'}}},
     foundry: {document_type: 'Actor', data: {name: '[TEST] Clerk', type: 'npc'}}, ...over});
   assert.deepEqual((await checkContent(pack([npc()]))).errors, []);
   const bad = await checkContent(pack([npc({wants: ['a', 'b'], codex: {links: ['ITEM-TEST-X'], default_reveal: {discovery: 'everyone', fields: {portrayal: 'party'}}}})]));
-  assert.match(bad.errors.join(' | '), /wants must be text.*codex.links "ITEM-TEST-X" is not a linkable id.*discovery "everyone" must be "hidden" or "party".*fields.portrayal is not revealable/);
+  assert.match(bad.errors.join(' | '), /wants must be text.*codex.links "ITEM-TEST-X" is not a linkable id \(LOC, FAC, FACTION, RENOWN, DEITY, .*discovery "everyone" must be "hidden" or "party".*fields.portrayal is not revealable/);
   assert.match((await checkContent(pack([item({codex: {links: []}})]))).notes.join(' '), /codex is only read on entity_type NPC/);
 });
 
@@ -152,4 +152,15 @@ test('Cinder examples: the package, tree and Strain config pass; the documented 
   assert.ok(alone.notes.some(n => n.includes('POWER-TEST-REACH is not in this file')), 'a reference outside the file is a note');
   const strain = await checkContent({schema: 'ag-strain-config/0.1', bands: [{from: 0, to: 3, label: '[TEST] A'}]});
   assert.ok(strain.errors.some(e => e.includes('open-ended')));
+});
+
+test('Modifier examples: the package passes (a note until the scope owner checks modifiers); the documented mistakes are rejected', async () => {
+  const {ok, lines} = await validateTargets([path.join(root, 'test-fixtures/modifiers')]);
+  assert.ok(ok, lines.join('\n'));
+  const file = JSON.parse(fs.readFileSync(path.join(root, 'test-fixtures/modifiers/AG_Test_Modifier_Items.json'), 'utf8'));
+  const r = await checkContent(file);
+  assert.deepEqual(r.errors, []);
+  const lens = file.records[0];
+  const bad = await checkContent(pack([{...lens, modifiers: {...lens.modifiers, list: [{target: 'push.cost', value: 1, label: 'x', op: 'multiply'}]}}]));
+  assert.ok(bad.errors.some(e => e.includes('op must be "add"')), bad.errors.join('\n'));
 });

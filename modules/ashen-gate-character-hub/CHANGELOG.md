@@ -1,3 +1,50 @@
+## 0.20.1 — 2026-10-21
+
+- **Journey fix:** when a character went up several levels at once, the entries could come out in the wrong order if the clock ticked a millisecond between them. This also made a Journey test fail now and then on a busy machine. Each batch of automatic entries (level-ups, Renown ranks, completed quests) now shares one time, so the order is always the same: the highest level first. A new test makes the clock tick on every call to prove it.
+- No saved data changes.
+
+## 0.20.0 — 2026-10-21
+
+- **Journey (new, alpha):** a per-character log of accomplishments in a new **Journey (alpha)** tab, newest first, recorded from now on (no back-fill).
+  - **Automatic entries:**
+    - level-ups (dnd5e character level);
+    - Renown tier changes: the character's personal rank, the party's rank and deity ranks, through Renown's public API as the owning player sees it;
+    - quests completed, through Quest Log's GM API: personal quests for their character, party quests for every player character.
+  - **Currency** is only ever logged when a quest awards it. Quest Log doesn't award any itself yet, so a GM-only `api.journey.recordReward()` is ready for the rewards build.
+  - **No duplicates:** every automatic entry has a stable id per event.
+  - **Who sees what:**
+    - Players see their own characters' visible entries.
+    - The GM sees every character's journey and can add notes (text, optional date), edit, hide/show and delete GM notes.
+    - All GM actions are refused for players in the data layer.
+    - Hidden entries are moved to a GM-only journal, so players never receive them with their Actor.
+- **Player visibility:** a new "Journey (alpha)" part (on by default) in GM Setup.
+- **Saved data (new, additive; no migration):**
+  - Actor flag `journey`;
+  - a GM-only JournalEntry "Ashen Gate Hub • Journey (GM only)", created when the GM first hides an entry;
+  - world setting `journeyQuestSeen`.
+## 0.19.0 — 2026-10-21
+
+- **Cinder sockets in the Cinders sub-tab (read only).** Under each Cinder the Hub shows its sockets from Ashen Gate | Cinders 0.3.0+ (`api.sockets.hosts`, contract `ag-sockets/1`):
+  - how many are in use out of how many;
+  - each attached item, with its modifiers in plain words (e.g. "Push cost −1");
+  - items marked "inactive: over capacity" when the Cinder has fewer sockets than items;
+  - empty sockets;
+  - "locked by the GM" when the GM has locked them.
+- Attaching, detaching and swapping stay in the Cinders window: the Hub has no socket buttons and stores nothing.
+- Redraws when sockets change (`ashenGateSockets.changed`).
+- With an older Cinders, or when Cinders refuses (Player Access hidden, not the owner), the panel shows as before, without sockets.
+- No saved data changes; no migration.
+
+## 0.18.1 — 2026-10-21
+
+- **Electrum follows Utilities' "Use electrum"** (Utilities 0.13.2+, GM Setup; default off). The Hub reads it through Utilities' public `api.currency.electrumEnabled()` and redraws on its `ashen-gate-utilities.electrumChanged` hook.
+  - **Inventory coin boxes:** while electrum is off, the ep box is gone (pp, gp, sp, cp only). If a character still has electrum it isn't hidden: the ep box shows dimmed with a note, and the GM converts it in Utilities (the Hub has no convert action).
+  - **Coin changes:** while electrum is off, the Hub can lower a character's electrum but not add any. This is checked in the action itself.
+  - **Party purse summary** (shown when Utilities has no stash view): ep is left out while off. Any leftover ep shows as a short note.
+  - Utilities' own embedded stash view already follows its setting.
+  - Without Utilities, or with an older one, everything works as before.
+- No saved data changes.
+
 ## 0.18.0 — 2026-10-21
 
 - **Strain bar** under hit points, next to hit dice, rests and exhaustion, from Ashen Gate | Cinders (`api.strain`). It fills to 10, then reads e.g. **13 / 10+** with a **+3 over** badge and turns red. It shows the band name and the Backfire chance on a Push from there. Players see it read-only; the GM gets − / + (each recorded by Cinders with a reason). A new Player visibility toggle, **Strain bar**, hides it from players.

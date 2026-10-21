@@ -16,6 +16,8 @@ import {openConfig} from './configure.mjs';
 import {toggleSection} from './collapse.mjs';
 import {setListChoice} from './organize.mjs';
 import {changeArt} from './art.mjs';
+import * as journey from './journey.mjs';
+import {journeyActor} from './journey-views.mjs';
 import * as marks from './marks.mjs';
 import * as hotbar from './hotbar.mjs';
 import {stepStrain, pushFromHub} from './cinders.mjs';
@@ -36,6 +38,13 @@ export const ACTIONS = {
   'ag-jump': (s, t) => { s.tab = 'ashen-gate'; s.agTab = t.dataset.partner; s.menu = null; return s.render(); },
   'hp-apply': (s, t) => hpApply(s, t),
   'item-more': (s, t) => toggleMore(s, t),
+  'journey-add': (s, t) => journeyAdd(s, t),
+  'journey-edit': (s, t) => { s.journeyEdit = t.dataset.id; return s.render(); },
+  'journey-cancel': s => { s.journeyEdit = null; return s.render(); },
+  'journey-save': (s, t) => journeySave(s, t),
+  'journey-hide': (s, t) => journey.setHidden(journeyActor({actor: s.document, sheet: s}), t.dataset.id, true),
+  'journey-show': (s, t) => journey.setHidden(journeyActor({actor: s.document, sheet: s}), t.dataset.id, false),
+  'journey-delete': (s, t) => journeyDelete(s, t),
   'list-filter': (s, t) => { setListFilter(s, t.dataset.tab, t.dataset.key, t.dataset.value); return s.render(); },
   'mark-apply': async (s, t) => { const r = await marks.applyMark(s.document, t.dataset.mark); if (r.ok) s.render(); return r; },
   'mark-remove': async (s, t) => { const r = await marks.removePlaced(s.document, t.dataset.scene, t.dataset.token, t.dataset.mark); if (r.ok) s.render(); return r; },
@@ -117,6 +126,29 @@ export function setListFilter(sheet, tab, key, value) {
   else if (['prepared', 'ritual', 'castable', 'uses', 'left'].includes(key)) { f[key] = !f[key]; sheet.listFilters[tab] = f; }
   return sheet.listFilters[tab];
 }
+/** Journey (GM): read a form's fields. */
+const formValues = target => { const f = target.closest?.('[data-journey-form]'); const v = n => f?.querySelector?.(`[name="${n}"]`); return {text: v('text')?.value ?? '', date: v('date')?.value ?? '', hidden: v('hidden')?.checked === true}; };
+async function journeyAdd(sheet, target) {
+  const {text, date, hidden} = formValues(target);
+  const r = await journey.addManual(journeyActor({actor: sheet.document, sheet}), {text, date: date || null, hidden});
+  if (r.ok && hidden) sheet.render();
+  return r;
+}
+async function journeySave(sheet, target) {
+  const {text, date} = formValues(target);
+  const r = await journey.editEntry(journeyActor({actor: sheet.document, sheet}), target.dataset.id, {text, date: date || null});
+  if (r.ok) { sheet.journeyEdit = null; sheet.render(); }
+  return r;
+}
+/** Deleting a GM note asks first (destructive actions sit behind a labelled confirmation). */
+async function journeyDelete(sheet, target) {
+  const D = globalThis.foundry?.applications?.api?.DialogV2;
+  const yes = D?.confirm ? await D.confirm({window: {title: 'Delete Journey note'}, content: '<p>Delete this GM note? This cannot be undone.</p>', yes: {label: 'Delete note'}, rejectClose: false}) : true;
+  if (!yes) return {ok: true, result: null};
+  const r = await journey.deleteEntry(journeyActor({actor: sheet.document, sheet}), target.dataset.id);
+  if (r.ok) sheet.render();
+  return r;
+}
 /** "More" on a card: shows or hides its full description in place; the sheet remembers it until it closes. */
 function toggleMore(sheet, target) {
   const key = target.dataset.key, open = !sheet.expanded.has(key);
@@ -159,6 +191,7 @@ export const EDITS = {
   'companion-desc': (s, i) => comp.setCompanionText(s.document, i.dataset.entry, 'description', i.value),
   'pet-cap-override': (s, i) => comp.setPetCapOverride(i.dataset.actor, i.value),
   'pet-cap-default': (s, i) => comp.setDefaultPetCap(i.value),
+  'journey-actor': (s, i) => { s.journeyActorId = globalThis.game?.user?.isGM ? i.value || null : null; s.journeyEdit = null; return s.render(); },
   'part-visibility': (s, i) => vis.setVisibility({[i.dataset.part]: i.checked === true}),
   'list-sort': async (s, i) => { const r = await setListChoice(i.dataset.tab, i.dataset.field, i.value); if (r.ok) s.render(); return r; }
 };

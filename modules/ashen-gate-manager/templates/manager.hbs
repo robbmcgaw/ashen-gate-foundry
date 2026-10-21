@@ -1,7 +1,7 @@
 <section class="agmanager-body">
   <header class="ag-header agmanager-top">
     <i class="agmanager-emblem fa-solid fa-dungeon" aria-hidden="true"></i>
-    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.39.0 Beta</small></h2></div>
+    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.41.2 Beta</small></h2></div>
     <div class="agmanager-appearance-menu" data-ag-appearance-menu>
       <button type="button" class="agmanager-help agmanager-appearance-toggle" data-ag-appearance-toggle aria-haspopup="dialog" aria-controls="agmanager-appearance-pop" aria-expanded="{{#if appearanceOpen}}true{{else}}false{{/if}}"><i class="fa-solid fa-palette" aria-hidden="true"></i> Appearance <i class="fa-solid fa-caret-down" aria-hidden="true"></i></button>
       <div id="agmanager-appearance-pop" class="agmanager-appearance-pop agmanager-appearance" role="dialog" aria-label="Appearance: GM world default" data-ag-appearance-pop {{#unless appearanceOpen}}hidden{{/unless}}>
@@ -420,7 +420,7 @@
         {{#each fields}}
         <div class="agcodex-field">
           <div class="agcodex-field__body"><div class="agcodex-label">{{label}}</div>
-            {{#if isLinks}}{{#if ../links.length}}<div class="agcodex-links">{{#each ../links}}<span class="agcodex-link agcodex-link--{{kind}}">{{name}}{{#if named}} <code>{{id}}</code>{{/if}}</span>{{/each}}</div>{{else}}<p class="agmanager-tiny">No connections. Add ids below or in the record's <code>codex.links</code>.</p>{{/if}}
+            {{#if isLinks}}{{#if ../links.length}}<div class="agcodex-links">{{#each ../links}}{{#if open}}<a class="agcodex-link agcodex-link--{{kind}}" role="button" data-ag-codex-deity="{{id}}" title="{{title}}"><i class="fa-solid fa-sun" aria-hidden="true"></i> {{name}}{{#if named}} <code>{{id}}</code>{{/if}}</a>{{else}}<span class="agcodex-link agcodex-link--{{kind}}"{{#if title}} title="{{title}}"{{/if}}>{{name}}{{#if named}} <code>{{id}}</code>{{/if}}</span>{{/if}}{{/each}}</div>{{else}}<p class="agmanager-tiny">No connections. Add ids below or in the record's <code>codex.links</code>.</p>{{/if}}
             {{else}}{{#if empty}}<p class="agmanager-tiny">Not set.</p>{{else}}<p class="agcodex-value">{{value}}</p>{{/if}}{{/if}}
           </div>
           <div class="agcodex-control"><div class="agcodex-seg" role="group" aria-label="Who knows: {{label}}">
@@ -438,7 +438,7 @@
         </div>
         <div class="agcodex-edit">
           <label class="ag-field">What the party has learned <textarea rows="3" data-ag-codex-learned>{{learned}}</textarea></label>
-          <label class="ag-field">Connections (ids, space separated: LOC-, FAC-, QUEST-, NPC-) <input type="text" data-ag-codex-links value="{{linksText}}"></label>
+          <label class="ag-field">Connections (ids, space separated: LOC-, FAC-, DEITY-, QUEST-, NPC-) <input type="text" data-ag-codex-links value="{{linksText}}"></label>
           <label class="ag-field">Your notes (GM only) <textarea rows="3" data-ag-codex-notes>{{notes}}</textarea></label>
           <footer class="agcodex-footer">
             <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="codex-cancel">Cancel</button>

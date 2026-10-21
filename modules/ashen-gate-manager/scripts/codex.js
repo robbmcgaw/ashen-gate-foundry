@@ -17,8 +17,13 @@ export const FIELD_LABELS = Object.freeze({
   learned: 'What the party has learned', links: 'Connections',
   portrayal: 'Portrayal', session_role: 'Session role', stat_block: 'Stat block', gm_notes: 'GM notes'
 });
-/** Ids a Codex link may point at. FAC- is a Headquarters facility elsewhere, but GPT drafts use it for factions too. */
-const LINK_PREFIXES = ['LOC', 'FAC', 'FACTION', 'RENOWN', 'QUEST', 'ORDER', 'CONTRACT', 'NPC'];
+/** Ids a Codex link may point at. FAC- is a Headquarters facility elsewhere, but GPT drafts use it for factions too.
+ * DEITY- (0.40.0) is a Renown Pantheon deity: a player only ever sees one they have discovered in Renown. */
+export const LINK_PREFIXES = Object.freeze(['LOC', 'FAC', 'FACTION', 'RENOWN', 'DEITY', 'QUEST', 'ORDER', 'CONTRACT', 'NPC']);
+/** Shown for a link the player does not know (0.41.1: every kind; 0.40.0: deities): no id, no name. */
+export const UNKNOWN_LINK = 'Unknown';
+export const UNKNOWN_DEITY = UNKNOWN_LINK;
+export const unknownLink = kind => ({id: null, kind, name: UNKNOWN_LINK, unknown: true});
 const ID_RE = /^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/;
 
 const str = v => (typeof v === 'string' ? v : v == null ? '' : String(v));
@@ -32,7 +37,7 @@ export function isLinkId(id) {
 }
 export function linkKind(id) {
   const p = str(id).split('-')[0];
-  return p === 'LOC' ? 'location' : p === 'NPC' ? 'npc' : ['QUEST', 'ORDER', 'CONTRACT'].includes(p) ? 'quest' : 'renown';
+  return p === 'LOC' ? 'location' : p === 'NPC' ? 'npc' : p === 'DEITY' ? 'deity' : ['QUEST', 'ORDER', 'CONTRACT'].includes(p) ? 'quest' : 'renown';
 }
 
 export function emptyRule() { return {party: false, actors: []}; }
@@ -73,7 +78,9 @@ export function normalizeState(raw, def = null) {
 /** Change one rule. key is 'discovery' or a REVEAL_FIELDS key. mode: hidden | party | actor (with actorId, on true/false). */
 export function setReveal(state, key, {mode, actorId = null, on = true} = {}) {
   const next = normalizeState(state);
-  if (key !== 'discovery' && !REVEAL_FIELDS.includes(key)) throw new Error(`"${key}" cannot be revealed. GM-only fields stay GM-only.`);
+  if (key !== 'discovery' && !REVEAL_FIELDS.includes(key)) throw new Error(GM_FIELDS.includes(key)
+    ? `"${key}" is a GM-only field and cannot be revealed.`
+    : `"${key}" is not a Codex field. Reveal "discovery" or one of: ${REVEAL_FIELDS.join(', ')}.`);
   const rule = key === 'discovery' ? next.discovery : next.fields[key];
   if (mode === 'hidden') { rule.party = false; rule.actors = []; }
   else if (mode === 'party') { rule.party = true; }
@@ -134,9 +141,12 @@ export function gmEntry(npc, {nameOf = () => null, characters = []} = {}) {
  * What one player may receive about one NPC, or null. Built on the GM side; nothing hidden is ever in the result.
  * actorIds: the characters that player owns. Name and portrait show once the NPC is discovered by the party or
  * one of those characters. Each field shows only when its own rule includes the party or one of those characters.
- * `nameOf` must only return names the GM is happy to show (the GM revealed the links field).
+ * `linkFor(id, kind)` (0.41.1) says what this player may know of one linked record, by the owning module's own player
+ * filter: a name, `true` (the player's own client claimed the id and fills in the name itself) or null (not known).
+ * A link that is not known is sent as {id: null, kind, name: 'Unknown', unknown: true}: no id, no name, no link.
+ * The default knows nothing, so every link is Unknown.
  */
-export function playerEntry(npc, actorIds = [], {nameOf = () => null} = {}) {
+export function playerEntry(npc, actorIds = [], {linkFor = () => null} = {}) {
   const def = npc.def ?? {}, state = normalizeState(npc.state, def);
   if (!knowsRule(state.discovery, actorIds)) return null;
   const out = {id: def.id, name: str(def.name) || str(npc.name) || def.id, img: npc.img ?? null, fields: []};
@@ -145,7 +155,13 @@ export function playerEntry(npc, actorIds = [], {nameOf = () => null} = {}) {
     if (!knowsRule(rule, actorIds)) continue;
     const onlyYou = !rule.party;
     if (key === 'links') {
-      const links = linksOf(def, state).map(id => ({id, kind: linkKind(id), name: str(nameOf(id) ?? id)}));
+      const links = linksOf(def, state).map(id => {
+        const kind = linkKind(id);
+        let known = null;
+        try { known = linkFor(id, kind); } catch { known = null; }
+        if (known === true) return {id, kind, name: null};
+        return typeof known === 'string' && known ? {id, kind, name: known} : unknownLink(kind);
+      });
       if (links.length) out.fields.push({key, label: FIELD_LABELS[key], links, onlyYou});
       continue;
     }
@@ -156,6 +172,16 @@ export function playerEntry(npc, actorIds = [], {nameOf = () => null} = {}) {
 }
 export function playerCodex(npcs, actorIds = [], opts = {}) {
   return npcs.map(n => playerEntry(n, actorIds, opts)).filter(Boolean).sort((a, b) => a.name.localeCompare(b.name));
+}
+/**
+ * 0.41.1, player client: fill in the links the GM sent back as {id, name: null} (ids this client claimed) from
+ * `names` (id -> name, read from the owning modules' player-filtered APIs on this client). Anything the client cannot
+ * name becomes Unknown with no id.
+ */
+export function resolvePlayerLinks(entries, names = new Map()) {
+  const link = l => l?.unknown || !l?.id ? unknownLink(l?.kind) : l.name ? l : names.get(l.id) ? {...l, name: names.get(l.id)} : unknownLink(l.kind);
+  return (entries ?? []).map(e => !Array.isArray(e?.fields) ? e
+    : {...e, fields: e.fields.map(f => Array.isArray(f?.links) ? {...f, links: f.links.map(link)} : f)});
 }
 
 /** One GM file: canonical definitions (no Foundry projection) and play state, keyed by NPC id. GM only: holds GM fields. */
@@ -188,8 +214,29 @@ export function planRevealsImport(file, knownIds = []) {
 }
 
 const esc = v => str(v).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
-/** Read-only player Codex markup (window body and api.codex.mount). Input is already a player projection. */
-export function renderPlayerCodexHtml(entries, {message = ''} = {}) {
+/** Tooltip for a non-deity link the player does not know (0.41.1). */
+export const UNKNOWN_TIP = 'Something you have not learned about yet.';
+/** Tooltip for a deity link that cannot open. */
+export const DEITY_TIPS = Object.freeze({
+  unknown: 'A deity you have not discovered yet.',
+  noRenown: 'Renown is not active, so this deity cannot be opened.',
+  hidden: 'Renown is hidden from players right now.',
+  missing: 'This deity is not in this world (Renown does not know it).'
+});
+/** One player-view link. `deityLink(link)` -> {open, title}: whether Renown can open that deity here (0.40.0). */
+function linkHtml(l, deityLink) {
+  if (l.kind !== 'deity') return l.unknown || !l.id || !l.name
+    ? `<span class="ag-codex-link is-unknown" title="${esc(UNKNOWN_TIP)}">${esc(UNKNOWN_LINK)}</span>`
+    : `<span class="ag-codex-link">${esc(l.name)}</span>`;
+  if (l.unknown || !l.id) return `<span class="ag-codex-link ag-codex-link--deity is-unknown" title="${esc(DEITY_TIPS.unknown)}">${esc(UNKNOWN_DEITY)}</span>`;
+  const how = deityLink(l) ?? {};
+  if (how.unknown) return `<span class="ag-codex-link ag-codex-link--deity is-unknown" title="${esc(DEITY_TIPS.unknown)}">${esc(UNKNOWN_DEITY)}</span>`;
+  if (how.open) return `<a class="ag-codex-link ag-codex-link--deity" role="button" data-ag-codex-deity="${esc(l.id)}" title="${esc(how.title || 'Open in the Renown Pantheon')}"><i class="fa-solid fa-sun" aria-hidden="true"></i> ${esc(l.name)}</a>`;
+  return `<span class="ag-codex-link ag-codex-link--deity" title="${esc(how.title || DEITY_TIPS.noRenown)}">${esc(l.name)}</span>`;
+}
+/** Read-only player Codex markup (window body and api.codex.mount). Input is already a player projection.
+ * Deity links open only when `deityLink` says so; the default never links (plain text with a tooltip). */
+export function renderPlayerCodexHtml(entries, {message = '', deityLink = () => ({open: false, title: DEITY_TIPS.noRenown})} = {}) {
   if (message) return `<div class="ag-codex-player"><p class="ag-empty">${esc(message)}</p></div>`;
   if (!entries.length) return `<div class="ag-codex-player"><p class="ag-empty">No one has been added to your codex yet.</p></div>`;
   const card = e => {
@@ -198,7 +245,7 @@ export function renderPlayerCodexHtml(entries, {message = ''} = {}) {
     const role = e.fields.find(f => f.key === 'role');
     const rows = e.fields.filter(f => f.key !== 'role').map(f => {
       const only = f.onlyYou ? ' <span class="ag-badge ag-badge--accent">only you</span>' : '';
-      const body = f.links ? f.links.map(l => `<span class="ag-codex-link">${esc(l.name)}</span>`).join(' ')
+      const body = f.links ? f.links.map(l => linkHtml(l, deityLink)).join(' ')
         : f.key === 'signature_line' ? `<q>${esc(f.value)}</q>` : esc(f.value);
       return `<dt>${esc(f.label)}${only}</dt><dd>${body}</dd>`;
     }).join('');

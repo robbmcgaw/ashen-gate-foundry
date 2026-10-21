@@ -129,11 +129,14 @@ test('API: behaviours are GM-only to read and write; players get pace and watch 
     await assert.rejects(() => p.travel.openCheck('forage'), /Only the GM/);
     assert.equal(p.travel.checksAvailable(), false);
   });
-  const out = await w.gm.travel.setBehaviours({pace: {value: 'fast'}, watch: {first: ['a1'], second: ['n1']}, checks: {forage: 'nat'}});
+  // 1.15.2: an NPC (or any non-character id) is refused, not stored.
+  await assert.rejects(() => w.gm.travel.setBehaviours({watch: {second: ['n1']}}), /Only player characters can go on watch.*n1/);
+  const out = await w.gm.travel.setBehaviours({pace: {value: 'fast'}, watch: {first: ['a1']}, checks: {forage: 'nat'}});
   assert.equal(out.pace.value, 'fast');
   assert.deepEqual(w.gm.travel.getBehaviours().watch.first, ['a1']);
   assert.deepEqual(pState().behaviours, {pace: 'fast', watch: [{watch: 'first', names: ['[TEST] Ava']}, {watch: 'second', names: []}, {watch: 'third', names: []}]},
     'only character names reach players');
+  assert.deepEqual(w.gm.travel.getBehaviours().watch.second, []);
   assert.doesNotMatch(JSON.stringify(pState()), /nat|Spy|forage/);
   assert.equal(w.gm.getJourney().journey.currentChance, 25, 'no effect on the hazard chance');
   await w.gm.travel.setBehaviours({pace: {enabled: false}, watch: {enabled: false}});
