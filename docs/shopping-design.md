@@ -10,6 +10,8 @@ Mockup (private artifact): https://claude.ai/artifact/8danqfZAjEWaTi1o55rprj
 - The GM saves, searches and sorts shops in a new **Shops** tab.
 - **Present** opens a shop for one, some or all players. Only those players can buy from it, until the GM clicks **Stop showing**.
 - A player buys an item: picks a quantity and who pays (the **party purse** or **their own character's coins**), sees the total and the change, confirms. The item goes to their character.
+- **Shop purse (optional):** the merchant's cash on hand. Purchases add coins to it and change comes out of it. Later it pays for buying items back (D4). No purse = unlimited cash. The amount is GM only unless the GM shows it.
+- **No electrum.** Shops use cp, sp, gp and pp. Electrum appears only if the GM turns on Utilities' *Use electrum* setting (§7).
 - **Merchant lists:** a named list of shops (usually one city). The GM switches a list on to let players **browse** it, read only. Buying still needs the GM to present that shop.
 
 Robb's answers this design keeps: the buyer chooses the payer every time; stock is optional per item; items go to the buyer's inventory; shops are shown only to players the GM presents them to, plus the read-only merchant list.
@@ -51,6 +53,9 @@ Creating the journals is lazy (first save) and re-runnable: found by flag `flags
   "flavour": "A cluttered general store.",
   "locationId": "LOC-TEST-MARKET",
   "gmNotes": "GM only text.",
+  "purse": {"cp": 40, "sp": 25, "gp": 30, "pp": 0},
+  "purseStart": {"cp": 40, "sp": 25, "gp": 30, "pp": 0},
+  "showPurse": false,
   "lines": [ /* shop lines, below */ ],
   "presented": null,
   "createdAt": 0, "updatedAt": 0, "updatedBy": "userId"
@@ -59,6 +64,9 @@ Creating the journals is lazy (first save) and re-runnable: found by flag `flags
 
 - `id`: permanent, `SHOP-` + upper-case letters, digits, single hyphens. Made from the name on create (`SHOP-COPPER-KETTLE`, with `-2` if taken). Never reused after delete (kept in a `retiredIds` list on the GM Data journal).
 - `locationId`: optional `LOC-*` id. Resolved through Locations' public API when it is active; ignored when it is not.
+- `purse`: the shop's coins now, or `null` = no purse (unlimited cash: change is always available and takings are not counted). Whole numbers ≥ 0 per coin. `ep` appears only while *Use electrum* is on.
+- `purseStart`: what **Restock cash** resets the purse to (GM button, never automatic).
+- `showPurse`: `false` (default) keeps the amount GM only. `true` shows players the merchant's coins in the shop window.
 - `presented`: `null`, or `{mode: 'all' | 'users', userIds: [...], since, by}`. Live state, never imported.
 
 ### Shop line
@@ -70,12 +78,13 @@ Creating the journals is lazy (first save) and re-runnable: found by flag `flags
   "itemUuid": "Item.abc123",
   "item": { /* snapshot: Item toObject() */ },
   "contents": [ /* snapshots of items inside, when the item is a container */ ],
-  "price": {"value": 1, "denomination": "gp"},
+  "priceCp": 100,
+  "priceCoin": "gp",
   "flavour": "Coiled and tarred against the damp.",
   "stock": 3,
   "stockStart": 3,
   "hidden": false,
-  "cost": {"value": 5, "denomination": "sp"},
+  "costCp": 50,
   "sort": 30
 }
 ```
@@ -83,7 +92,7 @@ Creating the journals is lazy (first save) and re-runnable: found by flag `flags
 - `lineId`: local random id, stable inside the shop.
 - `itemId`: the permanent id when the item has one (`flags.ashen-gate-manager.source.sourceId`), else `null`. Used to match lines on reimport.
 - `itemUuid`: where it came from (world, compendium or actor). Only a hint for **Refresh from source**; the snapshot is what is sold, so a deleted world item does not break the shop.
-- `price`: whole number ≥ 0 in one dnd5e denomination. Defaults to the item's `system.price`. Must come to a whole number of copper (`0.1 gp` is fine, `0.05 gp` is refused when saving).
+- `priceCp`: the price as whole copper (≥ 0). `priceCoin` is only how it is shown (`cp`, `sp`, `gp`, `pp`): 150 cp with `priceCoin: 'sp'` shows "15 sp"; a price that does not divide shows mixed ("1 gp 5 sp"). The editor takes a number and a coin and stores copper. Defaults to the item's `system.price`. A price that is not whole copper (`0.05 gp`) is refused when saving. An item priced in ep (dnd5e allows it) is converted on add (1 ep = 50 cp) and shown in sp while electrum is off.
 - `stock`: `null` = unlimited, else a whole number ≥ 0 that counts down. `stockStart` is what **Restock** resets to.
 - Per-purchase amount is the snapshot's own `system.quantity` (Arrows (20) sells 20 per purchase).
 - `hidden` and `cost` are GM only.
@@ -99,14 +108,17 @@ Creating the journals is lazy (first save) and re-runnable: found by flag `flags
 
 ```json
 {"id": "s_…", "kind": "shop-purchase", "shopId": "SHOP-TEST-KETTLE", "lineId": "ln_…", "itemName": "Rope, Hempen (50 ft)",
- "quantity": 1, "price": {"value": 1, "denomination": "gp"}, "payFrom": "purse" | "actor",
+ "quantity": 1, "totalCp": 100, "payFrom": "purse" | "actor",
  "payerId": "<stash or character actor id>", "actorId": "<receiver>", "userId": "…", "approval": "accepted" | "not-required" | "gm",
- "coinsBefore": {"cp":0,"sp":4,"ep":0,"gp":7,"pp":0}, "coinsAfter": {…}, "createdItemIds": ["…"], "realTime": 0}
+ "coinsBefore": {"cp":0,"sp":4,"gp":7,"pp":0}, "coinsAfter": {…},
+ "shopPurseBefore": {…} | null, "shopPurseAfter": {…} | null, "createdItemIds": ["…"], "realTime": 0}
 ```
 
 Purchases paid from the purse are also added to stash History (new kind `shop-purchase`, additive; old entries unchanged). Players see their own purchases and purse purchases, without other characters' coin totals.
 
 ### Saved-data safety
+
+Shop purse adjustments by the GM are logged in the sales log too (`kind: 'shop-purse-adjust'`, with reason).
 
 All additive: two new journals, two new settings, one new History kind. No existing setting, flag or document changes. No migration needed.
 
@@ -125,12 +137,14 @@ Built on the GM client, written to the Player View journal, never containing GM 
 {"id": "SHOP-TEST-KETTLE", "name": "…", "merchant": {"name": "…", "img": "…"}, "flavour": "…",
  "location": {"name": "[TEST] Market Ward"},
  "lines": [{"lineId": "ln_…", "name": "Rope, Hempen (50 ft)", "img": "…", "type": "Gear", "per": 1,
-            "price": {"value": 1, "denomination": "gp"}, "flavour": "…", "stock": 3, "soldOut": false,
+            "priceCp": 100, "priceText": "1 gp", "flavour": "…", "stock": 3, "soldOut": false,
             "description": "<item description, enriched for players>"}],
+ "purse": null,
  "rev": 12}
 ```
 
-- Left out: `hidden` lines, `cost`, `gmNotes`, `itemUuid`, `itemId`, snapshots, sales, who else it is presented to.
+- `purse`: the shop's coins only when `showPurse` is on, else `null`.
+- Left out: `hidden` lines, `costCp`, the shop purse (unless shown), `gmNotes`, `itemUuid`, `itemId`, snapshots, sales, who else it is presented to.
 - `location` only when Locations says the place is revealed to everyone; otherwise left out.
 - Unidentified items show their unidentified name and description (dnd5e `system.identified === false`).
 - `description` is the item's own player-facing description; secret blocks (`<section class="secret">`) are stripped.
@@ -147,13 +161,14 @@ Built on the GM client, written to the Player View journal, never containing GM 
 | `addItems(id, uuids | dropData)` | GM | returns `{added, skipped: [{name, reason}]}` |
 | `present(id, {mode, userIds})`, `stopShowing(id)`, `presented()` | GM | `presented()` lists shops shown right now |
 | `restock(id, lineIds?)` | GM | stock back to `stockStart` |
+| `adjustPurse(id, {op: 'add' \| 'remove' \| 'set', coin, amount, reason})`, `setPurse(id, coins \| null)`, `restockCash(id)` | GM | the shop purse; `null` removes it (unlimited cash); never below 0; logged |
 | `importShops(records, {mode: 'create' | 'update'})`, `exportShops(ids?)` | GM | §8 |
 | `sales(id)` | GM | the shop's sales log |
 | `merchants.list()`, `merchants.save(list)`, `merchants.setVisible(id, bool)`, `merchants.delete(id)` | GM | |
 | `open(id?)` | anyone allowed | opens the Shops tab, or the shop window |
 | `forMe()` | player or GM | projections of shops presented to this user |
 | `browse()` | player or GM | projections of shops in visible merchant lists (read only) |
-| `quote({shopId, lineId, quantity, payFrom, actorId})` | player or GM | the payment plan, nothing changes |
+| `quote({shopId, lineId, quantity, payFrom, actorId})` | player or GM | the payment plan (or the "can't make change" refusal), nothing changes; never reveals the shop purse unless shown |
 | `buy({shopId, lineId, quantity, payFrom, actorId, rev})` | player or GM | §7; `payFrom`: `'purse'` or `'actor'` |
 
 Refusals use the existing wording style: `GM only.`, `Utilities is hidden for players.`, `The GM has turned shops off.`, `This shop is not open for you.`
@@ -162,11 +177,29 @@ Refusals use the existing wording style: `GM only.`, `Utilities is hidden for pl
 
 ### Payment rules
 
-- Coin values (dnd5e and 2024 rules): 1 pp = 10 gp, 1 gp = 2 ep = 10 sp = 100 cp. All maths in whole copper, so there is no rounding.
+- Coin values (dnd5e and 2024 rules): 1 pp = 10 gp = 100 sp = 1000 cp. All maths in whole copper, so there is no rounding.
 - Total = price × quantity. Refused if the payer's coins are worth less.
-- Which coins go: the price's own coin first, then smaller coins, then the smallest larger coins needed. Change comes back as gp, then sp, then cp (never ep or pp). The player sees the net result before confirming, e.g. "You pay 2 gp, change back 5 sp".
-- No coin ever goes below 0. One `update` per payer: only `system.currency.*` changes.
-- This is the first place Utilities makes change; the purse's own Deposit/Take still never converts (open decision D1).
+- Which coins go: the price's own coin first, then smaller coins, then the smallest larger coins needed. Change is given as gp, then sp, then cp, largest first. The player sees the net result before confirming, e.g. "You pay 2 gp, change back 5 sp".
+- No coin ever goes below 0, on the payer or in the shop purse. One `update` per payer: only `system.currency.*` changes.
+- This is the first place Utilities makes change; the party purse's own Deposit/Take still never converts (D1).
+
+### Electrum
+
+- Utilities 0.13.2 adds the GM setting *Use electrum* (default off) and `api.currency.electrumEnabled()`. Shops read it through that call (feature-detected; missing = off).
+- **Off (default):** shops never show, take or give ep. Prices, totals, coin strips and change use cp, sp, gp, pp. Electrum a character already holds is left alone: not shown in the shop, not spent.
+- **On:** ep is shown and may be spent (1 ep = 50 cp), and a price may be shown in ep. Change is still never given in ep.
+- Prices are stored as copper, so switching the setting never changes a price, only how it is shown.
+
+### Shop purse and change
+
+- **No purse** (`purse: null`): the merchant always has change. Coins paid are not counted anywhere.
+- **With a purse:** the coins the buyer hands over go into it, and the change comes out of it. If it cannot make change from what it holds, the plan tries again:
+  1. the normal plan (above), with change taken from the shop purse (largest coins first);
+  2. else **exact payment** from the payer's coins (no change needed), if their coins allow it;
+  3. else the purchase is refused: "The merchant can't make change for this. Pay with the other purse, or ask the GM." Nothing is charged.
+- The GM gets the same refusal as a whisper, with a **Top up shop purse** button (Add / Remove / Set, reason, labelled confirmation, like Adjust Purse). There is no automatic top-up.
+- Players are never told how much the shop holds unless `showPurse` is on.
+- Later, buying items back (D4) pays from the shop purse; refused when it holds too little, unlimited when there is no purse.
 
 ### Who may buy
 
@@ -184,10 +217,11 @@ The GM client re-checks all of this when it carries out the purchase:
 ```
 player: api.shops.buy(...)  → socket 'shop-buy' {requestId, …}
 GM:     checks 1–6 (after any vote, checks 3–5 again)
-GM:     plan payment from fresh coin totals
+GM:     plan payment from fresh coin totals and the fresh shop purse
 GM:     A. create the item copies on the buyer (fresh ids, container contents linked), check they all arrived
 GM:     B. update the payer's currency (one update)
-GM:     C. lower stock and write the sale (GM Data page), then rebuild the player projection
+GM:     C. one update of the shop's GM Data page: lower stock, update the shop purse, add the sale;
+            then rebuild the player projection
 GM:     D. log to stash History (purse purchases), receipt to the buyer, optional chat card
 ```
 
@@ -198,7 +232,8 @@ GM:     D. log to stash History (purse purchases), receipt to the buyer, optiona
 | Checks, vote denied or timed out | Nothing changes. Denied/timed-out purse votes are logged like a take-out | The reason. "Nothing was charged." |
 | A (items) | Copies made so far are deleted | "Could not add the item. Nothing was charged." |
 | B (coins) | The copies from A are deleted | "Payment failed. Nothing was charged and nothing was given." |
-| C (stock or log) | Coins are put back, copies deleted | Same as B. If putting back also fails, the GM gets a whisper naming exactly what to fix by hand |
+| Shop purse can't make change | Nothing changes (checked before A) | "The merchant can't make change…" (§7) |
+| C (stock, shop purse, sale) | Coins are put back, copies deleted | Same as B. If putting back also fails, the GM gets a whisper naming exactly what to fix by hand |
 | No GM connected | Not sent | "A GM must be connected." |
 | GM answer slow | The player's request stops waiting after 15 s (75 s with a vote) | "The GM did not answer." The GM still finishes or refuses it, and the player then gets a whisper with the real result. The same `requestId` is never carried out twice |
 
@@ -211,6 +246,8 @@ Shop records go in an `ag-foundry-import/0.2` package with `entity_type: "Shop"`
 - A shop whose `id` exists is **kept as it is** (default). `mode: 'update'` replaces name, merchant, flavour and lines from the file, but keeps stock left, presentation, sales and lines the GM added by hand.
 - Each line names `item_id` (an `ITEM-*` or other canonical id, found by `flags.ashen-gate-manager.source.sourceId`) or `item_uuid` (e.g. a compendium Item). Not found: that line is skipped and reported; the rest of the shop imports.
 - Import never creates live state: `presented` is always `null` and merchant lists import hidden.
+- `shop.purse` (optional) is the starting cash. It sets `purse` and `purseStart` only when the shop is **created**; an update never changes the cash the shop has now. Leave it out for no purse (unlimited cash).
+- Prices in the file are `{value, denomination}` with `cp`, `sp`, `gp` or `pp`; they are stored as copper. `ep` is refused while *Use electrum* is off.
 
 Synthetic example:
 
@@ -232,6 +269,7 @@ Synthetic example:
         "flavour": "Smells of oak bark and fresh leather.",
         "location_id": "LOC-TEST-MARKET",
         "gm_notes": "Synthetic test shop.",
+        "purse": {"cp": 50, "sp": 30, "gp": 20, "pp": 0},
         "lines": [
           {"item_id": "ITEM-TEST-LEATHER-ARMOR", "price": {"value": 10, "denomination": "gp"}, "stock": 2, "flavour": "Supple and well stitched.", "cost": {"value": 6, "denomination": "gp"}},
           {"item_id": "ITEM-TEST-WATERSKIN", "price": {"value": 2, "denomination": "sp"}},
@@ -258,10 +296,13 @@ Field rules are in `docs/shopping-for-gpt.md`. A `validate-content.mjs` check co
 
 | # | Question | Recommended default | Other options |
 |---|---|---|---|
-| D1 | Making change | Shops make change (§7); the purse's Deposit/Take stays exact-coin | Exact coin only (buyer must hold the price's coin) |
+| D1 | Making change | Shops make change (§7); the party purse's Deposit/Take stays exact-coin | Exact coin only (buyer must hold the price's coin) |
+| D1a | The shop purse can't make change | Try exact payment; else refuse with a clear message and give the GM a **Top up shop purse** button. Never auto top-up | Always require exact coin; or top up automatically |
+| D1b | Shop purse by default | New shops start with **no purse** (unlimited cash); the GM adds one per shop | Every shop has a purse, starting empty |
+| D1c | Players see the shop's cash | Hidden; per-shop **Show merchant's coins to players** | Always shown |
 | D2 | Spending the party purse in a shop | Needs the party vote when *Party must accept when a player spends the party purse* is on; until saved it follows the coin vote | Never vote; always vote |
 | D3 | Haggling | Not in v1. Later: the GM sets a per-presentation discount or markup % for a player when presenting | Player asks, GM approves a price in a prompt |
-| D4 | Selling items back | Not in v1. Later: GM-presented "buys" list, default half price (2024 rules), GM approves each sale | Never |
+| D4 | Selling items back | Not in v1. Later: GM-presented "buys" list, default half price (2024 rules), paid from the shop purse, GM approves each sale | Never |
 | D5 | Restocking | Manual **Restock** button (to `stockStart`); no automatic restock | Restock on a long rest or a game-time interval |
 | D6 | Linked location | Optional `LOC-*`; used for grouping and shown to players only once revealed in Locations | Required for merchant lists |
 | D7 | Merchant portrait | Image path per shop (Foundry file picker), initials when empty | Use an NPC Actor's portrait (link to an Actor) |
@@ -271,8 +312,8 @@ Field rules are in `docs/shopping-for-gpt.md`. A `validate-content.mjs` check co
 
 ## 10. Build plan (small PRs, each a Utilities minor version)
 
-1. **0.14.0 Shop rules (no UI).** Pure functions in `core.mjs`: price to copper, `planShopPayment`, line validation, projection, id making, purchase plan. Tests for change-making, no negatives, sold out, hidden lines never projected.
-2. **0.15.0 Shops tab for the GM.** GM Data journal, Shops list with search/sort/grouping, editor, drop zone (with the shared drop helper), duplicate/delete with confirmation, GM API (`list/get/create/save/duplicate/delete/addItems`). Players see nothing yet.
+1. **0.14.0 Shop rules (no UI).** Pure functions in `core.mjs`: price to copper, `planShopPayment` (with and without a shop purse, electrum on/off), line validation, projection, id making, purchase plan. Tests for change-making, the exact-payment fallback, "can't make change", no negatives, no ep while electrum is off, sold out, hidden lines and the shop purse never projected unless shown. Needs 0.13.2 (*Use electrum*) on main first.
+2. **0.15.0 Shops tab for the GM.** GM Data journal, Shops list with search/sort/grouping, editor (with the shop purse: Add / Remove / Set, Restock cash, show to players), drop zone (with the shared drop helper), duplicate/delete with confirmation, GM API (`list/get/create/save/duplicate/delete/addItems`). Players see nothing yet.
 3. **0.16.0 Present and buy.** Player View journal, `present/stopShowing/forMe/quote/buy`, the socket purchase with rollback, purse vote, History kind `shop-purchase`, player shop window. GM Setup → Shopping settings.
 4. **0.17.0 Merchant lists.** Lists, read-only browse, Locations link (feature-detected).
 5. **0.18.0 Import/export** in Utilities, plus `docs/shop-schema.md` and a `validate-content.mjs` check. Then a **Manager** PR to route `Shop`/`MerchantList` records to Utilities.

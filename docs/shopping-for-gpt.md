@@ -11,13 +11,15 @@ Design: `robbmcgaw/ashen-gate-foundry` → `docs/shopping-design.md` (branch `de
 - The GM presents a shop to players at the table. Players pay from the party purse or their own coins.
 - A **merchant list** groups shops, usually one city. The GM can let players browse it (read only).
 
-ChatGPT writes the definitions. It never writes live state: who the shop is shown to, stock sold, sales or coins.
+- A shop may have a **purse**: the merchant's cash. Buyers' coins go in, change comes out. No purse means unlimited cash.
+
+ChatGPT writes the definitions, including a shop's starting cash. It never writes live state: who the shop is shown to, stock sold, sales, or characters' coins.
 
 ## 2. Rules that always apply
 
 - **Stable ids.** `SHOP-` for shops, `MLIST-` for merchant lists, upper-case letters, digits and single hyphens, e.g. `SHOP-TEST-TANNER`. Never rename or reuse an id.
 - **Items by id, not by UUID.** A line names `item_id` (an `ITEM-*` or other canonical id of an Item in the same package or already imported). Use `item_uuid` only for a compendium item that has no canonical id.
-- **Prices** are a whole number in one coin: `{"value": 10, "denomination": "gp"}`. Coins: `cp`, `sp`, `ep`, `gp`, `pp`. Use the item's normal 2024 price unless Robb sets another.
+- **Prices** are a whole number in one coin: `{"value": 10, "denomination": "gp"}`. Coins: `cp`, `sp`, `gp`, `pp`. **No electrum (`ep`)**: Robb doesn't use it, and imports refuse it unless the GM has turned on *Use electrum*. Prices are stored as copper, so `{"value": 15, "denomination": "sp"}` and `{"value": 150, "denomination": "cp"}` are the same price. Use the item's normal 2024 price unless Robb sets another.
 - **GM-only fields** (`gm_notes`, `cost`, `hidden: true`) are never shown to players. Still: no setting spoilers in a public test file.
 - **Draft vs canon.** `status: draft` unless Robb approved the shop.
 
@@ -39,6 +41,7 @@ Records go in an `ag-foundry-import/0.2` package, next to the Items they sell.
 | `shop.flavour` | string | optional | players see it; up to 1000 characters |
 | `shop.location_id` | string | optional | a `LOC-*` id; players see the place name only once it is revealed |
 | `shop.gm_notes` | string | optional | GM only |
+| `shop.purse` | object | optional | the merchant's starting cash, e.g. `{"cp": 50, "sp": 30, "gp": 20, "pp": 0}`; whole numbers ≥ 0, no `ep`. Leave it out for unlimited cash. Used only when the shop is first created; GM only |
 | `shop.lines` | array | yes | at least one line |
 
 ### Line (`shop.lines[]`)
@@ -81,6 +84,7 @@ Merchant lists always import hidden. The GM switches them on.
         "merchant_name": "[TEST] Hollis Reed",
         "flavour": "Smells of oak bark and fresh leather.",
         "location_id": "LOC-TEST-MARKET",
+        "purse": {"cp": 50, "sp": 30, "gp": 20, "pp": 0},
         "lines": [
           {"item_id": "ITEM-TEST-LEATHER-ARMOR", "price": {"value": 10, "denomination": "gp"}, "stock": 2, "flavour": "Supple and well stitched."},
           {"item_id": "ITEM-TEST-WATERSKIN", "price": {"value": 2, "denomination": "sp"}},
@@ -99,8 +103,8 @@ Merchant lists always import hidden. The GM switches them on.
 
 ## 5. Don'ts
 
-- Don't write `presented`, sold counts, sales, or anyone's coins. Import writes definitions only.
-- Don't price in two coins at once (`"1 gp 5 sp"`); use one coin (`15 sp`).
+- Don't write `presented`, sold counts, sales, or any character's coins. A shop's starting `purse` is fine. Import writes definitions only.
+- Don't price in two coins at once (`"1 gp 5 sp"`); use one coin (`15 sp`). Don't use `ep`.
 - Don't link items by world UUID (`Item.abc…`); world UUIDs differ per world.
 - Don't invent fields, prefixes or haggling/selling-back rules. Those are open decisions for Robb.
 - Don't mark anything `approved` yourself.
