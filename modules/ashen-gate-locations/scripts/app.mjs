@@ -238,16 +238,18 @@ export class LocationsApp extends Base {
         <div class="ag-header__meta"><span class="ag-version">v${esc(version)}</span>${btn('help', 'Help', {kind: 'ghost sm', icon: 'fa-solid fa-circle-question'})}</div></header>
       ${tabs.length > 1 ? `<nav class="ag-tabs ag-tabs--scroll" role="tablist" aria-label="Locations sections">${tabs.map(([k, l, icon, gmOnly]) =>
         `<button type="button" role="tab" data-tab="${k}" aria-selected="${tab === k}" class="${tab === k ? 'active' : ''}${gmOnly ? ' ag-tab--gm' : ''}"><i class="fa-solid ${icon}" aria-hidden="true"></i> ${l}</button>`).join('')}</nav>` : ''}
-      ${tab === 'setup' ? this.setupHtml() : tab === 'routes' ? this.routesHtml() : this.locationsHtml(list)}
+      <div class="agl-pane">${tab === 'setup' ? this.setupHtml() : tab === 'routes' ? this.routesHtml() : this.locationsHtml(list)}</div>
     </div>`;
   }
   _replaceHTML(result, content) {
-    const scroll = content.querySelector('.agl-detail')?.scrollTop ?? 0;
+    const scroll = content.querySelector('.agl-detail')?.scrollTop ?? 0, outer = content.querySelector('.agl-pane')?.scrollTop ?? 0;
     const typing = globalThis.document?.activeElement?.id === 'agl-party-text' ? globalThis.document.activeElement : null;
     const caret = typing ? [typing.selectionStart, typing.selectionEnd] : null;
     content.innerHTML = result;
     const detail = content.querySelector('.agl-detail');
     if (detail) detail.scrollTop = scroll;
+    const pane = content.querySelector('.agl-pane');
+    if (pane) pane.scrollTop = outer;
     const box = caret && content.querySelector('#agl-party-text');
     if (box) { box.focus(); box.setSelectionRange(...caret); }
     try { this.bind(content); } catch (err) { content.innerHTML = this.errorHtml(err); this.bind(content); }
@@ -645,7 +647,7 @@ export class LocationsApp extends Base {
       : '<p class="ag-empty">No player accounts in this world yet.</p>';
     return `<section class="ag-card agl-section">
       <header class="agl-section__head"><h3>Who Can See It</h3><span class="agl-hint">GM only</span></header>
-      <div class="agl-state" role="radiogroup" aria-label="Who can see this location">${radio('everyone', 'Everyone')}${radio('selected', 'Selected players')}</div>
+      <div class="ag-cluster agl-audience-mode" role="radiogroup" aria-label="Who can see this location">${radio('everyone', 'Everyone')}${radio('selected', 'Selected players')}</div>
       ${list}
       ${a.mode === 'selected' ? `<label class="ag-field ag-field--inline agl-switch"><input type="checkbox" data-action-change="audience-sharing" ${a.sharing ? 'checked' : ''}> Players who see it can share it with others</label>` : ''}
       <p class="agl-hint">${a.mode === 'selected' ? 'Only ticked players get this card, its pins and its Party Notes, and only while it is Unidentified or Revealed. Everyone else sees nothing, exactly as if it were Hidden.' : 'Every player sees it once it is Unidentified or Revealed.'}${d.id ? ' Changes here apply at once.' : ''}</p>
