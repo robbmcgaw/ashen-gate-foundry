@@ -208,7 +208,7 @@ export function executeGrant(questId,plan){
    let fail='';
    for(const l of lines){
     const row=rows.get(l.rewardKey);
-    if(!row||row.removed||row.round!==l.round){fail||='A reward changed or was removed; open Give rewards again.';todo.push({...l,row:row??null});continue;}
+    if(!row||row.removed||row.gone||row.round!==l.round){fail||='A reward changed or was removed; open Give rewards again.';todo.push({...l,row:row??null});continue;}
     if(keys.has(`${l.rewardKey}|${l.round}|${actorId}`))continue;
     const tagged=taggedItems(actor,questId,l.rewardKey,l.round);
     if(tagged.length){record.push({rewardKey:l.rewardKey,round:l.round,actorId,quantity:l.quantity,itemIds:tagged.map(i=>i.id),status:'granted',repaired:true});continue;}
@@ -256,7 +256,7 @@ export async function grantableRewards(questId){
  return (await listRewards(questId)).filter(r=>!r.removed).map(r=>{
   const people=party.map(a=>({id:a.id,name:a.name,given:isGranted(state,a,r.key,r.round,questId,keys)}));
   const anyGiven=people.some(p=>p.given)||givenTo(state,r,keys).length>0;
-  const owed=state.scope==='individual'?people.length>0&&!people[0].given:r.recipient==='each'?people.some(p=>!p.given):!anyGiven;
+  const owed=!r.gone&&(state.scope==='individual'?people.length>0&&!people[0].given:r.recipient==='each'?people.some(p=>!p.given):!anyGiven);
   const givenNames=[...new Set([...people.filter(p=>p.given).map(p=>p.name),...givenTo(state,r,keys).map(actorName)])];
   return {...r,party:people,owed,grantable:owed&&r.status==='ok',givenNames};
  });
@@ -291,7 +291,7 @@ export function onActorSheetDrop(actor,data,{notify=globalThis.ui?.notifications
  if(!game.user?.isGM){notify?.warn?.('Only the GM can give quest rewards.');return false;}
  try{
   const {source,state}=questOf(tag.questId);
-  const row=rewardRows(source,state).find(r=>r.key===tag.rewardKey&&!r.removed);
+  const row=rewardRows(source,state).find(r=>r.key===tag.rewardKey&&!r.removed&&!r.gone);
   if(!row){notify?.warn?.('That reward is no longer on the quest.');return false;}
   if(isGranted(state,actor,row.key,row.round,tag.questId)){notify?.warn?.(`Already given to ${actor.name}.`);return false;}
   executeGrant(tag.questId,[{actorId:actor.id,lines:[{rewardKey:row.key,round:row.round,quantity:row.quantity}]}]).then(res=>{

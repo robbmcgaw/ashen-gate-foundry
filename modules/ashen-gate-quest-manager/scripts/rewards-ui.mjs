@@ -8,12 +8,14 @@ const SHOWN=[['on_complete',"After it's completed"],['shown','While the quest is
 const GOES=[['chosen','One character (chosen when granting)'],['each','Each character'],['split','Split between characters']];
 const img=src=>`<img class="agq-reward__img" src="${E(src||FALLBACK_IMG)}" alt="">`;
 
+const noteHint=r=>r.note?`<span class="ag-field__hint">${E(r.note)}</span>`:'';
 function itemCell(r){
  const id=r.itemId?`<span class="agq-mono">${E(r.itemId)}</span>`
   :`<span class="ag-badge"${tip('No permanent id: this reward is tied to this world. It will not follow the item into another world or a reimport.')}>No permanent id</span>`;
- return `<span class="agq-reward__item">${img(r.img)}<span class="agq-reward__text"><span class="agq-reward__name">${E(r.name)}</span>${id}</span></span>`;
+ return `<span class="agq-reward__item">${img(r.img)}<span class="agq-reward__text"><span class="agq-reward__name">${E(r.name)}</span>${id}${noteHint(r)}</span></span>`;
 }
 function statusCell(r){
+ if(r.gone)return `<span class="ag-badge"${tip('Given before, then taken out of the quest file on reimport. The grant history is kept.')}>No longer in the quest</span>`;
  if(r.status==='missing'||r.status==='conflict')return `<span class="ag-badge ag-badge--danger"${tip(r.reason||'Missing')}>${r.status==='conflict'?'Conflict':'Missing'}</span>`;
  if(r.givenNames?.length)return `<span class="ag-badge ag-badge--ok agq-given">Given to ${E(r.givenNames.join(', '))}</span>`;
  return r.givenNames?'<span class="ag-badge">Not yet</span>':'';
@@ -23,12 +25,12 @@ function rewardRow(r,{individual}){
  const goes=individual
   ?`<select data-reward-field="recipient" aria-label="Goes to: ${label}" disabled>${options(GOES,r.recipient)}</select><span class="ag-field__hint">Individual quest: goes to its character.</span>`
   :`<select data-reward-field="recipient" aria-label="Goes to: ${label}">${options(GOES,r.recipient)}</select>`;
- const drag=r.status==='ok'&&r.uuid?' draggable="true" data-reward-drag':'';
+ const drag=r.status==='ok'&&r.uuid&&!r.gone?' draggable="true" data-reward-drag':'';
  return `<tr data-reward-key="${E(r.key)}"${drag}><td>${itemCell(r)}</td>
  <td class="is-num"><input type="number" class="agq-reward__qty" data-reward-field="quantity" min="1" step="1" value="${E(r.quantity)}" aria-label="Quantity: ${label}"></td>
  <td><select data-reward-field="visibility" aria-label="Shown to players: ${label}">${options(SHOWN,r.visibility)}</select></td>
  <td>${goes}</td><td>${statusCell(r)}</td>
- <td class="is-actions">${r.givenNames?.length?safeButton('Grant again','grant-again',{sm:true,data:{key:r.key},title:'Give this reward once more'}):''}${safeButton(`Remove ${r.name}`,'remove-reward',{kind:'danger',sm:true,iconOnly:true,icon:'fa-trash',title:'Remove this reward',data:{key:r.key}})}</td></tr>`;
+ <td class="is-actions">${r.givenNames?.length&&!r.gone?safeButton('Grant again','grant-again',{sm:true,data:{key:r.key},title:'Give this reward once more'}):''}${safeButton(`Remove ${r.name}`,'remove-reward',{kind:'danger',sm:true,iconOnly:true,icon:'fa-trash',title:'Remove this reward',data:{key:r.key}})}</td></tr>`;
 }
 /** GM editor section. rows = api.rewards.list() output; removed rows are not shown. */
 export function rewardsSection(rows,{individual=false,status='',grantHtml='',canGive=false}={}){
@@ -93,7 +95,7 @@ export function grantPanel(rows,choices,{individual=false,noParty=false}={}){
  const summary=grantSummary(rows,choices,{individual}),blocked=summary.problems.length>0;
  const body=rows.map(r=>{const c=choices[r.key]??{};const ok=r.grantable;
   return `<tr data-grant-key="${E(r.key)}" data-recipient="${E(individual?'individual':r.recipient)}"><td><input type="checkbox" data-grant-give ${ok&&c.give?'checked':''} ${ok?'':'disabled'} aria-label="Give ${E(r.name)}"></td>
-  <td><span class="agq-reward__item">${img(r.img)}<span class="agq-reward__text"><span class="agq-reward__name">${E(r.name)} × ${E(r.quantity)}</span>${ok?'':`<span class="ag-field__hint">${E(r.reason||'Not available.')}</span>`}</span></span></td>
+  <td><span class="agq-reward__item">${img(r.img)}<span class="agq-reward__text"><span class="agq-reward__name">${E(r.name)} × ${E(r.quantity)}</span>${noteHint(r)}${ok?'':`<span class="ag-field__hint">${E(r.reason||'Not available.')}</span>`}</span></span></td>
   <td>${ok?goesToCell(r,c,individual):''}</td></tr>`;}).join('');
  return `<div class="agq-grant" data-grant-panel><h4 class="agq-h">Give rewards</h4>
  ${noParty?'<p class="ag-notice ag-notice--warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> No player owns a character yet, so there is nobody to give party rewards to.</p>':''}

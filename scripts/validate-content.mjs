@@ -16,6 +16,7 @@
 //   - record-level modifiers blocks (ag-modifiers/0.1): Manager checks the shape, then each scope's owner checks its entries
 //     (scope cinder: Cinders' exported validateModifiers, when that Cinders version has it).
 //   - each folder's accepted import files are also zipped together and read as a Manager ZIP bundle.
+//   - quest files: an item reward (outcomes.item_rewards) whose ITEM id is not defined in the same file or folder gets a note.
 // Exit code 1 when any file does not behave as expected.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -178,8 +179,11 @@ function domainChecks(pkg) {
   return {errors, notes};
 }
 
-/** Validates one parsed file. Returns {kind, errors, notes}. */
-export async function checkContent(data, filename = '') {
+/** Record ids defined in a parsed import file ({records:[{id}]}). */
+const recordIds = data => new Set((Array.isArray(data?.records) ? data.records : []).map(r => r?.id).filter(id => typeof id === 'string'));
+
+/** Validates one parsed file. Returns {kind, errors, notes}. knownIds: ids defined elsewhere in the same folder bundle. */
+export async function checkContent(data, filename = '', {knownIds = new Set()} = {}) {
   if (/\.scene-moods\.json$/i.test(filename)) {
     // Manager's own import preview, in a GM world with the shipped presets and core weather.
     const scenes = createSceneMoods({game: {user: {isGM: true}, settings: {get: () => []}}, getConfig: () => ({weatherEffects: CORE_WEATHER})});
@@ -217,7 +221,12 @@ export async function checkContent(data, filename = '') {
     return {kind: 'npc-codex', errors, notes: ['GM file: restored in Manager > Library > NPC Codex > Restore reveals (only NPCs already in the world). Not an Import-tab file.']};
   }
   const specialist = detectSpecialistFile(data);
-  if (specialist === 'quests') return {kind: 'quests', errors: planQuestImport(data).errors, notes: []};
+  if (specialist === 'quests') {
+    // Item reward notes are dropped when the item is defined in this file or in the same folder bundle.
+    const plan = planQuestImport(data), here = recordIds(data);
+    const notes = (plan.notes ?? []).filter(n => { const id = n.match(/item reward (ITEM-[A-Z0-9-]+)/)?.[1]; return !here.has(id) && !knownIds.has(id); });
+    return {kind: 'quests', errors: plan.errors, notes};
+  }
   if (specialist === 'skill-trees') { const v = validateTrees(data); return {kind: 'skill-trees', errors: v.errors, notes: v.warnings}; }
   if (specialist === 'strain') { const v = validateStrainConfig(data); return {kind: 'strain', errors: v.errors, notes: [...v.warnings, 'Imported through Manager Import (to Ashen Gate | Cinders) or Cinders > GM Setup > Strain. Never changes a character\'s Strain.']}; }
   if (specialist === 'factions') return {kind: 'factions', errors: planFactions(data).errors, notes: []};
@@ -243,16 +252,25 @@ const expectsRejection = file => /\.invalid\.json$/i.test(file) || file.split(pa
 
 /** Checks every file and each folder's ZIP bundle. Returns {ok, lines}. */
 export async function validateTargets(targets) {
-  const lines = [], byFolder = new Map();
+  const lines = [], byFolder = new Map(), files = targets.flatMap(t => jsonFiles(path.resolve(t)));
   let ok = true;
-  for (const file of targets.flatMap(t => jsonFiles(path.resolve(t)))) {
+  // Ids each folder's bundle defines (rejection examples left out), so a quest's item reward note can see items beside it.
+  const folderIds = new Map();
+  for (const file of files) {
+    if (expectsRejection(file)) continue;
+    let ids;
+    try { ids = recordIds(JSON.parse(fs.readFileSync(file, 'utf8'))); } catch { continue; }
+    const dir = path.dirname(file);
+    folderIds.set(dir, new Set([...(folderIds.get(dir) ?? []), ...ids]));
+  }
+  for (const file of files) {
     const rel = path.relative(process.cwd(), file);
     let data;
     try { data = JSON.parse(fs.readFileSync(file, 'utf8')); } catch (e) { ok = false; lines.push(`FAIL ${rel}: not valid JSON (${e.message})`); continue; }
     const reject = expectsRejection(file);
     const expected = reject && data && typeof data === 'object' && !Array.isArray(data) ? data._expect_error : undefined;
     if (expected !== undefined) delete data._expect_error;
-    const {kind, errors, notes} = await checkContent(data, file);
+    const {kind, errors, notes} = await checkContent(data, file, {knownIds: folderIds.get(path.dirname(file))});
     if (reject) {
       const matched = !expected || errors.some(e => e.includes(expected));
       if (errors.length && matched) lines.push(`ok   ${rel} rejected as expected: ${errors[0]}`);

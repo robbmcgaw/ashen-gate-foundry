@@ -1,3 +1,11 @@
+## 0.13.0 — 2026-10-21
+
+- Quest files can list item rewards (`outcomes.item_rewards`: `item_id`, `quantity`, `visibility`, `recipient`, GM-only `note`). They appear in the quest's Item rewards list and are given like any other reward.
+- Import checks them and names the quest and entry for each mistake (unknown key, a uuid instead of `item_id`, duplicate id, bad value, more than 50).
+- The import warns, and still imports, when an item id has no item in the world yet.
+- Reimporting keeps the GM's reward changes and every grant; a reward taken out of the file after it was given shows "No longer in the quest".
+- Quests saved earlier with a malformed reward entry still open and publish (the entry is skipped).
+
 ## 0.12.0 — 2026-10-21
 
 - Give quest rewards: when a quest is saved as Completed and something is owed, the **Give rewards** panel opens (also from a button on the reward list). Pick who gets each reward, check **Will receive**, then **Grant rewards** (asks first). Results are shown per character.

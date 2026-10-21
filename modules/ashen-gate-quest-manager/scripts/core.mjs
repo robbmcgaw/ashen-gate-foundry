@@ -9,7 +9,7 @@ const STATES = ['pending','complete','failed'];
 export function assertGM(user) {if (!user?.isGM) throw new Error('GM permission required.');}
 export function assertUI(user, enabled) {if (!user?.isGM && !enabled) throw new Error('Quest Log is hidden by the GM.');}
 export function cleanText(s) {return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-export function validSource(s) {
+export function validSource(s,{itemRewards=true}={}) {
   if(!s || typeof s!=='object' || Array.isArray(s)) throw new Error('Objective must be an object.');
   if(!PERMANENT.test(s.id||'')) throw new Error('Invalid Quest/Order/Contract ID.');
   const kind=KINDS[s.id.split('-')[0]];
@@ -28,6 +28,7 @@ export function validSource(s) {
   if(s.objective_kind==='work_order'&&!['crafting','production'].includes(s.work_order_domain))throw new Error('Work Order requires crafting/production domain.');
   if(!s.source||typeof s.source!=='object'||Array.isArray(s.source))throw new Error('Source/issuer descriptor required.');
   if(!Array.isArray(s.locations)||!s.parameters||typeof s.parameters!=='object'||!s.outcomes||typeof s.outcomes!=='object')throw new Error('Locations, parameters and outcomes required.');
+  if(itemRewards&&s.outcomes.item_rewards!==undefined)validItemRewards(s.id,s.outcomes.item_rewards);
   return structuredClone(s);
 }
 export function initialState(source,{scope='party',actorId=null}={}){
@@ -55,6 +56,36 @@ const ADDED_KEY=/^rw-[A-Za-z0-9]{1,32}$/;
 const ITEM_ID=/^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/;
 const isObj=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const wholeQty=v=>Number.isInteger(v)&&v>=1;
+/* ---- 0.13.0: imported item rewards, outcomes.item_rewards[] (design §8.1). ---- */
+export const MAX_ITEM_REWARDS=50;
+const ITEM_REWARD_ID=/^ITEM-[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
+const ITEM_REWARD_KEYS=['item_id','quantity','visibility','recipient','note'];
+export function validItemRewards(questId,list){
+  const at=i=>`${questId}: outcomes.item_rewards[${i}]`;
+  if(!Array.isArray(list))throw new Error(`${questId}: outcomes.item_rewards must be a list.`);
+  if(list.length>MAX_ITEM_REWARDS)throw new Error(`${questId}: outcomes.item_rewards has ${list.length} entries (at most ${MAX_ITEM_REWARDS}).`);
+  const seen=new Set();
+  list.forEach((e,i)=>{
+    if(!isObj(e))throw new Error(`${at(i)} must be an object.`);
+    if('uuid' in e)throw new Error(`${at(i)}: Use item_id, not a Foundry uuid.`);
+    const extra=Object.keys(e).filter(k=>!ITEM_REWARD_KEYS.includes(k));
+    if(extra.length)throw new Error(`${at(i)}: unknown key ${extra.map(k=>JSON.stringify(k)).join(', ')} (allowed: ${ITEM_REWARD_KEYS.join(', ')}).`);
+    if(typeof e.item_id!=='string'||!ITEM_REWARD_ID.test(e.item_id))throw new Error(`${at(i)}: item_id must be an ITEM-* id.`);
+    if(seen.has(e.item_id))throw new Error(`${at(i)}: duplicate item_id ${e.item_id}.`);seen.add(e.item_id);
+    if(e.quantity!==undefined&&!wholeQty(e.quantity))throw new Error(`${at(i)}: quantity must be a whole number, 1 or more.`);
+    if(e.visibility!==undefined&&!REWARD_VISIBILITY.includes(e.visibility))throw new Error(`${at(i)}: visibility must be ${REWARD_VISIBILITY.join(', ')}.`);
+    if(e.recipient!==undefined&&!REWARD_RECIPIENTS.includes(e.recipient))throw new Error(`${at(i)}: recipient must be ${REWARD_RECIPIENTS.join(', ')}.`);
+    if(e.note!==undefined&&(typeof e.note!=='string'||e.note.length>300))throw new Error(`${at(i)}: note must be text of at most 300 characters.`);
+  });
+  return true;
+}
+/** Distinct item ids named by quests' item rewards: [{questId, itemId}] (first quest that names each id). */
+export function itemRewardIds(sources){
+  const out=new Map();
+  for(const s of sources)for(const e of Array.isArray(s?.outcomes?.item_rewards)?s.outcomes.item_rewards:[])
+    if(typeof e?.item_id==='string'&&!out.has(e.item_id))out.set(e.item_id,{questId:s.id,itemId:e.item_id});
+  return [...out.values()];
+}
 export function emptyRewards(){return {v:1,added:[],overrides:{},grants:[]};}
 export function validRewards(r){
   const bad=m=>{throw new Error(`Invalid item rewards: ${m}.`);};
@@ -96,7 +127,13 @@ export function rewardRows(source,state){
     const key=`def:${e.item_id}`;if(seen.has(key))continue;seen.add(key);
     rows.push({key,itemId:e.item_id,quantity:wholeQty(e.quantity)?e.quantity:1,
       visibility:REWARD_VISIBILITY.includes(e.visibility)?e.visibility:'on_complete',
-      recipient:REWARD_RECIPIENTS.includes(e.recipient)?e.recipient:'chosen',removed:false,round:1,origin:'import'});
+      recipient:REWARD_RECIPIENTS.includes(e.recipient)?e.recipient:'chosen',removed:false,round:1,origin:'import',
+      ...(typeof e.note==='string'&&e.note?{note:e.note.slice(0,300)}:{})});
+  }
+  // Granted before, then removed from the definition on reimport: keep the history visible to the GM.
+  for(const g of Array.isArray(r.grants)?r.grants:[])for(const l of Array.isArray(g?.lines)?g.lines:[]){
+    const key=l?.rewardKey;if(typeof key!=='string'||!key.startsWith('def:')||seen.has(key)||l.status!=='granted')continue;seen.add(key);
+    rows.push({key,itemId:key.slice(4),quantity:wholeQty(l.quantity)?l.quantity:1,visibility:'gm',recipient:'chosen',removed:false,round:1,origin:'import',gone:true});
   }
   for(const a of Array.isArray(r.added)?r.added:[]){
     if(!isObj(a)||!isObj(a.ref)||seen.has(a.key))continue;seen.add(a.key);
@@ -118,7 +155,7 @@ export function grantedKeys(state){
 export function givenTo(state,row,keys=grantedKeys(state)){
   const pre=`${row.key}|${row.round}|`;return [...keys].filter(k=>k.startsWith(pre)).map(k=>k.slice(pre.length));
 }
-const playerVisible=(row,state)=>!row.removed&&(row.visibility==='shown'||row.visibility==='on_complete'&&state.status==='Completed');
+const playerVisible=(row,state)=>!row.removed&&!row.gone&&(row.visibility==='shown'||row.visibility==='on_complete'&&state.status==='Completed');
 /** The rewards a player may see: name, img and quantity only. itemById(itemId) -> {name,img}|null names imported rows. */
 export function playerRewards(source,state,itemById=()=>null){
   const out=[];
@@ -137,7 +174,8 @@ export function rewardsDone(source,state){
   const keys=grantedKeys(state);return rows.every(r=>givenTo(state,r,keys).length>0);
 }
 export function publicView(source,s,{itemById}={}){
-  validSource(source);validState(source,s);
+  // Lenient on item_rewards: a quest saved before 0.13.0 with a malformed entry still publishes (rewardRows skips it).
+  validSource(source,{itemRewards:false});validState(source,s);
   if(source.visibility==='gm'||s.status==='Hidden'||source.visibility==='reveal_gated'&&!s.revealed)return null;
   return {contract:'ag-objectives/0.1-alpha',id:source.id,entity_type:'Objective',objective_kind:source.objective_kind,
     name:source.name,summary:String(source.public_summary??''),status:s.status,scope:s.scope,actorId:s.scope==='individual'?s.actorId:null,
@@ -164,13 +202,14 @@ export function normalizePackage(payload){
 /** What an import would do, without writing. mode 'skip' keeps existing Objectives; 'update' replaces their source and keeps their state. */
 export function planQuestImport(payload,existingIds=new Set(),{mode='skip'}={}){
   if(!['skip','update'].includes(mode))throw new Error('mode must be skip or update.');
-  let rows;try{rows=normalizePackage(payload);}catch(e){return {errors:[e.message],rows:[]};}
-  return {errors:[],rows:rows.map(source=>{
+  let rows;try{rows=normalizePackage(payload);}catch(e){return {errors:[e.message],rows:[],notes:[]};}
+  const notes=itemRewardIds(rows).map(({questId,itemId})=>`${questId}: item reward ${itemId} must be imported as an Item (in this file or already in the world).`);
+  return {errors:[],notes,rows:rows.map(source=>{
     const exists=existingIds.has(source.id);
     const action=!exists?'new':mode==='update'?'update':'skip';
     return {id:source.id,name:source.name,action,source,
       reason:action==='new'?'':action==='update'?'Replaces the quest definition; keeps its status and notes.':'Already in this world; kept as is.'};
   })};
 }
-export function exportPackage(rows){return {schema_version:SCHEMA,domain:'quests_orders',version:'0.4.0',records:rows.map(x=>validSource(x))};}
+export function exportPackage(rows){return {schema_version:SCHEMA,domain:'quests_orders',version:'0.4.0',records:rows.map(x=>validSource(x,{itemRewards:false}))};}
 export function associatedLocationIds(s){return [...new Set([...(s.locations||[]).map(x=>typeof x==='string'?x:x?.target_id),...(s.refs||[]).filter(x=>/location/i.test(x.relation||'')).map(x=>x.target_id)].filter(x=>/^LOC-[A-Z0-9-]+$/.test(x||'')))];}

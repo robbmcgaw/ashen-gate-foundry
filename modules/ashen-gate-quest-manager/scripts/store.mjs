@@ -1,4 +1,4 @@
-import {MOD,assertGM,validSource,validState,initialState,publicView,projectionOwnership,accessSignature,cleanText,normalizePackage,planQuestImport} from './core.mjs';
+import {MOD,assertGM,validSource,validState,initialState,publicView,projectionOwnership,accessSignature,cleanText,normalizePackage,planQuestImport,itemRewardIds} from './core.mjs';
 import {listAssignments} from './assignments.mjs';
 import {worldItemById} from './ag-item-drop.mjs';
 const FLAG = `flags.${MOD}`;
@@ -114,13 +114,18 @@ const questPlan=(payload,mode)=>{assertGM(game.user);return planQuestImport(payl
 /** GM-only preview for another module's import hand-off. Writes nothing. */
 export function previewQuestImport(payload,{mode='skip'}={}){
   const {errors,rows}=questPlan(payload,mode);
-  return {errors,rows:rows.map(({id,name,action,reason})=>({id,name,action,reason}))};
+  return {errors,warnings:unboundRewardWarnings(rows.filter(r=>r.action!=='skip').map(r=>r.source)),rows:rows.map(({id,name,action,reason})=>({id,name,action,reason}))};
+}
+/** Item rewards whose ITEM id has no world Item yet (the quest still imports; the row shows Missing until the item arrives). */
+function unboundRewardWarnings(sources){
+  return itemRewardIds(sources).filter(({itemId})=>!worldItemById(itemId))
+    .map(({questId,itemId})=>`${questId}: item reward ${itemId} has no matching item in this world yet. Import the item first; the quest still imports.`);
 }
 /** GM-only, additive: new Objectives are created; existing ones are kept (skip) or have their source replaced with status kept (update). */
 export async function importQuests(payload,{mode='skip'}={}){
   const {errors,rows}=questPlan(payload,mode);
   if(errors.length)throw new Error(`Import blocked: ${errors[0]}`);
-  const report={created:[],updated:[],skipped:[],failed:[]};
+  const report={created:[],updated:[],skipped:[],failed:[],warnings:unboundRewardWarnings(rows.filter(r=>r.action!=='skip').map(r=>r.source))};
   for(const row of rows){
     if(row.action==='skip'){report.skipped.push({id:row.id,reason:row.reason});continue;}
     try{
