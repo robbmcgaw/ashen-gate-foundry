@@ -31,7 +31,7 @@ test('removal decision: GM always, owner only when unlocked, native only, never 
 test('overlay groups only list characters with conditions and mark removable/custom',()=>{
  const a=mkActor('a1','Wren','alice',['prone','thinking']),b=mkActor('b1','Ash','bob',[]);
  const g=conditionGroups([a,b],{label:x=>x.toUpperCase(),isNative:x=>x==='prone',canRemove:(_,x)=>x==='prone'});
- assert.deepEqual(g,[{actorId:'a1',name:'Wren',conditions:[{id:'prone',label:'PRONE',custom:false,removable:true},{id:'thinking',label:'THINKING',custom:true,removable:false}]}]);
+ assert.deepEqual(g,[{actorId:'a1',name:'Wren',conditions:[{id:'prone',label:'PRONE',custom:false,readOnly:false,removable:true},{id:'thinking',label:'THINKING',custom:true,readOnly:false,removable:false}]}]);
 });
 
 // ---- Integration through main.mjs with a mocked socket ----

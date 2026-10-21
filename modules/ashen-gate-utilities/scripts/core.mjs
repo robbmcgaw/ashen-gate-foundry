@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.22.0';
+export const VERSION = '0.22.1';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -197,7 +197,14 @@ export async function removeUnknownStatus(actor, statusId) {
 }
 
 /* ---- v0.4.0: shared conditions view, per-character removal locks, overlay ---- */
-const hasStatus = (actor, id) => { const st = actor?.statuses; return st instanceof Set ? st.has(id) : Array.isArray(st) ? st.includes(id) : false; };
+export const hasStatus = (actor, id) => { const st = actor?.statuses; return st instanceof Set ? st.has(id) : Array.isArray(st) ? st.includes(id) : false; };
+/**
+ * 0.22.1: statuses another module keeps on its own, shown but never applied or removed here (feature-detected by id
+ * prefix, nothing is imported). `ag-strain-<band>` is the Cinders Strain chip: it follows the character's Strain.
+ */
+export const READ_ONLY_STATUS_PREFIXES = Object.freeze(['ag-strain-']);
+export const isReadOnlyStatus = id => typeof id === 'string' && READ_ONLY_STATUS_PREFIXES.some(p => id.startsWith(p));
+export const READ_ONLY_STATUS_HINT = 'Changed in Ashen Gate | Cinders or the Character Hub Strain bar';
 /** Removal is locked unless the GM unlocked the character. `unlocks` is the world setting {actorId: true}. */
 export const isUnlocked = (unlocks, actorId) => unlocks?.[actorId] === true;
 export function withUnlocked(unlocks, actorId, unlocked) {
@@ -210,11 +217,13 @@ export function withUnlocked(unlocks, actorId, unlocked) {
  * Whether `user` may remove `statusId` from `actor`. The GM always may. Anyone else must own the
  * character, the GM must have unlocked it, and the status must be a native one: Custom statuses are
  * removed by deleting or disabling their source effect, which stays a GM decision.
+ * Read-only statuses (isReadOnlyStatus, e.g. the Cinders Strain chip) are refused for everyone, the GM included.
  */
 export function removalDecision({user, actor, statusId, unlocks, nativeIds = []}) {
   if (!user) return {ok: false, reason: 'Unknown user.'};
   if (!actor) return {ok: false, reason: 'Character not found.'};
   if (!hasStatus(actor, statusId)) return {ok: false, reason: `${actor.name} does not have that condition.`};
+  if (isReadOnlyStatus(statusId)) return {ok: false, reason: `The Strain chip follows ${actor.name}'s Strain and can't be removed here. Change Strain in Ashen Gate | Cinders (or the Character Hub Strain bar).`};
   if (user.isGM) return {ok: true, reason: ''};
   if (!actor.testUserPermission?.(user, 'OWNER')) return {ok: false, reason: `You do not own ${actor.name}.`};
   if (!isUnlocked(unlocks, actor.id)) return {ok: false, reason: `The GM has locked condition removal for ${actor.name}.`};
@@ -223,7 +232,7 @@ export function removalDecision({user, actor, statusId, unlocks, nativeIds = []}
 }
 /** Overlay model: one group per character that has a condition, in the given order. */
 export function conditionGroups(actors, {label = id => id, isNative = () => true, canRemove = () => false} = {}) {
-  return actors.map(actor => ({actorId: actor.id, name: actor.name, conditions: [...(actor.statuses ?? [])].map(id => ({id, label: label(id), custom: !isNative(id), removable: Boolean(canRemove(actor, id))}))}))
+  return actors.map(actor => ({actorId: actor.id, name: actor.name, conditions: [...(actor.statuses ?? [])].map(id => ({id, label: label(id), custom: !isNative(id), readOnly: isReadOnlyStatus(id), removable: !isReadOnlyStatus(id) && Boolean(canRemove(actor, id))}))}))
     .filter(g => g.conditions.length);
 }
 

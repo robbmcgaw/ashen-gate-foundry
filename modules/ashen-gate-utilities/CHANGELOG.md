@@ -1,3 +1,10 @@
+## 0.22.1 — 2026-10-21
+
+- **Strain chip read only:** statuses whose id starts with `ag-strain-` (the Cinders 0.8.0 Strain chip) show in Conditions and the overlay with a **Read only** marker ("Changed in Ashen Gate | Cinders or the Character Hub Strain bar") and no Remove / ×, for the GM and for owners of unlocked characters. They are left out of the GM **Apply** list.
+- `api.conditions.canRemove` is false for them and `api.conditions.remove` (and player removal requests on the GM client) refuses them with a message saying where to change Strain. Detected by status id only; nothing is imported from Cinders.
+- **Fix:** Remove and Apply re-check the character afterwards. If the condition is still there (or wasn't applied) because another effect or module refused the change, you get an error instead of "Removed …".
+- Saved data: no change. No migration.
+
 ## 0.22.0 — 2026-10-21
 
 - **Chat cards:** every purchase, sale and Bank exchange posts a card whispered to the player who made it and the GM (no public card): who, character, item ×quantity (or coins given and got, with the fee), the total as the shop shows it, and the shop or bank name. The card is posted after the change is done; if chat fails, nothing is refused or put back (a console warning only).
