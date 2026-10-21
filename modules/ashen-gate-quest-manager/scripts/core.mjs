@@ -42,9 +42,79 @@ export function validState(source,s){
   if(!Array.isArray(s.objectiveReveal)||s.objectiveReveal.some(k=>!keys.has(k)))throw new Error('Invalid revealed objective.');
   if(s.publicLocationIds!==undefined&&(!Array.isArray(s.publicLocationIds)||s.publicLocationIds.some(x=>!/^LOC-[A-Z0-9-]+$/.test(x))))throw new Error('Invalid public Location IDs.');
   for(const [k,v] of Object.entries(s.progress||{}))if(!keys.has(k)||!STATES.includes(v))throw new Error('Invalid objective progress.');
+  if(s.rewards!==undefined)validRewards(s.rewards);
   return true;
 }
-export function publicView(source,s){
+/* ---- 0.11.0: item rewards (design docs/rewards-and-loot-design.md §3). Optional state block; a quest without it behaves as before.
+   rewards = {v:1, added:[{key:'rw-…', ref:ag-item-ref/1, visibility, recipient}], overrides:{[rewardKey]:{quantity?,visibility?,recipient?,removed?,round?}}, grants:[]} ---- */
+export const REWARD_VISIBILITY=Object.freeze(['on_complete','shown','gm']);
+export const REWARD_RECIPIENTS=Object.freeze(['chosen','each','split']);
+export const MAX_ADDED_REWARDS=100;
+const ADDED_KEY=/^rw-[A-Za-z0-9]{1,32}$/;
+const ITEM_ID=/^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/;
+const isObj=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
+const wholeQty=v=>Number.isInteger(v)&&v>=1;
+export function emptyRewards(){return {v:1,added:[],overrides:{},grants:[]};}
+export function validRewards(r){
+  const bad=m=>{throw new Error(`Invalid item rewards: ${m}.`);};
+  if(!isObj(r)||r.v!==1)bad('unknown format');
+  if(!Array.isArray(r.added))bad('added must be a list');
+  if(r.added.length>MAX_ADDED_REWARDS)bad(`at most ${MAX_ADDED_REWARDS} added rewards`);
+  const keys=new Set();
+  for(const a of r.added){
+    if(!isObj(a)||!ADDED_KEY.test(a.key||'')||keys.has(a.key))bad('missing or duplicate reward key');keys.add(a.key);
+    if(!isObj(a.ref)||a.ref.schema!=='ag-item-ref/1'||!wholeQty(a.ref.quantity))bad('item reference');
+    if(!REWARD_VISIBILITY.includes(a.visibility))bad('visibility');
+    if(!REWARD_RECIPIENTS.includes(a.recipient))bad('recipient');
+  }
+  if(r.overrides!==undefined){
+    if(!isObj(r.overrides))bad('overrides');
+    for(const [k,o] of Object.entries(r.overrides)){
+      if(!ADDED_KEY.test(k)&&!(k.startsWith('def:')&&ITEM_ID.test(k.slice(4)))||!isObj(o))bad('override key');
+      if(o.quantity!==undefined&&!wholeQty(o.quantity))bad('quantity');
+      if(o.visibility!==undefined&&!REWARD_VISIBILITY.includes(o.visibility))bad('visibility');
+      if(o.recipient!==undefined&&!REWARD_RECIPIENTS.includes(o.recipient))bad('recipient');
+      if(o.removed!==undefined&&typeof o.removed!=='boolean')bad('removed');
+      if(o.round!==undefined&&!wholeQty(o.round))bad('round');
+    }
+  }
+  if(r.grants!==undefined&&!Array.isArray(r.grants))bad('grants must be a list');
+  return true;
+}
+/** One merged reward list: imported rows (outcomes.item_rewards, key def:<item_id>) then GM-added rows, overrides applied.
+    Malformed imported entries are skipped quietly (import validation is a later step). */
+export function rewardRows(source,state){
+  const r=isObj(state?.rewards)?state.rewards:emptyRewards(),over=isObj(r.overrides)?r.overrides:{};
+  const rows=[],seen=new Set();
+  const list=Array.isArray(source?.outcomes?.item_rewards)?source.outcomes.item_rewards:[];
+  for(const e of list){
+    if(!isObj(e)||!ITEM_ID.test(e.item_id||''))continue;
+    const key=`def:${e.item_id}`;if(seen.has(key))continue;seen.add(key);
+    rows.push({key,itemId:e.item_id,quantity:wholeQty(e.quantity)?e.quantity:1,
+      visibility:REWARD_VISIBILITY.includes(e.visibility)?e.visibility:'on_complete',
+      recipient:REWARD_RECIPIENTS.includes(e.recipient)?e.recipient:'chosen',removed:false,round:1,origin:'import'});
+  }
+  for(const a of Array.isArray(r.added)?r.added:[]){
+    if(!isObj(a)||!isObj(a.ref)||seen.has(a.key))continue;seen.add(a.key);
+    rows.push({key:a.key,ref:a.ref,itemId:a.ref.itemId??null,quantity:wholeQty(a.ref.quantity)?a.ref.quantity:1,
+      visibility:a.visibility,recipient:a.recipient,removed:false,round:1,origin:'gm'});
+  }
+  return rows.map(row=>{const o=isObj(over[row.key])?over[row.key]:{};
+    return {...row,...(wholeQty(o.quantity)?{quantity:o.quantity}:{}),...(REWARD_VISIBILITY.includes(o.visibility)?{visibility:o.visibility}:{}),
+      ...(REWARD_RECIPIENTS.includes(o.recipient)?{recipient:o.recipient}:{}),removed:o.removed===true,round:wholeQty(o.round)?o.round:1};});
+}
+/** The rewards a player may see: name, img and quantity only. itemById(itemId) -> {name,img}|null names imported rows. */
+export function playerRewards(source,state,itemById=()=>null){
+  const out=[];
+  for(const row of rewardRows(source,state)){
+    if(row.removed||!(row.visibility==='shown'||row.visibility==='on_complete'&&state.status==='Completed'))continue;
+    const look=row.origin==='gm'?row.ref:itemById(row.itemId);
+    if(!look||typeof look.name!=='string'||!look.name)continue;
+    out.push({name:look.name,img:typeof look.img==='string'?look.img:null,quantity:row.quantity});
+  }
+  return out;
+}
+export function publicView(source,s,{itemById}={}){
   validSource(source);validState(source,s);
   if(source.visibility==='gm'||s.status==='Hidden'||source.visibility==='reveal_gated'&&!s.revealed)return null;
   return {contract:'ag-objectives/0.1-alpha',id:source.id,entity_type:'Objective',objective_kind:source.objective_kind,
@@ -52,7 +122,7 @@ export function publicView(source,s){
     objectives:source.objectives.filter(o=>o.visibility!=='gm'&&((o.reveal_on_create!==false&&o.visibility!=='reveal_gated')||s.objectiveReveal.includes(o.key)))
       .map(o=>({key:o.key,goal:o.goal,complete:s.progress?.[o.key]==='complete',failed:s.progress?.[o.key]==='failed'})),
     locationIds:(s.publicLocationIds||[]).filter(x=>/^LOC-[A-Z0-9-]+$/.test(x)),
-    partyNotes:s.partyNotes||'',rewardRecorded:!!s.rewardRecorded};
+    partyNotes:s.partyNotes||'',rewardRecorded:!!s.rewardRecorded,rewards:playerRewards(source,s,itemById)};
 }
 // Explicit view visibility: never expose even objective counts for hidden objectives.
 export function projectionOwnership(s,actor,users=[]){
