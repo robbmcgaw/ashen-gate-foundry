@@ -13,11 +13,12 @@ import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,infoDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
 import {readDrop,resolveItemDrop} from './ag-item-drop.mjs';
+import {isLevelBackup,assertNotLevelBackup,LEVEL_BACKUP_REFUSAL} from './level-backup.mjs';
 import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument,qaCleanupBlockers} from './qa-fixtures.mjs';
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.19.3';
+const VERSION='0.19.4';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -53,7 +54,7 @@ const copy=x=>structuredClone(x);
 const safeFlag=(document,key)=>document?.flags?.[MODULE]?.[key];
 const sourceFlag=document=>document?.flags?.['ashen-gate-manager']?.source??null;
 const hasOwner=actor=>Boolean(actor&&(game.user.isGM||actor.isOwner));
-const actorChoices=()=> (game.actors?.contents??[]).filter(a=>a.type==='character' && hasOwner(a))
+const actorChoices=()=> (game.actors?.contents??[]).filter(a=>a.type==='character' && hasOwner(a) && !isLevelBackup(a))
   .sort((a,b)=>a.name.localeCompare(b.name));
 const gmPrivate=()=>game.user.isGM ? game.journal?.contents?.find(d=>safeFlag(d,STORAGE_FLAG)===true)??null:null;
 const readPrivate=()=>{
@@ -154,6 +155,7 @@ async function saveTrees(trees,{previous=null,checkPurchased=true}={}){
 async function persistAccount(actor,tree,next){
   if(!game.user.isGM)throw Error('GM only: Actor progression writes');
   if(!actor)throw Error('No Actor selected');
+  assertNotLevelBackup(actor);
   const records=copy(safeFlag(actor,'progressV2')??{});
   records[walletKey(tree)]=cleanAccount(next);
   await actor.setFlag(MODULE,'progressV2',records);
@@ -178,6 +180,7 @@ async function givePerk(actor,tree,node){
 // One unlock/refund at a time per character, so a double click or two clients cannot spend twice.
 const actorLocks=new Map();
 function withActorLock(actorId,fn){
+  assertNotLevelBackup(game.actors?.get?.(actorId)); // every unlock/refund/override/reset/undo/setAccount/perk grant passes here first
   const run=(actorLocks.get(actorId)??Promise.resolve()).then(fn);
   const tail=run.catch(()=>{});actorLocks.set(actorId,tail);
   tail.then(()=>{if(actorLocks.get(actorId)===tail)actorLocks.delete(actorId);});
@@ -527,6 +530,7 @@ async function handleUnlockRequest(message,senderId){
     if(!user||user.isGM)throw Error('Unknown player');
     if(!playerAccessEnabled())throw Error('Skill Trees is hidden from players right now');
     if(!actor||actor.testUserPermission?.(user,'OWNER')!==true)throw Error('You do not own that character');
+    assertNotLevelBackup(actor);
     const {node}=await unlockNode(actor,message.treeId,message.nodeId,{forUser:user});
     reply(true,`${node.name} unlocked for ${actor.name}.`);
   }catch(error){reply(false,String(error?.message??error));}
@@ -1341,7 +1345,7 @@ async function onProgressionChanged({actorId,profId,previousLevel,level}={}){
   refreshEmbeds(actorId);
   if(instance?.rendered)instance.render();
   if(!game.user?.isGM||game.users?.activeGM?.id!==game.user.id)return;
-  const actor=game.actors?.get?.(actorId);if(!actor||!Number.isSafeInteger(level)||!Number.isSafeInteger(previousLevel)||level===previousLevel)return;
+  const actor=game.actors?.get?.(actorId);if(!actor||isLevelBackup(actor)||!Number.isSafeInteger(level)||!Number.isSafeInteger(previousLevel)||level===previousLevel)return;
   for(const stored of readPrivate().filter(t=>t.provider.kind==='profession'&&t.sourceRef===profId)){
     const t=resolved(stored),st=professionStatus(t,readProgress(actor,stored),level);
     try{
@@ -1374,6 +1378,7 @@ const shortText=x=>{const t=String(x??'').replace(/<[^>]*>/g,' ').replace(/\s+/g
 function embedRefusal(actor){
   if(!canOpenTrees())return 'The GM has hidden Skill Trees.';
   if(!actor)return 'That character no longer exists.';
+  if(isLevelBackup(actor))return LEVEL_BACKUP_REFUSAL;
   if(!hasOwner(actor))return `Only ${actor.name}'s owner and the GM can see this.`;
   return '';
 }
