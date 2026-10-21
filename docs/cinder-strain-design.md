@@ -1,6 +1,6 @@
 # Cinder instances, Strain, Push and Backfire — design (DRAFT)
 
-Status: **Phase 0 draft, not built.** Nothing here is approved rules content. Every number and name below that is a campaign rule is a *configurable default* or an *open decision* (section 9). Campaign names (Cinder types, band names, power names) arrive through content import, never through engine code. Examples use synthetic `[TEST]` data.
+Status: **Phase 0 draft, not built.** Revision 2: Robb's answers to decisions a–g folded in (section 9); points still to confirm are marked **Confirm**. Nothing here is approved rules content. Every number and name below that is a campaign rule is a *configurable default* or an *open decision* (section 9). Campaign names (Cinder types, band names, power names) arrive through content import, never through engine code. Examples use synthetic `[TEST]` data.
 
 Target: Foundry V14 on The Forge, dnd5e 6.0.6 (2024 rules).
 
@@ -84,7 +84,7 @@ Every node on a Cinder tree is a POWER-* record. A node is either a **power** (a
 
 ```json
 {"id": "BF-TEST-GENERIC", "entity_type": "BackfireTable",
- "backfire": {"schema": "ag-backfire/0.1", "selection": "gm_choice",
+ "backfire": {"schema": "ag-backfire/0.1",
   "entries": [
    {"id": "jolt", "severity": 1, "type": "condition", "status": "poisoned", "duration": {"rounds": 1}, "summary": "[TEST]"},
    {"id": "fizzle", "severity": 1, "type": "power_disruption", "duration": {"until": "short_rest"}, "summary": "[TEST]"},
@@ -92,6 +92,8 @@ Every node on a Cinder tree is a POWER-* record. A node is either a **power** (a
    {"id": "omen", "severity": 3, "type": "narrative", "summary": "[TEST] GM adjudicates."}
   ]}}
 ```
+
+Each entry has a `severity` (integer ≥ 1) and an optional `weight` (default 1) used by the consequence roll (4.1 step 5).
 
 Allowed consequence `type`s (closed list, validator-enforced): `condition` (a dnd5e status as a temporary ActiveEffect; **duration required**; `dead`, `unconscious` and exhaustion are not allowed), `power_disruption` (a power of the instance cannot be used/pushed for a duration), `resource` (spend dnd5e uses/hit dice/slots, floored at 0, never HP), `strain` (extra Strain, never triggers another roll), `narrative` (recorded; the GM adjudicates). **There is no type that kills, deletes, consumes or erases a character, an instance or its progression**, and the engine has no code path that does — see 4.4.
 
@@ -120,11 +122,21 @@ World config (`ashen-gate-strain` world setting, GM-editable, importable as `ag-
 ```json
 {"schema": "ag-strain-config/0.1", "min": 0, "max": 10,
  "backfire_schedule": [0,5,10,20,25,35,50,60,75,90,100],
- "bands": [{"from":0,"to":0,"label":"Band 0"},{"from":1,"to":2,"label":"Band 1"}, "…"],
- "overflow": "unset", "recovery": "unset", "guarantee_at_max": "unset"}
+ "bands": [{"from":0,"to":0,"label":"Band 0"},{"from":1,"to":2,"label":"Band 1"}, "…", {"from":10,"to":null,"label":"Band 6"}],
+ "hard_max": null,
+ "guarantee_from": 10,
+ "normal_use_backfire_above": 10,
+ "allow_prevention_at_guarantee": false,
+ "rest_recovery": {"long": 1, "short": 0},
+ "severity_roll": {"enabled": true, "die": "1d4"},
+ "initial_cinder_points": 1}
 ```
 
-The shipped defaults are the schedule from the spec and neutral labels `Band 0…Band 6`; the campaign's band names come in through this file from the private content repo.
+- `min` is the floor (0). There is **no cap at 10**: raw Strain can go above it. `hard_max` is an optional sanity ceiling (`null` = none); gain beyond it is recorded as `overflow` in history, never lost silently.
+- `backfire_schedule[i]` is the chance at Strain `i`; any Strain above the last index uses the last entry. At or above `guarantee_from` every Push backfires.
+- Above `normal_use_backfire_above` every normal (non-Push) use of a Cinder power also backfires (4.5).
+- `allow_prevention_at_guarantee` (default off): when off, modifiers still change gain, severity and consequences at or above the guarantee but cannot bring the chance below 100.
+- The shipped defaults are the schedule from the spec and neutral labels `Band 0…Band 6` (the last band is open-ended); the campaign's band names come in through this file from the private content repo.
 
 ### 3.2 Cinder instance — owned by Skill Trees
 
@@ -135,7 +147,7 @@ Authoritative registry: a GM-only Journal `[AG] Skill Trees — Cinder Instances
  "label": "", "status": "bound",
  "bearer": {"actorId": "…", "since": 0},
  "progression": {"awarded": 3, "unlocks": ["n1","n2"], "grants": [{"key":"milestone-1","amount":1}], "revision": 5, "history": []},
- "attunement": {"state": "attuned", "since": 0},
+ "bound": {"since": 0, "by": "gmUserId"},
  "usage": {"POWER-TEST-EMBER-SPARK": {"disruptedUntil": null}},
  "pushLog": [], "pending": null, "revision": 9, "createdAt": 0, "migratedFrom": null}
 ```
@@ -143,6 +155,7 @@ Authoritative registry: a GM-only Journal `[AG] Skill Trees — Cinder Instances
 - `instanceId` is world-local, random, permanent; distinct from `definitionId` (MUT-*).
 - `progression` reuses the existing account shape (`cleanAccount`), so trees, prerequisites, refunds and undo keep working unchanged — only the storage location moves.
 - `status`: `unbound` | `bound` | `lost` (bearer Actor deleted; progression kept) | `retired` (GM).
+- **Bound** means bound: a bearer cannot release a Cinder. There is no player unbind action, no mechanical attunement step and no waiting state; only the GM can unassign or transfer, when the story allows it. A newly bound bearer can use and Push at once.
 - Bearer mirror on the Actor: `flags['ashen-gate-skill-trees'].cinders = [{instanceId, definitionId, revision}]` — a pointer the owner's client can read; the registry wins on any disagreement and the GM-client reconcile repairs the mirror.
 - Player view: the published projection of the bearer's instance (definition name, unlocked public nodes, points, push modes they can use) is written to the mirror by the GM client. `gm_notes`, hidden nodes and other bearers' instances never reach players.
 
@@ -172,7 +185,7 @@ Targets (closed list):
 | `backfire.chance` | percentage points on the scheduled chance | integer |
 | `backfire.severity` | shift severity of the selected entry (min 1) | integer |
 | `backfire.table` | use another BF-* table for matching pushes | BF-* id (op `set`) |
-| `strain.recovery` | amount recovered by a recovery event (decision a) | integer |
+| `strain.recovery` | amount removed by a recovery matching `scope.sources` (rest, item, spell, …) | integer |
 | `push.mode.grant` | adds a Push mode to a power | push mode object (op `grant`) |
 | `push.mode.revoke` | removes a Push mode (tradeoffs) | mode id (op `revoke`) |
 | `power.uses.max` | adjusts standard uses of a power | integer |
@@ -197,8 +210,11 @@ Runs on the active GM client (`game.users.activeGM`; player Pushes are relayed b
 1. **Select**: the Actor bears the instance; the power is unlocked; the mode is available (base modes + `grant` − `revoke`); `requires` met; power not disrupted; mode `limit` not exhausted; Strain module present.
 2. **Cost**: `cost = clamp≥1( mods(push.cost, mode.strain_cost) )`.
 3. **Gain** (always): `gain = clamp≥1( mods(strain.gain, cost) )`; `post = apply overflow rule (decision b) to value + gain`.
-4. **Chance** from **post-gain** Strain: `chance = mods(backfire.chance, schedule[post])`; if `post` ≥ max and `guarantee_at_max` is not `modifiers_can_prevent` (decision c), `chance = 100`.
-5. **Resolve Backfire**: `chance === 100` → automatic; `chance === 0` → none; otherwise roll 1d100 with Foundry `Roll`; `roll ≤ chance` is a Backfire. Select the entry per decision (d) (`gm_choice` default: the GM picks from the table in a dialog before commit; `roll`: weighted roll; `by_band`: lowest/highest severity tied to band) and apply `backfire.severity`.
+4. **Chance** from **post-gain** Strain: `chance = mods(backfire.chance, schedule[min(post, last)])`; if `post ≥ guarantee_from` and `allow_prevention_at_guarantee` is off, `chance = 100`.
+5. **Resolve Backfire**: `chance === 100` → automatic; `chance === 0` → none; otherwise roll 1d100 with Foundry `Roll`; `roll ≤ chance` is a Backfire. On a Backfire:
+   - **Severity roll** (when `severity_roll.enabled`): roll `severity_roll.die`, add `backfire.severity` modifiers, clamp to the table's severity range.
+   - **Consequence roll**: roll on the power's BF table (the table named by `backfire.table` modifiers, else the mode's table), among entries of that severity (all entries when the severity roll is off), weighted by `weight` (default 1).
+   - Both rolls are shown on the chat card. The GM can always override or void the consequence afterwards (4.2).
 6. **Outcome** (fixed order): (a) Strain gain; (b) Push effect recorded; (c) Backfire consequence applied (condition/disruption/resource/strain) or recorded (narrative); (d) usage counters.
 7. **Persist and record**: commit the op, append to `pushLog` and Strain history, post one chat card (player-safe; GM-only notes whispered).
 
@@ -215,6 +231,8 @@ Each Push has an `opId`. Writes happen only after steps 1–5 succeed:
 
 If any step 2–3 throws: compensate in reverse — delete effects tagged `opId`, restore recorded resources, `strain.remove(actor, gain, {opId: opId+':rollback'})` — then clear `pending`, log `{opId, status: 'rolled_back', error}` to `pushLog`, whisper the GM, and tell the player the Push did not happen. No chat card for a rolled-back Push, so no result was "seen".
 
+**GM override** after commit is its own op: it compensates the original consequence (by its opId tags) and applies the GM's chosen one (or none), all or nothing, logged with the GM's reason. It never changes the Strain gained by the Push.
+
 If the GM client dies mid-op (`pending` still set): on the next GM `ready`, recovery rolls the op **back** with the same opId-tagged compensation and logs `rolled_back: interrupted`. Because every step is idempotent by opId, running recovery twice is harmless. Rejections at step 1 write nothing except a `rejected` log line with the reason.
 
 ### 4.3 Automated consequence effects
@@ -225,7 +243,21 @@ Only `condition` (temporary ActiveEffect with duration, origin = the instance, f
 
 - The consequence type list has no death/delete/consume type; the validator rejects `dead`, `unconscious`, exhaustion and HP effects.
 - Backfire code never deletes or edits an Actor's HP, death saves, or exhaustion, never deletes an Item other than its own opId-tagged effects, and never changes instance `status`/`bearer`/`progression`.
-- Strain 10 guarantees a Backfire (by default), not death. Tests assert this at max Strain with every consequence type.
+- Strain at the guarantee point (10 by default), or any amount above it, guarantees a Backfire, not death. Tests assert this at max Strain with every consequence type.
+
+### 4.5 Normal (non-Push) use
+
+Normal use spends dnd5e uses on the granted POWER Item; it does not gain Strain by default (**Confirm**). Skill Trees watches dnd5e activity use (`dnd5e.postUseActivity`) on Items tagged with an `instanceId`:
+- Strain ≤ `normal_use_backfire_above` (10): nothing happens; no roll.
+- Strain above it: a guaranteed Backfire, resolved with the same severity and consequence rolls and the same transaction as 4.2, source `cinder_use`. It never blocks or undoes the use itself.
+- **At exactly 10** (design assumption, **Confirm**): a normal use does not backfire; a Push at 10 is guaranteed to.
+- Enhancement (passive) nodes have no use, so they never trigger this.
+
+### 4.6 Recovery
+
+Recovery is a validated `strain.remove` with a typed `source.kind`: `rest_long`, `rest_short`, `item`, `consumable`, `spell`, `blessing`, `gm`, `other`. Every recovery records source and reason in history. `strain.recovery` modifiers (scoped by kind) adjust the amount; a recovery never goes below `min`.
+- **Rest:** the Strain module listens to dnd5e's rest-completed hook and removes `rest_recovery.long` (default 1) on a long rest and `rest_recovery.short` (default 0) on a short rest; the rest runs on the owner's client, so it relays to the GM client, idempotent by the rest's id.
+- **Items, spells, consumables, blessings:** any module or macro calls `strain.remove(actor, n, {source: {kind: 'consumable', module, ref: 'ITEM-…'}, reason})` on the GM client. A typed `strain_recovery` block on item content (in Manager's item effects) is a later step, not in these PRs (**Confirm** whether it is wanted now).
 
 ## 5. Ownership operations (GM only, API-enforced)
 
@@ -235,7 +267,8 @@ Transfer uses the same pending-op pattern: record intent → remove the instance
 
 - **Strain stays with A.** Transfer never reads or writes Strain. A's Backfire conditions stay on A (proposed, to confirm).
 - Points and unlocks move with the instance; nothing is regranted, so no duplicate POWER Items or points.
-- Attunement on the new bearer per decision (f).
+- The new bearer is bound at once (no attunement step). Players cannot unassign, transfer or release.
+- **Starting point:** when an instance is first bound, it receives `initial_cinder_points` (default 1) as a grant keyed `initial`; transfers never award it again because the grant key is already used.
 - **Lost Actor**: `deleteActor` → instance becomes `lost` with `lastBearer`; GM is notified; progression kept; `assign` rebinds it.
 - **Ownership validation**: Tree Library → Saved data check gains a Cinder section (invariants 1–3, pending ops, mirrors out of date, definitions missing) with Repair actions that only fix mirrors/Items, never progression.
 
@@ -281,16 +314,27 @@ The Strain module is new: no migration. A future config schema change will migra
 
 ## 9. Open decisions (each a GM setting; default "unset" = GM decides)
 
-| | Decision | Setting while unset | Recommended default |
+Robb's answers (via Studio), and how the design takes them:
+
+| | Decision | Answer | Design |
 |---|---|---|---|
-| a | Strain recovery | No automatic recovery; GM uses Remove with a reason | GM-triggered recovery event (e.g. long rest button) removes a configured amount; `strain.recovery` modifiers adjust it |
-| b | Strain beyond max | Cap at max, excess recorded as `overflow` in history | Cap at max, record overflow (no hidden damage) |
-| c | Can modifiers prevent Backfire at max | No: guaranteed | No: 100% at max regardless of modifiers |
-| d | Severity / consequence selection | `gm_choice` from the power's table | `gm_choice`, with `roll` available per table |
-| e | Initial Cinder points / awards | 0 points; GM awards milestones (current 13-point wallet) | Keep: starting powers granted free, milestones by GM |
-| f | Attunement on transfer | None: new bearer can use powers immediately | `attunement.state = 'pending'` until the GM confirms; Push blocked while pending, normal use allowed |
-| g | Backfire on normal use | No (Push only) | No |
-| — | Transfer copies Strain/conditions | No (proposed) | No |
+| a | Strain recovery | Slowly with rest, like exhaustion, or through items, spells, consumables, blessings | 4.6: `rest_recovery` (long 1, short 0) + typed recovery sources through the shared API |
+| b | Strain past 10 | Past 10 you backfire every time you use your Cinder | No cap at 10; optional `hard_max` (default none); guarantee from 10 |
+| c | Modifiers at/past 10 | May modify backlash/strain past 10, probably not prevent it | Modifiers apply; `allow_prevention_at_guarantee` default off |
+| d | Consequence selection | Rolled when pushing; severity maybe a second roll | Consequence roll always; severity roll on by default (**unconfirmed**), die configurable; GM override |
+| e | Starting points | 1 point when a character gets the Cinder | `initial_cinder_points: 1`, once per instance |
+| f | Attunement | Bind to it; can't unbind until an in-game reason allows; not mechanical | Bound state, GM-only unassign/transfer, no attunement step |
+| g | Normal use | Non-pushes backfire beyond 10 | 4.5: above 10 every normal use backfires; ≤10 never |
+| — | Transfer copies Strain/conditions | Still proposed | No |
+
+Points to confirm:
+1. Exactly at 10, a normal use does **not** backfire (only above 10); a Push at 10 does.
+2. Normal use gains no Strain.
+3. Severity roll: on by default, die `1d4` (= severity tiers 1–4), consequence then rolled within that tier. Or should severity scale with Strain or band?
+4. The starting point is once per Cinder instance (not again for each new bearer), and it counts inside the 13-point wallet.
+5. `hard_max`: none, or a number?
+6. Item/consumable recovery content (a typed block on items) now, or API only for now?
+7. Transfer leaves Strain and Backfire conditions with the old bearer.
 
 ## 10. Build plan (one module per PR)
 
