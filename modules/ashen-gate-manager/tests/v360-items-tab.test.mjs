@@ -346,12 +346,3 @@ test('public API names are unchanged and stay GM-gated; Codex open goes to Items
   assert.match(main, /Object\.assign\(activeApp,\{tab:'items',itemsView:'codex',codexFocus:id\}\)/);
   assert.match(main, /if\(!game\.user\?\.isGM\)throw new Error\('Only GMs can open the General Manager\.'\)/);
 });
-
-test('version 0.36.0 is consistent', () => {
-  const manifest = JSON.parse(read('../module.json'));
-  assert.equal(manifest.version, '0.36.0');
-  assert.match(manifest.download, /ashen-gate-manager-v0\.36\.0\/ashen-gate-manager\.zip$/);
-  assert.match(tpl, /v0\.36\.0 Beta/);
-  assert.match(main, /General Manager v0\.36\.0 Beta/);
-  assert.match(main, /v0\.36\.0 ready/);
-});

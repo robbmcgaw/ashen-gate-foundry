@@ -1,7 +1,7 @@
 <section class="agmanager-body">
   <header class="ag-header agmanager-top">
     <i class="agmanager-emblem fa-solid fa-dungeon" aria-hidden="true"></i>
-    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.36.0 Beta</small></h2></div>
+    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.37.0 Beta</small></h2></div>
     <button type="button" class="agmanager-help" data-ag-action="help" aria-label="Manager Help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button><span class="agmanager-chip">GM only</span>
   </header>
   <nav class="ag-tabs agmanager-nav" aria-label="Manager tabs">
@@ -122,7 +122,7 @@
         <td><strong>{{name}}</strong><code>{{id}}</code></td>
         <td>{{kind}}<div class="agmanager-tiny">{{lifecycle}}</div></td>
         <td><span class="agmanager-badge agmanager-{{action}}">{{badge}}</span></td>
-        <td>{{reason}}{{#if changes.length}}<ul class="agmanager-changes">{{#each changes}}<li>{{this}}</li>{{/each}}</ul>{{/if}}</td>
+        <td>{{reason}}{{#if changes.length}}<ul class="agmanager-changes">{{#each changes}}<li>{{this}}</li>{{/each}}</ul>{{/if}}{{#if effectRows.length}}<ul class="agmanager-changes agmanager-effects" aria-label="Effects">{{#each effectRows}}<li><strong>{{label}}</strong> {{name}}{{#if effId}} <code>{{effId}}</code>{{/if}}: {{reason}}</li>{{/each}}</ul>{{/if}}</td>
       </tr>
       {{/each}}
       </tbody>

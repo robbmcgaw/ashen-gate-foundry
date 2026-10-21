@@ -25,6 +25,7 @@ import {runPreSessionCheck} from './pre-session-check.js';
 import {buildImportReport, buildBlockedReport, pushReport} from './import-result.js';
 import {ITEM_FLAG, ACTOR_ITEMS_FLAG, itemKeys, matchActors, planActor, applyActorUpdate} from './actor-update.js';
 import {mediaFilename} from './zip-import.js';
+import {planItemEffects, effectSummary, applyItemEffects, effectCreateData, allowedItemFlags, flagWarnings, liveEffects} from './item-effects.js';
 import {createSceneMoods, MOODS_SETTING, LAYERS_SETTING, MOOD_FIELDS, FIELD_GROUPS, NO_WEATHER, formatValue} from './scene-moods.js';
 const MOOD_VIEWS=[{id:'live',label:'Live: this scene',icon:'fa-solid fa-sun'},{id:'library',label:'Moods & layers',icon:'fa-solid fa-layer-group'},{id:'share',label:'Export & import',icon:'fa-solid fa-right-left'}];
 const MOOD_TRANSITIONS=[{value:'',label:'Preset default'},{value:0,label:'Instant'},{value:3000,label:'3 s'},{value:10000,label:'10 s'},{value:30000,label:'30 s'}];
@@ -127,7 +128,12 @@ async function createRecord(record, pkg, availableIds, report=()=>{}) {
   }
   data.ownership = {default: CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE};
   // Keep authored Actor flags, but reserve Manager's own namespace for immutable source bindings.
-  data.flags = {...(kind==='Actor'?data.flags??{}:{}),[MODULE_ID]:{source:sourceMetadata(record, pkg, availableIds)}};
+  // Items keep only allow-listed flags (0.37.0); Manager's own namespace is always written from the record.
+  data.flags = {...(kind==='Actor'?data.flags??{}:kind==='Item'?allowedItemFlags(data.flags):{}),[MODULE_ID]:{source:sourceMetadata(record, pkg, availableIds)}};
+  if(kind==='Item') {
+    if(Array.isArray(data.effects)&&data.effects.length) data.effects=record.foundry.data.effects.map(effectCreateData);
+    else delete data.effects;
+  }
   if(kind==='Actor') {
     // Mark the package's embedded Items so a later opt-in update can tell them from player-added ones.
     const keys=itemKeys(data.items??[]);
@@ -166,7 +172,19 @@ function planDocument(record,pkg,{includeDrafts,updateActors,zipMedia}) {
   }
   const matches=foundDocuments(record.id).map(docWrapper);
   if(matches.some(m=>m.doc.getFlag(MODULE_ID,'lifecycle')?.archived)) return {plan:{action:'blocked',reason:'Existing record is archived; restore it before reimport.'},docs:matches.map(m=>m.doc)};
-  return {plan:planWithMetadata(record,matches,findSameNameUnmanaged(record),includeDrafts,pkg),docs:matches.map(m=>m.doc)};
+  const plan=planWithMetadata(record,matches,findSameNameUnmanaged(record),includeDrafts,pkg);
+  return {plan:withItemEffects(record,plan,matches),docs:matches.map(m=>m.doc)};
+}
+/** Item effects (0.37.0): new ones are created, Manager-made ones updated field-wise, the rest kept. Effects alone can make an Item an update. */
+function withItemEffects(record,plan,matches) {
+  const defs=record.foundry?.document_type==='Item'?record.foundry.data?.effects:null;
+  if(!Array.isArray(defs)||!defs.length) return plan;
+  if(plan.action==='create') return {...plan,reason:`${plan.reason} Effects: ${defs.length} new.`,effects:{counts:{create:defs.length}}};
+  if(matches.length!==1||!['update','unchanged','local','metadata'].includes(plan.action)) return plan;
+  const effects=planItemEffects(defs,liveEffects(matches[0].doc));
+  const note=effectSummary(effects);
+  if(!effects.writes) return {...plan,reason:`${plan.reason} ${note}`,effects};
+  return {...plan,action:plan.action==='metadata'||plan.action==='update'?plan.action:'update',patch:plan.patch??{},reason:`${plan.action==='unchanged'?'Item fields unchanged.':plan.reason} ${note}`,effects};
 }
 
 const TYPE_LABEL={Item:'Items',Actor:'Actors',JournalEntry:'Journals'};
@@ -176,7 +194,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.36.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.37.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -799,7 +817,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       }
       case "help": {
         await DialogV2.confirm({window:{title:'Ashen Gate | General Manager Help'},
-          content:'<p><strong>Items:</strong> one tab with a side rail: <strong>All items</strong> (search), <strong>Ashen Gate records</strong> (the old Library), <strong>Folders</strong> (Organize), <strong>Core links</strong>, <strong>Checks</strong>, plus Export, Adopt and NPC Codex. The filters at the top (search, source, type, origin, rarity, folder, has core_ref) stay as you move between rail entries, so you can filter to DDB / Plutonium items and then Preview organize for just those.</p><p><strong>All items:</strong> one search over world Actors, Items, Journals (and pages), Ashen Gate records from Locations, Quest Log, Renown (factions and deities), Skill Trees, Headquarters, the Profession Ledger and the NPC Codex, and (after Load compendiums) compendium indexes. Type words or prefixes such as id:MAT-HERB, id:DEITY-, type:deity, type:npc-codex, tag:, status:, tier:major. An NPC Actor and its Codex entry are one row; Open on it jumps to Items → NPC Codex at that NPC, Open on a deity opens Renown\u2019s Pantheon at it. Open shows the sheet or the owning module; drag a world or compendium row onto a sheet, the canvas or a journal. Read-only; 100 rows per page.</p><p><strong>Clean import:</strong> Choose Manager JSON or a ZIP; select Development for draft content, Validate & Preview, Select eligible, then Import.</p><p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro; no Scenes or Playlists. </p><p><strong>ZIP bundles:</strong> a ZIP holding several import files (Manager packages plus Quest, Skill Tree, Headquarters or Factions files) shows a ZIP contents list. Untick any you do not want, press Import selected files, then preview and Apply each file in turn (Manager packages first). Each file gets its own result; Skip this file or Stop ZIP import at any time. ZIP scripts never run. Bundled images are uploaded only if that option is enabled.</p><p><strong>Folders:</strong> foundry.folder_path creates nested folders per document type. <strong>Links:</strong> canonical refs bind after creation. Markers [[AGREF:MAT-EXAMPLE|Material]] are provisional pending Tim.</p><p>Back up a test world. Existing Tables and Macros are never replaced. Existing Actors change only if you tick <strong>Update existing actors</strong>: then their name, image, token settings and package items follow the file, and HP, XP, level, conditions, player items, notes, ownership, folders and other modules\' data are kept.</p>',
+          content:'<p><strong>Items:</strong> one tab with a side rail: <strong>All items</strong> (search), <strong>Ashen Gate records</strong> (the old Library), <strong>Folders</strong> (Organize), <strong>Core links</strong>, <strong>Checks</strong>, plus Export, Adopt and NPC Codex. The filters at the top (search, source, type, origin, rarity, folder, has core_ref) stay as you move between rail entries, so you can filter to DDB / Plutonium items and then Preview organize for just those.</p><p><strong>All items:</strong> one search over world Actors, Items, Journals (and pages), Ashen Gate records from Locations, Quest Log, Renown (factions and deities), Skill Trees, Headquarters, the Profession Ledger and the NPC Codex, and (after Load compendiums) compendium indexes. Type words or prefixes such as id:MAT-HERB, id:DEITY-, type:deity, type:npc-codex, tag:, status:, tier:major. An NPC Actor and its Codex entry are one row; Open on it jumps to Items → NPC Codex at that NPC, Open on a deity opens Renown\u2019s Pantheon at it. Open shows the sheet or the owning module; drag a world or compendium row onto a sheet, the canvas or a journal. Read-only; 100 rows per page.</p><p><strong>Clean import:</strong> Choose Manager JSON or a ZIP; select Development for draft content, Validate & Preview, Select eligible, then Import.</p><p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro; no Scenes or Playlists. </p><p><strong>Item effects:</strong> an Item record can bring its Active Effects (each with a permanent eff_id). The preview lists them under the Item as New, Update, Kept or Untouched. Effects you edited in Foundry keep your edits, effects missing from the file are never deleted, and effects you made by hand are never touched. Nothing in an effect runs.</p><p><strong>ZIP bundles:</strong> a ZIP holding several import files (Manager packages plus Quest, Skill Tree, Headquarters or Factions files) shows a ZIP contents list. Untick any you do not want, press Import selected files, then preview and Apply each file in turn (Manager packages first). Each file gets its own result; Skip this file or Stop ZIP import at any time. ZIP scripts never run. Bundled images are uploaded only if that option is enabled.</p><p><strong>Folders:</strong> foundry.folder_path creates nested folders per document type. <strong>Links:</strong> canonical refs bind after creation. Markers [[AGREF:MAT-EXAMPLE|Material]] are provisional pending Tim.</p><p>Back up a test world. Existing Tables and Macros are never replaced. Existing Actors change only if you tick <strong>Update existing actors</strong>: then their name, image, token settings and package items follow the file, and HP, XP, level, conditions, player items, notes, ownership, folders and other modules\' data are kept.</p>',
           modal:true,rejectClose:false});
         break;
       }
@@ -1107,14 +1125,16 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         this.preview.push({id:record.id, name:record.route?.name || record.name || record.id, kind:'Route', lifecycle:record.status, action, reason, patch:{}});
         continue;
       }
-      const {action,reason,patch={},changes=[]}=planDocument(record,this.pkg,this).plan;
-      this.preview.push({id:record.id, name:record.foundry?.data?.name ?? record.name ?? record.id, kind:record.foundry?.document_type ?? record.entity_type+" (unmapped)", lifecycle:record.status, action, reason, patch, changes});
+      const {action,reason,patch={},changes=[],effects=null}=planDocument(record,this.pkg,this).plan;
+      this.preview.push({id:record.id, name:record.foundry?.data?.name ?? record.name ?? record.id, kind:record.foundry?.document_type ?? record.entity_type+" (unmapped)", lifecycle:record.status, action, reason, patch, changes, effects,
+        effectRows:(effects?.rows??[]).map(r=>({...r,label:{create:'New',update:'Update',kept:'Kept',handmade:'Untouched'}[r.action]}))});
+      this.warnings.push(...flagWarnings(record));
     }
     this.message = `Validated ${records.length} records. ${this.dependencyNotes} Nothing changes before Apply.`;
     await this.render();
   }
   #exportPreview() {
-    const report = {generated_at:new Date().toISOString(), manifest:this.pkg?.manifest ?? (this.specialist?{specialist:SPECIALISTS[this.specialist.kind].label}:null), errors:this.errors, warnings:this.warnings, preview:this.preview.map(({id, name, kind, lifecycle, action, reason, patch, changes})=>({id,name,kind,lifecycle,action,reason,patch,changes}))};
+    const report = {generated_at:new Date().toISOString(), manifest:this.pkg?.manifest ?? (this.specialist?{specialist:SPECIALISTS[this.specialist.kind].label}:null), errors:this.errors, warnings:this.warnings, preview:this.preview.map(({id, name, kind, lifecycle, action, reason, patch, changes, effects})=>({id,name,kind,lifecycle,action,reason,patch,changes,effects:effects?.rows??undefined}))};
     downloadJson("ag-import-preview.json",report);
   }
   async #tagSelected() {
@@ -1249,7 +1269,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         const record = this.pkg.records.find(r=>r.id===row.id);
         const {plan:current,docs}=planDocument(record,this.pkg,this);
         plans.set(row.id,current);
-        if (current.action !== row.action || canonical(current.patch ?? {}) !== canonical(row.patch ?? {})) {
+        if (current.action !== row.action || canonical(current.patch ?? {}) !== canonical(row.patch ?? {}) || canonical(current.effects?.rows ?? []) !== canonical(row.effects?.rows ?? [])) {
           log.results.push({id:row.id, status:"skipped", message:"Foundry state changed since preview; preview again."});
           continue;
         }
@@ -1264,6 +1284,11 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
             : await updateRecord(record,this.pkg,docs[0],current.patch,present);
           if (!doc) throw new Error("Foundry did not return a saved document.");
           log.results.push({id:row.id, action:row.action, status:"ok", uuid:doc.uuid});
+          if(row.kind==='Item'&&current.effects) {
+            const made=row.action==='create'?{created:current.effects.counts.create,updated:0}:await applyItemEffects(doc,current.effects,{user:game.user});
+            const kept=current.effects.counts?.kept??0, hand=current.effects.counts?.handmade??0;
+            log.results.push({id:row.id,action:'item-effects',status:'note',message:`Effects: ${made.created} created, ${made.updated} updated, ${kept} kept${hand?`, ${hand} made in Foundry left alone`:''}.`});
+          }
         } catch(error) {
           console.error(`[${MODULE_ID}] Import of ${row.id} failed`, error);
           log.results.push({id:row.id, action:row.action, status:"error", message:String(error.message ?? error)});
@@ -2361,7 +2386,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.36.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.37.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */

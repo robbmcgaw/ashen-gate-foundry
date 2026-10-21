@@ -119,3 +119,25 @@ test('NPC Codex export files are checked with the restore planner and kept out o
     assert.doesNotMatch(lines.at(-1), /npc-codex|crosswalk/);
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });
+
+test('Item effects (Manager 0.37.0): valid effects pass, bad ones fail with the validator message, dropped flags are notes', async () => {
+  const effect = (over = {}) => ({eff_id: 'walk', name: '[TEST] Walk speed', transfer: false, changes: [{key: 'system.attributes.movement.speeds.walk', mode: 'add', value: 10}], ...over});
+  const gear = (effects, flags) => item({id: 'ITEM-MOUNT-TEST-SADDLE', foundry: {document_type: 'Item', folder_path: 'Ashen Gate/Test',
+    data: {name: '[TEST] Saddle', type: 'equipment', effects, ...(flags ? {flags} : {})}}});
+  assert.deepEqual(await checkContent(pack([gear([effect()], {'ashen-gate-character-hub': {companion: {role: 'mount-gear'}}})])), {kind: 'manager', errors: [], notes: []});
+  for (const [effects, message] of [
+    [[effect({changes: [{key: 'system.attributes.ac.bonus', mode: 'plus', value: 1}]})], 'is not a mode'],
+    [[effect({changes: [{key: '', mode: 'add', value: 1}]})], 'key is required'],
+    [[effect({changes: [{key: 'macro.execute', mode: 'custom', value: 'x'}]})], 'may not run macros'],
+    [[effect({changes: [{key: 'system.attributes.ac.bonus', mode: 2, value: [1]}]})], 'must be a string or a number'],
+    [[effect({eff_id: ''})], 'eff_id is required'],
+    [[effect({transfer: 'no'})], 'transfer is required']
+  ]) {
+    const {errors} = await checkContent(pack([gear(effects)]));
+    assert.ok(errors.some(e => e.includes(message)), `expected "${message}", got ${JSON.stringify(errors)}`);
+  }
+  const {errors, notes} = await checkContent(pack([gear([effect({transfer: true})], {core: {statusId: 'dead'}})]));
+  assert.deepEqual(errors, []);
+  assert.ok(notes.some(n => /flags not imported .*core\.statusId/.test(n)), JSON.stringify(notes));
+  assert.ok(notes.some(n => /transfer on/.test(n)), JSON.stringify(notes));
+});

@@ -2,6 +2,7 @@ import {CONTRACT_ID, isContractImport, checkContractRecord, checkContractGraph, 
 import {domainHandoff} from './delivery.js';
 import {validateLogicalProjection} from './source-projection.mjs';
 import {validateImportPresentation} from './import-fidelity.js';
+import {validateItemEffects, validateItemFlags, allowedItemFlags} from './item-effects.js';
 /** Ashen Gate Manager — pure, side-effect-free import planning tools. v0.1.0 */
 export const MODULE_ID = "ashen-gate-manager";
 export const MANAGED_TYPES = ["Item", "JournalEntry", "Actor", "RollTable", "Macro"];
@@ -35,6 +36,9 @@ export function exportedFields(record) {
     const keys = {name: data.name};
     if (own(data, "img")) keys.img = data.img;
     if (own(data, "system")) keys.system = data.system;
+    // Only allow-listed flags are managed fields (0.37.0); effects are matched and compared per effect (item-effects.js).
+    const flags = allowedItemFlags(data.flags);
+    if (Object.keys(flags).length) keys.flags = flags;
     return flatten(keys);
   }
   if (record?.foundry?.document_type === 'Actor' || record?.foundry?.document_type === 'RollTable' || record?.foundry?.document_type === 'Macro') {
@@ -91,7 +95,7 @@ export function validatePackage(input, existingIds = new Set()) {
     if (!isPlainObject(data)) {errors.push(`${label}.foundry.data must be an object.`); return;}
     if (typeof data.name !== "string" || !data.name.trim()) errors.push(`${label}.foundry.data.name is required.`);
     const allowed = {
-      Item: ["name", "type", "img", "system"],
+      Item: ["name", "type", "img", "system", "effects", "flags"],
       JournalEntry: ["name", "img", "pages"],
       Actor: ["name", "type", "img", "system", "prototypeToken", "items", "effects", "flags"],
       RollTable: ["name", "img", "description", "formula", "replacement", "displayRoll", "results"],
@@ -102,6 +106,7 @@ export function validatePackage(input, existingIds = new Set()) {
     if (document_type === "Item") {
       if (typeof data.type !== "string" || !data.type.trim()) errors.push(`${label}.foundry.data.type is required for Items.`);
       if (own(data, "system") && !isPlainObject(data.system)) errors.push(`${label}.foundry.data.system must be an object.`);
+      errors.push(...validateItemEffects(data.effects, `${label}.foundry.data`), ...validateItemFlags(data.flags, `${label}.foundry.data`));
     }
     if (document_type === 'Actor') {
       if (!['npc', 'character'].includes(data.type)) errors.push(`${label}.foundry.data.type: only npc or character Actors may be created.`);
@@ -203,6 +208,8 @@ export function planRecord(record, matches = [], sameNameUnmanaged = false, incl
     if (coreOwned(path)) {if (!equal(incoming, old)) coreKept.push(path); continue;}
     if (!own(flag.managedFields, path)) {
       if (doc.get(path) === undefined) {patch[path] = incoming; continue;}
+      // Already the same live value (e.g. a Hub role flag the GM set by hand): adopt it, nothing to write.
+      if (equal(doc.get(path), incoming)) continue;
       return {action:"blocked", reason:`New managed field ${path} already has a live value; review before adopting.`};
     }
     const live = doc.get(path);

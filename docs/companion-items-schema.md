@@ -41,7 +41,7 @@ Only with dnd5e's own data. The Hub's stats box reads, and never applies or work
 - **Armour value:** an `equipment` Item's `system.armor.value` (e.g. barding). Shown as "Armor AC".
 - **Active Effects on the Item:** each change is shown with its key in plain words and its mode, e.g.
   - `system.attributes.ac.bonus`, ADD `1` → "AC +1"
-  - `system.attributes.movement.walk` (or `movement.speeds.walk`), ADD `10` → "Walk speed +10"
+  - `system.attributes.movement.speeds.walk`, ADD `10` → "Walk speed +10" (dnd5e 6.0 keys speeds under `movement.speeds`; the old `system.attributes.movement.walk` is only a compatibility redirect, so new files use `speeds.walk`)
   - `system.abilities.dex.bonuses.save` → "Dexterity saves"
   Plain additions to the same thing are summed. Unknown keys show as they are. Disabled effects are skipped.
 
@@ -49,7 +49,7 @@ Rules for effects on companion items:
 - Set the effect's **"Apply effect to actor"** (`transfer`) **off**. The Item sits on the character, so a transferred effect would also change the character. The Hub warns when an effect is transferred and changes nothing itself.
 - Nothing is applied to the mount Actor either. The numbers are a reference for the table and the GM.
 
-> **Manager import limit (Manager 0.36.0):** Item records may only carry `name`, `type`, `img` and `system`, so **Active Effects and flags cannot be imported yet**. Until Manager allows `effects` on Items, write the bonus in the description (`rules_summary`). The GM adds the Active Effect on the world Item in Foundry once; re-import keeps it, since import updates the record's own fields. `system.armor.value` imports today.
+**From a file (Manager 0.37.0+):** an Item record can carry its Active Effects in `foundry.data.effects`, and the Hub role in `foundry.data.flags`. The format is in [item-effects-schema.md](item-effects-schema.md). Give each effect a permanent `eff_id` and `transfer: false`. Re-import updates the effects Manager made, keeps the GM's edits, and never deletes an effect or touches one made by hand. With Manager 0.36.0 or older, effects cannot be imported: the GM adds them on the world Item instead.
 
 ## Item record fields
 
@@ -63,7 +63,9 @@ The usual Manager Item record. Nothing new is required.
 | `name` | string | Shown on the card row. |
 | `rules_summary` | string | What it does, in words (also put in the description). |
 | `foundry.document_type` | `"Item"` | |
-| `foundry.data` | `{name, type, img, system}` | `type`: `equipment`, `loot` or `feat`. `system.description.value` (HTML) is the text the Hub summarises. `system.armor.value` for barding. `system.rarity` for the rarity colour. |
+| `foundry.data` | `{name, type, img, system, effects?, flags?}` | `type`: `equipment`, `loot` or `feat`. `system.description.value` (HTML) is the text the Hub summarises. `system.armor.value` for barding. `system.rarity` for the rarity colour. |
+| `foundry.data.effects` | array (Manager 0.37.0+) | The bonuses, as Active Effects with `transfer: false` ([format](item-effects-schema.md)). |
+| `foundry.data.flags` | object (Manager 0.37.0+) | Only `ashen-gate-character-hub.companion.role` is imported. Optional, because the id prefix already gives the role. |
 
 ## Synthetic example
 
@@ -78,7 +80,7 @@ Test data only. Names are `[TEST]`-style and the numbers are placeholders, not r
   "visibility": "player",
   "scope": "generic_rules",
   "name": "[TEST] Riding Saddle",
-  "rules_summary": "[TEST] Placeholder: the GM adds an Active Effect (walk speed) on the world Item.",
+  "rules_summary": "[TEST] Placeholder: Walk speed +10 for the mount.",
   "foundry": {
     "document_type": "Item",
     "data": {
@@ -88,11 +90,22 @@ Test data only. Names are `[TEST]`-style and the numbers are placeholders, not r
       "system": {
         "description": {"value": "<p>[TEST] A placeholder saddle.</p>"},
         "rarity": "common"
-      }
+      },
+      "flags": {"ashen-gate-character-hub": {"companion": {"role": "mount-gear"}}},
+      "effects": [
+        {
+          "eff_id": "walk",
+          "name": "[TEST] Saddle: Walk speed",
+          "transfer": false,
+          "changes": [{"key": "system.attributes.movement.speeds.walk", "mode": "add", "value": 10}]
+        }
+      ]
     }
   }
 }
 ```
+
+The Hub shows this as "Walk speed +10" on the mount's card. Because `transfer` is `false`, the character carrying the saddle is not changed. Manager 0.36.0 and older reject the `effects` and `flags` keys, so update Manager before importing this.
 
 The matching perk would be `PERK-MOUNT-TEST-SUREFOOTED`, a `feat` Item. Pet clothing would be `ITEM-PET-TEST-TINY-HAT`, an `equipment` Item that the player drops into a clothing slot.
 
