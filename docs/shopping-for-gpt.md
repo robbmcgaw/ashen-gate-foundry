@@ -1,6 +1,6 @@
 # Shops, services and merchant lists: brief for ChatGPT (FINAL)
 
-**Status: FINAL format, not built yet.** Robb approved the design on 2026-10-21. The import arrives in Utilities 0.19.0 (with a General Manager update); until then you can write records, but they can't be imported yet. Mark records `status: draft` until Robb approves their content. The `shop.buys` block is **proposed** (selling to a shop, details S1–S9 in the design): leave it out until Robb confirms those details.
+**Status: FINAL format, not built yet.** Robb approved the design on 2026-10-21. The import arrives in Utilities 0.19.0 (with a General Manager update); until then you can write records, but they can't be imported yet. Mark records `status: draft` until Robb approves their content. `shop.buys` (selling to a shop) is decided and may be used.
 
 Design: `robbmcgaw/ashen-gate-foundry` → `docs/shopping-design.md` (branch `design/shopping`).
 
@@ -44,7 +44,7 @@ Records go in an `ag-foundry-import/0.2` package, next to the Items they sell.
 | `shop.gm_notes` | string | optional | GM only |
 | `shop.purse` | object | optional | the merchant's starting cash, e.g. `{"cp": 50, "sp": 30, "gp": 20, "pp": 0}`; whole numbers ≥ 0, no `ep`. Leave it out for unlimited cash. Used only when the shop is first created |
 | `shop.show_purse` | boolean | optional | default `true`: players see the merchant's coins in the shop window. `false` hides the amount from players |
-| `shop.buys` | object | optional, **proposed** | the shop buys items from players: `{"enabled": true, "percent": 50, "types": ["weapon", "equipment"]}`. `percent` 1–100 of the item's own price (default 50). `types`: dnd5e item types; leave it out for all physical items. Default: the shop doesn't buy |
+| `shop.buys` | object | optional | the shop buys items from players: `{"enabled": true, "percent": 50, "types": ["weapon", "equipment"]}`. `percent` 1–100 of the item's own price (default 50). `types`: dnd5e item types (`weapon`, `equipment`, `consumable`, `tool`, `loot`); leave it out for all of them. Containers are never bought. Default: the shop doesn't buy |
 | `shop.lines` | array | yes | at least one line |
 
 ### Line (`shop.lines[]`)

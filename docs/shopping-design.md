@@ -1,6 +1,6 @@
 # Shopping and services in Utilities: design (FINAL)
 
-**Status: FINAL** (Robb's decisions, 2026-10-21, §9). Only the selling-to-a-shop details in §7c are **proposed defaults** waiting for Robb. Not built yet: build briefs in `docs/shopping-briefs/`. Module: Ashen Gate | Utilities (`ashen-gate-utilities`, 0.13.2 on main). Target: Foundry V14 on The Forge, dnd5e 6.0.6, 2024 rules.
+**Status: FINAL** (Robb's decisions, 2026-10-21, §9). Selling details S1–S9 (§7c) decided too. Not built yet: build briefs in `docs/shopping-briefs/`. Module: Ashen Gate | Utilities (`ashen-gate-utilities`, 0.13.2 on main). Target: Foundry V14 on The Forge, dnd5e 6.0.6, 2024 rules.
 
 Look and feel: the shared UI standard (`docs/ui-standard.md` on branch `design/ui-standard`), direction D Rounded Compact with the Comfortable size, kit-2 components only. The mockup below shows behaviour and content, not the final styling.
 
@@ -314,17 +314,17 @@ A UI element, no special mechanics.
 
 Decided (Robb, 2026-10-21): a shop can buy items from players at a percent of the item's price, set by the GM per shop (default 50 %, the 2024 rule of thumb for selling equipment). The player must confirm in a dialog that shows the item, the price and who pays before anything happens.
 
-**Proposed defaults, waiting for Robb (S1–S9).** The build follows these unless he changes them:
+**Decided (Robb, 2026-10-21), S1–S9:**
 
-| # | Question | Proposed default |
+| # | Question | Decision |
 |---|---|---|
 | S1 | Which shops buy | Per-shop switch **Buys from players**, default **off**. Only a shop that is presented to the player and has it on buys. A merchant list never buys |
-| S2 | What it buys | Any physical item (dnd5e types weapon, equipment, consumable, tool, loot, container) with a price above 0, optionally narrowed by a per-shop list of item types (default: all). Never: features, spells, perks, items worth less than 1 cp at the sell price, items the GM marked *Not for sale* (`flags.ashen-gate-utilities.noSale`) |
+| S2 | What it buys | Any physical item (dnd5e types weapon, equipment, consumable, tool, loot; not containers, see S7) with a price above 0, optionally narrowed by a per-shop list of item types (default: all). Never: features, spells, perks, items worth less than 1 cp at the sell price, items the GM marked *Not for sale* (`flags.ashen-gate-utilities.noSale`) |
 | S3 | Sell price | `percent` × the item's own dnd5e price × quantity sold, rounded **down** to whole copper. The shop's listed price is not used. A stack can be sold in part (pick a quantity) |
-| S4 | Who pays | The shop purse when the shop has one; refused if it can't afford it ("[TEST] Brin can't afford that right now.", amount only when the purse is shown) with a **Top up shop purse** button for the GM. No purse = unlimited money. Paid in the largest coins the purse holds; if it can't pay the exact amount, refused the same way |
+| S4 | Who pays | The shop purse when the shop has one; no purse = unlimited money. Paid in the largest coins the purse holds. If it can't afford the item or can't pay the exact amount, the sale is refused and the **player is told plainly**: "Sorry, the vendor can't afford that." (amount named only when the merchant's coins are shown). The GM gets a whisper with a **Top up shop purse** button |
 | S5 | Where the coins go | The seller chooses, like buying: their character's coins or the party purse. No party vote (coins come in, nothing leaves) |
 | S6 | Where the item goes | Into the shop. A line with the same `itemId` (or same name and type when there is no id) gets its stock raised (unlimited stays unlimited); otherwise a new line is added **hidden**, priced at the item's own price, for the GM to show or remove |
-| S7 | Equipped, attuned, containers | Equipped or attuned items are refused ("Unequip it first"). A container is sold with its contents only after the dialog lists them; the price is the sum of all their prices × percent |
+| S7 | Equipped, attuned, containers | **Containers are never sold**: "Containers can't be sold. Empty it and sell the items separately." Equipped or attuned items are refused: "Unequip it first." |
 | S8 | Whose items | Only items on a character the seller owns. Not from the party stash in v1 |
 | S9 | Undo | No GM approval step. GM **Undo** in History comes with D8 (later PR): gives the item back and takes the coins back if both are still there |
 
@@ -336,7 +336,7 @@ GM:     checks (presented, Buys from players on, S2, S7, S8), price from fresh i
 GM:     plan the payout from the fresh shop purse (S4)
 GM:     A. one update of the shop's GM Data page: purse minus payout, stock or new hidden line (S6), sale entry
 GM:     B. pay the receiver (one currency update);            fails → undo A
-GM:     C. remove the item(s) from the seller (with contents); fails → take the coins back, undo A
+GM:     C. remove the item from the seller;                 fails → take the coins back, undo A
 GM:     D. History kind 'shop-sale', receipt, rebuild the player view
 ```
 
@@ -420,7 +420,7 @@ Field rules are in `docs/shopping-for-gpt.md`. A `validate-content.mjs` check co
 | D1c | The merchant's coins are **shown** to players by default; the GM can hide them per shop |
 | D2 | Spending the party purse in a shop follows the party vote when *Party must accept when a player spends the party purse* is on (until saved, it follows the coin vote) |
 | D3 | Haggling: later |
-| D4 | **Selling to a shop is in v1** (§7c): per-shop percent, default 50 %, player confirms item, price and who pays. Details S1–S9 proposed |
+| D4 | **Selling to a shop is in v1** (§7c): per-shop percent, default 50 %, player confirms item, price and who pays. Details S1–S9 decided (§7c) |
 | D5 | Restocking: manual **Restock** button (to `stockStart`), no automatic restock |
 | D6 | Linked location optional; its name is shown to players only once revealed in Locations |
 | D7 | Merchant art: an image path (file picker), initials when empty |
@@ -439,7 +439,7 @@ Version numbers assume nothing else takes those Utilities versions first; if som
 | 0.14.0 | `01-rules.md` | Pure rules and tests in `core.mjs`, no UI | **Now** (no kit dependency) |
 | 0.15.0 | `02-gm-shops.md` | Shops tab for the GM: storage, list, editor, drops, shop purse, Buys settings | After **kit 2** (UI brief 1, `ui/kit-2`) is on main |
 | 0.16.0 | `03-present-buy.md` | Present, player shop window, buying | After 0.15.0 |
-| 0.17.0 | `04-sell.md` | Selling to a shop (§7c) | After 0.16.0 and Robb's answers on S1–S9 |
+| 0.17.0 | `04-sell.md` | Selling to a shop (§7c) | After 0.16.0 |
 | 0.18.0 | `05-lists-services-bank.md` | Merchant lists, services, the Bank | After 0.16.0 (can run beside 0.17.0) |
 | 0.19.0 | `06-import.md` | Import/export, schema doc, validator; then a Manager PR | After 0.18.0 |
 
