@@ -10,10 +10,10 @@ import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,infoDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
 import {readDrop} from './ag-item-drop.mjs';
-import {rewardsApi,listRewards,addFromDrop,updateReward,removeReward} from './rewards.mjs';
-import {rewardsSection,playerRewardsSection} from './rewards-ui.mjs';
+import {rewardsApi,grantableRewards,addFromDrop,updateReward,removeReward,grantRewards,grantAgain,rewardDragData,onActorSheetDrop} from './rewards.mjs';
+import {rewardsSection,playerRewardsSection,grantPanel,grantSummary,receiveList,defaultChoices} from './rewards-ui.mjs';
 
-const VERSION='0.11.0';
+const VERSION='0.12.0';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -177,8 +177,32 @@ class QuestLogApplication extends Base {
   const row=this.gmId?getPrivate(this.gmId):null;if(!row)return '';
   // The note stays until another quest is picked: a hook re-render after the save must not wipe it.
   const status=this.rewardNote||'';
-  try{return rewardsSection(await listRewards(this.gmId),{individual:row.getFlag(MOD,'state')?.scope==='individual',status});}
-  catch(err){console.error(`[${MOD}]`,err);return '';}
+  try{
+   const rows=await grantableRewards(this.gmId),individual=row.getFlag(MOD,'state')?.scope==='individual';
+   const owed=rows.filter(r=>r.owed);if(!owed.length)this.grantOpen=false;
+   this.rewardCache={rows,owed,individual};
+   const grantHtml=this.grantOpen?grantPanel(owed,defaultChoices(owed),{individual,noParty:!individual&&!rows[0]?.party.length}):'';
+   return rewardsSection(rows,{individual,status,grantHtml,canGive:rows.some(r=>r.grantable)});
+  }catch(err){console.error(`[${MOD}]`,err);return '';}
+ }
+ // The panel's current choices, read from its controls.
+ grantChoices(root){
+  const out={};
+  for(const tr of root.querySelectorAll('[data-grant-key]'))out[tr.dataset.grantKey]={give:!!tr.querySelector('[data-grant-give]')?.checked,
+   actorId:tr.querySelector('[data-grant-actor]')?.value??'',actorIds:[...tr.querySelectorAll('[data-grant-each]:checked')].map(x=>x.value),
+   split:Object.fromEntries([...tr.querySelectorAll('[data-grant-split]')].map(x=>[x.dataset.grantSplit,x.value===''?0:Number(x.value)]))};
+  return out;
+ }
+ // Live "Will receive" list and the Grant button's hint, without redrawing the controls.
+ updateGrantPanel(root){
+  const panel=root.querySelector('[data-grant-panel]'),cache=this.rewardCache;if(!panel||!cache)return;
+  const summary=grantSummary(cache.owed,this.grantChoices(panel),{individual:cache.individual});
+  panel.querySelector('[data-grant-summary]').innerHTML=receiveList(summary);
+  panel.querySelector('[data-grant-status]').textContent=summary.problems.join(' ');
+  const go=panel.querySelector('[data-action="grant-rewards"]');if(go)go.disabled=summary.problems.length>0;
+  for(const tr of panel.querySelectorAll('[data-grant-key]')){const st=tr.querySelector('[data-grant-split-status]');if(!st)continue;
+   const row=cache.owed.find(r=>r.key===tr.dataset.grantKey),total=[...tr.querySelectorAll('[data-grant-split]')].reduce((t,x)=>t+(Number(x.value)||0),0);
+   st.textContent=`${total} of ${row?.quantity??0} shared`;}
  }
  // Reward edits save at once (no footer); the section redraws from the saved quest and shows "Saved".
  bindRewards(root){
@@ -196,6 +220,13 @@ class QuestLogApplication extends Base {
    catch(err){ui.notifications.warn(err.message??String(err));await this.refreshRewards(root);}
   });
   for(const b of zone.querySelectorAll('[data-action]'))b.addEventListener('click',()=>this.action(b,root));
+  // Drag-out (D8): dropping a row on a character sheet gives it (dropActorSheetData hook below).
+  for(const tr of zone.querySelectorAll('[data-reward-drag]'))tr.addEventListener('dragstart',e=>{
+   const row=this.rewardCache?.rows.find(r=>r.key===tr.dataset.rewardKey);if(!row)return;
+   e.dataTransfer?.setData('text/plain',JSON.stringify(rewardDragData(this.gmId,row)));
+  });
+  const panel=zone.querySelector('[data-grant-panel]');
+  for(const ev of ['input','change'])panel?.addEventListener(ev,()=>this.updateGrantPanel(root));
  }
  // Redraw only the rewards section, so unsaved edits elsewhere in the editor are kept.
  async refreshRewards(root,note=''){
@@ -241,8 +272,8 @@ class QuestLogApplication extends Base {
      assertUI(game.user,openAllowed());await savePersonalNote(this.selectedId,this.actorId,root.querySelector('#ag-my-note')?.value||'');ui.notifications.info('Character notes saved.');return;
    }
    assertGM(game.user);
-   if(action==='gm-select'){if(this.unsavedSource&&!await confirmDialog('Your quest changes have not been saved. Discard them?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing',danger:true}))return;this.gmId=id;this.rewardNote='';this.unsavedSource=false;return await this.render();}
-   if(action==='new'){if(this.unsavedSource&&!await confirmDialog('Your quest changes have not been saved. Discard them?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing',danger:true}))return;this.gmId=null;this.rewardNote='';this.unsavedSource=false;this.sourceJsonEdited=false;return await this.render();}
+   if(action==='gm-select'){if(this.unsavedSource&&!await confirmDialog('Your quest changes have not been saved. Discard them?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing',danger:true}))return;this.gmId=id;this.rewardNote='';this.grantOpen=false;this.unsavedSource=false;return await this.render();}
+   if(action==='new'){if(this.unsavedSource&&!await confirmDialog('Your quest changes have not been saved. Discard them?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing',danger:true}))return;this.gmId=null;this.rewardNote='';this.grantOpen=false;this.unsavedSource=false;this.sourceJsonEdited=false;return await this.render();}
    if(action==='save-source'){
     const src=this.sourceJsonEdited?validSource(JSON.parse(root.querySelector('#ag-source-json').value)):sourceFromForm(root,this.gmId?getPrivate(this.gmId)?.getFlag(MOD,'source'):null);
     if(this.gmId&&src.id!==this.gmId)throw new Error('Cannot change permanent ID of an existing Objective. Use New quest.');
@@ -267,12 +298,32 @@ class QuestLogApplication extends Base {
     const s=getPrivate(this.gmId)?.getFlag(MOD,'state');if(!s)throw new Error('Select an Objective.');
     const progress={},objectiveReveal=[];root.querySelectorAll('.agq-objctl').forEach(el=>{const key=el.dataset.key;progress[key]=el.querySelector('.ag-obj-progress').value;if(el.querySelector('.ag-obj-reveal').checked)objectiveReveal.push(key);});
     await updateState(this.gmId,{status:root.querySelector('#ag-status').value,scope:root.querySelector('#ag-scope').value,actorId:root.querySelector('#ag-state-actor').value||null,revealed:root.querySelector('#ag-state-revealed').checked,objectiveReveal,progress,publicLocationIds:root.querySelector('#ag-public-locations')?.value.split(/\s+/).map(s=>s.trim()).filter(Boolean)??s.publicLocationIds??[],partyNotes:root.querySelector('#ag-party-notes')?.value??s.partyNotes,gmNotes:root.querySelector('#ag-gm-notes')?.value??s.gmNotes,rewardRecorded:root.querySelector('#ag-reward-recorded')?.checked??s.rewardRecorded});
+    // Completed with something still owed: open Give rewards (the status is already saved; Not now leaves it pending).
+    if(root.querySelector('#ag-status').value==='Completed'&&(await grantableRewards(this.gmId)).some(r=>r.grantable))this.grantOpen=true;
     ui.notifications.info('Quest updated. Check the Published/Not published message and player audience.');return await this.render();
    }
    if(action==='remove-reward'){
     const name=btn.closest('[data-reward-key]')?.querySelector('.agq-reward__name')?.textContent||'this item';
     if(!await confirmDialog(`Remove ${name} from this quest's rewards? A held copy in the rewards folder is deleted too. Items already on characters are not touched.`,{title:'Remove this reward?',yes:'Remove reward',danger:true}))return;
     await removeReward(this.gmId,btn.dataset.key);return await this.refreshRewards(root,'Saved');
+   }
+   if(action==='open-grant'){this.grantOpen=true;return await this.refreshRewards(root,this.rewardNote);}
+   if(action==='close-grant'){this.grantOpen=false;return await this.refreshRewards(root,this.rewardNote);}
+   if(action==='grant-rewards'){
+    const choices=this.grantChoices(root.querySelector('[data-grant-panel]')??root),cache=this.rewardCache;
+    const summary=grantSummary(cache?.owed??[],choices,{individual:cache?.individual});
+    if(summary.problems.length)throw new Error(summary.problems.join(' '));
+    const lines=summary.receive.map(p=>`${p.name}: ${p.items.map(i=>`${i.quantity} × ${i.name}`).join(', ')}`);
+    if(!await confirmDialog(`These characters receive new items:\n${lines.join('\n')}\nNothing is taken from anyone.`,{title:'Give these rewards?',yes:'Grant rewards'}))return;
+    const res=await grantRewards(this.gmId,choices);this.grantOpen=false;
+    const out=res.results.map(r=>`<li><strong>${E(r.name)}</strong>: ${r.ok?(r.items.length?r.items.map(i=>`${E(i.quantity)} × ${E(i.name)}`).join(', '):'already had everything'):`not given. ${E(r.reason)}`}</li>`).join('');
+    await this.refreshRewards(root,'Saved');
+    return await infoDialog('Rewards given',`<ul>${out||'<li>Nothing was given.</li>'}</ul>`);
+   }
+   if(action==='grant-again'){
+    const name=btn.closest('[data-reward-key]')?.querySelector('.agq-reward__name')?.textContent||'this reward';
+    if(!await confirmDialog(`Give ${name} again? It becomes grantable once more; what characters already have is kept.`,{title:'Give this reward again?',yes:'Grant again'}))return;
+    await grantAgain(this.gmId,btn.dataset.key,{confirm:true});this.grantOpen=true;return await this.refreshRewards(root,'Saved');
    }
    if(action==='edit-assignment'){const record=getAssignment(id);const textarea=root.querySelector('#ag-assignment-json');if(!record||!textarea)throw new Error('Assignment unavailable');textarea.value=JSON.stringify(record,null,2);return;}
    if(action==='save-assignment'){const source=JSON.parse(root.querySelector('#ag-assignment-json').value);if(source.objective_id!==this.gmId)throw new Error('Assignment target must be the selected Objective');await saveAssignment(source,{replace:!!getAssignment(source.id),objectiveExists:id=>!!getPrivate(id),ensureFolder});ui.notifications.info('Delegated Assignment saved.');return await this.render();}
@@ -424,6 +475,8 @@ Hooks.once('ready',()=>{
   playerAccess:{contract:'ag-player-access/1',getState:()=>({contract:'ag-player-access/1',moduleId:MOD,audience:'player',playerAccessEnabled:game.settings.get(MOD,'playerAccessEnabled'),configurable:true}),setEnabled:async enabled=>{assertGM(game.user);if(typeof enabled!=='boolean')throw new Error('Boolean required.');await game.settings.set(MOD,'playerAccessEnabled',enabled);return module.api.playerAccess.getState();}}
  };
  Hooks.on('renderActorDirectory',addLauncher);refreshLaunchers();
+ // Drag-out of quest rewards (D8): a GM drop on a sheet is a recorded grant; returning false stops Foundry copying it too.
+ Hooks.on('dropActorSheetData',(actor,sheet,data)=>onActorSheetDrop(actor,data));
  Hooks.on('createJournalEntry',updateWindows);Hooks.on('updateJournalEntry',updateWindows);Hooks.on('deleteJournalEntry',updateWindows);
  Hooks.on('updateActor',(actor,change)=>{if(hasGM()&&change?.ownership)reconcileActorAudience(actor.id).catch(notifyError);updateWindows();});
  Hooks.on('deleteActor',(actor)=>{if(hasGM())reconcileActorAudience(actor.id).catch(notifyError);updateWindows();});
