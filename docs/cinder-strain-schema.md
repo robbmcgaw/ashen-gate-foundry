@@ -1,4 +1,4 @@
-# Cinder, Power, Backfire table and Strain config schema (Ashen Gate | Cinders 0.1.0+, Skill Trees 0.17.0+, General Manager 0.39.0+)
+# Cinder, Power, Backfire table and Strain config schema (Ashen Gate | Cinders 0.1.0+, Skill Trees 0.17.0+, General Manager 0.39.0+; perk modifiers: Cinders 0.2.0+, Manager 0.41.0+)
 
 This is the reference for writing Cinder content. It is generic: there is no setting content here, and every example uses synthetic `[TEST]` data. The campaign's Cinder names, powers, Backfire tables and Strain band names are written from this schema and kept in the private content repo.
 
@@ -68,10 +68,17 @@ There is one record per node of the Cinder tree: `foundry.document_type: "Item"`
 |---|---|---|---|
 | `target` | string | yes | `push.cost` (Strain cost of a Push) · `backfire.chance` (percentage points) · `backfire.severity` (added to the Backfire effect roll; higher is worse) · `strain.recovery` (added to a rest that already recovers Strain) |
 | `value` | whole number | yes | −100 to 100, not 0. Negative lowers the cost or chance; positive raises it. |
-| `powers` | list of `POWER-*` | no | Only for these powers (empty or missing means all of this Cinder's powers). |
-| `modes` | list of mode ids | no | Only for these Push modes (empty or missing means all). |
+| `applies.powers` (or `powers`) | list of `POWER-*` | no | Only for these powers (empty or missing means all of this Cinder's powers). Give it once: in `applies` or at the top level. |
+| `applies.modes` (or `modes`) | list of mode ids | no | Only for these Push modes (empty or missing means all). |
+| `requires.powers` | list of `POWER-*` | no | Counts only while all of these powers are unlocked on the Cinder (0.2.0+). |
 | `stack` | string | no | A short lower-case name (a lower-case letter, then up to 40 lower-case letters, digits, `-` or `_`). Modifiers with the same `stack` name don't add up: only the largest in size (ignoring sign) counts. |
 | `label` | string | yes | 1–80 characters, shown to players in the Push preview and on the chat card. |
+| `scope` | string | no | Always `"cinder"` here (it can be left out). |
+| `op` | string | no | `"add"` (the only operation; it can be left out). |
+
+This is the shared `ag-modifier/1` shape ([modifiers-schema.md](modifiers-schema.md)).
+
+**Perks (Cinders 0.2.0+).** A `PERK-*` record can carry the same modifiers in a record-level `modifiers` block with scope `cinder` ([modifiers-schema.md](modifiers-schema.md)). While the character has that perk Item, its modifiers count for every Cinder they bear, narrowed by `applies` and `requires` like a power's; a perk shares `stack` groups with the powers. Two copies of one perk count once. For rest recovery, a perk counts once per character (its `requires` is met when any Cinder they bear has those powers unlocked). An `ITEM-*` with a modifiers block does nothing yet: items will count only while attached to a Cinder socket.
 
 All modifier values are added together. They never change a character's raw Strain: cost and chance change, but recovery happens only through a rest or the GM. The final cost is never below 1.
 

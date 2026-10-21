@@ -47,7 +47,7 @@ Ashen Gate is a set of Foundry VTT modules for Robb's D&D campaign: Foundry V14 
 | A crafted item | An `ITEM-*` Item, plus a `REC-*` recipe whose `result_item_id` names it | built |
 | A faction or deity reward | A reward entry on the faction or deity (`docs/renown-deity-schema.md`); GM-approved | built |
 | A quest reward | Text in `outcomes.description`; the GM grants it | built |
-| A module number on an `ITEM-*` or `PERK-*` record (for example a Cinder socket item that lowers Push cost) | A record-level `modifiers` block (`ag-modifiers/0.1`), scope `cinder` (`docs/modifiers-schema.md`) | **built in Manager 0.41.0** (imports and is checked); Cinders applies it from a later release |
+| A module number on an `ITEM-*` or `PERK-*` record (for example a Cinder socket item that lowers Push cost) | A record-level `modifiers` block (`ag-modifiers/0.1`), scope `cinder` (`docs/modifiers-schema.md`) | **built**: Manager 0.41.0 imports it, Cinders 0.2.0 checks it and applies a `PERK-*`'s modifiers; an `ITEM-*`'s apply only once sockets ship (planned) |
 | Say how a perk is applied | Optional `implementation`: `automatic`, `informational` or `gm_resolved` (display only; `docs/modifiers-schema.md`) | **built in Manager 0.41.0** |
 | Mark an item as fitting a Cinder socket | A `socketable` block | **planned: don't use yet** |
 
@@ -63,7 +63,7 @@ Ashen Gate is a set of Foundry VTT modules for Robb's D&D campaign: Foundry V14 
 - `scope` is required in a `modifiers` block, on the entry or once on the block. In `power.modifiers` it is always `cinder`.
 - `op` is `add` or left out.
 - `applies` narrows it (Cinders: `{"powers": [POWER-* ids], "modes": [mode ids]}`; the old top-level `powers` / `modes` still work).
-- `requires` lists ids that must be in place (Cinders: `{"powers": [POWER-* ids]}`).
+- `requires` lists ids that must be in place (Cinders: `{"powers": [POWER-* ids]}`, unlocked on the Cinder).
 - Modifiers that share a `stack` name don't add up (Cinders: only the largest counts).
 
 **Synthetic example** (a socket-style item and a GM-resolved perk; the numbers are shape only, not rules):
@@ -104,7 +104,7 @@ Ashen Gate is a set of Foundry VTT modules for Robb's D&D campaign: Foundry V14 
 | Build reference, JSON Schemas, examples | `robbmcgaw/ashen-gate-supplement` → `systems/schemas/` (`GPT_BUILD_REFERENCE.md`) |
 | Item Active Effects and flags (Manager 0.37.0+) | `robbmcgaw/ashen-gate-foundry` → `docs/item-effects-schema.md`: **built** |
 | Mount and pet items (Hub 0.12.0+) | `docs/companion-items-schema.md`: **built** |
-| Cinder, Power, Backfire, Strain content | `docs/cinder-strain-schema.md`: **built** (Cinders 0.1.0, Manager 0.39.0) |
+| Cinder, Power, Backfire, Strain content | `docs/cinder-strain-schema.md`: **built** (Cinders 0.1.0+, Manager 0.39.0+; perk modifiers Cinders 0.2.0) |
 | Modifiers block and `implementation` | `docs/modifiers-schema.md`: **built** (Manager 0.41.0); examples in `test-fixtures/modifiers/` |
 | Cinder engine design | `docs/cinder-strain-design.md`: **built**, in `ashen-gate-cinders` 0.1.0 |
 | Deities | `docs/renown-deity-schema.md`: **built** |
