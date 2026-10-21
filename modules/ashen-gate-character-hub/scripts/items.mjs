@@ -5,6 +5,9 @@ const bySortThenName = (a, b) => (num(a.sort) - num(b.sort)) || String(a.name).l
 /** dnd5e keeps activities in a Collection; tests may pass an array. */
 export const activitiesOf = item => { const a = item.system?.activities; return a ? [...(a.values?.() ?? a)] : []; };
 
+/** dnd5e's item rarity keys (CONFIG.DND5E.itemRarity). Anything else (mundane items: '') gets no rarity colour. */
+export const RARITIES = new Set(['common', 'uncommon', 'rare', 'veryRare', 'legendary', 'artifact']);
+
 export function itemRow(item) {
   const s = item.system ?? {}, uses = s.uses ?? {};
   return {
@@ -12,7 +15,7 @@ export function itemRow(item) {
     equippable: 'equipped' in s, equipped: !!s.equipped,
     canAttune: s.attunement === 'required' || s.attunement === 'optional', attunement: s.attunement ?? '', attuned: !!s.attuned,
     uses: num(uses.max) > 0 ? {value: num(uses.value, num(uses.max) - num(uses.spent)), max: num(uses.max)} : null,
-    usable: activitiesOf(item).length > 0, container: s.container ?? null
+    usable: activitiesOf(item).length > 0, container: s.container ?? null, rarity: RARITIES.has(s.rarity) ? s.rarity : ''
   };
 }
 
@@ -98,13 +101,15 @@ export function featuresData(actor) {
 export const SLOTS = [
   {id: 'head', label: 'Head'}, {id: 'neck', label: 'Neck'}, {id: 'back', label: 'Back'}, {id: 'body', label: 'Body armor'},
   {id: 'mainhand', label: 'Main hand'}, {id: 'offhand', label: 'Off hand'}, {id: 'hands', label: 'Hands'}, {id: 'waist', label: 'Waist'},
-  {id: 'feet', label: 'Feet'}, {id: 'ring1', label: 'Ring'}, {id: 'ring2', label: 'Ring'}, {id: 'trinket', label: 'Trinket'}
+  {id: 'feet', label: 'Feet'}, {id: 'bracer', label: 'Bracers'}, {id: 'ring1', label: 'Ring'}, {id: 'ring2', label: 'Ring'},
+  {id: 'trinket', label: 'Trinket'}, {id: 'trinket2', label: 'Trinket'}, {id: 'trinket3', label: 'Trinket'}
 ];
 const SLOT_IDS = new Set(SLOTS.map(s => s.id));
-export const WORN_SLOTS = new Set(['head', 'neck', 'back', 'hands', 'waist', 'feet', 'trinket']);
+export const WORN_SLOTS = new Set(['head', 'neck', 'back', 'hands', 'waist', 'feet', 'bracer', 'trinket', 'trinket2', 'trinket3']);
+const TRINKETS = new Set(['trinket', 'trinket2', 'trinket3']);
 /** Name hints for worn items the system does not classify; the owner can always reassign. */
 const NAME_HINTS = [['head', /\b(helm|helmet|hat|hood|circlet|crown|cap|diadem|headband)\b/i], ['neck', /\b(amulet|necklace|periapt|medallion|pendant|torc|scarab)\b/i],
-  ['back', /\b(cloak|cape|mantle|wings)\b/i], ['hands', /\b(gloves|gauntlets?|bracers)\b/i], ['waist', /\b(belt|girdle|sash)\b/i], ['feet', /\b(boots|shoes|slippers|sandals)\b/i]];
+  ['back', /\b(cloak|cape|mantle|wings)\b/i], ['bracer', /\b(bracers?|bracelets?|vambraces?|armbands?)\b/i], ['hands', /\b(gloves|gauntlets?)\b/i], ['waist', /\b(belt|girdle|sash)\b/i], ['feet', /\b(boots|shoes|slippers|sandals)\b/i]];
 
 export const slotFlag = item => { const s = item.flags?.[MODULE_ID]?.slot; return SLOT_IDS.has(s) ? s : null; };
 /** Where an item would naturally sit: 'hand', 'ring', a slot id, or null (shown under "Other equipped"). */
@@ -119,7 +124,8 @@ export function naturalSlot(item) {
   if (t === 'trinket') return 'trinket';
   return null;
 }
-const fits = (natural, slot) => natural === slot || (natural === 'hand' && (slot === 'mainhand' || slot === 'offhand')) || (natural === 'ring' && (slot === 'ring1' || slot === 'ring2'));
+const fits = (natural, slot) => natural === slot || (natural === 'hand' && (slot === 'mainhand' || slot === 'offhand')) || (natural === 'ring' && (slot === 'ring1' || slot === 'ring2'))
+  || (natural === 'trinket' && TRINKETS.has(slot));
 
 /** Equipped items placed into boxes: owner-assigned slot first, then the natural slot; anything left goes to "Other". */
 export function equipmentLayout(actor) {

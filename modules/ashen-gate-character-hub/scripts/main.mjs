@@ -6,6 +6,7 @@ import {MODULE_ID, VERSION, SHEET_LABEL} from './constants.mjs';
 import {createHubSheetClass} from './sheet.mjs';
 import {openNativeSheet, nativeSheetClass} from './native.mjs';
 import {registerCompanionSettings, petCapFor, companionsData, registerPetSlotSource, unregisterPetSlotSource} from './companions.mjs';
+import {registerCollapseSetting} from './collapse.mjs';
 import {registerVisibilitySetting, PARTS, PRESETS, readVisibility, setVisibility, applyPreset, hiddenReason, canSee} from './visibility.mjs';
 
 let HubSheet = null;
@@ -95,6 +96,8 @@ if (globalThis.Hooks) {
     // Per user (client scope): how see-through the Hub window background is. Changed with the slider in the Hub header.
     game.settings.register(MODULE_ID, 'windowOpacity', {scope: 'client', config: false, type: Number, default: 100,
       onChange: () => { for (const app of globalThis.foundry?.applications?.instances?.values?.() ?? []) if (HubSheet && app instanceof HubSheet && app.rendered) app.applyOpacity(); }});
+    // Per user (client scope): which Hub sections and inventory containers are collapsed.
+    registerCollapseSetting(game.settings);
     registerCompanionSettings(game.settings, () => renderAllHubs());
     registerVisibilitySetting(game.settings, () => renderAllHubs());
     const mod = game.modules.get(MODULE_ID);

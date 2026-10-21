@@ -3,6 +3,7 @@ import {esc} from './constants.mjs';
 import {btn} from './buttons.mjs';
 import {companionsData, freeItems, petCapOverride, defaultPetCap} from './companions.mjs';
 import {PARTS, PRESETS, readVisibility, hiddenReason} from './visibility.mjs';
+import {sectionHtml, sectionKey, toggleButton, bodyAttrs} from './collapse.mjs';
 
 const plain = html => String(html ?? '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 const itemOptions = (items, placeholder) => `<option value="">${esc(placeholder)}</option>${items.map(i => `<option value="${esc(i.id)}">${esc(i.name)}</option>`).join('')}`;
@@ -36,10 +37,10 @@ export function companionsTab({actor, editable}) {
   const override = petCapOverride(actor);
   const gmCap = gm ? `<label class="agch-gmcap">GM: pet limit for ${esc(actor.name)}
       <select data-edit="pet-cap-override" data-actor="${esc(actor.id)}">${capOptions(override)}</select></label>` : '';
-  return `<h3 class="agch-heading">Mount <span class="ag-badge">${d.mount ? 1 : 0} / 1</span></h3>${mount}${addZone('mount', 'a mount', !!d.mount)}
-    <h3 class="agch-heading">Pets <span class="ag-badge${d.overCap ? ' ag-badge--danger' : ''}">${d.pets.length} / ${esc(d.capLabel)}</span></h3>
+  return `${sectionHtml(sectionKey('companions', 'mount'), `Mount <span class="ag-badge">${d.mount ? 1 : 0} / 1</span>`, `${mount}${addZone('mount', 'a mount', !!d.mount)}`)}
+    ${sectionHtml(sectionKey('companions', 'pets'), `Pets <span class="ag-badge${d.overCap ? ' ag-badge--danger' : ''}">${d.pets.length} / ${esc(d.capLabel)}</span>`, `
     ${d.overCap ? `<p class="agch-notice" role="note">More pets than the current limit (${esc(d.capLabel)}). Nothing was removed; remove one or ask the GM.</p>` : ''}
-    ${pets}${addZone('pet', 'a pet', d.pets.length >= d.cap)}${gmCap}
+    ${pets}${addZone('pet', 'a pet', d.pets.length >= d.cap)}`)}${gmCap}
     <p class="agch-muted agch-hint">A companion is an Item on this character. Perk items only show their own text here: the Hub does not apply bonuses or effects. Removing a companion keeps its Item on the character.</p>`;
 }
 
@@ -56,10 +57,11 @@ function visibilityCard() {
       : `<span class="ag-badge ag-badge--warn"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Hidden from players: ${esc(reason)}</span>`;
     return `<li><label><input type="checkbox" data-edit="part-visibility" data-part="${esc(p.key)}"${on[p.key] ? ' checked' : ''}> ${esc(p.label)}</label>${status}</li>`;
   }).join('');
-  return `<section class="ag-card"><h3>Player visibility</h3>
+  const key = sectionKey('gm', 'visibility');
+  return `<section class="ag-card"><h3 class="agch-sec__head">${toggleButton(key, 'Player visibility')}</h3><div${bodyAttrs(key)}>
     <p class="agch-muted">Choose which parts of the Character Hub players see, so you can bring systems in one at a time. You always see everything; hidden parts carry a "Hidden from players" badge. An Ashen Gate part is also hidden from players while its module is not active or its own Player Access is off (change that in the module's own GM Setup). Hiding a part changes no character data, and players can't use its Hub actions while it is hidden.</p>
     <div class="agch-vis__presets"><span class="agch-muted">Quick set:</span>${PRESETS.map(p => btn('visibility-preset', p.label, {kind: 'sm', data: {preset: p.id}})).join('')}</div>
-    <ul class="agch-vis">${rows}</ul></section>`;
+    <ul class="agch-vis">${rows}</ul></div></section>`;
 }
 
 /** GM Setup: settings only (player visibility, pet limits). */
@@ -67,8 +69,9 @@ export function gmSetupTab() {
   const chars = [...(globalThis.game?.actors ?? [])].filter(a => a.type === 'character').sort((a, b) => String(a.name).localeCompare(String(b.name)));
   const rows = chars.map(a => { const d = companionsData(a); return `<tr><th scope="row">${esc(a.name)}</th><td>${d.mount ? 1 : 0}</td><td>${d.pets.length} / ${esc(d.capLabel)}</td>
     <td><select data-edit="pet-cap-override" data-actor="${esc(a.id)}" aria-label="Pet limit for ${esc(a.name)}">${capOptions(petCapOverride(a))}</select></td></tr>`; }).join('');
-  return `${visibilityCard()}<section class="ag-card"><h3>Companions</h3>
+  const key = sectionKey('gm', 'companions');
+  return `${visibilityCard()}<section class="ag-card"><h3 class="agch-sec__head">${toggleButton(key, 'Companions')}</h3><div${bodyAttrs(key)}>
     <label class="ag-field">Pets per character (world default)<input type="number" min="0" step="1" data-edit="pet-cap-default" value="${defaultPetCap()}"></label>
     <p class="agch-muted">Every character may have one mount. Pets start at 0: raise the world default or a character's limit to give pet slots. Limits apply when adding a pet; existing pets are never removed.</p>
-    ${rows ? `<table class="agch-table"><thead><tr><th>Character</th><th>Mount</th><th>Pets</th><th>Pet limit</th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="ag-empty">No characters.</p>'}</section>`;
+    ${rows ? `<table class="agch-table"><thead><tr><th>Character</th><th>Mount</th><th>Pets</th><th>Pet limit</th></tr></thead><tbody>${rows}</tbody></table>` : '<p class="ag-empty">No characters.</p>'}</div></section>`;
 }

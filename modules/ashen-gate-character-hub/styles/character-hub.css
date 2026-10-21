@@ -11,6 +11,10 @@
   --agch-bg-sunken: color-mix(in srgb, var(--ag-surface-sunken) var(--agch-alpha), transparent); }
 .application.ag-app.ag-character-hub { background: var(--agch-bg); }
 .application.ag-app.ag-character-hub > .window-header { background: color-mix(in srgb, var(--ag-surface-sunken) var(--agch-alpha), transparent); }
+/* 0.10.0: the whole window fades, not only the character pane. Core/theme rules may paint the window, its content or a
+   pseudo-element; the sheet also sets the window background inline (applyOpacity), these cover the rest. */
+.application.ag-app.ag-character-hub > .window-content { background: transparent !important; }
+.application.ag-app.ag-character-hub::before, .application.ag-app.ag-character-hub::after { background: none !important; }
 .ag-character-hub .ag-header { background: transparent; }
 .ag-character-hub .ag-card { background: var(--agch-bg-raised); }
 .ag-character-hub .agch-opacity { display: inline-flex; gap: var(--ag-space-1); align-items: center; color: var(--ag-muted); }
@@ -18,12 +22,33 @@
 .ag-character-hub .agch-root { display: flex; flex-direction: column; gap: var(--ag-space-2); padding: var(--ag-space-2) var(--ag-space-3) var(--ag-space-3); min-height: 0; flex: 1; overflow: hidden; }
 .ag-character-hub .agch-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--ag-space-2) var(--ag-space-1) 0 0; }
 
+/* Item rarity colours (dnd5e rarity keys). Shared names so other Hub tabs (and later other modules) can reuse them. */
+.ag-character-hub { --ag-rarity-common: #f2f2f2; --ag-rarity-uncommon: #3fbf5a; --ag-rarity-rare: #3d8bfd; --ag-rarity-veryRare: #a35ce6;
+  --ag-rarity-legendary: #ff8c1a; --ag-rarity-artifact: #e5383b; }
+.ag-character-hub [data-rarity="common"] { --agch-rarity: var(--ag-rarity-common); }
+.ag-character-hub [data-rarity="uncommon"] { --agch-rarity: var(--ag-rarity-uncommon); }
+.ag-character-hub [data-rarity="rare"] { --agch-rarity: var(--ag-rarity-rare); }
+.ag-character-hub [data-rarity="veryRare"] { --agch-rarity: var(--ag-rarity-veryRare); }
+.ag-character-hub [data-rarity="legendary"] { --agch-rarity: var(--ag-rarity-legendary); }
+.ag-character-hub [data-rarity="artifact"] { --agch-rarity: var(--ag-rarity-artifact); }
+
+/* Collapsible sections (headings, GM Setup cards, inventory containers, Other equipped) */
+.ag-character-hub [data-sec-body][hidden] { display: none !important; }
+.ag-character-hub .agch-sec__head { display: flex; align-items: center; }
+.ag-character-hub .agch-sec__toggle { display: inline-flex; align-items: center; gap: var(--ag-space-2); width: auto; min-height: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.ag-character-hub .agch-sec__toggle:hover .agch-sec__title, .ag-character-hub .agch-sec__toggle:focus-visible .agch-sec__title { color: var(--ag-accent); }
+.ag-character-hub .agch-sec__chev { font-size: .75em; color: var(--ag-muted); transition: transform .12s; }
+.ag-character-hub .agch-sec__toggle[aria-expanded="false"] .agch-sec__chev { transform: rotate(-90deg); }
+.ag-character-hub .agch-sec__toggle--icon { width: 20px; height: 20px; justify-content: center; flex: none; }
+@media (prefers-reduced-motion: reduce) { .ag-character-hub .agch-sec__chev { transition: none; } }
+
 /* Two columns: the character (left, ~38%) and the tabs (right). Only the tab content scrolls. */
 /* Character | content | tab rail (right edge). Only the content pane scrolls. */
 .ag-character-hub .agch-split { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(22rem, 36%) minmax(0, 1fr) auto; grid-template-areas: "char pane rail"; gap: var(--ag-space-3); }
 .ag-character-hub .agch-char { grid-area: char; }
 .ag-character-hub .agch-pane { grid-area: pane; }
-.ag-character-hub .agch-rail { grid-area: rail; display: flex; flex-direction: column; gap: 4px; padding: var(--ag-space-1); border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--agch-bg-raised); align-self: start; }
+.ag-character-hub .agch-railcol { grid-area: rail; display: flex; flex-direction: column; justify-content: space-between; gap: var(--ag-space-2); min-height: 0; }
+.ag-character-hub .agch-rail { display: flex; flex-direction: column; gap: 4px; padding: var(--ag-space-1); border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--agch-bg-raised); align-self: start; }
 .ag-character-hub .agch-rail__tab { width: 36px; height: 36px; min-height: 0; padding: 0; display: grid; place-items: center; border: 1px solid transparent; border-radius: var(--ag-radius-sm); background: transparent; color: var(--ag-muted); font-size: 16px; cursor: pointer; }
 .ag-character-hub .agch-rail__tab:hover, .ag-character-hub .agch-rail__tab:focus-visible { color: var(--ag-text); background: var(--ag-surface-hover); border-color: var(--ag-border); }
 .ag-character-hub .agch-rail__tab.active { color: var(--ag-accent); background: var(--ag-accent-soft); border-color: color-mix(in srgb, var(--ag-accent) 60%, transparent); box-shadow: inset 3px 0 0 var(--ag-accent); }
@@ -34,6 +59,7 @@
 @container (max-width: 900px) {
   .ag-character-hub .agch-root { overflow-y: auto; }
   .ag-character-hub .agch-split { grid-template-columns: minmax(0, 1fr); grid-template-areas: "char" "rail" "pane"; flex: none; }
+  .ag-character-hub .agch-railcol { flex-direction: row; flex-wrap: wrap; }
   .ag-character-hub .agch-rail { flex-direction: row; flex-wrap: wrap; align-self: stretch; }
   .ag-character-hub .agch-char { overflow: visible; }
   .ag-character-hub .agch-body { overflow: visible; }
@@ -58,7 +84,22 @@
 .ag-character-hub .agch-doll__art { position: relative; height: calc(var(--agch-slot) * 4 + 18px); border: 1px solid var(--ag-border-strong); border-radius: var(--ag-radius); background: var(--agch-bg-sunken); overflow: hidden; }
 .ag-character-hub .agch-doll__art img { width: 100%; height: 100%; object-fit: contain; object-position: center top; border: 0; display: block; }
 .ag-character-hub .agch-doll__toggle { position: absolute; top: 4px; right: 4px; min-height: 0; padding: 1px 6px; font-size: var(--ag-text-xs); background: color-mix(in srgb, var(--ag-surface-sunken) 80%, transparent); }
-.ag-character-hub .agch-doll__row { display: flex; justify-content: center; gap: 6px; }
+.ag-character-hub .agch-doll__row { grid-column: 1 / -1; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; }
+.ag-character-hub .agch-slot__icon { font-size: 18px; color: var(--ag-muted); opacity: .55; }
+.ag-character-hub .agch-slot.has-rarity { border: 2px solid var(--agch-rarity); }
+.ag-character-hub .agch-slot.has-rarity:not(.is-attuned) { box-shadow: 0 0 6px color-mix(in srgb, var(--agch-rarity) 55%, transparent); }
+/* Other equipped: a folding list under the rings and trinkets */
+.ag-character-hub .agch-other { display: grid; gap: var(--ag-space-1); font-size: var(--ag-text-sm); }
+.ag-character-hub .agch-other > .agch-sec__toggle { color: var(--ag-muted); }
+.ag-character-hub .agch-other__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.ag-character-hub .agch-other__row { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); padding: 2px var(--ag-space-1); border: 1px solid var(--ag-border); border-radius: var(--ag-radius-sm); background: var(--agch-bg-sunken); }
+.ag-character-hub .agch-other__row.has-rarity { border-color: var(--agch-rarity); border-left-width: 3px; }
+.ag-character-hub .agch-other__row img { width: 24px; height: 24px; border: 0; border-radius: var(--ag-radius-sm); flex: none; }
+.ag-character-hub .agch-other__name { flex: 1 1 8rem; width: auto; min-height: 0; padding: 0; border: 0; background: none; color: var(--ag-text); text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.ag-character-hub .agch-other__name:hover, .ag-character-hub .agch-other__name:focus-visible { color: var(--ag-accent); text-decoration: underline; }
+.ag-character-hub .agch-other__att { color: var(--ag-accent); }
+.ag-character-hub .agch-slot__more.is-shown { position: static; opacity: 1; flex: none; }
+.ag-character-hub .agch-menu--inline { position: static; width: auto; max-width: none; flex-basis: 100%; }
 .ag-character-hub .agch-ac { position: absolute; left: 50%; bottom: 4px; transform: translateX(-50%); width: 52px; height: 58px; display: grid; align-content: center; justify-items: center;
   background: var(--ag-surface-raised); border: 2px solid var(--ag-accent); clip-path: polygon(50% 0, 100% 12%, 100% 60%, 50% 100%, 0 60%, 0 12%); }
 .ag-character-hub .agch-ac__value { font-size: var(--ag-text-xl); font-weight: 700; line-height: 1; font-variant-numeric: tabular-nums; }
@@ -98,13 +139,32 @@
 .ag-character-hub .agch-hp { display: grid; gap: var(--ag-space-1); padding: var(--ag-space-1) var(--ag-space-2) var(--ag-space-2); border: 1px solid var(--ag-border); border-radius: var(--ag-radius-sm); background: var(--agch-bg-raised); }
 .ag-character-hub .agch-hp__bar { position: relative; height: 22px; border-radius: var(--ag-radius-sm); background: var(--ag-surface-sunken); border: 1px solid var(--ag-border); overflow: hidden; }
 .ag-character-hub .agch-hp__fill { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--ag-danger) 70%, #400); }
-.ag-character-hub .agch-hp__temp { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--ag-ok) 55%, #023) 0 4px, color-mix(in srgb, var(--ag-ok) 35%, #012) 4px 8px); }
+.ag-character-hub .agch-hp { position: relative; --agch-hp-temp: #f2c53d; --agch-hp-boost: #4a90e2; }
+.ag-character-hub .agch-hp__bar.is-editable { cursor: pointer; }
+.ag-character-hub .agch-hp__bar:focus-visible { outline: 2px solid var(--ag-focus); outline-offset: 1px; }
+/* Max HP adjustment above normal max: a blue overlay at the right end of the bar */
+.ag-character-hub .agch-hp__boost { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--agch-hp-boost) 45%, transparent); box-shadow: inset 2px 0 0 var(--agch-hp-boost); }
+/* Temp HP: a yellow overshield segment after the current HP */
+.ag-character-hub .agch-hp__temp { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(45deg, var(--agch-hp-temp) 0 5px, color-mix(in srgb, var(--agch-hp-temp) 70%, #000) 5px 9px); opacity: .9; }
+.ag-character-hub .agch-hp__bar .agch-hp__text { display: flex; justify-content: center; align-items: center; gap: .35em; white-space: nowrap; }
+.ag-character-hub .agch-hp__temptext { color: var(--agch-hp-temp); }
+/* Negative max HP adjustment: the lost part at the right end, sickly green */
+.ag-character-hub .agch-hp { --agch-hp-lost: #8fae3a; }
+.ag-character-hub .agch-hp__lost { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--agch-hp-lost) 55%, #000) 0 4px, color-mix(in srgb, var(--agch-hp-lost) 30%, #000) 4px 8px); box-shadow: inset 2px 0 0 var(--agch-hp-lost); }
+.ag-character-hub .agch-hp__losttext { color: color-mix(in srgb, var(--agch-hp-lost) 75%, #fff); }
+
+.ag-character-hub .agch-hpedit { top: 30px; left: 0; width: 17rem; max-width: 100%; }
+.ag-character-hub .agch-hpedit__fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--ag-space-2); }
+.ag-character-hub .agch-hpedit__field { display: grid; gap: 2px; font-size: var(--ag-text-xs); color: var(--ag-muted); }
+.ag-character-hub .agch-hpedit__field input { width: 100%; text-align: center; font-variant-numeric: tabular-nums; }
+.ag-character-hub .agch-hpedit__foot { display: flex; justify-content: space-between; gap: var(--ag-space-2); margin-top: var(--ag-space-2); }
 .ag-character-hub .agch-hp__text { position: absolute; inset: 0; display: grid; place-items: center; font-weight: 600; font-size: var(--ag-text-sm); font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px #000; color: #fff; }
 .ag-character-hub .agch-hp__row, .ag-character-hub .agch-hp__adjust { display: flex; flex-wrap: wrap; gap: var(--ag-space-1); align-items: center; }
-.ag-character-hub .agch-hp__adjust { margin-left: auto; }
+.ag-character-hub .agch-hp__adjust { gap: 2px; }
+.ag-character-hub .agch-hp__row .agch-pill { font-size: var(--ag-text-sm); }
 .ag-character-hub .agch-hp__field { display: flex; gap: var(--ag-space-1); align-items: center; font-size: var(--ag-text-sm); color: var(--ag-muted); }
 .ag-character-hub .agch-hp__field input, .ag-character-hub .agch-hp__amount { width: 3rem; height: 26px; padding: 0 2px; text-align: center; font-variant-numeric: tabular-nums; }
-.ag-character-hub .agch-hp__adjust .ag-btn { min-height: 26px; padding: 2px 8px; }
+.ag-character-hub .agch-hp__adjust .ag-btn { min-height: 26px; width: 26px; padding: 0; justify-content: center; }
 
 /* Abilities */
 .ag-character-hub .agch-abils { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--ag-space-1); }
@@ -135,16 +195,29 @@
 .ag-character-hub .agch-error { display: grid; gap: var(--ag-space-2); }
 
 /* Overview tab */
-.ag-character-hub .agch-skills { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 2px var(--ag-space-3); }
+/* 0.10.0: skills on the left, saves / passives / proficiencies on the right; one row per line with zebra stripes */
+.ag-character-hub .agch-overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 0 var(--ag-space-4); align-items: start; }
+.ag-character-hub .agch-overview__col { display: grid; gap: 0; min-width: 0; }
+.ag-character-hub .agch-overview__col .agch-heading { margin-top: var(--ag-space-2); }
+.ag-character-hub .agch-zebra { display: grid; gap: 0; border: 1px solid var(--ag-border); border-radius: var(--ag-radius-sm); overflow: hidden; }
+.ag-character-hub .agch-zebra > li:nth-child(even) { background: color-mix(in srgb, var(--ag-text) 6%, transparent); }
+.ag-character-hub .agch-zebra .agch-row { border-radius: 0; padding: 3px var(--ag-space-2); }
+.ag-character-hub .agch-zebra__head { display: flex; align-items: center; gap: var(--ag-space-2); padding: 2px var(--ag-space-2); font-size: var(--ag-text-xs); text-transform: uppercase; letter-spacing: .05em; color: var(--ag-muted); background: var(--agch-bg-sunken) !important; border-bottom: 1px solid var(--ag-border); }
+.ag-character-hub .agch-zebra__head > span:first-child { width: 1rem; }
+.ag-character-hub .agch-zebra__head .agch-row__value { text-align: right; }
+.ag-character-hub .agch-row__passive { text-align: right; }
+.ag-character-hub .agch-kv__row { display: contents; }
+.ag-character-hub .agch-kv__row > dt, .ag-character-hub .agch-kv__row > dd { padding: 3px var(--ag-space-2); }
+.ag-character-hub .agch-kv__row > dt { padding-right: var(--ag-space-3); }
+.ag-character-hub .agch-kv__row:nth-child(even) > dt, .ag-character-hub .agch-kv__row:nth-child(even) > dd { background: color-mix(in srgb, var(--ag-text) 6%, transparent); }
 .ag-character-hub .agch-row { display: flex; align-items: center; gap: var(--ag-space-2); width: 100%; text-align: left; background: transparent; border: 1px solid transparent; border-radius: var(--ag-radius-sm); padding: var(--ag-space-1) var(--ag-space-2); color: var(--ag-text); }
 .ag-character-hub .agch-row:hover:not(:disabled), .ag-character-hub .agch-row:focus-visible { background: var(--ag-surface-hover); border-color: var(--ag-border); }
 .ag-character-hub .agch-row__name { flex: 1; overflow-wrap: anywhere; }
 .ag-character-hub .agch-row__value { font-weight: 600; min-width: 2.5rem; text-align: right; font-variant-numeric: tabular-nums; }
 .ag-character-hub .agch-row__abbr { width: 2.2rem; text-transform: uppercase; font-size: var(--ag-text-xs); }
 .ag-character-hub .agch-row__passive { min-width: 2.2rem; font-variant-numeric: tabular-nums; }
-.ag-character-hub .agch-overview { display: grid; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); gap: 0 var(--ag-space-4); }
 .ag-character-hub .agch-saves { display: grid; gap: 2px; }
-.ag-character-hub .agch-kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--ag-space-1) var(--ag-space-3); margin: 0; }
+.ag-character-hub .agch-kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 0; margin: 0; border: 1px solid var(--ag-border); border-radius: var(--ag-radius-sm); overflow: hidden; }
 .ag-character-hub .agch-kv dt { color: var(--ag-muted); }
 .ag-character-hub .agch-kv dd { margin: 0; overflow-wrap: anywhere; }
 .ag-character-hub .agch-prof { color: var(--ag-accent); width: 1rem; }
@@ -233,3 +306,20 @@
 .ag-character-hub .agch-vis li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); }
 .ag-character-hub .agch-vis label { display: inline-flex; align-items: center; gap: var(--ag-space-2); }
 .ag-character-hub .agch-vis__presets { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); margin: var(--ag-space-2) 0; }
+
+/* Ashen Gate quick bar (0.10.0): a second button group at the bottom of the rail, growing upward */
+.ag-character-hub .agch-agbar { align-self: end; }
+.ag-character-hub .agch-agbar__btn.is-missing { opacity: .4; }
+@container (max-width: 900px) { .ag-character-hub .agch-agbar { align-self: stretch; } }
+
+/* Art of any size or shape is never stretched. Small icons and portraits fill their square (cropped, focus on the top
+   so faces stay in view); the paper-doll art pane (portrait or token art) shows the whole image over a blurred fill. */
+.ag-character-hub .agch-portrait, .ag-character-hub .agch-slot img, .ag-character-hub .agch-item__img, .ag-character-hub .agch-other__row img,
+.ag-character-hub .agch-companion__head img, .ag-character-hub .agch-chip img { object-fit: cover; object-position: center top; }
+.ag-character-hub .agch-doll__art .agch-doll__fg { object-fit: contain; object-position: center top; max-width: 100%; max-height: 100%; }
+.ag-character-hub .agch-doll__art .agch-doll__bg { object-fit: cover; object-position: center; }
+/* The slot keeps overflow visible (the attuned ✦ sits outside it), so its image is pinned to the box instead. */
+.ag-character-hub .agch-slot img { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; max-width: none; }
+.ag-character-hub .agch-item__img, .ag-character-hub .agch-other__row img { min-height: 0; max-height: none; aspect-ratio: 1; }
+/* An image placeholder (SLOT_PLACEHOLDERS) sits small and faint in the middle of an empty slot */
+.ag-character-hub .agch-slot img.agch-slot__ph { position: static; inset: auto; width: 70%; height: 70%; object-fit: contain; object-position: center; opacity: .55; border: 0; }
