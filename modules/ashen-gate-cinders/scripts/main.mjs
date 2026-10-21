@@ -3,6 +3,7 @@
 import {createStrain} from './strain-runtime.mjs';
 import {createStrainChip} from './strain-chip.mjs';
 import {createCinders,CINDER_HOOK} from './cinder-runtime.mjs';
+import {isLevelBackup} from './cinder.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition} from './definition-lookup.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
@@ -11,7 +12,7 @@ import {orbArt,strainTone,ringModel,orbitModel,ART_FOLDER} from './orb.mjs';
 import {windowSize} from './ag-html.mjs';
 
 const MODULE='ashen-gate-cinders';
-const VERSION='0.8.0';
+const VERSION='0.8.1';
 const SOCKET=`module.${MODULE}`;
 const TREES_ID='ashen-gate-skill-trees';
 const ACCOUNTS_CONTRACT='ag-tree-accounts/1';
@@ -87,7 +88,7 @@ function pickJsonFile(){
     el.click();
   });
 }
-const characters=()=>(game.actors?.contents??[]).filter(a=>a.type==='character'&&(game.user.isGM||a.isOwner)).sort((a,b)=>a.name.localeCompare(b.name));
+const characters=()=>(game.actors?.contents??[]).filter(a=>a.type==='character'&&!isLevelBackup(a)&&(game.user.isGM||a.isOwner)).sort((a,b)=>a.name.localeCompare(b.name));
 /** Strain bar: fills to the guarantee point (10), then shows how far past it the character is.
  * The same model and kit meter as Character Hub's Strain row: tone warn once a Push can backfire, danger when guaranteed or over. */
 export function strainBar(s){
@@ -360,7 +361,7 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
   async _bind(instanceId,isTransfer){
     if(!game.user.isGM)throw Error('GM only');
     const inst=cinders.readRegistry().instances.find(i=>i.instanceId===instanceId);if(!inst)throw Error('Unknown Cinder');
-    const choices=(game.actors?.contents??[]).filter(a=>a.type==='character'&&a.id!==inst.bearer?.actorId).sort((a,b)=>a.name.localeCompare(b.name));
+    const choices=(game.actors?.contents??[]).filter(a=>a.type==='character'&&!isLevelBackup(a)&&a.id!==inst.bearer?.actorId).sort((a,b)=>a.name.localeCompare(b.name));
     if(!choices.length)throw Error('No other characters to choose from');
     const name=cinders.definitionName(inst.definitionId);
     const note=isTransfer?'The Cinder keeps its points and unlocked powers; its powers move to the new bearer. Strain and Backfire conditions stay with the previous bearer.':`A bearer cannot release a Cinder; only the GM can unbind or transfer it.${inst.firstBoundAt?'':' The first binding gives the starting point(s).'}`;

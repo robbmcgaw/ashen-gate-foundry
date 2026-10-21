@@ -10,6 +10,9 @@ export const CINDER_SCHEMA = 'ag-cinder/0.1';
 export const POWER_SCHEMA = 'ag-power/0.1';
 export const BACKFIRE_SCHEMA = 'ag-backfire/0.1';
 export const CINDER_WALLET_CAP = 16;
+/** Character Hub's level-backup copies (flags['ashen-gate-character-hub'].levelBackup) are never listed, picked or a valid target. */
+export const LEVEL_BACKUP_MESSAGE = 'That is a level backup copy, not a playable character.';
+export const isLevelBackup = actor => !!actor?.flags?.['ashen-gate-character-hub']?.levelBackup;
 export const INSTANCE_ID = /^cinst_[A-Za-z0-9]{8,32}$/;
 export const MODIFIER_TARGETS = ['push.cost', 'backfire.chance', 'backfire.severity', 'strain.recovery', 'sockets.count'];
 /** The shared modifier shape (docs/modifiers-schema.md) and this module's scope in it. */

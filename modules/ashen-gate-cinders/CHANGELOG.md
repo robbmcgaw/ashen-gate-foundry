@@ -1,3 +1,9 @@
+## 0.8.1 — 2026-10-21
+
+- Character Hub level-backup copies (Actors with the Hub's `levelBackup` flag) no longer appear in the Cinders character list or the Bind / Transfer choices.
+- They are refused as a target in the API too: bind, transfer, rehook, Push, sockets, Strain changes, Cinder tree points and player requests relayed to the GM all say "That is a level backup copy, not a playable character." Manage → Check / Repair and Move existing Cinder progress skip them.
+- Saved data: no change. No migration.
+
 ## 0.8.0 — 2026-10-21
 
 - **Strain chip on tokens:** a character with Strain above 0 carries one status for its Strain band (`ag-strain-<band index>`, one per band of the Strain config, so the band thresholds and names come from GM Setup → Strain). Its name shows the level, e.g. "Strain 6/10 (Band 3)", in the token tooltip. Everyone who can see the token sees it, and Utilities' Conditions view and overlay list it like any other status. Strain 0 = no chip.
