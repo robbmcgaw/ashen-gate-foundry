@@ -7,7 +7,7 @@
 import {ID,escapeHTML as E,coinsText,readCoins,checkSell,planShopPayout,sellStockChange,shopSaleEntry,SHOP_REFUSALS,SELL_REFUSALS,
  sellRows,quoteSale,saleText,heldQuantity} from './core.mjs';
 import {readAll,writeShop,queueShops,appendLog,logOf,norm,randomId,button,icon,dragData} from './shops.mjs';
-import {tradeCtx,playerGate,viewOf,readablePurse,owns,queueBuy,whisper,gmIds,warn,syncPlayerView,empty} from './shop-buy.mjs';
+import {tradeCtx,playerGate,viewOf,readablePurse,owns,queueBuy,whisper,gmIds,warn,syncPlayerView,empty,postTradeCard} from './shop-buy.mjs';
 import {formDialog,choiceDialog} from './ag-dialogs.mjs';
 
 export const SELL_TIMEOUT_MS=15000;
@@ -134,6 +134,7 @@ async function carryOut(r,user){
  // D. History (party purse sales), the rebuilt player view, the receipt.
  if(r.payTo==='purse')await tradeCtx().logStash?.(a.entry)?.catch?.(warn('Could not write stash history'));
  await syncPlayerView().catch(warn('Could not update the shop player view'));
+ postTradeCard(a.entry,user);
  return saleText({quantity:g.check.quantity,name:g.data.name,shopName:g.shop.name,totalText:a.entry.totalText,payTo:r.payTo,receiverName:g.receiver.name});
 }
 const handled=new Map(),HANDLED_MS=10*60000;
