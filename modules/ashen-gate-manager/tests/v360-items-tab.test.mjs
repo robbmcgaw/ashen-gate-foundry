@@ -299,7 +299,7 @@ test('Clean compendiums button: exact name, preview with ticks, labelled Commit,
   for (const h of ['data-ag-clean-move="{{key}}"', 'data-ag-clean-part="{{partKey}}"', 'data-ag-action="clean-commit"', 'data-ag-action="clean-backup"', 'data-ag-action="clean-cancel"', 'data-ag-clean-status', 'Skipped compendiums'])
     assert.ok(org.includes(h), h);
   assert.ok(org.indexOf('data-ag-action="clean-cancel"') < org.indexOf('data-ag-action="clean-commit"'), 'Cancel left, Commit right');
-  assert.match(main, /yes:\{label:`Commit \$\{keys\.length\} move\(s\)`\}/);
+  assert.match(main, /yes:`Commit \$\{keys\.length\} move\(s\)`/);
   assert.match(main, /Locked, skipped\. Unlock it in the Compendium sidebar/);
 });
 
@@ -324,8 +324,8 @@ test('Organize keeps preview, backup, undo, protected folders, Keep here and con
     assert.ok(org.includes(`data-ag-action="${a}"`), a);
   for (const h of ['data-ag-org-protect', 'data-ag-org-unprotect', 'data-ag-org-keep', 'value="selection" data-ag-org-scope', 'value="all" data-ag-org-scope'])
     assert.ok(org.includes(h), h);
-  assert.match(main, /yes:\{label:'Apply organize'\}/);
-  assert.match(main, /yes:\{label:'Undo last organize'\}/);
+  assert.match(main, /yes:'Apply organize'/);
+  assert.match(main, /yes:'Undo last organize'/);
   assert.match(main, /const planned=\{source:p\.source,types:p\.types,mode:p\.mode,ids:p\.ids,folderId:p\.folderId\};\s*const out=await api\.apply\(planned\);/,
     'Apply runs exactly what was previewed');
   // Housekeeping moved to Checks, next to Check library.
@@ -340,7 +340,7 @@ test('Core links: Apply and backup use only ticked rows the filters show; Apply 
   assert.match(cl, /hidden by the filters above/);
   assert.match(main, /const ids=new Set\(this\.#coreLinkChosen\(\)\);/);
   assert.match(main, /api\.backupOf\(this\.clPreview,ids\)/);
-  assert.match(main, /yes:\{label:'Link core items'\}/);
+  assert.match(main, /yes:'Link core items'/);
 });
 
 test('public API names are unchanged and stay GM-gated; Codex open goes to Items → NPC Codex', () => {

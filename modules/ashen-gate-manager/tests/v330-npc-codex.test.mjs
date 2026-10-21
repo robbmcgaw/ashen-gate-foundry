@@ -152,7 +152,7 @@ test('0.33.0: Codex sits in the Library rail with labelled hide confirmation and
   for (const hook of ['data-ag-codex-reveal="{{key}}"', 'data-ag-codex-actor="{{../key}}"', 'data-ag-codex-preview', 'data-ag-codex-import',
     'data-ag-action="codex-save"', 'data-ag-action="codex-export"', 'data-ag-codex-access'])
     assert.ok(tpl.includes(hook), hook);
-  assert.match(main, /yes:\{label:'Hide from players'\}/);
+  assert.match(main, /yes:'Hide from players'/);
   assert.match(main, /CONFIG\.queries\[CODEX_QUERY\]/);
 });
 

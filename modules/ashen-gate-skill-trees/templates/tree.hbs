@@ -164,7 +164,7 @@
         </div>
         {{#if editing}}<div class="agst-canvas-help">Drag nodes to move them · Add perks from the Perks list · Select a node, then Connect Prerequisite (required) or Edit Properties (OR groups, exclusions).</div>{{/if}}
       {{else}}
-        <div class="agst-no-tree"><i class="fa-regular fa-map"></i><h3>No visible tree layouts</h3><p>{{#if gm}}Initialize, add demo trees, or create a new draft.{{else}}A GM has not published any player-visible trees yet.{{/if}}</p></div>
+        <div class="agst-no-tree"><i class="fa-regular fa-map"></i><h3>No visible tree layouts</h3><p>{{#if gm}}No trees yet. Create one with New tree.{{else}}A GM has not published any player-visible trees yet.{{/if}}</p></div>
       {{/if}}
     </section>
   </div>
@@ -181,7 +181,7 @@
     <section class="agst-setup-card">
       <h2>Tree management</h2>
       <p>Manage the private layout library. This module does not import Profession XP or overwrite General Manager source definitions.</p>
-      <div class="agst-setup-meta"><span><strong>{{privateCount}}</strong> private layouts</span><span><strong>{{publishedCount}}</strong> public tree projections</span><span><strong>v{{moduleVersion}}</strong> Alpha release</span></div>
+      <div class="agst-setup-meta"><span><strong>{{privateCount}}</strong> private layouts</span><span><strong>{{publishedCount}}</strong> public tree projections</span><span><strong>v{{moduleVersion}}</strong></span></div>
       <div class="agst-setup-actions">
         <button type="button" data-act="create-tree" class="ag-btn ag-btn--primary"><i class="fa-solid fa-plus"></i> New Tree</button>
         <button type="button" class="ag-btn" data-act="export" {{#unless hasPrivateTree}}disabled title="Select a tree in the Skill Trees tab first"{{/unless}}><i class="fa-solid fa-file-export"></i> Export Selected Tree</button>

@@ -151,3 +151,26 @@ test('Strain bar: fills to the guarantee point, then shows how far past it', asy
   assert.deepEqual([over.fill, over.label, over.over], [100, '13 / 10+', 3]);
   assert.equal(game.modules.get(MOD).api.status().status, 'missing', 'Skill Trees is not in this test world; Strain works anyway');
 });
+
+// 0.4.1: Help and confirmations go through the shared ag-dialogs.mjs helper (mocked DialogV2).
+test('Help opens through infoDialog with one Close button; Reset to defaults is a danger confirm and Cancel changes nothing',async()=>{
+  game.user=gm;
+  const api=foundry.applications.api,before=api.DialogV2;
+  const app=game.modules.get(MOD).api.open();
+  let seen;api.DialogV2={prompt:async o=>{seen=o;}};
+  await app._act({dataset:{act:'help'}});
+  assert.equal(seen.ok.label,'Close');assert.ok(seen.classes.includes('ag-app'));assert.equal(seen.window.title,'Cinders help');
+  saved.set('strainConfig',{marker:'[TEST] kept'});
+  api.DialogV2={wait:async o=>{seen=o;return o.buttons.find(b=>b.action==='cancel').callback();}};
+  await app._act({dataset:{act:'strain-reset'}});
+  assert.deepEqual(seen.buttons.map(b=>b.label),['Cancel','Reset to defaults']);
+  assert.ok(seen.classes.includes('ag-dialog--danger'));assert.equal(seen.window.title,'Reset Strain settings?');
+  assert.deepEqual(saved.get('strainConfig'),{marker:'[TEST] kept'},'Cancel leaves the Strain config alone');
+  saved.delete('strainConfig');api.DialogV2=before;
+});
+test('Unbind and Detach are labelled danger confirms; no DialogV2.confirm or .input left',async()=>{
+  const src=await (await import('node:fs/promises')).readFile(new URL('../scripts/main.mjs',import.meta.url),'utf8');
+  assert.match(src,/yes:'Unbind Cinder',danger:true/);assert.match(src,/yes:'Detach item',danger:true/);
+  assert.match(src,/title:`Push \$\{pv\.powerName\}\?`,yes:'Push'/);
+  assert.doesNotMatch(src,/DialogV2\.(confirm|prompt|input)\(/);
+});

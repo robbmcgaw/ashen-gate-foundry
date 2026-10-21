@@ -9,7 +9,7 @@ const actors=[{id:'a',name:'Alpha',type:'character',hasPlayerOwner:true,items:[]
  {id:'b',name:'Bravo',type:'character',hasPlayerOwner:true,items:[],testUserPermission:()=>false}];
 const aDict={contents:actors,get:id=>actors.find(a=>a.id===id)};
 const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
-globalThis.foundry={applications:{api:{ApplicationV2:class{async _prepareContext(){return {};}render(){renderCount++;this.rendered=true;return this;}},HandlebarsApplicationMixin:x=>x,DialogV2:{confirm:async(opts)=>{prompts.push(opts);return false;}}}},utils:{escapeHTML:esc}};
+globalThis.foundry={applications:{api:{ApplicationV2:class{async _prepareContext(){return {};}render(){renderCount++;this.rendered=true;return this;}},HandlebarsApplicationMixin:x=>x,DialogV2:{wait:async(opts)=>{prompts.push(opts);return false;},prompt:async(opts)=>{prompts.push(opts);}}}},utils:{escapeHTML:esc}};
 globalThis.Hooks={once:(n,f)=>hooks[n]=f,on:()=>{}};
 globalThis.ui={notifications:{info:()=>{},error:x=>errors.push(x)}};
 const moduleObj={get api(){return moduleApi},set api(v){moduleApi=v},active:true};
@@ -25,7 +25,7 @@ app.element={querySelectorAll:s=>s==='[data-roster-actor]'||s==='[data-roster-ac
 test('GM Setup owns roster, access and tool mapping only; standard header/footer',async()=>{
  const html=(await app._prepareContext({})).html;
  assert.match(html,/Ashen Gate \| <strong>Profession Ledger/);
- assert.match(html,/v0\.23\.0/);
+ assert.match(html,/v0\.23\.1/);
  assert.match(html,/data-id="gm"/);
  assert.match(html,/data-action="help"/);
  assert.match(html,/data-action="roster-save"/);
@@ -58,6 +58,7 @@ test('editing roster is explicit; cancelled navigation retains changes',async()=
  assert.equal(prompts.length,1);
  assert.deepEqual(values.partyRoster,['a']);
  assert.match(prompts[0].window.title,/Discard/);
+ assert.deepEqual(prompts[0].buttons.map(b=>b.label),['Keep editing','Discard changes']);assert.ok(prompts[0].classes.includes('ag-dialog--danger'));
 });
 
 test('confirmed roster save preserves world IDs and leaves other catalog state alone',async()=>{
@@ -69,11 +70,15 @@ test('confirmed roster save preserves world IDs and leaves other catalog state a
  assert.equal(app.view,'gm');
 });
 
-test('navigation back from GM Setup does not discard saved roster; Help returns to prior view',async()=>{
+test('Help opens as a dialog with one Close button and the kit classes; the view stays put',async()=>{
  await app._click('tab','catalog');assert.equal(app.view,'catalog');
- await app._click('help');assert.equal(app.view,'help');
- assert.match((await app._prepareContext({})).html,/Profession Ledger Help/);
- await app._click('help-back');assert.equal(app.view,'catalog');
+ prompts.length=0;
+ await app._click('help');assert.equal(app.view,'catalog');
+ const help=prompts.at(-1);
+ assert.equal(help.ok.label,'Close');
+ assert.ok(help.classes.includes('ag-app')&&help.classes.includes('ag-dialog'));
+ assert.equal(help.window.title,'Profession Ledger help');
+ assert.match(help.content,/Recipe Catalog/);
 });
 
 test('player cannot force GM Setup through UI or public API, and never sees secret controls',async()=>{

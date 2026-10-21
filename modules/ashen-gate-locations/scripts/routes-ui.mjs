@@ -4,6 +4,7 @@
  * Every rule is enforced in the API; this only draws and calls it.
  */
 import {MODULE_ID, esc, clone, normalizeLocation, AUDIENCE_MODES, STATE_LABELS} from './model.mjs';
+import {confirmDialog} from './ag-dialogs.mjs';
 import {ROUTE_STATES, ROUTE_STATE_LABELS, ROUTE_DEFAULTS, MIN_KM, kmOk, normalizeRoute, legsOf, routeLabel, routeVariantFor, UNKNOWN_PATH} from './routes.mjs';
 
 const api = () => game.modules.get(MODULE_ID)?.api;
@@ -248,8 +249,8 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
     },
     async confirmRouteDiscard() {
       if (!this.routeDirty) return true;
-      return foundry.applications.api.DialogV2.confirm({window: {title: 'Discard changes?'}, content: '<p>You have unsaved changes to this route. Discard them?</p>',
-        yes: {label: 'Discard Changes'}, no: {label: 'Keep Editing'}, rejectClose: false});
+      return confirmDialog('You have unsaved changes to this route. Discard them?',
+        {title: 'Discard changes?', yes: 'Discard changes', no: 'Keep editing', danger: true});
     },
     async saveRouteDraft() {
       if (!this.routeDirty && this.routeDraft?.id) return this.routeDraft;
@@ -301,12 +302,13 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
         }
         case 'route-delete': {
           const d = this.routeDraft;
-          const content = `<p>Delete the route <strong>${esc(d.name || d.id)}</strong>? Players who could see it lose it. Its ID <code>${esc(d.id)}</code> is never used again.</p>`;
+          const message = `Delete ${d.name ? `the route ${d.name}` : 'this route'}? Players who could see it lose it. Its ID is never used again.`;
           const linked = api().routeDrawing(d.id).status === 'linked';
           const choice = linked
-            ? await foundry.applications.api.DialogV2.wait({window: {title: 'Delete route?'}, content: `${content}<p>It has a map drawing. Keep the drawing on the map, or delete it too?</p>`, rejectClose: false,
-              buttons: [{action: 'keep', label: 'Delete Route, Keep Drawing'}, {action: 'both', label: 'Delete Route and Drawing'}, {action: 'cancel', label: 'Cancel', default: true}]})
-            : await foundry.applications.api.DialogV2.confirm({window: {title: 'Delete route?'}, content, yes: {label: 'Delete Route'}, no: {label: 'Keep'}, rejectClose: false}) ? 'keep' : 'cancel';
+            ? await foundry.applications.api.DialogV2.wait({classes: ['ag-app', 'ag-dialog', 'ag-dialog--danger'], window: {title: 'Delete route?'},
+              content: `<p>${esc(message)}</p><p>It has a map drawing. Keep the drawing on the map, or delete it too?</p>`, rejectClose: false,
+              buttons: [{action: 'cancel', label: 'Cancel', default: true}, {action: 'keep', label: 'Delete route, keep drawing'}, {action: 'both', label: 'Delete route and drawing'}]})
+            : await confirmDialog(message, {title: 'Delete route?', yes: 'Delete route', danger: true}) ? 'keep' : 'cancel';
           if (choice !== 'keep' && choice !== 'both') return;
           await api().deleteRoute(d.id, {deleteDrawing: choice === 'both'});
           this.selectRoute(null); return this.render();
@@ -346,8 +348,7 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
         case 'route-hazard-share': await api().shareHazard(); ui.notifications.info('Shared with players in chat.'); return this.render();
         case 'route-journey-reverse': await api().reverseJourney(); ui.notifications.info('The party turns back.'); return this.render();
         case 'route-journey-abort': {
-          const ok = await foundry.applications.api.DialogV2.confirm({window: {title: 'Abort journey?'},
-            content: '<p>End this journey where the party is? Nothing is written to Party Notes.</p>', yes: {label: 'Abort Journey'}, no: {label: 'Keep Travelling'}, rejectClose: false});
+          const ok = await confirmDialog('End this journey where the party is? Nothing is written to Party Notes.', {title: 'End journey?', yes: 'End journey'});
           if (!ok) return;
           await api().abortJourney(); return this.render();
         }

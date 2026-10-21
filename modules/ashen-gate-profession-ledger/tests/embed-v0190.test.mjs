@@ -6,7 +6,7 @@ import path from 'node:path';
 let hooks={},api;
 const values={partyRoster:[],playerAccessEnabled:true,libraryData:{schema:'ag-ledger/0.1',recipes:[],materials:[]}};
 const gm={id:'gm',isGM:true,name:'GM'},owner={id:'u1',isGM:false,name:'Owner'},other={id:'u2',isGM:false,name:'Other'};
-globalThis.foundry={applications:{api:{ApplicationV2:class{render(){return this;}},HandlebarsApplicationMixin:c=>c,DialogV2:{confirm:async()=>true}}},utils:{escapeHTML:s=>String(s)}};
+globalThis.foundry={applications:{api:{ApplicationV2:class{render(){return this;}},HandlebarsApplicationMixin:c=>c,DialogV2:{wait:async()=>true}}},utils:{escapeHTML:s=>String(s)}};
 globalThis.Hooks={once:(n,f)=>hooks[n]=f,on:()=>{},callAll:()=>{}};
 const notes=[];globalThis.ui={notifications:{info:m=>notes.push(['info',m]),error:m=>notes.push(['error',m]),warn:m=>notes.push(['warn',m])}};
 const source=(id,type,visibility='player',status='approved',name)=>({'ashen-gate-manager':{source:{sourceId:id,entityType:type,visibility,status,...(name?{definition:{name}}:{})}}});

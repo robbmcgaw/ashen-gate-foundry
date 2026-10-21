@@ -1,3 +1,8 @@
+## 0.4.1 — 2026-10-21
+
+- Confirmations name the action (no more Yes/No), Help opens with a Close button, dialogs follow the Ashen Gate look; test wording removed from player views.
+- Unbind, Detach and Reset to defaults use a red action button; Push asks "Push [power]?". The Bind, Transfer, Create, Attach, Swap, Sockets and Strain forms use the shared form dialog (same fields).
+
 ## 0.4.0 — 2026-10-21
 
 - Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.
