@@ -78,7 +78,7 @@ test('Route records get every Locations check; endpoints outside the file are no
   assert.deepEqual(ok.errors, []);
   assert.match(ok.notes.join(' '), /LOC-TEST-MILL is not in this file/);
   const bad = await checkContent(pack([location(node()), route({distance_km: 0, hazard_base_percent: 150})]), 'routes.json');
-  assert.match(bad.errors.join(' '), /distance_km must be a number above 0.*hazard_base_percent must be a number from 0 to 100/);
+  assert.match(bad.errors.join(' '), /distance_km must be a number from 0.01 to 100000.*hazard_base_percent must be a number from 0 to 100/);
 });
 
 test('NPC Codex fields: what the Codex would drop or turn into other text is reported', async () => {

@@ -25,8 +25,8 @@ General Manager passes them to Locations (`api.importRoutes`) after the package'
 |---|---|---|---|---|
 | `from_location_id` | string | yes | | A `LOC-*` id. Must exist in the world, or be created by the same import run. |
 | `to_location_id` | string | yes | | A `LOC-*` id, different from `from_location_id`. |
-| `distance_km` | number | yes | | Above 0, at most 100000. A JSON number, not a string. Stored rounded to 2 decimal places. |
-| `leg_km` | number | no | world default (GM Setup → *Routes*, 5 km until changed; a world that saved its own value keeps it) | Above 0, at most 100000. Stored rounded to 2 decimal places. Legs = ceil(`distance_km` ÷ `leg_km`), at least 1. |
+| `distance_km` | number | yes | | From 0.01 to 100000. A JSON number, not a string. Stored rounded to 2 decimal places; a value that rounds to 0 (e.g. 0.004) is refused. |
+| `leg_km` | number | no | world default (GM Setup → *Routes*, 5 km until changed; a world that saved its own value keeps it) | From 0.01 to 100000. Stored rounded to 2 decimal places; a value that rounds to 0 (e.g. 0.004) is refused. Legs = ceil(`distance_km` ÷ `leg_km`), at least 1. |
 | `hazard_base_percent` | number | no | `5` | 0 to 100 (rounded to a whole number). The chance a journey starts at on each journey. |
 | `hazard_table` | string | no | none | A RollTable UUID (`RollTable.<id>` or `Compendium.<pack>.RollTable.<id>`) or a RollTable **name**. A missing table never breaks anything: the hazard result is just "Hazard!". A string starting `RollTable.` or `Compendium.` is read as a UUID; anything else as a name, cut to its first 120 characters. |
 | `terrain` | string | no | `""` | Up to 80 characters: longer text is cut to the first 80, not refused (line breaks become spaces). Players who can see the route see it. |
