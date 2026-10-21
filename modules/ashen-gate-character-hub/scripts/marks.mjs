@@ -52,9 +52,10 @@ const masteryLabel = key => globalThis.CONFIG?.DND5E?.weaponMasteries?.[key]?.la
  */
 export function availableMarks(actor) {
   const out = new Map();
-  const add = (mark, source, label) => {
-    if (!out.has(mark.id)) out.set(mark.id, {mark, label, sources: []});
-    out.get(mark.id).sources.push(source);
+  const add = (mark, item, label) => {
+    if (!out.has(mark.id)) out.set(mark.id, {mark, label, sources: [], sourceUuids: []});
+    out.get(mark.id).sources.push(item.name);
+    out.get(mark.id).sourceUuids.push(item.uuid ?? (actor.uuid ? `${actor.uuid}.Item.${item.id}` : null));
   };
   for (const item of actor?.items ?? []) {
     const s = item.system ?? {};
@@ -63,13 +64,13 @@ export function availableMarks(actor) {
       try { options = Array.isArray(s.masteryOptions) ? s.masteryOptions : []; } catch { options = []; }
       for (const o of options) {
         const mark = MARKS.find(m => m.kind === 'mastery' && m.mastery === o?.value);
-        if (mark) add(mark, item.name, masteryLabel(o.value) || mark.label);
+        if (mark) add(mark, item, masteryLabel(o.value) || mark.label);
       }
     }
     if (item.type === 'spell') {
       const ident = s.identifier || slug(item.name);
       const mark = MARKS.find(m => m.kind === 'spell' && m.identifiers.includes(ident));
-      if (mark) add(mark, item.name, mark.label);
+      if (mark) add(mark, item, mark.label);
     }
   }
   return [...out.values()];

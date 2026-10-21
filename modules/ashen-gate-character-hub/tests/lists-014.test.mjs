@@ -127,3 +127,21 @@ test('Favourites first in Features; the star has its own column in every list ta
     if (/agch-card"|agch-card /.test(h)) assert.match(h, /<span class="agch-card__lead">(?:<button[^>]*agch-sec__toggle--icon[\s\S]*?<\/button>)?<button type="button" class="agch-star/, `${t}: star sits in the lead column, before the image`);
   }
 });
+
+test('Inventory diamond banner: display only, any item with "diamond" in its name, containers too, observers see it', async () => {
+  const {DIAMOND_PRESENT, DIAMOND_ABSENT} = await import('../scripts/constants.mjs');
+  assert.equal(DIAMOND_ABSENT, 'You do not possess a resurrection diamond');
+  assert.equal(DIAMOND_PRESENT, 'Your soul may be returned');
+  const inv = async (items, user = users.owner) => { installGlobals({user}); const s = new (createHubSheetClass(FakeActorSheetV2))({document: makeActor({items})}); s.tab = 'inventory'; return body(await s._renderHTML()); };
+  let b = await inv([{id: 'rope', name: '[TEST] Rope', type: 'loot'}]);
+  assert.match(b, /<p class="agch-diamond is-absent" role="note">You do not possess a resurrection diamond<\/p>/);
+  b = await inv([{id: 'pack', name: '[TEST] Backpack', type: 'container'}, {id: 'gem', name: '[TEST] Diamond (300 gp)', type: 'loot', system: {container: 'pack'}}]);
+  assert.match(b, /<p class="agch-diamond is-present" role="note">Your soul may be returned<\/p>/, 'a diamond inside a backpack counts');
+  b = await inv([{id: 'dust', name: '[TEST] Diamond Dust', type: 'loot'}]);
+  assert.match(b, /is-present/, '"Diamond Dust" counts');
+  b = await inv([{id: 'x', name: '[TEST] diamondback hide', type: 'loot'}]);
+  assert.match(b, /is-present/, 'whole word not required, any case');
+  b = await inv([{id: 'dust', name: '[TEST] Diamond Dust', type: 'loot'}], users.observer);
+  assert.match(b, /Your soul may be returned/, 'observers see it too');
+  assert.doesNotMatch(b, /agch-diamond[^>]*data-action/, 'not clickable');
+});

@@ -1,5 +1,5 @@
 export const MODULE_ID = 'ashen-gate-character-hub';
-export const VERSION = '0.14.0';
+export const VERSION = '0.15.0';
 export const SHEET_LABEL = 'Ashen Gate Character Hub';
 
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
@@ -47,3 +47,7 @@ export function placeholderKind(value) {
   if (/\/|\.(webp|png|jpe?g|svg|gif|avif)$/i.test(v)) return 'image';
   return 'text';
 }
+
+/** Inventory banner (display only): shown when the character owns any item with "diamond" in its name, or not. */
+export const DIAMOND_PRESENT = 'Your soul may be returned';
+export const DIAMOND_ABSENT = 'You do not possess a resurrection diamond';

@@ -1,3 +1,19 @@
+## 0.15.0 — 2026-10-21
+
+- **Item tooltips:** hovering an item shows dnd5e's own rich tooltip, the same one the standard sheet shows (name, rarity, description, properties, uses). It works on:
+  - the rows in Combat, Inventory, Magic and Features;
+  - paper doll slots and Other equipped;
+  - the class/species/background card;
+  - the quick bar, and mastery & mark buttons (the weapon or spell they come from);
+  - companion gear, perk rows and pet clothing.
+  The Hub uses dnd5e's own tooltip markup (a loading section with the item's UUID, which dnd5e's tooltip handler fills in), so dnd5e decides what each user sees, e.g. unidentified items, and GM-only price and uses. Without dnd5e's tooltips the plain hover text stays.
+- **Inventory banner** (display only, in a fantasy serif: dnd5e's Modesto Condensed or Foundry's Amiri, else Georgia):
+  - If the character owns any item with "diamond" in its name, including items inside containers, any case (e.g. "Diamond Dust"), it reads "Your soul may be returned" in muted gold.
+  - Otherwise it reads "You do not possess a resurrection diamond" in red.
+  - The texts are constants in `scripts/constants.mjs`. Nothing is stored or automated.
+- **Item icons in lists** (Combat, Inventory, Magic, Features, companion gear; Other equipped at 24 px) are now a fixed 32 px square that never shrinks or stretches. They show the whole icon (`object-fit: contain`, so nothing is cut off at the edges). In a narrow window the name and description column shrinks, never the icon. Portraits, slot art and the doll pane keep their own rules.
+- No saved data changes.
+
 ## 0.14.0 — 2026-10-21
 
 From Robb's feedback:
