@@ -97,7 +97,7 @@ test('player end to end: names come from the player\'s own Locations, Quest Log 
   assert.equal(links.filter(l => l.unknown).length, 6, 'secret loc, quest, faction, masked faction, npc and deity');
   const html = renderPlayerCodexHtml(entries);
   noSecret(html, 'player html');
-  assert.match(html, /ag-codex-link is-unknown[^>]*>Unknown</);
+  assert.match(html, /agm-codex-link is-unknown[^>]*>Unknown</);
 });
 
 test('owning module missing or failing: every link it owns is Unknown, nothing throws', async () => {

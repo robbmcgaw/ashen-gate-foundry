@@ -8,7 +8,7 @@ import {bindSkinPicker} from '../scripts/skin-picker.js';
 import {windowSize,COMFORTABLE_SCALE} from '../scripts/ag-html.mjs';
 
 const read=p=>readFileSync(new URL(p,import.meta.url),'utf8');
-const VERSION='0.42.1';
+const VERSION='0.43.0';
 
 // One browser: client settings live per device, world/user settings are shared.
 function device(user,{world=new Map([['worldSkin','ag-default']]),client=new Map()}={}){
@@ -144,8 +144,10 @@ test(`docs and version ${VERSION} are consistent`,()=>{
   const manifest=JSON.parse(read('../module.json'));
   assert.equal(manifest.version,VERSION);
   assert.match(manifest.download,new RegExp(`ashen-gate-manager-v${VERSION.replaceAll('.','\\.')}/ashen-gate-manager\\.zip$`));
-  assert.match(read('../templates/manager.hbs'),new RegExp(`v${VERSION.replaceAll('.','\\.')}(?![\\d.])`));
-  assert.match(read('../scripts/main.js'),new RegExp(`General Manager v${VERSION.replaceAll('.','\\.')}(?![\\d.])`));
+  // 0.43.0: the header and window title read the version from module.json at runtime; nothing typed in.
+  assert.match(read('../templates/manager.hbs'),/<span class="ag-version">v\{\{version\}\}<\/span>/);
+  assert.match(read('../scripts/main.js'),/version: game\.modules\.get\(MODULE_ID\)\?\.version \?\? ''/);
+  assert.match(read('../scripts/main.js'),/title:"Ashen Gate \| General Manager", icon/);
   assert.match(read('../CHANGELOG.md'),new RegExp(`^## ${VERSION.replaceAll('.','\\.')} `));
   assert.match(read('../CHANGELOG.md'),/Shared UI kit 2\.0\.0: rounded compact look for shared parts, Comfortable size option \(General Manager → My Appearance\), shared dialog helper\./);
 });
