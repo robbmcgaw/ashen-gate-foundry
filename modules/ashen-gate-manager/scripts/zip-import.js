@@ -1,5 +1,5 @@
 import {classifyDelivery} from './delivery.js';
-import {SPECIALISTS, detectSpecialistFile, specialistCount, filterSpecialist} from './specialist-handoff.js';
+import {SPECIALISTS, STRAIN_CONFIG_ID, detectSpecialistFile, specialistCount, filterSpecialist} from './specialist-handoff.js';
 /** Non-executing import bundle loader. JSZip is bundled under its upstream license. */
 const PROJECTIONS = ['ag-foundry-import/0.1', 'ag-foundry-import/0.2'];
 export const isProjection = obj => PROJECTIONS.includes(obj?.manifest?.schema_version);
@@ -47,12 +47,13 @@ export async function readImportZip(buffer, JSZipClass = globalThis.JSZip) {
 }
 
 /** Import order: Manager packages first (specialist files such as Factions depend on their Actors), then each specialist. */
-export const BUNDLE_ORDER = Object.freeze(['manager', 'quests', 'skill-trees', 'headquarters', 'factions']);
+export const BUNDLE_ORDER = Object.freeze(['manager', 'quests', 'skill-trees', 'strain', 'headquarters', 'factions']);
 export const BUNDLE_LABELS = Object.freeze({manager: 'Manager package', ...Object.fromEntries(Object.entries(SPECIALISTS).map(([k, s]) => [k, s.label]))});
 export const MAX_BUNDLE_FILES = 50;
 
 /** Record ids a detected file carries (Manager records, trees, definitions or facilities). */
 export function bundleRecordIds(kind, payload) {
+  if (kind === 'strain') return [STRAIN_CONFIG_ID];
   const list = kind === 'manager' ? payload?.records : kind === 'skill-trees' ? payload?.trees : kind === 'factions' ? payload?.definitions
     : Array.isArray(payload) ? payload : payload?.records;
   return Array.isArray(list) ? list.map(r => r?.id).filter(id => typeof id === 'string' && id) : [];

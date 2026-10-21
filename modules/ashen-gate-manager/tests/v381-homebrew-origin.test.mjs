@@ -128,11 +128,11 @@ test('docs and in-app text describe positive evidence', () => {
   assert.match(read('../templates/manager.hbs'), /dnd5e gives every new item rules "2024"/);
 });
 
-test('version 0.38.1 is consistent', () => {
+test('version 0.39.0 is consistent', () => {
   const manifest = JSON.parse(read('../module.json'));
-  assert.equal(manifest.version, '0.38.1');
-  assert.match(manifest.download, /ashen-gate-manager-v0\.38\.1\/ashen-gate-manager\.zip$/);
-  assert.match(read('../templates/manager.hbs'), /v0\.38\.1 Beta/);
-  assert.match(read('../scripts/main.js'), /General Manager v0\.38\.1 Beta/);
-  assert.match(read('../scripts/main.js'), /v0\.38\.1 ready/);
+  assert.equal(manifest.version, '0.39.0');
+  assert.match(manifest.download, /ashen-gate-manager-v0\.39\.0\/ashen-gate-manager\.zip$/);
+  assert.match(read('../templates/manager.hbs'), /v0\.39\.0 Beta/);
+  assert.match(read('../scripts/main.js'), /General Manager v0\.39\.0 Beta/);
+  assert.match(read('../scripts/main.js'), /v0\.39\.0 ready/);
 });

@@ -1,0 +1,69 @@
+{
+  "_expect_error": "every Push gains Strain",
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-TEST-CINDER",
+    "version": "1.0.0",
+    "description": "Synthetic Cinder, powers and Backfire tables for testing (not canon)."
+  },
+  "records": [
+    {
+      "id": "POWER-TEST-SPARK",
+      "entity_type": "Power",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Spark",
+      "point_cost": 1,
+      "power": {
+        "schema": "ag-power/0.1",
+        "kind": "power",
+        "standard": {
+          "summary": "[TEST] A small spark lights a candle."
+        },
+        "push_modes": [
+          {
+            "id": "amplify",
+            "label": "[TEST] Amplify",
+            "strain_cost": 0,
+            "effect": "[TEST] The spark becomes a bright flare."
+          },
+          {
+            "id": "overreach",
+            "label": "[TEST] Overreach",
+            "strain_cost": 3,
+            "effect": "[TEST] Use the spark beyond its normal uses.",
+            "requires": {
+              "powers": [
+                "POWER-TEST-REACH"
+              ]
+            },
+            "backfire_categories": [
+              "BF-TEST-BODY"
+            ]
+          }
+        ]
+      },
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Cinders",
+        "data": {
+          "name": "[TEST] Spark",
+          "type": "feat",
+          "system": {
+            "description": {
+              "value": "<p>[TEST] Spark: synthetic test definition; no setting content.</p>"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

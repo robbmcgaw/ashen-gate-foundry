@@ -1,0 +1,59 @@
+{
+  "schema": "ag-skill-trees/0.3",
+  "trees": [
+    {
+      "id": "TEST-EMBER-TREE",
+      "name": "[TEST] Ember Cinder",
+      "description": "Synthetic Cinder tree.",
+      "status": "approved",
+      "visibility": "player",
+      "sourceRef": "MUT-TEST-EMBER",
+      "provider": {
+        "kind": "cinder_milestone",
+        "maxPoints": 13
+      },
+      "nodes": [
+        {
+          "id": "EMBER-SPARK",
+          "perkId": "POWER-TEST-SPARK",
+          "x": 200,
+          "y": 100,
+          "requiresAll": [],
+          "requiresAny": [],
+          "excludes": [],
+          "status": "approved",
+          "visibility": "player",
+          "display": "shown"
+        },
+        {
+          "id": "EMBER-STEADY",
+          "perkId": "POWER-TEST-STEADY",
+          "x": 100,
+          "y": 300,
+          "requiresAll": [
+            "EMBER-SPARK"
+          ],
+          "requiresAny": [],
+          "excludes": [],
+          "status": "approved",
+          "visibility": "player",
+          "display": "shown"
+        },
+        {
+          "id": "EMBER-REACH",
+          "perkId": "POWER-TEST-REACH",
+          "x": 300,
+          "y": 300,
+          "requiresAll": [
+            "EMBER-SPARK"
+          ],
+          "requiresAny": [],
+          "excludes": [],
+          "status": "approved",
+          "visibility": "player",
+          "display": "shown"
+        }
+      ]
+    }
+  ]
+}

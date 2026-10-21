@@ -10,8 +10,12 @@ export const SPECIALISTS = Object.freeze({
   quests: {kind: 'Quest', label: 'Quest Log', moduleId: 'ashen-gate-quest-manager', preview: 'previewQuestImport', run: 'importQuests', canUpdate: true},
   'skill-trees': {kind: 'Skill Tree', label: 'Skill Trees', moduleId: 'ashen-gate-skill-trees', preview: 'previewTreeImport', run: 'importTrees', canUpdate: true},
   headquarters: {kind: 'Facility', label: 'Headquarters', moduleId: 'ashen-gate-headquarters', preview: 'previewFacilityImport', run: 'importFacilities', canUpdate: false},
-  factions: {kind: 'Faction', label: 'Renown', moduleId: 'ashen-gate-factions', preview: 'previewFactionsImport', run: 'importFactions', canUpdate: false}
+  factions: {kind: 'Faction', label: 'Renown', moduleId: 'ashen-gate-factions', preview: 'previewFactionsImport', run: 'importFactions', canUpdate: false},
+  // 0.39.0: the Strain config (band names, Backfire schedule) goes to Ashen Gate | Cinders' api.strain. It never changes a character's Strain.
+  strain: {kind: 'Strain config', label: 'Strain (Cinders)', moduleId: 'ashen-gate-cinders', apiPath: 'strain', preview: 'previewConfigImport', run: 'importConfig', canUpdate: false}
 });
+export const STRAIN_CONFIG_SCHEMA = 'ag-strain-config/0.1';
+export const STRAIN_CONFIG_ID = 'STRAIN-CONFIG';
 
 /** Renown 0.11.0+ marks each preview row 'faction' or 'deity' (ag-factions-source-export/0.4); other rows keep the specialist's kind. */
 const ROW_KINDS = {deity: 'Deity', faction: 'Faction'};
@@ -25,6 +29,7 @@ export function detectSpecialistFile(input) {
   if (Array.isArray(input)) return allType(input, 'Facility') ? 'headquarters' : null;
   if (!isObj(input) || input.manifest !== undefined) return null;
   if (Array.isArray(input.trees) && /^ag-skill-trees\//.test(String(input.schema ?? ''))) return 'skill-trees';
+  if (input.schema === STRAIN_CONFIG_SCHEMA) return 'strain';
   if (Array.isArray(input.definitions) && /^ag-factions-/.test(String(input.schema_version ?? ''))) return 'factions';
   if (QUEST_SCHEMAS.includes(input.schema_version) && Array.isArray(input.records) && allType(input.records, 'Objective')) return 'quests';
   if (Array.isArray(input.records) && allType(input.records, 'Facility') && input.schema_version === undefined) return 'headquarters';
@@ -33,6 +38,7 @@ export function detectSpecialistFile(input) {
 
 /** Number of records the file carries, for the preview header. */
 export function specialistCount(kind, input) {
+  if (kind === 'strain') return 1;
   const list = kind === 'skill-trees' ? input.trees : kind === 'factions' ? input.definitions : Array.isArray(input) ? input : input.records;
   return Array.isArray(list) ? list.length : 0;
 }
@@ -41,13 +47,13 @@ export function specialistCount(kind, input) {
 export function specialistApi(game, kind) {
   const spec = SPECIALISTS[kind];
   const mod = game?.modules?.get?.(spec.moduleId);
-  const api = mod?.active ? mod.api : null;
+  const api = mod?.active ? (spec.apiPath ? mod.api?.[spec.apiPath] : mod.api) : null;
   return api && typeof api[spec.preview] === 'function' && typeof api[spec.run] === 'function' ? api : null;
 }
 
 /** Plain description of what a rejected file looks like and where it should go. */
 export function describeUnrecognized(input) {
-  const fix = 'Manager imports its own package (a manifest plus records), or a Quest, Skill Tree, Headquarters facility or Factions file.';
+  const fix = 'Manager imports its own package (a manifest plus records), or a Quest, Skill Tree, Strain config, Headquarters facility or Factions file.';
   if (Array.isArray(input)) {
     const types = [...new Set(input.map(r => r?.entity_type ?? typeof r))].slice(0, 5).join(', ') || 'empty';
     return `This file is a list of ${input.length} item(s) (types: ${types}). ${fix} A list of Facility records belongs to Headquarters; this one is not.`;
@@ -83,6 +89,7 @@ export function planSpecialist(kind, input, api, {updateExisting = false} = {}) 
 
 /** The part of the file that covers only the chosen record ids. */
 export function filterSpecialist(kind, input, ids) {
+  if (kind === 'strain') return input; // one config, no records to pick
   const keep = new Set(ids);
   const pick = list => list.filter(r => keep.has(r?.id));
   if (kind === 'skill-trees') return {...input, trees: pick(input.trees)};
