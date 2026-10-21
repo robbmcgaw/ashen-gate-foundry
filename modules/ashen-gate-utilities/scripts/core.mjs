@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.19.0';
+export const VERSION = '0.20.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -1180,3 +1180,29 @@ export function quoteSale({view, item, quantity, rev, hold, electrum = false} = 
 export const saleText = ({quantity, name, shopName, totalText, payTo, receiverName}) =>
   `Sold ${quantity > 1 ? `${quantity} ` : ''}${name} to ${shopName} for ${totalText}, paid to ${payTo === 'purse' ? 'the party purse' : receiverName}.`;
 
+
+/* ---- 0.20.0: merchant lists and services (design §3, §7b, brief 5). Pure helpers; storage and the GM client live in
+   merchant-lists.mjs and services.mjs. ---- */
+export const MLIST_NAME_MAX = 120;
+/** A merchant list as stored (GM data): `shopIds` holds SHOP-* and SVC-* ids in the order players see them. */
+export function normalizeMerchantList(raw = {}) {
+  if (!validId(raw.id, 'MLIST')) throw Error('Merchant list id must be MLIST- and upper-case letters, digits and single hyphens.');
+  const name = textField(raw.name, MLIST_NAME_MAX, 'Merchant list name');
+  if (!name) throw Error('A merchant list needs a name.');
+  const ids = [...new Set((Array.isArray(raw.shopIds) ? raw.shopIds : []).filter(x => validId(x, 'SHOP') || validId(x, 'SVC')))];
+  return {id: raw.id, name, locationId: str(raw.locationId)?.trim() || null, shopIds: ids, visible: raw.visible === true,
+    createdAt: num(raw.createdAt) ?? 0, updatedAt: num(raw.updatedAt) ?? 0, updatedBy: str(raw.updatedBy)};
+}
+/**
+ * The player view of a shown merchant list: its name, the city only once revealed (the caller decides), and the player
+ * projection of each entry in order. `project(id)` returns a shop or service projection, or null to leave it out
+ * (missing, or a service type this version doesn't know).
+ */
+export function projectMerchantList(list, {project = () => null, locationName = null} = {}) {
+  const entries = (list?.shopIds ?? []).map(id => project(id)).filter(v => v?.id);
+  return {id: list.id, name: list.name, ...(locationName ? {location: {name: String(locationName)}} : {}), entries};
+}
+/** "Bank", "3 items" or "1 item": what a list row says about an entry. */
+export const entrySummary = view => (view?.kind === 'service' ? String(view.service?.label ?? 'Service') : `${(view?.lines ?? []).length} ${(view?.lines ?? []).length === 1 ? 'item' : 'items'}`);
+/** "Changed 200 cp into 2 gp for [TEST] Kestrel." (fee named when there is one). */
+export const bankText = (q, whoseName) => `Changed ${q.total} ${q.from} into ${q.receive} ${q.to}${q.fee ? ` (fee ${q.fee} ${q.from})` : ''} for ${whoseName}.`;
