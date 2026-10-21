@@ -26,7 +26,7 @@ Needs **Ashen Gate | Skill Trees 0.17.0 or later** for Cinder trees (the powers 
 
 - **Cinders**: a character's Strain bar (fills to 10, then shows how far past it), band and Backfire %, and their Cinders with each power's Push modes, cost and chance. The GM gets Add / Remove / Set Strain with a reason.
 - **Manage** (GM): New Cinder; Bind / Transfer / Unbind; Move existing Cinder progress (characters with Cinder tree progress but no Cinder); Take over from Skill Trees (data saved by Skill Trees 0.15/0.16); Check and Repair.
-- **GM Setup** (GM): Player Access; Strain bands, chances and rules with Import / Export / Reset; Cinder limits.
+- **GM Setup** (GM): Player Access (saved with **Save Changes**); Strain bands, chances and rules with Import / Export / Reset; Cinder limits.
 
 ## Public API
 
