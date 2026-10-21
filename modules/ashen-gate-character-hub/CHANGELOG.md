@@ -11,6 +11,7 @@
   - If the character owns any item with "diamond" in its name, including items inside containers, any case (e.g. "Diamond Dust"), it reads "Your soul may be returned" in muted gold.
   - Otherwise it reads "You do not possess a resurrection diamond" in red.
   - The texts are constants in `scripts/constants.mjs`. Nothing is stored or automated.
+- **Item icons in lists** (Combat, Inventory, Magic, Features, companion gear; Other equipped at 24 px) are now a fixed 32 px square that never shrinks or stretches. They show the whole icon (`object-fit: contain`, so nothing is cut off at the edges). In a narrow window the name and description column shrinks, never the icon. Portraits, slot art and the doll pane keep their own rules.
 - No saved data changes.
 
 ## 0.14.0 — 2026-10-21

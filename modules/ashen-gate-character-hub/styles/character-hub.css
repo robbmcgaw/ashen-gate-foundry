@@ -314,13 +314,12 @@
 
 /* Art of any size or shape is never stretched. Small icons and portraits fill their square (cropped, focus on the top
    so faces stay in view); the paper-doll art pane (portrait or token art) shows the whole image over a blurred fill. */
-.ag-character-hub .agch-portrait, .ag-character-hub .agch-slot img, .ag-character-hub .agch-item__img, .ag-character-hub .agch-other__row img,
+.ag-character-hub .agch-portrait, .ag-character-hub .agch-slot img,
 .ag-character-hub .agch-companion__head img, .ag-character-hub .agch-chip img { object-fit: cover; object-position: center top; }
 .ag-character-hub .agch-doll__art .agch-doll__fg { object-fit: contain; object-position: center top; max-width: 100%; max-height: 100%; }
 .ag-character-hub .agch-doll__art .agch-doll__bg { object-fit: cover; object-position: center; }
 /* The slot keeps overflow visible (the attuned ✦ sits outside it), so its image is pinned to the box instead. */
 .ag-character-hub .agch-slot img { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; max-width: none; }
-.ag-character-hub .agch-item__img, .ag-character-hub .agch-other__row img { min-height: 0; max-height: none; aspect-ratio: 1; }
 /* An image placeholder (SLOT_PLACEHOLDERS) sits small and faint in the middle of an empty slot */
 .ag-character-hub .agch-slot img.agch-slot__ph { position: static; inset: auto; width: 70%; height: 70%; object-fit: contain; object-position: center; opacity: .55; border: 0; }
 
@@ -422,7 +421,7 @@
 .ag-character-hub .agch-pill--exh.is-on > i { color: var(--ag-danger); }
 .ag-character-hub .agch-pill--exh b { min-width: 1ch; text-align: center; }
 /* Favourite star: its own fixed column before the image, never over it */
-.ag-character-hub .agch-cards { grid-template-columns: minmax(24px, max-content) 32px minmax(12rem, 1fr) repeat(var(--agch-cols, 0), auto) auto; }
+.ag-character-hub .agch-cards { grid-template-columns: minmax(24px, max-content) 32px minmax(8rem, 1fr) repeat(var(--agch-cols, 0), auto) auto; }
 .ag-character-hub .agch-card__lead { display: inline-flex; align-items: center; justify-content: flex-start; gap: 2px; min-width: 24px; position: relative; z-index: 1; }
 .ag-character-hub .agch-card__lead > * { flex: 0 0 auto; margin: 0; }
 .ag-character-hub .agch-star { flex: 0 0 22px; width: 22px; min-width: 22px; max-width: 22px; height: 22px; margin: 0; position: static; }
@@ -439,3 +438,14 @@
 .ag-character-hub .agch-diamond { margin: 0 0 var(--ag-space-2); text-align: center; font-family: "Modesto Condensed", "Amiri", Georgia, "Times New Roman", serif; font-size: var(--ag-text-lg); font-style: italic; letter-spacing: .04em; }
 .ag-character-hub .agch-diamond.is-present { color: color-mix(in srgb, var(--ag-accent) 75%, var(--ag-ok)); }
 .ag-character-hub .agch-diamond.is-absent { color: var(--ag-danger); }
+
+/* 0.15.0: item icons in lists are a fixed square that never shrinks and shows the whole icon (contain, no stretch,
+   no clipping). Portraits, slot art and the doll pane keep their own rules. When space is short the name and
+   description column shrinks, never the icon. */
+.ag-character-hub .agch-item__img, .ag-character-hub .agch-other__row img {
+  --agch-icon: 32px; box-sizing: border-box; flex: 0 0 var(--agch-icon); width: var(--agch-icon); min-width: var(--agch-icon); max-width: var(--agch-icon);
+  height: var(--agch-icon); min-height: var(--agch-icon); max-height: var(--agch-icon); aspect-ratio: 1 / 1; padding: 0; margin: 0;
+  object-fit: contain; object-position: center; background: var(--agch-bg-sunken); border: 0; border-radius: var(--ag-radius-sm); }
+.ag-character-hub .agch-other__row img { --agch-icon: 24px; }
+.ag-character-hub .agch-cards > li > .agch-item__img { justify-self: center; align-self: center; }
+.ag-character-hub .agch-card__main { min-width: 0; }
