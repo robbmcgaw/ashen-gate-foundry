@@ -222,3 +222,15 @@ test('Ashen Gate quick bar: module views jump to the sub-tab; HQ and Locations o
   installGlobals({user: users.owner, modules: {}});
   assert.equal(agBarHtml(), '', 'players never see buttons for missing modules');
 });
+
+test('art of any shape is never stretched: icons and portraits crop to fill (top focus), the doll art pane keeps the whole image', async () => {
+  const fs = await import('node:fs');
+  const css = fs.readFileSync(new URL('../styles/character-hub.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ');
+  const rule = sel => [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter(([, s]) => s.split(',').some(x => x.trim() === `.ag-character-hub ${sel}`)).map(([, , body]) => body).join(';');
+  for (const sel of ['.agch-portrait', '.agch-slot img', '.agch-item__img', '.agch-other__row img', '.agch-companion__head img', '.agch-chip img']) {
+    assert.match(rule(sel), /object-fit: cover/, sel); assert.match(rule(sel), /object-position: center top/, sel);
+  }
+  assert.match(rule('.agch-doll__art .agch-doll__fg'), /object-fit: contain; object-position: center top/);
+  assert.match(rule('.agch-doll__art .agch-doll__bg'), /object-fit: cover/);
+  assert.match(rule('.agch-slot img'), /position: absolute; inset: 0/, 'tall art cannot spill out of a slot');
+});

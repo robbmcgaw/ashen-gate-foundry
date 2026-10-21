@@ -306,3 +306,13 @@
 .ag-character-hub .agch-agbar { align-self: end; }
 .ag-character-hub .agch-agbar__btn.is-missing { opacity: .4; }
 @container (max-width: 900px) { .ag-character-hub .agch-agbar { align-self: stretch; } }
+
+/* Art of any size or shape is never stretched. Small icons and portraits fill their square (cropped, focus on the top
+   so faces stay in view); the paper-doll art pane (portrait or token art) shows the whole image over a blurred fill. */
+.ag-character-hub .agch-portrait, .ag-character-hub .agch-slot img, .ag-character-hub .agch-item__img, .ag-character-hub .agch-other__row img,
+.ag-character-hub .agch-companion__head img, .ag-character-hub .agch-chip img { object-fit: cover; object-position: center top; }
+.ag-character-hub .agch-doll__art .agch-doll__fg { object-fit: contain; object-position: center top; max-width: 100%; max-height: 100%; }
+.ag-character-hub .agch-doll__art .agch-doll__bg { object-fit: cover; object-position: center; }
+/* The slot keeps overflow visible (the attuned ✦ sits outside it), so its image is pinned to the box instead. */
+.ag-character-hub .agch-slot img { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; max-width: none; }
+.ag-character-hub .agch-item__img, .ag-character-hub .agch-other__row img { min-height: 0; max-height: none; aspect-ratio: 1; }
