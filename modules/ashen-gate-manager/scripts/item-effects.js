@@ -83,7 +83,7 @@ export function validateItemEffects(effects, label = 'foundry.data') {
       if (!isObj(c)) { errors.push(`${cl} must be {key, mode, value, priority?}.`); return; }
       const extra = Object.keys(c).filter(k => !CHANGE_KEYS.includes(k));
       if (extra.length) errors.push(`${cl} includes unsupported keys: ${extra.join(', ')}.`);
-      if (typeof c.key !== 'string' || !c.key.trim()) errors.push(`${cl}.key is required (e.g. system.attributes.movement.walk).`);
+      if (typeof c.key !== 'string' || !c.key.trim()) errors.push(`${cl}.key is required (e.g. system.attributes.movement.speeds.walk).`);
       else if (c.key.length > LIMITS.key || !CHANGE_KEY.test(c.key)) errors.push(`${cl}.key "${c.key.slice(0, 60)}" is not a dotted data path.`);
       else if (UNSAFE_KEY.test(c.key) || c.key.split('.').some(p => ['__proto__', 'prototype', 'constructor'].includes(p))) errors.push(`${cl}.key "${c.key}" is not allowed: imported effects may not run macros or scripts or change core flags.`);
       if (normalizeMode(c.mode) === null) errors.push(`${cl}.mode ${JSON.stringify(c.mode)} is not a mode: use add, multiply, override, upgrade, downgrade, custom or 0-5.`);

@@ -26,7 +26,7 @@ Any other key is still rejected.
     "duration": {"seconds": 3600},
     "statuses": [],
     "changes": [
-      {"key": "system.attributes.movement.walk", "mode": "add", "value": 10, "priority": 20}
+      {"key": "system.attributes.movement.speeds.walk", "mode": "add", "value": 10, "priority": 20}
     ]
   }
 ]
@@ -47,7 +47,7 @@ Any other key is still rejected.
 
 ### Changes
 
-- **`key`**: a dotted data path such as `system.attributes.ac.bonus` or `system.attributes.movement.walk`. Any path is accepted, because dnd5e paths vary. These are rejected:
+- **`key`**: a dotted data path such as `system.attributes.ac.bonus` or `system.attributes.movement.speeds.walk`. Any path is accepted, because dnd5e paths vary. Use dnd5e 6.0 paths: speeds are `system.attributes.movement.speeds.<walk|fly|swim|climb|burrow|jump>`. The old `system.attributes.movement.walk` is only a compatibility redirect and is due to be removed in dnd5e 7.0. These are rejected:
   - an empty key or a key with spaces;
   - any key containing `macro` or `script` (DAE, Midi-QOL and Item Macro keys);
   - `flags.core.*`;

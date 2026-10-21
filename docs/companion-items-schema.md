@@ -41,7 +41,7 @@ Only with dnd5e's own data. The Hub's stats box reads, and never applies or work
 - **Armour value:** an `equipment` Item's `system.armor.value` (e.g. barding). Shown as "Armor AC".
 - **Active Effects on the Item:** each change is shown with its key in plain words and its mode, e.g.
   - `system.attributes.ac.bonus`, ADD `1` → "AC +1"
-  - `system.attributes.movement.walk` (or `movement.speeds.walk`), ADD `10` → "Walk speed +10"
+  - `system.attributes.movement.speeds.walk`, ADD `10` → "Walk speed +10" (dnd5e 6.0 keys speeds under `movement.speeds`; the old `system.attributes.movement.walk` is only a compatibility redirect, so new files use `speeds.walk`)
   - `system.abilities.dex.bonuses.save` → "Dexterity saves"
   Plain additions to the same thing are summed. Unknown keys show as they are. Disabled effects are skipped.
 
@@ -97,7 +97,7 @@ Test data only. Names are `[TEST]`-style and the numbers are placeholders, not r
           "eff_id": "walk",
           "name": "[TEST] Saddle: Walk speed",
           "transfer": false,
-          "changes": [{"key": "system.attributes.movement.walk", "mode": "add", "value": 10}]
+          "changes": [{"key": "system.attributes.movement.speeds.walk", "mode": "add", "value": 10}]
         }
       ]
     }

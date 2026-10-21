@@ -8,7 +8,7 @@ import {planItemEffects, applyItemEffects, effectCreateData, effectDefinition, n
 const read = rel => fs.readFileSync(new URL(rel, import.meta.url), 'utf8');
 const GM = {isGM: true}, PLAYER = {isGM: false};
 const walk = (over = {}) => ({eff_id: 'walk', name: '[TEST] Saddle: Walk speed', img: 'icons/svg/aura.svg', transfer: false,
-  changes: [{key: 'system.attributes.movement.walk', mode: 'add', value: 10}], ...over});
+  changes: [{key: 'system.attributes.movement.speeds.walk', mode: 'add', value: 10}], ...over});
 const saddle = (effects = [walk()], data = {}) => ({id: 'ITEM-MOUNT-TEST-SADDLE', entity_type: 'Item', status: 'approved', version: '1.0.0',
   visibility: 'player', scope: 'generic_rules', refs: [], provenance: {sources: ['[TEST] synthetic']},
   foundry: {document_type: 'Item', data: {name: '[TEST] Riding Saddle', type: 'equipment',
@@ -48,7 +48,7 @@ test('modes accept Foundry numbers and readable names', () => {
   assert.deepEqual([0, 5, 2].map(normalizeMode), [0, 5, 2]);
   for (const bad of [6, -1, 2.5, '2', 'plus', null, undefined, true]) assert.equal(normalizeMode(bad), null);
   const def = effectDefinition(walk());
-  assert.deepEqual(def.changes, [{key: 'system.attributes.movement.walk', mode: 2, value: '10', priority: null}]);
+  assert.deepEqual(def.changes, [{key: 'system.attributes.movement.speeds.walk', mode: 2, value: '10', priority: null}]);
   assert.equal(def.transfer, false);
 });
 
@@ -108,7 +108,7 @@ test('import creates the effect, then re-import is idempotent (no writes)', asyn
   assert.deepEqual(await applyItemEffects(item, first, {user: GM}), {created: 1, updated: 0});
   const raw = rawOf(item, 'walk');
   assert.equal(raw.transfer, false);
-  assert.deepEqual(raw.changes, [{key: 'system.attributes.movement.walk', mode: 2, value: '10', priority: null}]);
+  assert.deepEqual(raw.changes, [{key: 'system.attributes.movement.speeds.walk', mode: 2, value: '10', priority: null}]);
   const again = planItemEffects(saddle().foundry.data.effects, liveEffects(item));
   assert.equal(again.writes, 0);
   assert.deepEqual(again.rows.map(r => [r.action, r.reason]), [['kept', 'Already matches the file.']]);
@@ -134,7 +134,7 @@ test('a file change updates field-wise; a GM edit is kept; both changed keeps th
   assert.equal(rawOf(item, 'walk').changes[0].value, '15');
   assert.equal(planItemEffects([walk({name: '[TEST] Saddle: Walk +10'})], liveEffects(item)).writes, 0, 'idempotent after the update');
   // The file also changes the value the GM edited: conflict, the whole effect is kept.
-  plan = planItemEffects([walk({name: '[TEST] Saddle: Walk +10', changes: [{key: 'system.attributes.movement.walk', mode: 'add', value: 20}]})], liveEffects(item));
+  plan = planItemEffects([walk({name: '[TEST] Saddle: Walk +10', changes: [{key: 'system.attributes.movement.speeds.walk', mode: 'add', value: 20}]})], liveEffects(item));
   assert.equal(plan.writes, 0);
   assert.match(plan.rows[0].reason, /Edited in Foundry and changed in the file \(changes\)/);
   // A file change to a field the GM did not edit (disabled) applies.

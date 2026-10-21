@@ -121,7 +121,7 @@ test('NPC Codex export files are checked with the restore planner and kept out o
 });
 
 test('Item effects (Manager 0.37.0): valid effects pass, bad ones fail with the validator message, dropped flags are notes', async () => {
-  const effect = (over = {}) => ({eff_id: 'walk', name: '[TEST] Walk speed', transfer: false, changes: [{key: 'system.attributes.movement.walk', mode: 'add', value: 10}], ...over});
+  const effect = (over = {}) => ({eff_id: 'walk', name: '[TEST] Walk speed', transfer: false, changes: [{key: 'system.attributes.movement.speeds.walk', mode: 'add', value: 10}], ...over});
   const gear = (effects, flags) => item({id: 'ITEM-MOUNT-TEST-SADDLE', foundry: {document_type: 'Item', folder_path: 'Ashen Gate/Test',
     data: {name: '[TEST] Saddle', type: 'equipment', effects, ...(flags ? {flags} : {})}}});
   assert.deepEqual(await checkContent(pack([gear([effect()], {'ashen-gate-character-hub': {companion: {role: 'mount-gear'}}})])), {kind: 'manager', errors: [], notes: []});
