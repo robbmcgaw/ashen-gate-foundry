@@ -21,6 +21,7 @@ import { validatePackage } from '../modules/ashen-gate-manager/scripts/core.js';
 import { compilePackage } from '../modules/ashen-gate-manager/scripts/workflows.js';
 import { classifyDelivery } from '../modules/ashen-gate-manager/scripts/delivery.js';
 import { markerTargets } from '../modules/ashen-gate-manager/scripts/import-fidelity.js';
+import { flagWarnings } from '../modules/ashen-gate-manager/scripts/item-effects.js';
 import { detectSpecialistFile, describeUnrecognized } from '../modules/ashen-gate-manager/scripts/specialist-handoff.js';
 import { readImportBundle } from '../modules/ashen-gate-manager/scripts/zip-import.js';
 import { createSceneMoods } from '../modules/ashen-gate-manager/scripts/scene-moods.js';
@@ -90,6 +91,10 @@ function domainChecks(pkg) {
   for (const rec of pkg.records) {
     // Apply refuses a marker whose target is neither in the package nor already in the world.
     for (const id of markerTargets(rec)) if (!ids.has(id)) notes.push(`${rec.id}: AGREF ${id} must already exist in the world (not in this package).`);
+    // Item effects are checked by validatePackage (Manager 0.37.0); flags outside the allow-list import as nothing.
+    notes.push(...flagWarnings(rec));
+    for (const e of rec.foundry?.document_type === 'Item' && Array.isArray(rec.foundry.data?.effects) ? rec.foundry.data.effects : [])
+      if (e.transfer === true && /^(ITEM|PERK)-(MOUNT|PET)-/.test(rec.id)) notes.push(`${rec.id}: effect ${e.eff_id} has transfer on, so it would also change the character carrying this companion item (the Hub warns; use transfer false).`);
     if (rec.entity_type === 'Recipe') {
       const recipe = normalizeRecipe({flags: {'ashen-gate-manager': {source: {definition: rec}}}});
       if (!recipe.hasStructuredIngredients) errors.push(`${rec.id}: Ledger cannot craft it: ingredients must be a non-empty list of {material_id, quantity (whole number > 0)}.`);
