@@ -1,3 +1,9 @@
+## 0.23.1 — 2026-10-21
+
+- Confirmations name the action (no more Yes/No) and dialogs follow the Ashen Gate look.
+- Buttons: Undo award (red), Learn [recipe], Adjust XP, Add features, Import catalog, Craft; leaving GM Setup with unsaved changes asks Discard changes / Keep editing. Cancel is always on the left.
+- The material consent and gathering roll windows use the Ashen Gate dialog style. No behaviour or saved data changes.
+
 ## 0.23.0 — 2026-10-21
 
 - Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.

@@ -10,7 +10,7 @@ const values={partyRoster:['ana','bo'],libraryData:{schema:'ag-ledger/0.1',recip
 const gm={id:'gm',isGM:true,name:'GM',active:true},alice={id:'u1',isGM:false,name:'Alice',active:true};
 const users=[gm,alice];
 const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
-class FakeDialog{constructor(o){this.opts=o;}render(){return this;}static async confirm(o){FakeDialog.last=o;return confirmAnswer;}}
+class FakeDialog{constructor(o){this.opts=o;}render(){return this;}static async wait(o){FakeDialog.last=o;return confirmAnswer;}}
 globalThis.foundry={applications:{api:{ApplicationV2:class{async _prepareContext(){return {};}render(){this.rendered=true;return this;}},HandlebarsApplicationMixin:c=>c,DialogV2:FakeDialog}},utils:{escapeHTML:esc,randomID:()=>`id${Math.random().toString(36).slice(2,10)}`}};
 globalThis.Hooks={once:(n,f)=>hooks[n]=f,on:()=>{},callAll:()=>{}};
 globalThis.ui={notifications:{info:m=>infos.push(String(m)),error:e=>errors.push(String(e)),warn:()=>{}}};

@@ -9,7 +9,7 @@ import {selectTrackedViews,validTrackedId,trackingState} from './tracking.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,infoDialog} from './ag-dialogs.mjs';
 
-const VERSION='0.9.0';
+const VERSION='0.9.1';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -145,7 +145,7 @@ class QuestLogApplication extends Base {
  // Appearance is inherited: the kit's --ag-* tokens live on the document, kept in sync by General Manager when active.
  _replaceHTML(result,content){content.innerHTML=result;this.bind(content);}
  bind(root){
-   for(const b of root.querySelectorAll('[data-tab]'))b.addEventListener('click',async e=>{if(this.unsavedSource&&!await confirmDialog('Discard unsaved source changes?',{title:'Unsaved changes',yes:'Discard changes'}))return;this.tab=e.currentTarget.dataset.tab;this.unsavedSource=false;this.sourceJsonEdited=false;await this.render();});
+   for(const b of root.querySelectorAll('[data-tab]'))b.addEventListener('click',async e=>{if(this.unsavedSource&&!await confirmDialog('Your quest changes have not been saved. Discard them?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing',danger:true}))return;this.tab=e.currentTarget.dataset.tab;this.unsavedSource=false;this.sourceJsonEdited=false;await this.render();});
    root.querySelector('#ag-actor')?.addEventListener('change',async e=>{this.actorId=e.target.value;this.selectedId=null;await this.render();});
    root.querySelector('#ag-player-filter')?.addEventListener('change',async e=>{this.statusFilter=e.target.value;this.selectedId=null;await this.render();});
    for(const [id,key] of [['type','type'],['status','status'],['location','location'],['visible','visible'],['sort','sort'],['group','group']])root.querySelector(`#ag-gm-${id}`)?.addEventListener('change',async e=>{this.qv[key]=e.target.value;await this.render();});
@@ -174,8 +174,8 @@ class QuestLogApplication extends Base {
      assertUI(game.user,openAllowed());await savePersonalNote(this.selectedId,this.actorId,root.querySelector('#ag-my-note')?.value||'');ui.notifications.info('Character notes saved.');return;
    }
    assertGM(game.user);
-   if(action==='gm-select'){if(this.unsavedSource&&!await confirmDialog('Discard unsaved source changes?',{title:'Unsaved changes',yes:'Discard changes'}))return;this.gmId=id;this.unsavedSource=false;return await this.render();}
-   if(action==='new'){if(this.unsavedSource&&!await confirmDialog('Discard unsaved source changes?',{title:'Unsaved changes',yes:'Discard changes'}))return;this.gmId=null;this.unsavedSource=false;this.sourceJsonEdited=false;return await this.render();}
+   if(action==='gm-select'){if(this.unsavedSource&&!await confirmDialog('Your quest changes have not been saved. Discard them?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing',danger:true}))return;this.gmId=id;this.unsavedSource=false;return await this.render();}
+   if(action==='new'){if(this.unsavedSource&&!await confirmDialog('Your quest changes have not been saved. Discard them?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing',danger:true}))return;this.gmId=null;this.unsavedSource=false;this.sourceJsonEdited=false;return await this.render();}
    if(action==='save-source'){
     const src=this.sourceJsonEdited?validSource(JSON.parse(root.querySelector('#ag-source-json').value)):sourceFromForm(root,this.gmId?getPrivate(this.gmId)?.getFlag(MOD,'source'):null);
     if(this.gmId&&src.id!==this.gmId)throw new Error('Cannot change permanent ID of an existing Objective. Use New quest.');
@@ -200,8 +200,8 @@ class QuestLogApplication extends Base {
    }
    if(action==='edit-assignment'){const record=getAssignment(id);const textarea=root.querySelector('#ag-assignment-json');if(!record||!textarea)throw new Error('Assignment unavailable');textarea.value=JSON.stringify(record,null,2);return;}
    if(action==='save-assignment'){const source=JSON.parse(root.querySelector('#ag-assignment-json').value);if(source.objective_id!==this.gmId)throw new Error('Assignment target must be the selected Objective');await saveAssignment(source,{replace:!!getAssignment(source.id),objectiveExists:id=>!!getPrivate(id),ensureFolder});ui.notifications.info('Delegated Assignment saved.');return await this.render();}
-   if(action==='remove-assignment'){if(!await confirmDialog(`Delete delegated Assignment ${id}?`,{title:'Delete assignment',yes:'Delete assignment'}))return;await removeAssignment(id);return await this.render();}
-   if(action==='delete'){if(!await confirmDialog(`Delete ${this.gmId}? Removes its published Quest Log view. Character-owned notes are retained.`,{title:'Delete quest',yes:'Delete quest'}))return;await removeRecord(this.gmId);this.gmId=null;return await this.render();}
+   if(action==='remove-assignment'){if(!await confirmDialog(`Delete the delegated assignment ${id}? This cannot be undone.`,{title:'Delete this assignment?',yes:'Delete assignment',danger:true}))return;await removeAssignment(id);return await this.render();}
+   if(action==='delete'){if(!await confirmDialog(`Delete ${getPrivate(this.gmId)?.getFlag(MOD,'source')?.name||'this quest'}? This removes its published Quest Log view. Character-owned notes are kept.`,{title:`Delete ${getPrivate(this.gmId)?.getFlag(MOD,'source')?.name||'this quest'}?`,yes:'Delete quest',danger:true}))return;await removeRecord(this.gmId);this.gmId=null;return await this.render();}
    if(action==='export'){return dialogDownload('AG_Quest_Source_v0.4.0.json',JSON.stringify(exportPackage(allPrivate().map(x=>x.source)),null,2));}
    if(action==='import'){
     const input=document.createElement('input');input.type='file';input.accept='.json,application/json';input.onchange=async()=>{try{const raw=JSON.parse(await input.files[0].text());const imported=await importSources(raw);ui.notifications.info(`Imported ${imported.length} Objective sources. No campaign state was overwritten.`);await this.render();}catch(e){notifyError(e);}};input.click();return;

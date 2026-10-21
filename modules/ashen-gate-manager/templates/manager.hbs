@@ -1,7 +1,7 @@
 <section class="agmanager-body">
   <header class="ag-header agmanager-top">
     <i class="agmanager-emblem fa-solid fa-dungeon" aria-hidden="true"></i>
-    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.42.0 Beta</small></h2></div>
+    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.42.1</small></h2></div>
     <div class="agmanager-appearance-menu" data-ag-appearance-menu>
       <button type="button" class="agmanager-help agmanager-appearance-toggle" data-ag-appearance-toggle aria-haspopup="dialog" aria-controls="agmanager-appearance-pop" aria-expanded="{{#if appearanceOpen}}true{{else}}false{{/if}}"><i class="fa-solid fa-palette" aria-hidden="true"></i> Appearance <i class="fa-solid fa-caret-down" aria-hidden="true"></i></button>
       <div id="agmanager-appearance-pop" class="agmanager-appearance-pop agmanager-appearance" role="dialog" aria-label="Appearance: GM world default" data-ag-appearance-pop {{#unless appearanceOpen}}hidden{{/unless}}>
@@ -89,7 +89,7 @@
       <button type="button" data-ag-action="select" class="agmanager-muted" {{#unless hasPreview}}disabled{{/unless}}>Select eligible</button>
       <button type="button" data-ag-action="clear" class="agmanager-muted" {{#unless hasPreview}}disabled{{/unless}}>Deselect all</button>
     </div>
-    <p class="agmanager-tiny">Folder destinations: <code>foundry.folder_path</code> (e.g. <code>Ashen Gate/Professions/Recipes</code>). Explicit links: <code>[[AGREF:MAT-EXAMPLE|Material]]</code> (provisional, pending Tim confirmation). Missing/ambiguous UUID targets are reported in History.</p>
+    <p class="agmanager-tiny">Folder destinations: <code>foundry.folder_path</code> (e.g. <code>Ashen Gate/Professions/Recipes</code>). Explicit links: <code>[[AGREF:MAT-EXAMPLE|Material]]</code>. Missing/ambiguous UUID targets are reported in History.</p>
     <p class="agmanager-tiny">Importer accepts versioned Foundry projection JSON, or a ZIP with one valid projection. Locations and campaign state remain with their specialist modules. Imported Macros are not executed.</p>
     <p class="agmanager-notice">{{message}}</p>
     {{#if hasImportReports}}
@@ -724,7 +724,7 @@
     {{/each}}
     </div>
     <p class="agmanager-tiny">Reveal / Hide needs <code>ag-player-access/1</code>; older modules show Unsupported. GM-only editors (Manager, Location Builder) cannot be revealed.</p>
-    <p class="agmanager-tiny">Disabled means the module is inactive or has not exposed an Open API / settings menu. Other workstreams can support direct opening by exposing <code>game.modules.get(moduleId).api.open()</code>. This tab never installs, enables or changes another module.</p>
+    <p class="agmanager-tiny">Disabled means the module is inactive or has not exposed an Open API / settings menu. Turn a module on in Manage Modules to open it from here. This tab never installs, enables or changes another module.</p>
   </div>
   {{/if}}
 

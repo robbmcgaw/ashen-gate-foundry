@@ -9,7 +9,7 @@ const actors=[{id:'a',name:'Alpha',type:'character',hasPlayerOwner:true,items:[]
  {id:'b',name:'Bravo',type:'character',hasPlayerOwner:true,items:[],testUserPermission:()=>false}];
 const aDict={contents:actors,get:id=>actors.find(a=>a.id===id)};
 const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
-globalThis.foundry={applications:{api:{ApplicationV2:class{async _prepareContext(){return {};}render(){renderCount++;this.rendered=true;return this;}},HandlebarsApplicationMixin:x=>x,DialogV2:{confirm:async(opts)=>{prompts.push(opts);return false;}}}},utils:{escapeHTML:esc}};
+globalThis.foundry={applications:{api:{ApplicationV2:class{async _prepareContext(){return {};}render(){renderCount++;this.rendered=true;return this;}},HandlebarsApplicationMixin:x=>x,DialogV2:{wait:async(opts)=>{prompts.push(opts);return false;}}}},utils:{escapeHTML:esc}};
 globalThis.Hooks={once:(n,f)=>hooks[n]=f,on:()=>{}};
 globalThis.ui={notifications:{info:()=>{},error:x=>errors.push(x)}};
 const moduleObj={get api(){return moduleApi},set api(v){moduleApi=v},active:true};
@@ -25,7 +25,7 @@ app.element={querySelectorAll:s=>s==='[data-roster-actor]'||s==='[data-roster-ac
 test('GM Setup owns roster, access and tool mapping only; standard header/footer',async()=>{
  const html=(await app._prepareContext({})).html;
  assert.match(html,/Ashen Gate \| <strong>Profession Ledger/);
- assert.match(html,/v0\.23\.0/);
+ assert.match(html,/v0\.23\.1/);
  assert.match(html,/data-id="gm"/);
  assert.match(html,/data-action="help"/);
  assert.match(html,/data-action="roster-save"/);
@@ -58,6 +58,7 @@ test('editing roster is explicit; cancelled navigation retains changes',async()=
  assert.equal(prompts.length,1);
  assert.deepEqual(values.partyRoster,['a']);
  assert.match(prompts[0].window.title,/Discard/);
+ assert.deepEqual(prompts[0].buttons.map(b=>b.label),['Keep editing','Discard changes']);assert.ok(prompts[0].classes.includes('ag-dialog--danger'));
 });
 
 test('confirmed roster save preserves world IDs and leaves other catalog state alone',async()=>{

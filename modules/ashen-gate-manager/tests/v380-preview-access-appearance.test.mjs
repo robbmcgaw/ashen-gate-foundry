@@ -128,7 +128,7 @@ test('Modules tab has Reveal / Hide per card plus Refresh and Hide all; Appearan
   // Same safeguards as before: GM check and click-time recheck in the handler, confirmation before Hide all.
   assert.match(main, /if\(!game\.user\?\.isGM\) throw new Error\('Only GMs can change Player Access\.'\);/);
   assert.match(main, /changePlayerAccess\(mod,enabled,\{isGM:game\.user\.isGM\}\)/);
-  assert.match(main, /Hide All Player Interfaces — confirm/);
+  assert.match(main, /title:'Hide all player windows\?',yes:'Hide all',danger:true/);
   assert.match(main, /playerAccess:\{contract:"ag-player-access\/1"/);
 });
 

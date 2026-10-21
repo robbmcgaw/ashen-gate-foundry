@@ -6,6 +6,7 @@ import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertP
 import {lookupWorldDefinition,readWorldDefinition} from './definition-lookup.mjs';
 import {planCraft,craftBlockers,executeCraft,craftResultData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
+import {confirmDialog} from './ag-dialogs.mjs';
 import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,requiredToolRef,toolRefLabel,heldTool,
   checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS,DEFAULT_PROFESSION_TOOLS,DEFAULT_GATHER_SKILLS,migrateCheckMapping,advantageToolsOf} from './checks.mjs';
 import {PROFESSION_KEYS,professionTitle,catalogCrosswalk,definitionProfessionKey,unmappedProfessions,assignmentPlan,rowId,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
@@ -14,7 +15,7 @@ import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,gatherOutcome,gather
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.23.0';
+const VERSION='0.23.1';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...}. */
@@ -659,7 +660,7 @@ async function showConsent(message){
   const answer=await new Promise(resolve=>{
     let settled=false;const done=value=>{if(!settled){settled=true;resolve(value);}};
     try{
-      const dialog=new DialogV2({id:`agl-consent-${message.consentId}`,classes:['agl-consent'],window:{title:`Allow ${message.actorName}’s materials?`},content,modal:false,
+      const dialog=new DialogV2({id:`agl-consent-${message.consentId}`,classes:['agl-consent','ag-app','ag-dialog'],window:{title:`Allow ${message.actorName}’s materials?`},content,modal:false,
         buttons:[{action:'decline',label:'Decline',icon:'fa-solid fa-xmark',callback:()=>done(false)},{action:'allow',label:'Allow',icon:'fa-solid fa-check',default:true,callback:()=>done(true)}],
         rejectClose:false});
       const close=dialog.close?.bind(dialog);
@@ -784,13 +785,13 @@ async function craft(actor,recipeId,{confirm=true}={}){
     const needs=[req.tool?`<li>${req.tools.length>1?'Tools (all needed)':'Tool'}: <strong>${esc(req.toolLabel)}</strong>${req.lacks?` — <strong>${esc(req.tools.length>1?`${lacksText(req,actor)}.`:`${actor.name} doesn’t carry this tool.`)}</strong>`:' (carried)'}</li>`:'',
       req.workstation?`<li>Workstation: <strong>${esc(req.workstation)}</strong> (confirm with your GM)</li>`:'',
       extraCost(recipe)?`<li>Also costs ${extraCost(recipe)} gp — not deducted automatically.</li>`:''].join('');
-    const answer=await DialogV2.confirm({window:{title:`Craft ${recipe.name}?`},modal:true,rejectClose:false,
+    const answer=await DialogV2.wait({classes:['ag-app','ag-dialog'],window:{title:`Craft ${recipe.name}?`},modal:true,rejectClose:false,
       content:`<p>${esc(actor.name)} crafts <strong>${esc(ctx.result.name)}</strong>, using:</p><ul>${list}</ul>${needs?`<ul>${needs}</ul>`:''}
         ${option?`<div class="agl-check-pick">${cplan.options.length>1?`<label class="ag-field">Check (bonus)<select name="check">${cplan.options.map(o=>{const c=checkOption(actor,o);return `<option value="${esc(choiceOf(o))}" ${o===picked?'selected':''}>${esc(c.label)}${o.kind==='tool'?' (tool)':''} ${formatBonus(c.bonus)}</option>`;}).join('')}</select></label>`
           :`<span><strong>${esc(option.label)} check</strong> ${formatBonus(option.bonus)}${option.proficient?'':' (not proficient)'}</span>`}
           <label class="ag-field ag-field--inline">Roll ${modeSelect(mode)}</label><p class="agl-sub">${esc(modeHint(preset))} The result goes on the craft card; it doesn’t decide success yet.</p></div>`:''}
         ${foreign.length?`<p>${esc(foreign.join(', '))}’s owner${foreign.length===1?'':'s'} will be asked on their screen. Any decline cancels the craft and nothing is used.</p>`:''}`,
-      yes:{callback:(event,button)=>({mode:button?.form?.elements?.mode?.value})}});
+      buttons:[{action:'cancel',label:'Cancel',callback:()=>false},{action:'craft',label:'Craft',default:true,callback:(event,button)=>({mode:button?.form?.elements?.mode?.value})}]});
     if(!answer)return null;
     if(typeof answer==='object'&&answer.mode!=null)mode=Math.sign(Number(answer.mode)||0);
     const chosen=typeof answer==='object'?cplan?.options.find(o=>choiceOf(o)===answer.check):null;
@@ -1070,7 +1071,7 @@ async function showGatherRoll(message){
   if(!actor||!owned(actor))return;
   incomingRolls.set(message.sessionId,message);refreshLedger();
   try{
-    const dialog=new DialogV2({id:`agl-gather-${message.sessionId}`,classes:['agl-consent','ag-app'],window:{title:`Gathering check — ${message.actorName}`},modal:false,rejectClose:false,
+    const dialog=new DialogV2({id:`agl-gather-${message.sessionId}`,classes:['agl-consent','ag-app','ag-dialog'],window:{title:`Gathering check — ${message.actorName}`},modal:false,rejectClose:false,
       content:`<p><strong>${esc(message.actorName)}</strong> gathers at ${esc(message.title)}.</p><p>${esc(message.summary)}</p>${message.assists.length?`<p>Assisted by ${esc(message.assists.join(', '))}.</p>`:''}${rollFields(actor,message)}`,
       buttons:[{action:'later',label:'Later',icon:'fa-solid fa-clock'},{action:'roll',label:'Roll',icon:'fa-solid fa-dice-d20',default:true,
         callback:(event,button)=>{void submitGatherRoll(message.sessionId,{choice:button?.form?.elements?.check?.value,mode:button?.form?.elements?.mode?.value});}}]});
@@ -1245,7 +1246,7 @@ function decorateChatCard(message,html){
     const undo=slot.querySelector('[data-agl-xp-undo]');
     undo?.addEventListener?.('click',async event=>{
       event.preventDefault?.();undo.disabled=true;
-      try{const ok=await DialogV2.confirm({window:{title:'Undo XP award?'},content:`<p>Take back <strong>${Number(x.awarded.points)} ${esc(x.professionName)} XP</strong> from <strong>${esc(x.actorName)}</strong> and allow Award XP on this card again?</p>`,modal:true,rejectClose:false});
+      try{const ok=await confirmDialog(`Take back ${Number(x.awarded.points)} ${x.professionName} XP from ${x.actorName} and allow Award XP on this card again?`,{title:'Undo XP award?',yes:'Undo award',danger:true});
         if(!ok){undo.disabled=false;return;}
         say((await undoAwardFromCard(message)).message);}
       catch(err){undo.disabled=false;say(`Profession Ledger: ${err.message}`,true);}
@@ -1274,7 +1275,7 @@ async function performAction(action,{id,actorId,points,delta=null,set=null,reaso
     if(game.user.isGM&&actor.hasPlayerOwner)throw Error(`${actor.name}'s player learns this recipe from their own Ledger or character sheet`);
     const check=canLearnRecipe(actor,item,agSourceId(item));if(!check.ok)throw Error(check.reason);
     const name=recipeTitle(item.name);
-    const ok=await DialogV2.confirm({window:{title:`Learn ${name}?`},content:`<p><strong>${esc(actor.name)}</strong> learns <strong>${esc(name)}</strong>.</p><p>This uses up one recipe item (${quantity(item)} held). The recipe stays known.</p>`,modal:true,rejectClose:false});
+    const ok=await confirmDialog(`${actor.name} learns ${name}.\nThis uses up one recipe item (${quantity(item)} held). The recipe stays known.`,{title:`Learn ${name}?`,yes:`Learn ${name}`});
     if(!ok)return null;
     const learned=await learnRecipe(actor,item);
     return {message:`${actor.name} learned ${recipeTitle(learned.name)}.`};
@@ -1302,7 +1303,7 @@ async function performAction(action,{id,actorId,points,delta=null,set=null,reaso
     const plan=adjustProgress(actor.flags?.[ID]?.professionProgress??emptyProgress(),id,{delta:d,set:st,recipes:professionRecipes(actor,id)});
     if(plan.xp===plan.from)throw Error(`${actor.name}'s ${name} XP is already ${plan.from}${plan.clamped?` (limits are 0 and ${XP_CAP})`:''}`);
     const dep=dependentsText(plan,name,actor,id);
-    const ok=await DialogV2.confirm({window:{title:`Adjust ${name} XP?`},content:`<p><strong>${esc(actor.name)}</strong>: ${esc(name)} XP ${plan.from} → <strong>${plan.xp}</strong>${plan.clamped?` (limited to 0–${XP_CAP})`:''}. Level ${plan.previousLevel} → <strong>${plan.level}</strong>.</p>${dep?`<p><strong>Heads up:</strong> ${esc(dep)}</p>`:''}<p>The owner is told in chat, and the change is recorded in the XP history.</p>`,modal:true,rejectClose:false});
+    const ok=await confirmDialog(`${actor.name}: ${name} XP ${plan.from} → ${plan.xp}${plan.clamped?` (limited to 0–${XP_CAP})`:''}. Level ${plan.previousLevel} → ${plan.level}.${dep?`\nHeads up: ${dep}`:''}\nThe owner is told in chat, and the change is recorded in the XP history.`,{title:`Adjust ${name} XP?`,yes:'Adjust XP'});
     if(!ok)return null;
     const r=await adjustXP(actor,id,{delta:d,set:st,reason});
     const sign=r.xp-r.from>0?'+':'−',amount=Math.abs(r.xp-r.from);
@@ -1791,8 +1792,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(action==='assign-apply'){requireAssignGM();const a=this.assignState;if(!a.preview)throw Error('Preview first');
         const rows=a.preview.rows.filter(r=>r.status==='propose'&&(id==='all'||a.selected.has(r.id)));
         if(!rows.length)throw Error('Nothing selected to add');
-        const ok=await DialogV2.confirm({window:{title:'Add profession features?'},modal:true,rejectClose:false,
-          content:`<p>Add these profession features:</p><ul>${rows.map(r=>`<li><strong>${esc(r.actorName)}</strong>: ${esc(r.profession)} <small>(${esc(r.reason)})</small></li>`).join('')}</ul><p>XP, levels, Skill Tree perks and existing Items are not changed.</p>`});
+        const ok=await confirmDialog(`Add these profession features:\n${rows.map(r=>`• ${r.actorName}: ${r.profession} (${r.reason})`).join('\n')}\nXP, levels, Skill Tree perks and existing Items are not changed.`,{title:'Add profession features?',yes:'Add features'});
         if(!ok)return;
         const out=await assignProfessions({actorIds:a.target==='party'?null:[a.target],rowIds:rows.map(r=>r.id)});
         a.preview=assignPreview({actorIds:a.target==='party'?null:[a.target]});a.selected=new Set();
@@ -1896,8 +1896,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   }
   async _leaveGmSetup(){
     if(!this.rosterDirty&&!this.mapDirty&&!this.exoticDirty&&!this.coreAwardDirty){this.rosterDraft=null;this.mapDraft=null;this.exoticDraft=null;this.coreAwardDraft=null;return true;}
-    const discard=await DialogV2.confirm({window:{title:'Discard unsaved GM Setup changes?'},
-      content:'<p>Your party or tool changes have not been saved. Discard these changes and leave GM Setup?</p>',modal:true,rejectClose:false});
+    const discard=await confirmDialog('Your party or tool changes have not been saved. Discard these changes and leave GM Setup?',{title:'Discard unsaved GM Setup changes?',yes:'Discard changes',no:'Keep editing',danger:true});
     if(!discard)return false;
     this.rosterDraft=null;this.mapDraft=null;this.exoticDraft=null;this.coreAwardDraft=null;return true;
   }
@@ -1906,8 +1905,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     try{const data=JSON.parse(await f.text());this.baselinePreview={fileName:f.name??'',data,result:previewBaseline(data)};this.render();}
     catch(err){say(`Baseline file not read: ${err.message}`,true);}finally{if(e.target)e.target.value='';}}
   async _upload(e){checkPlayerLedger();if(!game.user.isGM)return;const f=e.target.files?.[0];if(!f)return;
-    try{const data=normalizeLibrary(JSON.parse(await f.text()));const approved=await DialogV2.confirm({window:{title:'Import Ledger Catalog'},
-      content:`<p>Source format: <b>${esc(data.sourceSchema)}</b>.</p><p>Import <b>${data.recipes.length} Recipes</b> and <b>${data.materials.length} Materials</b> into the Ledger's <b>world-visible read-only catalog</b>?</p><p>${data.importSummary.skippedRestricted} restricted/inactive entries excluded; ${data.importSummary.unmappedRecipes} recipes have no verified structured ingredients and cannot be crafted.</p><p>This REPLACES the previous Ledger catalog. It will not create or alter Foundry Items, Actor progression, or inventories. <strong>Only player-visible records may be stored here.</strong></p>`,modal:true,rejectClose:false});
+    try{const data=normalizeLibrary(JSON.parse(await f.text()));const approved=await confirmDialog(`Source format: ${data.sourceSchema}.\nImport ${data.recipes.length} recipes and ${data.materials.length} materials into the Ledger's world-visible read-only catalog?\n${data.importSummary.skippedRestricted} restricted/inactive entries excluded; ${data.importSummary.unmappedRecipes} recipes have no verified structured ingredients and cannot be crafted.\nThis replaces the previous Ledger catalog. It will not create or alter Foundry Items, Actor progression, or inventories. Only player-visible records may be stored here.`,{title:'Import the Ledger catalog?',yes:'Import catalog'});
       if(!approved)return;await game.settings.set(ID,'libraryData',data);this.query='';this.notice=`Imported ${data.recipes.length} recipe definitions and ${data.materials.length} materials (${data.importSummary.skippedRestricted} restricted excluded; ${data.importSummary.unmappedRecipes} recipes unmapped).`;this.render();say('Profession Ledger catalog loaded. No world Items were modified.');
     }catch(err){console.error(err);say(`Ledger import failed: ${err.message}`,true);}}
 }

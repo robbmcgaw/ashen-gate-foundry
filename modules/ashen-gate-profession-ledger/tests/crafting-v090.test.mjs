@@ -11,7 +11,7 @@ const users=[gm,alice,bob];
 const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
 let confirmAnswer=true;
 class FakeDialog{constructor(opts){this.opts=opts;dialogs.push(this);}render(){this.rendered=true;return this;}async close(){this.closed=true;}
-  static async confirm(){return confirmAnswer;}
+  static async wait(){return confirmAnswer;}
   click(action){this.opts.buttons.find(b=>b.action===action).callback();}}
 globalThis.foundry={applications:{api:{ApplicationV2:class{async _prepareContext(){return {};}render(){this.rendered=true;return this;}},HandlebarsApplicationMixin:c=>c,DialogV2:FakeDialog}},utils:{escapeHTML:esc,randomID:()=>`id${Math.random().toString(36).slice(2,10)}`}};
 globalThis.Hooks={once:(n,f)=>hooks[n]=f,on:()=>{}};

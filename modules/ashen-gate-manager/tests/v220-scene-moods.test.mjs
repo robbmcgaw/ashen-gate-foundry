@@ -153,7 +153,7 @@ test('Scenes tab: GM-only tab with mood buttons, Back to normal, Cancel left / S
   assert.match(tpl, /data-ag-action="mood-restore"[^>]*>.*Back to normal/);
   assert.match(tpl, /mood-cancel">Cancel<\/button>.*\s*<button[^>]*mood-save"/);
   assert.match(tpl, /slow weaker player machines/);
-  assert.match(main, /yes:\{label:`Remove \$\{noun\}`\}/);
-  assert.match(main, /yes:\{label:'Reset moods to defaults'\}/);
+  assert.match(main, /yes:`Remove \$\{noun\}`/);
+  assert.match(main, /yes:'Reset moods to defaults'/);
   assert.match(main, /scenes:\(\(\{listMoods,getState,applyMood,addLayer,removeEffect,restore/);
 });

@@ -1,3 +1,7 @@
+## 0.9.1 — 2026-10-21
+
+- Confirmations name the action and follow the Ashen Gate look: Delete quest asks "Delete [quest name]?" (red, no id), Delete assignment is red, and leaving unsaved quest changes asks Discard changes / Keep editing. Cancel is on the left. No behaviour or saved data changes.
+
 ## 0.9.0 — 2026-10-21
 
 - Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.

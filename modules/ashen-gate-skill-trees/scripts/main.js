@@ -10,11 +10,12 @@ import {tooltipModel,initialSidebar,toggledSidebar,isNarrow} from './layout.mjs'
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition} from './definition-lookup.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
+import {confirmDialog,infoDialog} from './ag-dialogs.mjs';
 import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument,qaCleanupBlockers} from './qa-fixtures.mjs';
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.18.0';
+const VERSION='0.18.1';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -76,10 +77,11 @@ const download=(filename,data)=>{
   const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;
   document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);
 };
-const confirm=async(content,title='Confirm')=>Boolean(await DialogV2.confirm({window:{title},content,modal:true,rejectClose:false}));
+// Plain-text message (one paragraph per line); the action button repeats the verb, Cancel on the left.
+const confirm=(message,{title='Confirm',yes='Confirm',danger=false}={})=>confirmDialog(message,{title,yes,danger});
 const formValues=v=>v&&typeof v.entries==='function'?Object.fromEntries(v.entries()):v??{};
 const input=async(title,content,label='Save')=>{
-  const result=await DialogV2.input({window:{title},content,ok:{label}});
+  const result=await DialogV2.input({classes:['ag-app','ag-dialog'],window:{title},content,ok:{label}});
   return result?formValues(result):null;
 };
 const newKey=(prefix='LOCAL-NODE')=>`${prefix}-${foundry.utils.randomID(14)}`;
@@ -107,7 +109,7 @@ const publishedPayload=trees=>({schema:SCHEMA,revision:Date.now(),trees:trees.ma
 async function initializeStore(){
   if(!game.user.isGM)throw Error('GM only');
   if(gmPrivate())return gmPrivate();
-  if(!await confirm('<p>Create a <strong>GM-only Journal</strong> for private tree definitions?</p><p>The public player view receives separately sanitized snapshots. No old v0.1 data or Actor progress will be changed.</p>','Initialize Skill Trees'))return null;
+  if(!await confirm('Create a GM-only Journal for private tree definitions?\nThe public player view receives separately sanitized snapshots. No old v0.1 data or Actor progress will be changed.',{title:'Create the private tree journal?',yes:'Create journal'}))return null;
   return createStore();
 }
 /** Creates the module's own GM-only definitions Journal (no player access). Also used by the Manager import. */
@@ -785,7 +787,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     }catch(error){console.error(`[${MODULE}]`,error);notify(`Skill Trees: ${error.message}`,true);}finally{this.busy=false;}
   }
   async _help(){
-    await confirm('<p><strong>Tree View</strong> shows a character’s tree. Each node is a perk. Arrows point from a prerequisite to the perk it opens; a dashed arrow marked OR means any one of that group is enough; a red dotted line marked ✕ joins perks that cannot both be taken. Select a node to read the same information as text.</p><p><strong>Unlock</strong> spends the character’s points and adds the perk to their sheet. Players unlock their own characters while a GM is logged in; the GM can unlock, refund or reset (refund removes the perk from the sheet).</p><p><strong>GM Setup</strong> has publishing, export (backups) and the saved-data check. Tree files are imported through General Manager.</p><p><strong>Review</strong> (GM): when a lower level leaves perks above it, the banner’s <strong>Review</strong> button (or the whisper’s) lists them: keep or remove each. Every change in a character’s History can be undone.</p><p><strong>Profession trees</strong> get 1 point per profession level from the Profession Ledger (level 16 = 16 points; a tree has 24 perks, so players choose 16). Each perk needs the level of its tier (Apprentice 1, Journeyman 4, Expert 7, Artisan 10, Master 13). Players pick their own; only the GM can remove a perk, grant one as an override, or keep one the level no longer covers. A character with perks above their level waits on GM review before picking again.</p>','Skill Trees help');
+    await infoDialog('Skill Trees help','<p><strong>Tree View</strong> shows a character’s tree. Each node is a perk. Arrows point from a prerequisite to the perk it opens; a dashed arrow marked OR means any one of that group is enough; a red dotted line marked ✕ joins perks that cannot both be taken. Select a node to read the same information as text.</p><p><strong>Unlock</strong> spends the character’s points and adds the perk to their sheet. Players unlock their own characters while a GM is logged in; the GM can unlock, refund or reset (refund removes the perk from the sheet).</p><p><strong>GM Setup</strong> has publishing, export (backups) and the saved-data check. Tree files are imported through General Manager.</p><p><strong>Review</strong> (GM): when a lower level leaves perks above it, the banner’s <strong>Review</strong> button (or the whisper’s) lists them: keep or remove each. Every change in a character’s History can be undone.</p><p><strong>Profession trees</strong> get 1 point per profession level from the Profession Ledger (level 16 = 16 points; a tree has 24 perks, so players choose 16). Each perk needs the level of its tier (Apprentice 1, Journeyman 4, Expert 7, Artisan 10, Master 13). Players pick their own; only the GM can remove a perk, grant one as an override, or keep one the level no longer covers. A character with perks above their level waits on GM review before picking again.</p>');
   }
   async _installQa(){
     if(!game.user.isGM)throw Error('GM only');
@@ -797,7 +799,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       throw Error('QA documents already exist; use Reset QA Fixture before reinstalling');
     if(game.items.contents.some(doc=>qaSourceItems().some(item=>item.flags['ashen-gate-manager'].source.sourceId===sourceFlag(doc)?.sourceId)))
       throw Error('QA source IDs already exist; refusing to create duplicate source bindings');
-    if(!await confirm('<p><strong>Install test-world records?</strong> This creates one real [AG QA] character Actor, two draft GM-only Feature Items, and three [AG QA] tree layouts in the existing private Journal. They are not approved game content, do not award XP/Perks or grant Item effects, and can be removed using Reset QA Fixture.</p><p>Use a disposable test world. You must manually grant a test player Actor ownership for player tests.</p>','Install QA Fixture'))return;
+    if(!await confirm('This creates one real [AG QA] character Actor, two draft GM-only Feature Items, and three [AG QA] tree layouts in the existing private Journal. They are not approved game content, do not award XP/Perks or grant Item effects, and can be removed using Reset QA Fixture.\nUse a disposable test world. You must manually grant a test player Actor ownership for player tests.',{title:'Install test records?',yes:'Install test records'}))return;
     const created=[];
     try{
       const actor=await Actor.create(qaActorData());if(!actor)throw Error('QA Actor creation did not return a document');created.push(actor);
@@ -828,7 +830,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const blockers=qaCleanupBlockers(qaTrees,actors);
     if(blockers.length)throw Error(`Cannot reset: another Actor has QA tree progress. ${blockers.slice(0,3).join('; ')}`);
     if(!qaTrees.length&&!qaDocs.length){notify('No marked [AG QA] fixture records to reset.');return;}
-    if(!await confirm(`<p><strong>Remove QA test records?</strong> This removes ${qaTrees.length} QA tree layouts and deletes only ${qaDocs.length} native documents tagged <code>${QA_FIXTURE}</code> (including the disposable QA Actor and its test progress).</p><p>Unrelated layouts, world records, and other Actors are not deleted. Export test evidence before resetting. Existing legacy Demo trees are not touched.</p>`,'Reset QA Fixture'))return;
+    if(!await confirm(`This removes ${qaTrees.length} QA tree layouts and deletes only ${qaDocs.length} native documents tagged ${QA_FIXTURE} (including the disposable QA Actor and its test progress).\nUnrelated layouts, world records, and other Actors are not deleted. Export test evidence before resetting. Existing legacy Demo trees are not touched.`,{title:'Remove test records?',yes:'Remove test records',danger:true}))return;
     // Store is updated before native deletion: a failed deletion remains safely tagged for a retry.
     await saveTrees(layouts.filter(t=>!(qaIds.has(t.id)&&t.name.startsWith('[AG QA]'))),{checkPurchased:false});
     const failures=[];
@@ -988,7 +990,8 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const read=(event,button)=>{const fd=new FormData(button.form);
       return appearanceFromForm({nodeSize:fd.get('nodeSize'),bgImage:fd.get('bgImage'),bgFit:fd.get('bgFit'),bgOpacity:fd.get('bgOpacity'),
         tierLevel:fd.getAll('tierLevel'),tierLabel:fd.getAll('tierLabel'),tierY:fd.getAll('tierY'),tierIcon:fd.getAll('tierIcon')});};
-    const out=await DialogV2.prompt({window:{title:'Tree appearance'},content,ok:{label:'Save',callback:read},render:wire,rejectClose:false});
+    const out=await DialogV2.wait({classes:['ag-app','ag-dialog'],window:{title:'Tree appearance'},content,render:wire,rejectClose:false,
+      buttons:[{action:'cancel',label:'Cancel',callback:()=>null},{action:'ok',label:'Save',default:true,callback:read}]});
     if(!out)return;
     if(out.errors.length)throw Error(out.errors[0]);
     t.nodeSize=out.nodeSize;
@@ -1001,7 +1004,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const t=copy(this.storedTree),n=t.nodes.find(n=>n.id===this.nodeId);
     if(!n)throw Error('Missing node');
     if(allProgressFor(t).some(a=>a.unlocks.includes(n.id)))throw Error('Purchased node cannot be deleted');
-    if(!await confirm(`<p>Remove ${escape(this.tree?.nodes.find(x=>x.id===n.id)?.name??n.id)} and its connections from this tree? The perk Item itself is not deleted.</p>`,'Remove node'))return;
+    if(!await confirm(`Remove ${this.tree?.nodes.find(x=>x.id===n.id)?.name??'this node'} and its connections from this tree? The perk Item itself is not deleted.`,{title:'Remove this node?',yes:'Remove node',danger:true}))return;
     t.nodes=t.nodes.filter(x=>x.id!==n.id);
     for(const x of t.nodes){x.requiresAll=x.requiresAll.filter(id=>id!==n.id);x.requiresAny=x.requiresAny.map(g=>g.filter(id=>id!==n.id)).filter(g=>g.length);x.excludes=x.excludes.filter(id=>id!==n.id);}
     await this._saveEdited(t);this.nodeId=null;notify('Node removed from layout only.');
@@ -1034,7 +1037,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       <p>Cinder: one point per uniquely labeled manifestation/milestone, ${CINDER_MAX_POINTS} lifetime points maximum. GM only.</p></div>`,'Award');
     if(!f)return;
     const a=readProgress(this.actor,this.tree),next=grantPoints(this.tree,a,Number(f.amount),String(f.label??''));
-    if(!await confirm(`<p>Grant ${Number(f.amount)} point(s) to ${escape(this.actor.name)} for <strong>${escape(this.tree.name)}</strong>?</p>`,'Confirm award'))return;
+    if(!await confirm(`Grant ${Number(f.amount)} point(s) to ${this.actor.name} for ${this.tree.name}?`,{title:'Award points?',yes:'Award points'}))return;
     await persistAccount(this.actor,this.tree,next);notify('Points awarded.');
   }
   async _purchase(){
@@ -1042,7 +1045,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const actor=this.actor,t=this.tree,n=t.nodes.find(x=>x.id===this.nodeId);
     if(!n)throw Error('Missing private node');
     const ok=availability(t,readProgress(actor,t),n.id,{level:professionLevel(actor,t)});if(!ok.ok)throw Error(ok.reason);
-    if(!await confirm(`<p>Spend <strong>${ok.cost}</strong> point(s) and unlock <strong>${escape(n.name)}</strong> for ${escape(actor.name)}?</p><p>${n.perkId?'The perk is added to the character sheet.':'This older custom node has no perk, so nothing is added to the sheet.'}</p>`,'Unlock perk'))return;
+    if(!await confirm(`Spend ${ok.cost} point(s) and unlock ${n.name} for ${actor.name}?\n${n.perkId?'The perk is added to the character sheet.':'This older custom node has no perk, so nothing is added to the sheet.'}`,{title:'Unlock this perk?',yes:'Unlock perk'}))return;
     const {item}=await unlockNode(actor,t.id,n.id);
     notify(item?`${n.name} unlocked and added to ${actor.name}.`:`${n.name} unlocked (no perk Item: custom node).`);
   }
@@ -1052,7 +1055,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const n=this.tree.nodes.find(x=>x.id===this.nodeId);
     const ok=publicAvailability(this.tree,readProgress(actor,this.tree),n?.id,{level:professionLevel(actor,this.tree)});
     if(!ok.ok)throw Error(ok.reason);
-    if(!await confirm(`<p>Spend <strong>${n.cost??1}</strong> point(s) to unlock <strong>${escape(n.name)}</strong> for ${escape(actor.name)}?</p><p>The perk is added to the character sheet. Only the GM can undo it.</p>`,'Unlock perk'))return;
+    if(!await confirm(`Spend ${n.cost??1} point(s) to unlock ${n.name} for ${actor.name}?\nThe perk is added to the character sheet. Only the GM can undo it.`,{title:'Unlock this perk?',yes:'Unlock perk'}))return;
     const result=await requestUnlock(actor,this.tree.id,n.id);
     notify(result.message);
   }
@@ -1065,7 +1068,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       const f=await input('Remove perk',`<div class="agst-form"><p>Remove <strong>${escape(n.name)}</strong> from ${escape(actor.name)}?</p><p>The point goes back to the character${items.length?` and <strong>${items.map(escape).join(', ')}</strong> is removed from the sheet`:''}. Recorded in the history.</p>
         <label>Reason (optional)<input name="reason" maxlength="200" placeholder="Player asked to swap perks"></label></div>`,'Remove perk');
       if(!f)return;reason=String(f.reason??'');
-    }else if(!await confirm(`<p>Refund <strong>${escape(n.name)}</strong> for ${escape(actor.name)}?</p><p>The point(s) go back to the character${items.length?` and <strong>${items.map(escape).join(', ')}</strong> is removed from the sheet`:''}.</p>`,'Refund perk'))return;
+    }else if(!await confirm(`Refund ${n.name} for ${actor.name}?\nThe point(s) go back to the character${items.length?` and ${items.join(', ')} is removed from the sheet`:''}.`,{title:'Refund this perk?',yes:'Refund points',danger:true}))return;
     const {removed}=await refundNode(actor,this.tree.id,n.id,{reason});
     notify(`Refunded ${n.name}${removed.length?`; removed ${removed.join(', ')} from ${actor.name}`:''}.`);
   }
@@ -1106,7 +1109,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const node=this.tree.nodes.find(n=>n.id===entry.nodeId)?.name??entry.nodeId;
     const what={allocate:`take back the pick of <strong>${escape(node)}</strong> (the perk leaves the sheet, the point returns)`,override:`take back the GM grant of <strong>${escape(node)}</strong> (the perk leaves the sheet)`,
       remove:`put <strong>${escape(node)}</strong> back${entry.itemSnapshot?' exactly as it was on the sheet':' (a fresh copy of the perk)'}`,keep:`stop keeping <strong>${escape(node)}</strong> (it may be flagged for review again)`}[entry.kind];
-    if(!await confirm(`<p>Undo for ${escape(actor.name)}: ${what}?</p>`,'Undo change'))return;
+    if(!await confirm(`Undo for ${actor.name}: ${what}?`,{title:'Undo this change?',yes:'Undo change',danger:true}))return;
     const r=await undoHistory(actor,this.tree.id,entryId);
     notify(`Undone: ${r.node}${r.restored?` restored to ${actor.name}`:''}${r.removed.length?`; removed ${r.removed.join(', ')}`:''}.`);
   }
@@ -1116,9 +1119,13 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if(!rows.length){notify('No Profession Ledger perk choices to import (none saved, or no profession tree has them).');return;}
     const todo=rows.filter(r=>r.action==='add'||r.action==='adopt');
     const table=rows.map(r=>`<tr><td>${escape(r.actorName)}</td><td>${escape(r.treeName)}</td><td>${escape(r.name??r.perkId)}</td><td>${escape(r.reason)}</td></tr>`).join('');
-    const ok=await confirm(`<p>Profession Ledger perk choices found. Nothing has been changed yet. ${todo.length} will be allocated; the Ledger keeps its own record untouched. Safe to run again.</p>
-      <table class="agst-resolve-table"><thead><tr><th scope="col">Character</th><th scope="col">Tree</th><th scope="col">Perk</th><th scope="col">What happens</th></tr></thead><tbody>${table}</tbody></table>`,todo.length?'Import Ledger perk choices':'Nothing to import');
-    if(!ok||!todo.length)return;
+    const intro=`Profession Ledger perk choices found. Nothing has been changed yet. ${todo.length} will be allocated; the Ledger keeps its own record untouched. Safe to run again.`;
+    if(!todo.length){
+      await infoDialog('Nothing to import',`<p>${escape(intro)}</p><table class="agst-resolve-table"><thead><tr><th scope="col">Character</th><th scope="col">Tree</th><th scope="col">Perk</th><th scope="col">What happens</th></tr></thead><tbody>${table}</tbody></table>`);
+      return;
+    }
+    const lines=rows.map(r=>`${r.actorName} · ${r.treeName} · ${r.name??r.perkId}: ${r.reason}`).join('\n');
+    if(!await confirm(`${intro}\n${lines}`,{title:'Import Ledger perk choices?',yes:'Import choices'}))return;
     const {applied,failed}=await importLedgerChoices({apply:true});
     if(failed.length)throw Error(`Imported ${applied.length}; ${failed.length} failed: ${failed.slice(0,4).join('; ')}`);
     notify(`Imported ${applied.length} Ledger perk choice(s). Characters above their level are flagged for review.`);
@@ -1136,13 +1143,13 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
   async _resetTree(){
     if(!game.user.isGM||!this.tree||!this.actor)throw Error('GM and character required');
     const actor=this.actor,acc=readProgress(actor,this.tree);
-    if(!await confirm(`<p>Reset <strong>${escape(this.tree.name)}</strong> for ${escape(actor.name)}?</p><p>All ${acc.unlocks.length} unlock(s) are refunded and the perks this tree gave are removed from the sheet. Points awarded stay.</p>`,'Reset tree'))return;
+    if(!await confirm(`Reset ${this.tree.name} for ${actor.name}?\nAll ${acc.unlocks.length} unlock(s) are refunded and the perks this tree gave are removed from the sheet. Points awarded stay.`,{title:'Reset this tree?',yes:'Reset tree',danger:true}))return;
     const {removed}=await resetTreeFor(actor,this.tree.id);
     notify(`Reset ${this.tree.name} for ${actor.name}; removed ${removed.length} perk Item(s).`);
   }
   async _giveMissing(){
     if(!game.user.isGM)throw Error('GM only');
-    if(!await confirm('<p>Add the perk Item to every character that has an unlocked perk node but no matching Item on the sheet (for example, unlocks made before Skill Trees 0.8.0)?</p><p>Nothing is removed. Safe to run again.</p>','Give missing perks'))return;
+    if(!await confirm('Add the perk Item to every character that has an unlocked perk node but no matching Item on the sheet (for example, unlocks made before Skill Trees 0.8.0)?\nNothing is removed. Safe to run again.',{title:'Give missing perks?',yes:'Give missing perks'}))return;
     const {given,failed}=await giveMissingPerks();
     if(failed.length)throw Error(`Gave ${given.length}; ${failed.length} failed: ${failed.slice(0,4).join('; ')}`);
     notify(given.length?`Gave ${given.length} perk Item(s): ${given.slice(0,6).join('; ')}`:'Nothing missing: every unlocked perk is on its sheet.');
@@ -1165,7 +1172,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const old=asArray(game.settings.get(MODULE,'treeData')?.trees);if(!old.length)throw Error('No legacy v0.1 trees found');
     if(!gmPrivate())throw Error('Initialize GM storage first');
     const candidates=old.filter(t=>!readPrivate().some(v=>v.id===t.id));
-    if(!await confirm(`<p>Legacy v0.1 contains <strong>${old.length}</strong> trees; <strong>${candidates.length}</strong> can be migrated into new GM-only <em>hidden draft layouts</em>.</p><p>Old Stage rules and UUID Item rewards are NOT imported as working mechanics. Actor progress stays in its v0.1 flags and is not migrated. The original setting is not cleared by this action.</p><p><strong>Back up your world before proceeding.</strong></p>`,'Preview legacy migration'))return;
+    if(!await confirm(`Legacy v0.1 contains ${old.length} trees; ${candidates.length} can be migrated into new GM-only hidden draft layouts.\nOld Stage rules and UUID Item rewards are not imported as working mechanics. Actor progress stays in its v0.1 flags and is not migrated. The original setting is not cleared by this action.\nBack up your world before proceeding.`,{title:'Migrate legacy trees?',yes:'Migrate trees'}))return;
     const migration=candidates.map(t=>normalizeTree({
       id:t.id,name:t.name,description:'Migrated layout from v0.1; all content requires re-review before release.',
       status:'draft',visibility:'gm',sourceRef:/^PROF-/.test(t.sourceId??'')?t.sourceId:null,
@@ -1180,7 +1187,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
   async _legacyClear(){
     if(!game.user.isGM)throw Error('GM only');
     const old=game.settings.get(MODULE,'treeData');if(!asArray(old?.trees).length)return notify('No legacy setting to clear');
-    if(!await confirm(`<p><strong>Privacy cleanup:</strong> download a backup and clear the legacy v0.1 world setting which may be visible to players.</p><p>This leaves any old v0.1 Actor flags untouched. Only do this after your layout migration is reviewed.</p>`,'Clear legacy public setting?'))return;
+    if(!await confirm(`Privacy cleanup: download a backup and clear the legacy v0.1 world setting which may be visible to players.\nThis leaves any old v0.1 Actor flags untouched. Only do this after your layout migration is reviewed.`,{title:'Clear the legacy public setting?',yes:'Back up and clear',danger:true}))return;
     download('AG_Skill_Trees_v01_Legacy_Backup_BEFORE_CLEAR.json',old);
     await game.settings.set(MODULE,'treeData',{schema:'ag-skill-trees/0.1',trees:[]});notify('Legacy setting cleared; backup downloaded.');
   }
@@ -1340,14 +1347,14 @@ async function embedUnlock(actor,treeId,nodeId){
   if(game.user.isGM){
     const t=resolved(stored),n=t.nodes.find(x=>x.id===nodeId);if(!n)throw Error('Missing private node');
     const ok=availability(t,readProgress(actor,t),n.id,{level});if(!ok.ok)throw Error(ok.reason);
-    if(!await confirm(`<p>Spend <strong>${ok.cost}</strong> point(s) and unlock <strong>${escape(n.name)}</strong> for ${escape(actor.name)}?</p><p>${n.perkId?'The perk is added to the character sheet.':'This older custom node has no perk, so nothing is added to the sheet.'}</p>`,'Unlock perk'))return null;
+    if(!await confirm(`Spend ${ok.cost} point(s) and unlock ${n.name} for ${actor.name}?\n${n.perkId?'The perk is added to the character sheet.':'This older custom node has no perk, so nothing is added to the sheet.'}`,{title:'Unlock this perk?',yes:'Unlock perk'}))return null;
     const {item}=await unlockNode(actor,t.id,n.id);
     return item?`${n.name} unlocked and added to ${actor.name}.`:`${n.name} unlocked (no perk Item: custom node).`;
   }
   if(!actor.isOwner)throw Error('You do not own the selected character');
   const n=stored.nodes.find(x=>x.id===nodeId);
   const ok=publicAvailability(stored,readProgress(actor,stored),n?.id,{level});if(!ok.ok)throw Error(ok.reason);
-  if(!await confirm(`<p>Spend <strong>${n.cost??1}</strong> point(s) to unlock <strong>${escape(n.name)}</strong> for ${escape(actor.name)}?</p><p>The perk is added to the character sheet. Only the GM can undo it.</p>`,'Unlock perk'))return null;
+  if(!await confirm(`Spend ${n.cost??1} point(s) to unlock ${n.name} for ${actor.name}?\nThe perk is added to the character sheet. Only the GM can undo it.`,{title:'Unlock this perk?',yes:'Unlock perk'}))return null;
   const result=await requestUnlock(actor,stored.id,n.id);
   return result.message;
 }

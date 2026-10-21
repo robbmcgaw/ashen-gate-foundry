@@ -39,6 +39,6 @@ test('0.32.0: Library keeps every action, behind a rail and one Actions menu',()
 });
 
 test('0.32.0: lifecycle confirmations name what they do',()=>{
-  assert.match(main,/yes:\{label:`Delete \$\{accepted\.length\} archived record\(s\)`\}/);
-  assert.match(main,/<li>\$\{escapeHtml\(r\.name\)\}/,'final delete dialog lists the records');
+  assert.match(main,/yes:`Delete \$\{accepted\.length\} archived record\(s\)`/);
+  assert.match(main,/`• \$\{r\.name\}`/,'final delete dialog lists the records');
 });

@@ -7,7 +7,7 @@ let values={partyRoster:['a'],libraryData:{schema:'ag-ledger/0.1',recipes:[],mat
 const gm={id:'gm',isGM:true,name:'GM',active:true};
 const player={id:'u1',isGM:false,name:'Player',active:true};
 const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
-globalThis.foundry={applications:{api:{ApplicationV2:class{async _prepareContext(){return {}}render(){rendered++;this.rendered=true;return this;}},HandlebarsApplicationMixin:cls=>cls,DialogV2:{confirm:async()=>true}}},utils:{escapeHTML:esc}};
+globalThis.foundry={applications:{api:{ApplicationV2:class{async _prepareContext(){return {}}render(){rendered++;this.rendered=true;return this;}},HandlebarsApplicationMixin:cls=>cls,DialogV2:{wait:async()=>true}}},utils:{escapeHTML:esc}};
 globalThis.Hooks={once:(name,f)=>hooks[name]=f,on:()=>{}};
 globalThis.ui={notifications:{info:()=>{},error:e=>errors.push(String(e))}};
 globalThis.ChatMessage={create:async x=>{chats.push(x);return x},getSpeaker:()=>({alias:'GM'})};

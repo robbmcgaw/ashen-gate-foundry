@@ -13,7 +13,7 @@ const users=[gm,alice,bob];
 const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
 let confirmAnswer=true;
 class FakeDialog{constructor(opts){this.opts=opts;dialogs.push(this);}render(){this.rendered=true;return this;}async close(){this.closed=true;}
-  static async confirm(opts){FakeDialog.last=opts;return confirmAnswer;}
+  static async wait(opts){FakeDialog.last=opts;return confirmAnswer;}
   click(action,form={}){return this.opts.buttons.find(b=>b.action===action).callback?.({},{form:{elements:form}});}}
 globalThis.foundry={applications:{api:{ApplicationV2:class{async _prepareContext(){return {};}render(){this.rendered=true;return this;}},HandlebarsApplicationMixin:c=>c,DialogV2:FakeDialog}},utils:{escapeHTML:esc,randomID:()=>`id${Math.random().toString(36).slice(2,10)}`}};
 globalThis.Hooks={once:(n,f)=>hooks[n]=f,on:()=>{},callAll:(name,data)=>xpHooks.push({name,data})};
@@ -278,6 +278,14 @@ test('0.12.0: undo award, adjust/set XP, perks kept and flagged, history GM-only
  assert.equal('history' in api.getProfessionProgress(belwar,P),false,'player progress never carries history');
  // GM: the card offers Undo; undo restores XP, re-enables Award, is idempotent and traceable.
  game.user=gm;let el=slot();_test.decorateChatCard(card,el);assert.match(el.slot.innerHTML,/data-agl-xp-undo/);
+ { // Undo award button: labelled, red confirm; Cancel takes nothing back.
+   let handler;const btn={addEventListener:(t,f)=>{handler=f;}};const s={innerHTML:'',querySelector:sel=>sel==='[data-agl-xp-undo]'?btn:null};
+   _test.decorateChatCard(card,{querySelector:sel=>sel==='[data-agl-xp]'?s:null});
+   const before=flag().xp;confirmAnswer=false;await handler({});confirmAnswer=true;
+   assert.equal(FakeDialog.last.window.title,'Undo XP award?');assert.equal(FakeDialog.last.buttons[0].label,'Cancel');assert.equal(FakeDialog.last.buttons.at(-1).label,'Undo award');
+   assert.ok(FakeDialog.last.classes.includes('ag-dialog--danger'));assert.ok(FakeDialog.last.classes.includes('ag-app'));
+   assert.equal(flag().xp,before,'Cancel changes nothing');assert.equal(btn.disabled,false);assert.ok(card.flags['ashen-gate-profession-ledger'].xp.awarded);
+ }
  const out=await _test.undoAwardFromCard(card);
  assert.match(out.message,/3 \[TEST\] Herbalism XP taken back → 0 XP, level 1/);
  assert.equal(flag().xp,0);assert.equal(card.flags['ashen-gate-profession-ledger'].xp.awarded,null);
@@ -295,7 +303,7 @@ test('0.12.0: undo award, adjust/set XP, perks kept and flagged, history GM-only
  let r=await _test.performAction('adjust-xp',{id:P,actorId:'belwar',delta:'-4',reason:'Misclick'});
  assert.match(r.message,/XP 7 → 3, level 1/);assert.equal(flag().xp,3);
  const note=chats.at(-1);assert.match(note.content,/adjusted by the GM \(−4\)/);assert.match(note.content,/Misclick/);assert.ok(note.whisper.includes('gm'));
- assert.match(FakeDialog.last.content,/3<\/strong>/);
+ assert.match(FakeDialog.last.content,/→ 3\. Level 2 → 1\./);assert.equal(FakeDialog.last.buttons.at(-1).label,"Adjust XP");assert.equal(FakeDialog.last.buttons[0].label,"Cancel");
  await assert.rejects(()=>_test.performAction('adjust-xp',{id:P,actorId:'belwar',delta:'1',set:'5'}),/either/);
  r=await _test.performAction('adjust-xp',{id:P,actorId:'belwar',set:'-5'}).catch(e=>e);assert.match(String(r),/0 or more/);
  // Below zero clamps to 0; above the cap clamps to 390.

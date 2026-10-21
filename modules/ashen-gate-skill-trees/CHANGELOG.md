@@ -1,3 +1,8 @@
+## 0.18.1 — 2026-10-21
+
+- Confirmations name the action (no more Yes/No), Help opens with a Close button, dialogs follow the Ashen Gate look; test wording removed from player views.
+- Reset tree, Remove node, Refund, Undo and Remove test records use a red action button. GM Setup no longer says "Alpha release"; the empty tree list says "No trees yet. Create one with New tree." Tree appearance gets a Cancel button.
+
 ## 0.18.0 — 2026-10-21
 
 - Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.
