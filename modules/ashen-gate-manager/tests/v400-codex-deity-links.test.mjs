@@ -36,11 +36,12 @@ test('player markup: openable deity is a link, others plain text with a tooltip,
     links: [{id: 'DEITY-TEST-SUN', kind: 'deity', name: '[TEST] Sun'}, {id: null, kind: 'deity', name: 'Unknown', unknown: true}, {id: 'LOC-TEST-SHRINE', kind: 'location', name: '[TEST] Shrine'}]}]};
   const open = renderPlayerCodexHtml([entry], {deityLink: () => ({open: true, title: 'Open in the Renown Pantheon'})});
   assert.match(open, /data-ag-codex-deity="DEITY-TEST-SUN"[^>]*>.*\[TEST\] Sun/);
-  assert.match(open, /is-unknown" title="A deity you have not discovered yet\.">Unknown</);
+  assert.match(open, /is-unknown" data-tooltip-class="ag-tooltip" data-tooltip="A deity you have not discovered yet\.">Unknown</);
   assert.equal((open.match(/data-ag-codex-deity/g) ?? []).length, 1);
   const plain = renderPlayerCodexHtml([entry]);
   assert.doesNotMatch(plain, /data-ag-codex-deity/, 'default never links');
-  assert.match(plain, /title="Renown is not active[^"]*">\[TEST\] Sun</);
+  assert.match(plain, /data-tooltip="Renown is not active[^"]*">\[TEST\] Sun</);
+  assert.doesNotMatch(plain + open, /\stitle=/, 'Foundry tooltips, not title (D11)');
   const masked = renderPlayerCodexHtml([entry], {deityLink: () => ({open: false, unknown: true})});
   assert.doesNotMatch(masked, /\[TEST\] Sun/, 'client-side Renown says unknown: shown as Unknown');
 });

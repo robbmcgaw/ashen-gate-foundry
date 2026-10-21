@@ -13,15 +13,14 @@ export const DEFAULT_STATE = Object.freeze({query: '', scope: 'all', filters: {}
 
 const options = (map, current) => Object.entries(map).map(([value, label]) => `<option value="${value}"${value === current ? ' selected' : ''}>${esc(label)}</option>`).join('');
 
-/** Search box and the actions that never re-render while typing. In the Items tab (0.36.0) the shared filter bar owns the search box. */
-export function toolbarHtml(state, {search = true} = {}) {
-  return `<div class="ag-toolbar agbrowse-toolbar">
-    ${search ? `<input type="search" data-ag-browse-query value="${esc(state.query)}" placeholder="Search name, id, tag, text… (id:MAT-HERB, id:DEITY-, type:deity, tag:, status:, tier:)" aria-label="Search Browse" />` : ''}
-    <label>Sort <select data-ag-browse-sort>${options(SORTS, state.sort)}</select></label>
-    <label>Group <select data-ag-browse-group>${options(GROUPS, state.group)}</select></label>
-    <button type="button" data-ag-browse-refresh><i class="fa-solid fa-rotate"></i> Refresh</button>
-    <button type="button" data-ag-browse-packs><i class="fa-solid fa-book-atlas"></i> <span data-ag-browse-packs-label>Load compendiums</span></button>
-  </div>`;
+/**
+ * Sort, Group and Refresh for All items. Since 0.43.0 they sit inside the Items tab's one toolbar, which also owns the
+ * search box, Clear filters and Load compendiums, so this returns the controls only (no toolbar of its own).
+ */
+export function toolbarHtml(state) {
+  return `<label class="agmanager-search-label">Sort <select data-ag-browse-sort>${options(SORTS, state.sort)}</select></label>
+    <label class="agmanager-search-label">Group <select data-ag-browse-group>${options(GROUPS, state.group)}</select></label>
+    <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost ag-btn--icon" data-ag-browse-refresh aria-label="Refresh the index" data-tooltip="Refresh the index" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-rotate" aria-hidden="true"></i></button>`;
 }
 
 function facetSelect(f, list, current) {
@@ -33,8 +32,10 @@ function facetSelect(f, list, current) {
 }
 
 const chip = (text, tone = '') => text ? `<span class="ag-badge${tone ? ` ag-badge--${tone}` : ''}">${esc(text)}</span>` : '';
-/** Rarity pill in the shared rarity colours (--ag-rarity-* kit tokens, ag-ui.css). */
-export const rarityPill = key => RARITIES[key] ? `<span class="ag-rarity ag-rarity--${key}"><i aria-hidden="true"></i>${esc(RARITIES[key])}</span>` : '';
+/** Manager rarity keys (lower case) to the dnd5e keys the kit's data-rarity badge uses. */
+const DND5E_RARITY = {veryrare: 'veryRare'};
+/** Rarity badge from the kit (.ag-rarity-badge[data-rarity], ag-ui.css kit 2). */
+export const rarityPill = key => RARITIES[key] ? `<span class="ag-rarity-badge" data-rarity="${DND5E_RARITY[key] ?? key}">${esc(RARITIES[key])}</span>` : '';
 const visTone = v => v === 'gm' ? 'danger' : v === 'reveal_gated' || v === 'reveal-gated' ? 'warn' : v === 'player' ? 'ok' : '';
 const statusTone = s => s === 'approved' ? 'ok' : s === 'draft' ? 'warn' : '';
 
@@ -51,9 +52,9 @@ function rowHtml(e) {
       <div class="agmanager-tiny agbrowse-prov">${esc(e.sources.join(' • '))}${e.folder ? ` — ${esc(e.folder)}` : ''}</div>
     </div>
     <div class="agbrowse-actions">
-      <button type="button" data-ag-browse-open="${esc(e.key)}">${openLabel}</button>
-      ${e.moduleOpen && e.uuid ? `<button type="button" data-ag-browse-sheet="${esc(e.key)}">Sheet</button>` : ''}
-      ${e.id ? `<button type="button" data-ag-browse-copy="${esc(e.id)}" aria-label="Copy id ${esc(e.id)}"><i class="fa-solid fa-copy"></i> Copy id</button>` : ''}
+      <button type="button" class="ag-btn ag-btn--sm" data-ag-browse-open="${esc(e.key)}">${openLabel}</button>
+      ${e.moduleOpen && e.uuid ? `<button type="button" class="ag-btn ag-btn--sm" data-ag-browse-sheet="${esc(e.key)}">Sheet</button>` : ''}
+      ${e.id ? `<button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-browse-copy="${esc(e.id)}" aria-label="Copy id ${esc(e.id)}"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy id</button>` : ''}
     </div>
   </li>`;
 }
@@ -68,30 +69,32 @@ function detailHtml(d) {
     ${d.description ? `<p class="agbrowse-desc">${esc(d.description)}</p>` : ''}
     <h4>Names (${d.outgoing.length})</h4>${d.outgoing.length ? `<ul>${d.outgoing.map(r => `<li>${link(r)}</li>`).join('')}</ul>` : '<p class="agmanager-tiny">No related ids.</p>'}
     <h4>Named by (${d.incoming.length})</h4>${d.incoming.length ? `<ul>${d.incoming.map(r => `<li>${link(r)}</li>`).join('')}</ul>` : '<p class="agmanager-tiny">Nothing names this id.</p>'}
-    <button type="button" data-ag-browse-close>Close details</button>`;
+    <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-browse-close>Close details</button>`;
 }
+
+/** Same pager style as Ashen Gate records: small ghost chevron buttons with a label and tooltip. */
+const pagerButton = (step, label, icon, enabled) => `<button type="button" class="ag-btn ag-btn--sm ag-btn--ghost ag-btn--icon" data-ag-browse-page="${step}" aria-label="${label}" data-tooltip="${label}" data-tooltip-class="ag-tooltip"${enabled ? '' : ' disabled'}><i class="fa-solid ${icon}" aria-hidden="true"></i></button>`;
 
 /** Scope, facets, results, pager and the detail panel; re-rendered on every change except typing focus. */
 export function bodyHtml(state, result, detail, status = {}) {
   const scope = [['ag', 'Ashen Gate'], ['nonag', 'Non-Ashen Gate'], ['all', 'All']].map(([v, l]) =>
-    `<button type="button" role="radio" aria-checked="${state.scope === v}" class="${state.scope === v ? 'active' : ''}" data-ag-browse-scope="${v}">${l} (${result.scopes[v]})</button>`).join('');
+    `<button type="button" role="radio" aria-checked="${state.scope === v}" data-ag-browse-scope="${v}">${l} (${result.scopes[v]})</button>`).join('');
   const facets = FACETS.map(f => facetSelect(f, result.facets[f], state.filters[f])).join('');
   const groups = result.groups.map(g => `${g.label ? `<li class="agbrowse-group"><strong>${esc(g.label)}</strong> <span class="agmanager-tiny">${g.total}</span></li>` : ''}${g.rows.map(rowHtml).join('')}`).join('');
   const packs = status.loading ? 'Loading compendium indexes…' : status.compendiums ? `${status.compendiumCount} compendium entries loaded.` : 'Compendiums are not loaded (press Load compendiums).';
-  return `<div class="agbrowse-scope" role="radiogroup" aria-label="Show">${scope}</div>
+  return `<div class="ag-segmented agbrowse-scope" role="radiogroup" aria-label="Show">${scope}</div>
     <div class="agbrowse-facets">${facets}
       <label class="agbrowse-check"><input type="checkbox" data-ag-browse-managed${state.managedOnly ? ' checked' : ''}/> Only imported by Manager</label>
       <label class="agbrowse-check"><input type="checkbox" data-ag-browse-unlinked${state.unlinkedOnly ? ' checked' : ''}/> Unlinked (no world document)</label>
-      <button type="button" data-ag-browse-clear${result.activeFilters ? '' : ' disabled'}>Clear (${result.activeFilters})</button>
     </div>
     <p class="agmanager-tiny agbrowse-status">${result.total ? `${result.from}–${result.to} of ${result.total}` : 'No matches.'} ${esc(packs)} Read-only: drag a world or compendium row onto a sheet, canvas or journal.</p>
     <div class="agbrowse-layout">
       <ol class="agbrowse-results">${groups}</ol>
       <aside class="agbrowse-detail" aria-label="Details">${detailHtml(detail)}</aside>
     </div>
-    <div class="agmanager-row agbrowse-pager">
-      <button type="button" data-ag-browse-page="-1"${result.page > 0 ? '' : ' disabled'}>Previous</button>
-      <span class="agmanager-tiny">Page ${result.page + 1} of ${result.pages}</span>
-      <button type="button" data-ag-browse-page="1"${result.page + 1 < result.pages ? '' : ' disabled'}>Next</button>
+    <div class="aglib-pager agbrowse-pager">
+      ${pagerButton(-1, 'Previous page', 'fa-chevron-left', result.page > 0)}
+      <span class="aglib-num">Page ${result.page + 1} of ${result.pages}</span>
+      ${pagerButton(1, 'Next page', 'fa-chevron-right', result.page + 1 < result.pages)}
     </div>`;
 }

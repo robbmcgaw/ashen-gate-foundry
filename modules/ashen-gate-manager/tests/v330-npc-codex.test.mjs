@@ -100,7 +100,9 @@ test('0.33.0: player markup escapes text and marks per-character fields', () => 
   assert.ok(html.includes('&lt;b&gt;[TEST]&lt;/b&gt; Eve'));
   assert.ok(html.includes('a &amp; b'));
   assert.match(html, /only you/);
-  assert.match(renderPlayerCodexHtml([]), /No one has been added/);
+  // 0.43.0: kit empty state, player wording (no GM tools named).
+  assert.match(renderPlayerCodexHtml([]), /class="ag-empty".*No NPCs yet.*Your GM hasn't revealed anyone yet/s);
+  assert.doesNotMatch(renderPlayerCodexHtml([]), /GM Setup|Manager|Import/);
 });
 
 function world({isGM = true, access = true} = {}) {

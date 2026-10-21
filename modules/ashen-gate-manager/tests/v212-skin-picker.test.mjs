@@ -64,5 +64,7 @@ test('both pickers feed the existing selection state; save semantics are unchang
 });
 test('every skin renders as a card source and the picker styles wrap and show focus',()=>{
   const css=read('../styles/manager.css');
-  assert.match(css,/\.ag-skin-picker\{[^}]*auto-fill/);assert.match(css,/\.ag-skin-card:focus-visible\{outline/);assert.match(css,/\.ag-skin-card\.is-selected/);
+  // 0.43.0: module prefix (agm-); the kit draws the focus ring on every button in an .ag-app window.
+  assert.match(css,/\.agm-skin-picker\{[^}]*auto-fill/);assert.match(css,/\.agm-skin-card\.is-selected/);
+  assert.match(read('../styles/ag-ui.css'),/:where\(\.ag-app\) :where\(button, input, select, textarea, summary, a, \[tabindex\]\):focus-visible/);
 });

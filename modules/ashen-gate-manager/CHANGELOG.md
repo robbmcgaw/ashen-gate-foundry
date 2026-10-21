@@ -1,3 +1,12 @@
+## 0.43.0 — 2026-10-21
+
+- **UI standard look (same layout).** Standard header (Ashen Gate | General Manager, GM only flag, version read from the module, Help); the emblem is the boxes icon used everywhere else. The header and tabs stay in place while a long tab scrolls. GM Setup is the last tab.
+- **Buttons look right.** The old panel button rule that gave every button a gold border is gone: Cancel is a plain ghost button, small buttons are small, and Remove / Reset / Hide buttons are red (each still asks first). Remove sits in the editor header, never next to Cancel. Editors and GM Setup end with Cancel on the left and Save on the right.
+- **GM Setup:** settings only, all saved together with **Save Changes** (Cancel drops them). New **World appearance** field (the same setting as the header Appearance menu). **Let players open the NPC Codex** no longer saves the moment you tick it. **Load example** moved to Developer Tools at the bottom. Same setting keys; no saved data changes.
+- **Appearance menu:** the chosen skin card is highlighted again, the saved world default is marked, and it has a Cancel button.
+- **Items:** one toolbar (search, filters, Sort, Group, one Clear filters, one Load compendiums) and one pager style. Kit tables with stripes, kit badges and rarity badges, kit empty states. Pre-session check stays a tool on the Modules tab.
+- Tooltips use Foundry's tooltip instead of slow browser hover text; icon-only buttons have labels. Settings menu now reads "General Manager / Open General Manager". My Appearance and the player NPC Codex use the standard header and open larger at Comfortable size.
+
 ## 0.42.1 — 2026-10-21
 
 - Confirmations name the action (no more Yes/No), Help opens with a Close button, dialogs follow the Ashen Gate look; test wording removed from player views.
