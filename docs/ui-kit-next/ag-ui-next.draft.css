@@ -1,0 +1,255 @@
+/*
+ * DRAFT — proposed additions to styles/ag-ui.css for the coordinated "UI kit 2" release.
+ * Not loaded by any module. The build pass appends this (after review) to ag-ui.css and copies
+ * the result into every module in one release. See docs/ui-standard.md.
+ *
+ * Rules kept from the current kit: tokens first, :where() for generic element styling,
+ * one-class specificity for components, BEM-ish names (.ag-block__part--modifier),
+ * no hard-coded colours except the rarity hues (game data colours, not skin colours).
+ */
+
+/* ---------- New scale tokens (skins do not change these) ---------- */
+:root {
+  /* dnd5e rarity hues. Names follow dnd5e keys in kebab case (veryRare -> very-rare). */
+  --ag-rarity-common: #b9b4aa;
+  --ag-rarity-uncommon: #3fbf5a;
+  --ag-rarity-rare: #3d8bfd;
+  --ag-rarity-very-rare: #a35ce6;
+  --ag-rarity-legendary: #ff8c1a;
+  --ag-rarity-artifact: #e5383b;
+
+  --ag-control-h-sm: 28px;
+  --ag-icon-btn: 30px;           /* square icon-only button */
+  --ag-slot: 46px;               /* hotbar / equipment slot */
+  --ag-rail-w: 18rem;            /* list column in list+detail */
+  --ag-measure: 68ch;            /* longest comfortable line of prose */
+
+  --ag-dur-fast: 120ms;
+  --ag-dur: 180ms;
+  --ag-ease: cubic-bezier(.2, .7, .2, 1);
+}
+
+/* ---------- New derived tokens (recomputed per app, so they follow the skin) ---------- */
+:root, .ag-app, .ag-launchers, .ag-sidebar-launch-group {
+  --ag-row-alt: color-mix(in srgb, var(--ag-text) 5%, transparent);
+  --ag-row-selected: var(--ag-accent-soft);
+  --ag-info: var(--ag-focus);
+  --ag-info-soft: color-mix(in srgb, var(--ag-info) 14%, var(--ag-surface-raised));
+  --ag-shadow-sm: 0 1px 2px rgb(0 0 0 / .22);
+  /* Rarity "ink": the hue pulled toward the skin's text colour, so it reads on light and dark skins. */
+  --ag-rarity-ink-common: var(--ag-muted);
+  --ag-rarity-ink-uncommon: color-mix(in oklab, var(--ag-rarity-uncommon) 72%, var(--ag-text));
+  --ag-rarity-ink-rare: color-mix(in oklab, var(--ag-rarity-rare) 72%, var(--ag-text));
+  --ag-rarity-ink-very-rare: color-mix(in oklab, var(--ag-rarity-very-rare) 72%, var(--ag-text));
+  --ag-rarity-ink-legendary: color-mix(in oklab, var(--ag-rarity-legendary) 72%, var(--ag-text));
+  --ag-rarity-ink-artifact: color-mix(in oklab, var(--ag-rarity-artifact) 72%, var(--ag-text));
+}
+
+/* ---------- Header meta: version + Help on the right ---------- */
+.ag-version { font: 500 var(--ag-text-xs)/1 var(--ag-font-mono); color: var(--ag-muted); letter-spacing: .02em; }
+
+/* ---------- Tabs: one line; scroll sideways when narrow instead of wrapping ---------- */
+.ag-tabs--scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.ag-tabs--scroll::-webkit-scrollbar { display: none; }
+.ag-tabs > :where(button, a, .ag-tab) > i { margin-right: 6px; font-size: .95em; }
+.ag-tab__count { margin-left: 6px; padding: 0 6px; border-radius: 999px; background: var(--ag-surface-sunken); color: var(--ag-muted); font-size: var(--ag-text-xs); font-weight: 600; }
+.ag-tab--gm { font-style: normal; }
+.ag-tab--gm::after { content: "GM"; margin-left: 6px; padding: 0 5px; border: 1px solid var(--ag-border); border-radius: var(--ag-radius-sm); color: var(--ag-muted); font-size: 10px; letter-spacing: .06em; vertical-align: 1px; }
+
+/* ---------- Toolbar: search | filters | count | create ---------- */
+.ag-search { position: relative; display: flex; align-items: center; flex: 1 1 220px; min-width: 0; }
+.ag-search > i { position: absolute; left: 10px; color: var(--ag-muted); pointer-events: none; font-size: var(--ag-text-sm); }
+.ag-search > input { width: 100%; padding-left: 30px !important; }
+.ag-toolbar__filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); }
+.ag-toolbar__filters > select { width: auto; max-width: 14rem; }
+.ag-toolbar__count { color: var(--ag-muted); font-size: var(--ag-text-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ---------- Chips: toggleable filters (aria-pressed). Badges are status, chips are input. ---------- */
+.ag-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-height: var(--ag-control-h-sm); padding: 2px 11px;
+  border: 1px solid var(--ag-border); border-radius: 999px;
+  background: transparent; color: var(--ag-muted);
+  font: 600 var(--ag-text-sm)/1.2 var(--ag-font-body); cursor: pointer; white-space: nowrap;
+  transition: background-color var(--ag-dur-fast) ease, border-color var(--ag-dur-fast) ease, color var(--ag-dur-fast) ease;
+}
+.ag-chip:hover { background: var(--ag-surface-hover); color: var(--ag-text); }
+.ag-chip[aria-pressed="true"] { background: var(--ag-accent-soft); border-color: color-mix(in srgb, var(--ag-accent) 60%, var(--ag-border)); color: var(--ag-text); }
+.ag-chip[aria-pressed="true"]::before { content: "\2713"; color: var(--ag-accent); font-weight: 700; }
+.ag-chip-group { display: inline-flex; flex-wrap: wrap; gap: var(--ag-space-1); }
+
+/* ---------- Buttons: icon-only, groups ---------- */
+.ag-btn--icon { width: var(--ag-icon-btn); min-width: var(--ag-icon-btn); min-height: var(--ag-icon-btn); padding: 0; }
+.ag-btn--icon.ag-btn--sm { width: 26px; min-width: 26px; min-height: 26px; }
+.ag-btn-group { display: inline-flex; flex-wrap: wrap; gap: var(--ag-space-2); align-items: center; }
+
+/* ---------- Segmented control: one choice of a few views (role="radiogroup") ---------- */
+.ag-segmented { display: inline-flex; padding: 2px; gap: 2px; border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--ag-surface-sunken); }
+.ag-segmented > button {
+  min-height: calc(var(--ag-control-h-sm) - 2px); padding: 2px 12px; border: 0; border-radius: calc(var(--ag-radius) - 2px);
+  background: transparent; color: var(--ag-muted); font: 600 var(--ag-text-sm)/1.2 var(--ag-font-body); cursor: pointer;
+}
+.ag-segmented > button:hover { color: var(--ag-text); }
+.ag-segmented > [aria-checked="true"] { background: var(--ag-surface-raised); color: var(--ag-text); box-shadow: var(--ag-shadow-sm); }
+
+/* ---------- Tables: real <table> for data with column headers ---------- */
+.ag-table-wrap { overflow: auto; border: 1px solid var(--ag-border); border-radius: var(--ag-radius); }
+.ag-table { width: 100%; border-collapse: collapse; font-size: var(--ag-text-sm); }
+.ag-table th, .ag-table td { padding: 7px var(--ag-space-3); text-align: left; vertical-align: middle; }
+.ag-table thead th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--ag-surface-sunken); color: var(--ag-muted); border-bottom: 1px solid var(--ag-border);
+  font-size: var(--ag-text-xs); font-weight: 650; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap;
+}
+.ag-table tbody tr:nth-child(even) { background: var(--ag-row-alt); }
+.ag-table tbody tr:hover { background: var(--ag-surface-hover); }
+.ag-table tbody tr.is-selected { background: var(--ag-row-selected); }
+.ag-table .is-num { text-align: right; font-variant-numeric: tabular-nums; }
+.ag-table .is-actions { text-align: right; white-space: nowrap; width: 1%; }
+
+/* ---------- Rows: list of records that are not a table (.ag-list stays for plain stacks) ---------- */
+.ag-rows { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; border: 1px solid var(--ag-border); border-radius: var(--ag-radius); overflow: hidden; }
+.ag-rows__head { display: flex; gap: var(--ag-space-3); padding: 5px var(--ag-space-3); background: var(--ag-surface-sunken); border-bottom: 1px solid var(--ag-border); color: var(--ag-muted); font-size: var(--ag-text-xs); font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
+.ag-row { display: flex; align-items: center; gap: var(--ag-space-3); min-height: 44px; padding: 6px var(--ag-space-3); border-left: 3px solid transparent; }
+.ag-rows > .ag-row:nth-child(even of .ag-row) { background: var(--ag-row-alt); }
+.ag-row:hover { background: var(--ag-surface-hover); }
+.ag-row.is-selected, .ag-row[aria-current="true"] { background: var(--ag-row-selected); border-left-color: var(--ag-accent); }
+.ag-row__icon { flex: 0 0 auto; width: 32px; height: 32px; display: grid; place-items: center; border-radius: var(--ag-radius-sm); background: var(--ag-surface-sunken); color: var(--ag-accent); object-fit: cover; }
+.ag-row__main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ag-row__title { font-weight: 600; overflow-wrap: anywhere; }
+.ag-row__meta { color: var(--ag-muted); font-size: var(--ag-text-sm); overflow-wrap: anywhere; }
+.ag-row__end { flex: 0 0 auto; display: flex; align-items: center; gap: var(--ag-space-2); margin-left: auto; }
+button.ag-row { width: 100%; justify-content: flex-start; text-align: left; border-radius: 0; border-width: 0 0 0 3px; background: transparent; font-weight: 400; }
+
+/* ---------- Cards: head / body / actions; grids of cards ---------- */
+.ag-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ag-space-2) var(--ag-space-3); flex-wrap: wrap; margin: 0 0 var(--ag-space-2); }
+.ag-card__title { margin: 0; font-size: var(--ag-text-lg); }
+.ag-card__meta { color: var(--ag-muted); font-size: var(--ag-text-sm); }
+.ag-card__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--ag-space-2); margin-top: var(--ag-space-3); }
+.ag-card--compact { padding: var(--ag-space-3); }
+.ag-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr)); gap: var(--ag-space-3); }
+.ag-card-grid > .ag-card { margin: 0; }
+
+/* ---------- Forms: grid of fields, error state ---------- */
+.ag-form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); gap: 0 var(--ag-space-3); }
+.ag-form-grid > .ag-field--wide { grid-column: 1 / -1; }
+.ag-field :where([aria-invalid="true"]) { border-color: var(--ag-danger); }
+.ag-field__hint.is-error { color: var(--ag-danger); }
+
+/* ---------- Footer status text between Cancel and the primary action ---------- */
+.ag-footer__status { flex: 1 1 auto; min-width: 0; text-align: center; }
+
+/* ---------- Key/value facts ---------- */
+.ag-kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px var(--ag-space-3); margin: 0; }
+.ag-kv > dt { color: var(--ag-muted); font-size: var(--ag-text-sm); }
+.ag-kv > dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+
+/* ---------- Section heading inside a pane ---------- */
+.ag-section { margin: 0 0 var(--ag-space-4); }
+.ag-section__head { display: flex; align-items: center; justify-content: space-between; gap: var(--ag-space-2); margin: 0 0 var(--ag-space-2); padding-bottom: var(--ag-space-1); border-bottom: 1px solid var(--ag-border); }
+.ag-section__title { margin: 0; font-size: var(--ag-text-md); font-weight: 650; letter-spacing: .02em; }
+.ag-eyebrow { color: var(--ag-muted); font-size: var(--ag-text-xs); font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
+
+/* ---------- Notices: inline messages (GM-only, partner module missing, saved, error) ---------- */
+.ag-notice { display: flex; gap: var(--ag-space-2); align-items: flex-start; padding: var(--ag-space-2) var(--ag-space-3); border: 1px solid var(--ag-border); border-left-width: 3px; border-radius: var(--ag-radius); background: var(--ag-surface-raised); font-size: var(--ag-text-sm); }
+.ag-notice > i { margin-top: 2px; }
+.ag-notice--info { border-left-color: var(--ag-info); background: var(--ag-info-soft); }
+.ag-notice--info > i { color: var(--ag-info); }
+.ag-notice--ok { border-left-color: var(--ag-ok); background: var(--ag-ok-soft); }
+.ag-notice--ok > i { color: var(--ag-ok); }
+.ag-notice--warn { border-left-color: var(--ag-warn); background: var(--ag-warn-soft); }
+.ag-notice--warn > i { color: var(--ag-warn); }
+.ag-notice--danger { border-left-color: var(--ag-danger); background: var(--ag-danger-soft); }
+.ag-notice--danger > i { color: var(--ag-danger); }
+
+/* ---------- Empty state: icon, one line of what, one action ---------- */
+.ag-empty { display: flex; flex-direction: column; align-items: center; gap: var(--ag-space-2); }
+.ag-empty > i { font-size: 22px; color: var(--ag-border-strong); }
+.ag-empty__title { margin: 0; color: var(--ag-text); font-weight: 600; }
+.ag-empty__text { margin: 0; max-width: 40ch; }
+
+/* ---------- Meter: Strain, standing, progress ---------- */
+.ag-meter { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px var(--ag-space-2); align-items: center; }
+.ag-meter__label { font-size: var(--ag-text-sm); font-weight: 600; }
+.ag-meter__value { font-size: var(--ag-text-sm); color: var(--ag-muted); font-variant-numeric: tabular-nums; }
+.ag-meter__track { grid-column: 1 / -1; position: relative; height: 8px; border-radius: 999px; background: var(--ag-surface-sunken); box-shadow: inset 0 0 0 1px var(--ag-border); overflow: hidden; }
+.ag-meter__fill { position: absolute; inset: 0 auto 0 0; width: var(--ag-meter, 0%); border-radius: inherit; background: var(--ag-accent); transition: width var(--ag-dur) var(--ag-ease); }
+.ag-meter--ok .ag-meter__fill { background: var(--ag-ok); }
+.ag-meter--warn .ag-meter__fill { background: var(--ag-warn); }
+.ag-meter--danger .ag-meter__fill { background: var(--ag-danger); }
+/* Stepped meter: one pip per point (Strain, clocks). */
+.ag-pips { display: flex; flex-wrap: wrap; gap: 3px; }
+.ag-pips > i { width: 12px; height: 12px; border-radius: 2px; background: var(--ag-surface-sunken); box-shadow: inset 0 0 0 1px var(--ag-border-strong); }
+.ag-pips > i.is-on { background: var(--ag-accent); box-shadow: none; }
+.ag-pips > i.is-warn { background: var(--ag-warn); box-shadow: none; }
+.ag-pips > i.is-danger { background: var(--ag-danger); box-shadow: none; }
+
+/* ---------- Rarity: one badge, one edge, one attribute (data-rarity uses dnd5e keys) ---------- */
+[data-rarity="common"]    { --ag-rarity: var(--ag-rarity-common);    --ag-rarity-ink: var(--ag-rarity-ink-common); }
+[data-rarity="uncommon"]  { --ag-rarity: var(--ag-rarity-uncommon);  --ag-rarity-ink: var(--ag-rarity-ink-uncommon); }
+[data-rarity="rare"]      { --ag-rarity: var(--ag-rarity-rare);      --ag-rarity-ink: var(--ag-rarity-ink-rare); }
+[data-rarity="veryRare"]  { --ag-rarity: var(--ag-rarity-very-rare); --ag-rarity-ink: var(--ag-rarity-ink-very-rare); }
+[data-rarity="legendary"] { --ag-rarity: var(--ag-rarity-legendary); --ag-rarity-ink: var(--ag-rarity-ink-legendary); }
+[data-rarity="artifact"]  { --ag-rarity: var(--ag-rarity-artifact);  --ag-rarity-ink: var(--ag-rarity-ink-artifact); }
+.ag-rarity-badge { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border: 1px solid color-mix(in srgb, var(--ag-rarity) 70%, transparent); border-radius: 999px; background: color-mix(in srgb, var(--ag-rarity) 12%, transparent); color: var(--ag-rarity-ink); font-size: var(--ag-text-xs); font-weight: 650; white-space: nowrap; }
+.ag-rarity-badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ag-rarity); }
+.ag-rarity-edge { box-shadow: inset 3px 0 0 var(--ag-rarity, transparent); }
+
+/* ---------- Slots and hotbars ---------- */
+.ag-hotbar { display: flex; flex-wrap: wrap; gap: var(--ag-space-1); }
+.ag-slot {
+  position: relative; display: grid; place-items: center; width: var(--ag-slot); height: var(--ag-slot); padding: 0;
+  border: 1px solid var(--ag-border); border-radius: var(--ag-radius-sm); background: var(--ag-surface-sunken); color: var(--ag-muted); overflow: visible;
+}
+.ag-slot > img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.ag-slot.is-empty { border-style: dashed; }
+.ag-slot[data-rarity] { border: 2px solid var(--ag-rarity); }
+.ag-slot__key { position: absolute; left: 3px; top: 1px; font: 700 10px/1 var(--ag-font-body); color: var(--ag-text); text-shadow: 0 0 3px var(--ag-surface-sunken); }
+.ag-slot__qty { position: absolute; right: 2px; bottom: 1px; padding: 0 3px; border-radius: 3px; background: var(--ag-surface-sunken); color: var(--ag-text); font: 600 10px/1.3 var(--ag-font-body); font-variant-numeric: tabular-nums; }
+.ag-slot.is-active { box-shadow: 0 0 0 2px var(--ag-accent); }
+
+/* ---------- Layouts ---------- */
+.ag-stack { display: flex; flex-direction: column; gap: var(--ag-space-3); min-width: 0; }
+.ag-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); }
+.ag-scroll { min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.ag-pad { padding: var(--ag-space-3) var(--ag-space-4); }
+/* List + detail: list column on the left, detail on the right; stacks when the window is narrow.
+   The query container is .ag-window (an element cannot query its own width). */
+.ag-split { display: grid; grid-template-columns: minmax(14rem, var(--ag-rail-w)) minmax(0, 1fr); gap: 0; min-height: 0; flex: 1; }
+.ag-split__list { min-height: 0; overflow: auto; border-right: 1px solid var(--ag-border); background: var(--ag-surface); }
+.ag-split__detail { min-height: 0; min-width: 0; overflow: auto; padding: var(--ag-space-3) var(--ag-space-4); }
+@container (max-width: 40rem) {
+  .ag-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .ag-split__list { border-right: 0; border-bottom: 1px solid var(--ag-border); max-height: 14rem; }
+}
+/* Side rail: icon tabs down one edge (Character Hub). Each tab needs aria-label + data-tooltip. */
+.ag-siderail { display: flex; flex-direction: column; gap: 4px; padding: var(--ag-space-1); border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--ag-surface-raised); align-self: start; }
+.ag-siderail > button { width: 36px; height: 36px; min-height: 0; padding: 0; display: grid; place-items: center; border: 1px solid transparent; border-radius: var(--ag-radius-sm); background: transparent; color: var(--ag-muted); }
+.ag-siderail > button:hover { color: var(--ag-text); background: var(--ag-surface-hover); }
+.ag-siderail > [aria-selected="true"] { color: var(--ag-accent); background: var(--ag-accent-soft); border-color: color-mix(in srgb, var(--ag-accent) 60%, transparent); }
+/* Window body: header, tabs, then one scrolling pane, then footer. */
+.ag-window { display: flex; flex-direction: column; height: 100%; min-height: 0; container-type: inline-size; }
+.ag-window > .ag-scroll { flex: 1; }
+
+/* ---------- Developer tools and GM-only areas ---------- */
+.ag-devtools { border: 1px dashed color-mix(in srgb, var(--ag-warn) 60%, var(--ag-border)); border-radius: var(--ag-radius-lg); padding: var(--ag-space-3) var(--ag-space-4); background: transparent; }
+.ag-gm-flag { display: inline-flex; align-items: center; gap: 4px; color: var(--ag-muted); font-size: var(--ag-text-xs); font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+
+/* ---------- Dialogs: DialogV2 opened by the shared confirm helper with classes: ['ag-app', 'ag-dialog'] ----------
+   Buttons are passed as [cancel, ok], so space-between puts Cancel bottom-left and the action bottom-right. */
+.application.ag-dialog > .window-content { padding: var(--ag-space-4); gap: var(--ag-space-3); }
+.application.ag-dialog .form-footer { display: flex; justify-content: space-between; gap: var(--ag-space-2); }
+.application.ag-dialog .form-footer > button { flex: 0 0 auto; }
+.application.ag-dialog .form-footer > button[data-action="ok"] { background: var(--ag-accent); border-color: var(--ag-accent); color: var(--ag-accent-contrast); font-weight: 650; }
+.application.ag-dialog--danger .form-footer > button[data-action="ok"] { background: var(--ag-danger); border-color: var(--ag-danger); color: var(--ag-surface); }
+
+/* ---------- Tooltips: data-tooltip + data-tooltip-class="ag-tooltip" ---------- */
+#tooltip.ag-tooltip, .locked-tooltip.ag-tooltip {
+  background: var(--ag-surface-raised); color: var(--ag-text); border: 1px solid var(--ag-border-strong);
+  border-radius: var(--ag-radius); box-shadow: var(--ag-shadow); font: 400 var(--ag-text-sm)/1.4 var(--ag-font-body); max-width: 22rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ag-chip, .ag-meter__fill { transition: none !important; }
+  .ag-app .fa-spin, .ag-app .fa-spin-pulse { animation: none !important; }
+}
