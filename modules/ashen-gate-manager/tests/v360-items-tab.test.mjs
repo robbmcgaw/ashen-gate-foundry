@@ -36,9 +36,12 @@ test('rarity keys follow dnd5e; the colours are shared CSS variables', () => {
   assert.equal(rarityKey('legendary'), 'legendary');
   assert.equal(rarityKey('Fine'), null);
   assert.equal(rarityKey(''), null);
-  for (const [k, colour] of [['common', '#f4f4f4'], ['uncommon', '#2fbf4a'], ['rare', '#3d8bfd'], ['veryrare', '#a35bf0'], ['legendary', '#f39c32'], ['artifact', '#e2453c']])
-    assert.ok(css.includes(`--ag-rarity-${k}:${colour}`), k);
-  assert.match(css, /:root\{--ag-rarity-common/, 'defined on :root so other modules can use them');
+  // Kit 2: the hues are kit tokens in ag-ui.css (Common grey); Manager no longer defines them, only maps its classes.
+  const kit = fs.readFileSync(new URL('../styles/ag-ui.css', import.meta.url), 'utf8');
+  for (const [k, colour] of [['common', '#b9b4aa'], ['uncommon', '#3fbf5a'], ['rare', '#3d8bfd'], ['very-rare', '#a35ce6'], ['legendary', '#ff8c1a'], ['artifact', '#e5383b']])
+    assert.ok(kit.includes(`--ag-rarity-${k}: ${colour};`), k);
+  assert.doesNotMatch(css, /--ag-rarity-[a-z-]+:#/, 'Manager CSS no longer declares the hues');
+  assert.match(css, /\.ag-rarity--veryrare\{--ag-rarity-color:var\(--ag-rarity-very-rare\)\}/, 'veryrare markup keeps its colour');
 });
 
 test('folder chain walks objects or ids up to the root', () => {
