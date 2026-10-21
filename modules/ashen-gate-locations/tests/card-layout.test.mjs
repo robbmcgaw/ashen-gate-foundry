@@ -144,7 +144,7 @@ test('dropping an Item into Loot only adds a link: no Item or Actor document is 
   globalThis.ui = {notifications: {warn() {}, info() {}}};
   const saved = await api.saveLocation({name: '[TEST] Vault'});
   const app = appFor(clone(saved));
-  await app.onDrop('loot', {uuid: item.uuid});
+  await app.onDrop('loot', {type: 'Item', uuid: item.uuid});
   assert.equal(app.draft.loot.length, 1);
   assert.deepEqual([app.draft.loot[0].uuid, app.draft.loot[0].label, app.draft.loot[0].status], ['Item.blade00000001', 'Dawnblade', 'available']);
   await api.saveLocation(normalizeLocation(app.draft));
@@ -158,7 +158,7 @@ test('dropping a non-Item into Loot is refused', async () => {
   globalThis.fromUuid = async () => ({uuid: 'Actor.x', documentName: 'Actor', name: 'Bob'});
   globalThis.ui = {notifications: {warn: m => warned.push(m), info() {}}};
   const app = appFor(normalizeLocation({id: 'LOC-A'}));
-  await app.onDrop('loot', {uuid: 'Actor.x'});
+  await app.onDrop('loot', {type: 'Actor', uuid: 'Actor.x'});
   assert.equal(app.draft.loot.length, 0);
   assert.equal(warned.length, 1);
 });

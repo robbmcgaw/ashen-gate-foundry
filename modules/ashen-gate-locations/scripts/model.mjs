@@ -97,6 +97,8 @@ const int = (value, fallback, min, max) => {
   return value !== '' && value !== null && Number.isInteger(n) && n >= min && n <= max ? n : fallback;
 };
 const matId = value => /^MAT-[A-Z0-9-]+$/.test(value ?? '') ? value : '';
+/** A permanent Item id, same shape ag-item-drop accepts (itemIdOf). */
+const ITEM_ID = /^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/;
 /** Foundry stores relative file paths; reject script/data schemes and markup characters. */
 export const safePath = value => {
   const s = line(value, 500);
@@ -141,7 +143,8 @@ const ENTRY_SHAPES = {
   related: e => ({locationId: LOCATION_ID.test(e.locationId ?? '') ? e.locationId : ''}),
   // A loot entry is a plain-text reward (no uuid) or a link to a native Item. `label`, `text` and `img` are what
   // players see; nothing is ever read from the linked document into the view. A link creates no Actor item.
-  loot: e => ({label: line(e.label), text: text(e.text, 2000), img: safePath(e.img), ...linked(e),
+  // `itemId` (1.17.3, optional): the dropped Item's permanent id (ag-item-drop itemIdOf), or null.
+  loot: e => ({label: line(e.label), text: text(e.text, 2000), img: safePath(e.img), ...linked(e), itemId: ITEM_ID.test(e.itemId ?? '') ? e.itemId : null,
     status: LOOT_STATUSES.includes(e.status) ? e.status : 'available'}),
   notes: e => ({title: line(e.title), text: text(e.text), ...linked(e)})
 };

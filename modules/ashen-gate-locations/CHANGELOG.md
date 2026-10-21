@@ -1,3 +1,10 @@
+## 1.17.3 — 2026-10-21
+
+- **Loot & Rewards and Resources** use the shared item-drop helper (`ag-item-drop/1`, same file as Quest Log). A folder now says "Drop items one at a time.", a journal or Actor says "Drop an item.", and a missing item says so. Before, these drops did nothing.
+- A dropped loot Item also stores its permanent id (`itemId`) when it has one. Loot is still only a link: nothing is created, copied or given.
+- Notes, faction and detail drops still accept any document they did before, and now warn when the document is missing instead of doing nothing.
+- No saved-data migration: `itemId` is optional; older loot entries read as `null`.
+
 ## 1.17.2 — 2026-10-21
 
 - Repo check only: the Player Preview window (a custom dialog with the kit classes) is marked as allowed for the stricter UI lint.
