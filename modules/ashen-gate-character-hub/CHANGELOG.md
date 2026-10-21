@@ -1,8 +1,9 @@
 ## 0.27.0 — 2026-10-21
 
-- **Level up button** in the header, next to Open native sheet. It starts dnd5e's own level-up (the same steps as raising a class level on the native sheet: dnd5e's advancement window, or just the new level when there is nothing to choose). It adds no rules. With several classes it asks which class first; a new class is still added on the native sheet.
-- It is ready when you own the character (or are the GM), it has a class, it is below level 20 and, unless the world uses dnd5e's milestone levelling (no XP), its XP has reached dnd5e's next-level amount. Otherwise it looks greyed and clicking it says why.
-- Nothing extra is recorded: the Journey records the new level once, as before. The Hub layout is unchanged otherwise; no saved-data change.
+- **Level up button** in the header, next to Open native sheet. It starts dnd5e's own level-up and adds no rules. A dialog lists each class to advance (dnd5e's advancement window, or just the new level when there is nothing to choose) and **Add a class**, which opens dnd5e's own class browser (classes the character has are left out) and its advancement. dnd5e 6.0.6 does not check multiclass ability-score prerequisites, and neither does the Hub.
+- **Who:** the GM always. A player who owns the character any time in a milestone world (dnd5e levelling "No XP"); in an XP world once the XP reaches dnd5e's next-level amount. Never past level 20. When it isn't ready it looks greyed and clicking it says why.
+- **Level backups:** after a level-up succeeds, a copy of the character as it was before is made, named `<name> - level X` (X = the level before; ` (2)` if the name is taken), in the Actor folder **Ashen Gate / Level backups**, GM-only. Cancelling dnd5e's window makes no copy. A player's copy is made by the GM's client; with no GM connected it waits on the character and is made when a GM is next on. Copies keep dnd5e data, items and effects but carry no Ashen Gate state (Cinders, Strain, Skill Trees, Ledger, Renown, Quest Log, Locations, Utilities, HQ and Hub flags are removed; Manager source ids are kept), are marked `flags.ashen-gate-character-hub.levelBackup` = {sourceId, sourceName, levelBefore, date, opId, by}, and are ignored by the Journey.
+- Nothing extra is recorded: the Journey records the new level once, as before. The Hub layout is otherwise unchanged; no migration needed.
 
 ## 0.26.0 — 2026-10-21
 

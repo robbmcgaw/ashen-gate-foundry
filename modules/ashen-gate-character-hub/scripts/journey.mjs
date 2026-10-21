@@ -20,6 +20,7 @@
  */
 import {MODULE_ID} from './constants.mjs';
 import {canEdit} from './actions.mjs';
+import {isBackup} from './level-backup.mjs';
 
 export const JOURNEY_FLAG = 'journey';
 export const JOURNEY_CAP = 300;
@@ -255,10 +256,10 @@ export function isWriterFor(actor, user = globalThis.game?.user) {
   return owners[0]?.id === user?.id;
 }
 /** Player characters: characters with at least one non-GM owner (who a party quest counts for). */
-export const partyActors = () => [...(globalThis.game?.actors ?? [])].filter(a => a.type === 'character' && [...(globalThis.game?.users ?? [])].some(u => !u.isGM && a.testUserPermission?.(u, 'OWNER')));
+export const partyActors = () => [...(globalThis.game?.actors ?? [])].filter(a => a.type === 'character' && !isBackup(a) && [...(globalThis.game?.users ?? [])].some(u => !u.isGM && a.testUserPermission?.(u, 'OWNER')));
 
 export async function recordLevel(actor) {
-  if (actor?.type !== 'character' || !isWriterFor(actor)) return null;
+  if (actor?.type !== 'character' || isBackup(actor) || !isWriterFor(actor)) return null; // level backups (0.27.0) record nothing
   const {entries, seen} = levelEntries(actor);
   return appendAuto(actor, entries, seen);
 }
@@ -266,7 +267,7 @@ export async function recordLevel(actor) {
 export async function recordRenown(actors = null) {
   const api = partner('ashen-gate-factions'), user = globalThis.game?.user;
   if (!api || isGM(user)) return null;
-  const mine = (actors ?? [...(globalThis.game?.actors ?? [])]).filter(a => a.type === 'character' && a.testUserPermission?.(user, 'OWNER'));
+  const mine = (actors ?? [...(globalThis.game?.actors ?? [])]).filter(a => a.type === 'character' && !isBackup(a) && a.testUserPermission?.(user, 'OWNER'));
   for (const a of mine) { const {entries, seen} = renownEntries(a, api); await appendAuto(a, entries, seen); }
   return mine.length;
 }

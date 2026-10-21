@@ -105,14 +105,17 @@ export const ACTIONS = {
   'visibility-preset': (s, t) => vis.applyPreset(t.dataset.preset),
   'doll-art': s => { s.dollArt = s.dollArt === 'token' ? 'portrait' : 'token'; return s.render(); }
 };
-/** Level up (0.27.0): dnd5e's own flow; with several classes the shared form dialog asks which one. */
+/** Level up (0.27.0): dnd5e's own flow. The shared form dialog asks which class to advance, or to add one. */
 export const levelClassPick = async options => (await formDialog('Level up', [{name: 'cls', label: 'Class', type: 'select', value: options[0]?.value ?? '', options,
-  hint: 'dnd5e\'s level-up opens for this class. To take a new class, add it on the native sheet.'}], {ok: 'Level up'}))?.cls ?? null;
+  hint: 'dnd5e\'s level-up opens for the class you pick. "Add a class" opens dnd5e\'s class browser. A copy of the character as it is now is kept for the GM.'}], {ok: 'Level up'}))?.cls ?? null;
+/** How the backup copy went, in plain words (a success is quiet unless it had to wait for the GM). */
+export const backupNotice = r => !r ? null : r.ok === false ? ['warn', `Levelled up, but the backup copy was not made: ${r.error}`]
+  : r.result === 'queued' ? ['info', 'Levelled up. No GM is connected, so the backup copy will be made when a GM is next on.'] : null;
 async function levelUp(sheet) {
-  const state = levelUpState(sheet.document);
-  if (!state.ok) { globalThis.ui?.notifications?.info?.(state.reason); return null; }
-  const r = await startLevelUp(sheet.document, {pickClass: levelClassPick, sheet});
-  if (r?.notice) globalThis.ui?.notifications?.info?.(r.notice);
+  const state = levelUpState(sheet.document), n = globalThis.ui?.notifications;
+  if (!state.ok) { n?.info?.(state.reason); return null; }
+  const r = await startLevelUp(sheet.document, {choose: levelClassPick, sheet, onBackup: b => { const m = backupNotice(b); if (m) n?.[m[0]]?.(m[1]); }});
+  if (r?.notice) n?.info?.(r.notice);
   return r;
 }
 /** One small menu at a time (a slot's actions or the conditions list); the same key again closes it. */
