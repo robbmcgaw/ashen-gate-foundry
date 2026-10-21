@@ -10,7 +10,7 @@
  * returns only pages Foundry lets this user open, so for anyone else it answers exactly as for a hidden location.
  */
 import {MODULE_ID, GATHERING, STATES, PARTY_NOTES, notesLockHolder, clone, newLocation, normalizeLocation, parseImport, exportPackage, importRecords, resourcesOf, nodeForGM, nodeMatch,
-  publishable, hasUnpublishedChanges, previewView, wouldCycle, parentMap, normalizeAudience, AUDIENCE_MODES, isPlaceable, resolvePassConditions} from './model.mjs';
+  publishable, hasUnpublishedChanges, previewView, wouldCycle, parentMap, normalizeAudience, AUDIENCE_MODES, isPlaceable, resolvePassConditions, isLevelBackup} from './model.mjs';
 import {checkMove} from './tree.mjs';
 import {ROUTE_STATES, normalizeRoute, makeRouteId, routeProblems, routeKmProblems, routeTouches, importRouteRecords, routeRecord, legsOf, legKmOf} from './routes.mjs';
 import {startJourney, nextLeg, setHazardResult, resolveHazard, reverseJourney, abortJourney, pauseJourney, travelLine, HAZARD_FALLBACK,
@@ -114,9 +114,11 @@ export function createApi(deps) {
     if (travel.journey?.status !== 'active') throw new Error('There is no journey under way.');
     return travel;
   };
-  /** 1.15.2: ids of the characters the GM may put on watch: deps.characters(), else every character Actor in the world. */
+  /** 1.15.2: ids of the characters the GM may put on watch: deps.characters(), else every character Actor in the world.
+   *  1.17.4: never a Character Hub level-up backup, even if deps.characters() lists one. */
   const watchCharacterIds = () => (deps.characters ? deps.characters()
-    : [...(globalThis.game?.actors?.values?.() ?? [])].filter(a => a?.type === 'character')).map(a => a?.id).filter(Boolean);
+    : [...(globalThis.game?.actors?.values?.() ?? [])].filter(a => a?.type === 'character')).map(a => a?.id).filter(Boolean)
+    .filter(id => !isLevelBackup(globalThis.game?.actors?.get?.(id)));
   /** A name for a Party Notes line, as the readers of `reader`'s notes may see `loc`; never a place they cannot see. */
   const safeName = (loc, reader) => {
     if (!loc || loc.state === 'hidden' || !loc.published || !covers(loc, reader)) return 'an unknown place';

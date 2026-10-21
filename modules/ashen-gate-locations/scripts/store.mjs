@@ -41,7 +41,7 @@
  * only while every player gets the full route); the party marker follows its path when it is on the marker's scene.
  */
 import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL, normalizeLocation, playerView, viewHtml, pinPresentation, notePatch, uniquePinKeys, PIN_KEY,
-  normalizeNotes, notesMirror, reconcileNotes, inAudience, resolvePassConditions, newPinKey} from './model.mjs';
+  normalizeNotes, notesMirror, reconcileNotes, inAudience, resolvePassConditions, newPinKey, isLevelBackup} from './model.mjs';
 import {normalizeRoute, routeAudiences, defaultLeg, endRef, routeVariantFor} from './routes.mjs';
 import {normalizeJourney, journeyView, progressFromRouteStart} from './journey.mjs';
 import {drawingShouldShow, drawingPatch, drawingPath, orientPath, pointAlong, routeLineData} from './drawing.mjs';
@@ -232,7 +232,7 @@ export function journeyPageView(travel, routes, locations, label = presentationO
   const ids = players().map(u => u.id);
   const routeKey = route && ids.length && ids.every(u => routeVariantFor(route, byId, u) === 'full') ? route.viewKey : null;
   // 1.15.0: watch names are character names, which players see on the party's sheets anyway.
-  const actorName = id => { const a = globalThis.game?.actors?.get?.(id); return a?.type === 'character' ? a.name : ''; };
+  const actorName = id => { const a = globalThis.game?.actors?.get?.(id); return a?.type === 'character' && !isLevelBackup(a) ? a.name : ''; };
   return journeyView(j, {from: endForAll(byId.get(j.fromId), label), to: endForAll(byId.get(j.toId), label), routeKey, actorName});
 }
 async function syncTravel(travel, routes, locations) {
