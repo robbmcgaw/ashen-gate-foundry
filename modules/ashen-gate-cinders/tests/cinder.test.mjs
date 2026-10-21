@@ -187,6 +187,7 @@ globalThis.game={modules:new Map([[MOD,{id:MOD,active:true}],['ashen-gate-skill-
   socket:{on:(_n,fn)=>socketHandlers.push(fn),emit:(_n,msg)=>emitted.push(msg)}};
 globalThis.JournalEntry={create:async data=>{const d={...structuredClone(data),documentName:'JournalEntry',async setFlag(m,k,v){this.flags[m][k]=structuredClone(v);}};game.journal.contents.push(d);return d;}};
 globalThis.ui={actors:null,notifications:{info:()=>{},error:()=>{},warn:()=>{}}};
+saved.set('strainChip',false); // the Strain chip (0.8.0) has its own tests; keep these effect lists to Backfire effects
 await import('../scripts/main.mjs');
 oneTime.get('init')();oneTime.get('ready')();
 await new Promise(r=>setTimeout(r,5)); // the deferred Skill Trees check and adopt

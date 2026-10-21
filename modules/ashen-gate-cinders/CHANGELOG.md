@@ -1,3 +1,12 @@
+## 0.8.0 — 2026-10-21
+
+- **Strain chip on tokens:** a character with Strain above 0 carries one status for its Strain band (`ag-strain-<band index>`, one per band of the Strain config, so the band thresholds and names come from GM Setup → Strain). Its name shows the level, e.g. "Strain 6/10 (Band 3)", in the token tooltip. Everyone who can see the token sees it, and Utilities' Conditions view and overlay list it like any other status. Strain 0 = no chip.
+- Display only: the chip has no changes and is never read back; Strain stays the Actor value. The active GM's client keeps exactly one chip per Actor in step whenever Strain changes, and checks every Actor on load. Other effects are never touched; a copied Actor without Strain (a Character Hub level backup) loses the chip.
+- Only that sync can add, change or remove a chip. The Token HUD doesn't offer these statuses, and any other attempt (a sheet, Utilities' Remove or Apply, a macro) is refused with a note to change Strain in Cinders or the Character Hub Strain bar.
+- New GM setting **Show Strain chip on tokens** (Configure Settings, default on; turning it off removes every chip). No chips while Character Hub hides the Strain bar from players (GM Setup → Player Visibility), the GM included.
+- Icons are Foundry core placeholders, listed in one table (`STRAIN_CHIP_ICONS` in `scripts/strain-chip.mjs`) ready to swap for art.
+- **Saved data:** new world setting `strainChip`; chips are ordinary ActiveEffects on the Actor, rebuilt from Strain. Nothing is migrated. Before disabling Cinders, turn the setting off to clear the chips (without Cinders they would stay as Custom statuses the GM can remove).
+
 ## 0.7.0 — 2026-10-21
 
 - **`api.cinder.rehook(actor)`** (GM only): re-links one character to the Cinders it bears after its Actor data was replaced in place (Character Hub 0.28.0 calls it when the GM restores a level backup). The Cinder records stay the truth and are never changed: the character's bearer links are rewritten from them (links to Cinders it no longer bears are dropped), its Cinder tree progress is set from each Cinder through Skill Trees (Cinder powers it doesn't bear are removed), and its items' socket markers are set from the sockets. Re-running it changes nothing more. Fires `ashenGateCinder.changed` with kind `rehook`. Without Skill Trees the links and markers are still fixed and the result says the tree progress was not checked.

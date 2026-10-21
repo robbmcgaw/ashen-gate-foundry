@@ -7,6 +7,7 @@ Needs **Ashen Gate | Skill Trees 0.17.0 or later** for Cinder trees (the powers 
 ## How it works
 
 - **Strain** is one number per character, shared by everything that adds or removes it: Pushes, crafting, hazards, items, spells, consumables, blessings and rests. A long rest removes 1 (config). The **band name** and **Backfire chance** come from the Strain config (GM Setup → Strain; importable).
+- **Strain chip** (0.8.0): a character with Strain above 0 shows a status for its Strain band on its token ("Strain 6/10 (Band 3)"), seen by everyone who sees the token and listed in Utilities' Conditions. Display only, kept in step by the active GM's client; only Cinders adds, changes or removes it (Strain changes through `api.strain`). Setting **Show Strain chip on tokens** (default on); no chips while Character Hub hides the Strain bar from players. Status ids `ag-strain-<band index>`; the placeholder icons are the `STRAIN_CHIP_ICONS` table in `scripts/strain-chip.mjs`, one per band in order (bands past the end use the last).
 - **A Cinder** is made from a Cinder definition (`MUT-*`, imported through General Manager). It has its own id, a bearer and its own points and unlocks, which move with it.
   - Only the GM binds, transfers or unbinds a Cinder (**Manage** tab); a bearer cannot release one.
   - One bearer per Cinder. Up to **Cinders per character** (setting, default 1), never two of the same kind.
