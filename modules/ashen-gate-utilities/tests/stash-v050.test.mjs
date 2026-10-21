@@ -44,7 +44,7 @@ function mkItems(actor){const m=new Map();return {get:id=>m.get(id),get size(){r
   item.uuid=`Actor.${actor.id}.Item.${item.id}`;m.set(item.id,item);docs.set(item.uuid,item);return item;}};}
 function mkActor(id,name,owner,flags={}){const a={id,name,type:owner?'character':'npc',documentName:'Actor',statuses:new Set(),effects:[],flags,
  getFlag:(ns,k)=>flags[ns]?.[k],testUserPermission:(u,level)=>u.isGM||u.id===owner||(level==='LIMITED'),
- createEmbeddedDocuments:async(t,list)=>list.map(d=>{assert.equal(d._id,undefined,'new ids only');return a.items.add(d);}),update:async d=>{a.lastUpdate=d;}};a.items=mkItems(a);return a;}
+ createEmbeddedDocuments:async(t,list,o={})=>list.map(d=>{if(!o.keepId)assert.equal(d._id,undefined,'new ids only');return a.items.add(d);}),deleteEmbeddedDocuments:async(t,ids)=>ids.map(id=>{const i=a.items.get(id);i?.delete();return i;}),update:async d=>{a.lastUpdate=d;}};a.items=mkItems(a);return a;}
 const stash=mkActor('stash','Ashen Gate | Party Stash',null,{[ID]:{partyStash:true}});
 const pcA=mkActor('pcA','Wren','alice'),pcB=mkActor('pcB','Ash','bob');
 const users=[gm,alice,bob,carol];users.get=id=>users.find(u=>u.id===id);

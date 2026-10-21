@@ -1,4 +1,4 @@
-import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,conditionGroups,stashRow,historyEntry,appendHistory,approvalLabel,STASH_HISTORY_CAP,rollFormSession,normalizeTab,rollPrefill,ROLL_OPEN_MODES,readGp,planGoldAward,goldAwardEntry,planGoldUndo,applyGoldUndo,goldCardHTML,COINS,COIN_LABELS,entryCoin,readCoin,readCoins,planCoinMove,planPurseAdjust,purseEntry,purseUndoable,planPurseUndo,applyPurseUndo,purseLine,PURSE_KINDS,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome} from './core.mjs';
+import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,conditionGroups,stashRow,historyEntry,containedItems,moveBundle,contentsNote,appendHistory,approvalLabel,STASH_HISTORY_CAP,rollFormSession,normalizeTab,rollPrefill,ROLL_OPEN_MODES,readGp,planGoldAward,goldAwardEntry,planGoldUndo,applyGoldUndo,goldCardHTML,COINS,COIN_LABELS,entryCoin,readCoin,readCoins,planCoinMove,planPurseAdjust,purseEntry,purseUndoable,planPurseUndo,applyPurseUndo,purseLine,PURSE_KINDS,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome} from './core.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,infoDialog,formDialog} from './dialogs.mjs';
 
@@ -680,12 +680,31 @@ function purseStrip(app,takers,target){
  const note=isGM()?`<p class="agu-note">Coin vote: ${purseVoteRequired()?'on':'off'} (change it in GM Setup).</p>`:`<p class="agu-note">Deposit moves coins from your character to the purse${purseVoteRequired()?'; Take needs every other connected player to accept':''}. Coins are never converted.</p>`;
  return `<section class="agu-purse" aria-label="Party purse"><div class="agu-line"><h3>Party purse</h3>${gm}</div><div class="agu-coins">${counters}</div>${move}${note}</section>`;
 }
-/** Create first, then delete, so a failure can never lose the item. */
+const randomId=()=>foundry.utils?.randomID?.(16)??Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[b%62]).join('');
+/** Removes copies made by a move that is being called off. A failure here leaves duplicates, never a loss. */
+async function removeCopies(target,data){
+ const ids=data.map(d=>d._id).filter(id=>target.items.get(id));
+ if(ids.length)await target.deleteEmbeddedDocuments('Item',ids).catch(e=>console.error(`[${ID}] Could not remove partial copies from ${target.name}: ${e.message}`));
+}
+/**
+ * Moves an item and everything inside it (dnd5e keeps a container's contents as separate Items pointing at it).
+ * All or nothing: every copy is created in one call and checked on the target before anything is deleted from the
+ * source; if any part fails the copies are removed again and the source is left as it was.
+ */
 async function moveItem(item,target){
- const data=item.toObject();delete data._id;
- const [made]=await target.createEmbeddedDocuments('Item',[data]);
- if(!made)throw Error(`Could not add ${item.name} to ${target.name}.`);
- await item.delete();return made;
+ const source=item.parent,{sourceIds,data,contents}=moveBundle(item,source.items,{randomId});
+ const nothing=`Nothing was moved; ${item.name} stays with ${source.name}.`;
+ try{await target.createEmbeddedDocuments('Item',data,{keepId:true});}
+ catch(e){await removeCopies(target,data);throw Error(`Could not move ${item.name}: ${e?.message??e}. ${nothing}`);}
+ const missing=data.filter(d=>!target.items.get(d._id)).length;
+ if(missing){await removeCopies(target,data);throw Error(`Could not move ${item.name}: ${missing} of ${data.length} items did not arrive in ${target.name}. ${nothing}`);}
+ try{await source.deleteEmbeddedDocuments('Item',sourceIds);}
+ catch(e){
+  const left=sourceIds.filter(id=>source.items.get(id)).length;
+  if(left===sourceIds.length){await removeCopies(target,data);throw Error(`Could not move ${item.name}: ${e?.message??e}. ${nothing}`);}
+  if(left)throw Error(`${item.name} reached ${target.name}, but ${left} of ${sourceIds.length} items could not be removed from ${source.name}. Nothing was lost; delete the leftover copies there by hand.`);
+ }
+ return {made:target.items.get(data[0]._id),contents};
 }
 function playerStashGate(user){if(user.isGM)return;if(game.settings.get(ID,'playerAccessEnabled')!==true)throw Error('Utilities is hidden for players.');if(!stashEnabled())throw Error('The GM has turned the party stash off.');}
 async function executeDeposit(uuid,user){
@@ -694,11 +713,20 @@ async function executeDeposit(uuid,user){
  const item=await fromUuid(uuid);if(item?.documentName!=='Item')throw Error('Only items can go in the stash.');
  const from=item.parent;
  if(from===stash||from?.id===stash.id)return `${item.name} is already in the stash.`;
- if(!from){if(!user.isGM)throw Error('Only items from your own character sheet can go in the stash.');await stash.createEmbeddedDocuments('Item',[(()=>{const d=item.toObject();delete d._id;delete d.folder;return d;})()]);await logQuietly({kind:'deposit',approval:'gm',user,actor:null,item:stashRow(item)});return `Copied ${item.name} into the party stash.`;}
+ if(!from){
+  if(!user.isGM)throw Error('Only items from your own character sheet can go in the stash.');
+  // A world item is copied, not moved: a world container's contents are world items pointing at it.
+  const {data,contents}=moveBundle(item,game.items,{randomId,strip:['folder']});
+  try{await stash.createEmbeddedDocuments('Item',data,{keepId:true});}
+  catch(e){await removeCopies(stash,data);throw Error(`Could not copy ${item.name}: ${e?.message??e}. Nothing was added.`);}
+  const missing=data.filter(d=>!stash.items.get(d._id)).length;
+  if(missing){await removeCopies(stash,data);throw Error(`Could not copy ${item.name}: ${missing} of ${data.length} items did not arrive. Nothing was added.`);}
+  await logQuietly({kind:'deposit',approval:'gm',user,actor:null,item:{...stashRow(item),contents}});return `Copied ${item.name}${contentsNote(contents)} into the party stash.`;
+ }
  if(from.documentName!=='Actor'||!(user.isGM||from.testUserPermission?.(user,'OWNER')))throw Error('You can only stash items from a character you own.');
- const row=stashRow(item);const made=await moveItem(item,stash);
- await logQuietly({kind:'deposit',approval:user.isGM?'gm':'not-required',user,actor:from,item:{...row,uuid:made?.uuid??row.uuid}});
- return `${from.name} put ${item.name} in the party stash.`;
+ const row=stashRow(item);const {made,contents}=await moveItem(item,stash);
+ await logQuietly({kind:'deposit',approval:user.isGM?'gm':'not-required',user,actor:from,item:{...row,uuid:made?.uuid??row.uuid,contents}});
+ return `${from.name} put ${item.name}${contentsNote(contents)} in the party stash.`;
 }
 const takingItems=new Set();
 async function executeWithdraw(itemId,actorId,user){
@@ -707,14 +735,14 @@ async function executeWithdraw(itemId,actorId,user){
  if(!item)throw Error('That item is no longer in the stash.');
  if(!actor||actor.id===stash.id)throw Error('Choose a character to receive the item.');
  if(!(user.isGM||actor.testUserPermission?.(user,'OWNER')))throw Error(`You do not own ${actor.name}.`);
- const row=stashRow(item);let approval='gm';
+ const row={...stashRow(item),contents:containedItems(item,stash.items).length-1};let approval='gm';
  if(!user.isGM){
   if(takingItems.has(item.id))throw Error(`${item.name} already has a request waiting for the party.`);
   takingItems.add(item.id);
   try{
    if(!stashVoteRequired())approval='not-required';
    else{
-    const outcome=await runConsent(createPoll({id:crypto.randomUUID(),requesterId:user.id,voters:consentVoters(game.users,user.id)}),{requester:user.name,item:item.name,quantity:row.quantity,actor:actor.name});
+    const outcome=await runConsent(createPoll({id:crypto.randomUUID(),requesterId:user.id,voters:consentVoters(game.users,user.id)}),{requester:user.name,item:item.name,quantity:row.quantity,contents:row.contents,actor:actor.name});
     if(outcome!=='approved'){
      await logQuietly({kind:'withdraw',approval:outcome==='denied'?'denied':'timed-out',user,actor,item:row});
      throw Error(outcome==='denied'?`The party denied taking ${item.name}. It stays in the stash.`:`Not every player answered in time. ${item.name} stays in the stash.`);
@@ -722,14 +750,14 @@ async function executeWithdraw(itemId,actorId,user){
     approval='accepted';
    }
    if(!stash.items.get(item.id))throw Error('That item left the stash while the party was voting.');
-   const made=await moveItem(item,actor);
-   await logQuietly({kind:'withdraw',approval,user,actor,item:{...row,uuid:made?.uuid??row.uuid}});
+   const {made,contents}=await moveItem(item,actor);
+   await logQuietly({kind:'withdraw',approval,user,actor,item:{...row,uuid:made?.uuid??row.uuid,contents}});
+   return `${actor.name} took ${item.name}${contentsNote(contents)} from the party stash.`;
   }finally{takingItems.delete(item.id);}
-  return `${actor.name} took ${item.name} from the party stash.`;
  }
- const made=await moveItem(item,actor);
- await logQuietly({kind:'withdraw',approval,user,actor,item:{...row,uuid:made?.uuid??row.uuid}});
- return `${actor.name} took ${item.name} from the party stash.`;
+ const {made,contents}=await moveItem(item,actor);
+ await logQuietly({kind:'withdraw',approval,user,actor,item:{...row,uuid:made?.uuid??row.uuid,contents}});
+ return `${actor.name} took ${item.name}${contentsNote(contents)} from the party stash.`;
 }
 /** Asks the party; resolves 'approved', 'denied' or 'expired'. Any deny, or the deadline, cancels. */
 const polls=new Map();
@@ -756,7 +784,7 @@ class StashVotePrompt extends ApplicationV2 {
  static DEFAULT_OPTIONS={classes:['ag-app','ag-utilities','agu-vote-app'],window:{title:'Party Stash: Approve?',minimizable:false},position:{width:380,height:'auto'}};
  constructor(request){super({id:`ashen-gate-utilities-vote-${request.pollId}`});this.request=request;}
  async _renderHTML(){const r=this.request,secs=Math.max(0,Math.round((r.expiresAt-Date.now())/1000));
-  return `<div class="agu-vote"><p><strong>${E(r.requester)}</strong> wants to take <strong>${E(r.item)}</strong>${Number(r.quantity)>1?` (×${E(r.quantity)})`:''} from the party stash for <strong>${E(r.actor)}</strong>.</p><p class="agu-note">If anyone denies, or not everyone answers within ${E(secs)} seconds, the item stays in the stash.</p><div class="agu-vote-actions">${btn('vote-deny','Deny',{kind:'danger'})}${btn('vote-accept','Accept',{kind:'primary'})}</div></div>`;}
+  return `<div class="agu-vote"><p><strong>${E(r.requester)}</strong> wants to take <strong>${E(r.item)}</strong>${Number(r.quantity)>1?` (×${E(r.quantity)})`:''}${E(contentsNote(Number(r.contents)))} from the party stash for <strong>${E(r.actor)}</strong>.</p><p class="agu-note">If anyone denies, or not everyone answers within ${E(secs)} seconds, the item stays in the stash.</p><div class="agu-vote-actions">${btn('vote-deny','Deny',{kind:'danger'})}${btn('vote-accept','Accept',{kind:'primary'})}</div></div>`;}
  _replaceHTML(html,content){content.innerHTML=html;
   for(const b of content.querySelectorAll('[data-action^="vote-"]'))b.addEventListener('click',()=>{this.answer(b.dataset.action==='vote-accept'?'accept':'deny');});
  }
@@ -844,7 +872,8 @@ function historyLine(h){
  if(PURSE_KINDS.includes(h.kind))return purseLine(h);
  if(h.kind==='gold-award'){const c=entryCoin(h),names=(h.recipients??[]).map(r=>r.actorName).join(', ');return h.mode==='split'?`${h.userName} split ${h.amount} ${c} between ${names}`:`${h.userName} awarded ${h.share} ${c} each to ${names}`;}
  const who=`${h.userName}${h.actorName?` (${h.actorName})`:''}`,qty=h.quantity>1?` ×${h.quantity}`:'';
- return h.kind==='deposit'?`${who} put ${h.itemName}${qty} in the stash`:h.moved?`${who} took ${h.itemName}${qty} out of the stash`:`${who} tried to take ${h.itemName}${qty} out of the stash`;
+ const what=`${h.itemName}${qty}${contentsNote(h.contents)}`;
+ return h.kind==='deposit'?`${who} put ${what} in the stash`:h.moved?`${who} took ${what} out of the stash`:`${who} tried to take ${what} out of the stash`;
 }
 function historyBody(app){
  let list;try{list=stashHistory();}catch(e){return empty(e.message);}

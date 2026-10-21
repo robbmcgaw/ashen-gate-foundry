@@ -1,3 +1,11 @@
+## 0.13.1 — 2026-10-21
+
+- **Fix: a container (backpack, pouch…) moved to or from the party stash now takes everything inside it.** dnd5e keeps a container's contents as separate items pointing at the container; until now only the container itself moved, so it arrived empty and its contents stayed behind on the old sheet, loose (no longer in any container). Now the container and all its contents (nested containers too) move together, both directions, on every path: Utilities window, drag and drop, the Character Hub (`api.stash.deposit` / `withdraw` and the embedded stash) and the take-out vote. Quantities and all item data are kept; equipped/attuned are kept as before (no reset).
+- **All or nothing.** Every copy is created and checked on the receiving side before anything is removed from the giving side. If any part fails, the copies are removed again, nothing is deleted from the source, and the player is told.
+- Stash History, the vote prompt and the move message say what moved with it, e.g. "put Backpack (with 3 items inside) in the stash". Older entries read as before.
+- An item taken out of a container (e.g. a pouch inside a backpack) arrives loose, not inside a container.
+- Saved data: history entries for containers gain an optional `contents` count. No migration; existing items are not changed.
+
 ## 0.13.0 — 2026-10-20
 
 - **`api.rolls.open({skills, dc?, mode, actorIds?, title?})`** (GM only), for partner modules such as Locations' Travel tracker: opens Utilities on **Rolls** with the *Start Rolls* form filled in (mode *Group result* or *Individual rolls*, ticked skills, DC, characters, title). Nothing is sent to players until the GM clicks **Start Rolls**, and every field can still be changed. If a roll is already running, the Rolls tab shows it as usual and nothing is replaced. Players calling it get `GM only.`

@@ -15,7 +15,7 @@ function mkItems(actor){const m=new Map();return {get:id=>m.get(id),get size(){r
   item.uuid=`Actor.${actor.id}.Item.${item.id}`;m.set(item.id,item);docs.set(item.uuid,item);return item;}};}
 function mkActor(id,name,owner,flags={},system={}){const a={id,name,type:owner?'character':'npc',documentName:'Actor',statuses:new Set(),effects:[],flags,system,
  getFlag:(ns,k)=>flags[ns]?.[k],testUserPermission:(u,level)=>u.isGM||u.id===owner||level==='LIMITED',
- createEmbeddedDocuments:async(t,list)=>list.map(d=>a.items.add(d)),update:async d=>{a.lastUpdate=d;}};a.items=mkItems(a);return a;}
+ createEmbeddedDocuments:async(t,list)=>list.map(d=>a.items.add(d)),deleteEmbeddedDocuments:async(t,ids)=>ids.map(id=>{const i=a.items.get(id);i?.delete();return i;}),update:async d=>{a.lastUpdate=d;}};a.items=mkItems(a);return a;}
 const stash=mkActor('stash','Ashen Gate | Party Stash',null,{[ID]:{partyStash:true}},{currency:{cp:0,sp:5,ep:0,gp:42,pp:0}});
 const wren=mkActor('wren','[TEST] Wren','alice',{},{currency:{cp:0,sp:0,ep:0,gp:3,pp:0}}),ash=mkActor('ash','[TEST] Ash','bob',{},{currency:{cp:0,sp:0,ep:0,gp:0,pp:0}});
 stash.items.add({_id:'rope',name:'[TEST] Rope',type:'loot',img:'rope.webp',system:{quantity:2}});
