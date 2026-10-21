@@ -222,6 +222,27 @@
       <span><strong>Player Access:</strong> {{#if playerAccessEnabled}}Visible{{else}}Hidden{{/if}} <small>Controls player launcher and window only; not Actor progress or document permissions.</small></span>
       <button type="button" class="ag-btn" data-act="toggle-player-access">{{#if playerAccessEnabled}}Hide from Players{{else}}Show to Players{{/if}}</button>
     </div>
+    {{#if strainSetup}}
+    <section class="agst-setup-card" aria-label="Strain settings">
+      <h2>Strain</h2>
+      <p>One Strain value per character, shared by every system that adds or removes it. These are the band names and Backfire chances; character Strain is never changed here. Campaign band names come in with a Strain config file (also importable through General Manager).</p>
+      <table class="agst-strain-bands">
+        <thead><tr><th scope="col">Strain</th><th scope="col">Band</th><th scope="col">Backfire chance</th></tr></thead>
+        <tbody>{{#each strainSetup.bands}}<tr><td>{{range}}</td><td>{{label}}</td><td>{{chance}}</td></tr>{{/each}}</tbody>
+      </table>
+      <ul class="agst-strain-rules">
+        <li>A Push at Strain {{strainSetup.guaranteeAt}} or more always backfires{{#if strainSetup.prevention}} unless a modifier prevents it{{/if}}.</li>
+        <li>A normal use backfires at Strain {{strainSetup.normalUseAt}} or more.</li>
+        <li>Maximum Strain: {{strainSetup.hardMax}}.</li>
+        <li>Rest recovery: long rest −{{strainSetup.restLong}}, short rest −{{strainSetup.restShort}}.</li>
+      </ul>
+      <div class="agst-setup-actions">
+        <button type="button" class="ag-btn" data-act="strain-import"><i class="fa-solid fa-file-import"></i> Import Strain Config</button>
+        <button type="button" class="ag-btn" data-act="strain-export"><i class="fa-solid fa-file-export"></i> Export Strain Config</button>
+        <button type="button" class="ag-btn ag-btn--danger" data-act="strain-reset"><i class="fa-solid fa-rotate-left"></i> Reset to Defaults</button>
+      </div>
+    </section>
+    {{/if}}
     <details class="agst-dev-tools">
       <summary><i class="fa-solid fa-flask"></i> Developer Tools — Experimental / GM only</summary>
       <div class="agst-dev-content"><p>Use a disposable world. QA installation creates real, clearly marked native Foundry documents and private tree layouts; they are not approved Cinder or Profession content.</p>

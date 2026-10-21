@@ -1,6 +1,6 @@
 # Cinder instances, Strain, Push and Backfire — design (DRAFT, lean)
 
-Status: **Phase 0, not built.** Revision 4: re-scoped to Robb's lean picture — "just a value with some logic to roll and spit out the consequence in chat, maybe apply an effect if the consequence can have one." Campaign rules below are configurable defaults; campaign names (Cinder types, band names, powers) arrive through content import, never in code. Examples use synthetic `[TEST]` data.
+Status: **Approved lean design.** PR 1 (Skill Trees 0.15.0, Strain) built; the rest not yet. Revision 5 adds the Hub Strain bar and Studio's decisions on the hard maximum and item recovery. Revision 4: re-scoped to Robb's lean picture — "just a value with some logic to roll and spit out the consequence in chat, maybe apply an effect if the consequence can have one." Campaign rules below are configurable defaults; campaign names (Cinder types, band names, powers) arrive through content import, never in code. Examples use synthetic `[TEST]` data.
 
 Target: Foundry V14 on The Forge, dnd5e 6.0.6 (2024 rules).
 
@@ -11,7 +11,7 @@ Target: Foundry V14 on The Forge, dnd5e 6.0.6 (2024 rules).
 | Strain value + small API, band/Backfire config | **Skill Trees**, as a separate part (`scripts/strain.mjs`, `api.strain`) with its data under its **own flag scope** `ashen-gate-strain` so it can become its own module later with no data change |
 | Cinder instances (bearer, points, unlocks), assign/transfer/unbind, POWER Item grants, Push and Backfire rolls | **Skill Trees** |
 | Import + validation of MUT-* / POWER-* / BF-* records and the Strain config file; `scripts/validate-content.mjs` | **General Manager** (delegates the typed blocks to Skill Trees when present) |
-| Showing Strain, band, Backfire chance, the Cinder and a Push button | **Character Hub** (display only; mounts Skill Trees `embed` modes) |
+| Showing Strain, band, Backfire chance, the Cinder and a Push button | **Character Hub** (display only; reads `api.strain`, mounts Skill Trees `embed` modes) |
 | Other Strain writers (crafting, hazards, items, spells) | each module, through `api.strain` (feature-detected) — no other Strain pools |
 
 Missing partners never stop a module opening: without Skill Trees there is no Strain or Cinder panel; without Manager definitions can't be (re)imported; without the Hub everything works from the Skill Trees window.
@@ -91,7 +91,7 @@ Shipped defaults: the schedule above and neutral labels `Band 0…Band 6`; the c
    "reason": "[TEST] Amplify", "opId": "op_…"}]}
 ```
 
-- Last 30 changes kept. Raw Strain only changes through `add` / `remove` / `set`; modifiers never touch it.
+- Last 30 changes kept. (Built in 0.15.0 without a per-entry GM-only flag: Actor flags reach every client, so reasons must not hold secrets.) Raw Strain only changes through `add` / `remove` / `set`; modifiers never touch it.
 - A write carrying an `opId` already in history does nothing (a double click or a relayed retry can't charge twice).
 - Written with `actor.update({'flags.ashen-gate-strain.state': …})`, because `setFlag` only accepts active module ids. **Forge check in PR 1:** confirm V14 keeps a flag scope that is not an installed module (fallback: `flags.ashen-gate-skill-trees.strain`, with a one-time copy if it is ever split out).
 
@@ -143,7 +143,7 @@ All on the active GM client (players' clicks are relayed by the Skill Trees sock
 
 **Never lethal:** no consequence can kill, knock out, exhaust, damage, delete, or remove the Cinder or its progress; Backfire code has no path that does. At 10+ a Backfire is guaranteed, not death. Tests cover this.
 
-**Recovery:** a long rest removes `rest_recovery.long` (1, + `strain.recovery` mods), a short rest `rest_recovery.short` (0). Items, spells, consumables and blessings call `api.strain.remove(actor, n, {source, reason})`.
+**Recovery:** `api.strain` is the single door for every change — crafting, hazards, items, spells, consumables, blessings and rests. Item/consumable recovery is API only for now (no item content field). A long rest removes `rest_recovery.long` (1, + `strain.recovery` mods), a short rest `rest_recovery.short` (0). Items, spells, consumables and blessings call `api.strain.remove(actor, n, {source, reason})`.
 
 ## 6. GM operations (rejected for non-GMs in the API)
 
@@ -183,12 +183,13 @@ All on the active GM client (players' clicks are relayed by the Skill Trees sock
 | f | Binding | Bound; GM-only unbind/transfer; no attunement step |
 | g | Normal use | At 10 or above, any use backfires automatically; only a Push adds Strain |
 | — | Module | No separate module: Strain is a separate part of Skill Trees with its own flag scope |
+| — | Hard maximum | None by default (config `hard_max`; excess recorded) |
+| — | Item recovery | API only for now |
+| — | Hub | A Strain bar near HP / hit dice / exhaustion, showing over-10 clearly, band name and Backfire %; GM adjusts |
 
 Still to confirm:
 3. Severity roll: `1d4` picks severity 1–4, then the consequence is rolled within that severity. Or should severity follow the Strain band?
 4. The starting point is once per Cinder (not again for each new bearer) and counts inside the 13-point wallet.
-5. `hard_max`: none, or a number?
-6. Item/consumable recovery: API only for now (recommended), or a typed recovery field on items too?
 7. Transfer leaves Strain and Backfire conditions with the old bearer.
 
 ## 10. Build plan
@@ -196,6 +197,6 @@ Still to confirm:
 1. **Skill Trees 0.15.0** — Strain part: value, API, history, config + import, bands, rest recovery, tests.
 2. **Skill Trees 0.16.0** — Cinder instances, GM assign/transfer/unbind, migration, Push and normal-use Backfire, chat card, effects, tests.
 3. **General Manager** — import routing and validation of the `cinder`/`power`/`backfire` blocks and the Strain config; `validate-content.mjs`; schema doc for GPT.
-4. **Character Hub** — Strain and Cinder panels with Push.
+4. **Character Hub** — a **Strain bar** next to HP / hit dice / exhaustion: value with a 0–10 scale that clearly shows over-10 (the bar fills to 10, then an overflow segment and the number, e.g. "13 / 10+"), band name and current Backfire %. Read-only for players (Strain changes only through allowed actions such as a Push); the GM gets add / remove / set with a reason (through `api.strain`). Plus the Cinder panel with Push.
 
 Automated tests use mocked Foundry globals; they prove logic, not the live UI. Each PR lists the Forge click steps.
