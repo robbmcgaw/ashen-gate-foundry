@@ -15,8 +15,11 @@ export const TRACKER_LOG_LINES = 6;
 export const OPACITY_MIN = 20;
 export const clampOpacity = v => { const n = Math.round(Number(v)); return Number.isFinite(n) ? Math.min(100, Math.max(OPACITY_MIN, n)) : 100; };
 
+/** Foundry tooltip in the kit's skin (replaces native title=). */
+const tip = text => text ? ` data-tooltip="${esc(text)}" data-tooltip-class="ag-tooltip"` : '';
+/** A kit button. A disabled one shows its reason as visible hint text below it (tooltips don't show on disabled buttons). */
 const btn = (action, label, {kind = '', icon = '', title = '', disabled = false, big = false} = {}) =>
-  `<button type="button" class="ag-btn${kind ? ` ag-btn--${kind}` : ''}${big ? ' agl-travel__big' : ''}" data-travel="${action}"${title ? ` title="${esc(title)}"` : ''}${title && !label ? ` aria-label="${esc(title)}"` : ''}${disabled ? ' disabled' : ''}>${icon ? `<i class="${icon}" aria-hidden="true"></i>` : ''}${label ? `<span>${esc(label)}</span>` : ''}</button>`;
+  `<button type="button" class="ag-btn${kind ? kind.split(' ').map(k => ` ag-btn--${k}`).join('') : ''}${big ? ' agl-travel__big' : ''}" data-travel="${action}"${title && !disabled ? tip(title) : ''}${title && !label ? ` aria-label="${esc(title)}"` : ''}${disabled ? ' disabled' : ''}>${icon ? `<i class="${icon}" aria-hidden="true"></i>` : ''}${label ? `<span>${esc(label)}</span>` : ''}</button>${disabled && title ? `<p class="agl-hint agl-travel__why">${esc(title)}</p>` : ''}`;
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 /**
@@ -34,14 +37,14 @@ export function stripHTML({leg, legs, status = 'active', hazardLegs = []}) {
   const cells = Array.from({length: legs}, (_, i) => {
     const n = i + 1;
     const cls = [n <= done ? 'is-done' : '', n === done && status === 'active' ? 'is-current' : '', marks.has(n) ? 'is-hazard' : ''].filter(Boolean).join(' ');
-    return `<li class="${cls}" title="Leg ${n}${marks.has(n) ? ': hazard' : ''}"></li>`;
+    return `<li class="${cls}"${tip(`Leg ${n}${marks.has(n) ? ': hazard' : ''}`)}></li>`;
   }).join('');
   return `<ol class="agl-travel__strip" role="img" aria-label="${label}">${cells}</ol>`;
 }
 
-const header = (version, opacity) => `<header class="ag-header agl-travel__head"><h1>Ashen Gate | Travel</h1>
-  <div class="ag-header__actions"><span class="ag-version">v${esc(version)}</span>${btn('help', '', {kind: 'ghost', icon: 'fa-solid fa-circle-question', title: 'Travel tracker help'})}</div></header>
-  <label class="agl-travel__opacity" title="Window background opacity (only for you): slide left to see the map behind"><i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i>
+const header = (version, opacity) => `<header class="ag-header agl-travel__head"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Travel</h1></div>
+  <div class="ag-header__meta"><span class="ag-version">v${esc(version)}</span>${btn('help', '', {kind: 'ghost sm icon', icon: 'fa-solid fa-circle-question', title: 'Travel tracker help'})}</div></header>
+  <label class="agl-travel__opacity"${tip('Window background opacity (only for you): slide left to see the map behind')}><i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i>
     <input type="range" min="${OPACITY_MIN}" max="100" step="5" value="${clampOpacity(opacity)}" data-travel-opacity aria-label="Window background opacity"></label>`;
 
 const statusWord = (status, paused) => status === 'arrived' ? 'Arrived' : status === 'aborted' ? 'Journey ended' : paused ? 'Paused' : 'Travelling';
@@ -56,7 +59,7 @@ const panelsHTML = panels => panels.length ? `<div class="agl-travel__panels">${
  */
 export function gmTrackerHTML({journey: j, routeName = '', legKm = 0, nameOf = id => id, version = '', opacity = 100, panels = []}) {
   const head = header(version, opacity);
-  if (!j) return `<div class="agl-travel__root">${head}<div class="ag-empty">No journey yet. Start one on a route in Locations → Routes.</div>
+  if (!j) return `<div class="agl-travel__root">${head}<div class="ag-empty"><i class="fa-solid fa-person-hiking" aria-hidden="true"></i><p class="ag-empty__title">No journey yet</p><p class="ag-empty__text">Start one on a route in Locations → Routes.</p></div>
     <footer class="agl-travel__foot">${btn('open-routes', 'Open Routes in Locations', {icon: 'fa-solid fa-route'})}</footer></div>`;
   const from = nameOf(j.fromId) || 'Somewhere', to = nameOf(j.toId) || 'somewhere';
   const active = j.status === 'active';
@@ -67,7 +70,7 @@ export function gmTrackerHTML({journey: j, routeName = '', legKm = 0, nameOf = i
       <p class="agl-travel__result">${esc(p.result)}</p>
       <p class="agl-hint">Rolled ${p.roll} vs ${p.chance}%.${p.tableMissing ? ' The hazard table was not found, so this is the plain fallback.' : ''} Only you see this.</p>
       <div class="agl-travel__row">${btn('reroll', 'Reroll', {icon: 'fa-solid fa-dice'})}${btn('dismiss', 'Dismiss', {icon: 'fa-solid fa-xmark'})}
-        ${btn('share', 'Share to players', {kind: 'primary', icon: 'fa-solid fa-bullhorn', title: 'Posts the result to chat for everyone (no route or place names)'})}</div></div>` : '';
+        ${btn('share', 'Share to players', {icon: 'fa-solid fa-bullhorn', title: 'Posts the result to chat for everyone (no route or place names)'})}</div></div>` : '';
   const last = !active ? `<p class="agl-hint">${j.status === 'arrived' ? `Arrived at ${esc(to)} after ${plural(j.legs, 'leg')}` : `Ended after ${plural(j.legIndex, 'leg')}`}, ${plural(j.hazardCount, 'hazard')}.
       ${j.status === 'arrived' ? j.travelLog === 'ok' ? `Logged in ${esc(to)}'s Party Notes.` : `Not logged in Party Notes: ${esc(j.travelLogError || 'unknown error')}` : ''}</p>
       ${j.status === 'arrived' && j.travelLog !== 'ok' ? btn('retry-log', 'Retry log', {icon: 'fa-solid fa-rotate'}) : ''}` : '';
@@ -95,7 +98,7 @@ export function gmTrackerHTML({journey: j, routeName = '', legKm = 0, nameOf = i
 /** Player model: {state (api.travel.state()), version, opacity, panels}. Progress and what the GM shared only. */
 export function playerTrackerHTML({state: s, version = '', opacity = 100, panels = []}) {
   const head = header(version, opacity);
-  if (!s) return `<div class="agl-travel__root">${head}<div class="ag-empty">The party is not travelling.</div></div>`;
+  if (!s) return `<div class="agl-travel__root">${head}<div class="ag-empty"><i class="fa-solid fa-person-hiking" aria-hidden="true"></i><p class="ag-empty__title">No journey yet</p><p class="ag-empty__text">The party is not travelling. The tracker fills in when your GM starts a journey.</p></div></div>`;
   const from = s.from?.name, to = s.to?.name;
   const title = s.routeName || (from && to ? `${from} → ${to}` : 'On the road');
   const lines = [...(s.log ?? [])].slice(-TRACKER_LOG_LINES).reverse().map(e => `<li><span class="agl-travel__leg">Leg ${e.leg | 0}</span> ${esc(e.text)}</li>`).join('');
