@@ -36,10 +36,7 @@ Line references are from the audit (Hub 0.18.0). The Hub is now 0.20.x and has J
 
 ### Character pane (direction D)
 - **Character art and slots column:** same art, same slot positions around it, same art toggle and opacity.
-- **HP:** the existing HP block in its current place, restyled with kit tokens:
-  - fill tone `--ag-ok`, `--ag-warn` at or below 50%, `--ag-danger` at or below 25%;
-  - numbers in `--ag-text`, not `#fff`.
-  - The HP editor (Cancel / Apply footer) stays as is, restyled with kit buttons.
+- **HP:** stays a bar, in its current place, with its behaviour and colours kept exactly. See "HP bar" below. Only the frame around it (border, radius, the Damage/Heal row, the editor's buttons) takes kit tokens.
 - **Stats and the other existing blocks** stay where they are; only their tokens change.
 - **Equipment slots and quick bar:** same positions. They take the kit `.ag-slot` look (circles with a rarity ring), with `data-rarity`, `__key`, `__qty`, `.is-empty` and `.is-active`.
   - If a round slot no longer fits a position in the art column at either size, keep that slot square and note it in the PR. Layout wins over shape.
@@ -50,6 +47,48 @@ Line references are from the audit (Hub 0.18.0). The Hub is now 0.20.x and has J
   - HP text: replace `#fff`, `#400` and `#000` with tokens.
   - Quick-slot number shadow: replace `#000`.
   - Strain label on the accent fill: use `--ag-accent-contrast`, or move the text beside the bar.
+
+### HP bar: keep exactly, and show both adjustments at once (Robb, 2026-10-21)
+
+What exists today (Hub 0.15–0.17; `scripts/character.mjs` `hpBar()` / `hpHtml()`, `styles/character-hub.css` `.agch-hp*` around lines 139–167, test `tests/polish.test.mjs` "HP bar: …"):
+- **Fill:** current HP in one dark red, `color-mix(var(--ag-danger) 70%, #400)`. There is **no** colour change by health state today, so don't add one.
+- **Temp HP:** a yellow striped overshield segment (`--agch-hp-temp: #f2c53d`) right after the fill, with "(+X TEMP)" text in yellow.
+- **Max HP raised** (`tempmax > 0`): a translucent **blue** overlay with a blue left edge (`--agch-hp-boost: #4a90e2`) on the rightmost part of the bar. Today there is no text for it, only a `title`.
+- **Max HP reduced** (`tempmax < 0`): a **sickly green** striped "lost" part at the right end (`--agch-hp-lost: #8fae3a`), with "(−X MAX)" text. The bar keeps the normal max as its length.
+- **Text:** "X / Y HP", centred over the bar.
+- **Editing:** double-click (or Enter) opens the Current / Temp / Max adj. editor with Cancel / Apply. Right-click opens dnd5e's Hit Points settings. Damage / amount / Heal sits under the bar, and damage uses temp HP first.
+
+**Keep all of that exactly:** the same colours (they are game meaning, not skin colours, so they stay as literal values with an `ag-lint-allow` comment), the same segments and text, the same interactions and the same `data-action` names. The only allowed visual change is readability on light skins: the white bar text gets a dark backing (for example a dark text halo or a pill behind the text) so it reads where the unfilled bar is light. The colours stay.
+
+**New requirement: both adjustments visible together.** When a character has temp HP **and** an adjusted max HP, the yellow temp treatment and the blue or green max treatment must both be visible. Neither may hide the other.
+
+What the current code does (checked against `hpBar()` on main, Hub 0.20.1):
+
+| Case (max 20 unless noted) | Today | Must change? |
+|---|---|---|
+| Temp only: 12 HP, +5 temp, adj 0 | Yellow segment right after the fill | No |
+| Max reduced only: 10 HP, adj −5 | Green lost part at the right (75–100%), "(−5 MAX)" | No |
+| Max raised only: 25 HP, adj +5 | Blue overlay on the last 20% | No |
+| Both, reduced max: 14 HP, +4 temp, adj −5 | Temp is pushed left to end at 75%, green part 75–100%. Both visible (existing test) | No. Add the full-HP variant below |
+| Both, reduced max, full HP: 15 HP, +4 temp, adj −5 | Temp sits at 55–75%, over part of the fill; green part visible | No (fill still visible on the left) |
+| **Both, raised max, near full: 24 HP, +4 temp, adj +5 (scale 25)** | Temp clamps to the right end (84–100%) and is drawn **after** the blue overlay at 90% opacity, so it **covers the blue part** (80–100%). Only a 2px blue edge may show | **Yes** |
+| Both, raised max, low HP: 6 HP, +4 temp, adj +5 | Temp at 24–40%, blue at 80–100%. Both visible | No |
+| Both, reduced max, low HP: 3 HP, +4 temp, adj −5 | Temp at 15–35%, green at 75–100%. Both visible | No |
+| Edge: temp larger than effective max (adj −5, +20 temp) | Temp starts at 0 and runs into the green part, covering it | **Yes** (rare, but in scope) |
+
+What the builder must change:
+1. **Raised max:** draw the blue max-adjustment as a treatment that survives a temp segment on top of it. For example, a blue band along the top and bottom edges of its range plus its left edge line, layered **above** the temp stripes (`z-index`). The blue range then reads as "extra max" while the yellow stripes inside it read as temp.
+   - Keep the blue colour and the range exactly as `hpBar()` computes it.
+   - Also add "(+X MAX)" text in blue, next to "(+X TEMP)", the same way "(−X MAX)" works. That is a small addition; mention it in the CHANGELOG.
+2. **Temp wider than the room left by a reduced max:** cap the temp segment at the start of the green part (`lostLeft`), and keep "(+X TEMP)" text showing the full amount. Layer the green part above the temp if they must touch.
+3. **Don't change `hpBar()`'s existing numbers** for the cases the current test covers. Extend its return value only if needed (for example `boostText`).
+
+Tests to add (`tests/polish.test.mjs` or a new `hp-combined.test.mjs`):
+- Both, raised max, near full (24 HP, +4 temp, adj +5): the rendered HTML contains both `agch-hp__temp` and `agch-hp__boost`, the boost layer sits above temp (by class or order, matching the CSS), and the text has "(+4 TEMP)" and "(+5 MAX)".
+- Both, reduced max, full HP (15 HP, +4 temp, adj −5): temp ends at or before `lostLeft`, and both texts are present.
+- Temp larger than the room (adj −5, +20 temp): the temp segment ends at `lostLeft`, and the text still says "(+20 TEMP)".
+- Both at low HP, for both signs: the segments don't overlap each other.
+- Keep the existing "HP bar: …" test passing unchanged.
 
 ### Cinders panel
 - **Strain:** the existing bar, in its current place, becomes a kit `.ag-meter`.
@@ -93,24 +132,31 @@ Line references are from the audit (Hub 0.18.0). The Hub is now 0.20.x and has J
 
 ## Acceptance checks
 1. `node scripts/check.mjs ashen-gate-character-hub`, then the full `node scripts/check.mjs`: green. Existing tests keep passing. Add tests for:
-   - the HP bar tone thresholds
+   - the combined temp + max-adjustment cases (see "HP bar")
    - companion Remove asks first and does nothing on Cancel
    - Push uses labelled buttons
    - rail tabs carry `aria-label` and `data-tooltip`
 2. **Layout unchanged:** art + slots column, content column, icon rail.
    - Before/after renders at the same window size show the same regions in the same places.
    - Diff review finds no change to the grid or region structure in `views.mjs` or `character.mjs`, and no change to the `.agch-split` / `.agch-char` / `.agch-railcol` grid rules apart from token values.
-3. **Chromium renders** of the real Hub views (call the view functions in `scripts/views.mjs` and friends with the mocks in `tests/foundry-mock.mjs`):
+3. **HP bar unchanged and combined:**
+   - Renders of the HP bar for each case in the "HP bar" table, in Standard, Stone Tablet, Parchment and Tome Pages, Compact and Comfortable.
+   - The colours match today's in the dark skins.
+   - Where a max adjustment and temp HP exist together, both are visible.
+   - Double-click and right-click behaviour is unchanged (existing tests).
+4. **Chromium renders** of the real Hub views (call the view functions in `scripts/views.mjs` and friends with the mocks in `tests/foundry-mock.mjs`):
    - Overview, Combat, Inventory, Cinders, Journey and companion GM table
    - 7 skins × Compact/Comfortable × widths 1240, 900, 640 and 420
    - Compare look and feel against the D mockup; attach before/after.
-4. **Contrast:** HP numbers, Strain number and labels at least 4.5:1 in all skins, including Parchment and Tome Pages.
-5. **Diff review:** no change to flags, settings, item data or `data-action` names.
+5. **Contrast:** HP numbers, Strain number and labels at least 4.5:1 in all skins, including Parchment and Tome Pages.
+6. **Diff review:** no change to flags, settings, item data or `data-action` names.
 
 ## Forge click steps for Robb (after merge)
 1. Open a character in the Hub as GM:
    - Same layout as before: art with the slots around it on the left, content on the right, icon rail on the far right.
-   - Damage the character below half: the HP bar turns amber. Below a quarter: red.
+   - HP bar looks and behaves as before: red fill, yellow temp, blue raised max, green reduced max. Double-click edits it and right-click opens dnd5e's settings.
+   - Give a character +5 temp HP and a max adjustment of +5: yellow stripes and the blue band both show, with "(+5 TEMP)" and "(+5 MAX)". Try near full HP and at low HP.
+   - Then set the max adjustment to −5: yellow and green both show, with "(+5 TEMP)" and "(−5 MAX)".
 2. Hover each icon on the right rail: a Foundry tooltip names the tab.
 3. Equipped and quick bar: round slots with rarity colours. Hover one for the item card.
 4. Cinders tab:

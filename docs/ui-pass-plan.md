@@ -134,6 +134,7 @@ Robb accepts that the rework ships before full testing, so each PR merges as soo
 | D11 | Foundry tooltips (`data-tooltip`) replace native `title` hover text, module by module. |
 | Order | Character Hub is the pilot, after the shared kit release; then Profession Ledger, then Renown, then the rest. PRs merge when green; no hold. |
 | Hub layout | The Character Hub layout stays exactly as it is: the roughly 40/60 split with the character art and equipped-slot boxes around it on the left, content on the right, and the right icon rail. The pass changes only type, spacing, shapes, controls and icons. |
+| Hub HP | HP stays a bar, and its existing colours and behaviour stay exactly: red fill, yellow temp overshield, blue raised max, sickly-green reduced max, double-click and right-click editing. New: temp HP and an adjusted max must both be visible at the same time (today a raised max is hidden by temp near full HP; brief 2 fixes it and adds tests). |
 
 GPT sync: none needed. This work is UI only and changes no content schema GPT authors against.
 
