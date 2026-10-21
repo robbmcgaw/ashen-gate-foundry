@@ -1,7 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 // Cinder instances, Push and Backfire (moved from Skill Trees 0.16.0). Pure rules (cinder.mjs) and the runtime with mocked Foundry globals
 // and a stand-in Skill Trees (tests/fake-skill-trees.mjs): proves logic, ownership and permission checks, not the live Foundry UI.
-import {validateDefinition,collectModifiers,availableModes,planPush,resolveBackfire,normalizeRegistry,createInstance,bindInstance,transferInstance,
+import {validateDefinition,validateModifiers,normalizeModifier,blockModifiers,collectModifiers,availableModes,planPush,resolveBackfire,normalizeRegistry,createInstance,bindInstance,transferInstance,
   unbindInstance,planMigration,effectProblem,categoriesFor} from '../scripts/cinder.mjs';
 import {defaultConfig,strainEffectBonus,validateConfig} from '../scripts/strain.mjs';
 
@@ -35,6 +35,32 @@ test('modifiers: scoped, summed, same stack counts only the strongest; modes ope
   assert.deepEqual(availableModes(def,['POWER-TEST-REACH']).map(m=>m.id),['amplify','overreach']);
   assert.deepEqual(categoriesFor({cinder:{backfire_categories:['BF-A']}},{power:{}},{backfire_categories:[]}),['BF-A']);
   assert.deepEqual(categoriesFor({cinder:{backfire_categories:['BF-A']}},{power:{backfire_categories:['BF-B']}},{backfire_categories:['BF-C']}),['BF-C']);
+});
+test('ag-modifier/1: applies and requires, perk sources, the scope owner check for modifiers blocks (0.2.0)',()=>{
+  // power.modifiers entries take the shared fields too; old top-level powers/modes still work.
+  const power={id:'POWER-TEST-NEW',entity_type:'Power',power:{schema:'ag-power/0.1',kind:'enhancement',modifiers:[
+    {target:'push.cost',value:-1,label:'[TEST] New',scope:'cinder',op:'add',applies:{powers:['POWER-TEST-SPARK'],modes:['amplify']},requires:{powers:['POWER-TEST-REACH']}}]}};
+  assert.deepEqual(validateDefinition(power).errors,[]);
+  const bad=structuredClone(power);Object.assign(bad.power.modifiers[0],{scope:'hq',op:'multiply',powers:['POWER-TEST-X'],requires:{perks:['PERK-TEST-A']}});bad.power.modifiers[0].applies.items=[];
+  const e=validateDefinition(bad).errors.join('\n');
+  for(const re of [/scope must be "cinder"/,/op must be "add"/,/applies only takes powers and modes/,/give powers once/,/requires only takes powers/])assert.match(e,re);
+  // The check Manager calls for record-level blocks: entries arrive with their scope filled in.
+  const ok=validateModifiers([{index:0,scope:'cinder',modifier:{target:'strain.recovery',value:1,label:'[TEST] Rest'}}],{recordId:'PERK-TEST-A'});
+  assert.deepEqual(ok,{errors:[],warnings:[]});
+  const v=validateModifiers([{index:1,scope:'cinder',modifier:{target:'sockets.count',value:200,label:''}}],{recordId:'ITEM-TEST-LENS'});
+  assert.match(v.errors.join('\n'),/ITEM-TEST-LENS: modifiers\.list\[1\]: target must be one of/);assert.match(v.errors.join(),/-100 to 100/);assert.match(v.errors.join(),/label/);
+  assert.match(v.warnings[0],/only while it is attached/,'items count only once sockets exist');
+  // Normalised shape; block scope is the default; another scope or a bad entry is left out.
+  assert.deepEqual(normalizeModifier({target:'push.cost',value:-1,label:'x',powers:['POWER-TEST-SPARK']}),{target:'push.cost',value:-1,label:'x',stack:null,powers:['POWER-TEST-SPARK'],modes:[],requires:[]});
+  assert.deepEqual(blockModifiers({modifiers:{schema:'ag-modifiers/0.1',scope:'cinder',list:[{target:'push.cost',value:-1,label:'a'},{target:'push.cost',value:-2,label:'b',scope:'hq'},{target:'nope',value:1,label:'c'}]}}).map(m=>m.label),['a']);
+  assert.deepEqual(blockModifiers({modifiers:{schema:'ag-modifiers/0.1',list:[{target:'push.cost',value:-1,label:'no scope'}]}}),[],'no scope on entry or block: not ours');
+  // Perk sources join the powers' modifiers: same stack keeps only the largest, requires needs the power unlocked on this Cinder.
+  const perk={sourceId:'PERK-TEST-GRIP',name:'[TEST] Grip',modifiers:blockModifiers({modifiers:{scope:'cinder',list:[
+    {target:'backfire.chance',value:-20,stack:'steady',label:'[TEST] Grip calm'},{target:'push.cost',value:-1,label:'[TEST] Grip reach',requires:{powers:['POWER-TEST-REACH']}}]}})};
+  const scope={powerId:'POWER-TEST-SPARK',modeId:'amplify',extra:[perk]};
+  assert.deepEqual(collectModifiers([steady,steady2],'backfire.chance',scope),{total:-20,used:[{label:'[TEST] Grip calm',value:-20,from:'PERK-TEST-GRIP'}]});
+  assert.equal(collectModifiers([steady],'push.cost',scope).total,-1,'Light Touch only: Grip reach needs POWER-TEST-REACH');
+  assert.equal(collectModifiers([steady,{powerId:'POWER-TEST-REACH',power:{}}],'push.cost',scope).total,-2);
 });
 test('Push plan: cost never below 1, chance from Strain AFTER the gain, guaranteed at 10, modifiers cannot prevent it',()=>{
   const c=defaultConfig(),mode={id:'amplify',strain_cost:2};
@@ -262,6 +288,35 @@ test('rest recovery adds strain.recovery modifiers from the bearer\'s powers; a 
   await gmSet(B,5);await fire('createChatMessage',{id:'rest1',type:'rest',system:{type:'long'},speaker:{actor:'B'},author:bob});
   assert.equal(strain.get(B).value,3);
   assert.deepEqual(cinder.list(B)[0].powers[0].modes.map(m=>m.id),['amplify','overreach']);
+});
+test('perk modifiers (PERK-* Items with a modifiers block) change Push, Backfire chance and rest; items wait for sockets; api.modifiers (0.2.0)',async()=>{
+  game.user=gm;await gmSet(B,3);
+  const perkDef={modifiers:{schema:'ag-modifiers/0.1',scope:'cinder',list:[
+    {target:'push.cost',value:-1,label:'[TEST] Grip reach',applies:{modes:['overreach']}},
+    {target:'backfire.chance',value:-20,stack:'steady',label:'[TEST] Grip calm'},
+    {target:'strain.recovery',value:1,label:'[TEST] Grip rest',requires:{powers:['POWER-TEST-REACH']}}]}};
+  const perkItem=id=>({id,name:'[TEST] Steady Grip',type:'feat',flags:source('PERK-TEST-GRIP','ProfessionPerk',perkDef)});
+  const lens={id:'LENS1',name:'[TEST] Ember Lens',type:'loot',flags:source('ITEM-TEST-EMBER-LENS','Item',{modifiers:{schema:'ag-modifiers/0.1',scope:'cinder',list:[{target:'push.cost',value:-5,label:'[TEST] Lens'}]}})};
+  const before=cinder.list(B)[0].powers[0].modes.map(m=>[m.id,m.cost,m.chance]);
+  B.items.push(perkItem('PERK1'),perkItem('PERK2'),lens);
+  try{
+    const modes=cinder.list(B)[0].powers[0].modes;
+    assert.deepEqual(modes.map(m=>[m.id,m.cost]),[['amplify',before[0][1]],['overreach',before[1][1]-1]],'the copy of the same perk counts once; the loose item does nothing');
+    const amp=modes[0];assert.equal(amp.chance,before[0][2]-10,'Grip calm -20 replaces Steady Hands -10 in the steady stack');
+    assert.ok(amp.modifiers.some(m=>m.from==='PERK-TEST-GRIP'&&m.label==='[TEST] Grip calm'));assert.ok(!amp.modifiers.some(m=>m.label==='[TEST] Steady Hands'));
+    rolls.push(99);const r=await cinder.push(B,'POWER-TEST-SPARK','overreach');assert.equal(r.plan.cost,before[1][1]-1,'the GM client counts the perk too');
+    await gmSet(B,5);await fire('createChatMessage',{id:'rest2',type:'rest',system:{type:'long'},speaker:{actor:'B'},author:bob});
+    assert.equal(strain.get(B).value,2,'1 base + Deep Rest 1 + Grip rest 1 (counted once)');
+    // The scope owner API.
+    assert.equal(api.modifiers.contract,'ag-modifier/1');assert.equal(api.modifiers.scope,'cinder');assert.deepEqual(api.modifiers.targets,['push.cost','backfire.chance','backfire.severity','strain.recovery']);
+    assert.deepEqual(api.modifiers.validate([{index:0,scope:'cinder',modifier:{target:'push.cost',value:-1,label:'x'}}],{recordId:'PERK-TEST-A'}).errors,[]);
+    assert.deepEqual(api.modifiers.forActor(B).map(m=>[m.sourceId,m.target,m.value]),[['PERK-TEST-GRIP','push.cost',-1],['PERK-TEST-GRIP','backfire.chance',-20],['PERK-TEST-GRIP','strain.recovery',1]]);
+    game.user=bob;assert.equal(api.modifiers.forActor(B).length,3,'the owner reads their own');
+    saved.set('playerAccessEnabled',false);try{assert.throws(()=>api.modifiers.forActor(B),/hidden/);}finally{saved.set('playerAccessEnabled',true);}
+    game.user=alice;assert.throws(()=>api.modifiers.forActor(B),/Actor access denied/);
+  }finally{game.user=gm;B.items.splice(B.items.findIndex(i=>i.id==='PERK1'),3);}
+  await gmSet(B,3);
+  assert.deepEqual(cinder.list(B)[0].powers[0].modes.map(m=>[m.id,m.cost,m.chance]),before,'removing the perk removes its modifiers');
 });
 test('unbind keeps the Cinder\'s progress; a deleted bearer leaves it lost',async()=>{
   game.user=gm;await cinder.unbind(ember.instanceId);await settle();

@@ -48,7 +48,7 @@ A new scope, or a new target in a scope, is added by the owning module's own rel
 
 For reference, the other rules already in the suite (these are not `modifiers` scopes yet): Headquarters hireling perks use "first eligible perk per `overlap_group` wins, unless `allow_overlap`"; Character Hub adds up companion item Active Effects for display.
 
-**When a modifier counts** is the scope owner's call, documented in its own schema. For `cinder`, a socket item's modifiers count only while it is attached to a Cinder (Cinders' next releases).
+**When a modifier counts** is the scope owner's call, documented in its own schema. For `cinder` (Cinders 0.2.0+): a `PERK-*`'s modifiers count while the character has the perk Item, for every Cinder they bear; an `ITEM-*`'s count only while it is attached to a Cinder socket (a later Cinders release). Details: [cinder-strain-schema.md](cinder-strain-schema.md) → Modifiers.
 
 ## The `implementation` field
 
@@ -69,7 +69,7 @@ An optional, **display-only** field on any perk-like record (`PERK-*`, `POWER-*`
 - **Asks the scope owner** to check each entry's target, range, `applies` and `requires`, through the owner's public API, in the Import preview and again just before Apply. If the owner is not active, or is a version that does not check modifiers yet, the records **still import** with one warning ("not checked").
 - **Never touches live play state**: no Cinder, socket, bearer or Strain changes. A re-import updates the definition only.
 
-Ashen Gate | Cinders 0.1.0 does not check or read record-level modifiers yet: they import with the "not checked" warning, and do nothing until Cinders adds them.
+Ashen Gate | Cinders 0.2.0+ checks `cinder` modifiers (with 0.1.0 they import with the "not checked" warning). An `ITEM-*` with cinder modifiers gets a preview note that it counts only once attached to a Cinder socket.
 
 ### For module builders: the owner check
 

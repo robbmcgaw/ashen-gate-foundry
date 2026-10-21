@@ -7,7 +7,7 @@ import {lookupWorldDefinition} from './definition-lookup.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 
 const MODULE='ashen-gate-cinders';
-const VERSION='0.1.0';
+const VERSION='0.2.0';
 const SOCKET=`module.${MODULE}`;
 const TREES_ID='ashen-gate-skill-trees';
 const ACCOUNTS_CONTRACT='ag-tree-accounts/1';
@@ -271,6 +271,8 @@ Hooks.once('ready',()=>{
     strain:strain.api,
     /** Cinder instances, Push and Backfire (contract ag-cinder/1). Bind / transfer / unbind and the registry are GM only. */
     cinder:cinders.api,
+    /** Cinder modifiers (contract ag-modifier/1, scope cinder): validate (pure, for Manager's import) and forActor (GM or owner). */
+    modifiers:cinders.modifiersApi,
     adoptLegacy:()=>adoptLegacy()
   };
   game.socket?.on?.(SOCKET,(message,senderId)=>cinders.onSocket(message,senderId));

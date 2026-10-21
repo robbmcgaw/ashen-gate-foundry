@@ -1,3 +1,12 @@
+## 0.2.0 — 2026-10-21
+
+- **Perks can change Cinders.** A `PERK-*` Item on the character whose record has a `modifiers` block (`ag-modifiers/0.1`, scope `cinder`, General Manager 0.41.0+) now counts in the Push preview, the Push itself (cost and Backfire chance), the Backfire effect roll and rest recovery, for every Cinder the character bears. Its labels show in the preview and on the chat card like a power's. A perk shares `stack` groups with the powers (largest counts); two copies of one perk count once; for rest recovery a perk counts once per character. Removing the perk Item removes its effect.
+- **The shared modifier shape (`ag-modifier/1`).** `power.modifiers` and perk modifiers take `applies.powers` / `applies.modes` (the old top-level `powers` / `modes` still work), `requires.powers` (counts only while those powers are unlocked on the Cinder), and `scope: "cinder"` / `op: "add"`, both optional.
+- **`api.modifiers`** (contract `ag-modifier/1`, scope `cinder`): `validate` is the check General Manager calls when importing a `modifiers` block (a wrong target, a value outside −100…100 or 0, a bad `applies` / `requires` blocks the import). `forActor(actor)` lists a character's perk modifiers (GM or owner, while Player Access allows). `scripts/validate-content.mjs` uses the same check.
+- An `ITEM-*` with cinder modifiers does nothing yet: items will count only while attached to a Cinder socket (next Cinders release). Import shows a note saying so.
+- `docs/cinder-strain-schema.md` and `docs/modifiers-schema.md` updated; `test-fixtures/modifiers/invalid/unknown-target.json` added.
+- No saved data changes; no migration. Nothing is written to perks or Actors.
+
 ## 0.1.0 — 2026-10-21
 
 First release. Strain, Cinder instances, Push and Backfire move here from Ashen Gate | Skill Trees 0.15.0–0.16.0, unchanged in behaviour.

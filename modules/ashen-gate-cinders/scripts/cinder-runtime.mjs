@@ -2,7 +2,8 @@
  * Records live in this module's GM-only Journal. A bearer's progress is written to their Cinder tree through Skill Trees' public
  * api.accounts (ag-tree-accounts/1), so the tree window keeps working; Skill Trees knows nothing about Cinders. */
 import {CINDER_CONTRACT,cleanAccount,normalizeRegistry,createInstance,bindInstance,unbindInstance,transferInstance,withProgression,boundTo,bearerInstance,
-  planMigration,powerBlock,availableModes,planPush,resolveBackfire,categoriesFor,backfireBlock,effectProblem,collectModifiers,validateDefinition} from './cinder.mjs';
+  planMigration,powerBlock,availableModes,planPush,resolveBackfire,categoriesFor,backfireBlock,effectProblem,collectModifiers,validateDefinition,
+  MODIFIER_CONTRACT,MODIFIER_SCOPE,MODIFIER_TARGETS,validateModifiers,blockModifiers} from './cinder.mjs';
 
 export const CINDER_HOOK='ashenGateCinder.changed';
 export const MAX_CINDERS_SETTING='maxCindersPerActor';
@@ -221,16 +222,28 @@ export function createCinders(deps){
       return {powerId:g.perkId,name:item?.name??g.perkId,nodeId:g.nodeId,item,power:powerBlock(sourceOf(item)?.definition??null)};
     }).filter(p=>p.powerId&&p.item);
   }
+  /** Cinder modifiers from the PERK-* Items on the character (their imported modifiers block), one entry per perk id:
+   * [{sourceId, name, itemId, modifiers}]. They count for every Cinder the character bears, narrowed by applies / requires. */
+  function perkSources(actor){
+    const seen=new Set(),out=[];
+    for(const item of actor?.items??[]){
+      const src=sourceOf(item),id=src?.sourceId;
+      if(typeof id!=='string'||!id.startsWith('PERK-')||seen.has(id))continue;
+      const modifiers=blockModifiers(src.definition);if(!modifiers.length)continue;
+      seen.add(id);out.push({sourceId:id,name:item.name??id,itemId:item.id??null,modifiers});
+    }
+    return out;
+  }
   const canRead=actor=>Boolean(actor)&&(game.user?.isGM||actor.isOwner);
   const requirePlayerAccess=()=>{if(!game.user?.isGM&&!deps.playerAccess())throw Error('The GM has hidden Cinders.');};
   function list(actor){
     requireOn();requirePlayerAccess();if(!canRead(actor))throw Error('Actor access denied');
-    const strainState=strain.readState(actor),config=strain.config();
+    const strainState=strain.readState(actor),config=strain.config(),extra=perkSources(actor);
     return pointersOf(actor).map(p=>{
       const powers=sheetPowers(actor,p.definitionId),ids=powers.map(x=>x.powerId);
       return {instanceId:p.instanceId,definitionId:p.definitionId,name:p.name??p.definitionId,
         powers:powers.filter(x=>x.power?.kind==='power').map(x=>({powerId:x.powerId,name:x.name,itemId:x.item.id,nodeId:x.nodeId,standard:x.power.standard?.summary??'',
-          modes:availableModes({power:x.power},ids).map(m=>{const plan=planPush({strainValue:strainState.value,config,mode:m,unlocked:powers,powerId:x.powerId});
+          modes:availableModes({power:x.power},ids).map(m=>{const plan=planPush({strainValue:strainState.value,config,mode:m,unlocked:powers,powerId:x.powerId,extra});
             return {id:m.id,label:m.label,effect:m.effect??'',cost:plan.cost,after:plan.after,chance:plan.chance,guaranteed:plan.guaranteed,
               modifiers:[...plan.modifiers.cost.used,...plan.modifiers.chance.used,...plan.modifiers.severity.used]};})})),
         enhancements:powers.filter(x=>x.power?.kind==='enhancement').map(x=>({powerId:x.powerId,name:x.name}))};
@@ -272,7 +285,7 @@ export function createCinders(deps){
     if(power?.kind!=='power')throw Error('That power has no Push');
     const mode=availableModes(ctx.powerDef,ctx.unlocked.map(u=>u.powerId)).find(m=>m.id===modeId);
     if(!mode)throw Error('That Push is not available');
-    const config=strain.config(),plan=planPush({strainValue:strain.readState(actor).value,config,mode,unlocked:ctx.unlocked,powerId});
+    const config=strain.config(),plan=planPush({strainValue:strain.readState(actor).value,config,mode,unlocked:ctx.unlocked,powerId,extra:perkSources(actor)});
     // Everything is rolled before anything is written.
     const backfire=await resolveBackfire({chance:plan.chance,tables:tablesFor(ctx.cinderDef,ctx.powerDef,mode),config,strain:plan.after,severity:plan.modifiers.severity.total,roll});
     const opId=`push:${foundry.utils.randomID(16)}`,powerName=definitionName(powerId);
@@ -289,7 +302,7 @@ export function createCinders(deps){
     const config=strain.config(),value=strain.readState(actor).value;
     if(value<config.normal_use_backfire_at)return null;
     const ctx=context(actor,powerId);if(powerBlock(ctx.powerDef)?.kind!=='power')return null;
-    const severity=collectModifiers(ctx.unlocked,'backfire.severity',{powerId,modeId:null}).total;
+    const severity=collectModifiers(ctx.unlocked,'backfire.severity',{powerId,modeId:null,extra:perkSources(actor)}).total;
     const backfire=await resolveBackfire({chance:100,forced:true,tables:tablesFor(ctx.cinderDef,ctx.powerDef,null),config,strain:value,severity,roll});
     const result={opId:`use:${foundry.utils.randomID(16)}`,kind:'use',actorId:actor.id,instanceId:ctx.instance.instanceId,powerId,powerName:definitionName(powerId),
       mode:null,plan:null,strain:{from:value,to:value,overflow:0},backfire,effectApplied:false,effectError:null,by:forUser?.id??game.user.id};
@@ -380,9 +393,18 @@ export function createCinders(deps){
       else if(actor.isOwner)await request('cinder-use',{actorId:actor.id,powerId:grant.perkId});
     }catch(error){console.error(`[${module}] Cinder Backfire on use failed`,error);ui.notifications?.error?.(`Cinder Backfire: ${error?.message??error}`);}
   }
-  /** Strain recovery modifiers from the bearer's unlocked Cinder powers (added to rest recovery). */
+  /** Strain recovery modifiers (added to rest recovery): each borne Cinder's unlocked powers, plus the character's perks once
+   * (a perk's requires is met when any borne Cinder has those powers unlocked). */
   function recoveryBonus(actor){
-    return pointersOf(actor).reduce((s,p)=>s+collectModifiers(sheetPowers(actor,p.definitionId),'strain.recovery').total,0);
+    const cinders=pointersOf(actor).map(p=>sheetPowers(actor,p.definitionId));
+    const fromPowers=cinders.reduce((s,powers)=>s+collectModifiers(powers,'strain.recovery').total,0);
+    const have=cinders.flat().map(x=>({powerId:x.powerId}));
+    return fromPowers+collectModifiers(have,'strain.recovery',{extra:perkSources(actor)}).total;
+  }
+  /** api.modifiers.forActor: the cinder modifiers the character's perks carry (GM or owner, while Player Access allows). */
+  function perkModifiers(actor){
+    requireOn();requirePlayerAccess();if(!canRead(actor))throw Error('Actor access denied');
+    return perkSources(actor).flatMap(src=>src.modifiers.map(m=>({sourceId:src.sourceId,name:src.name,itemId:src.itemId,...structuredClone(m)})));
   }
 
   const api={
@@ -391,7 +413,9 @@ export function createCinders(deps){
     instances:()=>readRegistry().instances,
     create,bind,transfer,unbind,migrate,adoptLegacy,report,repair
   };
-  return {api,onDeleteActor,onProgressChanged,onCheckProgress,onSocket,onUseActivity,recoveryBonus,readRegistry,migrationPlan,definitionName,cinderTree,store,
+  /** The scope owner for "cinder" modifiers (contract ag-modifier/1): General Manager 0.41.0+ calls validate on import. */
+  const modifiersApi={contract:MODIFIER_CONTRACT,scope:MODIFIER_SCOPE,targets:[...MODIFIER_TARGETS],validate:validateModifiers,forActor:perkModifiers};
+  return {api,modifiersApi,onDeleteActor,onProgressChanged,onCheckProgress,onSocket,onUseActivity,recoveryBonus,readRegistry,migrationPlan,definitionName,cinderTree,store,
     register(){
       game.settings.register(module,MAX_CINDERS_SETTING,{name:'Cinders per character',hint:'GM: the most Cinders one character can bear at once (default 1).',scope:'world',config:true,type:Number,default:1,range:{min:1,max:9,step:1}});
       game.settings.register(module,INITIAL_POINTS_SETTING,{name:'Starting Cinder points',hint:'GM: points a Cinder gets the first time it is bound (once per Cinder; a transferred Cinder keeps its points and gets none).',scope:'world',config:true,type:Number,default:1,range:{min:0,max:13,step:1}});

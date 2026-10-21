@@ -58,7 +58,14 @@ if (strain?.contract === 'ag-strain/1') {
 - `validateDefinition(record)` → `{errors, warnings}` for Mutation / Power / BackfireTable records (used by General Manager and `scripts/validate-content.mjs`).
 - Hook `ashenGateCinder.changed` `{kind, instanceId, definitionId, actorId, fromActorId?}`.
 
+### `api.modifiers` (contract `ag-modifier/1`, scope `cinder`; 0.2.0+)
+
+- `validate(entries, {recordId})` → `{errors, warnings}`: the check General Manager (0.41.0+) runs on `cinder` entries of a record-level `modifiers` block. Pure, no permission needed. Also exported as `validateModifiers` from `scripts/cinder.mjs` for `scripts/validate-content.mjs`.
+- `targets`: `push.cost`, `backfire.chance`, `backfire.severity`, `strain.recovery`.
+- `forActor(actor)`: the cinder modifiers the character's `PERK-*` Items carry, `[{sourceId, name, itemId, target, value, label, stack, powers, modes, requires}]`. GM or owner (players only while Player Access is on).
+
 Content schema (Cinder, Power and Backfire-table blocks, Strain config): [`docs/cinder-strain-schema.md`](../../docs/cinder-strain-schema.md).
+Modifiers on perks and items: [`docs/modifiers-schema.md`](../../docs/modifiers-schema.md).
 
 ## Relation to other modules
 
