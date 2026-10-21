@@ -1,3 +1,15 @@
+## 0.22.0 — 2026-10-21
+
+- Sheet takes the Ashen Gate UI standard look (same layout): rounded controls, round slots, labelled confirmations, Foundry tooltips, Comfortable size supported. HP bar turns green, yellow or red with health; temp HP is now a silver striped shield, and temp HP and max-HP changes always show together.
+  - **HP bar:** green at 70% of effective max HP and up, yellow from 30%, red below. A raised max is a blue frame with new "(+X MAX)" text, drawn above temp HP; a lowered max is a dark green cross-hatch. Temp HP never runs into the lowered-max part, and its text always shows the full amount. Editing (double-click, right-click, damage/heal) is unchanged.
+  - **Same layout:** art with the slots around it, content in the middle, icon rail on the right. Slots and the quick bar are kit circles with rarity rings.
+  - **Header:** "Ashen Gate | Character Hub", then opacity, Open native sheet, version and Help.
+  - **Icon rail:** every button names itself in a Foundry tooltip. All hover text in the sheet is now a Foundry tooltip.
+  - **Dialogs:** Push asks "Push [power]?" with Cancel / Push; removing a companion now asks first ("Remove companion?"); deleting a Journey note uses the same red confirmation; Help is a dialog with Close.
+  - **Kit parts:** sub-tabs are segmented controls, search boxes, filter chips, badges, empty states, Strain as a slim meter with its number beside it, Cinder powers and sockets as rows, the GM companion table, Journey rows. Death save is a plain roll button with a d20.
+  - **Window size:** opens 1.2× larger when General Manager → My Appearance → Size is Comfortable.
+- No saved data, flag or setting changes.
+
 ## 0.21.0 — 2026-10-21
 
 - Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.

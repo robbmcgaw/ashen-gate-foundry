@@ -34,13 +34,15 @@ export function strainHtml(actor, off) {
   if (!m) return '';
   const tip = `Strain ${m.label}: ${m.band}. Backfire on a Push from here: ${m.chance}%${m.guaranteed ? ' (guaranteed)' : ''}${m.normalUseBackfires ? '. Every use of a Cinder power backfires at this Strain' : ''}.`;
   const gm = isGM() && !off;
+  // Kit meter: the number sits beside the track (never on the fill); the tone follows the band (warn, then danger).
+  const tone = m.over || m.guaranteed ? 'danger' : m.chance > 0 ? 'warn' : '';
   return `<div class="agch-strain${m.over ? ' is-over' : ''}" role="group" aria-label="Strain">
     <span class="agch-strain__label"><i class="fa-solid fa-fire" aria-hidden="true"></i> Strain</span>
-    ${gm ? btn('strain-step', '', {kind: 'ghost', icon: 'fa-solid fa-minus', data: {step: -1}, title: 'Remove 1 Strain (GM, recorded)', disabled: m.value <= 0}) : ''}
-    <span class="agch-strain__bar" role="meter" aria-valuemin="0" aria-valuemax="${m.top}" aria-valuenow="${m.value}" aria-label="${esc(tip)}" title="${esc(tip)}">
-      <span class="agch-strain__fill" style="width:${m.fill}%"></span><span class="agch-strain__text">${esc(m.label)}</span></span>
-    ${gm ? btn('strain-step', '', {kind: 'ghost', icon: 'fa-solid fa-plus', data: {step: 1}, title: 'Add 1 Strain (GM, recorded)'}) : ''}
-    <span class="agch-strain__band">${esc(m.band)}</span><span class="agch-strain__chance" title="Backfire chance on a Push from this Strain">${m.chance}%</span>
+    ${gm ? btn('strain-step', '', {kind: 'ghost', extra: 'ag-btn--icon ag-btn--sm', icon: 'fa-solid fa-minus', data: {step: -1}, title: 'Remove 1 Strain (GM, recorded)', disabled: m.value <= 0}) : ''}
+    <span class="ag-meter${tone ? ` ag-meter--${tone}` : ''} agch-strain__meter" data-tooltip="${esc(tip)}"><span class="ag-meter__track agch-strain__bar" role="progressbar" aria-valuemin="0" aria-valuemax="${m.top}" aria-valuenow="${Math.min(m.value, m.top)}" aria-valuetext="${esc(m.label)}" aria-label="${esc(tip)}" style="--ag-meter:${m.fill}%"><span class="ag-meter__fill agch-strain__fill"></span></span></span>
+    <span class="ag-meter__value agch-strain__text">${esc(m.label)}</span>
+    ${gm ? btn('strain-step', '', {kind: 'ghost', extra: 'ag-btn--icon ag-btn--sm', icon: 'fa-solid fa-plus', data: {step: 1}, title: 'Add 1 Strain (GM, recorded)'}) : ''}
+    <span class="agch-strain__band">${esc(m.band)}</span><span class="agch-strain__chance" data-tooltip="Backfire chance on a Push from this Strain">${m.chance}%</span>
     ${m.over ? `<span class="ag-badge ag-badge--danger">+${m.over} over</span>` : ''}
   </div>`;
 }
@@ -69,11 +71,11 @@ export function socketsHtml(h) {
   const capacity = num(h.capacity), slots = Array.isArray(h.slots) ? h.slots : [], used = slots.filter(x => x.active).length;
   const items = slots.map(x => {
     const effects = (x.modifiers ?? []).map(m => `${m.label}: ${TARGET_WORDS[m.target] ?? m.target} ${signed(m.value)}`).join(' · ');
-    return `<li class="agch-socket${x.active ? '' : ' is-inactive'}"><span><strong>${esc(x.name)}</strong>${x.active ? '' : ' <span class="ag-badge ag-badge--danger">inactive: over capacity</span>'}${effects ? `<br><span class="agch-muted">${esc(effects)}</span>` : ''}</span></li>`;
+    return `<li class="ag-row agch-socket${x.active ? '' : ' is-inactive'}"><span class="ag-icon-chip" aria-hidden="true"><i class="fa-solid fa-gem"></i></span><span class="ag-row__main"><span class="ag-row__title">${esc(x.name)}</span>${effects ? `<span class="ag-row__meta">${esc(effects)}</span>` : ''}</span>${x.active ? '' : '<span class="ag-row__end"><span class="ag-badge ag-badge--danger">Inactive: over capacity</span></span>'}</li>`;
   });
-  for (let i = 0; i < num(h.free); i++) items.push('<li class="agch-socket is-empty"><span class="agch-muted">Empty socket</span></li>');
+  for (let i = 0; i < num(h.free); i++) items.push('<li class="ag-row agch-socket is-empty"><span class="ag-icon-chip" aria-hidden="true"><i class="fa-regular fa-circle"></i></span><span class="ag-row__main"><span class="ag-row__meta">Empty socket</span></span></li>');
   const head = `<p class="agch-cinder__sockets-head"><strong>Sockets</strong> <span class="agch-muted">${used} of ${capacity} in use${h.locked ? ' · locked by the GM' : ''}</span></p>`;
-  return `<div class="agch-cinder__sockets" aria-label="Sockets">${head}${items.length ? `<ul class="agch-plist">${items.join('')}</ul>` : '<p class="agch-muted">This Cinder has no sockets.</p>'}
+  return `<div class="agch-cinder__sockets" aria-label="Sockets">${head}${items.length ? `<ul class="ag-rows agch-plist">${items.join('')}</ul>` : '<p class="agch-muted">This Cinder has no sockets.</p>'}
     ${slots.some(x => !x.active) ? '<p class="agch-muted">More items are attached than this Cinder has sockets; the extra ones do nothing until one is removed.</p>' : ''}
     <p class="agch-muted">Attach, swap or detach socket items in the Cinders window.</p></div>`;
 }
@@ -84,13 +86,13 @@ export function cindersSummary(actor, api) {
   if (c?.contract !== 'ag-cinder/1') return '<p class="agch-muted">Update Ashen Gate | Cinders to see Cinders here.</p>';
   const list = c.list(actor) ?? [];
   const sockets = socketHosts(actor, api);
-  if (!list.length) return '<p class="agch-muted">No Cinder bound to this character.</p>';
+  if (!list.length) return '<div class="ag-empty"><i class="fa-solid fa-fire" aria-hidden="true"></i><p class="ag-empty__title">No Cinder bound to this character yet.</p></div>';
   return list.map(ci => {
-    const powers = (ci.powers ?? []).map(p => `<li><strong>${esc(p.name)}</strong>${p.standard ? ` <span class="agch-muted">${esc(p.standard)}</span>` : ''}
+    const powers = (ci.powers ?? []).map(p => `<li class="ag-row agch-power"><span class="ag-icon-chip" aria-hidden="true"><i class="fa-solid fa-fire"></i></span><span class="ag-row__main"><span class="ag-row__title">${esc(p.name)}</span>${p.standard ? `<span class="ag-row__meta">${esc(p.standard)}</span>` : ''}
       ${(p.modes ?? []).length ? `<ul class="agch-plist agch-cinder__modes">${p.modes.map(m => `<li><span>${esc(m.label)} <span class="agch-muted">+${num(m.cost)} Strain → ${num(m.after)} · Backfire ${num(m.chance)}%${m.guaranteed ? ' (guaranteed)' : ''}</span></span>
-        ${btn('cinder-push', 'Push', {kind: 'sm', icon: 'fa-solid fa-fire', data: {instance: ci.instanceId, power: p.powerId, mode: m.id}, title: `Push ${p.name}: ${m.label}`})}</li>`).join('')}</ul>` : ''}</li>`).join('');
+        ${btn('cinder-push', 'Push', {kind: 'sm', icon: 'fa-solid fa-fire', data: {instance: ci.instanceId, power: p.powerId, mode: m.id}, title: `Push ${p.name}: ${m.label}`})}</li>`).join('')}</ul>` : ''}</span></li>`).join('');
     const perks = (ci.enhancements ?? []).map(e => esc(e.name)).join(', ');
-    return `<div class="agch-cinder"><h4>${esc(ci.name)}</h4>${powers ? `<ul class="agch-plist">${powers}</ul>` : '<p class="agch-muted">No powers unlocked yet (Skill Trees).</p>'}${perks ? `<p class="agch-muted">Perks: ${perks}</p>` : ''}${socketsHtml(sockets.get(ci.instanceId))}</div>`;
+    return `<div class="agch-cinder"><h4>${esc(ci.name)}</h4>${powers ? `<ul class="ag-rows agch-powers">${powers}</ul>` : '<div class="ag-empty"><p class="ag-empty__title">No powers unlocked yet.</p><p class="ag-empty__text">Unlock them in Skill Trees.</p></div>'}${perks ? `<p class="agch-muted">Perks: ${perks}</p>` : ''}${socketsHtml(sockets.get(ci.instanceId))}</div>`;
   }).join('');
 }
 
@@ -100,8 +102,10 @@ export async function pushFromHub(actor, data, confirm) {
   if (!api) return refuse('Ashen Gate | Cinders is not active.');
   try {
     const pv = api.previewPush(actor, data.instance, data.power, data.mode);
-    const mods = (pv.modifiers ?? []).length ? `<p>Modifiers: ${pv.modifiers.map(m => esc(`${m.label} (${m.value > 0 ? '+' : ''}${m.value})`)).join(', ')}</p>` : '';
-    const ok = await confirm(`<p><strong>${esc(pv.powerName)}: ${esc(pv.label)}</strong></p>${pv.effect ? `<p>${esc(pv.effect)}</p>` : ''}<p>Strain ${num(pv.strain)} → <strong>${num(pv.after)}</strong> (+${num(pv.cost)}). Backfire chance <strong>${num(pv.chance)}%</strong>${pv.guaranteed ? ' (guaranteed)' : ''}.</p>${mods}<p>Every Push gains Strain. The result is posted to chat.</p>`);
+    const mods = (pv.modifiers ?? []).length ? `Modifiers: ${pv.modifiers.map(m => `${m.label} (${m.value > 0 ? '+' : ''}${m.value})`).join(', ')}` : '';
+    // Plain lines (the shared confirm escapes them): what is pushed, the effect, the Strain and Backfire numbers.
+    const lines = [`${pv.powerName}: ${pv.label}`, pv.effect ?? '', `Strain ${num(pv.strain)} → ${num(pv.after)} (+${num(pv.cost)}). Backfire chance ${num(pv.chance)}%${pv.guaranteed ? ' (guaranteed)' : ''}.`, mods, 'Every Push gains Strain. The result is posted to chat.'];
+    const ok = await confirm(lines.filter(Boolean).join('\n'), {power: pv.powerName});
     if (!ok) return {ok: true, result: null};
     return {ok: true, result: await api.push(actor, data.power, data.mode)};
   } catch (error) { return refuse(String(error?.message ?? error)); }

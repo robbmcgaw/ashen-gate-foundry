@@ -157,7 +157,7 @@ test('the Hub shows both hotbars at the bottom, folding; mark buttons from equip
   assert.match(html, /1 target</);
   assert.match(html, /\[TEST\] goblin: Vexed[\s\S]*data-action="mark-remove" data-scene="scene1" data-token="t9" data-mark="vex"/);
   assert.match(html, /data-action="hotbar-use" data-hotbar-slot="0"[^>]*aria-label="Slot 1: \[TEST\] Shortsword"/);
-  assert.equal((html.match(/class="agch-quick__slot/g) ?? []).length, 10);
+  assert.equal((html.match(/class="ag-slot agch-quick__slot/g) ?? []).length, 10);
   assert.match(html, /data-item-id="ss"[^>]*draggable="true" data-drag-uuid="Actor\.actor1\.Item\.ss"/);
   game.users.find(u => u.isGM).active = false;
   const r = await ACTIONS['mark-apply'](sheet, {dataset: {mark: 'vex'}});

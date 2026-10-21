@@ -207,9 +207,9 @@ test('every tab renders for owner and observer; observer controls disabled excep
   sheet.tab = 'inventory';
   const inv = await sheet._renderHTML();
   assert.match(inv, /Attuned 1 \/ 3/);
-  assert.match(inv, /data-action="slot-open" data-slot="body" data-id="mail" data-ag-always[^>]*title="\[TEST\] Chain Mail \(click: open, right-click: unequip\)"/);
+  assert.match(inv, /data-action="slot-open" data-slot="body" data-id="mail" data-ag-always[^>]*data-tooltip="\[TEST\] Chain Mail \(click: open, right-click: unequip\)"/);
   assert.match(inv, /data-action="slot-menu" data-slot="body"[^>]*aria-label="More actions: Body armor"/, 'small menu button');
-  assert.match(inv, /data-action="slot-menu" data-slot="feet"[^>]*title="Feet: empty \(click to equip\)"/);
+  assert.match(inv, /data-action="slot-menu" data-slot="feet"[^>]*data-tooltip="Feet: empty \(click to equip\)"/);
   assert.match(inv, /data-slot="ring1"[^>]*is-attuned|is-attuned[^>]*data-slot="ring1"/);
   assert.match(inv, /class="agch-other">[\s\S]*Other equipped <span class="ag-badge">1<\/span>[\s\S]*data-action="slot-open" data-id="stone"/, 'the odd stone fits no slot: listed under Other equipped');
   sheet.menu = 'slot:feet';

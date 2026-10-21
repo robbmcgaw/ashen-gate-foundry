@@ -1,3 +1,5 @@
+import {infoDialog} from './ag-dialogs.mjs';
+
 /** Help dialog text. Kept short; the README has the full list. */
 export const HELP_HTML = `<p>The Character Hub is another way to look at the <strong>same</strong> character. Everything you change here changes the real character, and the standard dnd5e sheet shows it straight away (and the other way round).</p>
 <ul>
@@ -6,7 +8,7 @@ export const HELP_HTML = `<p>The Character Hub is another way to look at the <st
   <li><strong>Change the art:</strong> double-click the big picture to choose a new portrait (or new token art, when Token art is shown). Only if you own the character.</li>
   <li><strong>See-through window:</strong> the slider in the header fades the whole window background so you can see the map. Only for you; text stays solid.</li>
   <li><strong>Fold sections:</strong> click a heading (or the arrow on a container in Inventory) to fold it away. The Hub remembers it for you on this computer.</li>
-  <li><strong>Hit points:</strong> type an amount and press <strong>−</strong> (damage, temp HP first) or <strong>+</strong> (heal). <strong>Double-click</strong> the HP bar to set current HP, temp HP and the max adjustment. Yellow on the bar is temp HP; blue is extra max HP.</li>
+  <li><strong>Hit points:</strong> type an amount and press <strong>−</strong> (damage, temp HP first) or <strong>+</strong> (heal). <strong>Double-click</strong> the HP bar to set current HP, temp HP and the max adjustment. The bar is green at 70% of max HP and up, yellow from 30%, red below. Silver stripes are temp HP; a blue frame is extra max HP; dark green cross-hatching is max HP lost.</li>
   <li><strong>Right-click</strong> AC, initiative, speed, the HP bar, hit dice, an ability, a skill, a save, senses or proficiencies to open dnd5e's own settings for it (the same as the standard sheet), e.g. to set an override or extra speeds.</li>
   <li><strong>Abilities:</strong> click a tile for an ability check, or its Save line for a saving throw.</li>
   <li><strong>Rolls</strong> (skills, checks, saves, initiative) use the system's own roll dialog. Hold Shift/Alt/Ctrl as usual to skip it or roll with advantage/disadvantage.</li>
@@ -29,8 +31,7 @@ export const HELP_HTML = `<p>The Character Hub is another way to look at the <st
   <li>To switch back for good: the window's sheet menu (<em>Sheet</em> in the title bar) → choose the dnd5e character sheet.</li>
 </ul>`;
 
+/** Help opens the shared info dialog with one Close button. */
 export function showHelp() {
-  const D = globalThis.foundry?.applications?.api?.DialogV2;
-  if (!D) return {ok: false, error: 'Help could not open.'};
-  return D.prompt({window: {title: 'Character Hub Help'}, content: HELP_HTML, ok: {label: 'Close'}, rejectClose: false});
+  return infoDialog('Character Hub Help', HELP_HTML, {close: 'Close'});
 }

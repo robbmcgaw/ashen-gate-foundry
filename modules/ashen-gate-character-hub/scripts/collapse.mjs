@@ -40,7 +40,7 @@ export function toggleButton(key, label, {icon = false} = {}) {
   const open = !isCollapsed(key);
   const chevron = `<i class="fa-solid fa-chevron-down agch-sec__chev" aria-hidden="true"></i>`;
   return icon
-    ? `<button type="button" class="agch-sec__toggle agch-sec__toggle--icon" data-action="section-toggle" data-key="${esc(key)}" data-ag-always aria-expanded="${open}" title="${open ? 'Collapse' : 'Expand'} ${esc(label)}" aria-label="${open ? 'Collapse' : 'Expand'} ${esc(label)}">${chevron}</button>`
+    ? `<button type="button" class="agch-sec__toggle agch-sec__toggle--icon" data-action="section-toggle" data-key="${esc(key)}" data-ag-always aria-expanded="${open}" data-tooltip="${open ? 'Collapse' : 'Expand'} ${esc(label)}" aria-label="${open ? 'Collapse' : 'Expand'} ${esc(label)}">${chevron}</button>`
     : `<button type="button" class="agch-sec__toggle" data-action="section-toggle" data-key="${esc(key)}" data-ag-always aria-expanded="${open}">${chevron}<span class="agch-sec__title">${label}</span></button>`;
 }
 /** Attributes for the element a toggle opens and closes. */
