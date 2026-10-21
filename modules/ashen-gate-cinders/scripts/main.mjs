@@ -1,6 +1,7 @@
 /** Ashen Gate | Cinders: Cinder instances, Push, Backfire and the shared Strain resource.
  * Depends one way on Skill Trees' public API (Cinder trees, points, unlocks), feature-detected; Skill Trees never depends on this module. */
 import {createStrain} from './strain-runtime.mjs';
+import {createStrainChip} from './strain-chip.mjs';
 import {createCinders,CINDER_HOOK} from './cinder-runtime.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition} from './definition-lookup.mjs';
@@ -10,7 +11,7 @@ import {orbArt,strainTone,ringModel,orbitModel,ART_FOLDER} from './orb.mjs';
 import {windowSize} from './ag-html.mjs';
 
 const MODULE='ashen-gate-cinders';
-const VERSION='0.7.0';
+const VERSION='0.8.0';
 const SOCKET=`module.${MODULE}`;
 const TREES_ID='ashen-gate-skill-trees';
 const ACCOUNTS_CONTRACT='ag-tree-accounts/1';
@@ -36,8 +37,9 @@ const sourceFlag=doc=>doc?.flags?.['ashen-gate-manager']?.source??null;
 
 let app=null;
 const rerender=()=>{if(app?.rendered)app.render();};
-let cinders=null;
-const strain=createStrain({module:MODULE,onConfigChange:rerender,recoveryBonus:actor=>cinders?.recoveryBonus(actor)??0,blocked});
+let cinders=null,chip=null;
+const strain=createStrain({module:MODULE,onConfigChange:()=>{chip?.registerStatuses();chip?.syncAll();rerender();},recoveryBonus:actor=>cinders?.recoveryBonus(actor)??0,blocked});
+chip=createStrainChip({module:MODULE,strain,blocked});
 cinders=createCinders({module:MODULE,socket:SOCKET,strain,escape,trees,blocked,playerAccess,lookup:id=>lookupWorldDefinition(game,id,{})});
 
 /** One-time (re-runnable) adopt of what Skill Trees 0.15.0/0.16.0 saved: Strain config, Cinder limits, Cinder records, bearer pointers. */
@@ -170,7 +172,7 @@ function setupView(pendingAccess=null){
     guaranteeAt:c.guarantee_at,normalUseAt:c.normal_use_backfire_at,prevention:c.allow_prevention_at_guarantee,hardMax:c.hard_max??'none',
     restLong:c.rest_recovery.long,restShort:c.rest_recovery.short,
     effectBonus:c.effect_roll.strain_bonus.enabled?`+1 at Strain ${c.effect_roll.strain_bonus.from}, then +1 more every ${c.effect_roll.strain_bonus.per} Strain`:'off',
-    playerAccess:playerAccess(),accessChecked:pendingAccess??playerAccess(),dirty:pendingAccess!=null&&pendingAccess!==playerAccess(),limit:game.settings.get(MODULE,'maxCindersPerActor'),initial:game.settings.get(MODULE,'initialCinderPoints')
+    playerAccess:playerAccess(),accessChecked:pendingAccess??playerAccess(),dirty:pendingAccess!=null&&pendingAccess!==playerAccess(),chipState:{setting:'off (setting)',hidden:'off: Character Hub hides the Strain bar from players'}[chip.offReason()]??'on',limit:game.settings.get(MODULE,'maxCindersPerActor'),initial:game.settings.get(MODULE,'initialCinderPoints')
   };
 }
 class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
@@ -409,13 +411,17 @@ function addDirectoryLauncher(directory,html){
 
 Hooks.once('init',()=>{
   strain.register();
+  chip.register(rerender);
   cinders.register();
   game.settings.register(MODULE,PLAYER_ACCESS_SETTING,{name:'Player Access — Cinders',hint:'GM only: show or hide the Cinders window and launcher for players. Strain and Cinders are unchanged.',scope:'world',config:true,type:Boolean,default:true,
     onChange:()=>{const d=globalThis.ui?.actors;if(d?.element)addDirectoryLauncher(d,d.element);if(!game.user?.isGM&&!playerAccess()){globalThis.document?.querySelectorAll?.(`[data-ag-launcher="${MODULE}"]`)?.forEach(b=>b.remove());app?.close?.();}rerender();}});
   game.settings.register(MODULE,ADOPTED_SETTING,{scope:'world',config:false,type:Boolean,default:false});
   Hooks.on('renderActorDirectory',addDirectoryLauncher);
   Hooks.on('closeApplicationV2',closed=>{if(closed===app)app=null;});
+  // Strain chip: refuse chip writes that don't come from Cinders' own sync, on every client.
+  for(const ev of ['preCreateActiveEffect','preUpdateActiveEffect','preDeleteActiveEffect'])Hooks.on(ev,chip.hooks[ev]);
 });
+Hooks.once('setup',()=>chip.registerStatuses());
 Hooks.once('ready',()=>{
   const mod=game.modules.get(MODULE);if(!mod)return;
   mod.api={
@@ -435,9 +441,11 @@ Hooks.once('ready',()=>{
   };
   game.socket?.on?.(SOCKET,(message,senderId)=>cinders.onSocket(message,senderId));
   if(ui.actors?.rendered)addDirectoryLauncher(ui.actors,ui.actors.element);
-  Hooks.on('updateActor',(actor,changes)=>{strain.onUpdateActor(actor,changes);if(app?.rendered&&app.actorId===actor.id)app.render();});
+  Hooks.on('updateActor',(actor,changes)=>{strain.onUpdateActor(actor,changes);chip.hooks.updateActor(actor,changes);if(app?.rendered&&app.actorId===actor.id)app.render();});
   Hooks.on('createChatMessage',message=>strain.onRestMessage(message));
   Hooks.on('deleteActor',actor=>cinders.onDeleteActor(actor));
+  Hooks.on('createActor',chip.hooks.createActor);
+  for(const ev of ['createSetting','updateSetting'])Hooks.on(ev,chip.hooks.updateSetting);
   Hooks.on('createItem',item=>{if(item?.parent&&app?.rendered&&app.actorId===item.parent.id)app.render();});
   Hooks.on('deleteItem',item=>{if(item?.parent&&app?.rendered&&app.actorId===item.parent.id)app.render();});
   Hooks.on(CINDER_HOOK,rerender);
@@ -451,6 +459,8 @@ Hooks.once('ready',()=>{
   // After every module's ready (Skill Trees sets its API in its own ready hook): warn the GM, then adopt any 0.15/0.16 data once.
   setTimeout(()=>{
     const t=trees();
+    // Strain chips: statuses again (Skill Trees' status is known now), then a repair pass on the active GM.
+    chip.registerStatuses();chip.syncAll();
     if(game.user?.isGM&&t.status!=='ok')ui.notifications?.warn?.(`Ashen Gate | Cinders: ${t.message}`,{permanent:t.status==='old'});
     if(game.user?.isGM&&game.users?.activeGM?.id===game.user.id&&t.status==='ok'&&(!game.settings.get(MODULE,ADOPTED_SETTING)||legacyWaiting()))
       adoptLegacy({quiet:true}).catch(error=>console.error(`[${MODULE}] Adopt from Skill Trees failed`,error));
