@@ -7,6 +7,7 @@ import {createHubSheetClass} from './sheet.mjs';
 import {openNativeSheet, nativeSheetClass} from './native.mjs';
 import {registerCompanionSettings, petCapFor, companionsData, registerPetSlotSource, unregisterPetSlotSource} from './companions.mjs';
 import {registerCollapseSetting} from './collapse.mjs';
+import {registerListSortSetting} from './organize.mjs';
 import {registerVisibilitySetting, PARTS, PRESETS, readVisibility, setVisibility, applyPreset, hiddenReason, canSee} from './visibility.mjs';
 
 let HubSheet = null;
@@ -98,6 +99,8 @@ if (globalThis.Hooks) {
       onChange: () => { for (const app of globalThis.foundry?.applications?.instances?.values?.() ?? []) if (HubSheet && app instanceof HubSheet && app.rendered) app.applyOpacity(); }});
     // Per user (client scope): which Hub sections and inventory containers are collapsed.
     registerCollapseSetting(game.settings);
+    // Per user (client scope): Magic and Features group/sort choices.
+    registerListSortSetting(game.settings);
     registerCompanionSettings(game.settings, () => renderAllHubs());
     registerVisibilitySetting(game.settings, () => renderAllHubs());
     const mod = game.modules.get(MODULE_ID);

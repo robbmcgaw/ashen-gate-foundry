@@ -1,5 +1,6 @@
 /** Read-only view models for the Actor's embedded Items (inventory, combat, spells, features). */
 import {MODULE_ID, dnd5eConfig, labelOf, num} from './constants.mjs';
+import {itemFacts, plainText, summaryOf} from './cards.mjs';
 
 const bySortThenName = (a, b) => (num(a.sort) - num(b.sort)) || String(a.name).localeCompare(String(b.name));
 /** dnd5e keeps activities in a Collection; tests may pass an array. */
@@ -10,7 +11,9 @@ export const RARITIES = new Set(['common', 'uncommon', 'rare', 'veryRare', 'lege
 
 export function itemRow(item) {
   const s = item.system ?? {}, uses = s.uses ?? {};
+  const details = plainText(s.description?.value), {summary, more} = summaryOf(details);
   return {
+    facts: itemFacts(item), summary, more, details, sort: num(item.sort),
     id: item.id, name: item.name, img: item.img, type: item.type, quantity: num(s.quantity, 1),
     equippable: 'equipped' in s, equipped: !!s.equipped,
     canAttune: s.attunement === 'required' || s.attunement === 'optional', attunement: s.attunement ?? '', attuned: !!s.attuned,

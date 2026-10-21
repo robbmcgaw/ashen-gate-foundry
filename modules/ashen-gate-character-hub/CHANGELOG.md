@@ -1,3 +1,15 @@
+## 0.11.0 — 2026-10-21
+
+Item lists redesign (part 2 of Robb's alpha feedback):
+- **Card rows** in Combat, Inventory, Magic and Features: striped rows with the image, name, a short summary of the description (**More** shows the full text in place, as plain text), a rarity edge using the shared `--ag-rarity-*` colours, and **column headers** for the facts in each list. Facts are dnd5e's own prepared labels and item data: weapons Damage / To hit / Range / Properties; actions Range / Damage / Uses / Recovery; gear Qty / Weight / Value / Uses; spells School / Casting time / Range / Duration (C concentration, R ritual) / Components; features Use time / Uses / Recovery. Narrow windows show each fact with its own label. Every action is kept (Use, Cast, Prepare, Equip/Unequip, Attune, quantity, Move to party stash).
+- **Combat:** the Roll initiative button is gone from the tab (initiative is on the left).
+- **Search box** on Combat, Magic and Features too (Inventory already had one); the text is kept per tab while the sheet is open, and a group with no match is hidden.
+- **Magic:** Group by spell level (with slots), school or none; Sort by name, level, school or prepared first. When not grouped by level, the slots show in a strip at the top.
+- **Features:** Group by feature type, use time or none; Sort by name, type or has-uses first.
+- **Favourites** (Magic, Features): a star per item uses dnd5e's own character favourites (the standard sheet's Favorites list), so nothing new is stored; starred items also show in a Favourites group at the top. Owner or GM only (refused in the action layer). No star on a dnd5e version without favourites.
+- Groups fold as before (0.10.0 fold state; existing fold choices for spell levels and feature types are kept).
+- Saved data: one new client setting (`listSort`, group/sort per tab). Favourites are dnd5e's own `system.favorites`. No migration needed.
+
 ## 0.10.0 — 2026-10-21
 
 Sheet polish from Robb's alpha feedback (part 1):
