@@ -33,9 +33,10 @@ test('reference target-type mismatch and definition to campaign-state link are i
   assert.match(validatePackage(q).join(' '),/may not reference campaign state/);
 });
 test('optional missing refs get warnings and survive in canonical source flags',()=>{
-  const p=copy();p.records[0].refs=[{relation:'some_future_system',target_id:'FACTION-NOT-INSTALLED',mode:'optional'}];
+  // 0.44.2: FACTION- now belongs to Renown and is informational; an id no module owns is still a warning.
+  const p=copy();p.records[0].refs=[{relation:'some_future_system',target_id:'ZZZ-NOT-INSTALLED',mode:'optional'}];
   assert.deepEqual(validatePackage(p),[]);
-  assert.match(checkContractGraph(p.records).warnings.join(' '),/FACTION-NOT-INSTALLED/);
+  assert.match(checkContractGraph(p.records).warnings.join(' '),/ZZZ-NOT-INSTALLED/);
   assert.deepEqual(projectedReferences(p.records[0].refs,[]),p.records[0].refs);
 });
 test('partial selected import refuses absent dependencies but accepts Location-owned RES',()=>{

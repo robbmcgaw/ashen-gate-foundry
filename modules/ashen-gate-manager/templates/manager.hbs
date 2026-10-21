@@ -118,6 +118,7 @@
       {{/each}}
     </section>
     {{/if}}
+    {{#if hasModuleLinks}}<div class="ag-notice ag-notice--info" role="status"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><div><strong>Links to other Ashen Gate modules</strong> (for information; those records are imported separately and their ids are kept)<ul>{{#each moduleLinks}}<li>{{message}}</li>{{/each}}</ul></div></div>{{/if}}
     {{#if hasWarnings}}<div class="ag-notice ag-notice--warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><div><strong>Import review notes</strong><ul>{{#each warnings}}<li>{{message}}</li>{{/each}}</ul></div></div>{{/if}}
     {{#if hasErrors}}
       <div class="ag-notice ag-notice--danger" role="alert"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><div><strong>Validation failed — import blocked</strong><ul>{{#each errors}}<li>{{message}}</li>{{/each}}</ul></div></div>

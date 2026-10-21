@@ -222,6 +222,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.preview = [];
     this.errors = [];
     this.warnings = [];
+    this.moduleLinks = [];
     this.includeDrafts = false;
     this.updateExisting = false;
     this.updateActors = false;
@@ -647,6 +648,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       errors: this.errors.map(message => ({message})),
       warnings: this.warnings.map(message => ({message})),
       hasWarnings: this.warnings.length > 0,
+      moduleLinks: (this.moduleLinks ?? []).map(message => ({message})),
+      hasModuleLinks: (this.moduleLinks?.length ?? 0) > 0,
       schemaVersion: this.specialist ? (this.specialist.payload?.schema_version ?? this.specialist.payload?.schema ?? "list") : (this.pkg?.manifest?.schema_version ?? "—"),
       hasErrors: this.errors.length > 0,
       hasPreview: this.preview.length > 0 && !this.errors.length,
@@ -1010,7 +1013,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   /** Forgets any loaded file (and its banner) so a failed or new load never shows the previous file as loaded. */
   #clearLoaded(message) {
     this.pkg=null; this.rawPkg=null; this.specialist=null; this.zipMedia=new Map(); this.packageSource=null;
-    this.preview=[]; this.errors=[]; this.warnings=[]; this.selected.clear();
+    this.preview=[]; this.errors=[]; this.warnings=[]; this.moduleLinks=[]; this.selected.clear();
     this.message=message;
   }
   /** Starts a multi-file ZIP: the ticked files, Manager package(s) first, each through the normal preview and Apply. */
@@ -1068,7 +1071,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   }
   async #previewSpecialist() {
     const {kind,payload}=this.specialist;
-    this.warnings=[]; this.preview=[]; this.selected.clear();
+    this.warnings=[]; this.moduleLinks=[]; this.preview=[]; this.selected.clear();
     try {
       const plan=planSpecialist(kind,payload,specialistApi(game,kind),{updateExisting:this.updateExisting});
       this.errors=plan.errors; this.preview=plan.errors.length?[]:plan.rows;
@@ -1121,6 +1124,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const externalIds = withLocationIds(existingSourceIndex(), locationsApi(game));
     this.errors = validatePackage(this.pkg, externalIds);
     this.warnings = [];
+    this.moduleLinks = [];
     // Cinder / Power / Backfire-table blocks are checked by Ashen Gate | Cinders when it is active (0.39.0).
     const cinderChecks = cinderDefinitionChecks(game, this.pkg.records);
     this.errors.push(...cinderChecks.errors); this.warnings.push(...cinderChecks.warnings);
@@ -1130,7 +1134,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     if (this.pkg.manifest.schema_version === 'ag-foundry-import/0.1') {
       this.warnings.push('Legacy import package: accepted for compatibility; future exports should use Archie typed references and v0.2 metadata.');
     } else if (isContractImport(this.pkg) && !this.errors.length) {
-      this.warnings.push(...checkContractGraph(this.pkg.records,externalIds).warnings);
+      // 0.44.2: absent optional links to another module's records (LOC-, FACTION-, QUEST-, FAC-, ...) are informational.
+      const graphNotes=checkContractGraph(this.pkg.records,externalIds,id=>Boolean(game.modules?.get?.(id)?.active));
+      this.warnings.push(...graphNotes.warnings);
+      this.moduleLinks.push(...graphNotes.moduleLinks);
       if (this.pkg.legacy_crosswalk?.length) this.warnings.push(`${this.pkg.legacy_crosswalk.length} legacy crosswalk entry/entries supplied for review only; the Manager will not rebind IDs automatically.`);
     }
     this.preview = [];
@@ -1185,7 +1192,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     await this.render();
   }
   #exportPreview() {
-    const report = {generated_at:new Date().toISOString(), manifest:this.pkg?.manifest ?? (this.specialist?{specialist:SPECIALISTS[this.specialist.kind].label}:null), errors:this.errors, warnings:this.warnings, preview:this.preview.map(({id, name, kind, lifecycle, action, reason, patch, changes, effects})=>({id,name,kind,lifecycle,action,reason,patch,changes,effects:effects?.rows??undefined}))};
+    const report = {generated_at:new Date().toISOString(), manifest:this.pkg?.manifest ?? (this.specialist?{specialist:SPECIALISTS[this.specialist.kind].label}:null), errors:this.errors, warnings:this.warnings, module_links:this.moduleLinks??[], preview:this.preview.map(({id, name, kind, lifecycle, action, reason, patch, changes, effects})=>({id,name,kind,lifecycle,action,reason,patch,changes,effects:effects?.rows??undefined}))};
     downloadJson("ag-import-preview.json",report);
   }
   async #tagSelected() {

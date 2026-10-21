@@ -1,4 +1,4 @@
-import {CONTRACT_ID, isContractImport, checkContractRecord, checkContractGraph, checkLegacyCrosswalk} from "./contract.js";
+import {CONTRACT_ID, isContractImport, checkContractRecord, checkContractGraph, checkLegacyCrosswalk, ownerModuleFor} from "./contract.js";
 import {domainHandoff} from './delivery.js';
 import {validateLogicalProjection} from './source-projection.mjs';
 import {validateImportPresentation} from './import-fidelity.js';
@@ -161,7 +161,7 @@ export function validatePackage(input, existingIds = new Set()) {
   }
   for (const record of input.records) {
     for (const ref of refsFor(record)) {
-      if (!ref.optional && !ids.has(ref.id) && !existingIds.has(ref.id)) errors.push(`${record.id}: unresolved required reference ${ref.id}.`);
+      if (!ref.optional && !ids.has(ref.id) && !existingIds.has(ref.id)) {const owner=ownerModuleFor(ref.id);errors.push(`${record.id}: unresolved required reference ${ref.id}.${owner?` It is a ${owner.label} record (imported separately): import it in ${owner.label} first, or make the link optional.`:''}`);}
     }
   }
   return errors;

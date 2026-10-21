@@ -67,9 +67,32 @@ export function checkContractRecord(rec, label) {
   return errors;
 }
 
-/** Existing index accepts world source flags with entityType/scope, or full source records. */
-export function checkContractGraph(records, externalIndex = new Map()) {
-  const errors=[],warnings=[];
+/**
+ * 0.44.2: id prefixes owned by another Ashen Gate module, which imports and keeps those records itself.
+ * A link to one that is not in this package or world is not a Manager problem, just a record that comes in
+ * separately. Ids Manager imports itself (MAT-, PROF-, REC-, PERK-, ITEM-, ...) are not listed and stay "missing".
+ */
+export const MODULE_OWNED_PREFIXES = Object.freeze([
+  {moduleId:'ashen-gate-locations', label:'Locations', prefixes:['LOC-','RTE-']},
+  {moduleId:'ashen-gate-factions', label:'Renown', prefixes:['FACTION-','RENOWN-','DEITY-']},
+  {moduleId:'ashen-gate-quest-manager', label:'Quest Log', prefixes:['QUEST-','ORDER-','CONTRACT-','ASSIGN-']},
+  {moduleId:'ashen-gate-headquarters', label:'Headquarters', prefixes:['FAC-']}
+]);
+/** The module that owns an id by its prefix, or null when Manager (or nobody) does. */
+export function ownerModuleFor(id) {
+  const value=String(id ?? '');
+  return MODULE_OWNED_PREFIXES.find(o=>o.prefixes.some(p=>value.startsWith(p))) ?? null;
+}
+/** Preview wording for a link to another module's record. `active` (optional) is whether that module is on here. */
+export function moduleLinkNote(recId, targetId, owner, active) {
+  return `${recId}: links to ${owner.label} record ${targetId} (imported separately).${active===false?` ${owner.label} is not active in this world.`:''}`;
+}
+
+/** Existing index accepts world source flags with entityType/scope, or full source records.
+ * `moduleLinks` lists absent optional links to records another module owns; they are informational, not warnings.
+ * `isModuleActive(moduleId)` (optional) lets the caller feature-detect the owning module for the wording. */
+export function checkContractGraph(records, externalIndex = new Map(), isModuleActive = null) {
+  const errors=[],warnings=[],moduleLinks=[];
   const internal=new Map(records.map(rec=>[rec.id,rec]));
   for (const rec of records) if (rec.entity_type === 'Location') {
     for (const child of rec.resource_opportunities ?? []) {
@@ -82,7 +105,11 @@ export function checkContractGraph(records, externalIndex = new Map()) {
   for (const rec of records) for (const link of rec.refs ?? []) {
     const target=internal.get(link.target_id) ?? external.get(link.target_id);
     if (!target) {
-      if (link.mode==='required') errors.push(`${rec.id}: unresolved required reference ${link.target_id}.`);
+      const owner=ownerModuleFor(link.target_id);
+      const active=owner && typeof isModuleActive==='function' ? Boolean(isModuleActive(owner.moduleId)) : undefined;
+      // A required link still blocks (import behaviour unchanged); the message says where the record comes from.
+      if (link.mode==='required') errors.push(`${rec.id}: unresolved required reference ${link.target_id}.${owner?` It is a ${owner.label} record (imported separately): import it in ${owner.label} first, or make the link optional.`:''}`);
+      else if (owner) moduleLinks.push(moduleLinkNote(rec.id,link.target_id,owner,active));
       else warnings.push(`${rec.id}: optional reference ${link.target_id} absent; its canonical ID will be preserved for later resolution.`);
       continue;
     }
@@ -92,7 +119,7 @@ export function checkContractGraph(records, externalIndex = new Map()) {
     if (rec.scope && rec.scope!=='campaign_state' && target.scope==='campaign_state')
       errors.push(`${rec.id}: a reusable definition may not reference campaign state ${link.target_id}.`);
   }
-  return {errors,warnings};
+  return {errors,warnings,moduleLinks};
 }
 
 /** Only apply if every required dependency is existing or selected for import. */
