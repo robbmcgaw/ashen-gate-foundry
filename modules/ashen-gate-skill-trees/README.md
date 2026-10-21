@@ -70,7 +70,7 @@ if (accounts?.contract === 'ag-tree-accounts/1') { /* ... */ }
 - Hook `ashenGateSkillTrees.progressChanged` `{actorId, treeId, sourceRef, kind, wallet, account}` fires after every account write.
 - Hook `ashenGateSkillTrees.checkProgress` `{actorId, actorName, treeId, sourceRef, kind, action, blocked}` fires before points are awarded or a node is unlocked. A partner refuses by setting `check.blocked` to a reason, which is shown to the user.
 
-**Strain, Cinder instances, Push and Backfire** were part of Skill Trees in 0.15.0–0.16.0. Since 0.17.0 they are in the separate module **Ashen Gate | Cinders** (`ashen-gate-cinders`). Skill Trees keeps the Cinder trees themselves: `cinder_milestone` trees, POWER-* nodes, the 13-point wallet and unlocks.
+**Strain, Cinder instances, Push and Backfire** were part of Skill Trees in 0.15.0–0.16.0. Since 0.17.0 they are in the separate module **Ashen Gate | Cinders** (`ashen-gate-cinders`). Skill Trees keeps the Cinder trees themselves: `cinder_milestone` trees, POWER-* nodes, the 16-point wallet (13 before 0.17.1) and unlocks.
 
 ## Install
 

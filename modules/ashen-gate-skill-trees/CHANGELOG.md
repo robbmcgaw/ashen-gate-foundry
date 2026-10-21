@@ -1,3 +1,9 @@
+## 0.17.1 — 2026-10-21
+
+- **Cinder point cap is now 16** (was 13). A `cinder_milestone` tree's wallet holds up to 16 lifetime points. Tree View shows "Cinder • 16-point milestone wallet", New tree and Award say 16.
+- **Saved and old trees:** nothing is rewritten. A tree saved or imported with `maxPoints: 13` still loads, validates and works; it reads as 16. Import accepts 13 or 16 for a Cinder tree (16 is the default); any other number is refused. Points already awarded are unchanged.
+- Starting points and GM awards (one point per uniquely labelled milestone) are unchanged.
+
 ## 0.17.0 — 2026-10-21
 
 - **Strain, Cinder instances, Push and Backfire moved to the new module Ashen Gate | Cinders** (`ashen-gate-cinders` 0.1.0). Install it alongside this version, and update both together: Cinders 0.1.0 refuses to start next to Skill Trees 0.15.0/0.16.0. The Cinders tab, the Push section and GM Setup → Strain are gone from this window; they are in the Cinders window now. `api.strain` and `api.cinder` are removed from Skill Trees.
