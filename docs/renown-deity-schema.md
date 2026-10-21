@@ -4,6 +4,8 @@ Module `ashen-gate-factions` (Renown) 0.11.0 or later. A deity is a Renown defin
 
 Standing with a deity is **per character only**. A deity has no group score and no group track. All of its rewards use `audience: "individual"`. Re-importing never changes a deity that is already in the world (same rule as factions). Its card, ranks, discovery and every character's favour stay as they are.
 
+The file is checked as a whole: any error (a bad definition, a duplicate `id` within the file, a deity in a `0.3` file, a bad `starting_state` row) blocks the entire import and nothing is written. A definition whose `id` is already in the world is skipped. A `starting_state` character name that matches no Actor is skipped and listed after the import.
+
 ## Top-level fields
 
 | Field | Type | Required | Default / notes |
@@ -14,23 +16,23 @@ Standing with a deity is **per character only**. A deity has no group score and 
 | `version` | string | no | Always stored as `"0.3.0"` (record version, not the file schema); any value given is replaced |
 | `provenance` | `{sources: string[≥1], decision_refs?: string[]}` | no | Missing: `{sources: ["Legacy faction import"]}`. Write it |
 | `visibility` | `player` \| `gm` \| `reveal_gated` | yes | No default: missing is an error. Use `reveal_gated` |
-| `refs` | `{relation, target_id, mode: required\|optional}[]` | no | `[]` |
+| `refs` | `{relation, target_id, mode: required\|optional}[]` | no | `[]`. A missing `mode` becomes `optional`; `target_id` must be a canonical id |
 | `scope` | `generic_rules` \| `setting_adapter` \| `publication` \| null | no | |
 | `name` | string, non-empty | yes | |
-| `tags` | string[] | no | GM-only keywords, never shown to players |
+| `tags` | string[] | no | `[]`. GM-only keywords, never shown to players |
 | `discovery` | `{placeholder: boolean, sharing_enabled: boolean}` | no | `{placeholder:false, sharing_enabled:true}`. Who has discovered it is play state and is never in the file |
 | `individual_track` | RenownTrack | yes | The deity's own rank ladder, see below |
 | `entries` | lore entry[] | no | `[]`. Same shape as faction information entries. `unlock` is `manual` or `individual_renown` (no `group_renown`) |
 | `rewards` | reward[] | no | `[]`. Same shape as faction rewards, but `audience` must be `individual` |
 | `deity` | Deity profile | no | A blank `major` profile. See below |
 
-Faction-only fields (`leader`, `public_role`, `folder_key`, `renown_track`) are not kept on a deity: the importer drops them silently, so don't write them. Any other field not listed here, at any level, makes the import fail rather than being dropped (except the legacy keys `state`, `field_reveals` and `discovery.party` / `discovery.actors`, which are stripped).
+Faction-only fields (`leader`, `public_role`, `folder_key`, `renown_track`) are not kept on a deity: the importer drops them silently, so don't write them. Any other field not listed here, at any level, makes the import fail rather than being dropped (except the legacy keys `state`, `field_reveals`, `discovery.party` / `discovery.actors`, `entries[].discovered_party` / `entries[].discovered_actors` and `rewards[].document_type`, which are stripped; an entry's `uuid: null` is also removed).
 
 ## `deity` profile
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
-| `symbol` | string | `""` | Image path of the holy symbol, e.g. a Forge Assets Library path `assets/ashen-gate/deities/<name>.png`. Max 500 characters; `javascript:`/`data:` refused. If empty or missing, a plain sun glyph is shown |
+| `symbol` | string | `""` | Image path of the holy symbol, e.g. a Forge Assets Library path `assets/ashen-gate/deities/<name>.png`. Max 500 characters; `javascript:`/`data:`/`vbscript:` refused. If empty or missing, a plain sun glyph is shown |
 | `title` | string | `""` | Epithet shown under the name |
 | `domain` | string | `""` | |
 | `tier` | `major` \| `lesser` | `major` | Shown as Major / Lesser; tiles are grouped by it |
@@ -46,8 +48,8 @@ The seven text fields (`title` … `practices`) hold up to 4000 characters each.
 
 ## RenownTrack (`individual_track`)
 
-Same as a faction track: `{id: "RENOWN-…", entity_type: "RenownTrack", status, version, provenance, visibility, refs, default_scope: "individual", milestones: [5 rows]}`. `status`, `visibility`, `default_scope` and all five `milestones` are required in the file. Write `default_scope: "individual"`: the importer does not check it, but a deity has no group standing.
-Each milestone is `{id, key, name, threshold, benefit, selection_mode: all|choose_one}`. `name` is the deity's rank title. The first threshold must be 0, and thresholds must go up. A deity created in the Renown window starts with `Rank I`–`Rank V` at 0 / 3 / 6 / 10 / 15, the same progression as factions.
+Same as a faction track: `{id: "RENOWN-…", entity_type: "RenownTrack", status, version, provenance, visibility, refs, default_scope: "individual", milestones: [5 rows]}`. `status`, `visibility`, `default_scope` and all five `milestones` are required in the file; `version` is replaced with `"0.3.0"`, a missing `provenance` becomes `{sources: ["Legacy Renown track"]}`, and missing `refs` become `[{relation: "for_faction", target_id: <deity id>, mode: "required"}]` (a ref without `mode` gets `required`). Write `default_scope: "individual"`: the importer does not check it, but a deity has no group standing.
+Each milestone is `{id, key, name, threshold, benefit, selection_mode: all|choose_one}`. `key` defaults to `milestone_<n>` and `selection_mode` to `all`; `benefit` is required (use `""`). `name` is the deity's rank title. The first threshold must be 0, and thresholds must go up. A deity created in the Renown window starts with `Rank I`–`Rank V` at 0 / 3 / 6 / 10 / 15, the same progression as factions.
 
 ## `starting_state` for deities
 
@@ -135,6 +137,8 @@ Undo (GM): click **Undo** on a history entry. It adds reversing entries for that
 
 ## Read API (`game.modules.get('ashen-gate-factions').api`)
 
-- `getDeities()` — GM: every deity's source definition. Player: their projected view, i.e. only deities revealed to one of their characters, as flat cards with that player's characters' standing.
+- `getDeities()` — GM: every deity's source definition. Player: their projected view, i.e. only deities revealed to the party or to one of their characters, as flat cards with that player's characters' standing.
 - `getPantheon(actorOrId)` — one character's standing with each deity that character knows: `[{id, name, symbol, title, domain, tier, tierLabel, score, rank, next: {name, threshold} | null, remaining, percent}]`, Major first, then by name. A player only gets characters they own, and only from their projected view.
 - `getFactions()` lists factions only, never deities.
+- For a player, all three throw `Renown is hidden from players. Ask your GM to enable Player Access.` while Player Access is off.
+- `previewFactionsImport(data)` / `importFactions(data)` (GM) run the import described above; deities and factions share them.
