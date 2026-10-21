@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import {RULES, kitBlocks, lintModule, checkSizeSets, checkSkinCoverage, contrast} from './ui-lint.mjs';
+import {RULES, kitBlocks, lintModule, judgeModule, modeFor, checkBaselineModules, readBaseline, checkSizeSets, checkSkinCoverage, contrast} from './ui-lint.mjs';
 
 const kitCss = `/* ag-ui kit 2.0.0 */
 :root { --ag-text-md: 13px; --ag-space-1: 3px; --ag-control-h: 28px; --ag-radius: 8px; }
@@ -77,4 +77,86 @@ test('every kit block must be mentioned in each structural skin', () => {
 test('contrast ratio matches WCAG', () => {
   assert.equal(Math.round(contrast([0, 0, 0], [1, 1, 1])), 21);
   assert.equal(contrast([1, 1, 1], [1, 1, 1]), 1);
+});
+
+// ---------- Strict rules (brief 14) ----------
+const STRICT = ['css-colour-literal', 'css-raw-font-size', 'css-legacy-alias', 'css-viewport-media', 'css-kit-prefix-class',
+  'js-dialogv2-direct', 'header-brand-version', 'button-title-attr', 'fa-legacy-prefix'];
+const PLANTED = {
+  'css-colour-literal': {'styles/mod.css': '.agx-a { color: #c0ffee; }'},
+  'css-raw-font-size': {'styles/mod.css': '.agx-a { font-size: 9px; }'},
+  'css-legacy-alias': {'styles/mod.css': '.agx-a { background: var(--ag-panel); }'},
+  'css-viewport-media': {'styles/mod.css': '@media (max-width: 700px) { .agx-a { display: none; } }'},
+  'css-kit-prefix-class': {'styles/mod.css': '.ag-homemade { display: none; }'},
+  'js-dialogv2-direct': {'scripts/a.mjs': 'await foundry.applications.api.DialogV2.confirm({});'},
+  'header-brand-version': {'templates/t.hbs': '<header class="ag-header"><h1>Ashen Gate</h1></header>'},
+  'button-title-attr': {'templates/t.hbs': '<button type="button" title="Delete">x</button>'},
+  'fa-legacy-prefix': {'templates/t.hbs': '<i class="fas fa-trash"></i>'},
+};
+const zeroBaseline = id => ({[id]: {'css-raw-px-box': 0}});
+
+test('rule modes: these rules are strict, css-raw-px-box stays a ratchet', () => {
+  for (const rule of STRICT) assert.equal(RULES[rule].mode, 'strict', rule);
+  assert.equal(RULES['css-raw-px-box'].mode, 'ratchet');
+  assert.deepEqual(Object.keys(RULES).sort(), [...STRICT, 'css-raw-px-box'].sort(), 'every rule is either strict or the px ratchet');
+});
+
+for (const rule of STRICT) {
+  test(`strict rule ${rule} fails on a planted violation`, () => {
+    const id = 'ag-fixture';
+    const result = lintModule(fakeModule(PLANTED[rule]), kitBlocks(kitCss));
+    assert.equal(result.counts[rule], 1, `planted ${rule} is counted once`);
+    for (const [k, n] of Object.entries(result.counts)) if (k !== rule) assert.equal(n, 0, `${k} is not hit by the ${rule} plant`);
+    const {failures} = judgeModule(id, result, zeroBaseline(id));
+    assert.equal(failures.length, 1);
+    assert.match(failures[0], new RegExp(`^${id}: ${rule} must be 0, found 1`));
+    // A baseline count does not loosen a strict rule.
+    assert.equal(judgeModule(id, result, {[id]: {[rule]: 5}}).failures.length, 1);
+  });
+}
+
+test('ag-lint-allow exempts a colour line, but not a raw font size', () => {
+  const dir = fakeModule({'styles/mod.css': '.agx-hp { color: #b33; } /* ag-lint-allow: HP colour */\n.agx-t { font-size: 9px; } /* ag-lint-allow: nope */'});
+  const result = lintModule(dir, kitBlocks(kitCss));
+  assert.equal(result.counts['css-colour-literal'], 0);
+  assert.equal(result.counts['css-raw-font-size'], 1);
+  assert.deepEqual(judgeModule('ag-fixture', result, zeroBaseline('ag-fixture')).failures.map(f => f.split(':')[1].trim()), ['css-raw-font-size must be 0, found 1']);
+});
+
+test('the per-module exception list keeps a strict rule as a ratchet for that module only', () => {
+  const kit = kitBlocks(kitCss);
+  const result = lintModule(fakeModule({'styles/mod.css': '.agx-a { color: #111; }\n.agx-b { color: #222; }'}), kit);
+  const baseline = {'ag-old': {'css-raw-px-box': 0, 'css-colour-literal': 2}, 'ag-other': {'css-raw-px-box': 0, 'css-colour-literal': 2}};
+  const exceptions = {'ag-old': ['css-colour-literal']};
+  assert.equal(modeFor('ag-old', 'css-colour-literal', baseline, exceptions), 'ratchet');
+  assert.equal(modeFor('ag-other', 'css-colour-literal', baseline, exceptions), 'strict');
+  assert.equal(modeFor('ag-old', 'css-raw-font-size', baseline, exceptions), 'strict');
+  assert.deepEqual(judgeModule('ag-old', result, baseline, exceptions).failures, [], 'at the baseline: passes');
+  assert.match(judgeModule('ag-other', result, baseline, exceptions).failures.join(), /ag-other: css-colour-literal must be 0, found 2/);
+  const worse = lintModule(fakeModule({'styles/mod.css': '.agx-a { color: #111; }\n.agx-b { color: #222; }\n.agx-c { color: #333; }'}), kit);
+  assert.match(judgeModule('ag-old', worse, baseline, exceptions).failures.join(), /ag-old: css-colour-literal went up from 2 to 3/);
+  const better = lintModule(fakeModule({'styles/mod.css': '.agx-a { color: #111; }'}), kit);
+  assert.match(judgeModule('ag-old', better, baseline, exceptions).notes.join(), /went down from 2 to 1/);
+});
+
+test('a module missing from the baseline starts strict on every rule, px boxes too', () => {
+  const result = lintModule(fakeModule({'styles/mod.css': '.agx-a { padding: 4px; }'}), kitBlocks(kitCss));
+  for (const rule of Object.keys(RULES)) assert.equal(modeFor('ag-new', rule, {}, {'ag-new': [rule]}), 'strict', rule);
+  assert.match(judgeModule('ag-new', result, {}).failures.join(), /ag-new: css-raw-px-box must be 0 \(new module/);
+  assert.deepEqual(judgeModule('ag-new', result, {'ag-new': {'css-raw-px-box': 1}}).failures, [], 'once baselined, px boxes ratchet');
+});
+
+test('the baseline and exception list cannot name a module that does not exist', () => {
+  assert.deepEqual(checkBaselineModules(['ag-a'], {'ag-a': {}}, {}), []);
+  assert.deepEqual(checkBaselineModules(['ag-a'], {'ag-a': {}, 'ag-gone': {}}, {'ag-gone2': ['css-colour-literal']}), [
+    'ui-lint-baseline.json lists ag-gone, which is not a module; remove it',
+    'STRICT_EXCEPTIONS lists ag-gone2, which is not a module; remove it',
+  ]);
+});
+
+test('the real baseline holds only ratchet rules for real modules', () => {
+  const baseline = readBaseline();
+  const modules = fs.readdirSync(new URL('../modules/', import.meta.url)).filter(id => fs.existsSync(new URL(`../modules/${id}/module.json`, import.meta.url)));
+  assert.deepEqual(checkBaselineModules(modules, baseline), []);
+  for (const [id, rules] of Object.entries(baseline)) for (const rule of Object.keys(rules)) assert.equal(modeFor(id, rule, baseline), 'ratchet', `${id} ${rule}`);
 });

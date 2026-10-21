@@ -2,7 +2,11 @@
 // regexes, like the rest of check.mjs. Two kinds of rule:
 //   - ratchet: a per-module count stored in scripts/ui-lint-baseline.json; it may go down, never up;
 //   - strict: must be zero now.
-// A CSS line can opt out of a ratchet rule with /* ag-lint-allow: reason */ on the same line.
+// STRICT_EXCEPTIONS keeps a strict rule as a ratchet for one named module until that module is fixed.
+// A module missing from the baseline (a new module) is strict on every rule, and the baseline may only
+// list modules that exist.
+// A CSS line can opt out of a rule marked "allow" (colour literals, px boxes) with /* ag-lint-allow: reason */
+// on the same line.
 // Usage: node scripts/ui-lint.mjs [--update-baseline]   (rewrites the baseline from the current tree)
 import fs from 'node:fs';
 import path from 'node:path';
@@ -49,15 +53,15 @@ function selectors(css) {
 // ---------- Rules over one module's own files ----------
 // Each returns a count for a module (module CSS = styles/**/*.css except the kit and Manager's skins).
 export const RULES = {
-  'css-colour-literal': {mode: 'ratchet', css: line => (line.match(/#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(/g) ?? []).length},
-  'css-raw-font-size': {mode: 'ratchet', css: line => (line.match(/font-size\s*:\s*[\d.]+(?:px|rem|em)\b/g) ?? []).length + (line.match(/\bfont\s*:[^;]*?\b[\d.]+(?:px|rem|em)\b/g) ?? []).length},
-  'css-legacy-alias': {mode: 'ratchet', css: line => (line.match(/var\(--ag-(?:bg|panel)\)/g) ?? []).length},
-  'css-viewport-media': {mode: 'ratchet', css: line => (line.match(/@media[^{]*\((?:max|min)-width/g) ?? []).length},
-  'css-raw-px-box': {mode: 'ratchet', css: line => (line.match(/(?:^|[;{\s])(?:padding|gap|margin|height|width|min-height|min-width|max-height|max-width|row-gap|column-gap)(?:-(?:top|right|bottom|left|inline|block))?\s*:[^;}]*?\b\d*\.?\d+px\b/g) ?? []).length},
-  'css-kit-prefix-class': {mode: 'ratchet'}, // strict in the plan; ratchet until module passes rename their own .ag-* classes
-  'js-dialogv2-direct': {mode: 'ratchet', code: text => (text.match(/DialogV2\.(?:confirm|prompt)\(/g) ?? []).length},
+  'css-colour-literal': {mode: 'strict', allow: true, css: line => (line.match(/#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(/g) ?? []).length},
+  'css-raw-font-size': {mode: 'strict', css: line => (line.match(/font-size\s*:\s*[\d.]+(?:px|rem|em)\b/g) ?? []).length + (line.match(/\bfont\s*:[^;]*?\b[\d.]+(?:px|rem|em)\b/g) ?? []).length},
+  'css-legacy-alias': {mode: 'strict', css: line => (line.match(/var\(--ag-(?:bg|panel)\)/g) ?? []).length},
+  'css-viewport-media': {mode: 'strict', css: line => (line.match(/@media[^{]*\((?:max|min)-width/g) ?? []).length},
+  'css-raw-px-box': {mode: 'ratchet', allow: true, css: line => (line.match(/(?:^|[;{\s])(?:padding|gap|margin|height|width|min-height|min-width|max-height|max-width|row-gap|column-gap)(?:-(?:top|right|bottom|left|inline|block))?\s*:[^;}]*?\b\d*\.?\d+px\b/g) ?? []).length},
+  'css-kit-prefix-class': {mode: 'strict'}, // counted in lintModule from selectors
+  'js-dialogv2-direct': {mode: 'strict', code: text => (text.match(/DialogV2\.(?:confirm|prompt)\(/g) ?? []).length},
   'fa-legacy-prefix': {mode: 'strict', code: text => (text.match(/class=["'`](?:fas|far) /g) ?? []).length + (text.match(/class=["'`][^"'`]*\s(?:fas|far)\s/g) ?? []).length},
-  'header-brand-version': {mode: 'ratchet', code: text => {
+  'header-brand-version': {mode: 'strict', code: text => {
     let n = 0;
     for (const m of text.matchAll(/class=["'`]ag-header(?=[\s"'`])/g)) {
       const end = text.indexOf('</header>', m.index);
@@ -66,8 +70,42 @@ export const RULES = {
     }
     return n;
   }},
-  'button-title-attr': {mode: 'ratchet', code: text => (text.match(/<button\b[^>]*\stitle=/g) ?? []).length},
+  'button-title-attr': {mode: 'strict', code: text => (text.match(/<button\b[^>]*\stitle=/g) ?? []).length},
 };
+
+// Strict rules kept as a ratchet for one module only, {moduleId: [rule, ...]}; the count lives in the baseline.
+// Each entry needs a follow-up in docs/ui-pass-plan.md. Empty: every module passed every strict rule at 0.
+export const STRICT_EXCEPTIONS = {};
+
+/** The mode a rule has for one module: new modules (not in the baseline) are strict on every rule. */
+export function modeFor(id, rule, baseline, exceptions = STRICT_EXCEPTIONS) {
+  if (!Object.hasOwn(baseline, id)) return 'strict';
+  return RULES[rule].mode === 'ratchet' || exceptions[id]?.includes(rule) ? 'ratchet' : 'strict';
+}
+
+/** Compares one module's counts with its baseline. Returns {failures, notes}. */
+export function judgeModule(id, {counts, where}, baseline, exceptions = STRICT_EXCEPTIONS) {
+  const failures = [], notes = [];
+  const isNew = !Object.hasOwn(baseline, id);
+  for (const [rule, n] of Object.entries(counts)) {
+    if (modeFor(id, rule, baseline, exceptions) === 'strict') {
+      if (n > 0) failures.push(`${id}: ${rule} must be 0${isNew ? ' (new module: every rule is strict until it is in the baseline)' : ''}, found ${n}: ${where[rule].slice(0, 8).join(', ')}`);
+      continue;
+    }
+    const base = baseline[id]?.[rule] ?? 0;
+    if (n > base) failures.push(`${id}: ${rule} went up from ${base} to ${n} (ratchet: counts may only go down): ${where[rule].slice(0, 8).join(', ')}`);
+    else if (n < base) notes.push(`${id}: ${rule} went down from ${base} to ${n}; run node scripts/ui-lint.mjs --update-baseline to lock it in`);
+  }
+  return {failures, notes};
+}
+
+/** The baseline and the exception list may only name modules that exist. */
+export function checkBaselineModules(moduleIds, baseline, exceptions = STRICT_EXCEPTIONS) {
+  const have = new Set(moduleIds), problems = [];
+  for (const id of Object.keys(baseline)) if (!have.has(id)) problems.push(`ui-lint-baseline.json lists ${id}, which is not a module; remove it`);
+  for (const id of Object.keys(exceptions)) if (!have.has(id)) problems.push(`STRICT_EXCEPTIONS lists ${id}, which is not a module; remove it`);
+  return problems;
+}
 
 /** Module CSS files (not the kit, not Manager's structural skins) and runtime scripts/templates (not tests). */
 function moduleFiles(dir) {
@@ -87,7 +125,7 @@ export function lintModule(dir, kit) {
     const lines = raw.split('\n'), clean = stripComments(raw).split('\n');
     clean.forEach((line, i) => {
       for (const [k, rule] of Object.entries(RULES)) {
-        if (!rule.css || (rule.mode === 'ratchet' && allowed(lines[i]))) continue;
+        if (!rule.css || (rule.allow && allowed(lines[i]))) continue;
         const n = rule.css(line);
         if (n) { counts[k] += n; where[k].push(`${r}:${i + 1}`); }
       }
@@ -246,19 +284,13 @@ export async function runUiLint(ids = []) {
   const kitCss = fs.readFileSync(kitPath, 'utf8');
   const kit = kitBlocks(kitCss);
   const baseline = readBaseline();
-  const failures = [], notes = [], counts = {};
+  const failures = checkBaselineModules(all, baseline), notes = [], counts = {};
   for (const id of wanted) {
-    const {counts: c, where} = lintModule(path.join(modulesDir, id), kit);
-    counts[id] = c;
-    for (const [rule, n] of Object.entries(c)) {
-      const mode = RULES[rule].mode;
-      if (mode === 'strict' && n > 0) failures.push(`${id}: ${rule} must be 0, found ${n}: ${where[rule].slice(0, 8).join(', ')}`);
-      if (mode === 'ratchet') {
-        const base = baseline[id]?.[rule] ?? 0;
-        if (n > base) failures.push(`${id}: ${rule} went up from ${base} to ${n} (ratchet: counts may only go down): ${where[rule].slice(0, 8).join(', ')}`);
-        else if (n < base) notes.push(`${id}: ${rule} went down from ${base} to ${n}; run node scripts/ui-lint.mjs --update-baseline to lock it in`);
-      }
-    }
+    const result = lintModule(path.join(modulesDir, id), kit);
+    counts[id] = result.counts;
+    const judged = judgeModule(id, result, baseline);
+    failures.push(...judged.failures);
+    notes.push(...judged.notes);
   }
   if (!ids.length || ids.includes(MANAGER)) {
     const managerDir = path.join(modulesDir, MANAGER);
@@ -273,7 +305,8 @@ export async function runUiLint(ids = []) {
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const {failures, notes, counts} = await runUiLint();
   if (process.argv.includes('--update-baseline')) {
-    const out = Object.fromEntries(Object.entries(counts).map(([id, c]) => [id, Object.fromEntries(Object.entries(c).filter(([k]) => RULES[k].mode === 'ratchet'))]));
+    const ratchet = (id, k) => RULES[k].mode === 'ratchet' || STRICT_EXCEPTIONS[id]?.includes(k);
+    const out = Object.fromEntries(Object.entries(counts).map(([id, c]) => [id, Object.fromEntries(Object.entries(c).filter(([k]) => ratchet(id, k)))]));
     fs.writeFileSync(BASELINE_FILE, JSON.stringify(out, null, 2) + '\n');
     console.log(`Wrote ${path.relative(root, BASELINE_FILE)}`);
   }
