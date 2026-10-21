@@ -6,8 +6,8 @@ Module ID `ashen-gate-headquarters` · Foundry V14 · dnd5e. A shared Guildhall:
 
 - **Guildhall Builder** (shown as **Activation** until the GM activates the Guildhall, a one-time setup step): place acquired facilities on the Guildhall canvas.
 - **Personal Quarters**, **Hirelings** and **Benefits**: per-character rooms, the hosted hirelings roster (including permanent departures) and the guild's benefits.
-- **Facilities** (GM): every imported or seeded facility definition with Locked / Unlocked / Acquired status, copies owned and installed, search, filters, sort and grouping. Unlock, Acquire +1, Import Facility Definitions JSON, Decorations and the test-record seeder live here. It also works before the Guildhall is activated, so facilities can be imported first.
-- **GM Setup** (GM): settings only: Player Access, Guild / Canvas settings, Five-Rank configuration, Create Missing Player Rooms.
+- **Facilities** (GM): every imported or seeded facility definition with Locked / Unlocked / Acquired status, copies owned and installed, search, filters, sort and grouping. Unlock, Acquire +1, Import facility definitions and Decorations live here. It also works before the Guildhall is activated, so facilities can be imported first.
+- **GM Setup** (GM): settings only: Player Access, Guildhall and canvas settings and the Five-Rank configuration, all saved together by **Save Changes**; Set Rank and Create Missing Player Rooms act at once. Developer Tools (the test-record seeder) are collapsed at the end.
 
 State is kept in a GM-only Journal; players see filtered views.
 
