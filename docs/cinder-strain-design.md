@@ -125,7 +125,7 @@ World config (`ashen-gate-strain` world setting, GM-editable, importable as `ag-
  "bands": [{"from":0,"to":0,"label":"Band 0"},{"from":1,"to":2,"label":"Band 1"}, "…", {"from":10,"to":null,"label":"Band 6"}],
  "hard_max": null,
  "guarantee_from": 10,
- "normal_use_backfire_above": 10,
+ "normal_use_backfire_at": 10,
  "allow_prevention_at_guarantee": false,
  "rest_recovery": {"long": 1, "short": 0},
  "severity_roll": {"enabled": true, "die": "1d4"},
@@ -134,7 +134,7 @@ World config (`ashen-gate-strain` world setting, GM-editable, importable as `ag-
 
 - `min` is the floor (0). There is **no cap at 10**: raw Strain can go above it. `hard_max` is an optional sanity ceiling (`null` = none); gain beyond it is recorded as `overflow` in history, never lost silently.
 - `backfire_schedule[i]` is the chance at Strain `i`; any Strain above the last index uses the last entry. At or above `guarantee_from` every Push backfires.
-- Above `normal_use_backfire_above` every normal (non-Push) use of a Cinder power also backfires (4.5).
+- At or above `normal_use_backfire_at` (default 10) every normal (non-Push) use of a Cinder power also backfires automatically (4.5). So at 10+ any use of the power backfires; below 10 only a Push can.
 - `allow_prevention_at_guarantee` (default off): when off, modifiers still change gain, severity and consequences at or above the guarantee but cannot bring the chance below 100.
 - The shipped defaults are the schedule from the spec and neutral labels `Band 0…Band 6` (the last band is open-ended); the campaign's band names come in through this file from the private content repo.
 
@@ -248,9 +248,9 @@ Only `condition` (temporary ActiveEffect with duration, origin = the instance, f
 ### 4.5 Normal (non-Push) use
 
 Normal use spends dnd5e uses on the granted POWER Item; it does not gain Strain by default (**Confirm**). Skill Trees watches dnd5e activity use (`dnd5e.postUseActivity`) on Items tagged with an `instanceId`:
-- Strain ≤ `normal_use_backfire_above` (10): nothing happens; no roll.
-- Strain above it: a guaranteed Backfire, resolved with the same severity and consequence rolls and the same transaction as 4.2, source `cinder_use`. It never blocks or undoes the use itself.
-- **At exactly 10** (design assumption, **Confirm**): a normal use does not backfire; a Push at 10 is guaranteed to.
+- Strain below `normal_use_backfire_at` (10): nothing happens; no roll.
+- Strain at or above it (the Strain the character has when using the power): a guaranteed Backfire, resolved with the same severity and consequence rolls and the same transaction as 4.2, source `cinder_use`. It never blocks or undoes the use itself.
+- Confirmed by Robb: at 10 a normal use backfires automatically, just as a Push does.
 - Enhancement (passive) nodes have no use, so they never trigger this.
 
 ### 4.6 Recovery
@@ -318,17 +318,17 @@ Robb's answers (via Studio), and how the design takes them:
 
 | | Decision | Answer | Design |
 |---|---|---|---|
-| a | Strain recovery | Slowly with rest, like exhaustion, or through items, spells, consumables, blessings | 4.6: `rest_recovery` (long 1, short 0) + typed recovery sources through the shared API |
+| a | Strain recovery | Slowly with rest, like exhaustion, or through items, spells, consumables, blessings | 4.6: `rest_recovery` (long 1 — confirmed; short 0) + typed recovery sources through the shared API |
 | b | Strain past 10 | Past 10 you backfire every time you use your Cinder | No cap at 10; optional `hard_max` (default none); guarantee from 10 |
 | c | Modifiers at/past 10 | May modify backlash/strain past 10, probably not prevent it | Modifiers apply; `allow_prevention_at_guarantee` default off |
 | d | Consequence selection | Rolled when pushing; severity maybe a second roll | Consequence roll always; severity roll on by default (**unconfirmed**), die configurable; GM override |
 | e | Starting points | 1 point when a character gets the Cinder | `initial_cinder_points: 1`, once per instance |
 | f | Attunement | Bind to it; can't unbind until an in-game reason allows; not mechanical | Bound state, GM-only unassign/transfer, no attunement step |
-| g | Normal use | Non-pushes backfire beyond 10 | 4.5: above 10 every normal use backfires; ≤10 never |
+| g | Normal use | At 10 Strain, using the power rolls a Backfire consequence automatically (confirmed) | 4.5: at 10 or above every use (Push or normal) backfires; below 10 normal uses never do |
 | — | Transfer copies Strain/conditions | Still proposed | No |
 
 Points to confirm:
-1. Exactly at 10, a normal use does **not** backfire (only above 10); a Push at 10 does.
+1. ~~At exactly 10~~ Confirmed: at 10 or above any use backfires.
 2. Normal use gains no Strain.
 3. Severity roll: on by default, die `1d4` (= severity tiers 1–4), consequence then rolled within that tier. Or should severity scale with Strain or band?
 4. The starting point is once per Cinder instance (not again for each new bearer), and it counts inside the 13-point wallet.
