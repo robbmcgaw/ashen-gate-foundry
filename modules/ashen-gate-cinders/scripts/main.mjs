@@ -7,7 +7,7 @@ import {lookupWorldDefinition} from './definition-lookup.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 
 const MODULE='ashen-gate-cinders';
-const VERSION='0.2.0';
+const VERSION='0.3.0';
 const SOCKET=`module.${MODULE}`;
 const TREES_ID='ashen-gate-skill-trees';
 const ACCOUNTS_CONTRACT='ag-tree-accounts/1';
@@ -106,9 +106,29 @@ function manageView(){
   }
   const report=cinders.api.report();
   let migrate=0;try{migrate=t.status==='ok'?cinders.migrationPlan().filter(r=>r.action==='create').length:0;}catch{migrate=0;}
+  const sockets=[];
+  for(const inst of registry.instances){
+    const bearer=inst.bearer?game.actors?.get(inst.bearer.actorId):null;if(!bearer)continue;
+    let h=null;try{h=cinders.socketsApi.hosts(bearer).find(x=>x.instanceId===inst.instanceId)??null;}catch{h=null;}
+    if(h)sockets.push({...socketView(h,cinders.socketsApi.socketable(bearer)),name:cinders.definitionName(inst.definitionId),bearerName:bearer.name,bearerId:bearer.id,
+      own:inst.sockets.count,countLabel:inst.sockets.count==null?`default (${game.settings.get(MODULE,'socketsPerCinder')})`:`${inst.sockets.count} (this Cinder)`});
+  }
+  sockets.sort((a,b)=>a.name.localeCompare(b.name)||a.bearerName.localeCompare(b.bearerName));
   return {groups:[...groups.values()].sort((a,b)=>a.name.localeCompare(b.name)),hasCinders:registry.instances.length>0,report,hasReport:report.length>0,
+    sockets,hasSockets:sockets.length>0,socketDefault:game.settings.get(MODULE,'socketsPerCinder'),
     canRepair:report.some(r=>r.repair),migrate,legacy:legacyWaiting(),definitions:cinderDefinitions().length,
     limit:game.settings.get(MODULE,'maxCindersPerActor'),initial:game.settings.get(MODULE,'initialCinderPoints')};
+}
+const signed=v=>`${v>0?'+':''}${v}`;
+const TARGET_WORDS={'push.cost':'Push cost','backfire.chance':'Backfire chance','backfire.severity':'Backfire severity','strain.recovery':'rest recovery','sockets.count':'sockets'};
+/** One Cinder's sockets for the window: filled sockets (active or over capacity), then the empty ones. */
+function socketView(h,fits){
+  const empties=Array.from({length:h.free},(_,i)=>({index:i}));
+  const spare=fits.filter(f=>!h.slots.some(x=>x.itemId===f.itemId));
+  return {instanceId:h.instanceId,capacity:h.capacity,used:h.slots.filter(x=>x.active).length,locked:h.locked,canEdit:h.canEdit,
+    slots:h.slots.map(x=>({...x,effects:x.modifiers.map(m=>`${m.label}: ${TARGET_WORDS[m.target]??m.target} ${signed(m.value)}`).join(' · ')})),
+    empties,hasSlots:h.slots.length>0||empties.length>0,canAttach:h.canEdit&&spare.length>0&&h.free>0,canSwap:h.canEdit&&spare.length>0,
+    overCapacity:h.slots.some(x=>!x.active)};
 }
 function setupView(){
   const c=strain.config();
@@ -135,7 +155,10 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
     const actor=this.actor;
     let bar=null,list=[],error=null;
     if(!why&&actor){
-      try{bar=strainBar(strain.api.get(actor));list=cinders.api.list(actor);}catch(e){error=e.message;}
+      try{bar=strainBar(strain.api.get(actor));list=cinders.api.list(actor);
+        const hosts=cinders.socketsApi.hosts(actor),fits=cinders.socketsApi.socketable(actor);
+        list=list.map(c=>{const h=hosts.find(x=>x.instanceId===c.instanceId);return h?{...c,sockets:socketView(h,fits)}:c;});
+      }catch(e){error=e.message;}
     }
     return {...ctx,gm,version:VERSION,blocked:why,treesMessage:t.status==='missing'?t.message:null,canOpenTree:t.status==='ok'&&typeof t.api?.open==='function',
       tabCinders:this.tab==='cinders',tabManage:gm&&this.tab==='manage',tabSetup:gm&&this.tab==='setup',
@@ -148,6 +171,12 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
     const el=this.element;
     el.querySelector('[data-agc-actor]')?.addEventListener('change',ev=>{this.actorId=ev.target.value;this.render();});
     for(const b of el.querySelectorAll('[data-act]'))b.addEventListener('click',ev=>this._act(ev.currentTarget));
+    // GM drop target: drag an Item from the Items sidebar (or the bearer's sheet) onto a socket.
+    for(const z of el.querySelectorAll('[data-agc-drop]')){
+      z.addEventListener('dragover',ev=>{ev.preventDefault();z.classList.add('agc-drop-over');});
+      z.addEventListener('dragleave',()=>z.classList.remove('agc-drop-over'));
+      z.addEventListener('drop',ev=>{ev.preventDefault();z.classList.remove('agc-drop-over');this._drop(ev,z.dataset.instance,z.dataset.slot);});
+    }
   }
   async _act(el){
     const act=el.dataset.act;
@@ -159,6 +188,11 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
         case 'open-tree':{const t=trees(),actor=this.actor;const tree=t.status==='ok'&&game.user.isGM?cinders.cinderTree(el.dataset.definition):null;
           t.api?.open?.({actorId:actor?.id,...(tree?{treeId:tree.id}:{})});return;}
         case 'strain-adjust':await this._adjust(el.dataset.op);break;
+        case 'socket-attach':await this._socket('attach',el.dataset.instance,null,el.dataset.actor);break;
+        case 'socket-swap':await this._socket('swap',el.dataset.instance,Number(el.dataset.slot),el.dataset.actor);break;
+        case 'socket-detach':await this._detach(el.dataset.instance,Number(el.dataset.slot),el.dataset.actor);break;
+        case 'socket-lock':if(!game.user.isGM)throw Error('GM only');await cinders.socketsApi.setLocked(el.dataset.instance,el.dataset.locked!=='true');break;
+        case 'socket-count':await this._socketCount(el.dataset.instance);break;
         case 'cinder-new':await this._new();break;
         case 'cinder-bind':await this._bind(el.dataset.instance,false);break;
         case 'cinder-transfer':await this._bind(el.dataset.instance,true);break;
@@ -185,6 +219,38 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
     const mods=pv.modifiers.length?`<p>Modifiers: ${pv.modifiers.map(m=>escape(`${m.label} (${m.value>0?'+':''}${m.value})`)).join(', ')}</p>`:'';
     if(!await confirm(`<p><strong>${escape(pv.powerName)}: ${escape(pv.label)}</strong></p>${pv.effect?`<p>${escape(pv.effect)}</p>`:''}<p>Strain ${pv.strain} → <strong>${pv.after}</strong> (+${pv.cost}). Backfire chance <strong>${pv.chance}%</strong>${pv.guaranteed?' (guaranteed)':''}.</p>${mods}<p>Every Push gains Strain. The result is posted to chat.</p>`,'Push'))return;
     await cinders.api.push(actor,powerId,modeId);
+  }
+  _socketActor(actorId){const actor=actorId?game.actors?.get(actorId):this.actor;if(!actor)throw Error('Choose a character');return actor;}
+  async _socket(kind,instanceId,slot,actorId){
+    const actor=this._socketActor(actorId),host=cinders.socketsApi.slots(actor,instanceId);if(!host)throw Error('That character does not bear this Cinder');
+    const fits=cinders.socketsApi.socketable(actor).filter(f=>!host.slots.some(x=>x.itemId===f.itemId));
+    if(!fits.length)throw Error(`${actor.name} has no item that fits a Cinder socket (an Ashen Gate ITEM-* with Cinder modifiers).`);
+    const where=f=>f.attachedTo?' (in another Cinder\'s socket: it moves here)':'';
+    const f=await input(kind==='swap'?'Swap socket item':'Attach to a socket',`<label>Item<select name="item">${fits.map(x=>`<option value="${escape(x.itemId)}">${escape(x.name)}${escape(where(x))}</option>`).join('')}</select></label><p>The item stays in ${escape(actor.name)}'s inventory. Its Cinder modifiers count while it is in an active socket.</p>`,kind==='swap'?'Swap':'Attach');
+    if(!f?.item)return;
+    await cinders.socketsApi[kind](actor,instanceId,...(kind==='swap'?[slot,f.item]:[f.item]));notify(kind==='swap'?'Item swapped.':'Item attached.');
+  }
+  async _detach(instanceId,slot,actorId){
+    const actor=this._socketActor(actorId),x=cinders.socketsApi.slots(actor,instanceId)?.slots.find(s=>s.slot===slot);if(!x)throw Error('That socket is empty');
+    if(!await confirm(`<p>Detach <strong>${escape(x.name)}</strong> from this Cinder?</p><p>The item stays in ${escape(actor.name)}'s inventory.</p>`,'Detach'))return;
+    await cinders.socketsApi.detach(actor,instanceId,slot);notify('Item detached.');
+  }
+  async _socketCount(instanceId){
+    if(!game.user.isGM)throw Error('GM only');
+    const f=await input('Sockets on this Cinder',`<label>Sockets<input type="number" name="count" min="0" max="12" step="1" placeholder="default (${escape(game.settings.get(MODULE,'socketsPerCinder'))})"></label><p>Leave it empty to use the default from Configure Settings. Perks and items can add more. If the number drops, extra items stay attached but inactive until one is removed; nothing is deleted.</p>`,'Save');
+    if(!f)return;const raw=String(f.count??'').trim();
+    await cinders.socketsApi.setCount(instanceId,raw===''?null:Number(raw));
+  }
+  async _drop(ev,instanceId,slotRaw){
+    try{
+      if(!game.user.isGM)throw Error('GM only');
+      let data=null;try{data=JSON.parse(ev.dataTransfer?.getData('text/plain')||'null');}catch{data=null;}
+      if(data?.type!=='Item'||!data.uuid)throw Error('Drop an Item from the Items sidebar or the bearer\'s sheet');
+      const doc=await (foundry.utils.fromUuid??globalThis.fromUuid)(data.uuid);
+      const r=await cinders.socketsApi.attachDropped(instanceId,doc,{slot:slotRaw===''||slotRaw==null?null:Number(slotRaw)});
+      notify(r.created?`${doc.name} copied to the bearer and attached.`:`${doc.name} attached.`);
+    }catch(error){console.error(`[${MODULE}]`,error);notify(`Cinders: ${error.message}`,true);}
+    this.render();
   }
   async _adjust(op){
     if(!game.user.isGM)throw Error('GM only');const actor=this.actor;if(!actor)throw Error('Choose a character');
@@ -273,6 +339,8 @@ Hooks.once('ready',()=>{
     cinder:cinders.api,
     /** Cinder modifiers (contract ag-modifier/1, scope cinder): validate (pure, for Manager's import) and forActor (GM or owner). */
     modifiers:cinders.modifiersApi,
+    /** Cinder sockets (contract ag-sockets/1): hosts, slots, socketable, canAttach, attach / detach / swap; GM: setLocked, setCount, attachDropped. */
+    sockets:cinders.socketsApi,
     adoptLegacy:()=>adoptLegacy()
   };
   game.socket?.on?.(SOCKET,(message,senderId)=>cinders.onSocket(message,senderId));
@@ -283,6 +351,8 @@ Hooks.once('ready',()=>{
   Hooks.on('createItem',item=>{if(item?.parent&&app?.rendered&&app.actorId===item.parent.id)app.render();});
   Hooks.on('deleteItem',item=>{if(item?.parent&&app?.rendered&&app.actorId===item.parent.id)app.render();});
   Hooks.on(CINDER_HOOK,rerender);
+  Hooks.on('ashenGateSockets.changed',rerender);
+  Hooks.on('updateItem',item=>{if(item?.parent&&app?.rendered&&app.actorId===item.parent.id)app.render();});
   // Skill Trees 0.17.0+ (hooks named in its api.accounts contract): keep Cinder records in step and let only a bearer progress.
   Hooks.on('ashenGateSkillTrees.progressChanged',data=>cinders.onProgressChanged(data));
   Hooks.on('ashenGateSkillTrees.checkProgress',check=>cinders.onCheckProgress(check));

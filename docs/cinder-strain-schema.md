@@ -66,7 +66,7 @@ There is one record per node of the Cinder tree: `foundry.document_type: "Item"`
 
 | Field | Type | Required | Rules |
 |---|---|---|---|
-| `target` | string | yes | `push.cost` (Strain cost of a Push) · `backfire.chance` (percentage points) · `backfire.severity` (added to the Backfire effect roll; higher is worse) · `strain.recovery` (added to a rest that already recovers Strain) |
+| `target` | string | yes | `push.cost` (Strain cost of a Push) · `backfire.chance` (percentage points) · `backfire.severity` (added to the Backfire effect roll; higher is worse) · `strain.recovery` (added to a rest that already recovers Strain) · `sockets.count` (sockets on the Cinder, 0.3.0+; see Sockets) |
 | `value` | whole number | yes | −100 to 100, not 0. Negative lowers the cost or chance; positive raises it. |
 | `applies.powers` (or `powers`) | list of `POWER-*` | no | Only for these powers (empty or missing means all of this Cinder's powers). Give it once: in `applies` or at the top level. |
 | `applies.modes` (or `modes`) | list of mode ids | no | Only for these Push modes (empty or missing means all). |
@@ -78,9 +78,19 @@ There is one record per node of the Cinder tree: `foundry.document_type: "Item"`
 
 This is the shared `ag-modifier/1` shape ([modifiers-schema.md](modifiers-schema.md)).
 
-**Perks (Cinders 0.2.0+).** A `PERK-*` record can carry the same modifiers in a record-level `modifiers` block with scope `cinder` ([modifiers-schema.md](modifiers-schema.md)). While the character has that perk Item, its modifiers count for every Cinder they bear, narrowed by `applies` and `requires` like a power's; a perk shares `stack` groups with the powers. Two copies of one perk count once. For rest recovery, a perk counts once per character (its `requires` is met when any Cinder they bear has those powers unlocked). An `ITEM-*` with a modifiers block does nothing yet: items will count only while attached to a Cinder socket.
+**Perks (Cinders 0.2.0+).** A `PERK-*` record can carry the same modifiers in a record-level `modifiers` block with scope `cinder` ([modifiers-schema.md](modifiers-schema.md)). While the character has that perk Item, its modifiers count for every Cinder they bear, narrowed by `applies` and `requires` like a power's; a perk shares `stack` groups with the powers. Two copies of one perk count once. For rest recovery, a perk counts once per character (its `requires` is met when any Cinder they bear has those powers unlocked). An `ITEM-*`'s modifiers count only while it is in an active socket of that Cinder (0.3.0+, see Sockets).
 
 All modifier values are added together. They never change a character's raw Strain: cost and chance change, but recovery happens only through a rest or the GM. The final cost is never below 1.
+
+## Sockets (Cinders 0.3.0+)
+
+A Cinder has sockets that hold items. There is no new content block: **an item fits a socket when it is an `ITEM-*` record with a `modifiers` block that has at least one `cinder` modifier** ([modifiers-schema.md](modifiers-schema.md)). Those modifiers change that Cinder while the item is in an active socket. Socket items don't change the character's dnd5e stats: give any Active Effects on them `transfer: false`.
+
+- **How many:** the GM's world setting **Sockets per Cinder** (default 3), or a number the GM sets on one Cinder (Manage → Sockets → Socket count). A `sockets.count` modifier adds (or removes) sockets. It can come from the Cinder's unlocked powers, the character's perks or a socket item. A socket item's `sockets.count` counts only while that item is active without it, so an item never keeps itself active. Use it without `applies`.
+- **Fewer sockets than items:** nothing is deleted or detached. Items are active in socket order up to the number of sockets; the rest stay attached but **inactive** until one is removed.
+- **Who changes them:** the GM, and the Cinder's bearer's owner while Cinders Player Access is on and the GM has not locked that Cinder's sockets. Every change is checked and recorded on the GM's client.
+- **The item stays in the bearer's inventory**, marked `flags.ashen-gate-cinders.attachedTo = {instanceId, slot}`. On a **transfer** or **unbind** the items stay with the old bearer, detached. An item that leaves the inventory leaves its socket empty.
+- Importing never attaches, detaches or deletes anything.
 
 ## Backfire table — `BF-*`, `entity_type: "BackfireTable"`
 

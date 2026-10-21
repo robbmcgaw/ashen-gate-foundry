@@ -396,3 +396,5 @@ Build order once agreed:
 12. **`implementation`** is an optional, display-only field on perk-like records: `automatic`, `informational` or `gm_resolved`.
 
 Build order: (1) the schema and Manager's check (Manager 0.41.0); (2) Cinders reads `modifiers` blocks from attached items and perks; (3) Cinders sockets (`ag-sockets/1`); (4) Character Hub shows sockets read-only. Skill Trees never depends on Cinders.
+
+As built (Cinders 0.3.0): there is no `socketable` block (§4.1). An `ITEM-*` with at least one `cinder` modifier fits a Cinder socket. The per-Cinder socket count is set by the GM on the Cinder (Manage), not in content (§4.2). There is no `slot_types` or `unique` yet.

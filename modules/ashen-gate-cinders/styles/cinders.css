@@ -34,3 +34,10 @@
 .agc-chat h3{margin:0 0 4px}
 .agc-chat p{margin:2px 0;overflow-wrap:anywhere}
 .agc-backfire{color:var(--ag-danger)}
+/* 0.3.0 sockets */
+.agc-sockets{border-top:1px solid var(--ag-border);padding-top:6px;margin-top:6px}
+.agc-socket-list{list-style:none;margin:4px 0;padding:0;display:flex;flex-direction:column;gap:4px}
+.agc-socket-list li{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;padding:4px 6px;border:1px solid var(--ag-border);border-radius:4px}
+.agc-socket-list li.agc-empty{border-style:dashed;opacity:.85}
+.agc-socket-list li.agc-inactive{opacity:.7}
+.agc-drop.agc-drop-over{outline:2px solid var(--ag-accent,currentColor);outline-offset:1px}
