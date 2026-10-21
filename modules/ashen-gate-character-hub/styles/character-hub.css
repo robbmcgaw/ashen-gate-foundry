@@ -362,3 +362,22 @@
   .ag-character-hub .agch-card__fact::before { content: attr(data-label) ": "; color: var(--ag-muted); }
   .ag-character-hub .agch-card__actions { flex-basis: 100%; }
 }
+
+/* Companion cards (0.12.0): art (never stretched), the player's name and description, stats box, clothing slots */
+.ag-character-hub .agch-companion__head { display: grid; grid-template-columns: 96px minmax(0, 1fr) auto; gap: var(--ag-space-3); align-items: start; }
+.ag-character-hub .agch-companion--pet .agch-companion__head { grid-template-columns: 72px minmax(0, 1fr) auto; }
+.ag-character-hub .agch-companion__art { aspect-ratio: 1; border: 1px solid var(--ag-border-strong); border-radius: var(--ag-radius); overflow: hidden; background: var(--agch-bg-sunken); }
+.ag-character-hub .agch-companion__art img { width: 100%; height: 100%; object-fit: cover; object-position: center top; border: 0; display: block; }
+.ag-character-hub .agch-companion__id { display: grid; gap: var(--ag-space-1); min-width: 0; }
+.ag-character-hub .agch-companion__name { font-size: var(--ag-text-lg); font-weight: 600; width: 100%; }
+.ag-character-hub .agch-companion__badges { display: flex; flex-wrap: wrap; gap: var(--ag-space-1); }
+.ag-character-hub .agch-companion__desc { width: 100%; min-height: 4.5em; resize: vertical; margin-top: var(--ag-space-2); font: inherit; }
+.ag-character-hub .agch-stats { margin-top: var(--ag-space-2); padding: var(--ag-space-2); border: 1px solid var(--ag-border); border-radius: var(--ag-radius-sm); background: var(--agch-bg-sunken); }
+.ag-character-hub .agch-stats .agch-subheading { margin-top: 0; }
+.ag-character-hub .agch-stats__base { margin: 0 0 var(--ag-space-1); font-size: var(--ag-text-sm); }
+.ag-character-hub .agch-clothing { display: flex; flex-wrap: wrap; gap: var(--ag-space-3); }
+.ag-character-hub .agch-clothing__slot { position: relative; display: grid; justify-items: center; gap: var(--ag-space-1); width: max-content; }
+.ag-character-hub .agch-clothing__slot .agch-slot { width: 52px; height: 52px; }
+.ag-character-hub .agch-clothing__slot select { width: 8rem; }
+.ag-character-hub .agch-clothing__off { position: absolute; top: -6px; right: -6px; min-height: 0; padding: 0 4px; background: var(--ag-surface-sunken); border-radius: 50%; }
+.ag-character-hub .agch-drop--add { margin-top: var(--ag-space-2); }

@@ -1,3 +1,20 @@
+## 0.12.0 — 2026-10-21
+
+Companions (part 3 of Robb's alpha feedback):
+- **Mount:** two drop targets.
+  - (a) The mount itself: drop a world **Actor** from the Actors sidebar (linked by UUID, never copied or changed) or an Item, as before.
+  - (b) **Mount gear and mount perks** onto the mount card.
+- **Mount card:** the Actor's art (cropped to fill, never stretched), a **name box** and a **description box** the player can edit, and a **stats box**. The stats box shows what gear and perks give, read only from their own dnd5e data: Active Effect changes and armour value. Plain additions are summed and nothing is applied. When the viewer can see the mount Actor, its own AC, HP and speed show for reference. A warning shows when an effect on a companion item would also apply to the character.
+- **Pet card:** art, name box, description box, **three clothing slots** (drop pet clothing on a slot, or pick one; ✕ takes it off), and perks.
+- Gear and perk lists use the 0.11.0 card rows (Kind, Gives, Detach).
+- **What an item is for:** no new document types. Companion items are ordinary Items, marked by their permanent id prefix (`ITEM-MOUNT-`, `PERK-MOUNT-`, `ITEM-PET-`, `PERK-PET-`) or by `flags.ashen-gate-character-hub.companion.role`. Unmarked items go by type (feature = perk). An item marked for the other kind of companion is refused. See `docs/companion-items-schema.md`, with a synthetic example.
+- **Permissions (action layer):**
+  - Owner or GM only, and only while the GM shows Companions to players.
+  - Linking an Actor needs Observer on it (the GM can link any). Compendium Actors must be imported first.
+  - The pet limit from 0.9.0 still applies to Actor and Item pets.
+- **Saved data:** companion entries gain `actorUuid`, `name`, `description`, `gearItemIds` and `clothing` (3 slots). Entries saved before 0.12.0 read unchanged with the new fields defaulted, and are written in the new shape on the next change. Reading never changes saved data, so there is no migration step.
+- Known limit: Manager 0.36.0 imports Items with `name`, `type`, `img` and `system` only, so effects and flags can't come from a package yet. The GM adds an item's Active Effect in Foundry; re-import leaves it alone.
+
 ## 0.11.0 — 2026-10-21
 
 Item lists redesign (part 2 of Robb's alpha feedback):
