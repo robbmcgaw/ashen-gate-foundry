@@ -99,9 +99,10 @@ Each PR merges when green (see "Merging" below). Versions shown are the next one
 | 10 | Headquarters | minor | Header; buttons; tabs; glyph icons to Font Awesome; layout | Medium | HQ looks like the rest |
 | 11 | Skill Trees | minor | Header; setup cards; tooltips; full node names; Developer Tools split | Medium (board) | Full node names; one tooltip |
 | 12 | Utilities | minor | Header order; button classes; pills; rename `.ag-` local classes | Low | Small tidy |
-| 13 | Lint to strict | — | Flip ratchet rules to zero | None | Nothing |
+| 13 | Kit 2.0.1 `choiceDialog` + Hub leftovers, brief `13-kit-choice-dialog-and-hub-leftovers.md` | patch for every module shipping `ag-dialogs.mjs`; Hub minor | Shared `choiceDialog`; Hub attunement uses it; Hub `.ag-` renames; quick-slot Undo notice (only if Robb says yes); any kit fixes reported by 04–12 | Low | Attunement dialog matches the skin |
+| 14 | Lint to strict, brief `14-lint-strict.md` | none (scripts only) | Flip the ratchet rules to zero; per-module exceptions listed | None | Nothing |
 
-PRs 2 and 3 both stack on PR 1 and don't depend on each other. From PR 4 on, passes can run in parallel chats, one module each, once PR 1 is merged. Each module pass also brings that module's remaining dialogs to `ag-dialogs.mjs` if PR 3 didn't.
+PRs 2 and 3 both stack on PR 1 and don't depend on each other. Briefs for every PR are in `docs/ui-briefs/` (04–12 are single-module and can run in parallel; 13 runs after them, then 14). Every module PR touches the shared `scripts/ui-lint-baseline.json`: merge `main` last, take `main`'s file and rerun `node scripts/ui-lint.mjs --update-baseline`. From PR 4 on, passes can run in parallel chats, one module each, once PR 1 is merged. Each module pass also brings that module's remaining dialogs to `ag-dialogs.mjs` if PR 3 didn't.
 
 ## Merging (normal: merge when green)
 
