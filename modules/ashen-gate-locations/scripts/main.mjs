@@ -1,4 +1,4 @@
-import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL} from './model.mjs';
+import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL, isLevelBackup} from './model.mjs';
 import {readAll, writeAll, readViews, placeNote, legacyJournalCount, isGM, migrate, presentationOptions, readNotes, writeNotes, readPlayerNotes,
   syncSharedNotes, readSharedNotes, writeSharedNotes, isSharedNotesPage, players, pinsOf, readRoutes, writeRoutes, readRouteViews, usedRouteIds, defaultLegKm,
   readTravel, writeTravel, readJourneyView, linkDrawing, unlinkDrawing, drawRouteLine, drawingInfo} from './store.mjs';
@@ -14,7 +14,7 @@ import {TravelTracker} from './travel-app.mjs';
 import {createBehaviours} from './travel-view.mjs';
 import {travelBehaviours} from './travel-behaviours.mjs';
 
-const VERSION = '1.17.3';
+const VERSION = '1.17.4';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
@@ -56,10 +56,11 @@ function applyPlayerAccess(enabled) {
 // foraging/navigation checks (travel-behaviours.mjs); other modules can still register their own.
 const behaviours = createBehaviours();
 TravelTracker.behaviours = behaviours;
-/** Characters the GM can put on watch: the dnd5e Primary Party's characters, else every character Actor. */
+/** Characters the GM can put on watch: the dnd5e Primary Party's characters, else every character Actor. Never a level-up backup. */
 const watchCandidates = () => {
-  const party = (game.actors?.party?.system?.members ?? []).map(m => m?.actor).filter(a => a?.type === 'character');
-  const list = party.length ? party : [...(game.actors ?? [])].filter(a => a?.type === 'character');
+  const isCandidate = a => a?.type === 'character' && !isLevelBackup(a);
+  const party = (game.actors?.party?.system?.members ?? []).map(m => m?.actor).filter(isCandidate);
+  const list = party.length ? party : [...(game.actors ?? [])].filter(isCandidate);
   return list.map(a => ({id: a.id, name: a.name})).sort((a, b) => a.name.localeCompare(b.name));
 };
 /** Utilities' prefilled-roll API (Utilities 0.13.0+), or null. Feature-detected, never required. */

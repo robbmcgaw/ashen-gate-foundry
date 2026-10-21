@@ -22,8 +22,8 @@ async function world({access = false} = {}) {
   const state = {access, accessCalls: [], settings: new Map([['unidentifiedLabel', 'Unknown place'], ['unknownPinImage', ''], ['defaultLegKm', 5]]), info: [], warn: []};
   g.settings = {get: (_, k) => state.settings.get(k), set: async (_, k, v) => { state.settings.set(k, v); return v; }};
   globalThis.ui = {notifications: {info: m => state.info.push(m), warn: m => state.warn.push(m), error: m => state.warn.push(m)}};
-  const mod = {version: '1.17.3', active: true};
-  mod.api = createApi({version: '1.17.3', isGM: () => game.user.isGM, playerAccessEnabled: () => state.access,
+  const mod = {version: '1.17.4', active: true};
+  mod.api = createApi({version: '1.17.4', isGM: () => game.user.isGM, playerAccessEnabled: () => state.access,
     setPlayerAccess: async v => { state.accessCalls.push(v); state.access = v; }, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}, playerIds: () => [],
     routes: {readAll: readRoutes, writeAll: writeRoutes, readViews: readRouteViews, usedIds: usedRouteIds, defaultLegKm: () => 5}});
   g.modules = {get: id => id === 'ashen-gate-locations' ? mod : null};
@@ -42,7 +42,7 @@ const footerOf = html => html.slice(html.lastIndexOf('<footer class="ag-footer')
 test('header: brand span, version from module.json, Help last; tabs are role="tab" with GM Setup last and marked GM', async () => {
   await world();
   const html = await gmApp()._renderHTML();
-  assert.match(html, /<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Locations<\/h1>[\s\S]*<span class="ag-version">v1\.17\.3<\/span><button[^>]*data-action="help"/);
+  assert.match(html, /<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Locations<\/h1>[\s\S]*<span class="ag-version">v1\.17\.4<\/span><button[^>]*data-action="help"/);
   assert.match(html, /<nav class="ag-tabs ag-tabs--scroll" role="tablist"/);
   const tabs = [...html.matchAll(/<button type="button" role="tab" data-tab="(\w+)" aria-selected="(true|false)" class="([^"]*)"/g)].map(m => [m[1], m[2], m[3]]);
   assert.deepEqual(tabs.map(t => t[0]), ['locations', 'routes', 'setup']);
@@ -189,8 +189,8 @@ test('no native title= anywhere: GM list, editor, Routes, GM Setup and the playe
 test('empty states use the kit layout; the player one names no GM tool', async () => {
   const g = installFoundry();
   g.settings = {get: () => undefined, set: async () => {}};
-  const mod = {version: '1.17.3', active: true};
-  mod.api = createApi({version: '1.17.3', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}});
+  const mod = {version: '1.17.4', active: true};
+  mod.api = createApi({version: '1.17.4', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}});
   g.modules = {get: id => id === 'ashen-gate-locations' ? mod : null};
   g.user = gm;
   const gmHtml = await new LocationsApp()._renderHTML();
@@ -206,7 +206,7 @@ test('Travel tracker: brand header, kit table for the night watches, opacity sli
     behaviours: {watch: {enabled: true, first: ['a1'], second: [], third: []}}};
   const behaviours = travelBehaviours({api: () => ({travel: {}}), characters: () => [{id: 'a1', name: '[TEST] Ava'}], skillLabel: id => id});
   const watch = behaviours.find(b => b.id === 'watch');
-  const html = gmTrackerHTML({journey: j, version: '1.17.3', panels: [{id: 'watch', label: watch.label, icon: watch.icon, html: watch.render({isGM: true, journey: j})}]});
+  const html = gmTrackerHTML({journey: j, version: '1.17.4', panels: [{id: 'watch', label: watch.label, icon: watch.icon, html: watch.render({isGM: true, journey: j})}]});
   assert.match(html, /<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Travel<\/h1>[\s\S]*ag-version/);
   assert.match(html, /<div class="ag-table-wrap"><table class="ag-table agl-travel__watch"><thead><tr><th scope="col">Character<\/th>/);
   assert.match(html, /data-travel-opacity/);

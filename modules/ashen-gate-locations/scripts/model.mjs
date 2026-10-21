@@ -1,6 +1,8 @@
 /** Ashen Gate Locations: pure data model. No Foundry globals, so everything here is unit-tested. */
 export const MODULE_ID = 'ashen-gate-locations';
 export const IMPORT_SCHEMA = 'ag-foundry-import/0.2';
+/** 1.17.4: a Character Hub level-up backup copy (GM-only "<Name> - level X"); never a watch candidate or target. Safe when the Hub is absent. */
+export const isLevelBackup = actor => !!actor?.flags?.['ashen-gate-character-hub']?.levelBackup;
 export const THREATS = Object.freeze([
   {value: 'settled', label: 'Settled'},
   {value: 'light', label: 'Light'},

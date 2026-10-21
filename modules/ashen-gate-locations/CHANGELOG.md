@@ -1,3 +1,8 @@
+## 1.17.4 — 2026-10-21
+
+- Character Hub level-up backups (the GM-only "<Name> - level X" copies) no longer appear in the night-watch list, with or without a Primary Party, and the API refuses one as a watch. Players never see a backup's name in the watch order.
+- Saved data: no change. No migration.
+
 ## 1.17.3 — 2026-10-21
 
 - **Loot & Rewards and Resources** use the shared item-drop helper (`ag-item-drop/1`, same file as Quest Log). A folder now says "Drop items one at a time.", a journal or Actor says "Drop an item.", and a missing item says so. Before, these drops did nothing.
