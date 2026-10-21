@@ -1,3 +1,11 @@
+## 0.13.2 — 2026-10-21
+
+- **New GM Setup setting: Use electrum** (world setting, default **off**). Off: electrum (ep) is left out of the party purse (cp/sp/gp/pp), Award Gold, coin Deposit/Take, Adjust Purse and the embedded stash (Character Hub); an item priced in ep shows the same value in gp/sp/cp. ep moves and awards are also refused in the API and on the GM client, so nothing new is ever made in electrum. On: everything as before.
+- **Money is never hidden.** If the purse still holds electrum while the setting is off, its ep line stays (dimmed) with a note, and the GM gets **Convert electrum to silver/gold**: all of it to silver (1 ep = 5 sp) or to gold (2 ep = 1 gp, an odd one → 5 sp). An exact before → after preview and confirmation come first; it's one purse update, recorded in stash History with **Undo**. Nothing converts automatically. Past History rows keep the coins they recorded.
+- **API:** `api.currency` (`ag-utilities-currency/1`): `electrumEnabled()`, `coins()` (the coins to offer), `setElectrumEnabled(bool)` (GM only), hook `ashen-gate-utilities.electrumChanged`. `api.purse` gains `convertElectrum({to, reason})`, `undoConvert(entryId)`, `openConvert()` (GM only). `purse.coins` and `purse.totals()` still list all five coins.
+- Character sheets (dnd5e) are not touched.
+- Saved data: one new world setting `electrumEnabled`, and History entries of a new kind `purse-convert`. The purse still stores ep; no migration.
+
 ## 0.13.1 — 2026-10-21
 
 - **Fix: a container (backpack, pouch…) moved to or from the party stash now takes everything inside it.** dnd5e keeps a container's contents as separate items pointing at the container; until now only the container itself moved, so it arrived empty and its contents stayed behind on the old sheet, loose (no longer in any container). Now the container and all its contents (nested containers too) move together, both directions, on every path: Utilities window, drag and drop, the Character Hub (`api.stash.deposit` / `withdraw` and the embedded stash) and the take-out vote. Quantities and all item data are kept; equipped/attuned are kept as before (no reset).

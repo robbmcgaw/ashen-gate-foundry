@@ -141,3 +141,6 @@
 .ag-utilities.agu-embed {display:block;min-width:0;}
 .ag-utilities.agu-embed.agu-drop-over {outline:2px dashed var(--ag-accent);outline-offset:2px;border-radius:var(--ag-radius);}
 .ag-utilities.agu-embed.agu-drop-over .agu-dropzone {border-style:solid;border-color:var(--ag-accent);color:var(--ag-text);background:var(--ag-surface-hover);}
+/* 0.13.2: electrum is off but the purse still holds some: keep the line, dimmed, never hidden. */
+.ag-utilities .agu-coin--off {opacity:.6;border-style:dashed;}
+.ag-utilities .agu-note--warn {color:var(--ag-text);border-left:3px solid var(--ag-warn);padding-left:var(--ag-space-2);}
