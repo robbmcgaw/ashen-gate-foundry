@@ -1,8 +1,9 @@
-import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,conditionGroups,stashRow,historyEntry,containedItems,moveBundle,contentsNote,appendHistory,approvalLabel,STASH_HISTORY_CAP,rollFormSession,normalizeTab,rollPrefill,ROLL_OPEN_MODES,readGp,planGoldAward,goldAwardEntry,planGoldUndo,applyGoldUndo,goldCardHTML,COINS,COIN_LABELS,entryCoin,readCoin,readCoins,planCoinMove,planPurseAdjust,purseEntry,purseUndoable,planPurseUndo,applyPurseUndo,purseLine,PURSE_KINDS,ELECTRUM_OFF,coinChoices,shownCoins,strandedElectrum,planElectrumConvert,convertPreview,convertEntry,convertLine,planConvertUndo,applyConvertUndo,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome} from './core.mjs';
+import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,conditionGroups,stashRow,historyEntry,containedItems,moveBundle,contentsNote,appendHistory,approvalLabel,STASH_HISTORY_CAP,rollFormSession,normalizeTab,rollPrefill,ROLL_OPEN_MODES,readGp,planGoldAward,goldAwardEntry,planGoldUndo,applyGoldUndo,goldCardHTML,COINS,COIN_LABELS,entryCoin,readCoin,readCoins,planCoinMove,planPurseAdjust,purseEntry,purseUndoable,planPurseUndo,applyPurseUndo,purseLine,PURSE_KINDS,ELECTRUM_OFF,coinChoices,shownCoins,strandedElectrum,planElectrumConvert,convertPreview,convertEntry,convertLine,planConvertUndo,applyConvertUndo,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome,shopLine} from './core.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,infoDialog,formDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
 import {shopsApi,shopsView,shopsFooter,bindShops,handleShops,shopHooks} from './shops.mjs';
+import {configureTrade,tradeApi,tradeHooks,tradeSocketHandlers,handleTrade,playerShopsView,shopsVisible,shopsOn,shopVoteRequired,executeBuy,refreshShopWindows} from './shop-buy.mjs';
 
 const {ApplicationV2}=foundry.applications.api;
 let windowInstance=null;
@@ -232,7 +233,7 @@ function historyView(app){if(!isGM())return empty('History is GM-only');
   return `<div class="agu-history"><div class="agu-line"><strong>${E(s.name)}</strong><span class="ag-badge ${outcome==='Success'?'ag-badge--ok':outcome==='Failure'?'ag-badge--danger':''}">${E(sessionKind(s))} · ${E(outcome)}</span></div><p>${E(detail)}</p><small>${E(new Date(s.closedAt||s.createdAt).toLocaleString())}${s.kind==='group'&&sm.average!==null?` · Average ${E(sm.average.toFixed(1))}`:''}</small></div>`;
  }).join(''):empty('No finished checks yet','Group Checks and Roll Requests appear here when they end.')}</section>`;
 }
-function helpHtml(){const gm=isGM();return `<p><strong>Utilities</strong> holds the party tools for running a session.</p><ul><li><strong>Rolls</strong>: ${gm?'pick characters and skills and send a roll to players. <em>Group result</em> averages everyone\'s rolls against the DC for one pass or fail (a Group Check); <em>Individual rolls</em> asks each character for one roll of one skill and shows each result (a Roll Request). Only one can run at a time; it ends when everyone has rolled, or you can end it early.':'when the GM asks for a roll, roll it here for your character.'}</li><li><strong>Party Inventory</strong>: the shared party stash${gm?', which you turn on or off for players':''}, and the <strong>Party purse</strong> (copper to platinum${gm?'; electrum only while <em>Use electrum</em> is on in GM Setup':''}): deposit coins from your character or take them out${gm?'; you can also Adjust the purse directly and Undo adjustments and takes in History, and turn the coin vote on or off in GM Setup':' (taking out uses the party vote when the GM has it on for coins)'}.</li><li><strong>Roll Tables</strong>: roll a table and ${gm?'send the result to chat or selected players':'view results the GM shares'}.</li><li><strong>Conditions</strong>: see and remove the native conditions on party characters.</li>${gm?'<li><strong>History</strong>: finished Group Checks and Roll Requests.</li><li><strong>GM Setup</strong>: Player Access and other settings.</li>':''}</ul>${gm?'<p>Skipping a contribution, ending or cancelling a check, clearing stash history and removing a non-native condition ask you to confirm first.</p>':''}`;}
+function helpHtml(){const gm=isGM();return `<p><strong>Utilities</strong> holds the party tools for running a session.</p><ul><li><strong>Rolls</strong>: ${gm?'pick characters and skills and send a roll to players. <em>Group result</em> averages everyone\'s rolls against the DC for one pass or fail (a Group Check); <em>Individual rolls</em> asks each character for one roll of one skill and shows each result (a Roll Request). Only one can run at a time; it ends when everyone has rolled, or you can end it early.':'when the GM asks for a roll, roll it here for your character.'}</li><li><strong>Party Inventory</strong>: the shared party stash${gm?', which you turn on or off for players':''}, and the <strong>Party purse</strong> (copper to platinum${gm?'; electrum only while <em>Use electrum</em> is on in GM Setup':''}): deposit coins from your character or take them out${gm?'; you can also Adjust the purse directly and Undo adjustments and takes in History, and turn the coin vote on or off in GM Setup':' (taking out uses the party vote when the GM has it on for coins)'}.</li>${gm?'<li><strong>Shops</strong>: build shops, then <em>Present</em> one to all or chosen players; they buy with the party purse or their own coins until you click <em>Stop showing</em>.</li>':shopsVisible()?'<li><strong>Shops</strong>: shops your GM shows you. Pick Buy, choose how many, who gets it and who pays, then confirm.</li>':''}<li><strong>Roll Tables</strong>: roll a table and ${gm?'send the result to chat or selected players':'view results the GM shares'}.</li><li><strong>Conditions</strong>: see and remove the native conditions on party characters.</li>${gm?'<li><strong>History</strong>: finished Group Checks and Roll Requests.</li><li><strong>GM Setup</strong>: Player Access and other settings.</li>':''}</ul>${gm?'<p>Skipping a contribution, ending or cancelling a check, clearing stash history and removing a non-native condition ask you to confirm first.</p>':''}`;}
 /** GM Setup: settings only. Nothing saves until Save Changes in the footer (D4: Player Access too); Cancel discards. */
 function setupView(){
  const box=(id,on,label,hint)=>`<div class="agu-setting"><label class="ag-field ag-field--inline"><input id="${id}" type="checkbox" data-setup-field ${on?'checked':''}>${E(label)}</label><p class="ag-field__hint agu-setting__hint">${E(hint)}</p></div>`;
@@ -242,19 +243,23 @@ function setupView(){
   box('agu-stash-vote',stashVoteRequired(),'Party must accept when a player takes an item out','On: any other player can deny, and no answer in 60 seconds cancels. Off: players take items out freely. You are never voted on. Every move is recorded in the stash History tab either way.'),
   box('agu-purse-vote',purseVoteRequired(),'Party must accept when a player takes coins out','Same rules as the item vote, but for the party purse and set separately. Until you save GM Setup it follows the item setting above.'),
   box('agu-electrum',electrumEnabled(),'Use electrum','Off: electrum (ep) is left out of the party purse, Award Gold and coin Deposit/Take/Adjust. If the purse still holds electrum it stays visible (dimmed) until you convert it to silver or gold; nothing is converted without you confirming. Character sheets are not changed.')
+ ].join('')}<h3>Shopping</h3>${[
+  box('agu-shops-enabled',shopsOn(),'Shops on for players','On (with Player Access): players get a Shops tab with the shops you present to them, and can buy. Off: players see no shops.'),
+  box('agu-shop-vote',shopVoteRequired(),'Party must accept when a player spends the party purse','Same rules as the coin vote: any other player can deny, and no answer in 60 seconds cancels. You are never asked. Until you save GM Setup it follows the coin vote above.')
  ].join('')}</section>`;}
 /** Window footer: GM Setup gets Cancel / status / Save Changes; other tabs a one-line status. */
 function footerHTML(app){
  if(app.tab==='shops'){const f=shopsFooter(app);if(f)return f;}
  if(app.tab==='setup'&&isGM())return `<footer class="ag-footer agu-footer">${btn('setup-cancel','Cancel',{kind:'ghost'})}<span class="ag-footer__status" role="status" data-setup-status>${E(app.setupStatus??'')}</span>${btn('save-access','Save Changes',{kind:'primary'})}</footer>`;
- return `<footer class="ag-footer agu-footer"><span class="ag-footer__status agu-footer__status" role="status">${app.tab==='inventory'?`Party stash: ${stashEnabled()?'on':'off'} for players`:app.tab==='shops'?'Shops are GM only in this version':'Native permissions apply'}</span></footer>`;
+ return `<footer class="ag-footer agu-footer"><span class="ag-footer__status agu-footer__status" role="status">${app.tab==='inventory'?`Party stash: ${stashEnabled()?'on':'off'} for players`:app.tab==='shops'?(isGM()?'Present a shop to let players buy from it':'Shops your GM shows you'):'Native permissions apply'}</span></footer>`;
 }
 class UtilitiesApp extends ApplicationV2 {
  static DEFAULT_OPTIONS={id:'ashen-gate-utilities-window',classes:['ag-app','ag-utilities','agu-window'],window:{title:'Ashen Gate | Utilities',resizable:true,minimizable:true},position:{width:900,height:690}};
  // Compact size; Comfortable (General Manager → My Appearance) scales it when the window is created.
  constructor(options={}){super({...options,position:{...windowSize(UtilitiesApp.DEFAULT_OPTIONS.position),...options.position}});this.setupStatus='';this.tab='rolls';this.rollMode='group';this.actorId='';this.rollActorId='';this.tableDraft='';this.tableAuto=false;this.lastDraw=[];this.filter='';this.takeActorId='';this.stashTab='items';this.historyShown=HISTORY_PAGE;this.purseCoin='gp';this.purseAmount='';this.shopSub='list';this.shopSearch='';this.shopSort='location';this.shopDraft=null;this.shopDirty=false;this.shopStatus='';}
- async _renderHTML(){if(!permitted())throw Error('Utilities is hidden for players.');this.tab=normalizeTab(this.tab);const tabs=[['rolls','Rolls','fa-dice-d20'],['inventory','Party Inventory','fa-sack-dollar'],...(isGM()?[['shops','Shops','fa-store',true]]:[]),['tables','Roll Tables','fa-table-list'],['conditions','Conditions','fa-heart-pulse'],...(isGM()?[['history','History','fa-clock-rotate-left',true],['setup','GM Setup','fa-gears',true]]:[])];
-  const body=this.tab==='rolls'?rollsView(this):this.tab==='inventory'?inventoryView(this):this.tab==='shops'&&isGM()?shopsView(this):this.tab==='tables'?tableView(this):this.tab==='conditions'?conditionsView(this):this.tab==='history'&&isGM()?historyView(this):this.tab==='setup'&&isGM()?setupView():empty('Nothing to show here');
+ async _renderHTML(){if(!permitted())throw Error('Utilities is hidden for players.');this.tab=normalizeTab(this.tab);const tabs=[['rolls','Rolls','fa-dice-d20'],['inventory','Party Inventory','fa-sack-dollar'],...(isGM()?[['shops','Shops','fa-store',true]]:shopsVisible()?[['shops','Shops','fa-store']]:[]),['tables','Roll Tables','fa-table-list'],['conditions','Conditions','fa-heart-pulse'],...(isGM()?[['history','History','fa-clock-rotate-left',true],['setup','GM Setup','fa-gears',true]]:[])];
+  if(!tabs.some(t=>t[0]===this.tab))this.tab='rolls';
+  const body=this.tab==='rolls'?rollsView(this):this.tab==='inventory'?inventoryView(this):this.tab==='shops'?(isGM()?shopsView(this):playerShopsView(this)):this.tab==='tables'?tableView(this):this.tab==='conditions'?conditionsView(this):this.tab==='history'&&isGM()?historyView(this):this.tab==='setup'&&isGM()?setupView():empty('Nothing to show here');
   const version=game.modules.get(ID)?.version??VERSION;
   const appearance=appearanceOpener()?`<button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-open-appearance ${tip('Choose your Ashen Gate appearance')}><i class="fa-solid fa-palette" aria-hidden="true"></i> Appearance</button>`:'';
   const tabBar=tabs.map(([id,label,icon,gm])=>`<button type="button" role="tab" data-tab="${id}" aria-selected="${this.tab===id}" class="${[this.tab===id?'active':'',gm?'ag-tab--gm':''].filter(Boolean).join(' ')}"><i class="fa-solid ${icon}" aria-hidden="true"></i>${E(label)}</button>`).join('');
@@ -283,6 +288,7 @@ class UtilitiesApp extends ApplicationV2 {
   for(const b of root.querySelectorAll('[data-action]'))b.addEventListener('click',()=>this.handle(b.dataset.action,b,root).catch(error));
  }
  async handle(action,b,root){if(b.disabled)return;b.disabled=true;try{
+  if(await handleTrade(this,action,b,{render:()=>this.render()}))return;
   if(await handleShops(this,action,b,{render:()=>this.render()}))return;
   if(action==='start'){
    const val=q=>root.querySelector(q)?.value,checked=n=>[...root.querySelectorAll(`input[name="${n}"]:checked`)].map(x=>x.value);
@@ -357,7 +363,7 @@ class UtilitiesApp extends ApplicationV2 {
   if(action==='toggle-lock'){await setUnlocked(b.dataset.actor,!isUnlocked(getUnlocks(),b.dataset.actor));return;}
   if(action==='toggle-overlay'){await game.settings.set(ID,'overlayOpen',game.settings.get(ID,'overlayOpen')!==true);await this.render();return;}
   if(action==='setup-cancel'){if(!isGM())throw Error('GM only.');this.setupStatus='';await this.render();return;}
-  if(action==='save-access'){if(!isGM())throw Error('GM only.');await game.settings.set(ID,'playerAccessEnabled',Boolean(root.querySelector('#agu-access')?.checked));const stashBox=root.querySelector('#agu-stash-enabled');if(stashBox&&stashBox.checked!==stashEnabled())await setStashEnabled(stashBox.checked);const voteBox=root.querySelector('#agu-stash-vote');if(voteBox&&voteBox.checked!==stashVoteRequired())await setStashVoteRequired(voteBox.checked);const coinBox=root.querySelector('#agu-purse-vote');if(coinBox)await setPurseVoteRequired(coinBox.checked);const epBox=root.querySelector('#agu-electrum');if(epBox&&epBox.checked!==electrumEnabled())await setElectrumEnabled(epBox.checked);this.setupStatus='Saved';const st=root.querySelector?.('[data-setup-status]');if(st)st.textContent=this.setupStatus;ui.notifications.info('GM Setup saved.');return;}
+  if(action==='save-access'){if(!isGM())throw Error('GM only.');await game.settings.set(ID,'playerAccessEnabled',Boolean(root.querySelector('#agu-access')?.checked));const stashBox=root.querySelector('#agu-stash-enabled');if(stashBox&&stashBox.checked!==stashEnabled())await setStashEnabled(stashBox.checked);const voteBox=root.querySelector('#agu-stash-vote');if(voteBox&&voteBox.checked!==stashVoteRequired())await setStashVoteRequired(voteBox.checked);const coinBox=root.querySelector('#agu-purse-vote');if(coinBox)await setPurseVoteRequired(coinBox.checked);const epBox=root.querySelector('#agu-electrum');if(epBox&&epBox.checked!==electrumEnabled())await setElectrumEnabled(epBox.checked);const shopBox=root.querySelector('#agu-shops-enabled');if(shopBox&&shopBox.checked!==shopsOn())await game.settings.set(ID,'shopsEnabled',shopBox.checked);const shopVote=root.querySelector('#agu-shop-vote');if(shopVote)await game.settings.set(ID,'shopPurseVote',shopVote.checked?'on':'off');this.setupStatus='Saved';const st=root.querySelector?.('[data-setup-status]');if(st)st.textContent=this.setupStatus;ui.notifications.info('GM Setup saved.');return;}
  }finally{b.disabled=false;}}
 }
 async function sendMessage(raw,root){if(!isGM())throw Error('GM only.');const content=String(raw).trim();if(!content||content.length>3000)throw Error('Message must be 1–3000 characters.');const selected=[...root.querySelectorAll('input[name="agu-recipient"]:checked')].map(x=>x.value),valid=selected.filter(id=>game.users.get(id)&&!game.users.get(id).isGM);if(valid.length!==selected.length)throw Error('Invalid recipients.');
@@ -402,12 +408,12 @@ async function removeFromUI(actor,statusId){
  ui.notifications?.info(await removeCondition(actor.id,statusId));
 }
 const pendingRequests=new Map();
-function requestGM(type,data,timeout=15000){
+function requestGM(type,data,timeout=15000,{timeoutMessage='The GM client did not answer. Nothing was changed.'}={}){
  if(!game.socket?.emit)return Promise.reject(Error('The Utilities socket is unavailable.'));
  if(![...game.users].some(u=>u.isGM&&u.active))return Promise.reject(Error('A GM must be connected.'));
  const requestId=crypto.randomUUID();
  return new Promise((resolve,reject)=>{
-  const timer=setTimeout(()=>{pendingRequests.delete(requestId);reject(Error('The GM client did not answer. Nothing was changed.'));},timeout);
+  const timer=setTimeout(()=>{pendingRequests.delete(requestId);reject(Error(timeoutMessage));},timeout);
   pendingRequests.set(requestId,{resolve,reject,timer});
   game.socket.emit(SOCKET,{...data,type,requestId,userId:game.user.id});
  });
@@ -417,13 +423,15 @@ const gmHandlers={
  'stash-deposit':async(msg,user)=>executeDeposit(String(msg.itemUuid??''),user),
  'stash-withdraw':async(msg,user)=>executeWithdraw(String(msg.itemId??''),String(msg.actorId??''),user),
  'purse-deposit':async(msg,user)=>executePurseDeposit({actorId:String(msg.actorId??''),coin:String(msg.coin??''),amount:msg.amount},user),
- 'purse-take':async(msg,user)=>executePurseTake({actorId:String(msg.actorId??''),coin:String(msg.coin??''),amount:msg.amount},user)
+ 'purse-take':async(msg,user)=>executePurseTake({actorId:String(msg.actorId??''),coin:String(msg.coin??''),amount:msg.amount},user),
+ 'shop-buy':async(msg,user)=>executeBuy(msg,user)
 };
 /** Broadcasts every client handles: the consent poll itself. */
 const pollHandlers={
  'stash-vote-request':msg=>{if(Array.isArray(msg.voters)&&msg.voters.includes(game.user?.id))showVotePrompt(msg);},
  'stash-poll-closed':msg=>{closeVotePrompt(msg.pollId);},
- 'stash-vote':(msg,senderId)=>{if(isGM()&&coordinatorIsMe())receiveVote(msg,senderId);}
+ 'stash-vote':(msg,senderId)=>{if(isGM()&&coordinatorIsMe())receiveVote(msg,senderId);},
+ ...tradeSocketHandlers
 };
 async function onSocket(msg,senderId){
  if(!msg||typeof msg!=='object')return;
@@ -871,7 +879,9 @@ class StashVotePrompt extends ApplicationV2 {
  static DEFAULT_OPTIONS={classes:['ag-app','ag-utilities','agu-vote-app'],window:{title:'Party Stash: Approve?',minimizable:false},position:{width:380,height:'auto'}};
  constructor(request){super({id:`ashen-gate-utilities-vote-${request.pollId}`,position:windowSize(StashVotePrompt.DEFAULT_OPTIONS.position)});this.request=request;}
  async _renderHTML(){const r=this.request,secs=Math.max(0,Math.round((r.expiresAt-Date.now())/1000));
-  return `<div class="agu-vote"><p><strong>${E(r.requester)}</strong> wants to take <strong>${E(r.item)}</strong>${Number(r.quantity)>1?` (×${E(r.quantity)})`:''}${E(contentsNote(Number(r.contents)))} from the party stash for <strong>${E(r.actor)}</strong>.</p><p class="agu-note">If anyone denies, or not everyone answers within ${E(secs)} seconds, the item stays in the stash.</p><div class="agu-vote-actions">${btn('vote-deny','Deny')}${btn('vote-accept','Accept',{kind:'primary'})}</div></div>`;}
+  const ask=r.purpose==='shop'?`<p><strong>${E(r.requester)}</strong> wants to spend <strong>${E(r.total)}</strong> from the party purse on <strong>${E(r.quantity)} ${E(r.item)}</strong> at ${E(r.shop)} for <strong>${E(r.actor)}</strong>.</p><p class="agu-note">If anyone denies, or not everyone answers within ${E(secs)} seconds, nothing is bought and the coins stay in the purse.</p>`
+   :`<p><strong>${E(r.requester)}</strong> wants to take <strong>${E(r.item)}</strong>${Number(r.quantity)>1?` (×${E(r.quantity)})`:''}${E(contentsNote(Number(r.contents)))} from the party stash for <strong>${E(r.actor)}</strong>.</p><p class="agu-note">If anyone denies, or not everyone answers within ${E(secs)} seconds, the item stays in the stash.</p>`;
+  return `<div class="agu-vote">${ask}<div class="agu-vote-actions">${btn('vote-deny','Deny')}${btn('vote-accept','Accept',{kind:'primary'})}</div></div>`;}
  _replaceHTML(html,content){content.innerHTML=html;
   for(const b of content.querySelectorAll('[data-action^="vote-"]'))b.addEventListener('click',()=>{this.answer(b.dataset.action==='vote-accept'?'accept':'deny');});
  }
@@ -966,6 +976,7 @@ function purseDetail(h){
 const worldClock=t=>{if(!Number.isFinite(t))return '';const d=Math.floor(t/86400),r=((t%86400)+86400)%86400,p=n=>String(Math.floor(n)).padStart(2,'0');return `World day ${d}, ${p(r/3600)}:${p((r%3600)/60)}`;};
 function historyLine(h){
  if(PURSE_KINDS.includes(h.kind))return purseLine(h);
+ if(h.kind==='shop-purchase')return h.moved===false?`${h.userName}${h.actorName?` (${h.actorName})`:''} asked to buy ${h.itemName}${h.quantity>1?` ×${h.quantity}`:''} at ${h.shopName} with the party purse`:shopLine(h);
  if(h.kind==='purse-convert')return convertLine(h);
  if(h.kind==='gold-award'){const c=entryCoin(h),names=(h.recipients??[]).map(r=>r.actorName).join(', ');return h.mode==='split'?`${h.userName} split ${h.amount} ${c} between ${names}`:`${h.userName} awarded ${h.share} ${c} each to ${names}`;}
  const who=`${h.userName}${h.actorName?` (${h.actorName})`:''}`,qty=h.quantity>1?` ×${h.quantity}`:'';
@@ -1085,6 +1096,7 @@ async function openRolls(request={}){
 }
 async function open(){if(!permitted())throw Error('Utilities access is hidden by the GM.');if(!windowInstance||!windowInstance.rendered)windowInstance=new UtilitiesApp();await windowInstance.render({force:true});return windowInstance;}
 function refreshWindows(){
+ refreshShopWindows();
  if(!permitted()&&!isGM()){
   refreshEmbeds();document.querySelectorAll(`[data-ag-launcher="${ID}"]`).forEach(x=>x.remove());if(windowInstance?.rendered)windowInstance.close().catch(error);closeOverlay().catch(error);
  } else {rerenderStash();rerenderConditions();if(game.settings.get(ID,'overlayOpen')===true&&!overlayInstance?.rendered)openOverlay().catch(error);}
@@ -1120,6 +1132,10 @@ Hooks.once('init',()=>{
  game.settings.register(ID,'purseVoteRequired',{name:'Utilities: Party Purse Take-Out Vote',scope:'world',config:false,type:String,default:'',onChange:refreshWindows});
  // 0.13.2: GM Setup "Use electrum". Off (default) hides ep in Utilities; the purse still stores system.currency.ep.
  game.settings.register(ID,'electrumEnabled',{name:'Utilities: Use Electrum',scope:'world',config:false,type:Boolean,default:false,onChange:on=>{refreshWindows();Hooks.callAll?.(`${ID}.electrumChanged`,on===true);}});
+ // 0.18.0 Shopping: shops for players (default off) and the party vote when a player spends the purse in a shop
+ // ('' = never saved, follows the coin vote; 'on'/'off' once the GM saves GM Setup).
+ game.settings.register(ID,'shopsEnabled',{name:'Utilities: Shops for Players',scope:'world',config:false,type:Boolean,default:false,onChange:refreshWindows});
+ game.settings.register(ID,'shopPurseVote',{name:'Utilities: Party Vote on Shop Purchases',scope:'world',config:false,type:String,default:'',onChange:refreshWindows});
  game.settings.register(ID,'stashHistory',{name:'Utilities: Party Stash History',scope:'world',config:false,type:Array,default:[],onChange:refreshWindows});
  game.settings.register(ID,'overlayPosition',{name:'Utilities: Conditions Overlay Position',scope:'client',config:false,type:Object,default:{}});
 });
@@ -1132,7 +1148,7 @@ Hooks.once('ready',()=>{
   embed:{contract:'ag-utilities-embed/1',modes:[...EMBED_MODES],mount:mountEmbed},
   purse:{contract:'ag-utilities-purse/1',coins:COINS,isVoteRequired:purseVoteRequired,setVoteRequired:setPurseVoteRequired,totals:purseTotals,deposit:depositCoins,take:takeCoins,adjust:adjustPurse,undo:undoPurseEntry,openAdjust:adjustPurseDialog,convertElectrum,undoConvert:undoElectrumConvert,openConvert:convertElectrumDialog},
   currency:{contract:'ag-utilities-currency/1',electrumEnabled,setElectrumEnabled,coins:()=>coinChoices(electrumEnabled()),hook:`${ID}.electrumChanged`},
-  shops:shopsApi(),
+  shops:{...shopsApi(),...tradeApi()},
   awardGold,undoGoldAward,gold:{contract:'ag-utilities-gold/1',award:awardGold,undo:undoGoldAward,defaultRecipients:()=>{if(!isGM())throw Error('GM only.');return goldDefaults();},openDialog:awardGoldDialog}};
  game.socket?.on?.(SOCKET,(msg,senderId)=>{void onSocket(msg,senderId).catch(error);});
  Hooks.on('renderActorDirectory',addLauncher);Hooks.on('createChatMessage',msg=>{void processSubmission(msg).catch(error);});
@@ -1140,6 +1156,9 @@ Hooks.once('ready',()=>{
  for(const ev of ['createItem','updateItem','deleteItem'])Hooks.on(ev,doc=>rerenderStash(doc));
  Hooks.on('dropActorSheetData',onSheetDrop);
  shopHooks(()=>{if(windowInstance?.rendered&&windowInstance.tab==='shops'&&isGM())windowInstance.render().catch(error);});
+ configureTrade({stashActor,stashEnabled,purseVoteRequired,runConsent,requestGM,queuePurse,coordinatorIsMe,error,
+  logStash:entry=>logPurse(entry),openTab:async tab=>{if(!permitted())throw Error('Utilities access is hidden by the GM.');if(!windowInstance||!windowInstance.rendered)windowInstance=new UtilitiesApp();windowInstance.tab=tab;await windowInstance.render({force:true});return windowInstance;}});
+ tradeHooks(()=>{if(windowInstance?.rendered&&windowInstance.tab==='shops')windowInstance.render().catch(error);});
  Hooks.on('updateUser',refreshWindows);addLauncher(ui?.actors,ui?.actors?.element);
  lastPromptedSession=activeSession()?.id||null;
  syncOverlay();

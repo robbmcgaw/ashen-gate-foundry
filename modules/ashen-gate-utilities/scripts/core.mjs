@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.17.0';
+export const VERSION = '0.18.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -826,7 +826,7 @@ export function projectShop(shop, {electrum = false, locationName = null, typeLa
     const it = l.item ?? {}, sys = it.system ?? {}, unid = sys.identified === false;
     return {lineId: l.lineId, name: String((unid && sys.unidentified?.name) || it.name || 'Unnamed Item'), img: typeof it.img === 'string' ? it.img : '',
       type: typeLabel(it.type ?? 'item'), per: Number(sys.quantity) > 0 ? Number(sys.quantity) : 1, priceCp: l.priceCp,
-      priceText: shopPriceText(l.priceCp, l.priceCoin, {electrum}), flavour: l.flavour ?? '', stock: l.stock ?? null, soldOut: l.stock === 0,
+      priceCoin: l.priceCoin === 'ep' && !electrum ? 'sp' : l.priceCoin ?? 'gp', priceText: shopPriceText(l.priceCp, l.priceCoin, {electrum}), flavour: l.flavour ?? '', stock: l.stock ?? null, soldOut: l.stock === 0,
       description: stripSecrets(unid ? sys.unidentified?.description : sys.description?.value)};
   });
   const purse = shop?.purse && shop.showPurse !== false ? coinSet(shop.purse, coinChoices(electrum)) : null;
@@ -1072,4 +1072,61 @@ export function planShopPurseAdjust({purse, op, coin, amount, electrum = false} 
 /** Shop log entry (GM data, on the shop's own page): purse changes now; sales from a later version. */
 export function shopLogEntry({id, kind, shopId, before = null, after = null, reason = '', user, realTime = Date.now(), ...rest} = {}) {
   return {id, kind, shopId, before, after, reason: String(reason ?? '').trim().slice(0, 300), userId: user?.id ?? null, userName: user?.name ?? 'Unknown', realTime, ...rest};
+}
+
+/* ---- 0.18.0: presenting shops and buying (design §5–7). Pure helpers; the GM client carries the purchase out. ---- */
+/** The name players see for a line: the unidentified name while dnd5e `identified` is false. */
+export const shopLineName = line => { const it = line?.item ?? {}, sys = it.system ?? {}; return String((sys.identified === false && sys.unidentified?.name) || it.name || 'Unnamed Item'); };
+/** Items one line sells per purchase (the snapshot's own quantity). */
+export const perPurchase = line => (Number(line?.item?.system?.quantity) > 0 ? Number(line.item.system.quantity) : 1);
+/** How many items a purchase of `quantity` hands over: a container counts once per purchase, anything else stacks. */
+export const purchaseCount = (line, quantity) => ((line?.contents ?? []).length ? quantity : perPurchase(line) * quantity);
+/**
+ * Creation data for a purchase of `quantity` from `line` (create with `keepId`). Every copy gets a fresh `_id`; a
+ * container comes once per purchase with its contents linked to the new ids; anything else is one item whose quantity
+ * is per purchase × quantity. The snapshot in the line is never changed.
+ */
+export function purchaseItemData(line, quantity, {randomId} = {}) {
+  if (typeof randomId !== 'function') throw new TypeError('purchaseItemData needs randomId.');
+  const contents = Array.isArray(line?.contents) ? line.contents : [], per = perPurchase(line), out = [];
+  for (let n = 0; n < (contents.length ? quantity : 1); n++) {
+    const top = structuredClone(line?.item ?? {}), ids = new Map(), topId = randomId();
+    if (top._id) ids.set(top._id, topId);
+    const kids = contents.map(c => { const o = structuredClone(c), id = randomId(); if (o._id) ids.set(o._id, id); o._id = id; return o; });
+    top._id = topId;
+    top.system = {...(top.system ?? {}), container: null, quantity: contents.length ? per : per * quantity};
+    for (const k of kids) k.system = {...(k.system ?? {}), container: ids.get(k.system?.container) ?? topId};
+    out.push(top, ...kids);
+  }
+  return out;
+}
+const SHOP_NOTHING = 'Nothing was charged.';
+/** A refusal always ends "Nothing was charged." */
+export const nothingCharged = text => { const t = String(text ?? '').trim(); return /Nothing was charged/.test(t) ? t : `${t}${/[.!?]$/.test(t) ? '' : '.'} ${SHOP_NOTHING}`.trim(); };
+/** "2 Rope added to [TEST] Kestrel. Paid 2 gp, change 5 sp." */
+export function purchaseText({count, name, receiverName, plan, payFrom}) {
+  const back = Object.values(plan?.back ?? {}).some(n => n > 0) ? coinsText(plan.back) : '';
+  return `${count} ${name} added to ${receiverName}. Paid ${coinsText(plan?.pay)}${payFrom === 'purse' ? ' from the party purse' : ''}${back ? `, change ${back}` : ''}.`;
+}
+/** Page ownership for a presented shop's Player View page: Observer for those it is shown to, None for every other player. */
+export function presentedOwnership(presented, playerIds = [], {NONE = 0, OBSERVER = 2} = {}) {
+  const all = presented?.mode === 'all', own = {default: all ? OBSERVER : NONE};
+  for (const id of playerIds) own[id] = all || (presented?.mode === 'users' && (presented.userIds ?? []).includes(id)) ? OBSERVER : NONE;
+  return own;
+}
+/**
+ * The plan a player sees before confirming, worked out from the player view (`view` from projectShop) and the payer's
+ * coins. The GM client checks everything again on its own records. `purse: null` in the view = unlimited change here.
+ */
+export function quotePurchase({view, lineId, quantity, rev, hold, electrum = false} = {}) {
+  const line = (view?.lines ?? []).find(l => l.lineId === lineId);
+  if (!view) return refuse(SHOP_REFUSALS.notOpen);
+  if (!line || (rev !== undefined && rev !== view.rev)) return refuse(SHOP_REFUSALS.changed);
+  if (line.soldOut || line.stock === 0) return refuse(SHOP_REFUSALS.soldOut, {soldOut: true});
+  const q = Number(quantity);
+  if (quantity === '' || quantity === null || !Number.isInteger(q) || q < 1) return refuse(SHOP_REFUSALS.quantity);
+  if (line.stock !== null && line.stock !== undefined && q > line.stock) return refuse(`Only ${line.stock} left. Nothing was charged.`);
+  const totalCp = line.priceCp * q, plan = planShopPayment({hold, totalCp, priceCoin: line.priceCoin ?? 'gp', shopPurse: view.purse ?? null, electrum});
+  if (!plan.ok) return plan;
+  return {...plan, line, quantity: q, count: line.per * q, totalText: shopPriceText(totalCp, line.priceCoin ?? 'gp', {electrum})};
 }
