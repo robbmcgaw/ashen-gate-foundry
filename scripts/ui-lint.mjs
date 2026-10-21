@@ -90,10 +90,7 @@ export const RULES = {
 
 // Rules kept as a ratchet for one module only, {moduleId: {rule: highest allowed count}}. The count may go down
 // (lower it here when it does), never up. Each entry needs a follow-up in docs/ui-pass-plan.md.
-export const STRICT_EXCEPTIONS = {
-  // styles/character-hub.css: .agch-card__lead min-width: 24px (icon box); Hub fixes it in its next pass.
-  'ashen-gate-character-hub': {'css-raw-px-box': 1},
-};
+export const STRICT_EXCEPTIONS = {};
 
 /** Compares one module's counts with zero, or with its exception count. Returns {failures, notes}. */
 export function judgeModule(id, {counts, where}, exceptions = STRICT_EXCEPTIONS) {

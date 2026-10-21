@@ -3,8 +3,9 @@
  * strain, contract ag-strain/1, and cinder, contract ag-cinder/1). The Hub stores nothing: Strain and Cinders stay Cinders' state.
  * Players only see their own character (Cinders refuses others); Strain changes for players happen only through allowed actions
  * (a Push); the GM gets − / + here, each recorded with a reason by Cinders.
- * 0.19.0: each Cinder's sockets are shown read-only from Cinders' api.sockets (contract ag-sockets/1, Cinders 0.3.0+);
- * attaching, detaching and swapping happen in Cinders.
+ * 0.19.0: each Cinder's sockets from Cinders' api.sockets (contract ag-sockets/1, Cinders 0.3.0+).
+ * 0.24.0: a compact orb per Cinder (Cinders 0.6.0's look: Strain ring, art or default orb, socket dots) and Attach / Swap / Detach /
+ * drop on each socket row through api.sockets. Cinders checks every change again; the Hub only offers what it would allow.
  */
 import {MODULE_ID, esc, num} from './constants.mjs';
 import {btn} from './buttons.mjs';
@@ -59,41 +60,187 @@ export async function stepStrain(actor, step) {
 
 const TARGET_WORDS = {'push.cost': 'Push cost', 'backfire.chance': 'Backfire chance', 'backfire.severity': 'Backfire severity', 'strain.recovery': 'rest recovery', 'sockets.count': 'sockets'};
 const signed = v => `${num(v) > 0 ? '+' : ''}${num(v)}`;
+const effectsOf = x => (x.modifiers ?? []).map(m => `${m.label}: ${TARGET_WORDS[m.target] ?? m.target} ${signed(m.value)}`).join(' · ');
+/** api.sockets when Cinders offers contract ag-sockets/1 with the calls the Hub uses, else null (older Cinders: no socket rows). */
+const socketsOf = api => {const s = api?.sockets;return s?.contract === 'ag-sockets/1' && typeof s.hosts === 'function' ? s : null;};
 /** The character's Cinder sockets by instance id, read through api.sockets.hosts. Empty when Cinders is older or refuses. */
 export function socketHosts(actor, api) {
-  const s = api?.sockets;
-  if (s?.contract !== 'ag-sockets/1' || typeof s.hosts !== 'function') return new Map();
+  const s = socketsOf(api);
+  if (!s) return new Map();
   try { return new Map((s.hosts(actor) ?? []).map(h => [h.instanceId, h])); } catch { return new Map(); }
 }
-/** Read-only sockets of one Cinder: what is attached, which items are active, and empty sockets. */
-export function socketsHtml(h) {
-  if (!h) return '';
-  const capacity = num(h.capacity), slots = Array.isArray(h.slots) ? h.slots : [], used = slots.filter(x => x.active).length;
-  const items = slots.map(x => {
-    const effects = (x.modifiers ?? []).map(m => `${m.label}: ${TARGET_WORDS[m.target] ?? m.target} ${signed(m.value)}`).join(' · ');
-    return `<li class="ag-row agch-socket${x.active ? '' : ' is-inactive'}"><span class="ag-icon-chip" aria-hidden="true"><i class="fa-solid fa-gem"></i></span><span class="ag-row__main"><span class="ag-row__title">${esc(x.name)}</span>${effects ? `<span class="ag-row__meta">${esc(effects)}</span>` : ''}</span>${x.active ? '' : '<span class="ag-row__end"><span class="ag-badge ag-badge--danger">Inactive: over capacity</span></span>'}</li>`;
-  });
-  for (let i = 0; i < num(h.free); i++) items.push('<li class="ag-row agch-socket is-empty"><span class="ag-icon-chip" aria-hidden="true"><i class="fa-regular fa-circle"></i></span><span class="ag-row__main"><span class="ag-row__meta">Empty socket</span></span></li>');
-  const head = `<p class="agch-cinder__sockets-head"><strong>Sockets</strong> <span class="agch-muted">${used} of ${capacity} in use${h.locked ? ' · locked by the GM' : ''}</span></p>`;
-  return `<div class="agch-cinder__sockets" aria-label="Sockets">${head}${items.length ? `<ul class="ag-rows agch-plist">${items.join('')}</ul>` : '<p class="agch-muted">This Cinder has no sockets.</p>'}
-    ${slots.some(x => !x.active) ? '<p class="agch-muted">More items are attached than this Cinder has sockets; the extra ones do nothing until one is removed.</p>' : ''}
-    <p class="agch-muted">Attach, swap or detach socket items in the Cinders window.</p></div>`;
+/** Cinders' Player Access is on (an older Cinders without the state counts as on; its API still refuses players when it is off). */
+const playerAccessOn = api => { try { return api?.playerAccess?.getState?.()?.playerAccessEnabled !== false; } catch { return false; } };
+/** Who may change this Cinder's sockets from the Hub: the GM always; the owner while Player Access is on and the GM has not locked it. Cinders checks again. */
+export const canChangeSockets = (host, api) => Boolean(host) && (isGM() || (host.canEdit === true && !host.locked && playerAccessOn(api)));
+
+/** A saved art path the Hub may show, else null (same rule as Cinders: a relative path or http(s), nothing that could break out of an attribute). */
+export function cleanArt(raw) {
+  if (typeof raw !== 'string') return null;
+  const s = raw.trim();
+  if (!s || s.length > 1024 || /[\u0000-\u001f"'<>`\\]/.test(s)) return null;
+  const scheme = s.match(/^([a-z][a-z0-9+.-]*):/i)?.[1]?.toLowerCase();
+  return scheme && scheme !== 'http' && scheme !== 'https' ? null : s;
+}
+/** Default orb tone from Strain only (Cinders' rule): calm at 0, warm, ember from half the guarantee point, hot at it. */
+export function strainTone(value, top = 10) {
+  const t = Math.max(1, num(top) || 10), v = num(value);
+  return v >= t ? 'hot' : v >= Math.ceil(t / 2) ? 'ember' : v > 0 ? 'warm' : 'calm';
 }
 
-/** Cinders panel summary: each Cinder the character bears, its powers and their Push modes with cost and Backfire chance, and its sockets. */
+/**
+ * Socket rows in the order Cinders' orbit uses: active items in slot order, then the free sockets (each with the lowest unused slot
+ * number, which an attach uses), then items over capacity (inactive, off the orbit). A position past the Cinder's base count is an
+ * extra socket ("+1"). An older Cinders without `base` shows no "+1".
+ */
+export function socketRows(host, maxSockets = 12) {
+  if (!host) return {rows: [], capacity: 0, used: 0};
+  const capacity = Math.max(0, num(host.capacity)), base = Number.isSafeInteger(host.base) ? host.base : capacity;
+  const slots = Array.isArray(host.slots) ? host.slots : [], active = slots.filter(x => x.active), taken = new Set(slots.map(x => x.slot));
+  const free = [];
+  for (let s = 0; s < maxSockets && free.length < Math.max(0, capacity - active.length); s++) if (!taken.has(s)) free.push(s);
+  const onOrbit = [...active.map(x => ({...x, empty: false})), ...free.map(slot => ({slot, empty: true, active: true}))].slice(0, capacity)
+    .map((x, i) => ({...x, number: i + 1, extra: i >= base}));
+  return {rows: [...onOrbit, ...slots.filter(x => !x.active).map(x => ({...x, empty: false, number: null, extra: false}))], capacity, used: active.length};
+}
+
+/** The mini orb: Strain ring (segments to the guarantee point, then a pip per point over), the Cinder's art or the default orb, socket dots. */
+export function miniOrbHtml(ci, strain, rows) {
+  const top = Math.max(1, num(strain?.guaranteeAt) || 10), value = Math.max(0, num(strain?.value)), over = Math.max(0, value - top);
+  const art = cleanArt(ci.art), tone = strainTone(value, top), at = (r, deg) => [50 + r * Math.cos(deg * Math.PI / 180), 50 + r * Math.sin(deg * Math.PI / 180)].map(n => n.toFixed(2));
+  const step = 360 / top, gap = Math.min(4, step / 4);
+  const segs = Array.from({length: top}, (_, i) => {
+    const [x0, y0] = at(30, -90 + i * step + gap / 2), [x1, y1] = at(30, -90 + (i + 1) * step - gap / 2);
+    return `<path class="agch-corb__seg${i < value ? ' is-on' : ''}" d="M${x0} ${y0} A30 30 0 0 1 ${x1} ${y1}"></path>`;
+  }).join('');
+  const pips = Array.from({length: Math.min(over, 30)}, (_, i) => {const [cx, cy] = at(35, -90 + i * 12 + 6);return `<circle class="agch-corb__pip" cx="${cx}" cy="${cy}" r="1.6"></circle>`;}).join('');
+  const dots = rows.filter(r => r.number).map((r, i, all) => {
+    const n = all.length, deg = -90 + 360 / n * i + (n % 2 ? 0 : 180 / n), [x, y] = at(44, deg);
+    return `<span class="agch-corb__dot${r.empty ? ' is-empty' : ''}" style="--agch-x:${x};--agch-y:${y}"></span>`;
+  }).join('');
+  const label = `${ci.name}. Strain ${value} of ${top}${over ? `, ${over} over` : ''}. ${rows.filter(r => r.number && !r.empty).length} of ${rows.filter(r => r.number).length} sockets in use.`;
+  return `<div class="agch-corb" role="img" aria-label="${esc(label)}" data-tooltip="${esc(label)}">
+    <svg class="agch-corb__ring${value >= top ? ' is-hot' : ''}" viewBox="0 0 100 100" aria-hidden="true" focusable="false">${segs}${pips}</svg>
+    <span class="agch-corb__orb" data-tone="${tone}">${art ? `<img class="agch-corb__img" src="${esc(art)}" alt="">` : '<span class="agch-corb__default"></span>'}</span>${dots}</div>`;
+}
+
+/** Socket rows of one Cinder with Attach / Swap / Detach (or a Locked badge), each row a drop target while the user may change it. */
+export function socketsHtml(h, api = null, {instanceId = h?.instanceId, maxSockets = socketsOf(api)?.maxSockets ?? 12} = {}) {
+  if (!h) return '';
+  const {rows, capacity, used} = socketRows(h, maxSockets), edit = canChangeSockets(h, api);
+  const lockBadge = '<span class="ag-badge ag-badge--warn"><i class="fa-solid fa-lock" aria-hidden="true"></i> Locked</span>';
+  const data = r => ({instance: instanceId, slot: r.slot});
+  const items = rows.map(r => {
+    const name = r.empty ? 'Empty socket' : r.name, fx = r.empty ? '' : effectsOf(r);
+    const actions = !edit ? (h.locked ? lockBadge : '')
+      : r.empty ? btn('cinder-attach', 'Attach', {kind: 'sm', extra: 'ag-btn--primary', icon: 'fa-solid fa-plus', data: data(r), title: `Attach an item to socket ${r.number}`})
+      : `${r.active ? btn('cinder-swap', 'Swap', {kind: 'sm', icon: 'fa-solid fa-right-left', data: data(r), title: `Swap ${r.name} for another item`}) : ''}${btn('cinder-detach', 'Detach', {kind: 'sm', extra: 'ag-btn--danger', icon: 'fa-solid fa-link-slash', data: data(r), title: `Detach ${r.name}`})}`;
+    const drop = edit ? ` data-cinder-drop data-instance="${esc(instanceId)}" data-slot="${esc(r.slot)}" data-filled="${!r.empty}"` : '';
+    return `<li class="ag-row agch-sock${r.empty ? ' is-empty' : ''}${r.active ? '' : ' is-inactive'}"${drop}><span class="agch-sock__dot" aria-hidden="true">${r.number ?? '–'}</span>
+      <span class="ag-row__main"><span class="ag-row__title">${esc(name)}${r.extra ? ' <span class="ag-badge ag-badge--accent">+1</span>' : ''}${r.active ? '' : ' <span class="ag-badge ag-badge--warn">inactive</span>'}</span>${fx ? `<span class="ag-row__meta">${esc(fx)}</span>` : ''}${r.active ? '' : '<span class="ag-row__meta">Over capacity: no effect until an item is removed.</span>'}</span>
+      ${actions ? `<span class="ag-row__end agch-sock__actions">${actions}</span>` : ''}</li>`;
+  });
+  const head = `<p class="agch-cinder__sockets-head"><strong>Sockets</strong> <span class="agch-muted">${used} of ${capacity} in use</span>${h.locked ? ` ${lockBadge}` : ''}${edit ? ' <span class="agch-muted">Drag an item onto a socket</span>' : ''}</p>`;
+  return `<div class="agch-cinder__sockets" aria-label="Sockets">${head}${items.length ? `<ul class="ag-rows agch-socks">${items.join('')}</ul>` : '<p class="agch-muted">This Cinder has no sockets.</p>'}</div>`;
+}
+
+/** "Items that fit": this character's items that fit a socket and are not in this Cinder, as chips to drag onto a row. Only while the user may change it. */
+export function fitsTrayHtml(actor, h, api) {
+  const s = socketsOf(api);
+  if (!h || !canChangeSockets(h, api) || typeof s?.socketable !== 'function') return '';
+  let fits = [];
+  try { fits = (s.socketable(actor) ?? []).filter(f => !(h.slots ?? []).some(x => x.itemId === f.itemId)); } catch { return ''; }
+  const chips = fits.map(f => {
+    const uuid = actor.items?.get?.(f.itemId)?.uuid ?? `${actor.uuid}.Item.${f.itemId}`;
+    return `<span class="ag-chip agch-fit" draggable="true" data-drag-uuid="${esc(uuid)}"${f.attachedTo ? ' data-tooltip="In another Cinder\'s socket: it moves here"' : ''}><i class="fa-solid fa-gem" aria-hidden="true"></i> ${esc(f.name)}</span>`;
+  }).join('');
+  return `<div class="agch-fits" aria-label="Items that fit a socket"><p class="agch-cinder__sockets-head"><strong>Items that fit</strong> <span class="agch-muted">Drag onto a socket</span></p>
+    ${chips ? `<div class="agch-fits__row">${chips}</div>` : '<p class="agch-muted">No other item on this character fits a socket.</p>'}</div>`;
+}
+
+/** Cinders panel: each Cinder the character bears as a compact orb card: mini orb, Push lines with cost and Backfire chance, socket rows and the tray. */
 export function cindersSummary(actor, api) {
   const c = api?.cinder;
   if (c?.contract !== 'ag-cinder/1') return '<p class="agch-muted">Update Ashen Gate | Cinders to see Cinders here.</p>';
   const list = c.list(actor) ?? [];
-  const sockets = socketHosts(actor, api);
   if (!list.length) return '<div class="ag-empty"><i class="fa-solid fa-fire" aria-hidden="true"></i><p class="ag-empty__title">No Cinder bound to this character yet.</p></div>';
+  const sockets = socketHosts(actor, api);
+  let strain = null;
+  try { strain = api.strain?.contract === 'ag-strain/1' ? api.strain.get(actor) : null; } catch { strain = null; }
   return list.map(ci => {
-    const powers = (ci.powers ?? []).map(p => `<li class="ag-row agch-power"><span class="ag-icon-chip" aria-hidden="true"><i class="fa-solid fa-fire"></i></span><span class="ag-row__main"><span class="ag-row__title">${esc(p.name)}</span>${p.standard ? `<span class="ag-row__meta">${esc(p.standard)}</span>` : ''}
-      ${(p.modes ?? []).length ? `<ul class="agch-plist agch-cinder__modes">${p.modes.map(m => `<li><span>${esc(m.label)} <span class="agch-muted">+${num(m.cost)} Strain → ${num(m.after)} · Backfire ${num(m.chance)}%${m.guaranteed ? ' (guaranteed)' : ''}</span></span>
-        ${btn('cinder-push', 'Push', {kind: 'sm', icon: 'fa-solid fa-fire', data: {instance: ci.instanceId, power: p.powerId, mode: m.id}, title: `Push ${p.name}: ${m.label}`})}</li>`).join('')}</ul>` : ''}</span></li>`).join('');
+    const h = sockets.get(ci.instanceId);
+    const lines = (ci.powers ?? []).flatMap(p => (p.modes ?? []).map(m => `<li class="ag-row agch-power"><span class="ag-row__main"><span class="ag-row__title">${esc(p.name)}: ${esc(m.label)}</span>
+      <span class="ag-row__meta">+${num(m.cost)} Strain → ${num(m.after)} · Backfire ${num(m.chance)}%${m.guaranteed ? ' (guaranteed)' : ''}</span></span>
+      <span class="ag-row__end">${btn('cinder-push', 'Push', {kind: 'sm', extra: m.guaranteed ? 'ag-btn--danger' : 'ag-btn--primary', icon: 'fa-solid fa-fire', data: {instance: ci.instanceId, power: p.powerId, mode: m.id}, title: `Push ${p.name}: ${m.label}`})}</span></li>`)).join('');
+    const powers = (ci.powers ?? []).length
+      ? (lines ? `<ul class="ag-rows agch-powers">${lines}</ul>` : `<p class="agch-muted">Powers: ${(ci.powers ?? []).map(p => esc(p.name)).join(', ')}. No Push mode open yet.</p>`)
+      : '<div class="ag-empty"><p class="ag-empty__title">No powers unlocked yet.</p><p class="ag-empty__text">Unlock them in Skill Trees.</p></div>';
     const perks = (ci.enhancements ?? []).map(e => esc(e.name)).join(', ');
-    return `<div class="agch-cinder"><h4>${esc(ci.name)}</h4>${powers ? `<ul class="ag-rows agch-powers">${powers}</ul>` : '<div class="ag-empty"><p class="ag-empty__title">No powers unlocked yet.</p><p class="ag-empty__text">Unlock them in Skill Trees.</p></div>'}${perks ? `<p class="agch-muted">Perks: ${perks}</p>` : ''}${socketsHtml(sockets.get(ci.instanceId))}</div>`;
+    const rows = socketRows(h, socketsOf(api)?.maxSockets ?? 12).rows;
+    return `<div class="agch-cinder"${h?.locked ? ' data-locked' : ''}>${miniOrbHtml(ci, strain, rows)}<div class="agch-cinder__lines"><h4>${esc(ci.name)}</h4>${powers}${perks ? `<p class="agch-muted">Perks: ${perks}</p>` : ''}${socketsHtml(h, api)}${fitsTrayHtml(actor, h, api)}</div></div>`;
   }).join('');
+}
+
+const socketApi = () => socketsOf(cindersApi());
+/** The Cinder's socket host and Cinders' sockets API, or a refusal when the user may not change it (checked here and again by Cinders). */
+function socketTarget(actor, instanceId) {
+  const api = cindersApi(), s = socketApi();
+  if (!s || typeof s.attach !== 'function') return {error: 'Update Ashen Gate | Cinders to change sockets here.'};
+  let h = null;
+  try { h = (s.hosts(actor) ?? []).find(x => x.instanceId === instanceId) ?? null; } catch (error) { return {error: String(error?.message ?? error)}; }
+  if (!h) return {error: 'That character does not bear this Cinder.'};
+  if (!canChangeSockets(h, api)) return {error: h.locked ? 'The GM has locked this Cinder\'s sockets.' : 'You can\'t change this Cinder\'s sockets right now.'};
+  return {s, h};
+}
+const slotOf = v => v === '' || v == null || !Number.isSafeInteger(Number(v)) ? null : Number(v);
+
+/**
+ * Attach, Swap or Detach from a socket row, through Cinders' api.sockets. pick(title, options, ok) resolves an item id (or null);
+ * confirm(message, opts) resolves true to detach. Attach first asks Cinders' canAttach for the item.
+ */
+export async function socketFromHub(actor, kind, data, {pick, confirm} = {}) {
+  const {s, h, error} = socketTarget(actor, data.instance);
+  if (error) return refuse(error);
+  const slot = slotOf(data.slot);
+  try {
+    if (kind === 'detach') {
+      const x = (h.slots ?? []).find(y => y.slot === slot);
+      if (!x) return refuse('That socket is empty.');
+      const ok = await confirm(`${x.name} comes out of this Cinder's socket and stays in ${actor.name}'s inventory.`, {title: `Detach ${x.name}?`, yes: 'Detach', danger: true});
+      if (!ok) return {ok: true, result: null};
+      return {ok: true, result: await s.detach(actor, data.instance, slot)};
+    }
+    const fits = (s.socketable?.(actor) ?? []).filter(f => !(h.slots ?? []).some(x => x.itemId === f.itemId));
+    if (!fits.length) return refuse(`${actor.name} has no other item that fits a Cinder socket.`);
+    const itemId = await pick(kind === 'swap' ? 'Swap socket item' : 'Attach to a socket', fits.map(f => ({value: f.itemId, label: `${f.name}${f.attachedTo ? ' (in another Cinder\'s socket: it moves here)' : ''}`})), kind === 'swap' ? 'Swap' : 'Attach');
+    if (!itemId) return {ok: true, result: null};
+    if (kind === 'swap') return {ok: true, result: await s.swap(actor, data.instance, slot, itemId)};
+    const check = typeof s.canAttach === 'function' ? s.canAttach(actor, data.instance, itemId) : {ok: true};
+    if (check?.ok === false) return refuse((check.reasons ?? []).join(' ') || 'That item can\'t go in this socket.');
+    return {ok: true, result: await s.attach(actor, data.instance, itemId, {slot})};
+  } catch (err) { return refuse(String(err?.message ?? err)); }
+}
+
+/**
+ * An Item dropped on a socket row: attach to an empty socket, swap into a full one. A player drops items from this character;
+ * the GM may also drop an Item from the sidebar (Cinders' attachDropped copies it to the bearer).
+ */
+export async function dropOnSocket(actor, data, item) {
+  const {s, error} = socketTarget(actor, data.instance);
+  if (error) return refuse(error);
+  if (!item || item.documentName !== 'Item') return refuse('Drop an item here.');
+  const slot = slotOf(data.slot), filled = data.filled === true || data.filled === 'true';
+  const own = item.parent?.id === actor.id;
+  try {
+    if (!own) {
+      if (!isGM() || typeof s.attachDropped !== 'function') return refuse(`Drag an item from ${actor.name}'s inventory.`);
+      return {ok: true, result: await s.attachDropped(data.instance, item, {slot})};
+    }
+    if (filled) return {ok: true, result: await s.swap(actor, data.instance, slot, item.id)};
+    const check = typeof s.canAttach === 'function' ? s.canAttach(actor, data.instance, item.id) : {ok: true};
+    if (check?.ok === false) return refuse((check.reasons ?? []).join(' ') || 'That item can\'t go in this socket.');
+    return {ok: true, result: await s.attach(actor, data.instance, item.id, {slot})};
+  } catch (err) { return refuse(String(err?.message ?? err)); }
 }
 
 /** Push from the Hub: Cinders' own preview, a confirmation, then Cinders' push (a player's is rolled by the GM client). */
