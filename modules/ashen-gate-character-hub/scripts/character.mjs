@@ -5,7 +5,7 @@
  * (sheet.menu). An empty slot's click opens its Equip… menu. Right-click on a stat opens dnd5e's own configuration
  * window for it (configure.mjs), like the standard sheet.
  */
-import {esc, signed, SLOT_PLACEHOLDERS, placeholderKind} from './constants.mjs';
+import {esc, signed, SLOT_PLACEHOLDERS, placeholderKind, assetUrl} from './constants.mjs';
 import {btn} from './buttons.mjs';
 import {headerData, abilitiesData} from './data.mjs';
 import {equipmentLayout, equipChoices, SLOTS, featuresData} from './items.mjs';
@@ -22,12 +22,15 @@ export const BOTTOM_SLOTS = ['ring1', 'ring2', 'trinket', 'trinket2', 'trinket3'
 /** Slots that trade places with each other ("Swap"). */
 export const SLOT_PAIRS = {mainhand: 'offhand', offhand: 'mainhand', ring1: 'ring2', ring2: 'ring1'};
 
-/** Empty-slot placeholder from the SLOT_PLACEHOLDERS table in constants.mjs: an icon, an image or a short word. */
+/**
+ * Empty-slot placeholder from the SLOT_PLACEHOLDERS table in constants.mjs: an icon, an image or a short word. Image and
+ * silhouette paths go through assetUrl (0.28.1: a relative path in the inline --agch-mask url() 404'd under styles/).
+ */
 export function placeholder(id) {
   const v = SLOT_PLACEHOLDERS[id] ?? id, kind = placeholderKind(v);
   if (kind === 'icon') return `<i class="${esc(v)} agch-slot__icon" aria-hidden="true"></i>`;
-  if (kind === 'silhouette') return `<span class="agch-slot__mask" style="--agch-mask: url('${esc(v).replace(/'/g, '%27')}')" aria-hidden="true"></span>`;
-  if (kind === 'image') return `<img class="agch-slot__ph" src="${esc(v)}" alt="">`;
+  if (kind === 'silhouette') return `<span class="agch-slot__mask" style="--agch-mask: url('${esc(assetUrl(v)).replace(/'/g, '%27')}')" aria-hidden="true"></span>`;
+  if (kind === 'image') return `<img class="agch-slot__ph" src="${esc(assetUrl(v))}" alt="">`;
   return `<span class="agch-slot__empty">${esc(v)}</span>`;
 }
 const slotLabel = id => SLOTS.find(s => s.id === id)?.label ?? id;
@@ -225,8 +228,8 @@ function footHtml(h) {
 export function characterPanelHtml(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, h = headerData(actor);
   const classLine = h.classes.length ? h.classes.map(c => `${esc(c.name)} ${c.level}${c.subclass ? ` (${esc(c.subclass)})` : ''}`).join(' / ') : 'No class';
-  const walk = h.speeds.find(s => s.key === 'walk') ?? h.speeds[0];
-  const otherSpeeds = h.speeds.filter(s => s !== walk).map(s => `${esc(s.label)} ${s.value}`).concat(h.hover ? ['Hover'] : []).join(', ');
+  const walk = h.walk;
+  const otherSpeeds = h.speeds.filter(s => s.key !== 'walk').map(s => `${esc(s.label)} ${s.value}`).concat(h.hover ? ['Hover'] : []).join(', ');
   const cfg = (kind, key) => off ? '' : configAttrs(kind, key);
   const rc = off ? '' : ' (right-click to configure)';
   return `<aside class="agch-char" aria-label="Character">
