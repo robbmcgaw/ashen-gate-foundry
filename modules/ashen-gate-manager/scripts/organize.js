@@ -7,6 +7,8 @@
  * The GM can protect a folder (flag on the Folder, inherited by sub-folders) or a single document
  * (`keepFolder` flag); both are skipped. Player characters and player-owned Actors are left alone by default.
  * Every run is stored (previous folder ids) so the last organize can be undone.
+ * 0.36.0: a run can be narrowed to some documents (`ids`, the Items tab selection) and/or one folder and its
+ * sub-folders (`folderId`) inside the chosen world or compendium.
  */
 import {MODULE_ID, getPath} from './core.js';
 import {isCoreSource} from './core-links.js';
@@ -212,8 +214,10 @@ export function folderIndex(folders) {
  * Plans one source. Pure: reads documents/folders, writes nothing.
  * mode 'misfiled' (default): move unfiled docs and docs already inside the schema's own top folders.
  * mode 'all': refile every matched doc, wherever the GM put it (protected ones still skipped).
+ * `include(doc)` narrows which docs are planned; every doc still feeds the recipe-tier lookup, so a narrowed run
+ * files a crafted item exactly where a full run would.
  */
-export function planSource({documentName, docs, folders, rules, mode = 'misfiled', writable = true, blockedReason = ''}) {
+export function planSource({documentName, docs, folders, rules, mode = 'misfiled', writable = true, blockedReason = '', include = null}) {
   const index = folderIndex(folders);
   const roots = new Set(rules.filter(r => !r.leave).map(r => pathSegments(r.path)[0]));
   // Manager's own import folders ("Ashen Gate — Imported Items") count as managed too.
@@ -226,6 +230,7 @@ export function planSource({documentName, docs, folders, rules, mode = 'misfiled
   const moves = [], skipped = [], unmatched = [], creates = new Set();
   let inPlace = 0;
   for(const doc of docs) {
+    if(include && !include(doc)) continue;
     const fromId = folderIdOf(doc);
     const from = index.pathOf(fromId);
     const row = {id:doc._id ?? doc.id, name:doc.name, documentName, fromId, from:from || '(no folder)'};
@@ -254,6 +259,21 @@ export function planSource({documentName, docs, folders, rules, mode = 'misfiled
 }
 
 const OWN_FOLDER = 'In your own folder (use Refile everything to move it)';
+
+/**
+ * Narrowing for one loaded scope (0.36.0): `ids` keeps only those document ids, `folderId` only documents in that
+ * folder or its sub-folders. Returns null when nothing narrows (plan everything).
+ */
+export function scopeFilter(scope, {ids = null, folderId = null} = {}) {
+  if(!ids && !folderId) return null;
+  const want = ids ? new Set(ids.map(String)) : null;
+  const byId = new Map(scope.folders.map(f => [f.id, f]));
+  const inFolder = doc => {
+    for(let id = folderIdOf(doc), n = 0; id && n < 10; id = parentId(byId.get(id)), n++) if(id === folderId) return true;
+    return false;
+  };
+  return doc => (!want || want.has(String(doc._id ?? doc.id))) && (!folderId || inFolder(doc));
+}
 /**
  * Plain one-paragraph summary of a preview, so every Preview says what it did or why nothing would move (0.35.1).
  * `sourceLabel` names the World or compendium that was checked.
@@ -337,13 +357,23 @@ export function createOrganizer({game,
     createFolders:parts.reduce((n, p) => n + p.createFolders.length, 0)
   });
 
+  /** Checks ids/folderId (0.36.0); returns an error message or ''. */
+  function narrowProblem(scopes, ids, folderId) {
+    if(ids !== null && ids !== undefined && !(Array.isArray(ids) && ids.every(id => typeof id === 'string' || typeof id === 'number'))) return 'ids must be a list of document ids.';
+    if(folderId && !scopes.some(s => s.folders.some(f => f.id === folderId))) return 'That folder is not in the chosen world or compendium (or not of a ticked kind).';
+    return '';
+  }
+
   /** Dry run: exactly what Apply would do. Writes nothing. */
-  async function preview({source = 'world', types = ORGANIZE_TYPES, mode = 'misfiled'} = {}) {
+  async function preview({source = 'world', types = ORGANIZE_TYPES, mode = 'misfiled', ids = null, folderId = null} = {}) {
     if(!isGM()) return fail(GM_ONLY);
     try {
       const schema = rules();
-      const parts = (await load(source, types)).map(s => planSource({...s, rules:schema, mode}));
-      return {ok:true, source, types, mode, parts, totals:summarize(parts)};
+      const scopes = await load(source, types);
+      const problem = narrowProblem(scopes, ids, folderId);
+      if(problem) return fail(problem);
+      const parts = scopes.map(s => planSource({...s, rules:schema, mode, include:scopeFilter(s, {ids, folderId})}));
+      return {ok:true, source, types, mode, ids:ids ?? null, folderId:folderId ?? null, parts, totals:summarize(parts)};
     } catch(error) {return fail(String(error.message ?? error));}
   }
 
@@ -370,16 +400,18 @@ export function createOrganizer({game,
   }
 
   /** Re-plans (so it always equals a fresh Preview), creates missing folders, then changes only `folder`. */
-  async function apply({source = 'world', types = ORGANIZE_TYPES, mode = 'misfiled'} = {}) {
+  async function apply({source = 'world', types = ORGANIZE_TYPES, mode = 'misfiled', ids = null, folderId = null} = {}) {
     if(!isGM()) return fail(GM_ONLY);
     try {
       const schema = rules();
       const scopes = await load(source, types);
+      const problem = narrowProblem(scopes, ids, folderId);
+      if(problem) return fail(`${problem} Nothing was changed.`);
       const blocked = scopes.find(s => !s.writable);
       if(blocked) return fail(`${blocked.blockedReason}. Nothing was changed.`);
       const moved = [], created = [];
       for(const scope of scopes) {
-        const plan = planSource({...scope, rules:schema, mode});
+        const plan = planSource({...scope, rules:schema, mode, include:scopeFilter(scope, {ids, folderId})});
         if(!plan.moves.length) continue;
         const cache = new Map();
         const updates = [];
@@ -392,7 +424,8 @@ export function createOrganizer({game,
         for(let n = 0; n < updates.length; n += 250) await updateDocuments(scope.documentName, updates.slice(n, n + 250), opts);
       }
       if(moved.length) {
-        const entry = {at:new Date().toISOString(), source, types, mode, moves:moved, createdFolders:created};
+        const entry = {at:new Date().toISOString(), source, types, mode, moves:moved, createdFolders:created,
+          ...(ids || folderId ? {narrowed:{count:ids?.length ?? null, folderId:folderId ?? null}} : {})};
         await game.settings.set(MODULE_ID, HISTORY_SETTING, [entry, ...history()].slice(0, HISTORY_LIMIT));
       }
       const after = await load(source, types);

@@ -7,12 +7,13 @@
  */
 import {collectModuleSections, sourceFlagOf} from './world-export.js';
 import {systemOf, normalizeSourceRef} from './browser.js';
+import {FILTER_INDEX_FIELDS, itemFacts, rarityKey, sharedMatch} from './item-filters.js';
 
 const MODULE_ID = 'ashen-gate-manager';
 const GM_ONLY = 'Only the GM can browse Ashen Gate data.';
 const WORLD = [['Actor', 'actors'], ['Item', 'items'], ['JournalEntry', 'journal']];
 const PACK_TYPES = new Set(['Actor', 'Item', 'JournalEntry']);
-const PACK_FIELDS = ['type', 'folder', 'img', `flags.${MODULE_ID}.source`, 'system.rarity', '_stats.modifiedTime'];
+const PACK_FIELDS = ['type', 'folder', 'img', `flags.${MODULE_ID}.source`, 'system.rarity', '_stats.modifiedTime', ...FILTER_INDEX_FIELDS];
 const TITLES = {'ashen-gate-manager': 'General Manager', 'ashen-gate-locations': 'Locations', 'ashen-gate-quest-manager': 'Quest Log',
   'ashen-gate-factions': 'Renown', 'ashen-gate-skill-trees': 'Skill Trees', 'ashen-gate-headquarters': 'Headquarters',
   'ashen-gate-profession-ledger': 'Profession Ledger', world: 'World'};
@@ -65,6 +66,8 @@ function entry(base) {
     profession: null, tier: null, quality: null, tags: [], description: '', folder: null, category: null, modified: 0,
     refIds: [], linked: false, draggable: false, pack: null, sources: [], open: null, chips: [], extraFields: [], searchText: [], ...base};
   e.kinds = [e.kind];
+  // Items tab shared filters (0.36.0): partner records with no document have no source and only show under "All sources".
+  e.source ??= null; e.origin ??= e.ag ? 'ag' : null; e.rarity ??= rarityKey(e.quality); e.coreRef ??= false; e.folderIds ??= [];
   e.provenance ??= e.pack ? `Compendium: ${e.pack}` : e.owner === 'world' || e.owner === MODULE_ID && e.uuid ? 'World' : TITLES[e.owner] ?? e.owner;
   e.sources = [e.provenance];
   e.hay = fold([e.name, e.id, e.kind, e.docType, e.entityType, e.category, e.profession, e.tier, e.quality, e.status, ...e.tags, e.folder, e.description, ...e.searchText].filter(Boolean).join(' \u0001 '));
@@ -84,7 +87,7 @@ function worldDocEntry(doc, kind) {
   const source = sourceFlagOf(doc);
   const tagged = Boolean(source?.sourceId);
   const system = doc.system ?? {};
-  return entry({key: doc.uuid ?? `${kind}.${doc.id}`, uuid: doc.uuid ?? null, name: doc.name ?? '(unnamed)', kind, docType: str(doc.type),
+  return entry({key: doc.uuid ?? `${kind}.${doc.id}`, uuid: doc.uuid ?? null, docId: doc.id ?? null, name: doc.name ?? '(unnamed)', kind, ...itemFacts(doc), docType: str(doc.type),
     owner: 'world', category: str(doc.type), folder: folderPath(doc.folder) || null, modified: doc._stats?.modifiedTime ?? 0,
     linked: true, draggable: true, open: {type: 'document'}, ...(tagged ? agFields(source, system) : definitionFields({}, system))});
 }
@@ -97,7 +100,7 @@ function worldEntries(game, docs) {
     out.push(e);
     if (kind === 'JournalEntry') for (const page of listOf(doc.pages)) {
       const p = entry({key: page.uuid ?? `${e.key}.JournalEntryPage.${page.id}`, uuid: page.uuid ?? null, name: page.name ?? '(page)', kind: 'JournalEntryPage',
-        docType: str(page.type), owner: 'world', category: str(page.type), folder: [e.folder, doc.name].filter(Boolean).join('/'),
+        source: e.source, origin: e.origin, folderIds: e.folderIds, docType: str(page.type), owner: 'world', category: str(page.type), folder: [e.folder, doc.name].filter(Boolean).join('/'),
         modified: page._stats?.modifiedTime ?? 0, linked: true, draggable: true, open: {type: 'document'}, ag: e.ag, parentKey: e.key,
         description: stripHtml(page.text?.content ?? '').slice(0, 2000)});
       docs.set(p.key, page);
@@ -203,7 +206,8 @@ export async function compendiumEntries(game) {
       const tagged = Boolean(source?.sourceId);
       const folder = i.folder ? (pack.folders?.get?.(i.folder)?.name ?? null) : null;
       const uuid = i.uuid ?? `Compendium.${pack.collection}.${type}.${i._id}`;
-      out.push(entry({key: uuid, uuid, name: i.name ?? '(unnamed)', kind: type, docType: str(i.type), owner: pkg, pack: label, packId: pack.collection,
+      out.push(entry({key: uuid, uuid, docId: i._id ?? null, name: i.name ?? '(unnamed)', kind: type,
+        ...itemFacts(i, {packId: pack.collection, lookupFolder: id => pack.folders?.get?.(id) ?? null}), docType: str(i.type), owner: pkg, pack: label, packId: pack.collection,
         locked: Boolean(pack.locked), category: str(i.type), folder: [label, folder].filter(Boolean).join('/'), modified: i._stats?.modifiedTime ?? 0,
         draggable: true, open: {type: 'compendium'}, ...(tagged ? {...agFields(source, i.system ?? {}), owner: pkg} : definitionFields({}, i.system ?? {}))}));
     }
@@ -266,6 +270,12 @@ const termMatch = (e, t) => {
   }
 };
 
+/** Entries matching the search text and the Items tab's shared filters (0.36.0), unpaged: the "selection" other rail entries act on. */
+export function filterEntries(entries, {query = '', shared = null} = {}) {
+  const terms = parseQuery(query);
+  return entries.filter(e => (!shared || sharedMatch(e, shared)) && terms.every(t => termMatch(e, t)));
+}
+
 const scopeMatch = (e, scope) => scope === 'ag' ? e.ag : scope === 'nonag' ? !e.ag : true;
 const facetValue = (e, f) => e[f] ?? null;
 const sortKey = {name: (a, b) => a.name.localeCompare(b.name), type: (a, b) => a.kind.localeCompare(b.kind) || (a.entityType ?? '').localeCompare(b.entityType ?? '') || a.name.localeCompare(b.name),
@@ -276,10 +286,12 @@ export const ownerLabel = id => TITLES[id] ?? id;
  * Filters, counts, sorts, groups and pages the index. Counts per facet value ignore that facet's own filter, so a
  * select always shows what picking another value would give. Pure: no Foundry access.
  */
-export function searchIndex(entries, {query = '', scope = 'all', filters = {}, managedOnly = false, unlinkedOnly = false, sort = 'name', group = 'none', page = 0, pageSize = PAGE_SIZE} = {}) {
+export function searchIndex(entries, {query = '', scope = 'all', filters = {}, managedOnly = false, unlinkedOnly = false, sort = 'name', group = 'none', page = 0, pageSize = PAGE_SIZE, shared = null} = {}) {
   const terms = parseQuery(query);
   const active = FACETS.filter(f => filters[f] !== undefined && filters[f] !== null && filters[f] !== '' && filters[f] !== 'all');
-  const base = entries.filter(e => scopeMatch(e, scope) && (!managedOnly || e.managed) && (!unlinkedOnly || e.unlinked) && terms.every(t => termMatch(e, t)));
+  // `shared` = the Items tab's source/type/origin/rarity/folder/core_ref filters (0.36.0); scope counts follow them.
+  const pool = shared ? entries.filter(e => sharedMatch(e, shared)) : entries;
+  const base = pool.filter(e => scopeMatch(e, scope) && (!managedOnly || e.managed) && (!unlinkedOnly || e.unlinked) && terms.every(t => termMatch(e, t)));
   const passes = (e, skip) => active.every(f => f === skip || String(facetValue(e, f) ?? '—') === String(filters[f]));
   const rows = base.filter(e => passes(e));
   const facets = {};
@@ -304,7 +316,7 @@ export function searchIndex(entries, {query = '', scope = 'all', filters = {}, m
     groups.at(-1).rows.push(e);
   }
   const scopes = {all: 0, ag: 0, nonag: 0};
-  for (const e of entries) { scopes.all++; scopes[e.ag ? 'ag' : 'nonag']++; }
+  for (const e of pool) { scopes.all++; scopes[e.ag ? 'ag' : 'nonag']++; }
   return {total: rows.length, page: p, pages, from: rows.length ? p * pageSize + 1 : 0, to: p * pageSize + slice.length, groups, facets, scopes,
     activeFilters: active.length + (managedOnly ? 1 : 0) + (unlinkedOnly ? 1 : 0) + (terms.length ? 1 : 0)};
 }

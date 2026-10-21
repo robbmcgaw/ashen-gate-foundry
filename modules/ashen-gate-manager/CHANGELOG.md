@@ -1,3 +1,12 @@
+## 0.36.0 — 2026-10-21
+
+- **Items tab.** Browse, Library, Organize and Core Links are now one **Items** tab with the Library-style icon rail: **All items** (the Browse search), **Ashen Gate records** (the Library list, inspector and Actions), **Folders** (Organize), **Core links**, **Checks** (Check library and the Housekeeping report), plus **Export and backup**, **Adopt and tag** and **NPC Codex** (the other Library rail entries, so nothing is lost). The Library, Organize and Core Links buttons are gone from the top bar.
+- **Shared filters, kept across the rail:** search, Source (World or one compendium), Type, Origin (Ashen Gate, Core 2024, Core 2014, DDB / Plutonium, Homebrew), Rarity, Folder (with sub-folders) and *Has core_ref*. Origin comes from what importers write: Manager's source flag, `flags.ddbimporter` / `flags.plutonium`, then `system.source` 2024 or 2014 (or a dnd5e system pack); anything else is Homebrew. Rarity shows in the shared colours (common white, uncommon green, rare blue, very rare purple, legendary orange, artifact red), CSS variables `--ag-rarity-*` on `:root`.
+- **Folders: this selection or folder.** Filter (e.g. Origin: DDB / Plutonium, or one Folder), then choose *This selection or folder* and Preview: only those documents are planned, and Apply runs exactly what was previewed. Choosing it switches Move to *Refile everything* so documents in your own folders are included (you can switch it back). Preview, Download backup, confirmation, Undo, protected folders and Keep here work as before. Organize uses the Source filter (World when All sources).
+- **Core links:** with filters on, only matching scanned items are shown; Apply and Download backup use only the ticked rows you can see. Apply is still opt-in with a confirmation and backup.
+- **Large worlds:** All items and Ashen Gate records draw 100 rows per page; filtering 2,500 items stays well under a second in tests.
+- **Migration:** none; no saved data changes. Old tab ids `browse`, `library`, `organize` and `corelinks` (and Library rail sections) open the matching rail entry. API names are unchanged; `api.organize.preview/apply` accept optional `ids` and `folderId`, `api.browse.search` accepts optional `shared` filters. Everything stays GM-only in the API.
+
 ## 0.35.1 — 2026-10-21
 
 Alpha-test fixes.

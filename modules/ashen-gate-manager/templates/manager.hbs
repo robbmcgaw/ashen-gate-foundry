@@ -1,18 +1,15 @@
 <section class="agmanager-body">
   <header class="ag-header agmanager-top">
     <i class="agmanager-emblem fa-solid fa-dungeon" aria-hidden="true"></i>
-    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.35.1 Beta</small></h2></div>
+    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.36.0 Beta</small></h2></div>
     <button type="button" class="agmanager-help" data-ag-action="help" aria-label="Manager Help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button><span class="agmanager-chip">GM only</span>
   </header>
   <nav class="ag-tabs agmanager-nav" aria-label="Manager tabs">
     <button type="button" data-ag-tab="import" class="{{#if importActive}}active{{/if}}"><i class="fa-solid fa-file-import"></i> Import</button>
-    <button type="button" data-ag-tab="browse" class="{{#if browseActive}}active{{/if}}"><i class="fa-solid fa-magnifying-glass"></i> Browse</button>
-    <button type="button" data-ag-tab="library" class="{{#if libraryActive}}active{{/if}}"><i class="fa-solid fa-layer-group"></i> Library</button>
+    <button type="button" data-ag-tab="items" class="{{#if itemsActive}}active{{/if}}"><i class="fa-solid fa-boxes-stacked"></i> Items</button>
     <button type="button" data-ag-tab="modules" class="{{#if modulesActive}}active{{/if}}"><i class="fa-solid fa-grip"></i> Modules</button>
     <button type="button" data-ag-tab="appearance" class="{{#if appearanceActive}}active{{/if}}"><i class="fa-solid fa-palette"></i> Appearance</button>
     <button type="button" data-ag-tab="scenes" class="{{#if scenesActive}}active{{/if}}"><i class="fa-solid fa-cloud-sun"></i> Scenes</button>
-    <button type="button" data-ag-tab="organize" class="{{#if organizeActive}}active{{/if}}"><i class="fa-solid fa-folder-tree"></i> Organize</button>
-    <button type="button" data-ag-tab="corelinks" class="{{#if coreLinksActive}}active{{/if}}"><i class="fa-solid fa-link"></i> Core Links</button>
     <button type="button" data-ag-tab="setup" class="{{#if setupActive}}active{{/if}}"><i class="fa-solid fa-gear"></i> GM Setup</button>
     <button type="button" data-ag-tab="history" class="{{#if historyActive}}active{{/if}}"><i class="fa-solid fa-clock-rotate-left"></i> History</button>
   </nav>
@@ -142,17 +139,32 @@
   {{/if}}
   {{/if}}
 
-  {{#if libraryActive}}
+  {{#if itemsActive}}
+  <div class="agitems">
+    <div class="ag-toolbar agitems-filters" role="search" aria-label="Item filters (kept across the rail)">
+      <input type="search" class="agitems-query" data-ag-items-query value="{{itemFilters.query}}" placeholder="Search name, id, tag, text… (id:MAT-HERB, type:weapon, tag:, status:)" aria-label="Search items" />
+      <label>Source <select data-ag-items-filter="source">{{#each itemFilters.sources}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+      <label>Type <select data-ag-items-filter="type">{{#each itemFilters.types}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+      <label>Origin <select data-ag-items-filter="origin">{{#each itemFilters.origins}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+      <label>Rarity <select data-ag-items-filter="rarity" class="ag-rarity-select">{{#each itemFilters.rarities}}<option value="{{value}}" class="ag-rarity-option--{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+      <label>Folder <select data-ag-items-filter="folder">{{#each itemFilters.folders}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+      <label class="agitems-check"><input type="checkbox" data-ag-items-coreref {{#if itemFilters.coreRef}}checked{{/if}}> Has core_ref</label>
+      <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-items-clear {{#unless itemFilters.active}}disabled{{/unless}}>Clear filters ({{itemFilters.active}})</button>
+    </div>
+    {{#if itemFilters.packsNote}}<p class="agmanager-tiny agitems-note">{{itemFilters.packsNote}} <button type="button" class="ag-btn ag-btn--sm" data-ag-items-packs><i class="fa-solid fa-book-atlas" aria-hidden="true"></i> Load compendiums</button></p>{{/if}}
   <div class="aglib">
-    <nav class="aglib-rail" aria-label="Library sections">
-      {{#each librarySections}}<button type="button" class="aglib-rail__tab {{#if active}}active{{/if}}" data-ag-library-section-tab="{{id}}" title="{{label}}" aria-label="{{label}}" aria-pressed="{{#if active}}true{{else}}false{{/if}}"><i class="{{icon}}" aria-hidden="true"></i></button>{{/each}}
+    <nav class="aglib-rail" aria-label="Items sections">
+      {{#each itemsViews}}<button type="button" class="aglib-rail__tab {{#if active}}active{{/if}}" data-ag-items-view="{{id}}" title="{{label}}" aria-label="{{label}}" aria-pressed="{{#if active}}true{{else}}false{{/if}}"><i class="{{icon}}" aria-hidden="true"></i></button>{{/each}}
     </nav>
     <div class="aglib-main">
+    <h3 class="agitems-title">{{itemsViewLabel}}</h3>
+    {{#if itemsAll}}
+    <div class="agbrowse" data-ag-browse></div>
+    {{/if}}
     {{#if libraryRecordsActive}}
     <div class="aglib-split">
       <section class="aglib-list" aria-label="Managed records">
         <div class="aglib-tools">
-          <input type="search" class="aglib-search" data-ag-library-filter value="{{librarySearch}}" placeholder="Search name, ID, package, type" aria-label="Search records" />
           <div class="aglib-chips" role="group" aria-label="System">
             {{#each librarySystemChips}}<button type="button" class="aglib-chip {{#if selected}}active{{/if}}" data-ag-library-system-chip="{{value}}" aria-pressed="{{#if selected}}true{{else}}false{{/if}}">{{label}} <span class="aglib-num">{{count}}</span></button>{{/each}}
           </div>
@@ -164,6 +176,7 @@
               <label class="aglib-check"><input type="checkbox" data-ag-library-show-archived {{#if libraryShowArchived}}checked{{/if}}> Show archived</label>
             </div>
           </details>
+          {{#if libraryNarrowed}}<p class="agmanager-tiny">The filters above leave {{libraryInScope}} of {{libraryTotal}} records.</p>{{/if}}
           <div class="aglib-count"><span>{{libraryFilteredCount}} of {{libraryTotal}} records</span><span>{{libraryEditedCount}} edited · {{libraryActiveCount}} active</span></div>
         </div>
         <div class="aglib-rows">
@@ -176,7 +189,7 @@
               <span class="aglib-row__meta"><code>{{sourceId}}</code><span class="aglib-pill aglib-status-{{status}}">{{status}}</span>{{#if archived}}<span class="aglib-pill aglib-pill--danger">archived</span>{{/if}}{{#if version}}<span class="aglib-pill">v{{version}}</span>{{/if}}{{#if edited}}<span class="aglib-pill aglib-pill--warn">{{edited}} edit(s)</span>{{/if}}</span>
             </button>
           </div>{{/each}}
-          {{else}}{{#if libraryTotal}}<p class="ag-empty aglib-empty">No matching managed records. Clear the search or filters.</p>{{else}}<p class="ag-empty aglib-empty">Library shows only Ashen Gate records imported through the Import tab, so it is empty until you import an Ashen Gate package. Items from D&amp;D Beyond, Plutonium or compendiums are not listed here: use Browse to search them.</p>{{/if}}{{/each}}
+          {{else}}{{#if libraryTotal}}<p class="ag-empty aglib-empty">No matching managed records. Clear the search or filters.</p>{{else}}<p class="ag-empty aglib-empty">Ashen Gate records lists only records imported through the Import tab, so it is empty until you import an Ashen Gate package. Items from D&amp;D Beyond, Plutonium or compendiums are not listed here: use All items to search them.</p>{{/if}}{{/each}}
         </div>
         <div class="aglib-selbar">
           {{#if hasLibrarySelected}}<strong class="aglib-num">{{librarySelectedCount}} selected</strong>
@@ -254,6 +267,19 @@
       {{#each audit}}<div class="agmanager-auditrow agmanager-{{level}}"><span>{{level}}</span> {{message}}</div>{{/each}}
       </div>{{/if}}
       <p class="aglib-status" role="status">{{libraryMessage}}</p>
+    </section>
+    <section class="ag-card aglib-section" aria-label="Housekeeping report">
+      <div class="agmanager-row agmanager-row-wrap"><h3>Housekeeping report</h3>
+        <button type="button" class="ag-btn" data-ag-action="org-housekeeping"><i class="fa-solid fa-clipboard-list"></i> Run report</button></div>
+      <p class="agmanager-tiny">Read-only. Lists Ashen Gate ids found more than once (world and all compendiums) and likely temporary records so you can decide. Nothing is changed or deleted. Checks always look at everything; the filters above do not apply.</p>
+      {{#if housekeeping.report}}
+        <h4>Duplicate ids ({{housekeeping.report.duplicates.length}})</h4>
+        {{#if housekeeping.report.hasDuplicates}}<ul>{{#each housekeeping.report.duplicates}}<li><code>{{sourceId}}</code> ×{{count}}: {{#each rows}}{{name}} ({{where}}, {{documentName}}){{#unless @last}}; {{/unless}}{{/each}}</li>{{/each}}</ul>{{else}}<p class="agmanager-tiny">None.</p>{{/if}}
+        <h4>Likely temporary ({{housekeeping.report.temporary.length}})</h4>
+        {{#if housekeeping.report.hasTemporary}}<ul>{{#each housekeeping.report.temporary}}<li>{{name}} {{#if sourceId}}<code>{{sourceId}}</code>{{/if}} — {{where}}, {{why}}</li>{{/each}}</ul>{{else}}<p class="agmanager-tiny">None.</p>{{/if}}
+        <p class="agmanager-tiny">Draft-status Ashen Gate records: {{housekeeping.report.draftCount}} (normal while content is in development).</p>
+      {{/if}}
+      {{#if housekeeping.message}}<p class="aglib-status" role="status">{{housekeeping.message}}</p>{{/if}}
     </section>
     {{/if}}
 
@@ -415,7 +441,162 @@
       </section>
     </div>
     {{/if}}
+
+      {{#if organizeActive}}
+      <div class="agmanager-panel agmanager-organize">
+        <section class="ag-card" aria-label="Organize folders">
+          <h3>Organize folders <span class="agmanager-beta">GM only</span></h3>
+          <p><strong>Where:</strong> {{org.whereLabel}}{{#unless org.whereWritable}} <span class="ag-badge ag-badge--warn">inspect only: {{org.whereReason}}</span>{{/unless}}
+            {{#if org.allSources}}<span class="agmanager-tiny">(to organize a compendium, pick it under Source above)</span>{{/if}}</p>
+          <fieldset class="agitems-scope"><legend>Which documents</legend>
+            <label class="agmanager-toggle"><input type="radio" name="ag-org-scope" value="all" data-ag-org-scope {{#if org.scopeAll}}checked{{/if}}> Everything in {{org.whereLabel}}</label>
+            <label class="agmanager-toggle"><input type="radio" name="ag-org-scope" value="selection" data-ag-org-scope {{#if org.scopeSelection}}checked{{/if}} {{#unless org.filtered}}disabled{{/unless}}> This selection or folder: {{#if org.filtered}}<strong class="aglib-num">{{org.selectedCount}}</strong> document(s) matching the filters above{{#if org.folderFilter}} (the chosen folder and its sub-folders){{/if}}{{else}}set a filter or a Folder above first{{/if}}</label>
+            {{#if org.packsMissing}}<p class="agmanager-warnings">This compendium's index is not loaded yet, so the selection is empty. Press <strong>Load compendiums</strong> above.</p>{{/if}}
+          </fieldset>
+          <div class="agmanager-row agmanager-row-wrap">
+            {{#each org.types}}<label class="agmanager-toggle"><input type="checkbox" data-ag-org-type="{{value}}" {{#if checked}}checked{{/if}}> {{label}}</label>{{/each}}
+            <label>Move <select data-ag-org-mode>
+              <option value="misfiled" {{#if org.modeMisfiled}}selected{{/if}}>Only unfiled and misfiled</option>
+              <option value="all" {{#if org.modeAll}}selected{{/if}}>Refile everything (also from your own folders)</option>
+            </select></label>
+            <button type="button" class="ag-btn" data-ag-action="org-preview"><i class="fa-solid fa-magnifying-glass"></i> Preview</button>
+          </div>
+          <p class="agmanager-tiny" role="status">{{org.message}}</p>
+          <p class="agmanager-tiny">To organize one folder, pick it under <strong>Folder</strong> above and choose <strong>This selection or folder</strong>. To filter first (e.g. Origin: DDB / Plutonium), do the same: Preview then lists only those documents. To keep a folder as it is, protect it below.</p>
+          <p class="agmanager-tiny">Only the folder changes. Nothing is renamed, edited or deleted, and no folder is ever deleted. Player characters and player-owned actors stay where they are. Documents in a protected folder, or marked <strong>Keep here</strong>, are skipped. Locked, module and system compendiums are inspect-only.</p>
+          <p class="agmanager-tiny">Default rules: Ashen Gate records go to <strong>Ashen Gate</strong>. Other Items go to <strong>Core 5.5e</strong> when they carry a core source tag (imported by Plutonium, or marked 2024 / PHB'24, DMG'24, MM'24, SRD 5.2, or 2014 core / PHB, DMG, MM, SRD 5.1); items with no source or a third-party or homebrew source go to <strong>Homebrew</strong>, with the same sub-folders. Your own saved rules are used instead if you have them.</p>
+
+          {{#if org.preview}}
+          <div class="agmanager-row agmanager-row-wrap">
+            <span class="agmanager-chip">Would move: {{org.preview.totals.moves}}</span>
+            <span class="agmanager-chip">New folders: {{org.preview.totals.createFolders}}</span>
+            <span class="agmanager-chip">Already in place: {{org.preview.totals.inPlace}}</span>
+            <span class="agmanager-chip">Skipped: {{org.preview.totals.skipped}}</span>
+            <span class="agmanager-chip">No rule: {{org.preview.totals.unmatched}}</span>
+          </div>
+          {{#each org.preview.parts}}
+          <div class="agmanager-org-part">
+            <h4>{{label}} — {{moveCount}} to move{{#if ../org.preview.narrowed}} <span class="ag-badge">selection only</span>{{/if}}</h4>
+            {{#unless writable}}<p class="agmanager-warnings"><strong>Inspect only:</strong> {{blockedReason}}.</p>{{/unless}}
+            {{#each groups}}
+            <details class="agmanager-org-group"><summary><strong>{{path}}</strong> ({{count}})</summary>
+              <table class="agmanager-table"><thead><tr><th>Document</th><th>From</th><th></th></tr></thead><tbody>
+              {{#each rows}}<tr><td>{{name}}</td><td>{{from}}</td><td>{{#if @root.org.world}}<button type="button" class="ag-btn ag-btn--sm" data-ag-org-keep="{{id}}" data-ag-org-doctype="{{documentName}}" title="Never move this document">Keep here</button>{{/if}}</td></tr>{{/each}}
+              </tbody></table>
+            </details>
+            {{/each}}
+            {{#if hasCreates}}<details class="agmanager-org-group"><summary>Folders to create ({{createFolders.length}})</summary><ul>{{#each createFolders}}<li>{{this}}</li>{{/each}}</ul></details>{{/if}}
+            {{#if hasSkipped}}<details class="agmanager-org-group"><summary>Skipped ({{skipped.length}})</summary><ul>{{#each skipped}}<li><strong>{{name}}</strong> in {{from}}{{#if to}} (rule says {{to}}){{/if}} — {{reason}}</li>{{/each}}</ul></details>{{/if}}
+            {{#if hasUnmatched}}<details class="agmanager-org-group"><summary>No matching rule, left where they are ({{unmatched.length}})</summary><ul>{{#each unmatched}}<li><strong>{{name}}</strong> in {{from}}</li>{{/each}}</ul></details>{{/if}}
+          </div>
+          {{/each}}
+          <footer class="agmanager-row agmanager-mood-footer">
+            <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="org-clear">Cancel</button>
+            <span class="agmanager-row">
+              <button type="button" class="ag-btn" data-ag-action="org-backup" {{#unless org.preview.totals.moves}}disabled{{/unless}}><i class="fa-solid fa-download"></i> Download backup</button>
+              <button type="button" class="ag-btn ag-btn--primary" data-ag-action="org-apply" {{#unless org.preview.canApply}}disabled{{/unless}}><i class="fa-solid fa-folder-tree"></i> Apply…</button>
+            </span>
+          </footer>
+          {{/if}}
+          {{#if org.result}}<p class="agmanager-tiny"><strong>Last apply:</strong> {{org.result.message}}</p>
+            {{#if org.hasEmpty}}<details class="agmanager-org-group"><summary>Empty folders (report only, nothing deleted): {{org.result.emptyFolders.length}}</summary><ul>{{#each org.result.emptyFolders}}<li>{{this}}</li>{{/each}}</ul></details>{{/if}}{{/if}}
+        </section>
+
+        <section class="ag-card" aria-label="Organize history">
+          <div class="agmanager-row agmanager-row-wrap"><h3>Recent organize runs</h3>
+            <button type="button" class="ag-btn" data-ag-action="org-undo" {{#unless org.history.length}}disabled{{/unless}}><i class="fa-solid fa-rotate-left"></i> Undo last organize…</button></div>
+          {{#if org.history.length}}<ul>{{#each org.history}}<li>{{at}} · {{source}} · {{mode}} · {{moved}} moved</li>{{/each}}</ul>{{else}}<p class="agmanager-tiny">No organize runs yet. The last 5 are kept for Undo.</p>{{/if}}
+        </section>
+
+        {{#if org.world}}
+        <section class="ag-card" aria-label="Protected folders">
+          <h3>Protected folders</h3>
+          <p class="agmanager-tiny">Organize never moves anything in a protected folder or its sub-folders.</p>
+          <div class="agmanager-row agmanager-row-wrap">
+            <select data-ag-org-folder aria-label="Folder to protect">{{#each org.openFolders}}<option value="{{id}}">{{label}}</option>{{/each}}</select>
+            <button type="button" class="ag-btn" data-ag-org-protect><i class="fa-solid fa-lock"></i> Protect folder</button>
+          </div>
+          {{#if org.protectedFolders.length}}<ul>{{#each org.protectedFolders}}<li>{{label}} <button type="button" class="ag-btn ag-btn--sm" data-ag-org-unprotect="{{id}}">Unprotect</button></li>{{/each}}</ul>{{/if}}
+        </section>
+        {{/if}}
+
+        <section class="ag-card" aria-label="Organize rules">
+          <div class="agmanager-row agmanager-row-wrap"><h3>Rules {{#if org.schemaIsDefault}}<span class="ag-badge">Default</span>{{/if}}</h3>
+            <span class="agmanager-row">
+              <button type="button" class="ag-btn" data-ag-action="org-schema-edit"><i class="fa-solid fa-pen"></i> Edit rules (JSON)</button>
+              <button type="button" class="ag-btn" data-ag-action="org-schema-export"><i class="fa-solid fa-download"></i> Export</button>
+              <label class="ag-btn"><i class="fa-solid fa-upload"></i> Import <input type="file" accept=".json,application/json" data-ag-org-schema-file hidden></label>
+            </span></div>
+          <p class="agmanager-tiny">Checked top to bottom; the first rule that matches decides the folder. <code>{tier}</code>, <code>{rarity}</code>, <code>{spellLevel}</code>, <code>{creatureType}</code>, <code>{crBand}</code> and <code>{entityType}</code> fill in from the document; if one is empty the next rule is tried.</p>
+          {{#if org.editing}}
+            <textarea data-ag-org-schema-text rows="18" class="agmanager-org-json" aria-label="Organize rules JSON">{{org.schemaText}}</textarea>
+            <footer class="agmanager-row agmanager-mood-footer">
+              <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="org-schema-cancel">Cancel</button>
+              <button type="button" class="ag-btn ag-btn--primary" data-ag-action="org-schema-save"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
+            </footer>
+          {{else}}
+          <table class="agmanager-table"><thead><tr><th>#</th><th>Rule</th><th>For</th><th>When</th><th>Folder</th></tr></thead><tbody>
+            {{#each org.rules}}<tr><td>{{n}}</td><td>{{label}}</td><td>{{types}}</td><td><code>{{match}}</code></td><td>{{#if leave}}<em>leave where it is</em>{{else}}{{path}}{{/if}}</td></tr>{{/each}}
+          </tbody></table>
+          {{/if}}
+          <p class="agmanager-tiny"><button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="org-schema-reset">Reset rules to defaults…</button></p>
+        </section>
+
+      </div>
+      {{/if}}
+
+      {{#if coreLinksActive}}
+      <div class="agmanager-panel agmanager-organize">
+        <section class="ag-card" aria-label="Core links">
+          <div class="agmanager-row agmanager-row-wrap"><h3>Core links <span class="agmanager-beta">GM only</span></h3>
+            <button type="button" class="ag-btn" data-ag-action="cl-scan"><i class="fa-solid fa-magnifying-glass"></i> Scan</button></div>
+          <p class="agmanager-tiny" role="status">{{cl.message}}</p>
+          {{#if cl.noRefs}}<p class="ag-empty">Nothing to link: Core Links only works on Ashen Gate items whose data names a matching official item (a <code>core_ref</code>), and this world has none, so nothing needs doing: to use it, add a <code>core_ref</code> to Ashen Gate items in their source data and re-import them, otherwise ignore this section.</p>{{/if}}
+          <p class="agmanager-tiny">Only Ashen Gate world Items whose source data has <code>core_ref</code> are checked. Matches come from 2024 (5.5e) content only: Plutonium-imported and other 2024 world items, world compendiums, the core sources in <strong>GM Setup</strong>, then the dnd5e 2024 packs. <strong>Adopt</strong> replaces the item's image and data (description included) with the core item's and keeps its name, Ashen Gate id, folder, ownership and module data. Copies in player inventories are never touched.</p>
+          {{#if cl.preview}}
+          <div class="agmanager-row agmanager-row-wrap">
+            <span class="agmanager-chip">Core items found: {{cl.preview.poolSize}}</span>
+            <span class="agmanager-chip">Ashen Gate items without core_ref (untouched): {{cl.preview.withoutRef}}</span>
+            <span class="agmanager-chip">Ticked: {{cl.preview.tickedCount}}</span>
+          </div>
+          {{#if cl.preview.hiddenByFilters}}<p class="agmanager-tiny">{{cl.preview.hiddenByFilters}} scanned item(s) are hidden by the filters above. Apply and Download backup use only the ticked items shown here.</p>{{/if}}
+          {{#each cl.preview.notes}}<p class="agmanager-warnings">{{this}}</p>{{/each}}
+          {{#each cl.preview.groups}}
+          <div class="agmanager-org-part">
+            <h4>{{label}} ({{rows.length}})</h4>
+            <table class="agmanager-table"><thead><tr><th></th><th>Ashen Gate item</th><th>core_ref</th><th>Core match</th><th>Notes</th></tr></thead><tbody>
+            {{#each rows}}<tr>
+              <td>{{#if selectable}}<input type="checkbox" data-ag-cl-tick="{{id}}" {{#if ticked}}checked{{/if}} aria-label="Link {{name}}">{{/if}}</td>
+              <td><strong>{{name}}</strong><code>{{sourceId}}</code></td>
+              <td>{{refText}}</td>
+              <td>{{#if best}}<strong>{{best.name}}</strong> <span class="ag-badge">{{best.confidence}}</span><div class="agmanager-tiny">{{best.sourceLabel}} · matched on {{matchedOn}}</div>
+                {{#if hasOthers}}<details><summary class="agmanager-tiny">Other candidates ({{others.length}})</summary><ul>{{#each others}}<li>{{name}} — {{confidence}}, {{sourceLabel}}</li>{{/each}}</ul></details>{{/if}}{{else}}—{{/if}}</td>
+              <td>{{reason}}
+                {{#if selectable}}{{#if canAdopt}}<label class="agmanager-toggle"><input type="checkbox" data-ag-cl-linkonly="{{id}}" {{#if linkOnly}}checked{{/if}}> Link only (keep my data)</label>{{/if}}{{/if}}
+                {{#if diffCount}}<details><summary class="agmanager-tiny">What Adopt changes ({{diffCount}} field(s))</summary>
+                  <table class="agmanager-table"><thead><tr><th>Field</th><th>Now</th><th>Core</th></tr></thead><tbody>{{#each diff}}<tr><td><code>{{path}}</code></td><td>{{before}}</td><td>{{after}}</td></tr>{{/each}}</tbody></table></details>{{/if}}</td>
+            </tr>{{/each}}
+            </tbody></table>
+          </div>
+          {{/each}}
+          <footer class="agmanager-row agmanager-mood-footer">
+            <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="cl-clear">Cancel</button>
+            <span class="agmanager-row">
+              <button type="button" class="ag-btn" data-ag-action="cl-backup" {{#unless cl.preview.tickedCount}}disabled{{/unless}}><i class="fa-solid fa-download"></i> Download backup</button>
+              <button type="button" class="ag-btn ag-btn--primary" data-ag-action="cl-apply" {{#unless cl.preview.tickedCount}}disabled{{/unless}}><i class="fa-solid fa-link"></i> Apply ({{cl.preview.tickedCount}})…</button>
+            </span>
+          </footer>
+          {{/if}}
+        </section>
+        <section class="ag-card" aria-label="Core link history">
+          <div class="agmanager-row agmanager-row-wrap"><h3>Recent core-link runs</h3>
+            <button type="button" class="ag-btn" data-ag-action="cl-undo" {{#unless cl.history.length}}disabled{{/unless}}><i class="fa-solid fa-rotate-left"></i> Undo last core link…</button></div>
+          {{#if cl.history.length}}<ul>{{#each cl.history}}<li>{{at}} · {{count}} linked · {{adopted}} adopted</li>{{/each}}</ul>{{else}}<p class="agmanager-tiny">No core-link runs yet. The last 5 are kept for Undo.</p>{{/if}}
+        </section>
+      </div>
+      {{/if}}
     </div>
+  </div>
   </div>
   {{/if}}
 
@@ -492,10 +673,6 @@
       <p class="agmanager-tiny">Each module saves its own setting. Needs <code>ag-player-access/1</code>; older modules show Unsupported. Hiding never deletes progress.</p>
     </section>
   </div>
-  {{/if}}
-
-  {{#if browseActive}}
-  <div class="agmanager-panel agbrowse" data-ag-browse></div>
   {{/if}}
 
   {{#if scenesActive}}
@@ -677,165 +854,6 @@
   </div>
   {{/if}}
 
-  {{#if organizeActive}}
-  <div class="agmanager-panel agmanager-organize">
-    <section class="ag-card" aria-label="Organize folders">
-      <h3>Organize folders <span class="agmanager-beta">GM only</span></h3>
-      <div class="agmanager-row agmanager-row-wrap">
-        <label>Where <select data-ag-org-source>{{#each org.sources}}<option value="{{key}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
-        {{#each org.types}}<label class="agmanager-toggle"><input type="checkbox" data-ag-org-type="{{value}}" {{#if checked}}checked{{/if}}> {{label}}</label>{{/each}}
-        <label>Move <select data-ag-org-mode>
-          <option value="misfiled" {{#if org.modeMisfiled}}selected{{/if}}>Only unfiled and misfiled</option>
-          <option value="all" {{#if org.modeAll}}selected{{/if}}>Refile everything (also from your own folders)</option>
-        </select></label>
-        <button type="button" class="ag-btn" data-ag-action="org-preview"><i class="fa-solid fa-magnifying-glass"></i> Preview</button>
-      </div>
-      <p class="agmanager-tiny" role="status">{{org.message}}</p>
-      <p class="agmanager-tiny"><strong>Where</strong> is the whole world sidebar or one compendium; Organize does not work on a single folder. To keep a folder as it is, protect it below.</p>
-      <p class="agmanager-tiny">Only the folder changes. Nothing is renamed, edited or deleted, and no folder is ever deleted. Player characters and player-owned actors stay where they are. Documents in a protected folder, or marked <strong>Keep here</strong>, are skipped. Locked, module and system compendiums are inspect-only.</p>
-      <p class="agmanager-tiny">Default rules: Ashen Gate records go to <strong>Ashen Gate</strong>. Other Items go to <strong>Core 5.5e</strong> when they carry a core source tag (imported by Plutonium, or marked 2024 / PHB'24, DMG'24, MM'24, SRD 5.2, or 2014 core / PHB, DMG, MM, SRD 5.1); items with no source or a third-party or homebrew source go to <strong>Homebrew</strong>, with the same sub-folders. Your own saved rules are used instead if you have them.</p>
-
-      {{#if org.preview}}
-      <div class="agmanager-row agmanager-row-wrap">
-        <span class="agmanager-chip">Would move: {{org.preview.totals.moves}}</span>
-        <span class="agmanager-chip">New folders: {{org.preview.totals.createFolders}}</span>
-        <span class="agmanager-chip">Already in place: {{org.preview.totals.inPlace}}</span>
-        <span class="agmanager-chip">Skipped: {{org.preview.totals.skipped}}</span>
-        <span class="agmanager-chip">No rule: {{org.preview.totals.unmatched}}</span>
-      </div>
-      {{#each org.preview.parts}}
-      <div class="agmanager-org-part">
-        <h4>{{label}} — {{moveCount}} to move</h4>
-        {{#unless writable}}<p class="agmanager-warnings"><strong>Inspect only:</strong> {{blockedReason}}.</p>{{/unless}}
-        {{#each groups}}
-        <details class="agmanager-org-group"><summary><strong>{{path}}</strong> ({{count}})</summary>
-          <table class="agmanager-table"><thead><tr><th>Document</th><th>From</th><th></th></tr></thead><tbody>
-          {{#each rows}}<tr><td>{{name}}</td><td>{{from}}</td><td>{{#if @root.org.world}}<button type="button" class="ag-btn ag-btn--sm" data-ag-org-keep="{{id}}" data-ag-org-doctype="{{documentName}}" title="Never move this document">Keep here</button>{{/if}}</td></tr>{{/each}}
-          </tbody></table>
-        </details>
-        {{/each}}
-        {{#if hasCreates}}<details class="agmanager-org-group"><summary>Folders to create ({{createFolders.length}})</summary><ul>{{#each createFolders}}<li>{{this}}</li>{{/each}}</ul></details>{{/if}}
-        {{#if hasSkipped}}<details class="agmanager-org-group"><summary>Skipped ({{skipped.length}})</summary><ul>{{#each skipped}}<li><strong>{{name}}</strong> in {{from}}{{#if to}} (rule says {{to}}){{/if}} — {{reason}}</li>{{/each}}</ul></details>{{/if}}
-        {{#if hasUnmatched}}<details class="agmanager-org-group"><summary>No matching rule, left where they are ({{unmatched.length}})</summary><ul>{{#each unmatched}}<li><strong>{{name}}</strong> in {{from}}</li>{{/each}}</ul></details>{{/if}}
-      </div>
-      {{/each}}
-      <footer class="agmanager-row agmanager-mood-footer">
-        <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="org-clear">Cancel</button>
-        <span class="agmanager-row">
-          <button type="button" class="ag-btn" data-ag-action="org-backup" {{#unless org.preview.totals.moves}}disabled{{/unless}}><i class="fa-solid fa-download"></i> Download backup</button>
-          <button type="button" class="ag-btn ag-btn--primary" data-ag-action="org-apply" {{#unless org.preview.canApply}}disabled{{/unless}}><i class="fa-solid fa-folder-tree"></i> Apply…</button>
-        </span>
-      </footer>
-      {{/if}}
-      {{#if org.result}}<p class="agmanager-tiny"><strong>Last apply:</strong> {{org.result.message}}</p>
-        {{#if org.hasEmpty}}<details class="agmanager-org-group"><summary>Empty folders (report only, nothing deleted): {{org.result.emptyFolders.length}}</summary><ul>{{#each org.result.emptyFolders}}<li>{{this}}</li>{{/each}}</ul></details>{{/if}}{{/if}}
-    </section>
-
-    <section class="ag-card" aria-label="Organize history">
-      <div class="agmanager-row agmanager-row-wrap"><h3>Recent organize runs</h3>
-        <button type="button" class="ag-btn" data-ag-action="org-undo" {{#unless org.history.length}}disabled{{/unless}}><i class="fa-solid fa-rotate-left"></i> Undo last organize…</button></div>
-      {{#if org.history.length}}<ul>{{#each org.history}}<li>{{at}} · {{source}} · {{mode}} · {{moved}} moved</li>{{/each}}</ul>{{else}}<p class="agmanager-tiny">No organize runs yet. The last 5 are kept for Undo.</p>{{/if}}
-    </section>
-
-    {{#if org.world}}
-    <section class="ag-card" aria-label="Protected folders">
-      <h3>Protected folders</h3>
-      <p class="agmanager-tiny">Organize never moves anything in a protected folder or its sub-folders.</p>
-      <div class="agmanager-row agmanager-row-wrap">
-        <select data-ag-org-folder aria-label="Folder to protect">{{#each org.openFolders}}<option value="{{id}}">{{label}}</option>{{/each}}</select>
-        <button type="button" class="ag-btn" data-ag-org-protect><i class="fa-solid fa-lock"></i> Protect folder</button>
-      </div>
-      {{#if org.protectedFolders.length}}<ul>{{#each org.protectedFolders}}<li>{{label}} <button type="button" class="ag-btn ag-btn--sm" data-ag-org-unprotect="{{id}}">Unprotect</button></li>{{/each}}</ul>{{/if}}
-    </section>
-    {{/if}}
-
-    <section class="ag-card" aria-label="Organize rules">
-      <div class="agmanager-row agmanager-row-wrap"><h3>Rules {{#if org.schemaIsDefault}}<span class="ag-badge">Default</span>{{/if}}</h3>
-        <span class="agmanager-row">
-          <button type="button" class="ag-btn" data-ag-action="org-schema-edit"><i class="fa-solid fa-pen"></i> Edit rules (JSON)</button>
-          <button type="button" class="ag-btn" data-ag-action="org-schema-export"><i class="fa-solid fa-download"></i> Export</button>
-          <label class="ag-btn"><i class="fa-solid fa-upload"></i> Import <input type="file" accept=".json,application/json" data-ag-org-schema-file hidden></label>
-        </span></div>
-      <p class="agmanager-tiny">Checked top to bottom; the first rule that matches decides the folder. <code>{tier}</code>, <code>{rarity}</code>, <code>{spellLevel}</code>, <code>{creatureType}</code>, <code>{crBand}</code> and <code>{entityType}</code> fill in from the document; if one is empty the next rule is tried.</p>
-      {{#if org.editing}}
-        <textarea data-ag-org-schema-text rows="18" class="agmanager-org-json" aria-label="Organize rules JSON">{{org.schemaText}}</textarea>
-        <footer class="agmanager-row agmanager-mood-footer">
-          <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="org-schema-cancel">Cancel</button>
-          <button type="button" class="ag-btn ag-btn--primary" data-ag-action="org-schema-save"><i class="fa-solid fa-floppy-disk"></i> Save Changes</button>
-        </footer>
-      {{else}}
-      <table class="agmanager-table"><thead><tr><th>#</th><th>Rule</th><th>For</th><th>When</th><th>Folder</th></tr></thead><tbody>
-        {{#each org.rules}}<tr><td>{{n}}</td><td>{{label}}</td><td>{{types}}</td><td><code>{{match}}</code></td><td>{{#if leave}}<em>leave where it is</em>{{else}}{{path}}{{/if}}</td></tr>{{/each}}
-      </tbody></table>
-      {{/if}}
-      <p class="agmanager-tiny"><button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="org-schema-reset">Reset rules to defaults…</button></p>
-    </section>
-
-    <section class="ag-card" aria-label="Housekeeping report">
-      <div class="agmanager-row agmanager-row-wrap"><h3>Housekeeping report</h3>
-        <button type="button" class="ag-btn" data-ag-action="org-housekeeping"><i class="fa-solid fa-clipboard-list"></i> Run report</button></div>
-      <p class="agmanager-tiny">Read-only. Lists Ashen Gate ids found more than once (world and all compendiums) and likely temporary records so you can decide. Nothing is changed or deleted.</p>
-      {{#if org.report}}
-        <h4>Duplicate ids ({{org.report.duplicates.length}})</h4>
-        {{#if org.report.hasDuplicates}}<ul>{{#each org.report.duplicates}}<li><code>{{sourceId}}</code> ×{{count}}: {{#each rows}}{{name}} ({{where}}, {{documentName}}){{#unless @last}}; {{/unless}}{{/each}}</li>{{/each}}</ul>{{else}}<p class="agmanager-tiny">None.</p>{{/if}}
-        <h4>Likely temporary ({{org.report.temporary.length}})</h4>
-        {{#if org.report.hasTemporary}}<ul>{{#each org.report.temporary}}<li>{{name}} {{#if sourceId}}<code>{{sourceId}}</code>{{/if}} — {{where}}, {{why}}</li>{{/each}}</ul>{{else}}<p class="agmanager-tiny">None.</p>{{/if}}
-        <p class="agmanager-tiny">Draft-status Ashen Gate records: {{org.report.draftCount}} (normal while content is in development).</p>
-      {{/if}}
-    </section>
-  </div>
-  {{/if}}
-
-  {{#if coreLinksActive}}
-  <div class="agmanager-panel agmanager-organize">
-    <section class="ag-card" aria-label="Core links">
-      <div class="agmanager-row agmanager-row-wrap"><h3>Core links <span class="agmanager-beta">GM only</span></h3>
-        <button type="button" class="ag-btn" data-ag-action="cl-scan"><i class="fa-solid fa-magnifying-glass"></i> Scan</button></div>
-      <p class="agmanager-tiny" role="status">{{cl.message}}</p>
-      {{#if cl.noRefs}}<p class="ag-empty">Nothing to link: Core Links only works on Ashen Gate items whose data names a matching official item (a <code>core_ref</code>), and this world has none, so nothing needs doing: to use it, add a <code>core_ref</code> to Ashen Gate items in their source data and re-import them, otherwise ignore this tab.</p>{{/if}}
-      <p class="agmanager-tiny">Only Ashen Gate world Items whose source data has <code>core_ref</code> are checked. Matches come from 2024 (5.5e) content only: Plutonium-imported and other 2024 world items, world compendiums, the core sources in <strong>GM Setup</strong>, then the dnd5e 2024 packs. <strong>Adopt</strong> replaces the item's image and data (description included) with the core item's and keeps its name, Ashen Gate id, folder, ownership and module data. Copies in player inventories are never touched.</p>
-      {{#if cl.preview}}
-      <div class="agmanager-row agmanager-row-wrap">
-        <span class="agmanager-chip">Core items found: {{cl.preview.poolSize}}</span>
-        <span class="agmanager-chip">Ashen Gate items without core_ref (untouched): {{cl.preview.withoutRef}}</span>
-        <span class="agmanager-chip">Ticked: {{cl.preview.tickedCount}}</span>
-      </div>
-      {{#each cl.preview.notes}}<p class="agmanager-warnings">{{this}}</p>{{/each}}
-      {{#each cl.preview.groups}}
-      <div class="agmanager-org-part">
-        <h4>{{label}} ({{rows.length}})</h4>
-        <table class="agmanager-table"><thead><tr><th></th><th>Ashen Gate item</th><th>core_ref</th><th>Core match</th><th>Notes</th></tr></thead><tbody>
-        {{#each rows}}<tr>
-          <td>{{#if selectable}}<input type="checkbox" data-ag-cl-tick="{{id}}" {{#if ticked}}checked{{/if}} aria-label="Link {{name}}">{{/if}}</td>
-          <td><strong>{{name}}</strong><code>{{sourceId}}</code></td>
-          <td>{{refText}}</td>
-          <td>{{#if best}}<strong>{{best.name}}</strong> <span class="ag-badge">{{best.confidence}}</span><div class="agmanager-tiny">{{best.sourceLabel}} · matched on {{matchedOn}}</div>
-            {{#if hasOthers}}<details><summary class="agmanager-tiny">Other candidates ({{others.length}})</summary><ul>{{#each others}}<li>{{name}} — {{confidence}}, {{sourceLabel}}</li>{{/each}}</ul></details>{{/if}}{{else}}—{{/if}}</td>
-          <td>{{reason}}
-            {{#if selectable}}{{#if canAdopt}}<label class="agmanager-toggle"><input type="checkbox" data-ag-cl-linkonly="{{id}}" {{#if linkOnly}}checked{{/if}}> Link only (keep my data)</label>{{/if}}{{/if}}
-            {{#if diffCount}}<details><summary class="agmanager-tiny">What Adopt changes ({{diffCount}} field(s))</summary>
-              <table class="agmanager-table"><thead><tr><th>Field</th><th>Now</th><th>Core</th></tr></thead><tbody>{{#each diff}}<tr><td><code>{{path}}</code></td><td>{{before}}</td><td>{{after}}</td></tr>{{/each}}</tbody></table></details>{{/if}}</td>
-        </tr>{{/each}}
-        </tbody></table>
-      </div>
-      {{/each}}
-      <footer class="agmanager-row agmanager-mood-footer">
-        <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="cl-clear">Cancel</button>
-        <span class="agmanager-row">
-          <button type="button" class="ag-btn" data-ag-action="cl-backup" {{#unless cl.preview.tickedCount}}disabled{{/unless}}><i class="fa-solid fa-download"></i> Download backup</button>
-          <button type="button" class="ag-btn ag-btn--primary" data-ag-action="cl-apply" {{#unless cl.preview.tickedCount}}disabled{{/unless}}><i class="fa-solid fa-link"></i> Apply ({{cl.preview.tickedCount}})…</button>
-        </span>
-      </footer>
-      {{/if}}
-    </section>
-    <section class="ag-card" aria-label="Core link history">
-      <div class="agmanager-row agmanager-row-wrap"><h3>Recent core-link runs</h3>
-        <button type="button" class="ag-btn" data-ag-action="cl-undo" {{#unless cl.history.length}}disabled{{/unless}}><i class="fa-solid fa-rotate-left"></i> Undo last core link…</button></div>
-      {{#if cl.history.length}}<ul>{{#each cl.history}}<li>{{at}} · {{count}} linked · {{adopted}} adopted</li>{{/each}}</ul>{{else}}<p class="agmanager-tiny">No core-link runs yet. The last 5 are kept for Undo.</p>{{/if}}
-    </section>
-  </div>
-  {{/if}}
-
   {{#if setupActive}}
   <div class="agmanager-panel agmanager-organize">
     <section class="ag-card" aria-label="NPC Codex">
@@ -846,7 +864,7 @@
     </section>
     <section class="ag-card" aria-label="Core sources">
       <h3>Core sources <span class="agmanager-beta">GM only</span></h3>
-      <p class="agmanager-tiny">These boxes only tell the <strong>Core Links</strong> tab where to find official 2024 (5.5e) items to compare your Ashen Gate items with. They are GM-only, players never see them, and ticking or unticking them never changes or moves any item. Old 2014 items are always ignored.</p>
+      <p class="agmanager-tiny">These boxes only tell <strong>Items → Core links</strong> where to find official 2024 (5.5e) items to compare your Ashen Gate items with. They are GM-only, players never see them, and ticking or unticking them never changes or moves any item. Old 2014 items are always ignored.</p>
       <label class="agmanager-toggle"><input type="checkbox" data-ag-setup-auto {{#if setup.auto}}checked{{/if}}> Find 2024 items automatically (recommended)</label>
       <p class="agmanager-tiny"><strong>On:</strong> Core Links looks in world items imported by Plutonium or marked 2024, in your world compendiums, and in the dnd5e 2024 compendiums. <strong>Off:</strong> it looks only in the compendiums and folders you tick below.</p>
       <h4>Also use these compendiums</h4>

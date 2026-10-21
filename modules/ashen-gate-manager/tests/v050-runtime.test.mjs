@@ -28,11 +28,12 @@ test('Manager v0.5 context renders library filters, inspector and launcher inven
  assert.equal(c.launcherRows[0].canOpen,true);
  app.tab='library';app.libraryFocus='Item.abc0';app.librarySystem='SYS-MUT';
  c=await app._prepareContext({});
- assert.equal(c.libraryActive,true);
+ // 0.36.0: the old Library tab id opens Items → Ashen Gate records.
+ assert.equal(c.itemsActive,true);assert.equal(c.libraryRecordsActive,true);assert.equal(app.tab,'items');
  assert.equal(c.libraryHasDetail,true);
  assert.equal(c.libraryDetail.inboundCount,1);
  assert.equal(c.libraryRows[0].systemLabel,'Cinders');
- app.librarySearch='no matches';
+ app.itemFilters.query='no matches'; // 0.36.0: the shared Items search box
  c=await app._prepareContext({});assert.equal(c.libraryRows.length,0);
  assert.equal(c.libraryHasDetail,true); // inspector remains stable until explicitly cleared
 });

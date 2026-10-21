@@ -166,9 +166,9 @@ test('3. empty source and inspect-only compendium both get a message', async () 
   assert.match(describePreview(out, 'DDB Items (Item)'), /would move[\s\S]*DDB Items \(Item\) is inspect-only: Compendium is locked/);
 });
 
-test('3. Preview always shows its result as a notice, and the toolbar says Organize works on a whole source', () => {
+test('3. Preview always shows its result as a notice, and the toolbar says how to organize one folder (0.36.0)', () => {
   assert.match(main, /const text=message\?\?describePreview\(out,this\.#organizeSourceLabel\(\)\);\s*this\.orgMessage=text;toast\(text\);/);
-  assert.match(tpl, /Organize does not work on a single folder/);
+  assert.match(tpl, /To organize one folder, pick it under <strong>Folder<\/strong> above/);
 });
 
 // ---- Wording ----
@@ -177,8 +177,9 @@ test('4. Core Links: a scan with no core_ref items explains itself in one senten
   assert.match(tpl, /\{\{#if cl\.noRefs\}\}<p class="ag-empty">Nothing to link: Core Links only works on Ashen Gate items/);
 });
 
-test('5. Library empty state says what Library shows', () => {
-  assert.match(tpl, /Library shows only Ashen Gate records imported through the Import tab/);
+test('5. Library (now Items → Ashen Gate records) empty state says what it shows', () => {
+  assert.match(tpl, /Ashen Gate records lists only records imported through the Import tab/);
+  assert.match(tpl, /use All items to search them/);
 });
 
 test('6. GM Setup explains the NPC Codex and Core sources boxes in plain words (same controls)', () => {
@@ -188,10 +189,4 @@ test('6. GM Setup explains the NPC Codex and Core sources boxes in plain words (
   assert.match(tpl, /never changes or moves any item/);
 });
 
-test('version 0.35.1 is consistent', () => {
-  const manifest = JSON.parse(read('../module.json'));
-  assert.equal(manifest.version, '0.35.1');
-  assert.match(manifest.download, /ashen-gate-manager-v0\.35\.1\/ashen-gate-manager\.zip$/);
-  assert.match(tpl, /v0\.35\.1 Beta/);
-  assert.match(main, /General Manager v0\.35\.1 Beta/);
-});
+// The version check moved to v360-items-tab.test.mjs.
