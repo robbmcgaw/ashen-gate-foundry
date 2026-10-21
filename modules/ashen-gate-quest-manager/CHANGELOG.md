@@ -2,6 +2,7 @@
 
 - Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.
 - Dialogs now come from the shared `ag-dialogs.mjs` (same behaviour, now skinned).
+- Quest cards keep box corners (not the new pill shape) so multi-line cards and the selected edge look right.
 
 ## 0.8.0 — 2026-10-20
 
