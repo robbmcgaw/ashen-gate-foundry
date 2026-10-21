@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.14.0';
+export const VERSION = '0.15.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -599,9 +599,9 @@ export function rollPrefill({skills, dc, mode = 'group', actorIds, title = ''} =
   return {mode, skills: picked, dc: dcValue, actorIds: actors, title: String(title ?? '').slice(0, 120)};
 }
 
-/* ---- 0.14.0: shops. Pure rules for the coming Shopping feature (no UI, nothing saved yet). All money is whole copper.
+/* ---- 0.15.0: shops. Pure rules for the coming Shopping feature (no UI, nothing saved yet). All money is whole copper.
    While electrum is off, ep is never spent, counted, shown or given; ep a balance already holds is left alone. Change is
-   never given in ep. Selling to a shop (design §7c) is not here yet; coinsForAmount is the payout helper it will use. ---- */
+   never given in ep. Selling to a shop follows design §7c (S1–S9). ---- */
 export const SHOP_ID_PREFIXES = Object.freeze(['SHOP', 'SVC', 'MLIST']);
 export const SHOP_SCHEMA = 'ag-utilities-shop/1', SERVICE_SCHEMA = 'ag-utilities-service/1';
 export const LINE_FLAVOUR_MAX = 300, SHOP_FLAVOUR_MAX = 1000, MERCHANT_NAME_MAX = 120;
@@ -839,8 +839,84 @@ export function projectService(service, {locationName = null} = {}) {
   return {...projectBase(service, locationName), kind: 'service', service: {type: type.id, label: type.label, settings: type.checkSettings(service.service.settings ?? {})}};
 }
 
+/* Selling to a shop (§7c). The S1–S9 decisions live in SELL_DEFAULTS so a change of mind is one place. */
+export const SELL_DEFAULTS = Object.freeze({
+  /** S1 */ shopBuysByDefault: false, percent: 50,
+  /** S2: physical types a shop may buy (containers never, S7); the per-shop `buys.types` narrows this. */
+  types: Object.freeze(['weapon', 'equipment', 'consumable', 'tool', 'loot']), minValueCp: 1, noSaleFlag: 'noSale',
+  /** S5: no party vote when coins come in. S6: a new line is added hidden. S8: not from the party stash. */
+  vote: false, newLineHidden: true, fromStash: false
+});
+export const SELL_REFUSALS = Object.freeze({notBuying: "This shop doesn't buy items.", notOwned: 'You can only sell items from a character you own.',
+  container: "Containers can't be sold. Empty it and sell the items separately.", equipped: 'Unequip it first.',
+  type: "This shop doesn't buy that kind of item.", noSale: "That item can't be sold.", noValue: 'That item has no value to this shop.',
+  cantAfford: "Sorry, the vendor can't afford that."});
+/** The item's own dnd5e price per unit in copper (may be a fraction of a copper), or 0. */
+const unitPriceCp = item => {
+  const pr = item?.system?.price, p = pr !== null && typeof pr === 'object' ? pr : {value: pr, denomination: 'gp'};
+  const v = Number(p.value), d = COINS.includes(p.denomination) ? p.denomination : 'gp';
+  return Number.isFinite(v) && v > 0 ? v * CP_VALUE[d] : 0;
+};
+/** S3: percent × the item's own price × quantity, rounded down to whole copper. */
+export const sellValueCp = (item, percent = SELL_DEFAULTS.percent, quantity = 1) => Math.max(0, Math.floor(unitPriceCp(item) * quantity * percent / 100 + 1e-9));
+/**
+ * S1, S2, S7, S8 on fresh item data (an Item or its toObject()). `actorOwned`: the seller owns the character holding it
+ * (and it is not the party stash). Pay-out is checked separately by planShopPayout.
+ */
+export function checkSell({shop, item, actorOwned, quantity, userId, rev} = {}) {
+  if (!presentedTo(shop, userId)) return refuse(SHOP_REFUSALS.notOpen);
+  if (rev !== undefined && rev !== (shop.rev ?? 0)) return refuse(SHOP_REFUSALS.changed);
+  if (shop.buys?.enabled !== true) return refuse(SELL_REFUSALS.notBuying);
+  if (actorOwned !== true) return refuse(SELL_REFUSALS.notOwned);
+  if (item?.type === 'container') return refuse(SELL_REFUSALS.container);
+  const narrowed = Array.isArray(shop.buys.types) && shop.buys.types.length ? shop.buys.types : null;
+  if (!SELL_DEFAULTS.types.includes(item?.type) || (narrowed && !narrowed.includes(item.type))) return refuse(SELL_REFUSALS.type);
+  if (item?.flags?.[ID]?.[SELL_DEFAULTS.noSaleFlag] === true) return refuse(SELL_REFUSALS.noSale);
+  const sys = item.system ?? {};
+  if (sys.equipped === true || sys.attuned === true || sys.attunement === 2) return refuse(SELL_REFUSALS.equipped);
+  const have = Number(sys.quantity) > 0 ? Math.floor(Number(sys.quantity)) : 1, q = Number(quantity);
+  if (quantity === '' || quantity === null || !Number.isInteger(q) || q < 1 || q > have) return refuse(`Choose a whole number from 1 to ${have}.`);
+  const percent = Number.isInteger(shop.buys.percent) ? shop.buys.percent : SELL_DEFAULTS.percent, valueCp = sellValueCp(item, percent, q);
+  if (unitPriceCp(item) <= 0 || valueCp < SELL_DEFAULTS.minValueCp) return refuse(SELL_REFUSALS.noValue);
+  return {ok: true, quantity: q, percent, valueCp};
+}
+/**
+ * S4: what the shop pays, largest coins first (never ep). `shopPurse: null` = unlimited money. Refused with the plain
+ * vendor message when the purse holds too little or can't make the exact amount; the amount is named only when the
+ * merchant's coins are shown. `gmReason` always has the detail, for the GM's whisper.
+ */
+export function planShopPayout({amountCp, shopPurse = null, showPurse = true, electrum = false} = {}) {
+  if (!Number.isInteger(amountCp) || amountCp < 0) return refuse(NOT_WHOLE_CP);
+  const pay = coinsForAmount(amountCp, {till: shopPurse});
+  if (!shopPurse) return {ok: true, pay, shopAfter: null};
+  const use = coinChoices(electrum), purse = coinSet(shopPurse, use), text = shopPriceText(amountCp, 'gp', {electrum});
+  if (!pay) {
+    const short = coinValueCp(coinSet(shopPurse, CHANGE_COINS)) < amountCp;
+    return refuse(showPurse ? `Sorry, the vendor can't afford that (${text}).` : SELL_REFUSALS.cantAfford,
+      {cantAfford: true, gmReason: short ? `The shop purse holds less than ${text}.` : `The shop purse can't pay exactly ${text}.`});
+  }
+  return {ok: true, pay, shopAfter: Object.fromEntries(use.map(c => [c, purse[c] - (pay[c] ?? 0)]))};
+}
+/**
+ * S6: where a sold item goes. A line with the same itemId (or, with no id on either side, the same name and type)
+ * that sells one at a time gets its stock raised (unlimited stays unlimited); otherwise a new hidden line at the
+ * item's own price, with `item` as its snapshot (quantity 1).
+ */
+export function sellStockChange(shop, item, quantity = 1, {randomId} = {}) {
+  const itemId = str(item?.flags?.['ashen-gate-manager']?.source?.sourceId) || null;
+  const line = (shop?.lines ?? []).find(l => {
+    if (Number(l.item?.system?.quantity ?? 1) !== 1) return false;
+    return itemId ? l.itemId === itemId : !l.itemId && l.item?.name === item?.name && l.item?.type === item?.type;
+  });
+  if (line) return {kind: 'raise', lineId: line.lineId, stockBefore: line.stock ?? null, stockAfter: line.stock === null || line.stock === undefined ? null : line.stock + quantity};
+  const coin = COINS.includes(item?.system?.price?.denomination) ? item.system.price.denomination : 'gp';
+  const snapshot = {...item, system: {...(item?.system ?? {}), quantity: 1, equipped: false}};
+  return {kind: 'add', line: normalizeLine({itemId, itemUuid: null, priceCp: Math.floor(unitPriceCp(item) + 1e-9), priceCoin: coin === 'ep' ? 'sp' : coin,
+    stock: quantity, hidden: SELL_DEFAULTS.newLineHidden, sort: Math.max(0, ...(shop?.lines ?? []).map(l => Number(l.sort) || 0)) + 10, item: snapshot}, {randomId})};
+}
+
 /* History (stash History and the sales log), same style as purseEntry / purseLine. */
-export const SHOP_HISTORY_KINDS = Object.freeze(['shop-purchase', 'bank-exchange']);
+export const SHOP_HISTORY_KINDS = Object.freeze(['shop-purchase', 'shop-sale', 'bank-exchange']);
 const payFromOk = p => { if (!['purse', 'actor'].includes(p)) throw new TypeError("payFrom must be 'purse' or 'actor'."); return p; };
 const coinCopy = c => (c && typeof c === 'object' ? Object.fromEntries(COINS.filter(k => k in c).map(k => [k, num(c[k]) ?? 0])) : null);
 /** A purchase. `plan` from planShopPayment; `coinsBefore`/`shopPurseBefore` are what it was planned from. */
@@ -854,6 +930,18 @@ export function shopPurchaseEntry({id, shop, line, itemName, quantity = 1, payFr
     userId: str(user?.id), userName: str(user?.name) ?? 'Unknown', approval, exact: plan.exact === true, pay: coinCopy(plan.pay), back: coinCopy(plan.back),
     coinsBefore: coinCopy(coinsBefore), coinsAfter: coinCopy(plan.after), shopPurseBefore: coinCopy(shopPurseBefore), shopPurseAfter: coinCopy(plan.shopAfter),
     createdItemIds: (createdItemIds ?? []).filter(x => typeof x === 'string'), worldTime: num(worldTime), realTime: num(realTime) ?? Date.now()};
+}
+/** A sale to a shop. `check` from checkSell, `payout` from planShopPayout, `stock` from sellStockChange. */
+export function shopSaleEntry({id, shop, itemName, check, payout, stock = null, payTo, receiver, actor, user, coinsBefore = null, shopPurseBefore = null,
+  electrum = false, worldTime = null, realTime = Date.now()} = {}) {
+  if (!check?.ok || !payout?.ok) throw new TypeError('A sale entry needs a sell check and a payout.');
+  return {id: String(id ?? `s${realTime}`), kind: 'shop-sale', shopId: str(shop?.id), shopName: str(shop?.name) ?? 'Shop', itemName: str(itemName) ?? 'Unnamed Item',
+    quantity: check.quantity, percent: check.percent, totalCp: check.valueCp, totalText: shopPriceText(check.valueCp, 'gp', {electrum}),
+    payTo: payFromOk(payTo), receiverId: str(receiver?.id), receiverName: str(receiver?.name), actorId: str(actor?.id), actorName: str(actor?.name),
+    userId: str(user?.id), userName: str(user?.name) ?? 'Unknown', approval: 'not-required', pay: coinCopy(payout.pay),
+    coinsBefore: coinCopy(coinsBefore), shopPurseBefore: coinCopy(shopPurseBefore), shopPurseAfter: coinCopy(payout.shopAfter),
+    stock: stock ? (stock.kind === 'raise' ? {kind: 'raise', lineId: stock.lineId, before: stock.stockBefore, after: stock.stockAfter} : {kind: 'add', lineId: stock.line?.lineId}) : null,
+    worldTime: num(worldTime), realTime: num(realTime) ?? Date.now()};
 }
 /** A bank exchange. `quote` from bankQuote. */
 export function bankExchangeEntry({id, service, quote, payFrom, payer, user, worldTime = null, realTime = Date.now()} = {}) {
@@ -869,6 +957,10 @@ export function shopLine(h) {
   if (h.kind === 'shop-purchase') {
     const who = `${h.userName}${h.actorName ? ` (${h.actorName})` : ''}`;
     return `${who} bought ${h.itemName}${h.quantity > 1 ? ` ×${h.quantity}` : ''} at ${h.shopName} for ${h.totalText}, paid from ${purse ? 'the party purse' : own}`;
+  }
+  if (h.kind === 'shop-sale') {
+    const who = `${h.userName}${h.actorName ? ` (${h.actorName})` : ''}`;
+    return `${who} sold ${h.itemName}${h.quantity > 1 ? ` ×${h.quantity}` : ''} to ${h.shopName} for ${h.totalText}, paid into ${h.payTo === 'purse' ? 'the party purse' : `${h.receiverName ?? 'their own'}'s coins`}`;
   }
   if (h.kind === 'bank-exchange') return `${h.userName} changed ${h.total} ${h.from} into ${h.receive} ${h.to} at ${h.serviceName}${h.fee ? ` (fee ${h.fee} ${h.from})` : ''}, ${purse ? 'party purse' : own}`;
   return '';

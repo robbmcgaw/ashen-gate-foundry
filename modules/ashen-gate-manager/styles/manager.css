@@ -429,7 +429,7 @@ a.agcodex-link:hover,a.ag-codex-link:hover{text-decoration:underline}
 .ag-codex-card dd{margin:0;overflow-wrap:anywhere}
 .ag-codex-card q{font-style:italic;color:var(--ag-accent)}
 /* Items tab (0.36.0): shared filter bar above the Library-style rail. */
-:root{--ag-rarity-common:#f4f4f4;--ag-rarity-uncommon:#2fbf4a;--ag-rarity-rare:#3d8bfd;--ag-rarity-veryrare:#a35bf0;--ag-rarity-legendary:#f39c32;--ag-rarity-artifact:#e2453c}
+/* Rarity hues are kit tokens (--ag-rarity-*, ag-ui.css kit 2). */
 .ashen-gate-manager .agitems{padding:var(--ag-space-3);display:grid;gap:var(--ag-space-2)}
 .ashen-gate-manager .agitems-filters{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center;padding:var(--ag-space-2);border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface-raised)}
 .ashen-gate-manager .agitems-filters label{display:flex;gap:4px;align-items:center;white-space:nowrap;font-size:var(--ag-text-sm)}
@@ -442,10 +442,10 @@ a.agcodex-link:hover,a.ag-codex-link:hover{text-decoration:underline}
 .ag-rarity{display:inline-flex;align-items:center;gap:4px;font-size:var(--ag-text-xs, 11px);padding:0 7px;border-radius:999px;border:1px solid var(--ag-rarity-color);white-space:nowrap}
 .ag-rarity>i{width:8px;height:8px;border-radius:50%;background:var(--ag-rarity-color);box-shadow:0 0 0 1px rgb(0 0 0 / .35)}
 .ag-rarity--common{--ag-rarity-color:var(--ag-rarity-common)}.ag-rarity--uncommon{--ag-rarity-color:var(--ag-rarity-uncommon)}
-.ag-rarity--rare{--ag-rarity-color:var(--ag-rarity-rare)}.ag-rarity--veryrare{--ag-rarity-color:var(--ag-rarity-veryrare)}
+.ag-rarity--rare{--ag-rarity-color:var(--ag-rarity-rare)}.ag-rarity--veryrare{--ag-rarity-color:var(--ag-rarity-very-rare)}
 .ag-rarity--legendary{--ag-rarity-color:var(--ag-rarity-legendary)}.ag-rarity--artifact{--ag-rarity-color:var(--ag-rarity-artifact)}
 .ag-rarity-option--common{color:var(--ag-text)}.ag-rarity-option--uncommon{color:var(--ag-rarity-uncommon)}.ag-rarity-option--rare{color:var(--ag-rarity-rare)}
-.ag-rarity-option--veryrare{color:var(--ag-rarity-veryrare)}.ag-rarity-option--legendary{color:var(--ag-rarity-legendary)}.ag-rarity-option--artifact{color:var(--ag-rarity-artifact)}
+.ag-rarity-option--veryrare{color:var(--ag-rarity-very-rare)}.ag-rarity-option--legendary{color:var(--ag-rarity-legendary)}.ag-rarity-option--artifact{color:var(--ag-rarity-artifact)}
 .ashen-gate-manager .agclean{border-color:var(--ag-accent)}
 .ashen-gate-manager .agclean-go{font-size:var(--ag-text-md);padding:6px 16px}
 .ashen-gate-manager .agclean-part{margin:6px 0 10px}

@@ -7,9 +7,9 @@ import {createQuestDefinitionReader,parsePackIds} from './pinned-runtime.mjs';
 import {ASSIGNMENT_CONTRACT,listAssignments,getAssignment,saveAssignment,removeAssignment} from './assignments.mjs';
 import {selectTrackedViews,validTrackedId,trackingState} from './tracking.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
-import {confirmDialog,infoDialog} from './dialogs.mjs';
+import {confirmDialog,infoDialog} from './ag-dialogs.mjs';
 
-const VERSION='0.8.0';
+const VERSION='0.9.0';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;

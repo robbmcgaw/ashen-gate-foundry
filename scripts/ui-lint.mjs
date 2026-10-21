@@ -1,0 +1,243 @@
+// UI drift check for the shared kit (styles/ag-ui.css), run by scripts/check.mjs. Reads files as text with
+// regexes, like the rest of check.mjs. Two kinds of rule:
+//   - ratchet: a per-module count stored in scripts/ui-lint-baseline.json; it may go down, never up;
+//   - strict: must be zero now.
+// A CSS line can opt out of a ratchet rule with /* ag-lint-allow: reason */ on the same line.
+// Usage: node scripts/ui-lint.mjs [--update-baseline]   (rewrites the baseline from the current tree)
+import fs from 'node:fs';
+import path from 'node:path';
+import {pathToFileURL} from 'node:url';
+
+const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+const modulesDir = path.join(root, 'modules');
+export const BASELINE_FILE = path.join(root, 'scripts', 'ui-lint-baseline.json');
+const MANAGER = 'ashen-gate-manager';
+const SKIN_FILES = ['styles/skins/stone-tablet.css', 'styles/skins/tome-pages.css'];
+
+function walk(dir, out = []) {
+  if (!fs.existsSync(dir)) return out;
+  for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+    if (entry.name === 'node_modules') continue;
+    const p = path.join(dir, entry.name);
+    if (entry.isDirectory()) walk(p, out);
+    else out.push(p);
+  }
+  return out;
+}
+const rel = (dir, f) => path.relative(dir, f).split(path.sep).join('/');
+const isTest = r => /^(tests?|fixtures|macros|samples|vendor)\//.test(r);
+const stripComments = css => css.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '));
+const allowed = line => /ag-lint-allow:/.test(line);
+
+/** Kit block classes (".ag-btn--primary" and ".ag-btn__x" count as "ag-btn"), read from ag-ui.css. */
+export function kitBlocks(kitCss) {
+  const css = stripComments(kitCss);
+  return new Set([...css.matchAll(/\.(ag-[a-z0-9-]+?)(?=__|--|[^a-z0-9-]|$)/g)].map(m => m[1]));
+}
+const blockOf = cls => cls.replace(/(__|--).*$/, '');
+
+/** Selectors of top-level and @media/@container-nested rules (comments stripped). */
+function selectors(css) {
+  const out = [];
+  for (const m of stripComments(css).matchAll(/([^{}@;]+)\{/g)) {
+    const sel = m[1].trim();
+    if (sel && !/^(from|to|\d+%)/.test(sel)) out.push(sel);
+  }
+  return out;
+}
+
+// ---------- Rules over one module's own files ----------
+// Each returns a count for a module (module CSS = styles/**/*.css except the kit and Manager's skins).
+export const RULES = {
+  'css-colour-literal': {mode: 'ratchet', css: line => (line.match(/#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(/g) ?? []).length},
+  'css-raw-font-size': {mode: 'ratchet', css: line => (line.match(/font-size\s*:\s*[\d.]+(?:px|rem|em)\b/g) ?? []).length + (line.match(/\bfont\s*:[^;]*?\b[\d.]+(?:px|rem|em)\b/g) ?? []).length},
+  'css-legacy-alias': {mode: 'ratchet', css: line => (line.match(/var\(--ag-(?:bg|panel)\)/g) ?? []).length},
+  'css-viewport-media': {mode: 'ratchet', css: line => (line.match(/@media[^{]*\((?:max|min)-width/g) ?? []).length},
+  'css-raw-px-box': {mode: 'ratchet', css: line => (line.match(/(?:^|[;{\s])(?:padding|gap|margin|height|width|min-height|min-width|max-height|max-width|row-gap|column-gap)(?:-(?:top|right|bottom|left|inline|block))?\s*:[^;}]*?\b\d*\.?\d+px\b/g) ?? []).length},
+  'css-kit-prefix-class': {mode: 'ratchet'}, // strict in the plan; ratchet until module passes rename their own .ag-* classes
+  'js-dialogv2-direct': {mode: 'ratchet', code: text => (text.match(/DialogV2\.(?:confirm|prompt)\(/g) ?? []).length},
+  'fa-legacy-prefix': {mode: 'strict', code: text => (text.match(/class=["'`](?:fas|far) /g) ?? []).length + (text.match(/class=["'`][^"'`]*\s(?:fas|far)\s/g) ?? []).length},
+  'header-brand-version': {mode: 'ratchet', code: text => {
+    let n = 0;
+    for (const m of text.matchAll(/class=["'`]ag-header(?=[\s"'`])/g)) {
+      const end = text.indexOf('</header>', m.index);
+      const block = text.slice(m.index, end > 0 ? end : m.index + 1500);
+      if (!block.includes('ag-header__brand') || !block.includes('ag-version')) n++;
+    }
+    return n;
+  }},
+  'button-title-attr': {mode: 'ratchet', code: text => (text.match(/<button\b[^>]*\stitle=/g) ?? []).length},
+};
+
+/** Module CSS files (not the kit, not Manager's structural skins) and runtime scripts/templates (not tests). */
+function moduleFiles(dir) {
+  const files = walk(dir).map(f => ({f, r: rel(dir, f)})).filter(({r}) => !isTest(r));
+  return {
+    css: files.filter(({r}) => r.endsWith('.css') && !r.endsWith('ag-ui.css') && !r.startsWith('styles/skins/')),
+    code: files.filter(({r}) => /\.(m?js|hbs|html)$/.test(r) && !/(^|\/)ag-dialogs\.mjs$/.test(r)),
+  };
+}
+
+export function lintModule(dir, kit) {
+  const counts = Object.fromEntries(Object.keys(RULES).map(k => [k, 0]));
+  const where = Object.fromEntries(Object.keys(RULES).map(k => [k, []]));
+  const {css, code} = moduleFiles(dir);
+  for (const {f, r} of css) {
+    const raw = fs.readFileSync(f, 'utf8');
+    const lines = raw.split('\n'), clean = stripComments(raw).split('\n');
+    clean.forEach((line, i) => {
+      for (const [k, rule] of Object.entries(RULES)) {
+        if (!rule.css || (rule.mode === 'ratchet' && allowed(lines[i]))) continue;
+        const n = rule.css(line);
+        if (n) { counts[k] += n; where[k].push(`${r}:${i + 1}`); }
+      }
+    });
+    // A class the module styles (in a selector's key compound) must not use the kit's "ag-" prefix unless it is a kit class.
+    for (const sel of selectors(raw)) {
+      for (const one of sel.split(/,(?![^(]*\))/)) {
+        const key = one.trim().split(/\s*[>+~]\s*|\s+(?![^(]*\))/).pop() ?? '';
+        for (const [, cls] of key.replace(/:(?:where|is|not|has)\([^)]*\)/g, '').matchAll(/\.(ag-[a-z0-9_-]+)/g)) {
+          if (!kit.has(blockOf(cls))) { counts['css-kit-prefix-class']++; where['css-kit-prefix-class'].push(`${r}: .${cls}`); }
+        }
+      }
+    }
+  }
+  for (const {f, r} of code) {
+    const text = fs.readFileSync(f, 'utf8');
+    for (const [k, rule] of Object.entries(RULES)) {
+      if (!rule.code) continue;
+      const n = rule.code(text);
+      if (n) { counts[k] += n; where[k].push(`${r} (${n})`); }
+    }
+  }
+  return {counts, where};
+}
+
+// ---------- Kit-wide strict rules ----------
+const names = block => [...block.matchAll(/(--ag-[a-z0-9-]+)\s*:/g)].map(m => m[1]).sort();
+
+/** Both size sets (:root Compact and html[data-ag-size="comfortable"]) list the same size tokens. */
+export function checkSizeSets(kitCss) {
+  const css = stripComments(kitCss);
+  const comfy = css.match(/html\[data-ag-size="comfortable"\]\s*\{([^}]*)\}/);
+  if (!comfy) return ['ag-ui.css has no html[data-ag-size="comfortable"] block'];
+  const rootBlocks = [...css.matchAll(/(?:^|\})\s*:root\s*\{([^}]*)\}/g)].map(m => m[1]).join('\n');
+  const size = new Set(names(comfy[1]));
+  const sizeLike = names(rootBlocks).filter(n => /^--ag-(?:text-(?:xs|sm|md|lg|xl)|space-\d|control-h|icon|slot|portrait|row-h)/.test(n));
+  const problems = [];
+  for (const n of sizeLike) if (!size.has(n)) problems.push(`size token ${n} is in :root (Compact) but not in the Comfortable set`);
+  for (const n of size) if (!names(rootBlocks).includes(n)) problems.push(`size token ${n} is in the Comfortable set but not in :root`);
+  if ([...size].some(n => n.includes('radius'))) problems.push('radius tokens are shape, not size: keep them out of the Comfortable set');
+  return problems;
+}
+
+/** Every kit block class is mentioned (rule or the "keep the kit look" comment) in both structural skin files. */
+export function checkSkinCoverage(kitCss, skins) {
+  const problems = [];
+  for (const [file, css] of Object.entries(skins)) {
+    for (const block of kitBlocks(kitCss)) {
+      if (!new RegExp(`\\.${block}(?![a-z0-9]|-(?!-))`).test(css)) problems.push(`${file} does not mention kit part .${block}`);
+    }
+  }
+  return problems;
+}
+
+// WCAG contrast. Rarity ink is mixed in OKLab like the kit's color-mix(in oklab, hue 72%, text).
+const rgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255);
+const lin = v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4;
+const unlin = v => v <= .0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - .055;
+const lum = c => { const [r, g, b] = c.map(lin); return .2126 * r + .7152 * g + .0722 * b; };
+export const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + .05) / (y + .05); };
+const toOklab = c => {
+  const [r, g, b] = c.map(lin);
+  const l = Math.cbrt(.4122214708 * r + .5363325363 * g + .0514459929 * b), m = Math.cbrt(.2119034982 * r + .6806995451 * g + .1073969566 * b), s = Math.cbrt(.0883024619 * r + .2817188376 * g + .6299787005 * b);
+  return [.2104542553 * l + .793617785 * m - .0040720468 * s, 1.9779984951 * l - 2.428592205 * m + .4505937099 * s, .0259040371 * l + .7827717662 * m - .808675766 * s];
+};
+const fromOklab = ([L, A, B]) => {
+  const l = (L + .3963377774 * A + .2158037573 * B) ** 3, m = (L - .1055613458 * A - .0638541728 * B) ** 3, s = (L - .0894841775 * A - 1.291485548 * B) ** 3;
+  return [4.0767416621 * l - 3.3077115913 * m + .2309699292 * s, -1.2684380046 * l + 2.6097574011 * m - .3413193965 * s, -.0041960863 * l - .7034186147 * m + 1.707614701 * s]
+    .map(v => Math.min(1, Math.max(0, unlin(v))));
+};
+const mixOklab = (a, b, p) => { const x = toOklab(a), y = toOklab(b); return fromOklab(x.map((v, i) => v * p + y[i] * (1 - p))); };
+
+/** Text pairs of every skin (from Manager's skin tables) reach 4.5:1. */
+export async function checkContrast(managerDir, kitCss) {
+  const {createAppearanceController} = await import(pathToFileURL(path.join(managerDir, 'scripts', 'appearance.js')).href);
+  const controller = createAppearanceController({currentUser: () => ({id: 'lint'}), getSetting: () => '', setSetting: async () => {}});
+  const rarity = Object.fromEntries([...kitCss.matchAll(/--ag-rarity-([a-z-]+):\s*(#[0-9a-f]{6})/g)].map(m => [m[1], rgb(m[2])]));
+  // Share of the hue in each ink token, read from the kit: color-mix(in oklab, var(--ag-rarity-x) N%, var(--ag-text)).
+  const inkShare = key => Number(kitCss.match(new RegExp(`--ag-rarity-ink-${key}:\\s*color-mix\\(in oklab, var\\(--ag-rarity-${key}\\) (\\d+)%`))?.[1] ?? NaN) / 100;
+  const problems = [], table = [];
+  for (const {id} of controller.listSkins()) {
+    const t = new Map();
+    createAppearanceController({currentUser: () => ({id: 'lint'}), getSetting: k => k === 'worldSkin' ? id : '', setSetting: async () => {}})
+      .applyTo({style: {setProperty: (k, v) => t.set(k, v)}, dataset: {}});
+    const c = k => rgb(t.get(k));
+    const pairs = [];
+    for (const bg of ['--ag-surface', '--ag-surface-sunken', '--ag-surface-raised']) {
+      for (const fg of ['--ag-text', '--ag-muted', '--ag-accent', '--ag-ok', '--ag-warn', '--ag-danger']) pairs.push([fg, bg, c(fg), c(bg)]);
+    }
+    pairs.push(['--ag-accent-contrast', '--ag-accent', c('--ag-accent-contrast'), c('--ag-accent')]);
+    pairs.push(['--ag-surface', '--ag-danger', c('--ag-surface'), c('--ag-danger')]);
+    for (const [key, hue] of Object.entries(rarity)) {
+      if (key === 'common') continue; // ink-common is --ag-muted, checked above
+      const ink = mixOklab(hue, c('--ag-text'), inkShare(key));
+      for (const bg of ['--ag-surface', '--ag-surface-sunken', '--ag-surface-raised']) pairs.push([`--ag-rarity-ink-${key}`, bg, ink, c(bg)]);
+    }
+    for (const [fg, bg, a, b] of pairs) {
+      const r = contrast(a, b);
+      table.push({skin: id, fg, bg, ratio: Math.round(r * 100) / 100});
+      if (r < 4.5) problems.push(`${id}: ${fg} on ${bg} is ${r.toFixed(2)}:1 (needs 4.5:1)`);
+    }
+  }
+  return {problems, table};
+}
+
+// ---------- Runner ----------
+export function readBaseline() {
+  return fs.existsSync(BASELINE_FILE) ? JSON.parse(fs.readFileSync(BASELINE_FILE, 'utf8')) : {};
+}
+
+/** Lints the given modules (all when empty). Returns {failures, notes, counts}. */
+export async function runUiLint(ids = []) {
+  const all = fs.readdirSync(modulesDir).filter(id => fs.existsSync(path.join(modulesDir, id, 'module.json'))).sort();
+  const wanted = ids.length ? all.filter(id => ids.includes(id)) : all;
+  const kitPath = path.join(modulesDir, MANAGER, 'styles', 'ag-ui.css');
+  const kitCss = fs.readFileSync(kitPath, 'utf8');
+  const kit = kitBlocks(kitCss);
+  const baseline = readBaseline();
+  const failures = [], notes = [], counts = {};
+  for (const id of wanted) {
+    const {counts: c, where} = lintModule(path.join(modulesDir, id), kit);
+    counts[id] = c;
+    for (const [rule, n] of Object.entries(c)) {
+      const mode = RULES[rule].mode;
+      if (mode === 'strict' && n > 0) failures.push(`${id}: ${rule} must be 0, found ${n}: ${where[rule].slice(0, 8).join(', ')}`);
+      if (mode === 'ratchet') {
+        const base = baseline[id]?.[rule] ?? 0;
+        if (n > base) failures.push(`${id}: ${rule} went up from ${base} to ${n} (ratchet: counts may only go down): ${where[rule].slice(0, 8).join(', ')}`);
+        else if (n < base) notes.push(`${id}: ${rule} went down from ${base} to ${n}; run node scripts/ui-lint.mjs --update-baseline to lock it in`);
+      }
+    }
+  }
+  if (!ids.length || ids.includes(MANAGER)) {
+    const managerDir = path.join(modulesDir, MANAGER);
+    for (const p of checkSizeSets(kitCss)) failures.push(`ag-ui.css: ${p}`);
+    const skins = Object.fromEntries(SKIN_FILES.map(f => [f, fs.readFileSync(path.join(managerDir, f), 'utf8')]));
+    for (const p of checkSkinCoverage(kitCss, skins)) failures.push(`${MANAGER}: ${p}`);
+    for (const p of (await checkContrast(managerDir, kitCss)).problems) failures.push(`${MANAGER} contrast: ${p}`);
+  }
+  return {failures, notes, counts};
+}
+
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+  const {failures, notes, counts} = await runUiLint();
+  if (process.argv.includes('--update-baseline')) {
+    const out = Object.fromEntries(Object.entries(counts).map(([id, c]) => [id, Object.fromEntries(Object.entries(c).filter(([k]) => RULES[k].mode === 'ratchet'))]));
+    fs.writeFileSync(BASELINE_FILE, JSON.stringify(out, null, 2) + '\n');
+    console.log(`Wrote ${path.relative(root, BASELINE_FILE)}`);
+  }
+  for (const n of notes) console.log(`note: ${n}`);
+  if (failures.length) { console.error(`${failures.length} UI lint problem(s):\n- ${failures.join('\n- ')}`); process.exitCode = 1; }
+  else console.log('UI lint passed.');
+}

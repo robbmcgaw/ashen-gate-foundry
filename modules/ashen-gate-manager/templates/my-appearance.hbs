@@ -11,8 +11,13 @@
         </button>
         {{#each skins}}<button type="button" role="radio" class="ag-skin-card{{#if selected}} is-selected{{/if}}{{#if current}} is-current{{/if}}" aria-checked="{{#if selected}}true{{else}}false{{/if}}" tabindex="{{#if selected}}0{{else}}-1{{/if}}" data-ag-skin-value="{{id}}" aria-describedby="ag-skin-desc-{{id}}"><span class="ag-swatch" aria-hidden="true">{{#each swatch}}<i style="background:{{this}}"></i>{{/each}}</span><span class="ag-skin-card__text"><span class="ag-skin-card__name">{{label}}</span><small id="ag-skin-desc-{{id}}" class="ag-my-appearance-desc">{{description}}</small></span></button>{{/each}}
       </div>
+      <div class="ag-field" data-ag-size-field="my">
+        <span id="ag-size-label-my">Size</span>
+        <div><div class="ag-segmented" role="radiogroup" aria-labelledby="ag-size-label-my" aria-describedby="ag-size-hint-my" data-ag-size-picker="my">{{#each sizes}}<button type="button" role="radio" aria-checked="{{#if selected}}true{{else}}false{{/if}}" tabindex="{{#if selected}}0{{else}}-1{{/if}}" data-ag-size-value="{{id}}">{{label}}</button>{{/each}}</div></div>
+        <small id="ag-size-hint-my" class="ag-field__hint">Comfortable makes text and controls larger on this device only.</small>
+      </div>
       <p class="ag-my-appearance-note">GM world default: <strong>{{worldDefault}}</strong> · Currently displayed: <strong>{{effective}}</strong></p>
-      <p class="ag-my-appearance-note" role="status">{{status}}</p>
+      <p class="ag-my-appearance-note" role="status" data-ag-my-appearance-status>{{status}}</p>
     </div>
     <p class="ag-my-appearance-note">This view only saves your own user-scoped preference. The General Manager remains GM-only.</p>
   </div>

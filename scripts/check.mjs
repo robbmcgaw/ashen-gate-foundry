@@ -2,13 +2,16 @@
 //   - module.json is valid and its manifest/download URLs match its id and version
 //   - CHANGELOG.md starts with this version, and any hard-coded VERSION/BUILD_VERSION constant matches it
 //   - every runtime script parses
-//   - styles/ag-ui.css is listed first and identical in every module
+//   - styles/ag-ui.css is listed first and identical in every module; shared helpers (ag-launchers.mjs,
+//     ag-dialogs.mjs, ag-html.mjs) are identical wherever they ship
+//   - the UI drift lint (scripts/ui-lint.mjs): strict rules at zero, ratchet counts never above the baseline
 //   - the module's automated tests pass
 //   - (full run only) the playtest data pack loads, ids are unique and references resolve
 // Usage: node scripts/check.mjs [module-id ...]
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { runUiLint } from './ui-lint.mjs';
 
 const REPO = 'robbmcgaw/ashen-gate-foundry';
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
@@ -48,6 +51,8 @@ for (const id of ids) {
     if (manifest[key] !== url) fail(id, `${key} should be ${url}`);
   }
   if ((manifest.styles ?? [])[0] !== 'styles/ag-ui.css') fail(id, 'module.json styles must list styles/ag-ui.css first (shared UI kit)');
+  const kitVersion = fs.existsSync(path.join(dir, 'styles/ag-ui.css')) ? fs.readFileSync(path.join(dir, 'styles/ag-ui.css'), 'utf8').match(/^\/\* ag-ui kit (\S+) \*\//)?.[1] : null;
+  if (!kitVersion) fail(id, 'styles/ag-ui.css must start with its "/* ag-ui kit x.y.z */" line');
   for (const file of [...(manifest.esmodules ?? []), ...(manifest.styles ?? [])]) {
     if (!fs.existsSync(path.join(dir, file))) fail(id, `module.json lists missing file ${file}`);
   }
@@ -76,10 +81,10 @@ for (const id of ids) {
   if (testFiles.length) {
     const r = spawnSync(process.execPath, ['--test', ...testFiles], { cwd: dir, encoding: 'utf8' });
     const summary = (r.stdout.match(/^# (pass|fail) \d+$/gm) ?? []).join(', ');
-    console.log(`${id} ${v}: ${summary}`);
+    console.log(`${id} ${v} (kit ${kitVersion}): ${summary}`);
     if (r.status !== 0) fail(id, `tests failed\n${r.stdout.split('\n').filter(l => /^not ok/.test(l)).join('\n')}`);
   } else {
-    console.log(`${id} ${v}: no automated tests`);
+    console.log(`${id} ${v} (kit ${kitVersion}): no automated tests`);
   }
 }
 
@@ -92,17 +97,26 @@ if (!wanted.length) {
   const c = spawnSync(process.execPath, ['--test', path.join(root, 'scripts/validate-content.test.mjs')], { cwd: root, encoding: 'utf8' });
   console.log(`content validator: ${(c.stdout.match(/^# (pass|fail) \d+$/gm) ?? []).join(', ')}`);
   if (c.status !== 0) fail('validate-content', `tests failed\n${c.stdout.split('\n').filter(l => /^not ok/.test(l)).join('\n')}`);
+  const l = spawnSync(process.execPath, ['--test', path.join(root, 'scripts/ui-lint.test.mjs')], { cwd: root, encoding: 'utf8' });
+  console.log(`ui lint rules: ${(l.stdout.match(/^# (pass|fail) \d+$/gm) ?? []).join(', ')}`);
+  if (l.status !== 0) fail('ui-lint', `tests failed\n${l.stdout.split('\n').filter(x => /^not ok/.test(x)).join('\n')}`);
 }
 
 // Shared files are copied into modules and must not drift: the Actors launcher helper
-// (player-facing modules) and the UI kit stylesheet (every module).
-for (const shared of ['ag-launchers.mjs', 'ag-ui.css']) {
+// (player-facing modules), the UI kit stylesheet (every module), the dialog helper and the HTML helper.
+for (const shared of ['ag-launchers.mjs', 'ag-ui.css', 'ag-dialogs.mjs', 'ag-html.mjs']) {
   const copies = fs.readdirSync(modulesDir).sort()
     .flatMap(id => walk(path.join(modulesDir, id)).filter(f => path.basename(f) === shared));
   if (new Set(copies.map(f => fs.readFileSync(f, 'utf8'))).size > 1) {
     fail(shared, `copies differ; keep them identical:\n  ${copies.map(f => path.relative(root, f)).join('\n  ')}`);
   }
 }
+
+// UI drift lint (strict rules and the ratchet baseline in scripts/ui-lint-baseline.json).
+const lint = await runUiLint(wanted);
+for (const note of lint.notes) console.log(`ui lint note: ${note}`);
+for (const problem of lint.failures) fail('ui-lint', problem);
+console.log(`ui lint: ${lint.failures.length ? `${lint.failures.length} problem(s)` : 'ok'}`);
 
 if (failures.length) {
   console.error(`\n${failures.length} problem(s):\n- ${failures.join('\n- ')}`);

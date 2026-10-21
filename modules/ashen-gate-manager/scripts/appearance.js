@@ -6,6 +6,14 @@
 export const APPEARANCE_CONTRACT = 'ag-appearance/0.1-beta';
 export const WORLD_SKIN_KEY = 'worldSkin';
 export const USER_SKIN_KEY = 'userSkin';
+// Kit 2 size set, per device (client scope). 'compact' is the kit default and writes no attribute.
+export const SIZE_KEY = 'uiSize';
+export const SIZES = Object.freeze(['compact','comfortable']);
+export const DEFAULT_SIZE = 'compact';
+const SIZE_LABELS = Object.freeze({compact:'Compact',comfortable:'Comfortable'});
+const knownSize = value => SIZES.includes(value) ? value : DEFAULT_SIZE;
+/** Size options for a picker: [{id,label,selected}]. */
+export const listSizes = (current=DEFAULT_SIZE) => SIZES.map(id=>({id,label:SIZE_LABELS[id],selected:id===knownSize(current)}));
 
 // Base tokens of the shared UI kit (styles/ag-ui.css). --ag-bg/--ag-panel are pre-kit aliases.
 const skinTokens=t=>Object.freeze({
@@ -83,6 +91,8 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
   let closed=false;
   const emit=()=>{if(closed)return;const state=getState();for(const fn of [...listeners]){try{fn(state);}catch(error){console.warn('[ashen-gate-manager] Appearance subscriber failed',error);}}};
   const disposeSettings=subscribeSettings(emit);
+  // Size is optional for older callers: a missing or unregistered setting reads as compact.
+  function readSize(){try{return knownSize(read(SIZE_KEY));}catch{return DEFAULT_SIZE;}}
   function user(){const u=currentUser();if(!u?.id)throw new Error('Appearance requires an authenticated Foundry user');return u;}
   function listSkins(){return SKINS.map(publicSkin);}
   function getState(){
@@ -93,7 +103,8 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
     const userOverride=rawOverride && findSkin(rawOverride) ? rawOverride : null;
     return {contract:APPEARANCE_CONTRACT,worldDefault,userOverride,
       effective:userOverride??worldDefault,source:userOverride?'user':(findSkin(rawWorld)?'world':'fallback'),
-      invalidWorld:Boolean(rawWorld&&!findSkin(rawWorld)),invalidUser:Boolean(rawOverride&&!findSkin(rawOverride))};
+      invalidWorld:Boolean(rawWorld&&!findSkin(rawWorld)),invalidUser:Boolean(rawOverride&&!findSkin(rawOverride)),
+      size:readSize()};
   }
   async function setWorldDefault(id){
     if(!user().isGM)throw new Error('Only GMs may set the Ashen Gate world appearance');
@@ -105,23 +116,33 @@ export function createAppearanceController({getSetting,setSetting,currentUser,su
     if(id!==null && id!=='' && !findSkin(id))throw new TypeError('Unknown Ashen Gate skin');
     await setSetting(USER_SKIN_KEY,id??'');observed.set(USER_SKIN_KEY,id??'');emit();return getState();
   }
-  function noteChange(key,value){if([WORLD_SKIN_KEY,USER_SKIN_KEY].includes(key)&&(value===undefined||typeof value==='string'))observed.set(key,value??'');emit();}
+  /** Any signed-in user may set their own size; it is a client (per-device) setting. */
+  async function setSize(value){
+    user();
+    if(!SIZES.includes(value))throw new TypeError('Unknown Ashen Gate size');
+    await setSetting(SIZE_KEY,value);observed.set(SIZE_KEY,value);emit();return getState();
+  }
+  function noteChange(key,value){if([WORLD_SKIN_KEY,USER_SKIN_KEY,SIZE_KEY].includes(key)&&(value===undefined||typeof value==='string'))observed.set(key,value??'');emit();}
   function applyTo(root){
     if(!root?.style || typeof root.style.setProperty!=='function')throw new TypeError('Appearance target must be an application root');
     const state=getState();const skin=findSkin(state.effective)||SKINS[0];
     for(const [key,value] of Object.entries(skin.tokens))root.style.setProperty(key,value);
-    if(root.dataset)root.dataset.agSkin=skin.id;
+    if(root.dataset){
+      root.dataset.agSkin=skin.id;
+      // html[data-ag-size="comfortable"] switches the kit's size tokens; compact is the default, so no attribute.
+      if(state.size===DEFAULT_SIZE)delete root.dataset.agSize;else root.dataset.agSize=state.size;
+    }
     return state;
   }
   function subscribe(fn){if(typeof fn!=='function')throw new TypeError('Appearance subscriber must be callable');
     if(closed)throw new Error('Appearance controller disposed');listeners.add(fn);return ()=>listeners.delete(fn);}
   function dispose(){closed=true;listeners.clear();if(typeof disposeSettings==='function')disposeSettings();}
   return Object.freeze({contract:APPEARANCE_CONTRACT,listSkins,getState,setWorldDefault,setUserOverride,
-    applyTo,subscribe,refresh:emit,noteChange,dispose});
+    listSizes:()=>listSizes(getState().size),setSize,applyTo,subscribe,refresh:emit,noteChange,dispose});
 }
 
 /** Foundry is the only settings authority. No client-storage or unregistered namespaces. */
-/** onSettingChange(key, newValue) runs on every client when either setting changes. */
+/** onSettingChange(key, newValue) runs when a setting changes (world/user: every client; size: this client only). */
 export function registerAppearanceSettings({game,namespace,onSettingChange=()=>{}}){
   game.settings.register(namespace,WORLD_SKIN_KEY,{
     name:'Ashen Gate world appearance',scope:'world',config:false,restricted:true,type:String,
@@ -130,6 +151,11 @@ export function registerAppearanceSettings({game,namespace,onSettingChange=()=>{
   game.settings.register(namespace,USER_SKIN_KEY,{
     name:'My Ashen Gate appearance',scope:'user',config:false,type:String,
     default:'',onChange:value=>onSettingChange(USER_SKIN_KEY,value)
+  });
+  game.settings.register(namespace,SIZE_KEY,{
+    name:'Ashen Gate size',hint:'Comfortable makes text and controls larger on this device only.',
+    scope:'client',config:false,type:String,choices:{compact:'Compact',comfortable:'Comfortable'},
+    default:DEFAULT_SIZE,onChange:value=>onSettingChange(SIZE_KEY,value)
   });
 }
 export function makeFoundryAppearanceController({game,namespace}){

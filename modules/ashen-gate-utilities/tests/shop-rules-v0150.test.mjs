@@ -1,10 +1,10 @@
-// 0.14.0: shop rules for the coming Shopping feature (pure functions, no UI, nothing saved).
+// 0.15.0: shop rules for the coming Shopping feature (pure functions, no UI, nothing saved).
 // Mocked Foundry globals are not needed here: these tests prove the logic only, not the live Foundry UI.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {CP_VALUE,coinValueCp,ELECTRUM_OFF,shopIdFromName,validId,priceToCp,shopPriceText,coinsText,coinsForAmount,normalizeLine,normalizePurse,normalizeShop,normalizeService,
  SERVICE_TYPES,planShopPayment,NO_CHANGE,NOT_WHOLE_CP,presentedTo,checkPurchase,SHOP_REFUSALS,bankQuote,stripSecrets,projectShop,projectService,
- shopPurchaseEntry,bankExchangeEntry,shopLine} from '../scripts/core.mjs';
+ shopPurchaseEntry,bankExchangeEntry,shopLine,SELL_DEFAULTS,SELL_REFUSALS,sellValueCp,checkSell,planShopPayout,sellStockChange,shopSaleEntry} from '../scripts/core.mjs';
 
 const C4 = ['cp','sp','gp','pp'], C5 = ['cp','sp','ep','gp','pp'];
 const value = (c, list) => list.reduce((n, k) => n + (c[k] ?? 0) * CP_VALUE[k], 0);
@@ -217,6 +217,68 @@ test('purchase checks: not open, shop changed, hidden line, sold out, bad quanti
  assert.equal(checkPurchase({...base, lineId: 'ln4', quantity: 500}).stockAfter, null, 'unlimited stays unlimited');
 });
 
+// ---- selling (§7c) ----
+const dagger = (over = {}) => ({name: '[TEST] Dagger', type: 'weapon', system: {quantity: 3, price: {value: 2, denomination: 'gp'}, equipped: false, ...over.system}, flags: over.flags ?? {}, ...(over.type ? {type: over.type} : {})});
+const buyer = (buys = {enabled: true, percent: 50, types: []}) => shop({buys});
+test('sell value: percent × own price × quantity, rounded down', () => {
+ assert.equal(sellValueCp(dagger(), 50, 1), 100);
+ assert.equal(sellValueCp(dagger(), 50, 3), 300);
+ assert.equal(sellValueCp({system: {price: {value: 3, denomination: 'cp'}}}, 50, 1), 1, '1.5 cp → 1 cp');
+ assert.equal(sellValueCp({system: {price: {value: 1, denomination: 'cp'}}}, 50, 1), 0);
+ assert.equal(sellValueCp({system: {price: {value: 0.33, denomination: 'gp'}}}, 33, 1), 10, '33 cp × 33 % = 10.89 → 10');
+ assert.equal(sellValueCp({system: {price: {value: 1, denomination: 'ep'}}}, 50, 1), 25);
+ assert.equal(sellValueCp({system: {price: 5}}, 100, 1), 500, 'a bare number is gp');
+ assert.equal(sellValueCp({system: {}}, 50, 1), 0);
+ assert.deepEqual(SELL_DEFAULTS.types, ['weapon', 'equipment', 'consumable', 'tool', 'loot']);
+ assert.equal(SELL_DEFAULTS.percent, 50); assert.equal(SELL_DEFAULTS.vote, false);
+});
+test('sell checks: refusals for containers, equipped, attuned, no price, type not bought, not for sale, not owned, shop not buying', () => {
+ const base = {shop: buyer(), item: dagger(), actorOwned: true, quantity: 2, userId: 'u1'};
+ assert.deepEqual(checkSell(base), {ok: true, quantity: 2, percent: 50, valueCp: 200});
+ assert.equal(checkSell({...base, userId: 'u2'}).reason, SHOP_REFUSALS.notOpen);
+ assert.equal(checkSell({...base, rev: 99}).reason, SHOP_REFUSALS.changed);
+ assert.equal(checkSell({...base, shop: shop()}).reason, "This shop doesn't buy items.", 'buys is off by default');
+ assert.equal(checkSell({...base, actorOwned: false}).reason, SELL_REFUSALS.notOwned);
+ assert.equal(checkSell({...base, item: dagger({type: 'container'})}).reason, "Containers can't be sold. Empty it and sell the items separately.");
+ assert.equal(checkSell({...base, item: dagger({system: {equipped: true}})}).reason, 'Unequip it first.');
+ assert.equal(checkSell({...base, item: dagger({system: {attuned: true}})}).reason, 'Unequip it first.');
+ assert.equal(checkSell({...base, item: dagger({system: {price: {value: 0, denomination: 'gp'}}})}).reason, SELL_REFUSALS.noValue);
+ assert.equal(checkSell({...base, quantity: 1, item: dagger({system: {price: {value: 1, denomination: 'cp'}}})}).reason, SELL_REFUSALS.noValue, 'worth under 1 cp at the sell price');
+ for (const type of ['feat', 'spell', 'class', 'background']) assert.equal(checkSell({...base, item: dagger({type})}).reason, SELL_REFUSALS.type, type);
+ assert.equal(checkSell({...base, shop: buyer({enabled: true, percent: 50, types: ['loot']})}).reason, SELL_REFUSALS.type, 'narrowed by the shop');
+ assert.equal(checkSell({...base, shop: buyer({enabled: true, percent: 50, types: ['weapon']})}).ok, true);
+ assert.equal(checkSell({...base, item: dagger({flags: {'ashen-gate-utilities': {noSale: true}}})}).reason, SELL_REFUSALS.noSale);
+ for (const quantity of [0, 4, 1.5, '']) assert.equal(checkSell({...base, quantity}).reason, 'Choose a whole number from 1 to 3.', String(quantity));
+ assert.equal(checkSell({...base, shop: buyer({enabled: true, percent: 75, types: []}), quantity: 1}).valueCp, 150);
+});
+test('payout: largest coins first, unlimited without a purse, vendor-can\'t-afford refusals', () => {
+ assert.deepEqual(planShopPayout({amountCp: 1234}), {ok: true, pay: {pp: 1, gp: 2, sp: 3, cp: 4}, shopAfter: null});
+ const p = planShopPayout({amountCp: 150, shopPurse: {cp: 40, sp: 25, gp: 30, pp: 0}});
+ assert.deepEqual(p.pay, {pp: 0, gp: 1, sp: 5, cp: 0}); assert.deepEqual(p.shopAfter, {cp: 40, sp: 20, gp: 29, pp: 0});
+ const short = planShopPayout({amountCp: 500, shopPurse: {gp: 4}});
+ assert.equal(short.ok, false); assert.equal(short.cantAfford, true); assert.equal(short.reason, "Sorry, the vendor can't afford that (5 gp).");
+ assert.match(short.gmReason, /holds less than 5 gp/);
+ assert.equal(planShopPayout({amountCp: 500, shopPurse: {gp: 4}, showPurse: false}).reason, "Sorry, the vendor can't afford that.", 'no amount when the coins are hidden');
+ const exact = planShopPayout({amountCp: 50, shopPurse: {gp: 9}});
+ assert.equal(exact.ok, false); assert.match(exact.gmReason, /can't pay exactly 5 sp/);
+ const ep = planShopPayout({amountCp: 50, shopPurse: {ep: 1, sp: 5}, electrum: true});
+ assert.deepEqual(ep.pay, {pp: 0, gp: 0, sp: 5, cp: 0}, 'never pays in ep'); assert.equal(ep.shopAfter.ep, 1);
+ assert.equal(planShopPayout({amountCp: 50, shopPurse: {ep: 1}, electrum: true}).ok, false);
+ assert.equal('ep' in planShopPayout({amountCp: 10, shopPurse: {ep: 3, sp: 1}}).shopAfter, false, 'no ep while off');
+ for (let a = 0; a < 3000; a += 13) { const r = planShopPayout({amountCp: a, shopPurse: {cp: 7, sp: 9, gp: 3, pp: 1}}); if (r.ok) { for (const c of C4) assert.ok(r.shopAfter[c] >= 0); assert.equal(value(r.pay, C4), a); } }
+});
+test('stock after a sale: raise a matching line, unlimited stays unlimited, else a new hidden line', () => {
+ const s = shop();
+ const rope = {name: '[TEST] Rope', type: 'consumable', flags: {'ashen-gate-manager': {source: {sourceId: 'ITEM-TEST-ROPE'}}}, system: {quantity: 2, price: {value: 1, denomination: 'gp'}}};
+ assert.deepEqual(sellStockChange(s, rope, 2), {kind: 'raise', lineId: 'ln1', stockBefore: 3, stockAfter: 5});
+ assert.deepEqual(sellStockChange(s, {name: '[TEST] Torch', type: 'consumable', system: {}}, 4), {kind: 'raise', lineId: 'ln4', stockBefore: null, stockAfter: null}, 'matched by name and type when there is no id');
+ const add = sellStockChange(s, {...dagger(), system: {...dagger().system, equipped: false}}, 2, {randomId: () => 'new1'});
+ assert.equal(add.kind, 'add'); assert.equal(add.line.lineId, 'ln_new1'); assert.equal(add.line.hidden, true);
+ assert.equal(add.line.priceCp, 200); assert.equal(add.line.priceCoin, 'gp'); assert.equal(add.line.stock, 2); assert.equal(add.line.item.system.quantity, 1);
+ assert.equal(add.line.sort, 40);
+ assert.equal(sellStockChange(s, {name: '[TEST] Arrows', type: 'consumable', system: {}}, 5, {randomId: () => 'x'}).kind, 'add', 'a line sold in bundles (20) is not raised by single arrows');
+});
+
 // ---- bank ----
 test('bank: exact conversions at 10:1, ep at 50 cp when on', () => {
  assert.deepEqual(bankQuote({hold: {cp: 245, gp: 7}, from: 'cp', to: 'gp', receive: 2}),
@@ -273,7 +335,7 @@ test('service projection: bank shown, unknown type is null', () => {
 });
 
 // ---- history ----
-test('history entries and lines for purchases and bank exchanges', () => {
+test('history entries and lines for purchases, sales and bank exchanges', () => {
  const s = shop(), hold = {cp: 0, sp: 4, gp: 7, pp: 0}, plan = planShopPayment({hold, totalCp: 150, priceCoin: 'gp', shopPurse: s.purse});
  const e = shopPurchaseEntry({id: 's1', shop: s, line: s.lines[0], itemName: '[TEST] Rope', quantity: 1, payFrom: 'purse', payer: {id: 'stash', name: 'Party Stash'},
   actor: {id: 'a1', name: '[TEST] Kestrel'}, user: {id: 'u1', name: 'Ada'}, approval: 'accepted', plan, coinsBefore: hold, shopPurseBefore: s.purse, createdItemIds: ['i1'], realTime: 5});
@@ -284,6 +346,13 @@ test('history entries and lines for purchases and bank exchanges', () => {
  assert.throws(() => shopPurchaseEntry({plan, payFrom: 'bank'}), /payFrom/);
  assert.throws(() => shopPurchaseEntry({plan: {ok: false}, payFrom: 'purse'}), /plan/);
  const q = bankQuote({hold: {sp: 30}, from: 'sp', to: 'gp', receive: 2, feePercent: 10});
+ const check = checkSell({shop: buyer(), item: dagger(), actorOwned: true, quantity: 2, userId: 'u1'}), payout = planShopPayout({amountCp: check.valueCp, shopPurse: s.purse});
+ const sale = shopSaleEntry({id: 's2', shop: s, itemName: '[TEST] Dagger', check, payout, stock: {kind: 'raise', lineId: 'ln1', stockBefore: 3, stockAfter: 5}, payTo: 'actor',
+  receiver: {id: 'a1', name: '[TEST] Kestrel'}, actor: {id: 'a1', name: '[TEST] Kestrel'}, user: {id: 'u1', name: 'Ada'}, shopPurseBefore: s.purse, realTime: 2});
+ assert.equal(sale.kind, 'shop-sale'); assert.equal(sale.totalCp, 200); assert.deepEqual(sale.stock, {kind: 'raise', lineId: 'ln1', before: 3, after: 5});
+ assert.equal(shopLine(sale), "Ada ([TEST] Kestrel) sold [TEST] Dagger ×2 to [TEST] The Copper Kettle for 2 gp, paid into [TEST] Kestrel's coins");
+ assert.equal(shopLine({...sale, payTo: 'purse', quantity: 1}), 'Ada ([TEST] Kestrel) sold [TEST] Dagger to [TEST] The Copper Kettle for 2 gp, paid into the party purse');
+ assert.throws(() => shopSaleEntry({check, payout: {ok: false}, payTo: 'actor'}), /payout/);
  const b = bankExchangeEntry({id: 'b1', service: {id: 'SVC-TEST-COUNTING-HOUSE', name: '[TEST] Counting House'}, quote: q, payFrom: 'purse', user: {id: 'u1', name: 'Ada'}, realTime: 1});
  assert.equal(b.kind, 'bank-exchange'); assert.equal(b.total, 22); assert.equal(b.fee, 2);
  assert.equal(shopLine(b), 'Ada changed 22 sp into 2 gp at [TEST] Counting House (fee 2 sp), party purse');

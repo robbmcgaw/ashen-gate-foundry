@@ -1,3 +1,8 @@
+## 0.12.0 — 2026-10-21
+
+- Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.
+- Dialogs now come from the shared `ag-dialogs.mjs` (same behaviour, now skinned).
+
 # Renown change history (formerly Factions & Renown)
 
 ## 0.11.1 — 2026-10-20

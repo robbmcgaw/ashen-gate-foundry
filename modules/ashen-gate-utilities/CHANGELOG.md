@@ -1,7 +1,12 @@
+## 0.15.0 — 2026-10-21
+
+- Shop rules for the coming Shopping feature (no visible change yet): prices in whole copper, change-making with an optional shop purse (exact payment, else "The merchant can't make change"), purchase checks, selling to a shop (sell value, checks, the vendor's payout, stock), the Bank's exchange quote, the player view of a shop or service (no GM data) and History entries. Electrum stays out of all of it while *Use electrum* is off.
+- No saved-data changes, no new settings, nothing to click in Forge.
+
 ## 0.14.0 — 2026-10-21
 
-- Shop rules for the coming Shopping feature (no visible change yet): prices in whole copper, change-making with an optional shop purse (exact payment, else "The merchant can't make change"), purchase checks, the Bank's exchange quote, the player view of a shop or service (no GM data) and History entries. Electrum stays out of all of it while *Use electrum* is off. Selling to a shop is not included yet.
-- No saved-data changes, no new settings, nothing to click in Forge.
+- Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.
+- Dialogs now come from the shared `ag-dialogs.mjs` (same behaviour, now skinned). Local result/check-bar classes renamed from `.ag-` to `.agu-` (no visual change).
 
 ## 0.13.2 — 2026-10-21
 

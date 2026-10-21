@@ -1,3 +1,7 @@
+## 0.4.0 — 2026-10-21
+
+- Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.
+
 ## 0.3.1 — 2026-10-21
 
 - **Cinder point cap is now 16** (was 13), matching Skill Trees 0.17.1. Starting Cinder points stay inside the 16-point wallet; the setting now goes up to 16. Default (1 at first bind) unchanged. Saved Cinders are not rewritten.

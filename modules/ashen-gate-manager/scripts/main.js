@@ -1,4 +1,5 @@
 import {bindSkinPicker} from "./skin-picker.js";
+import {windowSize} from "./ag-html.mjs";
 import {createAppearanceController, registerAppearanceSettings, makeFoundryAppearanceController, syncSkinStylesheet, APPEARANCE_CONTRACT, DEFAULT_SKIN_ID} from "./appearance.js";
 import {auditTypedReferences, renderGmReferenceMarkers} from "./manager-resolver-bridge.mjs";
 import {createManagerDefinitionReader, READER_CONTRACT} from './native-definition-reader.mjs';
@@ -198,13 +199,14 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.41.2 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.42.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
 
   constructor(options={}) {
-    super(options);
+    // Kit 2: the default size grows with the Comfortable size set (read when the window is created).
+    super({...options,position:{...windowSize(AshenGateManager.DEFAULT_OPTIONS.position),...options.position}});
     this.pkg = null;
     this.rawPkg = null;
     this.preview = [];
@@ -564,6 +566,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       appearanceMessage:this.appearanceMessage,
       appearanceCurrent: appearanceController?.getState?.()??null,
       appearanceSkinRows:(appearanceController?.listSkins?.()??[]).map(skin=>({...skin,selected:skin.id===(this.appearanceSelection??appearanceController.getState().worldDefault)})),
+      appearanceSizes:appearanceController?.listSizes?.()??[],
       playerAccessRows, playerAccessMessage:this.playerAccessMessage, playerAccessReport:this.playerAccessReport,
       playerAccessVisibleCount:accessVisibleCount,
       playerAccessHasVisible:accessVisibleCount>0&&!this.busy,
@@ -650,6 +653,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     await super._onRender(context, options);
     const root = this.element;
     bindSkinPicker(root.querySelector('[data-ag-skin-picker="world"]'),value=>{this.appearanceSelection=value;});
+    bindSizePicker(root.querySelector('[data-ag-size-picker="gm"]'));
     this.#bindAppearanceMenu(root);
     if(this.tab==='items'&&this.itemsView==='records')this.#fillItemPreview(root);
     this.browseUnsub?.();this.browseUnsub=null;this.browsePaint=null;
@@ -2289,11 +2293,13 @@ class AshenGateMyAppearance extends HandlebarsApplicationMixin(ApplicationV2) {
     return {...ctx,worldDefault:appearanceController.listSkins().find(s=>s.id===state.worldDefault)?.label??state.worldDefault,
       effective:appearanceController.listSkins().find(s=>s.id===state.effective)?.label??state.effective,
       selected,isInherit:selected==='',status:this.status,
-      skins:appearanceController.listSkins().map(s=>({...s,current:s.id===state.effective,selected:s.id===selected}))};
+      skins:appearanceController.listSkins().map(s=>({...s,current:s.id===state.effective,selected:s.id===selected})),
+      sizes:appearanceController.listSizes()};
   }
   async _onRender(ctx,options){
     await super._onRender(ctx,options);
     bindSkinPicker(this.element.querySelector('[data-ag-skin-picker="my"]'),value=>{this.selection=value;});
+    bindSizePicker(this.element.querySelector('[data-ag-size-picker="my"]'),this.element.querySelector('[data-ag-my-appearance-status]'));
     this.element.querySelector('[data-ag-my-save]')?.addEventListener('click',async e=>{
       e.preventDefault();const button=e.currentTarget;button.disabled=true;
       try {const chosen=this.selection===null ? (appearanceController.getState().userOverride??'') : this.selection;
@@ -2336,6 +2342,16 @@ let codexPlayerApp=null;
 const codexService=()=>codexApi??=createCodexService({game,moduleId:MODULE_ID});
 const openCodexPlayerView=()=>{codexPlayerApp??=new AshenGateCodexPlayer();return codexPlayerApp.render({force:true});};
 let appearanceController=null;
+/**
+ * Size switch (kit 2) in My Appearance and the GM Appearance popover: saves this device's size right away
+ * (client setting, any user); the controller then writes html[data-ag-size] for every Ashen Gate window.
+ */
+function bindSizePicker(group,status=null){
+  bindSkinPicker(group,async value=>{
+    try{await appearanceController.setSize(value);if(status)status.textContent=`Size: ${value==='comfortable'?'Comfortable':'Compact'} on this device.`;}
+    catch(error){if(status)status.textContent=`Unable to change size: ${error.message}`;else console.warn(`[${MODULE_ID}] Size not saved`,error);}
+  },{valueKey:'agSizeValue'});
+}
 let definitionsReader=null;
 let myAppearanceApp=null;
 let activeApp;
@@ -2404,6 +2420,9 @@ Hooks.once("ready",()=>{
       refresh:()=>{if(!game.user?.isGM)throw new Error('Only a GM can refresh the shared appearance.');return appearanceController.refresh();},
       setWorldDefault:id=>appearanceController.setWorldDefault(id),
       setUserOverride:id=>appearanceController.setUserOverride(id),
+      // Kit 2 size set for this device: 'compact' (default) or 'comfortable'.
+      listSizes:()=>appearanceController.listSizes(),
+      setSize:value=>appearanceController.setSize(value),
       // Player-safe personal appearance window (never the GM Manager).
       openMyAppearance:()=>{myAppearanceApp??=new AshenGateMyAppearance();return myAppearanceApp.render({force:true});}
     },
@@ -2470,7 +2489,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.41.2 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.42.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */

@@ -141,12 +141,7 @@ test('(h) moods import: a bad kind is reported, duplicates show in the preview, 
   assert.deepEqual(f.store, before);
 });
 
-test('docs and version 0.41.2 are consistent', () => {
-  const manifest = JSON.parse(read('../module.json'));
-  assert.equal(manifest.version, '0.41.2');
-  assert.match(manifest.download, /ashen-gate-manager-v0\.41\.2\/ashen-gate-manager\.zip$/);
-  assert.match(read('../templates/manager.hbs'), /v0\.41\.2 Beta/);
-  assert.match(read('../scripts/main.js'), /General Manager v0\.41\.2 Beta/);
+test('docs are consistent (version checks live in the newest test)', () => {
   assert.match(read('../CHANGELOG.md'), /## 0\.41\.2/);
   assert.match(read('../../../docs/organize-rules.md'), /ashen-gate-organize-backup/);
   assert.match(read('../../../docs/scene-moods-schema.md'), /used twice/);

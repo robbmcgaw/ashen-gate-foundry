@@ -1,6 +1,6 @@
 import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,conditionGroups,stashRow,historyEntry,containedItems,moveBundle,contentsNote,appendHistory,approvalLabel,STASH_HISTORY_CAP,rollFormSession,normalizeTab,rollPrefill,ROLL_OPEN_MODES,readGp,planGoldAward,goldAwardEntry,planGoldUndo,applyGoldUndo,goldCardHTML,COINS,COIN_LABELS,entryCoin,readCoin,readCoins,planCoinMove,planPurseAdjust,purseEntry,purseUndoable,planPurseUndo,applyPurseUndo,purseLine,PURSE_KINDS,ELECTRUM_OFF,coinChoices,shownCoins,strandedElectrum,planElectrumConvert,convertPreview,convertEntry,convertLine,planConvertUndo,applyConvertUndo,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome} from './core.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
-import {confirmDialog,infoDialog,formDialog} from './dialogs.mjs';
+import {confirmDialog,infoDialog,formDialog} from './ag-dialogs.mjs';
 
 const {ApplicationV2}=foundry.applications.api;
 let windowInstance=null;
@@ -124,7 +124,7 @@ const modeHint=m=>m.sources.length?`Preset from ${m.sources.join('; ')}. You can
 const bonusText=(actor,skill)=>formatBonus(skillBonus(actor,skill));
 function checkBar(slots){
  const done=slots.filter(x=>x.status!=='pending').length;
- return `<div class="ag-checkbar" role="progressbar" aria-valuemin="0" aria-valuemax="${slots.length}" aria-valuenow="${done}" aria-label="Rolls resolved">${slots.map(x=>`<span class="ag-checkbar-seg ${E(x.status)}"></span>`).join('')}</div>`;
+ return `<div class="agu-checkbar" role="progressbar" aria-valuemin="0" aria-valuemax="${slots.length}" aria-valuenow="${done}" aria-label="Rolls resolved">${slots.map(x=>`<span class="agu-checkbar-seg ${E(x.status)}"></span>`).join('')}</div>`;
 }
 function verdictOf(s,sm){return s.dc===null?'Recorded':sm.result==='success'?'Success':sm.result==='failure'?'Failure':'No Result';}
 function resultView(res){const kind=res.kind;
@@ -138,8 +138,8 @@ function resultView(res){const kind=res.kind;
   }).join('');
   return `<div class="agu-participant"><strong>${E(game.actors.get(id)?.name||'Unavailable Actor')}</strong><div class="agu-contributions">${cells}</div></div>`;
  }).join('');
- const avg=kind==='group'&&sm.average!==null?`<div class="ag-result-score"><span class="ag-result-num">${E(sm.average.toFixed(1))}</span><span class="ag-result-vs">average${res.dc===null?'':` vs DC ${E(res.dc)}`}</span></div>`:'';
- return `<section class="agu-card ag-card ag-result ${cls}"><div class="agu-line"><h2>${E(res.name)}</h2><span class="ag-badge agu-pill">${E(sessionKind(res))} · finished</span></div><div class="ag-result-verdict">${E(verdict)}</div>${avg}${rows}${isGM()?`<div class="agu-actions">${btn('clear-result','Clear Result',{kind:'primary ag-btn'})}</div><p class="agu-note">Everyone sees this result until you clear it or start the next check.</p>`:''}</section>`;
+ const avg=kind==='group'&&sm.average!==null?`<div class="agu-result-score"><span class="agu-result-num">${E(sm.average.toFixed(1))}</span><span class="agu-result-vs">average${res.dc===null?'':` vs DC ${E(res.dc)}`}</span></div>`:'';
+ return `<section class="agu-card ag-card agu-result ${cls}"><div class="agu-line"><h2>${E(res.name)}</h2><span class="ag-badge agu-pill">${E(sessionKind(res))} · finished</span></div><div class="agu-result-verdict">${E(verdict)}</div>${avg}${rows}${isGM()?`<div class="agu-actions">${btn('clear-result','Clear Result',{kind:'primary ag-btn'})}</div><p class="agu-note">Everyone sees this result until you clear it or start the next check.</p>`:''}</section>`;
 }
 function sessionView(session,app){
  const projected=projectSession(session,{userId:game.user.id,isGM:isGM(),ownedActorIds:ownedIds()});

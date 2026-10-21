@@ -1,3 +1,8 @@
+## 0.11.0 — 2026-10-21
+
+- Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.
+- Dialogs now come from the shared `ag-dialogs.mjs` (same behaviour, now skinned).
+
 ## 0.10.0 — 2026-10-20
 
 - **New API `embed.mount(element, {actorId, mode: 'character'})`** so a partner module (Character Hub) can show a compact, read-only Guildhall view for one character: name and rank, the facilities that character may see with stage and benefits, and Open Headquarters. Returns `{unmount, refresh}`; it refreshes itself on changes. See the README.
