@@ -165,7 +165,7 @@ html[data-ag-skin="ag-stone-tablet"] .ag-btn--ghost:hover:not(:disabled) {
 html[data-ag-skin="ag-stone-tablet"] :is(.ag-btn--danger, .ag-app button.danger) {
   background: color-mix(in srgb, var(--ag-danger) 14%, var(--ag-surface-sunken));
   border-color: color-mix(in srgb, var(--ag-danger) 45%, #000);
-  color: var(--ag-danger);
+  color: var(--ag-danger-ink);
 }
 html[data-ag-skin="ag-stone-tablet"] :is(.ag-btn--danger, .ag-app button.danger):hover:not(:disabled) {
   background: var(--ag-danger);
@@ -261,7 +261,7 @@ html[data-ag-skin="ag-stone-tablet"] :is(#ashen-gate-launchers > .ag-launcher, .
  * Layout-only kit parts keep the kit look here: .ag-stack, .ag-cluster, .ag-scroll, .ag-pad,
  * .ag-window, .ag-split, .ag-card-grid, .ag-form-grid, .ag-btn-group, .ag-chip-group, .ag-kv,
  * .ag-field, .ag-toolbar, .ag-hotbar, .ag-rarity-edge, .ag-version, .ag-eyebrow, .ag-gm-flag,
- * .ag-icon-chip.
+ * .ag-icon-chip, .ag-sr-only (kit 2.1.0).
  * ===================================================================================== */
 html[data-ag-skin="ag-stone-tablet"] :is(.ag-chip, .ag-segmented, .ag-rarity-badge) { border-radius: 0; }
 html[data-ag-skin="ag-stone-tablet"] .ag-chip { border-color: #111412; box-shadow: var(--agx-bevel); }

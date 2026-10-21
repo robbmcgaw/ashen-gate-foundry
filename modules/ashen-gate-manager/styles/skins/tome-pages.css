@@ -186,7 +186,7 @@ html[data-ag-skin="ag-tome-pages"] .ag-btn--ghost:hover:not(:disabled) {
 html[data-ag-skin="ag-tome-pages"] :is(.ag-btn--danger, .ag-app button.danger) {
   background: var(--ag-surface-sunken);
   border-color: var(--ag-danger);
-  color: var(--ag-danger);
+  color: var(--ag-danger-ink);
   box-shadow: inset 0 0 0 2px var(--ag-surface-sunken), inset 0 0 0 3px color-mix(in srgb, var(--ag-danger) 30%, transparent);
 }
 html[data-ag-skin="ag-tome-pages"] :is(.ag-btn--danger, .ag-app button.danger):hover:not(:disabled) {
@@ -293,7 +293,8 @@ html[data-ag-skin="ag-tome-pages"] .ag-tabs > :where(.active, [aria-current="pag
  * Kit 2 parts (ag-ui kit 2.0.0). Slots, portraits, orbs, pips and rank dots stay circles.
  * Layout-only kit parts keep the kit look here: .ag-stack, .ag-cluster, .ag-scroll, .ag-pad,
  * .ag-window, .ag-split, .ag-card-grid, .ag-form-grid, .ag-btn-group, .ag-chip-group, .ag-kv,
- * .ag-field, .ag-toolbar, .ag-hotbar, .ag-rarity-edge, .ag-version, .ag-gm-flag, .ag-icon-chip.
+ * .ag-field, .ag-toolbar, .ag-hotbar, .ag-rarity-edge, .ag-version, .ag-gm-flag, .ag-icon-chip,
+ * .ag-sr-only (kit 2.1.0).
  * ===================================================================================== */
 html[data-ag-skin="ag-tome-pages"] .ag-chip { border-color: color-mix(in srgb, var(--agx-ink) 35%, transparent); font-variant: small-caps; letter-spacing: .03em; }
 html[data-ag-skin="ag-tome-pages"] .ag-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--ag-accent) 12%, transparent); }

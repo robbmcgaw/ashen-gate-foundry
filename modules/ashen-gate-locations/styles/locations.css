@@ -29,7 +29,6 @@
 .agl-row__warn { color: var(--ag-warn); }
 .agl-row__icon { color: var(--ag-accent); }
 .agl-hint { color: var(--ag-muted); font-size: var(--ag-text-sm); margin: var(--ag-space-2) 0; }
-.agl-sr { position: absolute; top: 0; left: 0; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } /* ag-lint-allow: screen-reader-only clip */
 .agl-dot { width: var(--ag-space-3); height: var(--ag-space-3); border-radius: 50%; background: var(--ag-warn); flex: 0 0 auto; }
 
 /* Threat: kit badge tones; Deadly is a solid danger fill (text on danger uses the surface colour). */

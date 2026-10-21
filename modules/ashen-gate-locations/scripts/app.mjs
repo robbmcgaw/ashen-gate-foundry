@@ -19,7 +19,7 @@ const tip = text => text ? ` data-tooltip="${esc(text)}" data-tooltip-class="ag-
 /** A kit button. kind: primary | ghost | danger | sm | icon (or several, space-separated). Icon-only buttons take their label from title. */
 const btn = (action, label, {kind = '', icon = '', data = {}, title = '', cls = ''} = {}) =>
   `<button type="button" class="ag-btn${kind ? kind.split(' ').map(k => ` ag-btn--${k}`).join('') : ''}${!label && icon && !kind.includes('icon') ? ' ag-btn--icon' : ''}${cls ? ` ${cls}` : ''}" data-action="${action}"${Object.entries(data).map(([k, v]) => ` data-${k}="${esc(v)}"`).join('')}${!label && title ? ` aria-label="${esc(title)}"` : ''}${tip(title)}>${icon ? `<i class="${icon}" aria-hidden="true"></i>` : ''}${label ? `<span>${esc(label)}</span>` : ''}</button>`;
-const eye = (bind, on, what) => `<label class="agl-eye"${tip(`${on ? 'Visible' : 'Hidden'} to players: ${what}`)}><input type="checkbox" data-toggle="${esc(bind)}" ${on ? 'checked' : ''}><i class="fa-solid ${on ? 'fa-eye' : 'fa-eye-slash'}" aria-hidden="true"></i><span class="agl-sr">Show ${esc(what)} to players</span></label>`;
+const eye = (bind, on, what) => `<label class="agl-eye"${tip(`${on ? 'Visible' : 'Hidden'} to players: ${what}`)}><input type="checkbox" data-toggle="${esc(bind)}" ${on ? 'checked' : ''}><i class="fa-solid ${on ? 'fa-eye' : 'fa-eye-slash'}" aria-hidden="true"></i><span class="ag-sr-only">Show ${esc(what)} to players</span></label>`;
 /** "section:key" -> [section, key] (a key may itself contain a colon). */
 const splitEntry = v => { const i = v.indexOf(':'); return [v.slice(0, i), v.slice(i + 1)]; };
 const NUMERIC = new Set(['tier', 'dc', 'quantity', 'rareQuantity']);

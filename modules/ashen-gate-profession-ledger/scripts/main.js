@@ -1503,7 +1503,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       <p class="agl-sub">Proficiency in the <b>skill</b> or the <b>tool to access</b> (either one) qualifies a character for the profession in <b>Assign</b>. The same skill and tool are the profession’s checks: crafting needs the tool when a recipe names none of its own, and gathering offers the tool and the skill. A character proficient with, or carrying, the <b>tool for advantage</b> starts gathering checks with advantage (gathering professions only; crafting checks never get it). “Several” means a list from the baseline file or an earlier edit; hover to see it. Saved with <b>Save Changes</b>.</p>
       ${notes.length?`<ul class="agl-sub">${notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`:''}
       ${this._baselinePanel()}
-      <div class="ag-table-wrap agl-map-wrap"><table class="ag-table agl-map"><thead><tr><th scope="col">Profession</th><th scope="col">Skill to Access</th><th scope="col">Tool to Access</th><th scope="col">Tool for Advantage</th><th scope="col" class="is-actions"><span class="agl-sr">Reset</span></th></tr></thead>
+      <div class="ag-table-wrap agl-map-wrap"><table class="ag-table agl-map"><thead><tr><th scope="col">Profession</th><th scope="col">Skill to Access</th><th scope="col">Tool to Access</th><th scope="col">Tool for Advantage</th><th scope="col" class="is-actions"><span class="ag-sr-only">Reset</span></th></tr></thead>
       <tbody>${group('Crafting professions',PROFESSION_NAMES.filter(n=>!GATHERING_PROFESSIONS.includes(n)))}${group('Gathering professions',PROFESSION_NAMES.filter(n=>GATHERING_PROFESSIONS.includes(n)))}</tbody></table></div></section>`;
   }
   /** GM: baseline file import (file → preview → apply) and export of the current table. */
@@ -1543,7 +1543,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         ...p.conflicts.map(c=>`${c}: imported Profession definitions disagree; check them in Manager.`),
         ...p.unresolved.map(u=>`${u.profession}: catalog ${u.field==='skillProficienciesAnyOf'?'skill':'tool'} “${u.name}” matches no dnd5e ${u.field==='skillProficienciesAnyOf'?'skill':'tool'} and is ignored.`)].filter(Boolean);
       body=`${notes.map(n=>`<p class="agl-sub">${esc(n)}</p>`).join('')}
-        ${groups?`<div class="ag-table-wrap agl-map-wrap"><table class="ag-table agl-map agl-assign"><thead><tr><th scope="col"><span class="agl-sr">Add</span></th><th scope="col">Profession</th><th scope="col">Reason</th><th scope="col">Result</th></tr></thead><tbody>${groups}</tbody></table></div>`
+        ${groups?`<div class="ag-table-wrap agl-map-wrap"><table class="ag-table agl-map agl-assign"><thead><tr><th scope="col"><span class="ag-sr-only">Add</span></th><th scope="col">Profession</th><th scope="col">Reason</th><th scope="col">Result</th></tr></thead><tbody>${groups}</tbody></table></div>`
           :emptyState('No characters to check.','Choose the party in GM Setup, or pick one character above.')}
         <p class="agl-sub">${proposals.length?`${plural(proposals.length,'profession feature')} to add. Adding never changes XP, levels, perks or existing Items.`:'Nothing new to add.'}</p>
         <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="assign-apply" data-id="selected" ${[...a.selected].some(id=>proposals.some(r=>r.id===id))?'':'disabled'}>Add selected</button>

@@ -5,7 +5,6 @@
 .agst-window-v2 .ag-btn.agst-active{border-color:var(--ag-accent);background:var(--ag-accent-soft)}
 .agst-shell{height:100%;display:flex;flex-direction:column;min-height:0;font-family:var(--ag-font-body);font-size:var(--ag-text-md);line-height:1.4;container-type:inline-size}
 .agst-shell>:where(header,nav){flex:none}
-.agst-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap} /* ag-lint-allow: visually hidden text */
 .agst-pane-pad{flex:1;min-height:0;overflow:auto;padding:var(--ag-space-5)}
 .agst-pane-pad>.ag-empty{max-width:36rem;margin:0 auto}
 

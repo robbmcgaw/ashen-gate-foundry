@@ -1,4 +1,4 @@
-/* ag-ui kit 2.0.0 */
+/* ag-ui kit 2.1.0 */
 /*
  * Ashen Gate UI kit (ag-ui.css)
  * Every Ashen Gate module ships an identical copy of this file; scripts/check.mjs fails if
@@ -18,6 +18,8 @@
  * html[data-ag-size="comfortable"] for a per-device larger set with the same token names.
  * Shape (radius) is not part of the size sets; structural skins override it.
  * Kit 2 is additive: every kit-1 class and token keeps working.
+ * 2.1.0: tone "ink" tokens and --ag-muted-strong for 4.5:1 text on tinted fills, [hidden] guard,
+ * .ag-sr-only, disabled rows, .ag-search grows only in a toolbar, choice dialogs.
  */
 
 /* ---------- Base tokens (what a skin sets) ---------- */
@@ -121,6 +123,13 @@ html[data-ag-size="comfortable"] {
   --ag-row-selected: var(--ag-accent-soft);
   --ag-info: var(--ag-focus);
   --ag-info-soft: color-mix(in srgb, var(--ag-info) 14%, var(--ag-surface-raised));
+  /* Tone "ink": the tone nudged toward the text colour, so coloured text reads (4.5:1) on its own soft fill in every skin. */
+  --ag-accent-ink: color-mix(in srgb, var(--ag-accent) 80%, var(--ag-text));
+  --ag-ok-ink: color-mix(in srgb, var(--ag-ok) 80%, var(--ag-text));
+  --ag-warn-ink: color-mix(in srgb, var(--ag-warn) 80%, var(--ag-text));
+  --ag-danger-ink: color-mix(in srgb, var(--ag-danger) 80%, var(--ag-text));
+  /* Secondary text on tinted rows (selected, striped, hover, disabled). */
+  --ag-muted-strong: color-mix(in srgb, var(--ag-muted) 70%, var(--ag-text));
   /* Rarity "ink": the hue mixed half and half with the skin's text colour, so it reads (4.5:1) on light and dark skins. */
   --ag-rarity-ink-common: var(--ag-muted);
   --ag-rarity-ink-uncommon: color-mix(in oklab, var(--ag-rarity-uncommon) 50%, var(--ag-text));
@@ -345,7 +354,7 @@ html[data-ag-size="comfortable"] {
 .ag-btn--ghost { background: transparent; border-color: transparent; color: var(--ag-muted); }
 .ag-btn--ghost:hover:not(:disabled) { background: var(--ag-surface-hover); color: var(--ag-text); border-color: transparent; }
 .ag-btn--danger,
-:where(.ag-app) button.danger { background: var(--ag-danger-soft); border-color: color-mix(in srgb, var(--ag-danger) 55%, var(--ag-border)); color: var(--ag-danger); }
+:where(.ag-app) button.danger { background: var(--ag-danger-soft); border-color: color-mix(in srgb, var(--ag-danger) 55%, var(--ag-border)); color: var(--ag-danger-ink); }
 .ag-btn--danger:hover:not(:disabled),
 :where(.ag-app) button.danger:hover:not(:disabled) { background: var(--ag-danger); border-color: var(--ag-danger); color: var(--ag-surface); }
 .ag-btn--sm { min-height: var(--ag-control-h-sm); padding: 2px var(--ag-space-3); font-size: var(--ag-text-sm); }
@@ -407,10 +416,10 @@ html[data-ag-size="comfortable"] {
   line-height: 1.5;
   white-space: nowrap;
 }
-.ag-badge--accent { border-color: color-mix(in srgb, var(--ag-accent) 55%, transparent); background: var(--ag-accent-soft); color: var(--ag-accent); }
-.ag-badge--ok { border-color: color-mix(in srgb, var(--ag-ok) 55%, transparent); background: var(--ag-ok-soft); color: var(--ag-ok); }
-.ag-badge--warn { border-color: color-mix(in srgb, var(--ag-warn) 55%, transparent); background: var(--ag-warn-soft); color: var(--ag-warn); }
-.ag-badge--danger { border-color: color-mix(in srgb, var(--ag-danger) 55%, transparent); background: var(--ag-danger-soft); color: var(--ag-danger); }
+.ag-badge--accent { border-color: color-mix(in srgb, var(--ag-accent) 55%, transparent); background: var(--ag-accent-soft); color: var(--ag-accent-ink); }
+.ag-badge--ok { border-color: color-mix(in srgb, var(--ag-ok) 55%, transparent); background: var(--ag-ok-soft); color: var(--ag-ok-ink); }
+.ag-badge--warn { border-color: color-mix(in srgb, var(--ag-warn) 55%, transparent); background: var(--ag-warn-soft); color: var(--ag-warn-ink); }
+.ag-badge--danger { border-color: color-mix(in srgb, var(--ag-danger) 55%, transparent); background: var(--ag-danger-soft); color: var(--ag-danger-ink); }
 
 /* ---------- .ag-empty: empty state ---------- */
 .ag-empty {
@@ -541,7 +550,8 @@ html[data-ag-size="comfortable"] {
 .ag-tab--gm::after { content: "GM"; margin-left: var(--ag-space-2); padding: 0 var(--ag-space-1); border: 1px solid currentColor; border-radius: var(--ag-radius-sm); opacity: .75; font-size: var(--ag-text-xs); letter-spacing: .06em; }
 
 /* ---------- Toolbar: search | filters | count | create ---------- */
-.ag-search { position: relative; display: flex; align-items: center; flex: 1 1 220px; min-width: 0; }
+.ag-search { position: relative; display: flex; align-items: center; width: 100%; min-width: 0; }
+.ag-toolbar > .ag-search { flex: 1 1 220px; width: auto; }
 .ag-search > i { position: absolute; left: var(--ag-space-4); color: var(--ag-muted); pointer-events: none; font-size: var(--ag-icon); }
 .ag-search > input { width: 100%; padding-left: calc(var(--ag-space-4) + var(--ag-icon) + var(--ag-space-2)) !important; }
 .ag-toolbar__filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); }
@@ -599,10 +609,16 @@ html[data-ag-size="comfortable"] {
 .ag-rows > .ag-row:nth-child(even of .ag-row) { background: var(--ag-row-alt); }
 .ag-row:hover { background: var(--ag-surface-hover); }
 .ag-row.is-selected, .ag-row[aria-current="true"] { background: var(--ag-row-selected); border-left-color: var(--ag-accent); }
+/* Disabled rows stay readable: muted title, no hover, no opacity fade. */
+.ag-row:is(.is-disabled, [aria-disabled="true"]) { cursor: default; }
+.ag-row:is(.is-disabled, [aria-disabled="true"]):hover { background: transparent; }
+.ag-rows > .ag-row:is(.is-disabled, [aria-disabled="true"]):nth-child(even of .ag-row):hover { background: var(--ag-row-alt); }
+.ag-row:is(.is-disabled, [aria-disabled="true"]) .ag-row__title { color: var(--ag-muted-strong); }
 .ag-row__icon { flex: 0 0 auto; width: var(--ag-icon-chip); height: var(--ag-icon-chip); display: grid; place-items: center; border-radius: 50%; background: var(--ag-surface-sunken); color: var(--ag-accent); font-size: var(--ag-icon); object-fit: cover; }
 .ag-row__main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .ag-row__title { font-weight: 600; overflow-wrap: anywhere; }
 .ag-row__meta { color: var(--ag-muted); font-size: var(--ag-text-sm); overflow-wrap: anywhere; }
+:is(.ag-row:hover, .ag-row.is-selected, .ag-row[aria-current="true"], .ag-rows > .ag-row:nth-child(even of .ag-row)) .ag-row__meta { color: var(--ag-muted-strong); }
 .ag-row__end { flex: 0 0 auto; display: flex; align-items: center; gap: var(--ag-space-2); margin-left: auto; }
 button.ag-row { width: 100%; justify-content: flex-start; text-align: left; border-radius: 0; border-width: 0 0 0 3px; background: transparent; font-weight: 400; }
 
@@ -742,6 +758,13 @@ button.ag-row { width: 100%; justify-content: flex-start; text-align: left; bord
 .application.ag-dialog > .window-content { padding: var(--ag-space-4); gap: var(--ag-space-3); }
 .application.ag-dialog .form-footer { display: flex; justify-content: space-between; gap: var(--ag-space-2); }
 .application.ag-dialog .form-footer > button { flex: 0 0 auto; }
+/* choiceDialog: Cancel on the left, every choice on the right; the default choice is primary, danger choices are red. */
+.application.ag-dialog--choice .form-footer { justify-content: flex-end; flex-wrap: wrap; }
+.application.ag-dialog--choice .form-footer > button[data-action="cancel"] { margin-right: auto; }
+.application.ag-dialog--choice .form-footer > button.ag-dialog__choice--default { background: var(--ag-accent); border-color: var(--ag-accent); color: var(--ag-accent-contrast); font-weight: 650; }
+.application.ag-dialog--choice .form-footer > button.ag-dialog__choice--danger { background: var(--ag-danger-soft); border-color: color-mix(in srgb, var(--ag-danger) 55%, var(--ag-border)); color: var(--ag-danger-ink); }
+.application.ag-dialog--choice .form-footer > button.ag-dialog__choice--danger.ag-dialog__choice--default,
+.application.ag-dialog--choice .form-footer > button.ag-dialog__choice--danger:hover:not(:disabled) { background: var(--ag-danger); border-color: var(--ag-danger); color: var(--ag-surface); }
 .application.ag-dialog .form-footer > button:is([data-action="confirm"], [data-action="ok"]) { background: var(--ag-accent); border-color: var(--ag-accent); color: var(--ag-accent-contrast); font-weight: 650; }
 .application.ag-dialog .form-footer > button:is([data-action="confirm"], [data-action="ok"]):hover:not(:disabled) { background: var(--ag-accent-hover); border-color: var(--ag-accent-hover); }
 .application.ag-dialog--danger .form-footer > button:is([data-action="confirm"], [data-action="ok"]),
@@ -752,6 +775,12 @@ button.ag-row { width: 100%; justify-content: flex-start; text-align: left; bord
   background: var(--ag-surface-raised); color: var(--ag-text); border: 1px solid var(--ag-border-strong);
   border-radius: var(--ag-radius); box-shadow: var(--ag-shadow); font: 400 var(--ag-text-sm)/1.4 var(--ag-font-body); max-width: 22rem;
 }
+
+/* ---------- Visually hidden text (screen readers only) ---------- */
+.ag-sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+/* ---------- The hidden attribute always wins over kit display rules ---------- */
+:where(.ag-app) [hidden] { display: none !important; }
 
 /* ---------- Reduced motion: no transitions, no looping spinners ---------- */
 @media (prefers-reduced-motion: reduce) {

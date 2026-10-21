@@ -158,6 +158,29 @@ test('attunement: free slot prompts Attune and equip / Equip without / Cancel', 
   assert.equal(actor.items.get('boots').calls.length, 0);
 });
 
+test('attunement: the default prompt is the shared choice dialog; Cancel resolves null and changes nothing', async () => {
+  installGlobals();
+  const saved = globalThis.foundry;
+  const api = {};
+  globalThis.foundry = {...saved, applications: {...saved?.applications, api}};
+  let seen = null;
+  api.DialogV2 = {wait: async o => { seen = o; return o.buttons.find(b => b.action === 'cancel').callback(); }};
+  try {
+    const actor = actorWith();
+    const r = await ia.equipItem(actor, 'boots');
+    assert.deepEqual(seen.classes, ['ag-app', 'ag-dialog', 'ag-dialog--choice']);
+    assert.deepEqual(seen.buttons.map(b => b.action), ['cancel', 'equip', 'attune'], 'choices and order unchanged, Cancel first');
+    assert.deepEqual(seen.buttons.map(b => b.label), ['Cancel', 'Equip without attuning', 'Attune and equip']);
+    assert.equal(seen.buttons.find(b => b.action === 'attune').default, true);
+    assert.equal(r.ok, false); assert.equal(r.cancelled, true); assert.equal(r.error, null);
+    assert.equal(actor.items.get('boots').calls.length, 0);
+    api.DialogV2 = {wait: async o => o.buttons.find(b => b.action === 'attune').callback()};
+    assert.equal(await ia.askDialog(ia.attunePrompt(actorWith(), actor.items.get('boots'))), 'attune');
+    api.DialogV2 = {wait: async () => null}; // closed
+    assert.equal(await ia.askDialog(ia.attunePrompt(actorWith(), actor.items.get('boots'))), null);
+  } finally { globalThis.foundry = saved; }
+});
+
 test('attunement: at the limit, explains, lists attuned items with Unattune, then asks again', async () => {
   installGlobals();
   const actor = actorWith();

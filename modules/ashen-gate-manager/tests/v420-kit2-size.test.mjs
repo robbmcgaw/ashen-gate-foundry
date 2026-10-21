@@ -123,7 +123,7 @@ test('windowSize scales by 1.2 at Comfortable, is unchanged at Compact, and fits
 
 test('kit 2: both size sets carry the same tokens; skins set the shape tokens; Manager rarity moved to the kit',()=>{
   const kit=read('../styles/ag-ui.css');
-  assert.match(kit,/^\/\* ag-ui kit 2\.0\.0 \*\/\n/);
+  assert.match(kit,/^\/\* ag-ui kit 2\.1\.0 \*\/\n/);
   const names=block=>[...block.matchAll(/(--ag-[a-z0-9-]+):/g)].map(m=>m[1]);
   const comfy=names(kit.match(/html\[data-ag-size="comfortable"\] \{([^}]*)\}/)[1]);
   const root=names(kit.match(/:root \{([^}]*)\}/)[1]);

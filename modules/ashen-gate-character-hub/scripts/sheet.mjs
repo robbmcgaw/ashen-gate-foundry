@@ -246,7 +246,7 @@ export function segmentStep(button, step) {
 export function createHubSheetClass(Base) {
   return class CharacterHubSheet extends Base {
     static DEFAULT_OPTIONS = {
-      classes: ['ag-app', 'ag-character-hub'],
+      classes: ['ag-app', 'agch-app'],
       position: {width: 1240, height: 800},  // Compact; Comfortable scales it when the sheet opens (windowSize)
       window: {resizable: true},
       form: {submitOnChange: false, closeOnSubmit: false}
