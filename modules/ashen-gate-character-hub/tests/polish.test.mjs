@@ -257,7 +257,10 @@ test('Ashen Gate quick bar: module views jump to the sub-tab; HQ and Locations o
   assert.match(bar, /is-missing" data-action="partner-open" data-partner="ashen-gate-locations" disabled aria-label="Locations \(module not active\)" data-tooltip="Locations \(module not active\)"/);
   for (const label of ['Skill Trees', 'Renown', 'Quests']) assert.match(bar, new RegExp(`${label} \\(module not active\\)`));
   const {sheet, html} = await render();
-  assert.match(html, /<div class="agch-railcol"><nav class="ag-siderail agch-rail"[\s\S]*<\/nav><nav class="ag-siderail agch-rail agch-agbar"/, 'a separate bar under the tab rail');
+  assert.match(html, /<div class="agch-railcol"><nav class="ag-siderail agch-rail" role="tablist"[\s\S]*?<\/nav><\/div>/, 'the right rail holds only the sections (0.29.0)');
+  assert.doesNotMatch(html.match(/<div class="agch-railcol">[\s\S]*?<\/nav><\/div>/)[0], /agch-agbar/);
+  assert.match(html, /<div class="agch-hotbars">[\s\S]*<nav class="agch-agbar" aria-label="Ashen Gate modules">[\s\S]*<\/nav><\/div>$/, 'a thin bar along the bottom edge, after the hotbars (0.29.0)');
+  assert.match(bar, /<button type="button" class="ag-btn ag-btn--ghost ag-btn--icon agch-agbar__btn"[^>]*data-tooltip-direction="UP"/, 'kit buttons, Foundry tooltips above');
   await ACTIONS['ag-jump'](sheet, {dataset: {partner: 'ashen-gate-profession-ledger'}});
   assert.equal(sheet.tab, 'ashen-gate'); assert.equal(sheet.agTab, 'ashen-gate-profession-ledger');
   assert.match(await sheet._renderHTML(), /agch-agbar__btn active" data-action="ag-jump" data-partner="ashen-gate-profession-ledger"/);

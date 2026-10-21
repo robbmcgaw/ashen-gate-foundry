@@ -1,5 +1,5 @@
 export const MODULE_ID = 'ashen-gate-character-hub';
-export const VERSION = '0.28.1';
+export const VERSION = '0.29.0';
 export const SHEET_LABEL = 'Ashen Gate Character Hub';
 
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
@@ -10,10 +10,13 @@ export const num = (v, fallback = 0) => { const n = Number(v); return Number.isF
 export const dnd5eConfig = () => globalThis.CONFIG?.DND5E ?? {};
 export const labelOf = entry => typeof entry === 'string' ? entry : entry?.label ?? '';
 
-/** Window background opacity: a per-user client setting, 20-100 % (100 = opaque). Only backgrounds use it. */
-export const OPACITY_MIN = 20;
-export const clampOpacity = v => { const n = Math.round(Number(v)); return Number.isFinite(n) && v !== null && v !== '' ? Math.min(100, Math.max(OPACITY_MIN, n)) : 100; };
-export function windowOpacity() { try { return clampOpacity(globalThis.game?.settings?.get?.(MODULE_ID, 'windowOpacity')); } catch { return 100; } }
+/**
+ * Compact mode (0.29.0): a per-user client setting. When on, a Hub opens showing only the character art with its slots,
+ * HP and the quick bar, in a narrow window. 0.29.0 also removed the window opacity slider; an old saved `windowOpacity`
+ * value is simply never read again (the setting is no longer registered), so it can't change or break anything.
+ */
+export const COMPACT_SETTING = 'compactMode';
+export function compactPreference() { try { return globalThis.game?.settings?.get?.(MODULE_ID, COMPACT_SETTING) === true; } catch { return false; } }
 
 /**
  * Empty equipment-slot placeholders, one line per slot. Each value is one of:

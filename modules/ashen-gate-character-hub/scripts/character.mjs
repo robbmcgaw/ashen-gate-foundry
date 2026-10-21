@@ -185,14 +185,15 @@ function identityCard(actor) {
     <img src="${esc(r.img)}" alt=""><span class="agch-idcard__text"><span class="agch-idcard__name">${esc(r.name)}</span><span class="agch-idcard__detail">${esc(r.detail)}</span></span></button>`).join('')}</section>`;
 }
 
-function hpHtml(h, off, menu) {
+/** The HP block. Compact (0.29.0) keeps the bar, its editor, damage/heal and the death save; hit dice, rests and exhaustion stay in Full. */
+function hpHtml(h, off, menu, compact = false) {
   const hp = h.hp;
   return `<div class="agch-hp" role="group" aria-label="Hit points">
     ${hpBarHtml(hp, off)}
     ${menu === 'hp' && !off ? hpEditor(hp) : ''}
     <div class="agch-hp__row">
       <span class="agch-hp__adjust" role="group" aria-label="Damage or heal">${btn('hp-damage', '', {kind: 'sm', icon: 'fa-solid fa-minus', title: 'Damage: subtract the amount (temp HP first, then HP)', disabled: off})}<input type="number" min="0" step="1" class="agch-hp__amount" data-hp-amount placeholder="0" aria-label="Amount to add or subtract"${off ? ' disabled' : ''}>${btn('hp-heal', '', {kind: 'sm', icon: 'fa-solid fa-plus', title: 'Heal: add the amount (up to max HP)', disabled: off})}</span>
-      ${hitDiceHtml(h, off)}${exhaustionHtml(h, off)}</div>
+      ${compact ? '' : `${hitDiceHtml(h, off)}${exhaustionHtml(h, off)}`}</div>
     ${hp.value <= 0 ? `<span${off ? '' : configAttrs('death')}>${btn('roll-death', 'Death save', {icon: 'fa-solid fa-dice-d20', title: off ? 'Death save' : 'Death save (right-click to configure)', disabled: off})}</span>` : ''}
   </div>`;
 }
@@ -250,5 +251,18 @@ export function characterPanelHtml(ctx) {
     ${abilitiesHtml(actor, off)}
     ${conditionsHtml(h, off, sheet?.condAdd === true)}
     ${footHtml(h)}
+  </aside>`;
+}
+
+/**
+ * Compact mode's only column (0.29.0): the name, the art with its equipment slots (when players may see them) and HP.
+ * Same markup and actions as the full left column, so double-click art, slot clicks and the HP editor work unchanged.
+ */
+export function compactPanelHtml(ctx) {
+  const {actor, editable, sheet} = ctx, off = !editable, h = headerData(actor);
+  return `<aside class="agch-char agch-char--compact" aria-label="Character">
+    <h2 class="agch-name">${esc(h.name)}</h2>
+    ${canSee('equipment') ? dollHtml(ctx, h) : ''}
+    ${hpHtml(h, off, sheet?.menu ?? null, true)}
   </aside>`;
 }

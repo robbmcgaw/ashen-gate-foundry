@@ -41,13 +41,13 @@ function quickBar(actor, off) {
     : `<li><span class="ag-slot agch-quick__slot is-empty" data-hotbar-slot="${d.index}" data-tooltip="Empty: drag one of this character's items or a macro here" aria-label="Slot ${d.index + 1}: empty"><span class="ag-slot__key agch-quick__n">${(d.index + 1) % 10}</span></span></li>`).join('')}</ol>`;
 }
 
-/** Both hotbars, or nothing when the GM hides them from players. Observers see them disabled. */
+/** Both hotbars (Compact: the quick bar only), or nothing when the GM hides them from players. Observers see them disabled. */
 export function hotbarsHtml(ctx) {
   if (!canSee('hotbars')) return '';
   const {actor, editable} = ctx, off = !editable;
   const bar = (key, title, body) => `<section class="agch-hotbar" data-sec="${esc(key)}"><h3 class="agch-hotbar__head">${toggleButton(key, title)}</h3><div class="agch-hotbar__body"${bodyAttrs(key)}>${body}</div></section>`;
   return `<div class="agch-hotbars">${hiddenBadge('hotbars') ? `<p class="agch-hidden-note">${hiddenBadge('hotbars')}</p>` : ''}
-    ${bar(sectionKey('hotbar', 'marks'), 'Mastery &amp; marks', marksBar(actor, off))}
+    ${ctx.compact ? '' : bar(sectionKey('hotbar', 'marks'), 'Mastery &amp; marks', marksBar(actor, off))}
     ${bar(sectionKey('hotbar', 'quick'), 'Quick bar', quickBar(actor, off))}</div>`;
 }
 

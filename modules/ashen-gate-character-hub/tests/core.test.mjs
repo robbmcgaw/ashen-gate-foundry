@@ -136,7 +136,7 @@ test('sheet renders header, tabs and Open native sheet; observers get a view-onl
   assert.match(html, /agch-pane__title"><i class="fa-solid fa-user" aria-hidden="true"><\/i> Overview/);
   assert.doesNotMatch(html, /data-tab="rest"/, 'rests moved to the character column');
   assert.match(html, /data-action="rest" data-type="short"/);
-  assert.match(html, /type="range" min="20" max="100" step="5" value="100" data-opacity data-ag-always/, 'opaque by default');
+  assert.doesNotMatch(html, /data-opacity|type="range"/, 'no opacity slider (removed in 0.29.0)');
   installGlobals({user: users.observer});
   const view = await new Cls({document: makeActor()})._renderHTML();
   assert.match(view, /View only/);
@@ -256,25 +256,20 @@ test('conditions box lists only active conditions; + shows the others inline to 
   assert.match(view, /data-id="prone"[^>]*disabled/);
 });
 
-test('window opacity: client setting, clamped 20-100, applied as a CSS property; default opaque', async () => {
-  const {clampOpacity, windowOpacity} = await import('../scripts/constants.mjs');
-  assert.equal(clampOpacity(5), 20); assert.equal(clampOpacity(150), 100); assert.equal(clampOpacity('55'), 55); assert.equal(clampOpacity('abc'), 100); assert.equal(clampOpacity(undefined), 100);
-  installGlobals({settings: {}});
-  assert.equal(windowOpacity(), 100, 'unset means opaque');
+test('window opacity removed (0.29.0): an old saved value is ignored, never read, never an error', async () => {
   installGlobals({settings: {windowOpacity: 40}});
-  assert.equal(windowOpacity(), 40);
   const {Cls} = hubClass();
   const sheet = new Cls({document: makeActor()});
-  const styleOf = props => ({setProperty: (k, v, prio) => { props[k] = prio ? `${v} !${prio}` : v; }});
-  const props = {}, contentProps = {}, headerProps = {};
-  const content = {style: styleOf(contentProps)}, header = {style: styleOf(headerProps)};
-  sheet.element = {style: styleOf(props), querySelector: sel => sel.includes('window-content') ? content : sel.includes('window-header') ? header : null};
-  assert.equal(sheet.applyOpacity(), 40);
-  assert.deepEqual(props, {'--ag-window-opacity': '40%', background: 'var(--agch-bg) !important'}, 'the whole window background fades');
-  assert.deepEqual(contentProps, {background: 'transparent !important'}, 'nothing opaque behind the content');
-  assert.deepEqual(headerProps, {background: 'var(--agch-bg-sunken) !important'});
-  const {saveOpacity} = await import('../scripts/sheet.mjs');
-  await saveOpacity(10);
-  assert.equal(game.settings.store.windowOpacity, 20, 'saved clamped');
-  assert.match(await sheet._renderHTML(), /value="20" data-opacity/);
+  assert.equal(sheet.applyOpacity, undefined, 'no opacity code left on the sheet');
+  const props = {};
+  sheet.element = {style: {setProperty: (k, v) => { props[k] = v; }}, querySelector: () => null};
+  const html = await sheet._renderHTML();
+  assert.doesNotMatch(html, /data-opacity|agch-opacity/);
+  sheet._replaceHTML(html, {innerHTML: '', querySelector: () => null, addEventListener: () => {}});
+  assert.deepEqual(props, {}, 'nothing sets a window opacity');
+  assert.equal(game.settings.store.windowOpacity, 40, 'the old value is left alone (not rewritten)');
+  const css = fs.readFileSync(new URL('../styles/character-hub.css', import.meta.url), 'utf8');
+  assert.doesNotMatch(css, /ag-window-opacity|agch-alpha|agch-opacity/, 'backgrounds are solid');
+  const main = fs.readFileSync(new URL('../scripts/main.mjs', import.meta.url), 'utf8');
+  assert.doesNotMatch(main, /register\(MODULE_ID, 'windowOpacity'/, 'the setting is no longer registered');
 });
