@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.20.1';
+export const VERSION = '0.21.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -687,6 +687,7 @@ export function normalizeLine(raw = {}, {randomId} = {}) {
   const coin = COINS.includes(raw.priceCoin) ? raw.priceCoin : COINS.includes(raw.price?.denomination) ? raw.price.denomination : 'gp';
   return {lineId, itemId: str(raw.itemId) || null, itemUuid: str(raw.itemUuid, 400) || null, priceCp, priceCoin: coin, flavour, stock, stockStart: start,
     hidden: raw.hidden === true, costCp, sort: Number.isFinite(Number(raw.sort)) ? Number(raw.sort) : 0, ...(raw.soldIn === true ? {soldIn: true} : {}),
+    ...(typeof raw.importKey === 'string' && raw.importKey ? {importKey: raw.importKey.slice(0, 420)} : {}),
     ...(raw.item && typeof raw.item === 'object' ? {item: raw.item} : {}), ...(Array.isArray(raw.contents) ? {contents: raw.contents} : {})};
 }
 /** A shop purse: null = none (unlimited cash), else whole coins ≥ 0. ep is refused while electrum is off. */
@@ -1206,3 +1207,226 @@ export function projectMerchantList(list, {project = () => null, locationName = 
 export const entrySummary = view => (view?.kind === 'service' ? String(view.service?.label ?? 'Service') : `${(view?.lines ?? []).length} ${(view?.lines ?? []).length === 1 ? 'item' : 'items'}`);
 /** "Changed 200 cp into 2 gp for [TEST] Kestrel." (fee named when there is one). */
 export const bankText = (q, whoseName) => `Changed ${q.total} ${q.from} into ${q.receive} ${q.to}${q.fee ? ` (fee ${q.fee} ${q.from})` : ''} for ${whoseName}.`;
+
+/* ---- 0.21.0: import and export of shops, services and merchant lists (design §8, brief 6). Pure: the caller resolves
+   the items lines name and writes the records. Import writes definitions only: `presented` is always null, lists come
+   in hidden, and an update never touches stock left, the shop purse now, who it is shown to or the sales log. ---- */
+export const IMPORT_FORMAT = 'ag-foundry-import/0.2';
+export const SHOP_IMPORT_TYPES = Object.freeze(['Shop', 'Service', 'MerchantList']);
+const IMPORT_PREFIX = {Shop: 'SHOP', Service: 'SVC', MerchantList: 'MLIST'};
+const BLOCKED_STATUS = ['superseded', 'retired'];
+/** The shop, service and merchant list records in a package (or a plain list of records), and how many others it holds. */
+export function shopImportRecords(input) {
+  const pkg = Array.isArray(input) ? {records: input} : input;
+  if (!pkg || typeof pkg !== 'object' || !Array.isArray(pkg.records)) throw Error('Not an import file: expected {"manifest": …, "records": [...]}.');
+  const format = pkg.manifest?.schema_version ?? pkg.format;
+  if (format !== undefined && format !== IMPORT_FORMAT) throw Error(`This file is ${JSON.stringify(format)}; Utilities reads ${IMPORT_FORMAT}.`);
+  const records = pkg.records.filter(r => SHOP_IMPORT_TYPES.includes(r?.entity_type));
+  return {records, ignored: pkg.records.length - records.length};
+}
+/** Where a line's item comes from: `id:ITEM-…` (permanent id) and/or `uuid:…`. */
+export const importItemKeys = line => [typeof line?.item_id === 'string' && line.item_id ? `id:${line.item_id}` : null,
+  typeof line?.item_uuid === 'string' && line.item_uuid ? `uuid:${line.item_uuid}` : null].filter(Boolean);
+/** Every item reference the records' lines name, for the caller to look up. */
+export const importItemRefs = records => [...new Set((records ?? []).filter(r => r?.entity_type === 'Shop')
+  .flatMap(r => (Array.isArray(r.shop?.lines) ? r.shop.lines : []).flatMap(importItemKeys)))];
+
+const isObj = v => v && typeof v === 'object' && !Array.isArray(v);
+const optText = (v, where) => { if (v === undefined || v === null) return undefined; if (typeof v !== 'string') throw Error(`${where} must be text.`); return v; };
+const optBool = (v, where) => { if (v === undefined) return undefined; if (typeof v !== 'boolean') throw Error(`${where} must be true or false.`); return v; };
+/** `{value, denomination}` → whole copper. ep only while electrum is on. */
+function importPrice(p, where, electrum) {
+  if (!isObj(p)) throw Error(`${where} must be {"value": …, "denomination": "gp"}.`);
+  if (p.denomination === 'ep' && !electrum) throw Error(`${where}: ep is refused while Use electrum is off.`);
+  if (!['cp', 'sp', 'gp', 'pp', ...(electrum ? ['ep'] : [])].includes(p.denomination)) throw Error(`${where}: denomination must be cp, sp, gp or pp.`);
+  if (typeof p.value !== 'number') throw Error(`${where}: value must be a number.`);
+  try { return priceToCp(p); } catch (e) { throw Error(`${where}: ${e.message}`); }
+}
+/** A file line checked (nothing resolved yet): its keys and the fields it sets. Throws naming the line. */
+function importLine(raw, n, electrum) {
+  const where = `line ${n}`;
+  if (!isObj(raw)) throw Error(`${where} must be an object.`);
+  for (const k of ['item_id', 'item_uuid']) if (raw[k] !== undefined && (typeof raw[k] !== 'string' || !raw[k].trim())) throw Error(`${where}: ${k} must be text.`);
+  const keys = importItemKeys(raw);
+  if (!keys.length) throw Error(`${where} needs item_id or item_uuid.`);
+  const out = {keys, itemId: raw.item_id ?? null, ref: raw.item_id ?? raw.item_uuid};
+  if (raw.price !== undefined) { out.priceCp = importPrice(raw.price, `${where} price`, electrum); out.priceCoin = raw.price.denomination; }
+  if (raw.cost !== undefined) out.costCp = importPrice(raw.cost, `${where} cost`, electrum);
+  if (raw.stock !== undefined && raw.stock !== null && (!Number.isInteger(raw.stock) || raw.stock < 0)) throw Error(`${where}: stock must be a whole number from 0 (leave it out for unlimited).`);
+  out.stock = raw.stock ?? null;
+  const flavour = optText(raw.flavour, `${where} flavour`);
+  if (flavour !== undefined && flavour.trim().length > LINE_FLAVOUR_MAX) throw Error(`${where}: flavour can be up to ${LINE_FLAVOUR_MAX} characters.`);
+  out.flavour = flavour?.trim() ?? '';
+  out.hidden = optBool(raw.hidden, `${where} hidden`) === true;
+  return out;
+}
+const merchantOf = (block, old) => ({name: block.merchant_name ?? old?.name ?? '', img: block.merchant_img ?? old?.img ?? ''});
+const locationOf = (rec, block) => block.location_id ?? (Array.isArray(rec.refs) ? rec.refs.find(r => r?.relation === 'located_at' && typeof r.target_id === 'string')?.target_id : undefined) ?? null;
+/** The shared text fields of a Shop or Service block, checked. */
+function importShared(rec, block) {
+  for (const k of ['merchant_name', 'merchant_img', 'flavour', 'location_id', 'gm_notes']) optText(block[k], `${k}`);
+  if (block.location_id !== undefined && block.location_id !== null && !/^LOC(-[A-Z0-9]+)+$/.test(block.location_id)) throw Error('location_id must be a LOC-* id.');
+}
+/** A shop's buys block: {enabled, percent 1–100, types}. */
+function importBuys(b) {
+  if (!isObj(b)) throw Error('buys must be {"enabled": true, "percent": 50, "types": [...]}.');
+  const enabled = optBool(b.enabled, 'buys.enabled') ?? false, percent = b.percent ?? 50;
+  if (!Number.isInteger(percent) || percent < 1 || percent > 100) throw Error('buys.percent must be a whole number from 1 to 100.');
+  if (b.types !== undefined && !Array.isArray(b.types)) throw Error('buys.types must be a list of item types.');
+  const bad = (b.types ?? []).filter(t => !SHOP_BUY_TYPES.includes(t));
+  if (bad.length) throw Error(`buys.types: ${bad.join(', ')} is not one of ${SHOP_BUY_TYPES.join(', ')}.`);
+  return {enabled, percent, types: [...new Set(b.types ?? [])]};
+}
+/** A file line made into a shop line from its resolved item; null when the item isn't found. */
+function lineFromImport(l, items, {randomId, electrum, sort, importKey}) {
+  const found = l.keys.map(k => items.get(k)).find(Boolean);
+  if (!found) return null;
+  const base = lineFromItem(found.data, found.contents ?? [], {randomId, uuid: found.uuid ?? null, electrum, sort});
+  return normalizeLine({...base, itemId: l.itemId ?? base.itemId, ...(l.priceCp !== undefined ? {priceCp: l.priceCp, priceCoin: l.priceCoin} : {}),
+    costCp: l.costCp ?? null, stock: l.stock, stockStart: l.stock, flavour: l.flavour, hidden: l.hidden, importKey});
+}
+/** Lines key their source so an update can find them again: `id:ITEM-X`, and `#2`, `#3`… for the same item twice. */
+const keyLines = lines => { const seen = new Map(); return lines.map(l => { const k = l.keys[0], n = (seen.get(k) ?? 0) + 1; seen.set(k, n); return {...l, importKey: n > 1 ? `${k}#${n}` : k}; }); };
+/**
+ * Update: the file's lines replace the lines an import made, matched by importKey (or, for a line the GM added by hand
+ * with the same item id or uuid, that line). A matched line keeps its lineId and its stock left (unless the file
+ * switches it between limited and unlimited). Lines the GM added (and lines bought from players) stay, after the file's.
+ */
+function mergeLines(oldLines, fresh, unresolved) {
+  const pool = [...(oldLines ?? [])], take = pred => { const i = pool.findIndex(pred); return i < 0 ? null : pool.splice(i, 1)[0]; };
+  const out = [];
+  for (const {line, keys, importKey} of fresh) {
+    let old = take(o => o.importKey === importKey);
+    if (!old && line) old = take(o => !o.importKey && ((line.itemId && o.itemId === line.itemId) || keys.some(k => k === `uuid:${o.itemUuid}`)));
+    if (!line) { if (old) out.push(old); continue; }
+    const keepStock = old && old.stock !== null && old.stock !== undefined && line.stockStart !== null;
+    out.push(old ? {...line, lineId: old.lineId, stock: keepStock ? old.stock : line.stock} : line);
+  }
+  for (const o of pool) if (!o.importKey || unresolved.has(o.importKey)) out.push(o);
+  return out;
+}
+/**
+ * The plan for importing `records`: per record {id, type, name, result: 'created' | 'updated' | 'kept' | 'skipped',
+ * reason?, lines?: {imported, skipped: [{ref, reason}]}, notes: []} and the records to write. `items` maps a key from
+ * importItemKeys to {data (Item toObject()), contents, uuid}. mode 'create' keeps an existing id as it is; 'update'
+ * replaces name, merchant, flavour and lines (service: settings; list: name and entries). Nothing is written here.
+ */
+export function planShopImport(records, {mode = 'create', shops = [], services = [], lists = [], retiredIds = [], items = new Map(), electrum = false,
+  randomId, now = 0, userId = null} = {}) {
+  if (!['create', 'update'].includes(mode)) throw Error('Import mode must be "create" or "update".');
+  if (typeof randomId !== 'function') throw new TypeError('planShopImport needs randomId.');
+  const byId = {Shop: new Map(shops.map(s => [s.id, s])), Service: new Map(services.map(s => [s.id, s])), MerchantList: new Map(lists.map(l => [l.id, l]))};
+  const retired = new Set(retiredIds), seen = new Set(), results = [], writes = {shops: [], services: [], lists: []};
+  const inImport = new Set((records ?? []).filter(r => SHOP_IMPORT_TYPES.includes(r?.entity_type) && typeof r.id === 'string').map(r => r.id));
+  const stamp = {updatedAt: now, updatedBy: userId};
+  for (const [i, rec] of (records ?? []).entries()) {
+    const type = rec?.entity_type, id = typeof rec?.id === 'string' ? rec.id : `records[${i}]`;
+    const row = {id, type, name: typeof rec?.name === 'string' ? rec.name : '', result: 'skipped', notes: []};
+    results.push(row);
+    try {
+      if (!SHOP_IMPORT_TYPES.includes(type)) throw Error('Not a Shop, Service or MerchantList record.');
+      if (!validId(rec.id, IMPORT_PREFIX[type])) throw Error(`id must be ${IMPORT_PREFIX[type]}- and upper-case letters, digits and single hyphens.`);
+      if (seen.has(id)) throw Error('Duplicate id in this import.');
+      seen.add(id);
+      if (BLOCKED_STATUS.includes(rec.status)) throw Error(`Status ${rec.status}: not imported.`);
+      if (retired.has(id)) throw Error('This id belonged to something deleted; ids are never reused.');
+      const name = textField(rec.name, type === 'MerchantList' ? MLIST_NAME_MAX : MERCHANT_NAME_MAX, 'name');
+      if (!name) throw Error('name is required.');
+      const old = byId[type].get(id) ?? null;
+      if (type === 'Shop') {
+        const b = rec.shop;
+        if (!isObj(b)) throw Error('shop block is required.');
+        importShared(rec, b);
+        if (!b.merchant_name?.trim()) throw Error('shop.merchant_name is required.');
+        if (!Array.isArray(b.lines)) throw Error('shop.lines must be a list.');
+        const parsed = keyLines(b.lines.map((l, n) => importLine(l, n + 1, electrum)));
+        const purse = b.purse === undefined ? null : (() => { try { return normalizePurse(b.purse, {electrum}); } catch (e) { throw Error(`shop.purse: ${e.message}`); } })();
+        const showPurse = optBool(b.show_purse, 'shop.show_purse');
+        const buys = b.buys === undefined ? undefined : importBuys(b.buys);
+        let sort = 0;
+        const fresh = parsed.map(l => ({line: lineFromImport(l, items, {randomId, electrum, sort: sort += 10, importKey: l.importKey}), keys: l.keys, importKey: l.importKey, ref: l.ref}));
+        const missing = fresh.filter(f => !f.line);
+        row.lines = {imported: fresh.length - missing.length, skipped: missing.map(f => ({ref: f.ref, reason: 'Item not found in this world.'}))};
+        if (old && mode === 'create') { row.result = 'kept'; row.reason = 'Already in this world; kept as it is.'; delete row.lines; continue; }
+        if (old) {
+          if (missing.length) row.lines.skipped = missing.map(f => ({ref: f.ref, reason: 'Item not found in this world; the line is kept as it was.'}));
+          const lines = mergeLines(old.lines, fresh, new Set(missing.map(f => f.importKey)));
+          const next = normalizeShop({...old, name, merchant: merchantOf(b, old.merchant), flavour: b.flavour ?? old.flavour, lines, rev: (Number(old.rev) || 0) + 1, ...stamp}, {electrum});
+          writes.shops.push(next); row.result = 'updated'; row.name = name; continue;
+        }
+        const shop = normalizeShop({id, name, merchant: merchantOf(b), flavour: b.flavour ?? '', locationId: locationOf(rec, b), gmNotes: b.gm_notes ?? '',
+          purse, purseStart: purse ? {...purse} : null, showPurse: showPurse ?? true, buys: buys ?? SHOP_BUYS_DEFAULT, lines: fresh.map(f => f.line).filter(Boolean),
+          presented: null, rev: 0, createdAt: now, ...stamp}, {electrum});
+        writes.shops.push(shop); row.result = 'created'; row.name = name;
+      } else if (type === 'Service') {
+        const b = rec.service;
+        if (!isObj(b)) throw Error('service block is required.');
+        importShared(rec, b);
+        const kind = SERVICE_TYPES[b.type];
+        if (!kind) throw Error(b.type ? `Unknown service type: ${b.type}.` : 'service.type is required.');
+        if (b.settings !== undefined && !isObj(b.settings)) throw Error('service.settings must be an object.');
+        const given = Object.fromEntries(Object.entries(b.settings ?? {}).map(([k, v]) => [k.replace(/_([a-z])/g, (m, c) => c.toUpperCase()), v]));
+        if (old && mode === 'create') { row.result = 'kept'; row.reason = 'Already in this world; kept as it is.'; continue; }
+        if (old) {
+          if (old.service?.type !== b.type) throw Error(`The service type can't change on import (${old.service?.type} → ${b.type}).`);
+          const settings = kind.checkSettings({...old.service.settings, ...given});
+          const {known, ...next} = normalizeService({...old, name, merchant: merchantOf(b, old.merchant), flavour: b.flavour ?? old.flavour, service: {type: b.type, settings}, rev: (Number(old.rev) || 0) + 1, ...stamp});
+          writes.services.push(next); row.result = 'updated'; row.name = name; continue;
+        }
+        const {known, ...svc} = normalizeService({id, kind: 'service', name, merchant: merchantOf(b), flavour: b.flavour ?? '', locationId: locationOf(rec, b), gmNotes: b.gm_notes ?? '',
+          service: {type: b.type, settings: kind.checkSettings({...kind.defaults(), ...given})}, presented: null, rev: 0, createdAt: now, ...stamp});
+        writes.services.push(svc); row.result = 'created'; row.name = name;
+      } else {
+        const b = rec.merchant_list;
+        if (!isObj(b)) throw Error('merchant_list block is required.');
+        optText(b.location_id, 'merchant_list.location_id');
+        if (b.location_id !== undefined && b.location_id !== null && !/^LOC(-[A-Z0-9]+)+$/.test(b.location_id)) throw Error('merchant_list.location_id must be a LOC-* id.');
+        if (!Array.isArray(b.shop_ids)) throw Error('merchant_list.shop_ids must be a list.');
+        const bad = b.shop_ids.filter(x => !validId(x, 'SHOP') && !validId(x, 'SVC'));
+        if (bad.length) throw Error(`merchant_list.shop_ids: ${bad.map(x => JSON.stringify(x)).join(', ')} is not a SHOP-* or SVC-* id.`);
+        for (const x of new Set(b.shop_ids)) if (!inImport.has(x) && !byId.Shop.has(x) && !byId.Service.has(x)) row.notes.push(`${x} is not in this world or this file; the list shows it as missing.`);
+        if (old && mode === 'create') { row.result = 'kept'; row.reason = 'Already in this world; kept as it is.'; continue; }
+        if (old) { writes.lists.push(normalizeMerchantList({...old, name, shopIds: b.shop_ids, ...stamp})); row.result = 'updated'; row.name = name; continue; }
+        writes.lists.push(normalizeMerchantList({id, name, locationId: b.location_id ?? null, shopIds: b.shop_ids, visible: false, createdAt: now, ...stamp}));
+        row.result = 'created'; row.name = name;
+      }
+    } catch (e) { row.result = 'skipped'; row.reason = e.message; delete row.lines; }
+  }
+  return {results, writes};
+}
+
+/** The price as a whole number in one coin: its own coin when it divides, else the largest coin that does. */
+export function exportPrice(cp, coin = 'gp') {
+  const n = Math.max(0, Math.round(Number(cp) || 0));
+  const c = [coin, 'pp', 'gp', 'sp', 'cp'].find(x => CP_VALUE[x] && n % CP_VALUE[x] === 0);
+  return {value: n / CP_VALUE[c], denomination: c};
+}
+const snake = o => Object.fromEntries(Object.entries(o ?? {}).map(([k, v]) => [k.replace(/[A-Z]/g, c => `_${c.toLowerCase()}`), v]));
+const envelope = (id, type, name, extra) => ({id, entity_type: type, status: 'draft', version: '1.0.0', name, visibility: 'gm', refs: [],
+  provenance: {sources: ['ashen-gate-utilities export']}, ...extra});
+/**
+ * Shops, services and merchant lists as an ag-foundry-import/0.2 package that importShops reads back. Definitions only:
+ * each line's starting stock, the starting cash as `purse`; never who it is shown to, stock sold, sales or the purse now.
+ * A line with no item id or uuid can't be found again, so it is left out and named in `notes`.
+ */
+export function exportShopsPackage({shops = [], services = [], lists = []} = {}, {packageId = 'AG-UTILITIES-SHOPS-EXPORT'} = {}) {
+  const notes = [], records = [];
+  for (const s of shops) {
+    const lines = [];
+    for (const l of s.lines ?? []) {
+      const ref = l.itemId ? {item_id: l.itemId} : l.itemUuid ? {item_uuid: l.itemUuid} : null;
+      if (!ref) { notes.push(`${s.id}: ${l.item?.name ?? l.lineId} has no item id or uuid, so it was left out.`); continue; }
+      lines.push({...ref, price: exportPrice(l.priceCp, l.priceCoin), ...(l.stockStart !== null && l.stockStart !== undefined ? {stock: l.stockStart} : {}),
+        ...(l.flavour ? {flavour: l.flavour} : {}), ...(l.costCp !== null && l.costCp !== undefined ? {cost: exportPrice(l.costCp, l.priceCoin)} : {}), ...(l.hidden ? {hidden: true} : {})});
+    }
+    records.push(envelope(s.id, 'Shop', s.name, {...(s.locationId ? {refs: [{relation: 'located_at', target_id: s.locationId, mode: 'optional'}]} : {}),
+      shop: {merchant_name: s.merchant?.name ?? '', ...(s.merchant?.img ? {merchant_img: s.merchant.img} : {}), ...(s.flavour ? {flavour: s.flavour} : {}),
+        ...(s.locationId ? {location_id: s.locationId} : {}), ...(s.gmNotes ? {gm_notes: s.gmNotes} : {}), ...(s.purseStart ?? s.purse ? {purse: {...(s.purseStart ?? s.purse)}} : {}),
+        show_purse: s.showPurse !== false, ...(s.buys?.enabled ? {buys: {enabled: true, percent: s.buys.percent, ...(s.buys.types?.length ? {types: [...s.buys.types]} : {})}} : {}), lines}}));
+  }
+  for (const s of services) records.push(envelope(s.id, 'Service', s.name, {...(s.locationId ? {refs: [{relation: 'located_at', target_id: s.locationId, mode: 'optional'}]} : {}),
+    service: {type: s.service?.type, ...(s.merchant?.name ? {merchant_name: s.merchant.name} : {}), ...(s.merchant?.img ? {merchant_img: s.merchant.img} : {}),
+      ...(s.flavour ? {flavour: s.flavour} : {}), ...(s.locationId ? {location_id: s.locationId} : {}), ...(s.gmNotes ? {gm_notes: s.gmNotes} : {}), settings: snake(s.service?.settings)}}));
+  for (const l of lists) records.push(envelope(l.id, 'MerchantList', l.name, {merchant_list: {...(l.locationId ? {location_id: l.locationId} : {}), shop_ids: [...l.shopIds]}}));
+  return {package: {manifest: {schema_version: IMPORT_FORMAT, package_id: packageId, version: '1.0.0'}, records}, notes};
+}

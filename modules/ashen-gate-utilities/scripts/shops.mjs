@@ -10,6 +10,7 @@ import {confirmDialog,formDialog} from './ag-dialogs.mjs';
 import {readDrop,resolveItemDrop,bundleOf} from './ag-item-drop.mjs';
 import {servicesAll,servicesApi,serviceSettingsHTML,serviceType,typeLabel as serviceTypeLabel,UNKNOWN_TYPE} from './services.mjs';
 import {listsView,listsFooter,bindLists,handleLists} from './merchant-lists.mjs';
+import {importView,importFooter,bindImport,handleImport} from './shop-import.mjs';
 
 export const STORE='shops-gm',JOURNAL_NAME='Utilities Shops (GM Data)';
 const isGM=()=>Boolean(game.user?.isGM);
@@ -239,11 +240,12 @@ function shopRow(s,locations){
  <div class="ag-row__end">${shownBadge(s)}${hidden?`<span class="ag-badge">${icon('fa-eye-slash')} ${hidden} hidden</span>`:''}<span class="ag-badge${s.purse?'':' ag-badge--accent'}">${icon('fa-coins')} ${E(cashText(s))}</span>${button('shop-edit','Edit',{kind:'sm',ic:'fa-pen',attrs:`data-shop="${E(s.id)}" aria-label="Edit ${E(s.name)}"`})}${button('shop-duplicate','Duplicate',{kind:'sm',ic:'fa-copy',attrs:`data-shop="${E(s.id)}" aria-label="Duplicate ${E(s.name)}"`})}${presentButtons(s)}</div></li>`;
 }
 function listView(app){
+ if(app.shopImport)return importView(app);
  const all=[...readAll(),...servicesAll()],locations=locationMap(),groups=listShops(all,{search:app.shopSearch,sort:app.shopSort,locations});
  const shown=groups.reduce((n,g)=>n+g.shops.length,0),nShops=all.filter(s=>s.kind!=='service').length,nSvc=all.length-nShops;
  const count=app.shopSearch.trim()?`${shown} of ${all.length}`:[`${nShops} ${nShops===1?'shop':'shops'}`,...(nSvc?[`${nSvc} ${nSvc===1?'service':'services'}`]:[])].join(' · ');
- const toolbar=`<div class="ag-toolbar"><label class="ag-search">${icon('fa-magnifying-glass')}<input type="search" id="agu-shop-search" placeholder="Search shops, merchants, places or items" value="${E(app.shopSearch)}" aria-label="Search shops"></label><div class="ag-toolbar__filters"><select id="agu-shop-sort" aria-label="Sort shops">${SHOP_SORTS.map(s=>opt(s,SORT_LABELS[s],app.shopSort)).join('')}</select></div><span class="ag-toolbar__count">${E(count)}</span><div class="ag-toolbar__end">${button('shop-new','New shop',{ic:'fa-plus'})}${button('shop-new-service','New service',{ic:'fa-scale-balanced'})}</div></div>`;
- if(!all.length)return toolbar+`<div class="ag-empty">${icon('fa-store')}<p class="ag-empty__title">No shops yet</p><p class="ag-empty__text">Create one with New shop, then drop items into it. New service makes a Bank.</p>${button('shop-new','New shop',{kind:'sm',ic:'fa-plus'})}</div>`;
+ const toolbar=`<div class="ag-toolbar"><label class="ag-search">${icon('fa-magnifying-glass')}<input type="search" id="agu-shop-search" placeholder="Search shops, merchants, places or items" value="${E(app.shopSearch)}" aria-label="Search shops"></label><div class="ag-toolbar__filters"><select id="agu-shop-sort" aria-label="Sort shops">${SHOP_SORTS.map(s=>opt(s,SORT_LABELS[s],app.shopSort)).join('')}</select></div><span class="ag-toolbar__count">${E(count)}</span><div class="ag-toolbar__end">${button('shop-import','Import JSON',{kind:'sm',ic:'fa-file-import',attrs:tip('Shop, Service and MerchantList records (ag-foundry-import/0.2). You see a preview first.')})}${button('shop-export','Export',{kind:'sm',ic:'fa-file-export',attrs:tip('Every shop, service and merchant list as one JSON file')})}<input type="file" id="agu-shop-import-file" accept=".json,application/json" hidden>${button('shop-new','New shop',{ic:'fa-plus'})}${button('shop-new-service','New service',{ic:'fa-scale-balanced'})}</div></div>`;
+ if(!all.length)return toolbar+`<div class="ag-empty">${icon('fa-store')}<p class="ag-empty__title">No shops yet</p><p class="ag-empty__text">Create one with New shop, then drop items into it. New service makes a Bank. Import JSON reads shops from a file.</p>${button('shop-new','New shop',{kind:'sm',ic:'fa-plus'})}</div>`;
  if(!shown)return toolbar+`<div class="ag-empty">${icon('fa-magnifying-glass')}<p class="ag-empty__title">Nothing matches</p><p class="ag-empty__text">No shop or service name, merchant, place, item or id has that text.</p>${button('shop-clear-search','Clear search',{kind:'sm'})}</div>`;
  return toolbar+groups.map(g=>`<section class="agu-shop-group">${g.group?`<h3 class="ag-eyebrow">${E(g.group)} · ${g.shops.length}</h3>`:''}<ul class="ag-rows">${g.shops.map(s=>shopRow(s,locations)).join('')}</ul></section>`).join('');
 }
@@ -360,6 +362,7 @@ export function shopsView(app){
 }
 export function shopsFooter(app){
  if(isGM()&&app.shopSub==='lists')return listsFooter(app);
+ if(isGM()&&app.shopImport&&(app.shopSub??'list')==='list')return importFooter(app);
  if(!isGM()||app.shopSub!=='editor'||!app.shopDraft)return null;
  if(app.shopDraft.kind==='service'&&!serviceType(app.shopDraft.service?.type))return `<footer class="ag-footer agu-footer">${button('shop-cancel','Cancel',{kind:'ghost'})}<span class="ag-footer__status" role="status">${E(UNKNOWN_TYPE)}: can't be changed here</span>${button('shop-save','Save Changes',{kind:'primary',disabled:true})}</footer>`;
  return `<footer class="ag-footer agu-footer">${button('shop-cancel','Cancel',{kind:'ghost'})}<span class="ag-footer__status" role="status" data-shop-status>${E(app.shopStatus??'')}</span>${button('shop-save','Save Changes',{kind:'primary'})}</footer>`;
@@ -387,6 +390,7 @@ export async function dropIntoDraft(app,data){
 export function bindShops(app,root,{error,render}){
  if(app.tab!=='shops'||!isGM())return;
  bindLists(app,root,{error,render});
+ bindImport(app,root,{error,render});
  for(const b of root.querySelectorAll('[data-shop-sub]'))b.addEventListener('click',()=>{app.shopSub=b.dataset.shopSub;render();});
  root.querySelector('#agu-shop-search')?.addEventListener('input',e=>{app.shopSearch=e.target.value;const at=e.target.selectionStart;Promise.resolve(render()).then(()=>{const q=app.element?.querySelector?.('#agu-shop-search');if(q){q.focus();q.setSelectionRange?.(at,at);}}).catch(error);});
  root.querySelector('#agu-shop-sort')?.addEventListener('change',e=>{app.shopSort=e.target.value;render();});
@@ -440,6 +444,7 @@ const openDraft=(app,record,opts)=>{app.shopDraft=draftFrom(record,opts);app.sho
 /** Shops tab actions. Returns false when the action isn't a Shops one. */
 export async function handleShops(app,action,b,{render,root}){
  if(await handleLists(app,action,b,{render,root}))return true;
+ if(action.startsWith('shop-import')||action==='shop-export'){gmOnly();if(await handleImport(app,action,{render,root}))return true;}
  if(!action.startsWith('shop-'))return false;
  gmOnly();
  const d=app.shopDraft,svc=()=>servicesApi(),isSvc=id=>String(id??'').startsWith('SVC-');

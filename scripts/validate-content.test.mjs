@@ -185,3 +185,38 @@ test('quest item rewards: the valid example passes with a note; the note goes wh
     assert.doesNotMatch(res.lines.join('\n'), /item reward/);
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
 });
+
+test('Shop, Service and MerchantList records (Utilities 0.21.0): the synthetic package passes, the documented mistakes are rejected naming the record', async () => {
+  const {ok, lines} = await validateTargets([path.join(root, 'test-fixtures/shops')]);
+  assert.ok(ok, lines.join('\n'));
+  assert.ok(lines.filter(l => /rejected as expected: (SHOP|SVC|MLIST|STORE)-TEST-/.test(l)).length >= 7, lines.join('\n'));
+  // The GPT brief's example (docs/shopping-for-gpt.md §4) with the package keys Manager requires.
+  const env = {provenance: {sources: ['[TEST] synthetic']}, visibility: 'gm', refs: []};
+  const gpt = pack([
+    {...env, id: 'SHOP-TEST-TANNER', entity_type: 'Shop', status: 'draft', version: '1.0.0', name: "[TEST] Tanner's Stall",
+      refs: [{relation: 'located_at', target_id: 'LOC-TEST-MARKET', mode: 'optional'}],
+      shop: {merchant_name: '[TEST] Hollis Reed', flavour: 'Smells of oak bark and fresh leather.', location_id: 'LOC-TEST-MARKET', purse: {cp: 50, sp: 30, gp: 20, pp: 0},
+        lines: [{item_id: 'ITEM-TEST-LEATHER-ARMOR', price: {value: 10, denomination: 'gp'}, stock: 2, flavour: 'Supple and well stitched.'},
+          {item_id: 'ITEM-TEST-WATERSKIN', price: {value: 2, denomination: 'sp'}},
+          {item_id: 'ITEM-TEST-HIDE-BUNDLE', price: {value: 3, denomination: 'gp'}, hidden: true, cost: {value: 1, denomination: 'gp'}}]}},
+    {...env, id: 'SVC-TEST-COUNTING-HOUSE', entity_type: 'Service', status: 'draft', version: '1.0.0', name: '[TEST] Counting House',
+      service: {type: 'bank', merchant_name: '[TEST] Clerk Ames', location_id: 'LOC-TEST-MARKET', settings: {fee_percent: 0}}},
+    {...env, id: 'MLIST-TEST-TESTFORD', entity_type: 'MerchantList', status: 'draft', version: '1.0.0', name: '[TEST] Testford merchants',
+      merchant_list: {location_id: 'LOC-TEST-TESTFORD', shop_ids: ['SHOP-TEST-TANNER', 'SVC-TEST-COUNTING-HOUSE']}}]);
+  const r = await checkContent(gpt);
+  assert.deepEqual(r.errors, []);
+  assert.ok(r.notes.includes('SHOP-TEST-TANNER: line 1 item ITEM-TEST-LEATHER-ARMOR is not in this file; it must already be in the world (imported earlier).'), r.notes.join('\n'));
+  const broken = (mut) => { const c = structuredClone(gpt); mut(c.records); return c; };
+  for (const [data, message] of [
+    [broken(rs => { rs[0].shop.lines[0].price.denomination = 'ep'; }), 'SHOP-TEST-TANNER: Utilities skips it: line 1 price: ep is refused while Use electrum is off.'],
+    [broken(rs => { rs[0].shop.lines[1].stock = 1.5; }), 'SHOP-TEST-TANNER: Utilities skips it: line 2: stock must be a whole number'],
+    [broken(rs => { rs[0].shop.purse.ep = 2; }), 'SHOP-TEST-TANNER: Utilities skips it: shop.purse: Electrum is turned off'],
+    [broken(rs => { delete rs[0].shop.merchant_name; }), 'SHOP-TEST-TANNER: Utilities skips it: shop.merchant_name is required.'],
+    [broken(rs => { rs[1].service.settings.fee_percent = 75; }), 'SVC-TEST-COUNTING-HOUSE: Utilities skips it: The bank fee must be a whole number from 0 to 50.'],
+    [broken(rs => { rs[2].merchant_list.shop_ids = 'SHOP-TEST-TANNER'; }), 'MLIST-TEST-TESTFORD: Utilities skips it: merchant_list.shop_ids must be a list.'],
+    [broken(rs => { rs.push(structuredClone(rs[1])); }), 'duplicate ID SVC-TEST-COUNTING-HOUSE']
+  ]) {
+    const {errors} = await checkContent(data);
+    assert.ok(errors.some(e => e.includes(message)), `${message}\n${errors.join('\n')}`);
+  }
+});
