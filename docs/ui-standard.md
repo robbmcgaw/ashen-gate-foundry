@@ -13,6 +13,8 @@ Companion files: `docs/ui-audit.md` (what is wrong today), `docs/ui-pass-plan.md
 
 ## 2. Design tokens
 
+> **Update 2026-10-21:** Robb chose direction D (Rounded Compact) as the base, with a per-device Comfortable size. The size values below are today's kit; the new Compact and Comfortable sets, and the D shape (pills, circles), are in `docs/ui-pass-plan.md` → "Base look and size". Those values replace the type, spacing and control numbers in this section when the kit release lands.
+
 Base tokens are what a skin sets; scale tokens never change; derived tokens are recomputed inside each `.ag-app` so they follow the skin.
 
 ### Colour (skin sets these)
