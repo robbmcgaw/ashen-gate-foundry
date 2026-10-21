@@ -1,3 +1,9 @@
+## 1.15.2 — 2026-10-21
+
+- **Fix: routes can no longer end up with 0 km or endless legs.** Distances and leg lengths are kept to 0.01 km; a value that rounds to 0 (e.g. 0.004) is now refused with a clear message in the route editor, `saveRoute` and Route import (it used to be saved as 0, and a 0 leg gave Infinity legs). The GM Setup default leg length is checked the same way. Existing routes are unchanged.
+- **Fix: night watches take only characters.** `travel.setBehaviours` refuses an NPC or any Actor that isn't one of the characters the GM can put on watch (the Primary Party's characters, else every character Actor). Someone already on a watch can stay or be taken off. The watch panel is unchanged.
+- Docs: corrected API comments (`getJourney` player shape, `travel.state()`, behaviour panels now ship). No saved-data change, no migration.
+
 ## 1.15.1 — 2026-10-20
 
 - Test fix only: a Travel tracker test could fail at random when a generated pin or route key contained "25". No change to the module's behaviour or saved data.

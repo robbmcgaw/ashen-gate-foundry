@@ -4,7 +4,7 @@
  * Every rule is enforced in the API; this only draws and calls it.
  */
 import {MODULE_ID, esc, clone, normalizeLocation, AUDIENCE_MODES, STATE_LABELS} from './model.mjs';
-import {ROUTE_STATES, ROUTE_STATE_LABELS, ROUTE_DEFAULTS, normalizeRoute, legsOf, routeLabel, routeVariantFor, UNKNOWN_PATH} from './routes.mjs';
+import {ROUTE_STATES, ROUTE_STATE_LABELS, ROUTE_DEFAULTS, MIN_KM, kmOk, normalizeRoute, legsOf, routeLabel, routeVariantFor, UNKNOWN_PATH} from './routes.mjs';
 
 const api = () => game.modules.get(MODULE_ID)?.api;
 const ROUTE_STATE_ICONS = {unknown: 'fa-solid fa-eye-slash', rumoured: 'fa-solid fa-ear-listen', known: 'fa-solid fa-route', explored: 'fa-solid fa-flag-checkered'};
@@ -253,7 +253,8 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
     },
     async saveRouteDraft() {
       if (!this.routeDirty && this.routeDraft?.id) return this.routeDraft;
-      const saved = await api().saveRoute(normalizeRoute({...this.routeDraft, id: this.routeDraft.id || ''}));
+      // The API normalizes; it gets the numbers as typed so it can refuse a distance or leg that rounds to 0 km.
+      const saved = await api().saveRoute({...this.routeDraft, id: this.routeDraft.id || ''});
       this.selectRoute(saved.id);
       return saved;
     },
@@ -357,7 +358,7 @@ export function routesMixin({btn, notifyError, worldPlayers}) {
         }
         case 'route-save-setup': {
           const v = Number(this.element.querySelector('#agl-set-leg')?.value);
-          if (!(v > 0)) return ui.notifications.warn('Leg length must be more than 0 km.');
+          if (!kmOk(v)) return ui.notifications.warn(`Leg length must be from ${MIN_KM} to 100000 km.`);
           await game.settings.set(MODULE_ID, 'defaultLegKm', v);
           ui.notifications.info(`Default leg length is now ${v} km.`);
           return this.render();

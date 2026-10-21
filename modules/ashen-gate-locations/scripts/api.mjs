@@ -12,7 +12,7 @@
 import {MODULE_ID, GATHERING, STATES, PARTY_NOTES, notesLockHolder, clone, newLocation, normalizeLocation, parseImport, exportPackage, importRecords, resourcesOf, nodeForGM, nodeMatch,
   publishable, hasUnpublishedChanges, previewView, wouldCycle, parentMap, normalizeAudience, AUDIENCE_MODES, isPlaceable, resolvePassConditions} from './model.mjs';
 import {checkMove} from './tree.mjs';
-import {ROUTE_STATES, normalizeRoute, makeRouteId, routeProblems, routeTouches, importRouteRecords, routeRecord, legsOf, legKmOf} from './routes.mjs';
+import {ROUTE_STATES, normalizeRoute, makeRouteId, routeProblems, routeKmProblems, routeTouches, importRouteRecords, routeRecord, legsOf, legKmOf} from './routes.mjs';
 import {startJourney, nextLeg, setHazardResult, resolveHazard, reverseJourney, abortJourney, pauseJourney, travelLine, HAZARD_FALLBACK,
   setBehaviours, CHECKS} from './journey.mjs';
 import {covers, esc, DEFAULT_UNIDENTIFIED_LABEL} from './model.mjs';
@@ -30,7 +30,8 @@ export const TRAVEL_CONTRACT = 'ag-locations-travel/1';
  *        travel?: {read(), write(travel), readView(), drawHazard?({uuid, name}) → {text, fromTable, tableMissing}, chat?: {gm(html), public(html)},
  *                  rng?(), now?(), emit?(event, payload)},
  *        tracker?: {open(), behaviours: {register(def), unregister(id), list()}},
- *        rolls?() → Utilities' api.rolls when it can open a prefilled roll (1.15.0), else null}
+ *        rolls?() → Utilities' api.rolls when it can open a prefilled roll (1.15.0), else null,
+ *        characters?() → [{id, name}] the characters the GM can put on watch (1.15.2)}
  */
 export function createApi(deps) {
   const gm = () => deps.isGM() === true;
@@ -113,6 +114,9 @@ export function createApi(deps) {
     if (travel.journey?.status !== 'active') throw new Error('There is no journey under way.');
     return travel;
   };
+  /** 1.15.2: ids of the characters the GM may put on watch: deps.characters(), else every character Actor in the world. */
+  const watchCharacterIds = () => (deps.characters ? deps.characters()
+    : [...(globalThis.game?.actors?.values?.() ?? [])].filter(a => a?.type === 'character')).map(a => a?.id).filter(Boolean);
   /** A name for a Party Notes line, as the readers of `reader`'s notes may see `loc`; never a place they cannot see. */
   const safeName = (loc, reader) => {
     if (!loc || loc.state === 'hidden' || !loc.published || !covers(loc, reader)) return 'an unknown place';
@@ -343,7 +347,7 @@ export function createApi(deps) {
       const old = data?.id ? all.find(r => r.id === data.id) : null;
       if (data?.id && !old) throw new Error(`No route ${data.id}.`);
       let route = normalizeRoute(data);
-      const problems = routeProblems(route, deps.readAll().map(l => l.id));
+      const problems = [...new Set([...routeProblems(route, deps.readAll().map(l => l.id)), ...routeKmProblems(data)])];
       if (problems.length) throw new Error(problems.join(' '));
       route = old ? {...route, id: old.id, viewKey: old.viewKey, state: old.state, audience: old.audience, drawingUuid: old.drawingUuid}
         : {...route, id: makeRouteId(route.fromId, route.toId, [...rd.usedIds(), ...all.map(r => r.id)]), state: 'unknown', drawingUuid: ''};
@@ -530,7 +534,8 @@ export function createApi(deps) {
     // ---------- 1.11.0 journeys ----------
     /**
      * GM: {journey, partyLocationId, history} (journey: see journey.mjs, including the current hazard chance and log).
-     * Player: progress only, {status, leg, legs, from?, to?, routeKey?}, or null. Never a chance, roll or hazard.
+     * Player: progress only, {status, leg, legs, paused?, log?, from?, to?, routeKey?, behaviours?} (see journey.mjs journeyView),
+     * or null. Never a chance, a roll or a hazard the GM has not shared.
      */
     getJourney() {
       requireAccess();
@@ -660,7 +665,8 @@ export function createApi(deps) {
       },
       /**
        * Read-only, player-safe journey state for anyone who may open Locations (the GM gets exactly what players get):
-       * {status, leg, legs, paused, routeName, from: {name, key} | null, to: {...} | null, log: [{leg, text}]}, or null.
+       * {status, leg, legs, paused, routeName, from: {name, key} | null, to: {...} | null, routeKey, log: [{leg, text}],
+       * behaviours?: {pace?, watch?: [{watch, names}]}}, or null.
        * Built from the players' progress page: never a hazard chance, roll, table, GM note or unshared hazard.
        */
       state() {
@@ -695,11 +701,13 @@ export function createApi(deps) {
       /**
        * 1.15.0 GM: changes the journey's behaviours, e.g. {pace: {value: 'fast'}}, {watch: {first: [actorId]}},
        * {checks: {enabled: false}}. Only while a journey is under way. Changes nothing else about the journey.
+       * 1.15.2: a watch takes only the characters the GM can put on watch (deps.characters: the party's characters,
+       * else every character Actor); anything else, an NPC say, is refused. Someone already on a watch may stay.
        */
       async setBehaviours(patch) {
         requireGM();
         const travel = activeJourney();
-        const j = setBehaviours(travel.journey, patch);
+        const j = setBehaviours(travel.journey, patch, {characterIds: watchCharacterIds()});
         await travelDeps().write({...travel, journey: j});
         return clone(j.behaviours);
       },
@@ -719,7 +727,10 @@ export function createApi(deps) {
         if (typeof rolls?.open !== 'function') throw new Error('Foraging and navigation checks need Ashen Gate Utilities 0.13.0 or later.');
         return rolls.open({skills: [j.behaviours.checks[check]], mode: 'group', title: check === 'forage' ? 'Foraging' : 'Navigation'});
       },
-      /** Extension point for optional travel behaviour panels (none ship yet). See travel-view.mjs createBehaviours. */
+      /**
+       * Extension point for travel behaviour panels. 1.15.0 ships pace, night watches and foraging/navigation checks
+       * (travel-behaviours.mjs); other modules can register their own. See travel-view.mjs createBehaviours.
+       */
       behaviours: Object.freeze({
         register: def => { if (!deps.tracker?.behaviours) throw new Error('The Travel tracker is unavailable.'); return deps.tracker.behaviours.register(def); },
         unregister: id => deps.tracker?.behaviours?.unregister(id) ?? false,

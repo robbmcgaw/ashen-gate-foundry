@@ -158,7 +158,7 @@ test('Save refuses a route with a missing or repeated endpoint or no distance', 
   const {gm, harbor} = await world();
   await assert.rejects(() => gm.saveRoute({fromId: harbor.id, toId: 'LOC-NOWHERE', distanceKm: 5}), /To: no location LOC-NOWHERE/);
   await assert.rejects(() => gm.saveRoute({fromId: harbor.id, toId: harbor.id, distanceKm: 5}), /two different locations/);
-  await assert.rejects(() => gm.saveRoute({fromId: harbor.id, distanceKm: 0}), /Choose where the route ends.*more than 0 km/);
+  await assert.rejects(() => gm.saveRoute({fromId: harbor.id, distanceKm: 0}), /Choose where the route ends.*Distance must be from 0.01 to 100000 km/);
   await assert.rejects(() => gm.saveRoute({id: 'RTE-NOPE', fromId: harbor.id, toId: harbor.id}), /No route RTE-NOPE/);
 });
 

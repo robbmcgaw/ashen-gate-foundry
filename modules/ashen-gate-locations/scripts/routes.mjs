@@ -20,11 +20,14 @@ export const ROUTE_STATE_LABELS = Object.freeze({unknown: 'Unknown', rumoured: '
 export const ROUTE_DEFAULTS = Object.freeze({legKm: 5, hazardBase: 5});
 export const UNKNOWN_PATH = 'Unknown path';
 const MAX_KM = 100000;
-
-const km = (value, fallback) => {
-  const n = Number(value);
-  return value !== '' && value !== null && value !== undefined && Number.isFinite(n) && n > 0 && n <= MAX_KM ? Math.round(n * 100) / 100 : fallback;
-};
+/** Kilometres are kept to 0.01 km, so the smallest distance or leg is 0.01 km. */
+export const MIN_KM = 0.01;
+const roundKm = n => Math.round(n * 100) / 100;
+/** A usable distance or leg: a number that is still above 0 and at most MAX_KM once rounded (1.15.2: 0.004 is not). */
+export const kmOk = n => Number.isFinite(n) && roundKm(n) > 0 && roundKm(n) <= MAX_KM;
+const DISTANCE_PROBLEM = `Distance must be from ${MIN_KM} to ${MAX_KM} km.`;
+const filled = value => value !== '' && value !== null && value !== undefined;
+const km = (value, fallback) => filled(value) && kmOk(Number(value)) ? roundKm(Number(value)) : fallback;
 const pct = (value, fallback) => {
   const n = Number(value);
   return value !== '' && value !== null && value !== undefined && Number.isFinite(n) && n >= 0 && n <= 100 ? Math.round(n) : fallback;
@@ -58,8 +61,8 @@ export function normalizeRoute(raw = {}) {
 
 /** The world default leg length, or the built-in one when the setting is missing or bad. */
 export const defaultLeg = value => km(value, ROUTE_DEFAULTS.legKm);
-/** Leg length in effect for a route. */
-export const legKmOf = (route, defaultLegKm) => route.legKm ?? defaultLeg(defaultLegKm);
+/** Leg length in effect for a route (never 0, so legs are never Infinity). */
+export const legKmOf = (route, defaultLegKm) => km(route.legKm, null) ?? defaultLeg(defaultLegKm);
 /** Number of legs: ceil(distance / leg length), at least 1 for a route with a distance; 0 without one. */
 export function legsOf(route, defaultLegKm) {
   const d = route.distanceKm, l = legKmOf(route, defaultLegKm);
@@ -84,7 +87,20 @@ export function routeProblems(route, locationIds) {
   if (!route.toId) out.push('Choose where the route ends (To).');
   else if (!ids.has(route.toId)) out.push(`To: no location ${route.toId}.`);
   if (route.fromId && route.fromId === route.toId) out.push('A route must join two different locations.');
-  if (!(route.distanceKm > 0)) out.push('Distance must be more than 0 km.');
+  if (!(route.distanceKm > 0)) out.push(DISTANCE_PROBLEM);
+  return out;
+}
+
+/**
+ * 1.15.2: distance and leg length as typed (before normalizeRoute) that cannot be used: [message]. A leg length that
+ * rounds to 0 would otherwise quietly become the world default, and a distance that does would read as "no distance".
+ * Blank leg length is fine (world default).
+ */
+export function routeKmProblems(raw = {}) {
+  const r = raw && typeof raw === 'object' ? raw : {};
+  const out = [];
+  if (filled(r.distanceKm) && !kmOk(Number(r.distanceKm))) out.push(DISTANCE_PROBLEM);
+  if (filled(r.legKm) && !kmOk(Number(r.legKm))) out.push(`Leg length must be from ${MIN_KM} to ${MAX_KM} km, or blank for the world default.`);
   return out;
 }
 
@@ -190,8 +206,8 @@ export function routeFromRecord(rec) {
   if (fromId && fromId === toId) errors.push('from_location_id and to_location_id must differ.');
   const num = (k, ok, msg) => { if (has(f, k) && (typeof f[k] !== 'number' || !ok(f[k]))) errors.push(msg); };
   if (!has(f, 'distance_km')) errors.push('distance_km is required.');
-  num('distance_km', n => n > 0 && n <= MAX_KM, `distance_km must be a number above 0 and at most ${MAX_KM}.`);
-  num('leg_km', n => n > 0 && n <= MAX_KM, `leg_km must be a number above 0 and at most ${MAX_KM}.`);
+  num('distance_km', kmOk, `distance_km must be a number from ${MIN_KM} to ${MAX_KM} (km are kept to 0.01).`);
+  num('leg_km', kmOk, `leg_km must be a number from ${MIN_KM} to ${MAX_KM} (km are kept to 0.01).`);
   num('hazard_base_percent', n => n >= 0 && n <= 100, 'hazard_base_percent must be a number from 0 to 100.');
   if (has(f, 'discovery_state') && !ROUTE_STATES.includes(f.discovery_state)) errors.push(`discovery_state must be one of ${ROUTE_STATES.join(', ')}.`);
   if (has(f, 'directed') && typeof f.directed !== 'boolean') errors.push('directed must be true or false.');
