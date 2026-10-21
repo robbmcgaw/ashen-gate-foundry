@@ -1,3 +1,14 @@
+## 0.17.0 — 2026-10-21
+
+- **New Shops tab (GM only for now)**, between Party Inventory and Roll Tables, with two parts: **Shops** and **Shop editor**. Players see nothing new yet.
+- **Shops list:** search (name, merchant, place, item names, id), sort (Group by city, Name, Merchant, Recently changed), count, **New shop**. Shops are grouped under their city (the top of the linked location in Locations) with counts; each row shows the merchant's art or initials, merchant, place, item count, hidden items and cash ("Unlimited cash" or the coins), with **Edit** and **Duplicate**.
+- **Shop editor:** shop name, merchant name and art (file picker; initials when empty), linked location (only while Locations is active), flavour text, GM notes. **Items for sale** table: price (number + coin), stock (blank = unlimited), flavour, cost (GM), Hidden, Remove (asks first). Drop items from a sheet, the Items sidebar, a compendium or a folder; a container brings its contents; the source item is never changed; a repeat is marked "Already in this shop". **Restock** puts stock back to where it started.
+- **Merchant's coins** (off by default): Add / Remove / Set… with a reason and a labelled confirmation, **Restock cash**, *Show merchant's coins to players* (on by default). **Buys from players**: switch (off), percent (50), item types; saved now, used in a later version.
+- Cancel bottom-left, Save Changes bottom-right; **Delete shop** in a Danger zone, with a confirmation; refused while a shop is shown to players. A deleted shop's id is never reused.
+- Electrum follows *Use electrum*: no ep in prices or coins while it is off.
+- **API:** `api.shops` (`ag-utilities-shops/1`): `list`, `get`, `create`, `save`, `duplicate`, `delete(id, {confirm: true})`, `addItems`, `restock`, `adjustPurse`, `setPurse`, `restockCash`, `log`. Every call is GM only (`GM only.`).
+- Saved data: new, additive only. A Journal **Utilities Shops (GM Data)** with no player permission, made on the first save and found by its flag. No existing setting, flag or document changes; no migration.
+
 ## 0.16.1 — 2026-10-21
 
 - Shared UI kit 2.1.0 and dialog helper: choice dialogs follow the Ashen Gate look (Cancel on the left, the choices on the right); red buttons, badges and grey text on selected or striped rows are easier to read in every skin (at least 4.5:1); a hidden empty state stays hidden; disabled list rows keep readable text.

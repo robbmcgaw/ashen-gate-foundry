@@ -2,6 +2,7 @@ import {ID,VERSION,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,sk
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,infoDialog,formDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
+import {shopsApi,shopsView,shopsFooter,bindShops,handleShops,shopHooks} from './shops.mjs';
 
 const {ApplicationV2}=foundry.applications.api;
 let windowInstance=null;
@@ -244,15 +245,16 @@ function setupView(){
  ].join('')}</section>`;}
 /** Window footer: GM Setup gets Cancel / status / Save Changes; other tabs a one-line status. */
 function footerHTML(app){
+ if(app.tab==='shops'){const f=shopsFooter(app);if(f)return f;}
  if(app.tab==='setup'&&isGM())return `<footer class="ag-footer agu-footer">${btn('setup-cancel','Cancel',{kind:'ghost'})}<span class="ag-footer__status" role="status" data-setup-status>${E(app.setupStatus??'')}</span>${btn('save-access','Save Changes',{kind:'primary'})}</footer>`;
- return `<footer class="ag-footer agu-footer"><span class="ag-footer__status agu-footer__status" role="status">${app.tab==='inventory'?`Party stash: ${stashEnabled()?'on':'off'} for players`:'Native permissions apply'}</span></footer>`;
+ return `<footer class="ag-footer agu-footer"><span class="ag-footer__status agu-footer__status" role="status">${app.tab==='inventory'?`Party stash: ${stashEnabled()?'on':'off'} for players`:app.tab==='shops'?'Shops are GM only in this version':'Native permissions apply'}</span></footer>`;
 }
 class UtilitiesApp extends ApplicationV2 {
  static DEFAULT_OPTIONS={id:'ashen-gate-utilities-window',classes:['ag-app','ag-utilities','agu-window'],window:{title:'Ashen Gate | Utilities',resizable:true,minimizable:true},position:{width:900,height:690}};
  // Compact size; Comfortable (General Manager → My Appearance) scales it when the window is created.
- constructor(options={}){super({...options,position:{...windowSize(UtilitiesApp.DEFAULT_OPTIONS.position),...options.position}});this.setupStatus='';this.tab='rolls';this.rollMode='group';this.actorId='';this.rollActorId='';this.tableDraft='';this.tableAuto=false;this.lastDraw=[];this.filter='';this.takeActorId='';this.stashTab='items';this.historyShown=HISTORY_PAGE;this.purseCoin='gp';this.purseAmount='';}
- async _renderHTML(){if(!permitted())throw Error('Utilities is hidden for players.');this.tab=normalizeTab(this.tab);const tabs=[['rolls','Rolls','fa-dice-d20'],['inventory','Party Inventory','fa-sack-dollar'],['tables','Roll Tables','fa-table-list'],['conditions','Conditions','fa-heart-pulse'],...(isGM()?[['history','History','fa-clock-rotate-left',true],['setup','GM Setup','fa-gears',true]]:[])];
-  const body=this.tab==='rolls'?rollsView(this):this.tab==='inventory'?inventoryView(this):this.tab==='tables'?tableView(this):this.tab==='conditions'?conditionsView(this):this.tab==='history'&&isGM()?historyView(this):this.tab==='setup'&&isGM()?setupView():empty('Nothing to show here');
+ constructor(options={}){super({...options,position:{...windowSize(UtilitiesApp.DEFAULT_OPTIONS.position),...options.position}});this.setupStatus='';this.tab='rolls';this.rollMode='group';this.actorId='';this.rollActorId='';this.tableDraft='';this.tableAuto=false;this.lastDraw=[];this.filter='';this.takeActorId='';this.stashTab='items';this.historyShown=HISTORY_PAGE;this.purseCoin='gp';this.purseAmount='';this.shopSub='list';this.shopSearch='';this.shopSort='location';this.shopDraft=null;this.shopDirty=false;this.shopStatus='';}
+ async _renderHTML(){if(!permitted())throw Error('Utilities is hidden for players.');this.tab=normalizeTab(this.tab);const tabs=[['rolls','Rolls','fa-dice-d20'],['inventory','Party Inventory','fa-sack-dollar'],...(isGM()?[['shops','Shops','fa-store',true]]:[]),['tables','Roll Tables','fa-table-list'],['conditions','Conditions','fa-heart-pulse'],...(isGM()?[['history','History','fa-clock-rotate-left',true],['setup','GM Setup','fa-gears',true]]:[])];
+  const body=this.tab==='rolls'?rollsView(this):this.tab==='inventory'?inventoryView(this):this.tab==='shops'&&isGM()?shopsView(this):this.tab==='tables'?tableView(this):this.tab==='conditions'?conditionsView(this):this.tab==='history'&&isGM()?historyView(this):this.tab==='setup'&&isGM()?setupView():empty('Nothing to show here');
   const version=game.modules.get(ID)?.version??VERSION;
   const appearance=appearanceOpener()?`<button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-open-appearance ${tip('Choose your Ashen Gate appearance')}><i class="fa-solid fa-palette" aria-hidden="true"></i> Appearance</button>`:'';
   const tabBar=tabs.map(([id,label,icon,gm])=>`<button type="button" role="tab" data-tab="${id}" aria-selected="${this.tab===id}" class="${[this.tab===id?'active':'',gm?'ag-tab--gm':''].filter(Boolean).join(' ')}"><i class="fa-solid ${icon}" aria-hidden="true"></i>${E(label)}</button>`).join('');
@@ -277,9 +279,11 @@ class UtilitiesApp extends ApplicationV2 {
   root.querySelector('#agu-table-auto')?.addEventListener('change',e=>{this.tableAuto=e.target.checked;});
   for(const el of root.querySelectorAll('[data-setup-field]'))el.addEventListener('change',()=>{this.setupStatus='Unsaved changes';const st=root.querySelector('[data-setup-status]');if(st)st.textContent=this.setupStatus;});
   this.bindStash(root);
+  bindShops(this,root,{error,render:()=>this.render().catch(error)});
   for(const b of root.querySelectorAll('[data-action]'))b.addEventListener('click',()=>this.handle(b.dataset.action,b,root).catch(error));
  }
  async handle(action,b,root){if(b.disabled)return;b.disabled=true;try{
+  if(await handleShops(this,action,b,{render:()=>this.render()}))return;
   if(action==='start'){
    const val=q=>root.querySelector(q)?.value,checked=n=>[...root.querySelectorAll(`input[name="${n}"]:checked`)].map(x=>x.value);
    const session=await startRolls({mode:checked('agu-mode')[0]??this.rollMode??'group',title:val('#agu-title'),actors:checked('agu-participant'),skills:checked('agu-skill'),rollsPerActor:val('#agu-roll-count')??1,dc:val('#agu-dc')??''});
@@ -1128,12 +1132,14 @@ Hooks.once('ready',()=>{
   embed:{contract:'ag-utilities-embed/1',modes:[...EMBED_MODES],mount:mountEmbed},
   purse:{contract:'ag-utilities-purse/1',coins:COINS,isVoteRequired:purseVoteRequired,setVoteRequired:setPurseVoteRequired,totals:purseTotals,deposit:depositCoins,take:takeCoins,adjust:adjustPurse,undo:undoPurseEntry,openAdjust:adjustPurseDialog,convertElectrum,undoConvert:undoElectrumConvert,openConvert:convertElectrumDialog},
   currency:{contract:'ag-utilities-currency/1',electrumEnabled,setElectrumEnabled,coins:()=>coinChoices(electrumEnabled()),hook:`${ID}.electrumChanged`},
+  shops:shopsApi(),
   awardGold,undoGoldAward,gold:{contract:'ag-utilities-gold/1',award:awardGold,undo:undoGoldAward,defaultRecipients:()=>{if(!isGM())throw Error('GM only.');return goldDefaults();},openDialog:awardGoldDialog}};
  game.socket?.on?.(SOCKET,(msg,senderId)=>{void onSocket(msg,senderId).catch(error);});
  Hooks.on('renderActorDirectory',addLauncher);Hooks.on('createChatMessage',msg=>{void processSubmission(msg).catch(error);});
  for(const ev of ['updateActor','createActiveEffect','updateActiveEffect','deleteActiveEffect'])Hooks.on(ev,rerenderConditions);
  for(const ev of ['createItem','updateItem','deleteItem'])Hooks.on(ev,doc=>rerenderStash(doc));
  Hooks.on('dropActorSheetData',onSheetDrop);
+ shopHooks(()=>{if(windowInstance?.rendered&&windowInstance.tab==='shops'&&isGM())windowInstance.render().catch(error);});
  Hooks.on('updateUser',refreshWindows);addLauncher(ui?.actors,ui?.actors?.element);
  lastPromptedSession=activeSession()?.id||null;
  syncOverlay();

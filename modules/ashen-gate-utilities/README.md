@@ -19,9 +19,24 @@ Open it from **Actors sidebar → Utilities**. The GM always sees it; players se
 - **Conditions:** one party view of native conditions. Removal is locked per character; the GM unlocks a character so its owner can remove that character's native conditions. **Pop Out Overlay** opens a transparent per-user conditions window.
 - **History** (GM): finished and cancelled rolls, labelled Group Check or Roll Request, with per-character results, average and outcome.
 - **GM Setup** (GM): Player Access and other settings.
-- **Shops** (coming): 0.15.0 adds only the shop rules (prices, change-making, selling, the Bank quote) as tested code; there is nothing to see in Foundry yet.
+- **Shops** (GM only for now): see *Shops (GM)* below. Players see nothing yet; presenting shops and buying come in a later version.
 
 Player actions that change shared state (stash moves, condition removal) are carried out by the active GM client, which re-checks ownership and the lock, so a GM must be logged in for those.
+
+## Shops (GM)
+
+**Utilities → Shops** (GM only in 0.17.0). Two parts:
+
+- **Shops:** every saved shop, grouped by city (the top of the shop's linked location in Locations; "No location" last), or sorted by name, merchant or recently changed. Search matches the shop name, merchant, place, item names and id. **Edit** opens a shop in the editor; **Duplicate** makes a copy (same items and coins, not shown to anyone).
+- **Shop editor:** name, merchant name and art (initials when empty), linked location (Locations active only), flavour text (players will see it), GM notes.
+  - **Items for sale:** drop items from a character sheet, the Items sidebar, a compendium or a folder. A container comes with what is inside it. The shop keeps its own copy; the source item is never changed. Price starts at the item's own price (whole copper; an ep price shows in sp while *Use electrum* is off). Stock blank = unlimited. Hidden items and cost are GM only. **Restock** puts stock back to where it started.
+  - **Merchant's coins** (off by default; off = unlimited cash): **Add / Remove / Set…** (never below 0, with a reason, logged), **Restock cash** (back to the starting cash), *Show merchant's coins to players* (on by default).
+  - **Buys from players** (off by default, 50 %, item types): saved now, used when selling to a shop arrives.
+  - **Save Changes** saves; **Cancel** discards. **Delete shop** (Danger zone) asks first and is refused while the shop is shown to players.
+
+Shops are stored in a Journal **Utilities Shops (GM Data)** with no player permission (one page per shop), found by its flag, so renaming it is safe. Don't edit its pages by hand.
+
+API, GM only (`GM only.` for anyone else): `api.shops` (`ag-utilities-shops/1`): `list({search, sort})`, `get(id)`, `create(data)`, `save(record)`, `duplicate(id)`, `delete(id, {confirm: true})`, `addItems(id, uuids | dropData)` → `{added, skipped}`, `restock(id, lineIds?)`, `adjustPurse(id, {op, coin, amount, reason, asStart})`, `setPurse(id, coins | null)`, `restockCash(id)`, `log(id)`.
 
 ## Public API
 

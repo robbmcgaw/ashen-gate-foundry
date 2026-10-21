@@ -142,3 +142,31 @@
 .ag-utilities .agu-setting + .agu-setting {margin-top:var(--ag-space-4);}
 .ag-utilities .agu-setting > .ag-field {margin:0;font-weight:600;}
 .ag-utilities .agu-setting__hint {margin:var(--ag-space-1) 0 0;padding-left:var(--ag-space-6);font-size:var(--ag-text-sm);line-height:1.5;}
+
+/* ---------- Shops (GM): list and editor ---------- */
+.ag-utilities .agu-shop-subtabs {margin:0 0 var(--ag-space-3);}
+.ag-utilities .agu-shop-group {margin:0 0 var(--ag-space-3);}
+.ag-utilities .agu-shop-group > .ag-eyebrow {margin:var(--ag-space-3) 0 var(--ag-space-1);}
+.ag-utilities .agu-shop-row {flex-wrap:wrap;}
+.ag-utilities .agu-shop-row .ag-row__end {flex-wrap:wrap;justify-content:flex-end;}
+.ag-utilities .agu-shop-avatar {font-size:var(--ag-text-xs);font-weight:700;}
+.ag-utilities .agu-shop-editor__head {display:flex;align-items:baseline;flex-wrap:wrap;gap:var(--ag-space-2);margin:0 0 var(--ag-space-3);}
+.ag-utilities .agu-shop-editor__head h2 {margin:0;overflow-wrap:anywhere;}
+.ag-utilities .agu-shop-editor .ag-section {margin-top:var(--ag-space-4);}
+.ag-utilities .agu-shop-art {display:flex;align-items:center;gap:var(--ag-space-2);}
+.ag-utilities .agu-shop-art > input {flex:1 1 8rem;min-width:0;}
+.ag-utilities .agu-shop-art__img {display:grid;place-items:center;flex:none;width:calc(var(--ag-control-h) * 1.5);height:calc(var(--ag-control-h) * 1.5);border-radius:var(--ag-radius);border:1px solid var(--ag-border);background:var(--ag-surface-sunken);color:var(--ag-accent);font-weight:700;object-fit:cover;}
+.ag-utilities .agu-shop-lines td {vertical-align:top;}
+.ag-utilities .agu-shop-lines :is(input[type="text"],input[type="number"],select) {min-width:0;}
+.ag-utilities .agu-shop-item {display:flex;align-items:flex-start;gap:var(--ag-space-2);min-width:12em;}
+.ag-utilities .agu-shop-item__text {display:flex;flex-direction:column;align-items:flex-start;gap:var(--ag-space-1);min-width:0;overflow-wrap:anywhere;}
+.ag-utilities .agu-shop-item__text code {color:var(--ag-muted);}
+.ag-utilities .agu-shop-thumb {flex:none;width:var(--ag-icon-chip);height:var(--ag-icon-chip);object-fit:contain;border:0;border-radius:var(--ag-radius-sm);}
+.ag-utilities .agu-shop-price {display:flex;gap:var(--ag-space-1);}
+.ag-utilities .agu-shop-price > input {width:6em;}
+.ag-utilities .agu-shop-price > select {width:auto;}
+.ag-utilities .agu-shop-num {width:5.5em;}
+.ag-utilities .agu-shop-drop {margin-top:var(--ag-space-2);}
+.ag-utilities .agu-shop-drop.agu-drop-over {border-style:solid;border-color:var(--ag-accent);color:var(--ag-text);background:var(--ag-surface-hover);}
+.ag-utilities .agu-shops .ag-chip-group {margin-top:var(--ag-space-1);}
+.ag-utilities .agu-danger-zone .ag-section__title {color:var(--ag-danger);}
