@@ -3,7 +3,7 @@
  * api.accounts (ag-tree-accounts/1), so the tree window keeps working; Skill Trees knows nothing about Cinders. */
 import {CINDER_CONTRACT,CINDER_WALLET_CAP,cleanAccount,normalizeRegistry,createInstance,bindInstance,unbindInstance,transferInstance,withProgression,boundTo,bearerInstance,
   planMigration,powerBlock,availableModes,planPush,resolveBackfire,categoriesFor,backfireBlock,effectProblem,collectModifiers,validateDefinition,
-  MODIFIER_CONTRACT,MODIFIER_SCOPE,MODIFIER_TARGETS,validateModifiers,blockModifiers} from './cinder.mjs';
+  MODIFIER_CONTRACT,MODIFIER_SCOPE,MODIFIER_TARGETS,validateModifiers,blockModifiers,isLevelBackup,LEVEL_BACKUP_MESSAGE} from './cinder.mjs';
 import {SOCKETS_CONTRACT,SOCKETS_HOOK,MAX_SOCKETS,normalizeSockets,socketMirror,socketPlan,applySocketOp,withoutItem} from './sockets.mjs';
 import {cleanArt,artInput} from './orb.mjs';
 
@@ -47,6 +47,8 @@ export function createCinders(deps){
   const definition=id=>{const hit=lookup(id);return hit?.status==='ok'?sourceOf(hit.document)?.definition??null:null;};
   const definitionName=id=>{const hit=lookup(id);return hit?.status==='ok'?hit.document.name:id;};
   const actorById=id=>game.actors?.get?.(id)??null;
+  const notBackup=actor=>{if(isLevelBackup(actor))throw Error(LEVEL_BACKUP_MESSAGE);};
+  const playable=()=>(game.actors?.contents??[]).filter(a=>!isLevelBackup(a));
   const changed=(kind,instance,extra={})=>Hooks.callAll(CINDER_HOOK,{kind,instanceId:instance.instanceId,definitionId:instance.definitionId,actorId:instance.bearer?.actorId??null,...extra});
   const socketsChanged=(kind,instance,actorId,extra={})=>Hooks.callAll(SOCKETS_HOOK,{kind,hostKind:'cinder',instanceId:instance.instanceId,definitionId:instance.definitionId,actorId,...extra});
   const itemOf=(actor,id)=>id?actor?.items?.get?.(id)??[...(actor?.items??[])].find(i=>i.id===id)??null:null;
@@ -82,7 +84,7 @@ export function createCinders(deps){
     });
   }
   async function bind(instanceId,actor){
-    requireGM();if(!actor)throw Error('Choose a character');accounts();
+    requireGM();if(!actor)throw Error('Choose a character');notBackup(actor);accounts();
     return withRegistry(async()=>{
       const {registry,instance,initialAwarded}=bindInstance(readRegistry(),instanceId,actor.id,{max:setting(MAX_CINDERS_SETTING),at:Date.now(),initialPoints:game.settings.get(module,INITIAL_POINTS_SETTING)??1});
       if(hasProgress(actor,instance.definitionId))throw Error(`${actor.name} already has progress on this Cinder's tree from before Cinders. Use Move existing Cinder progress first.`);
@@ -93,7 +95,7 @@ export function createCinders(deps){
   }
   /** Move a bound Cinder to another character: points and unlocks go with it; Strain and Backfire conditions stay where they are. */
   async function transfer(instanceId,toActor){
-    requireGM();if(!toActor)throw Error('Choose a character');accounts();
+    requireGM();if(!toActor)throw Error('Choose a character');notBackup(toActor);accounts();
     return withRegistry(async()=>{
       const {registry,instance,from,detached}=transferInstance(readRegistry(),instanceId,toActor.id,{max:setting(MAX_CINDERS_SETTING),at:Date.now()});
       if(hasProgress(toActor,instance.definitionId))throw Error(`${toActor.name} already has progress on this Cinder's tree from before Cinders. Use Move existing Cinder progress first.`);
@@ -126,7 +128,7 @@ export function createCinders(deps){
    * Re-runnable. Resolves {instances: [instanceId], done: [text]}.
    */
   async function rehook(actor){
-    requireGM();if(!actor?.id)throw Error('Choose a character');
+    requireGM();if(!actor?.id)throw Error('Choose a character');notBackup(actor);
     return withRegistry(async()=>{
       const registry=readRegistry(),mine=boundTo(registry,actor.id),done=[],t=trees();
       const want=mine.map(pointerData),before=JSON.stringify(pointersOf(actor));
@@ -167,14 +169,16 @@ export function createCinders(deps){
   }
   /** Skill Trees hook before points or an unlock: once a Cinder of a kind exists, only its bearer progresses on that tree. */
   function onCheckProgress(check){
-    if(blocked()||check?.kind!=='cinder_milestone'||!game.user?.isGM||!store())return;
+    if(blocked()||check?.kind!=='cinder_milestone')return;
+    if(isLevelBackup(actorById(check.actorId))){check.blocked=LEVEL_BACKUP_MESSAGE;return;}
+    if(!game.user?.isGM||!store())return;
     const mine=readRegistry().instances.filter(i=>i.definitionId===check.sourceRef);
     if(mine.length&&!mine.some(i=>i.bearer?.actorId===check.actorId))check.blocked=`${check.actorName||'This character'} does not bear this Cinder. Bind or transfer it in Cinders → Manage first.`;
   }
   function migrationPlan(){
     requireGM();
     const acc=accounts(),cinderTrees=(trees().api?.listTrees?.()??[]).filter(t=>t.provider?.kind==='cinder_milestone'&&t.sourceRef);
-    const actors=(game.actors?.contents??[]).map(a=>({actorId:a.id,name:a.name,accounts:Object.fromEntries(cinderTrees.map(t=>[walletOf(t.sourceRef),acc.account(a,t.id)]))}));
+    const actors=playable().map(a=>({actorId:a.id,name:a.name,accounts:Object.fromEntries(cinderTrees.map(t=>[walletOf(t.sourceRef),acc.account(a,t.id)]))}));
     return planMigration(readRegistry(),actors,{max:setting(MAX_CINDERS_SETTING)});
   }
   /** Turn per-character Cinder tree progress (no Cinder yet) into Cinders bound to that character. Items stay; safe to run again. */
@@ -230,7 +234,7 @@ export function createCinders(deps){
         if(JSON.stringify(mirror.unlocks)!==JSON.stringify(inst.progression.unlocks)||mirror.awarded!==inst.progression.awarded)rows.push({instanceId:inst.instanceId,name,repair:true,text:`${actor.name}'s tree progress differs from the Cinder.`});
       }
     }
-    for(const actor of game.actors?.contents??[])for(const g of t.accounts.grants(actor)){
+    for(const actor of playable())for(const g of t.accounts.grants(actor)){
       if(!g.wallet?.startsWith('cinder:'))continue;const definitionId=g.wallet.slice(7);
       if(registry.instances.some(i=>i.definitionId===definitionId)&&!bearerInstance(registry,actor.id,definitionId))
         rows.push({instanceId:null,name:actor.items?.get?.(g.itemId)?.name??g.perkId,actorId:actor.id,repair:true,text:`${actor.name} has a Cinder power (${g.perkId}) but does not bear that Cinder.`});
@@ -246,7 +250,7 @@ export function createCinders(deps){
       const registry=readRegistry(),done=[];
       for(const inst of registry.instances){const actor=inst.bearer?actorById(inst.bearer.actorId):null,tree=cinderTree(inst.definitionId);if(!actor||!tree)continue;
         const r=await acc.setAccount(actor,tree.id,inst.progression);if(r.given.length||r.removed.length)done.push(`${actor.name}: ${[...r.given.map(x=>`+${x}`),...r.removed.map(x=>`−${x}`)].join(', ')}`);}
-      for(const actor of game.actors?.contents??[]){
+      for(const actor of playable()){
         const stray=new Set(acc.grants(actor).filter(g=>g.wallet?.startsWith('cinder:')).map(g=>g.wallet.slice(7)).filter(d=>registry.instances.some(i=>i.definitionId===d)&&!bearerInstance(registry,actor.id,d)));
         for(const d of stray){const tree=cinderTree(d);if(!tree)continue;const r=await acc.setAccount(actor,tree.id,emptyAccount());done.push(`${actor.name}: removed ${r.removed.join(', ')}`);}
       }
@@ -356,7 +360,7 @@ export function createCinders(deps){
     throw Error('This character does not bear a Cinder with that power');
   }
   async function push(actor,powerId,modeId,{forUser=null}={}){
-    requireGM();if(!actor)throw Error('No character');accounts();
+    requireGM();if(!actor)throw Error('No character');notBackup(actor);accounts();
     const ctx=context(actor,powerId),power=powerBlock(ctx.powerDef);
     if(power?.kind!=='power')throw Error('That power has no Push');
     const mode=availableModes(ctx.powerDef,ctx.unlocked.map(u=>u.powerId)).find(m=>m.id===modeId);
@@ -374,7 +378,7 @@ export function createCinders(deps){
   }
   /** Normal use at or above the threshold: an automatic Backfire. No Strain is added; the use itself is never blocked or undone. */
   async function useBackfire(actor,powerId,{forUser=null}={}){
-    requireGM();if(!actor)throw Error('No character');accounts();
+    requireGM();if(!actor)throw Error('No character');notBackup(actor);accounts();
     const config=strain.config(),value=strain.readState(actor).value;
     if(value<config.normal_use_backfire_at)return null;
     const ctx=context(actor,powerId);if(powerBlock(ctx.powerDef)?.kind!=='power')return null;
@@ -427,7 +431,7 @@ export function createCinders(deps){
   }
   /** Attach, detach or swap on the GM client. One registry write, then the bearer's copy and the item markers. */
   async function socketOp(actor,instanceId,op,{user=game.user}={}){
-    requireGM();if(!actor)throw Error('No character');
+    requireGM();if(!actor)throw Error('No character');notBackup(actor);
     return withRegistry(async()=>{
       let registry=readRegistry();
       const inst=registry.instances.find(i=>i.instanceId===instanceId);if(!inst)throw Error('Unknown Cinder');
@@ -468,7 +472,7 @@ export function createCinders(deps){
   };
   /** api.sockets attach / detach / swap: the GM does it directly; an owner's request goes to the active GM client, which re-checks. */
   async function requestSocket(actor,instanceId,raw){
-    requireOn();if(!actor)throw Error('No character');
+    requireOn();if(!actor)throw Error('No character');notBackup(actor);
     const op=cleanSocketOp(raw);op.opId??=`sock:${foundry.utils.randomID(16)}`;
     if(op.kind==='detach'&&op.slot==null)throw Error('Choose a socket');
     if(game.user.isGM)return socketOp(actor,instanceId,op);
@@ -614,6 +618,7 @@ export function createCinders(deps){
       if(!user||user.isGM)throw Error('Unknown player');
       if(!deps.playerAccess())throw Error('Cinders is hidden from players right now');
       if(!actor||actor.testUserPermission?.(user,'OWNER')!==true)throw Error('You do not own that character');
+      notBackup(actor);
       if(message.type==='cinder-socket'){reply(true,await socketOp(actor,String(message.instanceId??''),cleanSocketOp(message.op),{user}));return;}
       const r=message.type==='cinder-push'?await push(actor,message.powerId,message.modeId,{forUser:user}):await useBackfire(actor,message.powerId,{forUser:user});
       reply(true,r?{opId:r.opId,backfire:r.backfire.backfire}:null);
@@ -621,7 +626,7 @@ export function createCinders(deps){
   }
   /** api.cinder.push: the GM pushes directly; an owner's Push is rolled and recorded by the active GM client. */
   async function requestPush(actor,powerId,modeId){
-    requireOn();if(!actor)throw Error('No character');
+    requireOn();if(!actor)throw Error('No character');notBackup(actor);
     if(game.user.isGM)return push(actor,powerId,modeId);
     requirePlayerAccess();if(!actor.isOwner)throw Error('Actor access denied');
     return request('cinder-push',{actorId:actor.id,powerId,modeId});

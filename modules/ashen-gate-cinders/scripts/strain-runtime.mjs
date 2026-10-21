@@ -2,6 +2,7 @@
  * Actor data: flags['ashen-gate-strain'].state (its own scope, unchanged since Skill Trees 0.15.0), written only by a GM client.
  * blocked(): a reason while this module must stay off (an older Skill Trees still runs its own Strain), else null. */
 import {STRAIN_SCOPE,STRAIN_CONTRACT,CONFIG_SCHEMA,defaultConfig,validateConfig,normalizeConfig,normalizeState,applyChange,restRecovery,summarize} from './strain.mjs';
+import {isLevelBackup,LEVEL_BACKUP_MESSAGE} from './cinder.mjs';
 
 export const STRAIN_SETTING='strainConfig';
 export const STRAIN_HOOK='ashenGateStrain.changed';
@@ -28,6 +29,7 @@ export function createStrain({module,onConfigChange=()=>{},recoveryBonus=()=>0,b
   async function change(actor,op,amount,options={}){
     requireGM();
     if(!actor||typeof actor.update!=='function')throw Error('No Actor');
+    if(isLevelBackup(actor))throw Error(LEVEL_BACKUP_MESSAGE);
     return withLock(actor.id,async()=>{
       const {state,result}=applyChange(readState(actor),config(),{...options,op,amount,at:Date.now(),by:game.user.id});
       // One update writes the value and its history entry together: the change is saved whole or not at all.
