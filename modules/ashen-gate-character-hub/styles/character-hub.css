@@ -452,3 +452,8 @@
 
 /* 0.16.0: the art pane can be double-clicked to change the art (owners and the GM only; others get no hint) */
 .ag-character-hub .agch-doll__art.is-editable { cursor: pointer; }
+
+/* 0.17.0: white silhouette placeholders (assets/slots/*-white.png) are masks in the muted text colour, the same size
+   and faintness as the Font Awesome placeholders, so they never vanish on a light skin. */
+.ag-character-hub .agch-slot__mask { width: 20px; height: 20px; background-color: var(--ag-muted); opacity: .55;
+  -webkit-mask: var(--agch-mask) center / contain no-repeat; mask: var(--agch-mask) center / contain no-repeat; }

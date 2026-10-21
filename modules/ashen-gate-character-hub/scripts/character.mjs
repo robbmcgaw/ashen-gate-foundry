@@ -25,6 +25,7 @@ export const SLOT_PAIRS = {mainhand: 'offhand', offhand: 'mainhand', ring1: 'rin
 export function placeholder(id) {
   const v = SLOT_PLACEHOLDERS[id] ?? id, kind = placeholderKind(v);
   if (kind === 'icon') return `<i class="${esc(v)} agch-slot__icon" aria-hidden="true"></i>`;
+  if (kind === 'silhouette') return `<span class="agch-slot__mask" style="--agch-mask: url('${esc(v).replace(/'/g, '%27')}')" aria-hidden="true"></span>`;
   if (kind === 'image') return `<img class="agch-slot__ph" src="${esc(v)}" alt="">`;
   return `<span class="agch-slot__empty">${esc(v)}</span>`;
 }

@@ -218,7 +218,7 @@ test('paper doll: bracer slot where Other was, three trinkets, icons for empty s
   assert.match(html, /data-slot="bracer" data-id="br" data-ag-always data-rarity="rare"/);
   assert.match(html, /class="agch-slot is-filled has-rarity" data-action="slot-open" data-slot="hands" data-id="gl" data-ag-always data-rarity="uncommon"/);
   assert.match(html, /data-slot="head"[^>]*title="Head: empty \(click to equip\)"><i class="fa-solid fa-hat-wizard agch-slot__icon"/);
-  assert.match(html, /data-slot="waist"[^>]*><span class="agch-slot__empty">Waist<\/span>/, 'a word where no icon fits');
+  assert.match(html, /data-slot="waist"[^>]*><span class="agch-slot__mask" style="--agch-mask: url\('modules\/ashen-gate-character-hub\/assets\/slots\/waist-white\.png'\)"/, 'Robb\'s waist silhouette (0.17.0)');
   assert.match(html, /agch-other__row has-rarity" data-rarity="artifact"/);
   assert.match(html, /data-key="doll:other"/);
   assert.doesNotMatch(html, /data-slot="other"/, 'the old overflow slot is gone');
@@ -277,4 +277,23 @@ test('list item icons are a fixed square that never shrinks and show the whole i
   }
   assert.match(css, /\.ag-character-hub \.agch-cards \{ grid-template-columns: minmax\(24px, max-content\) 32px minmax\(8rem, 1fr\)/, 'the icon column is a fixed 32px; the name column shrinks');
   assert.equal(last('.agch-slot img', 'object-fit'), 'cover', 'slot art keeps its own rule');
+});
+
+test('slot silhouettes (0.17.0): cloak, waist and bracers files exist in the module, the table points to them, drawn as tinted masks', async () => {
+  const fs = await import('node:fs');
+  const {SLOT_PLACEHOLDERS, placeholderKind} = await import('../scripts/constants.mjs');
+  const {placeholder} = await import('../scripts/character.mjs');
+  const want = {back: 'cloak-white.png', waist: 'waist-white.png', bracer: 'bracers-white.png'};
+  for (const [slot, file] of Object.entries(want)) {
+    const path = `modules/ashen-gate-character-hub/assets/slots/${file}`;
+    assert.equal(SLOT_PLACEHOLDERS[slot], path, slot);
+    assert.ok(fs.existsSync(new URL(`../assets/slots/${file}`, import.meta.url)), `${file} is in the module (ships in the release zip)`);
+    const head = fs.readFileSync(new URL(`../assets/slots/${file}`, import.meta.url)).subarray(0, 8);
+    assert.deepEqual([...head], [137, 80, 78, 71, 13, 10, 26, 10], `${file} is a PNG`);
+    assert.equal(placeholderKind(path), 'silhouette');
+    assert.equal(placeholder(slot), `<span class="agch-slot__mask" style="--agch-mask: url('${path}')" aria-hidden="true"></span>`);
+  }
+  assert.equal(placeholderKind('icons/equipment/head/helm.webp'), 'image', 'other images are drawn as they are');
+  const css = fs.readFileSync(new URL('../styles/character-hub.css', import.meta.url), 'utf8');
+  assert.match(css, /\.agch-slot__mask \{[^}]*background-color: var\(--ag-muted\); opacity: \.55;[^}]*mask: var\(--agch-mask\)/, 'tinted with the theme colour, same faintness as the icons');
 });
