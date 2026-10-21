@@ -6,6 +6,7 @@ import {companionRole, COMPANION_ROLES, companionStats, itemGives} from './compa
 import {itemRow} from './items.mjs';
 import {cardList, plainText, summaryOf} from './cards.mjs';
 import {speedsData} from './data.mjs';
+import {tooltipAttrs, itemUuid} from './tooltips.mjs';
 import {PARTS, PRESETS, readVisibility, hiddenReason} from './visibility.mjs';
 import {sectionHtml, sectionKey, toggleButton, bodyAttrs} from './collapse.mjs';
 
@@ -66,7 +67,7 @@ function mountCard(entry, {off, free, actor}) {
 function clothingSlots(entry, off, actor) {
   const choices = freeItemsFor(actor, 'pet', 'clothing');
   return `<div class="agch-clothing" role="group" aria-label="${esc(entry.displayName)}'s clothing">${entry.clothingItems.map((item, i) => item
-    ? `<div class="agch-clothing__slot is-filled"><button type="button" class="agch-slot is-filled" data-action="item-sheet" data-id="${esc(item.id)}" data-ag-always title="${esc(item.name)}" aria-label="Clothing ${i + 1}: ${esc(item.name)}"><img src="${esc(item.img)}" alt=""></button>
+    ? `<div class="agch-clothing__slot is-filled"><button type="button" class="agch-slot is-filled" data-action="item-sheet" data-id="${esc(item.id)}" data-ag-always${tooltipAttrs(itemUuid(item), item.name)} aria-label="Clothing ${i + 1}: ${esc(item.name)}"><img src="${esc(item.img)}" alt=""></button>
         ${btn('companion-unattach', '', {kind: 'ghost', extra: 'agch-clothing__off', icon: 'fa-solid fa-xmark', data: {entry: entry.id, id: item.id}, title: `Take ${item.name} off`, disabled: off})}</div>`
     : `<div class="agch-clothing__slot"${off ? '' : ` data-drop-companion="clothing" data-entry="${esc(entry.id)}" data-slot="${i}"`}><span class="agch-slot is-empty" title="Clothing slot ${i + 1}: drop pet clothing here"><i class="fa-solid fa-shirt agch-slot__icon" aria-hidden="true"></i></span>
         ${off || !choices.length ? '' : `<select data-edit="companion-clothing" data-entry="${esc(entry.id)}" data-slot="${i}" aria-label="Put clothing in slot ${i + 1}">${itemOptions(choices, 'Wear…')}</select>`}</div>`).join('')}</div>`;

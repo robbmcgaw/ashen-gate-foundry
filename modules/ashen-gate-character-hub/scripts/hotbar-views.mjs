@@ -7,12 +7,13 @@
 import {esc} from './constants.mjs';
 import {availableMarks, placedMarks, targetedTokens} from './marks.mjs';
 import {hotbarData} from './hotbar.mjs';
+import {tooltipAttrs, itemUuid} from './tooltips.mjs';
 import {toggleButton, bodyAttrs, sectionKey} from './collapse.mjs';
 import {canSee, hiddenBadge} from './visibility.mjs';
 
 function marksBar(actor, off) {
   const marks = availableMarks(actor), placed = placedMarks(actor), n = targetedTokens().length;
-  const buttons = marks.map(a => `<button type="button" class="agch-hotbtn" data-action="mark-apply" data-mark="${esc(a.mark.id)}" title="${esc(`${a.label}: put on or take off your targeted token${n === 1 ? '' : 's'} (from ${a.sources.join(', ')})`)}"${off ? ' disabled' : ''}>
+  const buttons = marks.map(a => `<button type="button" class="agch-hotbtn" data-action="mark-apply" data-mark="${esc(a.mark.id)}"${tooltipAttrs(a.sourceUuids?.[0] ?? null, `${a.label}: put on or take off your targeted token${n === 1 ? '' : 's'} (from ${a.sources.join(', ')})`)} aria-label="${esc(`${a.label}: put on or take off your targeted token${n === 1 ? '' : 's'}`)}"${off ? ' disabled' : ''}>
       <img src="${esc(a.mark.icon)}" alt=""><span>${esc(a.label)}</span></button>`).join('');
   const onTargets = placed.length ? `<ul class="agch-placed" aria-label="Marks you placed">${placed.map(p => `<li><img src="${esc(p.mark.icon)}" alt=""> ${esc(p.tokenName)}: ${esc(p.mark.label)}
       <button type="button" class="agch-placed__off" data-action="mark-remove" data-scene="${esc(p.sceneId)}" data-token="${esc(p.tokenId)}" data-mark="${esc(p.mark.id)}" title="Take ${esc(p.mark.label)} off ${esc(p.tokenName)}" aria-label="Take ${esc(p.mark.label)} off ${esc(p.tokenName)}"${off ? ' disabled' : ''}><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></li>`).join('')}</ul>` : '';
@@ -22,7 +23,7 @@ function marksBar(actor, off) {
 
 function quickBar(actor, off) {
   return `<ol class="agch-quick" aria-label="Quick bar">${hotbarData(actor).map(d => d.slot
-    ? `<li><button type="button" class="agch-quick__slot is-filled${d.missing ? ' is-missing' : ''}" data-action="hotbar-use" data-hotbar-slot="${d.index}" title="${esc(`${d.name}${d.missing ? ' (gone: right-click to clear)' : ' (click to use, right-click to clear)'}`)}" aria-label="${esc(`Slot ${d.index + 1}: ${d.name}`)}"${off ? ' disabled' : ''}><img src="${esc(d.img)}" alt=""><span class="agch-quick__n">${(d.index + 1) % 10}</span></button></li>`
+    ? `<li><button type="button" class="agch-quick__slot is-filled${d.missing ? ' is-missing' : ''}" data-action="hotbar-use" data-hotbar-slot="${d.index}"${tooltipAttrs(d.slot.type === 'Item' && !d.missing ? itemUuid(d.doc) : null, `${d.name}${d.missing ? ' (gone: right-click to clear)' : ' (click to use, right-click to clear)'}`)} aria-label="${esc(`Slot ${d.index + 1}: ${d.name}`)}"${off ? ' disabled' : ''}><img src="${esc(d.img)}" alt=""><span class="agch-quick__n">${(d.index + 1) % 10}</span></button></li>`
     : `<li><span class="agch-quick__slot is-empty" data-hotbar-slot="${d.index}" title="Empty: drag one of this character's items or a macro here" aria-label="Slot ${d.index + 1}: empty"><span class="agch-quick__n">${(d.index + 1) % 10}</span></span></li>`).join('')}</ol>`;
 }
 

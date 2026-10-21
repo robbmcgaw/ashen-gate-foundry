@@ -13,6 +13,7 @@ import {partyStashUsable} from './partners.mjs';
 import {canSee, hiddenReason, hiddenBadge} from './visibility.mjs';
 import {configAttrs} from './configure.mjs';
 import {toggleButton, bodyAttrs} from './collapse.mjs';
+import {tooltipAttrs} from './tooltips.mjs';
 
 export const LEFT_SLOTS = ['head', 'neck', 'back', 'body', 'hands'];
 export const RIGHT_SLOTS = ['mainhand', 'offhand', 'waist', 'feet', 'bracer'];
@@ -68,7 +69,7 @@ function slotHtml(id, layout, menu) {
   const tip = `${item.name}${item.attuned ? ' (attuned)' : ''}`;
   const more = `<button type="button" class="agch-slot__more" data-action="slot-menu" data-slot="${id}" data-ag-always aria-haspopup="menu" aria-expanded="${open}" title="More for ${esc(s.label)}" aria-label="More actions: ${esc(s.label)}"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>`;
   return `<div class="agch-slotwrap"><button type="button" class="agch-slot is-filled${item.attuned ? ' is-attuned' : ''}${item.rarity ? ' has-rarity' : ''}${open ? ' is-open' : ''}" data-action="slot-open" data-slot="${id}" data-id="${esc(item.id)}" data-ag-always${item.rarity ? ` data-rarity="${item.rarity}"` : ''}
-    aria-label="${esc(s.label)}: ${esc(tip)}. Click to open, right-click to unequip" title="${esc(tip)} (click: open, right-click: unequip)"><img src="${esc(item.img)}" alt=""></button>${more}</div>`;
+    aria-label="${esc(s.label)}: ${esc(tip)}. Click to open, right-click to unequip"${tooltipAttrs(item.uuid, `${tip} (click: open, right-click: unequip)`)}><img src="${esc(item.img)}" alt=""></button>${more}</div>`;
 }
 
 /** Below the rings and trinkets: every equipped item not in a slot, in a list that folds open. */
@@ -77,7 +78,7 @@ function otherHtml(layout, menu, off) {
   const rows = layout.other.map(r => {
     const open = menu === `other:${r.id}`;
     return `<li class="agch-other__row${r.rarity ? ' has-rarity' : ''}"${r.rarity ? ` data-rarity="${r.rarity}"` : ''}>
-      <img src="${esc(r.img)}" alt=""><button type="button" class="agch-other__name" data-action="slot-open" data-id="${esc(r.id)}" data-ag-always title="${esc(r.name)} (click: open, right-click: unequip)">${esc(r.name)}${r.attuned ? ' <i class="fa-solid fa-sun agch-other__att" title="Attuned" aria-label="Attuned"></i>' : ''}</button>
+      <img src="${esc(r.img)}" alt=""><button type="button" class="agch-other__name" data-action="slot-open" data-id="${esc(r.id)}" data-ag-always${tooltipAttrs(r.uuid, `${r.name} (click: open, right-click: unequip)`)}>${esc(r.name)}${r.attuned ? ' <i class="fa-solid fa-sun agch-other__att" title="Attuned" aria-label="Attuned"></i>' : ''}</button>
       <button type="button" class="agch-slot__more is-shown" data-action="other-menu" data-id="${esc(r.id)}" data-ag-always aria-haspopup="menu" aria-expanded="${open}" title="More for ${esc(r.name)}" aria-label="More actions: ${esc(r.name)}"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>
       ${open ? `<div class="agch-menu agch-menu--inline" role="menu" aria-label="${esc(r.name)}">${menuHead(r.name)}${itemControls(r, 'other', layout, off)}</div>` : ''}</li>`;
   }).join('');
@@ -151,7 +152,7 @@ function exhaustionHtml(h, off) {
 function identityCard(actor) {
   const rows = featuresData(actor).identity;
   if (!rows.length) return '';
-  return `<section class="agch-idcard" aria-label="Class, species and background">${rows.map(r => `<button type="button" class="agch-idcard__item" data-action="item-sheet" data-id="${esc(r.id)}" data-ag-always title="Open ${esc(r.name)}">
+  return `<section class="agch-idcard" aria-label="Class, species and background">${rows.map(r => `<button type="button" class="agch-idcard__item" data-action="item-sheet" data-id="${esc(r.id)}" data-ag-always${tooltipAttrs(r.uuid, `Open ${r.name}`)}>
     <img src="${esc(r.img)}" alt=""><span class="agch-idcard__text"><span class="agch-idcard__name">${esc(r.name)}</span><span class="agch-idcard__detail">${esc(r.detail)}</span></span></button>`).join('')}</section>`;
 }
 

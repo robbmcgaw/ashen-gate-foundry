@@ -5,6 +5,7 @@
  */
 import {esc, num} from './constants.mjs';
 import {toggleButton, bodyAttrs, sectionKey} from './collapse.mjs';
+import {tooltipAttrs} from './tooltips.mjs';
 
 // ---------- Description text ----------
 
@@ -110,7 +111,7 @@ export function cardHtml(row, columns, {controls = '', lead = '', star = '', bad
   return `<li class="agch-card${alt ? ' is-alt' : ''}${row.equipped ? ' is-equipped' : ''}${row.rarity ? ' has-rarity' : ''}" data-item-id="${esc(row.id)}"${row.rarity ? ` data-rarity="${row.rarity}"` : ''}${row.uuid ? ` draggable="true" data-drag-uuid="${esc(row.uuid)}"` : ''}>
     <span class="agch-card__lead">${lead}${star}</span>
     <img class="agch-item__img" src="${esc(row.img)}" alt="">
-    <span class="agch-card__main"><button type="button" class="agch-item__name" data-action="item-sheet" data-id="${esc(row.id)}" data-ag-always title="Open ${esc(row.name)}">${esc(row.name)}</button>${badges ? `<span class="agch-item__badges">${badges}</span>` : ''}
+    <span class="agch-card__main"><button type="button" class="agch-item__name" data-action="item-sheet" data-id="${esc(row.id)}" data-ag-always${tooltipAttrs(row.uuid, `Open ${row.name}`)}>${esc(row.name)}</button>${badges ? `<span class="agch-item__badges">${badges}</span>` : ''}
       ${row.summary ? `<span class="agch-card__summary">${esc(row.summary)} ${more}</span>` : more}</span>
     ${columns.map(c => cell(c, row)).join('')}
     <span class="agch-item__controls agch-card__actions">${controls}</span>
