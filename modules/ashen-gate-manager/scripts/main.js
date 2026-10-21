@@ -34,7 +34,7 @@ import {createSceneMoods, MOODS_SETTING, LAYERS_SETTING, MOOD_FIELDS, FIELD_GROU
 const MOOD_VIEWS=[{id:'live',label:'Live: this scene',icon:'fa-solid fa-sun'},{id:'library',label:'Moods & layers',icon:'fa-solid fa-layer-group'},{id:'share',label:'Export & import',icon:'fa-solid fa-right-left'}];
 const MOOD_TRANSITIONS=[{value:'',label:'Preset default'},{value:0,label:'Instant'},{value:3000,label:'3 s'},{value:10000,label:'10 s'},{value:30000,label:'30 s'}];
 import {createCoreLinks, SOURCES_SETTING, LINK_HISTORY_SETTING} from './core-links.js';
-import {createOrganizer, folderIndex, describePreview, ORGANIZE_TYPES, SCHEMA_SETTING, HISTORY_SETTING, FLAG_PROTECTED} from './organize.js';
+import {createOrganizer, folderIndex, describePreview, readRulesFile, ORGANIZE_TYPES, SCHEMA_SETTING, HISTORY_SETTING, FLAG_PROTECTED} from './organize.js';
 import {createBrowse, PAGE_SIZE, filterEntries} from './browse.js';
 import {ITEM_VIEWS, ORIGINS, RARITIES, DEFAULT_FILTERS, activeFilterCount, resolveTab} from './item-filters.js';
 import {toolbarHtml, bodyHtml, DEFAULT_STATE} from './browse-view.js';
@@ -198,7 +198,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.41.1 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.41.2 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -1889,9 +1889,12 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       if(!f)return;
       try{
         const data=JSON.parse(await f.text());
-        const rules=Array.isArray(data)?data:data?.rules;
+        // 0.41.2: check the file first; a wrong or empty file is refused before anything is asked.
+        const read=readRulesFile(data);
+        if(!read.ok){this.orgMessage=`Rules not imported from ${f.name}: ${read.message}`;toast(read.message,true);await this.render();return;}
+        const rules=read.rules;
         const yes=await DialogV2.confirm({window:{title:'Import organize rules'},modal:true,rejectClose:false,
-          content:`<p><strong>Replace the organize rules with the ${Array.isArray(rules)?rules.length:0} rule(s) in ${escapeHtml(f.name)}?</strong> No document moves until you Preview and Apply.</p>`,
+          content:`<p><strong>Replace the organize rules with the ${rules.length} rule(s) in ${escapeHtml(f.name)}?</strong> No document moves until you Preview and Apply.</p>`,
           yes:{label:'Replace rules'},no:{label:'Cancel'}});
         if(!yes)return;
         const out=await organizer().saveSchema(rules);
@@ -2398,7 +2401,7 @@ Hooks.once("ready",()=>{
       getState:()=>appearanceController.getState(),
       applyTo:root=>appearanceController.applyTo(root),
       subscribe:callback=>appearanceController.subscribe(callback),
-      refresh:()=>appearanceController.refresh(),
+      refresh:()=>{if(!game.user?.isGM)throw new Error('Only a GM can refresh the shared appearance.');return appearanceController.refresh();},
       setWorldDefault:id=>appearanceController.setWorldDefault(id),
       setUserOverride:id=>appearanceController.setUserOverride(id),
       // Player-safe personal appearance window (never the GM Manager).
@@ -2417,7 +2420,7 @@ Hooks.once("ready",()=>{
       validateReferences:()=>definitionsReader.validateReferences(),
       refresh:()=>definitionsReader.refresh(),
       loadCompendiums:(packIds)=>definitionsReader.loadCompendiums(packIds),
-      dispose:()=>definitionsReader.dispose()
+      dispose:()=>{if(!game.user?.isGM)throw new Error('Only a GM can dispose the definitions reader.');return definitionsReader.dispose();}
     },
     // GM-only, read-only health report (0.21.0); the gate is inside runPreSessionCheck.
     preSessionCheck:()=>runPreSessionCheck(game),
@@ -2467,7 +2470,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.41.1 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.41.2 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */

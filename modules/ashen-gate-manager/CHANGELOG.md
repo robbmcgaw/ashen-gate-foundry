@@ -1,3 +1,14 @@
+## 0.41.2 — 2026-10-21
+
+- **Organize rules import checks the file first.** A file of the wrong kind (for example an Organize backup), with no rules list, with no rules or with an invalid rule is refused with the reason before anything is asked. It no longer asks "Replace with 0 rules?" first.
+- **Scene moods import:** a preset with a `kind` other than `mood` or `layer` is now reported and skipped (it was silently read as a mood). The same id twice in one file shows in the preview (the later copy is skipped) instead of showing as New and then failing at Import. Import is all or nothing: both lists are checked before anything is saved, and a failed save puts the other back.
+- **Core Links:** a D&D Beyond import with no core source book no longer counts as 2024 from dnd5e's default `rules` value alone, so it is not offered as a weak 2024 candidate.
+- **NPC Codex:** re-importing an NPC whose record text changed (role, wants, codex block, ...) but whose Actor did not now updates the stored record (with *Update existing actors* on), so the Codex shows the new text. Before, it said Unchanged.
+- **NPC Codex:** revealing an unknown field now says it is not a Codex field and lists the ones you can reveal (it used to say GM-only). The GM view no longer looks among Renown deities for a faction link (deities are `DEITY-` links).
+- `api.definitions.dispose()` and `api.appearance.refresh()` now refuse non-GM callers.
+- Messages say **Items** where they still said Library.
+- No saved data changes; no migration.
+
 ## 0.41.1 — 2026-10-21
 
 - **Security fix: the NPC Codex could show players linked records they had not found.** A player's Codex is built on the GM's client, where Locations, Quest Log and Renown answer with GM data, so the Connections list could carry the name (or, when no name was found, the id) of a hidden location, unrevealed quest, undiscovered faction or undiscovered NPC.

@@ -1,4 +1,5 @@
 import {MODULE_ID, planRecord, flatten, getPath, equal, isPlainObject} from './core.js';
+import {canonicalDefinition} from './source-projection.mjs';
 /**
  * Opt-in update of existing Actors on re-import (0.19.0).
  * An Actor is matched only by the canonical id in Manager's source flag, never by name.
@@ -114,6 +115,14 @@ export function planActor(record, raws, {updateExisting = false, includeDrafts =
   const kept = [...marked.keys()].filter(key => !keys.includes(key));
   if (kept.length) notes.push(`${kept.length} item(s) no longer in the package kept on the Actor`);
 
+  // 0.41.2: record text the Actor projection does not hold (an NPC's role, wants, codex block, ...) lives in the stored
+  // source definition, which the NPC Codex reads. A change there alone is still an update: only the source flag is rewritten.
+  const stored = raw.flags?.[MODULE_ID]?.source?.definition;
+  const incomingDef = canonicalDefinition(record);
+  if (isPlainObject(stored)) {
+    const textKeys = [...new Set([...Object.keys(stored), ...Object.keys(incomingDef)])].filter(k => !equal(stored[k], incomingDef[k])).sort();
+    if (textKeys.length) changes.push(`record text: ${textKeys.join(', ')} (NPC Codex and other readers see the new text)`);
+  }
   if (!changes.length) return {action: 'unchanged', reason: `Actor already matches the package.${notes.length ? ` ${notes.join('; ')}.` : ''}`, changes: []};
   return {action: 'update', reason: `Updates ${changes.length} definition change(s); HP, XP, level, conditions, player items, folder, ownership and other modules' data are kept.${notes.length ? ` ${notes.join('; ')}.` : ''}`,
     patch: {fields, items, touched}, changes};

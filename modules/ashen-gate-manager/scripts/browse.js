@@ -417,7 +417,7 @@ export function createBrowse({game, hooks = null, fromUuid = null, openCodex = n
         }
         if (target?.type === 'module') return await openInModule(game, target, e);
         if (target?.type === 'codex') {
-          if (typeof openCodex !== 'function') return {ok: false, message: `Open Library → NPC Codex and pick ${e.name} (${e.id}).`};
+          if (typeof openCodex !== 'function') return {ok: false, message: `Open Items → NPC Codex and pick ${e.name} (${e.id}).`};
           await openCodex(target.id); return {ok: true};
         }
       } catch (error) { return {ok: false, message: `Could not open ${e.name}: ${error?.message ?? error}`}; }

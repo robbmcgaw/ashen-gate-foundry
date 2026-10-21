@@ -78,7 +78,9 @@ export function normalizeState(raw, def = null) {
 /** Change one rule. key is 'discovery' or a REVEAL_FIELDS key. mode: hidden | party | actor (with actorId, on true/false). */
 export function setReveal(state, key, {mode, actorId = null, on = true} = {}) {
   const next = normalizeState(state);
-  if (key !== 'discovery' && !REVEAL_FIELDS.includes(key)) throw new Error(`"${key}" cannot be revealed. GM-only fields stay GM-only.`);
+  if (key !== 'discovery' && !REVEAL_FIELDS.includes(key)) throw new Error(GM_FIELDS.includes(key)
+    ? `"${key}" is a GM-only field and cannot be revealed.`
+    : `"${key}" is not a Codex field. Reveal "discovery" or one of: ${REVEAL_FIELDS.join(', ')}.`);
   const rule = key === 'discovery' ? next.discovery : next.fields[key];
   if (mode === 'hidden') { rule.party = false; rule.actors = []; }
   else if (mode === 'party') { rule.party = true; }

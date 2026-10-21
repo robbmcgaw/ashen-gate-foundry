@@ -83,7 +83,7 @@ Each rule is `{party: boolean, actors: string[]}`, the same shape Renown uses fo
 
 - **Discovery** (`discovery`): whether a player knows the NPC at all (name and portrait). A player who has not discovered the NPC receives nothing about them.
 - **Fields** (`fields.<key>`): each revealable field separately. A field shows to a player only if the NPC is discovered by them **and** the field's rule includes the party or one of their characters. A field revealed to one character is marked *only you* in that player's view.
-- `learned` is text the GM writes in the Codex ("What the party has learned"). `links` reveals the connections list. A revealed connection shows the linked record's name as the GM's client resolves it (see Linkable ids), whether or not that record is revealed in its own module; the exception is a `DEITY-` link, which a player sees only once Renown says they discovered that deity.
+- `learned` is text the GM writes in the Codex ("What the party has learned"). `links` reveals the connections list. A revealed connection shows the linked record's name only if that player can already see the record in its own module (Manager 0.41.1+, see *What a player sees of a link*); any other connection shows as **Unknown**, with no id or name.
 - GM-only fields and GM notes are never in a player's data.
 
 ### Stored state (`flags.ashen-gate-manager.codex`)
