@@ -17,8 +17,21 @@ In the quest editor (Quests tab), **Item rewards** sits under *Campaign status a
 - An item dropped from a sheet is copied into a GM-only Items folder, **Ashen Gate Rewards (Quest Log)**; the character or NPC keeps its item. Removing the row (asks first) deletes that held copy.
 - Folders are refused ("Drop items one at a time."), and so is anything that isn't an item.
 - Players see the rewards their row allows (name, picture and quantity only) under **Rewards** in the quest.
-- **Nothing is granted yet**: giving rewards to characters comes in a later version. *Rewards handled outside Quest Log* is the old checkbox, unchanged.
+- *Rewards handled outside Quest Log* is the old checkbox, unchanged.
 - API (GM only, contract `ag-quest-rewards/1`): `api.rewards.list(questId)`, `addFromDrop(questId, dropData)`, `update(questId, key, {quantity, visibility, recipient})`, `remove(questId, key)`.
+
+## Giving rewards (0.12.0)
+
+Every grant is started and confirmed by the GM; nothing is ever taken from anyone.
+- Set a quest to **Completed** and save: if anything is still owed, the **Give rewards** panel opens under the reward list (or press **Give rewards** in its head). Tick what to give, pick the character for "One character", untick characters for "Each character", or share out "Split" in whole numbers. **Will receive** shows the result; **Grant rewards** asks first, then lists what each character got. **Not now** leaves the rewards pending.
+- Party characters are the characters players own; individual quests always give to their character.
+- Each character's items are created in one go, or not at all. Containers arrive with their contents. Each grant is a new item (no stacking).
+- A reward is never given twice in the same round: saving Completed again offers only what is still owed, and a crash between creating items and saving the record is repaired from the items' tags.
+- **Grant again** on a given row (asks first) lets you give it once more.
+- Drag a row onto a character sheet to give it to that character (GM only, recorded; a second drop says "Already given to …").
+- A whispered chat card goes to the GMs and the players who own the recipients. With Character Hub 0.25.0 or later, the character's Journey records the reward.
+- Players see who got what nowhere; their quest counts as rewarded once every reward they can see is given (or the checkbox is ticked).
+- API (GM only): `api.rewards.grantable(questId)`, `grant(questId, choices)`, `grantAgain(questId, rewardKey, {confirm: true})`.
 
 ## Relation to other modules
 
