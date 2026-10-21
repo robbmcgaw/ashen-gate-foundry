@@ -16,7 +16,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.19.1';
+const VERSION='0.19.2';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -1062,7 +1062,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const read=(event,button)=>{const fd=new FormData(button.form);
       return appearanceFromForm({nodeSize:fd.get('nodeSize'),bgImage:fd.get('bgImage'),bgFit:fd.get('bgFit'),bgOpacity:fd.get('bgOpacity'),
         tierLevel:fd.getAll('tierLevel'),tierLabel:fd.getAll('tierLabel'),tierY:fd.getAll('tierY'),tierIcon:fd.getAll('tierIcon')});};
-    const out=await DialogV2.wait({classes:['ag-app','ag-dialog'],window:{title:'Tree appearance'},content,render:wire,rejectClose:false,
+    const out=await DialogV2.wait({classes:['ag-app','ag-dialog'],window:{title:'Tree appearance'},content,render:wire,rejectClose:false, // ag-lint-allow: custom dialog, has ag-dialog classes
       buttons:[{action:'cancel',label:'Cancel',callback:()=>null},{action:'ok',label:'Save',default:true,callback:read}]});
     if(!out)return;
     if(out.errors.length)throw Error(out.errors[0]);
