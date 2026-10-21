@@ -61,6 +61,11 @@
 .agq-reward__qty { width: 5em; text-align: right; }
 .agq-reward-drop { display: flex; align-items: center; gap: var(--ag-space-2); margin-top: var(--ag-space-2); padding: var(--ag-space-3); border: 1px dashed var(--ag-border); border-radius: var(--ag-radius); color: var(--ag-muted); }
 .agq-reward-drop.is-over { border-color: var(--ag-accent); color: var(--ag-text); }
+.agq-given { white-space: normal; overflow-wrap: anywhere; }
+.agq-rewards tr[draggable="true"] { cursor: grab; }
+.agq-grant { margin-top: var(--ag-space-3); padding-top: var(--ag-space-2); border-top: 1px solid var(--ag-border); }
+.agq-grant__choices { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1) var(--ag-space-3); }
+.agq-grant__choices .ag-field { margin: 0; }
 .agq-rewards-view { margin-top: var(--ag-space-4); }
 .agq-rewards-view .ag-row { gap: var(--ag-space-2); }
 @container (max-width: 40rem) {

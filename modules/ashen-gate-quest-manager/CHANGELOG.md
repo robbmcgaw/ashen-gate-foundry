@@ -1,3 +1,12 @@
+## 0.12.0 — 2026-10-21
+
+- Give quest rewards: when a quest is saved as Completed and something is owed, the **Give rewards** panel opens (also from a button on the reward list). Pick who gets each reward, check **Will receive**, then **Grant rewards** (asks first). Results are shown per character.
+- All or nothing per character; containers keep their contents; never given twice in the same round, even after a crash. **Grant again** gives a reward once more (asks first).
+- Drag a reward row onto a character sheet to give it (GM only, recorded once).
+- Whispered chat card to the GMs and the recipients' players. Character Hub's Journey records the reward when the Hub is there.
+- Players' quests count as rewarded once every reward they can see is given.
+- Saved data: grant records in the quest's `rewards` block (added in 0.11.0); nothing else changes.
+
 ## 0.11.0 — 2026-10-21
 
 - Quest editor: new **Item rewards** list. Drop items from a character or NPC sheet, a compendium or the Items sidebar; set quantity, who sees it and who it goes to. Changes save at once.

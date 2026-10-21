@@ -50,6 +50,7 @@ export function validState(source,s){
 export const REWARD_VISIBILITY=Object.freeze(['on_complete','shown','gm']);
 export const REWARD_RECIPIENTS=Object.freeze(['chosen','each','split']);
 export const MAX_ADDED_REWARDS=100;
+export const MAX_GRANTS=200;
 const ADDED_KEY=/^rw-[A-Za-z0-9]{1,32}$/;
 const ITEM_ID=/^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/;
 const isObj=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
@@ -78,7 +79,10 @@ export function validRewards(r){
       if(o.round!==undefined&&!wholeQty(o.round))bad('round');
     }
   }
-  if(r.grants!==undefined&&!Array.isArray(r.grants))bad('grants must be a list');
+  if(r.grants!==undefined){
+    if(!Array.isArray(r.grants)||r.grants.length>MAX_GRANTS)bad('grants must be a list');
+    for(const g of r.grants)if(!isObj(g)||typeof g.grantId!=='string'||!Array.isArray(g.lines)||g.lines.some(l=>!isObj(l)||typeof l.rewardKey!=='string'||typeof l.actorId!=='string'||!wholeQty(l.round)||!['granted','failed'].includes(l.status)))bad('grant record');
+  }
   return true;
 }
 /** One merged reward list: imported rows (outcomes.item_rewards, key def:<item_id>) then GM-added rows, overrides applied.
@@ -103,16 +107,34 @@ export function rewardRows(source,state){
     return {...row,...(wholeQty(o.quantity)?{quantity:o.quantity}:{}),...(REWARD_VISIBILITY.includes(o.visibility)?{visibility:o.visibility}:{}),
       ...(REWARD_RECIPIENTS.includes(o.recipient)?{recipient:o.recipient}:{}),removed:o.removed===true,round:wholeQty(o.round)?o.round:1};});
 }
+/** Grant lines recorded as granted, as a Set of 'rewardKey|round|actorId'. */
+export function grantedKeys(state){
+  const out=new Set();
+  for(const g of Array.isArray(state?.rewards?.grants)?state.rewards.grants:[])for(const l of Array.isArray(g?.lines)?g.lines:[])
+    if(l?.status==='granted')out.add(`${l.rewardKey}|${l.round}|${l.actorId}`);
+  return out;
+}
+/** Actor ids a row was recorded as given to in its current round. */
+export function givenTo(state,row,keys=grantedKeys(state)){
+  const pre=`${row.key}|${row.round}|`;return [...keys].filter(k=>k.startsWith(pre)).map(k=>k.slice(pre.length));
+}
+const playerVisible=(row,state)=>!row.removed&&(row.visibility==='shown'||row.visibility==='on_complete'&&state.status==='Completed');
 /** The rewards a player may see: name, img and quantity only. itemById(itemId) -> {name,img}|null names imported rows. */
 export function playerRewards(source,state,itemById=()=>null){
   const out=[];
   for(const row of rewardRows(source,state)){
-    if(row.removed||!(row.visibility==='shown'||row.visibility==='on_complete'&&state.status==='Completed'))continue;
+    if(!playerVisible(row,state))continue;
     const look=row.origin==='gm'?row.ref:itemById(row.itemId);
     if(!look||typeof look.name!=='string'||!look.name)continue;
     out.push({name:look.name,img:typeof look.img==='string'?look.img:null,quantity:row.quantity});
   }
   return out;
+}
+/** Player view's rewardRecorded: the GM's checkbox, or every reward the player can see given in its current round. */
+export function rewardsDone(source,state){
+  if(state.rewardRecorded)return true;
+  const rows=rewardRows(source,state).filter(r=>playerVisible(r,state));if(!rows.length)return false;
+  const keys=grantedKeys(state);return rows.every(r=>givenTo(state,r,keys).length>0);
 }
 export function publicView(source,s,{itemById}={}){
   validSource(source);validState(source,s);
@@ -122,7 +144,7 @@ export function publicView(source,s,{itemById}={}){
     objectives:source.objectives.filter(o=>o.visibility!=='gm'&&((o.reveal_on_create!==false&&o.visibility!=='reveal_gated')||s.objectiveReveal.includes(o.key)))
       .map(o=>({key:o.key,goal:o.goal,complete:s.progress?.[o.key]==='complete',failed:s.progress?.[o.key]==='failed'})),
     locationIds:(s.publicLocationIds||[]).filter(x=>/^LOC-[A-Z0-9-]+$/.test(x)),
-    partyNotes:s.partyNotes||'',rewardRecorded:!!s.rewardRecorded,rewards:playerRewards(source,s,itemById)};
+    partyNotes:s.partyNotes||'',rewardRecorded:rewardsDone(source,s),rewards:playerRewards(source,s,itemById)};
 }
 // Explicit view visibility: never expose even objective counts for hidden objectives.
 export function projectionOwnership(s,actor,users=[]){
