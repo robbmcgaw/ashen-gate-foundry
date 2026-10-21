@@ -1,3 +1,10 @@
+## 0.26.0 — 2026-10-21
+
+- **Undo after clearing a quick-bar slot.** Right-clicking a quick slot still clears it, and now a short notice shows over the top-right of the sheet for about 5 seconds: "Cleared slot N: <item>" with an **Undo** button. Undo puts that slot back exactly as it was. When the notice goes away, the clear stands.
+- Two clears in a row give two notices; each Undo restores its own slot. Clearing the same slot twice quickly shows one notice.
+- Undo does nothing, and says so, if the item or macro was deleted meanwhile or something else was put in that slot. Other slots changed meanwhile are kept. Closing the sheet drops pending undos (the clears stand). Undo is checked in the data layer like any quick-bar change.
+- The Hub layout is unchanged (the notice floats over the content). No saved-data change: the quick bar is stored where it was.
+
 ## 0.25.0 — 2026-10-21
 
 - **Journey shows item rewards.** `api.journey.recordReward` (GM only) now also takes `items` (up to 50 of name, picture, quantity and permanent item id) and a `grantId`. The entry reads `Reward for "<quest>": 2 × Healing Draught, Rusted Blade` (coins added as before), with small item pictures after the text; hover shows the name and quantity. No ids are shown. There is no separate Rewards panel (D12).

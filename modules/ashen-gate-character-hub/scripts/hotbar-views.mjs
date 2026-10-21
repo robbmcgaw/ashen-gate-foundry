@@ -36,3 +36,14 @@ export function hotbarsHtml(ctx) {
     ${bar(sectionKey('hotbar', 'marks'), 'Mastery &amp; marks', marksBar(actor, off))}
     ${bar(sectionKey('hotbar', 'quick'), 'Quick bar', quickBar(actor, off))}</div>`;
 }
+
+/**
+ * Undo notices after a quick-bar clear (0.26.0): kit notices floating over the bottom of the sheet (they don't move
+ * the layout), one per pending clear, newest last. Each Undo button carries its own entry id.
+ */
+export function undoNoticesHtml(list) {
+  if (!list?.length) return '';
+  return `<div class="agch-undo" role="status" aria-live="polite">${list.map(u => `<div class="ag-notice ag-notice--info agch-undo__notice">
+    <i class="fa-solid fa-eraser" aria-hidden="true"></i><span class="agch-undo__text">Cleared slot ${u.index + 1}: ${esc(u.name ?? 'item')}</span>
+    <button type="button" class="ag-btn ag-btn--sm" data-action="hotbar-undo" data-undo="${esc(u.id)}" aria-label="${esc(`Undo: put ${u.name ?? 'it'} back in slot ${u.index + 1}`)}"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i><span>Undo</span></button></div>`).join('')}</div>`;
+}

@@ -20,6 +20,7 @@ import * as journey from './journey.mjs';
 import {journeyActor} from './journey-views.mjs';
 import * as marks from './marks.mjs';
 import * as hotbar from './hotbar.mjs';
+import {undoNoticesHtml} from './hotbar-views.mjs';
 import {stepStrain, pushFromHub, socketFromHub, dropOnSocket} from './cinders.mjs';
 import {confirmDialog, formDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
@@ -57,6 +58,7 @@ export const ACTIONS = {
   'mark-apply': async (s, t) => { const r = await marks.applyMark(s.document, t.dataset.mark); if (r.ok) s.render(); return r; },
   'mark-remove': async (s, t) => { const r = await marks.removePlaced(s.document, t.dataset.scene, t.dataset.token, t.dataset.mark); if (r.ok) s.render(); return r; },
   'hotbar-use': (s, t, e) => hotbar.useHotbarSlot(s.document, t.dataset.hotbarSlot, e),
+  'hotbar-undo': (s, t) => s.undoList.undo(t.dataset.undo),
   'item-favorite': (s, t) => items.toggleFavorite(s.document, t.dataset.id),
   'slot-open': (s, t) => items.openItemSheet(s.document, t.dataset.id),
   'menu-close': s => toggleMenu(s, null),
@@ -315,6 +317,7 @@ export function createHubSheetClass(Base) {
       if (next) next.scrollTop = scroll;
       this.applyOpacity();
       applyFilter(content, this.filters[this.tab] ?? '');
+      this._drawUndo(content);
       if (!this._agchBound) {   // listeners live on the stable content element, so bind once
         content.addEventListener?.('change', ev => this._onHubChange(ev));
         content.addEventListener?.('input', ev => {
@@ -373,7 +376,11 @@ export function createHubSheetClass(Base) {
     _onContextMenu(event) {
       if (event.target?.closest?.('.agch-embed')) return null;
       const quick = event.target?.closest?.('.agch-quick__slot.is-filled');
-      if (quick) { event.preventDefault(); event.stopPropagation(); return hotbar.clearHotbarSlot(this.document, quick.dataset.hotbarSlot).then(report); }
+      if (quick) {
+        event.preventDefault(); event.stopPropagation();
+        const actor = this.document;
+        return hotbar.clearHotbarSlot(actor, quick.dataset.hotbarSlot).then(r => { if (r?.ok) this.undoList.add(actor, r.result); return report(r); });
+      }
       const filled = event.target?.closest?.('[data-action="slot-open"]');
       const slot = filled ?? event.target?.closest?.('[data-action="slot-menu"]');
       if (slot) {
@@ -425,9 +432,21 @@ export function createHubSheetClass(Base) {
       return v;
     }
 
-    /** Partner views are unmounted when the sheet closes. */
+    /** Pending quick-bar Undo notices (5 seconds each); redrawn over the content when one is added, used or expires. */
+    get undoList() {
+      return this._undo ??= hotbar.createUndoList({onChange: () => this._drawUndo()});
+    }
+    _drawUndo(content = this.element?.querySelector?.('.window-content')) {
+      if (!content) return;
+      content.querySelector?.('.agch-undo')?.remove?.();
+      const html = undoNoticesHtml(this._undo?.list());
+      if (html) content.insertAdjacentHTML?.('beforeend', html);
+    }
+
+    /** Partner views are unmounted when the sheet closes; pending undos are dropped (the clears stand). */
     _onClose(options) {
       unmountEmbeds(this._embeds);
+      this._undo?.clear();
       return super._onClose?.(options);
     }
 

@@ -55,7 +55,7 @@ Tracking only: nothing is automated.
   - A mark is an ActiveEffect with status `agch-<id>`, no changes, and the rules link in its description.
   - Tokens the player doesn't own are changed by the coordinating GM client after it checks the request (socket; a GM must be connected).
   - The table is `MARKS` in `scripts/marks.mjs`.
-- **Quick bar:** 10 slots per character (flag `hotbar`) for the character's own items or world macros. Click to use; right-click to clear.
+- **Quick bar:** 10 slots per character (flag `hotbar`) for the character's own items or world macros. Click to use; right-click to clear. After a clear, an **Undo** notice shows for 5 seconds (0.26.0): Undo puts that slot back as it was, unless the item or macro is gone or something else was put in the slot meanwhile (it says so); otherwise the clear stands.
 
 ## Player visibility (0.9.0)
 The GM chooses which parts of the Hub players see, so systems can be introduced one at a time: **GM Setup → Player visibility**, one switch per part, plus quick **Everything** and **Core only** buttons (they just set the switches). Default: everything on, so nothing changes until the GM turns something off.
