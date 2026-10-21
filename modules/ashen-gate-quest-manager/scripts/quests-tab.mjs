@@ -14,7 +14,8 @@ export function questRow({source,state}){
  return {id:source.id,name:source.name||source.id,kind:source.objective_kind,kindLabel:KIND_LABELS[source.objective_kind]||source.objective_kind,
   chip:statusChip(source,state),visible:isPlayerVisible(source,state),
   locations:[...new Set([...associatedLocationIds(source),...(state.publicLocationIds||[])])],
-  summary:String(source.public_summary||'')};
+  summary:String(source.public_summary||''),
+  total:(source.objectives||[]).length,done:(source.objectives||[]).filter(o=>state.progress?.[o.key]==='complete').length};
 }
 export const DEFAULT_VIEW=Object.freeze({search:'',type:'all',status:'all',location:'all',visible:'all',sort:'name',group:'status'});
 export function locationOptions(rows){return [...new Set(rows.flatMap(r=>r.locations))].sort();}
@@ -44,5 +45,6 @@ export function listQuestsTab(entries,view={}){
  return {total:all.length,shown:shown.length,groups:groupRows(shown,f.group),locations:locationOptions(all)};
 }
 // Actions that author or manage content. GM Setup must never offer these.
-export const CONTENT_ACTIONS=Object.freeze(['new','gm-select','save-source','save-state','delete','import','export','add-objective','save-assignment','edit-assignment','remove-assignment']);
-export const SETUP_ACTIONS=Object.freeze(['save-player-access','save-pack-ids','toggle-overlay']);
+export const CONTENT_ACTIONS=Object.freeze(['new','gm-select','save-source','save-state','cancel-edit','clear-filters','delete','import','export','add-objective','save-assignment','edit-assignment','remove-assignment']);
+// GM Setup saves every setting with one Save Changes (Player Access included, D4); Cancel puts the form back.
+export const SETUP_ACTIONS=Object.freeze(['save-setup','cancel-setup','toggle-overlay']);

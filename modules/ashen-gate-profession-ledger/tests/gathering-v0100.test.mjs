@@ -331,12 +331,15 @@ test('GM-initiated: success by 5+ gives the rare bundle instead; failure gives n
  let out=await _test.resolveGather(s.id,{total:16,choice:'tool:herb'});
  assert.equal(out.outcome.result,'rare');assert.equal(out.reward.noRareFallback,true);assert.equal(herbTotal(tarra),1);
  assert.match(chats.at(-1).content,/no rare material, so it gave its common bundle/);
+ assert.match(chats.at(-1).content,/Success by 5\+<\/strong> <span class="ag-rarity-badge" data-rarity="common">Quality: Common<\/span>/,'D6: the common bundle it gave is badged Common');
+ assert.doesNotMatch(chats.at(-1).content,/rare bundle\)/);
  // Rare bundle replaces the common one.
  locs[0].resources.push({id:'n6',label:'Rich patch',skill:'Herbalism',tier:2,materialId:'MAT-TG-HERB',rareMaterialId:'MAT-TG-RARE',quantity:3,rareQuantity:1,finite:true,visible:true});
  s=await _test.startGather({node:_test.gatherLocations().locations[0].nodes.find(x=>x.id==='n6'),leadId:'tarra'});
  out=await _test.resolveGather(s.id,{total:17,choice:'tool:herb'});
  assert.equal(out.outcome.result,'rare');assert.equal(herbTotal(tarra),1,'no common herb as well');
  assert.equal(tarra.items.find(i=>i.name==='[TEST] Rare Herb').system.quantity,1);
+ assert.match(chats.at(-1).content,/<span class="ag-rarity-badge" data-rarity="rare">Quality: Rare<\/span>/,'D6: a rare bundle uses the rare colour');
  // Failure on a non-finite node.
  const n4=_test.gatherLocations().locations[0].nodes.find(x=>x.id==='n4');
  s=await _test.startGather({node:n4,leadId:'tarra'});

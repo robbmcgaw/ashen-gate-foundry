@@ -202,7 +202,8 @@ test('Location node: success gives the Common bundle plus the Exotic, on one car
  assert.deepEqual(out.awards.map(a=>a.kind),['common','exotic']);
  assert.equal(chats.length,before+1,'one chat card');
  const card=chats.at(-1);
- assert.match(card.content,/gathered 2 × \[TEST\] Herb and 1 × \[TEST\] Phoenix Ash/);assert.match(card.content,/Exotic find:<\/strong> 1 × \[TEST\] Phoenix Ash/);
+ assert.match(card.content,/gathered 2 × \[TEST\] Herb and 1 × \[TEST\] Phoenix Ash/);assert.match(card.content,/Exotic find:<\/strong> 1 × \[TEST\] Phoenix Ash <span class="ag-rarity-badge" data-rarity="veryRare">Quality: Exotic<\/span>/,'D6: Exotic uses the very rare colour');
+ assert.match(card.content,/data-rarity="common">Quality: Common/,'the common bundle beside it');assert.doesNotMatch(card.content,/data-rarity="artifact"|Rarity:/);
  assert.equal(card.flags['ashen-gate-profession-ledger'].xp.kind,'gather','one XP opportunity on the one card');
  assert.equal(qty('MAT-TG-HERB'),2);assert.equal(qty('MAT-TG-PHOENIX'),1);
  // Success by 5+ again: Rare instead of Common, and the Exotic stacks onto the one held.
@@ -289,7 +290,7 @@ test('GM ad-hoc editor: Exotic picker filters by profession, tier and rarity; ad
  const pick=h.slice(h.indexOf('agl-exotic-filters'));
  assert.match(pick,/\[TEST\] Star Moss/);assert.doesNotMatch(pick,/Phoenix Ash/,'tier 3 is above a tier 1 node');
  assert.doesNotMatch(pick,/Deep Ore/,'Mining Exotic at a Herbalism node');assert.doesNotMatch(pick,/Rare Herb|>\[TEST\] Herb</,'only Exotic quality');
- assert.match(pick,/\[TEST\] Draft Exotic<\/strong>.*Draft: approve it in General Manager first.*data-id="MAT-TG-DRAFTX" disabled/s,'draft shown, disabled, with the fix');
+ assert.match(pick,/is-off" aria-disabled="true"><span class="ag-row__main"><span class="ag-row__title">\[TEST\] Draft Exotic<\/span>.*Draft: approve it in General Manager first.*Quality: Exotic.*data-id="MAT-TG-DRAFTX" disabled/s,'draft shown, disabled, with the fix');
  await assert.doesNotReject(()=>app._click('adhoc-exotic-add','MAT-TG-DRAFTX'));assert.deepEqual(app.gather.adhoc.exotics,[],'a draft cannot be added');
  app.gather.pick.tier='any';h=await html('gathering');assert.match(h.slice(h.indexOf('agl-exotic-filters')),/Phoenix Ash/);
  await app._click('adhoc-exotic-add','MAT-TG-PHOENIX');

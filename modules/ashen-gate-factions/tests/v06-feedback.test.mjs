@@ -7,7 +7,7 @@ const code=readFileSync(new URL('../scripts/module.mjs',import.meta.url),'utf8')
 const template=readFileSync(new URL('../templates/dashboard.hbs',import.meta.url),'utf8');
 const source=()=>makeFaction({id:'FACTION-PLAYTEST-TEST',trackId:'RENOWN-PLAYTEST-TEST',name:'Secret Herald',leader:'Hidden Captain',public_role:'Protects a trade road.'});
 test('Module actually requests a Foundry socket namespace for player-to-GM messages',()=>{
- assert.equal(manifest.id,'ashen-gate-factions');assert.equal(manifest.version,'0.12.0');assert.equal(manifest.socket,true);
+ assert.equal(manifest.id,'ashen-gate-factions');assert.equal(manifest.version,'0.13.0');assert.equal(manifest.socket,true);
  assert.match(code,/game\.socket\.on\(SOCKET/);assert.match(code,/game\.socket\.emit\(SOCKET/);
 });
 test('Player action receipt is correlated to request ID and user rather than broadcasting private action data',()=>{
@@ -52,14 +52,14 @@ test('Player projections remove Objective metadata and hidden UUIDs',()=>{
 test('GM field reveals and player-access controls are separately permission-gated',()=>{
  assert.match(code,/static async saveFieldReveals\(\)\{try\{\s*assertGM/);
  assert.match(template,/data-action="saveFieldReveals"/);
- assert.match(code,/static async savePlayerAccess\(\)\{try\{\s*assertGM/);
+ assert.match(code,/static async saveSetup\(\)\{try\{\s*assertGM/);
 });
 test('Group disclosure action is offered from Player view only, not both tabs',()=>{
  assert.match(template,/\{\{#if tabPlayer\}\}\{\{#unless isGM\}\}\{\{#if detail\.canShare\}\}/);
  assert.match(code,/sendClientAction\(request\)/);
 });
 test('GM UI has collapsible sections, readable actor picker and no invalid Handlebars tags',()=>{
- assert.equal((template.match(/<details class="agf-config-section"/g)||[]).length,10);
+ assert.equal((template.match(/<details class="agf-config-section"/g)||[]).length,11);
  assert.doesNotMatch(template,/\{\{\/details\}\}/);
  assert.match(template,/agf-selected-character/);assert.match(code,/scrollTop=scroll/);
 });
@@ -80,6 +80,6 @@ test('Only an Actor owner sees the granted embedded Item link; original source p
  assert.match(code,/function grantedItemUuid\(claim,user,actorIds\)/);
  assert.match(code,/claim\?\.request_id/);
  assert.match(code,/canActor\(user,actor\)/);
- assert.match(template,/View granted Item/);
+ assert.match(template,/View granted item/);
  assert.match(code,/doc\.parent\?\.documentName==='Actor'/);
 });

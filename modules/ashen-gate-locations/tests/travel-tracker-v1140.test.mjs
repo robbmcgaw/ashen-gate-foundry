@@ -66,8 +66,8 @@ test('strip: one marker per leg, current highlighted, hazards outlined; a bar fo
   const html = stripHTML({leg: 3, legs: 8, hazardLegs: [2]});
   assert.equal((html.match(/<li/g) ?? []).length, 8);
   assert.equal((html.match(/is-done/g) ?? []).length, 3);
-  assert.match(html, /<li class="is-done is-current" title="Leg 3">/);
-  assert.match(html, /<li class="is-done is-hazard" title="Leg 2: hazard">/);
+  assert.match(html, /<li class="is-done is-current" data-tooltip="Leg 3" data-tooltip-class="ag-tooltip">/);
+  assert.match(html, /<li class="is-done is-hazard" data-tooltip="Leg 2: hazard" data-tooltip-class="ag-tooltip">/);
   assert.match(html, /aria-label="Leg 3 of 8"/);
   assert.match(stripHTML({leg: 0, legs: 8}), /^(?![\s\S]*is-current)/, 'not set out: nothing current');
   const bar = stripHTML({leg: 25, legs: STRIP_MAX_MARKERS + 10});
@@ -81,15 +81,15 @@ test('GM view: chance, safe run, km, Roll next leg; a hazard disables the roll a
   const names = {'LOC-A': '[TEST] Harbor', 'LOC-B': '[TEST] Mill'};
   const base = {routeName: '[TEST] Old <Road>', legKm: 5, nameOf: id => names[id], version: '1.14.0'};
   let html = gmTrackerHTML({...base, journey: j});
-  for (const re of [/Ashen Gate \| Travel/, /v1\.14\.0/, /\[TEST\] Old &lt;Road&gt;/, /\[TEST\] Harbor → \[TEST\] Mill/, /Leg 3 of 8, 15 of 38 km/,
-    /Hazard chance <strong>80%<\/strong> · 3 safe legs in a row/, /data-travel="next-leg" title="d100 against the hazard chance">/, /data-travel="pause"/, /data-travel="end"/, /data-travel="open-route"/, /data-travel-opacity/])
+  for (const re of [/<span class="ag-header__brand">Ashen Gate<\/span> \| Travel/, /v1\.14\.0/, /\[TEST\] Old &lt;Road&gt;/, /\[TEST\] Harbor → \[TEST\] Mill/, /Leg 3 of 8, 15 of 38 km/,
+    /Hazard chance <strong>80%<\/strong> · 3 safe legs in a row/, /data-travel="next-leg" data-tooltip="d100 against the hazard chance" data-tooltip-class="ag-tooltip">/, /data-travel="pause"/, /data-travel="end"/, /data-travel="open-route"/, /data-travel-opacity/])
     assert.match(html, re);
   j = setHazardResult(nextLeg(j, rolls(5)).journey, {text: '[TEST] Wolves', tableMissing: false});
   html = gmTrackerHTML({...base, journey: j});
   assert.match(html, /Hazard on leg 4[\s\S]*\[TEST\] Wolves[\s\S]*Rolled 5 vs 80%/);
   for (const a of ['reroll', 'dismiss', 'share']) assert.match(html, new RegExp(`data-travel="${a}"`));
-  assert.match(html, /data-travel="next-leg" title="Deal with the hazard first" disabled/);
-  assert.match(gmTrackerHTML({...base, journey: pauseJourney(resolveHazard(j, 'dismissed'))}), /Paused[\s\S]*data-travel="next-leg" title="Resume the journey first" disabled[\s\S]*data-travel="resume"/);
+  assert.match(html, /data-travel="next-leg" disabled>[\s\S]*?<\/button><p class="agl-hint agl-travel__why">Deal with the hazard first<\/p>/, 'a disabled button shows why as visible text');
+  assert.match(gmTrackerHTML({...base, journey: pauseJourney(resolveHazard(j, 'dismissed'))}), /Paused[\s\S]*data-travel="next-leg" disabled>[\s\S]*?Resume the journey first<\/p>[\s\S]*data-travel="resume"/);
   assert.match(gmTrackerHTML({...base, journey: null}), /No journey yet/);
 });
 
