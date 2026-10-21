@@ -8,7 +8,7 @@ Module ID `ashen-gate-skill-trees` · Foundry V14 · dnd5e. Progression trees (g
 - **Unlocking adds the perk to the sheet.** It spends the character's points and creates a tagged copy of the perk on the Actor. A player's unlock is checked and written by the active GM's client (a GM must be logged in). Refund and Reset (GM) return the points and remove the tagged Item.
 - **Profession trees** get 1 point per profession level from the Profession Ledger (16 max; 24 perks per tree). Players pick; the GM can remove, grant (override) or keep perks. The Ledger owns XP and level.
 - **Graph.** Arrows run from a prerequisite to the perk it opens; dashed arrows marked OR mean any one of the group; red dotted lines mean you cannot take both. The canvas scrolls and zooms (Ctrl + mouse wheel, drag to pan); on narrow windows the sidebar becomes a drawer opened with **Menu**. **Tree as a list** gives the same information as text.
-- **Tabs:** the tree view, **Tree Library** (GM: New Tree, Export Selected / All Trees, Saved data check, Give Missing Perks, Publish Player View, Backup Actor Tree Progress) and **GM Setup** (GM: Player Access, Initialize GM Storage on a fresh world, Strain bands and config, Developer Tools with the `[AG QA]` test fixtures).
+- **Tabs:** the tree view (with **Push** for an unlocked Cinder power), **Tree Library** (GM: New Tree, Export Selected / All Trees, Saved data check, Give Missing Perks, Publish Player View, Backup Actor Tree Progress) **Cinders** (GM: New Cinder, Bind, Transfer, Unbind, Move existing Cinder progress, Check and Repair) and **GM Setup** (GM: Player Access, Initialize GM Storage on a fresh world, Strain bands and config, Developer Tools with the `[AG QA]` test fixtures).
 - Points are awarded by the GM per tree. Players see a published, sanitized copy of the trees; GM-only nodes never reach them.
 
 ## Relation to other modules
@@ -17,7 +17,7 @@ Independent. General Manager owns import: tree files (`ag-skill-trees/0.3`, 0.2 
 
 ## Public API
 
-`game.modules.get('ashen-gate-skill-trees').api`: `open`, `playerAccess` (`ag-player-access/1`), `listTrees`, `actorProgress`, `pointsSummary`, `unlock`, `embed.mount`, `strain` (0.15.0), and GM-only `grantPoints`, `refund`, `resetTree`, `giveMissingPerks`, `publish`, `previewTreeImport`, `importTrees`.
+`game.modules.get('ashen-gate-skill-trees').api`: `open`, `playerAccess` (`ag-player-access/1`), `listTrees`, `actorProgress`, `pointsSummary`, `unlock`, `embed.mount`, `strain` (0.15.0), `cinder` (0.16.0), and GM-only `grantPoints`, `refund`, `resetTree`, `giveMissingPerks`, `publish`, `previewTreeImport`, `importTrees`.
 
 ### `pointsSummary(actor)` (0.13.0)
 
@@ -53,6 +53,71 @@ if (api?.embed?.mount) {
 - Returns `{unmount(), refresh()}`. It refreshes itself when the character, the published trees, Player Access or the Ledger level change, and unmounts itself if the element has left the page.
 - **Permission:** the GM, or the Actor's **Owner** (same as `pointsSummary`). Anyone else sees "Only <name>'s owner and the GM can see this."; players see "The GM has hidden Skill Trees." while Player Access is off. Players see the published projection only (unrevealed nodes are left out). **Unlock** uses the window's own confirm and checks: the GM unlocks directly; a player's unlock is checked again and carried out by the GM client, exactly as in the window.
 
+### `api.cinder` — Cinders, Push and Backfire (0.16.0)
+
+A **Cinder** is made from a Cinder definition (`MUT-*`, entity type `Mutation`). It has its own id (`cinst_…`), a bearer and its own progression (the 13-point Cinder wallet and its unlocks), which move with it. Manage Cinders in **Skill Trees → Cinders** (GM).
+
+```js
+const cinder = game.modules.get('ashen-gate-skill-trees')?.api?.cinder;
+if (cinder?.contract === 'ag-cinder/1') {
+  cinder.list(actor);    // the Cinders this character bears, their Push-able powers and modes with cost and chance
+  cinder.previewPush(actor, instanceId, 'POWER-…', 'amplify');
+  await cinder.push(actor, 'POWER-…', 'amplify');   // GM: done here; owner: rolled and recorded by the GM client
+}
+```
+
+- `list(actor)` → `[{instanceId, definitionId, name, awarded, unlocks, powers:[{powerId, name, itemId, standard, modes:[{id, label, effect, cost, after, chance, guaranteed, modifiers}]}]}]`. Allowed for the GM or the Actor's owner. It reads the character's own power Items, so players see only their own Cinder.
+- `push(actor, powerId, modeId)` → the result `{opId, plan, strain:{from,to,overflow}, backfire:{chance, check, backfire, category, categoryRoll, effectRoll, entry, note}, effectApplied, effectError}` (players get `{opId, backfire}`). Order of play:
+  1. check (bearer, power unlocked, mode available);
+  2. cost = mode `strain_cost` + `push.cost` modifiers, at least 1;
+  3. Backfire chance from the Strain **after** the gain, plus `backfire.chance` modifiers; 100% from `guarantee_at`;
+  4. every roll: d100 (skipped at 100%), then the category roll, then the effect roll;
+  5. the Strain write (if it fails, nothing else happens);
+  6. the chat card;
+  7. the effect (if it can't be applied, the card tells the GM).
+- GM only: `instances()`, `create(definitionId)`, `bind(instanceId, actor)`, `transfer(instanceId, actor)`, `unbind(instanceId)`, `migrate({dryRun})`, `report()`, `repair()`. Anyone else gets `Error('GM only')`.
+- `validateDefinition(record)` → `{errors, warnings}` for Mutation / Power / BackfireTable records (used by General Manager and `scripts/validate-content.mjs`).
+- Hook `ashenGateCinder.changed` `{kind: 'create'|'bind'|'transfer'|'unbind'|'progress', instanceId, definitionId, actorId, fromActorId?}`.
+
+#### Content blocks (imported through General Manager)
+
+On a `MUT-*` record (`entity_type: "Mutation"`):
+
+```json
+"cinder": {"schema": "ag-cinder/0.1", "backfire_categories": ["BF-TEST-BODY", "BF-TEST-MIND"]}
+```
+
+On each `POWER-*` record (`entity_type: "Power"`), one per Cinder tree node:
+
+```json
+"power": {"schema": "ag-power/0.1", "kind": "power",
+  "standard": {"summary": "[TEST] What a normal use does."},
+  "push_modes": [
+    {"id": "amplify", "label": "[TEST] Amplify", "strain_cost": 2, "effect": "[TEST] What the Push does."},
+    {"id": "overreach", "label": "[TEST] Overreach", "strain_cost": 3, "requires": {"powers": ["POWER-TEST-REACH"]}, "backfire_categories": ["BF-TEST-BODY"]}],
+  "modifiers": []}
+```
+
+- `kind`: `power` (can be pushed) or `enhancement` (a perk: modifiers only, or a requirement that opens a Push mode).
+- `modifiers`: `[{target, value, powers?, modes?, stack?, label}]`.
+  - `target`: `push.cost`, `backfire.chance` (percentage points), `backfire.severity` (added to the effect roll) or `strain.recovery`.
+  - `value`: a whole number from −100 to 100, not 0.
+  - `powers` / `modes`: limit it to those POWER-* ids / mode ids (empty means all).
+  - Modifiers with the same `stack` name don't add up; only the largest counts.
+  - `label` is shown to players.
+- Backfire categories come from the mode's `backfire_categories`, else the power's, else the Cinder's.
+
+A Backfire category is a `BF-*` record (`entity_type: "BackfireTable"`, usually a GM-only JournalEntry):
+
+```json
+"backfire": {"schema": "ag-backfire/0.1", "label": "[TEST] Body", "weight": 1, "entries": [
+  {"id": "jolt", "text": "[TEST] A brief jolt.", "effect": {"status": "poisoned", "rounds": 1}},
+  {"id": "ache", "text": "[TEST] A lasting ache. The GM adjudicates."}]}
+```
+
+- Entries are ordered **mildest first**; a higher effect roll is worse. The category roll uses `weight` (default 1).
+- `effect` is optional: a dnd5e status id plus `rounds` (1–100) or `minutes` (1–1440), applied as a temporary ActiveEffect. Not allowed: `dead`, `unconscious`, `exhaustion`, `petrified`, `sleeping`, `stable`, `transformed`, any other field (no HP changes), or no duration.
+
 ### `api.strain` — shared Strain (0.15.0)
 
 One Strain value per character. Every system that adds or removes Strain (Cinder pushes, crafting, hazards, items, spells, consumables, blessings, rests) goes through this API; there are no other Strain pools. Strain is a separate part of Skill Trees: it is saved under its own flag name, `flags.ashen-gate-strain.state` (`{value, history}`), not under the Skill Trees flag.
@@ -85,14 +150,16 @@ GM Setup → Strain → **Import Strain Config**, or later through General Manag
  "allow_prevention_at_guarantee": false,
  "bands": [{"from":0,"to":0,"label":"[TEST] Calm"}, {"from":1,"to":9,"label":"[TEST] Uneasy"}, {"from":10,"to":null,"label":"[TEST] Overwhelmed"}],
  "hard_max": null,
- "rest_recovery": {"long": 1, "short": 0}}
+ "rest_recovery": {"long": 1, "short": 0},
+ "effect_roll": {"strain_bonus": {"enabled": true, "from": 5, "per": 2}}}
 ```
 
 - `backfire_schedule[i]`: Backfire % at Strain i (whole numbers 0–100, never going down); Strain above the last entry uses the last one. From `guarantee_at` it is 100% (modifiers cannot lower it unless `allow_prevention_at_guarantee`).
 - `normal_use_backfire_at`: from this Strain a normal (non-Push) use also backfires (used by Cinder powers in a later version).
 - `bands`: start at 0, no gaps or overlaps; the last band is open-ended (`"to": null`) unless it reaches `hard_max`. Labels up to 60 characters.
 - `hard_max`: `null` (no maximum) or a whole number.
-- `rest_recovery`: Strain removed by a long / short rest.
+- `rest_recovery`: Strain removed by a long / short rest. `strain.recovery` modifiers add to a rest that already recovers Strain.
+- `effect_roll.strain_bonus` (0.16.0): bonus to the Backfire effect roll from Strain: +1 at `from`, +1 more every `per` Strain (default +1 at 5–6, +2 at 7–8, +3 at 9–10, +4 at 11–12 …). `enabled: false` turns it off.
 
 ## Install
 

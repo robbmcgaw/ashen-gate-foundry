@@ -23,10 +23,13 @@ export const DEFAULT_CONFIG = Object.freeze({
     {from: 10, to: null, label: 'Band 6'}
   ].map(Object.freeze)),
   hard_max: null,
-  rest_recovery: Object.freeze({long: 1, short: 0})
+  rest_recovery: Object.freeze({long: 1, short: 0}),
+  // 0.16.0: higher Strain pushes the Backfire effect roll toward the severe end of the table: +1 per `per` Strain from `from`.
+  effect_roll: Object.freeze({strain_bonus: Object.freeze({enabled: true, from: 5, per: 2})})
 });
 export const defaultConfig = () => structuredClone({...DEFAULT_CONFIG, backfire_schedule: [...DEFAULT_CONFIG.backfire_schedule],
-  bands: DEFAULT_CONFIG.bands.map(b => ({...b})), rest_recovery: {...DEFAULT_CONFIG.rest_recovery}});
+  bands: DEFAULT_CONFIG.bands.map(b => ({...b})), rest_recovery: {...DEFAULT_CONFIG.rest_recovery},
+  effect_roll: {strain_bonus: {...DEFAULT_CONFIG.effect_roll.strain_bonus}}});
 
 /** Check a config file. Returns {errors, warnings, config}; config is null when there are errors. Missing fields take the defaults. */
 export function validateConfig(raw) {
@@ -51,6 +54,10 @@ export function validateConfig(raw) {
   if (!plain(c.rest_recovery) || !['long', 'short'].every(k => int(c.rest_recovery[k]) && c.rest_recovery[k] >= 0 && c.rest_recovery[k] <= 100))
     errors.push('rest_recovery needs long and short, whole numbers from 0 to 100');
   else c.rest_recovery = {long: c.rest_recovery.long, short: c.rest_recovery.short};
+  const sb = plain(c.effect_roll) ? c.effect_roll.strain_bonus : null;
+  if (!plain(sb) || typeof sb.enabled !== 'boolean' || !int(sb.from) || sb.from < 0 || !int(sb.per) || sb.per < 1 || sb.per > 100)
+    errors.push('effect_roll.strain_bonus needs enabled (true/false), from (0 or more) and per (1 to 100)');
+  else c.effect_roll = {strain_bonus: {enabled: sb.enabled, from: sb.from, per: sb.per}};
 
   // Bands: from 0 upward with no gaps or overlaps; the last one may be open-ended (to: null).
   const b = c.bands;
@@ -152,6 +159,13 @@ export function applyChange(rawState, config, {op, amount, source, reason, opId 
   const entry = {at, by, op, delta, to: target, source: src, reason: why, ...(overflow ? {overflow} : {}), ...(opId ? {opId} : {})};
   const history = [...state.history, entry].slice(-STRAIN_HISTORY_LIMIT);
   return {state: {value: target, history}, result: {from, to: target, delta, overflow, duplicate: false, changed: true}};
+}
+
+/** Bonus to the Backfire effect roll from Strain: +1 at `from`, +1 more every `per` Strain after (default 5–6: +1, 7–8: +2, 9–10: +3). */
+export function strainEffectBonus(config, value) {
+  const sb = (config ?? DEFAULT_CONFIG).effect_roll?.strain_bonus;
+  if (!sb?.enabled || !int(value) || value < sb.from) return 0;
+  return Math.floor((value - sb.from) / sb.per) + 1;
 }
 
 /** Strain removed by a rest of this type ('long' | 'short'), never below 0. bonus: later recovery modifiers. */

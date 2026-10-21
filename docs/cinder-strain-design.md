@@ -1,6 +1,6 @@
 # Cinder instances, Strain, Push and Backfire — design (DRAFT, lean)
 
-Status: **Approved lean design.** PR 1 (Skill Trees 0.15.0, Strain) built; the rest not yet. Revision 5 adds the Hub Strain bar and Studio's decisions on the hard maximum and item recovery. Revision 4: re-scoped to Robb's lean picture — "just a value with some logic to roll and spit out the consequence in chat, maybe apply an effect if the consequence can have one." Campaign rules below are configurable defaults; campaign names (Cinder types, band names, powers) arrive through content import, never in code. Examples use synthetic `[TEST]` data.
+Status: **Approved lean design.** PR 1 (Skill Trees 0.15.0, Strain) and PR 2 (Skill Trees 0.16.0, Cinders, Push, Backfire) built. Revision 6: two-roll Backfire (category, then effect, Strain-weighted), starting point once per Cinder, transfer included; the Skill Trees README holds the exact content blocks. Revision 4: re-scoped to Robb's lean picture — "just a value with some logic to roll and spit out the consequence in chat, maybe apply an effect if the consequence can have one." Campaign rules below are configurable defaults; campaign names (Cinder types, band names, powers) arrive through content import, never in code. Examples use synthetic `[TEST]` data.
 
 Target: Foundry V14 on The Forge, dnd5e 6.0.6 (2024 rules).
 
@@ -35,10 +35,9 @@ Any number of definitions; nothing listed in code.
   "standard": {"summary": "[TEST] Normal use.", "uses": {"max": 2, "recovery": "long_rest"}},
   "push_modes": [
     {"id": "amplify", "label": "[TEST] Amplify", "strain_cost": 2,
-     "effect": "[TEST] What the Push does.", "backfire_table": "BF-TEST-GENERIC",
-     "requires": {"powers": []}},
+     "effect": "[TEST] What the Push does.", "requires": {"powers": []}},
     {"id": "overreach", "label": "[TEST] Overreach", "strain_cost": 3,
-     "effect": "[TEST] Use beyond normal limits.", "backfire_table": "BF-TEST-GENERIC",
+     "effect": "[TEST] Use beyond normal limits.", "backfire_categories": ["BF-TEST-BODY"],
      "requires": {"powers": ["POWER-TEST-EMBER-REACH"]}}
   ],
   "modifiers": []
@@ -49,13 +48,13 @@ Any number of definitions; nothing listed in code.
 - A Push mode with `requires.powers` appears once those nodes are unlocked on the Cinder — that is how a perk adds a Push option, without a modifier.
 - `effect` text is shown in chat; the engine does not auto-apply damage or healing.
 
-**Backfire table** — `BF-*` (`entity_type: "BackfireTable"`):
+**Backfire category** — `BF-*` (`entity_type: "BackfireTable"`), a table ordered mildest first. Categories are listed on the Cinder (`cinder.backfire_categories`), and a power or Push mode can override the list:
 
 ```json
-"backfire": {"schema": "ag-backfire/0.1", "entries": [
-  {"id": "jolt",  "severity": 1, "weight": 1, "text": "[TEST] A brief shock.", "effect": {"status": "poisoned", "rounds": 1}},
-  {"id": "drain", "severity": 2, "text": "[TEST] Lose a use of this power until a rest."},
-  {"id": "omen",  "severity": 3, "text": "[TEST] Something notices. GM adjudicates."}
+"backfire": {"schema": "ag-backfire/0.1", "label": "[TEST] Body", "weight": 1, "entries": [
+  {"id": "jolt",  "text": "[TEST] A brief shock.", "effect": {"status": "poisoned", "rounds": 1}},
+  {"id": "drain", "text": "[TEST] Lose a use of this power until a rest."},
+  {"id": "omen",  "text": "[TEST] Something notices. GM adjudicates."}
 ]}
 ```
 
@@ -72,8 +71,7 @@ Any number of definitions; nothing listed in code.
  "bands": [{"from":0,"to":0,"label":"Band 0"}, {"from":1,"to":2,"label":"Band 1"}, "…", {"from":10,"to":null,"label":"Band 6"}],
  "hard_max": null,
  "rest_recovery": {"long": 1, "short": 0},
- "severity_roll": {"enabled": true, "formula": "1d4"},
- "initial_cinder_points": 1}
+ "effect_roll": {"strain_bonus": {"enabled": true, "from": 5, "per": 2}}}
 ```
 
 Shipped defaults: the schedule above and neutral labels `Band 0…Band 6`; the campaign band names come in this file from the private content repo. Strain above the last schedule entry uses the last entry. No cap at 10; `hard_max` optional.
@@ -121,7 +119,7 @@ On a POWER definition, active while that node is unlocked on the Cinder the char
 |---|---|---|
 | `push.cost` | Strain cost of matching Push modes | final cost ≥ 1 |
 | `backfire.chance` | percentage points on the scheduled chance | 0–100; never below 100 at `guarantee_at` unless `allow_prevention_at_guarantee` |
-| `backfire.severity` | added to the severity roll | within the table's range |
+| `backfire.severity` | added to the Backfire effect roll | result within the table |
 | `strain.recovery` | added to rest recovery | ≥ 0 |
 
 All values are added. Modifiers with the same `stack` name don't add up; only the strongest counts. Empty `powers`/`modes` means every power/mode of that Cinder. The Push preview lists each modifier used. Nothing lowers raw Strain except a recovery or a GM `remove`.
@@ -134,7 +132,7 @@ All on the active GM client (players' clicks are relayed by the Skill Trees sock
 1. Check: bearer, power unlocked, mode available, Strain part enabled.
 2. `cost = max(1, mode.strain_cost + push.cost mods)`; `after = value + cost` (capped at `hard_max` when set, excess noted).
 3. `chance = schedule[after] + backfire.chance mods`; at `after ≥ guarantee_at` the chance is 100 (unless prevention is allowed).
-4. Roll everything: d100 (`≤ chance` = Backfire; 100% is automatic); on Backfire the optional severity roll (+ severity mods), then the consequence roll among entries of that severity (weighted).
+4. Roll everything: d100 (`≤ chance` = Backfire; 100% is automatic). On a Backfire: the **category roll** picks one of the power's Backfire tables (weighted), then the **effect roll** `1d(entries) + Strain bonus + backfire.severity mods`, kept within the table (higher = more severe). Default Strain bonus: +1 at Strain 5, +1 more every 2 Strain (`effect_roll.strain_bonus`).
 5. Write Strain once (`add`, with the Push's `opId`). If this fails, nothing else happens and the player is told the Push did not go through.
 6. Post one chat card: power, mode, effect text, Strain before → after and band, chance, the rolls, the consequence text.
 7. If the consequence has an `effect`, apply it to the character. If that fails, Strain stays (the Push happened) and the card tells the GM to apply it by hand.
@@ -149,7 +147,7 @@ All on the active GM client (players' clicks are relayed by the Skill Trees sock
 
 `cinder.create(definitionId)`, `assign(instanceId, actor)`, `transfer(instanceId, toActor)`, `unbind(instanceId)`.
 - A Cinder is **bound**: players cannot release it; only the GM unbinds or transfers it when the story allows. No attunement step.
-- First binding awards `initial_cinder_points` (1) once per Cinder (grant key `initial`).
+- First binding awards **Starting Cinder points** (Skill Trees setting, default 1) once per Cinder (grant key `initial`, inside the 13-point wallet). A transferred Cinder keeps its points and unlocks and gets none. **Cinders per character** (setting, default 1).
 - Transfer: give the Cinder's POWER Items to the new bearer (reusing any already tagged), save the new bearer, then remove them from the old one. If something fails part-way, the GM sees which step; Tree Library → Saved data check lists missing or orphan POWER Items and **Give Missing Perks** fixes them. Strain is never read or written by a transfer.
 - Deleted bearer → the Cinder becomes `lost` with its progress; the GM can assign it again.
 
@@ -178,7 +176,7 @@ All on the active GM client (players' clicks are relayed by the Skill Trees sock
 | a | Recovery | 1 per long rest (confirmed), 0 per short rest; items, spells etc. through the API |
 | b | Past 10 | No cap at 10; every use backfires from 10 |
 | c | Modifiers at 10+ | Apply, but don't prevent (config flag, default off) |
-| d | Consequence | Rolled on the power's table; optional severity roll; GM adjudicates text |
+| d | Consequence | Two rolls: category, then effect on that table (mildest first); higher Strain pushes the effect roll worse (on by default); GM adjudicates text |
 | e | Starting points | 1 when the Cinder is gained |
 | f | Binding | Bound; GM-only unbind/transfer; no attunement step |
 | g | Normal use | At 10 or above, any use backfires automatically; only a Push adds Strain |
@@ -187,10 +185,7 @@ All on the active GM client (players' clicks are relayed by the Skill Trees sock
 | — | Item recovery | API only for now |
 | — | Hub | A Strain bar near HP / hit dice / exhaustion, showing over-10 clearly, band name and Backfire %; GM adjusts |
 
-Still to confirm:
-3. Severity roll: `1d4` picks severity 1–4, then the consequence is rolled within that severity. Or should severity follow the Strain band?
-4. The starting point is once per Cinder (not again for each new bearer) and counts inside the 13-point wallet.
-7. Transfer leaves Strain and Backfire conditions with the old bearer.
+Confirmed since: starting point once per Cinder at first bind; transfer leaves Strain and conditions with the previous bearer; transfer is in PR 2 (cost: one GM operation on top of bind/unbind, about 150 lines plus tests).
 
 ## 10. Build plan
 

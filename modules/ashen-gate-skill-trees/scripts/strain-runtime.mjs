@@ -6,7 +6,7 @@ export const STRAIN_SETTING='strainConfig';
 export const STRAIN_HOOK='ashenGateStrain.changed';
 const CONFIG_ROW={id:'STRAIN-CONFIG',name:'Strain config'};
 
-export function createStrain({module,onConfigChange=()=>{}}){
+export function createStrain({module,onConfigChange=()=>{},recoveryBonus=()=>0}){
   const config=()=>normalizeConfig(game.settings.get(module,STRAIN_SETTING));
   const readState=actor=>normalizeState(actor?.flags?.[STRAIN_SCOPE]?.state);
   const requireReader=actor=>{
@@ -60,7 +60,10 @@ export function createStrain({module,onConfigChange=()=>{}}){
     const actor=game.actors?.get?.(message.speaker?.actor);if(!actor)return null;
     const author=message.author;
     if(author&&!author.isGM&&actor.testUserPermission?.(author,'OWNER')!==true)return null;
-    const amount=restRecovery(config(),type);
+    // strain.recovery modifiers (e.g. from Cinder perks) add to a rest that already recovers Strain.
+    const base=config().rest_recovery[type]??0;
+    let bonus=0;if(base>0){try{bonus=Number(recoveryBonus(actor))||0;}catch(error){console.error(`[${module}] Strain recovery bonus failed`,error);}}
+    const amount=restRecovery(config(),type,bonus);
     if(amount<1||readState(actor).value<1)return null;
     try{
       return await change(actor,'remove',amount,{source:{module,kind:`rest_${type}`,ref:message.id},reason:type==='long'?'Long rest':'Short rest',opId:`rest:${message.id}`});
