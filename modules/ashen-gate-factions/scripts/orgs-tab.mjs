@@ -10,11 +10,13 @@ export function visibilityChip(faction){
  if(d.party)return 'Revealed to party';
  return (d.actors??[]).length?'Characters only':'Hidden';
 }
+/** Kit badge modifier for a visibility chip: Revealed ok, Characters only accent, Hidden plain. */
+export function chipBadge(chip){return chip==='Revealed to party'?'ag-badge--ok':chip==='Characters only'?'ag-badge--accent':'';}
 /** One row per faction: everything the GM roster shows, hidden or not. */
 export function orgRow({faction,score=0,rank='',folderName=''}){
  const d=faction.discovery??{};
  return {id:faction.id,name:faction.name||faction.id,leader:faction.leader||'',tags:[...(faction.tags??[])],
-  chip:visibilityChip(faction),characters:(d.actors??[]).length,placeholder:Boolean(d.placeholder),
+  chip:visibilityChip(faction),badgeClass:chipBadge(visibilityChip(faction)),characters:(d.actors??[]).length,placeholder:Boolean(d.placeholder),
   selective:faction.field_reveals?.mode==='selective',score:Number(score)||0,rank:rank||'',
   folder:folderName||'Other Factions',objectives:objectiveRefs(faction).length};
 }
@@ -41,5 +43,8 @@ export function listOrgsTab(rows,view={}){
  return {total:rows.length,shown:shown.length,groups:groupRows(shown,f.group)};
 }
 // Actions that author or manage content. GM Setup must never offer these.
-export const CONTENT_ACTIONS=Object.freeze(['create','seed','save','award','createFolder','saveFolder','discovery','addEntry','showEntry','addReward','editReward','removeReward','resolveRequest','resetUsage','resetChoice','saveFieldReveals','addObjective','removeObjective','exportAll','importJson']);
-export const SETUP_ACTIONS=Object.freeze(['savePlayerAccess','saveGroupLabel']);
+export const CONTENT_ACTIONS=Object.freeze(['create','save','award','createFolder','saveFolder','discovery','addEntry','showEntry','addReward','editReward','removeReward','resolveRequest','resetUsage','resetChoice','saveFieldReveals','addObjective','removeObjective','exportAll','importJson']);
+// GM Setup saves every setting with one Save Changes (Player Access, damping, group name).
+export const SETUP_ACTIONS=Object.freeze(['saveSetup']);
+// Demo data loaders: only in GM Setup's collapsed Developer Tools.
+export const DEV_ACTIONS=Object.freeze(['seed']);

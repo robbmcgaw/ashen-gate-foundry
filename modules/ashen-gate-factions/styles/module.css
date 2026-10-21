@@ -1,217 +1,159 @@
-.ashen-gate-factions { --agf-gold:var(--ag-accent); --agf-border:var(--ag-border); --agf-muted:var(--ag-muted); --agf-ink:var(--ag-text); color:var(--agf-ink); }
+/* Renown (ashen-gate-factions). Layout and Renown-only parts. Colours, sizes, spacing and shapes come from the
+ * shared kit tokens in styles/ag-ui.css (loaded first), so Manager's skins and the Comfortable size apply here too.
+ * Scoped to the Renown window and the Character Hub embed; never styles body, html or :root. */
 .ashen-gate-factions .window-content { padding:0; overflow:hidden; background:var(--ag-surface); }
-.agf-shell {display:flex; height:100%; min-height:440px; width:100%; font-family:var(--ag-font-body); background:var(--ag-surface); color:var(--agf-ink)}
-.agf-sidebar {width:277px; flex:0 0 277px; display:flex; flex-direction:column; border-right:1px solid var(--agf-border); background:linear-gradient(180deg,var(--ag-surface-raised),var(--ag-surface) 42%); min-height:0}
-.agf-aside-title {padding:24px 18px 14px}.agf-eyebrow {font-size:10px; letter-spacing:2.1px; text-transform:uppercase; color:var(--ag-accent); font-weight:700}.agf-aside-title h2 {font-size:22px; margin:8px 0 4px; font-family:var(--ag-font-display); border:0; color:var(--agf-ink)}.agf-aside-title p {margin:0; font-size:12px; color:var(--agf-muted)}
-/* Sidebar faction entries: Foundry V14 applies a fixed button height globally.
-   Force these multi-line buttons to size to their contents instead. */
-.agf-faction-list {overflow:auto; padding:0 10px 18px; flex:1; min-height:0}
-.agf-shell .agf-faction-list .agf-faction-card {
-  display:flex; flex-direction:column; align-items:stretch; justify-content:center;
-  width:100%; height:auto !important; min-height:68px; max-height:none;
-  padding:10px 12px; margin:0 0 7px; box-sizing:border-box;
-  text-align:left; line-height:1.3; white-space:normal;
-  border:1px solid transparent; background:transparent; border-radius:7px;
-  color:var(--agf-ink); cursor:pointer;
+/* ApplicationV2 has no minimum-size option, so this is the window's one minimum. Narrower than 40rem the list stacks. */
+.application.ashen-gate-factions { min-width:26rem; min-height:30rem; }
+.agf-shell { height:100%; background:var(--ag-surface); color:var(--ag-text); }
+.agf-notice { margin:var(--ag-space-2) var(--ag-space-4) 0; }
+.agf-pane { padding:var(--ag-space-3) var(--ag-space-4); }
+.agf-hint { margin:0; color:var(--ag-muted); font-size:var(--ag-text-sm); font-weight:400; line-height:1.45; }
+.agf-id { font-family:var(--ag-font-mono); font-size:var(--ag-text-xs); font-weight:400; color:var(--ag-muted); overflow-wrap:anywhere; }
+.agf-shell .ag-section__head > .ag-field--inline,
+.agf-shell .ag-toolbar .ag-field--inline { margin:0; }
+.agf-picker select { width:auto; min-width:10rem; max-width:18rem; }
+.agf-subhead { margin:var(--ag-space-3) 0 var(--ag-space-1); }
+
+/* List column (D10): folders with their factions. GMs drag a faction row onto a folder. */
+.agf-folders { padding:var(--ag-space-2); }
+.agf-folder { margin:0 0 var(--ag-space-3); }
+.agf-folder__title,
+.agf-group-title { display:flex; align-items:center; gap:var(--ag-space-2); margin:var(--ag-space-2) var(--ag-space-1); }
+.agf-folder__title > i { color:var(--ag-accent); }
+.agf-folder__count { margin-left:auto; font-variant-numeric:tabular-nums; }
+.agf-group-title .agf-folder__count { margin-left:0; }
+.agf-folder__drop { margin:0 var(--ag-space-1); padding:var(--ag-space-2); border:1px dashed var(--ag-border); border-radius:var(--ag-radius); }
+.agf-row--locked { color:var(--ag-muted); font-style:italic; }
+.agf-row--locked .ag-row__icon { color:var(--ag-muted); }
+
+/* Dossier: the selected faction's name, leader and score above Group and Player. */
+.agf-dossier { display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:space-between; gap:var(--ag-space-3) var(--ag-space-4); padding-bottom:var(--ag-space-3); margin-bottom:var(--ag-space-4); border-bottom:1px solid var(--ag-border); }
+.agf-dossier__text { flex:1 1 18rem; min-width:0; }
+.agf-dossier__name,
+.agf-deity-head__name { margin:var(--ag-space-1) 0; border:0; color:var(--ag-text); font:700 var(--ag-text-xl)/1.2 var(--ag-font-display); overflow-wrap:anywhere; }
+.agf-dossier__leader { margin:0 0 var(--ag-space-1); color:var(--ag-accent); font-weight:600; }
+.agf-dossier__role { margin:0; max-width:60ch; color:var(--ag-muted); }
+.agf-dossier__end { display:flex; flex-wrap:wrap; align-items:flex-start; gap:var(--ag-space-3); }
+.agf-score-box { display:grid; justify-items:center; gap:var(--ag-space-1); min-width:7rem; padding:var(--ag-space-2) var(--ag-space-3); border:1px solid var(--ag-border); border-radius:var(--ag-radius-lg); background:var(--ag-surface-raised); text-align:center; }
+.agf-score-box__value { color:var(--ag-text); font:700 var(--ag-text-xl)/1 var(--ag-font-display); font-variant-numeric:tabular-nums; }
+.agf-score-box__rank { color:var(--ag-accent); font-size:var(--ag-text-sm); font-weight:600; }
+
+/* Standing: meter toward the next rank, rank dots, then one card per milestone (the current one outlined). */
+.agf-standing { display:grid; gap:var(--ag-space-3); margin:0 0 var(--ag-space-4); }
+.agf-standing .ag-steps > li { display:flex; flex-direction:column; padding:0 var(--ag-space-1); overflow-wrap:anywhere; }
+.agf-step__at { font-variant-numeric:tabular-nums; }
+.agf-milestones { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,11rem),1fr)); gap:var(--ag-space-2); }
+.agf-milestone { display:flex; flex-direction:column; gap:var(--ag-space-2); min-width:0; padding:var(--ag-space-2) var(--ag-space-3); border:1px solid var(--ag-border); border-radius:var(--ag-radius); background:var(--ag-surface-raised); }
+.agf-milestone:not(.is-unlocked) { border-style:dashed; background:var(--ag-surface); }
+.agf-milestone.is-active { border-color:var(--ag-accent); box-shadow:inset 0 0 0 1px var(--ag-accent); }
+.agf-milestone__head { display:flex; align-items:flex-start; justify-content:space-between; gap:var(--ag-space-2); }
+.agf-milestone__name { font-size:var(--ag-text-md); font-weight:700; overflow-wrap:anywhere; }
+.agf-milestone__text { margin:0; font-size:var(--ag-text-sm); line-height:1.45; overflow-wrap:anywhere; }
+.agf-reward { display:grid; gap:var(--ag-space-1); padding-top:var(--ag-space-2); border-top:1px solid var(--ag-border); font-size:var(--ag-text-sm); overflow-wrap:anywhere; }
+.agf-reward__name { font-weight:600; }
+.agf-reward.is-locked .agf-reward__name,
+.agf-reward__text { color:var(--ag-muted); }
+.agf-reward__text { margin:0; }
+.agf-reward__state,
+.agf-reward__actions { display:flex; flex-wrap:wrap; align-items:center; gap:var(--ag-space-1); }
+.agf-reward__state:not(:has(*)),
+.agf-reward__actions:not(:has(*)) { display:none; }
+
+/* GM award row inside a player tab (marked GM only). */
+.agf-award__row { display:grid; grid-template-columns:minmax(5rem,7rem) minmax(0,1fr) auto; gap:var(--ag-space-2); align-items:end; }
+.agf-award__row > .ag-field { margin:0; }
+
+/* History and discovered information. */
+.agf-history__delta { min-width:2.5rem; color:var(--ag-accent); font-variant-numeric:tabular-nums; }
+.agf-history__score { color:var(--ag-muted); font-size:var(--ag-text-sm); font-variant-numeric:tabular-nums; }
+.agf-knowledge { padding:var(--ag-space-2) var(--ag-space-3); border:1px solid var(--ag-border); border-radius:var(--ag-radius); overflow-wrap:anywhere; }
+.agf-knowledge__name { color:var(--ag-accent); font-weight:600; }
+.agf-knowledge__text { margin:var(--ag-space-1) 0; line-height:1.45; white-space:pre-wrap; }
+
+/* Organizations roster and GM editors. */
+.agf-rowscore { color:var(--ag-muted); font-size:var(--ag-text-sm); white-space:nowrap; }
+.agf-rowscore strong { color:var(--ag-text); font-variant-numeric:tabular-nums; }
+.agf-shell .ag-row__end { flex:0 1 auto; flex-wrap:wrap; justify-content:flex-end; }
+.agf-shell .ag-row__end > .ag-field { margin:0; }
+.agf-config-section { margin:0 0 var(--ag-space-3); border:1px solid var(--ag-border); border-radius:var(--ag-radius); background:var(--ag-surface-raised); }
+.agf-config-section > summary { display:flex; flex-wrap:wrap; align-items:center; gap:var(--ag-space-2); padding:var(--ag-space-2) var(--ag-space-3); cursor:pointer; font-weight:650; }
+.agf-config-section[open] > summary { border-bottom:1px solid var(--ag-border); }
+.agf-fold { display:grid; gap:var(--ag-space-3); padding:var(--ag-space-3); min-width:0; }
+.agf-fold > .ag-form-grid > .ag-field { margin:0; }
+.agf-fold > .ag-footer { margin:0 calc(-1 * var(--ag-space-3)) calc(-1 * var(--ag-space-3)); border-radius:0 0 var(--ag-radius) var(--ag-radius); }
+.agf-discovery,
+.agf-inline-form { display:flex; flex-wrap:wrap; align-items:center; gap:var(--ag-space-2) var(--ag-space-3); }
+.agf-inline-form { align-items:flex-end; }
+.agf-inline-form > .ag-field { flex:1 1 12rem; margin:0; }
+.agf-inner-section { padding:var(--ag-space-2) var(--ag-space-3); border:1px solid var(--ag-border); border-radius:var(--ag-radius); }
+.agf-inner-section > summary { cursor:pointer; font-weight:600; }
+.agf-level-editor { display:grid; grid-template-columns:1.5rem minmax(6rem,1fr) minmax(5rem,7rem) minmax(7rem,9rem) minmax(10rem,2fr); gap:var(--ag-space-2); align-items:end; margin:var(--ag-space-2) 0; }
+.agf-level-editor > .ag-field { margin:0; }
+.agf-level-editor__key { align-self:center; color:var(--ag-accent); font-weight:700; text-align:center; }
+.agf-level { padding:var(--ag-space-2) 0; }
+.agf-level + .agf-level { border-top:1px solid var(--ag-border); }
+.agf-drop { margin-top:var(--ag-space-2); padding:var(--ag-space-2) var(--ag-space-3); border:1px dashed var(--ag-border-strong); border-radius:var(--ag-radius); }
+.agf-drop > summary { cursor:pointer; color:var(--ag-accent); font-size:var(--ag-text-sm); }
+.agf-drop[open] { display:grid; gap:var(--ag-space-2); }
+.agf-drop .ag-field { margin:0; }
+.agf-drop > .ag-btn { justify-self:start; }
+.agf-fields td { vertical-align:middle; }
+
+/* Pantheon (full width, D10): deity gallery, then the open deity's card. */
+.agf-deity-grid { grid-template-columns:repeat(auto-fill,minmax(min(100%,10rem),1fr)); }
+.agf-shell .agf-deity-tile { flex-direction:column; align-items:center; justify-content:flex-start; gap:var(--ag-space-1); padding:var(--ag-space-3) var(--ag-space-2); border-color:var(--ag-border); border-radius:var(--ag-radius-lg); background:radial-gradient(circle at 50% 18%,var(--ag-accent-soft) 0,transparent 62%),var(--ag-surface-raised); text-align:center; }
+.agf-shell .agf-deity-tile:hover { border-color:var(--ag-accent); }
+.agf-deity-tile.is-unknown { border-style:dashed; }
+.agf-deity-tile.is-unknown .agf-symbol { opacity:.7; }
+.agf-deity-tile__name { font-size:var(--ag-text-lg); font-weight:700; overflow-wrap:anywhere; }
+.agf-deity-tile__title { color:var(--ag-muted); font-size:var(--ag-text-sm); font-style:italic; overflow-wrap:anywhere; }
+.agf-deity-tile__rank { color:var(--ag-accent); font-size:var(--ag-text-sm); }
+/* 0.11.1: holy symbols are line-art PNGs (dark ink, some on white). They always sit on a fixed light parchment plate,
+   whatever the skin or a host window's opacity, so the ink stays readable. Game art, deliberately not a theme token. */
+.agf-shell,.agf-embed{--agf-symbol-plate:#f3ead6;--agf-symbol-ink:#4a3b22} /* ag-lint-allow: holy-symbol plate is game art */
+.agf-symbol{position:relative;display:grid;place-items:center;width:4rem;height:4rem;border-radius:50%;border:2px solid var(--ag-border-strong);background:var(--agf-symbol-plate);box-shadow:inset 0 0 0 3px var(--agf-symbol-plate),inset 0 0 10px color-mix(in srgb,var(--agf-symbol-ink) 25%,transparent);overflow:hidden;flex:none;isolation:isolate}
+.agf-symbol--large { width:7rem; height:7rem; }
+.agf-symbol--small { width:var(--ag-icon-chip); height:var(--ag-icon-chip); }
+.agf-symbol-img { position:relative; z-index:1; width:84%; height:84%; object-fit:contain; border:0; background:transparent; opacity:1; }
+.agf-symbol.is-missing .agf-symbol-img { display:none; }
+.agf-symbol-glyph { position:absolute; color:var(--agf-symbol-ink); font-size:calc(var(--ag-text-xl) * 1.5); }
+.agf-symbol--large .agf-symbol-glyph { font-size:calc(var(--ag-text-xl) * 2.6); }
+.agf-symbol--small .agf-symbol-glyph { font-size:var(--ag-text-sm); }
+.agf-deity-card { display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:var(--ag-space-3) var(--ag-space-4); align-items:start; margin:0 0 var(--ag-space-4); padding:var(--ag-space-4); border:1px solid var(--ag-border); border-radius:var(--ag-radius-lg); background:radial-gradient(circle at 8% 0,var(--ag-accent-soft) 0,transparent 45%),var(--ag-surface-raised); }
+.agf-deity-card--lesser { border-style:dashed; }
+.agf-deity-title { margin:0 0 var(--ag-space-2); color:var(--ag-accent); font-style:italic; }
+.agf-deity-blurb { margin:0; line-height:1.45; }
+.agf-deity-facts { grid-column:1 / -1; }
+.agf-deity-facts > dd { white-space:pre-line; }
+.agf-deity-saying { grid-column:1 / -1; margin:0; padding:var(--ag-space-2) var(--ag-space-3); border-left:3px solid var(--ag-accent); border-radius:var(--ag-radius-sm); background:var(--ag-surface-sunken); }
+.agf-deity-saying p { margin:0; font-size:var(--ag-text-lg); font-style:italic; line-height:1.4; }
+.agf-deity-saying cite { display:block; margin-top:var(--ag-space-1); color:var(--ag-muted); font-size:var(--ag-text-sm); }
+.agf-deity-card .agf-share { grid-column:1 / -1; justify-self:end; }
+.agf-resonance { flex-wrap:wrap; }
+.agf-resonance__slider { display:flex; align-items:center; gap:var(--ag-space-1); }
+.agf-resonance__slider input[type=range] { width:10rem; }
+.agf-symbol-path { display:flex; align-items:center; gap:var(--ag-space-2); }
+.agf-symbol-path > input { flex:1; min-width:0; }
+
+/* GM Setup: settings only, one Save Changes footer (D4), Developer Tools last. */
+.agf-narrow { max-width:20rem; }
+.agf-setup .ag-section > .ag-field--inline { margin:0 0 var(--ag-space-2); }
+.agf-setup .ag-devtools { margin-top:var(--ag-space-4); }
+.agf-setup .ag-devtools > .ag-btn { margin-top:var(--ag-space-2); }
+
+/* Narrow windows (container queries on the .ag-window content, not the screen). */
+@container (max-width:50rem) {
+  .agf-level-editor { grid-template-columns:1.5rem minmax(0,1fr) minmax(0,1fr); }
+  .agf-level-editor__text { grid-column:2 / -1; }
 }
-.agf-shell .agf-faction-list .agf-faction-card:hover,
-.agf-shell .agf-faction-list .agf-faction-card.is-selected {
-  background:var(--ag-surface-hover); border-color:var(--ag-border-strong);
+@container (max-width:40rem) {
+  .agf-pane { padding:var(--ag-space-2) var(--ag-space-3); }
+  .agf-award__row { grid-template-columns:minmax(0,1fr); }
+  .agf-deity-card { grid-template-columns:minmax(0,1fr); }
+  .agf-dossier__end { width:100%; }
+  .agf-standing .ag-steps > li { font-size:var(--ag-text-xs); }
 }
-.agf-card-top {display:flex; align-items:center; justify-content:space-between; gap:6px; font-size:14px; width:100%}
-.agf-card-top strong {min-width:0; overflow-wrap:anywhere}
-.agf-card-top i {flex-shrink:0}
-.agf-card-sub {display:block; font-size:11px; color:var(--ag-muted); margin:5px 0 8px; width:100%; white-space:normal}
-.agf-card-bar {display:block; flex:0 0 3px; width:100%; height:3px; border-radius:3px; background:var(--ag-surface-hover); overflow:hidden}
-.agf-card-bar span {display:block; height:100%; background:var(--agf-gold)}
-.agf-empty-list {padding:20px 10px; font-size:13px; color:var(--agf-muted)}
-.agf-gm-create {border-top:1px solid var(--ag-border); padding:15px 13px 17px;background:var(--ag-surface-raised)}.agf-gm-create h3 {font-size:12px; margin:0 0 9px; color:var(--ag-accent)}.agf-create-row {display:flex; gap:5px}.agf-create-row input {min-width:0; flex:1}.agf-gm-create .agf-tertiary {display:block; margin-top:9px; width:100%; font-size:11px; padding:6px}
-.agf-main {flex:1; min-width:0; overflow:auto; padding:23px 25px 35px; background:radial-gradient(circle at 90% 0,var(--ag-surface-raised) 0,transparent 42%),var(--ag-surface)}.agf-detail-header {display:flex; align-items:flex-start; justify-content:space-between; gap:20px; padding:5px 0 19px; border-bottom:1px solid var(--ag-border-strong)}.agf-detail-header h1 {font:600 32px/1.15 var(--ag-font-display); color:var(--ag-text); margin:7px 0}.agf-leader {font-size:13px; margin:0 0 7px;color:var(--ag-accent)}.agf-public-role {font-size:13px; max-width:565px; margin:0; color:var(--ag-muted)}.agf-rank-badge {min-width:113px; padding:13px 12px 10px; border:1px solid var(--ag-border-strong); text-align:center; background:var(--ag-surface-raised); border-radius:8px}.agf-rank-badge small {display:block; font-size:9px; letter-spacing:1.5px;color:var(--ag-accent)}.agf-rank-badge strong {display:block; font:600 32px var(--ag-font-display); padding:6px}.agf-rank-badge span {display:block; font-size:12px;color:var(--ag-accent)}
-.agf-panel {margin-top:22px; border:1px solid var(--ag-border); border-radius:9px; padding:17px; background:var(--ag-surface-raised)}.agf-panel h2 {font:600 19px var(--ag-font-display); color:var(--ag-text); margin:0 0 12px; border:0}.agf-panel h3 {font-size:14px; margin:19px 0 9px}.agf-between {display:flex; justify-content:space-between; gap:10px; align-items:center; margin-bottom:13px}.agf-between h2 {margin:0}.agf-between > span {color:var(--agf-muted);font-size:12px}.agf-milestones {display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px}.agf-milestone {border:1px solid var(--ag-border); border-radius:6px; background:var(--ag-surface-raised); min-width:0; padding:12px 8px 10px; opacity:.68; text-align:center}.agf-milestone.is-unlocked {opacity:1;border-color:var(--ag-border-strong);background:var(--ag-surface-raised)}.agf-milestone.is-active {box-shadow:0 0 0 1px var(--ag-accent) inset}.agf-step {margin:0 auto 9px; width:25px; height:25px; border-radius:50%; display:grid; place-items:center; border:1px solid var(--ag-border-strong); color:var(--ag-accent);font-size:12px}.agf-milestone-name {font:600 15px var(--ag-font-display);color:var(--ag-text)}.agf-threshold {font-size:10px; color:var(--ag-accent); margin:4px 0 8px}.agf-milestone p {font-size:11px; line-height:1.35;color:var(--ag-text); overflow-wrap:anywhere;min-height:55px}.agf-state {display:inline-block;font-size:10px;color:var(--ag-muted);text-transform:uppercase;letter-spacing:.9px}.agf-disclaimer {font-size:11px; color:var(--ag-muted); margin:12px 0 0}
-.agf-shell input,.agf-shell textarea {background:var(--ag-surface)!important;color:var(--ag-text)!important;border:1px solid var(--ag-border-strong)!important;border-radius:5px!important;padding:6px 8px!important;box-sizing:border-box; width:100%; font-size:12px}.agf-shell input:focus,.agf-shell textarea:focus {outline:1px solid var(--ag-accent)}.agf-shell button {background:var(--ag-surface-hover);border:1px solid var(--ag-border-strong);border-radius:5px;color:var(--ag-text); cursor:pointer;padding:7px 11px; min-height:30px}.agf-shell button:hover {background:var(--ag-surface-hover);color:var(--ag-text)}.agf-shell button.agf-primary {background:var(--ag-accent-soft);border-color:var(--ag-accent);font-weight:650}.agf-shell button.agf-primary:hover {background:var(--ag-accent)}.agf-shell label {display:block;font-size:11px;color:var(--ag-muted);min-width:0}.agf-shell label input,.agf-shell label textarea {display:block;margin-top:4px}.agf-form-grid {display:grid;grid-template-columns:1fr 1fr;gap:10px}.agf-wide {grid-column:1 / -1}.agf-milestone-editor {display:grid;grid-template-columns:26px minmax(70px,.8fr) 76px minmax(120px,2fr);gap:8px;align-items:center;margin:7px 0}.agf-milestone-editor > span {font:600 16px var(--ag-font-display);color:var(--ag-accent);text-align:center}.agf-toolbar {display:flex;gap:6px}.agf-award-row {display:grid;grid-template-columns:100px 1fr 90px;gap:9px;align-items:end}.agf-award p {font-size:12px; color:var(--ag-muted)}.agf-history {list-style:none;padding:0;margin:0}.agf-history li {padding:9px 0; border-bottom:1px solid var(--ag-border);font-size:12px}.agf-history li strong {color:var(--ag-accent);display:inline-block;width:28px}.agf-history li small {float:right;color:var(--ag-muted)}.agf-muted {font-size:12px;color:var(--ag-muted)}.agf-welcome {padding:100px 24px;text-align:center;color:var(--ag-muted)}.agf-welcome i {color:var(--ag-accent);font-size:44px}.agf-welcome h1 {font:600 32px var(--ag-font-display);color:var(--ag-text)}.agf-welcome p {font-size:14px}
-@media (max-width:850px){.agf-sidebar{width:220px;flex-basis:220px}.agf-main{padding:15px}.agf-milestones{grid-template-columns:repeat(2,minmax(0,1fr))}.agf-milestone-editor{grid-template-columns:24px 1fr 70px}.agf-milestone-editor label:last-child{grid-column:2 / -1}}
-/* v0.2: personal progress, milestone reward slots, and actor-directory integration. */
-.agf-shell .agf-rank-badge small{text-transform:uppercase;line-height:1.4;overflow-wrap:anywhere}
-.agf-shell .agf-milestones{gap:9px}
-.agf-shell .agf-milestone{display:flex;flex-direction:column;gap:4px}
-.agf-shell .agf-milestone p{min-height:0;margin:4px 0 9px}
-.agf-shell .agf-milestone .agf-state{margin-top:auto;padding-top:7px}
-.agf-shell .agf-reward{border-top:1px solid var(--ag-border-strong);padding:8px 0;margin:7px 0;text-align:left;font-size:11px;line-height:1.35;overflow-wrap:anywhere}
-.agf-shell .agf-reward strong{display:block;color:var(--ag-text)}
-.agf-shell .agf-reward small{display:block;color:var(--ag-muted);margin:4px 0}
-.agf-reward-locked{opacity:.72}
-.agf-shell .agf-reward-actions{display:flex;justify-content:flex-start;gap:5px;margin-top:5px}
-.agf-shell .agf-reward-actions button,.agf-shell .agf-reward .agf-inline-action{font-size:10px;padding:3px 5px;min-height:22px;width:auto;height:auto}
-.agf-shell .agf-reward .agf-claim{background:var(--ag-accent-soft);font-weight:bold;display:block;width:100%;white-space:normal;min-height:30px;margin-top:6px;font-size:11px}
-.agf-shell .agf-claim-state{display:block;color:var(--ag-accent);font-size:10px;margin-top:6px}
-.agf-shell .agf-drop-zone{border:1px dashed var(--ag-border-strong);border-radius:5px;padding:7px 5px;margin-top:12px;display:flex;flex-direction:column;gap:5px;min-width:0}
-.agf-shell .agf-drop-zone>span{color:var(--ag-accent);font-size:10px;overflow-wrap:anywhere}
-.agf-shell .agf-drop-zone input{font-size:10px!important;padding:4px 5px!important;min-height:25px;width:100%}
-.agf-shell .agf-drop-zone button{min-height:27px;padding:5px;font-size:10px;white-space:normal;height:auto}
-.agf-shell select{background:var(--ag-surface);color:var(--ag-text);border:1px solid var(--ag-border-strong);border-radius:5px;padding:6px 8px;box-sizing:border-box;min-height:32px;font-size:12px}
-.agf-actor-selector{display:flex;align-items:end;gap:10px;flex-wrap:wrap;margin:4px 0 16px}
-.agf-actor-selector label{min-width:170px;flex:1}.agf-actor-selector select{display:block;width:100%;margin-top:3px}
-.agf-actor-selector .agf-personal-badge{padding:6px 10px;border:1px solid var(--ag-border-strong);border-radius:5px;color:var(--ag-muted);font-size:12px}
-.agf-shell .agf-award-row-v2{display:grid;grid-template-columns:minmax(100px,140px) 90px 1fr 90px;gap:8px;align-items:end}
-.agf-shell .agf-award-row-v2 select{width:100%;margin-top:4px}
-.agf-group-name-form{display:flex;align-items:end;flex-wrap:wrap;gap:10px}
-.agf-group-name-form>label:not(.agf-check){flex:1;min-width:185px}
-.agf-shell label.agf-check{display:flex;align-items:center;gap:5px;padding-bottom:8px}
-.agf-shell label.agf-check input{width:auto!important;margin:0}
-.agf-request-row{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--ag-border);font-size:12px}
-.agf-request-row .agf-toolbar{flex-wrap:wrap}
-.agf-shell .agf-milestone-editor textarea{resize:vertical}
-@media(max-width:1020px){.agf-shell .agf-milestones{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:850px){.agf-shell .agf-milestones{grid-template-columns:repeat(2,minmax(0,1fr))}.agf-shell .agf-award-row-v2{grid-template-columns:1fr 1fr}.agf-shell .agf-award-row-v2>label:nth-child(3){grid-column:1/-1}}
 
-.agf-shell .agf-drop-zone>summary{color:var(--ag-accent);font-size:10px;line-height:1.4;cursor:pointer;overflow-wrap:anywhere;padding:3px 0}
-.agf-shell .agf-drop-zone:not([open]){padding:5px 8px}
-.agf-shell .agf-drop-zone[open]{padding:8px}
-
-/* v0.2.1: compact progression tabs; rewards and setup isolated for GMs. */
-.agf-shell .agf-main{padding-top:10px}
-/* Tab strip: shared kit .ag-tabs, pulled full-bleed to the top of the main pane. */
-.agf-shell .agf-tabs{margin:-23px -25px 18px;padding-left:25px;padding-right:25px}
-.agf-tabs .agf-tab i{margin-right:6px}
-.agf-shell .agf-award-row-v2{grid-template-columns:100px minmax(175px,1fr) auto;gap:10px;align-items:end}
-.agf-shell .agf-award-row-v2 button{white-space:nowrap}
-.agf-setup-toolbar{flex-wrap:wrap;margin-top:12px}
-.agf-reward-setup-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:9px;margin:10px 0 20px}
-.agf-setup-milestone{border:1px solid var(--ag-border-strong);background:var(--ag-surface-raised);border-radius:6px;padding:12px;min-width:0}
-.agf-setup-milestone>strong{display:block;color:var(--ag-accent);font:600 15px var(--ag-font-display);margin-bottom:12px}
-.agf-reward-editor{padding:8px 0;border-top:1px solid var(--ag-border);font-size:12px;display:flex;gap:6px;align-items:center;justify-content:space-between;overflow-wrap:anywhere}
-.agf-reward-editor span{min-width:0}
-.agf-setup-milestone .agf-drop-zone{display:block;margin-top:7px}
-.agf-shell .agf-request-row label{font-size:10px;max-width:180px}
-.agf-shell .agf-request-row label select{display:block;width:100%}
-.agf-shell .agf-actor-selector label{max-width:450px}
-@media(max-width:850px){.agf-shell .agf-award-row-v2{grid-template-columns:1fr auto}.agf-shell .agf-award-row-v2>label:nth-child(2){grid-column:1/-1}.agf-tabs{flex-wrap:wrap}}
-
-/* v0.3 — grouped organizations, discovery, info entries and compact GM configuration */
-.agf-v3 .agf-folder-list{overflow:auto;padding:0 10px 24px;flex:1;min-height:0}
-.agf-v3 .agf-folder{margin:5px 0 12px;border:1px solid var(--ag-border);border-radius:8px;background:var(--ag-surface-raised);padding:7px;min-height:46px}
-.agf-v3 .agf-folder-title{display:flex;gap:8px;align-items:center;color:var(--ag-accent);font-size:12px;padding:7px 5px 9px;overflow-wrap:anywhere}
-.agf-v3 .agf-folder-title i{color:var(--ag-accent);flex-shrink:0}
-.agf-v3 .agf-folder .agf-faction-card{height:auto!important;min-height:38px;width:100%;display:block;text-align:left;padding:9px 11px;margin:3px 0;white-space:normal;overflow-wrap:anywhere;line-height:1.35;background:var(--ag-surface-raised);border:1px solid transparent;color:var(--ag-text)}
-.agf-v3 .agf-folder .agf-faction-card.is-selected{background:var(--ag-surface-hover);border-color:var(--ag-accent)}
-.agf-v3 .agf-folder .agf-faction-card:hover{background:var(--ag-surface-hover)}
-.agf-v3 .agf-unknown{padding:8px 10px;margin:3px 0;font-size:11px;color:var(--ag-muted);border:1px dashed var(--ag-border-strong);border-radius:5px}
-.agf-v3 .agf-unknown i{margin-right:6px}
-.agf-v3 .agf-entry-editor,.agf-v3 .agf-knowledge{padding:10px 11px;border:1px solid var(--ag-border);border-radius:5px;margin:9px 0;font-size:12px;overflow-wrap:anywhere}
-.agf-v3 .agf-entry-editor strong,.agf-v3 .agf-knowledge strong{display:inline-block;margin-right:6px;color:var(--ag-accent)}
-.agf-v3 .agf-knowledge p{white-space:pre-wrap;line-height:1.45;margin:7px 0}
-.agf-v3 .agf-entry-editor small{color:var(--ag-muted)}
-.agf-v3 .agf-entry-editor .agf-toolbar{flex-wrap:wrap;margin-top:7px}
-.agf-v3 .agf-entry-editor button{min-height:26px;padding:4px 8px;font-size:11px}
-.agf-v3 .agf-create-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.agf-v3 .agf-create-row input{flex:1;min-width:150px}
-.agf-v3 .agf-create-row button{width:auto}
-.agf-v3 .agf-v3-editor{grid-template-columns:minmax(60px,1fr) minmax(95px,1fr) 85px 110px minmax(140px,2fr);font-size:11px}
-.agf-v3 .agf-v3-editor>span{font-size:11px;overflow-wrap:anywhere}
-.agf-v3 .agf-v3-editor select{width:100%;margin-top:4px}
-.agf-v3 .agf-v3-reward-level{padding:10px 12px;border:1px solid var(--ag-border);border-radius:6px;margin:9px 0}
-.agf-v3 .agf-v3-reward-level h3{margin:1px 0 8px;color:var(--ag-accent);font-size:13px}
-.agf-v3 .agf-drop-zone{display:block;width:100%;height:auto;min-height:30px}
-.agf-v3 .agf-drop-zone[open]{display:grid;gap:8px;grid-template-columns:repeat(2,minmax(0,1fr))}
-.agf-v3 .agf-drop-zone[open] summary{grid-column:1/-1}
-.agf-v3 .agf-drop-zone input,.agf-v3 .agf-drop-zone label{min-width:0}
-.agf-v3 .agf-drop-zone .agf-form-grid,.agf-v3 .agf-drop-zone button{grid-column:1/-1}
-.agf-v3 .agf-reward-editor{gap:7px;flex-wrap:wrap}
-.agf-v3 .agf-reward-editor small{color:var(--ag-muted)}
-.agf-v3 .agf-share{align-self:start;white-space:nowrap}
-.agf-v3 .agf-reward{margin:8px 0;padding:7px;background:var(--ag-surface-raised);border-radius:4px}
-.agf-v3 .agf-request-row{flex-wrap:wrap}
-.agf-v3 .agf-request-row .agf-toolbar{flex-wrap:wrap}
-.agf-v3 .agf-panel{margin-top:17px}
-@media(max-width:1000px){.agf-v3 .agf-v3-editor{grid-template-columns:1fr 1fr}.agf-v3 .agf-v3-editor>span{grid-column:1/-1}.agf-v3 .agf-v3-editor label:last-child{grid-column:1/-1}}
-@media(max-width:750px){.agf-v3 .agf-sidebar{width:175px;flex-basis:175px}.agf-v3 .agf-detail-header{flex-wrap:wrap}.agf-v3 .agf-drop-zone[open]{grid-template-columns:1fr}}
-
-
-/* v0.4.0: locally managed Player Access (DEC-0072). */
-.agf-v3 .agf-player-access {display:grid;gap:10px}
-.agf-v3 .agf-player-access > button {justify-self:start}
-.agf-v3 .agf-player-access .agf-check {display:flex;gap:9px;align-items:center;font-size:13px}
-.agf-v3 .agf-player-access .agf-check input {width:auto;flex:0 0 auto;margin:0}
-
-/* AG-WORK-0009 / AG-WORK-0016 — standard --ag-* semantic tokens.
- * Inherited token values may be supplied by an OPTIONAL Manager appearance skin.
- * Without Manager or an active skin, every rule uses a built-in fallback.
- * Scoped to the Factions window only; never writes appearance/gameplay settings. */
-.ashen-gate-factions {
-  --agf-ink: var(--ag-text);
-  --agf-muted: var(--ag-muted);
-  --agf-border: var(--ag-border);
-  --agf-gold: var(--ag-accent);
-  color: var(--ag-text);
-}
-.ashen-gate-factions .window-content,
-.ashen-gate-factions .agf-shell { background:var(--ag-bg); color:var(--ag-text); }
-.ashen-gate-factions .agf-sidebar { background:var(--ag-panel); border-color:var(--ag-border); }
-.ashen-gate-factions .agf-main { background:var(--ag-bg); }
-.ashen-gate-factions .agf-panel,
-.ashen-gate-factions .agf-setup-milestone,
-.ashen-gate-factions .agf-milestone,
-.ashen-gate-factions .agf-rank-badge { background:var(--ag-panel); border-color:var(--ag-border); }
-.ashen-gate-factions .agf-shell input,
-.ashen-gate-factions .agf-shell textarea,
-.ashen-gate-factions .agf-shell select { background:var(--ag-surface-sunken)!important; color:var(--ag-text)!important; border-color:var(--ag-border)!important; }
-.ashen-gate-factions .agf-shell button.agf-primary,
-.ashen-gate-factions .agf-shell .agf-claim { border-color:var(--ag-accent); }
-.ashen-gate-factions .agf-shell button:focus-visible,
-.ashen-gate-factions .agf-shell input:focus-visible,
-.ashen-gate-factions .agf-shell textarea:focus-visible,
-.ashen-gate-factions .agf-shell select:focus-visible,
-.ashen-gate-factions .agf-tab:focus-visible { outline:2px solid var(--ag-focus)!important; outline-offset:2px; }
-.ashen-gate-factions .agf-objective-row {
-  display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:8px 0;
-  border-bottom:1px solid var(--ag-border); color:var(--ag-text);
-}
-.ashen-gate-factions .agf-objective-row code {overflow-wrap:anywhere; color:var(--ag-accent);}
-.ashen-gate-factions .agf-objective-row span {flex:1; min-width:100px; font-size:12px; color:var(--ag-muted);}
-.ashen-gate-factions .agf-objective-entry {display:grid;grid-template-columns:minmax(160px,2fr) minmax(140px,1fr) minmax(100px,.8fr) auto; gap:8px;align-items:end;margin-top:12px}
-.ashen-gate-factions .agf-objective-entry>label {min-width:0;}
-.ashen-gate-factions .agf-objective-entry>button {min-height:32px;}
-@media(max-width:900px){.ashen-gate-factions .agf-objective-entry {grid-template-columns:1fr 1fr;}.ashen-gate-factions .agf-objective-entry>label:first-child{grid-column:1/-1}}
-@media(max-width:520px){.ashen-gate-factions .agf-objective-entry {grid-template-columns:1fr;}.ashen-gate-factions .agf-objective-entry>label:first-child{grid-column:auto}}
-
-/* Objective diagnostics are GM-only data from the owning Quest consumer. */
-.ashen-gate-factions .agf-objective-status {padding:3px 7px;border:1px solid var(--ag-border);border-radius:5px;color:var(--ag-muted);font-size:12px;overflow-wrap:anywhere;max-width:100%}
-
-/* v0.6.0 — compact GM disclosure controls, preserving comfortable padding. */
-.ashen-gate-factions {min-width:730px; min-height:530px;}
-.ashen-gate-factions .agf-config-section {border:1px solid var(--ag-border);border-radius:7px;margin:9px 0;background:var(--ag-panel);}
-.ashen-gate-factions .agf-config-section > summary {cursor:pointer;padding:13px 15px;font-size:14px;font-weight:650;color:var(--ag-text);}
-.ashen-gate-factions .agf-config-section > .agf-panel {margin:0;border:0;border-top:1px solid var(--ag-border);border-radius:0;padding:12px 15px;}
-.ashen-gate-factions .agf-inner-section {margin:10px 0;padding:6px 10px;border:1px solid var(--ag-border);border-radius:5px;}
-.ashen-gate-factions .agf-inner-section > summary {padding:6px;font-weight:650;cursor:pointer;}
-.ashen-gate-factions .agf-selected-character {display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;}
-.ashen-gate-factions .agf-selected-character label {flex:1;min-width:260px;max-width:520px;}
-.ashen-gate-factions .agf-selected-character select {display:block;width:100%;margin-top:4px;}
-.ashen-gate-factions .agf-field-reveals {border-top:1px solid var(--ag-border);padding:10px 0;margin:10px 0;}
-.ashen-gate-factions .agf-field-reveal-grid {display:grid;grid-template-columns:minmax(110px,1.3fr) minmax(90px,1fr) minmax(155px,1.4fr);align-items:center;gap:6px 12px;padding:8px 0;}
-.ashen-gate-factions .agf-field-reveal-grid > strong {font-size:11px;color:var(--ag-muted);}
-.ashen-gate-factions .agf-field-reveal-grid label.agf-check {padding:0;}
-.ashen-gate-factions .agf-config-section .agf-drop-zone {max-width:100%;}
-.ashen-gate-factions .agf-config-section button {width:auto;max-width:100%;}
-.ashen-gate-factions .agf-config-section button[data-action="save"] {display:block;margin:12px 0 0 auto;}
-.ashen-gate-factions .agf-config-section .agf-v3-reward-level {padding:8px 10px;margin:6px 0;}
-.ashen-gate-factions .agf-config-section .agf-v3-editor {gap:6px;}
-@media(max-width:850px){.ashen-gate-factions .agf-field-reveal-grid {grid-template-columns:1fr 1fr 1fr;}}
-
-
-/* ApplicationV2 position is sealed (no minWidth/minHeight); enforce minimum size in CSS. */
-.application.ashen-gate-factions{min-width:760px;min-height:560px}
-
-/* Organizations tab (GM roster) */
-.agf-orgs-filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px 12px;margin-bottom:10px}
-.agf-orgs-filters label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--ag-muted)}
-.agf-orgs-group h3{margin:12px 0 6px;color:var(--ag-muted);text-transform:uppercase;font-size:12px;letter-spacing:.04em}
-.agf-shell .agf-org-card{display:flex;flex-direction:column;align-items:stretch;gap:3px;width:100%;height:auto!important;max-height:none;padding:9px 12px;margin:0 0 6px;box-sizing:border-box;text-align:left;white-space:normal;line-height:1.3;border:1px solid var(--ag-border);border-radius:7px;background:transparent;color:var(--agf-ink);cursor:pointer}
-.agf-shell .agf-org-card:hover,.agf-shell .agf-org-card.is-selected{background:var(--ag-surface-hover);border-color:var(--ag-border-strong)}
-.agf-org-card small{color:var(--ag-muted)}
-.agf-org-chips{display:flex;gap:6px;flex-wrap:wrap}
-.agf-chip{font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid var(--ag-border);color:var(--ag-muted)}
-.agf-chip--revealed-to-party{border-color:var(--ag-accent);color:var(--ag-accent)}
 /* 0.9.0: compact standing list embedded in a partner module (api.embed.mount). The host element carries .agf-embed. */
 .agf-embed{display:block;min-width:0;color:var(--ag-text)}
 .agf-embed .agf-embed__body{display:grid;gap:var(--ag-space-2)}
@@ -223,55 +165,4 @@
 .agf-embed .agf-embed__cell small{font-size:var(--ag-text-xs);text-transform:uppercase;letter-spacing:.05em;color:var(--ag-muted);overflow-wrap:anywhere}
 .agf-embed .agf-embed__score{font-variant-numeric:tabular-nums;color:var(--ag-accent)}
 .agf-embed .agf-embed__next,.agf-embed .agf-embed__note{font-size:var(--ag-text-sm);color:var(--ag-muted)}
-/* Pantheon (0.11.0): deity tiles and card, inside the shared ag-ui tokens. */
-.agf-shell--pantheon .agf-sidebar{display:none}
-.agf-pantheon-toolbar{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-top:16px}
-.agf-pantheon-toolbar .agf-pantheon-create{margin-left:auto;display:flex;gap:6px;align-items:center}
-.agf-pantheon-toolbar .agf-pantheon-create input{width:auto;min-width:180px}
-.agf-pantheon-group h2{font:600 19px var(--ag-font-display);color:var(--ag-text);margin:22px 0 10px;border:0;letter-spacing:.5px}
-.agf-pantheon-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-.agf-shell button.agf-deity-tile{display:flex;flex-direction:column;align-items:center;gap:4px;padding:14px 10px 12px;text-align:center;border-radius:var(--ag-radius-lg);border-color:var(--ag-border-strong);background:radial-gradient(circle at 50% 18%,var(--ag-accent-soft) 0,transparent 62%),var(--ag-surface-raised);min-height:0}
-.agf-shell button.agf-deity-tile:hover{border-color:var(--ag-accent)}
-.agf-deity-tile.is-unknown{opacity:.72}
-.agf-deity-tile strong{font:600 16px var(--ag-font-display);color:var(--ag-text);overflow-wrap:anywhere}
-.agf-deity-tile small{font-size:11px;color:var(--ag-muted);font-style:italic;overflow-wrap:anywhere}
-.agf-deity-rank{font-size:11px;color:var(--ag-accent)}
-/* 0.11.1: holy symbols are line-art PNGs (dark ink, some on white). They always sit on a fixed light parchment plate,
-   whatever the theme or a host window's opacity, so the ink stays readable. Deliberately not a theme token. */
-.agf-shell,.agf-embed{--agf-symbol-plate:#f3ead6;--agf-symbol-ink:#4a3b22}
-.agf-symbol{position:relative;display:grid;place-items:center;width:64px;height:64px;border-radius:50%;border:2px solid var(--ag-border-strong);background:var(--agf-symbol-plate);box-shadow:inset 0 0 0 3px var(--agf-symbol-plate),inset 0 0 10px rgba(74,59,34,.25);overflow:hidden;flex:none;isolation:isolate}
-.agf-symbol--large{width:112px;height:112px}
-.agf-symbol-img{position:relative;z-index:1;width:84%;height:84%;object-fit:contain;border:0;background:transparent;opacity:1}
-.agf-symbol.is-missing .agf-symbol-img{display:none}
-.agf-symbol-glyph{position:absolute;font-size:26px;color:var(--agf-symbol-ink)}
-.agf-symbol--large .agf-symbol-glyph{font-size:44px}
-.agf-deity-card{display:grid;grid-template-columns:auto 1fr auto;gap:14px 18px;align-items:start;margin-top:18px;padding:18px;border:1px solid var(--ag-border-strong);border-radius:var(--ag-radius-lg);background:radial-gradient(circle at 8% 0,var(--ag-accent-soft) 0,transparent 45%),var(--ag-surface-raised)}
-.agf-deity-card--lesser{border-style:dashed}
-.agf-deity-head h1{font:600 30px/1.15 var(--ag-font-display);color:var(--ag-text);margin:4px 0}
-.agf-deity-title{margin:0 0 8px;font-style:italic;color:var(--ag-accent)}
-.agf-deity-blurb{margin:0;color:var(--ag-text);font-size:13px;line-height:1.45}
-.agf-deity-facts{grid-column:1 / -1;display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;margin:0;font-size:13px}
-.agf-deity-facts dt{font:600 12px var(--ag-font-display);letter-spacing:.8px;text-transform:uppercase;color:var(--ag-accent)}
-.agf-deity-facts dd{margin:0;color:var(--ag-text);white-space:pre-line;overflow-wrap:anywhere}
-.agf-deity-saying{grid-column:1 / -1;margin:0;padding:10px 14px;border-left:3px solid var(--ag-accent);background:var(--ag-surface-sunken);border-radius:var(--ag-radius-sm)}
-.agf-deity-saying p{margin:0;font:italic 15px/1.4 var(--ag-font-display);color:var(--ag-text)}
-.agf-deity-saying cite{display:block;margin-top:4px;font-size:12px;color:var(--ag-muted)}
-.agf-deity-card .agf-share{grid-column:1 / -1;justify-self:end}
-.agf-favour-bar{height:6px;border-radius:3px;background:var(--ag-surface-sunken);margin:0 0 12px;overflow:hidden}
-.agf-favour-bar span{display:block;height:100%;background:var(--ag-accent)}
-.agf-relations{list-style:none;margin:0 0 10px;padding:0}
-.agf-relations li{padding:6px 0;border-bottom:1px solid var(--ag-border);font-size:13px}
-.agf-symbol-path{display:flex;gap:6px;align-items:center;margin-top:4px}
-.agf-symbol-path input{margin:0!important}
-.agf-actions-row{display:flex;justify-content:flex-end;margin-top:12px}
-@media (max-width:700px){.agf-deity-card{grid-template-columns:1fr}.agf-deity-facts{grid-template-columns:1fr}}
 .agf-embed .agf-embed__heading{font:600 var(--ag-text-md) var(--ag-font-display);margin:var(--ag-space-3) 0 var(--ag-space-1);border:0}
-.agf-symbol--small{width:28px;height:28px}
-.agf-symbol--small .agf-symbol-glyph{font-size:14px}
-.agf-resonance-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:8px 0;border-bottom:1px solid var(--ag-border);font-size:13px}
-.agf-resonance-row>strong{min-width:9rem}
-.agf-resonance-slider{display:flex;align-items:center;gap:6px}
-.agf-resonance-slider small{font-size:11px;color:var(--ag-muted)}
-.agf-shell .agf-resonance-slider input[type=range]{width:160px;padding:0!important;border:0!important;background:transparent!important}
-.agf-relations li.is-dissonant .agf-chip{border-color:var(--ag-danger);color:var(--ag-danger)}
-.agf-relations li.is-resonant .agf-chip{border-color:var(--ag-ok);color:var(--ag-ok)}

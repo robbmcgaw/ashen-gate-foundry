@@ -9,8 +9,10 @@ Module ID `ashen-gate-factions` · Foundry V14 · dnd5e. Factions with group Ren
 - **Group:** each faction the party knows, with group Renown score and rank. The group's display name can be customized in GM Setup.
 - **Player:** the same factions for one character, with that character's personal Renown. Players can **Share with Party** what they have discovered, claim rewards and send service requests (the GM is notified and acknowledgments are tracked per user).
 - **Pantheon:** deities, shown as a grid of holy-symbol tiles (Major and Lesser) with each one's title and the chosen character's rank. Open a deity for its card (title, rank, domain, blurb, portfolio, teachings, followers, practices, saying), that character's favour and rank ladder, rewards, lore, and allies/rivals. Favour is per character only; there is no group score. Players see only deities revealed to one of their characters. The GM gets the same controls as for factions: create, edit the card and rank titles, reveal, adjust favour, rewards, lore, relations and requests.
-- **Organizations** (GM): every faction (hidden, character-only and revealed) in a searchable list with visibility, group Renown, folder and linked-objective chips. Filter, sort and group by visibility or folder. Creating, editing, revealing, folders, rewards, claims, information entries, linked quests, Import and Export live here.
-- **GM Setup** (GM): settings only: Player Access and the custom group display name.
+- **Organizations** (GM): every faction (hidden, character-only and revealed) in a list with visibility badge, group Renown and rank. Search filters as you type; filter, sort and group by visibility or folder. **New faction**, Import and Export are on the right of the toolbar. Editing, revealing, folders, rewards, claims, information entries and linked quests live below the list.
+- **GM Setup** (GM): settings only: Player Access, Pantheon damping and the custom group display name, saved together with **Save Changes**. A collapsed **Developer Tools** box at the bottom loads demo guilds.
+
+Group, Player and Organizations show the folder list on the left; Pantheon and GM Setup use the full width.
 
 Discovery can be all-or-nothing per faction, or field by field (Name, Leader, Description). Existing factions stay in all-fields-visible mode until the GM opts in. Source-definition exports (`AG_Factions_Definitions.json`) omit player disclosure, Renown, claims, service usage and history.
 
