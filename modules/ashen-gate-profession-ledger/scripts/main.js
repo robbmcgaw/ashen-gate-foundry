@@ -7,6 +7,7 @@ import {lookupWorldDefinition,readWorldDefinition} from './definition-lookup.mjs
 import {planCraft,craftBlockers,executeCraft,craftResultData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,infoDialog} from './ag-dialogs.mjs';
+import {windowSize} from './ag-html.mjs';
 import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,requiredToolRef,toolRefLabel,heldTool,
   checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS,DEFAULT_PROFESSION_TOOLS,DEFAULT_GATHER_SKILLS,migrateCheckMapping,advantageToolsOf} from './checks.mjs';
 import {PROFESSION_KEYS,professionTitle,catalogCrosswalk,definitionProfessionKey,unmappedProfessions,assignmentPlan,rowId,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
@@ -15,7 +16,7 @@ import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,gatherOutcome,gather
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.23.1';
+const VERSION='0.24.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...}. */
@@ -31,6 +32,16 @@ const esc=value=>foundry.utils.escapeHTML(String(value??''));
 /** Kit badge; recipe items and partial visibility use the accent variant, muted the plain one. */
 const BADGE_KIND={ok:'ok',warn:'warn',recipe:'accent',partial:'accent'};
 const badge=(value,kind='')=>`<span class="ag-badge${BADGE_KIND[kind]?` ag-badge--${BADGE_KIND[kind]}`:''}">${esc(value)}</span>`;
+/** D6: material quality uses the item rarity colours (Common → common, Rare → rare, Exotic → veryRare). There is no boss tier yet. */
+const QUALITY_RARITY={common:'common',rare:'rare',exotic:'veryRare'};
+const qualityBadge=quality=>{const q=String(quality??'').trim().toLowerCase();
+  return QUALITY_RARITY[q]?`<span class="ag-rarity-badge" data-rarity="${QUALITY_RARITY[q]}">Quality: ${q[0].toUpperCase()}${q.slice(1)}</span>`:'';};
+/** Kit empty state: "No X yet." title, then the next step. Both arguments are HTML (escape names first). */
+const emptyState=(title,text='',action='')=>`<div class="ag-empty"><p class="ag-empty__title">${title}</p>${text?`<p class="ag-empty__text">${text}</p>`:''}${action}</div>`;
+/** Kit notice; the message is HTML. */
+const notice=(html,kind='info')=>`<div class="ag-notice ag-notice--${kind}"><i class="fa-solid ${kind==='warn'?'fa-triangle-exclamation':'fa-circle-info'}" aria-hidden="true"></i><span>${html}</span></div>`;
+/** A Material's quality from the catalog the current user may read, or null. */
+const materialQuality=(sourceId,lib)=>sourceId?lib.materials.find(m=>m.id===sourceId)?.quality??null:null;
 const say=(message,error=false)=>error?ui.notifications.error(message):ui.notifications.info(message);
 const plural=(n,one,many=`${one}s`)=>`${n} ${n===1?one:many}`;
 let current=null;
@@ -286,13 +297,14 @@ function visibilityInfo(doc){
   const details=`Visible to: ${viewers.map(u=>u.name).join(', ')||'none'}; Not visible to: ${accounts.filter(u=>!viewers.includes(u)).map(u=>u.name).join(', ')||'none'}`;
   return viewers.length===0?{label:'GM only',kind:'warn',details}:viewers.length===accounts.length?{label:'All players',kind:'ok',details}:{label:`${viewers.length}/${accounts.length} players`,kind:'partial',details};
 }
-function visibilityBadge(doc){const v=visibilityInfo(doc);return v?`<span class="agl-access" title="${esc(v.details)}">${badge(v.label,v.kind)}</span>`:'';}
+const tip=text=>`data-tooltip="${esc(text)}" data-tooltip-class="ag-tooltip"`;
+function visibilityBadge(doc){const v=visibilityInfo(doc);return v?`<span class="agl-access" ${tip(v.details)}>${badge(v.label,v.kind)}</span>`:'';}
 /** GM-only explanation of why players can't see a record. */
 function draftBadge(status,visibility){
   if(!game.user.isGM)return '';
   const out=[];
   if(HIDDEN_STATUSES.includes(status)){const s=String(status);
-    out.push(`<span class="agl-access" title="Players can't see or learn a ${esc(s)} recipe, even if a character holds or knows it. Approve it in General Manager to release it.">${badge(`${s[0].toUpperCase()}${s.slice(1)} — hidden from players`,'warn')}</span>`);}
+    out.push(`<span class="agl-access" ${tip(`Players can't see or learn a ${s} recipe, even if a character holds or knows it. Approve it in General Manager to release it.`)}>${badge(`${s[0].toUpperCase()}${s.slice(1)} — hidden from players`,'warn')}</span>`);}
   if(visibility==='gm')out.push(badge('GM-only source','warn'));
   if(visibility==='reveal_gated')out.push(badge('Reveal gated','warn'));
   return out.join(' ');
@@ -524,9 +536,9 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
     const missing=plan.missing.map(m=>`${m.missing} × ${m.name}`).join(', ');
     if(blockers.length)actions=`<span class="agl-reason">${esc(blockers[0])}</span>`;
     else if(!owned(actor))actions='';
-    else if(plan.ownReady)actions=`<button type="button" class="ag-btn ag-btn--primary" data-action="craft" data-id="${esc(recipe.id)}" data-actor="${esc(actor.id)}"><i class="fa-solid fa-hammer"></i> Craft</button>`;
-    else if(plan.ready)actions=`<button type="button" class="ag-btn" data-action="craft" data-id="${esc(recipe.id)}" data-actor="${esc(actor.id)}"><i class="fa-solid fa-hand-holding"></i> Craft — ask the party</button><span class="agl-reason">Uses ${esc([...new Set(plan.foreign.map(a=>a.actorName))].join(', '))}’s materials</span>`;
-    else actions=`<button type="button" class="ag-btn" disabled><i class="fa-solid fa-hammer"></i> Craft</button><span class="agl-reason">Missing ${esc(missing)}</span>`;
+    else if(plan.ownReady)actions=`<button type="button" class="ag-btn" data-action="craft" data-id="${esc(recipe.id)}" data-actor="${esc(actor.id)}"><i class="fa-solid fa-hammer" aria-hidden="true"></i> Craft</button>`;
+    else if(plan.ready)actions=`<button type="button" class="ag-btn" data-action="craft" data-id="${esc(recipe.id)}" data-actor="${esc(actor.id)}"><i class="fa-solid fa-hand-holding" aria-hidden="true"></i> Craft — ask the party</button><span class="agl-reason">Uses ${esc([...new Set(plan.foreign.map(a=>a.actorName))].join(', '))}’s materials</span>`;
+    else actions=`<button type="button" class="ag-btn" disabled><i class="fa-solid fa-hammer" aria-hidden="true"></i> Craft</button><span class="agl-reason">Missing ${esc(missing)}</span>`;
   }
   if(learnItem&&actor)actions=learnControl(actor,learnItem);
   const gp=extraCost(recipe);
@@ -554,7 +566,7 @@ function learnControl(actor,item){
   if(!owned(actor))return '';
   if(knownRecipesOf(actor).includes(id))return badge('Already known','ok');
   if(!state.ok)return `<span class="agl-reason">${esc(state.reason)}</span>`;
-  return `<button type="button" class="ag-btn ag-btn--primary" data-action="learn-recipe" data-id="${esc(`${actor.id}:${item.id}`)}" data-actor="${esc(actor.id)}"><i class="fa-solid fa-book"></i> Learn</button>`;
+  return `<button type="button" class="ag-btn" data-action="learn-recipe" data-id="${esc(`${actor.id}:${item.id}`)}" data-actor="${esc(actor.id)}"><i class="fa-solid fa-book" aria-hidden="true"></i> Learn</button>`;
 }
 /** Folders grouped by profession; native <details> so they work without the app (sheet tab). */
 function folders(rows,closed=new Set()){
@@ -562,7 +574,7 @@ function folders(rows,closed=new Set()){
   const groups=new Map();
   for(const row of rows){const key=norm(row.group)||'unassigned';if(!groups.has(key))groups.set(key,{key,name:row.group||'Unassigned profession',rows:[]});groups.get(key).rows.push(row);}
   return [...groups.values()].sort((a,b)=>a.name.localeCompare(b.name)).map(g=>`<details class="agl-folder" data-folder="${esc(g.key)}" ${closed.has(g.key)?'':'open'}>
-    <summary><i class="fa-solid fa-folder-open" aria-hidden="true"></i> <strong>${esc(g.name)}</strong> <span class="agl-count">${g.rows.length}</span></summary>
+    <summary><i class="fa-solid fa-folder-open" aria-hidden="true"></i> <strong>${esc(g.name)}</strong> <span class="ag-badge">${g.rows.length}</span></summary>
     <div class="agl-folder-body">${g.rows.map(r=>r.html).join('')}</div></details>`).join('');
 }
 const HISTORY_LABELS={award:'Awarded',adjust:'Adjusted',set:'Set',undo:'Award undone'};
@@ -603,18 +615,19 @@ function characterPanel(actor,lib,{closed=new Set(),lastAward=null,surface='app'
   return `<div class="agl-character ${surface==='sheet'?'agl-on-sheet':''}">
     <section class="agl-col-side">
       <div class="agl-section"><h3>Professions</h3>
-        ${profs.map(p=>professionCard(actor,p,{lastAward})).join('')||`<div class="ag-empty">${esc(actor.name)} has no profession yet. ${game.user.isGM?'Drag a profession feature (imported by General Manager) onto the character sheet.':'Ask your GM to add one.'}</div>`}
-        ${profs.length?`<p class="agl-sub agl-where"><i class="fa-solid fa-circle-info"></i> XP is stored on ${esc(actor.name)} by the Profession Ledger, and also shown in each profession feature’s description on the character sheet.</p>`:''}
+        ${profs.map(p=>professionCard(actor,p,{lastAward})).join('')||emptyState(`${esc(actor.name)} has no profession yet.`,game.user.isGM?'Drag a profession feature (imported by General Manager) onto the character sheet, or use Assign.':'Your GM adds professions to your character.')}
+        ${profs.length?`<p class="agl-sub agl-where"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> XP is stored on ${esc(actor.name)} by the Profession Ledger, and also shown in each profession feature’s description on the character sheet.</p>`:''}
       </div>
       <div class="agl-section"><h3>Materials</h3>
-        ${mats.map(i=>`<div class="agl-line"><span>${esc(i.name)}</span><b>× ${i.qty}</b></div>`).join('')||'<div class="ag-empty">No crafting materials.</div>'}
+        ${mats.length?`<ul class="ag-rows">${mats.map(i=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(i.name)}</span></span><span class="ag-row__end">${qualityBadge(materialQuality(i.sourceId,lib))}<b>× ${i.qty}</b></span></li>`).join('')}</ul>`
+          :emptyState('No crafting materials yet.','Materials appear here when the character gathers or carries them.')}
       </div>
     </section>
     <section class="agl-col-main">
-      ${toLearn.length?`<div class="agl-section"><h3>Recipes to learn <span class="agl-count">${toLearn.length}</span></h3>
+      ${toLearn.length?`<div class="agl-section"><h3>Recipes to learn <span class="ag-badge">${toLearn.length}</span></h3>
         <p class="agl-sub">Recipe items in ${esc(actor.name)}’s inventory. Learning uses up one recipe item.</p>${toLearn.join('')}</div>`:''}
-      <div class="agl-section"><h3>Known recipes <span class="agl-count">${knownRows.length}</span></h3>
-        ${folders(knownRows,closed)||`<div class="ag-empty">${esc(actor.name)} hasn’t learned a recipe yet.${toLearn.length?' Learn one from a recipe item above.':''}</div>`}
+      <div class="agl-section"><h3>Known recipes <span class="ag-badge">${knownRows.length}</span></h3>
+        ${folders(knownRows,closed)||emptyState(`${esc(actor.name)} hasn’t learned a recipe yet.`,toLearn.length?'Learn one from a recipe item above.':'A recipe item in the inventory can be learned here.')}
         ${hiddenKnown>0&&!game.user.isGM?`<p class="agl-sub">${plural(hiddenKnown,'known recipe is','known recipes are')} not available right now.</p>`:''}
       </div>
     </section>
@@ -999,7 +1012,7 @@ async function resolveGather(sessionId,{total,choice,mode=0,by=''}){
       let item=worldMaterial(reward.materialId);
       if(!item&&reward.rare){reward={materialId:node.materialId,quantity:node.quantity,rare:false,noRareFallback:true};item=worldMaterial(node.materialId);}
       if(!item)throw Error(`The material ${reward.materialId} is not an imported, player-visible world material`);
-      award={...await stackMaterial(lead,item,reward.quantity,{sourceIdOf:agSourceId,flagScope:ID}),name:item.name,img:item.img,quantity:reward.quantity};
+      award={...await stackMaterial(lead,item,reward.quantity,{sourceIdOf:agSourceId,flagScope:ID}),name:item.name,img:item.img,quantity:reward.quantity,quality:reward.rare?'rare':'common'};
     }
   }catch(err){session.status='rolling';throw err;}
   if(exotic.materialId){
@@ -1020,8 +1033,8 @@ async function resolveGather(sessionId,{total,choice,mode=0,by=''}){
   // Only awarded materials are named; candidates, chances and the d100 stay with the GM.
   const got=[award,exoticAward].filter(Boolean);
   const head=got.length?`${lead.name} gathered ${got.map(a=>`${a.quantity} × ${a.name}`).join(' and ')}`:`${lead.name} found nothing usable`;
-  const lines=[`<p><strong>${esc(check.label)} check:</strong> ${n}${modeText(check.mode)}${node.dcVisible?` vs DC ${node.dc}`:''} — <strong>${verdict}</strong>${reward?.rare?' (rare bundle)':''}</p>`,
-    exoticAward?`<p class="agl-exotic-find"><strong>Exotic find:</strong> ${exoticAward.quantity} × ${esc(exoticAward.name)}</p>`:'',
+  const lines=[`<p><strong>${esc(check.label)} check:</strong> ${n}${modeText(check.mode)}${node.dcVisible?` vs DC ${node.dc}`:''} — <strong>${verdict}</strong>${award?` ${qualityBadge(award.quality)}`:''}</p>`,
+    exoticAward?`<p class="agl-exotic-find"><strong>Exotic find:</strong> ${exoticAward.quantity} × ${esc(exoticAward.name)} ${qualityBadge('exotic')}</p>`:'',
     assists.length?`<p>Assisted by ${esc(assists.join(', '))} (advantage, not another attempt).</p>`:'',
     reward?.noRareFallback?'<p class="agl-chat-note">Success by 5+, but this node has no rare material, so it gave its common bundle.</p>':'',
     exhausted==='session'?'<p class="agl-chat-note">This gathering spot is used up for now.</p>':exhausted?'<p class="agl-chat-note">This gathering spot is now exhausted.</p>':''];
@@ -1242,7 +1255,7 @@ function decorateChatCard(message,html){
   const x=message?.flags?.[ID]?.xp,slot=html?.querySelector?.('[data-agl-xp]');
   if(!x||!slot)return;
   if(x.awarded){
-    slot.innerHTML=`<p class="agl-chat-note">+${Number(x.awarded.points)} ${esc(x.professionName)} XP awarded by the GM.</p>${game.user.isGM?'<button type="button" data-agl-xp-undo><i class="fa-solid fa-rotate-left"></i> Undo award</button>':''}`;
+    slot.innerHTML=`<p class="agl-chat-note">+${Number(x.awarded.points)} ${esc(x.professionName)} XP awarded by the GM.</p>${game.user.isGM?'<button type="button" data-agl-xp-undo><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Undo award</button>':''}`;
     const undo=slot.querySelector('[data-agl-xp-undo]');
     undo?.addEventListener?.('click',async event=>{
       event.preventDefault?.();undo.disabled=true;
@@ -1255,7 +1268,7 @@ function decorateChatCard(message,html){
   if(!game.user.isGM){slot.innerHTML='';return;}
   if(!x.professionId){slot.innerHTML=`<p class="agl-chat-note">GM: ${esc(x.actorName)} has no matching profession feature, so there is no XP to award here.</p>`;return;}
   slot.innerHTML=`<div class="agl-xp-award"><label>XP <input type="number" min="1" max="1000" step="1" value="${x.suggested??1}" data-agl-xp-points></label>
-    <button type="button" data-agl-xp-award><i class="fa-solid fa-star"></i> Award ${esc(x.professionName)} XP</button></div>${x.suggested?`<p class="agl-chat-note">Suggested: ${x.suggested} XP. GM only.</p>`:'<p class="agl-chat-note">GM only.</p>'}`;
+    <button type="button" data-agl-xp-award><i class="fa-solid fa-star" aria-hidden="true"></i> Award ${esc(x.professionName)} XP</button></div>${x.suggested?`<p class="agl-chat-note">Suggested: ${x.suggested} XP. GM only.</p>`:'<p class="agl-chat-note">GM only.</p>'}`;
   const button=slot.querySelector('[data-agl-xp-award]');
   button?.addEventListener?.('click',async event=>{
     event.preventDefault?.();button.disabled=true;
@@ -1319,7 +1332,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   static DEFAULT_OPTIONS={id:'agl-window',classes:['agl-app','ag-app'],window:{title:'Ashen Gate | Profession Ledger',resizable:true,icon:'fa-solid fa-book-open'},position:{width:1180,height:800}};
   static PARTS={main:{template:`modules/${ID}/templates/ledger.hbs`}};
   render(options){checkPlayerLedger();return super.render(options);}
-  constructor(...args){super(...args);this.view='individual';this.actorId=null;this.demo=false;this.query='';
+  // Compact size; Comfortable scales it when the window is created (windowSize). A size the user resized to is kept by Foundry.
+  constructor(options={},...rest){super({...options,position:{...windowSize(LedgerApp.DEFAULT_OPTIONS.position),...options?.position}},...rest);this.view='individual';this.actorId=null;this.demo=false;this.query='';
     this.closedFolders=new Set();this.partySort='player';this.lastAward=null;this.notice='';this.rosterDraft=null;this._events=null;
     this.mapDraft=null;
     this.gather={source:'location',actorId:null,nodeRef:'',helperIds:[],pending:false,
@@ -1328,26 +1342,28 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       pick:{query:'',profession:'node',tier:'node'}};
     this.exoticDraft=null;
     this.coreAwardDraft=null;
+    this.accessDraft=null;
     this.assignState={target:'party',preview:null,selected:new Set()};
   }
   get actors(){return partyActors();}
   get library(){return catalog();}
   get actor(){const mine=myCharacters();return mine.find(a=>a.id===this.actorId)??mine[0]??null;}
   _tabs(){const names=[['individual','Individual'],['party','Party'],['catalog','Recipe Catalog'],['gathering','Gathering'],...(game.user.isGM?[['assign','Assign'],['gm','GM Setup']]:[])];
-    return names.map(([key,title])=>`<button type="button" data-action="tab" data-id="${key}" class="${this.view===key?'active':''}" aria-current="${this.view===key?'page':'false'}">${title}</button>`).join('');}
-  _search(placeholder){return `<input type="search" class="agl-search" data-agl-search value="${esc(this.query)}" placeholder="${esc(placeholder)}" aria-label="${esc(placeholder)}">`;}
-  _noRoster(){return `<div class="ag-empty">The GM hasn’t chosen the party yet. ${game.user.isGM?'<button type="button" class="ag-btn" data-action="tab" data-id="gm">Choose the party in GM Setup →</button>':'Ask your GM to set up the party in the Profession Ledger.'}</div>`;}
+    return names.map(([key,title])=>`<button type="button" role="tab" data-action="tab" data-id="${key}" class="${[this.view===key?'active':'',GM_VIEWS.has(key)?'ag-tab--gm':''].filter(Boolean).join(' ')}" aria-selected="${this.view===key}">${title}</button>`).join('');}
+  _search(placeholder){return `<label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-agl-search value="${esc(this.query)}" placeholder="${esc(placeholder)}" aria-label="${esc(placeholder)}"></label>`;}
+  _noRoster(){return game.user.isGM?emptyState('No party yet.','Choose the party characters in GM Setup.','<button type="button" class="ag-btn ag-btn--sm" data-action="tab" data-id="gm"><i class="fa-solid fa-gears" aria-hidden="true"></i> Choose the party in GM Setup</button>')
+    :emptyState('No party yet.','Your GM hasn’t chosen the party yet. The Ledger fills in once they do.');}
   _individual(lib){
     const mine=myCharacters(),actor=this.actor;
-    if(!actor)return game.user.isGM&&!rosterIds().length?this._noRoster():`<div class="ag-empty">${game.user.isGM?'No characters in the party.':'You don’t own a character in the party. Ask your GM to add your character in the Profession Ledger’s GM Setup.'}</div>`;
+    if(!actor)return game.user.isGM&&!rosterIds().length?this._noRoster():(game.user.isGM?emptyState('No characters in the party.','Add characters in GM Setup.'):emptyState('No character of yours in the party yet.','Ask your GM to add your character to the party.'));
     const picker=mine.length>1?`<label class="ag-field ag-field--inline">Character <select data-agl-actor>${mine.map(a=>`<option value="${esc(a.id)}" ${a.id===actor.id?'selected':''}>${esc(a.name)}</option>`).join('')}</select></label>`:`<div class="agl-who">${portrait(actor)}<strong>${esc(actor.name)}</strong></div>`;
-    const gmNote=game.user.isGM?`<div class="agl-note">Viewing <b>${esc(actor.name)}</b> as GM. Award XP on a profession below; ${actor.hasPlayerOwner?'the player learns recipes from their own Ledger or sheet.':'you can learn recipes for this character.'}</div>`:'';
-    return `<div class="ag-toolbar agl-toolbar">${picker}${this._search('Search recipes')}</div>${gmNote}${characterPanel(actor,lib,{closed:this.closedFolders,lastAward:this.lastAward})}`;
+    const gmNote=game.user.isGM?notice(`Viewing <b>${esc(actor.name)}</b> as GM. Award XP on a profession below; ${actor.hasPlayerOwner?'the player learns recipes from their own Ledger or sheet.':'you can learn recipes for this character.'}`):'';
+    return `<div class="ag-toolbar agl-toolbar">${this._search('Search recipes')}<div class="ag-toolbar__filters">${picker}</div></div>${gmNote}${characterPanel(actor,lib,{closed:this.closedFolders,lastAward:this.lastAward})}`;
   }
   _party(lib){
     if(!rosterIds().length)return this._noRoster();
     const actors=this.actors;
-    if(!actors.length)return '<div class="ag-empty">None of the party characters are visible to you. Ask your GM to give players at least Limited permission on party characters.</div>';
+    if(!actors.length)return emptyState('No party characters visible yet.','Ask your GM to give players at least Limited permission on party characters.');
     const gm=game.user.isGM;
     const hidden=gm&&players().length?actors.filter(a=>players().every(u=>!a.testUserPermission?.(u,'LIMITED'))):[];
     const mats=partyMaterials(actors,lib);
@@ -1364,24 +1380,25 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         const mineFound=[...found.entries()].filter(([id,list])=>defs.has(id)&&list.some(x=>x.actor.id===actor.id)).map(([id])=>id);
         const list=[...new Set([...mineKnown,...mineFound])].map(id=>defs.get(id)).sort((a,b)=>professionLabel(a).localeCompare(professionLabel(b))||a.name.localeCompare(b.name));
         const key=`actor-${actor.id}`;
-        return `<details class="agl-folder" data-folder="${esc(key)}" ${this.closedFolders.has(key)?'':'open'}><summary>${portrait(actor)} <strong>${esc(actor.name)}</strong> <span class="agl-count">${mineKnown.length} known${mineFound.length?` · ${mineFound.length} to learn`:''}</span>${gm?` <button type="button" class="ag-btn ag-btn--sm" data-action="open-individual" data-id="${esc(actor.id)}">Open ${esc(actor.name)}’s view</button>`:''}</summary>
-          <div class="agl-folder-body">${list.map(r=>recipeRow(r,lib,{knownBy:mineKnown.includes(r.id)?[actor]:[],foundBy:mineFound.includes(r.id)?[actor]:[]})).join('')||'<div class="ag-empty">No recipes yet.</div>'}</div></details>`;
+        return `<details class="agl-folder" data-folder="${esc(key)}" ${this.closedFolders.has(key)?'':'open'}><summary>${portrait(actor)} <strong>${esc(actor.name)}</strong> <span class="ag-badge">${mineKnown.length} known${mineFound.length?` · ${mineFound.length} to learn`:''}</span>${gm?` <button type="button" class="ag-btn ag-btn--sm" data-action="open-individual" data-id="${esc(actor.id)}">Open ${esc(actor.name)}’s view</button>`:''}</summary>
+          <div class="agl-folder-body">${list.map(r=>recipeRow(r,lib,{knownBy:mineKnown.includes(r.id)?[actor]:[],foundBy:mineFound.includes(r.id)?[actor]:[]})).join('')||emptyState('No recipes yet.')}</div></details>`;
       }).join('');
     }
-    const profRows=actors.map(a=>{const p=professionsOf(a);return `<div class="agl-line"><span class="agl-who">${portrait(a)}<strong>${esc(a.name)}</strong></span><span>${p.map(x=>`${esc(x.name)} ${badge(`L${x.level}`,'ok')}`).join(' ')||'<span class="agl-sub">No professions</span>'}</span></div>`;}).join('');
-    return `${hidden.length?`<div class="agl-note warn">No player can see ${esc(nameList(hidden))} (needs at least Limited permission), so players won’t see ${hidden.length===1?'that character':'those characters'} here.</div>`:''}
-      <div class="ag-toolbar agl-toolbar">${this._search('Search party recipes')}<div class="agl-segmented" role="group" aria-label="Sort recipes">
-        <button type="button" class="ag-btn ${this.partySort==='player'?'active':''}" data-action="party-sort" data-id="player">By player</button>
-        <button type="button" class="ag-btn ${this.partySort==='profession'?'active':''}" data-action="party-sort" data-id="profession">By profession</button></div></div>
+    const profRows=actors.map(a=>{const p=professionsOf(a);return `<li class="ag-row">${portrait(a)}<span class="ag-row__main"><span class="ag-row__title">${esc(a.name)}</span><span class="ag-row__meta">${p.map(x=>`${esc(x.name)} ${badge(`L${x.level}`,'ok')}`).join(' ')||'No professions'}</span></span></li>`;}).join('');
+    return `${hidden.length?notice(`No player can see ${esc(nameList(hidden))} (needs at least Limited permission), so players won’t see ${hidden.length===1?'that character':'those characters'} here.`,'warn'):''}
+      <div class="ag-toolbar agl-toolbar">${this._search('Search party recipes')}<div class="ag-toolbar__filters"><div class="ag-segmented" role="radiogroup" aria-label="Sort recipes">
+        <button type="button" role="radio" aria-checked="${this.partySort==='player'}" data-action="party-sort" data-id="player">By player</button>
+        <button type="button" role="radio" aria-checked="${this.partySort==='profession'}" data-action="party-sort" data-id="profession">By profession</button></div></div></div>
       <div class="agl-party">
-        <section class="agl-col-main"><div class="agl-section"><h3>Party recipes <span class="agl-count">${defs.size}</span></h3>
+        <section class="agl-col-main"><div class="agl-section"><h3>Party recipes <span class="ag-badge">${defs.size}</span></h3>
           <p class="agl-sub">Recipes the party knows, and recipe items someone holds but hasn’t learned yet. Craft and learn from the Individual tab.</p>
-          ${recipes||'<div class="ag-empty">No one in the party has found or learned a recipe yet.</div>'}</div></section>
+          ${recipes||emptyState('No party recipes yet.','Recipes appear here once someone in the party finds a recipe item or learns a recipe.')}</div></section>
         <section class="agl-col-side">
-          <div class="agl-section"><h3>Party materials <span class="agl-count">${mats.length}</span></h3>
-            ${mats.map(m=>`<div class="agl-material"><div class="agl-line"><strong>${esc(m.name)}</strong><b>× ${m.total}</b></div><div class="agl-holders">${m.holders.map(h=>`<span class="agl-chip">${esc(h.actor.name)} ${h.qty}</span>`).join('')}</div></div>`).join('')||'<div class="ag-empty">No crafting materials in the party.</div>'}
+          <div class="agl-section"><h3>Party materials <span class="ag-badge">${mats.length}</span></h3>
+            ${mats.length?`<ul class="ag-rows">${mats.map(m=>`<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(m.name)}</span><span class="ag-row__meta agl-holders">${m.holders.map(h=>badge(`${h.actor.name} ${h.qty}`)).join('')}</span></span><span class="ag-row__end">${qualityBadge(materialQuality(m.key,lib))}<b>× ${m.total}</b></span></li>`).join('')}</ul>`
+              :emptyState('No crafting materials in the party yet.','Materials appear here when party characters gather or carry them.')}
             <p class="agl-sub">Characters keep their own items. A craft that needs someone else’s materials asks their owner first.</p></div>
-          <div class="agl-section"><h3>Professions</h3>${profRows}</div>
+          <div class="agl-section"><h3>Professions</h3><ul class="ag-rows">${profRows}</ul></div>
         </section>
       </div>`;
   }
@@ -1393,7 +1410,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     return `<section class="ag-card agl-panel agl-catalog-tools"><h2>Catalog tools</h2>
         <p class="agl-sub">General Manager imports recipes, materials and the items recipes make. A crafted item is copied from the recipe’s result item in the world Items directory. The Ledger catalog import below is only for older player-safe JSON catalogs.</p>
         <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="import">Import Ledger recipe/material JSON</button>
-        <button type="button" class="ag-btn" data-action="manager" ${canOpen?'':'disabled title="Manager is not installed, enabled or exposing its open API"'}>Open General Manager ↗</button></div>
+        <button type="button" class="ag-btn" data-action="manager" ${canOpen?'':'disabled'}><i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i> Open General Manager</button>${canOpen?'':'<span class="agl-reason">General Manager is not installed or enabled.</span>'}</div>
         <div class="agl-management-actions">${badge('All players','ok')} ${badge('Some players','partial')} ${badge('GM only','warn')} ${badge('Draft — hidden from players','warn')}</div>
         <p class="agl-sub">Draft recipes are visible only to you. A player never sees a draft recipe item, and can’t learn or craft it, until you approve it in General Manager.</p>
       </section>`;
@@ -1406,30 +1423,29 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const hidden=gm?lib.recipes.filter(hiddenFromPlayers).length:0;
     return `<div class="ag-toolbar agl-toolbar">${this._search('Search recipes, professions or results')}</div>
       ${this._catalogTools()}
-      ${gm?`<div class="agl-note ${hidden?'warn':''}">GM view: every recipe in the world. ${hidden?`<b>${hidden} of ${lib.recipes.length} ${lib.recipes.length===1?'recipe':'recipes'} ${hidden===1?'is':'are'} draft or GM-only and hidden from players.</b> `:''}Players only see recipes someone in the party has found or learned.</div>`
+      ${gm?notice(`GM view: every recipe in the world. ${hidden?`<b>${hidden} of ${lib.recipes.length} ${lib.recipes.length===1?'recipe':'recipes'} ${hidden===1?'is':'are'} draft or GM-only and hidden from players.</b> `:''}Players only see recipes someone in the party has found or learned.`,hidden?'warn':'info')
         :'<p class="agl-sub">Recipes your party has found or learned, by profession.</p>'}
-      ${folders(rows,this.closedFolders)||`<div class="ag-empty">${gm?'No recipes in this world. Import recipes with General Manager.':'No recipes yet. A recipe appears here once someone in the party finds its recipe item or learns it.'}</div>`}
-      <div class="ag-empty agl-no-matches" hidden>No matching recipes.</div>`;
+      ${folders(rows,this.closedFolders)||(gm?emptyState('No recipes in this world yet.','Import recipes with General Manager.'):emptyState('No recipes yet.','A recipe appears here once someone in the party finds its recipe item or learns it.'))}
+      <div class="ag-empty agl-no-matches" hidden><p class="ag-empty__title">Nothing matches.</p><p class="ag-empty__text">Clear the search to see every recipe.</p></div>`;
   }
-  _roster(){if(!game.user.isGM)return '<div class="ag-empty">Party Roster is GM-only.</div>';
+  _roster(){if(!game.user.isGM)return emptyState('Party Roster is GM-only.');
     const selected=this.rosterDraft??new Set(rosterIds());const chars=allCharacters();
     return `<section class="ag-card agl-panel agl-roster"><h2>Party ${badge(`${selected.size} selected`,'ok')}</h2>
       <p class="agl-sub">Checked characters make up the party. A player sees a party member in the Party tab, and can ask to use their materials, when they have at least Limited permission on that character. Changes are saved for everyone in this world.</p>
       <div class="agl-roster-actions"><button type="button" class="ag-btn" data-action="roster-all">Select player-owned characters</button><button type="button" class="ag-btn" data-action="roster-clear">Clear selection</button></div>
-      <div class="agl-roster-list">${chars.map(a=>`<label class="agl-roster-row"><input type="checkbox" data-roster-actor="${esc(a.id)}" ${selected.has(a.id)?'checked':''}>
-        ${portrait(a)}<span class="agl-roster-name"><strong>${esc(a.name)}</strong><small>${a.hasPlayerOwner?'Player owned':'No player owner'}</small></span>${visibilityBadge(a)}
-      </label>`).join('')||'<div class="ag-empty">No character Actors in this world.</div>'}</div>
-      <div class="agl-note">Access indicators are calculated against non-GM user accounts. Being in the party does not grant ownership or show a player anything beyond the Ledger’s profession, material and recipe lists.</div>
+      ${chars.length?`<div class="ag-rows agl-roster-list">${chars.map(a=>`<label class="ag-row agl-roster-row"><input type="checkbox" data-roster-actor="${esc(a.id)}" ${selected.has(a.id)?'checked':''}>
+        ${portrait(a)}<span class="ag-row__main"><span class="ag-row__title">${esc(a.name)}</span><span class="ag-row__meta">${a.hasPlayerOwner?'Player owned':'No player owner'}</span></span><span class="ag-row__end">${visibilityBadge(a)}</span>
+      </label>`).join('')}</div>`:emptyState('No characters in this world yet.','Create character Actors, then choose the party here.')}
+      ${notice('Access indicators are calculated against non-GM user accounts. Being in the party does not grant ownership or show a player anything beyond the Ledger’s profession, material and recipe lists.')}
     </section>`;
   }
   _gmSetup(){
-    if(!game.user.isGM)return '<div class="ag-empty">GM Setup is restricted to the GM.</div>';
+    if(!game.user.isGM)return emptyState('GM Setup is restricted to the GM.');
     return `<div class="agl-gm-setup">
       ${this._roster()}
-      <section class="ag-card agl-panel"><h2>Player Access</h2>
-        <p class="agl-sub">${playerAccessEnabled()?'Visible':'Hidden'} to players. This controls the Actors launcher, Ledger window and sheet tab only; it never changes Profession XP, known recipes or Items. Manager can also change this switch (${PLAYER_ACCESS_CONTRACT}).</p>
-        <div class="agl-management-actions">${badge(`Player interface: ${playerAccessEnabled()?'Visible':'Hidden'}`,playerAccessEnabled()?'ok':'warn')}
-          <button type="button" data-action="toggle-player-access" class="ag-btn">${playerAccessEnabled()?'Hide from players':'Show to players'}</button></div>
+      <section class="ag-card agl-panel"><h2>Player Access ${badge(playerAccessEnabled()?'Visible to players':'Hidden from players',playerAccessEnabled()?'ok':'warn')}</h2>
+        <p class="agl-sub">Controls the Actors launcher, Ledger window and sheet tab only; it never changes Profession XP, known recipes or Items. Manager can also change this setting (${PLAYER_ACCESS_CONTRACT}). Saved with <b>Save Changes</b>.</p>
+        <label class="ag-field ag-field--inline"><input type="checkbox" data-player-access ${(this.accessDraft??playerAccessEnabled())?'checked':''}> Players can open the Profession Ledger</label>
       </section>
       ${this._toolSetup()}
       ${this._exoticSetup()}
@@ -1452,6 +1468,10 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       <label class="ag-field ag-field--inline"><input type="checkbox" data-core-award ${on?'checked':''}> Award the linked core item when crafting</label>
     </section>`;
   }
+  /** D4: Player Access is a draft like the other GM Setup settings; only Save Changes writes it. */
+  get accessDirty(){return this.accessDraft!=null&&this.accessDraft!==playerAccessEnabled();}
+  get setupDirty(){return this.rosterDirty||this.mapDirty||this.exoticDirty||this.coreAwardDirty||this.accessDirty;}
+  _clearSetupDrafts(){this.rosterDraft=null;this.mapDraft=null;this.exoticDraft=null;this.coreAwardDraft=null;this.accessDraft=null;}
   get coreAwardDirty(){return this.coreAwardDraft!=null&&this.coreAwardDraft!==awardCoreItems();}
   get exoticDirty(){return this.exoticDraft!==null&&clampPercent(this.exoticDraft,exoticPercent())!==exoticPercent();}
   /** 0.22.0: one row per profession, crafting then gathering: Skill to Access | Tool to Access | Tool for Advantage.
@@ -1463,8 +1483,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const {map,unresolved,conflicts}=crosswalkInfo(draft),keys=toolKeys(),fileLayer=baselineLayer();
     const pick=(k,name,list,options,labelOf,current,{check,heading})=>{
       const several=current.length>1,checkNote=check===undefined||(current.length===1?current[0]===check:!check)?'':`Check uses ${check?labelOf(check):'none'}`;
-      const tip=[several?current.map(labelOf).join(', '):'',checkNote].filter(Boolean).join(' · ');
-      return `<select data-map-cell="${list}" data-map-prof="${esc(k)}" aria-label="${esc(name)} ${heading}"${tip?` title="${esc(tip)}"`:''}>
+      const hint=[several?current.map(labelOf).join(', '):'',checkNote].filter(Boolean).join(' · ');
+      return `<select data-map-cell="${list}" data-map-prof="${esc(k)}" aria-label="${esc(name)} ${heading}"${hint?` ${tip(hint)}`:''}>
         ${several?`<option value="${MAP_KEEP}" selected>Several (${current.length})</option>`:''}<option value="" ${current.length?'':'selected'}>None</option>
         ${options.map(o=>`<option value="${esc(o)}" ${!several&&current[0]===o?'selected':''}>${esc(labelOf(o))}</option>`).join('')}</select>`;};
     const row=name=>{const k=professionKey(name),title=professionTitle(k),gathering=GATHERING_PROFESSIONS.includes(name);
@@ -1473,7 +1493,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         <td>${pick(k,title,'qualifySkills',SKILL_IDS,skillLabel,map.qualifySkills[k]??[],{check:hasCheckSkill(k)?map.skills[k]||'':undefined,heading:'skill to access'})}</td>
         <td>${pick(k,title,'qualifyTools',keys,toolLabel,map.qualifyTools[k]??[],{check:map.tools[k]||'',heading:'tool to access'})}</td>
         <td>${gathering?pick(k,title,'advantageTools',keys,toolLabel,draft.advantageTools[k]??fileLayer?.[k]?.advantageTools??[],{heading:'tool for advantage'}):'<span class="agl-sub">—</span>'}</td>
-        <td>${custom?`<button type="button" class="ag-btn" data-action="map-reset" data-id="${esc(k)}" title="Reset ${esc(title)} to the default">Reset</button>`:''}</td></tr>`;};
+        <td class="is-actions">${custom?`<button type="button" class="ag-btn ag-btn--sm" data-action="map-reset" data-id="${esc(k)}" ${tip(`Reset ${title} to the default`)}>Reset</button>`:''}</td></tr>`;};
     const group=(label,names)=>`<tr class="agl-map-group"><th colspan="5" scope="colgroup">${label}</th></tr>${names.map(row).join('')}`;
     const notes=[...unresolved.map(u=>`${u.profession}: catalog ${u.field==='skillProficienciesAnyOf'?'skill':'tool'} “${u.name}” matches no dnd5e ${u.field==='skillProficienciesAnyOf'?'skill':'tool'} and is ignored.`),
       ...conflicts.map(c=>`${c}: several imported Profession definitions disagree, so the catalog is not used for it.`)];
@@ -1481,7 +1501,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       <p class="agl-sub">Proficiency in the <b>skill</b> or the <b>tool to access</b> (either one) qualifies a character for the profession in <b>Assign</b>. The same skill and tool are the profession’s checks: crafting needs the tool when a recipe names none of its own, and gathering offers the tool and the skill. A character proficient with, or carrying, the <b>tool for advantage</b> starts gathering checks with advantage (gathering professions only; crafting checks never get it). “Several” means a list from the baseline file or an earlier edit; hover to see it. Saved with <b>Save Changes</b>.</p>
       ${notes.length?`<ul class="agl-sub">${notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`:''}
       ${this._baselinePanel()}
-      <div class="agl-map-wrap"><table class="agl-map"><thead><tr><th>Profession</th><th>Skill to Access</th><th>Tool to Access</th><th>Tool for Advantage</th><th></th></tr></thead>
+      <div class="ag-table-wrap agl-map-wrap"><table class="ag-table agl-map"><thead><tr><th scope="col">Profession</th><th scope="col">Skill to Access</th><th scope="col">Tool to Access</th><th scope="col">Tool for Advantage</th><th scope="col" class="is-actions"><span class="agl-sr">Reset</span></th></tr></thead>
       <tbody>${group('Crafting professions',PROFESSION_NAMES.filter(n=>!GATHERING_PROFESSIONS.includes(n)))}${group('Gathering professions',PROFESSION_NAMES.filter(n=>GATHERING_PROFESSIONS.includes(n)))}</tbody></table></div></section>`;
   }
   /** GM: baseline file import (file → preview → apply) and export of the current table. */
@@ -1495,8 +1515,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       const rows=r.changes.map(c=>`<tr><th scope="row">${esc(c.profession)}</th><td>${esc(LIST[c.list])}</td><td>${show(c.list,c.before)}</td><td>${show(c.list,c.after)}</td><td>${c.gmWins?'<span class="agl-sub">Your edit still wins</span>':''}</td></tr>`).join('');
       preview=`<div class="agl-baseline-preview" role="region" aria-label="Baseline file preview"><h3>Preview: ${esc(p.fileName||'baseline file')}</h3>
         ${notes.length?`<ul class="agl-sub">${notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`:''}
-        ${r.ok?(rows?`<div class="agl-map-wrap"><table class="agl-map"><thead><tr><th>Profession</th><th>List</th><th>Baseline now</th><th>From this file</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:'<p class="agl-sub">This file changes nothing.</p>'):'<p class="agl-sub">Fix the file and import it again. Nothing was changed.</p>'}
-        <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="xwalk-cancel">Cancel</button>${r.ok?`<button type="button" class="ag-btn ag-btn--primary" data-action="xwalk-apply">Apply baseline</button>`:''}</div></div>`;
+        ${r.ok?(rows?`<div class="ag-table-wrap agl-map-wrap"><table class="ag-table agl-map"><thead><tr><th scope="col">Profession</th><th scope="col">List</th><th scope="col">Baseline now</th><th scope="col">From this file</th><th scope="col">Note</th></tr></thead><tbody>${rows}</tbody></table></div>`:'<p class="agl-sub">This file changes nothing.</p>'):'<p class="agl-sub">Fix the file and import it again. Nothing was changed.</p>'}
+        <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="xwalk-cancel">Cancel</button>${r.ok?`<button type="button" class="ag-btn" data-action="xwalk-apply"><i class="fa-solid fa-check" aria-hidden="true"></i> Apply baseline</button>`:''}</div></div>`;
     }
     return `<div class="agl-baseline"><p class="agl-sub"><b>Baseline file</b>: ${rec?`${esc(rec.fileName||'imported file')}, imported ${esc(String(rec.importedAt??'').slice(0,10))}`:'none imported'}. Layers, lowest first: built in, Profession catalog, baseline file, your edits here (your edits always win; Reset a row to fall back).</p>
       <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="xwalk-import">Import baseline file…</button><button type="button" class="ag-btn" data-action="xwalk-export">Export current table</button>
@@ -1504,7 +1524,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   }
   /** GM: assign the profession features characters qualify for (dry run, then confirm). Not part of GM Setup. */
   _assign(){
-    if(!game.user.isGM)return '<div class="ag-empty">Assign is restricted to the GM.</div>';
+    if(!game.user.isGM)return emptyState('Assign is restricted to the GM.');
     const a=this.assignState,party=assignActors(),chars=allCharacters();
     const target=`<label class="ag-field ag-field--inline">Characters <select data-assign-target><option value="party" ${a.target==='party'?'selected':''}>Whole party (${party.length})</option>${chars.map(c=>`<option value="${esc(c.id)}" ${a.target===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label>`;
     const p=a.preview;
@@ -1513,7 +1533,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       const proposals=p.rows.filter(r=>r.status==='propose');
       const STATUS={has:['Already has','muted'],'no-item':['No imported Profession Item: import it with Manager','warn'],conflict:['Several imported Profession Items: archive the extra one in Manager','warn']};
       const groups=p.actors.map(act=>{const rows=p.rows.filter(r=>r.actorId===act.id);
-        return `<tr class="agl-assign-actor"><th colspan="4" scope="rowgroup">${esc(act.name)}${rows.length?'':' <span class="agl-sub">— no skill or tool proficiency matches a profession</span>'}</th></tr>${rows.map(r=>`<tr>
+        return `<tr class="agl-map-group agl-assign-actor"><th colspan="4" scope="rowgroup">${esc(act.name)}${rows.length?'':' <span class="agl-sub">— no skill or tool proficiency matches a profession</span>'}</th></tr>${rows.map(r=>`<tr>
           <td>${r.status==='propose'?`<input type="checkbox" data-assign-row="${esc(r.id)}" ${a.selected.has(r.id)?'checked':''} aria-label="Add ${esc(r.profession)} to ${esc(r.actorName)}">`:''}</td>
           <td>${esc(r.profession)}</td><td>${esc(r.reason)}</td>
           <td>${r.status==='propose'?badge(`Will add ${r.itemName}`,'ok'):badge(...STATUS[r.status])}</td></tr>`).join('')}`;}).join('');
@@ -1521,14 +1541,15 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         ...p.conflicts.map(c=>`${c}: imported Profession definitions disagree; check them in Manager.`),
         ...p.unresolved.map(u=>`${u.profession}: catalog ${u.field==='skillProficienciesAnyOf'?'skill':'tool'} “${u.name}” matches no dnd5e ${u.field==='skillProficienciesAnyOf'?'skill':'tool'} and is ignored.`)].filter(Boolean);
       body=`${notes.map(n=>`<p class="agl-sub">${esc(n)}</p>`).join('')}
-        <div class="agl-map-wrap"><table class="agl-map agl-assign"><thead><tr><th></th><th>Profession</th><th>Reason</th><th>Result</th></tr></thead><tbody>${groups||'<tr><td colspan="4">No characters to check.</td></tr>'}</tbody></table></div>
+        ${groups?`<div class="ag-table-wrap agl-map-wrap"><table class="ag-table agl-map agl-assign"><thead><tr><th scope="col"><span class="agl-sr">Add</span></th><th scope="col">Profession</th><th scope="col">Reason</th><th scope="col">Result</th></tr></thead><tbody>${groups}</tbody></table></div>`
+          :emptyState('No characters to check.','Choose the party in GM Setup, or pick one character above.')}
         <p class="agl-sub">${proposals.length?`${plural(proposals.length,'profession feature')} to add. Adding never changes XP, levels, perks or existing Items.`:'Nothing new to add.'}</p>
         <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="assign-apply" data-id="selected" ${[...a.selected].some(id=>proposals.some(r=>r.id===id))?'':'disabled'}>Add selected</button>
           <button type="button" class="ag-btn ag-btn--primary" data-action="assign-apply" data-id="all" ${proposals.length?'':'disabled'}>Add all missing (${proposals.length})</button></div>`;
     }
     return `<section class="ag-card agl-panel"><h2>Assign professions</h2>
       <p class="agl-sub">Matches each character’s skill and tool <b>proficiencies</b> (not class) against GM Setup → Tools and checks, and proposes the imported PROF-* Profession features they don’t have yet.</p>
-      <div class="ag-toolbar agl-toolbar">${target}<button type="button" class="ag-btn" data-action="assign-preview"><i class="fa-solid fa-magnifying-glass"></i> Preview</button></div>
+      <div class="ag-toolbar agl-toolbar">${target}<button type="button" class="ag-btn" data-action="assign-preview"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Preview</button></div>
       ${body}</section>`;
   }
   _help(){return `
@@ -1541,7 +1562,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>Tools:</strong> a recipe shows the tool or workstation it needs and warns if your character doesn’t carry the tool. Crafting rolls a tool check; the result is on the craft card. Gold costs are shown, not deducted.</p>
     <p><strong>XP:</strong> the GM awards profession XP from the gather and craft chat cards.</p>
     ${game.user.isGM?'<p><strong>Assign:</strong> preview which profession features each party character qualifies for from their skill and tool proficiencies (the Skill to Access and Tool to Access in GM Setup → Tools and checks), then add the missing ones. Re-running adds nothing new; XP is never changed.</p>':''}
-    ${game.user.isGM?'<p><strong>GM Setup:</strong> choose the party and Player Access. <em>Tools and checks</em> has one row per profession, crafting then gathering: the skill or tool that gives access (either one qualifies; they are also the profession’s checks) and, for gathering, the tool that gives advantage (advantage tools apply to gathering professions only; ignored for crafting). It can import a baseline crosswalk file (preview, then apply) and export the current table. Recipe imports and Manager are in the Recipe Catalog tab; XP is awarded from the Individual tab.</p>':''}
+    ${game.user.isGM?'<p><strong>GM Setup:</strong> choose the party and Player Access; every GM Setup change, Player Access included, is saved with <b>Save Changes</b>. <em>Tools and checks</em> has one row per profession, crafting then gathering: the skill or tool that gives access (either one qualifies; they are also the profession’s checks) and, for gathering, the tool that gives advantage (advantage tools apply to gathering professions only; ignored for crafting). It can import a baseline crosswalk file (preview, then apply) and export the current table. Recipe imports and Manager are in the Recipe Catalog tab; XP is awarded from the Individual tab.</p>':''}
   `;}
   /** Ad-hoc node from the GM's form; same shape as a Locations entry. */
   _adhocNode(){
@@ -1569,22 +1590,23 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const chosen=new Set(a.exotics.map(e=>e.materialId));
     const list=(p.profession==='node'&&!nodeProf)?[]:filterMaterials(metas,{query:p.query,profession,quality:'Exotic',...tierOpt,keyOf:professionKeyOfId}).filter(m=>!chosen.has(m.id)).slice(0,50);
     const profLabel=professionTitle;
-    const rows=exoticRows({...node,exotics:a.exotics}).map(r=>`<li class="agl-exotic-row">
-        <strong>${esc(r.name)}</strong>${r.meta?.tier?` <small class="agl-sub">Tier ${r.meta.tier}</small>`:''} ${r.eligible?badge('Eligible','ok'):badge(r.reason,'warn')}
+    const rows=exoticRows({...node,exotics:a.exotics}).map(r=>`<li class="ag-row agl-exotic-row">
+        <span class="ag-row__title">${esc(r.name)}</span> ${qualityBadge('exotic')}${r.meta?.tier?` <small class="agl-sub">Tier ${r.meta.tier}</small>`:''} ${r.eligible?badge('Eligible','ok'):badge(r.reason,'warn')}
         <label class="ag-field ag-field--inline">Rule<select data-adhoc-exotic="${esc(r.materialId)}" data-exotic-key="mode">${EXOTIC_MODES.map(m=>`<option value="${m}" ${r.mode===m?'selected':''}>${m==='designated'?'Designated source':'Random discovery'}</option>`).join('')}</select></label>
         ${r.mode==='designated'?`<label class="ag-field ag-field--inline">Chance %<input type="number" min="1" max="100" step="1" data-adhoc-exotic="${esc(r.materialId)}" data-exotic-key="chance" value="${esc(r.chance??'')}" placeholder="required"></label>
         <label class="ag-field ag-field--inline">When<select data-adhoc-exotic="${esc(r.materialId)}" data-exotic-key="condition">${Object.entries(DESIGNATED_CONDITIONS).map(([k,l])=>`<option value="${k}" ${r.condition===k?'selected':''}>${esc(l)}</option>`).join('')}</select></label>`:''}
-        <button type="button" class="ag-btn" data-action="adhoc-exotic-remove" data-id="${esc(r.materialId)}">Remove</button></li>`).join('');
+        <span class="ag-row__end"><button type="button" class="ag-btn ag-btn--sm" data-action="adhoc-exotic-remove" data-id="${esc(r.materialId)}">Remove</button></span></li>`).join('');
     return `<fieldset class="agl-exotic-pick"><legend>Exotic candidates (optional, GM only)</legend>
       <p class="agl-sub">Pick which Exotic materials this node can give. A pick sets eligibility only: a successful check rolls d100 once (discovery ${exoticPercent()}%, set in GM Setup), or a designated source uses its own chance instead. A failed check never finds one. Players never see this list.</p>
-      ${rows?`<ul class="agl-exotic-list">${rows}</ul>`:''}
+      ${rows?`<ul class="ag-rows agl-exotic-list">${rows}</ul>`:''}
       <div class="ag-toolbar agl-exotic-filters">
         <label class="ag-field">Search<input type="search" data-gather-pick="query" value="${esc(p.query)}" placeholder="Material name"></label>
         <label class="ag-field">Gathering profession<select data-gather-pick="profession"><option value="node" ${p.profession==='node'?'selected':''}>This node’s (${esc(nodeProf?profLabel(nodeProf):'none')})</option><option value="any" ${p.profession==='any'?'selected':''}>Any</option>${GATHERING_KEYS.map(k=>`<option value="${k}" ${p.profession===k?'selected':''}>${esc(profLabel(k))}</option>`).join('')}</select></label>
         <label class="ag-field">Tier<select data-gather-pick="tier"><option value="node" ${p.tier==='node'?'selected':''}>Up to this node’s (${esc(nodeTier??'—')})</option><option value="any" ${p.tier==='any'?'selected':''}>Any</option>${TIERS.map((t,i)=>`<option value="${i+1}" ${p.tier===String(i+1)?'selected':''}>${i+1} · ${t}</option>`).join('')}</select></label>
-        <span class="agl-sub">Rarity: Exotic · Type: Material</span></div>
-      ${list.length?`<ul class="agl-exotic-list">${list.map(m=>`<li class="agl-exotic-row${m.unavailable?' is-off':''}"><strong>${esc(m.name)}</strong> <small class="agl-sub">Tier ${m.tier??'—'}</small>
-        ${m.unavailable?badge(m.unavailable,'warn'):''}<button type="button" class="ag-btn" data-action="adhoc-exotic-add" data-id="${esc(m.id)}" ${m.unavailable?`disabled title="${esc(m.unavailable)}"`:''}>Add</button></li>`).join('')}</ul>`
+        <span class="agl-sub">${qualityBadge('exotic')} · Type: Material</span></div>
+      ${list.length?`<ul class="ag-rows agl-exotic-list">${list.map(m=>`<li class="ag-row agl-exotic-row${m.unavailable?' is-off':''}"${m.unavailable?' aria-disabled="true"':''}><span class="ag-row__main"><span class="ag-row__title">${esc(m.name)}</span>
+        <span class="ag-row__meta">Tier ${m.tier??'—'}${m.unavailable?` · ${esc(m.unavailable)}`:''}</span></span>
+        <span class="ag-row__end">${qualityBadge('exotic')}<button type="button" class="ag-btn ag-btn--sm" data-action="adhoc-exotic-add" data-id="${esc(m.id)}" ${m.unavailable?'disabled':''}>Add</button></span></li>`).join('')}</ul>`
         :`<p class="agl-sub">${p.profession==='node'&&!nodeProf?'This node’s skill is not a gathering profession, so no Exotic can be found here. Choose a gathering profession above.':'No imported Exotic materials match. Exotics come from General Manager (approved, player-visible, quality “Exotic”).'}</p>`}
     </fieldset>`;
   }
@@ -1602,8 +1624,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
           ${plan&&!plan.professionId?` · ${esc(r.actorName)} has no ${esc(plan.profession||'matching')} profession feature.`:''}
           ${need&&progress&&progress.level<need?` · ${esc(plan.professionName)} level ${progress.level}; tier ${node.tier} usually needs level ${need}.`:''}</p>
         <div class="agl-management-actions"><label class="ag-field ag-field--inline">Reason (optional, sent to the player)<input type="text" maxlength="200" data-gather-decline-reason="${esc(r.requestId)}"></label>
-          <button type="button" class="ag-btn" data-action="gather-decline" data-id="${esc(r.requestId)}"><i class="fa-solid fa-xmark"></i> Decline</button>
-          <button type="button" class="ag-btn ag-btn--primary" data-action="gather-approve" data-id="${esc(r.requestId)}"><i class="fa-solid fa-check"></i> Approve</button></div></li>`;}).join('');
+          <button type="button" class="ag-btn" data-action="gather-decline" data-id="${esc(r.requestId)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Decline</button>
+          <button type="button" class="ag-btn" data-action="gather-approve" data-id="${esc(r.requestId)}"><i class="fa-solid fa-check" aria-hidden="true"></i> Approve</button></div></li>`;}).join('');
     return `<section class="ag-card agl-panel agl-gather-requests"><h2>Requests ${badge(String(list.length),'warn')}</h2>
       <p class="agl-sub">Players asked to gather. Approve starts the check as Start gathering does (the lead’s owner rolls); Decline tells the player, with your reason if you give one.</p>
       <ul class="agl-request-list">${rows}</ul></section>`;
@@ -1613,7 +1635,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const rolls=[...incomingRolls.values()].filter(r=>mine.some(a=>a.id===r.actorId));
     const rollCards=rolls.map(r=>{const a=game.actors.get(r.actorId);return `<section class="ag-card agl-panel agl-gather-roll"><h2>Your gathering check</h2>
       <p><strong>${esc(r.actorName)}</strong> gathers at ${esc(r.title)} · ${esc(r.summary)}</p>${r.assists.length?`<p class="agl-sub">Assisted by ${esc(r.assists.join(', '))}.</p>`:''}
-      ${rollFields(a,r,r.sessionId)}<div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--primary" data-action="gather-player-roll" data-id="${esc(r.sessionId)}"><i class="fa-solid fa-dice-d20"></i> Roll</button></div></section>`;}).join('');
+      ${rollFields(a,r,r.sessionId)}<div class="agl-management-actions"><button type="button" class="ag-btn" data-action="gather-player-roll" data-id="${esc(r.sessionId)}"><i class="fa-solid fa-dice-d20" aria-hidden="true"></i> Roll</button></div></section>`;}).join('');
     const where=gatherLocations();
     const party=partyActors().filter(a=>a.id!==actor?.id);
     const nodes=where.locations.map(loc=>`<fieldset class="agl-node-group"><legend>${esc(loc.name)}</legend>${loc.nodes.map(n=>{
@@ -1624,17 +1646,17 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const blocker=playerBlocker({rosterCount:rosterIds().length,mine:actor?mine.length:0,where});
     return `${rollCards}<section class="ag-card agl-panel"><h2>Request gathering</h2>
       <p class="agl-sub">Pick a gathering spot at a location your party knows. The GM approves it, then the lead gatherer rolls one check for the party. Helpers with suitable tools give advantage, not another attempt.</p>
-      ${blocker?`<div class="ag-empty">${esc(blocker)}</div>`
+      ${blocker?emptyState('Gathering isn’t ready yet.',esc(blocker))
         :`<div class="agl-gather-form">${mine.length>1?`<label class="ag-field">Lead gatherer<select data-gather-field="actorId">${mine.map(a=>`<option value="${esc(a.id)}" ${a.id===actor.id?'selected':''}>${esc(a.name)}</option>`).join('')}</select></label>`:`<div class="agl-who">${portrait(actor)}<strong>${esc(actor.name)}</strong> leads</div>`}
           ${party.length?`<fieldset class="agl-gather-eligible"><legend>Helpers (optional)</legend>${party.map(h=>`<label><input type="checkbox" data-gather-helper="${esc(h.id)}" ${this.gather.helperIds.includes(h.id)?'checked':''}> ${esc(h.name)}</label>`).join('')}</fieldset>`:''}</div>
           <div class="agl-nodes">${nodes}</div>
-          <div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--primary" data-action="gather-request" ${pending?'disabled':''}><i class="fa-solid fa-paper-plane"></i> ${pending?'Waiting for the GM…':'Request gather'}</button></div>
+          <div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--primary" data-action="gather-request" ${pending?'disabled':''}><i class="fa-solid fa-paper-plane" aria-hidden="true"></i> ${pending?'Waiting for the GM…':'Request gather'}</button></div>
           ${waiting?`<p class="agl-sub" role="status">${esc(actor.name)}’s request${waiting.title?` (${esc(waiting.title)})`:''} is waiting for the GM. You’ll be told when they answer.</p>`:''}`}
     </section>`;
   }
   _gatherGM(){
     const party=this.actors,where=gatherLocations(),mats=materialChoices();
-    if(!party.length)return rosterIds().length?`<div class="ag-empty">${esc(GATHER_FIX.partyMissing)}</div>`:`<div class="ag-empty">${esc(GATHER_FIX.noParty)} <button type="button" class="ag-btn" data-action="tab" data-id="gm">Open GM Setup →</button></div>`;
+    if(!party.length)return rosterIds().length?emptyState('No party characters found.',esc(GATHER_FIX.partyMissing)):emptyState('No party yet.',esc(GATHER_FIX.noParty),'<button type="button" class="ag-btn ag-btn--sm" data-action="tab" data-id="gm"><i class="fa-solid fa-gears" aria-hidden="true"></i> Open GM Setup</button>');
     const g=this.gather;
     if(!where.ok)g.source='adhoc';
     const lead=party.find(a=>a.id===g.actorId)??party[0];g.actorId=lead.id;
@@ -1646,10 +1668,10 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       <p>${esc(nodeSummary(s.node))}${proj.assists.length?` · assisted by ${esc(proj.assists.join(', '))}`:''}</p>
       <p class="agl-sub">${s.rollerIds.length?`Waiting for ${esc(nameList(s.rollerIds.map(userById).filter(Boolean)))} to roll. You can also roll for them or record a total.`:'No owner is online: roll for them or record the total.'}</p>
       ${a?rollFields(a,proj,s.id):''}
-      <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="gather-cancel" data-id="${esc(s.id)}">Cancel</button>
+      <div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--ghost" data-action="gather-cancel" data-id="${esc(s.id)}">Cancel check</button>
         <label class="ag-field ag-field--inline">Total <input type="number" min="-20" max="100" step="1" data-gather-total="${esc(s.id)}"></label><button type="button" class="ag-btn" data-action="gather-record" data-id="${esc(s.id)}">Record total</button>
-        <button type="button" class="ag-btn ag-btn--primary" data-action="gather-gm-roll" data-id="${esc(s.id)}"><i class="fa-solid fa-dice-d20"></i> Roll for ${esc(s.leadName)}</button></div></section>`;}).join('');
-    const last=lastGather?`<div class="agl-note">${esc(lastGather.leadName)} · ${esc(lastGather.title)}: ${lastGather.total} vs DC ${lastGather.dc} — <b>${esc(lastGather.verdict)}</b>${lastGather.award?`, ${lastGather.award.quantity} × ${esc(lastGather.award.name)}${lastGather.award.stacked?` (now ${lastGather.award.total})`:''}`:''}${lastGather.exoticAward?` + Exotic ${esc(lastGather.exoticAward.name)}`:''}${lastGather.exotic?.roll!=null?` · Exotic d100 ${lastGather.exotic.roll} vs ${lastGather.exotic.target} (${lastGather.exotic.kind})`:''}${lastGather.exoticNote?` · <b>${esc(lastGather.exoticNote)}</b>`:''}${lastGather.exhausted==='recorded'?' · node marked exhausted in Locations':lastGather.exhausted==='manual'?' · <b>mark the node exhausted in Locations</b>':lastGather.exhausted==='session'?' · renewable node: blocked until you reload':''}. Award XP from the chat card.</div>`:'';
+        <button type="button" class="ag-btn" data-action="gather-gm-roll" data-id="${esc(s.id)}"><i class="fa-solid fa-dice-d20" aria-hidden="true"></i> Roll for ${esc(s.leadName)}</button></div></section>`;}).join('');
+    const last=lastGather?notice(`${esc(lastGather.leadName)} · ${esc(lastGather.title)}: ${lastGather.total} vs DC ${lastGather.dc} — <b>${esc(lastGather.verdict)}</b>${lastGather.award?`, ${lastGather.award.quantity} × ${esc(lastGather.award.name)} ${qualityBadge(lastGather.award.quality)}${lastGather.award.stacked?` (now ${lastGather.award.total})`:''}`:''}${lastGather.exoticAward?` + ${esc(lastGather.exoticAward.name)} ${qualityBadge('exotic')}`:''}${lastGather.exotic?.roll!=null?` · Exotic d100 ${lastGather.exotic.roll} vs ${lastGather.exotic.target} (${lastGather.exotic.kind})`:''}${lastGather.exoticNote?` · <b>${esc(lastGather.exoticNote)}</b>`:''}${lastGather.exhausted==='recorded'?' · node marked exhausted in Locations':lastGather.exhausted==='manual'?' · <b>mark the node exhausted in Locations</b>':lastGather.exhausted==='session'?' · renewable node: blocked until you reload':''}. Award XP from the chat card.`):'';
     const nodeOptions=where.locations.map(loc=>`<optgroup label="${esc(loc.name)}${loc.revealed?'':' (unrevealed)'}">${loc.nodes.map(n=>{const value=`${loc.id}|${n.id??''}`,ok=n.gatherable&&!nodeBusy(n.key),byHand=!n.materialId&&!nodeBusy(n.key);
       return `<option value="${esc(value)}" ${g.nodeRef===value?'selected':''} ${ok||byHand?'':'disabled'}>${esc(nodeTitle(n))} · ${esc(nodeSummary(n)||'no DC')}${n.visible?'':' · hidden from players'}${byHand?' — no material: award by hand':n.blocked?` — ${esc(n.blocked)}`:ok?'':' — in progress'}</option>`;}).join('')}</optgroup>`).join('');
     const a=g.adhoc,matOpts=(selected,blank)=>`${blank?`<option value="">${blank}</option>`:''}${mats.map(i=>`<option value="${esc(agSourceId(i))}" ${selected===agSourceId(i)?'selected':''}>${esc(i.name)}</option>`).join('')}`;
@@ -1665,9 +1687,9 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
        <label class="ag-field">Rare material (success by 5+)<select data-gather-adhoc="rareMaterialId">${matOpts(a.rareMaterialId,'None — common instead')}</select></label>
        <label class="ag-field">Rare quantity<input data-gather-adhoc="rareQuantity" type="number" min="1" max="99" step="1" value="${esc(a.rareQuantity)}"></label></div>
        ${this._exoticPicker(node)}
-       ${mats.length?'':'<div class="agl-note warn">Import at least one approved, player-visible material with General Manager first.</div>'}`
+       ${mats.length?'':notice('Import at least one approved, player-visible material with General Manager first.','warn')}`
       :`<label class="ag-field">Gathering node<select data-gather-field="nodeRef"><option value="">Choose a node…</option>${nodeOptions}</select></label>
-       ${where.locations.length?'':'<div class="ag-empty">No gathering resources in Locations yet.</div>'}`;
+       ${where.locations.length?'':emptyState('No gathering resources in Locations yet.','Add gathering resources to a location in Locations, or use an ad-hoc node.')}`;
     const blocker=g.source==='adhoc'&&node&&!node.materialId?'Choose a common material for the ad-hoc node.'
       :startBlocker({rosterCount:rosterIds().length,partyCount:party.length,leadInParty:true,node,materialFound:Boolean(node&&worldMaterial(node.materialId)),busy:Boolean(node)&&nodeBusy(node.key)});
     const ready=!blocker;
@@ -1675,7 +1697,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const startLabel=rollers.length?`Send gathering check to ${nameList(rollers)}`:'Start gathering check (you roll)';
     return `${this._gatherQueue()}${sessions}${last}<section class="ag-card agl-panel"><h2>Start gathering</h2>
       <p class="agl-sub">One lead gatherer, one check per node for the party. Helpers with suitable tools give advantage, not another attempt. Success gives one common bundle; success by 5+ gives one rare bundle instead. A success can also find one Exotic when the node has Exotic candidates (only an awarded Exotic is shown to players). Failure exhausts the node. Players can also request a node from their Gathering tab: requests wait in the Requests list above.</p>
-      <div class="agl-segmented" role="group" aria-label="Node source"><button type="button" class="ag-btn ${g.source!=='adhoc'?'active':''}" data-action="gather-source" data-id="location" ${where.ok?'':`disabled title="${esc(where.reason)}"`}>Location node</button><button type="button" class="ag-btn ${g.source==='adhoc'?'active':''}" data-action="gather-source" data-id="adhoc">Ad-hoc node</button></div>
+      <div class="ag-segmented" role="radiogroup" aria-label="Node source"><button type="button" role="radio" aria-checked="${g.source!=='adhoc'}" data-action="gather-source" data-id="location" ${where.ok?'':`disabled data-tooltip="${esc(where.reason)}" data-tooltip-class="ag-tooltip"`}>Location node</button><button type="button" role="radio" aria-checked="${g.source==='adhoc'}" data-action="gather-source" data-id="adhoc">Ad-hoc node</button></div>
       ${where.ok?'':`<p class="agl-sub">${esc(where.reason)} Ad-hoc nodes still work.</p>`}
       ${form}
       ${node?`<p class="agl-sub">${esc(nodeSummary(node))} · common ${node.quantity} × ${esc(node.materialId?materialName(node.materialId):'—')}${node.rareMaterialId?` · rare ${node.rareQuantity} × ${esc(materialName(node.rareMaterialId))}`:''}${node.finite?' · finite':''}${node.note&&node.materialId?` · ${esc(node.note)}`:''}</p>
@@ -1684,10 +1706,10 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       <div class="agl-gather-form">
         <label class="ag-field">Lead gatherer<select data-gather-field="actorId">${party.map(p=>`<option value="${esc(p.id)}" ${p.id===lead.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label>
         ${plan?`<div class="agl-sub">${esc(lead.name)}: ${plan.options.slice(0,2).map(o=>{const c=checkOption(lead,o);return `${esc(c.label)} ${formatBonus(c.bonus)}`;}).join(' · ')}${plan.professionId?'':` · no ${esc(plan.profession||'matching')} profession feature (no XP target)`}</div>`:'<div></div>'}
-        ${helpers.length?`<fieldset class="agl-gather-eligible"><legend>Helpers</legend>${helpers.map(h=>`<label title="${esc(h.reason)}"><input type="checkbox" data-gather-helper="${esc(h.id)}" ${g.helperIds.includes(h.id)?'checked':''}> ${esc(h.name)} ${badge(h.eligible?'Advantage':h.reason,h.eligible?'ok':'muted')}</label>`).join('')}</fieldset>`:''}
+        ${helpers.length?`<fieldset class="agl-gather-eligible"><legend>Helpers</legend>${helpers.map(h=>`<label ${tip(h.reason)}><input type="checkbox" data-gather-helper="${esc(h.id)}" ${g.helperIds.includes(h.id)?'checked':''}> ${esc(h.name)} ${badge(h.eligible?'Advantage':h.reason,h.eligible?'ok':'muted')}</label>`).join('')}</fieldset>`:''}
       </div>
       ${blocker?`<p class="agl-reason" role="status">${esc(blocker)}</p>`:''}
-      <div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--primary" data-action="gather-start" ${ready?'':'disabled'}><i class="fa-solid fa-seedling"></i> ${esc(startLabel)}</button></div>
+      <div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--primary" data-action="gather-start" ${ready?'':'disabled'}><i class="fa-solid fa-seedling" aria-hidden="true"></i> ${esc(startLabel)}</button></div>
     </section>`;
   }
   async _prepareContext(options){checkPlayerLedger();const ctx=await super._prepareContext(options);
@@ -1697,12 +1719,12 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const lib=this.library;
     const content=({individual:()=>this._individual(lib),party:()=>this._party(lib),catalog:()=>this._catalog(lib),gathering:()=>this._gathering(),assign:()=>this._assign(),gm:()=>this._gmSetup()})[this.view]?.()??this._individual(lib);
     const inGm=game.user.isGM&&this.view==='gm';
-    return {...ctx,html:`<div class="agl-shell"><header class="ag-header agl-header"><div class="ag-header__title agl-title">Ashen Gate | <strong>Profession Ledger</strong></div>
-      <div class="ag-header__meta agl-header-right"><span class="agl-version">v${esc(game.modules.get(ID)?.version??VERSION)}</span><button type="button" class="ag-btn" data-action="help">Help</button></div>
+    return {...ctx,html:`<div class="agl-shell"><header class="ag-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Profession Ledger</h1></div>
+      <div class="ag-header__meta"><span class="ag-version">v${esc(game.modules.get(ID)?.version??VERSION)}</span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button></div>
       <input id="agl-file" type="file" accept="application/json,.json" hidden></header>
-      <nav class="ag-tabs agl-tabs" aria-label="Profession Ledger views">${this._tabs()}</nav><main class="agl-main">${content}</main>
-      <footer class="ag-footer agl-footer">${inGm?`<button type="button" class="ag-btn" data-action="gm-cancel">Cancel</button><span class="agl-footer-status" data-agl-roster-status>${this.setupStatus}</span><button type="button" class="ag-btn ag-btn--primary" data-action="roster-save" ${this.rosterDirty||this.mapDirty?'':'disabled'}>Save Changes</button>`
-        :`<span class="agl-footer-status">${esc(this.notice||'')}</span>`}
+      <nav class="ag-tabs ag-tabs--scroll" role="tablist" aria-label="Profession Ledger views">${this._tabs()}</nav><main class="agl-main" role="tabpanel">${content}</main>
+      <footer class="ag-footer">${inGm?`<button type="button" class="ag-btn ag-btn--ghost" data-action="gm-cancel">Cancel</button><span class="ag-footer__status" role="status" data-agl-roster-status>${this.setupStatus}</span><button type="button" class="ag-btn ag-btn--primary" data-action="roster-save" ${this.setupDirty?'':'disabled'}>Save Changes</button>`
+        :`<span class="ag-footer__status agl-footer-note" role="status">${esc(this.notice||'')}</span>`}
       </footer></div>`};
   }
   /** 0.22.0: every action re-renders the whole part, which replaces the .agl-main scroll box (and the tables' sideways
@@ -1738,6 +1760,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         const id=e.target.dataset.adhocExotic,k=e.target.dataset.exoticKey,entry=this.gather.adhoc.exotics.find(x=>x.materialId===id);
         if(entry&&['mode','chance','condition'].includes(k)){entry[k]=e.target.value;this.gather.adhoc.exotics=normalizeExotics(this.gather.adhoc.exotics.map(x=>x===entry?{chance:'',...x}:x));}
         this.render();return;}
+      if(e.target?.matches?.('[data-player-access]')&&game.user.isGM){this.accessDraft=e.target.checked;this._syncRosterActions();return;}
       if(e.target?.matches?.('[data-core-award]')&&game.user.isGM){this.coreAwardDraft=e.target.checked;this._syncRosterActions();return;}
       if(e.target?.matches?.('[data-exotic-chance]')&&game.user.isGM){this.exoticDraft=e.target.value;this._syncRosterActions();return;}
       if(e.target?.matches?.('[data-map-cell]')&&game.user.isGM){this._rememberMapDraft(e.target);return;}
@@ -1795,7 +1818,6 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         const out=await assignProfessions({actorIds:a.target==='party'?null:[a.target],rowIds:rows.map(r=>r.id)});
         a.preview=assignPreview({actorIds:a.target==='party'?null:[a.target]});a.selected=new Set();
         this.notice=`Added ${plural(out.added.length,'profession feature')}${out.skipped.length?`; ${out.skipped.length} skipped (already there)`:''}.`;this.render();say(this.notice);return;}
-      if(action==='toggle-player-access'){if(!game.user.isGM)throw Error('GM only');const next=!playerAccessEnabled();await setPlayerAccess(game,ID,next);this.notice=`Player interface ${next?'visible':'hidden'}. Actor progression and known recipes are unchanged.`;this.render();say(this.notice);return;}
       if(action==='manager'){if(!game.user.isGM)throw Error('GM only');const m=game.modules.get('ashen-gate-manager');const api=m?.active?m.api:null;if(api?.open)api.open();else say('Ashen Gate Manager is not enabled.',true);return;}
       if(action==='skilltree'){const module=game.modules.get('ashen-gate-skill-trees');const api=module?.active?module.api:null;
         if(!api?.open){say('Skill Trees prototype is not enabled.',true);return;}
@@ -1805,11 +1827,12 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(action==='roster-save'){if(!game.user.isGM)throw Error('GM only');
         const ids=[...this.element.querySelectorAll('[data-roster-actor]:checked')].map(el=>el.dataset.rosterActor).filter(id=>game.actors.get(id)?.type==='character');
         const saved=[];
-        if(this.rosterDirty||(!this.mapDirty&&!this.exoticDirty&&!this.coreAwardDirty)){await game.settings.set(ID,'partyRoster',ids);saved.push(`party: ${plural(ids.length,'character')}`);}
+        if(this.rosterDirty||!this.setupDirty){await game.settings.set(ID,'partyRoster',ids);saved.push(`party: ${plural(ids.length,'character')}`);}
         if(this.mapDirty){await game.settings.set(ID,'checkMapping',structuredClone(this.mapDraft));saved.push('tools and checks');}
         if(this.exoticDirty){const pct=clampPercent(this.exoticDraft,exoticPercent());await game.settings.set(ID,EXOTIC_SETTING,pct);saved.push(`Exotic discovery ${pct}%`);}
         if(this.coreAwardDirty){await game.settings.set(ID,CORE_AWARD_SETTING,this.coreAwardDraft);saved.push(`core item awards ${this.coreAwardDraft?'on':'off'}`);}
-        this.rosterDraft=null;this.mapDraft=null;this.exoticDraft=null;this.coreAwardDraft=null;this.notice=`Saved ${saved.join('; ')}.`;this.render();say(this.notice);return;}
+        if(this.accessDirty){const on=this.accessDraft;await setPlayerAccess(game,ID,on);saved.push(`Player Access ${on?'on (players can open the Ledger)':'off (hidden from players)'}`);}
+        this._clearSetupDrafts();this.notice=`Saved ${saved.join('; ')}.`;this.render();say(this.notice);return;}
       if(['learn-recipe','craft','award-xp','adjust-xp'].includes(action)){
         const actorId=data.actor??(String(id).includes(':')?String(id).split(':')[0]:this.actor?.id);
         const input=action==='award-xp'?this.element?.querySelector?.(`[data-xp-input="${id}"]`):null;
@@ -1884,19 +1907,19 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     }else{d[list][k]=next;if(check)d[check][k]=v;}
     this._syncRosterActions();
   }
-  get setupStatus(){const n=[this.rosterDirty,this.mapDirty,this.exoticDirty,this.coreAwardDirty].filter(Boolean).length;
-    return n>1?'Unsaved changes':this.rosterDirty?'Unsaved party changes':this.mapDirty?'Unsaved tool and check changes':this.exoticDirty?'Unsaved Exotic discovery change':this.coreAwardDirty?'Unsaved crafted-item change':'All changes saved';}
+  get setupStatus(){const n=[this.rosterDirty,this.mapDirty,this.exoticDirty,this.coreAwardDirty,this.accessDirty].filter(Boolean).length;
+    return n>1?'Unsaved changes':this.rosterDirty?'Unsaved party changes':this.mapDirty?'Unsaved tool and check changes':this.exoticDirty?'Unsaved Exotic discovery change':this.coreAwardDirty?'Unsaved crafted-item change':this.accessDirty?'Unsaved Player Access change':'All changes saved';}
   _syncRosterActions(){
     const save=this.element?.querySelector?.('[data-action="roster-save"]');
-    if(save)save.disabled=!this.rosterDirty&&!this.mapDirty&&!this.exoticDirty&&!this.coreAwardDirty;
+    if(save)save.disabled=!this.setupDirty;
     const status=this.element?.querySelector?.('[data-agl-roster-status]');
     if(status)status.textContent=this.setupStatus;
   }
   async _leaveGmSetup(){
-    if(!this.rosterDirty&&!this.mapDirty&&!this.exoticDirty&&!this.coreAwardDirty){this.rosterDraft=null;this.mapDraft=null;this.exoticDraft=null;this.coreAwardDraft=null;return true;}
-    const discard=await confirmDialog('Your party or tool changes have not been saved. Discard these changes and leave GM Setup?',{title:'Discard unsaved GM Setup changes?',yes:'Discard changes',no:'Keep editing',danger:true});
+    if(!this.setupDirty){this._clearSetupDrafts();return true;}
+    const discard=await confirmDialog('Your GM Setup changes have not been saved. Discard these changes and leave GM Setup?',{title:'Discard unsaved GM Setup changes?',yes:'Discard changes',no:'Keep editing',danger:true});
     if(!discard)return false;
-    this.rosterDraft=null;this.mapDraft=null;this.exoticDraft=null;this.coreAwardDraft=null;return true;
+    this._clearSetupDrafts();return true;
   }
   /** GM: read a baseline file and show its preview; nothing is saved until Apply baseline. */
   async _uploadBaseline(e){if(!game.user.isGM)return;const f=e.target.files?.[0];if(!f)return;
@@ -1914,7 +1937,7 @@ function renderSheetTab(params){
   const target=root?.matches?.('[data-agl-sheet-tab]')?root:(root?.querySelector?.('[data-agl-sheet-tab]')??root);
   const actor=params?.app?.actor??params?.app?.document??params?.data?.actor;
   if(!target||!actor)return;
-  if(!canOpenLedger()){target.innerHTML='<div class="ag-empty">The GM has hidden the Profession Ledger.</div>';return;}
+  if(!canOpenLedger()){target.innerHTML=emptyState('The GM has hidden the Profession Ledger.');return;}
   target.innerHTML=`<div class="agl-sheet ag-app"><div class="agl-sheet-head"><strong>Professions</strong><button type="button" class="ag-btn ag-btn--sm" data-action="open-ledger">Open Profession Ledger</button></div>${characterPanel(actor,catalog(),{surface:'sheet'})}</div>`;
   if(target.dataset.aglBound)return;
   target.dataset.aglBound='1';
@@ -1954,7 +1977,7 @@ function mountEmbed(element,{actorId,mode='individual'}={}){
     if(!ctrl.mounted)return;
     if(element.isConnected===false){ctrl.unmount();return;}
     const actor=game.actors?.get?.(ctrl.actorId)??null,refusal=embedRefusal(actor);
-    element.innerHTML=refusal?`<div class="ag-empty">${esc(refusal)}</div>`
+    element.innerHTML=refusal?emptyState(esc(refusal))
       :`<div class="agl-sheet agl-embed__body">${characterPanel(actor,catalog(),{surface:'sheet'})}</div>`;
   };
   ctrl.unmount=()=>{if(!ctrl.mounted)return;ctrl.mounted=false;abort.abort();embeds.delete(ctrl);element.innerHTML='';element.classList?.remove('agl-embed');};
