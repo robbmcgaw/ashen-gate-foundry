@@ -18,8 +18,10 @@ import {setListChoice} from './organize.mjs';
 import {changeArt} from './art.mjs';
 import * as marks from './marks.mjs';
 import * as hotbar from './hotbar.mjs';
+import {stepStrain, pushFromHub} from './cinders.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
+const cinderConfirm = content => globalThis.foundry?.applications?.api?.DialogV2?.confirm?.({window: {title: 'Push'}, content, modal: true, rejectClose: false}) ?? Promise.resolve(false);
 /** Shows a refusal or failure from an action; a success is silent (the sheet re-renders itself). */
 export const report = result => { if (result && result.ok === false && result.error) warn(result.error); return result; };
 
@@ -52,6 +54,9 @@ export const ACTIONS = {
   'hp-heal': (s, t) => hpButton(s, t, 1),
   'inspiration': s => act.toggleInspiration(s.document),
   'exhaustion': (s, t) => act.changeExhaustion(s.document, Number(t.dataset.step)),
+  // 0.18.0: Strain (GM) and Cinder Push go to Ashen Gate | Cinders' public API; it checks permissions again.
+  'strain-step': (s, t) => stepStrain(s.document, Number(t.dataset.step)),
+  'cinder-push': (s, t) => pushFromHub(s.document, {instance: t.dataset.instance, power: t.dataset.power, mode: t.dataset.mode}, cinderConfirm),
   'condition': (s, t) => act.toggleCondition(s.document, t.dataset.id),
   'roll-initiative': (s, t, e) => act.rollInitiative(s.document, e),
   'roll-check': (s, t, e) => act.rollAbilityCheck(s.document, t.dataset.ability, e),

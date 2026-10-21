@@ -76,11 +76,11 @@ test('a partner with Player Access off, inactive, or refusing: its sub-tab vanis
   mods['ashen-gate-quest-manager'].active = false;
   mods['ashen-gate-locations'].api.playerAccess = {getState: () => { throw new Error('nope'); }};
   installGlobals({user: users.owner, modules: mods});
-  assert.deepEqual(agPanelsFor().map(p => p.tab), ['Professions', 'Perks', 'Base']);
+  assert.deepEqual(agPanelsFor().map(p => p.tab), ['Professions', 'Perks', 'Cinders', 'Base']);
   const html = ashenGateTab({actor, sheet: {agTab: 'ashen-gate-factions'}});
   assert.doesNotMatch(html, /Renown|Quests|Locations|Not available|Not installed/);
   installGlobals({user: users.gm, modules: mods});
-  assert.equal(agPanelsFor().length, 6);
+  assert.equal(agPanelsFor().length, 7);
   assert.equal(v.hiddenReason('renown'), 'Renown Player Access is off');
   assert.equal(v.hiddenReason('quests'), 'Quest Log is not active');
   assert.equal(v.hiddenReason('locations'), 'Locations refuses player access');

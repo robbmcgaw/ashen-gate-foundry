@@ -457,3 +457,14 @@
    and faintness as the Font Awesome placeholders, so they never vanish on a light skin. */
 .ag-character-hub .agch-slot__mask { width: 20px; height: 20px; background-color: var(--ag-muted); opacity: .55;
   -webkit-mask: var(--agch-mask) center / contain no-repeat; mask: var(--agch-mask) center / contain no-repeat; }
+/* 0.18.0: Strain bar (Ashen Gate | Cinders), under hit points */
+.ag-character-hub .agch-strain { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1); font-size: var(--ag-text-sm); margin-top: var(--ag-space-1); }
+.ag-character-hub .agch-strain__label { font-weight: 600; white-space: nowrap; }
+.ag-character-hub .agch-strain__bar { position: relative; flex: 1 1 90px; min-width: 90px; height: 16px; border: 1px solid var(--ag-border-strong); border-radius: 8px; background: var(--ag-surface); overflow: hidden; }
+.ag-character-hub .agch-strain__fill { position: absolute; inset: 0 auto 0 0; background: var(--ag-accent); }
+.ag-character-hub .agch-strain.is-over .agch-strain__fill { background: var(--ag-danger); }
+.ag-character-hub .agch-strain__text { position: relative; display: block; text-align: center; line-height: 14px; font-weight: 700; }
+.ag-character-hub .agch-strain__band { font-weight: 600; }
+.ag-character-hub .agch-strain__chance { color: var(--ag-muted); }
+.ag-character-hub .agch-cinder h4 { margin: var(--ag-space-1) 0; }
+.ag-character-hub .agch-cinder__modes li { display: flex; justify-content: space-between; align-items: center; gap: var(--ag-space-1); }
