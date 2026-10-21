@@ -1,3 +1,13 @@
+## 0.24.0 — 2026-10-21
+
+- **Ashen Gate look (UI standard):** header reads *Ashen Gate | Profession Ledger* with the version and a small Help button on the right; tabs scroll sideways when the window is narrow, with Assign and GM Setup last and marked GM.
+- **Player Access saves with Save Changes.** In GM Setup it is now a tick box like the other settings: nothing changes until **Save Changes**; Cancel (or leaving GM Setup and choosing Discard changes) puts it back. Same setting, so nothing to migrate.
+- **Quality uses the item rarity colours:** Common grey, Rare blue, Exotic purple, shown as a "Quality: …" badge on gathering chat cards, the GM's last-gather note, the Exotic picker and material lists.
+- Tables (Tools and checks, baseline preview, Assign) use the shared striped table with a sticky head; lists of materials, party professions and the party roster use the shared rows; counts are badges; the sort and node-source switches use the shared segmented control; empty states say what's missing and what to do next.
+- Hover text uses Foundry tooltips. The disabled *Open General Manager* button says why next to it.
+- Narrow windows stack the two columns based on the window's own width (not the screen's). The **Comfortable** size (General Manager → My Appearance) opens the window 1.2× larger.
+- No saved data, flags or setting keys change.
+
 ## 0.23.1 — 2026-10-21
 
 - Help opens as a dialog with a Close button instead of replacing the window content.

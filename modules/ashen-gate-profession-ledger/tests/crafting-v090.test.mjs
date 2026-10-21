@@ -107,7 +107,7 @@ test('consent broker: only addressed owners count, any decline or timeout cancel
 test('player Individual view: own materials, professions with XP, known recipes with Craft; no IDs or draft noise',async()=>{
  const h=await html('individual');
  assert.match(h,/\[TEST\] Belwar/);
- assert.match(h,/\[TEST\] Leaf<\/span><b>× 1/,'a draft-status material the character holds is shown');
+ assert.match(h,/\[TEST\] Leaf<\/span>(<span class="ag-row__meta">.*?<\/span>)?<\/span><span class="ag-row__end"><b>× 1/,'a draft-status material the character holds is shown');
  assert.doesNotMatch(h,/Secret Ore/,'GM-only materials stay hidden');
  assert.match(h,/<strong>\[TEST\] Alchemy<\/strong>/);assert.match(h,/Level 1/);assert.match(h,/0 XP · 5 XP to level 2/);
  assert.match(h,/XP is stored on \[TEST\] Belwar by the Profession Ledger/);
