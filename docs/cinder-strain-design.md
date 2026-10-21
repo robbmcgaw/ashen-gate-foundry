@@ -9,7 +9,7 @@ Target: Foundry V14 on The Forge, dnd5e 6.0.6 (2024 rules).
 | Capability | Owner | Why |
 |---|---|---|
 | Strain value, history, band/Backfire-schedule config, modifier aggregation, Backfire probability, Strain API and change hook | **new module `ashen-gate-strain` ("Ashen Gate \| Strain")** | Strain is a character-wide resource used by Cinders, crafting, hazards, exploration and encounters. Putting it in Skill Trees would make the Profession Ledger or Locations depend on a progression module to add a hazard point; putting it in Character Hub would put state in a presentation module; Utilities is party/table tools. A small dedicated module is the only home that every writer can feature-detect without pulling in an unrelated module. It owns exactly one piece of Actor state. |
-| Cinder instances (id, definition, bearer, progression, attunement, push log), assign/remove/transfer, POWER-* Item grants, Push definitions read from POWER-* sources, Push resolution, the `cinder` modifier provider | **Skill Trees** (`ashen-gate-skill-trees`) | It already owns `cinder_milestone` trees, POWER-* nodes, the 13-point Cinder wallet, perk-Item grants with tags, GM-client unlock relay and per-actor locks. Instances are the existing Cinder wallet moved off the Actor onto an instance record. |
+| Cinder instances (id, definition, bearer, progression, bound state, push log), assign/remove/transfer, POWER-* Item grants, Push definitions read from POWER-* sources, Push resolution, the `cinder` modifier provider | **Skill Trees** (`ashen-gate-skill-trees`) | It already owns `cinder_milestone` trees, POWER-* nodes, the 13-point Cinder wallet, perk-Item grants with tags, GM-client unlock relay and per-actor locks. Instances are the existing Cinder wallet moved off the Actor onto an instance record. |
 | Display of Strain (value, band, Backfire chance, modifiers), Cinder panel with Push button, GM controls entry points | **Character Hub** | Presentation only. The Hub has no registration API (its `PANELS` list in `partners.mjs` is fixed), so the Hub PR adds two entries that mount `strain.embed` (mode `character`) and Skill Trees `embed` (mode `cinder`), detected through `api.embed.modes`, plus `strain`/`cinder` parts in its Player Visibility (`visibility.mjs`). It stores nothing. |
 | Import + validation of MUT-* / POWER-* definitions and the Strain config file | **General Manager** (+ `scripts/validate-content.mjs`) | Manager already owns source-definition import. It delegates the typed `cinder`/`power` blocks to Skill Trees' validator and the Strain config to the Strain module's validator, both feature-detected. |
 | Writers of non-Cinder Strain (crafting mishap, hazard, exploration, encounter) | each specialist module | They call `strain.add(...)` with their own `source`. No module keeps its own Strain pool. |
@@ -59,7 +59,7 @@ Every node on a Cinder tree is a POWER-* record. A node is either a **power** (a
     "kind": "power",
     "cinder": "MUT-TEST-EMBER",
     "standard": {"summary": "[TEST] Normal use text.", "uses": {"max": 2, "recovery": "long_rest"}},
-    "requires": {"powers": [], "attuned": true},
+    "requires": {"powers": []},
     "push_modes": [
       {"id": "amplify", "label": "[TEST] Amplify", "category": "amplify",
        "strain_cost": 2, "effect": {"summary": "[TEST] Bigger effect.", "refs": []},
