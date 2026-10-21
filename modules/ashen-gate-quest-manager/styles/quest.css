@@ -51,6 +51,18 @@
 .agq-advanced { margin-top: var(--ag-space-3); padding: var(--ag-space-2) 0; border-top: 1px solid var(--ag-border); }
 .agq-advanced > summary { padding: var(--ag-space-1) 0; font-weight: 600; cursor: pointer; }
 .agq-code { width: 100%; min-height: 14rem; font-family: var(--ag-font-mono); white-space: pre; overflow: auto; }
+/* Item rewards (GM editor) and the player's Rewards list */
+.agq-rewards { margin-top: var(--ag-space-4); }
+.agq-rewards .ag-table select { max-width: 100%; }
+.agq-reward__item { display: flex; align-items: center; gap: var(--ag-space-2); }
+.agq-reward__text { display: flex; flex-direction: column; min-width: 0; }
+.agq-reward__name { font-weight: 600; overflow-wrap: anywhere; }
+.agq-reward__img { flex: none; width: var(--ag-icon-chip); height: var(--ag-icon-chip); border: 0; border-radius: var(--ag-radius-sm); object-fit: cover; }
+.agq-reward__qty { width: 5em; text-align: right; }
+.agq-reward-drop { display: flex; align-items: center; gap: var(--ag-space-2); margin-top: var(--ag-space-2); padding: var(--ag-space-3); border: 1px dashed var(--ag-border); border-radius: var(--ag-radius); color: var(--ag-muted); }
+.agq-reward-drop.is-over { border-color: var(--ag-accent); color: var(--ag-text); }
+.agq-rewards-view { margin-top: var(--ag-space-4); }
+.agq-rewards-view .ag-row { gap: var(--ag-space-2); }
 @container (max-width: 40rem) {
   .agq-srcobj { grid-template-columns: minmax(0, 1fr); }
 }

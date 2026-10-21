@@ -9,8 +9,11 @@ import {selectTrackedViews,validTrackedId,trackingState} from './tracking.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,infoDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
+import {readDrop} from './ag-item-drop.mjs';
+import {rewardsApi,listRewards,addFromDrop,updateReward,removeReward} from './rewards.mjs';
+import {rewardsSection,playerRewardsSection} from './rewards-ui.mjs';
 
-const VERSION='0.10.2';
+const VERSION='0.11.0';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -56,7 +59,7 @@ function readableDetail(view,actorId){
  const actor=actorId?game.actors.get(actorId):null;const notes=actor?noteText(view.id,actor.id):'';
  const canNote=actor&&(hasGM()||actor.testUserPermission(game.user,'OWNER'))&&(view.scope==='party'||view.actorId===actorId);
  return `<div class="agq-detail"><h2 class="agq-detail__title">${E(view.name)}</h2><div class="agq-detail__meta">${E(view.objective_kind.replace('_',' '))} ${statusBadge(state)}</div><p class="agq-prose">${E(view.summary||'No public summary.')}</p>
- <h3 class="agq-h">Objectives</h3>${items?`<ul class="ag-rows agq-objectives">${items}</ul>`:'<p class="ag-field__hint">No objectives revealed yet.</p>'}${locationLinks(view)}
+ <h3 class="agq-h">Objectives</h3>${items?`<ul class="ag-rows agq-objectives">${items}</ul>`:'<p class="ag-field__hint">No objectives revealed yet.</p>'}${playerRewardsSection(view.rewards)}${locationLinks(view)}
  <h3 class="agq-h">Shared party notes</h3><p class="agq-note agq-prose">${E(view.partyNotes||'No shared notes yet.')}</p>
  <h3 class="agq-h">Character notes</h3>${canNote?`<label class="ag-field">Notes for ${E(actor.name)}<textarea id="ag-my-note" rows="5">${E(notes)}</textarea></label><div class="agq-actions">${safeButton('Save character notes','save-note',{kind:'primary',sm:true})}</div>`:'<p class="ag-field__hint">Choose one of your characters to keep character notes.</p>'}</div>`;
 }
@@ -104,7 +107,7 @@ function sourceFromForm(root,current){
  else delete src.work_order_domain;
  return validSource(src);
 }
-function gmStatePanel(row){
+function gmStatePanel(row,rewardsHtml=''){
  if(!row)return emptyState('Not saved yet','Save the quest definition, then choose its audience and reveal it here.',{iconName:'fa-floppy-disk'});
  const {source:s,state:t}=row;
  const actorChoices=actorsOwned().map(a=>[a.id,a.name]);
@@ -122,8 +125,9 @@ function gmStatePanel(row){
  <label class="ag-field">Public Location IDs<textarea id="ag-public-locations" rows="2">${E((t.publicLocationIds||[]).join('\n'))}</textarea><span class="ag-field__hint">One LOC-* ID per line.</span></label>
  <label class="ag-field">Shared party notes<textarea id="ag-party-notes" rows="3">${E(t.partyNotes||'')}</textarea></label>
  <label class="ag-field">GM-only notes<textarea id="ag-gm-notes" rows="3">${E(t.gmNotes||'')}</textarea></label>
- <label class="ag-field ag-field--inline"><input id="ag-reward-recorded" type="checkbox" ${t.rewardRecorded?'checked':''}> Reward handled by GM (no automatic grants)</label></details>
+ <label class="ag-field ag-field--inline"><input id="ag-reward-recorded" type="checkbox" ${t.rewardRecorded?'checked':''}> Rewards handled outside Quest Log</label></details>
  <footer class="ag-footer agq-footer">${safeButton('Cancel','cancel-edit',{kind:'ghost'})}<span class="ag-footer__status" role="status"></span>${safeButton('Save progress & reveal','save-state',{kind:'primary'})}</footer>
+ ${rewardsHtml}
  <details class="agq-advanced"><summary>Delegated assignments (GM only)</summary><p class="ag-field__hint">Separate ASSIGN-* execution records, not HQ staffing.</p>
  ${(()=>{const list=listAssignments({objectiveId:s.id});return list.length?`<div class="ag-rows agq-assignments">${list.map(a=>`<div class="ag-row"><span class="ag-row__main"><span class="ag-row__title agq-mono">${E(a.id)}</span><span class="ag-row__meta">${E(a.execution_status)}</span></span><span class="ag-row__end">${safeButton('Edit','edit-assignment',{sm:true,icon:'fa-pen',data:{id:a.id}})}${safeButton('Delete','remove-assignment',{kind:'danger',sm:true,icon:'fa-trash',data:{id:a.id}})}</span></div>`).join('')}</div>`:'<p class="ag-field__hint">No delegated assignments.</p>';})()}
  <label class="ag-field">Assignment JSON<textarea id="ag-assignment-json" rows="8" class="agq-code">${E(JSON.stringify(blankAssignment(s.id),null,2))}</textarea></label><div class="agq-actions">${safeButton('Save assignment','save-assignment',{sm:true})}</div></details></section>`;
@@ -133,12 +137,12 @@ function editorHead(selected){
  return `<header class="agq-edit__head"><h2 class="agq-detail__title">${selected?E(name):'New quest'}</h2>${selected?safeButton('Delete quest','delete',{kind:'danger',sm:true,icon:'fa-trash'}):''}</header>`;
 }
 const GM_NOTICE='<p class="ag-notice ag-notice--info"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Objective progress and rewards are GM controlled; nothing is granted automatically.</p>';
-function questsPanel(selectedId,view){
+function questsPanel(selectedId,view,rewardsHtml=''){
  const rows=stateForGM(),selected=rows.find(x=>x.source.id===selectedId)||null;
  const {groups,locations,shown,total}=listQuestsTab(rows,view);
  const source=selected?.source||blankTemplate();
  return `<div class="agq-pane">${questsToolbar(view,locations,{shown,total})}<div class="ag-split agq-split"><aside class="ag-split__list agq-list" id="ag-gm-cards" aria-label="Quests">${questCards(groups,selectedId,{total})}</aside>
- <section class="ag-split__detail agq-edit">${editorHead(selected)}${GM_NOTICE}${sourceForm(source,!!selected)}${gmStatePanel(selected)}</section></div></div>`;
+ <section class="ag-split__detail agq-edit">${editorHead(selected)}${GM_NOTICE}${sourceForm(source,!!selected)}${gmStatePanel(selected,rewardsHtml)}</section></div></div>`;
 }
 function setupTab(){return setupPanel({playerAccess:game.settings.get(MOD,'playerAccessEnabled'),packIds:game.settings.get(MOD,'compendiumPackIds'),overlayVisible:trackerVisible()});}
 const TABS=[['party','Party','fa-users',false],['individual','Individual','fa-user',false],['quests','Quests','fa-scroll',true],['setup','GM Setup','fa-gears',true]];
@@ -166,7 +170,37 @@ class QuestLogApplication extends Base {
   const overlay=trackerVisible()?'Hide objectives overlay':'Show objectives overlay';
   return `<div class="ag-window agq-root"><header class="ag-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Quest Log</h1><p>Quests · Work orders · Contracts</p></div><div class="ag-header__meta">${safeButton(overlay,'toggle-overlay',{kind:'ghost',sm:true,icon:'fa-list-check',title:'Your tracked objectives on screen (only for you)'})}<span class="ag-version">v${E(version)}</span>${safeButton('Help','help',{kind:'ghost',sm:true,icon:'fa-circle-question'})}</div></header>
   <nav class="ag-tabs ag-tabs--scroll" role="tablist" aria-label="Quest sections">${tabs}</nav>
-  ${this.tab==='quests'?questsPanel(this.gmId,this.qv):this.tab==='setup'?setupTab():playerPane(this.tab,rows,detail,{filter:this.filter,statusFilter:this.statusFilter,actorOption,actorId:this.actorId,selectedId:this.selectedId})}</div>`;
+  ${this.tab==='quests'?questsPanel(this.gmId,this.qv,await this.rewardsHtml()):this.tab==='setup'?setupTab():playerPane(this.tab,rows,detail,{filter:this.filter,statusFilter:this.statusFilter,actorOption,actorId:this.actorId,selectedId:this.selectedId})}</div>`;
+ }
+ // GM editor: the selected quest's Item rewards. A quest that can't be listed shows no section rather than breaking the editor.
+ async rewardsHtml(){
+  const row=this.gmId?getPrivate(this.gmId):null;if(!row)return '';
+  // The note stays until another quest is picked: a hook re-render after the save must not wipe it.
+  const status=this.rewardNote||'';
+  try{return rewardsSection(await listRewards(this.gmId),{individual:row.getFlag(MOD,'state')?.scope==='individual',status});}
+  catch(err){console.error(`[${MOD}]`,err);return '';}
+ }
+ // Reward edits save at once (no footer); the section redraws from the saved quest and shows "Saved".
+ bindRewards(root){
+  const zone=root.querySelector('[data-reward-zone]');if(!zone)return;
+  const done=()=>this.refreshRewards(root,'Saved');
+  zone.addEventListener('dragover',e=>{e.preventDefault();zone.querySelector('.agq-reward-drop')?.classList.add('is-over');});
+  zone.addEventListener('dragleave',()=>zone.querySelector('.agq-reward-drop')?.classList.remove('is-over'));
+  zone.addEventListener('drop',async e=>{
+   e.preventDefault();e.stopPropagation();zone.querySelector('.agq-reward-drop')?.classList.remove('is-over');
+   try{const res=await addFromDrop(this.gmId,readDrop(e));if(!res.ok)return res.reason&&ui.notifications.warn(res.reason);await done();}catch(err){notifyError(err);}
+  });
+  for(const el of zone.querySelectorAll('[data-reward-field]'))el.addEventListener('change',async()=>{
+   try{const key=el.closest('[data-reward-key]').dataset.rewardKey,field=el.dataset.rewardField;
+    await updateReward(this.gmId,key,{[field]:field==='quantity'?Number(el.value):el.value});await done();}
+   catch(err){ui.notifications.warn(err.message??String(err));await this.refreshRewards(root);}
+  });
+  for(const b of zone.querySelectorAll('[data-action]'))b.addEventListener('click',()=>this.action(b,root));
+ }
+ // Redraw only the rewards section, so unsaved edits elsewhere in the editor are kept.
+ async refreshRewards(root,note=''){
+  this.rewardNote=note;const html=await this.rewardsHtml(),zone=root.querySelector('[data-reward-zone]');
+  if(!zone)return;zone.outerHTML=html;this.bindRewards(root);
  }
  showHelp(){return infoDialog('Quest Log Help',`<p><strong>Quest Log</strong> shows the quests, work orders and contracts your party is working on.</p><ul><li><strong>Party</strong> lists the quests the whole party can see. Pick one to read its objectives and write your character's notes.</li><li><strong>Individual</strong> lists a character's own quests; choose the character on the left.</li>${hasGM()?'<li><strong>Quests</strong> (GM) lists every quest with search, filters and sorting. Pick one to edit it, or press <em>New quest</em>. Import and Export are in its toolbar.</li><li><strong>GM Setup</strong> holds Player Access (whether players see the Quest Log) and other settings; they save together with <em>Save Changes</em>.</li>':''}</ul><p>The <em>Objectives Overlay</em> button shows or hides your tracked objectives on screen.</p>${hasGM()?'<p>Deleting a quest or an assignment, or leaving a tab with unsaved source changes, asks you to confirm first.</p>':''}`);}
  // Appearance is inherited: the kit's --ag-* tokens live on the document, kept in sync by General Manager when active.
@@ -193,7 +227,8 @@ class QuestLogApplication extends Base {
    for(const c of root.querySelectorAll('[data-qv-status]'))c.addEventListener('click',async()=>{const v=c.dataset.qvStatus;this.qv.status=this.qv.status===v?'all':v;await this.render();});
    const setupBody=root.querySelector('.agq-setup__body'),setupStatus=root.querySelector('.agq-setup .ag-footer__status');
    for(const ev of ['input','change'])setupBody?.addEventListener(ev,e=>{if(e.target?.id&&setupStatus)setupStatus.textContent='Unsaved changes';});
-   for(const b of root.querySelectorAll('[data-action]'))b.addEventListener('click',()=>this.action(b,root));
+   for(const b of root.querySelectorAll('[data-action]:not([data-reward-zone] *)'))b.addEventListener('click',()=>this.action(b,root));
+   this.bindRewards(root);
  }
  async action(btn,root){
   try{const action=btn.dataset.action,id=btn.dataset.id;
@@ -206,8 +241,8 @@ class QuestLogApplication extends Base {
      assertUI(game.user,openAllowed());await savePersonalNote(this.selectedId,this.actorId,root.querySelector('#ag-my-note')?.value||'');ui.notifications.info('Character notes saved.');return;
    }
    assertGM(game.user);
-   if(action==='gm-select'){if(this.unsavedSource&&!await confirmDialog('Your quest changes have not been saved. Discard them?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing',danger:true}))return;this.gmId=id;this.unsavedSource=false;return await this.render();}
-   if(action==='new'){if(this.unsavedSource&&!await confirmDialog('Your quest changes have not been saved. Discard them?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing',danger:true}))return;this.gmId=null;this.unsavedSource=false;this.sourceJsonEdited=false;return await this.render();}
+   if(action==='gm-select'){if(this.unsavedSource&&!await confirmDialog('Your quest changes have not been saved. Discard them?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing',danger:true}))return;this.gmId=id;this.rewardNote='';this.unsavedSource=false;return await this.render();}
+   if(action==='new'){if(this.unsavedSource&&!await confirmDialog('Your quest changes have not been saved. Discard them?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing',danger:true}))return;this.gmId=null;this.rewardNote='';this.unsavedSource=false;this.sourceJsonEdited=false;return await this.render();}
    if(action==='save-source'){
     const src=this.sourceJsonEdited?validSource(JSON.parse(root.querySelector('#ag-source-json').value)):sourceFromForm(root,this.gmId?getPrivate(this.gmId)?.getFlag(MOD,'source'):null);
     if(this.gmId&&src.id!==this.gmId)throw new Error('Cannot change permanent ID of an existing Objective. Use New quest.');
@@ -233,6 +268,11 @@ class QuestLogApplication extends Base {
     const progress={},objectiveReveal=[];root.querySelectorAll('.agq-objctl').forEach(el=>{const key=el.dataset.key;progress[key]=el.querySelector('.ag-obj-progress').value;if(el.querySelector('.ag-obj-reveal').checked)objectiveReveal.push(key);});
     await updateState(this.gmId,{status:root.querySelector('#ag-status').value,scope:root.querySelector('#ag-scope').value,actorId:root.querySelector('#ag-state-actor').value||null,revealed:root.querySelector('#ag-state-revealed').checked,objectiveReveal,progress,publicLocationIds:root.querySelector('#ag-public-locations')?.value.split(/\s+/).map(s=>s.trim()).filter(Boolean)??s.publicLocationIds??[],partyNotes:root.querySelector('#ag-party-notes')?.value??s.partyNotes,gmNotes:root.querySelector('#ag-gm-notes')?.value??s.gmNotes,rewardRecorded:root.querySelector('#ag-reward-recorded')?.checked??s.rewardRecorded});
     ui.notifications.info('Quest updated. Check the Published/Not published message and player audience.');return await this.render();
+   }
+   if(action==='remove-reward'){
+    const name=btn.closest('[data-reward-key]')?.querySelector('.agq-reward__name')?.textContent||'this item';
+    if(!await confirmDialog(`Remove ${name} from this quest's rewards? A held copy in the rewards folder is deleted too. Items already on characters are not touched.`,{title:'Remove this reward?',yes:'Remove reward',danger:true}))return;
+    await removeReward(this.gmId,btn.dataset.key);return await this.refreshRewards(root,'Saved');
    }
    if(action==='edit-assignment'){const record=getAssignment(id);const textarea=root.querySelector('#ag-assignment-json');if(!record||!textarea)throw new Error('Assignment unavailable');textarea.value=JSON.stringify(record,null,2);return;}
    if(action==='save-assignment'){const source=JSON.parse(root.querySelector('#ag-assignment-json').value);if(source.objective_id!==this.gmId)throw new Error('Assignment target must be the selected Objective');await saveAssignment(source,{replace:!!getAssignment(source.id),objectiveExists:id=>!!getPrivate(id),ensureFolder});ui.notifications.info('Delegated Assignment saved.');return await this.render();}
@@ -380,6 +420,7 @@ Hooks.once('ready',()=>{
   getGMSource:(id)=>{assertGM(game.user);return structuredClone(getPrivate(id)?.getFlag(MOD,'source')??null);},
   getGMState:(id)=>{assertGM(game.user);return structuredClone(getPrivate(id)?.getFlag(MOD,'state')??null);},
   setGMState:(id,patch)=>{assertGM(game.user);return updateState(id,patch);},
+  rewards:rewardsApi(),
   playerAccess:{contract:'ag-player-access/1',getState:()=>({contract:'ag-player-access/1',moduleId:MOD,audience:'player',playerAccessEnabled:game.settings.get(MOD,'playerAccessEnabled'),configurable:true}),setEnabled:async enabled=>{assertGM(game.user);if(typeof enabled!=='boolean')throw new Error('Boolean required.');await game.settings.set(MOD,'playerAccessEnabled',enabled);return module.api.playerAccess.getState();}}
  };
  Hooks.on('renderActorDirectory',addLauncher);refreshLaunchers();
