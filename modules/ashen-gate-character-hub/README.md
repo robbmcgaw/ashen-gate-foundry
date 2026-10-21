@@ -33,8 +33,8 @@ A per-character log of accomplishments, newest first, in the **Journey (alpha)**
   - **Level-ups:** dnd5e's character level (`system.details.level`) rising.
   - **Renown tier changes:** a character's personal rank and the party's rank with each faction, and its rank with each deity. Read through Renown's public `getFactions()` / `getPantheon()` as the owning player sees them, so they are recorded while that player is online and Renown's Player Access is on. The GM's view has no standings.
   - **Quests completed:** Quest Log's GM `listQuests()` / `getGMState()`. A personal quest is logged for its character; a party quest for every player character.
-  - **Quest currency rewards:** recorded only when a quest awards them. Quest Log grants nothing itself today, so `api.journey.recordReward(actor, {questId, questName, coins})` (GM only) is ready for the rewards build.
-- **Idempotent:** every automatic entry has a stable id per event (`level-5`, `quest-<id>`, `renown-<faction>:<scope>-<rank>-<event>`, `reward-<questId>`), so a re-fire never duplicates. At most 300 entries per character are kept.
+  - **Quest rewards (items and coins, 0.25.0):** recorded when Quest Log grants a reward, through `api.journey.recordReward(actor, {questId, questName, coins, text, items, grantId})` (GM only; refused for players in the API). `items` is optional, up to 50 of `{name, img, quantity, itemId}` (anything else is dropped); `grantId` is optional (`A-Z a-z 0-9 _ -`, up to 40). The text reads `Reward for "<quest>": 2 × [TEST] Healing Draught, [TEST] Rusted Blade, 10 gp`, and the row shows small pictures of the items (name and quantity on hover; no ids). There is no separate Rewards panel. The older call `{questId, questName, coins}` works exactly as before.
+- **Idempotent:** every automatic entry has a stable id per event (`level-5`, `quest-<id>`, `renown-<faction>:<scope>-<rank>-<event>`, `reward-<questId>`, or `reward-<questId>-<grantId>` so a later grant gets its own entry), so a re-fire never duplicates. At most 300 entries per character are kept.
 - **Players** see their own characters' visible entries. Observers and other players see nothing.
 - **The GM** sees every character's journey (a character picker) and can:
   - add notes (text and an optional date, optionally hidden);
@@ -124,6 +124,8 @@ Under hit points (with hit dice, rests and exhaustion), from Ashen Gate | Cinder
 
 ## Companions
 One mount per character; pets up to the GM's limit (world default 0, so no pets until the GM raises it; per-character override). A world that already saved a limit keeps it. Limits are checked in the add function itself, not just the UI, and lowering a limit never removes pets. Perk Items attached to a companion only display their own text: the Hub does not apply bonuses or Active Effects.
+
+**Drops (0.25.0)** follow the shared item-drop standard (`scripts/ag-item-drop.mjs`, `docs/item-drop-standard.md`). An Item from the sidebar, a compendium or another sheet is copied onto the character (the source never changes), and a container brings its contents. Mount and pet slots still take a world Actor. A folder ("Drop items one at a time."), something that isn't an Item ("Drop an item.") or an item that no longer exists shows a warning. The quick bar reads drops the same way; its rules are unchanged.
 
 ## Permissions
 Owners and the GM can change and roll. Observers can look only (the actions refuse them too, not just the buttons). Limited viewers see portrait and name. Parts the GM hides from players are refused to players in the Hub's actions too (see Player visibility).

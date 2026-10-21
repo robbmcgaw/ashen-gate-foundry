@@ -14,6 +14,7 @@ export {companionRole, COMPANION_ROLES, ID_PREFIXES, companionStats, routeForRol
 import {companionRole, routeForRole} from './companion-items.mjs';
 import {canEdit} from './actions.mjs';
 import {requirePart} from './visibility.mjs';
+import {grantBundle} from './ag-item-drop.mjs';
 
 export const KINDS = ['mount', 'pet'];
 export const DEFAULT_PET_CAP = 0;
@@ -154,14 +155,17 @@ export async function addCompanion(actor, itemId, kind) {
   return {ok: true, result: entry};
 }
 
-/** Resolves dropped Item data; Items from elsewhere are copied onto the character (only after the cap check). */
+/**
+ * Resolves dropped Item data; Items from elsewhere are copied onto the character (only after the cap check). Since
+ * 0.25.0 the copy is built by the shared grantBundle, so a container brings its contents; the source is never changed.
+ */
 async function embedDropped(actor, item, kind) {
   if (item.parent === actor || item.actor === actor) return item.id;
   if (kind) { const check = canAdd(actor, kind); if (!check.ok) return check; }
-  const data = typeof item.toObject === 'function' ? item.toObject() : {...item};
-  delete data._id;
-  const [created] = await actor.createEmbeddedDocuments('Item', [data]);
-  return created?.id ?? null;
+  const {data} = await grantBundle(item, {quantity: item.system?.quantity ?? 1, scope: MODULE_ID, tag: {}});
+  if (!data.length) return null;
+  const created = await actor.createEmbeddedDocuments('Item', data, {keepId: true});
+  return (created ?? []).find(d => d?.id === data[0]._id)?.id ?? created?.[0]?.id ?? null;
 }
 /**
  * Links a world Actor (a mount or pet with its own sheet) as a companion. Players need at least Observer permission on
