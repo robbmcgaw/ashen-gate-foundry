@@ -1,3 +1,12 @@
+## 0.14.0 — 2026-10-21
+
+- **Item rewards follow the shared item-drop standard** (`ag-item-drop.mjs`, copied unchanged from Quest Log). Reward levels take **items only**: a journal or other document gets "Rewards take items. Drop journals and other documents on the info list." and nothing is added; a folder is refused. The information list still takes any document.
+- Item rewards also store the item's picture and its **permanent item id** (`item_id`) when it has one. The reward editor shows the picture, the id (or a **No permanent id** badge), and a red **Missing** badge when the item can't be found.
+- An item dragged off a character or NPC sheet becomes a GM-only **holding copy** (with its contents) in the Items folder *Ashen Gate Rewards (Renown)*. The sheet keeps its item. Removing such a reward (after the usual confirmation, and only when it has no claims) deletes its holding copy.
+- Approving a claim finds the item by its permanent id first, then by its link, and copies it with its contents in one go; a failure part-way is rolled back, and a claim is still never granted twice. A **missing item** now tells the GM "The reward item is missing (…). Fix the reward, then approve again." and the request stays waiting (it used to sit silently approved).
+- **GM Setup → Fill in permanent item ids:** **Check rewards** lists what would change (Will fill / No permanent id / Missing); **Fill in ids** asks first, then fills only empty ids. Safe to run again; never changes a link or a claim. GM-only API: `api.rewards.backfillItemIds({dryRun})`. Saving a reward also fills its own empty id.
+- Saved data: rewards gain two optional keys (`item_id`, `img`); export includes them and older files without them still import. Player views never carry them. No other data changes.
+
 ## 0.13.1 — 2026-10-21
 
 - Shared UI kit 2.1.0 and dialog helper: choice dialogs follow the Ashen Gate look (Cancel on the left, the choices on the right); red buttons, badges and grey text on selected or striped rows are easier to read in every skin (at least 4.5:1); a hidden empty state stays hidden; disabled list rows keep readable text.

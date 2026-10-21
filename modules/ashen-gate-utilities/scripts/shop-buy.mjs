@@ -10,6 +10,7 @@ import {ID,escapeHTML as E,COIN_LABELS,coinChoices,shownCoins,strandedElectrum,c
 import {readAll,mustGet,writeShop,queueShops,appendLog,norm,locationsApi,randomId,purseDialog,button,icon,tip} from './shops.mjs';
 import {confirmDialog,formDialog,choiceDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
+import {modeSwitch,sellViewHTML,sellFlow,sellDrop,quoteSell,sell} from './shop-sell.mjs';
 
 export const VIEW_STORE='shops-player',VIEW_JOURNAL_NAME='Utilities Shops (Player View)';
 const SOCKET=`module.${ID}`;
@@ -24,17 +25,19 @@ export const shopsOn=()=>game.settings.get(ID,'shopsEnabled')===true;
 const clone=v=>structuredClone(v);
 const levels=()=>globalThis.CONST?.DOCUMENT_OWNERSHIP_LEVELS??{NONE:0,OBSERVER:2};
 const players=()=>[...(game.users??[])].filter(u=>u?.id&&!u.isGM);
-const gmIds=()=>[...(game.users??[])].filter(u=>u.isGM).map(u=>u.id);
-const owns=(actor,user)=>Boolean(actor&&(user?.isGM||actor.testUserPermission?.(user,'OWNER')));
-const warn=what=>e=>console.warn(`[${ID}] ${what}: ${e?.message??e}`);
+export const gmIds=()=>[...(game.users??[])].filter(u=>u.isGM).map(u=>u.id);
+export const owns=(actor,user)=>Boolean(actor&&(user?.isGM||actor.testUserPermission?.(user,'OWNER')));
+export const warn=what=>e=>console.warn(`[${ID}] ${what}: ${e?.message??e}`);
 
 /** Set by main.mjs on ready: the party stash, the consent poll, the GM request channel and the history writer live there. */
 let ctx={};
 export function configureTrade(c){ctx={...ctx,...c};}
+/** The same context, for selling (shop-sell.mjs). */
+export const tradeCtx=()=>ctx;
 /** *Party must accept when a player spends the party purse*: '' (never saved) follows the coin vote. */
 export const shopVoteRequired=()=>{const v=game.settings.get(ID,'shopPurseVote');return v==='on'?true:v==='off'?false:Boolean(ctx.purseVoteRequired?.());};
 /** Design §6 wording. The GM always passes. */
-function playerGate(user=game.user){if(user?.isGM)return;if(!access())throw Error('Utilities is hidden for players.');if(!shopsOn())throw Error('The GM has turned shops off.');}
+export function playerGate(user=game.user){if(user?.isGM)return;if(!access())throw Error('Utilities is hidden for players.');if(!shopsOn())throw Error('The GM has turned shops off.');}
 /** The Shops tab shows for players while Player Access and *Shops on for players* are both on. */
 export const shopsVisible=()=>isGM()||(access()&&shopsOn());
 
@@ -99,14 +102,14 @@ export function forMe(){
  playerGate();
  return pagesOf(viewJournal()).filter(p=>p.testUserPermission?.(game.user,'OBSERVER')).map(parseView).filter(v=>v?.id);
 }
-const viewOf=id=>forMe().find(v=>v.id===id)??null;
+export const viewOf=id=>forMe().find(v=>v.id===id)??null;
 /** Characters this user may send a purchase to (D9): owned characters; the GM: every character. */
 export function receivers(user=game.user){
  const stash=ctx.stashActor?.();
  return [...(game.actors??[])].filter(a=>a.type==='character'&&a.id!==stash?.id&&owns(a,user)).sort((a,b)=>a.name.localeCompare(b.name));
 }
 /** The party stash when this user may spend from it, else null. */
-function readablePurse(user=game.user){const s=ctx.stashActor?.();if(!s||!readCoins(s))return null;return user?.isGM||ctx.stashEnabled?.()?s:null;}
+export function readablePurse(user=game.user){const s=ctx.stashActor?.();if(!s||!readCoins(s))return null;return user?.isGM||ctx.stashEnabled?.()?s:null;}
 function cleanReq(r={}){
  const payFrom=r.payFrom==='purse'?'purse':'actor';
  return {shopId:String(r.shopId??''),lineId:String(r.lineId??''),quantity:r.quantity===''||r.quantity===null||r.quantity===undefined?r.quantity:Number(r.quantity),
@@ -164,7 +167,7 @@ export async function presentDialog(id){
 /* ---------- The purchase (GM client) ---------- */
 const buyQueues=new Map();
 /** One purchase at a time per shop. */
-function queueBuy(shopId,run){const next=(buyQueues.get(shopId)??Promise.resolve()).then(run);buyQueues.set(shopId,next.catch(()=>{}));return next;}
+export function queueBuy(shopId,run){const next=(buyQueues.get(shopId)??Promise.resolve()).then(run);buyQueues.set(shopId,next.catch(()=>{}));return next;}
 const handled=new Map(),HANDLED_MS=10*60000;
 const voting=new Set();
 const pick=(coins,keys)=>Object.fromEntries(keys.map(k=>[k,Math.max(0,Math.floor(Number(coins?.[k])||0))]));
@@ -189,7 +192,7 @@ function gate(r,user){
  if(!plan.ok){if(plan.noChange)void topUpWhisper(shop,c.totalCp,c.line).catch(warn('Could not whisper the GM'));throw Error(plan.reason);}
  return {shop,line:c.line,quantity:c.quantity,stockAfter:c.stockAfter,totalCp:c.totalCp,receiver,payer,hold,plan,name:shopLineName(c.line),count:purchaseCount(c.line,c.quantity)};
 }
-const whisper=(content,ids)=>ChatMessage.create({content,whisper:[...new Set(ids)],speaker:{alias:'Utilities'}});
+export const whisper=(content,ids)=>ChatMessage.create({content,whisper:[...new Set(ids)],speaker:{alias:'Utilities'}});
 /** D1a: the GM gets the refusal with a Top up shop purse button (no automatic top-up). */
 async function topUpWhisper(shop,totalCp,line){
  return whisper(`<p><strong>${E(shop.name)}</strong>: a purchase was refused because the merchant can't make change for ${E(shopPriceText(totalCp,line.priceCoin,{electrum:electrum()}))}. Merchant's coins: ${E(coinsText(shop.purse))}.</p><p><button type="button" class="ag-btn ag-btn--sm" data-agu-shop-topup="${E(shop.id)}"><i class="fa-solid fa-coins" aria-hidden="true"></i> Top up shop purse</button></p>`,gmIds());
@@ -295,7 +298,7 @@ export async function buy(req={}){
 const coinStrip=(coins,ep)=>`<div class="agu-coins">${shownCoins(coins,ep).map(c=>`<div class="agu-coin${c==='ep'&&strandedElectrum(coins,ep)?' agu-coin--off':''}" role="group" aria-label="${E(COIN_LABELS[c])}: ${E(coins[c]??0)}"><span class="agu-coin__label">${E(COIN_LABELS[c])} <abbr ${tip(COIN_LABELS[c])}>${c}</abbr></span><strong class="agu-coin__value">${E(coins[c]??0)}</strong></div>`).join('')}</div>`;
 const portrait=m=>m?.img?`<img class="agu-shop-portrait" src="${E(m.img)}" alt="">`:`<span class="agu-shop-portrait" aria-hidden="true">${E(initials(m?.name))}</span>`;
 const stockBadge=l=>l.soldOut?'<span class="ag-badge ag-badge--danger">Sold out</span>':l.stock===null||l.stock===undefined?'<span class="ag-badge">In stock</span>':`<span class="ag-badge">${E(l.stock)} left</span>`;
-const empty=(title,text)=>`<div class="ag-empty">${icon('fa-store')}<p class="ag-empty__title">${E(title)}</p><p class="ag-empty__text">${E(text)}</p></div>`;
+export const empty=(title,text)=>`<div class="ag-empty">${icon('fa-store')}<p class="ag-empty__title">${E(title)}</p><p class="ag-empty__text">${E(text)}</p></div>`;
 /** One presented shop as the buyer sees it (the shop window). `state.actorId`: whose coins the strip shows. */
 export function shopViewHTML(view,state={}){
  const ep=electrum(),chars=receivers(),actor=chars.find(a=>a.id===state.actorId)??chars[0]??null,purse=readablePurse();
@@ -310,8 +313,11 @@ export function shopViewHTML(view,state={}){
  const rows=view.lines.map(l=>`<li class="ag-row agu-ware${l.soldOut?' is-disabled':''}" data-line="${E(l.lineId)}">${l.img?`<img class="ag-row__icon" src="${E(l.img)}" alt="">`:`<span class="ag-row__icon" aria-hidden="true">${icon('fa-box')}</span>`}<div class="ag-row__main"><span class="ag-row__title">${E(l.name)}</span><span class="ag-row__meta">${E([`${l.per} per purchase`,l.type].filter(Boolean).join(' · '))}</span>${l.flavour?`<span class="ag-row__meta">${E(l.flavour)}</span>`:''}${l.description?`<details class="agu-ware__desc"><summary>Description</summary><div>${l.description}</div></details>`:''}</div>
   <div class="ag-row__end">${stockBadge(l)}<strong class="agu-ware__price">${E(l.priceText)}</strong>${button('shop-buy','Buy…',{kind:'sm',ic:'fa-cart-shopping',disabled:l.soldOut||!chars.length,attrs:`data-shop="${E(view.id)}" data-line-id="${E(l.lineId)}" aria-label="Buy ${E(l.name)}"`})}</div></li>`).join('');
  const wares=view.lines.length?`<ul class="ag-rows agu-wares">${rows}</ul>`:empty('Nothing for sale right now','The merchant has nothing out on the counter yet.');
- const none=chars.length?'':`<p class="ag-notice ag-notice--warn">${icon('fa-triangle-exclamation')}<span>You need a character of your own to buy here.</span></p>`;
- return `<section class="agu-shop-view" aria-label="${E(view.name)}">${head}${strips?`<div class="agu-shop-strips">${strips}</div>`:''}${none}<h3 class="ag-eyebrow">For sale · ${view.lines.length}</h3>${wares}</section>`;
+ const none=chars.length?'':`<p class="ag-notice ag-notice--warn">${icon('fa-triangle-exclamation')}<span>You need a character of your own to ${view.buys?'buy or sell':'buy'} here.</span></p>`;
+ // 0.19.0: a shop that buys from players gets a Buy / Sell switch.
+ const mode=view.buys&&state.mode==='sell'?'sell':'buy';
+ const body=mode==='sell'?sellViewHTML(view,actor,state):`<h3 class="ag-eyebrow">For sale · ${view.lines.length}</h3>${wares}`;
+ return `<section class="agu-shop-view" aria-label="${E(view.name)}">${head}${strips?`<div class="agu-shop-strips">${strips}</div>`:''}${none}${view.buys?modeSwitch(view,mode):''}${body}</section>`;
 }
 /** The player's Shops tab: Open shops (shops presented to this user). */
 export function playerShopsView(){
@@ -358,12 +364,25 @@ function shopWindowClass(){
  if(ShopWindowClass)return ShopWindowClass;
  ShopWindowClass=class extends foundry.applications.api.ApplicationV2 {
   static DEFAULT_OPTIONS={classes:['ag-app','ag-utilities','agu-shop-window'],window:{title:'Shop',resizable:true,minimizable:true},position:{width:560,height:640}};
-  constructor(shopId){super({id:`ashen-gate-utilities-shop-${String(shopId).toLowerCase()}`,position:windowSize(ShopWindowClass.DEFAULT_OPTIONS.position)});this.shopId=shopId;this.actorId='';}
+  constructor(shopId){super({id:`ashen-gate-utilities-shop-${String(shopId).toLowerCase()}`,position:windowSize(ShopWindowClass.DEFAULT_OPTIONS.position)});this.shopId=shopId;this.actorId='';this.mode='buy';this.payTo='actor';}
   get title(){let v=null;try{v=viewOf(this.shopId);}catch{v=null;}return v?.name??'Shop';}
   async _renderHTML(){let v=null;try{v=viewOf(this.shopId);}catch{v=null;}return `<div class="agu-shop-window__body">${v?shopViewHTML(v,this):empty('This shop is closed now','It opens again when your GM shows it to you.')}</div>`;}
   _replaceHTML(html,content){content.innerHTML=html;
    content.querySelector('[data-shop-actor]')?.addEventListener('change',e=>{this.actorId=e.target.value;this.render().catch(ctx.error??console.error);});
    for(const b of content.querySelectorAll('[data-action="shop-buy"]'))b.addEventListener('click',()=>{if(b.disabled)return;b.disabled=true;buyFlow(b.dataset.shop,b.dataset.lineId,{actorId:this.actorId}).finally(()=>{b.disabled=false;});});
+   // 0.19.0: Buy / Sell, where the coins go, Sell…, and a drop from the player's own sheet.
+   const again=()=>this.render().catch(ctx.error??console.error);
+   for(const b of content.querySelectorAll('[data-shop-mode]'))b.addEventListener('click',()=>{this.mode=b.dataset.shopMode;again();});
+   for(const b of content.querySelectorAll('[data-sell-pay]'))b.addEventListener('click',()=>{this.payTo=b.dataset.sellPay;again();});
+   const seller=()=>this.actorId||receivers()[0]?.id||'';
+   for(const b of content.querySelectorAll('[data-action="shop-sell"]'))b.addEventListener('click',()=>{if(b.disabled)return;b.disabled=true;sellFlow(b.dataset.shop,seller(),b.dataset.itemId,{payTo:this.payTo}).finally(()=>{b.disabled=false;});});
+   const body=content.querySelector('.agu-shop-window__body');
+   if(body){
+    body.addEventListener('dragover',ev=>ev.preventDefault());
+    body.addEventListener('drop',ev=>{ev.preventDefault();let v=null;try{v=viewOf(this.shopId);}catch{v=null;}
+     if(!v?.buys){ui.notifications?.warn('This shop doesn\'t buy items.');return;}
+     this.mode='sell';sellDrop(this.shopId,ev,{payTo:this.payTo}).finally(again);});
+   }
   }
   _onClose(o){super._onClose?.(o);if(windows.get(this.shopId)===this)windows.delete(this.shopId);}
  };
@@ -422,7 +441,7 @@ export function bindChatCard(message,html){
 }
 /** The added `api.shops` calls (contract ag-utilities-shops/1). */
 export function tradeApi(){
- return {present,stopShowing,presented,open:openShop,forMe:()=>clone(forMe()),quote:req=>clone(quote(req)),buy};
+ return {present,stopShowing,presented,open:openShop,forMe:()=>clone(forMe()),quote:req=>clone(quote(req)),buy,quoteSell:req=>clone(quoteSell(req)),sell};
 }
 /** Hooks: GM rebuilds the player view on shop, electrum and Locations changes; everyone re-renders on view changes. */
 export function tradeHooks(rerender){

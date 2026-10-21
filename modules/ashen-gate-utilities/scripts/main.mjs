@@ -4,6 +4,7 @@ import {confirmDialog,infoDialog,formDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
 import {shopsApi,shopsView,shopsFooter,bindShops,handleShops,shopHooks} from './shops.mjs';
 import {configureTrade,tradeApi,tradeHooks,tradeSocketHandlers,handleTrade,playerShopsView,shopsVisible,shopsOn,shopVoteRequired,executeBuy,refreshShopWindows} from './shop-buy.mjs';
+import {executeSell} from './shop-sell.mjs';
 
 const {ApplicationV2}=foundry.applications.api;
 let windowInstance=null;
@@ -424,7 +425,8 @@ const gmHandlers={
  'stash-withdraw':async(msg,user)=>executeWithdraw(String(msg.itemId??''),String(msg.actorId??''),user),
  'purse-deposit':async(msg,user)=>executePurseDeposit({actorId:String(msg.actorId??''),coin:String(msg.coin??''),amount:msg.amount},user),
  'purse-take':async(msg,user)=>executePurseTake({actorId:String(msg.actorId??''),coin:String(msg.coin??''),amount:msg.amount},user),
- 'shop-buy':async(msg,user)=>executeBuy(msg,user)
+ 'shop-buy':async(msg,user)=>executeBuy(msg,user),
+ 'shop-sell':async(msg,user)=>executeSell(msg,user)
 };
 /** Broadcasts every client handles: the consent poll itself. */
 const pollHandlers={
@@ -976,6 +978,7 @@ function purseDetail(h){
 const worldClock=t=>{if(!Number.isFinite(t))return '';const d=Math.floor(t/86400),r=((t%86400)+86400)%86400,p=n=>String(Math.floor(n)).padStart(2,'0');return `World day ${d}, ${p(r/3600)}:${p((r%3600)/60)}`;};
 function historyLine(h){
  if(PURSE_KINDS.includes(h.kind))return purseLine(h);
+ if(h.kind==='shop-sale')return shopLine(h);
  if(h.kind==='shop-purchase')return h.moved===false?`${h.userName}${h.actorName?` (${h.actorName})`:''} asked to buy ${h.itemName}${h.quantity>1?` ×${h.quantity}`:''} at ${h.shopName} with the party purse`:shopLine(h);
  if(h.kind==='purse-convert')return convertLine(h);
  if(h.kind==='gold-award'){const c=entryCoin(h),names=(h.recipients??[]).map(r=>r.actorName).join(', ');return h.mode==='split'?`${h.userName} split ${h.amount} ${c} between ${names}`:`${h.userName} awarded ${h.share} ${c} each to ${names}`;}
@@ -1155,7 +1158,7 @@ Hooks.once('ready',()=>{
  for(const ev of ['updateActor','createActiveEffect','updateActiveEffect','deleteActiveEffect'])Hooks.on(ev,rerenderConditions);
  for(const ev of ['createItem','updateItem','deleteItem'])Hooks.on(ev,doc=>rerenderStash(doc));
  Hooks.on('dropActorSheetData',onSheetDrop);
- shopHooks(()=>{if(windowInstance?.rendered&&windowInstance.tab==='shops'&&isGM())windowInstance.render().catch(error);});
+ shopHooks(()=>{if(windowInstance?.rendered&&windowInstance.tab==='shops'&&isGM())windowInstance.render().catch(error);},()=>windowInstance);
  configureTrade({stashActor,stashEnabled,purseVoteRequired,runConsent,requestGM,queuePurse,coordinatorIsMe,error,
   logStash:entry=>logPurse(entry),openTab:async tab=>{if(!permitted())throw Error('Utilities access is hidden by the GM.');if(!windowInstance||!windowInstance.rendered)windowInstance=new UtilitiesApp();windowInstance.tab=tab;await windowInstance.render({force:true});return windowInstance;}});
  tradeHooks(()=>{if(windowInstance?.rendered&&windowInstance.tab==='shops')windowInstance.render().catch(error);});

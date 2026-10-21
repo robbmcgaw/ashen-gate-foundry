@@ -1,3 +1,14 @@
+## 0.19.0 — 2026-10-21
+
+- **Selling to a shop** (design §7c, S1–S9): a shown shop with **Buys from players** on gets a **Buy / Sell** switch in its window. Sell lists the character's items with what the shop pays, and greyed items with the reason they can't be sold (containers, equipped or attuned, wrong type, *Not for sale*, no value). **Coins go to** the character or the party purse.
+- **Sell…** or a drag from your own character sheet onto the shop window opens the sale: how many (stacks), what the merchant pays, from where, where the coins go and before → after, then **Sell item**.
+- Price: percent × the item's own price × quantity, rounded down to whole copper. Paid from the merchant's coins (largest first, never ep), or unlimited with no purse. Can't pay: "Sorry, the vendor can't afford that." to the player, **Top up shop purse** whispered to the GM.
+- The item goes into the shop: stock raised on the same item, or a new hidden line marked **Bought from players** in the editor.
+- All or nothing on the GM client (shop page, then coins, then the item, last), in the same queue as purchases; failures put earlier steps back. Party purse sales go to stash History (`shop-sale`); every sale is in the shop's log.
+- An open shop editor follows sales and purchases on its shop, so Save Changes no longer puts back sold stock or drops a sold-in line.
+- **API** (`api.shops`): `quoteSell`, `sell` (player or GM).
+- Saved data: additive only (a `soldIn` mark on sold-in lines, the `buys` summary in the player view). No migration.
+
 ## 0.18.0 — 2026-10-21
 
 - **Present a shop** to all players (also those who log in later) or to chosen players: **Present…** on a shop row or in the editor, **Stop showing** to end it, **Open** to see it as players do. Rows show "Shown to all players" / "Shown to N players".

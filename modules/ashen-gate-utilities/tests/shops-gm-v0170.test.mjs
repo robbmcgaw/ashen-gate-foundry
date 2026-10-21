@@ -101,7 +101,7 @@ globalThis.fromUuid=async u=>docs.get(u)??null;
 globalThis.CONST={DOCUMENT_OWNERSHIP_LEVELS:{NONE:0,OBSERVER:2}};
 globalThis.ChatMessage={create:async d=>d,getSpeaker:()=>({})};
 let locationsActive=true;
-const modules=new Map([[ID,{id:ID,active:true,version:'0.18.0'}]]);
+const modules=new Map([[ID,{id:ID,active:true,version:'0.19.0'}]]);
 modules.set('ashen-gate-locations',{get active(){return locationsActive;},api:{listLocations:()=>[{id:'LOC-TEST-TOWN',name:'[TEST] Testford',parentLocationId:''},{id:'LOC-TEST-MARKET',name:'[TEST] Market Ward',parentLocationId:'LOC-TEST-TOWN'}]}});
 globalThis.game={user:gm,users,actors,journal:journals,items:worldItems,time:{worldTime:0},modules,tables:[],messages:new Map(),i18n:{localize:x=>x},
  settings:{register:(ns,key,o)=>settings.set(`${ns}.${key}`,{value:o.default,onChange:o.onChange}),get:(ns,key)=>settings.get(`${ns}.${key}`)?.value,set:async(ns,key,v)=>{const x=settings.get(`${ns}.${key}`);x.value=v;x.onChange?.(v);}},
