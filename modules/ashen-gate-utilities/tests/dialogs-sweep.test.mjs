@@ -1,4 +1,4 @@
-// 0.14.1 dialogs sweep: Help opens with one Close button, destructive confirms are labelled and red, no test wording in the window.
+// 0.15.1 dialogs sweep: Help opens with one Close button, destructive confirms are labelled and red, no test wording in the window.
 // Mocked Foundry globals; proves the wiring, not the live DialogV2 window.
 import test from 'node:test';
 import assert from 'node:assert/strict';
