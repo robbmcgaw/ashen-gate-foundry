@@ -13,7 +13,7 @@ export function itemRow(item) {
   const s = item.system ?? {}, uses = s.uses ?? {};
   const details = plainText(s.description?.value), {summary, more} = summaryOf(details);
   return {
-    facts: itemFacts(item), summary, more, details, sort: num(item.sort),
+    facts: itemFacts(item), summary, more, details, sort: num(item.sort), uuid: item.uuid ?? (item.parent?.uuid ? `${item.parent.uuid}.Item.${item.id}` : null),
     id: item.id, name: item.name, img: item.img, type: item.type, quantity: num(s.quantity, 1),
     equippable: 'equipped' in s, equipped: !!s.equipped,
     canAttune: s.attunement === 'required' || s.attunement === 'optional', attunement: s.attunement ?? '', attuned: !!s.attuned,
