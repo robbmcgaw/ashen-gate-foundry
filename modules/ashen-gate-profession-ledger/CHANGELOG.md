@@ -6,7 +6,7 @@
 - Names: the table, Assign and the gathering windows show **Hunting** (was Hunting/Skinning) and no “gathering” tag. Profession keys and ids are unchanged (`huntingskinning`).
 - **Fishing uses the Survival skill** by default, both for access and as its gather check skill. Fishing Tackle is no longer a built-in qualifying item.
 - Carried items (0.20.0) have no UI any more. An `items` list in saved GM edits, the catalog or a baseline file still qualifies, as before. Export writes `items` only where a profession has one.
-- Advantage tools already saved (or set by a baseline file) for a crafting profession still apply to its checks; the table just shows a dash there.
+- **Advantage tools apply to gathering professions only.** Crafting checks never get advantage from them. Any advantage tools saved or loaded (baseline file) for a crafting profession are kept but ignored.
 - **Fix: the window no longer jumps to the top.** Every dropdown change or button click re-draws the window, which replaced the scrolling area and reset it to the top (Gathering, GM Setup and every other tab). The scroll position, and the Tools and checks table's sideways scroll, are now kept when the same tab re-draws; switching to another tab still starts at the top.
 - Saved data: same shape. One migration, run once by the GM's client (world setting `checkMappingVersion` 0 → 1): a saved Fishing check skill of “none” (the old default, which every earlier Save wrote) becomes Survival. Any other saved Fishing skill, and everything else, is kept.
 

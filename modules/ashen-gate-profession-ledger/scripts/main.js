@@ -7,7 +7,7 @@ import {lookupWorldDefinition,readWorldDefinition} from './definition-lookup.mjs
 import {planCraft,craftBlockers,executeCraft,craftResultData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,requiredToolRef,toolRefLabel,heldTool,
-  checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS,DEFAULT_PROFESSION_TOOLS,DEFAULT_GATHER_SKILLS,migrateCheckMapping} from './checks.mjs';
+  checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS,DEFAULT_PROFESSION_TOOLS,DEFAULT_GATHER_SKILLS,migrateCheckMapping,advantageToolsOf} from './checks.mjs';
 import {PROFESSION_KEYS,professionTitle,catalogCrosswalk,unmappedProfessions,assignmentPlan,rowId,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
 import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,gatherOutcome,gatherReward,exhaustsNode,helperEligibility,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
   stackMaterial} from './gathering.mjs';
@@ -381,8 +381,9 @@ const MAP_KEEP='__several__';
 /** The saved shape of the mapping (what GM Setup edits and saves): check tool/skill plus the GM's own crosswalk lists. */
 const mappingDraft=map=>({tools:{...map.tools},skills:{...map.skills},...Object.fromEntries(CROSSWALK_LISTS.map(l=>[l,structuredClone(map.gm[l])]))});
 const professionTool=name=>{const key=checkMapping().tools[professionKey(name)];return key?{key,uuid:null,name:null}:null;};
-/** GM-configured advantage tools for a profession's checks (none unless the GM set them in GM Setup). */
-const advantageToolsFor=name=>{const k=professionKey(name);return k?[...(checkMapping().advantageTools[k]??[])]:[];};
+/** GM-configured advantage tools for a profession's checks (none unless set in GM Setup or a baseline file). 0.22.0: gathering
+ * professions only; a crafting profession gets none. */
+const advantageToolsFor=name=>advantageToolsOf(checkMapping(),professionKey(name));
 
 /** GM: imported, active PROF-* Profession Items with their definitions (the catalog layer and the Items to assign). */
 function professionDefinitions(){
@@ -928,7 +929,7 @@ function gatherCheckPlan(lead,node){
   const hasTool=tool&&(heldTool(lead,tool)||checkOption(lead,{kind:'tool',key:toolKey}).proficient);
   const first=hasTool||!skill?options[0]:options.find(o=>o.kind==='skill'&&o.key===skill);
   const profItem=pk?professionItems(lead).find(i=>professionKey(professionDisplayName(i))===pk):null;
-  return {profession,professionKey:pk,toolKey,skill,options,selected:`${first.kind}:${first.key}`,advantageTools:pk?[...(map.advantageTools[pk]??[])]:[],
+  return {profession,professionKey:pk,toolKey,skill,options,selected:`${first.kind}:${first.key}`,advantageTools:advantageToolsOf(map,pk),
     professionId:profItem?agSourceId(profItem):null,professionName:profItem?professionDisplayName(profItem):profession};
 }
 const parseChoice=(plan,choice)=>plan.options.find(o=>`${o.kind}:${o.key}`===choice)??null;
@@ -1477,7 +1478,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const notes=[...unresolved.map(u=>`${u.profession}: catalog ${u.field==='skillProficienciesAnyOf'?'skill':'tool'} “${u.name}” matches no dnd5e ${u.field==='skillProficienciesAnyOf'?'skill':'tool'} and is ignored.`),
       ...conflicts.map(c=>`${c}: several imported Profession definitions disagree, so the catalog is not used for it.`)];
     return `<section class="ag-card agl-panel"><h2>Tools and checks</h2>
-      <p class="agl-sub">Proficiency in the <b>skill</b> or the <b>tool to access</b> (either one) qualifies a character for the profession in <b>Assign</b>. The same skill and tool are the profession’s checks: crafting needs the tool when a recipe names none of its own, and gathering offers the tool and the skill. A character proficient with, or carrying, the <b>tool for advantage</b> starts gathering checks with advantage. “Several” means a list from the baseline file or an earlier edit; hover to see it. Saved with <b>Save Changes</b>.</p>
+      <p class="agl-sub">Proficiency in the <b>skill</b> or the <b>tool to access</b> (either one) qualifies a character for the profession in <b>Assign</b>. The same skill and tool are the profession’s checks: crafting needs the tool when a recipe names none of its own, and gathering offers the tool and the skill. A character proficient with, or carrying, the <b>tool for advantage</b> starts gathering checks with advantage (gathering professions only; crafting checks never get it). “Several” means a list from the baseline file or an earlier edit; hover to see it. Saved with <b>Save Changes</b>.</p>
       ${notes.length?`<ul class="agl-sub">${notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`:''}
       ${this._baselinePanel()}
       <div class="agl-map-wrap"><table class="agl-map"><thead><tr><th>Profession</th><th>Skill to Access</th><th>Tool to Access</th><th>Tool for Advantage</th><th></th></tr></thead>
@@ -1539,7 +1540,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>Tools:</strong> a recipe shows the tool or workstation it needs and warns if your character doesn’t carry the tool. Crafting rolls a tool check; the result is on the craft card. Gold costs are shown, not deducted.</p>
     <p><strong>XP:</strong> the GM awards profession XP from the gather and craft chat cards.</p>
     ${game.user.isGM?'<p><strong>Assign:</strong> preview which profession features each party character qualifies for from their skill and tool proficiencies (the Skill to Access and Tool to Access in GM Setup → Tools and checks), then add the missing ones. Re-running adds nothing new; XP is never changed.</p>':''}
-    ${game.user.isGM?'<p><strong>GM Setup:</strong> choose the party and Player Access. <em>Tools and checks</em> has one row per profession, crafting then gathering: the skill or tool that gives access (either one qualifies; they are also the profession’s checks) and, for gathering, the tool that gives advantage. It can import a baseline crosswalk file (preview, then apply) and export the current table. Recipe imports and Manager are in the Recipe Catalog tab; XP is awarded from the Individual tab.</p>':''}
+    ${game.user.isGM?'<p><strong>GM Setup:</strong> choose the party and Player Access. <em>Tools and checks</em> has one row per profession, crafting then gathering: the skill or tool that gives access (either one qualifies; they are also the profession’s checks) and, for gathering, the tool that gives advantage (advantage tools apply to gathering professions only; ignored for crafting). It can import a baseline crosswalk file (preview, then apply) and export the current table. Recipe imports and Manager are in the Recipe Catalog tab; XP is awarded from the Individual tab.</p>':''}
     <button type="button" class="ag-btn" data-action="help-back">Back</button>
   </section>`;}
   /** Ad-hoc node from the GM's form; same shape as a Locations entry. */

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {pathToFileURL,fileURLToPath} from 'node:url';
 import path from 'node:path';
-import {effectiveMapping,rollModeFor,professionKey,migrateCheckMapping} from '../scripts/checks.mjs';
+import {effectiveMapping,rollModeFor,professionKey,migrateCheckMapping,advantageToolsOf} from '../scripts/checks.mjs';
 import {PROFESSION_KEYS,professionTitle,catalogCrosswalk,unmappedProfessions,qualifications,assignmentPlan} from '../scripts/assign.mjs';
 // 0.16.0 (AG-F01): configurable profession crosswalk and GM-only profession assignment from proficiencies.
 const hooks={},errors=[],infos=[];let api,confirmAnswer=true;
@@ -224,4 +224,13 @@ test('0.22.0 migration: a saved Fishing check skill of "" (the old default) beco
   assert.equal(migrateCheckMapping({skills:{fishing:'nat'}}),null,'a GM choice is kept');
   assert.equal(migrateCheckMapping({}),null);assert.equal(migrateCheckMapping(null),null);
   assert.equal(effectiveMapping(next).skills.fishing,'sur');assert.deepEqual(effectiveMapping(next).qualifySkills.fishing,['sur']);
+});
+
+test('0.22.0: advantage tools apply to gathering professions only; a crafting profession with some configured gets none',()=>{
+  const map=effectiveMapping({advantageTools:{alchemy:['herb'],herbalism:['herb']}},{baseline:{cooking:{advantageTools:['cook']}}});
+  assert.deepEqual(map.advantageTools.alchemy,['herb'],'saved data is kept');
+  assert.deepEqual(advantageToolsOf(map,'alchemy'),[]);assert.deepEqual(advantageToolsOf(map,'cooking'),[],'baseline file too');
+  assert.deepEqual(advantageToolsOf(map,'herbalism'),['herb']);
+  const actor={system:{skills:{},tools:{herb:{value:1},alchemist:{value:1}},abilities:{}},items:[]};
+  assert.equal(rollModeFor(actor,{kind:'tool',key:'alchemist'},{advantageTools:advantageToolsOf(map,'alchemy')}).mode,0,'no advantage on a craft check');
 });

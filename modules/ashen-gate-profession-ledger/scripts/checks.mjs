@@ -89,6 +89,11 @@ export function effectiveMapping(stored,{catalog=null,baseline=null}={}){
   return out;
 }
 
+/** 0.22.0: advantage tools apply to gathering professions only. Crafting checks get none, whatever is saved or loaded
+ * for them (the data is kept, just not used). */
+export const GATHERING_PROFESSION_KEYS=Object.freeze(['archaeology','fishing','herbalism','huntingskinning','mining']);
+export const advantageToolsOf=(map,key)=>GATHERING_PROFESSION_KEYS.includes(key)?[...(map?.advantageTools?.[key]??[])]:[];
+
 const dnd5eTools=()=>globalThis.CONFIG?.DND5E?.tools??{};
 export const toolKeys=()=>[...new Set([...Object.keys(TOOL_LABELS),...Object.keys(dnd5eTools())])].sort((a,b)=>toolLabel(a).localeCompare(toolLabel(b)));
 export function toolLabel(key){

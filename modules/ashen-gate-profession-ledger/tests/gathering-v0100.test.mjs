@@ -373,8 +373,13 @@ test('recipes: tool, workstation or the profession’s tool; warning when not ca
  assert.match(row('[TEST] Stew'),/Workstation: \[TEST\] Kitchen/);assert.doesNotMatch(row('[TEST] Stew'),/Alchemist/,'workstation recipes need no tool');
  assert.match(row('[TEST] Tonic'),/Alchemist’s Supplies/,'no tool given: the profession’s tool');
  belwar.nextRoll=14;rolls.length=0;
+ // 0.22.0: advantage tools configured for a crafting profession are ignored (Belwar is proficient with this one).
+ const savedMapping=values.checkMapping;values.checkMapping={...(savedMapping??{}),advantageTools:{alchemy:['herb']}};
+ belwar.system.tools??={};const savedHerb=belwar.system.tools.herb;belwar.system.tools.herb={value:1};
  await app._click('craft','REC-TG-BREW',{actor:'belwar'});
+ belwar.system.tools.herb=savedHerb;if(savedHerb===undefined)delete belwar.system.tools.herb;values.checkMapping=savedMapping;
  assert.match(FakeDialog.last.content,/Alchemist’s Supplies check/);assert.match(FakeDialog.last.content,/also costs 5 gp — not deducted/i);
+ assert.doesNotMatch(FakeDialog.last.content,/Advantage: Herbalism Kit/,'no advantage hint on a craft');
  assert.deepEqual(rolls.at(-1),{actor:'belwar',tool:'alchemist',advantage:false,disadvantage:false});
  const card=chats.at(-1);assert.match(card.content,/crafted \[TEST\] Brew/);assert.match(card.content,/Alchemist’s Supplies check:<\/strong> 14/);
  assert.equal(card.flags['ashen-gate-profession-ledger'].xp.kind,'craft');assert.equal(card.flags['ashen-gate-profession-ledger'].xp.professionId,'PROF-TG-ALCHEMY');
