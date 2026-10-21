@@ -1,6 +1,6 @@
 # Ashen Gate UI audit (draft)
 
-Status: draft for Robb, 2026-10-21. Static read of every module's templates, scripts and CSS on `main` at `b2cd06b`.
+Status: 2026-10-21. Static read of every module's templates, scripts and CSS on `main` at `b2cd06b`. Line references are as of that commit; main has moved since (Hub 0.20.1, Cinders 0.3.1, Manager 0.41.2), so build chats re-locate them.
 Nothing here was rendered in Foundry. Items marked **(check live)** are inferred from CSS specificity and need a look in Forge.
 
 Paths are relative to `modules/<module>/`. "Kit" means `styles/ag-ui.css` (identical in all ten modules; `scripts/check.mjs` enforces it).
@@ -63,7 +63,7 @@ Player Access saves three ways: immediately (Locations, Skill Trees), toggle + b
 - Undefined classes: Renown `.agf-small` (5 uses).
 
 ### Confirmations and dialogs
-- Labelled helper (Cancel left, action right): Utilities, HQ, Quest Log, Renown `scripts/dialogs.mjs` (byte-identical copies). Good pattern; should become shared.
+- Labelled helper (Cancel left, action right): `dialogs.mjs` in Utilities, HQ, Quest Log and Renown. Good pattern; should become shared. **Not byte-identical:** HQ and Quest Log match; Utilities adds checkbox/checklist fields in `formDialog` and `readForm`; Renown adds `checklistDialog`. The shared version is the superset.
 - Raw `DialogV2.confirm` with default labels: Manager, Skill Trees, Cinders, Ledger, Hub.
 - Locations uses `DialogV2.confirm` with custom decline labels that vary: "Keep Editing", "Keep", "Cancel".
 - Titles in capitals: Manager "FINAL DELETE CONFIRMATION" (`main.js:1535`), "ARCHIVE managed content" (`:1527`).

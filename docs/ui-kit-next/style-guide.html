@@ -136,7 +136,7 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 @media (max-width: 560px) { .sg-picker { margin-left: 0; width: 100%; } .sg-picker select { flex: 1; max-width: none; } .sg-intro h2 { font-size: 24px; } }
 </style>
-<style id="ag-ui-kit">/* styles/ag-ui.css as shipped (Manager 0.39.0) */
+<style id="ag-ui-kit">/* styles/ag-ui.css as shipped (Manager 0.41.2) */
 /*
  * Ashen Gate UI kit (ag-ui.css)
  * Every Ashen Gate module ships an identical copy of this file; scripts/check.mjs fails if
@@ -610,6 +610,30 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
  * no hard-coded colours except the rarity hues (game data colours, not skin colours).
  */
 
+/* ---------- FINAL BASE (decided 2026-10-21): direction D, Rounded Compact ----------
+   These REPLACE the existing scale values in the kit's :root block (type, spacing, control height) and add
+   shape and size tokens. Radius is shape, not size: it is not part of the size sets. */
+:root {
+  --ag-text-xs: 11px; --ag-text-sm: 11.5px; --ag-text-md: 13px; --ag-text-lg: 14px; --ag-text-xl: 17px;
+  --ag-space-1: 3px; --ag-space-2: 6px; --ag-space-3: 8px; --ag-space-4: 12px; --ag-space-5: 16px; --ag-space-6: 24px;
+  --ag-control-h: 28px; --ag-control-h-sm: 24px; --ag-icon-btn: 26px;
+  --ag-icon: 12px; --ag-icon-chip: 24px; --ag-slot: 38px; --ag-portrait: 56px; --ag-row-h: 32px;
+  /* Shape (skins may override; Stone Tablet and Tome Pages must set --ag-radius-control too). */
+  --ag-radius-sm: 6px; --ag-radius: 8px; --ag-radius-lg: 14px; --ag-radius-window: 16px;
+  --ag-radius-control: 999px;  /* buttons, inputs, selects, tabs, chips */
+  --ag-radius-field: 10px;     /* textareas and multi-line fields */
+}
+/* Comfortable size (per device, set by General Manager as html[data-ag-size="comfortable"]). Same shape. */
+html[data-ag-size="comfortable"] {
+  --ag-text-xs: 11px; --ag-text-sm: 12.5px; --ag-text-md: 14px; --ag-text-lg: 17px; --ag-text-xl: 21px;
+  --ag-space-1: 4px; --ag-space-2: 8px; --ag-space-3: 12px; --ag-space-4: 16px; --ag-space-5: 24px; --ag-space-6: 32px;
+  --ag-control-h: 36px; --ag-control-h-sm: 30px; --ag-icon-btn: 32px;
+  --ag-icon: 14px; --ag-icon-chip: 32px; --ag-slot: 48px; --ag-portrait: 84px; --ag-row-h: 44px;
+}
+/* Kit components then read --ag-radius-control (buttons, inputs, selects, tabs, chips, segmented),
+   --ag-radius-field (textarea), --ag-radius-window (.application.ag-app), and the size tokens above
+   (row min-height, slot, portrait, icon chip). See docs/ui-briefs/01-kit-2.md. */
+
 /* ---------- New scale tokens (skins do not change these) ---------- */
 :root {
   /* dnd5e rarity hues. Names follow dnd5e keys in kebab case (veryRare -> very-rare). */
@@ -620,9 +644,6 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
   --ag-rarity-legendary: #ff8c1a;
   --ag-rarity-artifact: #e5383b;
 
-  --ag-control-h-sm: 28px;
-  --ag-icon-btn: 30px;           /* square icon-only button */
-  --ag-slot: 46px;               /* hotbar / equipment slot */
   --ag-rail-w: 18rem;            /* list column in list+detail */
   --ag-measure: 68ch;            /* longest comfortable line of prose */
 
@@ -810,6 +831,25 @@ button.ag-row { width: 100%; justify-content: flex-start; text-align: left; bord
 .ag-slot__qty { position: absolute; right: 2px; bottom: 1px; padding: 0 3px; border-radius: 3px; background: var(--ag-surface-sunken); color: var(--ag-text); font: 600 10px/1.3 var(--ag-font-body); font-variant-numeric: tabular-nums; }
 .ag-slot.is-active { box-shadow: 0 0 0 2px var(--ag-accent); }
 
+/* ---------- D signature parts: HP ring portrait, orb, rank steps ---------- */
+.ag-portrait { --ag-ring-tone: var(--ag-ok); flex: none; width: var(--ag-portrait); height: var(--ag-portrait); padding: max(3px, calc(var(--ag-portrait) * .07)); border-radius: 50%;
+  background: conic-gradient(var(--ag-ring-tone) var(--ag-ring, 100%), var(--ag-surface-sunken) 0); }
+.ag-portrait.is-warn { --ag-ring-tone: var(--ag-warn); }
+.ag-portrait.is-danger { --ag-ring-tone: var(--ag-danger); }
+.ag-portrait > img, .ag-portrait > .ag-portrait__initials { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; border: 2px solid var(--ag-surface); object-fit: cover; background: var(--ag-surface-sunken); color: var(--ag-accent); font-weight: 700; }
+.ag-orb { --ag-ring-tone: var(--ag-warn); display: grid; place-items: center; flex: none; width: calc(var(--ag-icon-chip) * 1.5); height: calc(var(--ag-icon-chip) * 1.5); border-radius: 50%;
+  background: radial-gradient(circle, var(--ag-surface-raised) 58%, transparent 60%), conic-gradient(var(--ag-ring-tone) var(--ag-ring, 0%), var(--ag-surface-sunken) 0);
+  color: var(--ag-ring-tone); font-weight: 700; font-variant-numeric: tabular-nums; }
+.ag-orb.is-danger { --ag-ring-tone: var(--ag-danger); }
+.ag-steps { display: flex; position: relative; padding-top: 14px; margin: 0; list-style: none; }
+.ag-steps::before { content: ""; position: absolute; left: 10%; right: 10%; top: 4px; height: 2px; background: var(--ag-border); }
+.ag-steps > li { position: relative; flex: 1; text-align: center; font-size: var(--ag-text-xs); color: var(--ag-muted); }
+.ag-steps > li::before { content: ""; position: absolute; left: 50%; top: -14px; width: 11px; height: 11px; margin-left: -5.5px; border-radius: 50%; background: var(--ag-surface-sunken); box-shadow: inset 0 0 0 2px var(--ag-border-strong); }
+.ag-steps > li.is-done::before { background: var(--ag-accent); box-shadow: none; }
+.ag-steps > li[aria-current="step"] { color: var(--ag-accent); font-weight: 700; }
+.ag-steps > li[aria-current="step"]::before { background: var(--ag-accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ag-accent) 35%, transparent); }
+.ag-icon-chip { display: inline-grid; place-items: center; flex: none; width: var(--ag-icon-chip); height: var(--ag-icon-chip); border-radius: 50%; background: var(--ag-accent-soft); color: var(--ag-accent); font-size: var(--ag-icon); }
+
 /* ---------- Layouts ---------- */
 .ag-stack { display: flex; flex-direction: column; gap: var(--ag-space-3); min-width: 0; }
 .ag-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); }
@@ -838,12 +878,12 @@ button.ag-row { width: 100%; justify-content: flex-start; text-align: left; bord
 .ag-gm-flag { display: inline-flex; align-items: center; gap: 4px; color: var(--ag-muted); font-size: var(--ag-text-xs); font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
 
 /* ---------- Dialogs: DialogV2 opened by the shared confirm helper with classes: ['ag-app', 'ag-dialog'] ----------
-   Buttons are passed as [cancel, ok], so space-between puts Cancel bottom-left and the action bottom-right. */
+   Buttons are passed as [cancel, confirm|ok], so space-between puts Cancel bottom-left and the action bottom-right. */
 .application.ag-dialog > .window-content { padding: var(--ag-space-4); gap: var(--ag-space-3); }
 .application.ag-dialog .form-footer { display: flex; justify-content: space-between; gap: var(--ag-space-2); }
 .application.ag-dialog .form-footer > button { flex: 0 0 auto; }
-.application.ag-dialog .form-footer > button[data-action="ok"] { background: var(--ag-accent); border-color: var(--ag-accent); color: var(--ag-accent-contrast); font-weight: 650; }
-.application.ag-dialog--danger .form-footer > button[data-action="ok"] { background: var(--ag-danger); border-color: var(--ag-danger); color: var(--ag-surface); }
+.application.ag-dialog .form-footer > button:is([data-action="confirm"], [data-action="ok"]) { background: var(--ag-accent); border-color: var(--ag-accent); color: var(--ag-accent-contrast); font-weight: 650; }
+.application.ag-dialog--danger .form-footer > button:is([data-action="confirm"], [data-action="ok"]) { background: var(--ag-danger); border-color: var(--ag-danger); color: var(--ag-surface); }
 
 /* ---------- Tooltips: data-tooltip + data-tooltip-class="ag-tooltip" ---------- */
 #tooltip.ag-tooltip, .locked-tooltip.ag-tooltip {
@@ -2538,7 +2578,7 @@ button.ag-row { width: 100%; justify-content: flex-start; text-align: left; bord
     <ol class="sg-decisions"><li><b>D1</b><strong>Keep today’s look (gold on charcoal plus the seven skins) as the base?</strong><span>Yes. The audit found drift, not a bad direction.</span></li><li><b>D2</b><strong>New … buttons gold (primary) or plain?</strong><span>Plain with a +. Gold stays for Save/Apply, one per view.</span></li><li><b>D3</b><strong>Character Hub keeps its icon rail?</strong><span>Yes, it is a sheet. Labels become tooltips.</span></li><li><b>D4</b><strong>Player Access saves immediately or with Save changes?</strong><span>With Save changes, like other settings.</span></li><li><b>D5</b><strong>Which rarity colours?</strong><span>Hub’s hues, Common turned grey, one set in the kit.</span></li><li><b>D6</b><strong>Ledger Rare/Exotic finds look like item rarity?</strong><span>No, their own badges.</span></li><li><b>D7</b><strong>Narrow tabs: scroll or wrap?</strong><span>Scroll sideways.</span></li><li><b>D8</b><strong>Help as a dialog or a page in the window?</strong><span>Dialog with Close, everywhere.</span></li><li><b>D9</b><strong>Show Alpha/Beta in headers?</strong><span>No. Stage lives in the CHANGELOG.</span></li><li><b>D10</b><strong>Renown folder list beside every tab?</strong><span>Yes on Group, Player, Organizations; Pantheon full width.</span></li><li><b>D11</b><strong>Foundry tooltips instead of native hover text?</strong><span>Yes, module by module.</span></li></ol>
   </section>
 
-  <p class="sg-foot">Built 2026-10-21 from the design/ui-standard branch: shared kit from General Manager 0.39.0, Renown 0.11.1. Foundry's own window CSS is replaced by a small stand-in, so check final details in Forge.</p>
+  <p class="sg-foot">Built 2026-10-21 from the design/ui-standard branch: shared kit from General Manager 0.41.2, Renown 0.11.1. Foundry's own window CSS is replaced by a small stand-in, so check final details in Forge.</p>
 </main>
 
 <script>
