@@ -1,3 +1,12 @@
+## 0.17.0 — 2026-10-21
+
+- **Strain, Cinder instances, Push and Backfire moved to the new module Ashen Gate | Cinders** (`ashen-gate-cinders` 0.1.0). Install it alongside this version, and update both together: Cinders 0.1.0 refuses to start next to Skill Trees 0.15.0/0.16.0. The Cinders tab, the Push section and GM Setup → Strain are gone from this window; they are in the Cinders window now. `api.strain` and `api.cinder` are removed from Skill Trees.
+- Skill Trees keeps the Cinder trees themselves: `cinder_milestone` trees with POWER-* nodes, the 13-point wallet, points and unlocks.
+- **New `api.accounts`** (contract `ag-tree-accounts/1`) for partner modules: `treeBySource`, `account`, `setAccount` (keeps perk Items in step, never duplicating), `grants`, `legacyData`.
+  - New hooks: `ashenGateSkillTrees.progressChanged` after every account write, and `ashenGateSkillTrees.checkProgress`, which lets a partner refuse points or an unlock with a reason. For example, Cinders allows only a Cinder's bearer to gain progress on its tree.
+  - Skill Trees names no partner and works the same without one.
+- **Saved data:** nothing is rewritten. Anything 0.15.0/0.16.0 saved (Strain config, Cinder records, bearer pointers) stays where it was, readable through `api.accounts.legacyData()`. Ashen Gate | Cinders adopts it once (re-runnable). Strain on characters (`flags.ashen-gate-strain`) was never Skill Trees' data and is unchanged.
+
 ## 0.16.0 — 2026-10-21
 
 Cinders: each Cinder keeps its own progress and moves between bearers; Push and Backfire.
