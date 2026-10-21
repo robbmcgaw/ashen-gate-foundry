@@ -8,7 +8,6 @@
 .agl-app [hidden],.agl-sheet [hidden]{display:none!important}
 .agl-app .agl-footer-note:only-child{text-align:left}
 /* Visually hidden label (table head of an actions or checkbox column). */
-.agl-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap} /* ag-lint-allow: visually hidden text pattern */
 
 /* Shared text helpers */
 .agl-sub,.agl-reason,.agl-recipe-meta{font-size:var(--ag-text-sm);color:var(--ag-muted);margin:0}
@@ -123,7 +122,5 @@
 .agl-app .agl-exotic-pick{display:grid;gap:var(--ag-space-2);margin-top:var(--ag-space-3)}
 .agl-app .agl-exotic-row{flex-wrap:wrap}
 /* An Exotic that can't be added yet: the kit's disabled look (muted, its Add button disabled), with the reason as text. */
-.agl-app .agl-exotic-row.is-off .ag-row__title{color:var(--ag-muted)}
-.agl-app .agl-exotic-row.is-off:hover{background:transparent}
 .agl-app .agl-exotic-filters{flex-wrap:wrap;align-items:end}
 .agl-assign-actor th{padding-top:var(--ag-space-2)}

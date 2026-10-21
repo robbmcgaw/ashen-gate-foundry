@@ -7,6 +7,7 @@
  * dialogs when DialogV2 is absent; with neither available it resolves as "cancelled".
  * Every DialogV2 window gets the classes 'ag-app' and 'ag-dialog' so the kit (ag-ui.css) and the
  * skins style it; buttons are always [cancel, confirm|ok] so Cancel sits bottom-left.
+ * choiceDialog (kit 2.1.0) adds 'ag-dialog--choice': [cancel, ...choices], Cancel left, choices right.
  */
 const dialogV2 = () => globalThis.foundry?.applications?.api?.DialogV2;
 const native = name => { const fn = globalThis.window?.[name] ?? globalThis[name]; return typeof fn === 'function' ? fn : null; };
@@ -113,4 +114,29 @@ export async function checklistDialog(title, intro, items, {ok = 'Apply', cancel
   const fn = native('confirm');
   if (!fn) return null;
   return items.filter(it => fn(`${intro}\n\n${it.label}?`)).map(it => it.key);
+}
+
+/**
+ * One of several actions. choices: [{action, label, icon?, default?, danger?}], in the order shown (after Cancel).
+ * Resolves the chosen action, or null on Cancel or close. A danger choice marks the window 'ag-dialog--danger'.
+ * Without DialogV2 it asks for the choice's number with prompt().
+ */
+export async function choiceDialog(title, html, choices, {cancel = 'Cancel'} = {}) {
+  const list = (choices ?? []).filter(c => c?.action && c.action !== 'cancel');
+  const D = dialogV2();
+  if (D?.wait) {
+    const cls = c => ['ag-dialog__choice', c.default ? 'ag-dialog__choice--default' : '', c.danger ? 'ag-dialog__choice--danger' : ''].filter(Boolean).join(' ');
+    const result = await D.wait({
+      classes: [...classes(list.some(c => c.danger)), 'ag-dialog--choice'], window: {title}, content: html, modal: true, rejectClose: false,
+      buttons: [{action: 'cancel', label: cancel, callback: () => null},
+        ...list.map(c => ({action: c.action, label: c.label, ...(c.icon ? {icon: c.icon} : {}), class: cls(c), default: Boolean(c.default), callback: () => c.action}))]
+    });
+    return list.some(c => c.action === result) ? result : null;
+  }
+  const fn = native('prompt');
+  if (!fn || !list.length) return null;
+  const text = String(html ?? '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const answer = fn(`${text}\n\n${list.map((c, i) => `${i + 1}. ${c.label}`).join('\n')}`.trim(), '');
+  const pick = list[Number.parseInt(String(answer ?? '').trim(), 10) - 1];
+  return pick ? pick.action : null;
 }

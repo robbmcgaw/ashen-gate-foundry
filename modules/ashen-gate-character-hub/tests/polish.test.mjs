@@ -255,7 +255,7 @@ test('Ashen Gate quick bar: module views jump to the sub-tab; HQ and Locations o
 test('art of any shape is never stretched: icons and portraits crop to fill (top focus), the doll art pane keeps the whole image', async () => {
   const fs = await import('node:fs');
   const css = fs.readFileSync(new URL('../styles/character-hub.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ');
-  const rule = sel => [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter(([, s]) => s.split(',').some(x => x.trim() === `.ag-character-hub ${sel}`)).map(([, , body]) => body).join(';');
+  const rule = sel => [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter(([, s]) => s.split(',').some(x => x.trim() === `.agch-app ${sel}`)).map(([, , body]) => body).join(';');
   for (const sel of ['.agch-portrait', '.agch-slot img', '.agch-companion__head img', '.agch-chip img']) {
     assert.match(rule(sel), /object-fit: cover/, sel); assert.match(rule(sel), /object-position: center top/, sel);
   }
@@ -267,7 +267,7 @@ test('art of any shape is never stretched: icons and portraits crop to fill (top
 test('list item icons are a fixed square that never shrinks and show the whole icon (0.15.0)', async () => {
   const fs = await import('node:fs');
   const css = fs.readFileSync(new URL('../styles/character-hub.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ');
-  const rules = sel => [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter(([, s]) => s.split(',').some(x => x.trim() === `.ag-character-hub ${sel}`)).map(([, , b]) => b);
+  const rules = sel => [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter(([, s]) => s.split(',').some(x => x.trim() === `.agch-app ${sel}`)).map(([, , b]) => b);
   const last = (sel, prop) => { let v = null; for (const b of rules(sel)) for (const d of b.split(';')) { const [k, ...r] = d.split(':'); if (k.trim() === prop) v = r.join(':').trim(); } return v; };
   for (const sel of ['.agch-item__img', '.agch-other__row img']) {
     assert.equal(last(sel, 'object-fit'), 'contain', `${sel}: whole icon, no clipping`);
@@ -275,7 +275,7 @@ test('list item icons are a fixed square that never shrinks and show the whole i
     assert.equal(last(sel, 'flex'), '0 0 var(--agch-icon)', `${sel}: never shrinks in a flex row`);
     for (const p of ['width', 'min-width', 'max-width', 'height', 'min-height', 'max-height']) assert.equal(last(sel, p), 'var(--agch-icon)', `${sel} ${p}`);
   }
-  assert.match(css, /\.ag-character-hub \.agch-cards \{ grid-template-columns: minmax\(24px, max-content\) 32px minmax\(8rem, 1fr\)/, 'the icon column is a fixed 32px; the name column shrinks');
+  assert.match(css, /\.agch-app \.agch-cards \{ grid-template-columns: minmax\(24px, max-content\) 32px minmax\(8rem, 1fr\)/, 'the icon column is a fixed 32px; the name column shrinks');
   assert.equal(last('.agch-slot img', 'object-fit'), 'cover', 'slot art keeps its own rule');
 });
 

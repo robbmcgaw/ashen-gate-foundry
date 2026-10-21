@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {confirmDialog, formDialog, promptText, infoDialog, readForm, checklistDialog, esc} from '../scripts/ag-dialogs.mjs';
+import {confirmDialog, formDialog, promptText, infoDialog, readForm, checklistDialog, choiceDialog, esc} from '../scripts/ag-dialogs.mjs';
 
 const setup = D => { globalThis.foundry = {applications: {api: {DialogV2: D}}}; delete globalThis.window; };
 const click = (opts, action) => {
@@ -98,4 +98,47 @@ test('checklistDialog resolves the ticked keys, [] when none, null on cancel', a
   assert.deepEqual(await checklistDialog('T', 'Pick', []), []);
   setup({wait: async o => o.buttons.find(b => b.action === 'cancel').callback()});
   assert.equal(await checklistDialog('T', 'Pick', [{key: 'a', label: 'A'}]), null);
+});
+
+test('choiceDialog: Cancel first, then the choices in order; resolves the chosen action', async () => {
+  let seen;
+  const choices = [{action: 'keep', label: 'Keep drawing', icon: 'fa-solid fa-pen'}, {action: 'both', label: 'Delete both', default: true, danger: true}];
+  setup({wait: async o => { seen = o; return o.buttons.find(b => b.action === 'both').callback(); }});
+  assert.equal(await choiceDialog('Delete route', '<p>Pick one</p>', choices), 'both');
+  assert.deepEqual(seen.buttons.map(b => b.action), ['cancel', 'keep', 'both']);
+  assert.deepEqual(seen.buttons.map(b => b.label), ['Cancel', 'Keep drawing', 'Delete both']);
+  assert.deepEqual(seen.classes, ['ag-app', 'ag-dialog', 'ag-dialog--danger', 'ag-dialog--choice']);
+  assert.equal(seen.buttons[1].icon, 'fa-solid fa-pen');
+  assert.equal(seen.buttons[2].default, true);
+  assert.match(seen.buttons[2].class, /ag-dialog__choice--default/);
+  assert.match(seen.buttons[2].class, /ag-dialog__choice--danger/);
+  assert.equal(seen.content, '<p>Pick one</p>');
+  assert.equal(seen.rejectClose, false);
+});
+
+test('choiceDialog resolves null on Cancel or close; no danger class without a danger choice', async () => {
+  let seen;
+  const choices = [{action: 'a', label: 'A'}, {action: 'b', label: 'B'}];
+  setup({wait: async o => { seen = o; return o.buttons.find(b => b.action === 'cancel').callback(); }});
+  assert.equal(await choiceDialog('T', '', choices, {cancel: 'Keep editing'}), null);
+  assert.equal(seen.buttons[0].label, 'Keep editing');
+  assert.deepEqual(seen.classes, ['ag-app', 'ag-dialog', 'ag-dialog--choice']);
+  setup({wait: async () => null}); // window closed
+  assert.equal(await choiceDialog('T', '', choices), null);
+  setup({wait: async () => 'not-a-choice'});
+  assert.equal(await choiceDialog('T', '', choices), null);
+});
+
+test('choiceDialog without DialogV2 asks for a number with prompt(), else resolves null', async () => {
+  let asked;
+  const choices = [{action: 'a', label: 'First'}, {action: 'b', label: 'Second'}];
+  globalThis.foundry = {}; globalThis.window = {prompt: text => { asked = text; return '2'; }};
+  assert.equal(await choiceDialog('T', '<p>Which?</p>', choices), 'b');
+  assert.match(asked, /Which\?\n\n1\. First\n2\. Second/);
+  globalThis.window = {prompt: () => '7'};
+  assert.equal(await choiceDialog('T', '', choices), null);
+  globalThis.window = {prompt: () => null};
+  assert.equal(await choiceDialog('T', '', choices), null);
+  delete globalThis.window;
+  assert.equal(await choiceDialog('T', '', choices), null);
 });

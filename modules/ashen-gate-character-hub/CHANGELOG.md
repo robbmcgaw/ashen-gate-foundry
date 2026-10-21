@@ -1,3 +1,10 @@
+## 0.23.0 — 2026-10-21
+
+- Shared UI kit 2.1.0 and dialog helper: choice dialogs follow the Ashen Gate look (Cancel on the left, the choices on the right); red buttons, badges and grey text on selected or striped rows are easier to read in every skin (at least 4.5:1); a hidden empty state stays hidden; disabled list rows keep readable text.
+- Equipping an item that needs attunement asks in the shared choice dialog: same choices in the same order, Cancel on the left changes nothing.
+- Internal: the sheet window class is now `agch-app` (was `ag-character-hub`) and screen-reader labels use the kit helper. Same look.
+- No saved-data changes.
+
 ## 0.22.0 — 2026-10-21
 
 - Sheet takes the Ashen Gate UI standard look (same layout): rounded controls, round slots, labelled confirmations, Foundry tooltips, Comfortable size supported. HP bar turns green, yellow or red with health; temp HP is now a silver striped shield, and temp HP and max-HP changes always show together.

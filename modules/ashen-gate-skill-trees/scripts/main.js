@@ -16,7 +16,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.19.0';
+const VERSION='0.19.1';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -1042,7 +1042,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       </fieldset>
       <fieldset><legend>Level / tier bands</legend>
         <p class="agst-help">A band starts at the position (pixels from the top) and runs to the next band. The icon shows behind the level badge; with no icon a built-in one is used. Players see bands and icons.</p>
-        <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">Level</th><th scope="col">Name</th><th scope="col">Starts at</th><th scope="col">Icon</th><th scope="col"><span class="agst-sr">Remove</span></th></tr></thead><tbody data-tiers>${tiers.map(row).join('')}</tbody></table></div>
+        <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">Level</th><th scope="col">Name</th><th scope="col">Starts at</th><th scope="col">Icon</th><th scope="col"><span class="ag-sr-only">Remove</span></th></tr></thead><tbody data-tiers>${tiers.map(row).join('')}</tbody></table></div>
         <button type="button" class="ag-btn ag-btn--sm" data-add-tier><i class="fa-solid fa-plus" aria-hidden="true"></i> Add tier</button>
       </fieldset></div>`;
     const wire=(event,dialog)=>{
@@ -1166,7 +1166,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const f=await input(`Review ${actor.name}`,`<div class="ag-form-grid agst-dialog"><p><strong>${escape(actor.name)}</strong> · ${escape(t.name)} · level ${escape(level)}: ${st.spent} of ${st.earned} points used.</p>
       <p>Keep: the perk stays and still uses its point. Remove: the perk leaves the sheet and its point comes back (undo is in the History).</p>
       <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">Perk</th><th scope="col">Needs</th><th scope="col">Keep</th><th scope="col">Remove</th></tr></thead><tbody>
-      ${rows.map(r=>`<tr><th scope="row">${escape(r.name)}</th><td>level ${escape(r.threshold)}${r.aboveLevel?' <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span class="agst-sr"> above the current level</span>':''}</td>
+      ${rows.map(r=>`<tr><th scope="row">${escape(r.name)}</th><td>level ${escape(r.threshold)}${r.aboveLevel?' <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span class="ag-sr-only"> above the current level</span>':''}</td>
         <td><input type="radio" name="n-${escape(r.nodeId)}" value="keep" checked aria-label="Keep ${escape(r.name)}"></td>
         <td><input type="radio" name="n-${escape(r.nodeId)}" value="remove" aria-label="Remove ${escape(r.name)}"></td></tr>`).join('')}
       </tbody></table></div><label class="ag-field">Reason (optional)<input name="reason" maxlength="200" placeholder="XP corrected"></label></div>`,'Apply');

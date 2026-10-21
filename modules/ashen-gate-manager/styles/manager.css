@@ -16,7 +16,6 @@
 .agm-gap-top{margin-top:var(--ag-space-3)}
 .agm-push-end{margin-left:auto}
 .agm-id{overflow-wrap:anywhere}
-.agm-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0} /* ag-lint-allow: visually hidden label, not a size */
 .agm-details>summary,.agmanager-org-group>summary{cursor:pointer;margin:var(--ag-space-2) 0}
 .agmanager-tiny{color:var(--ag-muted);font-size:var(--ag-text-sm);margin:var(--ag-space-1) 0}
 .agmanager-toggle{margin:var(--ag-space-1) 0}

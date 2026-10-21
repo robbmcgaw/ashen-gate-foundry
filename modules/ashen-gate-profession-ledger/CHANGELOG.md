@@ -1,3 +1,9 @@
+## 0.24.1 — 2026-10-21
+
+- Shared UI kit 2.1.0 and dialog helper: choice dialogs follow the Ashen Gate look (Cancel on the left, the choices on the right); red buttons, badges and grey text on selected or striped rows are easier to read in every skin (at least 4.5:1); a hidden empty state stays hidden; disabled list rows keep readable text.
+- Unavailable exotic materials use the kit's disabled row (no local override); screen-reader labels use the kit helper.
+- No behaviour or saved-data changes.
+
 ## 0.24.0 — 2026-10-21
 
 - **Ashen Gate look (UI standard):** header reads *Ashen Gate | Profession Ledger* with the version and a small Help button on the right; tabs scroll sideways when the window is narrow, with Assign and GM Setup last and marked GM.

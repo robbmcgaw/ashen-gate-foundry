@@ -29,7 +29,7 @@ globalThis.Hooks={once:(k,f)=>{hooks.once[k]=f;},on:(k,f)=>{(hooks.on[k]??=[]).p
 globalThis.ui={notifications:{warn:m=>warnings.push(m),info:()=>{},error:m=>warnings.push(m)}};
 globalThis.document={querySelectorAll:()=>[]};
 let menu;
-const mod={id:'ashen-gate-headquarters',version:'0.12.0'};
+const mod={id:'ashen-gate-headquarters',version:'0.12.1'};
 globalThis.game={user:gm,users:Object.assign(new Map([['gm',gm]]),{activeGM:gm}),modules:{get:()=>mod},
   settings:{register:()=>{},registerMenu:(_m,_k,o)=>{menu=o;},get:(m,k)=>structuredClone(settings.get(`${m}.${k}`)),set:async(m,k,v)=>{writes.push({[k]:v});settings.set(`${m}.${k}`,v);}},
   keybindings:{register:()=>{}},journal:{contents:[],get:()=>null},items:{contents:[]},actors:{contents:[]}};
@@ -131,7 +131,7 @@ test('Cancel in GM Setup re-renders and writes nothing',async()=>{
 test('header: brand title, Guildhall name as subtitle, version and ghost Help; no Alpha',()=>{
   const a=app();const html=a.page(read());
   assert.match(html,/<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Headquarters<\/h1><p>\[TEST\] Hall · Guild Rank 1/);
-  assert.match(html,/<span class="ag-version">v0\.12\.0<\/span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="help">/);
+  assert.match(html,/<span class="ag-version">v0\.12\.1<\/span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="help">/);
   assert.ok(!/Alpha/.test(html));
 });
 

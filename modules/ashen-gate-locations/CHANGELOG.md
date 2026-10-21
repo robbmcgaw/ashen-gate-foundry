@@ -1,3 +1,10 @@
+## 1.17.1 — 2026-10-21
+
+- Shared UI kit 2.1.0 and dialog helper: choice dialogs follow the Ashen Gate look (Cancel on the left, the choices on the right); red buttons, badges and grey text on selected or striped rows are easier to read in every skin (at least 4.5:1); a hidden empty state stays hidden; disabled list rows keep readable text.
+- Deleting a route that has a map drawing asks in the shared choice dialog: Cancel, **Delete route, keep drawing** or **Delete route and drawing** (both red). Same results as before.
+- Screen-reader labels use the kit helper (no local copy).
+- No behaviour or saved-data changes.
+
 ## 1.17.0 — 2026-10-21
 
 - **UI standard look** (same layout): header reads *Ashen Gate | Locations* with the version and Help on the right; tabs scroll sideways on narrow windows, GM Setup last and marked GM.

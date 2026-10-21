@@ -160,6 +160,28 @@ const fromOklab = ([L, A, B]) => {
 };
 const mixOklab = (a, b, p) => { const x = toOklab(a), y = toOklab(b); return fromOklab(x.map((v, i) => v * p + y[i] * (1 - p))); };
 
+const mixSrgb = (a, b, p) => a.map((v, i) => v * p + b[i] * (1 - p));
+let derivedRules = null;
+/** Resolves a kit token: base tokens from the skin, derived ones from the kit's color-mix(in srgb, ...) and var() rules. */
+function derived(name, base) {
+  const rule = derivedRules.get(name);
+  if (!rule) return base(name);
+  if (rule.alias) return derived(rule.alias, base);
+  return mixSrgb(derived(rule.a, base), derived(rule.b, base), rule.p);
+}
+function readDerivedRules(kitCss) {
+  const rules = new Map();
+  for (const m of kitCss.matchAll(/(--ag-[a-z-]+):\s*color-mix\(in srgb, var\((--ag-[a-z-]+)\) (\d+)%, var\((--ag-[a-z-]+)\)\)/g)) rules.set(m[1], {a: m[2], p: Number(m[3]) / 100, b: m[4]});
+  for (const m of kitCss.matchAll(/(--ag-[a-z-]+):\s*var\((--ag-[a-z-]+)\);/g)) if (!rules.has(m[1])) rules.set(m[1], {alias: m[2]});
+  return rules;
+}
+// Fills the structural skins (styles/skins/*.css) paint instead of the kit's soft tones; keep in step with those files.
+const SKIN_TONE_FILLS = {
+  'ag-stone-tablet': Object.fromEntries([...['accent', 'ok', 'warn', 'danger'].map(t => [t, d => mixSrgb(d(`--ag-${t}`), d('--ag-surface-sunken'), .14)]),
+    ['dangerButton', d => mixSrgb(d('--ag-danger'), d('--ag-surface-sunken'), .14)]]),
+  'ag-tome-pages': {dangerButton: d => d('--ag-surface-sunken'), selectedRow: d => mixSrgb(d('--ag-accent'), d('--ag-surface'), .10)},
+};
+
 /** Text pairs of every skin (from Manager's skin tables) reach 4.5:1. */
 export async function checkContrast(managerDir, kitCss) {
   const {createAppearanceController} = await import(pathToFileURL(path.join(managerDir, 'scripts', 'appearance.js')).href);
@@ -167,6 +189,7 @@ export async function checkContrast(managerDir, kitCss) {
   const rarity = Object.fromEntries([...kitCss.matchAll(/--ag-rarity-([a-z-]+):\s*(#[0-9a-f]{6})/g)].map(m => [m[1], rgb(m[2])]));
   // Share of the hue in each ink token, read from the kit: color-mix(in oklab, var(--ag-rarity-x) N%, var(--ag-text)).
   const inkShare = key => Number(kitCss.match(new RegExp(`--ag-rarity-ink-${key}:\\s*color-mix\\(in oklab, var\\(--ag-rarity-${key}\\) (\\d+)%`))?.[1] ?? NaN) / 100;
+  derivedRules = readDerivedRules(kitCss);
   const problems = [], table = [];
   for (const {id} of controller.listSkins()) {
     const t = new Map();
@@ -184,6 +207,23 @@ export async function checkContrast(managerDir, kitCss) {
       const ink = mixOklab(hue, c('--ag-text'), inkShare(key));
       for (const bg of ['--ag-surface', '--ag-surface-sunken', '--ag-surface-raised']) pairs.push([`--ag-rarity-ink-${key}`, bg, ink, c(bg)]);
     }
+    // Kit parts on tinted fills (kit 2.1.0): tone text on its soft fill (badges, danger button), secondary text on
+    // selected/striped/hover rows and disabled row titles. Derived tokens are resolved from the kit's own color-mix rules.
+    const d = k => derived(k, c);
+    const over = (fg, pct, bg) => mixSrgb(d(fg), d(bg), pct / 100);
+    const fills = {
+      '--ag-row-alt over --ag-surface-raised': over('--ag-text', 5, '--ag-surface-raised'),
+      '--ag-row-alt over --ag-surface': over('--ag-text', 5, '--ag-surface'),
+    };
+    const tone = t => SKIN_TONE_FILLS[id]?.[t] ? SKIN_TONE_FILLS[id][t](d) : d(`--ag-${t}-soft`);
+    for (const t of ['accent', 'ok', 'warn', 'danger']) pairs.push([`--ag-${t}-ink`, `${t} badge fill`, d(`--ag-${t}-ink`), tone(t)]);
+    pairs.push(['--ag-danger-ink', 'danger button fill', d('--ag-danger-ink'), SKIN_TONE_FILLS[id]?.dangerButton?.(d) ?? d('--ag-danger-soft')]);
+    pairs.push(['--ag-muted', 'plain badge fill', d('--ag-muted'), d('--ag-surface-sunken')]);
+    const selected = SKIN_TONE_FILLS[id]?.selectedRow?.(d) ?? d('--ag-row-selected');
+    for (const [name, bg] of [['selected row', selected], ['hover row', d('--ag-surface-hover')], ...Object.entries(fills)]) {
+      pairs.push(['--ag-muted-strong', name, d('--ag-muted-strong'), bg]);
+    }
+    for (const bg of ['--ag-surface', '--ag-surface-raised']) pairs.push(['--ag-muted-strong (disabled row title)', bg, d('--ag-muted-strong'), d(bg)]);
     for (const [fg, bg, a, b] of pairs) {
       const r = contrast(a, b);
       table.push({skin: id, fg, bg, ratio: Math.round(r * 100) / 100});

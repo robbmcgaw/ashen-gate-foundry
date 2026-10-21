@@ -7,6 +7,7 @@ import {canEdit} from './actions.mjs';
 import {requirePart} from './visibility.mjs';
 import {attunementData, SLOTS} from './items.mjs';
 import {electrumHidden} from './partners.mjs';
+import {choiceDialog} from './ag-dialogs.mjs';
 
 const refuse = error => ({ok: false, error});
 const SLOT_IDS = new Set(SLOTS.map(s => s.id));
@@ -100,11 +101,11 @@ export async function rest(actor, type) {
 
 const attunedItems = actor => [...(actor.items ?? [])].filter(i => i.system?.attuned);
 
-/** Default prompt: a DialogV2 with one button per choice. Resolves to the chosen action, or null. */
+/** Default prompt: the shared choice dialog (Cancel left, the choices right). Resolves to the chosen action, or null. */
 export async function askDialog({title, content, buttons}) {
-  const D = globalThis.foundry?.applications?.api?.DialogV2;
-  if (!D?.wait) throw new Error('Foundry dialogs are not available');
-  return D.wait({window: {title}, content, buttons, rejectClose: false});
+  if (!globalThis.foundry?.applications?.api?.DialogV2?.wait) throw new Error('Foundry dialogs are not available');
+  const cancel = buttons.find(b => b.action === 'cancel')?.label ?? 'Cancel';
+  return choiceDialog(title, content, buttons.filter(b => b.action !== 'cancel'), {cancel});
 }
 
 /**
