@@ -164,3 +164,24 @@ test('Modifier examples: the package passes (a note until the scope owner checks
   const bad = await checkContent(pack([{...lens, modifiers: {...lens.modifiers, list: [{target: 'push.cost', value: 1, label: 'x', op: 'multiply'}]}}]));
   assert.ok(bad.errors.some(e => e.includes('op must be "add"')), bad.errors.join('\n'));
 });
+
+test('quest item rewards: the valid example passes with a note; the note goes when the item is beside it; mistakes are rejected', async () => {
+  const fixtures = path.join(root, 'modules/ashen-gate-quest-manager/docs/fixtures/item-rewards');
+  const {ok, lines} = await validateTargets([fixtures]);
+  assert.ok(ok, lines.join('\n'));
+  const example = lines.join('\n');
+  assert.match(example, /quest-item-rewards\.json \(quests\)\n  note: QUEST-TEST-BEAST-OF-THE-FEN: item reward ITEM-TEST-HEALING-DRAUGHT must be imported as an Item/);
+  for (const name of ['uuid', 'quantity-zero', 'unknown-visibility', 'duplicate-id', 'unknown-key']) assert.match(example, new RegExp(`${name}\\.invalid\\.json rejected as expected`));
+  const quests = JSON.parse(fs.readFileSync(path.join(fixtures, 'quest-item-rewards.json'), 'utf8'));
+  const {notes} = await checkContent(quests, 'quest-item-rewards.json', {knownIds: new Set(['ITEM-TEST-HEALING-DRAUGHT'])});
+  assert.deepEqual(notes, ['QUEST-TEST-BEAST-OF-THE-FEN: item reward ITEM-TEST-RUSTED-BLADE must be imported as an Item (in this file or already in the world).']);
+  // Same folder bundle: a Manager package defining both items silences both notes.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ag-quest-items-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'quests.json'), JSON.stringify(quests));
+    fs.writeFileSync(path.join(dir, 'items.json'), JSON.stringify(pack([item({id: 'ITEM-TEST-HEALING-DRAUGHT'}), item({id: 'ITEM-TEST-RUSTED-BLADE', foundry: {document_type: 'Item', folder_path: 'Ashen Gate/Test', data: {name: '[TEST] Rusted Blade', type: 'weapon'}}})])));
+    const res = await validateTargets([dir]);
+    assert.ok(res.ok, res.lines.join('\n'));
+    assert.doesNotMatch(res.lines.join('\n'), /item reward/);
+  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+});

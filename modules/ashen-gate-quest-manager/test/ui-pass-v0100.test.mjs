@@ -29,7 +29,7 @@ test('header: brand, overlay toggle, then version, then Help; tabs are typed, la
  const at=k=>head.indexOf(k);
  assert.ok(at('toggle-overlay')<at('ag-version')&&at('ag-version')<at('data-action="help"'),'overlay, version, Help');
  assert.match(head,/data-action="help" class="ag-btn ag-btn--ghost ag-btn--sm"/);
- assert.match(head,/<span class="ag-version">v0\.12\.0<\/span>/);
+ assert.match(head,/<span class="ag-version">v0\.13\.0<\/span>/);
  assert.match(html,/<nav class="ag-tabs ag-tabs--scroll" role="tablist"/);
  const tabs=[...html.matchAll(/<button type="button" role="tab" data-tab="(\w+)" aria-selected="(true|false)" class="([^"]*)">/g)].map(m=>[m[1],m[2],m[3]]);
  assert.deepEqual(tabs.map(t=>t[0]),['party','individual','quests','setup']);

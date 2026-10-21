@@ -13,7 +13,7 @@ import {readDrop} from './ag-item-drop.mjs';
 import {rewardsApi,grantableRewards,addFromDrop,updateReward,removeReward,grantRewards,grantAgain,rewardDragData,onActorSheetDrop} from './rewards.mjs';
 import {rewardsSection,playerRewardsSection,grantPanel,grantSummary,receiveList,defaultChoices} from './rewards-ui.mjs';
 
-const VERSION='0.12.0';
+const VERSION='0.13.0';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;

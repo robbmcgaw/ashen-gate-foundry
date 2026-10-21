@@ -1,0 +1,48 @@
+{
+  "_expect_error": "duplicate item_id ITEM-TEST-HEALING-DRAUGHT",
+  "schema_version": "ag-quest-source/0.1",
+  "records": [
+    {
+      "id": "QUEST-TEST-BEAST-OF-THE-FEN",
+      "entity_type": "Objective",
+      "objective_kind": "quest",
+      "status": "draft",
+      "version": "0.1.0",
+      "visibility": "player",
+      "provenance": {
+        "sources": [
+          "[TEST] synthetic example"
+        ]
+      },
+      "refs": [],
+      "name": "[TEST] Beast of the Fen",
+      "objectives": [
+        {
+          "key": "slay",
+          "goal": "[TEST] Deal with the beast."
+        }
+      ],
+      "source": {},
+      "locations": [],
+      "parameters": {},
+      "outcomes": {
+        "description": "[TEST] Coin reward is GM-handled.",
+        "item_rewards": [
+          {
+            "item_id": "ITEM-TEST-HEALING-DRAUGHT",
+            "quantity": 2,
+            "recipient": "each"
+          },
+          {
+            "item_id": "ITEM-TEST-RUSTED-BLADE",
+            "visibility": "gm",
+            "note": "[TEST] If slain."
+          },
+          {
+            "item_id": "ITEM-TEST-HEALING-DRAUGHT"
+          }
+        ]
+      }
+    }
+  ]
+}
