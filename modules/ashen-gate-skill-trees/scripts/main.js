@@ -10,23 +10,24 @@ import {tooltipModel,initialSidebar,toggledSidebar,isNarrow} from './layout.mjs'
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition} from './definition-lookup.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
-import {createStrain} from './strain-runtime.mjs';
-import {createCinders} from './cinder-runtime.mjs';
 import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument,qaCleanupBlockers} from './qa-fixtures.mjs';
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.16.0';
+const VERSION='0.17.0';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
 const LEDGER_ID='ashen-gate-profession-ledger';
 const LEDGER_CONTRACT='ag-ledger-progression/1';
 const SAFE_SETTING='publicTreesV2';
+// 0.17.0: generic partner contract. Skill Trees knows no partner by name: it reports progress changes and lets a partner veto one.
+const ACCOUNTS_CONTRACT='ag-tree-accounts/1';
+const PROGRESS_HOOK='ashenGateSkillTrees.progressChanged';
+const CHECK_HOOK='ashenGateSkillTrees.checkProgress';
+/** Settings and records written by 0.15.0/0.16.0 (Strain and Cinders, now Ashen Gate | Cinders), kept readable for a one-time adopt. */
+const LEGACY_SETTINGS=['strainConfig','maxCindersPerActor','initialCinderPoints'];
 let instance=null;
-// 0.15.0: Strain, a separate part with its own Actor flag scope and api.strain (see strain.mjs / strain-runtime.mjs).
-const strain=createStrain({module:MODULE,onConfigChange:()=>{if(instance?.rendered)instance.render();},recoveryBonus:actor=>cinders?.recoveryBonus(actor)??0});
-let cinders=null;
 const openTreeWindows=new Set();
 const canOpenTrees=()=>playerAccessAllowed(game,MODULE);
 const checkTreePlayerAccess=()=>assertPlayerAccess(game,MODULE);
@@ -152,8 +153,8 @@ async function persistAccount(actor,tree,next){
   const records=copy(safeFlag(actor,'progressV2')??{});
   records[walletKey(tree)]=cleanAccount(next);
   await actor.setFlag(MODULE,'progressV2',records);
-  // 0.16.0: a Cinder bearer's progress is the Cinder's; keep the Cinder record in step.
-  await cinders.syncProgress(actor,tree,records[walletKey(tree)]);
+  // 0.17.0: partner modules (e.g. Ashen Gate | Cinders) keep their own records in step through this hook.
+  Hooks.callAll?.(PROGRESS_HOOK,{actorId:actor.id,treeId:tree.id,sourceRef:tree.sourceRef??null,kind:tree.provider?.kind??null,wallet:walletKey(tree),account:copy(records[walletKey(tree)])});
 }
 const grantOf=item=>item?.flags?.[MODULE]?.grant??null;
 const grantedItems=(actor,tree,nodeId=null)=>Array.from(actor?.items??[]).filter(i=>isGrantFor(grantOf(i),tree,nodeId));
@@ -186,7 +187,7 @@ async function unlockNode(actor,treeId,nodeId,{forUser=null}={}){
     const stored=readPrivate().find(t=>t.id===treeId);if(!stored)throw Error('Unknown tree');
     const t=resolved(stored),n=t.nodes.find(x=>x.id===nodeId);if(!n)throw Error('Unknown node');
     const account=readProgress(actor,stored),level=professionLevel(actor,stored);
-    assertCinderBearer(actor,stored);
+    checkProgress(actor,stored,'unlock');
     if(forUser){ // A player may unlock only what the player view shows them.
       const pub=project(stored),pn=pub?.nodes.find(x=>x.id===nodeId);
       if(!pub||!pn||pn.silhouette)throw Error('That node is not released to players');
@@ -453,14 +454,54 @@ function missingGrantCount(){
   }
   return count;
 }
-// 0.16.0: Cinder instances, Push and Backfire (see cinder.mjs / cinder-runtime.mjs).
-cinders=createCinders({module:MODULE,socket:SOCKET,readPrivate,resolved,givePerk,removeGrants,grantedItems,gmPrivate,createStore,
-  lookup:id=>lookupWorldDefinition(game,id,{}),strain,escape});
-/** Once a Cinder of a kind exists, only its bearer can gain points or unlocks on that Cinder's tree. */
-function assertCinderBearer(actor,tree){
-  if(tree?.provider?.kind!=='cinder_milestone'||!game.user.isGM||!gmPrivate())return;
-  const mine=cinders.readRegistry().instances.filter(i=>i.definitionId===tree.sourceRef);
-  if(mine.length&&!mine.some(i=>i.bearer?.actorId===actor?.id))throw Error(`${actor?.name??'This character'} does not bear this Cinder. Bind or transfer it in Skill Trees → Cinders first.`);
+/** Before points or an unlock: a partner module may refuse by setting check.blocked to a reason (hook ashenGateSkillTrees.checkProgress). */
+function checkProgress(actor,tree,action){
+  const check={actorId:actor?.id??null,actorName:actor?.name??'',treeId:tree.id,sourceRef:tree.sourceRef??null,kind:tree.provider?.kind??null,action,blocked:null};
+  Hooks.callAll?.(CHECK_HOOK,check);
+  if(check.blocked)throw Error(String(check.blocked));
+}
+/**
+ * GM: replace one character's account on one tree (points, unlocks) and make the perk Items match: give missing ones, remove
+ * Items for nodes that are no longer unlocked. For partner modules that own progression elsewhere; the partner does its own checks.
+ */
+async function setAccountFor(actor,treeId,account){
+  if(!game.user.isGM)throw Error('GM only');
+  if(!actor)throw Error('No character');
+  return withActorLock(actor.id,async()=>{
+    const stored=readPrivate().find(t=>t.id===treeId);if(!stored)throw Error('Unknown tree');
+    const t=resolved(stored),next=cleanAccount(account),known=new Set(t.nodes.map(n=>n.id));
+    const stray=next.unlocks.find(id=>!known.has(id));if(stray)throw Error(`Node ${stray} is not on ${t.name}`);
+    const given=[];
+    try{
+      for(const n of t.nodes)if(n.perkId&&!n.perkMissing&&next.unlocks.includes(n.id)){const g=await givePerk(actor,stored,n);if(g.created)given.push(g);}
+      await persistAccount(actor,stored,next);
+    }catch(error){for(const g of given)await g.item.delete().catch(e=>console.error(`[${MODULE}] Could not undo perk Item`,e));throw error;}
+    const removed=[],failed=[];
+    for(const item of grantedItems(actor,stored).filter(i=>!next.unlocks.includes(grantOf(i)?.nodeId))){
+      try{await item.delete();removed.push(item.name);}catch(error){failed.push(item.name);}
+    }
+    if(failed.length)throw Error(`Progress saved, but ${failed.join(', ')} could not be removed from ${actor.name}. Delete it from the sheet by hand.`);
+    return {given:given.map(g=>g.item.name),removed};
+  });
+}
+function accountsApi(){
+  const gmOnly=()=>{if(!game.user.isGM)throw Error('GM only');};
+  return {
+    contract:ACCOUNTS_CONTRACT,progressHook:PROGRESS_HOOK,checkHook:CHECK_HOOK,
+    /** GM: the private tree with this source id (e.g. a cinder_milestone tree's MUT-* id), resolved from world perks; null when none. */
+    treeBySource:(sourceRef,{kind=null}={})=>{gmOnly();const t=readPrivate().find(x=>x.sourceRef===sourceRef&&(!kind||x.provider?.kind===kind));return t?copy(resolved(t)):null;},
+    /** GM: one character's account on one tree. */
+    account:(actor,treeId)=>{gmOnly();const t=readPrivate().find(x=>x.id===treeId);if(!t)throw Error('Unknown tree');return readProgress(actor,t);},
+    setAccount:(actor,treeId,account)=>setAccountFor(actor,treeId,account),
+    /** Perk Items a tree gave this character: [{itemId, perkId, treeId, nodeId, wallet}]. GM or the Actor's owner. */
+    grants:actor=>{if(!actor)throw Error('No Actor');if(!game.user.isGM&&!actor.isOwner)throw Error('Actor access denied');
+      return Array.from(actor.items??[]).map(i=>({item:i,tag:grantOf(i)})).filter(x=>x.tag?.treeId).map(({item,tag})=>({itemId:item.id,perkId:tag.perkId??null,treeId:tag.treeId,nodeId:tag.nodeId,wallet:tag.wallet??null}));},
+    /** GM, read-only: what Skill Trees 0.15.0/0.16.0 saved for Strain and Cinders, for a one-time adopt by the module that owns them now. */
+    legacyData:()=>{gmOnly();
+      const settings=Object.fromEntries(LEGACY_SETTINGS.map(k=>[k,game.settings.get(MODULE,k)??null]));
+      return {registry:copy(gmPrivate()?.flags?.[MODULE]?.cinders??null),settings,
+        pointers:(game.actors?.contents??[]).filter(a=>Array.isArray(safeFlag(a,'cinders'))&&safeFlag(a,'cinders').length).map(a=>({actorId:a.id,pointers:copy(safeFlag(a,'cinders'))}))};}
+  };
 }
 // Player unlocks: the active GM's client does the checks and the writes (players cannot be trusted to).
 const pendingRequests=new Map();
@@ -473,7 +514,6 @@ function onSocket(message,senderId){
     return;
   }
   if(message.type==='unlock-request'&&game.user.isGM&&game.users?.activeGM?.id===game.user.id)return handleUnlockRequest(message,senderId);
-  if(String(message.type).startsWith('cinder-'))return cinders.onSocket(message,senderId);
 }
 async function handleUnlockRequest(message,senderId){
   const userId=typeof senderId==='string'&&game.users?.get(senderId)?senderId:message.userId;
@@ -494,62 +534,6 @@ function requestUnlock(actor,treeId,nodeId){
     const timer=setTimeout(()=>{pendingRequests.delete(requestId);reject(Error('No answer from the GM client. Check that a GM is connected and try again.'));},20000);
     pendingRequests.set(requestId,{resolve,reject,timer});
     game.socket.emit(SOCKET,{type:'unlock-request',requestId,userId:game.user.id,actorId:actor.id,treeId,nodeId});
-  });
-}
-/** World Cinder definitions (MUT-* Items or Journals bound by General Manager). */
-function cinderDefinitions(){
-  return [...(game.items?.contents??[]),...(game.journal?.contents??[])].map(d=>({d,src:sourceFlag(d)}))
-    .filter(({d,src})=>src?.sourceId?.startsWith('MUT-')&&lookupWorldDefinition(game,src.sourceId).document===d)
-    .map(({d,src})=>({id:src.sourceId,name:d.name})).sort((a,b)=>a.name.localeCompare(b.name));
-}
-/** Cinders tab (GM): every Cinder grouped by kind, with bearer and progress; the check; what migration would do. */
-function cinderPanelView(){
-  const registry=cinders.readRegistry(),groups=new Map();
-  for(const inst of registry.instances){
-    const name=cinders.definitionName(inst.definitionId),tree=cinders.cinderTree(inst.definitionId);
-    const bearer=inst.bearer?game.actors?.get(inst.bearer.actorId):null,last=inst.lastBearer?game.actors?.get(inst.lastBearer):null;
-    const spent=tree?totalSpent(resolved(tree),inst.progression):0;
-    const row={instanceId:inst.instanceId,status:inst.status,bound:Boolean(inst.bearer),lost:inst.status==='lost',
-      bearerName:bearer?.name??(inst.bearer?'(missing character)':null),lastName:last?.name??null,
-      awarded:inst.progression.awarded,spent,unlocks:inst.progression.unlocks.length,migrated:Boolean(inst.migratedFrom)};
-    if(!groups.has(inst.definitionId))groups.set(inst.definitionId,{definitionId:inst.definitionId,name,rows:[]});
-    groups.get(inst.definitionId).rows.push(row);
-  }
-  const report=cinders.api.report();
-  return {groups:[...groups.values()].sort((a,b)=>a.name.localeCompare(b.name)),hasCinders:registry.instances.length>0,
-    report,hasReport:report.length>0,canRepair:report.some(r=>r.repair),migrate:cinders.migrationPlan().filter(r=>r.action==='create').length,
-    definitions:cinderDefinitions().length,limit:game.settings.get(MODULE,'maxCindersPerActor'),initial:game.settings.get(MODULE,'initialCinderPoints')};
-}
-/** Push section for the selected node: only for an unlocked Cinder power of a Cinder the character bears. */
-function cinderPushView(actor,tree,nodeId){
-  if(!actor.isOwner&&!game.user.isGM)return null;
-  let list;try{list=cinders.api.list(actor);}catch{return null;}
-  const item=[...(actor.items??[])].find(i=>i.flags?.[MODULE]?.grant?.treeId===tree.id&&i.flags[MODULE].grant.nodeId===nodeId);
-  const powerId=item?.flags?.[MODULE]?.grant?.perkId;if(!powerId)return null;
-  for(const c of list){const p=c.powers.find(x=>x.powerId===powerId);if(!p)continue;
-    const s=strain.api.get(actor);
-    return {name:p.name,standard:p.standard,modes:p.modes,hasModes:p.modes.length>0,strain:s.value,band:s.band.label,chance:s.chance,normalUseBackfires:s.normalUseBackfires,powerId};}
-  return null;
-}
-/** GM Setup → Strain card: bands with their Backfire % range, and the rules in words. */
-function strainSetupView(c){
-  const pct=v=>c.backfire_schedule[Math.min(v,c.backfire_schedule.length-1)]??0;
-  const shown=(v,top)=>v>=c.guarantee_at&&!c.allow_prevention_at_guarantee?100:pct(Math.min(v,top));
-  return {
-    bands:c.bands.map(b=>{const to=b.to??Math.max(b.from,c.backfire_schedule.length-1);const lo=shown(b.from,to),hi=shown(to,to);
-      return {label:b.label,range:b.to===null?`${b.from}+`:b.from===b.to?`${b.from}`:`${b.from}–${b.to}`,chance:lo===hi?`${lo}%`:`${lo}–${hi}%`};}),
-    guaranteeAt:c.guarantee_at,normalUseAt:c.normal_use_backfire_at,prevention:c.allow_prevention_at_guarantee,
-    hardMax:c.hard_max??'none',restLong:c.rest_recovery.long,restShort:c.rest_recovery.short,
-    effectBonus:c.effect_roll.strain_bonus.enabled?`+1 at Strain ${c.effect_roll.strain_bonus.from}, then +1 more every ${c.effect_roll.strain_bonus.per} Strain`:'off'
-  };
-}
-/** A .json file chosen by the GM, or null when the picker is closed without one. */
-function pickJsonFile(){
-  return new Promise(resolve=>{
-    const input=document.createElement('input');input.type='file';input.accept='.json,application/json';
-    input.addEventListener('change',()=>resolve(input.files?.[0]??null),{once:true});
-    input.addEventListener('cancel',()=>resolve(null),{once:true});
-    input.click();
   });
 }
 /** Readable prerequisite lists for a node: the keyboard/screen-reader version of the arrows. */
@@ -632,9 +616,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const setupReport=gm&&!preview&&this.activeTab==='library'?savedDataReport(readPrivate(),id=>Boolean(perkDoc(id))):[];
     const projectedCount=gm?readPublic().length:null;
     return {...ctx,gm,editing:gm&&this.editMode&&!preview,preview,initialized:!gm||!!store,legacy,
-      moduleVersion:VERSION,playerAccessEnabled:gm?playerAccessEnabled():false,strainSetup:gm&&this.activeTab==='setup'?strainSetupView(strain.config()):null,activeTrees:this.activeTab==='trees',activeSetup:gm&&this.activeTab==='setup',activeLibrary:gm&&this.activeTab==='library',activeCinders:gm&&this.activeTab==='cinders',cinderPanel:gm&&this.activeTab==='cinders'&&store?cinderPanelView():null,
-      cinderPush:!preview&&t?.provider?.kind==='cinder_milestone'&&actor&&selected?cinderPushView(actor,t,selected.id):null,
-      gmPanel:gm&&(this.activeTab==='setup'||this.activeTab==='library'||this.activeTab==='cinders'),
+      moduleVersion:VERSION,playerAccessEnabled:gm?playerAccessEnabled():false,activeTrees:this.activeTab==='trees',activeSetup:gm&&this.activeTab==='setup',activeLibrary:gm&&this.activeTab==='library',gmPanel:gm&&(this.activeTab==='setup'||this.activeTab==='library'),
       hasTree:!!t,tree:t,selected,canBuy:gm&&!preview&&!!selected&&!!actor&&availability(t,acc,selected.id,{level}).ok,
       canRequest:!gm&&!!selected&&!!actor&&publicAvailability(t,acc,selected.id,{level}).ok,
       canRefund:raw&&!!selected?.unlocked&&!!actor,
@@ -751,7 +733,6 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if(action==='tab-trees'){this.activeTab='trees';this.render();return;}
     if(action==='tab-library'){if(!game.user.isGM){notify('Tree Library is restricted to the GM.',true);return;}this.activeTab='library';this.editMode=false;this.playerPreview=false;this.render();return;}
     if(action==='tab-setup'){if(!game.user.isGM){notify('GM Setup is restricted to the GM.',true);return;}this.activeTab='setup';this.editMode=false;this.playerPreview=false;this.render();return;}
-    if(action==='tab-cinders'){if(!game.user.isGM){notify('Cinders is restricted to the GM.',true);return;}this.activeTab='cinders';this.editMode=false;this.playerPreview=false;this.render();return;}
     if(action==='select'){
       if(this.linkFrom&&game.user.isGM&&this.editMode){try{await this._linkTo(id);}catch(e){notify(e.message,true);}return;}
       this.nodeId=id;this._refocus=true;this.render();return;
@@ -766,16 +747,6 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
         case 'help': await this._help();break;
         case 'toggle-player-access':if(!game.user.isGM)throw Error('GM only');{const next=!playerAccessEnabled();await setPlayerAccess(game,MODULE,next);notify(`Player tree interface ${next?'visible':'hidden'}; purchased nodes and point pools are unchanged.`);}break;
         case 'initialize': await initializeStore();break;
-        case 'push':await this._push(el.dataset.power,el.dataset.mode);break;
-        case 'cinder-new':await this._cinderNew();break;
-        case 'cinder-bind':await this._cinderBind(el.dataset.instance,false);break;
-        case 'cinder-transfer':await this._cinderBind(el.dataset.instance,true);break;
-        case 'cinder-unbind':await this._cinderUnbind(el.dataset.instance);break;
-        case 'cinder-migrate':await this._cinderMigrate();break;
-        case 'cinder-repair':if(!game.user.isGM)throw Error('GM only');{const done=await cinders.api.repair();notify(done.length?done.join('; '):'Nothing needed repair.');}break;
-        case 'strain-import':await this._strainImport();break;
-        case 'strain-export':if(!game.user.isGM)throw Error('GM only');download('ag-strain-config.json',strain.config());break;
-        case 'strain-reset':if(!game.user.isGM)throw Error('GM only');if(await confirm('<p>Reset the Strain config to the module defaults (neutral band names, default Backfire schedule)?</p><p>Character Strain is not changed.</p>','Reset Strain config')){await strain.api.resetConfig();notify('Strain config reset to defaults.');}break;
         case 'qa-install':await this._installQa();break;
         case 'qa-reset':await this._resetQa();break;
         case 'create-tree':await this._newTree();break;
@@ -812,64 +783,6 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       }
       this.render();
     }catch(error){console.error(`[${MODULE}]`,error);notify(`Skill Trees: ${error.message}`,true);}finally{this.busy=false;}
-  }
-  /** Push the selected Cinder power: confirm with the preview, then the GM client rolls and records it. */
-  async _push(powerId,modeId){
-    const actor=this.actor;if(!actor)throw Error('Choose a character');
-    const c=cinders.api.list(actor).find(x=>x.powers.some(p=>p.powerId===powerId));if(!c)throw Error('This character does not bear that Cinder');
-    const pv=cinders.api.previewPush(actor,c.instanceId,powerId,modeId);
-    const mods=pv.modifiers.length?`<p>Modifiers: ${pv.modifiers.map(m=>escape(`${m.label} (${m.value>0?'+':''}${m.value})`)).join(', ')}</p>`:'';
-    if(!await confirm(`<p><strong>${escape(pv.powerName)}: ${escape(pv.label)}</strong></p>${pv.effect?`<p>${escape(pv.effect)}</p>`:''}<p>Strain ${pv.strain} → <strong>${pv.after}</strong> (+${pv.cost}). Backfire chance <strong>${pv.chance}%</strong>${pv.guaranteed?' (guaranteed)':''}.</p>${mods}<p>Every Push gains Strain. The result is posted to chat.</p>`,'Push'))return;
-    await cinders.api.push(actor,powerId,modeId);
-  }
-  /** Cinders tab: make a new Cinder from a world MUT-* definition (it starts unbound). */
-  async _cinderNew(){
-    if(!game.user.isGM)throw Error('GM only');
-    const defs=cinderDefinitions();if(!defs.length)throw Error('No Cinder (MUT-*) definitions in this world. Import them through General Manager first.');
-    const f=await input('New Cinder',`<label>Cinder<select name="def">${defs.map(d=>`<option value="${escape(d.id)}">${escape(d.name)} (${escape(d.id)})</option>`).join('')}</select></label><p>The new Cinder starts with no bearer. Bind it to a character next.</p>`,'Create');
-    if(!f?.def)return;await cinders.api.create(f.def);notify('Cinder created.');
-  }
-  async _cinderBind(instanceId,isTransfer){
-    if(!game.user.isGM)throw Error('GM only');
-    const inst=cinders.readRegistry().instances.find(i=>i.instanceId===instanceId);if(!inst)throw Error('Unknown Cinder');
-    const choices=(game.actors?.contents??[]).filter(a=>a.type==='character'&&a.id!==inst.bearer?.actorId).sort((a,b)=>a.name.localeCompare(b.name));
-    if(!choices.length)throw Error('No other characters to choose from');
-    const name=cinders.definitionName(inst.definitionId);
-    const note=isTransfer?'<p>The Cinder keeps its points and unlocked powers; its powers move to the new bearer. Strain and Backfire conditions stay with the previous bearer.</p>':`<p>A bearer cannot release a Cinder; only the GM can unbind or transfer it.${inst.firstBoundAt?'':' The first binding gives the starting point(s).'}</p>`;
-    const f=await input(isTransfer?`Transfer ${name}`:`Bind ${name}`,`<label>Character<select name="actor">${choices.map(a=>`<option value="${a.id}">${escape(a.name)}</option>`).join('')}</select></label>${note}`,isTransfer?'Transfer':'Bind');
-    const target=f?.actor?game.actors.get(f.actor):null;if(!target)return;
-    if(isTransfer){await cinders.api.transfer(instanceId,target);notify(`${name} transferred to ${target.name}.`);}
-    else{const r=await cinders.api.bind(instanceId,target);notify(`${name} bound to ${target.name}${r.initialAwarded?` (+${r.initialAwarded} starting point${r.initialAwarded>1?'s':''})`:''}.`);}
-  }
-  async _cinderUnbind(instanceId){
-    if(!game.user.isGM)throw Error('GM only');
-    const inst=cinders.readRegistry().instances.find(i=>i.instanceId===instanceId);if(!inst?.bearer)throw Error('That Cinder has no bearer');
-    const name=cinders.definitionName(inst.definitionId),bearer=game.actors?.get(inst.bearer.actorId)?.name??'its bearer';
-    if(!await confirm(`<p>Unbind <strong>${escape(name)}</strong> from <strong>${escape(bearer)}</strong>?</p><p>Its powers leave ${escape(bearer)}'s sheet. The Cinder keeps its points and unlocks. Strain is not changed.</p>`,'Unbind Cinder'))return;
-    await cinders.api.unbind(instanceId);notify(`${name} unbound.`);
-  }
-  async _cinderMigrate(){
-    if(!game.user.isGM)throw Error('GM only');
-    const rows=await cinders.api.migrate({dryRun:true}),todo=rows.filter(r=>r.action==='create');
-    if(!todo.length){notify('No per-character Cinder progress to move.');return;}
-    const list=rows.map(r=>`<li><strong>${escape(r.name)}</strong> · ${escape(cinders.definitionName(r.definitionId))}: ${escape(r.reason)}</li>`).join('');
-    if(!await confirm(`<p>Move existing Cinder progress onto Cinders bound to those characters:</p><ul>${list}</ul><p>Points, unlocks and power Items stay as they are. Safe to run again.</p>`,'Move existing Cinder progress'))return;
-    await cinders.api.migrate({dryRun:false});notify(`${todo.length} Cinder${todo.length>1?'s':''} created from existing progress.`);
-  }
-  /** GM Setup → Strain: import a config file (ag-strain-config/0.1); shows the check first. Never changes character Strain. */
-  async _strainImport(){
-    if(!game.user.isGM)throw Error('GM only');
-    const file=await pickJsonFile();if(!file)return;
-    let data;try{data=JSON.parse(await file.text());}catch{throw Error(`${file.name} is not valid JSON`);}
-    const plan=strain.api.previewConfigImport(data);
-    if(plan.errors.length)throw Error(`Strain config not imported: ${plan.errors.slice(0,5).join('; ')}`);
-    const row=plan.rows[0];
-    if(row.action==='skip'){notify('That Strain config is the same as the current one; nothing changed.');return;}
-    const warn=plan.warnings.length?`<p>Warnings:</p><ul>${plan.warnings.map(w=>`<li>${escape(w)}</li>`).join('')}</ul>`:'';
-    if(!await confirm(`<p>${escape(row.reason)}</p>${warn}`,'Import Strain config'))return;
-    const result=await strain.api.importConfig(data);
-    if(result.failed.length)throw Error(result.failed[0].reason);
-    notify('Strain config imported.');
   }
   async _help(){
     await confirm('<p><strong>Tree View</strong> shows a character’s tree. Each node is a perk. Arrows point from a prerequisite to the perk it opens; a dashed arrow marked OR means any one of that group is enough; a red dotted line marked ✕ joins perks that cannot both be taken. Select a node to read the same information as text.</p><p><strong>Unlock</strong> spends the character’s points and adds the perk to their sheet. Players unlock their own characters while a GM is logged in; the GM can unlock, refund or reset (refund removes the perk from the sheet).</p><p><strong>GM Setup</strong> has publishing, export (backups) and the saved-data check. Tree files are imported through General Manager.</p><p><strong>Review</strong> (GM): when a lower level leaves perks above it, the banner’s <strong>Review</strong> button (or the whisper’s) lists them: keep or remove each. Every change in a character’s History can be undone.</p><p><strong>Profession trees</strong> get 1 point per profession level from the Profession Ledger (level 16 = 16 points; a tree has 24 perks, so players choose 16). Each perk needs the level of its tier (Apprentice 1, Journeyman 4, Expert 7, Artisan 10, Master 13). Players pick their own; only the GM can remove a perk, grant one as an override, or keep one the level no longer covers. A character with perks above their level waits on GM review before picking again.</p>','Skill Trees help');
@@ -1486,8 +1399,8 @@ function open({treeId=null,actorId=null,resolve=false}={}){
   return instance;
 }
 Hooks.once('init',()=>{
-  strain.register();
-  cinders.register();
+  // 0.15.0/0.16.0 settings (Strain, Cinders): still registered, hidden, so their values stay readable for Ashen Gate | Cinders' adopt.
+  for(const key of LEGACY_SETTINGS)game.settings.register(MODULE,key,{scope:'world',config:false,type:key==='strainConfig'?Object:Number,default:null});
   Hooks.on('renderActorDirectory',addDirectoryLauncher);
   Hooks.on('closeApplicationV2',app=>{openTreeWindows.delete(app);if(instance===app)instance=null;});
   // Existing player-facing Skill Trees retains player access on upgrade.
@@ -1508,13 +1421,11 @@ Hooks.once('ready',()=>{
     /** 0.13.0: points per tree for one character, [{treeId,name,kind,level,earned,spent,available}]. Owner or GM only; read-only. */
     pointsSummary:actor=>pointsSummary(actor),
     embed:{contract:'ag-trees-embed/1',modes:[...EMBED_MODES],mount:mountEmbed},
-    /** 0.15.0: the shared Strain door (contract ag-strain/1). Reads: GM or owner. add/remove/set: GM client only. */
-    strain:strain.api,
-    /** 0.16.0: Cinder instances, Push and Backfire (contract ag-cinder/1). Bind / transfer / unbind and the registry are GM only. */
-    cinder:cinders.api,
+    /** 0.17.0: generic account access for partner modules (contract ag-tree-accounts/1). GM only except grants(). */
+    accounts:accountsApi(),
     grantPoints:async(actor,treeId,amount,label)=>{
       if(!game.user.isGM)throw Error('GM only');const t=readPrivate().find(x=>x.id===treeId);if(!t)throw Error('Unknown tree');
-      assertCinderBearer(actor,t);
+      checkProgress(actor,t,'points');
       const next=grantPoints(t,readProgress(actor,t),amount,label);await persistAccount(actor,t,next);return next;
     },
     grantXp:async()=>{throw Error('Legacy XP grant retired: Profession XP belongs to the Profession Ledger; use grantPoints for Cinders/generic trees.');},
@@ -1566,11 +1477,6 @@ Hooks.once('ready',()=>{
   // Profession Ledger (optional partner): its hook only says "look again"; the level is read through its API.
   Hooks.on('ashenGateLedger.progressionChanged',data=>void onProgressionChanged(data));
   Hooks.on('renderChatMessageHTML',wireChatButtons);
-  Hooks.on('updateActor',(actor,changes)=>strain.onUpdateActor(actor,changes));
-  Hooks.on('createChatMessage',message=>strain.onRestMessage(message));
-  Hooks.on('deleteActor',actor=>cinders.onDeleteActor(actor));
-  // Returns the Promise (never false), so dnd5e carries on with the use.
-  Hooks.on('dnd5e.postUseActivity',activity=>cinders.onUseActivity(activity));
   if(game.user.isGM){
     // World perks feed node names/text; an Item on a character sheet does not change the published view.
     // A failed publish leaves players on the old tree, so tell the GM (once until a publish works again).
