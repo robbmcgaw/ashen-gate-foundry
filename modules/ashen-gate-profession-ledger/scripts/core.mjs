@@ -16,6 +16,9 @@ export const sourceVisibility = raw => raw?.flags?.['ashen-gate-manager']?.sourc
 export const sourceAvailableToPlayer = raw => sourceVisibility(raw)==='player' && !['draft','proposed','superseded','retired','placeholder'].includes(raw?.flags?.['ashen-gate-manager']?.source?.status ?? raw?.status ?? 'approved');
 const managerKind = raw => raw?.flags?.['ashen-gate-manager']?.source?.entityType ?? raw?.flags?.['ashen-gate-manager']?.capture?.entityType;
 export const agSourceId = raw => raw?.flags?.['ashen-gate-manager']?.source?.sourceId || raw?.flags?.['ashen-gate-profession-ledger']?.sourceId || raw?.flags?.['ashen-gate']?.sourceId || raw?.flags?.['ashen-gate']?.entityId || null;
+/** Character Hub's level-up backup copy (a GM-only snapshot Actor). Never listed or used as a target; safe when the Hub is absent. */
+export const isLevelBackup = actor => !!actor?.flags?.['ashen-gate-character-hub']?.levelBackup;
+export const LEVEL_BACKUP_REFUSAL = 'That is a level backup copy, not a playable character.';
 export function classify(raw) {
   const exact=raw?.flags?.['ashen-gate-profession-ledger']?.entityType || managerKind(raw);
   if(exact) return exact;
