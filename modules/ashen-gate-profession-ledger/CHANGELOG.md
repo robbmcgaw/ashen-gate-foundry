@@ -1,3 +1,8 @@
+## 0.24.2 — 2026-10-21
+
+- Repo check only: the material consent, craft confirmation and gathering check windows (custom dialogs with the kit classes) are marked as allowed for the stricter UI lint.
+- No behaviour or saved-data changes.
+
 ## 0.24.1 — 2026-10-21
 
 - Shared UI kit 2.1.0 and dialog helper: choice dialogs follow the Ashen Gate look (Cancel on the left, the choices on the right); red buttons, badges and grey text on selected or striped rows are easier to read in every skin (at least 4.5:1); a hidden empty state stays hidden; disabled list rows keep readable text.

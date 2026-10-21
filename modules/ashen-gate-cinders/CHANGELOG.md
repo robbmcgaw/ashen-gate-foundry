@@ -1,3 +1,14 @@
+## 0.6.0 — 2026-10-21
+
+- **Cinder sheet** in the Cinders tab: the Cinder is an orb ringed by the bearer's Strain (10 segments, then exact "+N over 10" pips that players see too), with its sockets on an orbit around it. Beside it: bearer, "Unspent: n" with **Open skill tree**, Strain, powers with each Push mode's cost, Strain after and Backfire % (perk and socket modifiers included), and the perks and socket items that count. A character with more than one Cinder gets a Cinder picker.
+- **Sockets on the orbit** in attach order (no reordering): a socket added by a perk, power or item shows "+1"; an item over capacity is dimmed under the orb as inactive. Tap a socket to attach, swap or detach, or drag an item onto it. Same rules as before through `api.sockets` (owner while Player Access is on and not GM-locked; GM always, plus dropping a world Item).
+- **Cinder art:** a shared default orb whose colour follows Strain, or the Cinder's own image. GM only: double-click the orb (or **Change art…**) to pick a file (Assets Library, `ashen-gate/cinders/`), **Reset to default orb** to go back.
+- GM-only **Binding** card: current bearer and since when.
+- Push asks with Cancel on the left and Push on the right; the Push button is red when the Backfire is guaranteed.
+- API: `api.cinder.setArt(instanceId, path | null)` (GM only, rejected for players; hook `ashenGateCinder.changed` kind `art`). `api.cinder.list()` adds `art`, `unspent`, `treeId`, and `bearerSince` for the GM.
+- **Saved data:** a new optional `art` on each Cinder record, copied to the bearer's Cinder pointer. Records saved before read as no art (the default orb); nothing is migrated. Manage → Check / Repair also cover the art copy.
+- Docs: `docs/cinder-strain-schema.md` → Cinder art, `docs/perks-and-modifiers-for-gpt.md`.
+
 ## 0.5.1 — 2026-10-21
 
 - Shared UI kit 2.1.0 and dialog helper: choice dialogs follow the Ashen Gate look (Cancel on the left, the choices on the right); red buttons, badges and grey text on selected or striped rows are easier to read in every skin (at least 4.5:1); a hidden empty state stays hidden; disabled list rows keep readable text.

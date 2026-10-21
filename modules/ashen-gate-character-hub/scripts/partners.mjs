@@ -207,7 +207,7 @@ export function ashenGateTab({actor, sheet}) {
   }).join('');
   return `<div class="ag-toolbar agch-toolbar"><div class="ag-segmented agch-seg" role="radiogroup" aria-label="Ashen Gate section">${tabs}</div></div>
     ${panelHtml({...current, badge: hiddenBadge(partForPartner(current.id))}, actor, state)}
-    <p class="agch-muted agch-hint">${embedded ? `This is ${esc(current.label)}'s own view: it keeps its own records and permissions.` : 'Each module keeps its own records; this is a read-only summary. Open the module to make changes there.'}</p>`;
+    <p class="agch-muted agch-hint">${embedded ? `This is ${esc(current.label)}'s own view: it keeps its own records and permissions.` : current.id === 'ashen-gate-cinders' ? 'Cinders keeps its own records: Push and socket changes go through it and it checks them again.' : 'Each module keeps its own records; this is a read-only summary. Open the module to make changes there.'}</p>`;
 }
 
 // ---------- Embedded partner views (api.embed.mount) ----------

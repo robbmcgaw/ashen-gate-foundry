@@ -52,6 +52,7 @@ Ashen Gate is a set of Foundry VTT modules for Robb's D&D campaign: Foundry V14 
 | Say how a perk is applied | Optional `implementation`: `automatic`, `informational` or `gm_resolved` (display only; `docs/modifiers-schema.md`) | **built in Manager 0.41.0** |
 | Make an item fit a Cinder socket | Nothing extra: an `ITEM-*` with at least one `cinder` modifier fits (`docs/cinder-strain-schema.md` → Sockets). Effects `transfer: false`. There is **no** `socketable` block | **built** (Cinders 0.3.0) |
 | Add a socket to a Cinder | A `sockets.count` modifier (scope `cinder`) on a perk, power or socket item | **built** (Cinders 0.3.0) |
+| A Cinder's picture | Nothing in content. The GM sets an image on one Cinder in Foundry (double-click the orb; `api.cinder.setArt`, GM only); it is saved as `art` on that Cinder's record, not on the `MUT-*`. Without it the module draws a default orb that follows Strain (`docs/cinder-strain-schema.md` → Cinder art) | **built** (Cinders 0.6.0) |
 
 **Modifier entry** (`ag-modifier/1`, the same in `power.modifiers` and in a `modifiers` block):
 
@@ -92,7 +93,8 @@ Ashen Gate is a set of Foundry VTT modules for Robb's D&D campaign: Foundry V14 
 - Don't put `transfer: true` on mount, pet or socket items.
 - Don't write a lethal Backfire effect, or HP changes in an `effect`.
 - Don't link rewards by Foundry UUID when a canonical id would do. Name the `ITEM-*` / `PERK-*` id in `rules_summary` too.
-- Don't create live play state: no bearers, points, Strain, socket attachments or claims. Import writes definitions only.
+- Don't create live play state: no bearers, points, Strain, socket attachments, Cinder art or claims. Import writes definitions only.
+- Don't add `art`, `img`, `element` or `tint` fields to a `MUT-*` record for the orb: Cinder art is set per Cinder by the GM in Foundry.
 - Don't invent modifier targets, scopes, prefixes or blocks. Only `cinder` is a scope today.
 - Don't put a `modifiers` block on anything but `ITEM-*` / `PERK-*` records; a `POWER-*` uses `power.modifiers`.
 - Don't mark anything `approved` yourself.

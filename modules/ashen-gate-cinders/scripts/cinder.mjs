@@ -2,6 +2,7 @@
  * A Cinder instance owns its progression (points, unlocks) and moves between bearers with it. Strain stays on each character. */
 import {applyChange,chanceFor,strainEffectBonus} from './strain.mjs';
 import {normalizeSockets,emptied} from './sockets.mjs';
+import {cleanArt} from './orb.mjs';
 
 export const CINDER_CONTRACT = 'ag-cinder/1';
 export const REGISTRY_SCHEMA = 'ag-cinder-instances/1';
@@ -288,7 +289,9 @@ export function normalizeInstance(raw) {
     createdAt: Number(r.createdAt) || 0, revision: int(r.revision) && r.revision >= 0 ? r.revision : 0,
     migratedFrom: plain(r.migratedFrom) ? {actorId: String(r.migratedFrom.actorId ?? ''), at: Number(r.migratedFrom.at) || 0} : null,
     // 0.3.0. Records saved before sockets have none: that reads as no item attached, default count, unlocked.
-    sockets: normalizeSockets(r.sockets)
+    sockets: normalizeSockets(r.sockets),
+    // 0.6.0. The GM's image for this Cinder's orb; records saved before read as none (the default orb).
+    art: cleanArt(r.art)
   };
 }
 export function normalizeRegistry(raw) {

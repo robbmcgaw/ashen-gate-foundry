@@ -1,20 +1,17 @@
 // UI drift check for the shared kit (styles/ag-ui.css), run by scripts/check.mjs. Reads files as text with
-// regexes, like the rest of check.mjs. Two kinds of rule:
-//   - ratchet: a per-module count stored in scripts/ui-lint-baseline.json; it may go down, never up;
-//   - strict: must be zero now.
-// STRICT_EXCEPTIONS keeps a strict rule as a ratchet for one named module until that module is fixed.
-// A module missing from the baseline (a new module) is strict on every rule, and the baseline may only
-// list modules that exist.
+// regexes, like the rest of check.mjs. Every module rule is strict: its count must be 0 in every module,
+// new modules included. STRICT_EXCEPTIONS (below) keeps a rule as a ratchet for one named module: the count
+// it lists may go down, never up. It may only name modules that exist.
 // A CSS line can opt out of a rule marked "allow" (colour literals, px boxes) with /* ag-lint-allow: reason */
-// on the same line.
-// Usage: node scripts/ui-lint.mjs [--update-baseline]   (rewrites the baseline from the current tree)
+// on the same line; a script line can opt a custom DialogV2 out with // ag-lint-allow: reason, as long as the
+// call's options carry the ag-dialog class. The reason must be at least three words.
+// Usage: node scripts/ui-lint.mjs
 import fs from 'node:fs';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
 
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const modulesDir = path.join(root, 'modules');
-export const BASELINE_FILE = path.join(root, 'scripts', 'ui-lint-baseline.json');
 const MANAGER = 'ashen-gate-manager';
 const SKIN_FILES = ['styles/skins/stone-tablet.css', 'styles/skins/tome-pages.css'];
 
@@ -31,7 +28,22 @@ function walk(dir, out = []) {
 const rel = (dir, f) => path.relative(dir, f).split(path.sep).join('/');
 const isTest = r => /^(tests?|fixtures|macros|samples|vendor)\//.test(r);
 const stripComments = css => css.replace(/\/\*[\s\S]*?\*\//g, m => m.replace(/[^\n]/g, ' '));
-const allowed = line => /ag-lint-allow:/.test(line);
+/** The reason after each ag-lint-allow on a line, or null when the line has none. */
+const allowReasons = line => [...line.matchAll(/ag-lint-allow\b:?([^\n]*?)(?=\*\/|$)/g)].map(m => m[1].trim());
+const goodReason = r => r.split(/\s+/).filter(w => /[a-z0-9]/i.test(w)).length >= 3;
+const allowed = line => { const r = allowReasons(line); return r.length > 0 && r.every(goodReason); };
+/** DialogV2 opened directly; allowed only on a line marked ag-lint-allow whose call options (next few lines) carry ag-dialog. */
+function directDialogs(text) {
+  const lines = text.split('\n');
+  let n = 0;
+  lines.forEach((line, i) => {
+    const hits = (line.match(/DialogV2\.(?:confirm|prompt|wait)\(|\bnew\s+(?:[\w$]+\.)*DialogV2\(/g) ?? []).length;
+    if (!hits) return;
+    if (allowed(line) && /['"`]ag-dialog['"`]/.test(lines.slice(i, i + 6).join('\n'))) return;
+    n += hits;
+  });
+  return n;
+}
 
 /** Kit block classes (".ag-btn--primary" and ".ag-btn__x" count as "ag-btn"), read from ag-ui.css. */
 export function kitBlocks(kitCss) {
@@ -53,15 +65,15 @@ function selectors(css) {
 // ---------- Rules over one module's own files ----------
 // Each returns a count for a module (module CSS = styles/**/*.css except the kit and Manager's skins).
 export const RULES = {
-  'css-colour-literal': {mode: 'strict', allow: true, css: line => (line.match(/#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(/g) ?? []).length},
-  'css-raw-font-size': {mode: 'strict', css: line => (line.match(/font-size\s*:\s*[\d.]+(?:px|rem|em)\b/g) ?? []).length + (line.match(/\bfont\s*:[^;]*?\b[\d.]+(?:px|rem|em)\b/g) ?? []).length},
-  'css-legacy-alias': {mode: 'strict', css: line => (line.match(/var\(--ag-(?:bg|panel)\)/g) ?? []).length},
-  'css-viewport-media': {mode: 'strict', css: line => (line.match(/@media[^{]*\((?:max|min)-width/g) ?? []).length},
-  'css-raw-px-box': {mode: 'ratchet', allow: true, css: line => (line.match(/(?:^|[;{\s])(?:padding|gap|margin|height|width|min-height|min-width|max-height|max-width|row-gap|column-gap)(?:-(?:top|right|bottom|left|inline|block))?\s*:[^;}]*?\b\d*\.?\d+px\b/g) ?? []).length},
-  'css-kit-prefix-class': {mode: 'strict'}, // counted in lintModule from selectors
-  'js-dialogv2-direct': {mode: 'strict', code: text => (text.match(/DialogV2\.(?:confirm|prompt)\(/g) ?? []).length},
-  'fa-legacy-prefix': {mode: 'strict', code: text => (text.match(/class=["'`](?:fas|far) /g) ?? []).length + (text.match(/class=["'`][^"'`]*\s(?:fas|far)\s/g) ?? []).length},
-  'header-brand-version': {mode: 'strict', code: text => {
+  'css-colour-literal': {allow: true, css: line => (line.match(/#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?)\(/g) ?? []).length},
+  'css-raw-font-size': {css: line => (line.match(/font-size\s*:\s*[\d.]+(?:px|rem|em)\b/g) ?? []).length + (line.match(/\bfont\s*:[^;]*?\b[\d.]+(?:px|rem|em)\b/g) ?? []).length},
+  'css-legacy-alias': {css: line => (line.match(/var\(--ag-(?:bg|panel)\)/g) ?? []).length},
+  'css-viewport-media': {css: line => (line.match(/@media[^{]*\((?:max|min)-width/g) ?? []).length},
+  'css-raw-px-box': {allow: true, css: line => (line.match(/(?:^|[;{\s])(?:padding|gap|margin|height|width|min-height|min-width|max-height|max-width|row-gap|column-gap)(?:-(?:top|right|bottom|left|inline|block))?\s*:[^;}]*?\b\d*\.?\d+px\b/g) ?? []).length},
+  'css-kit-prefix-class': {}, // counted in lintModule from selectors
+  'js-dialogv2-direct': {code: directDialogs},
+  'fa-legacy-prefix': {code: text => (text.match(/class=["'`](?:fas|far) /g) ?? []).length + (text.match(/class=["'`][^"'`]*\s(?:fas|far)\s/g) ?? []).length},
+  'header-brand-version': {code: text => {
     let n = 0;
     for (const m of text.matchAll(/class=["'`]ag-header(?=[\s"'`])/g)) {
       const end = text.indexOf('</header>', m.index);
@@ -70,40 +82,39 @@ export const RULES = {
     }
     return n;
   }},
-  'button-title-attr': {mode: 'strict', code: text => (text.match(/<button\b[^>]*\stitle=/g) ?? []).length},
+  'button-title-attr': {code: text => (text.match(/<button\b[^>]*\stitle=/g) ?? []).length},
+  // ag-lint-allow must say why, in at least three words (CSS and scripts/templates).
+  'lint-allow-reason': {raw: true, css: line => allowReasons(line).filter(r => !goodReason(r)).length,
+    code: text => text.split('\n').reduce((n, line) => n + allowReasons(line).filter(r => !goodReason(r)).length, 0)},
 };
 
-// Strict rules kept as a ratchet for one module only, {moduleId: [rule, ...]}; the count lives in the baseline.
-// Each entry needs a follow-up in docs/ui-pass-plan.md. Empty: every module passed every strict rule at 0.
+// Rules kept as a ratchet for one module only, {moduleId: {rule: highest allowed count}}. The count may go down
+// (lower it here when it does), never up. Each entry needs a follow-up in docs/ui-pass-plan.md.
 export const STRICT_EXCEPTIONS = {};
 
-/** The mode a rule has for one module: new modules (not in the baseline) are strict on every rule. */
-export function modeFor(id, rule, baseline, exceptions = STRICT_EXCEPTIONS) {
-  if (!Object.hasOwn(baseline, id)) return 'strict';
-  return RULES[rule].mode === 'ratchet' || exceptions[id]?.includes(rule) ? 'ratchet' : 'strict';
-}
-
-/** Compares one module's counts with its baseline. Returns {failures, notes}. */
-export function judgeModule(id, {counts, where}, baseline, exceptions = STRICT_EXCEPTIONS) {
+/** Compares one module's counts with zero, or with its exception count. Returns {failures, notes}. */
+export function judgeModule(id, {counts, where}, exceptions = STRICT_EXCEPTIONS) {
   const failures = [], notes = [];
-  const isNew = !Object.hasOwn(baseline, id);
   for (const [rule, n] of Object.entries(counts)) {
-    if (modeFor(id, rule, baseline, exceptions) === 'strict') {
-      if (n > 0) failures.push(`${id}: ${rule} must be 0${isNew ? ' (new module: every rule is strict until it is in the baseline)' : ''}, found ${n}: ${where[rule].slice(0, 8).join(', ')}`);
-      continue;
+    const limit = exceptions[id]?.[rule];
+    if (limit === undefined) {
+      if (n > 0) failures.push(`${id}: ${rule} must be 0, found ${n}: ${where[rule].slice(0, 8).join(', ')}`);
+    } else if (n > limit) {
+      failures.push(`${id}: ${rule} went up from ${limit} to ${n} (exception: the count may only go down): ${where[rule].slice(0, 8).join(', ')}`);
+    } else if (n < limit) {
+      notes.push(`${id}: ${rule} went down from ${limit} to ${n}; lower (or remove) its STRICT_EXCEPTIONS entry in scripts/ui-lint.mjs`);
     }
-    const base = baseline[id]?.[rule] ?? 0;
-    if (n > base) failures.push(`${id}: ${rule} went up from ${base} to ${n} (ratchet: counts may only go down): ${where[rule].slice(0, 8).join(', ')}`);
-    else if (n < base) notes.push(`${id}: ${rule} went down from ${base} to ${n}; run node scripts/ui-lint.mjs --update-baseline to lock it in`);
   }
   return {failures, notes};
 }
 
-/** The baseline and the exception list may only name modules that exist. */
-export function checkBaselineModules(moduleIds, baseline, exceptions = STRICT_EXCEPTIONS) {
+/** The exception list may only name modules that exist and rules that exist. */
+export function checkExceptions(moduleIds, exceptions = STRICT_EXCEPTIONS) {
   const have = new Set(moduleIds), problems = [];
-  for (const id of Object.keys(baseline)) if (!have.has(id)) problems.push(`ui-lint-baseline.json lists ${id}, which is not a module; remove it`);
-  for (const id of Object.keys(exceptions)) if (!have.has(id)) problems.push(`STRICT_EXCEPTIONS lists ${id}, which is not a module; remove it`);
+  for (const [id, rules] of Object.entries(exceptions)) {
+    if (!have.has(id)) problems.push(`STRICT_EXCEPTIONS lists ${id}, which is not a module; remove it`);
+    for (const rule of Object.keys(rules)) if (!RULES[rule]) problems.push(`STRICT_EXCEPTIONS lists unknown rule ${rule} for ${id}`);
+  }
   return problems;
 }
 
@@ -126,7 +137,7 @@ export function lintModule(dir, kit) {
     clean.forEach((line, i) => {
       for (const [k, rule] of Object.entries(RULES)) {
         if (!rule.css || (rule.allow && allowed(lines[i]))) continue;
-        const n = rule.css(line);
+        const n = rule.css(rule.raw ? lines[i] : line);
         if (n) { counts[k] += n; where[k].push(`${r}:${i + 1}`); }
       }
     });
@@ -272,10 +283,6 @@ export async function checkContrast(managerDir, kitCss) {
 }
 
 // ---------- Runner ----------
-export function readBaseline() {
-  return fs.existsSync(BASELINE_FILE) ? JSON.parse(fs.readFileSync(BASELINE_FILE, 'utf8')) : {};
-}
-
 /** Lints the given modules (all when empty). Returns {failures, notes, counts}. */
 export async function runUiLint(ids = []) {
   const all = fs.readdirSync(modulesDir).filter(id => fs.existsSync(path.join(modulesDir, id, 'module.json'))).sort();
@@ -283,12 +290,11 @@ export async function runUiLint(ids = []) {
   const kitPath = path.join(modulesDir, MANAGER, 'styles', 'ag-ui.css');
   const kitCss = fs.readFileSync(kitPath, 'utf8');
   const kit = kitBlocks(kitCss);
-  const baseline = readBaseline();
-  const failures = checkBaselineModules(all, baseline), notes = [], counts = {};
+  const failures = checkExceptions(all), notes = [], counts = {};
   for (const id of wanted) {
     const result = lintModule(path.join(modulesDir, id), kit);
     counts[id] = result.counts;
-    const judged = judgeModule(id, result, baseline);
+    const judged = judgeModule(id, result);
     failures.push(...judged.failures);
     notes.push(...judged.notes);
   }
@@ -304,12 +310,7 @@ export async function runUiLint(ids = []) {
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const {failures, notes, counts} = await runUiLint();
-  if (process.argv.includes('--update-baseline')) {
-    const ratchet = (id, k) => RULES[k].mode === 'ratchet' || STRICT_EXCEPTIONS[id]?.includes(k);
-    const out = Object.fromEntries(Object.entries(counts).map(([id, c]) => [id, Object.fromEntries(Object.entries(c).filter(([k]) => ratchet(id, k)))]));
-    fs.writeFileSync(BASELINE_FILE, JSON.stringify(out, null, 2) + '\n');
-    console.log(`Wrote ${path.relative(root, BASELINE_FILE)}`);
-  }
+  if (process.argv.includes('--counts')) for (const [id, c] of Object.entries(counts)) console.log(id, JSON.stringify(c));
   for (const n of notes) console.log(`note: ${n}`);
   if (failures.length) { console.error(`${failures.length} UI lint problem(s):\n- ${failures.join('\n- ')}`); process.exitCode = 1; }
   else console.log('UI lint passed.');

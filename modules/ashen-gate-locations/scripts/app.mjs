@@ -1255,7 +1255,7 @@ export class LocationsApp extends Base {
       <p class="agl-hint">${this.draft.state === 'hidden' ? 'Hidden: players see nothing now. ' : ''}This is what players would see after you publish your current edits. Quest names follow Quest Manager's own visibility.</p>
       ${part('unidentified')}${part('revealed')}</div>`;
     // Stays a custom DialogV2 window for its 560px width; same kit classes and single Close button as infoDialog.
-    return foundry.applications.api.DialogV2.wait({classes: ['ag-app', 'ag-dialog'], window: {title: `Player Preview: ${this.draft.name}`}, position: {width: 560}, content,
+    return foundry.applications.api.DialogV2.wait({classes: ['ag-app', 'ag-dialog'], window: {title: `Player Preview: ${this.draft.name}`}, position: {width: 560}, content, // ag-lint-allow: custom dialog, has ag-dialog classes
       buttons: [{action: 'close', label: 'Close', default: true}], rejectClose: false});
   }
   async importFile(file) {

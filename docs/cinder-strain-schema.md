@@ -1,4 +1,4 @@
-# Cinder, Power, Backfire table and Strain config schema (Ashen Gate | Cinders 0.1.0+, Skill Trees 0.17.0+, General Manager 0.39.0+; perk modifiers: Cinders 0.2.0+, Manager 0.41.0+)
+# Cinder, Power, Backfire table and Strain config schema (Ashen Gate | Cinders 0.1.0+, Skill Trees 0.17.0+, General Manager 0.39.0+; perk modifiers: Cinders 0.2.0+, Manager 0.41.0+; Cinder art: Cinders 0.6.0+)
 
 This is the reference for writing Cinder content. It is generic: there is no setting content here, and every example uses synthetic `[TEST]` data. The campaign's Cinder names, powers, Backfire tables and Strain band names are written from this schema and kept in the private content repo.
 
@@ -91,6 +91,16 @@ A Cinder has sockets that hold items. There is no new content block: **an item f
 - **Who changes them:** the GM, and the Cinder's bearer's owner while Cinders Player Access is on and the GM has not locked that Cinder's sockets. Every change is checked and recorded on the GM's client.
 - **The item stays in the bearer's inventory**, marked `flags.ashen-gate-cinders.attachedTo = {instanceId, slot}`. On a **transfer** or **unbind** the items stay with the old bearer, detached. An item that leaves the inventory leaves its socket empty.
 - Importing never attaches, detaches or deletes anything.
+
+## Cinder art (Cinders 0.6.0+)
+
+The Cinders window shows each Cinder as an orb. **Art is not content:** there is no `art` (or `img`, `element`, `tint`) field in a `MUT-*` record, and the definition Item's image is never used for the orb.
+
+- **Default:** one shared orb drawn by the module. Its colour follows the bearer's Strain only.
+- **Per Cinder:** the GM can give one Cinder instance its own image: double-click the orb (Forge file picker; keep the files in the Assets Library under `ashen-gate/cinders/`), or **Reset to default orb**. It is saved as `art` (an image path or `null`) on that Cinder's record in the GM Records Journal and copied to the bearer's Cinder pointer (`flags.ashen-gate-cinders.cinders[].art`) so the bearer's owner can see it. It moves with the Cinder on a transfer.
+- Order: the Cinder's own `art`, then the default orb. Records saved before 0.6.0 read as no art; nothing is migrated.
+- API: `game.modules.get('ashen-gate-cinders').api.cinder.setArt(instanceId, path | null)`, GM only (rejected for players in the API). It fires `ashenGateCinder.changed` with `{kind: 'art', instanceId, definitionId, actorId, art}`. `api.cinder.list(actor)` returns `art` for each Cinder.
+- Importing never sets or clears art.
 
 ## Backfire table — `BF-*`, `entity_type: "BackfireTable"`
 
