@@ -1,3 +1,9 @@
+## 0.17.0 — 2026-10-21
+
+- **New empty-slot icons from Robb:** Back is a cloak, Waist a belt, Bracers a pair of bracers. They're white silhouettes in `assets/slots/`, which ship in the release zip, and `SLOT_PLACEHOLDERS` points to them by module path (`modules/ashen-gate-character-hub/assets/slots/…`).
+- White silhouettes (files named `*-white.png`) are drawn as a mask in the theme's muted colour, the same size and faintness as the other slot icons. They stay visible on light skins too, instead of white on white.
+- No saved data changes.
+
 ## 0.16.0 — 2026-10-21
 
 - **Change the art from the Hub:** double-click the big art pane to change what it shows.
