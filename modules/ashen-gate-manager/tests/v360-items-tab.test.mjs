@@ -211,6 +211,93 @@ test('players are refused by Organize and Browse before anything is read', async
   assert.ok(svc);
 });
 
+// ---- Clean compendiums ----
+function cleanWorld({gm = true, packs = [], items = loose(), folders = [userFolder, userSub]} = {}) {
+  const store = {[SCHEMA_SETTING]: [], [HISTORY_SETTING]: []};
+  const calls = [];
+  const game = {user: {isGM: gm}, settings: {get: (ns, k) => structuredClone(store[k]), set: async (ns, k, v) => {store[k] = v;}},
+    items: {contents: items}, actors: {contents: []}, journal: {contents: []}, folders: {contents: folders}, packs: {contents: packs}};
+  const docsOf = opts => opts.pack ? packs.find(p => p.collection === opts.pack).docs : items;
+  const api = createOrganizer({game,
+    updateDocuments: async (name, updates, opts) => {calls.push({name, n: updates.length, pack: opts.pack ?? null});
+      for (const u of updates) docsOf(opts).find(d => (d._id ?? d.id) === u._id).folder = u.folder;},
+    createFolder: async (d, opts) => {const f = {id: `F-${d.name}-${opts.pack ?? 'w'}`, ...d}; return f;}});
+  return {api, store, calls};
+}
+function mkPack(collection, {packageType = 'world', locked = false, docs = []} = {}) {
+  return {collection, documentName: 'Item', locked, metadata: {packageType, label: collection}, folders: {contents: []}, docs,
+    index: {size: docs.length}, getIndex: async () => docs.map(d => ({...d}))};
+}
+
+test('Clean compendiums: one preview over the world and every writable compendium; locked and module packs listed as skipped', async () => {
+  const ddb = mkPack('world.ddb', {docs: [{_id: 'P1', name: 'DDB Sword', type: 'weapon', folder: null, flags: {ddbimporter: {id: 1}}, system: {}}]});
+  const locked = mkPack('world.locked', {locked: true, docs: [{_id: 'L1', name: 'Locked thing', type: 'loot', folder: null, flags: {}, system: {}}]});
+  const sys = mkPack('dnd5e.items', {packageType: 'system', docs: [{_id: 'S1', name: 'SRD Dagger', type: 'weapon', folder: null, flags: {}, system: {}}]});
+  const progress = [];
+  const {api} = cleanWorld({packs: [ddb, locked, sys]});
+  const out = await api.cleanPreview({onProgress: p => progress.push(p)});
+  assert.equal(out.ok, true);
+  assert.deepEqual(out.sources.map(s => [s.key, s.writable, s.locked]),
+    [['world', true, false], ['pack:world.ddb', true, false], ['pack:world.locked', false, true], ['pack:dnd5e.items', false, false]]);
+  assert.equal(out.totals.moves, 5, '4 world items (own folders included) + 1 DDB pack item');
+  assert.match(out.sources[2].reason, /locked/);
+  assert.match(out.sources[3].reason, /inspect-only/);
+  assert.deepEqual(progress.at(-1), {done: 4, total: 4, label: ''});
+  assert.equal(progress.length, 5);
+});
+
+test('Clean compendiums: Commit moves only ticked moves, in batches, across places; one Undo puts it all back', async () => {
+  const many = Array.from({length: 600}, (_, n) => ({_id: `P${n}`, name: `Pack item ${n}`, type: 'weapon', folder: null, flags: {}, system: {}}));
+  const pack = mkPack('world.big', {docs: many});
+  const items = loose();
+  const {api, store, calls} = cleanWorld({packs: [pack], items});
+  const prev = await api.cleanPreview();
+  const keys = prev.sources.flatMap(s => s.parts.flatMap(p => p.moves.map(m => api.moveKey(s.key, p.documentName, m.id))));
+  assert.equal(keys.length, 604);
+  const ticked = keys.filter(k => k !== 'world|Item|A');
+  const progress = [];
+  const out = await api.cleanApply({moves: ticked, onProgress: p => progress.push(p.done)});
+  assert.equal(out.moved, 603);
+  assert.equal(items.find(i => i.id === 'A').folder, 'FU', 'unticked move left alone');
+  assert.ok(calls.every(c => c.n <= 250), 'batches of at most 250');
+  assert.deepEqual(calls.filter(c => c.pack === 'world.big').map(c => c.n), [250, 250, 100]);
+  assert.equal(progress.at(-1), 603, 'progress ends at the number written');
+  assert.equal(store[HISTORY_SETTING][0].source, 'clean');
+  const backup = api.cleanBackupOf(prev, ['world|Item|C', 'pack:world.big|Item|P0']);
+  assert.deepEqual(backup.documents.map(d => [d.source, d.id]), [['world', 'C'], ['pack:world.big', 'P0']]);
+  const undo = await api.undoLast();
+  assert.equal(undo.restored, 603);
+  assert.equal(pack.docs[0].folder, null);
+  assert.equal(items.find(i => i.id === 'B').folder, 'FUS');
+});
+
+test('Clean compendiums never moves protected folders, skips moves that changed since preview, and refuses players', async () => {
+  const items = loose();
+  const {api} = cleanWorld({items, folders: [{...userFolder, flags: {[M]: {organizeProtected: true}}}, userSub]});
+  const prev = await api.cleanPreview();
+  const ids = prev.sources[0].parts.find(p => p.documentName === 'Item').moves.map(m => m.id).sort();
+  assert.deepEqual(ids, ['C', 'D'], 'A and B sit in a protected folder (B via its parent)');
+  // Ticking a key for a protected document does nothing.
+  const out = await api.cleanApply({moves: ['world|Item|A', 'world|Item|C']});
+  assert.equal(out.moved, 1);
+  assert.match(out.message, /1 ticked document\(s\) changed since the preview/);
+  assert.equal(items.find(i => i.id === 'A').folder, 'FU');
+  const player = cleanWorld({gm: false});
+  assert.equal((await player.api.cleanPreview()).ok, false);
+  assert.equal((await player.api.cleanApply({moves: ['world|Item|C']})).ok, false);
+  assert.equal((await api.cleanApply({moves: 'world|Item|C'})).ok, false);
+});
+
+test('Clean compendiums button: exact name, preview with ticks, labelled Commit, backup and Cancel', () => {
+  const org = tpl.slice(tpl.indexOf('{{#if organizeActive}}'), tpl.indexOf('{{#if coreLinksActive}}'));
+  assert.match(org, /data-ag-action="clean-scan"><i class="fa-solid fa-broom" aria-hidden="true"><\/i> Clean compendiums<\/button>/);
+  for (const h of ['data-ag-clean-move="{{key}}"', 'data-ag-clean-part="{{partKey}}"', 'data-ag-action="clean-commit"', 'data-ag-action="clean-backup"', 'data-ag-action="clean-cancel"', 'data-ag-clean-status', 'Skipped compendiums'])
+    assert.ok(org.includes(h), h);
+  assert.ok(org.indexOf('data-ag-action="clean-cancel"') < org.indexOf('data-ag-action="clean-commit"'), 'Cancel left, Commit right');
+  assert.match(main, /yes:\{label:`Commit \$\{keys\.length\} move\(s\)`\}/);
+  assert.match(main, /Locked, skipped\. Unlock it in the Compendium sidebar/);
+});
+
 // ---- Markup and wiring ----
 test('top bar: Items replaces Browse, Library, Organize and Core Links; the rail and shared filters are there', () => {
   const nav = tpl.slice(tpl.indexOf('<nav class="ag-tabs'), tpl.indexOf('</nav>'));
@@ -253,7 +340,8 @@ test('Core links: Apply and backup use only ticked rows the filters show; Apply 
 
 test('public API names are unchanged and stay GM-gated; Codex open goes to Items → NPC Codex', () => {
   assert.match(main, /coreLinks:\(\(\{preview,apply,undoLast,history,describeSources,saveSources\}\)/);
-  assert.match(main, /organize:\(\(\{listSources,preview,apply,undoLast,history,getSchema,saveSchema,resetSchema,setFolderProtected,setKeepFolder,housekeeping\}\)/);
+  assert.match(main, /organize:\(\(\{listSources,preview,apply,undoLast,history,getSchema,saveSchema,resetSchema,setFolderProtected,setKeepFolder,housekeeping,cleanPreview,cleanApply\}\)/,
+    'existing names kept; Clean compendiums adds two');
   assert.match(main, /browse:\(\(\{getIndex,search,detail,refresh,loadCompendiums,status,dragData,open\}\)/);
   assert.match(main, /Object\.assign\(activeApp,\{tab:'items',itemsView:'codex',codexFocus:id\}\)/);
   assert.match(main, /if\(!game\.user\?\.isGM\)throw new Error\('Only GMs can open the General Manager\.'\)/);

@@ -252,6 +252,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.orgReport = null;
     this.orgMessage = "Preview shows exactly what would move. Organize only changes which folder a document is in.";
     this.housekeepingMessage = "";
+    this.cleanPreview = null;
+    this.cleanUnticked = new Set();
+    this.cleanStatus = "";
     this.clPreview = null;
     this.clTicked = new Set();
     this.clLinkOnly = new Set();
@@ -856,6 +859,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       // 0.35.1: these org-* actions used to fall through to the Core Links handler, which ignored them silently.
       case "org-preview": case "org-apply": case "org-backup": case "org-undo": case "org-clear": case "org-housekeeping": await this.#organizeAction(name); break;
       case "cl-scan": case "cl-apply": case "cl-backup": case "cl-undo": case "cl-clear": case "setup-save": await this.#coreLinkAction(name); break;
+      case "clean-scan": case "clean-cancel": case "clean-backup": case "clean-commit": await this.#cleanAction(name); break;
       case "org-schema-edit": case "org-schema-save": case "org-schema-cancel": case "org-schema-export": case "org-schema-reset": await this.#organizeAction(name); break;
       case "library-check": this.#runAudit(); this.itemsView="checks";this.libraryMessage="Library check finished: results are listed below."; await this.render(); break;
       case "appearance-save-world": {
@@ -1653,13 +1657,93 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         hasSkipped:x.skipped.length>0,hasUnmatched:x.unmatched.length>0,hasCreates:x.createFolders.length>0,moveCount:x.moves.length}))}:null,
       result:this.orgResult, hasEmpty:Boolean(this.orgResult?.emptyFolders?.length),
       history:api.history().map(h=>({at:h.at.replace('T',' ').slice(0,16),moved:h.moves.length,mode:h.mode==='all'?'Refile everything':'Unfiled and misfiled',
-        source:`${h.source==='world'?'World':h.source.slice(5)}${h.narrowed?' (selection)':''}`})),
+        source:h.source==='clean'?`Clean compendiums (${new Set(h.moves.map(m=>m.source)).size} place(s))`:`${h.source==='world'?'World':h.source.slice(5)}${h.narrowed?' (selection)':''}`})),
       protectedFolders:folders.filter(f=>f.isProtected), openFolders:folders.filter(f=>!f.isProtected),
       rules:schema.rules?.map((r,n)=>({n:n+1,...r,types:(r.types??ORGANIZE_TYPES).map(t=>TYPE_LABEL[t]).join(', '),
         match:Object.entries(r.when??{}).map(([k,v])=>`${k}=${[v].flat().join('|')}`).join(', ')||'anything'}))??[],
       schemaIsDefault:schema.isDefault, schemaText:this.orgSchemaText, editing:this.orgSchemaText!==null,
-      report:this.orgReport
+      report:this.orgReport,
+      clean:this.#cleanContext()
     };
+  }
+  /** Clean compendiums preview (0.36.0): every move grouped by place and document type, each with its own tick. */
+  #cleanContext() {
+    const p=this.cleanPreview, api=organizer();
+    if(!p)return {status:this.cleanStatus,preview:null};
+    const hint=x=>x.locked?'Locked, skipped. Unlock it in the Compendium sidebar (right-click → Toggle Edit Lock), then press Clean compendiums again.'
+      :/inspect-only/.test(x.reason)?'Module or system compendium, skipped: Foundry does not allow changing these. Import its entries into the sidebar or a world compendium to sort them.'
+      :`Skipped: ${x.reason}.`;
+    const sources=p.sources.map(x=>{
+      const parts=x.parts.map(part=>({documentName:part.documentName,label:TYPE_LABEL[part.documentName],partKey:`${x.key}|${part.documentName}`,moveCount:part.moves.length,
+        skippedCount:part.skipped.length,unmatchedCount:part.unmatched.length,inPlace:part.inPlace,createCount:part.createFolders.length,
+        protectedFolders:part.protectedFolders.join(', '),
+        groups:part.groups.map(g=>({path:g.path,count:g.count,rows:g.rows.map(r=>{const key=api.moveKey(x.key,part.documentName,r.id);return {key,name:r.name,from:r.from,checked:!this.cleanUnticked.has(key)};})}))}));
+      return {...x,hint:x.writable?'':hint(x),moveCount:parts.reduce((n,pt)=>n+pt.moveCount,0),parts:parts.filter(pt=>pt.moveCount||pt.skippedCount)};
+    });
+    const ticked=this.#cleanTicked().length;
+    return {status:this.cleanStatus,preview:{totals:p.totals,ticked,skippedSources:sources.filter(x=>!x.writable),
+      withMoves:sources.filter(x=>x.writable&&x.moveCount),clean:sources.filter(x=>x.writable&&!x.moveCount).map(x=>x.label).join(', ')}};
+  }
+  /** Ticked move keys of the Clean compendiums preview. */
+  #cleanTicked() {
+    const p=this.cleanPreview, api=organizer();
+    if(!p)return [];
+    return p.sources.flatMap(x=>x.parts.flatMap(part=>part.moves.map(m=>api.moveKey(x.key,part.documentName,m.id)))).filter(k=>!this.cleanUnticked.has(k));
+  }
+  /** Progress in the Clean card and, where Foundry supports it, a progress notification. */
+  #cleanProgress(first) {
+    let note=null;
+    try{note=ui.notifications?.info?.(first,{progress:true});}catch{note=null;}
+    return (pct,text)=>{
+      this.cleanStatus=text;
+      try{note?.update?.({pct,message:text});}catch{/* older notification API: the card text still updates */}
+      const el=this.element?.querySelector('[data-ag-clean-status]');if(el)el.textContent=text;
+    };
+  }
+  async #cleanAction(name) {
+    const api=organizer();
+    const say=(text,error=false)=>{this.cleanStatus=text;toast(text,error);};
+    switch(name){
+      case 'clean-scan': {
+        const progress=this.#cleanProgress('Clean compendiums: reading the world and compendiums…');
+        this.busy=true;
+        try{
+          const out=await api.cleanPreview({onProgress:({done,total,label})=>progress(total?done/total:1,label?`Reading ${label} (${done+1} of ${total})…`:'Read everything.')});
+          if(!out.ok){say(out.message,true);break;}
+          this.cleanPreview=out;this.cleanUnticked=new Set();
+          const places=out.sources.filter(x=>x.writable).length;
+          say(out.totals.moves?`Clean compendiums: ${out.totals.moves} document(s) in ${places} place(s) are not in their folder. Untick any to leave, then Commit. Nothing has moved yet.${out.skippedSources?` ${out.skippedSources} compendium(s) skipped (see below).`:''}`
+            :`Everything checked is already in its folder (${places} place(s)).${out.skippedSources?` ${out.skippedSources} compendium(s) skipped (see below).`:''} Nothing changed.`);
+        }finally{this.busy=false;}
+        break;
+      }
+      case 'clean-cancel': this.cleanPreview=null;this.cleanUnticked=new Set();this.cleanStatus='Clean preview cleared. Nothing changed.';break;
+      case 'clean-backup': {
+        const keys=this.#cleanTicked();
+        if(!keys.length)return say('Press Clean compendiums and leave at least one move ticked first.',true);
+        downloadJson(`AG_Clean_Backup_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`,api.cleanBackupOf(this.cleanPreview,keys));
+        say(`Downloaded the current folders of the ${keys.length} ticked document(s). Nothing changed.`);break;
+      }
+      case 'clean-commit': {
+        const keys=this.#cleanTicked();
+        if(!keys.length)return say('Nothing is ticked to move.',true);
+        const places=new Set(keys.map(k=>k.split('|')[0])).size;
+        const yes=await DialogV2.confirm({window:{title:'Clean compendiums'},modal:true,rejectClose:false,
+          content:`<p><strong>Move ${keys.length} ticked document(s) in ${places} place(s) into the folders shown?</strong> Missing folders are created.</p><p>Only the folder changes; nothing is renamed, edited or deleted, and protected folders are not touched. Download the backup first if you want a file copy. You can <strong>Undo last organize</strong> afterwards.</p>`,
+          yes:{label:`Commit ${keys.length} move(s)`},no:{label:'Cancel'}});
+        if(!yes)return;
+        const progress=this.#cleanProgress(`Clean compendiums: moving ${keys.length} document(s)…`);
+        this.busy=true;
+        try{
+          const out=await api.cleanApply({moves:keys,onProgress:({done,total})=>progress(total?done/total:1,`Moved ${done} of ${total}…`)});
+          if(!out.ok){say(out.message,true);break;}
+          this.cleanPreview=null;this.cleanUnticked=new Set();this.orgPreview=null;
+          say(`${out.message} Undo last organize puts this whole run back.`,out.notes.length>0);
+        }finally{this.busy=false;}
+        break;
+      }
+    }
+    await this.render();
   }
   /** Items tab: rail and the shared filter bar (kept across rail entries). */
   #bindItems(root) {
@@ -1709,6 +1793,20 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       this.orgPreview=null;void this.render();
     }));
     root.querySelector('[data-ag-org-mode]')?.addEventListener('change',e=>{this.orgMode=e.target.value;this.orgPreview=null;this.orgMessage='Move option changed. Press Preview to see what would move.';void this.render();});
+    // Clean compendiums ticks: no re-render (a preview can hold thousands of rows), just the counter and Commit label.
+    const cleanCount=()=>{const n=this.#cleanTicked().length;root.querySelectorAll('[data-ag-clean-count]').forEach(el=>{el.textContent=String(n);});
+      root.querySelectorAll('[data-ag-clean-needs-ticks]').forEach(el=>{el.disabled=!n;});};
+    root.querySelectorAll('[data-ag-clean-move]').forEach(el=>el.addEventListener('change',e=>{
+      if(e.target.checked)this.cleanUnticked.delete(e.target.dataset.agCleanMove);else this.cleanUnticked.add(e.target.dataset.agCleanMove);cleanCount();
+    }));
+    root.querySelectorAll('[data-ag-clean-part]').forEach(el=>el.addEventListener('click',e=>{
+      e.preventDefault();
+      const on=el.dataset.on==='true';
+      root.querySelectorAll(`[data-ag-clean-move^="${CSS.escape(el.dataset.agCleanPart)}|"]`).forEach(box=>{
+        box.checked=on;if(on)this.cleanUnticked.delete(box.dataset.agCleanMove);else this.cleanUnticked.add(box.dataset.agCleanMove);
+      });
+      cleanCount();
+    }));
     root.querySelector('[data-ag-org-schema-text]')?.addEventListener('input',e=>{this.orgSchemaText=e.target.value;});
     root.querySelectorAll('[data-ag-org-keep]').forEach(el=>el.addEventListener('click',e=>{
       e.preventDefault();
@@ -2223,7 +2321,8 @@ Hooks.once("ready",()=>{
     // GM-only organize folders (0.25.0); every function checks the GM itself. Only the folder field is ever written.
     // GM-only core links (0.26.0): link AG world Items with core_ref to 2024 core items; every function checks the GM itself.
     coreLinks:(({preview,apply,undoLast,history,describeSources,saveSources})=>({preview,apply,undoLast,history,describeSources,saveSources}))(coreLinks()),
-    organize:(({listSources,preview,apply,undoLast,history,getSchema,saveSchema,resetSchema,setFolderProtected,setKeepFolder,housekeeping})=>({listSources,preview,apply,undoLast,history,getSchema,saveSchema,resetSchema,setFolderProtected,setKeepFolder,housekeeping}))(organizer()),
+    // 0.36.0 adds cleanPreview/cleanApply (Clean compendiums); existing names unchanged.
+    organize:(({listSources,preview,apply,undoLast,history,getSchema,saveSchema,resetSchema,setFolderProtected,setKeepFolder,housekeeping,cleanPreview,cleanApply})=>({listSources,preview,apply,undoLast,history,getSchema,saveSchema,resetSchema,setFolderProtected,setKeepFolder,housekeeping,cleanPreview,cleanApply}))(organizer()),
     // GM-only, read-only Browse index (0.24.0); every function checks the GM itself.
     browse:(({getIndex,search,detail,refresh,loadCompendiums,status,dragData,open})=>({getIndex,search,detail,refresh,loadCompendiums,status,dragData,open}))(browse()),
     scenes:(({listMoods,getState,applyMood,addLayer,removeEffect,restore,applyDraft,toggleFavourite,savePreset,removePreset,resetDefaults,exportPresets,previewImport,importPresets})=>({listMoods,getState,applyMood,addLayer,removeEffect,restore,applyDraft,toggleFavourite,savePreset,removePreset,resetDefaults,exportPresets,previewImport,importPresets}))(sceneMoods()),

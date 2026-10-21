@@ -429,3 +429,6 @@
 .ag-rarity--legendary{--ag-rarity-color:var(--ag-rarity-legendary)}.ag-rarity--artifact{--ag-rarity-color:var(--ag-rarity-artifact)}
 .ag-rarity-option--common{color:var(--ag-text)}.ag-rarity-option--uncommon{color:var(--ag-rarity-uncommon)}.ag-rarity-option--rare{color:var(--ag-rarity-rare)}
 .ag-rarity-option--veryrare{color:var(--ag-rarity-veryrare)}.ag-rarity-option--legendary{color:var(--ag-rarity-legendary)}.ag-rarity-option--artifact{color:var(--ag-rarity-artifact)}
+.ashen-gate-manager .agclean{border-color:var(--ag-accent)}
+.ashen-gate-manager .agclean-go{font-size:var(--ag-text-md);padding:6px 16px}
+.ashen-gate-manager .agclean-part{margin:6px 0 10px}

@@ -444,6 +444,52 @@
 
       {{#if organizeActive}}
       <div class="agmanager-panel agmanager-organize">
+        <section class="ag-card agclean" aria-label="Clean compendiums">
+          <div class="agmanager-row agmanager-row-wrap"><h3>Clean compendiums <span class="agmanager-beta">GM only</span></h3>
+            <button type="button" class="ag-btn ag-btn--primary agclean-go" data-ag-action="clean-scan"><i class="fa-solid fa-broom" aria-hidden="true"></i> Clean compendiums</button></div>
+          <p class="agmanager-tiny">One click checks the world sidebar (Items, Actors, Journals) and every compendium against the folder rules below (Ashen Gate, Core 5.5e, Homebrew) and lists every document that is not in its folder, including whole imported sets (DDB, Plutonium) sitting in their own folders. Nothing moves until you <strong>Commit</strong>. The filters above do not apply here. Protected folders, Keep here, player characters and player-owned actors are never moved. Locked, module and system compendiums cannot be changed: they are listed as skipped with what you can do.</p>
+          <p class="agmanager-tiny" role="status" data-ag-clean-status>{{org.clean.status}}</p>
+          {{#with org.clean.preview}}
+          <div class="agmanager-row agmanager-row-wrap">
+            <span class="agmanager-chip">To move: {{totals.moves}}</span>
+            <span class="agmanager-chip">Ticked: <span data-ag-clean-count>{{ticked}}</span></span>
+            <span class="agmanager-chip">New folders: {{totals.createFolders}}</span>
+            <span class="agmanager-chip">Already in place: {{totals.inPlace}}</span>
+            <span class="agmanager-chip">Skipped (protected / Keep here / left alone): {{totals.skipped}}</span>
+            <span class="agmanager-chip">No rule: {{totals.unmatched}}</span>
+          </div>
+          {{#each withMoves}}
+          <div class="agmanager-org-part">
+            <h4>{{label}} — {{moveCount}} to move</h4>
+            {{#each parts}}
+            <div class="agclean-part">
+              <div class="agmanager-row agmanager-row-wrap"><strong>{{label}}: {{moveCount}} to move</strong>{{#if createCount}}<span class="agmanager-tiny">{{createCount}} new folder(s)</span>{{/if}}
+                <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-clean-part="{{partKey}}" data-on="true">Tick all</button>
+                <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-clean-part="{{partKey}}" data-on="false">Untick all</button></div>
+              {{#if skippedCount}}<p class="agmanager-tiny">{{skippedCount}} skipped (protected folder, Keep here, or a rule that leaves them alone){{#if protectedFolders}}: protected {{protectedFolders}}{{/if}}.</p>{{/if}}
+              {{#each groups}}
+              <details class="agmanager-org-group"><summary>→ <strong>{{path}}</strong> ({{count}})</summary>
+                <table class="agmanager-table"><thead><tr><th>Move</th><th>Document</th><th>From</th></tr></thead><tbody>
+                {{#each rows}}<tr><td><input type="checkbox" data-ag-clean-move="{{key}}" {{#if checked}}checked{{/if}} aria-label="Move {{name}}"></td><td>{{name}}</td><td>{{from}}</td></tr>{{/each}}
+                </tbody></table>
+              </details>
+              {{/each}}
+            </div>
+            {{/each}}
+          </div>
+          {{/each}}
+          {{#if clean}}<p class="agmanager-tiny">Already sorted: {{clean}}.</p>{{/if}}
+          {{#if skippedSources.length}}<details class="agmanager-org-group" open><summary>Skipped compendiums ({{skippedSources.length}})</summary><ul>
+            {{#each skippedSources}}<li><strong>{{label}}</strong>: {{#if locked}}locked, skipped. {{/if}}{{hint}}</li>{{/each}}</ul></details>{{/if}}
+          <footer class="agmanager-row agmanager-mood-footer">
+            <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="clean-cancel">Cancel</button>
+            <span class="agmanager-row">
+              <button type="button" class="ag-btn" data-ag-action="clean-backup" data-ag-clean-needs-ticks {{#unless ticked}}disabled{{/unless}}><i class="fa-solid fa-download"></i> Download backup</button>
+              <button type="button" class="ag-btn ag-btn--primary" data-ag-action="clean-commit" data-ag-clean-needs-ticks {{#unless ticked}}disabled{{/unless}}><i class="fa-solid fa-broom"></i> Commit (<span data-ag-clean-count>{{ticked}}</span>)…</button>
+            </span>
+          </footer>
+          {{/with}}
+        </section>
         <section class="ag-card" aria-label="Organize folders">
           <h3>Organize folders <span class="agmanager-beta">GM only</span></h3>
           <p><strong>Where:</strong> {{org.whereLabel}}{{#unless org.whereWritable}} <span class="ag-badge ag-badge--warn">inspect only: {{org.whereReason}}</span>{{/unless}}
