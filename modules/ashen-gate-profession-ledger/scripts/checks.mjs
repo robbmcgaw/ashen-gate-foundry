@@ -31,7 +31,15 @@ export const DEFAULT_PROFESSION_TOOLS=Object.freeze({alchemy:'alchemist',blacksm
   mining:'mason',huntingskinning:'leatherworker',enchanting:'',archaeology:'',fishing:''});
 /** GM Setup defaults: the skill a profession can roll instead of (or beside) its tool. Gathering professions use it to
  * gather; Enchanting is the one crafting profession whose main check is a skill (Arcana). The GM can change or clear it. */
-export const DEFAULT_GATHER_SKILLS=Object.freeze({herbalism:'nat',huntingskinning:'sur',archaeology:'his',fishing:'',mining:'',enchanting:'arc'});
+export const DEFAULT_GATHER_SKILLS=Object.freeze({herbalism:'nat',huntingskinning:'sur',archaeology:'his',fishing:'sur',mining:'',enchanting:'arc'});
+/** 0.22.0 migration of the saved checkMapping (version 0 → 1): Fishing's check skill default became Survival. Before 0.22.0
+ * every Save wrote the old default (fishing: '') with the rest, so a saved '' is that old default and becomes 'sur'.
+ * Nothing else is touched. Returns the new value, or null when there is nothing to change. Safe to run again. */
+export function migrateCheckMapping(stored){
+  const s=stored&&typeof stored==='object'?stored:null;
+  if(!s||!s.skills||typeof s.skills!=='object'||s.skills.fishing!=='')return null;
+  return {...s,skills:{...s.skills,fishing:'sur'}};
+}
 /** Stored GM choices win over defaults; an explicit '' means "none".
  * 0.16.0 crosswalk (AG-F01), additive: per profession, the skills and tools whose proficiency qualifies a character
  * (any-of), and the advantage tools (proficiency with, or carrying, one gives advantage on that profession's checks).
@@ -39,9 +47,11 @@ export const DEFAULT_GATHER_SKILLS=Object.freeze({herbalism:'nat',huntingskinnin
  * An explicit [] means "none". `gm` holds only the GM's saved lists. Checks use the GM's and the baseline file's
  * advantage tools, never the catalog's, so an unconfigured profession rolls exactly as before. */
 export const CROSSWALK_LISTS=Object.freeze(['qualifySkills','qualifyTools','advantageTools','items']);
-/** 0.20.0: core items that qualify a character by being carried (name, or a core/Item UUID). Fishing Tackle is core 5.5e
- * adventuring gear, not a tool, so Fishing qualifies by carrying it. */
-export const DEFAULT_QUALIFY_ITEMS=Object.freeze({fishing:Object.freeze(['Fishing Tackle'])});
+/** 0.20.0: core items that qualify a character by being carried (name, or a core/Item UUID). 0.22.0: none built in (Fishing
+ * is accessed by the Survival skill instead); `items` from saved GM edits, the catalog or a baseline file still count. */
+export const DEFAULT_QUALIFY_ITEMS=Object.freeze({});
+/** 0.22.0: built-in qualifying skills for professions with no check skill to seed them. Fishing is accessed by Survival. */
+export const DEFAULT_QUALIFY_SKILLS=Object.freeze({fishing:Object.freeze(['sur'])});
 const TOOL_KEY=/^[a-z][a-z0-9]*$/;
 const ITEM_REF=v=>v.trim().length>0&&v.trim().length<=200;
 const cleanList=(v,valid)=>Array.isArray(v)?[...new Set(v.filter(x=>typeof x==='string'&&valid(x)))]:null;
@@ -67,7 +77,7 @@ export function effectiveMapping(stored,{catalog=null,baseline=null}={}){
   const out={tools,skills,gm,qualifySkills:{},qualifyTools:{},advantageTools:{},items:{},origin:{}};
   for(const k of keys){
     const cat=catalog?.[k]??null,file=baseline?.[k]??null;
-    const base={qualifySkills:skills[k]?[skills[k]]:[],qualifyTools:tools[k]?[tools[k]]:[],advantageTools:[],items:[...(DEFAULT_QUALIFY_ITEMS[k]??[])]};
+    const base={qualifySkills:skills[k]?[skills[k]]:[...(DEFAULT_QUALIFY_SKILLS[k]??[])],qualifyTools:tools[k]?[tools[k]]:[],advantageTools:[],items:[...(DEFAULT_QUALIFY_ITEMS[k]??[])]};
     out.origin[k]={};
     for(const list of CROSSWALK_LISTS){
       const fileList=file?cleanCrosswalkList(list,file[list]):null;
@@ -78,6 +88,11 @@ export function effectiveMapping(stored,{catalog=null,baseline=null}={}){
   }
   return out;
 }
+
+/** 0.22.0: advantage tools apply to gathering professions only. Crafting checks get none, whatever is saved or loaded
+ * for them (the data is kept, just not used). */
+export const GATHERING_PROFESSION_KEYS=Object.freeze(['archaeology','fishing','herbalism','huntingskinning','mining']);
+export const advantageToolsOf=(map,key)=>GATHERING_PROFESSION_KEYS.includes(key)?[...(map?.advantageTools?.[key]??[])]:[];
 
 const dnd5eTools=()=>globalThis.CONFIG?.DND5E?.tools??{};
 export const toolKeys=()=>[...new Set([...Object.keys(TOOL_LABELS),...Object.keys(dnd5eTools())])].sort((a,b)=>toolLabel(a).localeCompare(toolLabel(b)));

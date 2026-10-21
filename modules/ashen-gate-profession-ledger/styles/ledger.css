@@ -149,4 +149,5 @@
 .agl-multi-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:2px var(--ag-space-2);padding:var(--ag-space-1) 0}
 .agl-multi-list label{display:flex;gap:4px;align-items:center;white-space:nowrap}
 .agl-map td small.agl-sub{display:block}
+.agl-map tr.agl-map-group th{padding:var(--ag-space-3) var(--ag-space-2) 4px;font-weight:700;letter-spacing:.04em;border-top:2px solid var(--ag-border);border-bottom:2px solid var(--ag-border)}
 .agl-assign-actor th{padding-top:var(--ag-space-2)}

@@ -1,3 +1,15 @@
+## 0.22.0 — 2026-10-21
+
+- **GM Setup → Tools and checks is simpler.** One row per profession, in two groups (*Crafting professions*, then *Gathering professions*), with three columns: **Skill to Access**, **Tool to Access** and **Tool for Advantage** (gathering rows only; crafting rows show a dash). Each cell is one dropdown with *None*. Either the skill or the tool qualifies a character in Assign, as before.
+- The separate Tool / Check skill columns are gone. Picking a Tool to Access also sets the profession's check tool (the craft tool when a recipe names none, and the gather tool check). For gathering professions and Enchanting, picking a Skill to Access also sets the check skill. A list with several values (from a baseline file, the catalog or an older edit) shows as **Several (n)**, with the values on hover, and is kept until you pick something else in that cell.
+- Removed: the Qualifying items column, the tick-box pickers, and the “set by you / from the check tool/skill / built in” notes. **Reset** puts a row back to the default.
+- Names: the table, Assign and the gathering windows show **Hunting** (was Hunting/Skinning) and no “gathering” tag. Profession keys and ids are unchanged (`huntingskinning`).
+- **Fishing uses the Survival skill** by default, both for access and as its gather check skill. Fishing Tackle is no longer a built-in qualifying item.
+- Carried items (0.20.0) have no UI any more. An `items` list in saved GM edits, the catalog or a baseline file still qualifies, as before. Export writes `items` only where a profession has one.
+- **Advantage tools apply to gathering professions only.** Crafting checks never get advantage from them. Any advantage tools saved or loaded (baseline file) for a crafting profession are kept but ignored.
+- **Fix: the window no longer jumps to the top.** Every dropdown change or button click re-draws the window, which replaced the scrolling area and reset it to the top (Gathering, GM Setup and every other tab). The scroll position, and the Tools and checks table's sideways scroll, are now kept when the same tab re-draws; switching to another tab still starts at the top.
+- Saved data: same shape. One migration, run once by the GM's client (world setting `checkMappingVersion` 0 → 1): a saved Fishing check skill of “none” (the old default, which every earlier Save wrote) becomes Survival. Any other saved Fishing skill, and everything else, is kept.
+
 ## 0.21.0 — 2026-10-20
 
 - **Gathering requests wait in a queue.** A player's **Request gather** (on a node they can see, for a character they own) no longer opens a popup on the GM's screen. It appears under **Requests** at the top of the GM's Gathering tab, with the node, helpers, and a profession or level warning when there is one.

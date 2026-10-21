@@ -373,8 +373,13 @@ test('recipes: tool, workstation or the profession’s tool; warning when not ca
  assert.match(row('[TEST] Stew'),/Workstation: \[TEST\] Kitchen/);assert.doesNotMatch(row('[TEST] Stew'),/Alchemist/,'workstation recipes need no tool');
  assert.match(row('[TEST] Tonic'),/Alchemist’s Supplies/,'no tool given: the profession’s tool');
  belwar.nextRoll=14;rolls.length=0;
+ // 0.22.0: advantage tools configured for a crafting profession are ignored (Belwar is proficient with this one).
+ const savedMapping=values.checkMapping;values.checkMapping={...(savedMapping??{}),advantageTools:{alchemy:['herb']}};
+ belwar.system.tools??={};const savedHerb=belwar.system.tools.herb;belwar.system.tools.herb={value:1};
  await app._click('craft','REC-TG-BREW',{actor:'belwar'});
+ belwar.system.tools.herb=savedHerb;if(savedHerb===undefined)delete belwar.system.tools.herb;values.checkMapping=savedMapping;
  assert.match(FakeDialog.last.content,/Alchemist’s Supplies check/);assert.match(FakeDialog.last.content,/also costs 5 gp — not deducted/i);
+ assert.doesNotMatch(FakeDialog.last.content,/Advantage: Herbalism Kit/,'no advantage hint on a craft');
  assert.deepEqual(rolls.at(-1),{actor:'belwar',tool:'alchemist',advantage:false,disadvantage:false});
  const card=chats.at(-1);assert.match(card.content,/crafted \[TEST\] Brew/);assert.match(card.content,/Alchemist’s Supplies check:<\/strong> 14/);
  assert.equal(card.flags['ashen-gate-profession-ledger'].xp.kind,'craft');assert.equal(card.flags['ashen-gate-profession-ledger'].xp.professionId,'PROF-TG-ALCHEMY');
@@ -384,10 +389,9 @@ test('recipes: tool, workstation or the profession’s tool; warning when not ca
 test('GM Setup maps profession → tool and gathering skill; saved with Save Changes',async()=>{
  game.user=gm;
  const h=await html('gm');
- assert.match(h,/Tools and checks/);assert.match(h,/data-map-tool="alchemy"/);assert.match(h,/data-map-skill="herbalism"/);
- assert.doesNotMatch(h,/data-map-skill="alchemy"/,'crafting professions have no gathering skill');
+ assert.match(h,/Tools and checks/);assert.match(h,/data-map-cell="qualifyTools" data-map-prof="alchemy"/);assert.match(h,/data-map-cell="qualifySkills" data-map-prof="herbalism"/);
  app.element={querySelector:()=>null,querySelectorAll:s=>s.includes('roster-actor')?[{dataset:{rosterActor:'belwar'},checked:true},{dataset:{rosterActor:'tarra'},checked:true}].filter(x=>s.endsWith(']')||x.checked):[]};
- app._rememberMapDraft({dataset:{mapTool:'alchemy'},value:'herb'});
+ app._rememberMapDraft({dataset:{mapCell:'qualifyTools',mapProf:'alchemy'},value:'herb'});
  assert.equal(app.mapDirty,true);assert.equal(app.setupStatus,'Unsaved tool and check changes');
  await app._click('roster-save');
  assert.equal(values.checkMapping.tools.alchemy,'herb');assert.deepEqual(values.partyRoster,['belwar','tarra']);
@@ -565,4 +569,22 @@ test('0.21.0: GM Send label, GM cannot request, stale approvals are removed, a G
  await _test.onSocket({type:'gather-requests-cleared'},'u2');assert.equal(_test.myGatherRequests.size,1,'only the GM can clear');
  await _test.onSocket({type:'gather-requests-cleared'},'gm');assert.equal(_test.myGatherRequests.size,0);assert.ok(infos.some(m=>/GM reloaded/.test(m)));
  game.user=gm;app.gather.nodeRef='';locs[0].resources.pop();
+});
+
+test('0.22.0: a re-render keeps the scroll position of the same tab (Gathering, GM Setup tables); a new tab starts at the top',async()=>{
+ const fakeEl=(top=0,lefts=[0])=>{const wraps=lefts.map(scrollLeft=>({scrollLeft}));const main={scrollTop:top,querySelectorAll:s=>s==='.agl-map-wrap'?wraps:[]};
+  return {main,wraps,querySelector:s=>s==='.agl-main'?main:null};};
+ const saved=app.element;
+ try{
+  app.view='gathering';app._renderedView='gathering';
+  app.element=fakeEl(640,[]);await app._preRender({},{});
+  let next=fakeEl();app.element=next;app._restoreScroll();
+  assert.equal(next.main.scrollTop,640,'Gathering stays put after an action');
+  app.view='gm';app._renderedView='gm';app.element=fakeEl(900,[120]);await app._preRender({},{});
+  next=fakeEl(0,[0]);app.element=next;app._restoreScroll();
+  assert.equal(next.main.scrollTop,900);assert.equal(next.wraps[0].scrollLeft,120,'the Tools and checks table keeps its sideways scroll');
+  app.element=fakeEl(500,[]);await app._preRender({},{});app.view='party';
+  next=fakeEl();app.element=next;app._restoreScroll();
+  assert.equal(next.main.scrollTop,0,'switching tab starts at the top');
+ }finally{app.element=saved;}
 });

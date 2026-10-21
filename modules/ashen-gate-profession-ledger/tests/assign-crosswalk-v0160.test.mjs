@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {pathToFileURL,fileURLToPath} from 'node:url';
 import path from 'node:path';
-import {effectiveMapping,rollModeFor} from '../scripts/checks.mjs';
-import {PROFESSION_KEYS,catalogCrosswalk,unmappedProfessions,qualifications,assignmentPlan} from '../scripts/assign.mjs';
+import {effectiveMapping,rollModeFor,professionKey,migrateCheckMapping,advantageToolsOf} from '../scripts/checks.mjs';
+import {PROFESSION_KEYS,professionTitle,catalogCrosswalk,unmappedProfessions,qualifications,assignmentPlan} from '../scripts/assign.mjs';
 // 0.16.0 (AG-F01): configurable profession crosswalk and GM-only profession assignment from proficiencies.
 const hooks={},errors=[],infos=[];let api,confirmAnswer=true;
 const values={partyRoster:['ana','bo'],libraryData:{schema:'ag-ledger/0.1',recipes:[],materials:[]},checkMapping:{}};
@@ -49,14 +49,15 @@ await import(pathToFileURL(entry));hooks.init();hooks.ready();
 const app=api.open({view:'assign'});
 const html=async view=>{app.view=view;return (await app._prepareContext({})).html;};
 
-test('crosswalk defaults cover all 14 professions; Fishing qualifies only by carrying Fishing Tackle (0.20.0)',()=>{
+test('crosswalk defaults cover all 14 professions; Fishing is accessed by Survival, no built-in items (0.22.0)',()=>{
   const map=effectiveMapping({});
   assert.equal(PROFESSION_KEYS.length,14);
   for(const k of PROFESSION_KEYS)for(const l of ['qualifySkills','qualifyTools','advantageTools'])assert.ok(Array.isArray(map[l][k]),`${k} ${l}`);
   assert.deepEqual(map.qualifyTools.alchemy,['alchemist']);assert.deepEqual(map.qualifySkills.enchanting,['arc']);
   assert.deepEqual(map.qualifySkills.huntingskinning,['sur']);assert.deepEqual(map.qualifyTools.mining,['mason']);
   assert.deepEqual(map.advantageTools.herbalism,[],'no advantage tools by default');
-  assert.deepEqual(map.qualifySkills.fishing,[]);assert.deepEqual(map.qualifyTools.fishing,[]);assert.deepEqual(map.items.fishing,['Fishing Tackle']);
+  assert.deepEqual(map.qualifySkills.fishing,['sur']);assert.deepEqual(map.qualifyTools.fishing,[]);assert.deepEqual(map.items.fishing,[]);
+  assert.equal(map.skills.fishing,'sur','Survival is also the Fishing gather check by default');
   assert.deepEqual(unmappedProfessions(map),[]);
 });
 
@@ -160,21 +161,76 @@ test('GM gate: players are refused in the API, and do not see the Assign tab',as
   }finally{game.user=gm;}
 });
 
-test('GM Setup table: qualifying and advantage columns, saved additively over the old shape',async()=>{
+test('GM Setup table (0.22.0): one dropdown per cell, crafting and gathering groups, saved additively over the old shape',async()=>{
   app.mapDraft=null;
   const h=await html('gm');
-  assert.match(h,/Qualifying skills/);assert.match(h,/Advantage tools/);
-  assert.match(h,/data-map-list="advantageTools" data-map-prof="herbalism" value="herb"/);
-  assert.match(h,/Catalog suggests Herbalism Kit; tick to use/);
+  assert.match(h,/<th>Profession<\/th><th>Skill to Access<\/th><th>Tool to Access<\/th><th>Tool for Advantage<\/th>/);
+  assert.ok(h.indexOf('Crafting professions')<h.indexOf('>Alchemy<')&&h.indexOf('>Tailoring<')<h.indexOf('Gathering professions')&&h.indexOf('Gathering professions')<h.indexOf('>Archaeology<'));
+  assert.match(h,/<th scope="row">Hunting<\/th>/);assert.doesNotMatch(h,/Hunting\/Skinning|<small class="agl-sub">gathering/);
+  assert.doesNotMatch(h,/Qualifying items|data-map-items|agl-multi|set by you|from the check tool|built in<\/small>/);
+  assert.match(h,/data-map-cell="advantageTools" data-map-prof="herbalism"/);assert.doesNotMatch(h,/data-map-cell="advantageTools" data-map-prof="alchemy"/,'crafting rows show a dash');
+  assert.match(h,/data-map-cell="qualifySkills" data-map-prof="fishing"[^>]*>\s*<option value="" >None<\/option>[\s\S]*?<option value="sur" selected>/);
   app.element={querySelector:()=>null,querySelectorAll:()=>[]};app.rosterDraft=new Set(values.partyRoster);
-  app._rememberMapDraft({dataset:{mapList:'advantageTools',mapProf:'herbalism'},value:'herb',checked:true});
-  app._rememberMapDraft({dataset:{mapList:'qualifySkills',mapProf:'fishing'},value:'sur',checked:true});
+  app._rememberMapDraft({dataset:{mapCell:'qualifySkills',mapProf:'herbalism'},value:'nat'});
+  assert.equal(app.mapDirty,false,'picking what is shown is not an edit');
+  app._rememberMapDraft({dataset:{mapCell:'advantageTools',mapProf:'herbalism'},value:'herb'});
+  app._rememberMapDraft({dataset:{mapCell:'qualifySkills',mapProf:'fishing'},value:'nat'});
+  app._rememberMapDraft({dataset:{mapCell:'qualifyTools',mapProf:'mining'},value:'smith'});
   assert.equal(app.mapDirty,true);
   await app._click('roster-save');
   assert.deepEqual(values.checkMapping.advantageTools,{herbalism:['herb']});
-  assert.deepEqual(values.checkMapping.qualifySkills,{fishing:['sur']});
+  assert.deepEqual(values.checkMapping.qualifySkills,{fishing:['nat']});assert.equal(values.checkMapping.skills.fishing,'nat','the gather check follows');
+  assert.deepEqual(values.checkMapping.qualifyTools,{mining:['smith']});assert.equal(values.checkMapping.tools.mining,'smith','the check tool follows');
   assert.equal(values.checkMapping.tools.alchemy,'alchemist','old fields still saved');
   assert.deepEqual(unmappedProfessions(effectiveMapping(values.checkMapping)),[]);
-  await app._click('map-reset','fishing');await app._click('roster-save');
-  assert.deepEqual(values.checkMapping.qualifySkills,{});
+  await app._click('map-reset','fishing');await app._click('map-reset','mining');await app._click('roster-save');
+  assert.deepEqual(values.checkMapping.qualifySkills,{});assert.deepEqual(values.checkMapping.qualifyTools,{});
+  assert.equal(values.checkMapping.skills.fishing,'sur');assert.equal(values.checkMapping.tools.mining,'mason','Reset goes back to the default');
+  assert.deepEqual(effectiveMapping(values.checkMapping).qualifySkills.fishing,['sur']);
+});
+
+test('GM Setup table (0.22.0): a saved list of several shows "Several (n)" and is kept until that cell changes; a crafting skill sets no craft check',async()=>{
+  values.checkMapping={...values.checkMapping,qualifyTools:{alchemy:['alchemist','herb']},items:{cooking:['[TEST] Pan']}};
+  app.mapDraft=null;
+  const h=await html('gm');
+  assert.match(h,/data-map-cell="qualifyTools" data-map-prof="alchemy"[^>]*title="Alchemist’s Supplies, Herbalism Kit · Check uses Alchemist’s Supplies"/);
+  assert.match(h,/<option value="__several__" selected>Several \(2\)<\/option>/);
+  app._rememberMapDraft({dataset:{mapCell:'qualifySkills',mapProf:'alchemy'},value:'arc'});
+  await app._click('roster-save');
+  assert.deepEqual(values.checkMapping.qualifyTools.alchemy,['alchemist','herb'],'untouched cell kept');
+  assert.deepEqual(values.checkMapping.qualifySkills.alchemy,['arc']);assert.equal(values.checkMapping.skills.alchemy,undefined,'no craft check skill added');
+  assert.deepEqual(values.checkMapping.items,{cooking:['[TEST] Pan']},'legacy items kept');
+  app._rememberMapDraft({dataset:{mapCell:'qualifyTools',mapProf:'alchemy'},value:'alchemist'});
+  app._rememberMapDraft({dataset:{mapCell:'qualifyTools',mapProf:'alchemy'},value:'__several__'});
+  assert.equal(app.mapDirty,false,'choosing Several again restores the saved list');
+  app._rememberMapDraft({dataset:{mapCell:'qualifyTools',mapProf:'alchemy'},value:''});
+  await app._click('roster-save');
+  assert.deepEqual(values.checkMapping.qualifyTools.alchemy,[]);assert.equal(values.checkMapping.tools.alchemy,'');
+  values.checkMapping={};app.mapDraft=null;
+});
+
+
+test('0.22.0: Hunting/Skinning is shown as Hunting; keys and name matching are unchanged',()=>{
+  assert.equal(professionTitle('huntingskinning'),'Hunting');assert.equal(professionTitle('fishing'),'Fishing');
+  for(const n of ['Hunting','Hunting/Skinning','Hunting & Skinning','Skinning & Harvesting'])assert.equal(professionKey(n),'huntingskinning');
+  assert.ok(PROFESSION_KEYS.includes('huntingskinning'));
+});
+
+test('0.22.0 migration: a saved Fishing check skill of "" (the old default) becomes Survival; nothing else changes; re-runnable',()=>{
+  const old={tools:{alchemy:'herb'},skills:{fishing:'',mining:'',herbalism:'med'},qualifyTools:{alchemy:['herb']},items:{cooking:['[TEST] Pan']}};
+  const next=migrateCheckMapping(old);
+  assert.deepEqual(next,{...old,skills:{fishing:'sur',mining:'',herbalism:'med'}});assert.equal(old.skills.fishing,'','input not mutated');
+  assert.equal(migrateCheckMapping(next),null,'running again changes nothing');
+  assert.equal(migrateCheckMapping({skills:{fishing:'nat'}}),null,'a GM choice is kept');
+  assert.equal(migrateCheckMapping({}),null);assert.equal(migrateCheckMapping(null),null);
+  assert.equal(effectiveMapping(next).skills.fishing,'sur');assert.deepEqual(effectiveMapping(next).qualifySkills.fishing,['sur']);
+});
+
+test('0.22.0: advantage tools apply to gathering professions only; a crafting profession with some configured gets none',()=>{
+  const map=effectiveMapping({advantageTools:{alchemy:['herb'],herbalism:['herb']}},{baseline:{cooking:{advantageTools:['cook']}}});
+  assert.deepEqual(map.advantageTools.alchemy,['herb'],'saved data is kept');
+  assert.deepEqual(advantageToolsOf(map,'alchemy'),[]);assert.deepEqual(advantageToolsOf(map,'cooking'),[],'baseline file too');
+  assert.deepEqual(advantageToolsOf(map,'herbalism'),['herb']);
+  const actor={system:{skills:{},tools:{herb:{value:1},alchemist:{value:1}},abilities:{}},items:[]};
+  assert.equal(rollModeFor(actor,{kind:'tool',key:'alchemist'},{advantageTools:advantageToolsOf(map,'alchemy')}).mode,0,'no advantage on a craft check');
 });
