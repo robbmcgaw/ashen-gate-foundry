@@ -1,6 +1,6 @@
 /* Ashen Gate | Character Hub. Built on the shared UI kit (ag-ui.css): kit classes and --ag-* tokens only, so Manager's
    skins and the Compact / Comfortable size apply. 0.22.0: the UI standard look (direction D), same layout as before. */
-.agch-app .window-content { padding: 0; overflow: hidden; display: flex; flex-direction: column; container-type: inline-size; }
+.agch-app .window-content { position: relative; padding: 0; overflow: hidden; display: flex; flex-direction: column; container-type: inline-size; }
 
 /* Window background opacity (per-user slider in the header). --ag-window-opacity is set on the window element; only
    backgrounds mix with it, so text, icons, slots and controls stay fully readable over the map. */
@@ -445,6 +445,10 @@
 .agch-app .agch-quick { margin: 0; padding: 0; list-style: none; }
 .agch-app .agch-quick__slot { cursor: pointer; }
 .agch-app .agch-quick__slot.is-empty { cursor: default; }
+/* Quick-bar Undo (0.26.0): kit notices floating over the top-right of the content, so the layout never moves */
+.agch-app .agch-undo { position: absolute; top: var(--ag-space-6); right: var(--ag-space-5); z-index: 30; display: grid; gap: var(--ag-space-2); max-width: min(24rem, calc(100% - var(--ag-space-6))); }
+.agch-app .agch-undo__notice { align-items: center; box-shadow: var(--ag-shadow); }
+.agch-app .agch-undo__text { flex: 1 1 auto; overflow-wrap: anywhere; }
 .agch-app .agch-quick__slot img { position: absolute; inset: 0; object-fit: cover; object-position: center top; }
 .agch-app .agch-quick__slot.is-missing img { filter: grayscale(1); opacity: .5; }
 .agch-app .agch-quick__n { pointer-events: none; }
