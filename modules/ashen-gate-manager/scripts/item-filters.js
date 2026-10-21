@@ -5,11 +5,12 @@
  * Origin is read from data the importers already write, never guessed from names:
  *   Ashen Gate      Manager's source flag (flags.ashen-gate-manager.source.sourceId)
  *   DDB / Plutonium flags.ddbimporter (D&D Beyond Importer) or flags.plutonium
- *   Core 2024/2014  system.source rules or book (same test Core Links and Organize use), or a dnd5e system pack
+ *   Core 2024/2014  positive core evidence (core-links.js coreEvidence, same as Organize): a core source book, a dnd5e
+ *                   system pack or a copy from one. dnd5e's default system.source.rules alone is not evidence (0.38.1)
  *   Homebrew        everything else
  */
 import {getPath} from './core.js';
-import {rulesOf, coreRefOf} from './core-links.js';
+import {coreEvidence, coreRefOf} from './core-links.js';
 
 const MODULE_ID = 'ashen-gate-manager';
 
@@ -17,7 +18,7 @@ export const ORIGINS = Object.freeze({ag: 'Ashen Gate', core24: 'Core 2024', cor
 /** dnd5e rarity keys (lower case, no spaces) in display order. Colours are the --ag-rarity-* variables in manager.css. */
 export const RARITIES = Object.freeze({common: 'Common', uncommon: 'Uncommon', rare: 'Rare', veryrare: 'Very rare', legendary: 'Legendary', artifact: 'Artifact'});
 /** Index fields a compendium read needs so pack entries can be filtered like world documents. */
-export const FILTER_INDEX_FIELDS = Object.freeze(['system.source', 'flags.plutonium', 'flags.ddbimporter']);
+export const FILTER_INDEX_FIELDS = Object.freeze(['system.source', 'flags.plutonium', 'flags.ddbimporter', '_stats.compendiumSource']);
 
 /** "veryRare", "very rare" → "veryrare"; anything not a dnd5e rarity → null. */
 export function rarityKey(value) {
@@ -29,12 +30,10 @@ export function rarityKey(value) {
 export function originOf(data, packId = null) {
   if (getPath(data, `flags.${MODULE_ID}.source.sourceId`)) return 'ag';
   if (getPath(data, 'flags.ddbimporter') || getPath(data, 'flags.plutonium')) return 'ddb';
-  const rules = rulesOf(data);
-  if (rules === true) return 'core24';
-  if (rules === false) return 'core14';
+  // 0.38.1: positive core evidence only (a core book, a dnd5e pack or a copy from one); dnd5e's default rules value is not.
   // dnd5e's own packs: the 2024 ones end in 24 (as Core Links reads them); the rest are the 2014 SRD.
-  const [pkg, name] = String(packId ?? '').split('.');
-  if (pkg === 'dnd5e' && name) return /24$/.test(name) ? 'core24' : 'core14';
+  const evidence = coreEvidence(data, packId);
+  if (evidence.core) return evidence.edition === '2014' ? 'core14' : 'core24';
   return 'homebrew';
 }
 

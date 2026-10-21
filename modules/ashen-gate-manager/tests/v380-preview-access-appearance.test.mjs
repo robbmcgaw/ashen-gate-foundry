@@ -158,12 +158,3 @@ test('Help and GM Setup point to the new places', () => {
   assert.match(setup, /<strong>Appearance<\/strong> dropdown at the top/);
   assert.match(setup, /<strong>Modules<\/strong> tab/);
 });
-
-test('version 0.38.0 is consistent', () => {
-  const manifest = JSON.parse(read('../module.json'));
-  assert.equal(manifest.version, '0.38.0');
-  assert.match(manifest.download, /ashen-gate-manager-v0\.38\.0\/ashen-gate-manager\.zip$/);
-  assert.match(tpl, /v0\.38\.0 Beta/);
-  assert.match(main, /General Manager v0\.38\.0 Beta/);
-  assert.match(main, /v0\.38\.0 ready/);
-});

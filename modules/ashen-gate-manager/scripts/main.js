@@ -196,7 +196,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.38.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.38.1 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -1712,11 +1712,13 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       const parts=x.parts.map(part=>({documentName:part.documentName,label:TYPE_LABEL[part.documentName],partKey:`${x.key}|${part.documentName}`,moveCount:part.moves.length,
         skippedCount:part.skipped.length,unmatchedCount:part.unmatched.length,inPlace:part.inPlace,createCount:part.createFolders.length,
         protectedFolders:part.protectedFolders.join(', '),
-        groups:part.groups.map(g=>({path:g.path,count:g.count,rows:g.rows.map(r=>{const key=api.moveKey(x.key,part.documentName,r.id);return {key,name:r.name,from:r.from,checked:!this.cleanUnticked.has(key)};})}))}));
+        groups:part.groups.map(g=>({path:g.path,count:g.count,rows:g.rows.map(r=>{const key=api.moveKey(x.key,part.documentName,r.id);return {key,name:r.name,from:r.from,why:r.why,weak:r.weak,
+          keep:x.key==='world'?{id:r.id,documentName:part.documentName}:null,checked:!this.cleanUnticked.has(key)};})}))}));
       return {...x,hint:x.writable?'':hint(x),moveCount:parts.reduce((n,pt)=>n+pt.moveCount,0),parts:parts.filter(pt=>pt.moveCount||pt.skippedCount)};
     });
     const ticked=this.#cleanTicked().length;
-    return {status:this.cleanStatus,preview:{totals:p.totals,ticked,skippedSources:sources.filter(x=>!x.writable),
+    const weak=p.sources.flatMap(x=>x.parts.flatMap(part=>part.moves.filter(m=>m.weak))).length;
+    return {status:this.cleanStatus,preview:{totals:p.totals,ticked,weak,skippedSources:sources.filter(x=>!x.writable),
       withMoves:sources.filter(x=>x.writable&&x.moveCount),clean:sources.filter(x=>x.writable&&!x.moveCount).map(x=>x.label).join(', ')}};
   }
   /** Ticked move keys of the Clean compendiums preview. */
@@ -1745,7 +1747,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         try{
           const out=await api.cleanPreview({onProgress:({done,total,label})=>progress(total?done/total:1,label?`Reading ${label} (${done+1} of ${total})…`:'Read everything.')});
           if(!out.ok){say(out.message,true);break;}
-          this.cleanPreview=out;this.cleanUnticked=new Set();
+          // 0.38.1: Core-bound moves on weak evidence (copied from a dnd5e compendium, D&D Beyond import) start unticked.
+          this.cleanPreview=out;this.cleanUnticked=new Set(out.sources.flatMap(x=>x.parts.flatMap(part=>part.moves.filter(m=>m.weak).map(m=>api.moveKey(x.key,part.documentName,m.id)))));
           const places=out.sources.filter(x=>x.writable).length;
           say(out.totals.moves?`Clean compendiums: ${out.totals.moves} document(s) in ${places} place(s) are not in their folder. Untick any to leave, then Commit. Nothing has moved yet.${out.skippedSources?` ${out.skippedSources} compendium(s) skipped (see below).`:''}`
             :`Everything checked is already in its folder (${places} place(s)).${out.skippedSources?` ${out.skippedSources} compendium(s) skipped (see below).`:''} Nothing changed.`);
@@ -1843,6 +1846,17 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       cleanCount();
     }));
     root.querySelector('[data-ag-org-schema-text]')?.addEventListener('input',e=>{this.orgSchemaText=e.target.value;});
+    // Clean compendiums (0.38.1): Keep here on a world row sets the document's keepFolder flag and unticks the move.
+    root.querySelectorAll('[data-ag-clean-keep]').forEach(el=>el.addEventListener('click',e=>{
+      e.preventDefault();
+      const doc={Item:game.items,Actor:game.actors,JournalEntry:game.journal}[el.dataset.agCleanDoctype]?.get(el.dataset.agCleanKeep);
+      organizer().setKeepFolder(doc,true).then(out=>{
+        if(!out.ok)return toast(out.message,true);
+        this.cleanUnticked.add(el.dataset.agCleanKey);
+        this.cleanStatus=`${doc.name} will keep its folder: Organize and Clean compendiums skip it from now on.`;toast(this.cleanStatus);
+        return this.render();
+      }).catch(err=>this.#fail(err));
+    }));
     root.querySelectorAll('[data-ag-org-keep]').forEach(el=>el.addEventListener('click',e=>{
       e.preventDefault();
       const doc={Item:game.items,Actor:game.actors,JournalEntry:game.journal}[el.dataset.agOrgDoctype]?.get(el.dataset.agOrgKeep);
@@ -2431,7 +2445,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.38.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.38.1 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */

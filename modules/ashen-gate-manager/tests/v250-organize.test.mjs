@@ -48,7 +48,7 @@ function sample() {
       item('[TEST] Practice Dagger', 'weapon', {flags:ag('ITEM-TEST-1', 'Item')}),
       item('Cloak of Protection', 'equipment', {flags:PLUTO, system:{rarity:'uncommon', type:{value:'wondrous'}}}),
       item('Longsword', 'weapon', {system:{rarity:'', type:{value:'martialM'}, source:{book:'XPHB'}}}),
-      item('Chain Mail', 'equipment', {system:{type:{value:'heavy'}, source:{rules:'2024'}}}),
+      item('Chain Mail', 'equipment', {system:{type:{value:'heavy'}, source:{rules:'2024', book:'PHB 2024'}}}),
       item('Fire Bolt', 'spell', {flags:PLUTO, system:{level:0, school:'evo'}}),
       item('Fireball', 'spell', {system:{level:3, school:'evo', source:{book:"PHB'24"}}}),
       item('Potion of Healing', 'consumable', {flags:PLUTO, system:{rarity:'common', type:{value:'potion'}}}),
@@ -197,7 +197,7 @@ function mkPack(collection, {locked = false, packageType = 'world', docs = []} =
     async getIndex() {return {contents:docs};}};
 }
 test('locked and module compendiums are inspect-only; unlocked world packs use pack folders', async () => {
-  const docs = () => [{_id:'p1', name:'Longsword', type:'weapon', folder:null, system:{}, flags:PLUTO}, {_id:'p2', name:'Fireball', type:'spell', folder:null, system:{level:3, source:{rules:'2024'}}}];
+  const docs = () => [{_id:'p1', name:'Longsword', type:'weapon', folder:null, system:{}, flags:PLUTO}, {_id:'p2', name:'Fireball', type:'spell', folder:null, system:{level:3, source:{rules:'2024', book:"PHB'24"}}}];
   const locked = mkPack('world.locked', {locked:true, docs:docs()});
   const system = mkPack('dnd5e.items', {packageType:'system', docs:docs()});
   const open = mkPack('world.open', {docs:docs()});
@@ -282,7 +282,7 @@ test('0.30.0: sourceTagged fact and match key; saved custom rules are used uncha
 
 test('0.31.0: 2014 core and SRD 5.1 items count as Core; no source, third-party and homebrew stay Homebrew', async () => {
   const f = system => factsOf({name:'X', type:'weapon', system}, 'Item').sourceTagged;
-  assert.equal(f({source:{rules:'2014'}}), true);
+  assert.equal(f({source:{rules:'2014'}}), false, '0.38.1: rules alone is dnd5e\'s default, not evidence');
   assert.equal(f({source:{book:'PHB'}}), true);
   assert.equal(f({source:{book:'DMG'}}), true);
   assert.equal(f({source:{book:'MM'}}), true);

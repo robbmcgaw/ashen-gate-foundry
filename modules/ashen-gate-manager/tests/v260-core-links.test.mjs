@@ -203,7 +203,8 @@ test('a package record with core_ref validates and Manager stores it in the sour
 
 test('0.30.0: Core Links uses isSource2024; a Plutonium item with an unknown book is a candidate, 2014 never', async () => {
   assert.equal(isSource2024({flags:{plutonium:{source:'HB'}}}), true);
-  assert.equal(isSource2024({system:{source:{rules:'2024'}}}), true);
+  assert.equal(isSource2024({system:{source:{rules:'2024'}}}), false, '0.38.1: dnd5e default rules alone is not core');
+  assert.equal(isSource2024({system:{source:{rules:'2024', book:'XPHB'}}}), true);
   assert.equal(isSource2024({system:{source:{book:'Homebrew'}}}), false);
   const plutoOdd = mkItem({id:'po', name:'Potion of Healing', system:{source:{book:'Some Book'}}, flags:{plutonium:{source:'Some Book'}}});
   const pluto14 = core('p14', 'Potion of Healing', {plutonium:true, book:'DMG'});
@@ -218,10 +219,12 @@ test('0.30.0: Core Links uses isSource2024; a Plutonium item with an unknown boo
 test('0.31.0: isCoreSource (Organize) counts 2014 core and SRD 5.1; isSource2024 (Core Links) stays 2024 only', async () => {
   const cases = [
     [{flags:{plutonium:{source:'HB'}}}, true, true],
-    [{system:{source:{rules:'2024'}}}, true, true],
+    [{system:{source:{rules:'2024'}}}, false, false],
+    [{system:{source:{rules:'2024', book:'PHB 2024'}}}, true, true],
     [{system:{source:{book:'XPHB'}}}, true, true],
     [{system:{source:{book:'SRD 5.2'}}}, true, true],
-    [{system:{source:{rules:'2014'}}}, true, false],
+    [{system:{source:{rules:'2014'}}}, false, false],
+    [{system:{source:{rules:'2014', book:'PHB'}}}, true, false],
     [{system:{source:{book:'PHB'}}}, true, false],
     [{system:{source:{book:'DMG'}}}, true, false],
     [{system:{source:{book:'MM'}}}, true, false],
