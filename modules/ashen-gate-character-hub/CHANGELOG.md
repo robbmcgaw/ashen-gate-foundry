@@ -1,3 +1,8 @@
+## 0.20.1 — 2026-10-21
+
+- **Journey fix:** when a character went up several levels at once, the entries could come out in the wrong order if the clock ticked a millisecond between them. This also made a Journey test fail now and then on a busy machine. Each batch of automatic entries (level-ups, Renown ranks, completed quests) now shares one time, so the order is always the same: the highest level first. A new test makes the clock tick on every call to prove it.
+- No saved data changes.
+
 ## 0.20.0 — 2026-10-21
 
 - **Journey (new, alpha):** a per-character log of accomplishments in a new **Journey (alpha)** tab, newest first, recorded from now on (no back-fill).

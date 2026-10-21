@@ -95,9 +95,11 @@ export async function appendAuto(actor, entries, seenPatch = null, user = global
 export function levelEntries(actor, j = readJourney(actor)) {
   const level = Number(actor?.system?.details?.level) || 0, last = Number(j.seen.level);
   if (!Number.isFinite(last) || !('level' in j.seen)) return {entries: [], seen: {level}};
-  const entries = [];
+  // One time for the whole batch: entries that tie keep this order (highest level first), so a clock tick between
+  // two entries can never reorder them.
+  const entries = [], at = now();
   const classes = Object.values(actor.classes ?? {}).map(c => `${c.name} ${Number(c.system?.levels) || 0}`).join(' / ');
-  for (let l = level; l > last; l--) entries.push({id: `level-${l}`, type: 'level', text: `Reached level ${l}${l === level && classes ? ` (${classes})` : ''}`, at: now(), data: {level: l}});
+  for (let l = level; l > last; l--) entries.push({id: `level-${l}`, type: 'level', text: `Reached level ${l}${l === level && classes ? ` (${classes})` : ''}`, at, data: {level: l}});
   return {entries, seen: {level}};
 }
 
@@ -108,13 +110,13 @@ const rankAt = (milestones, score) => [...(milestones ?? [])].filter(m => Number
  * tied to the rank reached plus the last history event, so a re-fire doesn't duplicate.
  */
 export function renownEntries(actor, api, j = readJourney(actor)) {
-  const seenR = j.seen.renown && typeof j.seen.renown === 'object' ? {...j.seen.renown} : null, next = {}, entries = [];
+  const seenR = j.seen.renown && typeof j.seen.renown === 'object' ? {...j.seen.renown} : null, next = {}, entries = [], at = now();
   let factions = [], deities = [];
   try { factions = api?.getFactions?.() ?? []; } catch { factions = []; }
   try { deities = typeof api?.getPantheon === 'function' ? api.getPantheon(actor) ?? [] : []; } catch { deities = []; }
   const note = (key, rank, text, lastEvent) => {
     next[key] = rank;
-    if (seenR && key in seenR && seenR[key] !== rank && rank) entries.push({id: `renown-${key}-${rank}-${lastEvent ?? 'x'}`.replace(/[^A-Za-z0-9:_-]/g, ''), type: 'renown', text, at: now(), data: {key, from: seenR[key], to: rank}});
+    if (seenR && key in seenR && seenR[key] !== rank && rank) entries.push({id: `renown-${key}-${rank}-${lastEvent ?? 'x'}`.replace(/[^A-Za-z0-9:_-]/g, ''), type: 'renown', text, at, data: {key, from: seenR[key], to: rank}});
   };
   for (const f of factions) {
     const mine = f.personal?.[actor.id];
@@ -140,13 +142,13 @@ export function questCompletions(api, seen, partyActorIds) {
   try { quests = api?.listQuests?.() ?? []; } catch { return {done: [], seen: seen ?? {}}; }
   const next = Object.fromEntries(quests.map(q => [q.id, q.status]));
   if (!seen) return {done: [], seen: next};
-  const done = [];
+  const done = [], at = now();
   for (const q of quests) {
     if (q.status !== 'Completed' || seen[q.id] === 'Completed') continue;
     let state = null;
     try { state = api.getGMState?.(q.id) ?? null; } catch { state = null; }
     const actorIds = state?.scope === 'individual' && state.actorId ? [state.actorId] : partyActorIds;
-    done.push({actorIds, entry: {id: `quest-${q.id}`, type: 'quest', text: `Completed ${q.kind && q.kind !== 'quest' ? `${q.kind} ` : ''}"${q.name}"`, at: now(), data: {questId: q.id}}});
+    done.push({actorIds, entry: {id: `quest-${q.id}`, type: 'quest', text: `Completed ${q.kind && q.kind !== 'quest' ? `${q.kind} ` : ''}"${q.name}"`, at, data: {questId: q.id}}});
   }
   return {done, seen: next};
 }
