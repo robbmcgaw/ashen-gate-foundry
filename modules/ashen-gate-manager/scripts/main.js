@@ -29,7 +29,7 @@ import {createSceneMoods, MOODS_SETTING, LAYERS_SETTING, MOOD_FIELDS, FIELD_GROU
 const MOOD_VIEWS=[{id:'live',label:'Live: this scene',icon:'fa-solid fa-sun'},{id:'library',label:'Moods & layers',icon:'fa-solid fa-layer-group'},{id:'share',label:'Export & import',icon:'fa-solid fa-right-left'}];
 const MOOD_TRANSITIONS=[{value:'',label:'Preset default'},{value:0,label:'Instant'},{value:3000,label:'3 s'},{value:10000,label:'10 s'},{value:30000,label:'30 s'}];
 import {createCoreLinks, SOURCES_SETTING, LINK_HISTORY_SETTING} from './core-links.js';
-import {createOrganizer, folderIndex, ORGANIZE_TYPES, SCHEMA_SETTING, HISTORY_SETTING, FLAG_PROTECTED} from './organize.js';
+import {createOrganizer, folderIndex, describePreview, ORGANIZE_TYPES, SCHEMA_SETTING, HISTORY_SETTING, FLAG_PROTECTED} from './organize.js';
 import {createBrowse, PAGE_SIZE} from './browse.js';
 import {toolbarHtml, bodyHtml, DEFAULT_STATE} from './browse-view.js';
 
@@ -181,7 +181,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   static DEFAULT_OPTIONS = {
     id: "ashen-gate-manager-window",
     classes: ["ag-app","ashen-gate-manager"],
-    window: {title:"Ashen Gate | General Manager v0.35.0 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
+    window: {title:"Ashen Gate | General Manager v0.35.1 Beta", icon:"fa-solid fa-boxes-stacked", resizable:true},
     position: {width:1020, height:820}
   };
   static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`}};
@@ -245,7 +245,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.moodExport = {moods:true, layers:true};
     this.browseState = {...DEFAULT_STATE, filters:{}};
     this.browseUnsub = null;
-    this.moodMessage = "Pick a mood, then add layers on top. Each removes only its own changes; Back to normal undoes them all.";
+    this.moodMessage = "Pick a mood, then add layers on top. Each removes only its own changes; Back to normal puts the scene's original values back, fine-tune included.";
     this.orgSource = "world";
     this.orgTypes = new Set(ORGANIZE_TYPES);
     this.orgMode = "misfiled";
@@ -842,7 +842,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case "clear-results": this.importReports=[]; await this.render(); break;
       case "world-export-everything": case "world-export-changed": case "world-export-copy": case "world-backup": await this.#worldExport(name); break;
       case "presession-run": case "presession-copy": case "presession-download": await this.#preSession(name); break;
-      case "mood-restore": await this.#moodResult(sceneMoods().restore({sceneId:this.moodSceneId||undefined,animate:this.#moodAnimate()})); break;
+      // Back to normal also drops the fine-tune draft, so the panel shows the restored scene.
+      case "mood-restore": this.moodDraft=null; await this.#moodResult(sceneMoods().restore({sceneId:this.moodSceneId||undefined,animate:this.#moodAnimate()})); break;
       case "mood-new": case "layer-new": this.moodEdit={isNew:true,kind:name==='layer-new'?'layer':'mood',id:'',label:'',set:name==='layer-new'?{weather:NO_WEATHER}:{'environment.darknessLevel':0,weather:NO_WEATHER},transitionMs:0}; await this.render(); break;
       case "mood-cancel": this.moodEdit=null; await this.render(); break;
       case "mood-save": await this.#saveMood(); break;
@@ -856,7 +857,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         if(yes){this.moodEdit=null;await this.#moodResult(sceneMoods().resetDefaults(),'Moods and layers reset to the defaults.');}
         break;
       }
-      case "org-preview": case "org-apply": case "org-backup": case "org-undo": case "org-clear": case "org-housekeeping":
+      // 0.35.1: these org-* actions used to fall through to the Core Links handler, which ignored them silently.
+      case "org-preview": case "org-apply": case "org-backup": case "org-undo": case "org-clear": case "org-housekeeping": await this.#organizeAction(name); break;
       case "cl-scan": case "cl-apply": case "cl-backup": case "cl-undo": case "cl-clear": case "setup-save": await this.#coreLinkAction(name); break;
       case "org-schema-edit": case "org-schema-save": case "org-schema-cancel": case "org-schema-export": case "org-schema-reset": await this.#organizeAction(name); break;
       case "library-check": this.#runAudit(); this.librarySection="check";this.libraryMessage="Library check finished: results are listed below."; await this.render(); break;
@@ -1572,6 +1574,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     if (!entries.length) entries.push({level:"ok",message:`No ID or reference problems found among ${docs.length} managed world document(s). (Unmanaged content not audited.)`});
     this.auditEntries=entries;
   }
+  #organizeSourceLabel() {return this.orgSource==='world'?'the world sidebar':(organizer().listSources().find(s=>s.key===this.orgSource)?.label??'that compendium');}
   #organizeOptions() {return {source:this.orgSource, types:ORGANIZE_TYPES.filter(t=>this.orgTypes.has(t)), mode:this.orgMode};}
   #organizeContext() {
     const api=organizer(), TYPE_LABEL={Item:'Items',Actor:'Actors',JournalEntry:'Journals'};
@@ -1603,7 +1606,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       if(e.target.checked)this.orgTypes.add(e.target.dataset.agOrgType);else this.orgTypes.delete(e.target.dataset.agOrgType);
       this.orgPreview=null;void this.render();
     }));
-    root.querySelector('[data-ag-org-mode]')?.addEventListener('change',e=>{this.orgMode=e.target.value;this.orgPreview=null;void this.render();});
+    root.querySelector('[data-ag-org-mode]')?.addEventListener('change',e=>{this.orgMode=e.target.value;this.orgPreview=null;this.orgMessage='Move option changed. Press Preview to see what would move.';void this.render();});
     root.querySelector('[data-ag-org-schema-text]')?.addEventListener('input',e=>{this.orgSchemaText=e.target.value;});
     root.querySelectorAll('[data-ag-org-keep]').forEach(el=>el.addEventListener('click',e=>{
       e.preventDefault();
@@ -1648,7 +1651,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         const out=await api.preview(this.#organizeOptions());
         if(!out.ok){say(out.message,true);break;}
         this.orgPreview=out;this.orgResult=null;
-        this.orgMessage=message??(out.totals.moves?`Preview: ${out.totals.moves} document(s) would move, ${out.totals.createFolders} folder(s) would be created. Nothing has changed yet.`:'Everything is already in place. Nothing would move.');
+        const text=message??describePreview(out,this.#organizeSourceLabel());
+        this.orgMessage=text;toast(text);
         break;
       }
       case 'org-backup': {
@@ -1788,7 +1792,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   #coreLinkContext() {
     const p=this.clPreview;
     const GROUPS=[['adopt','Adopt core data and link'],['link','Link only'],['relink','Re-link (linked core item is gone)'],['review','Needs your review (MEDIUM / LOW match)'],['nomatch','No 2024 core match'],['linked','Already linked']];
-    return {message:this.clMessage, history:coreLinks().history().map(h=>({at:h.at.replace('T',' ').slice(0,16),count:h.rows.length,adopted:h.rows.filter(r=>r.adopted).length})),
+    return {message:this.clMessage, noRefs:Boolean(p&&!p.rows.length), history:coreLinks().history().map(h=>({at:h.at.replace('T',' ').slice(0,16),count:h.rows.length,adopted:h.rows.filter(r=>r.adopted).length})),
       preview:p?{counts:p.counts,withoutRef:p.withoutRef,poolSize:p.poolSize,notes:p.notes,tickedCount:p.rows.filter(r=>this.clTicked.has(r.id)).length,
         groups:GROUPS.map(([status,label])=>({status,label,rows:p.rows.filter(r=>r.status===status).map(r=>({...r,
           selectable:['adopt','link','relink','review'].includes(r.status),ticked:this.clTicked.has(r.id),linkOnly:this.clLinkOnly.has(r.id),
@@ -1803,7 +1807,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         const out=await api.preview();
         if(!out.ok){say(out.message,true);break;}
         this.clPreview=out;this.clTicked=new Set(out.rows.filter(r=>r.ticked).map(r=>r.id));this.clLinkOnly=new Set();
-        this.clMessage=`Scan: ${out.rows.length} item(s) with core_ref checked against ${out.poolSize} 2024 core item(s). HIGH matches are ticked. Nothing has changed yet.`;
+        this.clMessage=out.rows.length?`Scan: ${out.rows.length} item(s) with core_ref checked against ${out.poolSize} 2024 core item(s). HIGH matches are ticked. Nothing has changed yet.`
+          :`Scan finished: no Ashen Gate item has a core_ref, so there is nothing to link (${out.poolSize} official 2024 item(s) were found to compare with). Nothing changed.`;
         break;
       }
       case 'cl-backup': {
@@ -2139,7 +2144,7 @@ Hooks.once("ready",()=>{
       return activeApp.render({force:true});
     }
   };
-  console.info(`[${MODULE_ID}] v0.35.0 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
+  console.info(`[${MODULE_ID}] v0.35.1 ready. Open from Configure Settings → Module Settings, or game.modules.get("${MODULE_ID}").api.open()`);
 });
 
 /** Own only the General Manager launcher. Other modules own their sidebar buttons. */

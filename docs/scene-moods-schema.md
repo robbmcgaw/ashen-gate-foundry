@@ -84,14 +84,15 @@ For each preset the preview shows **New** (added), **Already the same** (nothing
    "fields": [{"path": "environment.darknessLevel", "before": 0.2, "after": 0.9}, {"path": "weather", "before": "", "after": ""}]},
   {"id": "mist", "kind": "layer", "label": "Mist", "appliedAt": 1792535090000,
    "fields": [{"path": "weather", "before": "", "after": "fog"}]}
-]}
+], "original": {"environment.darknessLevel": 0.2, "weather": ""}}
 ```
 
 - At most one `mood` entry, always first; layers follow in the order added.
 - Each entry lists only the fields it set. A field shows the value of the top-most entry that set it.
 - **Removing an entry:** for each of its fields, if a higher entry also set it, that entry's `before` becomes this entry's `before` (no visible change). Otherwise the scene gets `before` back, **only if** it still shows this entry's `after`; if not, the GM changed it and it is kept (the message says so).
-- **Back to normal** removes entries top-down with the same rule, then clears the flag.
-- Fine-tune *Apply to scene* writes straight to the scene and is not an entry, so it counts as the GM's own change.
+- `original` (0.35.1) holds each field's value from before Manager first changed it (mood, layer or fine-tune); the first value captured is never overwritten. A field no entry sets is dropped from it once the scene shows the original again, and the flag is cleared when nothing is left.
+- **Back to normal** (0.35.1) writes every `original` value back, whatever changed since (fine-tune included), then clears the flag. A 0.35.0 stack without `original` uses the lowest entry's `before` for each field.
+- Fine-tune *Apply to scene* writes straight to the scene and is not an entry, so removing a single layer keeps it; it does record `original` so Back to normal undoes it.
 
 ### Migration from 0.22.0–0.34.x
 

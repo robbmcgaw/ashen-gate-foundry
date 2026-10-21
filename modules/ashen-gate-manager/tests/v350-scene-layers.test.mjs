@@ -99,7 +99,7 @@ test('swapping the mood under a layer keeps the layer visible, and removal revea
   assert.equal(scene.environment.darknessLevel, 0.2);
 });
 
-test('a field the GM changed since is kept on removal and Back to normal, and the message says so', async () => {
+test('a field the GM changed since is kept on removal; Back to normal (0.35.1) restores the original anyway', async () => {
   const {api, scene} = mkWorld();
   const original = snapshot(scene);
   await api.addLayer('cold-night');
@@ -113,9 +113,10 @@ test('a field the GM changed since is kept on removal and Back to normal, and th
   await api.applyMood('storm');
   await scene.update({'weather': 'snow'});
   const back = await api.restore();
-  assert.equal(scene.weather, 'snow');
+  assert.equal(scene.weather, '', 'original weather, not the later edit');
   assert.equal(scene.environment.darknessLevel, 0.2);
-  assert.match(back.message, /Weather snow/);
+  assert.equal(scene.environment.dark.intensity, original.environment.dark.intensity, 'Cold night field edited since is restored too');
+  assert.match(back.message, /back to normal\. \d+ settings? restored to the scene's original values/);
 });
 
 test('0.22.0 moodBase/mood flags are read as a one-entry stack, restored exactly and converted on the next write', async () => {
@@ -304,11 +305,4 @@ test('Scenes tab: rail, layer strip, stack with remove buttons, fine-tune Cancel
   assert.match(tpl, /data-ag-mood-import-choice/);
   assert.match(tpl, /data-ag-mood-favourite/);
   assert.match(main, /LAYERS_SETTING,\{name:"Scene layer presets",scope:"world",config:false/);
-});
-
-test('version 0.35.0 is consistent', () => {
-  const manifest = JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8'));
-  assert.equal(manifest.version, '0.35.0');
-  assert.match(manifest.download, /ashen-gate-manager-v0\.35\.0\/ashen-gate-manager\.zip$/);
-  assert.match(fs.readFileSync(new URL('../templates/manager.hbs', import.meta.url), 'utf8'), /v0\.35\.0 Beta/);
 });

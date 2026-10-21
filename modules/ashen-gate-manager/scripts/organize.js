@@ -238,7 +238,7 @@ export function planSource({documentName, docs, folders, rules, mode = 'misfiled
     if(!hit.path) {skipped.push({...row, reason:hit.rule.label ?? `Left alone by rule ${hit.rule.id}`, rule:hit.rule.id}); continue;}
     if(from === hit.path) {inPlace++; continue;}
     if(mode !== 'all' && fromId && !isManagedRoot(pathSegments(from)[0])) {
-      skipped.push({...row, to:hit.path, reason:'In your own folder (use Refile everything to move it)', rule:hit.rule.id}); continue;
+      skipped.push({...row, to:hit.path, reason:OWN_FOLDER, rule:hit.rule.id}); continue;
     }
     const segments = pathSegments(hit.path);
     const found = index.resolve(segments);
@@ -251,6 +251,32 @@ export function planSource({documentName, docs, folders, rules, mode = 'misfiled
     .sort(([a], [b]) => a.localeCompare(b)).map(([path, rows]) => ({path, count:rows.length, rows}));
   return {documentName, writable, blockedReason, moves, groups, skipped, unmatched, inPlace,
     createFolders:[...creates].sort(), protectedFolders:[...index.protectedIds].map(id => index.pathOf(id))};
+}
+
+const OWN_FOLDER = 'In your own folder (use Refile everything to move it)';
+/**
+ * Plain one-paragraph summary of a preview, so every Preview says what it did or why nothing would move (0.35.1).
+ * `sourceLabel` names the World or compendium that was checked.
+ */
+export function describePreview(result, sourceLabel = 'the world') {
+  const parts = result?.parts ?? [];
+  const t = result?.totals ?? {moves:0, skipped:0, unmatched:0, inPlace:0, createFolders:0};
+  const checked = t.moves + t.skipped + t.unmatched + t.inPlace;
+  const blocked = parts.find(p => !p.writable);
+  const inspect = blocked ? ` ${sourceLabel} is inspect-only: ${blocked.blockedReason}.` : '';
+  if(!checked) return `Nothing to check: ${sourceLabel} has no documents of the ticked kinds.${inspect}`;
+  const skipped = parts.flatMap(p => p.skipped);
+  const own = skipped.filter(r => r.reason === OWN_FOLDER).length;
+  const reasons = [
+    [t.inPlace, 'already in the right folder'],
+    [own, `in your own folders${result?.mode === 'all' ? '' : ' (choose Move: Refile everything to include them)'}`],
+    [skipped.length - own, 'skipped (protected folder, Keep here, or a rule that leaves them alone)'],
+    [t.unmatched, 'match no rule and stay where they are']
+  ].filter(([n]) => n).map(([n, why]) => `${n} ${why}`);
+  const head = t.moves
+    ? `Preview: ${t.moves} of ${checked} document(s) in ${sourceLabel} would move and ${t.createFolders} folder(s) would be created. Nothing has changed yet.`
+    : `Nothing would move. Checked ${checked} document(s) in ${sourceLabel}.`;
+  return `${head}${reasons.length ? ` ${t.moves ? 'The rest: ' : ''}${reasons.join('; ')}.` : ''}${inspect}`;
 }
 
 /** Folders with no documents and no sub-folders (report only; Organize never deletes folders). */

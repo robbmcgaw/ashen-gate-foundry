@@ -13,6 +13,8 @@
  * Each entry records only the fields it set as {path, before, after}. A field belongs to the top-most entry
  * that set it. Removing an entry hands its `before` up to a higher entry that also set the field, otherwise
  * writes `before` back only while the scene still shows the entry's `after`; a value the GM changed since is kept.
+ * The stack also keeps `original` (0.35.1): each field's value from before Manager first changed it (moods, layers
+ * or fine-tune). Back to normal writes every original value back, so fine-tune edits are undone too.
  *
  * FUTURE EXTENSION (not implemented): a particle module such as FXMaster could be driven from a
  * preset's own optional `particles` entry, only when `game.modules.get('fxmaster')?.active` and its
@@ -75,13 +77,28 @@ export const DEFAULT_LAYERS = Object.freeze([
   {id:'mist', label:'Mist', kind:'layer', isDefault:true, set:{'weather':'fog'}},
   {id:'rain', label:'Rain', kind:'layer', isDefault:true, set:{'weather':'rain'}},
   {id:'snow', label:'Snow', kind:'layer', isDefault:true, set:{'weather':'snow'}},
-  {id:'cold-night', label:'Cold night', kind:'layer', isDefault:true, set:{'environment.dark.hue':0.6, 'environment.dark.intensity':0.4}},
-  {id:'blood-moon', label:'Blood moon', kind:'layer', isDefault:true, set:{'environment.dark.hue':0, 'environment.dark.intensity':0.6, 'environment.dark.saturation':0.3}},
+  // Night tint only shows when the scene blends day and night colours by darkness, so these turn that on (0.35.1).
+  {id:'cold-night', label:'Cold night', kind:'layer', isDefault:true, set:{'environment.cycle':true, 'environment.dark.hue':0.6, 'environment.dark.intensity':0.4}},
+  {id:'blood-moon', label:'Blood moon', kind:'layer', isDefault:true, set:{'environment.cycle':true, 'environment.dark.hue':0, 'environment.dark.intensity':0.6, 'environment.dark.saturation':0.3}},
   {id:'hearth-glow', label:'Hearth glow', kind:'layer', isDefault:true, set:{'environment.globalLight.enabled':true, 'environment.globalLight.color':'#ffd9a0', 'environment.globalLight.luminosity':0.2}},
   {id:'pitch-black', label:'Pitch black', kind:'layer', isDefault:true, set:{[DARKNESS]:1, 'environment.globalLight.enabled':false}},
   {id:'bright-moon', label:'Bright moon', kind:'layer', isDefault:true, set:{[DARKNESS]:0.65, 'environment.dark.luminosity':0}}
 ].map(freezePreset));
 const DEFAULTS = {mood:DEFAULT_MOODS, layer:DEFAULT_LAYERS};
+/** 0.35.0 default sets that lacked `environment.cycle`; a stored, unedited copy is read as the current default. */
+const OUTDATED_DEFAULT_SETS = Object.freeze({
+  'cold-night':{'environment.dark.hue':0.6, 'environment.dark.intensity':0.4},
+  'blood-moon':{'environment.dark.hue':0, 'environment.dark.intensity':0.6, 'environment.dark.saturation':0.3}
+});
+const sameSet = (a, b) => JSON.stringify(Object.entries(a ?? {}).sort()) === JSON.stringify(Object.entries(b ?? {}).sort());
+/** Read-time upgrade of stored layers (never writes; re-runnable). Only untouched defaults change. */
+export function upgradeStoredPreset(preset) {
+  const old = OUTDATED_DEFAULT_SETS[preset?.id];
+  if(!old || !preset.isDefault || !sameSet(preset.set, old)) return preset;
+  const current = DEFAULT_LAYERS.find(p => p.id === preset.id);
+  return {...preset, set:{...current.set}};
+}
+const NIGHT_TINT = path => path.startsWith('environment.dark.');
 const SETTING = {mood:MOODS_SETTING, layer:LAYERS_SETTING};
 const NOUN = {mood:'mood', layer:'layer'};
 
@@ -197,7 +214,7 @@ export function createSceneMoods({game, getConfig = () => globalThis.CONFIG, get
   const weatherIds = () => Object.keys(getConfig()?.weatherEffects ?? {});
   const list = kind => {
     const stored = game.settings.get(MODULE_ID, SETTING[kind]);
-    return clone(Array.isArray(stored) && stored.length ? stored : DEFAULTS[kind]).map(p => ({...p, kind}));
+    return clone(Array.isArray(stored) && stored.length ? stored : DEFAULTS[kind]).map(p => ({...(kind === 'layer' ? upgradeStoredPreset(p) : p), kind}));
   };
   const find = (kind, id) => list(kind).find(p => p.id === id);
   /** The viewed scene, else the active one, unless a scene id is given. */
@@ -207,21 +224,48 @@ export function createSceneMoods({game, getConfig = () => globalThis.CONFIG, get
   /** The scene's stack, converting the 0.22.0 moodBase/mood flags on the fly. Never writes. */
   function readStack(scene) {
     const stack = flag(scene, FLAG_STACK);
-    if(stack && Array.isArray(stack.entries)) return {entries:clone(stack.entries), legacy:Boolean(flag(scene, FLAG_BASE) || flag(scene, FLAG_MOOD))};
+    if(stack && Array.isArray(stack.entries)) {
+      const entries = clone(stack.entries);
+      return {entries, original:readOriginal(stack.original, entries), legacy:Boolean(flag(scene, FLAG_BASE) || flag(scene, FLAG_MOOD))};
+    }
     const base = flag(scene, FLAG_BASE);
-    if(!base || !Array.isArray(base.fields)) return {entries:[], legacy:Boolean(flag(scene, FLAG_MOOD))};
+    if(!base || !Array.isArray(base.fields)) return {entries:[], original:{}, legacy:Boolean(flag(scene, FLAG_MOOD))};
     const mood = flag(scene, FLAG_MOOD) || {};
     // The old base covered every field any mood had changed; the scene's current values stand in for "after"
     // so Back to normal still restores the original look exactly, as it did before.
-    return {legacy:true, entries:[{id:String(mood.id ?? 'mood'), kind:'mood', label:String(mood.label ?? 'Mood'), appliedAt:mood.appliedAt ?? base.capturedAt ?? Date.now(),
-      fields:base.fields.filter(f => typeof f?.path === 'string').map(f => ({path:f.path, before:clone(f.value ?? null), after:readField(scene, f.path)}))}]};
+    const entries = [{id:String(mood.id ?? 'mood'), kind:'mood', label:String(mood.label ?? 'Mood'), appliedAt:mood.appliedAt ?? base.capturedAt ?? Date.now(),
+      fields:base.fields.filter(f => typeof f?.path === 'string').map(f => ({path:f.path, before:clone(f.value ?? null), after:readField(scene, f.path)}))}];
+    return {legacy:true, entries, original:readOriginal(null, entries)};
+  }
+  /**
+   * The captured original values. A 0.35.0 stack has none stored, so the lowest entry that set a field supplies
+   * its `before` (higher entries' `before` is the lower entry's value). Only known fields are kept.
+   */
+  function readOriginal(stored, entries) {
+    const out = {};
+    if(stored && typeof stored === 'object' && !Array.isArray(stored))
+      for(const [path, value] of Object.entries(stored)) if(FIELD.has(path)) out[path] = clone(value ?? null);
+    for(const e of entries) for(const f of e.fields ?? []) if(FIELD.has(f.path) && !Object.hasOwn(out, f.path)) out[f.path] = clone(f.before ?? null);
+    return out;
+  }
+  /** Records a field's value the first time Manager changes it; later changes keep the first value. */
+  function capture(original, current, paths) {
+    let added = false;
+    for(const path of paths) if(!Object.hasOwn(original, path)) {original[path] = clone(current.get(path) ?? null); added = true;}
+    return added;
   }
   const currentMap = scene => new Map(MOOD_FIELDS.map(f => [f.path, readField(scene, f.path)]));
 
-  /** Writes scene changes and the stack in one update. */
-  async function commit(scene, entries, writes, legacy, duration) {
+  /**
+   * Writes scene changes and the stack in one update. An original value is dropped once no entry sets the field
+   * and the scene shows it again, so the stack clears itself when everything is back to how it was.
+   */
+  async function commit(scene, entries, writes, legacy, duration, original = {}, current = null) {
     const update = Object.fromEntries(writes);
-    update[`flags.${MODULE_ID}.${FLAG_STACK}`] = entries.length ? {version:1, entries} : null;
+    const owned = new Set(entries.flatMap(e => e.fields.map(f => f.path)));
+    for(const path of Object.keys(original))
+      if(!owned.has(path) && current && sameValue(current.get(path), original[path])) delete original[path];
+    update[`flags.${MODULE_ID}.${FLAG_STACK}`] = entries.length || Object.keys(original).length ? {version:1, entries, original} : null;
     // Null clears the flags without the "-=" key syntax V14 deprecates.
     if(legacy) {update[`flags.${MODULE_ID}.${FLAG_BASE}`] = null; update[`flags.${MODULE_ID}.${FLAG_MOOD}`] = null;}
     // animateDarkness is an update option core reads to fade darkness; unsupported versions ignore it.
@@ -239,6 +283,13 @@ export function createSceneMoods({game, getConfig = () => globalThis.CONFIG, get
   }
   const label = path => FIELD.get(path)?.label ?? path;
   const keptNote = kept => kept.length ? ` Kept because you changed ${kept.length === 1 ? 'it' : 'them'} since: ${kept.map(k => `${label(k.path)} ${formatValue(k.path, k.value)}`).join(', ')}.` : '';
+  /** Night tint is blended in by darkness, so it barely shows on a bright scene or with blending off. */
+  const tintNote = (set, current) => {
+    if(!Object.keys(set).some(NIGHT_TINT)) return '';
+    if(current.get('environment.cycle') === false) return ' Night tint does not show while "Blend day and night colours with darkness" is off: turn it on in Fine-tune.';
+    const dark = Number(current.get(DARKNESS) ?? 0);
+    return dark < 0.5 ? ` Night tint shows only as the scene gets dark (Darkness is ${formatValue(DARKNESS, dark)} now): add a darker mood such as Night, or raise Darkness in Fine-tune.` : '';
+  };
   const lockNote = (scene, writes) => getPath(scene, 'environment.darknessLock') && writes.has(DARKNESS) ? ' Darkness is locked on this scene, so Foundry may keep the old darkness.' : '';
   const durationFor = (animate, preset) => {
     const ms = animate ?? preset?.transitionMs ?? 0;
@@ -308,7 +359,7 @@ export function createSceneMoods({game, getConfig = () => globalThis.CONFIG, get
       if(!isGM()) return fail(GM_ONLY);
       const scene = resolveScene(sceneId);
       if(!scene) return {ok:true, scene:null, mood:null, layers:[], hasBase:false, favourites:[], values:{}};
-      const {entries} = readStack(scene);
+      const {entries, original} = readStack(scene);
       const owners = new Map();
       for(const e of entries) for(const f of e.fields) owners.set(f.path, e);
       const describe = e => ({id:e.id, kind:e.kind, label:e.label, appliedAt:e.appliedAt,
@@ -316,7 +367,7 @@ export function createSceneMoods({game, getConfig = () => globalThis.CONFIG, get
       const mood = entries.find(e => e.kind === 'mood');
       const favourites = flag(scene, FLAG_FAVOURITES);
       return {ok:true, scene:{id:scene.id, name:scene.name, darknessLock:Boolean(getPath(scene, 'environment.darknessLock')), regions:regionNotes(scene)},
-        mood:mood ? describe(mood) : null, layers:entries.filter(e => e.kind === 'layer').map(describe), hasBase:entries.length > 0,
+        mood:mood ? describe(mood) : null, layers:entries.filter(e => e.kind === 'layer').map(describe), hasBase:entries.length > 0 || Object.keys(original).length > 0,
         favourites:Array.isArray(favourites) ? favourites.filter(id => typeof id === 'string') : [],
         values:Object.fromEntries(MOOD_FIELDS.filter(f => sceneHasField(scene, f.path)).map(f => [f.path, readField(scene, f.path)]))};
     },
@@ -331,15 +382,16 @@ export function createSceneMoods({game, getConfig = () => globalThis.CONFIG, get
       if(problems.length) return fail(`${preset.label}: ${problems.join(' ')}`);
       const blocked = checkSet(scene, preset.set, preset.label);
       if(blocked) return fail(blocked);
-      const {entries, legacy} = readStack(scene);
+      const {entries, original, legacy} = readStack(scene);
       const current = currentMap(scene), writes = new Map(), kept = [];
       const old = entries.findIndex(e => e.kind === 'mood');
+      capture(original, current, [...Object.keys(preset.set), ...(old >= 0 ? entries[old].fields.map(f => f.path) : [])]);
       if(old >= 0) removeEntry(entries, old, current, writes, kept);
       insertEntry(entries, 0, {id:preset.id, kind:'mood', label:preset.label, set:preset.set}, current, writes);
-      await commit(scene, entries, writes, legacy, durationFor(animate, preset));
+      await commit(scene, entries, writes, legacy, durationFor(animate, preset), original, current);
       const covered = Object.keys(preset.set).filter(path => entries.slice(1).some(e => e.fields.some(f => f.path === path)));
       const coverNote = covered.length ? ` Layers on top still decide ${covered.map(label).join(', ')}.` : '';
-      return {ok:true, message:`${scene.name}: ${preset.label}.${coverNote}${keptNote(kept)}${lockNote(scene, writes)}`};
+      return {ok:true, message:`${scene.name}: ${preset.label}.${coverNote}${keptNote(kept)}${tintNote(preset.set, current)}${lockNote(scene, writes)}`};
     },
     /** Puts a layer on top of the stack. */
     async addLayer(layerId, {sceneId, animate} = {}) {
@@ -352,43 +404,48 @@ export function createSceneMoods({game, getConfig = () => globalThis.CONFIG, get
       if(problems.length) return fail(`${preset.label}: ${problems.join(' ')}`);
       const blocked = checkSet(scene, preset.set, preset.label);
       if(blocked) return fail(blocked);
-      const {entries, legacy} = readStack(scene);
+      const {entries, original, legacy} = readStack(scene);
       if(entries.some(e => e.kind === 'layer' && e.id === preset.id)) return fail(`${preset.label} is already on ${scene.name}. Remove it first to apply it again.`);
       const replaced = entries.filter(e => e.fields.some(f => f.path in preset.set && !entries.slice(entries.indexOf(e) + 1).some(h => h.fields.some(x => x.path === f.path))));
       const current = currentMap(scene), writes = new Map();
+      capture(original, current, Object.keys(preset.set));
       insertEntry(entries, entries.length, {id:preset.id, kind:'layer', label:preset.label, set:preset.set}, current, writes);
-      await commit(scene, entries, writes, legacy, durationFor(animate, preset));
+      await commit(scene, entries, writes, legacy, durationFor(animate, preset), original, current);
       const note = replaced.length ? ` It replaces ${replaced.map(e => e.label).join(', ')} for the fields they share.` : '';
-      return {ok:true, message:`${scene.name}: ${preset.label} added.${note}${lockNote(scene, writes)}`};
+      return {ok:true, message:`${scene.name}: ${preset.label} added.${note}${tintNote(preset.set, current)}${lockNote(scene, writes)}`};
     },
     /** Removes one layer (or the base mood with kind 'mood'), putting back only its own fields. */
     async removeEffect(id, {kind = 'layer', sceneId, animate = 0} = {}) {
       if(!isGM()) return fail(GM_ONLY);
       const scene = sceneOrFail(sceneId);
       if(!scene) return fail(NO_SCENE);
-      const {entries, legacy} = readStack(scene);
+      const {entries, original, legacy} = readStack(scene);
       const at = entries.findIndex(e => e.kind === kind && e.id === id);
       if(at < 0) return fail(`${NOUN[kind] === 'mood' ? 'That mood' : 'That layer'} is not on ${scene.name}.`);
       const current = currentMap(scene), writes = new Map(), kept = [];
       const gone = removeEntry(entries, at, current, writes, kept);
-      await commit(scene, entries, writes, legacy, durationFor(animate));
+      await commit(scene, entries, writes, legacy, durationFor(animate), original, current);
       return {ok:true, kept, message:`${scene.name}: ${gone.label} removed. Only its own fields were put back.${keptNote(kept)}`};
     },
-    /** Removes everything top-down with the same rule as removeEffect, then clears the stack. */
+    /**
+     * Back to normal: writes every captured original value back (moods, layers and fine-tune edits alike),
+     * then clears the stack. Fields Manager never changed are left alone.
+     */
     async restore({sceneId, animate = 0} = {}) {
       if(!isGM()) return fail(GM_ONLY);
       const scene = sceneOrFail(sceneId);
       if(!scene) return fail(NO_SCENE);
-      const {entries, legacy} = readStack(scene);
-      if(!entries.length) return fail(`${scene.name} has no mood or layer applied, so there is nothing to restore.`);
-      const current = currentMap(scene), writes = new Map(), kept = [];
-      while(entries.length) removeEntry(entries, entries.length - 1, current, writes, kept);
-      await commit(scene, entries, writes, legacy, durationFor(animate));
-      return {ok:true, kept, message:`${scene.name}: back to normal.${keptNote(kept)}`};
+      const {entries, original, legacy} = readStack(scene);
+      if(!entries.length && !Object.keys(original).length) return fail(`${scene.name} has no mood, layer or fine-tune change applied, so there is nothing to restore.`);
+      const current = currentMap(scene);
+      const writes = new Map(Object.entries(original).filter(([path, value]) => sceneHasField(scene, path) && !sameValue(current.get(path), value)).map(([p, v]) => [p, clone(v)]));
+      await commit(scene, [], writes, legacy, durationFor(animate));
+      const n = writes.size;
+      return {ok:true, kept:[], message:`${scene.name}: back to normal. ${n ? `${n} setting${n === 1 ? '' : 's'} restored to the scene's original values (${[...writes.keys()].map(label).join(', ')}).` : 'The scene already showed its original values.'}`};
     },
     /**
      * Fine-tune panel: writes the given fields straight to the scene, outside the stack (it is the GM's own edit,
-     * so a later layer removal keeps it). Only fields that differ from the scene are written.
+     * so a later layer removal keeps it; Back to normal undoes it). Only fields that differ from the scene are written.
      */
     async applyDraft(set, {sceneId, animate = 0} = {}) {
       if(!isGM()) return fail(GM_ONLY);
@@ -402,8 +459,17 @@ export function createSceneMoods({game, getConfig = () => globalThis.CONFIG, get
       const writes = new Map(Object.entries(set).filter(([path, value]) => !sameValue(readField(scene, path), value)).map(([p, v]) => [p, clone(v)]));
       if(!writes.size) return {ok:true, message:`${scene.name}: nothing to change, the scene already shows these values.`};
       const options = animate > 0 && writes.has(DARKNESS) ? {animateDarkness:Math.min(MAX_TRANSITION_MS, animate)} : {};
-      await scene.update(Object.fromEntries(writes), options);
-      return {ok:true, message:`${scene.name}: ${writes.size} setting${writes.size === 1 ? '' : 's'} changed (${[...writes.keys()].map(label).join(', ')}).${lockNote(scene, writes)}`};
+      // Capture the values before the first change so Back to normal can undo fine-tune too.
+      const {entries, original, legacy} = readStack(scene);
+      const current = currentMap(scene);
+      const update = Object.fromEntries(writes);
+      if(capture(original, current, writes.keys()) || legacy) {
+        update[`flags.${MODULE_ID}.${FLAG_STACK}`] = {version:1, entries, original};
+        if(legacy) {update[`flags.${MODULE_ID}.${FLAG_BASE}`] = null; update[`flags.${MODULE_ID}.${FLAG_MOOD}`] = null;}
+      }
+      await scene.update(update, options);
+      for(const [path, value] of writes) current.set(path, value);
+      return {ok:true, message:`${scene.name}: ${writes.size} setting${writes.size === 1 ? '' : 's'} changed (${[...writes.keys()].map(label).join(', ')}).${tintNote(set, current)}${lockNote(scene, writes)}`};
     },
     async toggleFavourite(moodId, {sceneId} = {}) {
       if(!isGM()) return fail(GM_ONLY);
