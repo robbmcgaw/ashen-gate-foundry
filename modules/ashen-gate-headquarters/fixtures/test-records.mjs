@@ -4,7 +4,7 @@
  * membership, mutate profession XP, or pretend to be canonical published content.
  * Run from the GM console in a disposable world only.
  */
-import {confirmDialog} from '../js/dialogs.mjs';
+import {confirmDialog} from '../js/ag-dialogs.mjs';
 const MOD='ashen-gate-headquarters';
 const MARK='v0.6.0-synthetic-test';
 const fixtureIds=['HIRE-AGTEST-SMITH','HPERK-AGTEST-WORKING'];

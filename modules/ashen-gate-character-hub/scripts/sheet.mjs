@@ -21,9 +21,12 @@ import {journeyActor} from './journey-views.mjs';
 import * as marks from './marks.mjs';
 import * as hotbar from './hotbar.mjs';
 import {stepStrain, pushFromHub} from './cinders.mjs';
+import {confirmDialog} from './ag-dialogs.mjs';
+import {windowSize} from './ag-html.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
-const cinderConfirm = content => globalThis.foundry?.applications?.api?.DialogV2?.confirm?.({window: {title: 'Push'}, content, modal: true, rejectClose: false}) ?? Promise.resolve(false);
+/** Push asks first through the shared dialog: "Push [power]?" with Cancel and Push. */
+export const cinderConfirm = (message, {power = ''} = {}) => confirmDialog(message, {title: power ? `Push ${power}?` : 'Push?', yes: 'Push'});
 /** Shows a refusal or failure from an action; a success is silent (the sheet re-renders itself). */
 export const report = result => { if (result && result.ok === false && result.error) warn(result.error); return result; };
 
@@ -81,7 +84,7 @@ export const ACTIONS = {
   'spell-prepare': (s, t) => items.togglePrepared(s.document, t.dataset.id),
   'rest': (s, t) => items.rest(s.document, t.dataset.type),
   'partner-open': (s, t) => openPartner(s.document, t.dataset.partner, t.dataset.ref),
-  'companion-remove': (s, t) => comp.removeCompanion(s.document, t.dataset.entry),
+  'companion-remove': (s, t) => removeCompanionAsk(s, t.dataset.entry),
   'companion-move': (s, t) => comp.moveCompanion(s.document, t.dataset.entry, Number(t.dataset.step)),
   'companion-detach': (s, t) => comp.detachPerk(s.document, t.dataset.entry, t.dataset.id),
   'companion-unattach': (s, t) => comp.detachExtra(s.document, t.dataset.entry, t.dataset.id),
@@ -142,12 +145,20 @@ async function journeySave(sheet, target) {
 }
 /** Deleting a GM note asks first (destructive actions sit behind a labelled confirmation). */
 async function journeyDelete(sheet, target) {
-  const D = globalThis.foundry?.applications?.api?.DialogV2;
-  const yes = D?.confirm ? await D.confirm({window: {title: 'Delete Journey note'}, content: '<p>Delete this GM note? This cannot be undone.</p>', yes: {label: 'Delete note'}, rejectClose: false}) : true;
+  const yes = await confirmDialog('This GM note is deleted from the Journey. This cannot be undone.', {title: 'Delete this note?', yes: 'Delete note', danger: true});
   if (!yes) return {ok: true, result: null};
   const r = await journey.deleteEntry(journeyActor({actor: sheet.document, sheet}), target.dataset.id);
   if (r.ok) sheet.render();
   return r;
+}
+/** Removing a companion asks first; Cancel changes nothing. The linked Actor or Item itself is kept. */
+export async function removeCompanionAsk(sheet, entryId, ask = confirmDialog) {
+  const actor = sheet.document, entry = comp.storedCompanions(actor).find(e => e.id === entryId);
+  if (!entry) return {ok: false, error: 'That companion is no longer listed.'};
+  const name = entry.name || comp.linkedActor(entry.actorUuid)?.name || actor.items?.get?.(entry.itemId)?.name || 'this companion';
+  const yes = await ask(`Remove ${name} from ${actor.name}'s companions? Their notes are deleted.`, {title: 'Remove companion?', yes: 'Remove companion', danger: true});
+  if (!yes) return {ok: true, result: null};
+  return comp.removeCompanion(actor, entryId);
 }
 /** "More" on a card: shows or hides its full description in place; the sheet remembers it until it closes. */
 function toggleMore(sheet, target) {
@@ -222,16 +233,29 @@ async function openLinkedActor(actor, entryId) {
   return {ok: true};
 }
 
+/** Arrow keys in a segmented control (radio group) move to the next choice and pick it. */
+export function segmentStep(button, step) {
+  const all = [...(button.parentElement?.querySelectorAll?.('[role="radio"]') ?? [])];
+  const next = all[(all.indexOf(button) + step + all.length) % all.length];
+  if (!next || next === button) return null;
+  next.focus?.(); next.click?.();
+  return next;
+}
+
 /** Builds the class on top of Foundry's ActorSheetV2 (passed in so tests can supply a stand-in). */
 export function createHubSheetClass(Base) {
   return class CharacterHubSheet extends Base {
     static DEFAULT_OPTIONS = {
       classes: ['ag-app', 'ag-character-hub'],
-      position: {width: 1240, height: 800},
+      position: {width: 1240, height: 800},  // Compact; Comfortable scales it when the sheet opens (windowSize)
       window: {resizable: true},
       form: {submitOnChange: false, closeOnSubmit: false}
     };
     static LABEL = SHEET_LABEL;
+    /** The default size follows the kit size set (Comfortable is 1.2x); an explicit position still wins. */
+    constructor(options = {}) {
+      super({...options, position: {...windowSize(CharacterHubSheet.DEFAULT_OPTIONS.position), ...options.position}});
+    }
     tab = 'overview';
     /** Open slot menu: 'slot:<id>' or null. */
     menu = null;
@@ -284,6 +308,7 @@ export function createHubSheetClass(Base) {
         content.addEventListener?.('keydown', ev => {
           if (ev.key === 'Escape' && this.menu) { ev.stopPropagation(); toggleMenu(this, null); return; }
           if ((ev.key === 'Enter' || ev.key === ' ') && ev.target?.matches?.('[data-hp-bar]')) { this._onHpBarOpen(ev); return; }
+          if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(ev.key) && ev.target?.matches?.('.ag-segmented > [role="radio"]')) { ev.preventDefault(); segmentStep(ev.target, ev.key === 'ArrowLeft' || ev.key === 'ArrowUp' ? -1 : 1); return; }
           if (ev.key === 'Enter' && ev.target?.matches?.('[data-hpedit]')) { ev.preventDefault(); this.dispatch('hp-apply', ev.target, ev); }
         });
         content.addEventListener?.('submit', ev => ev.preventDefault());

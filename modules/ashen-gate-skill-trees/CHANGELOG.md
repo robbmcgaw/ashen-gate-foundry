@@ -1,3 +1,7 @@
+## 0.18.0 — 2026-10-21
+
+- Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.
+
 ## 0.17.1 — 2026-10-21
 
 - **Cinder point cap is now 16** (was 13). A `cinder_milestone` tree's wallet holds up to 16 lifetime points. Tree View shows "Cinder • 16-point milestone wallet", New tree and Award say 16.

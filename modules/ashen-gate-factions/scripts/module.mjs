@@ -1,6 +1,6 @@
 /** Renown (formerly Factions & Renown; id unchanged). Originally v0.6.0 Beta; Foundry V14 target. No mandatory companion module. */
 import {MODULE_ID,SCHEMA_VERSION,RECOVERED_GUILDS_DRAFT,makeFaction,upgradeFaction,groupStateDefaults,sourceDefinition,validateFaction,blankStanding,adjustStanding,progressFor,milestoneProjection,discoverable,projectedFolders,grantAutoKnowledge,secureEntryPreview,claimEligible,chooseOneEligible,rewardUnlocked,makeGroupRecord,makePersonalRecord,keyFor,overlayCampaign,extractCampaignDiscovery,fieldDisclosure,disclosedField,revealField,FIELD_KEYS} from './core.mjs';
-import {confirmDialog,formDialog,promptText,infoDialog,esc,checklistDialog} from './dialogs.mjs';
+import {confirmDialog,formDialog,promptText,infoDialog,esc,checklistDialog} from './ag-dialogs.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {addObjectiveRef,removeObjectiveRef,objectiveRefs,auditObjectiveRefs} from './objective-refs.mjs';
 import {planImport,runImport,IMPORT_SCHEMA} from './import.mjs';
@@ -39,7 +39,7 @@ const getFolders=d=>d?.getFlag(MODULE_ID,'folderIndex');
 // Foundry's Journal folder is storage organization only, independent from the in-dashboard faction folders.
 // Do not set player visibility on the Folder. Journal ownership controls actual document access.
 const STORAGE_FOLDER_NAME='Ashen Gate — Factions Data';
-const BUILD_VERSION='0.11.1';
+const BUILD_VERSION='0.12.0';
 const isModuleJournal=d=>Boolean(getFaction(d)||getGroup(d)||getPersonal(d)||getView(d)||getFolders(d));
 async function ensureStorageFolder(){
   assertGM();

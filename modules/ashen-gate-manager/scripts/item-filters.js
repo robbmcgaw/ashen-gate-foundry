@@ -15,7 +15,7 @@ import {coreEvidence, coreRefOf} from './core-links.js';
 const MODULE_ID = 'ashen-gate-manager';
 
 export const ORIGINS = Object.freeze({ag: 'Ashen Gate', core24: 'Core 2024', core14: 'Core 2014', ddb: 'DDB / Plutonium', homebrew: 'Homebrew'});
-/** dnd5e rarity keys (lower case, no spaces) in display order. Colours are the --ag-rarity-* variables in manager.css. */
+/** dnd5e rarity keys (lower case, no spaces) in display order. Colours are the --ag-rarity-* kit tokens (ag-ui.css). */
 export const RARITIES = Object.freeze({common: 'Common', uncommon: 'Uncommon', rare: 'Rare', veryrare: 'Very rare', legendary: 'Legendary', artifact: 'Artifact'});
 /** Index fields a compendium read needs so pack entries can be filtered like world documents. */
 export const FILTER_INDEX_FIELDS = Object.freeze(['system.source', 'flags.plutonium', 'flags.ddbimporter', '_stats.compendiumSource']);

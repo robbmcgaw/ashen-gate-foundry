@@ -119,7 +119,7 @@ export function hiddenBadge(keys, user = globalThis.game?.user) {
   const reasons = list.map(k => hiddenReason(k)).filter(Boolean);
   if (reasons.length < list.length || !reasons.length) return '';
   const text = `Hidden from players: ${reasons[0]}`;
-  return ` <span class="ag-badge ag-badge--warn agch-hidden" title="${esc(text)}"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> ${esc(text)}</span>`;
+  return ` <span class="ag-badge ag-badge--warn agch-hidden" data-tooltip="${esc(text)}"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> ${esc(text)}</span>`;
 }
 
 /** Registers the world setting (GM-only by Foundry's world scope). */

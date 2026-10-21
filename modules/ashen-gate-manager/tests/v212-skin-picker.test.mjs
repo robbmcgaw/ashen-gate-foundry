@@ -51,7 +51,7 @@ test('My Appearance has a labelled Inherit card and keeps its status lines and S
   const t=read('../templates/my-appearance.hbs');
   assert.match(t,/data-ag-skin-value=""/);assert.match(t,/Inherit world default/);
   assert.match(t,/GM world default: <strong>\{\{worldDefault\}\}<\/strong> · Currently displayed: <strong>\{\{effective\}\}<\/strong>/);
-  assert.match(t,/role="status">\{\{status\}\}/);assert.match(t,/data-ag-my-save/);
+  assert.match(t,/role="status"[^>]*>\{\{status\}\}/);assert.match(t,/data-ag-my-save/);
 });
 
 test('both pickers feed the existing selection state; save semantics are unchanged; GM gate intact',()=>{

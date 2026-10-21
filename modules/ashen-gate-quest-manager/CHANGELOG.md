@@ -1,3 +1,9 @@
+## 0.9.0 — 2026-10-21
+
+- Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.
+- Dialogs now come from the shared `ag-dialogs.mjs` (same behaviour, now skinned).
+- Quest cards keep box corners (not the new pill shape) so multi-line cards and the selected edge look right.
+
 ## 0.8.0 — 2026-10-20
 
 - **New API `embed.mount(element, {actorId, mode: 'character'})`** so a partner module (Character Hub) can show a character's quests inside its own window: Party and Individual quests with search and Track, and the selected quest's objectives, locations, party notes and Character notes (Save). Returns `{unmount, refresh}`; it refreshes itself on changes. See the README.

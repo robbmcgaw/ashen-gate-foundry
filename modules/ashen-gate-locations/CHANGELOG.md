@@ -1,3 +1,7 @@
+## 1.16.0 — 2026-10-21
+
+- Shared UI kit 2.0.0: rounded compact look for shared parts, Comfortable size option (General Manager → My Appearance), shared dialog helper.
+
 ## 1.15.2 — 2026-10-21
 
 - **Fix: routes can no longer end up with 0 km or endless legs.** Distances and leg lengths are kept to 0.01 km; a value that rounds to 0 (e.g. 0.004) is now refused with a clear message in the route editor, `saveRoute` and Route import (it used to be saved as 0, and a 0 leg gave Infinity legs). The GM Setup default leg length is checked the same way. Existing routes are unchanged.

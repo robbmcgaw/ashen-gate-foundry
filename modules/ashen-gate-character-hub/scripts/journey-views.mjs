@@ -24,14 +24,14 @@ function row(e, gm, editing) {
     <input type="text" name="text" value="${esc(e.text)}" maxlength="${TEXT_MAX}" aria-label="Entry text"><input type="date" name="date" value="${esc(e.date ?? '')}" aria-label="Date (optional)">
     <span class="agch-journey__formbtns">${btn('journey-cancel', 'Cancel', {kind: 'ghost'})}${btn('journey-save', 'Save Changes', {kind: 'primary', data: {id: e.id}})}</span></form></li>`;
   return `<li class="agch-journey__entry${e.hidden ? ' is-hidden' : ''}" data-entry="${esc(e.id)}" data-type="${esc(e.type)}">
-    <i class="${ICONS[e.type] ?? 'fa-solid fa-circle'} agch-journey__icon" title="${esc(TYPES[e.type] ?? e.type)}" aria-hidden="true"></i>
-    <span class="agch-journey__when">${esc(when(e))}</span><span class="agch-journey__text">${esc(e.text)}${e.hidden ? ' <span class="ag-badge ag-badge--warn"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Hidden from player</span>' : ''}</span>${controls}</li>`;
+    <i class="${ICONS[e.type] ?? 'fa-solid fa-circle'} agch-journey__icon" data-tooltip="${esc(TYPES[e.type] ?? e.type)}" aria-hidden="true"></i>
+    <span class="agch-journey__when">${esc(when(e))}</span><span class="agch-journey__text">${esc(e.text)}${e.hidden ? ' <span class="ag-badge ag-badge--warn"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Hidden from player</span> <span class="ag-gm-flag"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> GM only</span>' : ''}</span>${controls}</li>`;
 }
 
 export function journeyTab(ctx) {
   const gm = globalThis.game?.user?.isGM === true, actor = journeyActor(ctx);
   const head = `<p class="agch-journey__alpha"><span class="ag-badge ag-badge--accent">New · alpha</span> Accomplishments are recorded from now on: level-ups, Renown tier changes, completed quests${gm ? ', and your own notes' : ''}.</p>`;
-  if (!canRead(actor)) return `${head}<p class="ag-empty">Only this character's owner and the GM can see its Journey.</p>`;
+  if (!canRead(actor)) return `${head}<div class="ag-empty"><p class="ag-empty__title">This Journey is private.</p><p class="ag-empty__text">Only this character's owner and the GM can see it.</p></div>`;
   const picker = gm ? `<label class="agch-orgsel"><span>Character</span><select data-edit="journey-actor" aria-label="Show the Journey of">${[...new Map([ctx.actor, ...partyActors()].filter(Boolean).map(a => [a.id, a])).values()]
     .map(a => `<option value="${esc(a.id)}"${a.id === actor.id ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>` : '';
   const add = gm ? `<form class="agch-journey__form agch-journey__add" data-journey-form="add">
@@ -40,6 +40,6 @@ export function journeyTab(ctx) {
       ${btn('journey-add', 'Add entry', {kind: 'primary', icon: 'fa-solid fa-plus'})}</form>` : '';
   const entries = journeyFor(actor), editing = ctx.sheet?.journeyEdit ?? null;
   const list = entries.length ? `<ol class="agch-journey" aria-label="${esc(actor.name)}'s Journey, newest first">${entries.map(e => row(e, gm, gm && editing === e.id)).join('')}</ol>`
-    : '<p class="ag-empty">Nothing recorded yet.</p>';
-  return `${head}${gm ? `<div class="agch-toolbar">${picker}</div>${add}` : ''}${list}`;
+    : '<div class="ag-empty"><i class="fa-solid fa-book-open" aria-hidden="true"></i><p class="ag-empty__title">No accomplishments yet.</p><p class="ag-empty__text">Level-ups, Renown ranks and completed quests show here as they happen.</p></div>';
+  return `${head}${gm ? `<div class="ag-toolbar agch-toolbar">${picker}</div>${add}` : ''}${list}`;
 }

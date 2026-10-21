@@ -33,7 +33,7 @@ function facetSelect(f, list, current) {
 }
 
 const chip = (text, tone = '') => text ? `<span class="ag-badge${tone ? ` ag-badge--${tone}` : ''}">${esc(text)}</span>` : '';
-/** Rarity pill in the shared rarity colours (--ag-rarity-*, manager.css). */
+/** Rarity pill in the shared rarity colours (--ag-rarity-* kit tokens, ag-ui.css). */
 export const rarityPill = key => RARITIES[key] ? `<span class="ag-rarity ag-rarity--${key}"><i aria-hidden="true"></i>${esc(RARITIES[key])}</span>` : '';
 const visTone = v => v === 'gm' ? 'danger' : v === 'reveal_gated' || v === 'reveal-gated' ? 'warn' : v === 'player' ? 'ok' : '';
 const statusTone = s => s === 'approved' ? 'ok' : s === 'draft' ? 'warn' : '';

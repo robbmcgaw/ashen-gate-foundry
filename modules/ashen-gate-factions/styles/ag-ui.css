@@ -1,3 +1,4 @@
+/* ag-ui kit 2.0.0 */
 /*
  * Ashen Gate UI kit (ag-ui.css)
  * Every Ashen Gate module ships an identical copy of this file; scripts/check.mjs fails if
@@ -12,6 +13,11 @@
  * Generic element styling inside .ag-app uses :where() (zero specificity) so module CSS
  * can override it with a single class. Component classes (.ag-btn, .ag-card, ...) carry
  * normal one-class specificity.
+ *
+ * Size: the :root scale is the Compact set (default). General Manager writes
+ * html[data-ag-size="comfortable"] for a per-device larger set with the same token names.
+ * Shape (radius) is not part of the size sets; structural skins override it.
+ * Kit 2 is additive: every kit-1 class and token keeps working.
  */
 
 /* ---------- Base tokens (what a skin sets) ---------- */
@@ -33,21 +39,71 @@
   --ag-font-body: "Signika", "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
   --ag-font-display: "Signika", "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif;
   --ag-font-mono: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, Consolas, monospace;
+  /* Size: Compact set (default). Comfortable redefines the same names below. */
   --ag-text-xs: 11px;
-  --ag-text-sm: 12px;
+  --ag-text-sm: 11.5px;
+  --ag-text-md: 13px;
+  --ag-text-lg: 14px;
+  --ag-text-xl: 17px;
+  --ag-space-1: 3px;
+  --ag-space-2: 6px;
+  --ag-space-3: 8px;
+  --ag-space-4: 12px;
+  --ag-space-5: 16px;
+  --ag-space-6: 24px;
+  --ag-control-h: 28px;           /* buttons, inputs, selects */
+  --ag-control-h-sm: 24px;        /* row actions, chips */
+  --ag-icon-btn: 26px;            /* icon-only (round) button */
+  --ag-icon: 12px;                /* icon glyph */
+  --ag-icon-chip: 24px;           /* round chip behind an icon */
+  --ag-slot: 38px;                /* hotbar / equipment slot */
+  --ag-portrait: 56px;            /* portrait inside the HP ring */
+  --ag-row-h: 32px;               /* minimum record row height */
+
+  /* Shape (same in both sizes; structural skins override) */
+  --ag-radius-sm: 6px;            /* small wells, slot tags */
+  --ag-radius: 8px;               /* boxes: panels, row groups, notices, popovers */
+  --ag-radius-lg: 14px;           /* cards */
+  --ag-radius-window: 16px;       /* Ashen Gate windows and dialogs */
+  --ag-radius-control: 999px;     /* buttons, inputs, selects, tabs, chips, segmented */
+  --ag-radius-field: 10px;        /* textareas */
+
+  /* dnd5e rarity hues (game data colours, not skin colours). Keys in kebab case (veryRare -> very-rare). */
+  --ag-rarity-common: #b9b4aa;
+  --ag-rarity-uncommon: #3fbf5a;
+  --ag-rarity-rare: #3d8bfd;
+  --ag-rarity-very-rare: #a35ce6;
+  --ag-rarity-legendary: #ff8c1a;
+  --ag-rarity-artifact: #e5383b;
+
+  --ag-rail-w: 18rem;             /* list column in list + detail */
+  --ag-measure: 68ch;             /* longest comfortable line of prose */
+  --ag-dur-fast: 120ms;
+  --ag-dur: 180ms;
+  --ag-ease: cubic-bezier(.2, .7, .2, 1);
+}
+
+/* ---------- Comfortable size (per device; General Manager sets html[data-ag-size]) ---------- */
+html[data-ag-size="comfortable"] {
+  --ag-text-xs: 11px;
+  --ag-text-sm: 12.5px;
   --ag-text-md: 14px;
-  --ag-text-lg: 16px;
-  --ag-text-xl: 19px;
+  --ag-text-lg: 17px;
+  --ag-text-xl: 21px;
   --ag-space-1: 4px;
   --ag-space-2: 8px;
   --ag-space-3: 12px;
   --ag-space-4: 16px;
   --ag-space-5: 24px;
   --ag-space-6: 32px;
-  --ag-radius-sm: 4px;
-  --ag-radius: 6px;
-  --ag-radius-lg: 10px;
-  --ag-control-h: 34px;
+  --ag-control-h: 36px;
+  --ag-control-h-sm: 30px;
+  --ag-icon-btn: 32px;
+  --ag-icon: 14px;
+  --ag-icon-chip: 32px;
+  --ag-slot: 48px;
+  --ag-portrait: 84px;
+  --ag-row-h: 44px;
 }
 
 /* ---------- Derived tokens + legacy aliases (recomputed inside each app) ---------- */
@@ -60,6 +116,18 @@
   --ag-ok-soft: color-mix(in srgb, var(--ag-ok) 16%, var(--ag-surface-raised));
   --ag-warn-soft: color-mix(in srgb, var(--ag-warn) 16%, var(--ag-surface-raised));
   --ag-shadow: 0 1px 2px rgb(0 0 0 / .28), 0 6px 18px rgb(0 0 0 / .22);
+  --ag-shadow-sm: 0 1px 2px rgb(0 0 0 / .22);
+  --ag-row-alt: color-mix(in srgb, var(--ag-text) 5%, transparent);
+  --ag-row-selected: var(--ag-accent-soft);
+  --ag-info: var(--ag-focus);
+  --ag-info-soft: color-mix(in srgb, var(--ag-info) 14%, var(--ag-surface-raised));
+  /* Rarity "ink": the hue mixed half and half with the skin's text colour, so it reads (4.5:1) on light and dark skins. */
+  --ag-rarity-ink-common: var(--ag-muted);
+  --ag-rarity-ink-uncommon: color-mix(in oklab, var(--ag-rarity-uncommon) 50%, var(--ag-text));
+  --ag-rarity-ink-rare: color-mix(in oklab, var(--ag-rarity-rare) 50%, var(--ag-text));
+  --ag-rarity-ink-very-rare: color-mix(in oklab, var(--ag-rarity-very-rare) 50%, var(--ag-text));
+  --ag-rarity-ink-legendary: color-mix(in oklab, var(--ag-rarity-legendary) 50%, var(--ag-text));
+  --ag-rarity-ink-artifact: color-mix(in oklab, var(--ag-rarity-artifact) 50%, var(--ag-text));
   /* Pre-kit names still used by module CSS; they follow the kit tokens. */
   --ag-bg: var(--ag-surface);
   --ag-panel: var(--ag-surface-raised);
@@ -75,7 +143,7 @@
 .application.ag-app {
   background: var(--ag-surface);
   border: 1px solid var(--ag-border);
-  border-radius: var(--ag-radius-lg);
+  border-radius: var(--ag-radius-window);
   box-shadow: var(--ag-shadow);
   overflow: hidden;
 }
@@ -113,16 +181,16 @@
   width: auto;
   min-height: var(--ag-control-h);
   height: auto;
-  padding: 6px 14px;
+  padding: var(--ag-space-1) var(--ag-space-4);
   border: 1px solid var(--ag-border);
-  border-radius: var(--ag-radius);
+  border-radius: var(--ag-radius-control);
   background: var(--ag-surface-raised);
   color: var(--ag-text);
   font: 500 var(--ag-text-md)/1.25 var(--ag-font-body);
   white-space: normal;
   cursor: pointer;
   box-shadow: none;
-  transition: background-color .12s ease, border-color .12s ease, color .12s ease;
+  transition: background-color var(--ag-dur-fast) ease, border-color var(--ag-dur-fast) ease, color var(--ag-dur-fast) ease;
 }
 :where(.ag-app) :where(button:not(.header-control):hover:not(:disabled)) {
   background: var(--ag-surface-hover);
@@ -134,15 +202,15 @@
   box-sizing: border-box;
   max-width: 100%;
   min-height: var(--ag-control-h);
-  padding: 6px 10px;
+  padding: var(--ag-space-1) var(--ag-space-4);
   border: 1px solid var(--ag-border);
-  border-radius: var(--ag-radius);
+  border-radius: var(--ag-radius-control);
   background: var(--ag-surface-sunken);
   color: var(--ag-text);
   font: 400 var(--ag-text-md)/1.4 var(--ag-font-body);
   box-shadow: none;
 }
-:where(.ag-app) :where(textarea) { resize: vertical; }
+:where(.ag-app) :where(textarea) { resize: vertical; border-radius: var(--ag-radius-field); padding: var(--ag-space-2) var(--ag-space-3); }
 :where(.ag-app) :where(input, select, textarea)::placeholder { color: var(--ag-muted); opacity: .85; }
 :where(.ag-app) :where(input[type="checkbox"], input[type="radio"], input[type="range"], progress) { accent-color: var(--ag-accent); }
 :where(.ag-app) :where(select option) { background: var(--ag-surface-raised); color: var(--ag-text); }
@@ -162,8 +230,8 @@
 .ag-field select {
   height: auto !important;
   line-height: 1.4 !important;
-  padding-top: 5px;
-  padding-bottom: 5px;
+  padding-top: 3px;
+  padding-bottom: 3px;
   text-overflow: ellipsis;
 }
 
@@ -214,19 +282,18 @@
   flex-wrap: wrap;
   align-items: stretch;
   gap: var(--ag-space-1);
-  padding: var(--ag-space-2) var(--ag-space-4) 0;
+  padding: var(--ag-space-2) var(--ag-space-4);
   background: var(--ag-surface-raised);
   border-bottom: 1px solid var(--ag-border);
 }
 .ag-tabs > :where(button, a, .ag-tab) {
   flex: 0 0 auto;
   min-width: 0;
-  min-height: 36px;
-  margin: 0 0 -1px;
-  padding: 7px 14px;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: var(--ag-radius) var(--ag-radius) 0 0;
+  min-height: var(--ag-control-h);
+  margin: 0;
+  padding: var(--ag-space-1) var(--ag-space-4);
+  border: 1px solid transparent;
+  border-radius: var(--ag-radius-control);
   background: transparent;
   color: var(--ag-muted);
   font: 600 var(--ag-text-md)/1.2 var(--ag-font-body);
@@ -238,12 +305,12 @@
   background: var(--ag-surface-hover);
   color: var(--ag-text);
   border-color: transparent;
-  border-bottom-color: var(--ag-border-strong);
 }
+/* Active tab: filled accent pill (kit 2; kit 1 used a bottom border). */
 .ag-tabs > :where(.active, [aria-current="page"], [aria-selected="true"], .is-active) {
-  color: var(--ag-text);
-  background: var(--ag-surface);
-  border-bottom-color: var(--ag-accent);
+  color: var(--ag-accent-contrast);
+  background: var(--ag-accent);
+  border-color: var(--ag-accent);
 }
 
 /* ---------- .ag-btn: explicit buttons ---------- */
@@ -257,9 +324,9 @@
   width: auto;
   min-height: var(--ag-control-h);
   height: auto;
-  padding: 6px 14px;
+  padding: var(--ag-space-1) var(--ag-space-4);
   border: 1px solid var(--ag-border);
-  border-radius: var(--ag-radius);
+  border-radius: var(--ag-radius-control);
   background: var(--ag-surface-raised);
   color: var(--ag-text);
   font: 500 var(--ag-text-md)/1.25 var(--ag-font-body);
@@ -281,7 +348,7 @@
 :where(.ag-app) button.danger { background: var(--ag-danger-soft); border-color: color-mix(in srgb, var(--ag-danger) 55%, var(--ag-border)); color: var(--ag-danger); }
 .ag-btn--danger:hover:not(:disabled),
 :where(.ag-app) button.danger:hover:not(:disabled) { background: var(--ag-danger); border-color: var(--ag-danger); color: var(--ag-surface); }
-.ag-btn--sm { min-height: 28px; padding: 3px 10px; font-size: var(--ag-text-sm); }
+.ag-btn--sm { min-height: var(--ag-control-h-sm); padding: 2px var(--ag-space-3); font-size: var(--ag-text-sm); }
 .ag-btn:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ---------- .ag-field: label + control ---------- */
@@ -318,10 +385,12 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: var(--ag-space-2) var(--ag-space-3);
-  padding: 10px var(--ag-space-1);
+  padding: var(--ag-space-3) var(--ag-space-1);
   border-bottom: 1px solid var(--ag-border);
 }
 .ag-list > *:last-child { border-bottom: 0; }
+/* A row that is only a button (or link) lets the button carry the padding, so it is not padded twice. */
+.ag-list > :has(> :where(button, a):only-child) { padding-block: 0; }
 
 /* ---------- .ag-badge: small status pill ---------- */
 .ag-badge {
@@ -431,7 +500,7 @@
   overflow-wrap: anywhere;
   box-shadow: none;
   cursor: pointer;
-  transition: background-color .12s ease, border-color .12s ease;
+  transition: background-color var(--ag-dur-fast) ease, border-color var(--ag-dur-fast) ease;
 }
 #ashen-gate-launchers > .ag-launcher > span,
 .ag-sidebar-launch-group[data-ag-launch-group] > .ag-sidebar-launch-button > span {
@@ -457,6 +526,235 @@
   box-shadow: none;
 }
 
+/* =====================================================================================
+ * Kit 2 parts (2.0.0). Markup contracts: docs/ui-standard.md on the design branch.
+ * ===================================================================================== */
+
+/* ---------- Header meta: version + Help on the right ---------- */
+.ag-version { font: 500 var(--ag-text-xs)/1 var(--ag-font-mono); color: var(--ag-muted); letter-spacing: .02em; }
+
+/* ---------- Tabs: one line that scrolls sideways when narrow; counts; GM-only marker ---------- */
+.ag-tabs--scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.ag-tabs--scroll::-webkit-scrollbar { display: none; }
+.ag-tabs > :where(button, a, .ag-tab) > i { margin-right: var(--ag-space-1); font-size: .95em; }
+.ag-tab__count { margin-left: var(--ag-space-1); padding: 0 var(--ag-space-2); border-radius: var(--ag-radius-control); background: var(--ag-surface-sunken); color: var(--ag-muted); font-size: var(--ag-text-xs); font-weight: 600; }
+.ag-tab--gm::after { content: "GM"; margin-left: var(--ag-space-2); padding: 0 var(--ag-space-1); border: 1px solid currentColor; border-radius: var(--ag-radius-sm); opacity: .75; font-size: var(--ag-text-xs); letter-spacing: .06em; }
+
+/* ---------- Toolbar: search | filters | count | create ---------- */
+.ag-search { position: relative; display: flex; align-items: center; flex: 1 1 220px; min-width: 0; }
+.ag-search > i { position: absolute; left: var(--ag-space-4); color: var(--ag-muted); pointer-events: none; font-size: var(--ag-icon); }
+.ag-search > input { width: 100%; padding-left: calc(var(--ag-space-4) + var(--ag-icon) + var(--ag-space-2)) !important; }
+.ag-toolbar__filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); }
+.ag-toolbar__filters > select { width: auto; max-width: 14rem; }
+.ag-toolbar__count { color: var(--ag-muted); font-size: var(--ag-text-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* ---------- Chips: toggleable filters (aria-pressed). Badges are status, chips are input. ---------- */
+.ag-chip {
+  display: inline-flex; align-items: center; gap: var(--ag-space-1);
+  min-height: var(--ag-control-h-sm); padding: 2px var(--ag-space-3);
+  border: 1px solid var(--ag-border); border-radius: var(--ag-radius-control);
+  background: transparent; color: var(--ag-muted);
+  font: 600 var(--ag-text-sm)/1.2 var(--ag-font-body); cursor: pointer; white-space: nowrap;
+  transition: background-color var(--ag-dur-fast) ease, border-color var(--ag-dur-fast) ease, color var(--ag-dur-fast) ease;
+}
+.ag-chip:hover { background: var(--ag-surface-hover); color: var(--ag-text); }
+.ag-chip[aria-pressed="true"] { background: var(--ag-accent-soft); border-color: color-mix(in srgb, var(--ag-accent) 60%, var(--ag-border)); color: var(--ag-text); }
+.ag-chip[aria-pressed="true"]::before { content: "\2713"; color: var(--ag-accent); font-weight: 700; }
+.ag-chip-group { display: inline-flex; flex-wrap: wrap; gap: var(--ag-space-1); }
+
+/* ---------- Buttons: icon-only (round), groups ---------- */
+.ag-btn--icon { width: var(--ag-icon-btn); min-width: var(--ag-icon-btn); min-height: var(--ag-icon-btn); height: var(--ag-icon-btn); padding: 0; border-radius: 50%; }
+.ag-btn--icon.ag-btn--sm { width: var(--ag-control-h-sm); min-width: var(--ag-control-h-sm); min-height: var(--ag-control-h-sm); height: var(--ag-control-h-sm); padding: 0; }
+.ag-btn-group { display: inline-flex; flex-wrap: wrap; gap: var(--ag-space-2); align-items: center; }
+
+/* ---------- Segmented control: one choice of a few (role="radiogroup", buttons role="radio") ---------- */
+.ag-segmented { display: inline-flex; padding: 2px; gap: 2px; border: 1px solid var(--ag-border); border-radius: var(--ag-radius-control); background: var(--ag-surface-sunken); }
+.ag-segmented > button {
+  min-height: calc(var(--ag-control-h-sm) - 2px); padding: 2px var(--ag-space-4); border: 0; border-radius: var(--ag-radius-control);
+  background: transparent; color: var(--ag-muted); font: 600 var(--ag-text-sm)/1.2 var(--ag-font-body); cursor: pointer;
+}
+.ag-segmented > button:hover { color: var(--ag-text); background: transparent; }
+.ag-segmented > [aria-checked="true"],
+.ag-segmented > [aria-checked="true"]:hover { background: var(--ag-surface-raised); color: var(--ag-text); box-shadow: var(--ag-shadow-sm); }
+
+/* ---------- Tables: real <table> for data with column headers ---------- */
+.ag-table-wrap { overflow: auto; border: 1px solid var(--ag-border); border-radius: var(--ag-radius); }
+.ag-table { width: 100%; border-collapse: collapse; font-size: var(--ag-text-sm); }
+.ag-table th, .ag-table td { padding: var(--ag-space-2) var(--ag-space-3); text-align: left; vertical-align: middle; }
+.ag-table thead th {
+  position: sticky; top: 0; z-index: 1;
+  background: var(--ag-surface-sunken); color: var(--ag-muted); border-bottom: 1px solid var(--ag-border);
+  font-size: var(--ag-text-xs); font-weight: 650; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap;
+}
+.ag-table tbody tr:nth-child(even) { background: var(--ag-row-alt); }
+.ag-table tbody tr:hover { background: var(--ag-surface-hover); }
+.ag-table tbody tr.is-selected { background: var(--ag-row-selected); }
+.ag-table .is-num { text-align: right; font-variant-numeric: tabular-nums; }
+.ag-table .is-actions { text-align: right; white-space: nowrap; width: 1%; }
+
+/* ---------- Rows: list of records that are not a table (.ag-list stays for plain stacks) ---------- */
+.ag-rows { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; border: 1px solid var(--ag-border); border-radius: var(--ag-radius); overflow: hidden; }
+.ag-rows__head { display: flex; gap: var(--ag-space-3); padding: var(--ag-space-1) var(--ag-space-3); background: var(--ag-surface-sunken); border-bottom: 1px solid var(--ag-border); color: var(--ag-muted); font-size: var(--ag-text-xs); font-weight: 650; letter-spacing: .05em; text-transform: uppercase; }
+.ag-row { display: flex; align-items: center; gap: var(--ag-space-3); min-height: var(--ag-row-h); padding: var(--ag-space-1) var(--ag-space-3); border-left: 3px solid transparent; }
+.ag-rows > .ag-row:nth-child(even of .ag-row) { background: var(--ag-row-alt); }
+.ag-row:hover { background: var(--ag-surface-hover); }
+.ag-row.is-selected, .ag-row[aria-current="true"] { background: var(--ag-row-selected); border-left-color: var(--ag-accent); }
+.ag-row__icon { flex: 0 0 auto; width: var(--ag-icon-chip); height: var(--ag-icon-chip); display: grid; place-items: center; border-radius: 50%; background: var(--ag-surface-sunken); color: var(--ag-accent); font-size: var(--ag-icon); object-fit: cover; }
+.ag-row__main { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.ag-row__title { font-weight: 600; overflow-wrap: anywhere; }
+.ag-row__meta { color: var(--ag-muted); font-size: var(--ag-text-sm); overflow-wrap: anywhere; }
+.ag-row__end { flex: 0 0 auto; display: flex; align-items: center; gap: var(--ag-space-2); margin-left: auto; }
+button.ag-row { width: 100%; justify-content: flex-start; text-align: left; border-radius: 0; border-width: 0 0 0 3px; background: transparent; font-weight: 400; }
+
+/* ---------- Cards: head / body / actions; grids of cards ---------- */
+.ag-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ag-space-2) var(--ag-space-3); flex-wrap: wrap; margin: 0 0 var(--ag-space-2); }
+.ag-card__title { margin: 0; font-size: var(--ag-text-lg); }
+.ag-card__meta { color: var(--ag-muted); font-size: var(--ag-text-sm); }
+.ag-card__actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--ag-space-2); margin-top: var(--ag-space-3); }
+.ag-card--compact { padding: var(--ag-space-3); }
+.ag-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr)); gap: var(--ag-space-3); }
+.ag-card-grid > .ag-card { margin: 0; }
+
+/* ---------- Key/value facts ---------- */
+.ag-kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--ag-space-1) var(--ag-space-3); margin: 0; }
+.ag-kv > dt { color: var(--ag-muted); font-size: var(--ag-text-sm); }
+.ag-kv > dd { margin: 0; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+
+/* ---------- Section heading inside a pane; eyebrow label ---------- */
+.ag-section { margin: 0 0 var(--ag-space-4); }
+.ag-section__head { display: flex; align-items: center; justify-content: space-between; gap: var(--ag-space-2); margin: 0 0 var(--ag-space-2); padding-bottom: var(--ag-space-1); border-bottom: 1px solid var(--ag-border); }
+.ag-section__title { margin: 0; font-size: var(--ag-text-md); font-weight: 650; letter-spacing: .02em; }
+.ag-eyebrow { color: var(--ag-muted); font-size: var(--ag-text-xs); font-weight: 650; letter-spacing: .08em; text-transform: uppercase; }
+
+/* ---------- Notices: inline messages (GM-only, partner module missing, saved, error) ---------- */
+.ag-notice { display: flex; gap: var(--ag-space-2); align-items: flex-start; padding: var(--ag-space-2) var(--ag-space-3); border: 1px solid var(--ag-border); border-left-width: 3px; border-radius: var(--ag-radius); background: var(--ag-surface-raised); font-size: var(--ag-text-sm); }
+.ag-notice > i { margin-top: 2px; }
+.ag-notice--info { border-left-color: var(--ag-info); background: var(--ag-info-soft); }
+.ag-notice--info > i { color: var(--ag-info); }
+.ag-notice--ok { border-left-color: var(--ag-ok); background: var(--ag-ok-soft); }
+.ag-notice--ok > i { color: var(--ag-ok); }
+.ag-notice--warn { border-left-color: var(--ag-warn); background: var(--ag-warn-soft); }
+.ag-notice--warn > i { color: var(--ag-warn); }
+.ag-notice--danger { border-left-color: var(--ag-danger); background: var(--ag-danger-soft); }
+.ag-notice--danger > i { color: var(--ag-danger); }
+
+/* ---------- Empty state: icon, one line of what, the next step, one action ---------- */
+.ag-empty:has(> .ag-empty__title) { display: flex; flex-direction: column; align-items: center; gap: var(--ag-space-2); }
+.ag-empty > i { font-size: calc(var(--ag-text-xl) + 4px); color: var(--ag-border-strong); }
+.ag-empty__title { margin: 0; color: var(--ag-text); font-weight: 600; }
+.ag-empty__text { margin: 0; max-width: 40ch; }
+
+/* ---------- Meter: Strain, standing, progress (role="progressbar", --ag-meter: <percent>) ---------- */
+.ag-meter { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: var(--ag-space-1) var(--ag-space-2); align-items: center; }
+.ag-meter__label { font-size: var(--ag-text-sm); font-weight: 600; }
+.ag-meter__value { font-size: var(--ag-text-sm); color: var(--ag-muted); font-variant-numeric: tabular-nums; }
+.ag-meter__track { grid-column: 1 / -1; position: relative; height: 8px; border-radius: var(--ag-radius-control); background: var(--ag-surface-sunken); box-shadow: inset 0 0 0 1px var(--ag-border); overflow: hidden; }
+.ag-meter__fill { position: absolute; inset: 0 auto 0 0; width: var(--ag-meter, 0%); border-radius: inherit; background: var(--ag-accent); transition: width var(--ag-dur) var(--ag-ease); }
+.ag-meter--ok .ag-meter__fill { background: var(--ag-ok); }
+.ag-meter--warn .ag-meter__fill { background: var(--ag-warn); }
+.ag-meter--danger .ag-meter__fill { background: var(--ag-danger); }
+/* Stepped meter: one pip per point (Strain, clocks). */
+.ag-pips { display: flex; flex-wrap: wrap; gap: 3px; }
+.ag-pips > i { width: var(--ag-icon); height: var(--ag-icon); border-radius: 50%; background: var(--ag-surface-sunken); box-shadow: inset 0 0 0 1px var(--ag-border-strong); }
+.ag-pips > i.is-on { background: var(--ag-accent); box-shadow: none; }
+.ag-pips > i.is-warn { background: var(--ag-warn); box-shadow: none; }
+.ag-pips > i.is-danger { background: var(--ag-danger); box-shadow: none; }
+
+/* ---------- Rarity: one attribute (dnd5e keys), one badge, one edge ---------- */
+[data-rarity="common"]    { --ag-rarity: var(--ag-rarity-common);    --ag-rarity-ink: var(--ag-rarity-ink-common); }
+[data-rarity="uncommon"]  { --ag-rarity: var(--ag-rarity-uncommon);  --ag-rarity-ink: var(--ag-rarity-ink-uncommon); }
+[data-rarity="rare"]      { --ag-rarity: var(--ag-rarity-rare);      --ag-rarity-ink: var(--ag-rarity-ink-rare); }
+[data-rarity="veryRare"]  { --ag-rarity: var(--ag-rarity-very-rare); --ag-rarity-ink: var(--ag-rarity-ink-very-rare); }
+[data-rarity="legendary"] { --ag-rarity: var(--ag-rarity-legendary); --ag-rarity-ink: var(--ag-rarity-ink-legendary); }
+[data-rarity="artifact"]  { --ag-rarity: var(--ag-rarity-artifact);  --ag-rarity-ink: var(--ag-rarity-ink-artifact); }
+.ag-rarity-badge { display: inline-flex; align-items: center; gap: var(--ag-space-1); padding: 1px var(--ag-space-2); border: 1px solid color-mix(in srgb, var(--ag-rarity, var(--ag-border)) 70%, transparent); border-radius: var(--ag-radius-control); background: color-mix(in srgb, var(--ag-rarity, transparent) 12%, transparent); color: var(--ag-rarity-ink, var(--ag-muted)); font-size: var(--ag-text-xs); font-weight: 650; white-space: nowrap; }
+.ag-rarity-badge::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--ag-rarity, var(--ag-muted)); }
+.ag-rarity-edge { box-shadow: inset 3px 0 0 var(--ag-rarity, transparent); }
+
+/* ---------- Slots and hotbars (circles in every skin) ---------- */
+.ag-hotbar { display: flex; flex-wrap: wrap; gap: var(--ag-space-1); }
+.ag-slot {
+  position: relative; display: grid; place-items: center; width: var(--ag-slot); height: var(--ag-slot); min-height: 0; padding: 0;
+  border: 1px solid var(--ag-border); border-radius: 50%; background: var(--ag-surface-sunken); color: var(--ag-muted); overflow: visible;
+}
+.ag-slot > img { width: 100%; height: 100%; object-fit: cover; border: 0; border-radius: inherit; }
+.ag-slot.is-empty { border-style: dashed; }
+.ag-slot[data-rarity] { border: 2px solid var(--ag-rarity); }
+.ag-slot__key { position: absolute; left: -2px; top: -2px; min-width: 14px; padding: 0 3px; border-radius: var(--ag-radius-sm); background: var(--ag-surface-raised); color: var(--ag-text); font: 700 var(--ag-text-xs)/1.3 var(--ag-font-body); text-align: center; }
+.ag-slot__qty { position: absolute; right: -2px; bottom: -2px; padding: 0 3px; border-radius: var(--ag-radius-sm); background: var(--ag-surface-raised); color: var(--ag-text); font: 600 var(--ag-text-xs)/1.3 var(--ag-font-body); font-variant-numeric: tabular-nums; }
+.ag-slot.is-active { box-shadow: 0 0 0 2px var(--ag-accent); }
+
+/* ---------- Signature parts: HP ring portrait, Strain orb, rank steps, icon chip ---------- */
+.ag-portrait { --ag-ring-tone: var(--ag-ok); flex: none; box-sizing: border-box; width: var(--ag-portrait); height: var(--ag-portrait); padding: max(3px, calc(var(--ag-portrait) * .07)); border-radius: 50%;
+  background: conic-gradient(var(--ag-ring-tone) var(--ag-ring, 100%), var(--ag-surface-sunken) 0); }
+.ag-portrait.is-warn { --ag-ring-tone: var(--ag-warn); }
+.ag-portrait.is-danger { --ag-ring-tone: var(--ag-danger); }
+.ag-portrait > img, .ag-portrait > .ag-portrait__initials { box-sizing: border-box; display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; border: 2px solid var(--ag-surface); object-fit: cover; background: var(--ag-surface-sunken); color: var(--ag-accent); font-weight: 700; }
+.ag-orb { --ag-ring-tone: var(--ag-warn); display: grid; place-items: center; flex: none; width: calc(var(--ag-icon-chip) * 1.5); height: calc(var(--ag-icon-chip) * 1.5); border-radius: 50%;
+  background: radial-gradient(circle, var(--ag-surface-raised) 58%, transparent 60%), conic-gradient(var(--ag-ring-tone) var(--ag-ring, 0%), var(--ag-surface-sunken) 0);
+  color: var(--ag-ring-tone); font-weight: 700; font-variant-numeric: tabular-nums; }
+.ag-orb.is-danger { --ag-ring-tone: var(--ag-danger); }
+.ag-steps { display: flex; position: relative; padding: 14px 0 0; margin: 0; list-style: none; }
+.ag-steps::before { content: ""; position: absolute; left: 10%; right: 10%; top: 4px; height: 2px; background: var(--ag-border); }
+.ag-steps > li { position: relative; flex: 1; text-align: center; font-size: var(--ag-text-xs); color: var(--ag-muted); }
+.ag-steps > li::before { content: ""; position: absolute; left: 50%; top: -14px; width: 11px; height: 11px; margin-left: -5.5px; border-radius: 50%; background: var(--ag-surface-sunken); box-shadow: inset 0 0 0 2px var(--ag-border-strong); }
+.ag-steps > li.is-done::before { background: var(--ag-accent); box-shadow: none; }
+.ag-steps > li[aria-current="step"] { color: var(--ag-text); font-weight: 700; }
+.ag-steps > li[aria-current="step"]::before { background: var(--ag-accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ag-accent) 35%, transparent); }
+.ag-icon-chip { display: inline-grid; place-items: center; flex: none; width: var(--ag-icon-chip); height: var(--ag-icon-chip); border-radius: 50%; background: var(--ag-accent-soft); color: var(--ag-accent); font-size: var(--ag-icon); }
+
+/* ---------- Layout helpers ---------- */
+.ag-stack { display: flex; flex-direction: column; gap: var(--ag-space-3); min-width: 0; }
+.ag-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); }
+.ag-scroll { min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.ag-pad { padding: var(--ag-space-3) var(--ag-space-4); }
+/* Window body: header, tabs, one scrolling pane, footer. Also the container-query host for its content. */
+.ag-window { display: flex; flex-direction: column; height: 100%; min-height: 0; container-type: inline-size; }
+.ag-window > .ag-scroll { flex: 1; }
+/* List + detail: list column left, detail right; stacks when the window is narrow (queries .ag-window). */
+.ag-split { display: grid; grid-template-columns: minmax(14rem, var(--ag-rail-w)) minmax(0, 1fr); gap: 0; min-height: 0; flex: 1; }
+.ag-split__list { min-height: 0; overflow: auto; border-right: 1px solid var(--ag-border); background: var(--ag-surface); }
+.ag-split__detail { min-height: 0; min-width: 0; overflow: auto; padding: var(--ag-space-3) var(--ag-space-4); }
+@container (max-width: 40rem) {
+  .ag-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .ag-split__list { border-right: 0; border-bottom: 1px solid var(--ag-border); max-height: 14rem; }
+}
+/* Side rail: icon tabs down one edge (Character Hub). Each tab needs aria-label + data-tooltip. */
+.ag-siderail { display: flex; flex-direction: column; gap: var(--ag-space-1); padding: var(--ag-space-1); border: 1px solid var(--ag-border); border-radius: var(--ag-radius-control); background: var(--ag-surface-raised); align-self: start; }
+.ag-siderail > button { width: calc(var(--ag-icon-btn) + 8px); height: calc(var(--ag-icon-btn) + 8px); min-height: 0; padding: 0; display: grid; place-items: center; border: 1px solid transparent; border-radius: 50%; background: transparent; color: var(--ag-muted); }
+.ag-siderail > button:hover { color: var(--ag-text); background: var(--ag-surface-hover); }
+.ag-siderail > [aria-selected="true"] { color: var(--ag-accent-contrast); background: var(--ag-accent); border-color: var(--ag-accent); }
+
+/* ---------- Forms: grid of fields, error state; footer status ---------- */
+.ag-form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr)); gap: 0 var(--ag-space-3); }
+.ag-form-grid > .ag-field--wide { grid-column: 1 / -1; }
+.ag-field :where([aria-invalid="true"]) { border-color: var(--ag-danger); }
+.ag-field__hint.is-error { color: var(--ag-danger); }
+.ag-footer__status { flex: 1 1 auto; min-width: 0; text-align: center; }
+
+/* ---------- Developer tools and GM-only marks ---------- */
+.ag-devtools { border: 1px dashed color-mix(in srgb, var(--ag-warn) 60%, var(--ag-border)); border-radius: var(--ag-radius-lg); padding: var(--ag-space-3) var(--ag-space-4); background: transparent; }
+.ag-devtools > summary { color: var(--ag-muted); font-weight: 600; cursor: pointer; }
+.ag-gm-flag { display: inline-flex; align-items: center; gap: var(--ag-space-1); color: var(--ag-muted); font-size: var(--ag-text-xs); font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+
+/* ---------- Dialogs: DialogV2 opened by ag-dialogs.mjs with classes ['ag-app', 'ag-dialog'] ----------
+   Buttons are [cancel, confirm|ok], so space-between puts Cancel bottom-left and the action bottom-right. */
+.application.ag-dialog > .window-content { padding: var(--ag-space-4); gap: var(--ag-space-3); }
+.application.ag-dialog .form-footer { display: flex; justify-content: space-between; gap: var(--ag-space-2); }
+.application.ag-dialog .form-footer > button { flex: 0 0 auto; }
+.application.ag-dialog .form-footer > button:is([data-action="confirm"], [data-action="ok"]) { background: var(--ag-accent); border-color: var(--ag-accent); color: var(--ag-accent-contrast); font-weight: 650; }
+.application.ag-dialog .form-footer > button:is([data-action="confirm"], [data-action="ok"]):hover:not(:disabled) { background: var(--ag-accent-hover); border-color: var(--ag-accent-hover); }
+.application.ag-dialog--danger .form-footer > button:is([data-action="confirm"], [data-action="ok"]),
+.application.ag-dialog--danger .form-footer > button:is([data-action="confirm"], [data-action="ok"]):hover:not(:disabled) { background: var(--ag-danger); border-color: var(--ag-danger); color: var(--ag-surface); }
+
+/* ---------- Tooltips: data-tooltip + data-tooltip-class="ag-tooltip" ---------- */
+#tooltip.ag-tooltip, .locked-tooltip.ag-tooltip {
+  background: var(--ag-surface-raised); color: var(--ag-text); border: 1px solid var(--ag-border-strong);
+  border-radius: var(--ag-radius); box-shadow: var(--ag-shadow); font: 400 var(--ag-text-sm)/1.4 var(--ag-font-body); max-width: 22rem;
+}
+
+/* ---------- Reduced motion: no transitions, no looping spinners ---------- */
 @media (prefers-reduced-motion: reduce) {
-  .ag-app *, .ag-launcher, .ag-sidebar-launch-button { transition: none !important; }
+  .ag-app *, .ag-launcher, .ag-sidebar-launch-button, .ag-chip, .ag-meter__fill { transition: none !important; }
+  .ag-app :is(.fa-spin, .fa-spin-pulse) { animation: none !important; }
 }

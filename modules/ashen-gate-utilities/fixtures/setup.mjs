@@ -6,7 +6,7 @@
  * Full cleanup including GM-created stash: reset({deleteStash:true}) only after backup.
  * No runtime module automatically executes this file.
  */
-import {confirmDialog} from '../scripts/dialogs.mjs';
+import {confirmDialog} from '../scripts/ag-dialogs.mjs';
 const MODULE='ashen-gate-utilities';
 const F='AG-UTILITIES-V020-DISPOSABLE';
 const entries=[['AG TEST | Bridge Scout','pc-scout'],['AG TEST | Field Warden','pc-warden']];

@@ -3,7 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {ID,planGoldAward,goldAwardEntry,planGoldUndo,readGp,goldCardHTML} from '../scripts/core.mjs';
-import {readForm} from '../scripts/dialogs.mjs';
+import {readForm} from '../scripts/ag-dialogs.mjs';
 
 test('plan: each vs split, remainder kept back, bad input refused',()=>{
  const rs=[{id:'a',name:'A',gp:5},{id:'b',name:'B',gp:0},{id:'c',name:'C',gp:12}];

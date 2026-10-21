@@ -69,10 +69,10 @@ test('the art pane: hint and double-click only for owners/GM, mode follows the P
   const made = installPicker();
   const Cls = createHubSheetClass(FakeActorSheetV2), actor = hero(), sheet = new Cls({document: actor});
   let html = await sheet._renderHTML();
-  assert.match(html, /class="agch-doll__art is-editable" data-art-edit="portrait" title="Double-click to change portrait"/);
+  assert.match(html, /class="agch-doll__art is-editable" data-art-edit="portrait" data-tooltip="Double-click to change portrait"/);
   sheet.dollArt = 'token';
   html = await sheet._renderHTML();
-  assert.match(html, /data-art-edit="token" title="Double-click to change token art"/);
+  assert.match(html, /data-art-edit="token" data-tooltip="Double-click to change token art"/);
   const pane = {dataset: {artEdit: 'token'}};
   await sheet._onArtEdit({target: {closest: sel => sel === '[data-art-edit]' ? pane : null}, preventDefault() {}});
   assert.equal(made.at(-1).options.current, 'tokens/hero-token.webp');

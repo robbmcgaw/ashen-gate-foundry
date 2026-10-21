@@ -1,7 +1,7 @@
 <section class="agmanager-body">
   <header class="ag-header agmanager-top">
     <i class="agmanager-emblem fa-solid fa-dungeon" aria-hidden="true"></i>
-    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.41.2 Beta</small></h2></div>
+    <div class="agmanager-heading"><h2>Ashen Gate | General Manager <small>v0.42.0 Beta</small></h2></div>
     <div class="agmanager-appearance-menu" data-ag-appearance-menu>
       <button type="button" class="agmanager-help agmanager-appearance-toggle" data-ag-appearance-toggle aria-haspopup="dialog" aria-controls="agmanager-appearance-pop" aria-expanded="{{#if appearanceOpen}}true{{else}}false{{/if}}"><i class="fa-solid fa-palette" aria-hidden="true"></i> Appearance <i class="fa-solid fa-caret-down" aria-hidden="true"></i></button>
       <div id="agmanager-appearance-pop" class="agmanager-appearance-pop agmanager-appearance" role="dialog" aria-label="Appearance: GM world default" data-ag-appearance-pop {{#unless appearanceOpen}}hidden{{/unless}}>
@@ -12,6 +12,11 @@
         </div>
         <p role="status" class="agmanager-notice">{{appearanceMessage}}</p>
         <p class="agmanager-tiny">Effective on your screen: {{appearanceCurrent.effective}} · Your override: {{#if appearanceCurrent.userOverride}}{{appearanceCurrent.userOverride}}{{else}}Inherit GM default{{/if}}</p>
+        <div class="ag-field" data-ag-size-field="gm">
+          <span id="ag-size-label-gm">Size</span>
+          <div><div class="ag-segmented" role="radiogroup" aria-labelledby="ag-size-label-gm" aria-describedby="ag-size-hint-gm" data-ag-size-picker="gm">{{#each appearanceSizes}}<button type="button" role="radio" aria-checked="{{#if selected}}true{{else}}false{{/if}}" tabindex="{{#if selected}}0{{else}}-1{{/if}}" data-ag-size-value="{{id}}">{{label}}</button>{{/each}}</div></div>
+          <small id="ag-size-hint-gm" class="ag-field__hint">Comfortable makes text and controls larger on this device only.</small>
+        </div>
         <p class="agmanager-tiny">For all players: Foundry Game Settings → <strong>Ashen Gate | My Appearance</strong>. The separate player-safe screen cannot open this GM-only Manager.</p>
         <div class="agmanager-row agmanager-appearance-actions">
           <button type="button" data-ag-action="appearance-my-appearance" class="agmanager-muted">Open My Appearance</button>

@@ -70,7 +70,7 @@ test('card list: column headers, stripes, rarity, summary with More, full text k
   let html = cardList(rows, cols, {listKey: 'x'});
   assert.match(html, /<ul class="ag-list agch-cards" style="--agch-cols:2"><li class="agch-card__headrow" aria-hidden="true"><span><\/span><span><\/span><span>Item<\/span><span>Damage<\/span><span>To hit<\/span><span>Actions<\/span><\/li>/);
   const cards = html.match(/<li class="agch-card(?: [^"]*)?"/g);
-  assert.deepEqual(cards, ['<li class="agch-card is-equipped has-rarity"', '<li class="agch-card is-alt"', '<li class="agch-card"'], 'stripes alternate');
+  assert.deepEqual(cards, ['<li class="agch-card is-equipped has-rarity ag-rarity-edge"', '<li class="agch-card is-alt"', '<li class="agch-card"'], 'stripes alternate');
   assert.match(html, /data-item-id="sw" data-rarity="rare"/);
   assert.match(html, /data-label="Damage">1d8 \+ 3 Slashing</);
   assert.match(html, /data-label="To hit">—</, 'empty facts show a dash');
@@ -142,8 +142,8 @@ test('Magic: toolbar with search, group and sort; group by school; columns follo
   assert.match(b, /data-edit="list-sort" data-tab="magic" data-field="group" data-ag-always/);
   assert.match(b, /data-key="magic:0"[\s\S]*data-key="magic:1"/, 'spell levels as folding groups');
   assert.match(b, /<span>School<\/span><span>Casting time<\/span><span>Range<\/span><span>Duration<\/span><span>Components<\/span>/);
-  assert.match(b, /1 Minute <span class="ag-badge" title="Concentration">C<\/span>/);
-  assert.match(b, /title="Ritual">R</);
+  assert.match(b, /1 Minute <span class="ag-badge" data-tooltip="Concentration">C<\/span>/);
+  assert.match(b, /data-tooltip="Ritual">R</);
   assert.match(b, /data-action="spell-prepare" data-id="bl"[\s\S]*data-action="item-use" data-id="bl"/, 'Prepare and Cast kept');
   await EDITS['list-sort'](sheet, {dataset: {tab: 'magic', field: 'group'}, value: 'school'});
   b = body(await sheet._renderHTML());
