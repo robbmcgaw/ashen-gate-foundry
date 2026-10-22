@@ -147,9 +147,27 @@ export function chooseOneEligible({faction,reward,claims={},choices={}}){
   return !Object.values(claims).some(c=>c.milestone_id===milestone.id&&c.reward_id!==reward.id&&['approved','claimed','fulfilled'].includes(c.status));
 }
 export function discoverable({discovery,actorIds=[]}){return Boolean(discovery?.party||actorIds.some(id=>discovery?.actors?.includes(id)));}
+/* ---- 0.16.0: folders. Flat {key, name} rows in the folder index (no nesting). A key that names no folder counts as
+   Other factions, so a faction is never hidden behind a folder that has gone. ---- */
+export const liveFolderKey=(folders,key)=>key&&(folders??[]).some(x=>x.key===key)?key:'';
+/** New folder key that is not in use and was never used by a deleted folder (stable ids are never reused). */
+export function newFolderKey(index,make){const taken=new Set([...(index?.folders??[]).map(x=>x.key),...(index?.retired??[])]);let key=make();while(taken.has(key))key=make();return key;}
+/** Removes a folder from the index; members are moved by the caller, never deleted. Unknown key: unchanged, folder null. */
+export function removeFolder(index,key){
+  const next={version:SCHEMA_VERSION,...structuredClone(index??{})};next.folders=[...(next.folders??[])];next.retired=[...(next.retired??[])];
+  const folder=next.folders.find(x=>x.key===key)??null;if(!folder)return {index:next,folder:null};
+  next.folders=next.folders.filter(x=>x.key!==key);if(!next.retired.includes(key))next.retired.push(key);
+  return {index:next,folder};
+}
+const count=(n,one,many)=>`${n} ${n===1?one:many}`;
+/** Confirmation for Delete folder: names the folder, says how many factions and deities move, and that none are deleted. */
+export function deleteFolderText({name,factions=0,deities=0}){
+  return {title:`Delete folder “${name}”?`,yes:'Delete folder',
+    message:`${count(factions,'faction','factions')} and ${count(deities,'deity','deities')} will move to ${OTHER_FOLDER}. They are not deleted.`};
+}
 export function projectedFolders({folders,factions,actorIds=[],gm=false}){
   const effective=[...folders,{key:'',name:OTHER_FOLDER}].map(folder=>{
-    const members=factions.filter(f=>(f.folder_key||'')===folder.key);
+    const members=factions.filter(f=>liveFolderKey(folders,f.folder_key)===folder.key);
     const shown=members.filter(f=>gm||discoverable({discovery:f.discovery,actorIds}));
     const placeholders=gm?[]:members.filter(f=>!discoverable({discovery:f.discovery,actorIds})&&f.discovery.placeholder).map(()=>({unknown:true,name:'Undiscovered Faction'}));
     return {key:folder.key,name:gm||shown.length?folder.name:UNKNOWN_FACTION,known:shown,unknown:placeholders,show:gm?true:shown.length+placeholders.length>0,hasKnown:Boolean(shown.length)};

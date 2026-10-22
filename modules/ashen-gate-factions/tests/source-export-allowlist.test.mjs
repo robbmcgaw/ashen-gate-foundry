@@ -60,7 +60,7 @@ test('reject invalid field-reveal Actor duplicates and unknown state keys',()=>{
 test('GM definition writers and exporter both use guarded sourceDefinition; no runtime release files edited',()=>{
  const code=readFileSync(new URL('../scripts/module.mjs',import.meta.url),'utf8');
  assert.match(code,/const clean=sourceDefinition\(record\),f=upgradeFaction\(record\),faults=validateFaction\(clean\)/);
- assert.match(code,/definitions:defs\(\)\.map\(d=>sourceDefinition\(getFaction\(d\)\)\)/);
+ assert.match(code,/definitions:defs\(\)\.map\(d=>withLiveFolder\(sourceDefinition\(getFaction\(d\)\)\)\)/);
 });
 
 test('legacy document_type is normalized out of source but Item UUID semantics remain available',()=>{
