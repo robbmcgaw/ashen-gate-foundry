@@ -296,11 +296,11 @@ test('Cinders missing: restore works, nothing called; Cinders without rehook (ol
 
 // ---------- The button and the confirmation ----------
 
-test('header: GM sees Restore backup only when the character has copies; on a copy "Restore this backup"; players never', async () => {
+test('under the name (0.33.0; the header before): GM sees Restore backup… only when the character has copies; on a copy "Restore this backup…"; players never', async () => {
   const {live} = setup();
   const tag = html => html.match(/<button[^>]*data-action="level-restore"[^>]*>[\s\S]*?<\/button>/)?.[0] ?? null;
   live.system.attributes = {...live.system.attributes, hp: {value: 1, max: 1}};
-  const head = a => shellHtml({actor: a, editable: true, tab: 'overview', limited: false}).split('</header>')[0];
+  const head = a => { const h = shellHtml({actor: a, editable: true, tab: 'overview', limited: false}); return h.slice(h.indexOf('agch-ident__actions'), h.indexOf('agch-charsum')); };
   assert.equal(tag(head(live)), null, 'no copies yet');
   const copy = await makeOldCopy(live);
   assert.match(tag(head(live)), /Restore backup/); assert.match(tag(head(live)), /1 level backup back onto it \(GM; asks first\)/);

@@ -24,8 +24,8 @@ export function applyCompactOpacity(sheet, value = compactOpacity()) {
   cls?.toggle?.('agch-see-through', v < 100);
   return v;
 }
-/** The slider, shown in the Compact header only. */
+/** The slider, in the Appearance menu while the Hub is Compact (0.33.0; it sat in the Compact header before). */
 export function compactOpacityHtml() {
-  const tip = `Compact background opacity (only for you, experimental): ${COMPACT_OPACITY_MIN}-100 %`;
-  return `<label class="agch-cfade" data-tooltip="${esc(tip)}"><i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i><input type="range" min="${COMPACT_OPACITY_MIN}" max="100" step="5" value="${compactOpacity()}" data-compact-opacity data-ag-always aria-label="${esc(tip)}"></label>`;
+  const tip = `See-through background for Compact (only for you): ${COMPACT_OPACITY_MIN}-100 %`;
+  return `<label class="agch-cfade" data-tooltip="${esc(tip)}"><i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i><input type="range" min="${COMPACT_OPACITY_MIN}" max="100" step="5" value="${compactOpacity()}" data-compact-opacity data-ag-always aria-label="Background opacity"></label>`;
 }

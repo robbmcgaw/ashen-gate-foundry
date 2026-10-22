@@ -95,12 +95,14 @@ test('Features: grouped by source (the granting item), action type, uses; filter
   assert.deepEqual(all.map(r => [r.id, r.sourceName]).sort(), [['gw', ''], ['su', '[TEST] Fighter'], ['sw', '[TEST] Fighter'], ['tr', '[TEST] Elf']]);
   const g = orderGroups(groupRows(all, GROUP_BY.source), 'source');
   assert.deepEqual(g.map(x => x.label), ['[TEST] Elf', '[TEST] Fighter', 'Other']);
-  let {sheet, html} = await tab('features');
+  let {sheet, html} = await tab('features', s => { s.menu = 'filters:features'; });   // the chips sit in the Filters popover (0.33.0)
   let b = body(html);
   assert.match(b, /data-key="features:source-elf"[\s\S]*data-key="features:source-fighter"[\s\S]*data-key="features:source-none"/);
   assert.match(b, /data-key="action" data-value="bonus"[\s\S]*data-key="action" data-value="special"[\s\S]*data-key="action" data-value="none"/, 'action-type buttons from dnd5e activation types');
   setListFilter(sheet, 'features', 'action', 'bonus');
   b = body(await sheet._renderHTML());
+  assert.match(b, /<span>Filters \(1\)<\/span>/, 'Filters (n) counts what is on');
+  assert.match(b, /data-key="clear" data-ag-always>Clear filters/);
   assert.match(b, /\[TEST\] Second Wind/); assert.doesNotMatch(b, /\[TEST\] Action Surge|\[TEST\] Trance/);
   setListFilter(sheet, 'features', 'clear'); setListFilter(sheet, 'features', 'left', '1');
   b = body(await sheet._renderHTML());
@@ -121,7 +123,7 @@ test('Favourites first in Features; the star has its own column in every list ta
   const actor = actorWith();
   actor.system.favorites = [{id: '.Item.tr'}]; actor.system.addFavorite = async () => {}; actor.system.removeFavorite = async () => {}; actor.system.hasFavorite = id => actor.system.favorites.some(f => f.id === id);
   const b = body((await tab('features', s => s, actor)).html);
-  assert.match(b, /agch-filters[\s\S]*?<\/div>\s*<section class="agch-sec" data-sec="features:favourites"/, 'Favourites is the first group');
+  assert.match(b, /agch-sticky[\s\S]*?<\/div><\/div>\s*<section class="agch-sec" data-sec="features:favourites"/, 'Favourites is the first group');
   for (const t of ['combat', 'inventory', 'magic', 'features']) {
     const h = body((await tab(t, s => s, actor)).html);
     if (/agch-card"|agch-card /.test(h)) assert.match(h, /<span class="agch-card__lead">(?:<button[^>]*agch-sec__toggle--icon[\s\S]*?<\/button>)?<button type="button" class="agch-star/, `${t}: star sits in the lead column, before the image`);

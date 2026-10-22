@@ -71,7 +71,7 @@ test('low HP, both signs: fill, temp and the max change do not overlap', () => {
   }
 });
 
-test('companion Remove asks first ("Remove companion?", danger) and Cancel changes nothing', async () => {
+test('companion Remove asks first ("Remove <name>?", danger, Cancel is the default) and Cancel changes nothing', async () => {
   installGlobals({user: users.owner});
   const actor = makeActor({items: [{id: 'horse', name: '[TEST] Horse', type: 'equipment'}]});
   actor.flags['ashen-gate-character-hub'] = {companions: [{id: 'c1', kind: 'mount', itemId: 'horse', name: '[TEST] Bramble'}]};
@@ -80,7 +80,7 @@ test('companion Remove asks first ("Remove companion?", danger) and Cancel chang
   const asked = [];
   const r = await removeCompanionAsk({document: actor}, 'c1', async (msg, opts) => { asked.push([msg, opts]); return false; });
   assert.deepEqual(r, {ok: true, result: null});
-  assert.deepEqual(asked, [["Remove [TEST] Bramble from [TEST] Hero's companions? Their notes are deleted.", {title: 'Remove companion?', yes: 'Remove companion', danger: true}]]);
+  assert.deepEqual(asked, [["[TEST] Bramble is taken off [TEST] Hero's companions and their notes are deleted. The Actor or Item itself is kept.", {title: 'Remove [TEST] Bramble?', yes: 'Remove companion', danger: true}]]);
   assert.equal(actor.calls.length, 0, 'Cancel: nothing written');
   assert.equal((await removeCompanionAsk({document: actor}, 'gone', async () => true)).ok, false);
 });
@@ -93,6 +93,10 @@ test('Push and Help use the shared dialog: "Push [power]?" with Cancel and Push;
   assert.deepEqual(opened.buttons.map(b => b.label), ['Cancel', 'Push'], 'no Yes/No');
   assert.deepEqual(opened.classes, ['ag-app', 'ag-dialog']);
   assert.match(opened.content, /<p>\[TEST\] Spark: Amplify<\/p><p>Strain 4 → 5<\/p>/);
+  // 0.33.0 (CH-22): a guaranteed Backfire asks as a danger confirmation: red Push, Cancel is the default.
+  assert.equal(await cinderConfirm('[TEST] Spark: Amplify', {power: '[TEST] Spark', guaranteed: true}), true);
+  assert.ok(opened.classes.includes('ag-dialog--danger'));
+  assert.deepEqual(opened.buttons.map(b => [b.label, b.default]), [['Cancel', true], ['Push', false]]);
   await showHelp();
   assert.equal(opened.window.title, 'Character Hub Help'); assert.equal(opened.ok.label, 'Close');
   delete globalThis.foundry;
@@ -111,14 +115,16 @@ test('rail tabs: role tab, aria-selected, aria-label and a Foundry tooltip on th
   assert.match(html, /<nav class="ag-siderail agch-rail" role="tablist"/);
 });
 
-test('header follows the standard: brand span, Compact, Level up, Open native sheet, version, then Help', async () => {
-  installGlobals({user: users.owner, modules: {'ashen-gate-character-hub': {active: true, version: '0.32.1'}}});
+test('header follows the standard: brand span, Compact, the ⋯ menu, version, then Help; Level up sits under the name', async () => {
+  installGlobals({user: users.owner, modules: {'ashen-gate-character-hub': {active: true, version: '0.33.0'}}});
   const html = await new (createHubSheetClass(FakeActorSheetV2))({document: makeActor()})._renderHTML();
   const head = html.slice(0, html.indexOf('</header>'));
   assert.match(head, /<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Character Hub<\/h1>/);
   const at = s => head.indexOf(s);
-  assert.ok(at('data-action="compact-toggle"') > 0 && at('data-action="compact-toggle"') < at('data-action="level-up"') && at('data-action="level-up"') < at('data-action="open-native"') && at('data-action="open-native"') < at('ag-version') && at('ag-version') < at('data-action="help"'));
-  assert.match(head, /<span class="ag-version">v0\.32\.1<\/span>/);
+  assert.ok(at('data-action="compact-toggle"') > 0 && at('data-action="compact-toggle"') < at('data-action="more-menu"') && at('data-action="more-menu"') < at('ag-version') && at('ag-version') < at('data-action="help"'));
+  assert.equal((head.match(/data-action="/g) ?? []).length, 3, 'CH-03: only Compact, ⋯ and Help in the header');
+  assert.match(head, /<span class="ag-version">v0\.33\.0<\/span>/);
+  assert.match(html, /<div class="agch-ident__actions"><button[^>]*data-action="level-up"/, 'Level up under the name');
 });
 
 test('segmented controls: radiogroup with radios; arrow keys move to the next choice and pick it', () => {

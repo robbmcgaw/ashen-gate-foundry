@@ -120,7 +120,9 @@ test('sheet renders header, tabs and Open native sheet; observers get a view-onl
   const sheet = new Cls({document: makeActor()});
   const html = await sheet._renderHTML();
   assert.match(html, /<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Character Hub<\/h1>/);
-  assert.match(html, /data-action="open-native"/);
+  assert.match(html, /data-action="more-menu"/);
+  sheet.menu = 'more';
+  assert.match(await sheet._renderHTML(), /agch-moremenu[\s\S]*data-action="open-native"/, '0.33.0: Open native sheet is in the ⋯ menu');
   assert.match(html, /data-action="help"/);
   assert.match(html, /data-action="roll-skill" data-skill="ste"/);
   assert.doesNotMatch(html, /View only/);
@@ -132,18 +134,23 @@ test('sheet renders header, tabs and Open native sheet; observers get a view-onl
   assert.match(html, /data-action="hp-damage"[\s\S]*data-hp-amount[\s\S]*data-action="hp-heal"/, 'minus, amount, plus');
   assert.match(html, /agch-hp__row">[\s\S]*Hit Dice<\/span> <b>2 \/ 3<\/b>[\s\S]*fa-skull[\s\S]*Exhaustion<\/span>[\s\S]*<b>1<\/b>/, 'hit dice and exhaustion (skull, − n +) sit under the HP bar');
   assert.match(html, /agch-ac__value">15</);
-  assert.match(html, /data-tab="overview" data-ag-always aria-selected="true" class="agch-rail__tab active" aria-label="Overview" data-tooltip="Overview" data-tooltip-direction="LEFT"/);
+  assert.match(html, /id="agch-tabpanel-tab-overview" data-action="hub-tab" data-tab="overview" data-ag-always aria-selected="true" aria-controls="agch-tabpanel" tabindex="0" class="agch-rail__tab active" aria-label="Overview" data-tooltip="Overview" data-tooltip-direction="LEFT"><i class="fa-solid fa-user" aria-hidden="true"><\/i><span class="agch-rail__label" aria-hidden="true">Overview<\/span>/, 'CH-01: the name shows beside the icon');
+  assert.match(html, /data-tab="combat" data-ag-always aria-selected="false" aria-controls="agch-tabpanel" tabindex="-1"/, 'CH-20: one Tab stop, every tab controls the panel');
+  assert.match(html, /<div class="agch-body" id="agch-tabpanel" role="tabpanel" aria-labelledby="agch-tabpanel-tab-overview">/, "labelled by the open tab, so bindTablist leaves it");
   assert.match(html, /agch-pane__title"><i class="fa-solid fa-user" aria-hidden="true"><\/i> Overview/);
   assert.doesNotMatch(html, /data-tab="rest"/, 'rests moved to the character column');
   assert.match(html, /data-action="rest" data-type="short"/);
   assert.doesNotMatch(html, /data-opacity|type="range"/, 'no opacity slider (removed in 0.29.0)');
   installGlobals({user: users.observer});
-  const view = await new Cls({document: makeActor()})._renderHTML();
+  const obs = new Cls({document: makeActor()});
+  const view = await obs._renderHTML();
   assert.match(view, /View only/);
   assert.match(view, /data-action="roll-skill" data-skill="ath" disabled/);
   assert.match(view, /data-action="hp-damage"[^>]*disabled/);
   assert.match(view, /data-action="roll-check" data-ability="str"[^>]*disabled/);
-  assert.match(view, /data-action="open-native"[^>]*data-ag-always/, 'native sheet stays clickable');
+  obs.menu = 'more';
+  assert.match(await obs._renderHTML(), /data-action="open-native"[^>]*data-ag-always/, 'native sheet stays clickable');
+  assert.match(view, /data-action="more-menu"[^>]*data-ag-always/, 'and so does the ⋯ menu');
 });
 
 test('limited viewers see only portrait and name', () => {

@@ -8,6 +8,7 @@ import {esc, num} from './constants.mjs';
 import {btn} from './buttons.mjs';
 import {canSee, requirePart, hiddenBadge, hiddenReason, partForPartner} from './visibility.mjs';
 import {cindersSummary, skillTreeBtn} from './cinders.mjs';
+import {linkButton, subTabs, tabPanelAttrs} from './ag-html.mjs';
 
 /** The active module's API, or null. */
 export function partnerApi(id) {
@@ -109,7 +110,7 @@ function quests(actor, api) {
     .sort((a, b) => Number(tracked.has(b.id)) - Number(tracked.has(a.id)))
     .map(q => {
       const open = (q.objectives ?? []).filter(o => !o.complete && !o.failed);
-      return `<li><button type="button" class="agch-plink" data-action="partner-open" data-partner="ashen-gate-quest-manager" data-ref="${esc(q.id)}" data-ag-always>${esc(q.name)}</button>
+      return `<li>${linkButton(q.name, {data: {action: 'partner-open', partner: 'ashen-gate-quest-manager', ref: q.id, agAlways: true}})}
         ${tracked.has(q.id) ? '<span class="ag-badge ag-badge--accent">Tracked</span>' : ''} <span class="ag-badge">${q.scope === 'individual' ? 'Personal' : 'Party'}</span>
         ${open.length ? `<ul class="agch-objectives">${open.map(o => `<li>${esc(o.goal)}</li>`).join('')}</ul>` : ''}</li>`;
     });
@@ -119,8 +120,9 @@ function quests(actor, api) {
 function locations(actor, api) {
   const user = globalThis.game?.user;
   const all = api.listLocations?.(user?.isGM ? {revealedOnly: true} : {}) ?? [];
-  const rows = all.slice(0, 8).map(l => `<li><button type="button" class="agch-plink" data-action="partner-open" data-partner="ashen-gate-locations" data-ref="${esc(l.id ?? l.key)}" data-ag-always>${esc(l.name)}</button>${l.region ? ` <span class="agch-muted">${esc(l.region)}</span>` : ''}</li>`);
-  return list(rows, 'No locations revealed yet.') + (all.length > 8 ? `<p class="agch-muted">and ${all.length - 8} more</p>` : '');
+  // 0.33.0 (CH-24): every location is listed (it was cut at 8, hiding links).
+  const rows = all.map(l => `<li>${linkButton(l.name, {data: {action: 'partner-open', partner: 'ashen-gate-locations', ref: l.id ?? l.key, agAlways: true}})}${l.region ? ` <span class="agch-muted">${esc(l.region)}</span>` : ''}</li>`);
+  return list(rows, 'No locations revealed yet.');
 }
 
 /** Headquarters' player-safe playerView (0.9.0+): facilities this character may see. Without it, a pointer to the module. */
@@ -134,7 +136,8 @@ function headquarters(actor, api) {
   return head + list(rows, 'No facilities installed yet.') + hires;
 }
 
-const STASH_SHOWN = 8;
+/** Stash items listed in a summary: all of them since 0.33.0 (CH-24); `shown` still caps it for a caller that wants fewer. */
+const STASH_SHOWN = Infinity;
 function utilities(actor, api, {shown = STASH_SHOWN} = {}) {
   let purse = null;
   try { purse = api.purse?.totals?.(); } catch (err) { return `<p class="agch-muted">${esc(err?.message ?? 'Party purse unavailable.')}</p>`; }
@@ -159,16 +162,16 @@ function utilities(actor, api, {shown = STASH_SHOWN} = {}) {
 export const PANELS = [
   {id: 'ashen-gate-profession-ledger', embedMode: 'individual', tab: 'Professions', label: 'Profession Ledger', icon: 'fa-solid fa-hammer', summary: professions,
     open: (api, actor) => api.open({actorId: actor.id, view: 'individual'})},
-  {id: 'ashen-gate-skill-trees', embedMode: 'character', tab: 'Perks', label: 'Skill Trees', icon: 'fa-solid fa-diagram-project', summary: skillTrees,
+  {id: 'ashen-gate-skill-trees', embedMode: 'character', tab: 'Skill Trees', label: 'Skill Trees', icon: 'fa-solid fa-diagram-project', summary: skillTrees,
     open: (api, actor) => api.open({actorId: actor.id})},
   {id: 'ashen-gate-cinders', tab: 'Cinders', label: 'Cinders', icon: 'fa-solid fa-fire', summary: cindersSummary,
     open: (api, actor) => api.open({actorId: actor.id}), headActions: actor => skillTreeBtn(actor, {canSeePerks: canSee('perks')})},
   {id: 'ashen-gate-factions', embedMode: 'character', tab: 'Renown', label: 'Renown', icon: 'fa-solid fa-flag', summary: factions, open: api => api.open()},
-  {id: 'ashen-gate-quest-manager', embedMode: 'character', tab: 'Quests', label: 'Quest Log', icon: 'fa-solid fa-scroll', summary: quests,
+  {id: 'ashen-gate-quest-manager', embedMode: 'character', tab: 'Quest Log', label: 'Quest Log', icon: 'fa-solid fa-scroll', summary: quests,
     open: (api, actor, ref) => ref ? api.openObjective(ref) : api.open()},
   {id: 'ashen-gate-locations', embedMode: 'character', tab: 'Locations', label: 'Locations', icon: 'fa-solid fa-map-location-dot', summary: locations,
     open: (api, actor, ref) => ref ? api.openLocation(ref) : api.open(), missing: 'the party\'s current or recent location'},
-  {id: 'ashen-gate-headquarters', embedMode: 'character', tab: 'Base', label: 'Headquarters', icon: 'fa-solid fa-chess-rook', summary: headquarters,
+  {id: 'ashen-gate-headquarters', embedMode: 'character', tab: 'Headquarters', label: 'Headquarters', icon: 'fa-solid fa-chess-rook', summary: headquarters,
     open: api => api.open()},
   {id: 'ashen-gate-utilities', embedMode: 'stash', label: 'Utilities', icon: 'fa-solid fa-toolbox', summary: utilities,
     open: api => api.stash?.open ? api.stash.open() : api.open(), openLabel: 'Open party stash'}
@@ -220,12 +223,14 @@ export function ashenGateTab({actor, sheet}) {
     panels = panels.filter(p => p !== current); current = null;
   }
   if (!current) return '<div class="ag-empty"><i class="fa-solid fa-dungeon" aria-hidden="true"></i><p class="ag-empty__title">Nothing here yet.</p><p class="ag-empty__text">Ashen Gate sections show here once your GM shares them.</p></div>';
-  const tabs = panels.map(p => {
-    const reason = gm ? hiddenReason(partForPartner(p.id)) : null;
-    return `<button type="button" data-action="ag-subtab" data-partner="${p.id}" data-ag-always role="radio" aria-checked="${p === current}"${partnerApi(p.id) ? '' : ' class="is-missing"'}${reason ? ` data-tooltip="${esc(`Hidden from players: ${reason}`)}"` : ''}>${reason ? '<i class="fa-solid fa-eye-slash" aria-hidden="true"></i> ' : ''}${esc(p.tab)}</button>`;
-  }).join('');
-  return `<div class="ag-toolbar agch-toolbar"><div class="ag-segmented agch-seg" role="radiogroup" aria-label="Ashen Gate section">${tabs}</div></div>
-    ${panelHtml({...current, badge: hiddenBadge(partForPartner(current.id))}, actor, state)}
+  // 0.33.0: kit sub-tabs (one Tab stop, arrow keys via bindTablist in the sheet) instead of a segmented control;
+  // the sub-tab and the bottom quick bar use the same name per module (CH-10). Hidden-from-players ones carry the eye.
+  const group = `${String(sheet?.id ?? 'agch').replace(/[^A-Za-z0-9_-]/g, '')}-ag`;
+  const tabs = subTabs({group, label: 'Ashen Gate sections', selected: current.id,
+    tabs: panels.map(p => ({id: p.id, label: p.tab, icon: gm && hiddenReason(partForPartner(p.id)) ? 'fa-solid fa-eye-slash' : null}))})
+    .replace('class="ag-tabs ag-tabs--sub"', 'class="ag-tabs ag-tabs--sub agch-agtabs"').replaceAll('role="tab" ', 'role="tab" data-action="ag-subtab" data-ag-always ');
+  return `${tabs}<div ${tabPanelAttrs(group, current.id)} class="agch-agpanel">
+    ${panelHtml({...current, badge: hiddenBadge(partForPartner(current.id))}, actor, state)}</div>
     <p class="agch-muted agch-hint">${embedded ? `This is ${esc(current.label)}'s own view: it keeps its own records and permissions.` : current.id === 'ashen-gate-cinders' ? 'Cinders keeps its own records: Push and socket changes go through it and it checks them again.' : 'Each module keeps its own records; this is a read-only summary. Open the module to make changes there.'}</p>`;
 }
 

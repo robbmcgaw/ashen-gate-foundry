@@ -26,30 +26,39 @@ import * as hotbar from './hotbar.mjs';
 import {undoNoticesHtml} from './hotbar-views.mjs';
 import {syncEscape, unbindEscape} from './escape.mjs';
 import {stepStrain, pushFromHub, socketFromHub, dropOnSocket, openSkillTree} from './cinders.mjs';
-import {confirmDialog, formDialog} from './ag-dialogs.mjs';
-import {windowSize} from './ag-html.mjs';
+import {confirmDialog, confirmDanger, formDialog} from './ag-dialogs.mjs';
+import {windowSize, uiState, bindTablist} from './ag-html.mjs';
 import {readDrop, resolveItemDrop} from './ag-item-drop.mjs';
-import {togglePopOut} from './popout.mjs';
+import {togglePopOut, isPoppedOut} from './popout.mjs';
 import {applyCompactOpacity, saveCompactOpacity} from './compact-opacity.mjs';
-import {captureScroll, restoreScroll, captureFocus, restoreFocus} from './redraw.mjs';
+import {captureScroll, restoreScroll, captureFocus, restoreFocus, focusFirstIn, fieldKey} from './redraw.mjs';
 import {syncQuickKeys, unbindQuickKeys} from './quick-keys.mjs';
 import * as look from './look.mjs';
 import {openCodex} from './codex.mjs';
+import {configChoices} from './character.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
-/** Push asks first through the shared dialog: "Push [power]?" with Cancel and Push. */
-export const cinderConfirm = (message, {power = ''} = {}) => confirmDialog(message, {title: power ? `Push ${power}?` : 'Push?', yes: 'Push'});
+/**
+ * Push asks first through the shared dialog: "Push [power]?" with Cancel and Push. 0.33.0 (CH-22): when Backfire is
+ * guaranteed it is a danger confirmation (red Push, Cancel is the default), like the row's red Push button.
+ */
+export const cinderConfirm = (message, {power = '', guaranteed = false} = {}, ui = {confirmDialog, confirmDanger}) => {
+  const opts = {title: power ? `Push ${power}?` : 'Push?', yes: 'Push'};
+  return guaranteed ? ui.confirmDanger(message, opts) : ui.confirmDialog(message, opts);
+};
 /** Socket item picker (Attach / Swap): one select of the items that fit; resolves the item id or null. */
 export const socketPick = async (title, options, ok) => (await formDialog(title, [{name: 'item', label: 'Item', type: 'select', value: options[0]?.value ?? '', options,
   hint: 'The item stays in this character\'s inventory. Its Cinder modifiers count while it is in an active socket.'}], {ok}))?.item ?? null;
-const socketUi = {pick: socketPick, confirm: confirmDialog};
+/** Removals (Detach) ask with Cancel as the default button (kit confirmDanger); other questions use confirmDialog. */
+const askFor = (message, opts = {}) => opts.danger ? confirmDanger(message, opts) : confirmDialog(message, opts);
+const socketUi = {pick: socketPick, confirm: askFor};
 /** Shows a refusal or failure from an action; a success is silent (the sheet re-renders itself). */
 export const report = result => { if (result && result.ok === false && result.error) warn(result.error); return result; };
 
 /** Click handlers by data-action. Each receives (sheet, target, event). Views add their own entries. */
 export const ACTIONS = {
   'hub-tab': (s, t) => { s.tab = t.dataset.tab; s.menu = null; return s.render(); },
-  'ag-subtab': (s, t) => { s.agTab = t.dataset.partner; return s.render(); },
+  'ag-subtab': (s, t) => { s.agTab = t.dataset.tab ?? t.dataset.partner; return s.render(); },
   'inv-view': (s, t) => { s.invView = t.dataset.view === 'party' ? 'party' : 'character'; return s.render(); },
   'slot-menu': (s, t) => toggleMenu(s, `slot:${t.dataset.slot}`),
   'other-menu': (s, t) => toggleMenu(s, `other:${t.dataset.id}`),
@@ -78,7 +87,12 @@ export const ACTIONS = {
   'slot-swap': (s, t) => items.swapSlots(s.document, t.dataset.id, t.dataset.slot, t.dataset.other, t.dataset.otherSlot),
   'retry': s => s.render({force: true}),
   'help': s => showHelp(s),
-  'open-native': s => openNativeSheet(s.document),
+  'open-native': s => { closeMenu(s); return openNativeSheet(s.document); },
+  'configure': s => configureAsk(s),
+  'art-change': (s, t) => { closeMenu(s); return changeArtFor(s, t.dataset.art); },
+  'char-fold': s => { s.charFolded = s.charFolded === false; hubUi().set('charFolded', s.charFolded); return s.render(); },
+  'filters-menu': (s, t) => toggleMenu(s, `filters:${t.dataset.tab}`),
+  'more-menu': s => toggleMenu(s, s.menu === 'look' ? null : 'more'),
   'level-up': s => levelUp(s),
   'level-restore': s => restoreAsk(s),
   'hp-damage': (s, t) => hpButton(s, t, -1),
@@ -93,7 +107,8 @@ export const ACTIONS = {
   'cinder-swap': (s, t) => socketFromHub(s.document, 'swap', {instance: t.dataset.instance, slot: t.dataset.slot}, socketUi),
   'cinder-detach': (s, t) => socketFromHub(s.document, 'detach', {instance: t.dataset.instance, slot: t.dataset.slot}, socketUi),
   // 0.31.0: the header Cinder chip opens Ashen Gate → Cinders here; Open skill tree opens Skill Trees (players: only while Perks is shown).
-  'cinder-open': s => { if (!vis.canSee('cinders')) return refuse('Cinders is hidden from players right now.'); s.tab = 'ashen-gate'; s.agTab = 'ashen-gate-cinders'; s.menu = null; return s.compact ? s.setCompact(false) : s.render(); },  // Compact (0.32.0) has no tabs: Full opens at Cinders
+  // Compact (0.32.0) has no tabs: Full opens at Cinders for this window only (0.33.0, CH-14: the saved Compact choice stays).
+  'cinder-open': s => { if (!vis.canSee('cinders')) return refuse('Cinders is hidden from players right now.'); s.tab = 'ashen-gate'; s.agTab = 'ashen-gate-cinders'; s.menu = null; return s.compact ? s.setCompact(false, {save: false}) : s.render(); },
   'cinder-tree': (s, t) => vis.requirePart('perks') ?? openSkillTree(s.document, t.dataset.tree || null),
   'condition': (s, t) => act.toggleCondition(s.document, t.dataset.id),
   'roll-initiative': (s, t, e) => act.rollInitiative(s.document, e),
@@ -115,17 +130,18 @@ export const ACTIONS = {
   'companion-detach': (s, t) => comp.detachPerk(s.document, t.dataset.entry, t.dataset.id),
   'companion-unattach': (s, t) => comp.detachExtra(s.document, t.dataset.entry, t.dataset.id),
   'companion-open': (s, t) => openLinkedActor(s.document, t.dataset.entry),
-  'visibility-preset': (s, t) => vis.applyPreset(t.dataset.preset),
+  'visibility-preset': (s, t) => presetAsk(t.dataset.preset),
   'doll-art': s => { s.dollArt = s.dollArt === 'token' ? 'portrait' : 'token'; return s.render(); },
   'compact-toggle': s => s.setCompact(!s.compact),
   // 0.31.0: Appearance (only for this user: Manager's own per-user skin and size, or the built-in look) and the NPC Codex.
+  // 0.33.0: both sit in the header's "⋯" menu; Appearance… opens its menu in the same place.
   'look-menu': s => toggleMenu(s, 'look'),
   'look-skin': async (s, t) => { const r = await look.setManagerSkin(t.dataset.value); if (r.ok) s.render(); return r; },
   'look-size': async (s, t) => { const r = await look.setManagerSize(t.dataset.value); if (r.ok) s.render(); return r; },
   'look-set': async (s, t) => { const r = await look.setUserLook(t.dataset.field, t.dataset.value); if (r.ok) { look.applyLook(s.element); s.render(); } return r; },
   'look-more': s => { s.menu = null; s.render(); return look.managerAppearance()?.openMyAppearance?.(); },
-  'codex-open': () => openCodex(),
-  'pop-out': s => togglePopOut(s)
+  'codex-open': s => { closeMenu(s); return openCodex(); },
+  'pop-out': s => { s.menu = null; return togglePopOut(s); }
 };
 /** Level up (0.27.0): dnd5e's own flow. The shared form dialog asks which class to advance, or to add one. */
 export const levelClassPick = async options => (await formDialog('Level up', [{name: 'cls', label: 'Class', type: 'select', value: options[0]?.value ?? '', options,
@@ -146,7 +162,7 @@ async function levelUp(sheet) {
  */
 export const backupPick = async backups => (await formDialog('Restore a level backup', [{name: 'id', label: 'Backup', type: 'select', value: backups[0]?.id ?? '',
   options: backups.map(b => ({value: b.id, label: b.name})), hint: 'The newest is first. You confirm on the next step.'}], {ok: 'Next'}))?.id ?? null;
-export async function restoreAsk(sheet, {pick = backupPick, confirm = confirmDialog} = {}) {
+export async function restoreAsk(sheet, {pick = backupPick, confirm = confirmDanger} = {}) {
   const n = globalThis.ui?.notifications, doc = sheet.document;
   if (globalThis.game?.user?.isGM !== true) { n?.warn?.('Only a GM can restore a level backup.'); return refuse('Only a GM can restore a level backup.'); }
   let backup = doc;
@@ -159,7 +175,7 @@ export async function restoreAsk(sheet, {pick = backupPick, confirm = confirmDia
   }
   const actor = sourceOf(backup);
   if (!actor) { n?.warn?.('The character this backup was made from is gone.'); return null; }
-  if (!await confirm(restoreLines(backup, actor).join('\n'), {title: `Restore ${actor.name}?`, yes: 'Restore from backup', danger: true})) return null;
+  if (!await confirm(restoreLines(backup, actor).join('\n'), {title: `Restore ${actor.name}?`, yes: 'Restore from backup', danger: true})) return null;   // confirmDanger: Cancel is the default (0.33.0)
   const r = await restoreBackup(backup);
   if (r.ok) { n?.info?.(`${actor.name} was restored from "${backup.name}". The character as it was is kept as a new copy in Ashen Gate / Level backups.`); if (r.warning) n?.warn?.(r.warning); }
   else n?.error?.(r.error);
@@ -170,6 +186,44 @@ const refuse = error => ({ok: false, error});
 function toggleMenu(sheet, key) {
   sheet.menu = key && sheet.menu !== key ? key : null;
   return sheet.render();
+}
+/** A "⋯" menu item that opens another window closes the menu first. */
+function closeMenu(sheet) {
+  if (!sheet?.menu) return;
+  sheet.menu = null;
+  sheet.render();
+}
+/** Per-user UI memory for the Hub (kit uiState): the folded character column of a narrow Full window (CH-09). */
+export const hubUi = () => uiState(MODULE_ID);
+/** Configure… (0.33.0, CH-11): pick a stat, then dnd5e's own settings window for it opens (as right-click does). */
+export const configPick = async options => (await formDialog('Configure a stat', [{name: 'stat', label: 'Stat', type: 'select', value: options[0]?.value ?? '', options,
+  hint: 'Opens dnd5e\'s own settings for it, the same window as right-clicking the stat.'}], {ok: 'Open settings'}))?.stat ?? null;
+export async function configureAsk(sheet, pick = configPick) {
+  if (!act.canEdit(sheet.document)) return refuse(`You don't own ${sheet.document?.name ?? 'this character'}, so you can't change its settings.`);
+  const value = await pick(configChoices(sheet.document));
+  if (!value) return null;
+  const [kind, key = null] = String(value).split(':');
+  return openConfig(sheet.document, kind, key);
+}
+/** Change portrait… / Change token art… (0.33.0, CH-12): the same picker as double-clicking the art. */
+function changeArtFor(sheet, mode) {
+  if (!sheet.hubContext.editable) return null;
+  const pos = sheet.position ? {top: (sheet.position.top ?? 0) + 40, left: (sheet.position.left ?? 0) + 10} : null;
+  return changeArt(sheet.document, mode === 'token' ? 'token' : 'portrait', {position: pos});
+}
+/**
+ * Player visibility Quick set (0.33.0, CH-21): it sets every switch at once, so it asks first, naming what players will
+ * see. vis.applyPreset checks GM again.
+ */
+export async function presetAsk(id, ask = confirmDialog) {
+  const preset = vis.PRESETS.find(p => p.id === id);
+  if (!preset || globalThis.game?.user?.isGM !== true) return vis.applyPreset(id);   // refused there, without asking
+  const everything = id === 'everything', core = vis.PARTS.filter(p => p.core).map(p => p.label.split(' (')[0].split(':')[0]);
+  const yes = await ask(everything ? 'Every Player visibility switch is turned on, so players see every part of the Hub that their modules allow. You can change single switches afterwards.'
+    : `Every Player visibility switch is set at once: players see only the core parts (${[...new Set(core)].join(', ')}). You can change single switches afterwards.`,
+  {title: everything ? 'Show everything to players?' : 'Show core only to players?', yes: everything ? 'Show everything to players' : 'Show core only'});
+  if (!yes) return {ok: true, result: null};
+  return vis.applyPreset(id);
 }
 /**
  * Hides list rows whose name does not contain the search text (no re-render, so typing keeps focus). A section left
@@ -219,18 +273,18 @@ async function journeySave(sheet, target) {
 }
 /** Deleting a GM note asks first (destructive actions sit behind a labelled confirmation). */
 async function journeyDelete(sheet, target) {
-  const yes = await confirmDialog('This GM note is deleted from the Journey. This cannot be undone.', {title: 'Delete this note?', yes: 'Delete note', danger: true});
+  const yes = await confirmDanger('This GM note is deleted from the Journey. This cannot be undone.', {title: 'Delete note?', yes: 'Delete note'});
   if (!yes) return {ok: true, result: null};
   const r = await journey.deleteEntry(journeyActor({actor: sheet.document, sheet}), target.dataset.id);
   if (r.ok) sheet.render();
   return r;
 }
 /** Removing a companion asks first; Cancel changes nothing. The linked Actor or Item itself is kept. */
-export async function removeCompanionAsk(sheet, entryId, ask = confirmDialog) {
+export async function removeCompanionAsk(sheet, entryId, ask = confirmDanger) {
   const actor = sheet.document, entry = comp.storedCompanions(actor).find(e => e.id === entryId);
   if (!entry) return {ok: false, error: 'That companion is no longer listed.'};
   const name = entry.name || comp.linkedActor(entry.actorUuid)?.name || actor.items?.get?.(entry.itemId)?.name || 'this companion';
-  const yes = await ask(`Remove ${name} from ${actor.name}'s companions? Their notes are deleted.`, {title: 'Remove companion?', yes: 'Remove companion', danger: true});
+  const yes = await ask(`${name} is taken off ${actor.name}'s companions and their notes are deleted. The Actor or Item itself is kept.`, {title: `Remove ${name}?`, yes: 'Remove companion', danger: true});
   if (!yes) return {ok: true, result: null};
   return comp.removeCompanion(actor, entryId);
 }
@@ -332,6 +386,11 @@ export function segmentStep(button, step) {
   return next;
 }
 
+/** Buttons that open a menu: a click on one is not an "outside" click (it toggles its own menu). */
+const MENU_OPENERS = ['slot-menu', 'other-menu', 'look-menu', 'more-menu', 'filters-menu'].map(a => `[data-action="${a}"]`).join(', ');
+/** What counts as an open popover for the focus (CH-02): menus, the conditions list, a Journey entry being edited. */
+const POPOVER_SELECTOR = '.agch-menu, .agch-conds__list, [data-journey-form="edit"]';
+
 /** Builds the class on top of Foundry's ActorSheetV2 (passed in so tests can supply a stand-in). */
 export function createHubSheetClass(Base) {
   return class CharacterHubSheet extends Base {
@@ -350,7 +409,10 @@ export function createHubSheetClass(Base) {
       const compact = compactPreference();
       super({...options, position: {...windowSize(compact ? COMPACT_SIZE : CharacterHubSheet.DEFAULT_OPTIONS.position), ...options.position}});
       this.compact = compact;
+      this.charFolded = hubUi().get('charFolded', true, [true, false]);
     }
+    /** Narrow Full window (0.33.0, CH-09): the character column is folded to name, HP and AC (per user, this device). */
+    charFolded = true;
     /** Compact view (0.29.0): only the art with its slots, HP and the quick bar. */
     compact = false;
     /** The last Full and Compact window sizes while this Hub is open, so toggling back restores them. */
@@ -394,26 +456,49 @@ export function createHubSheetClass(Base) {
       if (fresh) this._bindContent(content);
       // Quiet redraws (0.29.4, redraw.mjs): nothing changes when the HTML is the same; otherwise scroll positions (per
       // tab) and the focused field survive the redraw, so a change made by someone else never moves the player.
+      // 0.33.0 (CH-02): buttons and tabs keep the focus too (also across a tab switch or Compact / Full); a popover that
+      // opens takes the focus, and when it closes the focus goes back to the button that opened it.
       const view = this.compact ? 'compact' : this.tab, same = !fresh;
       if (same && this._agchHtml === result && this._agchShown === view) {
         for (const m of this._embeds.values()) { try { m.handle?.refresh?.(); } catch {} }
       } else {
         if (same && this._agchShown) this._agchScroll[this._agchShown] = captureScroll(content);
-        const focus = same && this._agchShown === view ? captureFocus(content) : null;
+        const focus = same ? captureFocus(content) : null, popBefore = this._agchPop ?? null, popNow = this.popoverKey();
         this._agchHtml = null;   // what is on screen is unknown until this redraw has finished
         content.innerHTML = result;
         mountEmbeds(content, this._embeds);
         applyFilter(content, this.filters[this.tab] ?? '');
         restoreScroll(content, this._agchScroll[view]);
-        restoreFocus(content, focus);
+        this._bindTabs(content);
+        const pop = popNow && popNow !== popBefore ? content.querySelector?.(POPOVER_SELECTOR) : null;
+        if (pop) { this._agchOpener = this._agchActionKey ?? focus?.key ?? null; focusFirstIn(pop); }
+        else if (!restoreFocus(content, focus) && popBefore && !popNow && this._agchOpener) restoreFocus(content, {key: this._agchOpener});
+        this._agchPop = popNow;
         this._agchHtml = result; this._agchShown = view;
       }
+      this._agchActionKey = null;
       applyCompactOpacity(this);
       this._drawUndo(content);
       syncEscape(this);   // Escape closes an open menu/editor only, wherever focus is (escape.mjs)
       syncQuickKeys(this);   // quick bar keys in a popped-out Hub's own window (quick-keys.mjs)
-      try { const a = globalThis.game?.modules?.get('ashen-gate-manager')?.api?.appearance; if (a?.contract === 'ag-appearance/0.1-beta') a.applyTo?.(content); } catch {}
+      // <html> carries General Manager's skin to every window in Foundry's own page, so the Hub no longer copies the skin
+      // onto its content on each render (0.33.0, GM-CO-04: the copy went stale on a skin change). A popped-out Hub sits
+      // in another browser window's <html>, so there it is still applied.
+      if (isPoppedOut(this)) try { const a = globalThis.game?.modules?.get('ashen-gate-manager')?.api?.appearance; if (a?.contract === 'ag-appearance/0.1-beta') a.applyTo?.(content); } catch {}
       look.applyLook(this.element);   // 0.31.0: the built-in per-user look while Manager's appearance is absent
+    }
+
+    /** What popover is open now (a menu, the conditions list or a Journey entry being edited), or null. */
+    popoverKey() {
+      return this.menu ?? (this.condAdd ? 'conditions' : null) ?? (this.journeyEdit ? `journey:${this.journeyEdit}` : null);
+    }
+
+    /**
+     * Arrow keys for the tab rail and the Ashen Gate sub-tabs (0.33.0, CH-20; kit bindTablist). Only the Hub's own rows:
+     * an embedded partner view binds its own. Bound again after each redraw, which replaces those rows.
+     */
+    _bindTabs(content) {
+      for (const list of content.querySelectorAll?.('.agch-rail, .agch-agtabs') ?? []) bindTablist(list);
     }
 
     /**
@@ -434,6 +519,8 @@ export function createHubSheetClass(Base) {
       content.addEventListener?.('dblclick', ev => ev.target?.closest?.('[data-art-edit]') ? this._onArtEdit(ev) : this._onHpBarOpen(ev));
       content.addEventListener?.('keydown', ev => {
         if ((ev.key === 'Enter' || ev.key === ' ') && ev.target?.matches?.('[data-hp-bar]')) { this._onHpBarOpen(ev); return; }
+        // 0.33.0 (CH-11): Delete or Backspace on a filled quick-bar slot clears it, like right-click (with Undo).
+        if ((ev.key === 'Delete' || ev.key === 'Backspace') && ev.target?.matches?.('.agch-quick__slot.is-filled')) { ev.preventDefault(); this._clearQuickSlot(ev.target); return; }
         if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(ev.key) && ev.target?.matches?.('.ag-segmented > [role="radio"]')) { ev.preventDefault(); segmentStep(ev.target, ev.key === 'ArrowLeft' || ev.key === 'ArrowUp' ? -1 : 1); return; }
         if (ev.key === 'Enter' && ev.target?.matches?.('[data-hpedit]')) { ev.preventDefault(); this.dispatch('hp-apply', ev.target, ev); }
       });
@@ -463,6 +550,7 @@ export function createHubSheetClass(Base) {
     async dispatch(action, target, event) {
       const handler = ACTIONS[action];
       if (!handler) return null;
+      try { this._agchActionKey = target?.attributes ? fieldKey(target) : null; } catch { this._agchActionKey = null; }   // a popover it opens returns the focus here
       try { return report(await handler(this, target, event)); } catch (err) {
         console.error(`${MODULE_ID} | ${action}`, err);
         return report({ok: false, error: err?.message ?? String(err)});
@@ -478,8 +566,7 @@ export function createHubSheetClass(Base) {
       const quick = event.target?.closest?.('.agch-quick__slot.is-filled');
       if (quick) {
         event.preventDefault(); event.stopPropagation();
-        const actor = this.document;
-        return hotbar.clearHotbarSlot(actor, quick.dataset.hotbarSlot).then(r => { if (r?.ok) this.undoList.add(actor, r.result); return report(r); });
+        return this._clearQuickSlot(quick);
       }
       const filled = event.target?.closest?.('[data-action="slot-open"]');
       const slot = filled ?? event.target?.closest?.('[data-action="slot-menu"]');
@@ -493,6 +580,12 @@ export function createHubSheetClass(Base) {
       if (!cfg) return null;
       event.preventDefault(); event.stopPropagation();
       return openConfig(this.document, cfg.dataset.config, cfg.dataset.configKey ?? null).then(report);
+    }
+
+    /** Clears a quick-bar slot (right-click, or Delete / Backspace on it) and offers Undo for 5 seconds. */
+    _clearQuickSlot(slot) {
+      const actor = this.document;
+      return hotbar.clearHotbarSlot(actor, slot.dataset.hotbarSlot).then(r => { if (r?.ok) this.undoList.add(actor, r.result); return report(r); });
     }
 
     /**
@@ -521,11 +614,11 @@ export function createHubSheetClass(Base) {
      * Switches Compact / Full (0.29.0) and saves the choice for this user. The size being left is remembered while the
      * Hub is open, and the other one comes back (first time: its default size, scaled for Comfortable).
      */
-    setCompact(on) {
+    setCompact(on, {save = true} = {}) {
       const next = on === true, pos = this.position;
       if (pos?.width && pos?.height) this._sizes[this.compact ? 'compact' : 'full'] = {width: pos.width, height: pos.height};
       this.compact = next; this.menu = null;
-      saveCompact(next);
+      if (save) saveCompact(next);
       const size = this._sizes[next ? 'compact' : 'full'] ?? windowSize(next ? COMPACT_SIZE : FULL_SIZE);
       return this.render({position: {...size}});
     }
@@ -558,8 +651,8 @@ export function createHubSheetClass(Base) {
       return super._onClose?.(options);
     }
     resetOpenState() {
-      this._agchScroll = {}; this._agchHtml = null; this._agchShown = null; this._dropRow = null;
-      this.listFilters = {magic: {}, features: {}}; this.filters = {}; this.expanded = new Set();
+      this._agchScroll = {}; this._agchHtml = null; this._agchShown = null; this._dropRow = null; this._agchPop = null; this._agchOpener = null;
+      this.listFilters = {combat: {}, magic: {}, features: {}}; this.filters = {}; this.expanded = new Set();
       this.menu = null; this.condAdd = false; this.journeyEdit = null;
     }
 
@@ -571,12 +664,12 @@ export function createHubSheetClass(Base) {
     _onOutsideClick(event) {
       if (!this.menu) return null;
       const t = event.target;
-      if (t?.closest?.('.agch-menu, [data-action="slot-menu"], [data-action="other-menu"], [data-action="look-menu"]')) return null;
+      if (t?.closest?.(`.agch-menu, ${MENU_OPENERS}`)) return null;
       this.menu = null;
       if (t?.closest?.('select, input, textarea, label')) {
         const root = this.element ?? event.currentTarget;
         for (const m of root?.querySelectorAll?.('.agch-menu') ?? []) m.remove?.();
-        this._agchHtml = null;   // the screen no longer matches the last HTML, so the next render draws again
+        this._agchHtml = null; this._agchPop = this.popoverKey();   // the screen no longer matches the last HTML, so the next render draws again
         syncEscape(this);
         return null;
       }

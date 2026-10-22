@@ -76,7 +76,7 @@ test('a partner with Player Access off, inactive, or refusing: its sub-tab vanis
   mods['ashen-gate-quest-manager'].active = false;
   mods['ashen-gate-locations'].api.playerAccess = {getState: () => { throw new Error('nope'); }};
   installGlobals({user: users.owner, modules: mods});
-  assert.deepEqual(agPanelsFor().map(p => p.tab), ['Professions', 'Perks', 'Cinders', 'Base']);
+  assert.deepEqual(agPanelsFor().map(p => p.tab), ['Professions', 'Skill Trees', 'Cinders', 'Headquarters']);
   const html = ashenGateTab({actor, sheet: {agTab: 'ashen-gate-factions'}});
   assert.doesNotMatch(html, /Renown|Quests|Locations|Not available|Not installed/);
   installGlobals({user: users.gm, modules: mods});
@@ -144,8 +144,20 @@ test('GM Setup lists every part with presets; checkbox and preset buttons write 
   assert.match(html, /Ashen Gate: Renown \(and Pantheon\)<\/label><span class="ag-badge ag-badge--warn">[\s\S]*?Hidden from players: Renown Player Access is off/);
   await sheet._onHubChange({target: {dataset: {edit: 'part-visibility', part: 'magic'}, checked: false}});
   assert.equal(game.settings.store.playerVisibility.magic, false);
+  // 0.33.0 (CH-21): Quick set asks first; Cancel changes nothing.
+  let opened = null, answer = false;
+  globalThis.foundry = {applications: {api: {DialogV2: {wait: async o => { opened = o; return answer; }}}}};
+  await sheet.dispatch('visibility-preset', {dataset: {preset: 'everything'}}, {});
+  assert.equal(opened.window.title, 'Show everything to players?');
+  assert.deepEqual(opened.buttons.map(b => b.label), ['Cancel', 'Show everything to players']);
+  assert.equal(game.settings.store.playerVisibility.magic, false, 'Cancel: nothing written');
+  answer = true;
   await sheet.dispatch('visibility-preset', {dataset: {preset: 'everything'}}, {});
   assert.equal(game.settings.store.playerVisibility.magic, true);
+  await sheet.dispatch('visibility-preset', {dataset: {preset: 'core'}}, {});
+  assert.equal(opened.window.title, 'Show core only to players?');
+  assert.match(opened.content, /Overview, Combat, Inventory, Magic, Features/);
+  delete globalThis.foundry;
   installGlobals({user: users.owner, modules: mods});
   const r = await sheet._onHubChange({target: {dataset: {edit: 'part-visibility', part: 'magic'}, checked: false}});
   assert.equal(r.ok, false);

@@ -1,5 +1,5 @@
 export const MODULE_ID = 'ashen-gate-character-hub';
-export const VERSION = '0.32.1';
+export const VERSION = '0.33.0';
 export const SHEET_LABEL = 'Ashen Gate Character Hub';
 
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);

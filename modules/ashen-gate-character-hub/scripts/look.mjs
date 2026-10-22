@@ -10,6 +10,7 @@
  */
 import {MODULE_ID, esc} from './constants.mjs';
 import {btn} from './buttons.mjs';
+import {compactOpacityHtml} from './compact-opacity.mjs';
 
 export const LOOK_SETTING = 'look';
 export const LOOK_DEFAULT_SETTING = 'lookDefault';
@@ -86,29 +87,29 @@ export function applyLook(el) {
   return l;
 }
 
-/** The header button; pressed while the menu is open. */
-export function lookBtn(open) {
-  return `<button type="button" class="ag-btn ag-btn--ghost agch-lookbtn" data-action="look-menu" data-ag-always aria-haspopup="menu" aria-expanded="${open}" data-tooltip="Change how the Hub looks for you (only for you)" aria-label="Appearance: change how the Hub looks for you"><i class="fa-solid fa-palette" aria-hidden="true"></i><span>Appearance</span></button>`;
-}
 const choice = (action, value, label, on, data = {}) => `<button type="button" role="radio" aria-checked="${on}" data-action="${action}" data-value="${esc(value)}"${Object.entries(data).map(([k, v]) => ` data-${k}="${esc(v)}"`).join('')} data-ag-always>${esc(label)}</button>`;
 const group = (label, buttons) => `<div class="agch-look__group"><span class="agch-look__label">${esc(label)}</span><div class="ag-segmented agch-seg" role="radiogroup" aria-label="${esc(label)}">${buttons}</div></div>`;
 
-/** The Appearance menu: Manager's skins and sizes, or the built-in Dark / Light and Compact / Comfortable. */
-export function lookMenuHtml() {
+/**
+ * The Appearance menu (opened from the header's "⋯" menu since 0.33.0): Manager's skins and sizes, or the built-in
+ * Dark / Light and Compact / Comfortable size. In Compact view it also holds the see-through background slider (CH-04).
+ */
+export function lookMenuHtml(sheet = null) {
+  const fade = sheet?.compact === true ? `<div class="agch-look__group"><span class="agch-look__label">Background opacity <span class="ag-badge">Experimental</span></span>${compactOpacityHtml()}</div>` : '';
   const a = managerAppearance();
   const head = `<header class="agch-menu__head"><strong>Appearance</strong><span class="agch-muted">Only for you</span>${btn('menu-close', '', {kind: 'ghost', icon: 'fa-solid fa-xmark', title: 'Close', always: true})}</header>`;
   if (a) {
     let state = {}, skins = [], sizes = [];
     try { state = a.getState() ?? {}; skins = a.listSkins() ?? []; sizes = typeof a.listSizes === 'function' ? a.listSizes() ?? [] : []; } catch { /* drawn with what was read */ }
     const mine = state.userOverride ?? '', world = skins.find(s => s.id === state.worldDefault)?.label ?? state.worldDefault ?? 'GM default';
-    const skinRows = [{id: '', label: `GM default (${world})`}, ...skins].map(s => `<button type="button" class="agch-menu__btn agch-look__skin" role="menuitemradio" aria-checked="${mine === s.id}" data-action="look-skin" data-value="${esc(s.id)}" data-ag-always>${mine === s.id ? '<i class="fa-solid fa-check" aria-hidden="true"></i>' : '<i class="fa-regular fa-circle" aria-hidden="true"></i>'}<span>${esc(s.label)}</span></button>`).join('');
+    const skinRows = [{id: '', label: `GM default (${world})`}, ...skins].map(s => `<button type="button" class="agch-menu__btn agch-look__skin" aria-pressed="${mine === s.id}" data-action="look-skin" data-value="${esc(s.id)}" data-ag-always>${mine === s.id ? '<i class="fa-solid fa-check" aria-hidden="true"></i>' : '<i class="fa-regular fa-circle" aria-hidden="true"></i>'}<span>${esc(s.label)}</span></button>`).join('');
     const sizeRow = sizes.length && typeof a.setSize === 'function' ? group('Size (this device)', sizes.map(z => choice('look-size', z.id, z.label, z.selected === true)).join('')) : '';
     const more = typeof a.openMyAppearance === 'function' ? btn('look-more', 'More in My Appearance', {kind: 'sm', icon: 'fa-solid fa-up-right-from-square', always: true}) : '';
-    return `<div class="agch-menu agch-lookmenu" role="menu" aria-label="Appearance">${head}<span class="agch-muted">Skin (all Ashen Gate windows)</span>${skinRows}${sizeRow}${more}</div>`;
+    return `<div class="agch-menu agch-lookmenu" role="group" aria-label="Appearance">${head}<span class="agch-muted">Skin (all Ashen Gate windows)</span>${skinRows}${sizeRow}${fade}${more}</div>`;
   }
   const u = userLook(), w = worldLook(), name = (list, k) => list.find(([v]) => v === k)?.[1] ?? k;
   const row = (label, field, list) => group(label, [choice('look-set', 'world', `GM default (${name(list, w[field])})`, u[field] === 'world', {field}), ...list.map(([k, l]) => choice('look-set', k, l, u[field] === k, {field}))].join(''));
-  return `<div class="agch-menu agch-lookmenu" role="menu" aria-label="Appearance">${head}${row('Theme', 'theme', THEMES)}${row('Density', 'density', DENSITIES)}
+  return `<div class="agch-menu agch-lookmenu" role="group" aria-label="Appearance">${head}${row('Theme', 'theme', THEMES)}${row('Size', 'density', DENSITIES)}${fade}
     <p class="agch-muted">Saved for your user. Install General Manager for its full set of skins.</p></div>`;
 }
 
@@ -117,6 +118,6 @@ export function lookSetupCard() {
   const w = worldLook(), a = managerAppearance();
   const sel = (field, label, list) => `<label class="ag-field">${esc(label)}<select data-edit="look-default" data-field="${field}">${list.map(([k, l]) => `<option value="${k}"${w[field] === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
   return `<section class="ag-card agch-looksetup"><h3>Hub appearance (default)</h3>
-    ${a ? '<p class="agch-muted">General Manager\'s appearance is active: the world default skin is set in General Manager → Appearance. Each player picks their own in the Hub\'s <strong>Appearance</strong> menu. The choices below apply only when General Manager is not active.</p>' : '<p class="agch-muted">The look every user starts from. Each player can still pick their own in the Hub\'s <strong>Appearance</strong> menu.</p>'}
-    <div class="agch-looksetup__row">${sel('theme', 'Theme', THEMES)}${sel('density', 'Density', DENSITIES)}</div></section>`;
+    ${a ? '<p class="agch-muted">General Manager\'s appearance is active: the world default skin is set in General Manager → Appearance. Each player picks their own in the Hub\'s <strong>⋯ → Appearance…</strong> menu. The choices below apply only when General Manager is not active.</p>' : '<p class="agch-muted">The look every user starts from. Each player can still pick their own in the Hub\'s <strong>⋯ → Appearance…</strong> menu.</p>'}
+    <div class="agch-looksetup__row">${sel('theme', 'Theme', THEMES)}${sel('density', 'Size', DENSITIES)}</div></section>`;
 }

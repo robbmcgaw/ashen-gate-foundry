@@ -35,7 +35,7 @@ function row(e, gm, editing) {
     <span class="agch-journey__formbtns">${btn('journey-cancel', 'Cancel', {kind: 'ghost'})}${btn('journey-save', 'Save Changes', {kind: 'primary', data: {id: e.id}})}</span></form></li>`;
   return `<li class="agch-journey__entry${e.hidden ? ' is-hidden' : ''}" data-entry="${esc(e.id)}" data-type="${esc(e.type)}">
     <i class="${ICONS[e.type] ?? 'fa-solid fa-circle'} agch-journey__icon" data-tooltip="${esc(TYPES[e.type] ?? e.type)}" aria-hidden="true"></i>
-    <span class="agch-journey__when">${esc(when(e))}</span><span class="agch-journey__text">${esc(e.text)}${rewardItems(e)}${e.hidden ? ' <span class="ag-badge ag-badge--warn"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Hidden from player</span> <span class="ag-gm-flag"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> GM only</span>' : ''}</span>${controls}</li>`;
+    <span class="agch-journey__when">${esc(when(e))}</span><span class="agch-journey__text">${esc(e.text)}${rewardItems(e)}${e.hidden ? ' <span class="ag-gm-flag"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Hidden from player</span>' : ''}</span>${controls}</li>`;
 }
 
 export function journeyTab(ctx) {

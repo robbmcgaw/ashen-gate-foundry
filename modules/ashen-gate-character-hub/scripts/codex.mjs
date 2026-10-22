@@ -18,8 +18,9 @@ export function codexAvailable(user = globalThis.game?.user) {
   if (user?.isGM === true) return true;
   try { return c.playerAccessEnabled?.() === true; } catch { return false; }
 }
-export function codexBtn() {
-  return codexAvailable() ? btn('codex-open', 'NPC Codex', {kind: 'ghost', icon: 'fa-solid fa-address-book', always: true, title: 'Open the NPC Codex (General Manager): the NPCs revealed to you'}) : '';
+/** The NPC Codex button (since 0.33.0 an item of the header's "⋯" menu: `menu` gives it the menu look). */
+export function codexBtn({menu = false} = {}) {
+  return codexAvailable() ? btn('codex-open', 'NPC Codex', {kind: 'ghost', ...(menu ? {extra: 'agch-menu__btn'} : {}), icon: 'fa-solid fa-address-book', always: true, title: 'Open the NPC Codex (General Manager): the NPCs revealed to you'}) : '';
 }
 /** Opens Manager's Codex window. Checked again here, and again by Manager. */
 export async function openCodex() {

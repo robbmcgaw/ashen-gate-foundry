@@ -50,9 +50,9 @@ test('combat categories: Combat, Professions, Consumables, Features, Trinkets (s
 
 test('Combat tab: grouped by category in order, with counts, group / sort selects, filter chips, favourites and a sticky list head', async () => {
   installGlobals();
-  const {html} = await render('combat');
+  const {html} = await render('combat', hero(), s => { s.menu = 'filters:combat'; });
   const b = body(html);
-  assert.match(b, /^[^]*?<div class="agch-sticky"><div class="ag-toolbar agch-toolbar">[^]*?data-key="equipped"[^]*?<\/div><\/div>/, 'search, selects and chips sit in 0.30.0\'s frozen band');
+  assert.match(b, /^[^]*?<div class="agch-sticky"><div class="ag-toolbar agch-toolbar">[^]*?data-action="filters-menu"[^]*?agch-filtermenu[^]*?data-key="equipped"[^]*?<\/div><\/div>/, '0.33.0: search and Filters in one frozen row; selects and chips in its popover');
   assert.match(b, /data-filter data-tab="combat"/);
   assert.match(b, /data-edit="list-sort" data-tab="combat" data-field="group"/); assert.match(b, /data-edit="list-sort" data-tab="combat" data-field="sort"/);
   assert.match(b, /data-key="equipped"[^>]*>Hide unequipped</); assert.match(b, /data-key="uses"/); assert.match(b, /data-key="left"/);
@@ -134,7 +134,9 @@ test('Appearance with Manager: the menu lists Manager\'s skins and sizes and set
   const m = managerMod();
   installGlobals({user: users.owner, modules: {'ashen-gate-manager': m}});
   const {sheet, html} = await render('overview');
-  assert.match(html, /data-action="look-menu"[^>]*aria-expanded="false"/);
+  assert.match(html, /data-action="more-menu"[^>]*aria-expanded="false"/);
+  await ACTIONS['more-menu'](sheet, {dataset: {}});
+  assert.match(await sheet._renderHTML(), /agch-moremenu[\s\S]*data-action="look-menu"/, '0.33.0: Appearance… is in the ⋯ menu');
   await ACTIONS['look-menu'](sheet, {dataset: {}});
   const open = await sheet._renderHTML();
   assert.match(open, /GM default \(Standard\)/); assert.match(open, /data-action="look-skin" data-value="ag-slate"/); assert.match(open, /data-action="look-size" data-value="comfortable"/);
@@ -159,12 +161,13 @@ test('NPC Codex button: GM always (with Manager), players only while Manager sha
   assert.equal((await openCodex()).ok, false);
   const m = managerMod({codex});
   installGlobals({user: users.gm, modules: {'ashen-gate-manager': m}});
-  assert.match((await render('overview')).html, /data-action="codex-open"/);
+  const more = s => { s.menu = 'more'; };   // 0.33.0: NPC Codex is in the header's ⋯ menu
+  assert.match((await render('overview', hero(), more)).html, /data-action="codex-open"/);
   installGlobals({user: users.owner, modules: {'ashen-gate-manager': m}});
-  assert.doesNotMatch((await render('overview')).html, /data-action="codex-open"/);
+  assert.doesNotMatch((await render('overview', hero(), more)).html, /data-action="codex-open"/);
   assert.match((await openCodex()).error, /hasn't shared/);
   access = true;
-  assert.match((await render('overview')).html, /data-action="codex-open"/);
+  assert.match((await render('overview', hero(), more)).html, /data-action="codex-open"/);
   assert.equal((await ACTIONS['codex-open']()).ok, true);
   assert.deepEqual(m.api.calls, [['openPlayerView']]);
 });

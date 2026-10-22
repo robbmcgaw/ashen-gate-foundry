@@ -29,8 +29,8 @@ test('Compact column: abilities with saves (proficient highlighted), rolling thr
   const col = column(html);
   assert.match(col, /<div class="agch-abils agch-abils--compact" role="group"/);
   assert.match(col, /data-action="roll-check" data-ability="str"[^>]*>\s*<span class="agch-abil__key">STR<\/span><span class="agch-abil__mod">\+2<\/span><span class="agch-abil__score">14<\/span>/);
-  assert.match(col, /class="ag-btn agch-abil__save is-prof" data-action="roll-save" data-ability="str" data-tooltip="Strength saving throw \(proficient\)"[^>]*><span>\+4<\/span>/);
-  assert.match(col, /class="ag-btn agch-abil__save" data-action="roll-save" data-ability="dex"[^>]*><span>\+3<\/span>/);
+  assert.match(col, /class="ag-btn agch-abil__save is-prof" data-action="roll-save" data-ability="str" data-tooltip="Strength saving throw \(proficient\)"[^>]*><i class="fa-solid fa-circle agch-abil__prof" aria-hidden="true"><\/i><span>\+4<\/span><span class="ag-sr-only">: Strength saving throw, proficient<\/span>/, 'CH-28: a filled dot and text mark a proficient save');
+  assert.match(col, /class="ag-btn agch-abil__save" data-action="roll-save" data-ability="dex"[^>]*><i class="fa-regular fa-circle agch-abil__prof" aria-hidden="true"><\/i><span>\+3<\/span>/);
   await sheet.dispatch('roll-check', {dataset: {ability: 'dex'}}, {});
   await sheet.dispatch('roll-save', {dataset: {ability: 'str'}}, {});
   assert.deepEqual(sheet.document.calls.map(c => c[0]), ['rollAbilityCheck', 'rollSavingThrow']);
@@ -111,7 +111,9 @@ test('Compact order and what stays: name, Cinder chips, art + slots, stat line, 
   const {html} = await render({modules: {'ashen-gate-cinders': cinders()}});
   const col = column(html), order = ['agch-name', 'agch-cchips', 'agch-doll', 'agch-statline', 'agch-hp"', 'agch-abils', 'agch-conds'];
   order.slice(1).forEach((k, i) => assert.ok(after(col, order[i], k), `${order[i]} before ${k}`));
-  for (const keep of [/data-action="compact-toggle"/, /data-compact-opacity/, /data-action="look-menu"/, /data-action="help"/]) assert.match(html, keep);
+  // 0.33.0 (CH-04): Compact header = Compact/Full, the ⋯ menu (Appearance… with the see-through slider, Pop out, Codex) and Help.
+  for (const keep of [/data-action="compact-toggle"/, /data-action="more-menu"/, /data-action="help"/]) assert.match(html, keep);
+  assert.doesNotMatch(html, /data-compact-opacity/);
   for (const gone of [/role="tablist"/, /agch-pane/, /agch-agbar/, /agch-tiles/, /agch-idcard/]) assert.doesNotMatch(html, gone);
 });
 
@@ -120,7 +122,9 @@ test('Cinder chip in Compact opens the Full Hub at Ashen Gate → Cinders (Compa
   await sheet.dispatch('cinder-open', {dataset: {instance: 'cinst_TEST00001'}}, {});
   assert.equal(sheet.compact, false);
   assert.deepEqual([sheet.tab, sheet.agTab], ['ashen-gate', 'ashen-gate-cinders']);
-  assert.equal(game.settings.store.compactMode, false);
+  assert.notEqual(game.settings.store.compactMode, false, '0.33.0 (CH-14): the saved Compact choice is kept');
+  await sheet.dispatch('compact-toggle', {dataset: {}}, {});
+  assert.equal(game.settings.store.compactMode, true, 'the toggle itself still saves');
 });
 
 test('Compact CSS: only the column scrolls (hotbars frozen), no sideways scroll, see-through rule unchanged', () => {

@@ -325,7 +325,7 @@ export async function pushFromHub(actor, data, confirm) {
     const mods = (pv.modifiers ?? []).length ? `Modifiers: ${pv.modifiers.map(m => `${m.label} (${m.value > 0 ? '+' : ''}${m.value})`).join(', ')}` : '';
     // Plain lines (the shared confirm escapes them): what is pushed, the effect, the Strain and Backfire numbers.
     const lines = [`${pv.powerName}: ${pv.label}`, pv.effect ?? '', `Strain ${num(pv.strain)} → ${num(pv.after)} (+${num(pv.cost)}). Backfire chance ${num(pv.chance)}%${pv.guaranteed ? ' (guaranteed)' : ''}.`, mods, 'Every Push gains Strain. The result is posted to chat.'];
-    const ok = await confirm(lines.filter(Boolean).join('\n'), {power: pv.powerName});
+    const ok = await confirm(lines.filter(Boolean).join('\n'), {power: pv.powerName, guaranteed: pv.guaranteed === true});   // 0.33.0: a guaranteed Backfire asks as a danger confirmation
     if (!ok) return {ok: true, result: null};
     return {ok: true, result: await api.push(actor, data.power, data.mode)};
   } catch (error) { return refuse(String(error?.message ?? error)); }

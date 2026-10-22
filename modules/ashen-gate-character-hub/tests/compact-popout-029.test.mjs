@@ -16,9 +16,10 @@ test('Full by default: Compact button (not pressed), the tab rail and middle con
   assert.equal(sheet.compact, false);
   assert.deepEqual(sheet.options.position, FULL_SIZE);
   const html = await sheet._renderHTML();
-  assert.match(head(html), /<button type="button" class="ag-btn ag-btn--ghost agch-compact" data-action="compact-toggle" data-ag-always aria-pressed="false" data-tooltip="[^"]+" aria-label="[^"]+"><i class="fa-solid fa-down-left-and-up-right-to-center" aria-hidden="true"><\/i><span>Compact<\/span><\/button>/);
+  assert.match(head(html), /<button type="button" class="ag-btn ag-btn--ghost agch-compact" data-action="compact-toggle" data-ag-always aria-pressed="false" data-tooltip="[^"]+"><i class="fa-solid fa-down-left-and-up-right-to-center" aria-hidden="true"><\/i><span>Compact<\/span><\/button>/);
   assert.match(html, /role="tablist"/); assert.match(html, /agch-pane/);
-  assert.doesNotMatch(html, /data-action="pop-out"/, 'no detachWindow on the stand-in: no button');
+  sheet.menu = 'more';
+  assert.doesNotMatch(await sheet._renderHTML(), /data-action="pop-out"/, 'no detachWindow on the stand-in: no button in the ⋯ menu');
 });
 
 test('Compact preference: the Hub opens narrow with the character column and the hotbars, no tabs', async () => {
@@ -103,23 +104,30 @@ test('Pop out uses Foundry\'s own detachWindow / attachWindow; the label follows
   sheet.attachWindow = async () => { calls.push('attach'); sheet.element.ownerDocument = MAIN_DOC; };
   sheet._canDetach = () => true;
   sheet.element = {ownerDocument: MAIN_DOC};
+  sheet.menu = 'more';   // 0.33.0: Pop out is in the header's ⋯ menu
   assert.match(head(await sheet._renderHTML()), /data-action="pop-out"[^>]*data-tooltip="Open the Hub in its own browser window[^"]*"[^>]*><i class="fa-solid fa-arrow-up-right-from-square" aria-hidden="true"><\/i><span>Pop out<\/span>/);
   assert.deepEqual(await sheet.dispatch('pop-out', {dataset: {}}, {}), {ok: true, result: 'out'});
+  assert.equal(sheet.menu, null, 'the menu closes');
+  sheet.menu = 'more';
   assert.match(head(await sheet._renderHTML()), /<span>Pop in<\/span>/);
   assert.deepEqual(await sheet.dispatch('pop-out', {dataset: {}}, {}), {ok: true, result: 'in'});
   assert.deepEqual(calls, ['detach', 'attach']);
   const before = sheet.renders.length;
   sheet._onDetach({}, {}); sheet._onAttach({}, {});
   assert.equal(sheet.renders.length, before + 2, 'redrawn after Foundry moves it');
-  sheet._canDetach = () => false;
+  sheet._canDetach = () => false; sheet.menu = 'more';
   assert.doesNotMatch(await sheet._renderHTML(), /data-action="pop-out"/, 'Foundry says no: no button');
 });
 
-test('Compact and Pop out together: the compact header keeps Pop out', async () => {
+test('Compact and Pop out together: the compact header keeps Pop out (in its ⋯ menu since 0.33.0)', async () => {
   setup({settings: {compactMode: true}});
   const sheet = new Hub({document: makeActor()});
   sheet.detachWindow = async () => {}; sheet.element = {ownerDocument: MAIN_DOC};
-  const h = head(await sheet._renderHTML());
+  let h = head(await sheet._renderHTML());
+  assert.ok(h.indexOf('compact-toggle') < h.indexOf('more-menu') && h.indexOf('more-menu') < h.indexOf('ag-version'));
+  assert.doesNotMatch(h, /data-compact-opacity/, 'CH-04: no slider in the Compact header');
+  sheet.menu = 'more';
+  h = head(await sheet._renderHTML());
   assert.ok(h.indexOf('compact-toggle') < h.indexOf('pop-out') && h.indexOf('pop-out') < h.indexOf('ag-version'));
 });
 
@@ -139,14 +147,16 @@ test('Compact see-through (experimental): slider only in Compact, 60-100 %, only
   const sheet = new Hub({document: makeActor()});
   const props = {};
   sheet.element = {style: {setProperty: (k, v) => { props[k] = v; }, removeProperty: k => { delete props[k]; }}};
+  assert.doesNotMatch(head(await sheet._renderHTML()), /data-compact-opacity/, '0.33.0 (CH-04): not in the header');
+  sheet.menu = 'look';
   const html = await sheet._renderHTML();
-  assert.match(head(html), /<input type="range" min="60" max="100" step="5" value="70" data-compact-opacity data-ag-always aria-label="[^"]+">/);
+  assert.match(html, /agch-lookmenu[\s\S]*Background opacity[\s\S]*<input type="range" min="60" max="100" step="5" value="70" data-compact-opacity data-ag-always aria-label="[^"]+">/, 'in the Appearance menu');
   assert.equal(applyCompactOpacity(sheet), 70);
   assert.deepEqual(props, {'--agch-compact-alpha': '70%'});
   sheet.compact = false;
   assert.equal(applyCompactOpacity(sheet), 100);
   assert.deepEqual(props, {}, 'Full removes it: always opaque');
-  assert.doesNotMatch(head(await sheet._renderHTML()), /data-compact-opacity/, 'no slider in Full');
+  assert.doesNotMatch(await sheet._renderHTML(), /data-compact-opacity/, 'no slider in Full (Appearance menu open)');
   const {saveCompactOpacity} = await import('../scripts/compact-opacity.mjs');
   await saveCompactOpacity(5);
   assert.equal(game.settings.store.compactOpacity, 60, 'saved clamped');
