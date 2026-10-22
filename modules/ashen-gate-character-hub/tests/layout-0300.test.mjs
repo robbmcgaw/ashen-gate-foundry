@@ -97,7 +97,7 @@ test('Mastery & marks: one strip, no fold; targets, Strain and the title togethe
   const html = hotbarsHtml({actor: makeActor({items: WEAPONS}), editable: true});
   const strip = html.slice(html.indexOf('agch-hotbar--marks'), html.indexOf('hotbar:quick'));
   assert.doesNotMatch(strip, /data-action="section-toggle"/, 'not a dropdown any more');
-  assert.match(strip, /<div class="agch-marks"><div class="agch-marks__list">[\s\S]*data-mark="vex"[\s\S]*<\/div>\s*<div class="agch-marks__end"><span class="agch-muted agch-hotbar__targets">[\s\S]*No target<\/span>[\s\S]*agch-hotbar__strain[\s\S]*Mastery &amp; marks<\/span><\/div><\/div>/);
+  assert.match(strip, /<div class="agch-marks"><div class="agch-marks__list">[\s\S]*data-mark="vex"[\s\S]*<\/div>\s*<div class="agch-marks__end"><span class="agch-muted agch-hotbar__targets">[\s\S]*No target<\/span>[\s\S]*agch-hotbar__strain[\s\S]*Mastery &amp; marks<\/span><button type="button" class="agch-marks__help" data-tooltip="[^"]+" aria-label="[^"]+"><i class="fa-solid fa-circle-question" aria-hidden="true"><\/i><\/button><\/div><\/div>/, 'CH-25: the help is a focusable button');
   assert.match(html, /data-action="section-toggle" data-key="hotbar:quick"/, 'the quick bar still folds');
   const css = fs.readFileSync(new URL('../styles/character-hub.css', import.meta.url), 'utf8');
   assert.match(css, /\.agch-marks__list \{[^}]*flex-wrap: wrap; justify-content: flex-end;/, 'marks wrap and grow to the left');
@@ -124,12 +124,20 @@ test('frozen bands: Combat, Inventory (search, filters, attunement, purse and we
     system: {attributes: {...makeActor().system.attributes, encumbrance: {value: 42.5, max: 150, pct: 28.33}}, spells: {spell1: {value: 1, max: 2}}}});
   const band = html => html.match(/<div class="agch-body"[^>]*><div class="agch-sticky">([\s\S]*?)<\/div>\s*(?=<p class="agch-diamond|<section|<div class="ag-empty"|\n)/)?.[1] ?? '';
   assert.match(band(await render('combat', actor)), /data-filter data-tab="combat"/);
-  const inv = await render('inventory', actor), invBand = inv.slice(inv.indexOf('agch-sticky'), inv.indexOf('agch-diamond'));
-  for (const part of [/data-filter data-tab="inventory"/, /Attuned 0 \/ 3/, /data-edit="currency" data-key="gp"/, /agch-weight/, /42\.5 \/ 150 lb/, /--ag-meter:28%/]) assert.match(invBand, part, String(part));
+  const inv = await render('inventory', actor), invBand = inv.slice(inv.indexOf('agch-sticky'), inv.indexOf('agch-purse'));
+  for (const part of [/data-filter data-tab="inventory"/, /Attuned 0 \/ 3/]) assert.match(invBand, part, String(part));
+  // 0.33.0 (CH-07): the purse and weight bar scroll with the list, just under the frozen row.
+  const purse = inv.slice(inv.indexOf('agch-purse'), inv.indexOf('agch-diamond'));
+  assert.doesNotMatch(invBand, /data-edit="currency"/);
+  for (const part of [/data-edit="currency" data-key="gp"/, /agch-weight/, /42\.5 \/ 150 lb/, /--ag-meter:28%/]) assert.match(purse, part, String(part));
   const slice = html => { const at = html.indexOf('agch-sticky'); return html.slice(at, html.indexOf('<section', at)); };
+  // 0.33.0 (CH-07): one frozen row (search, Filters (n)); Magic keeps its spell levels; Group, Sort and chips open from Filters.
   const magic = await render('magic', actor), mBand = slice(magic);
-  for (const part of [/data-filter data-tab="magic"/, /data-field="group"/, /agch-slotstrip/, /data-key="prepared"/]) assert.match(mBand, part, String(part));
-  const feat = await render('features', actor), fBand = slice(feat);
+  for (const part of [/data-filter data-tab="magic"/, /data-action="filters-menu" data-tab="magic"/, /agch-slotstrip/]) assert.match(mBand, part, String(part));
+  assert.doesNotMatch(mBand, /data-key="prepared"/);
+  const mOpen = slice(await render('magic', actor, s => { s.menu = 'filters:magic'; }));
+  for (const part of [/data-field="group"/, /data-key="prepared"/]) assert.match(mOpen, part, String(part));
+  const feat = await render('features', actor, s => { s.menu = 'filters:features'; }), fBand = slice(feat);
   for (const part of [/data-filter data-tab="features"/, /data-field="sort"/, /data-key="uses"/]) assert.match(fBand, part, String(part));
   const css = fs.readFileSync(new URL('../styles/character-hub.css', import.meta.url), 'utf8');
   assert.match(css, /\.agch-sticky \{ position: sticky; top: 0; z-index: 5;[^}]*background: var\(--agch-bg\)/);

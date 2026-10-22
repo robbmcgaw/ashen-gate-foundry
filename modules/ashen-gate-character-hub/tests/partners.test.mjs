@@ -175,9 +175,8 @@ test('newer partner APIs are used when present', () => {
   const util = state('ashen-gate-utilities').html;
   assert.match(util, /42 gp, 5 sp/);
   assert.match(util, /\[TEST\] Item 0.*×3/s);
-  assert.match(util, /\[TEST\] Item 7/);
-  assert.doesNotMatch(util, /\[TEST\] Item 8/);
-  assert.match(util, /and 2 more/);
+  assert.match(util, /\[TEST\] Item 9/, '0.33.0 (CH-24): every stash item, no cut at 8');
+  assert.doesNotMatch(util, /more<\/p>/);
 });
 
 test('newer APIs: empty, unavailable and refused cases', () => {
@@ -204,14 +203,18 @@ test('newer APIs: empty, unavailable and refused cases', () => {
 
 test('Ashen Gate tab: one sub-tab per module, only the chosen one is read; Utilities moved to Inventory', () => {
   installGlobals({user: users.owner, modules: partners()});
-  assert.deepEqual(AG_PANELS.map(p => p.tab), ['Professions', 'Perks', 'Cinders', 'Renown', 'Quests', 'Locations', 'Base']);
+  // 0.33.0 (CH-10): one name per module, the same in the sub-tabs and the bottom quick bar.
+  assert.deepEqual(AG_PANELS.map(p => p.tab), ['Professions', 'Skill Trees', 'Cinders', 'Renown', 'Quest Log', 'Locations', 'Headquarters']);
   const first = ashenGateTab({actor: makeActor(), sheet: {}});
-  assert.match(first, /data-action="ag-subtab" data-partner="ashen-gate-profession-ledger" data-ag-always role="radio" aria-checked="true"/);
+  assert.match(first, /<div class="ag-tabs ag-tabs--sub agch-agtabs" role="tablist" aria-label="Ashen Gate sections">/, 'kit sub-tabs, not a segmented control');
+  assert.match(first, /<button type="button" role="tab" data-action="ag-subtab" data-ag-always id="agch-ag-tab-ashen-gate-profession-ledger" data-tab="ashen-gate-profession-ledger" aria-controls="agch-ag-panel-ashen-gate-profession-ledger" aria-selected="true" tabindex="0">/);
+  assert.match(first, /<div id="agch-ag-panel-ashen-gate-profession-ledger" role="tabpanel" aria-labelledby="agch-ag-tab-ashen-gate-profession-ledger"/);
   assert.equal((first.match(/class="ag-card agch-panel"/g) ?? []).length, 1, 'one panel at a time');
   assert.doesNotMatch(first, /Party purse/);
   calls.length = 0;
   const loc = ashenGateTab({actor: makeActor(), sheet: {agTab: 'ashen-gate-locations'}});
   assert.match(loc, /Millbrook/);
+  assert.match(loc, /<button type="button" class="ag-link" data-action="partner-open" data-partner="ashen-gate-locations" data-ref="[^"]+" data-ag-always="">/, 'kit link buttons');
   assert.deepEqual(calls.map(c => c[0]), ['loc.list'], 'only the shown module is read');
 });
 

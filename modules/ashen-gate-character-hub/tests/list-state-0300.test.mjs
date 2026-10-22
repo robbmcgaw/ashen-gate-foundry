@@ -108,7 +108,7 @@ test('closing the Hub resets what is only kept while it is open; the reopened Hu
   await sheet.dispatch('list-filter', {dataset: {tab: 'magic', key: 'ritual', value: '1'}});
   sheet.filters.magic = '[TEST] x'; sheet.menu = 'slot:head'; sheet.expanded.add('k');
   sheet._onClose({});
-  assert.deepEqual(sheet.listFilters, {magic: {}, features: {}});
+  assert.deepEqual(sheet.listFilters, {combat: {}, magic: {}, features: {}});
   assert.deepEqual([sheet.filters, sheet.menu, sheet.expanded.size], [{}, null, 0]);
   const again = await open(sheet);   // Foundry builds a new window for the same sheet instance
   assert.ok(again.listeners.change?.length > 0, 'listeners on the new content element');

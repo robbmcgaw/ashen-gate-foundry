@@ -5,7 +5,7 @@
  *      0.28.0: the character's own Strain as a read-only chip (Ashen Gate | Cinders' api.strain).
  *      0.30.0: one compact strip that does not fold: the target count, the Strain chip and the "Mastery & marks" label sit
  *      together in the right corner, and the marks wrap onto more lines growing to the left of them.
- *      0.32.0: shown in Compact as well, above the quick bar.
+ *      0.32.0: shown in Compact as well, above the quick bar. 0.33.0: its help is a focusable "?" button (CH-25).
  *   2. Quick bar: HOTBAR_SLOTS free slots the player fills by dragging the character's items or a macro (folds away).
  */
 import {esc} from './constants.mjs';
@@ -37,7 +37,7 @@ function marksBar(actor, off) {
   const empty = '<span class="agch-muted agch-marks__empty">No marks: they come from equipped weapons with a mastery you know, and from spells like Hunter\'s Mark or Hex.</span>';
   const help = 'Mastery & marks: target a token (T), then click a mark to put it on your targets or take it off. Tracking only: nothing is automated.';
   return `<div class="agch-marks"><div class="agch-marks__list">${buttons || empty}${onTargets}</div>
-    <div class="agch-marks__end"><span class="agch-muted agch-hotbar__targets"><i class="fa-solid fa-crosshairs" aria-hidden="true"></i> ${n ? `${n} target${n === 1 ? '' : 's'}` : 'No target'}</span>${strainChip(actor)}<span class="agch-marks__title" data-tooltip="${esc(help)}">Mastery &amp; marks</span></div></div>`;
+    <div class="agch-marks__end"><span class="agch-muted agch-hotbar__targets"><i class="fa-solid fa-crosshairs" aria-hidden="true"></i> ${n ? `${n} target${n === 1 ? '' : 's'}` : 'No target'}</span>${strainChip(actor)}<span class="agch-marks__title">Mastery &amp; marks</span><button type="button" class="agch-marks__help" data-tooltip="${esc(help)}" aria-label="${esc(help)}"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></button></div></div>`;
 }
 
 function quickBar(actor, off) {

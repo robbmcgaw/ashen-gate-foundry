@@ -1,3 +1,21 @@
+## 0.33.0 — 2026-10-22
+
+UI cleanup (audit `docs/ui-audit-2026-10.md`, decisions `docs/ui-audit-decisions-2026-10.md`). Same features, less crowding, better keyboard use.
+
+- **Header:** only **Compact** / **Full**, a **⋯** menu (**Appearance…**, **Pop out** / **Pop in**, **NPC Codex**, **Open native sheet**) and the version with **Help**, in Full, Compact and the limited view. The Compact header no longer wraps; its see-through background (experimental) is now in **⋯ → Appearance…** (Compact only). **Level up** and **Restore backup…** moved under the character's name.
+- **Tabs:** the rail on the right keeps its icons and now shows each tab's name under the icon (icons only between about 900 and 1000 px wide). **GM Setup** carries the GM marker. The rail and the Ashen Gate sub-tabs are one Tab stop each: the arrow keys move, Enter opens. The Journey tab is just "Journey".
+- **One name per module:** the Ashen Gate sub-tabs are Professions, Skill Trees, Cinders, Renown, Quest Log, Locations, Headquarters (were Perks, Quests, Base), the same as the bottom quick bar; every quick-bar button now shows its sub-tab (Headquarters and Locations opened their window; their Open button is in the panel). Player visibility labels follow.
+- **Lists:** Combat, Magic and Features keep one frozen row: search and **Filters (n)**, which opens Group, Sort and the filter chips; **Clear filters** sits beside it while any is on. Magic keeps its spell levels under it. Inventory's purse and weight bar scroll with the list. Magic shows four fact columns; the level and school sit beside the spell's name. Combat's column reads "Damage / Healing".
+- **Keyboard and screen readers:** focus stays on the button you used after the Hub redraws (tabs, chips, Compact / Full, menus); a menu that opens takes the focus and gives it back to its button when it closes (also on Escape). **Configure…** under the name opens dnd5e's settings for any stat (as right-click does). **Change portrait…** / **Change token art…** on the art (double-click still works). **Delete** or **Backspace** on a quick-bar slot clears it (with Undo). Buttons are announced by their visible label. Fold toggles update their tooltip. The Mastery & marks help is a "?" button.
+- **Narrow Full window** (under about 900 px): tabs first, and the character folds to its name, HP and AC until **Show character** (remembered for you in this browser).
+- **Saving throws** roll from the ability tiles only (the Overview list was a duplicate); a proficient save shows a filled dot, not just colour.
+- **Confirmations:** removing a companion, deleting a Journey note, restoring a backup, detaching a socketed item and a Push with guaranteed Backfire ask with **Cancel** as the default button. GM Setup's Player visibility **Quick set** now asks first.
+- Clicking a Cinder under the name in Compact opens Full for that window only; your Compact choice stays saved.
+- Ashen Gate summaries list every location and stash item (no "and N more"). Partner links are kit link buttons.
+- The Inventory banner uses the kit display font; the "absent" line is muted, not red. Item icons follow the kit size tokens (larger in Comfortable). Help is grouped into folding sections.
+- General Manager's skin is no longer copied onto the Hub on each redraw (it reaches the Hub through the page; a popped-out Hub still gets it).
+- Saved data: no change. No migration. New per-browser UI memory only (`ag-ui:ashen-gate-character-hub:<user>`: the narrow-window fold). The `perks`, `quests` and `base` visibility keys are unchanged.
+
 ## 0.32.1 — 2026-10-22
 
 - Shared UI kit 2.2 (no visible change).

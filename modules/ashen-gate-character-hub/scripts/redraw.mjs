@@ -46,28 +46,44 @@ export function fieldKey(el) {
     .map(a => `${a.name}=${a.value}`).sort();
   return `${el.tagName}[${attrs.join('][')}]`;
 }
+/**
+ * What keeps the focus across a redraw: fields (0.29.4) and, since 0.33.0 (CH-02), buttons, links and other focusable
+ * controls (tabs, filter chips, the slot ⋯ button, Compact / Full ...), matched by the same fieldKey.
+ */
 const FIELDS = 'input, textarea, select';
+export const FOCUSABLE = 'input, textarea, select, button, a[href], [tabindex]';
 const TEXTLIKE = /^(text|search|number|email|url|tel|password)$/;
 const textLike = el => el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && TEXTLIKE.test(el.type || 'text'));
 
-/** The Hub field that has the focus now (with its caret and any text typed but not saved), or null. */
+/** The Hub control that has the focus now (a field also with its caret and any text typed but not saved), or null. */
 export function captureFocus(content) {
   const el = content?.ownerDocument?.activeElement;
-  if (!el || el === content || !content.contains?.(el) || !el.matches?.(FIELDS)) return null;
+  if (!el || el === content || !content.contains?.(el) || !el.matches?.(FOCUSABLE)) return null;
+  const field = el.matches(FIELDS);
   let start = null, end = null;
-  try { start = el.selectionStart; end = el.selectionEnd; } catch {}
-  return {key: fieldKey(el), value: el.value, defaultValue: el.defaultValue, dirty: textLike(el) && el.value !== el.defaultValue, start, end};
+  if (field) try { start = el.selectionStart; end = el.selectionEnd; } catch {}
+  return {key: fieldKey(el), value: field ? el.value : undefined, defaultValue: field ? el.defaultValue : undefined, dirty: field && textLike(el) && el.value !== el.defaultValue, start, end};
 }
 /**
- * Focuses the same field again, without scrolling. Text typed but not saved is put back, unless the field now shows
- * a different saved value (someone else changed it). Returns the field, or null when it is gone.
+ * Focuses the same control again, without scrolling. Text typed but not saved is put back, unless the field now shows
+ * a different saved value (someone else changed it). Returns the control, or null when it is gone or disabled.
  */
 export function restoreFocus(content, saved) {
-  if (!saved) return null;
-  const el = [...(content?.querySelectorAll?.(FIELDS) ?? [])].find(f => fieldKey(f) === saved.key);
+  if (!saved?.key) return null;
+  const el = [...(content?.querySelectorAll?.(FOCUSABLE) ?? [])].find(f => fieldKey(f) === saved.key);
   if (!el || el.disabled) return null;
   if (saved.dirty && el.defaultValue === saved.defaultValue) el.value = saved.value;
   el.focus?.({preventScroll: true});
   if (saved.start !== null && saved.start !== undefined) try { el.setSelectionRange?.(saved.start, saved.end ?? saved.start); } catch {}
+  return el;
+}
+/**
+ * Popovers (0.33.0, CH-02): the first control inside a popover that just opened gets the focus (its Close button only
+ * when there is nothing else). Returns the control, or null.
+ */
+export function focusFirstIn(popover) {
+  const all = [...(popover?.querySelectorAll?.(FOCUSABLE) ?? [])].filter(el => !el.disabled && el.getAttribute?.('tabindex') !== '-1');
+  const el = all.find(c => c.dataset?.action !== 'menu-close') ?? all[0] ?? null;
+  el?.focus?.({preventScroll: true});
   return el;
 }

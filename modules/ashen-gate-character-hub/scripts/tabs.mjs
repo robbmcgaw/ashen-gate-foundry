@@ -29,12 +29,12 @@ export function masteryBadge(r) {
   const off = m.mastered === false, label = `${m.label} weapon mastery${off ? ' (not mastered by this character)' : ''}`;
   return `<span class="ag-badge agch-mastery${off ? ' is-off' : ' ag-badge--accent'}"${tooltipAttrs(m.reference, label, {kind: 'rule'})} aria-label="${esc(label)}"><i class="fa-solid fa-medal" aria-hidden="true"></i> ${esc(m.label)}</span>`;
 }
-/** The band at the top of a tab that stays in view while its list scrolls (0.30.0): search, filters, purse. */
+/** The band at the top of a tab that stays in view while its list scrolls (0.30.0). 0.33.0 (CH-07): one toolbar row (Magic adds its spell levels). */
 const stickyBand = html => `<div class="agch-sticky">${html}</div>`;
 
 /** Search box for a tab (filters rows by name without a re-render; the text is kept per tab). */
 const searchBox = (ctx, what) => `<label class="ag-search agch-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-filter data-tab="${esc(ctx.tab ?? '')}" placeholder="Search ${esc(what)}" aria-label="Search ${esc(what)}" value="${esc(ctx.sheet?.filters?.[ctx.tab] ?? '')}" data-ag-always></label>`;
-/** Group-by and sort selects for Magic and Features (remembered per user). Observers can use them too. */
+/** Group-by and sort selects for Combat, Magic and Features (remembered per user). Observers can use them too. */
 function organizeSelects(tab) {
   const o = ORGANIZE[tab], c = listChoice(tab);
   const sel = (field, label, list) => `<label class="agch-orgsel"><span>${label}</span><select data-edit="list-sort" data-tab="${tab}" data-field="${field}" data-ag-always aria-label="${label}">${list.map(([k, l]) => `<option value="${k}"${c[field] === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
@@ -68,17 +68,17 @@ function combatTab(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, d = combatData(actor), h = headerData(actor), expanded = sheet?.expanded;
   const {group, sort} = listChoice('combat'), f = sheet?.listFilters?.combat ?? {};
   // dnd5e's damage labels include healing (heal activities), so the column says both.
-  const dmg = {...C.damage, label: 'DMG/HEAL'};
+  const dmg = {...C.damage, label: 'Damage / Healing'};
   const weaponCols = [dmg, C.toHit, C.range, C.properties], actionCols = [C.range, dmg, C.uses, C.recovery], mixedCols = [dmg, C.toHit, C.range, C.uses];
   const card = r => ({controls: useBtn(r, off), star: starBtn(actor, r, off), badges: `${masteryBadge(r)}${r.type === 'weapon' && !r.equipped ? '<span class="ag-badge">Not equipped</span>' : ''}${attunedBadge(r)}`});
   const shown = sortRows(filterRows(d.rows, f), sort);
   const groups = orderGroups(groupRows(shown, group === 'none' ? () => null : GROUP_BY[group], {allLabel: 'Everything'}), group);
   const colsFor = g => group !== 'category' ? mixedCols : g.key === 'combat' ? weaponCols : actionCols;
   const sections = groups.map(g => sectionHtml(sectionKey('combat', group, g.key), `${esc(g.label)} <span class="ag-badge">${g.items.length}</span>`, cardList(g.items, colsFor(g), {card, expanded, listKey: `combat-${group}-${g.key}`}))).join('');
-  const toolbar = `<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'weapons and actions')}${organizeSelects('combat')}
+  const toolbar = `<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'weapons and actions')}${filtersControl(ctx, 'combat', `${actionChips('combat', d.rows, f)}${filterToggles('combat', f)}`)}
     ${h.hp.value <= 0 ? `<div class="ag-toolbar__end">${btn('roll-death', 'Death save', {icon: 'fa-solid fa-dice-d20', disabled: off})}</div>` : ''}</div>`;
   const body = sections || (d.rows.length ? empty('Nothing matches.', 'Change the search or use Clear filters.') : empty('No weapons or actions yet.', 'Weapons, and items or features you can use, show here.'));
-  return `${stickyBand(`${toolbar}<div class="agch-filters" role="group" aria-label="Combat filters">${actionChips('combat', d.rows, f)}${filterToggles('combat', f)}</div>`)}
+  return `${stickyBand(toolbar)}
     ${favouritesSection(actor, 'combat', shown, mixedCols, card, expanded)}${body}
     <p class="agch-muted agch-hint">Use opens dnd5e's own usage dialog: attacks, damage, targets and resource use happen there. Initiative rolls from the tile on the left. Hide unequipped leaves out weapons and gear you carry but have not equipped.</p>`;
 }
@@ -86,7 +86,7 @@ function combatTab(ctx) {
 // ---------- Inventory ----------
 /** True when any item the character owns (containers' contents too: they are Items on the Actor) has "diamond" in its name. */
 export const hasDiamond = actor => [...(actor?.items ?? [])].some(i => /diamond/i.test(String(i.name ?? '')));
-/** The display-only banner at the top of Inventory. Not stored, not clickable. */
+/** The display-only banner at the top of Inventory. Not stored, not clickable. Absent is muted, not an error (0.33.0, CH-13). */
 export const diamondBanner = actor => hasDiamond(actor)
   ? `<p class="agch-diamond is-present" role="note">${esc(DIAMOND_PRESENT)}</p>`
   : `<p class="agch-diamond is-absent" role="note">${esc(DIAMOND_ABSENT)}</p>`;
@@ -100,7 +100,7 @@ export function weightBar(enc) {
   const text = `${enc.value} / ${enc.max} ${enc.units}`, tip = `Carried weight ${text} (dnd5e's carrying capacity)${enc.over ? ': over capacity' : ''}`;
   return `<span class="ag-meter${enc.over ? ' ag-meter--danger' : ''} agch-weight" data-tooltip="${esc(tip)}"><span class="ag-meter__label agch-weight__label"><i class="fa-solid fa-weight-hanging" aria-hidden="true"></i><span class="ag-sr-only">Carried weight</span></span><span class="ag-meter__value">${esc(text)}</span><span class="ag-meter__track" role="progressbar" aria-valuemin="0" aria-valuemax="${enc.max}" aria-valuenow="${Math.min(enc.value, enc.max)}" aria-valuetext="${esc(text)}" aria-label="${esc(tip)}" style="--ag-meter:${enc.pct}%"><span class="ag-meter__fill"></span></span></span>`;
 }
-/** The coin purse (and the weight bar beside it) for the Inventory's frozen band. */
+/** The coin purse and the weight bar beside it, at the top of the Inventory list (it scrolls with the list since 0.33.0). */
 function purseHtml(ctx, d) {
   const off = !ctx.editable;
   // Electrum follows Utilities' "Use electrum" (off: no ep box, unless the character still has some: then it shows dimmed).
@@ -136,17 +136,33 @@ function inventoryShell(ctx) {
   const segs = mine && stash ? `<div class="ag-segmented agch-seg" role="radiogroup" aria-label="Whose items">${seg('character', 'Character', 'inventory')}${seg('party', 'Party stash', 'partyStash')}</div>` : '';
   return `${stickyBand(`<div class="ag-toolbar agch-toolbar">${segs}
     ${searchBox(ctx, 'items')}
-    ${d ? `<span class="ag-badge${d.attunement.value > d.attunement.max ? ' ag-badge--danger' : ''}" data-tooltip="Attuned items">Attuned ${d.attunement.value} / ${d.attunement.max}</span>` : ''}</div>${d ? purseHtml(ctx, d) : ''}`)}
-    ${party ? partyStashHtml(ctx.actor) : inventoryTab(ctx, d)}`;
+    ${d ? `<span class="ag-badge${d.attunement.value > d.attunement.max ? ' ag-badge--danger' : ''}" data-tooltip="Attuned items">Attuned ${d.attunement.value} / ${d.attunement.max}</span>` : ''}</div>`)}
+    ${d ? purseHtml(ctx, d) : ''}${party ? partyStashHtml(ctx.actor) : inventoryTab(ctx, d)}`;
 }
 
 // ---------- Filters (Magic, Features) ----------
 
 const filterBtn = (tab, key, value, label, on, title = '') => `<button type="button" class="ag-chip agch-filter" data-action="list-filter" data-tab="${tab}" data-key="${key}" data-value="${esc(value)}" data-ag-always aria-pressed="${on}"${title ? ` data-tooltip="${esc(title)}"` : ''}>${label}</button>`;
-/** Toggle buttons for a tab's filters, plus Clear when any is on. f is the sheet's filter state for the tab. */
+/** Toggle buttons for a tab's filters. f is the sheet's filter state for the tab. */
 function filterToggles(tab, f) {
-  const any = Object.values(f).some(v => v !== null && v !== undefined && v !== false);
-  return `${FILTERS[tab].map(([k, label]) => filterBtn(tab, k, '1', esc(label), !!f[k])).join('')}${any ? `<button type="button" class="ag-chip agch-filter agch-filter--clear" data-action="list-filter" data-tab="${tab}" data-key="clear" data-ag-always>Clear filters</button>` : ''}`;
+  return FILTERS[tab].map(([k, label]) => filterBtn(tab, k, '1', esc(label), !!f[k])).join('');
+}
+const isOn = v => v !== null && v !== undefined && v !== false;
+/** How many of a tab's filters are on (Magic's spell level is not counted: its strip shows it). */
+export const activeFilters = (tab, f = {}) => Object.entries(f).filter(([k, v]) => isOn(v) && !(tab === 'magic' && k === 'level')).length;
+/**
+ * Filters (n) (0.33.0, CH-07): one button in the toolbar opens a popover with Group, Sort and the filter chips; n counts
+ * the filters that are on. Clear filters sits beside it while any filter is on. The popover is a Hub menu
+ * (sheet.menu 'filters:<tab>'), so a click outside or Escape closes it.
+ */
+export function filtersControl(ctx, tab, chips) {
+  const f = ctx.sheet?.listFilters?.[tab] ?? {}, n = activeFilters(tab, f), open = ctx.sheet?.menu === `filters:${tab}`;
+  const any = Object.values(f).some(isOn);
+  const pop = open ? `<div class="agch-menu agch-filtermenu" role="group" aria-label="Filters">
+      <header class="agch-menu__head"><strong>Group, sort and filter</strong>${btn('menu-close', '', {kind: 'ghost', icon: 'fa-solid fa-xmark', title: 'Close', always: true})}</header>
+      <div class="agch-filtermenu__selects">${organizeSelects(tab)}</div>${chips ? `<div class="agch-filters" role="group" aria-label="Filters">${chips}</div>` : ''}</div>` : '';
+  return `<span class="agch-filterwrap"><button type="button" class="ag-btn ag-btn--sm agch-filtersbtn${n ? ' is-on' : ''}" data-action="filters-menu" data-tab="${tab}" data-ag-always aria-haspopup="true" aria-expanded="${open}"><i class="fa-solid fa-filter" aria-hidden="true"></i><span>Filters${n ? ` (${n})` : ''}</span></button>${pop}</span>
+    ${any ? `<button type="button" class="ag-chip agch-filter agch-filter--clear" data-action="list-filter" data-tab="${tab}" data-key="clear" data-ag-always>Clear filters</button>` : ''}`;
 }
 
 // ---------- Magic ----------
@@ -156,8 +172,10 @@ function magicTab(ctx) {
   const {group, sort} = listChoice('magic'), f = sheet?.listFilters?.magic ?? {};
   const prep = s => s.always ? '<span class="ag-badge" data-tooltip="Always prepared">Always</span>'
     : s.canPrepare ? btn('spell-prepare', s.prepared ? 'Prepared' : 'Prepare', {kind: s.prepared ? 'primary' : 'sm', data: {id: s.id}, title: s.prepared ? 'Unprepare' : 'Prepare', disabled: off}) : '';
-  const columns = [...(group === 'level' ? [] : [{...C.level, render: r => esc(r.facts.level || (r.level ? `Level ${r.level}` : 'Cantrip'))}]), ...(group === 'school' ? [] : [C.school]), C.castTime, C.range, C.duration, C.components];
-  const card = s => ({controls: `${prep(s)}${btn('item-use', 'Cast', {kind: 'sm', icon: 'fa-solid fa-wand-sparkles', data: {id: s.id}, title: `Cast ${s.name}`, disabled: off})}`, star: starBtn(actor, s, off)});
+  // 0.33.0 (CH-08): four fact columns; the spell level and school sit beside the name (unless the list is grouped by them).
+  const columns = [C.castTime, C.range, C.duration, C.components];
+  const spellBadges = r => `${group === 'level' ? '' : `<span class="ag-badge">${esc(r.facts.level || (r.level ? `Level ${r.level}` : 'Cantrip'))}</span>`}${group === 'school' || !r.facts.school ? '' : `<span class="ag-badge">${esc(r.facts.school)}</span>`}`;
+  const card = s => ({controls: `${prep(s)}${btn('item-use', 'Cast', {kind: 'sm', icon: 'fa-solid fa-wand-sparkles', data: {id: s.id}, title: `Cast ${s.name}`, disabled: off})}`, star: starBtn(actor, s, off), badges: spellBadges(s)});
   const all = d.levels.flatMap(l => l.spells), shown = filterRows(all, f, {slotsLeft: d.slotsLeft, pact: d.pact});
   const slotBadge = l => l.slots ? ` <span class="ag-badge" data-tooltip="Slots left">${pips(l.slots.value, l.slots.max)} slots</span>` : '';
   // Spell-level buttons (dnd5e's slots): click to show only that level, again to show all.
@@ -175,8 +193,7 @@ function magicTab(ctx) {
     orderGroups(groups, group);
     sections = groups.map(g => sectionHtml(sectionKey('magic', group, g.key), esc(g.label), cardList(g.items, columns, {card, expanded, listKey: `magic-${group}-${g.key}`}))).join('');
   }
-  return `${stickyBand(`<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'spells')}${organizeSelects('magic')}</div>${strip}
-    <div class="agch-filters" role="group" aria-label="Spell filters">${filterToggles('magic', {...f, level: null})}</div>`)}
+  return `${stickyBand(`<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'spells')}${filtersControl(ctx, 'magic', filterToggles('magic', f))}</div>${strip}`)}
     ${favouritesSection(actor, 'magic', sortRows(shown, sort), columns, card, expanded)}${sections || empty('Nothing matches.', 'Change the search or use Clear filters.')}
     <p class="agch-muted agch-hint">Cast opens dnd5e's casting dialog (slot level, upcasting and consumption). Castable only: cantrips, and prepared spells with a slot of their level or higher left. The star is dnd5e's own favourite (also on the standard sheet).</p>`;
 }
@@ -193,10 +210,9 @@ function featuresTab(ctx) {
   const sections = groups.map(g => sectionHtml(sectionKey('features', group === 'type' ? g.key : `${group}-${g.key}`), esc(g.label), cardList(g.items, columns, {card, expanded, listKey: `features-${group}-${g.key}`}))).join('');
   // Action-type buttons for the dnd5e activation types these features have.
   const actBtns = actionChips('features', all, f);
-  return `${stickyBand(`<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'features')}${organizeSelects('features')}</div>
-    <div class="agch-filters" role="group" aria-label="Feature filters">${actBtns}${filterToggles('features', f)}</div>`)}
+  return `${stickyBand(`<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'features')}${filtersControl(ctx, 'features', `${actBtns}${filterToggles('features', f)}`)}</div>`)}
     ${favouritesSection(actor, 'features', sortRows(shown, sort), columns, card, expanded)}${sections || (all.length ? empty('Nothing matches.', 'Change the search or use Clear filters.') : empty('No features yet.', 'Class, species and other features show here.'))}
-    <p class="agch-muted agch-hint">Class, species and background are on the card at the top of the character. Level up and advancement choices are on the native sheet. The star is dnd5e's own favourite (also on the standard sheet).</p>`;
+    <p class="agch-muted agch-hint">Class, species and background are on the card at the top of the character. Level up is under the character's name; it opens dnd5e's own advancement. The star is dnd5e's own favourite (also on the standard sheet).</p>`;
 }
 
 export const ITEM_TABS = [

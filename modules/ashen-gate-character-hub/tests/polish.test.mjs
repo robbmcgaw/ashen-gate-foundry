@@ -9,8 +9,9 @@ import {openConfig, CONFIGS} from '../scripts/configure.mjs';
 import {isCollapsed, setCollapsed, collapsedState, sectionHtml, sectionKey, toggleSection, COLLAPSE_MAX} from '../scripts/collapse.mjs';
 import {speedsData, headerData} from '../scripts/data.mjs';
 import {equipmentLayout, equipChoices, naturalSlot, itemRow} from '../scripts/items.mjs';
-import {createHubSheetClass, ACTIONS} from '../scripts/sheet.mjs';
-import {agBarHtml} from '../scripts/views.mjs';
+import {createHubSheetClass, ACTIONS, configureAsk} from '../scripts/sheet.mjs';
+import {agBarHtml, AG_BAR} from '../scripts/views.mjs';
+import {AG_PANELS} from '../scripts/partners.mjs';
 
 const Cls = () => createHubSheetClass(FakeActorSheetV2);
 const render = async (opts = {}) => { const s = new (Cls())({document: opts.actor ?? makeActor()}); Object.assign(s, opts.sheet ?? {}); return {sheet: s, html: await s._renderHTML()}; };
@@ -129,7 +130,7 @@ test('the sheet marks stats for right-click and routes the context menu to the c
   const {sheet, html} = await render();
   for (const re of [/agch-abil" data-config="ability" data-config-key="str"/, /agch-ac"[^>]*data-config="armorClass"/, /data-config="initiative"/, /data-config="movement"/, /data-config="hitDice"/]) assert.match(html, re);
   assert.match(html, /<li data-config="skill" data-config-key="ath"><button type="button" class="agch-row" data-action="roll-skill"/);
-  assert.match(html, /<li data-config="ability" data-config-key="dex"><button type="button" class="agch-row" data-action="roll-save"/);
+  assert.doesNotMatch(html, /class="agch-row" data-action="roll-save"/, 'CH-15: saving throws only on the ability tiles');
   assert.match(html, /data-config="senses"/); assert.match(html, /data-config="trait" data-config-key="languages"/);
   let prevented = false;
   const el = {dataset: {config: 'skill', configKey: 'ath'}};
@@ -140,6 +141,16 @@ test('the sheet marks stats for right-click and routes the context menu to the c
   made.length = 0;
   await sheet._onContextMenu({target: {closest: sel => sel === '.agch-embed' ? {} : el}, preventDefault() {}, stopPropagation() {}});
   assert.equal(made.length, 0, 'embedded partner views keep their own right-click');
+  // 0.33.0 (CH-11): Configure… under the name is the keyboard way to the same windows.
+  assert.match(html, /<div class="agch-ident__actions">[\s\S]*data-action="configure"[^>]*><i class="fa-solid fa-sliders" aria-hidden="true"><\/i><span>Configure…<\/span>/);
+  const offered = [];
+  const r = await configureAsk(sheet, async options => { offered.push(...options); return 'ability:dex'; });
+  assert.equal(r.ok, true);
+  assert.deepEqual(made[0], ['AbilityConfig', {document: sheet.document, key: 'dex'}]);
+  for (const v of ['armorClass', 'initiative', 'movement', 'hitPoints', 'hitDice', 'death', 'senses', 'skill:ath', 'trait:languages']) assert.ok(offered.some(o => o.value === v), v);
+  assert.equal(await configureAsk(sheet, async () => null), null, 'Cancel opens nothing');
+  installGlobals({user: users.observer});
+  assert.equal((await configureAsk(sheet, async () => 'initiative')).ok, false, 'observers are refused in the action too');
 });
 
 test('speeds: dnd5e 6 movement.speeds (jump included), hover flag; older flat data still reads', () => {
@@ -193,12 +204,14 @@ test('collapsible sections: client setting, safe when missing, remembered per ke
 test('toggling a section flips the DOM without a re-render and saves', async () => {
   installGlobals({settings: {}});
   const body = {hidden: false}, attrs = {};
-  const btn = {title: 'Collapse [TEST] Backpack', classList: {contains: () => true}, setAttribute: (k, v) => { attrs[k] = v; }};
+  const attrs0 = {'aria-label': 'Collapse [TEST] Backpack', 'data-tooltip': 'Collapse [TEST] Backpack'};
+  const btn = {classList: {contains: () => true}, getAttribute: k => attrs[k] ?? attrs0[k] ?? null, setAttribute: (k, v) => { attrs[k] = v; }};
   const root = {querySelectorAll: sel => sel.startsWith('[data-sec-body') ? [body] : [btn]};
   const {sheet} = await render();
   let renders = sheet.renders.length;
   await ACTIONS['section-toggle']({...sheet, element: root}, {dataset: {key: 'container:pack'}});
-  assert.equal(body.hidden, true); assert.equal(attrs['aria-expanded'], 'false'); assert.equal(btn.title, 'Expand [TEST] Backpack');
+  assert.equal(body.hidden, true); assert.equal(attrs['aria-expanded'], 'false');
+  assert.equal(attrs['data-tooltip'], 'Expand [TEST] Backpack', 'CH-19: the tooltip follows'); assert.equal(attrs['aria-label'], 'Expand [TEST] Backpack');
   assert.equal(isCollapsed('container:pack'), true);
   assert.equal(sheet.renders.length, renders, 'no re-render');
   await toggleSection(root, 'container:pack');
@@ -209,7 +222,7 @@ test('every heading and inventory container gets a collapse toggle; observers ca
   installGlobals({user: users.observer, settings: {collapsedSections: {'container:pack': true}}});
   const items = [{id: 'pack', name: '[TEST] Backpack', type: 'container', system: {quantity: 1}}, {id: 'rope', name: '[TEST] Rope', type: 'loot', system: {quantity: 1, container: 'pack'}}];
   const {html: ov} = await render();
-  for (const key of ['overview:skills', 'overview:saves', 'overview:passives', 'overview:proficiencies']) assert.match(ov, new RegExp(`data-action="section-toggle" data-key="${key}" data-ag-always`));
+  for (const key of ['overview:skills', 'overview:passives', 'overview:proficiencies']) assert.match(ov, new RegExp(`data-action="section-toggle" data-key="${key}" data-ag-always`));
   assert.match(ov, /class="ag-list agch-zebra agch-skills"><li class="agch-zebra__head"/, 'zebra skills list with a column header');
   const {html: inv} = await render({actor: makeActor({items}), sheet: {tab: 'inventory'}});
   assert.match(inv, /data-key="inventory:container"/);
@@ -244,7 +257,7 @@ test('paper doll: bracer slot where Other was, three trinkets, icons for empty s
   assert.equal(itemRow({system: {rarity: 'nonsense'}}).rarity, '', 'unknown rarity gets no colour');
 });
 
-test('Ashen Gate quick bar: module views jump to the sub-tab; HQ and Locations open their window; missing modules greyed for the GM, hidden for players', async () => {
+test('Ashen Gate quick bar: every button shows its module\'s sub-tab (0.33.0); missing modules greyed for the GM, hidden for players', async () => {
   const calls = [];
   const mods = {
     'ashen-gate-profession-ledger': {active: true, api: {getProfessions: () => []}},
@@ -252,10 +265,11 @@ test('Ashen Gate quick bar: module views jump to the sub-tab; HQ and Locations o
   };
   installGlobals({user: users.gm, modules: mods});
   const bar = agBarHtml();
-  assert.match(bar, /data-action="ag-jump" data-partner="ashen-gate-profession-ledger" data-ag-always aria-label="Professions \(show here\)" data-tooltip="Professions \(show here\)"/);
-  assert.match(bar, /data-action="partner-open" data-partner="ashen-gate-headquarters" data-ag-always aria-label="Open Headquarters" data-tooltip="Open Headquarters"/);
-  assert.match(bar, /is-missing" data-action="partner-open" data-partner="ashen-gate-locations" disabled aria-label="Locations \(module not active\)" data-tooltip="Locations \(module not active\)"/);
-  for (const label of ['Skill Trees', 'Renown', 'Quests']) assert.match(bar, new RegExp(`${label} \\(module not active\\)`));
+  assert.match(bar, /data-action="ag-jump" data-partner="ashen-gate-profession-ledger" data-ag-always aria-label="Show Professions" data-tooltip="Show Professions"/);
+  assert.match(bar, /data-action="ag-jump" data-partner="ashen-gate-headquarters" data-ag-always aria-label="Show Headquarters" data-tooltip="Show Headquarters"/, 'CH-10: Headquarters jumps to its sub-tab too');
+  assert.match(bar, /is-missing" data-action="ag-jump" data-partner="ashen-gate-locations" disabled aria-label="Locations \(module not active\)" data-tooltip="Locations \(module not active\)"/);
+  for (const label of ['Skill Trees', 'Cinders', 'Renown', 'Quest Log']) assert.match(bar, new RegExp(`${label} \\(module not active\\)`));
+  assert.deepEqual(AG_BAR.map(b => b.label), AG_PANELS.map(p => p.tab), 'the same names as the sub-tabs');
   const {sheet, html} = await render();
   assert.match(html, /<div class="agch-railcol"><nav class="ag-siderail agch-rail" role="tablist"[\s\S]*?<\/nav><\/div>/, 'the right rail holds only the sections (0.29.0)');
   assert.doesNotMatch(html.match(/<div class="agch-railcol">[\s\S]*?<\/nav><\/div>/)[0], /agch-agbar/);
@@ -297,7 +311,8 @@ test('list item icons are a fixed square that never shrinks and show the whole i
     assert.equal(last(sel, 'flex'), '0 0 var(--agch-icon)', `${sel}: never shrinks in a flex row`);
     for (const p of ['width', 'min-width', 'max-width', 'height', 'min-height', 'max-height']) assert.equal(last(sel, p), 'var(--agch-icon)', `${sel} ${p}`);
   }
-  assert.match(css, /\.agch-app \.agch-cards \{ grid-template-columns: minmax\(24px, max-content\) 32px minmax\(8rem, 1fr\)/, 'the icon column is a fixed 32px; the name column shrinks');
+  assert.match(css, /\.agch-app \.agch-cards \{ grid-template-columns: minmax\(var\(--ag-control-h-sm\), max-content\) var\(--agch-icon-size\) minmax\(8rem, 1fr\)/, 'the icon column is a fixed size (kit tokens, CH-27); the name column shrinks');
+  assert.match(css, /--agch-icon-size: calc\(var\(--ag-icon-chip\) \+ var\(--ag-space-3\)\)/);
   assert.equal(last('.agch-slot img', 'object-fit'), 'cover', 'slot art keeps its own rule');
 });
 

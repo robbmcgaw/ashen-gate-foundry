@@ -141,7 +141,8 @@ test('Journey tab: alpha badge; players see their list; the GM gets the picker, 
   let html = await gmSheet._renderHTML();
   assert.match(html, /New · alpha/);
   assert.match(html, /data-edit="journey-actor"/); assert.match(html, /data-journey-form="add"/);
-  assert.match(html, /\[TEST\] Hidden <span class="ag-badge ag-badge--warn">[\s\S]*Hidden from player/);
+  assert.match(html, /\[TEST\] Hidden <span class="ag-gm-flag"><i class="fa-solid fa-eye-slash" aria-hidden="true"><\/i> Hidden from player<\/span>/, "CH-23: one marker");
+  assert.doesNotMatch(html, /> GM only<\/span>/);
   assert.match(html, /data-action="journey-show"/); assert.match(html, /data-action="journey-hide"/); assert.match(html, /data-action="journey-delete"/);
   gmSheet.journeyEdit = visible(actor)[0].id;
   assert.match(await gmSheet._renderHTML(), /data-journey-form="edit"[\s\S]*data-action="journey-cancel"[\s\S]*data-action="journey-save"/, 'Cancel left, Save right');

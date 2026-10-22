@@ -13,7 +13,7 @@ export const SETTING = 'playerVisibility';
 
 /** Every part, in GM Setup order. `partner` is the module that backs it; `core` parts stay on in the "Core only" preset. */
 export const PARTS = [
-  {key: 'overview', label: 'Overview (skills, saves, senses)', core: true},
+  {key: 'overview', label: 'Overview (skills, senses, proficiencies)', core: true},
   {key: 'combat', label: 'Combat', core: true},
   {key: 'inventory', label: 'Inventory: character items', core: true},
   {key: 'partyStash', label: 'Inventory: party stash', partner: 'ashen-gate-utilities', partnerLabel: 'Utilities'},
@@ -22,17 +22,17 @@ export const PARTS = [
   {key: 'rest', label: 'Short and Long Rest buttons', core: true},
   {key: 'equipment', label: 'Equipment slots (paper doll)', core: true},
   {key: 'companions', label: 'Companions'},
-  {key: 'journey', label: 'Journey (alpha): accomplishments log', core: true},
+  {key: 'journey', label: 'Journey: accomplishments log', core: true},
   {key: 'hotbars', label: 'Hotbars (mastery & marks, quick bar)', core: true},
   // 0.18.0: Strain is a character resource, so only this toggle hides the bar (Cinders' Player Access hides the Cinders panel).
   {key: 'strain', label: 'Strain bar (Ashen Gate | Cinders)'},
   {key: 'professions', label: 'Ashen Gate: Professions', partner: 'ashen-gate-profession-ledger', partnerLabel: 'Profession Ledger'},
-  {key: 'perks', label: 'Ashen Gate: Perks', partner: 'ashen-gate-skill-trees', partnerLabel: 'Skill Trees'},
+  {key: 'perks', label: 'Ashen Gate: Skill Trees (perks)', partner: 'ashen-gate-skill-trees', partnerLabel: 'Skill Trees'},
   {key: 'cinders', label: 'Ashen Gate: Cinders', partner: 'ashen-gate-cinders', partnerLabel: 'Cinders'},
   {key: 'renown', label: 'Ashen Gate: Renown (and Pantheon)', partner: 'ashen-gate-factions', partnerLabel: 'Renown'},
-  {key: 'quests', label: 'Ashen Gate: Quests', partner: 'ashen-gate-quest-manager', partnerLabel: 'Quest Log'},
+  {key: 'quests', label: 'Ashen Gate: Quest Log', partner: 'ashen-gate-quest-manager', partnerLabel: 'Quest Log'},
   {key: 'locations', label: 'Ashen Gate: Locations', partner: 'ashen-gate-locations', partnerLabel: 'Locations'},
-  {key: 'base', label: 'Ashen Gate: Base', partner: 'ashen-gate-headquarters', partnerLabel: 'Headquarters'}
+  {key: 'base', label: 'Ashen Gate: Headquarters', partner: 'ashen-gate-headquarters', partnerLabel: 'Headquarters'}
 ];
 const BY_KEY = new Map(PARTS.map(p => [p.key, p]));
 /** The part key for a partner module's Ashen Gate sub-tab (or the party stash), or null. */

@@ -59,7 +59,11 @@ export function toggleSection(root, key) {
   for (const el of root?.querySelectorAll?.(sel) ?? []) el.hidden = now;
   for (const b of root?.querySelectorAll?.(btnSel) ?? []) {
     b.setAttribute?.('aria-expanded', String(!now));
-    if (b.classList?.contains?.('agch-sec__toggle--icon')) { const t = `${now ? 'Expand' : 'Collapse'}${(b.title ?? '').replace(/^(Expand|Collapse)/, '')}`; b.title = t; b.setAttribute?.('aria-label', t); }
+    // 0.33.0 (CH-19): the icon toggle's tooltip and name follow the new state (they read "Collapse …" / "Expand …").
+    if (b.classList?.contains?.('agch-sec__toggle--icon')) {
+      const t = `${now ? 'Expand' : 'Collapse'}${String(b.getAttribute?.('aria-label') ?? '').replace(/^(Expand|Collapse)/, '')}`;
+      b.setAttribute?.('aria-label', t); b.setAttribute?.('data-tooltip', t);
+    }
   }
   return setCollapsed(key, now);
 }

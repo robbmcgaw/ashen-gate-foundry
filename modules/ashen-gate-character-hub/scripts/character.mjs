@@ -7,7 +7,7 @@
  */
 import {esc, signed, SLOT_PLACEHOLDERS, placeholderKind, assetUrl} from './constants.mjs';
 import {btn} from './buttons.mjs';
-import {headerData, abilitiesData} from './data.mjs';
+import {headerData, abilitiesData, skillsData} from './data.mjs';
 import {equipmentLayout, equipChoices, SLOTS, featuresData} from './items.mjs';
 import {partyStashUsable} from './partners.mjs';
 import {canSee, hiddenReason, hiddenBadge} from './visibility.mjs';
@@ -15,6 +15,10 @@ import {configAttrs} from './configure.mjs';
 import {toggleButton, bodyAttrs} from './collapse.mjs';
 import {tooltipAttrs} from './tooltips.mjs';
 import {strainHtml, strainPillHtml, cinderChipsHtml} from './cinders.mjs';
+import {MODULE_ID} from './constants.mjs';
+import {levelUpState} from './level-up.mjs';
+import {backupsFor} from './level-restore.mjs';
+import {isBackup} from './level-backup.mjs';
 
 export const LEFT_SLOTS = ['head', 'neck', 'back', 'body', 'hands'];
 export const RIGHT_SLOTS = ['mainhand', 'offhand', 'waist', 'feet', 'bracer'];
@@ -104,6 +108,7 @@ function dollHtml(ctx, h) {
     <div class="agch-doll__center">
       <div class="agch-doll__art${off ? '' : ' is-editable'}"${off ? '' : ` data-art-edit="${token ? 'token' : 'portrait'}" data-tooltip="Double-click to change ${token ? 'token art' : 'portrait'}"`}><img class="agch-doll__bg" src="${esc(art)}" alt="" aria-hidden="true"><img class="agch-doll__fg" src="${esc(art)}" alt="${esc(actor.name)}">
         ${btn('doll-art', token ? 'Portrait' : 'Token art', {kind: 'sm', extra: 'agch-doll__toggle', title: token ? 'Show portrait' : 'Show token art', always: true})}
+        ${off ? '' : btn('art-change', '', {kind: 'sm', extra: 'agch-doll__change', icon: 'fa-solid fa-image', data: {art: token ? 'token' : 'portrait'}, title: token ? 'Change token art…' : 'Change portrait…'})}
         <div class="agch-ac" data-tooltip="Armor Class${off ? '' : ' (right-click to configure)'}"${off ? '' : configAttrs('armorClass')}><span class="agch-ac__value">${h.ac}</span><span class="agch-ac__label">AC</span></div></div>
     </div>
     <div class="agch-doll__col">${col(RIGHT_SLOTS)}</div>
@@ -216,9 +221,9 @@ function abilitiesHtml(actor, off, compact = false) {
   const tiles = abilitiesData(actor).map(a => `<div class="agch-abil"${off ? '' : configAttrs('ability', a.key)}>
       <button type="button" class="agch-abil__check" data-action="roll-check" data-ability="${esc(a.key)}" data-tooltip="${esc(a.label)} check${off ? '' : ' (right-click to configure)'}" aria-label="${esc(a.label)} check ${signed(a.mod)}, score ${a.value}"${off ? ' disabled' : ''}>
         <span class="agch-abil__key">${esc(String(a.abbr).toUpperCase())}</span><span class="agch-abil__mod">${signed(a.mod)}</span><span class="agch-abil__score">${a.value}</span></button>
-      ${btn('roll-save', compact ? signed(a.save) : `Save ${signed(a.save)}`, {extra: `agch-abil__save${a.saveProficient ? ' is-prof' : ''}`, data: {ability: a.key}, title: `${a.label} saving throw${a.saveProficient ? ' (proficient)' : ''}`, disabled: off})}
+      <button type="button" class="ag-btn agch-abil__save${a.saveProficient ? ' is-prof' : ''}" data-action="roll-save" data-ability="${esc(a.key)}" data-tooltip="${esc(`${a.label} saving throw${a.saveProficient ? ' (proficient)' : ''}`)}"${off ? ' disabled' : ''}><i class="${a.saveProficient ? 'fa-solid fa-circle' : 'fa-regular fa-circle'} agch-abil__prof" aria-hidden="true"></i><span>${compact ? '' : 'Save '}${signed(a.save)}</span><span class="ag-sr-only">: ${esc(a.label)} saving throw${a.saveProficient ? ', proficient' : ''}</span></button>
     </div>`).join('');
-  return tiles ? `<div class="agch-abils${compact ? ' agch-abils--compact' : ''}" role="group" aria-label="Abilities: click for a check, Save for a saving throw">${tiles}</div>` : '';
+  return tiles ? `<div class="agch-abils${compact ? ' agch-abils--compact' : ''}" role="group" aria-label="Abilities: click for a check, the line underneath for a saving throw (a filled dot: proficient)">${tiles}</div>` : '';
 }
 
 /** Active conditions as name chips (click removes); + shows the others inline to add one. */
@@ -239,6 +244,57 @@ function footHtml(h) {
   return h.resources.length ? `<div class="agch-foot">${h.resources.map(r => `<span class="ag-badge agch-pill">${esc(r.label)} <b>${r.value} / ${r.max}</b></span>`).join('')}</div>` : '';
 }
 
+/**
+ * Level up (0.27.0): starts dnd5e's own level-up. When it isn't ready it stays clickable but aria-disabled, so a
+ * click can say why (a disabled button shows no tooltip); the reason is also its tooltip. 0.33.0 (CH-03): under the
+ * character's name, not in the header.
+ */
+export function levelUpBtn(actor) {
+  const s = levelUpState(actor);
+  return `<button type="button" class="ag-btn ag-btn--ghost ag-btn--sm agch-levelup" data-action="level-up" data-ag-always${s.ok ? '' : ' aria-disabled="true"'} data-tooltip="${esc(s.ok ? 'Start dnd5e\'s level-up for this character' : s.reason)}"><i class="fa-solid fa-arrow-up-right-dots" aria-hidden="true"></i><span>Level up</span>${s.ok ? '' : `<span class="ag-sr-only">: ${esc(s.reason)}</span>`}</button>`;
+}
+/**
+ * Restore (0.28.0): GM only. On a character with level backups, "Restore backup…"; on a backup copy, "Restore this
+ * backup…". Nothing for players (restoreBackup refuses them anyway). Under the name since 0.33.0.
+ */
+export function restoreBtn(actor) {
+  if (globalThis.game?.user?.isGM !== true) return '';
+  const copy = isBackup(actor), count = copy ? 1 : backupsFor(actor).length;
+  if (!count) return '';
+  const source = copy ? actor.flags[MODULE_ID].levelBackup.sourceName ?? 'the character' : null;
+  return btn('level-restore', copy ? 'Restore this backup…' : 'Restore backup…', {kind: 'ghost', extra: 'ag-btn--sm', icon: 'fa-solid fa-clock-rotate-left', always: true,
+    title: copy ? `Put this copy back onto ${source} (GM; asks first)` : `Put one of ${actor.name}'s ${count} level backup${count === 1 ? '' : 's'} back onto it (GM; asks first)`});
+}
+
+/**
+ * Configure… (0.33.0, CH-11): the keyboard way to the dnd5e settings that right-click opens. Every stat marked
+ * data-config, in a list; the sheet asks which one and opens dnd5e's own window for it (configure.mjs).
+ */
+export function configChoices(actor) {
+  const h = headerData(actor), list = [['armorClass', '', 'Armor Class'], ['initiative', '', 'Initiative'], ['movement', '', 'Speed'], ['hitPoints', '', 'Hit points']];
+  if (h.hd) list.push(['hitDice', '', 'Hit Dice']);
+  list.push(['death', '', 'Death saves'], ['senses', '', 'Senses']);
+  for (const a of abilitiesData(actor)) list.push(['ability', a.key, `${a.label} (ability and saving throw)`]);
+  for (const s of skillsData(actor)) list.push(['skill', s.key, `Skill: ${s.label}`]);
+  for (const [key, label] of [['armor', 'Armor'], ['weapon', 'Weapons'], ['tool', 'Tools'], ['languages', 'Languages']]) list.push(['trait', key, `Proficiencies: ${label}`]);
+  return list.map(([kind, key, label]) => ({value: key ? `${kind}:${key}` : kind, label}));
+}
+const configureBtn = off => off ? '' : btn('configure', 'Configure…', {kind: 'ghost', extra: 'ag-btn--sm agch-configure', icon: 'fa-solid fa-sliders', title: 'Open dnd5e\'s settings for a stat (the same as right-clicking it)'});
+
+/**
+ * Under the name (0.33.0): Level up and Restore backup (moved from the header, Full only) and Configure…. In a narrow
+ * Full window (CH-09) the column folds to the name, this row and a short HP / AC line; Show character opens it again.
+ */
+function identActions(actor, off, full) {
+  const items = [full ? levelUpBtn(actor) : '', full ? restoreBtn(actor) : '', configureBtn(off)].join('');
+  return items ? `<div class="agch-ident__actions">${items}</div>` : '';
+}
+function foldBtn(sheet) {
+  const folded = sheet?.charFolded !== false;
+  return `<button type="button" class="ag-btn ag-btn--ghost ag-btn--sm agch-charfold" data-action="char-fold" data-ag-always aria-expanded="${!folded}"><i class="fa-solid ${folded ? 'fa-chevron-down' : 'fa-chevron-up'}" aria-hidden="true"></i><span>${folded ? 'Show character' : 'Hide character'}</span></button>`;
+}
+const charSummary = h => `<p class="agch-charsum"><span>HP <b>${h.hp.value} / ${h.hp.effectiveMax}</b></span><span>AC <b>${h.ac}</b></span></p>`;
+
 /** The whole left column. */
 export function characterPanelHtml(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, h = headerData(actor);
@@ -253,11 +309,12 @@ export function characterPanelHtml(ctx) {
       <div class="agch-ident__text"><h2 class="agch-name">${esc(h.name)}</h2><p class="agch-sub">${featuresData(actor).identity.length ? (h.level ? `Level ${h.level}` : '') : `${h.species ? `${esc(h.species)} · ` : ''}${classLine}${h.level ? ` · Level ${h.level}` : ''}`}</p>${canSee('cinders') ? cinderChipsHtml(actor) : ''}</div>
       ${btn('inspiration', '', {extra: `agch-insp${h.inspiration ? ' is-active' : ''}`, icon: 'fa-solid fa-star', title: h.inspiration ? 'Inspiration (click to spend)' : 'No inspiration (click to gain)', disabled: off})}
     </div>
+    ${identActions(actor, off, true)}${foldBtn(sheet)}${charSummary(h)}
     ${identityCard(actor)}
     ${canSee('equipment') ? dollHtml(ctx, h) : ''}
     <div class="agch-tiles${canSee('equipment') ? '' : ' agch-tiles--4'}">
       ${canSee('equipment') ? '' : tile('AC', `<span class="agch-tile__value">${h.ac}</span>`, {title: `Armor Class${rc}`, attrs: cfg('armorClass')})}
-      ${tile('Initiative', btn('roll-initiative', signed(h.init), {extra: 'agch-tile__roll', title: `Roll initiative${rc}`, disabled: off}), {attrs: cfg('initiative'), big: true})}
+      ${tile('Initiative', btn('roll-initiative', signed(h.init), {extra: 'agch-tile__roll', title: `Roll initiative${rc}`, aria: `Roll initiative ${signed(h.init)}`, disabled: off}), {attrs: cfg('initiative'), big: true})}
       ${tile('Speed', `<span class="agch-tile__value">${walk ? `${walk.value} ${esc(walk.units)}` : '—'}</span>`, {extra: otherSpeeds ? `<span class="agch-tile__more">${otherSpeeds}</span>` : '', title: `Speed${rc ? ' (right-click to set walk, climb, fly, burrow, swim, jump, hover and units)' : ''}`, attrs: cfg('movement')})}
       ${tile('Proficiency', `<span class="agch-tile__value">${signed(h.prof)}</span>`, {big: true})}
     </div>
@@ -279,7 +336,7 @@ function statLineHtml(h, off, withAc) {
   const walk = h.walk, others = h.speeds.filter(s => s.key !== 'walk').map(s => `${s.label} ${s.value}`).concat(h.hover ? ['Hover'] : []).join(', ');
   return `<div class="agch-statline" role="group" aria-label="Initiative, speed and proficiency">
     ${withAc ? item('AC', `<b>${h.ac}</b>`, {title: `Armor Class${rc}`, attrs: cfg('armorClass')}) : ''}
-    ${item('Init', btn('roll-initiative', signed(h.init), {extra: 'agch-statline__roll', title: `Roll initiative${rc}`, disabled: off}), {attrs: cfg('initiative')})}
+    ${item('Init', btn('roll-initiative', signed(h.init), {extra: 'agch-statline__roll', title: `Roll initiative${rc}`, aria: `Roll initiative ${signed(h.init)}`, disabled: off}), {attrs: cfg('initiative')})}
     ${item('Speed', `<b>${walk ? `${walk.value} ${esc(walk.units)}` : '—'}</b>`, {title: `Speed${others ? `: ${others}` : ''}${rc}`, attrs: cfg('movement')})}
     ${item('Prof', `<b>${signed(h.prof)}</b>`, {title: 'Proficiency bonus'})}
   </div>`;
@@ -296,7 +353,7 @@ export function compactPanelHtml(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, h = headerData(actor), strain = strainParts(actor, off);
   const slots = canSee('equipment');
   return `<aside class="agch-char agch-char--compact" aria-label="Character">
-    <h2 class="agch-name">${esc(h.name)}</h2>${canSee('cinders') ? cinderChipsHtml(actor) : ''}
+    <h2 class="agch-name">${esc(h.name)}</h2>${canSee('cinders') ? cinderChipsHtml(actor) : ''}${identActions(actor, off, false)}
     ${slots ? dollHtml(ctx, h) : ''}
     ${statLineHtml(h, off, !slots)}
     ${hpHtml(h, off, sheet?.menu ?? null, strain.pill)}
