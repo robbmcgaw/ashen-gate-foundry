@@ -40,6 +40,22 @@ export function migrateCheckMapping(stored){
   if(!s||!s.skills||typeof s.skills!=='object'||s.skills.fishing!=='')return null;
   return {...s,skills:{...s.skills,fishing:'sur'}};
 }
+/** 0.26.2: what is stored for the profession tools and check skills is only what differs from the built-in defaults
+ * (DEFAULT_PROFESSION_TOOLS, DEFAULT_GATHER_SKILLS); everything else keeps coming from the defaults, so a later default
+ * update still reaches the world. Before, Save wrote the whole effective table, freezing every default as if the GM had
+ * chosen it. A cell equal to its current default is dropped (unless another stored key, an old alias, names the same
+ * profession, where dropping it could change which one wins). Anything else is kept as it is: other values, invalid
+ * entries, the crosswalk lists and any other key. Returns a new object; safe to run again (a second run changes nothing). */
+export function compactCheckMapping(stored){
+  const s=stored&&typeof stored==='object'?stored:{},out={...s};
+  for(const [field,defaults] of [['tools',DEFAULT_PROFESSION_TOOLS],['skills',DEFAULT_GATHER_SKILLS]]){
+    const src=s[field];if(!src||typeof src!=='object'||Array.isArray(src))continue;
+    const canon=k=>PROFESSION_ALIASES[k]??k,count={};
+    for(const k of Object.keys(src))count[canon(k)]=(count[canon(k)]??0)+1;
+    out[field]=Object.fromEntries(Object.entries(src).filter(([k,v])=>!(count[canon(k)]===1&&Object.hasOwn(defaults,canon(k))&&v===defaults[canon(k)])));
+  }
+  return out;
+}
 /** Stored GM choices win over defaults; an explicit '' means "none".
  * 0.16.0 crosswalk (AG-F01), additive: per profession, the skills and tools whose proficiency qualifies a character
  * (any-of), and the advantage tools (proficiency with, or carrying, one gives advantage on that profession's checks).

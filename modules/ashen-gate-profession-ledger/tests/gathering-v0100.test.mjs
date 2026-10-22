@@ -613,19 +613,19 @@ test('0.21.0: GM Send label, GM cannot request, stale approvals are removed, a G
 });
 
 test('0.22.0: a re-render keeps the scroll position of the same tab (Gathering, GM Setup tables); a new tab starts at the top',async()=>{
- const fakeEl=(top=0,lefts=[0])=>{const wraps=lefts.map(scrollLeft=>({scrollLeft}));const main={scrollTop:top,querySelectorAll:s=>s==='.agl-map-wrap'?wraps:[]};
-  return {main,wraps,querySelector:s=>s==='.agl-main'?main:null};};
+ // 0.26.2: the screen is read from the DOM (data-agl-screen on .agl-main).
+ const fakeEl=(top=0,lefts=[0],screen='gathering')=>{const wraps=lefts.map(scrollLeft=>({scrollLeft}));const main={scrollTop:top,dataset:{aglScreen:screen},querySelectorAll:s=>s==='.agl-map-wrap'?wraps:[]};
+  return {main,wraps,querySelector:s=>s==='.agl-main'?main:null,querySelectorAll:()=>[]};};
  const saved=app.element;
  try{
-  app.view='gathering';app._renderedView='gathering';
   app.element=fakeEl(640,[]);await app._preRender({},{});
   let next=fakeEl();app.element=next;app._restoreScroll();
   assert.equal(next.main.scrollTop,640,'Gathering stays put after an action');
-  app.view='gm';app._renderedView='gm';app.element=fakeEl(900,[120]);await app._preRender({},{});
-  next=fakeEl(0,[0]);app.element=next;app._restoreScroll();
+  app.element=fakeEl(900,[120],'gm');await app._preRender({},{});
+  next=fakeEl(0,[0],'gm');app.element=next;app._restoreScroll();
   assert.equal(next.main.scrollTop,900);assert.equal(next.wraps[0].scrollLeft,120,'the Tools and checks table keeps its sideways scroll');
-  app.element=fakeEl(500,[]);await app._preRender({},{});app.view='party';
-  next=fakeEl();app.element=next;app._restoreScroll();
+  app.element=fakeEl(500,[],'gm');await app._preRender({},{});
+  next=fakeEl(0,[0],'party');app.element=next;app._restoreScroll();
   assert.equal(next.main.scrollTop,0,'switching tab starts at the top');
  }finally{app.element=saved;}
 });

@@ -20,7 +20,7 @@ globalThis.foundry={applications:{api:{ApplicationV2:FakeApp,HandlebarsApplicati
   DialogV2:{wait:async opts=>{prompts.push(opts);const b=opts.buttons?.find(x=>x.action===(answer?'confirm':'cancel'));return b?.callback?.()??answer;},prompt:async opts=>{prompts.push(opts);}}}},utils:{escapeHTML:esc}};
 globalThis.Hooks={once:(n,f)=>hooks[n]=f,on:()=>{},callAll:()=>{}};
 globalThis.ui={notifications:{info:()=>{},error:x=>errors.push(x)}};
-const moduleObj={get api(){return moduleApi},set api(v){moduleApi=v},active:true,version:'0.26.1'};
+const moduleObj={get api(){return moduleApi},set api(v){moduleApi=v},active:true,version:'0.26.2'};
 globalThis.game={user:gm,users:{contents:[gm,player]},actors:{contents:actors,get:id=>actors.find(a=>a.id===id)},items:{contents:[]},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},
   settings:{register:()=>{},registerMenu:()=>{},get:(id,key)=>values[key],set:async(id,key,v)=>{values[key]=v;}}};
@@ -141,7 +141,7 @@ test('PL-03: the node editor opens in place of the list, asks before Cancel drop
   const main0={scrollTop:420};
   app.element={querySelector:s=>s==='.agl-main'?main0:null,querySelectorAll:()=>[]};
   await app._click('node-new');
-  assert.ok(app.nodeDraft);assert.equal(app._scrollTo,0,'the editor starts at its top');
+  assert.ok(app.nodeDraft);assert.equal(app._returnTo,null,'the editor starts at its top (a new screen)');assert.equal(app._screen(),'nodes:editor');
   const h=await html('nodes');
   assert.match(h,/<div class="ag-toolbar agl-toolbar"><button type="button" class="ag-link" data-action="node-cancel"><i class="fa-solid fa-arrow-left" aria-hidden="true"><\/i> All nodes<\/button><\/div>/);
   assert.doesNotMatch(h,/data-action="node-new"/,'no list (and no list toolbar) while editing');
@@ -153,8 +153,8 @@ test('PL-03: the node editor opens in place of the list, asks before Cancel drop
   // Discard: back to the list where it was, focus on New node.
   answer=true;await app._click('node-cancel');
   assert.equal(app.nodeDraft,null);assert.equal(app.nodeGuard.dirty,false);
-  assert.equal(app._scrollTo,420,'the list scroll position comes back');assert.equal(app._focusAfter,'[data-action="node-new"]');
-  answer=false;app.element={querySelectorAll:()=>[],querySelector:()=>null};app._scrollTo=null;app._focusAfter=null;
+  assert.deepEqual(app._returnTo,{screen:'nodes:list',top:420,focus:'[data-action="node-new"]'},'the list scroll position and focus come back (0.26.2: see node-editor-return-v0262)');
+  answer=false;app.element={querySelectorAll:()=>[],querySelector:()=>null};app._returnTo=null;
 });
 
 test('PL-03: closing the window over unsaved node edits asks first',async()=>{

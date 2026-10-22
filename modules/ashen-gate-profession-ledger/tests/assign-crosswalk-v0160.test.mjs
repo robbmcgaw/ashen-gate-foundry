@@ -181,11 +181,14 @@ test('GM Setup table (0.22.0): one dropdown per cell, crafting and gathering gro
   assert.deepEqual(values.checkMapping.advantageTools,{herbalism:['herb']});
   assert.deepEqual(values.checkMapping.qualifySkills,{fishing:['nat']});assert.equal(values.checkMapping.skills.fishing,'nat','the gather check follows');
   assert.deepEqual(values.checkMapping.qualifyTools,{mining:['smith']});assert.equal(values.checkMapping.tools.mining,'smith','the check tool follows');
-  assert.equal(values.checkMapping.tools.alchemy,'alchemist','old fields still saved');
+  // 0.26.2: only the changed cells are stored; untouched professions keep coming from the built-in defaults.
+  assert.deepEqual(values.checkMapping.tools,{mining:'smith'});assert.deepEqual(values.checkMapping.skills,{fishing:'nat'});
+  assert.equal(effectiveMapping(values.checkMapping).tools.alchemy,'alchemist','defaults still apply');
   assert.deepEqual(unmappedProfessions(effectiveMapping(values.checkMapping)),[]);
   await app._click('map-reset','fishing');await app._click('map-reset','mining');await app._click('roster-save');
   assert.deepEqual(values.checkMapping.qualifySkills,{});assert.deepEqual(values.checkMapping.qualifyTools,{});
-  assert.equal(values.checkMapping.skills.fishing,'sur');assert.equal(values.checkMapping.tools.mining,'mason','Reset goes back to the default');
+  assert.deepEqual(values.checkMapping.skills,{});assert.deepEqual(values.checkMapping.tools,{},'Reset goes back to the default (nothing stored)');
+  assert.equal(effectiveMapping(values.checkMapping).skills.fishing,'sur');assert.equal(effectiveMapping(values.checkMapping).tools.mining,'mason');
   assert.deepEqual(effectiveMapping(values.checkMapping).qualifySkills.fishing,['sur']);
 });
 

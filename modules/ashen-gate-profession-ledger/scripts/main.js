@@ -9,7 +9,7 @@ import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,confirmDanger,guardDirty,infoDialog} from './ag-dialogs.mjs';
 import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,fold,bindFolds,fileButton,bindFileButtons,linkButton} from './ag-html.mjs';
 import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,requiredToolRef,toolRefLabel,heldTool,
-  checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS,DEFAULT_PROFESSION_TOOLS,DEFAULT_GATHER_SKILLS,migrateCheckMapping,advantageToolsOf} from './checks.mjs';
+  checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS,DEFAULT_PROFESSION_TOOLS,DEFAULT_GATHER_SKILLS,migrateCheckMapping,compactCheckMapping,advantageToolsOf} from './checks.mjs';
 import {PROFESSION_KEYS,professionTitle,catalogCrosswalk,definitionProfessionKey,unmappedProfessions,assignmentPlan,rowId,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
 import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,gatherOutcome,gatherReward,exhaustsNode,helperEligibility,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
   stackMaterial,DRAFT_STATES} from './gathering.mjs';
@@ -18,7 +18,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.26.1';
+const VERSION='0.26.2';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...}. */
@@ -48,6 +48,28 @@ const rowMeta=html=>html?`<span class="ag-row__meta">${html}</span>`:'';
 const materialQuality=(sourceId,lib)=>sourceId?lib.materials.find(m=>m.id===sourceId)?.quality??null:null;
 const say=(message,error=false)=>error?ui.notifications.error(message):ui.notifications.info(message);
 const plural=(n,one,many=`${one}s`)=>`${n} ${n===1?one:many}`;
+/** 0.26.2: a control's identity across a re-render: its tag, name and data-* attributes (tooltips aside). */
+const FOCUSABLE='input, textarea, select, button, a[href], [tabindex]';
+const controlKey=el=>`${el.tagName}[${[...(el.attributes??[])].filter(a=>a.name==='name'||(a.name.startsWith('data-')&&!a.name.startsWith('data-tooltip'))).map(a=>`${a.name}=${a.value}`).sort().join('][')}]`;
+const textLike=el=>el.tagName==='TEXTAREA'||(el.tagName==='INPUT'&&/^(text|search|number)$/.test(el.type||'text'));
+/** The focused control inside root (with its caret, and text typed but not yet saved), or null. */
+function captureFocus(root){
+  const el=root?.ownerDocument?.activeElement??globalThis.document?.activeElement;
+  if(!el||el===root||!root?.contains?.(el)||!el.matches?.(FOCUSABLE)||!el.attributes)return null;
+  const field=textLike(el);let start=null,end=null;
+  if(field)try{start=el.selectionStart;end=el.selectionEnd;}catch{}
+  return {key:controlKey(el),value:field?el.value:undefined,defaultValue:field?el.defaultValue:undefined,dirty:field&&el.value!==el.defaultValue,start,end};
+}
+/** Focuses the same control again without scrolling; typed text comes back unless the field now shows another saved value. */
+function restoreFocus(root,saved){
+  if(!saved?.key)return null;
+  const el=[...(root?.querySelectorAll?.(FOCUSABLE)??[])].find(f=>controlKey(f)===saved.key);
+  if(!el||el.disabled)return null;
+  if(saved.dirty&&el.defaultValue===saved.defaultValue)el.value=saved.value;
+  el.focus?.({preventScroll:true});
+  if(saved.start!=null)try{el.setSelectionRange?.(saved.start,saved.end??saved.start);}catch{}
+  return el;
+}
 let current=null;
 const openLedgerWindows=new Set();
 const learnLocks=new Set();
@@ -529,7 +551,7 @@ function requirementHTML(req,actor){
 }
 
 /** Baseline recipe row used by every list (Individual, Party, Catalog, sheet tab). */
-function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showStatus=true,learnItem=null}={}){
+function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showStatus=true,learnItem=null,available=true}={}){
   const gm=game.user.isGM;
   const result=craft?.result??resultDocument(recipe);
   const ingredients=recipe.hasStructuredIngredients?recipe.ingredients.map(ing=>{
@@ -550,13 +572,14 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
   if(craft&&actor){
     const {blockers,plan}=craft;
     const missing=plan.missing.map(m=>`${m.missing} × ${m.name}`).join(', ');
-    if(blockers.length)actions=`<span class="agl-reason">${esc(blockers[0])}</span>`;
+    // 0.26.2: a blocked recipe still shows its (disabled) Craft button beside the reason, like a recipe missing materials.
+    if(blockers.length)actions=`${owned(actor)?'<button type="button" class="ag-btn" disabled><i class="fa-solid fa-hammer" aria-hidden="true"></i> Craft</button>':''}<span class="agl-reason">${esc(blockers[0])}</span>`;
     else if(!owned(actor))actions='';
     else if(plan.ownReady)actions=`<button type="button" class="ag-btn" data-action="craft" data-id="${esc(recipe.id)}" data-actor="${esc(actor.id)}"><i class="fa-solid fa-hammer" aria-hidden="true"></i> Craft</button>`;
     else if(plan.ready)actions=`<button type="button" class="ag-btn" data-action="craft" data-id="${esc(recipe.id)}" data-actor="${esc(actor.id)}"><i class="fa-solid fa-hand-holding" aria-hidden="true"></i> Craft — ask the party</button><span class="agl-reason">Uses ${esc([...new Set(plan.foreign.map(a=>a.actorName))].join(', '))}’s materials</span>`;
     else actions=`<button type="button" class="ag-btn" disabled><i class="fa-solid fa-hammer" aria-hidden="true"></i> Craft</button><span class="agl-reason">Missing ${esc(missing)}</span>`;
   }
-  if(learnItem&&actor)actions=learnControl(actor,learnItem);
+  if(learnItem&&actor)actions=learnControl(actor,learnItem,{available});
   const gp=extraCost(recipe);
   const meta=[tierLabel(recipe.tier),recipe.effort?`${String(recipe.effort)[0].toUpperCase()}${String(recipe.effort).slice(1)} effort`:''].filter(Boolean);
   const search=`${recipe.name} ${professionLabel(recipe)} ${meta.join(' ')} ${result?.name??''}`.toLowerCase();
@@ -576,11 +599,12 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
     ${gm?`<small class="agl-id">${esc(recipe.id)}</small>`:''}
   </article>`;
 }
-function learnControl(actor,item){
+function learnControl(actor,item,{available=true}={}){
   const id=agSourceId(item),state=canLearnRecipe(actor,item,id);
   if(game.user.isGM&&actor.hasPlayerOwner)return `<span class="agl-reason">${esc(actor.name)}’s player learns this</span>`;
   if(!owned(actor))return '';
-  if(knownRecipesOf(actor).includes(id))return badge('Already known','ok');
+  // 0.26.2: say where Craft is, or why there is none (a known recipe whose record the player can't read isn't listed).
+  if(knownRecipesOf(actor).includes(id))return `${badge('Already known','ok')}<span class="agl-reason">${available?'Craft it under Known recipes':game.user.isGM?'Not in the recipe catalog: import it with General Manager':'Can’t be crafted yet: your GM hasn’t released this recipe'}</span>`;
   if(!state.ok)return `<span class="agl-reason">${esc(state.reason)}</span>`;
   return `<button type="button" class="ag-btn" data-action="learn-recipe" data-id="${esc(`${actor.id}:${item.id}`)}" data-actor="${esc(actor.id)}"><i class="fa-solid fa-book" aria-hidden="true"></i> Learn</button>`;
 }
@@ -644,7 +668,7 @@ function characterPanel(actor,lib,{closed=new Set(),lastAward=null,surface='app'
   const toLearn=recipeItems(actor).map(item=>{
     const id=agSourceId(item),def=partyRecipeDefinition(id,lib);
     const recipe=def??{id,name:recipeTitle(item.name),ingredients:[],hasStructuredIngredients:false,sourceVisibility:sourceVisibility(item)};
-    return recipeRow({...recipe,status:itemStatus(item)},lib,{actor,learnItem:item,showStatus:game.user.isGM});
+    return recipeRow({...recipe,status:itemStatus(item)},lib,{actor,learnItem:item,showStatus:game.user.isGM,available:Boolean(def)});
   });
   return `<div class="agl-character ${surface==='sheet'?'agl-on-sheet':''}">
     <section class="agl-col-side">
@@ -662,7 +686,8 @@ function characterPanel(actor,lib,{closed=new Set(),lastAward=null,surface='app'
         <p class="agl-sub">Recipe items in ${esc(actor.name)}’s inventory. Learning uses up one recipe item.</p>${toLearn.join('')}</div>`:''}
       <div class="agl-section"><h3>Known recipes <span class="ag-badge">${knownRows.length}</span></h3>
         ${folders(knownRows,closed)||emptyState(`${esc(actor.name)} hasn’t learned a recipe yet.`,toLearn.length?'Learn one from a recipe item above.':'A recipe item in the inventory can be learned here.')}
-        ${hiddenKnown>0&&!game.user.isGM?`<p class="agl-sub">${plural(hiddenKnown,'known recipe is','known recipes are')} not available right now.</p>`:''}
+        ${hiddenKnown>0?`<p class="agl-sub">${game.user.isGM?`${plural(hiddenKnown,'known recipe is','known recipes are')} not in this world’s recipe catalog, so ${hiddenKnown===1?'it isn’t':'they aren’t'} listed and can’t be crafted. Import ${hiddenKnown===1?'it':'them'} with General Manager.`
+          :`${plural(hiddenKnown,'known recipe is','known recipes are')} not available right now: your GM hasn’t released ${hiddenKnown===1?'it':'them'} in this world yet, so ${hiddenKnown===1?'it':'they'} can’t be crafted.`}</p>`:''}
       </div>
     </section>
   </div>`;
@@ -1597,6 +1622,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(this.view==='gm'&&this.setupDirty&&!await this._leaveGmSetup())return this;
       if(this.nodeGuard?.dirty&&!await this.nodeGuard.confirm())return this;
     }
+    clearInterval(this._focusTimer);this._focusTimer=null;
     return super.close?.(options);
   }
   get actors(){return partyActors();}
@@ -1630,13 +1656,14 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       recipes=folders([...defs.values()].sort((a,b)=>a.name.localeCompare(b.name)).map(r=>({group:professionLabel(r),
         html:recipeRow(r,lib,{knownBy:known.get(r.id)??[],foundBy:(found.get(r.id)??[]).map(x=>x.actor)})})),this.closedFolders);
     }else{
+      const mine=new Set(myCharacters().map(a=>a.id));// 0.26.2: players get the way to their own character's view too (that is where Craft is).
       recipes=actors.map(actor=>{
         const mineKnown=knownRecipesOf(actor).filter(id=>defs.has(id));
         const mineFound=[...found.entries()].filter(([id,list])=>defs.has(id)&&list.some(x=>x.actor.id===actor.id)).map(([id])=>id);
         const list=[...new Set([...mineKnown,...mineFound])].map(id=>defs.get(id)).sort((a,b)=>professionLabel(a).localeCompare(professionLabel(b))||a.name.localeCompare(b.name));
         const key=`actor-${actor.id}`;
         return `<details class="agl-folder" data-folder="${esc(key)}" ${this.closedFolders.has(key)?'':'open'}><summary>${portrait(actor)} <strong>${esc(actor.name)}</strong> <span class="ag-badge">${mineKnown.length} known${mineFound.length?` · ${mineFound.length} to learn`:''}</span></summary>
-          <div class="agl-folder-body">${gm?`<div class="ag-btn-group agl-folder-actions"><button type="button" class="ag-btn ag-btn--sm" data-action="open-individual" data-id="${esc(actor.id)}">Open ${esc(actor.name)}’s view</button></div>`:''}${list.map(r=>recipeRow(r,lib,{knownBy:mineKnown.includes(r.id)?[actor]:[],foundBy:mineFound.includes(r.id)?[actor]:[]})).join('')||emptyState('No recipes yet.')}</div></details>`;
+          <div class="agl-folder-body">${gm||mine.has(actor.id)?`<div class="ag-btn-group agl-folder-actions"><button type="button" class="ag-btn ag-btn--sm" data-action="open-individual" data-id="${esc(actor.id)}">Open ${esc(actor.name)}’s view</button></div>`:''}${list.map(r=>recipeRow(r,lib,{knownBy:mineKnown.includes(r.id)?[actor]:[],foundBy:mineFound.includes(r.id)?[actor]:[]})).join('')||emptyState('No recipes yet.')}</div></details>`;
       }).join('');
     }
     const profRows=actors.map(a=>{const p=professionsOf(a);return `<li class="ag-row">${portrait(a)}<span class="ag-row__main"><span class="ag-row__title">${esc(a.name)}</span><span class="ag-row__meta">${p.map(x=>`${esc(x.name)} ${badge(`L${x.level}`,'ok')}`).join(' ')||'No professions'}</span></span></li>`;}).join('');
@@ -1676,7 +1703,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const legend=`${badge('All players','ok')} ${badge('Some players','partial')} ${badge('GM only','warn')} ${badge('Draft — hidden from players','warn')}`;
     return `<div class="ag-toolbar agl-toolbar">${this._search('Search recipes, professions or results')}${gm?`<div class="ag-toolbar__end"><button type="button" class="ag-btn ag-btn--sm" data-action="manager" ${canOpen?'':'disabled'}><i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i> Open General Manager</button></div>`:''}</div>
       ${gm?notice(`GM view: every recipe in the world. ${hidden?`<b>${hidden} of ${lib.recipes.length} ${lib.recipes.length===1?'recipe':'recipes'} ${hidden===1?'is':'are'} draft or GM-only and hidden from players.</b> `:''}Players only see recipes someone in the party has found or learned; a draft stays hidden until you approve it in General Manager.${canOpen?'':' <b>General Manager is not installed or enabled.</b>'}<br>${legend}`,hidden?'warn':'info')
-        :'<p class="agl-sub">Recipes your party has found or learned, by profession.</p>'}
+        :'<p class="agl-sub">Recipes your party has found or learned, by profession. Craft and learn from the Individual tab.</p>'}
       ${folders(rows,this.closedFolders)||(gm?emptyState('No recipes in this world yet.','Import recipes with General Manager.'):emptyState('No recipes yet.','A recipe appears here once someone in the party finds its recipe item or learns it.'))}
       <div class="ag-empty agl-no-matches" hidden><p class="ag-empty__title">Nothing matches.</p><p class="ag-empty__text">Clear the search to see every recipe.</p></div>
       ${this._catalogAdvanced()}`;
@@ -2113,24 +2140,62 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       :`<span class="ag-footer__status agl-footer-note" role="status">${esc(this.notice||'')}</span>`;
     return {...ctx,html:`<div class="agl-shell"><header class="ag-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Profession Ledger</h1></div>
       <div class="ag-header__meta"><span class="ag-version">v${esc(game.modules.get(ID)?.version??VERSION)}</span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button></div></header>
-      <nav class="ag-tabs ag-tabs--scroll" role="tablist" aria-label="Profession Ledger views">${this._tabs()}</nav><main class="agl-main" id="agl-panel" role="tabpanel" aria-labelledby="agl-tab-${esc(this.view)}" tabindex="-1">${content}</main>
+      <nav class="ag-tabs ag-tabs--scroll" role="tablist" aria-label="Profession Ledger views">${this._tabs()}</nav><main class="agl-main" id="agl-panel" role="tabpanel" aria-labelledby="agl-tab-${esc(this.view)}" tabindex="-1" data-agl-screen="${esc(this._screen())}">${content}</main>
       <footer class="ag-footer">${footer}</footer></div>`};
   }
   /** 0.22.0: every action re-renders the whole part, which replaces the .agl-main scroll box (and the tables' sideways
-   * scroll) and so jumped back to the top. The positions are kept across a re-render of the same tab; a new tab starts at the top. */
+   * scroll) and so jumped back to the top. The positions are kept across a re-render of the same screen; a new screen starts at the top.
+   * 0.26.2: a "screen" is the tab, and on Gathering Nodes also list / editor / import (data-agl-screen on .agl-main), read from
+   * the DOM being replaced. Renders can follow each other quickly (Save writes the node Journal, whose update hook renders
+   * again), so the way back to the node list (_returnTo) waits for the render that actually shows the list, is applied
+   * after everything else in _onRender has changed the DOM, and the editor's scroll position is never put on the list.
+   * The focused control is also kept across a re-render (same data-action, data-id, name, data-* fields). */
+  /** Which screen .agl-main shows: the tab, and on Gathering Nodes the list, the editor or the import preview. */
+  _screen(){return this.view==='nodes'?`nodes:${this.nodeDraft?'editor':this.nodeImport?'import':'list'}`:this.view;}
   _captureScroll(){
     const main=this.element?.querySelector?.('.agl-main');
-    this._scrollState=main?{view:this._renderedView,top:main.scrollTop,wraps:[...(main.querySelectorAll?.('.agl-map-wrap')??[])].map(w=>w.scrollLeft)}:null;
+    this._scrollState=main?{screen:main.dataset?.aglScreen??this._renderedView,top:main.scrollTop,wraps:[...(main.querySelectorAll?.('.agl-map-wrap')??[])].map(w=>w.scrollLeft),
+      focus:captureFocus(this.element)}:null;
   }
   _restoreScroll(){
     const s=this._scrollState,main=this.element?.querySelector?.('.agl-main');
     this._scrollState=null;
-    if(main&&this._scrollTo!=null){main.scrollTop=this._scrollTo;this._scrollTo=null;this._renderedView=this.view;return;}
-    if(main&&s&&s.view===this.view){main.scrollTop=s.top;[...(main.querySelectorAll?.('.agl-map-wrap')??[])].forEach((w,i)=>{if(s.wraps[i])w.scrollLeft=s.wraps[i];});}
-    this._renderedView=this.view;
+    if(!main)return;
+    const screen=main.dataset?.aglScreen??this.view,back=this._returnTo;
+    this._renderedView=screen;
+    if(back&&back.screen===screen){
+      this._returnTo=null;this._holdScroll(main,back.top);
+      if(back.focus)this._focusSoon(back.focus);
+      return;
+    }
+    if(s&&s.screen===screen){
+      this._holdScroll(main,s.top);[...(main.querySelectorAll?.('.agl-map-wrap')??[])].forEach((w,i)=>{if(s.wraps[i])w.scrollLeft=s.wraps[i];});
+      if(s.focus)restoreFocus(this.element,s.focus);
+    }
+  }
+  /** Sets the scroll position, and once more on the next frame if a late layout change (Foundry's own steps after
+   * _onRender) moved it before the GM could scroll. */
+  _holdScroll(main,top){
+    main.scrollTop=top;
+    const raf=globalThis.requestAnimationFrame;if(typeof raf!=='function'||!top)return;
+    raf(()=>{if(main.isConnected!==false&&main.scrollTop!==top)main.scrollTop=top;});
+  }
+  /** Focuses the control (without scrolling). A modal confirm (Discard changes?) that is still closing makes this window
+   * inert and then hands the focus back to the button that opened it, which the re-render removed, so the focus lands on
+   * the page: try again for a moment until it takes, unless the GM has moved the focus somewhere else. */
+  _focusSoon(selector){
+    clearInterval(this._focusTimer);this._focusTimer=null;
+    const doc=globalThis.document;
+    const attempt=()=>{const el=this.element?.querySelector?.(selector);if(!el||el.disabled)return true;el.focus?.({preventScroll:true});return !doc||doc.activeElement===el;};
+    if(attempt())return;
+    let tries=0;
+    this._focusTimer=setInterval(()=>{
+      const a=doc?.activeElement,elsewhere=a&&a!==doc.body&&!a.closest?.('dialog')&&!a.closest?.('.ag-dialog');
+      if(++tries>40||elsewhere||attempt()){clearInterval(this._focusTimer);this._focusTimer=null;}
+    },50);
   }
   async _preRender(context,options){await super._preRender?.(context,options);this._captureScroll();}
-  async _onRender(context,options){await super._onRender(context,options);if(!canOpenLedger()){await this.close?.({animate:false});return;}openLedgerWindows.add(this);this._restoreScroll();this._events?.abort();this._events=new AbortController();
+  async _onRender(context,options){await super._onRender(context,options);if(!canOpenLedger()){await this.close?.({animate:false});return;}openLedgerWindows.add(this);this._events?.abort();this._events=new AbortController();
     const signal=this._events.signal;
     this.element.addEventListener('click',e=>{
       const sub=e.target.closest?.('.ag-tabs--sub [role="tab"]');if(sub){this._showSubTab(sub);return;}
@@ -2168,7 +2233,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     },{signal});
     this.element.querySelector('[data-agl-search]')?.addEventListener('input',e=>{this.query=e.target.value;this._applySearch();},{signal});
     this._applySearch();this._syncRosterActions();
-    if(this._focusAfter){const el=this.element.querySelector(this._focusAfter);this._focusAfter=null;el?.focus?.();}}
+    // Last, once the folds, search and guards have shaped the DOM.
+    this._restoreScroll();}
   /** Sub-tab switch inside GM Setup or Gathering (GM): panels are already rendered, so nothing re-renders and no draft is touched. */
   _showSubTab(tab){
     const list=tab.closest('[role="tablist"]'),id=tab.dataset.tab;
@@ -2267,7 +2333,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         const ids=[...this.element.querySelectorAll('[data-roster-actor]:checked')].map(el=>el.dataset.rosterActor).filter(id=>allCharacters().some(a=>a.id===id));
         const saved=[];
         if(this.rosterDirty||!this.setupDirty){await game.settings.set(ID,'partyRoster',ids);saved.push(`party: ${plural(ids.length,'character')}`);}
-        if(this.mapDirty){await game.settings.set(ID,'checkMapping',structuredClone(this.mapDraft));saved.push('tools and checks');}
+        // 0.26.2: only what differs from the built-in defaults is stored (see compactCheckMapping); other saved keys are kept.
+        if(this.mapDirty){await game.settings.set(ID,'checkMapping',compactCheckMapping({...game.settings.get(ID,'checkMapping'),...structuredClone(this.mapDraft)}));saved.push('tools and checks');}
         if(this.exoticDirty){const pct=clampPercent(this.exoticDraft,exoticPercent());await game.settings.set(ID,EXOTIC_SETTING,pct);saved.push(`Exotic discovery ${pct}%`);}
         if(this.coreAwardDirty){await game.settings.set(ID,CORE_AWARD_SETTING,this.coreAwardDraft);saved.push(`core item awards ${this.coreAwardDraft?'on':'off'}`);}
         if(this.accessDirty){const on=this.accessDraft;await setPlayerAccess(game,ID,on);saved.push(`Player Access ${on?'on (players can open the Ledger)':'off (hidden from players)'}`);}
@@ -2361,11 +2428,10 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   }
   _backToNodeList(focusId){
     const back=this._nodeList;this._nodeList=null;
-    if(back)this._scrollTo=back.top;
     const id=focusId??back?.focusId;
-    this._focusAfter=id?`[data-action="node-edit"][data-id="${String(id).replace(/["\\]/g,'\\$&')}"]`:'[data-action="node-new"]';
+    this._returnTo={screen:'nodes:list',top:back?.top??0,focus:id?`[data-action="node-edit"][data-id="${String(id).replace(/["\\]/g,'\\$&')}"]`:'[data-action="node-new"]'};
   }
-  _openNodeEditor(draft,focusId){this._rememberNodeList(focusId);this.nodeGuard.markClean();this.nodeDraft=draft;this._scrollTo=0;this.render();}
+  _openNodeEditor(draft,focusId){this._rememberNodeList(focusId);this._returnTo=null;this.nodeGuard.markClean();this.nodeDraft=draft;this.render();}
   _closeNodeEditor(focusId){this.nodeGuard.markClean();this.nodeDraft=null;this._backToNodeList(focusId);this.render();}
   /** Unsaved party-roster edits live only in this client until the GM confirms Save. */
   get rosterDirty(){
@@ -2608,13 +2674,22 @@ Hooks.once('ready',()=>{
   console.info(`[${ID}] v${VERSION} ready. Open from the Actors directory, Module Settings or game.modules.get('${ID}').api.open()`);
 });
 
-/** 0.22.0, active GM once per world: Fishing's saved check skill '' (the old default) becomes Survival. See migrateCheckMapping. */
+/** Active GM once per world. Version 1 (0.22.0): Fishing's saved check skill '' (the old default) becomes Survival, see
+ * migrateCheckMapping. Version 2 (0.26.2): tools and check skills saved equal to today's built-in default are dropped, so
+ * they follow the defaults again (see compactCheckMapping); every other saved value stays. Each step is safe to re-run. */
 async function migrateMapping(){
   try{
-    if(Number(game.settings.get(ID,'checkMappingVersion'))>=1)return;
-    const next=migrateCheckMapping(game.settings.get(ID,'checkMapping'));
-    if(next)await game.settings.set(ID,'checkMapping',next);
-    await game.settings.set(ID,'checkMappingVersion',1);
+    const version=Number(game.settings.get(ID,'checkMappingVersion'))||0;
+    if(version<1){
+      const next=migrateCheckMapping(game.settings.get(ID,'checkMapping'));
+      if(next)await game.settings.set(ID,'checkMapping',next);
+      await game.settings.set(ID,'checkMappingVersion',1);
+    }
+    if(version<2){
+      const stored=game.settings.get(ID,'checkMapping'),next=compactCheckMapping(stored);
+      if(JSON.stringify(next)!==JSON.stringify(stored??{}))await game.settings.set(ID,'checkMapping',next);
+      await game.settings.set(ID,'checkMappingVersion',2);
+    }
   }catch(err){console.warn(`[${ID}] tools and checks migration`,err);}
 }
 /** Open Ledger on the Actors directory for both GM and players; idempotent across renders. */
