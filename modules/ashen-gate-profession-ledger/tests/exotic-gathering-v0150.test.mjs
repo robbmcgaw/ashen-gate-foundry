@@ -251,18 +251,18 @@ test('designated source at a location uses its chance, not the 2% roll',async()=
  }
 });
 
-test('missing, draft or GM-only Exotic candidates fail safely: skipped with the Manager fix, told to the GM only',async()=>{
+test('missing, draft or GM-only Exotic candidates fail safely: skipped with the Manager fix (0.25.0: not imported vs draft/unreleased), told to the GM only',async()=>{
  game.user=gm;
  _test.setExoticRoll(noRoll);
  const s=await api.gathering.start({node:{label:'x',skill:'Herbalism',tier:3,materialId:'MAT-TG-HERB',exotics:[{materialId:'MAT-TG-SECRETX'},{materialId:'MAT-TG-GONE'},{materialId:'MAT-TG-DRAFTX'}]},leadId:'belwar'});
  const out=await _test.resolveGather(s.id,{total:30,choice:'skill:nat'});
  assert.equal(out.award.name,'[TEST] Herb');assert.equal(out.exotic.roll,null);
- assert.deepEqual(out.exotic.skipped.map(x=>[x.materialId,x.reason]),[['MAT-TG-SECRETX','GM-only: make it player-visible in General Manager first'],
-  ['MAT-TG-GONE','Not in this world: import it with General Manager'],['MAT-TG-DRAFTX','Draft: approve it in General Manager first']]);
+ assert.deepEqual(out.exotic.skipped.map(x=>[x.materialId,x.reason]),[['MAT-TG-SECRETX','Unreleased (GM-only): make it player-visible in General Manager, or use it anyway (GM)'],
+  ['MAT-TG-GONE','Not imported in this world: import it with General Manager'],['MAT-TG-DRAFTX','Draft/unreleased (status: draft): approve it in General Manager, or use it anyway (GM)']]);
  const card=chats.at(-2),note=chats.at(-1);
  assert.doesNotMatch(card.content,/Secret|Draft|skipped/,'the public card says nothing');assert.equal(card.whisper,undefined);
- assert.deepEqual(note.whisper,['gm']);assert.match(note.content,/Exotic candidate \[TEST\] Draft Exotic skipped: Draft: approve it in General Manager first/);
- assert.match(note.content,/\[TEST\] Secret Exotic skipped: GM-only/);
+ assert.deepEqual(note.whisper,['gm']);assert.match(note.content,/Exotic candidate \[TEST\] Draft Exotic skipped: Draft\/unreleased \(status: draft\): approve it in General Manager/);
+ assert.match(note.content,/\[TEST\] Secret Exotic skipped: Unreleased \(GM-only\)/);
  assert.match(await html('gathering'),/Exotic candidate \[TEST\] Draft Exotic skipped/,'and in the GM’s last-result note');
 });
 
@@ -290,8 +290,12 @@ test('GM ad-hoc editor: Exotic picker filters by profession, tier and rarity; ad
  const pick=h.slice(h.indexOf('agl-exotic-filters'));
  assert.match(pick,/\[TEST\] Star Moss/);assert.doesNotMatch(pick,/Phoenix Ash/,'tier 3 is above a tier 1 node');
  assert.doesNotMatch(pick,/Deep Ore/,'Mining Exotic at a Herbalism node');assert.doesNotMatch(pick,/Rare Herb|>\[TEST\] Herb</,'only Exotic quality');
- assert.match(pick,/is-off" aria-disabled="true"><span class="ag-row__main"><span class="ag-row__title">\[TEST\] Draft Exotic<\/span>.*Draft: approve it in General Manager first.*Quality: Exotic.*data-id="MAT-TG-DRAFTX" disabled/s,'draft shown, disabled, with the fix');
- await assert.doesNotReject(()=>app._click('adhoc-exotic-add','MAT-TG-DRAFTX'));assert.deepEqual(app.gather.adhoc.exotics,[],'a draft cannot be added');
+ // 0.25.0: a draft Exotic is listed for the GM with a Draft badge and its fix, and can be picked (found only with "use anyway").
+ assert.match(pick,/<li class="ag-row agl-exotic-row"><span class="ag-row__main"><span class="ag-row__title">\[TEST\] Draft Exotic<\/span>.*Draft\/unreleased \(status: draft\): approve it in General Manager.*Quality: Exotic.*>Draft<\/span>.*data-id="MAT-TG-DRAFTX" >Add/s,'draft shown with its badge and fix, addable');
+ await app._click('adhoc-exotic-add','MAT-TG-DRAFTX');assert.deepEqual(app.gather.adhoc.exotics,[{materialId:'MAT-TG-DRAFTX',mode:'discovery'}],'the GM can pick a draft Exotic');
+ h=await html('gathering');assert.match(h,/\[TEST\] Draft Exotic<\/span> <span class="ag-rarity-badge"[^>]*>Quality: Exotic<\/span> <span[^>]*><span class="ag-badge ag-badge--warn">Draft/,'picked draft keeps its badge');
+ await app._click('adhoc-exotic-remove','MAT-TG-DRAFTX');
+ errors.length=0;await app._click('adhoc-exotic-add','MAT-TG-GONE');assert.deepEqual(app.gather.adhoc.exotics,[],'a material that is not imported cannot be picked');
  app.gather.pick.tier='any';h=await html('gathering');assert.match(h.slice(h.indexOf('agl-exotic-filters')),/Phoenix Ash/);
  await app._click('adhoc-exotic-add','MAT-TG-PHOENIX');
  assert.deepEqual(app.gather.adhoc.exotics,[{materialId:'MAT-TG-PHOENIX',mode:'discovery'}]);
@@ -299,7 +303,7 @@ test('GM ad-hoc editor: Exotic picker filters by profession, tier and rarity; ad
  await app._click('adhoc-exotic-remove','MAT-TG-PHOENIX');assert.deepEqual(app.gather.adhoc.exotics,[]);
  assert.deepEqual(api.gathering.exotic.materials({profession:'Herbalism',maxTier:1}).map(m=>m.id),['MAT-TG-STAR']);
  assert.deepEqual(api.gathering.exotic.materials({profession:'Herbalism',maxTier:1,includeUnavailable:true}).map(m=>[m.id,m.available,m.reason]),
-  [['MAT-TG-DRAFTX',false,'Draft: approve it in General Manager first'],['MAT-TG-SECRETX',false,'GM-only: make it player-visible in General Manager first'],['MAT-TG-STAR',true,'']]);
+  [['MAT-TG-DRAFTX',false,'Draft/unreleased (status: draft): approve it in General Manager, or use it anyway (GM)'],['MAT-TG-SECRETX',false,'Unreleased (GM-only): make it player-visible in General Manager, or use it anyway (GM)'],['MAT-TG-STAR',true,'']]);
  assert.deepEqual(api.gathering.exotic.eligibility({skill:'Herbalism',tier:1,exotics:[{materialId:'MAT-TG-PHOENIX'}]}).map(r=>[r.materialId,r.eligible]),[['MAT-TG-PHOENIX',false]]);
  assert.equal(api.gathering.exotic.percent(),2);assert.deepEqual(api.gathering.exotic.defaultDcByTier,{1:10,2:12,3:15,4:18,5:20});
  app.gather.source='location';

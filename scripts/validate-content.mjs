@@ -11,8 +11,12 @@
 //     or {rules}; Manager > Organize > Import), *.crosswalk.json (Profession Ledger baseline file; Ledger > GM Setup >
 //     Tools and checks > Import baseline file) and *.npc-codex.json (ag-npc-codex-export/0.1; Library > NPC Codex >
 //     Restore reveals). They are left out of the folder's ZIP bundle.
+//   - gathering node files (*.gathering-nodes.json, or any file with "schema": "ag-gathering-nodes/1"; Profession Ledger 0.25.0+,
+//     imported in Ledger > Gathering Nodes > Import nodes) are checked with the Ledger's own parser; a MAT-* id not defined
+//     in the same folder gets a note. Also left out of the ZIP bundle.
 //   - ag-strain-config/0.1 files (Strain bands and Backfire schedule) are checked with Ashen Gate | Cinders' own validator;
-//     Cinder / Power / BackfireTable records in a Manager package get Cinders' definition check.
+//     Cinder / Power / BackfireTable records in a Manager package get Cinders' definition check (including a Cinder's
+//     optional default art, cinder.art, from Cinders 0.9.0).
 //   - record-level modifiers blocks (ag-modifiers/0.1): Manager checks the shape, then each scope's owner checks its entries
 //     (scope cinder: Cinders' exported validateModifiers, when that Cinders version has it).
 //   - each folder's accepted import files are also zipped together and read as a Manager ZIP bundle.
@@ -31,7 +35,7 @@ import { flagWarnings } from '../modules/ashen-gate-manager/scripts/item-effects
 import { detectSpecialistFile, describeUnrecognized } from '../modules/ashen-gate-manager/scripts/specialist-handoff.js';
 import { readImportBundle } from '../modules/ashen-gate-manager/scripts/zip-import.js';
 import { createSceneMoods } from '../modules/ashen-gate-manager/scripts/scene-moods.js';
-import { importRecords, normalizeExotics as locationExotics } from '../modules/ashen-gate-locations/scripts/model.mjs';
+import { importRecords, normalizeExotics as locationExotics, NODE_ID as LOCATION_NODE_ID } from '../modules/ashen-gate-locations/scripts/model.mjs';
 import { importRouteRecords } from '../modules/ashen-gate-locations/scripts/routes.mjs';
 import { planQuestImport } from '../modules/ashen-gate-quest-manager/scripts/core.mjs';
 import { validatePackage as validateTrees } from '../modules/ashen-gate-skill-trees/scripts/engine.mjs';
@@ -47,6 +51,7 @@ import { materialMeta } from '../modules/ashen-gate-profession-ledger/scripts/ex
 import { catalogCrosswalk, PROFESSION_KEYS } from '../modules/ashen-gate-profession-ledger/scripts/assign.mjs';
 import { professionKey } from '../modules/ashen-gate-profession-ledger/scripts/checks.mjs';
 import { parseBaselineFile } from '../modules/ashen-gate-profession-ledger/scripts/assign.mjs';
+import { parseNodeFile, NODE_SCHEMA } from '../modules/ashen-gate-profession-ledger/scripts/nodes.mjs';
 import { planRevealsImport, isLinkId, REVEAL_FIELDS, LINK_PREFIXES } from '../modules/ashen-gate-manager/scripts/codex.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -101,7 +106,7 @@ const ownerEngines = {[MODIFIER_SCOPES.cinder.moduleId]: cinderEngine};
 const ownerGame = {modules: new Map(Object.entries(ownerEngines).map(([id, engine]) => [id,
   {active: true, api: typeof engine.validateModifiers === 'function' ? {modifiers: {validate: engine.validateModifiers}} : {}}]))};
 
-function domainChecks(pkg) {
+function domainChecks(pkg, knownIds = new Set()) {
   const errors = [], notes = [];
   const ids = new Set(pkg.records.map(r => r.id));
   const owned = modifierDefinitionChecks(ownerGame, pkg.records);
@@ -155,6 +160,18 @@ function domainChecks(pkg) {
       const src = locations.find(x => x.id === loc.id)?.location ?? {};
       // A value the normaliser silently drops or changes means the author wrote something Locations does not keep.
       for (const [i, node] of (src.resources ?? []).entries()) {
+        // Locations 1.18.0: an entry with a nodeId refers to a Profession Ledger node template, which owns its check and materials.
+        if (node && typeof node === 'object' && node.nodeId !== undefined) {
+          const where = `${loc.id}: resources[${i}]`;
+          if (!LOCATION_NODE_ID.test(String(node.nodeId))) { errors.push(`${where}.nodeId ${JSON.stringify(node.nodeId)} is not a NODE-* id (NODE- then capitals, digits and single hyphens, e.g. NODE-TEST-RIVER-REEDS).`); continue; }
+          const kept = loc.resources.find(r => r.nodeId === node.nodeId && r.key === String(node.key ?? node.id ?? r.key));
+          const inline = ['skill', 'materialId', 'quantity', 'rareMaterialId', 'rareQuantity', 'exotics', 'uuid'].filter(k => node[k] !== undefined);
+          if (inline.length) errors.push(`${where} refers to ${node.nodeId}, so ${inline.join(', ')} belong${inline.length === 1 ? 's' : ''} to the node template in Profession Ledger; Locations drops ${inline.length === 1 ? 'it' : 'them'}.`);
+          for (const k of ['tier', 'dc', 'dcVisible', 'finite', 'exhausted', 'available', 'visible'])
+            if (node[k] !== undefined && node[k] !== null && node[k] !== kept?.[k]) errors.push(`${where}.${k} ${JSON.stringify(node[k])} was changed to ${JSON.stringify(kept?.[k] ?? null)}.`);
+          if (!knownIds.has(node.nodeId)) notes.push(`${where} refers to node template ${node.nodeId}: it must exist in Profession Ledger > Gathering Nodes (0.25.0+), or the entry shows "no longer exists" and nothing can be gathered there.`);
+          continue;
+        }
         const kept = loc.resources[i];
         if (!kept) { errors.push(`${loc.id}: resources[${i}] dropped (needs a label, materialId, rareMaterialId or uuid).`); continue; }
         for (const k of ['tier', 'dc', 'quantity', 'rareQuantity', 'materialId', 'rareMaterialId'])
@@ -236,6 +253,14 @@ export async function checkContent(data, filename = '', {knownIds = new Set()} =
       for (const v of row.items) if (typeof v === 'string' && (!v.trim() || v.trim().length > 200)) errors.push(`${name}: items entry ${JSON.stringify(v.slice(0, 40))} is empty or over 200 characters (dropped).`);
     return {kind: 'crosswalk', errors, notes: ['Imported in Profession Ledger > GM Setup > Tools and checks > Import baseline file (not through Manager Import).']};
   }
+  if (/\.gathering-nodes\.json$/i.test(filename) || (data && typeof data === 'object' && !Array.isArray(data) && data.schema === NODE_SCHEMA)) {
+    const r = parseNodeFile(data);
+    const notes = [...r.warnings];
+    const mats = [...new Set(r.nodes.flatMap(n => ['common', 'rare', 'exotic'].flatMap(t => n.materials[t].map(e => e.materialId))))];
+    const missing = mats.filter(id => !knownIds.has(id));
+    if (missing.length) notes.push(`Materials not defined in this folder (they must be imported with General Manager before they can be awarded): ${missing.join(', ')}.`);
+    return {kind: 'gathering-nodes', errors: r.errors, notes: [...notes, 'Imported in Profession Ledger > Gathering Nodes > Import nodes (not through Manager Import).']};
+  }
   if (/\.npc-codex\.json$/i.test(filename)) {
     const r = planRevealsImport(data, []);
     const errors = [...r.errors];
@@ -260,7 +285,7 @@ export async function checkContent(data, filename = '', {knownIds = new Set()} =
   try { pkg = compilePackage(data); } catch (e) { return {kind: 'manager', errors: [e.message], notes: []}; }
   const errors = validatePackage(pkg, new Map());
   if (errors.length) return {kind: 'manager', errors, notes: []};
-  const extra = domainChecks(pkg);
+  const extra = domainChecks(pkg, knownIds);
   return {kind: 'manager', errors: extra.errors, notes: extra.notes};
 }
 
@@ -301,7 +326,7 @@ export async function validateTargets(targets) {
     }
     if (errors.length) { ok = false; lines.push(`FAIL ${rel} (${kind ?? 'unrecognised'}):\n  - ${errors.join('\n  - ')}`); continue; }
     lines.push(`ok   ${rel} (${kind})${notes.length ? `\n  note: ${notes.join('\n  note: ')}` : ''}`);
-    if (!['scene-moods', 'organize-rules', 'crosswalk', 'npc-codex'].includes(kind)) {
+    if (!['scene-moods', 'organize-rules', 'crosswalk', 'npc-codex', 'gathering-nodes'].includes(kind)) {
       const dir = path.dirname(file);
       if (!byFolder.has(dir)) byFolder.set(dir, []);
       byFolder.get(dir).push(file);

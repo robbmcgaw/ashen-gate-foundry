@@ -86,7 +86,7 @@ test('grant: one create per character, quantity on the root, contents arrive, so
  const res=await grantRewards(QID,{[k.potion]:{give:true,actorIds:['aria','bram']},[k.sword]:{give:true,actorId:'aria'},[k.bag]:{give:true,actorId:'bram'}});
  assert.deepEqual(res.results.map(r=>[r.actorId,r.ok,r.items.map(i=>`${i.quantity}×${i.name}`)]),[
   ['aria',true,['2×[TEST] potion','1×[TEST] sword']],['bram',true,['2×[TEST] potion','1×[TEST] bag']]]);
- assert.deepEqual(created(t).map(c=>[c[1],c[2],c[3]]),[['aria',2,{keepId:true}],['bram',3,{keepId:true}]]);
+ assert.deepEqual(created(t).map(c=>[c[1],c[2],c[3]]),[['aria',2,{keepId:true,renderSheet:false}],['bram',3,{keepId:true,renderSheet:false}]]);
  const ariaPotion=t.aria.items.find(i=>i.name==='[TEST] potion');assert.equal(ariaPotion.system.quantity,2);
  assert.deepEqual(ariaPotion.flags[MOD].reward,{questId:QID,rewardKey:k.potion,round:1,grantId:res.grantId});
  const bramBag=t.bram.items.find(i=>i.name==='[TEST] bag'),bramRope=t.bram.items.find(i=>i.name==='[TEST] rope');

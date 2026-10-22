@@ -3,7 +3,11 @@
  * dnd5e 6.0.6 character sheet does:
  *   - Advance a class it has (base-actor-sheet.mjs #changeLevel): unless the world setting dnd5e.disableAdvancements
  *     is on, AdvancementManager.forLevelChange(actor, classId, 1), shown when it has steps; otherwise the class item's
- *     system.levels goes up by 1.
+ *     system.levels goes up by 1. dnd5e fills `steps` inside forLevelChange/forNewItem (createLevelChangeSteps), so
+ *     an empty list is dnd5e saying there is nothing to ask, and the native sheet then raises the level directly too.
+ *   - dnd5e's sheets open the window with _renderChild, i.e. Foundry's renderChild: in the sheet's own window, so a
+ *     popped-out sheet gets it there (0.29.5). The Hub is a Foundry ActorSheetV2, not a dnd5e sheet, so it calls
+ *     renderChild itself; before 0.29.5 it fell back to a bare render, which opens in the main Foundry window.
  *   - Add a class (character-sheet.mjs #findItem, then _onDropSingleItem): dnd5e's CompendiumBrowser.selectOne with
  *     its class filter (classes the character already has are left out), then AdvancementManager.forNewItem when the
  *     class has advancements, else the class item is created. dnd5e 6.0.6 checks no multiclass prerequisites.
@@ -51,16 +55,28 @@ async function showManager(manager, sheet, then) {
   const off = () => { H?.off?.('dnd5e.advancementManagerComplete', doneId); H?.off?.('closeAdvancementManager', closeId); };
   doneId = H?.on?.('dnd5e.advancementManagerComplete', m => { if (m !== manager) return; off(); void then(); });
   closeId = H?.on?.('closeAdvancementManager', m => { if (m === manager) off(); });
-  if (typeof sheet?._renderChild === 'function') await sheet._renderChild(manager);
-  else await manager.render({force: true});
+  try { await openManager(manager, sheet); } catch (err) { off(); throw err; }
 }
+
+/** As dnd5e's _renderChild (application-v2-mixin.mjs): the parent's or the sheet's own renderChild, else a plain render. */
+function openManager(manager, sheet) {
+  if (typeof sheet?._renderChild === 'function') return sheet._renderChild(manager);
+  const host = sheet?.parent ?? sheet;
+  if (typeof host?.renderChild === 'function') return host.renderChild(manager);
+  return manager.render({force: true});
+}
+
+/** dnd5e's answer to "is there anything to ask?": the manager's steps, which its factory methods fill. */
+const hasSteps = manager => (manager?.steps?.length ?? 0) > 0;
+const noSteps = what => console.info(`ashen-gate-character-hub | level up: dnd5e has no advancement steps for ${what}; done without its window, as the native sheet does.`);
 
 /** Advance class `cls` by one level, as the native class level selector does. */
 async function advanceClass(actor, cls, sheet, after) {
   const Manager = advancementManager();
   if (!setting('disableAdvancements', false)) {
     const manager = Manager.forLevelChange(actor, cls.id, 1);
-    if (manager?.steps?.length) { await showManager(manager, sheet, after); return 'advancement'; }
+    if (hasSteps(manager)) { await showManager(manager, sheet, after); return 'advancement'; }
+    noSteps(cls.name);
   }
   await cls.update({'system.levels': (Number(cls.system?.levels) || 0) + 1});
   await after();
@@ -80,7 +96,8 @@ async function addClass(actor, sheet, after) {
   const itemData = g.items.fromCompendium(doc, {keepId: true});
   if (Object.keys(itemData.system?.advancement ?? {}).length && !setting('disableAdvancements', false)) {
     const manager = Manager.forNewItem(actor, itemData);
-    if (manager?.steps?.length) { await showManager(manager, sheet, after); return 'advancement'; }
+    if (hasSteps(manager)) { await showManager(manager, sheet, after); return 'advancement'; }
+    noSteps(itemData.name);
   }
   globalThis.CONFIG?.Item?.dataModels?.class?.onDropCreate?.(null, actor, itemData);
   await actor.createEmbeddedDocuments('Item', [itemData]);

@@ -3,7 +3,7 @@ import {SCHEMA,PROFESSION_NAMES,norm,professionFromTreeName,classify,normalizeRe
 import {GATHERING_PROFESSIONS,TIERS,ACCESS_LEVELS,gatherXP,knownRecipesOf,canLearnRecipe,progressOf,emptyProgress,
   nextProgress,adjustProgress,xpHistoryOf,XP_CAP,professionLevelOf,isMaterialAwardCandidate,xpForLevel} from './progression.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
-import {lookupWorldDefinition,readWorldDefinition} from './definition-lookup.mjs';
+import {lookupWorldDefinition,readWorldDefinition,isActiveDefinition} from './definition-lookup.mjs';
 import {planCraft,craftBlockers,executeCraft,craftResultData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,infoDialog} from './ag-dialogs.mjs';
@@ -12,11 +12,13 @@ import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiv
   checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS,DEFAULT_PROFESSION_TOOLS,DEFAULT_GATHER_SKILLS,migrateCheckMapping,advantageToolsOf} from './checks.mjs';
 import {PROFESSION_KEYS,professionTitle,catalogCrosswalk,definitionProfessionKey,unmappedProfessions,assignmentPlan,rowId,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
 import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,gatherOutcome,gatherReward,exhaustsNode,helperEligibility,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
-  stackMaterial} from './gathering.mjs';
+  stackMaterial,DRAFT_STATES} from './gathering.mjs';
+import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TABLE_LABELS,activityLabel,skillText,nodeIdFromName,checkTemplate,normalizeStore,plainTemplate,saveTemplate,
+  duplicateTemplate,removeTemplate,templateReferences,templateNode,resolveEntry,templatePlayerView,planNodeImport,applyNodeImport,exportNodes,migrateLocationNodes,entryNodeId} from './nodes.mjs';
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.24.3';
+const VERSION='0.25.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...}. */
@@ -87,7 +89,9 @@ function syncLedgerPlayerAccess(enabled){
     globalThis.document?.querySelectorAll?.('[data-ag-launcher="ashen-gate-profession-ledger"]')?.forEach(button=>button.remove());
   }
 }
-const materialChoices=()=> (game.items?.contents??[]).filter(item=>isMaterialAwardCandidate(item,agSourceId) && classify(item)==='Material' && lookupWorldDefinition(game,agSourceId(item),{entityType:'Material',publicForAll:true,approvedOnly:true}).document===item).sort((a,b)=>a.name.localeCompare(b.name));
+/** 0.25.0: one result per synchronous pass (a render looks materials up many times); recomputed on the next task. */
+function perTick(fn){let cached=null;return ()=>{if(cached)return cached.value;cached={value:fn()};queueMicrotask(()=>{cached=null;});return cached.value;};}
+const materialChoices=perTick(()=>(game.items?.contents??[]).filter(item=>isMaterialAwardCandidate(item,agSourceId) && classify(item)==='Material' && lookupWorldDefinition(game,agSourceId(item),{entityType:'Material',publicForAll:true,approvedOnly:true}).document===item).sort((a,b)=>a.name.localeCompare(b.name)));
 const linkedProfession=(actor,id)=>Array.from(actor?.items??[]).some(item=>classify(item)==='Profession'&&agSourceId(item)===id);
 /** A character's own Items are already on their sheet, so only explicitly GM-only or reveal-gated records are withheld. */
 const playerSafe=item=>!['gm','reveal_gated'].includes(sourceVisibility(item));
@@ -96,7 +100,7 @@ const heldRecipeItems=(actor)=>Array.from(actor?.items??[]).filter(item=>classif
 /** Players only ever see released recipe items; drafts are GM information, not player noise. */
 const recipeItems=(actor)=>heldRecipeItems(actor).filter(item=>game.user.isGM||sourceAvailableToPlayer(item));
 const itemStatus=item=>item?.flags?.['ashen-gate-manager']?.source?.status??'approved';
-const GM_VIEWS=new Set(['gm','assign']);
+const GM_VIEWS=new Set(['gm','assign','nodes']);
 const LEGACY_VIEWS={materials:'party',recipes:'party',planner:'individual',learning:'individual',roster:'gm'};
 const HIDDEN_STATUSES=['draft','proposed','superseded','retired','placeholder'];
 const hiddenFromPlayers=(recipe)=>HIDDEN_STATUSES.includes(recipe?.status)||['gm','reveal_gated'].includes(recipe?.sourceVisibility);
@@ -860,26 +864,83 @@ let lastGather=null;
 const worldMaterial=id=>id?materialChoices().find(i=>agSourceId(i)===id)??null:null;
 /** Machine-readable metadata of an awardable world material (Manager's definition), or null. */
 const worldMaterialMeta=id=>{const item=worldMaterial(id);return item?materialMeta(item.flags?.['ashen-gate-manager']?.source?.definition,{name:item.name}):null;};
-/** GM: why a MAT-* cannot be awarded ('' when it can), named after what the GM fixes in General Manager. */
-function materialUnavailable(id){
-  if(worldMaterial(id))return '';
-  const docs=(game.items?.contents??[]).filter(i=>agSourceId(i)===id);
-  const src=docs[0]?.flags?.['ashen-gate-manager']?.source;
-  if(!docs.length||!src)return 'Not in this world: import it with General Manager';
-  if(docs.length>1)return 'Imported more than once: remove the duplicate in General Manager';
-  if(src.status!=='approved')return `${src.status?src.status[0].toUpperCase()+src.status.slice(1):'Not approved'}: approve it in General Manager first`;
-  if(src.visibility!=='player')return 'GM-only: make it player-visible in General Manager first';
-  return 'Not visible to every player: check its permissions';
+/** 0.25.0 GM: a MAT-* id's state: ok (awardable: approved, player-visible), missing (not imported), draft (not approved),
+ * gm-only, not-visible, duplicate or retired; `status` is its Manager status. Draft, gm-only and not-visible can be used anyway. */
+function materialState(id){
+  if(!id)return {state:'missing',status:''};
+  if(worldMaterial(id))return {state:'ok',status:'approved'};
+  const managed=(game.items?.contents??[]).filter(i=>agSourceId(i)===id&&i.flags?.['ashen-gate-manager']?.source);
+  if(!managed.length)return {state:'missing',status:''};
+  const active=managed.filter(isActiveDefinition);
+  if(!active.length)return {state:'retired',status:String(managed[0].flags['ashen-gate-manager'].source.status??'')};
+  if(active.length>1)return {state:'duplicate',status:''};
+  const src=active[0].flags['ashen-gate-manager'].source;
+  if(src.status!=='approved')return {state:'draft',status:String(src.status||'draft')};
+  if(src.visibility!=='player')return {state:'gm-only',status:src.status};
+  return {state:'not-visible',status:src.status};
 }
-/** GM: every imported Material with readable metadata, awardable or not ({...meta, unavailable: reason|''}), one per id. */
+const usableAnyway=state=>DRAFT_STATES.includes(state);
+/** GM: the one active world Material of a draft/unreleased id (for "use anyway"), else null. Never for players. */
+function draftMaterial(id){
+  if(!game.user?.isGM||!usableAnyway(materialState(id).state))return null;
+  return (game.items?.contents??[]).find(i=>agSourceId(i)===id&&i.flags?.['ashen-gate-manager']?.source&&isActiveDefinition(i))??null;
+}
+/** The world Material to award: an awardable one, or (GM "use anyway" only) a draft/unreleased one. */
+const awardMaterial=(id,allowDraft=false)=>worldMaterial(id)??(allowDraft?draftMaterial(id):null);
+const itemMeta=item=>item?materialMeta(item.flags?.['ashen-gate-manager']?.source?.definition,{name:item.name}):null;
+/** Exotic metadata lookup for a gather: awardable materials, plus draft/unreleased ones when the GM uses them anyway. */
+const metaFor=allowDraft=>id=>worldMaterialMeta(id)??(allowDraft?itemMeta(draftMaterial(id)):null);
+/** GM: why a MAT-* cannot be awarded ('' when it can), named after what the GM fixes in General Manager. 0.25.0: "not imported" vs "draft/unreleased". */
+function materialUnavailable(id){
+  const {state,status}=materialState(id);
+  return {ok:'',missing:'Not imported in this world: import it with General Manager',duplicate:'Imported more than once: remove the duplicate in General Manager',
+    retired:'Retired or superseded: restore it in General Manager',draft:`Draft/unreleased (status: ${status}): approve it in General Manager, or use it anyway (GM)`,
+    'gm-only':'Unreleased (GM-only): make it player-visible in General Manager, or use it anyway (GM)',
+    'not-visible':'Not visible to every player: check its permissions, or use it anyway (GM)'}[state]??'';
+}
+/** GM: every imported Material with readable metadata, awardable or not ({...meta, unavailable: reason|'', state, draft}), one per id. */
 function materialCatalog(){
   const out=new Map();
   for(const item of game.items?.contents??[]){
     const id=agSourceId(item);if(!id?.startsWith('MAT-')||out.has(id))continue;
     const meta=materialMeta(item.flags?.['ashen-gate-manager']?.source?.definition,{name:item.name});
-    if(meta)out.set(id,{...meta,unavailable:materialUnavailable(id)});
+    if(meta){const s=materialState(id);out.set(id,{...meta,unavailable:materialUnavailable(id),state:s.state,status:s.status,draft:usableAnyway(s.state)});}
   }
   return [...out.values()];
+}
+/** GM: every imported Material that can be awarded now or used anyway, once per id: {id, name, state, status, quality, tier}. */
+const gmMaterialChoices=perTick(()=>gmMaterialList());
+function gmMaterialList(){
+  const out=new Map();
+  for(const item of game.items?.contents??[]){
+    const id=agSourceId(item);if(!/^MAT-[A-Z0-9-]+$/.test(id??'')||out.has(id)||classify(item)!=='Material')continue;
+    const s=materialState(id);if(s.state!=='ok'&&!usableAnyway(s.state))continue;
+    const doc=s.state==='ok'?worldMaterial(id):draftMaterial(id),meta=itemMeta(doc);
+    out.set(id,{id,name:doc?.name??item.name,state:s.state,status:s.status,quality:meta?.quality??null,tier:meta?.tier??null});
+  }
+  return [...out.values()].sort((a,b)=>a.name.localeCompare(b.name));
+}
+const draftText=m=>m.state==='draft'?`draft (${m.status})`:m.state==='gm-only'?'GM-only':'not visible to every player';
+/** GM select options: released materials, then draft/unreleased ones in their own group, marked. A stored id that is not imported stays selectable and says so. */
+function materialOptions(selected,{blank='',quality=null}={}){
+  const list=gmMaterialChoices().filter(m=>!quality||norm(m.quality)===norm(quality));
+  const opt=m=>`<option value="${esc(m.id)}" ${selected===m.id?'selected':''}>${esc(m.name)}${m.state==='ok'?'':` — ${esc(draftText(m))}`}</option>`;
+  const released=list.filter(m=>m.state==='ok'),drafts=list.filter(m=>m.state!=='ok');
+  return `${blank?`<option value="">${esc(blank)}</option>`:''}${selected&&!list.some(m=>m.id===selected)?`<option value="${esc(selected)}" selected>${esc(selected)} — ${esc(materialState(selected).state==='missing'?'not imported':materialState(selected).state)}</option>`:''}${released.length?`<optgroup label="Released">${released.map(opt).join('')}</optgroup>`:''}${drafts.length?`<optgroup label="Draft / unreleased (GM only)">${drafts.map(opt).join('')}</optgroup>`:''}`;
+}
+/** GM badge beside a chosen material: nothing when it is released; "Draft", "Unreleased" or "Not imported" otherwise. */
+function materialBadge(id){
+  if(!id)return '';
+  const s=materialState(id);
+  if(s.state==='ok')return '';
+  const label=s.state==='missing'?'Not imported':s.state==='draft'?'Draft':usableAnyway(s.state)?'Unreleased':s.state==='duplicate'?'Imported twice':'Retired';
+  return `<span ${tip(materialUnavailable(id))}>${badge(label,'warn')}</span>`;
+}
+/** GM: the first material problem of a node (its common table), as startBlocker/nodeBlocker options. */
+function nodeMaterialCheck(node,allowDraft=false){
+  const ids=[...new Set([node?.materialId,...(node?.tables?.common??[]).map(e=>e.materialId)].filter(Boolean))];
+  for(const id of ids){const s=materialState(id);if(s.state!=='ok'&&!(allowDraft&&usableAnyway(s.state)))return {materialFound:false,materialState:s.state,materialStatus:s.status,materialId:id,allowDraft};}
+  return {materialFound:true,materialState:'ok',allowDraft};
 }
 /** A skip reason with the specific Manager fix when the material is not awardable. */
 const skipReason=(id,reason)=>/^Not an imported/.test(reason)?materialUnavailable(id)||reason:reason;
@@ -907,11 +968,14 @@ function gatherLocations(){
   if(typeof api?.listLocations!=='function'||typeof api?.resourcesAt!=='function')return {ok:false,reason:GATHER_FIX.noLocations,locations:[]};
   try{
     const gm=game.user.isGM;
+    // 0.25.0: an entry that refers to a Ledger node template (nodeId) takes the template's check and materials (GM only:
+    // players never read the template store; Locations publishes what they may see).
+    const templates=gm?new Map(safeNodeStore().nodes.map(t=>[t.id,t])):new Map();
     const locations=(api.listLocations()??[]).map(loc=>{
       const revealed=gm?loc?.revealed===true:true;
-      const nodes=(api.resourcesAt(loc.id)??[]).map((entry,index)=>normalizeNode(entry,{locationId:loc.id,locationName:loc.name??loc.id,locationRevealed:revealed,index}))
+      const nodes=(api.resourcesAt(loc.id)??[]).map((entry,index)=>normalizeNode(gm?resolveEntry(entry,id=>templates.get(id)):entry,{locationId:loc.id,locationName:loc.name??loc.id,locationRevealed:revealed,index}))
         .filter(n=>n&&(gm||n.visible)).map(n=>gm?n:{...n,exotics:[]}).map(n=>exhaustedHere.has(n.key)?{...n,exhausted:true,gatherable:false,why:'Already gathered (exhausted)'}:n)
-        .map(n=>({...n,blocked:nodeBlocker(n,{materialFound:!gm||Boolean(worldMaterial(n.materialId)),forPlayer:!gm})}));
+        .map(n=>({...n,blocked:nodeBlocker(n,gm?nodeMaterialCheck(n):{forPlayer:true})}));
       return {id:loc.id,name:String(loc.name??loc.id),revealed,nodes};
     }).filter(l=>l.nodes.length).sort((a,b)=>a.name.localeCompare(b.name));
     return {ok:true,locations};
@@ -922,13 +986,13 @@ function findNode(locationId,nodeId){
   return {location:loc??null,node:nodeId?loc?.nodes.find(n=>n.id===nodeId)??null:null};
 }
 /** GM only: each configured Exotic candidate with its name and eligibility at this node. */
-const exoticRows=node=>normalizeExotics(node?.exotics).map(e=>{const meta=worldMaterialMeta(e.materialId),check=exoticEligibility(e,node,meta,{keyOf:professionKeyOfId});
+const exoticRows=(node,{allowDraft=false}={})=>normalizeExotics(node?.exotics).map(e=>{const meta=metaFor(allowDraft)(e.materialId),check=exoticEligibility(e,node,meta,{keyOf:professionKeyOfId});
   const name=meta?.name??materialCatalog().find(m=>m.id===e.materialId)?.name??materialName(e.materialId);
-  return {...e,name,meta,eligible:check.eligible,reason:skipReason(e.materialId,check.reason)};});
+  return {...e,name,meta,eligible:check.eligible,reason:skipReason(e.materialId,check.reason),draft:usableAnyway(materialState(e.materialId).state)};});
 const exoticRule=e=>e.mode==='designated'?`designated: ${e.chance==null?'no chance set':`${e.chance}%`} · ${DESIGNATED_CONDITIONS[e.condition]??''}`:'random discovery';
 /** GM-only one-line summary of a node's Exotic candidates. */
-function exoticSummary(node){
-  const rows=exoticRows(node);if(!rows.length)return '';
+function exoticSummary(node,{allowDraft=false}={}){
+  const rows=exoticRows(node,{allowDraft});if(!rows.length)return '';
   const designated=rows.some(r=>r.eligible&&r.mode==='designated');
   return `Exotic candidates (GM only): ${rows.map(r=>`${r.name} — ${exoticRule(r)}${r.eligible?'':` (not eligible: ${r.reason})`}`).join('; ')}.${designated?' Designated source: its own rules replace the discovery roll.':` Discovery chance ${exoticPercent()}% on a success.`}`;
 }
@@ -936,17 +1000,20 @@ const nodeTitle=n=>n.label||materialName(n.materialId)||'Gathering spot';
 /** What everyone may read about a node: no unrevealed location or hidden entry names. */
 const publicNodeTitle=n=>!n.visible||!n.locationRevealed?'a gathering spot':`${nodeTitle(n)}${n.locationName?` at ${n.locationName}`:''}`;
 /** `forPlayers` hides a DC the GM has not shown in Locations. */
-const nodeSummary=(n,{forPlayers=false}={})=>[n.skill,n.tier?`Tier ${n.tier} (${tierName(n.tier)})`:'',Number.isInteger(n.dc)&&(!forPlayers||n.dcVisible)?`DC ${n.dc}`:''].filter(Boolean).join(' · ');
+const nodeSummary=(n,{forPlayers=false}={})=>[skillText(n.skill),n.tier?`Tier ${n.tier} (${tierName(n.tier)})`:'',Number.isInteger(n.dc)&&(!forPlayers||n.dcVisible)?`DC ${n.dc}`:''].filter(Boolean).join(' · ');
 
 /** Which check the lead can roll: the profession's tool and/or skill, then any other skill. */
 function gatherCheckPlan(lead,node){
-  const raw=node.skill;
+  // 0.25.0: a template may allow several gathering professions; the lead uses the first one they have (else the first listed).
+  const listed=node.professions?.length>1?node.professions.find(k=>professionItems(lead).some(i=>professionKey(professionDisplayName(i))===k))??node.professions[0]:null;
+  const raw=listed?professionTitle(listed):node.skill;
   const skillKey=SKILL_IDS.includes(raw)?raw:SKILL_IDS.find(k=>norm(SKILL_LABELS[k])===norm(raw))??null;
   const toolDirect=!skillKey&&toolKeys().includes(raw)?raw:null;
   const profession=skillKey||toolDirect?'':raw;
   const pk=professionKey(profession),map=checkMapping();
-  const toolKey=toolDirect??(pk?map.tools[pk]||null:null);
-  const skill=skillKey??(pk?map.skills[pk]||null:null);
+  // A template's own check skill/tool wins over GM Setup's profession defaults.
+  const toolKey=node.checkTool||(toolDirect??(pk?map.tools[pk]||null:null));
+  const skill=node.checkSkill||(skillKey??(pk?map.skills[pk]||null:null));
   const options=[...(toolKey?[{kind:'tool',key:toolKey}]:[]),...(skill?[{kind:'skill',key:skill}]:[]),
     ...SKILL_IDS.filter(k=>k!==skill).map(key=>({kind:'skill',key}))];
   const tool=toolKey?{key:toolKey,uuid:null,name:null}:null;
@@ -969,16 +1036,17 @@ function gatherProjection(session){
 }
 
 /** GM: start a gathering check for a node (Locations or ad-hoc). The lead's owner gets the roll prompt. */
-async function startGather({node,leadId,helperIds=[],requesterId=null}){
+async function startGather({node,leadId,helperIds=[],requesterId=null,allowDraft=false}){
   if(!canRunGathering(game.user))throw Error('Only the GM can start gathering');
   const party=partyActors(),lead=actorById(leadId);
+  // allowDraft (0.25.0): the GM uses draft/unreleased materials anyway for this one check.
   const blocked=startBlocker({rosterCount:rosterIds().length,partyCount:party.length,leadInParty:Boolean(lead)&&party.some(a=>a.id===lead.id),node,
-    materialFound:Boolean(node&&worldMaterial(node.materialId)),busy:Boolean(node)&&[...gatherSessions.values()].some(s=>s.node.key===node.key)});
+    ...nodeMaterialCheck(node,allowDraft===true),busy:Boolean(node)&&[...gatherSessions.values()].some(s=>s.node.key===node.key)});
   if(blocked)throw Error(blocked);
   if(exhaustedHere.has(node.key))throw Error(nodeBlocker({...node,exhausted:true}));
   const plan=gatherCheckPlan(lead,node);
   const helpers=helperInfo([...new Set(helperIds)].map(id=>game.actors.get(id)).filter(a=>a&&a.id!==lead.id&&party.some(p=>p.id===a.id)),lead,plan);
-  const session={id:newId(),node,leadId:lead.id,leadName:lead.name,helpers,plan,requesterId,status:'rolling',createdAt:Date.now()};
+  const session={id:newId(),node,leadId:lead.id,leadName:lead.name,helpers,plan,requesterId,allowDraft:allowDraft===true,status:'rolling',createdAt:Date.now()};
   session.rollerIds=allUsers().filter(u=>u.active&&!u.isGM&&lead.testUserPermission?.(u,'OWNER')).map(u=>u.id);
   gatherSessions.set(session.id,session);
   if(session.rollerIds.length)sendSocket({type:'gather-roll',toUserIds:session.rollerIds,...gatherProjection(session)});
@@ -1014,21 +1082,21 @@ async function resolveGather(sessionId,{total,choice,mode=0,by=''}){
   const outcome=gatherOutcome(n,node.dc);
   // Shared resolver: the Common/Rare bundle, then at most one Exotic roll (Location and ad-hoc nodes alike).
   let rewards;
-  try{rewards=resolveGatherRewards({node,outcome,percent:exoticPercent(),roll:exoticRoll,metaOf:worldMaterialMeta,keyOf:professionKeyOfId});}
+  try{rewards=resolveGatherRewards({node,outcome,percent:exoticPercent(),roll:exoticRoll,metaOf:metaFor(session.allowDraft),keyOf:professionKeyOfId});}
   catch(err){session.status='rolling';throw err;}
   const exotic=rewards.exotic;
   try{
     reward=rewards.base;
     if(reward){
-      let item=worldMaterial(reward.materialId);
-      if(!item&&reward.rare){reward={materialId:node.materialId,quantity:node.quantity,rare:false,noRareFallback:true};item=worldMaterial(node.materialId);}
-      if(!item)throw Error(`The material ${reward.materialId} is not an imported, player-visible world material`);
+      let item=awardMaterial(reward.materialId,session.allowDraft);
+      if(!item&&reward.rare){reward={materialId:node.materialId,quantity:node.quantity,rare:false,noRareFallback:true};item=awardMaterial(node.materialId,session.allowDraft);}
+      if(!item)throw Error(materialUnavailable(reward.materialId)?`${reward.materialId}: ${materialUnavailable(reward.materialId)}`:`The material ${reward.materialId} is not an imported, player-visible world material`);
       award={...await stackMaterial(lead,item,reward.quantity,{sourceIdOf:agSourceId,flagScope:ID}),name:item.name,img:item.img,quantity:reward.quantity,quality:reward.rare?'rare':'common'};
     }
   }catch(err){session.status='rolling';throw err;}
   if(exotic.materialId){
     // The normal bundle is already given; an Exotic that cannot be written is reported to the GM, never retried.
-    const item=worldMaterial(exotic.materialId);
+    const item=awardMaterial(exotic.materialId,session.allowDraft);
     try{
       if(!item)throw Error('not an imported, player-visible world material');
       exoticAward={...await stackMaterial(lead,item,1,{sourceIdOf:agSourceId,flagScope:ID}),name:item.name,img:item.img,quantity:1,materialId:exotic.materialId};
@@ -1068,7 +1136,8 @@ async function resolveGather(sessionId,{total,choice,mode=0,by=''}){
   if(exhausted==='manual'){
     try{await globalThis.ChatMessage?.create?.({whisper:allUsers().filter(u=>u.isGM).map(u=>u.id),content:`<div class="agl-chat-card"><p><strong>GM:</strong> Locations could not record that <em>${esc(nodeTitle(node))}</em> at ${esc(node.locationName)} is exhausted. Mark it in Locations.</p></div>`});}catch{}
   }
-  lastGather={leadName:lead.name,title:nodeTitle(node),total:n,dc:node.dc,verdict,award,exoticAward,exotic:{...exotic,skipped},exoticNote,exhausted,by};
+  lastGather={leadName:lead.name,title:nodeTitle(node),total:n,dc:node.dc,verdict,award,exoticAward,exotic:{...exotic,skipped},exoticNote,exhausted,by,
+    tableRoll:reward?.tableRoll?.roll!=null?reward.tableRoll:null,usedDraft:session.allowDraft};
   refreshLedger();
   return {outcome,reward,award,exotic:{...exotic,skipped},exoticAward,awards:rewards.awards,exhausted};
 }
@@ -1180,27 +1249,30 @@ async function handleGatherRequest(request,senderId){
   if(since<gatherRequestCooldownMs)return reply('refused',`Wait ${Math.ceil((gatherRequestCooldownMs-since)/1000)} s before asking again for ${actor.name}.`);
   const party=partyActors();
   // Setup problems are reported now, not after the GM has approved: the player gets a plain line, the GM the exact fix.
-  const setup=startBlocker({rosterCount:rosterIds().length,partyCount:party.length,leadInParty:party.some(a=>a.id===actor.id),node,materialFound:Boolean(worldMaterial(node.materialId))});
-  if(setup){say(`Profession Ledger: ${requester.name}’s gathering request can’t start. ${setup}`,true);
-    return reply('refused',`The GM can’t start this yet: ${nodeBlocker(node,{materialFound:Boolean(worldMaterial(node.materialId)),forPlayer:true})||'the party is not set up.'} They have been told.`);}
+  const base={rosterCount:rosterIds().length,partyCount:party.length,leadInParty:party.some(a=>a.id===actor.id),node};
+  const setup=startBlocker({...base,...nodeMaterialCheck(node)});
+  // 0.25.0: a node whose only problem is a draft/unreleased material waits in the queue; the GM may approve it with that material anyway.
+  const draft=Boolean(setup)&&!startBlocker({...base,...nodeMaterialCheck(node,true)});
+  if(setup&&!draft){say(`Profession Ledger: ${requester.name}’s gathering request can’t start. ${setup}`,true);
+    return reply('refused',`The GM can’t start this yet: ${nodeBlocker(node,{...nodeMaterialCheck(node),forPlayer:true})||'the party is not set up.'} They have been told.`);}
   const helperIds=(Array.isArray(request.helperIds)?request.helperIds:[]).filter(id=>typeof id==='string'&&id!==actor.id&&party.some(p=>p.id===id)).slice(0,8);
   gatherRequests.set(request.requestId,{requestId:request.requestId,requesterId:requester.id,requesterName:requester.name,actorId:actor.id,actorName:actor.name,
-    locationId:request.locationId,nodeId:request.nodeId,node,helperIds,at:Date.now()});
+    locationId:request.locationId,nodeId:request.nodeId,node,helperIds,draft,at:Date.now()});
   lastGatherRequestAt.set(actor.id,Date.now());
-  say(`${requester.name} asks for ${actor.name} to gather ${nodeTitle(node)}. See Profession Ledger → Gathering → Requests.`);
+  say(`${requester.name} asks for ${actor.name} to gather ${nodeTitle(node)}. See Profession Ledger → Gathering → Requests.${draft?` ${setup}`:''}`);
   refreshLedger();
   return reply('queued',`Request sent. ${actor.name} waits for the GM to approve gathering at ${publicNodeTitle(node)}.`,{title:publicNodeTitle(node)});
 }
 const queuedRequest=requestId=>{const r=gatherRequests.get(requestId);if(!r)throw Error('That gathering request is no longer waiting');return r;};
 /** GM: approve a queued request. Checks it again, then starts the gather exactly as Start gathering check does. */
-async function approveGatherRequest(requestId){
+async function approveGatherRequest(requestId,{allowDraft=false}={}){
   if(!canRunGathering(game.user))throw Error('Only the GM can approve gathering');
   const r=queuedRequest(requestId),requester=userById(r.requesterId);
   const {verdict,actor,node}=requester?verifyGatherRequest(r,requester,{ignoreId:requestId}):{verdict:{ok:false,reason:'The player who asked is no longer in this world'}};
   if(!verdict.ok){gatherRequests.delete(requestId);gatherReply(r,'declined',`The gathering request for ${r.actorName} can’t go ahead: ${verdict.reason}`);refreshLedger();throw Error(`Request removed: ${verdict.reason}`);}
   gatherRequests.delete(requestId);
   let session;
-  try{session=await startGather({node,leadId:actor.id,helperIds:r.helperIds,requesterId:r.requesterId});}
+  try{session=await startGather({node,leadId:actor.id,helperIds:r.helperIds,requesterId:r.requesterId,allowDraft:allowDraft===true});}
   catch(err){gatherRequests.set(requestId,r);refreshLedger();throw err;}
   gatherReply(r,'approved',`Approved. ${actor.name}’s gathering check is ready to roll.`);
   refreshLedger();
@@ -1220,7 +1292,106 @@ function declineGatherRequest(requestId,{reason=''}={}){
 function listGatherRequests(){
   if(!canRunGathering(game.user))throw Error('Only the GM can see gathering requests');
   return [...gatherRequests.values()].sort((a,b)=>a.at-b.at).map(r=>({requestId:r.requestId,requesterId:r.requesterId,requesterName:r.requesterName,actorId:r.actorId,actorName:r.actorName,
-    locationId:r.locationId,nodeId:r.nodeId,title:nodeTitle(r.node),locationName:r.node.locationName,helperIds:[...r.helperIds],at:r.at}));
+    locationId:r.locationId,nodeId:r.nodeId,title:nodeTitle(r.node),locationName:r.node.locationName,helperIds:[...r.helperIds],draftMaterial:r.draft===true,at:r.at}));
+}
+
+/* ---- Gathering node templates (0.25.0) ------------------------------------------------------------
+ * The Ledger owns node templates (nodes.mjs). They are GM data: stored in the flag `gatheringNodes` of a GM-only Journal
+ * ("Profession Ledger (GM Data)", ownership NONE), the same pattern Locations uses, never in a world setting players can
+ * read. Every read and write here is GM-only in the data layer, not just hidden in the UI. */
+const NODE_FLAG='gatheringNodes';
+const GM_JOURNAL_NAME='Profession Ledger (GM Data)';
+const requireNodesGM=()=>{if(!game.user?.isGM)throw Error('Only the GM can manage gathering nodes');};
+const gmJournal=()=>[...(game.journal??[])].find(j=>j?.getFlag?.(ID,'role')==='gm-data')??null;
+function readNodeStore(){requireNodesGM();return normalizeStore(gmJournal()?.getFlag?.(ID,NODE_FLAG));}
+/** For renders and lookups that must never throw: the GM's store, or an empty one. */
+function safeNodeStore(){try{return readNodeStore();}catch{return normalizeStore({});}}
+let nodeWrites=Promise.resolve();
+/** Writes the whole store (serialised, so two saves never interleave). Derived problem notes are not stored. */
+function writeNodeStore(store){
+  requireNodesGM();
+  const clean=normalizeStore(store),data=structuredClone({...clean,nodes:clean.nodes.map(({problems,...n})=>n)});
+  const run=async()=>{
+    const doc=gmJournal();
+    if(doc)await doc.update({[`flags.${ID}.${NODE_FLAG}`]:data});
+    else{
+      if(typeof globalThis.JournalEntry?.create!=='function')throw Error('Foundry cannot create the Profession Ledger GM Data journal here');
+      await globalThis.JournalEntry.create({name:GM_JOURNAL_NAME,ownership:{default:globalThis.CONST?.DOCUMENT_OWNERSHIP_LEVELS?.NONE??0},
+        flags:{[ID]:{role:'gm-data',[NODE_FLAG]:data}}});
+    }
+    refreshLedger();
+    return normalizeStore(data);
+  };
+  const next=nodeWrites.then(run,run);
+  nodeWrites=next.catch(()=>{});
+  return next;
+}
+const nodeTemplate=id=>safeNodeStore().nodes.find(t=>t.id===id)??null;
+/** GM: Locations' full records [{id, name, resources:[GM entries]}], or null when Locations is not active. */
+function locationRecords(){
+  const api=locationsApi();
+  if(typeof api?.listLocations!=='function'||typeof api?.resourcesAt!=='function')return null;
+  try{return (api.listLocations()??[]).map(l=>({id:l.id,name:String(l.name??l.id),resources:api.resourcesAt(l.id)??[]}));}
+  catch(err){console.warn(`[${ID}] Locations records unavailable`,err);return null;}
+}
+/** GM: where a template is used (see nodes.mjs templateReferences). */
+function nodeReferences(id){requireNodesGM();return templateReferences(id,{locations:locationRecords()??[],store:readNodeStore()});}
+async function saveNodeTemplate(raw,{isNew=false}={}){
+  requireNodesGM();
+  const r=saveTemplate(readNodeStore(),raw,{isNew});
+  if(!r.ok)throw Error(r.errors.join(' '));
+  await writeNodeStore(r.store);
+  return structuredClone(r.node);
+}
+async function duplicateNodeTemplate(id){requireNodesGM();const r=duplicateTemplate(readNodeStore(),id);await writeNodeStore(r.store);return structuredClone(r.node);}
+/** GM: deletes a template and retires its id. Locations are never changed: an entry that refers to it says the template is gone. */
+async function deleteNodeTemplate(id){
+  requireNodesGM();
+  const references=nodeReferences(id);
+  await writeNodeStore(removeTemplate(readNodeStore(),id));
+  return {removed:id,references};
+}
+function previewNodeFile(data){requireNodesGM();return structuredClone(planNodeImport(readNodeStore(),data));}
+/** GM: imports a node file: adds new ids, updates templates the GM has not edited; never removes one or overwrites an edit. */
+async function importNodeFile(data){
+  requireNodesGM();
+  const store=readNodeStore(),plan=planNodeImport(store,data);
+  if(!plan.ok)throw Error(`Node file not imported: ${plan.errors.slice(0,3).join(' ')}${plan.errors.length>3?` (+${plan.errors.length-3} more)`:''}`);
+  await writeNodeStore(applyNodeImport(store,plan));
+  return {added:plan.add.map(n=>n.id),updated:plan.update.map(n=>n.id),kept:plan.keep.map(n=>n.id),unchanged:plan.unchanged.map(n=>n.id),retired:plan.retired.map(n=>n.id),warnings:plan.warnings};
+}
+function exportNodeFile(){requireNodesGM();return exportNodes(readNodeStore());}
+/**
+ * GM: copies Location gathering entries that were never copied into templates (migration, safe to run again). Locations
+ * records are never changed; the original entries are kept as a backup in the store, and the GM gets a whispered note.
+ */
+async function copyLocationNodes(){
+  requireNodesGM();
+  const locations=locationRecords();
+  if(!locations)throw Error(GATHER_FIX.noLocations);
+  const store=readNodeStore();
+  const out=migrateLocationNodes(store,locations,{by:game.user.name,locationsVersion:game.modules?.get?.(LOCATIONS_ID)?.version??''});
+  if(out.created.length||out.linked||out.store.migrationVersion!==store.migrationVersion)await writeNodeStore(out.store);
+  if(out.created.length||out.linked){
+    const text=`Profession Ledger copied ${plural(out.created.length+out.linked,'Location gathering node')} into node templates (${plural(out.created.length,'new template')}${out.linked?`, ${out.linked} matched an identical one`:''}). Locations records were not changed. The original Location entries are backed up in the Journal “${GM_JOURNAL_NAME}”. Review them in Ledger > Gathering Nodes.`;
+    try{await globalThis.ChatMessage?.create?.({whisper:allUsers().filter(u=>u.isGM).map(u=>u.id),content:`<div class="agl-chat-card"><p><strong>GM:</strong> ${esc(text)}</p></div>`});}catch{}
+  }
+  return {created:[...out.created],linked:out.linked,skipped:out.skipped};
+}
+/** Active GM, once per world (migrationVersion 1): the first copy of Location nodes. Later copies are the GM's button. */
+async function autoMigrateNodes(){
+  try{
+    if(!game.user?.isGM||activeGM()?.id!==game.user.id||!locationRecords())return;
+    if(!gmJournal()&&typeof globalThis.JournalEntry?.create!=='function')return;
+    if(readNodeStore().migrationVersion>=1)return;
+    await copyLocationNodes();
+  }catch(err){console.warn(`[${ID}] gathering node migration`,err);}
+}
+/** A normalized node to roll on a template directly (not at a Location): a fresh spot each time, like an ad-hoc node. */
+function templateGatherNode(id,tier=null){
+  const t=nodeTemplate(id);
+  if(!t)return null;
+  return normalizeNode({...templateNode(t,{tier,id:`tpl-${newId()}`}),finite:false},{locationId:null,index:0});
 }
 
 /* ---- XP from chat cards (GM-only button, never automatic) ---- */
@@ -1338,6 +1509,41 @@ async function performAction(action,{id,actorId,points,delta=null,set=null,reaso
   throw Error(`Unknown action ${action}`);
 }
 
+/* ---- Gathering Nodes tab helpers (0.25.0) ---- */
+const tierRange=t=>t.tier.min===t.tier.max?`${t.tier.min}`:`${t.tier.min}–${t.tier.max}`;
+/** One line about a template: activity, professions, tiers, DC, check, finite. */
+function templateLine(t){
+  const check=[t.check.skill?skillLabel(t.check.skill):'',t.check.tool?toolLabel(t.check.tool):''].filter(Boolean).join(' or ');
+  return [t.activity?activityLabel(t.activity):'No activity set',t.professions.map(professionTitle).join(', '),`Tier ${tierRange(t)}`,
+    t.dc!=null?`DC ${t.dc}${t.dcVisible?' (shown)':''}`:'DC by tier',check?`Check: ${check}`:'',t.finite?'Finite at a Location':'Renewable'].filter(Boolean).join(' · ');
+}
+/** The template's material tables, each material with its draft/not-imported badge (GM only). */
+function templateMaterialsHtml(t){
+  const name=id=>esc(gmMaterialChoices().find(m=>m.id===id)?.name??id);
+  const part=(label,list,fmt)=>list.length?`<span>${label}: ${list.map(e=>`${fmt(e)} ${materialBadge(e.materialId)}`).join(', ')}</span>`:'';
+  const qty=e=>`${e.quantity} × ${name(e.materialId)}${e.chance!=null&&e.chance!==100?` (${e.chance}%)`:''}`;
+  const parts=[part('Common',t.materials.common,qty),part('Rare',t.materials.rare,qty),
+    part('Exotic',t.materials.exotic,e=>`${name(e.materialId)} (${e.mode==='designated'?`designated ${e.chance??'—'}%`:'discovery'})`)].filter(Boolean);
+  return parts.length?parts.join(' · '):'No materials: the GM awards it by hand';
+}
+/** An editor draft (all strings) from a template, or a blank one. */
+function nodeDraftOf(t){
+  if(!t)return {isNew:true,errors:[],data:{id:'',name:'',activity:'',professions:[],tierMin:'1',tierMax:'1',checkSkill:'',checkTool:'',dc:'',dcVisible:false,finite:true,note:'',common:[],rare:[],exotic:[]}};
+  return {isNew:false,errors:[...(t.problems??[])],data:{id:t.id,name:t.name,activity:t.activity,professions:[...t.professions],tierMin:String(t.tier.min),tierMax:String(t.tier.max),
+    checkSkill:t.check.skill,checkTool:t.check.tool,dc:t.dc==null?'':String(t.dc),dcVisible:t.dcVisible,finite:t.finite,note:t.note,
+    common:t.materials.common.map(e=>({materialId:e.materialId,quantity:String(e.quantity),chance:e.chance==null?'':String(e.chance)})),
+    rare:t.materials.rare.map(e=>({materialId:e.materialId,quantity:String(e.quantity),chance:e.chance==null?'':String(e.chance)})),
+    exotic:t.materials.exotic.map(e=>({materialId:e.materialId,mode:e.mode,chance:e.chance==null?'':String(e.chance??''),condition:e.condition??'success'}))}};
+}
+/** The template a draft describes (checkTemplate input). Rows with no material chosen are left out. A new node with no id gets one from its name. */
+function draftTemplate(d,taken){
+  const n=v=>v===''||v==null?undefined:Number(v);
+  const rows=list=>list.filter(e=>e.materialId).map(e=>({materialId:e.materialId,quantity:n(e.quantity),chance:n(e.chance)}));
+  return {id:d.id.trim()||nodeIdFromName(d.name,taken),name:d.name,activity:d.activity,professions:d.professions,tier:{min:n(d.tierMin),max:n(d.tierMax)},
+    check:{skill:d.checkSkill,tool:d.checkTool},dc:n(d.dc)??null,dcVisible:d.dcVisible===true,finite:d.finite!==false,note:d.note,
+    materials:{common:rows(d.common),rare:rows(d.rare),exotic:d.exotic.filter(e=>e.materialId).map(e=>({materialId:e.materialId,mode:e.mode,...(e.mode==='designated'?{chance:n(e.chance),condition:e.condition}:{})}))}};
+}
+
 const portrait=(a)=>a?.img?`<img class="agl-avatar" src="${esc(a.img)}" alt="">`:`<span class="agl-avatar">${esc((a?.name||'?').slice(0,1))}</span>`;
 class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   static DEFAULT_OPTIONS={id:'agl-window',classes:['agl-app','ag-app'],window:{title:'Ashen Gate | Profession Ledger',resizable:true,icon:'fa-solid fa-book-open'},position:{width:1180,height:800}};
@@ -1347,7 +1553,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   constructor(options={},...rest){super({...options,position:{...windowSize(LedgerApp.DEFAULT_OPTIONS.position),...options?.position}},...rest);this.view='individual';this.actorId=null;this.demo=false;this.query='';
     this.closedFolders=new Set();this.partySort='player';this.lastAward=null;this.notice='';this.rosterDraft=null;this._events=null;
     this.mapDraft=null;
-    this.gather={source:'location',actorId:null,nodeRef:'',helperIds:[],pending:false,
+    // source: 'location' | 'template' (0.25.0, a Ledger node template) | 'adhoc'. allowDraft: the GM's "use draft materials anyway".
+    this.gather={source:'location',actorId:null,nodeRef:'',helperIds:[],pending:false,templateId:'',templateTier:'',allowDraft:false,
       adhoc:{label:'',skill:'Herbalism',tier:'1',dc:'',materialId:'',rareMaterialId:'',quantity:'1',rareQuantity:'1',exotics:[]},
       // Exotic picker filters: profession and tier default to the ad-hoc node's own.
       pick:{query:'',profession:'node',tier:'node'}};
@@ -1355,11 +1562,13 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     this.coreAwardDraft=null;
     this.accessDraft=null;
     this.assignState={target:'party',preview:null,selected:new Set()};
+    // 0.25.0 Gathering Nodes tab: the open editor draft, an import preview, and the activity filter.
+    this.nodeDraft=null;this.nodeImport=null;this.nodeFilter='all';
   }
   get actors(){return partyActors();}
   get library(){return catalog();}
   get actor(){const mine=myCharacters();return mine.find(a=>a.id===this.actorId)??mine[0]??null;}
-  _tabs(){const names=[['individual','Individual'],['party','Party'],['catalog','Recipe Catalog'],['gathering','Gathering'],...(game.user.isGM?[['assign','Assign'],['gm','GM Setup']]:[])];
+  _tabs(){const names=[['individual','Individual'],['party','Party'],['catalog','Recipe Catalog'],['gathering','Gathering'],...(game.user.isGM?[['nodes','Gathering Nodes'],['assign','Assign'],['gm','GM Setup']]:[])];
     return names.map(([key,title])=>`<button type="button" role="tab" data-action="tab" data-id="${key}" class="${[this.view===key?'active':'',GM_VIEWS.has(key)?'ag-tab--gm':''].filter(Boolean).join(' ')}" aria-selected="${this.view===key}">${title}</button>`).join('');}
   _search(placeholder){return `<label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-agl-search value="${esc(this.query)}" placeholder="${esc(placeholder)}" aria-label="${esc(placeholder)}"></label>`;}
   _noRoster(){return game.user.isGM?emptyState('No party yet.','Choose the party characters in GM Setup.','<button type="button" class="ag-btn ag-btn--sm" data-action="tab" data-id="gm"><i class="fa-solid fa-gears" aria-hidden="true"></i> Choose the party in GM Setup</button>')
@@ -1572,6 +1781,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>Gathering:</strong> pick a gathering spot at a location your party knows and press <b>Request gather</b>. It waits in the GM’s Requests list until they approve or decline (with a reason); one waiting request per character. The GM can also send a check to you directly. The lead gatherer rolls one check for the party (skill or tool bonus shown, advantage preset from the sheet, effects and helpers). Success gives one common bundle, success by 5+ a rare one instead; failure exhausts the spot. The result is posted in chat.</p>
     <p><strong>Tools:</strong> a recipe shows the tool or workstation it needs and warns if your character doesn’t carry the tool. Crafting rolls a tool check; the result is on the craft card. Gold costs are shown, not deducted.</p>
     <p><strong>XP:</strong> the GM awards profession XP from the gather and craft chat cards.</p>
+    ${game.user.isGM?'<p><strong>Gathering Nodes:</strong> reusable gathering spots (NODE-* ids) with an activity, profession(s), tier range, check, DC and common/rare/exotic material tables. Roll on one from anywhere (Gathering → Node template), point a Location at one by id, or import/export node files. <em>Copy Location nodes</em> makes templates from the gathering nodes your Locations already have, without changing Locations. Draft materials are listed for you, marked; tick <em>Use draft materials anyway</em> on the Gathering tab to award one.</p>':''}
     ${game.user.isGM?'<p><strong>Assign:</strong> preview which profession features each party character qualifies for from their skill and tool proficiencies (the Skill to Access and Tool to Access in GM Setup → Tools and checks), then add the missing ones. Re-running adds nothing new; XP is never changed.</p>':''}
     ${game.user.isGM?'<p><strong>GM Setup:</strong> choose the party and Player Access; every GM Setup change, Player Access included, is saved with <b>Save Changes</b>. <em>Tools and checks</em> has one row per profession, crafting then gathering: the skill or tool that gives access (either one qualifies; they are also the profession’s checks) and, for gathering, the tool that gives advantage (advantage tools apply to gathering professions only; ignored for crafting). It can import a baseline crosswalk file (preview, then apply) and export the current table. Recipe imports and Manager are in the Recipe Catalog tab; XP is awarded from the Individual tab.</p>':''}
   `;}
@@ -1584,8 +1794,111 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   }
   _selectedNode(){
     if(this.gather.source==='adhoc')return this._adhocNode();
+    if(this.gather.source==='template')return this.gather.templateId?templateGatherNode(this.gather.templateId,this.gather.templateTier):null;
     const [locationId,nodeId]=String(this.gather.nodeRef??'').split('|');
     return findNode(locationId,nodeId).node;
+  }
+  /** GM Gathering tab, Node template source: pick a template and a tier inside its range. */
+  _templatePick(templates){
+    const g=this.gather,t=templates.find(x=>x.id===g.templateId)??null;
+    const opt=x=>`<option value="${esc(x.id)}" ${g.templateId===x.id?'selected':''}>${esc(x.name)} · Tier ${esc(tierRange(x))}</option>`;
+    const groups=ACTIVITY_KEYS.map(k=>[activityLabel(k),templates.filter(x=>x.activity===k)]).concat([['No activity set',templates.filter(x=>!x.activity)]]).filter(([,l])=>l.length);
+    const tiers=t?Array.from({length:t.tier.max-t.tier.min+1},(_,i)=>t.tier.min+i):[];
+    return `<div class="agl-gather-form"><label class="ag-field">Node template<select data-gather-field="templateId"><option value="">Choose a node template…</option>${groups.map(([label,l])=>`<optgroup label="${esc(label)}">${l.map(opt).join('')}</optgroup>`).join('')}</select></label>
+      ${t?`<label class="ag-field">Tier<select data-gather-field="templateTier">${tiers.map(n=>`<option value="${n}" ${String(g.templateTier||t.tier.min)===String(n)?'selected':''}>${n} · ${esc(tierName(n))}</option>`).join('')}</select></label>`:'<div></div>'}</div>
+      ${t?`<p class="agl-sub">${esc(templateLine(t))}</p><p class="agl-sub">${templateMaterialsHtml(t)}</p>`:''}
+      ${templates.length?'':emptyState('No node templates yet.','Create one in Gathering Nodes, or copy your Location nodes there.','<button type="button" class="ag-btn ag-btn--sm" data-action="tab" data-id="nodes"><i class="fa-solid fa-mountain" aria-hidden="true"></i> Open Gathering Nodes</button>')}`;
+  }
+  /** GM-only tab (0.25.0): gathering node templates, grouped by activity. Authoring lives here, not in GM Setup. */
+  _nodes(){
+    if(!game.user.isGM)return emptyState('Gathering Nodes are GM-only.');
+    const store=safeNodeStore(),locations=locationRecords(),f=this.nodeFilter;
+    const shown=store.nodes.filter(n=>f==='all'||(f==='none'?!n.activity:n.activity===f));
+    const rows=shown.map(n=>({group:n.activity?activityLabel(n.activity):'No activity set',html:this._nodeRow(n,templateReferences(n.id,{locations:locations??[],store}))}));
+    const copied=store.migrations.reduce((k,r)=>k+(Array.isArray(r.created)?r.created.length:0)+(Number(r.linked)||0),0);
+    const migNote=store.migrations.length?notice(`${plural(copied,'Location gathering node')} copied into templates (last copy ${esc(new Date(store.migrations.at(-1).at).toLocaleString())}). Locations records were not changed; the original entries are backed up in the Journal “${esc(GM_JOURNAL_NAME)}”.`):'';
+    const filter=`<label class="ag-field ag-field--inline">Activity<select data-node-filter><option value="all" ${f==='all'?'selected':''}>All</option>${ACTIVITY_KEYS.map(k=>`<option value="${k}" ${f===k?'selected':''}>${esc(activityLabel(k))}</option>`).join('')}${store.nodes.some(n=>!n.activity)?`<option value="none" ${f==='none'?'selected':''}>No activity set</option>`:''}</select></label>`;
+    const canCopy=Boolean(locations);
+    return `<div class="ag-toolbar agl-toolbar">${this._search('Search nodes, ids or materials')}<div class="ag-toolbar__filters">${filter}<span class="ag-toolbar__count">${shown.length} of ${store.nodes.length}</span></div>
+        <div class="ag-toolbar__end"><button type="button" class="ag-btn ag-btn--sm" data-action="node-import"><i class="fa-solid fa-file-import" aria-hidden="true"></i> Import nodes</button>
+        <button type="button" class="ag-btn ag-btn--sm" data-action="node-export" ${store.nodes.length?'':'disabled'}><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export</button>
+        <button type="button" class="ag-btn ag-btn--sm" data-action="node-copy-locations" ${canCopy?'':`disabled ${tip(GATHER_FIX.noLocations)}`}><i class="fa-solid fa-map-location-dot" aria-hidden="true"></i> Copy Location nodes</button>
+        <button type="button" class="ag-btn ag-btn--primary ag-btn--sm" data-action="node-new"><i class="fa-solid fa-plus" aria-hidden="true"></i> New node</button></div></div>
+      <p class="agl-sub">Node templates are gathering spots you can roll on from anywhere (Gathering → Node template). A Location can point to one by its NODE id. Ids are permanent: a deleted node’s id is never reused. Players never see this tab.</p>
+      ${migNote}${this.nodeImport?this._nodeImportPreview():''}${this.nodeDraft?this._nodeEditor(store):''}
+      ${folders(rows,this.closedFolders)||emptyState(store.nodes.length?'No nodes match this filter.':'No gathering nodes yet.',store.nodes.length?'Choose All activities.':'Create one with New node, import a node file, or copy the gathering nodes your Locations already have.')}
+      <div class="ag-empty agl-no-matches" hidden><p class="ag-empty__title">Nothing matches.</p><p class="ag-empty__text">Clear the search to see every node.</p></div>`;
+  }
+  _nodeRow(t,refs){
+    const search=[t.name,t.id,activityLabel(t.activity),...t.professions.map(professionTitle),...TABLES.flatMap(k=>t.materials[k].map(e=>`${e.materialId} ${gmMaterialChoices().find(m=>m.id===e.materialId)?.name??''}`))].join(' ').toLowerCase();
+    const used=refs.filter(r=>r.kind==='reference'),from=refs.filter(r=>r.kind==='copied-from');
+    const where=[used.length?badge(`Used by ${plural(used.length,'Location entry','Location entries')}`,'ok'):'',from.length?`<span ${tip(from.map(r=>r.locationName).join(', '))}>${badge(`Copied from ${plural(from.length,'Location entry','Location entries')}`)}</span>`:'',
+      t.meta.origin==='import'&&!t.meta.edited?badge('Imported'):'',t.meta.edited&&t.meta.origin!=='gm'?badge('Edited here'):''].filter(Boolean).join(' ');
+    return `<article class="ag-card agl-recipe-row agl-node-card" data-recipe-search="${esc(search)}">
+      <div class="agl-recipe-head"><div class="agl-recipe-title"><strong>${esc(t.name)}</strong> <code>${esc(t.id)}</code>
+        <span class="agl-recipe-meta">${esc(templateLine(t))}</span><span class="agl-recipe-meta">${templateMaterialsHtml(t)}</span>${t.note?`<span class="agl-recipe-meta">${esc(t.note)}</span>`:''}
+        ${t.problems?.length?`<span class="agl-reason">${esc(t.problems.join(' '))}</span>`:''}</div>
+        <div class="agl-recipe-actions">${where}<button type="button" class="ag-btn ag-btn--sm" data-action="node-edit" data-id="${esc(t.id)}"><i class="fa-solid fa-pen" aria-hidden="true"></i> Edit</button>
+          <button type="button" class="ag-btn ag-btn--sm" data-action="node-duplicate" data-id="${esc(t.id)}"><i class="fa-solid fa-copy" aria-hidden="true"></i> Duplicate</button>
+          <button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-action="node-delete" data-id="${esc(t.id)}"><i class="fa-solid fa-trash" aria-hidden="true"></i> Delete</button></div></div></article>`;
+  }
+  /** GM node editor. Text edits are kept without a re-render; structure changes (rows, activity, mode) re-render. */
+  _nodeEditor(store){
+    const {isNew,data:d,errors=[]}=this.nodeDraft;
+    const taken=new Set([...store.nodes.map(n=>n.id),...store.retiredIds]);
+    const sel=(field,options,value)=>`<select data-node-field="${field}">${options.map(([v,l])=>`<option value="${esc(v)}" ${String(value)===String(v)?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
+    const tierOpts=TIERS.map((t,i)=>[String(i+1),`${i+1} · ${t}`]);
+    const row=(table,e,i)=>table==='exotic'?`<li class="ag-row agl-node-mat">
+        <label class="ag-field">Material ${materialBadge(e.materialId)}<select data-node-mat="${table}" data-node-row="${i}" data-node-key="materialId">${materialOptions(e.materialId,{blank:'Choose…',quality:'Exotic'})}</select></label>
+        <label class="ag-field">Rule<select data-node-mat="${table}" data-node-row="${i}" data-node-key="mode">${EXOTIC_MODES.map(m=>`<option value="${m}" ${e.mode===m?'selected':''}>${m==='designated'?'Designated source':'Random discovery'}</option>`).join('')}</select></label>
+        ${e.mode==='designated'?`<label class="ag-field">Chance %<input type="number" min="1" max="100" step="1" data-node-mat="${table}" data-node-row="${i}" data-node-key="chance" value="${esc(e.chance)}" placeholder="required"></label>
+        <label class="ag-field">When<select data-node-mat="${table}" data-node-row="${i}" data-node-key="condition">${Object.entries(DESIGNATED_CONDITIONS).map(([k,l])=>`<option value="${k}" ${e.condition===k?'selected':''}>${esc(l)}</option>`).join('')}</select></label>`:''}
+        <span class="ag-row__end"><button type="button" class="ag-btn ag-btn--sm" data-action="node-row-remove" data-id="${table}:${i}">Remove</button></span></li>`
+      :`<li class="ag-row agl-node-mat">
+        <label class="ag-field">Material ${materialBadge(e.materialId)}<select data-node-mat="${table}" data-node-row="${i}" data-node-key="materialId">${materialOptions(e.materialId,{blank:'Choose…'})}</select></label>
+        <label class="ag-field">Quantity<input type="number" min="1" max="999" step="1" data-node-mat="${table}" data-node-row="${i}" data-node-key="quantity" value="${esc(e.quantity)}" placeholder="1"></label>
+        <label class="ag-field">Chance %<input type="number" min="1" max="100" step="1" data-node-mat="${table}" data-node-row="${i}" data-node-key="chance" value="${esc(e.chance)}" placeholder="${d[table].length>1?'required':'100'}"></label>
+        <span class="ag-row__end"><button type="button" class="ag-btn ag-btn--sm" data-action="node-row-remove" data-id="${table}:${i}">Remove</button></span></li>`;
+    const tables=TABLES.map(t=>`<fieldset class="agl-node-table"><legend>${esc(TABLE_LABELS[t])}</legend>
+        <p class="agl-sub">${t==='exotic'?'Exotic candidates: random discovery uses the GM Setup chance on a success; a designated source uses its own chance.':'One bundle per success. With several materials, each needs a chance and the chances add up to 100.'}</p>
+        ${d[t].length?`<ul class="ag-rows">${d[t].map((e,i)=>row(t,e,i)).join('')}</ul>`:''}
+        <div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--sm" data-action="node-row-add" data-id="${t}"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add ${t} material</button></div></fieldset>`).join('');
+    const used=[...new Set(TABLES.flatMap(t=>d[t].map(e=>e.materialId)).filter(Boolean))];
+    const test=used.length?`<ul class="ag-rows">${used.map(id=>{const s=materialState(id),m=gmMaterialChoices().find(x=>x.id===id);
+      return `<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(m?.name??id)}</span><span class="ag-row__meta">${esc(id)}${s.state==='ok'?'':` · ${esc(materialUnavailable(id))}`}</span></span><span class="ag-row__end">${s.state==='ok'?badge('Released','ok'):materialBadge(id)}</span></li>`;}).join('')}</ul>`
+      :'<p class="agl-sub">No materials yet.</p>';
+    return `<section class="ag-card agl-panel agl-node-editor"><h2>${isNew?'New gathering node':`Edit ${esc(d.name||d.id)}`}</h2>
+      ${errors.length?`<div class="ag-notice ag-notice--warn" role="alert"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>${errors.map(esc).join('<br>')}</span></div>`:''}
+      <div class="agl-gather-form">
+        <label class="ag-field">Name<input data-node-field="name" maxlength="80" value="${esc(d.name)}" placeholder="e.g. [TEST] River reeds"></label>
+        <label class="ag-field">Id (permanent)${isNew?`<input data-node-field="id" maxlength="60" value="${esc(d.id)}" placeholder="${esc(d.name?nodeIdFromName(d.name,taken):'NODE-… (made from the name)')}">`:`<input value="${esc(d.id)}" readonly aria-readonly="true">`}</label>
+        <label class="ag-field">Activity${sel('activity',[['','Choose…'],...ACTIVITY_KEYS.map(k=>[k,activityLabel(k)])],d.activity)}</label>
+        <fieldset class="agl-gather-eligible"><legend>Gathering professions</legend>${NODE_PROFESSIONS.map(k=>`<label><input type="checkbox" data-node-prof="${k}" ${d.professions.includes(k)?'checked':''}> ${esc(professionTitle(k))}</label>`).join('')}
+          <span class="agl-sub">None ticked: the activity’s profession. The first one the lead has gives the XP.</span></fieldset>
+        <label class="ag-field">Lowest tier${sel('tierMin',tierOpts,d.tierMin)}</label>
+        <label class="ag-field">Highest tier${sel('tierMax',tierOpts,d.tierMax)}</label>
+        <label class="ag-field">DC<input type="number" min="1" max="40" step="1" data-node-field="dc" value="${esc(d.dc)}" placeholder="Default for the tier (${Object.values(DEFAULT_DC_BY_TIER).join('/')})"></label>
+        <label class="ag-field ag-field--inline"><input type="checkbox" data-node-field="dcVisible" ${d.dcVisible?'checked':''}> Players see the DC</label>
+        <label class="ag-field">Check skill${sel('checkSkill',[['','The profession’s (GM Setup)'],...SKILL_IDS.map(k=>[k,skillLabel(k)])],d.checkSkill)}</label>
+        <label class="ag-field">Check tool${sel('checkTool',[['','The profession’s (GM Setup)'],...toolKeys().map(k=>[k,toolLabel(k)])],d.checkTool)}</label>
+        <label class="ag-field ag-field--inline"><input type="checkbox" data-node-field="finite" ${d.finite?'checked':''}> Finite: used up when gathered at a Location</label>
+        <label class="ag-field">Note (GM)<input data-node-field="note" maxlength="500" value="${esc(d.note)}"></label>
+      </div>
+      ${tables}
+      <fieldset class="agl-node-table"><legend>Node test: materials</legend><p class="agl-sub">Whether each material can be awarded now. A draft or unreleased one is awarded only when you tick “Use draft materials anyway” on the Gathering tab.</p>${test}</fieldset>
+      <div class="agl-editor-actions"><button type="button" class="ag-btn ag-btn--ghost" data-action="node-cancel">Cancel</button><button type="button" class="ag-btn ag-btn--primary" data-action="node-save"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save Changes</button></div>
+    </section>`;
+  }
+  /** GM: what a node file import will do; nothing is written until Apply. */
+  _nodeImportPreview(){
+    const {fileName,plan}=this.nodeImport;
+    const list=(label,nodes,kind='')=>nodes.length?`<li>${badge(`${label}: ${nodes.length}`,kind)} ${esc(nodes.map(n=>`${n.name} (${n.id})`).join(', '))}</li>`:'';
+    return `<section class="ag-card agl-panel agl-node-import"><h2>Import ${esc(fileName||'node file')}</h2>
+      ${plan.ok?`<ul class="agl-node-plan">${list('New',plan.add,'ok')}${list('Updated',plan.update,'ok')}${list('Kept (edited here; your edit stays)',plan.keep,'warn')}${list('Unchanged',plan.unchanged)}${list('Skipped (deleted id; ids are never reused)',plan.retired,'warn')}</ul>
+        ${plan.warnings.length?`<p class="agl-sub">${plan.warnings.map(esc).join('<br>')}</p>`:''}<p class="agl-sub">Import never removes a node and never overwrites one you edited here. Locations are not changed.</p>`
+        :`<div class="ag-notice ag-notice--warn" role="alert"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>This file can’t be imported:<br>${plan.errors.map(esc).join('<br>')}</span></div>`}
+      <div class="agl-editor-actions"><button type="button" class="ag-btn ag-btn--ghost" data-action="node-import-cancel">Cancel</button>${plan.ok?`<button type="button" class="ag-btn ag-btn--primary" data-action="node-import-apply" ${plan.add.length||plan.update.length?'':'disabled'}><i class="fa-solid fa-file-import" aria-hidden="true"></i> Apply import</button>`:''}</div>
+    </section>`;
   }
   _gathering(){
     return game.user.isGM?this._gatherGM():this._gatherPlayer();
@@ -1601,24 +1914,24 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const chosen=new Set(a.exotics.map(e=>e.materialId));
     const list=(p.profession==='node'&&!nodeProf)?[]:filterMaterials(metas,{query:p.query,profession,quality:'Exotic',...tierOpt,keyOf:professionKeyOfId}).filter(m=>!chosen.has(m.id)).slice(0,50);
     const profLabel=professionTitle;
-    const rows=exoticRows({...node,exotics:a.exotics}).map(r=>`<li class="ag-row agl-exotic-row">
-        <span class="ag-row__title">${esc(r.name)}</span> ${qualityBadge('exotic')}${r.meta?.tier?` <small class="agl-sub">Tier ${r.meta.tier}</small>`:''} ${r.eligible?badge('Eligible','ok'):badge(r.reason,'warn')}
+    const rows=exoticRows({...node,exotics:a.exotics},{allowDraft:this.gather.allowDraft}).map(r=>`<li class="ag-row agl-exotic-row">
+        <span class="ag-row__title">${esc(r.name)}</span> ${qualityBadge('exotic')}${r.draft?` ${materialBadge(r.materialId)}`:''}${r.meta?.tier?` <small class="agl-sub">Tier ${r.meta.tier}</small>`:''} ${r.eligible?badge('Eligible','ok'):badge(r.reason,'warn')}
         <label class="ag-field ag-field--inline">Rule<select data-adhoc-exotic="${esc(r.materialId)}" data-exotic-key="mode">${EXOTIC_MODES.map(m=>`<option value="${m}" ${r.mode===m?'selected':''}>${m==='designated'?'Designated source':'Random discovery'}</option>`).join('')}</select></label>
         ${r.mode==='designated'?`<label class="ag-field ag-field--inline">Chance %<input type="number" min="1" max="100" step="1" data-adhoc-exotic="${esc(r.materialId)}" data-exotic-key="chance" value="${esc(r.chance??'')}" placeholder="required"></label>
         <label class="ag-field ag-field--inline">When<select data-adhoc-exotic="${esc(r.materialId)}" data-exotic-key="condition">${Object.entries(DESIGNATED_CONDITIONS).map(([k,l])=>`<option value="${k}" ${r.condition===k?'selected':''}>${esc(l)}</option>`).join('')}</select></label>`:''}
         <span class="ag-row__end"><button type="button" class="ag-btn ag-btn--sm" data-action="adhoc-exotic-remove" data-id="${esc(r.materialId)}">Remove</button></span></li>`).join('');
     return `<fieldset class="agl-exotic-pick"><legend>Exotic candidates (optional, GM only)</legend>
-      <p class="agl-sub">Pick which Exotic materials this node can give. A pick sets eligibility only: a successful check rolls d100 once (discovery ${exoticPercent()}%, set in GM Setup), or a designated source uses its own chance instead. A failed check never finds one. Players never see this list.</p>
+      <p class="agl-sub">Pick which Exotic materials this node can give. A pick sets eligibility only: a successful check rolls d100 once (discovery ${exoticPercent()}%, set in GM Setup), or a designated source uses its own chance instead. A failed check never finds one. Players never see this list. A draft or unreleased Exotic can be picked; it is only found when “Use draft materials anyway” is ticked.</p>
       ${rows?`<ul class="ag-rows agl-exotic-list">${rows}</ul>`:''}
       <div class="ag-toolbar agl-exotic-filters">
         <label class="ag-field">Search<input type="search" data-gather-pick="query" value="${esc(p.query)}" placeholder="Material name"></label>
         <label class="ag-field">Gathering profession<select data-gather-pick="profession"><option value="node" ${p.profession==='node'?'selected':''}>This node’s (${esc(nodeProf?profLabel(nodeProf):'none')})</option><option value="any" ${p.profession==='any'?'selected':''}>Any</option>${GATHERING_KEYS.map(k=>`<option value="${k}" ${p.profession===k?'selected':''}>${esc(profLabel(k))}</option>`).join('')}</select></label>
         <label class="ag-field">Tier<select data-gather-pick="tier"><option value="node" ${p.tier==='node'?'selected':''}>Up to this node’s (${esc(nodeTier??'—')})</option><option value="any" ${p.tier==='any'?'selected':''}>Any</option>${TIERS.map((t,i)=>`<option value="${i+1}" ${p.tier===String(i+1)?'selected':''}>${i+1} · ${t}</option>`).join('')}</select></label>
         <span class="agl-sub">${qualityBadge('exotic')} · Type: Material</span></div>
-      ${list.length?`<ul class="ag-rows agl-exotic-list">${list.map(m=>`<li class="ag-row agl-exotic-row${m.unavailable?' is-off':''}"${m.unavailable?' aria-disabled="true"':''}><span class="ag-row__main"><span class="ag-row__title">${esc(m.name)}</span>
+      ${list.length?`<ul class="ag-rows agl-exotic-list">${list.map(m=>{const off=Boolean(m.unavailable)&&!m.draft;return `<li class="ag-row agl-exotic-row${off?' is-off':''}"${off?' aria-disabled="true"':''}><span class="ag-row__main"><span class="ag-row__title">${esc(m.name)}</span>
         <span class="ag-row__meta">Tier ${m.tier??'—'}${m.unavailable?` · ${esc(m.unavailable)}`:''}</span></span>
-        <span class="ag-row__end">${qualityBadge('exotic')}<button type="button" class="ag-btn ag-btn--sm" data-action="adhoc-exotic-add" data-id="${esc(m.id)}" ${m.unavailable?'disabled':''}>Add</button></span></li>`).join('')}</ul>`
-        :`<p class="agl-sub">${p.profession==='node'&&!nodeProf?'This node’s skill is not a gathering profession, so no Exotic can be found here. Choose a gathering profession above.':'No imported Exotic materials match. Exotics come from General Manager (approved, player-visible, quality “Exotic”).'}</p>`}
+        <span class="ag-row__end">${qualityBadge('exotic')}${m.draft?materialBadge(m.id):''}<button type="button" class="ag-btn ag-btn--sm" data-action="adhoc-exotic-add" data-id="${esc(m.id)}" ${off?'disabled':''}>Add</button></span></li>`;}).join('')}</ul>`
+        :`<p class="agl-sub">${p.profession==='node'&&!nodeProf?'This node’s skill is not a gathering profession, so no Exotic can be found here. Choose a gathering profession above.':'No imported Exotic materials match. Exotics come from General Manager (quality “Exotic”; a draft one is marked and needs “Use draft materials anyway”).'}</p>`}
     </fieldset>`;
   }
   /** GM: players' gathering requests waiting for Approve or Decline (0.21.0). */
@@ -1629,14 +1942,15 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       const actor=game.actors?.get?.(r.actorId),node=r.node;
       const plan=actor?gatherCheckPlan(actor,node):null,info=plan?helperInfo(r.helperIds.map(id=>game.actors.get(id)).filter(Boolean),actor,plan):[];
       const need=node.tier?ACCESS_LEVELS[tierName(node.tier)]:null,progress=plan?.professionId?progressOf(actor,plan.professionId):null;
-      return `<li class="agl-request" data-request="${esc(r.requestId)}"><p><strong>${esc(r.requesterName)}</strong> asks for <strong>${esc(r.actorName)}</strong> to gather <strong>${esc(nodeTitle(node))}</strong> at ${esc(node.locationName)}.</p>
+      const draftNote=r.draft?`<p class="agl-reason">${esc(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node,...nodeMaterialCheck(node)}))} Approve gives it anyway (players still never see draft materials listed).</p>`:'';
+      return `<li class="agl-request" data-request="${esc(r.requestId)}"><p><strong>${esc(r.requesterName)}</strong> asks for <strong>${esc(r.actorName)}</strong> to gather <strong>${esc(nodeTitle(node))}</strong> at ${esc(node.locationName)}.</p>${draftNote}
         <p class="agl-sub">${esc(nodeSummary(node))} · common ${node.quantity} × ${esc(materialName(node.materialId))}${node.rareMaterialId?`, rare ${node.rareQuantity} × ${esc(materialName(node.rareMaterialId))}`:''}${node.finite?' · finite':''}</p>
         <p class="agl-sub">${info.length?`Helpers: ${info.map(h=>`${esc(h.name)} (${esc(h.reason)}${h.eligible?' — gives advantage':''})`).join(', ')}`:'No helpers.'}
           ${plan&&!plan.professionId?` · ${esc(r.actorName)} has no ${esc(plan.profession||'matching')} profession feature.`:''}
           ${need&&progress&&progress.level<need?` · ${esc(plan.professionName)} level ${progress.level}; tier ${node.tier} usually needs level ${need}.`:''}</p>
         <div class="agl-management-actions"><label class="ag-field ag-field--inline">Reason (optional, sent to the player)<input type="text" maxlength="200" data-gather-decline-reason="${esc(r.requestId)}"></label>
           <button type="button" class="ag-btn" data-action="gather-decline" data-id="${esc(r.requestId)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Decline</button>
-          <button type="button" class="ag-btn" data-action="gather-approve" data-id="${esc(r.requestId)}"><i class="fa-solid fa-check" aria-hidden="true"></i> Approve</button></div></li>`;}).join('');
+          <button type="button" class="ag-btn" data-action="gather-approve" data-id="${esc(r.requestId)}"${r.draft?' data-draft="1"':''}><i class="fa-solid fa-check" aria-hidden="true"></i> ${r.draft?'Approve (use draft material)':'Approve'}</button></div></li>`;}).join('');
     return `<section class="ag-card agl-panel agl-gather-requests"><h2>Requests ${badge(String(list.length),'warn')}</h2>
       <p class="agl-sub">Players asked to gather. Approve starts the check as Start gathering does (the lead’s owner rolls); Decline tells the player, with your reason if you give one.</p>
       <ul class="agl-request-list">${rows}</ul></section>`;
@@ -1666,10 +1980,10 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     </section>`;
   }
   _gatherGM(){
-    const party=this.actors,where=gatherLocations(),mats=materialChoices();
+    const party=this.actors,where=gatherLocations(),mats=gmMaterialChoices(),templates=safeNodeStore().nodes;
     if(!party.length)return rosterIds().length?emptyState('No party characters found.',esc(GATHER_FIX.partyMissing)):emptyState('No party yet.',esc(GATHER_FIX.noParty),'<button type="button" class="ag-btn ag-btn--sm" data-action="tab" data-id="gm"><i class="fa-solid fa-gears" aria-hidden="true"></i> Open GM Setup</button>');
     const g=this.gather;
-    if(!where.ok)g.source='adhoc';
+    if(!where.ok&&g.source==='location')g.source=templates.length?'template':'adhoc';
     const lead=party.find(a=>a.id===g.actorId)??party[0];g.actorId=lead.id;
     const node=this._selectedNode();
     const plan=node?gatherCheckPlan(lead,node):null;
@@ -1682,10 +1996,10 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       <div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--ghost" data-action="gather-cancel" data-id="${esc(s.id)}">Cancel check</button>
         <label class="ag-field ag-field--inline">Total <input type="number" min="-20" max="100" step="1" data-gather-total="${esc(s.id)}"></label><button type="button" class="ag-btn" data-action="gather-record" data-id="${esc(s.id)}">Record total</button>
         <button type="button" class="ag-btn" data-action="gather-gm-roll" data-id="${esc(s.id)}"><i class="fa-solid fa-dice-d20" aria-hidden="true"></i> Roll for ${esc(s.leadName)}</button></div></section>`;}).join('');
-    const last=lastGather?notice(`${esc(lastGather.leadName)} · ${esc(lastGather.title)}: ${lastGather.total} vs DC ${lastGather.dc} — <b>${esc(lastGather.verdict)}</b>${lastGather.award?`, ${lastGather.award.quantity} × ${esc(lastGather.award.name)} ${qualityBadge(lastGather.award.quality)}${lastGather.award.stacked?` (now ${lastGather.award.total})`:''}`:''}${lastGather.exoticAward?` + ${esc(lastGather.exoticAward.name)} ${qualityBadge('exotic')}`:''}${lastGather.exotic?.roll!=null?` · Exotic d100 ${lastGather.exotic.roll} vs ${lastGather.exotic.target} (${lastGather.exotic.kind})`:''}${lastGather.exoticNote?` · <b>${esc(lastGather.exoticNote)}</b>`:''}${lastGather.exhausted==='recorded'?' · node marked exhausted in Locations':lastGather.exhausted==='manual'?' · <b>mark the node exhausted in Locations</b>':lastGather.exhausted==='session'?' · renewable node: blocked until you reload':''}. Award XP from the chat card.`):'';
+    const last=lastGather?notice(`${esc(lastGather.leadName)} · ${esc(lastGather.title)}: ${lastGather.total} vs DC ${lastGather.dc} — <b>${esc(lastGather.verdict)}</b>${lastGather.award?`, ${lastGather.award.quantity} × ${esc(lastGather.award.name)} ${qualityBadge(lastGather.award.quality)}${lastGather.award.stacked?` (now ${lastGather.award.total})`:''}`:''}${lastGather.tableRoll?` · material table d${lastGather.tableRoll.faces} ${lastGather.tableRoll.roll}`:''}${lastGather.usedDraft?' · draft materials allowed':''}${lastGather.exoticAward?` + ${esc(lastGather.exoticAward.name)} ${qualityBadge('exotic')}`:''}${lastGather.exotic?.roll!=null?` · Exotic d100 ${lastGather.exotic.roll} vs ${lastGather.exotic.target} (${lastGather.exotic.kind})`:''}${lastGather.exoticNote?` · <b>${esc(lastGather.exoticNote)}</b>`:''}${lastGather.exhausted==='recorded'?' · node marked exhausted in Locations':lastGather.exhausted==='manual'?' · <b>mark the node exhausted in Locations</b>':lastGather.exhausted==='session'?' · renewable node: blocked until you reload':''}. Award XP from the chat card.`):'';
     const nodeOptions=where.locations.map(loc=>`<optgroup label="${esc(loc.name)}${loc.revealed?'':' (unrevealed)'}">${loc.nodes.map(n=>{const value=`${loc.id}|${n.id??''}`,ok=n.gatherable&&!nodeBusy(n.key),byHand=!n.materialId&&!nodeBusy(n.key);
       return `<option value="${esc(value)}" ${g.nodeRef===value?'selected':''} ${ok||byHand?'':'disabled'}>${esc(nodeTitle(n))} · ${esc(nodeSummary(n)||'no DC')}${n.visible?'':' · hidden from players'}${byHand?' — no material: award by hand':n.blocked?` — ${esc(n.blocked)}`:ok?'':' — in progress'}</option>`;}).join('')}</optgroup>`).join('');
-    const a=g.adhoc,matOpts=(selected,blank)=>`${blank?`<option value="">${blank}</option>`:''}${mats.map(i=>`<option value="${esc(agSourceId(i))}" ${selected===agSourceId(i)?'selected':''}>${esc(i.name)}</option>`).join('')}`;
+    const a=g.adhoc,matOpts=(selected,blank)=>materialOptions(selected,{blank});
     const gatherSkills=Array.isArray(locationsApi()?.GATHERING?.skills)?locationsApi().GATHERING.skills:GATHERING_PROFESSIONS;
     const skillChoices=[...gatherSkills.map(p=>[p,PROFESSION_KEYS.includes(professionKey(p))?professionTitle(professionKey(p)):p]),...SKILL_IDS.map(k=>[k,skillLabel(k)])];
     const form=g.source==='adhoc'?`<div class="agl-gather-form">
@@ -1693,32 +2007,35 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
        <label class="ag-field">Skill / profession<select data-gather-adhoc="skill">${skillChoices.map(([v,l])=>`<option value="${esc(v)}" ${a.skill===v?'selected':''}>${esc(l)}</option>`).join('')}</select></label>
        <label class="ag-field">Tier<select data-gather-adhoc="tier">${TIERS.map((t,i)=>`<option value="${i+1}" ${String(a.tier)===String(i+1)?'selected':''}>${i+1} · ${t}</option>`).join('')}</select></label>
        <label class="ag-field">DC<input data-gather-adhoc="dc" type="number" min="1" max="40" step="1" value="${esc(a.dc)}" placeholder="Default for tier: ${defaultDC(a.tier)}"></label>
-       <label class="ag-field">Common material<select data-gather-adhoc="materialId">${matOpts(a.materialId,'Choose…')}</select></label>
+       <label class="ag-field">Common material ${materialBadge(a.materialId)}<select data-gather-adhoc="materialId">${matOpts(a.materialId,'Choose…')}</select></label>
        <label class="ag-field">Common quantity<input data-gather-adhoc="quantity" type="number" min="1" max="99" step="1" value="${esc(a.quantity)}"></label>
-       <label class="ag-field">Rare material (success by 5+)<select data-gather-adhoc="rareMaterialId">${matOpts(a.rareMaterialId,'None — common instead')}</select></label>
+       <label class="ag-field">Rare material (success by 5+) ${materialBadge(a.rareMaterialId)}<select data-gather-adhoc="rareMaterialId">${matOpts(a.rareMaterialId,'None — common instead')}</select></label>
        <label class="ag-field">Rare quantity<input data-gather-adhoc="rareQuantity" type="number" min="1" max="99" step="1" value="${esc(a.rareQuantity)}"></label></div>
        ${this._exoticPicker(node)}
-       ${mats.length?'':notice('Import at least one approved, player-visible material with General Manager first.','warn')}`
+       ${mats.length?'':notice('Import at least one material with General Manager first.','warn')}`
+      :g.source==='template'?this._templatePick(templates)
       :`<label class="ag-field">Gathering node<select data-gather-field="nodeRef"><option value="">Choose a node…</option>${nodeOptions}</select></label>
-       ${where.locations.length?'':emptyState('No gathering resources in Locations yet.','Add gathering resources to a location in Locations, or use an ad-hoc node.')}`;
+       ${where.locations.length?'':emptyState('No gathering resources in Locations yet.','Add gathering resources to a location in Locations, or use a node template or an ad-hoc node.')}`;
     const blocker=g.source==='adhoc'&&node&&!node.materialId?'Choose a common material for the ad-hoc node.'
-      :startBlocker({rosterCount:rosterIds().length,partyCount:party.length,leadInParty:true,node,materialFound:Boolean(node&&worldMaterial(node.materialId)),busy:Boolean(node)&&nodeBusy(node.key)});
+      :g.source==='template'&&!node?(templates.length?'Choose a node template.':'No node templates yet: create one in Gathering Nodes.')
+      :startBlocker({rosterCount:rosterIds().length,partyCount:party.length,leadInParty:true,node,...nodeMaterialCheck(node,g.allowDraft),busy:Boolean(node)&&nodeBusy(node.key)});
     const ready=!blocker;
     const lead0=lead,rollers=allUsers().filter(u=>u.active&&!u.isGM&&lead0.testUserPermission?.(u,'OWNER'));
     const startLabel=rollers.length?`Send gathering check to ${nameList(rollers)}`:'Start gathering check (you roll)';
     return `${this._gatherQueue()}${sessions}${last}<section class="ag-card agl-panel"><h2>Start gathering</h2>
       <p class="agl-sub">One lead gatherer, one check per node for the party. Helpers with suitable tools give advantage, not another attempt. Success gives one common bundle; success by 5+ gives one rare bundle instead. A success can also find one Exotic when the node has Exotic candidates (only an awarded Exotic is shown to players). Failure exhausts the node. Players can also request a node from their Gathering tab: requests wait in the Requests list above.</p>
-      <div class="ag-segmented" role="radiogroup" aria-label="Node source"><button type="button" role="radio" aria-checked="${g.source!=='adhoc'}" data-action="gather-source" data-id="location" ${where.ok?'':`disabled data-tooltip="${esc(where.reason)}" data-tooltip-class="ag-tooltip"`}>Location node</button><button type="button" role="radio" aria-checked="${g.source==='adhoc'}" data-action="gather-source" data-id="adhoc">Ad-hoc node</button></div>
-      ${where.ok?'':`<p class="agl-sub">${esc(where.reason)} Ad-hoc nodes still work.</p>`}
+      <div class="ag-segmented" role="radiogroup" aria-label="Node source"><button type="button" role="radio" aria-checked="${g.source==='location'}" data-action="gather-source" data-id="location" ${where.ok?'':`disabled data-tooltip="${esc(where.reason)}" data-tooltip-class="ag-tooltip"`}>Location node</button><button type="button" role="radio" aria-checked="${g.source==='template'}" data-action="gather-source" data-id="template">Node template</button><button type="button" role="radio" aria-checked="${g.source==='adhoc'}" data-action="gather-source" data-id="adhoc">Ad-hoc node</button></div>
+      ${where.ok?'':`<p class="agl-sub">${esc(where.reason)} Node templates and ad-hoc nodes still work.</p>`}
       ${form}
       ${node?`<p class="agl-sub">${esc(nodeSummary(node))} · common ${node.quantity} × ${esc(node.materialId?materialName(node.materialId):'—')}${node.rareMaterialId?` · rare ${node.rareQuantity} × ${esc(materialName(node.rareMaterialId))}`:''}${node.finite?' · finite':''}${node.note&&node.materialId?` · ${esc(node.note)}`:''}</p>
-        ${g.source!=='adhoc'&&exoticSummary(node)?`<p class="agl-sub">${esc(exoticSummary(node))}</p>`:''}
+        ${g.source!=='adhoc'&&exoticSummary(node,{allowDraft:g.allowDraft})?`<p class="agl-sub">${esc(exoticSummary(node,{allowDraft:g.allowDraft}))}</p>`:''}
         `:''}
       <div class="agl-gather-form">
         <label class="ag-field">Lead gatherer<select data-gather-field="actorId">${party.map(p=>`<option value="${esc(p.id)}" ${p.id===lead.id?'selected':''}>${esc(p.name)}</option>`).join('')}</select></label>
         ${plan?`<div class="agl-sub">${esc(lead.name)}: ${plan.options.slice(0,2).map(o=>{const c=checkOption(lead,o);return `${esc(c.label)} ${formatBonus(c.bonus)}`;}).join(' · ')}${plan.professionId?'':` · no ${esc(plan.profession||'matching')} profession feature (no XP target)`}</div>`:'<div></div>'}
         ${helpers.length?`<fieldset class="agl-gather-eligible"><legend>Helpers</legend>${helpers.map(h=>`<label ${tip(h.reason)}><input type="checkbox" data-gather-helper="${esc(h.id)}" ${g.helperIds.includes(h.id)?'checked':''}> ${esc(h.name)} ${badge(h.eligible?'Advantage':h.reason,h.eligible?'ok':'muted')}</label>`).join('')}</fieldset>`:''}
       </div>
+      <label class="ag-field ag-field--inline"><input type="checkbox" data-gather-allow-draft ${g.allowDraft?'checked':''}> Use draft materials anyway (GM only: awards draft or unreleased materials for this check; players still only see released ones)</label>
       ${blocker?`<p class="agl-reason" role="status">${esc(blocker)}</p>`:''}
       <div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--primary" data-action="gather-start" ${ready?'':'disabled'}><i class="fa-solid fa-seedling" aria-hidden="true"></i> ${esc(startLabel)}</button></div>
     </section>`;
@@ -1728,11 +2045,11 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     this.view=LEGACY_VIEWS[this.view]??this.view;
     if(!game.user.isGM){this.rosterDraft=null;if(GM_VIEWS.has(this.view))this.view='individual';}
     const lib=this.library;
-    const content=({individual:()=>this._individual(lib),party:()=>this._party(lib),catalog:()=>this._catalog(lib),gathering:()=>this._gathering(),assign:()=>this._assign(),gm:()=>this._gmSetup()})[this.view]?.()??this._individual(lib);
+    const content=({individual:()=>this._individual(lib),party:()=>this._party(lib),catalog:()=>this._catalog(lib),gathering:()=>this._gathering(),nodes:()=>this._nodes(),assign:()=>this._assign(),gm:()=>this._gmSetup()})[this.view]?.()??this._individual(lib);
     const inGm=game.user.isGM&&this.view==='gm';
     return {...ctx,html:`<div class="agl-shell"><header class="ag-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Profession Ledger</h1></div>
       <div class="ag-header__meta"><span class="ag-version">v${esc(game.modules.get(ID)?.version??VERSION)}</span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button></div>
-      <input id="agl-file" type="file" accept="application/json,.json" hidden></header>
+      <input id="agl-file" type="file" accept="application/json,.json" hidden>${game.user.isGM?'<input id="agl-node-file" type="file" accept="application/json,.json" hidden>':''}</header>
       <nav class="ag-tabs ag-tabs--scroll" role="tablist" aria-label="Profession Ledger views">${this._tabs()}</nav><main class="agl-main" role="tabpanel">${content}</main>
       <footer class="ag-footer">${inGm?`<button type="button" class="ag-btn ag-btn--ghost" data-action="gm-cancel">Cancel</button><span class="ag-footer__status" role="status" data-agl-roster-status>${this.setupStatus}</span><button type="button" class="ag-btn ag-btn--primary" data-action="roster-save" ${this.setupDirty?'':'disabled'}>Save Changes</button>`
         :`<span class="ag-footer__status agl-footer-note" role="status">${esc(this.notice||'')}</span>`}
@@ -1756,6 +2073,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     this.element.addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b||b.disabled)return;if(b.closest('summary'))e.preventDefault();void this._click(b.dataset.action,b.dataset.id,b.dataset);},{signal});
     this.element.querySelector('#agl-file')?.addEventListener('change',e=>this._upload(e),{signal});
     this.element.querySelector('#agl-xwalk-file')?.addEventListener('change',e=>this._uploadBaseline(e),{signal});
+    this.element.querySelector('#agl-node-file')?.addEventListener('change',e=>this._uploadNodes(e),{signal});
     this.element.addEventListener('toggle',e=>{const key=e.target?.dataset?.folder;if(!key||this.query)return;if(e.target.open)this.closedFolders.delete(key);else this.closedFolders.add(key);},{signal,capture:true});
     this.element.addEventListener('change',e=>{
       if(e.target?.matches?.('[data-agl-actor]')){this.actorId=e.target.value;this.render();return;}
@@ -1764,7 +2082,10 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         if(e.target.checked)next.add(id);else next.delete(id);
         this.gather.helperIds=[...next];if(game.user.isGM)this.render();return;
       }
-      if(e.target?.matches?.('[data-gather-field]')){const f=e.target.dataset.gatherField;if(['actorId','nodeRef'].includes(f)){this.gather[f]=e.target.value;if(f==='actorId')this.gather.helperIds=this.gather.helperIds.filter(id=>id!==e.target.value);this.render();}return;}
+      if(e.target?.matches?.('[data-gather-field]')){const f=e.target.dataset.gatherField;if(['actorId','nodeRef','templateId','templateTier'].includes(f)){this.gather[f]=e.target.value;if(f==='actorId')this.gather.helperIds=this.gather.helperIds.filter(id=>id!==e.target.value);if(f==='templateId')this.gather.templateTier='';this.render();}return;}
+      if(e.target?.matches?.('[data-gather-allow-draft]')&&game.user.isGM){this.gather.allowDraft=e.target.checked;this.render();return;}
+      if(e.target?.matches?.('[data-node-filter]')&&game.user.isGM){this.nodeFilter=e.target.value;this.render();return;}
+      if(e.target?.matches?.('[data-node-field],[data-node-prof],[data-node-mat]')&&game.user.isGM&&this.nodeDraft){if(this._nodeDraftChange(e.target))this.render();return;}
       if(e.target?.matches?.('[data-gather-adhoc]')&&game.user.isGM){this.gather.adhoc[e.target.dataset.gatherAdhoc]=e.target.value;this.render();return;}
       if(e.target?.matches?.('[data-gather-pick]')&&game.user.isGM){this.gather.pick[e.target.dataset.gatherPick]=e.target.value;this.render();return;}
       if(e.target?.matches?.('[data-adhoc-exotic]')&&game.user.isGM){
@@ -1781,6 +2102,28 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     },{signal});
     this.element.querySelector('[data-agl-search]')?.addEventListener('input',e=>{this.query=e.target.value;this._applySearch();},{signal});
     this._applySearch();this._syncRosterActions();}
+  /** Records one node editor input in the draft. Returns true when the editor must re-render (its layout changed). */
+  _nodeDraftChange(el){
+    const d=this.nodeDraft.data;
+    if(el.dataset.nodeProf){const k=el.dataset.nodeProf,set=new Set(d.professions);if(el.checked)set.add(k);else set.delete(k);d.professions=NODE_PROFESSIONS.filter(x=>set.has(x));return false;}
+    if(el.dataset.nodeMat){
+      const row=d[el.dataset.nodeMat]?.[Number(el.dataset.nodeRow)],k=el.dataset.nodeKey;
+      if(!row||!['materialId','quantity','chance','mode','condition'].includes(k))return false;
+      row[k]=el.value;return k==='materialId'||k==='mode';
+    }
+    const f=el.dataset.nodeField;
+    if(['dcVisible','finite'].includes(f)){d[f]=el.checked;return false;}
+    if(!['id','name','activity','tierMin','tierMax','dc','checkSkill','checkTool','note'].includes(f))return false;
+    d[f]=f==='id'?el.value.trim().toUpperCase():el.value;
+    if(f==='tierMin'&&Number(d.tierMax)<Number(d.tierMin))d.tierMax=d.tierMin;
+    if(f==='tierMax'&&Number(d.tierMin)>Number(d.tierMax))d.tierMin=d.tierMax;
+    // Text fields never re-render (that would move focus away while the GM types).
+    return ['activity','tierMin','tierMax'].includes(f);
+  }
+  /** GM: read a node file and show its import preview; nothing is saved until Apply import. */
+  async _uploadNodes(e){if(!game.user.isGM)return;const f=e.target.files?.[0];if(!f)return;
+    try{const data=JSON.parse(await f.text());this.nodeImport={fileName:f.name??'',data,plan:previewNodeFile(data)};this.render();}
+    catch(err){say(`Node file not read: ${err.message}`,true);}finally{if(e.target)e.target.value='';}}
   /** Client-side filter; folders open while searching and hide when empty. */
   _applySearch(){
     const query=this.query.trim().toLowerCase();
@@ -1853,12 +2196,13 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         if(out.award)this.lastAward=out.award;
         this.notice=out.message;this.render();say(out.message,out.ok===false);return;}
       if(action==='adhoc-exotic-add'||action==='adhoc-exotic-remove'){if(!game.user.isGM)throw Error('GM only');
-        if(action==='adhoc-exotic-add'){const why=materialUnavailable(id);if(why)throw Error(why);}
+        // 0.25.0: a draft/unreleased Exotic can be picked (it is found only with "Use draft materials anyway"); a missing one cannot.
+        if(action==='adhoc-exotic-add'){const why=materialUnavailable(id);if(why&&!usableAnyway(materialState(id).state))throw Error(why);}
         const list=this.gather.adhoc.exotics.filter(x=>x.materialId!==id);
         this.gather.adhoc.exotics=normalizeExotics(action==='adhoc-exotic-add'?[...list,{materialId:id,mode:'discovery'}]:list);this.render();return;}
-      if(action==='gather-source'){if(!game.user.isGM)throw Error('GM only');this.gather.source=id==='adhoc'?'adhoc':'location';this.render();return;}
+      if(action==='gather-source'){if(!game.user.isGM)throw Error('GM only');this.gather.source=['adhoc','template'].includes(id)?id:'location';this.render();return;}
       if(action==='gather-start'){if(!game.user.isGM)throw Error('GM only');
-        const session=await startGather({node:this._selectedNode(),leadId:this.gather.actorId,helperIds:this.gather.helperIds});
+        const session=await startGather({node:this._selectedNode(),leadId:this.gather.actorId,helperIds:this.gather.helperIds,allowDraft:this.gather.allowDraft});
         this.gather.nodeRef='';this.gather.helperIds=[];
         this.notice=session.rollerIds.length?`Gathering check sent to ${session.leadName}’s player.`:`No owner of ${session.leadName} is online: roll for them below.`;this.render();say(this.notice);return;}
       if(action==='gather-cancel'){cancelGather(id);this.notice='Gathering check cancelled. Nothing was used.';this.render();return;}
@@ -1880,11 +2224,53 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         this.gather.pending=true;this.render();say('Gathering request sent to the GM.');
         let out;try{out=await requestGather({actorId:actor?.id,locationId,nodeId,helperIds:this.gather.helperIds});}finally{this.gather.pending=false;}
         this.notice=out.message;if(out.ok){this.gather.nodeRef='';this.gather.helperIds=[];}this.render();say(out.message,!out.ok);return;}
-      if(action==='gather-approve'){if(!game.user.isGM)throw Error('Only the GM can approve gathering');await approveGatherRequest(id);this.render();return;}
+      if(action==='gather-approve'){if(!game.user.isGM)throw Error('Only the GM can approve gathering');await approveGatherRequest(id,{allowDraft:data.draft==='1'});this.render();return;}
+      if(action.startsWith('node-')){await this._nodeAction(action,id);return;}
       if(action==='gather-decline'){if(!game.user.isGM)throw Error('Only the GM can decline gathering');
         const reason=this.element?.querySelector?.(`[data-gather-decline-reason="${id}"]`)?.value??'';declineGatherRequest(id,{reason});this.render();return;}
       if(action==='import'){if(!game.user.isGM)throw Error('GM only');this.element.querySelector('#agl-file')?.click();return;}
     }catch(e){console.error(`[${ID}]`,e);say(`Profession Ledger: ${e.message}`,true);}}
+  /** GM: Gathering Nodes tab actions. Every write goes through the GM-only data layer. */
+  async _nodeAction(action,id){
+    requireNodesGM();
+    if(action==='node-new'){this.nodeDraft=nodeDraftOf(null);this.render();return;}
+    if(action==='node-edit'){const t=nodeTemplate(id);if(!t)throw Error(`No node ${id}`);this.nodeDraft=nodeDraftOf(t);this.render();return;}
+    if(action==='node-cancel'){this.nodeDraft=null;this.render();return;}
+    if(action==='node-row-add'){if(!this.nodeDraft||!TABLES.includes(id))return;
+      this.nodeDraft.data[id].push(id==='exotic'?{materialId:'',mode:'discovery',chance:'',condition:'success'}:{materialId:'',quantity:'1',chance:''});this.render();return;}
+    if(action==='node-row-remove'){const [t,i]=String(id).split(':');if(!this.nodeDraft||!TABLES.includes(t))return;this.nodeDraft.data[t].splice(Number(i),1);this.render();return;}
+    if(action==='node-save'){
+      const draft=this.nodeDraft;if(!draft)return;
+      const store=readNodeStore(),taken=new Set([...store.nodes.map(n=>n.id),...store.retiredIds]);
+      const raw=draftTemplate(draft.data,taken),r=saveTemplate(store,raw,{isNew:draft.isNew});
+      if(!r.ok){draft.errors=r.errors;this.render();throw Error(`Node not saved: ${r.errors[0]}${r.errors.length>1?` (+${r.errors.length-1} more)`:''}`);}
+      await writeNodeStore(r.store);
+      this.nodeDraft=null;this.notice=`Saved node ${r.node.name} (${r.node.id}).`;this.render();say(this.notice);return;}
+    if(action==='node-duplicate'){const copy=await duplicateNodeTemplate(id);this.nodeDraft=nodeDraftOf(nodeTemplate(copy.id));this.notice=`Duplicated as ${copy.id}.`;this.render();say(this.notice);return;}
+    if(action==='node-delete'){
+      const t=nodeTemplate(id);if(!t)throw Error(`No node ${id}`);
+      const refs=nodeReferences(id),used=refs.filter(r=>r.kind==='reference'),from=refs.filter(r=>r.kind==='copied-from');
+      const lines=[`Delete the gathering node “${t.name}” (${t.id})? Its id is retired and never reused.`,
+        ...(used.length?[`${plural(used.length,'Location entry','Location entries')} point${used.length===1?'s':''} to this node: ${used.map(r=>r.locationName).join(', ')}. They are not changed or removed; each shows that its node template is gone until you pick another one in Locations.`]:[]),
+        ...(from.length?[`It was copied from ${plural(from.length,'Location entry','Location entries')} (${from.map(r=>r.locationName).join(', ')}); those keep their own gathering data in Locations.`]:[]),
+        'Characters keep everything they already gathered.'];
+      if(!await confirmDialog(lines.join('\n'),{title:'Delete gathering node?',yes:'Delete node',danger:true}))return;
+      await deleteNodeTemplate(id);
+      if(this.nodeDraft?.data.id===id)this.nodeDraft=null;
+      this.notice=`Deleted node ${t.name} (${t.id}).${used.length?` ${plural(used.length,'Location entry','Location entries')} still point${used.length===1?'s':''} to it: pick another node there.`:''}`;this.render();say(this.notice);return;}
+    if(action==='node-import'){this.element.querySelector('#agl-node-file')?.click();return;}
+    if(action==='node-import-cancel'){this.nodeImport=null;this.render();return;}
+    if(action==='node-import-apply'){const p=this.nodeImport;if(!p)throw Error('Choose a node file first');
+      const out=await importNodeFile(p.data);this.nodeImport=null;
+      this.notice=`Imported nodes: ${out.added.length} new, ${out.updated.length} updated${out.kept.length?`, ${out.kept.length} kept as you edited them`:''}${out.retired.length?`, ${out.retired.length} skipped (deleted ids)`:''}.`;this.render();say(this.notice);return;}
+    if(action==='node-export'){const data=exportNodeFile();
+      const save=globalThis.foundry?.utils?.saveDataToFile??globalThis.saveDataToFile;
+      if(typeof save!=='function')throw Error('This Foundry version cannot download files here');
+      save(JSON.stringify(data,null,2),'application/json',`ag-gathering-nodes-${data.exportedAt.slice(0,10)}.gathering-nodes.json`);return;}
+    if(action==='node-copy-locations'){const out=await copyLocationNodes();
+      this.notice=out.created.length||out.linked?`Copied ${plural(out.created.length+out.linked,'Location node')} (${plural(out.created.length,'new template')}). Locations were not changed.`:'No new Location nodes to copy: every Location gathering node has been copied before.';
+      this.render();say(this.notice);return;}
+  }
   /** Unsaved party-roster edits live only in this client until the GM confirms Save. */
   get rosterDirty(){
     if(this.rosterDraft===null)return false;
@@ -2037,8 +2423,10 @@ Hooks.once('init',()=>{
   game.settings.register(ID,'checkMapping',{name:'Profession tools and gathering checks',scope:'world',config:false,type:Object,default:{},onChange:()=>{if(current?.rendered)current.render();}});
   game.settings.register(ID,'checkMappingVersion',{name:'Profession tools and checks data version',scope:'world',config:false,type:Number,default:0});
   game.settings.register(ID,'partyRoster',{name:'Active party Actor IDs',scope:'world',config:false,type:Array,default:[],onChange:()=>{if(current?.rendered)current.render();}});
+  // 0.25.0: GM-only (restricted). Players open the Ledger from the Actors sidebar; with no player-visible setting or menu,
+  // Configure Settings shows players no Profession Ledger section at all.
   game.settings.registerMenu(ID,'open',{name:'Ashen Gate Profession Ledger',label:'Open Profession Ledger',
-    hint:'Professions, materials, recipes and crafting for your character and party. Player interface visibility is GM-controlled.',icon:'fa-solid fa-book-open',type:LedgerApp,restricted:false});
+    hint:'Professions, materials, recipes and crafting for your character and party. Player interface visibility is GM-controlled.',icon:'fa-solid fa-book-open',type:LedgerApp,restricted:true});
 });
 Hooks.once('ready',()=>{
   const module=game.modules.get(ID);if(!module)return;
@@ -2058,13 +2446,29 @@ Hooks.once('ready',()=>{
     craft:(actor,recipeId,options)=>craft(actor,recipeId,options),
     /** Gathering: start/resolve/cancel are GM-only; request is a player asking the GM. */
     gathering:{nodes:()=>{checkPlayerLedger();return structuredClone(gatherLocations());},
-      start:({locationId=null,nodeId=null,node=null,leadId,helperIds=[]}={})=>{checkPlayerLedger();
-        const target=node?normalizeNode({dcVisible:true,...node,id:`adhoc-${newId()}`},{locationId:null}):findNode(locationId,nodeId).node;return startGather({node:target,leadId,helperIds});},
+      start:({locationId=null,nodeId=null,node=null,templateId=null,tier=null,leadId,helperIds=[],allowDraft=false}={})=>{checkPlayerLedger();
+        if(templateId)requireNodesGM();
+        const target=templateId?templateGatherNode(templateId,tier):node?normalizeNode({dcVisible:true,...node,id:`adhoc-${newId()}`},{locationId:null}):findNode(locationId,nodeId).node;
+        if(templateId&&!target)throw Error(`No node template ${templateId}`);
+        return startGather({node:target,leadId,helperIds,allowDraft});},
       resolve:(sessionId,result)=>resolveGather(sessionId,result),cancel:sessionId=>cancelGather(sessionId),
       request:options=>requestGather(options),
       /** GM only (0.21.0): the request queue, and Approve (starts the gather) / Decline (tells the player). */
       requests:()=>{checkPlayerLedger();return listGatherRequests();},
-      approve:requestId=>approveGatherRequest(requestId),decline:(requestId,options)=>declineGatherRequest(requestId,options),
+      approve:(requestId,options)=>approveGatherRequest(requestId,options),decline:(requestId,options)=>declineGatherRequest(requestId,options),
+      /** Node templates (0.25.0, contract ag-gathering-nodes/1), GM only. Locations may point an entry at a template ({nodeId}); see docs/gathering-nodes-schema.md. */
+      templates:{contract:NODE_SCHEMA,schema:NODE_SCHEMA,
+        list:()=>{requireNodesGM();return readNodeStore().nodes.map(t=>({...plainTemplate(t),meta:structuredClone(t.meta),problems:[...t.problems]}));},
+        get:id=>{requireNodesGM();const t=readNodeStore().nodes.find(n=>n.id===id);return t?{...plainTemplate(t),meta:structuredClone(t.meta),problems:[...t.problems]}:null;},
+        check:raw=>{requireNodesGM();const r=checkTemplate(raw);return {ok:!r.errors.length,errors:r.errors,warnings:r.warnings};},
+        create:raw=>saveNodeTemplate(raw,{isNew:true}),update:raw=>saveNodeTemplate(raw,{isNew:false}),
+        duplicate:id=>duplicateNodeTemplate(id),remove:id=>deleteNodeTemplate(id),references:id=>structuredClone(nodeReferences(id)),
+        /** A Location entry ({nodeId, …}) resolved against its template: the node the Ledger gathers. */
+        resolve:entry=>{requireNodesGM();return normalizeNode(resolveEntry(entry??{},id=>nodeTemplate(id)),{locationId:null});},
+        /** What a Location may publish to players for a template: no chances, no Exotics, DC only when shown. */
+        playerView:(id,options)=>{requireNodesGM();const t=nodeTemplate(id);return t?templatePlayerView(t,options):null;},
+        preview:data=>previewNodeFile(data),import:data=>importNodeFile(data),export:()=>exportNodeFile(),
+        copyFromLocations:()=>copyLocationNodes()},
       /** Exotic candidates (contract ag-ledger-exotic/1), GM only: Locations' resource editor uses these when the Ledger is active. */
       exotic:{contract:'ag-ledger-exotic/1',defaultDcByTier:{...DEFAULT_DC_BY_TIER},
         percent:()=>{requireGM();return exoticPercent();},
@@ -2091,10 +2495,14 @@ Hooks.once('ready',()=>{
     version:VERSION,source:'Actor inventories, Manager tagged Items, and optional Ledger catalog'};
   game.socket?.on?.(SOCKET,(message,senderId)=>void onSocket(message,senderId));
   if(game.user?.isGM&&activeGM()?.id===game.user.id)void migrateMapping();
+  // 0.25.0: after every module's ready (Locations sets its API there), copy Location gathering nodes into templates once.
+  if(game.user?.isGM&&activeGM()?.id===game.user.id)setTimeout(()=>void autoMigrateNodes(),0);
   // 0.21.0: the request queue lives on the GM's client; after a GM reload tell players their waiting requests are gone.
   if(game.user?.isGM&&activeGM()?.id===game.user.id)sendSocket({type:'gather-requests-cleared'});
   const refresh=()=>{if(current?.rendered)current.render();refreshEmbeds();};
   for(const hook of ['updateActor','createItem','updateItem','deleteItem'])Hooks.on(hook,refresh);
+  // Another GM client saved node templates.
+  for(const hook of ['createJournalEntry','updateJournalEntry'])Hooks.on(hook,doc=>{if(game.user?.isGM&&doc?.getFlag?.(ID,'role')==='gm-data')refresh();});
   // Handle Actor Directory already rendered before ready hook ran.
   addActorDirectoryLauncher(globalThis.ui?.actors, globalThis.ui?.actors?.element);
   console.info(`[${ID}] v${VERSION} ready. Open from the Actors directory, Module Settings or game.modules.get('${ID}').api.open()`);
@@ -2121,4 +2529,5 @@ Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateChatCard(message,h
 /** Test seam for the Node suite (mocked Foundry); not part of the public API. */
 export const _test={craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
   startGather,resolveGather,cancelGather,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,myGatherRequests,
-  setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,gatherSessions,decorateChatCard,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations};
+  setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,gatherSessions,decorateChatCard,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
+  readNodeStore,writeNodeStore,copyLocationNodes,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites};

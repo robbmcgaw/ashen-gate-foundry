@@ -1,3 +1,12 @@
+## 1.18.0 — 2026-10-22
+
+- **Node templates (Profession Ledger 0.25.0+):** under *Gathering Resources*, choose a node template (grouped by activity) and click **Add node**. The entry stores only a reference (`nodeId: 'NODE-…'`) plus what belongs to the place: its name here, tier (inside the template's range), DC, whether players see the DC, finite, available and a note. Leave a field blank / on *Template* to use the template's value. The template's name, activity, tier range and materials are shown read only; **Gathering Nodes** / **Open in Ledger** opens the Ledger's Gathering Nodes tab to edit them.
+- A template that has been deleted never breaks the Location: the entry shows "Node template NODE-… no longer exists" and keeps its data. Without the Ledger (or if it refuses the GM-only call) the editor shows the custom-node entry as before, with a note.
+- **Players** see a referenced node in the Ledger's player shape (`templates.playerView`): name, activity, tier, the first common/rare material and quantity, finite and play state. Never chances, Exotic candidates, the template's note or a DC that is not shown. The player page is rebuilt from the template whenever Locations writes it (Save, Publish, exhaust).
+- **Hunting:** "Skinning & Harvesting" and "Hunting/Skinning" read as *Hunting* everywhere in Locations (skill list, editor, cards, player pages). Stored values are migrated on read; a record is only rewritten when you next save it. Imports are not rewritten.
+- Import/export and General Manager's hand-off carry `nodeId` entries unchanged; `scripts/validate-content.mjs` checks them (a NODE-* id, no inline materials on a reference).
+- Saved data: additive. Entries without `nodeId` read exactly as before. No migration.
+
 ## 1.17.4 — 2026-10-21
 
 - Character Hub level-up backups (the GM-only "<Name> - level X" copies) no longer appear in the night-watch list, with or without a Primary Party, and the API refuses one as a watch. Players never see a backup's name in the watch order.

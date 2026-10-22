@@ -1,50 +1,124 @@
-// Quests tab (GM-only) logic: rows, chips, filter, sort, group. No Foundry globals.
-import {STATUSES,publicView,associatedLocationIds} from './core.mjs';
+// Quests tab (GM-only) logic: rows, sub-views, filter, sort, group. No Foundry globals.
+import {STATUSES,publicView,associatedLocationIds,rewardRows} from './core.mjs';
 export const CHIPS=Object.freeze(['Draft',...STATUSES]);
 export const KIND_LABELS=Object.freeze({quest:'Quest',work_order:'Order',contract:'Contract'});
-export const SORTS=Object.freeze([['name','Title A-Z'],['status','Status'],['type','Type'],['id','ID']]);
-export const GROUPS=Object.freeze([['none','No grouping'],['status','Status'],['type','Type']]);
+// 0.15.0 Sub-views inside the Quests tab, each with a count. `test` picks the rows the view shows.
+export const SUBVIEWS=Object.freeze([
+ {key:'all',label:'All',hint:'Every quest, order and contract',test:()=>true},
+ {key:'drafts',label:'Drafts',hint:'Drafts are GM only until you give them a status',test:r=>r.chip==='Draft'},
+ {key:'hidden',label:'Hidden',hint:'Hidden quests that are not drafts',test:r=>r.chip==='Hidden'},
+ {key:'active',label:'Active',hint:'Available or Active',test:r=>r.chip==='Available'||r.chip==='Active'},
+ {key:'closed',label:'Completed / Failed',hint:'Completed or Failed',test:r=>r.chip==='Completed'||r.chip==='Failed'},
+ {key:'orders',label:'Orders',hint:'Work orders (crafting or production)',test:r=>r.kind==='work_order'},
+ {key:'contracts',label:'Contracts',hint:'Contracts',test:r=>r.kind==='contract'},
+]);
+export const SORTS=Object.freeze([['name','Title A-Z'],['status','Status'],['location','Location'],['changed','Recently changed'],['type','Type'],['id','ID']]);
+export const GROUPS=Object.freeze([['none','No grouping'],['status','Status'],['location','Location'],['type','Type'],['giver','Giver']]);
 // Draft is derived, not stored: a definition still marked draft/proposed that was never taken out of Hidden.
 export function statusChip(source,state){
  if(state.status==='Hidden'&&['draft','proposed'].includes(source.status))return 'Draft';
  return state.status;
 }
 export function isPlayerVisible(source,state){try{return !!publicView(source,state);}catch{return false;}}
-export function questRow({source,state}){
+// Giver or faction, when the quest names one: typed refs whose relation says so, or a giver/faction string on the
+// source descriptor. Quest files have no dedicated giver field; nothing is guessed from free text.
+const GIVER_RELATION=/giver|issuer|issued|offered|patron|employer|client|faction|sponsor/i;
+export function questGivers(source){
+ const refs=(source.refs||[]).filter(r=>GIVER_RELATION.test(r?.relation||'')).map(r=>r.target_id);
+ const named=['giver','faction','issuer'].map(k=>source.source?.[k]).filter(v=>typeof v==='string'&&v.trim()).map(v=>v.trim());
+ return [...new Set([...refs,...named].filter(Boolean))];
+}
+// When no typed giver is named, the source descriptor's free text (GM-only issuer notes) is shown as the quest's source.
+export function questSource(source){return questGivers(source).length?'':String(source.source?.description??'').trim();}
+// Tags are optional: a quest file may carry a `tags` list; the Quest Log adds none.
+export const questTags=source=>Array.isArray(source.tags)?source.tags.filter(t=>typeof t==='string'&&t.trim()):[];
+/** GM reward summary: item rows not taken out (name from the row or itemName(itemId)), plus the suggested-rewards text. */
+export function rewardSummary(source,state,itemName=()=>null){
+ let rows=[];try{rows=rewardRows(source,state);}catch{}
+ const items=rows.filter(r=>!r.removed&&!r.gone).map(r=>({name:(r.origin==='gm'?r.ref?.name:itemName(r.itemId))||r.itemId||'Item',quantity:r.quantity}));
+ return {items,text:String(source.outcomes?.description??'').trim()};
+}
+/**
+ * One card per quest. ctx: {actorName(id), locationName(id), itemName(itemId)}; entries may carry `changed`
+ * (ms, the GM record's last write).
+ */
+export function questRow({source,state,changed=null},ctx={}){
+ const locations=[...new Set([...associatedLocationIds(source),...(state.publicLocationIds||[])])];
+ const locName=id=>ctx.locationName?.(id)||id;
  return {id:source.id,name:source.name||source.id,kind:source.objective_kind,kindLabel:KIND_LABELS[source.objective_kind]||source.objective_kind,
   chip:statusChip(source,state),visible:isPlayerVisible(source,state),
-  locations:[...new Set([...associatedLocationIds(source),...(state.publicLocationIds||[])])],
+  locations,locationNames:locations.map(locName),givers:questGivers(source),sourceText:questSource(source),tags:questTags(source),
+  audience:state.scope==='individual'?{scope:'individual',actorId:state.actorId,name:(state.actorId&&ctx.actorName?.(state.actorId))||state.actorId||'No character chosen'}:{scope:'party'},
+  rewards:rewardSummary(source,state,ctx.itemName),changed:Number.isFinite(changed)?changed:null,
   summary:String(source.public_summary||''),
   total:(source.objectives||[]).length,done:(source.objectives||[]).filter(o=>state.progress?.[o.key]==='complete').length};
 }
-export const DEFAULT_VIEW=Object.freeze({search:'',type:'all',status:'all',location:'all',visible:'all',sort:'name',group:'status'});
-export function locationOptions(rows){return [...new Set(rows.flatMap(r=>r.locations))].sort();}
+export const DEFAULT_VIEW=Object.freeze({search:'',nav:'all',type:'all',status:'all',location:'all',visible:'all',sort:'name',group:'status'});
+export function locationOptions(rows){
+ const names=new Map();for(const r of rows)r.locations.forEach((id,i)=>names.set(id,r.locationNames?.[i]||id));
+ return [...names].sort((a,b)=>a[1].localeCompare(b[1])||a[0].localeCompare(b[0]));
+}
+const subview=key=>SUBVIEWS.find(v=>v.key===key)||SUBVIEWS[0];
+export function navCounts(rows){return Object.fromEntries(SUBVIEWS.map(v=>[v.key,rows.filter(v.test).length]));}
+/** Search matches title, id, location (id or name), giver or source text, tags, audience character, type, status and summary. */
+export function matchesSearch(r,search){
+ const q=String(search??'').trim().toLowerCase();if(!q)return true;
+ return [r.name,r.id,r.summary,r.kindLabel,r.chip,...r.locations,...(r.locationNames||[]),...(r.givers||[]),r.sourceText,...(r.tags||[]),r.audience?.name]
+  .some(t=>t!=null&&String(t).toLowerCase().includes(q));
+}
 export function filterRows(rows,v={}){
- const f={...DEFAULT_VIEW,...v},q=String(f.search).trim().toLowerCase();
- return rows.filter(r=>(f.type==='all'||r.kind===f.type)&&(f.status==='all'||r.chip===f.status)
+ const f={...DEFAULT_VIEW,...v},nav=subview(f.nav);
+ return rows.filter(r=>nav.test(r)&&(f.type==='all'||r.kind===f.type)&&(f.status==='all'||r.chip===f.status)
   &&(f.location==='all'||r.locations.includes(f.location))
-  &&(f.visible==='all'||(f.visible==='yes')===r.visible)
-  &&(!q||[r.name,r.id,r.summary,r.kindLabel,r.chip,...r.locations].some(t=>String(t).toLowerCase().includes(q))));
+  &&(f.visible==='all'||(f.visible==='yes')===r.visible)&&matchesSearch(r,f.search));
 }
 const byName=(a,b)=>a.name.localeCompare(b.name)||a.id.localeCompare(b.id);
+const firstLoc=r=>r.locationNames?.length?[...r.locationNames].sort((a,b)=>a.localeCompare(b))[0]:null;
 export function sortRows(rows,sort='name'){
  const rank=r=>CHIPS.indexOf(r.chip);
- const cmp={name:byName,id:(a,b)=>a.id.localeCompare(b.id),status:(a,b)=>rank(a)-rank(b)||byName(a,b),type:(a,b)=>a.kindLabel.localeCompare(b.kindLabel)||byName(a,b)}[sort]||byName;
+ const cmp={name:byName,id:(a,b)=>a.id.localeCompare(b.id),status:(a,b)=>rank(a)-rank(b)||byName(a,b),type:(a,b)=>a.kindLabel.localeCompare(b.kindLabel)||byName(a,b),
+  // Quests without a location go last; never-changed ones go last when sorting by change.
+  location:(a,b)=>{const x=firstLoc(a),y=firstLoc(b);return x===y?byName(a,b):x===null?1:y===null?-1:x.localeCompare(y)||byName(a,b);},
+  changed:(a,b)=>(b.changed??-Infinity)-(a.changed??-Infinity)||byName(a,b)}[sort]||byName;
  return [...rows].sort(cmp);
 }
-/** [{key,label,rows}]; empty groups are dropped. */
+/** [{key,label,rows}]; empty groups are dropped. Location and giver groups use the first one (A-Z), giver falling back to
+    the source text; "None" last. */
 export function groupRows(rows,group='status'){
  if(group==='none')return [{key:'all',label:'All quests',rows}];
- const keys=group==='status'?CHIPS:Object.values(KIND_LABELS);
- const keyOf=r=>group==='status'?r.chip:r.kindLabel;
- return keys.map(k=>({key:k,label:k,rows:rows.filter(r=>keyOf(r)===k)})).filter(g=>g.rows.length);
+ if(group==='status'||group==='type'){
+  const keys=group==='status'?CHIPS:Object.values(KIND_LABELS),keyOf=r=>group==='status'?r.chip:r.kindLabel;
+  return keys.map(k=>({key:k,label:k,rows:rows.filter(r=>keyOf(r)===k)})).filter(g=>g.rows.length);
+ }
+ const keyOf=group==='location'?firstLoc:r=>r.givers?.length?[...r.givers].sort((a,b)=>a.localeCompare(b))[0]:r.sourceText||null;
+ const none=group==='location'?'No location':'No giver';
+ const keys=[...new Set(rows.map(keyOf).filter(k=>k!==null))].sort((a,b)=>a.localeCompare(b));
+ const out=keys.map(k=>({key:k,label:k,rows:rows.filter(r=>keyOf(r)===k)}));
+ const rest=rows.filter(r=>keyOf(r)===null);if(rest.length)out.push({key:'none',label:none,rows:rest});
+ return out;
 }
-export function listQuestsTab(entries,view={}){
- const all=entries.map(questRow),f={...DEFAULT_VIEW,...view};
+export function listQuestsTab(entries,view={},ctx={}){
+ const all=entries.map(e=>questRow(e,ctx)),f={...DEFAULT_VIEW,...view};
  const shown=sortRows(filterRows(all,f),f.sort);
- return {total:all.length,shown:shown.length,groups:groupRows(shown,f.group),locations:locationOptions(all)};
+ return {total:all.length,shown:shown.length,groups:groupRows(shown,f.group),locations:locationOptions(all),counts:navCounts(all),ids:shown.map(r=>r.id)};
+}
+/** "just now", "5 min ago", "3 h ago", "2 days ago", then the date. */
+export function changedLabel(ms,now=Date.now()){
+ if(!Number.isFinite(ms))return '';
+ const s=Math.max(0,Math.round((now-ms)/1000));
+ if(s<60)return 'just now';if(s<3600)return `${Math.floor(s/60)} min ago`;if(s<86400)return `${Math.floor(s/3600)} h ago`;
+ if(s<86400*14){const d=Math.floor(s/86400);return `${d} ${d===1?'day':'days'} ago`;}
+ return new Date(ms).toISOString().slice(0,10);
+}
+// 0.15.0 The GM's last Quests view and editor sections, kept per user (User flag `gmView`). Search is not kept.
+export const EDITOR_SECTIONS=Object.freeze([['basics','Basics',true],['audience','Audience',true],['objectives','Objectives',true],['rewards','Rewards',false],['status','Campaign status and reveal',true],['gmnotes','GM notes',false]]);
+export function gmViewState(raw){
+ const r=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:{};
+ const pick=(v,list,d)=>list.includes(v)?v:d;
+ const sections=Object.fromEntries(EDITOR_SECTIONS.map(([k,,open])=>[k,typeof r.sections?.[k]==='boolean'?r.sections[k]:open]));
+ return {nav:pick(r.nav,SUBVIEWS.map(v=>v.key),'all'),sort:pick(r.sort,SORTS.map(x=>x[0]),'name'),group:pick(r.group,GROUPS.map(x=>x[0]),'status'),sections};
 }
 // Actions that author or manage content. GM Setup must never offer these.
-export const CONTENT_ACTIONS=Object.freeze(['new','gm-select','save-source','save-state','cancel-edit','clear-filters','delete','import','export','add-objective','save-assignment','edit-assignment','remove-assignment']);
+export const CONTENT_ACTIONS=Object.freeze(['new','gm-select','save-quest','cancel-edit','clear-filters','delete','import','export','add-objective','save-assignment','edit-assignment','remove-assignment','bulk-status','bulk-hide','bulk-reveal','bulk-duplicate','bulk-delete','bulk-all','bulk-clear']);
 // GM Setup saves every setting with one Save Changes (Player Access included, D4); Cancel puts the form back.
 export const SETUP_ACTIONS=Object.freeze(['save-setup','cancel-setup','toggle-overlay']);

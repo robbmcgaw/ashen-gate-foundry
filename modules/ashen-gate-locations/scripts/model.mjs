@@ -46,10 +46,24 @@ export const LOOT_STATUS_LABELS = Object.freeze({available: 'Available', discove
  * 1.9.0: dcByTier is 10/12/15/18/20, kept equal to the Ledger's DEFAULT_DC_BY_TIER (a test checks both).
  * legacyDcByTier is the pre-1.9.0 table: a stored DC equal to it still counts as "the tier default" in the editor. */
 export const GATHERING = Object.freeze({
-  skills: Object.freeze(['Herbalism', 'Mining', 'Fishing', 'Skinning & Harvesting', 'Archaeology']),
+  // 1.18.0: Hunting (was "Skinning & Harvesting"; that and "Hunting/Skinning" still read, as Hunting).
+  skills: Object.freeze(['Herbalism', 'Mining', 'Fishing', 'Hunting', 'Archaeology']),
   dcByTier: Object.freeze({1: 10, 2: 12, 3: 15, 4: 18, 5: 20}),
   legacyDcByTier: Object.freeze({1: 10, 2: 12, 3: 13, 4: 14, 5: 15})
 });
+/** Old names of the Hunting activity. A stored skill that is one of them reads as "Hunting" (migrate on read; the record
+ *  is only rewritten when the GM next saves it). The Ledger reads both names as the same profession. */
+const HUNTING_ALIASES = new Set(['skinning & harvesting', 'skinning and harvesting', 'hunting/skinning', 'hunting / skinning', 'hunting & skinning', 'huntingskinning', 'skinning']);
+export const gatheringSkill = value => {
+  const s = line(value, 80);
+  return HUNTING_ALIASES.has(s.toLowerCase()) ? 'Hunting' : s;
+};
+/** 1.18.0: Profession Ledger 0.25.0 node templates. A gathering entry may refer to one by its permanent NODE-* id. */
+export const NODE_ID = /^NODE-[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
+/** The Ledger's activity keys, as Locations shows them. */
+export const ACTIVITY_LABELS = Object.freeze({mining: 'Mining', herbalism: 'Herbalism', hunting: 'Hunting', fishing: 'Fishing', archaeology: 'Archaeology'});
+export const activityLabel = key => ACTIVITY_LABELS[key] ?? '';
+export const isNodeRef = e => NODE_ID.test(e?.nodeId ?? '');
 /** Exotic candidates on a node (1.9.0), GM only. The Ledger owns the rules; Locations stores the choice:
  * random discovery, or a designated source with its own chance (1–100, required) and condition (any success / by 5+). */
 export const EXOTIC_MODES = Object.freeze(['discovery', 'designated']);
@@ -129,11 +143,24 @@ function entry(raw, extra) {
   return {key: line(e.key ?? e.id, 40) || newKey(), visible: bool(e.visible, true), ...extra(e)};
 }
 const linked = e => ({uuid: safeUuid(e.uuid), docType: line(e.docType, 40)});
+/** Optional true/false that falls back to the template's value: null. */
+const tri = value => typeof value === 'boolean' ? value : null;
+/**
+ * 1.18.0: a gathering entry that refers to a Ledger node template. The template (owned by the Ledger) gives the activity,
+ * professions, check and material tables; the entry keeps only what belongs to the place. `tier`, `dc`, `dcVisible` and
+ * `finite` are null when the template's value applies; `label` '' means the template's name. Play state as before.
+ */
+const nodeRef = e => {
+  const finite = tri(e.finite);
+  return {nodeId: e.nodeId, label: line(e.label), tier: int(e.tier, null, 1, 5), dc: int(e.dc, null, 1, 40), dcVisible: tri(e.dcVisible), finite,
+    exhausted: finite !== false && bool(e.exhausted, false), available: bool(e.available, true), note: line(e.note, 500)};
+};
 const ENTRY_SHAPES = {
-  // A gathering node. 1.0.x entries (label/materialId/available only) get tier 1, DC 10, finite.
+  // A gathering node. 1.0.x entries (label/materialId/available only) get tier 1, DC 10, finite. With a NODE-* nodeId: a reference (above).
   resources: e => {
+    if (isNodeRef(e)) return nodeRef(e);
     const tier = int(e.tier, 1, 1, 5), finite = bool(e.finite, true);
-    return {label: line(e.label), skill: line(e.skill, 80), tier, dc: int(e.dc, GATHERING.dcByTier[tier], 1, 40), dcVisible: bool(e.dcVisible, false),
+    return {label: line(e.label), skill: gatheringSkill(e.skill), tier, dc: int(e.dc, GATHERING.dcByTier[tier], 1, 40), dcVisible: bool(e.dcVisible, false),
       materialId: matId(e.materialId), quantity: int(e.quantity, 1, 1, 999),
       rareMaterialId: matId(e.rareMaterialId), rareQuantity: int(e.rareQuantity, 1, 1, 999),
       finite, exhausted: finite && bool(e.exhausted, false), available: bool(e.available, true),
@@ -154,7 +181,7 @@ const DETAIL_SHAPE = e => ({title: line(e.title), text: text(e.text), ...linked(
 const KEEP_ENTRY = {
   conditions: e => e.label || e.text,
   loot: e => e.label || e.text || e.uuid,
-  resources: e => e.label || e.materialId || e.rareMaterialId || e.uuid,
+  resources: e => e.nodeId || e.label || e.materialId || e.rareMaterialId || e.uuid,
   factions: e => e.label || e.uuid,
   quests: e => e.questId,
   related: e => e.locationId,
@@ -405,8 +432,9 @@ export function effectiveConditions(raw, all = [], {player = false, normalized =
  * ones by name and unidentified ones by their label. Quests carry ids only; Quest Manager decides
  * what a player sees. `label` is the world fallback for the unidentified label. `normalized` (optional): `all`
  * already run through normalizeLocation, so a caller building many views normalizes the list once, not per view.
+ * `nodeView(nodeId, {tier})` (1.18.0, GM client only): the Ledger's templates.playerView, for entries that refer to a node template.
  */
-export function playerView(raw, all = [], {label = '', normalized = null} = {}) {
+export function playerView(raw, all = [], {label = '', normalized = null, nodeView = null} = {}) {
   const loc = normalizeLocation(raw);
   const pub = loc.published;
   if (!loc.id || loc.state === 'hidden' || !pub) return null;
@@ -422,7 +450,7 @@ export function playerView(raw, all = [], {label = '', normalized = null} = {}) 
   const view = {id: loc.id, key: loc.pinKey, state: 'revealed', name: pub.name};
   for (const f of FIELDS) if (pub.show[f] && pub[f]) view[f] = pub[f];
   const on = key => pub.sections[key] ? pub[key].filter(e => e.visible) : [];
-  const resources = on('resources').map(nodeForPlayer);
+  const resources = on('resources').map(e => nodeForPlayer(e, nodeView));
   const factions = on('factions').map(e => ({label: e.label, uuid: e.uuid, docType: e.docType, note: e.note}));
   const quests = on('quests').map(e => e.questId);
   // A link (parent, children, related) appears only if everyone who can read this card can also see its target.
@@ -492,16 +520,42 @@ export function notePatch(note, pinKey, pres) {
   return Object.keys(patch).length ? patch : null;
 }
 
-/** Node fields in a fixed order. The player copy drops the GM toggles, and the DC unless shown. */
+/** Node fields in a fixed order. The player copy drops the GM toggles, and the DC unless shown. A template reference
+ *  (1.18.0) keeps its own fields, as the Ledger's templates.resolve(entry) reads them. */
 export function nodeForGM(e) {
+  if (isNodeRef(e)) {
+    const {key, nodeId, label, tier, dc, dcVisible, finite, exhausted, available, visible, note} = e;
+    return {id: key, nodeId, label, tier, dc, dcVisible, finite, exhausted, available, note, visible};
+  }
   const {key, label, skill, tier, dc, dcVisible, materialId, quantity, rareMaterialId, rareQuantity, finite, exhausted, available, visible, uuid, note} = e;
   return {id: key, label, skill, tier, dc, materialId, quantity, rareMaterialId, rareQuantity, finite, exhausted, available, note, uuid, visible, dcVisible,
     exotics: normalizeExotics(e.exotics)};
 }
-/** Players never get Exotic candidates (or the GM toggles, or a DC the GM has not shown). */
-export function nodeForPlayer(e) {
+/**
+ * Players never get Exotic candidates (or the GM toggles, or a DC the GM has not shown). A template reference becomes the
+ * Ledger's player shape (templates.playerView: no chances, no Exotics, DC only when shown) with the place's own label,
+ * DC, finite and play state on top. Without the Ledger, or for a deleted template, players get the place's own fields only.
+ */
+export function nodeForPlayer(e, nodeView = null) {
+  if (isNodeRef(e)) return refForPlayer(e, nodeView);
   const {visible, dcVisible, dc, exotics, ...rest} = nodeForGM(e);
   return dcVisible ? {...rest, dc} : rest;
+}
+const REF_FIELDS = ['materialId', 'quantity', 'rareMaterialId', 'rareQuantity'];
+function refForPlayer(e, nodeView) {
+  let v = null;
+  try { v = typeof nodeView === 'function' ? nodeView(e.nodeId, {tier: e.tier}) ?? null : null; } catch { v = null; }
+  if (v && typeof v !== 'object') v = null;
+  const finite = e.finite ?? (typeof v?.finite === 'boolean' ? v.finite : true);
+  const out = {id: e.key, nodeId: e.nodeId, label: e.label || line(v?.label) || 'Gathering spot', skill: activityLabel(v?.activity) || gatheringSkill(v?.skill),
+    activity: v && ACTIVITY_LABELS[v.activity] ? v.activity : '', tier: int(v?.tier, e.tier, 1, 5)};
+  // The DC: the place's own when it sets one, else the template's (which the Ledger only gives when the template shows it).
+  const shown = e.dcVisible ?? (v?.dc != null);
+  const dc = e.dc ?? int(v?.dc, null, 1, 40);
+  if (shown && dc != null) out.dc = dc;
+  if (v) for (const k of REF_FIELDS) out[k] = k.endsWith('Id') ? matId(v[k]) : int(v[k], 1, 1, 999);
+  Object.assign(out, {finite, exhausted: finite && e.exhausted, available: e.available, note: e.note});
+  return out;
 }
 export const nodeName = n => n.label || n.materialId || n.rareMaterialId || 'Resource';
 
@@ -625,7 +679,7 @@ export function importRecords(records, existing = [], {mode = 'skip'} = {}) {
     const exhausted = new Set(old.resources.filter(n => n.exhausted).map(n => n.key));
     // Who may see it is play state too, like the marker state.
     Object.assign(incoming, {pinKey: old.pinKey, state: old.state, revealed: old.revealed, published: old.published, audience: old.audience});
-    for (const n of incoming.resources) if (n.finite && exhausted.has(n.key)) n.exhausted = true;
+    for (const n of incoming.resources) if (n.finite !== false && exhausted.has(n.key)) n.exhausted = true;
     updated.push(incoming);
   }
   return {created, updated, skipped};

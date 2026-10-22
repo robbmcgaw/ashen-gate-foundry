@@ -42,6 +42,7 @@
  */
 import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL, normalizeLocation, playerView, viewHtml, pinPresentation, notePatch, uniquePinKeys, PIN_KEY,
   normalizeNotes, notesMirror, reconcileNotes, inAudience, resolvePassConditions, newPinKey, isLevelBackup} from './model.mjs';
+import {nodePlayerView} from './ledger-nodes.mjs';
 import {normalizeRoute, routeAudiences, defaultLeg, endRef, routeVariantFor} from './routes.mjs';
 import {normalizeJourney, journeyView, progressFromRouteStart} from './journey.mjs';
 import {drawingShouldShow, drawingPatch, drawingPath, orientPath, pointAlong, routeLineData} from './drawing.mjs';
@@ -58,7 +59,9 @@ const FOLDER_PATH = ['Ashen Gate', 'Locations'];
 function setting(key, fallback) {
   try { return game.settings.get(MODULE_ID, key) || fallback; } catch { return fallback; }
 }
-export const presentationOptions = () => ({label: setting('unidentifiedLabel', DEFAULT_UNIDENTIFIED_LABEL), unknownImg: setting('unknownPinImage', '')});
+/** 1.18.0: on a GM client, `nodeView` gives the Ledger's player-safe view of a node template (null without the Ledger). */
+export const presentationOptions = () => ({label: setting('unidentifiedLabel', DEFAULT_UNIDENTIFIED_LABEL), unknownImg: setting('unknownPinImage', ''),
+  ...(isGM() ? {nodeView: nodePlayerView} : {})});
 
 const levels = () => globalThis.CONST?.DOCUMENT_OWNERSHIP_LEVELS ?? {INHERIT: -1, NONE: 0, OBSERVER: 2, OWNER: 3};
 const htmlFormat = () => globalThis.CONST?.JOURNAL_ENTRY_PAGE_FORMATS?.HTML ?? 1;

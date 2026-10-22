@@ -26,10 +26,10 @@ test("V14-shaped runtime registers GM-only settings menu and exposes launcher", 
   callbacks.get("init")();
   assert.equal(menu.length,3);
   assert.equal(menu[2].key,"npcCodex");
-  assert.equal(menu[2].restricted,false,"the player codex is player-safe; the GM side checks every request");
+  assert.equal(menu[2].restricted,true,"0.45.0: hidden from players until the GM shares the Codex (then ready/onChange lift it)");
   assert.equal(menu[0].key,"manager");
   assert.equal(menu[1].key,"myAppearance");
-  assert.equal(menu[1].restricted,false);
+  assert.equal(menu[1].restricted,true,"0.45.0: players open My Appearance from Utilities, not Game Settings");
   assert.equal(menu[0].restricted,true);
   assert.equal(typeof menu[0].type,"function");
   callbacks.get("ready")();

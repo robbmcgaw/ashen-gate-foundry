@@ -13,11 +13,13 @@ import {systemOf, browseLibrary, inspectLibrary, describeLaunchers, orderLibrary
 import {openAshenLauncher} from "./launchers.js";
 import {mountManagerLauncher} from "./items-launcher.js";
 import {collectPlayerAccess, changePlayerAccess, hideAllPlayerInterfaces} from "./player-access.js";
+import {followHubVisibility} from "./hub-visibility.js";
+import {LAYOUT_SETTING, FOLDS, normalizeLayout, noteDrawerChanges, drawerContext} from "./import-layout.js";
 import {moduleCards} from './module-cards.js';
 import {itemTooltipAttrs, previewHtml} from './item-preview.js';
 import {chooseIcon,markerTargets,buildUuidIndex,resolveRichText,resolveTypedRefs,appendReferenceBlock} from "./import-fidelity.js";
 import {moduleRecordLookup} from "./module-records.js";
-import {ensureFolder} from "./folders.js";
+import {ensureFolder, renameManagerFolders, FOLDER_RENAMES_SETTING} from "./folders.js";
 import {readImportZip, readImportBundle, planBundleImport, bundleSummary, adaptRecordArtwork, uploadMatchingArt} from "./zip-import.js";
 import {CAPTURE_TYPES, normalizeCaptureFlag, buildCapturePackage} from "./capture.js";
 import {compilePackage, dependencyOrder, normalizeRef, docManagerSnapshot, localEdits, planLifecycle, buildSourceReplacementPatch} from "./workflows.js";
@@ -213,7 +215,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     position: {width:1020, height:820}
   };
   // One scroll region per pane (header and tabs stay put); the Items list column scrolls on its own. Both keep their place on re-render.
-  static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`, scrollable: [".agm-pane", ".aglib-rows"]}};
+  static PARTS = {main: {template: `modules/${MODULE_ID}/templates/manager.hbs`, scrollable: [".agm-pane", ".aglib-rows", ".agm-drawer__body", ".agm-preview-table"]}};
 
   constructor(options={}) {
     // Kit 2: the default size grows with the Comfortable size set (read when the window is created).
@@ -298,9 +300,19 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.clLinkOnly = new Set();
     this.clMessage = "Scan finds 2024 core items for Ashen Gate world Items that carry core_ref. Nothing changes until Apply.";
     this.setupMessage = "";
+    // 0.45.0: Import tab folds and message drawer, remembered on this device.
+    this.layout = null;
+    this.drawerSeen = "";
     this.applyProfile();
   }
 
+  #layout() {
+    if(!this.layout){let raw=null;try{raw=game.settings.get(MODULE_ID,LAYOUT_SETTING);}catch{raw=null;}this.layout=normalizeLayout(raw);}
+    return this.layout;
+  }
+  #saveLayout() {
+    try{void Promise.resolve(game.settings.set(MODULE_ID,LAYOUT_SETTING,this.layout)).catch(()=>{});}catch{/* this device just forgets the layout */}
+  }
   applyProfile() {
     const profiles={development:{includeDrafts:true},"session-safe":{includeDrafts:false}};
     this.includeDrafts=profiles[this.profile]?.includeDrafts??true;
@@ -556,11 +568,19 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const playerAccessRows=game.user?.isGM ? await collectPlayerAccess(game.modules?.values?.()??[]) : [];
     const launcherRows=describeLaunchers(game.modules?.values?.()??[],menus).map(row=>({...row,playerAccessState:playerAccessRows.find(entry=>entry.id===row.id)?.state??'Unsupported'}));
     const accessVisibleCount=playerAccessRows.filter(row=>row.canToggle&&row.playerAccessEnabled).length;
+    const layout=this.#layout();
+    this.drawerSeen=noteDrawerChanges(layout,{errors:this.errors.length,resultsKey:this.importReports.length?`${this.importReports.length}:${this.importReports[0]?.at??''}:${this.importReports[0]?.file??''}`:''},this.drawerSeen);
+    const drawer=drawerContext(layout,{errors:this.errors.length,warnings:this.warnings.length,links:this.moduleLinks?.length??0,results:this.importReports.length});
+    const optionsSummary=[this.profile==='development'?'Development':'Session-safe',
+      ...(this.specialist?[]:[`drafts ${this.includeDrafts?'on':'off'}`]),
+      ...(this.updateExisting?['update existing']:[]),...(this.updateActors?['update actors']:[])].join(' · ');
     const captureRows = allItems.filter(row => (!this.captureTaggedOnly || row.capture) && (!this.captureSearch || row.name.toLowerCase().includes(this.captureSearch.toLowerCase()) || row.type.toLowerCase().includes(this.captureSearch.toLowerCase())));
     return {
       ...ctx,
       version: game.modules.get(MODULE_ID)?.version ?? '',
       importActive: this.tab === "import",
+      folds: layout.folds, drawer, optionsSummary,
+      selectedCount: this.preview.filter(row => actionAllowed.has(row.action) && this.selected.has(row.id)).length,
       importReports: this.importReports, hasImportReports: this.importReports.length>0,
       zipBundle: this.zipBundle ? {source:this.zipBundle.source, running:Boolean(this.zipBundle.queue), summary:bundleSummary(this.zipBundle),
         rows:this.zipBundle.files.map(f=>({filename:f.filename, label:f.label, count:f.count, notice:f.notice,
@@ -833,7 +853,14 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       // Re-render to accurately enable the Apply button.
       void this.render();
     }));
+    this.#bindImportLayout(root);
     this.#bindOrganize(root);
+    // Not a data-ag-action: those are ignored while busy, and Cancel must work while the commit runs.
+    root.querySelector('[data-ag-clean-stop]')?.addEventListener('click',event=>{
+      event.preventDefault();if(!this.cleanAbort)return;
+      this.cleanAbort.abort();event.currentTarget.disabled=true;
+      const el=root.querySelector('[data-ag-clean-status]');if(el)el.textContent='Cancelling after the current chunk…';
+    });
     root.querySelectorAll('[data-ag-cl-tick]').forEach(el=>el.addEventListener('change',e=>{
       const id=e.target.dataset.agClTick;if(e.target.checked)this.clTicked.add(id);else this.clTicked.delete(id);void this.render();
     }));
@@ -842,6 +869,21 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     }));
   }
 
+  /** Import tab: remember folded sections; the drawer's show/hide and kind tabs (0.45.0). */
+  #bindImportLayout(root) {
+    const layout=this.#layout();
+    root.querySelectorAll('details[data-ag-fold]').forEach(el=>el.addEventListener('toggle',()=>{
+      const key=el.dataset.agFold;
+      if(!FOLDS.includes(key)||layout.folds[key]===el.open)return;
+      layout.folds[key]=el.open;this.#saveLayout();
+    }));
+    root.querySelector('[data-ag-drawer-toggle]')?.addEventListener('click',event=>{
+      event.preventDefault();layout.drawerOpen=!layout.drawerOpen;this.#saveLayout();void this.render();
+    });
+    root.querySelectorAll('[data-ag-drawer-tab]').forEach(el=>el.addEventListener('click',event=>{
+      event.preventDefault();layout.drawerTab=el.dataset.agDrawerTab;layout.drawerOpen=true;this.#saveLayout();void this.render();
+    }));
+  }
   async #action(name) {
     if(!game.user?.isGM) throw new Error('Only GMs can operate the General Manager.');
     if (this.busy) return;
@@ -855,7 +897,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       }
       case "help": {
         await infoDialog('General Manager help',
-          '<p><strong>Items:</strong> one tab with a side rail: <strong>All items</strong> (search), <strong>Ashen Gate records</strong> (the old Library), <strong>Folders</strong> (Organize), <strong>Core links</strong>, <strong>Checks</strong>, plus Export, Adopt and NPC Codex. The filters at the top (search, source, type, origin, rarity, folder, has core_ref) stay as you move between rail entries, so you can filter to DDB / Plutonium items and then Preview organize for just those.</p><p><strong>All items:</strong> one search over world Actors, Items, Journals (and pages), Ashen Gate records from Locations, Quest Log, Renown (factions and deities), Skill Trees, Headquarters, the Profession Ledger and the NPC Codex, and (after Load compendiums) compendium indexes. Type words or prefixes such as id:MAT-HERB, id:DEITY-, type:deity, type:npc-codex, tag:, status:, tier:major. An NPC Actor and its Codex entry are one row; Open on it jumps to Items → NPC Codex at that NPC, Open on a deity opens Renown\u2019s Pantheon at it. Open shows the sheet or the owning module; drag a world or compendium row onto a sheet, the canvas or a journal. Read-only; 100 rows per page.</p><p><strong>Item preview:</strong> pick an item\u2019s name in All items (or an Item in Ashen Gate records) to see dnd5e\u2019s own item card, with where it lives (world or compendium, full folder path, uuid) and its type, rarity, source, origin, core_ref, Ashen Gate id, price, weight and attunement below. Hover an item name for the same card as a tooltip. Read-only; a compendium item is loaded on its own, never the whole compendium.</p><p><strong>Modules:</strong> open each Ashen Gate module, and see on each card whether it is <strong>Visible to players</strong> or <strong>Hidden</strong>. <strong>Reveal to players</strong> / <strong>Hide from players</strong> change that module\u2019s own Player Access setting; <strong>Refresh</strong> re-reads them and <strong>Hide all</strong> (asks first) hides every visible one. Hiding never deletes progress.</p><p><strong>Appearance</strong> (top bar, next to Help): pick the world default skin, Save World Default, or Open My Appearance for your own choice. Escape or a click outside closes it.</p><p><strong>GM Setup:</strong> world appearance, whether players can open the NPC Codex, and the Core links sources. Changes save only with <strong>Save Changes</strong>; Cancel drops them. <strong>Developer Tools</strong> at the bottom loads the example package.</p><p><strong>Clean import:</strong> Choose Manager JSON or a ZIP; select Development for draft content, Validate & Preview, Select eligible, then Import.</p><p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro; no Scenes or Playlists. </p><p><strong>Item effects:</strong> an Item record can bring its Active Effects (each with a permanent eff_id). The preview lists them under the Item as New, Update, Kept or Untouched. Effects you edited in Foundry keep your edits, effects missing from the file are never deleted, and effects you made by hand are never touched. Nothing in an effect runs.</p><p><strong>ZIP bundles:</strong> a ZIP holding several import files (Manager packages plus Quest, Skill Tree, Headquarters or Factions files) shows a ZIP contents list. Untick any you do not want, press Import selected files, then preview and Apply each file in turn (Manager packages first). Each file gets its own result; Skip this file or Stop ZIP import at any time. ZIP scripts never run. Bundled images are uploaded only if that option is enabled.</p><p><strong>Folders:</strong> foundry.folder_path creates nested folders per document type. <strong>Links:</strong> canonical refs bind after creation. Markers such as [[AGREF:MAT-EXAMPLE|Material]] link to the record with that id.</p><p>Back up a test world. Existing Tables and Macros are never replaced. Existing Actors change only if you tick <strong>Update existing actors</strong>: then their name, image, token settings and package items follow the file, and HP, XP, level, conditions, player items, notes, ownership, folders and other modules\' data are kept.</p>');
+          '<p><strong>Items:</strong> one tab with a side rail: <strong>All items</strong> (search), <strong>Ashen Gate records</strong> (the old Library), <strong>Folders</strong> (Organize), <strong>Core links</strong>, <strong>Checks</strong>, plus Export, Adopt and NPC Codex. The filters at the top (search, source, type, origin, rarity, folder, has core_ref) stay as you move between rail entries, so you can filter to DDB / Plutonium items and then Preview organize for just those.</p><p><strong>All items:</strong> one search over world Actors, Items, Journals (and pages), Ashen Gate records from Locations, Quest Log, Renown (factions and deities), Skill Trees, Headquarters, the Profession Ledger and the NPC Codex, and (after Load compendiums) compendium indexes. Type words or prefixes such as id:MAT-HERB, id:DEITY-, type:deity, type:npc-codex, tag:, status:, tier:major. An NPC Actor and its Codex entry are one row; Open on it jumps to Items → NPC Codex at that NPC, Open on a deity opens Renown\u2019s Pantheon at it. Open shows the sheet or the owning module; drag a world or compendium row onto a sheet, the canvas or a journal. Read-only; 100 rows per page.</p><p><strong>Item preview:</strong> pick an item\u2019s name in All items (or an Item in Ashen Gate records) to see dnd5e\u2019s own item card, with where it lives (world or compendium, full folder path, uuid) and its type, rarity, source, origin, core_ref, Ashen Gate id, price, weight and attunement below. Hover an item name for the same card as a tooltip. Read-only; a compendium item is loaded on its own, never the whole compendium.</p><p><strong>Modules:</strong> open each Ashen Gate module, and see on each card whether it is <strong>Visible to players</strong> or <strong>Hidden</strong>. <strong>Reveal to players</strong> / <strong>Hide from players</strong> change that module\u2019s own Player Access setting; <strong>Refresh</strong> re-reads them and <strong>Hide all</strong> (asks first) hides every visible one. Hiding never deletes progress.</p><p><strong>Appearance</strong> (top bar, next to Help): pick the world default skin, Save World Default, or Open My Appearance for your own choice. Escape or a click outside closes it.</p><p><strong>GM Setup:</strong> world appearance, whether players can open the NPC Codex, and the Core links sources. Changes save only with <strong>Save Changes</strong>; Cancel drops them. <strong>Developer Tools</strong> at the bottom loads the example package.</p><p><strong>Clean import:</strong> Choose Manager JSON or a ZIP; select Development for draft content, Validate & Preview, Select eligible, then Import. Load, ZIP files, Options and Preview fold open or shut (remembered on this device). Errors, review notes, links to other modules\u2019 records and results are in the message bar at the bottom of the window, with their counts; it opens by itself on new errors or a new result.</p><p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro; no Scenes or Playlists. </p><p><strong>Item effects:</strong> an Item record can bring its Active Effects (each with a permanent eff_id). The preview lists them under the Item as New, Update, Kept or Untouched. Effects you edited in Foundry keep your edits, effects missing from the file are never deleted, and effects you made by hand are never touched. Nothing in an effect runs.</p><p><strong>ZIP bundles:</strong> a ZIP holding several import files (Manager packages plus Quest, Skill Tree, Headquarters or Factions files) shows a ZIP contents list. Untick any you do not want, press Import selected files, then preview and Apply each file in turn (Manager packages first). Each file gets its own result; Skip this file or Stop ZIP import at any time. ZIP scripts never run. Bundled images are uploaded only if that option is enabled.</p><p><strong>Folders:</strong> foundry.folder_path creates nested folders per document type. <strong>Links:</strong> canonical refs bind after creation. Markers such as [[AGREF:MAT-EXAMPLE|Material]] link to the record with that id.</p><p>Back up a test world. Existing Tables and Macros are never replaced. Existing Actors change only if you tick <strong>Update existing actors</strong>: then their name, image, token settings and package items follow the file, and HP, XP, level, conditions, player items, notes, ownership, folders and other modules\' data are kept.</p>');
         break;
       }
       case "preview": await this.#preview(); break;
@@ -986,7 +1028,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.busy=true;
     try {
       const result=await changePlayerAccess(mod,enabled,{isGM:game.user.isGM});
-      this.playerAccessMessage=`${result.title}: Player interface ${result.playerAccessEnabled?'Visible':'Hidden'}${result.changed?' (saved by the specialist module)':' (already set)'}.`;
+      // 0.45.0: the Character Hub shows (or, for the Strain bar, hides) the parts this module backs.
+      const hub=await followHubVisibility(game.modules,id,result.playerAccessEnabled);
+      this.playerAccessMessage=`${result.title}: Player interface ${result.playerAccessEnabled?'Visible':'Hidden'}${result.changed?' (saved by the specialist module)':' (already set)'}.${hub.message?` ${hub.message}`:''}`;
       this.playerAccessReport=null;
       toast(this.playerAccessMessage);
     } finally {this.busy=false;await this.render();}
@@ -1006,6 +1050,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     try{
       const result=await hideAllPlayerInterfaces(modules,{isGM:game.user.isGM});
       this.playerAccessReport=result;
+      // The Strain bar follows Cinders (the Hub hides the other parts itself once their module's Player Access is off).
+      for(const row of result.changed) await followHubVisibility(game.modules,row.id,false);
       const failures=result.failed.map(r=>`${r.title}: ${r.error}`).join(' | ');
       this.playerAccessMessage=`Hide All: ${result.changed.length} hidden, ${result.alreadyHidden.length} already hidden, ${result.skipped.length} skipped, ${result.failed.length} failed.${failures?' Failures: '+failures:''}`;
       toast(this.playerAccessMessage,Boolean(result.failed.length));
@@ -1292,6 +1338,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.applyRan=true;
     this.busy=true;
     await this.render();
+    // 0.45.0: rename an old Manager-made "Powers" folder first, so this import files into it instead of making a second one.
+    await runFolderRenames();
     const log = {at:new Date().toISOString(), packageId:this.pkg.manifest.package_id, packageVersion:this.pkg.manifest.version, results:[]};
     let originalMediaPaths=new Map();
     try {
@@ -1752,7 +1800,8 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
   /** Clean compendiums preview (0.36.0): every move grouped by place and document type, each with its own tick. */
   #cleanContext() {
     const p=this.cleanPreview, api=organizer();
-    if(!p)return {status:this.cleanStatus,preview:null};
+    const running=Boolean(this.cleanAbort);
+    if(!p)return {status:this.cleanStatus,preview:null,running,pct:this.cleanPct??0};
     const hint=x=>x.locked?'Locked, skipped. Unlock it in the Compendium sidebar (right-click → Toggle Edit Lock), then press Clean compendiums again.'
       :/inspect-only/.test(x.reason)?'Module or system compendium, skipped: Foundry does not allow changing these. Import its entries into the sidebar or a world compendium to sort them.'
       :`Skipped: ${x.reason}.`;
@@ -1766,7 +1815,7 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     });
     const ticked=this.#cleanTicked().length;
     const weak=p.sources.flatMap(x=>x.parts.flatMap(part=>part.moves.filter(m=>m.weak))).length;
-    return {status:this.cleanStatus,preview:{totals:p.totals,ticked,weak,skippedSources:sources.filter(x=>!x.writable),
+    return {status:this.cleanStatus,running,pct:this.cleanPct??0,preview:{totals:p.totals,ticked,weak,skippedSources:sources.filter(x=>!x.writable),
       withMoves:sources.filter(x=>x.writable&&x.moveCount),clean:sources.filter(x=>x.writable&&!x.moveCount).map(x=>x.label).join(', ')}};
   }
   /** Ticked move keys of the Clean compendiums preview. */
@@ -1780,9 +1829,10 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
     let note=null;
     try{note=ui.notifications?.info?.(first,{progress:true});}catch{note=null;}
     return (pct,text)=>{
-      this.cleanStatus=text;
+      this.cleanStatus=text;this.cleanPct=pct;
       try{note?.update?.({pct,message:text});}catch{/* older notification API: the card text still updates */}
       const el=this.element?.querySelector('[data-ag-clean-status]');if(el)el.textContent=text;
+      const bar=this.element?.querySelector('[data-ag-clean-bar]');if(bar)bar.value=pct;
     };
   }
   async #cleanAction(name) {
@@ -1817,14 +1867,17 @@ Foundry links, other fields and Actor inventories are kept. JSON snapshots downl
         const yes=await confirmDialog(`Move ${keys.length} ticked document(s) in ${places} place(s) into the folders shown? Missing folders are created.\nOnly the folder changes; nothing is renamed, edited or deleted, and protected folders are not touched. Download the backup first if you want a file copy. You can Undo last organize afterwards.`,
           {title:'Clean compendiums?',yes:`Commit ${keys.length} move(s)`});
         if(!yes)return;
+        // 0.45.0: written in small chunks with the window still responsive; Cancel stops between chunks.
+        this.cleanAbort=new AbortController();this.cleanPct=0;this.busy=true;
+        await this.render();
         const progress=this.#cleanProgress(`Clean compendiums: moving ${keys.length} document(s)…`);
-        this.busy=true;
         try{
-          const out=await api.cleanApply({moves:keys,onProgress:({done,total})=>progress(total?done/total:1,`Moved ${done} of ${total}…`)});
-          if(!out.ok){say(out.message,true);break;}
+          const out=await api.cleanApply({moves:keys,signal:this.cleanAbort.signal,onProgress:({done,total})=>progress(total?done/total:1,`Moved ${done} of ${total}…`)});
+          if(!out.ok){if(out.moved)this.cleanPreview=null;say(out.message,true);break;}
           this.cleanPreview=null;this.cleanUnticked=new Set();this.orgPreview=null;
+          if(out.cancelled){say(out.message,false);break;}
           say(`${out.message} Undo last organize puts this whole run back.`,out.notes.length>0);
-        }finally{this.busy=false;}
+        }finally{this.busy=false;this.cleanAbort=null;}
         break;
       }
     }
@@ -2384,6 +2437,24 @@ let organizerApi=null;
 let coreLinksApi=null;
 const coreLinks=()=>coreLinksApi??=createCoreLinks({game});
 const organizer=()=>organizerApi??=createOrganizer({game});
+/**
+ * One-time renames of folders Manager made under an old name (0.45.0: "Ashen Gate/Cinders/Powers" → "Cinder - Powers").
+ * GM only, on the active GM's client; each rename is remembered in the world setting, so it runs once per world.
+ */
+async function runFolderRenames() {
+  if(!game.user?.isGM) return null;
+  const active=game.users?.activeGM;
+  if(active && active.id!==game.user.id) return null;
+  try {
+    const done=game.settings.get(MODULE_ID,FOLDER_RENAMES_SETTING)??{};
+    const out=await renameManagerFolders({folders:game.folders,done});
+    if(Object.keys(out.done).length!==Object.keys(done).length) await game.settings.set(MODULE_ID,FOLDER_RENAMES_SETTING,out.done);
+    for(const r of out.renamed) console.info(`[${MODULE_ID}] Renamed folder ${r.from} → ${r.to}`);
+    for(const note of out.notes) console.warn(`[${MODULE_ID}] ${note}`);
+    if(out.renamed.length) toast(`General Manager renamed ${out.renamed.map(r=>r.from).join(', ')} to ${out.renamed[0].to.split('/').at(-1)}.`);
+    return out;
+  } catch(error) {console.warn(`[${MODULE_ID}] Folder rename skipped`,error);return null;}
+}
 Hooks.once("init",()=>{
   registerAppearanceSettings({game,namespace:MODULE_ID,onSettingChange:(key,value)=>appearanceController?.noteChange(key,value)});
   game.settings.register(MODULE_ID,SNAPSHOT_SETTING,{name:"World export snapshot",scope:"world",config:false,type:Object,default:{}});
@@ -2398,25 +2469,41 @@ Hooks.once("init",()=>{
   game.settings.register(MODULE_ID,LINK_HISTORY_SETTING,{name:"Core link history",scope:"world",config:false,type:Array,default:[]});
   game.settings.register(MODULE_ID,HISTORY_SETTING,{name:"Organize history",scope:"world",config:false,type:Array,default:[]});
   // NPC Codex (0.33.0): reveal state lives on each NPC Actor (flags.ashen-gate-manager.codex); this only gates the player view.
-  game.settings.register(MODULE_ID,CODEX_ACCESS_SETTING,{name:"NPC Codex player access",scope:"world",config:false,type:Boolean,default:false});
+  // 0.45.0: the menu follows the setting, so players see NPC Codex in Game Settings only once the GM shares it.
+  game.settings.register(MODULE_ID,CODEX_ACCESS_SETTING,{name:"NPC Codex player access",scope:"world",config:false,type:Boolean,default:false,onChange:value=>syncCodexMenu(value)});
+  // 0.45.0: one-time folder renames already run in this world ({cinderPowers:true}).
+  // 0.45.0: Import tab folds and message drawer, per device (presentation only).
+  game.settings.register(MODULE_ID,LAYOUT_SETTING,{name:"Import tab layout",scope:"client",config:false,type:Object,default:{}});
+  game.settings.register(MODULE_ID,FOLDER_RENAMES_SETTING,{name:"Folder renames",scope:"world",config:false,type:Object,default:{}});
   // Point-to-point query: a player's client asks the active GM, who answers with that player's projection only.
   if(globalThis.CONFIG){CONFIG.queries??={};CONFIG.queries[CODEX_QUERY]=(data,options)=>codexService().handleQuery(data,options);}
   game.settings.registerMenu(MODULE_ID,"manager",{
     name:"General Manager", label:"Open General Manager", icon:"fa-solid fa-boxes-stacked",
     hint:"GM-only package validation, preview, import and audit.", type:AshenGateManager, restricted:true
   });
+  // 0.45.0: nothing of Manager shows in players' Game Settings. Players open My Appearance from Utilities'
+  // Appearance button (api.appearance.openMyAppearance); NPC Codex appears for them only while the GM shares it.
   game.settings.registerMenu(MODULE_ID,'myAppearance',{
     name:'Ashen Gate | My Appearance',label:'Open My Appearance',
     hint:'Choose your own appearance or inherit the GM world default. Player-safe; no Manager administration.',
-    icon:'fa-solid fa-palette',type:AshenGateMyAppearance,restricted:false
+    icon:'fa-solid fa-palette',type:AshenGateMyAppearance,restricted:true
   });
   game.settings.registerMenu(MODULE_ID,'npcCodex',{
     name:'Ashen Gate | NPC Codex',label:'Open NPC Codex',
     hint:'The NPCs your GM has revealed to you. Read-only; needs the GM to share the codex and be connected.',
-    icon:'fa-solid fa-address-book',type:AshenGateCodexPlayer,restricted:false
+    icon:'fa-solid fa-address-book',type:AshenGateCodexPlayer,restricted:true
   });
 });
+/** Shows the player NPC Codex menu in Game Settings only while the GM shares the Codex (Foundry reads `restricted` when it draws the list). */
+function syncCodexMenu(enabled) {
+  const menus=game.settings?.menus, key=`${MODULE_ID}.npcCodex`;
+  const entry=menus?.get?.(key);
+  if(!entry||typeof menus.set!=='function') return;
+  menus.set(key,{...entry,restricted:!enabled});
+}
 Hooks.once("ready",()=>{
+  try{syncCodexMenu(Boolean(game.settings.get(MODULE_ID,CODEX_ACCESS_SETTING)));}catch{/* the menu stays GM-only */}
+  void runFolderRenames();
   appearanceController=makeFoundryAppearanceController({game,namespace:MODULE_ID});
   definitionsReader=createManagerDefinitionReader({game,hooks:Hooks});
   // Every Ashen Gate window and launcher inherits the kit's --ag-* tokens from <html>, so
