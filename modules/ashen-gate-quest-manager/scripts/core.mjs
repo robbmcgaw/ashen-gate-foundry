@@ -6,6 +6,9 @@ const KINDS = { 'QUEST': 'quest', 'ORDER': 'work_order', 'CONTRACT': 'contract' 
 const PERMANENT = /^(QUEST|ORDER|CONTRACT)-[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
 const REF = /^[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+$/;
 const STATES = ['pending','complete','failed'];
+// 0.18.0 Work Order domains (creative: Artistry commissions). Labels are what the UI shows; the token is saved.
+export const WORK_ORDER_DOMAINS=Object.freeze([['crafting','Crafting'],['production','Production'],['creative','Creative']]);
+export const WORK_ORDER_DOMAIN_ERROR='Work Order requires a crafting, production or creative domain.';
 // Character Hub level-up backups: GM-only copies flagged ashen-gate-character-hub.levelBackup. Never a playable character.
 export const LEVEL_BACKUP_ERROR='That is a level backup copy, not a playable character.';
 export function isLevelBackup(actor){return !!actor?.flags?.['ashen-gate-character-hub']?.levelBackup;}
@@ -36,7 +39,7 @@ export function validSource(s,{itemRewards=true}={}) {
   if(!Array.isArray(s.objectives)||!s.objectives.length)throw new Error('At least one objective is required.');
   const keys=new Set();
   for(const o of s.objectives){if(!o||typeof o.key!=='string'||!/^[a-z][a-z0-9_]*$/.test(o.key)||keys.has(o.key)||typeof o.goal!=='string'||!o.goal.trim())throw new Error('Invalid/duplicate objective key or goal.');keys.add(o.key);}
-  if(s.objective_kind==='work_order'&&!['crafting','production'].includes(s.work_order_domain))throw new Error('Work Order requires crafting/production domain.');
+  if(s.objective_kind==='work_order'&&!WORK_ORDER_DOMAINS.some(([k])=>k===s.work_order_domain))throw new Error(WORK_ORDER_DOMAIN_ERROR);
   if(!s.source||typeof s.source!=='object'||Array.isArray(s.source))throw new Error('Source/issuer descriptor required.');
   if(!Array.isArray(s.locations)||!s.parameters||typeof s.parameters!=='object'||!s.outcomes||typeof s.outcomes!=='object')throw new Error('Locations, parameters and outcomes required.');
   if(itemRewards&&s.outcomes.item_rewards!==undefined)validItemRewards(s.id,s.outcomes.item_rewards);

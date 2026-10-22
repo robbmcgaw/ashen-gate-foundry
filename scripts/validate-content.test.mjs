@@ -155,7 +155,7 @@ test('crosswalk baseline files go through the Ledger parser; unknown names are r
   assert.deepEqual(ok.errors, []);
   assert.deepEqual((await checkContent({professions: []}, 'x.crosswalk.json')).errors, ['The file needs a "professions" object.']);
   const bad = await checkContent({professions: {Skinning: {qualifySkills: ['sur']}, 'Hunting/Skinning': {}, herbalism: {qualifyTools: ['[TEST] Press'], items: ['']}, Dancing: {}}}, 'x.crosswalk.json');
-  assert.match(bad.errors.join(' | '), /listed twice.*"Dancing" is not one of the Ledger's 14 professions.*"\[TEST\] Press" matches no dnd5e tool.*empty or over 200 characters/);
+  assert.match(bad.errors.join(' | '), /listed twice.*"Dancing" is not one of the Ledger's professions.*"\[TEST\] Press" matches no dnd5e tool.*empty or over 200 characters/);
 });
 
 test('gathering node files (Ledger 0.25.0) go through the Ledger parser, by name or schema, and stay out of the ZIP', async () => {
@@ -309,5 +309,26 @@ test('Shop, Service and MerchantList records (Utilities 0.21.0): the synthetic p
   ]) {
     const {errors} = await checkContent(data);
     assert.ok(errors.some(e => e.includes(message)), `${message}\n${errors.join('\n')}`);
+  }
+});
+
+test('Work Orders: work_order_domain "creative" validates (Quest Log 0.18.0, Manager 0.51.0); an unknown domain is still rejected', async () => {
+  const order = domain => ({id: 'ORDER-TEST-BALLAD', entity_type: 'Objective', objective_kind: 'work_order', status: 'draft', version: '0.1.0',
+    visibility: 'player', provenance: {sources: ['[TEST] synthetic']}, refs: [], name: '[TEST] Compose a ballad',
+    objectives: [{key: 'compose', goal: '[TEST] Compose the ballad.'}], source: {}, locations: [], parameters: {}, outcomes: {},
+    ...(domain === undefined ? {} : {work_order_domain: domain})});
+  const questFile = domain => ({schema_version: 'ag-quest-source/0.1', records: [order(domain)]});
+  for (const domain of ['creative', 'crafting', 'production']) {
+    const quest = await checkContent(questFile(domain), 'orders.json');
+    assert.equal(quest.kind, 'quests');
+    assert.deepEqual(quest.errors, [], `${domain}: ${JSON.stringify(quest.errors)}`);
+    const manager = await checkContent(pack([order(domain)]));
+    assert.ok(!manager.errors.some(e => e.includes('work_order_domain')), `${domain}: ${JSON.stringify(manager.errors)}`);
+  }
+  for (const domain of ['combat', undefined]) {
+    const quest = await checkContent(questFile(domain), 'orders.json');
+    assert.ok(quest.errors.some(e => e.includes('Work Order requires a crafting, production or creative domain.')), JSON.stringify(quest.errors));
+    const manager = await checkContent(pack([order(domain)]));
+    assert.ok(manager.errors.some(e => e.includes('work_order_domain: Work Order requires a crafting, production or creative domain.')), JSON.stringify(manager.errors));
   }
 });

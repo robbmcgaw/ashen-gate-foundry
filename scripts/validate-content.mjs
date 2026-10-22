@@ -133,7 +133,7 @@ function domainChecks(pkg, knownIds = new Set()) {
     }
     if (rec.entity_type === 'Profession') {
       // The Ledger matches a profession by name (tags like [TEST] ignored) and its access lists by dnd5e skill/tool name.
-      if (!PROFESSION_KEYS.includes(professionKey(rec.name))) notes.push(`${rec.id}: name ${JSON.stringify(rec.name)} is not one of the Ledger's 14 professions, so Assign and the tools table ignore it.`);
+      if (!PROFESSION_KEYS.includes(professionKey(rec.name))) notes.push(`${rec.id}: name ${JSON.stringify(rec.name)} is not one of the Ledger's professions, so Assign and the tools table ignore it.`);
       else for (const u of catalogCrosswalk([{sourceId: rec.id, name: rec.name, access: rec.access}]).unresolved)
         errors.push(`${rec.id}: access.${u.field} "${u.name}" matches no dnd5e ${u.field === 'skillProficienciesAnyOf' ? 'skill' : 'tool'} (the Ledger ignores it).`);
       // Ledger 0.29.0: what the profession calls a recipe (display only). Malformed is a note: the Ledger falls back to its default.
@@ -259,7 +259,7 @@ export async function checkContent(data, filename = '', {knownIds = new Set()} =
   if (/\.crosswalk\.json$/i.test(filename)) {
     const r = parseBaselineFile(data);
     const errors = [...r.errors,
-      ...r.unknownProfessions.map(p => `"${p}" is not one of the Ledger's 14 professions (ignored).`),
+      ...r.unknownProfessions.map(p => `"${p}" is not one of the Ledger's professions (ignored).`),
       ...r.unresolved.map(u => `${u.profession}: ${u.list} "${u.name}" matches no dnd5e ${u.list === 'qualifySkills' ? 'skill' : 'tool'} (ignored).`)];
     for (const [name, row] of Object.entries(data?.professions ?? {})) if (Array.isArray(row?.items))
       for (const v of row.items) if (typeof v === 'string' && (!v.trim() || v.trim().length > 200)) errors.push(`${name}: items entry ${JSON.stringify(v.slice(0, 40))} is empty or over 200 characters (dropped).`);
