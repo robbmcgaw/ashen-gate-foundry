@@ -4,10 +4,12 @@ Module ID `ashen-gate-headquarters` · Foundry V14 · dnd5e. A shared Guildhall:
 
 ## Tabs
 
-- **Guildhall Builder** (shown as **Activation** until the GM activates the Guildhall, a one-time setup step): place acquired facilities on the Guildhall canvas.
-- **Personal Quarters**, **Hirelings** and **Benefits**: per-character rooms, the hosted hirelings roster (including permanent departures) and the guild's benefits.
-- **Facilities** (GM): every imported or seeded facility definition with Locked / Unlocked / Acquired status, copies owned and installed, search, filters, sort and grouping. Unlock, Acquire +1, Import facility definitions and Decorations live here. It also works before the Guildhall is activated, so facilities can be imported first.
-- **GM Setup** (GM): settings only: Player Access, Guildhall and canvas settings and the Five-Rank configuration, all saved together by **Save Changes**; Set Rank and Create Missing Player Rooms act at once. Developer Tools (the test-record seeder) are collapsed at the end.
+- **Guildhall Builder** (shown as **Activation** until the GM activates the Guildhall, a one-time setup step): place acquired facilities on the Guildhall canvas by dragging, or with **Place** (first free space) and the inspector's **Move** buttons from the keyboard.
+- **Personal Quarters**: per-player rooms. The GM's **Create missing player rooms** is on this tab's toolbar.
+- **Benefits**: what the installed facilities offer and whether each is active.
+- **Hirelings** (GM): the hosted hirelings roster with search, a status filter, Active / Departed groups, **Add to roster**, stations, Working and permanent departures. Players don't get this tab.
+- **Facilities** (GM): a guild row with the current rank and **Set rank…** (asks first), then two sub-tabs. **Facilities** lists every imported or seeded facility definition with Locked / Unlocked / Acquired status, copies owned and installed, search, filters, sort and grouping, Unlock and Acquire +1; an **Advanced: import here, or use General Manager** fold keeps a direct JSON import. **Decorations** holds the artwork players can place. It also works before the Guildhall is activated, so facilities can be imported first.
+- **GM Setup** (GM): settings only: Player Access, Guildhall and canvas settings and the guild rank table, all saved together by **Save Changes**. Unsaved changes are kept until you discard them. Developer Tools (the test-record seeder) are collapsed at the end.
 
 State is kept in a GM-only Journal; players see filtered views.
 

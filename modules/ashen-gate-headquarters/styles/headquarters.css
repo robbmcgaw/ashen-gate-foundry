@@ -40,32 +40,29 @@
 .aghq-board:before { content:""; pointer-events:none; position:absolute; inset:0; z-index:0; background-image:var(--aghq-backdrop,none); background-size:var(--aghq-fit,contain); background-position:var(--aghq-pos,50% 50%); background-repeat:no-repeat; opacity:var(--aghq-opacity,1); image-rendering:auto; }
 .aghq-board > .aghq-tile,.aghq-board > .aghq-decoration { z-index:1; }
 .aghq-board > .aghq-tile.selected,.aghq-board > .aghq-decoration.selected { z-index:2; }
-.aghq-tile { position:absolute; box-sizing:border-box; display:flex; flex-direction:column; justify-content:center; align-items:center; border:2px solid var(--ag-accent); background:var(--ag-surface-hover); border-radius:var(--ag-radius-sm); color:var(--ag-text); cursor:move; user-select:none; overflow:hidden; transition:border-color var(--ag-dur-fast,120ms) ease; }
+.aghq-tile { position:absolute; box-sizing:border-box; display:flex; margin:0; padding:0; min-width:0; min-height:0; font:inherit; line-height:1.2; box-shadow:none; appearance:none; flex-direction:column; justify-content:center; align-items:center; border:2px solid var(--ag-accent); background:var(--ag-surface-hover); border-radius:var(--ag-radius-sm); color:var(--ag-text); cursor:move; user-select:none; overflow:hidden; transition:border-color var(--ag-dur-fast,120ms) ease; }
 .aghq-tile.selected { border:3px solid var(--ag-accent); box-shadow:0 0 0 2px var(--ag-surface); }
-.aghq-tile-art { position:absolute; inset:0; display:grid; place-items:center; }
+.aghq-tile-art { position:absolute; pointer-events:none; inset:0; display:grid; place-items:center; }
 .aghq-tile-art img { width:100%; height:100%; object-fit:cover; opacity:.82; pointer-events:none; }
 .aghq-tile-icon { font-size:calc(var(--ag-text-xl) * 1.75); color:var(--ag-muted); opacity:.75; }
 .aghq-tile-label { position:relative; margin:0 var(--ag-space-1); padding:var(--ag-space-1) var(--ag-space-2); font-size:var(--ag-text-sm); border-radius:var(--ag-radius-sm); text-align:center; background:var(--ag-surface-sunken); z-index:1; }
 .aghq-rotation { position:absolute; right:var(--ag-space-1); top:var(--ag-space-1); font-size:var(--ag-text-xs); padding:0 var(--ag-space-1); border-radius:var(--ag-radius-sm); background:var(--ag-surface); }
-.aghq-decoration { position:absolute; overflow:visible; cursor:move; z-index:4; border:1px dashed var(--ag-accent); }
+.aghq-decoration { position:absolute; box-sizing:border-box; margin:0; padding:0; min-width:0; min-height:0; background:transparent; box-shadow:none; appearance:none; overflow:visible; cursor:move; z-index:4; border:1px dashed var(--ag-accent); border-radius:0; }
 .aghq-decoration.selected { border:2px solid var(--ag-accent); }
 .aghq-decoration img { height:100%; width:100%; object-fit:contain; pointer-events:none; }
 
 /* Inspector */
 .aghq-detail { display:flex; flex-direction:column; gap:var(--ag-space-2); }
-.aghq-detail ul { padding-left:var(--ag-space-4); }
-.aghq-detail li { margin-bottom:var(--ag-space-2); }
 .aghq-detail-art { max-width:calc(var(--ag-slot) * 3); max-height:calc(var(--ag-slot) * 3); }
-.aghq-staff-list { padding-left:var(--ag-space-4); }
-.aghq-staff-list li { margin:var(--ag-space-1) 0; }
+.aghq-nudge > .aghq-hint { margin:0; }
 
 /* Personal Quarters: room picker above the builder grid. */
 .aghq-quarters { display:flex; flex-direction:column; height:100%; }
 .aghq-quarters > .aghq-grid { flex:1; height:auto; min-height:0; }
-.aghq-roomtabs { flex:none; padding:var(--ag-space-2) var(--ag-space-4); background:var(--ag-surface-raised); border-bottom:1px solid var(--ag-border); }
+.aghq-roomtabs { flex:none; margin:0; padding:var(--ag-space-2) var(--ag-space-4); background:var(--ag-surface-raised); border-bottom:1px solid var(--ag-border); }
 .aghq-roomstrip { padding:0; border:0; }
 .aghq-artgrid { display:flex; flex-wrap:wrap; gap:var(--ag-space-2); }
-.aghq-decoration-card { width:calc(var(--ag-slot) * 1.6); height:calc(var(--ag-slot) * 1.6); background:var(--ag-surface-hover); border:1px solid var(--ag-border-strong); border-radius:var(--ag-radius-sm); cursor:grab; padding:var(--ag-space-1); }
+.aghq-decoration-card { display:block; box-sizing:border-box; margin:0; min-height:0; box-shadow:none; appearance:none; width:calc(var(--ag-slot) * 1.6); height:calc(var(--ag-slot) * 1.6); background:var(--ag-surface-hover); border:1px solid var(--ag-border-strong); border-radius:var(--ag-radius-sm); cursor:grab; padding:var(--ag-space-1); }
 .aghq-decoration-card img { width:100%; height:100%; object-fit:contain; pointer-events:none; }
 
 /* Activation (before the Guildhall is active) */
@@ -80,26 +77,33 @@
 .aghq-ranks th:first-child { width:4rem; }
 .aghq-ranks td:nth-child(2),.aghq-ranks td:nth-child(3) { width:7rem; }
 
-/* Hirelings */
-.aghq-roster { padding:var(--ag-space-4); display:grid; grid-template-columns:minmax(0,1fr) minmax(16rem,19rem); gap:var(--ag-space-4); align-items:start; }
-.aghq-roster > * { min-width:0; margin:0; }
-.aghq-roster select { flex:2 1 10rem; min-width:0; }
-.aghq-hire-card { display:flex; gap:var(--ag-space-3); margin:0 0 var(--ag-space-3); overflow-wrap:anywhere; }
+/* Hirelings: kit toolbar, then cards grouped Active / Departed. */
+.aghq-roster > .ag-toolbar { margin-bottom:var(--ag-space-2); }
+.aghq-roster .ag-toolbar__end { display:flex; flex-wrap:wrap; align-items:center; gap:var(--ag-space-2); }
+.aghq-hiregroup { margin:var(--ag-space-3) 0 var(--ag-space-4); }
+.aghq-hiregroup > h4 { margin:0 0 var(--ag-space-2); }
+.aghq-hiregroup[hidden],.aghq-hire-card[hidden] { display:none; }
+.aghq-hire-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,24rem),1fr)); gap:var(--ag-space-3); align-items:start; }
+.aghq-hire-card { display:flex; gap:var(--ag-space-3); margin:0; overflow-wrap:anywhere; }
 .aghq-hire-card[draggable="true"] { cursor:grab; }
-.aghq-hire-photo { flex:0 0 var(--ag-portrait); width:var(--ag-portrait); height:var(--ag-portrait); border:1px solid var(--ag-border); border-radius:50%; display:grid; place-items:center; background:var(--ag-surface-sunken); color:var(--ag-muted); font-size:calc(var(--ag-text-xl) * 1.3); overflow:hidden; }
-.aghq-hire-photo img { width:100%; height:100%; object-fit:cover; }
-.aghq-hire-card-body { min-width:0; flex:1; }
-.aghq-hire-station { margin:var(--ag-space-1) 0 0; font-size:var(--ag-text-sm); }
-.aghq-hire-card-body details { margin:var(--ag-space-2) 0; }
-.aghq-hire-card-body summary { cursor:pointer; font-weight:600; }
-.aghq-hire-card-body li { margin:var(--ag-space-1) 0; line-height:1.4; font-size:var(--ag-text-sm); }
+.aghq-hire-card-body { min-width:0; flex:1; display:flex; flex-direction:column; gap:var(--ag-space-2); }
+.aghq-hire-card-body > * { margin:0; }
+.aghq-hire-station { font-size:var(--ag-text-sm); }
+.aghq-hire-card-body .aghq-toolrow { margin:0; }
+.aghq-hire-card-body select { min-width:0; max-width:100%; }
 
 /* Facilities tab */
 .aghq-catalogrow[hidden] { display:none; }
 .aghq-facgroup { margin:0 0 var(--ag-space-4); }
 .aghq-facgroup > h4 { margin:0 0 var(--ag-space-2); }
-.aghq-decor-section { margin-top:var(--ag-space-5); }
-.aghq-decor-section form { align-items:flex-end; }
+.aghq-subpanel { padding-top:var(--ag-space-3); }
+.aghq-subpanel form { align-items:flex-end; }
+.aghq-subpanel > .aghq-artgrid { margin-top:var(--ag-space-3); }
+.aghq-advanced { margin-top:var(--ag-space-4); }
+/* Guild row (rank, capacity, Set rank) above the Facilities sub-tabs. */
+.aghq-guildbar { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:var(--ag-space-2) var(--ag-space-4); margin-bottom:var(--ag-space-3); padding:var(--ag-space-2) var(--ag-space-3); border:1px solid var(--ag-border); border-radius:var(--ag-radius); background:var(--ag-surface-raised); font-size:var(--ag-text-sm); }
+.aghq-guildbar__set { display:flex; align-items:center; gap:var(--ag-space-2); }
+.aghq-guildbar__set > .ag-field--inline,.aghq-roster .ag-toolbar__end > .ag-field--inline { white-space:nowrap; }
 
 /* Narrow windows (container queries on .ag-window, not the viewport). */
 @container (max-width: 60rem) {
@@ -110,7 +114,6 @@
   .aghq-quarters { height:auto; }
   .aghq-sidebar,.aghq-inspector { max-height:18rem; border:0; }
   .aghq-workspace { min-height:22rem; max-height:30rem; }
-  .aghq-roster { grid-template-columns:minmax(0,1fr); }
   .aghq-hire-card { flex-wrap:wrap; }
 }
 
