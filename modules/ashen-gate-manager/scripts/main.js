@@ -16,6 +16,7 @@ import {collectPlayerAccess, changePlayerAccess, hideAllPlayerInterfaces} from "
 import {moduleCards} from './module-cards.js';
 import {itemTooltipAttrs, previewHtml} from './item-preview.js';
 import {chooseIcon,markerTargets,buildUuidIndex,resolveRichText,resolveTypedRefs,appendReferenceBlock} from "./import-fidelity.js";
+import {moduleRecordLookup} from "./module-records.js";
 import {ensureFolder} from "./folders.js";
 import {readImportZip, readImportBundle, planBundleImport, bundleSummary, adaptRecordArtwork, uploadMatchingArt} from "./zip-import.js";
 import {CAPTURE_TYPES, normalizeCaptureFlag, buildCapturePackage} from "./capture.js";
@@ -1351,13 +1352,16 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       // Complete-world UUID index: only actual saved documents are addressable.
       // Resolve after the *whole* batch; record order and reference cycles do not matter.
       const uuidIndex=buildUuidIndex(allBoundDocuments());
+      // 0.44.3: Locations, Renown, Quest Log, Headquarters and Utilities records are asked of their own module's API.
+      const moduleRecord=moduleRecordLookup(game);
       for(const row of ordered) {
         if(!log.results.some(r=>r.id===row.id && ['create','update','metadata'].includes(r.action) && r.status==='ok')) continue;
         const record=this.pkg.records.find(r=>r.id===row.id);
         const doc=foundDocuments(row.id)[0];
         if(!doc) continue;
-        const {bindings,issues}=resolveTypedRefs(record.refs,uuidIndex);
-        for(const issue of issues) log.results.push({id:row.id,action:'link-sync',status:issue.level==='error'?'error':'warning',message:issue.message});
+        const {bindings,issues,moduleLinks}=resolveTypedRefs(record.refs,uuidIndex,[],moduleRecord);
+        for(const issue of issues) log.results.push({id:row.id,action:'link-sync',status:issue.level==='error'?'error':issue.level==='info'?'note':'warning',message:issue.message});
+        if(moduleLinks.length) log.results.push({id:row.id,action:'link-sync',status:'note',message:`Linked by permanent id to ${moduleLinks.map(l=>`${l.module} record ${l.target_id}`).join(', ')}.`});
         const updates={};
         const missingRequired=issues.filter(i=>i.level==='error').map(i=>i.id);
         const source=sourceFlag(doc)??{};
@@ -1366,7 +1370,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         const newFields={...(source.managedFields??{})};
         updates[`flags.${MODULE_ID}.source.resolvedUuidRefs`]=bindings;
         updates[`flags.${MODULE_ID}.source.unresolvedRequiredRefs`]=missingRequired;
-        updates[`flags.${MODULE_ID}.source.unresolvedOptionalRefs`]=issues.filter(i=>i.level==='warning').map(i=>i.id);
+        updates[`flags.${MODULE_ID}.source.unresolvedOptionalRefs`]=issues.filter(i=>i.level==='warning'||i.level==='info').map(i=>i.id);
         // Only source-provided rich-text paths receive AGREF substitution.
         // Add a small reference section for canonical refs without explicit markers.
         if(doc.documentName==='Item') {

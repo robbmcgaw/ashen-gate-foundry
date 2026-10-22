@@ -76,7 +76,9 @@ export const MODULE_OWNED_PREFIXES = Object.freeze([
   {moduleId:'ashen-gate-locations', label:'Locations', prefixes:['LOC-','RTE-']},
   {moduleId:'ashen-gate-factions', label:'Renown', prefixes:['FACTION-','RENOWN-','DEITY-']},
   {moduleId:'ashen-gate-quest-manager', label:'Quest Log', prefixes:['QUEST-','ORDER-','CONTRACT-','ASSIGN-']},
-  {moduleId:'ashen-gate-headquarters', label:'Headquarters', prefixes:['FAC-']}
+  {moduleId:'ashen-gate-headquarters', label:'Headquarters', prefixes:['FAC-']},
+  // 0.44.3: Utilities shops. Not a linkable document; a link to one is informational, like the others.
+  {moduleId:'ashen-gate-utilities', label:'Utilities', prefixes:['SHOP-']}
 ]);
 /** The module that owns an id by its prefix, or null when Manager (or nobody) does. */
 export function ownerModuleFor(id) {

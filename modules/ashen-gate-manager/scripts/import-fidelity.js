@@ -93,17 +93,28 @@ export function resolveRichText(html,index){
     issues.push({level:'error',id:'AGREF',message:'Malformed AGREF marker remains.'});
   return {text,resolved,issues};
 }
-export function resolveTypedRefs(refs,index,excludeIds=[]){
-  const bindings=[],issues=[];const excluded=new Set(excludeIds);
+/**
+ * `moduleRecord(id)` (optional, 0.44.3): see module-records.js. A link to a record another module holds is kept by its
+ * canonical id (listed in `moduleLinks`, no UUID binding); one that module has not imported yet is an 'info' issue.
+ */
+export function resolveTypedRefs(refs,index,excludeIds=[],moduleRecord=null){
+  const bindings=[],issues=[],moduleLinks=[];const excluded=new Set(excludeIds);
   for(const ref of refs??[]){
     const id=typeof ref==='string'?ref:ref.target_id??ref.id;
     if(!IDENTIFIER.test(id??'')){issues.push({level:'error',id,message:`Invalid source reference ${id}.`});continue;}
     const result=resolveUuid(index,id);
     if(result.status==='resolved'){bindings.push({target_id:id,uuid:result.uuid,relation:ref.relation??ref.type??'references'});continue;}
     const optional=ref?.mode==='optional'||ref?.optional===true||ref?.mode==='optional_integration'||ref?.mode==='coupled';
+    const held=result.status==='missing'&&typeof moduleRecord==='function'?moduleRecord(id):null;
+    if(held?.exists){moduleLinks.push({target_id:id,module:held.owner.label});continue;}
+    if(held){
+      const label=held.owner.label,off=held.active?'':` ${label} is not active in this world.`;
+      if(optional){issues.push({level:'info',id,message:`Optional link ${id}: will link when ${label} imports it.${off}`});continue;}
+      issues.push({level:'error',id,message:`Required link ${id}: ${label} record not found; import it in ${label} first.${off}`});continue;
+    }
     issues.push({level:optional?'warning':'error',id,message:`${optional?'Optional':'Required'} link ${id}: ${result.status}${excluded.has(id)?' (record not selected)':''}.`});
   }
-  return {bindings,issues};
+  return {bindings,issues,moduleLinks};
 }
 export function appendReferenceBlock(html,bindings,alreadyIncluded=[]){
   if(typeof html!=='string'||!bindings.length)return html;
