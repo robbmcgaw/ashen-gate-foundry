@@ -1,4 +1,4 @@
-import {SCHEMA,PROFESSION_NAMES,norm,professionFromTreeName,classify,normalizeRecipe,normalizeLibrary,
+import {SCHEMA,norm,professionFromTreeName,classify,normalizeRecipe,normalizeLibrary,isActivity,
   sourceVisibility,sourceAvailableToPlayer,agSourceId,quantity,isLevelBackup,LEVEL_BACKUP_REFUSAL} from './core.mjs';
 import {GATHERING_PROFESSIONS,TIERS,ACCESS_LEVELS,gatherXP,knownRecipesOf,canLearnRecipe,progressOf,emptyProgress,
   nextProgress,adjustProgress,xpHistoryOf,XP_CAP,professionLevelOf,isMaterialAwardCandidate,xpForLevel} from './progression.mjs';
@@ -9,8 +9,10 @@ import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,confirmDanger,guardDirty,infoDialog} from './ag-dialogs.mjs';
 import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,fold,bindFolds,fileButton,bindFileButtons,linkButton} from './ag-html.mjs';
 import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,requiredToolRef,toolRefLabel,heldTool,
-  checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS,DEFAULT_PROFESSION_TOOLS,DEFAULT_GATHER_SKILLS,migrateCheckMapping,compactCheckMapping,advantageToolsOf,advantageItemsOf,cleanItemList} from './checks.mjs';
-import {PROFESSION_KEYS,professionTitle,catalogCrosswalk,definitionProfessionKey,unmappedProfessions,assignmentPlan,rowId,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
+  checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS,DEFAULT_PROFESSION_TOOLS,DEFAULT_GATHER_SKILLS,migrateCheckMapping,compactCheckMapping,advantageToolsOf,advantageItemsOf,cleanItemList,
+  TOOL_GROUP_KEYS,isToolGroup,toolProficiencyMatches,expandToolGroups} from './checks.mjs';
+import {allProfessions,categoryOfKey,declaredCategory} from './professions.mjs';
+import {PROFESSION_KEYS,professionTitle,meetsAccess,catalogCrosswalk,definitionProfessionKey,unmappedProfessions,assignmentPlan,rowId,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
 import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,gatherOutcome,gatherReward,exhaustsNode,helperEligibility,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
   stackMaterial,DRAFT_STATES} from './gathering.mjs';
 import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TABLE_LABELS,activityLabel,skillText,nodeIdFromName,checkTemplate,normalizeStore,plainTemplate,saveTemplate,
@@ -18,7 +20,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.27.0';
+const VERSION='0.28.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...}. */
@@ -150,6 +152,24 @@ async function syncProfessionSheet(actor,profId){
 /** Exact Actor source ID and ownership enforced; no Actor state duplicated in Skill Trees. */
 function announceProgression(actor,profId,previousLevel,level,xp){
   try{Hooks.callAll?.(PROGRESSION_HOOK,{actorId:actor.id,profId,previousLevel,level,xp});}catch(err){console.warn(`[${ID}] ${PROGRESSION_HOOK} listener failed`,err);}
+}
+/** 0.28.0: the Skill Trees tree to open for a profession (PROF-* id or name). Skill Trees' listTreesForProfession (one profession
+ * may have several trees, shown by Skill Trees as one entry) when it has it, else the first tree named after the profession. */
+function professionTreeId(api,ref){
+  if(typeof api?.listTreesForProfession==='function'){
+    try{const trees=api.listTreesForProfession(ref);if(Array.isArray(trees)&&trees.length)return trees[0]?.id;}catch(err){console.warn(`[${ID}] Skill Trees listTreesForProfession failed`,err);}
+  }
+  const name=/^PROF-/.test(String(ref??''))?professionTitle(definitionProfessionKey(ref,'')??''):ref;
+  return api?.listTrees?.()?.find(t=>norm(professionFromTreeName(t.name))===norm(name))?.id;
+}
+/** 0.28.0 public read: does a character have any proficiency in an access list (see meetsAccess)? Skill Trees uses it to
+ * gate a tree. GM or anyone who can see the Actor, like progression.level (not tied to Ledger Player Access). */
+function meetsProficiency(actorRef,access){
+  const actor=typeof actorRef==='string'?game.actors?.get?.(actorRef):actorRef;
+  if(!actor)throw Error('No Actor given');
+  if(!game.user?.isGM&&actor.testUserPermission?.(game.user,'OBSERVER')!==true)throw Error('Actor access denied');
+  if(access!=null&&(typeof access!=='object'||Array.isArray(access)))throw Error('Access must be {toolProficienciesAnyOf, skillProficienciesAnyOf}');
+  return meetsAccess(actor,access??{});
 }
 /** Public read of one Profession's level (contract ag-ledger-progression/1). GM or anyone who can see the Actor.
  * Not tied to Ledger Player Access: that hides the Ledger window, not Profession mechanics. */
@@ -428,8 +448,9 @@ const rollMapping=()=>crosswalkInfo().map;
 const BASELINE_SETTING='crosswalkBaseline';
 const baselineRecord=()=>{try{const v=game.settings.get(ID,BASELINE_SETTING);return v&&typeof v==='object'&&v.professions&&typeof v.professions==='object'?v:null;}catch{return null;}};
 const baselineLayer=()=>baselineRecord()?.professions??null;
-/** 0.22.0: the professions whose check skill is set from Skill to Access (gathering professions and Enchanting). */
-const hasCheckSkill=k=>GATHERING_PROFESSIONS.some(n=>professionKey(n)===k)||k==='enchanting';
+/** 0.22.0: the professions whose check skill is set from Skill to Access (gathering professions and Enchanting).
+ * 0.28.0: and creative professions (Artistry: Performance). */
+const hasCheckSkill=k=>GATHERING_PROFESSIONS.some(n=>professionKey(n)===k)||k==='enchanting'||categoryOfKey(k)==='creative';
 /** The saved shape of the mapping (what GM Setup edits and saves): check tool/skill plus the GM's own crosswalk lists. */
 const mappingDraft=map=>({tools:{...map.tools},skills:{...map.skills},...Object.fromEntries(CROSSWALK_LISTS.map(l=>[l,structuredClone(map.gm[l])]))});
 /** 0.27.0: the check a Tools and checks cell drives: the check tool (Tool to Access), the check skill (Skill to Access, for
@@ -443,6 +464,10 @@ function mapCellValues(map,list,k){
 const sameSet=(a,b)=>a.length===b.length&&a.every(v=>b.includes(v));
 const MAP_ORIGIN={default:'Default',catalog:'From content',baseline:'From baseline file',gm:'Set by GM'};
 const MAP_HEADING={qualifySkills:'skill to access',qualifyTools:'tool to access',advantageTools:'tool for advantage',advantageItems:'carried gear for advantage'};
+/** 0.28.0: the profession groups of the Tools and checks table, in order (registry categories). */
+const PROFESSION_GROUPS=Object.freeze([['crafting','Crafting professions'],['gathering','Gathering professions'],['creative','Creative professions']]);
+/** 0.28.0: the values a tool cell offers: the tool groups (Any musical instrument) first, then every dnd5e tool. */
+const mapToolOptions=()=>[...TOOL_GROUP_KEYS,...toolKeys()];
 /** The lists GM Setup edits (0.27.0: carried gear for advantage is part of the Tool for Advantage cell). */
 const MAP_LISTS=Object.freeze(['qualifySkills','qualifyTools','advantageTools','advantageItems']);
 const MAP_FIELD={skillProficienciesAnyOf:'qualifySkills',toolProficienciesAnyOf:'qualifyTools',advantageToolsAnyOf:'advantageTools'};
@@ -466,8 +491,9 @@ function mapCellHtml({k,title,list,map,unresolved,options}){
   const v=mapCellSummary({k,title,list,map,unresolved}),labelOf=mapLabelOf(list),id=`agl-mp-${k}-${list}`,field=mapCheckField(list,k);
   const kind=list==='qualifySkills'?'skill':'tool';
   const hint=list==='advantageTools'?'Proficiency with, or carrying, any ticked tool gives advantage on this profession’s gathering checks.'
-    :`Proficiency in any ticked ${kind} qualifies.${field?` The first one is the ${kind} the check rolls${list==='qualifyTools'?' (when a recipe names no tool)':''}; it stays first while it stays ticked.`:''}`;
-  const sorted=[...v.values,...[...options].filter(o=>!v.values.includes(o)).sort((a,b)=>labelOf(a).localeCompare(labelOf(b)))];
+    :`Proficiency in any ticked ${kind} qualifies.${field?` The first one is the ${kind} the check rolls${list==='qualifyTools'?' (when a recipe names no tool; Any musical instrument is never rolled by itself)':''}; it stays first while it stays ticked.`:''}`;
+  // 0.28.0: tool groups (Any musical instrument) stay at the top of the unticked values.
+  const sorted=[...v.values,...[...options].filter(o=>!v.values.includes(o)).sort((a,b)=>(isToolGroup(b)-isToolGroup(a))||labelOf(a).localeCompare(labelOf(b)))];
   return `<div class="agl-mpick" data-map-picker data-map-list="${list}" data-map-prof="${esc(k)}">
     <button type="button" class="agl-mpick__toggle" data-action="map-pick" aria-expanded="false" aria-controls="${id}" aria-label="${esc(v.aria)}" ${tip(`Edit ${title} ${MAP_HEADING[list]}`)}><span class="agl-mpick__value">${esc(v.text)}</span><i class="fa-solid fa-chevron-down" aria-hidden="true"></i></button>
     <small class="agl-sub agl-mpick__origin">${esc([v.origin,v.checkNote].filter(Boolean).join(' · '))}</small>
@@ -490,7 +516,8 @@ function mapGearHtml(k,title,items){
 }
 /** A row differs from its defaults: the GM set one of its lists, or its check tool/skill differs from the built-in default. */
 const mapRowCustom=(draft,k)=>MAP_LISTS.some(l=>draft[l]?.[k])||(draft.tools[k]??'')!==(DEFAULT_PROFESSION_TOOLS[k]??'')||(draft.skills[k]??'')!==(DEFAULT_GATHER_SKILLS[k]??'');
-const professionTool=name=>{const key=checkMapping().tools[professionKey(name)];return key?{key,uuid:null,name:null}:null;};
+/** The profession's check tool. 0.28.0: a tool group (Any musical instrument) is never a check tool by itself. */
+const professionTool=name=>{const key=checkMapping().tools[professionKey(name)];return key&&!isToolGroup(key)?{key,uuid:null,name:null}:null;};
 /** Advantage tools for a profession's checks. 0.22.0: gathering professions only; a crafting profession gets none.
  * 0.27.0: from the full crosswalk (GM Setup, baseline file, else the imported Profession content, else none), the same
  * values GM Setup shows. Before, the checks skipped the imported content's advantage tools. */
@@ -506,8 +533,9 @@ function professionDefinitions(){
     const id=agSourceId(doc);if(!/^PROF-[A-Z0-9-]+$/.test(id??'')||classify(doc)!=='Profession')continue;
     const hit=lookupWorldDefinition(game,id,{entityType:'Profession'});
     if(hit.status!=='ok'||hit.document!==doc)continue;
-    const def=hit.source?.definition??{},name=def.name??professionDisplayName(doc);
-    out.push({sourceId:id,name,access:def.access??null,key:definitionProfessionKey(id,name),uuid:doc.uuid,itemName:doc.name,doc});
+    const def=hit.source?.definition??{},name=def.name??professionDisplayName(doc),category=declaredCategory(doc);
+    // 0.28.0: a profession imported with category `creative` that is not built in joins the registry here (definitionProfessionKey).
+    out.push({sourceId:id,name,category,access:def.access??null,key:definitionProfessionKey(id,name,category),uuid:doc.uuid,itemName:doc.name,doc});
   }
   return out;
 }
@@ -589,25 +617,38 @@ async function assignProfessions({actorIds=null,rowIds=null}={}){
  * the profession's tool. The tool check uses the recipe's tool, else the profession's tool.
  */
 function craftRequirement(recipe,actor=null){
-  // The recipe's own tools: its single tool field plus every required_tools entry (all are needed).
-  const own=[toolRef(recipe?.tool),...(recipe?.tools??[]).map(requiredToolRef)].filter(Boolean)
+  const activity=isActivity(recipe),access=activityAccess(recipe);
+  // The recipe's own tools: its single tool field plus every required_tools entry (all are needed for a craft).
+  // 0.28.0: an activity's tools, and the tools in its access list, are alternatives: any one of them will do.
+  const own=[toolRef(recipe?.tool),...(recipe?.tools??[]).map(requiredToolRef),...access.tools.map(requiredToolRef)].filter(Boolean)
     .filter((ref,i,list)=>list.findIndex(r=>toolRefLabel(r)===toolRefLabel(ref))===i);
   const profLabel=professionLabel(recipe),profTool=professionTool(profLabel);
   const tools=own.length?own:recipe?.workstation||!profTool?[]:[profTool];
   const checks=own.length?own:profTool?[profTool]:[];
-  const missing=actor?tools.filter(ref=>!heldTool(actor,ref)):[];
+  const usable=ref=>heldTool(actor,ref)||(ref.key&&toolProficiencyMatches(actor,ref.key).length);
+  const missing=!actor?[]:activity?(tools.some(usable)?[]:tools):tools.filter(ref=>!heldTool(actor,ref));
   // A profession whose main check is a skill (Enchanting: Arcana) offers that skill; a recipe tool is offered beside it.
   const skill=checkMapping().skills[professionKey(profLabel)]||null;
   const tool=tools[0]??null;
-  return {tool,tools,toolLabel:tools.map(toolRefLabel).join(' + '),fromProfession:Boolean(tool&&!own.length),workstation:recipe?.workstation??null,
-    check:checks[0]??null,skill,checkPlan:actor?craftCheckPlan(actor,{tools:checks,skill}):null,held:Boolean(actor&&tools.length&&!missing.length),
+  return {tool,tools,activity,toolLabel:tools.map(toolRefLabel).join(activity?' or ':' + '),fromProfession:Boolean(tool&&!own.length),workstation:recipe?.workstation??null,
+    check:checks[0]??null,skill,checkPlan:actor?craftCheckPlan(actor,{tools:expandToolGroups(actor,checks),skill,skills:access.skills}):null,held:Boolean(actor&&tools.length&&!missing.length),
     lacks:missing.length>0,missing:missing.map(toolRefLabel)};
 }
-/** "doesn't carry X" for one tool, "doesn't carry X, Y" when several of the required tools are missing. */
-const lacksText=(req,actor)=>req.tools.length>1?`${actor.name} doesn’t carry ${req.missing.join(', ')}`:`${actor.name} doesn’t carry this`;
+const skillIdOfName=name=>{const t=String(name??'').trim();return SKILL_IDS.includes(t)?t:SKILL_IDS.find(k=>norm(SKILL_LABELS[k])===norm(t))??null;};
+/** 0.28.0: an activity recipe's optional access list ({toolProficienciesAnyOf, skillProficienciesAnyOf}), as extra check
+ * choices: its tools as tool names (groups allowed), its skills as dnd5e skill ids. Empty for a craft recipe. */
+function activityAccess(recipe){
+  const raw=isActivity(recipe)?recipe?.sourceDefinition?.access??recipe?.access:null;
+  const list=v=>Array.isArray(v)?v.filter(x=>typeof x==='string'&&x.trim()).slice(0,10):[];
+  return {tools:list(raw?.toolProficienciesAnyOf),skills:[...new Set(list(raw?.skillProficienciesAnyOf).map(skillIdOfName).filter(Boolean))]};
+}
+/** "doesn't carry X" for one tool, "doesn't carry X, Y" when several of the required tools are missing.
+ * 0.28.0: an activity's tools are alternatives, so it says the character has none of them. */
+const lacksText=(req,actor)=>req.activity?(req.tools.length>1?`${actor.name} has none of these`:`${actor.name} doesn’t have this`)
+  :req.tools.length>1?`${actor.name} doesn’t carry ${req.missing.join(', ')}`:`${actor.name} doesn’t carry this`;
 function requirementHTML(req,actor){
   const parts=[];
-  if(req.tool)parts.push(`${esc(req.toolLabel)}${actor?(req.lacks?` ${badge(lacksText(req,actor),'warn')}`:` ${badge(req.tools.length>1?'All carried':'Carried','ok')}`):''}`);
+  if(req.tool)parts.push(`${esc(req.toolLabel)}${actor?(req.lacks?` ${badge(lacksText(req,actor),'warn')}`:` ${badge(req.activity?'Ready':req.tools.length>1?'All carried':'Carried','ok')}`):''}`);
   if(req.workstation)parts.push(`Workstation: ${esc(req.workstation)}`);
   return parts.length?`<div><span class="agl-label">Uses</span> ${parts.join(' · ')}</div>`:'';
 }
@@ -631,7 +672,13 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
     if(gm&&!knownBy.length&&!foundBy.length)status.push(badge('Not found by the party yet','muted'));
   }
   let actions='';
-  if(craft&&actor){
+  const activity=isActivity(recipe);
+  // 0.28.0: an activity has Complete activity in place of Craft (no materials to check).
+  if(craft&&actor&&activity){
+    const button=(attrs='disabled')=>`<button type="button" class="ag-btn" ${attrs}><i class="fa-solid fa-masks-theater" aria-hidden="true"></i> Complete activity</button>`;
+    if(craft.blockers.length)actions=`${owned(actor)?button():''}<span class="agl-reason">${esc(craft.blockers[0])}</span>`;
+    else if(owned(actor))actions=button(`data-action="complete-activity" data-id="${esc(recipe.id)}" data-actor="${esc(actor.id)}"`);
+  }else if(craft&&actor){
     const {blockers,plan}=craft;
     const missing=plan.missing.map(m=>`${m.missing} × ${m.name}`).join(', ');
     // 0.26.2: a blocked recipe still shows its (disabled) Craft button beside the reason, like a recipe missing materials.
@@ -643,7 +690,7 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
   }
   if(learnItem&&actor)actions=learnControl(actor,learnItem,{available});
   const gp=extraCost(recipe);
-  const meta=[tierLabel(recipe.tier),recipe.effort?`${String(recipe.effort)[0].toUpperCase()}${String(recipe.effort).slice(1)} effort`:''].filter(Boolean);
+  const meta=[activity?'Activity':'',tierLabel(recipe.tier),recipe.effort?`${String(recipe.effort)[0].toUpperCase()}${String(recipe.effort).slice(1)} effort`:''].filter(Boolean);
   const search=`${recipe.name} ${professionLabel(recipe)} ${meta.join(' ')} ${result?.name??''}`.toLowerCase();
   return `<article class="ag-card agl-recipe-row" data-recipe-search="${esc(search)}">
     <div class="agl-recipe-head">
@@ -652,8 +699,8 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
       <div class="agl-recipe-actions">${actions}</div>
     </div>
     <div class="agl-recipe-body">
-      <div><span class="agl-label">Needs</span><ul class="agl-ings">${ingredients}</ul></div>
-      <div><span class="agl-label">Makes</span> ${result?esc(result.name):`<span class="agl-reason">${gm&&recipe.resultItemId?`Result item ${esc(recipe.resultItemId)} is not imported`:'Not available yet'}</span>`}${gp?` <small class="agl-sub">· also costs ${gp} gp (not deducted automatically)</small>`:''}</div>
+      ${activity?(gp?`<div><small class="agl-sub">Also costs ${gp} gp (not deducted automatically)</small></div>`:''):`<div><span class="agl-label">Needs</span><ul class="agl-ings">${ingredients}</ul></div>
+      <div><span class="agl-label">Makes</span> ${result?esc(result.name):`<span class="agl-reason">${gm&&recipe.resultItemId?`Result item ${esc(recipe.resultItemId)} is not imported`:'Not available yet'}</span>`}${gp?` <small class="agl-sub">· also costs ${gp} gp (not deducted automatically)</small>`:''}</div>`}
       ${requirementHTML(craftRequirement(recipe,craft?actor:null),craft?actor:null)}
     </div>
     ${recipe.description?`<p class="agl-recipe-summary">${esc(recipe.description)}</p>`:''}
@@ -896,6 +943,14 @@ async function craftChatCard(crafter,recipe,result,consumed,check=null){
     <div class="agl-xp-slot" data-agl-xp></div></div>`},xpFlag('craft',crafter,{professionId:profId,professionName:prof}),{recipeId:recipe.id,check});}
   catch(err){console.warn(`[${ID}] Craft succeeded; chat card failed`,err);}
 }
+const choiceOf=o=>`${o.kind}:${o.key??o.ref?.name??o.ref?.uuid}`;
+/** The check part of the Craft and Complete activity dialogs: the check (a choice when there are several) and the roll mode. */
+function checkPickHtml(actor,{cplan,picked,option,mode,preset,card}){
+  if(!option)return '';
+  return `<div class="agl-check-pick">${cplan.options.length>1?`<label class="ag-field">Check (bonus)<select name="check">${cplan.options.map(o=>{const c=checkOption(actor,o);return `<option value="${esc(choiceOf(o))}" ${o===picked?'selected':''}>${esc(c.label)}${o.kind==='tool'?' (tool)':''} ${formatBonus(c.bonus)}</option>`;}).join('')}</select></label>`
+    :`<span><strong>${esc(option.label)} check</strong> ${formatBonus(option.bonus)}${option.proficient?'':' (not proficient)'}</span>`}
+    <label class="ag-field ag-field--inline">Roll ${modeSelect(mode)}</label><p class="agl-sub">${esc(modeHint(preset))} The result goes on the ${esc(card)}; it doesn’t decide success yet.</p></div>`;
+}
 /** Player/GM entry point: checks, confirms, then crafts locally or asks the party through the GM. */
 async function craft(actor,recipeId,{confirm=true}={}){
   checkPlayerLedger();
@@ -904,13 +959,14 @@ async function craft(actor,recipeId,{confirm=true}={}){
   if(!knownRecipesOf(actor).includes(recipeId))throw Error(`${actor.name} has not learned this recipe`);
   const lib=catalog(),recipe=partyRecipeDefinition(recipeId,lib);
   if(!recipe)throw Error('This recipe is not available to you');
+  if(isActivity(recipe))throw Error(`${recipe.name} is an activity: use Complete activity`);
   const ctx=craftContext(actor,recipe,lib);
   if(ctx.blockers.length)throw Error(ctx.blockers[0]);
   if(!ctx.plan.ready)throw Error(`Missing ${ctx.plan.missing.map(m=>`${m.missing} × ${m.name}`).join(', ')}`);
   const list=ctx.plan.allocations.map(a=>`<li>${a.quantity} × ${esc(a.name)}${a.own?'':` — from <strong>${esc(a.actorName)}</strong>`}</li>`).join('');
   const foreign=[...new Set(ctx.plan.foreign.map(a=>a.actorName))];
   const req=craftRequirement(recipe,actor);
-  const cplan=req.checkPlan,choiceOf=o=>`${o.kind}:${o.key??o.ref?.name??o.ref?.uuid}`;
+  const cplan=req.checkPlan;
   let picked=cplan?.selected??null;
   const advantageTools=advantageToolsFor(professionLabel(recipe)),advantageItems=advantageItemsFor(professionLabel(recipe));
   const presetOf=o=>o?.key?rollModeFor(actor,{kind:o.kind,key:o.key},{advantageTools,advantageItems}):{mode:0,sources:[]};
@@ -923,9 +979,7 @@ async function craft(actor,recipeId,{confirm=true}={}){
       extraCost(recipe)?`<li>Also costs ${extraCost(recipe)} gp — not deducted automatically.</li>`:''].join('');
     const answer=await DialogV2.wait({classes:['ag-app','ag-dialog'],window:{title:`Craft ${recipe.name}?`},modal:true,rejectClose:false, // ag-lint-allow: custom dialog, has ag-dialog classes
       content:`<p>${esc(actor.name)} crafts <strong>${esc(ctx.result.name)}</strong>, using:</p><ul>${list}</ul>${needs?`<ul>${needs}</ul>`:''}
-        ${option?`<div class="agl-check-pick">${cplan.options.length>1?`<label class="ag-field">Check (bonus)<select name="check">${cplan.options.map(o=>{const c=checkOption(actor,o);return `<option value="${esc(choiceOf(o))}" ${o===picked?'selected':''}>${esc(c.label)}${o.kind==='tool'?' (tool)':''} ${formatBonus(c.bonus)}</option>`;}).join('')}</select></label>`
-          :`<span><strong>${esc(option.label)} check</strong> ${formatBonus(option.bonus)}${option.proficient?'':' (not proficient)'}</span>`}
-          <label class="ag-field ag-field--inline">Roll ${modeSelect(mode)}</label><p class="agl-sub">${esc(modeHint(preset))} The result goes on the craft card; it doesn’t decide success yet.</p></div>`:''}
+        ${checkPickHtml(actor,{cplan,picked,option,mode,preset,card:'craft card'})}
         ${foreign.length?`<p>${esc(foreign.join(', '))}’s owner${foreign.length===1?'':'s'} will be asked on their screen. Any decline cancels the craft and nothing is used.</p>`:''}`,
       buttons:[{action:'cancel',label:'Cancel',callback:()=>false},{action:'craft',label:'Craft',default:true,callback:(event,button)=>({mode:button?.form?.elements?.mode?.value,check:button?.form?.elements?.check?.value})}]});
     if(!answer)return null;
@@ -953,6 +1007,65 @@ async function craft(actor,recipeId,{confirm=true}={}){
   sendSocket(request);
   say(`Asking ${foreign.join(', ')}’s owner${foreign.length===1?'':'s'}…`);
   return outcome;
+}
+
+/* ---- Creative activities (0.28.0) --------------------------------------------------------------
+ * A Recipe record with kind "activity" (a performance, a commission, writing…) has no ingredients and makes no item.
+ * Complete activity rolls the profession's check like Craft and posts a chat card where the GM awards profession XP,
+ * exactly as from a craft card. Nothing is created, consumed or paid. */
+const activityLocks=new Set();
+const effortLabel=effort=>effort?`${String(effort)[0].toUpperCase()}${String(effort).slice(1)} effort`:'';
+/** The record of a completed activity: a chat card with the check and the GM-only XP award (flag kind "activity"). */
+async function activityChatCard(actor,recipe,check=null){
+  if(typeof globalThis.ChatMessage?.create!=='function')return null;
+  const prof=professionLabel(recipe);
+  const profId=recipe.professionId??agSourceId(professionItems(actor).find(i=>professionKey(professionDisplayName(i))===professionKey(prof)))??null;
+  const meta=[prof,recipe.tier?tierLabel(recipe.tier):'',effortLabel(recipe.effort)].filter(Boolean).join(' · ');
+  return postXpCard({speaker:ChatMessage.getSpeaker?.({actor}),content:`<div class="agl-chat-card">
+    <header><div><strong>${esc(actor.name)} completed ${esc(recipe.name)}</strong><span>${esc(meta)}</span></div></header>
+    ${checkLine(check)}<div class="agl-xp-slot" data-agl-xp></div></div>`},
+    xpFlag('activity',actor,{professionId:profId,professionName:prof}),{recipeId:recipe.id,effort:recipe.effort??null,check});
+}
+/** Player/GM entry point: the same checks as Craft (owner, known, tier level), the check dialog, the roll, then the card. */
+async function completeActivity(actor,recipeId,{confirm=true}={}){
+  checkPlayerLedger();
+  playable(actor);
+  if(!actor||!owned(actor))throw Error('You need to own that character to complete an activity');
+  if(!knownRecipesOf(actor).includes(recipeId))throw Error(`${actor.name} has not learned this activity`);
+  const lib=catalog(),recipe=partyRecipeDefinition(recipeId,lib);
+  if(!recipe)throw Error('This activity is not available to you');
+  if(!isActivity(recipe))throw Error(`${recipe.name} is crafted, not completed as an activity`);
+  const ctx=craftContext(actor,recipe,lib);
+  if(ctx.blockers.length)throw Error(ctx.blockers[0]);
+  const req=craftRequirement(recipe,actor),cplan=req.checkPlan;
+  let picked=cplan?.selected??null,option=picked?checkOption(actor,picked):null;
+  const preset=picked?.key?rollModeFor(actor,{kind:picked.kind,key:picked.key}):{mode:0,sources:[]};
+  let mode=preset.mode;
+  if(confirm){
+    const needs=[req.tool?`<li>${req.tools.length>1?'Uses one of':'Uses'}: <strong>${esc(req.toolLabel)}</strong>${req.lacks?` — <strong>${esc(`${lacksText(req,actor)}.`)}</strong>`:''}</li>`:'',
+      req.workstation?`<li>Workstation: <strong>${esc(req.workstation)}</strong> (confirm with your GM)</li>`:'',
+      extraCost(recipe)?`<li>Also costs ${extraCost(recipe)} gp — not deducted automatically.</li>`:''].join('');
+    const meta=[tierLabel(recipe.tier),effortLabel(recipe.effort)].filter(Boolean).join(' · ');
+    const answer=await DialogV2.wait({classes:['ag-app','ag-dialog'],window:{title:`Complete ${recipe.name}?`},modal:true,rejectClose:false, // ag-lint-allow: custom dialog, has ag-dialog classes
+      content:`<p>${esc(actor.name)} completes <strong>${esc(recipe.name)}</strong>${meta?` (${esc(meta)})`:''}. Nothing is used up and no item is made; the GM can award profession XP from the chat card.</p>${needs?`<ul>${needs}</ul>`:''}
+        ${checkPickHtml(actor,{cplan,picked,option,mode,preset,card:'activity card'})}`,
+      buttons:[{action:'cancel',label:'Cancel',callback:()=>false},{action:'complete',label:'Complete activity',default:true,callback:(event,button)=>({mode:button?.form?.elements?.mode?.value,check:button?.form?.elements?.check?.value})}]});
+    if(!answer)return null;
+    if(typeof answer==='object'&&answer.mode!=null)mode=Math.sign(Number(answer.mode)||0);
+    const chosen=typeof answer==='object'?cplan?.options.find(o=>choiceOf(o)===answer.check):null;
+    if(chosen&&chosen!==picked){picked=chosen;option=checkOption(actor,picked);}
+  }
+  if(activityLocks.has(actor.id))throw Error(`${actor.name} is already completing an activity`);
+  activityLocks.add(actor.id);
+  try{
+    let check=null;
+    if(option){
+      try{const rolled=await rollCheck(actor,option,mode);check=rolled?{label:option.label,total:rolled.total,mode}:{label:option.label,unavailable:true};}
+      catch(err){throw Error(`Activity cancelled (${err.message}).`);}
+    }
+    try{await activityChatCard(actor,recipe,check);}catch(err){console.warn(`[${ID}] Activity completed; chat card failed`,err);}
+    return {ok:true,message:`${actor.name} completed ${recipe.name}.`};
+  }finally{activityLocks.delete(actor.id);}
 }
 
 /* ---- Gathering ---------------------------------------------------------------------------------
@@ -1567,7 +1680,7 @@ function decorateChatCard(message,html){
   });
 }
 
-/** Learn / Craft / Award XP, shared by the Ledger window and the sheet tab. Returns {message} or null if cancelled. */
+/** Learn / Craft / Complete activity / Award XP, shared by the Ledger window and the sheet tab. Returns {message} or null if cancelled. */
 async function performAction(action,{id,actorId,points,delta=null,set=null,reason='',messageId=null}){
   checkPlayerLedger();
   const actor=actorById(actorId);
@@ -1614,6 +1727,7 @@ async function performAction(action,{id,actorId,points,delta=null,set=null,reaso
     return {message:`${actor.name}: ${name} XP ${r.from} → ${r.xp}, level ${r.level}.${dep?` ${dep}`:''}`,...(r.xp>r.from?{award:{actorId:actor.id,profId:id,points:r.xp-r.from}}:{})};
   }
   if(action==='craft')return craft(actor,id);
+  if(action==='complete-activity')return completeActivity(actor,id);
   throw Error(`Unknown action ${action}`);
 }
 
@@ -1825,7 +1939,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
    * GM). Content names that match no dnd5e tool or skill are listed in the cell so the GM can tick what they mean. */
   _toolSetup(){
     const draft=this.mapDraft??mappingDraft(checkMapping());
-    const {map,unresolved,conflicts}=crosswalkInfo(draft),keys=toolKeys();
+    const {map,unresolved,conflicts}=crosswalkInfo(draft),keys=mapToolOptions();
     const row=name=>{const k=professionKey(name),title=professionTitle(k),gathering=GATHERING_PROFESSIONS.includes(name);
       const cell=list=>mapCellHtml({k,title,list,map,unresolved,options:list==='qualifySkills'?SKILL_IDS:keys});
       return `<tr data-map-row="${esc(k)}"><th scope="row"><span class="agl-map-prof">${esc(title)}</span>
@@ -1836,12 +1950,12 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const notes=conflicts.map(c=>`${c}: several imported Profession definitions disagree, so the content is not used for it.`);
     const adv=GATHERING_PROFESSIONS.map(n=>professionKey(n)).filter(k=>map.advantageTools[k]?.length||map.advantageItems[k]?.length);
     return `<section class="ag-card agl-panel"><h2>Tools and checks</h2>
-      <p class="agl-sub">Proficiency in any <b>skill</b> or <b>tool to access</b> qualifies a character for the profession in <b>Assign</b>. The first skill and tool in a cell are the profession’s checks: crafting rolls the tool when a recipe names none of its own, and gathering offers the tool and the skill. A character proficient with, or carrying, any <b>tool for advantage</b> starts gathering checks with advantage (gathering professions only; crafting checks never get it). Under each cell: where its value comes from. Saved with <b>Save Changes</b>.</p>
+      <p class="agl-sub">Proficiency in any <b>skill</b> or <b>tool to access</b> qualifies a character for the profession in <b>Assign</b>; <b>Any musical instrument</b> matches proficiency with any instrument. The first skill and tool in a cell are the profession’s checks: crafting rolls the tool when a recipe names none of its own, gathering offers the tool and the skill, and creative activities offer the activity’s tools and the skill. A character proficient with, or carrying, any <b>tool for advantage</b> starts gathering checks with advantage (gathering professions only; crafting checks never get it). Under each cell: where its value comes from. Saved with <b>Save Changes</b>.</p>
       <p class="agl-sub" data-map-adv-summary>${adv.length?`Gathering advantage: ${esc(adv.map(k=>`${professionTitle(k)} (${[...map.advantageTools[k].map(toolLabel),...map.advantageItems[k].map(n=>`${n}, carried`)].join(', ')})`).join('; '))}.`:'No gathering profession has a tool for advantage yet.'}</p>
       ${notes.length?`<ul class="agl-sub">${notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`:''}
       ${this._baselinePanel()}
       <div class="ag-table-wrap agl-map-wrap"><table class="ag-table agl-map"><thead><tr><th scope="col">Profession</th><th scope="col">Skill to Access</th><th scope="col">Tool to Access</th><th scope="col">Tool for Advantage</th></tr></thead>
-      <tbody>${group('Crafting professions',PROFESSION_NAMES.filter(n=>!GATHERING_PROFESSIONS.includes(n)))}${group('Gathering professions',PROFESSION_NAMES.filter(n=>GATHERING_PROFESSIONS.includes(n)))}</tbody></table></div></section>`;
+      <tbody>${PROFESSION_GROUPS.map(([category,label])=>{const names=allProfessions().filter(p=>p.category===category).map(p=>p.name);return names.length?group(label,names):'';}).join('')}</tbody></table></div></section>`;
   }
   /** GM: baseline file import (file → preview → apply) and export of the current table. */
   _baselinePanel(){
@@ -1899,11 +2013,12 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>Where XP lives:</strong> on your character, kept by the Profession Ledger. It’s shown here, in the Professions tab of the Tidy5e sheet, and in the profession feature’s description on your sheet. Only the GM awards XP.</p>
     <p><strong>Gathering:</strong> pick a gathering spot at a location your party knows and press <b>Request gather</b>. It waits in the GM’s Requests list until they approve or decline (with a reason); one waiting request per character. The GM can also send a check to you directly. The lead gatherer rolls one check for the party (skill or tool bonus shown, advantage preset from the sheet, effects and helpers). Success gives one common bundle, success by 5+ a rare one instead; failure exhausts the spot. The result is posted in chat.</p>
     <p><strong>Tools:</strong> a recipe shows the tool or workstation it needs and warns if your character doesn’t carry the tool. Crafting rolls a tool check; the result is on the craft card. Gold costs are shown, not deducted.</p>
-    <p><strong>XP:</strong> the GM awards profession XP from the gather and craft chat cards${game.user.isGM?', or under <b>GM: XP</b> on a profession card (Award or Adjust, with the history)':''}.</p>
+    <p><strong>Activities:</strong> some known recipes are creative activities (Artistry: a performance, a composition, a commission…). They need no ingredients and make no item: <em>Complete activity</em> rolls the check like Craft and posts a chat card, where the GM can award profession XP.</p>
+    <p><strong>XP:</strong> the GM awards profession XP from the gather, craft and activity chat cards${game.user.isGM?', or under <b>GM: XP</b> on a profession card (Award or Adjust, with the history)':''}.</p>
     ${game.user.isGM?'<p><strong>Gathering (GM):</strong> three sub-tabs. <em>Requests</em> lists what players asked for (Approve or Decline); <em>Active checks</em> holds the open checks and the last result; <em>Start gathering</em> starts a check on a Location node, a node template or an ad-hoc node. The Gathering tab opens on Requests when any are waiting.</p>':''}
     ${game.user.isGM?'<p><strong>Gathering Nodes:</strong> reusable gathering spots (NODE-* ids) with an activity, profession(s), tier range, check, DC and common/rare/exotic material tables. Roll on one from anywhere (Gathering → Start gathering → Node template), point a Location at one by id, or import/export node files. Edit opens the node in place of the list; <em>All nodes</em> or Cancel goes back to where you were. <em>Copy Location nodes</em> makes templates from the gathering nodes your Locations already have, without changing Locations. Draft materials are listed for you, marked; tick <em>Use draft materials anyway</em> on the Gathering tab to award one.</p>':''}
     ${game.user.isGM?'<p><strong>Assign:</strong> preview which profession features each party character qualifies for from their skill and tool proficiencies (the Skill to Access and Tool to Access in GM Setup → Tools and checks), then add the missing ones. Re-running adds nothing new; XP is never changed.</p>':''}
-    ${game.user.isGM?'<p><strong>GM Setup:</strong> sub-tabs <em>Party</em>, <em>Tools and checks</em>, <em>Gathering &amp; crafting</em> and <em>Player Access</em>; every change on any of them is saved together with <b>Save Changes</b>, and <b>Cancel</b> discards them and stays on GM Setup. <em>Tools and checks</em> has one row per profession, crafting then gathering: the skills and tools that give access (any one qualifies; the first skill and tool are also the profession’s checks) and, for gathering, the tools that give advantage (gathering professions only; ignored for crafting). Click a cell to tick several values; under it you see where its value comes from (default, imported content, baseline file or your edit). Its <em>Baseline file</em> section imports a baseline crosswalk file (preview, then Apply baseline, which saves at once) and exports the current table. General Manager imports recipes and materials; the older Ledger JSON import is under <em>Advanced</em> at the end of the Recipe Catalog. XP is awarded from the Individual tab.</p>':''}
+    ${game.user.isGM?'<p><strong>GM Setup:</strong> sub-tabs <em>Party</em>, <em>Tools and checks</em>, <em>Gathering &amp; crafting</em> and <em>Player Access</em>; every change on any of them is saved together with <b>Save Changes</b>, and <b>Cancel</b> discards them and stays on GM Setup. <em>Tools and checks</em> has one row per profession, crafting, gathering, then creative (Artistry; <em>Any musical instrument</em> matches any instrument proficiency): the skills and tools that give access (any one qualifies; the first skill and tool are also the profession’s checks) and, for gathering, the tools that give advantage (gathering professions only; ignored for crafting). Click a cell to tick several values; under it you see where its value comes from (default, imported content, baseline file or your edit). Its <em>Baseline file</em> section imports a baseline crosswalk file (preview, then Apply baseline, which saves at once) and exports the current table. General Manager imports recipes and materials; the older Ledger JSON import is under <em>Advanced</em> at the end of the Recipe Catalog. XP is awarded from the Individual tab.</p>':''}
   `;}
   /** Ad-hoc node from the GM's form; same shape as a Locations entry. */
   _adhocNode(){
@@ -2407,7 +2522,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(action==='manager'){if(!game.user.isGM)throw Error('GM only');const m=game.modules.get('ashen-gate-manager');const api=m?.active?m.api:null;if(api?.open)api.open();else say('Ashen Gate Manager is not enabled.',true);return;}
       if(action==='skilltree'){const module=game.modules.get('ashen-gate-skill-trees');const api=module?.active?module.api:null;
         if(!api?.open){say('Skill Trees prototype is not enabled.',true);return;}
-        const tree=api.listTrees?.()?.find(t=>norm(professionFromTreeName(t.name))===norm(id));api.open({actorId:this.actorId,treeId:tree?.id});return;}
+        api.open({actorId:this.actorId,treeId:professionTreeId(api,id)});return;}
       if(action==='roster-all'||action==='roster-clear'){if(!game.user.isGM)throw Error('GM only');
         for(const input of this.element.querySelectorAll('[data-roster-actor]')){const a=game.actors.get(input.dataset.rosterActor);input.checked=action==='roster-all'?Boolean(a?.hasPlayerOwner):false;}this._rememberRosterDraft();return;}
       if(action==='roster-save'){if(!game.user.isGM)throw Error('GM only');
@@ -2420,7 +2535,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         if(this.coreAwardDirty){await game.settings.set(ID,CORE_AWARD_SETTING,this.coreAwardDraft);saved.push(`core item awards ${this.coreAwardDraft?'on':'off'}`);}
         if(this.accessDirty){const on=this.accessDraft;await setPlayerAccess(game,ID,on);saved.push(`Player Access ${on?'on (players can open the Ledger)':'off (hidden from players)'}`);}
         this._clearSetupDrafts();this.notice=`Saved ${saved.join('; ')}.`;this.render();say(this.notice);return;}
-      if(['learn-recipe','craft','award-xp','adjust-xp'].includes(action)){
+      if(['learn-recipe','craft','complete-activity','award-xp','adjust-xp'].includes(action)){
         const actorId=data.actor??(String(id).includes(':')?String(id).split(':')[0]:this.actor?.id);
         const input=action==='award-xp'?this.element?.querySelector?.(`[data-xp-input="${id}"]`):null;
         const q=n=>this.element?.querySelector?.(`[data-xp-${n}="${id}"]`)?.value;
@@ -2547,7 +2662,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   _setMapCell(list,k,ticked){
     if(!MAP_LISTS.includes(list)||!k)return;
     this.mapDraft??=mappingDraft(checkMapping());
-    const d=this.mapDraft,field=mapCheckField(list,k),valid=list==='qualifySkills'?SKILL_IDS:toolKeys();
+    const d=this.mapDraft,field=mapCheckField(list,k),valid=list==='qualifySkills'?SKILL_IDS:mapToolOptions();
     const want=list==='advantageItems'?cleanItemList(ticked??[]):[...new Set((ticked??[]).filter(v=>valid.includes(v)))],prev=mapCellValues(crosswalkInfo(d).map,list,k);
     const next=[...prev.filter(v=>want.includes(v)),...want.filter(v=>!prev.includes(v))];
     const saved=mappingDraft(checkMapping()),savedShown=mapCellValues(crosswalkInfo(saved).map,list,k);
@@ -2559,7 +2674,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(field){if(k in saved[field])d[field][k]=saved[field][k];else delete d[field][k];}
     }else{
       if(same(next,lower))delete d[list][k];else d[list][k]=next;
-      if(field)d[field][k]=next[0]??'';
+      // 0.28.0: the check tool is the first real tool; a group (Any musical instrument) qualifies but is not rolled.
+      if(field)d[field][k]=next.find(v=>!isToolGroup(v))??'';
     }
     this._syncRosterActions();
   }
@@ -2724,6 +2840,12 @@ Hooks.once('ready',()=>{
     inspectProfessionPerkChoices:(actor,profId)=>{checkPlayerLedger();if(!game.user.isGM&&!actor?.testUserPermission?.(game.user,'OBSERVER'))throw Error('Actor access denied');return progressOf(actor,profId);},
     learnRecipe:(actor,item)=>{checkPlayerLedger();return learnRecipe(actor,item);},
     craft:(actor,recipeId,options)=>craft(actor,recipeId,options),
+    /** 0.28.0: complete an activity recipe (kind "activity"): roll, post the card with the GM's XP award. Owner or GM. */
+    completeActivity:(actor,recipeId,options)=>completeActivity(actor,recipeId,options),
+    /** 0.28.0: (actorId or Actor, {toolProficienciesAnyOf?, skillProficienciesAnyOf?}) → {ok, matched}. GM or Actor observer. */
+    meetsProficiency:(actorId,access)=>meetsProficiency(actorId,access),
+    /** 0.28.0: the professions the Ledger knows: [{name, key, id, category: 'crafting'|'gathering'|'creative'}]. */
+    professions:()=>allProfessions().map(p=>({...p})),
     /** Gathering: start/resolve/cancel are GM-only; request is a player asking the GM. */
     gathering:{nodes:()=>{checkPlayerLedger();return structuredClone(gatherLocations());},
       start:({locationId=null,nodeId=null,node=null,templateId=null,tier=null,leadId,helperIds=[],allowDraft=false}={})=>{checkPlayerLedger();
@@ -2775,6 +2897,8 @@ Hooks.once('ready',()=>{
     version:VERSION,source:'Actor inventories, Manager tagged Items, and optional Ledger catalog'};
   game.socket?.on?.(SOCKET,(message,senderId)=>void onSocket(message,senderId));
   if(game.user?.isGM&&activeGM()?.id===game.user.id)void migrateMapping();
+  // 0.28.0: note imported creative professions (registry extras) so the GM's tables list them from the start.
+  if(game.user?.isGM)try{professionDefinitions();}catch(err){console.warn(`[${ID}] Could not read imported professions`,err);}
   // 0.25.0: after every module's ready (Locations sets its API there), copy Location gathering nodes into templates once.
   if(game.user?.isGM&&activeGM()?.id===game.user.id)setTimeout(()=>void autoMigrateNodes(),0);
   // 0.21.0: the request queue lives on the GM's client; after a GM reload tell players their waiting requests are gone.

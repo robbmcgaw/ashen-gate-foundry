@@ -49,9 +49,9 @@ await import(pathToFileURL(entry));hooks.init();hooks.ready();
 const app=api.open({view:'assign'});
 const html=async view=>{app.view=view;return (await app._prepareContext({})).html;};
 
-test('crosswalk defaults cover all 14 professions; Fishing is accessed by Survival, no built-in items (0.22.0)',()=>{
+test('crosswalk defaults cover all 15 professions (0.28.0: Artistry); Fishing is accessed by Survival, no built-in items (0.22.0)',()=>{
   const map=effectiveMapping({});
-  assert.equal(PROFESSION_KEYS.length,14);
+  assert.equal(PROFESSION_KEYS.length,15);
   for(const k of PROFESSION_KEYS)for(const l of ['qualifySkills','qualifyTools','advantageTools'])assert.ok(Array.isArray(map[l][k]),`${k} ${l}`);
   assert.deepEqual(map.qualifyTools.alchemy,['alchemist']);assert.deepEqual(map.qualifySkills.enchanting,['arc']);
   assert.deepEqual(map.qualifySkills.huntingskinning,['sur']);assert.deepEqual(map.qualifyTools.mining,['mason']);

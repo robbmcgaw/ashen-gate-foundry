@@ -4,6 +4,7 @@
  * with fallbacks, so the rules stay testable.
  */
 import {norm} from './core.mjs';
+import {professionKeysIn} from './professions.mjs';
 
 export const SKILL_LABELS=Object.freeze({acr:'Acrobatics',ani:'Animal Handling',arc:'Arcana',ath:'Athletics',dec:'Deception',his:'History',
   ins:'Insight',itm:'Intimidation',inv:'Investigation',med:'Medicine',nat:'Nature',prc:'Perception',prf:'Performance',per:'Persuasion',
@@ -28,10 +29,24 @@ export const professionKey=name=>{const key=norm(String(name??'').replace(/\[[^\
 /** GM Setup defaults: the tool each profession crafts or gathers with. Blank means no default; the GM can set one. */
 export const DEFAULT_PROFESSION_TOOLS=Object.freeze({alchemy:'alchemist',blacksmithing:'smith',cooking:'cook',engineering:'tinker',
   inscription:'calligrapher',jewelcrafting:'jeweler',leatherworking:'leatherworker',tailoring:'weaver',herbalism:'herb',
-  mining:'mason',huntingskinning:'leatherworker',enchanting:'',archaeology:'',fishing:''});
+  mining:'mason',huntingskinning:'leatherworker',enchanting:'',archaeology:'',fishing:'',artistry:''});
 /** GM Setup defaults: the skill a profession can roll instead of (or beside) its tool. Gathering professions use it to
  * gather; Enchanting is the one crafting profession whose main check is a skill (Arcana). The GM can change or clear it. */
-export const DEFAULT_GATHER_SKILLS=Object.freeze({herbalism:'nat',huntingskinning:'sur',archaeology:'his',fishing:'sur',mining:'',enchanting:'arc'});
+export const DEFAULT_GATHER_SKILLS=Object.freeze({herbalism:'nat',huntingskinning:'sur',archaeology:'his',fishing:'sur',mining:'',enchanting:'arc',artistry:'prf'});
+/** 0.28.0 (GM decision): built-in tools to access for a profession with no single check tool. Artistry: any musical
+ * instrument (a tool group), Disguise Kit, Painter's Supplies or Calligrapher's Supplies; with Performance (its check skill,
+ * above) any one qualifies. Shown as "Default" in GM Setup and changeable there like every other cell. */
+export const DEFAULT_QUALIFY_TOOLS=Object.freeze({artistry:Object.freeze(['music','disg','painter','calligrapher'])});
+/** 0.28.0: tool groups a crosswalk cell or a recipe can name instead of one tool. `music` matches any dnd5e tool whose type
+ * is a musical instrument (read from dnd5e's config when it says so), else the built-in instrument list below. */
+export const TOOL_GROUPS=Object.freeze({music:Object.freeze({label:'Any musical instrument',type:'music',
+  keys:Object.freeze(['bagpipes','drum','dulcimer','flute','horn','lute','lyre','panflute','shawm','viol']),
+  aliases:Object.freeze(['anymusicalinstrument','musicalinstrument','musicalinstruments','anyinstrument','instrument','instruments','music'])})});
+export const TOOL_GROUP_KEYS=Object.freeze(Object.keys(TOOL_GROUPS));
+export const isToolGroup=key=>Object.hasOwn(TOOL_GROUPS,key??'');
+/** Readable names for the instrument keys when dnd5e cannot supply a label (also used to match by name). */
+const INSTRUMENT_LABELS=Object.freeze({bagpipes:'Bagpipes',drum:'Drum',dulcimer:'Dulcimer',flute:'Flute',horn:'Horn',lute:'Lute',lyre:'Lyre',
+  panflute:'Pan Flute',shawm:'Shawm',viol:'Viol'});
 /** 0.22.0 migration of the saved checkMapping (version 0 → 1): Fishing's check skill default became Survival. Before 0.22.0
  * every Save wrote the old default (fishing: '') with the rest, so a saved '' is that old default and becomes 'sur'.
  * Nothing else is touched. Returns the new value, or null when there is nothing to change. Safe to run again. */
@@ -96,11 +111,12 @@ export function effectiveMapping(stored,{catalog=null,baseline=null}={}){
   const gm={};
   for(const list of CROSSWALK_LISTS){gm[list]={};
     for(const [k,v] of Object.entries(s[list]&&typeof s[list]==='object'?s[list]:{})){const clean=cleanCrosswalkList(list,v);if(clean)gm[list][PROFESSION_ALIASES[k]??k]=clean;}}
-  const keys=[...new Set([...Object.keys(tools),...Object.keys(skills)])];
+  // 0.28.0: imported creative professions (registry extras) get a row too.
+  const keys=[...new Set([...Object.keys(tools),...Object.keys(skills),...professionKeysIn('creative')])];
   const out={tools,skills,gm,qualifySkills:{},qualifyTools:{},advantageTools:{},items:{},advantageItems:{},origin:{}};
   for(const k of keys){
     const cat=catalog?.[k]??null,file=baseline?.[k]??null;
-    const base={qualifySkills:skills[k]?[skills[k]]:[...(DEFAULT_QUALIFY_SKILLS[k]??[])],qualifyTools:tools[k]?[tools[k]]:[],advantageTools:[...(DEFAULT_ADVANTAGE_TOOLS[k]??[])],items:[...(DEFAULT_QUALIFY_ITEMS[k]??[])],advantageItems:[...(DEFAULT_ADVANTAGE_ITEMS[k]??[])]};
+    const base={qualifySkills:skills[k]?[skills[k]]:[...(DEFAULT_QUALIFY_SKILLS[k]??[])],qualifyTools:tools[k]?[tools[k]]:[...(DEFAULT_QUALIFY_TOOLS[k]??[])],advantageTools:[...(DEFAULT_ADVANTAGE_TOOLS[k]??[])],items:[...(DEFAULT_QUALIFY_ITEMS[k]??[])],advantageItems:[...(DEFAULT_ADVANTAGE_ITEMS[k]??[])]};
     out.origin[k]={};
     for(const list of CROSSWALK_LISTS){
       const fileList=file?cleanCrosswalkList(list,file[list]):null;
@@ -123,12 +139,31 @@ const dnd5eTools=()=>globalThis.CONFIG?.DND5E?.tools??{};
 export const toolKeys=()=>[...new Set([...Object.keys(TOOL_LABELS),...Object.keys(dnd5eTools())])].sort((a,b)=>toolLabel(a).localeCompare(toolLabel(b)));
 export function toolLabel(key){
   if(!key)return '';
+  if(isToolGroup(key))return TOOL_GROUPS[key].label;
   try{const label=globalThis.dnd5e?.documents?.Trait?.keyLabel?.(key,{trait:'tool'});if(typeof label==='string'&&label&&label!==key)return label;}catch{}
   const cfg=dnd5eTools()[key];
   if(typeof cfg==='string')return cfg;
   if(typeof cfg?.label==='string'&&cfg.label)return cfg.label;
-  return TOOL_LABELS[key]??String(key);
+  return TOOL_LABELS[key]??INSTRUMENT_LABELS[key]??String(key);
 }
+/** The tool type dnd5e gives a tool key ("music", "art", "game"), or null when its config does not say. Reads the config
+ * entry, else the compendium index entry it points to (fromUuidSync, when available). */
+function dnd5eToolType(cfg){
+  const direct=cfg?.type?.value??cfg?.type??cfg?.toolType??null;
+  if(typeof direct==='string'&&direct)return direct;
+  if(typeof cfg?.id!=='string'||typeof globalThis.fromUuidSync!=='function')return null;
+  try{const hit=globalThis.fromUuidSync(cfg.id);const t=hit?.system?.type?.value??hit?.system?.toolType;return typeof t==='string'&&t?t:null;}catch{return null;}
+}
+/** 0.28.0: the tool keys in a group: every dnd5e tool whose type is the group's (e.g. a musical instrument), plus the built-in
+ * list (by key, or by a tool whose label is an instrument name) so it still works when dnd5e's config does not give types. */
+export function toolGroupMembers(group){
+  const g=TOOL_GROUPS[group];if(!g)return [];
+  const out=new Set(g.keys),names=new Set(Object.values(INSTRUMENT_LABELS).map(norm));
+  for(const [key,cfg] of Object.entries(dnd5eTools()))if(dnd5eToolType(cfg)===g.type||(group==='music'&&names.has(norm(toolLabel(key)))))out.add(key);
+  return [...out];
+}
+/** A tool name as a group key ("Any musical instrument" → music), or null. */
+export const toolGroupOf=name=>{const n=norm(name);return TOOL_GROUP_KEYS.find(k=>k===String(name??'').trim()||TOOL_GROUPS[k].aliases.includes(n)||norm(TOOL_GROUPS[k].label)===n)??null;};
 export const skillLabel=key=>SKILL_LABELS[key]??globalThis.CONFIG?.DND5E?.skills?.[key]?.label??String(key??'');
 /** A recipe's tool reference: a dnd5e tool key ("alchemist"), an Item UUID, or a tool Item name. */
 export function toolRef(value){
@@ -148,6 +183,7 @@ export function toolRef(value){
 export function requiredToolRef(value){
   const ref=toolRef(value);
   if(!ref||ref.key||!ref.name)return ref;
+  const group=toolGroupOf(ref.name);if(group)return {...ref,key:group};
   const key=toolKeys().find(k=>norm(toolLabel(k))===norm(ref.name)||norm(TOOL_LABELS[k])===norm(ref.name));
   return key?{...ref,key}:ref;
 }
@@ -163,9 +199,24 @@ export function toolBonus(actor,key){
   return abilityMod(actor,t?.ability??dnd5eTools()[key]?.ability??TOOL_ABILITY[key]);
 }
 export const toolProficient=(actor,key)=>Number(actor?.system?.tools?.[key]?.value??actor?.system?.tools?.[key]?.effectValue??0)>0;
+/** 0.28.0: proficiency for a crosswalk tool value: a tool key as toolProficient; a group (music) when the character is
+ * proficient with any tool in it (or with the whole group). Returns the tool keys that matched ([] for none). */
+export function toolProficiencyMatches(actor,key){
+  if(!isToolGroup(key))return toolProficient(actor,key)?[key]:[];
+  const listed=toolGroupMembers(key),members=new Set([key,...listed]),labels=new Set(listed.map(m=>norm(toolLabel(m))));
+  // A tool on the sheet that is not in dnd5e's list still counts when its label is in the group (e.g. "Lute").
+  for(const k of Object.keys(actor?.system?.tools??{}))if(!members.has(k)&&labels.has(norm(toolLabel(k))))members.add(k);
+  return [...members].filter(k=>toolProficient(actor,k));
+}
+export const toolQualifies=(actor,key)=>toolProficiencyMatches(actor,key).length>0;
+/** True when a carried tool Item belongs to a group: its dnd5e tool type, base item or name. */
+const inGroup=(item,group)=>{const g=TOOL_GROUPS[group];if(!g)return false;
+  const type=item?.system?.type?.value,base=item?.system?.type?.baseItem??item?.system?.baseItem;
+  return type===g.type||toolGroupMembers(group).includes(base)||Object.values(INSTRUMENT_LABELS).some(n=>group==='music'&&norm(n)===norm(item?.name));};
 /** The tool Item the character carries for this reference, or null. */
 export function heldTool(actor,ref){
   if(!ref)return null;
+  if(isToolGroup(ref.key))return Array.from(actor?.items??[]).find(i=>i?.type==='tool'&&inGroup(i,ref.key))??null;
   return Array.from(actor?.items??[]).find(i=>i?.type==='tool'&&(
     (ref.key&&(i.system?.type?.baseItem===ref.key||i.system?.baseItem===ref.key))||
     (ref.uuid&&(i.uuid===ref.uuid||i._stats?.compendiumSource===ref.uuid||i.flags?.core?.sourceId===ref.uuid))||
@@ -190,6 +241,20 @@ export function advantageItem(actor,ref){
 }
 export const formatBonus=n=>Number.isFinite(n)?(n>=0?`+${n}`:`−${Math.abs(n)}`):'—';
 
+/** 0.28.0: a recipe's tool references for one character, with each group (Any musical instrument) replaced by the tools of
+ * that group the character is proficient with or carries, so the check rolls a real instrument. A group the character has
+ * nothing for stays as it is (shown as missing). */
+export function expandToolGroups(actor,refs=[]){
+  // Other references are kept exactly as given; only a group's tools are skipped when already listed.
+  const out=[],has=ref=>out.some(o=>(ref.key&&o.key===ref.key)||(ref.name&&o.name&&norm(o.name)===norm(ref.name))),add=ref=>{if(!has(ref))out.push(ref);};
+  for(const ref of refs){
+    if(!ref||!isToolGroup(ref.key)){if(ref)out.push(ref);continue;}
+    const found=[...toolProficiencyMatches(actor,ref.key).filter(k=>!isToolGroup(k)).map(k=>({key:k,uuid:null,name:null})),
+      ...Array.from(actor?.items??[]).filter(i=>i?.type==='tool'&&inGroup(i,ref.key)).map(i=>({key:i.system?.type?.baseItem??i.system?.baseItem??null,uuid:null,name:i.name}))];
+    if(found.length)found.forEach(add);else add(ref);
+  }
+  return out;
+}
 /** One check option: {kind:'skill'|'tool', key, label, bonus, proficient, held}. */
 export function checkOption(actor,{kind,key,ref=null}){
   if(kind==='skill')return {kind,key,label:skillLabel(key),bonus:skillBonus(actor,key),proficient:Number(actor?.system?.skills?.[key]?.value??0)>0,held:null};
@@ -228,7 +293,7 @@ export function rollModeFor(actor,{kind,key},{assists=[],advantageTools=[],advan
   for(const name of assists)adv.push(`assisted by ${name}`);
   // GM-configured advantage tools (0.16.0): proficiency with, or carrying, one of them.
   for(const tool of advantageTools){const ref={key:tool,uuid:null,name:null};
-    if(toolProficient(actor,tool)||heldTool(actor,ref))adv.push(toolLabel(tool));}
+    if(toolQualifies(actor,tool)||heldTool(actor,ref))adv.push(toolLabel(tool));}
   // 0.27.0: carried gear that gives advantage (e.g. Fishing Tackle), named as the character's item.
   for(const ref of advantageItems){const item=advantageItem(actor,ref);if(item&&!adv.includes(item.name))adv.push(item.name);}
   const mode=adv.length&&dis.length?0:adv.length?1:dis.length?-1:0;
@@ -261,10 +326,13 @@ export async function rollCheck(actor,option,mode){
  * The tool is the default when the crafter carries it or is proficient; otherwise the skill, if there is one.
  * Returns null when neither applies. `tool` is a toolRef; `skill` a skill id or null.
  */
-export function craftCheckPlan(actor,{tool=null,tools=null,skill=null}={}){
+export function craftCheckPlan(actor,{tool=null,tools=null,skill=null,skills=null}={}){
   // `tools` (0.15.0): a recipe needing several tools offers a check with each of them.
   const refs=(Array.isArray(tools)&&tools.length?tools:tool?[tool]:[]).filter(Boolean);
-  const options=[...refs.map(ref=>({kind:'tool',key:ref.key??null,ref})),...(skill?[{kind:'skill',key:skill}]:[])];
+  // `skills` (0.28.0): an activity may offer several skills (its access list) besides the profession's check skill.
+  const skillKeys=[...new Set([skill,...(Array.isArray(skills)?skills:[])].filter(Boolean))];
+  skill=skillKeys[0]??null;
+  const options=[...refs.map(ref=>({kind:'tool',key:ref.key??null,ref})),...skillKeys.map(key=>({kind:'skill',key}))];
   if(!options.length)return null;
   const toolOptions=options.filter(o=>o.kind==='tool');
   const usable=toolOptions.find(o=>heldTool(actor,o.ref)||(o.ref.key&&checkOption(actor,{kind:'tool',key:o.ref.key,ref:o.ref}).proficient));

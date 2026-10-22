@@ -5,25 +5,32 @@
  * Pure rules; main.js reads Foundry, enforces the GM gate and creates the Items.
  */
 import {PROFESSION_NAMES,norm} from './core.mjs';
-import {SKILL_IDS,SKILL_LABELS,professionKey,requiredToolRef,toolLabel,skillLabel,toolProficient,carriedItem,cleanItemList,CROSSWALK_LISTS,ITEM_LISTS,toolKeys} from './checks.mjs';
+import {SKILL_IDS,SKILL_LABELS,professionKey,requiredToolRef,toolLabel,skillLabel,carriedItem,cleanItemList,CROSSWALK_LISTS,ITEM_LISTS,toolKeys,
+  toolGroupOf,toolProficiencyMatches} from './checks.mjs';
+import {allProfessions,noteProfession,PROFESSION_CATEGORIES} from './professions.mjs';
 
+/** The built-in professions' keys (the 14 originals, then Artistry). */
 export const PROFESSION_KEYS=Object.freeze(PROFESSION_NAMES.map(professionKey));
+/** 0.28.0: every profession the crosswalk covers: the built-ins plus imported creative professions (registry extras). */
+export const allProfessionKeys=()=>[...new Set([...PROFESSION_KEYS,...allProfessions().map(p=>p.key)])];
 /** 0.22.0: shown names. Keys, ids and stored names never change; "Hunting" still matches huntingskinning (see professionKey). */
 const PROFESSION_DISPLAY_NAMES=Object.freeze({huntingskinning:'Hunting'});
-export const professionTitle=key=>PROFESSION_DISPLAY_NAMES[key]??PROFESSION_NAMES.find(n=>professionKey(n)===key)??key;
+export const professionTitle=key=>PROFESSION_DISPLAY_NAMES[key]??allProfessions().find(p=>professionKey(p.name)===key)?.name??key;
 
 /** A catalog skill name ("Nature") as a dnd5e skill id, or null. No aliases are guessed. */
 const skillIdOf=name=>{const t=String(name??'').trim();if(SKILL_IDS.includes(t))return t;return SKILL_IDS.find(k=>norm(SKILL_LABELS[k])===norm(t))??null;};
 /** 0.22.1: a tool name or key as a dnd5e tool key, only when dnd5e (or the built-in list) has that tool; else null. */
-const toolIdOf=name=>{const key=requiredToolRef(name)?.key??null;return key&&toolKeys().includes(key)?key:null;};
+const toolIdOf=name=>{const group=toolGroupOf(name);if(group)return group;const key=requiredToolRef(name)?.key??null;return key&&toolKeys().includes(key)?key:null;};
 /** 0.22.1: the profession a PROF-* definition is for, the same for the catalog and Assign: from the PROF id first
  * (PROF-TG-HERBALISM → herbalism), else from its name. Null when neither names a profession. */
-export function definitionProfessionKey(sourceId,name){
-  const id=String(sourceId??'');
+export function definitionProfessionKey(sourceId,name,category=null){
+  const id=String(sourceId??''),keys=allProfessionKeys();
   if(/^PROF-[A-Z0-9-]+$/.test(id)){const parts=id.split('-').slice(1);
-    for(let i=0;i<parts.length;i++){const k=professionKey(parts.slice(i).join(' '));if(PROFESSION_KEYS.includes(k))return k;}}
+    for(let i=0;i<parts.length;i++){const k=professionKey(parts.slice(i).join(' '));if(keys.includes(k))return k;}}
   const named=professionKey(name);
-  return PROFESSION_KEYS.includes(named)?named:null;
+  if(keys.includes(named))return named;
+  // 0.28.0: a new profession imported with category `creative` joins the registry by its name.
+  return PROFESSION_CATEGORIES.includes(category)?noteProfession({name,category}):null;
 }
 
 /**
@@ -39,7 +46,7 @@ export function catalogCrosswalk(definitions=[]){
     if(!access||typeof access!=='object')continue;
     const lists={skillProficienciesAnyOf:'qualifySkills',toolProficienciesAnyOf:'qualifyTools',advantageToolsAnyOf:'advantageTools'};
     if(![...Object.keys(lists),'itemsAnyOf'].some(f=>Array.isArray(access[f])))continue;
-    const key=definitionProfessionKey(d.sourceId,d.name);
+    const key=d.key??definitionProfessionKey(d.sourceId,d.name,d.category);
     if(!key)continue;
     const entry={qualifySkills:[],qualifyTools:[],advantageTools:[]};
     for(const [field,list] of Object.entries(lists))for(const name of Array.isArray(access[field])?access[field]:[]){
@@ -62,21 +69,37 @@ export function catalogCrosswalk(definitions=[]){
 }
 
 /** Professions with no qualifying skill, tool or item in this crosswalk: nobody can be proposed for them. */
-export const unmappedProfessions=map=>PROFESSION_KEYS.filter(k=>!(map.qualifySkills[k]?.length||map.qualifyTools[k]?.length||map.items?.[k]?.length)).map(professionTitle);
+export const unmappedProfessions=map=>allProfessionKeys().filter(k=>!(map.qualifySkills[k]?.length||map.qualifyTools[k]?.length||map.items?.[k]?.length)).map(professionTitle);
 
 const skillProficient=(actor,key)=>Number(actor?.system?.skills?.[key]?.value??0)>0;
 /** [{key, profession, reason}] for each profession the character qualifies for, e.g. "Herbalism Kit + Nature → Herbalism"
  * or, from a legacy items list, "Fishing Tackle (carried) → Fishing". */
 export function qualifications(actor,map){
   const out=[];
-  for(const key of PROFESSION_KEYS){
-    const tools=(map.qualifyTools[key]??[]).filter(t=>toolProficient(actor,t)).map(toolLabel);
+  for(const key of allProfessionKeys()){
+    // 0.28.0: a tool group (Any musical instrument) is named by the instrument that matched, e.g. "Lute".
+    const tools=[...new Set((map.qualifyTools[key]??[]).map(t=>toolProficiencyMatches(actor,t)[0]).filter(Boolean).map(toolLabel))];
     const skills=(map.qualifySkills[key]??[]).filter(s=>skillProficient(actor,s)).map(skillLabel);
     const items=[...new Set((map.items?.[key]??[]).map(ref=>carriedItem(actor,ref)?.name).filter(Boolean))].map(n=>`${n} (carried)`);
     const why=[...tools,...skills,...items];
     if(why.length)out.push({key,profession:professionTitle(key),reason:`${why.join(' + ')} → ${professionTitle(key)}`});
   }
   return out;
+}
+
+/**
+ * 0.28.0: does a character meet an access list ({toolProficienciesAnyOf?, skillProficienciesAnyOf?}, names as in content)?
+ * Same resolution as the crosswalk: tool names or dnd5e keys, tool groups ("Any musical instrument") and skill names or ids;
+ * proficiency only (nothing carried counts). Any one entry is enough. Returns {ok, matched}: `matched` lists the entries
+ * that matched, as written. An access list naming nothing is met ({ok:true, matched:[]}); names that match no dnd5e tool
+ * or skill never match.
+ */
+export function meetsAccess(actor,access){
+  const list=v=>Array.isArray(v)?v.filter(x=>typeof x==='string'&&x.trim()).slice(0,50):[];
+  const tools=list(access?.toolProficienciesAnyOf),skills=list(access?.skillProficienciesAnyOf);
+  const matched=[...tools.filter(n=>{const id=toolIdOf(n);return Boolean(id&&toolProficiencyMatches(actor,id).length);}),
+    ...skills.filter(n=>{const id=skillIdOf(n);return Boolean(id&&skillProficient(actor,id));})];
+  return {ok:!tools.length&&!skills.length?true:matched.length>0,matched};
 }
 
 /**
@@ -91,7 +114,7 @@ export function parseBaselineFile(data){
   if(!profs||typeof profs!=='object'||Array.isArray(profs))return {ok:false,baseline,unresolved,unknownProfessions,errors:['The file needs a "professions" object.']};
   for(const [name,row] of Object.entries(profs)){
     const key=professionKey(name);
-    if(!PROFESSION_KEYS.includes(key)){unknownProfessions.push(String(name));continue;}
+    if(!allProfessionKeys().includes(key)){unknownProfessions.push(String(name));continue;}
     if(!row||typeof row!=='object'||Array.isArray(row)){errors.push(`${name}: must be an object of lists.`);continue;}
     if(baseline[key]){errors.push(`${name}: ${professionTitle(key)} is listed twice.`);continue;}
     const entry={};
@@ -112,7 +135,7 @@ export function parseBaselineFile(data){
 /** The rows a new baseline changes: [{key, profession, list, before, after, gmWins}] (before/after are the file layers). */
 export function baselineChanges(oldBaseline,newBaseline,map){
   const rows=[];
-  for(const key of PROFESSION_KEYS)for(const list of CROSSWALK_LISTS){
+  for(const key of allProfessionKeys())for(const list of CROSSWALK_LISTS){
     const before=oldBaseline?.[key]?.[list]??null,after=newBaseline?.[key]?.[list]??null;
     if(JSON.stringify(before)===JSON.stringify(after))continue;
     rows.push({key,profession:professionTitle(key),list,before,after,gmWins:Boolean(map?.gm?.[list]?.[key])});
@@ -126,7 +149,7 @@ export function baselineChanges(oldBaseline,newBaseline,map){
  * 0.22.0: the legacy `items` list is written only when a profession has one. */
 export function exportCrosswalk(map,{exportedAt=new Date().toISOString(),version=''}={}){
   const professions={};
-  for(const key of PROFESSION_KEYS){const origin={...(map.origin?.[key]??{})},shown=CROSSWALK_LISTS.filter(l=>l!=='items'||map.items?.[key]?.length);
+  for(const key of allProfessionKeys()){const origin={...(map.origin?.[key]??{})},shown=CROSSWALK_LISTS.filter(l=>l!=='items'||map.items?.[key]?.length);
     professions[key]={name:professionTitle(key),...Object.fromEntries(shown.filter(l=>origin[l]==='gm'||origin[l]==='baseline').map(l=>[l,[...(map[l]?.[key]??[])]])),
       checkTool:map.tools?.[key]||null,checkSkill:map.skills?.[key]||null,origin,inEffect:Object.fromEntries(shown.map(l=>[l,[...(map[l]?.[key]??[])]]))};}
   return {schema:'ag-ledger-crosswalk/1',module:'ashen-gate-profession-ledger',version,exportedAt,professions};
