@@ -225,7 +225,7 @@ test('list: toolbar (search, sort, count, New shop), city groups with counts, ro
  const {html}=await render();
  assert.match(html,/<div class="ag-segmented agu-shop-subtabs" role="radiogroup" aria-label="Shops sections"><button type="button" role="radio" data-shop-sub="list" aria-checked="true">Shops<\/button><button type="button" role="radio" data-shop-sub="editor" aria-checked="false">Shop editor<\/button>/);
  assert.match(html,/<label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"><\/i><input type="search" id="agu-shop-search"/);
- assert.match(html,/<select id="agu-shop-sort" aria-label="Sort shops"><option value="location" selected>Group by city<\/option><option value="name">Name<\/option><option value="merchant">Merchant<\/option><option value="updated">Recently changed<\/option>/);
+ assert.match(html,/<select id="agu-shop-sort" aria-label="Sort shops"><option value="location" selected>Group by settlement<\/option><option value="name">Name<\/option><option value="merchant">Merchant<\/option><option value="updated">Recently changed<\/option>/);
  assert.match(html,/<span class="ag-toolbar__count">2 shops<\/span><div class="ag-toolbar__end"><button type="button" class="ag-btn ag-btn--sm" data-action="shop-import"[^>]*><i class="fa-solid fa-file-import" aria-hidden="true"><\/i> Import JSON<\/button><button type="button" class="ag-btn ag-btn--sm" data-action="shop-export"[\s\S]*?<input type="file" id="agu-shop-import-file" accept=".json,application\/json" hidden><button type="button" class="ag-btn" data-action="shop-new"/,'0.21.0: Import JSON and Export (--sm) before New shop');
  assert.match(html,/<h3 class="ag-eyebrow">\[TEST\] Testford · 1<\/h3>[\s\S]*<h3 class="ag-eyebrow">No location · 1<\/h3>/);
  assert.match(html,/<span class="ag-row__icon agu-shop-avatar" aria-hidden="true">BT<\/span>/);
@@ -243,7 +243,8 @@ test('editor: kit fields, items table, coin purse, buys, footer Cancel / Save Ch
  const open=async(electrum)=>{await game.settings.set(ID,'electrumEnabled',electrum);return render(gm,app=>{app.shopDraft=shopsMod.draftFrom(api.get(id));app.shopSub='editor';});};
  const {html}=await open(false);
  assert.match(html,/<div class="ag-form-grid">[\s\S]*Shop name<input type="text" maxlength="120" data-shop-field="name" value="\[TEST\] The Copper Kettle" required>/);
- assert.match(html,/Linked location<select data-shop-field="locationId"><option value="">None<\/option><option value="LOC-TEST-MARKET" selected>\[TEST\] Market Ward<\/option>/);
+ // 0.24.0: Settlement lists only settlements; a linked place that is not one stays, marked.
+ assert.match(html,/Settlement<select data-shop-field="locationId"><option value="">None<\/option>[\s\S]*?<option value="LOC-TEST-MARKET" selected>\[TEST\] Market Ward \(not a settlement\)<\/option>/);
  assert.match(html,/GM notes <span class="ag-gm-flag"><i class="fa-solid fa-eye-slash" aria-hidden="true"><\/i> GM only<\/span>/);
  assert.match(html,/<table class="ag-table agu-shop-lines"><thead><tr><th scope="col">Item<\/th><th scope="col">Price each<\/th><th scope="col">Stock<\/th><th scope="col">Flavour<\/th><th scope="col">Cost/);
  assert.match(html,/<code>ITEM-TEST-ROPE<\/code>/);assert.match(html,/With 2 items inside/);assert.match(html,/Already in this shop/);

@@ -224,8 +224,9 @@ test('player window: Buy / Sell switch, Coins go to, sellable rows and greyed ro
  const html=await as(alice,()=>w._renderHTML());
  assert.match(html,/<div class="ag-segmented agu-shop-mode" role="radiogroup" aria-label="Buy or sell"><button type="button" role="radio" data-shop-mode="buy" aria-checked="false">Buy<\/button><button type="button" role="radio" data-shop-mode="sell" aria-checked="true">Sell<\/button><\/div>/);
  assert.match(html,/Coins go to<\/span><div class="ag-segmented"[^>]*><button type="button" role="radio" data-sell-pay="actor" aria-checked="true">\[TEST\] Kestrel<\/button><button type="button" role="radio" data-sell-pay="purse" aria-checked="false">Party purse<\/button>/);
- assert.match(html,/×20 · Shop pays 2 cp each[\s\S]*data-action="shop-sell" data-shop="SHOP-TEST-THE-COPPER-KETTLE" data-item-id="testarrow" aria-label="Sell \[TEST\] Arrow"/);
- assert.match(html,/<li class="ag-row agu-ware is-disabled" aria-disabled="true" data-sell-item="testbackpack">[\s\S]*×1 · Containers can&#39;t be sold\. Empty it and sell the items separately\./);
+ const plain=html.replace(/<span class="agu-coin__icon"[^>]*>.<\/span>/g,'').replace(/<\/?span[^>]*>/g,'');
+ assert.match(plain,/×20[\s\S]*Shop pays 2 cp each[\s\S]*data-action="shop-sell" data-shop="SHOP-TEST-THE-COPPER-KETTLE" data-item-id="testarrow" aria-label="Sell \[TEST\] Arrow"/);
+ assert.match(html,/<li class="agu-ware-card is-disabled" aria-disabled="true" data-sell-item="testbackpack">[\s\S]*×1 · Containers can&#39;t be sold\. Empty it and sell the items separately\./);
  assert.doesNotMatch(html,/title=|style=/);
  w.mode='buy';assert.match(await as(alice,()=>w._renderHTML()),/For sale · 1/);
 });

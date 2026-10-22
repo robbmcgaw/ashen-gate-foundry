@@ -1,4 +1,4 @@
-// 0.24.0: merchant lists shared with nobody, the whole party or chosen players, with an Open switch per entry
+// 0.25.0: merchant lists shared with nobody, the whole party or chosen players, with an Open switch per entry
 // (Present / Stop showing for the list's players) and Open all / Close all; the safe, re-runnable migration of 0.20–0.23
 // lists (`visible` → `audience`); Party Fund Change coins (rates, fee setting, electrum, gates, the GM client, History,
 // whispered cards, a repeated request); deposit/take cards; the Bank kept working but marked deprecated.
@@ -50,11 +50,11 @@ test('Party Fund entries: the exchange entry, its line and card; the log keeps c
  const e=coinExchangeEntry({id:'x1',quote:q,payFrom:'actor',payer:{id:'k',name:'[TEST] Kestrel'},user:{id:'alice',name:'Alice'},realTime:1});
  assert.deepEqual([e.kind,e.serviceId,e.serviceName,e.give,e.fee,e.total,e.receive,e.fromAfter,e.toAfter],['coin-exchange',null,'Party Fund',200,20,220,2,80,3]);
  assert.equal(exchangeLine(e),"Alice changed 220 cp into 2 gp (fee 20 cp), [TEST] Kestrel's coins");
- const card=tradeCardHTML(e);assert.match(card,/Coins changed \(Party Fund\)/);assert.match(card,/Gave:<\/strong> 220 cp/);assert.match(card,/Fee:<\/strong> 20 cp/);
+ const card=tradeCardHTML(e);assert.match(card,/Coins changed \(Party Fund\)/);assert.match(card,/Gave:<\/strong> <span class="agu-coin-chips">[\s\S]*?220[\s\S]*?cp/);assert.match(card,/Fee:<\/strong> [\s\S]*?20[\s\S]*?\(included above\)/);
  assert.doesNotMatch(card,/\bk\b|alice/,'names only, no ids');
  const dep=purseEntry({id:'p1',kind:'purse-deposit',approval:'not-required',plan:{kind:'deposit',coin:'gp',amount:3,actorBefore:5,actorAfter:2,purseBefore:1,purseAfter:4},user:{id:'alice',name:'Alice'},actor:{id:'k',name:'[TEST] Kestrel'}});
- const dc=tradeCardHTML(dep);assert.match(dc,/Coins put in the party purse/);assert.match(dc,/Put in:<\/strong> 3 gp/);assert.match(dc,/Party purse now:<\/strong> 4 gp/);
- assert.match(tradeCardHTML({...dep,kind:'purse-take'}),/Coins taken from the party purse[\s\S]*Took:<\/strong> 3 gp/);
+ const dc=tradeCardHTML(dep);assert.match(dc,/Coins put in the party purse/);assert.match(dc,/Put in:<\/strong> <span class="agu-coin-chips">[\s\S]*?3[\s\S]*?gp/);assert.match(dc,/Party purse now:<\/strong> [\s\S]*?4[\s\S]*?gp/);
+ assert.match(tradeCardHTML({...dep,kind:'purse-take'}),/Coins taken from the party purse[\s\S]*Took:<\/strong> <span class="agu-coin-chips">/);
  const kinds=[{kind:'purse-deposit'},{kind:'purse-take'},{kind:'purse-adjust'},{kind:'purse-convert'},{kind:'coin-exchange'},{kind:'bank-exchange'},{kind:'shop-purchase',payFrom:'purse'},{kind:'shop-purchase',payFrom:'actor'},{kind:'shop-sale',payTo:'purse'},{kind:'shop-sale',payTo:'actor'},{kind:'deposit'},{kind:'gold-award'}];
  assert.deepEqual(kinds.map(fundLogEntry),[true,true,true,true,true,true,true,false,true,false,false,false]);
 });

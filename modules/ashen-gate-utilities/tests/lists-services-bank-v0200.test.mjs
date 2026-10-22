@@ -267,7 +267,10 @@ test('player views: Merchant list sub-tab marks entries Open only when presented
  assert.match(bankRO,/Ask the GM to open this/);assert.equal(bankRO.includes('bank-confirm'),false);
  const live=await as(alice,()=>trade.shopViewHTML(trade.viewOf(BANK),{actorId:'kestrel',bank:{payFrom:'actor',from:'cp',to:'sp',receive:'2'}}));
  assert.match(live,/class="ag-segmented"[\s\S]*?data-bank-whose="actor" aria-checked="true">\[TEST\] Kestrel[\s\S]*?data-bank-whose="purse"[^>]*>Party purse/);
- assert.match(live,/no vote needed/);assert.match(live,/<dt>You give<\/dt><dd>22 cp \(20 cp \+ 2 cp fee\)<\/dd>/);assert.match(live,/Copper 45 → 23, silver 2 → 4/);
+ assert.match(live,/no vote needed/);// 0.24.0: amounts are coin chips; read without the chip markup.
+ const plainLive=live.replace(/<span class="agu-coin__icon"[^>]*>.<\/span>/g,'').replace(/<\/?span[^>]*>/g,'');
+ assert.match(plainLive,/<dt>You give<\/dt><dd>22 cp \(20 cp \+ 2 cp fee\)<\/dd>/);assert.match(plainLive,/45 cp → 23 cp, 2 sp → 4 sp/);
+ assert.match(live,/class="agu-bank__coins"><div class="agu-coins"><div class="agu-coin agu-coin--cp" data-coin="cp" role="group" aria-label="Copper: 45">/,'the chosen coins as coin boxes');
  assert.match(live,/data-action="bank-confirm"/);assert.equal(/data-action="bank-confirm"[^>]*disabled/.test(live),false);
  assert.equal(/<option value="ep"/.test(live),false,'no electrum while it is off');
  const bad=await as(alice,()=>trade.shopViewHTML(trade.viewOf(BANK),{actorId:'kestrel',bank:{from:'gp',to:'sp',receive:'25'}}));

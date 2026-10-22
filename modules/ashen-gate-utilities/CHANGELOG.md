@@ -1,4 +1,4 @@
-## 0.24.0 — 2026-10-22
+## 0.25.0 — 2026-10-22
 
 - **Merchant lists for any group:** a list (a settlement, a faction, a guild…) has a name, an optional settlement (Locations active) and its shops and services in order. **Share…** shares it with nobody (*Hidden*), the *Whole party* or chosen players; players see only the lists shared with them.
 - **Open / Closed per entry:** a switch on each entry opens that store to the list's players (the same Present as the shop's own button, added to whoever already sees it) or closes it (Stop showing, for every player). **Open all** / **Close all** on each card; entries that can't open (missing, unknown service type) are skipped and named. Opening needs the list shared. Purchases, sales and services still need a presented (Open) store, checked in the API and on the GM client.
@@ -7,6 +7,15 @@
 - **Bank deprecated:** existing and imported Bank services keep working (exchange only) and keep their logs; the editor, the type select, the New service tooltip and the import preview say it is deprecated.
 - **API:** `api.shops.merchants.setAudience(id, {mode, userIds})`, `entries(id)`, `setOpen(id, entryId, bool)`, `setAllOpen(id, bool)`; `save` takes `audience`; `setVisible(id, bool)` still works (true = whole party). `api.purse.exchange(req)`, `quoteExchange(req)`, `exchangeFee()`. Socket `fund-exchange`.
 - Saved data: merchant lists gain `audience` (`visible` kept, derived from it). A one-time GM migration on load writes it (*Show to players* on → whole party, off → hidden); it is re-runnable and writes nothing once done; a list it can't read is left as it is. New world setting `exchangeFeePercent` (default 0). Stash History gets `coin-exchange` entries. Import/export format unchanged; Bank logs untouched.
+
+## 0.24.0 — 2026-10-22
+
+- **Item tooltips and click-to-open** in the shop editor, the shop window (buy and sell), the Buy and Sell previews and the party stash: hover shows dnd5e's own item tooltip, click opens the item. A character's or the stash's Item uses its own sheet; a shop line opens a temporary, read-only copy (never created in the world). Players' tooltips come only from a trimmed copy in the player view: the name and description they may see, the shop's price, no flags, effects, cost or GM notes, never a hidden line. Without dnd5e's tooltips the plain name tooltip stays.
+- **Shop cards:** wares (buy and sell) are cards grouped by category (item type) with the price as coins, the stock and the action; the editor's items table is grouped the same way. No clipped text.
+- **Coins:** one shared style for every coin box and amount (shop and merchant purses, the party purse, the Bank, prices, previews, chat cards): the coin's icon, a soft glow in copper, silver, gold or platinum, text centred. Electrum only while *Use electrum* is on (dimmed while a purse still holds some, as before).
+- **Settlement** replaces *Linked location* in the shop and service editors and *Group by city* in the list: only Locations' settlements are listed (Locations' `isSettlement` when present, else `settlement: true` / `kind` or `locationType` "settlement", else a Type of Settlement, City, Town, Village or Hamlet); a shop already linked to another place keeps it, marked. Without Locations it is a text field. The list groups by the nearest settlement.
+- **Merchant from an Actor:** drop an Actor on a shop or service in the editor to fill the merchant name and portrait; both stay editable, **Clear** empties them. The Actor is kept only as a reference note, so a deleted Actor never breaks the shop; players never get it.
+- Saved data: additive only. Optional `settlement` (text) and `merchant.actor` ({uuid, id, name}) on shops and services; the player view lines gain `tip`. No migration. Merchant lists and the Bank's rules are unchanged.
 
 ## 0.23.0 — 2026-10-22
 

@@ -83,7 +83,7 @@ await game.settings.set(ID,'playerAccessEnabled',true);await api.stash.setEnable
 const tick=()=>new Promise(r=>setTimeout(r,5));
 const receipt=id=>sent.find(m=>m.type==='receipt'&&m.requestId===id);
 const hist=()=>game.settings.get(ID,'stashHistory');
-// 0.24.0: the purse strip lives in Party Inventory → Party Fund (the embed keeps it).
+// 0.25.0: the purse strip lives in Party Inventory → Party Fund (the embed keeps it).
 const itemsHtml=async(user=gm)=>{game.user=user;try{const app=await api.stash.open();app.stashTab='fund';return await app._renderHTML();}finally{game.user=gm;}};
 const historyHtml=async(user=gm)=>{game.user=user;try{const app=await api.stash.open();app.stashTab='history';return await app._renderHTML();}finally{game.user=gm;}};
 const purseOf=html=>html.match(/<section class="agu-purse"[\s\S]*?<\/section>/)[0];
@@ -129,7 +129,7 @@ test('off: ep deposit/take/adjust/award are refused in the API and on the GM cli
 test('off, purse still holds ep: the ep line stays (dimmed) with a note; only the GM gets Convert',async()=>{
  stash.system.currency.ep=3;
  const gmPurse=purseOf(await itemsHtml());
- assert.match(gmPurse,/class="agu-coin agu-coin--off" role="group" aria-label="Electrum: 3 \(electrum is off\)"/);
+ assert.match(gmPurse,/class="agu-coin agu-coin--ep agu-coin--off" data-coin="ep" role="group" aria-label="Electrum: 3 \(electrum is off\)"/);
  assert.match(gmPurse,/still holds 3 electrum \(ep\), worth 15 sp/);
  assert.match(gmPurse,/data-action="purse-convert"\s*>Convert electrum to silver\/gold</);
  assert.doesNotMatch(gmPurse.match(/<select id="agu-purse-coin">[\s\S]*?<\/select>/)[0],/value="ep"/,'still not offered to move');
@@ -175,7 +175,7 @@ test('on: everything comes back (ep counter, ep choices in Deposit/Take, Award G
  assert.deepEqual(fired,[[`${ID}.electrumChanged`,true]]);assert.equal(api.currency.hook,`${ID}.electrumChanged`);
  assert.deepEqual(api.currency.coins(),COINS);
  const purse=purseOf(await itemsHtml());
- assert.match(purse,/class="agu-coin" role="group" aria-label="Electrum: 3"/);assert.doesNotMatch(purse,/agu-coin--off|data-action="purse-convert"|electrum is off/);
+ assert.match(purse,/class="agu-coin agu-coin--ep" data-coin="ep" role="group" aria-label="Electrum: 3"/);assert.doesNotMatch(purse,/agu-coin--off|data-action="purse-convert"|electrum is off/);
  assert.match(purse.match(/<select id="agu-purse-coin">[\s\S]*?<\/select>/)[0],/value="ep"/);
  let seen=scriptDialogs(['cancel']);try{await api.gold.openDialog();}finally{noDialogs();}assert.match(seen[0].content,/Electrum \(ep\)/);
  seen=scriptDialogs(['cancel']);try{await api.purse.openAdjust();}finally{noDialogs();}assert.match(seen[0].content,/Electrum \(ep\): 3/);

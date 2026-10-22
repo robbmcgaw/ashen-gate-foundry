@@ -1,4 +1,4 @@
-/* ---- 0.24.0: Party Fund (Party Inventory → Party Fund). Replaces the Bank service for everyday use: deposit and take
+/* ---- 0.25.0: Party Fund (Party Inventory → Party Fund). Replaces the Bank service for everyday use: deposit and take
    coins between a character and the party purse (main.mjs, unchanged rules and vote), a log of the purse's coins, and
    Change coins: a character's or the party purse's coins at the standard rates (1 pp = 10 gp = 100 sp = 1000 cp), the
    same rules as the Bank (whole coins only, ep only while Use electrum is on), with no fee unless the GM sets one in GM

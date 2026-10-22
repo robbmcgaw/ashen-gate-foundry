@@ -1,7 +1,7 @@
 /* ---- 0.20.0: merchant lists (design §3 Merchant list, brief 5). A named, ordered list of shops and services, usually
    one city, stored on the GM Data journal's lists page (meta.lists). shop-buy.mjs writes a shared list to the Player View
    journal as one page its players can read. Browsing a list never lets anyone buy, sell or use a service; that still
-   needs the entry presented. 0.24.0: a list is shared with nobody (hidden), the whole party or chosen players
+   needs the entry presented. 0.25.0: a list is shared with nobody (hidden), the whole party or chosen players
    (`audience`), and each entry has an Open switch that presents it to that audience (Present) or stops showing it, plus
    Open all / Close all. Every call is GM only. ---- */
 import {escapeHTML as E,normalizeMerchantList,normalizeAudience,migrateMerchantLists,listNeedsMigration,presentedCovers,mergePresented,audienceText,
@@ -55,7 +55,7 @@ async function save(data={}){
  });
  await syncPlayerView();return clone(saved);
 }
-/** 0.24.0: who the list is shared with. Its entries' Open state is not changed (close them with Close all). */
+/** 0.25.0: who the list is shared with. Its entries' Open state is not changed (close them with Close all). */
 async function setAudience(id,audience){
  gmOnly();
  const a=cleanAudience(audience);
@@ -80,7 +80,7 @@ function entries(id){gmOnly();const l=mustGetList(id);return l.shopIds.map(e=>en
 const notOnList=(l,entryId)=>{if(!l.shopIds.includes(entryId))throw Error('That shop or service is not on this merchant list.');};
 const hiddenRefusal="Share this merchant list with the party or chosen players first; Open shows a store to the list's players.";
 /**
- * 0.24.0: open (present) or close (stop showing) one entry for the list's players. Opening adds the list's players to
+ * 0.25.0: open (present) or close (stop showing) one entry for the list's players. Opening adds the list's players to
  * whoever the store is already shown to; closing stops showing it to everyone. Returns the entry's new state.
  */
 async function setOpen(id,entryId,open){
@@ -93,7 +93,7 @@ async function setOpen(id,entryId,open){
  if(r.skipped.length)throw Error(r.skipped[0].reason);
  return entryState(mustGetList(id),entryId);
 }
-/** 0.24.0: Open all / Close all. Entries that can't be opened (missing, unknown type) are skipped and named. */
+/** 0.25.0: Open all / Close all. Entries that can't be opened (missing, unknown type) are skipped and named. */
 async function setAllOpen(id,open){
  gmOnly();
  if(typeof open!=='boolean')throw TypeError('Boolean required.');
@@ -115,7 +115,7 @@ async function remove(id,{confirm=false}={}){
  await syncPlayerView();return gone;
 }
 /**
- * 0.24.0 migration (GM, on ready): writes `audience` on lists saved before it (`visible: true` → whole party, else
+ * 0.25.0 migration (GM, on ready): writes `audience` on lists saved before it (`visible: true` → whole party, else
  * hidden). Re-runnable: writes nothing when every list already has it. Returns how many lists it changed.
  */
 export async function migrateLists(){

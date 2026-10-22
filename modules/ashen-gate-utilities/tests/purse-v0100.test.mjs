@@ -201,7 +201,7 @@ test('GM History shows purse rows with before → after, reason and Undo only wh
  const undoable=hist().filter(purseUndoable).length;assert.equal((html.match(/data-action="purse-undo"/g)??[]).length,undoable);
  assert.match(html,/Coins awarded|awarded 4 sp each/);
 });
-// 0.24.0: the purse strip moved to Party Inventory → Party Fund; Items shows the purse in one line.
+// 0.25.0: the purse strip moved to Party Inventory → Party Fund; Items shows the purse in one line.
 test('Party Fund tab: purse strip with five labelled counters (electrum on); Items: header and rows render the same cells',async()=>{
  await game.settings.set(ID,'electrumEnabled',true);
  stash.items.add({id:'it1',name:'Potion',type:'consumable',img:'p.webp',system:{quantity:2,weight:{value:0.5,units:'lb'},price:{value:50,denomination:'gp'}}});
@@ -211,7 +211,7 @@ test('Party Fund tab: purse strip with five labelled counters (electrum on); Ite
   for(const c of ['Copper','Silver','Electrum','Gold','Platinum'])assert.match(fund,new RegExp(`aria-label="${c}: \\d+"`));
   assert.match(fund,/data-action="purse-deposit"/);assert.match(fund,/data-action="purse-take"/);assert.doesNotMatch(fund,/data-action="purse-adjust"/);
   app.stashTab='items';const html=await app._renderHTML();
-  assert.doesNotMatch(html,/data-action="purse-deposit"/);assert.match(html,/Party purse: <strong>[^<]+<\/strong>[\s\S]*?data-stash-tab="fund"/);
+  assert.doesNotMatch(html,/data-action="purse-deposit"/);assert.match(html,/Party purse: <strong><span class="agu-coin-chips">[\s\S]*?<\/strong>[\s\S]*?data-stash-tab="fund"/);
   const head=html.match(/<div class="agu-stash-grid agu-stash-head"[^>]*>(.*?)<\/div>/)[1],row=html.match(/<div class="agu-stash-grid agu-stash-row"[^>]*>(.*?)<\/div>/)[1];
   const cols=s=>[...s.matchAll(/class="agu-stash-cell (agu-col-\w+)"/g)].map(m=>m[1]);
   assert.deepEqual(cols(head),cols(row));assert.deepEqual(cols(head),['agu-col-icon','agu-col-item','agu-col-qty','agu-col-weight','agu-col-value','agu-col-type','agu-col-action']);

@@ -1,4 +1,4 @@
-# Shop, Service and MerchantList record schema (Ashen Gate Utilities 0.21.0+, General Manager 0.44.0+; notes for 0.24.0)
+# Shop, Service and MerchantList record schema (Ashen Gate Utilities 0.21.0+, General Manager 0.44.0+; notes for 0.25.0)
 
 Shops, services and merchant lists travel in an `ag-foundry-import/0.2` package, next to the Items they sell. They
 belong to Utilities (`ashen-gate-utilities`). Import them with General Manager → Import (0.44.0+), which creates the
@@ -49,7 +49,7 @@ How many come per purchase is the Item's own `system.quantity`.
 
 | Key | Type | Required | Notes |
 |---|---|---|---|
-| `type` | string | yes | `"bank"` (the only type; **deprecated since Utilities 0.24.0**: still imported and working, exchange only, with a note in the preview and from `validate-content.mjs`; players change coins in Party Inventory → Party Fund without a service). An unknown type is refused |
+| `type` | string | yes | `"bank"` (the only type; **deprecated since Utilities 0.25.0**: still imported and working, exchange only, with a note in the preview and from `validate-content.mjs`; players change coins in Party Inventory → Party Fund without a service). An unknown type is refused |
 | `merchant_name`, `merchant_img`, `flavour`, `location_id`, `gm_notes` | | optional | as for a shop |
 | `settings` | object | optional | bank: `{"fee_percent": 0}` (whole number 0–50; default 0 = no fee) |
 
@@ -60,9 +60,9 @@ How many come per purchase is the Item's own `system.quantity`.
 | `location_id` | string | optional | the city's `LOC-*` id |
 | `shop_ids` | array | yes | `SHOP-*` and `SVC-*` ids, in display order. An id not in the world or the file is noted and shows as missing |
 
-Merchant lists always import hidden. The GM shares them (Utilities 0.24.0: with the whole party or chosen players) and opens their stores in Utilities. Who a list is shared with is play state: it is not in the file, an update never changes it, and an export never writes it.
+Merchant lists always import hidden. The GM shares them (Utilities 0.25.0: with the whole party or chosen players) and opens their stores in Utilities. Who a list is shared with is play state: it is not in the file, an update never changes it, and an export never writes it.
 
-A list can group any merchants: a settlement (`location_id`), a faction, a guild. The record format did not change in 0.24.0.
+A list can group any merchants: a settlement (`location_id`), a faction, a guild. The record format did not change in 0.25.0.
 
 ## Import behaviour
 
@@ -295,4 +295,4 @@ The synthetic package `test-fixtures/shops/AG_Test_Shops.json` (Items, a shop, a
 
 ## Changes by version
 
-- **0.24.0:** no change to the `ag-foundry-import/0.2` fields. `service.type: "bank"` is deprecated (still accepted; the preview and `validate-content.mjs` add the note "Bank services are deprecated (exchange only): players change coins in Party Inventory → Party Fund. A Bank still imports and works."). Stored in the world only (never imported or exported): a merchant list's `audience` (`{"mode": "hidden" | "party" | "users", "userIds": [...]}`; `visible` is kept and derived from it).
+- **0.25.0:** no change to the `ag-foundry-import/0.2` fields. `service.type: "bank"` is deprecated (still accepted; the preview and `validate-content.mjs` add the note "Bank services are deprecated (exchange only): players change coins in Party Inventory → Party Fund. A Bank still imports and works."). Stored in the world only (never imported or exported): a merchant list's `audience` (`{"mode": "hidden" | "party" | "users", "userIds": [...]}`; `visible` is kept and derived from it).
