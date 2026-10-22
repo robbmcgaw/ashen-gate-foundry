@@ -116,6 +116,11 @@
 .agl-exhausted .agl-node__name, .agl-entry.agl-exhausted { text-decoration: line-through; opacity: .6; }
 .agl-node__exotics { margin-top: var(--ag-space-1); }
 .agl-node__exotics > summary { cursor: pointer; }
+/* 1.18.0: a node that refers to a Profession Ledger template; its details are read only and never clipped. */
+.agl-node__tpl { display: flex; flex-direction: column; gap: var(--ag-space-1); flex: 1 1 16rem; min-width: 0; overflow-wrap: anywhere; }
+.agl-node-pick { display: flex; align-items: center; gap: var(--ag-space-2); flex-wrap: wrap; flex-basis: 100%; }
+.agl-node-pick > select { flex: 1; min-width: 10rem; }
+.agl-node-pick__note { flex-basis: 100%; }
 .agl-exotic { justify-content: flex-start; }
 
 /* Player Preview dialog */

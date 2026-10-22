@@ -86,7 +86,8 @@ test('player-safe appearance template cannot reach Import, Library or Player Acc
   const text=readFileSync(new URL('../templates/my-appearance.hbs',import.meta.url),'utf8');
   const source=readFileSync(new URL('../scripts/main.js',import.meta.url),'utf8');
   assert.match(text,/data-ag-my-save/);assert.doesNotMatch(text,/data-ag-action="apply"|data-ag-tab="import"|data-ag-tab="player-access"/);
-  assert.match(source,/restricted:false/);assert.match(source,/restricted:true/);
+  // 0.45.0: every Manager menu is GM-only in Game Settings (players open My Appearance from Utilities).
+  assert.doesNotMatch(source,/restricted:false/);assert.match(source,/restricted:true/);
   assert.match(source,/if\(!game\.user\?\.isGM\)throw new Error\('Only GMs can open the General Manager/);
 });
 test('resolver bridge remains GM-only and refuses missing ambiguous references',()=>{

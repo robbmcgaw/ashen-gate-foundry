@@ -450,7 +450,15 @@ test('gathering blockers: pure reasons, each with its fix',()=>{
  assert.match(startBlocker({rosterCount:2,partyCount:2,leadInParty:false}),/Choose a lead gatherer/);
  const ok=normalizeNode({id:'x',tier:1,materialId:'MAT-A-B'});
  assert.match(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:null}),/Choose a gathering node/);
- assert.equal(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialFound:false}),'Material MAT-A-B is not in the world: import the pack in General Manager (it must be approved and player-visible).');
+ // 0.25.0: the reason names "not imported" apart from "draft/unreleased" (which the GM may use anyway).
+ assert.equal(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialFound:false}),'Material MAT-A-B is not imported in this world: import it with General Manager.');
+ assert.equal(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialState:'missing'}),'Material MAT-A-B is not imported in this world: import it with General Manager.');
+ assert.match(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialState:'draft',materialStatus:'proposed'}),/^Material MAT-A-B is draft\/unreleased \(status: proposed\): approve it in General Manager, or tick “Use draft materials anyway”/);
+ assert.match(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialState:'gm-only'}),/unreleased \(GM-only\)/);
+ assert.equal(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialState:'draft',allowDraft:true}),'','the GM uses it anyway');
+ assert.match(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialState:'missing',allowDraft:true}),/not imported/,'use anyway never covers a missing material');
+ assert.equal(nodeBlocker(ok,{materialState:'draft',forPlayer:true}),'The GM has not released this material yet.');
+ assert.equal(nodeBlocker(ok,{materialState:'missing',forPlayer:true}),'The GM has not imported this material yet.');
  assert.equal(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialFound:true}),'');
  assert.match(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node:ok,materialFound:true,busy:true}),/already being gathered/);
  assert.match(nodeBlocker(normalizeNode({id:'x',tier:1})),/^No material id set: award by hand.*Locations/);
@@ -485,15 +493,15 @@ test('gathering blockers in Forge: GM tab, GM start and player tab each name the
  try{
   h=await html('gathering');app.gather.source='location';app.gather.nodeRef='LOC-TG-MEADOW|n9';
   h=await html('gathering');
-  assert.match(h,/Material MAT-TG-HERB is not in the world: import the pack in General Manager/);
+  assert.match(h,/Material MAT-TG-HERB is not imported in this world: import it with General Manager/);
   assert.match(h,/data-action="gather-start" disabled/);
-  await assert.rejects(()=>_test.startGather({node:nodeOf('LOC-TG-MEADOW','n9'),leadId:'belwar'}),/Material MAT-TG-HERB is not in the world/);
+  await assert.rejects(()=>_test.startGather({node:nodeOf('LOC-TG-MEADOW','n9'),leadId:'belwar'}),/Material MAT-TG-HERB is not imported in this world/);
   // A player request is refused before the GM is bothered; the player gets no id, the GM gets the exact fix.
   const before=dialogs.length;errors.length=0;sent.length=0;
   const out=await _test.handleGatherRequest({type:'gather-request',requestId:'rm',requesterId:'u1',actorId:'belwar',locationId:'LOC-TG-MEADOW',nodeId:'n9'},'u1');
   assert.equal(out.ok,false);assert.equal(dialogs.length,before,'no approval popup');
   assert.doesNotMatch(out.message,/MAT-/);assert.match(out.message,/GM can’t start this yet/);
-  assert.ok(errors.some(e=>/MAT-TG-HERB is not in the world/.test(e)),'the GM sees the fix');
+  assert.ok(errors.some(e=>/MAT-TG-HERB is not imported in this world/.test(e)),'the GM sees the fix');
  }finally{world.push(missing);}
  // Locations inactive.
  const loc=modules['ashen-gate-locations'];loc.active=false;

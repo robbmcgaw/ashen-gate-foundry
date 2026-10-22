@@ -33,6 +33,7 @@ export function questCard(r,{selected=false,picked=false,now=Date.now()}={}){
  const facts=[`<span class="agq-mono">${E(r.id)}</span>`];
  if(r.locationNames.length)facts.push(meta('fa-map-location-dot','Location',r.locationNames.map(E).join(', ')));
  if(r.givers.length)facts.push(meta('fa-handshake','Giver',r.givers.map(E).join(', ')));
+ else if(r.sourceText)facts.push(meta('fa-handshake','Source',E(r.sourceText)));
  facts.push(r.audience.scope==='individual'?meta('fa-user','Audience',`Individual: ${E(r.audience.name)}`):meta('fa-users','Audience','Party'));
  if(r.tags.length)facts.push(meta('fa-tags','Tags',r.tags.map(E).join(', ')));
  const rewards=rewardText(r.rewards),changed=changedLabel(r.changed,now);
@@ -55,7 +56,7 @@ export function questsSubnav(nav,counts={}){
 }
 export function questsToolbar(view,locations,{shown=0,total=0}={}){
  const v={...DEFAULT_VIEW,...view};
- return `<div class="ag-toolbar agq-toolbar"><label class="ag-search">${icon('fa-magnifying-glass')}<input type="search" id="ag-gm-search" placeholder="Search quests" aria-label="Search quests by title, ID, location, giver or tag" value="${E(v.search)}"></label>
+ return `<div class="ag-toolbar agq-toolbar"><label class="ag-search">${icon('fa-magnifying-glass')}<input type="search" id="ag-gm-search" placeholder="Search quests" aria-label="Search quests by title, ID, location, giver or source, or tag" value="${E(v.search)}"></label>
  <div class="ag-toolbar__filters"><select id="ag-gm-type" aria-label="Type">${options([['all','All types'],...Object.entries(KIND_LABELS)],v.type)}</select>
  <select id="ag-gm-location" aria-label="Location">${options([['all','Any location'],...locations.map(x=>Array.isArray(x)?x:[x,x])],v.location)}</select>
  <select id="ag-gm-visible" aria-label="Visible to players">${options([['all','Visible or not'],['yes','Visible to players'],['no','GM only']],v.visible)}</select>

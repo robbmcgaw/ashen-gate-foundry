@@ -54,6 +54,21 @@ function professions(actor, api) {
   return list(rows, refs.length ? 'No profession progress yet.' : '') + note + recipeLine;
 }
 
+/**
+ * Overview's Professions box (0.30.0): the professions this character knows, name and level, from the Ledger's
+ * getProfessions (feature-detected). Null (no box) when the Ledger is missing or too old, when players may not see
+ * Professions (the GM's switch, Ledger inactive or its Player Access off) or when the Ledger refuses this user.
+ */
+export function knownProfessions(actor, user = globalThis.game?.user) {
+  if (!actor || !canSee('professions', user)) return null;
+  const api = partnerApi('ashen-gate-profession-ledger');
+  if (typeof api?.getProfessions !== 'function') return null;
+  let rows;
+  try { rows = api.getProfessions(actor); } catch { return null; }
+  if (!Array.isArray(rows)) return null;
+  return rows.map(p => ({id: String(p?.professionId ?? ''), name: String(p?.name || p?.professionId || ''), level: num(p?.level)})).filter(p => p.name);
+}
+
 const plural = (n, word) => `${num(n)} ${word}${num(n) === 1 ? '' : 's'}`;
 /** Points per tree: Skill Trees' pointsSummary (0.13.0+) when present; else the awarded points of non-profession trees. */
 function treePoints(tree, p, points) {

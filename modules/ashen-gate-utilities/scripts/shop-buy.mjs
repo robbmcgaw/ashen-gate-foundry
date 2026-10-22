@@ -6,7 +6,8 @@
    it out all or nothing: A items, B coins, C shop page, D history. Each failure puts the earlier steps back. ---- */
 import {ID,isLevelBackup,escapeHTML as E,COIN_LABELS,coinChoices,shownCoins,strandedElectrum,coinsText,readCoins,projectShop,planShopPayment,checkPurchase,
  shopPurchaseEntry,shopPriceText,SHOP_REFUSALS,CONSENT_TIMEOUT_MS,consentVoters,createPoll,initials,shopLineName,purchaseCount,purchaseItemData,
- nothingCharged,purchaseText,presentedOwnership,quotePurchase,projectService,projectMerchantList,entrySummary,tradeCardHTML} from './core.mjs';
+ nothingCharged,purchaseText,presentedOwnership,quotePurchase,projectService,projectMerchantList,entrySummary,tradeCardHTML,coinStripHTML,coinChipsHTML,groupByCategory} from './core.mjs';
+import {itemButton} from './item-tips.mjs';
 import {readAll,mustGet,writeShop,queueShops,appendLog,norm,locationsApi,randomId,purseDialog,button,icon,tip,writeService,readMeta} from './shops.mjs';
 import {confirmDialog,formDialog,choiceDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
@@ -334,9 +335,25 @@ export async function buy(req={}){
 }
 
 /* ---------- Player shop window and the Buy dialog ---------- */
-const coinStrip=(coins,ep)=>`<div class="agu-coins">${shownCoins(coins,ep).map(c=>`<div class="agu-coin${c==='ep'&&strandedElectrum(coins,ep)?' agu-coin--off':''}" role="group" aria-label="${E(COIN_LABELS[c])}: ${E(coins[c]??0)}"><span class="agu-coin__label">${E(COIN_LABELS[c])} <abbr ${tip(COIN_LABELS[c])}>${c}</abbr></span><strong class="agu-coin__value">${E(coins[c]??0)}</strong></div>`).join('')}</div>`;
+const coinStrip=(coins,ep)=>coinStripHTML(coins,ep);
 const portrait=m=>m?.img?`<img class="agu-shop-portrait" src="${E(m.img)}" alt="">`:`<span class="agu-shop-portrait" aria-hidden="true">${E(initials(m?.name))}</span>`;
 const stockBadge=l=>l.soldOut?'<span class="ag-badge ag-badge--danger">Sold out</span>':l.stock===null||l.stock===undefined?'<span class="ag-badge">In stock</span>':`<span class="ag-badge">${E(l.stock)} left</span>`;
+/** 0.24.0: the item as a button: dnd5e's tooltip from the player view's trimmed copy, a click opens it read only. */
+export const wareItem=(view,l,inner,cls)=>itemButton({key:`${view.id}:${l.lineId}`,data:l.tip??{name:l.name,img:l.img,type:'loot',system:{description:{value:l.description??''}}},name:l.name,inner,cls});
+/**
+ * 0.24.0: one ware as a card: picture and name (hover: the item tooltip, click: open it), what it is, flavour, then the
+ * price as coins, the stock and Buy…. The same card for players and the GM's "Open" view.
+ */
+function wareCard(view,l,{ro,chars}){
+ const pic=wareItem(view,l,l.img?`<img src="${E(l.img)}" alt="">`:icon('fa-box'),'agu-item-link agu-ware-card__img');
+ const meta=[l.per>1?`${l.per} per purchase`:'',l.type].filter(Boolean).join(' · ');
+ return `<li class="agu-ware-card${l.soldOut?' is-disabled':''}" data-line="${E(l.lineId)}">${pic}<div class="agu-ware-card__body">${wareItem(view,l,E(l.name),'agu-item-link agu-ware-card__name')}${meta?`<span class="agu-ware-card__meta">${E(meta)}</span>`:''}${l.flavour?`<span class="agu-ware-card__flavour">${E(l.flavour)}</span>`:''}</div>
+  <div class="agu-ware-card__foot"><strong class="agu-ware__price" aria-label="Price ${E(l.priceText)}">${coinChipsHTML(l.priceText)}</strong>${stockBadge(l)}${button('shop-buy','Buy…',{kind:'sm',ic:'fa-cart-shopping',disabled:ro||l.soldOut||!chars.length,attrs:`data-shop="${E(view.id)}" data-line-id="${E(l.lineId)}" aria-label="Buy ${E(l.name)}"`})}</div></li>`;
+}
+/** The wares grouped by category (item type), each group a grid of cards. */
+export function waresHTML(view,opts){
+ return groupByCategory(view.lines).map(g=>`<section class="agu-ware-group" aria-label="${E(g.category)}"><h4 class="ag-eyebrow">${E(g.category)} · ${g.lines.length}</h4><ul class="agu-ware-grid">${g.lines.map(l=>wareCard(view,l,opts)).join('')}</ul></section>`).join('');
+}
 export const empty=(title,text)=>`<div class="ag-empty">${icon('fa-store')}<p class="ag-empty__title">${E(title)}</p><p class="ag-empty__text">${E(text)}</p></div>`;
 /** One presented shop as the buyer sees it (the shop window). `state.actorId`: whose coins the strip shows. */
 export function shopViewHTML(view,state={}){
@@ -350,9 +367,7 @@ export function shopViewHTML(view,state={}){
   chars.length?`<section class="agu-shop-coins"><h3 class="ag-eyebrow"><label for="agu-shop-actor-${E(view.id)}">Your coins</label></h3><select id="agu-shop-actor-${E(view.id)}" data-shop-actor aria-label="Whose coins">${chars.map(a=>`<option value="${E(a.id)}"${a.id===actor?.id?' selected':''}>${E(a.name)}</option>`).join('')}</select>${own?coinStrip(own,ep):'<p class="agu-note">This character has no dnd5e coins.</p>'}</section>`:'',
   view.purse?`<section class="agu-shop-coins"><h3 class="ag-eyebrow">Merchant's coins</h3>${coinStrip(view.purse,ep)}<p class="ag-field__hint">Change comes from here.</p></section>`:''
  ].filter(Boolean).join('');
- const rows=view.lines.map(l=>`<li class="ag-row agu-ware${l.soldOut?' is-disabled':''}" data-line="${E(l.lineId)}">${l.img?`<img class="ag-row__icon" src="${E(l.img)}" alt="">`:`<span class="ag-row__icon" aria-hidden="true">${icon('fa-box')}</span>`}<div class="ag-row__main"><span class="ag-row__title">${E(l.name)}</span><span class="ag-row__meta">${E([`${l.per} per purchase`,l.type].filter(Boolean).join(' · '))}</span>${l.flavour?`<span class="ag-row__meta">${E(l.flavour)}</span>`:''}${l.description?`<details class="agu-ware__desc"><summary>Description</summary><div>${l.description}</div></details>`:''}</div>
-  <div class="ag-row__end">${stockBadge(l)}<strong class="agu-ware__price">${E(l.priceText)}</strong>${button('shop-buy','Buy…',{kind:'sm',ic:'fa-cart-shopping',disabled:ro||l.soldOut||!chars.length,attrs:`data-shop="${E(view.id)}" data-line-id="${E(l.lineId)}" aria-label="Buy ${E(l.name)}"`})}</div></li>`).join('');
- const wares=view.lines.length?`<ul class="ag-rows agu-wares">${rows}</ul>`:empty('Nothing for sale right now','The merchant has nothing out on the counter yet.');
+ const wares=view.lines.length?`<div class="agu-wares">${waresHTML(view,{ro,chars})}</div>`:empty('Nothing for sale right now','The merchant has nothing out on the counter yet.');
  const none=ro?`<p class="ag-notice ag-notice--info">${icon('fa-circle-info')}<span>Ask the GM to open this. You can look, but you can't buy${view.buys?' or sell':''} here until your GM shows you this shop.</span></p>`:chars.length?'':`<p class="ag-notice ag-notice--warn">${icon('fa-triangle-exclamation')}<span>You need a character of your own to ${view.buys?'buy or sell':'buy'} here.</span></p>`;
  // 0.19.0: a shop that buys from players gets a Buy / Sell switch.
  const mode=!ro&&view.buys&&state.mode==='sell'?'sell':'buy';
@@ -384,12 +399,14 @@ export function bindPlayerShops(app,root,{render}){
  for(const b of root.querySelectorAll('[data-player-shop-sub]'))b.addEventListener('click',()=>{app.playerShopSub=b.dataset.playerShopSub;render();});
 }
 /** The plan (or the refusal) as dialog HTML, kit parts only. */
-function quoteHTML(q,name){
- if(!q.ok)return `<p class="ag-notice ag-notice--danger" role="alert">${icon('fa-circle-exclamation')}<span>${E(nothingCharged(q.reason))}</span></p>`;
+/** 0.24.0: the item at the top of a purchase preview: picture, name (tooltip, click to open), what it is, the price each. */
+const previewItem=(view,line)=>!view||!line?'':`<div class="agu-preview-item">${wareItem(view,line,line.img?`<img src="${E(line.img)}" alt="">`:icon('fa-box'),'agu-item-link agu-preview-item__img')}<div class="agu-preview-item__text">${wareItem(view,line,E(line.name),'agu-item-link agu-ware-card__name')}<span class="agu-ware-card__meta">${E(line.type??'')}${line.type?' · ':''}${coinChipsHTML(line.priceText)} each</span></div></div>`;
+function quoteHTML(q,name,{view=null,line=null}={}){
+ if(!q.ok)return `${previewItem(view,line)}<p class="ag-notice ag-notice--danger" role="alert">${icon('fa-circle-exclamation')}<span>${E(nothingCharged(q.reason))}</span></p>`;
  const back=Object.values(q.back??{}).some(n=>n>0);
- const kv=[['Buying',`${q.count} ${name}`],['Goes to',q.receiverName],['Total',q.totalText],[q.payFrom==='purse'?'The party purse pays':'You pay',coinsText(q.pay)],...(back?[['Change back',coinsText(q.back)]]:[]),
-  [q.payFrom==='purse'?'Party purse after':`${q.payerName} after`,coinsText(q.after)]];
- return `<dl class="ag-kv">${kv.map(([k,v])=>`<dt>${E(k)}</dt><dd>${E(v)}</dd>`).join('')}</dl>${q.vote?`<p class="ag-notice ag-notice--info">${icon('fa-users')}<span>The party must accept before the purse pays. Every other connected player is asked; no answer in 60 seconds cancels.</span></p>`:''}`;
+ const kv=[['Buying',E(`${q.count} ${name}`)],['Goes to',E(q.receiverName)],['Total',coinChipsHTML(q.totalText)],[q.payFrom==='purse'?'The party purse pays':'You pay',coinChipsHTML(coinsText(q.pay))],...(back?[['Change back',coinChipsHTML(coinsText(q.back))]]:[]),
+  [q.payFrom==='purse'?'Party purse after':`${q.payerName} after`,coinChipsHTML(coinsText(q.after))]];
+ return `${previewItem(view,line)}<dl class="ag-kv">${kv.map(([k,v])=>`<dt>${E(k)}</dt><dd>${v}</dd>`).join('')}</dl>${q.vote?`<p class="ag-notice ag-notice--info">${icon('fa-users')}<span>The party must accept before the purse pays. Every other connected player is asked; no answer in 60 seconds cancels.</span></p>`:''}`;
 }
 /** Buy dialog: how many, goes to, pay with; then the plan with Confirm purchase, or the refusal with Change purchase. */
 export async function buyDialog(shopId,lineId,{actorId=''}={}){
@@ -409,8 +426,8 @@ export async function buyDialog(shopId,lineId,{actorId=''}={}){
   form={...form,...res};
   const pay=String(form.pay??''),req={shopId,lineId,quantity:Number(form.quantity),actorId:form.actorId,payFrom:pay==='purse'?'purse':'actor',payerId:pay.startsWith('actor:')?pay.slice(6):'',rev:view.rev};
   const q=quote(req);
-  if(!q.ok){if(await choiceDialog('Can\'t buy this',quoteHTML(q,line.name),[{action:'change',label:'Change purchase',default:true}])!=='change')return null;continue;}
-  if(await choiceDialog(`Buy ${line.name}?`,quoteHTML(q,line.name),[{action:'buy',label:'Confirm purchase',icon:'fa-solid fa-cart-shopping',default:true}])!=='buy')return null;
+  if(!q.ok){if(await choiceDialog('Can\'t buy this',quoteHTML(q,line.name,{view,line}),[{action:'change',label:'Change purchase',default:true}])!=='change')return null;continue;}
+  if(await choiceDialog(`Buy ${line.name}?`,quoteHTML(q,line.name,{view,line}),[{action:'buy',label:'Confirm purchase',icon:'fa-solid fa-cart-shopping',default:true}])!=='buy')return null;
   return buy(req);
  }
 }

@@ -106,7 +106,7 @@ test('players get the same conditions view, with Remove only where permitted and
  assert.ok(html.includes('data-status="prone"'));assert.ok(!html.includes('data-status="thinking"'),'no Remove for Custom');
  assert.ok(!html.includes('toggle-lock'));assert.ok(html.includes('Unlocked'));
  app.actorId='b1';html=await app._renderHTML();assert.ok(!html.includes('data-action="remove-status"'),'not owner: no Remove');
- game.user=gm;html=await app._renderHTML();assert.ok(html.includes('data-action="toggle-lock"'));assert.ok(html.includes('Lock Removal'));
+ game.user=gm;html=await app._renderHTML();assert.ok(html.includes('data-action="toggle-lock"'));assert.ok(html.includes('Lock Conditions'));
 });
 test('overlay: bold name per character, bulleted conditions, × only where removal is permitted',async()=>{
  game.user=alice;

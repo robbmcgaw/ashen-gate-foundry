@@ -303,7 +303,7 @@ test('stop showing removes the page; the shop window says it is closed',async()=
  await restocked();const w=await as(alice,()=>api.open(SHOP));
  const html=await as(alice,()=>w._renderHTML());
  assert.match(html,/<span class="ag-badge ag-badge--ok"><i class="fa-solid fa-door-open" aria-hidden="true"><\/i> Open for you<\/span>/);
- assert.match(html,/<h3 class="ag-eyebrow">Party purse<\/h3>/);assert.match(html,/<ul class="ag-rows agu-wares">/);
+ assert.match(html,/<h3 class="ag-eyebrow">Party purse<\/h3>/);assert.match(html,/<div class="agu-wares"><section class="agu-ware-group" aria-label="[^"]+"><h4 class="ag-eyebrow">[^<]+ · \d+<\/h4><ul class="agu-ware-grid"><li class="agu-ware-card"/,'0.24.0: wares as cards grouped by category');
  assert.match(html,/data-action="shop-buy" data-shop="SHOP-TEST-THE-COPPER-KETTLE" data-line-id="ln_rope" aria-label="Buy Rope, Hempen \(50 ft\)"/);
  assert.doesNotMatch(html,/title=|Sealed Crate|GM only text|<option value="ep"/);
  await api.stopShowing(SHOP);
@@ -348,7 +348,7 @@ test('Buy dialog: how many / goes to / pay with, then the plan with Confirm purc
   assert.equal(msg,'2 Rope, Hempen (50 ft) added to [TEST] Kestrel. Paid 2 gp.');
   assert.deepEqual(seen.map(s=>s[0]),['Buy Rope, Hempen (50 ft)','Can\'t buy this','Buy Rope, Hempen (50 ft)','Buy Rope, Hempen (50 ft)?']);
   assert.match(seen[1][1],/<p class="ag-notice ag-notice--danger" role="alert"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"><\/i><span>Only 3 left\. Nothing was charged\.<\/span><\/p>/);
-  assert.match(seen[3][1],/<dl class="ag-kv"><dt>Buying<\/dt><dd>2 Rope, Hempen \(50 ft\)<\/dd><dt>Goes to<\/dt><dd>\[TEST\] Kestrel<\/dd><dt>Total<\/dt><dd>2 gp<\/dd><dt>You pay<\/dt><dd>2 gp<\/dd>/);
+  assert.match(seen[3][1].replace(/<span class="agu-coin__icon"[^>]*>.<\/span>/g,'').replace(/<\/?span[^>]*>/g,''),/<dl class="ag-kv"><dt>Buying<\/dt><dd>2 Rope, Hempen \(50 ft\)<\/dd><dt>Goes to<\/dt><dd>\[TEST\] Kestrel<\/dd><dt>Total<\/dt><dd>2 gp<\/dd><dt>You pay<\/dt><dd>2 gp<\/dd>/);
   assert.match(seen[0][1],/Party purse/,'the purse is offered while the stash is on');
  }finally{delete foundry.applications.api.DialogV2;}
 });

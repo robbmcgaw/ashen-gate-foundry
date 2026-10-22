@@ -1,3 +1,22 @@
+## 0.24.0 — 2026-10-22
+
+- **Item tooltips and click-to-open** in the shop editor, the shop window (buy and sell), the Buy and Sell previews and the party stash: hover shows dnd5e's own item tooltip, click opens the item. A character's or the stash's Item uses its own sheet; a shop line opens a temporary, read-only copy (never created in the world). Players' tooltips come only from a trimmed copy in the player view: the name and description they may see, the shop's price, no flags, effects, cost or GM notes, never a hidden line. Without dnd5e's tooltips the plain name tooltip stays.
+- **Shop cards:** wares (buy and sell) are cards grouped by category (item type) with the price as coins, the stock and the action; the editor's items table is grouped the same way. No clipped text.
+- **Coins:** one shared style for every coin box and amount (shop and merchant purses, the party purse, the Bank, prices, previews, chat cards): the coin's icon, a soft glow in copper, silver, gold or platinum, text centred. Electrum only while *Use electrum* is on (dimmed while a purse still holds some, as before).
+- **Settlement** replaces *Linked location* in the shop and service editors and *Group by city* in the list: only Locations' settlements are listed (Locations' `isSettlement` when present, else `settlement: true` / `kind` or `locationType` "settlement", else a Type of Settlement, City, Town, Village or Hamlet); a shop already linked to another place keeps it, marked. Without Locations it is a text field. The list groups by the nearest settlement.
+- **Merchant from an Actor:** drop an Actor on a shop or service in the editor to fill the merchant name and portrait; both stay editable, **Clear** empties them. The Actor is kept only as a reference note, so a deleted Actor never breaks the shop; players never get it.
+- Saved data: additive only. Optional `settlement` (text) and `merchant.actor` ({uuid, id, name}) on shops and services; the player view lines gain `tip`. No migration. Merchant lists and the Bank's rules are unchanged.
+
+## 0.23.0 — 2026-10-22
+
+- **Players change conditions on their own characters:** new GM Setup switch **Players apply and remove conditions on their own characters** (default off). On: owners get **Apply** and **Remove** for native conditions on every character they own. Off: as before, per character with **Unlock for Owner** in the Conditions tab — an unlocked character's owner can now also **apply** native conditions, not only remove them.
+- **Condition controllers** (GM Setup, saved with Save Changes): ticked players apply and remove native conditions on every character, like the GM, and nothing else. The Conditions tab lists them for the GM with **Revoke** (asks to confirm, takes effect at once); a controller sees a *Condition controller* badge. They still need Player Access.
+- Enforced on the GM client: a player's apply or remove is re-checked there (owner/switch/unlock or controller, Player Access, native status, sender) and refused otherwise; the player client never edits the Actor. Custom statuses stay GM only; the Cinders Strain chip stays read only for everyone.
+- **Overlay background slider** (in the overlay, per user, 0–100 %, default 25 % as before): fades only the window background; the header (now solid), names, conditions and × stay opaque.
+- **Fix:** Utilities no longer shows in Foundry's Configure Settings (players saw an empty entry). Player Access was its only listed setting and is in GM Setup.
+- API `conditions`: `canApply`, `apply`, `ownersManage`, `setOwnersManage`, `isController`, `controllers`, `setController` (setters and `controllers` GM only).
+- Saved data: additive only. New world settings `ownersManageConditions` (false) and `conditionControllers` ({}), client setting `overlayOpacity` (25). No migration.
+
 ## 0.22.2 — 2026-10-21
 
 - **Fix: Character Hub level backups are not party characters.** A copy the Hub keeps on level-up ("<Name> - level X", in Ashen Gate / Level backups) no longer shows in Conditions, Rolls, Award Gold, the stash's take list or shop buyer lists, and is not ticked from the dnd5e Primary Party.

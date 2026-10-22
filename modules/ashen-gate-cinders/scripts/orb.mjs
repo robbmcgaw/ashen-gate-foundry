@@ -20,8 +20,11 @@ export function artInput(raw) {
   if (!s) throw Error('Choose an image file (a path in the Assets Library or an http(s) address)');
   return s;
 }
-/** What the orb shows: the Cinder's own art, else the default orb. The definition Item's image is never used. */
-export const orbArt = cinder => {const src = cleanArt(cinder?.art); return src ? {kind: 'image', src} : {kind: 'default', src: null};};
+/** The art a Cinder's orb draws: its own `art`, else its definition's art (`cinder.art` on the MUT-* record, 0.9.0), else null (the default orb).
+ * The definition Item's image is never used. */
+export const resolveArt = (own, definitionArt = null) => cleanArt(own) ?? cleanArt(definitionArt);
+/** What the orb shows. `cinder` is an api.cinder.list entry, whose `art` is already resolved (own, then definition). */
+export const orbArt = cinder => {const src = resolveArt(cinder?.art, cinder?.defaultArt); return src ? {kind: 'image', src} : {kind: 'default', src: null};};
 
 /** Default orb tone from Strain only: calm at 0, warm, ember from half the guarantee point, hot at the guarantee point. */
 export function strainTone(value, guaranteeAt = 10) {
