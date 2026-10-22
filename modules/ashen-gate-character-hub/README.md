@@ -82,7 +82,7 @@ Stored shape (world setting `ashen-gate-character-hub.playerVisibility`, GM only
 ```
 
 ## Embedded module views
-When a partner module offers `api.embed.mount(element, {actorId, mode})` (returning `{unmount, refresh}`), the Hub shows that module's own view in place of its summary. The partner draws it, handles its buttons and checks its own permissions; the Hub only provides the element and keeps the view alive across re-renders. Modes the Hub asks for: Utilities `stash` (Inventory → Party stash), Profession Ledger `individual`, Skill Trees, Factions, Quest Log, Locations and Headquarters `character`. A partner without the API, or that throws, falls back to the summary or a short note.
+When a partner module offers `api.embed.mount(element, {actorId, mode})` (returning `{unmount, refresh}`), the Hub shows that module's own view in place of its summary. The partner draws it, handles its buttons and checks its own permissions; the Hub only provides the element and keeps the view alive across re-renders. Modes the Hub asks for: Utilities `stash` (Inventory → Party stash), Profession Ledger `individual`, Skill Trees, Factions, Quest Log, Locations and Headquarters `character`. A partner without the API, or that throws, falls back to the summary or a short note. The Hub checks for the API, never a partner's version number.
 
 | Where in the Hub | Module (version with the embed) | What it shows |
 |---|---|---|
@@ -91,7 +91,7 @@ When a partner module offers `api.embed.mount(element, {actorId, mode})` (return
 | Ashen Gate → Perks | Skill Trees 0.14.0 | Points, perks available now with Unlock, unlocked and locked perks, Open tree |
 | Ashen Gate → Renown | Renown 0.10.0 | Party and character standing per organization, next milestone, Open |
 | Ashen Gate → Quests | Quest Log 0.8.0 | Party and character quests, Track, objectives, Character notes |
-| Ashen Gate → Locations | Locations 1.13.0 | Journey progress, revealed places by region, Open |
+| Ashen Gate → Locations | Locations 1.13.0 under the old numbering; every 0.18.0+ (renumbered from 1.18.0) | Journey progress, revealed places by region, Open |
 | Ashen Gate → Base | Headquarters 0.10.0 | Guildhall, rank, this character's facilities and benefits, Open |
 
 ## Ashen Gate panels

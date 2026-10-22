@@ -9,10 +9,14 @@ import {inspectPlayerModule} from './player-access.js';
 const MODULE_ID = 'ashen-gate-manager';
 export const STATUS = Object.freeze({pass: 'PASS', warn: 'WARN', fail: 'FAIL', na: 'N-A'});
 export const EXPECTED_ENV = Object.freeze({generation: 14, build: 367, system: 'dnd5e', systemVersion: '6.0.6'});
-/** Ashen Gate modules and the lowest version whose public API Manager relies on (null: Manager needs none). */
+/**
+ * Ashen Gate modules and the lowest version whose public API Manager relies on (null: Manager needs none). Locations is
+ * checked by its API (`needs`), never by number: it was renumbered from 1.18.0 to 0.18.0, so a version compare would
+ * call a current Locations too old.
+ */
 export const AG_MODULES = Object.freeze([
   {id: 'ashen-gate-manager', title: 'General Manager', min: null},
-  {id: 'ashen-gate-locations', title: 'Locations', min: '1.3.0', why: 'Location import and player previews'},
+  {id: 'ashen-gate-locations', title: 'Locations', min: null, needs: ['importLocations', 'previewLocation', 'setLocationState', 'publishLocation'], why: 'Location import and player previews'},
   {id: 'ashen-gate-quest-manager', title: 'Quest Log', min: '0.6.0', why: 'quest import'},
   {id: 'ashen-gate-skill-trees', title: 'Skill Trees', min: '0.7.0', why: 'skill tree import'},
   {id: 'ashen-gate-factions', title: 'Renown', min: '0.7.0', why: 'faction import'},
@@ -21,7 +25,8 @@ export const AG_MODULES = Object.freeze([
   {id: 'ashen-gate-utilities', title: 'Utilities', min: null}
 ]);
 const TITLES = Object.fromEntries(AG_MODULES.map(m => [m.id, m.title]));
-const LOCATIONS_MIGRATION_VERSION = '1.8.0';
+/** API that Locations' inheritance/audience migration (old 1.8.0, so every 0.18.0+) came with: present means there is a migration to check. */
+const LOCATIONS_MIGRATION_API = ['moveLocation', 'setAudience'];
 const OBSERVER = 2;
 const TEST_TAG = '[TEST]';
 
@@ -60,11 +65,13 @@ function checkVersions(game) {
   const known = new Set(AG_MODULES.map(m => m.id));
   const extra = listOf(game.modules?.values?.()).filter(m => String(m?.id ?? '').startsWith('ashen-gate-') && !known.has(m.id))
     .map(m => ({id: m.id, title: m.title ?? m.id, min: null}));
-  return [...AG_MODULES, ...extra].map(({id, title, min, why}) => {
-    const {mod, state} = partner(game, id);
+  return [...AG_MODULES, ...extra].map(({id, title, min, needs, why}) => {
+    const {mod, api, state} = partner(game, id);
     if (!mod) return row(C, STATUS.na, `${title} is not installed.`);
     const v = mod.version ?? 'unknown';
     if (state !== 'active') return row(C, STATUS.warn, `${title} ${v} is installed but not active.`);
+    const missing = (needs ?? []).filter(n => typeof api?.[n] !== 'function');
+    if (missing.length) return row(C, STATUS.warn, `${title} ${v} does not offer ${missing.join(', ')}, which Manager needs for ${why}. Update it.`);
     if (min && compareVersions(v, min) < 0) return row(C, STATUS.warn, `${title} ${v} is older than ${min}, which Manager needs for ${why}. Update it.`);
     return row(C, STATUS.pass, `${title} ${v} is active.`);
   });
@@ -235,9 +242,9 @@ function checkLeaks(game, ctx) {
 // ---------- 6. Migration state ----------
 function checkMigration(game, ctx) {
   const C = 'Migration';
-  const {mod, state} = partner(game, 'ashen-gate-locations');
+  const {mod, api, state} = partner(game, 'ashen-gate-locations');
   if (!mod || state !== 'active') return [row(C, STATUS.na, `Locations is ${state}.`)];
-  if (compareVersions(mod.version, LOCATIONS_MIGRATION_VERSION) < 0) return [row(C, STATUS.na, `Locations ${mod.version} is older than ${LOCATIONS_MIGRATION_VERSION}; no migration to check.`)];
+  if (!has(api, ...LOCATIONS_MIGRATION_API)) return [row(C, STATUS.na, `Locations ${mod.version} predates the inheritance migration (no ${LOCATIONS_MIGRATION_API.join('/')} in its API); no migration to check.`)];
   if (!ctx.locations) return [row(C, STATUS.na, 'Locations: could not read its GM data, so migration state is unknown.')];
   const list = ctx.locations;
   const unsettled = list.filter(l => typeof l.passConditions !== 'boolean' || (l.published && typeof l.published.passConditions !== 'boolean'));

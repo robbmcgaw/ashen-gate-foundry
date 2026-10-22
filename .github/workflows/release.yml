@@ -1,6 +1,8 @@
 # On every push to main: check all modules, then publish a GitHub Release for any
 # module whose module.json version does not have a release yet. Foundry/Forge sees
 # the new version through the manifest URL and offers an update.
+# A version only has to be untagged, not higher: Locations 0.18.0 (renumbered from 1.18.0) releases normally, but
+# Foundry won't offer a lower number as an update, so it is reinstalled from the manifest URL (CLAUDE.md, Versioning).
 name: Release
 on:
   push:

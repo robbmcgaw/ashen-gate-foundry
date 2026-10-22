@@ -253,3 +253,15 @@ test('visibleToPlayers: default observer, per-user grant, inherited page', () =>
   assert.equal(visibleToPlayers({ownership: {default: -1}}, users, true), true);
   assert.equal(visibleToPlayers({ownership: {default: -1}}, users, false), false);
 });
+
+test('0.45.1: Locations 0.18.0 (renumbered from 1.18.0) passes Module versions and its migration is checked', async () => {
+  const {game} = healthy();
+  game.modules.get('ashen-gate-locations').version = '0.18.0';
+  const out = await runPreSessionCheck(game, {now});
+  assert.ok(by(out, 'Module versions').some(r => r.status === 'PASS' && r.text === 'Locations 0.18.0 is active.'));
+  assert.deepEqual(by(out, 'Migration').map(r => r.status), ['PASS', 'PASS', 'PASS']);
+  // A Locations without the API Manager needs warns by what is missing, whatever its number says.
+  const bare = healthy({overrides: {modules: {'ashen-gate-locations': {id: 'ashen-gate-locations', active: true, version: '9.0.0', api: {listLocations: () => []}}}}});
+  const rows = by(await runPreSessionCheck(bare.game, {now}), 'Module versions');
+  assert.ok(rows.some(r => r.status === 'WARN' && /^Locations 9\.0\.0 does not offer importLocations, previewLocation/.test(r.text)));
+});
