@@ -66,6 +66,8 @@
 .agl-ing.partial::before{content:'↔ ';color:var(--ag-accent)}
 .agl-ing.warn::before{content:'✗ ';color:var(--ag-danger)}
 .agl-recipe-summary{margin:0;font-size:var(--ag-text-sm);color:var(--ag-muted);font-style:italic}
+.agl-recipe-effect{margin:0;font-size:var(--ag-text-sm)}
+.agl-label-table input[type="text"]{width:100%;min-width:9rem}
 .agl-recipe-status{display:flex;gap:var(--ag-space-2);flex-wrap:wrap}
 
 /* Folders (by profession / by player) */

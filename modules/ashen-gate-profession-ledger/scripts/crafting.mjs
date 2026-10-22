@@ -55,15 +55,16 @@ export function planCraft(recipe,crafter,contributors=[],{materialDefs=[],player
   return {requirements,allocations,missing,foreign,ready:Boolean(recipe?.hasStructuredIngredients)&&!missing.length,ownReady:Boolean(recipe?.hasStructuredIngredients)&&!missing.length&&!foreign.length};
 }
 
-/** Everything that must be true before a craft is attempted, as a list of plain-language reasons. */
-export function craftBlockers({recipe,crafter,knownIds,result}){
+/** Everything that must be true before a craft is attempted, as a list of plain-language reasons.
+ * 0.29.0: `label` is the word the recipe's profession uses for a recipe, in lower case (display only; default "recipe"). */
+export function craftBlockers({recipe,crafter,knownIds,result,label='recipe'}){
   const out=[];
-  if(!recipe)return ['This recipe is not available to you.'];
-  if(!knownIds.includes(recipe.id))out.push(`${crafter?.name??'This character'} has not learned this recipe.`);
+  if(!recipe)return [`This ${label} is not available to you.`];
+  if(!knownIds.includes(recipe.id))out.push(`${crafter?.name??'This character'} has not learned this ${label}.`);
   // 0.28.0: an activity (kind "activity") needs no ingredients and makes no item; known recipe and level rules are the same.
   if(recipe.kind!=='activity'){
-    if(!recipe.hasStructuredIngredients)out.push('This recipe has no ingredient list yet. Ask your GM.');
-    if(!result)out.push('The item this recipe makes is not in this world yet. Ask your GM to import it with General Manager.');
+    if(!recipe.hasStructuredIngredients)out.push(`This ${label} has no ingredient list yet. Ask your GM.`);
+    if(!result)out.push(`The item this ${label} makes is not in this world yet. Ask your GM to import it with General Manager.`);
   }
   const need=tierLevel(recipe.tier),progress=recipe.professionId?progressOf(crafter,recipe.professionId):null;
   // Only tracked progress is enforced; a character without Ledger XP is not assumed to be under-levelled.
