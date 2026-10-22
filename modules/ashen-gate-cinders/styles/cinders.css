@@ -58,8 +58,13 @@
 .agc-orb--art .agc-orb__img{position:relative;object-fit:contain;border-radius:0;
   filter:drop-shadow(0 0 var(--ag-space-2) color-mix(in srgb,var(--agc-core) 70%,transparent));transition:filter var(--ag-dur) var(--ag-ease)}
 .agc-orb--art[data-tone="hot"] .agc-orb__img{filter:drop-shadow(0 0 var(--ag-space-3) color-mix(in srgb,var(--agc-core) 90%,transparent))}
+/* 0.9.0: the art turns slowly around its centre; the glow and halo stay still. CSS only (compositor), paused while the window is minimized. */
+.agc-orb--spin .agc-orb__img{animation:agc-spin 90s linear infinite;will-change:transform;transform-origin:50% 50%}
+.agc-window.minimized .agc-orb__img{animation-play-state:paused}
+@keyframes agc-spin{to{transform:rotate(360deg)}}
+.agc-spin-toggle{justify-content:center;margin:0}
 @keyframes agc-pulse{50%{opacity:.7}}
-@media (prefers-reduced-motion: reduce){.agc-orb__default{animation:none!important}.agc-ring__seg,.agc-orb,.agc-orb__img{transition:none}}
+@media (prefers-reduced-motion: reduce){.agc-orb__default,.agc-orb__img{animation:none!important}.agc-ring__seg,.agc-orb,.agc-orb__img{transition:none}}
 /* Sockets on the orbit: circles sized by the stage, so the layout is the same in both sizes. */
 .agc-socket{position:absolute;left:calc(var(--agc-x) * 1%);top:calc(var(--agc-y) * 1%);width:24%;aspect-ratio:1;transform:translate(-50%,-50%);box-sizing:border-box;
   display:grid;place-items:center;padding:5%;margin:0;border-radius:50%;border:2px solid color-mix(in srgb,var(--ag-accent) 70%,var(--ag-border));

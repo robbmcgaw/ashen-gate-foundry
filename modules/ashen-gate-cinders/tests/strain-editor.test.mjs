@@ -204,3 +204,40 @@ test('the GM still gets the Cinders settings in Configure Settings',()=>{
   game.user=gm;oneTime.get('setup')();
   assert.ok([...settingsMap.values()].filter(s=>s.namespace===MOD&&s.config).map(s=>s.key).includes('strainChip'));
 });
+
+// 0.9.0: the Cinder art turns slowly (CSS). World switch in GM Setup (Save Changes), per-device switch for everyone.
+test('rotate art: settings registered off the Settings list, defaults on; spin only with art, the GM switch and this device on',async()=>{
+  const {artSpins,sheetView,ROTATE_SETTING,ROTATE_LOCAL_SETTING}=await import('../scripts/main.mjs');
+  assert.deepEqual([registered.get(ROTATE_SETTING).scope,registered.get(ROTATE_SETTING).config,registered.get(ROTATE_SETTING).default],['world',false,true]);
+  assert.deepEqual([registered.get(ROTATE_LOCAL_SETTING).scope,registered.get(ROTATE_LOCAL_SETTING).config,registered.get(ROTATE_LOCAL_SETTING).default],['client',false,true]);
+  for(const [image,world,local,want] of [[true,true,true,true],[true,false,true,false],[true,true,false,false],[false,true,true,false]])
+    assert.equal(artSpins({image,world,local}),want,JSON.stringify({image,world,local}));
+  const c={instanceId:'cinst_TEST',definitionId:'MUT-TEST-EMBER',name:'[TEST] Ember',art:'ashen-gate/cinders/test-ember.webp',powers:[],enhancements:[]};
+  const s={value:3,guaranteeAt:10};
+  let v=sheetView(hero,c,null,{strainState:s});assert.deepEqual([v.spin,v.spinToggle,v.spinLocal],[true,true,true]);
+  v=sheetView(hero,c,null,{strainState:s,rotate:{world:true,local:false}});assert.deepEqual([v.spin,v.spinToggle,v.spinLocal],[false,true,false],'off on this device: the switch stays to turn it back on');
+  v=sheetView(hero,c,null,{strainState:s,rotate:{world:false,local:true}});assert.deepEqual([v.spin,v.spinToggle],[false,false],'GM switched it off: no per-device switch');
+  v=sheetView(hero,{...c,art:null},null,{strainState:s});assert.deepEqual([v.image,v.spin,v.spinToggle],[false,false,false],'the default orb never turns');
+  const fs=await import('node:fs/promises');
+  const hbs=await fs.readFile(new URL('../templates/cinders.hbs',import.meta.url),'utf8'),css=await fs.readFile(new URL('../styles/cinders.css',import.meta.url),'utf8');
+  assert.match(hbs,/class="agc-orb\{\{#if image\}\} agc-orb--art\{\{\/if\}\}\{\{#if spin\}\} agc-orb--spin\{\{\/if\}\}"/);
+  assert.match(hbs,/<input type="checkbox" data-agc-spin/);assert.match(hbs,/<input type="checkbox" data-agc-rotate/);
+  assert.match(css,/\.agc-orb--spin \.agc-orb__img\{animation:agc-spin 90s linear infinite;will-change:transform/);
+  assert.match(css,/prefers-reduced-motion: reduce\)\{\.agc-orb__default,\.agc-orb__img\{animation:none!important\}/);
+  assert.doesNotMatch(css,/agc-orb--spin \.agc-orb__glow|agc-orb--spin \.agc-orb__default/,'the glow stays still');
+});
+test('rotate art: the GM switch waits for Save Changes; Cancel drops it; players cannot save it but can turn it off on their own device',async()=>{
+  const {ROTATE_SETTING,ROTATE_LOCAL_SETTING}=await import('../scripts/main.mjs');
+  game.user=gm;const app=api.open();app.tab='setup';errors.length=0;
+  let ctx=await app._prepareContext({});assert.deepEqual([ctx.setup.rotateChecked,ctx.setup.dirty],[true,false]);
+  app._stageRotate(false);assert.equal(saved.get(ROTATE_SETTING),true,'unticking writes nothing');
+  ctx=await app._prepareContext({});assert.deepEqual([ctx.setup.rotateChecked,ctx.setup.dirty],[false,true]);
+  await app._act({dataset:{act:'setup-cancel'}});ctx=await app._prepareContext({});assert.equal(ctx.setup.rotateChecked,true);
+  app._stageRotate(false);await app._act({dataset:{act:'setup-save'}});assert.equal(saved.get(ROTATE_SETTING),false,'Save Changes writes it');
+  game.user=player;app._stageRotate(true);await app._act({dataset:{act:'setup-save'}});
+  assert.match(errors.at(-1),/GM only/);assert.equal(saved.get(ROTATE_SETTING),false);
+  app.pendingRotate=null;
+  await app._setLocalSpin(false);assert.equal(saved.get(ROTATE_LOCAL_SETTING),false,'a player turns it off for their device');
+  await app._setLocalSpin(true);assert.equal(saved.get(ROTATE_LOCAL_SETTING),true);
+  game.user=gm;await game.settings.set(MOD,ROTATE_SETTING,true);app.tab='cinders';
+});
