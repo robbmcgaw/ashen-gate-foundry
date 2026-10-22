@@ -20,21 +20,10 @@
 .agmanager-tiny{color:var(--ag-muted);font-size:var(--ag-text-sm);margin:var(--ag-space-1) 0}
 .agmanager-toggle{margin:var(--ag-space-1) 0}
 .agmanager-search-label{display:inline-flex;align-items:center;gap:var(--ag-space-2)}
-.agmanager-missing{color:var(--ag-danger);font-size:var(--ag-text-sm)}
+.agmanager-missing{color:var(--ag-danger-ink);font-size:var(--ag-text-sm)}
 .agm-pane .ag-notice ul{margin:var(--ag-space-1) 0 0;padding-left:var(--ag-space-5)}
 
-/* ---------- Header: Appearance popover (the GM quick switch; GM Setup has the same setting) ---------- */
-/* Anchored to the header (not the button) so it never runs off the window edge. */
-.agmanager-top{position:relative}
-.agmanager-appearance-menu{position:static}
-.agmanager-appearance-pop{position:absolute;right:var(--ag-space-4);top:calc(100% - var(--ag-space-2));z-index:50;width:min(35rem,calc(100cqw - 2 * var(--ag-space-4)));max-height:min(70vh,40rem);overflow:auto;
-  padding:var(--ag-space-3) var(--ag-space-4) 0;background:var(--ag-surface-raised);color:var(--ag-text);border:1px solid var(--ag-border-strong);border-radius:var(--ag-radius);box-shadow:var(--ag-shadow);
-  font-size:var(--ag-text-md);text-align:left;white-space:normal}
-.agmanager-appearance-pop[hidden]{display:none}
-.agmanager-appearance-pop h3{display:flex;align-items:center;gap:var(--ag-space-2);margin:0 0 var(--ag-space-2);font-size:var(--ag-text-lg)}
-.agmanager-appearance-pop .ag-footer{position:sticky;bottom:0;margin:var(--ag-space-3) calc(-1 * var(--ag-space-4)) 0}
-
-/* ---------- Skin cards (Appearance popover and My Appearance): radio group, selected and saved states ---------- */
+/* ---------- Skin cards (GM Setup → General and My Appearance): radio group, selected and saved states ---------- */
 .agm-skin-picker{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,11rem),1fr));gap:var(--ag-space-2);margin:var(--ag-space-2) 0}
 .agm-skin-card{display:flex;align-items:center;justify-content:flex-start;gap:var(--ag-space-2);min-height:var(--ag-row-h);height:auto;margin:0;padding:var(--ag-space-2) var(--ag-space-3);
   border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface);color:var(--ag-text);font:inherit;font-size:var(--ag-text-sm);line-height:1.3;text-align:left;cursor:pointer}
@@ -45,12 +34,11 @@
 .agm-skin-card__text{display:flex;flex-direction:column;min-width:0}
 .agm-skin-card__name{font-weight:600}
 .agm-skin-card__desc{color:var(--ag-muted);font-size:var(--ag-text-xs);line-height:1.3}
-.agm-skin-card__now{color:var(--ag-accent);font-size:var(--ag-text-xs);font-weight:600}
+.agm-skin-card__now{color:var(--ag-accent-ink);font-size:var(--ag-text-xs);font-weight:600}
 .agm-swatch{display:inline-flex;flex:none;width:calc(var(--ag-icon-chip) * 1.4);height:calc(var(--ag-icon-chip) * .8);overflow:hidden;border:1px solid var(--ag-border-strong);border-radius:var(--ag-radius-sm)}
 .agm-swatch i{flex:1}
 
 /* ---------- Import ---------- */
-.agmanager-filelabel input{display:none}
 .agmanager-package{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,9rem),1fr));gap:var(--ag-space-2);margin:var(--ag-space-3) 0}
 .agmanager-package>div{min-width:0;padding:var(--ag-space-2) var(--ag-space-3);border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface-sunken)}
 .agmanager-package dt{color:var(--ag-muted);font-size:var(--ag-text-xs);font-weight:650;letter-spacing:.05em;text-transform:uppercase}
@@ -58,7 +46,7 @@
 .agmanager-summary strong{font-variant-numeric:tabular-nums}
 .agmanager-changes{margin:var(--ag-space-1) 0 0 var(--ag-space-4);padding:0;font-size:var(--ag-text-sm);overflow-wrap:anywhere}
 .agmanager-result-panel{display:grid;gap:var(--ag-space-2);margin:var(--ag-space-3) 0}
-.agmanager-result{padding:var(--ag-space-2) var(--ag-space-3);border:1px solid var(--ag-border);border-left-width:4px;border-radius:var(--ag-radius);background:var(--ag-surface-raised)}
+.agmanager-result{margin:0;border-left-width:4px} /* ag-lint-allow: tone edge on a kit card */
 .agmanager-result-ok{border-left-color:var(--ag-ok)}
 .agmanager-result-warn{border-left-color:var(--ag-warn)}
 .agmanager-result-error{border-left-color:var(--ag-danger)}
@@ -69,21 +57,27 @@
 .agmanager-line-failed{background:var(--ag-danger-soft)}
 .agmanager-line-skipped,.agmanager-line-warning{background:var(--ag-warn-soft)}
 
-/* ---------- Items: one toolbar above the rail ---------- */
-.agitems{display:grid;gap:var(--ag-space-2)}
+/* ---------- Sub-tabs (kit .ag-tabs--sub) sit flush at the top of their pane ---------- */
+.agm-pane>.ag-tabs--sub,.agitems>.ag-tabs--sub,.agscenes>.ag-tabs--sub,.agm-setup>.ag-tabs--sub{padding:0;margin:0 0 var(--ag-space-3)}
+.agm-subpanel{display:flex;flex-direction:column;gap:var(--ag-space-4);min-width:0}
+.agm-subpanel:focus-visible{outline-offset:var(--ag-space-1)}
+.agm-subpanel[hidden]{display:none}
+
+/* ---------- Items: one toolbar row, Filters (n) opens the second row ---------- */
+.agitems{display:flex;flex-direction:column;min-width:0;container-type:inline-size}
+.agitems-panel{gap:var(--ag-space-2)}
 .agitems .ag-toolbar{margin:0}
-.agitems-note,.agitems-title{margin:0}
-.agitems-title{margin-bottom:var(--ag-space-2);font-size:var(--ag-text-lg)}
+.agitems-note{margin:0}
 .agitems-scope{display:grid;gap:var(--ag-space-1)}
-.aglib{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--ag-space-3);align-items:start}
-.aglib-rail{position:sticky;top:0;display:flex;flex-direction:column;gap:var(--ag-space-1);padding:var(--ag-space-1);border:1px solid var(--ag-border);border-radius:var(--ag-radius-control);background:var(--ag-surface-raised)}
-.aglib-rail__tab{display:grid;place-items:center;width:var(--ag-icon-btn);height:var(--ag-icon-btn);min-height:0;padding:0;border:1px solid transparent;border-radius:50%;background:transparent;color:var(--ag-muted)}
-.aglib-rail__tab:hover{color:var(--ag-text);background:var(--ag-surface-hover)}
-.aglib-rail__tab.active,.aglib-rail__tab.active:hover{color:var(--ag-accent-contrast);background:var(--ag-accent);border-color:var(--ag-accent)}
-.aglib-main{min-width:0;container-type:inline-size}
+.agitems-filterrow{display:grid;gap:var(--ag-space-2);padding:var(--ag-space-2) var(--ag-space-3);border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface-sunken)}
+.agitems-filterrow[hidden]{display:none}
+.agitems-filtergrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,10rem),1fr));gap:var(--ag-space-2) var(--ag-space-3);align-items:end}
+.agitems-filtergrid .ag-field{margin:0;min-width:0}
+.agitems-filtergrid select{width:100%}
 .aglib-num{font-variant-numeric:tabular-nums}
-.aglib-split{display:grid;grid-template-columns:minmax(16rem,36%) minmax(0,1fr);border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface)}
-.aglib-list{display:flex;flex-direction:column;min-width:0;border-right:1px solid var(--ag-border)}
+/* Kit .ag-split; Manager only adds the frame. The list column keeps overflow visible so its menus are not clipped. */
+.aglib-split{border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface)}
+.aglib-list.ag-split__list{display:flex;flex-direction:column;min-width:0;overflow:visible}
 .aglib-tools{display:grid;gap:var(--ag-space-2);padding:var(--ag-space-2) var(--ag-space-3);border-bottom:1px solid var(--ag-border)}
 .aglib-filters>summary{color:var(--ag-muted);font-size:var(--ag-text-sm);cursor:pointer}
 .aglib-filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,9rem),1fr));gap:var(--ag-space-2);align-items:end;margin-top:var(--ag-space-2)}
@@ -107,49 +101,37 @@
 .aglib-selbar{display:flex;flex-wrap:wrap;align-items:center;gap:var(--ag-space-2);padding:var(--ag-space-2) var(--ag-space-3);border-top:1px solid var(--ag-border);background:var(--ag-surface-raised)}
 .aglib-end{margin-left:auto}
 .aglib-pager{display:flex;align-items:center;justify-content:space-between;gap:var(--ag-space-2);padding:var(--ag-space-1) var(--ag-space-3);border-top:1px solid var(--ag-border);color:var(--ag-muted);font-size:var(--ag-text-sm)}
-/* Menus are <details>: keyboard-reachable with no script. */
+/* Menus are <details> disclosures (no menu role): keyboard-reachable with no script. */
 .aglib-menu{position:relative}
 .aglib-menu>summary{list-style:none;cursor:pointer}
 .aglib-menu>summary::-webkit-details-marker{display:none}
 .aglib-menu__pop{position:absolute;left:0;bottom:calc(100% + var(--ag-space-1));z-index:20;display:grid;min-width:16rem;padding:var(--ag-space-1);background:var(--ag-surface-raised);border:1px solid var(--ag-border-strong);border-radius:var(--ag-radius);box-shadow:var(--ag-shadow)}
 .aglib-section .aglib-menu__pop{top:calc(100% + var(--ag-space-1));bottom:auto}
+.aglib-menu__pop .ag-file{display:block}
 .aglib-menu__pop button{justify-content:flex-start;width:100%;min-height:0;padding:var(--ag-space-2) var(--ag-space-3);border:0;border-radius:var(--ag-radius-sm);background:transparent;text-align:left;white-space:normal}
 .aglib-menu__pop button:hover{background:var(--ag-surface-hover)}
 .aglib-menu__pop small{margin-left:auto;color:var(--ag-muted);font-size:var(--ag-text-xs)}
 .aglib-menu__pop hr{margin:var(--ag-space-1) 0}
-.aglib-menu__pop .aglib-danger{color:var(--ag-danger)}
-.aglib-detail{display:flex;flex-direction:column;gap:var(--ag-space-3);min-width:0;padding:var(--ag-space-3) var(--ag-space-4)}
+.aglib-menu__pop .aglib-danger{color:var(--ag-danger-ink)}
+.aglib-detail{display:flex;flex-direction:column;gap:var(--ag-space-3);min-width:0}
 .aglib-detail h4{margin:0 0 var(--ag-space-2);color:var(--ag-muted);font-size:var(--ag-text-xs);letter-spacing:.06em;text-transform:uppercase}
 .aglib-detail__head{display:flex;flex-wrap:wrap;align-items:flex-start;gap:var(--ag-space-2)}
 .aglib-detail__title{flex:1 1 14rem;display:grid;gap:var(--ag-space-1);min-width:0}
 .aglib-detail__title h3{margin:0;font-size:var(--ag-text-lg);overflow-wrap:anywhere}
-.aglib-kv{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,9rem),1fr));gap:1px;overflow:hidden;background:var(--ag-border);border:1px solid var(--ag-border);border-radius:var(--ag-radius)} /* ag-lint-allow: 1px hairline grid lines */
-.aglib-kv>div{display:grid;gap:var(--ag-space-1);min-width:0;padding:var(--ag-space-2) var(--ag-space-3);background:var(--ag-surface-raised)}
-.aglib-kv>.aglib-kv__wide{grid-column:1/-1}
-.aglib-kv span{color:var(--ag-muted);font-size:var(--ag-text-xs);letter-spacing:.05em;text-transform:uppercase}
-.aglib-kv strong,.aglib-kv code{font-size:var(--ag-text-sm);overflow-wrap:anywhere}
+.aglib-kv code{font-size:var(--ag-text-sm)}
 .aglib-refs{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,14rem),1fr));gap:var(--ag-space-3)}
 .aglib-ref{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--ag-space-1) var(--ag-space-2);padding:var(--ag-space-1) 0;border-bottom:1px solid var(--ag-border)}
-.aglib-link,.aglib-link:hover{min-height:0;padding:0;border:0;background:transparent;color:var(--ag-accent);font-weight:600;text-align:left}
-.aglib-link:hover{text-decoration:underline}
-.aglib-missing{color:var(--ag-danger);font-weight:600}
+.aglib-missing{color:var(--ag-danger-ink);font-weight:600}
 .aglib-wrap{overflow-wrap:anywhere}
 .aglib-status{margin:auto 0 0;padding:var(--ag-space-2) var(--ag-space-3);border-top:1px solid var(--ag-border);color:var(--ag-muted);font-size:var(--ag-text-sm)}
 .aglib-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--ag-space-2)}
 .agmanager-audit{margin-top:var(--ag-space-3)}
-.agmanager-auditrow,.agmanager-presession-row{margin-bottom:var(--ag-space-1);padding:var(--ag-space-1) var(--ag-space-2);border-left:3px solid var(--ag-border-strong);background:var(--ag-surface-sunken);word-break:break-word}
-.agmanager-auditrow>span{margin-right:var(--ag-space-1);font-weight:700;text-transform:uppercase}
-.agmanager-auditrow.agmanager-error,.agmanager-presession-fail{border-left-color:var(--ag-danger)}
-.agmanager-auditrow.agmanager-warning,.agmanager-presession-warn{border-left-color:var(--ag-warn)}
 .agmanager-worldexport-summary{white-space:pre-wrap}
-@container (max-width:40rem){
-  .aglib-split{grid-template-columns:minmax(0,1fr)}
-  .aglib-list{border-right:0;border-bottom:1px solid var(--ag-border)}
-  .aglib-rows{max-height:20rem}
-}
+@container (max-width:40rem){.aglib-rows{max-height:20rem}}
 
 /* ---------- Items → All items (Browse) ---------- */
-.agbrowse-scope{margin:0 0 var(--ag-space-2)}
+.agbrowse-top{display:flex;flex-wrap:wrap;align-items:center;gap:var(--ag-space-2) var(--ag-space-3);margin:0 0 var(--ag-space-2)}
+.agbrowse-top .agbrowse-status{margin:0}
 .agbrowse-facets{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,10rem),1fr));gap:var(--ag-space-2) var(--ag-space-3);align-items:end}
 .agbrowse-facet{display:flex;flex-direction:column;gap:var(--ag-space-1);min-width:0;font-size:var(--ag-text-sm)}
 .agbrowse-facet select{width:100%}
@@ -161,7 +143,7 @@
 .agbrowse-row[draggable=true]{cursor:grab}
 .agbrowse-main{flex:1 1 16rem;min-width:0;overflow-wrap:anywhere}
 .agbrowse-main code{margin-left:var(--ag-space-2);font-size:var(--ag-text-xs)}
-.agbrowse-name,.agbrowse-name:hover,.agbrowse-link,.agbrowse-link:hover{min-height:0;padding:0;border:0;background:transparent;color:var(--ag-accent);font-weight:600;text-align:left}
+.agbrowse-name,.agbrowse-name:hover,.agbrowse-link,.agbrowse-link:hover{min-height:0;padding:0;border:0;background:transparent;color:var(--ag-accent-ink);font-weight:600;text-align:left}
 .agbrowse-chips{display:flex;flex-wrap:wrap;gap:var(--ag-space-1);margin:var(--ag-space-1) 0}
 .agbrowse-actions{display:flex;flex-wrap:wrap;align-items:flex-start;gap:var(--ag-space-2)}
 .agbrowse-detail{position:sticky;top:0;padding:var(--ag-space-3);border:1px solid var(--ag-border);border-radius:var(--ag-radius);overflow-wrap:anywhere}
@@ -178,14 +160,14 @@
 .agpreview-card{position:relative;max-width:100%;margin:0 0 var(--ag-space-2);padding:var(--ag-space-2);overflow:hidden;border:1px solid var(--ag-border-strong);border-radius:var(--ag-radius);background:var(--ag-surface)}
 .agpreview-card img{max-width:100%}
 
-/* ---------- Items → NPC Codex (GM) ---------- */
+/* ---------- NPC Codex tab (GM) ---------- */
 .agcodex-row{display:grid;grid-template-columns:auto minmax(0,1fr);justify-content:stretch;gap:var(--ag-space-3);align-items:center;width:100%;min-height:var(--ag-row-h);padding:var(--ag-space-2) var(--ag-space-3);
   border:0;border-left:3px solid transparent;border-radius:0;background:transparent;text-align:left;font-weight:400}
 .agcodex-row:hover{background:var(--ag-surface-hover)}
 .agcodex-row.is-focused{background:var(--ag-row-selected);border-left-color:var(--ag-accent)}
 .agcodex-row__text{display:grid;gap:var(--ag-space-1);min-width:0}
 .agcodex-portrait,.agm-codex-portrait{display:grid;place-items:center;flex:none;width:var(--ag-icon-chip);height:var(--ag-icon-chip);object-fit:cover;object-position:top;border:1px solid var(--ag-border);border-radius:50%;
-  background:var(--ag-surface-sunken);color:var(--ag-accent);font-weight:700}
+  background:var(--ag-surface-sunken);color:var(--ag-accent-ink);font-weight:700}
 .agcodex-portrait--lg{width:var(--ag-portrait);height:var(--ag-portrait);font-size:var(--ag-text-xl)}
 .agcodex-field{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--ag-space-2) var(--ag-space-3);align-items:start;padding:var(--ag-space-2) 0;border-bottom:1px solid var(--ag-border)}
 .agcodex-field--discovery{padding-top:0}
@@ -194,33 +176,30 @@
 .agcodex-value{margin:var(--ag-space-1) 0 0;white-space:pre-wrap;overflow-wrap:anywhere}
 ul.agcodex-value{padding-left:var(--ag-space-5);white-space:normal}
 .agcodex-control{display:grid;justify-items:end;gap:var(--ag-space-1)}
-/* Who knows: a three-way segmented control (Hidden | Party | Characters ▾). */
-.agcodex-seg{display:inline-flex;padding:calc(var(--ag-space-1) / 2);gap:calc(var(--ag-space-1) / 2);border:1px solid var(--ag-border);border-radius:var(--ag-radius-control);background:var(--ag-surface-sunken)}
-.agcodex-seg>button,.agcodex-seg summary{display:inline-flex;align-items:center;gap:var(--ag-space-1);min-height:calc(var(--ag-control-h-sm) - var(--ag-space-1));padding:calc(var(--ag-space-1) / 2) var(--ag-space-3);border:0;border-radius:var(--ag-radius-control);
-  background:transparent;color:var(--ag-muted);font:600 var(--ag-text-sm)/1.2 var(--ag-font-body);list-style:none;cursor:pointer}
-.agcodex-seg summary::-webkit-details-marker{display:none}
-.agcodex-seg>button:hover,.agcodex-seg summary:hover{color:var(--ag-text);background:transparent}
-.agcodex-seg .is-on,.agcodex-seg .is-on:hover{background:var(--ag-surface-raised);color:var(--ag-text);box-shadow:var(--ag-shadow-sm)}
-.agcodex-seg .is-party,.agcodex-seg .is-party:hover{background:var(--ag-ok-soft);color:var(--ag-ok)}
-.agcodex-seg .is-actors,.agcodex-seg .is-actors:hover{background:var(--ag-accent-soft);color:var(--ag-accent)}
+/* Who knows: the kit segmented radio group (Hidden | Party) and a Characters menu beside it. */
+.agcodex-seg-wrap{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:var(--ag-space-1)}
+.agcodex-seg>.agcodex-seg__party[aria-checked="true"]{color:var(--ag-ok-ink)}
+.agcodex-chars>summary{list-style:none}
+.agcodex-chars>summary::-webkit-details-marker{display:none}
+.agcodex-chars>summary.is-on{border-color:var(--ag-accent);background:var(--ag-accent-soft);color:var(--ag-accent-ink)}
+.agcodex-reveals-head{align-items:center;margin:0 0 var(--ag-space-2)}
 .agcodex-chars__pop{top:calc(100% + var(--ag-space-1));right:0;bottom:auto;left:auto;min-width:12rem;max-height:15rem;overflow:auto}
 .agcodex-chars__pop label{display:flex;align-items:center;gap:var(--ag-space-2);padding:var(--ag-space-1) var(--ag-space-2)}
-.agcodex-who{max-width:14rem;margin:0;color:var(--ag-accent);font-size:var(--ag-text-xs);text-align:right}
+.agcodex-who{max-width:14rem;margin:0;color:var(--ag-accent-ink);font-size:var(--ag-text-xs);text-align:right}
 .agcodex-links,.agm-codex-player dd{display:flex;flex-wrap:wrap;gap:var(--ag-space-2)}
 .agcodex-link,.agm-codex-link{display:inline-flex;align-items:baseline;gap:var(--ag-space-2);padding:calc(var(--ag-space-1) / 2) var(--ag-space-2);border:1px solid var(--ag-border);border-radius:var(--ag-radius-control);background:var(--ag-surface-raised);font-size:var(--ag-text-sm)}
-a.agcodex-link,a.agm-codex-link{color:var(--ag-accent);text-decoration:none;cursor:pointer}
-a.agcodex-link:hover,a.agm-codex-link:hover{text-decoration:underline}
+/* Openable deity links are buttons (0.46.0) styled as the same pill. */
+button.agcodex-link,button.agm-codex-link{min-height:0;height:auto;color:var(--ag-accent-ink);font-weight:400;cursor:pointer}
+button.agcodex-link:hover,button.agm-codex-link:hover{background:var(--ag-surface-hover);text-decoration:underline}
 .agm-codex-link.is-unknown{color:var(--ag-muted);font-style:italic}
 .agcodex-link code{color:var(--ag-muted);font-size:var(--ag-text-xs)}
 .agcodex-gm{padding:var(--ag-space-2) var(--ag-space-3);border:1px dashed color-mix(in srgb,var(--ag-danger) 50%,var(--ag-border));border-radius:var(--ag-radius);background:var(--ag-danger-soft)}
-.agcodex-gm h4{color:var(--ag-danger)}
+.agcodex-gm h4{color:var(--ag-danger-ink)}
 .agcodex-gmrow{padding:var(--ag-space-1) 0}
 .agcodex-edit{display:grid;gap:var(--ag-space-2)}
 .agcodex-edit .ag-field{margin:0}
 .agcodex-preview{display:grid;gap:var(--ag-space-2);padding-top:var(--ag-space-2);border-top:1px solid var(--ag-border)}
 .agcodex-preview__pick{display:flex;align-items:center;gap:var(--ag-space-2);color:var(--ag-muted);font-size:var(--ag-text-sm)}
-.agcodex-filelabel{display:flex;align-items:center;gap:var(--ag-space-2);padding:var(--ag-space-2) var(--ag-space-3);border-radius:var(--ag-radius-sm);cursor:pointer}
-.agcodex-filelabel:hover{background:var(--ag-surface-hover)}
 
 /* ---------- Player NPC Codex window (read-only) ---------- */
 .agm-codex-window .window-content{padding:0;overflow:auto}
@@ -234,10 +213,11 @@ a.agcodex-link:hover,a.agm-codex-link:hover{text-decoration:underline}
 .agm-codex-card dl{display:grid;gap:var(--ag-space-2);margin:0}
 .agm-codex-card dt{color:var(--ag-muted);font-size:var(--ag-text-xs);letter-spacing:.06em;text-transform:uppercase}
 .agm-codex-card dd{margin:0;overflow-wrap:anywhere}
-.agm-codex-card q{color:var(--ag-accent);font-style:italic}
+.agm-codex-card q{color:var(--ag-accent-ink);font-style:italic}
 
 /* ---------- Items → Folders, Core links ---------- */
-.agmanager-organize{display:flex;flex-direction:column;gap:var(--ag-space-4)}
+.agmanager-organize{display:flex;flex-direction:column;gap:var(--ag-space-3)}
+.agmanager-organize>.ag-fold+.ag-fold{margin-top:0}
 .agmanager-organize .ag-section{margin:0}
 .agclean-part{margin:var(--ag-space-2) 0 var(--ag-space-3)}
 .agmanager-org-group{margin:var(--ag-space-1) 0}
@@ -245,10 +225,7 @@ a.agcodex-link:hover,a.agm-codex-link:hover{text-decoration:underline}
 
 /* ---------- Modules ---------- */
 .agmanager-presession-summary{margin:var(--ag-space-2) 0}
-.agmanager-presession-row{display:grid;grid-template-columns:4rem 9rem minmax(0,1fr);gap:var(--ag-space-2)}
-.agmanager-presession-status{font-weight:700}
-.agmanager-presession-check{color:var(--ag-muted)}
-.agmanager-presession-na{color:var(--ag-muted)}
+.agmanager-presession-row>.ag-badge{flex:0 0 auto;min-width:3.5rem;justify-content:center}
 .agmanager-module-grid{margin:var(--ag-space-3) 0}
 .agmanager-module-card{display:flex;flex-wrap:wrap;align-items:flex-start;justify-content:space-between;gap:var(--ag-space-2)}
 .agmanager-module-card h4{margin:0 0 var(--ag-space-1);font-size:var(--ag-text-lg)}
@@ -256,12 +233,12 @@ a.agcodex-link:hover,a.agm-codex-link:hover{text-decoration:underline}
 .agmanager-module-card__info{flex:1 1 12rem;min-width:0}
 .agmanager-module-card__badge{margin:var(--ag-space-1) 0}
 .agmanager-module-card__actions{display:flex;flex:0 0 auto;flex-direction:column;align-items:stretch;gap:var(--ag-space-2)}
-.agmanager-access-report{margin:var(--ag-space-2) 0;padding:var(--ag-space-2) var(--ag-space-3);border:1px solid var(--ag-border);border-radius:var(--ag-radius)}
+.agmanager-access-report{margin:var(--ag-space-2) 0}
 .agmanager-access-report p{margin:var(--ag-space-1) 0;overflow-wrap:anywhere}
 
-/* ---------- Scenes: rail | live controls + "on this scene now" ---------- */
-.agscenes{display:grid;grid-template-columns:auto minmax(0,1fr);gap:var(--ag-space-3);align-items:start}
-.agscenes-main{display:flex;flex-direction:column;gap:var(--ag-space-4);min-width:0;container-type:inline-size}
+/* ---------- Scenes: sub-tabs, then live controls + "on this scene now" ---------- */
+.agscenes{display:flex;flex-direction:column;min-width:0}
+.agscenes-main{container-type:inline-size}
 .agscenes-main .ag-section{margin:0}
 .agscenes-live{display:grid;grid-template-columns:minmax(0,1fr) minmax(14rem,30%);gap:var(--ag-space-4);align-items:start}
 .agscenes-col{display:flex;flex-direction:column;gap:var(--ag-space-4);min-width:0}
@@ -277,7 +254,7 @@ a.agcodex-link:hover,a.agm-codex-link:hover{text-decoration:underline}
 .agscenes-field input[type=range]{width:100%}
 .agscenes-field input[type=checkbox],.agscenes-field select,.agscenes-color{grid-column:2 / span 2;justify-self:start}
 .agscenes-field output{font-family:var(--ag-font-mono);font-size:var(--ag-text-xs);font-variant-numeric:tabular-nums;text-align:right}
-.agscenes-field.is-touched>span{color:var(--ag-accent)}
+.agscenes-field.is-touched>span{color:var(--ag-accent-ink)}
 .agscenes-color{display:inline-flex;align-items:center;gap:var(--ag-space-2)}
 .agscenes-color input[type=color]{width:calc(var(--ag-control-h-sm) * 1.5);height:var(--ag-control-h-sm);padding:0}
 .agscenes-stack{position:sticky;top:0;display:flex;flex-direction:column;gap:var(--ag-space-2);margin:0}
@@ -292,19 +269,20 @@ a.agcodex-link:hover,a.agm-codex-link:hover{text-decoration:underline}
 .agmanager-mood-field{display:flex;flex-wrap:wrap;align-items:center;gap:var(--ag-space-2)}
 .agmanager-mood-field input[type=number]{width:6rem}
 @container (max-width:40rem){
-  .agscenes,.aglib{grid-template-columns:minmax(0,1fr)}
-  .agscenes .aglib-rail,.aglib-rail{position:static;flex-direction:row;flex-wrap:wrap;justify-self:start}
   .agscenes-live{grid-template-columns:minmax(0,1fr)}
   .agscenes-stack{position:static}
 }
 
-/* ---------- History ---------- */
-.agmanager-history{margin:var(--ag-space-2) 0;padding:var(--ag-space-2) var(--ag-space-3);border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface-raised)}
+/* ---------- Import history (kit cards and rows) ---------- */
+.agmanager-history{margin:0 0 var(--ag-space-2)}
 .agmanager-history summary{cursor:pointer;overflow-wrap:anywhere}
-.agmanager-history-records{display:grid;gap:var(--ag-space-1);padding-top:var(--ag-space-2);overflow-wrap:anywhere}
+.agmanager-history-records{margin-top:var(--ag-space-2)}
 
-/* ---------- GM Setup: settings only; Save Changes in the window footer ---------- */
-.agm-setup{display:flex;flex-direction:column;gap:var(--ag-space-4);max-width:56rem}
+/* ---------- GM Setup: sub-tabs over one draft; Save Changes in the window footer ---------- */
+.agm-setup{display:flex;flex-direction:column;max-width:56rem}
+.agm-setup-form{display:contents}
+.agm-devtools{display:flex;flex-direction:column;gap:var(--ag-space-4)}
+.agm-devtools>.ag-notice{margin:0}
 .agm-setup .ag-field{max-width:24rem}
 .agm-checks{display:flex;flex-wrap:wrap;gap:var(--ag-space-1) var(--ag-space-4)}
 .agm-setup-footer{flex:0 0 auto}
@@ -319,10 +297,8 @@ a.agcodex-link:hover,a.agm-codex-link:hover{text-decoration:underline}
 .agm-scrollcap{max-height:min(28rem,45vh);overflow:auto;overscroll-behavior:contain}
 .agm-import-bar{flex-wrap:wrap;align-items:center}
 .agm-import-loaded{min-width:0;overflow-wrap:anywhere}
-.agm-fold{border:1px solid var(--ag-border);border-radius:var(--ag-radius);padding:0 var(--ag-space-3);margin:var(--ag-space-2) 0} /* ag-lint-allow: 1px hairline fold border */
-.agm-fold>summary{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--ag-space-2);padding:var(--ag-space-2) 0;cursor:pointer;font-weight:600}
-.agm-fold>summary .agmanager-tiny{margin:0;font-weight:400;overflow-wrap:anywhere}
-.agm-fold[open]>summary{border-bottom:1px solid var(--ag-border);margin-bottom:var(--ag-space-2)} /* ag-lint-allow: 1px hairline fold border */
+.agm-import>.ag-fold{margin:var(--ag-space-2) 0}
+.agm-profile{max-width:30rem}
 .agm-import-actions{position:sticky;bottom:0;z-index:2;padding:var(--ag-space-2) 0;background:var(--ag-surface)}
 .agclean-running{align-items:center}
 .agclean-bar{flex:1 1 12rem;min-width:8rem}

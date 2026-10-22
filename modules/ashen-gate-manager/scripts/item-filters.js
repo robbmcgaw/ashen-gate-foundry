@@ -83,38 +83,52 @@ export function sharedMatch(e, f = {}) {
   return true;
 }
 
-/** Rail entries. The first five are the approved design; Export, Adopt and NPC Codex were Library rail entries before. */
+/**
+ * Items sub-tabs (0.46.0: text sub-tabs, was an icon rail). Ids are unchanged so saved views and links keep working.
+ * NPC Codex is its own top-level tab and Adopt & tag moved to GM Setup → Developer Tools (see resolveTab).
+ * `filters` marks the views the shared filter toolbar applies to.
+ */
 export const ITEM_VIEWS = Object.freeze([
-  {id: 'all', label: 'All items', icon: 'fa-solid fa-magnifying-glass'},
-  {id: 'records', label: 'Ashen Gate records', icon: 'fa-solid fa-list'},
-  {id: 'folders', label: 'Folders', icon: 'fa-solid fa-folder-tree'},
-  {id: 'corelinks', label: 'Core links', icon: 'fa-solid fa-link'},
-  {id: 'checks', label: 'Checks', icon: 'fa-solid fa-stethoscope'},
-  {id: 'export', label: 'Export and backup', icon: 'fa-solid fa-file-export'},
-  {id: 'adopt', label: 'Adopt and tag world Items', icon: 'fa-solid fa-tags'},
-  {id: 'codex', label: 'NPC Codex', icon: 'fa-solid fa-address-book'}
+  {id: 'all', label: 'Browse', icon: 'fa-solid fa-magnifying-glass', filters: true},
+  {id: 'records', label: 'Records', icon: 'fa-solid fa-list', filters: true},
+  {id: 'folders', label: 'Folders', icon: 'fa-solid fa-folder-tree', filters: true},
+  {id: 'corelinks', label: 'Core links', icon: 'fa-solid fa-link', filters: true},
+  {id: 'checks', label: 'Checks', icon: 'fa-solid fa-stethoscope', filters: false},
+  {id: 'export', label: 'Export', icon: 'fa-solid fa-file-export', filters: false}
 ].map(v => Object.freeze(v)));
-/** Pre-0.36.0 Library rail ids → Items rail ids. */
+/** Top-level tabs (0.46.0), GM Setup last. Import history is a sub-tab of Import. */
+export const MANAGER_TABS = Object.freeze([
+  {id: 'import', label: 'Import', icon: 'fa-solid fa-file-import'},
+  {id: 'items', label: 'Items', icon: 'fa-solid fa-boxes-stacked'},
+  {id: 'codex', label: 'NPC Codex', icon: 'fa-solid fa-address-book'},
+  {id: 'modules', label: 'Modules', icon: 'fa-solid fa-grip'},
+  {id: 'scenes', label: 'Scenes', icon: 'fa-solid fa-cloud-sun'},
+  {id: 'setup', label: 'GM Setup', icon: 'fa-solid fa-gears', gm: true}
+].map(v => Object.freeze(v)));
+export const IMPORT_VIEWS = Object.freeze(['package', 'history']);
+export const SETUP_VIEWS = Object.freeze(['general', 'sources', 'developer']);
+/** Pre-0.36.0 Library rail ids → Items views (codex and adopt now live elsewhere; resolveTab moves them). */
 const LIBRARY_SECTION_VIEW = Object.freeze({records: 'records', check: 'checks', export: 'export', adopt: 'adopt', codex: 'codex'});
 
 /**
- * Old top-bar tab ids keep working (saved links, other modules, macros): browse → All items, library → Ashen Gate
- * records (or the Library rail section it was on), organize → Folders, corelinks → Core links. appearance (a tab
- * until 0.38.0) stays on the `previous` tab (Import when there is none) and asks for the header Appearance dropdown
- * (`appearance: true`). Anything else is unchanged.
+ * Old tab and view ids keep working (saved links, other modules, macros): browse → Items → Browse, library → Items →
+ * Records (or the Library rail section it was on), organize → Folders, corelinks → Core links, history → Import →
+ * Import history, appearance (a tab until 0.38.0, then a header menu until 0.46.0) → GM Setup → General. The Items
+ * views codex and adopt (until 0.46.0) open the NPC Codex tab and GM Setup → Developer Tools. Extra keys
+ * (importView, setupTab) are only present when the old id asked for a sub-tab. Anything else is unchanged.
  */
-export function resolveTab(tab, {view = 'all', librarySection = null, previous = null} = {}) {
+export function resolveTab(tab, {view = 'all', librarySection = null} = {}) {
   const known = id => ITEM_VIEWS.some(v => v.id === id);
+  const items = v => v === 'codex' ? {tab: 'codex', view: 'all'} : v === 'adopt' ? {tab: 'setup', view: 'all', setupTab: 'developer'} : {tab: 'items', view: known(v) ? v : 'all'};
+  const keep = known(view) ? view : 'all';
   switch (tab) {
-    case 'appearance': {
-      const back = previous && previous !== 'appearance' ? resolveTab(previous, {view, librarySection}) : {tab: 'import', view: known(view) ? view : 'all'};
-      return {...back, appearance: true};
-    }
+    case 'appearance': return {tab: 'setup', view: keep, setupTab: 'general'};
+    case 'history': return {tab: 'import', view: keep, importView: 'history'};
     case 'browse': return {tab: 'items', view: 'all'};
-    case 'library': return {tab: 'items', view: LIBRARY_SECTION_VIEW[librarySection] ?? 'records'};
+    case 'library': return items(LIBRARY_SECTION_VIEW[librarySection] ?? 'records');
     case 'organize': return {tab: 'items', view: 'folders'};
     case 'corelinks': return {tab: 'items', view: 'corelinks'};
-    case 'items': return {tab: 'items', view: known(view) ? view : 'all'};
-    default: return {tab, view: known(view) ? view : 'all'};
+    case 'items': return items(view);
+    default: return {tab: MANAGER_TABS.some(t => t.id === tab) ? tab : 'import', view: keep};
   }
 }

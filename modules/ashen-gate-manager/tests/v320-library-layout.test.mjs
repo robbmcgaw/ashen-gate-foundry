@@ -22,20 +22,24 @@ test('0.32.0: library rows are ordered by system (Unclassified last) then name, 
   assert.deepEqual(groups.map(g=>[g.label,g.count,g.rows.length]),[['Locations & Exploration',1,1],['Professions',2,1]]);
 });
 
-test('0.32.0: Library keeps every action, behind a rail and one Actions menu',()=>{
+test('0.32.0: Library keeps every action, behind sub-tabs (0.46.0) and one Actions menu',()=>{
+  // Adopt & tag moved to GM Setup → Developer Tools in 0.46.0; its actions are kept there.
+  const dev=tpl.slice(tpl.indexOf('{{{setupPanels.developer}}}'));
   for(const a of ['library-check','library-export','library-replace','library-archive','library-restore','library-stage','library-delete',
     'library-select-visible','library-clear','library-next','library-previous','library-inspect-clear',
-    'world-export-everything','world-export-changed','world-export-copy','world-backup','capture-export','capture-tag','capture-untag'])
+    'world-export-everything','world-export-changed','world-export-copy','world-backup'])
     assert.match(lib,new RegExp(`data-ag-action="${a}"`),a);
+  for(const a of ['capture-export','capture-tag','capture-untag'])assert.match(dev,new RegExp(`data-ag-action="${a}"`),a);
   for(const d of ['data-ag-items-query','data-ag-library-status','data-ag-library-package','data-ag-library-show-archived',
-    'data-ag-library-select=','data-ag-library-inspect=','data-ag-library-open=','data-ag-library-jump=','data-ag-capture-filter','data-ag-capture-kind'])
+    'data-ag-library-select=','data-ag-library-inspect=','data-ag-library-open=','data-ag-library-jump='])
     assert.ok(lib.includes(d),d);
-  assert.match(lib,/data-ag-items-view="\{\{id\}\}"/);
+  for(const d of ['data-ag-capture-filter','data-ag-capture-kind'])assert.ok(dev.includes(d),d);
+  assert.match(lib,/\{\{\{itemsTabsHtml\}\}\}/);
   assert.match(lib,/data-ag-library-system-chip=/);
   const menu=lib.slice(lib.indexOf('<details class="aglib-menu">'),lib.indexOf('</details>',lib.indexOf('<details class="aglib-menu">')));
   for(const a of ['library-export','library-replace','library-stage','library-archive','library-restore','library-delete'])assert.ok(menu.includes(a),`${a} sits in the Actions menu`);
   assert.doesNotMatch(lib,/agmanager-stats/,'stat tiles are gone');
-  for(const id of ['records','checks','export','adopt'])assert.match(views,new RegExp(`\\{id: '${id}'`));
+  for(const id of ['records','checks','export'])assert.match(views,new RegExp(`\\{id: '${id}'`));
 });
 
 test('0.32.0: lifecycle confirmations name what they do',()=>{

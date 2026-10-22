@@ -146,14 +146,16 @@ test('0.33.0: a player cannot read or write GM data and gets the codex only thro
   await assert.rejects(svc.forPlayer(), /not shared/);
 });
 
-test('0.33.0: Codex sits in the Library rail with labelled hide confirmation and a GM Setup access switch', () => {
+test('0.33.0: Codex (its own tab since 0.46.0) has a labelled hide confirmation; player access is its Modules card', () => {
   const tpl = fs.readFileSync(new URL('../templates/manager.hbs', import.meta.url), 'utf8');
   const main = fs.readFileSync(new URL('../scripts/main.js', import.meta.url), 'utf8');
   const views = fs.readFileSync(new URL('../scripts/item-filters.js', import.meta.url), 'utf8');
-  assert.match(views, /\{id: 'codex', label: 'NPC Codex'/); // 0.36.0: Items rail (was the Library rail)
-  for (const hook of ['data-ag-codex-reveal="{{key}}"', 'data-ag-codex-actor="{{../key}}"', 'data-ag-codex-preview', 'data-ag-codex-import',
-    'data-ag-action="codex-save"', 'data-ag-action="codex-export"', 'data-ag-codex-access'])
+  assert.match(views, /\{id: 'codex', label: 'NPC Codex'/); // 0.46.0: a top-level tab (was an Items rail entry)
+  for (const hook of ['data-ag-codex-seg="{{key}}"', 'data-ag-codex-actor="{{../key}}"', 'data-ag-codex-preview', '{{{fileButtons.codex}}}',
+    'data-ag-action="codex-save"', 'data-ag-action="codex-export"', 'data-ag-tab="codex"'])
     assert.ok(tpl.includes(hook), hook);
+  assert.match(main, /codex: fileButton\(\{label:'Restore reveals from a codex export…'/);
+  assert.match(main, /playerAccess:\{contract:"ag-player-access\/1",surface:CODEX_SURFACE,/);
   assert.match(main, /yes:'Hide from players'/);
   assert.match(main, /CONFIG\.queries\[CODEX_QUERY\]/);
 });

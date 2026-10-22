@@ -2,6 +2,7 @@
  * GM Setup (0.43.0): every GM Setup setting saves together with Save Changes, never on its own (decision D4).
  * Ticking a box or picking a skin only changes the form; nothing is written until saveGmSetup runs.
  * Same setting keys as before: codexPlayerAccess, worldSkin (through the appearance controller), core sources.
+ * 0.46.0: the NPC Codex player switch moved to the Modules tab (Player Access); codexAccess is still read when present.
  */
 
 /** Reads the GM Setup form. Missing controls stay undefined, so saveGmSetup leaves those settings alone. */
@@ -9,11 +10,14 @@ export function readGmSetupForm(root) {
   const q = selector => root?.querySelector?.(selector) ?? null;
   const all = selector => [...(root?.querySelectorAll?.(selector) ?? [])];
   const access = q('[data-ag-codex-access]');
+  // 0.46.0: the world skin is a group of skin cards (role="radio"); a <select> still reads the same way.
   const skin = q('[data-ag-setup-skin]');
+  const radio = skin?.querySelector?.('[role="radio"][aria-checked="true"]');
+  const skinValue = !skin ? undefined : radio ? radio.dataset?.agSkinValue : skin.value;
   const auto = q('[data-ag-setup-auto]');
   return {
     codexAccess: access ? Boolean(access.checked) : undefined,
-    worldSkin: skin ? String(skin.value ?? '') : undefined,
+    worldSkin: skinValue === undefined ? undefined : String(skinValue),
     sources: auto ? {
       auto: auto.checked !== false,
       packs: all('[data-ag-setup-pack]').filter(el => el.checked).map(el => el.dataset.agSetupPack),

@@ -75,19 +75,26 @@ function detailHtml(d) {
 /** Same pager style as Ashen Gate records: small ghost chevron buttons with a label and tooltip. */
 const pagerButton = (step, label, icon, enabled) => `<button type="button" class="ag-btn ag-btn--sm ag-btn--ghost ag-btn--icon" data-ag-browse-page="${step}" aria-label="${label}" data-tooltip="${label}" data-tooltip-class="ag-tooltip"${enabled ? '' : ' disabled'}><i class="fa-solid ${icon}" aria-hidden="true"></i></button>`;
 
-/** Scope, facets, results, pager and the detail panel; re-rendered on every change except typing focus. */
-export function bodyHtml(state, result, detail, status = {}) {
-  const scope = [['ag', 'Ashen Gate'], ['nonag', 'Non-Ashen Gate'], ['all', 'All']].map(([v, l]) =>
-    `<button type="button" role="radio" aria-checked="${state.scope === v}" data-ag-browse-scope="${v}">${l} (${result.scopes[v]})</button>`).join('');
+/**
+ * Browse's own filters (0.46.0): the facet selects and the two checkboxes. They sit behind the Items toolbar's
+ * Filters (n) button with the shared filters, so the results start right under the toolbar.
+ */
+export function facetsHtml(state, result) {
   const facets = FACETS.map(f => facetSelect(f, result.facets[f], state.filters[f])).join('');
-  const groups = result.groups.map(g => `${g.label ? `<li class="agbrowse-group"><strong>${esc(g.label)}</strong> <span class="agmanager-tiny">${g.total}</span></li>` : ''}${g.rows.map(rowHtml).join('')}`).join('');
-  const packs = status.loading ? 'Loading compendium indexes…' : status.compendiums ? `${status.compendiumCount} compendium entries loaded.` : 'Compendiums are not loaded (press Load compendiums).';
-  return `<div class="ag-segmented agbrowse-scope" role="radiogroup" aria-label="Show">${scope}</div>
-    <div class="agbrowse-facets">${facets}
+  return `<div class="agbrowse-facets">${facets}
       <label class="agbrowse-check"><input type="checkbox" data-ag-browse-managed${state.managedOnly ? ' checked' : ''}/> Only imported by Manager</label>
       <label class="agbrowse-check"><input type="checkbox" data-ag-browse-unlinked${state.unlinkedOnly ? ' checked' : ''}/> Unlinked (no world document)</label>
-    </div>
-    <p class="agmanager-tiny agbrowse-status">${result.total ? `${result.from}–${result.to} of ${result.total}` : 'No matches.'} ${esc(packs)} Read-only: drag a world or compendium row onto a sheet, canvas or journal.</p>
+    </div>`;
+}
+
+/** Scope, results, pager and the detail panel; re-rendered on every change except typing focus. Facets: facetsHtml. */
+export function bodyHtml(state, result, detail, status = {}) {
+  const scope = [['ag', 'Ashen Gate'], ['nonag', 'Non-Ashen Gate'], ['all', 'All']].map(([v, l]) =>
+    `<button type="button" role="radio" aria-checked="${state.scope === v}" tabindex="${state.scope === v ? 0 : -1}" data-ag-browse-scope="${v}">${l} (${result.scopes[v]})</button>`).join('');
+  const groups = result.groups.map(g => `${g.label ? `<li class="agbrowse-group"><strong>${esc(g.label)}</strong> <span class="agmanager-tiny">${g.total}</span></li>` : ''}${g.rows.map(rowHtml).join('')}`).join('');
+  const packs = status.loading ? 'Loading compendium indexes…' : status.compendiums ? `${status.compendiumCount} compendium entries loaded.` : 'Compendiums are not loaded (press Load compendiums).';
+  return `<div class="agbrowse-top"><div class="ag-segmented agbrowse-scope" role="radiogroup" aria-label="Show">${scope}</div>
+    <p class="agmanager-tiny agbrowse-status" role="status">${result.total ? `${result.from}–${result.to} of ${result.total}` : 'No matches.'} ${esc(packs)}</p></div>
     <div class="agbrowse-layout">
       <ol class="agbrowse-results">${groups}</ol>
       <aside class="agbrowse-detail" aria-label="Details">${detailHtml(detail)}</aside>

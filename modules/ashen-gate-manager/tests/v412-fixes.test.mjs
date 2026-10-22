@@ -14,7 +14,7 @@ import {createSceneMoods, MOODS_SETTING, LAYERS_SETTING, FILE_FORMAT, FILE_VERSI
 const read = rel => fs.readFileSync(new URL(rel, import.meta.url), 'utf8');
 
 test('(a) messages name the Items tab, not the old Library', () => {
-  assert.match(read('../scripts/browse.js'), /Open Items → NPC Codex/);
+  assert.match(read('../scripts/browse.js'), /Open the NPC Codex tab/);
   assert.doesNotMatch(read('../scripts/browse.js'), /Open Library/);
   assert.doesNotMatch(read('../scripts/codex-service.js'), /in the Library/);
 });
@@ -33,9 +33,10 @@ test('(b) organize rules import checks the file before asking', () => {
   assert.equal(readRulesFile([{nope: true}]).ok, false, 'invalid rules are refused before the question');
   // The UI asks only after readRulesFile says ok, and the count it shows comes from the checked list.
   const main = read('../scripts/main.js');
-  const at = main.indexOf('[data-ag-org-schema-file]');
+  // 0.46.0: the Import… file button (kit fileButton) calls #importRules.
+  const at = main.indexOf('async #importRules(f) {');
   const block = main.slice(at, at + 1500);
-  assert.ok(block.indexOf('readRulesFile(data)') < block.indexOf('confirmDialog('));
+  assert.ok(at > 0 && block.indexOf('readRulesFile(data)') < block.indexOf('confirmDanger('));
   assert.doesNotMatch(block, /Array\.isArray\(rules\)\?rules\.length:0/);
 });
 

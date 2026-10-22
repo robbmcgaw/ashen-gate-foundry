@@ -10,8 +10,15 @@ function isAshenModule(mod) {
   const id=String(mod?.id??'').toLowerCase();
   return id.startsWith('ashen-gate-') || id.startsWith('ag-') || /^ashen gate[\s:—–-]/i.test(mod?.title??'');
 }
+/** The one player-facing part of General Manager (0.46.0): its read-only NPC Codex, gated by the Codex access setting. */
+export const MANAGER_ID='ashen-gate-manager';
+export const CODEX_SURFACE='npc-codex';
+/** true for General Manager publishing Player Access for its NPC Codex (never for the GM-only Manager window). */
+export const isManagerCodex=mod=>String(mod?.id??'')===MANAGER_ID && mod?.api?.playerAccess?.surface===CODEX_SURFACE;
 export function isGmOnlyModule(mod) {
   // GM-only editors cannot be revealed even if another code path returns a bad audience.
+  // Manager's own NPC Codex row is the exception: it only switches the read-only player Codex, never the Manager window.
+  if(isManagerCodex(mod)) return false;
   const id=String(mod?.id??'').toLowerCase();
   const title=String(mod?.title??'').toLowerCase();
   // Locations itself is player-capable (Actors-sidebar launcher and viewer behind its own Player Access setting);
@@ -26,7 +33,8 @@ export function enumerateAccessModules(modules,expected=EXPECTED_ACCESS_MODULES)
 }
 /** No secret data are copied from provider responses. Failed/invalid capability is Unsupported. */
 export async function inspectPlayerModule(mod) {
-  const base={id:String(mod?.id??''),title:String(mod?.title??mod?.id??'Unknown'),version:mod?.version??'—',
+  const title=String(mod?.title??mod?.id??'Unknown');
+  const base={id:String(mod?.id??''),title:isManagerCodex(mod)?`${title} (NPC Codex)`:title,version:mod?.version??'—',
     installed:!mod?.missing,active:Boolean(mod?.active),audience:'—',state:'Unsupported',
     status:'Unsupported',playerAccessEnabled:null,canToggle:false,reason:'No compatible Player Access API exposed.'};
   if(mod?.missing) return {...base,status:'Not installed',state:'Not installed',reason:'Not installed in this world.'};

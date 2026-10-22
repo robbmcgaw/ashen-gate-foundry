@@ -148,7 +148,7 @@ test('Scenes tab: GM-only tab with mood buttons, Back to normal, Cancel left / S
   const fs = await import('node:fs');
   const tpl = fs.readFileSync(new URL('../templates/manager.hbs', import.meta.url), 'utf8');
   const main = fs.readFileSync(new URL('../scripts/main.js', import.meta.url), 'utf8');
-  assert.match(tpl, /data-ag-tab="scenes"/);
+  assert.match(fs.readFileSync(new URL('../scripts/item-filters.js', import.meta.url), 'utf8'), /\{id: 'scenes', label: 'Scenes'/);
   assert.match(tpl, /data-ag-mood-apply="\{\{id\}\}"/);
   assert.match(tpl, /data-ag-action="mood-restore"[^>]*>.*Back to normal/);
   assert.match(tpl, /mood-cancel">Cancel<\/button>.*\s*<button[^>]*mood-save"/);

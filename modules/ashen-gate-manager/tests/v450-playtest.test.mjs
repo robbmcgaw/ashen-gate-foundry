@@ -14,7 +14,9 @@ const main = read('../scripts/main.js');
 // ---- 1. Import tab layout ----
 test('Import tab: Load, ZIP, Options and Preview are remembered folds; messages are in a drawer below the scrolling pane', () => {
   for(const key of ['load', 'zip', 'options', 'preview']) assert.match(tpl, new RegExp(`data-ag-fold="${key}" \\{\\{#if folds\\.${key}\\}\\}open\\{\\{/if\\}\\}`), key);
-  const pane = tpl.slice(tpl.indexOf('<div class="ag-scroll agm-pane">'), tpl.indexOf('<aside class="agm-drawer'));
+  const pane = tpl.slice(tpl.indexOf('<div class="ag-scroll agm-pane"'), tpl.indexOf('<aside class="agm-drawer'));
+  // 0.46.0: the folds are kit .ag-fold sections.
+  for(const key of ['load', 'zip', 'options', 'preview']) assert.match(tpl, new RegExp(`<details class="ag-fold[^"]*" data-ag-fold="${key}"`), key);
   const importPart = pane.slice(pane.indexOf('{{#if importActive}}\n'), pane.indexOf('{{#if itemsActive}}\n'));
   assert.ok(importPart.length > 1000);
   // None of the long message lists sit above or between the main controls any more.

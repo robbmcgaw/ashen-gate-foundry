@@ -125,5 +125,6 @@ test('Undo last organize restores a Clean run that moved handouts to Core 5.5e',
 test('docs and in-app text describe positive evidence', () => {
   const doc = read('../../../docs/organize-rules.md');
   assert.match(doc, /rules alone is not evidence/i);
-  assert.match(read('../templates/manager.hbs'), /dnd5e gives every new item rules "2024"/);
+  // 0.46.0: the long Folders explanation moved from the tab into the Help dialog.
+  assert.match(read('../scripts/main.js'), /dnd5e gives every new item rules "2024"/);
 });
