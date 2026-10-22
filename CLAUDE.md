@@ -31,12 +31,19 @@ This repo is public (so Forge can read the manifest URLs). Never put setting spo
 - **Launchers.** Actors-sidebar launchers are player-facing (gated by each module's Player Access setting); Items-sidebar launchers for Manager and Locations are GM-only.
 
 ## UI conventions (shared shell)
-- Header: `Ashen Gate | <Module>` on the left, version + Help on the right. Tabs directly below. Search/filter toolbar at top of content, create action on the right.
-- Primary action (Save Changes / Apply) bottom-right, Cancel bottom-left. Destructive actions behind a labelled confirmation.
+Full rules and their sources: `docs/ui-ux-guidelines.md`. Latest audit and per-module cleanup briefs: `docs/ui-audit-2026-10.md`.
+- Header: `Ashen Gate | <Module>` on the left, version + Help on the right. At most one other window-level control in the header; no subtitle. Tabs directly below. Search/filter toolbar at top of content, create action on the right.
+- Tabs: at most 6 top-level, with visible text labels; GM-only tabs last and marked. At most one level of sub-tabs, using the kit's tabs (segmented controls pick values, they don't navigate). Same tabs every time for a role: show an empty state rather than hiding a tab mid-session.
+- Primary action (Save Changes / Apply) bottom-right, Cancel bottom-left, in a footer pinned to the window or editor pane. One primary per view. Destructive actions behind a labelled confirmation ("Delete <thing>?" / "Delete <thing>", never OK/Yes), `danger: true`, never the default button.
+- Never lose typed edits: show "Unsaved changes", and ask before a tab switch, selection change, close or re-render discards them. Controls that save at once stay out of draft forms (or carry an "Applies now" badge), and never save half-finished edits silently.
 - GM configuration lives in a permission-gated **GM Setup** tab; demo/debug tools in a GM-only **Developer Tools** area.
-- GM Setup holds settings only. Authoring and management of content (quests, locations, factions, etc.) lives in its own tab(s), not in GM Setup.
-- Group long lists by a useful category; never clip or truncate actionable text. Controls sized to their content.
-- Modules must render with a default theme when Manager's appearance controller is absent.
+- GM Setup holds settings only. Authoring and management of content (quests, locations, factions, etc.) lives in its own tab(s), not in GM Setup. One-off actions and maintenance (create, migrate, fill in, repair) go in their content tab, a Maintenance sub-tab, or Developer Tools.
+- Crowding: an editor opens beside the list (`.ag-split`) or in place of it, never below the whole list. Split long editors and settings pages into sub-tabs under one footer; put optional sections in labelled collapsible folds (no fold inside a fold). Keep the toolbar to one row; extra filters go behind "Filters (n)".
+- Group long lists by a useful category; never clip or truncate actionable text. Controls sized to their content. Cards for things picked by eye, rows/tables for records you scan or sort.
+- Keyboard and accessibility: everything clickable is a `<button>` or an `<a href>`; icon-only buttons have `aria-label` + `data-tooltip`; status icons carry text; colour is never the only signal (use the kit's ink tokens on tinted fills); focus stays on the same control after a re-render; drag and drop has a keyboard alternative; respect reduced motion.
+- Use the kit's components rather than module-local copies (skins only reshape kit classes). A kit change ships in every module in the same PR.
+- Copy: one name per thing across launcher, header, tabs, Help and embeds; buttons start with a verb, end with "…" when they open a dialog; no raw ids, status tokens or timestamps in the UI.
+- Modules must render with a default theme when Manager's appearance controller is absent; they don't ship their own theme or skin settings.
 
 ## Tests
 `node scripts/check.mjs` runs everything (Node 22, `node --test`, mocked Foundry globals). Tests prove logic, not the live Foundry UI — say so when reporting, and tell Robb exactly what to click to verify a change in Forge.
