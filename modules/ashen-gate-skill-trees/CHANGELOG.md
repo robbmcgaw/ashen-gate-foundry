@@ -1,3 +1,14 @@
+## 0.21.0 — 2026-10-22
+
+Professions with several skill trees (first use: Artistry with Music, Performance, Visual Arts and Literary Arts).
+
+- **One wallet per profession.** Profession trees with the same profession (`sourceRef`) now share one pot of points: 1 per profession level, 16 at most, however the character splits them between the trees. A pick in one tree lowers what is left in the others straight away. Unlocks, refunds, GM grants, keep, review, undo, the over-allocation check, the Character panel, the Character Hub embed and the chat notes all count the whole profession. A profession with one tree works exactly as before.
+- **Shown once.** The Tree list shows such a profession once ("Artistry (4 trees)") with tabs below it for its trees (arrow keys work; the last tree you opened is remembered). The Character tab shows the shared total and how many points each tree uses. The Tree Library groups the trees under one heading with the shared wallet; the Character Hub embed shows one entry with tabs. GM review of a lowered level lists the perks from all of the profession's trees in one dialog, and the Ledger level-change note is posted once per profession.
+- **No shared perks.** A perk may sit on only one tree of a profession; saving or importing a second copy is refused ("put shared perks in one tree").
+- **Optional proficiency gate.** A tree can carry `access` (tool and/or skill proficiencies, any one is enough, plus a note). Players without one can still browse the tree, but its perks say "Needs … proficiency" and cannot be picked. The Profession Ledger does the check; without it (or an older Ledger) nothing is blocked. The GM is never blocked and can still grant.
+- **For partner modules:** new `listTreesForProfession(sourceRef)`, `professionWallet(actorId, sourceRef)` and `embed.data(actorId)`; `pointsSummary` and `professionReport` rows of a shared profession say so. Existing results are unchanged for single trees.
+- Saved data: no change and no migration. Each tree still keeps its own unlocks on the character; the shared total is worked out when needed. Profession XP, levels, points and tier thresholds are unchanged.
+
 ## 0.20.0 — 2026-10-22
 
 UI cleanup (audit ST-01, ST-03 to ST-18). No new mechanics; tree visibility, publishing and hidden-prerequisite rules are unchanged.

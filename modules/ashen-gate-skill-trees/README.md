@@ -18,7 +18,7 @@ Independent. General Manager owns import: tree files (`ag-skill-trees/0.3`, 0.2 
 
 ## Public API
 
-`game.modules.get('ashen-gate-skill-trees').api`: `open`, `playerAccess` (`ag-player-access/1`), `listTrees`, `actorProgress`, `pointsSummary`, `unlock`, `embed.mount`, `accounts` (0.17.0), and GM-only `grantPoints`, `refund`, `resetTree`, `giveMissingPerks`, `publish`, `previewTreeImport`, `importTrees`.
+`game.modules.get('ashen-gate-skill-trees').api`: `open`, `playerAccess` (`ag-player-access/1`), `listTrees`, `listTreesForProfession`, `actorProgress`, `pointsSummary`, `professionWallet`, `unlock`, `embed.mount`, `embed.data`, `accounts` (0.17.0), and GM-only `grantPoints`, `refund`, `resetTree`, `giveMissingPerks`, `publish`, `previewTreeImport`, `importTrees`.
 
 ### `pointsSummary(actor)` (0.13.0)
 
@@ -53,6 +53,29 @@ if (api?.embed?.mount) {
 - `options.actorId`: the character. `options.mode`: `'character'` (the only mode; `api.embed.modes` lists them). An unknown mode or a missing element throws.
 - Returns `{unmount(), refresh()}`. It refreshes itself when the character, the published trees, Player Access or the Ledger level change, and unmounts itself if the element has left the page.
 - **Permission:** the GM, or the Actor's **Owner** (same as `pointsSummary`). Anyone else sees "Only <name>'s owner and the GM can see this."; players see "The GM has hidden Skill Trees." while Player Access is off. Players see the published projection only (unrevealed nodes are left out). **Unlock** uses the window's own confirm and checks: the GM unlocks directly; a player's unlock is checked again and carried out by the GM client, exactly as in the window.
+
+### Professions with several trees (0.21.0)
+
+Profession trees (`provider.kind: 'profession'`) with the same `sourceRef` (a `PROF-*` id) share **one wallet**: 1 point per Profession Ledger level, 16 at most, across all of them. Each tree still has 24 nodes (validation warns per tree), keeps a permanent id and keeps its own unlocks on the Actor (no data change); the shared total is computed. One `perkId` may appear on only one tree of a profession (validation error: "put shared perks in one tree"). The "Duplicate Cinder wallet source" rule still applies to `cinder_milestone` trees only.
+
+Optional per-tree proficiency gate (any provider; meant for profession trees):
+
+```json
+"access": {"toolProficienciesAnyOf": ["calligrapher"], "skillProficienciesAnyOf": ["prf"], "note": "Scribes and performers"}
+```
+
+- Lists of 1–80-character strings (up to 40 each); at least one entry in either list; `note` up to 200 characters. Unknown fields inside `access` are a validation error (a typo must not drop the gate); other tree fields are read as before.
+- Strings are shown through dnd5e's labels when they are dnd5e keys (`prf` → Performance, `calligrapher` → Calligrapher's Supplies), otherwise as written. The match is done by the Profession Ledger: `api.meetsProficiency(actorId, access) → {ok, matched}` (sync or a Promise).
+- A **player** can unlock on the tree only when the Ledger answers `ok: true`; the reason shown is "Needs … proficiency". No Ledger, no `meetsProficiency`, or an answer that is not `{ok: boolean}`: nothing is blocked. The GM is never blocked. The published player view carries `access`, so players see the requirement while browsing.
+
+API (additive):
+
+- `listTreesForProfession(sourceRef)` → the trees of that profession, sorted by name; same rules as `listTrees` (GM: private trees; players: published ones).
+- `professionWallet(actorId, sourceRef)` → `{sourceRef, level, earned, spent, available, overSpent, overAllocated, trees: [{id, name, spent}]}` or `null` when the caller sees no tree of it. `earned`/`available` are `null` without the Ledger; `available` never goes below 0. GM or the Actor's owner.
+- `embed.data(actorId)` → `[{key, shared, name, sourceRef, kind, profession, level, earned, spent, available, trees: [model]}]`: the embed's data grouped by wallet. `shared: true` for a profession with several trees (the wallet once, `trees[].label` is the tab name, `trees[].treeSpent` that tree's share); every other tree is a group of one with the 0.14.0 model.
+- `pointsSummary(actor)`: rows of a shared profession report the shared `spent`/`available` and add `sourceRef`, `wallet` (`profession:<sourceRef>`), `treeSpent` and `walletTrees`; count a wallet once. Single-tree rows are unchanged.
+- `professionReport(actor, profId)`: covers all the profession's trees; adds `trees` when there are several.
+- Hook `ashenGateSkillTrees.progressChanged` adds `sharedWallet`.
 
 ### `api.accounts` — for partner modules (0.17.0)
 

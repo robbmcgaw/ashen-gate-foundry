@@ -12,7 +12,8 @@
   <div class="agst-layout {{#if sidebarOpen}}agst-sidebar-open{{/if}}">
     <aside class="agst-sidebar" id="agst-sidebar" aria-label="Skill tree menu">
       <section class="agst-side-pin" aria-label="Tree and character">
-        <label class="ag-field">Tree<select id="agst-tree-choice" aria-label="Select skill tree">{{#each trees}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select></label>
+        <label class="ag-field">Tree<select id="agst-tree-choice" aria-label="Select skill tree">{{#each trees}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+        {{#if treeTabs}}<div class="agst-tree-tabs">{{{treeTabs}}}</div>{{/if}}
         <label class="ag-field">Character<select id="agst-actor-choice" aria-label="Select character">{{#each actors}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select></label>
       </section>
       {{#if hasTree}}{{{sideTabs}}}{{/if}}
@@ -23,6 +24,7 @@
             <div class="agst-inspector-head">{{#if selected.img}}<img class="agst-inspector-img" src="{{selected.img}}" alt="">{{/if}}<small class="ag-eyebrow">Selected perk</small><h2>{{selected.name}}</h2><span class="ag-badge {{selected.badgeClass}}">{{selected.stateText}}</span></div>
             <div class="agst-inspector-body">{{#if selected.description}}<p>{{selected.description}}</p>{{/if}}<div class="agst-inspector-line"><strong>Points:</strong> {{selected.cost}}</div>
               <div class="agst-inspector-line"><strong>Unlock:</strong> {{selected.reason}}</div>
+              {{#if accessGate}}<div class="agst-inspector-line agst-access"><strong>Who can pick:</strong> {{accessGate.text}}{{#if accessGate.gmNote}} (players only; the GM can still unlock and grant){{else}}{{#if accessGate.met}} <span class="agst-ok"><i class="fa-solid fa-check" aria-hidden="true"></i> met</span>{{/if}}{{/if}}</div>{{/if}}
               {{#if selected.rel.all.length}}<div class="agst-rel"><strong>Requires all of</strong><ul>{{#each selected.rel.all}}<li><button type="button" class="ag-link" data-act="select" data-id="{{id}}">{{name}}</button>{{#if unlocked}} <span class="agst-ok"><i class="fa-solid fa-check" aria-hidden="true"></i> unlocked</span>{{/if}}</li>{{/each}}</ul></div>{{/if}}
               {{#each selected.rel.any}}<div class="agst-rel agst-rel-any"><strong>Requires one of (OR group {{index}})</strong><ul>{{#each nodes}}<li><button type="button" class="ag-link" data-act="select" data-id="{{id}}">{{name}}</button>{{#if unlocked}} <span class="agst-ok"><i class="fa-solid fa-check" aria-hidden="true"></i> unlocked</span>{{/if}}</li>{{/each}}</ul></div>{{/each}}
               {{#if selected.rel.excludes.length}}<div class="agst-rel agst-rel-exclude"><strong>Cannot be taken with</strong><ul>{{#each selected.rel.excludes}}<li><button type="button" class="ag-link" data-act="select" data-id="{{id}}">{{name}}</button>{{#if unlocked}} <span class="agst-bad">taken</span>{{/if}}</li>{{/each}}</ul></div>{{/if}}
@@ -63,6 +65,7 @@
             <span class="agst-stat"><small class="ag-eyebrow">Used</small><b>{{prof.spent}}</b></span>
           </div>
           <p class="agst-help agst-prof-summary">{{prof.spent}} of {{prof.earned}} points used (1 per profession level, {{prof.maxPoints}} at most) · {{prof.nodeCount}} perks in this tree</p>
+          {{#if prof.sharedText}}<p class="agst-help agst-prof-shared">{{prof.sharedText}}</p>{{/if}}
           {{else}}
           <div class="agst-pool">
             <span class="agst-stat"><small class="ag-eyebrow">Awarded</small><b>{{progress.awarded}}</b></span>
@@ -119,7 +122,7 @@
     </aside>
     <button type="button" class="agst-scrim" data-act="toggle-sidebar" tabindex="-1" aria-label="Close menu"></button>
 
-    <section class="agst-canvas-pane" aria-label="Skill tree canvas">
+    <section class="agst-canvas-pane" {{#if treeTabs}}{{{treePanel}}}{{else}}aria-label="Skill tree canvas"{{/if}}>
       <div class="agst-canvas-bar">
         <button type="button" class="ag-btn ag-btn--sm agst-menu-toggle" data-act="toggle-sidebar" aria-controls="agst-sidebar" aria-expanded="{{#if sidebarOpen}}true{{else}}false{{/if}}" data-tooltip="Show or hide the menu" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-bars" aria-hidden="true"></i> Menu</button>
         <span class="agst-canvas-title">{{#if hasTree}}{{tree.name}}{{/if}}</span>
@@ -192,9 +195,9 @@
       <section class="ag-card" aria-label="Trees">
         <div class="ag-card__head"><h2 class="ag-card__title">Trees</h2><span class="ag-card__meta">{{publishedCount}} published to players</span></div>
         {{#if libraryTrees.length}}
-        <ul class="ag-rows" data-agst-library-list>{{#each libraryTrees}}<li class="ag-row {{#if selected}}is-selected{{/if}}" {{#if selected}}aria-current="true"{{/if}} data-agst-library-row data-search="{{search}}">
+        <ul class="ag-rows" data-agst-library-list>{{#each libraryList}}{{#if head}}<li class="agst-library-group" data-agst-library-group="{{head.key}}"><div class="agst-library-group__head"><h3 class="agst-library-group__title">{{head.name}}</h3><span class="ag-badge">Profession · {{head.countText}}</span></div><p class="ag-field__hint agst-library-group__wallet">{{head.walletText}}</p></li>{{else}}<li class="ag-row {{#if group}}agst-library-member{{/if}} {{#if selected}}is-selected{{/if}}" {{#if selected}}aria-current="true"{{/if}} data-agst-library-row data-search="{{search}}"{{#if group}} data-agst-library-in="{{group}}"{{/if}}>
           <div class="ag-row__main"><div class="ag-row__title">{{name}}</div><div class="ag-row__meta">{{kind}} · {{nodeText}}</div></div>
-          <div class="ag-row__end"><span class="ag-badge {{statusClass}}">{{statusText}}</span><span class="ag-badge {{#if playerVisible}}ag-badge--ok{{/if}}">{{#unless playerVisible}}<i class="fa-solid fa-eye-slash" aria-hidden="true"></i> {{/unless}}{{visibilityText}}</span><button type="button" class="ag-btn ag-btn--sm" data-act="open-row" data-tree="{{id}}" aria-label="Open {{name}}"><i class="fa-solid fa-diagram-project" aria-hidden="true"></i> Open</button><button type="button" class="ag-btn ag-btn--sm" data-act="export" data-tree="{{id}}" aria-label="Export {{name}}"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export</button></div></li>{{/each}}</ul>
+          <div class="ag-row__end"><span class="ag-badge {{statusClass}}">{{statusText}}</span><span class="ag-badge {{#if playerVisible}}ag-badge--ok{{/if}}">{{#unless playerVisible}}<i class="fa-solid fa-eye-slash" aria-hidden="true"></i> {{/unless}}{{visibilityText}}</span><button type="button" class="ag-btn ag-btn--sm" data-act="open-row" data-tree="{{id}}" aria-label="Open {{name}}"><i class="fa-solid fa-diagram-project" aria-hidden="true"></i> Open</button><button type="button" class="ag-btn ag-btn--sm" data-act="export" data-tree="{{id}}" aria-label="Export {{name}}"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export</button></div></li>{{/if}}{{/each}}</ul>
         <div class="ag-empty" data-agst-library-nomatch hidden><p class="ag-empty__title">Nothing matches</p><p class="ag-empty__text">No tree name matches the search.</p><button type="button" class="ag-btn ag-btn--sm" data-agst-library-clear>Clear search</button></div>
         {{else}}
         <div class="ag-empty"><i class="fa-solid fa-diagram-project" aria-hidden="true"></i><p class="ag-empty__title">No trees yet</p><p class="ag-empty__text">Create one with New tree, or import a tree file through General Manager → Import.</p></div>
