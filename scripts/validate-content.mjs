@@ -119,7 +119,8 @@ function domainChecks(pkg, knownIds = new Set()) {
       if (e.transfer === true && /^(ITEM|PERK)-(MOUNT|PET)-/.test(rec.id)) notes.push(`${rec.id}: effect ${e.eff_id} has transfer on, so it would also change the character carrying this companion item (the Hub warns; use transfer false).`);
     if (rec.entity_type === 'Recipe') {
       const recipe = normalizeRecipe({flags: {'ashen-gate-manager': {source: {definition: rec}}}});
-      if (!recipe.hasStructuredIngredients) errors.push(`${rec.id}: Ledger cannot craft it: ingredients must be a non-empty list of {material_id, quantity (whole number > 0)}.`);
+      // Ledger 0.28.0: an activity (kind "activity") has no ingredients and no result item, so only craft recipes need them.
+      if (recipe.kind !== 'activity' && !recipe.hasStructuredIngredients) errors.push(`${rec.id}: Ledger cannot craft it: ingredients must be a non-empty list of {material_id, quantity (whole number > 0)}.`);
     }
     if (rec.entity_type === 'Profession') {
       // The Ledger matches a profession by name (tags like [TEST] ignored) and its access lists by dnd5e skill/tool name.

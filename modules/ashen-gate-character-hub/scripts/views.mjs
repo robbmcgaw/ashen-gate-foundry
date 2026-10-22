@@ -59,7 +59,8 @@ export const PROFESSION_ICONS = [
   [/fish/i, 'fa-solid fa-fish'],
   [/herb/i, 'fa-solid fa-leaf'],
   [/hunt|skin/i, 'fa-solid fa-paw'],
-  [/min(e|ing)\b/i, 'fa-solid fa-person-digging']
+  [/min(e|ing)\b/i, 'fa-solid fa-person-digging'],
+  [/artist|paint|music|perform/i, 'fa-solid fa-palette']
 ];
 export const PROFESSION_ICON_FALLBACK = 'fa-solid fa-toolbox';
 export const professionIcon = p => PROFESSION_ICONS.find(([re]) => re.test(String(p?.name ?? '')) || re.test(String(p?.id ?? '')))?.[1] ?? PROFESSION_ICON_FALLBACK;

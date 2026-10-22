@@ -12,7 +12,7 @@ import {restoreBackup, backupsFor, sourceOf, restoreLines} from './level-restore
 import {isBackup} from './level-backup.mjs';
 import {showHelp} from './help.mjs';
 import * as items from './item-actions.mjs';
-import {openPartner, mountEmbeds, unmountEmbeds, depositToParty} from './partners.mjs';
+import {openPartner, mountEmbeds, unmountEmbeds, depositToParty, pickTreeTab} from './partners.mjs';
 import * as comp from './companions.mjs';
 import * as vis from './visibility.mjs';
 import {openConfig} from './configure.mjs';
@@ -61,6 +61,7 @@ export const report = result => { if (result && result.ok === false && result.er
 export const ACTIONS = {
   'hub-tab': (s, t) => { s.tab = t.dataset.tab; s.menu = null; return s.render(); },
   'ag-subtab': (s, t) => { s.agTab = t.dataset.tab ?? t.dataset.partner; return s.render(); },
+  'st-tree-tab': (s, t) => pickTreeTab(t),
   'inv-view': (s, t) => { s.invView = t.dataset.view === 'party' ? 'party' : 'character'; return s.render(); },
   'slot-menu': (s, t) => toggleMenu(s, `slot:${t.dataset.slot}`),
   'other-menu': (s, t) => toggleMenu(s, `other:${t.dataset.id}`),
@@ -508,11 +509,12 @@ export function createHubSheetClass(Base) {
     }
 
     /**
-     * Arrow keys for the tab rail and the Ashen Gate sub-tabs (0.33.0, CH-20; kit bindTablist). Only the Hub's own rows:
+     * Arrow keys for the tab rail, the Ashen Gate sub-tabs (0.33.0, CH-20; kit bindTablist) and a shared profession's tree
+     * tabs in the Skill Trees summary (0.35.0). Only the Hub's own rows:
      * an embedded partner view binds its own. Bound again after each redraw, which replaces those rows.
      */
     _bindTabs(content) {
-      for (const list of content.querySelectorAll?.('.agch-rail, .agch-agtabs') ?? []) bindTablist(list);
+      for (const list of content.querySelectorAll?.('.agch-rail, .agch-agtabs, .agch-sttabs') ?? []) bindTablist(list);
     }
 
     /**
