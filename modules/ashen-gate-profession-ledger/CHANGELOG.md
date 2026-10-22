@@ -1,3 +1,7 @@
+## 0.25.2 — 2026-10-22
+
+- Shared UI kit 2.2 (no visible change).
+
 ## 0.25.1 — 2026-10-22
 
 - **Fix — Craft dialog check:** the check picked in the Craft dialog's *Check (bonus)* list is now the one rolled and named on the craft chat card (and sent with a party craft request). Before, the choice was dropped and the default check was always rolled. With nothing picked, or a recipe with only one check, the default is rolled as before. Other Ledger dialogs already passed their form values through; no other change.

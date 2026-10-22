@@ -1,3 +1,7 @@
+## 0.25.1 — 2026-10-22
+
+- Shared UI kit 2.2 (no visible change).
+
 ## 0.25.0 — 2026-10-22
 
 - **Merchant lists for any group:** a list (a settlement, a faction, a guild…) has a name, an optional settlement (Locations active) and its shops and services in order. **Share…** shares it with nobody (*Hidden*), the *Whole party* or chosen players; players see only the lists shared with them.

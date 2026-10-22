@@ -8,6 +8,8 @@
  * Every DialogV2 window gets the classes 'ag-app' and 'ag-dialog' so the kit (ag-ui.css) and the
  * skins style it; buttons are always [cancel, confirm|ok] so Cancel sits bottom-left.
  * choiceDialog (kit 2.1.0) adds 'ag-dialog--choice': [cancel, ...choices], Cancel left, choices right.
+ * Kit 2.2.0 adds confirmDanger (Cancel is the default button) and guardDirty (ask before unsaved edits are lost).
+ * confirmDialog is unchanged.
  */
 const dialogV2 = () => globalThis.foundry?.applications?.api?.DialogV2;
 const native = name => { const fn = globalThis.window?.[name] ?? globalThis[name]; return typeof fn === 'function' ? fn : null; };
@@ -139,4 +141,75 @@ export async function choiceDialog(title, html, choices, {cancel = 'Cancel'} = {
   const answer = fn(`${text}\n\n${list.map((c, i) => `${i + 1}. ${c.label}`).join('\n')}`.trim(), '');
   const pick = list[Number.parseInt(String(answer ?? '').trim(), 10) - 1];
   return pick ? pick.action : null;
+}
+
+/**
+ * Destructive yes/no (kit 2.2.0): "Delete <thing>?" title, a labelled red action ("Delete <thing>", never OK/Yes),
+ * and Cancel as the default button, so Enter and first focus never delete. Resolves true only on the action.
+ */
+export async function confirmDanger(message, {title, yes, no = 'Cancel'} = {}) {
+  title ||= 'Delete?';
+  yes ||= 'Delete';
+  const D = dialogV2();
+  const cls = [...classes(true), 'ag-dialog--danger-confirm'];
+  if (D?.wait) {
+    return (await D.wait({
+      classes: cls, window: {title}, content: paragraphs(message), modal: true, rejectClose: false,
+      buttons: [{action: 'cancel', label: no, default: true, callback: () => false}, {action: 'confirm', label: yes, default: false, callback: () => true}]
+    })) === true;
+  }
+  if (D?.confirm) return Boolean(await D.confirm({classes: cls, window: {title}, content: paragraphs(message), yes: {label: yes, default: false}, no: {label: no, default: true}, rejectClose: false, modal: true}));
+  const fn = native('confirm');
+  return fn ? Boolean(fn(message)) : false;
+}
+
+/**
+ * Unsaved-edit guard (kit 2.2.0) for one draft form. Tracks dirty state, writes "Unsaved changes" into the footer
+ * status, and asks "Discard unsaved changes?" (Keep editing is the default) before anything throws the edits away.
+ *   status: the footer status element, or a function returning it (looked up again on each change, so re-renders are fine)
+ *   ask: replaces the dialog (tests, or a "Save and <action>" choiceDialog); resolves true to discard
+ * Returns {dirty, watch(form), markDirty(), markClean(), confirm(), guard(fn)}:
+ *   watch(form) marks dirty on input/change inside it (returns an unbind function);
+ *   confirm() resolves true when clean or when the user discards (then it is clean again), false to keep editing;
+ *   guard(fn) wraps a tab switch, selection change or close so it only runs after confirm().
+ */
+export function guardDirty({status, text = 'Unsaved changes', title = 'Discard unsaved changes?',
+  message = 'Your changes have not been saved.', discard = 'Discard changes', keep = 'Keep editing', ask, onChange} = {}) {
+  let dirty = false;
+  const statusEl = () => (typeof status === 'function' ? status() : status) ?? null;
+  const paint = () => {
+    const el = statusEl();
+    if (!el) return;
+    if (dirty) { el.textContent = text; el.dataset.agDirty = 'true'; }
+    else if (el.dataset?.agDirty) { el.textContent = ''; delete el.dataset.agDirty; }
+  };
+  const set = value => {
+    const changed = dirty !== value;
+    dirty = value;
+    paint();
+    if (changed) onChange?.(dirty);
+  };
+  const api = {
+    get dirty() { return dirty; },
+    markDirty() { set(true); },
+    markClean() { set(false); },
+    watch(form) {
+      if (!form?.addEventListener) return () => {};
+      const on = () => set(true);
+      form.addEventListener('input', on);
+      form.addEventListener('change', on);
+      paint();
+      return () => { form.removeEventListener('input', on); form.removeEventListener('change', on); };
+    },
+    async confirm() {
+      if (!dirty) return true;
+      const ok = ask ? await ask() : await confirmDanger(message, {title, yes: discard, no: keep});
+      if (ok === true) set(false);
+      return ok === true;
+    },
+    guard(fn) {
+      return async (...args) => (await api.confirm()) ? fn(...args) : undefined;
+    },
+  };
+  return api;
 }

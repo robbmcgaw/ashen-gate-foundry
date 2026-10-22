@@ -1,3 +1,7 @@
+## 0.32.1 — 2026-10-22
+
+- Shared UI kit 2.2 (no visible change).
+
 ## 0.32.0 — 2026-10-22
 
 - **Compact keeps your stats.** Compact (the narrow view with the quick bar) now has, under the art and slots: **Initiative / Speed / Proficiency** on one slim line (click Initiative to roll; AC joins the line when the slots are hidden), the **hit dice, Short Rest and Long Rest** buttons and the **exhaustion** − / + next to the HP bar, **Strain** (players: the read-only pill beside exhaustion; GM: the row with − / +; same Player visibility switch, nothing without Cinders), the **six abilities** in one row (modifier, score, save underneath; proficient saves highlighted; click to roll a check or a save, right-click to configure) and the **conditions** as a slim chip line with +. Same actions and permissions as Full.

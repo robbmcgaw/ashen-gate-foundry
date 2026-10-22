@@ -295,6 +295,7 @@ html[data-ag-skin="ag-tome-pages"] .ag-tabs > :where(.active, [aria-current="pag
  * .ag-window, .ag-split, .ag-card-grid, .ag-form-grid, .ag-btn-group, .ag-chip-group, .ag-kv,
  * .ag-field, .ag-toolbar, .ag-hotbar, .ag-rarity-edge, .ag-version, .ag-gm-flag, .ag-icon-chip,
  * .ag-sr-only (kit 2.1.0).
+ * Kit 2.2.0 parts keep the kit look here too: .ag-fold, .ag-file, .ag-link (and .ag-tabs--sub).
  * ===================================================================================== */
 html[data-ag-skin="ag-tome-pages"] .ag-chip { border-color: color-mix(in srgb, var(--agx-ink) 35%, transparent); font-variant: small-caps; letter-spacing: .03em; }
 html[data-ag-skin="ag-tome-pages"] .ag-chip[aria-pressed="true"] { background: color-mix(in srgb, var(--ag-accent) 12%, transparent); }

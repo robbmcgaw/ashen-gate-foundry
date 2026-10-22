@@ -36,8 +36,8 @@ const ref = (over = {}) => ({id: 'r1', nodeId: 'NODE-TEST-RIVER-REEDS', tier: 2,
 const ford = (resources = [ref()]) => ({id: 'LOC-TEST-FORD', name: '[TEST] Ford', state: 'revealed', revealed: true, sections: {resources: true}, resources});
 function setup(ledger) {
   const game = installFoundry();
-  const mod = {version: '0.18.0', active: true};
-  mod.api = createApi({version: '0.18.0', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}, viewOptions: presentationOptions});
+  const mod = {version: '0.18.1', active: true};
+  mod.api = createApi({version: '0.18.1', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}, viewOptions: presentationOptions});
   game.modules = {get: id => id === 'ashen-gate-locations' ? mod : id === 'ashen-gate-profession-ledger' ? ledger ?? null : null};
   return {game, mod};
 }

@@ -1,3 +1,7 @@
+## 0.16.1 — 2026-10-22
+
+- Shared UI kit 2.2 (no visible change).
+
 ## 0.16.0 — 2026-10-22
 
 - **New Journal tab** (players and GM, after Individual): session notes written in an open book. Text fills the left page, then the right; narrow windows show one page. Toolbar: bold, italic, underline, heading, subheading, normal text, bulleted and numbered lists (Ctrl+B / I / U work too). Pasted text keeps only those formats.

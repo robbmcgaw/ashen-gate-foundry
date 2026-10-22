@@ -1,3 +1,7 @@
+## 0.18.1 — 2026-10-22
+
+- Shared UI kit 2.2 (no visible change).
+
 ## 0.18.0 — 2026-10-22
 
 - Version renumbered from 1.18.0 to 0.18.0. Foundry will not offer this as an update because the number is lower: uninstall and reinstall Locations from its manifest URL (`https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-locations/module.json`); your world data is kept (it lives in the world, not the module).

@@ -6,6 +6,7 @@
 //     ag-dialogs.mjs, ag-html.mjs, ag-item-drop.mjs) are identical wherever they ship
 //   - the UI drift lint (scripts/ui-lint.mjs): every rule at zero, except the STRICT_EXCEPTIONS it lists
 //   - the module's automated tests pass
+//   - the shared kit helper tests (scripts/kit-tests, mocked DOM) pass
 //   - (full run only) the playtest data pack loads, ids are unique and references resolve
 //   - the suite is pre-release: every module version is 0.x; no module.json relationship asks for an Ashen Gate module
 //     at 1.x or above; no runtime script compares a Locations version (partners feature-detect its API instead)
@@ -101,6 +102,14 @@ for (const id of ids) {
   } else {
     console.log(`${id} ${v} (kit ${kitVersion}): no automated tests`);
   }
+}
+
+// Shared kit helpers (ag-html.mjs, ag-dialogs.mjs; kit 2.2) against a mocked DOM. Every module carries the kit, so always run.
+{
+  const kitTests = fs.readdirSync(path.join(root, 'scripts/kit-tests')).filter(f => f.endsWith('.test.mjs')).map(f => path.join(root, 'scripts/kit-tests', f));
+  const k = spawnSync(process.execPath, ['--test', ...kitTests], { cwd: root, encoding: 'utf8' });
+  console.log(`kit helpers: ${(k.stdout.match(/^# (pass|fail) \d+$/gm) ?? []).join(', ')}`);
+  if (k.status !== 0) fail('kit-tests', `tests failed\n${k.stdout.split('\n').filter(x => /^not ok/.test(x)).join('\n')}`);
 }
 
 // The synthetic playtest data (scripts/build-test-pack.mjs -> test-fixtures/playtest) loads in every module that reads it.

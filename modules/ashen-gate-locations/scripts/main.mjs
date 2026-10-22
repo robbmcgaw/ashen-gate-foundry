@@ -14,7 +14,7 @@ import {TravelTracker} from './travel-app.mjs';
 import {createBehaviours} from './travel-view.mjs';
 import {travelBehaviours} from './travel-behaviours.mjs';
 
-const VERSION = '0.18.0';
+const VERSION = '0.18.1';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
