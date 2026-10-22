@@ -57,11 +57,25 @@
         <td>{{status}}{{#if notice}}<div class="agmanager-tiny">{{notice}}</div>{{/if}}</td></tr>{{/each}}
       {{#each zipBundle.skipped}}<tr><td></td><td><code>{{filename}}</code></td><td>Skipped</td><td class="is-num">—</td><td class="agmanager-tiny">{{reason}}</td></tr>{{/each}}
       </tbody></table></div>
+      <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-zip-auto {{#if zipBundle.auto}}checked{{/if}} {{#if zipBundle.autoLocked}}disabled{{/if}}> <strong>Import everything without stopping</strong></label>
+      <p class="ag-field__hint">Each ticked file is previewed in order and its new records and metadata refreshes are imported without asking you to confirm. Your Options (profile, update and icon settings) still apply. It stops only when a file has errors or an import fails.</p>
+      <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-zip-auto-updates {{#if zipBundle.autoUpdates}}checked{{/if}} {{#unless zipBundle.auto}}disabled{{else}}{{#if zipBundle.autoLocked}}disabled{{/if}}{{/unless}}> <strong>Also apply updates to records that already exist</strong></label>
+      <p class="ag-field__hint">Only updates your Options allow are offered. Manager downloads its usual backup of the changed documents before writing. When this is off, those records are left as they are and listed as Needs your decision.</p>
       </div>
     </details>
+    {{#if zipBundle.progress}}<p class="ag-notice ag-notice--info" role="status" aria-live="polite" data-ag-zip-progress><i class="fa-solid fa-list-check" aria-hidden="true"></i> {{#if zipBundle.stopping}}Stopping after the current file…{{else}}{{zipBundle.progress}}{{/if}}</p>{{/if}}
+    {{#if zipBundle.hasAutoSummary}}<section class="ag-section agmanager-zip-summary" aria-label="ZIP import summary">
+      <div class="ag-table-wrap agm-scrollcap"><table class="ag-table"><caption class="agmanager-tiny">ZIP import summary</caption><thead><tr><th scope="col">File</th><th scope="col">Result</th><th scope="col" class="is-num">Created</th><th scope="col" class="is-num">Updated</th><th scope="col" class="is-num">Unchanged</th><th scope="col" class="is-num">Needs your decision</th><th scope="col" class="is-num">Skipped</th><th scope="col" class="is-num">Failed</th></tr></thead><tbody>
+      {{#each zipBundle.summaryRows}}<tr><td><code>{{filename}}</code><div class="agmanager-tiny">{{label}}</div></td><td><span class="ag-badge{{#if tone}} ag-badge--{{tone}}{{/if}}">{{status}}</span>{{#if note}}<div class="agmanager-tiny">{{note}}</div>{{/if}}</td>
+        {{#if hasCounts}}<td class="is-num">{{counts.created}}</td><td class="is-num">{{counts.updated}}</td><td class="is-num">{{counts.unchanged}}</td><td class="is-num">{{counts.needsDecision}}</td><td class="is-num">{{counts.skipped}}</td><td class="is-num">{{counts.failed}}</td>
+        {{else}}<td class="is-num">—</td><td class="is-num">—</td><td class="is-num">—</td><td class="is-num">—</td><td class="is-num">—</td><td class="is-num">—</td>{{/if}}</tr>{{/each}}
+      </tbody></table></div>
+      {{#if zipBundle.hasDecisions}}<div class="ag-notice ag-notice--warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><div><strong>Needs your decision</strong> (already in your world and not changed; import the file again without auto mode to choose)<ul>{{#each zipBundle.decisions}}<li><code>{{filename}}</code>: {{names}}</li>{{/each}}</ul></div></div>{{/if}}
+    </section>{{/if}}
     <div class="ag-cluster">
-      {{#if zipBundle.running}}<button type="button" class="ag-btn ag-btn--ghost" data-ag-action="zip-cancel">Stop ZIP import</button><button type="button" class="ag-btn" data-ag-action="zip-skip">Skip this file</button>
-      {{else}}<button type="button" class="ag-btn" data-ag-action="zip-start" {{#unless zipBundle.pickedCount}}disabled{{/unless}}><i class="fa-solid fa-list-check" aria-hidden="true"></i> Import selected files ({{zipBundle.pickedCount}})</button>{{/if}}
+      {{#if zipBundle.autoMode}}<button type="button" class="ag-btn ag-btn--ghost" data-ag-zip-stop {{#if zipBundle.stopping}}disabled{{/if}}>Stop ZIP import</button>{{#if zipBundle.paused}}<button type="button" class="ag-btn" data-ag-action="zip-skip">Skip this file</button>{{/if}}
+      {{else}}{{#if zipBundle.running}}<button type="button" class="ag-btn ag-btn--ghost" data-ag-action="zip-cancel">Stop ZIP import</button><button type="button" class="ag-btn" data-ag-action="zip-skip">Skip this file</button>
+      {{else}}<button type="button" class="ag-btn" data-ag-action="zip-start" {{#unless zipBundle.pickedCount}}disabled{{/unless}}><i class="fa-solid fa-list-check" aria-hidden="true"></i> Import selected files ({{zipBundle.pickedCount}})</button>{{/if}}{{/if}}
     </div>{{/if}}
 
     <details class="ag-fold" data-ag-fold="options" {{#if folds.options}}open{{/if}}>
