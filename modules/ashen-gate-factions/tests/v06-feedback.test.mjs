@@ -7,7 +7,7 @@ const code=readFileSync(new URL('../scripts/module.mjs',import.meta.url),'utf8')
 const template=readFileSync(new URL('../templates/dashboard.hbs',import.meta.url),'utf8');
 const source=()=>makeFaction({id:'FACTION-PLAYTEST-TEST',trackId:'RENOWN-PLAYTEST-TEST',name:'Secret Herald',leader:'Hidden Captain',public_role:'Protects a trade road.'});
 test('Module actually requests a Foundry socket namespace for player-to-GM messages',()=>{
- assert.equal(manifest.id,'ashen-gate-factions');assert.equal(manifest.version,'0.14.1');assert.equal(manifest.socket,true);
+ assert.equal(manifest.id,'ashen-gate-factions');assert.equal(manifest.version,'0.15.0');assert.equal(manifest.socket,true);
  assert.match(code,/game\.socket\.on\(SOCKET/);assert.match(code,/game\.socket\.emit\(SOCKET/);
 });
 test('Player action receipt is correlated to request ID and user rather than broadcasting private action data',()=>{
@@ -51,17 +51,21 @@ test('Player projections remove Objective metadata and hidden UUIDs',()=>{
 });
 test('GM field reveals and player-access controls are separately permission-gated',()=>{
  assert.match(code,/static async saveFieldReveals\(\)\{try\{\s*assertGM/);
- assert.match(template,/data-action="saveFieldReveals"/);
+ // 0.15.0: the editor footer's Save Changes runs the open sub-tab's save (Visibility → saveFieldReveals).
+ assert.match(template,/data-action="\{\{saveAction\}\}">Save Changes</);assert.match(code,/selected==='visibility'\?'saveFieldReveals'/);
  assert.match(code,/static async saveSetup\(\)\{try\{\s*assertGM/);
 });
 test('Group disclosure action is offered from Player view only, not both tabs',()=>{
  assert.match(template,/\{\{#if tabPlayer\}\}\{\{#unless isGM\}\}\{\{#if detail\.canShare\}\}/);
  assert.match(code,/sendClientAction\(request\)/);
 });
-test('GM UI has collapsible sections, readable actor picker and no invalid Handlebars tags',()=>{
- assert.equal((template.match(/<details class="agf-config-section"/g)||[]).length,11);
+test('GM UI has editor sub-tabs and kit folds, the actor picker in the editor head and no invalid Handlebars tags',()=>{
+ // 0.15.0 (FR-01): no long page of <details>; the editor uses kit sub-tabs and kit folds (no fold inside a fold).
+ assert.doesNotMatch(template,/agf-config-section|agf-inner-section/);
+ assert.equal((template.match(/\{\{#agfFold /g)||[]).length,4);
+ assert.match(template,/\{\{\{tabsHtml\}\}\}/);assert.match(code,/subTabs\(\{group:'agf-editor'/);
  assert.doesNotMatch(template,/\{\{\/details\}\}/);
- assert.match(template,/agf-selected-character/);assert.match(code,/scrollTop=scroll/);
+ assert.match(template,/<header class="agf-editor__head">[\s\S]*?\{\{> agfPicker\}\}[\s\S]*?<\/header>/);assert.match(code,/x\.scrollTop=top/);
 });
 test('Document link checks do not grant source access automatically',()=>{
  assert.match(code,/d\.testUserPermission\?\.\(user,OBS\)/);

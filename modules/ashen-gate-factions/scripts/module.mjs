@@ -1,13 +1,13 @@
 /** Renown (formerly Factions & Renown; id unchanged). Originally v0.6.0 Beta; Foundry V14 target. No mandatory companion module. */
-import {MODULE_ID,SCHEMA_VERSION,RECOVERED_GUILDS_DRAFT,makeFaction,upgradeFaction,groupStateDefaults,sourceDefinition,validateFaction,blankStanding,adjustStanding,progressFor,milestoneProjection,discoverable,projectedFolders,grantAutoKnowledge,secureEntryPreview,claimEligible,chooseOneEligible,rewardUnlocked,makeGroupRecord,makePersonalRecord,keyFor,overlayCampaign,extractCampaignDiscovery,fieldDisclosure,disclosedField,revealField,FIELD_KEYS} from './core.mjs';
-import {confirmDialog,formDialog,promptText,infoDialog,esc,checklistDialog} from './ag-dialogs.mjs';
+import {MODULE_ID,SCHEMA_VERSION,TEST_FACTIONS_DEMO,UNKNOWN_FACTION,OTHER_FOLDER,makeFaction,upgradeFaction,groupStateDefaults,sourceDefinition,validateFaction,blankStanding,adjustStanding,progressFor,milestoneProjection,discoverable,projectedFolders,grantAutoKnowledge,secureEntryPreview,claimEligible,chooseOneEligible,rewardUnlocked,makeGroupRecord,makePersonalRecord,keyFor,overlayCampaign,extractCampaignDiscovery,fieldDisclosure,disclosedField,revealField,FIELD_KEYS} from './core.mjs';
+import {confirmDialog,confirmDanger,guardDirty,formDialog,promptText,infoDialog,esc,checklistDialog} from './ag-dialogs.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {addObjectiveRef,removeObjectiveRef,objectiveRefs,auditObjectiveRefs} from './objective-refs.mjs';
 import {planImport,runImport,IMPORT_SCHEMA} from './import.mjs';
 import {isDeity,makeDeity,deityProfile,deityCard,visibleRelations,pantheonRows,DEITY_TEXT_KEYS,DEITY_TIERS,RESONANCE_NEUTRAL,DAMPING_DEFAULT,DAMPING_MAX,validResonance,validDamping,relationLabel,resonancePreview,knockOns,visibleHistory} from './deity.mjs';
-import {visibilityChip,chipBadge,orgRow,listOrgsTab,CHIPS as ORG_CHIPS,SORTS as ORG_SORTS,GROUPS as ORG_GROUPS,DEFAULT_VIEW as ORG_VIEW} from './orgs-tab.mjs';
+import {visibilityChip,chipBadge,orgRow,listOrgsTab,searchMatches,groupsFor,sortsFor,editorTabs,revealLabel,plural,unlockLabel,behaviorLabel,objectiveLabel,objectiveStatusLabel,linkModeAction,FACTION_TABS,DEITY_TABS,KINDS as ORG_KINDS,CHIPS as ORG_CHIPS,DEFAULT_VIEW as ORG_VIEW} from './orgs-tab.mjs';
 import {standingView,markCurrent} from './standing-view.mjs';
-import {windowSize} from './ag-html.mjs';
+import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,bindFolds,fold,fileButton,bindFileButtons,linkButton} from './ag-html.mjs';
 import {readDrop,resolveItemDrop,itemIdOf,worldItemById,grantBundle,bundleOf} from './ag-item-drop.mjs';
 const {ApplicationV2,HandlebarsApplicationMixin}=foundry.applications.api;
 const OBS=CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER,NONE=CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE,OWNER=CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER;
@@ -129,7 +129,7 @@ function maskedFaction(f,group,personals,actorIds,user){
   const membership=Boolean(f.discovery.party||owned.length);
   if(!membership)return null;
   const groupStanding=group?.standing??blankStanding(),claims=group?.claims??{},uses=group?.uses??{};
-  return{id:f.id,name:disclosedField(f,'name',actorIds,f.field_reveals)||'Unknown Organization',leader:disclosedField(f,'leader',actorIds,f.field_reveals),public_role:disclosedField(f,'public_role',actorIds,f.field_reveals),tags:[],folder_key:f.folder_key,canShare:!f.discovery.party&&f.discovery.sharing_enabled&&owned.length>0,
+  return{id:f.id,name:disclosedField(f,'name',actorIds,f.field_reveals)||UNKNOWN_FACTION,leader:disclosedField(f,'leader',actorIds,f.field_reveals),public_role:disclosedField(f,'public_role',actorIds,f.field_reveals),tags:[],folder_key:f.folder_key,canShare:!f.discovery.party&&f.discovery.sharing_enabled&&owned.length>0,
     group:{score:groupStanding.score,history:groupStanding.events,claims,uses,choices:group?.choices??{}},personal,entries:info,
     groupTrack:{milestones:scrubMilestones(milestoneProjection({faction:f,scope:'group',score:groupStanding.score,claims,requests:group?.requests??{},uses,choices:group?.choices??{}}),user,claims,actorIds)},
     individualTrack:{milestones:f.individual_track.milestones.map(m=>({id:m.id,name:m.name,threshold:m.threshold,selection_mode:m.selection_mode}))}};
@@ -174,7 +174,7 @@ function buildPlayerPayload(user){
   }).filter(Boolean);
   const safeLabels=new Map(visibleFactions.map(f=>[f.id,f.name]));
   const shown=projectedFolders({folders:folderList(),factions,actorIds}).map(folder=>({key:folder.key,
-    name:folder.known.some(f=>safeLabels.get(f.id)!=='Unknown Organization')?folder.name:'Unknown Organization',
+    name:folder.known.some(f=>safeLabels.get(f.id)!==UNKNOWN_FACTION)?folder.name:UNKNOWN_FACTION,
     known:folder.known.map(f=>f.id),unknown_count:folder.unknown.length}));
   return{version:SCHEMA_VERSION,groupLabel:groupLabel(),folders:shown,factions:visibleFactions,deities:buildDeityPayload(user,actorIds)};
 }
@@ -359,25 +359,63 @@ async function backfillItemIds({dryRun=true}={}){
   if(report.written)await reproject();
   return report;
 }
-const SEARCH_DELAY=200;
+const PAGES=['group','player','pantheon','orgs','requests','setup'],GM_PAGES=['orgs','requests','setup'];
+const FACTION_TAB_IDS=FACTION_TABS.map(t=>t.id),DEITY_TAB_IDS=DEITY_TABS.map(t=>t.id);
+// Actions that keep the window as it is, or that submit the draft being edited, skip the unsaved-edits question.
+// Every other action re-renders the window, so it first asks before throwing typed edits away (FR-02).
+const UNGUARDED=new Set(['help','exportAll','openLinked','pickSymbol','claim','share','cancelEdit','save','saveFieldReveals','saveDeity','saveSetup','addEntry','addReward','addObjective','addRelation','createFolder']);
+// data-* keys that identify a control again after a re-render, so focus can go back to it (§9.6).
+const FOCUS_KEYS=['action','agfView','tab','id','entry','reward','mode','key','doc','target','milestone','audience','goto','event','resonanceTarget','orgsFilter'];
+const attrValue=v=>String(v).replace(/["\\]/g,'\\$&');
+function focusSelector(el){
+  if(!el?.tagName)return null;const ds=el.dataset??{},tag=el.tagName.toLowerCase();
+  const keys=FOCUS_KEYS.filter(k=>ds[k]!==undefined);
+  if(keys.length)return tag+keys.map(k=>`[data-${k.replace(/[A-Z]/g,c=>`-${c.toLowerCase()}`)}="${attrValue(ds[k])}"]`).join('');
+  return el.name?`${tag}[name="${attrValue(el.name)}"]`:null;
+}
+/** Shows only roster rows whose search text matches, without re-rendering (so unsaved edits beside the list stay). */
+function filterRoster(root,q){
+  const rows=[...root?.querySelectorAll?.('.agf-roster [data-agf-search]')??[]];
+  let shown=0;for(const row of rows){const ok=searchMatches(row.dataset.agfSearch,q);row.hidden=!ok;if(ok)shown++;}
+  for(const group of root?.querySelectorAll?.('.agf-roster [data-agf-group]')??[])group.hidden=![...group.querySelectorAll('[data-agf-search]')].some(r=>!r.hidden);
+  const count=root?.querySelector?.('[data-agf-count]'),total=Number(count?.dataset?.total??rows.length);
+  if(count)count.textContent=`${shown} of ${total}`;
+  const none=root?.querySelector?.('[data-agf-nomatch]');if(none)none.hidden=!(total>0&&shown===0);
+  return shown;
+}
 class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
-  static DEFAULT_OPTIONS={id:'ashen-gate-factions-window',classes:['ag-app','ashen-gate-factions'],window:{title:'Ashen Gate | Renown',icon:'fa-solid fa-shield-halved',resizable:true},position:{width:1180,height:800},actions:{help:Dashboard.help,saveSetup:Dashboard.saveSetup,cancelEdit:Dashboard.cancelEdit,checkRewardIds:Dashboard.checkRewardIds,fillRewardIds:Dashboard.fillRewardIds,clearOrgFilters:Dashboard.clearOrgFilters,openDeity:Dashboard.openDeity,createDeity:Dashboard.createDeity,saveDeity:Dashboard.saveDeity,pickSymbol:Dashboard.pickSymbol,addRelation:Dashboard.addRelation,removeRelation:Dashboard.removeRelation,undoFavour:Dashboard.undoFavour,select:Dashboard.select,create:Dashboard.create,seed:Dashboard.seed,save:Dashboard.save,award:Dashboard.award,createFolder:Dashboard.createFolder,saveFolder:Dashboard.saveFolder,discovery:Dashboard.discovery,share:Dashboard.share,addEntry:Dashboard.addEntry,showEntry:Dashboard.showEntry,claim:Dashboard.claim,resolveRequest:Dashboard.resolveRequest,resetUsage:Dashboard.resetUsage,addReward:Dashboard.addReward,editReward:Dashboard.editReward,removeReward:Dashboard.removeReward,openLinked:Dashboard.openLinked,resetChoice:Dashboard.resetChoice,saveFieldReveals:Dashboard.saveFieldReveals,addObjective:Dashboard.addObjective,removeObjective:Dashboard.removeObjective,exportAll:Dashboard.exportAll,importJson:Dashboard.importJson}};
+  static DEFAULT_OPTIONS={id:'ashen-gate-factions-window',classes:['ag-app','ashen-gate-factions'],window:{title:'Ashen Gate | Renown',icon:'fa-solid fa-shield-halved',resizable:true},position:{width:980,height:760},actions:{help:Dashboard.help,saveSetup:Dashboard.saveSetup,cancelEdit:Dashboard.cancelEdit,checkRewardIds:Dashboard.checkRewardIds,fillRewardIds:Dashboard.fillRewardIds,clearOrgFilters:Dashboard.clearOrgFilters,openDeity:Dashboard.openDeity,editDeity:Dashboard.editDeity,openRecord:Dashboard.openRecord,goto:Dashboard.goto,toggleFolders:Dashboard.toggleFolders,createDeity:Dashboard.createDeity,saveDeity:Dashboard.saveDeity,pickSymbol:Dashboard.pickSymbol,addRelation:Dashboard.addRelation,removeRelation:Dashboard.removeRelation,undoFavour:Dashboard.undoFavour,select:Dashboard.select,create:Dashboard.create,seed:Dashboard.seed,save:Dashboard.save,award:Dashboard.award,createFolder:Dashboard.createFolder,saveFolder:Dashboard.saveFolder,discovery:Dashboard.discovery,share:Dashboard.share,addEntry:Dashboard.addEntry,showEntry:Dashboard.showEntry,claim:Dashboard.claim,resolveRequest:Dashboard.resolveRequest,resetUsage:Dashboard.resetUsage,addReward:Dashboard.addReward,editReward:Dashboard.editReward,removeReward:Dashboard.removeReward,openLinked:Dashboard.openLinked,resetChoice:Dashboard.resetChoice,saveFieldReveals:Dashboard.saveFieldReveals,addObjective:Dashboard.addObjective,removeObjective:Dashboard.removeObjective,exportAll:Dashboard.exportAll}};
   static PARTS={main:{template:`modules/${MODULE_ID}/templates/dashboard.hbs`}};
   /** Compact size by default; Comfortable (General Manager → My Appearance) opens it 1.2x larger. An explicit position still wins. */
-  constructor(options={}){super({...options,position:{...windowSize(Dashboard.DEFAULT_OPTIONS.position),...options.position}});}
-  #tab='group';#searchTimer=null;#orgsView={...ORG_VIEW};#selected=null;#deity=null;#actor=null;#lastView=null;#backfill=null;
-  // Actions shared by factions and deities act on the open deity in the Pantheon tab, else the selected faction.
-  get #cur(){return this.#tab==='pantheon'?this.#deity:this.#selected;}
+  constructor(options={}){
+    super({...options,position:{...windowSize(Dashboard.DEFAULT_OPTIONS.position),...options.position}});
+    this.#ui=uiState(MODULE_ID);
+    this.#subTab={faction:this.#ui.get('factionTab','profile',FACTION_TAB_IDS),deity:this.#ui.get('deityTab','profile',DEITY_TAB_IDS)};
+    this.#guard=guardDirty({status:()=>this.element?.querySelector?.('.agf-editor__footer .ag-footer__status, .agf-setup-footer .ag-footer__status')});
+  }
+  #tab='group';#orgsView={...ORG_VIEW};#selected=null;#deity=null;#editDeity=null;#actor=null;#lastView=null;#backfill=null;
+  #foldersOpen=false;#subTab;#ui;#guard;
+  // Actions shared by factions and deities act on: the open deity in Pantheon, the deity or faction open in the
+  // Factions tab editor, else the selected faction (Group and Character).
+  get #cur(){if(this.#tab==='pantheon')return this.#deity;if(this.#tab==='orgs'&&this.#orgsView.kind==='deity')return this.#editDeity;return this.#selected;}
+  get #kind(){return this.#orgsView.kind==='deity'?'deity':'faction';}
+  /** True while a draft form (profile, visibility, GM Setup, an add form) has typed edits that are not saved. */
+  get isDirty(){return this.#guard.dirty;}
+  /** Resolves true when nothing is unsaved, or when the GM chooses Discard changes (FR-02). */
+  okToLeave(){return this.#guard.confirm();}
+  /** Re-render for outside changes (a player request, another GM's edit). Skipped while edits are unsaved: Save Changes or Cancel redraws with the latest data. */
+  refresh(){if(this.#guard.dirty)return;void this.render({force:true}).catch(notifyError);}
+  async close(options){if(!(await this.okToLeave()))return this;return super.close(options);}
   async render(options={}){
-    const previous=this.element?.querySelector?.('.agf-main');
-    const viewKey=`${this.#tab}:${this.#cur}`;
-    const scroll=previous&&this.#lastView===viewKey&&Number.isFinite(previous.scrollTop)?previous.scrollTop:null;
-    const opened=previous&&this.#lastView===viewKey?[...previous.querySelectorAll?.('details[data-agf-section]')??[]].filter(el=>el.open).map(el=>el.dataset.agfSection):null;
-    // Search filters as you type, so keep the caret in the search box across the re-render.
-    const active=this.element?.ownerDocument?.activeElement,typing=active?.matches?.('[data-orgs-filter="search"]')?{at:active.selectionStart??null}:null;
-    const result=await super.render(options);const root=this.element?.querySelector?.('.agf-main');
-    if(root&&scroll!==null){root.scrollTop=scroll;if(opened){for(const el of root.querySelectorAll?.('details[data-agf-section]')??[])el.open=opened.includes(el.dataset.agfSection);}}
-    if(typing){const box=this.element?.querySelector?.('[data-orgs-filter="search"]');if(box){box.focus?.();if(typing.at!==null)box.setSelectionRange?.(typing.at,typing.at);}}
+    const el=this.element,viewKey=`${this.#tab}:${this.#cur}:${this.#tab==='orgs'?`${this.#kind}:${this.#subTab[this.#kind]}:${this.#foldersOpen}`:''}`,same=this.#lastView===viewKey;
+    const scrolls=same?new Map([...el?.querySelectorAll?.('[data-agf-scroll]')??[]].map(x=>[x.dataset.agfScroll,x.scrollTop])):null;
+    const opened=same?[...el?.querySelectorAll?.('details[data-agf-section]')??[]].filter(x=>x.open).map(x=>x.dataset.agfSection):null;
+    // Focus goes back to the same control after the re-render (§9.6); the search box keeps its caret.
+    const active=el?.ownerDocument?.activeElement,focus=active&&el?.contains?.(active)?focusSelector(active):null,caret=active?.matches?.('[data-orgs-filter="search"]')?active.selectionStart??null:null;
+    const result=await super.render(options);const root=this.element;
+    if(scrolls)for(const x of root?.querySelectorAll?.('[data-agf-scroll]')??[]){const top=scrolls.get(x.dataset.agfScroll);if(Number.isFinite(top))x.scrollTop=top;}
+    if(opened)for(const x of root?.querySelectorAll?.('details[data-agf-section]')??[])x.open=opened.includes(x.dataset.agfSection);
+    if(focus){const target=root?.querySelector?.(focus);if(target){target.focus?.({preventScroll:true});if(caret!==null)target.setSelectionRange?.(caret,caret);}}
     this.#lastView=viewKey;return result;
   }
   #gmData(){const list=factionDefs().map(d=>loadDef(d));const folders=projectedFolders({folders:folderList(),factions:list,gm:true}).map(x=>({key:x.key,name:x.name,known:x.known.map(f=>f.id),unknown_count:0}));return{version:SCHEMA_VERSION,groupLabel:groupLabel(),folders,factions:list};}
@@ -387,7 +425,7 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
     if(!actorChoices.some(a=>a.id===this.#actor))this.#actor=actorChoices[0]?.id??null;
     const known=data.factions;
     if(!known.some(f=>f.id===this.#selected))this.#selected=known[0]?.id??null;
-    const f=known.find(f=>f.id===this.#selected),sourceDoc=isGM&&f?definition(f.id):null;
+    const f=known.find(f=>f.id===this.#selected);
     const gf=f&&isGM?upgradeFaction(f):null;
     const groupState=gf?getGroup(groupDoc(f.id))??makeGroupRecord({factionId:f.id}):f?.group;
     const personalState=gf?(this.#actor?getPersonal(personalDoc(f.id,this.#actor)):null):f?.personal?.[this.#actor];
@@ -401,20 +439,44 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
     const personalEvents=personalState?.standing?.events??personalState?.history??[];
     const detail=f?{id:f.id,name:f.name,leader:f.leader,public_role:f.public_role,tags:f.tags??[],score:groupScore,rank:gf?progressFor(gf.renown_track,groupScore).rank.name:rankOf(groupMs,groupScore),individualScore:actorScore,individualRank:gf?progressFor(gf.individual_track,actorScore).rank.name:rankOf(individualMs,actorScore),groupMs:decorateTrack(groupMs,groupScore,GROUP_TRACK),individualMs:decorateTrack(individualMs,actorScore,PERSONAL_TRACK),groupView:standingView(groupMs,groupScore),individualView:standingView(individualMs,actorScore),entries:knownEntries,canShare:!isGM&&f.canShare,groupEvents:[...groupEvents].reverse().slice(0,35).map(event),personalEvents:[...personalEvents].reverse().slice(0,35).map(event),folder_key:gf?.folder_key??f.folder_key,discovery:gf?.discovery??null,rewards:gf?.rewards??[],trackGroup:gf?.renown_track,trackPersonal:gf?.individual_track}:null;
     const factionMap=new Map(known.map(f=>[f.id,f.name]));const folders=(data.folders??[]).map(folder=>({...folder,factions:folder.known.map(id=>({id,name:factionMap.get(id),selected:id===this.#selected})),unknown:Array.from({length:folder.unknown_count??0},(_,i)=>({index:i})),count:folder.known.length+(folder.unknown_count??0)}));
-    const requestRows=isGM&&gf?this.#queue(gf):[];
-    if(!isGM&&['orgs','setup'].includes(this.#tab))this.#tab='group';
-    const looks=gf?await rewardLooks(gf.rewards):null,openDeity=isGM&&this.#tab==='pantheon'&&this.#deity?definition(this.#deity):null;
-    const pantheon=this.#tab==='pantheon'?this.#pantheonContext(isGM,openDeity?await rewardLooks(loadDef(openDeity)?.rewards):null):null;
-    const orgsView=this.#orgsView,orgs=isGM?this.#orgsList(orgsView):{total:0,shown:0,groups:[]};
-    for(const g of orgs.groups)for(const r of g.rows){r.selected=r.id===this.#selected;r.chipKey=r.chip.toLowerCase().replace(/[^a-z]+/g,'-');}
-    const opt=(items,v)=>items.map(x=>{const [value,label]=Array.isArray(x)?x:[x,x];return{value,label,selected:value===v};});
-    const orgsOptions={status:opt([['all','All'],...ORG_CHIPS],orgsView.status),sort:opt(ORG_SORTS,orgsView.sort),group:opt(ORG_GROUPS,orgsView.group)};
+    if(!isGM&&GM_PAGES.includes(this.#tab))this.#tab='group';
     const actorName=actorChoices.find(a=>a.id===this.#actor)?.name??'selected character';
-    return {...ctx,isGM,version:moduleVersion(),actorName,showFolders:['group','player'].includes(this.#tab)||(isGM&&this.#tab==='orgs'),hasFolders:folderList().length>0,detail,folders,hasData:Boolean(detail),pantheon,tabPantheon:this.#tab==='pantheon',tabGroup:this.#tab==='group',tabPlayer:this.#tab==='player',tabOrgs:isGM&&this.#tab==='orgs',tabSetup:isGM&&this.#tab==='setup',showHeader:Boolean(detail)&&['group','player'].includes(this.#tab),orgs,orgsView,orgsOptions,groupLabel:groupLabel(),actorChoices:actorChoices.map(a=>({id:a.id,name:a.name,selected:a.id===this.#actor})),actorId:this.#actor,gmQueue:requestRows,foldersForSelect:[{key:'',name:'Other Factions',selected:!detail?.folder_key},...folderList().map(q=>({...q,selected:detail?.folder_key===q.key}))],groupName:game.settings.get(MODULE_ID,'groupName'),groupNameEnabled:game.settings.get(MODULE_ID,'groupNameEnabled'),pantheonDamping:pantheonDamping(),pantheonDampingMax:DAMPING_MAX,playerAccessEnabled:playerAccessEnabled(),hasActiveGM:Boolean(activeGM()),gmKnown:gf,gmObjectiveRefs:gf?auditObjectiveRefs(gf,game.modules.get('ashen-gate-quest-manager')):[],gmGroupLevels:gf?editorLevels(gf.renown_track,gf.rewards,'group',looks).map(m=>({...m,groupTitle:`Group: ${m.name}`})):[],gmPersonalLevels:gf?editorLevels(gf.individual_track,gf.rewards,'individual',looks).map(m=>({...m,personalTitle:`Individual: ${m.name}`})):[],serviceRewards:gf?.rewards.filter(r=>r.behavior==='repeatable_service').map(r=>({...r,resetLabel:r.audience==='group'?'Reset group uses':`Reset uses for ${actorName}`}))??[],shareEnabled:gf?.discovery?.sharing_enabled,fieldSelective:gf?.field_reveals?.mode==='selective',gmFieldReveals:gf?FIELD_KEYS.map(key=>({key,label:key==='public_role'?'Description':key==='leader'?'Leader':'Name',party:Boolean(gf.field_reveals?.fields?.[key]?.party),actor:Boolean(gf.field_reveals?.fields?.[key]?.actors?.includes(this.#actor))})):[],backfill:isGM&&this.#tab==='setup'?backfillView(this.#backfill):null,canEdit:!!gf,refreshNeeded:!isGM&&!userViewDoc(game.user)};
+    const tabOrgs=isGM&&this.#tab==='orgs',kind=this.#kind;
+    const editingFaction=tabOrgs&&kind==='faction'&&!this.#foldersOpen&&gf;
+    const looks=editingFaction?await rewardLooks(gf.rewards):null;
+    const pantheon=this.#tab==='pantheon'?this.#pantheonContext(isGM):null;
+    const orgsView=this.#orgsView,orgs=tabOrgs?this.#orgsList(orgsView):{total:0,shown:0,groups:[]};
+    const opt=(items,v)=>items.map(x=>{const [value,label]=Array.isArray(x)?x:[x,x];return{value,label,selected:value===v};});
+    const orgsOptions={kind:opt(ORG_KINDS,kind),status:opt([['all','All'],...ORG_CHIPS],orgsView.status),sort:opt(sortsFor(kind),orgsView.sort),group:opt(groupsFor(kind),orgsView.group)};
+    const deityEditor=tabOrgs&&kind==='deity'&&!this.#foldersOpen?await this.#deityEditor(this.#editDeity,actorName):null;
+    const gmQueue=editingFaction?this.#queue(gf):[];
+    const allRequests=isGM?this.#allQueues():[];
+    const editorRecord=editingFaction?{name:gf.name,queue:gmQueue}:deityEditor;
+    let editor=null;
+    if(editorRecord){const {tabs,selected}=editorTabs(kind,this.#subTab[kind],editorRecord.queue.length),label=kind==='deity'?'Deity':'Faction';
+      editor={isFaction:kind==='faction',isDeity:kind==='deity',kindLabel:label,name:editorRecord.name,tabsHtml:subTabs({group:'agf-editor',label:`${label} sections`,tabs,selected}).replace(/ aria-controls="[^"]*"(?=[^>]*aria-selected="false")/g,''),panelAttrs:tabPanelAttrs('agf-editor',selected),sub:{[selected]:true},
+        saveAction:selected==='profile'?(kind==='deity'?'saveDeity':'save'):selected==='visibility'?'saveFieldReveals':null};}
+    const gmDiscovery=editingFaction?{chip:visibilityChip(gf),badgeClass:chipBadge(visibilityChip(gf)),partyLabel:revealLabel(gf.discovery.party,'party'),actorLabel:revealLabel(Boolean(this.#actor&&gf.discovery.actors.includes(this.#actor)),actorName)}:null;
+    const groupLevelChoices=editingFaction?groupChoices:null;
+    return {...ctx,isGM,version:moduleVersion(),actorName,showFolders:['group','player'].includes(this.#tab),hasFolders:folderList().length>0,detail,folders,hasData:Boolean(detail),pantheon,
+      tabPantheon:this.#tab==='pantheon',tabGroup:this.#tab==='group',tabPlayer:this.#tab==='player',tabOrgs,tabRequests:isGM&&this.#tab==='requests',tabSetup:isGM&&this.#tab==='setup',showHeader:Boolean(detail)&&['group','player'].includes(this.#tab),
+      orgs,orgsView,orgsOptions,foldersOpen:tabOrgs&&this.#foldersOpen,folderRows:tabOrgs&&this.#foldersOpen?this.#folderRows():[],otherFolder:OTHER_FOLDER,unknownName:UNKNOWN_FACTION,editor,deityEditor,
+      importButton:tabOrgs?fileButton({label:'Import…',accept:'.json,application/json',className:'ag-btn ag-btn--sm'}):'',
+      gotoSetup:linkButton('GM Setup',{data:{action:'goto',goto:'setup'}}),gotoDeities:linkButton('Factions tab',{data:{action:'editDeity'}}),
+      requestCount:allRequests.reduce((n,g)=>n+g.queue.length,0),allRequests,
+      groupLabel:groupLabel(),actorChoices:actorChoices.map(a=>({id:a.id,name:a.name,selected:a.id===this.#actor})),actorId:this.#actor,gmQueue,gmDiscovery,
+      foldersForSelect:[{key:'',name:OTHER_FOLDER,selected:!detail?.folder_key},...folderList().map(q=>({...q,selected:detail?.folder_key===q.key}))],groupName:game.settings.get(MODULE_ID,'groupName'),groupNameEnabled:game.settings.get(MODULE_ID,'groupNameEnabled'),pantheonDamping:pantheonDamping(),pantheonDampingMax:DAMPING_MAX,playerAccessEnabled:playerAccessEnabled(),hasActiveGM:Boolean(activeGM()),
+      gmKnown:editingFaction?{...gf,tags:(gf.tags??[]).join(', ')}:gf,gmEntries:editingFaction?entryRows(gf.entries,this.#actor,actorName,'Renown'):[],
+      gmObjectiveRefs:editingFaction?auditObjectiveRefs(gf,game.modules.get('ashen-gate-quest-manager')).map(r=>({...r,label:objectiveLabel(r.relation,r.mode),status:objectiveStatusLabel(r.status)})):[],
+      gmGroupLevels:editingFaction?editorLevels(gf.renown_track,gf.rewards,'group',looks,groupLevelChoices).map(m=>({...m,groupTitle:`Group: ${m.name}`})):[],gmPersonalLevels:editingFaction?editorLevels(gf.individual_track,gf.rewards,'individual',looks,personalChoices).map(m=>({...m,personalTitle:`Individual: ${m.name}`})):[],
+      serviceRewards:editingFaction?gf.rewards.filter(r=>r.behavior==='repeatable_service').map(r=>({...r,resetLabel:r.audience==='group'?`Reset group uses of ${r.name}…`:`Reset uses of ${r.name} for ${actorName}…`})):[],
+      shareEnabled:gf?.discovery?.sharing_enabled,fieldSelective:gf?.field_reveals?.mode==='selective',gmFieldReveals:editingFaction?FIELD_KEYS.map(key=>({key,label:key==='public_role'?'Description':key==='leader'?'Leader':'Name',party:Boolean(gf.field_reveals?.fields?.[key]?.party),actor:Boolean(gf.field_reveals?.fields?.[key]?.actors?.includes(this.#actor))})):[],
+      backfill:isGM&&this.#tab==='setup'?backfillView(this.#backfill):null,canEdit:!!gf,refreshNeeded:!isGM&&!userViewDoc(game.user)};
   }
-  /** Pantheon tab: symbol tiles grouped by tier and, when a deity is open, its card and this character's standing.
+  /** Pantheon tab (the view for everyone): symbol tiles grouped by tier and, when a deity is open, its card and this
+   * character's standing. The GM also adjusts favour and undoes changes here; deity authoring is in the Factions tab.
    * Players only ever read their projected view (revealed deities only); the GM reads the definitions. */
-  #pantheonContext(isGM,looks=null){
+  #pantheonContext(isGM){
     const actorId=this.#actor,actor=actorId?game.actors.get(actorId):null;
     const list=isGM?deityDefs().map(d=>upgradeFaction(loadDef(d))):(getView(userViewDoc(game.user))?.payload?.deities??[]);
     if(this.#deity&&!list.some(x=>x.id===this.#deity))this.#deity=null;
@@ -435,51 +497,103 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
     }
     const st=gmState(x.id),score=st?.standing?.score??0,p=progressFor(x.individual_track,score),names=new Map(list.map(d=>[d.id,d.name]));
     const ms=milestoneProjection({faction:x,scope:'individual',score,claims:st?.claims??{},requests:st?.requests??{},uses:st?.uses??{},choices:st?.choices??{},gm:true});
-    const profile=deityProfile(x.deity);
     return{...base,open:{card:deityCard(x),known:true,score,rank:p.rank.name,view:standingView(ms,score),milestones:decorateTrack(ms,score,FAVOUR_TRACK),awardTitle:`Adjust favour for ${actorName||'the selected character'}`,
       history:(()=>{const ev=st?.standing?.events??[],undone=new Set(ev.map(e=>e.reverses).filter(Boolean));return[...ev].reverse().slice(0,35).map(e=>({...event(e),canUndo:!e.reverses&&!undone.has(e.id),undone:undone.has(e.id)}));})(),
-      relations:profile.relations.map(r=>{const label=relationLabel(r.resonance);return{...r,name:names.get(r.deity_id)??`${r.deity_id} (missing)`,label,isDissonant:label==='Dissonance',isResonant:label==='Resonance',preview:resonancePreview(r.resonance,pantheonDamping())};}),
-      damping:pantheonDamping(),
-      entries:x.entries.map(e=>({...e,discovered:Boolean(e.discovered_party||e.discovered_actors?.includes(actorId))})),
-      gm:{id:x.id,name:x.name,tags:(x.tags??[]).join(', '),profile,isMajor:profile.tier==='major',isLesser:profile.tier==='lesser',discovery:x.discovery,chip:visibilityChip(x),badgeClass:chipBadge(visibilityChip(x)),actorKnows:discoverable({discovery:x.discovery,actorIds:actorId?[actorId]:[]}),
-        levels:editorLevels(x.individual_track,x.rewards,null,looks),
-        relationOptions:list.filter(d=>d.id!==x.id&&!profile.relations.some(r=>r.deity_id===d.id)).map(d=>({id:d.id,name:d.name})),
-        queue:this.#queue(x),serviceRewards:x.rewards.filter(r=>r.behavior==='repeatable_service').map(r=>({...r,audience:'individual',resetLabel:`Reset uses for ${actorName||'the selected character'}`}))}}};
+      relations:visibleRelations(x,names),
+      entries:x.entries.map(e=>({...e,discovered:Boolean(e.discovered_party||e.discovered_actors?.includes(actorId))}))}};
   }
-  /** GM roster rows: every faction, hidden or not, with its group Renown. */
-  #orgsList(view){const folders=new Map(folderList().map(x=>[x.key,x.name]));
-    const rows=factionDefs().map(d=>{const f=upgradeFaction(loadDef(d)),state=getGroup(groupDoc(f.id))??makeGroupRecord({factionId:f.id}),score=state?.standing?.score??state?.score??0;
-      return orgRow({faction:f,score,rank:progressFor(f.renown_track,score).rank.name,folderName:folders.get(f.folder_key)});});
-    return listOrgsTab(rows,view);}
+  /** Factions tab, Deities: the editor for one deity (FR-04), with the same sub-tab layout as a faction. GM only. */
+  async #deityEditor(id,actorName){
+    const list=deityDefs().map(d=>upgradeFaction(loadDef(d)));
+    if(!list.some(x=>x.id===id))this.#editDeity=id=list.slice().sort((a,b)=>a.name.localeCompare(b.name))[0]?.id??null;
+    const x=list.find(d=>d.id===id);if(!x)return null;
+    const actorId=this.#actor,st=actorId?getPersonal(personalDoc(x.id,actorId)):null,profile=deityProfile(x.deity),names=new Map(list.map(d=>[d.id,d.name]));
+    const actorKnows=discoverable({discovery:x.discovery,actorIds:actorId?[actorId]:[]}),who=actorName||'the selected character';
+    return {id:x.id,name:x.name,tags:(x.tags??[]).join(', '),profile,isMajor:profile.tier==='major',isLesser:profile.tier==='lesser',discovery:x.discovery,
+      chip:visibilityChip(x),badgeClass:chipBadge(visibilityChip(x)),partyLabel:revealLabel(x.discovery.party,'party'),actorLabel:revealLabel(actorKnows,who),
+      levels:editorLevels(x.individual_track,x.rewards,null,await rewardLooks(x.rewards),st?.choices),
+      relations:profile.relations.map(r=>{const label=relationLabel(r.resonance);return{...r,name:names.get(r.deity_id)??'Missing deity',label,preview:resonancePreview(r.resonance,pantheonDamping())};}),
+      relationOptions:list.filter(d=>d.id!==x.id&&!profile.relations.some(r=>r.deity_id===d.id)).map(d=>({id:d.id,name:d.name})),damping:pantheonDamping(),
+      entries:entryRows(x.entries,actorId,who,'favour'),
+      queue:this.#queue(x),serviceRewards:x.rewards.filter(r=>r.behavior==='repeatable_service').map(r=>({...r,audience:'individual',resetLabel:`Reset uses of ${r.name} for ${who}…`}))};
+  }
+  /** GM roster rows (Factions tab): every faction, or every deity, hidden or not. The search hides rows in place. */
+  #orgsList(view){
+    const kind=view.kind==='deity'?'deity':'faction',folders=new Map(folderList().map(x=>[x.key,x.name]));
+    const rows=kind==='deity'
+      ?deityDefs().map(d=>{const f=upgradeFaction(loadDef(d)),c=deityCard(f);return{...orgRow({faction:f,folderName:`${c.tierLabel} deities`}),isDeity:true,meta:[c.title,`${c.tierLabel} deity`].filter(Boolean).join(' · ')};})
+      :factionDefs().map(d=>{const f=upgradeFaction(loadDef(d)),state=getGroup(groupDoc(f.id))??makeGroupRecord({factionId:f.id}),score=state?.standing?.score??state?.score??0;
+        const r=orgRow({faction:f,score,rank:progressFor(f.renown_track,score).rank.name,folderName:folders.get(f.folder_key)});
+        return {...r,meta:[r.leader,r.folder,r.characters?`Known to ${plural(r.characters,'character')}`:'',r.objectives?plural(r.objectives,'linked objective'):'',r.placeholder?'Placeholder shown':'',r.selective?'Selective fields':''].filter(Boolean).join(' · ')};});
+    const list=listOrgsTab(rows,{...view,search:''}),current=kind==='deity'?this.#editDeity:this.#selected;
+    let shown=0;
+    for(const g of list.groups){for(const r of g.rows){r.selected=r.id===current;r.hidden=!searchMatches(r.search,view.search);if(!r.hidden)shown++;}g.hidden=g.rows.every(r=>r.hidden);}
+    const label=kind==='deity'?'Deities':'Factions';
+    return {...list,shown,noMatch:list.total>0&&shown===0,isFaction:kind==='faction',kindLabel:label,searchLabel:`Search ${label.toLowerCase()}`,
+      emptyTitle:kind==='deity'?'No deities yet':'No factions yet',emptyText:kind==='deity'?'Create one with New deity, or import a file.':'Create one with New faction, or import a file.'};
+  }
+  #folderRows(){const factions=factionDefs().map(d=>getFaction(d));return folderList().map(x=>({key:x.key,name:x.name,countText:plural(factions.filter(f=>f.folder_key===x.key).length,'faction')}));}
   #queue(f){return game.journal.filter(d=>getGroup(d)?.faction_id===f.id||getPersonal(d)?.faction_id===f.id).flatMap(doc=>{const group=getGroup(doc),state=group??getPersonal(doc),audience=group?'group':'individual',actor=state.actor_id?game.actors.get(state.actor_id):null;
     const ones=Object.entries(state.claims??{}).filter(([_,r])=>['pending','approved'].includes(r.status)).map(([key,c])=>({docId:doc.id,requestKey:key,reward:f.rewards.find(r=>r.id===key)?.name??key,actor:actor?.name??'Group',status:c.status,claim:true,approved:c.status==='approved',pending:c.status==='pending',isItem:f.rewards.some(r=>r.id===key&&linkedItem(r)&&audience==='group')}));
     const services=Object.entries(state.requests??{}).filter(([_,r])=>['requested','approved'].includes(r.status)).map(([key,c])=>({docId:doc.id,requestKey:key,reward:f.rewards.find(r=>r.id===c.reward_id)?.name??c.reward_id,actor:actor?.name??'Group',status:c.status,service:true,pending:c.status==='requested',approved:c.status==='approved'}));return[...ones,...services];});}
-  async _onRender(context,options){requirePlayerAccess();await super._onRender(context,options);const root=this.element;if(root.dataset.agfBound)return;root.dataset.agfBound='yes';
+  /** Requests tab (FR-03): every open claim and service request, grouped by faction or deity. GM only. */
+  #allQueues(){
+    return defs().map(d=>upgradeFaction(loadDef(d))).map(f=>({f,queue:this.#queue(f)})).filter(x=>x.queue.length)
+      .sort((a,b)=>a.f.name.localeCompare(b.f.name))
+      .map(({f,queue})=>{const kind=isDeity(f)?'deity':'faction';return{id:f.id,name:f.name,kind,kindLabel:kind==='deity'?'Deity':'Faction',queue,
+        openLink:linkButton(`Open ${f.name}`,{data:{action:'openRecord',id:f.id,kind}})};});
+  }
+  async _onRender(context,options){requirePlayerAccess();await super._onRender(context,options);const root=this.element;
+    // Every render redraws saved values, so nothing typed is pending any more; then watch the new draft forms.
+    this.#guard.markClean();
+    for(const form of root?.querySelectorAll?.('[data-agf-draft]')??[])this.#guard.watch(form);
+    for(const list of root?.querySelectorAll?.('.ag-tabs')??[])bindTablist(list);
+    bindFolds(root,this.#ui);
+    bindFileButtons(root,([file])=>this.importFile(file));
+    if(root.dataset.agfBound)return;root.dataset.agfBound='yes';
     // V14 manages [data-tab] controls itself. Use a unique attribute and a DOM click
-    // listener on the stable app frame to keep our three full-page views independent.
+    // listener on the stable app frame to keep the top-level views independent.
     root.addEventListener('click',e=>{
       if(!playerMayOpen())return;
       const tab=e.target?.closest?.('button[data-agf-view]');
-      if(!tab||!root.contains(tab))return;
-      const page=tab.dataset.agfView;
-      if(!['group','player','pantheon','orgs','setup'].includes(page)||(['orgs','setup'].includes(page)&&!game.user.isGM))return;
-      e.preventDefault();
-      if(this.#tab===page)return;
-      this.#tab=page;
-      void this.render({force:true}).catch(notifyError);
+      if(tab&&root.contains(tab)){
+        const page=tab.dataset.agfView;
+        if(!PAGES.includes(page)||(GM_PAGES.includes(page)&&!game.user.isGM))return;
+        e.preventDefault();
+        if(this.#tab===page)return;
+        void this.#leaveThen(()=>{this.#tab=page;this.#foldersOpen=false;});
+        return;
+      }
+      // Editor sub-tabs (Profile, Visibility, …): ask before unsaved edits are lost, then remember the choice.
+      const sub=e.target?.closest?.('.ag-tabs--sub [data-tab]');
+      if(sub&&root.contains(sub)&&game.user.isGM){
+        e.preventDefault();const kind=this.#kind,ids=kind==='deity'?DEITY_TAB_IDS:FACTION_TAB_IDS,id=sub.dataset.tab;
+        if(!ids.includes(id)||this.#subTab[kind]===id)return;
+        void this.#leaveThen(()=>{this.#subTab[kind]=id;this.#ui.set(kind==='deity'?'deityTab':'factionTab',id);});
+      }
     });
     // A missing holy-symbol file falls back to the built-in glyph.
     root.addEventListener('error',e=>{const img=e.target;if(img?.matches?.('img.agf-symbol-img'))img.closest('.agf-symbol')?.classList.add('is-missing');},true);
-    // Resonance slider: live preview while dragging, saved when released.
     root.addEventListener('input',e=>{
+      // Search filters the roster in place as you type (no re-render, so an open editor keeps its typed edits).
       const box=e.target?.closest?.('[data-orgs-filter="search"]');
-      if(box&&game.user.isGM){clearTimeout(this.#searchTimer);const value=box.value;this.#searchTimer=setTimeout(()=>{this.#orgsView.search=value;void this.render({force:true});},SEARCH_DELAY);return;}
+      if(box&&game.user.isGM){this.#orgsView.search=box.value;filterRoster(root,box.value);return;}
+      // Resonance slider: live preview while dragging, saved when released.
       const el=e.target?.closest?.('[data-resonance-target],[name=relation-resonance]');if(!el)return;const out=el.closest('[data-resonance-row]')?.querySelector('[data-resonance-preview]');if(out)out.textContent=`${relationLabel(Number(el.value))} · ${resonancePreview(Number(el.value),pantheonDamping())}`;});
-    root.addEventListener('change',e=>{const slider=e.target?.closest?.('[data-resonance-target]');if(slider&&game.user.isGM){void this.setResonance(slider.dataset.resonanceTarget,slider.value);return;}const flt=e.target.closest?.('[data-orgs-filter]');if(flt&&game.user.isGM){if(flt.dataset.orgsFilter==='search')return;this.#orgsView[flt.dataset.orgsFilter]=flt.value;void this.render({force:true});return;}if(e.target.matches('[name=faction-import-file]')){void this.importFile(e.target);return;}if(e.target.matches('[name=actor-id]')){const a=accessibleActors().find(a=>a.id===e.target.value);if(a){this.#actor=a.id;void this.render({force:true});}}});
+    root.addEventListener('change',e=>{
+      const slider=e.target?.closest?.('[data-resonance-target]');if(slider&&game.user.isGM){void this.setResonance(slider.dataset.resonanceTarget,slider.value);return;}
+      // The add-relation slider names the deity it is for (FR-14).
+      const pick=e.target?.closest?.('[name=relation-deity]');if(pick){const range=pick.closest('[data-resonance-row]')?.querySelector('[name=relation-resonance]');if(range)range.setAttribute('aria-label',`Resonance with ${pick.selectedOptions?.[0]?.textContent??'the chosen deity'}`);return;}
+      const flt=e.target?.closest?.('[data-orgs-filter]');
+      if(flt&&game.user.isGM){const key=flt.dataset.orgsFilter;if(key==='search')return;const value=flt.value,before=this.#orgsView[key];
+        void this.#leaveThen(()=>{this.#orgsView[key]=value;if(key==='kind'){this.#foldersOpen=false;const v={...ORG_VIEW,kind:value,search:this.#orgsView.search};this.#orgsView=v;}},()=>{flt.value=before;});return;}
+      if(e.target?.matches?.('[name=actor-id]')){const a=accessibleActors().find(a=>a.id===e.target.value);if(a){const before=this.#actor;void this.#leaveThen(()=>{this.#actor=a.id;},()=>{e.target.value=before??'';});}}
+    });
     root.addEventListener('dragstart',e=>{const el=e.target.closest('[data-faction-drag]');if(!game.user.isGM||!el)return;e.dataTransfer.setData('text/ashen-gate-faction',el.dataset.factionDrag);e.dataTransfer.effectAllowed='move';});
     root.addEventListener('dragover',e=>{if(game.user.isGM&&e.target.closest('[data-folder-drop], [data-reward-drop], [data-entry-drop]'))e.preventDefault();});
     root.addEventListener('drop',async e=>{try{if(!game.user.isGM)return;const folder=e.target.closest('[data-folder-drop]');if(folder){const id=e.dataTransfer.getData('text/ashen-gate-faction');if(!id)return;e.preventDefault();const doc=definition(id),f=loadDef(doc);f.folder_key=folder.dataset.folderDrop;await saveChange(doc,f);await this.render({force:true});return;}
       const rewardZone=e.target.closest('[data-reward-drop]'),entryZone=e.target.closest('[data-entry-drop]');if(!rewardZone&&!entryZone)return;e.preventDefault();const drag=readDrop(e),doc=definition(this.#cur);if(!doc)throw Error('Choose a faction or deity first.');
+      if(!(await this.okToLeave()))return;
       // D13: reward zones take Items only (world, compendium or from an Actor); journals and other documents go to the info list.
       if(rewardZone){const found=await resolveItemDrop(drag);if(!found.ok){if(found.reason==='Drop an item.')ui.notifications.warn('Rewards take items. Drop journals and other documents on the info list.');else ui.notifications.warn(found.reason);return;}
         const fields=await itemRewardFields(found.items[0]),f=loadDef(doc);f.rewards.push({id:`rw-${rid()}`,key:keyFor('rw_'+rid()),audience:rewardZone.dataset.audience,milestone_id:rewardZone.dataset.milestone,description:'',tags:[],behavior:'one_time',usage_limit:0,...fields});
@@ -487,20 +601,30 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
       let uuid=drag?.uuid;if(!uuid&&drag?.id&&drag?.type)uuid=`${drag.type}.${drag.id}`;if(!uuid)throw Error('Drop a Foundry document with a UUID.');const linked=await fromUuid(uuid);if(!linked)throw Error('Document not found.');const f=loadDef(doc);{f.entries.push({id:`info_${keyFor(rid())}`,name:linked.name,text:'',uuid,link_mode:'document',unlock:'manual',threshold:0,discovered_party:false,discovered_actors:[]});}await saveChange(doc,f);await this.render({force:true});
     }catch(err){notifyError(err)}});
   }
-  static async select(e,t){this.#selected=t.dataset.id;await this.render({force:true});}
-  /** 0.10.0: open on one faction (and the Player view for one character), for the embed's Open button. */
+  /** Runs `change` and re-renders once unsaved edits are saved or discarded; `undo` runs when the GM keeps editing. */
+  async #leaveThen(change,undo=null){try{if(!(await this.okToLeave())){undo?.();return;}change();await this.render({force:true});}catch(e){notifyError(e)}}
+  static async select(e,t){if(this.#tab==='orgs'&&this.#kind==='deity')this.#editDeity=t.dataset.id;else this.#selected=t.dataset.id;this.#foldersOpen=false;await this.render({force:true});}
+  /** 0.10.0: open on one faction (and the Character view for one character), for the embed's Open button. */
   focus({factionId=null,deityId=null,actorId=null,tab=null}={}){if(factionId)this.#selected=factionId;if(deityId)this.#deity=deityId;if(actorId)this.#actor=actorId;if(['player','group','pantheon'].includes(tab))this.#tab=tab;}
   static async openDeity(e,t){this.#deity=t.dataset.id||null;await this.render({force:true});}
-  static async createDeity(){try{assertGM();const typed=await promptText('New deity','Deity name');if(typed===null)return;const name=typed.trim();if(!name||name.length>120)throw Error('Deity name required (up to 120 characters).');const f=makeDeity({...deityIdPair(),name});const doc=await JournalEntry.create({name,folder:(await ensureStorageFolder()).id,ownership:{default:NONE},flags:{[MODULE_ID]:{faction:sourceDefinition(f)}}});await ensureGroup(doc);this.#deity=f.id;await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
-  static async saveDeity(){try{assertGM();const doc=definition(this.#deity),f=doc&&loadDef(doc);if(!isDeity(f))throw Error('Open a deity first.');const root=this.element.querySelector('[data-deity-editor]');if(!root)throw Error('Deity editor not found.');
+  /** Pantheon → Edit deity, or a link to the deity list: the deity editor in the Factions tab (GM only). */
+  static async editDeity(e,t){assertGM();this.#tab='orgs';this.#foldersOpen=false;if(this.#orgsView.kind!=='deity')this.#orgsView={...ORG_VIEW,kind:'deity'};if(t?.dataset?.id)this.#editDeity=t.dataset.id;await this.render({force:true});}
+  /** Requests tab → Open <name>: that faction's or deity's Requests sub-tab. */
+  static async openRecord(e,t){assertGM();const kind=t.dataset.kind==='deity'?'deity':'faction';this.#tab='orgs';this.#foldersOpen=false;if(this.#orgsView.kind!==kind)this.#orgsView={...ORG_VIEW,kind};
+    if(kind==='deity')this.#editDeity=t.dataset.id;else this.#selected=t.dataset.id;this.#subTab[kind]='requests';await this.render({force:true});}
+  /** In-text links ("in GM Setup") switch the top-level view. */
+  static async goto(e,t){const page=t.dataset.goto;if(!PAGES.includes(page)||(GM_PAGES.includes(page)&&!game.user.isGM))return;this.#tab=page;this.#foldersOpen=false;await this.render({force:true});}
+  static async toggleFolders(){assertGM();this.#foldersOpen=!this.#foldersOpen;await this.render({force:true});}
+  static async createDeity(){try{assertGM();const typed=await promptText('New deity','Deity name');if(typed===null)return;const name=typed.trim();if(!name||name.length>120)throw Error('Deity name required (up to 120 characters).');const f=makeDeity({...deityIdPair(),name});const doc=await JournalEntry.create({name,folder:(await ensureStorageFolder()).id,ownership:{default:NONE},flags:{[MODULE_ID]:{faction:sourceDefinition(f)}}});await ensureGroup(doc);this.#editDeity=f.id;if(this.#orgsView.kind!=='deity')this.#orgsView={...ORG_VIEW,kind:'deity'};this.#subTab.deity='profile';await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
+  static async saveDeity(){try{assertGM();const doc=definition(this.#cur),f=doc&&loadDef(doc);if(!isDeity(f))throw Error('Open a deity first.');const root=this.element.querySelector('[data-deity-editor]');if(!root)throw Error('Deity editor not found.');
     f.name=nameValue(root,'deity-name');const d=deityProfile(f.deity);d.symbol=nameValue(root,'deity-symbol');for(const k of DEITY_TEXT_KEYS)d[k]=String(root.querySelector(`[name="deity-${k}"]`)?.value??'').trim();d.tier=selectedValue(root,'deity-tier');d.saying={text:nameValue(root,'deity-saying-text'),attribution:nameValue(root,'deity-saying-attribution')};f.deity=d;
-    f.tags=nameValue(root,'deity-tags').split(',').map(s=>s.trim()).filter(Boolean);f.discovery.placeholder=Boolean(root.querySelector('[name=deity-placeholder]')?.checked);f.discovery.sharing_enabled=Boolean(root.querySelector('[name=deity-sharing]')?.checked);
+    f.tags=nameValue(root,'deity-tags').split(',').map(s=>s.trim()).filter(Boolean);
     const rows=[...root.querySelectorAll('[data-milestone-row="individual"]')];if(rows.length!==5)throw Error('Five rank rows expected.');f.individual_track.milestones=rows.map((row,i)=>({...f.individual_track.milestones[i],name:String(row.querySelector('[data-field=name]')?.value??'').trim(),threshold:Number(row.querySelector('[data-field=threshold]')?.value),benefit:String(row.querySelector('[data-field=benefit]')?.value??''),selection_mode:row.querySelector('[data-field=selection]')?.value??'all'}));
-    await saveChange(doc,f);await this.render({force:true});ui.notifications.info('Deity saved.');}catch(e){notifyError(e)}}
-  static async pickSymbol(){try{assertGM();const input=this.element.querySelector('[name=deity-symbol]');const FP=foundry.applications?.apps?.FilePicker?.implementation??globalThis.FilePicker;if(!input||!FP)throw Error('File picker unavailable; type the image path.');new FP({type:'image',current:input.value,callback:path=>{input.value=path;}}).render(true);}catch(e){notifyError(e)}}
-  static async addRelation(){try{assertGM();const doc=definition(this.#deity),f=doc&&loadDef(doc);if(!isDeity(f))throw Error('Open a deity first.');const target=selectedValue(this.element,'relation-deity'),resonance=Number(selectedValue(this.element,'relation-resonance')||RESONANCE_NEUTRAL);if(target===f.id||!isDeity(getFaction(definition(target))))throw Error('Choose another deity.');if(!validResonance(resonance))throw Error('Resonance must be between 0 and 1.');const d=deityProfile(f.deity);if(d.relations.some(r=>r.deity_id===target))throw Error('That relation already exists.');d.relations.push({deity_id:target,resonance});f.deity=d;await saveChange(doc,f);await this.render({force:true});}catch(e){notifyError(e)}}
+    await saveChange(doc,f);this.#guard.markClean();await this.render({force:true});ui.notifications.info('Deity saved.');}catch(e){notifyError(e)}}
+  static async pickSymbol(){try{assertGM();const input=this.element.querySelector('[name=deity-symbol]');const FP=foundry.applications?.apps?.FilePicker?.implementation??globalThis.FilePicker;if(!input||!FP)throw Error('File picker unavailable; type the image path.');new FP({type:'image',current:input.value,callback:path=>{input.value=path;this.#guard.markDirty();}}).render(true);}catch(e){notifyError(e)}}
+  static async addRelation(){try{assertGM();const doc=definition(this.#cur),f=doc&&loadDef(doc);if(!isDeity(f))throw Error('Open a deity first.');const target=selectedValue(this.element,'relation-deity'),resonance=Number(selectedValue(this.element,'relation-resonance')||RESONANCE_NEUTRAL);if(target===f.id||!isDeity(getFaction(definition(target))))throw Error('Choose another deity.');if(!validResonance(resonance))throw Error('Resonance must be between 0 and 1.');const d=deityProfile(f.deity);if(d.relations.some(r=>r.deity_id===target))throw Error('That relation already exists.');d.relations.push({deity_id:target,resonance});f.deity=d;await saveChange(doc,f);await this.render({force:true});}catch(e){notifyError(e)}}
   /** GM slider: one direction (this deity -> target), 0 Dissonance … 0.5 neutral … 1 Resonance. */
-  async setResonance(target,value){try{assertGM();const doc=definition(this.#deity),f=doc&&loadDef(doc);if(!isDeity(f))throw Error('Open a deity first.');const v=Number(value);if(!validResonance(v))throw Error('Resonance must be between 0 and 1.');const d=deityProfile(f.deity),r=d.relations.find(x=>x.deity_id===target);if(!r)throw Error('Relation not found.');r.resonance=v;f.deity=d;await saveChange(doc,f);await this.render({force:true});}catch(e){notifyError(e)}}
+  async setResonance(target,value){try{assertGM();const doc=definition(this.#cur),f=doc&&loadDef(doc);if(!isDeity(f))throw Error('Open a deity first.');const v=Number(value);if(!validResonance(v))throw Error('Resonance must be between 0 and 1.');const d=deityProfile(f.deity),r=d.relations.find(x=>x.deity_id===target);if(!r)throw Error('Relation not found.');r.resonance=v;f.deity=d;await saveChange(doc,f);await this.render({force:true});}catch(e){notifyError(e)}}
   /** Undo adds reversing entries (nothing is deleted): the chosen entry and, for a gain, the knock-ons it caused. Undo entries never spread. */
   static async undoFavour(e,t){try{assertGM();const actor=game.actors.get(this.#actor);if(!actor)throw Error('Select a character.');const id=t.dataset.event,own=getPersonal(personalDoc(this.#deity,actor.id)),ev=own?.standing?.events?.find(x=>x.id===id);if(!ev)throw Error('History entry not found.');
     const reversed=events=>new Set(events.map(x=>x.reverses).filter(Boolean));if(ev.reverses||reversed(own.standing.events).has(ev.id))throw Error('That entry is already an undo or has been undone.');
@@ -509,25 +633,33 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
     if(!await confirmDialog(`Undo "${ev.reason}" (${sign(ev.delta)}) for ${actor.name}?${linked.length?` This also undoes ${linked.map(l=>`${name(l.deityId)} ${sign(l.ev.delta)}`).join(', ')}.`:''} History keeps both entries.`,{title:'Undo this favour change?',yes:'Undo change'}))return;
     for(const row of [{deityId:this.#deity,ev},...linked])await writeFavour(row.deityId,actor,-row.ev.delta,`Undo: ${row.ev.reason}`,{reverses:row.ev.id,...(row.ev.source_deity?{source_deity:row.ev.source_deity}:{})});
     await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
-  static async removeRelation(e,t){try{assertGM();const doc=definition(this.#deity),f=doc&&loadDef(doc);if(!isDeity(f))throw Error('Open a deity first.');const d=deityProfile(f.deity),r=d.relations.find(x=>x.deity_id===t.dataset.target);if(!r)throw Error('Relation not found.');if(!await confirmDialog(`Remove the relation to ${getFaction(definition(r.deity_id))?.name??r.deity_id}? Standing is not changed.`,{title:'Remove this relation?',yes:'Remove relation',danger:true}))return;d.relations=d.relations.filter(x=>x!==r);f.deity=d;await saveChange(doc,f);await this.render({force:true});}catch(e){notifyError(e)}}
-  static async create(){try{assertGM();const typed=await promptText('New faction','Faction name');if(typed===null)return;const name=typed.trim();if(!name||name.length>120)throw Error('Faction name required (up to 120 characters).');const f=makeFaction({...idPair(),name});const doc=await JournalEntry.create({name,folder:(await ensureStorageFolder()).id,ownership:{default:NONE},flags:{[MODULE_ID]:{faction:f}}});await ensureGroup(doc);this.#selected=f.id;await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
-  static async help(){const gm=game.user?.isGM;infoDialog('Renown Help',`<p><strong>Renown</strong> tracks the organizations your party has met and the Renown the group and each character have earned with them. Pick an organization on the left.</p><ul><li><strong>Group</strong> shows the party's standing with the selected organization, its milestones and what has been discovered.</li><li><strong>Player</strong> shows one character's personal Renown, information and rewards.${gm?'':' You can use <em>Share with Party</em> to share what you have discovered.'}</li><li><strong>Pantheon</strong> shows the deities your character knows, each with its holy symbol, its card and that character's favour. Favour is per character, never shared by the group. Open a deity to see its ranks, rewards, lore and related deities (Resonance or Dissonance).${gm?' As GM you can create deities, edit the card and rank titles, reveal a deity to the party or one character, adjust favour and manage rewards there. Each related deity has a slider from Dissonance to Resonance: a gain with this deity then moves that one too (scaled by the damping in GM Setup), and you confirm each change before it applies. Undo on a history entry reverses it and the changes it caused. The holy symbol is an image path (Browse opens the Assets Library); a missing image shows a plain sun glyph.':''}</li>${gm?'<li><strong>Organizations</strong> lists every organization. Search filters as you type; <em>New faction</em>, Import and Export are on the right of the toolbar. Below the list you edit the selected faction, its information entries, rewards, requests and folders.</li><li><strong>GM Setup</strong> holds the settings: Player Access (hides the player window without deleting any progress), Pantheon damping and the group name. Change them, then press <em>Save Changes</em> once. Developer Tools at the bottom loads demo guilds.</li>':''}</ul>${gm?'<p>Removing an entry, reward or objective reference, resetting service charges or clearing a milestone choice always asks you to confirm first.</p>':'<p>Rewards your character can claim are requested here and confirmed by the GM.</p>'}`)}
-  static async seed(){try{assertGM();if(!await confirmDialog('Add four unapproved example guilds? Existing names are skipped.',{title:'Add four example guilds?',yes:'Add guilds'}))return;let count=0;for(const g of RECOVERED_GUILDS_DRAFT){if(defs().some(d=>getFaction(d).name.toLowerCase()===g.name.toLowerCase()))continue;const f=makeFaction({...idPair(),...g,initialBenefit:g.initial_benefit,source:'Recovered Fosstryn journal drafts; not canonical'});const d=await JournalEntry.create({name:f.name,folder:(await ensureStorageFolder()).id,ownership:{default:NONE},flags:{[MODULE_ID]:{faction:f}}});await ensureGroup(d);count++;}await reproject();ui.notifications.info(`${count} example guilds added.`);await this.render({force:true});}catch(e){notifyError(e)}}
-  static async save(){try{assertGM();const doc=definition(this.#selected),f=loadDef(doc),root=this.element;f.name=nameValue(root,'faction-name');f.leader=nameValue(root,'faction-leader');f.public_role=nameValue(root,'faction-role');f.folder_key=selectedValue(root,'faction-folder');f.tags=nameValue(root,'faction-tags').split(',').map(s=>s.trim()).filter(Boolean);f.discovery.placeholder=Boolean(root.querySelector('[name=discovery-placeholder]')?.checked);f.discovery.sharing_enabled=Boolean(root.querySelector('[name=sharing-enabled]')?.checked);
+  static async removeRelation(e,t){try{assertGM();const doc=definition(this.#cur),f=doc&&loadDef(doc);if(!isDeity(f))throw Error('Open a deity first.');const d=deityProfile(f.deity),r=d.relations.find(x=>x.deity_id===t.dataset.target);if(!r)throw Error('Relation not found.');const other=getFaction(definition(r.deity_id))?.name??'the missing deity';if(!await confirmDanger(`Gains with ${f.name} stop moving ${other}. Standing is not changed.`,{title:`Remove the relation to ${other}?`,yes:'Remove relation'}))return;d.relations=d.relations.filter(x=>x!==r);f.deity=d;await saveChange(doc,f);await this.render({force:true});}catch(e){notifyError(e)}}
+  static async create(){try{assertGM();const typed=await promptText('New faction','Faction name');if(typed===null)return;const name=typed.trim();if(!name||name.length>120)throw Error('Faction name required (up to 120 characters).');const f=makeFaction({...idPair(),name});const doc=await JournalEntry.create({name,folder:(await ensureStorageFolder()).id,ownership:{default:NONE},flags:{[MODULE_ID]:{faction:f}}});await ensureGroup(doc);this.#selected=f.id;this.#foldersOpen=false;this.#subTab.faction='profile';await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
+  static async help(){const gm=game.user?.isGM;infoDialog('Renown Help',`<p><strong>Renown</strong> tracks the factions your party has met and the Renown the group and each character have earned with them.</p><h3>Group and Character</h3><ul><li><strong>Group</strong> shows the party's standing with the faction picked on the left, its milestones and what has been discovered.</li><li><strong>Character</strong> shows one character's personal Renown, information and rewards.${gm?'':' Use <em>Share with party</em> to share what you have discovered.'}</li></ul><h3>Pantheon</h3><p>The deities your character knows, each with its holy symbol, its card and that character's favour. Favour is per character, never shared by the group. Open a deity to see its ranks, rewards, lore and related deities (Resonance or Dissonance).${gm?' As GM you adjust favour and undo changes here; <em>Edit deity</em> opens it in the Factions tab.':''}</p>${gm?'<h3>Factions (GM)</h3><p>Every faction, or every deity (pick with <em>Show</em>), in the list on the left. Search filters as you type. Pick one to edit it on the right: <em>Profile</em> (name, folder and ranks), <em>Visibility</em> (reveal to the party or one character, placeholder, sharing, fields), <em>Information</em> or <em>Lore</em>, <em>Rewards</em>, <em>Requests</em>, and <em>Links</em> (factions) or <em>Relations</em> (deities). Profile and Visibility save with <em>Save Changes</em> at the bottom right; the other sections apply at once. If you leave with unsaved edits, Renown asks first. <em>Manage folders</em>, Import, Export and <em>New faction</em> or <em>New deity</em> are on the right of the toolbar.</p><p>Each related deity has a slider from Dissonance to Resonance: a gain with this deity then moves that one too (scaled by the damping in GM Setup), and you confirm each change before it applies. The holy symbol is an image path (Browse opens the Assets Library); a missing image shows a plain sun glyph.</p><h3>Requests (GM)</h3><p>Every open claim and service request from every faction and deity, with the number waiting on the tab.</p><h3>GM Setup</h3><p>The settings: Player access (hides the player window without deleting any progress), Pantheon damping and the group name. Change them, then press <em>Save Changes</em> once. Developer Tools at the bottom fill in permanent item ids and load [TEST] demo factions.</p><p>Removing an entry, reward, relation or objective reference, denying a request, resetting service charges or clearing a milestone choice always asks you to confirm first.</p>':'<p>Rewards your character can claim are requested here and confirmed by the GM.</p>'}`)}
+  static async seed(){try{assertGM();if(!await confirmDialog('Adds four synthetic [TEST] factions for trying Renown out. Existing names are skipped.',{title:'Add four [TEST] factions?',yes:'Add factions'}))return;let count=0;for(const g of TEST_FACTIONS_DEMO){if(defs().some(d=>getFaction(d).name.toLowerCase()===g.name.toLowerCase()))continue;const f=makeFaction({...idPair(),...g,initialBenefit:g.initial_benefit,source:'Synthetic [TEST] demo data'});const d=await JournalEntry.create({name:f.name,folder:(await ensureStorageFolder()).id,ownership:{default:NONE},flags:{[MODULE_ID]:{faction:f}}});await ensureGroup(d);count++;}await reproject();ui.notifications.info(`${plural(count,'[TEST] faction')} added.`);await this.render({force:true});}catch(e){notifyError(e)}}
+  /** Profile sub-tab: name, leader, description, folder, tags and both rank tracks. Discovery is on Visibility. */
+  static async save(){try{assertGM();const doc=definition(this.#selected);if(!doc)throw Error('Select a faction first.');const f=loadDef(doc),root=this.element;f.name=nameValue(root,'faction-name');f.leader=nameValue(root,'faction-leader');f.public_role=nameValue(root,'faction-role');f.folder_key=selectedValue(root,'faction-folder');f.tags=nameValue(root,'faction-tags').split(',').map(s=>s.trim()).filter(Boolean);
     for(const [scope,track] of [['group',f.renown_track],['individual',f.individual_track]]){const rows=[...root.querySelectorAll(`[data-milestone-row="${scope}"]`)];if(rows.length!==5)throw Error('Five milestone rows expected.');track.milestones=rows.map((row,i)=>({...track.milestones[i],name:String(row.querySelector('[data-field=name]')?.value??'').trim(),threshold:Number(row.querySelector('[data-field=threshold]')?.value),benefit:String(row.querySelector('[data-field=benefit]')?.value??''),selection_mode:row.querySelector('[data-field=selection]')?.value??'all'}));}
-    await saveChange(doc,f);await this.render({force:true});ui.notifications.info('Faction setup saved.');}catch(e){notifyError(e)}}
+    await saveChange(doc,f);this.#guard.markClean();await this.render({force:true});ui.notifications.info('Faction saved.');}catch(e){notifyError(e)}}
+  /** Visibility sub-tab (factions and deities): placeholder and sharing, plus field reveals for a faction. One Save
+   * Changes (FR-05). A control that is not on the page is left as it was. */
   static async saveFieldReveals(){try{
-    assertGM();const doc=definition(this.#selected);if(!doc)throw Error('Select a faction first.');
-    const f=loadDef(doc),root=this.element,selective=Boolean(root.querySelector('[name=field-selective]')?.checked);
-    let d=fieldDisclosure(f.field_reveals);d.mode=selective?'selective':'legacy';
-    if(selective)for(const key of FIELD_KEYS){
-      d.fields[key].party=Boolean(root.querySelector(`[name=field-party-${key}]`)?.checked);
-      const actor=this.#actor;if(actor){const actors=new Set(d.fields[key].actors);
-        if(root.querySelector(`[name=field-actor-${key}]`)?.checked)actors.add(actor);else actors.delete(actor);
-        d.fields[key].actors=[...actors];}
+    assertGM();const doc=definition(this.#cur);if(!doc)throw Error('Select a faction or deity first.');
+    const f=loadDef(doc),root=this.element,box=name=>root.querySelector(`[name=${name}]`);
+    if(box('discovery-placeholder'))f.discovery.placeholder=Boolean(box('discovery-placeholder').checked);
+    if(box('sharing-enabled'))f.discovery.sharing_enabled=Boolean(box('sharing-enabled').checked);
+    if(!isDeity(f)&&box('field-selective')){
+      const selective=Boolean(box('field-selective').checked);let d=fieldDisclosure(f.field_reveals);d.mode=selective?'selective':'legacy';
+      if(selective)for(const key of FIELD_KEYS){
+        d.fields[key].party=Boolean(root.querySelector(`[name=field-party-${key}]`)?.checked);
+        const actor=this.#actor;if(actor){const actors=new Set(d.fields[key].actors);
+          if(root.querySelector(`[name=field-actor-${key}]`)?.checked)actors.add(actor);else actors.delete(actor);
+          d.fields[key].actors=[...actors];}
+      }
+      f.field_reveals=d;
     }
-    f.field_reveals=d;await saveChange(doc,f);await this.render({force:true});
-    ui.notifications.info('Faction field visibility saved.');
+    await saveChange(doc,f);this.#guard.markClean();await this.render({force:true});
+    ui.notifications.info(isDeity(f)?'Deity visibility saved.':'Faction visibility saved.');
   }catch(e){notifyError(e)}}
   /** D4: GM Setup saves Player Access, damping and the group name together, only on Save Changes. Nothing is written
    * until every value is valid. Player Access goes through setPlayerAccess (same key, same launcher refresh). */
@@ -542,18 +674,18 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
     if(labelChanged){await game.settings.set(MODULE_ID,'groupName',name);await game.settings.set(MODULE_ID,'groupNameEnabled',named);}
     if(access!==playerAccessEnabled())await setPlayerAccess(access);
     if(labelChanged)await reproject();
-    ui.notifications.info('Renown settings saved.');await this.render({force:true});
+    this.#guard.markClean();ui.notifications.info('Renown settings saved.');await this.render({force:true});
   }catch(e){notifyError(e)}}
-  /** Cancel in an editor footer: drop unsaved edits by drawing the saved values again. */
-  static async cancelEdit(){await this.render({force:true});}
-  /** GM Setup → Fill in permanent item ids: Check rewards is a dry run; Fill in ids asks first, then writes. */
+  /** Cancel in an editor footer: drop unsaved edits by drawing the saved values again (same tab, same record). */
+  static async cancelEdit(){this.#guard.markClean();await this.render({force:true});}
+  /** Developer Tools → Fill in permanent item ids: Check rewards is a dry run; Fill in ids asks first, then writes. */
   static async checkRewardIds(){try{assertGM();this.#backfill=await backfillItemIds({dryRun:true});await this.render({force:true});}catch(e){notifyError(e)}}
   static async fillRewardIds(){try{assertGM();const plan=await backfillItemIds({dryRun:true});this.#backfill=plan;
     if(!plan.fill.length){ui.notifications.info('Renown: no reward needs a permanent item id.');await this.render({force:true});return;}
-    const n=plan.fill.length;if(!await confirmDialog(`Fill in the permanent item id of ${n} item reward${n===1?'':'s'}? Links, claims and rewards that already have an id are not changed.`,{title:'Fill in permanent item ids?',yes:'Fill in ids'})){await this.render({force:true});return;}
+    const n=plan.fill.length;if(!await confirmDialog(`Fill in the permanent item id of ${plural(n,'item reward')}? Links, claims and rewards that already have an id are not changed.`,{title:'Fill in permanent item ids?',yes:'Fill in ids'})){await this.render({force:true});return;}
     const done=await backfillItemIds({dryRun:false});this.#backfill={...await backfillItemIds({dryRun:true}),written:done.written};
-    ui.notifications.info(`Renown: filled in ${done.written} permanent item id${done.written===1?'':'s'}.`);await this.render({force:true});}catch(e){notifyError(e)}}
-  static async clearOrgFilters(){this.#orgsView={...ORG_VIEW};await this.render({force:true});}
+    ui.notifications.info(`Renown: filled in ${plural(done.written,'permanent item id')}.`);await this.render({force:true});}catch(e){notifyError(e)}}
+  static async clearOrgFilters(){this.#orgsView={...ORG_VIEW,kind:this.#kind};await this.render({force:true});}
   static async award(e,t){try{assertGM();const doc=definition(this.#cur),f=loadDef(doc),scope=t.dataset.scope,zone=t.closest('[data-award-scope]');if(!zone||!['group','individual'].includes(scope))throw Error('Invalid Renown award scope.');if(isDeity(f)&&scope!=='individual')throw Error('Deities have no group standing; award a character.');const delta=Number(zone.querySelector('[name=renown-delta]')?.value),reason=nameValue(zone,'renown-reason'),args={delta,reason,eventId:`RENOWN-EVT-${rid()}`,when:new Date().toISOString()};
     const actor=scope==='individual'?game.actors.get(this.#actor):null;if(scope==='individual'&&!actor)throw Error('Select a character.');const stateDoc=scope==='group'?await ensureGroup(doc):await ensurePersonal(doc,actor),key=scope==='group'?'groupClaims':'individual',state=structuredClone(stateDoc.getFlag(MODULE_ID,key)),result=adjustStanding(state.standing,args);if(!result.applied)return ui.notifications.warn('No change applied.');
     // Pantheon: a gain spreads to related deities only after the GM confirms each knock-on (all ticked by default).
@@ -566,10 +698,10 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
     state.standing=result.standing;await stateDoc.setFlag(MODULE_ID,key,state);
     for(const k of chosen)await writeFavour(k.deity_id,actor,k.delta,`${k.label} with ${f.name}: ${reason}`,{caused_by:args.eventId,source_deity:f.id});
     const learned=grantAutoKnowledge(f,scope,actor?.id,result.standing.score);if(learned.changed.length)await saveDef(doc,learned.faction);
-    await reproject();await this.render({force:true});ui.notifications.info(`${scope==='group'?'Group':actor.name} Renown: ${result.before} → ${result.after}${chosen.length?` (+${chosen.length} related ${chosen.length===1?'deity':'deities'})`:''}`);
+    await reproject();await this.render({force:true});ui.notifications.info(`${scope==='group'?'Group':actor.name} Renown: ${result.before} → ${result.after}${chosen.length?` (+${plural(chosen.length,'related deity','related deities')})`:''}`);
   }catch(e){notifyError(e)}}
   static async createFolder(){try{assertGM();const name=nameValue(this.element,'new-folder-name');if(!name||name.length>100)throw Error('Folder name required (max 100 characters).');const doc=await folderRecord(),entry=structuredClone(getFolders(doc));entry.folders.push({key:`folder_${keyFor(rid())}`,name});await doc.setFlag(MODULE_ID,'folderIndex',entry);await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
-  static async saveFolder(e,t){try{assertGM();const d=await folderRecord(),rec=structuredClone(getFolders(d)),folder=rec.folders.find(x=>x.key===t.dataset.key);if(!folder)throw Error('Folder not found.');const name=await promptText('Rename folder','Folder name:',folder.name);if(name===null)return;if(!name.trim()||name.trim().length>100)throw Error('Invalid name.');folder.name=name.trim();await d.setFlag(MODULE_ID,'folderIndex',rec);await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
+  static async saveFolder(e,t){try{assertGM();const d=await folderRecord(),rec=structuredClone(getFolders(d)),folder=rec.folders.find(x=>x.key===t.dataset.key);if(!folder)throw Error('Folder not found.');const name=await promptText(`Rename ${folder.name}`,'Folder name',folder.name,{ok:'Rename folder'});if(name===null)return;if(!name.trim()||name.trim().length>100)throw Error('Invalid name.');folder.name=name.trim();await d.setFlag(MODULE_ID,'folderIndex',rec);await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
   static async discovery(e,t){try{assertGM();const doc=definition(this.#cur),f=loadDef(doc);const action=t.dataset.mode;
     if(action==='party')f.discovery.party=!f.discovery.party;
     else if(action==='actor'){const actor=game.actors.get(this.#actor);if(!actor)throw Error('Select an assigned character.');const arr=f.discovery.actors;f.discovery.actors=arr.includes(actor.id)?arr.filter(i=>i!==actor.id):[...arr,actor.id];}
@@ -587,20 +719,20 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
   static async removeObjective(e,t){try{
     assertGM();const doc=definition(this.#selected);if(!doc)throw Error('Choose a faction first.');
     const ref={relation:t.dataset.relation,target_id:t.dataset.objective,mode:t.dataset.mode};
-    if(!await confirmDialog(`Remove ${ref.relation} → ${ref.target_id} from ${loadDef(doc).name}? Quest progress is not changed.`,{title:'Remove this objective reference?',yes:'Remove reference',danger:true}))return;
+    if(!await confirmDanger(`${loadDef(doc).name} no longer lists it. Quest progress is not changed.`,{title:`Remove the reference to ${ref.target_id}?`,yes:'Remove reference'}))return;
     await saveChange(doc,removeObjectiveRef(loadDef(doc),ref));await this.render({force:true});
   }catch(e){notifyError(e)}}
   static async addEntry(e,t){try{assertGM();const zone=t.closest('[data-info-editor]'),doc=definition(this.#cur),f=loadDef(doc),name=nameValue(zone,'info-name');if(!name)throw Error('Entry needs a title.');f.entries.push({id:`info_${keyFor(rid())}`,name,text:nameValue(zone,'info-text'),link_mode:'preview',unlock:zone.querySelector('[name=info-unlock]')?.value??'manual',threshold:Number(zone.querySelector('[name=info-threshold]')?.value??0),discovered_party:false,discovered_actors:[]});await saveChange(doc,f);await this.render({force:true});}catch(e){notifyError(e)}}
-  static async showEntry(e,t){try{assertGM();const doc=definition(this.#cur),f=loadDef(doc),entry=f.entries.find(r=>r.id===t.dataset.entry);if(!entry)throw Error('Entry not found.');const action=t.dataset.mode;if(action==='party')entry.discovered_party=!entry.discovered_party;else if(action==='actor'){const actor=game.actors.get(this.#actor);if(!actor)throw Error('Select character first.');entry.discovered_actors??=[];entry.discovered_actors=entry.discovered_actors.includes(actor.id)?entry.discovered_actors.filter(i=>i!==actor.id):[...entry.discovered_actors,actor.id];}else if(action==='mode'){entry.link_mode=entry.link_mode==='preview'?'document':'preview';}else if(action==='edit'){const txt=await promptText('Edit information',`Information for ${entry.name}:`,entry.text??'',{multiline:true});if(txt===null)return;entry.text=txt;}else if(action==='remove'){if(!await confirmDialog(`Remove "${entry.name}" from ${f.name}? This is not undone.`,{title:'Remove this entry?',yes:'Remove entry',danger:true}))return;f.entries=f.entries.filter(x=>x.id!==entry.id);}await saveChange(doc,f);await this.render({force:true});}catch(e){notifyError(e)}}
+  static async showEntry(e,t){try{assertGM();const doc=definition(this.#cur),f=loadDef(doc),entry=f.entries.find(r=>r.id===t.dataset.entry);if(!entry)throw Error('Entry not found.');const action=t.dataset.mode;if(action==='party')entry.discovered_party=!entry.discovered_party;else if(action==='actor'){const actor=game.actors.get(this.#actor);if(!actor)throw Error('Select character first.');entry.discovered_actors??=[];entry.discovered_actors=entry.discovered_actors.includes(actor.id)?entry.discovered_actors.filter(i=>i!==actor.id):[...entry.discovered_actors,actor.id];}else if(action==='mode'){entry.link_mode=entry.link_mode==='preview'?'document':'preview';}else if(action==='edit'){const txt=await promptText('Edit information',`Information for ${entry.name}:`,entry.text??'',{multiline:true});if(txt===null)return;entry.text=txt;}else if(action==='remove'){if(!await confirmDanger(`Players lose this entry from ${f.name}. This is not undone.`,{title:`Remove ${entry.name}?`,yes:'Remove entry'}))return;f.entries=f.entries.filter(x=>x.id!==entry.id);}await saveChange(doc,f);await this.render({force:true});}catch(e){notifyError(e)}}
   static async addReward(e,t){try{assertGM();const zone=t.closest('[data-reward-drop]'),doc=definition(this.#cur),f=loadDef(doc),name=nameValue(zone,'reward-name');if(!name)throw Error('Reward name required.');f.rewards.push({id:`rw-${rid()}`,key:keyFor('rw_'+rid()),audience:zone.dataset.audience,milestone_id:zone.dataset.milestone,name,teaser:name,description:nameValue(zone,'reward-description'),kind:'custom',tags:[],behavior:zone.querySelector('[name=reward-behavior]')?.value??'one_time',usage_limit:Number(zone.querySelector('[name=reward-limit]')?.value??0)});await saveChange(doc,f);await this.render({force:true});}catch(e){notifyError(e)}}
-  static async editReward(e,t){try{assertGM();const doc=definition(this.#cur),f=loadDef(doc),reward=f.rewards.find(r=>r.id===t.dataset.reward);if(!reward)throw Error('Reward not found.');const v=await formDialog('Edit reward',[{name:'name',label:'Reward name',value:reward.name},{name:'teaser',label:'Locked reward teaser',value:reward.teaser??reward.name},{name:'description',label:'Unlocked description',value:reward.description??'',type:'textarea'},{name:'tags',label:'Tags (comma separated)',value:(reward.tags??[]).join(', ')},{name:'behavior',label:'Behavior',value:reward.behavior??'one_time',type:'select',options:[{value:'one_time',label:'One time'},{value:'repeatable_service',label:'Repeatable service'},{value:'passive',label:'Passive'}]},{name:'usage_limit',label:'Usage limit (0 = unlimited)',value:reward.usage_limit??0,type:'number'}]);if(v===null)return;const {name,teaser,description,tags,behavior}=v;if(!['one_time','repeatable_service','passive'].includes(behavior))throw Error('Invalid reward behavior.');const limit=Number(v.usage_limit);if(!Number.isSafeInteger(limit)||limit<0)throw Error('Invalid usage limit.');Object.assign(reward,{name:name.trim(),teaser,description,tags:tags.split(',').map(s=>s.trim()).filter(Boolean),behavior,usage_limit:limit});await fillRewardItemId(reward);await saveChange(doc,f);await this.render({force:true});}catch(e){notifyError(e)}}
-  static async removeReward(e,t){try{assertGM();const doc=definition(this.#cur),f=loadDef(doc),id=t.dataset.reward;if(game.journal.some(d=>{const state=getGroup(d)??getPersonal(d);return state&&(state.claims?.[id]||Object.values(state.requests??{}).some(r=>r.reward_id===id))}))throw Error('Reward has recorded claims or requests; do not delete its identity.');const reward=f.rewards.find(r=>r.id===id),held=reward?.kind==='uuid'?await loadDoc(reward.uuid):null,holding=isHoldingCopy(held)?held:null;if(!await confirmDialog(`Remove "${reward?.name??'this reward'}" from ${f.name}?${holding?' Its GM-only holding copy in the Items sidebar is deleted too.':''} This is not undone.`,{title:'Remove this reward?',yes:'Remove reward',danger:true}))return;f.rewards=f.rewards.filter(r=>r.id!==id);await saveChange(doc,f);if(holding&&!defs().some(d=>(getFaction(d)?.rewards??[]).some(r=>r.uuid===holding.uuid)))await deleteWorldItems((await bundleOf(holding)).map(i=>i.id));await this.render({force:true});}catch(e){notifyError(e)}}
+  static async editReward(e,t){try{assertGM();const doc=definition(this.#cur),f=loadDef(doc),reward=f.rewards.find(r=>r.id===t.dataset.reward);if(!reward)throw Error('Reward not found.');const v=await formDialog(`Edit ${reward.name}`,[{name:'name',label:'Reward name',value:reward.name},{name:'teaser',label:'Locked reward teaser',value:reward.teaser??reward.name},{name:'description',label:'Unlocked description',value:reward.description??'',type:'textarea'},{name:'tags',label:'Tags (comma separated)',value:(reward.tags??[]).join(', ')},{name:'behavior',label:'Behavior',value:reward.behavior??'one_time',type:'select',options:[{value:'one_time',label:'One time'},{value:'repeatable_service',label:'Repeatable service'},{value:'passive',label:'Passive'}]},{name:'usage_limit',label:'Usage limit (0 = unlimited)',value:reward.usage_limit??0,type:'number'}],{ok:'Save Changes'});if(v===null)return;const {name,teaser,description,tags,behavior}=v;if(!['one_time','repeatable_service','passive'].includes(behavior))throw Error('Invalid reward behavior.');const limit=Number(v.usage_limit);if(!Number.isSafeInteger(limit)||limit<0)throw Error('Invalid usage limit.');Object.assign(reward,{name:name.trim(),teaser,description,tags:tags.split(',').map(s=>s.trim()).filter(Boolean),behavior,usage_limit:limit});await fillRewardItemId(reward);await saveChange(doc,f);await this.render({force:true});}catch(e){notifyError(e)}}
+  static async removeReward(e,t){try{assertGM();const doc=definition(this.#cur),f=loadDef(doc),id=t.dataset.reward;if(game.journal.some(d=>{const state=getGroup(d)??getPersonal(d);return state&&(state.claims?.[id]||Object.values(state.requests??{}).some(r=>r.reward_id===id))}))throw Error('Reward has recorded claims or requests; do not delete its identity.');const reward=f.rewards.find(r=>r.id===id),held=reward?.kind==='uuid'?await loadDoc(reward.uuid):null,holding=isHoldingCopy(held)?held:null;if(!await confirmDanger(`Players can no longer claim it from ${f.name}.${holding?' Its GM-only holding copy in the Items sidebar is deleted too.':''} This is not undone.`,{title:`Remove ${reward?.name??'this reward'}?`,yes:'Remove reward'}))return;f.rewards=f.rewards.filter(r=>r.id!==id);await saveChange(doc,f);if(holding&&!defs().some(d=>(getFaction(d)?.rewards??[]).some(r=>r.uuid===holding.uuid)))await deleteWorldItems((await bundleOf(holding)).map(i=>i.id));await this.render({force:true});}catch(e){notifyError(e)}}
   static async claim(e,t){try{requirePlayerAccess();if(game.user.isGM){ui.notifications.warn('Test claims as a player.');return;}const view=getView(userViewDoc(game.user)),f=viewEntry(view,this.#cur);if(!f||!activeGM())throw Error('Entry or online GM unavailable.');const audience=t.dataset.audience,actor=audience==='individual'?game.actors.get(this.#actor):null;if(audience==='individual'&&!actor)throw Error('Choose your assigned character.');const msg={type:'request',factionId:f.id,actorId:actor?.id??null,rewardId:t.dataset.reward,audience,userId:game.user.id,capability:view.capability};sendClientAction(msg);ui.notifications.info('Request sent; awaiting GM confirmation...');}catch(e){notifyError(e)}}
   static async resolveRequest(e,t){try{assertGM();const doc=game.journal.get(t.dataset.doc),group=Boolean(getGroup(doc)),key=group?'groupClaims':'individual',state=structuredClone(doc?.getFlag(MODULE_ID,key)),fdoc=definition(state?.faction_id),f=loadDef(fdoc),action=t.dataset.mode;const one=Boolean(t.dataset.claim),id=t.dataset.key;
     if(!state||!fdoc)throw Error('Request record missing.');const record=one?state.claims?.[id]:state.requests?.[id],reward=f.rewards.find(r=>r.id===(one?id:record?.reward_id));if(!record||!reward)throw Error('Request no longer exists.');
     if(action==='deny'){if(!['pending','requested','approved'].includes(record.status))throw Error('Cannot deny completed request.');
       const who=state.actor_id?game.actors.get(state.actor_id)?.name??'this character':'the group';
-      if(!await confirmDialog(`Deny the request for "${reward.name}" from ${who}? The player is not told why, and this is not undone.`,{title:'Deny this request?',yes:'Deny request',danger:true}))return;
+      if(!await confirmDanger(`Deny the request for "${reward.name}" from ${who}? The player is not told why, and this is not undone.`,{title:`Deny ${reward.name}?`,yes:'Deny request'}))return;
       record.status='denied';record.usage_charged=false;}
     else if(action==='approve'){
       if(!['pending','requested'].includes(record.status))throw Error('Request already reviewed.');if(!rewardUnlocked(reward,f,state.standing.score))throw Error('Renown no longer qualifies.');if(!chooseOneEligible({faction:f,reward,claims:state.claims,choices:state.choices}))throw Error('Another Choose One reward already confirmed.');
@@ -619,12 +751,12 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
     }else throw Error('Invalid request action.');
     await doc.setFlag(MODULE_ID,key,state);await reproject();await this.render({force:true});
   }catch(e){notifyError(e)}}
-  static async resetUsage(e,t){try{assertGM();const doc=definition(this.#cur),f=loadDef(doc),aud=t.dataset.audience,actor=aud==='individual'?game.actors.get(this.#actor):null,store=aud==='group'?await ensureGroup(doc):actor?await ensurePersonal(doc,actor):null;if(!store)throw Error('No selected character.');const key=aud==='group'?'groupClaims':'individual',state=structuredClone(store.getFlag(MODULE_ID,key)),reward=f.rewards.find(r=>r.id===t.dataset.reward);if(reward?.behavior!=='repeatable_service')throw Error('Not a service.');if(!await confirmDialog(`Reset the used charges of "${reward.name}"? Fulfilled request history stays.`,{title:'Reset service charges?',yes:'Reset charges',danger:true}))return;state.uses??={};const old=state.uses[reward.id]??{consumed:0,reset_count:0};state.uses[reward.id]={consumed:0,reset_count:old.reset_count+1};await store.setFlag(MODULE_ID,key,state);await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
-  static async resetChoice(e,t){try{assertGM();const fdoc=definition(this.#cur),audience=t.dataset.audience,actor=audience==='individual'?game.actors.get(this.#actor):null,doc=audience==='group'?await ensureGroup(fdoc):actor?await ensurePersonal(fdoc,actor):null;if(!doc)throw Error('Choose an assigned character first.');const key=audience==='group'?'groupClaims':'individual',state=structuredClone(doc.getFlag(MODULE_ID,key));if(!await confirmDialog('Clear this milestone choice so another reward can be chosen? Items or benefits already granted are not removed.',{title:'Clear this milestone choice?',yes:'Clear choice',danger:true}))return;state.choices??={};state.choices[t.dataset.milestone]=null;await doc.setFlag(MODULE_ID,key,state);await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
+  static async resetUsage(e,t){try{assertGM();const doc=definition(this.#cur),f=loadDef(doc),aud=t.dataset.audience,actor=aud==='individual'?game.actors.get(this.#actor):null,store=aud==='group'?await ensureGroup(doc):actor?await ensurePersonal(doc,actor):null;if(!store)throw Error('No selected character.');const key=aud==='group'?'groupClaims':'individual',state=structuredClone(store.getFlag(MODULE_ID,key)),reward=f.rewards.find(r=>r.id===t.dataset.reward);if(reward?.behavior!=='repeatable_service')throw Error('Not a service.');if(!await confirmDanger(`The used charges go back to zero${actor?` for ${actor.name}`:''}. Fulfilled request history stays.`,{title:`Reset the charges of ${reward.name}?`,yes:'Reset charges'}))return;state.uses??={};const old=state.uses[reward.id]??{consumed:0,reset_count:0};state.uses[reward.id]={consumed:0,reset_count:old.reset_count+1};await store.setFlag(MODULE_ID,key,state);await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
+  static async resetChoice(e,t){try{assertGM();const fdoc=definition(this.#cur),f=loadDef(fdoc),audience=t.dataset.audience,actor=audience==='individual'?game.actors.get(this.#actor):null,doc=audience==='group'?await ensureGroup(fdoc):actor?await ensurePersonal(fdoc,actor):null;if(!doc)throw Error('Choose an assigned character first.');const key=audience==='group'?'groupClaims':'individual',state=structuredClone(doc.getFlag(MODULE_ID,key));const level=(audience==='group'?f.renown_track:f.individual_track).milestones.find(m=>m.id===t.dataset.milestone);if(!await confirmDanger('Another reward can then be chosen. Items or benefits already granted are not removed.',{title:`Clear the choice for ${level?.name??'this milestone'}?`,yes:'Clear choice'}))return;state.choices??={};state.choices[t.dataset.milestone]=null;await doc.setFlag(MODULE_ID,key,state);await reproject();await this.render({force:true});}catch(e){notifyError(e)}}
   static async openLinked(e,t){try{requirePlayerAccess();const uuid=t.dataset.uuid;if(!uuid)throw Error('No document link.');const doc=await fromUuid(uuid);if(!doc||!(doc.testUserPermission?.(game.user,OBS)||(doc.parent?.documentName==='Actor'&&doc.parent.testUserPermission?.(game.user,OWNER))))throw Error('Document access is not permitted.');doc.sheet.render(true);}catch(e){notifyError(e)}}
-  static importJson(){try{assertGM();this.element.querySelector('[name=faction-import-file]')?.click();}catch(e){notifyError(e)}}
-  async importFile(input){
-    const file=input.files?.[0];input.value='';if(!file)return;
+  /** Factions tab → Import… (a keyboard-reachable file button, kit fileButton). */
+  async importFile(file){
+    if(!file)return;
     try{
       assertGM();
       if(file.size>2_000_000)throw Error('File too large (over 2 MB).');
@@ -634,6 +766,7 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
       const fresh=rows.filter(r=>r.action==='new').length;
       const list=rows.map(r=>`${r.action==='new'?'New':'Already here'} · ${r.kind==='deity'?'Deity':'Faction'} · ${r.name}`).join('\n');
       if(!fresh){ui.notifications.info('Nothing to import: every faction and deity in that file is already in this world.');return;}
+      if(!(await this.okToLeave()))return;
       const ok=await confirmDialog(`Add ${fresh} of ${rows.length} entries from ${file.name}?\n${list}\nExisting factions and deities, their Renown and discovery are never changed.`,{title:'Import these definitions?',yes:'Import'});
       if(!ok)return;
       const result=await importFactions(data);
@@ -642,6 +775,11 @@ class Dashboard extends HandlebarsApplicationMixin(ApplicationV2){
     }catch(e){notifyError(e)}
   }
   static async exportAll(){try{assertGM();jsonDownload({schema_version:IMPORT_SCHEMA,definitions:defs().map(d=>sourceDefinition(getFaction(d))),note:'Excludes all mutable campaign state and user discovery state.'},'AG_Factions_Definitions.json');}catch(e){notifyError(e)}}
+}
+// FR-02: every action that re-renders asks first when typed edits are unsaved (the submit actions save them instead).
+for(const [name,fn] of Object.entries(Dashboard.DEFAULT_OPTIONS.actions)){
+  if(UNGUARDED.has(name))continue;
+  Dashboard.DEFAULT_OPTIONS.actions[name]=async function(event,target){if(!(await this.okToLeave()))return;return fn.call(this,event,target);};
 }
 /** One character's standing with every deity that character knows. Players: only characters they own, from their
  * projected view, so nothing unrevealed is ever read. GM: from the definitions. Returns [] when nothing is visible. */
@@ -665,7 +803,13 @@ const backfillView=r=>{if(!r)return null;const row=x=>({...x,label:`${x.faction}
 const decorateTrack=(ms,score,{audience,claimLabel,passiveLabel})=>markCurrent(ms,score).map(m=>({...m,rewards:(m.rewards??[]).map(r=>({...r,audience,claimLabel,passiveLabel}))}));
 const GROUP_TRACK={audience:'group',claimLabel:'Claim for group',passiveLabel:'Available privilege'},PERSONAL_TRACK={audience:'individual',claimLabel:'Claim reward',passiveLabel:'Available privilege'},FAVOUR_TRACK={audience:'individual',claimLabel:'Claim reward',passiveLabel:'Available blessing'};
 // `looks` (reward id → rewardLook) adds the item picture, permanent id and Missing badge in the GM reward editor.
-const editorLevels=(track,rewards,audience=null,looks=null)=>track.milestones.map((m,i)=>({...m,order:i+1,rewards:rewards.filter(r=>(!audience||r.audience===audience)&&r.milestone_id===m.id).map(r=>({...r,...(looks?.get(r.id)??{})})),isAll:m.selection_mode==='all',isOne:m.selection_mode==='choose_one'}));
+// `choices` (milestone id → chosen reward) shows Clear choice only on a Choose one level with a recorded choice (FR-11).
+const editorLevels=(track,rewards,audience=null,looks=null,choices=null)=>track.milestones.map((m,i)=>({...m,order:i+1,rewards:rewards.filter(r=>(!audience||r.audience===audience)&&r.milestone_id===m.id).map(r=>({...r,behaviorText:behaviorLabel(r.behavior),...(looks?.get(r.id)??{})})),isAll:m.selection_mode==='all',isOne:m.selection_mode==='choose_one',hasChoice:m.selection_mode==='choose_one'&&Boolean(choices?.[m.id])}));
+/** GM entry rows (Information, Lore): unlock in words, who knows it as badges (FR-07), and the button labels. */
+const entryRows=(entries=[],actorId,who,unit)=>entries.map(e=>{
+  const party=Boolean(e.discovered_party),mine=Boolean(actorId&&e.discovered_actors?.includes(actorId)),others=(e.discovered_actors??[]).filter(id=>id!==actorId).length;
+  const badges=[party&&{label:'Party',cls:'ag-badge--ok'},mine&&{label:who,cls:'ag-badge--accent'},!party&&!mine&&others&&{label:`Known to ${plural(others,'other character')}`,cls:''},!party&&!mine&&!others&&{label:'Hidden',cls:''}].filter(Boolean);
+  return {...e,unlockText:unlockLabel(e.unlock,e.threshold,unit),badges,partyLabel:revealLabel(party,'party'),actorLabel:revealLabel(mine,who),linkLabel:linkModeAction(e.link_mode)};});
 function rankOf(ms,score){return[...ms].reverse().find(m=>score>=m.threshold)?.name??'Unproven';}
 /* ---- 0.10.0: embed API. A partner module (Character Hub) mounts a compact, read-only standing list for one character:
    each faction this user may see, with party and this character's rank and score, the next milestone, and Open.
@@ -692,11 +836,11 @@ function embedHTML(ctrl){
   const actor=ctrl.actorId?game.actors.get(ctrl.actorId):null,rows=standingRows(ctrl.actorId);
   // 0.11.0: this character's favour with each deity they know (same permission path as api.getPantheon).
   const gods=actor?pantheonFor(actor):[];
-  if(!rows.length&&!gods.length)return '<div class="ag-empty">No organizations or deities known yet.</div>';
+  if(!rows.length&&!gods.length)return '<div class="ag-empty">No factions or deities known yet.</div>';
   const signed=n=>n>0?`+${n}`:String(n);
   const cell=(label,s)=>s?`<div class="agf-embed__cell"><small>${esc(label)}</small><strong>${esc(s.rank)}</strong><span class="agf-embed__score">${signed(s.score)}</span>${s.next?`<span class="agf-embed__next">Next: ${esc(s.next.name)} at ${s.next.threshold}</span>`:'<span class="agf-embed__next">Top rank</span>'}</div>`:'';
   const hidden=!game.user.isGM&&actor&&rows.every(r=>!r.personal);
-  return `<div class="agf-embed__body">${rows.map(r=>`<section class="agf-embed__row" data-faction="${esc(r.id)}"><header><strong>${esc(r.name||'Unknown Organization')}</strong>
+  return `<div class="agf-embed__body">${rows.map(r=>`<section class="agf-embed__row" data-faction="${esc(r.id)}"><header><strong>${esc(r.name||UNKNOWN_FACTION)}</strong>
       <button type="button" class="ag-btn ag-btn--sm" data-agf-embed="open" data-faction="${esc(r.id)}" data-tooltip="Open in Renown" data-tooltip-class="ag-tooltip">Open</button></header>
       <div class="agf-embed__cells">${cell(groupLabel(),r.group)}${cell(actor?.name??'Character',r.personal)}</div></section>`).join('')}
     ${hidden?`<p class="agf-embed__note">${esc(actor.name)}'s own standing shows to their owner.</p>`:''}${gods.length?`<h3 class="agf-embed__heading">Pantheon</h3>${gods.map(g=>`<section class="agf-embed__row agf-embed__deity" data-deity="${esc(g.id)}"><header><span class="agf-symbol agf-symbol--small">${g.symbol?`<img class="agf-symbol-img" src="${esc(g.symbol)}" alt="">`:''}<i class="fa-solid fa-sun agf-symbol-glyph" aria-hidden="true"></i></span><strong>${esc(g.name)}</strong>${g.title?` <small>${esc(g.title)}</small>`:''}
@@ -728,6 +872,8 @@ let dashboard=null;
 const openDashboard=(options={})=>{
   requirePlayerAccess();
   dashboard??=new Dashboard();
+  // An open window with unsaved edits is only brought forward; re-rendering it would drop the typed edits.
+  if(dashboard.rendered&&dashboard.isDirty){dashboard.bringToFront?.();return dashboard;}
   if(options&&typeof options==='object')dashboard.focus(options);
   dashboard.render({force:true});
   return dashboard;
@@ -751,6 +897,8 @@ function accessSettingChanged(setting){
 }
 Hooks.on('renderActorDirectory',(app,html)=>attachLauncher(app,html));
 Hooks.once('init',()=>{
+  // {{#agfFold key title count hint open}}…{{/agfFold}}: the kit's fold() around template content (kit 2.2).
+  globalThis.Handlebars?.registerHelper?.('agfFold',function(options){const h=options.hash??{};return new Handlebars.SafeString(fold({key:h.key,title:h.title,count:h.count,hint:h.hint,open:Boolean(h.open),body:options.fn(this)}));});
   game.settings.register(MODULE_ID,'groupName',{name:'Group display name',scope:'world',config:false,type:String,default:''});
   game.settings.register(MODULE_ID,'pantheonDamping',{name:'Pantheon knock-on damping',scope:'world',config:false,type:Number,default:DAMPING_DEFAULT});
   game.settings.register(MODULE_ID,'groupNameEnabled',{name:'Custom group name enabled',scope:'world',config:false,type:Boolean,default:false});
@@ -787,11 +935,11 @@ Hooks.once('ready',()=>{
   game.socket.on(SOCKET,msg=>{
     if(msg?.type==='receipt')clientReceipt(msg);
     else if(['request','share'].includes(msg?.type))void incoming(msg);
-    else if(msg?.type==='refresh'&&dashboard?.rendered&&playerMayOpen())void dashboard.render({force:true});
+    else if(msg?.type==='refresh'&&dashboard?.rendered&&playerMayOpen())dashboard.refresh();
   });
   for(const hook of ['updateJournalEntry','createJournalEntry','deleteJournalEntry'])Hooks.on(hook,()=>{
     refreshEmbeds();
-    if(dashboard?.rendered&&playerMayOpen())void dashboard.render({force:true});
+    if(dashboard?.rendered&&playerMayOpen())dashboard.refresh();
   });
   Hooks.on('updateSetting',setting=>{
     refreshEmbeds();
@@ -799,7 +947,7 @@ Hooks.once('ready',()=>{
       accessSettingChanged(setting);
       return; // Do not rerender a freshly restricted player window.
     }
-    if(dashboard?.rendered&&playerMayOpen())void dashboard.render({force:true});
+    if(dashboard?.rendered&&playerMayOpen())dashboard.refresh();
   });
   if(game.user.isGM&&activeGM()?.id===game.user.id)void migrate().catch(notifyError);
   console.info(`[${MODULE_ID}] v${moduleVersion()}; Actors launcher; Player Access ${playerAccessEnabled()?'enabled':'hidden'}; GM-only definitions + filtered player views.`);

@@ -1,3 +1,21 @@
+## 0.15.0 — 2026-10-22
+
+UI cleanup (audit 2026-10, Renown brief). No changes to saved data, flags, setting keys, ids or the API.
+
+- **Tabs:** Group, **Character** (was Player), Pantheon, and for the GM **Factions** (was Organizations), **Requests** (new) and GM Setup. "Faction" is the one word everywhere ("Unknown faction", "Other factions"). The header has no subtitle. The tab row takes the arrow keys, Home and End.
+- **Factions tab:** the list on the left *is* the roster (search, Show: Factions or Deities, Visibility, Group by, Sort), so nothing is listed twice and the editor no longer sits below the list. Pick one to edit it on the right, in sub-tabs: Profile, Visibility, Information (Lore for deities), Rewards, Requests, and Links (Relations for deities). The character picker is in the editor's header. Ranks and the deity card text are in folds that remember whether they are open. Search hides rows as you type without redrawing the window.
+- **One Save Changes per sub-tab**, pinned at the bottom right of the editor: Profile saves name, folder, tags and ranks; Visibility saves the placeholder, sharing and field reveals together (field visibility no longer has its own Save). The other sub-tabs apply at once and say so (*Applies now*).
+- **No more lost edits:** typing in a form shows "Unsaved changes"; switching tab, sub-tab, record, character or filter, pressing a button that redraws the window, or closing it asks "Discard unsaved changes?" (Keep editing is the default). A player request or another change arriving while you type waits until you save or cancel.
+- **Deities are authored in the Factions tab** (Show: Deities): New deity, the card, ranks, discovery, lore, rewards, requests and relation sliders. Pantheon is the view for everyone; the GM keeps Adjust favour and Undo there, plus **Edit deity**.
+- **Requests tab** (GM): every open claim and service request from every faction and deity, grouped by name, with the open count on the tab. **Open <name>** goes to that record's Requests sub-tab.
+- **Manage folders** (toolbar) lists folders as rows with a count and **Rename…**, and adds new ones. A faction's folder is also set in its Profile (the keyboard alternative to dragging).
+- **Discovery buttons** say what they do: Reveal to / Hide from the party or the chosen character, for factions, deities and entries alike. Entries show who knows them (Party, the character, or Hidden). The link button reads *Switch to document link* / *Switch to preview*. Unlock rules, reward behaviour and Quest link states show in words, not stored tokens.
+- **Clear choice** shows only on a Choose one level that has a recorded choice.
+- **Confirmations** for removing, denying, resetting and clearing name their object ("Remove [TEST] Boon?") and Cancel is the default button.
+- **GM Setup** holds settings only: *Fill in permanent item ids* moved into Developer Tools. The demo loader adds four synthetic **[TEST] Guild A–D** factions.
+- Import is a real button (keyboard reachable). Focus stays on the control you used after the window redraws. The add-relation slider names its deity and the preview text is announced.
+- The window opens at 980×760 (was 1180×800).
+
 ## 0.14.1 — 2026-10-22
 
 - Shared UI kit 2.2 (no visible change).

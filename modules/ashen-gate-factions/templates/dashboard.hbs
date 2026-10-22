@@ -1,4 +1,4 @@
-{{#*inline "agfPicker"}}<label class="ag-field ag-field--inline agf-picker">Character<select name="actor-id" aria-label="Character">{{#each @root.actorChoices}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{else}}<option value="">No assigned character</option>{{/each}}</select></label>{{/inline}}
+{{#*inline "agfPicker"}}<label class="ag-field ag-field--inline agf-picker">Character<select name="actor-id">{{#each @root.actorChoices}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{else}}<option value="">No assigned character</option>{{/each}}</select></label>{{/inline}}
 {{#*inline "agfStanding"}}<div class="agf-standing">
   <div class="ag-meter" role="progressbar" aria-label="{{label}}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{view.percent}}" style="--ag-meter: {{view.percent}}%">
     <span class="ag-meter__label">{{#if view.next}}{{view.remaining}} {{unit}} to {{view.next.name}}{{else}}Highest rank reached{{/if}}</span>
@@ -32,49 +32,53 @@
 </section>{{/inline}}
 {{#*inline "agfHistory"}}{{#if this.length}}<ol class="ag-rows agf-history">{{#each this}}<li class="ag-row"><strong class="agf-history__delta">{{displayDelta}}</strong><span class="ag-row__main"><span class="ag-row__title">{{reason}}</span></span><span class="ag-row__end agf-history__score">{{previous_score}} → {{score_after}}</span></li>{{/each}}</ol>{{else}}<div class="ag-empty"><p class="ag-empty__title">No changes yet.</p><p class="ag-empty__text">Renown changes show here as they are recorded.</p></div>{{/if}}{{/inline}}
 {{#*inline "agfEntries"}}{{#if this.length}}<div class="ag-stack">{{#each this}}<div class="agf-knowledge"><strong class="agf-knowledge__name">{{name}}</strong><p class="agf-knowledge__text">{{text}}</p>{{#if uuid}}<button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-action="openLinked" data-uuid="{{uuid}}">Open linked document</button>{{else}}{{#if documentAccessRequired}}<p class="agf-hint">The linked document needs Foundry permission; ask the GM for access.</p>{{/if}}{{/if}}</div>{{/each}}</div>{{else}}<div class="ag-empty"><p class="ag-empty__title">Nothing discovered yet.</p><p class="ag-empty__text">Information shows here once it is revealed.</p></div>{{/if}}{{/inline}}
-{{#*inline "agfEntryEditor"}}{{#if entries.length}}<ul class="ag-rows">{{#each entries}}<li class="ag-row agf-editrow"><span class="ag-row__main"><span class="ag-row__title">{{name}}</span><span class="ag-row__meta">{{unlock}}{{#if threshold}} · {{threshold}} {{../unit}}{{/if}}{{#if discovered_party}} · revealed to party{{/if}}</span></span>
-  <span class="ag-row__end"><button type="button" class="ag-btn ag-btn--sm" data-action="showEntry" data-mode="party" data-entry="{{id}}">{{#if discovered_party}}Hide from party{{else}}Reveal to party{{/if}}</button><button type="button" class="ag-btn ag-btn--sm" data-action="showEntry" data-mode="actor" data-entry="{{id}}">Toggle for {{@root.actorName}}</button><button type="button" class="ag-btn ag-btn--sm" data-action="showEntry" data-mode="edit" data-entry="{{id}}">Edit text</button>{{#if uuid}}<button type="button" class="ag-btn ag-btn--sm" data-action="showEntry" data-mode="mode" data-entry="{{id}}">Link: {{link_mode}}</button>{{/if}}<button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-action="showEntry" data-mode="remove" data-entry="{{id}}">Remove</button></span></li>{{/each}}</ul>{{else}}<div class="ag-empty"><p class="ag-empty__title">No entries yet.</p><p class="ag-empty__text">Add one below, or drop a Journal or Actor onto the box.</p></div>{{/if}}{{/inline}}
-{{#*inline "agfRewardLevel"}}<div class="agf-level"><div class="ag-section__head"><h4 class="ag-section__title">{{title}}</h4><button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-action="resetChoice" data-audience="{{audience}}" data-milestone="{{id}}">Clear choice</button></div>
-  {{#if rewards.length}}<ul class="ag-rows">{{#each rewards}}<li class="ag-row">{{#if rowImg}}<img class="ag-row__icon" src="{{rowImg}}" alt="">{{/if}}<span class="ag-row__main"><span class="ag-row__title">{{name}}</span><span class="ag-row__meta">{{behavior}}{{#if isItemReward}} · {{#if rowItemId}}<code>{{rowItemId}}</code>{{else}}<span class="ag-badge" data-tooltip="This item has no permanent id, so the reward is tied to this world." data-tooltip-class="ag-tooltip">No permanent id</span>{{/if}}{{#if rowMissing}} <span class="ag-badge ag-badge--danger" data-tooltip="The item behind this reward no longer exists. Drop the item again, or remove this reward." data-tooltip-class="ag-tooltip">Missing</span>{{/if}}{{/if}}</span></span><span class="ag-row__end"><button type="button" class="ag-btn ag-btn--sm" data-action="editReward" data-reward="{{id}}">Edit</button><button type="button" class="ag-btn ag-btn--icon ag-btn--danger" data-action="removeReward" data-reward="{{id}}" aria-label="Remove reward {{name}}" data-tooltip="Remove reward" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-trash" aria-hidden="true"></i></button></span></li>{{/each}}</ul>{{/if}}
-  <details class="agf-drop" data-reward-drop data-audience="{{audience}}" data-milestone="{{id}}"><summary>Add a reward, or drop an Item here</summary><div class="ag-form-grid"><label class="ag-field">Reward name<input name="reward-name"></label><label class="ag-field">Description<input name="reward-description"></label><label class="ag-field">Behavior<select name="reward-behavior"><option value="one_time">One-time</option><option value="repeatable_service">Repeatable service</option><option value="passive">Passive benefit</option></select></label><label class="ag-field">Usage limit<input name="reward-limit" type="number" value="0" min="0"><span class="ag-field__hint">0 means unlimited.</span></label></div><button type="button" class="ag-btn ag-btn--sm" data-action="addReward"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add reward</button></details>
+{{#*inline "agfEntryEditor"}}{{#if entries.length}}<ul class="ag-rows">{{#each entries}}<li class="ag-row agf-editrow"><span class="ag-row__main"><span class="ag-row__title">{{name}}</span><span class="ag-row__meta">{{unlockText}}{{#each badges}} <span class="ag-badge {{cls}}">{{label}}</span>{{/each}}</span></span>
+  <span class="ag-row__end"><button type="button" class="ag-btn ag-btn--sm" data-action="showEntry" data-mode="party" data-entry="{{id}}">{{partyLabel}}</button><button type="button" class="ag-btn ag-btn--sm" data-action="showEntry" data-mode="actor" data-entry="{{id}}">{{actorLabel}}</button><button type="button" class="ag-btn ag-btn--sm" data-action="showEntry" data-mode="edit" data-entry="{{id}}" aria-label="Edit text of {{name}}…">Edit text…</button>{{#if uuid}}<button type="button" class="ag-btn ag-btn--sm" data-action="showEntry" data-mode="mode" data-entry="{{id}}">{{linkLabel}}</button>{{/if}}<button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-action="showEntry" data-mode="remove" data-entry="{{id}}" aria-label="Remove {{name}}">Remove</button></span></li>{{/each}}</ul>{{else}}<div class="ag-empty"><p class="ag-empty__title">No entries yet.</p><p class="ag-empty__text">Add one below, or drop a Journal or Actor onto the box.</p></div>{{/if}}{{/inline}}
+{{#*inline "agfRewardLevel"}}<div class="agf-level"><div class="ag-section__head"><h4 class="ag-section__title">{{title}}</h4>{{#if hasChoice}}<button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-action="resetChoice" data-audience="{{audience}}" data-milestone="{{id}}">Clear choice</button>{{/if}}</div>
+  {{#if rewards.length}}<ul class="ag-rows">{{#each rewards}}<li class="ag-row">{{#if rowImg}}<img class="ag-row__icon" src="{{rowImg}}" alt="">{{/if}}<span class="ag-row__main"><span class="ag-row__title">{{name}}</span><span class="ag-row__meta">{{behaviorText}}{{#if isItemReward}} · {{#if rowItemId}}<code>{{rowItemId}}</code>{{else}}<span class="ag-badge" data-tooltip="This item has no permanent id, so the reward is tied to this world." data-tooltip-class="ag-tooltip">No permanent id</span>{{/if}}{{#if rowMissing}} <span class="ag-badge ag-badge--danger" data-tooltip="The item behind this reward no longer exists. Drop the item again, or remove this reward." data-tooltip-class="ag-tooltip">Missing</span>{{/if}}{{/if}}</span></span><span class="ag-row__end"><button type="button" class="ag-btn ag-btn--sm" data-action="editReward" data-reward="{{id}}" aria-label="Edit {{name}}…">Edit…</button><button type="button" class="ag-btn ag-btn--icon ag-btn--danger" data-action="removeReward" data-reward="{{id}}" aria-label="Remove reward {{name}}" data-tooltip="Remove reward" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-trash" aria-hidden="true"></i></button></span></li>{{/each}}</ul>{{/if}}
+  <details class="agf-drop" data-agf-draft data-reward-drop data-audience="{{audience}}" data-milestone="{{id}}"><summary>Add a reward, or drop an Item here</summary><div class="ag-form-grid"><label class="ag-field">Reward name<input name="reward-name"></label><label class="ag-field">Description<input name="reward-description"></label><label class="ag-field">Behavior<select name="reward-behavior"><option value="one_time">One-time</option><option value="repeatable_service">Repeatable service</option><option value="passive">Passive benefit</option></select></label><label class="ag-field">Usage limit<input name="reward-limit" type="number" value="0" min="0"><span class="ag-field__hint">0 means unlimited.</span></label></div><button type="button" class="ag-btn ag-btn--sm" data-action="addReward"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add reward</button></details>
 </div>{{/inline}}
 {{#*inline "agfRequests"}}{{#if queue.length}}<ul class="ag-rows">{{#each queue}}<li class="ag-row agf-editrow"><span class="ag-row__main"><span class="ag-row__title">{{actor}} · {{reward}}</span><span class="ag-row__meta"><span class="ag-badge {{#if approved}}ag-badge--accent{{else}}ag-badge--warn{{/if}}">{{#if approved}}Approved{{else}}Waiting{{/if}}</span></span></span>
   <span class="ag-row__end">{{#if isItem}}<label class="ag-field ag-field--inline">Recipient<select name="recipient-{{requestKey}}"><option value="">Manual delivery</option>{{#each @root.actorChoices}}<option value="{{id}}">{{name}}</option>{{/each}}</select></label>{{/if}}{{#if pending}}<button type="button" class="ag-btn ag-btn--sm" data-action="resolveRequest" data-doc="{{docId}}" data-key="{{requestKey}}" data-claim="{{#if claim}}1{{/if}}" data-mode="approve">Approve</button>{{/if}}{{#if approved}}<button type="button" class="ag-btn ag-btn--sm" data-action="resolveRequest" data-doc="{{docId}}" data-key="{{requestKey}}" data-claim="{{#if claim}}1{{/if}}" data-mode="fulfill">Mark fulfilled</button>{{/if}}<button type="button" class="ag-btn ag-btn--sm" data-action="resolveRequest" data-doc="{{docId}}" data-key="{{requestKey}}" data-claim="{{#if claim}}1{{/if}}" data-mode="deny">Deny</button></span></li>{{/each}}</ul>{{else}}<div class="ag-empty"><p class="ag-empty__title">No requests yet.</p><p class="ag-empty__text">Claims and service requests from players show here.</p></div>{{/if}}
   {{#if services.length}}<h4 class="ag-eyebrow agf-subhead">Service limits</h4><ul class="ag-rows">{{#each services}}<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">{{name}}</span></span><span class="ag-row__end"><button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-action="resetUsage" data-audience="{{audience}}" data-reward="{{id}}">{{resetLabel}}</button></span></li>{{/each}}</ul>{{/if}}{{/inline}}
+{{#*inline "agfRankRows"}}{{#each levels}}<div class="agf-level-editor" data-milestone-row="{{../scope}}"><span class="agf-level-editor__key">{{order}}</span><label class="ag-field">Rank<input data-field="name" value="{{name}}"></label><label class="ag-field">Threshold<input data-field="threshold" type="number" value="{{threshold}}"></label><label class="ag-field">Reward mode<select data-field="selection"><option value="all" {{#if isAll}}selected{{/if}}>All rewards</option><option value="choose_one" {{#if isOne}}selected{{/if}}>Choose one</option></select></label><label class="ag-field agf-level-editor__text">Text<textarea data-field="benefit" rows="2">{{benefit}}</textarea></label></div>{{/each}}{{/inline}}
+{{#*inline "agfDiscovery"}}<section class="ag-section agf-now"><div class="ag-section__head"><h3 class="ag-section__title">Discovery</h3><span class="ag-badge ag-badge--accent">Applies now</span></div>
+  <div class="agf-discovery"><span class="ag-badge {{badgeClass}}">{{chip}}</span><button type="button" class="ag-btn ag-btn--sm" data-action="discovery" data-mode="party">{{partyLabel}}</button><button type="button" class="ag-btn ag-btn--sm" data-action="discovery" data-mode="actor">{{actorLabel}}</button></div>
+</section>{{/inline}}
 <section class="agf-shell ag-window" aria-label="Renown">
   <header class="ag-header">
-    <div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Renown</h1><p>Known allies, rivals and reputations</p></div>
+    <div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Renown</h1></div>
     <div class="ag-header__meta"><span class="ag-version">v{{version}}</span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button></div>
   </header>
-  <nav class="ag-tabs ag-tabs--scroll" role="tablist" aria-label="Renown pages">
-    <button type="button" role="tab" aria-selected="{{#if tabGroup}}true{{else}}false{{/if}}" data-agf-view="group" class="{{#if tabGroup}}active{{/if}}"><i class="fa-solid fa-users" aria-hidden="true"></i> Group</button>
-    <button type="button" role="tab" aria-selected="{{#if tabPlayer}}true{{else}}false{{/if}}" data-agf-view="player" class="{{#if tabPlayer}}active{{/if}}"><i class="fa-solid fa-user" aria-hidden="true"></i> Player</button>
-    <button type="button" role="tab" aria-selected="{{#if tabPantheon}}true{{else}}false{{/if}}" data-agf-view="pantheon" class="{{#if tabPantheon}}active{{/if}}"><i class="fa-solid fa-sun" aria-hidden="true"></i> Pantheon</button>
-    {{#if isGM}}<button type="button" role="tab" aria-selected="{{#if tabOrgs}}true{{else}}false{{/if}}" data-agf-view="orgs" class="ag-tab--gm {{#if tabOrgs}}active{{/if}}"><i class="fa-solid fa-landmark" aria-hidden="true"></i> Organizations</button><button type="button" role="tab" aria-selected="{{#if tabSetup}}true{{else}}false{{/if}}" data-agf-view="setup" class="ag-tab--gm {{#if tabSetup}}active{{/if}}"><i class="fa-solid fa-gears" aria-hidden="true"></i> GM Setup</button>{{/if}}
+  <nav class="ag-tabs ag-tabs--scroll agf-tabs" role="tablist" aria-label="Renown pages">
+    <button type="button" role="tab" {{#if tabGroup}}aria-controls="agf-view" {{/if}}aria-selected="{{#if tabGroup}}true{{else}}false{{/if}}" data-agf-view="group" class="{{#if tabGroup}}active{{/if}}"><i class="fa-solid fa-users" aria-hidden="true"></i> Group</button>
+    <button type="button" role="tab" {{#if tabPlayer}}aria-controls="agf-view" {{/if}}aria-selected="{{#if tabPlayer}}true{{else}}false{{/if}}" data-agf-view="player" class="{{#if tabPlayer}}active{{/if}}"><i class="fa-solid fa-user" aria-hidden="true"></i> Character</button>
+    <button type="button" role="tab" {{#if tabPantheon}}aria-controls="agf-view" {{/if}}aria-selected="{{#if tabPantheon}}true{{else}}false{{/if}}" data-agf-view="pantheon" class="{{#if tabPantheon}}active{{/if}}"><i class="fa-solid fa-sun" aria-hidden="true"></i> Pantheon</button>
+    {{#if isGM}}<button type="button" role="tab" {{#if tabOrgs}}aria-controls="agf-view" {{/if}}aria-selected="{{#if tabOrgs}}true{{else}}false{{/if}}" data-agf-view="orgs" class="ag-tab--gm {{#if tabOrgs}}active{{/if}}"><i class="fa-solid fa-landmark" aria-hidden="true"></i> Factions</button><button type="button" role="tab" {{#if tabRequests}}aria-controls="agf-view" {{/if}}aria-selected="{{#if tabRequests}}true{{else}}false{{/if}}" data-agf-view="requests" class="ag-tab--gm {{#if tabRequests}}active{{/if}}"><i class="fa-solid fa-inbox" aria-hidden="true"></i> Requests{{#if requestCount}} <span class="ag-tab__count">{{requestCount}}<span class="ag-sr-only"> open</span></span>{{/if}}</button><button type="button" role="tab" {{#if tabSetup}}aria-controls="agf-view" {{/if}}aria-selected="{{#if tabSetup}}true{{else}}false{{/if}}" data-agf-view="setup" class="ag-tab--gm {{#if tabSetup}}active{{/if}}"><i class="fa-solid fa-gears" aria-hidden="true"></i> GM Setup</button>{{/if}}
   </nav>
   {{#if refreshNeeded}}<p class="ag-notice ag-notice--info agf-notice" role="status"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i> Waiting for the GM to prepare your view. Reopen Renown once your GM is connected.</p>{{/if}}
 
   {{#if showFolders}}
-  <div class="ag-split agf-body">
-    <aside class="ag-split__list agf-folders" aria-label="Organizations">
+  <div class="ag-split agf-body" id="agf-view">
+    <aside class="ag-split__list agf-folders" aria-label="Factions" data-agf-scroll="folders">
       {{#each folders}}
         <section class="agf-folder" data-folder-drop="{{key}}">
           <h2 class="ag-eyebrow agf-folder__title"><i class="fa-solid fa-folder" aria-hidden="true"></i> {{name}} <span class="agf-folder__count">{{count}}</span></h2>
           {{#if count}}<div class="ag-rows">
             {{#each factions}}<button type="button" class="ag-row {{#if selected}}is-selected{{/if}}" {{#if selected}}aria-current="true"{{/if}} data-action="select" data-id="{{id}}" {{#if @root.isGM}}draggable="true" data-faction-drag="{{id}}"{{/if}}><span class="ag-row__main"><span class="ag-row__title">{{name}}</span></span></button>{{/each}}
             {{#each unknown}}<div class="ag-row agf-row--locked"><i class="fa-solid fa-lock ag-row__icon" aria-hidden="true"></i><span class="ag-row__main"><span class="ag-row__title">Undiscovered faction</span></span></div>{{/each}}
-          </div>{{else}}{{#if @root.isGM}}<p class="agf-hint agf-folder__drop">Drag a faction here.</p>{{/if}}{{/if}}
+          </div>{{else}}{{#if @root.isGM}}<p class="agf-hint agf-folder__drop">Drag a faction here, or choose its folder in Factions → Profile.</p>{{/if}}{{/if}}
         </section>
       {{else}}
-        <div class="ag-empty"><i class="fa-solid fa-landmark" aria-hidden="true"></i><p class="ag-empty__title">No organizations yet</p><p class="ag-empty__text">{{#if isGM}}Create one with New faction in the Organizations tab.{{else}}Your GM hasn't revealed any organizations yet.{{/if}}</p></div>
+        <div class="ag-empty"><i class="fa-solid fa-landmark" aria-hidden="true"></i><p class="ag-empty__title">No factions yet</p><p class="ag-empty__text">{{#if isGM}}Create one with New faction in the Factions tab.{{else}}Your GM hasn't revealed any factions yet.{{/if}}</p></div>
       {{/each}}
     </aside>
-    <main class="ag-split__detail agf-main">
+    <main class="ag-split__detail agf-main" data-agf-scroll="detail">
       {{#if showHeader}}
         <header class="agf-dossier">
           <div class="agf-dossier__text"><span class="ag-eyebrow">Faction</span><h2 class="agf-dossier__name">{{detail.name}}</h2>{{#if detail.leader}}<p class="agf-dossier__leader">{{detail.leader}}</p>{{/if}}{{#if detail.public_role}}<p class="agf-dossier__role">{{detail.public_role}}</p>{{/if}}</div>
           <div class="agf-dossier__end">
-            {{#if tabPlayer}}{{#unless isGM}}{{#if detail.canShare}}<button type="button" data-action="share" class="ag-btn agf-share"><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> Share with party</button>{{/if}}{{/unless}}{{/if}}
+            {{#if tabPlayer}}{{#unless isGM}}{{#if detail.canShare}}<button type="button" data-action="share" class="ag-btn agf-share"><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> Share with party…</button>{{/if}}{{/unless}}{{/if}}
             {{#if tabGroup}}<div class="agf-score-box"><span class="ag-eyebrow">{{groupLabel}}</span><strong class="agf-score-box__value">{{detail.score}}</strong><span class="agf-score-box__rank">{{detail.rank}}</span></div>{{/if}}
             {{#if tabPlayer}}<div class="agf-score-box"><span class="ag-eyebrow">Personal Renown</span><strong class="agf-score-box__value">{{detail.individualScore}}</strong><span class="agf-score-box__rank">{{detail.individualRank}}</span></div>{{/if}}
           </div>
@@ -90,7 +94,7 @@
           {{#if isGM}}{{> agfAward scope="group" title="Adjust group Renown" placeholder="Action and consequence"}}{{/if}}
           <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Group activity</h3></div>{{> agfHistory detail.groupEvents}}</section>
           <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Discovered information</h3></div>{{> agfEntries detail.entries}}</section>
-        {{else}}<div class="ag-empty"><i class="fa-solid fa-users" aria-hidden="true"></i><p class="ag-empty__title">No organizations yet</p><p class="ag-empty__text">{{#if isGM}}Create one with New faction in the Organizations tab, or import a file there.{{else}}Your GM hasn't revealed any organizations yet.{{/if}}</p></div>{{/if}}
+        {{else}}<div class="ag-empty"><i class="fa-solid fa-users" aria-hidden="true"></i><p class="ag-empty__title">No factions yet</p><p class="ag-empty__text">{{#if isGM}}Create one with New faction in the Factions tab, or import a file there.{{else}}Your GM hasn't revealed any factions yet.{{/if}}</p></div>{{/if}}
       {{/if}}
 
       {{#if tabPlayer}}
@@ -103,91 +107,195 @@
           </section>
           {{#if isGM}}{{> agfAward scope="individual" title="Adjust personal Renown" placeholder="Personal deed or consequence"}}{{/if}}
           <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Personal activity</h3></div>{{> agfHistory detail.personalEvents}}</section>
-        {{else}}<div class="ag-empty"><i class="fa-solid fa-user" aria-hidden="true"></i><p class="ag-empty__title">No organizations yet</p><p class="ag-empty__text">{{#if isGM}}Create one with New faction in the Organizations tab.{{else}}Personal standing shows here once your GM reveals an organization.{{/if}}</p></div>{{/if}}
-      {{/if}}
-
-      {{#if tabOrgs}}
-        <section class="ag-section agf-orgs-roster" aria-label="All organizations">
-          <div class="ag-toolbar">
-            <label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" name="orgs-search" data-orgs-filter="search" placeholder="Search organizations" aria-label="Search organizations" value="{{orgsView.search}}"></label>
-            <div class="ag-toolbar__filters">
-              <select data-orgs-filter="status" aria-label="Visibility">{{#each orgsOptions.status}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>
-              <select data-orgs-filter="sort" aria-label="Sort">{{#each orgsOptions.sort}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>
-              <select data-orgs-filter="group" aria-label="Group by">{{#each orgsOptions.group}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>
-            </div>
-            <span class="ag-toolbar__count" role="status">{{orgs.shown}} of {{orgs.total}}</span>
-            <div class="ag-toolbar__end">
-              <button type="button" class="ag-btn ag-btn--sm" data-action="importJson"><i class="fa-solid fa-file-import" aria-hidden="true"></i> Import</button>
-              <button type="button" class="ag-btn ag-btn--sm" data-action="exportAll" data-tooltip="Exports definitions only: no Renown, discovery or claims" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export</button>
-              <button type="button" class="ag-btn" data-action="create"><i class="fa-solid fa-plus" aria-hidden="true"></i> New faction</button>
-              <input type="file" name="faction-import-file" accept=".json,application/json" hidden>
-            </div>
-          </div>
-          {{#each orgs.groups}}<h3 class="ag-eyebrow agf-group-title">{{label}} <span class="agf-folder__count">{{rows.length}}</span></h3>
-            <div class="ag-rows agf-orgs">{{#each rows}}<button type="button" class="ag-row {{#if selected}}is-selected{{/if}}" {{#if selected}}aria-current="true"{{/if}} data-action="select" data-id="{{id}}">
-              <span class="ag-row__main"><span class="ag-row__title">{{name}}</span><span class="ag-row__meta">{{#if leader}}{{leader}} · {{/if}}{{folder}}{{#if characters}} · {{characters}} character(s){{/if}}{{#if objectives}} · {{objectives}} linked objective(s){{/if}}</span></span>
-              <span class="ag-row__end"><span class="ag-badge {{badgeClass}}">{{chip}}</span>{{#if placeholder}}<span class="ag-badge">Placeholder shown</span>{{/if}}{{#if selective}}<span class="ag-badge">Selective fields</span>{{/if}}<span class="agf-rowscore"><strong>{{score}}</strong>{{#if rank}} {{rank}}{{/if}}</span></span>
-            </button>{{/each}}</div>
-          {{else}}
-            {{#if orgs.total}}<div class="ag-empty"><i class="fa-solid fa-filter" aria-hidden="true"></i><p class="ag-empty__title">Nothing matches</p><p class="ag-empty__text">No organization matches the search or filters.</p><button type="button" class="ag-btn ag-btn--sm" data-action="clearOrgFilters">Clear filters</button></div>
-            {{else}}<div class="ag-empty"><i class="fa-solid fa-landmark" aria-hidden="true"></i><p class="ag-empty__title">No organizations yet</p><p class="ag-empty__text">Create one with New faction, or import a file.</p><button type="button" class="ag-btn ag-btn--sm" data-action="create"><i class="fa-solid fa-plus" aria-hidden="true"></i> New faction</button></div>{{/if}}
-          {{/each}}
-        </section>
-        <section class="ag-section agf-selected-character"><div class="ag-section__head"><h3 class="ag-section__title">Selected character</h3>{{> agfPicker}}</div><p class="agf-hint">Personal Renown, information reveals and rewards below apply to this character.</p></section>
-        <details class="agf-config-section" data-agf-section="folders"><summary>Folders</summary><div class="agf-fold">
-          <p class="agf-hint">Drag a faction onto a folder in the list on the left, or choose its folder in the profile below.</p>
-          <div class="agf-inline-form"><label class="ag-field">New folder<input name="new-folder-name" maxlength="100" placeholder="Folder name"></label><button type="button" class="ag-btn" data-action="createFolder"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add folder</button></div>
-          {{#if hasFolders}}<div class="ag-cluster">{{#each foldersForSelect}}{{#if key}}<button type="button" class="ag-btn ag-btn--sm" data-action="saveFolder" data-key="{{key}}"><i class="fa-solid fa-pen" aria-hidden="true"></i> Rename {{name}}</button>{{/if}}{{/each}}</div>{{/if}}
-        </div></details>
-        {{#if detail}}
-          <details class="agf-config-section" data-agf-section="profile" open><summary>Profile and discovery: {{gmKnown.name}} <code class="agf-id">{{gmKnown.id}}</code></summary><div class="agf-fold">
-            <div class="agf-discovery"><span class="agf-hint">Discovery for {{actorName}}:</span><button type="button" class="ag-btn ag-btn--sm" data-action="discovery" data-mode="party">{{#if gmKnown.discovery.party}}Hide from party{{else}}Reveal to party{{/if}}</button><button type="button" class="ag-btn ag-btn--sm" data-action="discovery" data-mode="actor">Toggle for {{actorName}}</button></div>
-            <div class="ag-form-grid"><label class="ag-field">Faction name<input name="faction-name" value="{{gmKnown.name}}"></label><label class="ag-field">Leader or contact<input name="faction-leader" value="{{gmKnown.leader}}"></label><label class="ag-field ag-field--wide">Public description<textarea name="faction-role" rows="2">{{gmKnown.public_role}}</textarea></label><label class="ag-field">Folder<select name="faction-folder">{{#each foldersForSelect}}<option value="{{key}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select></label><label class="ag-field">Tags<input name="faction-tags" value="{{gmKnown.tags}}" placeholder="military, regional, political"><span class="ag-field__hint">GM keywords for searching; never shown to players.</span></label></div>
-            <div class="ag-cluster"><label class="ag-field ag-field--inline"><input name="discovery-placeholder" type="checkbox" {{#if gmKnown.discovery.placeholder}}checked{{/if}}> Show undiscovered placeholder</label><label class="ag-field ag-field--inline"><input name="sharing-enabled" type="checkbox" {{#if shareEnabled}}checked{{/if}}> Allow players to Share with party</label></div>
-            <details class="agf-inner-section"><summary>Group milestones</summary>{{#each gmGroupLevels}}<div class="agf-level-editor" data-milestone-row="group"><span class="agf-level-editor__key">{{order}}</span><label class="ag-field">Rank<input data-field="name" value="{{name}}"></label><label class="ag-field">Threshold<input data-field="threshold" type="number" value="{{threshold}}"></label><label class="ag-field">Reward mode<select data-field="selection"><option value="all" {{#if isAll}}selected{{/if}}>All rewards</option><option value="choose_one" {{#if isOne}}selected{{/if}}>Choose one</option></select></label><label class="ag-field agf-level-editor__text">Text<textarea data-field="benefit" rows="2">{{benefit}}</textarea></label></div>{{/each}}</details>
-            <details class="agf-inner-section"><summary>Individual milestones</summary>{{#each gmPersonalLevels}}<div class="agf-level-editor" data-milestone-row="individual"><span class="agf-level-editor__key">{{order}}</span><label class="ag-field">Rank<input data-field="name" value="{{name}}"></label><label class="ag-field">Threshold<input data-field="threshold" type="number" value="{{threshold}}"></label><label class="ag-field">Reward mode<select data-field="selection"><option value="all" {{#if isAll}}selected{{/if}}>All rewards</option><option value="choose_one" {{#if isOne}}selected{{/if}}>Choose one</option></select></label><label class="ag-field agf-level-editor__text">Text<textarea data-field="benefit" rows="2">{{benefit}}</textarea></label></div>{{/each}}</details>
-            <footer class="ag-footer"><button type="button" class="ag-btn ag-btn--ghost" data-action="cancelEdit">Cancel</button><span class="ag-footer__status" role="status"></span><button type="button" class="ag-btn ag-btn--primary" data-action="save">Save faction</button></footer>
-          </div></details>
-          <details class="agf-config-section" data-agf-section="fields"><summary>Field visibility</summary><div class="agf-fold">
-            <p class="agf-hint">Normal discovery shows every profile field. Turn on selective reveals to show each field on its own. A hidden name shows as “Unknown Organization”, and hidden values are never sent to players.</p>
-            <label class="ag-field ag-field--inline"><input type="checkbox" name="field-selective" {{#if fieldSelective}}checked{{/if}}> Use selective field reveals for this faction</label>
-            <div class="ag-table-wrap"><table class="ag-table agf-fields"><thead><tr><th scope="col">Field</th><th scope="col">Party</th><th scope="col">{{actorName}}</th></tr></thead><tbody>
-              {{#each gmFieldReveals}}<tr><td>{{label}}</td><td><input type="checkbox" name="field-party-{{key}}" aria-label="Reveal {{label}} to party" {{#if party}}checked{{/if}}></td><td><input type="checkbox" name="field-actor-{{key}}" aria-label="Reveal {{label}} to {{@root.actorName}}" {{#if actor}}checked{{/if}}></td></tr>{{/each}}
-            </tbody></table></div>
-            <footer class="ag-footer"><button type="button" class="ag-btn ag-btn--ghost" data-action="cancelEdit">Cancel</button><span class="ag-footer__status" role="status"></span><button type="button" class="ag-btn ag-btn--primary" data-action="saveFieldReveals">Save field visibility</button></footer>
-          </div></details>
-          <details class="agf-config-section" data-agf-section="objectives"><summary>Related quests and contracts</summary><div class="agf-fold agf-objective-links" aria-label="Objective references">
-            <p class="agf-hint">Canonical Quest, Work Order or Contract references. These links never discover, publish or open quests for players; Quest Log owns discovery, progress and visibility.</p>
-            {{#if gmObjectiveRefs.length}}<ul class="ag-rows">{{#each gmObjectiveRefs}}<li class="ag-row"><span class="ag-row__main"><code class="agf-id">{{target_id}}</code><span class="ag-row__meta">{{relation}} · {{mode}}</span></span><span class="ag-row__end"><span class="ag-badge" data-tooltip="Checked with Quest Log. Unverified means Quest Log is unavailable or not installed." data-tooltip-class="ag-tooltip">{{status}}</span><button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-action="removeObjective" data-objective="{{target_id}}" data-relation="{{relation}}" data-mode="{{mode}}">Remove</button></span></li>{{/each}}</ul>
-            {{else}}<div class="ag-empty"><p class="ag-empty__title">No objective references yet.</p><p class="ag-empty__text">Add one below with its canonical id.</p></div>{{/if}}
-            <div class="agf-inline-form"><label class="ag-field">Canonical objective id<input name="objective-id" placeholder="QUEST-... / ORDER-... / CONTRACT-..." autocomplete="off"></label><label class="ag-field">Relationship<select name="objective-relation"><option value="associated_objective">Associated with</option><option value="offers_objective">Offers</option></select></label><label class="ag-field">Link mode<select name="objective-mode"><option value="optional">Optional</option><option value="required">Required</option></select></label><button type="button" class="ag-btn" data-action="addObjective"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add reference</button></div>
-          </div></details>
-          <details class="agf-config-section" data-agf-section="information"><summary>Information and Journal links</summary><div class="agf-fold">
-            <p class="agf-hint">Write entries or drop Actors or Journals on the box below, then reveal them by hand or by group or individual Renown. Linked documents keep their own Foundry permissions.</p>
-            {{> agfEntryEditor entries=gmKnown.entries unit="Renown"}}
-            <details class="agf-drop" data-entry-drop data-info-editor><summary>Add an information entry, or drop a document here</summary><div class="ag-form-grid"><label class="ag-field">Title<input name="info-name" placeholder="Rumor, history, contact"></label><label class="ag-field">Unlock<select name="info-unlock"><option value="manual">GM manually</option><option value="group_renown">Group Renown</option><option value="individual_renown">Individual Renown</option></select></label><label class="ag-field">Threshold<input name="info-threshold" type="number" value="0" min="0"></label><label class="ag-field ag-field--wide">Text<textarea name="info-text" rows="2"></textarea></label></div><button type="button" class="ag-btn ag-btn--sm" data-action="addEntry"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add information</button></details>
-          </div></details>
-          <details class="agf-config-section" data-agf-section="rewards"><summary>Rewards and milestone claims</summary><div class="agf-fold">
-            <p class="agf-hint">Each reward is one-time, a repeatable service, or passive. Dropped Items start as one-time. Use Edit for tags, teasers and service limits.</p>
-            {{#each gmGroupLevels}}{{> agfRewardLevel title=groupTitle audience="group"}}{{/each}}
-            {{#each gmPersonalLevels}}{{> agfRewardLevel title=personalTitle audience="individual"}}{{/each}}
-          </div></details>
-          <details class="agf-config-section" data-agf-section="requests" open><summary>Claims and service requests ({{gmQueue.length}})</summary><div class="agf-fold">
-            {{> agfRequests queue=gmQueue services=serviceRewards}}
-          </div></details>
-        {{/if}}
+        {{else}}<div class="ag-empty"><i class="fa-solid fa-user" aria-hidden="true"></i><p class="ag-empty__title">No factions yet</p><p class="ag-empty__text">{{#if isGM}}Create one with New faction in the Factions tab.{{else}}Personal standing shows here once your GM reveals a faction.{{/if}}</p></div>{{/if}}
       {{/if}}
     </main>
   </div>
   {{/if}}
 
+  {{#if tabOrgs}}
+  <div class="agf-authoring" id="agf-view">
+    <div class="ag-toolbar agf-roster-toolbar">
+      <label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" name="orgs-search" data-orgs-filter="search" placeholder="{{orgs.searchLabel}}" aria-label="{{orgs.searchLabel}}" value="{{orgsView.search}}"></label>
+      <div class="ag-toolbar__filters">
+        <select data-orgs-filter="kind" aria-label="Show">{{#each orgsOptions.kind}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>
+        <select data-orgs-filter="status" aria-label="Visibility">{{#each orgsOptions.status}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>
+        <select data-orgs-filter="group" aria-label="Group by">{{#each orgsOptions.group}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>
+        <select data-orgs-filter="sort" aria-label="Sort">{{#each orgsOptions.sort}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>
+      </div>
+      <span class="ag-toolbar__count" role="status" data-agf-count data-total="{{orgs.total}}">{{orgs.shown}} of {{orgs.total}}</span>
+      <div class="ag-toolbar__end">
+        {{#if orgs.isFaction}}<button type="button" class="ag-btn ag-btn--sm" data-action="toggleFolders" aria-pressed="{{#if foldersOpen}}true{{else}}false{{/if}}"><i class="fa-solid fa-folder" aria-hidden="true"></i> Manage folders</button>{{/if}}
+        {{{importButton}}}
+        <button type="button" class="ag-btn ag-btn--sm" data-action="exportAll" data-tooltip="Exports definitions only: no Renown, discovery or claims" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export</button>
+        {{#if orgs.isFaction}}<button type="button" class="ag-btn" data-action="create"><i class="fa-solid fa-plus" aria-hidden="true"></i> New faction…</button>{{else}}<button type="button" class="ag-btn" data-action="createDeity"><i class="fa-solid fa-plus" aria-hidden="true"></i> New deity…</button>{{/if}}
+      </div>
+    </div>
+    <div class="ag-split agf-body">
+      <aside class="ag-split__list agf-roster" aria-label="{{orgs.kindLabel}}" data-agf-scroll="roster">
+        {{#each orgs.groups}}<section class="agf-roster__group" data-agf-group {{#if hidden}}hidden{{/if}}><h3 class="ag-eyebrow agf-group-title">{{label}} <span class="agf-folder__count">{{rows.length}}</span></h3>
+          <div class="ag-rows agf-orgs">{{#each rows}}<button type="button" class="ag-row {{#if selected}}is-selected{{/if}}" {{#if selected}}aria-current="true"{{/if}} data-action="select" data-id="{{id}}" data-agf-search="{{search}}" {{#if hidden}}hidden{{/if}}>
+            <span class="ag-row__main"><span class="ag-row__title">{{name}}</span><span class="ag-row__meta">{{meta}}</span></span>
+            <span class="ag-row__end"><span class="ag-badge {{badgeClass}}">{{chip}}</span>{{#unless isDeity}}<span class="agf-rowscore"><strong>{{score}}</strong>{{#if rank}} {{rank}}{{/if}}</span>{{/unless}}</span>
+          </button>{{/each}}</div></section>
+        {{/each}}
+        <div class="ag-empty" data-agf-nomatch {{#unless orgs.noMatch}}hidden{{/unless}}><i class="fa-solid fa-filter" aria-hidden="true"></i><p class="ag-empty__title">Nothing matches</p><p class="ag-empty__text">Nothing matches the search or filters.</p><button type="button" class="ag-btn ag-btn--sm" data-action="clearOrgFilters">Clear filters</button></div>
+        {{#unless orgs.total}}<div class="ag-empty"><i class="fa-solid fa-landmark" aria-hidden="true"></i><p class="ag-empty__title">{{orgs.emptyTitle}}</p><p class="ag-empty__text">{{orgs.emptyText}}</p></div>{{/unless}}
+      </aside>
+      <main class="ag-split__detail agf-editor">
+        {{#if foldersOpen}}
+          <div class="agf-editor__body ag-scroll" data-agf-scroll="folder-manager">
+            <section class="ag-section"><div class="ag-section__head"><h2 class="ag-section__title">Folders</h2><span class="ag-badge ag-badge--accent">Applies now</span><button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-action="toggleFolders">Done</button></div>
+              <p class="agf-hint">Folders group factions in the Group and Character lists. Choose a faction's folder in its Profile, or drag it onto a folder in the Group tab.</p>
+              {{#if folderRows.length}}<ul class="ag-rows">{{#each folderRows}}<li class="ag-row"><i class="fa-solid fa-folder ag-row__icon" aria-hidden="true"></i><span class="ag-row__main"><span class="ag-row__title">{{name}}</span><span class="ag-row__meta">{{countText}}</span></span><span class="ag-row__end"><button type="button" class="ag-btn ag-btn--sm" data-action="saveFolder" data-key="{{key}}" aria-label="Rename {{name}}…">Rename…</button></span></li>{{/each}}</ul>
+              {{else}}<p class="agf-hint">No folders yet. Factions without one show under {{otherFolder}}.</p>{{/if}}
+              <div class="agf-inline-form" data-agf-draft><label class="ag-field">New folder<input name="new-folder-name" maxlength="100"></label><button type="button" class="ag-btn" data-action="createFolder"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add folder</button></div>
+            </section>
+          </div>
+        {{else}}{{#with editor}}
+          <header class="agf-editor__head">
+            <div class="agf-editor__title"><span class="ag-eyebrow">{{kindLabel}}</span><h2 class="agf-editor__name">{{name}}</h2></div>
+            {{> agfPicker}}
+          </header>
+          {{{tabsHtml}}}
+          <div class="agf-editor__body ag-scroll" {{{panelAttrs}}} data-agf-scroll="editor">
+          {{#if isFaction}}{{#with @root.gmKnown}}
+            {{#if ../sub.profile}}
+              <div class="agf-panel" data-agf-draft>
+                <div class="ag-form-grid"><label class="ag-field">Faction name<input name="faction-name" value="{{name}}" maxlength="120"></label><label class="ag-field">Leader or contact<input name="faction-leader" value="{{leader}}"></label><label class="ag-field ag-field--wide">Public description<textarea name="faction-role" rows="2">{{public_role}}</textarea></label><label class="ag-field">Folder<select name="faction-folder">{{#each @root.foldersForSelect}}<option value="{{key}}" {{#if selected}}selected{{/if}}>{{name}}</option>{{/each}}</select></label><label class="ag-field">Tags<input name="faction-tags" value="{{tags}}"><span class="ag-field__hint">GM keywords for searching, comma separated; never shown to players.</span></label></div>
+                {{#agfFold key="faction-group-ranks" title="Group ranks"}}{{> agfRankRows levels=@root.gmGroupLevels scope="group"}}{{/agfFold}}
+                {{#agfFold key="faction-character-ranks" title="Character ranks"}}{{> agfRankRows levels=@root.gmPersonalLevels scope="individual"}}{{/agfFold}}
+              </div>
+            {{/if}}
+            {{#if ../sub.visibility}}
+              {{> agfDiscovery @root.gmDiscovery}}
+              <section class="ag-section" data-agf-draft><div class="ag-section__head"><h3 class="ag-section__title">Sharing and fields</h3></div>
+                <div class="ag-cluster"><label class="ag-field ag-field--inline"><input name="discovery-placeholder" type="checkbox" {{#if discovery.placeholder}}checked{{/if}}> Show undiscovered placeholder</label><label class="ag-field ag-field--inline"><input name="sharing-enabled" type="checkbox" {{#if @root.shareEnabled}}checked{{/if}}> Allow players to share with the party</label></div>
+                <p class="agf-hint">Normal discovery shows every profile field. Turn on selective reveals to show each field on its own. A hidden name shows as “{{@root.unknownName}}”, and hidden values are never sent to players.</p>
+                <label class="ag-field ag-field--inline"><input type="checkbox" name="field-selective" {{#if @root.fieldSelective}}checked{{/if}}> Use selective field reveals for this faction</label>
+                <div class="ag-table-wrap"><table class="ag-table agf-fields"><thead><tr><th scope="col">Field</th><th scope="col">Party</th><th scope="col">{{@root.actorName}}</th></tr></thead><tbody>
+                  {{#each @root.gmFieldReveals}}<tr><td>{{label}}</td><td><input type="checkbox" name="field-party-{{key}}" aria-label="Reveal {{label}} to party" {{#if party}}checked{{/if}}></td><td><input type="checkbox" name="field-actor-{{key}}" aria-label="Reveal {{label}} to {{@root.actorName}}" {{#if actor}}checked{{/if}}></td></tr>{{/each}}
+                </tbody></table></div>
+              </section>
+            {{/if}}
+            {{#if ../sub.information}}
+              <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Information and Journal links</h3><span class="ag-badge ag-badge--accent">Applies now</span></div>
+                <p class="agf-hint">Write entries or drop Actors or Journals on the box below, then reveal them by hand or by group or individual Renown. Linked documents keep their own Foundry permissions.</p>
+                {{> agfEntryEditor entries=@root.gmEntries unit="Renown"}}
+                <details class="agf-drop" data-agf-draft data-entry-drop data-info-editor><summary>Add an information entry, or drop a document here</summary><div class="ag-form-grid"><label class="ag-field">Title<input name="info-name" placeholder="Rumor, history, contact"></label><label class="ag-field">Unlock<select name="info-unlock"><option value="manual">GM manually</option><option value="group_renown">Group Renown</option><option value="individual_renown">Individual Renown</option></select></label><label class="ag-field">Threshold<input name="info-threshold" type="number" value="0" min="0"></label><label class="ag-field ag-field--wide">Text<textarea name="info-text" rows="2"></textarea></label></div><button type="button" class="ag-btn ag-btn--sm" data-action="addEntry"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add information</button></details>
+              </section>
+            {{/if}}
+            {{#if ../sub.rewards}}
+              <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Rewards and milestone claims</h3><span class="ag-badge ag-badge--accent">Applies now</span></div>
+                <p class="agf-hint">Each reward is one-time, a repeatable service, or passive. Dropped Items start as one-time. Use Edit… for tags, teasers and service limits.</p>
+                {{#each @root.gmGroupLevels}}{{> agfRewardLevel title=groupTitle audience="group"}}{{/each}}
+                {{#each @root.gmPersonalLevels}}{{> agfRewardLevel title=personalTitle audience="individual"}}{{/each}}
+              </section>
+            {{/if}}
+            {{#if ../sub.requests}}
+              <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Claims and service requests</h3><span class="ag-badge ag-badge--accent">Applies now</span></div>
+                {{> agfRequests queue=@root.gmQueue services=@root.serviceRewards}}
+              </section>
+            {{/if}}
+            {{#if ../sub.links}}
+              <section class="ag-section agf-objective-links" aria-label="Objective references"><div class="ag-section__head"><h3 class="ag-section__title">Related quests and contracts</h3><span class="ag-badge ag-badge--accent">Applies now</span></div>
+                <p class="agf-hint">Canonical Quest, Work Order or Contract references. These links never discover, publish or open quests for players; Quest Log owns discovery, progress and visibility.</p>
+                {{#if @root.gmObjectiveRefs.length}}<ul class="ag-rows">{{#each @root.gmObjectiveRefs}}<li class="ag-row"><span class="ag-row__main"><code class="agf-id">{{target_id}}</code><span class="ag-row__meta">{{label}}</span></span><span class="ag-row__end"><span class="ag-badge" data-tooltip="Checked with Quest Log. Unverified means Quest Log is unavailable or not installed." data-tooltip-class="ag-tooltip">{{status}}</span><button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-action="removeObjective" data-objective="{{target_id}}" data-relation="{{relation}}" data-mode="{{mode}}" aria-label="Remove reference {{target_id}}">Remove</button></span></li>{{/each}}</ul>
+                {{else}}<div class="ag-empty"><p class="ag-empty__title">No objective references yet.</p><p class="ag-empty__text">Add one below with its canonical id.</p></div>{{/if}}
+                <div class="agf-inline-form" data-agf-draft><label class="ag-field">Canonical objective id<input name="objective-id" placeholder="QUEST-... / ORDER-... / CONTRACT-..." autocomplete="off"></label><label class="ag-field">Relationship<select name="objective-relation"><option value="associated_objective">Associated with</option><option value="offers_objective">Offers</option></select></label><label class="ag-field">Link mode<select name="objective-mode"><option value="optional">Optional</option><option value="required">Required</option></select></label><button type="button" class="ag-btn" data-action="addObjective"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add reference</button></div>
+              </section>
+            {{/if}}
+          {{/with}}{{/if}}
+          {{#if isDeity}}{{#with @root.deityEditor}}
+            {{#if ../sub.profile}}
+              <div class="agf-panel" data-agf-draft data-deity-editor>
+                <div class="ag-form-grid">
+                  <label class="ag-field">Name<input name="deity-name" value="{{name}}" maxlength="120"></label>
+                  <label class="ag-field">Title<input name="deity-title" value="{{profile.title}}" placeholder="Epithet shown under the name"></label>
+                  <label class="ag-field">Rank<select name="deity-tier"><option value="major" {{#if isMajor}}selected{{/if}}>Major</option><option value="lesser" {{#if isLesser}}selected{{/if}}>Lesser</option></select></label>
+                  <label class="ag-field">Domain<input name="deity-domain" value="{{profile.domain}}"></label>
+                  <label class="ag-field ag-field--wide">Holy symbol image path<span class="agf-symbol-path"><input name="deity-symbol" value="{{profile.symbol}}" placeholder="assets/ashen-gate/deities/name.png"><button type="button" class="ag-btn ag-btn--sm" data-action="pickSymbol"><i class="fa-solid fa-folder-open" aria-hidden="true"></i> Browse…</button></span></label>
+                  <label class="ag-field ag-field--wide">Blurb<textarea name="deity-blurb" rows="2">{{profile.blurb}}</textarea></label>
+                  <label class="ag-field">Tags<input name="deity-tags" value="{{tags}}"><span class="ag-field__hint">GM only.</span></label>
+                </div>
+                {{#agfFold key="deity-card-text" title="Card text" hint="Portfolio, teachings, followers, practices and saying"}}<div class="ag-form-grid">
+                  <label class="ag-field ag-field--wide">Portfolio<textarea name="deity-portfolio" rows="2">{{profile.portfolio}}</textarea></label>
+                  <label class="ag-field ag-field--wide">Teachings<textarea name="deity-teachings" rows="2">{{profile.teachings}}</textarea></label>
+                  <label class="ag-field ag-field--wide">Followers<textarea name="deity-followers" rows="2">{{profile.followers}}</textarea></label>
+                  <label class="ag-field ag-field--wide">Practices<textarea name="deity-practices" rows="2">{{profile.practices}}</textarea></label>
+                  <label class="ag-field ag-field--wide">Saying<textarea name="deity-saying-text" rows="2">{{profile.saying.text}}</textarea></label>
+                  <label class="ag-field">Saying attribution<input name="deity-saying-attribution" value="{{profile.saying.attribution}}"></label>
+                </div>{{/agfFold}}
+                {{#agfFold key="deity-ranks" title="Rank titles (per character)"}}{{> agfRankRows levels=levels scope="individual"}}{{/agfFold}}
+              </div>
+            {{/if}}
+            {{#if ../sub.visibility}}
+              {{> agfDiscovery this}}
+              <section class="ag-section" data-agf-draft><div class="ag-section__head"><h3 class="ag-section__title">Sharing</h3></div>
+                <div class="ag-cluster"><label class="ag-field ag-field--inline"><input name="discovery-placeholder" type="checkbox" {{#if discovery.placeholder}}checked{{/if}}> Show undiscovered placeholder</label><label class="ag-field ag-field--inline"><input name="sharing-enabled" type="checkbox" {{#if discovery.sharing_enabled}}checked{{/if}}> Allow players to share with the party</label></div>
+              </section>
+            {{/if}}
+            {{#if ../sub.lore}}
+              <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Lore entries</h3><span class="ag-badge ag-badge--accent">Applies now</span></div>
+                <p class="agf-hint">Reveal by hand or by this character's favour. Linked documents keep their own Foundry permissions.</p>
+                {{> agfEntryEditor entries=entries unit="favour"}}
+                <details class="agf-drop" data-agf-draft data-entry-drop data-info-editor><summary>Add a lore entry, or drop a document here</summary><div class="ag-form-grid"><label class="ag-field">Title<input name="info-name" placeholder="Myth, rite, shrine"></label><label class="ag-field">Unlock<select name="info-unlock"><option value="manual">GM manually</option><option value="individual_renown">Character favour</option></select></label><label class="ag-field">Threshold<input name="info-threshold" type="number" value="0" min="0"></label><label class="ag-field ag-field--wide">Text<textarea name="info-text" rows="2"></textarea></label></div><button type="button" class="ag-btn ag-btn--sm" data-action="addEntry"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add lore</button></details>
+              </section>
+            {{/if}}
+            {{#if ../sub.rewards}}
+              <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Rewards by rank</h3><span class="ag-badge ag-badge--accent">Applies now</span></div>
+                {{#each levels}}{{> agfRewardLevel title=name audience="individual"}}{{/each}}
+              </section>
+            {{/if}}
+            {{#if ../sub.requests}}
+              <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Claims and service requests</h3><span class="ag-badge ag-badge--accent">Applies now</span></div>
+                {{> agfRequests queue=queue services=serviceRewards}}
+              </section>
+            {{/if}}
+            {{#if ../sub.relations}}
+              <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Related deities</h3><span class="ag-badge ag-badge--accent">Applies now</span></div>
+                {{#if relations.length}}<ul class="ag-rows">{{#each relations}}<li class="ag-row agf-resonance" data-resonance-row><span class="ag-row__main"><span class="ag-row__title">{{name}}</span><span class="ag-row__meta" data-resonance-preview aria-live="polite">{{label}} · {{preview}}</span></span>
+                  <span class="agf-resonance__slider"><span class="agf-hint" aria-hidden="true">Dissonance</span><input type="range" min="0" max="1" step="0.05" value="{{resonance}}" data-resonance-target="{{deity_id}}" aria-label="Resonance with {{name}}"><span class="agf-hint" aria-hidden="true">Resonance</span></span>
+                  <span class="ag-row__end"><button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-action="removeRelation" data-target="{{deity_id}}" aria-label="Remove relation to {{name}}">Remove</button></span></li>{{/each}}</ul>
+                {{else}}<p class="agf-hint">No related deities yet.</p>{{/if}}
+                {{#if relationOptions.length}}<div class="agf-inline-form agf-resonance" data-resonance-row><label class="ag-field">Add related deity<select name="relation-deity">{{#each relationOptions}}<option value="{{id}}">{{name}}</option>{{/each}}</select></label>
+                  <span class="agf-resonance__slider"><span class="agf-hint" aria-hidden="true">Dissonance</span><input type="range" name="relation-resonance" min="0" max="1" step="0.05" value="0.5" aria-label="Resonance with {{relationOptions.0.name}}"><span class="agf-hint" aria-hidden="true">Resonance</span></span>
+                  <span class="agf-hint" data-resonance-preview aria-live="polite">Neutral · gain 10 → 0</span>
+                  <button type="button" class="ag-btn" data-action="addRelation"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add relation</button></div>{{/if}}
+                <p class="agf-hint">Each slider works one way: gains with this deity move the other one. The middle has no effect. Effects are scaled by the damping ({{damping}}) in {{{@root.gotoSetup}}}, and you confirm them on every award. Players see only Resonance or Dissonance, and only once both deities are revealed to them.</p>
+              </section>
+            {{/if}}
+          {{/with}}{{/if}}
+          </div>
+          {{#if saveAction}}<footer class="ag-footer agf-editor__footer"><button type="button" class="ag-btn ag-btn--ghost" data-action="cancelEdit">Cancel</button><span class="ag-footer__status" role="status"></span><button type="button" class="ag-btn ag-btn--primary" data-action="{{saveAction}}">Save Changes</button></footer>{{/if}}
+        {{else}}
+          {{#if orgs.total}}<div class="ag-empty"><i class="fa-solid fa-hand-pointer" aria-hidden="true"></i><p class="ag-empty__title">Nothing selected</p><p class="ag-empty__text">Pick one from the list to edit it.</p></div>{{/if}}
+        {{/with}}{{/if}}
+      </main>
+    </div>
+  </div>
+  {{/if}}
+
+  {{#if tabRequests}}
+  <main class="ag-scroll agf-main agf-pane" id="agf-view" data-agf-scroll="requests">
+    <p class="agf-hint agf-requests-intro">Every open claim and service request, from every faction and deity.</p>
+    {{#each allRequests}}
+      <section class="ag-section agf-request-group"><div class="ag-section__head"><h3 class="ag-section__title">{{name}}</h3><span class="ag-badge">{{kindLabel}}</span>{{{openLink}}}</div>
+        {{> agfRequests queue=queue}}
+      </section>
+    {{else}}
+      <div class="ag-empty"><i class="fa-solid fa-inbox" aria-hidden="true"></i><p class="ag-empty__title">No open requests</p><p class="ag-empty__text">Claims and service requests from players show here until you fulfil or deny them.</p></div>
+    {{/each}}
+  </main>
+  {{/if}}
+
   {{#if tabPantheon}}
-  <main class="ag-scroll agf-main agf-pane">
+  <main class="ag-scroll agf-main agf-pane" id="agf-view" data-agf-scroll="pantheon">
     <section class="agf-pantheon" aria-label="Pantheon">
       <div class="ag-toolbar">
         {{#if pantheon.open}}<button type="button" class="ag-btn ag-btn--ghost" data-action="openDeity" data-id=""><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> All deities</button>{{/if}}
         <div class="ag-toolbar__filters">{{> agfPicker}}</div>
-        {{#if isGM}}<div class="ag-toolbar__end"><button type="button" class="ag-btn" data-action="createDeity"><i class="fa-solid fa-plus" aria-hidden="true"></i> New deity</button></div>{{/if}}
+        {{#if isGM}}{{#if pantheon.open}}<div class="ag-toolbar__end"><button type="button" class="ag-btn" data-action="editDeity" data-id="{{pantheon.open.card.id}}"><i class="fa-solid fa-pen" aria-hidden="true"></i> Edit deity</button></div>{{/if}}{{/if}}
       </div>
       {{#unless pantheon.open}}
         {{#each pantheon.groups}}
@@ -200,7 +308,7 @@
             </button>{{/each}}
           </div></section>
         {{else}}
-          <div class="ag-empty"><i class="fa-solid fa-sun" aria-hidden="true"></i><p class="ag-empty__title">No deities yet</p><p class="ag-empty__text">{{#if isGM}}Create one with New deity, or use Import in the Organizations tab toolbar.{{else}}Your GM hasn't revealed any deities yet.{{/if}}</p>{{#if isGM}}<button type="button" class="ag-btn ag-btn--sm" data-action="createDeity"><i class="fa-solid fa-plus" aria-hidden="true"></i> New deity</button>{{/if}}</div>
+          <div class="ag-empty"><i class="fa-solid fa-sun" aria-hidden="true"></i><p class="ag-empty__title">No deities yet</p><p class="ag-empty__text">{{#if isGM}}Create or import deities in the {{{gotoDeities}}}.{{else}}Your GM hasn't revealed any deities yet.{{/if}}</p></div>
         {{/each}}
       {{/unless}}
       {{#with pantheon.open}}
@@ -219,7 +327,7 @@
             {{#if card.practices}}<dt>Practices</dt><dd>{{card.practices}}</dd>{{/if}}
           </dl>
           {{#if card.saying.text}}<blockquote class="agf-deity-saying"><p>“{{card.saying.text}}”</p>{{#if card.saying.attribution}}<cite>— {{card.saying.attribution}}</cite>{{/if}}</blockquote>{{/if}}
-          {{#unless @root.isGM}}{{#if canShare}}<button type="button" data-action="share" class="ag-btn agf-share"><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> Share with party</button>{{/if}}{{/unless}}
+          {{#unless @root.isGM}}{{#if canShare}}<button type="button" data-action="share" class="ag-btn agf-share"><i class="fa-solid fa-share-nodes" aria-hidden="true"></i> Share with party…</button>{{/if}}{{/unless}}
         </article>
         {{#if known}}
           <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Favour</h3></div>
@@ -228,74 +336,27 @@
           </section>
           {{#if @root.isGM}}{{> agfAward scope="individual" title=awardTitle placeholder="Deed, offering or transgression"}}{{/if}}
           <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Favour history</h3></div>
-            {{#if history.length}}<ol class="ag-rows agf-history">{{#each history}}<li class="ag-row"><strong class="agf-history__delta">{{displayDelta}}</strong><span class="ag-row__main"><span class="ag-row__title">{{reason}}</span>{{#if undone}}<span class="ag-row__meta">Undone</span>{{/if}}</span><span class="ag-row__end agf-history__score">{{previous_score}} → {{score_after}}{{#if @root.isGM}}{{#if canUndo}}<button type="button" class="ag-btn ag-btn--sm" data-action="undoFavour" data-event="{{id}}">Undo</button>{{/if}}{{/if}}</span></li>{{/each}}</ol>
+            {{#if history.length}}<ol class="ag-rows agf-history">{{#each history}}<li class="ag-row"><strong class="agf-history__delta">{{displayDelta}}</strong><span class="ag-row__main"><span class="ag-row__title">{{reason}}</span>{{#if undone}}<span class="ag-row__meta">Undone</span>{{/if}}</span><span class="ag-row__end agf-history__score">{{previous_score}} → {{score_after}}{{#if @root.isGM}}{{#if canUndo}}<button type="button" class="ag-btn ag-btn--sm" data-action="undoFavour" data-event="{{id}}" aria-label="Undo {{reason}}…">Undo…</button>{{/if}}{{/if}}</span></li>{{/each}}</ol>
             {{else}}<div class="ag-empty"><p class="ag-empty__title">No changes yet.</p><p class="ag-empty__text">Favour changes show here as they are recorded.</p></div>{{/if}}
           </section>
         {{else}}
           <div class="ag-empty"><p class="ag-empty__title">Not known yet</p><p class="ag-empty__text">This character hasn't discovered this deity yet.</p></div>
         {{/if}}
-        <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Related deities</h3>{{#if @root.isGM}}<span class="ag-gm-flag"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> GM only</span>{{/if}}</div>
-          {{#if @root.isGM}}
-            {{#if relations.length}}<ul class="ag-rows">{{#each relations}}<li class="ag-row agf-resonance" data-resonance-row><span class="ag-row__main"><span class="ag-row__title">{{name}}</span><span class="ag-row__meta" data-resonance-preview>{{label}} · {{preview}}</span></span>
-              <span class="agf-resonance__slider"><span class="agf-hint">Dissonance</span><input type="range" min="0" max="1" step="0.05" value="{{resonance}}" data-resonance-target="{{deity_id}}" aria-label="Resonance with {{name}}"><span class="agf-hint">Resonance</span></span>
-              <span class="ag-row__end"><button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-action="removeRelation" data-target="{{deity_id}}">Remove</button></span></li>{{/each}}</ul>
-            {{else}}<div class="ag-empty"><p class="ag-empty__title">No related deities yet.</p></div>{{/if}}
-            {{#if gm.relationOptions.length}}<div class="agf-inline-form agf-resonance" data-resonance-row><label class="ag-field">Add related deity<select name="relation-deity">{{#each gm.relationOptions}}<option value="{{id}}">{{name}}</option>{{/each}}</select></label>
-              <span class="agf-resonance__slider"><span class="agf-hint">Dissonance</span><input type="range" name="relation-resonance" min="0" max="1" step="0.05" value="0.5" aria-label="Resonance"><span class="agf-hint">Resonance</span></span>
-              <span class="agf-hint" data-resonance-preview>Neutral · gain 10 → 0</span>
-              <button type="button" class="ag-btn" data-action="addRelation"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add</button></div>{{/if}}
-            <p class="agf-hint">Each slider works one way: gains with this deity move the other one. The middle has no effect. Effects are scaled by the damping in GM Setup ({{damping}}), and you confirm them on every award. Players see only Resonance or Dissonance, and only once both deities are revealed to them.</p>
-          {{else}}
-            {{#if relations.length}}<ul class="ag-rows">{{#each relations}}<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">{{name}}</span></span><span class="ag-row__end"><span class="ag-badge {{#if isDissonant}}ag-badge--danger{{/if}}{{#if isResonant}}ag-badge--ok{{/if}}">{{label}}</span></span></li>{{/each}}</ul>{{else}}<div class="ag-empty"><p class="ag-empty__title">No known related deities.</p></div>{{/if}}
-          {{/if}}
+        <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Related deities</h3></div>
+          {{#if relations.length}}<ul class="ag-rows">{{#each relations}}<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">{{name}}</span></span><span class="ag-row__end"><span class="ag-badge {{#if isDissonant}}ag-badge--danger{{/if}}{{#if isResonant}}ag-badge--ok{{/if}}">{{label}}</span></span></li>{{/each}}</ul>{{else}}<p class="agf-hint">No known related deities.</p>{{/if}}
         </section>
         <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Revealed lore</h3></div>
           {{#if entries.length}}<div class="ag-stack">{{#each entries}}<div class="agf-knowledge"><strong class="agf-knowledge__name">{{name}}</strong>{{#if @root.isGM}} <span class="ag-badge">{{#if discovered_party}}Party{{else}}{{#if discovered}}This character{{else}}Hidden{{/if}}{{/if}}</span>{{/if}}<p class="agf-knowledge__text">{{text}}</p>{{#if uuid}}<button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-action="openLinked" data-uuid="{{uuid}}">Open linked document</button>{{else}}{{#if documentAccessRequired}}<p class="agf-hint">The linked document needs Foundry permission; ask the GM for access.</p>{{/if}}{{/if}}</div>{{/each}}</div>
-          {{else}}<div class="ag-empty"><p class="ag-empty__title">Nothing revealed yet.</p></div>{{/if}}
+          {{else}}<p class="agf-hint">Nothing revealed yet.</p>{{/if}}
         </section>
-        {{#if @root.isGM}}{{#with gm}}
-          <details class="agf-config-section" data-agf-section="deity-profile" open><summary>Deity card, discovery and ranks <span class="ag-gm-flag"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> GM only</span></summary><div class="agf-fold" data-deity-editor>
-            <div class="agf-discovery"><code class="agf-id">{{id}}</code><span class="ag-badge {{badgeClass}}">{{chip}}</span><button type="button" class="ag-btn ag-btn--sm" data-action="discovery" data-mode="party">{{#if discovery.party}}Hide from party{{else}}Reveal to party{{/if}}</button><button type="button" class="ag-btn ag-btn--sm" data-action="discovery" data-mode="actor">{{#if actorKnows}}Hide from{{else}}Reveal to{{/if}} {{@root.pantheon.actorName}}</button></div>
-            <div class="ag-form-grid">
-              <label class="ag-field">Name<input name="deity-name" value="{{name}}" maxlength="120"></label>
-              <label class="ag-field">Title<input name="deity-title" value="{{profile.title}}" placeholder="Epithet shown under the name"></label>
-              <label class="ag-field">Rank<select name="deity-tier"><option value="major" {{#if isMajor}}selected{{/if}}>Major</option><option value="lesser" {{#if isLesser}}selected{{/if}}>Lesser</option></select></label>
-              <label class="ag-field">Domain<input name="deity-domain" value="{{profile.domain}}"></label>
-              <label class="ag-field ag-field--wide">Holy symbol image path<span class="agf-symbol-path"><input name="deity-symbol" value="{{profile.symbol}}" placeholder="assets/ashen-gate/deities/name.png"><button type="button" class="ag-btn ag-btn--sm" data-action="pickSymbol"><i class="fa-solid fa-folder-open" aria-hidden="true"></i> Browse</button></span></label>
-              <label class="ag-field ag-field--wide">Blurb<textarea name="deity-blurb" rows="2">{{profile.blurb}}</textarea></label>
-              <label class="ag-field ag-field--wide">Portfolio<textarea name="deity-portfolio" rows="2">{{profile.portfolio}}</textarea></label>
-              <label class="ag-field ag-field--wide">Teachings<textarea name="deity-teachings" rows="2">{{profile.teachings}}</textarea></label>
-              <label class="ag-field ag-field--wide">Followers<textarea name="deity-followers" rows="2">{{profile.followers}}</textarea></label>
-              <label class="ag-field ag-field--wide">Practices<textarea name="deity-practices" rows="2">{{profile.practices}}</textarea></label>
-              <label class="ag-field ag-field--wide">Saying<textarea name="deity-saying-text" rows="2">{{profile.saying.text}}</textarea></label>
-              <label class="ag-field">Saying attribution<input name="deity-saying-attribution" value="{{profile.saying.attribution}}"></label>
-              <label class="ag-field">Tags<input name="deity-tags" value="{{tags}}"><span class="ag-field__hint">GM only.</span></label>
-            </div>
-            <div class="ag-cluster"><label class="ag-field ag-field--inline"><input name="deity-placeholder" type="checkbox" {{#if discovery.placeholder}}checked{{/if}}> Show undiscovered placeholder</label><label class="ag-field ag-field--inline"><input name="deity-sharing" type="checkbox" {{#if discovery.sharing_enabled}}checked{{/if}}> Allow players to Share with party</label></div>
-            <h4 class="ag-eyebrow agf-subhead">Rank titles (per character)</h4>
-            {{#each levels}}<div class="agf-level-editor" data-milestone-row="individual"><span class="agf-level-editor__key">{{order}}</span><label class="ag-field">Rank<input data-field="name" value="{{name}}"></label><label class="ag-field">Threshold<input data-field="threshold" type="number" value="{{threshold}}"></label><label class="ag-field">Reward mode<select data-field="selection"><option value="all" {{#if isAll}}selected{{/if}}>All rewards</option><option value="choose_one" {{#if isOne}}selected{{/if}}>Choose one</option></select></label><label class="ag-field agf-level-editor__text">Text<textarea data-field="benefit" rows="2">{{benefit}}</textarea></label></div>{{/each}}
-            <footer class="ag-footer"><button type="button" class="ag-btn ag-btn--ghost" data-action="cancelEdit">Cancel</button><span class="ag-footer__status" role="status"></span><button type="button" class="ag-btn ag-btn--primary" data-action="saveDeity">Save deity</button></footer>
-          </div></details>
-          <details class="agf-config-section" data-agf-section="deity-rewards"><summary>Rewards by rank <span class="ag-gm-flag"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> GM only</span></summary><div class="agf-fold">
-            {{#each levels}}{{> agfRewardLevel title=name audience="individual"}}{{/each}}
-          </div></details>
-          <details class="agf-config-section" data-agf-section="deity-lore"><summary>Lore entries <span class="ag-gm-flag"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> GM only</span></summary><div class="agf-fold">
-            <p class="agf-hint">Reveal by hand or by this character's favour. Linked documents keep their own Foundry permissions.</p>
-            {{> agfEntryEditor entries=../entries unit="favour"}}
-            <details class="agf-drop" data-entry-drop data-info-editor><summary>Add a lore entry, or drop a document here</summary><div class="ag-form-grid"><label class="ag-field">Title<input name="info-name" placeholder="Myth, rite, shrine"></label><label class="ag-field">Unlock<select name="info-unlock"><option value="manual">GM manually</option><option value="individual_renown">Character favour</option></select></label><label class="ag-field">Threshold<input name="info-threshold" type="number" value="0" min="0"></label><label class="ag-field ag-field--wide">Text<textarea name="info-text" rows="2"></textarea></label></div><button type="button" class="ag-btn ag-btn--sm" data-action="addEntry"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add lore</button></details>
-          </div></details>
-          <details class="agf-config-section" data-agf-section="deity-requests" open><summary>Claims and service requests ({{queue.length}}) <span class="ag-gm-flag"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> GM only</span></summary><div class="agf-fold">
-            {{> agfRequests queue=queue services=serviceRewards}}
-          </div></details>
-        {{/with}}{{/if}}
       {{/with}}
     </section>
   </main>
   {{/if}}
 
   {{#if tabSetup}}
-  <main class="ag-scroll agf-main agf-pane agf-setup" data-setup-form>
-    <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Player Access</h3></div>
+  <main class="ag-scroll agf-main agf-pane agf-setup" id="agf-view" data-setup-form data-agf-draft data-agf-scroll="setup">
+    <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Player access</h3></div>
       <label class="ag-field ag-field--inline"><input type="checkbox" name="player-access-enabled" {{#if playerAccessEnabled}}checked{{/if}}> Players can open Renown</label>
       <p class="agf-hint">Lets players open Renown from Actors, macros or General Manager. Turning it off hides the window but keeps Renown, claims, discoveries and character progress.</p>
     </section>
@@ -307,18 +368,20 @@
       <label class="ag-field ag-field--inline"><input type="checkbox" name="group-name-enabled" {{#if groupNameEnabled}}checked{{/if}}> Use a custom group name</label>
       <label class="ag-field agf-narrow">Name<input name="group-name" value="{{groupName}}" maxlength="100"><span class="ag-field__hint">Shown as “Name Renown” instead of “Group Renown”.</span></label>
     </section>
-    <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Fill in permanent item ids</h3></div>
-      <p class="agf-hint">Item rewards made before Renown 0.14.0 only remember where the item sits in this world. This fills in each item's permanent id (from General Manager), so the reward still finds its item after a reimport or in a new world. It never changes a reward's link, a reward that already has an id, or any claim. Safe to run again.</p>
-      <div class="agf-inline-form"><button type="button" class="ag-btn ag-btn--sm" data-action="checkRewardIds"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Check rewards</button><button type="button" class="ag-btn ag-btn--sm" data-action="fillRewardIds">Fill in ids</button></div>
-      {{#if backfill}}{{#if backfill.written}}<p class="ag-notice ag-notice--ok" role="status"><i class="fa-solid fa-check" aria-hidden="true"></i> {{backfill.writtenText}}</p>{{/if}}
-      {{#if backfill.empty}}<p class="agf-hint">Every item reward already has a permanent id.</p>{{/if}}
-      {{#if backfill.fill.length}}<h4 class="ag-eyebrow agf-subhead">Will fill ({{backfill.fill.length}})</h4><ul class="ag-rows">{{#each backfill.fill}}<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">{{label}}</span><span class="ag-row__meta"><code>{{itemId}}</code></span></span></li>{{/each}}</ul>{{/if}}
-      {{#if backfill.noId.length}}<h4 class="ag-eyebrow agf-subhead">No permanent id ({{backfill.noId.length}})</h4><p class="agf-hint">These items have no permanent id. The rewards keep working in this world and are left as they are.</p><ul class="ag-rows">{{#each backfill.noId}}<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">{{label}}</span></span></li>{{/each}}</ul>{{/if}}
-      {{#if backfill.missing.length}}<h4 class="ag-eyebrow agf-subhead">Missing ({{backfill.missing.length}})</h4><p class="agf-hint">The item behind these rewards no longer exists. Drop the item on the reward level again, or remove the reward.</p><ul class="ag-rows">{{#each backfill.missing}}<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">{{label}}</span></span><span class="ag-row__end"><span class="ag-badge ag-badge--danger">Missing</span></span></li>{{/each}}</ul>{{/if}}{{/if}}
-    </section>
-    <details class="ag-devtools"><summary>Developer Tools</summary>
-      <p class="agf-hint">Demo data for trying Renown out. Adds four unapproved example guilds; existing names are skipped.</p>
-      <button type="button" class="ag-btn ag-btn--sm" data-action="seed">Load four draft guilds</button>
+    <details class="ag-devtools" data-agf-section="devtools" {{#if backfill}}open{{/if}}><summary>Developer Tools</summary>
+      <section class="ag-section agf-maintenance"><div class="ag-section__head"><h3 class="ag-section__title">Fill in permanent item ids</h3></div>
+        <p class="agf-hint">Item rewards made before Renown 0.14.0 only remember where the item sits in this world. This fills in each item's permanent id (from General Manager), so the reward still finds its item after a reimport or in a new world. It never changes a reward's link, a reward that already has an id, or any claim. Safe to run again.</p>
+        <div class="agf-inline-form"><button type="button" class="ag-btn ag-btn--sm" data-action="checkRewardIds"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Check rewards</button><button type="button" class="ag-btn ag-btn--sm" data-action="fillRewardIds">Fill in ids…</button></div>
+        {{#if backfill}}{{#if backfill.written}}<p class="ag-notice ag-notice--ok" role="status"><i class="fa-solid fa-check" aria-hidden="true"></i> {{backfill.writtenText}}</p>{{/if}}
+        {{#if backfill.empty}}<p class="agf-hint">Every item reward already has a permanent id.</p>{{/if}}
+        {{#if backfill.fill.length}}<h4 class="ag-eyebrow agf-subhead">Will fill ({{backfill.fill.length}})</h4><ul class="ag-rows">{{#each backfill.fill}}<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">{{label}}</span><span class="ag-row__meta"><code>{{itemId}}</code></span></span></li>{{/each}}</ul>{{/if}}
+        {{#if backfill.noId.length}}<h4 class="ag-eyebrow agf-subhead">No permanent id ({{backfill.noId.length}})</h4><p class="agf-hint">These items have no permanent id. The rewards keep working in this world and are left as they are.</p><ul class="ag-rows">{{#each backfill.noId}}<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">{{label}}</span></span></li>{{/each}}</ul>{{/if}}
+        {{#if backfill.missing.length}}<h4 class="ag-eyebrow agf-subhead">Missing ({{backfill.missing.length}})</h4><p class="agf-hint">The item behind these rewards no longer exists. Drop the item on the reward level again, or remove the reward.</p><ul class="ag-rows">{{#each backfill.missing}}<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">{{label}}</span></span><span class="ag-row__end"><span class="ag-badge ag-badge--danger">Missing</span></span></li>{{/each}}</ul>{{/if}}{{/if}}
+      </section>
+      <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Demo data</h3></div>
+        <p class="agf-hint">Adds four synthetic [TEST] factions for trying Renown out; existing names are skipped.</p>
+        <button type="button" class="ag-btn ag-btn--sm" data-action="seed">Load four [TEST] factions…</button>
+      </section>
     </details>
   </main>
   <footer class="ag-footer agf-setup-footer"><button type="button" class="ag-btn ag-btn--ghost" data-action="cancelEdit">Cancel</button><span class="ag-footer__status" role="status"></span><button type="button" class="ag-btn ag-btn--primary" data-action="saveSetup">Save Changes</button></footer>

@@ -2,17 +2,18 @@
 
 Formerly **Factions & Renown**. Only the display name changed: the module id is still `ashen-gate-factions`, and settings, flags, API, import schema and saved data are unchanged.
 
-Module ID `ashen-gate-factions` · Foundry V14 · dnd5e. Factions with group Renown, per-character Renown, discovery, rewards and service requests. Open it from **Actors sidebar → Renown** (players when **GM Setup → Player Access** is on).
+Module ID `ashen-gate-factions` · Foundry V14 · dnd5e. Factions with group Renown, per-character Renown, discovery, rewards and service requests. Open it from **Actors sidebar → Renown** (players when **GM Setup → Player access** is on).
 
 ## Tabs
 
 - **Group:** each faction the party knows, with group Renown score and rank. The group's display name can be customized in GM Setup.
-- **Player:** the same factions for one character, with that character's personal Renown. Players can **Share with Party** what they have discovered, claim rewards and send service requests (the GM is notified and acknowledgments are tracked per user).
-- **Pantheon:** deities, shown as a grid of holy-symbol tiles (Major and Lesser) with each one's title and the chosen character's rank. Open a deity for its card (title, rank, domain, blurb, portfolio, teachings, followers, practices, saying), that character's favour and rank ladder, rewards, lore, and allies/rivals. Favour is per character only; there is no group score. Players see only deities revealed to one of their characters. The GM gets the same controls as for factions: create, edit the card and rank titles, reveal, adjust favour, rewards, lore, relations and requests.
-- **Organizations** (GM): every faction (hidden, character-only and revealed) in a list with visibility badge, group Renown and rank. Search filters as you type; filter, sort and group by visibility or folder. **New faction**, Import and Export are on the right of the toolbar. Editing, revealing, folders, rewards, claims, information entries and linked quests live below the list.
-- **GM Setup** (GM): settings only: Player Access, Pantheon damping and the custom group display name, saved together with **Save Changes**. **Fill in permanent item ids** (0.14.0) checks item rewards and, after a confirmation, fills in missing permanent item ids. A collapsed **Developer Tools** box at the bottom loads demo guilds.
+- **Character:** the same factions for one character, with that character's personal Renown. Players can **Share with party** what they have discovered, claim rewards and send service requests (the GM is notified and acknowledgments are tracked per user).
+- **Pantheon:** deities, shown as a grid of holy-symbol tiles (Major and Lesser) with each one's title and the chosen character's rank. Open a deity for its card (title, rank, domain, blurb, portfolio, teachings, followers, practices, saying), that character's favour and rank ladder, rewards, lore, and allies/rivals. Favour is per character only; there is no group score. Players see only deities revealed to one of their characters. The GM also adjusts favour and undoes changes here; **Edit deity** opens the deity in the Factions tab.
+- **Factions** (GM): every faction, or every deity (**Show**), in the list on the left with its visibility badge (and, for factions, group Renown and rank). Search filters as you type; filter, group and sort. **Manage folders**, **Import…**, **Export** and **New faction…** / **New deity…** are on the right of the toolbar. Pick one to edit it on the right, in sub-tabs: **Profile** (name, folder, tags and ranks), **Visibility** (reveal to the party or a character, placeholder, sharing and, for factions, field by field), **Information** / **Lore**, **Rewards**, **Requests**, and **Links** (factions: quests and contracts) or **Relations** (deities). Profile and Visibility save with **Save Changes** at the bottom right; the other sub-tabs apply at once (marked *Applies now*). Leaving with unsaved edits asks first.
+- **Requests** (GM): every open claim and service request from every faction and deity, grouped by name, with the number open on the tab. **Open <name>** goes to that record's Requests sub-tab.
+- **GM Setup** (GM): settings only: Player access, Pantheon damping and the custom group display name, saved together with **Save Changes**. A collapsed **Developer Tools** box at the bottom holds **Fill in permanent item ids** (0.14.0: checks item rewards and, after a confirmation, fills in missing permanent item ids) and loads four synthetic **[TEST]** demo factions.
 
-Group, Player and Organizations show the folder list on the left; Pantheon and GM Setup use the full width.
+Group and Character show the folder list on the left; Factions has its own list and editor; Pantheon, Requests and GM Setup use the full width.
 
 Discovery can be all-or-nothing per faction, or field by field (Name, Leader, Description). Existing factions stay in all-fields-visible mode until the GM opts in. Source-definition exports (`AG_Factions_Definitions.json`) omit player disclosure, Renown, claims, service usage and history.
 
@@ -29,12 +30,12 @@ Independent. General Manager hands faction files to `api.previewFactionsImport` 
 
 ## Public API
 
-`game.modules.get('ashen-gate-factions').api`: `open` (optionally `open({factionId, actorId, tab: 'group' | 'player'})`, 0.10.0; `open({deityId, actorId, tab: 'pantheon'})`, 0.11.0), `embed.mount` (below), `getFactions` (players get only their filtered view), `validateFaction`, `getDeities`, `getPantheon(actor)` (Pantheon, 0.11.0; see Deity records), `playerAccess` (`ag-player-access/1`), and GM-only `previewFactionsImport`, `importFactions`, `refreshPlayerViews`, `getObjectiveRefs`, `auditObjectiveRefs`, `rewards.backfillItemIds({dryRun = true})` (`ag-renown-rewards/1`, 0.14.0).
+`game.modules.get('ashen-gate-factions').api`: `open` (optionally `open({factionId, actorId, tab: 'group' | 'player'})` (`'player'` is the Character tab), 0.10.0; `open({deityId, actorId, tab: 'pantheon'})`, 0.11.0), `embed.mount` (below), `getFactions` (players get only their filtered view), `validateFaction`, `getDeities`, `getPantheon(actor)` (Pantheon, 0.11.0; see Deity records), `playerAccess` (`ag-player-access/1`), and GM-only `previewFactionsImport`, `importFactions`, `refreshPlayerViews`, `getObjectiveRefs`, `auditObjectiveRefs`, `rewards.backfillItemIds({dryRun = true})` (`ag-renown-rewards/1`, 0.14.0).
 
 
 ### `embed.mount(element, options)` (0.10.0)
 
-Shows a compact, **read-only** standing list for one character inside another module's window, for example Character Hub's Ashen Gate → Renown. One row per organization the user may see: the party's rank and Renown score, this character's rank and score, the next milestone for each, and **Open** (opens the Renown window on that organization; the Player view when a character is given).
+Shows a compact, **read-only** standing list for one character inside another module's window, for example Character Hub's Ashen Gate → Renown. One row per faction the user may see: the party's rank and Renown score, this character's rank and score, the next milestone for each, and **Open** (opens the Renown window on that faction; the Character tab when a character is given).
 
 ```js
 const api = game.modules.get('ashen-gate-factions')?.api;
@@ -48,7 +49,7 @@ if (api?.embed?.mount) {
 - `options.actorId`: the character whose personal standing is shown. `options.mode`: `'character'` (the only mode; `api.embed.modes` lists them). An unknown mode or a missing element throws.
 - Returns `{unmount(), refresh()}`. It refreshes itself when Renown's journals or settings change and unmounts itself if the element has left the page.
 - **Pantheon (0.11.0):** when `actorId` is given, a Pantheon section follows with that character's favour with each deity they know (symbol, name, title, rank, score, next rank, **Open**). Same rule as `getPantheon`: players only for characters they own, only revealed deities.
-- **Permission:** read from the same sources as the Renown window: the GM sees everything; a player sees only their own filtered player view (never undiscovered organizations, GM notes or other players' characters), and the character's personal standing only when they own it. Players see "The GM has hidden Renown." while Player Access is off. Claims, requests and Renown awards stay in the Renown window.
+- **Permission:** read from the same sources as the Renown window: the GM sees everything; a player sees only their own filtered player view (never undiscovered factions, GM notes or other players' characters), and the character's personal standing only when they own it. Players see "The GM has hidden Renown." while Player Access is off. Claims, requests and Renown awards stay in the Renown window.
 
 ## Deity records
 

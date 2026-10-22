@@ -7,12 +7,11 @@ export const SCHEMA_VERSION='0.3.0';
 export const REWARD_BEHAVIORS=['one_time','repeatable_service','passive'];
 const ref=(relation,target_id)=>({relation,target_id,mode:'required'});
 const startingMilestones=[['Unproven',0,'Access to public faction opportunities.'],['Recognized',3,'A recognized contact and an introductory faction service.'],['Trusted',6,'Eligibility for a modest, negotiated noncombat favor.'],['Proven',10,'Eligibility for significant commissions and expedition sponsorship.'],['Esteemed',15,'Eligibility to pursue an earned, lasting faction alliance.']];
-export const RECOVERED_GUILDS_DRAFT=Object.freeze([
-  {name:'The Far Lanterns',leader:'Nessa Vale',public_role:'Scouting, maps, recovery work, and knowledge of the country beyond the walls',initial_benefit:'Consult known route notes and ask a scout about a familiar route.'},
-  {name:'The Gilt Compact',leader:'Director Odran Kell',public_role:'Trade security, procurement, and negotiated contracts',initial_benefit:'Ask a broker to find an ordinary buyer, supplier, or material at a quoted price.'},
-  {name:'The Hearthward Company',leader:'Captain Branna Holt',public_role:'Rescue, local protection, and support for those harmed by dangerous work',initial_benefit:'Arrange basic temporary shelter or an introduction to a local care provider.'},
-  {name:'The Iron March',leader:'Marshal Edra Voss',public_role:'Reliable escort, disciplined defense, and contracts that hold under pressure',initial_benefit:'Access supervised practice space and introductions to available guards.'}
-]);
+// Developer Tools demo data (FR-09): synthetic [TEST] records only; this repo is public.
+export const TEST_FACTIONS_DEMO=Object.freeze(['A','B','C','D'].map(x=>({name:`[TEST] Guild ${x}`,leader:`[TEST] Leader ${x}`,public_role:`[TEST] Demo faction ${x} for trying Renown out.`,initial_benefit:`[TEST] Introductory service from Guild ${x}.`})));
+// Shown in place of a faction or folder name the viewer has not learned (FR-08: "faction" everywhere).
+export const UNKNOWN_FACTION='Unknown faction';
+export const OTHER_FOLDER='Other factions';
 export const blankStanding=()=>({opening_score:0,score:0,events:[]});
 /** Fills missing group-state keys; `changed` is false when the stored state already had them all (so no write is needed). */
 export function groupStateDefaults(stored,legacyStanding){
@@ -149,11 +148,11 @@ export function chooseOneEligible({faction,reward,claims={},choices={}}){
 }
 export function discoverable({discovery,actorIds=[]}){return Boolean(discovery?.party||actorIds.some(id=>discovery?.actors?.includes(id)));}
 export function projectedFolders({folders,factions,actorIds=[],gm=false}){
-  const effective=[...folders,{key:'',name:'Other Factions'}].map(folder=>{
+  const effective=[...folders,{key:'',name:OTHER_FOLDER}].map(folder=>{
     const members=factions.filter(f=>(f.folder_key||'')===folder.key);
     const shown=members.filter(f=>gm||discoverable({discovery:f.discovery,actorIds}));
     const placeholders=gm?[]:members.filter(f=>!discoverable({discovery:f.discovery,actorIds})&&f.discovery.placeholder).map(()=>({unknown:true,name:'Undiscovered Faction'}));
-    return {key:folder.key,name:gm||shown.length?folder.name:'Unknown Organization',known:shown,unknown:placeholders,show:gm?true:shown.length+placeholders.length>0,hasKnown:Boolean(shown.length)};
+    return {key:folder.key,name:gm||shown.length?folder.name:UNKNOWN_FACTION,known:shown,unknown:placeholders,show:gm?true:shown.length+placeholders.length>0,hasKnown:Boolean(shown.length)};
   });return effective.filter(f=>f.show);
 }
 export function milestoneProjection({faction,scope,score,claims={},requests={},uses={},choices={},gm=false}){
