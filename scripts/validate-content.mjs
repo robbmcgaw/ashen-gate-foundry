@@ -12,7 +12,8 @@
 //     Tools and checks > Import baseline file) and *.npc-codex.json (ag-npc-codex-export/0.1; Library > NPC Codex >
 //     Restore reveals). They are left out of the folder's ZIP bundle.
 //   - ag-strain-config/0.1 files (Strain bands and Backfire schedule) are checked with Ashen Gate | Cinders' own validator;
-//     Cinder / Power / BackfireTable records in a Manager package get Cinders' definition check.
+//     Cinder / Power / BackfireTable records in a Manager package get Cinders' definition check (including a Cinder's
+//     optional default art, cinder.art, from Cinders 0.9.0).
 //   - record-level modifiers blocks (ag-modifiers/0.1): Manager checks the shape, then each scope's owner checks its entries
 //     (scope cinder: Cinders' exported validateModifiers, when that Cinders version has it).
 //   - each folder's accepted import files are also zipped together and read as a Manager ZIP bundle.

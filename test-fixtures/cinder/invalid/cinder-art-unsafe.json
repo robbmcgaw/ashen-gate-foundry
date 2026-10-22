@@ -1,0 +1,43 @@
+{
+  "_expect_error": "cinder.art must be an image path",
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-TEST-CINDER",
+    "version": "1.0.0",
+    "description": "Synthetic Cinder, powers and Backfire tables for testing (not canon)."
+  },
+  "records": [
+    {
+      "id": "MUT-TEST-EMBER",
+      "entity_type": "Mutation",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Ember Cinder",
+      "cinder": {
+        "schema": "ag-cinder/0.1",
+        "art": "javascript:alert(1)"
+      },
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Cinders",
+        "data": {
+          "name": "[TEST] Ember Cinder",
+          "type": "feat",
+          "system": {
+            "description": {
+              "value": "<p>[TEST] Ember Cinder: synthetic test definition; no setting content.</p>"
+            }
+          }
+        }
+      }
+    }
+  ]
+}
