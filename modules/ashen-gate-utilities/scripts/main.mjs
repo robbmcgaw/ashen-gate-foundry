@@ -1,4 +1,4 @@
-import {ID,VERSION,isLevelBackup,LEVEL_BACKUP_REFUSAL,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,applyDecision,isController,withController,OVERLAY_OPACITY_DEFAULT,clampOverlayOpacity,conditionGroups,hasStatus,isReadOnlyStatus,READ_ONLY_STATUS_HINT,stashRow,historyEntry,containedItems,moveBundle,contentsNote,appendHistory,approvalLabel,STASH_HISTORY_CAP,rollFormSession,normalizeTab,rollPrefill,ROLL_OPEN_MODES,readGp,planGoldAward,goldAwardEntry,planGoldUndo,applyGoldUndo,goldCardHTML,COINS,COIN_LABELS,entryCoin,readCoin,readCoins,planCoinMove,planPurseAdjust,purseEntry,purseUndoable,planPurseUndo,applyPurseUndo,purseLine,PURSE_KINDS,ELECTRUM_OFF,coinChoices,shownCoins,strandedElectrum,planElectrumConvert,convertPreview,convertEntry,convertLine,planConvertUndo,applyConvertUndo,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome,shopLine,fundLogEntry,COIN_EXCHANGE,coinsText,coinStripHTML,coinChipsHTML} from './core.mjs';
+import {ID,VERSION,isLevelBackup,LEVEL_BACKUP_REFUSAL,SKILL_IDS,escapeHTML as E,createSession,summary,acceptRoll,skipRoll,resolveNow,cancelSession,projectSession,MAX_HISTORY,formatBonus,skillBonus,skillRollMode,tallyHTML,describeTableResult,resolveStatusSources,removeUnknownStatus,isUnlocked,withUnlocked,removalDecision,applyDecision,isController,withController,OVERLAY_OPACITY_DEFAULT,clampOverlayOpacity,overlayBackground,statusEntries,resolveStatusId,conditionGroups,hasStatus,isReadOnlyStatus,READ_ONLY_STATUS_HINT,stashRow,historyEntry,containedItems,moveBundle,contentsNote,appendHistory,approvalLabel,STASH_HISTORY_CAP,rollFormSession,normalizeTab,rollPrefill,ROLL_OPEN_MODES,readGp,planGoldAward,goldAwardEntry,planGoldUndo,applyGoldUndo,goldCardHTML,COINS,COIN_LABELS,entryCoin,readCoin,readCoins,planCoinMove,planPurseAdjust,purseEntry,purseUndoable,planPurseUndo,applyPurseUndo,purseLine,PURSE_KINDS,ELECTRUM_OFF,coinChoices,shownCoins,strandedElectrum,planElectrumConvert,convertPreview,convertEntry,convertLine,planConvertUndo,applyConvertUndo,CONSENT_TIMEOUT_MS,consentVoters,createPoll,recordVote,pollOutcome,shopLine,fundLogEntry,COIN_EXCHANGE,coinsText,coinStripHTML,coinChipsHTML} from './core.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,confirmDanger,guardDirty,infoDialog,formDialog} from './ag-dialogs.mjs';
 import {windowSize,subTabs,tabPanelAttrs,bindTablist,fold,bindFolds,linkButton,uiState} from './ag-html.mjs';
@@ -37,9 +37,11 @@ const targetActor=id=>{const a=game.actors.get(id);if(isLevelBackup(a))throw Err
 const permittedActors=()=>allCharacters().filter(a=>isOwned(a));
 const ownedIds=()=>permittedActors().map(a=>a.id);
 const skillName=k=>game.i18n.localize(CONFIG.DND5E?.skills?.[k]?.label??k);
-const statusConfig=k=>CONFIG.statusEffects?.find(x=>x.id===k);
+/** 0.26.1: CONFIG.statusEffects is keyed by id in Foundry V14 (an array in older cores); statusEntries reads both. */
+const statusList=()=>statusEntries(globalThis.CONFIG?.statusEffects);
+const statusConfig=k=>statusList().find(x=>x.id===k);
 const statusName=k=>game.i18n.localize(statusConfig(k)?.name??k);
-const nativeIds=()=>(CONFIG.statusEffects||[]).map(x=>x.id);
+const nativeIds=()=>statusList().map(x=>x.id);
 const getUnlocks=()=>game.settings.get(ID,'conditionUnlocks')||{};
 // 0.23.0: GM Setup "owners manage conditions" (world, default off) and condition controllers {userId:true} (world, GM only).
 const ownersManage=()=>game.settings.get(ID,'ownersManageConditions')===true;
@@ -50,7 +52,7 @@ const conditionRules=()=>({unlocks:getUnlocks(),nativeIds:nativeIds(),ownersMana
 const partyCharacters=(user=game.user)=>allCharacters().filter(a=>user?.isGM||controlsConditions(user)||a.testUserPermission?.(user,'LIMITED'));
 const canRemove=(actor,id,user=game.user)=>removalDecision({user,actor,statusId:id,...conditionRules()}).ok;
 /** Whether `user` may apply some native condition to `actor` (the Apply row shows); each status is re-checked on apply. */
-const canApplyTo=(actor,user=game.user)=>(CONFIG.statusEffects||[]).some(x=>applyDecision({user,actor,statusId:x.id,...conditionRules()}).ok);
+const canApplyTo=(actor,user=game.user)=>statusList().some(x=>applyDecision({user,actor,statusId:x.id,...conditionRules()}).ok);
 const error=e=>{console.error(`[${ID}]`,e);ui.notifications?.error(e?.message||String(e));};
 const option=(id,title,selected)=>`<option value="${E(id)}" ${id===selected?'selected':''}>${E(title)}</option>`;
 const tip=text=>`data-tooltip="${E(text)}" data-tooltip-class="ag-tooltip"`;
@@ -254,7 +256,10 @@ function controllersLine(){
  if(isGM()){const list=[...game.users].filter(u=>!u.isGM&&isController(getControllers(),u.id));
   return `<div class="agu-line agu-controllers"><span>Condition controllers: ${list.length?list.map(u=>`<span class="ag-badge">${E(u.name)}${btn('revoke-controller','Revoke',{kind:'ghost sm',attrs:`data-user="${E(u.id)}" aria-label="Revoke condition control from ${E(u.name)}"`})}</span>`).join(' '):'none'}</span><small class="agu-source">Grant in GM Setup.</small></div>`;}
  return controlsConditions()?`<div class="agu-line agu-controllers"><span class="ag-badge ag-badge--ok" ${tip('The GM lets you apply and remove native conditions on every character')}><i class="fa-solid fa-hand-sparkles" aria-hidden="true"></i>Condition controller</span></div>`:'';}
-function conditionsView(app){const characters=partyCharacters();const actor=characters.find(a=>a.id===app.actorId)||characters[0];const statuses=actor?[...(actor.statuses||[])]:[],known=(CONFIG.statusEffects||[]).filter(x=>!isReadOnlyStatus(x.id));
+function conditionsView(app){const characters=partyCharacters();const actor=characters.find(a=>a.id===app.actorId)||characters[0];const statuses=actor?[...(actor.statuses||[])]:[],known=statusList().filter(x=>!isReadOnlyStatus(x.id));
+ // 0.26.1: exactly one option is selected (the last pick, else the first); every option used to carry `selected`, so the list
+ // reset to its last entry on each re-render and Apply sent that status instead of the one chosen.
+ const pick=known.some(x=>x.id===app.conditionPick)?app.conditionPick:known[0]?.id;
  const showSources=actor&&(isGM()||actor.testUserPermission?.(game.user,'OBSERVER'));
  const roster=characters.map(a=>`<button type="button" data-condition-actor="${E(a.id)}" class="agu-roster-row ${actor?.id===a.id?'active':''}"><span class="agu-who"><span>${E(a.name)}</span>${lockBadge(a)}</span><span class="agu-roster-status">${[...(a.statuses||[])].map(s=>conditionIcon(s)+`<span>${E(statusName(s))}</span>`).join('')||'No conditions'}</span></button>`).join('');
  const details=statuses.length?statuses.map(id=>{const unknown=!statusConfig(id);
@@ -263,7 +268,7 @@ function conditionsView(app){const characters=partyCharacters();const actor=char
  const unlocked=actor&&isUnlocked(getUnlocks(),actor.id);
  const lockLine=actor?`<div class="agu-line agu-lock-line"><span>Owner changes: ${lockBadge(actor)}</span>${isGM()&&!ownersManage()?btn('toggle-lock',unlocked?'Lock Conditions':'Unlock for Owner',{kind:'sm',icon:unlocked?'fa-lock':'fa-lock-open',attrs:`data-actor="${E(actor.id)}"`}):''}</div>`:'';
  const overlayOn=game.settings.get(ID,'overlayOpen')===true;
- return `<section class="ag-card agu-card"><div class="agu-line"><h2>Party Conditions</h2>${btn('toggle-overlay',overlayOn?'Close Overlay':'Pop Out Overlay',{kind:'sm',icon:'fa-up-right-from-square',attrs:`aria-pressed="${overlayOn}"`})}</div><div class="agu-party-panes"><section><h3>Party Characters</h3>${roster||empty('No characters to show',isGM()?'Create a character to see its conditions here.':'Party characters appear here once your GM shares them with you.')}</section><section><h3>${E(actor?.name||'Select a character')}</h3>${lockLine}${detailList}${actor&&canApplyTo(actor)?`<div class="agu-compact"><label class="ag-field">Native condition<select id="agu-condition-status">${known.map(x=>option(x.id,statusName(x.id),x.id)).join('')}</select></label>${btn('add-status','Apply',{kind:'primary'})}</div>`:''}</section></div>${controllersLine()}<p class="ag-field__hint">Who may change conditions, Custom and read-only statuses: see Help.</p></section>`;
+ return `<section class="ag-card agu-card"><div class="agu-line"><h2>Party Conditions</h2>${btn('toggle-overlay',overlayOn?'Close Overlay':'Pop Out Overlay',{kind:'sm',icon:'fa-up-right-from-square',attrs:`aria-pressed="${overlayOn}"`})}</div><div class="agu-party-panes"><section><h3>Party Characters</h3>${roster||empty('No characters to show',isGM()?'Create a character to see its conditions here.':'Party characters appear here once your GM shares them with you.')}</section><section><h3>${E(actor?.name||'Select a character')}</h3>${lockLine}${detailList}${actor&&canApplyTo(actor)?`<div class="agu-compact"><label class="ag-field">Native condition<select id="agu-condition-status">${known.map(x=>option(x.id,statusName(x.id),pick)).join('')}</select></label>${btn('add-status','Apply',{kind:'primary'})}</div>`:''}</section></div>${controllersLine()}<p class="ag-field__hint">Who may change conditions, Custom and read-only statuses: see Help.</p></section>`;
 }
 /** Rolls → History (GM): finished and cancelled checks, newest first. */
 function historyView(app){if(!isGM())return '';
@@ -359,6 +364,7 @@ class UtilitiesApp extends ApplicationV2 {
   for(const b of root.querySelectorAll('[id^="agu-rolls-tab-"]'))b.addEventListener('click',()=>{this.rollsSub=b.dataset.tab;this.render().catch(error);});
   const start=root.querySelector('[data-start-rolls] details');
   start?.addEventListener('toggle',()=>{this.startOpen=start.open;});
+  root.querySelector('#agu-condition-status')?.addEventListener('change',e=>{this.conditionPick=e.target.value;});
   bindFolds(root,this.ui);
   for(const r of root.querySelectorAll('input[name="agu-mode"]'))r.addEventListener('change',()=>{this.rollMode=r.value;const group=r.value==='group';
    for(const el of root.querySelectorAll('[data-group-only]'))el.hidden=!group;
@@ -457,7 +463,7 @@ class UtilitiesApp extends ApplicationV2 {
   if(action==='table-send'){if(!isGM())throw Error('GM only.');await sendMessage(root.querySelector('#agu-table-message')?.value||'',root);this.tableDraft='';await this.render();return;}
   if(action==='remove-status'){const actor=game.actors.get(this.actorId)||partyCharacters()[0];if(!actor)throw Error('Select a character.');await removeFromUI(actor,b.dataset.status);await this.render();return;}
   if(action==='add-status'){
-   const actor=game.actors.get(this.actorId)||partyCharacters()[0];if(!actor)throw Error('Select a character.');const id=root.querySelector('#agu-condition-status')?.value;
+   const actor=game.actors.get(this.actorId)||partyCharacters()[0];if(!actor)throw Error('Select a character.');const id=root.querySelector('#agu-condition-status')?.value;this.conditionPick=id;
    if(isReadOnlyStatus(id))throw Error(`${statusName(id)} can't be applied here. ${READ_ONLY_STATUS_HINT}.`);
    try{ui.notifications?.info(await applyCondition(actor.id,id));}finally{await this.render();}
    return;
@@ -523,14 +529,14 @@ async function removeCondition(actorId,statusId){
  return isGM()?executeRemoval(actor,statusId,game.user):requestGM('remove-status',{actorId,statusId});
 }
 /** 0.23.0: apply a native condition. Runs on the GM client (directly, or for a player's request after re-checking). */
-async function executeApply(actor,statusId,user){
+async function executeApply(actor,statusId,user){statusId=resolveStatusId(statusId,nativeIds());
  const d=applyDecision({user,actor,statusId,...conditionRules()});if(!d.ok)throw Error(d.reason);
  await actor.toggleStatusEffect(statusId,{active:true});
  if(!hasStatus(actor,statusId))throw Error(`${statusName(statusId)} was not applied to ${actor.name}: Foundry or another module refused it.`);
  return `Applied ${statusName(statusId)} to ${actor.name}.`;
 }
 async function applyCondition(actorId,statusId){
- if(!permitted())throw Error('Utilities access is hidden by the GM.');
+ if(!permitted())throw Error('Utilities access is hidden by the GM.');statusId=resolveStatusId(statusId,nativeIds());
  const actor=game.actors.get(actorId),d=applyDecision({user:game.user,actor,statusId,...conditionRules()});if(!d.ok)throw Error(d.reason);
  return isGM()?executeApply(actor,statusId,game.user):requestGM('apply-status',{actorId,statusId});
 }
@@ -590,7 +596,19 @@ async function onSocket(msg,senderId){
 /* ---- Conditions overlay: a per-user pop-out. 0.23.0: a slider fades only its background (0-100 %, saved per user);
    the header, text and buttons stay opaque. ---- */
 const overlayOpacity=()=>{try{return clampOverlayOpacity(game.settings.get(ID,'overlayOpacity'));}catch{return OVERLAY_OPACITY_DEFAULT;}};
-function applyOverlayOpacity(app,value=overlayOpacity()){const v=clampOverlayOpacity(value);app?.element?.style?.setProperty?.('--agu-ov-alpha',`${v}%`);return v;}
+/** The kit's window colour as the main Foundry page resolves it (a popped-out browser window may not carry the skin). */
+const mainSurface=()=>{try{return globalThis.getComputedStyle?.(globalThis.document.documentElement)?.getPropertyValue?.('--ag-surface')?.trim()||undefined;}catch{return undefined;}};
+/**
+ * 0.26.1: the slider value goes on the window element as an inline background (plus the CSS variable) and its content
+ * area is kept clear. Inline, so it wins over core window rules, including those of a window popped out to its own
+ * browser window, where the module's variable rule alone did not reach the visible background.
+ */
+function applyOverlayOpacity(app,value=overlayOpacity()){const v=clampOverlayOpacity(value),el=app?.element;
+ el?.style?.setProperty?.('--agu-ov-alpha',`${v}%`);el?.style?.setProperty?.('background',overlayBackground(v,mainSurface()),'important');
+ el?.querySelector?.('.window-content')?.style?.setProperty?.('background','transparent','important');
+ return v;}
+/** The slider's current position (it may be mid-drag, not yet saved), else the saved per-user value. */
+const liveOverlayOpacity=app=>{const f=app?.element?.querySelector?.('[data-ov-opacity]');return f?clampOverlayOpacity(f.value):overlayOpacity();};
 function overlayFadeHTML(){const tipText='Overlay background opacity (only for you): 0-100 %. Text and the header stay solid.';
  return `<label class="agu-ov-fade" ${tip(tipText)}><i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i><input type="range" min="0" max="100" step="5" value="${overlayOpacity()}" data-ov-opacity aria-label="${E(tipText)}"></label>`;}
 function overlayHTML(){
@@ -607,6 +625,9 @@ class ConditionsOverlay extends ApplicationV2 {
   if(fade){fade.addEventListener('input',()=>applyOverlayOpacity(this,fade.value));fade.addEventListener('change',()=>{game.settings.set(ID,'overlayOpacity',applyOverlayOpacity(this,fade.value))?.catch?.(error);});}
   for(const b of content.querySelectorAll('[data-ov-remove]'))b.addEventListener('click',()=>{b.disabled=true;removeFromUI(game.actors.get(b.dataset.actor),b.dataset.status).catch(error).finally(()=>{b.disabled=false;});});
  }
+ // 0.26.1: popping out to a browser window (or back) moves the window into another document; apply the value again there.
+ _onDetach(from,to){super._onDetach?.(from,to);applyOverlayOpacity(this,liveOverlayOpacity(this));}
+ _onAttach(from,to){super._onAttach?.(from,to);applyOverlayOpacity(this,liveOverlayOpacity(this));}
  _onPosition(position){super._onPosition?.(position);clearTimeout(positionTimer);
   positionTimer=setTimeout(()=>{const keep=Object.fromEntries(['left','top','width','height'].filter(k=>Number.isFinite(position?.[k])).map(k=>[k,position[k]]));game.settings.set(ID,'overlayPosition',keep).catch(error);},400);}
  // Closing the window with its own X turns the overlay off for this user; closing it for a permission change does not.
@@ -1368,7 +1389,7 @@ Hooks.once('ready',()=>{
  installItemTips();
  const m=game.modules.get(ID);
  m.api={version:VERSION,contract:'ag-utilities/0.2-alpha',open,playerAccess:{contract:'ag-player-access/1',getState:()=>({contract:'ag-player-access/1',moduleId:ID,audience:'player',playerAccessEnabled:game.settings.get(ID,'playerAccessEnabled'),configurable:true}),setEnabled:async enabled=>{if(!isGM())throw Error('GM only.');if(typeof enabled!=='boolean')throw TypeError('Boolean required.');await game.settings.set(ID,'playerAccessEnabled',enabled);return m.api.playerAccess.getState();}},
-  conditions:{contract:'ag-utilities-conditions/1',isUnlocked:actorId=>isUnlocked(getUnlocks(),actorId),setUnlocked,canRemove:(actorId,statusId)=>canRemove(game.actors.get(actorId),statusId),remove:removeCondition,canApply:(actorId,statusId)=>applyDecision({user:game.user,actor:game.actors.get(actorId),statusId,...conditionRules()}).ok,apply:applyCondition,ownersManage,setOwnersManage,isController:(userId=game.user?.id)=>controlsConditions(game.users.get(userId)),controllers:()=>{if(!isGM())throw Error('GM only.');return controllerList();},setController,openOverlay:async()=>{await game.settings.set(ID,'overlayOpen',true);return openOverlay();},closeOverlay:()=>game.settings.set(ID,'overlayOpen',false)},
+  conditions:{contract:'ag-utilities-conditions/1',isUnlocked:actorId=>isUnlocked(getUnlocks(),actorId),setUnlocked,canRemove:(actorId,statusId)=>canRemove(game.actors.get(actorId),statusId),remove:removeCondition,canApply:(actorId,statusId)=>applyDecision({user:game.user,actor:game.actors.get(actorId),statusId:resolveStatusId(statusId,nativeIds()),...conditionRules()}).ok,apply:applyCondition,ownersManage,setOwnersManage,isController:(userId=game.user?.id)=>controlsConditions(game.users.get(userId)),controllers:()=>{if(!isGM())throw Error('GM only.');return controllerList();},setController,openOverlay:async()=>{await game.settings.set(ID,'overlayOpen',true);return openOverlay();},closeOverlay:()=>game.settings.set(ID,'overlayOpen',false)},
   stash:{contract:'ag-utilities-stash/1',isEnabled:stashEnabled,setEnabled:setStashEnabled,isVoteRequired:stashVoteRequired,setVoteRequired:setStashVoteRequired,history:stashHistory,clearHistory:clearStashHistory,open:openStash,deposit:depositItem,withdraw:withdrawItem,listItems:listStashItems},
   rolls:{contract:'ag-utilities-rolls/1',modes:[...ROLL_OPEN_MODES],skills:[...SKILL_IDS],open:openRolls},
   embed:{contract:'ag-utilities-embed/1',modes:[...EMBED_MODES],mount:mountEmbed},

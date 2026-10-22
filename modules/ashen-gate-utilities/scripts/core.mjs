@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.26.0';
+export const VERSION = '0.26.1';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -205,6 +205,26 @@ export const hasStatus = (actor, id) => { const st = actor?.statuses; return st 
 export const READ_ONLY_STATUS_PREFIXES = Object.freeze(['ag-strain-']);
 export const isReadOnlyStatus = id => typeof id === 'string' && READ_ONLY_STATUS_PREFIXES.some(p => id.startsWith(p));
 export const READ_ONLY_STATUS_HINT = 'Changed in Ashen Gate | Cinders or the Character Hub Strain bar';
+/**
+ * 0.26.1: the native status list from CONFIG.statusEffects in either shape. Foundry V14 (dnd5e 6) keys it by id
+ * ({[id]: config}), which is also what Actor#toggleStatusEffect looks up; older cores use an array of {id, ...}.
+ * Returns [{...config, id}], each id once, in registry order; the record key is the id.
+ */
+export function statusEntries(registry) {
+  const pairs = Array.isArray(registry) ? registry.map(e => [e?.id, e])
+    : registry instanceof Map ? [...registry.entries()]
+    : registry && typeof registry === 'object' ? Object.entries(registry) : [];
+  const seen = new Set(), out = [];
+  for (const [id, e] of pairs) {
+    if (typeof id !== 'string' || !id || seen.has(id) || !e || typeof e !== 'object') continue;
+    seen.add(id); out.push({...e, id});
+  }
+  return out;
+}
+/** Older core / pre-dnd5e-6 status ids and the dnd5e id they mean; used only when the given id is not native here. */
+export const STATUS_ALIASES = Object.freeze({blind: 'blinded', charm: 'charmed', deaf: 'deafened', fear: 'frightened', grapple: 'grappled', incapacitate: 'incapacitated', paralysis: 'paralyzed', petrify: 'petrified', poison: 'poisoned', restrain: 'restrained', stun: 'stunned', sleep: 'sleeping', fly: 'flying', burrow: 'burrowing', hover: 'hovering'});
+/** `id` when it is native, else its alias when that is native, else `id` unchanged (and refused as unknown later). */
+export const resolveStatusId = (id, nativeIds = []) => typeof id === 'string' && !nativeIds.includes(id) && nativeIds.includes(STATUS_ALIASES[id]) ? STATUS_ALIASES[id] : id;
 /** Removal is locked unless the GM unlocked the character. `unlocks` is the world setting {actorId: true}. */
 /**
  * 0.22.2: Character Hub level backups ("<Name> - level X", flag `ashen-gate-character-hub.levelBackup`) are copies,
@@ -276,6 +296,8 @@ export function applyDecision({user, actor, statusId, unlocks, nativeIds = [], o
 /** 0.23.0 overlay see-through: background opacity 0-100 % (per user); text, buttons and the header stay opaque. */
 export const OVERLAY_OPACITY_DEFAULT = 25;
 export const clampOverlayOpacity = v => { const n = Math.round(Number(v)); return v === null || v === '' || v === undefined || !Number.isFinite(n) ? OVERLAY_OPACITY_DEFAULT : Math.min(100, Math.max(0, n)); };
+/** 0.26.1: the overlay window background as an inline value, so no core or pop-out window rule can override it. */
+export const overlayBackground = (v, surface = '#17191d') => `color-mix(in srgb, var(--ag-surface, ${surface}) ${clampOverlayOpacity(v)}%, transparent)`;
 /** Overlay model: one group per character that has a condition, in the given order. */
 export function conditionGroups(actors, {label = id => id, isNative = () => true, canRemove = () => false} = {}) {
   return actors.map(actor => ({actorId: actor.id, name: actor.name, conditions: [...(actor.statuses ?? [])].map(id => ({id, label: label(id), custom: !isNative(id), readOnly: isReadOnlyStatus(id), removable: !isReadOnlyStatus(id) && Boolean(canRemove(actor, id))}))}))
