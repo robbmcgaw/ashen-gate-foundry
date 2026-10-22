@@ -1,3 +1,12 @@
+## 0.36.0 — 2026-10-22
+
+For Profession Ledger 0.29.0 (each profession's own word for recipes, effect notes on activities). Display only; with an older Ledger the Hub looks as before.
+
+- **Ashen Gate → Professions:** when the Ledger names a profession's recipes, each profession line also says how many it knows in that word, for example "20 XP · 5 XP to level 4 · 3 formulas" or "1 composition". The total under the list still says "known recipes", since it mixes professions. The Overview's Professions box is unchanged.
+- **Effect notes:** a recipe item that is an activity (a performance, a composition…) and has an effect note shows an **Effect** badge in the item lists. Hover it for the note; the same text is in the row ("Effect (the GM decides): …", under **More** when the item also has a description). Up to 400 characters are shown. Craft recipes and other items never show it. Nothing is automated: the GM decides the effect at the table.
+- **For partner modules:** `knownProfessions` rows also carry `recipeLabel` ({singular, plural}), `recipes` and `recipeCount` ("3 formulas") when the Ledger has `recipeLabel`.
+- **Saved data:** nothing new is stored and nothing is migrated.
+
 ## 0.35.0 — 2026-10-22
 
 For the new Artistry profession (Profession Ledger 0.28.0, Skill Trees 0.21.0).

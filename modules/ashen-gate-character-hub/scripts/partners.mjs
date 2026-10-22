@@ -32,16 +32,61 @@ const list = (rows, empty) => rows.length ? `<ul class="agch-plist">${rows.join(
 const signedScore = n => (num(n) > 0 ? `+${num(n)}` : String(num(n)));
 
 const perkBadge = n => num(n) ? ` <span class="ag-badge ag-badge--warn">${num(n)} perk${n > 1 ? 's' : ''} to choose</span>` : '';
-function knownRecipes(actor, api) {
-  let recipes = null;
-  try { recipes = api.getKnownRecipes?.(actor); } catch { recipes = null; }
-  return Array.isArray(recipes) ? `<p class="agch-muted">${recipes.length} known recipe${recipes.length === 1 ? '' : 's'}</p>` : '';
+/** The REC ids this character knows (Ledger getKnownRecipes), or null. */
+function knownRecipeIds(actor, api) {
+  try { const r = api.getKnownRecipes?.(actor); return Array.isArray(r) ? r.map(x => String(typeof x === 'object' ? x?.id ?? '' : x ?? '')) : null; } catch { return null; }
+}
+/** The total over every profession: always the generic word (0.36.0: a profession's own word is only used per profession). */
+function knownRecipes(actor, api, ids = knownRecipeIds(actor, api)) {
+  return Array.isArray(ids) ? `<p class="agch-muted">${ids.length} known recipe${ids.length === 1 ? '' : 's'}</p>` : '';
+}
+/**
+ * 0.36.0: what a profession calls a recipe, from the Ledger's recipeLabel (0.29.0+, feature-detected): {singular, plural}
+ * in sentence case ("Formula", "Formulas"), or null when the Ledger has no recipeLabel (then the Hub shows no word).
+ */
+export function recipeLabelOf(api, profession) {
+  if (typeof api?.recipeLabel !== 'function') return null;
+  const word = plural => { try { const w = api.recipeLabel(profession, {plural, capitalize: true}); return typeof w === 'string' && w.trim() ? w.trim() : null; } catch { return null; } };
+  const singular = word(false), pluralWord = word(true);
+  return singular || pluralWord ? {singular: singular || 'Recipe', plural: pluralWord || 'Recipes'} : null;
+}
+const lower = s => /^[A-Z][A-Z]/.test(s) ? s : s[0].toLowerCase() + s.slice(1);
+/** "3 formulas", "1 formula": a count in the profession's own word (lower case inside a line). */
+export const recipeCountText = (n, label) => `${num(n)} ${lower(num(n) === 1 ? label.singular : label.plural)}`;
+/**
+ * The profession (PROF id) of each REC id, read from the Manager source definitions (flags['ashen-gate-manager'].source:
+ * sourceId, definition.profession_id) of the character's Items and the world's Items this user can see. Ids it can't
+ * place are left out, so a count never claims more than the Hub can see.
+ */
+export function recipeProfessions(actor, ids) {
+  const want = new Set(ids ?? []), out = new Map();
+  if (!want.size) return out;
+  const docs = [...(actor?.items ?? []), ...(globalThis.game?.items?.contents ?? globalThis.game?.items ?? [])];
+  for (const doc of docs) {
+    const src = doc?.flags?.['ashen-gate-manager']?.source, id = String(src?.sourceId ?? '');
+    const prof = src?.definition?.profession_id ?? src?.definition?.professionId;
+    if (want.has(id) && !out.has(id) && typeof prof === 'string' && prof) out.set(id, prof);
+  }
+  return out;
+}
+/** Known recipes per profession: Map PROF id → count. */
+function recipeCounts(actor, ids) {
+  const counts = new Map();
+  for (const prof of recipeProfessions(actor, ids).values()) counts.set(prof, (counts.get(prof) ?? 0) + 1);
+  return counts;
+}
+/** " · 3 formulas" after a profession's XP, only when the Ledger names its recipes (recipeLabel) and the known list is readable. */
+function recipeCountHtml(api, profId, counts) {
+  const label = counts ? recipeLabelOf(api, profId) : null;
+  return label ? ` · ${esc(recipeCountText(counts.get(profId) ?? 0, label))}` : '';
 }
 /** Professions: the Ledger's own list (getProfessions, 0.18.0+) when present; else Skill Trees' profession trees name the PROF ids. */
 function professions(actor, api) {
+  const ids = knownRecipeIds(actor, api);
+  const counts = typeof api.recipeLabel === 'function' && ids ? recipeCounts(actor, ids) : null;
   if (typeof api.getProfessions === 'function') {
-    const rows = (api.getProfessions(actor) ?? []).map(p => `<li><strong>${esc(p.name || p.professionId)}</strong> <span class="ag-badge">Level ${num(p.level)}</span> <span class="agch-muted">${num(p.xp)} XP · ${p.xpToNext === null || p.xpToNext === undefined ? 'maximum level' : `${num(p.xpToNext)} XP to level ${num(p.level) + 1}`}</span>${perkBadge(p.unspentPerkChoices)}</li>`);
-    return list(rows, 'No professions yet.') + knownRecipes(actor, api);
+    const rows = (api.getProfessions(actor) ?? []).map(p => `<li><strong>${esc(p.name || p.professionId)}</strong> <span class="ag-badge">Level ${num(p.level)}</span> <span class="agch-muted">${num(p.xp)} XP · ${p.xpToNext === null || p.xpToNext === undefined ? 'maximum level' : `${num(p.xpToNext)} XP to level ${num(p.level) + 1}`}${recipeCountHtml(api, p.professionId, counts)}</span>${perkBadge(p.unspentPerkChoices)}</li>`);
+    return list(rows, 'No professions yet.') + knownRecipes(actor, api, ids);
   }
   const trees = partnerApi('ashen-gate-skill-trees');
   let refs = [];
@@ -49,9 +94,9 @@ function professions(actor, api) {
   const rows = [];
   for (const ref of refs) {
     const p = api.getProfessionProgress(actor, ref.id);
-    if (p) rows.push(`<li><strong>${esc(ref.name)}</strong> <span class="ag-badge">Level ${num(p.level)}</span> <span class="agch-muted">${num(p.xp)} XP</span>${perkBadge(p.unspentPerkChoices)}</li>`);
+    if (p) rows.push(`<li><strong>${esc(ref.name)}</strong> <span class="ag-badge">Level ${num(p.level)}</span> <span class="agch-muted">${num(p.xp)} XP${recipeCountHtml(api, ref.id, counts)}</span>${perkBadge(p.unspentPerkChoices)}</li>`);
   }
-  const recipeLine = knownRecipes(actor, api);
+  const recipeLine = knownRecipes(actor, api, ids);
   const note = refs.length ? '' : '<p class="agch-muted">Profession levels show here when Skill Trees is active (it lists the professions).</p>';
   return list(rows, refs.length ? 'No profession progress yet.' : '') + note + recipeLine;
 }
@@ -68,7 +113,15 @@ export function knownProfessions(actor, user = globalThis.game?.user) {
   let rows;
   try { rows = api.getProfessions(actor); } catch { return null; }
   if (!Array.isArray(rows)) return null;
-  return rows.map(p => ({id: String(p?.professionId ?? ''), name: String(p?.name || p?.professionId || ''), level: num(p?.level), tier: typeof p?.tier === 'string' ? p.tier : ''})).filter(p => p.name);
+  // 0.36.0: with the Ledger's recipeLabel, each row also carries the profession's word ({singular, plural}) and its known count.
+  const ids = typeof api.recipeLabel === 'function' ? knownRecipeIds(actor, api) : null;
+  const counts = ids ? recipeCounts(actor, ids) : null;
+  return rows.map(p => {
+    const id = String(p?.professionId ?? ''), label = typeof api.recipeLabel === 'function' ? recipeLabelOf(api, id) : null;
+    const row = {id, name: String(p?.name || p?.professionId || ''), level: num(p?.level), tier: typeof p?.tier === 'string' ? p.tier : ''};
+    if (label) Object.assign(row, {recipeLabel: label, ...(counts ? {recipes: counts.get(id) ?? 0, recipeCount: recipeCountText(counts.get(id) ?? 0, label)} : {})});
+    return row;
+  }).filter(p => p.name);
 }
 
 const plural = (n, word) => `${num(n)} ${word}${num(n) === 1 ? '' : 's'}`;

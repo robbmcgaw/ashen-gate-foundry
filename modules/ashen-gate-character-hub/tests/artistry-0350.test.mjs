@@ -9,7 +9,6 @@ import {installGlobals, makeActor, users} from './foundry-mock.mjs';
 import {PANELS, panelState, pickTreeTab, treeTabChoice} from '../scripts/partners.mjs';
 import {professionsBox, professionIcon} from '../scripts/views.mjs';
 import {ACTIONS} from '../scripts/sheet.mjs';
-import {VERSION} from '../scripts/constants.mjs';
 
 const LEDGER = {active: true, api: {getProfessions: () => [
   {professionId: 'PROF-TEST-HERB', name: '[TEST] Herbalism', level: 3, xp: 20, xpToNext: 1, tier: 'Apprentice', unspentPerkChoices: 0},
@@ -37,8 +36,6 @@ const treesApi = (extra = {}) => ({active: true, api: {listTrees: () => [], acto
 const summary = (mods, actor = makeActor()) => { installGlobals({user: users.owner, modules: mods}); return panelState(PANELS.find(p => p.id === 'ashen-gate-skill-trees'), actor); };
 const text = html => html.replace(/<[^>]*>/g, ' ').replace(/&#39;/g, "'").replace(/\s+/g, ' ');
 const count = (s, re) => (s.match(re) ?? []).length;
-
-test('version is 0.35.0', () => assert.equal(VERSION, '0.35.0'));
 
 test('Professions box: Artistry shows like the others, "Name - Tier - Level n", with its own icon', () => {
   installGlobals({user: users.owner, modules: {'ashen-gate-profession-ledger': LEDGER}});

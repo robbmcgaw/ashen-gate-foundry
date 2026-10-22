@@ -10,10 +10,32 @@ export const activitiesOf = item => { const a = item.system?.activities; return 
 /** dnd5e's item rarity keys (CONFIG.DND5E.itemRarity). Anything else (mundane items: '') gets no rarity colour. */
 export const RARITIES = new Set(['common', 'uncommon', 'rare', 'veryRare', 'legendary', 'artifact']);
 
+/**
+ * 0.36.0: the effect note of an activity recipe (Profession Ledger 0.29.0): a REC- Item whose Manager source definition says
+ * `kind: "activity"` may carry `effect_note` (or `effectNote`), plain text naming a boon the GM decides at the table.
+ * Whitespace collapsed, cut to EFFECT_NOTE_MAX characters; null for crafts, other items or no note. Display only.
+ */
+export const EFFECT_NOTE_MAX = 400;
+export function effectNoteOf(item) {
+  const src = item?.flags?.['ashen-gate-manager']?.source, def = src?.definition;
+  if (!def || typeof def !== 'object' || !/^REC-/.test(String(src.sourceId ?? def.id ?? ''))) return null;
+  if (String(def.kind ?? def.recipe?.kind ?? '').trim().toLowerCase() !== 'activity') return null;
+  const value = def.effect_note ?? def.effectNote;
+  if (typeof value !== 'string') return null;
+  const text = value.replace(/\s+/g, ' ').trim();
+  if (!text) return null;
+  return text.length > EFFECT_NOTE_MAX ? `${text.slice(0, EFFECT_NOTE_MAX - 1).trimEnd()}…` : text;
+}
+export const EFFECT_NOTE_LEAD = 'Effect (the GM decides): ';
+
 export function itemRow(item) {
   const s = item.system ?? {}, uses = s.uses ?? {};
-  const details = plainText(s.description?.value), {summary, more} = summaryOf(details);
-  return {
+  const effectNote = effectNoteOf(item);
+  // The note follows the description: its first part shows under the name like a summary, all of it under "More".
+  const description = plainText(s.description?.value);
+  const details = effectNote ? [description, `${EFFECT_NOTE_LEAD}${effectNote}`].filter(Boolean).join('\n\n') : description;
+  const {summary, more} = summaryOf(details);
+  return {effectNote,
     facts: itemFacts(item), summary, more, details, sort: num(item.sort), actType: activitiesOf(item)[0]?.activation?.type ?? '', uuid: item.uuid ?? (item.parent?.uuid ? `${item.parent.uuid}.Item.${item.id}` : null),
     id: item.id, name: item.name, img: item.img, type: item.type, quantity: num(s.quantity, 1),
     equippable: 'equipped' in s, equipped: !!s.equipped,
