@@ -139,6 +139,8 @@ export function validateDefinition(record) {
     else {
       if (c.schema !== CINDER_SCHEMA) errors.push(`${id}: cinder.schema must be "${CINDER_SCHEMA}"`);
       refList(c.backfire_categories, 'BF-', `${id}: cinder.backfire_categories`, errors);
+      // 0.9.0: optional default art for every Cinder of this kind (same rule as the GM's per-Cinder art).
+      if (c.art != null && !cleanArt(c.art)) errors.push(`${id}: cinder.art must be an image path (Assets Library or module path) or an http(s) address, up to 1024 characters, without quotes or angle brackets`);
     }
   }
   if (type === 'Power' && record.power != null) {
@@ -311,11 +313,14 @@ const getInstance = (registry, instanceId) => {
 };
 const replace = (registry, next) => ({...registry, instances: registry.instances.map(i => i.instanceId === next.instanceId ? next : i)});
 
-export function createInstance(registry, definitionId, {instanceId, at = 0}) {
+/** The default art a MUT-* record gives its Cinders (0.9.0), or null. */
+export const definitionArt = record => cleanArt(plain(record?.cinder) ? record.cinder.art : null);
+/** art: the new Cinder's own image (0.9.0: the definition's art unless the GM chose another), or null for none. */
+export function createInstance(registry, definitionId, {instanceId, at = 0, art = null}) {
   if (!REF.test(String(definitionId ?? '')) || !String(definitionId).startsWith('MUT-')) throw Error('A Cinder is made from a MUT-* definition');
   if (!INSTANCE_ID.test(String(instanceId ?? ''))) throw Error('Invalid Cinder id');
   if (registry.instances.some(i => i.instanceId === instanceId)) throw Error('Cinder id already used');
-  const inst = normalizeInstance({instanceId, definitionId, createdAt: at});
+  const inst = normalizeInstance({instanceId, definitionId, createdAt: at, art});
   return {registry: {...registry, instances: [...registry.instances, inst]}, instance: inst};
 }
 /** Checks shared by bind and transfer: one bearer per Cinder; at most `max` Cinders per character; one Cinder of a kind per character. */

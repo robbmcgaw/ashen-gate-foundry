@@ -1,11 +1,12 @@
-import {MOD,assertGM,assertUI,isLevelBackup,cleanText,publicView,validSource,exportPackage,STATUSES} from './core.mjs';
+import {MOD,assertGM,assertUI,isPlayerCharacter,cleanText,publicView,validSource,exportPackage,STATUSES} from './core.mjs';
 import {safeButton,options,questCards,questsToolbar,setupPanel,emptyState,statusBadge,progressMeter} from './gm-panels.mjs';
 import {DEFAULT_VIEW,listQuestsTab} from './quests-tab.mjs';
 import {getPrivate,allPrivate,visibleViews,visibleById,saveRecord,updateState,removeRecord,importSources,previewQuestImport,importQuests,savePersonalNote,reconcileActorAudience,noteText,ensureFolder} from './store.mjs';
 import {createObjectiveConsumer} from './resolver-consumer.mjs';
 import {createQuestDefinitionReader,parsePackIds} from './pinned-runtime.mjs';
 import {ASSIGNMENT_CONTRACT,listAssignments,getAssignment,saveAssignment,removeAssignment} from './assignments.mjs';
-import {selectTrackedViews,validTrackedId,trackingState} from './tracking.mjs';
+import {selectTrackedViews,validTrackedId,trackingState,overlayState,clampOpacity,clampPosition} from './tracking.mjs';
+import {captureView,restoreView} from './view-state.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,infoDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
@@ -13,7 +14,7 @@ import {readDrop} from './ag-item-drop.mjs';
 import {rewardsApi,grantableRewards,addFromDrop,updateReward,removeReward,grantRewards,grantAgain,rewardDragData,onActorSheetDrop} from './rewards.mjs';
 import {rewardsSection,playerRewardsSection,grantPanel,grantSummary,receiveList,defaultChoices} from './rewards-ui.mjs';
 
-const VERSION='0.13.1';
+const VERSION='0.14.0';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -21,7 +22,8 @@ const E=cleanText;
 const appBase=()=>foundry?.applications?.api?.ApplicationV2;
 const openAllowed=()=>game.user?.isGM||game.settings.get(MOD,'playerAccessEnabled');
 const hasGM=()=>!!game.user?.isGM;
-function actorsOwned(){return [...game.actors].filter(a=>!isLevelBackup(a)&&(hasGM()||a.testUserPermission(game.user,'OWNER')));}
+// Character pickers: player characters only (core.mjs isPlayerCharacter); a player sees their own.
+function actorsOwned(){return [...game.actors].filter(a=>isPlayerCharacter(a,hasGM()?[...game.users]:[game.user])).sort((a,b)=>String(a.name).localeCompare(String(b.name)));}
 function notifyError(err){console.error(`[${MOD}]`,err);ui.notifications?.error(err.message??String(err));}
 function dialogDownload(name,text){const blob=new Blob([text],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function blankTemplate(){return {
@@ -111,6 +113,9 @@ function gmStatePanel(row,rewardsHtml=''){
  if(!row)return emptyState('Not saved yet','Save the quest definition, then choose its audience and reveal it here.',{iconName:'fa-floppy-disk'});
  const {source:s,state:t}=row;
  const actorChoices=actorsOwned().map(a=>[a.id,a.name]);
+ // A quest saved earlier for a non-player actor keeps it selected, labelled, so saving doesn't silently drop it.
+ const current=t.actorId&&!actorChoices.some(([id])=>id===t.actorId)?game.actors.get(t.actorId):null;
+ if(current)actorChoices.push([current.id,`${current.name} (not a player character)`]);
  const isPublic=!!publicView(s,t);
  const why=s.visibility==='gm'?'Not published: this definition is GM only. Change Definition visibility above.':t.status==='Hidden'?'Not published: set status to Available or Active, then save.':s.visibility==='reveal_gated'&&!t.revealed?'Not published: tick Reveal quest below and save.':'Not published: check audience and source permissions.';
  return `<section class="agq-state ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Campaign status and reveal</h3></div>
@@ -141,19 +146,19 @@ function questsPanel(selectedId,view,rewardsHtml=''){
  const rows=stateForGM(),selected=rows.find(x=>x.source.id===selectedId)||null;
  const {groups,locations,shown,total}=listQuestsTab(rows,view);
  const source=selected?.source||blankTemplate();
- return `<div class="agq-pane">${questsToolbar(view,locations,{shown,total})}<div class="ag-split agq-split"><aside class="ag-split__list agq-list" id="ag-gm-cards" aria-label="Quests">${questCards(groups,selectedId,{total})}</aside>
- <section class="ag-split__detail agq-edit">${editorHead(selected)}${GM_NOTICE}${sourceForm(source,!!selected)}${gmStatePanel(selected,rewardsHtml)}</section></div></div>`;
+ return `<div class="agq-pane">${questsToolbar(view,locations,{shown,total})}<div class="ag-split agq-split"><aside class="ag-split__list agq-list" id="ag-gm-cards" aria-label="Quests" data-ag-scroll="gm-list">${questCards(groups,selectedId,{total})}</aside>
+ <section class="ag-split__detail agq-edit" data-ag-scroll="gm-edit:${E(selected?.source.id??'new')}">${editorHead(selected)}${GM_NOTICE}${sourceForm(source,!!selected)}${gmStatePanel(selected,rewardsHtml)}</section></div></div>`;
 }
-function setupTab(){return setupPanel({playerAccess:game.settings.get(MOD,'playerAccessEnabled'),packIds:game.settings.get(MOD,'compendiumPackIds'),overlayVisible:trackerVisible()});}
+function setupTab(){return setupPanel({playerAccess:game.settings.get(MOD,'playerAccessEnabled'),packIds:game.settings.get(MOD,'compendiumPackIds'),overlayVisible:trackerVisible(),openForPlayers:game.settings.get(MOD,'openForPlayers')===true});}
 const TABS=[['party','Party','fa-users',false],['individual','Individual','fa-user',false],['quests','Quests','fa-scroll',true],['setup','GM Setup','fa-gears',true]];
 function playerPane(tab,rows,detail,ctx){
  const actorLabel=tab==='individual'?'Character':'Notes for character';
- return `<div class="ag-split agq-split"><aside class="ag-split__list agq-list"><div class="agq-filters"><label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="ag-quest-search" placeholder="Search quests" aria-label="Search visible quests" value="${E(ctx.filter)}"></label>
+ return `<div class="ag-split agq-split"><aside class="ag-split__list agq-list" data-ag-scroll="list:${tab}"><div class="agq-filters"><label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="ag-quest-search" placeholder="Search quests" aria-label="Search visible quests" value="${E(ctx.filter)}"></label>
  <label class="ag-field">Status<select id="ag-player-filter">${options([['all','All visible quests'],...STATUSES.filter(x=>x!=='Hidden').map(x=>[x,x])],ctx.statusFilter)}</select></label>
  <label class="ag-field">${actorLabel}<select id="ag-actor"><option value="">Choose a character</option>${ctx.actorOption}</select></label>
  <span class="ag-toolbar__count" id="ag-quest-count">${rows.length} ${rows.length===1?'quest':'quests'}</span></div>
  <div id="ag-quest-cards">${cards(rows,ctx.selectedId)}</div></aside>
- <section class="ag-split__detail agq-reading">${hasGM()?'<p class="ag-notice ag-notice--info"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Players see only the quests you reveal; Journal and Actor permissions apply.</p>':''}${readableDetail(detail,ctx.actorId)}</section></div>`;
+ <section class="ag-split__detail agq-reading" data-ag-scroll="read:${tab}:${E(ctx.selectedId??'')}">${hasGM()?'<p class="ag-notice ag-notice--info"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> Players see only the quests you reveal; Journal and Actor permissions apply.</p>':''}${readableDetail(detail,ctx.actorId)}</section></div>`;
 }
 const Base=appBase();
 class QuestLogApplication extends Base {
@@ -233,9 +238,18 @@ class QuestLogApplication extends Base {
   this.rewardNote=note;const html=await this.rewardsHtml(),zone=root.querySelector('[data-reward-zone]');
   if(!zone)return;zone.outerHTML=html;this.bindRewards(root);
  }
- showHelp(){return infoDialog('Quest Log Help',`<p><strong>Quest Log</strong> shows the quests, work orders and contracts your party is working on.</p><ul><li><strong>Party</strong> lists the quests the whole party can see. Pick one to read its objectives and write your character's notes.</li><li><strong>Individual</strong> lists a character's own quests; choose the character on the left.</li>${hasGM()?'<li><strong>Quests</strong> (GM) lists every quest with search, filters and sorting. Pick one to edit it, or press <em>New quest</em>. Import and Export are in its toolbar.</li><li><strong>GM Setup</strong> holds Player Access (whether players see the Quest Log) and other settings; they save together with <em>Save Changes</em>.</li>':''}</ul><p>The <em>Objectives Overlay</em> button shows or hides your tracked objectives on screen.</p>${hasGM()?'<p>Deleting a quest or an assignment, or leaving a tab with unsaved source changes, asks you to confirm first.</p>':''}`);}
+ showHelp(){return infoDialog('Quest Log Help',`<p><strong>Quest Log</strong> shows the quests, work orders and contracts your party is working on.</p><ul><li><strong>Party</strong> lists the quests the whole party can see. Pick one to read its objectives and write your character's notes.</li><li><strong>Individual</strong> lists a character's own quests; choose the character on the left.</li>${hasGM()?'<li><strong>Quests</strong> (GM) lists every quest with search, filters and sorting. Pick one to edit it, or press <em>New quest</em>. Import and Export are in its toolbar.</li><li><strong>GM Setup</strong> holds Player Access (whether players see the Quest Log) and other settings; they save together with <em>Save Changes</em>.</li>':''}</ul><p>The <em>Objectives Overlay</em> button shows or hides your tracked objectives on screen. Drag the overlay by its header to move it; the slider fades its background (text stays solid); the minus button by a quest stops tracking it. Its place and fade are kept for you only.</p>${hasGM()?'<p>Deleting a quest or an assignment, or leaving a tab with unsaved source changes, asks you to confirm first.</p>':''}`);}
  // Appearance is inherited: the kit's --ag-* tokens live on the document, kept in sync by General Manager when active.
- _replaceHTML(result,content){content.innerHTML=result;this.bind(content);}
+ // 0.14.0 A redraw keeps each panel's scroll place and the field being typed in (view-state.mjs). Unsaved text is put
+ // back only for a redraw someone else caused (updateWindows), and focus only while the same tab and quest are shown.
+ viewScope(){return [this.tab,this.gmId,this.selectedId,this.actorId].map(x=>x??'').join('|');}
+ _replaceHTML(result,content){
+  this.scrollMemo??={};
+  const focus=captureView(content,this.scrollMemo),keepText=this.externalRender===true,same=this.lastScope===this.viewScope();
+  this.externalRender=false;for(const key of this.forgetScroll??[])delete this.scrollMemo[key];this.forgetScroll=[];
+  content.innerHTML=result;this.bind(content);
+  restoreView(content,this.scrollMemo,same?focus:null,{keepText});this.lastScope=this.viewScope();
+ }
  bind(root){
    for(const b of root.querySelectorAll('[data-tab]'))b.addEventListener('click',async e=>{if(this.unsavedSource&&!await confirmDialog('Your quest changes have not been saved. Discard them?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing',danger:true}))return;this.tab=e.currentTarget.dataset.tab;this.unsavedSource=false;this.sourceJsonEdited=false;await this.render();});
    root.querySelector('#ag-actor')?.addEventListener('change',async e=>{this.actorId=e.target.value;this.selectedId=null;await this.render();});
@@ -273,11 +287,15 @@ class QuestLogApplication extends Base {
    }
    assertGM(game.user);
    if(action==='gm-select'){if(this.unsavedSource&&!await confirmDialog('Your quest changes have not been saved. Discard them?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing',danger:true}))return;this.gmId=id;this.rewardNote='';this.grantOpen=false;this.unsavedSource=false;return await this.render();}
-   if(action==='new'){if(this.unsavedSource&&!await confirmDialog('Your quest changes have not been saved. Discard them?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing',danger:true}))return;this.gmId=null;this.rewardNote='';this.grantOpen=false;this.unsavedSource=false;this.sourceJsonEdited=false;return await this.render();}
+   if(action==='new'){if(this.unsavedSource&&!await confirmDialog('Your quest changes have not been saved. Discard them?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing',danger:true}))return;this.gmId=null;this.forgetScroll=['gm-edit:new'];this.rewardNote='';this.grantOpen=false;this.unsavedSource=false;this.sourceJsonEdited=false;return await this.render();}
    if(action==='save-source'){
     const src=this.sourceJsonEdited?validSource(JSON.parse(root.querySelector('#ag-source-json').value)):sourceFromForm(root,this.gmId?getPrivate(this.gmId)?.getFlag(MOD,'source'):null);
     if(this.gmId&&src.id!==this.gmId)throw new Error('Cannot change permanent ID of an existing Objective. Use New quest.');
-    await saveRecord(src,{replace:!!this.gmId});this.gmId=src.id;this.unsavedSource=false;this.sourceJsonEdited=false;ui.notifications.info('Quest definition saved. Choose campaign status and reveal below.');return await this.render();
+    await saveRecord(src,{replace:!!this.gmId});
+    // A new quest gets its id now: its editor keeps the place it was drafted at, and focus stays where it was.
+    const created=!this.gmId;this.gmId=src.id;
+    if(created){this.scrollMemo??={};captureView(root,this.scrollMemo);if(this.scrollMemo['gm-edit:new'])this.scrollMemo[`gm-edit:${src.id}`]=this.scrollMemo['gm-edit:new'];this.lastScope=this.viewScope();}
+    this.unsavedSource=false;this.sourceJsonEdited=false;ui.notifications.info('Quest definition saved. Choose campaign status and reveal below.');return await this.render();
    }
    if(action==='add-objective'){
      const wrap=root.querySelector('#ag-source-objective-list');const used=new Set([...wrap.querySelectorAll('.ag-src-obj-key')].map(x=>x.value));let n=1;while(used.has(`step_${n}`))n++;wrap.insertAdjacentHTML('beforeend',objectiveFormRow({key:`step_${n}`,goal:'New objective',visibility:'player'}));this.unsavedSource=true;const st=root.querySelector('[data-source-status]');if(st)st.textContent='Unsaved changes';return;
@@ -287,8 +305,9 @@ class QuestLogApplication extends Base {
    // GM Setup: every setting saves together with Save Changes (D4). Nothing is written until then; a bad pack ID saves nothing.
    if(action==='save-setup'){
      const access=!!root.querySelector('#ag-player-access')?.checked,ids=parsePackIds(root.querySelector('#ag-compendium-packs')?.value??'').join(',');
-     const packsChanged=ids!==String(game.settings.get(MOD,'compendiumPackIds')||'');
+     const packsChanged=ids!==String(game.settings.get(MOD,'compendiumPackIds')||''),openFor=!!root.querySelector('#ag-open-for-players')?.checked;
      if(access!==!!game.settings.get(MOD,'playerAccessEnabled'))await game.settings.set(MOD,'playerAccessEnabled',access);
+     if(openFor!==(game.settings.get(MOD,'openForPlayers')===true))await game.settings.set(MOD,'openForPlayers',openFor);
      if(packsChanged)await game.settings.set(MOD,'compendiumPackIds',ids);
      ui.notifications.info(packsChanged?'GM Setup saved. Reload Foundry to apply the compendium change.':'GM Setup saved.');return await this.render();
    }
@@ -352,18 +371,56 @@ function trackedSnapshot(){
  assertUI(game.user,openAllowed());
  return structuredClone(selectTrackedViews(visibleViews().map(x=>x.view),trackedIds()));
 }
+// 0.14.0 The overlay can be dragged by its header (kept on screen), fades its background with the slider and has a
+// remove button per quest. Its place and fade are this user's (User flag `overlay`); text and header stay opaque.
+const overlayPrefs=()=>overlayState(game.user?.getFlag?.(MOD,'overlay'));
+async function saveOverlay(patch){
+ assertUI(game.user,openAllowed());
+ if(typeof game.user?.setFlag!=='function')throw new Error('User flag persistence unavailable for the objectives overlay.');
+ const next=overlayState({...overlayPrefs(),...patch});await game.user.setFlag(MOD,'overlay',next);return next;
+}
+const screenSize=()=>({width:globalThis.innerWidth||document.documentElement?.clientWidth||0,height:globalThis.innerHeight||document.documentElement?.clientHeight||0});
+function moveTracker(el,pos){
+ if(!el?.style)return null;
+ const at=clampPosition(pos,{width:el.offsetWidth,height:el.offsetHeight},screenSize());
+ el.style.left=`${at.left}px`;el.style.top=`${at.top}px`;el.style.right='auto';return at;
+}
+function placeTracker(el){const pos=overlayPrefs();if('left' in pos)moveTracker(el,pos);}
+function fadeTracker(el,value){el?.style?.setProperty?.('--agq-tracker-alpha',`${clampOpacity(value)}%`);}
+function bindTrackerDrag(el){
+ const head=el.querySelector?.('.agq-tracker__head');if(typeof head?.addEventListener!=='function')return;
+ head.addEventListener('pointerdown',e=>{
+  if(e.button!==0||e.target?.closest?.('button,input,label'))return;
+  e.preventDefault();
+  const box=el.getBoundingClientRect(),dx=e.clientX-box.left,dy=e.clientY-box.top;let last=null;
+  const move=ev=>{last=moveTracker(el,{left:ev.clientX-dx,top:ev.clientY-dy});};
+  const up=()=>{for(const [ev,fn] of [['pointermove',move],['pointerup',up],['pointercancel',up]])globalThis.removeEventListener(ev,fn);
+   el.classList?.remove('is-dragging');if(last)saveOverlay(last).catch(notifyError);};
+  for(const [ev,fn] of [['pointermove',move],['pointerup',up],['pointercancel',up]])globalThis.addEventListener(ev,fn);
+  el.classList?.add('is-dragging');
+ });
+}
+const trackerTip=t=>` aria-label="${E(t)}" data-tooltip="${E(t)}" data-tooltip-class="ag-tooltip"`;
 function renderTracker(){
  if(typeof document?.querySelector!=='function')return;
  const old=document.querySelector('#ag-quest-objectives-overlay');
  if(!openAllowed()||!trackerVisible()){old?.remove();return;}
- const views=trackedSnapshot();
+ const views=trackedSnapshot(),prefs=overlayPrefs();
  if(!old&&typeof document.createElement!=='function')return;
  const el=old||document.createElement('aside');el.id='ag-quest-objectives-overlay';el.className='agq-tracker';
  el.setAttribute('aria-label','Tracked quest objectives');
  const mark=o=>o.complete?' <i class="fa-solid fa-check" role="img" aria-label="Complete"></i>':o.failed?' <i class="fa-solid fa-xmark" role="img" aria-label="Failed"></i>':'';
- el.innerHTML=`<header class="agq-tracker__head"><strong>Tracked objectives</strong><button type="button" class="ag-btn ag-btn--ghost ag-btn--icon agq-tracker__close" data-hide-tracker aria-label="Hide objectives overlay" data-tooltip="Hide objectives overlay" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></header><div class="agq-tracker__body">${views.length?views.map(v=>`<section><strong>${E(v.name)}</strong><small>${E(v.status)}</small><ul>${v.objectives.map(o=>`<li class="${o.complete?'is-complete':o.failed?'is-failed':''}">${E(o.goal)}${mark(o)}</li>`).join('')||'<li>No revealed objectives</li>'}</ul></section>`).join(''):'<p>No tracked quests are currently visible to you.</p>'}</div>`;
- el.querySelector('[data-hide-tracker]')?.addEventListener('click',()=>changeTracking({visible:false}).then(()=>instance?.rendered&&instance.render()).catch(notifyError));
+ const fade='Overlay background (only for you): 100% solid, 0% see-through. Text stays solid.';
+ el.innerHTML=`<header class="agq-tracker__head"${tipAttr('Drag to move')}><strong>Tracked objectives</strong><span class="agq-tracker__tools"><label class="agq-tracker__fade"${tipAttr(fade)}><i class="fa-solid fa-circle-half-stroke" aria-hidden="true"></i><input type="range" min="0" max="100" step="5" value="${prefs.opacity}" data-overlay-opacity aria-label="${E(fade)}"></label><button type="button" class="ag-btn ag-btn--ghost ag-btn--icon agq-tracker__close" data-hide-tracker${trackerTip('Hide objectives overlay')}><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></span></header><div class="agq-tracker__body">${views.length?views.map(v=>`<section data-quest="${E(v.id)}"><div class="agq-tracker__quest"><span><strong>${E(v.name)}</strong><small>${E(v.status)}</small></span><button type="button" class="ag-btn ag-btn--ghost ag-btn--icon ag-btn--sm" data-untrack="${E(v.id)}"${trackerTip(`Stop tracking ${v.name}`)}><i class="fa-solid fa-circle-minus" aria-hidden="true"></i></button></div><ul>${v.objectives.map(o=>`<li class="${o.complete?'is-complete':o.failed?'is-failed':''}">${E(o.goal)}${mark(o)}</li>`).join('')||'<li>No revealed objectives</li>'}</ul></section>`).join(''):'<p>No tracked quests are currently visible to you.</p>'}</div>`;
+ const after=()=>instance?.rendered&&instance.render();
+ el.querySelector('[data-hide-tracker]')?.addEventListener('click',()=>changeTracking({visible:false}).then(after).catch(notifyError));
+ for(const b of el.querySelectorAll?.('[data-untrack]')??[])b.addEventListener('click',()=>changeTracking({ids:trackedIds().filter(x=>x!==b.dataset.untrack)}).then(after).catch(notifyError));
+ const slider=el.querySelector?.('[data-overlay-opacity]');
+ slider?.addEventListener?.('input',()=>fadeTracker(el,slider.value));
+ slider?.addEventListener?.('change',()=>saveOverlay({opacity:clampOpacity(slider.value)}).catch(notifyError));
+ fadeTracker(el,prefs.opacity);bindTrackerDrag(el);
  if(!old)document.body?.append(el);
+ placeTracker(el);
 }
 async function open(){assertUI(game.user,openAllowed());if(!instance||!instance.rendered)instance=new QuestLogApplication();await instance.render({force:true});return instance;}
 async function openObjective(id){assertUI(game.user,openAllowed());const found=visibleById(id);if(!found)return {status:'not_found'};await open();instance.tab=found.view.scope==='individual'?'individual':'party';instance.actorId=found.view.scope==='individual'?found.view.actorId:instance.actorId;instance.selectedId=id;await instance.render();return {status:'opened'};}
@@ -430,10 +487,42 @@ function mountEmbed(element,{actorId=null,mode='character'}={}){
  return {unmount:ctrl.unmount,refresh:()=>ctrl.render()};
 }
 const refreshEmbeds=()=>{for(const e of [...embeds])e.render().catch(notifyError);};
-function updateWindows(){refreshLaunchers();renderTracker();refreshEmbeds();if(instance?.rendered&&!instance.unsavedSource)instance.render().catch(notifyError);}
+function updateWindows(){refreshLaunchers();renderTracker();refreshEmbeds();if(instance?.rendered&&!instance.unsavedSource){instance.externalRender=true;instance.render().catch(notifyError);}}
+const onlyOwnFlags=change=>!!change&&typeof change==='object'&&Object.keys(change).every(k=>k==='_id'||k==='flags')&&!!change.flags&&Object.keys(change.flags).every(k=>k===MOD);
+/* ---- 0.14.0 Quest Log never opens a journal on anyone's screen. Its journals are created with renderSheet:false; as a
+   backstop a player's client closes a Quest Log journal sheet that opens by itself (first render) within a moment of
+   another user writing that journal. Opt-in (GM Setup, off by default): a quest newly revealed to a player opens the
+   Quest Log window at it, never the journal. ---- */
+const AUTO_OPEN_MS=2000;
+const writtenAt=new Map(),seenReveals=new Set();
+const questJournal=doc=>{try{return ['public','private','notesFor'].some(k=>doc?.getFlag?.(MOD,k));}catch{return false;}};
+const journalOf=doc=>doc?.documentName==='JournalEntryPage'?doc.parent:doc;
+function noteWrite(doc,userId){const j=journalOf(doc);if(!hasGM()&&j?.id&&userId!==game.user?.id&&questJournal(j))writtenAt.set(j.id,Date.now());}
+function closeAutoOpened(app,options){
+ if(hasGM())return false;
+ const j=journalOf(app?.document??app?.object),at=j?.id?writtenAt.get(j.id):null;
+ if(!at||Date.now()-at>AUTO_OPEN_MS||!questJournal(j)||options?.isFirstRender===false)return false;
+ app.close?.();return true;
+}
+function openRevealed(doc,userId){
+ if(hasGM()||userId===game.user?.id||!openAllowed()||game.settings.get(MOD,'openForPlayers')!==true)return;
+ const view=doc?.getFlag?.(MOD,'public')===true?doc.getFlag(MOD,'view'):null;
+ if(!view?.id||seenReveals.has(view.id)||!doc.testUserPermission?.(game.user,'OBSERVER'))return;
+ seenReveals.add(view.id);openObjective(view.id).catch(notifyError);
+}
+// Players have nothing to set for Quest Log: keep it out of their Configure Settings window.
+export const PLAYER_SETTINGS_SELECTOR=[`[data-tab="${MOD}"]`,`[data-category="${MOD}"]`,`[data-namespace="${MOD}"]`,`[data-setting-id^="${MOD}."]`,`[data-key^="${MOD}."]`].join(',');
+function hideFromPlayerSettings(app,html){
+ if(hasGM())return;
+ const root=html?.querySelectorAll?html:html?.[0]?.querySelectorAll?html[0]:app?.element;
+ for(const el of root?.querySelectorAll?.(PLAYER_SETTINGS_SELECTOR)??[])el.remove();
+}
+Hooks.on('renderSettingsConfig',hideFromPlayerSettings);
+for(const hook of ['renderJournalEntrySheet','renderJournalSheet','renderJournalEntryPageSheet'])Hooks.on(hook,(app,html,ctx,options)=>{closeAutoOpened(app,options);});
 Hooks.once('init',()=>{
  game.settings.register(MOD,'compendiumPackIds',{name:'Quest Definitions: Compendium Pack IDs',hint:'GM only: exact compendium collection IDs separated by commas, semicolons or whitespace (e.g. world.quests). Sources are read through the bundled pinned definition resolver; reload required after setting changes.',scope:'world',config:false,type:String,default:''});
  game.settings.register(MOD,'playerAccessEnabled',{name:'Quest Log: Player Access',hint:'Show the player Quest Log interface (new module defaults Hidden). Does not change gameplay, documents or GM access.',scope:'world',config:false,type:Boolean,default:false,onChange:updateWindows});
+ game.settings.register(MOD,'openForPlayers',{name:'Quest Log: Open newly revealed quests for players',hint:'GM Setup. Off by default: nothing opens on players\' screens.',scope:'world',config:false,type:Boolean,default:false});
 });
 Hooks.once('ready',()=>{
  const module=game.modules.get(MOD);
@@ -477,12 +566,16 @@ Hooks.once('ready',()=>{
  Hooks.on('renderActorDirectory',addLauncher);refreshLaunchers();
  // Drag-out of quest rewards (D8): a GM drop on a sheet is a recorded grant; returning false stops Foundry copying it too.
  Hooks.on('dropActorSheetData',(actor,sheet,data)=>onActorSheetDrop(actor,data));
- Hooks.on('createJournalEntry',updateWindows);Hooks.on('updateJournalEntry',updateWindows);Hooks.on('deleteJournalEntry',updateWindows);
+ Hooks.on('createJournalEntry',(doc,options,userId)=>{noteWrite(doc,userId);openRevealed(doc,userId);updateWindows();});
+ Hooks.on('updateJournalEntry',(doc,change,options,userId)=>{noteWrite(doc,userId);updateWindows();});Hooks.on('deleteJournalEntry',updateWindows);
+ if(!hasGM())try{for(const {view} of visibleViews())seenReveals.add(view.id);}catch{}
  Hooks.on('updateActor',(actor,change)=>{if(hasGM()&&change?.ownership)reconcileActorAudience(actor.id).catch(notifyError);updateWindows();});
  Hooks.on('deleteActor',(actor)=>{if(hasGM())reconcileActorAudience(actor.id).catch(notifyError);updateWindows();});
- Hooks.on('updateJournalEntryPage',updateWindows);
+ Hooks.on('updateJournalEntryPage',(page,change,options,userId)=>{noteWrite(page,userId);updateWindows();});
+ globalThis.addEventListener?.('resize',()=>placeTracker(document.querySelector?.('#ag-quest-objectives-overlay')));
  Hooks.on('createActor',(actor)=>{if(hasGM())reconcileActorAudience().catch(notifyError);});
- Hooks.on('updateUser',(user)=>{if(hasGM())reconcileActorAudience().catch(notifyError);updateWindows();});
+ // Overlay and tracking prefs are this module's own User flags: they change no audience, so no reconcile for them.
+ Hooks.on('updateUser',(user,change)=>{if(hasGM()&&!onlyOwnFlags(change))reconcileActorAudience().catch(notifyError);updateWindows();});
   renderTracker();
   console.info(`${MOD} ${VERSION} ready (standalone, GM documents + sanitized Journal projections).`);
 });

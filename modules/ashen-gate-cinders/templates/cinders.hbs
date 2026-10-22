@@ -28,8 +28,8 @@
               {{#each ring.segments}}<path class="agc-ring__seg{{#if on}} is-on{{/if}}" d="{{d}}"></path>{{/each}}
               {{#each ring.pips}}<circle class="agc-ring__pip" cx="{{cx}}" cy="{{cy}}" r="4"></circle>{{/each}}
             </svg>
-            <div class="agc-orb" data-tone="{{tone}}" data-agc-orb data-instance="{{instanceId}}" role="img" aria-label="{{name}}{{#if gm}}. GM: double-click to change the art{{/if}}"{{#if gm}} data-tooltip="Double-click to change this Cinder's art" data-tooltip-class="ag-tooltip"{{/if}}>
-              {{#if image}}<img class="agc-orb__img" src="{{art.src}}" alt="">{{else}}<span class="agc-orb__default"></span>{{/if}}
+            <div class="agc-orb{{#if image}} agc-orb--art{{/if}}{{#if spin}} agc-orb--spin{{/if}}" data-tone="{{tone}}" data-agc-orb data-instance="{{instanceId}}" role="img" aria-label="{{name}}{{#if gm}}. GM: double-click to change the art{{/if}}"{{#if gm}} data-tooltip="Double-click to change this Cinder's art" data-tooltip-class="ag-tooltip"{{/if}}>
+              {{#if image}}<span class="agc-orb__default agc-orb__glow" aria-hidden="true"></span><img class="agc-orb__img" src="{{art.src}}" alt="">{{else}}<span class="agc-orb__default"></span>{{/if}}
             </div>
             {{#each sockets}}
               {{#if canEdit}}<button type="button" class="agc-socket{{#if empty}} is-empty{{/if}}{{#if extra}} is-extra{{/if}}" style="--agc-x:{{x}};--agc-y:{{y}}" data-act="socket-open" data-instance="{{../instanceId}}" data-slot="{{slot}}" data-empty="{{empty}}"
@@ -42,6 +42,7 @@
             {{#if locked}}<span class="ag-badge ag-badge--warn agc-lock"><i class="fa-solid fa-lock" aria-hidden="true"></i> Locked by the GM</span>{{/if}}
           </div>
           <p class="agc-legend"><span>Strain <strong>{{ring.value}} / {{ring.top}}</strong></span>{{#if ring.over}} <span class="ag-badge ag-badge--danger">+{{ring.over}} over {{ring.top}}</span>{{/if}} <span class="agc-meta">· Sockets {{used}} of {{capacity}}</span></p>
+          {{#if spinToggle}}<label class="ag-field--inline agc-meta agc-spin-toggle"><input type="checkbox" data-agc-spin {{#if spinLocal}}checked{{/if}}> Rotate the art on this device</label>{{/if}}
           {{#if hasInactive}}<div class="agc-inactive-row" aria-label="Inactive socket items">
             {{#each inactive}}{{#if canEdit}}<button type="button" class="ag-chip agc-inactive" data-act="socket-open" data-instance="{{../instanceId}}" data-slot="{{slot}}" data-empty="false" data-tooltip="{{tip}}" data-tooltip-class="ag-tooltip">{{name}} <span class="ag-badge ag-badge--warn">Inactive: over capacity</span></button>
             {{else}}<span class="ag-chip agc-inactive" data-tooltip="{{tip}}" data-tooltip-class="ag-tooltip">{{name}} <span class="ag-badge ag-badge--warn">Inactive: over capacity</span></span>{{/if}}{{/each}}
@@ -177,22 +178,59 @@
     </section>
     <section class="ag-card" aria-label="Strain settings">
       <h2 class="ag-card__title">Strain</h2>
-      <p>One Strain value per character, shared by every system that adds or removes it. These are the band names and Backfire chances; character Strain is never changed here. Campaign band names come in with a Strain config file (also importable through General Manager).</p>
-      <div class="ag-table-wrap agc-bands"><table class="ag-table"><thead><tr><th scope="col">Strain</th><th scope="col">Band</th><th scope="col">Backfire chance</th></tr></thead>
-        <tbody>{{#each setup.bands}}<tr><td>{{range}}</td><td>{{label}}</td><td>{{chance}}</td></tr>{{/each}}</tbody></table></div>
-      <ul class="agc-rules">
-        <li>A Push at Strain {{setup.guaranteeAt}} or more always backfires{{#if setup.prevention}} unless a modifier prevents it{{/if}}.</li>
-        <li>A normal use backfires at Strain {{setup.normalUseAt}} or more.</li>
-        <li>Maximum Strain: {{setup.hardMax}}.</li>
-        <li>Rest recovery: long rest −{{setup.restLong}}, short rest −{{setup.restShort}}.</li>
-        <li>Backfire effect roll bonus from Strain (higher = more severe): {{setup.effectBonus}}.</li>
-        <li>Strain chip on tokens: {{setup.chipState}}. Change it in <strong>Configure Settings → Ashen Gate | Cinders → Show Strain chip on tokens</strong>.</li>
-      </ul>
+      <p>One Strain value per character, shared by every system that adds or removes it. Edit the bands, Backfire chances and rules here; nothing is saved until <strong>Save Changes</strong>. Character Strain is never changed here.</p>
+      {{#with setup.strain}}
+      <p class="ag-notice ag-notice--danger" role="alert" data-agc-error="general" {{#unless hasGeneral}}hidden{{/unless}}>{{#each general}}{{this}} {{/each}}</p>
+      <p class="ag-notice ag-notice--warn" role="status" data-agc-warnings {{#unless hasWarnings}}hidden{{/unless}}>{{#each warnings}}{{this}} {{/each}}</p>
+      <h3 class="agc-subhead">Bands</h3>
+      <p class="ag-field__hint">Bands start at 0 and follow on with no gaps; leave the last band's To empty for open-ended. Each band is a Strain chip status on tokens.</p>
+      <div class="ag-table-wrap agc-band-edit"><table class="ag-table"><thead><tr><th scope="col">From</th><th scope="col">To</th><th scope="col">Name</th><th scope="col" aria-label="Remove"></th></tr></thead>
+        <tbody>{{#each bands}}<tr>
+          <td><div class="ag-field"><input type="number" min="0" step="1" inputmode="numeric" class="agc-num" value="{{from}}" data-agc-strain="bands.{{index}}.from" data-agc-key="band.{{index}}.from" aria-label="Row {{number}}: from" {{#if fromError}}aria-invalid="true"{{/if}}><span class="ag-field__hint is-error" data-agc-error="band.{{index}}.from" {{#unless fromError}}hidden{{/unless}}>{{fromError}}</span></div></td>
+          <td><div class="ag-field"><input type="number" min="0" step="1" inputmode="numeric" class="agc-num" value="{{to}}" {{#if last}}placeholder="open"{{/if}} data-agc-strain="bands.{{index}}.to" data-agc-key="band.{{index}}.to" aria-label="Row {{number}}: to{{#if last}} (empty = open-ended){{/if}}" {{#if toError}}aria-invalid="true"{{/if}}>{{#if toHint}}<span class="ag-field__hint">{{toHint}}</span>{{/if}}<span class="ag-field__hint is-error" data-agc-error="band.{{index}}.to" {{#unless toError}}hidden{{/unless}}>{{toError}}</span></div></td>
+          <td><div class="ag-field"><input type="text" maxlength="60" value="{{label}}" data-agc-strain="bands.{{index}}.label" data-agc-key="band.{{index}}.label" aria-label="Row {{number}}: band name" {{#if labelError}}aria-invalid="true"{{/if}}><span class="ag-field__hint is-error" data-agc-error="band.{{index}}.label" {{#unless labelError}}hidden{{/unless}}>{{labelError}}</span></div></td>
+          <td>{{#if canRemove}}<button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-act="strain-band-remove" data-index="{{index}}" aria-label="Remove row {{number}}" data-tooltip="Remove this band (a neighbouring band takes over its range)"><i class="fa-solid fa-trash" aria-hidden="true"></i></button>{{/if}}</td>
+        </tr>{{/each}}</tbody></table></div>
+      <span class="ag-field__hint is-error" data-agc-error="bands" {{#unless bandsError}}hidden{{/unless}}>{{bandsError}}</span>
+      {{#if canAddBand}}<div class="ag-card__actions agc-actions-start"><button type="button" class="ag-btn ag-btn--sm" data-act="strain-band-add"><i class="fa-solid fa-plus" aria-hidden="true"></i> Add band</button></div>{{/if}}
+
+      <h3 class="agc-subhead">Backfire chance on a Push (%)</h3>
+      <p class="ag-field__hint">By Strain after the Push; 0 to 100, never lower than the entry before. Above the last entry the last one applies.</p>
+      <div class="agc-schedule">{{#each schedule}}<label class="ag-field">Strain {{index}}<input type="number" min="0" max="100" step="1" inputmode="numeric" class="agc-num" value="{{value}}" data-agc-strain="backfire_schedule.{{index}}" data-agc-key="schedule.{{index}}" {{#if error}}aria-invalid="true"{{/if}}><span class="ag-field__hint is-error" data-agc-error="schedule.{{index}}" {{#unless error}}hidden{{/unless}}>{{error}}</span></label>{{/each}}</div>
+      <span class="ag-field__hint is-error" data-agc-error="schedule" {{#unless scheduleError}}hidden{{/unless}}>{{scheduleError}}</span>
+
+      <h3 class="agc-subhead">Rules</h3>
+      <div class="ag-form-grid">
+        <label class="ag-field">Guaranteed Backfire from Strain<input type="number" min="0" step="1" inputmode="numeric" class="agc-num" value="{{guaranteeAt}}" data-agc-strain="guarantee_at" data-agc-key="guarantee" {{#if guaranteeError}}aria-invalid="true"{{/if}}><span class="ag-field__hint">A Push at this Strain or more always backfires.</span><span class="ag-field__hint is-error" data-agc-error="guarantee" {{#unless guaranteeError}}hidden{{/unless}}>{{guaranteeError}}</span></label>
+        <label class="ag-field">Normal use backfires from Strain<input type="number" min="0" step="1" inputmode="numeric" class="agc-num" value="{{normalUseAt}}" data-agc-strain="normal_use_backfire_at" data-agc-key="normalUse" {{#if normalUseError}}aria-invalid="true"{{/if}}><span class="ag-field__hint">Every normal use of a Cinder power backfires at this Strain or more.</span><span class="ag-field__hint is-error" data-agc-error="normalUse" {{#unless normalUseError}}hidden{{/unless}}>{{normalUseError}}</span></label>
+        <label class="ag-field">Maximum Strain<input type="number" min="1" step="1" inputmode="numeric" class="agc-num" value="{{hardMax}}" placeholder="none" data-agc-strain="hard_max" data-agc-key="hardMax" {{#if hardMaxError}}aria-invalid="true"{{/if}}><span class="ag-field__hint">Empty = no maximum. Strain already above a new maximum is not lowered.</span><span class="ag-field__hint is-error" data-agc-error="hardMax" {{#unless hardMaxError}}hidden{{/unless}}>{{hardMaxError}}</span></label>
+        <label class="ag-field">Long rest removes<input type="number" min="0" max="100" step="1" inputmode="numeric" class="agc-num" value="{{restLong}}" data-agc-strain="rest_recovery.long" data-agc-key="rest.long" {{#if restLongError}}aria-invalid="true"{{/if}}><span class="ag-field__hint is-error" data-agc-error="rest.long" {{#unless restLongError}}hidden{{/unless}}>{{restLongError}}</span></label>
+        <label class="ag-field">Short rest removes<input type="number" min="0" max="100" step="1" inputmode="numeric" class="agc-num" value="{{restShort}}" data-agc-strain="rest_recovery.short" data-agc-key="rest.short" {{#if restShortError}}aria-invalid="true"{{/if}}><span class="ag-field__hint is-error" data-agc-error="rest.short" {{#unless restShortError}}hidden{{/unless}}>{{restShortError}}</span><span class="ag-field__hint is-error" data-agc-error="rest" {{#unless restError}}hidden{{/unless}}>{{restError}}</span></label>
+        <div class="ag-field ag-field--wide">
+          <label class="ag-field--inline"><input type="checkbox" data-agc-strain="allow_prevention_at_guarantee" data-agc-key="prevention" {{#if prevention}}checked{{/if}}> Modifiers can prevent the guaranteed Backfire</label>
+          <span class="ag-field__hint is-error" data-agc-error="prevention" {{#unless preventionError}}hidden{{/unless}}>{{preventionError}}</span>
+        </div>
+      </div>
+      <h3 class="agc-subhead">Backfire effect roll bonus from Strain</h3>
+      <p class="ag-field__hint">Higher Strain pushes the Backfire effect roll toward the severe end: +1 from the starting Strain, then +1 more every N Strain.</p>
+      <div class="ag-form-grid">
+        <div class="ag-field ag-field--wide"><label class="ag-field--inline"><input type="checkbox" data-agc-strain="effect_roll.strain_bonus.enabled" data-agc-key="effect.enabled" {{#if effectEnabled}}checked{{/if}}> Add the Strain bonus to the effect roll</label></div>
+        <label class="ag-field">Starts at Strain<input type="number" min="0" step="1" inputmode="numeric" class="agc-num" value="{{effectFrom}}" data-agc-strain="effect_roll.strain_bonus.from" data-agc-key="effect.from" {{#if effectFromError}}aria-invalid="true"{{/if}}><span class="ag-field__hint is-error" data-agc-error="effect.from" {{#unless effectFromError}}hidden{{/unless}}>{{effectFromError}}</span></label>
+        <label class="ag-field">+1 more every (Strain)<input type="number" min="1" max="100" step="1" inputmode="numeric" class="agc-num" value="{{effectPer}}" data-agc-strain="effect_roll.strain_bonus.per" data-agc-key="effect.per" {{#if effectPerError}}aria-invalid="true"{{/if}}><span class="ag-field__hint is-error" data-agc-error="effect.per" {{#unless effectPerError}}hidden{{/unless}}>{{effectPerError}}</span><span class="ag-field__hint is-error" data-agc-error="effect" {{#unless effectError}}hidden{{/unless}}>{{effectError}}</span></label>
+      </div>
+      {{/with}}
+      <p class="agc-meta">Strain chip on tokens: {{setup.chipState}}. Change it in <strong>Configure Settings → Ashen Gate | Cinders → Show Strain chip on tokens</strong>.</p>
+      <p class="ag-field__hint">Import, Export and Reset work on the saved Strain config (Export does not include unsaved edits; Import and Reset replace them). A config file can also be imported through General Manager.</p>
       <div class="ag-card__actions">
         <button type="button" class="ag-btn" data-act="strain-import"><i class="fa-solid fa-file-import" aria-hidden="true"></i> Import Strain Config</button>
         <button type="button" class="ag-btn" data-act="strain-export"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export Strain Config</button>
         <button type="button" class="ag-btn ag-btn--danger" data-act="strain-reset"><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Reset to Defaults</button>
       </div>
+    </section>
+    <section class="ag-card" aria-label="Cinder art">
+      <h2 class="ag-card__title">Cinder art</h2>
+      <label class="ag-field ag-field--inline"><input type="checkbox" data-agc-rotate {{#if setup.rotateChecked}}checked{{/if}}> Rotate Cinder art</label>
+      <p class="ag-field__hint">A Cinder's image turns slowly (one turn in about 90 seconds) on its Strain glow. Each player can still turn it off for their own device in the Cinders tab; it never moves for anyone who asks their system for reduced motion. Saved with Save Changes.</p>
     </section>
     <section class="ag-card" aria-label="Cinder rules"><h2 class="ag-card__title">Cinders</h2>
       <p>Cinders per character: <strong>{{setup.limit}}</strong> · Starting Cinder points: <strong>{{setup.initial}}</strong> (first binding only). Change them in <strong>Configure Settings → Ashen Gate | Cinders</strong>.</p></section>
