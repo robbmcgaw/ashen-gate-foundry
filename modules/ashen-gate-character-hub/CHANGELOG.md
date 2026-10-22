@@ -1,3 +1,9 @@
+## 0.29.3 — 2026-10-22
+
+- **Fix: GM Setup switches did nothing after the Hub had been closed and opened again.** Foundry builds a new window each time a closed Hub is opened, but the Hub attached its change, drop, right-click and double-click listeners only the first time per character. Now they are attached to each new window. Ticking a part in **GM Setup → Player visibility** saves at once; your Hub and any player's open Hub redraw without a reload. The pet limits, the Compact see-through slider and other in-Hub inputs (quantity, currency, companion fields), item and companion drops, right-click unequip and double-click on the art or HP bar work again after reopening too.
+- If a visibility change is refused, a short notice says why and the checkbox goes back to the stored value.
+- Saved data: no change. No migration.
+
 ## 0.29.2 — 2026-10-21
 
 - **Fix: Escape closed the whole Hub when a menu was open.** With a slot menu open (click, right-click or the ⋯ button on an equipment slot, or an Other row's ⋯), pressing Escape now closes only the menu; the Hub stays open. This works wherever focus is (after a mouse click it is on the page, not the Hub) and in a popped-out Hub as well as the main window.

@@ -266,7 +266,8 @@ export const EDITS = {
   'pet-cap-override': (s, i) => comp.setPetCapOverride(i.dataset.actor, i.value),
   'pet-cap-default': (s, i) => comp.setDefaultPetCap(i.value),
   'journey-actor': (s, i) => { s.journeyActorId = globalThis.game?.user?.isGM ? i.value || null : null; s.journeyEdit = null; return s.render(); },
-  'part-visibility': (s, i) => vis.setVisibility({[i.dataset.part]: i.checked === true}),
+  // A refused write redraws, so the checkbox shows the stored value again (report() shows why).
+  'part-visibility': async (s, i) => { const r = await vis.setVisibility({[i.dataset.part]: i.checked === true}); if (!r?.ok) s.render(); return r; },
   'list-sort': async (s, i) => { const r = await setListChoice(i.dataset.tab, i.dataset.field, i.value); if (r.ok) s.render(); return r; }
 };
 
@@ -379,7 +380,10 @@ export function createHubSheetClass(Base) {
       applyFilter(content, this.filters[this.tab] ?? '');
       applyCompactOpacity(this);
       this._drawUndo(content);
-      if (!this._agchBound) {   // listeners live on the stable content element, so bind once
+      // Listeners live on the content element, bound once per element. Foundry builds a new window (and content element)
+      // each time a closed Hub is opened again, so a once-per-sheet flag left a reopened Hub with no change, drop,
+      // right-click or double-click listeners (0.29.3: GM Setup checkboxes did nothing).
+      if (this._agchBound !== content) {
         content.addEventListener?.('change', ev => this._onHubChange(ev));
         content.addEventListener?.('input', ev => {
           if (ev.target?.matches?.('[data-filter]')) { this.filters[this.tab] = ev.target.value; applyFilter(content, ev.target.value); }
@@ -403,7 +407,7 @@ export function createHubSheetClass(Base) {
         content.addEventListener?.('drop', ev => ev.target?.closest?.('[data-hotbar-slot]') ? this._onHotbarDrop(ev)
           : ev.target?.closest?.('[data-cinder-drop]') ? this._onSocketDrop(ev) : this._onCompanionDrop(ev));
         content.addEventListener?.('dragstart', ev => onItemDragStart(ev));
-        this._agchBound = true;
+        this._agchBound = content;
       }
       syncEscape(this);   // Escape closes an open menu/editor only, wherever focus is (escape.mjs)
       try { const a = globalThis.game?.modules?.get('ashen-gate-manager')?.api?.appearance; if (a?.contract === 'ag-appearance/0.1-beta') a.applyTo?.(content); } catch {}
@@ -569,7 +573,7 @@ export function createHubSheetClass(Base) {
     }
 
     async _onHubChange(event) {
-      const input = event.target, key = input?.dataset?.edit;
+      const input = event.target?.closest?.('[data-edit]') ?? event.target, key = input?.dataset?.edit;
       if (!key || !EDITS[key]) return null;
       event.stopPropagation?.();
       try { return report(await EDITS[key](this, input)); } catch (err) { return report({ok: false, error: err?.message ?? String(err)}); }
