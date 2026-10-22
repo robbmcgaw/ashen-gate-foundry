@@ -316,7 +316,8 @@ test('player projection: no hidden lines, no GM fields, purse only when shown', 
   assert.equal(text.includes(leak), false, leak);
  assert.deepEqual(p.purse, {cp: 40, sp: 25, gp: 30, pp: 0});
  assert.deepEqual(p.location, {name: '[TEST] Market Ward'}); assert.equal(p.rev, 3);
- const rope = p.lines[1];
+ const {tip, ...rope} = p.lines[1];
+ assert.deepEqual(tip, {name: '[TEST] Rope', type: 'consumable', img: 'rope.webp', system: tip.system}, '0.24.0: the trimmed tooltip copy');
  assert.deepEqual(rope, {lineId: 'ln1', name: '[TEST] Rope', img: 'rope.webp', type: 'Consumable', per: 1, priceCp: 100, priceCoin: 'gp', priceText: '1 gp', flavour: 'Coiled.', stock: 3, soldOut: false, description: '<p>Rope.</p>'});
  assert.deepEqual([p.lines[0].name, p.lines[0].description, p.lines[0].per, p.lines[0].soldOut, p.lines[0].priceText], ['[TEST] Odd arrows', 'Strange.', 20, true, '15 sp']);
  assert.equal(projectShop({...s, showPurse: false}).purse, null, 'a hidden shop purse never reaches players');

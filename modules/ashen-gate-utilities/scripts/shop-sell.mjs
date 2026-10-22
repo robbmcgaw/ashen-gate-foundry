@@ -5,7 +5,8 @@
    line, the sale), B pay the receiver, C remove the item, D history and the rebuilt player view. The item is removed
    last, so a failure anywhere leaves the seller holding it and no coins moved. ---- */
 import {ID,escapeHTML as E,coinsText,readCoins,checkSell,planShopPayout,sellStockChange,shopSaleEntry,SHOP_REFUSALS,SELL_REFUSALS,
- sellRows,quoteSale,saleText,heldQuantity} from './core.mjs';
+ sellRows,quoteSale,saleText,heldQuantity,coinChipsHTML,groupByCategory} from './core.mjs';
+import {itemButton} from './item-tips.mjs';
 import {readAll,writeShop,queueShops,appendLog,logOf,norm,randomId,button,icon,dragData} from './shops.mjs';
 import {tradeCtx,playerGate,viewOf,readablePurse,owns,queueBuy,whisper,gmIds,warn,syncPlayerView,empty,postTradeCard} from './shop-buy.mjs';
 import {formDialog,choiceDialog} from './ag-dialogs.mjs';
@@ -168,7 +169,7 @@ export async function sell(req={}){
 }
 
 /* ---------- Player shop window: the Sell sub-view and the Sell dialog ---------- */
-const itemIcon=(img,cls='ag-row__icon')=>img?`<img class="${cls}" src="${E(img)}" alt="">`:`<span class="${cls}" aria-hidden="true">${icon('fa-box')}</span>`;
+const typeLabel=t=>{const l=globalThis.CONFIG?.Item?.typeLabels?.[t];return l?game.i18n.localize(l):t||'Other';};
 /** Buy / Sell switch for a shop that buys from players. */
 export const modeSwitch=(view,mode)=>`<div class="ag-segmented agu-shop-mode" role="radiogroup" aria-label="Buy or sell">${[['buy','Buy'],['sell','Sell']].map(([id,label])=>`<button type="button" role="radio" data-shop-mode="${id}" aria-checked="${mode===id}">${label}</button>`).join('')}</div>`;
 /** The Sell sub-view: where the coins go, then the character's items (sellable first, refused ones greyed with the reason). */
@@ -176,22 +177,30 @@ export function sellViewHTML(view,actor,state={}){
  if(!actor)return '';
  const purse=readablePurse(),payTo=purse&&state.payTo==='purse'?'purse':'actor';
  const dest=`<div class="ag-toolbar agu-sell-dest"><span class="ag-eyebrow" id="agu-sell-dest-${E(view.id)}">Coins go to</span><div class="ag-segmented" role="radiogroup" aria-labelledby="agu-sell-dest-${E(view.id)}">${[['actor',actor.name],...(purse?[['purse','Party purse']]:[])].map(([id,label])=>`<button type="button" role="radio" data-sell-pay="${id}" aria-checked="${payTo===id}">${E(label)}</button>`).join('')}</div></div>`;
- const rows=sellRows(view,[...(actor.items??[])].map(itemData),{electrum:electrum()});
- const row=x=>`<li class="ag-row agu-ware${x.ok?'':' is-disabled'}"${x.ok?'':' aria-disabled="true"'} data-sell-item="${E(x.id)}">${itemIcon(x.img)}<div class="ag-row__main"><span class="ag-row__title">${E(x.name)}</span><span class="ag-row__meta">${E(x.ok?[`×${x.quantity}`,x.priceText].join(' · '):`×${x.quantity} · ${x.reason}`)}</span></div>
-  <div class="ag-row__end">${x.ok?button('shop-sell','Sell…',{kind:'sm',ic:'fa-coins',attrs:`data-shop="${E(view.id)}" data-item-id="${E(x.id)}" aria-label="Sell ${E(x.name)}"`}):''}</div></li>`;
+ const items=[...(actor.items??[])],rows=sellRows(view,items.map(itemData),{electrum:electrum()});
+ // 0.24.0: the seller's own Items, so dnd5e's tooltip and sheet are the real ones.
+ const uuidOf=id=>items.find(i=>(i.id??i._id)===id)?.uuid??(actor.uuid?`${actor.uuid}.Item.${id}`:null);
+ const category=Object.fromEntries(items.map(i=>[i.id??i._id,typeLabel(i.type)]));
+ const row=x=>{const uuid=uuidOf(x.id),pic=itemButton({uuid,name:x.name,inner:x.img?`<img src="${E(x.img)}" alt="">`:icon('fa-box'),cls:'agu-item-link agu-ware-card__img'});
+  const price=x.ok?coinChipsHTML(x.priceText.replace(/^Shop pays /,'')):'';
+  return `<li class="agu-ware-card${x.ok?'':' is-disabled'}"${x.ok?'':' aria-disabled="true"'} data-sell-item="${E(x.id)}">${pic}<div class="agu-ware-card__body">${itemButton({uuid,name:x.name,cls:'agu-item-link agu-ware-card__name'})}<span class="agu-ware-card__meta">${E(`×${x.quantity}${x.ok?'':` · ${x.reason}`}`)}</span></div>
+  <div class="agu-ware-card__foot">${x.ok?`<span class="agu-ware__price">Shop pays ${price}</span>${button('shop-sell','Sell…',{kind:'sm',ic:'fa-coins',attrs:`data-shop="${E(view.id)}" data-item-id="${E(x.id)}" aria-label="Sell ${E(x.name)}"`})}`:''}</div></li>`;};
+ const grid=list=>groupByCategory(list,x=>category[x.id]).map(g=>`<section class="agu-ware-group" aria-label="${E(g.category)}"><h4 class="ag-eyebrow">${E(g.category)} · ${g.lines.length}</h4><ul class="agu-ware-grid">${g.lines.map(row).join('')}</ul></section>`).join('');
  const ok=rows.filter(x=>x.ok),no=rows.filter(x=>!x.ok);
  const pct=`${view.name} pays ${view.buys.percent} % of an item's price. Drag an item from ${actor.name}'s sheet onto this window to sell it.`;
  return `${dest}<p class="ag-field__hint">${E(pct)}</p>
-  <h3 class="ag-eyebrow">${E(actor.name)} can sell · ${ok.length}</h3>${ok.length?`<ul class="ag-rows agu-wares">${ok.map(row).join('')}</ul>`:empty('Nothing to sell here',`${actor.name} has nothing this shop buys.`)}
-  ${no.length?`<h3 class="ag-eyebrow">This shop won't buy · ${no.length}</h3><ul class="ag-rows agu-wares">${no.map(row).join('')}</ul>`:''}`;
+  <h3 class="ag-eyebrow">${E(actor.name)} can sell · ${ok.length}</h3>${ok.length?`<div class="agu-wares">${grid(ok)}</div>`:empty('Nothing to sell here',`${actor.name} has nothing this shop buys.`)}
+  ${no.length?`<h3 class="ag-eyebrow">This shop won't buy · ${no.length}</h3><div class="agu-wares">${grid(no)}</div>`:''}`;
 }
 /** The sale as dialog HTML: the item, then what the merchant pays, from where, to whom, and the coins before → after. */
-function saleHTML(q){
+function saleHTML(q,uuid=null){
  const from=q.paidFrom==='unlimited'?'The merchant (unlimited)':'The merchant\'s coins';
- const kv=[['Selling',`${q.quantity>1?`${q.quantity} × `:''}${q.itemName}`],['From',q.actorName],['The merchant pays',`${q.totalText} (${q.percent} % of its price)`],['Paid from',from],
-  ['Coins go to',q.payTo==='purse'?'Party purse':q.receiverName],[q.payTo==='purse'?'Party purse':`${q.receiverName}'s coins`,`${coinsText(q.before)} → ${coinsText(q.after)}`],
-  ...(q.shopAfter?[['Merchant\'s coins after',coinsText(q.shopAfter)]]:[])];
- return `<ul class="ag-rows"><li class="ag-row">${itemIcon(q.img)}<div class="ag-row__main"><span class="ag-row__title">${E(q.itemName)}</span><span class="ag-row__meta">${E(q.shopName)}</span></div></li></ul><dl class="ag-kv">${kv.map(([k,v])=>`<dt>${E(k)}</dt><dd>${E(v)}</dd>`).join('')}</dl>`;
+ const kv=[['Selling',E(`${q.quantity>1?`${q.quantity} × `:''}${q.itemName}`)],['From',E(q.actorName)],['The merchant pays',`${coinChipsHTML(q.totalText)} ${E(`(${q.percent} % of its price)`)}`],['Paid from',E(from)],
+  ['Coins go to',E(q.payTo==='purse'?'Party purse':q.receiverName)],[q.payTo==='purse'?'Party purse':`${q.receiverName}'s coins`,`${coinChipsHTML(coinsText(q.before))} → ${coinChipsHTML(coinsText(q.after))}`],
+  ...(q.shopAfter?[['Merchant\'s coins after',coinChipsHTML(coinsText(q.shopAfter))]]:[])];
+ // 0.24.0: the item (the seller's own) with dnd5e's tooltip; a click opens its sheet.
+ const pic=itemButton({uuid,name:q.itemName,inner:q.img?`<img src="${E(q.img)}" alt="">`:icon('fa-box'),cls:'agu-item-link agu-preview-item__img'});
+ return `<div class="agu-preview-item">${pic}<div class="agu-preview-item__text">${itemButton({uuid,name:q.itemName,cls:'agu-item-link agu-ware-card__name'})}<span class="agu-ware-card__meta">${E(q.shopName)}</span></div></div><dl class="ag-kv">${kv.map(([k,v])=>`<dt>${E(k)}</dt><dd>${v}</dd>`).join('')}</dl>`;
 }
 const refusalHTML=reason=>`<p class="ag-notice ag-notice--danger" role="alert">${icon('fa-circle-exclamation')}<span>${E(reason)}</span></p>`;
 /** Sell dialog: how many (stacks only), then the sale with Sell item, or the refusal. Resolves the receipt, or null. */
@@ -212,7 +221,7 @@ export async function sellDialog(shopId,actorId,itemId,{payTo='actor'}={}){
    if(have>1)return null;
    throw Error(q.reason);
   }
-  if(await choiceDialog(`Sell ${data.name}?`,saleHTML(q),[{action:'sell',label:'Sell item',icon:'fa-solid fa-coins',default:true}])!=='sell')return null;
+  if(await choiceDialog(`Sell ${data.name}?`,saleHTML(q,item.uuid??null),[{action:'sell',label:'Sell item',icon:'fa-solid fa-coins',default:true}])!=='sell')return null;
   return sell(req);
  }
 }
