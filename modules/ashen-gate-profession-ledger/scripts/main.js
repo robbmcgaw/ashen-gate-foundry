@@ -9,7 +9,7 @@ import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
 import {confirmDialog,confirmDanger,guardDirty,infoDialog} from './ag-dialogs.mjs';
 import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,fold,bindFolds,fileButton,bindFileButtons,linkButton} from './ag-html.mjs';
 import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,requiredToolRef,toolRefLabel,heldTool,
-  checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS,DEFAULT_PROFESSION_TOOLS,DEFAULT_GATHER_SKILLS,migrateCheckMapping,compactCheckMapping,advantageToolsOf} from './checks.mjs';
+  checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS,DEFAULT_PROFESSION_TOOLS,DEFAULT_GATHER_SKILLS,migrateCheckMapping,compactCheckMapping,advantageToolsOf,advantageItemsOf,cleanItemList} from './checks.mjs';
 import {PROFESSION_KEYS,professionTitle,catalogCrosswalk,definitionProfessionKey,unmappedProfessions,assignmentPlan,rowId,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
 import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,gatherOutcome,gatherReward,exhaustsNode,helperEligibility,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
   stackMaterial,DRAFT_STATES} from './gathering.mjs';
@@ -442,17 +442,24 @@ function mapCellValues(map,list,k){
 }
 const sameSet=(a,b)=>a.length===b.length&&a.every(v=>b.includes(v));
 const MAP_ORIGIN={default:'Default',catalog:'From content',baseline:'From baseline file',gm:'Set by GM'};
-const MAP_HEADING={qualifySkills:'skill to access',qualifyTools:'tool to access',advantageTools:'tool for advantage'};
+const MAP_HEADING={qualifySkills:'skill to access',qualifyTools:'tool to access',advantageTools:'tool for advantage',advantageItems:'carried gear for advantage'};
+/** The lists GM Setup edits (0.27.0: carried gear for advantage is part of the Tool for Advantage cell). */
+const MAP_LISTS=Object.freeze(['qualifySkills','qualifyTools','advantageTools','advantageItems']);
 const MAP_FIELD={skillProficienciesAnyOf:'qualifySkills',toolProficienciesAnyOf:'qualifyTools',advantageToolsAnyOf:'advantageTools'};
-const mapLabelOf=list=>list==='qualifySkills'?skillLabel:toolLabel;
-/** Content names for this cell that match no dnd5e skill/tool, while the content is what the cell uses. */
-const mapUnmatched=(map,unresolved,list,k)=>map.origin?.[k]?.[list]==='catalog'?[...new Set(unresolved.filter(u=>(u.key??professionKey(u.profession))===k&&(u.list??MAP_FIELD[u.field])===list).map(u=>u.name))]:[];
+const mapLabelOf=list=>list==='qualifySkills'?skillLabel:list==='advantageItems'?String:toolLabel;
+/** Content names for this cell that match no dnd5e skill/tool, until the GM (or a baseline file) sets the cell. */
+const mapUnmatched=(map,unresolved,list,k)=>['catalog','default'].includes(map.origin?.[k]?.[list])?[...new Set(unresolved.filter(u=>(u.key??professionKey(u.profession))===k&&(u.list??MAP_FIELD[u.field])===list).map(u=>u.name))]:[];
 /** The visible part of a cell: the values in effect, their source, and a check that is not among them. */
 function mapCellSummary({k,title,list,map,unresolved}){
   const values=mapCellValues(map,list,k),labelOf=mapLabelOf(list),field=mapCheckField(list,k),check=field?map[field]?.[k]||'':'';
-  const text=values.length?values.map(labelOf).join(', '):'None',unmatched=mapUnmatched(map,unresolved,list,k);
+  // The advantage cell also lists the carried gear that gives advantage, marked "(carried)".
+  const items=list==='advantageTools'?mapCellValues(map,'advantageItems',k):[];
+  const shown=[...values.map(labelOf),...items.map(n=>`${n} (carried)`)];
+  const text=shown.length?shown.join(', '):'None',unmatched=mapUnmatched(map,unresolved,list,k);
   const checkNote=!field||(check?values.includes(check):!values.length)?'':`Check rolls ${check?labelOf(check):`no ${list==='qualifySkills'?'skill':'tool'}`}`;
-  return {text,aria:`${title} ${MAP_HEADING[list]}: ${text}`,origin:MAP_ORIGIN[map.origin?.[k]?.[list]]??'Default',checkNote,unmatched,values};
+  const originOf=l=>MAP_ORIGIN[map.origin?.[k]?.[l]]??'Default';
+  const origin=items.length?(values.length?`${originOf(list)} · carried gear: ${originOf('advantageItems')}`:`Carried gear: ${originOf('advantageItems')}`):originOf(list);
+  return {text,aria:`${title} ${MAP_HEADING[list]}: ${text}`,origin,checkNote,unmatched,values,items};
 }
 /** A Tools and checks cell: a button with the values that opens a checkbox list in the cell (Escape or Done closes it). */
 function mapCellHtml({k,title,list,map,unresolved,options}){
@@ -469,16 +476,27 @@ function mapCellHtml({k,title,list,map,unresolved,options}){
       <p class="agl-sub">${esc(hint)}</p>
       ${v.unmatched.length?`<p class="agl-sub">The content names ${esc(v.unmatched.map(n=>`“${n}”`).join(', '))}, which matches no dnd5e ${kind}. Tick the ${kind} it means.</p>`:''}
       <div class="agl-mpick__list">${sorted.map(o=>`<label><input type="checkbox" data-map-cell="${list}" data-map-prof="${esc(k)}" value="${esc(o)}" ${v.values.includes(o)?'checked':''}> ${esc(labelOf(o))}</label>`).join('')}</div>
+      ${list==='advantageTools'?mapGearHtml(k,title,v.items):''}
       <div class="agl-mpick__actions"><button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-action="map-clear" data-id="${esc(k)}" data-list="${list}">Clear (None)</button><button type="button" class="ag-btn ag-btn--sm" data-action="map-pick-done">Done</button></div>
     </div></div>`;
 }
+/** 0.27.0: the carried-gear part of the advantage cell: an item a character carries (inventory name, any case, or a core
+ * item UUID or identifier) gives advantage. Untick to remove; type a name and Add (or Enter) to add one. */
+function mapGearHtml(k,title,items){
+  return `<fieldset class="agl-mpick__gear"><legend>Carried gear (advantage while carried)</legend>
+    ${items.length?`<div class="agl-mpick__list">${items.map(n=>`<label><input type="checkbox" data-map-cell="advantageItems" data-map-prof="${esc(k)}" value="${esc(n)}" checked> ${esc(n)}</label>`).join('')}</div>`:'<p class="agl-sub">None.</p>'}
+    <div class="agl-mpick__add"><input type="text" data-map-item-input maxlength="200" placeholder="Item name, e.g. Fishing Tackle" aria-label="${esc(`${title}: add carried gear for advantage`)}"><button type="button" class="ag-btn ag-btn--sm" data-action="map-add-item" data-id="${esc(k)}">Add</button></div>
+  </fieldset>`;
+}
 /** A row differs from its defaults: the GM set one of its lists, or its check tool/skill differs from the built-in default. */
-const mapRowCustom=(draft,k)=>['qualifySkills','qualifyTools','advantageTools'].some(l=>draft[l]?.[k])||(draft.tools[k]??'')!==(DEFAULT_PROFESSION_TOOLS[k]??'')||(draft.skills[k]??'')!==(DEFAULT_GATHER_SKILLS[k]??'');
+const mapRowCustom=(draft,k)=>MAP_LISTS.some(l=>draft[l]?.[k])||(draft.tools[k]??'')!==(DEFAULT_PROFESSION_TOOLS[k]??'')||(draft.skills[k]??'')!==(DEFAULT_GATHER_SKILLS[k]??'');
 const professionTool=name=>{const key=checkMapping().tools[professionKey(name)];return key?{key,uuid:null,name:null}:null;};
 /** Advantage tools for a profession's checks. 0.22.0: gathering professions only; a crafting profession gets none.
  * 0.27.0: from the full crosswalk (GM Setup, baseline file, else the imported Profession content, else none), the same
  * values GM Setup shows. Before, the checks skipped the imported content's advantage tools. */
 const advantageToolsFor=name=>advantageToolsOf(rollMapping(),professionKey(name));
+/** 0.27.0: carried gear that gives advantage on a profession's checks (gathering professions only), e.g. Fishing Tackle. */
+const advantageItemsFor=name=>advantageItemsOf(rollMapping(),professionKey(name));
 
 /** GM: imported, active PROF-* Profession Items with their definitions (the catalog layer and the Items to assign). */
 function professionDefinitions(){
@@ -894,8 +912,8 @@ async function craft(actor,recipeId,{confirm=true}={}){
   const req=craftRequirement(recipe,actor);
   const cplan=req.checkPlan,choiceOf=o=>`${o.kind}:${o.key??o.ref?.name??o.ref?.uuid}`;
   let picked=cplan?.selected??null;
-  const advantageTools=advantageToolsFor(professionLabel(recipe));
-  const presetOf=o=>o?.key?rollModeFor(actor,{kind:o.kind,key:o.key},{advantageTools}):{mode:0,sources:[]};
+  const advantageTools=advantageToolsFor(professionLabel(recipe)),advantageItems=advantageItemsFor(professionLabel(recipe));
+  const presetOf=o=>o?.key?rollModeFor(actor,{kind:o.kind,key:o.key},{advantageTools,advantageItems}):{mode:0,sources:[]};
   let option=picked?checkOption(actor,picked):null;
   const preset=presetOf(picked);
   let mode=preset.mode;
@@ -1110,7 +1128,7 @@ function gatherCheckPlan(lead,node){
   const hasTool=tool&&(heldTool(lead,tool)||checkOption(lead,{kind:'tool',key:toolKey}).proficient);
   const first=hasTool||!skill?options[0]:options.find(o=>o.kind==='skill'&&o.key===skill);
   const profItem=pk?professionItems(lead).find(i=>professionKey(professionDisplayName(i))===pk):null;
-  return {profession,professionKey:pk,toolKey,skill,options,selected:`${first.kind}:${first.key}`,advantageTools:advantageToolsOf(map,pk),
+  return {profession,professionKey:pk,toolKey,skill,options,selected:`${first.kind}:${first.key}`,advantageTools:advantageToolsOf(map,pk),advantageItems:advantageItemsOf(map,pk),
     professionId:profItem?agSourceId(profItem):null,professionName:profItem?professionDisplayName(profItem):profession};
 }
 const parseChoice=(plan,choice)=>plan.options.find(o=>`${o.kind}:${o.key}`===choice)??null;
@@ -1121,7 +1139,7 @@ function helperInfo(helpers,lead,plan){
 /** The roll prompt sent to whoever rolls for the lead. Only public node details. */
 function gatherProjection(session){
   return {sessionId:session.id,actorId:session.leadId,actorName:session.leadName,title:publicNodeTitle(session.node),
-    summary:nodeSummary(session.node,{forPlayers:true}),dc:session.node.dcVisible?session.node.dc:null,options:session.plan.options,selected:session.plan.selected,advantageTools:session.plan.advantageTools??[],
+    summary:nodeSummary(session.node,{forPlayers:true}),dc:session.node.dcVisible?session.node.dc:null,options:session.plan.options,selected:session.plan.selected,advantageTools:session.plan.advantageTools??[],advantageItems:session.plan.advantageItems??[],
     assists:session.helpers.filter(h=>h.eligible).map(h=>h.name)};
 }
 
@@ -1236,7 +1254,7 @@ async function resolveGather(sessionId,{total,choice,mode=0,by=''}){
 function rollFields(actor,proj,prefix=''){
   const opts=proj.options.map(o=>{const c=checkOption(actor,o);return `<option value="${esc(`${o.kind}:${o.key}`)}" ${proj.selected===`${o.kind}:${o.key}`?'selected':''}>${esc(c.label)}${o.kind==='tool'?' (tool)':''} ${formatBonus(c.bonus)}</option>`;}).join('');
   const sel=parseChoice({options:proj.options},proj.selected);
-  const preset=rollModeFor(actor,sel??{},{assists:proj.assists,advantageTools:Array.isArray(proj.advantageTools)?proj.advantageTools:[]});
+  const preset=rollModeFor(actor,sel??{},{assists:proj.assists,advantageTools:Array.isArray(proj.advantageTools)?proj.advantageTools:[],advantageItems:Array.isArray(proj.advantageItems)?proj.advantageItems:[]});
   return `<div class="agl-roll-fields"><label class="ag-field">Check (bonus)<select name="check" ${prefix?`data-gather-roll-check="${esc(prefix)}"`:''}>${opts}</select></label>
     <label class="ag-field">Roll ${modeSelect(preset.mode,`name="mode" ${prefix?`data-gather-roll-mode="${esc(prefix)}"`:''}`)}</label></div>
     <p class="agl-sub">${esc(modeHint(preset))}</p>`;
@@ -1816,10 +1834,10 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         <td>${gathering?cell('advantageTools'):'<span class="agl-sub">—</span>'}</td></tr>`;};
     const group=(label,names)=>`<tr class="agl-map-group"><th colspan="4" scope="colgroup">${label}</th></tr>${names.map(row).join('')}`;
     const notes=conflicts.map(c=>`${c}: several imported Profession definitions disagree, so the content is not used for it.`);
-    const adv=GATHERING_PROFESSIONS.map(n=>professionKey(n)).filter(k=>map.advantageTools[k]?.length);
+    const adv=GATHERING_PROFESSIONS.map(n=>professionKey(n)).filter(k=>map.advantageTools[k]?.length||map.advantageItems[k]?.length);
     return `<section class="ag-card agl-panel"><h2>Tools and checks</h2>
       <p class="agl-sub">Proficiency in any <b>skill</b> or <b>tool to access</b> qualifies a character for the profession in <b>Assign</b>. The first skill and tool in a cell are the profession’s checks: crafting rolls the tool when a recipe names none of its own, and gathering offers the tool and the skill. A character proficient with, or carrying, any <b>tool for advantage</b> starts gathering checks with advantage (gathering professions only; crafting checks never get it). Under each cell: where its value comes from. Saved with <b>Save Changes</b>.</p>
-      <p class="agl-sub" data-map-adv-summary>${adv.length?`Gathering advantage: ${esc(adv.map(k=>`${professionTitle(k)} (${map.advantageTools[k].map(toolLabel).join(', ')})`).join('; '))}.`:'No gathering profession has a tool for advantage yet.'}</p>
+      <p class="agl-sub" data-map-adv-summary>${adv.length?`Gathering advantage: ${esc(adv.map(k=>`${professionTitle(k)} (${[...map.advantageTools[k].map(toolLabel),...map.advantageItems[k].map(n=>`${n}, carried`)].join(', ')})`).join('; '))}.`:'No gathering profession has a tool for advantage yet.'}</p>
       ${notes.length?`<ul class="agl-sub">${notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`:''}
       ${this._baselinePanel()}
       <div class="ag-table-wrap agl-map-wrap"><table class="ag-table agl-map"><thead><tr><th scope="col">Profession</th><th scope="col">Skill to Access</th><th scope="col">Tool to Access</th><th scope="col">Tool for Advantage</th></tr></thead>
@@ -1828,8 +1846,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   /** GM: baseline file import (file → preview → apply) and export of the current table. */
   _baselinePanel(){
     const rec=baselineRecord(),p=this.baselinePreview;
-    const LIST={qualifySkills:'Skill to Access',qualifyTools:'Tool to Access',advantageTools:'Tool for Advantage',items:'Carried items (legacy)'};
-    const show=(list,v)=>v==null?'<span class="agl-sub">not set by the file</span>':v.length?esc(v.map(list==='qualifySkills'?skillLabel:list==='items'?String:toolLabel).join(', ')):'<span class="agl-sub">None</span>';
+    const LIST={qualifySkills:'Skill to Access',qualifyTools:'Tool to Access',advantageTools:'Tool for Advantage',items:'Carried items (legacy)',advantageItems:'Carried gear for advantage'};
+    const show=(list,v)=>v==null?'<span class="agl-sub">not set by the file</span>':v.length?esc(v.map(list==='qualifySkills'?skillLabel:list==='items'||list==='advantageItems'?String:toolLabel).join(', ')):'<span class="agl-sub">None</span>';
     let preview='';
     if(p){
       const r=p.result,notes=[...r.errors,...r.unknownProfessions.map(n=>`“${n}” is not a profession; ignored.`),...r.unresolved.map(u=>`${u.profession}: ${LIST[u.list]} “${u.name}” matches no dnd5e ${u.list==='qualifySkills'?'skill':'tool'}; ignored.`)];
@@ -2244,8 +2262,14 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         this._toggleMapPicker(picker,b.dataset.action==='map-pick'&&picker?.querySelector('.agl-mpick__pop')?.hidden!==false);return;}
       void this._click(b.dataset.action,b.dataset.id,b.dataset);},{signal});
     // Escape in an open cell list closes it and returns focus to its button (and does not close the window).
-    this.element.addEventListener('keydown',e=>{if(e.key!=='Escape')return;const picker=e.target?.closest?.('[data-map-picker]');
+    // Enter in the carried-gear name box adds it (no form submit).
+    this.element.addEventListener('keydown',e=>{
+      if(e.key==='Enter'&&e.target?.matches?.('[data-map-item-input]')){e.preventDefault();const k=e.target.closest('[data-map-picker]')?.dataset?.mapProf;if(k)void this._click('map-add-item',k,{});return;}
+      if(e.key!=='Escape')return;const picker=e.target?.closest?.('[data-map-picker]');
       if(!picker||picker.querySelector('.agl-mpick__pop')?.hidden!==false)return;e.preventDefault();e.stopPropagation();this._toggleMapPicker(picker,false);},{signal});
+    if(this._reopenMapPicker){const {list,k}=this._reopenMapPicker;this._reopenMapPicker=null;
+      const picker=this.element.querySelector(`[data-map-picker][data-map-list="${list}"][data-map-prof="${k}"]`);
+      if(picker){this._toggleMapPicker(picker,true);picker.querySelector('[data-map-item-input]')?.focus?.();}}
     // 0.26.0: kit file buttons (a real button plus a visually hidden input), tab keyboard, remembered folds.
     const unbind=[bindFileButtons(this.element,([file],wrap)=>this._readFile(wrap?.dataset?.aglFile,file)),
       bindTablist(this.element.querySelector('nav.ag-tabs')),...[...this.element.querySelectorAll('.ag-tabs--sub')].map(list=>bindTablist(list)),bindFolds(this.element,this._ui)];
@@ -2357,10 +2381,17 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(action==='map-clear'){if(!game.user.isGM)throw Error('GM only');
         const picker=this.element?.querySelector?.(`[data-map-picker][data-map-list="${data.list??''}"][data-map-prof="${id??''}"]`)??null;
         for(const box of picker?.querySelectorAll?.('input[data-map-cell]')??[])box.checked=false;
-        this._setMapCell(data.list,id,[]);if(picker)this._syncMapCell(picker);return;}
+        this._setMapCell(data.list,id,[]);if(data.list==='advantageTools')this._setMapCell('advantageItems',id,[]);if(picker)this._syncMapCell(picker);return;}
+      if(action==='map-add-item'){if(!game.user.isGM)throw Error('GM only');
+        const picker=this.element?.querySelector?.(`[data-map-picker][data-map-list="advantageTools"][data-map-prof="${id??''}"]`)??null;
+        const name=String(picker?.querySelector?.('[data-map-item-input]')?.value??data.value??'').trim();if(!name)return;
+        this.mapDraft??=mappingDraft(checkMapping());
+        this._setMapCell('advantageItems',id,[...mapCellValues(crosswalkInfo(this.mapDraft).map,'advantageItems',id),name]);
+        // Re-render to list the new item, then reopen this cell with the focus back in the name box.
+        this._reopenMapPicker={list:'advantageTools',k:id};this.render();return;}
       if(action==='map-reset'){if(!game.user.isGM)throw Error('GM only');this.mapDraft??=mappingDraft(checkMapping());const d=this.mapDraft;
         // Back to the default: the check tool/skill and the access/advantage lists. A legacy items list is left as it is.
-        for(const l of ['qualifySkills','qualifyTools','advantageTools'])delete d[l][id];
+        for(const l of MAP_LISTS)delete d[l][id];
         d.tools[id]=DEFAULT_PROFESSION_TOOLS[id]??'';if(id in DEFAULT_GATHER_SKILLS)d.skills[id]=DEFAULT_GATHER_SKILLS[id];else delete d.skills[id];
         this.render();return;}
       if(action==='assign-preview'){requireAssignGM();const a=this.assignState;
@@ -2504,8 +2535,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   /** 0.27.0: a ticked/unticked box in a Tools and checks cell: the cell's list becomes the ticked values. */
   _rememberMapDraft(el){
     const picker=el?.closest?.('[data-map-picker]');
-    const list=picker?.dataset?.mapList??el?.dataset?.mapCell,k=picker?.dataset?.mapProf??el?.dataset?.mapProf;
-    const ticked=picker?[...picker.querySelectorAll('input[data-map-cell]:checked')].map(i=>String(i.value)):(el?.checked===false?[]:[String(el?.value??'')].filter(Boolean));
+    const list=el?.dataset?.mapCell??picker?.dataset?.mapList,k=picker?.dataset?.mapProf??el?.dataset?.mapProf;
+    const ticked=picker?[...picker.querySelectorAll(`input[data-map-cell="${list}"]:checked`)].map(i=>String(i.value)):(el?.checked===false?[]:[String(el?.value??'')].filter(Boolean));
     this._setMapCell(list,k,ticked);
     if(picker)this._syncMapCell(picker);
   }
@@ -2514,18 +2545,20 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
    * list is kept only when it differs from what the content, baseline file or built-in default give (0.26.2 diff save);
    * ticking back what is saved restores the saved cell, so it is not an unsaved change. */
   _setMapCell(list,k,ticked){
-    if(!['qualifySkills','qualifyTools','advantageTools'].includes(list)||!k)return;
+    if(!MAP_LISTS.includes(list)||!k)return;
     this.mapDraft??=mappingDraft(checkMapping());
     const d=this.mapDraft,field=mapCheckField(list,k),valid=list==='qualifySkills'?SKILL_IDS:toolKeys();
-    const want=[...new Set((ticked??[]).filter(v=>valid.includes(v)))],prev=mapCellValues(crosswalkInfo(d).map,list,k);
+    const want=list==='advantageItems'?cleanItemList(ticked??[]):[...new Set((ticked??[]).filter(v=>valid.includes(v)))],prev=mapCellValues(crosswalkInfo(d).map,list,k);
     const next=[...prev.filter(v=>want.includes(v)),...want.filter(v=>!prev.includes(v))];
     const saved=mappingDraft(checkMapping()),savedShown=mapCellValues(crosswalkInfo(saved).map,list,k);
     const lower=crosswalkInfo({[list]:Object.fromEntries(Object.entries(d[list]).filter(([x])=>x!==k))}).map[list][k]??[];
-    if(sameSet(next,savedShown)){
+    // Carried gear is matched by name in any case, so it is compared that way too.
+    const same=(a,b)=>list==='advantageItems'?sameSet(a.map(norm),b.map(norm)):sameSet(a,b);
+    if(same(next,savedShown)){
       if(saved[list][k])d[list][k]=structuredClone(saved[list][k]);else delete d[list][k];
       if(field){if(k in saved[field])d[field][k]=saved[field][k];else delete d[field][k];}
     }else{
-      if(sameSet(next,lower))delete d[list][k];else d[list][k]=next;
+      if(same(next,lower))delete d[list][k];else d[list][k]=next;
       if(field)d[field][k]=next[0]??'';
     }
     this._syncRosterActions();
@@ -2786,4 +2819,4 @@ Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateChatCard(message,h
 export const _test={craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
   startGather,resolveGather,cancelGather,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,myGatherRequests,
   setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,gatherSessions,decorateChatCard,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
-  readNodeStore,writeNodeStore,copyLocationNodes,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites,xpModeClick,gatherCheckPlan,advantageToolsFor};
+  readNodeStore,writeNodeStore,copyLocationNodes,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites,xpModeClick,gatherCheckPlan,advantageToolsFor,advantageItemsFor};

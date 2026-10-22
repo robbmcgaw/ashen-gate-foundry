@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {pathToFileURL,fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {effectiveMapping,rollModeFor,advantageToolsOf,compactCheckMapping} from '../scripts/checks.mjs';
-import {catalogCrosswalk} from '../scripts/assign.mjs';
+import {catalogCrosswalk,qualifications,parseBaselineFile} from '../scripts/assign.mjs';
 // 0.27.0: GM Setup → Tools and checks cells are multi-selects; the imported Profession content (catalog layer) is shown
 // in the table and its gathering advantage tools are applied to gathering checks. Mocked Foundry and dnd5e 6 tool config
 // (keys with no labels, as CONFIG.DND5E.tools has them): logic only, not the live UI.
@@ -63,14 +63,15 @@ test('the content\'s exact dnd5e tool names resolve to tool keys (dnd5e 6 config
   assert.deepEqual(catalog.jewelcrafting.qualifyTools,['jeweler','glassblower']);
   assert.deepEqual(catalog.herbalism.advantageTools,['herb']);assert.deepEqual(catalog.huntingskinning.advantageTools,['leatherworker']);
   assert.deepEqual(catalog.mining.advantageTools,['mason']);
-  assert.deepEqual(catalog.archaeology.advantageTools,[]);assert.deepEqual(catalog.fishing.advantageTools,[]);
+  assert.equal(catalog.archaeology.advantageTools,undefined,'only unmatched names: the content sets no list');assert.equal(catalog.fishing.advantageTools,undefined);
   assert.deepEqual(unresolved.map(u=>[u.profession,u.name]),[['Archaeology',"Excavator's Tools"],['Fishing','Fishing Rod']]);
 });
 
 test('Root cause (complaint 2): gathering checks get the content\'s advantage tools (Herbalism, Hunting, Mining); crafting still gets none',()=>{
   assert.deepEqual(_test.advantageToolsFor('Herbalism'),['herb']);assert.deepEqual(_test.advantageToolsFor('Hunting'),['leatherworker']);
   assert.deepEqual(_test.advantageToolsFor('Skinning & Harvesting'),['leatherworker']);assert.deepEqual(_test.advantageToolsFor('Mining'),['mason']);
-  assert.deepEqual(_test.advantageToolsFor('Archaeology'),[]);assert.deepEqual(_test.advantageToolsFor('Fishing'),[]);
+  assert.deepEqual(_test.advantageToolsFor('Archaeology'),['calligrapher'],'built-in default (GM decision)');assert.deepEqual(_test.advantageToolsFor('Fishing'),[]);
+  assert.deepEqual(_test.advantageItemsFor('Fishing'),['Fishing Tackle']);assert.deepEqual(_test.advantageItemsFor('Herbalism'),[]);
   assert.deepEqual(_test.advantageToolsFor('Alchemy'),[],'crafting: none');
   const herb=_test.gatherCheckPlan(kitCarrier,{skill:'Herbalism'});assert.deepEqual(herb.advantageTools,['herb']);
   let r=rollModeFor(kitCarrier,{kind:'skill',key:'nat'},{advantageTools:herb.advantageTools});
@@ -97,9 +98,10 @@ test('GM Setup shows the effective values from content, where they come from, th
   assert.equal(valueOf(h,'advantageTools','herbalism'),'Herbalism Kit');assert.equal(valueOf(h,'advantageTools','huntingskinning'),'Leatherworker’s Tools');
   assert.equal(valueOf(h,'advantageTools','mining'),'Mason’s Tools');
   for(const k of ['herbalism','huntingskinning','mining'])assert.match(cellOf(h,'advantageTools',k),/agl-mpick__origin">From content</);
-  assert.match(h,/Gathering advantage: Herbalism \(Herbalism Kit\); Hunting \(Leatherworker’s Tools\); Mining \(Mason’s Tools\)\./);
-  assert.equal(valueOf(h,'advantageTools','archaeology'),'None');assert.match(cellOf(h,'advantageTools','archaeology'),/Not matched: Excavator&#39;s Tools|Not matched: Excavator's Tools/);
-  assert.match(cellOf(h,'advantageTools','fishing'),/Not matched: Fishing Rod[\s\S]*Tick the tool it means/);
+  assert.match(h,/Gathering advantage: Archaeology \(Calligrapher’s Supplies\); Fishing \(Fishing Tackle, carried\); Herbalism \(Herbalism Kit\); Hunting \(Leatherworker’s Tools\); Mining \(Mason’s Tools\)\./);
+  assert.equal(valueOf(h,'advantageTools','archaeology'),'Calligrapher’s Supplies');assert.match(cellOf(h,'advantageTools','archaeology'),/agl-mpick__origin">Default<[\s\S]*Not matched: Excavator's Tools/);
+  assert.equal(valueOf(h,'advantageTools','fishing'),'Fishing Tackle (carried)');
+  assert.match(cellOf(h,'advantageTools','fishing'),/agl-mpick__origin">Carried gear: Default<[\s\S]*Not matched: Fishing Rod[\s\S]*Tick the tool it means[\s\S]*<legend>Carried gear \(advantage while carried\)<\/legend>[\s\S]*data-map-cell="advantageItems" data-map-prof="fishing" value="Fishing Tackle" checked>[\s\S]*data-map-item-input[\s\S]*data-action="map-add-item" data-id="fishing">Add/);
   assert.match(cellOf(h,'qualifySkills','fishing'),/agl-mpick__origin">From content</);
   // Keyboard-reachable control: a button with aria-expanded/controls, a labelled group of checkboxes, Clear and Done.
   const c=cellOf(h,'qualifyTools','alchemy');
@@ -141,7 +143,7 @@ test('multi-value edits: save stores the whole list only when it differs; the fi
   assert.equal(values.checkMapping.advantageTools.herbalism,undefined);
   // Reset to default removes the row's entries; the content applies again.
   await app._click('map-reset','alchemy');await app._click('map-reset','archaeology');await app._click('map-reset','enchanting');await app._click('roster-save');
-  assert.deepEqual(values.checkMapping,{tools:{},skills:{},qualifySkills:{},qualifyTools:{},advantageTools:{},items:{}});
+  assert.deepEqual(values.checkMapping,{tools:{},skills:{},qualifySkills:{},qualifyTools:{},advantageTools:{},items:{},advantageItems:{}});
   h=await html();assert.equal(valueOf(h,'qualifyTools','alchemy'),'Alchemist’s Supplies, Herbalism Kit');assert.match(cellOf(h,'qualifyTools','alchemy'),/From content/);
   assert.deepEqual(errors,[]);
 });
@@ -164,4 +166,56 @@ test('players: no catalog, no table; the API refuses GM Setup edits',async()=>{
     const h=(await app._prepareContext({})).html;assert.doesNotMatch(h,/data-map-picker/);
     await app._click('map-clear','alchemy',{list:'qualifyTools'});assert.ok(errors.some(e=>/GM only/.test(e)));errors.length=0;
   }finally{game.user=gm;}
+});
+
+// 0.27.0 (GM decision): Archaeology's built-in advantage tool is Calligrapher's Supplies; Fishing's is carrying Fishing Tackle.
+const gear=(name,{qty=1,identifier=null,type='loot'}={})=>({id:`g-${name}`,name,type,system:{quantity:qty,...(identifier?{identifier}:{})}});
+test('carried gear gives advantage on Fishing checks: name (any case) or dnd5e identifier; quantity 0 or no item gives none',()=>{
+  const plan=_test.gatherCheckPlan(actor('angler'),{skill:'Fishing'});assert.deepEqual(plan.advantageItems,['Fishing Tackle']);
+  const opts={advantageTools:plan.advantageTools,advantageItems:plan.advantageItems},check={kind:'skill',key:'sur'};
+  let r=rollModeFor(actor('a1',{items:[gear('fishing tackle')]}),check,opts);
+  assert.equal(r.mode,1);assert.deepEqual(r.sources,['Advantage: fishing tackle'],'named as the character’s item');
+  r=rollModeFor(actor('a2',{items:[gear('[TEST] Angler’s kit',{identifier:'fishing-tackle'})]}),check,opts);assert.equal(r.mode,1,'dnd5e identifier');
+  assert.equal(rollModeFor(actor('a3',{items:[gear('Fishing Tackle',{qty:0})]}),check,opts).mode,0,'quantity 0 is not carried');
+  assert.equal(rollModeFor(plain,check,opts).mode,0,'no tackle, no advantage');
+  assert.equal(rollModeFor(actor('a4',{items:[gear('Fishing Rod')]}),check,opts).mode,0,'another item does not count');
+  // Archaeology: Calligrapher's Supplies by proficiency.
+  const dig=_test.gatherCheckPlan(actor('d'),{skill:'Archaeology'});assert.deepEqual(dig.advantageTools,['calligrapher']);
+  assert.deepEqual(rollModeFor(actor('d2',{tools:{calligrapher:1}}),{kind:'skill',key:'his'},{advantageTools:dig.advantageTools}).sources,['Advantage: Calligrapher’s Supplies']);
+  // Crafting professions never get carried-gear advantage, even when a list is saved for them.
+  values.checkMapping={advantageItems:{alchemy:['Fishing Tackle']}};assert.deepEqual(_test.advantageItemsFor('Alchemy'),[]);values.checkMapping={};
+});
+
+test('qualifying by carried items is unchanged: carrying Fishing Tackle does not qualify for Fishing by itself',()=>{
+  const map=effectiveMapping({});
+  assert.deepEqual(map.items.fishing,[]);assert.deepEqual(map.advantageItems.fishing,['Fishing Tackle']);
+  const who=actor('q',{items:[gear('Fishing Tackle')]});who.system.skills={};
+  assert.equal(qualifications(who,map).some(q=>q.key==='fishing'),false);
+  assert.equal(qualifications(who,effectiveMapping({items:{fishing:['Fishing Tackle']}})).some(q=>q.key==='fishing'),true,'a saved items list still qualifies, as before');
+});
+
+test('GM Setup: carried gear is edited in the Tool for Advantage cell; saved only when it differs; Clear and Reset',async()=>{
+  values.checkMapping={};app.mapDraft=null;app.rosterDraft=new Set();app.element={querySelector:()=>null,querySelectorAll:()=>[]};
+  app._setMapCell('advantageItems','fishing',['Fishing Tackle','[TEST] Lucky Lure']);
+  await app._click('roster-save');assert.deepEqual(values.checkMapping.advantageItems,{fishing:['Fishing Tackle','[TEST] Lucky Lure']});
+  app.mapDraft=null;let h=await html();
+  assert.equal(valueOf(h,'advantageTools','fishing'),'Fishing Tackle (carried), [TEST] Lucky Lure (carried)');assert.match(cellOf(h,'advantageTools','fishing'),/Carried gear: Set by GM/);
+  assert.deepEqual(_test.advantageItemsFor('Fishing'),['Fishing Tackle','[TEST] Lucky Lure']);
+  app._setMapCell('advantageItems','fishing',['fishing tackle']);await app._click('roster-save');
+  assert.equal(values.checkMapping.advantageItems.fishing,undefined,'back to the default (any case): nothing stored');
+  await app._click('map-clear','fishing',{list:'advantageTools'});await app._click('roster-save');
+  assert.deepEqual(values.checkMapping.advantageItems,{fishing:[]},'Clear means none');assert.deepEqual(_test.advantageItemsFor('Fishing'),[]);
+  app.mapDraft=null;h=await html();assert.equal(valueOf(h,'advantageTools','fishing'),'None');
+  await app._click('map-reset','fishing');await app._click('roster-save');
+  assert.deepEqual(values.checkMapping.advantageItems,{});assert.deepEqual(_test.advantageItemsFor('Fishing'),['Fishing Tackle']);
+  // Archaeology's default tool can be cleared too.
+  app._setMapCell('advantageTools','archaeology',[]);await app._click('roster-save');
+  assert.deepEqual(values.checkMapping.advantageTools,{archaeology:[]});assert.deepEqual(_test.advantageToolsFor('Archaeology'),[]);
+  values.checkMapping={};app.mapDraft=null;assert.deepEqual(errors,[]);
+});
+
+test('a baseline file can set carried gear for advantage (names kept as written)',()=>{
+  const r=parseBaselineFile({professions:{Fishing:{advantageItems:['[TEST] Net','[test] net']}}});
+  assert.equal(r.ok,true);assert.deepEqual(r.baseline.fishing.advantageItems,['[TEST] Net']);
+  assert.deepEqual(effectiveMapping({},{baseline:r.baseline}).advantageItems.fishing,['[TEST] Net']);
 });

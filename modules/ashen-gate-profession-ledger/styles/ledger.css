@@ -117,6 +117,10 @@
 .agl-mpick__pop p{margin:0}
 .agl-mpick__list{display:flex;flex-direction:column;gap:var(--ag-space-1);max-height:14rem;overflow-y:auto}
 .agl-mpick__list label{display:flex;align-items:center;gap:var(--ag-space-2);font-weight:400}
+.agl-mpick__gear{display:flex;flex-direction:column;gap:var(--ag-space-1);margin:0;padding:var(--ag-space-2);border:1px solid var(--ag-border);border-radius:var(--ag-radius)}
+.agl-mpick__gear legend{padding:0 var(--ag-space-1);font-weight:600}
+.agl-mpick__add{display:flex;gap:var(--ag-space-2)}
+.agl-mpick__add input{flex:1;width:0;min-width:0}
 .agl-mpick__actions{display:flex;justify-content:space-between;gap:var(--ag-space-2)}
 @media (prefers-reduced-motion:reduce){.agl-mpick__toggle i{transition:none}}
 .agl-map td small.agl-sub{display:block}

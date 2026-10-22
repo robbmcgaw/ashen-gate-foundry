@@ -87,7 +87,7 @@ test('GM overrides win over catalog and defaults; explicit [] means none; old si
   assert.deepEqual(map.qualifySkills.fishing,['sur']);assert.equal(map.tools.enchanting,'jeweler','old name still read');
   assert.deepEqual(map.advantageTools.fishing,['herb'],'invalid entries dropped');
   assert.equal(effectiveMapping({tools:{alchemy:''}}).tools.alchemy,'');assert.deepEqual(effectiveMapping({tools:{alchemy:''}}).qualifyTools.alchemy,[]);
-  assert.deepEqual(effectiveMapping({}).gm,{qualifySkills:{},qualifyTools:{},advantageTools:{},items:{}});
+  assert.deepEqual(effectiveMapping({}).gm,{qualifySkills:{},qualifyTools:{},advantageTools:{},items:{},advantageItems:{}});
 });
 
 test('advantage tools: only GM-configured ones change the roll; proficiency or carrying counts',()=>{

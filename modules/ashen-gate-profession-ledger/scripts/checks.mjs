@@ -62,12 +62,19 @@ export function compactCheckMapping(stored){
  * 0.20.0 adds `items` (carried core items that qualify) and the baseline-file layer (see effectiveMapping).
  * An explicit [] means "none". `gm` holds only the GM's saved lists. 0.27.0: gathering checks use the advantage tools in
  * effect, catalog included (main.js rollMapping); before, they skipped the catalog's. */
-export const CROSSWALK_LISTS=Object.freeze(['qualifySkills','qualifyTools','advantageTools','items']);
+export const CROSSWALK_LISTS=Object.freeze(['qualifySkills','qualifyTools','advantageTools','items','advantageItems']);
+/** 0.27.0: lists of carried items (names or UUIDs, kept as written): `items` qualifies (legacy), `advantageItems` gives
+ * advantage on that profession's gathering checks while the character carries one. */
+export const ITEM_LISTS=Object.freeze(['items','advantageItems']);
 /** 0.20.0: core items that qualify a character by being carried (name, or a core/Item UUID). 0.22.0: none built in (Fishing
  * is accessed by the Survival skill instead); `items` from saved GM edits, the catalog or a baseline file still count. */
 export const DEFAULT_QUALIFY_ITEMS=Object.freeze({});
 /** 0.22.0: built-in qualifying skills for professions with no check skill to seed them. Fishing is accessed by Survival. */
 export const DEFAULT_QUALIFY_SKILLS=Object.freeze({fishing:Object.freeze(['sur'])});
+/** 0.27.0 (GM decision): built-in advantage for the two gathering professions the content gives no usable tool for.
+ * Archaeology: Calligrapher's Supplies. Fishing: carrying Fishing Tackle (adventuring gear, not a tool proficiency). */
+export const DEFAULT_ADVANTAGE_TOOLS=Object.freeze({archaeology:Object.freeze(['calligrapher'])});
+export const DEFAULT_ADVANTAGE_ITEMS=Object.freeze({fishing:Object.freeze(['Fishing Tackle'])});
 const TOOL_KEY=/^[a-z][a-z0-9]*$/;
 const ITEM_REF=v=>v.trim().length>0&&v.trim().length<=200;
 const cleanList=(v,valid)=>Array.isArray(v)?[...new Set(v.filter(x=>typeof x==='string'&&valid(x)))]:null;
@@ -75,7 +82,7 @@ const cleanList=(v,valid)=>Array.isArray(v)?[...new Set(v.filter(x=>typeof x==='
 export const cleanItemList=v=>{if(!Array.isArray(v))return null;const out=[],seen=new Set();
   for(const x of v){if(typeof x!=='string'||!ITEM_REF(x))continue;const t=x.trim(),k=norm(t)||t.toLowerCase();if(!seen.has(k)){seen.add(k);out.push(t);}}return out;};
 const LIST_VALID={qualifySkills:v=>SKILL_IDS.includes(v),qualifyTools:v=>TOOL_KEY.test(v),advantageTools:v=>TOOL_KEY.test(v)};
-export const cleanCrosswalkList=(list,v)=>list==='items'?cleanItemList(v):cleanList(v,LIST_VALID[list]);
+export const cleanCrosswalkList=(list,v)=>ITEM_LISTS.includes(list)?cleanItemList(v):cleanList(v,LIST_VALID[list]);
 /**
  * Layers, lowest first, decided per profession and per list: built-in defaults < Profession catalog `access` (`catalog`,
  * GM-read) < the GM's imported baseline file (`baseline`, 0.20.0) < GM lists saved in the setting. A layer only counts
@@ -90,10 +97,10 @@ export function effectiveMapping(stored,{catalog=null,baseline=null}={}){
   for(const list of CROSSWALK_LISTS){gm[list]={};
     for(const [k,v] of Object.entries(s[list]&&typeof s[list]==='object'?s[list]:{})){const clean=cleanCrosswalkList(list,v);if(clean)gm[list][PROFESSION_ALIASES[k]??k]=clean;}}
   const keys=[...new Set([...Object.keys(tools),...Object.keys(skills)])];
-  const out={tools,skills,gm,qualifySkills:{},qualifyTools:{},advantageTools:{},items:{},origin:{}};
+  const out={tools,skills,gm,qualifySkills:{},qualifyTools:{},advantageTools:{},items:{},advantageItems:{},origin:{}};
   for(const k of keys){
     const cat=catalog?.[k]??null,file=baseline?.[k]??null;
-    const base={qualifySkills:skills[k]?[skills[k]]:[...(DEFAULT_QUALIFY_SKILLS[k]??[])],qualifyTools:tools[k]?[tools[k]]:[],advantageTools:[],items:[...(DEFAULT_QUALIFY_ITEMS[k]??[])]};
+    const base={qualifySkills:skills[k]?[skills[k]]:[...(DEFAULT_QUALIFY_SKILLS[k]??[])],qualifyTools:tools[k]?[tools[k]]:[],advantageTools:[...(DEFAULT_ADVANTAGE_TOOLS[k]??[])],items:[...(DEFAULT_QUALIFY_ITEMS[k]??[])],advantageItems:[...(DEFAULT_ADVANTAGE_ITEMS[k]??[])]};
     out.origin[k]={};
     for(const list of CROSSWALK_LISTS){
       const fileList=file?cleanCrosswalkList(list,file[list]):null;
@@ -109,6 +116,8 @@ export function effectiveMapping(stored,{catalog=null,baseline=null}={}){
  * for them (the data is kept, just not used). */
 export const GATHERING_PROFESSION_KEYS=Object.freeze(['archaeology','fishing','herbalism','huntingskinning','mining']);
 export const advantageToolsOf=(map,key)=>GATHERING_PROFESSION_KEYS.includes(key)?[...(map?.advantageTools?.[key]??[])]:[];
+/** 0.27.0: carried items that give advantage, same rule (gathering professions only). */
+export const advantageItemsOf=(map,key)=>GATHERING_PROFESSION_KEYS.includes(key)?[...(map?.advantageItems?.[key]??[])]:[];
 
 const dnd5eTools=()=>globalThis.CONFIG?.DND5E?.tools??{};
 export const toolKeys=()=>[...new Set([...Object.keys(TOOL_LABELS),...Object.keys(dnd5eTools())])].sort((a,b)=>toolLabel(a).localeCompare(toolLabel(b)));
@@ -172,6 +181,13 @@ export function carriedItem(actor,ref){
     if(uuid)return [i.uuid,i._stats?.compendiumSource,i.flags?.core?.sourceId,i.flags?.['ashen-gate-manager']?.coreLink?.uuid].includes(uuid);
     return norm(i.name)===name;})??null;
 }
+/** 0.27.0: a carried item that gives advantage: as carriedItem (UUID, compendium source, core link or name), or a dnd5e
+ * item identifier ("fishing-tackle") matching the reference. Quantity 0 is not carried. Qualifying uses carriedItem only. */
+export function advantageItem(actor,ref){
+  const hit=carriedItem(actor,ref);if(hit)return hit;
+  const name=norm(ref);if(!name||/^(Compendium|Item)\./.test(String(ref??'').trim()))return null;
+  return Array.from(actor?.items??[]).find(i=>i&&Number(i.system?.quantity??1)>0&&norm(i.system?.identifier)===name)??null;
+}
 export const formatBonus=n=>Number.isFinite(n)?(n>=0?`+${n}`:`−${Math.abs(n)}`):'—';
 
 /** One check option: {kind:'skill'|'tool', key, label, bonus, proficient, held}. */
@@ -194,7 +210,7 @@ const effectsOf=actor=>{
  * flags are honoured too. `assists` add advantage. Advantage and disadvantage cancel.
  * Returns {mode:-1|0|1, sources:string[]}; the roller can still change it.
  */
-export function rollModeFor(actor,{kind,key},{assists=[],advantageTools=[]}={}){
+export function rollModeFor(actor,{kind,key},{assists=[],advantageTools=[],advantageItems=[]}={}){
   const sys=actor?.system,entry=kind==='skill'?sys?.skills?.[key]:sys?.tools?.[key];
   const ability=entry?.ability??(kind==='skill'?SKILL_ABILITY[key]:dnd5eTools()[key]?.ability??TOOL_ABILITY[key]);
   const adv=[],dis=[];
@@ -213,6 +229,8 @@ export function rollModeFor(actor,{kind,key},{assists=[],advantageTools=[]}={}){
   // GM-configured advantage tools (0.16.0): proficiency with, or carrying, one of them.
   for(const tool of advantageTools){const ref={key:tool,uuid:null,name:null};
     if(toolProficient(actor,tool)||heldTool(actor,ref))adv.push(toolLabel(tool));}
+  // 0.27.0: carried gear that gives advantage (e.g. Fishing Tackle), named as the character's item.
+  for(const ref of advantageItems){const item=advantageItem(actor,ref);if(item&&!adv.includes(item.name))adv.push(item.name);}
   const mode=adv.length&&dis.length?0:adv.length?1:dis.length?-1:0;
   return {mode,sources:[...adv.map(s=>`Advantage: ${s}`),...dis.map(s=>`Disadvantage: ${s}`)]};
 }

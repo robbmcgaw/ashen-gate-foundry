@@ -5,7 +5,7 @@
  * Pure rules; main.js reads Foundry, enforces the GM gate and creates the Items.
  */
 import {PROFESSION_NAMES,norm} from './core.mjs';
-import {SKILL_IDS,SKILL_LABELS,professionKey,requiredToolRef,toolLabel,skillLabel,toolProficient,carriedItem,cleanItemList,CROSSWALK_LISTS,toolKeys} from './checks.mjs';
+import {SKILL_IDS,SKILL_LABELS,professionKey,requiredToolRef,toolLabel,skillLabel,toolProficient,carriedItem,cleanItemList,CROSSWALK_LISTS,ITEM_LISTS,toolKeys} from './checks.mjs';
 
 export const PROFESSION_KEYS=Object.freeze(PROFESSION_NAMES.map(professionKey));
 /** 0.22.0: shown names. Keys, ids and stored names never change; "Hunting" still matches huntingskinning (see professionKey). */
@@ -47,6 +47,10 @@ export function catalogCrosswalk(definitions=[]){
       if(id){if(!entry[list].includes(id))entry[list].push(id);}
       else unresolved.push({sourceId:d.sourceId??null,profession:professionTitle(key),field,name:String(name)});
     }
+    // 0.27.0: advantage names that ALL match no dnd5e tool set nothing (they are still reported), so the built-in
+    // default applies (Archaeology). Access lists are unchanged.
+    const advNames=Array.isArray(access.advantageToolsAnyOf)?access.advantageToolsAnyOf:[];
+    if(advNames.length&&!entry.advantageTools.length)delete entry.advantageTools;
     // 0.20.0, additive: carried items (names or UUIDs, kept as written). Absent means the built-in items stay.
     if(Array.isArray(access.itemsAnyOf))entry.items=cleanItemList(access.itemsAnyOf);
     const sig=JSON.stringify(entry);
@@ -94,7 +98,7 @@ export function parseBaselineFile(data){
     for(const list of CROSSWALK_LISTS){
       if(row[list]===undefined)continue;
       if(!Array.isArray(row[list])||row[list].some(v=>typeof v!=='string')){errors.push(`${name}: ${list} must be a list of names.`);continue;}
-      if(list==='items'){entry.items=cleanItemList(row.items);continue;}
+      if(ITEM_LISTS.includes(list)){entry[list]=cleanItemList(row[list]);continue;}
       const ids=[];
       for(const v of row[list]){const id=list==='qualifySkills'?skillIdOf(v):toolIdOf(v);
         if(id){if(!ids.includes(id))ids.push(id);}else unresolved.push({profession:professionTitle(key),list,name:v});}
