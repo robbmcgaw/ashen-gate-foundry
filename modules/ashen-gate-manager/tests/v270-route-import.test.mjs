@@ -1,28 +1,27 @@
-/** 0.27.0: Route records (Locations 1.10.0+) through Manager's import: validation, order after locations,
- *  update keeping play state, ZIP order, Browse/export. Uses the real Locations API over an in-memory store and
- *  mirrors #preview / #apply in main.js; proves the logic, not the live Manager window. */
+/** 0.27.0: Route records (Locations 1.10.0+) through Manager's import: validation, order after locations, ZIP order,
+ *  Browse/export. 0.46.1: Locations 0.20.0 retired routes (no importRoutes / listRoutes), so with it Route records are
+ *  skipped with "Routes are retired; …" and the locations in the same run still import. Uses the real Locations API over
+ *  an in-memory store and mirrors #preview / #apply in main.js; proves the logic, not the live Manager window. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import '../scripts/vendor/jszip.min.js';
 import {validatePackage} from '../scripts/core.js';
 import {dependencyOrder} from '../scripts/workflows.js';
-import {isLocationRecord, planLocation, applyLocations, isRouteRecord, routesApi, planRoute, routesNote, applyRoutes, withLocationIds, routeEnds} from '../scripts/location-handoff.js';
+import {isLocationRecord, planLocation, applyLocations, isRouteRecord, routesApi, planRoute, routesNote, applyRoutes, withLocationIds, routeEnds, ROUTES_RETIRED} from '../scripts/location-handoff.js';
 import {readImportBundle} from '../scripts/zip-import.js';
 import {collectModuleSections} from '../scripts/world-export.js';
 import {buildImportReport} from '../scripts/import-result.js';
 import {createApi} from '../../ashen-gate-locations/scripts/api.mjs';
 import {playerView} from '../../ashen-gate-locations/scripts/model.mjs';
 
-/** The real Locations API (1.10.0+) over memory, as Locations wires it in Foundry. */
-function locations({stored = [], routes = []} = {}) {
-  const state = {stored, routes, used: routes.map(r => r.id)};
+/** The real Locations API (0.20.0: no route methods) over memory, as Locations wires it in Foundry. */
+function locations({stored = []} = {}) {
+  const state = {stored};
   const api = createApi({
     version: 'test', isGM: () => true, playerAccessEnabled: () => true, setPlayerAccess: async () => {},
     readAll: () => structuredClone(state.stored), writeAll: async list => { state.stored = list; },
     readViews: () => state.stored.map(l => playerView(l, state.stored)).filter(Boolean),
-    placeNote: async () => ({}), open: () => {}, openLocation: () => {},
-    routes: {readAll: () => structuredClone(state.routes), writeAll: async list => { state.routes = list; state.used = [...new Set([...state.used, ...list.map(r => r.id)])]; },
-      readViews: () => [], usedIds: () => state.used, defaultLegKm: () => 10}
+    placeNote: async () => ({}), open: () => {}, openLocation: () => {}
   });
   return {api, state};
 }
@@ -64,53 +63,37 @@ test('validation: a route may require a location that lives only in Locations', 
   assert.deepEqual(routeEnds({refs: [{relation: 'route_from', target_id: 'LOC-A'}, {relation: 'route_to', target_id: 'LOC-B'}]}), ['LOC-A', 'LOC-B']);
 });
 
-test('one run: routes import after the locations they join, whatever the file order; results per record', async () => {
+test('Manager checks on a Route record (for a Locations that still imports routes): endpoints, distance, drafts, statuses', () => {
+  const ids = new Set(['LOC-TEST-A', 'LOC-TEST-B']);
+  const plan = (r, o = {}) => planRoute(r, {existingIds: new Set(), locationIds: ids, ...o});
+  assert.equal(plan(route('RTE-TEST-A-B', 'LOC-TEST-A', 'LOC-TEST-B')).action, 'create');
+  assert.match(plan(route('RTE-TEST-A-Z', 'LOC-TEST-A', 'LOC-TEST-Z')).reason, /Endpoint not in this world or this import: LOC-TEST-Z/);
+  assert.match(plan(route('RTE-TEST-A-A', 'LOC-TEST-A', 'LOC-TEST-A')).reason, /two different locations/);
+  assert.match(plan(route('RTE-TEST-BAD', 'LOC-TEST-A', 'LOC-TEST-B', {distance_km: '30'})).reason, /distance_km must be a number/);
+  const r = route('RTE-TEST-A-B', 'LOC-TEST-A', 'LOC-TEST-B');
+  assert.match(plan({...r, status: 'draft'}).reason, /Include drafts/);
+  assert.equal(plan({...r, status: 'draft'}, {includeDrafts: true}).action, 'create');
+  assert.equal(plan({...r, status: 'retired'}).action, 'blocked');
+  assert.match(plan(r, {existingIds: new Set(['RTE-TEST-A-B'])}).reason, /Update existing locations, routes and shops/);
+});
+
+test('0.46.1: with Locations 0.20.0 (routes retired) Route records are skipped with the retired message; the locations still import', async () => {
   const {api, state} = locations();
-  const p = pkg([route('RTE-TEST-A-B', 'LOC-TEST-A', 'LOC-TEST-B'), route('RTE-TEST-A-Z', 'LOC-TEST-A', 'LOC-TEST-Z'),
-    route('RTE-TEST-A-A', 'LOC-TEST-A', 'LOC-TEST-A'), route('RTE-TEST-BAD', 'LOC-TEST-A', 'LOC-TEST-B', {distance_km: '30'}),
-    route('RTE-TEST-LEG', 'LOC-TEST-A', 'LOC-TEST-B', {leg_km: -2}), loc('LOC-TEST-A'), loc('LOC-TEST-B')]);
+  assert.equal(routesApi(gameWith(api)), null, 'no importRoutes / listRoutes: feature-detected, not by version');
+  const p = pkg([route('RTE-TEST-A-B', 'LOC-TEST-A', 'LOC-TEST-B'), loc('LOC-TEST-A'), loc('LOC-TEST-B')]);
   const rows = preview(p, api);
   const by = Object.fromEntries(rows.map(r => [r.id, r]));
-  assert.equal(by['RTE-TEST-A-B'].action, 'create');
-  assert.match(by['RTE-TEST-A-Z'].reason, /Endpoint not in this world or this import: LOC-TEST-Z/);
-  assert.match(by['RTE-TEST-A-A'].reason, /two different locations/);
-  assert.match(by['RTE-TEST-BAD'].reason, /distance_km must be a number/);
-  assert.equal(by['RTE-TEST-LEG'].action, 'create', 'Manager passes it on; Locations checks the rest');
+  assert.deepEqual([by['RTE-TEST-A-B'].action, by['RTE-TEST-A-B'].reason], ['skipped', ROUTES_RETIRED]);
+  assert.equal(ROUTES_RETIRED, 'Routes are retired; make a location with type Route instead.');
+  assert.equal(routesNote(p.records, null), `1 route record skipped: ${ROUTES_RETIRED}`);
   const results = await apply(p, api, rows);
-  assert.deepEqual(state.routes.map(r => r.id), ['RTE-TEST-A-B']);
-  assert.deepEqual(results.filter(r => r.kind === 'Route').map(r => [r.id, r.status]), [['RTE-TEST-A-B', 'ok'], ['RTE-TEST-LEG', 'error']]);
-  assert.match(results.find(r => r.id === 'RTE-TEST-LEG').message, /leg_km must be a number/, 'Locations\' reason reaches the result panel');
-  const report = buildImportReport({file: 'routes.json', results});
-  assert.match(JSON.stringify(report), /Locations: routes/);
-  assert.equal(state.routes[0].state, 'unknown', 'discovery defaults to unknown');
-});
-
-test('re-import: kept by default; update replaces the definition but never discovery or who can see it', async () => {
-  const {api, state} = locations();
-  const p = pkg([loc('LOC-TEST-A'), loc('LOC-TEST-B'), route('RTE-TEST-A-B', 'LOC-TEST-A', 'LOC-TEST-B')]);
-  await apply(p, api, preview(p, api));
-  await api.setRouteState('RTE-TEST-A-B', 'explored');
-  const p2 = pkg([route('RTE-TEST-A-B', 'LOC-TEST-A', 'LOC-TEST-B', {distance_km: 55, discovery_state: 'unknown'})]);
-  const kept = preview(p2, api);
-  assert.equal(kept[0].action, 'skipped');
-  assert.match(kept[0].reason, /Update existing locations, routes and shops/);
-  const rows = preview(p2, api, {updateExisting: true});
-  assert.equal(rows[0].action, 'update');
-  await apply(p2, api, rows, {updateExisting: true});
-  assert.deepEqual([state.routes[0].distanceKm, state.routes[0].state], [55, 'explored']);
-});
-
-test('drafts, blocked statuses and an old Locations are reported, not imported', () => {
-  const {api} = locations({stored: [{id: 'LOC-TEST-A', name: 'a'}, {id: 'LOC-TEST-B', name: 'b'}]});
-  const r = route('RTE-TEST-A-B', 'LOC-TEST-A', 'LOC-TEST-B');
-  const ids = new Set(['LOC-TEST-A', 'LOC-TEST-B']);
-  assert.match(planRoute({...r, status: 'draft'}, {existingIds: new Set(), locationIds: ids}).reason, /Include drafts/);
-  assert.equal(planRoute({...r, status: 'draft'}, {existingIds: new Set(), locationIds: ids, includeDrafts: true}).action, 'create');
-  assert.equal(planRoute({...r, status: 'retired'}, {existingIds: new Set(), locationIds: ids}).action, 'blocked');
-  const old = {...api, importRoutes: undefined};
-  assert.equal(routesApi(gameWith(old)), null);
-  assert.match(planRoute(r, {existingIds: null}).reason, /Locations with route import is not active/);
-  assert.equal(routesNote([r], null), '1 route record skipped: enable or update Locations (route import)');
+  assert.deepEqual(state.stored.map(l => l.id).sort(), ['LOC-TEST-A', 'LOC-TEST-B']);
+  assert.deepEqual(await applyRoutes([route('RTE-TEST-A-B', 'LOC-TEST-A', 'LOC-TEST-B')], null), [{id: 'RTE-TEST-A-B', kind: 'Route', status: 'skipped', message: ROUTES_RETIRED}]);
+  assert.ok(results.every(r => r.kind !== 'Route'), 'nothing is sent to Locations for a skipped route');
+  // Locations itself also skips a Route record handed to importLocations, without failing the rest.
+  const direct = await api.importLocations([route('RTE-TEST-A-C', 'LOC-TEST-A', 'LOC-TEST-C'), loc('LOC-TEST-C')]);
+  assert.deepEqual([direct.created, direct.skipped], [['LOC-TEST-C'], [{id: 'RTE-TEST-A-C', reason: ROUTES_RETIRED}]]);
+  assert.doesNotMatch(JSON.stringify(buildImportReport({file: 'routes.json', results: await applyRoutes([route('RTE-TEST-A-B', 'LOC-TEST-A', 'LOC-TEST-B')], null)})), /enable \(or update\) Locations/);
 });
 
 test('ZIP bundle: a routes-only Manager file is imported after the other Manager files', async () => {
@@ -122,27 +105,8 @@ test('ZIP bundle: a routes-only Manager file is imported after the other Manager
   assert.deepEqual(b.files.map(f => [f.filename, f.kind, f.count]), [['b-places.json', 'manager', 2], ['c-mixed.json', 'manager', 2], ['a-routes.json', 'manager', 1]]);
 });
 
-test('Browse and World export list routes as definitions, without play state', async () => {
+test('Browse and World export: with Locations 0.20.0 the routes section is "not available", not an error', () => {
   const {api} = locations();
-  const p = pkg([loc('LOC-TEST-A'), loc('LOC-TEST-B'), route('RTE-TEST-A-B', 'LOC-TEST-A', 'LOC-TEST-B')]);
-  await apply(p, api, preview(p, api));
-  await api.setRouteState('RTE-TEST-A-B', 'known');
-  const sections = collectModuleSections({modules: {get: id => id === 'ashen-gate-locations' ? {active: true, version: '1.10.0', api} : null}});
-  assert.equal(sections.routes.status, 'ok');
-  const [r] = sections.routes.records;
-  assert.deepEqual([r.key, r.data.entity_type, r.data.fromId, r.data.distanceKm], ['routes/RTE-TEST-A-B', 'Route', 'LOC-TEST-A', 30]);
-  for (const k of ['state', 'viewKey', 'audience', 'drawingUuid']) assert.equal(k in r.data, false, `no ${k}`);
-  const older = collectModuleSections({modules: {get: id => id === 'ashen-gate-locations' ? {active: true, version: '1.9.0', api: {listLocations: () => []}} : null}});
-  assert.equal(older.routes.status, 'not available', 'an older Locations is listed as not available, not an error');
-});
-
-test('0.45.1: Locations renumbered to 0.18.0 still imports, browses and exports routes (gated on the API, not the number)', async () => {
-  const {api} = locations();
-  const game = {modules: {get: id => id === 'ashen-gate-locations' ? {active: true, version: '0.18.0', api} : null}};
-  assert.equal(routesApi(game), api);
-  assert.equal(routesNote([route('RTE-TEST-A-B', 'LOC-TEST-A', 'LOC-TEST-B')], routesApi(game)), null);
-  const p = pkg([loc('LOC-TEST-A'), loc('LOC-TEST-B'), route('RTE-TEST-A-B', 'LOC-TEST-A', 'LOC-TEST-B')]);
-  await apply(p, api, preview(p, api));
-  assert.deepEqual(api.listRoutes().map(r => r.id), ['RTE-TEST-A-B']);
-  assert.equal(collectModuleSections(game).routes.status, 'ok');
+  const sections = collectModuleSections({modules: {get: id => id === 'ashen-gate-locations' ? {active: true, version: '0.20.0', api} : null}});
+  assert.equal(sections.routes.status, 'not available');
 });

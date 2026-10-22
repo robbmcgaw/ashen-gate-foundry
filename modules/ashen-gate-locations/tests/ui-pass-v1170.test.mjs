@@ -1,15 +1,13 @@
 /** 1.17.0 UI standard pass: header, tabs, toolbar, rows, footers, GM Setup (D4: Player Access saves with Save Changes),
- *  tooltips instead of title=, kit table in the Travel tracker, Comfortable window size.
+ *  tooltips instead of title=, Comfortable window size. (0.20.0: the Routes tab, route editor and Travel tracker are retired.)
  *  Mocked Foundry: proves the markup and the logic, not how Foundry draws the window. */
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {installFoundry, gm, player} from './foundry-mock.mjs';
 import {createApi} from '../scripts/api.mjs';
-import {readAll, writeAll, readViews, placeNote, readRoutes, writeRoutes, readRouteViews, usedRouteIds} from '../scripts/store.mjs';
+import {readAll, writeAll, readViews, placeNote} from '../scripts/store.mjs';
 import {parseImport} from '../scripts/model.mjs';
-import {gmTrackerHTML} from '../scripts/travel-view.mjs';
-import {travelBehaviours} from '../scripts/travel-behaviours.mjs';
 
 globalThis.foundry = {applications: {api: {ApplicationV2: class { constructor(o) { this.options = o; } }}}};
 const {LocationsApp} = await import('../scripts/app.mjs');
@@ -24,8 +22,7 @@ async function world({access = false} = {}) {
   globalThis.ui = {notifications: {info: m => state.info.push(m), warn: m => state.warn.push(m), error: m => state.warn.push(m)}};
   const mod = {version: '0.19.0', active: true};
   mod.api = createApi({version: '0.19.0', isGM: () => game.user.isGM, playerAccessEnabled: () => state.access,
-    setPlayerAccess: async v => { state.accessCalls.push(v); state.access = v; }, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}, playerIds: () => [],
-    routes: {readAll: readRoutes, writeAll: writeRoutes, readViews: readRouteViews, usedIds: usedRouteIds, defaultLegKm: () => 5}});
+    setPlayerAccess: async v => { state.accessCalls.push(v); state.access = v; }, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}, playerIds: () => []});
   g.modules = {get: id => id === 'ashen-gate-locations' ? mod : null};
   g.user = gm;
   await writeAll(sample);
@@ -45,9 +42,9 @@ test('header: brand span, version from module.json, Help last; tabs are role="ta
   assert.match(html, /<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Locations<\/h1>[\s\S]*<span class="ag-version">v0\.19\.0<\/span><button[^>]*data-action="help"/);
   assert.match(html, /<nav class="ag-tabs ag-tabs--scroll agl-maintabs" role="tablist"/);
   const tabs = [...html.matchAll(/<button type="button" role="tab" data-tab="(\w+)" aria-selected="(true|false)" class="([^"]*)"/g)].map(m => [m[1], m[2], m[3]]);
-  assert.deepEqual(tabs.map(t => t[0]), ['locations', 'routes', 'setup']);
+  assert.deepEqual(tabs.map(t => t[0]), ['locations', 'setup']);
   assert.deepEqual(tabs[0].slice(1), ['true', 'active']);
-  assert.match(tabs[2][2], /ag-tab--gm/);
+  assert.match(tabs[1][2], /ag-tab--gm/);
   assert.match(html, /<i class="fa-solid fa-gears" aria-hidden="true"><\/i> GM Setup/);
 });
 
@@ -111,21 +108,6 @@ test('location editor: Cancel bottom-left, Save Changes (the only gold button) b
   assert.doesNotMatch(fresh, /data-action="delete"/);
 });
 
-test('route editor: Cancel left, Save Changes right, Delete route in the editor header', async () => {
-  const {api} = await world();
-  await api.saveRoute({fromId: 'LOC-TEST-MILLBROOK', toId: 'LOC-TEST-ASH-WASTES', distanceKm: 12});
-  const app = gmApp();
-  app.tab = 'routes';
-  const html = await app._renderHTML();
-  const foot = footerOf(html);
-  assert.match(foot, /^<footer class="ag-footer agl-footer">\s*<button type="button" class="ag-btn ag-btn--ghost" data-action="route-cancel">/);
-  assert.match(foot, /data-action="route-save"[^]*<\/button>\s*$/);
-  assert.doesNotMatch(foot, /route-delete/);
-  assert.match(html, /<div class="agl-editor__head">[\s\S]*?class="ag-btn ag-btn--danger ag-btn--sm" data-action="route-delete"[\s\S]*?Delete route/);
-  assert.match(html, /class="ag-btn" data-action="route-new"><i class="fa-solid fa-plus" aria-hidden="true"><\/i><span>New route<\/span>/);
-  assert.match(html, /<div class="ag-rows"><button type="button" class="ag-row agl-row is-selected" aria-current="true" data-action="route-select"/);
-});
-
 test('GM Setup holds settings only: no Import/Export, Developer Tools collapsed at the end, one footer with Cancel / Save Changes', async () => {
   await world();
   const app = gmApp();
@@ -138,10 +120,11 @@ test('GM Setup holds settings only: no Import/Export, Developer Tools collapsed 
   assert.match(foot, /class="ag-btn ag-btn--primary" data-action="save-setup"[^]*Save Changes<\/span><\/button><\/footer>?$|data-action="save-setup"[^]*Save Changes/);
   assert.equal((html.match(/ag-btn--primary/g) ?? []).length, 1, 'one gold button on GM Setup');
   assert.match(html, /id="agl-set-access"/);
-  assert.match(html, /id="agl-set-leg"/);
+  assert.doesNotMatch(html, /id="agl-set-leg"|Leg length/, '0.20.0: no leg length (routes retired)');
+  assert.doesNotMatch(html, /convert-routes/, 'no stored routes: no Convert routes to locations');
 });
 
-test('D4: Player Access is not saved on tick; Save Changes saves it with the pin defaults and leg length', async () => {
+test('D4: Player Access is not saved on tick; Save Changes saves it with the pin defaults', async () => {
   const {state} = await world({access: false});
   const app = gmApp();
   app.tab = 'setup';
@@ -156,7 +139,7 @@ test('D4: Player Access is not saved on tick; Save Changes saves it with the pin
   assert.equal(state.access, true);
   assert.equal(state.settings.get('unidentifiedLabel'), '[TEST] Strange place');
   assert.equal(state.settings.get('unknownPinImage'), 'icons/x.webp');
-  assert.equal(state.settings.get('defaultLegKm'), 8);
+  assert.equal(state.settings.get('defaultLegKm'), 5, '0.20.0: the old leg length setting is never written');
   assert.deepEqual(state.info, ['Saved GM Setup.']);
   // Unchanged Player Access is not written again; a blank label falls back to the default.
   await app.saveSetup(setupForm({access: true, label: '  ', leg: '5'}));
@@ -164,25 +147,12 @@ test('D4: Player Access is not saved on tick; Save Changes saves it with the pin
   assert.equal(state.settings.get('unidentifiedLabel'), 'Unknown location');
 });
 
-test('D4: a bad leg length refuses the whole save, so Player Access is not changed either', async () => {
-  const {state} = await world({access: true});
-  const app = gmApp();
-  assert.equal(await app.saveSetup(setupForm({access: false, label: '[TEST] Changed', leg: '0.001'})), false);
-  assert.deepEqual(state.accessCalls, []);
-  assert.equal(state.access, true);
-  assert.equal(state.settings.get('unidentifiedLabel'), 'Unknown place');
-  assert.equal(state.settings.get('defaultLegKm'), 5);
-  assert.match(state.warn[0], /Leg length must be from 0\.01 to 100000 km/);
-});
-
-test('no native title= anywhere: GM list, editor, Routes, GM Setup and the player view use data-tooltip; icon-only buttons have a label', async () => {
+test('no native title= anywhere: GM list, editor, GM Setup and the player view use data-tooltip; icon-only buttons have a label', async () => {
   const {api} = await world({access: true});
-  await api.saveRoute({fromId: 'LOC-TEST-MILLBROOK', toId: 'LOC-TEST-ASH-WASTES', distanceKm: 12});
   const app = gmApp();
   const pages = [];
   for (const id of ['LOC-TEST-MILLBROOK', 'LOC-TEST-ASH-WASTES']) { app.select(id); pages.push(await app._renderHTML()); }
   app.treeMode = true; pages.push(await app._renderHTML()); app.treeMode = false;
-  app.tab = 'routes'; pages.push(await app._renderHTML());
   app.tab = 'setup'; pages.push(await app._renderHTML());
   await api.setLocationState('LOC-TEST-MILLBROOK', 'revealed');
   game.user = player;
@@ -207,18 +177,6 @@ test('empty states use the kit layout; the player one names no GM tool', async (
   const pHtml = await new LocationsApp()._renderHTML();
   assert.match(pHtml, /<p class="ag-empty__title">No locations yet<\/p><p class="ag-empty__text">Your GM hasn't revealed any places yet\.<\/p>/);
   assert.doesNotMatch(pHtml, /New location|import/i);
-});
-
-test('Travel tracker: brand header, kit table for the night watches, opacity slider kept', () => {
-  const j = {id: 'J', routeId: 'R', fromId: 'A', toId: 'B', legs: 4, legIndex: 1, distanceKm: 20, currentChance: 20, hazardCount: 0, status: 'active', log: [], paused: false,
-    behaviours: {watch: {enabled: true, first: ['a1'], second: [], third: []}}};
-  const behaviours = travelBehaviours({api: () => ({travel: {}}), characters: () => [{id: 'a1', name: '[TEST] Ava'}], skillLabel: id => id});
-  const watch = behaviours.find(b => b.id === 'watch');
-  const html = gmTrackerHTML({journey: j, version: '0.19.0', panels: [{id: 'watch', label: watch.label, icon: watch.icon, html: watch.render({isGM: true, journey: j})}]});
-  assert.match(html, /<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Travel<\/h1>[\s\S]*ag-version/);
-  assert.match(html, /<div class="ag-table-wrap"><table class="ag-table agl-travel__watch"><thead><tr><th scope="col">Character<\/th>/);
-  assert.match(html, /data-travel-opacity/);
-  assert.doesNotMatch(html, /\stitle="/);
 });
 
 test('windows open through windowSize(): Comfortable makes the Locations window 1.2× larger', async () => {

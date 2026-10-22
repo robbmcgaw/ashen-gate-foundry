@@ -2,12 +2,10 @@
 import {MODULE_ID, THREATS, FIELDS, SECTIONS, BLOCKS, DETAIL_PREFIX, LOOT_STATUSES, LOOT_STATUS_LABELS, NOTE_DOC_TYPES, FACTION_DOC_TYPES, GATHERING, STATES, STATE_LABELS,
   DEFAULT_UNIDENTIFIED_LABEL, PIN_DEFAULTS, esc, clone, threatLabel, normalizeLocation, normalizeLayout, reorder, effectiveConditions, newKey, newNode, nodeName, materialIdOf,
   hasUnpublishedChanges, wouldCycle, parentMap, PARTY_NOTES, isPlaceable, passesConditions, EXOTIC_MODES, EXOTIC_CONDITIONS, normalizeExotics, isTierDefaultDc,
-  isNodeRef, activityLabel, ACTIVITY_LABELS} from './model.mjs';
+  isNodeRef, activityLabel, ACTIVITY_LABELS, TYPE_SUGGESTIONS, ROUTES_RETIRED} from './model.mjs';
 import {nodeTemplates, openNodesTab} from './ledger-nodes.mjs';
 import {GROUP_MODES, SORTS, emptyFilters, hasFilters, searchText, matchesQuery, applyFilters, filterOptions, comparator, groupRows} from './list-filter.mjs';
 import {buildTree, withAncestors, breadcrumb, moveTargets, VIEW} from './tree.mjs';
-import {routesMixin} from './routes-ui.mjs';
-import {MIN_KM, kmOk} from './routes.mjs';
 import {confirmDialog, confirmDanger, choiceDialog, formDialog, infoDialog, guardDirty} from './ag-dialogs.mjs';
 import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, fold, bindFolds, fileButton, bindFileButtons, linkButton} from './ag-html.mjs';
 import {readDrop, resolveItemDrop, itemIdOf} from './ag-item-drop.mjs';
@@ -103,6 +101,9 @@ const STATE_HINTS = {
 };
 const setting = (key, fallback) => { try { return game.settings.get(MODULE_ID, key) || fallback; } catch { return fallback; } };
 const sceneName = uuid => { try { return globalThis.fromUuidSync?.(uuid)?.name ?? null; } catch { return null; } };
+/** 0.20.0: a linked document's name ('' when it is gone or not loaded), and the world's RollTables for the pickers. */
+const docName = uuid => { try { return globalThis.fromUuidSync?.(uuid)?.name ?? ''; } catch { return ''; } };
+const worldTables = () => [...(game.tables ?? [])].filter(t => t?.uuid).sort((a, b) => String(a.name).localeCompare(String(b.name))).map(t => ({value: t.uuid, label: t.name}));
 /** Threat as a kit badge: Settled plain, Light and Normal ok, Hot warn, Deadly a solid danger fill (agl-threat--deadly). */
 const THREAT_TONES = {light: 'ok', normal: 'ok', hot: 'warn', deadly: 'danger'};
 const threatBadge = value => `<span class="ag-badge${THREAT_TONES[value] ? ` ag-badge--${THREAT_TONES[value]}` : ''} agl-threat agl-threat--${esc(value)}">${esc(threatLabel(value))}</span>`;
@@ -179,20 +180,6 @@ export class LocationsApp extends Base {
     app.bringToFront?.();
     return app;
   }
-  /** 1.14.0: opens the Routes tab on a route (GM: RTE id; player: the route view key), e.g. from the Travel tracker. */
-  static async showRoute(ref = null) {
-    const app = await LocationsApp.show();
-    if (ref && ref !== app.routeId) {
-      if ((app.dirty || app.routeDirty) && !(await app.confirmDiscard())) return app;
-      if (app.dirty) app.select(app.selectedId);
-      app.selectRoute(ref);
-    }
-    app.tab = 'routes';
-    if (ref) app.routeTab = 'journey';   // 0.19.0: opened from the Travel tracker or a journey banner: the live controls
-    await app.render();
-    return app;
-  }
-
   constructor(options = {}) {
     // Compact size; Comfortable (General Manager → My Appearance) opens it 1.2× larger.
     super({...options, position: {...windowSize(LocationsApp.DEFAULT_OPTIONS.position), ...(options.position ?? {})}});
@@ -208,19 +195,14 @@ export class LocationsApp extends Base {
     this.filtersOpen = uiMem().get('filtersOpen', false, [true, false]);
   }
   get gm() { return game.user.isGM === true; }
-  /** 0.19.0: unsaved location and route edits are tracked by the kit's guardDirty (it asks before they are discarded). */
+  /** 0.19.0: unsaved location edits are tracked by the kit's guardDirty (it asks before they are discarded). */
   get locGuard() {
     return this._locGuard ??= guardDirty({status: () => this.element?.querySelector?.('[data-editor="location"] .ag-footer__status'), message: 'You have unsaved changes to this location.'});
   }
-  get routeGuard() {
-    return this._routeGuard ??= guardDirty({status: () => this.element?.querySelector?.('[data-editor="route"] .ag-footer__status'), message: 'You have unsaved changes to this route.'});
-  }
   get dirty() { return this.locGuard.dirty; }
   set dirty(v) { if (v) this.locGuard.markDirty(); else this.locGuard.markClean(); }
-  get routeDirty() { return this.routeGuard.dirty; }
-  set routeDirty(v) { if (v) this.routeGuard.markDirty(); else this.routeGuard.markClean(); }
   /**
-   * 0.19.0: an action that needs the saved record (Place on Scene, a state change, Start journey, a drawing) asks first
+   * 0.19.0: an action that needs the saved record (Place on Scene, a state change) asks first
    * when there are unsaved edits: "Save and <verb>" or Keep editing. Resolves true to go ahead (the caller then saves).
    */
   async saveFirst(verb, dirty = this.dirty, what = 'location') {
@@ -248,9 +230,8 @@ export class LocationsApp extends Base {
     return this.render();
   }
   clearFilters() { this.filters = emptyFilters(); this.query = ''; return this.render(); }
-  /** Asks before unsaved route or location edits are thrown away (kit guardDirty: Keep editing is the default). */
+  /** Asks before unsaved location edits are thrown away (kit guardDirty: Keep editing is the default). */
   async confirmDiscard() {
-    if (!(await this.routeGuard.confirm())) return false;
     return this.locGuard.confirm();
   }
   async close(options = {}) {
@@ -283,15 +264,17 @@ export class LocationsApp extends Base {
       if (this.gm && this.selectedId && !this.draft) this.select(this.selectedId);
     }
     const version = game.modules.get(MODULE_ID)?.version ?? '';
-    // 0.19.0: players always get Routes (an empty state until the GM reveals one), so the tab bar never changes mid-session.
-    const tabs = [['locations', 'Locations', 'fa-map-location-dot'], ['routes', 'Routes', 'fa-route'], ...(this.gm ? [['setup', 'GM Setup', 'fa-gears', true]] : [])];
-    const tab = this.tab === 'setup' && this.gm ? 'setup' : this.tab === 'routes' && tabs.some(([k]) => k === 'routes') ? 'routes' : 'locations';
+    // 0.20.0: Routes are retired (a route is a location of type Route): players get Locations only, the GM also GM Setup.
+    const tabs = [['locations', 'Locations', 'fa-map-location-dot'], ...(this.gm ? [['setup', 'GM Setup', 'fa-gears', true]] : [])];
+    const tab = this.tab === 'setup' && this.gm ? 'setup' : 'locations';
+    // Developer Tools offers "Convert routes to locations" only while the world still holds stored routes.
+    if (tab === 'setup') { try { this.convertPlan = await api().convertRoutes(); } catch (err) { console.warn(`${MODULE_ID} | route conversion preview`, err); this.convertPlan = null; } }
     return `<div class="agl-root ag-window">
       <header class="ag-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Locations</h1></div>
         <div class="ag-header__meta"><span class="ag-version">v${esc(version)}</span>${btn('help', 'Help', {kind: 'ghost sm', icon: 'fa-solid fa-circle-question'})}</div></header>
       ${tabs.length > 1 ? `<nav class="ag-tabs ag-tabs--scroll agl-maintabs" role="tablist" aria-label="Locations sections">${tabs.map(([k, l, icon, gmOnly]) =>
         `<button type="button" role="tab" data-tab="${k}" aria-selected="${tab === k}" class="${tab === k ? 'active' : ''}${gmOnly ? ' ag-tab--gm' : ''}" aria-controls="agl-pane"><i class="fa-solid ${icon}" aria-hidden="true"></i> ${l}</button>`).join('')}</nav>` : ''}
-      <div class="agl-pane" id="agl-pane">${tab === 'setup' ? this.setupHtml() : tab === 'routes' ? this.routesHtml() : this.locationsHtml(list)}</div>
+      <div class="agl-pane" id="agl-pane">${tab === 'setup' ? this.setupHtml() : this.locationsHtml(list)}</div>
     </div>`;
   }
   _replaceHTML(result, content) {
@@ -344,7 +327,7 @@ export class LocationsApp extends Base {
       : this.gm ? empty('fa-map-location-dot', 'No locations yet', 'Create one with New location, or import a file.', btn('new', 'New location', {kind: 'sm', icon: 'fa-solid fa-plus'}))
         : empty('fa-map-location-dot', 'No locations yet', "Your GM hasn't revealed any places yet.");
     // 0.19.0: Import is a kit file button (a real button the keyboard reaches), not a hidden input clicked from code.
-    const end = this.gm ? `<div class="ag-toolbar__end">${fileButton({label: 'Import…', accept: '.json,application/json', icon: 'fa-solid fa-file-import', className: 'ag-btn ag-btn--sm', data: {import: 'locations'}})}${btn('export', 'Export', {kind: 'sm', icon: 'fa-solid fa-file-export', title: 'Every location and route as one JSON file'})}
+    const end = this.gm ? `<div class="ag-toolbar__end">${fileButton({label: 'Import…', accept: '.json,application/json', icon: 'fa-solid fa-file-import', className: 'ag-btn ag-btn--sm', data: {import: 'locations'}})}${btn('export', 'Export', {kind: 'sm', icon: 'fa-solid fa-file-export', title: 'Every location as one JSON file'})}
         ${btn('new', 'New location', {icon: 'fa-solid fa-plus'})}</div>` : '';
     // 0.19.0 (LOC-CR-02): one toolbar row; the filters, sort, group and "representative-only" open in a second row from Filters (n).
     const n = Object.values(this.filters).filter(Boolean).length;
@@ -463,6 +446,8 @@ export class LocationsApp extends Base {
       quests: card('Quests', ul(questItems)),
       related: card('Related Locations', ul((v.related ?? []).map(r => go(r.name, 'select', {id: r.id})))),
       loot: card('Loot &amp; Rewards', ul((v.loot ?? []).map(lootItem))),
+      hazards: card('Hazards', ul((v.hazards ?? []).map(h => `<strong>${esc(h.name || 'Hazard')}</strong>${h.note ? ` <small>${paras(h.note)}</small>` : ''}`))),
+      rollTables: card('Roll Tables', ul((v.rollTables ?? []).map(t => canOpen(t.uuid) ? go(t.name || 'Roll table', 'open-doc', {uuid: t.uuid}, {icon: 'fa-solid fa-table-list'}) : esc(t.name || 'Roll table')))),
       notes: (v.notes ?? []).map(n => card(esc(n.title || 'Note'), `${n.text ? `<p>${paras(n.text)}</p>` : ''}${n.uuid ? `<p>${link(`Open ${n.docType || 'document'}`, n.uuid)}</p>` : ''}`)).join('')
     };
     for (const d of v.details ?? []) blocks[DETAIL_PREFIX + d.key] = card(esc(d.title || 'Detail'), `${d.text ? `<p>${paras(d.text)}</p>` : ''}${d.uuid && canOpen(d.uuid) ? `<p>${link(`Open ${d.docType || 'document'}`, d.uuid)}</p>` : ''}`);
@@ -620,6 +605,8 @@ export class LocationsApp extends Base {
       quests: sec('quests', questRows, questAdd, 'No quests linked.'),
       related: sec('related', relatedRows, relatedAdd, 'No related locations.'),
       loot: sec('loot', lootRows, addText('loot', 'Plain reward (coins, clue, favour, key)'), 'Drag an Item here (world or compendium), or add a plain reward. A link never gives anyone the item.'),
+      hazards: block('hazards', 'Hazards', 'Hazards', this.hazardsHtml(d), '<span class="agl-hint">GM only unless shown</span>'),
+      rollTables: block('rollTables', 'Roll Tables', 'Roll Tables', this.rollTablesHtml(d), '<span class="agl-hint">GM only unless shown</span>'),
       notes: sec('notes', notes, btn('add-note', 'Add note', {kind: 'sm', icon: 'fa-solid fa-plus'}), 'Add a note, or drop an Actor, Item, Journal or Roll Table here.')
     };
     for (const det of d.details) blocks[DETAIL_PREFIX + det.key] = block(DETAIL_PREFIX + det.key,
@@ -636,7 +623,7 @@ export class LocationsApp extends Base {
     const subTab = EDITOR_TABS.some(t => t.id === this.editorTab) ? this.editorTab : 'content';
     const panels = {
       content: `<div class="ag-form-grid">
-          ${fld('type', `<input id="agl-type" type="text" data-bind="type" value="${esc(d.type)}" placeholder="e.g. Town, Ruin, Forest">`)}
+          ${fld('type', `<input id="agl-type" type="text" list="agl-types" data-bind="type" value="${esc(d.type)}" placeholder="e.g. Route, Town, Ruin">${this.typeListHtml(all)}`)}
           ${fld('region', `<input id="agl-region" type="text" data-bind="region" value="${esc(d.region)}" placeholder="e.g. Northern Marches">`)}
           ${fld('threat', `<select id="agl-threat" data-bind="threat">${THREATS.map(t => `<option value="${t.value}" ${d.threat === t.value ? 'selected' : ''}>${t.label}</option>`).join('')}</select>${threatBadge(d.threat)}`)}
           ${fld('img', `${d.img ? `<img class="agl-thumb" src="${esc(d.img)}" alt="">` : ''}<input id="agl-img" type="text" data-bind="img" value="${esc(d.img)}" placeholder="path/to/image.webp">${btn('browse-img', '', {icon: 'fa-solid fa-folder-open', title: 'Browse for an image'})}`)}
@@ -672,6 +659,77 @@ export class LocationsApp extends Base {
         <span class="ag-footer__status" role="status">${this.dirty ? 'Unsaved changes' : ''}</span>
         ${btn('save', this.dirty ? 'Save Changes •' : 'Save Changes', {kind: 'primary', icon: 'fa-solid fa-floppy-disk'})}
       </footer></form>`;
+  }
+
+  /** 0.20.0: suggested values for the free-text Type field: Route and the usual kinds, then the types already in use. */
+  typeListHtml(all) {
+    const types = [...new Set([...TYPE_SUGGESTIONS, ...all.map(l => l.type).filter(Boolean).sort((a, b) => a.localeCompare(b))])];
+    return `<datalist id="agl-types">${types.map(t => `<option value="${esc(t)}">`).join('')}</datalist>`;
+  }
+  /**
+   * 0.20.0: Hazards on this location (a Route-type location is the usual home). A name, a note and an optional RollTable;
+   * no chance and no automation: the GM rolls. GM only unless shown; players see a shown hazard's name and note after
+   * Publish, never its table. Edits go into the draft (Save Changes).
+   */
+  hazardsHtml(d) {
+    const rows = d.hazards.map(h => {
+      const n = h.name || 'this hazard', table = h.tableUuid ? docName(h.tableUuid) : '';
+      const tools = `${h.tableUuid ? `${btn('open-doc', 'Open table', {kind: 'sm', icon: 'fa-solid fa-table-list', data: {uuid: h.tableUuid}, title: `Open the roll table of ${n}`})}${btn('roll-table', 'Roll', {kind: 'sm', icon: 'fa-solid fa-dice-d20', data: {uuid: h.tableUuid}, title: `Roll ${table || 'the table'} to chat`})}` : ''}
+        ${eye(`hazards.${h.id}.shown`, h.shown, n)}${btn('edit-hazard', 'Edit…', {kind: 'ghost sm', icon: 'fa-solid fa-pen', data: {id: h.id}, title: `Edit ${n}`})}${btn('remove-hazard', '', {kind: 'ghost sm', icon: 'fa-solid fa-trash', data: {id: h.id}, title: `Remove ${n}`})}`;
+      return `<li class="${h.shown ? '' : 'agl-hidden'}"><span class="agl-entry"><strong>${esc(h.name || 'Hazard')}</strong>${h.note ? ` <small>${esc(h.note)}</small>` : ''}
+        ${h.tableUuid ? `<small>Roll table: ${esc(table || 'not found')}</small>` : ''}</span><span class="agl-tools">${tools}</span></li>`;
+    }).join('');
+    return `${rows ? `<ul class="ag-list agl-entries">${rows}</ul>` : '<p class="agl-hint">No hazards. Add one, or drop a Roll Table here to make a hazard that uses it.</p>'}
+      <div class="agl-add">${btn('add-hazard', 'Add hazard…', {kind: 'sm', icon: 'fa-solid fa-plus'})}</div>
+      <p class="agl-hint">For your own rulings: nothing is rolled for you. Players see a hazard only if you show it, after Publish, while this place is revealed; never its roll table.</p>`;
+  }
+  /** 0.20.0: RollTables linked to this location. Open for everyone who may open the table; Roll (GM) draws it to chat. */
+  rollTablesHtml(d) {
+    const linked = new Set(d.rollTables.map(t => t.uuid));
+    const rows = d.rollTables.map(t => {
+      const n = t.name || docName(t.uuid) || 'this roll table';
+      return `<li class="${t.shown ? '' : 'agl-hidden'}"><span class="agl-entry">${go(t.name || docName(t.uuid) || 'Roll table', 'open-doc', {uuid: t.uuid}, {icon: 'fa-solid fa-table-list'})}${docName(t.uuid) ? '' : ' <small>(not found)</small>'}</span>
+        <span class="agl-tools">${btn('roll-table', 'Roll', {kind: 'sm', icon: 'fa-solid fa-dice-d20', data: {uuid: t.uuid}, title: `Roll ${n} to chat`})}${eye(`rollTables.${t.id}.shown`, t.shown, n)}${btn('remove-table', '', {kind: 'ghost sm', icon: 'fa-solid fa-trash', data: {id: t.id}, title: `Remove ${n}`})}</span></li>`;
+    }).join('');
+    const opts = worldTables().filter(t => !linked.has(t.value)).map(t => `<option value="${esc(t.value)}">${esc(t.label)}</option>`).join('');
+    return `${rows ? `<ul class="ag-list agl-entries">${rows}</ul>` : '<p class="agl-hint">No roll tables linked. Choose one, or drop a Roll Table here (world or compendium).</p>'}
+      <div class="agl-add"><select id="agl-add-table" aria-label="Roll table to link"><option value="">${opts ? 'Choose a roll table…' : 'No other roll tables in this world'}</option>${opts}</select>${btn('add-table', 'Link', {kind: 'sm', icon: 'fa-solid fa-link'})}</div>
+      <p class="agl-hint">Players see a shown table's name after Publish and can open it only if Foundry lets them. Only you can roll.</p>`;
+  }
+  /** Add hazard… / Edit…: name, note, optional roll table, shown. Changes the draft only. */
+  async hazardDialog(h = null) {
+    const cur = h?.tableUuid ?? '';
+    const tables = worldTables();
+    const options = [{value: '', label: 'None'}, ...(cur && !tables.some(t => t.value === cur) ? [{value: cur, label: `${docName(cur) || 'Linked table'} (current)`}] : []), ...tables];
+    const r = await formDialog(h ? `Edit ${h.name || 'hazard'}` : 'Add hazard', [
+      {name: 'name', label: 'Name', value: h?.name ?? '', hint: 'For example [TEST] Rockfall.'},
+      {name: 'note', label: 'Note', type: 'textarea', value: h?.note ?? ''},
+      {name: 'tableUuid', label: 'Roll table (optional)', type: 'select', value: cur, options, hint: 'Players never get this table. Drop a compendium table on Hazards to use one from a compendium.'},
+      {name: 'shown', label: 'Show to players', type: 'checkbox', checked: h?.shown === true, hint: 'Off: GM only. On: players see the name and note after Publish, while this place is revealed.'}
+    ], {ok: h ? 'Apply' : 'Add hazard'});
+    if (!r) return;
+    const next = {name: String(r.name ?? '').trim(), note: String(r.note ?? '').trim(), tableUuid: r.tableUuid ?? '', shown: Array.isArray(r.shown) && r.shown.length > 0};
+    if (!next.name && !next.note && !next.tableUuid) return ui.notifications.warn('Give the hazard a name.');
+    if (h) Object.assign(h, next); else this.draft.hazards.push({id: newKey(), ...next});
+    this.dirty = true;
+    return this.render();
+  }
+  /** 0.20.0 Developer Tools: preview the stored routes as new Route locations, then Convert (re-runnable). */
+  async convertRoutesDialog() {
+    const plan = await api().convertRoutes();
+    const li = items => `<ul>${items.join('')}</ul>`;
+    const names = new Map(api().listLocations().map(l => [l.id, l.name]));
+    const parts = [];
+    if (plan.convert.length) parts.push(`<p>These routes become new locations of type <em>Route</em>, Hidden, each inside its start location's parent (or inside the start location at the top level). The stored routes are not changed.</p>
+      ${li(plan.convert.map(c => `<li><strong>${esc(c.name)}</strong> → inside ${esc(names.get(c.parentId) ?? 'the top level')}${c.notes.map(n => ` <small>${esc(n)}</small>`).join('')}</li>`))}`);
+    if (plan.skipped.length) parts.push(`<p>Skipped (convert these by hand: New location, type Route):</p>${li(plan.skipped.map(s => `<li><strong>${esc(s.name)}</strong>: ${esc(s.reason)}</li>`))}`);
+    if (plan.done.length) parts.push(`<p>Already converted:</p>${li(plan.done.map(d => `<li>${esc(d.name)} → ${esc(names.get(d.locationId) ?? 'a deleted location')}</li>`))}`);
+    if (!plan.convert.length) return infoDialog('Convert routes to locations', parts.join('') || '<p>There are no stored routes.</p>');
+    const choice = await choiceDialog('Convert routes to locations?', parts.join(''), [{action: 'apply', label: `Convert ${plan.convert.length} route${plan.convert.length === 1 ? '' : 's'}`, default: true}]);
+    if (choice !== 'apply') return;
+    const r = await api().convertRoutes({apply: true});
+    ui.notifications.info(`Made ${r.convert.length} Route location(s). They start Hidden; reveal them when you are ready.`);
+    return this.render();
   }
 
   /** Unidentified label/teaser and pin art. Pins use native Note image/size; edits to a placed Note win. */
@@ -919,24 +977,22 @@ export class LocationsApp extends Base {
         <div class="ag-field agl-field"><label for="agl-set-label">Default unidentified label</label><input id="agl-set-label" type="text" value="${esc(setting('unidentifiedLabel', DEFAULT_UNIDENTIFIED_LABEL))}"></div>
         <div class="ag-field agl-field"><label for="agl-set-unknown">Default unidentified pin image</label><div class="agl-field__row"><input id="agl-set-unknown" type="text" value="${esc(setting('unknownPinImage', ''))}" placeholder="${PIN_DEFAULTS.unidentifiedImg}">${btn('browse-setup', '', {icon: 'fa-solid fa-folder-open', title: 'Browse for the default pin image'})}</div></div>
         <p class="agl-hint">Used when a location has no label or image of its own. Saving re-labels existing unidentified pins.</p></section>
-      ${this.routeSetupHtml()}
       <details class="ag-devtools"><summary>Developer Tools</summary>
         <p class="agl-hint">Runs at once; not part of Save Changes. Adds four synthetic <code>[TEST]</code> locations. Existing locations are not changed.</p>
-        ${btn('import-sample', 'Import [TEST] sample locations', {kind: 'sm', icon: 'fa-solid fa-flask'})}</details>
+        ${btn('import-sample', 'Import [TEST] sample locations', {kind: 'sm', icon: 'fa-solid fa-flask'})}
+        ${this.convertPlan?.total ? `<p class="agl-hint">Routes are retired. This world still holds ${this.convertPlan.total} stored route(s)${this.convertPlan.done.length ? `, ${this.convertPlan.done.length} already converted` : ''}. Convert makes a new location of type Route for each (you see a preview first); the stored routes stay as they are. Safe to run again.</p>
+        ${btn('convert-routes', 'Convert routes to locations…', {kind: 'sm', icon: 'fa-solid fa-route'})}` : ''}</details>
       </div>
       <footer class="ag-footer">${btn('setup-cancel', 'Cancel', {kind: 'ghost'})}<span class="ag-footer__status" role="status">The settings above change only when you click Save Changes.</span>
         ${btn('save-setup', 'Save Changes', {kind: 'primary', icon: 'fa-solid fa-floppy-disk'})}</footer>
     </div>`;
   }
-  /** GM Setup's Save Changes: checks every field first, then saves Player Access, the pin defaults and the leg length. */
+  /** GM Setup's Save Changes: saves Player Access and the pin defaults. */
   async saveSetup(root = this.element) {
-    const leg = Number(root?.querySelector('#agl-set-leg')?.value);
-    if (!kmOk(leg)) { ui.notifications.warn(`Leg length must be from ${MIN_KM} to 100000 km.`); return false; }
     const access = root?.querySelector('#agl-set-access')?.checked === true;
     if (access !== api().playerAccess.getState().playerAccessEnabled) await api().playerAccess.setEnabled(access);
     await game.settings.set(MODULE_ID, 'unidentifiedLabel', root?.querySelector('#agl-set-label')?.value.trim() || DEFAULT_UNIDENTIFIED_LABEL);
     await game.settings.set(MODULE_ID, 'unknownPinImage', root?.querySelector('#agl-set-unknown')?.value.trim() ?? '');
-    await game.settings.set(MODULE_ID, 'defaultLegKm', leg);
     ui.notifications.info('Saved GM Setup.');
     await this.render();
     return true;
@@ -948,7 +1004,7 @@ export class LocationsApp extends Base {
     for (const b of main?.querySelectorAll('[data-tab]') ?? []) b.addEventListener('click', async () => {
       if (b.dataset.tab === this.tab) return;
       if (!(await this.confirmDiscard())) return;
-      this.tab = b.dataset.tab; if (this.draft) this.select(this.selectedId); if (this.routeDraft) this.selectRoute(this.routeDraft.id || null);
+      this.tab = b.dataset.tab; if (this.draft) this.select(this.selectedId);
       await this.render(); this.focusBack(`.agl-maintabs [data-tab="${b.dataset.tab}"]`);
     });
     // 0.19.0: kit keyboard pattern for the tab rows (one Tab stop, Left/Right, Home/End) and the remembered folds.
@@ -959,7 +1015,6 @@ export class LocationsApp extends Base {
       this.editorTab = uiMem().set('editorTab', b.dataset.tab);
       await this.render(); this.focusBack(`.ag-tabs--sub [data-tab="${b.dataset.tab}"]`);
     });
-    this.bindRoutes(root);
     // 0.19.0 (LOC-A11Y-06): typing in the search box re-renders once the typing pauses, not on every key.
     root.querySelector('#agl-search')?.addEventListener('input', e => {
       this.query = e.target.value;
@@ -1077,7 +1132,7 @@ export class LocationsApp extends Base {
   setPath(path, value) {
     const [a, b, c] = path.split('.');
     if (Array.isArray(this.draft[a])) {
-      const e = this.draft[a].find(x => x.key === b);
+      const e = this.draft[a].find(x => (x.key ?? x.id) === b);   // hazards and rollTables (0.20.0) use `id`
       if (e && a === 'resources' && isNodeRef(e) && REF_OPTIONAL.has(c)) value = refValue(c, value);
       else if (e && NUMERIC.has(c)) value = Number(value);
       // Changing the tier moves the DC with it, unless the GM had set a custom DC.
@@ -1140,6 +1195,12 @@ export class LocationsApp extends Base {
       return this.addEntry('factions', {label: doc.name, uuid: doc.uuid, docType: type, note: ''});
     }
     if (section === 'conditions') return ui.notifications.warn('Conditions are text. Type the condition name and click Add.');
+    if (section === 'hazards' || section === 'rollTables') {
+      if (type !== 'RollTable') return ui.notifications.warn('Drop a Roll Table here.');
+      if (section === 'hazards') this.draft.hazards.push({id: newKey(), name: doc.name, note: '', tableUuid: doc.uuid, shown: false});
+      else if (!this.draft.rollTables.some(t => t.uuid === doc.uuid)) this.draft.rollTables.push({id: newKey(), name: doc.name, uuid: doc.uuid, shown: false});
+      this.dirty = true; return this.render();
+    }
     if (section === 'notes' || NOTE_DOC_TYPES.includes(type)) {
       if (!NOTE_DOC_TYPES.includes(type)) return ui.notifications.warn('Drop an Actor, Item, Journal or Roll Table here.');
       return this.addEntry('notes', {title: doc.name, text: '', uuid: doc.uuid, docType: type});
@@ -1166,7 +1227,6 @@ export class LocationsApp extends Base {
     if (action === 'open-doc') return openDocument(el.dataset.uuid);
     if (action === 'open-quest') return openQuest(el.dataset.id);
     if (action.startsWith('notes-')) return this.onNotesAction(action, el);
-    if (action.startsWith('route-')) return this.onRouteAction(action, el);
     if (!this.gm) return;
     const root = this.element;
     switch (action) {
@@ -1317,6 +1377,24 @@ export class LocationsApp extends Base {
       }
       case 'cond-off': { const o = this.override(el.dataset.from, el.dataset.ckey); o.disabled = !o.disabled; this.touch(); return this.render(); }
       case 'add-note': return this.addEntry('notes', {title: '', text: '', uuid: '', docType: ''});
+      case 'add-hazard': return this.hazardDialog();
+      case 'edit-hazard': { const h = this.draft.hazards.find(x => x.id === el.dataset.id); return h && this.hazardDialog(h); }
+      case 'remove-hazard': case 'remove-table': {
+        const list = action === 'remove-hazard' ? 'hazards' : 'rollTables', e = this.draft[list].find(x => x.id === el.dataset.id);
+        if (!e) return;
+        const what = action === 'remove-hazard' ? 'hazard' : 'roll table', name = e.name || docName(e.uuid) || `this ${what}`;
+        const ok = await confirmDanger(`It leaves ${this.draft.name || 'this location'} when you click Save Changes.${action === 'remove-table' ? ' The roll table itself is not deleted.' : ''}`,
+          {title: `Remove ${name}?`, yes: `Remove ${what}`});
+        if (!ok) return;
+        this.draft[list] = this.draft[list].filter(x => x.id !== e.id); this.dirty = true; return this.render();
+      }
+      case 'add-table': {
+        const uuid = root.querySelector('#agl-add-table')?.value;
+        if (!uuid || this.draft.rollTables.some(t => t.uuid === uuid)) return;
+        this.draft.rollTables.push({id: newKey(), name: docName(uuid), uuid, shown: false}); this.dirty = true; return this.render();
+      }
+      case 'roll-table': return api().rollTable(el.dataset.uuid);
+      case 'convert-routes': return this.convertRoutesDialog();
       case 'browse-img': {
         const FP = foundry.applications?.apps?.FilePicker?.implementation ?? globalThis.FilePicker;
         return new FP({type: 'image', current: this.draft.img, callback: path => { this.setPath('img', path); this.render(); }}).render(true);
@@ -1464,12 +1542,12 @@ export class LocationsApp extends Base {
   }
   async importJson(pkg) {
     const r = await api().importPackage(pkg);
-    const rt = r.routes ?? {created: [], skipped: [], errors: []};
-    const routes = rt.created.length || rt.skipped.length || rt.errors.length
-      ? ` Routes: ${rt.created.length} imported${rt.skipped.length ? `, kept ${rt.skipped.length} existing` : ''}${rt.errors.length ? `, ${rt.errors.length} invalid` : ''}.` : '';
-    const msg = `Imported ${r.created.length} location(s)${r.skipped.length ? `, kept ${r.skipped.length} existing` : ''}${r.errors.length ? `, ${r.errors.length} invalid` : ''}.${routes}`;
-    if (r.errors.length || rt.errors.length) console.warn(`${MODULE_ID} | import problems:`, [...r.errors, ...rt.errors]);
+    const retired = r.retired ?? [];
+    const msg = `Imported ${r.created.length} location(s)${r.skipped.length ? `, kept ${r.skipped.length} existing` : ''}${r.errors.length ? `, ${r.errors.length} invalid` : ''}.`;
+    if (r.errors.length) console.warn(`${MODULE_ID} | import problems:`, r.errors);
     ui.notifications.info(msg);
+    // 0.20.0: Route records are skipped (the rest of the file imported); say so once, with what to do instead.
+    if (retired.length) ui.notifications.warn(`Skipped ${retired.length} route record(s): ${ROUTES_RETIRED}`);
     this.tab = 'locations';
     return this.render();
   }
@@ -1499,11 +1577,15 @@ export class LocationsApp extends Base {
         'Each gathering node shows its name, skill, tier, DC and status on one row; <strong>Edit node</strong> opens its materials, availability, note and optional <em>Exotic materials</em> (GM only, never shown to players). DC is 10/12/15/18/20 by tier; a DC you set stays. Players only see the DC if you turn on its <i class="fa-solid fa-eye"></i>.',
         '<strong>Mark exhausted</strong> after a node is used or a check fails; <strong>Restore</strong> undoes it.',
         '<strong>Add node…</strong> asks <em>From template</em> (Profession Ledger 0.25.0+) or <em>Custom</em>. The Ledger owns a template\'s activity, tier range, check and materials (shown read only; <strong>Gathering Nodes</strong> opens the Ledger to edit them); you set this place\'s name, tier, DC, finite, availability and note. Leave a field on <em>Template</em> to use the template\'s value. If the template is deleted the entry stays, marked, with its data.']),
+      topic('Hazards, roll tables and Route locations', [
+        'Routes are retired. For a road, river or pass, make a location with type <strong>Route</strong> and put it inside the place it leaves from (or wherever suits). It is a plain location: no ends, no legs, nothing drawn on the map. When the party travels, you rule and roll.',
+        '<strong>Hazards</strong> (Content sub-tab): <strong>Add hazard…</strong> gives a name, a note and an optional roll table. <strong>Open table</strong> opens it; <strong>Roll</strong> draws it to chat. A hazard is GM only until you show it (<i class="fa-solid fa-eye"></i>); players then see its name and note after Publish, never its table.',
+        '<strong>Roll Tables</strong>: link world tables (or drop one, from a compendium too). Only you can <strong>Roll</strong>. A shown table lists its name for players, who can open it only if Foundry lets them.',
+        'Old routes are kept in the world, unused. <strong>GM Setup → Developer Tools → Convert routes to locations…</strong> (only while the world has some) previews and then makes a Route location for each. Importing a Route record skips it: make a location with type Route instead.']),
       topic('Party Notes', [
         '<strong>Party Notes</strong> are written by the players, one at a time, on any location they can see. They are not your <em>Notes</em> section and are never published, exported or changed by an import. They have their own <strong>Save Party Notes</strong>; Save Changes never touches them. You can edit, take over or clear them. Hiding a location hides its Party Notes until it is visible again.'])
     ].join('')
-      : '<p>These are the places your GM has revealed. Places under <em>Unidentified</em> show only what you have heard so far. Click a linked quest, faction, document or place to open it.</p><p><strong>Party Notes</strong> are shared by the whole party. Click <em>Edit</em>, type, then <em>Save Party Notes</em>. One person edits at a time; everyone else sees who is editing. Saving works whether or not a GM is connected.</p><p>A place marked with <i class="fa-solid fa-user-lock"></i> is known only to some players. If the GM allows it, <em>Share with…</em> lets other players see it too (a GM must be connected).</p><p><strong>Routes</strong> lists the roads your GM has revealed, and the party\'s journey when it is travelling.</p>';
+      : '<p>These are the places your GM has revealed. Places under <em>Unidentified</em> show only what you have heard so far. Click a linked quest, faction, document or place to open it.</p><p><strong>Party Notes</strong> are shared by the whole party. Click <em>Edit</em>, type, then <em>Save Party Notes</em>. One person edits at a time; everyone else sees who is editing. Saving works whether or not a GM is connected.</p><p>A place marked with <i class="fa-solid fa-user-lock"></i> is known only to some players. If the GM allows it, <em>Share with…</em> lets other players see it too (a GM must be connected).</p>';
     return infoDialog('Locations Help', gm);
   }
 }
-Object.assign(LocationsApp.prototype, routesMixin({btn, notifyError, worldPlayers}));

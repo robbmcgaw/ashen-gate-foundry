@@ -1,3 +1,8 @@
+## 0.46.1 — 2026-10-22
+
+- Locations 0.20.0 retired routes. A Route record in an import is now skipped with "Routes are retired; make a location with type Route instead." (it used to say to enable or update Locations). Location records in the same file still import. Manager still passes Route records on to a Locations that can import them.
+- Saved data: no change. No migration.
+
 ## 0.46.0 — 2026-10-22
 
 UI/UX cleanup (docs/ui-audit-2026-10.md, General Manager; shared kit 2.2 helpers). Nothing about importing changes.

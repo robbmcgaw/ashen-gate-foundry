@@ -161,23 +161,9 @@
 .agl-setup { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .agl-setup__body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--ag-space-4); }
 
-/* Routes */
-.agl-legs { margin: 0; padding: var(--ag-space-1) 0; }
-.agl-label { font-weight: 600; }
-.agl-route-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ag-space-3); }
-.agl-route-card h4 { margin: 0 0 var(--ag-space-1); }
-.agl-route-card p { margin: var(--ag-space-1) 0; }
-.agl-routes-player { flex: 1; min-height: 0; padding: var(--ag-space-3) var(--ag-space-4); overflow: auto; }
-.agl-journey-banner { margin: var(--ag-space-1) var(--ag-space-4) var(--ag-space-2); }
-.agl-routes-player .agl-journey-banner { margin: 0 0 var(--ag-space-3); }
-.agl-hazard { border-left: 4px solid var(--ag-danger); }
-.agl-journey-log { margin: var(--ag-space-1) 0; padding-left: var(--ag-space-5); }
-
 /* 1.13.0: compact view embedded in a partner module (api.embed.mount). The host element carries .agl-embed. */
 .agl-embed { display: block; min-width: 0; color: var(--ag-text); }
 .agl-embed .agl-embed__body { display: grid; gap: var(--ag-space-2); }
-.agl-embed .agl-embed__journey { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); align-items: center; padding: var(--ag-space-2) var(--ag-space-3); border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--ag-surface-raised); }
-.agl-embed .agl-embed__meter { flex: 1 1 100%; }
 .agl-embed .agl-embed__tools { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); align-items: center; }
 .agl-embed .agl-embed__tools > .ag-search { flex: 1 1 10rem; min-width: 0; }
 .agl-embed h4 { margin: var(--ag-space-2) 0 var(--ag-space-1); font-size: var(--ag-text-sm); text-transform: uppercase; letter-spacing: .05em; color: var(--ag-muted); }
@@ -187,59 +173,3 @@
 .agl-embed .agl-embed__list > li:hover { background: var(--ag-surface-hover); }
 .agl-embed .agl-embed__open { width: auto; min-height: 0; padding: 0; border: 0; background: none; color: var(--ag-accent); text-align: left; cursor: pointer; text-decoration: underline; overflow-wrap: anywhere; }
 .agl-embed .agl-embed__muted { color: var(--ag-muted); font-size: var(--ag-text-sm); }
-
-/* 1.14.0: Travel tracker pop-out (.agl-travel window). --ag-window-opacity is set on the window by its slider (per user);
-   only backgrounds mix with it, so text and controls stay readable over the map (the Character Hub's approach). */
-.agl-travel { --aglt-alpha: var(--ag-window-opacity, 100%);
-  --aglt-bg: color-mix(in srgb, var(--ag-surface) var(--aglt-alpha), transparent);
-  --aglt-bg-raised: color-mix(in srgb, var(--ag-surface-raised) var(--aglt-alpha), transparent);
-  --aglt-bg-sunken: color-mix(in srgb, var(--ag-surface-sunken) var(--aglt-alpha), transparent); }
-.application.ag-app.agl-travel { background: var(--aglt-bg); }
-.application.ag-app.agl-travel > .window-header { background: var(--aglt-bg-sunken); }
-.application.ag-app.agl-travel > .window-content { background: transparent; padding: 0; }
-.agl-travel .agl-travel__root { display: flex; flex-direction: column; gap: var(--ag-space-2); min-height: 100%; padding: 0 0 var(--ag-space-2); color: var(--ag-text); container-type: inline-size; }
-.agl-travel .agl-travel__head { padding: var(--ag-space-1) var(--ag-space-2); background: transparent; flex-wrap: nowrap; }
-.agl-travel .agl-travel__head h1 { font-size: var(--ag-text-md); }
-.agl-travel .agl-travel__head .ag-header__title { flex: 1 1 auto; }
-.agl-travel .agl-travel__opacity { display: flex; gap: var(--ag-space-1); align-items: center; padding: 0 var(--ag-space-2); color: var(--ag-muted); }
-.agl-travel .agl-travel__opacity input { flex: 1; min-width: 0; height: auto; padding: 0; accent-color: var(--ag-accent); }
-.agl-travel .agl-travel__root > :where(section, .ag-card, .ag-empty, p, button, .agl-travel__panels) { margin-left: var(--ag-space-2); margin-right: var(--ag-space-2); }
-.agl-travel .ag-card { background: var(--aglt-bg-raised); padding: var(--ag-space-3); }
-.agl-travel .agl-travel__journey { display: grid; gap: var(--ag-space-1); padding: var(--ag-space-2); border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--aglt-bg-raised); }
-.agl-travel .agl-travel__title { display: flex; gap: var(--ag-space-2); align-items: baseline; justify-content: space-between; }
-.agl-travel .agl-travel__title strong { overflow-wrap: anywhere; }
-.agl-travel .agl-travel__stats { display: grid; gap: var(--ag-space-1); font-size: var(--ag-text-sm); }
-.agl-travel .agl-travel__strip { list-style: none; margin: var(--ag-space-1) 0; padding: 0; display: flex; gap: var(--ag-space-1); }
-.agl-travel .agl-travel__strip > li { flex: 1; display: flex; align-items: center; justify-content: center; height: var(--ag-space-4); border-radius: var(--ag-radius-sm); background: var(--aglt-bg-sunken); border: 1px solid var(--ag-border); }
-.agl-travel .agl-travel__strip > li.is-done { background: color-mix(in srgb, var(--ag-accent) 55%, transparent); border-color: transparent; }
-.agl-travel .agl-travel__strip > li.is-current { background: var(--ag-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ag-accent) 45%, transparent); }
-.agl-travel .agl-travel__strip > li.is-hazard { border-color: var(--ag-danger); border-width: 2px; color: var(--ag-danger); }
-/* A hazard leg carries a warning mark, so it never relies on the border colour alone. */
-.agl-travel .agl-travel__strip > li.is-hazard > i { font-size: var(--ag-text-xs); line-height: 1; }
-.agl-travel .agl-travel__strip > li.is-hazard.is-done > i { color: var(--ag-surface); }
-.agl-travel .agl-travel__meter { margin: var(--ag-space-1) 0; }
-.agl-travel .agl-travel__big { min-height: calc(var(--ag-control-h) + var(--ag-space-4)); font-size: var(--ag-text-lg); justify-content: center; }
-.agl-travel .agl-travel__why { margin-top: calc(-1 * var(--ag-space-1)); margin-bottom: 0; text-align: center; }
-.agl-travel .agl-travel__hazard { border-left: 4px solid var(--ag-danger); padding: var(--ag-space-2); }
-.agl-travel .agl-travel__hazard h3 { margin: 0; font-size: var(--ag-text-md); border: 0; }
-.agl-travel .agl-travel__result { margin: var(--ag-space-1) 0; font-weight: 600; overflow-wrap: anywhere; }
-.agl-travel .agl-travel__row, .agl-travel .agl-travel__foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1); }
-.agl-travel .agl-travel__row .ag-btn { flex: 1 1 auto; width: auto; }
-/* 0.19.0: End journey (destructive) on the left, away from Pause/Resume and Open route on the right. */
-.agl-travel .agl-travel__foot { justify-content: space-between; }
-.agl-travel .agl-travel__foot .ag-btn { width: auto; }
-.agl-travel .agl-travel__foot-end { display: flex; flex-wrap: wrap; gap: var(--ag-space-1); margin-left: auto; }
-.agl-travel .agl-travel__row .ag-field { margin: 0; }
-.agl-travel .agl-travel__foot { margin: auto var(--ag-space-2) 0; padding-top: var(--ag-space-2); border-top: 1px solid var(--ag-border); }
-.agl-travel .agl-travel__log h3 { margin: 0 0 var(--ag-space-1); font-size: var(--ag-text-sm); text-transform: uppercase; letter-spacing: .05em; color: var(--ag-muted); border: 0; }
-.agl-travel .agl-travel__log ol { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ag-space-1); font-size: var(--ag-text-sm); }
-.agl-travel .agl-travel__log li { overflow-wrap: anywhere; }
-.agl-travel .agl-travel__leg { color: var(--ag-muted); margin-right: var(--ag-space-1); }
-.agl-travel .agl-travel__panels { display: grid; gap: var(--ag-space-1); }
-.agl-travel .agl-travel__panel { padding: var(--ag-space-1) var(--ag-space-2); margin: 0; }
-.agl-travel .agl-travel__panel summary { cursor: pointer; font-weight: 600; }
-.agl-travel .agl-travel__panel .ag-field { margin: var(--ag-space-1) 0; }
-.agl-travel .agl-travel__panel .ag-table-wrap { margin: var(--ag-space-2) 0; }
-.agl-travel .agl-travel__watch :where(th, td) { padding: var(--ag-space-1) var(--ag-space-2); text-align: center; }
-.agl-travel .agl-travel__watch tbody th { text-align: left; font-weight: 400; }
-.agl-travel .agl-travel__watches { margin: 0; padding-left: 1.2em; }

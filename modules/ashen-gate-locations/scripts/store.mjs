@@ -26,32 +26,19 @@
  * (explicit, because Foundry merges ownership on update, so a removed player must be set back). Map Notes point at
  * the player page, so Foundry hides a pin from anyone who cannot open that page.
  *
- * 1.10.0 routes: the full records sit in the GM Data Journal's `routes` flag, beside `routeIds` (every RTE id ever
- * issued, so a deleted route's id is never reused). Players read a fifth Journal, "Locations (Routes)" (role
- * `route-view`): one page per version of a route that some player may see (see routes.mjs routeAudiences), named
- * just "Route", carrying only the player-safe view JSON and the route's random view key, and readable only by the
- * players that version is for (every other player explicitly NONE). An undiscovered route has no page at all.
- *
- * 1.11.0 journeys: the GM Data Journal's `travel` flag holds the party's journey (journey.mjs), its location and a
- * short history. Players read one more page in the Routes Journal (`kind: 'journey'`, every player OBSERVER) with
- * progress only (leg N of M; the ends and route only when every player may see them), and the party marker is a
- * Map Note (flag `partyMarker`) pointing at that page, moved between the route's two pins as legs are travelled.
- *
- * 1.12.0 drawings: a route may be linked to one scene Drawing (drawing.mjs). Its `hidden` follows the route (shown
- * only while every player gets the full route); the party marker follows its path when it is on the marker's scene.
+ * 0.20.0: routes and journeys are retired. What 1.10.0–0.19.0 stored is left exactly as it was and never written again:
+ * the GM Data Journal's `routes`, `routeIds` and `travel` flags, the "Locations (Routes)" Journal (player-safe route
+ * and journey pages), a party marker Map Note and any route Drawing. readStoredRoutes() only reads the `routes` flag,
+ * for Developer Tools → Convert routes to locations (route-convert.mjs).
  */
 import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL, normalizeLocation, playerView, viewHtml, pinPresentation, notePatch, uniquePinKeys, PIN_KEY,
-  normalizeNotes, notesMirror, reconcileNotes, inAudience, resolvePassConditions, newPinKey, isLevelBackup} from './model.mjs';
+  normalizeNotes, notesMirror, reconcileNotes, inAudience, resolvePassConditions} from './model.mjs';
 import {nodePlayerView} from './ledger-nodes.mjs';
-import {normalizeRoute, routeAudiences, defaultLeg, endRef, routeVariantFor} from './routes.mjs';
-import {normalizeJourney, journeyView, progressFromRouteStart} from './journey.mjs';
-import {drawingShouldShow, drawingPatch, drawingPath, orientPath, pointAlong, routeLineData} from './drawing.mjs';
 
 const ROLE_GM = 'gm-data';
 const ROLE_VIEW = 'player-view';
 const ROLE_NOTES = 'party-notes';
 const ROLE_SHARED = 'shared-notes';
-const ROLE_ROUTE_VIEW = 'route-view';
 const LEGACY_ROLES = ['source', 'projection', 'map_registry'];
 const FOLDER_PATH = ['Ashen Gate', 'Locations'];
 
@@ -114,198 +101,14 @@ export async function writeAll(list) {
   await syncPlayerView(locations);
   await syncNotes(locations);
   await syncSharedNotes(locations);
-  // Endpoint visibility decides who sees a route, so route pages follow every location change.
-  await syncRouteViews(readRoutes(), locations);
-  await syncRouteDrawings(readRoutes(), locations);
-  await syncTravel(readTravel(), readRoutes(), locations);
   return locations;
 }
 
-// ---------- 1.10.0 routes ----------
-/** The world's default leg length in km (GM Setup). */
-export const defaultLegKm = () => defaultLeg(setting('defaultLegKm', null));
-/** GM: every route, full data, in stored order. */
-export function readRoutes() {
+/** GM, read only (0.20.0): the routes Locations 0.19.0 and earlier stored, as plain copies. Never written or deleted. */
+export function readStoredRoutes() {
   assertGM();
   const raw = byRole(ROLE_GM)?.getFlag(MODULE_ID, 'routes');
-  return (Array.isArray(raw) ? raw : []).map(normalizeRoute).filter(r => r.id);
-}
-/** GM: every RTE id ever issued in this world (current and deleted). */
-export function usedRouteIds() {
-  assertGM();
-  const raw = byRole(ROLE_GM)?.getFlag(MODULE_ID, 'routeIds');
-  return [...new Set([...(Array.isArray(raw) ? raw.filter(id => typeof id === 'string') : []), ...readRoutes().map(r => r.id)])];
-}
-/** GM: replaces the stored routes (remembering their ids for good), then rebuilds the players' route pages. */
-export async function writeRoutes(list, {locations = null} = {}) {
-  assertGM();
-  const routes = list.map(normalizeRoute).filter(r => r.id);
-  const keys = new Set();
-  for (const r of routes) { while (keys.has(r.viewKey)) r.viewKey = newPinKey(); keys.add(r.viewKey); }
-  const routeIds = [...new Set([...usedRouteIds(), ...routes.map(r => r.id)])];
-  const doc = byRole(ROLE_GM);
-  if (doc) {
-    if (JSON.stringify(doc.getFlag(MODULE_ID, 'routes')) !== JSON.stringify(routes) || JSON.stringify(doc.getFlag(MODULE_ID, 'routeIds')) !== JSON.stringify(routeIds))
-      await doc.update({[`flags.${MODULE_ID}.routes`]: routes, [`flags.${MODULE_ID}.routeIds`]: routeIds});
-  } else await JournalEntry.create({name: 'Locations (GM Data)', folder: await ensureFolder(),
-    ownership: {default: levels().NONE}, flags: {[MODULE_ID]: {role: ROLE_GM, locations: [], routes, routeIds}}});
-  const locs = locations ?? readAll();
-  await syncRouteViews(routes, locs);
-  await syncRouteDrawings(routes, locs);
-  await syncTravel(readTravel(), routes, locs);
-  return routes;
-}
-/** The page one version of a route needs: readable by exactly `userIds`, nothing on it but the safe view. */
-function routePageData(route, group) {
-  const L = levels();
-  const own = {default: L.NONE};
-  for (const u of players()) own[u.id] = group.userIds.includes(u.id) ? L.OBSERVER : L.NONE;
-  return {name: 'Route', type: 'text', text: {content: '', format: htmlFormat()}, ownership: own,
-    flags: {[MODULE_ID]: {routeKey: route.viewKey, variant: group.variant, view: JSON.stringify(group.view)}}};
-}
-const routePageId = p => `${p.getFlag(MODULE_ID, 'routeKey')}:${p.getFlag(MODULE_ID, 'variant')}`;
-/** GM: makes the route pages match the routes and locations. Writes nothing when they already match. */
-export async function syncRouteViews(routes = readRoutes(), locations = readAll()) {
-  assertGM();
-  const byId = new Map(locations.map(l => { const n = normalizeLocation(l); return [n.id, n]; }));
-  const ids = players().map(u => u.id);
-  const opts = {label: presentationOptions().label, defaultLegKm: defaultLegKm()};
-  const want = new Map();
-  for (const r of routes) for (const g of routeAudiences(r, byId, ids, opts)) want.set(`${r.viewKey}:${g.variant}`, routePageData(r, g));
-  let journal = byRole(ROLE_ROUTE_VIEW);
-  if (!journal && !want.size) return;
-  journal ??= await JournalEntry.create({name: 'Locations (Routes)', folder: await ensureFolder(),
-    ownership: {default: levels().OBSERVER}, flags: {[MODULE_ID]: {role: ROLE_ROUTE_VIEW}}});
-  const have = new Map();
-  const remove = [];
-  for (const p of journal.pages) {
-    if (p.getFlag(MODULE_ID, 'kind') === 'journey') continue;
-    const k = routePageId(p); if (want.has(k) && !have.has(k)) have.set(k, p); else remove.push(p.id);
-  }
-  const create = [], update = [];
-  for (const [k, data] of want) {
-    const page = have.get(k);
-    if (!page) create.push(data);
-    else if (page.getFlag(MODULE_ID, 'view') !== data.flags[MODULE_ID].view || !sameOwnership(page.ownership, data.ownership)) update.push({_id: page.id, ownership: data.ownership, [`flags.${MODULE_ID}.view`]: data.flags[MODULE_ID].view});
-  }
-  if (create.length) await journal.createEmbeddedDocuments('JournalEntryPage', create);
-  if (update.length) await journal.updateEmbeddedDocuments('JournalEntryPage', update);
-  if (remove.length) await journal.deleteEmbeddedDocuments('JournalEntryPage', remove);
-}
-/** Any user: the route views this user may read (Foundry's own page permission decides). */
-export function readRouteViews() {
-  const journal = byRole(ROLE_ROUTE_VIEW);
-  if (!journal) return [];
-  return [...journal.pages].filter(p => p.getFlag(MODULE_ID, 'kind') !== 'journey' && (isGM() || p.testUserPermission(game.user, 'OBSERVER')))
-    .map(p => { try { return JSON.parse(p.getFlag(MODULE_ID, 'view') || 'null'); } catch { return null; } })
-    .filter(Boolean);
-}
-
-// ---------- 1.11.0 journeys ----------
-const LOC_ID = /^LOC-[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
-const MAX_HISTORY = 20;
-export const PARTY_MARKER_IMG = 'icons/svg/target.svg';
-/** GM: {journey, partyLocationId, history}. */
-export function readTravel() {
-  assertGM();
-  const raw = byRole(ROLE_GM)?.getFlag(MODULE_ID, 'travel') ?? {};
-  return {journey: normalizeJourney(raw.journey), partyLocationId: LOC_ID.test(raw.partyLocationId ?? '') ? raw.partyLocationId : '',
-    history: (Array.isArray(raw.history) ? raw.history : []).map(normalizeJourney).filter(Boolean).slice(-MAX_HISTORY)};
-}
-/** GM: stores the travel record, then the players' progress page and the party marker. */
-export async function writeTravel(travel, {routes = null, locations = null} = {}) {
-  assertGM();
-  const data = {journey: normalizeJourney(travel.journey), partyLocationId: LOC_ID.test(travel.partyLocationId ?? '') ? travel.partyLocationId : '',
-    history: (travel.history ?? []).map(normalizeJourney).filter(Boolean).slice(-MAX_HISTORY)};
-  const doc = byRole(ROLE_GM);
-  if (doc) await doc.update({[`flags.${MODULE_ID}.travel`]: data});
-  else await JournalEntry.create({name: 'Locations (GM Data)', folder: await ensureFolder(),
-    ownership: {default: levels().NONE}, flags: {[MODULE_ID]: {role: ROLE_GM, locations: [], travel: data}}});
-  await syncTravel(data, routes ?? readRoutes(), locations ?? readAll());
-  return data;
-}
-/** An end every player may see (not Hidden, audience Everyone), as players see it; otherwise null. */
-const endForAll = (loc, label) => loc && loc.state !== 'hidden' && loc.published && loc.audience?.mode !== 'selected' ? endRef(loc, label) : null;
-/** What every player gets about the party's journey. Exported for tests. */
-export function journeyPageView(travel, routes, locations, label = presentationOptions().label) {
-  const j = travel.journey;
-  if (!j) return null;
-  const byId = new Map(locations.map(l => { const n = normalizeLocation(l); return [n.id, n]; }));
-  const route = routes.find(r => r.id === j.routeId);
-  const ids = players().map(u => u.id);
-  const routeKey = route && ids.length && ids.every(u => routeVariantFor(route, byId, u) === 'full') ? route.viewKey : null;
-  // 1.15.0: watch names are character names, which players see on the party's sheets anyway.
-  const actorName = id => { const a = globalThis.game?.actors?.get?.(id); return a?.type === 'character' && !isLevelBackup(a) ? a.name : ''; };
-  return journeyView(j, {from: endForAll(byId.get(j.fromId), label), to: endForAll(byId.get(j.toId), label), routeKey, actorName});
-}
-async function syncTravel(travel, routes, locations) {
-  const view = journeyPageView(travel, routes, locations);
-  let journal = byRole(ROLE_ROUTE_VIEW);
-  if (!journal && !view) return;
-  journal ??= await JournalEntry.create({name: 'Locations (Routes)', folder: await ensureFolder(),
-    ownership: {default: levels().OBSERVER}, flags: {[MODULE_ID]: {role: ROLE_ROUTE_VIEW}}});
-  const L = levels();
-  const own = {default: L.OBSERVER};
-  for (const u of players()) own[u.id] = L.OBSERVER;
-  const json = view ? JSON.stringify(view) : '';
-  let page = [...journal.pages].find(p => p.getFlag(MODULE_ID, 'kind') === 'journey');
-  if (!page && !view) return;
-  if (!page) [page] = await journal.createEmbeddedDocuments('JournalEntryPage', [{name: 'Party', type: 'text', text: {content: '', format: htmlFormat()},
-    ownership: own, flags: {[MODULE_ID]: {kind: 'journey', view: json}}}]);
-  else if (page.getFlag(MODULE_ID, 'view') !== json || !sameOwnership(page.ownership, own))
-    await journal.updateEmbeddedDocuments('JournalEntryPage', [{_id: page.id, ownership: own, [`flags.${MODULE_ID}.view`]: json}]);
-  await syncPartyMarker(travel, routes, locations, journal, page);
-}
-/** Any user: the party's journey progress, or null. */
-export function readJourneyView() {
-  const page = [...(byRole(ROLE_ROUTE_VIEW)?.pages ?? [])].find(p => p.getFlag(MODULE_ID, 'kind') === 'journey');
-  if (!page || !(isGM() || page.testUserPermission(game.user, 'OBSERVER'))) return null;
-  try { return JSON.parse(page.getFlag(MODULE_ID, 'view') || 'null'); } catch { return null; }
-}
-/** A location's first pin on a scene: {x, y} or null. */
-const pinOn = (scene, loc) => {
-  const n = loc && [...(scene.notes ?? [])].find(x => x.getFlag?.(MODULE_ID, 'pinKey') === loc.pinKey);
-  return n ? {x: n.x, y: n.y} : null;
-};
-/**
- * Where the marker goes: on the scene being viewed if it holds the pins it needs, else the first scene that does.
- * Between the two pins in proportion to the legs travelled; with only one pin, on it while the party is there.
- * Returns {scene, x, y} or null. Exported for tests.
- */
-export function partyMarkerSpot(travel, routes, locations, scenes = [...(game.scenes ?? [])], viewed = game.scenes?.viewed ?? globalThis.canvas?.scene ?? null) {
-  const j = travel.journey;
-  if (!j) return null;
-  const route = routes.find(r => r.id === j.routeId);
-  const byId = new Map(locations.map(l => [l.id, l]));
-  const a = byId.get(route?.fromId ?? ''), b = byId.get(route?.toId ?? '');
-  const t = progressFromRouteStart(j);
-  const linked = route?.drawingUuid ? findDrawing(route.drawingUuid) : null;
-  const spot = scene => {
-    const pa = pinOn(scene, a), pb = pinOn(scene, b);
-    // 1.12.0: along the linked drawing when it is on this scene and is a simple line, else straight between the pins.
-    const path = linked?.scene === scene && pa && pb ? orientPath(drawingPath(linked.drawing), pa, pb) : null;
-    if (path) return {scene, ...(t === 0 ? pa : t === 1 ? pb : pointAlong(path, t))};
-    if (pa && pb) return {scene, x: Math.round(pa.x + (pb.x - pa.x) * t), y: Math.round(pa.y + (pb.y - pa.y) * t)};
-    if (pa && t === 0) return {scene, ...pa};
-    if (pb && t === 1) return {scene, ...pb};
-    return null;
-  };
-  const order = viewed ? [viewed, ...scenes.filter(s => s !== viewed)] : scenes;
-  const both = order.find(s => pinOn(s, a) && pinOn(s, b));
-  return both ? spot(both) : order.map(spot).find(Boolean) ?? null;
-}
-async function syncPartyMarker(travel, routes, locations, journal, page) {
-  const want = partyMarkerSpot(travel, routes, locations);
-  for (const scene of game.scenes ?? []) {
-    const mine = [...(scene.notes ?? [])].filter(n => n.getFlag?.(MODULE_ID, 'partyMarker') === true);
-    const keep = want && want.scene === scene ? mine[0] : null;
-    const extra = mine.filter(n => n !== keep).map(n => n.id);
-    if (extra.length) await scene.deleteEmbeddedDocuments('Note', extra);
-    if (want?.scene !== scene) continue;
-    if (!keep) await scene.createEmbeddedDocuments('Note', [{entryId: journal.id, pageId: page.id, x: want.x, y: want.y, text: 'Party',
-      texture: {src: PARTY_MARKER_IMG}, iconSize: 40, flags: {[MODULE_ID]: {partyMarker: true}}}]);
-    else if (keep.x !== want.x || keep.y !== want.y) await scene.updateEmbeddedDocuments('Note', [{_id: keep.id, x: want.x, y: want.y}]);
-  }
+  return Array.isArray(raw) ? structuredClone(raw.filter(r => r && typeof r === 'object')) : [];
 }
 
 async function viewJournal() {
@@ -571,67 +374,4 @@ export async function migrate() {
 /** 0.8.x kept test-only data in differently-flagged Journals. Leave it alone; just say so once. */
 export function legacyJournalCount() {
   return [...game.journal].filter(j => LEGACY_ROLES.includes(j.getFlag(MODULE_ID, 'role'))).length;
-}
-
-// ---------- 1.12.0 route drawings ----------
-const DRAWING_UUID = /^Scene\.([A-Za-z0-9]+)\.Drawing\.([A-Za-z0-9]+)$/;
-/** A Drawing by uuid: {scene, drawing} or null (gone, or not a scene drawing). */
-export function findDrawing(uuid) {
-  const m = DRAWING_UUID.exec(uuid ?? '');
-  if (!m) return null;
-  const scene = [...(game.scenes ?? [])].find(s => s.id === m[1]);
-  const drawing = scene && [...(scene.drawings ?? [])].find(d => d.id === m[2]);
-  return drawing ? {scene, drawing} : null;
-}
-const routeIdOn = d => d?.getFlag?.(MODULE_ID, 'routeId') ?? d?.flags?.[MODULE_ID]?.routeId ?? null;
-const showFor = (route, locations) => drawingShouldShow(route, new Map(locations.map(l => { const n = normalizeLocation(l); return [n.id, n]; })), players().map(u => u.id));
-/** GM: sets each linked drawing's `hidden` to match its route. Touches nothing else, and no drawing re-linked elsewhere. */
-export async function syncRouteDrawings(routes = readRoutes(), locations = readAll()) {
-  assertGM();
-  for (const r of routes) {
-    const found = r.drawingUuid ? findDrawing(r.drawingUuid) : null;
-    if (!found || routeIdOn(found.drawing) !== r.id) continue;
-    const patch = drawingPatch(found.drawing, showFor(r, locations));
-    if (patch) await found.scene.updateEmbeddedDocuments('Drawing', [{_id: found.drawing.id, ...patch}]);
-  }
-}
-/** GM: binds a drawing to a route (flag on the drawing) and sets its visibility. Returns the drawing uuid. */
-export async function linkDrawing(route, uuid, locations = readAll()) {
-  assertGM();
-  const found = findDrawing(uuid);
-  if (!found) throw new Error('That drawing was not found. Select a drawing on a scene first.');
-  const other = routeIdOn(found.drawing);
-  if (other && other !== route.id) throw new Error(`That drawing is already linked to route ${other}. Unlink it there first.`);
-  await found.scene.updateEmbeddedDocuments('Drawing', [{_id: found.drawing.id, [`flags.${MODULE_ID}.routeId`]: route.id, hidden: !showFor(route, locations)}]);
-  return found.drawing.uuid ?? `${found.scene.uuid ?? `Scene.${found.scene.id}`}.Drawing.${found.drawing.id}`;
-}
-/** GM: removes the binding (the drawing itself stays, as it is). `remove`: also delete the drawing (the GM confirmed). */
-export async function unlinkDrawing(route, {remove = false} = {}) {
-  assertGM();
-  const found = route.drawingUuid ? findDrawing(route.drawingUuid) : null;
-  if (!found || routeIdOn(found.drawing) !== route.id) return false;
-  if (remove) await found.scene.deleteEmbeddedDocuments('Drawing', [found.drawing.id]);
-  else await found.scene.updateEmbeddedDocuments('Drawing', [{_id: found.drawing.id, [`flags.${MODULE_ID}.routeId`]: null}]);
-  return true;
-}
-/** GM: "Draw for me": a straight line between the two pins on `scene`, linked to the route. Returns the drawing uuid. */
-export async function drawRouteLine(route, scene, locations = readAll()) {
-  assertGM();
-  if (!scene) throw new Error('Open the scene with both pins first.');
-  const byId = new Map(locations.map(l => [l.id, l]));
-  const pa = pinOn(scene, byId.get(route.fromId)), pb = pinOn(scene, byId.get(route.toId));
-  if (!pa || !pb) throw new Error("Place both locations' pins on this scene first (Place on Scene), then Draw for me.");
-  const fillNone = globalThis.CONST?.DRAWING_FILL_TYPES?.NONE ?? 0;
-  const [d] = await scene.createEmbeddedDocuments('Drawing', [routeLineData(pa, pb, {routeId: route.id, hidden: !showFor(route, locations), fillNone})]);
-  return d.uuid ?? `${scene.uuid ?? `Scene.${scene.id}`}.Drawing.${d.id}`;
-}
-/** GM: the linked drawing's state for the editor: {status: 'none'|'linked'|'missing'|'elsewhere', sceneName, hidden, hasText}. */
-export function drawingInfo(route) {
-  assertGM();
-  if (!route.drawingUuid) return {status: 'none'};
-  const found = findDrawing(route.drawingUuid);
-  if (!found) return {status: 'missing'};
-  if (routeIdOn(found.drawing) !== route.id) return {status: 'elsewhere', sceneName: found.scene.name ?? ''};
-  return {status: 'linked', sceneName: found.scene.name ?? '', sceneUuid: found.scene.uuid ?? `Scene.${found.scene.id}`, hidden: found.drawing.hidden === true,
-    hasText: !!String(found.drawing.text ?? '').trim(), path: !!drawingPath(found.drawing)};
 }

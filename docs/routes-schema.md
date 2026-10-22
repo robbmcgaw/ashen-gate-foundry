@@ -1,4 +1,9 @@
-# Route record schema (Ashen Gate Locations 1.10.0+ under the old numbering, i.e. every 0.18.0+; General Manager 0.27.0+)
+# Route record schema (Ashen Gate Locations 1.10.0+ under the old numbering, i.e. 0.18.0–0.19.x; General Manager 0.27.0+)
+
+> **Retired in Locations 0.20.0.** Locations no longer imports, exports or uses Route records: an import skips each one with
+> "Routes are retired; make a location with type Route instead." and still imports the file's Location records. Write a
+> Location record with `"type": "Route"` instead; it can carry `hazards` and `rollTables` (see the Locations README,
+> *Import format*). This page is kept for reference and for worlds that still hold old routes.
 
 > Locations was renumbered from 1.18.0 to 0.18.0 (the suite is pre-release). Version numbers below are the old 1.x ones; all of it is in 0.18.0 and later. Partners detect route support by the API (`importRoutes`, `listRoutes`), not the number.
 

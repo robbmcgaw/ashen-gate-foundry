@@ -1,8 +1,6 @@
-import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL, isLevelBackup} from './model.mjs';
+import {MODULE_ID, DEFAULT_UNIDENTIFIED_LABEL} from './model.mjs';
 import {readAll, writeAll, readViews, placeNote, legacyJournalCount, isGM, migrate, presentationOptions, readNotes, writeNotes, readPlayerNotes,
-  syncSharedNotes, readSharedNotes, writeSharedNotes, isSharedNotesPage, players, pinsOf, readRoutes, writeRoutes, readRouteViews, usedRouteIds, defaultLegKm,
-  readTravel, writeTravel, readJourneyView, linkDrawing, unlinkDrawing, drawRouteLine, drawingInfo} from './store.mjs';
-import {ROUTE_DEFAULTS} from './routes.mjs';
+  syncSharedNotes, readSharedNotes, writeSharedNotes, isSharedNotesPage, players, pinsOf, readStoredRoutes} from './store.mjs';
 import {createApi} from './api.mjs';
 import {createNotesService, SOCKET} from './party-notes.mjs';
 import {createShareService} from './sharing.mjs';
@@ -10,34 +8,27 @@ import {LocationsApp} from './app.mjs';
 import {mountLocationLauncher} from './launcher.js';
 import {launcherRoot, mountLauncher} from './ag-launchers.mjs';
 import {createEmbed, EMBED_MODES, EMBED_CONTRACT} from './embed.mjs';
-import {TravelTracker} from './travel-app.mjs';
-import {createBehaviours} from './travel-view.mjs';
-import {travelBehaviours} from './travel-behaviours.mjs';
 
-const VERSION = '0.19.0';
+const VERSION = '0.20.0';
 const playerAccessEnabled = () => game.settings.get(MODULE_ID, 'playerAccessEnabled') === true;
 const mayOpen = () => isGM() || playerAccessEnabled();
 /** Text of a TableResult (V13+ name/description; older text), without markup. */
 const resultText = r => String(r?.name || r?.description || r?.text || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-/** 1.11.0: rolls a route's hazard table by UUID, else by name. A missing or broken table gives "Hazard!" (the API never fails on it). */
-async function drawHazard({uuid, name} = {}) {
-  let table = null;
-  try { if (uuid) table = await fromUuid(uuid); } catch { table = null; }
-  if (!table && name) table = game.tables?.getName?.(name) ?? [...(game.tables ?? [])].find(t => t.name === name) ?? null;
-  if (table?.documentName && table.documentName !== 'RollTable') table = null;
-  if (typeof table?.draw !== 'function') return {text: 'Hazard!', fromTable: false, tableMissing: true};
-  const draw = await table.draw({displayChat: false});
-  const text = (draw?.results ?? []).map(resultText).filter(Boolean).join('; ');
-  return {text: text || 'Hazard!', fromTable: !!text, tableMissing: false};
-}
-const chat = {
-  gm: content => ChatMessage.create({content, speaker: {alias: 'Locations'}, whisper: [...(game.users ?? [])].filter(u => u.isGM).map(u => u.id)}),
-  public: content => ChatMessage.create({content, speaker: {alias: 'Locations'}})
+/** 0.20.0: the GM's Roll on a linked RollTable: Foundry's own draw, posted to chat with the table's roll mode. */
+const tables = {
+  async draw(uuid) {
+    let table = null;
+    try { table = await fromUuid(uuid); } catch { table = null; }
+    if (table?.documentName !== 'RollTable' || typeof table.draw !== 'function') throw new Error('That roll table no longer exists.');
+    const draw = await table.draw();
+    return {results: (draw?.results ?? []).map(resultText).filter(Boolean)};
+  },
+  uuidByName: name => (game.tables?.getName?.(name) ?? [...(game.tables ?? [])].find(t => t.name === name))?.uuid ?? ''
 };
 const notifyError = err => { console.error(`${MODULE_ID} |`, err); ui.notifications?.error(err?.message ?? String(err)); };
 
 // 1.13.0: compact read-only view for partner modules (embed.mjs).
-const embed = createEmbed({mayOpen, readViews, readJourneyView, api: () => game.modules.get(MODULE_ID)?.api, notifyError});
+const embed = createEmbed({mayOpen, readViews, api: () => game.modules.get(MODULE_ID)?.api, notifyError});
 for (const hook of ['createJournalEntryPage', 'updateJournalEntryPage', 'deleteJournalEntryPage', 'updateJournalEntry'])
   Hooks.on(hook, doc => { if ((doc?.parent ?? doc)?.getFlag?.(MODULE_ID, 'role') !== undefined) embed.refreshAll(); });
 
@@ -49,29 +40,7 @@ function applyPlayerAccess(enabled) {
   embed.refreshAll();
   attachActorsLauncher(ui.actors, null, isGM() || enabled);
   if (!isGM() && !enabled && LocationsApp.instance?.rendered) LocationsApp.instance.close().catch(notifyError);
-  if (!isGM() && !enabled && TravelTracker.instance?.rendered) TravelTracker.instance.close().catch(notifyError);
-  try { ui.controls?.render?.({reset: true}); } catch {}
 }
-// 1.14.0: optional travel behaviour panels for the tracker (see travel-view.mjs). 1.15.0 ships pace, night watches and
-// foraging/navigation checks (travel-behaviours.mjs); other modules can still register their own.
-const behaviours = createBehaviours();
-TravelTracker.behaviours = behaviours;
-/** Characters the GM can put on watch: the dnd5e Primary Party's characters, else every character Actor. Never a level-up backup. */
-const watchCandidates = () => {
-  const isCandidate = a => a?.type === 'character' && !isLevelBackup(a);
-  const party = (game.actors?.party?.system?.members ?? []).map(m => m?.actor).filter(isCandidate);
-  const list = party.length ? party : [...(game.actors ?? [])].filter(isCandidate);
-  return list.map(a => ({id: a.id, name: a.name})).sort((a, b) => a.name.localeCompare(b.name));
-};
-/** Utilities' prefilled-roll API (Utilities 0.13.0+), or null. Feature-detected, never required. */
-const utilitiesRolls = () => {
-  const m = game.modules.get('ashen-gate-utilities');
-  return m?.active && typeof m.api?.rolls?.open === 'function' ? m.api.rolls : null;
-};
-for (const def of travelBehaviours({api: () => game.modules.get(MODULE_ID)?.api, characters: watchCandidates,
-  skillLabel: id => { const s = globalThis.CONFIG?.DND5E?.skills?.[id]; const l = s?.label ?? id; try { return game.i18n?.localize?.(l) ?? l; } catch { return l; } }}))
-  behaviours.register(def);
-
 Hooks.once('init', () => {
   game.settings.register(MODULE_ID, 'playerAccessEnabled', {
     name: 'Locations — Player Access',
@@ -87,14 +56,7 @@ Hooks.once('init', () => {
   game.settings.register(MODULE_ID, 'unknownPinImage', {
     name: 'Locations — Unidentified pin image', scope: 'world', config: false, type: String, default: '', restricted: true, onChange: resync
   });
-  // 1.10.0: leg length for routes that do not set their own (GM Setup). Changing it updates players' leg counts.
-  game.settings.register(MODULE_ID, 'defaultLegKm', {
-    name: 'Locations — Default leg length (km)', scope: 'world', config: false, type: Number, default: ROUTE_DEFAULTS.legKm, restricted: true, onChange: resync
-  });
-  // 1.14.0 Travel tracker, per user: where the window was left and its background opacity (20–100%, 100 = opaque).
-  game.settings.register(MODULE_ID, 'trackerPosition', {name: 'Locations — Travel tracker position', scope: 'client', config: false, type: Object, default: {}});
-  game.settings.register(MODULE_ID, 'trackerOpacity', {name: 'Locations — Travel tracker opacity', scope: 'client', config: false, type: Number, default: 100,
-    onChange: v => TravelTracker.instance?.applyOpacity?.(v)});
+  // 0.20.0: the route settings (defaultLegKm, trackerPosition, trackerOpacity) are no longer registered; stored values stay unused.
 });
 
 Hooks.once('ready', () => {
@@ -116,14 +78,8 @@ Hooks.once('ready', () => {
     version: VERSION, isGM, playerAccessEnabled,
     setPlayerAccess: value => game.settings.set(MODULE_ID, 'playerAccessEnabled', value),
     readAll, writeAll, readViews, placeNote, viewOptions: presentationOptions, pinsOf, playerIds: () => players().map(u => u.id),
-    routes: {readAll: readRoutes, writeAll: writeRoutes, readViews: readRouteViews, usedIds: usedRouteIds, defaultLegKm},
-    // Hooks 'ashenGateLocations.journeyStart' / 'journeyLeg' / 'journeyArrived' (GM client): extension points for a campaign clock or a per-leg check.
-    drawings: {link: linkDrawing, unlink: unlinkDrawing, draw: drawRouteLine, info: drawingInfo, viewedScene: () => game.scenes?.viewed ?? globalThis.canvas?.scene ?? null},
-    travel: {read: readTravel, write: writeTravel, readView: readJourneyView, drawHazard, chat, emit: (event, payload) => Hooks.callAll(`ashenGateLocations.${event}`, payload)},
     sharing: {request: sharing.request},
-    tracker: {open: () => TravelTracker.show(), behaviours},
-    characters: watchCandidates,
-    rolls: utilitiesRolls,
+    tables, storedRoutes: readStoredRoutes,
     open: () => LocationsApp.show(),
     openLocation: ref => LocationsApp.show(ref),
     notes: {readGM: readNotes, readPlayer: readPlayerNotes, request: notes.request, userId: () => game.user?.id, isActive: notes.isActive, nameOf: notes.nameOf}
@@ -143,17 +99,6 @@ Hooks.once('ready', () => {
   console.info(`${MODULE_ID} | ${VERSION} ready`);
 });
 
-// 1.14.0: Travel tracker button in the Token controls (left of the map). Everyone who may open Locations gets it: the GM
-// sees the controls, players their progress view (the window and the API check again).
-Hooks.on('getSceneControlButtons', controls => {
-  const tokens = controls?.tokens ?? (Array.isArray(controls) ? controls.find(c => c?.name === 'tokens') : null);
-  if (!tokens?.tools) return;
-  const open = () => { game.modules.get(MODULE_ID)?.api?.travel.open().catch(notifyError); };
-  const tool = {name: 'agl-travel', title: 'Travel tracker (Ashen Gate)', icon: 'fa-solid fa-person-hiking', button: true, order: 90, visible: mayOpen(), onChange: open};
-  if (Array.isArray(tokens.tools)) tokens.tools.push({...tool, onClick: open});
-  else tokens.tools[tool.name] = tool;
-});
-
 // Player-facing viewer in the shared Actors group; GM-only builder in the Items sidebar.
 Hooks.on('renderActorDirectory', (app, html) => attachActorsLauncher(app, html));
 Hooks.on('renderItemDirectory', (app, html) => {
@@ -163,12 +108,8 @@ Hooks.on('renderItemDirectory', (app, html) => {
 // A Map Note for a location opens the Locations window instead of the backing Journal page. Notes
 // carry only the opaque pinKey (1.2.x notes a locationId, until the GM's client migrates them).
 Hooks.on('activateNote', (note, options) => {
-  // 1.11.0 party marker: opens the Routes tab (progress only for players).
-  if (note?.document?.getFlag?.(MODULE_ID, 'partyMarker') === true) {
-    if (!mayOpen()) return;
-    LocationsApp.show().then(app => { app.tab = 'routes'; return app.render(); }).catch(notifyError);
-    return false;
-  }
+  // 0.20.0: journeys are retired; an old party marker opens nothing (the GM can delete it from the scene).
+  if (note?.document?.getFlag?.(MODULE_ID, 'partyMarker') === true) return false;
   const ref = note?.document?.getFlag?.(MODULE_ID, 'pinKey') || note?.document?.getFlag?.(MODULE_ID, 'locationId');
   if (!ref) return;
   if (!mayOpen()) { ui.notifications.warn('Locations is hidden from players right now.'); return false; }
@@ -206,7 +147,6 @@ function refresh() {
   pending = setTimeout(() => {
     const app = LocationsApp.instance;
     if (app?.rendered && !app.dirty && mayOpen()) app.render().catch(notifyError);
-    if (mayOpen()) TravelTracker.refresh();
   }, 100);
 }
 for (const hook of ['createJournalEntry', 'updateJournalEntry', 'createJournalEntryPage', 'updateJournalEntryPage', 'deleteJournalEntryPage']) {

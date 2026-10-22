@@ -6,9 +6,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {installFoundry, gm, player} from './foundry-mock.mjs';
 import {createApi} from '../scripts/api.mjs';
-import {readAll, writeAll, readViews, placeNote, readRoutes, writeRoutes, readRouteViews, usedRouteIds} from '../scripts/store.mjs';
+import {readAll, writeAll, readViews, placeNote} from '../scripts/store.mjs';
 import {parseImport, normalizeLocation} from '../scripts/model.mjs';
-import {gmTrackerHTML} from '../scripts/travel-view.mjs';
 import {mountLocationLauncher, LOCATION_LAUNCHER} from '../scripts/launcher.js';
 
 globalThis.foundry = {applications: {api: {ApplicationV2: class { constructor(o) { this.options = o; } }}}};
@@ -22,8 +21,7 @@ async function world() {
   globalThis.ui = {notifications: {info: m => said.info.push(m), warn: m => said.warn.push(m), error: m => said.warn.push(m)}};
   const mod = {version: '0.19.0', active: true};
   mod.api = createApi({version: '0.19.0', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {},
-    readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}, playerIds: () => [],
-    routes: {readAll: readRoutes, writeAll: writeRoutes, readViews: readRouteViews, usedIds: usedRouteIds, defaultLegKm: () => 5}});
+    readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}, playerIds: () => []});
   g.modules = {get: id => id === 'ashen-gate-locations' ? mod : null};
   g.user = gm;
   await writeAll(sample);
@@ -185,7 +183,7 @@ test('discard questions come from the kit guard: Keep editing is the default; Cl
   assert.equal(app.dirty, false, 'discarding leaves the guard clean');
 });
 
-test('LOC-NAV-03: Party Notes buttons say what they save; LOC-NAV-06: players always get the Routes tab', async () => {
+test('LOC-NAV-03: Party Notes buttons say what they save; 0.20.0: players get Locations only (Routes retired), so no tab bar', async () => {
   const {api} = await world();
   // Party Notes come from the notes service; a stand-in is enough to draw the card.
   game.modules.get('ashen-gate-locations').api = {...api, getPartyNotes: () => ({text: '', rev: 0, mine: true, editing: null})};
@@ -193,60 +191,14 @@ test('LOC-NAV-03: Party Notes buttons say what they save; LOC-NAV-06: players al
   const p = new LocationsApp(); p.render = async () => {};
   const html = await p._renderHTML();
   const tabs = [...html.matchAll(/role="tab" data-tab="(\w+)"/g)].map(m => m[1]);
-  assert.deepEqual(tabs, ['locations', 'routes'], 'Routes is there with no route revealed');
-  p.tab = 'routes';
-  assert.match(await p._renderHTML(), /Routes appear here once your GM reveals them/);
+  assert.deepEqual(tabs, [], 'one section only (Locations), so no tab bar and no Routes tab');
+  p.tab = 'routes';   // an old remembered tab falls back to Locations
+  assert.doesNotMatch(await p._renderHTML(), /data-tab="routes"|agl-route/);
   p.tab = 'locations';
   p.select('LOC-TEST-MILLBROOK');
   p.notesEdit = {ref: p.selectedId, text: '', rev: 0, renewed: Date.now()};
   const notes = await p._renderHTML();
   assert.match(notes, /<span>Cancel notes edit<\/span>[\s\S]*<span>Save Party Notes<\/span>/);
-});
-
-test('LOC-CR-04, LOC-CMP-02, LOC-NAV-02: the route editor has Route / Journey sub-tabs; the unknown-path label is short; a dirty route asks before starting a journey', async () => {
-  const {api} = await world();
-  const route = await api.saveRoute({fromId: 'LOC-TEST-MILLBROOK', toId: 'LOC-TEST-OLD-QUARRY', distanceKm: 12});
-  const app = gmApp();
-  app.tab = 'routes';
-  app.selectRoute(route.id);
-  const html = await app._renderHTML();
-  assert.match(html, /<div class="ag-tabs ag-tabs--sub" role="tablist" aria-label="Route editor sections">/);
-  const journey = html.slice(html.indexOf('id="agl-route-panel-journey"'), html.indexOf('<footer', html.indexOf('id="agl-route-panel-journey"')));
-  assert.match(journey, /hidden>[\s\S]*data-action="route-journey-start"/, 'journey controls on their own sub-tab');
-  const routePanel = html.slice(html.indexOf('id="agl-route-panel-route"'), html.indexOf('id="agl-route-panel-journey"'));
-  assert.doesNotMatch(routePanel, /route-journey-start/);
-  assert.match(routePanel, /Show "Unknown path" from the visible end<\/label>/);
-  assert.match(routePanel, /Map Drawing<\/h3><span class="ag-badge ag-badge--accent agl-now"/);
-  app.setRouteField('terrain', 'Moor'); app.routeTouch();
-  const seen = dialogs('cancel');
-  await app.onAction({dataset: {action: 'route-journey-start', direction: 'forward'}});
-  assert.deepEqual(seen[0].buttons.map(b => b.label), ['Keep editing', 'Save and start the journey']);
-  assert.equal(api.getJourney().journey, null, 'no journey started');
-  assert.equal(api.getRoute(route.id).terrain, '', 'nothing saved');
-});
-
-test('LOC-CMP-06, LOC-NAV-07, LOC-A11Y-05: End journey is a danger confirm with Cancel default; tracker footer puts End journey left; hazard is a status', async () => {
-  const {api} = await world();
-  let aborted = 0;
-  game.modules.get('ashen-gate-locations').api = {...api, abortJourney: async () => { aborted++; }};
-  const app = gmApp();
-  let seen = dialogs('cancel');
-  await app.onAction({dataset: {action: 'route-journey-abort'}});
-  assert.ok(seen[0].classes.includes('ag-dialog--danger'));
-  assert.equal(seen[0].buttons.find(b => b.default)?.action, 'cancel');
-  assert.equal(seen[0].window.title, 'End journey?');
-  assert.equal(aborted, 0, 'Cancel ends nothing');
-  seen = dialogs('confirm');
-  await app.onAction({dataset: {action: 'route-journey-abort'}});
-  assert.equal(aborted, 1);
-  const j = {id: 'J1', routeId: 'RTE-TEST', fromId: 'LOC-A', toId: 'LOC-B', status: 'active', paused: false, legs: 4, legIndex: 1, distanceKm: 20, currentChance: 20, baseChance: 10, hazardCount: 1,
-    log: [{leg: 1, roll: 3, chance: 10, hazard: true, result: '[TEST] Fallen tree', outcome: 'pending'}], pending: {leg: 1, roll: 3, chance: 10, result: '[TEST] Fallen tree'}};
-  const t = gmTrackerHTML({journey: j});
-  const foot = t.slice(t.indexOf('<footer'));
-  assert.ok(foot.indexOf('data-travel="end"') < foot.indexOf('agl-travel__foot-end'), 'End journey first (left)');
-  assert.match(foot, /agl-travel__foot-end">[\s\S]*data-travel="pause"[\s\S]*data-travel="open-route"/);
-  assert.match(t, /class="ag-card agl-travel__hazard" role="status"/);
-  assert.match(t, /data-travel="dismiss" data-tooltip="Discard this hazard\. Players never learn of it\."/);
 });
 
 test('LOC-NAV-05: the GM Items launcher is called Locations', () => {

@@ -13,7 +13,7 @@ const views = [
 ];
 const deps = (over = {}) => {
   const calls = [];
-  return {calls, mayOpen: () => true, readViews: () => views, readJourneyView: () => ({status: 'active', leg: 2, legs: 5, from: {name: '[TEST] Millbrook'}, to: {name: '[TEST] Old Tower'}}),
+  return {calls, mayOpen: () => true, readViews: () => views,
     api: () => ({openLocation: ref => calls.push(['openLocation', ref]), open: () => calls.push(['open'])}), notifyError: e => calls.push(['error', e.message]), ...over};
 };
 function fakeElement() {
@@ -26,9 +26,9 @@ function fakeElement() {
   return el;
 }
 
-test('journey progress and revealed places by region; unidentified ones are left out; names escaped', () => {
+test('revealed places by region; unidentified ones are left out; names escaped; 0.20.0: no journey strip', () => {
   const html = embedHTML(deps());
-  assert.match(html, /Travelling[\s\S]*\[TEST\] Millbrook → \[TEST\] Old Tower[\s\S]*Leg 2 of 5[\s\S]*class="ag-meter__track" role="progressbar"[^>]*aria-valuenow="2"[^>]*style="--ag-meter:40%"/, 'kit meter (0.19.0)');
+  assert.doesNotMatch(html, /agl-embed__journey|Travelling|Leg \d+ of/, 'journeys are retired');
   assert.match(html, /<label class="ag-search">[\s\S]*class="agl-embed__search"/, 'kit search box');
   assert.match(html, /<h4>\[TEST\] Vale <small>2<\/small><\/h4>/);
   assert.match(html, /<h4>Other places <small>1<\/small><\/h4>/);
@@ -37,9 +37,8 @@ test('journey progress and revealed places by region; unidentified ones are left
   assert.ok(html.indexOf('[TEST] Vale') < html.indexOf('Other places'), 'Other places last');
 });
 
-test('hidden from players: only a note; no journey: no journey card; search filters', () => {
+test('hidden from players: only a note; search filters', () => {
   assert.equal(embedHTML(deps({mayOpen: () => false})), '<div class="ag-empty"><p class="ag-empty__title">Locations is hidden</p><p class="ag-empty__text">The GM has hidden Locations.</p></div>');
-  assert.doesNotMatch(embedHTML(deps({readJourneyView: () => null})), /agl-embed__journey/);
   const html = embedHTML(deps(), 'tower');
   assert.match(html, /Old Tower/); assert.doesNotMatch(html, /Millbrook<\/button>/);
   assert.match(embedHTML(deps(), 'zzz'), /No places match/);

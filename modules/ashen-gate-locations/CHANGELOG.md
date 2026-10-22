@@ -1,3 +1,14 @@
+## 0.20.0 — 2026-10-22
+
+**Routes retired.** Routes were finicky in play, so they are gone. A road, river or pass is now just a location whose **Type** is *Route*: a container for hazards, loot, gathering resources and roll tables. It is not linked to other locations (plain parent/child, no ends, nothing drawn on the map). When the party travels, the GM rules and rolls.
+
+- **Removed:** the Routes tab (GM and players), the route editor and cards, legs and hazard chance, journeys (Start / Next leg / Pause / Resume / End journey), the Travel tracker window and its Token-controls button, Foraging/Navigation checks, night watches and pace, the journey-driven party marker, route map drawings, the journey strip in the Character Hub embed, and GM Setup's leg length. Their API calls are gone too (see the README).
+- **New on every location** (*Content* sub-tab): **Hazards** (name, note, optional Roll Table; **Add hazard…**, **Edit…**, **Remove**, **Open table**, **Roll**) and **Roll Tables** (link or drop a table; **Roll** draws it to chat, GM only). Both are GM only until you show an entry with its 👁; players see a shown entry after **Publish**, while the place is revealed, and never a hazard's table. Enforced in the API as well as hidden in the window.
+- **Type** suggests *Route* (and the types already in use); any text is still allowed.
+- **What to do with old routes:** nothing is deleted. Your routes, route ids and journey stay in the world, untouched and unused. **GM Setup → Developer Tools → Convert routes to locations…** (shown only while the world has stored routes) previews, then makes one Hidden *Route* location per route, with a new `LOC-*` id, inside the start location's parent (or inside the start location at the top level), the old hazard table as a GM-only roll table and a GM-only hazard with the route's GM notes. It never converts a route twice and never changes the stored route. Leftovers you can delete by hand if you like: the *Locations (Routes)* Journal, the party marker Map Note (it now opens nothing) and any route drawing.
+- **Import/export:** locations carry `hazards` and `rollTables` (ids kept; `roll_tables` is read too). A Route record no longer fails a file: it is skipped with "Routes are retired; make a location with type Route instead." and the file's locations still import. Export no longer writes Route records.
+- Saved data: additive (`hazards`, `rollTables`, `convertedFromRoute`; older locations read with none). The route settings are no longer registered; their stored values stay. No migration.
+
 ## 0.19.0 — 2026-10-22
 
 UI cleanup from the October UI audit (no new mechanics).
