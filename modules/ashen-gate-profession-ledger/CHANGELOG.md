@@ -1,3 +1,7 @@
+## 0.26.1 — 2026-10-22
+
+- **Profession cards:** the name, **Level** and **Draft** badges stay on one row again, down to the narrow Character Hub embed (also in the Individual tab and the Tidy5e tab, Compact and Comfortable). The badges are slimmer and always stay together; a name that doesn't fit ends in "…" and shows in full on hover. On a very narrow card the badges move together to their own row, right-aligned, instead of wrapping one by one. The tier and XP line no longer overlap on a narrow card. Layout only: nothing shown changed.
+
 ## 0.26.0 — 2026-10-22
 
 UI cleanup (October 2026 audit, PL-02 to PL-13). No setting, flag or id changes; nothing to migrate.
