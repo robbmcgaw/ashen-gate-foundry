@@ -113,7 +113,8 @@ test('tabs: role=tab with aria-selected, scroll sideways, icons hidden, GM Setup
 test('header and tabs stay put: .ag-window with one .ag-scroll pane, scroll kept on re-render, no negative-margin hacks', () => {
   assert.match(tpl, /^<section class="agmanager-body ag-window">/);
   assert.match(tpl, /<\/nav>\n\n  <div class="ag-scroll agm-pane">/);
-  assert.match(main, /scrollable: \["\.agm-pane", "\.aglib-rows"\]/);
+  // 0.45.0: the Import message drawer and the preview table keep their scroll too.
+  assert.match(main, /scrollable: \["\.agm-pane", "\.aglib-rows", "\.agm-drawer__body", "\.agm-preview-table"\]/);
   assert.match(css, /\.ashen-gate-manager \.window-content\{padding:0;overflow:hidden\}/);
   assert.doesNotMatch(css, /margin:0 -16px|margin-top:-12px/);
   assert.doesNotMatch(css, /max-height:(310|340|370|375|480|500)px/, 'no fixed-height nested scrollers');
@@ -177,7 +178,7 @@ test('empty states use the kit with a title and next step; tables are kit tables
     assert.doesNotMatch(t, /<th>/, 'every th has scope');
     assert.doesNotMatch(t, /<th scope="col"[^>]*><\/th>/, 'no empty header');
   }
-  assert.equal((tpl.match(/<table class="ag-table">/g) ?? []).length, (tpl.match(/<div class="ag-table-wrap"><table class="ag-table">|<div class="ag-table-wrap">\n\s*<table class="ag-table">/g) ?? []).length, 'every table is wrapped');
+  assert.equal((tpl.match(/<table class="ag-table">/g) ?? []).length, (tpl.match(/<div class="ag-table-wrap[^"]*"><table class="ag-table">|<div class="ag-table-wrap[^"]*">\n\s*<table class="ag-table">/g) ?? []).length, 'every table is wrapped');
 });
 
 // ---- Items toolbar ----
