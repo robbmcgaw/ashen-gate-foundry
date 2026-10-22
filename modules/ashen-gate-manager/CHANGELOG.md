@@ -1,3 +1,9 @@
+## 0.44.3 — 2026-10-22
+
+- **Import fix:** after Apply, the link pass no longer reports "Optional link LOC-/FACTION-/QUEST-…: missing" for records that exist in Locations, Renown, Quest Log or Headquarters. It now asks the owning module (when active) whether it holds the record; if it does, the link is kept by its permanent id and History shows one note per record, "Linked by permanent id to Renown record FACTION-…". If that module hasn't imported the record yet, the note reads "will link when Renown imports it" (plus "Renown is not active in this world" when it is off). Ids no module owns are still "missing".
+- `SHOP-` ids belong to Utilities: a link to a shop is informational in the preview and after Apply, like the other modules' records. No new linking is added.
+- No import-behaviour or saved-data changes beyond the link check (a link to an existing record of another module is no longer listed as unresolved on the Manager document).
+
 ## 0.44.2 — 2026-10-21
 
 - **Import preview:** an optional link to a record another Ashen Gate module owns and imports itself (Locations `LOC-`/`RTE-`, Renown `FACTION-`/`RENOWN-`/`DEITY-`, Quest Log `QUEST-`/`ORDER-`/`CONTRACT-`/`ASSIGN-`, Headquarters `FAC-`) is no longer listed as an "absent" reference in Import review notes. It shows in a separate info box, **Links to other Ashen Gate modules**, as "links to Renown record FACTION-… (imported separately)", adding "Renown is not active in this world" when that module is off. Links to ids no module owns are still warnings.
