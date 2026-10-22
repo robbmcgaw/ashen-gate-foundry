@@ -2,8 +2,11 @@
    shared kit (ag-ui.css); this file is layout only, in kit tokens. Module classes use the agq- prefix. */
 .agq-app .window-content { padding: 0; overflow: hidden; }
 .agq-root { min-height: 0; }
+.agq-panel { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .agq-pane { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .agq-toolbar { margin: 0; padding: var(--ag-space-2) var(--ag-space-4); border-bottom: 1px solid var(--ag-border); }
+/* 0.17.0 Filters (n) opens a second toolbar row; ticked quests bring a full-width bulk row under it. */
+.agq-filterrow { margin: 0; padding: var(--ag-space-2) var(--ag-space-4); border-bottom: 1px solid var(--ag-border); background: var(--ag-surface-sunken); }
 /* 0.15.0 GM Quests tab: sub-views with counts under the tab strip; they wrap rather than clip. */
 .agq-subbar { padding: var(--ag-space-2) var(--ag-space-4) 0; }
 .agq-subnav { flex-wrap: wrap; max-width: 100%; }
@@ -24,24 +27,21 @@
 :is(.agq-card:hover, .agq-card.is-selected) :is(.agq-card__facts, .agq-card__stats) { color: var(--ag-muted-strong); }
 .agq-kind > i { margin-right: var(--ag-space-1); }
 
-/* Bulk bar over the list */
-.agq-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1) var(--ag-space-2); padding: var(--ag-space-2); border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--ag-surface-sunken); }
-.agq-bulk--idle { border-style: dashed; background: transparent; }
+/* Bulk row under the toolbar; the hint line stays in the list column */
+.agq-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1) var(--ag-space-2); padding: var(--ag-space-2) var(--ag-space-4); border-bottom: 1px solid var(--ag-border); background: var(--ag-surface-sunken); }
+.agq-bulk--idle { padding: var(--ag-space-2); border: 1px dashed var(--ag-border); border-radius: var(--ag-radius); background: transparent; }
 .agq-bulk--idle .ag-field__hint { margin: 0; }
 .agq-bulk__count { font-weight: 600; }
 .agq-bulk__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1); }
 .agq-bulk__status select { width: auto; }
 
-/* Quest editor: collapsible sections, sticky save bar */
+/* Quest editor: kit folds (.ag-fold.agq-sec), sticky save bar, then the Assignments section (saved on its own) */
 .agq-edit { display: flex; flex-direction: column; padding-bottom: 0; }
 .agq-source { display: flex; flex-direction: column; gap: var(--ag-space-2); }
-.agq-sec { border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--ag-surface); }
-.agq-sec__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ag-space-1) var(--ag-space-3); padding: var(--ag-space-2) var(--ag-space-3); cursor: pointer; }
-.agq-sec[open] > .agq-sec__head { border-bottom: 1px solid var(--ag-border); }
-.agq-sec__title { font-weight: 650; }
-.agq-sec__summary { color: var(--ag-muted); font-size: var(--ag-text-sm); overflow-wrap: anywhere; }
-.agq-sec__body { padding: var(--ag-space-2) var(--ag-space-3) var(--ag-space-3); }
-.agq-sec__body > .agq-rewards { margin-top: var(--ag-space-3); }
+.agq-source > .ag-fold + .ag-fold { margin-top: 0; }
+.agq-sec .ag-fold__body > .agq-rewards { margin-top: var(--ag-space-3); }
+.agq-after { margin: var(--ag-space-3) 0; }
+.agq-assign__footer { margin: var(--ag-space-2) calc(-1 * var(--ag-space-3)) calc(-1 * var(--ag-space-3)); border-top: 1px solid var(--ag-border); }
 .agq-savebar { position: sticky; bottom: 0; z-index: 1; margin: var(--ag-space-3) calc(-1 * var(--ag-space-4)) 0; border-top: 1px solid var(--ag-border); background: var(--ag-surface); }
 .agq-savebar.is-dirty { border-top-color: var(--ag-accent); }
 .agq-savebar.is-dirty .ag-footer__status { color: var(--ag-text); font-weight: 600; }
@@ -78,7 +78,7 @@
 .agq-prose { max-width: var(--ag-measure); }
 .agq-note { white-space: pre-wrap; }
 .agq-locations { margin: 0; padding-left: var(--ag-space-5); }
-.agq-location { cursor: pointer; }
+.agq-notefor { max-width: 20rem; }
 .agq-actions { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); margin: var(--ag-space-2) 0; }
 .agq-footer { margin: var(--ag-space-3) 0; border: 1px solid var(--ag-border); border-radius: var(--ag-radius); }
 .agq-srcobj { display: grid; grid-template-columns: minmax(6rem, 1fr) minmax(10rem, 3fr) minmax(9rem, 1.5fr) minmax(7rem, 1fr) auto; align-items: end; gap: var(--ag-space-2) var(--ag-space-3); padding: var(--ag-space-2) 0; border-bottom: 1px solid var(--ag-border); }
@@ -88,8 +88,8 @@
 .agq-objctl { flex-wrap: wrap; padding-block: var(--ag-space-2); }
 .agq-objctl .ag-field { margin: 0; }
 .agq-assignments { margin: var(--ag-space-2) 0 var(--ag-space-3); }
-.agq-advanced { margin-top: var(--ag-space-3); padding: var(--ag-space-2) 0; border-top: 1px solid var(--ag-border); }
-.agq-advanced > summary { padding: var(--ag-space-1) 0; font-weight: 600; cursor: pointer; }
+/* Advanced import fold at the end of the list column */
+.agq-list > .ag-fold { margin-top: auto; }
 .agq-code { width: 100%; min-height: 14rem; font-family: var(--ag-font-mono); white-space: pre; overflow: auto; }
 /* Item rewards (GM editor) and the player's Rewards list */
 .agq-rewards { margin-top: var(--ag-space-4); }
@@ -99,11 +99,18 @@
 .agq-reward__name { font-weight: 600; overflow-wrap: anywhere; }
 .agq-reward__img { flex: none; width: var(--ag-icon-chip); height: var(--ag-icon-chip); border: 0; border-radius: var(--ag-radius-sm); object-fit: cover; }
 .agq-reward__qty { width: 5em; text-align: right; }
+/* 0.17.0 Shown to players and Goes to sit under the item name (four columns). */
+.agq-reward__opts { display: flex; flex-wrap: wrap; gap: var(--ag-space-1) var(--ag-space-3); margin-top: var(--ag-space-2); }
+.agq-reward__opts .ag-field { flex: 1 1 10rem; margin: 0; }
 .agq-reward-drop { display: flex; align-items: center; gap: var(--ag-space-2); margin-top: var(--ag-space-2); padding: var(--ag-space-3); border: 1px dashed var(--ag-border); border-radius: var(--ag-radius); color: var(--ag-muted); }
 .agq-reward-drop.is-over { border-color: var(--ag-accent); color: var(--ag-text); }
 .agq-given { white-space: normal; overflow-wrap: anywhere; }
 .agq-rewards tr[draggable="true"] { cursor: grab; }
-.agq-grant { margin-top: var(--ag-space-3); padding-top: var(--ag-space-2); border-top: 1px solid var(--ag-border); }
+/* Give rewards: its own box, with its footer at the bottom */
+.agq-grant { display: flex; flex-direction: column; gap: var(--ag-space-2); margin-top: var(--ag-space-3); padding: var(--ag-space-2) var(--ag-space-3) 0; border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--ag-surface); }
+.agq-grant__title { margin-top: var(--ag-space-1); }
+.agq-grant > .agq-h { margin-bottom: 0; }
+.agq-grant__footer { margin: var(--ag-space-2) calc(-1 * var(--ag-space-3)) 0; border-top: 1px solid var(--ag-border); }
 .agq-grant__choices { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1) var(--ag-space-3); }
 .agq-grant__choices .ag-field { margin: 0; }
 .agq-rewards-view { margin-top: var(--ag-space-4); }
@@ -155,7 +162,8 @@
 .agq-jside__tools { display: flex; align-items: center; gap: var(--ag-space-2); }
 .agq-jside__tools .ag-search { flex: 1 1 auto; min-width: 0; }
 .agq-jside__tools .ag-btn { flex: none; }
-.agq-jside__archived { margin: 0; }
+.agq-jside__archived,
+.agq-jside__hint { margin: 0; }
 .agq-jsession { align-items: flex-start; gap: var(--ag-space-1); padding-block: var(--ag-space-2); }
 .agq-jsession__main { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; align-items: flex-start; gap: var(--ag-space-2); padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; font-weight: 400; text-align: left; }
 .agq-jsession__main:hover:not(:disabled) { background: transparent; }
@@ -170,14 +178,15 @@
 .agq-jsession__actions { display: flex; justify-content: space-between; gap: var(--ag-space-2); }
 .agq-jhit { flex-direction: column; align-items: flex-start; text-align: left; }
 .agq-jhit__snippet { display: block; color: var(--ag-muted); font-size: var(--ag-text-sm); white-space: normal; overflow-wrap: anywhere; }
-.agq-jdetail { display: flex; flex-direction: column; gap: var(--ag-space-3); }
+.agq-jdetail { display: flex; flex-direction: column; gap: var(--ag-space-3); container-type: inline-size; }
+.agq-jactions { justify-content: flex-end; }
 .agq-jdetail > .ag-notice { margin: 0; }
 .agq-jhead { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: var(--ag-space-3); }
 .agq-jhead__title { min-width: 0; }
 .agq-jhead__sub { margin: var(--ag-space-1) 0 0; color: var(--ag-muted); font-style: italic; overflow-wrap: anywhere; }
 .agq-jhead__tools { display: flex; align-items: flex-end; flex-wrap: wrap; gap: var(--ag-space-2); }
 .agq-jwho { margin: 0; }
-.agq-jtoggle { display: inline-flex; flex-wrap: wrap; gap: var(--ag-space-1); }
+.agq-jtoggle > button { display: inline-flex; align-items: center; gap: var(--ag-space-1); }
 .agq-jtools { display: flex; flex-wrap: wrap; gap: var(--ag-space-1); padding: var(--ag-space-1); border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--ag-surface); }
 .agq-jtool { font-weight: 700; }
 .agq-book { position: relative; padding: var(--ag-space-5) var(--ag-space-6); border: 1px solid var(--ag-border-strong); border-radius: var(--ag-radius-lg); background: linear-gradient(to right, var(--ag-surface-raised) calc(50% - var(--ag-space-5)), var(--ag-surface-sunken) 50%, var(--ag-surface-raised) calc(50% + var(--ag-space-5))); box-shadow: var(--ag-shadow); }
@@ -200,7 +209,8 @@
 .agq-book__pages ol { margin: 0 0 var(--ag-space-2); padding-left: var(--ag-space-5); }
 .agq-book__pages blockquote { margin: 0 0 var(--ag-space-2); padding-left: var(--ag-space-3); border-left: 2px solid var(--ag-border); color: var(--ag-muted-strong); }
 .agq-jfooter { margin: 0; }
-@container (max-width: 40rem) {
+/* 0.17.0 One page below about 46rem of the page pane (QJ-01), not of the whole window. */
+@container (max-width: 46rem) {
   .agq-book { padding: var(--ag-space-4); background: var(--ag-surface-raised); }
   .agq-book::before { display: none; }
   .agq-book__pages { height: auto; min-height: 16rem; column-count: 1; overflow: visible; }

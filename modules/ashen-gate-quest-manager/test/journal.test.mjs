@@ -4,7 +4,8 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {sessionId,nextNumber,freeId,cleanTitle,readSession,sortSessions,currentSession,personalOwnership,partyOwnership,entryOwnership,
  canUseJournal,canReadPage,canWritePage,canRename,sanitizeHtml,htmlToText,htmlToMarkdown,searchJournal,MAX_NAME} from '../scripts/journal-core.mjs';
 import {createJournalStore,JournalConflict} from '../scripts/journal-store.mjs';
-import {buildJournalModel,journalPaneHTML,newJournalView,FORMAT_COMMANDS,FORMATS} from '../scripts/journal-ui.mjs';
+import {buildJournalModel,journalPaneHTML,newJournalView,FORMAT_COMMANDS,FORMATS,PRESSABLE,showPressed,bindRadios,bindToolbarKeys} from '../scripts/journal-ui.mjs';
+import {El} from './helpers/fake-dom.mjs';
 
 const MOD='ashen-gate-quest-manager';
 globalThis.game={user:null};
@@ -231,7 +232,14 @@ test('markup: sidebar newest first, toggle, toolbar, book; GM view of a player p
  assert.equal(jv.sessionId,'SESSION-002','opens the current session');
  assert.ok(html.indexOf('data-session-row="SESSION-002"')<html.indexOf(`data-session-row="${id}"`),'newest first');
  assert.match(html,/Current<\/span>/);assert.match(html,/The gate/);
- assert.match(html,/aria-pressed="true"[^>]*><i class="fa-solid fa-user"/,'My journal pressed');
+ // 0.17.0 QJ-02: the kit's segmented control (radios) for My journal / Party journal; one Tab stop.
+ assert.match(html,/<div class="ag-segmented agq-jtoggle" role="radiogroup" aria-label="Which journal"><button type="button" role="radio" id="agq-jt-me" data-jaction="target" data-target="me" aria-checked="true" tabindex="0"><i class="fa-solid fa-user"/,'My journal checked');
+ assert.match(html,/data-target="party" aria-checked="false" tabindex="-1"/);
+ // QJ-07 New session is secondary (Save is the one primary); QJ-04 one Tab stop on the toolbar, toggles carry aria-pressed.
+ assert.match(html,/data-jaction="new" class="ag-btn ag-btn--sm"/);assert.equal((html.match(/ag-btn--primary/g)||[]).length,1);
+ assert.match(html,/data-format="bold"[^>]*tabindex="0" aria-pressed="false"/);assert.match(html,/data-format="italic"[^>]*tabindex="-1" aria-pressed="false"/);
+ assert.match(html,/data-format="h2"[^>]*tabindex="-1"><span aria-hidden="true">H2<\/span>/,'heading and subheading use the same kind of glyph');
+ assert.doesNotMatch(html.match(/data-format="h2"[^>]*>/)[0],/aria-pressed/);
  for(const f of FORMATS)assert.match(html,new RegExp(`data-format="${f.id}"`));
  assert.deepEqual(Object.keys(FORMAT_COMMANDS).sort(),FORMATS.map(f=>f.id).sort());
  assert.match(html,/id="agq-journal-editor" contenteditable="true"[^>]*>(<p>Hello <strong>you<\/strong><\/p>)<\/div>/);
@@ -242,9 +250,12 @@ test('markup: sidebar newest first, toggle, toolbar, book; GM view of a player p
  assert.doesNotMatch(journalPaneHTML(w.as('bob',()=>buildJournalModel(w.store('bob'),newJournalView(false),w.users.get('bob')))),/data-jaction="rename"/);
  const gv={...newJournalView(true),target:'alice'};
  const gh=journalPaneHTML(w.as('gm',()=>buildJournalModel(w.store('gm'),gv,w.users.get('gm'))));
- assert.match(gh,/<select id="agq-journal-who"><option value="party" >Party journal<\/option><option value="alice" selected>Alice&#39;s journal/);
+ assert.match(gh,/Whose journal<select id="agq-journal-who"><option value="party" >Party journal<\/option><option value="alice" selected>Alice&#39;s journal/);
  assert.match(gh,/contenteditable="false"/);assert.doesNotMatch(gh,/data-format=|data-journal-status/);
  assert.match(gh,/Only they can write it/);assert.match(gh,/Export Markdown/);assert.match(gh,/Archive session/);assert.match(gh,/data-jaction="rename"/);
+ // QJ-03 Session actions sit on their own line under the session title, Archive session last.
+ assert.match(gh,/<\/header><div class="ag-btn-group agq-jactions" role="group" aria-label="Session actions">[^]*Export Markdown[^]*Archive session<\/button><\/div>/);
+ assert.doesNotMatch(gh.slice(gh.indexOf('agq-jhead__tools'),gh.indexOf('</header>')),/Export Markdown|Archive session/);
  gv.renaming='SESSION-002';
  assert.match(journalPaneHTML(w.as('gm',()=>buildJournalModel(w.store('gm'),gv,w.users.get('gm')))),/id="agq-jr-name" maxlength="80" value="Second"[\s\S]*id="agq-jr-subtitle"[^>]*value="The gate"/);
 });
@@ -260,4 +271,25 @@ test('markup: empty, archived, and search results',async()=>{
  const hv={...newJournalView(false),query:'lamp'};
  const hh=journalPaneHTML(w.as('alice',()=>buildJournalModel(w.store('alice'),hv,w.users.get('alice'))));
  assert.match(hh,/data-jaction="hit" data-id="SESSION-001" data-target="party"[\s\S]*Rope &amp; lamp/);
+});
+
+test('0.17.0 QJ-05: a player with no GM connected sees New session and rename disabled, with a hint',async()=>{
+ const w=makeWorld();w.store('gm');await w.call('alice',s=>s.create({}));
+ const m=w.as('alice',()=>buildJournalModel(w.store('alice'),newJournalView(false),w.users.get('alice')));
+ assert.doesNotMatch(journalPaneHTML(m),/needs a GM connected/);
+ m.noGM=true;const html=journalPaneHTML(m);
+ assert.match(html,/data-jaction="new" class="ag-btn ag-btn--sm" disabled/);assert.match(html,/New session needs a GM connected\./);
+ assert.match(html,/data-jaction="rename" class="[^"]*" data-id="[^"]+" disabled/);
+});
+test('0.17.0 QJ-02/QJ-04: radios and the formatting toolbar move with the arrow keys; toggles show the caret\'s format',()=>{
+ const root=new El();root.innerHTML='<div class="ag-segmented" role="radiogroup"><button role="radio" data-target="me" aria-checked="true"></button><button role="radio" data-target="party" aria-checked="false"></button></div><div class="agq-jtools" role="toolbar"><button data-format="bold" tabindex="0" aria-pressed="false"></button><button data-format="h2" tabindex="-1"></button><button data-format="ul" tabindex="-1" aria-pressed="false"></button></div>';
+ const [me,party]=root.querySelectorAll('[role="radio"]');const clicks=[];party.click=()=>clicks.push('party');me.click=()=>clicks.push('me');
+ bindRadios(root.querySelector('[role="radiogroup"]'));me.fire('keydown',{key:'ArrowRight'});assert.deepEqual(clicks,['party']);
+ me.fire('keydown',{key:'Enter'});assert.deepEqual(clicks,['party'],'other keys do nothing');
+ const bar=root.querySelector('.agq-jtools'),[bold,h2,ul]=bar.querySelectorAll('button');bindToolbarKeys(bar);
+ bold.fire('keydown',{key:'ArrowLeft'});assert.deepEqual([bold,h2,ul].map(b=>b.getAttribute('tabindex')),['-1','-1','0'],'wraps to the end');
+ ul.fire('keydown',{key:'Home'});assert.equal(bold.getAttribute('tabindex'),'0');
+ showPressed(root,cmd=>cmd==='insertUnorderedList');
+ assert.equal(bold.getAttribute('aria-pressed'),'false');assert.equal(ul.getAttribute('aria-pressed'),'true');assert.equal(h2.getAttribute('aria-pressed'),null);
+ assert.deepEqual(Object.keys(PRESSABLE).sort(),['bold','italic','ol','ul','underline']);
 });

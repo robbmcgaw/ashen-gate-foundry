@@ -22,23 +22,30 @@ const app=await module.api.open();
 const setupForm=({access,packs})=>({querySelector:sel=>sel==='#ag-player-access'?{checked:access}:sel==='#ag-compendium-packs'?{value:packs}:null});
 const reset=()=>{sets.length=0;notes.length=0;dialogs.length=0;settings.playerAccessEnabled=false;settings.compendiumPackIds='world.old';game.user=gm;};
 
-test('header: brand, overlay toggle, then version, then Help; tabs are typed, labelled tabs; GM tabs last',async()=>{
+test('header: brand, then version, then Help only (0.17.0, QL-03); tabs are typed, labelled tabs with arrow keys; GM tabs last',async()=>{
  reset();app.tab='party';const html=await app.render();
  const head=html.slice(html.indexOf('<header class="ag-header"'),html.indexOf('</header>'));
  assert.match(head,/<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Quest Log<\/h1>/);
  const at=k=>head.indexOf(k);
- assert.ok(at('toggle-overlay')<at('ag-version')&&at('ag-version')<at('data-action="help"'),'overlay, version, Help');
+ assert.ok(at('ag-version')<at('data-action="help"'),'version, Help');
+ assert.doesNotMatch(head,/toggle-overlay|<p>|data-action="(?!help)/,'no subtitle, no other header control');
+ // QL-04 The overlay toggle is at the right end of the Party / Individual toolbar.
+ assert.match(html,/<div class="ag-toolbar agq-toolbar">[\s\S]*id="ag-player-filter"[\s\S]*id="ag-quest-count"[\s\S]*<div class="ag-toolbar__end"><button type="button" data-action="toggle-overlay" class="ag-btn ag-btn--ghost ag-btn--sm"[^>]*><i class="fa-solid fa-list-check" aria-hidden="true"><\/i> Show objectives overlay<\/button><\/div><\/div>\s*<div class="ag-split agq-split">/);
+ // On Party the character select sits in the Character notes heading; on Individual it is in the toolbar.
+ assert.doesNotMatch(html.slice(0,html.indexOf('agq-split')),/id="ag-actor"/);
  assert.match(head,/data-action="help" class="ag-btn ag-btn--ghost ag-btn--sm"/);
- assert.match(head,/<span class="ag-version">v0\.16\.1<\/span>/);
+ assert.match(head,/<span class="ag-version">v0\.17\.0<\/span>/);
  assert.match(html,/<nav class="ag-tabs ag-tabs--scroll" role="tablist"/);
- const tabs=[...html.matchAll(/<button type="button" role="tab" data-tab="(\w+)" aria-selected="(true|false)" class="([^"]*)">/g)].map(m=>[m[1],m[2],m[3]]);
+ const tabs=[...html.matchAll(/<button type="button" role="tab" id="agq-tab-(\w+)" data-tab="\1" aria-selected="(true|false)" aria-controls="agq-panel" tabindex="(0|-1)" class="([^"]*)">/g)].map(m=>[m[1],m[2],m[4],m[3]]);
  assert.deepEqual(tabs.map(t=>t[0]),['party','individual','journal','quests','setup']);
  assert.deepEqual(tabs.map(t=>t[1]),['true','false','false','false','false']);
  assert.ok(tabs.slice(3).every(t=>t[2].includes('ag-tab--gm')));
  assert.ok(!tabs[2][2].includes('ag-tab--gm'),'the Journal tab is for players too');
+ assert.deepEqual(tabs.map(t=>t[3]),['0','-1','-1','-1','-1'],'one Tab stop on the tab row');
+ assert.match(html,/<div class="agq-panel" id="agq-panel" role="tabpanel" aria-labelledby="agq-tab-party">/);
  assert.doesNotMatch(html,/<button\b[^>]*\stitle=/,'no native title tooltips');
  assert.doesNotMatch(html,/<footer class="ag-footer[^"]*"><span>/,'the permission strip is a notice now, not a footer');
- assert.match(html,/ag-notice ag-notice--info/);
+ assert.doesNotMatch(html,/ag-notice ag-notice--info/,'QL-12: the GM notice moved to Help');
 });
 test('players do not see GM tabs or the GM notice',async()=>{
  reset();settings.playerAccessEnabled=true;game.user=alice;app.tab='party';
@@ -87,7 +94,7 @@ test('editor: Cancel bottom-left, Save bottom-right; Delete quest sits in the ed
  reset();app.tab='quests';app.gmId='QUEST-TEST-WELL';
  const html=await app.render();
  const head=html.slice(html.indexOf('<header class="agq-edit__head"'),html.indexOf('</header>',html.indexOf('agq-edit__head')));
- assert.match(head,/\[TEST\] The Old Well/);assert.match(head,/data-action="delete" class="ag-btn ag-btn--danger ag-btn--sm"/);
+ assert.match(head,/\[TEST\] The Old Well/);assert.match(head,/data-action="delete" class="ag-btn ag-btn--danger ag-btn--sm"><i class="fa-solid fa-trash" aria-hidden="true"><\/i> Delete quest…/);
  // 0.15.0 One sticky save bar for the whole quest: Cancel left, Save changes right.
  const footers=[...html.matchAll(/<footer class="ag-footer agq-savebar">([\s\S]*?)<\/footer>/g)].map(m=>m[1]);
  assert.equal(footers.length,1);
@@ -95,7 +102,10 @@ test('editor: Cancel bottom-left, Save bottom-right; Delete quest sits in the ed
  assert.doesNotMatch(footers[0],/data-action="delete"|remove-assignment/);
  assert.match(html,/<label class="ag-field">Permanent ID<input id="ag-src-id"/);
  assert.match(html,/class="ag-form-grid"/);
- assert.match(html,/<aside class="ag-split__list agq-list" aria-label="Quests" data-ag-scroll="gm-list"><div class="agq-bulk[^"]*" id="ag-gm-bulk">[\s\S]*<div id="ag-gm-cards">/);
+ // 0.17.0 QL-05: the bulk row sits full width under the toolbar; the list column keeps only the hint line.
+ assert.match(html,/<\/div><\/div><div class="agq-bulk" id="ag-gm-bulk" role="group" aria-label="Bulk actions" hidden><\/div><div class="ag-split agq-split"><aside class="ag-split__list agq-list" aria-label="Quests" data-ag-scroll="gm-list"><div class="agq-bulk agq-bulk--idle" id="ag-gm-bulkhint">[\s\S]*<div id="ag-gm-cards">/);
+ // QL-12 The GM notice is in Help now, not on every editor view.
+ assert.doesNotMatch(html,/ag-notice--info/);
 });
 test('editor Cancel with unsaved changes asks first; Keep editing keeps them, Discard drops them',async()=>{
  reset();app.tab='quests';app.unsavedSource=true;answer='cancel';
@@ -122,9 +132,14 @@ test('Clear filters puts the Quests list back to every quest',async()=>{
 test('0.11.0/0.15.0: Item rewards sit in the Rewards section, before Campaign status and the GM notes assignments; api.rewards is GM only',async()=>{
  reset();app.tab='quests';app.gmId='QUEST-TEST-WELL';
  const html=await app.render();
- const sec=k=>html.indexOf(`data-section="${k}"`),rewards=html.indexOf('<section class="agq-rewards ag-section" data-reward-zone>'),assign=html.indexOf('Delegated assignments');
- assert.deepEqual(['basics','audience','objectives','rewards','status','gmnotes'].map(sec).map((x,i,a)=>x>0&&(i===0||x>a[i-1])),[true,true,true,true,true,true],'sections in order');
- assert.ok(rewards>sec('rewards')&&rewards<sec('status')&&assign>sec('gmnotes'),'rewards in Rewards, assignments in GM notes');
+ const sec=k=>html.indexOf(`data-section="${k}"`),rewards=html.indexOf('<section class="agq-rewards ag-section" data-reward-zone>'),assign=html.indexOf('id="ag-assignment-json"'),bar=html.indexOf('agq-savebar');
+ const order=['basics','audience','objectives','rewards','status','gmnotes','json','assignments'];
+ assert.deepEqual(order.map(sec).map((x,i,a)=>x>0&&(i===0||x>a[i-1])),order.map(()=>true),'sections in order');
+ // 0.17.0 QL-02: assignments have their own section after the save bar (they save on their own); no fold inside a fold.
+ assert.ok(rewards>sec('rewards')&&rewards<sec('status')&&assign>sec('assignments')&&sec('assignments')>bar,'rewards in Rewards, assignments in their own section after Save changes');
+ assert.doesNotMatch(html,/agq-advanced/);
+ assert.match(html,/data-section="rewards"><summary class="ag-fold__summary"><span class="ag-fold__title">Rewards<\/span><span class="ag-fold__hint">Item rewards save as you change them<\/span>/);
+ assert.match(html,/<footer class="ag-footer agq-assign__footer"><button type="button" data-action="cancel-assignment" class="ag-btn ag-btn--ghost">Cancel<\/button><span class="ag-footer__status" role="status" data-assign-status>New assignment<\/span><button type="button" data-action="save-assignment" class="ag-btn">/);
  assert.match(html,/No item rewards yet/);
  assert.match(html,/id="ag-reward-recorded" type="checkbox" > Rewards handled outside Quest Log<\/label>/);
  assert.equal(module.api.rewards.contract,'ag-quest-rewards/1');

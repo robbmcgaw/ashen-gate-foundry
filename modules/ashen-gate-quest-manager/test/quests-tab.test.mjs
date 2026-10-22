@@ -1,7 +1,8 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {initialState} from '../scripts/core.mjs';
 import {statusChip,questRow,filterRows,sortRows,groupRows,listQuestsTab,CONTENT_ACTIONS,SETUP_ACTIONS,CHIPS} from '../scripts/quests-tab.mjs';
-import {setupPanel,questsToolbar,questCards,safeButton} from '../scripts/gm-panels.mjs';
+import {setupPanel,questsToolbar,questCards,safeButton,questsAdvanced,filterLabel} from '../scripts/gm-panels.mjs';
+import {filterCount} from '../scripts/quests-tab.mjs';
 import {publicView} from '../scripts/core.mjs';
 const src=(id,name,o={})=>({id,entity_type:'Objective',objective_kind:id.startsWith('ORDER')?'work_order':id.startsWith('CONTRACT')?'contract':'quest',status:'approved',version:'1',provenance:{sources:['[TEST]']},visibility:'reveal_gated',refs:[],name,public_summary:'',source:{},objectives:[{key:'a',goal:'g',visibility:'player'}],locations:[],parameters:{},outcomes:{},...(id.startsWith('ORDER')?{work_order_domain:'crafting'}:{}),...o});
 const entry=(s,st={})=>({source:s,state:{...initialState(s),...st}});
@@ -50,34 +51,46 @@ test('sort and group',()=>{
  assert.deepEqual(groupRows(rows,'type').map(g=>g.key),['Quest','Order','Contract']);
  assert.equal(groupRows(rows,'none').length,1);
 });
-test('GM Setup holds settings only',()=>{
- const html=setupPanel({playerAccess:true,packIds:'world.q',overlayVisible:false});
+test('GM Setup holds settings only (0.17.0: the overlay toggle left it)',()=>{
+ const html=setupPanel({playerAccess:true,packIds:'world.q'});
  const actions=[...html.matchAll(/data-action="([^"]+)"/g)].map(m=>m[1]);
- assert.ok(actions.length);
+ assert.deepEqual(actions,['cancel-setup','save-setup']);
  for(const a of actions){assert.ok(SETUP_ACTIONS.includes(a),a);assert.ok(!CONTENT_ACTIONS.includes(a),a);}
- assert.ok(!/ag-src-|source-json|Import|Export|New quest/.test(html));
+ assert.ok(!/ag-src-|source-json|Import|Export|New quest|overlay/.test(html));
+ assert.match(html,/The Journal tab also follows Character Hub's Quests visibility/,'QJ-06');
 });
-test('Quests tab toolbar offers New, Import and Export; cards are selectable',()=>{
+test('Quests tab toolbar offers New quest; Import and Export sit under Advanced; cards are selectable',()=>{
  const html=questsToolbar({},[]);
- for(const a of ['new','import','export'])assert.match(html,new RegExp(`data-action="${a}"`));
+ assert.match(html,/data-action="new"/);assert.doesNotMatch(html,/data-action="(import|export)"/);
+ const adv=questsAdvanced();
+ assert.match(adv,/<details class="ag-fold" data-ag-fold-key="quests-import"><summary class="ag-fold__summary"><span class="ag-fold__title">Advanced: import here, or use General Manager<\/span>/);
+ assert.match(adv,/<span class="ag-file"><button type="button" class="ag-btn ag-btn--sm" data-ag-file-button>[^<]*<i[^>]*><\/i> Import JSON…<\/button><input type="file" class="ag-file__input ag-sr-only" tabindex="-1" aria-hidden="true" accept="\.json,application\/json">/,'a real button opens a visually hidden input');
+ assert.match(adv,/data-action="export"/);
  const g=listQuestsTab(data).groups;
  assert.match(questCards(g,'QUEST-ACT'),/data-id="QUEST-ACT"/);
  assert.match(questCards([],null,{total:3}),/Nothing matches[\s\S]*data-action="clear-filters"/);
  assert.match(questCards([],null,{total:0}),/No quests yet[\s\S]*data-action="new"/);
 });
-test('toolbar order: search, filters, group, sort, count, then Import/Export small and New quest (plain, not gold) on the right',()=>{
+test('toolbar (QL-05): one row of search, Filters (n), group, sort, count and New quest; type, location and visible in the row Filters opens',()=>{
  const html=questsToolbar({group:'location',sort:'changed'},[['LOC-PIER','[TEST] Pier']],{shown:2,total:8});
- const at=k=>html.indexOf(k);
- assert.ok(at('ag-search')<at('ag-toolbar__filters')&&at('ag-gm-group')<at('ag-gm-sort')&&at('ag-gm-sort')<at('ag-toolbar__count')&&at('ag-toolbar__count')<at('ag-toolbar__end'));
- assert.ok(at('data-action="export"')<at('data-action="new"'),'New quest is the rightmost control');
+ const row1=html.slice(0,html.indexOf('agq-filterrow')),row2=html.slice(html.indexOf('agq-filterrow'));
+ const at=k=>row1.indexOf(k);
+ assert.ok(at('ag-search')<at('data-action="toggle-filters"')&&at('toggle-filters')<at('ag-gm-group')&&at('ag-gm-group')<at('ag-gm-sort')&&at('ag-gm-sort')<at('ag-toolbar__count')&&at('ag-toolbar__count')<at('ag-toolbar__end'));
+ assert.match(row1,/aria-expanded="false" aria-controls="ag-gm-filters"><i class="fa-solid fa-filter" aria-hidden="true"><\/i> <span data-filter-label>Filters<\/span>/);
+ assert.doesNotMatch(row1,/ag-gm-type|ag-gm-location|ag-gm-visible/);
+ assert.match(row2,/id="ag-gm-filters" role="group" aria-label="Filters" hidden>/);
+ for(const id of ['ag-gm-type','ag-gm-location','ag-gm-visible'])assert.match(row2,new RegExp(`id="${id}"`));
+ assert.match(row2,/data-action="clear-filters"/);
  assert.match(html,/2 of 8 quests/);
  assert.match(html,/<option value="LOC-PIER" >\[TEST\] Pier<\/option>/);
  assert.match(html,/<option value="location" selected>Group: Location/);assert.match(html,/<option value="changed" selected>Sort: Recently changed/);
  for(const g of ['status','location','type','giver'])assert.match(html,new RegExp(`value="${g}"[^>]*>Group:`));
  for(const s of ['name','status','location','changed'])assert.match(html,new RegExp(`value="${s}"[^>]*>Sort:`));
  assert.match(html,/data-action="new" class="ag-btn"><i class="fa-solid fa-plus" aria-hidden="true"><\/i> New quest/);
- assert.match(html,/data-action="import" class="ag-btn ag-btn--sm"/);
  assert.doesNotMatch(html,/ag-btn--primary|\stitle=|data-qv-status/);
+ const open=questsToolbar({type:'contract',visible:'no'},[],{filtersOpen:true});
+ assert.match(open,/aria-expanded="true"[^>]*>[^]*Filters \(2\)/);assert.match(open,/aria-label="Filters">/,'the row is shown');
+ assert.equal(filterCount({type:'all',location:'LOC-A',visible:'all',sort:'changed'}),1);assert.equal(filterLabel(0),'Filters');
 });
 test('quest cards: pick box, title, type badge, status chip, visibility, objectives done/total, grouped with counts',()=>{
  const rows=[entry(src('QUEST-TWO','[TEST] Two',{objectives:[{key:'a',goal:'g',visibility:'player'},{key:'b',goal:'h',visibility:'player'}]}),{status:'Active',revealed:true,progress:{a:'complete'}})];

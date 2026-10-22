@@ -199,10 +199,10 @@ test('markup: Given to badge, Grant again, draggable rows; Give rewards panel us
  assert.match(html,/data-action="open-grant" class="ag-btn"[^>]*><i class="fa-solid fa-gift" aria-hidden="true"><\/i> Give rewards<\/button>/);
  const owed=rows.filter(r=>r.owed);
  const panel=grantPanel(owed,defaultChoices(owed));
- assert.match(panel,/<div class="agq-grant" data-grant-panel>/);
+ assert.match(panel,/<div class="agq-grant" data-grant-panel role="group" aria-labelledby="agq-grant-title">/);
  assert.match(panel,/<div class="ag-table-wrap"><table class="ag-table">/);
  assert.match(panel,/<ul class="ag-list" data-grant-summary>/);
- assert.match(panel,/<footer class="ag-footer agq-footer"><button type="button" data-action="close-grant" class="ag-btn ag-btn--ghost">Not now<\/button><span class="ag-footer__status" role="status" data-grant-status>Choose a character for \[TEST\] bag\.<\/span><button type="button" data-action="grant-rewards" class="ag-btn ag-btn--primary" disabled>/);
+ assert.match(panel,/<footer class="ag-footer agq-grant__footer"><button type="button" data-action="close-grant" class="ag-btn ag-btn--ghost">Not now<\/button><span class="ag-footer__status" role="status" data-grant-status>Choose a character for \[TEST\] bag\.<\/span><button type="button" data-action="grant-rewards" class="ag-btn ag-btn--primary" disabled>/);
  assert.match(panel,/<select data-grant-actor aria-label="Character for \[TEST\] bag"><option value="">Choose a character<\/option>/);
  assert.match(panel,/data-grant-each value="aria" checked/);
  assert.doesNotMatch(panel,/\stitle=/);assert.doesNotMatch(html,/\stitle=/);

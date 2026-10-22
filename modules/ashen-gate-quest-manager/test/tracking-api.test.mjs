@@ -35,7 +35,7 @@ await import('../scripts/main.mjs');
 once.get('init')();once.get('ready')();
 
 test('v0.4.0 preserves original APIs, hides both advanced world settings in Game Settings',()=>{
- assert.equal(module.api.version,'0.16.1');
+ assert.equal(module.api.version,'0.17.0');
  assert.equal(module.api.assignments.contract,'ag-quest-assignments/0.1-alpha');
  assert.equal(module.api.consumer.contract,'ag-objective-consumer/0.2-alpha');
  assert.equal(settingsDefs.get('playerAccessEnabled').config,false);
@@ -59,9 +59,9 @@ test('GM Setup is settings-only and the Quests tab holds the authoring form',asy
  const questsHtml=await lastApp.render();
  assert.match(questsHtml,/New quest/);
  assert.match(questsHtml,/data-action="save-quest"[^>]*>Create quest/);
- assert.match(questsHtml,/Advanced: canonical source JSON/);
+ assert.match(questsHtml,/Advanced: source JSON/);
  assert.match(questsHtml,/Reveal when GM approves/);
- assert.match(questsHtml,/data-action="import"/);
+ assert.match(questsHtml,/Advanced: import here, or use General Manager[\s\S]*data-ag-file-button[^>]*>.*Import JSON…/,'Quest Log\'s own importer sits under Advanced (QL-13)');
  assert.match(questsHtml,/data-action="export"/);
  assert.doesNotMatch(questsHtml,/save-setup|ag-player-access/);
 });
