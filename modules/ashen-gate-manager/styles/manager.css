@@ -308,3 +308,9 @@ button.agcodex-link:hover,button.agm-codex-link:hover{background:var(--ag-surfac
 .agm-drawer__body{max-height:min(18rem,35vh);padding:0 var(--ag-space-4) var(--ag-space-3)}
 .agm-drawer__body .ag-notice ul{margin:var(--ag-space-1) 0 0;padding-left:var(--ag-space-5)}
 .agm-drawer__body .ag-notice li,.agm-drawer__body .agmanager-result-line{overflow-wrap:anywhere}
+/* 0.47.0 smart icons: preview Icon column and Items → Checks → Improve icons. */
+.agm-icon{display:flex;align-items:flex-start;gap:var(--ag-space-2);min-width:14rem}
+.agm-icon__thumb{flex:0 0 auto;width:2rem;height:2rem;object-fit:contain;border:1px solid var(--ag-border);border-radius:var(--ag-radius-sm);background:var(--ag-surface-sunken)}
+.agm-icon__text{flex:1 1 auto;min-width:0}
+.agm-icon__path{overflow-wrap:anywhere;font-size:var(--ag-text-sm)}
+.agm-icon__actions{display:flex;flex-direction:column;gap:var(--ag-space-1)}
