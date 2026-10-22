@@ -271,11 +271,12 @@ export function createApi(deps) {
       if (!loc) throw new Error(`No location ${locationId}.`);
       const node = loc.resources.find(n => n.key === nodeId);
       if (!node) throw new Error(`No gathering node ${nodeId} at ${locationId}.`);
-      if (exhausted && !node.finite) throw new Error(`${node.label || nodeId} is not finite, so it cannot be exhausted.`);
+      // A template reference with no finite of its own (null) follows its template; the Ledger only exhausts finite nodes.
+      if (exhausted && node.finite === false) throw new Error(`${node.label || nodeId} is not finite, so it cannot be exhausted.`);
       node.exhausted = exhausted;
       // Play state, not authored content: players see it straight away, without a Publish.
       const shown = loc.published?.resources.find(n => n.key === nodeId);
-      if (shown) shown.exhausted = exhausted && shown.finite;
+      if (shown) shown.exhausted = exhausted && shown.finite !== false;
       await deps.writeAll(all);
       return nodeForGM(node);
     },
