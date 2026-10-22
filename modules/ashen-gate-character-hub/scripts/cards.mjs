@@ -107,6 +107,8 @@ const cell = (col, row) => `<span class="agch-card__fact" data-label="${esc(col.
  */
 export function cardHtml(row, columns, {controls = '', lead = '', star = '', badges = '', alt = false, expanded = null, listKey = ''} = {}) {
   const detailKey = sectionKey('more', listKey, row.id), open = expanded?.has?.(detailKey) === true;
+  // 0.36.0: an activity recipe's effect note: a badge whose tooltip holds the note; the same text is in the row (summary or More).
+  if (row.effectNote) badges = `<span class="ag-badge ag-badge--accent agch-effect-badge" data-tooltip="${esc(`Effect (the GM decides): ${row.effectNote}`)}"><i class="fa-solid fa-wand-sparkles" aria-hidden="true"></i> Effect</span>${badges}`;
   const more = row.more ? `<button type="button" class="agch-card__more" data-action="item-more" data-id="${esc(row.id)}" data-key="${esc(detailKey)}" data-ag-always aria-expanded="${open}" aria-controls="${esc(detailKey)}">${open ? 'Less' : 'More'}</button>` : '';
   return `<li class="agch-card${alt ? ' is-alt' : ''}${row.equipped ? ' is-equipped' : ''}${row.rarity ? ' has-rarity ag-rarity-edge' : ''}" data-item-id="${esc(row.id)}"${row.rarity ? ` data-rarity="${row.rarity}"` : ''}${row.uuid ? ` draggable="true" data-drag-uuid="${esc(row.uuid)}"` : ''}>
     <span class="agch-card__lead">${lead}${star}</span>
