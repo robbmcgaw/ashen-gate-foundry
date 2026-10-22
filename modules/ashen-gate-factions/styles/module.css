@@ -70,23 +70,32 @@
 .agf-knowledge__name { color:var(--ag-accent); font-weight:600; }
 .agf-knowledge__text { margin:var(--ag-space-1) 0; line-height:1.45; white-space:pre-wrap; }
 
-/* Organizations roster and GM editors. */
+/* Factions tab (FR-01): toolbar across the top, roster on the left, the picked faction's or deity's editor on the
+   right with one row of sub-tabs, one scrolling body and a footer pinned to the bottom of the editor pane. */
+.agf-authoring { display:flex; flex-direction:column; flex:1; min-height:0; }
+.agf-roster-toolbar { margin:0; padding:var(--ag-space-2) var(--ag-space-4); border-bottom:1px solid var(--ag-border); }
+.agf-roster { padding:var(--ag-space-2); }
+.agf-shell .agf-editor { display:flex; flex-direction:column; min-height:0; padding:0; overflow:hidden; }
+.agf-editor > .ag-empty { margin:auto; }
+.agf-editor__head { display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:var(--ag-space-2) var(--ag-space-4); padding:var(--ag-space-3) var(--ag-space-4) var(--ag-space-2); }
+.agf-editor__title { min-width:0; }
+.agf-editor__name { margin:0; border:0; color:var(--ag-text); font:700 var(--ag-text-lg)/1.2 var(--ag-font-display); overflow-wrap:anywhere; }
+.agf-editor__body { flex:1; display:grid; align-content:start; gap:var(--ag-space-3); padding:var(--ag-space-3) var(--ag-space-4); }
+.agf-editor__body > .ag-section { margin:0; }
+.agf-panel { display:grid; gap:var(--ag-space-3); min-width:0; }
+.agf-panel > .ag-form-grid > .ag-field,
+.agf-panel .ag-fold__body > .ag-form-grid > .ag-field { margin:0; }
+.agf-requests-intro { margin-bottom:var(--ag-space-3); }
+
+/* Rows and GM editors. */
 .agf-rowscore { color:var(--ag-muted); font-size:var(--ag-text-sm); white-space:nowrap; }
 .agf-rowscore strong { color:var(--ag-text); font-variant-numeric:tabular-nums; }
 .agf-shell .ag-row__end { flex:0 1 auto; flex-wrap:wrap; justify-content:flex-end; }
 .agf-shell .ag-row__end > .ag-field { margin:0; }
-.agf-config-section { margin:0 0 var(--ag-space-3); border:1px solid var(--ag-border); border-radius:var(--ag-radius); background:var(--ag-surface-raised); }
-.agf-config-section > summary { display:flex; flex-wrap:wrap; align-items:center; gap:var(--ag-space-2); padding:var(--ag-space-2) var(--ag-space-3); cursor:pointer; font-weight:650; }
-.agf-config-section[open] > summary { border-bottom:1px solid var(--ag-border); }
-.agf-fold { display:grid; gap:var(--ag-space-3); padding:var(--ag-space-3); min-width:0; }
-.agf-fold > .ag-form-grid > .ag-field { margin:0; }
-.agf-fold > .ag-footer { margin:0 calc(-1 * var(--ag-space-3)) calc(-1 * var(--ag-space-3)); border-radius:0 0 var(--ag-radius) var(--ag-radius); }
 .agf-discovery,
 .agf-inline-form { display:flex; flex-wrap:wrap; align-items:center; gap:var(--ag-space-2) var(--ag-space-3); }
 .agf-inline-form { align-items:flex-end; }
 .agf-inline-form > .ag-field { flex:1 1 12rem; margin:0; }
-.agf-inner-section { padding:var(--ag-space-2) var(--ag-space-3); border:1px solid var(--ag-border); border-radius:var(--ag-radius); }
-.agf-inner-section > summary { cursor:pointer; font-weight:600; }
 .agf-level-editor { display:grid; grid-template-columns:1.5rem minmax(6rem,1fr) minmax(5rem,7rem) minmax(7rem,9rem) minmax(10rem,2fr); gap:var(--ag-space-2); align-items:end; margin:var(--ag-space-2) 0; }
 .agf-level-editor > .ag-field { margin:0; }
 .agf-level-editor__key { align-self:center; color:var(--ag-accent); font-weight:700; text-align:center; }
@@ -135,11 +144,11 @@
 .agf-symbol-path { display:flex; align-items:center; gap:var(--ag-space-2); }
 .agf-symbol-path > input { flex:1; min-width:0; }
 
-/* GM Setup: settings only, one Save Changes footer (D4), Developer Tools last. */
+/* GM Setup: settings only, one Save Changes footer (D4); maintenance and demo data in Developer Tools, last (FR-06). */
 .agf-narrow { max-width:20rem; }
 .agf-setup .ag-section > .ag-field--inline { margin:0 0 var(--ag-space-2); }
 .agf-setup .ag-devtools { margin-top:var(--ag-space-4); }
-.agf-setup .ag-devtools > .ag-btn { margin-top:var(--ag-space-2); }
+.agf-setup .ag-devtools > .ag-section { margin:var(--ag-space-3) 0 0; }
 
 /* Narrow windows (container queries on the .ag-window content, not the screen). */
 @container (max-width:50rem) {

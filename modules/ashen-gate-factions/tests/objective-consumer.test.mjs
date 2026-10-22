@@ -36,5 +36,5 @@ test('player projection remains devoid of Objective refs or diagnostic data',asy
  assert.doesNotMatch(masked,/refs\s*:/);
  assert.doesNotMatch(masked,/auditObjectiveRefs\(/);
  assert.match(src,/auditObjectiveRefs:\(factionId\)=>\{assertGM\(\)/);
- assert.match(src,/gmObjectiveRefs:gf\?auditObjectiveRefs\(/);
+ assert.match(src,/gmObjectiveRefs:editingFaction\?auditObjectiveRefs\(/);
 });

@@ -39,7 +39,7 @@ const other=makeFaction({id:'FACTION-CROWN',trackId:'RENOWN-CROWN',name:'Crown'}
 f.folder_key='guilds';const folders=[{key:'guilds',name:'Mercenary Guilds'},{key:'government',name:'The Crown'}];
 const actor1=projectedFolders({folders,factions:[f,other],actorIds:['actor1']});
 pass(actor1.find(x=>x.key==='guilds').name==='Mercenary Guilds','discovered folder revealed');
-pass(actor1.find(x=>x.key==='government').name==='Unknown Organization','mysterious folder name');
+pass(actor1.find(x=>x.key==='government').name==='Unknown faction','mysterious folder name');
 pass(actor1.find(x=>x.key==='government').unknown.length===1,'anonymous placeholder count');
 pass(actor1.find(x=>x.key==='government').known.length===0,'no secret identity');
 const actor2=projectedFolders({folders,factions:[f,other],actorIds:['actor2']});
