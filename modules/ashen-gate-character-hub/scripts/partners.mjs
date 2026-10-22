@@ -7,7 +7,7 @@
 import {esc, num} from './constants.mjs';
 import {btn} from './buttons.mjs';
 import {canSee, requirePart, hiddenBadge, hiddenReason, partForPartner} from './visibility.mjs';
-import {cindersSummary} from './cinders.mjs';
+import {cindersSummary, skillTreeBtn} from './cinders.mjs';
 
 /** The active module's API, or null. */
 export function partnerApi(id) {
@@ -147,7 +147,7 @@ export const PANELS = [
   {id: 'ashen-gate-skill-trees', embedMode: 'character', tab: 'Perks', label: 'Skill Trees', icon: 'fa-solid fa-diagram-project', summary: skillTrees,
     open: (api, actor) => api.open({actorId: actor.id})},
   {id: 'ashen-gate-cinders', tab: 'Cinders', label: 'Cinders', icon: 'fa-solid fa-fire', summary: cindersSummary,
-    open: (api, actor) => api.open({actorId: actor.id})},
+    open: (api, actor) => api.open({actorId: actor.id}), headActions: actor => skillTreeBtn(actor, {canSeePerks: canSee('perks')})},
   {id: 'ashen-gate-factions', embedMode: 'character', tab: 'Renown', label: 'Renown', icon: 'fa-solid fa-flag', summary: factions, open: api => api.open()},
   {id: 'ashen-gate-quest-manager', embedMode: 'character', tab: 'Quests', label: 'Quest Log', icon: 'fa-solid fa-scroll', summary: quests,
     open: (api, actor, ref) => ref ? api.openObjective(ref) : api.open()},
@@ -171,9 +171,13 @@ export function panelState(panel, actor) {
   }
 }
 
-/** One partner panel as a card: heading, Open button (when the module is active) and its summary. */
+/**
+ * One partner panel as a card: heading, Open button (when the module is active) and its summary. `headActions(actor)`
+ * adds buttons next to the title (0.31.0: Cinders' Open skill tree).
+ */
 export function panelHtml(panel, actor, s = panelState(panel, actor)) {
-  return `<section class="ag-card agch-panel" data-partner="${panel.id}" data-state="${s.state}"><header class="agch-panel__head"><h3><i class="${panel.icon}" aria-hidden="true"></i> ${esc(panel.label)}${panel.badge ?? ''}</h3>
+  const extra = s.state === 'ok' && panel.headActions ? panel.headActions(actor) : '';
+  return `<section class="ag-card agch-panel" data-partner="${panel.id}" data-state="${s.state}"><header class="agch-panel__head"><span class="agch-panel__title"><h3><i class="${panel.icon}" aria-hidden="true"></i> ${esc(panel.label)}${panel.badge ?? ''}</h3>${extra}</span>
     ${s.state === 'missing' ? '' : btn('partner-open', panel.openLabel ?? `Open ${panel.label}`, {kind: 'sm', icon: 'fa-solid fa-up-right-from-square', data: {partner: panel.id}, always: true})}</header>${s.html}</section>`;
 }
 

@@ -1,12 +1,18 @@
 /**
- * Group and sort choices for the Magic and Features lists. Remembered per user on this computer in one client setting,
- * `listSort` ({magic: {group, sort}, features: {group, sort}}); a missing or unknown value falls back to the default.
+ * Group and sort choices for the Combat (0.31.0), Magic and Features lists. Remembered per user on this computer in one
+ * client setting, `listSort` ({combat|magic|features: {group, sort}}); a missing or unknown value falls back to the default.
  * Favourites are dnd5e's own (item-actions.mjs) and always get their own group at the top.
  */
 import {MODULE_ID} from './constants.mjs';
 
 export const LIST_SORT_SETTING = 'listSort';
+/** Combat's main categories (0.31.0), in display order. items.mjs combatCategory() puts each row in one. */
+export const COMBAT_CATEGORIES = [['combat', 'Combat'], ['professions', 'Professions'], ['consumables', 'Consumables'], ['features', 'Features'], ['trinkets', 'Trinkets']];
 export const ORGANIZE = {
+  combat: {
+    groups: [['category', 'Category'], ['action', 'Action type'], ['none', 'No groups']],
+    sorts: [['name', 'Name'], ['equipped', 'Equipped first'], ['action', 'Action type'], ['uses', 'Has uses first']]
+  },
   magic: {
     groups: [['level', 'Spell level'], ['school', 'School'], ['prepared', 'Prepared'], ['ritual', 'Ritual'], ['action', 'Action type'], ['none', 'No groups']],
     sorts: [['name', 'Name'], ['level', 'Level'], ['school', 'School'], ['prepared', 'Prepared first'], ['ritual', 'Ritual first'], ['action', 'Action type']]
@@ -31,6 +37,7 @@ const PREP_ORDER = ['cantrip', 'always', 'prepared', 'free', 'unprepared'];
 
 /** Group key and label for a row under each grouping (rows from items.mjs). */
 export const GROUP_BY = {
+  category: r => ({key: r.category || 'trinkets', label: COMBAT_CATEGORIES.find(([k]) => k === r.category)?.[1] ?? 'Trinkets'}),
   school: r => ({key: r.facts?.school || 'none', label: r.facts?.school || 'No school'}),
   prepared: r => ({key: prepState(r), label: PREP[prepState(r)]}),
   ritual: r => r.facts?.ritual ? {key: 'ritual', label: 'Ritual'} : {key: 'other', label: 'Not ritual'},
@@ -41,7 +48,7 @@ export const GROUP_BY = {
 };
 /** Group order for each grouping (keys); unlisted keys sort by label after them. */
 export function orderGroups(groups, by) {
-  const rank = by === 'prepared' ? g => PREP_ORDER.indexOf(g.key) : by === 'action' || by === 'activation' ? g => actionRank(g.key === 'none' ? '' : g.key)
+  const rank = by === 'category' ? g => COMBAT_CATEGORIES.findIndex(([k]) => k === g.key) : by === 'prepared' ? g => PREP_ORDER.indexOf(g.key) : by === 'action' || by === 'activation' ? g => actionRank(g.key === 'none' ? '' : g.key)
     : by === 'ritual' ? g => (g.key === 'ritual' ? 0 : 1) : by === 'uses' ? g => (g.key === 'uses' ? 0 : 1) : g => (g.key === 'none' ? 1 : 0);
   return groups.sort((a, b) => rank(a) - rank(b) || a.label.localeCompare(b.label));
 }
@@ -79,6 +86,7 @@ const COMPARE = {
   prepared: (a, b) => Number(!!(b.always || b.prepared)) - Number(!!(a.always || a.prepared)) || (a.level ?? 0) - (b.level ?? 0) || byName(a, b),
   type: (a, b) => String(a.typeLabel ?? a.facts?.type ?? '').localeCompare(String(b.typeLabel ?? b.facts?.type ?? '')) || byName(a, b),
   uses: (a, b) => Number(!!b.uses) - Number(!!a.uses) || byName(a, b),
+  equipped: (a, b) => Number(!!b.equipped) - Number(!!a.equipped) || byName(a, b),
   ritual: (a, b) => Number(!!b.facts?.ritual) - Number(!!a.facts?.ritual) || (a.level ?? 0) - (b.level ?? 0) || byName(a, b),
   action: (a, b) => actionRank(a.actType) - actionRank(b.actType) || byName(a, b)
 };
@@ -99,10 +107,11 @@ export function castable(r, slotsLeft = {}, pact = null) {
   return !!pact && pact.value > 0 && pact.level >= level;
 }
 export const FILTERS = {
+  combat: [['equipped', 'Hide unequipped'], ['uses', 'Has uses'], ['left', 'Uses left']],
   magic: [['prepared', 'Prepared only'], ['ritual', 'Ritual only'], ['castable', 'Castable only']],
   features: [['uses', 'Has uses'], ['left', 'Uses left']]
 };
-/** Applies a tab's filters to its rows. f: {level, action, prepared, ritual, castable, uses, left}. */
+/** Applies a tab's filters to its rows. f: {level, action, prepared, ritual, castable, uses, left, equipped}. equipped hides only unequipped items that can be equipped. */
 export function filterRows(rows, f = {}, {slotsLeft = {}, pact = null} = {}) {
   return rows.filter(r => (f.level === undefined || f.level === null || (r.level ?? 0) === Number(f.level))
     && (!f.action || (r.actType || 'none') === f.action)
@@ -110,7 +119,8 @@ export function filterRows(rows, f = {}, {slotsLeft = {}, pact = null} = {}) {
     && (!f.ritual || r.facts?.ritual)
     && (!f.castable || castable(r, slotsLeft, pact))
     && (!f.uses || !!r.uses)
-    && (!f.left || (r.uses ? r.uses.value > 0 : true)));
+    && (!f.left || (r.uses ? r.uses.value > 0 : true))
+    && (!f.equipped || !r.equippable || r.equipped));
 }
 export const sortRows = (rows, sort) => [...rows].sort(COMPARE[sort] ?? byName);
 

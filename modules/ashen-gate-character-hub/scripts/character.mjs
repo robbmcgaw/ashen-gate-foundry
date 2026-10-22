@@ -14,7 +14,7 @@ import {canSee, hiddenReason, hiddenBadge} from './visibility.mjs';
 import {configAttrs} from './configure.mjs';
 import {toggleButton, bodyAttrs} from './collapse.mjs';
 import {tooltipAttrs} from './tooltips.mjs';
-import {strainHtml} from './cinders.mjs';
+import {strainHtml, cinderChipsHtml} from './cinders.mjs';
 
 export const LEFT_SLOTS = ['head', 'neck', 'back', 'body', 'hands'];
 export const RIGHT_SLOTS = ['mainhand', 'offhand', 'waist', 'feet', 'bracer'];
@@ -235,7 +235,7 @@ export function characterPanelHtml(ctx) {
   const rc = off ? '' : ' (right-click to configure)';
   return `<aside class="agch-char" aria-label="Character">
     <div class="agch-ident">
-      <div class="agch-ident__text"><h2 class="agch-name">${esc(h.name)}</h2><p class="agch-sub">${featuresData(actor).identity.length ? (h.level ? `Level ${h.level}` : '') : `${h.species ? `${esc(h.species)} · ` : ''}${classLine}${h.level ? ` · Level ${h.level}` : ''}`}</p></div>
+      <div class="agch-ident__text"><h2 class="agch-name">${esc(h.name)}</h2><p class="agch-sub">${featuresData(actor).identity.length ? (h.level ? `Level ${h.level}` : '') : `${h.species ? `${esc(h.species)} · ` : ''}${classLine}${h.level ? ` · Level ${h.level}` : ''}`}</p>${canSee('cinders') ? cinderChipsHtml(actor) : ''}</div>
       ${btn('inspiration', '', {extra: `agch-insp${h.inspiration ? ' is-active' : ''}`, icon: 'fa-solid fa-star', title: h.inspiration ? 'Inspiration (click to spend)' : 'No inspiration (click to gain)', disabled: off})}
     </div>
     ${identityCard(actor)}

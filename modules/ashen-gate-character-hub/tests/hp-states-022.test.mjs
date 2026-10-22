@@ -112,13 +112,13 @@ test('rail tabs: role tab, aria-selected, aria-label and a Foundry tooltip on th
 });
 
 test('header follows the standard: brand span, Compact, Level up, Open native sheet, version, then Help', async () => {
-  installGlobals({user: users.owner, modules: {'ashen-gate-character-hub': {active: true, version: '0.29.5'}}});
+  installGlobals({user: users.owner, modules: {'ashen-gate-character-hub': {active: true, version: '0.31.0'}}});
   const html = await new (createHubSheetClass(FakeActorSheetV2))({document: makeActor()})._renderHTML();
   const head = html.slice(0, html.indexOf('</header>'));
   assert.match(head, /<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Character Hub<\/h1>/);
   const at = s => head.indexOf(s);
   assert.ok(at('data-action="compact-toggle"') > 0 && at('data-action="compact-toggle"') < at('data-action="level-up"') && at('data-action="level-up"') < at('data-action="open-native"') && at('data-action="open-native"') < at('ag-version') && at('ag-version') < at('data-action="help"'));
-  assert.match(head, /<span class="ag-version">v0\.29\.5<\/span>/);
+  assert.match(head, /<span class="ag-version">v0\.31\.0<\/span>/);
 });
 
 test('segmented controls: radiogroup with radios; arrow keys move to the next choice and pick it', () => {

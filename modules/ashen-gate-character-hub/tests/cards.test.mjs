@@ -84,11 +84,11 @@ test('More toggles the full text in place and the sheet remembers it', async () 
   installGlobals();
   const {sheet} = await renderTab('combat');
   const detail = {hidden: true}, attrs = {};
-  const target = {dataset: {key: 'more:combat-weapons:sw'}, textContent: 'More', setAttribute: (k, v) => { attrs[k] = v; }, closest: () => ({querySelector: () => detail})};
+  const target = {dataset: {key: 'more:combat-category-combat:sw'}, textContent: 'More', setAttribute: (k, v) => { attrs[k] = v; }, closest: () => ({querySelector: () => detail})};
   ACTIONS['item-more'](sheet, target);
   assert.equal(detail.hidden, false); assert.equal(target.textContent, 'Less'); assert.equal(attrs['aria-expanded'], 'true');
-  assert.equal(sheet.expanded.has('more:combat-weapons:sw'), true);
-  assert.match(await sheet._renderHTML(), /id="more:combat-weapons:sw">/, 'still open after a re-render');
+  assert.equal(sheet.expanded.has('more:combat-category-combat:sw'), true);
+  assert.match(await sheet._renderHTML(), /id="more:combat-category-combat:sw">/, 'still open after a re-render');
   ACTIONS['item-more'](sheet, target);
   assert.equal(detail.hidden, true); assert.equal(sheet.expanded.size, 0);
 });

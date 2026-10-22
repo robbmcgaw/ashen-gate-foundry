@@ -14,7 +14,8 @@
  * system.details.level), Renown tier changes (Renown's public getFactions()/getPantheon() as the player sees them) and
  * quests completed (Quest Log's GM API listQuests()/getGMState()). Each has a stable id per event, so a re-fire never
  * duplicates. Quest rewards (items and coins) come only through recordReward() (GM API, called by Quest Log when it
- * grants; 0.25.0 added items and grantId). Nothing else records currency.
+ * grants; 0.25.0 added items and grantId). Nothing else records currency. 0.31.0: the first bind of a Cinder (Cinders'
+ * ashenGateCinder.changed hook, kind 'bind'), once per character and Cinder instance.
  * Permissions are checked here: players read only their own characters' visible entries and can't add, edit, hide or
  * delete anything; the recorders only append new automatic entries.
  */
@@ -25,8 +26,8 @@ import {isBackup} from './level-backup.mjs';
 export const JOURNEY_FLAG = 'journey';
 export const JOURNEY_CAP = 300;
 export const TEXT_MAX = 500;
-export const TYPES = {level: 'Level up', renown: 'Renown', quest: 'Quest', reward: 'Reward', manual: 'Note'};
-const AUTO_TYPES = new Set(['level', 'renown', 'quest', 'reward']);
+export const TYPES = {level: 'Level up', renown: 'Renown', quest: 'Quest', reward: 'Reward', cinder: 'Cinder', manual: 'Note'};
+const AUTO_TYPES = new Set(['level', 'renown', 'quest', 'reward', 'cinder']);
 const HIDDEN_FLAG = 'journeyHidden', STORE_FLAG = 'journeyStore', QUEST_SEEN = 'journeyQuestSeen';
 const refuse = error => ({ok: false, error});
 const isGM = (user = globalThis.game?.user) => user?.isGM === true;
@@ -281,6 +282,25 @@ export async function recordQuests() {
   for (const d of done) for (const id of d.actorIds) { const a = g.actors?.get?.(id); if (a) await appendAuto(a, [d.entry]); }
   if (JSON.stringify(next) !== JSON.stringify(seen ?? {})) await g.settings.set(MODULE_ID, QUEST_SEEN, next);
   return done.length;
+}
+/** "Bound to the Ember Cinder" (a name already ending in "Cinder" isn't doubled; no name: "Bound to a Cinder"). */
+export const cinderBindText = name => { const n = String(name ?? '').trim(); return !n ? 'Bound to a Cinder' : /\bcinder$/i.test(n) ? `Bound to the ${n}` : `Bound to the ${n} Cinder`; };
+const INSTANCE_RE = /^[A-Za-z0-9_-]{1,64}$/;
+/**
+ * First bind = Journey milestone (0.31.0). Cinders calls the hook ashenGateCinder.changed with {kind, instanceId, actorId}
+ * on the GM client that bound the Cinder (binding is GM-only in Cinders), so that GM client writes it. The entry id is
+ * cinder-<instanceId>: a re-fire, a reload, a level restore (the Journey never reverts) or a hidden entry never adds a
+ * second one. The name is read through Cinders' public api.cinder.list. Players and level backups record nothing.
+ */
+export async function recordCinderBind(data, user = globalThis.game?.user) {
+  if (data?.kind !== 'bind' || !isGM(user)) return null;
+  const instanceId = String(data.instanceId ?? '');
+  if (!INSTANCE_RE.test(instanceId)) return null;
+  const actor = globalThis.game?.actors?.get?.(data.actorId);
+  if (actor?.type !== 'character' || isBackup(actor)) return null;
+  let name = '';
+  try { const c = partner('ashen-gate-cinders')?.cinder; name = c?.contract === 'ag-cinder/1' ? c.list(actor)?.find?.(x => x.instanceId === instanceId)?.name ?? '' : ''; } catch { name = ''; }
+  return appendAuto(actor, [{id: `cinder-${instanceId}`, type: 'cinder', text: cinderBindText(name), at: now(), data: {instanceId, definitionId: data.definitionId ?? null}}], null, user);
 }
 export function registerJourneySettings(settings) {
   settings.register(MODULE_ID, QUEST_SEEN, {scope: 'world', config: false, type: Object, default: {}});

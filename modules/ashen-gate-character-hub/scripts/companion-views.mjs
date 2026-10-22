@@ -10,6 +10,7 @@ import {tooltipAttrs, itemUuid} from './tooltips.mjs';
 import {PARTS, PRESETS, readVisibility, hiddenReason} from './visibility.mjs';
 import {sectionHtml, sectionKey, toggleButton, bodyAttrs} from './collapse.mjs';
 import {isBackup} from './level-backup.mjs';
+import {lookSetupCard} from './look.mjs';
 
 const itemOptions = (items, placeholder) => `<option value="">${esc(placeholder)}</option>${items.map(i => `<option value="${esc(i.id)}">${esc(i.name)}</option>`).join('')}`;
 const GIVES = {key: 'gives', label: 'Gives', render: r => esc(r.gives || '—')};
@@ -128,7 +129,7 @@ export function gmSetupTab() {
   const rows = chars.map(a => { const d = companionsData(a); return `<tr><th scope="row">${esc(a.name)}</th><td class="is-num">${d.mount ? 1 : 0}</td><td class="is-num">${d.pets.length} / ${esc(d.capLabel)}</td>
     <td><select data-edit="pet-cap-override" data-actor="${esc(a.id)}" aria-label="Pet limit for ${esc(a.name)}">${capOptions(petCapOverride(a))}</select></td></tr>`; }).join('');
   const key = sectionKey('gm', 'companions');
-  return `${visibilityCard()}<section class="ag-card"><h3 class="agch-sec__head">${toggleButton(key, 'Companions')}</h3><div${bodyAttrs(key)}>
+  return `${visibilityCard()}${lookSetupCard()}<section class="ag-card"><h3 class="agch-sec__head">${toggleButton(key, 'Companions')}</h3><div${bodyAttrs(key)}>
     <label class="ag-field">Pets per character (world default)<input type="number" min="0" step="1" data-edit="pet-cap-default" value="${defaultPetCap()}"></label>
     <p class="agch-muted">Every character may have one mount. Pets start at 0: raise the world default or a character's limit to give pet slots. Limits apply when adding a pet; existing pets are never removed.</p>
     ${rows ? `<div class="ag-table-wrap"><table class="ag-table agch-table"><thead><tr><th scope="col">Character</th><th scope="col" class="is-num">Mount</th><th scope="col" class="is-num">Pets</th><th scope="col">Pet limit</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<div class="ag-empty"><p class="ag-empty__title">No characters yet.</p><p class="ag-empty__text">Player characters show here once they exist in the world.</p></div>'}</div></section>`;

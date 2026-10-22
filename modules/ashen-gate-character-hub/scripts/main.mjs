@@ -10,6 +10,7 @@ import {openNativeSheet, nativeSheetClass} from './native.mjs';
 import {registerCompanionSettings, petCapFor, companionsData, registerPetSlotSource, unregisterPetSlotSource} from './companions.mjs';
 import {registerCollapseSetting} from './collapse.mjs';
 import {registerListSortSetting} from './organize.mjs';
+import {registerLookSettings} from './look.mjs';
 import * as journey from './journey.mjs';
 import {registerMarksSocket} from './marks.mjs';
 import {flushQueue, QUEUE_FLAG} from './level-backup.mjs';
@@ -51,8 +52,8 @@ export function renderAllHubs(delay = 50) {
   clearTimeout(allPending);
   allPending = setTimeout(() => { allPending = null; for (const app of globalThis.foundry?.applications?.instances?.values?.() ?? []) if (HubSheet && app instanceof HubSheet && app.rendered) app.render(); }, delay);
 }
-/** Modules whose world settings (Player Access, the stash switch) change what players see in the Hub. */
-const PARTNER_IDS = new Set(PARTS.map(p => p.partner).filter(Boolean));
+/** Modules whose world settings (Player Access, the stash switch, Manager's Codex access) change what players see in the Hub. */
+const PARTNER_IDS = new Set([...PARTS.map(p => p.partner).filter(Boolean), 'ashen-gate-manager']);  // Manager: Codex player access, appearance (0.31.0)
 /** True for a changed Setting document of a partner module. Only the key is looked at, never the value: the Hub re-reads their public APIs. */
 export const isPartnerSetting = setting => { const key = String(setting?.key ?? ''); return PARTNER_IDS.has(key.split('.')[0]); };
 
@@ -131,6 +132,8 @@ if (globalThis.Hooks) {
     registerCollapseSetting(game.settings);
     // Per user (client scope): Magic and Features group/sort choices.
     registerListSortSetting(game.settings);
+    // 0.31.0: the built-in look (per user) and its world default, used while General Manager's appearance is absent.
+    registerLookSettings(game.settings, () => renderAllHubs());
     journey.registerJourneySettings(game.settings);
     registerCompanionSettings(game.settings, () => renderAllHubs());
     registerVisibilitySetting(game.settings, () => renderAllHubs());
@@ -177,6 +180,8 @@ if (globalThis.Hooks) {
   Hooks.on('ashenGateLedger.progressionChanged', data => { const actor = game.actors?.get?.(data?.actorId); if (actor) scheduleRender(actor); });
   // Ashen Gate | Cinders announces Cinder changes (bind, transfer, progress); Strain changes arrive as updateActor.
   Hooks.on('ashenGateCinder.changed', data => { for (const id of [data?.actorId, data?.fromActorId]) { const actor = game.actors?.get?.(id); if (actor) scheduleRender(actor); } });
+  // 0.31.0: the first bind of a Cinder is a Journey milestone (the binding GM client writes it; once per instance).
+  Hooks.on('ashenGateCinder.changed', data => { if (data?.kind === 'bind') void Promise.resolve(journey.recordCinderBind(data)).catch(err => console.warn(`${MODULE_ID} | journey`, err)); });
   // 0.19.0: Cinder sockets changed (attach, detach, swap, lock, count): redraw that character's Hub.
   Hooks.on('ashenGateSockets.changed', data => { const actor = game.actors?.get?.(data?.actorId); if (actor) scheduleRender(actor); });
 }

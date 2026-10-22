@@ -6,6 +6,8 @@
  * 0.19.0: each Cinder's sockets from Cinders' api.sockets (contract ag-sockets/1, Cinders 0.3.0+).
  * 0.24.0: a compact orb per Cinder (Cinders 0.6.0's look: Strain ring, art or default orb, socket dots) and Attach / Swap / Detach /
  * drop on each socket row through api.sockets. Cinders checks every change again; the Hub only offers what it would allow.
+ * 0.31.0: Cinders 0.9.0's look on every mini orb (art on a still Strain-toned glow, turning slowly), a small orb + name per
+ * Cinder in the character header (opens Ashen Gate → Cinders) and Open skill tree in the Cinders panel head.
  */
 import {MODULE_ID, esc, num} from './constants.mjs';
 import {btn} from './buttons.mjs';
@@ -104,10 +106,28 @@ export function socketRows(host, maxSockets = 12) {
   return {rows: [...onOrbit, ...slots.filter(x => !x.active).map(x => ({...x, empty: false, number: null, extra: false}))], capacity, used: active.length};
 }
 
+/**
+ * Does Cinder art turn? Cinders 0.9.0's "Rotate Cinder art" (world, GM Setup) and "Rotate the art on this device" (client),
+ * read only. A setting this Cinders doesn't have counts as on (Cinders' default). Reduced motion is honoured in the CSS.
+ */
+export function artSpins() {
+  const on = key => { try { return globalThis.game?.settings?.get?.(CINDERS_ID, key) !== false; } catch { return true; } };
+  return on('rotateArt') && on('rotateArtLocal');
+}
+/**
+ * The orb core, in Cinders 0.9.0's markup: art sits on the Strain-toned orb as a blurred glow (agch-corb__orb--art) and,
+ * when spin is on, turns slowly (agch-corb__orb--spin, CSS only). No art: the default orb.
+ */
+export function orbCoreHtml(art, tone, spin = false) {
+  const src = cleanArt(art);
+  return `<span class="agch-corb__orb${src ? ' agch-corb__orb--art' : ''}${src && spin ? ' agch-corb__orb--spin' : ''}" data-tone="${esc(tone)}">${src
+    ? `<span class="agch-corb__default agch-corb__glow" aria-hidden="true"></span><img class="agch-corb__img" src="${esc(src)}" alt="">` : '<span class="agch-corb__default"></span>'}</span>`;
+}
+
 /** The mini orb: Strain ring (segments to the guarantee point, then a pip per point over), the Cinder's art or the default orb, socket dots. */
-export function miniOrbHtml(ci, strain, rows) {
+export function miniOrbHtml(ci, strain, rows, {spin = artSpins()} = {}) {
   const top = Math.max(1, num(strain?.guaranteeAt) || 10), value = Math.max(0, num(strain?.value)), over = Math.max(0, value - top);
-  const art = cleanArt(ci.art), tone = strainTone(value, top), at = (r, deg) => [50 + r * Math.cos(deg * Math.PI / 180), 50 + r * Math.sin(deg * Math.PI / 180)].map(n => n.toFixed(2));
+  const tone = strainTone(value, top), at = (r, deg) => [50 + r * Math.cos(deg * Math.PI / 180), 50 + r * Math.sin(deg * Math.PI / 180)].map(n => n.toFixed(2));
   const step = 360 / top, gap = Math.min(4, step / 4);
   const segs = Array.from({length: top}, (_, i) => {
     const [x0, y0] = at(30, -90 + i * step + gap / 2), [x1, y1] = at(30, -90 + (i + 1) * step - gap / 2);
@@ -121,7 +141,47 @@ export function miniOrbHtml(ci, strain, rows) {
   const label = `${ci.name}. Strain ${value} of ${top}${over ? `, ${over} over` : ''}. ${rows.filter(r => r.number && !r.empty).length} of ${rows.filter(r => r.number).length} sockets in use.`;
   return `<div class="agch-corb" role="img" aria-label="${esc(label)}" data-tooltip="${esc(label)}">
     <svg class="agch-corb__ring${value >= top ? ' is-hot' : ''}" viewBox="0 0 100 100" aria-hidden="true" focusable="false">${segs}${pips}</svg>
-    <span class="agch-corb__orb" data-tone="${tone}">${art ? `<img class="agch-corb__img" src="${esc(art)}" alt="">` : '<span class="agch-corb__default"></span>'}</span>${dots}</div>`;
+    ${orbCoreHtml(ci.art, tone, spin)}${dots}</div>`;
+}
+
+/**
+ * The Cinders this character bears, for the header (0.31.0): [{instanceId, name, art, tone, treeId}]. Empty when Cinders is
+ * missing or older, or refuses this user (a player while its Player Access is off). Read through api.cinder.list only.
+ */
+export function boundCinders(actor) {
+  const api = cindersApi(), c = api?.cinder;
+  if (c?.contract !== 'ag-cinder/1' || !actor) return [];
+  let list = [], s = null;
+  try { list = c.list(actor) ?? []; } catch { return []; }
+  try { s = api.strain?.contract === 'ag-strain/1' ? api.strain.get(actor) : null; } catch { s = null; }
+  const tone = strainTone(s?.value, s?.guaranteeAt);
+  return list.map(ci => ({instanceId: String(ci.instanceId ?? ''), name: String(ci.name || 'Cinder'), art: cleanArt(ci.art), tone, treeId: ci.treeId ?? null}));
+}
+/** Header chips (0.31.0): a small orb (art, glow, slow turn) and the name per Cinder; a click opens Ashen Gate → Cinders. */
+export function cinderChipsHtml(actor, {spin = artSpins()} = {}) {
+  const list = boundCinders(actor);
+  if (!list.length) return '';
+  return `<div class="agch-cchips" role="group" aria-label="Cinders">${list.map(ci => {
+    const tip = `${ci.name}: open Ashen Gate → Cinders`;
+    return `<button type="button" class="agch-cchip" data-action="cinder-open" data-instance="${esc(ci.instanceId)}" data-ag-always data-tooltip="${esc(tip)}" aria-label="${esc(tip)}"><span class="agch-cchip__orb" aria-hidden="true">${orbCoreHtml(ci.art, ci.tone, spin)}</span><span class="agch-cchip__name">${esc(ci.name)}</span></button>`;
+  }).join('')}</div>`;
+}
+/**
+ * Open skill tree (0.31.0) for the Cinders panel head: Skill Trees' own window for this character, at the Cinder's tree
+ * when it bears exactly one (api.cinder.list gives treeId). Nothing when Skill Trees can't open, or players may not see Perks.
+ */
+export function skillTreeBtn(actor, {canSeePerks = true} = {}) {
+  const trees = globalThis.game?.modules?.get?.('ashen-gate-skill-trees');
+  if (!trees?.active || typeof trees.api?.open !== 'function' || (!isGM() && !canSeePerks)) return '';
+  const list = boundCinders(actor), tree = list.length === 1 ? list[0].treeId : null;
+  return btn('cinder-tree', 'Open skill tree', {kind: 'sm', icon: 'fa-solid fa-diagram-project', data: tree ? {tree} : {}, always: true,
+    title: tree ? `Open ${list[0].name}'s skill tree in Skill Trees` : 'Open Skill Trees for this character'});
+}
+/** Opens Skill Trees for this character (at one tree when given). Skill Trees checks its own permissions. */
+export async function openSkillTree(actor, treeId = null) {
+  const api = globalThis.game?.modules?.get?.('ashen-gate-skill-trees');
+  if (!api?.active || typeof api.api?.open !== 'function') return refuse('Ashen Gate | Skill Trees is not active.');
+  try { return {ok: true, result: await api.api.open({actorId: actor.id, ...(treeId ? {treeId} : {})})}; } catch (error) { return refuse(String(error?.message ?? error)); }
 }
 
 /** Socket rows of one Cinder with Attach / Swap / Detach (or a Locked badge), each row a drop target while the user may change it. */
