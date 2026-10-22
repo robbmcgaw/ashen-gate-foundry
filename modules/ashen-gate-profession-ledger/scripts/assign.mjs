@@ -36,7 +36,7 @@ export function definitionProfessionKey(sourceId,name,category=null){
 /**
  * Catalog layer of the crosswalk, from imported Profession definitions [{sourceId, name, access}].
  * Only a definition whose `access` names at least one any-of list counts; an empty `access` ({}) leaves the
- * built-in default in place. Names that match no dnd5e skill/tool are reported in `unresolved`, not guessed.
+ * built-in default in place, and so does (0.29.1) any list the definition leaves out; an explicit [] means "none". Names that match no dnd5e skill/tool are reported in `unresolved`, not guessed.
  * Two definitions for one profession that disagree are reported in `conflicts` and neither is used.
  */
 export function catalogCrosswalk(definitions=[]){
@@ -48,16 +48,22 @@ export function catalogCrosswalk(definitions=[]){
     if(![...Object.keys(lists),'itemsAnyOf'].some(f=>Array.isArray(access[f])))continue;
     const key=d.key??definitionProfessionKey(d.sourceId,d.name,d.category);
     if(!key)continue;
-    const entry={qualifySkills:[],qualifyTools:[],advantageTools:[]};
-    for(const [field,list] of Object.entries(lists))for(const name of Array.isArray(access[field])?access[field]:[]){
-      const id=list==='qualifySkills'?skillIdOf(name):toolIdOf(name);
-      if(id){if(!entry[list].includes(id))entry[list].push(id);}
-      else unresolved.push({sourceId:d.sourceId??null,profession:professionTitle(key),field,name:String(name)});
+    // 0.29.1: only a list the content actually gives (an array, [] included) is set. A list it leaves out sets nothing,
+    // so the built-in default stays (Archaeology's advantage tool when a record has access lists but no advantage field).
+    const entry={};
+    for(const [field,list] of Object.entries(lists)){
+      if(!Array.isArray(access[field]))continue;
+      entry[list]=[];
+      for(const name of access[field]){
+        const id=list==='qualifySkills'?skillIdOf(name):toolIdOf(name);
+        if(id){if(!entry[list].includes(id))entry[list].push(id);}
+        else unresolved.push({sourceId:d.sourceId??null,profession:professionTitle(key),field,name:String(name)});
+      }
     }
     // 0.27.0: advantage names that ALL match no dnd5e tool set nothing (they are still reported), so the built-in
     // default applies (Archaeology). Access lists are unchanged.
     const advNames=Array.isArray(access.advantageToolsAnyOf)?access.advantageToolsAnyOf:[];
-    if(advNames.length&&!entry.advantageTools.length)delete entry.advantageTools;
+    if(advNames.length&&!entry.advantageTools?.length)delete entry.advantageTools;
     // 0.20.0, additive: carried items (names or UUIDs, kept as written). Absent means the built-in items stay.
     if(Array.isArray(access.itemsAnyOf))entry.items=cleanItemList(access.itemsAnyOf);
     const sig=JSON.stringify(entry);

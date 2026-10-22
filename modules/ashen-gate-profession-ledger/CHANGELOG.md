@@ -1,3 +1,10 @@
+## 0.29.1 — 2026-10-22
+
+- **Fix: imported Profession content no longer wipes a default it says nothing about.** In **GM Setup → Tools and checks**, Archaeology's advantage tool showed *None · From content* once the profession content was imported, because the Archaeology record lists who qualifies but gives no advantage tool. It now stays **Calligrapher’s Supplies · Default**. Fishing's carried **Fishing Tackle** advantage stays **Default** the same way.
+- The same rule now applies to the qualifying lists: a skill or tool list the content leaves out keeps the built-in one. For example, a Herbalism record that only lists Nature now keeps Herbalism Kit proficiency qualifying too (before, the kit stopped qualifying), and Fishing keeps Survival when its record lists only tools. A list the content gives empty (`[]`) still means "none".
+- Unchanged: GM edits win over a baseline file, which wins over content, which wins over the built-in default; names that match no dnd5e tool or skill are still reported; carried items (`itemsAnyOf`) work as before.
+- **Saved data:** nothing stored changes and nothing is migrated; only how imported content is read.
+
 ## 0.29.0 — 2026-10-22
 
 - **Suggested XP for activities:** when a character completes an activity, the GM's XP award on the chat card starts at a suggested amount, worked out from the activity's tier and effort: tier (Apprentice 1, Journeyman 2, Expert 3, Artisan 4, Master 5) times effort (Short 1, Long 2, Extended 3), halved and rounded up, at least 1. So Apprentice and Short effort give 1 XP, Journeyman and Long 2, Master and Extended 8. A missing or unknown tier counts as Apprentice, a missing or unknown effort as Short. The card tells the GM how it was suggested, and the amount can still be changed before **Award**. Craft and gathering XP are unchanged.
