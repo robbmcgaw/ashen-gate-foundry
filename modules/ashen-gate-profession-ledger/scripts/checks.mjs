@@ -60,8 +60,8 @@ export function compactCheckMapping(stored){
  * 0.16.0 crosswalk (AG-F01), additive: per profession, the skills and tools whose proficiency qualifies a character
  * (any-of), and the advantage tools (proficiency with, or carrying, one gives advantage on that profession's checks).
  * 0.20.0 adds `items` (carried core items that qualify) and the baseline-file layer (see effectiveMapping).
- * An explicit [] means "none". `gm` holds only the GM's saved lists. Checks use the GM's and the baseline file's
- * advantage tools, never the catalog's, so an unconfigured profession rolls exactly as before. */
+ * An explicit [] means "none". `gm` holds only the GM's saved lists. 0.27.0: gathering checks use the advantage tools in
+ * effect, catalog included (main.js rollMapping); before, they skipped the catalog's. */
 export const CROSSWALK_LISTS=Object.freeze(['qualifySkills','qualifyTools','advantageTools','items']);
 /** 0.20.0: core items that qualify a character by being carried (name, or a core/Item UUID). 0.22.0: none built in (Fishing
  * is accessed by the Survival skill instead); `items` from saved GM edits, the catalog or a baseline file still count. */

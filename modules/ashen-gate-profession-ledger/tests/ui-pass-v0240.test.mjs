@@ -15,7 +15,7 @@ globalThis.foundry={applications:{api:{ApplicationV2:FakeApp,HandlebarsApplicati
   DialogV2:{wait:async opts=>{prompts.push(opts);const b=opts.buttons?.find(x=>x.action===(answer?'confirm':'cancel'));return b?.callback?.()??answer;},prompt:async opts=>{prompts.push(opts);}}}},utils:{escapeHTML:esc}};
 globalThis.Hooks={once:(n,f)=>hooks[n]=f,on:()=>{},callAll:()=>{}};
 globalThis.ui={notifications:{info:()=>{},error:x=>errors.push(x)}};
-const moduleObj={get api(){return moduleApi},set api(v){moduleApi=v},active:true,version:'0.26.2'};
+const moduleObj={get api(){return moduleApi},set api(v){moduleApi=v},active:true,version:'0.27.0'};
 globalThis.game={user:gm,users:{contents:[gm,player]},actors:{contents:actors,get:id=>actors.find(a=>a.id===id)},items:{contents:[]},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},
   settings:{register:()=>{},registerMenu:()=>{},get:(id,key)=>values[key],set:async(id,key,v)=>{writes.push(key);values[key]=v;}}};
@@ -81,7 +81,7 @@ test('kit parts: tooltips instead of title=, a visible reason on the disabled Ma
   assert.match(cat,/<b>General Manager is not installed or enabled\.<\/b>/);
   const gmHtml=await html('gm');
   assert.match(gmHtml,/<div class="ag-table-wrap agl-map-wrap"><table class="ag-table agl-map">/);
-  assert.match(gmHtml,/<tr class="agl-map-group"><th colspan="5" scope="colgroup">Crafting professions/);
+  assert.match(gmHtml,/<tr class="agl-map-group"><th colspan="4" scope="colgroup">Crafting professions/);
   assert.match(gmHtml,/class="ag-btn ag-btn--ghost" data-action="gm-cancel">Cancel<\/button><span class="ag-footer__status"[^>]*>[^<]*<\/span><button type="button" class="ag-btn ag-btn--primary" data-action="roster-save"/,'Cancel left, status, Save Changes right');
   assert.equal((gmHtml.match(/ag-btn--primary/g)??[]).length,1,'one primary in GM Setup');
   const party=await html('party');
