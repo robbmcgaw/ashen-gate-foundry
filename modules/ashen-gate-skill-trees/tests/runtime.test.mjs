@@ -30,7 +30,7 @@ test('module registers API and hidden public projection settings',async()=>{
   assert.equal(menus.get('open').restricted,false);
   assert.equal(events.get('renderActorDirectory').length,1);
   const api=game.modules.get('ashen-gate-skill-trees').api;
-  assert.equal(api.version,'0.19.6');
+  assert.equal(api.version,'0.20.0');
   assert.ok(api.open());
   assert.deepEqual(api.listTrees(),[]);
   assert.equal(api.actorProgress(null,'MISSING'),null);
@@ -69,8 +69,8 @@ test('end-to-end fake GM: initialize, install native QA fixture, grant wallet, r
     game.journal.contents.push(Journal);
     return Journal;
   }};
-  foundry.applications.api.DialogV2.confirm=async()=>true;
-  foundry.applications.api.DialogV2.input=async()=>({label:'Test Scene',amount:'3'});
+  // 0.20.0: form dialogs are DialogV2.wait with [Cancel, action]; the fake picks the action (form values, or true for a confirm).
+  foundry.applications.api.DialogV2.wait=async o=>{const b=o.buttons.find(x=>x.action!=='cancel');return b.action==='ok'?{label:'Test Scene',amount:'3'}:b.callback();};
   const actor={id:'ABC',name:'Disposable Actor',type:'character',isOwner:true,flags:{},async setFlag(mod,key,value){this.flags[mod]??={};this.flags[mod][key]=value;return value;}};
   game.actors.contents=[actor];game.actors.get=id=>game.actors.contents.find(a=>a.id===id)??null;
   globalThis.Actor={create:async data=>{const qa={id:'QA-ACTOR',...data,isOwner:true,async delete(){game.actors.contents=game.actors.contents.filter(x=>x!==this);}};game.actors.contents.push(qa);return qa;}};
@@ -141,7 +141,7 @@ test('DEC-0068 through DEC-0071: standardized tabbed shell and source/import sep
   const template=await fs.readFile(new URL('../templates/tree.hbs',import.meta.url),'utf8');
   const manifest=JSON.parse(await fs.readFile(new URL('../module.json',import.meta.url),'utf8'));
   assert.equal(manifest.id,'ashen-gate-skill-trees');
-  assert.equal(manifest.version,'0.19.6');
+  assert.equal(manifest.version,'0.20.0');
   assert.match(manifest.title,/Ashen Gate \| Skill Trees/);
   assert.match(template,/data-act="tab-trees"/);
   assert.match(template,/\{\{#if gm\}\}<button type="button" role="tab" data-act="tab-library" class="ag-tab--gm/);
@@ -152,7 +152,9 @@ test('DEC-0068 through DEC-0071: standardized tabbed shell and source/import sep
   assert.match(template,/data-act="publish"/);
   assert.match(template,/General Manager → Import/);
   assert.match(template,/moduleVersion/);
-  assert.match(template,/Export Selected Tree/);
+  // 0.20.0 (ST-04): each Tree Library row exports its own tree; no export that depends on a selection in another tab.
+  assert.match(template,/data-act="export" data-tree="\{\{id\}\}"/);
+  assert.doesNotMatch(template,/Export Selected Tree/);
   assert.doesNotMatch(template,/agst-footer-label/);
 });
 
@@ -175,9 +177,10 @@ test('Actors launcher remains player enabled while GM Setup is guarded in code',
 test('GM Setup has settings only; content actions live in the GM-only Tree Library tab',async()=>{
  const fs=await import('node:fs/promises');
  const template=await fs.readFile(new URL('../templates/tree.hbs',import.meta.url),'utf8');
- const setup=template.slice(template.indexOf('{{#if activeSetup}}\n  {{#if initialized}}'));
- const library=template.slice(template.indexOf('{{#if activeLibrary}}\n  {{#if initialized}}'),template.indexOf('{{#if activeSetup}}\n  {{#if initialized}}'));
- for(const act of ['create-tree','export','export-all','give-missing','publish','backup-progress'])
+ const setup=template.slice(template.indexOf('{{#if activeSetup}}\n'));
+ const library=template.slice(template.indexOf('{{#if activeLibrary}}\n  {{#if initialized}}'),template.indexOf('{{#if activeSetup}}\n'));
+ assert.ok(setup.length>100&&library.length>100);
+ for(const act of ['create-tree','export','export-all','give-missing','publish','backup-progress','ledger-import','legacy-preview','legacy-clear'])
   assert.match(library,new RegExp(`data-act="${act}"`),`${act} is in Tree Library`),assert.doesNotMatch(setup,new RegExp(`data-act="${act}"`),`${act} is not in GM Setup`);
  assert.match(setup,/name="playerAccessEnabled"/);
  assert.match(setup,/data-act="setup-save"/);

@@ -31,13 +31,16 @@ test('Clearing the legacy setting is a danger confirm; Cancel writes nothing',as
   assert.deepEqual(seen.buttons.map(b=>b.label),['Cancel','Back up and clear']);
   assert.ok(seen.classes.includes('ag-dialog--danger'));
   assert.equal(seen.window.title,'Clear the legacy public setting?');
+  assert.deepEqual(seen.buttons.map(b=>Boolean(b.default)),[true,false],'Cancel is the default');
   assert.deepEqual(writes,[]);
 });
 
 test('destructive confirms carry a verb label and danger; no Yes/No or DialogV2.confirm left',async()=>{
   const src=await fs.readFile(new URL('../scripts/main.js',import.meta.url),'utf8');
+  // 0.20.0: removals and resets use the kit's confirmDanger (red action, Cancel is the default button).
   for(const yes of ['Reset tree','Remove node','Refund points','Remove test records','Undo change','Back up and clear'])
-    assert.match(src,new RegExp(`yes:'${yes}',danger:true`),yes);
+    assert.match(src,new RegExp(`await confirmDanger\\([^;]*yes:'${yes}'\\}\\)`),yes);
+  assert.doesNotMatch(src,/danger:true/,'no confirmDialog danger left: its action would be the default');
   assert.match(src,/yes:'Unlock perk'\}/);
   assert.doesNotMatch(src,/DialogV2\.(confirm|prompt)\(/);
   const tpl=await fs.readFile(new URL('../templates/tree.hbs',import.meta.url),'utf8');

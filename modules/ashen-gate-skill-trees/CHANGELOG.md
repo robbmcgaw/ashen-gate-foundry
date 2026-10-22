@@ -1,3 +1,16 @@
+## 0.20.0 — 2026-10-22
+
+UI cleanup (audit ST-01, ST-03 to ST-18). No new mechanics; tree visibility, publishing and hidden-prerequisite rules are unchanged.
+
+- **Sidebar sub-tabs (ST-01, ST-11):** Tree and Character stay pinned at the top; below them **Perk** (the selected perk and its actions, plus Tree as a list), **Character** (points, Award points, the characters on a profession tree, History, and Reset in a "Reset this tree…" fold) and, for the GM, **Edit** (Tree settings, Appearance, Undo/Redo and the Perks list). Selecting a node opens Perk. The sub-tab and open folds are remembered per user.
+- **Player preview and Edit layout** are pressed/unpressed buttons in the canvas bar, so they stay visible with the menu closed (ST-12).
+- **Tree Library sub-tabs (ST-03, ST-04, ST-18):** **Trees** (search, Export all trees, New tree; each row has Open and Export) and **Checks & maintenance** (saved-data and profession perk checks, Give missing perks, the older-data moves, the progress backup and a secondary Republish player view). "Review Legacy" is now "Migrate legacy trees (n)…". GM Setup holds only Player access and Developer Tools, and shows Player access before GM storage exists (ST-16).
+- **Dialogs (ST-05, ST-07, ST-09):** every form dialog has Cancel on the left. Edit properties shows Status, Visibility and Display first, with plain labels, and groups the prerequisite table by tier. Award points asks once; its button names the amount. Removals and resets use the kit's danger confirmation (Cancel is the default button).
+- **Keyboard and accessibility (ST-08, ST-10, ST-17):** Connect prerequisite has a Cancel connecting button and Esc. In Edit layout, arrow keys move the focused node (Shift: 50 px) and Move node… sets an exact position. Undo/Redo are disabled when there is nothing to undo or redo. Top tabs and sub-tabs take arrow keys; focus stays on the clicked control after a re-render. Leaving GM Setup with unsaved changes asks first.
+- **Kit parts (ST-06, ST-13, ST-14):** canvas banners are kit notices; the Character Hub embed uses kit badges and empty states, shows full perk text and has no button inside a summary; chat card buttons use the kit button.
+- **Text (ST-15):** the settings hint and Help are up to date (Help is grouped by topic); no raw ids, status values or "(s)" plurals in the window.
+- Saved data: no change. No migration. Setting keys, flags and ids are unchanged.
+
 ## 0.19.6 — 2026-10-22
 
 - Shared UI kit 2.2 (no visible change).

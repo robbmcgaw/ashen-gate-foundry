@@ -12,7 +12,7 @@ const store={flags:{[MODULE]:{privateStore:true,payload:{schema:'ag-skill-trees/
 globalThis.Hooks={once:(e,fn)=>oneTime.set(e,fn),on:()=>{}};
 globalThis.foundry={applications:{api:{ApplicationV2:FakeApplication,HandlebarsApplicationMixin:B=>B,DialogV2:{}}},utils:{escapeHTML:x=>x,randomID:()=>'r'}};
 globalThis.document={documentElement:{dataset:{agSize:'comfortable'}},createElement:tag=>({tag,className:'',textContent:'',children:[],append(...c){this.children.push(...c);}})};
-globalThis.game={modules:new Map([[MODULE,{id:MODULE,active:true,version:'0.19.6'}]]),settings:{
+globalThis.game={modules:new Map([[MODULE,{id:MODULE,active:true,version:'0.20.0'}]]),settings:{
   register:(_m,key,def)=>defs.set(key,def),registerMenu:()=>{},
   get:(_m,key)=>values.has(key)?values.get(key):({treeData:{schema:'ag-skill-trees/0.1',trees:[{id:'OLD',name:'[TEST] Old tree',nodes:[]}]},publicTreesV2:{schema:'ag-skill-trees/0.2',trees:[]}})[key]??defs.get(key)?.default,
   set:async(_m,key,value)=>{writes.push([key,value]);values.set(key,value);return value;}
@@ -23,7 +23,7 @@ oneTime.get('init')();oneTime.get('ready')();
 const app=game.modules.get(MODULE).api.open();
 const click=act=>app._clicked({target:{closest:()=>({dataset:{act}})}});
 /** Fake GM Setup DOM: the Player Access checkbox and the footer status. */
-const setupDom=checked=>{const box={checked},status={textContent:''};
+const setupDom=checked=>{const box={checked},status={textContent:'',dataset:{}};
   app.element={querySelector:s=>s==='[data-agst-setup] [name="playerAccessEnabled"]'?box:s==='[data-agst-setup-status]'?status:null};return {box,status};};
 const read=p=>fs.readFile(new URL(p,import.meta.url),'utf8');
 
@@ -50,6 +50,20 @@ test('D4: changing Player Access writes nothing; Cancel drops it; Save Changes w
   assert.deepEqual(writes,[['playerAccessEnabled',true]]);
 });
 
+test('0.20.0: leaving GM Setup with unsaved changes asks first (kit guardDirty); Keep editing stays, Discard leaves',async()=>{
+  values.set('playerAccessEnabled',true);writes.length=0;
+  app.activeTab='setup';const {box}=setupDom(true);
+  box.checked=false;app._onSetupChange();
+  let seen=[];const answer=action=>{foundry.applications.api.DialogV2={wait:async o=>{seen.push(o);return o.buttons.find(b=>b.action===action).callback();}};};
+  answer('cancel');await click('tab-library');
+  assert.equal(app.activeTab,'setup','Keep editing stays on GM Setup');
+  assert.equal(seen[0].window.title,'Discard unsaved changes?');
+  assert.deepEqual(seen[0].buttons.map(b=>[b.label,Boolean(b.default)]),[['Keep editing',true],['Discard changes',false]]);
+  answer('confirm');await click('tab-library');
+  assert.equal(app.activeTab,'library');assert.equal(app._setupDraft,null);assert.deepEqual(writes,[],'discarding writes nothing');
+  seen=[];await click('tab-trees');assert.equal(seen.length,0,'no question when nothing is unsaved');
+});
+
 test('D4: Save Changes is GM only, and the old instant toggle is gone',async()=>{
   game.user.isGM=false;
   await assert.rejects(()=>app._saveSetup({playerAccessEnabled:false}),/GM only/);
@@ -61,14 +75,23 @@ test('D4: Save Changes is GM only, and the old instant toggle is gone',async()=>
   assert.match(setup,/<footer class="ag-footer">\s*<button type="button" class="ag-btn ag-btn--ghost" data-act="setup-cancel">Cancel<\/button>\s*<span class="ag-footer__status" role="status"[^>]*>[^<]*(\{\{[^}]+\}\}[^<]*)*<\/span>\s*<button type="button" class="ag-btn ag-btn--primary" data-act="setup-save">/);
 });
 
-test('Data tools: migrations are their own card and ask first; Developer Tools keeps only QA install and reset',async()=>{
+test('Data tools: migrations live in Tree Library > Checks & maintenance; GM Setup keeps Player access and Developer Tools (QA only)',async()=>{
   const tpl=await read('../templates/tree.hbs');
+  const lib=tpl.slice(tpl.indexOf('{{#if activeLibrary}}\n'),tpl.indexOf('{{#if activeSetup}}\n'));
   const setup=tpl.slice(tpl.indexOf('{{#if activeSetup}}\n'));
-  const data=setup.slice(setup.indexOf('aria-label="Data tools"'),setup.indexOf('<details class="ag-devtools">'));
+  const checks=lib.slice(lib.indexOf('{{{libraryPanel.checks}}}'));
+  const data=checks.slice(checks.indexOf('aria-label="Older saved data"'),checks.indexOf('aria-label="Publication and backups"'));
   const dev=setup.slice(setup.indexOf('<details class="ag-devtools">'),setup.indexOf('</details>'));
-  for(const act of ['ledger-import','legacy-preview','legacy-clear'])assert.match(data,new RegExp(`data-act="${act}"`),act),assert.doesNotMatch(dev,new RegExp(`data-act="${act}"`),act);
+  for(const act of ['ledger-import','legacy-preview','legacy-clear'])assert.match(data,new RegExp(`data-act="${act}"`),act),assert.doesNotMatch(setup,new RegExp(`data-act="${act}"`),act);
+  assert.match(data,/Migrate legacy trees \(\{\{legacy\}\}\)…/,'the button says it migrates');
+  assert.deepEqual([...setup.matchAll(/data-act="([^"]+)"/g)].map(m=>m[1]),['qa-install','qa-reset','setup-cancel','setup-save']);
   assert.deepEqual([...dev.matchAll(/data-act="([^"]+)"/g)].map(m=>m[1]),['qa-install','qa-reset']);
   assert.doesNotMatch(dev,/Cinder|Profession/,'dev-tools copy names no setting content');
+  // ST-16: the Player access card renders before GM storage exists; Developer Tools waits for it.
+  assert.ok(setup.indexOf('name="playerAccessEnabled"')<setup.indexOf('{{#if initialized}}'));
+  // ST-18: Republish is a secondary action next to the backup.
+  assert.match(checks,/<button type="button" class="ag-btn" data-act="publish">[^<]*<i[^>]*><\/i> Republish player view<\/button>/);
+  assert.doesNotMatch(lib,/data-act="publish"[^>]*ag-btn--primary|ag-btn--primary[^>]*data-act="publish"/);
 });
 
 test('Data tools: Cancel on the legacy migration and the legacy clear changes nothing',async()=>{
