@@ -90,18 +90,24 @@
 .agch-app .agch-hero { display: flex; gap: var(--ag-space-4); align-items: center; }
 .agch-app .agch-portrait { width: var(--ag-portrait); height: var(--ag-portrait); border-radius: 50%; border: 1px solid var(--ag-border); }
 
-/* Identity. 0.34.0: one row: the name, class / subclass / species / background chips, Cinder chips and the inspiration
-   star last; it wraps only when the column is too narrow. */
+/* Header (0.37.0): the character's name (with a "Level n" badge) on the left, the identity line under it as muted text
+   that wraps; the actions keep the right side and wrap under it in a narrow window. The name keeps one line and ends in
+   "…" only when even that does not fit (a long name has the full text as its tooltip). */
+.agch-app .agch-head { align-items: flex-start; flex-wrap: wrap; gap: var(--ag-space-1) var(--ag-space-3); padding-block: var(--ag-space-2); }
+.agch-app .agch-head__who { flex: 1 1 14rem; min-width: 0; display: flex; flex-direction: column; gap: calc(var(--ag-space-1) / 2); }
+.agch-app .agch-head__line { display: flex; align-items: center; gap: var(--ag-space-2); min-width: 0; }
+.agch-app .agch-head .agch-head__name { min-width: 0; margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; line-height: 1.2; border: 0; }
+.agch-app .agch-head__level { flex: none; font-size: var(--ag-text-xs); }
+.agch-app .agch-head__ident { margin: 0; color: var(--ag-muted); font-size: var(--ag-text-sm); line-height: 1.35; overflow-wrap: anywhere; }
+.agch-app .agch-idlink { display: inline; width: auto; height: auto; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: var(--ag-radius-control);
+  background: none; color: inherit; font: inherit; line-height: inherit; text-align: left; white-space: normal; cursor: pointer; }
+.agch-app .agch-idlink--class { font-weight: 600; color: var(--ag-text); }
+.agch-app .agch-idlink:hover, .agch-app .agch-idlink:focus-visible { color: var(--ag-accent); text-decoration: underline; background: none; box-shadow: none; }
+.agch-app .agch-idlink:focus-visible { outline: 2px solid var(--ag-accent); outline-offset: 1px; }
+.agch-app .agch-head .ag-header__actions { margin-left: auto; }
+
+/* The column's top row (0.37.0): the Cinder chips and the inspiration star (the name moved into the header). */
 .agch-app .agch-ident { display: flex; flex-wrap: wrap; gap: var(--ag-space-1) var(--ag-space-2); align-items: center; }
-.agch-app .agch-name { margin: 0; font-size: var(--ag-text-xl); line-height: 1.15; overflow-wrap: anywhere; border: 0; }
-.agch-app .agch-idchips { display: contents; }
-.agch-app .agch-idchip { display: inline-flex; align-items: center; gap: var(--ag-space-1); width: auto; min-height: var(--ag-control-h-sm); margin: 0; padding: 0 var(--ag-space-2) 0 calc(var(--ag-space-1) / 2);
-  border: 1px solid var(--ag-border); border-radius: var(--ag-radius-control); background: var(--agch-bg-raised); color: var(--ag-text); font-size: var(--ag-text-sm); line-height: 1.2; text-align: left; cursor: pointer; }
-.agch-app .agch-idchip:hover, .agch-app .agch-idchip:focus-visible { border-color: var(--ag-accent); background: var(--ag-surface-hover); }
-.agch-app .agch-idchip img { width: calc(var(--ag-control-h-sm) - var(--ag-space-2)); height: calc(var(--ag-control-h-sm) - var(--ag-space-2)); flex: none; border: 0; border-radius: 50%; object-fit: cover; object-position: center top; }
-.agch-app .agch-idchip span { overflow-wrap: anywhere; }
-.agch-app .agch-idchip--class span { font-weight: 600; }
-.agch-app .agch-idlevel { font-size: var(--ag-text-sm); color: var(--ag-muted); }
 .agch-app .agch-ident > .agch-cchips { margin-top: 0; }
 .agch-app .agch-insp { width: var(--ag-icon-btn); height: var(--ag-icon-btn); min-height: 0; margin-left: auto; padding: 0; border-radius: 50%; justify-content: center; color: var(--ag-muted); flex: none; }
 .agch-app .agch-insp.is-active { color: var(--ag-accent); border-color: var(--ag-accent); background: var(--ag-accent-soft); }
@@ -651,15 +657,11 @@
 .agch-app .agch-drawer[hidden] { display: none; }
 .agch-app .agch-drawer .agch-quick { display: grid; grid-template-columns: repeat(10, minmax(0, var(--ag-slot))); justify-content: center; gap: var(--ag-space-1); }
 .agch-app .agch-drawer .agch-quick__slot { width: 100%; height: auto; aspect-ratio: 1; }
-/* 0.34.0: Compact's name row keeps to one line: the class chip keeps its text, subclass, species and background show
-   their icon only (the name is the tooltip and the accessible name). */
-.agch-app .agch-idchip--icon { padding: 0 calc(var(--ag-space-1) / 2); }
 
 /* Compact mode (0.29.0): one column (name, art with slots, HP; 0.32.0 also the stats) and the hotbars; no tab rail or middle content. */
 .agch-app .agch-root--compact .ag-header { flex-wrap: wrap; row-gap: var(--ag-space-1); }
 .agch-app .agch-root--compact .ag-header__actions { flex-wrap: wrap; }
 .agch-app .agch-char--compact { flex: 1; min-height: 0; }
-.agch-app .agch-char--compact .agch-name { margin: 0; text-align: center; }
 .agch-app .agch-root--compact .agch-hotbar { grid-template-columns: minmax(0, 1fr); }
 .agch-app .agch-root--compact .agch-hotbar__head { min-width: 0; padding-top: 0; }
 /* 0.32.0: Compact keeps the stats too. Only the column scrolls (also under the 900 px stack rule); the hotbars (marks

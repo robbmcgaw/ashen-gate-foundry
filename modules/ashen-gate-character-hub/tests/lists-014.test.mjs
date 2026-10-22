@@ -110,10 +110,10 @@ test('Features: grouped by source (the granting item), action type, uses; filter
   assert.deepEqual(filterRows(all, {uses: true}).map(r => r.id).sort(), ['su', 'sw']);
 });
 
-test('Class (with level), species and background are chips in the name row (0.34.0), before the art; no longer in Features', async () => {
+test('Species, class and background are the identity line in the header (0.37.0; chips in 0.34.0); no longer in Features', async () => {
   installGlobals({user: users.owner});
   const {html} = await tab('features');
-  assert.match(html, /<aside class="agch-char"[\s\S]*<div class="agch-idchips"[\s\S]*data-id="fighter"[^>]*aria-label="[^"]*level 3 \(class\): open"[\s\S]*<span>[^<]*3<\/span>[\s\S]*data-id="elf"[^>]*\(species\)[\s\S]*data-id="sage"[^>]*\(background\)[\s\S]*data-action="inspiration"[\s\S]*agch-doll/);
+  assert.match(html, /<header class="ag-header agch-head">[\s\S]*<p class="agch-head__ident"[\s\S]*data-id="elf"[^>]*\(species\)[\s\S]*data-id="fighter"[^>]*aria-label="[^"]*level 3 \(class\): open"[\s\S]*data-id="sage"[^>]*\(background\)[\s\S]*<\/header>[\s\S]*<aside class="agch-char"[\s\S]*data-action="inspiration"[\s\S]*agch-doll/);
   assert.doesNotMatch(html, /agch-idcard|<p class="agch-sub">/, 'no cards and no subtitle line');
   assert.doesNotMatch(body(html), /Class, Species &amp; Background|data-key="features:identity"/);
 });

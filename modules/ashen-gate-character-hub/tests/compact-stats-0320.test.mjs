@@ -111,7 +111,7 @@ test('Compact conditions: the strip under Mastery & marks (0.34.0), as in Full; 
 
 test('Compact order and what stays: name, Cinder chips, art + slots, stat line, HP, abilities; header controls kept; no tabs', async () => {
   const {html} = await render({modules: {'ashen-gate-cinders': cinders()}});
-  const col = column(html), order = ['agch-name', 'agch-cchips', 'agch-doll', 'agch-statline', 'agch-hp"', 'agch-abils'];
+  const col = column(html), order = ['agch-ident', 'agch-cchips', 'agch-doll', 'agch-statline', 'agch-hp"', 'agch-abils'];
   order.slice(1).forEach((k, i) => assert.ok(after(col, order[i], k), `${order[i]} before ${k}`));
   // 0.33.0 (CH-04): Compact header = Compact/Full, the ⋯ menu (Appearance… with the see-through slider, Pop out, Codex) and Help.
   for (const keep of [/data-action="compact-toggle"/, /data-action="more-menu"/, /data-action="help"/]) assert.match(html, keep);

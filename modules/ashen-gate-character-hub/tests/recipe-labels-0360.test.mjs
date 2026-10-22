@@ -9,7 +9,6 @@ import {PANELS, panelState, knownProfessions, recipeLabelOf, recipeCountText} fr
 import {professionsBox} from '../scripts/views.mjs';
 import {itemRow, effectNoteOf, EFFECT_NOTE_MAX, inventoryData} from '../scripts/items.mjs';
 import {cardHtml} from '../scripts/cards.mjs';
-import {VERSION} from '../scripts/constants.mjs';
 
 const WORDS = {'PROF-TEST-ALCH': ['Formula', 'Formulas'], 'PROF-ARTISTRY': ['Composition', 'Compositions']};
 const recipeLabel = (prof, {plural = false, capitalize = true} = {}) => {
@@ -29,7 +28,6 @@ const setup = (api, user = users.owner) => { installGlobals({user, modules: {'as
 const panel = actor => panelState(PANELS.find(p => p.id === 'ashen-gate-profession-ledger'), actor).html;
 const text = html => html.replace(/<[^>]*>/g, ' ').replace(/&#39;/g, "'").replace(/\s+/g, ' ');
 
-test('version is 0.36.0', () => assert.equal(VERSION, '0.36.0'));
 
 test('Professions panel: per-profession count in its own word; the total stays generic', () => {
   setup(ledger({recipeLabel}));

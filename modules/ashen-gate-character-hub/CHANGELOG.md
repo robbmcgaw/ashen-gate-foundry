@@ -1,3 +1,12 @@
+## 0.37.0 — 2026-10-22
+
+Robb's request: the character's name goes where "Ashen Gate | Character Hub" was, and the column below shifts up.
+
+- **Header:** the character's name is the big heading at the top left, with a small **Level n** badge beside it. Under it, one line of muted text: species · class and subclass · background (for example "Elf · Fighter Champion · Sage"). Each part still opens its item when clicked; a multiclass character shows each class with its level ("Fighter 3 Champion / Wizard 2 Evoker") and the total in the badge. Compact, ⋯, version and Help stay where they were; in a narrow window they wrap under the name. A very long name ends in "…" only when nothing else fits, and hovering it shows the whole name.
+- **Window title:** now says **Ashen Gate | Character Hub** instead of "Player Character: <name>", so the module is still easy to spot (also when popped out or minimised).
+- **Character column:** the name and the class / species / background chips are gone from it (they're in the header now), so the Cinders, the inspiration star and the art sit higher. Compact gets the same header. The limited view shows the name in the header and keeps its portrait card, without repeating the name.
+- Saved data: no change. No migration.
+
 ## 0.36.0 — 2026-10-22
 
 For Profession Ledger 0.29.0 (each profession's own word for recipes, effect notes on activities). Display only; with an older Ledger the Hub looks as before.
