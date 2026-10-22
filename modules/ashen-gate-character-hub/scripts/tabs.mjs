@@ -12,12 +12,25 @@ import {sectionHtml, sectionKey} from './collapse.mjs';
 import {cardList, COLUMNS as C, containerLead, containerAttrs} from './cards.mjs';
 import {ORGANIZE, listChoice, sortRows, groupRows, GROUP_BY, orderGroups, filterRows, FILTERS, actionLabel} from './organize.mjs';
 import {favoritesSupported, isFavorite} from './item-actions.mjs';
+import {tooltipAttrs} from './tooltips.mjs';
 
 /** Kit empty state: a title and, optionally, the next step. */
 const empty = (title, text = '') => `<div class="ag-empty"><p class="ag-empty__title">${esc(title)}</p>${text ? `<p class="ag-empty__text">${esc(text)}</p>` : ''}</div>`;
 const pips = (value, max) => `${value} / ${max}`;
 const useBtn = (row, off) => row.usable ? btn('item-use', 'Use', {kind: 'sm', icon: 'fa-solid fa-dice-d20', data: {id: row.id}, title: `Use ${row.name}`, disabled: off}) : '';
 const attunedBadge = r => r.attuned ? '<span class="ag-badge ag-badge--accent" data-tooltip="Attuned"><i class="fa-solid fa-sun" aria-hidden="true"></i> Attuned</span>' : '';
+/**
+ * A weapon's mastery (0.30.0): the name from dnd5e's CONFIG.DND5E.weaponMasteries; hover shows dnd5e's own rules page
+ * for it (rich tooltip) or, without dnd5e's tooltips, just the name. Dimmed when dnd5e says the character can't use it.
+ */
+export function masteryBadge(r) {
+  const m = r?.mastery;
+  if (!m) return '';
+  const off = m.mastered === false, label = `${m.label} weapon mastery${off ? ' (not mastered by this character)' : ''}`;
+  return `<span class="ag-badge agch-mastery${off ? ' is-off' : ' ag-badge--accent'}"${tooltipAttrs(m.reference, label, {kind: 'rule'})} aria-label="${esc(label)}"><i class="fa-solid fa-medal" aria-hidden="true"></i> ${esc(m.label)}</span>`;
+}
+/** The band at the top of a tab that stays in view while its list scrolls (0.30.0): search, filters, purse. */
+const stickyBand = html => `<div class="agch-sticky">${html}</div>`;
 
 /** Search box for a tab (filters rows by name without a re-render; the text is kept per tab). */
 const searchBox = (ctx, what) => `<label class="ag-search agch-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-filter data-tab="${esc(ctx.tab ?? '')}" placeholder="Search ${esc(what)}" aria-label="Search ${esc(what)}" value="${esc(ctx.sheet?.filters?.[ctx.tab] ?? '')}" data-ag-always></label>`;
@@ -43,13 +56,13 @@ function favouritesSection(actor, tab, rows, columns, card, expanded) {
 // ---------- Combat ----------
 function combatTab(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, d = combatData(actor), h = headerData(actor), expanded = sheet?.expanded;
-  const top = `<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'weapons and actions')}
-    ${h.hp.value <= 0 ? `<div class="ag-toolbar__end">${btn('roll-death', 'Death save', {icon: 'fa-solid fa-dice-d20', disabled: off})}</div>` : ''}</div>`;
+  const top = stickyBand(`<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'weapons and actions')}
+    ${h.hp.value <= 0 ? `<div class="ag-toolbar__end">${btn('roll-death', 'Death save', {icon: 'fa-solid fa-dice-d20', disabled: off})}</div>` : ''}</div>`);
   // dnd5e's damage labels include healing (heal activities), so the column says both.
   const dmg = {...C.damage, label: 'DMG/HEAL'};
   const weaponCols = [dmg, C.toHit, C.range, C.properties], actionCols = [C.range, dmg, C.uses, C.recovery];
   const weapons = d.weapons.length ? cardList(d.weapons, weaponCols, {expanded, listKey: 'combat-weapons',
-    card: w => ({controls: useBtn(w, off), star: starBtn(actor, w, off), badges: `${w.equipped ? '' : '<span class="ag-badge">Not equipped</span>'}${attunedBadge(w)}`})}) : empty('No weapons yet.', 'Equip or carry a weapon and it shows here.');
+    card: w => ({controls: useBtn(w, off), star: starBtn(actor, w, off), badges: `${masteryBadge(w)}${w.equipped ? '' : '<span class="ag-badge">Not equipped</span>'}${attunedBadge(w)}`})}) : empty('No weapons yet.', 'Equip or carry a weapon and it shows here.');
   const groups = d.groups.map(g => sectionHtml(sectionKey('combat', g.key), esc(g.label), cardList(g.items, actionCols, {expanded, listKey: `combat-${g.key}`, card: r => ({controls: useBtn(r, off), star: starBtn(actor, r, off)})}))).join('');
   return `${top}${sectionHtml(sectionKey('combat', 'weapons'), 'Weapons', weapons)}${groups}
     <p class="agch-muted agch-hint">Use opens dnd5e's own usage dialog: attacks, damage, targets and resource use happen there. Initiative rolls from the tile on the left.</p>`;
@@ -63,13 +76,27 @@ export const diamondBanner = actor => hasDiamond(actor)
   ? `<p class="agch-diamond is-present" role="note">${esc(DIAMOND_PRESENT)}</p>`
   : `<p class="agch-diamond is-absent" role="note">${esc(DIAMOND_ABSENT)}</p>`;
 
-function inventoryTab(ctx) {
-  const {actor, editable, sheet} = ctx, off = !editable, d = inventoryData(actor), toParty = partyStashUsable(), expanded = sheet?.expanded;
+/**
+ * Carried weight (0.30.0): a small kit meter beside the coin purse, filled with dnd5e's carried weight against its
+ * carrying capacity (system.attributes.encumbrance). Nothing when dnd5e gives no capacity.
+ */
+export function weightBar(enc) {
+  if (!enc) return '';
+  const text = `${enc.value} / ${enc.max} ${enc.units}`, tip = `Carried weight ${text} (dnd5e's carrying capacity)${enc.over ? ': over capacity' : ''}`;
+  return `<span class="ag-meter${enc.over ? ' ag-meter--danger' : ''} agch-weight" data-tooltip="${esc(tip)}"><span class="ag-meter__label agch-weight__label"><i class="fa-solid fa-weight-hanging" aria-hidden="true"></i><span class="ag-sr-only">Carried weight</span></span><span class="ag-meter__value">${esc(text)}</span><span class="ag-meter__track" role="progressbar" aria-valuemin="0" aria-valuemax="${enc.max}" aria-valuenow="${Math.min(enc.value, enc.max)}" aria-valuetext="${esc(text)}" aria-label="${esc(tip)}" style="--ag-meter:${enc.pct}%"><span class="ag-meter__fill"></span></span></span>`;
+}
+/** The coin purse (and the weight bar beside it) for the Inventory's frozen band. */
+function purseHtml(ctx, d) {
+  const off = !ctx.editable;
   // Electrum follows Utilities' "Use electrum" (off: no ep box, unless the character still has some: then it shows dimmed).
   const offEp = electrumHidden(), coins = d.currency.filter(c => !(offEp && c.key === 'ep' && !c.value));
   const coinBox = c => { const dim = offEp && c.key === 'ep';
     return `<label class="agch-coin${dim ? ' is-off' : ''}"${dim ? ' data-tooltip="Electrum is off in Utilities. This character still has some; the GM can convert it there."' : ''}><span>${esc(c.abbr)}</span><input type="number" min="0" step="1"${dim ? ` max="${c.value}"` : ''} data-edit="currency" data-key="${esc(c.key)}" value="${c.value}" aria-label="${esc(c.label)}"${off ? ' disabled' : ''}></label>`; };
-  const currency = `<div class="agch-currency agch-coins" role="group" aria-label="Currency">${coins.map(coinBox).join('')}</div>${offEp && coins.some(c => c.key === 'ep') ? '<p class="agch-muted agch-ep-off">Electrum is off in Utilities: it only shows because this character still has some. The GM can convert it there.</p>' : ''}`;
+  return `<div class="agch-purse"><div class="agch-currency agch-coins" role="group" aria-label="Currency">${coins.map(coinBox).join('')}</div>${weightBar(d.encumbrance)}</div>${offEp && coins.some(c => c.key === 'ep') ? '<p class="agch-muted agch-ep-off">Electrum is off in Utilities: it only shows because this character still has some. The GM can convert it there.</p>' : ''}`;
+}
+
+function inventoryTab(ctx, d = inventoryData(ctx.actor)) {
+  const {actor, editable, sheet} = ctx, off = !editable, toParty = partyStashUsable(), expanded = sheet?.expanded;
   const qty = {...C.quantity, render: r => `<span class="agch-qty">${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-minus', data: {id: r.id, step: -1}, title: `One fewer ${r.name}`, disabled: off || r.quantity <= 0})}<input type="number" min="0" step="1" data-edit="item-qty" data-id="${esc(r.id)}" value="${r.quantity}" aria-label="${esc(r.name)} quantity"${off ? ' disabled' : ''}>${btn('item-qty', '', {kind: 'sm', icon: 'fa-solid fa-plus', data: {id: r.id, step: 1}, title: `One more ${r.name}`, disabled: off})}</span>`};
   const columns = [qty, C.weight, C.value, C.uses];
   const controls = r => [
@@ -78,11 +105,11 @@ function inventoryTab(ctx) {
     r.canAttune ? btn('item-attune', r.attuned ? 'Unattune' : 'Attune', {kind: 'sm', data: {id: r.id, attuned: r.attuned ? 0 : 1}, title: r.attunement === 'optional' ? 'Attunement optional' : 'Requires attunement', disabled: off}) : '',
     toParty ? btn('item-deposit', '', {kind: 'sm', icon: 'fa-solid fa-people-carry-box', data: {id: r.id}, title: `Move ${r.name} to the party stash`, disabled: off}) : ''
   ].join('');
-  const card = r => ({controls: controls(r), lead: containerLead(r), star: starBtn(actor, r, off), badges: attunedBadge(r)});
+  const card = r => ({controls: controls(r), lead: containerLead(r), star: starBtn(actor, r, off), badges: `${masteryBadge(r)}${attunedBadge(r)}`});
   // A container's contents sit in a folding row under it (fold state shared with headings).
   const after = r => r.contents?.length ? `<li class="agch-contents"${containerAttrs(r)}>${cardList(r.contents, columns, {card, expanded, listKey: `inv-${r.id}`})}</li>` : '';
   const groups = d.groups.map(g => sectionHtml(sectionKey('inventory', g.type), esc(g.label), cardList(g.items, columns, {card, after, expanded, listKey: `inv-${g.type}`}))).join('') || empty('No items yet.', 'Items on this character show here.');
-  return `${diamondBanner(actor)}${currency}${groups}
+  return `${diamondBanner(actor)}${groups}
     <p class="agch-muted agch-hint">Equipped items also show in the slots around the portrait.${toParty ? ' <i class="fa-solid fa-people-carry-box" aria-hidden="true"></i> moves an item to the party stash; take items back from Party stash.' : ''}</p>`;
 }
 
@@ -92,10 +119,10 @@ function inventoryShell(ctx) {
   const party = stash && (ctx.sheet?.invView === 'party' || !mine), d = party ? null : inventoryData(ctx.actor);
   const seg = (view, label, part) => `<button type="button" data-action="inv-view" data-view="${view}" data-ag-always role="radio" aria-checked="${(view === 'party') === party}">${esc(label)}${hiddenBadge(part)}</button>`;
   const segs = mine && stash ? `<div class="ag-segmented agch-seg" role="radiogroup" aria-label="Whose items">${seg('character', 'Character', 'inventory')}${seg('party', 'Party stash', 'partyStash')}</div>` : '';
-  return `<div class="ag-toolbar agch-toolbar">${segs}
+  return `${stickyBand(`<div class="ag-toolbar agch-toolbar">${segs}
     ${searchBox(ctx, 'items')}
-    ${d ? `<span class="ag-badge${d.attunement.value > d.attunement.max ? ' ag-badge--danger' : ''}" data-tooltip="Attuned items">Attuned ${d.attunement.value} / ${d.attunement.max}</span>` : ''}</div>
-    ${party ? partyStashHtml(ctx.actor) : inventoryTab(ctx)}`;
+    ${d ? `<span class="ag-badge${d.attunement.value > d.attunement.max ? ' ag-badge--danger' : ''}" data-tooltip="Attuned items">Attuned ${d.attunement.value} / ${d.attunement.max}</span>` : ''}</div>${d ? purseHtml(ctx, d) : ''}`)}
+    ${party ? partyStashHtml(ctx.actor) : inventoryTab(ctx, d)}`;
 }
 
 // ---------- Filters (Magic, Features) ----------
@@ -133,8 +160,8 @@ function magicTab(ctx) {
     orderGroups(groups, group);
     sections = groups.map(g => sectionHtml(sectionKey('magic', group, g.key), esc(g.label), cardList(g.items, columns, {card, expanded, listKey: `magic-${group}-${g.key}`}))).join('');
   }
-  return `<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'spells')}${organizeSelects('magic')}</div>${strip}
-    <div class="agch-filters" role="group" aria-label="Spell filters">${filterToggles('magic', {...f, level: null})}</div>
+  return `${stickyBand(`<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'spells')}${organizeSelects('magic')}</div>${strip}
+    <div class="agch-filters" role="group" aria-label="Spell filters">${filterToggles('magic', {...f, level: null})}</div>`)}
     ${favouritesSection(actor, 'magic', sortRows(shown, sort), columns, card, expanded)}${sections || empty('Nothing matches.', 'Change the search or use Clear filters.')}
     <p class="agch-muted agch-hint">Cast opens dnd5e's casting dialog (slot level, upcasting and consumption). Castable only: cantrips, and prepared spells with a slot of their level or higher left. The star is dnd5e's own favourite (also on the standard sheet).</p>`;
 }
@@ -152,8 +179,8 @@ function featuresTab(ctx) {
   // Action-type buttons for the dnd5e activation types these features have.
   const types = orderGroups([...new Set(all.map(r => r.actType || 'none'))].map(k => ({key: k, label: actionLabel(k === 'none' ? '' : k)})), 'action').map(g => g.key);
   const actBtns = types.length > 1 ? types.map(t => filterBtn('features', 'action', t, esc(actionLabel(t === 'none' ? '' : t)), f.action === t, `Show only ${actionLabel(t === 'none' ? '' : t)}`)).join('') : '';
-  return `<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'features')}${organizeSelects('features')}</div>
-    <div class="agch-filters" role="group" aria-label="Feature filters">${actBtns}${filterToggles('features', f)}</div>
+  return `${stickyBand(`<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'features')}${organizeSelects('features')}</div>
+    <div class="agch-filters" role="group" aria-label="Feature filters">${actBtns}${filterToggles('features', f)}</div>`)}
     ${favouritesSection(actor, 'features', sortRows(shown, sort), columns, card, expanded)}${sections || (all.length ? empty('Nothing matches.', 'Change the search or use Clear filters.') : empty('No features yet.', 'Class, species and other features show here.'))}
     <p class="agch-muted agch-hint">Class, species and background are on the card at the top of the character. Level up and advancement choices are on the native sheet. The star is dnd5e's own favourite (also on the standard sheet).</p>`;
 }

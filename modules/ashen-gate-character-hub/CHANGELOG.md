@@ -1,3 +1,16 @@
+## 0.30.0 — 2026-10-22
+
+- **Fix: Group and Sort did nothing after using the filters.** Three ways it could happen, all fixed: (1) with a slot or Other menu open, clicking the Group or Sort list redrew the Hub to close the menu, which replaced the list that had just opened, so the choice went nowhere; now the menu closes without a redraw from under a list or a box you click. (2) Foundry keeps one sheet per character, so the Magic and Features filters, search text and an open menu survived closing the Hub; they now start fresh each time the Hub is opened. (3) A redraw that failed part-way could leave a reopened Hub without its change listener (Group, Sort, GM Setup switches); it is now attached first.
+- **Weapon mastery on weapon cards** (Combat and Inventory): the mastery name from dnd5e (e.g. Vex, Cleave). Hover shows dnd5e's own rules page for it; dimmed when dnd5e says the character can't use that mastery.
+- **Professions** under Proficiencies (Overview): each profession the character knows and its level, from the Profession Ledger. Click it to show Ashen Gate → Professions. Not shown without the Ledger, or when Professions is hidden from players (GM Setup → Player visibility, or the Ledger's Player Access off).
+- **Strain beside hit points:** players see a compact read-only pill next to hit dice and exhaustion (small bar, value, band; hover for the Push Backfire chance) instead of the separate row. The GM keeps the row with − / + under hit points. Same switch as before (Strain bar in Player visibility); nothing without Cinders.
+- **Initiative and Proficiency** numbers are larger and centred in their boxes.
+- **Mastery & marks is a strip, not a fold-away section:** the target count, Strain and the "Mastery & marks" title sit together in the right corner; the marks and the marks you placed wrap onto more lines to the left of them, never under or over them. The quick bar still folds.
+- **Header:** version and Help stay together at the far right. **Help** ends with an About list: the Hub's version and each active Ashen Gate module's version.
+- **Frozen search and filters:** Combat (search), Inventory (search, Character / Party stash, attunement counter, coin purse and a new weight bar), Magic (search, Group / Sort, spell levels, filters) and Features (search, Group / Sort, filters) stay at the top while the list scrolls.
+- **Weight bar** beside the coin purse: dnd5e's carried weight against its carrying capacity, in dnd5e's weight unit; red when over capacity.
+- Saved data: no change. No migration. The old fold state of Mastery & marks (client setting `collapsedSections`) is no longer read.
+
 ## 0.29.5 — 2026-10-22
 
 - **Fix: Level up now opens dnd5e's advancement windows (hit points, features, subclass, ability scores) the way the dnd5e sheet does.** The Hub is a Foundry sheet, not a dnd5e one, so it opened dnd5e's window with a plain render, which always lands in the main Foundry window. It now asks Foundry to open it in the Hub's own window (as dnd5e's sheets do), so it also shows when the Hub is popped out. Same for **Add a class**.
