@@ -186,28 +186,39 @@ function identityCard(actor) {
 }
 
 /**
- * The HP block. Compact (0.29.0) keeps the bar, its editor, damage/heal and the death save; hit dice, rests and exhaustion
- * stay in Full. `strain` is the read-only Strain pill shown beside them (0.30.0).
+ * The HP block: the bar, its editor, damage/heal, hit dice with the rests, exhaustion and the death save, in Full and
+ * Compact alike (0.32.0; Compact had only the bar and damage/heal). `strain` is the read-only Strain pill shown beside
+ * them (0.30.0).
  */
-function hpHtml(h, off, menu, compact = false, strain = '') {
+function hpHtml(h, off, menu, strain = '') {
   const hp = h.hp;
   return `<div class="agch-hp" role="group" aria-label="Hit points">
     ${hpBarHtml(hp, off)}
     ${menu === 'hp' && !off ? hpEditor(hp) : ''}
     <div class="agch-hp__row">
       <span class="agch-hp__adjust" role="group" aria-label="Damage or heal">${btn('hp-damage', '', {kind: 'sm', icon: 'fa-solid fa-minus', title: 'Damage: subtract the amount (temp HP first, then HP)', disabled: off})}<input type="number" min="0" step="1" class="agch-hp__amount" data-hp-amount placeholder="0" aria-label="Amount to add or subtract"${off ? ' disabled' : ''}>${btn('hp-heal', '', {kind: 'sm', icon: 'fa-solid fa-plus', title: 'Heal: add the amount (up to max HP)', disabled: off})}</span>
-      ${compact ? '' : `${hitDiceHtml(h, off)}${exhaustionHtml(h, off)}${strain}`}</div>
+      ${hitDiceHtml(h, off)}${exhaustionHtml(h, off)}${strain}</div>
     ${hp.value <= 0 ? `<span${off ? '' : configAttrs('death')}>${btn('roll-death', 'Death save', {icon: 'fa-solid fa-dice-d20', title: off ? 'Death save' : 'Death save (right-click to configure)', disabled: off})}</span>` : ''}
   </div>`;
 }
 
-function abilitiesHtml(actor, off) {
+/**
+ * Strain (0.30.0): the GM keeps the row with − / + under hit points (`row`); everyone else gets the read-only pill in the
+ * HP block (`pill`). Both honour the Strain bar switch in Player visibility and are empty without Cinders.
+ */
+function strainParts(actor, off) {
+  const gm = globalThis.game?.user?.isGM === true && !off;
+  return {pill: canSee('strain') && !gm ? strainPillHtml(actor) : '', row: gm ? strainHtml(actor, off) : ''};
+}
+
+/** The six abilities. Compact (0.32.0) shows the save as its number only; same buttons and actions as Full. */
+function abilitiesHtml(actor, off, compact = false) {
   const tiles = abilitiesData(actor).map(a => `<div class="agch-abil"${off ? '' : configAttrs('ability', a.key)}>
       <button type="button" class="agch-abil__check" data-action="roll-check" data-ability="${esc(a.key)}" data-tooltip="${esc(a.label)} check${off ? '' : ' (right-click to configure)'}" aria-label="${esc(a.label)} check ${signed(a.mod)}, score ${a.value}"${off ? ' disabled' : ''}>
         <span class="agch-abil__key">${esc(String(a.abbr).toUpperCase())}</span><span class="agch-abil__mod">${signed(a.mod)}</span><span class="agch-abil__score">${a.value}</span></button>
-      ${btn('roll-save', `Save ${signed(a.save)}`, {extra: `agch-abil__save${a.saveProficient ? ' is-prof' : ''}`, data: {ability: a.key}, title: `${a.label} saving throw${a.saveProficient ? ' (proficient)' : ''}`, disabled: off})}
+      ${btn('roll-save', compact ? signed(a.save) : `Save ${signed(a.save)}`, {extra: `agch-abil__save${a.saveProficient ? ' is-prof' : ''}`, data: {ability: a.key}, title: `${a.label} saving throw${a.saveProficient ? ' (proficient)' : ''}`, disabled: off})}
     </div>`).join('');
-  return tiles ? `<div class="agch-abils" role="group" aria-label="Abilities: click for a check, Save for a saving throw">${tiles}</div>` : '';
+  return tiles ? `<div class="agch-abils${compact ? ' agch-abils--compact' : ''}" role="group" aria-label="Abilities: click for a check, Save for a saving throw">${tiles}</div>` : '';
 }
 
 /** Active conditions as name chips (click removes); + shows the others inline to add one. */
@@ -236,8 +247,7 @@ export function characterPanelHtml(ctx) {
   const otherSpeeds = h.speeds.filter(s => s.key !== 'walk').map(s => `${esc(s.label)} ${s.value}`).concat(h.hover ? ['Hover'] : []).join(', ');
   const cfg = (kind, key) => off ? '' : configAttrs(kind, key);
   const rc = off ? '' : ' (right-click to configure)';
-  // Strain (0.30.0): the GM keeps the row with − / + under hit points; everyone else gets the read-only pill in the HP block.
-  const strainGm = globalThis.game?.user?.isGM === true && !off, strain = canSee('strain') && !strainGm ? strainPillHtml(actor) : '';
+  const strain = strainParts(actor, off);
   return `<aside class="agch-char" aria-label="Character">
     <div class="agch-ident">
       <div class="agch-ident__text"><h2 class="agch-name">${esc(h.name)}</h2><p class="agch-sub">${featuresData(actor).identity.length ? (h.level ? `Level ${h.level}` : '') : `${h.species ? `${esc(h.species)} · ` : ''}${classLine}${h.level ? ` · Level ${h.level}` : ''}`}</p>${canSee('cinders') ? cinderChipsHtml(actor) : ''}</div>
@@ -251,8 +261,8 @@ export function characterPanelHtml(ctx) {
       ${tile('Speed', `<span class="agch-tile__value">${walk ? `${walk.value} ${esc(walk.units)}` : '—'}</span>`, {extra: otherSpeeds ? `<span class="agch-tile__more">${otherSpeeds}</span>` : '', title: `Speed${rc ? ' (right-click to set walk, climb, fly, burrow, swim, jump, hover and units)' : ''}`, attrs: cfg('movement')})}
       ${tile('Proficiency', `<span class="agch-tile__value">${signed(h.prof)}</span>`, {big: true})}
     </div>
-    ${hpHtml(h, off, sheet?.menu ?? null, false, strainGm ? '' : strain)}
-    ${strainGm ? strainHtml(actor, off) : ''}
+    ${hpHtml(h, off, sheet?.menu ?? null, strain.pill)}
+    ${strain.row}
     ${abilitiesHtml(actor, off)}
     ${conditionsHtml(h, off, sheet?.condAdd === true)}
     ${footHtml(h)}
@@ -260,14 +270,38 @@ export function characterPanelHtml(ctx) {
 }
 
 /**
- * Compact mode's only column (0.29.0): the name, the art with its equipment slots (when players may see them) and HP.
- * Same markup and actions as the full left column, so double-click art, slot clicks and the HP editor work unchanged.
+ * Initiative, speed and proficiency on one slim line for Compact (0.32.0), with AC first when the equipment slots (and
+ * so the AC on the art) are hidden. Same roll and right-click configuration as Full's tiles.
+ */
+function statLineHtml(h, off, withAc) {
+  const cfg = (kind, key) => off ? '' : configAttrs(kind, key), rc = off ? '' : ' (right-click to configure)';
+  const item = (label, value, {title = '', attrs = ''} = {}) => `<span class="agch-statline__item"${title ? ` data-tooltip="${esc(title)}"` : ''}${attrs}><span class="agch-statline__label">${esc(label)}</span>${value}</span>`;
+  const walk = h.walk, others = h.speeds.filter(s => s.key !== 'walk').map(s => `${s.label} ${s.value}`).concat(h.hover ? ['Hover'] : []).join(', ');
+  return `<div class="agch-statline" role="group" aria-label="Initiative, speed and proficiency">
+    ${withAc ? item('AC', `<b>${h.ac}</b>`, {title: `Armor Class${rc}`, attrs: cfg('armorClass')}) : ''}
+    ${item('Init', btn('roll-initiative', signed(h.init), {extra: 'agch-statline__roll', title: `Roll initiative${rc}`, disabled: off}), {attrs: cfg('initiative')})}
+    ${item('Speed', `<b>${walk ? `${walk.value} ${esc(walk.units)}` : '—'}</b>`, {title: `Speed${others ? `: ${others}` : ''}${rc}`, attrs: cfg('movement')})}
+    ${item('Prof', `<b>${signed(h.prof)}</b>`, {title: 'Proficiency bonus'})}
+  </div>`;
+}
+
+/**
+ * Compact mode's only column (0.29.0): the name (with the Cinder chips), the art with its equipment slots (when players
+ * may see them) and HP. 0.32.0 adds what Full's left column has, tighter: initiative / speed / proficiency on one line,
+ * hit dice, rests and exhaustion beside HP, Strain, the six abilities with their saves and the conditions. Same markup
+ * and actions as the full column, so rolls, rests, the HP editor and slot clicks work unchanged. The column scrolls
+ * inside itself; the hotbars stay at the bottom of the window.
  */
 export function compactPanelHtml(ctx) {
-  const {actor, editable, sheet} = ctx, off = !editable, h = headerData(actor);
+  const {actor, editable, sheet} = ctx, off = !editable, h = headerData(actor), strain = strainParts(actor, off);
+  const slots = canSee('equipment');
   return `<aside class="agch-char agch-char--compact" aria-label="Character">
-    <h2 class="agch-name">${esc(h.name)}</h2>
-    ${canSee('equipment') ? dollHtml(ctx, h) : ''}
-    ${hpHtml(h, off, sheet?.menu ?? null, true)}
+    <h2 class="agch-name">${esc(h.name)}</h2>${canSee('cinders') ? cinderChipsHtml(actor) : ''}
+    ${slots ? dollHtml(ctx, h) : ''}
+    ${statLineHtml(h, off, !slots)}
+    ${hpHtml(h, off, sheet?.menu ?? null, strain.pill)}
+    ${strain.row}
+    ${abilitiesHtml(actor, off, true)}
+    ${conditionsHtml(h, off, sheet?.condAdd === true)}
   </aside>`;
 }

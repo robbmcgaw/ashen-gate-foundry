@@ -5,6 +5,7 @@
  *      0.28.0: the character's own Strain as a read-only chip (Ashen Gate | Cinders' api.strain).
  *      0.30.0: one compact strip that does not fold: the target count, the Strain chip and the "Mastery & marks" label sit
  *      together in the right corner, and the marks wrap onto more lines growing to the left of them.
+ *      0.32.0: shown in Compact as well, above the quick bar.
  *   2. Quick bar: HOTBAR_SLOTS free slots the player fills by dragging the character's items or a macro (folds away).
  */
 import {esc} from './constants.mjs';
@@ -45,13 +46,13 @@ function quickBar(actor, off) {
     : `<li><span class="ag-slot agch-quick__slot is-empty" data-hotbar-slot="${d.index}" data-tooltip="Empty: drag one of this character's items or a macro here" aria-label="Slot ${d.index + 1}: empty"><span class="ag-slot__key agch-quick__n">${(d.index + 1) % 10}</span></span></li>`).join('')}</ol>`;
 }
 
-/** Both hotbars (Compact: the quick bar only), or nothing when the GM hides them from players. Observers see them disabled. */
+/** Both hotbars (in Compact too since 0.32.0), or nothing when the GM hides them from players. Observers see them disabled. */
 export function hotbarsHtml(ctx) {
   if (!canSee('hotbars')) return '';
   const {actor, editable} = ctx, off = !editable;
   const bar = (key, title, body) => `<section class="agch-hotbar" data-sec="${esc(key)}"><h3 class="agch-hotbar__head">${toggleButton(key, title)}</h3><div class="agch-hotbar__body"${bodyAttrs(key)}>${body}</div></section>`;
   return `<div class="agch-hotbars">${hiddenBadge('hotbars') ? `<p class="agch-hidden-note">${hiddenBadge('hotbars')}</p>` : ''}
-    ${ctx.compact ? '' : `<section class="agch-hotbar agch-hotbar--marks" data-sec="${esc(sectionKey('hotbar', 'marks'))}" aria-label="Mastery and marks">${marksBar(actor, off)}</section>`}
+    <section class="agch-hotbar agch-hotbar--marks" data-sec="${esc(sectionKey('hotbar', 'marks'))}" aria-label="Mastery and marks">${marksBar(actor, off)}</section>
     ${bar(sectionKey('hotbar', 'quick'), 'Quick bar', quickBar(actor, off))}</div>`;
 }
 

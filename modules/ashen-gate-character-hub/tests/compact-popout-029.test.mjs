@@ -21,7 +21,7 @@ test('Full by default: Compact button (not pressed), the tab rail and middle con
   assert.doesNotMatch(html, /data-action="pop-out"/, 'no detachWindow on the stand-in: no button');
 });
 
-test('Compact preference: the Hub opens narrow with only name, art + slots, HP and the quick bar', async () => {
+test('Compact preference: the Hub opens narrow with the character column and the hotbars, no tabs', async () => {
   setup({settings: {compactMode: true}});
   const sheet = new Hub({document: makeActor()});
   assert.equal(sheet.compact, true);
@@ -29,8 +29,9 @@ test('Compact preference: the Hub opens narrow with only name, art + slots, HP a
   const html = await sheet._renderHTML();
   assert.match(html, /<div class="agch-root agch-root--compact">/);
   assert.match(head(html), /aria-pressed="true"[^>]*><i class="fa-solid fa-up-right-and-down-left-from-center" aria-hidden="true"><\/i><span>Full<\/span>/);
-  for (const gone of [/role="tablist"/, /agch-pane/, /agch-agbar/, /data-action="level-up"/, /data-action="open-native"/, /Mastery &amp; marks/, /Hit Dice/, /agch-abils/, /agch-tiles/, /agch-idcard/])
+  for (const gone of [/role="tablist"/, /agch-pane/, /agch-agbar/, /data-action="level-up"/, /data-action="open-native"/, /agch-tiles/, /agch-idcard/])
     assert.doesNotMatch(html, gone, String(gone));
+  // 0.32.0: marks, hit dice and abilities are in Compact too (compact-stats-0320.test.mjs).
   assert.match(html, /<h2 class="agch-name">\[TEST\] Hero<\/h2>/);
   assert.match(html, /data-art-edit="portrait"/, 'double-click art still works');
   assert.match(html, /data-action="doll-art"/);

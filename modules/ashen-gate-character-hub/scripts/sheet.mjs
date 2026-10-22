@@ -93,7 +93,7 @@ export const ACTIONS = {
   'cinder-swap': (s, t) => socketFromHub(s.document, 'swap', {instance: t.dataset.instance, slot: t.dataset.slot}, socketUi),
   'cinder-detach': (s, t) => socketFromHub(s.document, 'detach', {instance: t.dataset.instance, slot: t.dataset.slot}, socketUi),
   // 0.31.0: the header Cinder chip opens Ashen Gate → Cinders here; Open skill tree opens Skill Trees (players: only while Perks is shown).
-  'cinder-open': s => { if (!vis.canSee('cinders')) return refuse('Cinders is hidden from players right now.'); s.tab = 'ashen-gate'; s.agTab = 'ashen-gate-cinders'; s.menu = null; return s.render(); },
+  'cinder-open': s => { if (!vis.canSee('cinders')) return refuse('Cinders is hidden from players right now.'); s.tab = 'ashen-gate'; s.agTab = 'ashen-gate-cinders'; s.menu = null; return s.compact ? s.setCompact(false) : s.render(); },  // Compact (0.32.0) has no tabs: Full opens at Cinders
   'cinder-tree': (s, t) => vis.requirePart('perks') ?? openSkillTree(s.document, t.dataset.tree || null),
   'condition': (s, t) => act.toggleCondition(s.document, t.dataset.id),
   'roll-initiative': (s, t, e) => act.rollInitiative(s.document, e),

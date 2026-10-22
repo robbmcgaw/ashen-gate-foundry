@@ -576,10 +576,29 @@
   --ag-space-1: 4px; --ag-space-2: 8px; --ag-space-3: 12px; --ag-space-4: 16px; --ag-space-5: 24px; --ag-space-6: 32px;
   --ag-control-h: 36px; --ag-control-h-sm: 30px; --ag-icon-btn: 32px; --ag-icon: 14px; --ag-icon-chip: 32px; --ag-slot: 48px; --ag-portrait: 84px; --ag-row-h: 44px; }
 
-/* Compact mode (0.29.0): one column (name, art with slots, HP) and the quick bar; no tab rail or middle content. */
+/* Compact mode (0.29.0): one column (name, art with slots, HP; 0.32.0 also the stats) and the hotbars; no tab rail or middle content. */
 .agch-app .agch-root--compact .ag-header { flex-wrap: wrap; row-gap: var(--ag-space-1); }
 .agch-app .agch-root--compact .ag-header__actions { flex-wrap: wrap; }
 .agch-app .agch-char--compact { flex: 1; min-height: 0; }
 .agch-app .agch-char--compact .agch-name { margin: 0; text-align: center; }
 .agch-app .agch-root--compact .agch-hotbar { grid-template-columns: minmax(0, 1fr); }
 .agch-app .agch-root--compact .agch-hotbar__head { min-width: 0; padding-top: 0; }
+/* 0.32.0: Compact keeps the stats too. Only the column scrolls (also under the 900 px stack rule); the hotbars (marks
+   and quick bar) stay at the bottom. Nothing scrolls sideways: every row wraps or shrinks. */
+.agch-app .agch-root--compact { overflow: hidden; }
+.agch-app .agch-root--compact .agch-char--compact { overflow-x: hidden; overflow-y: auto; gap: var(--ag-space-1); }
+.agch-app .agch-char--compact > * { flex: none; min-width: 0; }
+.agch-app .agch-char--compact .agch-cchips { justify-content: center; }
+.agch-app .agch-statline { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: var(--ag-space-1) var(--ag-space-3); font-size: var(--ag-text-sm); font-variant-numeric: tabular-nums; }
+.agch-app .agch-statline__item { display: inline-flex; align-items: center; gap: var(--ag-space-1); white-space: nowrap; }
+.agch-app .agch-statline__label { font-size: var(--ag-text-xs); color: var(--ag-muted); text-transform: uppercase; letter-spacing: .06em; }
+.agch-app .agch-statline__roll { min-height: 0; height: auto; padding: 0 var(--ag-space-2); font-weight: 600; }
+.agch-app .agch-char--compact .agch-hp { gap: var(--ag-space-1); padding: var(--ag-space-1) var(--ag-space-2); }
+.agch-app .agch-char--compact .agch-hp__amount { width: 3.5rem; }
+.agch-app .agch-abils--compact { gap: calc(var(--ag-space-1) / 2); }
+.agch-app .agch-abils--compact .agch-abil__check { padding: calc(var(--ag-space-1) / 2) 0 0; line-height: 1.1; }
+.agch-app .agch-abils--compact .agch-abil__mod { font-size: var(--ag-text-md); }
+.agch-app .agch-abils--compact .agch-abil__save { padding: calc(var(--ag-space-1) / 4) 0; }
+.agch-app .agch-char--compact .agch-conds { grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--ag-space-1) var(--ag-space-2); padding: var(--ag-space-1) var(--ag-space-2); }
+.agch-app .agch-char--compact .agch-conds__list { grid-column: 1 / -1; }
+.agch-app .agch-root--compact .agch-marks__empty { font-size: var(--ag-text-xs); }
