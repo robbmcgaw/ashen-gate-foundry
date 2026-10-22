@@ -5,6 +5,13 @@
 - When dnd5e itself reports nothing to ask (or the world turns dnd5e advancements off), the class level goes up by one directly, as on the native sheet; the browser console notes "dnd5e has no advancement steps for …".
 - Saved data: no change. No migration.
 
+## 0.29.4 — 2026-10-22
+
+- **Fix: the Hub jumped back to the top when it redrew.** Any change to the character (the GM changing Strain, say) redraws an open Hub, and each redraw put the lists back at the top. Now every scrolled area (the tab's list, the character column, embedded module views) keeps its place, remembered per tab: a live update never moves a player reading Inventory, Magic or Features, and switching back to a tab returns to where you were. The search text stays, and a field you are typing in keeps the focus, the caret and what you typed. A redraw that would show exactly the same thing is skipped.
+- **Fix: the Compact see-through slider seemed to do nothing.** The slider did fade the window background, but the character column on top of it (most of the Compact window) kept an opaque background, so almost nothing changed on screen. That column now fades with the window; the art, HP box, slots, header and text stay solid. Still per user, and kept after a redraw or reopening.
+- **Fix: quick bar keys did nothing.** The slots showed 1-9 and 0 but no key was ever bound, so the number keys went to Foundry's macro bar. Now **1-9 and 0** use the quick bar slot of the Hub in front while a Hub with its quick bar is open (also a popped-out Hub, from its own window or the main one). With no Hub open the keys work Foundry's macro bar as before. Never while typing in a field. Change the keys in **Configure Controls → Ashen Gate | Character Hub**. The Help lists them.
+- Saved data: no change. No migration.
+
 ## 0.29.3 — 2026-10-22
 
 - **Fix: GM Setup switches did nothing after the Hub had been closed and opened again.** Foundry builds a new window each time a closed Hub is opened, but the Hub attached its change, drop, right-click and double-click listeners only the first time per character. Now they are attached to each new window. Ticking a part in **GM Setup → Player visibility** saves at once; your Hub and any player's open Hub redraw without a reload. The pet limits, the Compact see-through slider and other in-Hub inputs (quantity, currency, companion fields), item and companion drops, right-click unequip and double-click on the art or HP bar work again after reopening too.

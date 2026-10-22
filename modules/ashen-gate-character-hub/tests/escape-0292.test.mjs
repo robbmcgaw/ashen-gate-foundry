@@ -45,7 +45,8 @@ function openHub(doc) {
   sheet.render = async function (opts) { this.renders.push(opts ?? {}); this._replaceHTML('', content()); return this; };
   return sheet;
 }
-const escListeners = doc => doc.listeners.filter(l => l.type === 'keydown').length;
+// Escape's listener is the capture-phase one (a popped-out Hub also has a quick bar key listener, 0.29.4).
+const escListeners = doc => doc.listeners.filter(l => l.type === 'keydown' && l.capture).length;
 
 test('slot menu open, focus on <body>: Escape closes only the menu, the Hub stays open', async () => {
   const doc = fakeDoc('main'), sheet = openHub(doc);
