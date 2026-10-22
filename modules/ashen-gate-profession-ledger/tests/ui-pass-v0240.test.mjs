@@ -15,7 +15,7 @@ globalThis.foundry={applications:{api:{ApplicationV2:FakeApp,HandlebarsApplicati
   DialogV2:{wait:async opts=>{prompts.push(opts);const b=opts.buttons?.find(x=>x.action===(answer?'confirm':'cancel'));return b?.callback?.()??answer;},prompt:async opts=>{prompts.push(opts);}}}},utils:{escapeHTML:esc}};
 globalThis.Hooks={once:(n,f)=>hooks[n]=f,on:()=>{},callAll:()=>{}};
 globalThis.ui={notifications:{info:()=>{},error:x=>errors.push(x)}};
-const moduleObj={get api(){return moduleApi},set api(v){moduleApi=v},active:true,version:'0.25.2'};
+const moduleObj={get api(){return moduleApi},set api(v){moduleApi=v},active:true,version:'0.26.0'};
 globalThis.game={user:gm,users:{contents:[gm,player]},actors:{contents:actors,get:id=>actors.find(a=>a.id===id)},items:{contents:[]},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?moduleObj:undefined},
   settings:{register:()=>{},registerMenu:()=>{},get:(id,key)=>values[key],set:async(id,key,v)=>{writes.push(key);values[key]=v;}}};
@@ -60,7 +60,7 @@ test('D4: Cancel asks first; Keep editing keeps the draft, Discard restores the 
   assert.equal(app.view,'gm');assert.equal(app.accessDraft,false,'Keep editing keeps the change');
   answer=true;
   await app._click('gm-cancel');
-  assert.equal(app.view,'individual');assert.equal(app.accessDraft,null);
+  assert.equal(app.view,'gm','0.26.0 (PL-13): Cancel discards and stays on GM Setup');assert.equal(app.accessDraft,null);
   assert.equal(values.playerAccessEnabled,true);assert.deepEqual(writes,[],'nothing saved');
   assert.match(await html('gm'),/data-player-access checked/);
   answer=false;
@@ -76,7 +76,9 @@ test('D4: a player can never write Player Access through Save Changes',async()=>
 test('kit parts: tooltips instead of title=, a visible reason on the disabled Manager button, tables and segmented control',async()=>{
   for(const view of ['individual','party','catalog','gathering','assign','gm'])assert.doesNotMatch(await html(view),/\stitle="/,`${view}: no title= hover text`);
   const cat=await html('catalog');
-  assert.match(cat,/data-action="manager" disabled><i class="fa-solid fa-up-right-from-square" aria-hidden="true"><\/i> Open General Manager<\/button><span class="agl-reason">General Manager is not installed or enabled\.<\/span>/);
+  // 0.26.0 (PL-05): the Manager shortcut sits at the end of the toolbar; the GM notice says why it is disabled.
+  assert.match(cat,/<div class="ag-toolbar__end"><button type="button" class="ag-btn ag-btn--sm" data-action="manager" disabled><i class="fa-solid fa-up-right-from-square" aria-hidden="true"><\/i> Open General Manager<\/button><\/div>/);
+  assert.match(cat,/<b>General Manager is not installed or enabled\.<\/b>/);
   const gmHtml=await html('gm');
   assert.match(gmHtml,/<div class="ag-table-wrap agl-map-wrap"><table class="ag-table agl-map">/);
   assert.match(gmHtml,/<tr class="agl-map-group"><th colspan="5" scope="colgroup">Crafting professions/);

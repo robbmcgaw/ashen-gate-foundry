@@ -182,7 +182,7 @@ const journals=[];
 const setPath=(o,k,v)=>{const parts=k.split('.');while(parts.length>1){const p=parts.shift();o[p]??={};o=o[p];}o[parts[0]]=v;};
 const makeJournal=data=>{const j={...structuredClone(data),getFlag:(scope,key)=>j.flags?.[scope]?.[key],update:async u=>{for(const [k,v] of Object.entries(u))setPath(j,k,structuredClone(v));}};return j;};
 globalThis.JournalEntry={create:async data=>{if(!game.user.isGM)throw Error('players cannot create');const j=makeJournal(data);journals.push(j);return j;}};
-const ledgerModule={active:true,version:'0.25.2',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.26.0',set api(v){api=v},get api(){return api}};
 const modules={'ashen-gate-profession-ledger':ledgerModule,'ashen-gate-locations':{active:true,version:'1.17.4',api:locApi}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},
   actors:{contents:[belwar],get:id=>id==='belwar'?belwar:null},journal:journals,socket:{emit:(n,m)=>sent.push(m),on:()=>{}},
@@ -292,8 +292,13 @@ test('Robb C: Gathering Nodes tab: create, edit, duplicate, delete (warns about 
   await app._click('node-save');
   assert.match(errors.at(-1),/Node not saved: .*add up to 90, not 100/);assert.ok(app.nodeDraft,'the editor stays open with the reason');
   h=await html('nodes');assert.match(h,/role="alert">.*add up to 90, not 100/s);
-  assert.match(h,/agl-editor-actions"><button[^>]*data-action="node-cancel">Cancel<\/button><button[^>]*ag-btn--primary" data-action="node-save"/,'Cancel left, Save Changes right');
-  assert.match(h,/Node test: materials.*\[TEST\] Ford Fish.*Draft/s,'the node test names the draft material');
+  // 0.26.0 (PL-03): the editor replaces the list (with a way back); Cancel and Save Changes sit in the window footer.
+  assert.match(h,/<footer class="ag-footer"><button[^>]*data-action="node-cancel">Cancel<\/button><span class="ag-footer__status" role="status" data-agl-node-status>[^<]*<\/span><button[^>]*ag-btn--primary" data-action="node-save"/,'Cancel left, Save Changes right, in the footer');
+  assert.match(h,/data-action="node-cancel"><i class="fa-solid fa-arrow-left" aria-hidden="true"><\/i> All nodes<\/button>/,'back to the list');
+  assert.doesNotMatch(h,/data-action="node-edit"/,'the list is not rendered under or over the editor');
+  for(const title of ['Basics','Check','Materials'])assert.match(h,new RegExp(`<details class="ag-fold" data-ag-fold-key="node-[a-z]+" open><summary class="ag-fold__summary"><span class="ag-fold__title">${title}<`));
+  assert.match(h,/<details class="ag-fold" data-ag-fold-key="node-test"><summary/,'Node test starts closed');
+  assert.match(h,/Node test<\/span>.*\[TEST\] Ford Fish.*Draft/s,'the node test names the draft material');
   app.nodeDraft.data.common[1].chance='40';
   await app._click('node-save');
   let t=api.gathering.templates.get('NODE-TEST-PEBBLE-RUN');
