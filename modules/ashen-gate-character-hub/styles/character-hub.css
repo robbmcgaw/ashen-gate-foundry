@@ -62,7 +62,7 @@
   .agch-app .agch-body { overflow: visible; }
   .agch-app .agch-hotbar { grid-template-columns: minmax(0, 1fr); }
   .agch-app .agch-charfold { display: inline-flex; align-self: flex-start; }
-  .agch-app .agch-root--charfolded .agch-char > :not(.agch-ident, .agch-ident__actions, .agch-charfold, .agch-charsum) { display: none; }
+  .agch-app .agch-root--charfolded .agch-char > :not(.agch-ident, .agch-charfold, .agch-charsum) { display: none; }
   .agch-app .agch-root--charfolded .agch-charsum { display: flex; flex-wrap: wrap; gap: var(--ag-space-1) var(--ag-space-4); margin: 0; font-variant-numeric: tabular-nums; }
 }
 
@@ -90,26 +90,25 @@
 .agch-app .agch-hero { display: flex; gap: var(--ag-space-4); align-items: center; }
 .agch-app .agch-portrait { width: var(--ag-portrait); height: var(--ag-portrait); border-radius: 50%; border: 1px solid var(--ag-border); }
 
-/* Identity */
-.agch-app .agch-ident { display: flex; gap: var(--ag-space-2); align-items: center; }
-.agch-app .agch-ident__text { flex: 1; min-width: 0; }
-/* 0.33.0: Level up, Restore backup… and Configure… under the name (CH-03, CH-11) */
-.agch-app .agch-ident__actions { display: flex; flex-wrap: wrap; gap: var(--ag-space-1); align-items: center; }
-.agch-app .agch-char--compact .agch-ident__actions { justify-content: center; }
+/* Identity. 0.34.0: one row: the name, class / subclass / species / background chips, Cinder chips and the inspiration
+   star last; it wraps only when the column is too narrow. */
+.agch-app .agch-ident { display: flex; flex-wrap: wrap; gap: var(--ag-space-1) var(--ag-space-2); align-items: center; }
 .agch-app .agch-name { margin: 0; font-size: var(--ag-text-xl); line-height: 1.15; overflow-wrap: anywhere; border: 0; }
-.agch-app .agch-sub { margin: var(--ag-space-1) 0 0; color: var(--ag-muted); font-size: var(--ag-text-sm); overflow-wrap: anywhere; }
-.agch-app .agch-insp { width: var(--ag-icon-btn); height: var(--ag-icon-btn); min-height: 0; padding: 0; border-radius: 50%; justify-content: center; color: var(--ag-muted); flex: none; }
+.agch-app .agch-idchips { display: contents; }
+.agch-app .agch-idchip { display: inline-flex; align-items: center; gap: var(--ag-space-1); width: auto; min-height: var(--ag-control-h-sm); margin: 0; padding: 0 var(--ag-space-2) 0 calc(var(--ag-space-1) / 2);
+  border: 1px solid var(--ag-border); border-radius: var(--ag-radius-control); background: var(--agch-bg-raised); color: var(--ag-text); font-size: var(--ag-text-sm); line-height: 1.2; text-align: left; cursor: pointer; }
+.agch-app .agch-idchip:hover, .agch-app .agch-idchip:focus-visible { border-color: var(--ag-accent); background: var(--ag-surface-hover); }
+.agch-app .agch-idchip img { width: calc(var(--ag-control-h-sm) - var(--ag-space-2)); height: calc(var(--ag-control-h-sm) - var(--ag-space-2)); flex: none; border: 0; border-radius: 50%; object-fit: cover; object-position: center top; }
+.agch-app .agch-idchip span { overflow-wrap: anywhere; }
+.agch-app .agch-idchip--class span { font-weight: 600; }
+.agch-app .agch-idlevel { font-size: var(--ag-text-sm); color: var(--ag-muted); }
+.agch-app .agch-ident > .agch-cchips { margin-top: 0; }
+.agch-app .agch-insp { width: var(--ag-icon-btn); height: var(--ag-icon-btn); min-height: 0; margin-left: auto; padding: 0; border-radius: 50%; justify-content: center; color: var(--ag-muted); flex: none; }
 .agch-app .agch-insp.is-active { color: var(--ag-accent); border-color: var(--ag-accent); background: var(--ag-accent-soft); }
-/* Class, species and background: one small card at the top of the character */
-.agch-app .agch-idcard { display: flex; flex-wrap: wrap; gap: var(--ag-space-1); padding: var(--ag-space-1); border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--agch-bg-raised); }
-.agch-app .agch-idcard__item { display: inline-flex; align-items: center; gap: var(--ag-space-2); flex: 1 1 8rem; width: auto; min-width: 0; min-height: 0; padding: var(--ag-space-1) var(--ag-space-2); border: 0; border-radius: var(--ag-radius-control); background: none; color: var(--ag-text); text-align: left; cursor: pointer; }
-.agch-app .agch-idcard__item:hover, .agch-app .agch-idcard__item:focus-visible { background: var(--ag-surface-hover); }
-.agch-app .agch-idcard__item img { width: var(--ag-icon-chip); height: var(--ag-icon-chip); flex: none; border: 0; border-radius: 50%; object-fit: cover; object-position: center top; }
-.agch-app .agch-idcard__text { display: grid; min-width: 0; line-height: 1.2; }
-.agch-app .agch-idcard__name { font-weight: 600; font-size: var(--ag-text-sm); overflow-wrap: anywhere; }
-.agch-app .agch-idcard__detail { font-size: var(--ag-text-xs); color: var(--ag-muted); }
 
-/* Paper doll (unchanged layout): slots flank the art; rings and trinkets sit under it. Display only. */
+/* Paper doll: slots flank the art; rings and trinkets sit under it. Display only. 0.34.0: in Full too, the rings and
+   trinkets row sits right under the art, between the side columns (the rules near the end of this file), so there is
+   no gap under the art. */
 .agch-app .agch-doll { position: relative; display: grid; grid-template-columns: var(--agch-slot) minmax(0, 1fr) var(--agch-slot); gap: var(--ag-space-2); align-items: start; }
 .agch-app .agch-doll__col, .agch-app .agch-doll__center { display: grid; gap: var(--ag-space-2); min-width: 0; }
 .agch-app .agch-doll__art { position: relative; height: calc(var(--agch-slot) * 4 + var(--ag-space-2) * 3); border: 1px solid var(--ag-border-strong); border-radius: var(--ag-radius-lg); background: var(--agch-bg-sunken); overflow: hidden; }
@@ -170,6 +169,7 @@
 .agch-app .agch-menu__head .ag-btn { min-height: 0; padding: 0 var(--ag-space-1); margin-left: auto; }
 .agch-app .agch-menu__btn { width: 100%; justify-content: flex-start; border-color: transparent; background: transparent; min-height: var(--ag-control-h-sm); text-align: left; white-space: normal; }
 .agch-app .agch-menu select { width: 100%; }
+.agch-app .agch-menu__sep { width: 100%; margin: var(--ag-space-1) 0; border: 0; border-top: 1px solid var(--ag-border); }
 
 /* Initiative, speed, proficiency */
 .agch-app .agch-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--ag-space-2); }
@@ -266,14 +266,6 @@
 /* 0.33.0 (CH-28): a filled dot marks a proficient save (not colour alone) */
 .agch-app .agch-abil__prof { font-size: var(--ag-text-xs); transform: scale(.7); }
 
-/* Conditions: active ones as kit chips (click removes); + lists the rest inline */
-.agch-app .agch-conds { display: grid; gap: var(--ag-space-1); padding: var(--ag-space-2); border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--agch-bg-raised); }
-.agch-app .agch-chips { display: flex; flex-wrap: wrap; gap: var(--ag-space-1); align-items: center; }
-.agch-app .agch-chip.is-active { background: var(--ag-warn-soft); border-color: var(--ag-warn); color: var(--ag-text); }
-.agch-app .agch-chip.is-active::before { content: none; }
-.agch-app .agch-chip img { width: var(--ag-icon); height: var(--ag-icon); border: 0; }
-.agch-app .agch-chip i { font-size: var(--ag-text-xs); opacity: .8; }
-.agch-app .agch-conds__list { padding-top: var(--ag-space-1); border-top: 1px dashed var(--ag-border); }
 
 /* Toolbars inside tabs: kit .ag-toolbar, .ag-search, .ag-segmented, .ag-chip */
 .agch-app .agch-toolbar { padding-top: 0; margin-bottom: var(--ag-space-2); }
@@ -301,7 +293,10 @@
 /* 0.33.0 (CH-07): Filters (n) opens Group, Sort and the chips in a popover under the one toolbar row */
 .agch-app .agch-filterwrap { position: relative; display: inline-flex; }
 .agch-app .agch-filtersbtn.is-on { border-color: var(--ag-accent); }
-.agch-app .agch-filtermenu { top: calc(100% + var(--ag-space-1)); left: 0; width: 24rem; max-width: 90cqw; gap: var(--ag-space-2); }
+/* 0.34.0: it opens under the button, aligned to its right edge, and popover.mjs moves it sideways (--agch-pop-shift) when
+   it would still run out of the list or the window. Never wider than the list it sits in. */
+.agch-app .agch-filtermenu { top: calc(100% + var(--ag-space-1)); right: 0; left: auto; width: 24rem; max-width: calc(100cqw - var(--ag-space-3)); gap: var(--ag-space-2); }
+.agch-app .agch-filtermenu, .agch-app .agch-moremenu, .agch-app .agch-lookmenu { translate: var(--agch-pop-shift, 0) 0; }
 .agch-app .agch-filtermenu__selects { display: flex; flex-wrap: wrap; gap: var(--ag-space-2) var(--ag-space-3); }
 .agch-app .agch-filtermenu .agch-filters { margin: 0; }
 .agch-app .agch-purse { margin: 0 0 var(--ag-space-2); }
@@ -334,7 +329,9 @@
 /* 0.30.0: Professions under Proficiencies; the whole box jumps to Ashen Gate → Professions. */
 .agch-app .agch-profbox { display: grid; width: 100%; min-height: 0; padding: 0; border: 1px solid var(--ag-border); border-radius: var(--ag-radius); overflow: hidden; background: transparent; color: var(--ag-text); text-align: left; font: inherit; cursor: pointer; }
 .agch-app .agch-profbox:hover, .agch-app .agch-profbox:focus-visible { border-color: var(--ag-accent); }
-.agch-app .agch-profbox__row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--ag-space-1) var(--ag-space-4); padding: var(--ag-space-1) var(--ag-space-3); }
+.agch-app .agch-profbox__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1) var(--ag-space-2); padding: var(--ag-space-1) var(--ag-space-3); }
+/* 0.34.0: an icon per profession (PROFESSION_ICONS in views.mjs) and "Name - Tier - Level n" */
+.agch-app .agch-profbox__icon { flex: none; width: var(--ag-icon-chip); text-align: center; color: var(--ag-accent); }
 .agch-app .agch-profbox__row:nth-child(even) { background: var(--ag-row-alt); }
 .agch-app .agch-profbox__name { overflow-wrap: anywhere; }
 .agch-app .agch-profbox__level { color: var(--ag-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -392,6 +389,22 @@
 .agch-app .agch-coin { display: flex; gap: var(--ag-space-1); align-items: center; text-transform: uppercase; font-size: var(--ag-text-sm); color: var(--ag-muted); }
 .agch-app .agch-coin input { width: 4.5rem; }
 .agch-app .agch-coin.is-off { opacity: .55; }
+/* 0.34.0: coin icons, the Hub's own copy of Utilities 0.24.0's coin look (a metal disc with the letter and a soft glow).
+   Each coin sets --agch-metal; the disc and glow follow it. */
+.agch-app .agch-coin--cp { --agch-metal: #b87333; } /* ag-lint-allow: copper metal colour is fixed */
+.agch-app .agch-coin--sp { --agch-metal: #c3cbd3; } /* ag-lint-allow: silver metal colour is fixed */
+.agch-app .agch-coin--ep { --agch-metal: #cdbb6e; } /* ag-lint-allow: electrum metal colour is fixed */
+.agch-app .agch-coin--gp { --agch-metal: #e0b23c; } /* ag-lint-allow: gold metal colour is fixed */
+.agch-app .agch-coin--pp { --agch-metal: #d9e4ec; } /* ag-lint-allow: platinum metal colour is fixed */
+.agch-app .agch-coin__icon { display: inline-grid; place-items: center; flex: none; width: calc(var(--ag-icon) * 1.6); height: calc(var(--ag-icon) * 1.6); border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--agch-metal, var(--ag-border)) 60%, var(--ag-text));
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--agch-metal, var(--ag-muted)) 35%, white), var(--agch-metal, var(--ag-muted)) 55%, color-mix(in srgb, var(--agch-metal, var(--ag-muted)) 70%, black));
+  color: color-mix(in srgb, var(--agch-metal, var(--ag-muted)) 25%, black); font-size: var(--ag-text-xs); font-weight: 800; line-height: 1; text-shadow: none;
+  box-shadow: 0 0 var(--ag-space-2) color-mix(in srgb, var(--agch-metal, transparent) 55%, transparent); }
+.agch-app .agch-coin.is-off .agch-coin__icon { box-shadow: none; }
+.agch-app .agch-coinchip { display: inline-flex; align-items: center; gap: var(--ag-space-1); padding: 0 var(--ag-space-2) 0 var(--ag-space-1); border: 1px solid color-mix(in srgb, var(--agch-metal) 55%, var(--ag-border)); border-radius: 999px;
+  background: color-mix(in srgb, var(--agch-metal) 10%, var(--ag-surface)); box-shadow: 0 0 var(--ag-space-2) color-mix(in srgb, var(--agch-metal) 35%, transparent); font-variant-numeric: tabular-nums; white-space: nowrap; line-height: 1.6; vertical-align: middle; }
+.agch-app .agch-coinchip .agch-coin__icon { width: calc(var(--ag-icon) * 1.2); height: calc(var(--ag-icon) * 1.2); box-shadow: none; }
 .agch-app .agch-ep-off { margin: var(--ag-space-1) 0 0; font-size: var(--ag-text-xs); }
 .agch-app .agch-diamond { margin: 0 0 var(--ag-space-2); text-align: center; font-family: var(--ag-font-display); font-size: var(--ag-text-lg); font-style: italic; letter-spacing: .04em; }
 .agch-app .agch-diamond.is-present { color: color-mix(in srgb, var(--ag-accent) 75%, var(--ag-ok)); }
@@ -501,7 +514,7 @@
 .agch-app .agch-hotbar__targets { font-size: var(--ag-text-xs); white-space: nowrap; }
 /* 0.30.0: Mastery & marks is one strip that does not fold. The target count, Strain and the title sit together in the
    right corner; the marks wrap onto more lines and grow to the left of them, never under or over them. */
-.agch-app .agch-hotbar--marks { display: block; }
+.agch-app .agch-hotbar--marks, .agch-app .agch-hotbar--conds { display: block; }
 .agch-app .agch-marks { display: flex; align-items: center; gap: var(--ag-space-2); min-width: 0; }
 .agch-app .agch-marks__list { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--ag-space-1); }
 .agch-app .agch-marks__list > .agch-placed { margin: 0; }
@@ -510,7 +523,9 @@
 .agch-app .agch-marks__title { font-size: var(--ag-text-sm); color: var(--ag-muted); white-space: nowrap; }
 .agch-app .agch-marks__help { width: var(--ag-control-h-sm); height: var(--ag-control-h-sm); min-height: 0; margin-left: calc(var(--ag-space-2) * -1); padding: 0; display: grid; place-items: center; border: 0; border-radius: 50%; background: none; color: var(--ag-muted); }
 .agch-app .agch-marks__help:hover, .agch-app .agch-marks__help:focus-visible { color: var(--ag-accent); }
-@container (max-width: 640px) { .agch-app .agch-marks { flex-wrap: wrap; } .agch-app .agch-marks__end { flex: 1 1 100%; justify-content: flex-end; border-left: 0; padding-left: 0; } }
+/* Narrow (0.34.0): the corner shares the line with the chips while both fit, and wraps under them (to the right) when not. */
+@container (max-width: 640px) { .agch-app .agch-marks { flex-wrap: wrap; } .agch-app .agch-marks__list { min-width: min(100%, 8rem); }
+  .agch-app .agch-marks__end { flex: 0 1 auto; margin-left: auto; justify-content: flex-end; border-left: 0; padding-left: 0; } }
 .agch-app .agch-hotbtn { display: inline-flex; align-items: center; gap: var(--ag-space-1); width: auto; min-height: var(--ag-control-h); padding: var(--ag-space-1) var(--ag-space-3) var(--ag-space-1) var(--ag-space-1); border: 1px solid var(--ag-border-strong); border-radius: var(--ag-radius-control); background: var(--agch-bg-raised); color: var(--ag-text); font-size: var(--ag-text-sm); cursor: pointer; }
 .agch-app .agch-hotbtn img { width: calc(var(--ag-control-h) - var(--ag-space-3)); height: calc(var(--ag-control-h) - var(--ag-space-3)); border: 0; border-radius: 50%; object-fit: contain; }
 .agch-app .agch-hotbtn:hover:not(:disabled) { border-color: var(--ag-accent); }
@@ -544,8 +559,11 @@
 .agch-app .agch-journey__items { display: inline-flex; flex-wrap: wrap; gap: var(--ag-space-1); vertical-align: middle; }
 .agch-app .agch-journey__items img { width: var(--ag-icon-chip); height: var(--ag-icon-chip); flex: none; border: 0; border-radius: var(--ag-radius-sm); object-fit: cover; object-position: center top; }
 .agch-app .agch-journey__ctl { display: inline-flex; gap: var(--ag-space-1); }
-.agch-app .agch-journey__form { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); align-items: center; grid-column: 1 / -1; }
-.agch-app .agch-journey__form input[type="text"] { flex: 1 1 14rem; min-width: 0; }
+.agch-app .agch-journey__form { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); align-items: flex-end; grid-column: 1 / -1; }
+/* 0.34.0: labelled Entry text box and Date field (plain groups, no nested <form>, so the values are read). */
+.agch-app .agch-journey__field { display: grid; gap: var(--ag-space-1); font-size: var(--ag-text-sm); color: var(--ag-muted); }
+.agch-app .agch-journey__field--text { flex: 1 1 100%; min-width: 0; }
+.agch-app .agch-journey__field textarea { width: 100%; min-height: calc(var(--ag-control-h) * 1.6); resize: vertical; font: inherit; color: var(--ag-text); }
 .agch-app .agch-journey__form input[type="date"] { width: auto; }
 .agch-app .agch-journey__add { margin-bottom: var(--ag-space-2); padding: var(--ag-space-2) var(--ag-space-3); border: 1px dashed var(--ag-border-strong); border-radius: var(--ag-radius-lg); }
 .agch-app .agch-journey__formbtns { display: flex; justify-content: space-between; gap: var(--ag-space-2); margin-left: auto; }
@@ -554,7 +572,7 @@
 /* Art of any size or shape is never stretched. Small icons and portraits fill their circle or square (cropped, focus on
    the top so faces stay in view); the paper-doll art pane (portrait or token art) shows the whole image over a blurred fill. */
 .agch-app .agch-portrait, .agch-app .agch-slot img,
-.agch-app .agch-companion__head img, .agch-app .agch-chip img { object-fit: cover; object-position: center top; }
+.agch-app .agch-companion__head img { object-fit: cover; object-position: center top; }
 
 @media (prefers-reduced-motion: reduce) { .agch-app .agch-sec__chev, .agch-app .agch-slot__more { transition: none; } }
 
@@ -593,7 +611,7 @@
 /* 0.31.0: Appearance (per user). 0.33.0 (CH-03/CH-04): it, Pop out, NPC Codex and Open native sheet sit in the header's
    "⋯" menu; both menus are popovers under that button. */
 .agch-app .agch-lookwrap { position: relative; display: inline-flex; }
-.agch-app .agch-lookmenu, .agch-app .agch-moremenu { top: calc(100% + var(--ag-space-1)); right: 0; width: 17rem; max-width: 80vw; }
+.agch-app .agch-lookmenu, .agch-app .agch-moremenu { top: calc(100% + var(--ag-space-1)); right: 0; width: 17rem; max-width: min(80vw, calc(100cqw - var(--ag-space-3))); }
 .agch-app .agch-look__group { display: grid; gap: var(--ag-space-1); }
 .agch-app .agch-look__label { color: var(--ag-muted); }
 .agch-app .agch-look__skin { display: flex; align-items: center; gap: var(--ag-space-2); text-align: left; }
@@ -609,6 +627,31 @@
   --ag-space-1: 4px; --ag-space-2: 8px; --ag-space-3: 12px; --ag-space-4: 16px; --ag-space-5: 24px; --ag-space-6: 32px;
   --ag-control-h: 36px; --ag-control-h-sm: 30px; --ag-icon-btn: 32px; --ag-icon: 14px; --ag-icon-chip: 32px; --ag-slot: 48px; --ag-portrait: 84px; --ag-row-h: 44px; }
 
+/* 0.34.0: Compact's GM Strain pill carries − and + (no Strain row in Compact). */
+.agch-app .agch-pill--strain .ag-btn { color: var(--ag-text); }
+
+/* 0.34.0: Conditions, right under Mastery & marks, in the same strip look: chips grow to the left; Self / Target, the
+   condition list and Apply sit in the right corner with the title. */
+.agch-app .agch-conds__end { flex-wrap: wrap; justify-content: flex-end; row-gap: var(--ag-space-1); }
+.agch-app .agch-conds__mode > button { min-height: 0; }
+.agch-app .agch-conds__pick { width: auto; min-width: 7rem; max-width: 12rem; height: var(--ag-control-h-sm); padding-block: 0; font-size: var(--ag-text-sm); }
+.agch-app .agch-placed > li.is-self { border-color: var(--ag-warn); background: var(--ag-warn-soft); }
+.agch-app .agch-hotbars > .agch-hotbar + .agch-hotbar { padding-top: var(--ag-space-1); border-top: 1px dashed var(--ag-border); }
+
+/* 0.34.0: the bottom bar (the Ashen Gate buttons in Full) with the Quick bar toggle at its end, and the quick bar drawer
+   under it. Closed, the drawer is hidden and takes no room; open, the window grows by its height (sheet.fitDrawer). */
+.agch-app .agch-bottombar { flex: none; display: flex; align-items: center; gap: var(--ag-space-2); padding-top: var(--ag-space-1); border-top: 1px solid var(--ag-border); }
+.agch-app .agch-bottombar > .agch-agbar { flex: 1 1 auto; min-width: 0; padding-top: 0; border-top: 0; }
+.agch-app .agch-quicktoggle { flex: none; margin-left: auto; }
+.agch-app .agch-quicktoggle[aria-expanded="true"] { border-color: var(--ag-accent); }
+.agch-app .agch-drawer { flex: none; padding-top: var(--ag-space-1); }
+.agch-app .agch-drawer[hidden] { display: none; }
+.agch-app .agch-drawer .agch-quick { display: grid; grid-template-columns: repeat(10, minmax(0, var(--ag-slot))); justify-content: center; gap: var(--ag-space-1); }
+.agch-app .agch-drawer .agch-quick__slot { width: 100%; height: auto; aspect-ratio: 1; }
+/* 0.34.0: Compact's name row keeps to one line: the class chip keeps its text, subclass, species and background show
+   their icon only (the name is the tooltip and the accessible name). */
+.agch-app .agch-idchip--icon { padding: 0 calc(var(--ag-space-1) / 2); }
+
 /* Compact mode (0.29.0): one column (name, art with slots, HP; 0.32.0 also the stats) and the hotbars; no tab rail or middle content. */
 .agch-app .agch-root--compact .ag-header { flex-wrap: wrap; row-gap: var(--ag-space-1); }
 .agch-app .agch-root--compact .ag-header__actions { flex-wrap: wrap; }
@@ -620,7 +663,7 @@
    and quick bar) stay at the bottom. Nothing scrolls sideways: every row wraps or shrinks. */
 .agch-app .agch-root--compact { overflow: hidden; }
 .agch-app .agch-root--compact .agch-char--compact { overflow-x: hidden; overflow-y: auto; gap: var(--ag-space-1); }
-.agch-app .agch-char--compact > * { flex: none; min-width: 0; }
+.agch-app .agch-char > *, .agch-app .agch-char--compact > * { flex: none; min-width: 0; }
 .agch-app .agch-char--compact .agch-cchips { justify-content: center; }
 .agch-app .agch-statline { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: var(--ag-space-1) var(--ag-space-3); font-size: var(--ag-text-sm); font-variant-numeric: tabular-nums; }
 .agch-app .agch-statline__item { display: inline-flex; align-items: center; gap: var(--ag-space-1); white-space: nowrap; }
@@ -632,27 +675,25 @@
 .agch-app .agch-abils--compact .agch-abil__check { padding: calc(var(--ag-space-1) / 2) 0 0; line-height: 1.1; }
 .agch-app .agch-abils--compact .agch-abil__mod { font-size: var(--ag-text-md); }
 .agch-app .agch-abils--compact .agch-abil__save { padding: calc(var(--ag-space-1) / 4) 0; }
-.agch-app .agch-char--compact .agch-conds { grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--ag-space-1) var(--ag-space-2); padding: var(--ag-space-1) var(--ag-space-2); }
-.agch-app .agch-char--compact .agch-conds__list { grid-column: 1 / -1; }
 .agch-app .agch-root--compact .agch-marks__empty { font-size: var(--ag-text-xs); }
 /* 0.33.1: the Compact column fits its window. The rings and trinkets row sits under the art (beside the fifth side slots)
    instead of below the whole doll, and the doll is the one part that gives way: it is a size container that shrinks
    (down to icon-button-sized slots) before the column has to scroll, so the abilities and saves stay in view at the
    default Compact size. The slot size follows the doll's height and width; the column still scrolls when even the
-   smallest doll does not fit. The quick bar keeps its ten slots on one row. */
-.agch-app .agch-char--compact .agch-doll {
+   smallest doll does not fit. The quick bar keeps its ten slots on one row. 0.34.0: Full's column does the same. */
+.agch-app .agch-char .agch-doll {
   --agch-slot-max: calc(var(--ag-slot) + var(--ag-space-3)); --agch-slot-min: var(--ag-icon-btn);
   container: agch-doll / size; flex: 0 1 calc(var(--agch-slot-max) * 5 + var(--ag-space-2) * 4);
   min-height: calc(var(--agch-slot-min) * 5 + var(--ag-space-2) * 4);
   grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto auto; align-content: start; }
-.agch-app .agch-char--compact .agch-doll > * { --agch-slot: clamp(var(--agch-slot-min), min((100cqh - var(--ag-space-2) * 4) / 5, (100cqw - var(--ag-space-2) * 6) / 7), var(--agch-slot-max)); }
-.agch-app .agch-char--compact .agch-doll > .agch-doll__col { grid-row: 1 / span 2; grid-column: 1; }
-.agch-app .agch-char--compact .agch-doll > .agch-doll__col ~ .agch-doll__col { grid-column: 3; }
-.agch-app .agch-char--compact .agch-doll > .agch-doll__center { grid-row: 1; grid-column: 2; }
-.agch-app .agch-char--compact .agch-doll > .agch-doll__row { grid-row: 2; grid-column: 2; flex-wrap: nowrap; }
+.agch-app .agch-char .agch-doll > * { --agch-slot: clamp(var(--agch-slot-min), min((100cqh - var(--ag-space-2) * 4) / 5, (100cqw - var(--ag-space-2) * 6) / 7), var(--agch-slot-max)); }
+.agch-app .agch-char .agch-doll > .agch-doll__col { grid-row: 1 / span 2; grid-column: 1; }
+.agch-app .agch-char .agch-doll > .agch-doll__col ~ .agch-doll__col { grid-column: 3; }
+.agch-app .agch-char .agch-doll > .agch-doll__center { grid-row: 1; grid-column: 2; }
+.agch-app .agch-char .agch-doll > .agch-doll__row { grid-row: 2; grid-column: 2; flex-wrap: nowrap; }
 /* The doll's containment makes it a stacking context: an open slot menu lifts the whole doll above the rows below it. */
-.agch-app .agch-char--compact .agch-doll:has(> .agch-menu) { z-index: 25; }
-.agch-app .agch-root--compact .agch-quick { display: grid; grid-template-columns: repeat(10, minmax(0, var(--ag-slot))); }
-.agch-app .agch-root--compact .agch-quick__slot { width: 100%; height: auto; aspect-ratio: 1; }
+.agch-app .agch-char .agch-doll:has(> .agch-menu) { z-index: 25; }
+
 .agch-app .agch-ctop { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: var(--ag-space-1) var(--ag-space-2); }
 .agch-app .agch-ctop > .agch-cchips { margin-top: 0; }
+

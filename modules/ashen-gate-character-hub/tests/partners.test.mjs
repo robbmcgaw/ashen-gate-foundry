@@ -79,7 +79,7 @@ test('present partners: summaries come only from their public APIs', () => {
   assert.doesNotMatch(quests, /Finished/, 'completed quests left out');
   assert.match(state('ashen-gate-locations').html, /Millbrook/);
   assert.match(state('ashen-gate-headquarters').html, /Open Headquarters to see details/);
-  assert.match(state('ashen-gate-utilities').html, /42 gp, 5 sp/);
+  assert.match(state('ashen-gate-utilities').html, /42 gp<\/span>[\s\S]*5 sp<\/span>/);
 });
 
 test('a GM sees only revealed locations in the hub', () => {
@@ -173,7 +173,7 @@ test('newer partner APIs are used when present', () => {
   assert.match(hq, /\[TEST\] Forge.*Guildhall.*Expanded/s);
   assert.match(hq, /Hirelings are managed by the GM/);
   const util = state('ashen-gate-utilities').html;
-  assert.match(util, /42 gp, 5 sp/);
+  assert.match(util, /42 gp<\/span>[\s\S]*5 sp<\/span>/);
   assert.match(util, /\[TEST\] Item 0.*×3/s);
   assert.match(util, /\[TEST\] Item 9/, '0.33.0 (CH-24): every stash item, no cut at 8');
   assert.doesNotMatch(util, /more<\/p>/);
@@ -223,7 +223,7 @@ test('Inventory Party stash: Utilities purse and every stash item', () => {
   mods['ashen-gate-utilities'].api.stash.listItems = () => Array.from({length: 10}, (_, i) => ({name: `[TEST] Thing ${i}`, quantity: 1}));
   installGlobals({user: users.owner, modules: mods});
   const html = partyStashHtml(makeActor());
-  assert.match(html, /42 gp, 5 sp/);
+  assert.match(html, /42 gp<\/span>[\s\S]*5 sp<\/span>/);
   assert.match(html, /\[TEST\] Thing 9/);
   assert.doesNotMatch(html, /more<\/p>/, 'no 8-item cap in the full view');
   assert.match(html, /data-action="partner-open" data-partner="ashen-gate-utilities"/);
@@ -301,7 +301,7 @@ test('Party stash: Utilities embed when offered, summary otherwise', () => {
   installGlobals({user: users.owner, modules: {'ashen-gate-utilities': {active: true, api: {...partners()['ashen-gate-utilities'].api, embed: {modes: ['stash'], mount() {}}}}}});
   assert.match(partyStashHtml(makeActor()), /data-agch-embed="ashen-gate-utilities" data-mode="stash"/);
   installGlobals({user: users.owner, modules: partners()});
-  assert.match(partyStashHtml(makeActor()), /42 gp, 5 sp/);
+  assert.match(partyStashHtml(makeActor()), /42 gp<\/span>[\s\S]*5 sp<\/span>/);
 });
 
 test('Move to party stash: owner only, goes through Utilities deposit with the item uuid; hidden when the stash is off for players', async () => {

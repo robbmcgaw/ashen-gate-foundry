@@ -115,16 +115,20 @@ test('rail tabs: role tab, aria-selected, aria-label and a Foundry tooltip on th
   assert.match(html, /<nav class="ag-siderail agch-rail" role="tablist"/);
 });
 
-test('header follows the standard: brand span, Compact, the ⋯ menu, version, then Help; Level up sits under the name', async () => {
-  installGlobals({user: users.owner, modules: {'ashen-gate-character-hub': {active: true, version: '0.33.1'}}});
+test('header follows the standard: brand span, Compact, the ⋯ menu, version, then Help; Level up is in the ⋯ menu (0.34.0)', async () => {
+  installGlobals({user: users.owner, modules: {'ashen-gate-character-hub': {active: true, version: '0.34.0'}}});
   const html = await new (createHubSheetClass(FakeActorSheetV2))({document: makeActor()})._renderHTML();
   const head = html.slice(0, html.indexOf('</header>'));
   assert.match(head, /<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Character Hub<\/h1>/);
   const at = s => head.indexOf(s);
   assert.ok(at('data-action="compact-toggle"') > 0 && at('data-action="compact-toggle"') < at('data-action="more-menu"') && at('data-action="more-menu"') < at('ag-version') && at('ag-version') < at('data-action="help"'));
   assert.equal((head.match(/data-action="/g) ?? []).length, 3, 'CH-03: only Compact, ⋯ and Help in the header');
-  assert.match(head, /<span class="ag-version">v0\.33\.1<\/span>/);
-  assert.match(html, /<div class="agch-ident__actions"><button[^>]*data-action="level-up"/, 'Level up under the name');
+  assert.match(head, /<span class="ag-version">v0\.34\.0<\/span>/);
+  assert.doesNotMatch(html, /data-action="level-up"|agch-ident__actions/, 'not under the name any more');
+  const sheet = new (createHubSheetClass(FakeActorSheetV2))({document: makeActor()});
+  await sheet.dispatch('more-menu', {dataset: {}}, {});
+  const menu = (await sheet._renderHTML()).match(/<div class="agch-menu agch-moremenu"[\s\S]*?<\/div>/)[0];
+  assert.match(menu, /data-action="level-up"[\s\S]*data-action="configure"[\s\S]*<hr class="agch-menu__sep">[\s\S]*data-action="look-menu"[\s\S]*data-action="open-native"/, 'Level up and Configure… first, then the window items');
 });
 
 test('segmented controls: radiogroup with radios; arrow keys move to the next choice and pick it', () => {

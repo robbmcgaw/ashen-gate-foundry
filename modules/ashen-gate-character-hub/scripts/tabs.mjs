@@ -13,6 +13,7 @@ import {cardList, COLUMNS as C, containerLead, containerAttrs} from './cards.mjs
 import {ORGANIZE, listChoice, sortRows, groupRows, GROUP_BY, orderGroups, filterRows, FILTERS, actionLabel} from './organize.mjs';
 import {favoritesSupported, isFavorite} from './item-actions.mjs';
 import {tooltipAttrs} from './tooltips.mjs';
+import {coinIcon} from './coins.mjs';
 
 /** Kit empty state: a title and, optionally, the next step. */
 const empty = (title, text = '') => `<div class="ag-empty"><p class="ag-empty__title">${esc(title)}</p>${text ? `<p class="ag-empty__text">${esc(text)}</p>` : ''}</div>`;
@@ -106,7 +107,7 @@ function purseHtml(ctx, d) {
   // Electrum follows Utilities' "Use electrum" (off: no ep box, unless the character still has some: then it shows dimmed).
   const offEp = electrumHidden(), coins = d.currency.filter(c => !(offEp && c.key === 'ep' && !c.value));
   const coinBox = c => { const dim = offEp && c.key === 'ep';
-    return `<label class="agch-coin${dim ? ' is-off' : ''}"${dim ? ' data-tooltip="Electrum is off in Utilities. This character still has some; the GM can convert it there."' : ''}><span>${esc(c.abbr)}</span><input type="number" min="0" step="1"${dim ? ` max="${c.value}"` : ''} data-edit="currency" data-key="${esc(c.key)}" value="${c.value}" aria-label="${esc(c.label)}"${off ? ' disabled' : ''}></label>`; };
+    return `<label class="agch-coin agch-coin--${esc(c.key)}${dim ? ' is-off' : ''}"${dim ? ' data-tooltip="Electrum is off in Utilities. This character still has some; the GM can convert it there."' : ` data-tooltip="${esc(c.label)}"`}>${coinIcon(c.key)}<span>${esc(c.abbr)}</span><input type="number" min="0" step="1"${dim ? ` max="${c.value}"` : ''} data-edit="currency" data-key="${esc(c.key)}" value="${c.value}" aria-label="${esc(c.label)}"${off ? ' disabled' : ''}></label>`; };
   return `<div class="agch-purse"><div class="agch-currency agch-coins" role="group" aria-label="Currency">${coins.map(coinBox).join('')}</div>${weightBar(d.encumbrance)}</div>${offEp && coins.some(c => c.key === 'ep') ? '<p class="agch-muted agch-ep-off">Electrum is off in Utilities: it only shows because this character still has some. The GM can convert it there.</p>' : ''}`;
 }
 

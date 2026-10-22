@@ -1,8 +1,8 @@
 /**
- * Escape closes only the Hub's own open popover (0.29.2): a slot / Other menu, the HP editor, the conditions add list
- * or a Journey entry being edited. After a mouse click focus sits on <body>, so a keydown listener on the Hub content
- * never sees the key and Foundry's own Escape closed the whole Hub. While something is open, one capture-phase
- * listener sits on the Hub's owning document (ownerDocument, so a popped-out Hub's own window works too); it closes
+ * Escape closes only the Hub's own open popover (0.29.2): a slot / Other menu, the HP editor or a Journey entry being
+ * edited (0.34.0: the conditions add list is gone; the quick bar drawer is not a popover, so it stays open). After a
+ * mouse click focus sits on <body>, so a keydown listener on the Hub content never sees the key and Foundry's own
+ * Escape closed the whole Hub. While something is open, one capture-phase listener sits on the Hub's owning document (ownerDocument, so a popped-out Hub's own window works too); it closes
  * the innermost popover and stops the event so Foundry does not also close the window. It is removed when nothing is
  * open, when the Hub moves between windows, and when it closes. Foundry dialogs (level-up, restore) handle their own.
  */
@@ -10,8 +10,7 @@
 /** What Escape can close, innermost first: shown in the DOM (selector) and closable (close returns true). */
 export const POPOVERS = [
   {selector: '.agch-menu', close: s => { if (!s.menu) return false; s.menu = null; return true; }},
-  {selector: '[data-journey-form="edit"]', close: s => { if (!s.journeyEdit) return false; s.journeyEdit = null; return true; }},
-  {selector: '.agch-conds__list', close: s => { if (!s.condAdd) return false; s.condAdd = false; return true; }}
+  {selector: '[data-journey-form="edit"]', close: s => { if (!s.journeyEdit) return false; s.journeyEdit = null; return true; }}
 ];
 
 const rootOf = sheet => sheet?.element ?? null;

@@ -1,3 +1,19 @@
+## 0.34.0 — 2026-10-22
+
+Robb's playtest feedback: less scrolling, conditions next to marks, the quick bar under the Hub.
+
+- **Name row:** the character's name, then small chips for class and level (one per class when multiclassed, each subclass right after its class), species and background, each with the item's icon (click opens it; the tooltip names it), the Cinder chips, and the inspiration star last. Compact shows subclass, species and background as icons only. The four cards and the level line are gone.
+- **Level up, Restore backup… and Configure…** moved into the header's **⋯** menu (Full and Compact); dnd5e's level-up flow and its advancement window are unchanged.
+- **Art and slots** sit right under the name row; the rings and trinkets row sits directly under the art (no gap), and an empty *Other equipped* is left out in Full too. Full's doll gives way before the column scrolls, as Compact's does. At 1240 × 800 the whole character column (name to abilities and saves) fits without scrolling; Compact fits at 500 × 780 and 420 × 700.
+- **Conditions** are a strip right under Mastery & marks (the Conditions box is gone): **Self** / **Target** (your targeted tokens, the same targets as marks), a condition (dnd5e's conditions that are Foundry status effects; never an id Foundry refuses), **Apply**. Conditions on the character and the current targets show as chips with ✕. Real status effects (Foundry's `toggleStatusEffect`), so the token and the Utilities Condition Manager show them. The GM can change anyone; players follow Utilities' condition rules (its `api.conditions`: controllers, owners manage, unlocks), or without Utilities only their own characters; tokens not linked to a character are left to the GM. Checked in the action, not only by hiding buttons.
+- **Quick bar drawer:** the quick bar opens under the whole Hub, below the Ashen Gate buttons, with **Quick bar** at the end of that bar (Compact has the bar with just that button). Open, the window grows by its height; closed, it takes no room. Keys 1-9 / 0, drag onto slots, right-click / Delete with Undo and Escape work as before (the keys also work while it is closed).
+- **Journey:** the GM's **Add entry** said "Write something for the entry" whatever was typed: the add and edit forms were `<form>`s inside the sheet's own form, which the browser drops, so the text could not be read. They are plain groups now, with a labelled **Entry** box and the date.
+- **Professions** (Overview) list the tier too, with an icon per profession: *Archaeology - Apprentice - Level 1* (from the Ledger's `getProfessions`; any other profession gets a toolbox icon).
+- **Coin icons** in the Inventory purse and the party purse summary: the same metal look as Utilities 0.24.0, from the Hub's own CSS.
+- **Filters** opens aligned to its button's right edge and is moved back inside the window when it would run past an edge (all tabs, Full, Compact, popped out); the ⋯ and Appearance menus too.
+- **Compact:** no Strain row (the Strain pill beside HP stays; the GM's pill has − / +) and no second Strain chip in the marks strip.
+- Saved data: no change (no new flags or settings; the quick bar slots are the same flag). No migration.
+
 ## 0.33.1 — 2026-10-22
 
 - **Compact fits its window again.** At the default Compact size the ability and save row sat half under the bottom edge (the column was about 120 px taller than its box). Now the rings and trinkets row sits under the art, the paper doll shrinks (down to small slots) before the column has to scroll, Cinders and **Configure…** share one row under the name, an empty **Other equipped** is left out (it shows as soon as something is in it), the marks strip says just "No marks" (where marks come from is in its **?** button) and the quick bar keeps its ten slots on one row. In a very small window the column still scrolls on its own; header and hotbars stay put.

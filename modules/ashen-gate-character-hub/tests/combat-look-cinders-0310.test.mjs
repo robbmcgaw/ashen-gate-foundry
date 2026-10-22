@@ -186,7 +186,7 @@ const treesMod = calls => ({active: true, api: {open: async o => { calls.push(o)
 test('Cinder chip in the header: orb with art on the Strain glow, turning when Cinders allows it; click opens Ashen Gate → Cinders', async () => {
   installGlobals({user: users.owner, modules: {'ashen-gate-cinders': cindersMod()}});
   const {sheet, html} = await render('overview');
-  assert.match(html, /<p class="agch-sub">[^<]*<\/p><div class="agch-cchips"/, "right under the class / level line");
+  assert.match(html, /<div class="agch-idchips"[\s\S]*?<\/div>\s*<div class="agch-cchips"[\s\S]*data-action="inspiration"/, '0.34.0: in the name row, after the identity chips, before the star');
   assert.match(html, /data-action="cinder-open" data-instance="cinst_TEST00001"/);
   assert.match(html, /<span class="agch-corb__orb agch-corb__orb--art agch-corb__orb--spin" data-tone="warm"><span class="agch-corb__default agch-corb__glow" aria-hidden="true"><\/span><img class="agch-corb__img" src="ashen-gate\/cinders\/test-ember\.webp" alt=""><\/span><\/span><span class="agch-cchip__name">\[TEST\] Ember<\/span>/);
   await ACTIONS['cinder-open'](sheet);

@@ -49,7 +49,7 @@ test('every item element in the Hub gets the rich tooltip: list rows, slots, Oth
   assert.match(html, new RegExp(`class="agch-item__name" data-action="item-sheet" data-id="ss" data-ag-always ${tip('Actor.actor1.Item.ss')}`), 'Combat row');
   assert.match(html, new RegExp(`data-action="slot-open" data-slot="mainhand" data-id="ss"[^>]*${tip('Actor.actor1.Item.ss')}`), 'paper doll slot');
   assert.match(html, new RegExp(`class="agch-other__name" data-action="slot-open" data-id="odd" data-ag-always ${tip('Actor.actor1.Item.odd')}`), 'Other equipped');
-  assert.match(html, new RegExp(`class="agch-idcard__item" data-action="item-sheet" data-id="fighter" data-ag-always ${tip('Actor.actor1.Item.fighter')}`), 'identity card');
+  assert.match(html, new RegExp(`class="agch-idchip agch-idchip--class" data-action="item-sheet" data-id="fighter" data-ag-always aria-label="[^"]+" ${tip('Actor.actor1.Item.fighter')}`), 'identity chip (0.34.0)');
   assert.match(html, new RegExp(`data-action="hotbar-use" data-hotbar-slot="0" ${tip('Actor.actor1.Item.hm')}`), 'quick bar');
   assert.match(html, new RegExp(`data-action="mark-apply" data-mark="vex" ${tip('Actor.actor1.Item.ss')}`), 'mastery button shows its weapon');
   for (const t of ['inventory', 'magic', 'features']) {

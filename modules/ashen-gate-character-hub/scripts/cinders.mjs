@@ -64,13 +64,16 @@ export async function stepStrain(actor, step) {
  * Strain next to hit points (0.30.0): a compact read-only pill in the HP block (small bar, value, band; hover for the
  * Push Backfire chance). Used where the GM's − / + row is not shown, i.e. for players. Nothing when Strain can't be read.
  */
-export function strainPillHtml(actor) {
+export function strainPillHtml(actor, {steps = false} = {}) {
   const m = strainModel(actor);
   if (!m) return '';
+  const gm = steps && isGM();
   const tone = m.over || m.guaranteed ? 'danger' : m.chance > 0 ? 'warn' : '';
-  const tip = `Strain ${m.label}${m.band ? `: ${m.band}` : ''}. Backfire on a Push from here: ${m.chance}%${m.guaranteed ? ' (guaranteed)' : ''}${m.normalUseBackfires ? '. Every use of a Cinder power backfires at this Strain' : ''}. Read only.`;
+  const tip = `Strain ${m.label}${m.band ? `: ${m.band}` : ''}. Backfire on a Push from here: ${m.chance}%${m.guaranteed ? ' (guaranteed)' : ''}${m.normalUseBackfires ? '. Every use of a Cinder power backfires at this Strain' : ''}.${gm ? '' : ' Read only.'}`;
+  // 0.34.0: Compact's GM pill carries − and + (the Strain row is left out there), like the exhaustion pill.
+  const step = (n, icon, title, disabled = false) => gm ? btn('strain-step', '', {kind: 'ghost', icon, data: {step: n}, title, disabled}) : '';
   return `<span class="ag-badge agch-pill agch-pill--strain${tone ? ` ag-badge--${tone}` : ''}" role="group" aria-label="${esc(tip)}" data-tooltip="${esc(tip)}"><i class="fa-solid fa-fire" aria-hidden="true"></i><span class="ag-sr-only">Strain</span>
-    <span class="ag-meter${tone ? ` ag-meter--${tone}` : ''} agch-pill__meter" aria-hidden="true"><span class="ag-meter__track" style="--ag-meter:${m.fill}%"><span class="ag-meter__fill"></span></span></span><b>${esc(m.label)}</b>${m.band ? `<span class="agch-pill__band">${esc(m.band)}</span>` : ''}</span>`;
+    ${step(-1, 'fa-solid fa-minus', 'Remove 1 Strain (GM, recorded)', m.value <= 0)}<span class="ag-meter${tone ? ` ag-meter--${tone}` : ''} agch-pill__meter" aria-hidden="true"><span class="ag-meter__track" style="--ag-meter:${m.fill}%"><span class="ag-meter__fill"></span></span></span><b>${esc(m.label)}</b>${step(1, 'fa-solid fa-plus', 'Add 1 Strain (GM, recorded)')}${m.band ? `<span class="agch-pill__band">${esc(m.band)}</span>` : ''}</span>`;
 }
 
 const TARGET_WORDS = {'push.cost': 'Push cost', 'backfire.chance': 'Backfire chance', 'backfire.severity': 'Backfire severity', 'strain.recovery': 'rest recovery', 'sockets.count': 'sockets'};

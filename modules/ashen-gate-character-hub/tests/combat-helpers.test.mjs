@@ -151,7 +151,8 @@ test('the Hub shows both hotbars at the bottom, folding; mark buttons from equip
   const sheet = new (createHubSheetClass(FakeActorSheetV2))({document: actor}); sheet.tab = 'combat';
   const html = await sheet._renderHTML();
   assert.match(html, /<\/div><div class="agch-hotbars">/, 'below the main split');
-  assert.match(html, /data-sec="hotbar:marks"[\s\S]*data-key="hotbar:quick"/, '0.30.0: marks is a strip that does not fold; the quick bar still folds');
+  assert.match(html, /data-sec="hotbar:marks"[\s\S]*agch-hotbar--conds[\s\S]*<div class="agch-bottombar">[\s\S]*data-action="quick-toggle"[\s\S]*<div class="agch-drawer"[^>]* hidden>/,
+    '0.34.0: marks, then conditions; the quick bar is a closed drawer under the bottom bar');
   assert.match(html, /data-action="mark-apply" data-mark="vex"[\s\S]*data-action="mark-apply" data-mark="slow"[\s\S]*data-mark="hunters-mark"/);
   assert.doesNotMatch(html, /data-mark="sap"/);
   assert.match(html, /1 target</);
@@ -163,5 +164,7 @@ test('the Hub shows both hotbars at the bottom, folding; mark buttons from equip
   const r = await ACTIONS['mark-apply'](sheet, {dataset: {mark: 'vex'}});
   assert.match(r.error, /A GM must be connected/, 'an enemy token needs the GM client');
   installGlobals({user: users.owner, settings: {playerVisibility: {hotbars: false}}}); game.user.targets = new Set();
-  assert.doesNotMatch(await sheet._renderHTML(), /agch-hotbars/, 'gone for players when the GM hides them');
+  const hidden = await sheet._renderHTML();
+  for (const gone of [/agch-hotbar--marks/, /data-action="quick-toggle"/, /agch-drawer/, /data-hotbar-slot/]) assert.doesNotMatch(hidden, gone, 'gone for players when the GM hides them');
+  assert.match(hidden, /agch-hotbar--conds/, 'conditions follow the character, not the Hotbars switch (as the old Conditions box)');
 });

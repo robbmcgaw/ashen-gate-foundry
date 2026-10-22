@@ -1,20 +1,24 @@
 /**
- * The two hotbars at the bottom of the Hub (0.13.0):
+ * The strips at the bottom of the Hub (0.13.0) and the quick bar drawer:
  *   1. Mastery & marks: one button per mark the character may place (equipped weapons' masteries, spell marks), applied
  *      to the user's targeted tokens, then the marks this character has placed in the scene, each with ✕.
  *      0.28.0: the character's own Strain as a read-only chip (Ashen Gate | Cinders' api.strain).
  *      0.30.0: one compact strip that does not fold: the target count, the Strain chip and the "Mastery & marks" label sit
  *      together in the right corner, and the marks wrap onto more lines growing to the left of them.
- *      0.32.0: shown in Compact as well, above the quick bar. 0.33.0: its help is a focusable "?" button (CH-25).
- *   2. Quick bar: HOTBAR_SLOTS free slots the player fills by dragging the character's items or a macro (folds away).
+ *      0.32.0: shown in Compact as well. 0.33.0: its help is a focusable "?" button (CH-25). 0.34.0: Compact leaves the
+ *      Strain chip out (the Strain pill sits beside HP).
+ *   2. Conditions (0.34.0, conditions.mjs), right under Mastery & marks.
+ *   3. Quick bar: HOTBAR_SLOTS free slots the player fills by dragging the character's items or a macro. 0.34.0: a
+ *      drawer under the whole Hub, below the bottom bar; its toggle sits at the end of that bar. Closed, it takes no
+ *      room (the slots stay in the page, hidden, so the quick keys 1-9 and 0 keep working).
  */
 import {esc} from './constants.mjs';
 import {availableMarks, placedMarks, targetedTokens} from './marks.mjs';
 import {hotbarData} from './hotbar.mjs';
 import {tooltipAttrs, itemUuid} from './tooltips.mjs';
-import {toggleButton, bodyAttrs, sectionKey} from './collapse.mjs';
 import {canSee, hiddenBadge} from './visibility.mjs';
 import {strainModel} from './cinders.mjs';
+import {conditionsStripHtml} from './conditions.mjs';
 
 /**
  * Strain readout (0.28.0): read only, the character's own Strain from Cinders' api.strain (value, band, Push Backfire
@@ -39,23 +43,40 @@ function marksBar(actor, off, compact = false) {
   const empty = `<span class="agch-muted agch-marks__empty">${compact ? 'No marks' : `No marks: ${from}`}</span>`;
   const help = `Mastery & marks: target a token (T), then click a mark to put it on your targets or take it off. Tracking only: nothing is automated.${compact && !marks.length ? ` Marks: ${from}` : ''}`;
   return `<div class="agch-marks"><div class="agch-marks__list">${buttons || empty}${onTargets}</div>
-    <div class="agch-marks__end"><span class="agch-muted agch-hotbar__targets"><i class="fa-solid fa-crosshairs" aria-hidden="true"></i> ${n ? `${n} target${n === 1 ? '' : 's'}` : 'No target'}</span>${strainChip(actor)}<span class="agch-marks__title">Mastery &amp; marks</span><button type="button" class="agch-marks__help" data-tooltip="${esc(help)}" aria-label="${esc(help)}"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></button></div></div>`;
+    <div class="agch-marks__end"><span class="agch-muted agch-hotbar__targets"><i class="fa-solid fa-crosshairs" aria-hidden="true"></i> ${n ? `${n} target${n === 1 ? '' : 's'}` : 'No target'}</span>${compact ? '' : strainChip(actor)}<span class="agch-marks__title">Mastery &amp; marks</span><button type="button" class="agch-marks__help" data-tooltip="${esc(help)}" aria-label="${esc(help)}"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></button></div></div>`;
 }
 
-function quickBar(actor, off) {
+export function quickBar(actor, off) {
   return `<ol class="ag-hotbar agch-quick" aria-label="Quick bar">${hotbarData(actor).map(d => d.slot
     ? `<li><button type="button" class="ag-slot agch-quick__slot is-filled${d.missing ? ' is-missing' : ''}" data-action="hotbar-use" data-hotbar-slot="${d.index}"${tooltipAttrs(d.slot.type === 'Item' && !d.missing ? itemUuid(d.doc) : null, `${d.name}${d.missing ? ' (gone: right-click to clear)' : ' (click to use, right-click to clear)'}`)} aria-label="${esc(`Slot ${d.index + 1}: ${d.name}`)}"${off ? ' disabled' : ''}><img src="${esc(d.img)}" alt=""><span class="ag-slot__key agch-quick__n">${(d.index + 1) % 10}</span></button></li>`
     : `<li><span class="ag-slot agch-quick__slot is-empty" data-hotbar-slot="${d.index}" data-tooltip="Empty: drag one of this character's items or a macro here" aria-label="Slot ${d.index + 1}: empty"><span class="ag-slot__key agch-quick__n">${(d.index + 1) % 10}</span></span></li>`).join('')}</ol>`;
 }
 
-/** Both hotbars (in Compact too since 0.32.0), or nothing when the GM hides them from players. Observers see them disabled. */
+/**
+ * The strips under the character (Full and Compact): Mastery & marks (hidden with the GM's Hotbars switch, as before),
+ * then Conditions (0.34.0; it follows the character, like the Conditions box did). Observers see them disabled.
+ */
 export function hotbarsHtml(ctx, compact = false) {
+  const {actor, editable} = ctx, off = !editable, marks = canSee('hotbars');
+  const conds = conditionsStripHtml(ctx);
+  if (!marks && !conds) return '';
+  return `<div class="agch-hotbars">${marks && hiddenBadge('hotbars') ? `<p class="agch-hidden-note">${hiddenBadge('hotbars')}</p>` : ''}
+    ${marks ? `<section class="agch-hotbar agch-hotbar--marks" data-sec="hotbar:marks" aria-label="Mastery and marks">${marksBar(actor, off, compact)}</section>` : ''}${conds}</div>`;
+}
+
+/** The drawer's id (one per open Hub), for the toggle's aria-controls. */
+export const drawerId = sheet => `${String(sheet?.id ?? 'agch').replace(/[^A-Za-z0-9_-]/g, '')}-quickbar`;
+/** The Quick bar toggle at the end of the bottom bar (0.34.0); nothing while the GM hides the hotbars. */
+export function quickToggleHtml(sheet) {
   if (!canSee('hotbars')) return '';
-  const {actor, editable} = ctx, off = !editable;
-  const bar = (key, title, body) => `<section class="agch-hotbar" data-sec="${esc(key)}"><h3 class="agch-hotbar__head">${toggleButton(key, title)}</h3><div class="agch-hotbar__body"${bodyAttrs(key)}>${body}</div></section>`;
-  return `<div class="agch-hotbars">${hiddenBadge('hotbars') ? `<p class="agch-hidden-note">${hiddenBadge('hotbars')}</p>` : ''}
-    <section class="agch-hotbar agch-hotbar--marks" data-sec="${esc(sectionKey('hotbar', 'marks'))}" aria-label="Mastery and marks">${marksBar(actor, off, compact)}</section>
-    ${bar(sectionKey('hotbar', 'quick'), 'Quick bar', quickBar(actor, off))}</div>`;
+  const open = sheet?.quickOpen === true;
+  return `<button type="button" class="ag-btn ag-btn--ghost ag-btn--sm agch-quicktoggle" data-action="quick-toggle" data-ag-always aria-expanded="${open}" aria-controls="${drawerId(sheet)}" data-tooltip="${open ? 'Hide the quick bar (its keys 1-9 and 0 still work)' : 'Show the quick bar under the Hub'}" data-tooltip-direction="UP"><i class="fa-solid ${open ? 'fa-chevron-down' : 'fa-chevron-up'}" aria-hidden="true"></i><span>Quick bar</span></button>`;
+}
+/** The quick bar drawer under the bottom bar: shown while open, otherwise hidden (no room taken). */
+export function quickDrawerHtml(ctx) {
+  if (!canSee('hotbars')) return '';
+  const open = ctx.sheet?.quickOpen === true;
+  return `<div class="agch-drawer" id="${drawerId(ctx.sheet)}" role="region" aria-label="Quick bar"${open ? '' : ' hidden'}>${quickBar(ctx.actor, !ctx.editable)}</div>`;
 }
 
 /**

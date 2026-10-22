@@ -26,13 +26,21 @@ function rewardItems(e) {
   }).join('')}</span>`;
 }
 
+/**
+ * The entry's text and date fields (0.34.0). The forms were nested <form> elements inside the sheet's own <form>, which
+ * the browser drops while parsing, so Add entry could not find the text it had to read ("Write something for the entry").
+ * They are plain groups now, and the text is a labelled box, so it is clear where the entry is typed.
+ */
+const textField = (value, placeholder = '') => `<label class="agch-journey__field agch-journey__field--text"><span>Entry</span><textarea name="text" rows="2" maxlength="${TEXT_MAX}"${placeholder ? ` placeholder="${esc(placeholder)}"` : ''}>${esc(value)}</textarea></label>`;
+const dateField = value => `<label class="agch-journey__field"><span>Date (optional)</span><input type="date" name="date" value="${esc(value)}"></label>`;
+
 function row(e, gm, editing) {
   const controls = gm ? `<span class="agch-journey__ctl">${btn('journey-edit', '', {kind: 'ghost', icon: 'fa-solid fa-pen', data: {id: e.id}, title: 'Edit'})}
     ${btn(e.hidden ? 'journey-show' : 'journey-hide', '', {kind: 'ghost', icon: e.hidden ? 'fa-solid fa-eye' : 'fa-solid fa-eye-slash', data: {id: e.id}, title: e.hidden ? 'Show to the player' : 'Hide from the player'})}
     ${e.manual ? btn('journey-delete', '', {kind: 'ghost', icon: 'fa-solid fa-trash', data: {id: e.id}, title: 'Delete this GM note'}) : ''}</span>` : '';
-  if (editing) return `<li class="agch-journey__entry is-editing" data-entry="${esc(e.id)}"><form class="agch-journey__form" data-journey-form="edit">
-    <input type="text" name="text" value="${esc(e.text)}" maxlength="${TEXT_MAX}" aria-label="Entry text"><input type="date" name="date" value="${esc(e.date ?? '')}" aria-label="Date (optional)">
-    <span class="agch-journey__formbtns">${btn('journey-cancel', 'Cancel', {kind: 'ghost'})}${btn('journey-save', 'Save Changes', {kind: 'primary', data: {id: e.id}})}</span></form></li>`;
+  if (editing) return `<li class="agch-journey__entry is-editing" data-entry="${esc(e.id)}"><div class="agch-journey__form" data-journey-form="edit" role="group" aria-label="Edit entry">
+    ${textField(e.text)}${dateField(e.date ?? '')}
+    <span class="agch-journey__formbtns">${btn('journey-cancel', 'Cancel', {kind: 'ghost'})}${btn('journey-save', 'Save Changes', {kind: 'primary', data: {id: e.id}})}</span></div></li>`;
   return `<li class="agch-journey__entry${e.hidden ? ' is-hidden' : ''}" data-entry="${esc(e.id)}" data-type="${esc(e.type)}">
     <i class="${ICONS[e.type] ?? 'fa-solid fa-circle'} agch-journey__icon" data-tooltip="${esc(TYPES[e.type] ?? e.type)}" aria-hidden="true"></i>
     <span class="agch-journey__when">${esc(when(e))}</span><span class="agch-journey__text">${esc(e.text)}${rewardItems(e)}${e.hidden ? ' <span class="ag-gm-flag"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Hidden from player</span>' : ''}</span>${controls}</li>`;
@@ -44,10 +52,9 @@ export function journeyTab(ctx) {
   if (!canRead(actor)) return `${head}<div class="ag-empty"><p class="ag-empty__title">This Journey is private.</p><p class="ag-empty__text">Only this character's owner and the GM can see it.</p></div>`;
   const picker = gm ? `<label class="agch-orgsel"><span>Character</span><select data-edit="journey-actor" aria-label="Show the Journey of">${[...new Map([ctx.actor, ...partyActors()].filter(Boolean).map(a => [a.id, a])).values()]
     .map(a => `<option value="${esc(a.id)}"${a.id === actor.id ? ' selected' : ''}>${esc(a.name)}</option>`).join('')}</select></label>` : '';
-  const add = gm ? `<form class="agch-journey__form agch-journey__add" data-journey-form="add">
-      <input type="text" name="text" maxlength="${TEXT_MAX}" placeholder="Add a GM note to ${esc(actor.name)}'s Journey" aria-label="New Journey entry">
-      <input type="date" name="date" aria-label="Date (optional)"><label class="agch-journey__hide"><input type="checkbox" name="hidden"> Hidden from player</label>
-      ${btn('journey-add', 'Add entry', {kind: 'primary', icon: 'fa-solid fa-plus'})}</form>` : '';
+  const add = gm ? `<div class="agch-journey__form agch-journey__add" data-journey-form="add" role="group" aria-label="Add a GM note to ${esc(actor.name)}'s Journey">
+      ${textField('', `What happened? A GM note for ${actor.name}'s Journey`)}${dateField('')}<label class="agch-journey__hide"><input type="checkbox" name="hidden"> Hidden from player</label>
+      ${btn('journey-add', 'Add entry', {kind: 'primary', icon: 'fa-solid fa-plus'})}</div>` : '';
   const entries = journeyFor(actor), editing = ctx.sheet?.journeyEdit ?? null;
   const list = entries.length ? `<ol class="agch-journey" aria-label="${esc(actor.name)}'s Journey, newest first">${entries.map(e => row(e, gm, gm && editing === e.id)).join('')}</ol>`
     : '<div class="ag-empty"><i class="fa-solid fa-book-open" aria-hidden="true"></i><p class="ag-empty__title">No accomplishments yet.</p><p class="ag-empty__text">Level-ups, Renown ranks and completed quests show here as they happen.</p></div>';

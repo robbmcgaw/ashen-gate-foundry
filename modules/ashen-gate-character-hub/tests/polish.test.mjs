@@ -141,8 +141,10 @@ test('the sheet marks stats for right-click and routes the context menu to the c
   made.length = 0;
   await sheet._onContextMenu({target: {closest: sel => sel === '.agch-embed' ? {} : el}, preventDefault() {}, stopPropagation() {}});
   assert.equal(made.length, 0, 'embedded partner views keep their own right-click');
-  // 0.33.0 (CH-11): Configure… under the name is the keyboard way to the same windows.
-  assert.match(html, /<div class="agch-ident__actions">[\s\S]*data-action="configure"[^>]*><i class="fa-solid fa-sliders" aria-hidden="true"><\/i><span>Configure…<\/span>/);
+  // 0.33.0 (CH-11): Configure… is the keyboard way to the same windows; 0.34.0: in the header's ⋯ menu.
+  sheet.menu = 'more';
+  assert.match(await sheet._renderHTML(), /<div class="agch-menu agch-moremenu"[\s\S]*data-action="configure"[^>]*><i class="fa-solid fa-sliders" aria-hidden="true"><\/i><span>Configure…<\/span>/);
+  sheet.menu = null;
   const offered = [];
   const r = await configureAsk(sheet, async options => { offered.push(...options); return 'ability:dex'; });
   assert.equal(r.ok, true);
@@ -273,7 +275,8 @@ test('Ashen Gate quick bar: every button shows its module\'s sub-tab (0.33.0); m
   const {sheet, html} = await render();
   assert.match(html, /<div class="agch-railcol"><nav class="ag-siderail agch-rail" role="tablist"[\s\S]*?<\/nav><\/div>/, 'the right rail holds only the sections (0.29.0)');
   assert.doesNotMatch(html.match(/<div class="agch-railcol">[\s\S]*?<\/nav><\/div>/)[0], /agch-agbar/);
-  assert.match(html, /<div class="agch-hotbars">[\s\S]*<nav class="agch-agbar" aria-label="Ashen Gate modules">[\s\S]*<\/nav><\/div>$/, 'a thin bar along the bottom edge, after the hotbars (0.29.0)');
+  assert.match(html, /<div class="agch-hotbars">[\s\S]*<div class="agch-bottombar"><nav class="agch-agbar" aria-label="Ashen Gate modules">[\s\S]*<\/nav><button[^>]*data-action="quick-toggle"[\s\S]*<\/div><div class="agch-drawer"[^>]*>[\s\S]*<\/div><\/div>$/,
+    'a thin bar along the bottom edge, after the strips (0.29.0); 0.34.0: the Quick bar toggle at its end, the drawer under it');
   assert.match(bar, /<button type="button" class="ag-btn ag-btn--ghost ag-btn--icon agch-agbar__btn"[^>]*data-tooltip-direction="UP"/, 'kit buttons, Foundry tooltips above');
   await ACTIONS['ag-jump'](sheet, {dataset: {partner: 'ashen-gate-profession-ledger'}});
   assert.equal(sheet.tab, 'ashen-gate'); assert.equal(sheet.agTab, 'ashen-gate-profession-ledger');
@@ -292,7 +295,7 @@ test('art of any shape is never stretched: icons and portraits crop to fill (top
   const fs = await import('node:fs');
   const css = fs.readFileSync(new URL('../styles/character-hub.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ');
   const rule = sel => [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter(([, s]) => s.split(',').some(x => x.trim() === `.agch-app ${sel}`)).map(([, , body]) => body).join(';');
-  for (const sel of ['.agch-portrait', '.agch-slot img', '.agch-companion__head img', '.agch-chip img']) {
+  for (const sel of ['.agch-portrait', '.agch-slot img', '.agch-companion__head img', '.agch-idchip img']) {
     assert.match(rule(sel), /object-fit: cover/, sel); assert.match(rule(sel), /object-position: center top/, sel);
   }
   assert.match(rule('.agch-doll__art .agch-doll__fg'), /object-fit: contain; object-position: center top/);
