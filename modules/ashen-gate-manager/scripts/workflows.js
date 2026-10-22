@@ -1,6 +1,7 @@
 /** Ashen Gate Manager v0.3: deterministic, Foundry-independent build & lifecycle rules. */
 import {canonical, getPath, isPlainObject, exportedFields, equal, flatten} from './core.js';
 import {classifyDelivery,domainHandoff} from './delivery.js';
+import {managerAssignedIcon} from './smart-icons.js';
 
 const deep = value => structuredClone(value);
 const has = (object,key) => Object.prototype.hasOwnProperty.call(object,key);
@@ -106,7 +107,10 @@ export function localEdits(document) {
   let raw;
   try { raw=document.toObject?.(); } catch { raw=null; }
   const snapshot=raw && typeof raw==='object' ? raw : document;
+  // 0.47.0: an icon Manager picked (smart icons) is not a local edit.
+  const managerIcon=managerAssignedIcon(snapshot?.img,snapshot?.flags?.['ashen-gate-manager']??document.flags?.['ashen-gate-manager']);
   return Object.entries(source.managedFields).flatMap(([path,baseline])=>{
+    if (path==='img' && managerIcon) return [];
     const current=getPath(snapshot,path);
     if (equal(current,baseline)) return [];
     try { return [{path,baseline,current:deep(current ?? null)}]; }

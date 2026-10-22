@@ -76,7 +76,10 @@
       </label>
       {{#if isSpecialist}}{{#if specialistCanUpdate}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-update-existing {{#if updateExisting}}checked{{/if}} {{#if busy}}disabled{{/if}}> <strong>Update existing {{specialistNoun}}</strong> (otherwise ones already in the world are kept as they are)</label>{{else}}<p class="agmanager-tiny">{{specialistLabel}} keeps {{specialistNoun}} that are already in the world; this file only adds new ones.</p>{{/if}}
       {{else}}{{#if hasLocationRecords}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-update-existing {{#if updateExisting}}checked{{/if}} {{#if busy}}disabled{{/if}}> <strong>Update existing locations, routes and shops</strong> (discovery, reveal and journey state, and shop stock, coins and sales are always kept)</label>{{/if}}
-      {{#if hasActorRecords}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-update-actors {{#if updateActors}}checked{{/if}} {{#if busy}}disabled{{/if}}> <strong>Update existing actors</strong> (name, image, token settings and package items only; HP, XP, level, conditions, player items, notes, ownership, folders and other modules' data are always kept)</label>{{/if}}{{/if}}
+      {{#if hasActorRecords}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-update-actors {{#if updateActors}}checked{{/if}} {{#if busy}}disabled{{/if}}> <strong>Update existing actors</strong> (name, image, token settings and package items only; HP, XP, level, conditions, player items, notes, ownership, folders and other modules' data are always kept)</label>{{/if}}
+      <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-smart-icons {{#if smartIcons}}checked{{/if}} {{#if busy}}disabled{{/if}}> <strong>Choose icons for records without one</strong> (from Foundry's icon library; icons in the file are always kept)</label>
+      {{#if smartIcons}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-repick-icons {{#if repickIcons}}checked{{/if}} {{#if busy}}disabled{{/if}}> <strong>Re-pick smart icons</strong> on records imported before (only icons Manager chose; icons you set in Foundry are never changed)</label>{{/if}}
+      <p class="agmanager-tiny" role="status" data-ag-icon-status>{{iconStatus}}</p>{{/if}}
       </div>
     </details>
 
@@ -97,6 +100,7 @@
         <span class="ag-badge ag-badge--ok"><strong>{{summary.create}}</strong> new</span>
         <span class="ag-badge ag-badge--ok"><strong>{{summary.update}}</strong> update</span>
         <span class="ag-badge ag-badge--ok"><strong>{{summary.metadata}}</strong> metadata refresh</span>
+        {{#if summary.icon}}<span class="ag-badge ag-badge--ok"><strong>{{summary.icon}}</strong> icon only</span>{{/if}}
         <span class="ag-badge"><strong>{{summary.unchanged}}</strong> unchanged</span>
         <span class="ag-badge ag-badge--danger"><strong>{{summary.conflict}}</strong> conflict</span>
         <span class="ag-badge ag-badge--danger"><strong>{{summary.blocked}}</strong> blocked</span>
@@ -105,7 +109,7 @@
       </div>
       <div class="ag-table-wrap agm-scrollcap agm-preview-table">
       <table class="ag-table">
-        <thead><tr><th scope="col">Apply?</th><th scope="col">ID / Name</th><th scope="col">Type</th><th scope="col">Status</th><th scope="col">Reason</th></tr></thead>
+        <thead><tr><th scope="col">Apply?</th><th scope="col">ID / Name</th><th scope="col">Type</th><th scope="col">Status</th><th scope="col">Reason</th>{{#if hasIconRows}}<th scope="col">Icon</th>{{/if}}</tr></thead>
         <tbody>
         {{#each rows}}
         <tr>
@@ -114,6 +118,12 @@
           <td>{{kind}}<div class="agmanager-tiny">{{lifecycle}}</div></td>
           <td><span class="ag-badge{{#if badgeTone}} ag-badge--{{badgeTone}}{{/if}}">{{badge}}</span></td>
           <td>{{reason}}{{#if changes.length}}<ul class="agmanager-changes">{{#each changes}}<li>{{this}}</li>{{/each}}</ul>{{/if}}{{#if effectRows.length}}<ul class="agmanager-changes agmanager-effects" aria-label="Effects">{{#each effectRows}}<li><strong>{{label}}</strong> {{name}}{{#if effId}} <code>{{effId}}</code>{{/if}}: {{reason}}</li>{{/each}}</ul>{{/if}}</td>
+          {{#if @root.hasIconRows}}<td class="agm-icon-cell">{{#if icon}}<div class="agm-icon">
+            {{#if icon.thumb}}<img class="agm-icon__thumb" src="{{icon.img}}" alt="" loading="lazy" decoding="async" width="32" height="32">{{else}}<span class="agm-icon__thumb" aria-hidden="true"></span>{{/if}}
+            <div class="agm-icon__text"><span class="ag-badge{{#if icon.pending}} ag-badge--warn{{/if}}">{{icon.label}}</span> <code class="agm-icon__path">{{icon.img}}</code><div class="agmanager-tiny">{{icon.note}}</div></div>
+            <div class="agm-icon__actions"><button type="button" class="ag-btn ag-btn--sm" data-ag-icon-change="{{id}}" {{#if @root.busy}}disabled{{/if}} aria-label="Change icon for {{name}}…">Change…</button>
+            {{#if icon.changed}}<button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-icon-reset="{{id}}" {{#if @root.busy}}disabled{{/if}} aria-label="Use the suggested icon for {{name}}">Use suggestion</button>{{/if}}</div>
+          </div>{{/if}}</td>{{/if}}
         </tr>
         {{/each}}
         </tbody>
@@ -302,6 +312,44 @@
         <p class="agmanager-tiny">Draft-status Ashen Gate records: {{housekeeping.report.draftCount}} (normal while content is in development).</p>
       {{/if}}
       {{#if housekeeping.message}}<p class="aglib-status" role="status">{{housekeeping.message}}</p>{{/if}}
+    </section>
+    <section class="ag-section aglib-section agicons" aria-label="Improve icons">
+      <div class="ag-section__head"><h3 class="ag-section__title">Improve icons</h3>
+        <button type="button" class="ag-btn" data-ag-action="icons-scan"><i class="fa-solid fa-wand-magic-sparkles" aria-hidden="true"></i> Find placeholder icons</button></div>
+      <p class="agmanager-tiny">Lists world Items and Actors whose icon is a placeholder (blank, Foundry's bag or mystery man, dnd5e's default art or Manager's generic icons) and suggests one from Foundry's icon library. Icons you set or that came from a file are never listed. Nothing changes until Apply.</p>
+      <p class="agmanager-tiny" role="status" data-ag-icons-status>{{icons.message}}</p>
+      {{#if icons.status}}<p class="agmanager-tiny">{{icons.status}} <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="icons-reindex">Rebuild icon index</button></p>{{/if}}
+      {{#if icons.running}}<div class="ag-cluster agclean-running" aria-label="Icon change progress">
+        <progress class="agclean-bar" data-ag-icons-bar max="1" value="{{icons.pct}}" aria-label="Icons changed"></progress>
+        <button type="button" class="ag-btn ag-btn--danger" data-ag-icons-stop><i class="fa-solid fa-stop" aria-hidden="true"></i> Cancel</button>
+        <span class="agmanager-tiny">Stops after the current chunk of 50; what changed stays changed and is in Undo.</span>
+      </div>{{/if}}
+      {{#if icons.scan}}
+      <div class="ag-cluster"><span class="ag-badge">Placeholder icons: {{icons.count}}</span><span class="ag-badge">Ticked: <span data-ag-icons-count>{{icons.ticked}}</span></span></div>
+      {{#each icons.groups}}
+      <h4>{{label}} ({{rows.length}})</h4>
+      <div class="ag-table-wrap agm-scrollcap"><table class="ag-table"><thead><tr><th scope="col">Change</th><th scope="col">Document</th><th scope="col">Now</th><th scope="col">Suggested icon</th></tr></thead><tbody>
+      {{#each rows}}<tr>
+        <td><input type="checkbox" data-ag-icons-tick="{{uuid}}" {{#if checked}}checked{{/if}} {{#if noPick}}disabled{{/if}} aria-label="Change the icon of {{name}}"></td>
+        <td><strong>{{name}}</strong><div class="agmanager-tiny">{{kindLabel}}{{#if playerOwned}} · player character{{/if}}</div></td>
+        <td><code class="agm-icon__path">{{from}}</code></td>
+        <td><div class="agm-icon">
+          {{#if img}}{{#if thumb}}<img class="agm-icon__thumb" src="{{img}}" alt="" loading="lazy" decoding="async" width="32" height="32">{{else}}<span class="agm-icon__thumb" aria-hidden="true"></span>{{/if}}{{else}}<span class="agm-icon__thumb" aria-hidden="true"></span>{{/if}}
+          <div class="agm-icon__text">{{#if label}}<span class="ag-badge">{{label}}</span> {{/if}}{{#if img}}<code class="agm-icon__path">{{img}}</code>{{/if}}<div class="agmanager-tiny">{{reasonText}}</div></div>
+          <div class="agm-icon__actions"><button type="button" class="ag-btn ag-btn--sm" data-ag-icons-change="{{uuid}}" aria-label="Change icon for {{name}}…">Change…</button></div>
+        </div></td>
+      </tr>{{/each}}
+      </tbody></table></div>
+      {{/each}}
+      <footer class="ag-footer">
+        <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="icons-cancel" {{#if icons.running}}disabled{{/if}}>Cancel</button>
+        <span class="ag-btn-group">
+          <button type="button" class="ag-btn" data-ag-action="icons-backup" data-ag-icons-needs-ticks {{#unless icons.ticked}}disabled{{/unless}}><i class="fa-solid fa-download" aria-hidden="true"></i> Download backup</button>
+          <button type="button" class="ag-btn ag-btn--primary" data-ag-action="icons-apply" data-ag-icons-needs-ticks {{#unless icons.ticked}}disabled{{/unless}}{{#if icons.running}} disabled{{/if}}><i class="fa-solid fa-image" aria-hidden="true"></i> Apply (<span data-ag-icons-count>{{icons.ticked}}</span>)…</button>
+        </span>
+      </footer>
+      {{/if}}
+      {{#if icons.hasUndo}}<div class="ag-cluster"><button type="button" class="ag-btn ag-btn--ghost" data-ag-action="icons-undo" {{#if icons.running}}disabled{{/if}}><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Undo last icon change ({{icons.undoCount}})…</button></div>{{/if}}
     </section>
     {{/if}}
 

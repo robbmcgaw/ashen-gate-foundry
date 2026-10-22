@@ -17,8 +17,10 @@ import {followHubVisibility} from "./hub-visibility.js";
 import {LAYOUT_SETTING, FOLDS, normalizeLayout, noteDrawerChanges, drawerContext} from "./import-layout.js";
 import {moduleCards} from './module-cards.js';
 import {itemTooltipAttrs, previewHtml} from './item-preview.js';
-import {chooseIcon,markerTargets,buildUuidIndex,resolveRichText,resolveTypedRefs,appendReferenceBlock} from "./import-fidelity.js";
+import {markerTargets,buildUuidIndex,resolveRichText,resolveTypedRefs,appendReferenceBlock} from "./import-fidelity.js";
 import {moduleRecordLookup} from "./module-records.js";
+import {createIconIndexer, filePickerClass, wantsSmartIcon, pickRecordIcon, chooseImportIcon, existingIconDecision, plannerIcon, iconFlagUpdate, ICON_DOCUMENT_TYPES} from './smart-icons.js';
+import {scanIconDocuments, applyIconChanges, undoIconChanges, iconBackup, ICON_UNDO_SETTING} from './icon-improve.js';
 import {ensureFolder, renameManagerFolders, FOLDER_RENAMES_SETTING} from "./folders.js";
 import {readImportZip, readImportBundle, planBundleImport, bundleSummary, adaptRecordArtwork, uploadMatchingArt} from "./zip-import.js";
 import {CAPTURE_TYPES, normalizeCaptureFlag, buildCapturePackage} from "./capture.js";
@@ -56,7 +58,8 @@ import {toolbarHtml, bodyHtml, facetsHtml, DEFAULT_STATE} from './browse-view.js
 const {ApplicationV2, HandlebarsApplicationMixin} = foundry.applications.api;
 const FOLDER_NAMES = {Item: "Ashen Gate — Imported Items", JournalEntry: "Ashen Gate — Imported Journals",
   Actor: "Ashen Gate — Imported Actors", RollTable: "Ashen Gate — Imported Roll Tables", Macro: "Ashen Gate — Imported Macros"};
-const actionAllowed = new Set(["create", "update", "metadata"]);
+// 0.47.0: "icon" is a re-import that only fills a placeholder icon (smart icons); nothing else on the document changes.
+const actionAllowed = new Set(["create", "update", "metadata", "icon"]);
 const captureOf = doc => normalizeCaptureFlag(doc.getFlag(MODULE_ID, "capture"));
 function allCaptureRows() {
   return [...game.items.contents].sort((a,b)=>a.name.localeCompare(b.name)).map(doc => ({
@@ -81,7 +84,8 @@ function docWrapper(doc) {
     type: doc.type,
     flag: sourceFlag(doc),
     coreLink: doc.getFlag(MODULE_ID, "coreLink") ?? null,
-    get: path => getPath(doc, path)
+    // 0.47.0: an icon Manager picked (smart icons) reads as the last imported value, so it is never taken for a GM edit.
+    get: path => path === "img" ? plannerIcon(doc.img, doc.flags?.[MODULE_ID], sourceFlag(doc)?.managedFields?.img) : getPath(doc, path)
   };
 }
 function allBoundDocuments() {
@@ -114,6 +118,19 @@ async function probeAsset(path) {
   })());
   return iconProbeCache.get(path);
 }
+/** Smart icons (0.47.0): one icon index per session, built in the background from Foundry's file browser. */
+let iconIndexerInstance=null;
+function iconIndexer() {
+  if(!iconIndexerInstance) {
+    let storage=null;
+    try{storage=globalThis.localStorage??null;}catch{storage=null;}
+    iconIndexerInstance=createIconIndexer({storage,
+      browse:(source,target)=>{const FP=filePickerClass();if(typeof FP?.browse!=='function')throw new Error('file browser unavailable');return FP.browse(source,target);},
+      versionKey:`${game.release?.version??game.version??''}|${game.system?.id??''}@${game.system?.version??''}`,
+      onChange:status=>activeApp?.noteIconIndex?.(status)});
+  }
+  return iconIndexerInstance;
+}
 async function destinationFolder(type,path,report=()=>{}) {
   if(path) return ensureFolder(type,path,{folders:game.folders,create:data=>Folder.create(data),cache:folderCache,report});
   const name=FOLDER_NAMES[type];
@@ -131,7 +148,7 @@ function sourceMetadata(record,pkg,availableIds) {
   return metadata;
 }
 
-async function createRecord(record, pkg, availableIds, report=()=>{}) {
+async function createRecord(record, pkg, availableIds, report=()=>{}, {planned=null, smart=true}={}) {
   const kind = record.foundry.document_type;
   const cls = {Item,JournalEntry,Actor,RollTable,Macro}[kind];
   if (!cls) throw new Error(`Cannot create ${kind} document.`);
@@ -139,15 +156,18 @@ async function createRecord(record, pkg, availableIds, report=()=>{}) {
   // Only explicit allowlisted fields from validated records are copied to a Foundry Document.
   const data = foundry.utils.deepClone(record.foundry.data);
   data.folder = folder.id;
-  if(['Item','Actor','RollTable','Macro'].includes(kind)) {
-    const icon=await chooseIcon(record,probeAsset);
+  let icon=null;
+  if(ICON_DOCUMENT_TYPES.includes(kind)) {
+    // 0.47.0: a missing or placeholder icon gets a smart pick (the preview's, or the GM's Change… choice); authored icons stay.
+    icon=await chooseImportIcon(record,{index:smart?iconIndexer().index:null,smart,probe:probeAsset,planned});
     data.img=icon.img;
-    if(icon.reason!=='authored') report({id:record.id,action:'icon-fallback',status:'ok',icon:icon.img,reason:icon.reason,original:icon.original??null});
+    if(icon.source!=='authored') report({id:record.id,action:icon.source==='smart'?'icon-smart':'icon-fallback',status:'ok',icon:icon.img,reason:icon.reason,original:icon.original??null});
   }
   data.ownership = {default: CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE};
   // Keep authored Actor flags, but reserve Manager's own namespace for immutable source bindings.
   // Items keep only allow-listed flags (0.37.0); Manager's own namespace is always written from the record.
-  data.flags = {...(kind==='Actor'?data.flags??{}:kind==='Item'?allowedItemFlags(data.flags):{}),[MODULE_ID]:{source:sourceMetadata(record, pkg, availableIds)}};
+  data.flags = {...(kind==='Actor'?data.flags??{}:kind==='Item'?allowedItemFlags(data.flags):{}),[MODULE_ID]:{source:sourceMetadata(record, pkg, availableIds),
+    ...(icon?{iconSource:icon.source,iconPath:icon.img}:{})}};
   if(kind==='Item') {
     if(Array.isArray(data.effects)&&data.effects.length) data.effects=record.foundry.data.effects.map(effectCreateData);
     else delete data.effects;
@@ -186,7 +206,9 @@ function planDocument(record,pkg,{includeDrafts,updateActors,zipMedia}) {
     const docs=matchActors(record,game.actors?.contents??[]);
     if(docs.some(d=>d.getFlag(MODULE_ID,'lifecycle')?.archived)) return {plan:{action:'blocked',reason:'Existing record is archived; restore it before reimport.'},docs};
     const isBundled=path=>Boolean(zipMedia?.size&&zipMedia.has(mediaFilename(path)));
-    return {plan:planActor(record,docs.map(d=>d.toObject()),{updateExisting:updateActors,includeDrafts,sameNameUnmanaged:findSameNameUnmanaged(record),isBundled}),docs};
+    // 0.47.0: an icon Manager picked reads as the last imported one, never as a GM edit.
+    const raws=docs.map(d=>{const raw=d.toObject();raw.img=plannerIcon(raw.img,raw.flags?.[MODULE_ID],raw.flags?.[MODULE_ID]?.source?.managedFields?.img);return raw;});
+    return {plan:planActor(record,raws,{updateExisting:updateActors,includeDrafts,sameNameUnmanaged:findSameNameUnmanaged(record),isBundled}),docs};
   }
   const matches=foundDocuments(record.id).map(docWrapper);
   if(matches.some(m=>m.doc.getFlag(MODULE_ID,'lifecycle')?.archived)) return {plan:{action:'blocked',reason:'Existing record is archived; restore it before reimport.'},docs:matches.map(m=>m.doc)};
@@ -208,7 +230,10 @@ function withItemEffects(record,plan,matches) {
 const TYPE_LABEL={Item:'Items',Actor:'Actors',JournalEntry:'Journals'};
 const capitalize=s=>String(s??'').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/^\w/,c=>c.toUpperCase());
 /** Kit badge tones for import preview actions and record status (0.43.0). */
-const ACTION_TONE={create:'ok',update:'ok',metadata:'ok',blocked:'danger',conflict:'danger'};
+const ACTION_TONE={create:'ok',update:'ok',metadata:'ok',icon:'ok',blocked:'danger',conflict:'danger'};
+/** Preview thumbnails (0.47.0): the first ones only, and lazy, so a big file stays quick. */
+const ICON_THUMBS=200;
+const ICON_CONFIDENCE={high:'good match',medium:'likely match',low:'loose match'};
 /** Items toolbar (0.43.0): one Load compendiums button and one Clear filters count for the shared filters and the All items facets. */
 const packsLabel=status=>status.loading?'Loading compendiums…':status.compendiums?'Reload compendiums':'Load compendiums';
 const browseFacetCount=st=>Object.values(st.filters??{}).filter(v=>v!==undefined&&v!==null&&v!==''&&v!=='all').length+(st.managedOnly?1:0)+(st.unlinkedOnly?1:0);
@@ -217,7 +242,8 @@ const statusTone=status=>['active','approved'].includes(status)?'ok':status==='d
 /** Help dialog (0.46.0: follows the new tabs). Longer explanations moved here from the tabs. */
 const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): choose Manager JSON or a ZIP with <strong>Choose JSON or ZIP package…</strong>, pick an <strong>Import profile</strong> under Options (Development includes draft, proposed and example records), press <strong>Validate &amp; Preview</strong>, tick records, then <strong>Import</strong>. Load, ZIP files, Options and Preview fold open or shut (remembered on this device). Errors, review notes, links to other modules’ records and results are in the message bar at the bottom, with their counts; it opens by itself on new errors or a new result. A ZIP with several import files lists them: untick any you do not want, press Import selected files, then preview and Apply each in turn (Manager packages first). Scripts in a ZIP never run. <em>Import history</em> lists the imports applied so far.</p>',
   '<p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro, plus Locations, Routes and Shops (handed to Locations and Utilities). Existing Tables and Macros are never replaced. Existing Actors change only with <strong>Update existing actors</strong>: name, image, token settings and package items follow the file; HP, XP, level, conditions, player items, notes, ownership, folders and other modules’ data are kept. Item effects (each with a permanent eff_id) are listed under their Item; your own edits and hand-made effects are never touched.</p>',
-  '<p><strong>Items</strong> sub-tabs: <strong>Browse</strong> (one search over world documents, Ashen Gate records from every module and, after Load compendiums, compendium indexes), <strong>Records</strong> (Manager-imported records by permanent id), <strong>Folders</strong>, <strong>Core links</strong>, <strong>Checks</strong> and <strong>Export</strong>. The search box and <strong>Filters (n)</strong> (source, type, origin, rarity, folder, has core_ref, and on Browse its own facets) apply on Browse, Records, Folders and Core links and stay as you switch between them. Search words, or prefixes such as id:MAT-HERB, id:DEITY-, type:deity, type:npc-codex, tag:, status:, tier:major. Pick an item’s name to see dnd5e’s item card; drag a world or compendium row onto a sheet, the canvas or a journal. Open on an NPC goes to the NPC Codex tab; Open on a deity opens Renown’s Pantheon.</p>',
+  '<p><strong>Icons:</strong> with <strong>Choose icons for records without one</strong> (Options, on by default) a record with no icon or a placeholder one (Foundry\u2019s bag, mystery man or d20, dnd5e\u2019s default art, Manager\u2019s generic icons) gets a fitting icon from Foundry\u2019s icon library, picked from its name and kind. The Icon column shows each pick and why; <strong>Change…</strong> picks another. An icon set in the file, or by you in Foundry, is never replaced. The library is indexed once per browser (\u201cIndexing icons…\u201d); if it cannot be read, generic icons are used. <strong>Re-pick smart icons</strong> picks again for icons Manager chose before. For documents already in the world, use <em>Items \u2192 Checks \u2192 Improve icons</em>.</p>',
+  '<p><strong>Items</strong> sub-tabs: <strong>Browse</strong> (one search over world documents, Ashen Gate records from every module and, after Load compendiums, compendium indexes), <strong>Records</strong> (Manager-imported records by permanent id), <strong>Folders</strong>, <strong>Core links</strong>, <strong>Checks</strong> (library check, housekeeping report and Improve icons) and <strong>Export</strong>. The search box and <strong>Filters (n)</strong> (source, type, origin, rarity, folder, has core_ref, and on Browse its own facets) apply on Browse, Records, Folders and Core links and stay as you switch between them. Search words, or prefixes such as id:MAT-HERB, id:DEITY-, type:deity, type:npc-codex, tag:, status:, tier:major. Pick an item’s name to see dnd5e’s item card; drag a world or compendium row onto a sheet, the canvas or a journal. Open on an NPC goes to the NPC Codex tab; Open on a deity opens Renown’s Pantheon.</p>',
   '<p><strong>Folders:</strong> <em>Clean compendiums</em> scans the world sidebar and every compendium against the folder rules and lists each document that is not in its folder; nothing moves until Apply, and Undo puts the last 5 runs back. <em>Organize a selection</em> does the same for what the filters pick, or one folder. Default rules: Ashen Gate records go to <strong>Ashen Gate</strong>; other Items go to <strong>Core 5.5e</strong> only with real evidence (a Plutonium import, a core source book, a copy from a dnd5e compendium or a D&amp;D Beyond import, the last two marked weak); anything else goes to <strong>Homebrew</strong>. dnd5e gives every new item rules "2024", so that alone counts as Homebrew. Player characters, player-owned actors, protected folders and documents marked Keep here never move; locked, module and system compendiums are inspect-only. Only the folder changes: nothing is renamed, edited or deleted.</p>',
   '<p><strong>NPC Codex:</strong> set who knows each NPC and each field (Hidden, Party, or chosen characters) on <em>Reveals</em>: these apply at once. <em>Notes &amp; links</em> holds what the party has learned, connections and your GM notes, saved with Save Changes. <em>Player preview</em> shows exactly what the party or one character receives. Whether players can open the codex at all is on the Modules tab.</p>',
   '<p><strong>Modules:</strong> open each Ashen Gate module and see whether its player window is <strong>Visible to players</strong> or <strong>Hidden</strong>. Reveal and Hide change that module’s own Player Access setting (General Manager’s card is its NPC Codex); <strong>Hide all</strong> asks first. Hiding never deletes progress. The Pre-session check is read-only.</p>',
@@ -257,6 +283,12 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.setupTab = this.ui.get('setupTab','general',SETUP_VIEWS);
     this.codexTab = this.ui.get('codexTab','reveals',CODEX_VIEWS);
     this.itemFiltersOpen = this.ui.get('itemFiltersOpen',false,[true,false]);
+    // 0.47.0 smart icons: the Options switch (remembered per user), Re-pick (per load) and the GM's Change… picks per record id.
+    this.smartIcons = this.ui.get('smartIcons',true,[true,false]);
+    this.repickIcons = false;
+    this.iconOverrides = new Map();
+    // Items → Checks → Improve icons.
+    this.iconScan = null; this.iconScanWanted = false; this.iconAbort = null; this.iconPct = 0; this.iconMessage = '';
     // Drafts that survive re-renders (GM Setup, NPC Codex notes); the guards show "Unsaved changes" and ask before discarding.
     this.setupDraft = null;
     this.codexDraft = null;
@@ -569,7 +601,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   async _prepareContext(options) {
     if(!game.user?.isGM)throw new Error('Only GMs can open the General Manager.');
     const ctx = await super._prepareContext(options);
-    const summary = {create:0, update:0, metadata:0, unchanged:0, blocked:0, conflict:0, skipped:0, local:0};
+    const summary = {create:0, update:0, metadata:0, icon:0, unchanged:0, blocked:0, conflict:0, skipped:0, local:0};
     this.preview.forEach(row => {summary[row.action] = (summary[row.action] ?? 0) + 1;});
     const history = game.settings.get(MODULE_ID,"importHistory") ?? [];
     const allItems = allCaptureRows();
@@ -598,7 +630,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const drawer=drawerContext(layout,{errors:this.errors.length,warnings:this.warnings.length,links:this.moduleLinks?.length??0,results:this.importReports.length});
     // 0.46.0: one draft control, the profile (it sets includeDrafts); the summary says what it does.
     const optionsSummary=[this.profile==='development'?'Development: drafts included':'Session-safe: approved only',
-      ...(this.updateExisting?['update existing']:[]),...(this.updateActors?['update actors']:[])].join(' · ');
+      ...(this.updateExisting?['update existing']:[]),...(this.updateActors?['update actors']:[]),
+      this.smartIcons?(this.repickIcons?'smart icons, re-pick':'smart icons'):'smart icons off'].join(' · ');
     const tabRow=(group,label,tabs,selected)=>subTabs({group,label,tabs,selected});
     const goto=(label,tab)=>linkButton(label,{data:{agGotoTab:tab}});
     const setupSkins=this.tab==='setup'?(()=>{const st=appearanceController?.getState?.()??{};const pick=this.setupDraft?.worldSkin??st.worldDefault;
@@ -715,7 +748,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       canApply: !this.busy && this.errors.length === 0 && this.preview.some(row => actionAllowed.has(row.action) && this.selected.has(row.id)),
       busy: this.busy,
       summary,
-      rows: this.preview.map(row => ({...row, selected:this.selected.has(row.id), canSelect: actionAllowed.has(row.action), badge:capitalize(row.action), badgeTone:ACTION_TONE[row.action]??''})),
+      rows: this.#previewRows(),
+      smartIcons: this.smartIcons, repickIcons: this.repickIcons, iconStatus: this.#iconStatusText(),
+      hasIconRows: this.preview.some(row=>row.icon),
+      icons: items&&view==='checks'?this.#iconScanContext():null,
       audit: this.auditEntries.map(entry=>({...entry,tone:entry.level==='error'?'danger':entry.level==='warning'?'warn':''})),
       hasAudit: this.auditEntries.length > 0,
       history: [...history].reverse().map(run=>{const results=(run.results??[]).map(r=>({...r,tone:RESULT_TONE(r.status)}));
@@ -968,6 +1004,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     }));
     this.#bindImportLayout(root);
     this.#bindOrganize(root);
+    this.#bindIcons(root);
     // Not a data-ag-action: those are ignored while busy, and Cancel must work while the commit runs.
     root.querySelector('[data-ag-clean-stop]')?.addEventListener('click',event=>{
       event.preventDefault();if(!this.cleanAbort)return;
@@ -1070,6 +1107,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case "setup-save": await this.#saveSetup(); break;
       case "setup-cancel": this.setupDraft=null; this.setupGuard.markClean(); this.setupMessage="Changes discarded."; await this.render(); break;
       case "clean-scan": case "clean-cancel": case "clean-backup": case "clean-commit": await this.#cleanAction(name); break;
+      case "icons-scan": case "icons-reindex": case "icons-cancel": case "icons-backup": case "icons-apply": case "icons-undo": await this.#iconAction(name); break;
       case "org-schema-edit": case "org-schema-save": case "org-schema-cancel": case "org-schema-export": case "org-schema-reset": await this.#organizeAction(name); break;
       case "library-check": this.#runAudit(); this.itemsView="checks";this.libraryMessage="Library check finished: results are listed below."; await this.render(); break;
       case "appearance-my-appearance": {
@@ -1166,6 +1204,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   #clearLoaded(message) {
     this.pkg=null; this.rawPkg=null; this.specialist=null; this.zipMedia=new Map(); this.packageSource=null;
     this.preview=[]; this.errors=[]; this.warnings=[]; this.moduleLinks=[]; this.selected.clear();
+    this.iconOverrides=new Map(); this.repickIcons=false;
     this.message=message;
   }
   /** Starts a multi-file ZIP: the ticked files, Manager package(s) first, each through the normal preview and Apply. */
@@ -1300,8 +1339,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.dependencyNotes=graph.cycles.length ? `${graph.cycles.length} circular reference path(s) detected. Required links are checked against the selected records and existing world IDs before Apply; references remain ID-linked.` : "No required-reference cycles.";
     if (isContractImport(this.pkg) && graph.cycles.length) this.warnings.push('Circular relationships are allowed when targets are selected or already present. The second pass now binds actual world UUIDs.');
     const withPaths=records.filter(r=>r.foundry?.folder_path).length;
-    const fallbackIcons=records.filter(r=>['Item','Actor','RollTable','Macro'].includes(r.foundry?.document_type) && !r.foundry?.data?.img).length;
-    this.warnings.push(`${withPaths} folder destination(s), ${fallbackIcons} missing authored image(s); folders and icon fallbacks are applied only after confirmation.`);
+    const fallbackIcons=records.filter(r=>ICON_DOCUMENT_TYPES.includes(r.foundry?.document_type) && wantsSmartIcon(r)).length;
+    this.warnings.push(`${withPaths} folder destination(s), ${fallbackIcons} record(s) without a real icon; folders and ${this.smartIcons?'chosen icons (see the Icon column)':'generic icons'} are applied only after confirmation.`);
+    // 0.47.0: build the icon index in the background; the preview fills in the picks when it is ready.
+    if(this.smartIcons&&fallbackIcons) void iconIndexer().ensure();
     if(this.zipMedia.size) this.warnings.push(`${this.zipMedia.size} artwork file(s) in source ZIP. Matching assets can be uploaded to this world's data folder during Apply; no ZIP scripts execute.`);
     const locApi=locationsApi(game);
     const note=locationsNote(records,locApi);
@@ -1340,11 +1381,229 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         effectRows:(effects?.rows??[]).map(r=>({...r,label:{create:'New',update:'Update',kept:'Kept',handmade:'Untouched'}[r.action]}))});
       this.warnings.push(...flagWarnings(record));
     }
+    this.#assignIcons();
     this.message = `Validated ${records.length} records. ${this.dependencyNotes} Nothing changes before Apply.`;
     await this.render();
   }
+  /**
+   * Smart icons (0.47.0): the Icon column of the preview. Runs after each preview, when an icon option changes and when
+   * the icon index becomes ready; ticks are kept. A re-import whose only change is a placeholder icon becomes "icon".
+   */
+  #assignIcons() {
+    if(!this.pkg) return;
+    const records=new Map(this.pkg.records.map(r=>[r.id,r]));
+    // One pass over the world (not one per row): bound documents by permanent id.
+    const bound=new Map();
+    for(const doc of allBoundDocuments()){const id=sourceFlag(doc).sourceId;if(!bound.has(id))bound.set(id,[]);bound.get(id).push(doc);}
+    for(const row of this.preview) {
+      const record=records.get(row.id);
+      if(!record||!ICON_DOCUMENT_TYPES.includes(record.foundry?.document_type)) continue;
+      row.baseAction??=row.action; row.baseReason??=row.reason;
+      row.action=row.baseAction; row.reason=row.baseReason;
+      const docs=row.baseAction==='create'?[]:(bound.get(record.id)??[]).filter(d=>d.documentName===record.foundry.document_type);
+      row.icon=this.#iconFor(record,row.baseAction,docs);
+      if(row.icon?.existing&&['unchanged','local'].includes(row.baseAction)) {
+        row.action='icon';
+        row.reason=`${row.baseReason} Only the icon changes: ${row.icon.why==='repick'?'a new pick replaces the one Manager chose before':'the world copy has a placeholder icon'}.`;
+      }
+    }
+    for(const row of this.preview) if(!actionAllowed.has(row.action)) this.selected.delete(row.id);
+  }
+  /** The icon one preview row would get, or null (authored icon kept, or nothing to fill). */
+  #iconFor(record,action,docs) {
+    const smart=this.smartIcons, index=smart?iconIndexer().index:null, override=this.iconOverrides.get(record.id);
+    if(action==='create') {
+      const icon=pickRecordIcon(record,{index,smart,override});
+      return icon?{...icon,pending:Boolean(smart&&!index&&!override&&iconIndexer().status().state!=='failed')}:null;
+    }
+    if(!['update','unchanged','local','metadata'].includes(action)||docs.length!==1) return null;
+    const doc=docs[0];
+    const decision=existingIconDecision({recordImg:record.foundry.data?.img,docImg:doc.img,flags:doc.flags?.[MODULE_ID],repick:this.repickIcons,smart});
+    if(!decision.fill||(!index&&!override)) return null;
+    const icon=pickRecordIcon(record,{index,smart:true,override});
+    // An existing document changes only for a real pick, never from one placeholder to another.
+    if(!icon||icon.source==='fallback'||icon.img===doc.img) return null;
+    return {...icon,existing:true,why:decision.why,current:doc.img};
+  }
+  /** After an update or an icon-only row: record who owns the icon now, and fill a placeholder icon if still allowed. */
+  async #writeImportIcon(row,current,doc,log) {
+    try {
+      // The package gave the document its own authored icon: Manager no longer owns it.
+      const authoredImg=row.kind==='Actor'?current.patch?.fields?.img:current.patch?.img;
+      if(typeof authoredImg==='string') await doc.update(iconFlagUpdate(MODULE_ID,{img:authoredImg,source:'authored'}));
+      if(!row.icon?.existing) return;
+      const record=this.pkg.records.find(r=>r.id===row.id);
+      const decision=existingIconDecision({recordImg:record?.foundry?.data?.img,docImg:doc.img,flags:doc.flags?.[MODULE_ID],repick:this.repickIcons,smart:this.smartIcons});
+      if(!decision.fill){log.results.push({id:row.id,action:'icon',status:'note',message:'Icon kept: it was changed in Foundry after the preview.'});return;}
+      await doc.update({img:row.icon.img,...iconFlagUpdate(MODULE_ID,{img:row.icon.img,source:row.icon.source})});
+      log.results.push({id:row.id,action:'icon',status:'note',uuid:doc.uuid,icon:row.icon.img,message:`Icon set to ${row.icon.img} (${row.icon.reason}).`});
+    } catch(error) {log.results.push({id:row.id,action:'icon',status:'error',message:`Icon not changed: ${error?.message??error}`});}
+  }
+  #previewRows() {
+    let thumbs=0;
+    return this.preview.map(row=>{
+      const i=row.icon;
+      const icon=i?{...i,thumb:!i.pending&&thumbs++<ICON_THUMBS,changed:this.iconOverrides.has(row.id),
+        label:i.pending?'Indexing icons…':this.iconOverrides.has(row.id)?'your choice':i.source==='smart'?(ICON_CONFIDENCE[i.confidence]??'match'):'generic icon',
+        note:i.pending?'A generic icon for now; the pick appears when indexing finishes.':this.iconOverrides.has(row.id)?'Chosen with Change…':i.source==='smart'?`${i.existing?'Replaces a placeholder icon; ':''}${i.reason}.`:'No fitting icon found in the library.'}:null;
+      return {...row, icon, selected:this.selected.has(row.id), canSelect: actionAllowed.has(row.action), badge:capitalize(row.action), badgeTone:ACTION_TONE[row.action]??''};
+    });
+  }
+  #iconIndexText() {
+    const st=iconIndexer().status();
+    if(st.state==='indexing') return 'Indexing icons…';
+    if(st.state==='failed') return st.message;
+    if(st.state==='ready') return `Foundry's icon library: ${st.message}`;
+    return '';
+  }
+  #iconStatusText() {
+    return this.smartIcons?this.#iconIndexText():'Smart icons are off: records without an icon get a generic one.';
+  }
+  /** Called by the icon indexer when its state changes. */
+  noteIconIndex(status) {
+    if(status?.state==='indexing'){this.element?.querySelectorAll?.('[data-ag-icon-status]').forEach(el=>{el.textContent='Indexing icons…';});return;}
+    if(this.pkg&&this.preview.length) this.#assignIcons();
+    if(this.iconScanWanted){this.iconScanWanted=false;this.#scanIcons();}
+    if(this.rendered&&!this.busy) void this.render();
+  }
+  /** Items → Checks → Improve icons: world Items and Actors with a placeholder icon, and a suggestion for each. */
+  #scanIcons() {
+    const index=iconIndexer().index;
+    const rows=scanIconDocuments([...(game.items?.contents??[]),...(game.actors?.contents??[])],index);
+    const suggested=rows.filter(r=>r.img).length;
+    this.iconScan={rows};
+    this.iconMessage=rows.length?`${rows.length} world Item(s) and Actor(s) have a placeholder icon; ${suggested} have a suggestion${index?'':' (the icon library could not be read, so pick icons with Change…)'}. Player characters start unticked. Nothing has changed yet.`
+      :'No world Item or Actor has a placeholder icon. Nothing changed.';
+  }
+  #iconScanContext() {
+    const undo=game.settings.get(MODULE_ID,ICON_UNDO_SETTING);
+    const rows=this.iconScan?.rows??[];
+    let thumbs=0;
+    const view=r=>({...r,thumb:thumbs++<ICON_THUMBS,kindLabel:capitalize(r.type||r.documentName),
+      label:r.img?(r.source==='authored'?'your choice':ICON_CONFIDENCE[r.confidence]??''):'',noPick:!r.img,
+      reasonText:r.source==='authored'?'Chosen with Change…':r.reason});
+    const groups=['Item','Actor'].map(kind=>({label:kind==='Item'?'Items':'Actors',rows:rows.filter(r=>r.documentName===kind).map(view)})).filter(g=>g.rows.length);
+    return {scan:Boolean(this.iconScan),groups,count:rows.length,ticked:rows.filter(r=>r.checked&&r.img).length,
+      running:Boolean(this.iconAbort),pct:this.iconPct,message:this.iconMessage,status:this.#iconIndexText(),
+      hasUndo:Boolean(undo?.applied?.length),undoCount:undo?.applied?.length??0};
+  }
+  #pickIcon(current,done) {
+    const FP=filePickerClass();
+    if(!FP) return toast('Foundry\'s file picker is not available here.',true);
+    new FP({type:'image',current:current??'',callback:path=>done(path)}).render(true);
+  }
+  async #iconAction(name) {
+    if(!game.user?.isGM) throw new Error('Only a GM can change icons.');
+    const getDoc=uuid=>(globalThis.fromUuidSync??foundry.utils.fromUuidSync)?.(uuid)??null;
+    const updateMany=(documentName,updates)=>({Item:globalThis.Item,Actor:globalThis.Actor})[documentName].updateDocuments(updates);
+    const ticked=()=>(this.iconScan?.rows??[]).filter(r=>r.checked&&r.img);
+    const say=(text,error=false)=>{this.iconMessage=text;toast(text,error);};
+    switch(name){
+      case 'icons-scan': {
+        const st=iconIndexer().status();
+        if(!iconIndexer().index&&st.state!=='failed'){
+          this.iconScanWanted=true;this.iconScan=null;
+          this.iconMessage='Indexing icons… The list appears when it is ready (the first time on The Forge this can take a minute).';
+          void iconIndexer().ensure();break;
+        }
+        this.#scanIcons();break;
+      }
+      case 'icons-reindex': iconIndexer().reset();this.iconScanWanted=Boolean(this.iconScan);this.iconMessage='Rebuilding the icon index…';void iconIndexer().ensure();break;
+      case 'icons-cancel': this.iconScan=null;this.iconMessage='Icon list cleared. Nothing changed.';break;
+      case 'icons-backup': {
+        const rows=ticked();
+        if(!rows.length)return say('Tick at least one icon to change first.',true);
+        downloadJson(`AG_Icon_Backup_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.json`,iconBackup(rows,getDoc,MODULE_ID));
+        say(`Downloaded the current icons of the ${rows.length} ticked document(s). Nothing changed.`);break;
+      }
+      case 'icons-apply': {
+        const rows=ticked();
+        if(!rows.length)return say('Nothing is ticked.',true);
+        const yes=await confirmDialog(`Change the icons of ${rows.length} world document(s) to the ones shown?\nOnly placeholder icons are replaced; a document whose icon changed since the list was made is skipped. Undo last icon change puts this run back.`,
+          {title:'Change icons?',yes:`Change ${rows.length} icon(s)`});
+        if(!yes)return;
+        this.iconAbort=new AbortController();this.iconPct=0;this.busy=true;
+        await this.render();
+        const progress=({done,total})=>{this.iconPct=total?done/total:1;
+          const el=this.element?.querySelector('[data-ag-icons-status]');if(el)el.textContent=`Changed ${done} of ${total}…`;
+          const bar=this.element?.querySelector('[data-ag-icons-bar]');if(bar)bar.value=this.iconPct;};
+        try{
+          const out=await applyIconChanges(rows,{user:game.user,moduleId:MODULE_ID,getDoc,updateMany,signal:this.iconAbort.signal,onProgress:progress});
+          if(out.applied.length) await game.settings.set(MODULE_ID,ICON_UNDO_SETTING,{at:new Date().toISOString(),applied:out.applied});
+          this.iconScan=null;
+          say(`${out.message}${out.applied.length?' Undo last icon change puts them back.':''}`,!out.ok);
+        }finally{this.busy=false;this.iconAbort=null;}
+        break;
+      }
+      case 'icons-undo': {
+        const undo=game.settings.get(MODULE_ID,ICON_UNDO_SETTING);
+        if(!undo?.applied?.length)return say('There is no icon change to undo.',true);
+        const yes=await confirmDialog(`Put back the ${undo.applied.length} icon(s) changed on ${new Date(undo.at).toLocaleString()}?\nAn icon changed again since then is left as it is.`,{title:'Undo last icon change?',yes:'Undo icon change'});
+        if(!yes)return;
+        this.busy=true;
+        try{
+          const out=await undoIconChanges(undo,{user:game.user,moduleId:MODULE_ID,getDoc,updateMany});
+          if(out.ok) await game.settings.set(MODULE_ID,ICON_UNDO_SETTING,{});
+          this.iconScan=null;say(out.message,!out.ok);
+        }finally{this.busy=false;}
+        break;
+      }
+    }
+    await this.render();
+  }
+  /** Icon options, Change… buttons and the Improve icons list (0.47.0). */
+  #bindIcons(root) {
+    root.querySelector('[data-ag-smart-icons]')?.addEventListener('change',event=>{
+      if(this.busy)return;
+      this.smartIcons=this.ui.set('smartIcons',event.target.checked);
+      if(this.smartIcons&&this.pkg) void iconIndexer().ensure();
+      this.#assignIcons();this.focusAfterRender='[data-ag-smart-icons]';void this.render();
+    });
+    root.querySelector('[data-ag-repick-icons]')?.addEventListener('change',event=>{
+      if(this.busy)return;
+      this.repickIcons=event.target.checked;
+      if(this.repickIcons) void iconIndexer().ensure();
+      this.#assignIcons();this.focusAfterRender='[data-ag-repick-icons]';void this.render();
+    });
+    root.querySelectorAll('[data-ag-icon-change]').forEach(el=>el.addEventListener('click',event=>{
+      event.preventDefault();if(this.busy)return;
+      const id=el.dataset.agIconChange, row=this.preview.find(r=>r.id===id);
+      this.#pickIcon(row?.icon?.img,path=>{
+        if(!path)return;
+        this.iconOverrides.set(id,path);this.#assignIcons();this.focusAfterRender=`[data-ag-icon-change="${CSS.escape(id)}"]`;void this.render();
+      });
+    }));
+    root.querySelectorAll('[data-ag-icon-reset]').forEach(el=>el.addEventListener('click',event=>{
+      event.preventDefault();if(this.busy)return;
+      const id=el.dataset.agIconReset;
+      this.iconOverrides.delete(id);this.#assignIcons();this.focusAfterRender=`[data-ag-icon-change="${CSS.escape(id)}"]`;void this.render();
+    }));
+    // Ticks: no re-render (the list can be long), just the counter and the buttons that need ticks.
+    const count=()=>{const n=(this.iconScan?.rows??[]).filter(r=>r.checked&&r.img).length;
+      root.querySelectorAll('[data-ag-icons-count]').forEach(el=>{el.textContent=String(n);});
+      root.querySelectorAll('[data-ag-icons-needs-ticks]').forEach(el=>{el.disabled=!n||Boolean(this.iconAbort);});};
+    root.querySelectorAll('[data-ag-icons-tick]').forEach(el=>el.addEventListener('change',event=>{
+      const row=this.iconScan?.rows.find(r=>r.uuid===el.dataset.agIconsTick);if(row)row.checked=event.target.checked;count();
+    }));
+    root.querySelectorAll('[data-ag-icons-change]').forEach(el=>el.addEventListener('click',event=>{
+      event.preventDefault();if(this.busy)return;
+      const row=this.iconScan?.rows.find(r=>r.uuid===el.dataset.agIconsChange);if(!row)return;
+      this.#pickIcon(row.img??row.from,path=>{
+        if(!path)return;
+        Object.assign(row,{img:path,source:'authored',reason:'Chosen with Change…',confidence:'none',checked:true});
+        this.focusAfterRender=`[data-ag-icons-change="${CSS.escape(row.uuid)}"]`;void this.render();
+      });
+    }));
+    // Not a data-ag-action: those are ignored while busy, and Cancel must work while the changes are written.
+    root.querySelector('[data-ag-icons-stop]')?.addEventListener('click',event=>{
+      event.preventDefault();if(!this.iconAbort)return;
+      this.iconAbort.abort();event.currentTarget.disabled=true;
+      const el=root.querySelector('[data-ag-icons-status]');if(el)el.textContent='Cancelling after the current chunk…';
+    });
+  }
   #exportPreview() {
-    const report = {generated_at:new Date().toISOString(), manifest:this.pkg?.manifest ?? (this.specialist?{specialist:SPECIALISTS[this.specialist.kind].label}:null), errors:this.errors, warnings:this.warnings, module_links:this.moduleLinks??[], preview:this.preview.map(({id, name, kind, lifecycle, action, reason, patch, changes, effects})=>({id,name,kind,lifecycle,action,reason,patch,changes,effects:effects?.rows??undefined}))};
+    const report = {generated_at:new Date().toISOString(), manifest:this.pkg?.manifest ?? (this.specialist?{specialist:SPECIALISTS[this.specialist.kind].label}:null), errors:this.errors, warnings:this.warnings, module_links:this.moduleLinks??[], preview:this.preview.map(({id, name, kind, lifecycle, action, reason, patch, changes, effects, icon})=>({id,name,kind,lifecycle,action,reason,patch,changes,effects:effects?.rows??undefined,
+      icon:icon?{img:icon.img,source:icon.source,reason:icon.reason}:undefined}))};
     downloadJson("ag-import-preview.json",report);
   }
   async #tagSelected() {
@@ -1471,7 +1730,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         const record = this.pkg.records.find(r=>r.id===row.id);
         const {plan:current,docs}=planDocument(record,this.pkg,this);
         plans.set(row.id,current);
-        if (current.action !== row.action || canonical(current.patch ?? {}) !== canonical(row.patch ?? {}) || canonical(current.effects?.rows ?? []) !== canonical(row.effects?.rows ?? [])) {
+        if (current.action !== (row.baseAction ?? row.action) || canonical(current.patch ?? {}) !== canonical(row.patch ?? {}) || canonical(current.effects?.rows ?? []) !== canonical(row.effects?.rows ?? [])) {
           log.results.push({id:row.id, status:"skipped", message:"Foundry state changed since preview; preview again."});
           continue;
         }
@@ -1481,11 +1740,13 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
           for (const child of record.resource_opportunities??[]) present.add(child.id);
           // Never mutate the canonical source record. Only the Foundry write copy gets uploaded asset paths.
           const adapted=adaptRecordArtwork(record,originalMediaPaths);
-          const doc = row.action==="create" ? await createRecord(adapted, this.pkg, present, entry=>log.results.push({...entry,id:entry.id??row.id}))
+          const doc = row.action==="icon" ? docs[0]
+            : row.action==="create" ? await createRecord(adapted, this.pkg, present, entry=>log.results.push({...entry,id:entry.id??row.id}),{planned:row.icon&&!row.icon.pending?row.icon:null,smart:this.smartIcons})
             : row.kind==='Actor' ? await applyActorUpdate(docs[0],current,{user:game.user,source:sourceMetadata(record,this.pkg,present)})
             : await updateRecord(record,this.pkg,docs[0],current.patch,present);
           if (!doc) throw new Error("Foundry did not return a saved document.");
-          log.results.push({id:row.id, action:row.action, status:"ok", uuid:doc.uuid});
+          if (row.action!=="icon") log.results.push({id:row.id, action:row.action, status:"ok", uuid:doc.uuid});
+          if (row.action!=="create") await this.#writeImportIcon(row,current,doc,log);
           if(row.kind==='Item'&&current.effects) {
             const made=row.action==='create'?{created:current.effects.counts.create,updated:0}:await applyItemEffects(doc,current.effects,{user:game.user});
             const kept=current.effects.counts?.kept??0, hand=current.effects.counts?.handmade??0;
@@ -1590,6 +1851,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       const skipped=log.results.filter(r=>r.status==="skipped").length;
       const folders=log.results.filter(r=>r.action==='folder-created'&&r.status==='ok').length;
       const icons=log.results.filter(r=>r.action==='icon-fallback'&&r.status==='ok').length;
+      const smartIcons=log.results.filter(r=>['icon-smart','icon'].includes(r.action)&&['ok','note'].includes(r.status)).length;
       const links=log.results.filter(r=>r.action==='uuid-bind'&&r.status==='ok').reduce((a,r)=>a+(r.bindings??0),0);
       const locOk=log.results.filter(r=>r.kind==='Location'&&r.status==='ok').length;
       const locSkipped=log.results.filter(r=>r.kind==='Location'&&r.status==='skipped').length;
@@ -1600,7 +1862,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       const locNote=(locOk||locSkipped?` (${locOk} location(s) imported${locSkipped?`, ${locSkipped} location(s) skipped: see History for reasons`:''})`:'')
         +(rteOk||rteBad?` (${rteOk} route(s) imported${rteBad?`, ${rteBad} route(s) skipped or failed: see the result panel`:''})`:'')
         +(shopOk||shopBad?` (${shopOk} shop record(s) imported${shopBad?`, ${shopBad} skipped or failed: see the result panel`:''})`:'');
-      this.message=`Import results: ${created} created, ${updated} updated, ${folders} folders, ${icons} icon fallbacks, ${links} UUID links, ${errors} errors, ${skipped} skipped${locNote}. Review History.`;
+      this.message=`Import results: ${created} created, ${updated} updated, ${folders} folders, ${smartIcons} chosen icons, ${icons} generic icons, ${links} UUID links, ${errors} errors, ${skipped} skipped${locNote}. Review History.`;
       toast(this.message,Boolean(errors));
     } catch(error) {
       const message=String(error?.message??error);
@@ -1620,6 +1882,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         const bad=last.results.filter(x=>x.status==="error").length;
         const folders=last.results.filter(x=>x.action==='folder-created'&&x.status==='ok').length;
         const links=last.results.filter(x=>x.action==='uuid-bind'&&x.status==='ok').reduce((a,x)=>a+(x.bindings??0),0);
+        const chosen=last.results.filter(x=>(x.action==='icon-smart'&&x.status==='ok')||(x.action==='icon'&&x.status==='note'&&x.icon)).length;
         const locOk=last.results.filter(x=>x.kind==='Location'&&x.status==='ok').length;
         const locSkipped=last.results.filter(x=>x.kind==='Location'&&x.status==='skipped').length;
         const rteOk=last.results.filter(x=>x.kind==='Route'&&x.status==='ok').length;
@@ -1629,7 +1892,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         const locText=(locOk||locSkipped?` ${locOk} location(s) imported${locSkipped?`, ${locSkipped} skipped (reasons in History)`:''}.`:'')
           +(rteOk||rteBad?` ${rteOk} route(s) imported${rteBad?`, ${rteBad} skipped or failed (reasons below)`:''}.`:'')
           +(shopOk||shopBad?` ${shopOk} shop record(s) imported${shopBad?`, ${shopBad} skipped or failed (reasons below)`:''}.`:'');
-        this.message=`Imported ${okay} document(s), created ${folders} folder(s), bound ${links} reference(s); ${bad} error(s).${locText} Details are in the result panel below.`;
+        this.message=`Imported ${okay} document(s), created ${folders} folder(s), bound ${links} reference(s)${chosen?`, chose ${chosen} icon(s)`:''}; ${bad} error(s).${locText} Details are in the result panel below.`;
         this.importReports=pushReport(this.importReports,buildImportReport({file:this.packageSource??log.packageId,at:log.at,results:last.results,
           names:new Map(this.pkg?.records?.map(r=>[r.id,r.name??r.id])??[])}));
         await this.render();
@@ -2625,6 +2888,8 @@ Hooks.once("init",()=>{
   // 0.45.0: Import tab folds and message drawer, per device (presentation only).
   game.settings.register(MODULE_ID,LAYOUT_SETTING,{name:"Import tab layout",scope:"client",config:false,type:Object,default:{}});
   game.settings.register(MODULE_ID,FOLDER_RENAMES_SETTING,{name:"Folder renames",scope:"world",config:false,type:Object,default:{}});
+  // 0.47.0: Items → Checks → Improve icons keeps its last run here for one-step Undo ({at, applied:[{uuid, before, after}]}).
+  game.settings.register(MODULE_ID,ICON_UNDO_SETTING,{name:"Icon change undo",scope:"world",config:false,type:Object,default:{}});
   // Point-to-point query: a player's client asks the active GM, who answers with that player's projection only.
   if(globalThis.CONFIG){CONFIG.queries??={};CONFIG.queries[CODEX_QUERY]=(data,options)=>codexService().handleQuery(data,options);}
   game.settings.registerMenu(MODULE_ID,"manager",{
