@@ -29,12 +29,13 @@ test('header: brand, overlay toggle, then version, then Help; tabs are typed, la
  const at=k=>head.indexOf(k);
  assert.ok(at('toggle-overlay')<at('ag-version')&&at('ag-version')<at('data-action="help"'),'overlay, version, Help');
  assert.match(head,/data-action="help" class="ag-btn ag-btn--ghost ag-btn--sm"/);
- assert.match(head,/<span class="ag-version">v0\.15\.0<\/span>/);
+ assert.match(head,/<span class="ag-version">v0\.16\.0<\/span>/);
  assert.match(html,/<nav class="ag-tabs ag-tabs--scroll" role="tablist"/);
  const tabs=[...html.matchAll(/<button type="button" role="tab" data-tab="(\w+)" aria-selected="(true|false)" class="([^"]*)">/g)].map(m=>[m[1],m[2],m[3]]);
- assert.deepEqual(tabs.map(t=>t[0]),['party','individual','quests','setup']);
- assert.deepEqual(tabs.map(t=>t[1]),['true','false','false','false']);
- assert.ok(tabs.slice(2).every(t=>t[2].includes('ag-tab--gm')));
+ assert.deepEqual(tabs.map(t=>t[0]),['party','individual','journal','quests','setup']);
+ assert.deepEqual(tabs.map(t=>t[1]),['true','false','false','false','false']);
+ assert.ok(tabs.slice(3).every(t=>t[2].includes('ag-tab--gm')));
+ assert.ok(!tabs[2][2].includes('ag-tab--gm'),'the Journal tab is for players too');
  assert.doesNotMatch(html,/<button\b[^>]*\stitle=/,'no native title tooltips');
  assert.doesNotMatch(html,/<footer class="ag-footer[^"]*"><span>/,'the permission strip is a notice now, not a footer');
  assert.match(html,/ag-notice ag-notice--info/);

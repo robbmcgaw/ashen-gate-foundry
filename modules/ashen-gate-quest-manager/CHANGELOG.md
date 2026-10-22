@@ -1,3 +1,14 @@
+## 0.16.0 — 2026-10-22
+
+- **New Journal tab** (players and GM, after Individual): session notes written in an open book. Text fills the left page, then the right; narrow windows show one page. Toolbar: bold, italic, underline, heading, subheading, normal text, bulleted and numbered lists (Ctrl+B / I / U work too). Pasted text keeps only those formats.
+- **New session** (GM or player) starts *Session N* with a party journal and a journal for each player, then opens its name and optional subtitle for editing. The sidebar lists sessions newest first with name, subtitle, number and date; the newest one is marked *Current*. The GM and the player who started a session can rename it (pencil); a player's New session and rename need a GM connected.
+- **My journal / Party journal** switch above the book. Your own journal is yours only; every player can write the party journal. The GM reads every page (a *Journal* picker: party or any player) and writes the party journal; players' own journals are read only to the GM.
+- Pages save when you click away from the book, on **Save** (Ctrl+S), and before you switch page, session or tab or close the window. The footer shows *Saved* / *Unsaved changes*; **Discard changes** puts the saved text back (asks first). If someone else saved the same page while you were writing, Save asks before replacing their text; your text stays in the book.
+- **Search** in the sidebar looks through session names and every page you may read.
+- GM: **Export Markdown** downloads a session (party journal, then each player's). **Archive session** (red, asks first) hides it from players and makes it read only; nothing is deleted. Tick *Show archived sessions* to find it and **Restore session**.
+- Players see the tab when Quest Log's Player Access is on and the Character Hub (when active) shows *Ashen Gate: Quests*. The API refuses them otherwise.
+- Saved data: one Journal entry per session in *Ashen Gate / Quests / Game Journal* (flag `session`), its pages flagged `journalPage`. Players get OWNER on the party page and their own page (so they write without a GM), NONE on the other players' pages. Pages for a player added later are added when the GM is connected. Nothing opens by itself. New API `api.journal` (`ag-quest-journal/1`). Module socket on. Existing quests and notes are untouched; no migration.
+
 ## 0.15.0 — 2026-10-22
 
 - **Quests tab views:** All, Drafts, Hidden, Active (Available or Active), Completed / Failed, Orders and Contracts, each with a count. Your last view, sort, grouping and editor sections come back next time (per GM).

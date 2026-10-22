@@ -2,7 +2,7 @@
   "id": "ashen-gate-quest-manager",
   "title": "Ashen Gate | Quest Manager",
   "description": "Standalone Quest Manager with Party/Individual logs, safe Objective ID consumers, and authoritative Quest-owned ASSIGN campaign execution.",
-  "version": "0.15.0",
+  "version": "0.16.0",
   "authors": [
     {
       "name": "Ashen Gate project"
@@ -18,6 +18,7 @@
     "styles/ag-ui.css",
     "styles/quest.css"
   ],
+  "socket": true,
   "relationships": {
     "systems": [
       {
@@ -31,5 +32,5 @@
   },
   "url": "https://github.com/robbmcgaw/ashen-gate-foundry",
   "manifest": "https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-quest-manager/module.json",
-  "download": "https://github.com/robbmcgaw/ashen-gate-foundry/releases/download/ashen-gate-quest-manager-v0.15.0/ashen-gate-quest-manager.zip"
+  "download": "https://github.com/robbmcgaw/ashen-gate-foundry/releases/download/ashen-gate-quest-manager-v0.16.0/ashen-gate-quest-manager.zip"
 }
