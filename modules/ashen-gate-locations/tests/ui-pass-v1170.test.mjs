@@ -22,8 +22,8 @@ async function world({access = false} = {}) {
   const state = {access, accessCalls: [], settings: new Map([['unidentifiedLabel', 'Unknown place'], ['unknownPinImage', ''], ['defaultLegKm', 5]]), info: [], warn: []};
   g.settings = {get: (_, k) => state.settings.get(k), set: async (_, k, v) => { state.settings.set(k, v); return v; }};
   globalThis.ui = {notifications: {info: m => state.info.push(m), warn: m => state.warn.push(m), error: m => state.warn.push(m)}};
-  const mod = {version: '0.18.1', active: true};
-  mod.api = createApi({version: '0.18.1', isGM: () => game.user.isGM, playerAccessEnabled: () => state.access,
+  const mod = {version: '0.19.0', active: true};
+  mod.api = createApi({version: '0.19.0', isGM: () => game.user.isGM, playerAccessEnabled: () => state.access,
     setPlayerAccess: async v => { state.accessCalls.push(v); state.access = v; }, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}, playerIds: () => [],
     routes: {readAll: readRoutes, writeAll: writeRoutes, readViews: readRouteViews, usedIds: usedRouteIds, defaultLegKm: () => 5}});
   g.modules = {get: id => id === 'ashen-gate-locations' ? mod : null};
@@ -42,8 +42,8 @@ const footerOf = html => html.slice(html.lastIndexOf('<footer class="ag-footer')
 test('header: brand span, version from module.json, Help last; tabs are role="tab" with GM Setup last and marked GM', async () => {
   await world();
   const html = await gmApp()._renderHTML();
-  assert.match(html, /<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Locations<\/h1>[\s\S]*<span class="ag-version">v0\.18\.1<\/span><button[^>]*data-action="help"/);
-  assert.match(html, /<nav class="ag-tabs ag-tabs--scroll" role="tablist"/);
+  assert.match(html, /<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Locations<\/h1>[\s\S]*<span class="ag-version">v0\.19\.0<\/span><button[^>]*data-action="help"/);
+  assert.match(html, /<nav class="ag-tabs ag-tabs--scroll agl-maintabs" role="tablist"/);
   const tabs = [...html.matchAll(/<button type="button" role="tab" data-tab="(\w+)" aria-selected="(true|false)" class="([^"]*)"/g)].map(m => [m[1], m[2], m[3]]);
   assert.deepEqual(tabs.map(t => t[0]), ['locations', 'routes', 'setup']);
   assert.deepEqual(tabs[0].slice(1), ['true', 'active']);
@@ -51,21 +51,28 @@ test('header: brand span, version from module.json, Help last; tabs are role="ta
   assert.match(html, /<i class="fa-solid fa-gears" aria-hidden="true"><\/i> GM Setup/);
 });
 
-test('toolbar: search, filters, count, then Import / Export (small) and a plain New location on the right; players get search only', async () => {
+test('toolbar: one row of search, Filters (n), Tree, count, then Import / Export (small) and a plain New location; the filter row opens from Filters; players get search only', async () => {
   await world({access: true});
-  const html = await gmApp()._renderHTML();
+  const app = gmApp();
+  let html = await app._renderHTML();
   const bar = html.slice(html.indexOf('<div class="ag-toolbar'), html.indexOf('<div class="agl-body'));
-  const order = ['class="ag-search"', 'ag-toolbar__filters', 'ag-toolbar__count', 'ag-toolbar__end', 'data-action="import"', 'data-action="export"', 'data-action="new"'].map(s => bar.indexOf(s));
+  const order = ['class="ag-search"', 'id="agl-filters-toggle"', 'id="agl-tree"', 'ag-toolbar__count', 'ag-toolbar__end', 'data-ag-file-button', 'data-action="export"', 'data-action="new"'].map(s => bar.indexOf(s));
   assert.ok(order.every(i => i >= 0), 'every part is in the toolbar');
   assert.deepEqual([...order].sort((a, b) => a - b), order, 'in the standard order');
-  assert.match(bar, /class="ag-btn ag-btn--sm" data-action="import"/);
+  assert.match(bar, /<span class="ag-file"[^>]*><button type="button" class="ag-btn ag-btn--sm" data-ag-file-button><i[^>]*><\/i> Import…<\/button><input type="file" class="ag-file__input ag-sr-only"/, 'Import is a kit file button (0.19.0)');
   assert.match(bar, /class="ag-btn" data-action="new"><i class="fa-solid fa-plus" aria-hidden="true"><\/i><span>New location<\/span>/, 'create is plain, not gold (D2)');
-  assert.match(bar, /id="agl-import-file"/);
-  assert.match(bar, /<label class="ag-field ag-field--inline agl-ctl"><span>Threat<\/span><select data-filter="threat"/, 'filters are inline kit fields');
   assert.match(bar, /class="ag-chip" id="agl-tree" aria-pressed="false"/, 'Tree is a toggle chip, not a gold button');
+  assert.match(bar, /id="agl-filters-toggle" aria-pressed="false" aria-expanded="false" aria-controls="agl-filter-row"[^>]*><i[^>]*><\/i> Filters<\/button>/);
+  assert.doesNotMatch(html, /ag-toolbar__filters|data-filter=/, 'the filter row starts closed');
+  app.filtersOpen = true; app.filters.threat = 'deadly';
+  html = await app._renderHTML();
+  assert.match(html, /id="agl-filters-toggle" aria-pressed="true" aria-expanded="true"[^>]*><i[^>]*><\/i> Filters \(1\)<\/button>/, 'Filters counts the filters in use');
+  const row = html.slice(html.indexOf('id="agl-filter-row"'), html.indexOf('<div class="agl-body'));
+  assert.match(row, /<label class="ag-field ag-field--inline agl-ctl"><span>Threat<\/span><select data-filter="threat"/, 'filters are inline kit fields');
+  for (const part of ['id="agl-sort"', 'id="agl-groupby"', 'id="agl-showrep"', 'data-action="clear-filters"']) assert.ok(row.includes(part), part);
   game.user = player;
   const p = await new LocationsApp()._renderHTML();
-  assert.doesNotMatch(p, /data-action="(import|export|new)"|ag-toolbar__filters|agl-import-file/);
+  assert.doesNotMatch(p, /data-action="(export|new)"|data-ag-file-button|ag-toolbar__filters|agl-filters-toggle/);
 });
 
 test('list rows are kit rows (no double padding): button.ag-row inside .ag-rows, selected one marked; groups still fold with counts', async () => {
@@ -89,7 +96,8 @@ test('location editor: Cancel bottom-left, Save Changes (the only gold button) b
   const foot = footerOf(html);
   assert.match(foot, /^<footer class="ag-footer agl-footer">\s*<button type="button" class="ag-btn ag-btn--ghost" data-action="cancel">/, 'Cancel is first (left)');
   assert.match(foot, /<span class="ag-footer__status" role="status">/);
-  assert.match(foot, /data-action="place"[\s\S]*data-action="save"><i[^>]*><\/i><span>Save Changes<\/span><\/button><\/div>\s*$/, 'Save Changes is last (right)');
+  assert.match(foot, /data-action="save"><i[^>]*><\/i><span>Save Changes<\/span><\/button>\s*$/, 'Save Changes is last (right)');
+  assert.doesNotMatch(foot, /data-action="place"/, '0.19.0: Place on Scene is an action in the editor head, not beside Save');
   assert.doesNotMatch(foot, /data-action="delete"/, 'Delete never sits by Cancel');
   const head = html.slice(html.indexOf('<div class="agl-editor__head">'), html.indexOf('<div class="agl-title">'));
   assert.match(head, /class="ag-btn ag-btn--danger ag-btn--sm" data-action="delete"><i class="fa-solid fa-trash" aria-hidden="true"><\/i><span>Delete location<\/span>/);
@@ -189,8 +197,8 @@ test('no native title= anywhere: GM list, editor, Routes, GM Setup and the playe
 test('empty states use the kit layout; the player one names no GM tool', async () => {
   const g = installFoundry();
   g.settings = {get: () => undefined, set: async () => {}};
-  const mod = {version: '0.18.1', active: true};
-  mod.api = createApi({version: '0.18.1', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}});
+  const mod = {version: '0.19.0', active: true};
+  mod.api = createApi({version: '0.19.0', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}});
   g.modules = {get: id => id === 'ashen-gate-locations' ? mod : null};
   g.user = gm;
   const gmHtml = await new LocationsApp()._renderHTML();
@@ -206,7 +214,7 @@ test('Travel tracker: brand header, kit table for the night watches, opacity sli
     behaviours: {watch: {enabled: true, first: ['a1'], second: [], third: []}}};
   const behaviours = travelBehaviours({api: () => ({travel: {}}), characters: () => [{id: 'a1', name: '[TEST] Ava'}], skillLabel: id => id});
   const watch = behaviours.find(b => b.id === 'watch');
-  const html = gmTrackerHTML({journey: j, version: '0.18.1', panels: [{id: 'watch', label: watch.label, icon: watch.icon, html: watch.render({isGM: true, journey: j})}]});
+  const html = gmTrackerHTML({journey: j, version: '0.19.0', panels: [{id: 'watch', label: watch.label, icon: watch.icon, html: watch.render({isGM: true, journey: j})}]});
   assert.match(html, /<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Travel<\/h1>[\s\S]*ag-version/);
   assert.match(html, /<div class="ag-table-wrap"><table class="ag-table agl-travel__watch"><thead><tr><th scope="col">Character<\/th>/);
   assert.match(html, /data-travel-opacity/);

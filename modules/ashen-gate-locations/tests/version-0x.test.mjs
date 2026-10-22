@@ -18,7 +18,7 @@ test('a 0.18.0 API still offers what partners detect (Manager import/preview/mig
   const api = createApi({version: manifest.version, isGM: () => true, playerAccessEnabled: () => true, setPlayerAccess: async () => {},
     readAll: () => [], writeAll: async () => {}, readViews: () => [], placeNote: async () => ({}), open: () => {}, openLocation: () => {},
     routes: {readAll: () => [], writeAll: async () => {}, readViews: () => [], usedIds: () => [], defaultLegKm: () => 10}});
-  assert.equal(api.version, '0.18.1');
+  assert.equal(api.version, '0.19.0');
   for (const fn of ['listLocations', 'importLocations', 'previewLocation', 'setLocationState', 'publishLocation', 'moveLocation', 'setAudience',
     'importRoutes', 'listRoutes', 'open', 'openLocation']) assert.equal(typeof api[fn], 'function', fn);
 });

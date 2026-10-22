@@ -4,7 +4,7 @@
  * and what the GM shared. Position and background opacity are per-user client settings.
  */
 import {MODULE_ID, esc} from './model.mjs';
-import {confirmDialog, infoDialog} from './ag-dialogs.mjs';
+import {confirmDanger, infoDialog} from './ag-dialogs.mjs';
 import {gmTrackerHTML, playerTrackerHTML, clampOpacity} from './travel-view.mjs';
 import {LocationsApp} from './app.mjs';
 import {windowSize} from './ag-html.mjs';
@@ -112,7 +112,6 @@ export class TravelTracker extends Base {
       slider.onchange = () => Promise.resolve(game.settings.set(MODULE_ID, 'trackerOpacity', clampOpacity(slider.value)))
         .catch(err => console.warn(`${MODULE_ID} | opacity not saved`, err));
     }
-    try { const ap = game.modules.get('ashen-gate-manager')?.api?.appearance; if (ap?.contract === 'ag-appearance/0.1-beta') ap.applyTo?.(content); } catch {}
   }
 
   /** Button actions. GM actions go through the API, which refuses them for players. One at a time. */
@@ -132,7 +131,7 @@ export class TravelTracker extends Base {
     }
     if (this.busy) return;
     if (action === 'end') {
-      const ok = await confirmDialog('End this journey where the party is? Nothing is written to Party Notes.', {title: 'End journey?', yes: 'End journey'});
+      const ok = await confirmDanger('The party stops where it is. Nothing is written to Party Notes.', {title: 'End journey?', yes: 'End journey'});
       if (!ok) return;
     }
     const call = {'next-leg': 'nextLeg', reroll: 'rerollHazard', dismiss: 'dismissHazard', share: 'shareHazard', pause: 'pauseJourney', resume: 'resumeJourney',

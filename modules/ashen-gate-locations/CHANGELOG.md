@@ -1,3 +1,19 @@
+## 0.19.0 — 2026-10-22
+
+UI cleanup from the October UI audit (no new mechanics).
+
+- **Location editor sub-tabs:** **Content** (type, region, threat, image and the blocks), **Visibility & map** (*Who Can See It*, *Place*, *Unidentified Marker & Pin*, *Linked Scenes*) and **Party Notes**, under one footer. Switching keeps unsaved edits and is remembered per user. The image is a thumbnail beside its field. **Place on Scene** moved from the footer to the editor head, next to **Move to…** and **Delete location**.
+- **Applies now:** *Who Can See It* (locations and routes), *Map Drawing* and *Journey* carry an **Applies now** badge; everything else waits for **Save Changes**.
+- **Save first, never silently:** Place on Scene, a location or route state change, Start journey, Link selected drawing and Draw for me now ask **Save and …** / **Keep editing** when there are unsaved edits. Discard questions use the shared guard (Keep editing is the default).
+- **Toolbar:** one row (search · **Filters (n)** · **Tree** · count · Import… · Export · New location). The filters, Sort, Group by and *Show representative-only too* open in a second row from **Filters**; it remembers whether it was open. **Import…** is a real button.
+- **Gathering nodes:** each node is one summary row (name, skill, tier, DC, status, Mark exhausted/Restore, tools); materials, availability, note and Exotic materials sit in an **Edit node** fold (open for a node you just added). **Add node…** asks *From template* or *Custom* (straight to Custom without the Profession Ledger).
+- **Routes:** the route editor has **Route** and **Journey** sub-tabs; the journey banner's **Open** goes to Journey. The unknown-path switch reads "Show "Unknown path" from the visible end" with the rest as a hint.
+- **Players** always see the **Routes** tab (an empty state until a route is revealed), so the tab bar no longer changes mid-session. Party Notes buttons read **Save Party Notes** / **Cancel notes edit**.
+- **Keyboard and screen readers:** place, quest, document, crumb and route-end links are real buttons; status icons (state, Region, representative-only, selected players, unpublished, route state, broken endpoint) carry text; tab rows use arrow keys; repeated entry tools name their entry ("Remove [TEST] Faction A"); the Travel tracker strip names its hazard legs and marks them with an icon; hazard cards no longer re-announce as alerts; search waits for a pause in typing.
+- **Confirmations:** Delete location, Delete route, Clear Party Notes and End journey default to Cancel; Hidden → Unidentified asks first (**Make unidentified**); hazard **Dismiss** says players never learn of it.
+- **Smaller fixes:** long switch labels wrap instead of clipping; in-card empty text is a hint line; kit meter for the tracker's long-route bar and the Character Hub embed; kit search box and empty states in the embed; kit card heads and form grid; Travel tracker footer puts End journey on the left; Help is grouped by topic; the Items sidebar launcher is called **Locations**; "Quest Manager" reads "Quest Log" in Locations' messages; Developer Tools says it runs at once.
+- Saved data: unchanged. No migration. Linked Scenes keeps its place in a location's stored block order (it is GM-only and never shown to players).
+
 ## 0.18.1 — 2026-10-22
 
 - Shared UI kit 2.2 (no visible change).

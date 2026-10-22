@@ -50,7 +50,8 @@ test('Delete location: Cancel keeps the location; the action is a red "Delete lo
   let seen = dialogs('cancel');
   await app.onAction({dataset: {action: 'delete'}});
   assert.ok(seen[0].classes.includes('ag-dialog--danger'));
-  assert.equal(seen[0].window.title, 'Delete location?');
+  assert.equal(seen[0].window.title, 'Delete [TEST] Hut?');
+  assert.equal(seen[0].buttons.find(b => b.default)?.action, 'cancel', '0.19.0: Cancel is the default button (confirmDanger)');
   assert.deepEqual(seen[0].buttons.map(b => b.label), ['Cancel', 'Delete location']);
   assert.match(seen[0].content, /\[TEST\] Hut/);
   assert.doesNotMatch(seen[0].content, new RegExp(saved.id));

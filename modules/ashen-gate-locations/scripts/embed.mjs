@@ -10,10 +10,12 @@ const OTHER = 'Other places';
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
 const endName = e => typeof e === 'string' ? e : e?.name ?? '';
 const num = v => Number(v) || 0;
+/** Kit empty state (title + text). */
+const empty = (title, text) => `<div class="ag-empty"><p class="ag-empty__title">${esc(title)}</p><p class="ag-empty__text">${esc(text)}</p></div>`;
 
 /** HTML for one embed. `filter` is the search text. */
 export function embedHTML(deps, filter = '') {
-  if (!deps.mayOpen()) return '<div class="ag-empty">The GM has hidden Locations.</div>';
+  if (!deps.mayOpen()) return empty('Locations is hidden', 'The GM has hidden Locations.');
   const journey = deps.readJourneyView();
   const q = String(filter).trim().toLowerCase();
   const places = deps.readViews().filter(v => v.id && v.state === 'revealed')
@@ -25,13 +27,13 @@ export function embedHTML(deps, filter = '') {
   const trip = journey ? `<section class="agl-embed__journey"><strong>${status}</strong>
       <span>${esc(endName(journey.from) || 'Somewhere')} → ${esc(endName(journey.to) || 'somewhere')}</span>
       <span class="agl-embed__muted">Leg ${num(journey.leg)} of ${num(journey.legs)}</span>
-      <span class="agl-embed__bar" aria-hidden="true"><i style="width:${pct}%"></i></span></section>` : '';
+      <span class="ag-meter agl-embed__meter"><span class="ag-meter__track" role="progressbar" aria-label="Journey progress" aria-valuemin="0" aria-valuemax="${num(journey.legs)}" aria-valuenow="${Math.min(num(journey.leg), num(journey.legs))}" aria-valuetext="Leg ${num(journey.leg)} of ${num(journey.legs)}" style="--ag-meter:${pct}%"><span class="ag-meter__fill"></span></span></span></section>` : '';
   const list = [...groups.entries()].sort(([a], [b]) => a === OTHER ? 1 : b === OTHER ? -1 : a.localeCompare(b))
     .map(([g, rows]) => `<h4>${esc(g)} <small>${rows.length}</small></h4>
     <ul class="agl-embed__list">${rows.map(v => `<li><button type="button" class="agl-embed__open" data-agl-embed="open" data-ref="${esc(v.id)}" data-tooltip="Open ${esc(v.name)} in Locations" data-tooltip-class="ag-tooltip">${esc(v.name)}</button>${v.type ? `<span class="agl-embed__muted">${esc(v.type)}</span>` : ''}</li>`).join('')}</ul>`).join('');
   return `<div class="agl-embed__body">${trip}
-    <div class="agl-embed__tools"><input type="search" class="agl-embed__search" placeholder="Search places" aria-label="Search places" value="${esc(filter)}"><button type="button" class="ag-btn ag-btn--sm" data-agl-embed="open-all">Open Locations</button></div>
-    ${list || `<div class="ag-empty">${q ? 'No places match.' : 'No places revealed yet.'}</div>`}</div>`;
+    <div class="agl-embed__tools"><label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" class="agl-embed__search" placeholder="Search places" aria-label="Search places" value="${esc(filter)}"></label><button type="button" class="ag-btn ag-btn--sm" data-agl-embed="open-all">Open Locations</button></div>
+    ${list || (q ? empty('Nothing matches', 'No places match this search.') : empty('No places yet', 'No places revealed yet.'))}</div>`;
 }
 
 /** Returns {mount(element, {actorId, mode}) → {unmount, refresh}, refreshAll()}. actorId is accepted for symmetry: places are party-wide. */

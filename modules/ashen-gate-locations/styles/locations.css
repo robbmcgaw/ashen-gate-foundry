@@ -38,7 +38,11 @@
 .agl-filters { gap: var(--ag-space-2) var(--ag-space-3); }
 .agl-ctl { margin: 0; color: var(--ag-muted); font-size: var(--ag-text-sm); }
 .agl-ctl select { width: auto; max-width: 12rem; }
-.agl-switch { margin: 0; white-space: nowrap; }
+.agl-switch { margin: 0; }
+/* Long switch labels wrap (never clipped); only the short ones in the filter row stay on one line. */
+.agl-filters .agl-switch { white-space: nowrap; }
+/* 0.19.0: the filter row opened by Filters (n) sits under the toolbar's one row. */
+.agl-pane > .agl-filter-row { border-top: 0; padding-top: 0; }
 .agl-switch input { margin: 0; }
 
 /* ----- editor and viewer ----- */
@@ -55,13 +59,13 @@
 .agl-publish { display: flex; align-items: center; gap: var(--ag-space-2); flex-wrap: wrap; margin: var(--ag-space-2) 0 var(--ag-space-1); }
 .agl-publish > .agl-hint { flex: 1 1 16rem; margin: 0; }
 .agl-id { color: var(--ag-muted); font-size: var(--ag-text-xs); margin: var(--ag-space-1) 0 var(--ag-space-4); }
-.agl-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr)); gap: 0 var(--ag-space-4); }
 .agl-field__row { display: flex; align-items: center; gap: var(--ag-space-2); }
 .agl-field__row > :where(input, select, textarea) { flex: 1; min-width: 0; }
+/* The editor shows the image as a thumbnail beside its field; the player card shows it full width. */
+.agl-thumb { flex: 0 0 auto; width: var(--ag-control-h); height: var(--ag-control-h); object-fit: cover; border-radius: var(--ag-radius-sm); border: 1px solid var(--ag-border); }
 .agl-img { display: block; max-width: 100%; max-height: 14rem; object-fit: contain; border-radius: var(--ag-radius); margin: 0 0 var(--ag-space-4); border: 0; }
 .agl-meta { color: var(--ag-muted); margin: var(--ag-space-1) 0 var(--ag-space-4); }
 .agl-desc { white-space: normal; }
-.agl-link { cursor: pointer; color: var(--ag-accent); text-decoration: underline; text-underline-offset: 2px; }
 
 /* The editor's footer stays in view at the bottom of the scrolling detail pane. */
 .agl-editor > .agl-footer { position: sticky; bottom: 0; z-index: 1; margin: var(--ag-space-4) calc(-1 * var(--ag-space-4)) 0; }
@@ -72,9 +76,13 @@
 .agl-eye:has(input:not(:checked)) { color: var(--ag-muted); }
 .agl-eye:has(input:focus-visible) { outline: 2px solid var(--ag-focus); outline-offset: 2px; border-radius: var(--ag-radius-sm); }
 
-/* Sections (cards) and their entries */
-.agl-section__head { display: flex; align-items: center; justify-content: space-between; gap: var(--ag-space-4); flex-wrap: wrap; }
-.agl-section__head h3 { margin: 0; }
+/* 0.19.0: editor sub-tabs (kit .ag-tabs--sub) under the editor head; one panel at a time, one shared footer. */
+.agl-editor > .ag-tabs--sub { margin: var(--ag-space-2) calc(-1 * var(--ag-space-4)) var(--ag-space-3); }
+.agl-subpanel:focus-visible { outline: 2px solid var(--ag-focus); outline-offset: 2px; }
+
+/* Sections (cards) and their entries; heads are the kit's .ag-card__head */
+.agl-app .ag-card__head { align-items: center; }
+.agl-app .ag-card__head h3 { margin: 0; }
 .agl-section h4 { margin: var(--ag-space-4) 0 var(--ag-space-1); font-size: var(--ag-text-sm); color: var(--ag-muted); border: 0; }
 .agl-section.agl-dragover, .agl-section[data-block].agl-dragover { outline: 2px dashed var(--ag-accent); outline-offset: 2px; }
 .agl-entries > li { gap: var(--ag-space-3); padding-block: var(--ag-space-1); }
@@ -114,8 +122,10 @@
 .agl-mini input[type="text"] { width: 12em; }
 .agl-node.agl-hidden .agl-node__name { opacity: .55; }
 .agl-exhausted .agl-node__name, .agl-entry.agl-exhausted { text-decoration: line-through; opacity: .6; }
-.agl-node__exotics { margin-top: var(--ag-space-1); }
-.agl-node__exotics > summary { cursor: pointer; }
+.agl-node > .ag-fold { margin-top: var(--ag-space-1); }
+.agl-node .ag-fold__body { display: flex; flex-direction: column; gap: var(--ag-space-2); }
+.agl-node__exotics { border-top: 1px solid var(--ag-border); padding-top: var(--ag-space-2); }
+.agl-node__exotics > h5 { margin: 0 0 var(--ag-space-1); font-size: var(--ag-text-sm); border: 0; }
 /* 1.18.0: a node that refers to a Profession Ledger template; its details are read only and never clipped. */
 .agl-node__tpl { display: flex; flex-direction: column; gap: var(--ag-space-1); flex: 1 1 16rem; min-width: 0; overflow-wrap: anywhere; }
 .agl-node-pick { display: flex; align-items: center; gap: var(--ag-space-2); flex-wrap: wrap; flex-basis: 100%; }
@@ -167,10 +177,9 @@
 .agl-embed { display: block; min-width: 0; color: var(--ag-text); }
 .agl-embed .agl-embed__body { display: grid; gap: var(--ag-space-2); }
 .agl-embed .agl-embed__journey { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); align-items: center; padding: var(--ag-space-2) var(--ag-space-3); border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--ag-surface-raised); }
-.agl-embed .agl-embed__bar { flex: 1 1 100%; height: var(--ag-space-2); border-radius: var(--ag-radius-sm); background: var(--ag-surface-sunken); overflow: hidden; }
-.agl-embed .agl-embed__bar i { display: block; height: 100%; background: var(--ag-accent); }
+.agl-embed .agl-embed__meter { flex: 1 1 100%; }
 .agl-embed .agl-embed__tools { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); align-items: center; }
-.agl-embed .agl-embed__search { flex: 1 1 10rem; min-width: 0; width: auto; }
+.agl-embed .agl-embed__tools > .ag-search { flex: 1 1 10rem; min-width: 0; }
 .agl-embed h4 { margin: var(--ag-space-2) 0 var(--ag-space-1); font-size: var(--ag-text-sm); text-transform: uppercase; letter-spacing: .05em; color: var(--ag-muted); }
 .agl-embed h4 small { font-size: inherit; opacity: .8; }
 .agl-embed .agl-embed__list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--ag-space-1); }
@@ -201,19 +210,25 @@
 .agl-travel .agl-travel__title strong { overflow-wrap: anywhere; }
 .agl-travel .agl-travel__stats { display: grid; gap: var(--ag-space-1); font-size: var(--ag-text-sm); }
 .agl-travel .agl-travel__strip { list-style: none; margin: var(--ag-space-1) 0; padding: 0; display: flex; gap: var(--ag-space-1); }
-.agl-travel .agl-travel__strip > li { flex: 1; height: var(--ag-space-3); border-radius: var(--ag-radius-sm); background: var(--aglt-bg-sunken); border: 1px solid var(--ag-border); }
+.agl-travel .agl-travel__strip > li { flex: 1; display: flex; align-items: center; justify-content: center; height: var(--ag-space-4); border-radius: var(--ag-radius-sm); background: var(--aglt-bg-sunken); border: 1px solid var(--ag-border); }
 .agl-travel .agl-travel__strip > li.is-done { background: color-mix(in srgb, var(--ag-accent) 55%, transparent); border-color: transparent; }
 .agl-travel .agl-travel__strip > li.is-current { background: var(--ag-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ag-accent) 45%, transparent); }
-.agl-travel .agl-travel__strip > li.is-hazard { border-color: var(--ag-danger); border-width: 2px; }
-.agl-travel .agl-travel__strip--bar { height: var(--ag-space-3); border-radius: var(--ag-radius-sm); background: var(--aglt-bg-sunken); overflow: hidden; }
-.agl-travel .agl-travel__strip--bar i { display: block; height: 100%; background: var(--ag-accent); }
+.agl-travel .agl-travel__strip > li.is-hazard { border-color: var(--ag-danger); border-width: 2px; color: var(--ag-danger); }
+/* A hazard leg carries a warning mark, so it never relies on the border colour alone. */
+.agl-travel .agl-travel__strip > li.is-hazard > i { font-size: var(--ag-text-xs); line-height: 1; }
+.agl-travel .agl-travel__strip > li.is-hazard.is-done > i { color: var(--ag-surface); }
+.agl-travel .agl-travel__meter { margin: var(--ag-space-1) 0; }
 .agl-travel .agl-travel__big { min-height: calc(var(--ag-control-h) + var(--ag-space-4)); font-size: var(--ag-text-lg); justify-content: center; }
 .agl-travel .agl-travel__why { margin-top: calc(-1 * var(--ag-space-1)); margin-bottom: 0; text-align: center; }
 .agl-travel .agl-travel__hazard { border-left: 4px solid var(--ag-danger); padding: var(--ag-space-2); }
 .agl-travel .agl-travel__hazard h3 { margin: 0; font-size: var(--ag-text-md); border: 0; }
 .agl-travel .agl-travel__result { margin: var(--ag-space-1) 0; font-weight: 600; overflow-wrap: anywhere; }
 .agl-travel .agl-travel__row, .agl-travel .agl-travel__foot { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1); }
-.agl-travel .agl-travel__row .ag-btn, .agl-travel .agl-travel__foot .ag-btn { flex: 1 1 auto; width: auto; }
+.agl-travel .agl-travel__row .ag-btn { flex: 1 1 auto; width: auto; }
+/* 0.19.0: End journey (destructive) on the left, away from Pause/Resume and Open route on the right. */
+.agl-travel .agl-travel__foot { justify-content: space-between; }
+.agl-travel .agl-travel__foot .ag-btn { width: auto; }
+.agl-travel .agl-travel__foot-end { display: flex; flex-wrap: wrap; gap: var(--ag-space-1); margin-left: auto; }
 .agl-travel .agl-travel__row .ag-field { margin: 0; }
 .agl-travel .agl-travel__foot { margin: auto var(--ag-space-2) 0; padding-top: var(--ag-space-2); border-top: 1px solid var(--ag-border); }
 .agl-travel .agl-travel__log h3 { margin: 0 0 var(--ag-space-1); font-size: var(--ag-text-sm); text-transform: uppercase; letter-spacing: .05em; color: var(--ag-muted); border: 0; }
