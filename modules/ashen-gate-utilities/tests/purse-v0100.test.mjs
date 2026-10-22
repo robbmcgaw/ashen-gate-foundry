@@ -201,21 +201,24 @@ test('GM History shows purse rows with before → after, reason and Undo only wh
  const undoable=hist().filter(purseUndoable).length;assert.equal((html.match(/data-action="purse-undo"/g)??[]).length,undoable);
  assert.match(html,/Coins awarded|awarded 4 sp each/);
 });
-test('Items tab: purse strip with five labelled counters (electrum on); header and rows render the same cells',async()=>{
+// 0.25.0: the purse strip moved to Party Inventory → Party Fund; Items shows the purse in one line.
+test('Party Fund tab: purse strip with five labelled counters (electrum on); Items: header and rows render the same cells',async()=>{
  await game.settings.set(ID,'electrumEnabled',true);
  stash.items.add({id:'it1',name:'Potion',type:'consumable',img:'p.webp',system:{quantity:2,weight:{value:0.5,units:'lb'},price:{value:50,denomination:'gp'}}});
  game.user=alice;
  try{
-  const app=await api.stash.open();app.stashTab='items';const html=await app._renderHTML();
-  for(const c of ['Copper','Silver','Electrum','Gold','Platinum'])assert.match(html,new RegExp(`aria-label="${c}: \\d+"`));
-  assert.match(html,/data-action="purse-deposit"/);assert.match(html,/data-action="purse-take"/);assert.doesNotMatch(html,/data-action="purse-adjust"/);
+  const app=await api.stash.open();app.stashTab='fund';const fund=await app._renderHTML();
+  for(const c of ['Copper','Silver','Electrum','Gold','Platinum'])assert.match(fund,new RegExp(`aria-label="${c}: \\d+"`));
+  assert.match(fund,/data-action="purse-deposit"/);assert.match(fund,/data-action="purse-take"/);assert.doesNotMatch(fund,/data-action="purse-adjust"/);
+  app.stashTab='items';const html=await app._renderHTML();
+  assert.doesNotMatch(html,/data-action="purse-deposit"/);assert.match(html,/Party purse: <strong><span class="agu-coin-chips">[\s\S]*?<\/strong>[\s\S]*?data-stash-tab="fund"/);
   const head=html.match(/<div class="agu-stash-grid agu-stash-head"[^>]*>(.*?)<\/div>/)[1],row=html.match(/<div class="agu-stash-grid agu-stash-row"[^>]*>(.*?)<\/div>/)[1];
   const cols=s=>[...s.matchAll(/class="agu-stash-cell (agu-col-\w+)"/g)].map(m=>m[1]);
   assert.deepEqual(cols(head),cols(row));assert.deepEqual(cols(head),['agu-col-icon','agu-col-item','agu-col-qty','agu-col-weight','agu-col-value','agu-col-type','agu-col-action']);
   assert.deepEqual([...head.matchAll(/>([^<]*)<\/span>/g)].map(m=>m[1]),['','Item','Qty','Weight (each)','Value (each)','Type','Action']);
   assert.match(row,/Consumable/);assert.match(row,/data-action="stash-take"/);
  }finally{game.user=gm;}
- const gmHtml=await (await api.stash.open())._renderHTML();assert.match(gmHtml,/data-action="purse-adjust"/);
+ const gmApp=await api.stash.open();gmApp.stashTab='fund';const gmHtml=await gmApp._renderHTML();assert.match(gmHtml,/data-action="purse-adjust"/);
  await game.settings.set(ID,'electrumEnabled',false);
 });
 test('GM adjust dialog: coin/op/amount/reason, labelled confirmation, Cancel changes nothing',async()=>{
@@ -253,7 +256,7 @@ test('coin vote off: Take applies at once with a "no vote" history entry, bounds
  assert.match(receipt('c2').message,/purse has 3 gp, fewer than 4 gp/);
  await socketHandler({type:'purse-take',requestId:'c3',userId:'alice',actorId:'pcB',coin:'gp',amount:1},'alice');await tick();
  assert.match(receipt('c3').message,/do not own/);
- const app=await api.stash.open();const html=await app._renderHTML();assert.match(html,/Coin vote: off/);
+ const app=await api.stash.open();app.stashTab='fund';const html=await app._renderHTML();assert.match(html,/Coin vote: off/);
 });
 test('coin vote on: the vote flow is unchanged even when the item vote is off',async()=>{
  await api.purse.setVoteRequired(true);await api.stash.setVoteRequired(false);
@@ -261,6 +264,6 @@ test('coin vote on: the vote flow is unchanged even when the item vote is off',a
  const vr=voteRequest();assert.deepEqual(vr.voters,['bob']);assert.equal(vr.item,'1 gp');
  await socketHandler({type:'stash-vote',pollId:vr.pollId,userId:'bob',vote:'accept'},'bob');await tick();
  assert.equal(receipt('c4').ok,true);assert.equal(hist().at(-1).approval,'accepted');
- const app=await api.stash.open();assert.match(await app._renderHTML(),/Coin vote: on/);
+ const app=await api.stash.open();app.stashTab='fund';assert.match(await app._renderHTML(),/Coin vote: on/);
  await api.stash.setVoteRequired(true);
 });

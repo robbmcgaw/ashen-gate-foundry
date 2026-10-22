@@ -6,7 +6,7 @@
    it out all or nothing: A items, B coins, C shop page, D history. Each failure puts the earlier steps back. ---- */
 import {ID,isLevelBackup,escapeHTML as E,COIN_LABELS,coinChoices,shownCoins,strandedElectrum,coinsText,readCoins,projectShop,planShopPayment,checkPurchase,
  shopPurchaseEntry,shopPriceText,SHOP_REFUSALS,CONSENT_TIMEOUT_MS,consentVoters,createPoll,initials,shopLineName,purchaseCount,purchaseItemData,
- nothingCharged,purchaseText,presentedOwnership,quotePurchase,projectService,projectMerchantList,entrySummary,tradeCardHTML,coinStripHTML,coinChipsHTML,groupByCategory} from './core.mjs';
+ nothingCharged,purchaseText,presentedOwnership,quotePurchase,projectService,projectMerchantList,entrySummary,tradeCardHTML,coinStripHTML,coinChipsHTML,groupByCategory,normalizeMerchantList,audiencePresented} from './core.mjs';
 import {itemButton} from './item-tips.mjs';
 import {readAll,mustGet,writeShop,queueShops,appendLog,norm,locationsApi,randomId,purseDialog,button,icon,tip,writeService,readMeta} from './shops.mjs';
 import {confirmDialog,formDialog,choiceDialog} from './ag-dialogs.mjs';
@@ -57,8 +57,10 @@ export const serviceProjectionOf=svc=>svc?.known?projectService(svc,{locationNam
 const presentedRecords=()=>[...readAll().filter(s=>s.presented).map(s=>({rec:s,view:projectionOf(s)})),...servicesAll().filter(s=>s.presented&&s.known).map(s=>({rec:s,view:serviceProjectionOf(s)}))].filter(x=>x.view);
 /** The projection of a saved shop or known service by id, for a merchant list; null when missing or unknown. */
 function projectAny(id){const shop=readAll().find(s=>s.id===id);if(shop)return projectionOf(shop);const svc=servicesAll().find(s=>s.id===id);return svc?serviceProjectionOf(svc):null;}
-/** Merchant lists the GM switched on, as players see them. */
-const visibleListViews=()=>readMeta().lists.filter(l=>l.visible===true).map(l=>projectMerchantList(l,{project:projectAny,locationName:revealedPlace(l.locationId)}));
+/** 0.25.0: merchant lists shared with the party or chosen players, with who may read each one. */
+const sharedLists=()=>readMeta().lists.map(l=>{try{return normalizeMerchantList(l);}catch{return null;}}).filter(l=>l&&audiencePresented(l.audience))
+ .map(l=>({audience:l.audience,view:projectMerchantList(l,{project:projectAny,locationName:revealedPlace(l.locationId)})}));
+const visibleListViews=()=>sharedLists().map(x=>x.view);
 export const viewJournal=()=>[...(game.journal??[])].find(j=>j?.flags?.[ID]?.store===VIEW_STORE)??null;
 const pagesOf=j=>[...(j?.pages??[])];
 const VIEW_TEXT='<p>What players see of a shop (Utilities). Rebuilt by Utilities; don\'t edit it by hand.</p>';
@@ -81,8 +83,9 @@ export function syncPlayerView(){
   const ids=players().map(u=>u.id);
   const want=new Map(presentedRecords().map(({rec,view})=>[rec.id,{name:rec.name,type:'text',text:{content:VIEW_TEXT},ownership:presentedOwnership(rec.presented,ids,levels()),
    flags:{[ID]:{shopId:rec.id,shopView:JSON.stringify(view)}}}]));
-  // 0.20.0: a shown merchant list is one page every player can read (read only; it never lets anyone buy).
-  for(const v of visibleListViews())want.set(v.id,{name:v.name,type:'text',text:{content:VIEW_TEXT},ownership:presentedOwnership({mode:'all'},ids,levels()),flags:{[ID]:{listId:v.id,listView:JSON.stringify(v)}}});
+  // 0.20.0: a shown merchant list is one page (read only; it never lets anyone buy). 0.25.0: readable by the whole
+  // party or only by the chosen players.
+  for(const {view:v,audience} of sharedLists())want.set(v.id,{name:v.name,type:'text',text:{content:VIEW_TEXT},ownership:presentedOwnership(audiencePresented(audience),ids,levels()),flags:{[ID]:{listId:v.id,listView:JSON.stringify(v)}}});
   let j=viewJournal();if(!j&&!want.size)return;j??=await ensureViewJournal();
   const have=new Map(),remove=[];
   for(const p of pagesOf(j)){const id=p.flags?.[ID]?.shopId??p.flags?.[ID]?.listId;if(want.has(id)&&!have.has(id)&&Boolean(p.flags?.[ID]?.listId)===Boolean(want.get(id).flags[ID].listId))have.set(id,p);else remove.push(p.id);}
@@ -180,6 +183,31 @@ async function stopShowing(id){
  const shop=await queueShops(async()=>writeRecord(getRecord(id),{presented:null}));
  await syncPlayerView();
  return clone(shop);
+}
+/**
+ * 0.25.0, for merchant lists: several Present / Stop showing changes in one go (`presented` null stops showing), then
+ * one player-view rebuild and one ping. A missing record or a service type this version doesn't know is skipped with
+ * the reason; the rest go ahead. Returns {changed: [{id, name, presented}], skipped: [{id, reason}]}.
+ */
+export async function setPresentations(changes=[]){
+ gmOnly();
+ const known=new Set(players().map(u=>u.id)),changed=[],skipped=[],pinged=new Set();let all=false;
+ await queueShops(async()=>{
+  for(const {id,presented:p} of changes){
+   try{
+    const old=getRecord(id);
+    if(p&&old.kind==='service'&&!old.known)throw Error(`${UNKNOWN_TYPE}: this Utilities version can't show it to players.`);
+    const next=p?{mode:p.mode==='users'?'users':'all',userIds:p.mode==='users'?[...new Set(p.userIds??[])].filter(u=>known.has(u)):[],since:old.presented?.since??Date.now(),by:game.user?.id??null}:null;
+    if(next?.mode==='users'&&!next.userIds.length)throw Error('Choose at least one player.');
+    if(JSON.stringify(old.presented?{mode:old.presented.mode,userIds:old.presented.userIds}:null)===JSON.stringify(next?{mode:next.mode,userIds:next.userIds}:null))continue;
+    const rec=await writeRecord(old,{presented:next});changed.push({id,name:rec.name,presented:clone(next)});
+    if(next?.mode==='all')all=true;else for(const u of next?.userIds??[])pinged.add(u);
+   }catch(e){skipped.push({id,reason:e?.message??String(e)});}
+  }
+ });
+ if(changed.length)await syncPlayerView();
+ if(all||pinged.size)game.socket?.emit?.(SOCKET,{type:'shop-presented',to:all?'all':[...pinged]});
+ return {changed,skipped};
 }
 function presented(){gmOnly();return [...readAll(),...servicesAll()].filter(s=>s.presented).map(s=>({id:s.id,name:s.name,presented:clone(s.presented)}));}
 const userLabel=u=>{const chars=[...(game.actors??[])].filter(a=>a.type==='character'&&a.testUserPermission?.(u,'OWNER')).map(a=>a.name);return `${u.name}${chars.length?` (${chars.join(', ')})`:''}${u.active?'':' · not logged in'}`;};
@@ -381,11 +409,12 @@ function openShopsHTML(){
  if(!views.length)return empty('No shops open for you','When your GM shows you a shop, it opens here and in its own window.');
  return `<h3 class="ag-eyebrow">Open shops · ${views.length}</h3><ul class="ag-rows">${views.map(v=>entryRow(v,button('shop-view',v.kind==='service'?'Open':'Open shop',{kind:'sm',ic:'fa-store',attrs:`data-shop="${E(v.id)}" aria-label="Open ${E(v.name)}"`}))).join('')}</ul>`;
 }
-/** 0.20.0: the lists the GM shows, read only. An entry presented to this user is marked Open. */
+/** 0.20.0: the lists the GM shares, read only. 0.25.0: an entry presented to this user is Open (Open shop), any other is Closed (Look inside, read only). */
 function merchantListHTML(){
  let lists,open;try{lists=browse();open=new Set(forMe().map(v=>v.id));}catch(e){return empty('Shops are closed',e.message);}
  if(!lists.length)return empty('No merchant list yet',"Your GM hasn't shared a merchant list.");
- return lists.map(l=>`<section class="agu-shop-group"><h3 class="ag-eyebrow">${E([l.name,l.location?.name].filter(Boolean).join(' · '))} · ${l.entries.length}</h3>${l.entries.length?`<ul class="ag-rows">${l.entries.map(v=>entryRow(v,`${open.has(v.id)?`<span class="ag-badge ag-badge--ok">${icon('fa-door-open')} Open</span>`:''}${button('shop-view','Look inside',{kind:'sm',ic:'fa-eye',attrs:`data-shop="${E(v.id)}" aria-label="Look inside ${E(v.name)}"`})}`)).join('')}</ul>`:'<p class="ag-field__hint">Nothing on this list yet.</p>'}</section>`).join('');
+ return lists.map(l=>`<section class="agu-shop-group"><h3 class="ag-eyebrow">${E([l.name,l.location?.name].filter(Boolean).join(' · '))} · ${l.entries.length}</h3>${l.entries.length?`<ul class="ag-rows">${l.entries.map(v=>entryRow(v,open.has(v.id)?`<span class="ag-badge ag-badge--ok">${icon('fa-door-open')} Open</span>${button('shop-view',v.kind==='service'?'Open':'Open shop',{kind:'sm',ic:'fa-store',attrs:`data-shop="${E(v.id)}" aria-label="Open ${E(v.name)}"`})}`
+  :`<span class="ag-badge">${icon('fa-door-closed')} Closed</span>${button('shop-view','Look inside',{kind:'sm',ic:'fa-eye',attrs:`data-shop="${E(v.id)}" aria-label="Look inside ${E(v.name)}"`})}`)).join('')}</ul>`:'<p class="ag-field__hint">Nothing on this list yet.</p>'}</section>`).join('');
 }
 /** The player's Shops tab: Open shops (presented to this user) and Merchant list (read only). */
 export function playerShopsView(app={}){

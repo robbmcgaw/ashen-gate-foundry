@@ -11,8 +11,12 @@ Open it from **Actors sidebar → Utilities**. The GM always sees it; players se
   - **Individual rolls** (a Roll Request): each character makes one roll of the one ticked skill; each result is shown on its own (Success/Failure per roll when a DC is set).
 
   Eligible connected players are prompted and roll from the compact player view (**Roll Now**, with advantage/disadvantage). Only one roll can run at a time. **End & Record** closes an incomplete one and records the remaining slots as Skipped; **Cancel Session** files it as cancelled.
-- **Party Inventory:** one shared stash (a Utilities-flagged NPC Actor). Drop an item from any character sheet onto the tab to stash it; drag a row onto a character sheet to take it out. Taking an item out needs every other connected player to accept (GM can turn the vote off; the GM is never asked; 60 second timeout). A container (backpack, pouch…) moves with everything inside it, nested containers included; the move is all or nothing. An Items / History sub-tab lists contents and movements. The GM turns the stash on or off for players.
-- **Party purse:** the five dnd5e coin totals (`system.currency` cp/sp/ep/gp/pp) held by the stash Actor, at the top of Party Inventory → Items. Players Deposit from / Take to their own characters (Take uses the separate GM Setup setting *Party must accept when a player takes coins out*; until the GM saves it, it follows the item vote; the GM sees "Coin vote: on/off" by the purse); the GM can Add / Remove / Set any coin with a reason. Every change is logged in stash History; the GM can Undo adjustments and takes. No automatic currency conversion.
+- **Party Inventory:** one shared stash (a Utilities-flagged NPC Actor). Drop an item from any character sheet onto the tab to stash it; drag a row onto a character sheet to take it out. Taking an item out needs every other connected player to accept (GM can turn the vote off; the GM is never asked; 60 second timeout). A container (backpack, pouch…) moves with everything inside it, nested containers included; the move is all or nothing. Items / Party Fund / History sub-tabs list contents, the purse and movements. The GM turns the stash on or off for players.
+- **Party Fund** (Party Inventory → Party Fund, 0.25.0): the party purse, **Change coins** and a **Log**. Items shows the purse in one line with a button to Party Fund.
+  - **Change coins:** whose coins (one of your characters, or the party purse: no vote, nothing leaves the party), change from, into, how many to get, a preview (You give, You get, before → after), **Confirm exchange**. Standard rates, exact (1 pp = 10 gp = 100 sp = 1000 cp; "Ask for a multiple of 10 sp"), electrum only while *Use electrum* is on. No fee unless the GM sets **GM Setup → Party Fund → Coin exchange fee (%)** (0–50, default 0; taken in the coin given, rounded up, on top). The GM client checks again on fresh coins and makes one coin update with both coins; the exchange is in stash History (`coin-exchange`) and a card is whispered to the player and the GM. Same gate as the stash: Player Access and the stash on for players.
+  - **Log:** the latest 20 coin movements, newest first (who, when, how much): deposits, takes, GM adjustments, electrum conversions, exchanges (Party Fund and banks) and shop purchases and sales paid with the party purse. **Full History** opens the History sub-tab. Players see their own and the party purse's exchanges, not other players' own coins.
+  - Deposit and Take also post a card whispered to the player and the GM (0.25.0).
+- **Party purse:** the five dnd5e coin totals (`system.currency` cp/sp/ep/gp/pp) held by the stash Actor, in Party Inventory → Party Fund (the embedded stash keeps it at the top). Players Deposit from / Take to their own characters (Take uses the separate GM Setup setting *Party must accept when a player takes coins out*; until the GM saves it, it follows the item vote; the GM sees "Coin vote: on/off" by the purse); the GM can Add / Remove / Set any coin with a reason. Every change is logged in stash History; the GM can Undo adjustments and takes. No automatic currency conversion.
 - **Use electrum (GM Setup, default off):** off leaves electrum (ep) out of the purse, Award Gold, coin Deposit/Take/Adjust and the embedded stash; ep moves and awards are refused. If the purse still holds ep it stays visible (dimmed) with a note, and the GM can **Convert electrum to silver/gold** (1 ep = 5 sp; 2 ep = 1 gp, an odd one → 5 sp) after an exact preview; the conversion is logged in History with Undo. The purse still stores ep, and character sheets are not changed.
 - **Award Gold (GM):** pay coins (gp by default, or cp/sp/pp, and ep while electrum is on) to ticked characters (each, or split evenly in whole coins; a remainder is not handed out). Writes only `system.currency.<coin>`, posts a chat card and logs to stash History, where the GM can Undo it for anyone who still has the gold.
 - **Roll Tables:** draws a native RollTable and shows the result with an editable preview, whisper to chosen players, and Auto-Send. Document results are sent as `@UUID` links.
@@ -67,15 +71,18 @@ API, GM only (`GM only.` for anyone else; the presenting and buying calls are be
 
 ## Merchant lists
 
-- **Shops → Merchant lists** (GM): a card per list with its city, its shops and services in order, and *Players can browse* or *Hidden*. **New merchant list** / **Edit** open a small editor: name, city (Locations active only), and the shops and services on it (**Add to list**, move up or down, take off). Save Changes / Cancel. **Delete** asks first; the shops and services stay.
-- **Show to players (read only)** on a card lets every player browse the list straight away. A new list is hidden.
-- Players: Shops → **Merchant list** shows each shared list (city name only once revealed in Locations) with name, merchant, place and "3 items" or "Bank"; **Open** marks an entry presented to them. **Look inside** opens it read only: Buy, Sell and the Bank form are off with "Ask the GM to open this". With nothing shared: "Your GM hasn't shared a merchant list."
-- A list never lets anyone buy, sell or use a service, also in the API and on the GM client: that still needs **Present…**.
-- Stored on the GM Data journal's lists page. A shown list is one page in the Player View journal that every player can read, holding only the player view of its entries (no hidden items, cost, GM notes or unknown service types).
-- API (`api.shops`, added): GM only `merchants.list()`, `merchants.get(id)`, `merchants.save(list)` (no id: a new `MLIST-*` list), `merchants.setVisible(id, bool)`, `merchants.delete(id, {confirm: true})`; player or GM `browse()` → the shown lists.
+- **Shops → Merchant lists** (GM): one card per list, for a settlement, a faction, a guild or any group of merchants. **New merchant list** / **Edit** open a small editor: name, settlement (optional, Locations active only), and the shops and services on it (**Add to list**, move up or down, take off). Save Changes / Cancel. **Delete** asks first; the shops and services stay.
+- **Shared with** (0.25.0): *Hidden* (new lists), *Whole party* (also players who log in later) or chosen players. **Share…** on the card picks one.
+- **Open / Closed** switch on each entry (0.25.0): Open presents that shop or service to the list's players (the same Present as the shop's own button, adding them to whoever already sees it), so they can buy, sell or use it. Closed stops showing it to every player. **Open all** / **Close all** do every entry at once (an entry that can't be opened, such as a missing record or an unknown service type, is skipped and named). Opening needs the list shared first. The card shows "2 of 5 open".
+- Players: Shops → **Merchant list** shows each list shared with them (settlement name only once revealed in Locations) with name, merchant, place and "3 items" or "Bank". An **Open** entry has **Open shop**; a **Closed** one has **Look inside**, read only: Buy, Sell and the Bank form are off with "Ask the GM to open this". With nothing shared: "Your GM hasn't shared a merchant list."
+- Browsing a list never lets anyone buy, sell or use a service, also in the API and on the GM client: only an Open (presented) entry does.
+- Stored on the GM Data journal's lists page (`audience: {mode: 'hidden' | 'party' | 'users', userIds}`; `visible` is kept for older readers). A shared list is one page in the Player View journal readable by its players only, holding only the player view of its entries (no hidden items, cost, GM notes or unknown service types).
+- Saved data (0.25.0): on load the GM client writes `audience` on lists saved before it (*Show to players* on → whole party, off → hidden). It runs again safely and writes nothing once done.
+- API (`api.shops.merchants`, GM only): `list()`, `get(id)`, `save(list)` (no id: a new `MLIST-*` list; `audience` optional, else it keeps who it is shared with), `setAudience(id, {mode, userIds})`, `setVisible(id, bool)` (true = whole party, false = hidden), `entries(id)` → `[{id, name, kind, open, presented, canOpen, reason}]`, `setOpen(id, entryId, bool)`, `setAllOpen(id, bool)` → `{changed, skipped}`, `delete(id, {confirm: true})`; player or GM `api.shops.browse()` → the lists shared with you.
 
-## Services: Bank
+## Services: Bank (deprecated)
 
+- 0.25.0: the Bank is deprecated. Players change coins in Party Inventory → **Party Fund** without a service. Existing and imported Banks keep working (exchange only) and their logs are kept; the editor and the import preview say it is deprecated.
 - **New service** (Shops toolbar) opens the editor with the shop fields, a **Service type** select and that type's settings instead of items and coins. The only type is **Bank**, with **Fee (%)**: 0 to 50, default 0 (none). Services are listed with the shops (with their type), and **Present…**, **Stop showing**, **Duplicate** and **Delete service** work as for shops.
 - Players it is shown to get the Bank in its own window: **Whose coins** (their character or the party purse; no vote needed), **Change from**, **Into**, **How many to get**, then a preview (You give, You get, before → after) and **Confirm exchange**. Refusals are shown in red and end "No coins changed."
 - Standard rates, exact: 1 pp = 10 gp = 100 sp = 1000 cp. You say how many coins you want to get: 25 sp from gold is refused with "Ask for a multiple of 10 sp". The fee is taken in the coin you give, rounded up, on top (2 gp from silver at 10 % costs 20 sp + 2 sp). Electrum only while *Use electrum* is on. The bank has unlimited coins.
@@ -84,9 +91,9 @@ API, GM only (`GM only.` for anyone else; the presenting and buying calls are be
 - A service whose type this Utilities version doesn't know (from a later version) is kept as it is, listed for the GM as "Unknown service type", and never shown to players.
 - API (`api.shops.services`): GM only `list()`, `get(id)`, `create(data)`, `save(record)`, `duplicate(id)`, `delete(id, {confirm: true})`, `types()`, `log(id)` (the bank's log, oldest first); player or GM `quote({serviceId, payFrom: 'actor' | 'purse', actorId, from, to, receive, rev})` and `use({...same})` → the receipt text. `present` / `stopShowing` take a service id too.
 
-## Chat cards for purchases, sales and the Bank
+## Chat cards for purchases, sales, exchanges and the purse
 
-- Each purchase, sale and bank exchange posts a card in chat, whispered to the player who made it and to the GM (never public): who, which character, the item ×quantity (or the coins given and got, with any fee), the total as the shop shows it, and the shop or bank name.
+- Each purchase, sale, bank or Party Fund exchange, and each purse deposit or take posts a card in chat, whispered to the player who made it and to the GM (never public): who, which character, the item ×quantity (or the coins given and got, with any fee), the total as the shop shows it, and the shop or bank name.
 - The card is posted after the change is done. If chat fails, the purchase, sale or exchange still stands; Utilities only writes a warning to the console.
 
 ## Shops: import and export
@@ -100,7 +107,7 @@ API, GM only (`GM only.` for anyone else; the presenting and buying calls are be
 
 ## Public API
 
-`game.modules.get('ashen-gate-utilities').api`: `open`, `playerAccess` (`ag-player-access/1`), `conditions` (`isUnlocked`, `setUnlocked`, `canRemove`, `remove`, `canApply`, `apply`, `ownersManage`, `setOwnersManage`, `isController`, `controllers`, `setController`, `openOverlay`) and `stash` (`isEnabled`, `setEnabled`, `isVoteRequired`, `setVoteRequired`, `history`, `clearHistory`, `open`, `deposit`, `withdraw`, `listItems`), `embed` (`mount`), `rolls` (`open`, GM only), `currency` (`electrumEnabled`, `coins`, `setElectrumEnabled`), `purse` (`totals`, `deposit`, `take`, `adjust`, `undo`, `convertElectrum`, `undoConvert`, …), plus GM-only `awardGold({amount, mode, actorIds, reason, public})` and `undoGoldAward(entryId)` (also as `gold`).
+`game.modules.get('ashen-gate-utilities').api`: `open`, `playerAccess` (`ag-player-access/1`), `conditions` (`isUnlocked`, `setUnlocked`, `canRemove`, `remove`, `canApply`, `apply`, `ownersManage`, `setOwnersManage`, `isController`, `controllers`, `setController`, `openOverlay`) and `stash` (`isEnabled`, `setEnabled`, `isVoteRequired`, `setVoteRequired`, `history`, `clearHistory`, `open`, `deposit`, `withdraw`, `listItems`), `embed` (`mount`), `rolls` (`open`, GM only), `currency` (`electrumEnabled`, `coins`, `setElectrumEnabled`), `purse` (`totals`, `deposit`, `take`, `adjust`, `undo`, `convertElectrum`, `undoConvert`, `exchange`, `quoteExchange`, `exchangeFee`, …), plus GM-only `awardGold({amount, mode, actorIds, reason, public})` and `undoGoldAward(entryId)` (also as `gold`).
 
 ### `currency` (0.13.2)
 
@@ -118,6 +125,17 @@ Hooks.on('ashen-gate-utilities.electrumChanged', on => { /* re-render */ });
 - `setElectrumEnabled(bool)`: GM only (`GM only.`).
 - `contract`: `'ag-utilities-currency/1'`; `hook`: the hook name above, called with the new value.
 - Related, GM only: `purse.convertElectrum({to: 'sp' | 'gp', reason})` converts all the purse's ep (value kept exactly) and returns the History entry; `purse.undoConvert(entryId)`; `purse.openConvert()` opens the dialog with the preview.
+
+### `purse.exchange(request)` (0.25.0, Party Fund)
+
+```js
+const purse = game.modules.get('ashen-gate-utilities')?.api?.purse;
+purse.quoteExchange({payFrom: 'actor', actorId, from: 'cp', to: 'gp', receive: 2}); // {ok, give, fee, total, fromAfter, toAfter, …} or {ok: false, reason}
+await purse.exchange({payFrom: 'purse', from: 'gp', to: 'sp', receive: 10});      // the receipt text; a player's request runs on the GM client
+purse.exchangeFee();                                                               // GM Setup fee, 0–50 (0 = none)
+```
+
+- Player or GM; same gate as the stash (Player Access and the stash on for players). `payFrom: 'actor'` needs a character you own; `'purse'` needs no vote. Refusals end "No coins changed."
 
 ### `rolls.open(request)` (0.13.0, GM only)
 
@@ -154,7 +172,7 @@ game.modules.get('ashen-gate-utilities').api.stash.listItems()
 
 ### `embed.mount(element, options)` (0.12.0)
 
-Shows the party stash (purse strip and Items list, the same as Party Inventory → Items) inside another module's window, for example Character Hub's Inventory → Party stash. Utilities draws it and handles its buttons; the caller only provides an element.
+Shows the party stash (purse strip and Items list; in the Utilities window the purse is in Party Inventory → Party Fund) inside another module's window, for example Character Hub's Inventory → Party stash. Utilities draws it and handles its buttons; the caller only provides an element.
 
 ```js
 const api = game.modules.get('ashen-gate-utilities')?.api;
