@@ -1,9 +1,9 @@
-# Cinder, Power, Backfire table and Strain config schema (Ashen Gate | Cinders 0.1.0+, Skill Trees 0.17.0+, General Manager 0.39.0+; perk modifiers: Cinders 0.2.0+, Manager 0.41.0+; Cinder art: Cinders 0.6.0+, default art on the definition: Cinders 0.9.0+)
+# Cinder, Power, Backfire table and Strain config schema (Ashen Gate | Cinders 0.1.0+, Skill Trees 0.17.0+, General Manager 0.39.0+; perk modifiers: Cinders 0.2.0+, Manager 0.41.0+; Cinder art: Cinders 0.6.0+, default art on the definition: Cinders 0.9.0+, signature ability and passive: Cinders 0.10.0+)
 
 This is the reference for writing Cinder content. It is generic: there is no setting content here, and every example uses synthetic `[TEST]` data. The campaign's Cinder names, powers, Backfire tables and Strain band names are written from this schema and kept in the private content repo.
 
 A complete working set is in [`test-fixtures/cinder/`](../test-fixtures/cinder/):
-- `AG_Test_Cinder_Pack.json`: a Manager package with 1 Cinder, 3 powers and 2 Backfire tables.
+- `AG_Test_Cinder_Pack.json`: a Manager package with 1 Cinder, its signature ability and passive, 3 tree powers and 2 Backfire tables.
 - `AG_Test_Cinder_Tree.json`: the Cinder's tree.
 - `AG_Test_Strain.json`: a Strain config.
 - `invalid/`: common mistakes, each rejected with the message it names.
@@ -33,9 +33,10 @@ An ordinary Manager record (usually `foundry.document_type: "Item"`, `type: "fea
 
 | Field | Type | Required | Rules |
 |---|---|---|---|
-| `cinder.schema` | string | yes | `"ag-cinder/0.1"` |
+| `cinder.schema` | string | yes | `"ag-cinder/0.2"` (Cinders 0.10.0+) or `"ag-cinder/0.1"`. 0.1 files stay valid; `bearer_items` needs 0.2. |
 | `cinder.backfire_categories` | list of `BF-*` ids | recommended | The Backfire categories for this Cinder's powers. A power or Push mode can override the list. |
 | `cinder.art` | string | no | Cinders 0.9.0+. Default orb image for every Cinder of this kind: an Assets Library or module path (e.g. `ashen-gate/cinders/test-ember.webp`) or an http(s) address, up to 1024 characters, no quotes, angle brackets or backslashes, no other `scheme:`. Best as a square transparent PNG/WebP. See Cinder art below. |
+| `cinder.bearer_items` | object | no | Cinders 0.10.0+, `ag-cinder/0.2` only. `{"active": "POWER-…", "passive": "POWER-…"}` (either can be left out; no other keys; two different ids). The bearer's signature ability (a `signature_active` Power) and always-on passive (a `signature_passive` Power). See Signature ability and passive below. |
 
 A `Mutation` record without a `cinder` block is not checked by Cinders. The tree for this Cinder is the `cinder_milestone` tree whose `sourceRef` is this `MUT-*` id (see the tree file below).
 
@@ -46,7 +47,7 @@ There is one record per node of the Cinder tree: `foundry.document_type: "Item"`
 | Field | Type | Required | Rules |
 |---|---|---|---|
 | `power.schema` | string | yes | `"ag-power/0.1"` |
-| `power.kind` | string | yes | `"power"`: usable, and can be pushed. `"enhancement"`: a perk with modifiers only, or one that opens a Push mode by being its requirement. An enhancement has no `push_modes`. |
+| `power.kind` | string | yes | `"power"`: usable, and can be pushed. `"enhancement"`: a perk with modifiers only, or one that opens a Push mode by being its requirement. An enhancement has no `push_modes`. `"signature_active"` / `"signature_passive"` (Cinders 0.10.0+): a Cinder's bearer items, not tree nodes (see below). |
 | `power.standard.summary` | string | no | What a normal use does (shown with the power). Normal use spends the dnd5e uses on the Item. |
 | `power.push_modes` | list | no | The ways this power can be pushed (several allowed). Not required: a `power` without any simply can't be pushed. |
 | `power.backfire_categories` | list of `BF-*` | no | Overrides the Cinder's list for this power. |
@@ -82,6 +83,39 @@ This is the shared `ag-modifier/1` shape ([modifiers-schema.md](modifiers-schema
 **Perks (Cinders 0.2.0+).** A `PERK-*` record can carry the same modifiers in a record-level `modifiers` block with scope `cinder` ([modifiers-schema.md](modifiers-schema.md)). While the character has that perk Item, its modifiers count for every Cinder they bear, narrowed by `applies` and `requires` like a power's; a perk shares `stack` groups with the powers. Two copies of one perk count once. For rest recovery, a perk counts once per character (its `requires` is met when any Cinder they bear has those powers unlocked). An `ITEM-*`'s modifiers count only while it is in an active socket of that Cinder (0.3.0+, see Sockets).
 
 All modifier values are added together. They never change a character's raw Strain: cost and chance change, but recovery happens only through a rest or the GM. The final cost is never below 1.
+
+## Signature ability and passive (Cinders 0.10.0+)
+
+Every Cinder can give its bearer **one active ability and one always-on passive from the moment it is bound**. They cost no points and are not tree nodes; the tree then modifies and extends them.
+
+- **Cinder:** `cinder.bearer_items: {"active": "POWER-…", "passive": "POWER-…"}` on the `MUT-*` record (`cinder.schema: "ag-cinder/0.2"`). The ids can be in the same import or already in the world.
+- **The two records** are ordinary Manager `Power` records (`foundry.document_type: "Item"`, usually `type: "feat"`, `visibility: "player"`), with a `power` block. No `point_cost`; don't put them on a tree.
+
+| Kind | `power` block | Item (`foundry.data`) |
+|---|---|---|
+| `signature_active` | `schema`, `kind`, `standard.summary`, `push_modes` exactly as for a `power` (with `requires.powers` a tree node can open a new Push mode), `backfire_categories` | The dnd5e use button: `system.activities` with the activation, and `system.uses` (`max`, `recovery`) for uses and recovery. Without activities there is no use button, so no Push is offered (the validator warns). |
+| `signature_passive` | `schema`, `kind`, `standard.summary`. **No `push_modes`** (an error). | One or more Active Effects with `transfer: true` ([item-effects-schema.md](item-effects-schema.md)): they apply to the bearer while they carry the item. Without one it changes nothing (the validator warns). |
+
+`power.modifiers` on either kind are not counted (a warning): put modifiers on a tree power or a perk. The tree's unlocked powers, perks and socket items modify the signature ability's Push like any other power's (`push.cost`, `backfire.chance`, `backfire.severity`; `applies.powers` can name the signature ability).
+
+**What happens in play**
+- **Bind:** the bearer gets a copy of each item (copied from the world Item, like Skill Trees' perk copies), tagged `flags.ashen-gate-cinders.bearerItem = {instanceId, definitionId, slot: "active"|"passive", sourceId}`. Never duplicated. If a record is missing from the world, or is the wrong kind, the bind still happens and the GM is told; Manage → Check names it and Repair gives it once it is imported.
+- **Transfer / unbind:** the items leave the old bearer and (transfer) are created on the new one. A deleted bearer (Cinder Lost) needs nothing. Skill Trees' tagged perk copies are never touched.
+- **Use:** using the signature ability from the character sheet (its dnd5e use button) offers a Push: one mode asks "Push [mode]?" with the Strain cost and Backfire chance; several modes show one button each. A mode runs the normal Push (Strain, Backfire roll, chat card; a player's Push is rolled on the GM's client). **Use without Push** keeps the plain use. At the normal-use Backfire point, a use without a Push still backfires automatically; the use itself is never blocked. GM Setup has a world switch for the offer (default on), and each user can turn it off on their own device in the Cinders tab.
+- **Who can change them:** players use the items (uses are spent and recovered as normal) but cannot change their mechanics, effects, delete or copy them; the GM can.
+- **Check / Repair:** Manage → Check lists missing and extra copies; Repair gives missing ones and removes duplicates and copies on characters that don't bear the Cinder (re-runnable; it is also how Cinders bound before 0.10.0 get theirs). Character Hub's level-backup Restore puts them back through `api.cinder.rehook`.
+- **API:** `api.cinder.list(actor)` adds `signature: {active: {powerId, name, itemId, summary, modes} | null, passive: {powerId, name, itemId, summary} | null}` per Cinder (`modes` in the same shape as `powers[].modes`).
+- Importing never gives, removes or changes a character's copy. A re-import that changes the record changes new copies only; Repair replaces a copy only when `bearer_items` names another power.
+
+```json
+{"id": "POWER-TEST-WARD", "entity_type": "Power", "status": "approved", "version": "1.0.0",
+ "provenance": {"sources": ["Synthetic test data (not canon)"]}, "visibility": "player", "refs": [],
+ "power": {"schema": "ag-power/0.1", "kind": "signature_passive", "standard": {"summary": "[TEST] Always on: +1 AC while bearing the Cinder."}},
+ "foundry": {"document_type": "Item", "folder_path": "Ashen Gate/Test/Cinders", "data": {"name": "[TEST] Ward", "type": "feat",
+   "effects": [{"eff_id": "ward", "name": "[TEST] Ward", "transfer": true, "changes": [{"key": "system.attributes.ac.bonus", "mode": "add", "value": 1}]}]}}}
+```
+
+The signature ability (`POWER-TEST-FLARE`, with `system.activities` and `system.uses`) is in `test-fixtures/cinder/AG_Test_Cinder_Pack.json`.
 
 ## Sockets (Cinders 0.3.0+)
 
@@ -147,7 +181,7 @@ Write anything heavier as text for the GM to adjudicate.
 5. **Effect roll**: `1d(entries)` + Strain bonus + `backfire.severity` modifiers, kept within the table. The default Strain bonus is +1 at Strain 5–6, +2 at 7–8, +3 at 9–10 and +4 at 11–12 (`effect_roll.strain_bonus` in the Strain config). So at high Strain the bottom of a table comes up more often: put the mildest entries first.
 6. One chat card shows the whole result. The entry's `effect` (if any) is applied; anything else is adjudicated by the GM.
 
-At Strain 10 or more, a **normal** (non-Push) use of a power also backfires automatically, using steps 4–6. A normal use never adds Strain.
+At Strain 10 or more, a **normal** (non-Push) use of a power, or of a signature ability used without a Push, also backfires automatically, using steps 4–6. A normal use never adds Strain.
 
 ## Cinder tree — `ag-skill-trees/0.3`
 

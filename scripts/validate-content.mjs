@@ -16,7 +16,7 @@
 //     in the same folder gets a note. Also left out of the ZIP bundle.
 //   - ag-strain-config/0.1 files (Strain bands and Backfire schedule) are checked with Ashen Gate | Cinders' own validator;
 //     Cinder / Power / BackfireTable records in a Manager package get Cinders' definition check (including a Cinder's
-//     optional default art, cinder.art, from Cinders 0.9.0).
+//     optional default art, cinder.art, from Cinders 0.9.0; a Cinder's bearer_items and the signature power kinds from Cinders 0.10.0).
 //   - record-level modifiers blocks (ag-modifiers/0.1): Manager checks the shape, then each scope's owner checks its entries
 //     (scope cinder: Cinders' exported validateModifiers, when that Cinders version has it).
 //   - each folder's accepted import files are also zipped together and read as a Manager ZIP bundle.
@@ -134,6 +134,15 @@ function domainChecks(pkg, knownIds = new Set()) {
       errors.push(...v.errors); notes.push(...v.warnings);
       const refs = [...categoriesFor(rec, rec, null), ...(rec.power?.push_modes ?? []).flatMap(m => [...(m?.backfire_categories ?? []), ...(m?.requires?.powers ?? [])])];
       for (const id of new Set(refs)) if (typeof id === 'string' && !ids.has(id)) notes.push(`${rec.id}: ${id} is not in this file; it must already be in the world (imported earlier).`);
+      // Cinders 0.10.0: a Cinder's bearer items (cinder.bearer_items) name signature_active / signature_passive powers. One in this file
+      // with another kind is an error (the bearer would get nothing); one outside the file is a note (the world must have it at bind time).
+      for (const [slot, kind] of [['active', 'signature_active'], ['passive', 'signature_passive']]) {
+        const ref = rec.cinder?.bearer_items?.[slot];
+        if (typeof ref !== 'string') continue;
+        const target = pkg.records.find(r => r.id === ref);
+        if (!target) notes.push(`${rec.id}: bearer_items.${slot} ${ref} is not in this file; it must already be in the world as a ${kind} Power before the Cinder is bound.`);
+        else if (target.power?.kind !== kind) errors.push(`${rec.id}: bearer_items.${slot} ${ref} must be a ${kind} Power (it is ${target.power?.kind ? `a ${target.power.kind}` : 'not a Power with a power block'}).`);
+      }
       if (rec.entity_type === 'BackfireTable' && rec.visibility !== 'gm') notes.push(`${rec.id}: Backfire tables are usually visibility "gm" (players see the rolled effect in chat, not the whole table).`);
     }
     if (rec.entity_type === 'NPC') errors.push(...codexChecks(rec));

@@ -77,6 +77,10 @@ button.agc-socket:hover{border-color:var(--ag-accent);background:var(--ag-surfac
   border:1px solid var(--ag-border);background:var(--ag-surface);color:var(--ag-accent);font:600 var(--ag-text-xs)/1.4 var(--ag-font-body);white-space:nowrap}
 .agc-lock{position:absolute;top:0;right:0}
 .agc-legend{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:var(--ag-space-2);margin:0}
+/* 0.10.0: the bearer items (signature ability, passive) under the orb. */
+.agc-signature{width:100%;box-sizing:border-box;display:grid;gap:var(--ag-space-2);padding:var(--ag-space-3);border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface-raised)}
+.agc-signature__row h3{margin:0}
+.agc-signature__name{margin:0;font-weight:650}
 .agc-inactive-row,.agc-tray__row{display:flex;flex-wrap:wrap;justify-content:center;gap:var(--ag-space-2)}
 .agc-inactive{opacity:.75}
 .agc-tray{width:100%;box-sizing:border-box;display:grid;gap:var(--ag-space-2);padding:var(--ag-space-3);border:1px dashed var(--ag-border-strong);border-radius:var(--ag-radius)}

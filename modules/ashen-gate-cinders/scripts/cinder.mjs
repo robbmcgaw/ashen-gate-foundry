@@ -7,6 +7,13 @@ import {cleanArt} from './orb.mjs';
 export const CINDER_CONTRACT = 'ag-cinder/1';
 export const REGISTRY_SCHEMA = 'ag-cinder-instances/1';
 export const CINDER_SCHEMA = 'ag-cinder/0.1';
+/** 0.10.0: ag-cinder/0.2 adds cinder.bearer_items (the bearer's signature ability and passive); 0.1 files stay valid. */
+export const CINDER_SCHEMAS = ['ag-cinder/0.1', 'ag-cinder/0.2'];
+/** power.kind values. signature_active / signature_passive (0.10.0) are the bearer items a Cinder gives on binding, not tree nodes. */
+export const POWER_KINDS = ['power', 'enhancement', 'signature_active', 'signature_passive'];
+/** Kinds that can be pushed (Push modes, normal-use Backfire). */
+export const PUSHABLE_KINDS = ['power', 'signature_active'];
+export const isPushable = power => PUSHABLE_KINDS.includes(power?.kind);
 export const POWER_SCHEMA = 'ag-power/0.1';
 export const BACKFIRE_SCHEMA = 'ag-backfire/0.1';
 export const CINDER_WALLET_CAP = 16;
@@ -137,8 +144,21 @@ export function validateDefinition(record) {
     const c = record.cinder;
     if (!plain(c)) errors.push(`${id}: cinder must be an object`);
     else {
-      if (c.schema !== CINDER_SCHEMA) errors.push(`${id}: cinder.schema must be "${CINDER_SCHEMA}"`);
+      if (!CINDER_SCHEMAS.includes(c.schema)) errors.push(`${id}: cinder.schema must be "${CINDER_SCHEMAS.join('" or "')}"`);
       refList(c.backfire_categories, 'BF-', `${id}: cinder.backfire_categories`, errors);
+      // 0.10.0: the bearer's signature ability and passive (POWER-* records of kind signature_active / signature_passive).
+      if (c.bearer_items != null) {
+        const b = c.bearer_items;
+        if (c.schema !== 'ag-cinder/0.2') errors.push(`${id}: cinder.bearer_items needs cinder.schema "ag-cinder/0.2"`);
+        if (!plain(b)) errors.push(`${id}: cinder.bearer_items must be an object {active?, passive?}`);
+        else {
+          const extra = Object.keys(b).filter(k => !['active', 'passive'].includes(k));
+          if (extra.length) errors.push(`${id}: cinder.bearer_items only takes active and passive (not ${extra.join(', ')})`);
+          for (const k of ['active', 'passive']) if (b[k] != null && !(REF.test(String(b[k])) && String(b[k]).startsWith('POWER-')))
+            errors.push(`${id}: cinder.bearer_items.${k} must be a POWER-* id`);
+          if (b.active != null && b.active === b.passive) errors.push(`${id}: cinder.bearer_items.active and passive must be different powers`);
+        }
+      }
       // 0.9.0: optional default art for every Cinder of this kind (same rule as the GM's per-Cinder art).
       if (c.art != null && !cleanArt(c.art)) errors.push(`${id}: cinder.art must be an image path (Assets Library or module path) or an http(s) address, up to 1024 characters, without quotes or angle brackets`);
     }
@@ -149,7 +169,7 @@ export function validateDefinition(record) {
     if (!plain(p)) errors.push(`${id}: power must be an object`);
     else {
       if (p.schema !== POWER_SCHEMA) errors.push(`${id}: power.schema must be "${POWER_SCHEMA}"`);
-      if (!['power', 'enhancement'].includes(p.kind)) errors.push(`${id}: power.kind must be power or enhancement`);
+      if (!POWER_KINDS.includes(p.kind)) errors.push(`${id}: power.kind must be power, enhancement, signature_active or signature_passive`);
       if (p.standard != null && !plain(p.standard)) errors.push(`${id}: power.standard must be an object`);
       refList(p.backfire_categories, 'BF-', `${id}: power.backfire_categories`, errors);
       errors.push(...modifierProblems(p.modifiers, `${id}: power`));
@@ -157,6 +177,17 @@ export function validateDefinition(record) {
       if (modes != null && !Array.isArray(modes)) errors.push(`${id}: power.push_modes must be a list`);
       if (p.kind === 'enhancement' && arr(modes).length) errors.push(`${id}: an enhancement has no push_modes (it opens a mode by being in a mode's requires.powers)`);
       if (p.kind === 'enhancement' && !arr(p.modifiers).length) warnings.push(`${id}: enhancement with no modifiers; it only works as a requirement`);
+      // 0.10.0: a Cinder's bearer items. They cost no points and are not tree nodes.
+      if (p.kind === 'signature_passive' && arr(modes).length) errors.push(`${id}: a signature_passive has no push_modes (it is always on; only the signature_active can be pushed)`);
+      if (String(p.kind).startsWith('signature_')) {
+        if (arr(p.modifiers).length) warnings.push(`${id}: modifiers on a ${p.kind} are not counted; put them on a tree power or a perk`);
+        const data = plain(record.foundry?.data) ? record.foundry.data : {};
+        if (record.foundry?.document_type != null && record.foundry.document_type !== 'Item') errors.push(`${id}: a ${p.kind} must be an Item record (the bearer gets a copy of it)`);
+        if (p.kind === 'signature_active' && !(plain(data.system?.activities) && Object.keys(data.system.activities).length))
+          warnings.push(`${id}: signature_active with no foundry.data.system.activities; the bearer's copy has no dnd5e use button, so no Push is offered on use`);
+        if (p.kind === 'signature_passive' && !arr(data.effects).some(e => e?.transfer === true))
+          warnings.push(`${id}: signature_passive with no transferring Active Effect (foundry.data.effects with transfer: true); it changes nothing on the bearer`);
+      }
       const seen = new Set();
       arr(modes).forEach((m, i) => {
         const at = `${id}: power.push_modes[${i}]`;
