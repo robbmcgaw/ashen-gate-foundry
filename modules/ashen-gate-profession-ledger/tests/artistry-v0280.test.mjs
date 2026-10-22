@@ -192,7 +192,7 @@ const bard=makeActor('bard','[TEST] Bard','u1',[profItem('bart','[TEST] Artistry
 const smith=makeActor('smith','[TEST] Smith','u2',[profItem('salch','[TEST] Alchemy','PROF-TEST-ALCHEMY'),held('sherb','[TEST] Herb',src('MAT-TEST-HERB','Material'),2)],['REC-TEST-SALVE'],
   {skills:{},tools:{alchemist:{value:1,total:4}},abilities:{int:{mod:2}}});
 const actors=[bard,smith];
-const mod={active:true,version:'0.28.0',get api(){return api},set api(v){api=v}};
+const mod={active:true,version:'0.29.0',get api(){return api},set api(v){api=v}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id)},items:{contents:world,get:world.get},actors:{contents:actors,get:id=>actors.find(a=>a.id===id)},
   socket:{emit(){},on(){}},modules:{get:id=>id==='ashen-gate-profession-ledger'?mod:undefined},
   settings:{register(){},registerMenu(){},get:(i,k)=>values[k],set:async(i,k,v)=>{values[k]=v;}}};
@@ -247,8 +247,8 @@ test('Complete activity: rolls the check like Craft, posts a card with the GM’
   const card=chats.at(-1);
   assert.match(card.content,/\[TEST\] Bard completed \[TEST\] Ballad<\/strong><span>\[TEST\] Artistry · Apprentice · Short effort<\/span>/);
   assert.match(card.content,/Lute check:<\/strong> 15/);
-  assert.deepEqual({...card.flags['ashen-gate-profession-ledger'].xp},{kind:'activity',actorId:'bard',actorName:'[TEST] Bard',professionId:'PROF-TEST-ARTISTRY',professionName:'[TEST] Artistry',suggested:null,awarded:null},
-    'the same XP flag a craft card carries (no suggested amount, as for crafting)');
+  assert.deepEqual({...card.flags['ashen-gate-profession-ledger'].xp},{kind:'activity',actorId:'bard',actorName:'[TEST] Bard',professionId:'PROF-TEST-ARTISTRY',professionName:'[TEST] Artistry',suggested:1,suggestedBasis:'Suggested from the activity’s tier and effort: Apprentice and Short effort give 1 XP.',awarded:null},
+    'the XP flag a craft card carries, plus the suggested amount (0.29.0: Apprentice, Short effort: 1 XP) and how it was worked out');
   assert.deepEqual(xpHooks.filter(h=>h.name==='ashenGateLedger.xpOpportunity').at(-1).data.effort,'short','the effort travels with the XP opportunity');
   assert.equal(bard.flags['ashen-gate-profession-ledger'].professionProgress,undefined,'no XP until the GM awards it');
   await assert.rejects(()=>_test.awardXpFromCard(card,2),/Only the GM/);

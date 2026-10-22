@@ -51,6 +51,19 @@ export function definitionRecord(raw) {
 export const RECIPE_KINDS=Object.freeze(['craft','activity']);
 const recipeKind=(...sources)=>sources.some(src=>String(src?.kind??src?.recipe?.kind??'').trim().toLowerCase()==='activity')?'activity':'craft';
 export const isActivity=recipe=>recipe?.kind==='activity';
+/** 0.29.0: the optional effect note of a recipe (`effect_note`, or `effectNote`): plain text, the boon or effect an activity
+ * can give, adjudicated by the GM at the table (nothing is automated). Whitespace collapsed, cut to 400 characters; anything
+ * that is not text is ignored (null). */
+export const EFFECT_NOTE_MAX=400;
+export function effectNoteOf(...sources){
+  for(const src of sources){
+    const value=src?.effect_note??src?.effectNote;
+    if(typeof value!=='string')continue;
+    const text=value.replace(/\s+/g,' ').trim();
+    if(text)return text.length>EFFECT_NOTE_MAX?`${text.slice(0,EFFECT_NOTE_MAX-1).trimEnd()}…`:text;
+  }
+  return null;
+}
 export function normalizeRecipe(raw) {
   const def=definitionRecord(raw);
   // Manager 0.11.1 stores structured Recipe fields directly in source.definition.
@@ -70,6 +83,7 @@ export function normalizeRecipe(raw) {
   return {id, name, profession:displayProfession(profession),professionId,kind:recipeKind(canonical,src,raw),
     resultItemId, tier:src?.tier??raw?.tier??null,effort:src?.effort??raw?.effort??null,
     description:src?.description??src?.rules_summary??'',
+    effectNote:effectNoteOf(canonical,src,raw),
     // Optional crafting requirement: a dnd5e tool key, tool Item UUID/name, or a workstation (text).
     tool:canonical?.tool??canonical?.required_tool??canonical?.tool_key??src?.tool??src?.required_tool??null,
     // required_tools (production catalog): every listed tool is needed, in addition to any single tool above.

@@ -40,8 +40,8 @@ const row=(h,name)=>{const i=h.indexOf(name);assert.ok(i>=0,`no row ${name}`);re
 
 test('a known recipe that is blocked shows Craft disabled with the reason',async()=>{
   const h=await html('individual');
-  assert.match(row(h,'[TEST] No Result'),/<button type="button" class="ag-btn" disabled><i class="fa-solid fa-hammer" aria-hidden="true"><\/i> Craft<\/button><span class="agl-reason">The item this recipe makes is not in this world yet\./);
-  assert.match(row(h,'[TEST] No List'),/disabled>.*Craft<\/button><span class="agl-reason">This recipe has no ingredient list yet\. Ask your GM\./s);
+  assert.match(row(h,'[TEST] No Result'),/<button type="button" class="ag-btn" disabled><i class="fa-solid fa-hammer" aria-hidden="true"><\/i> Craft<\/button><span class="agl-reason">The item this formula makes is not in this world yet\./,'0.29.0: an Alchemy recipe says formula (draft built-in name)');
+  assert.match(row(h,'[TEST] No List'),/disabled>.*Craft<\/button><span class="agl-reason">This formula has no ingredient list yet\. Ask your GM\./s);
 });
 
 test('missing materials still read "Missing …" beside a disabled Craft (unchanged)',async()=>{

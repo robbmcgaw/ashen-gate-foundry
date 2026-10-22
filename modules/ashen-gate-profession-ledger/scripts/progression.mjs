@@ -113,3 +113,19 @@ export function isMaterialAwardCandidate(item,getId){
  return validId(id,'MAT')&&src?.entityType==='Material'&&src?.visibility==='player'&&
   item?.type!=='feat'&&item?.type!=='spell'&&src?.status==='approved'&&item?.flags?.['ashen-gate-manager']?.lifecycle?.archived!==true;
 }
+/** 0.29.0 (GM decision): suggested XP for completing an activity recipe, prefilled in the GM's award (still editable).
+ * xp = max(1, ceil(tierValue × effortValue / 2)); tiers Apprentice 1 … Master 5, effort Short 1, Long 2, Extended 3.
+ * A missing or unknown tier counts as Apprentice, a missing or unknown effort as Short. Tier may be a name or 1–5.
+ * Returns {xp, tier, effort, tierValue, effortValue, tierAssumed, effortAssumed, text}; `text` says how it was suggested. */
+export const ACTIVITY_EFFORT_VALUES=Object.freeze({Short:1,Long:2,Extended:3});
+export function suggestActivityXP(tier,effort){
+ const n=Number(tier),byNumber=typeof tier!=='boolean'&&String(tier??'').trim()!==''&&Number.isInteger(n)&&n>=1&&n<=TIERS.length?TIERS[n-1]:null;
+ const tierName=byNumber??TIERS.find(t=>t.toLowerCase()===String(tier??'').trim().toLowerCase())??null;
+ const effortName=Object.keys(ACTIVITY_EFFORT_VALUES).find(e=>e.toLowerCase()===String(effort??'').trim().toLowerCase())??null;
+ const t=tierName??'Apprentice',e=effortName??'Short',tierValue=TIERS.indexOf(t)+1,effortValue=ACTIVITY_EFFORT_VALUES[e];
+ const xp=Math.max(1,Math.ceil(tierValue*effortValue/2));
+ const given=v=>String(v??'').trim()!=='';
+ const assumed=[tierName?'':given(tier)?'tier not recognised, so Apprentice':'no tier set, so Apprentice',effortName?'':given(effort)?'effort not recognised, so Short':'no effort set, so Short'].filter(Boolean);
+ const text=`Suggested from the activity’s tier and effort: ${t} and ${e} effort give ${xp} XP${assumed.length?` (${assumed.join('; ')})`:''}.`;
+ return {xp,tier:t,effort:e,tierValue,effortValue,tierAssumed:!tierName,effortAssumed:!effortName,text};
+}

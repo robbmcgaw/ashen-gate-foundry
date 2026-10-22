@@ -30,6 +30,13 @@ Independent: it opens without any other Ashen Gate module. General Manager impor
 - A Recipe record with `kind: "activity"` is a creative activity: no ingredients and no `result_item_id` needed. `completeActivity(actor, recipeId, {confirm})` (Owner or GM; same known-recipe and tier rules as `craft`) rolls the check and posts a chat card whose XP award works like a craft card's (flag `kind: 'activity'`; the `xpOpportunity` hook also gets `effort`). Nothing is created or used up. An activity's `required_tools` and optional `access` lists (`toolProficienciesAnyOf`, `skillProficienciesAnyOf`) are alternatives offered as checks.
 - `meetsProficiency(actorIdOrActor, {toolProficienciesAnyOf?, skillProficienciesAnyOf?})` → `{ok, matched}`: whether the character is proficient in any listed tool or skill, resolved like Tools and checks (tool names or dnd5e keys, the group `Any musical instrument`, skill names or ids). `matched` lists the entries that matched, as written; an empty list is met. **Permission:** GM, or anyone with Observer on the Actor (like `progression.level`); not tied to Player Access.
 
+### Suggested activity XP, effect notes and recipe names (0.29.0)
+
+- Completing an activity prefills the GM's XP award with `max(1, ceil(tier × effort / 2))` (tier Apprentice 1 … Master 5, missing/unknown = Apprentice; effort Short 1, Long 2, Extended 3, missing/unknown = Short), still editable. The XP flag and the `xpOpportunity` payload carry `suggested` and `suggestedBasis` (plain words). Craft and gathering XP are unchanged.
+- A Recipe record may carry `effect_note` (or `effectNote`): plain text up to 400 characters (longer is cut, non-text ignored), the boon an activity can give, decided by the GM. Shown in the recipe detail and on the Complete activity chat card; normalized recipes have `effectNote`. Nothing is automated.
+- A Profession record may carry `recipeLabel` (singular) and `recipeLabelPlural`, 1–30 characters each (otherwise ignored). Display only: types, `REC-*` ids, API names and saved data don't change. Order: GM Setup → Tools and checks → Recipe names, then the imported record, then draft built-in names (Alchemy Formula, Blacksmithing Blueprint, Artistry Composition, awaiting approval), then Recipe. A missing plural is made from the singular.
+- `recipeLabel(professionNameOrId, {plural = false, capitalize = true})` → the word, e.g. `"Formulas"`; unknown professions give `"Recipe"`. No permission needed (feature-detect it).
+
 ### `getProfessions(actor)` (0.18.0)
 
 Read-only list of every profession the character has, for partner modules such as Character Hub. Works without Skill Trees.

@@ -1,7 +1,8 @@
-import {SCHEMA,norm,professionFromTreeName,classify,normalizeRecipe,normalizeLibrary,isActivity,
+import {SCHEMA,norm,professionFromTreeName,classify,normalizeRecipe,normalizeLibrary,isActivity,effectNoteOf,displayProfession,
   sourceVisibility,sourceAvailableToPlayer,agSourceId,quantity,isLevelBackup,LEVEL_BACKUP_REFUSAL} from './core.mjs';
 import {GATHERING_PROFESSIONS,TIERS,ACCESS_LEVELS,gatherXP,knownRecipesOf,canLearnRecipe,progressOf,emptyProgress,
-  nextProgress,adjustProgress,xpHistoryOf,XP_CAP,professionLevelOf,isMaterialAwardCandidate,xpForLevel} from './progression.mjs';
+  nextProgress,adjustProgress,xpHistoryOf,XP_CAP,professionLevelOf,isMaterialAwardCandidate,xpForLevel,suggestActivityXP} from './progression.mjs';
+import {DRAFT_RECIPE_LABEL_DEFAULTS,RECIPE_LABEL_MAX,recipeLabelsOf,resolveRecipeLabels,pickRecipeLabel,cleanLabelStore,cleanRecipeLabel} from './recipe-labels.mjs';
 import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertPlayerAccess,accessState,setPlayerAccess} from './player-access.mjs';
 import {lookupWorldDefinition,readWorldDefinition,isActiveDefinition} from './definition-lookup.mjs';
 import {planCraft,craftBlockers,executeCraft,craftResultData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
@@ -20,10 +21,11 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.28.0';
+const VERSION='0.29.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
- * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...}. */
+ * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
+ * 0.29.0: an activity card also suggests XP (suggested, suggestedBasis in plain words). */
 const XP_HOOK='ashenGateLedger.xpOpportunity';
 /** Called on the client that wrote the XP (the GM) after every Profession XP change. It only says "look again":
  * read the level through api.progression.level, never from this payload. Payload: {actorId, profId, previousLevel, level, xp}. */
@@ -333,6 +335,63 @@ function professionLabel(recipe){
   const raw=String(recipe?.profession??'').trim();
   return raw&&!looksLikeId(raw)?raw:(raw?humanizeId(raw):'Unassigned profession');
 }
+/* ---- Recipe names per profession (0.29.0, display only) ----------------------------------------
+ * What a profession calls its recipes ("Formula" for Alchemy), shown where the Ledger shows recipes of one profession.
+ * Layers, highest first: the GM's edit (setting recipeLabels), the imported Profession record (recipeLabel /
+ * recipeLabelPlural), the draft built-in defaults (recipe-labels.mjs), "Recipe". Ids, types and saved data never change. */
+const RECIPE_LABEL_SETTING='recipeLabels';
+let importedLabelCache=null;
+/** recipeLabel/recipeLabelPlural from the Profession records this client can read, by profession key. World records first
+ * (a player reads only released ones), then the profession features on characters. Kept for one synchronous render pass. */
+function importedRecipeLabels(){
+  if(importedLabelCache)return importedLabelCache;
+  const out=new Map();
+  const note=doc=>{
+    if(classify(doc)!=='Profession')return;
+    const def=doc?.flags?.['ashen-gate-manager']?.source?.definition??null,labels=recipeLabelsOf(def);
+    if(!labels)return;
+    const key=definitionProfessionKey(agSourceId(doc),def?.name??professionDisplayName(doc),declaredCategory(doc));
+    if(key&&!out.has(key))out.set(key,labels);
+  };
+  for(const doc of game.items?.contents??[])if(game.user?.isGM||sourceAvailableToPlayer(doc))note(doc);
+  for(const actor of game.actors?.contents??[])for(const item of actor?.items??[])note(item);
+  importedLabelCache=out;
+  queueMicrotask(()=>{importedLabelCache=null;});
+  return out;
+}
+const gmRecipeLabels=()=>cleanLabelStore(game.settings.get(ID,RECIPE_LABEL_SETTING));
+/** The profession key for a PROF-* id or a profession name, or null. */
+function labelKeyOf(ref){
+  const text=String(ref??'').trim();
+  if(!text)return null;
+  if(/^PROF-[A-Z0-9-]+$/.test(text))return definitionProfessionKey(text,'');
+  return professionKey(displayProfession(text))||null;
+}
+/** {singular, plural} for a profession key. `gm` is the GM layer (the saved edits, or GM Setup's draft). */
+const recipeLabelsFor=(key,gm=gmRecipeLabels())=>resolveRecipeLabels(key?[gm[key],importedRecipeLabels().get(key),DRAFT_RECIPE_LABEL_DEFAULTS[key]]:[]);
+/** GM Setup: the labels a profession gets without the GM's edit, and where they come from (plain words). */
+function lowerRecipeLabels(key){
+  const imported=importedRecipeLabels().get(key)??null,draft=DRAFT_RECIPE_LABEL_DEFAULTS[key]??null,r=resolveRecipeLabels([imported,draft]);
+  return {...r,from:imported?'From content':draft?'Built-in name (draft)':'Default'};
+}
+/** The GM's edits worth saving: cleaned, and a profession whose edit gives exactly what it would get anyway is dropped. */
+function compactLabels(raw){
+  const out={};
+  for(const [key,value] of Object.entries(cleanLabelStore(raw))){
+    const lower=lowerRecipeLabels(key),mine=resolveRecipeLabels([value,lower]);
+    if(mine.singular!==lower.singular||mine.plural!==lower.plural)out[key]=value;
+  }
+  return out;
+}
+/** Public read: the label for a profession (name or PROF-* id). Unknown professions get "Recipe". */
+const recipeLabelFor=(ref,opts={})=>pickRecipeLabel(recipeLabelsFor(labelKeyOf(ref)),opts);
+/** The label of one recipe's profession ("Formula" for an Alchemy recipe). */
+const recipeWord=(recipe,opts={})=>pickRecipeLabel(recipeLabelsFor(labelKeyOf(recipe?.professionId)??labelKeyOf(professionLabel(recipe))),opts);
+/** 0.29.0: a recipe's effect note (activities); older stored catalog rows read it from their source definition. */
+const effectNote=recipe=>recipe?.effectNote??effectNoteOf(recipe?.sourceDefinition);
+const effectNoteHtml=recipe=>{const note=isActivity(recipe)?effectNote(recipe):null;
+  return note?`<p class="agl-recipe-effect"><span class="agl-label">Effect</span> ${esc(note)} <small class="agl-sub">(the GM decides at the table)</small></p>`:'';};
+
 /** The world ITEM-* document a recipe produces (Manager import), or null. */
 function resultDocument(recipe,{forPlayer=!game.user.isGM}={}){
   const id=recipe?.resultItemId;
@@ -433,7 +492,7 @@ function partyMaterials(actors,lib){
 /** Everything the crafting UI needs for one recipe and one crafter. */
 function craftContext(actor,recipe,lib){
   const result=resultDocument(recipe);
-  const blockers=craftBlockers({recipe,crafter:actor,knownIds:knownRecipesOf(actor),result});
+  const blockers=craftBlockers({recipe,crafter:actor,knownIds:knownRecipesOf(actor),result,label:recipeWord(recipe,{capitalize:false})});
   const plan=planCraft(recipe,actor,partyActors(),{materialDefs:lib.materials,playerView:!game.user.isGM,nameOf:ing=>ingredientName(ing,lib)});
   return {recipe,result,blockers,plan};
 }
@@ -668,7 +727,7 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
   if(showStatus){
     if(gm)status.push(draftBadge(recipe.status,recipe.sourceVisibility));
     if(knownBy.length)status.push(badge(`Known by ${nameList(knownBy)}`,'ok'));
-    if(foundBy.length)status.push(badge(`Recipe item: ${nameList(foundBy)}`,'recipe'));
+    if(foundBy.length)status.push(badge(`${recipeWord(recipe)} item: ${nameList(foundBy)}`,'recipe'));
     if(gm&&!knownBy.length&&!foundBy.length)status.push(badge('Not found by the party yet','muted'));
   }
   let actions='';
@@ -691,7 +750,7 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
   if(learnItem&&actor)actions=learnControl(actor,learnItem,{available});
   const gp=extraCost(recipe);
   const meta=[activity?'Activity':'',tierLabel(recipe.tier),recipe.effort?`${String(recipe.effort)[0].toUpperCase()}${String(recipe.effort).slice(1)} effort`:''].filter(Boolean);
-  const search=`${recipe.name} ${professionLabel(recipe)} ${meta.join(' ')} ${result?.name??''}`.toLowerCase();
+  const search=`${recipe.name} ${professionLabel(recipe)} ${recipeWord(recipe)} ${meta.join(' ')} ${result?.name??''} ${activity?effectNote(recipe)??'':''}`.toLowerCase();
   return `<article class="ag-card agl-recipe-row" data-recipe-search="${esc(search)}">
     <div class="agl-recipe-head">
       <div class="agl-recipe-title">${learnItem?'<i class="fa-solid fa-scroll agl-recipe-mark" aria-hidden="true"></i>':''}<strong>${esc(recipe.name)}</strong>
@@ -704,6 +763,7 @@ function recipeRow(recipe,lib,{actor=null,craft=null,knownBy=[],foundBy=[],showS
       ${requirementHTML(craftRequirement(recipe,craft?actor:null),craft?actor:null)}
     </div>
     ${recipe.description?`<p class="agl-recipe-summary">${esc(recipe.description)}</p>`:''}
+    ${effectNoteHtml(recipe)}
     ${status.filter(Boolean).length?`<div class="agl-recipe-status">${status.join(' ')}</div>`:''}
     ${gm?`<small class="agl-id">${esc(recipe.id)}</small>`:''}
   </article>`;
@@ -717,13 +777,16 @@ function learnControl(actor,item,{available=true}={}){
   if(!state.ok)return `<span class="agl-reason">${esc(state.reason)}</span>`;
   return `<button type="button" class="ag-btn" data-action="learn-recipe" data-id="${esc(`${actor.id}:${item.id}`)}" data-actor="${esc(actor.id)}"><i class="fa-solid fa-book" aria-hidden="true"></i> Learn</button>`;
 }
-/** Folders grouped by profession; native <details> so they work without the app (sheet tab). */
+/** 0.29.0: a profession folder counts its recipes in the profession's word ("2 formulas"), from its recipes' profession.
+ * Folders of other things (Gathering Nodes) show the number only. */
+const folderWord=g=>{const recipe=g.rows.find(r=>r.recipe)?.recipe;return recipe?` ${recipeWord(recipe,{plural:g.rows.length!==1,capitalize:false})}`:'';};
+/** Folders grouped by profession; native <details> so they work without the app (sheet tab). Rows: {group, html, recipe?}. */
 function folders(rows,closed=new Set()){
   if(!rows.length)return '';
   const groups=new Map();
   for(const row of rows){const key=norm(row.group)||'unassigned';if(!groups.has(key))groups.set(key,{key,name:row.group||'Unassigned profession',rows:[]});groups.get(key).rows.push(row);}
   return [...groups.values()].sort((a,b)=>a.name.localeCompare(b.name)).map(g=>`<details class="agl-folder" data-folder="${esc(g.key)}" ${closed.has(g.key)?'':'open'}>
-    <summary><i class="fa-solid fa-folder-open" aria-hidden="true"></i> <strong>${esc(g.name)}</strong> <span class="ag-badge">${g.rows.length}</span></summary>
+    <summary><i class="fa-solid fa-folder-open" aria-hidden="true"></i> <strong>${esc(g.name)}</strong> <span class="ag-badge">${g.rows.length}${esc(folderWord(g))}</span></summary>
     <div class="agl-folder-body">${g.rows.map(r=>r.html).join('')}</div></details>`).join('');
 }
 const HISTORY_LABELS={award:'Awarded',adjust:'Adjusted',set:'Set',undo:'Award undone'};
@@ -771,7 +834,7 @@ function professionCard(actor,p,{lastAward=null}={}){
 function characterPanel(actor,lib,{closed=new Set(),lastAward=null,surface='app'}={}){
   const profs=professionsOf(actor),mats=materialsOf(actor,lib);
   const known=knownRecipesOf(actor);
-  const knownRows=known.map(id=>partyRecipeDefinition(id,lib)).filter(Boolean).map(recipe=>({group:professionLabel(recipe),
+  const knownRows=known.map(id=>partyRecipeDefinition(id,lib)).filter(Boolean).map(recipe=>({group:professionLabel(recipe),recipe,
     html:recipeRow(recipe,lib,{actor,craft:craftContext(actor,recipe,lib),showStatus:game.user.isGM})}));
   const hiddenKnown=known.length-knownRows.length;
   const toLearn=recipeItems(actor).map(item=>{
@@ -869,7 +932,7 @@ async function orchestrateCraft(request,senderId){
   const lib=catalog(),recipe=lib.recipes.find(r=>r.id===request.recipeId);
   if(!recipe||(!requester.isGM&&hiddenFromPlayers(recipe)))return reply(false,'This recipe is not available');
   const result=resultDocument(recipe,{forPlayer:!requester.isGM});
-  const blockers=craftBlockers({recipe,crafter,knownIds:knownRecipesOf(crafter),result});
+  const blockers=craftBlockers({recipe,crafter,knownIds:knownRecipesOf(crafter),result,label:recipeWord(recipe,{capitalize:false})});
   if(blockers.length)return reply(false,blockers[0]);
   const contributors=partyActorsFor(requester);
   const opts={materialDefs:lib.materials,playerView:!requester.isGM,nameOf:ing=>ingredientName(ing,lib)};
@@ -922,9 +985,11 @@ const modeText=mode=>mode>0?' with advantage':mode<0?' with disadvantage':'';
 const checkLine=check=>!check?'':check.unavailable?`<p class="agl-chat-note">${esc(check.label)} check: not rolled (dnd5e could not roll it here).</p>`
   :`<p><strong>${esc(check.label)} check:</strong> ${Number(check.total)}${modeText(check.mode)}</p>`;
 /** XP stays GM-coordinated: the card carries what to award; the GM's client adds the button (see decorateChatCard). */
-function xpFlag(kind,actor,{professionId=null,professionName='',suggested=null}={}){
-  const profId=professionId&&linkedProfession(actor,professionId)?professionId:null;
-  return {kind,actorId:actor.id,actorName:actor.name,professionId:profId,professionName:String(professionName||''),suggested:Number.isSafeInteger(suggested)&&suggested>0?suggested:null,awarded:null};
+function xpFlag(kind,actor,{professionId=null,professionName='',suggested=null,suggestedBasis=null}={}){
+  const profId=professionId&&linkedProfession(actor,professionId)?professionId:null,amount=Number.isSafeInteger(suggested)&&suggested>0?suggested:null;
+  // 0.29.0: how the suggested amount was worked out (plain words, GM only), for an activity card.
+  return {kind,actorId:actor.id,actorName:actor.name,professionId:profId,professionName:String(professionName||''),suggested:amount,
+    ...(amount&&typeof suggestedBasis==='string'&&suggestedBasis?{suggestedBasis:suggestedBasis.slice(0,300)}:{}),awarded:null};
 }
 async function postXpCard(data,xp,extra={}){
   if(typeof globalThis.ChatMessage?.create!=='function')return null;
@@ -939,7 +1004,7 @@ async function craftChatCard(crafter,recipe,result,consumed,check=null){
   const profId=recipe.professionId??agSourceId(professionItems(crafter).find(i=>professionKey(professionDisplayName(i))===professionKey(prof)))??null;
   try{await postXpCard({speaker:ChatMessage.getSpeaker?.({actor:crafter}),content:`<div class="agl-chat-card">
     <header>${result?.img?`<img src="${esc(result.img)}" alt="" width="36" height="36">`:''}<div><strong>${esc(crafter.name)} crafted ${esc(result?.name??recipe.name)}</strong><span>${esc(prof)}${recipe.tier?` · ${esc(tierLabel(recipe.tier))}`:''}</span></div></header>
-    ${checkLine(check)}<p>Used:</p><ul>${used}</ul>${extraCost(recipe)?`<p class="agl-chat-note">The recipe also lists ${extraCost(recipe)} gp of additional cost (not deducted automatically).</p>`:''}
+    ${checkLine(check)}<p>Used:</p><ul>${used}</ul>${extraCost(recipe)?`<p class="agl-chat-note">The ${esc(recipeWord(recipe,{capitalize:false}))} also lists ${extraCost(recipe)} gp of additional cost (not deducted automatically).</p>`:''}
     <div class="agl-xp-slot" data-agl-xp></div></div>`},xpFlag('craft',crafter,{professionId:profId,professionName:prof}),{recipeId:recipe.id,check});}
   catch(err){console.warn(`[${ID}] Craft succeeded; chat card failed`,err);}
 }
@@ -1021,10 +1086,12 @@ async function activityChatCard(actor,recipe,check=null){
   const prof=professionLabel(recipe);
   const profId=recipe.professionId??agSourceId(professionItems(actor).find(i=>professionKey(professionDisplayName(i))===professionKey(prof)))??null;
   const meta=[prof,recipe.tier?tierLabel(recipe.tier):'',effortLabel(recipe.effort)].filter(Boolean).join(' · ');
+  // 0.29.0: the GM's award is prefilled with the suggested XP for the activity's tier and effort (still editable).
+  const suggestion=suggestActivityXP(recipe.tier,recipe.effort),note=effectNote(recipe);
   return postXpCard({speaker:ChatMessage.getSpeaker?.({actor}),content:`<div class="agl-chat-card">
     <header><div><strong>${esc(actor.name)} completed ${esc(recipe.name)}</strong><span>${esc(meta)}</span></div></header>
-    ${checkLine(check)}<div class="agl-xp-slot" data-agl-xp></div></div>`},
-    xpFlag('activity',actor,{professionId:profId,professionName:prof}),{recipeId:recipe.id,effort:recipe.effort??null,check});
+    ${checkLine(check)}${note?`<p class="agl-chat-note"><strong>Effect:</strong> ${esc(note)} (the GM decides at the table)</p>`:''}<div class="agl-xp-slot" data-agl-xp></div></div>`},
+    xpFlag('activity',actor,{professionId:profId,professionName:prof,suggested:suggestion.xp,suggestedBasis:suggestion.text}),{recipeId:recipe.id,effort:recipe.effort??null,check});
 }
 /** Player/GM entry point: the same checks as Craft (owner, known, tier level), the check dialog, the roll, then the card. */
 async function completeActivity(actor,recipeId,{confirm=true}={}){
@@ -1671,7 +1738,7 @@ function decorateChatCard(message,html){
   if(!game.user.isGM){slot.innerHTML='';return;}
   if(!x.professionId){slot.innerHTML=`<p class="agl-chat-note">GM: ${esc(x.actorName)} has no matching profession feature, so there is no XP to award here.</p>`;return;}
   slot.innerHTML=`<div class="agl-xp-award"><label>XP <input type="number" min="1" max="1000" step="1" value="${x.suggested??1}" data-agl-xp-points></label>
-    <button type="button" data-agl-xp-award><i class="fa-solid fa-star" aria-hidden="true"></i> Award ${esc(x.professionName)} XP</button></div>${x.suggested?`<p class="agl-chat-note">Suggested: ${x.suggested} XP. GM only.</p>`:'<p class="agl-chat-note">GM only.</p>'}`;
+    <button type="button" data-agl-xp-award><i class="fa-solid fa-star" aria-hidden="true"></i> Award ${esc(x.professionName)} XP</button></div>${x.suggested?`<p class="agl-chat-note">Suggested: ${Number(x.suggested)} XP.${x.suggestedBasis?` ${esc(x.suggestedBasis)} You can change it before awarding.`:''} GM only.</p>`:'<p class="agl-chat-note">GM only.</p>'}`;
   const button=slot.querySelector('[data-agl-xp-award]');
   button?.addEventListener?.('click',async event=>{
     event.preventDefault?.();button.disabled=true;
@@ -1691,7 +1758,9 @@ async function performAction(action,{id,actorId,points,delta=null,set=null,reaso
     if(game.user.isGM&&actor.hasPlayerOwner)throw Error(`${actor.name}'s player learns this recipe from their own Ledger or character sheet`);
     const check=canLearnRecipe(actor,item,agSourceId(item));if(!check.ok)throw Error(check.reason);
     const name=recipeTitle(item.name);
-    const ok=await confirmDialog(`${actor.name} learns ${name}.\nThis uses up one recipe item (${quantity(item)} held). The recipe stays known.`,{title:`Learn ${name}?`,yes:`Learn ${name}`});
+    // 0.29.0: in the words of the recipe's profession ("formula item"), when its record is readable.
+    const def=partyRecipeDefinition(agSourceId(item),catalog()),word=def?recipeWord(def,{capitalize:false}):'recipe';
+    const ok=await confirmDialog(`${actor.name} learns ${name}.\nThis uses up one ${word} item (${quantity(item)} held). The ${word} stays known.`,{title:`Learn ${name}?`,yes:`Learn ${name}`});
     if(!ok)return null;
     const learned=await learnRecipe(actor,item);
     return {message:`${actor.name} learned ${recipeTitle(learned.name)}.`};
@@ -1829,7 +1898,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const defs=new Map(ids.map(id=>[id,partyRecipeDefinition(id,lib)]).filter(([,d])=>d));
     let recipes;
     if(this.partySort==='profession'){
-      recipes=folders([...defs.values()].sort((a,b)=>a.name.localeCompare(b.name)).map(r=>({group:professionLabel(r),
+      recipes=folders([...defs.values()].sort((a,b)=>a.name.localeCompare(b.name)).map(r=>({group:professionLabel(r),recipe:r,
         html:recipeRow(r,lib,{knownBy:known.get(r.id)??[],foundBy:(found.get(r.id)??[]).map(x=>x.actor)})})),this.closedFolders);
     }else{
       const mine=new Set(myCharacters().map(a=>a.id));// 0.26.2: players get the way to their own character's view too (that is where Craft is).
@@ -1873,7 +1942,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const gm=game.user.isGM,party=this.actors;
     const {known,found}=partyRecipes(party);
     const recipes=gm?lib.recipes:[...new Set([...known.keys(),...found.keys()])].map(id=>partyRecipeDefinition(id,lib)).filter(Boolean);
-    const rows=recipes.map(r=>({group:professionLabel(r),html:recipeRow(r,lib,{knownBy:known.get(r.id)??[],foundBy:(found.get(r.id)??[]).map(x=>x.actor)})}));
+    const rows=recipes.map(r=>({group:professionLabel(r),recipe:r,html:recipeRow(r,lib,{knownBy:known.get(r.id)??[],foundBy:(found.get(r.id)??[]).map(x=>x.actor)})}));
     const hidden=gm?lib.recipes.filter(hiddenFromPlayers).length:0;
     const canOpen=gm&&this._managerReady();
     const legend=`${badge('All players','ok')} ${badge('Some players','partial')} ${badge('GM only','warn')} ${badge('Draft — hidden from players','warn')}`;
@@ -1901,7 +1970,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     if(!game.user.isGM)return emptyState('GM Setup is restricted to the GM.');
     const tab=this.gmTab=GM_SETUP_TABS.some(t=>t.id===this.gmTab)?this.gmTab:this._ui.get('gmSetupTab','party',GM_SETUP_TABS.map(t=>t.id));
     const panels={party:this._roster(),
-      tools:this._toolSetup(),
+      tools:`${this._toolSetup()}${this._recipeNamesSetup()}`,
       gather:`${this._exoticSetup()}${this._coreAwardSetup()}`,
       access:`<section class="ag-card agl-panel"><h2>Player Access ${badge(playerAccessEnabled()?'Visible to players':'Hidden from players',playerAccessEnabled()?'ok':'warn')}</h2>
         <p class="agl-sub">Controls the Actors launcher, Ledger window and sheet tab only; it never changes Profession XP, known recipes or Items. Manager can also change this setting (${PLAYER_ACCESS_CONTRACT}). Saved with <b>Save Changes</b>.</p>
@@ -1928,8 +1997,25 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   }
   /** D4: Player Access is a draft like the other GM Setup settings; only Save Changes writes it. */
   get accessDirty(){return this.accessDraft!=null&&this.accessDraft!==playerAccessEnabled();}
-  get setupDirty(){return this.rosterDirty||this.mapDirty||this.exoticDirty||this.coreAwardDirty||this.accessDirty;}
-  _clearSetupDrafts(){this.rosterDraft=null;this.mapDraft=null;this.exoticDraft=null;this.coreAwardDraft=null;this.accessDraft=null;}
+  get setupDirty(){return this.rosterDirty||this.mapDirty||this.exoticDirty||this.coreAwardDirty||this.accessDirty||this.labelDirty;}
+  _clearSetupDrafts(){this.rosterDraft=null;this.mapDraft=null;this.exoticDraft=null;this.coreAwardDraft=null;this.accessDraft=null;this.labelDraft=null;}
+  /** 0.29.0: the Recipe names draft as it would be saved (see compactLabels). */
+  get labelDirty(){return this.labelDraft!=null&&JSON.stringify(compactLabels(this.labelDraft))!==JSON.stringify(compactLabels(gmRecipeLabels()));}
+  /** 0.29.0: GM Setup → Tools and checks → Recipe names: what each profession calls a recipe (display only). A box left
+   * empty uses the label underneath (imported content, the draft built-in default, Recipe), shown as its placeholder. */
+  _recipeNamesSetup(){
+    const draft=this.labelDraft??gmRecipeLabels();
+    const row=p=>{const k=p.key,title=professionTitle(k),own=draft[k]??{},lower=lowerRecipeLabels(k);
+      const from=cleanRecipeLabel(own.singular)||cleanRecipeLabel(own.plural)?'Set by GM':lower.from;
+      const input=(field,label)=>`<input type="text" maxlength="${RECIPE_LABEL_MAX}" data-label-key="${esc(k)}" data-label-field="${field}" value="${esc(own[field]??'')}" placeholder="${esc(lower[field])}" aria-label="${esc(`${title}: ${label}`)}">`;
+      return `<tr data-label-row="${esc(k)}"><th scope="row">${esc(title)}</th><td>${input('singular','singular (for example Formula)')}</td><td>${input('plural','plural (for example Formulas)')}</td><td><span class="agl-sub" data-label-from="${esc(k)}">${esc(from)}</span></td></tr>`;};
+    const set=Object.keys(compactLabels(draft)).length;
+    return `<section class="ag-card agl-panel agl-recipe-names"><h2>Recipe names</h2>
+      <p class="agl-sub">What each profession calls a recipe, shown in its folders, buttons and messages (lists that mix professions keep “recipes”). Only the words change: ids, imports and saved characters don’t. Leave a box empty to use the name in grey: from the imported Profession content, else the built-in draft name (Alchemy formulas, Blacksmithing blueprints, Artistry compositions), else Recipe. Up to ${RECIPE_LABEL_MAX} characters. Saved with <b>Save Changes</b>.</p>
+      ${fold({key:'recipe-names',title:'Names by profession',hint:set?`${set} set by you`:'none set by you',body:`<div class="ag-table-wrap agl-map-wrap"><table class="ag-table agl-map agl-label-table"><thead><tr><th scope="col">Profession</th><th scope="col">Singular</th><th scope="col">Plural</th><th scope="col">From</th></tr></thead>
+      <tbody>${PROFESSION_GROUPS.map(([category,label])=>{const list=allProfessions().filter(p=>p.category===category);return list.length?`<tr class="agl-map-group"><th colspan="4" scope="colgroup">${label}</th></tr>${list.map(row).join('')}`:'';}).join('')}</tbody></table></div>`})}
+    </section>`;
+  }
   get coreAwardDirty(){return this.coreAwardDraft!=null&&this.coreAwardDraft!==awardCoreItems();}
   get exoticDirty(){return this.exoticDraft!==null&&clampPercent(this.exoticDraft,exoticPercent())!==exoticPercent();}
   /** 0.22.0: one row per profession, crafting then gathering: Skill to Access | Tool to Access | Tool for Advantage.
@@ -2013,10 +2099,12 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>Where XP lives:</strong> on your character, kept by the Profession Ledger. It’s shown here, in the Professions tab of the Tidy5e sheet, and in the profession feature’s description on your sheet. Only the GM awards XP.</p>
     <p><strong>Gathering:</strong> pick a gathering spot at a location your party knows and press <b>Request gather</b>. It waits in the GM’s Requests list until they approve or decline (with a reason); one waiting request per character. The GM can also send a check to you directly. The lead gatherer rolls one check for the party (skill or tool bonus shown, advantage preset from the sheet, effects and helpers). Success gives one common bundle, success by 5+ a rare one instead; failure exhausts the spot. The result is posted in chat.</p>
     <p><strong>Tools:</strong> a recipe shows the tool or workstation it needs and warns if your character doesn’t carry the tool. Crafting rolls a tool check; the result is on the craft card. Gold costs are shown, not deducted.</p>
-    <p><strong>Activities:</strong> some known recipes are creative activities (Artistry: a performance, a composition, a commission…). They need no ingredients and make no item: <em>Complete activity</em> rolls the check like Craft and posts a chat card, where the GM can award profession XP.</p>
+    <p><strong>Activities:</strong> some known recipes are creative activities (Artistry: a performance, a composition, a commission…). They need no ingredients and make no item: <em>Complete activity</em> rolls the check like Craft and posts a chat card, where the GM can award profession XP. The award starts at a suggested amount from the activity’s tier and effort (Apprentice and Short effort: 1 XP, up to 8 XP for Master and Extended effort), which the GM can change. An activity may have an <em>Effect</em>: what it can give, decided by the GM at the table.</p>
+    <p><strong>Names:</strong> a profession may call its recipes something else (for example formulas). Its folders and messages use that word; lists that mix professions say recipes.</p>
     <p><strong>XP:</strong> the GM awards profession XP from the gather, craft and activity chat cards${game.user.isGM?', or under <b>GM: XP</b> on a profession card (Award or Adjust, with the history)':''}.</p>
     ${game.user.isGM?'<p><strong>Gathering (GM):</strong> three sub-tabs. <em>Requests</em> lists what players asked for (Approve or Decline); <em>Active checks</em> holds the open checks and the last result; <em>Start gathering</em> starts a check on a Location node, a node template or an ad-hoc node. The Gathering tab opens on Requests when any are waiting.</p>':''}
     ${game.user.isGM?'<p><strong>Gathering Nodes:</strong> reusable gathering spots (NODE-* ids) with an activity, profession(s), tier range, check, DC and common/rare/exotic material tables. Roll on one from anywhere (Gathering → Start gathering → Node template), point a Location at one by id, or import/export node files. Edit opens the node in place of the list; <em>All nodes</em> or Cancel goes back to where you were. <em>Copy Location nodes</em> makes templates from the gathering nodes your Locations already have, without changing Locations. Draft materials are listed for you, marked; tick <em>Use draft materials anyway</em> on the Gathering tab to award one.</p>':''}
+    ${game.user.isGM?'<p><strong>Recipe names (GM):</strong> GM Setup → Tools and checks → <em>Recipe names</em> sets what each profession calls a recipe, singular and plural. Leave a box empty to use the default shown in grey (from the imported Profession content, else the built-in draft name, else Recipe). Only the words shown change, saved with <b>Save Changes</b>.</p>':''}
     ${game.user.isGM?'<p><strong>Assign:</strong> preview which profession features each party character qualifies for from their skill and tool proficiencies (the Skill to Access and Tool to Access in GM Setup → Tools and checks), then add the missing ones. Re-running adds nothing new; XP is never changed.</p>':''}
     ${game.user.isGM?'<p><strong>GM Setup:</strong> sub-tabs <em>Party</em>, <em>Tools and checks</em>, <em>Gathering &amp; crafting</em> and <em>Player Access</em>; every change on any of them is saved together with <b>Save Changes</b>, and <b>Cancel</b> discards them and stays on GM Setup. <em>Tools and checks</em> has one row per profession, crafting, gathering, then creative (Artistry; <em>Any musical instrument</em> matches any instrument proficiency): the skills and tools that give access (any one qualifies; the first skill and tool are also the profession’s checks) and, for gathering, the tools that give advantage (gathering professions only; ignored for crafting). Click a cell to tick several values; under it you see where its value comes from (default, imported content, baseline file or your edit). Its <em>Baseline file</em> section imports a baseline crosswalk file (preview, then Apply baseline, which saves at once) and exports the current table. General Manager imports recipes and materials; the older Ledger JSON import is under <em>Advanced</em> at the end of the Recipe Catalog. XP is awarded from the Individual tab.</p>':''}
   `;}
@@ -2417,6 +2505,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(e.target?.matches?.('[data-roster-actor]')&&game.user.isGM)this._rememberRosterDraft();
     },{signal});
     this.element.querySelector('[data-agl-search]')?.addEventListener('input',e=>{this.query=e.target.value;this._applySearch();},{signal});
+    this.element.addEventListener?.('input',e=>{if(e.target?.matches?.('[data-label-field]'))this._rememberLabelDraft(e.target);},{signal});
     this._applySearch();this._syncRosterActions();
     // Last, once the folds, search and guards have shaped the DOM.
     this._restoreScroll();}
@@ -2533,6 +2622,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         if(this.mapDirty){await game.settings.set(ID,'checkMapping',compactCheckMapping({...game.settings.get(ID,'checkMapping'),...structuredClone(this.mapDraft)}));saved.push('tools and checks');}
         if(this.exoticDirty){const pct=clampPercent(this.exoticDraft,exoticPercent());await game.settings.set(ID,EXOTIC_SETTING,pct);saved.push(`Exotic discovery ${pct}%`);}
         if(this.coreAwardDirty){await game.settings.set(ID,CORE_AWARD_SETTING,this.coreAwardDraft);saved.push(`core item awards ${this.coreAwardDraft?'on':'off'}`);}
+        if(this.labelDirty){await game.settings.set(ID,RECIPE_LABEL_SETTING,compactLabels(this.labelDraft));saved.push('recipe names');}
         if(this.accessDirty){const on=this.accessDraft;await setPlayerAccess(game,ID,on);saved.push(`Player Access ${on?'on (players can open the Ledger)':'off (hidden from players)'}`);}
         this._clearSetupDrafts();this.notice=`Saved ${saved.join('; ')}.`;this.render();say(this.notice);return;}
       if(['learn-recipe','craft','complete-activity','award-xp','adjust-xp'].includes(action)){
@@ -2696,8 +2786,16 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     if(pop)pop.hidden=!open;btn?.setAttribute('aria-expanded',String(open));
     if(open)pop?.querySelector('input')?.focus?.();else if(focus)btn?.focus?.();
   }
-  get setupStatus(){const n=[this.rosterDirty,this.mapDirty,this.exoticDirty,this.coreAwardDirty,this.accessDirty].filter(Boolean).length;
-    return n>1?'Unsaved changes':this.rosterDirty?'Unsaved party changes':this.mapDirty?'Unsaved tool and check changes':this.exoticDirty?'Unsaved Exotic discovery change':this.coreAwardDirty?'Unsaved crafted-item change':this.accessDirty?'Unsaved Player Access change':'All changes saved';}
+  get setupStatus(){const n=[this.rosterDirty,this.mapDirty,this.exoticDirty,this.coreAwardDirty,this.accessDirty,this.labelDirty].filter(Boolean).length;
+    return n>1?'Unsaved changes':this.rosterDirty?'Unsaved party changes':this.mapDirty?'Unsaved tool and check changes':this.exoticDirty?'Unsaved Exotic discovery change':this.coreAwardDirty?'Unsaved crafted-item change':this.accessDirty?'Unsaved Player Access change':this.labelDirty?'Unsaved recipe name changes':'All changes saved';}
+  /** 0.29.0: a Recipe names box. Kept as typed (no re-render, so focus and typing stay); Save Changes cleans and saves it. */
+  _rememberLabelDraft(el){
+    const k=el?.dataset?.labelKey,field=el?.dataset?.labelField;
+    if(!game.user.isGM||!k||!['singular','plural'].includes(field)||!allProfessions().some(p=>p.key===k))return;
+    const draft=this.labelDraft??structuredClone(gmRecipeLabels());
+    draft[k]={...(draft[k]??{}),[field]:String(el.value??'').slice(0,RECIPE_LABEL_MAX)};
+    this.labelDraft=draft;this._syncRosterActions();
+  }
   _syncRosterActions(){
     const save=this.element?.querySelector?.('[data-action="roster-save"]');
     if(save)save.disabled=!this.setupDirty;
@@ -2817,6 +2915,8 @@ Hooks.once('init',()=>{
   game.settings.register(ID,EXOTIC_SETTING,{name:'Exotic discovery chance (%)',scope:'world',config:false,type:Number,default:DEFAULT_EXOTIC_PERCENT,onChange:()=>{if(current?.rendered)current.render();}});
   game.settings.register(ID,BASELINE_SETTING,{name:'Profession crosswalk baseline file',scope:'world',config:false,type:Object,default:{},onChange:()=>{if(current?.rendered)current.render();}});
   game.settings.register(ID,'checkMapping',{name:'Profession tools and gathering checks',scope:'world',config:false,type:Object,default:{},onChange:()=>{if(current?.rendered)current.render();}});
+  // 0.29.0: GM edits of what each profession calls a recipe ({[professionKey]: {singular?, plural?}}); display only, new and empty by default.
+  game.settings.register(ID,RECIPE_LABEL_SETTING,{name:'Recipe names per profession',scope:'world',config:false,type:Object,default:{},onChange:()=>{if(current?.rendered)current.render();}});
   game.settings.register(ID,'checkMappingVersion',{name:'Profession tools and checks data version',scope:'world',config:false,type:Number,default:0});
   game.settings.register(ID,'partyRoster',{name:'Active party Actor IDs',scope:'world',config:false,type:Array,default:[],onChange:()=>{if(current?.rendered)current.render();}});
   // 0.25.0: GM-only (restricted). Players open the Ledger from the Actors sidebar; with no player-visible setting or menu,
@@ -2842,6 +2942,9 @@ Hooks.once('ready',()=>{
     craft:(actor,recipeId,options)=>craft(actor,recipeId,options),
     /** 0.28.0: complete an activity recipe (kind "activity"): roll, post the card with the GM's XP award. Owner or GM. */
     completeActivity:(actor,recipeId,options)=>completeActivity(actor,recipeId,options),
+    /** 0.29.0: what a profession (name or PROF-* id) calls a recipe, e.g. "Formula"; {plural, capitalize}. Display only: ids,
+     * types and saved data say Recipe/REC- as before. Unknown professions get "Recipe". Feature-detect it. */
+    recipeLabel:(professionNameOrId,{plural=false,capitalize=true}={})=>recipeLabelFor(professionNameOrId,{plural:Boolean(plural),capitalize:capitalize!==false}),
     /** 0.28.0: (actorId or Actor, {toolProficienciesAnyOf?, skillProficienciesAnyOf?}) → {ok, matched}. GM or Actor observer. */
     meetsProficiency:(actorId,access)=>meetsProficiency(actorId,access),
     /** 0.28.0: the professions the Ledger knows: [{name, key, id, category: 'crafting'|'gathering'|'creative'}]. */
