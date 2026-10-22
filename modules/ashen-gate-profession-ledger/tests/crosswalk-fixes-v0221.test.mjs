@@ -15,7 +15,7 @@ test('export writes only GM and baseline lists as overrides; catalog advantage t
   assert.deepEqual(out.professions.mining.qualifyTools,['smith'],'GM list is');
   assert.deepEqual(out.professions.fishing.qualifySkills,['nat'],'baseline list is');
   assert.deepEqual(out.professions.herbalism.inEffect.advantageTools,['herb'],'the table in effect is still shown');
-  assert.deepEqual(out.professions.herbalism.origin,{qualifySkills:'catalog',qualifyTools:'catalog',advantageTools:'catalog',items:'default'});
+  assert.deepEqual(out.professions.herbalism.origin,{qualifySkills:'catalog',qualifyTools:'catalog',advantageTools:'catalog',items:'default',advantageItems:'default'});
   const back=parseBaselineFile(out);
   assert.equal(back.ok,true);
   assert.equal(back.baseline.herbalism.advantageTools,undefined);
@@ -28,7 +28,7 @@ test('export writes only GM and baseline lists as overrides; catalog advantage t
 test('catalog tool names and keys are checked against dnd5e and reported, never guessed',()=>{
   const r=catalogCrosswalk([{name:'Herbalism',access:{toolProficienciesAnyOf:['herb','sickle','Herbalism Kit'],advantageToolsAnyOf:['herbalismkit']}}]);
   assert.deepEqual(r.catalog.herbalism.qualifyTools,['herb']);
-  assert.deepEqual(r.catalog.herbalism.advantageTools,[]);
+  assert.equal(r.catalog.herbalism.advantageTools,undefined,'0.27.0: only unmatched advantage names set nothing, so the built-in default applies');
   assert.deepEqual(r.unresolved.map(u=>[u.field,u.name]),[['toolProficienciesAnyOf','sickle'],['advantageToolsAnyOf','herbalismkit']]);
   assert.deepEqual(parseBaselineFile({professions:{herbalism:{qualifyTools:['sickle','herb']}}}).unresolved.map(u=>u.name),['sickle'],'same rule as the baseline file');
 });

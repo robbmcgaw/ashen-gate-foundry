@@ -103,6 +103,26 @@
 
 /* GM Setup and Assign tables (kit .ag-table): selects fill their cell; group rows read as section rows. */
 .agl-map select{width:100%;min-width:max-content}
+/* 0.27.0: multi-select cell. The checkbox list opens inside the cell (pushing the row down), so the table never clips it. */
+.agl-mpick{display:flex;flex-direction:column;gap:var(--ag-space-1);min-width:8rem}
+.agl-map tbody tr:not(.agl-map-group)>*{vertical-align:top}
+.agl-map th[scope="row"] .ag-btn{margin-top:var(--ag-space-1);white-space:nowrap}
+.agl-map-prof{display:block}
+.agl-mpick__toggle{display:flex;align-items:center;justify-content:space-between;gap:var(--ag-space-2);width:100%;text-align:start;white-space:normal;line-height:1.3;height:auto;min-height:2rem;border-radius:var(--ag-radius)}
+.agl-mpick__value{flex:1;min-width:0;overflow-wrap:anywhere}
+.agl-mpick__toggle[aria-expanded="true"] i{transform:rotate(180deg)}
+.agl-mpick__unmatched{display:block;color:var(--ag-warn-ink)}
+.agl-mpick__pop{display:flex;flex-direction:column;gap:var(--ag-space-2);padding:var(--ag-space-2);border:1px solid var(--ag-border-strong);border-radius:var(--ag-radius);background:var(--ag-surface-raised)}
+.agl-mpick__pop[hidden]{display:none}
+.agl-mpick__pop p{margin:0}
+.agl-mpick__list{display:flex;flex-direction:column;gap:var(--ag-space-1);max-height:14rem;overflow-y:auto}
+.agl-mpick__list label{display:flex;align-items:center;gap:var(--ag-space-2);font-weight:400}
+.agl-mpick__gear{display:flex;flex-direction:column;gap:var(--ag-space-1);margin:0;padding:var(--ag-space-2);border:1px solid var(--ag-border);border-radius:var(--ag-radius)}
+.agl-mpick__gear legend{padding:0 var(--ag-space-1);font-weight:600}
+.agl-mpick__add{display:flex;gap:var(--ag-space-2)}
+.agl-mpick__add input{flex:1;width:0;min-width:0}
+.agl-mpick__actions{display:flex;justify-content:space-between;gap:var(--ag-space-2)}
+@media (prefers-reduced-motion:reduce){.agl-mpick__toggle i{transition:none}}
 .agl-map td small.agl-sub{display:block}
 .agl-app .agl-map tbody tr.agl-map-group,.agl-app .agl-map tbody tr.agl-map-group:hover{background:var(--ag-surface-raised)}
 .agl-map tr.agl-map-group th{padding-top:var(--ag-space-3);font-weight:700;letter-spacing:.04em;border-top:1px solid var(--ag-border-strong);border-bottom:1px solid var(--ag-border)}

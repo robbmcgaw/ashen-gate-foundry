@@ -122,7 +122,7 @@ test('GM imports a baseline file: preview writes nothing, Apply stores it, check
   assert.equal(values.crosswalkBaseline.fileName,'[TEST] baseline.json');
   assert.deepEqual(values.crosswalkBaseline.professions.fishing.qualifySkills,['sur']);
   assert.equal(app.baselinePreview,null);
-  h=await html('gm');assert.match(h,/data-map-cell="advantageTools" data-map-prof="herbalism"[^>]*>\s*<option value="" >None<\/option>[\s\S]*?<option value="herb" selected>/,'file advantage tool shown');assert.match(h,/Baseline file<\/b>: \[TEST\] baseline\.json/);
+  h=await html('gm');assert.match(h,/data-map-list="advantageTools" data-map-prof="herbalism">[\s\S]*?<span class="agl-mpick__value">Herbalism Kit<\/span>[\s\S]*?From baseline file[\s\S]*?value="herb" checked>/,'file advantage tool shown (0.27.0 multi-select)');assert.match(h,/Baseline file<\/b>: \[TEST\] baseline\.json/);
   const out=api.crosswalk.exportTable();
   assert.equal(out.schema,'ag-ledger-crosswalk/1');
   assert.deepEqual(out.professions.fishing.items,['Fishing Tackle','Compendium.dnd5e.equipment24.Item.net']);
