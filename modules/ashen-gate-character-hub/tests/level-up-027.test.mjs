@@ -137,6 +137,52 @@ test('no advancement steps, or advancements disabled: the class level goes up by
   assert.equal(s.calls.length, 0);
 });
 
+// ---------- 0.29.5: dnd5e's window opens the way dnd5e's sheets open it ----------
+
+test('0.29.5: the Hub (a Foundry sheet, no _renderChild) opens dnd5e\'s window with renderChild, in its own window', async () => {
+  const {actor, calls} = setup({user: users.gm}); const shown = [];
+  const hub = {renderChild: m => { shown.push(m); return m; }};
+  assert.deepEqual(await startLevelUp(actor, {choose: pickClass('fig'), sheet: hub}), {ok: true, result: 'advancement'});
+  assert.equal(shown[0], calls[0].manager);
+  assert.deepEqual(calls[0].manager.renders, [], 'not a bare render in the main window');
+  const add = setup({user: users.gm}), added = [];
+  await startLevelUp(add.actor, {choose: pickClass(ADD_CLASS), sheet: {renderChild: m => added.push(m)}});
+  assert.equal(added[0], add.calls.find(c => c.kind === 'new').manager);
+});
+
+test('0.29.5: a sheet embedded in another app hands the window to its parent, as dnd5e does', async () => {
+  const {actor, calls} = setup({user: users.gm}); const shown = [];
+  await startLevelUp(actor, {choose: pickClass('fig'), sheet: {parent: {renderChild: m => shown.push(m)}, renderChild: () => assert.fail('the parent renders it')}});
+  assert.equal(shown[0], calls[0].manager);
+});
+
+test('0.29.5: with steps (dnd5e fills them in forLevelChange) the level is never raised by the Hub; cancel leaves it as it was', async () => {
+  const {actor, calls} = setup({user: users.gm});
+  await startLevelUp(actor, {choose: pickClass('fig'), sheet: {renderChild() {}}});
+  globalThis.Hooks.callAll('closeAdvancementManager', calls[0].manager);
+  await new Promise(r => setTimeout(r, 0));
+  assert.deepEqual(actor.items.get('fig').calls ?? [], [], 'no level change from the Hub');
+  assert.deepEqual(actor.calls, [], 'the Actor is untouched');
+  assert.equal(copies().length, 0, 'no backup copy');
+});
+
+test('0.29.5: dnd5e reports no steps: one direct level bump (as the native sheet), noted in the console', async () => {
+  const {actor} = setup({user: users.gm, steps: 0}); const said = [], info = console.info;
+  console.info = m => said.push(m);
+  try { assert.deepEqual(await startLevelUp(actor, {choose: pickClass('fig'), sheet: {renderChild: () => assert.fail('no window')}}), {ok: true, result: 'levels'}); }
+  finally { console.info = info; }
+  assert.deepEqual(actor.items.get('fig').calls, [['update', {'system.levels': 4}]]);
+  assert.match(said[0], /no advancement steps for \[TEST\] Fighter/);
+});
+
+test('0.29.5: if opening dnd5e\'s window fails, nothing changes and no copy is made', async () => {
+  const {actor} = setup({user: users.gm});
+  const r = await startLevelUp(actor, {choose: pickClass('fig'), sheet: {renderChild: () => { throw new Error('boom'); }}});
+  assert.equal(r.ok, false); assert.match(r.error, /boom/);
+  assert.deepEqual(actor.items.get('fig').calls ?? [], []);
+  assert.equal(copies().length, 0); assert.equal(globalThis.Hooks.count(), 0, 'listeners removed');
+});
+
 // ---------- Add a class ----------
 
 test('Add a class: dnd5e\'s class browser (own classes left out), then forNewItem', async () => {
