@@ -48,6 +48,16 @@ export function strainHtml(actor, off) {
   </div>`;
 }
 
+/** GM only: one step of Strain up or down through Cinders' api.strain (source: this module, kind gm, with a reason). */
+export async function stepStrain(actor, step) {
+  if (!isGM()) return refuse('Only the GM can change Strain here.');
+  const api = strainApi();
+  if (!api) return refuse('Ashen Gate | Cinders is not active.');
+  const op = Number(step) < 0 ? 'remove' : 'add';
+  try { return {ok: true, result: await api[op](actor, 1, {source: {module: MODULE_ID, kind: 'gm'}, reason: 'GM adjustment (Character Hub)'})}; }
+  catch (error) { return refuse(String(error?.message ?? error)); }
+}
+
 /**
  * Strain next to hit points (0.30.0): a compact read-only pill in the HP block (small bar, value, band; hover for the
  * Push Backfire chance). Used where the GM's − / + row is not shown, i.e. for players. Nothing when Strain can't be read.
@@ -59,16 +69,6 @@ export function strainPillHtml(actor) {
   const tip = `Strain ${m.label}${m.band ? `: ${m.band}` : ''}. Backfire on a Push from here: ${m.chance}%${m.guaranteed ? ' (guaranteed)' : ''}${m.normalUseBackfires ? '. Every use of a Cinder power backfires at this Strain' : ''}. Read only.`;
   return `<span class="ag-badge agch-pill agch-pill--strain${tone ? ` ag-badge--${tone}` : ''}" role="group" aria-label="${esc(tip)}" data-tooltip="${esc(tip)}"><i class="fa-solid fa-fire" aria-hidden="true"></i><span class="ag-sr-only">Strain</span>
     <span class="ag-meter${tone ? ` ag-meter--${tone}` : ''} agch-pill__meter" aria-hidden="true"><span class="ag-meter__track" style="--ag-meter:${m.fill}%"><span class="ag-meter__fill"></span></span></span><b>${esc(m.label)}</b>${m.band ? `<span class="agch-pill__band">${esc(m.band)}</span>` : ''}</span>`;
-}
-
-/** GM only: one step of Strain up or down through Cinders' api.strain (source: this module, kind gm, with a reason). */
-export async function stepStrain(actor, step) {
-  if (!isGM()) return refuse('Only the GM can change Strain here.');
-  const api = strainApi();
-  if (!api) return refuse('Ashen Gate | Cinders is not active.');
-  const op = Number(step) < 0 ? 'remove' : 'add';
-  try { return {ok: true, result: await api[op](actor, 1, {source: {module: MODULE_ID, kind: 'gm'}, reason: 'GM adjustment (Character Hub)'})}; }
-  catch (error) { return refuse(String(error?.message ?? error)); }
 }
 
 const TARGET_WORDS = {'push.cost': 'Push cost', 'backfire.chance': 'Backfire chance', 'backfire.severity': 'Backfire severity', 'strain.recovery': 'rest recovery', 'sockets.count': 'sockets'};
