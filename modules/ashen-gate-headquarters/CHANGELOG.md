@@ -1,3 +1,12 @@
+## 0.13.0 — 2026-10-22
+
+UI cleanup from the October 2026 audit (HQ-01 to HQ-15). No saved-data, setting-key, flag or API changes.
+- **Keyboard:** placed facilities and decorations are buttons (Tab, then Enter selects); the inspector has Move left/up/right/down buttons; **Place** puts an acquired facility in the first free space; decoration art buttons add it to your room. Dragging still works. Tabs use the arrow keys, and focus stays on the control you used after the window refreshes.
+- **GM Setup is settings only:** Guild Rank moved to a row at the top of the Facilities tab (**Set rank…** asks "Set Guild Rank to N?"); **Create missing player rooms** moved to the Personal Quarters toolbar. Switching tabs or closing the window with unsaved GM Setup changes asks first (Keep editing is the default).
+- **Hirelings:** toolbar with search, a status filter, a count and **Add to roster**; cards grouped Active / Departed; Working is a labelled checkbox; permanent departure, perks and history are collapsible sections. Statuses, perk states and dates are plain words and local dates; stations show the facility name (with #2 only for duplicates). Players no longer get an always-empty Hirelings tab.
+- **Facilities:** Facilities and Decorations sub-tabs; filters have visible labels. The direct importer is under **Advanced: import here, or use General Manager** (with Open General Manager when it is installed), uses a keyboard-reachable file button, and keeps facilities already in the catalog instead of cancelling the import.
+- Activation fields start empty (example placeholders, no demo IDs). The header has no subtitle; the Guildhall name, rank and capacity are above the builder grid. Only Guildhall Builder shows the editing lease. Removals ask with Cancel as the default. "You can edit" is read out on room tabs; Help is rewritten in plain language; plurals fixed.
+
 ## 0.12.2 — 2026-10-22
 
 - Shared UI kit 2.2 (no visible change).

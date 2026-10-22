@@ -73,6 +73,14 @@ export function planFacilityImport(payload,knownIds=new Set()){
  });
  return {errors,rows};
 }
+/** UI placement aid (0.13.0, keyboard Place): the first top-left cell, row by row, where a width×height piece fits the room
+ * without overlapping another installed piece; null when none fits. It writes nothing: install still enforces every rule. */
+export function freeSpot(s,roomKey,width,height){
+ const st=site(s);const dims=roomKey==='common'?s.config.bounds:s.personal_layouts?.[roomKey]?.bounds;if(!st||!dims)return null;
+ const others=st.installations.filter(i=>i.room_key===roomKey).map(i=>i.placement);
+ for(let y=0;y+height<=dims.height;y++)for(let x=0;x+width<=dims.width;x++){const c={x,y,width,height};if(!others.some(o=>collision(c,o)))return {x,y};}
+ return null;
+}
 export const activeLock = (s, now=Date.now()) => s.editor_lease && s.editor_lease.until>now ? s.editor_lease : null;
 function requireGM(actor){if(!actor?.isGM)throw Error("GM authorization required.");}
 function allowedToEdit(actor,s,roomKey,now){
