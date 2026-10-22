@@ -3,8 +3,8 @@
  * without touching the sheet class. Every value is read from the live Actor at render time.
  */
 import {MODULE_ID, esc, signed} from './constants.mjs';
-import {skillsData, overviewData} from './data.mjs';
-import {characterPanelHtml, compactPanelHtml, levelUpBtn, restoreBtn, characterMenuItems} from './character.mjs';
+import {skillsData, overviewData, headerData} from './data.mjs';
+import {characterPanelHtml, compactPanelHtml, identityLineHtml, levelUpBtn, restoreBtn, characterMenuItems} from './character.mjs';
 import {canPopOut, isPoppedOut} from './popout.mjs';
 import {btn} from './buttons.mjs';
 import {ITEM_TABS} from './tabs.mjs';
@@ -170,10 +170,20 @@ export function moreMenuHtml(sheet, ctx = null) {
   const what = [own && 'Level up', own.includes('data-action="level-restore"') && 'Restore backup', own.includes('data-action="configure"') && 'Configure', 'Appearance, Pop out, NPC Codex, Open native sheet'].filter(Boolean).join(', ');
   return `<span class="agch-lookwrap"><button type="button" class="ag-btn ag-btn--ghost ag-btn--icon agch-morebtn" data-action="more-menu" data-ag-always aria-haspopup="true" aria-expanded="${open !== null}" aria-label="${esc(`More: ${what}`)}" data-tooltip="${esc(`More: ${what}`)}"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>${menu}</span>`;
 }
-/** Header (0.33.0): brand left; Compact / Full and the "⋯" menu; version and Help together at the far right. */
+/** A name this long gets its full text as a tooltip, since the header may cut it off with "…" in a narrow window. */
+export const LONG_NAME = 24;
+/**
+ * Header (0.33.0): Compact / Full and the "⋯" menu; version and Help together at the far right. 0.37.0: the left side
+ * is the character: the name as the heading, a "Level n" badge beside it and, under it, the identity line (species ·
+ * class subclass · background; not in the limited view). "Ashen Gate | Character Hub" is the window title (sheet.mjs).
+ */
 export function headerHtml(ctx, compact) {
   const version = globalThis.game?.modules?.get?.(MODULE_ID)?.version ?? '';
-  return `<header class="ag-header"><h1><span class="ag-header__brand">Ashen Gate</span> | Character Hub</h1><div class="ag-header__actions">
+  const {actor} = ctx, h = ctx.limited ? null : headerData(actor), name = String(actor?.name ?? '');
+  const tip = name.length > LONG_NAME ? ` data-tooltip="${esc(name)}"` : '';
+  const level = h?.level ? `<span class="ag-badge agch-head__level">Level ${h.level}</span>` : '';
+  return `<header class="ag-header agch-head"><div class="agch-head__who"><div class="agch-head__line"><h1 class="agch-head__name"${tip}>${esc(name)}</h1>${level}</div>${h ? identityLineHtml(actor, h) : ''}</div>
+    <div class="ag-header__actions">
     ${ctx.limited ? '' : compactBtn(compact)}${moreMenuHtml(ctx.sheet, ctx)}
     <span class="ag-header__meta agch-head__meta"><span class="ag-version">v${esc(version)}</span>
     ${btn('help', 'Help', {kind: 'ghost', extra: 'ag-btn--sm', icon: 'fa-solid fa-circle-question', always: true})}</span></div></header>`;
@@ -190,7 +200,7 @@ function bottomHtml(ctx, active, compact) {
 export function shellHtml(ctx) {
   const {actor, tab} = ctx, compact = ctx.compact === true && !ctx.limited;
   const top = headerHtml(ctx, compact);
-  if (ctx.limited) return `<div class="agch-root agch-root--limited">${top}<section class="agch-hero ag-card"><img class="agch-portrait" src="${esc(actor.img)}" alt=""><div class="agch-ident__text"><h2 class="agch-name">${esc(actor.name)}</h2><p class="agch-sub">You have limited access to this character.</p></div></section></div>`;
+  if (ctx.limited) return `<div class="agch-root agch-root--limited">${top}<section class="agch-hero ag-card"><img class="agch-portrait" src="${esc(actor.img)}" alt=""><div class="agch-ident__text"><p class="agch-sub">You have limited access to this character.</p></div></section></div>`;
   if (compact) return `<div class="agch-root agch-root--compact">${top}${compactPanelHtml(ctx)}${hotbarsHtml(ctx, true)}${bottomHtml(ctx, null, true)}</div>`;
   const tabs = visibleTabs(), current = tabs.find(t => t.id === tab) ?? tabs[0];
   const folded = ctx.sheet?.charFolded !== false ? ' agch-root--charfolded' : '';

@@ -295,7 +295,7 @@ test('art of any shape is never stretched: icons and portraits crop to fill (top
   const fs = await import('node:fs');
   const css = fs.readFileSync(new URL('../styles/character-hub.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ');
   const rule = sel => [...css.matchAll(/([^{}]+)\{([^}]*)\}/g)].filter(([, s]) => s.split(',').some(x => x.trim() === `.agch-app ${sel}`)).map(([, , body]) => body).join(';');
-  for (const sel of ['.agch-portrait', '.agch-slot img', '.agch-companion__head img', '.agch-idchip img']) {
+  for (const sel of ['.agch-portrait', '.agch-slot img', '.agch-companion__head img']) {
     assert.match(rule(sel), /object-fit: cover/, sel); assert.match(rule(sel), /object-position: center top/, sel);
   }
   assert.match(rule('.agch-doll__art .agch-doll__fg'), /object-fit: contain; object-position: center top/);

@@ -30,6 +30,10 @@ in every skin (Standard, light skins, Stone Tablet, Tome Pages) and at both size
 ```
 
 1. **Header**: `Ashen Gate | <Module>` on the left. Version and Help on the right, in that order and always last. (CLAUDE.md)
+   **Exception, Character Hub only** (0.37.0, Robb's request): the in-sheet header shows the character's name (with a
+   "Level n" badge and the species · class · background line under it); the brand lives in the window title
+   ("Ashen Gate | Character Hub"). Version and Help stay on the right. ui-lint allows this for the Hub's
+   `agch-head__name` heading only; every other module keeps the brand in its header.
 2. Put at most **one** other window-level control in the header (for example a view switch). Anything else goes in the
    toolbar of the tab it affects, or in a single "⋯" menu next to Help. Tool bars that carry everything become a wall of
    equal-weight buttons. [Apple Toolbars] [WCAG 3.2.3]

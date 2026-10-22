@@ -183,9 +183,9 @@ function exhaustionHtml(h, off) {
 }
 
 /**
- * Class (with its level), subclass, species and background (0.34.0): one small chip each in the name row, the item's own
- * icon and a short name; the tooltip and accessible name say what it is. A multiclass character gets a chip per class
- * and level, each subclass right after its class. A click opens the item's sheet. Replaces 0.14.0's four cards.
+ * Class (with its level), subclass, species and background (0.34.0): one entry each, with a short text; the tooltip and
+ * accessible name say what it is. A multiclass character gets one per class and level, each subclass right after its
+ * class. A click opens the item's sheet. 0.37.0: drawn as the identity line in the header (identityLineHtml).
  */
 export function identityChips(actor) {
   const items = [...(actor?.items ?? [])], of = type => items.filter(i => i.type === type);
@@ -202,25 +202,34 @@ export function identityChips(actor) {
   for (const x of of('background')) out.push({item: x, kind: 'background', text: x.name, label: `${x.name} (background)`});
   return out;
 }
-function identityChipsHtml(actor, h, compact = false) {
-  const chips = identityChips(actor);
-  // Compact: only the class chips keep their text (an item without a picture keeps it too).
-  const iconOnly = c => compact && c.kind !== 'class' && !!c.item.img;
-  const html = chips.map(c => `<button type="button" class="agch-idchip agch-idchip--${c.kind}${iconOnly(c) ? ' agch-idchip--icon' : ''}" data-action="item-sheet" data-id="${esc(c.item.id)}" data-ag-always aria-label="${esc(`${c.label}: open`)}"${tooltipAttrs(itemUuid(c.item), `${c.label}: click to open`)}>${c.item.img ? `<img src="${esc(c.item.img)}" alt="">` : ''}${iconOnly(c) ? '' : `<span>${esc(c.text)}</span>`}</button>`).join('');
-  const total = chips.filter(c => c.kind === 'class').length > 1 && h.level ? `<span class="agch-idlevel">Level ${h.level}</span>` : '';
-  const fallback = !chips.length ? `<span class="agch-idlevel">${h.species ? `${esc(h.species)} · ` : ''}${h.classes.length ? h.classes.map(c => `${esc(c.name)} ${c.level}`).join(' / ') : 'No class'}${h.level ? ` · Level ${h.level}` : ''}</span>` : '';
-  return html + total + fallback;
+/**
+ * The identity line under the name in the header (0.37.0): species · class subclass · background, as muted text that
+ * wraps. Each part is still a button that opens its item (the tooltip names it). A single class shows no level (the
+ * "Level n" badge beside the name has it); a multiclass character keeps each class's level ("Fighter 3 Champion /
+ * Wizard 2 Evoker"). Without class, species or background items it falls back to dnd5e's own names, or "No class".
+ */
+export function identityLineHtml(actor, h) {
+  const chips = identityChips(actor), multi = chips.filter(c => c.kind === 'class').length > 1;
+  const link = c => `<button type="button" class="agch-idlink agch-idlink--${c.kind}" data-action="item-sheet" data-id="${esc(c.item.id)}" data-ag-always aria-label="${esc(`${c.label}: open`)}"${tooltipAttrs(itemUuid(c.item), `${c.label}: click to open`)}>${esc(c.kind === 'class' && !multi ? c.item.name : c.text)}</button>`;
+  const species = chips.filter(c => c.kind === 'species'), backgrounds = chips.filter(c => c.kind === 'background'), groups = [];
+  for (const c of chips) {
+    if (c.kind === 'class' || (c.kind === 'subclass' && !groups.length)) groups.push([c]);
+    else if (c.kind === 'subclass') groups.at(-1).push(c);
+  }
+  const sep = '<span class="agch-idsep" aria-hidden="true"> · </span>';
+  const parts = [species.map(link).join(' '), groups.map(g => g.map(link).join(' ')).join('<span class="agch-idsep" aria-hidden="true"> / </span>'), backgrounds.map(link).join(' ')].filter(Boolean);
+  const body = parts.length ? parts.join(sep)
+    : esc([h.species, h.classes.length ? h.classes.map(c => h.classes.length > 1 ? `${c.name} ${c.level}` : c.name).join(' / ') : 'No class'].filter(Boolean).join(' · '));
+  return `<p class="agch-head__ident" role="group" aria-label="Species, class and background">${body}</p>`;
 }
 
 /**
- * The name row (0.34.0): the name, then class / subclass / species / background chips, the Cinder chips, and the
- * inspiration star last, wrapping onto a second line only when the column is too narrow. Level up, Restore backup…
- * and Configure… moved to the header's "⋯" menu.
+ * The row at the top of the character column: the Cinder chips and the inspiration star. 0.37.0: the name, the
+ * identity and the level moved up into the header (views.mjs headerHtml). Level up, Restore backup… and Configure… are
+ * in the header's "⋯" menu (0.34.0).
  */
-function identHtml(actor, h, off, compact = false) {
-  return `<div class="agch-ident"><h2 class="agch-name">${esc(h.name)}</h2>
-    <div class="agch-idchips" role="group" aria-label="Class, subclass, species and background">${identityChipsHtml(actor, h, compact)}</div>
-    ${canSee('cinders') ? cinderChipsHtml(actor) : ''}
+function identHtml(actor, h, off) {
+  return `<div class="agch-ident">${canSee('cinders') ? cinderChipsHtml(actor) : ''}
     ${btn('inspiration', '', {extra: `agch-insp${h.inspiration ? ' is-active' : ''}`, icon: 'fa-solid fa-star', title: h.inspiration ? 'Inspiration (click to spend)' : 'No inspiration (click to gain)', disabled: off})}</div>`;
 }
 
@@ -306,14 +315,14 @@ export const configureBtn = off => off ? '' : btn('configure', 'Configure…', {
 /** The character items of the header's "⋯" menu (0.34.0): Level up, Restore backup… (GM) and Configure… (owner, GM). */
 export const characterMenuItems = (actor, off) => [levelUpBtn(actor), restoreBtn(actor), configureBtn(off)].join('');
 
-/** In a narrow Full window (CH-09) the column folds to the name row and a short HP / AC line; Show character opens it again. */
+/** In a narrow Full window (CH-09) the column folds to its top row (Cinders, star) and a short HP / AC line; Show character opens it again. */
 function foldBtn(sheet) {
   const folded = sheet?.charFolded !== false;
   return `<button type="button" class="ag-btn ag-btn--ghost ag-btn--sm agch-charfold" data-action="char-fold" data-ag-always aria-expanded="${!folded}"><i class="fa-solid ${folded ? 'fa-chevron-down' : 'fa-chevron-up'}" aria-hidden="true"></i><span>${folded ? 'Show character' : 'Hide character'}</span></button>`;
 }
 const charSummary = h => `<p class="agch-charsum"><span>HP <b>${h.hp.value} / ${h.hp.effectiveMax}</b></span><span>AC <b>${h.ac}</b></span></p>`;
 
-/** The whole left column. 0.34.0: the name row with the identity chips and the star, the art with its slots right under it. */
+/** The whole left column. 0.34.0: the top row, the art with its slots right under it. 0.37.0: the name and identity are in the header. */
 export function characterPanelHtml(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, h = headerData(actor);
   const walk = h.walk;
@@ -355,18 +364,18 @@ function statLineHtml(h, off, withAc) {
 }
 
 /**
- * Compact mode's only column (0.29.0): the name row, the art with its equipment slots (when players may see them) and
+ * Compact mode's only column (0.29.0): the top row, the art with its equipment slots (when players may see them) and
  * HP. 0.32.0 adds what Full's left column has, tighter: initiative / speed / proficiency on one line, hit dice, rests
  * and exhaustion beside HP, Strain and the six abilities with their saves. Same markup and actions as the full column,
  * so rolls, rests, the HP editor and slot clicks work unchanged. The column scrolls inside itself; the strips and the
- * bottom bar stay at the bottom of the window. 0.34.0: the same name row as Full (identity chips, Cinders, star);
+ * bottom bar stay at the bottom of the window. 0.34.0: the same top row as Full (0.37.0: Cinders and star; the name is in the header);
  * Strain is the pill beside HP only (no row); conditions sit under Mastery & marks.
  */
 export function compactPanelHtml(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, h = headerData(actor), strain = strainParts(actor, off, true);
   const slots = canSee('equipment');
   return `<aside class="agch-char agch-char--compact" aria-label="Character">
-    ${identHtml(actor, h, off, true)}
+    ${identHtml(actor, h, off)}
     ${slots ? dollHtml(ctx, h) : ''}
     ${statLineHtml(h, off, !slots)}
     ${hpHtml(h, off, sheet?.menu ?? null, strain.pill)}

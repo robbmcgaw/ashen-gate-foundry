@@ -1,6 +1,8 @@
 export const MODULE_ID = 'ashen-gate-character-hub';
-export const VERSION = '0.36.0';
+export const VERSION = '0.37.0';
 export const SHEET_LABEL = 'Ashen Gate Character Hub';
+/** The window title (0.37.0): the brand, in place of Foundry's "<Actor type>: <name>"; the name is the in-sheet heading. */
+export const HUB_TITLE = 'Ashen Gate | Character Hub';
 
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
 /** +3 / −1 style modifier text. */

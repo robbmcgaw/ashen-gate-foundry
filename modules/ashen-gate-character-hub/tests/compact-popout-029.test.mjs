@@ -33,7 +33,7 @@ test('Compact preference: the Hub opens narrow with the character column and the
   for (const gone of [/role="tablist"/, /agch-pane/, /agch-agbar/, /data-action="level-up"/, /data-action="open-native"/, /agch-tiles/, /agch-idcard/])
     assert.doesNotMatch(html, gone, String(gone));
   // 0.32.0: marks, hit dice and abilities are in Compact too (compact-stats-0320.test.mjs).
-  assert.match(html, /<h2 class="agch-name">\[TEST\] Hero<\/h2>/);
+  assert.match(head(html), /<h1 class="agch-head__name">\[TEST\] Hero<\/h1>/, '0.37.0: the name is the header heading');
   assert.match(html, /data-art-edit="portrait"/, 'double-click art still works');
   assert.match(html, /data-action="doll-art"/);
   assert.match(html, /data-action="slot-menu" data-slot="head"|data-slot="head"[^>]*data-action="slot-menu"/, 'slot boxes keep their actions');

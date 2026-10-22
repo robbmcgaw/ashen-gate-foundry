@@ -3,7 +3,7 @@
  * from the live Actor and sends every change through the Actor/Item (see actions.mjs). It never
  * mounts or hides the native sheet; "Open native sheet" opens that one separately.
  */
-import {MODULE_ID, SHEET_LABEL, COMPACT_SETTING, compactPreference} from './constants.mjs';
+import {MODULE_ID, SHEET_LABEL, HUB_TITLE, COMPACT_SETTING, compactPreference} from './constants.mjs';
 import {shellHtml, errorHtml} from './views.mjs';
 import * as act from './actions.mjs';
 import {openNativeSheet} from './native.mjs';
@@ -411,6 +411,11 @@ export function createHubSheetClass(Base) {
       form: {submitOnChange: false, closeOnSubmit: false}
     };
     static LABEL = SHEET_LABEL;
+    /**
+     * The window title bar (0.37.0): the brand only, never Foundry's "<Actor type>: <name>" (the name is the heading
+     * inside the Hub). Foundry also uses it for a popped-out window and the minimised bar.
+     */
+    get title() { return HUB_TITLE; }
     /**
      * The default size follows the kit size set (Comfortable is 1.2x) and this user's Compact choice (0.29.0); an
      * explicit position still wins.

@@ -60,6 +60,14 @@ test('scripts and templates: direct DialogV2 calls, legacy FA prefixes, header b
   assert.equal(counts['button-title-attr'], 1);
 });
 
+test('header brand: only the Character Hub\'s name heading stands in for the brand, and it still needs the version', () => {
+  const hub = '<header class="ag-header agch-head"><h1 class="agch-head__name">[TEST] Hero</h1><span class="ag-version">v0</span></header>';
+  const lint = files => lintModule(fakeModule(files), kitBlocks(kitCss));
+  assert.equal(lint({'scripts/views.mjs': hub}).counts['header-brand-version'], 0);
+  assert.equal(lint({'scripts/views.mjs': hub.replace('<span class="ag-version">v0</span>', '')}).counts['header-brand-version'], 1, 'no version');
+  assert.equal(lint({'scripts/views.mjs': hub.replace('agch-head__name', 'agx-name')}).counts['header-brand-version'], 1, 'any other name heading needs the brand');
+});
+
 test('size sets must list the same tokens and keep radius out', () => {
   assert.deepEqual(checkSizeSets(kitCss), []);
   assert.match(checkSizeSets(kitCss.replace(' --ag-control-h: 36px;', '')).join(), /--ag-control-h is in :root/);

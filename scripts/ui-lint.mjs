@@ -78,7 +78,10 @@ export const RULES = {
     for (const m of text.matchAll(/class=["'`]ag-header(?=[\s"'`])/g)) {
       const end = text.indexOf('</header>', m.index);
       const block = text.slice(m.index, end > 0 ? end : m.index + 1500);
-      if (!block.includes('ag-header__brand') || !block.includes('ag-version')) n++;
+      // The one exception (docs/ui-ux-guidelines.md): the Character Hub's header shows the character's name
+      // (agch-head__name); its brand is the window title. The version is still required.
+      const branded = block.includes('ag-header__brand') || block.includes('agch-head__name');
+      if (!branded || !block.includes('ag-version')) n++;
     }
     return n;
   }},

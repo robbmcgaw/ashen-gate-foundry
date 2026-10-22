@@ -38,7 +38,7 @@ test('Compact layout rule: the column fills the body and scrolls inside itself; 
 
 test('Compact markup: name row with the Cinder chips (Configure… is in the ⋯ menu since 0.34.0); an empty "Other equipped" is left out, in Full too', async () => {
   const col = column(await render());
-  assert.match(col, /<div class="agch-ident"><h2 class="agch-name">\[TEST\] Hero<\/h2>[\s\S]*<div class="agch-cchips"[\s\S]*data-action="inspiration"/);
+  assert.match(col, /<div class="agch-ident"><div class="agch-cchips"[\s\S]*data-action="inspiration"/, '0.37.0: the name is in the header');
   assert.doesNotMatch(col, /data-action="configure"/);
   assert.doesNotMatch(col, /agch-other/, 'nothing equipped outside the slots: no row');
   const stone = makeActor({items: [{id: 'stone', name: '[TEST] Odd Stone', type: 'equipment', system: {quantity: 1, equipped: true, type: {value: 'wondrous'}}}]});

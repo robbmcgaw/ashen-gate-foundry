@@ -48,24 +48,27 @@ test('A: identity chips: each class with its level, its subclass right after it,
   assert.equal(chips[1].label, '[TEST] Champion ([TEST] Fighter subclass)');
 });
 
-test('A: Full name row: name, chips, Cinder chip, inspiration star last; the art right under it; no cards, no buttons under the name', async () => {
+test('A: Full column top row (0.37.0: the name and identity are in the header): Cinder chip, inspiration star last; the art right under it', async () => {
   const cinders = {active: true, api: {cinder: {contract: 'ag-cinder/1', list: () => [{instanceId: 'cinst_TEST00001', name: '[TEST] Ember', art: null, powers: [], enhancements: []}]}}};
   const {html} = await render({actor: makeActor({items: ID_ITEMS}), modules: {'ashen-gate-cinders': cinders}});
   const col = column(html), ident = col.slice(col.indexOf('<div class="agch-ident">'), col.indexOf('agch-charfold'));
-  const order = ['agch-name', 'data-id="fighter"', 'data-id="champ"', 'data-id="wiz"', 'data-id="evo"', 'data-id="elf"', 'data-id="sage"', 'agch-cchips', 'data-action="inspiration"'];
-  order.slice(1).forEach((k, i) => assert.ok(ident.indexOf(order[i]) >= 0 && ident.indexOf(order[i]) < ident.indexOf(k), `${order[i]} before ${k}`));
-  assert.match(ident, /<span class="agch-idlevel">Level 3<\/span>/, 'a multiclass character also shows the total level');
-  assert.match(ident, /data-id="elf" data-ag-always aria-label="\[TEST\] Elf \(species\): open" data-tooltip="\[TEST\] Elf \(species\): click to open"><img src="r\.webp" alt=""><span>\[TEST\] Elf<\/span>/);
+  assert.ok(ident.indexOf('agch-cchips') >= 0 && ident.indexOf('agch-cchips') < ident.indexOf('data-action="inspiration"'), 'Cinders, then the star');
+  assert.doesNotMatch(col, /agch-name|data-action="item-sheet"/, 'no name and no identity in the column');
+  const head = html.slice(0, html.indexOf('</header>'));
+  const order = ['agch-head__name', 'Level 3', 'data-id="elf"', 'data-id="fighter"', 'data-id="champ"', 'data-id="wiz"', 'data-id="evo"', 'data-id="sage"'];
+  order.slice(1).forEach((k, i) => assert.ok(head.indexOf(order[i]) >= 0 && head.indexOf(order[i]) < head.indexOf(k), `${order[i]} before ${k}`));
+  assert.match(head, /data-id="elf" data-ag-always aria-label="\[TEST\] Elf \(species\): open" data-tooltip="\[TEST\] Elf \(species\): click to open">\[TEST\] Elf<\/button>/);
   assert.ok(col.indexOf('agch-ident') < col.indexOf('agch-doll') && col.indexOf('agch-doll') < col.indexOf('agch-tiles'), 'art and slots right under the name row');
   for (const gone of [/agch-idcard/, /agch-ident__actions/, /agch-sub"/, /data-action="level-up"/, /data-action="configure"/]) assert.doesNotMatch(col, gone);
   assert.match(rule('.agch-app .agch-insp'), /margin-left: auto/, 'the star sits last, at the end of the row');
 });
 
-test('A: Compact name row keeps the class text and shows subclass, species and background as icons (named by tooltip and aria-label)', async () => {
+test('A: Compact has the same header as Full (0.37.0): name, Level badge, the identity line with each class\'s level', async () => {
   const {html} = await render({compact: true, actor: makeActor({items: ID_ITEMS})});
-  const col = column(html);
-  assert.match(col, /agch-idchip--class" data-action="item-sheet" data-id="fighter"[^>]*><img src="f\.webp" alt=""><span>\[TEST\] Fighter 5<\/span>/);
-  assert.match(col, /agch-idchip--species agch-idchip--icon" data-action="item-sheet" data-id="elf" data-ag-always aria-label="\[TEST\] Elf \(species\): open"[^>]*><img src="r\.webp" alt=""><\/button>/);
+  const head = html.slice(0, html.indexOf('</header>'));
+  assert.match(head, /<span class="ag-badge agch-head__level">Level 3<\/span>/);
+  assert.match(head, /agch-idlink--class" data-action="item-sheet" data-id="fighter"[^>]*>\[TEST\] Fighter 5<\/button>/);
+  assert.doesNotMatch(column(html), /data-action="item-sheet"/);
 });
 
 test('A: the ⋯ menu carries Level up, Restore backup… (GM with copies) and Configure… (owner); none in the limited view; they close the menu', async () => {

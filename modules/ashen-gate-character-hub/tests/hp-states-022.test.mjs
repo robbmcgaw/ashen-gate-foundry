@@ -119,10 +119,10 @@ test('header follows the standard: brand span, Compact, the ⋯ menu, version, t
   installGlobals({user: users.owner, modules: {'ashen-gate-character-hub': {active: true, version: '0.34.0'}}});
   const html = await new (createHubSheetClass(FakeActorSheetV2))({document: makeActor()})._renderHTML();
   const head = html.slice(0, html.indexOf('</header>'));
-  assert.match(head, /<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Character Hub<\/h1>/);
+  assert.match(head, /<h1 class="agch-head__name">\[TEST\] Hero<\/h1>/, '0.37.0: the name; the brand is the window title');
   const at = s => head.indexOf(s);
   assert.ok(at('data-action="compact-toggle"') > 0 && at('data-action="compact-toggle"') < at('data-action="more-menu"') && at('data-action="more-menu"') < at('ag-version') && at('ag-version') < at('data-action="help"'));
-  assert.equal((head.match(/data-action="/g) ?? []).length, 3, 'CH-03: only Compact, ⋯ and Help in the header');
+  assert.equal((head.slice(at('ag-header__actions')).match(/data-action="/g) ?? []).length, 3, 'CH-03: only Compact, ⋯ and Help in the header');
   assert.match(head, /<span class="ag-version">v0\.34\.0<\/span>/);
   assert.doesNotMatch(html, /data-action="level-up"|agch-ident__actions/, 'not under the name any more');
   const sheet = new (createHubSheetClass(FakeActorSheetV2))({document: makeActor()});

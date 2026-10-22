@@ -119,7 +119,8 @@ test('sheet renders header, tabs and Open native sheet; observers get a view-onl
   const {Cls} = hubClass();
   const sheet = new Cls({document: makeActor()});
   const html = await sheet._renderHTML();
-  assert.match(html, /<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Character Hub<\/h1>/);
+  assert.match(html, /<h1 class="agch-head__name">\[TEST\] Hero<\/h1>/, '0.37.0: the name heads the Hub; the brand is the window title');
+  assert.equal(sheet.title, 'Ashen Gate | Character Hub');
   assert.match(html, /data-action="more-menu"/);
   sheet.menu = 'more';
   assert.match(await sheet._renderHTML(), /agch-moremenu[\s\S]*data-action="open-native"/, '0.33.0: Open native sheet is in the ⋯ menu');
