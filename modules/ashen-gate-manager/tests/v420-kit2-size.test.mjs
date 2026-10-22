@@ -8,7 +8,7 @@ import {bindSkinPicker} from '../scripts/skin-picker.js';
 import {windowSize,COMFORTABLE_SCALE} from '../scripts/ag-html.mjs';
 
 const read=p=>readFileSync(new URL(p,import.meta.url),'utf8');
-const VERSION='0.45.2';
+const VERSION='0.46.0';
 
 // One browser: client settings live per device, world/user settings are shared.
 function device(user,{world=new Map([['worldSkin','ag-default']]),client=new Map()}={}){
@@ -78,8 +78,9 @@ test('state keeps every existing field and adds size; contract unchanged; noteCh
   assert.deepEqual(listSizes('nonsense').map(x=>x.selected),[true,false]);
 });
 
-test('Size switch: a two-option radiogroup in My Appearance and the GM popover with the agreed copy',()=>{
-  for(const [path,key,list] of [['../templates/my-appearance.hbs','my','sizes'],['../templates/manager.hbs','gm','appearanceSizes']]){
+test('Size switch: a two-option radiogroup in My Appearance with the agreed copy (0.46.0: saved with Save My Appearance)',()=>{
+  assert.doesNotMatch(read('../templates/manager.hbs'),/data-ag-size-picker/,'the GM popover is gone; the header opens My Appearance');
+  for(const [path,key,list] of [['../templates/my-appearance.hbs','my','sizes']]){
     const t=read(path);
     assert.match(t,new RegExp(`<span id="ag-size-label-${key}">Size</span>`));
     assert.match(t,new RegExp(`class="ag-segmented" role="radiogroup" aria-labelledby="ag-size-label-${key}"[^>]*data-ag-size-picker="${key}"`));
@@ -90,10 +91,8 @@ test('Size switch: a two-option radiogroup in My Appearance and the GM popover w
   const my=read('../templates/my-appearance.hbs');
   assert.ok(my.indexOf('data-ag-size-picker')>my.indexOf('data-ag-skin-picker="my"'),'under the skin cards');
   const main=read('../scripts/main.js');
-  assert.match(main,/bindSizePicker\(root\.querySelector\('\[data-ag-size-picker="gm"\]'\)\)/);
-  assert.match(main,/bindSizePicker\(this\.element\.querySelector\('\[data-ag-size-picker="my"\]'\)/);
-  assert.match(main,/appearanceController\.setSize\(value\)/);
-  assert.match(main,/\{valueKey:'agSizeValue'\}/);
+  assert.match(main,/bindSkinPicker\(root\.querySelector\('\[data-ag-size-picker="my"\]'\),value=>\{this\.sizeSelection=value;this\.guard\.markDirty\(\);\},\{valueKey:'agSizeValue'\}\)/);
+  assert.match(main,/if\(this\.sizeSelection&&this\.sizeSelection!==state\.size\)await appearanceController\.setSize\(this\.sizeSelection\);/);
   assert.match(main,/listSizes:\(\)=>appearanceController\.listSizes\(\),\s*setSize:value=>appearanceController\.setSize\(value\)/);
 });
 
@@ -117,7 +116,7 @@ test('windowSize scales by 1.2 at Comfortable, is unchanged at Compact, and fits
   assert.deepEqual(windowSize({width:'auto',height:400},{doc:doc('comfortable'),view:{}}),{width:'auto',height:480});
   assert.deepEqual(windowSize({width:500},{doc:null,view:null}),{width:500,height:undefined});
   const main=read('../scripts/main.js');
-  assert.match(main,/import \{windowSize\} from "\.\/ag-html\.mjs";/);
+  assert.match(main,/import \{windowSize, [^}]*\} from "\.\/ag-html\.mjs";/);
   assert.match(main,/super\(\{\.\.\.options,position:\{\.\.\.windowSize\(AshenGateManager\.DEFAULT_OPTIONS\.position\),\.\.\.options\.position\}\}\)/);
 });
 

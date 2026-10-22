@@ -2,47 +2,29 @@
   <header class="ag-header agmanager-top">
     <div class="ag-header__title"><h1><i class="agmanager-emblem fa-solid fa-boxes-stacked" aria-hidden="true"></i> <span class="ag-header__brand">Ashen Gate</span> | General Manager</h1></div>
     <div class="ag-header__meta">
-      <div class="agmanager-appearance-menu" data-ag-appearance-menu>
-        <button type="button" class="ag-btn ag-btn--ghost ag-btn--sm agmanager-appearance-toggle" data-ag-appearance-toggle aria-haspopup="dialog" aria-controls="agmanager-appearance-pop" aria-expanded="{{#if appearanceOpen}}true{{else}}false{{/if}}"><i class="fa-solid fa-palette" aria-hidden="true"></i> Appearance <i class="fa-solid fa-caret-down" aria-hidden="true"></i></button>
-        <div id="agmanager-appearance-pop" class="agmanager-appearance-pop agmanager-appearance" role="dialog" aria-label="Appearance: GM world default" data-ag-appearance-pop {{#unless appearanceOpen}}hidden{{/unless}}>
-          <h3>Appearance <span class="ag-badge ag-badge--accent">World default</span></h3>
-          <p class="agmanager-tiny">The default skin for every player who has not picked their own (players see it live; anyone who has not reloaded since a module update needs one refresh, F5). Colour skins change interface colours; Stone Tablet and Tome Pages also reshape panels, tabs and buttons. It never changes Player Access, Actor progress, permissions or content.</p>
-          <div class="agm-skin-picker" role="radiogroup" aria-label="Ashen Gate world default appearance" data-ag-skin-picker="world">
-            {{#each appearanceSkinRows}}<button type="button" role="radio" class="agm-skin-card{{#if selected}} is-selected{{/if}}{{#if current}} is-current{{/if}}" aria-checked="{{#if selected}}true{{else}}false{{/if}}" tabindex="{{#if selected}}0{{else}}-1{{/if}}" data-ag-skin-value="{{id}}" aria-describedby="ag-wskin-desc-{{id}}"><span class="agm-swatch" aria-hidden="true">{{#each swatch}}<i style="background:{{this}}"></i>{{/each}}</span><span class="agm-skin-card__text"><span class="agm-skin-card__name">{{label}}</span><small id="ag-wskin-desc-{{id}}" class="agm-skin-card__desc">{{description}}</small>{{#if current}}<small class="agm-skin-card__now">Saved world default</small>{{/if}}</span></button>{{/each}}
-          </div>
-          <p role="status" class="ag-notice ag-notice--info"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> {{appearanceMessage}}</p>
-          <p class="agmanager-tiny">Effective on your screen: {{appearanceCurrent.effective}} · Your override: {{#if appearanceCurrent.userOverride}}{{appearanceCurrent.userOverride}}{{else}}Inherit GM default{{/if}}</p>
-          <div class="ag-field" data-ag-size-field="gm">
-            <span id="ag-size-label-gm">Size</span>
-            <div><div class="ag-segmented" role="radiogroup" aria-labelledby="ag-size-label-gm" aria-describedby="ag-size-hint-gm" data-ag-size-picker="gm">{{#each appearanceSizes}}<button type="button" role="radio" aria-checked="{{#if selected}}true{{else}}false{{/if}}" tabindex="{{#if selected}}0{{else}}-1{{/if}}" data-ag-size-value="{{id}}">{{label}}</button>{{/each}}</div></div>
-            <small id="ag-size-hint-gm" class="ag-field__hint">Comfortable makes text and controls larger on this device only.</small>
-          </div>
-          <p class="agmanager-tiny">Players choose their own from the <strong>Appearance</strong> button in Ashen Gate | Utilities (Game Settings shows them nothing of General Manager). The separate player-safe screen cannot open this GM-only Manager. <button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-ag-action="appearance-my-appearance">Open My Appearance</button></p>
-          <footer class="ag-footer agmanager-appearance-actions">
-            <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="appearance-cancel">Cancel</button>
-            <button type="button" class="ag-btn ag-btn--primary" data-ag-action="appearance-save-world" {{#if busy}}disabled{{/if}}>Save World Default</button>
-          </footer>
-        </div>
-      </div>
+      <button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-ag-action="appearance-my-appearance"><i class="fa-solid fa-palette" aria-hidden="true"></i> My Appearance</button>
       <span class="ag-gm-flag"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> GM only</span>
       <span class="ag-version">v{{version}}</span>
       <button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-ag-action="help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button>
     </div>
   </header>
-  <nav class="ag-tabs ag-tabs--scroll agmanager-nav" role="tablist" aria-label="Manager tabs">
-    <button type="button" role="tab" aria-selected="{{#if importActive}}true{{else}}false{{/if}}" data-ag-tab="import" class="{{#if importActive}}active{{/if}}"><i class="fa-solid fa-file-import" aria-hidden="true"></i> Import</button>
-    <button type="button" role="tab" aria-selected="{{#if itemsActive}}true{{else}}false{{/if}}" data-ag-tab="items" class="{{#if itemsActive}}active{{/if}}"><i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i> Items</button>
-    <button type="button" role="tab" aria-selected="{{#if modulesActive}}true{{else}}false{{/if}}" data-ag-tab="modules" class="{{#if modulesActive}}active{{/if}}"><i class="fa-solid fa-grip" aria-hidden="true"></i> Modules</button>
-    <button type="button" role="tab" aria-selected="{{#if scenesActive}}true{{else}}false{{/if}}" data-ag-tab="scenes" class="{{#if scenesActive}}active{{/if}}"><i class="fa-solid fa-cloud-sun" aria-hidden="true"></i> Scenes</button>
-    <button type="button" role="tab" aria-selected="{{#if historyActive}}true{{else}}false{{/if}}" data-ag-tab="history" class="{{#if historyActive}}active{{/if}}"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i> History</button>
-    <button type="button" role="tab" aria-selected="{{#if setupActive}}true{{else}}false{{/if}}" data-ag-tab="setup" class="ag-tab--gm{{#if setupActive}} active{{/if}}"><i class="fa-solid fa-gears" aria-hidden="true"></i> GM Setup</button>
+  <nav class="ag-tabs ag-tabs--scroll agmanager-nav" role="tablist" aria-label="General Manager sections">
+    <button type="button" role="tab" id="agm-tab-import" aria-controls="agm-pane" aria-selected="{{#if importActive}}true{{else}}false{{/if}}" tabindex="{{#if importActive}}0{{else}}-1{{/if}}" data-ag-tab="import" class="{{#if importActive}}active{{/if}}"><i class="fa-solid fa-file-import" aria-hidden="true"></i> Import</button>
+    <button type="button" role="tab" id="agm-tab-items" aria-controls="agm-pane" aria-selected="{{#if itemsActive}}true{{else}}false{{/if}}" tabindex="{{#if itemsActive}}0{{else}}-1{{/if}}" data-ag-tab="items" class="{{#if itemsActive}}active{{/if}}"><i class="fa-solid fa-boxes-stacked" aria-hidden="true"></i> Items</button>
+    <button type="button" role="tab" id="agm-tab-codex" aria-controls="agm-pane" aria-selected="{{#if codexActive}}true{{else}}false{{/if}}" tabindex="{{#if codexActive}}0{{else}}-1{{/if}}" data-ag-tab="codex" class="{{#if codexActive}}active{{/if}}"><i class="fa-solid fa-address-book" aria-hidden="true"></i> NPC Codex</button>
+    <button type="button" role="tab" id="agm-tab-modules" aria-controls="agm-pane" aria-selected="{{#if modulesActive}}true{{else}}false{{/if}}" tabindex="{{#if modulesActive}}0{{else}}-1{{/if}}" data-ag-tab="modules" class="{{#if modulesActive}}active{{/if}}"><i class="fa-solid fa-grip" aria-hidden="true"></i> Modules</button>
+    <button type="button" role="tab" id="agm-tab-scenes" aria-controls="agm-pane" aria-selected="{{#if scenesActive}}true{{else}}false{{/if}}" tabindex="{{#if scenesActive}}0{{else}}-1{{/if}}" data-ag-tab="scenes" class="{{#if scenesActive}}active{{/if}}"><i class="fa-solid fa-cloud-sun" aria-hidden="true"></i> Scenes</button>
+    <button type="button" role="tab" id="agm-tab-setup" aria-controls="agm-pane" aria-selected="{{#if setupActive}}true{{else}}false{{/if}}" tabindex="{{#if setupActive}}0{{else}}-1{{/if}}" data-ag-tab="setup" class="ag-tab--gm {{#if setupActive}}active{{/if}}"><i class="fa-solid fa-gears" aria-hidden="true"></i> GM Setup</button>
   </nav>
 
-  <div class="ag-scroll agm-pane">
+  <div class="ag-scroll agm-pane" id="agm-pane" role="tabpanel" aria-labelledby="agm-tab-{{tab}}">
   {{#if importActive}}
+  {{{importTabsHtml}}}
+  <div {{{importPanelAttrs}}} class="agm-subpanel">
+  {{#if importPackage}}
   <section class="ag-section agm-import" aria-label="Import a package">
     <div class="ag-toolbar agm-import-bar">
-      <label class="ag-btn agmanager-filelabel"><i class="fa-solid fa-folder-open" aria-hidden="true"></i> Choose JSON or ZIP package <input type="file" data-ag-file accept=".json,.zip,application/json,application/zip" {{#if busy}}disabled{{/if}} /></label>
+      {{{fileButtons.import}}}
       <span class="agm-import-loaded">{{#if hasPackage}}<strong>{{packageId}}</strong> <span class="agmanager-tiny">v{{packageVersion}} · {{recordCount}} record(s)</span>{{else}}<span class="agmanager-tiny">No file loaded</span>{{/if}}</span>
       <div class="ag-toolbar__end">
         <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="reset">Clear</button>
@@ -50,22 +32,24 @@
       </div>
     </div>
 
-    <details class="agm-fold" data-ag-fold="load" {{#if folds.load}}open{{/if}}>
-      <summary><i class="fa-solid fa-file-import" aria-hidden="true"></i> Load <span class="agmanager-tiny">{{#if hasPackage}}{{#each typeSummary}}{{name}}: {{count}}{{#unless @last}} · {{/unless}}{{/each}}{{else}}package details{{/if}}</span></summary>
+    <details class="ag-fold" data-ag-fold="load" {{#if folds.load}}open{{/if}}>
+      <summary class="ag-fold__summary"><span class="ag-fold__title">Load</span><span class="ag-fold__hint">{{#if hasPackage}}{{#each typeSummary}}{{name}}: {{count}}{{#unless @last}} · {{/unless}}{{/each}}{{else}}Package details{{/if}}</span></summary>
+      <div class="ag-fold__body">
       <dl class="agmanager-package">
         <div><dt>Package</dt><dd>{{packageId}}</dd></div>
         <div><dt>Version</dt><dd>{{packageVersion}}</dd></div>
         <div><dt>Schema</dt><dd>{{schemaVersion}}</dd></div>
         <div><dt>Records</dt><dd>{{recordCount}}</dd></div>
       </dl>
-      <p class="agmanager-tiny"><strong>Source:</strong> {{packageSource}}. Supported: a Manager package (Item, Journal, Actor, RollTable, Macro, Location) or a Quest, Skill Tree, Headquarters facility or Factions file, which Manager recognises and hands to that module. A ZIP can hold one Manager package, or several import files (Manager packages plus Quest, Skill Tree, Headquarters and Factions files) that you pick from a ZIP contents list; source JSON and executable scripts are not run.</p>
-      {{#if hasPackage}}<div class="ag-cluster">{{#each typeSummary}}<span class="ag-badge">{{name}}: {{count}}</span>{{/each}}</div>{{/if}}
+      <p class="agmanager-tiny"><strong>Source:</strong> {{packageSource}}. A Manager package, or a Quest, Skill Tree, Headquarters or Factions file (handed to that module), or a ZIP of them. Scripts in a ZIP never run.</p>
       {{#if hasZipPortraits}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-upload-assets {{#if uploadZipArtwork}}checked{{/if}} {{#if busy}}disabled{{/if}}> Upload matching ZIP portraits into this world's <code>ashen-gate-imports</code> folder before creating documents ({{zipPortraitCount}} images available).</label>{{/if}}
+      </div>
     </details>
 
-    {{#if zipBundle}}<details class="agm-fold agmanager-zip-contents" data-ag-fold="zip" {{#if folds.zip}}open{{/if}}>
-      <summary><i class="fa-solid fa-file-zipper" aria-hidden="true"></i> ZIP files <span class="agmanager-tiny">{{zipBundle.source}} · {{zipBundle.rows.length}} file(s), {{zipBundle.pickedCount}} ticked</span></summary>
-      <p class="agmanager-tiny">{{zipBundle.summary}} Files import one at a time in this order (Manager packages first), each through the normal preview and Apply; nothing changes until you confirm each Apply.</p>
+    {{#if zipBundle}}<details class="ag-fold agmanager-zip-contents" data-ag-fold="zip" {{#if folds.zip}}open{{/if}}>
+      <summary class="ag-fold__summary"><span class="ag-fold__title">ZIP files</span><span class="ag-fold__count">{{zipBundle.rows.length}}</span><span class="ag-fold__hint">{{zipBundle.source}} · {{zipBundle.pickedCount}} ticked</span></summary>
+      <div class="ag-fold__body">
+      <p class="agmanager-tiny">{{zipBundle.summary}} Files import one at a time (Manager packages first), each through its own preview and Apply.</p>
       <div class="ag-table-wrap agm-scrollcap"><table class="ag-table"><thead><tr><th scope="col">Import</th><th scope="col">File</th><th scope="col">Type</th><th scope="col" class="is-num">Records</th><th scope="col">Status</th></tr></thead><tbody>
       {{#each zipBundle.rows}}<tr class="{{#if isCurrent}}is-selected{{/if}}">
         <td><input type="checkbox" data-ag-zip-pick="{{filename}}" {{#if picked}}{{#unless isError}}checked{{/unless}}{{/if}} {{#unless canPick}}disabled{{else}}{{#if @root.busy}}disabled{{/if}}{{/unless}} aria-label="Import {{filename}}" /></td>
@@ -73,33 +57,27 @@
         <td>{{status}}{{#if notice}}<div class="agmanager-tiny">{{notice}}</div>{{/if}}</td></tr>{{/each}}
       {{#each zipBundle.skipped}}<tr><td></td><td><code>{{filename}}</code></td><td>Skipped</td><td class="is-num">—</td><td class="agmanager-tiny">{{reason}}</td></tr>{{/each}}
       </tbody></table></div>
+      </div>
     </details>
     <div class="ag-cluster">
       {{#if zipBundle.running}}<button type="button" class="ag-btn ag-btn--ghost" data-ag-action="zip-cancel">Stop ZIP import</button><button type="button" class="ag-btn" data-ag-action="zip-skip">Skip this file</button>
       {{else}}<button type="button" class="ag-btn" data-ag-action="zip-start" {{#unless zipBundle.pickedCount}}disabled{{/unless}}><i class="fa-solid fa-list-check" aria-hidden="true"></i> Import selected files ({{zipBundle.pickedCount}})</button>{{/if}}
     </div>{{/if}}
 
-    <details class="agm-fold" data-ag-fold="options" {{#if folds.options}}open{{/if}}>
-      <summary><i class="fa-solid fa-sliders" aria-hidden="true"></i> Options <span class="agmanager-tiny">{{optionsSummary}}</span></summary>
-      {{#unless isSpecialist}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-drafts {{#if includeDrafts}}checked{{/if}} {{#if busy}}disabled{{/if}}> Include <strong>draft / proposed / example</strong> records (sandbox testing only)</label>{{/unless}}
+    <details class="ag-fold" data-ag-fold="options" {{#if folds.options}}open{{/if}}>
+      <summary class="ag-fold__summary"><span class="ag-fold__title">Options</span><span class="ag-fold__hint">{{optionsSummary}}</span></summary>
+      <div class="ag-fold__body">
+      <label class="ag-field agm-profile">Import profile
+        <select data-ag-profile {{#if busy}}disabled{{/if}}>
+          <option value="development" {{#if developmentProfile}}selected{{/if}}>Development: include draft, proposed and example records</option>
+          <option value="session-safe" {{#if sessionProfile}}selected{{/if}}>Session-safe: approved records only</option>
+        </select>
+        <span class="ag-field__hint">Changes what the preview offers; nothing is applied until Import.</span>
+      </label>
       {{#if isSpecialist}}{{#if specialistCanUpdate}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-update-existing {{#if updateExisting}}checked{{/if}} {{#if busy}}disabled{{/if}}> <strong>Update existing {{specialistNoun}}</strong> (otherwise ones already in the world are kept as they are)</label>{{else}}<p class="agmanager-tiny">{{specialistLabel}} keeps {{specialistNoun}} that are already in the world; this file only adds new ones.</p>{{/if}}
-      {{else}}{{#if hasLocationRecords}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-update-existing {{#if updateExisting}}checked{{/if}} {{#if busy}}disabled{{/if}}> <strong>Update existing locations, routes and shops</strong> (otherwise those already in the world are kept as they are; discovery, reveal and journey state, and shop stock, coins and sales are always kept)</label>{{/if}}
-      {{#if hasActorRecords}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-update-actors {{#if updateActors}}checked{{/if}} {{#if busy}}disabled{{/if}}> <strong>Update existing actors</strong> (name, image, token settings and package items only; HP, XP, level, conditions, player items, notes, ownership, folders and other modules' data are always kept. Off: actors already in the world are kept as they are)</label>{{/if}}{{/if}}
-      <div class="ag-cluster">
-        <label class="agmanager-search-label">Import profile
-          <select data-ag-profile {{#if busy}}disabled{{/if}}>
-            <option value="development" {{#if developmentProfile}}selected{{/if}}>Development — include unapproved</option>
-            <option value="session-safe" {{#if sessionProfile}}selected{{/if}}>Session-safe — approved only</option>
-          </select>
-        </label>
-        <span class="agmanager-tiny">Profiles change preview defaults only; they never apply changes automatically.</span>
+      {{else}}{{#if hasLocationRecords}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-update-existing {{#if updateExisting}}checked{{/if}} {{#if busy}}disabled{{/if}}> <strong>Update existing locations, routes and shops</strong> (discovery, reveal and journey state, and shop stock, coins and sales are always kept)</label>{{/if}}
+      {{#if hasActorRecords}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-update-actors {{#if updateActors}}checked{{/if}} {{#if busy}}disabled{{/if}}> <strong>Update existing actors</strong> (name, image, token settings and package items only; HP, XP, level, conditions, player items, notes, ownership, folders and other modules' data are always kept)</label>{{/if}}{{/if}}
       </div>
-      <details class="agm-details"><summary>Advanced / sample files</summary>
-        <p class="agmanager-tiny">Package templates (<code>templates</code> + <code>template_ref</code> in the JSON) are compiled automatically on load; they do not rewrite existing Items.</p>
-        <div class="ag-cluster"><button type="button" class="ag-btn ag-btn--sm" data-ag-action="template-example"><i class="fa-solid fa-download" aria-hidden="true"></i> Download sample template package</button><button type="button" class="ag-btn ag-btn--sm" data-ag-action="import-format-example"><i class="fa-solid fa-download" aria-hidden="true"></i> Download v0.2 Import JSON starter</button><button type="button" class="ag-btn ag-btn--sm" data-ag-action="source-manifest-template"><i class="fa-solid fa-download" aria-hidden="true"></i> Download canonical source manifest</button></div>
-        <p class="agmanager-tiny">Folder destinations: <code>foundry.folder_path</code> (e.g. <code>Ashen Gate/Professions/Recipes</code>; Cinder powers filed under <code>Ashen Gate/Cinders/Powers</code> go to <code>Ashen Gate/Cinders/Cinder - Powers</code>). Explicit links: <code>[[AGREF:MAT-EXAMPLE|Material]]</code>. Missing/ambiguous UUID targets are reported in History.</p>
-        <p class="agmanager-tiny">Importer accepts versioned Foundry projection JSON, or a ZIP with one valid projection. Locations and campaign state remain with their specialist modules. Imported Macros are not executed.</p>
-      </details>
     </details>
 
     <div class="ag-cluster agm-import-actions">
@@ -112,8 +90,9 @@
 
   {{#if hasPreview}}
   <section class="ag-section agmanager-results" aria-label="Import preview">
-    <details class="agm-fold" data-ag-fold="preview" {{#if folds.preview}}open{{/if}}>
-      <summary><i class="fa-solid fa-table-list" aria-hidden="true"></i> Preview <span class="agmanager-tiny">{{rows.length}} record(s) · {{selectedCount}} ticked</span></summary>
+    <details class="ag-fold" data-ag-fold="preview" {{#if folds.preview}}open{{/if}}>
+      <summary class="ag-fold__summary"><span class="ag-fold__title">Preview</span><span class="ag-fold__count">{{rows.length}}</span><span class="ag-fold__hint">{{selectedCount}} ticked</span></summary>
+      <div class="ag-fold__body">
       <div class="ag-cluster agmanager-summary">
         <span class="ag-badge ag-badge--ok"><strong>{{summary.create}}</strong> new</span>
         <span class="ag-badge ag-badge--ok"><strong>{{summary.update}}</strong> update</span>
@@ -140,48 +119,72 @@
         </tbody>
       </table>
       </div>
-      <p class="agmanager-tiny"><strong>GM-controlled.</strong> New Actors, Tables and Macros can be created. Existing Actors change only with <strong>Update existing actors</strong> ticked; character progress is never overwritten. Back up your test world first.</p>
+      <p class="agmanager-tiny">Existing Actors change only with <strong>Update existing actors</strong> ticked; character progress is never overwritten. Back up your world first.</p>
       {{#if actorUpdateCount}}<div class="ag-cluster"><button type="button" class="ag-btn" data-ag-action="backup-actors"><i class="fa-solid fa-download" aria-hidden="true"></i> Download backup of {{actorUpdateCount}} actor(s) to update</button></div>{{/if}}
+      </div>
     </details>
     <footer class="ag-footer agmanager-footer">
       <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="reset">Cancel</button>
-      <button type="button" class="ag-btn ag-btn--primary" data-ag-action="apply" {{#unless canApply}}disabled{{/unless}}><i class="fa-solid fa-check" aria-hidden="true"></i> Import Selected Documents</button>
+      <button type="button" class="ag-btn ag-btn--primary" data-ag-action="apply" {{#unless canApply}}disabled{{/unless}}><i class="fa-solid fa-check" aria-hidden="true"></i> Import ({{selectedCount}})</button>
     </footer>
   </section>
   {{/if}}
   {{/if}}
 
+  {{#if importHistory}}
+  <section class="ag-section" aria-label="Import history">
+    <p class="agmanager-tiny">A log of applied imports, not an undo. Updates download a snapshot first; keep a Foundry world backup too.</p>
+    {{#if hasHistory}}
+      {{#each history}}
+      <details class="ag-card ag-card--compact agmanager-history">
+        <summary><strong>{{packageId}}</strong> · v{{packageVersion}} · {{at}} · {{results.length}} record(s){{#if failed}} <span class="ag-badge ag-badge--danger">{{failed}} failed</span>{{/if}}</summary>
+        <ul class="ag-rows agmanager-history-records">
+        {{#each results}}
+          <li class="ag-row"><span class="ag-badge{{#if tone}} ag-badge--{{tone}}{{/if}}">{{status}}</span><span class="ag-row__main"><span class="ag-row__title"><code>{{id}}</code> {{action}}</span>{{#if message}}<span class="ag-row__meta">{{message}}</span>{{/if}}</span></li>
+        {{/each}}
+        </ul>
+      </details>
+      {{/each}}
+    {{else}}<div class="ag-empty"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i><p class="ag-empty__title">No imports yet</p><p class="ag-empty__text">Imports you apply on the Import tab are listed here.</p></div>{{/if}}
+  </section>
+  {{/if}}
+  </div>
+  {{/if}}
+
   {{#if itemsActive}}
   <div class="agitems">
-    <div class="ag-toolbar agitems-filters" role="search" aria-label="Item filters (kept across the rail)">
-      <label class="ag-search agitems-query"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-ag-items-query value="{{itemFilters.query}}" placeholder="Search name, id, tag, text… (id:MAT-HERB, type:weapon, tag:, status:)" aria-label="Search items" /></label>
-      <div class="ag-toolbar__filters">
-        <select data-ag-items-filter="source" aria-label="Source">{{#each itemFilters.sources}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>
-        <select data-ag-items-filter="type" aria-label="Type">{{#each itemFilters.types}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>
-        <select data-ag-items-filter="origin" aria-label="Origin">{{#each itemFilters.origins}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>
-        <select data-ag-items-filter="rarity" aria-label="Rarity">{{#each itemFilters.rarities}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>
-        <select data-ag-items-filter="folder" aria-label="Folder">{{#each itemFilters.folders}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>
-        <label class="ag-field--inline agitems-check"><input type="checkbox" data-ag-items-coreref {{#if itemFilters.coreRef}}checked{{/if}}> Has core_ref</label>
-        {{#if itemsAll}}<span class="ag-toolbar__filters" data-ag-browse-tools></span>{{/if}}
-      </div>
+    {{{itemsTabsHtml}}}
+    <div {{{itemsPanelAttrs}}} class="agm-subpanel agitems-panel">
+    {{#if itemsFilters}}
+    <div class="ag-toolbar agitems-filters" role="search" aria-label="Item filters">
+      <label class="ag-search agitems-query"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-ag-items-query value="{{itemFilters.query}}" placeholder="Search items" aria-label="Search items" aria-describedby="agitems-query-help" /></label>
+      <span id="agitems-query-help" class="ag-sr-only">Words match name, id, tags and text. Prefixes: id:, type:, tag:, status:, tier:.</span>
+      <button type="button" class="ag-btn ag-btn--sm" data-ag-items-filters-toggle aria-expanded="{{#if itemFiltersOpen}}true{{else}}false{{/if}}" aria-controls="agitems-filterrow"><i class="fa-solid fa-filter" aria-hidden="true"></i> Filters (<span data-ag-items-filter-count>{{itemFilters.panelCount}}</span>)</button>
+      {{#if itemsAll}}<span class="ag-toolbar__filters" data-ag-browse-tools></span>{{/if}}
       <div class="ag-toolbar__end">
         <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-items-clear {{#unless itemFilters.active}}disabled{{/unless}}><span>Clear filters (<span data-ag-items-clear-count>{{itemFilters.active}}</span>)</span></button>
         <button type="button" class="ag-btn ag-btn--sm" data-ag-items-packs><i class="fa-solid fa-book-atlas" aria-hidden="true"></i> <span data-ag-items-packs-label>{{itemFilters.packsLabel}}</span></button>
       </div>
     </div>
+    <div id="agitems-filterrow" class="agitems-filterrow" data-ag-items-filterrow {{#unless itemFiltersOpen}}hidden{{/unless}}>
+      <div class="agitems-filtergrid">
+        <label class="ag-field">Source <select data-ag-items-filter="source">{{#each itemFilters.sources}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+        <label class="ag-field">Type <select data-ag-items-filter="type">{{#each itemFilters.types}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+        <label class="ag-field">Origin <select data-ag-items-filter="origin">{{#each itemFilters.origins}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+        <label class="ag-field">Rarity <select data-ag-items-filter="rarity">{{#each itemFilters.rarities}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+        <label class="ag-field">Folder <select data-ag-items-filter="folder">{{#each itemFilters.folders}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+        <label class="ag-field--inline agitems-check"><input type="checkbox" data-ag-items-coreref {{#if itemFilters.coreRef}}checked{{/if}}> Has core_ref</label>
+      </div>
+      {{#if itemsAll}}<div data-ag-browse-facets></div>{{/if}}
+    </div>
     {{#if itemFilters.packsNote}}<p class="agmanager-tiny agitems-note">{{itemFilters.packsNote}}</p>{{/if}}
-  <div class="aglib">
-    <nav class="aglib-rail" aria-label="Items sections">
-      {{#each itemsViews}}<button type="button" class="aglib-rail__tab {{#if active}}active{{/if}}" data-ag-items-view="{{id}}" data-tooltip="{{label}}" data-tooltip-class="ag-tooltip" aria-label="{{label}}" aria-pressed="{{#if active}}true{{else}}false{{/if}}"><i class="{{icon}}" aria-hidden="true"></i></button>{{/each}}
-    </nav>
-    <div class="aglib-main">
-    <h3 class="agitems-title">{{itemsViewLabel}}</h3>
+    {{/if}}
     {{#if itemsAll}}
     <div class="agbrowse" data-ag-browse></div>
     {{/if}}
     {{#if libraryRecordsActive}}
-    <div class="aglib-split">
-      <section class="aglib-list" aria-label="Managed records">
+    <div class="ag-split aglib-split">
+      <section class="ag-split__list aglib-list" aria-label="Managed records">
         <div class="aglib-tools">
           <div class="ag-chip-group" role="group" aria-label="System">
             {{#each librarySystemChips}}<button type="button" class="ag-chip" data-ag-library-system-chip="{{value}}" aria-pressed="{{#if selected}}true{{else}}false{{/if}}">{{label}} <span class="aglib-num">{{count}}</span></button>{{/each}}
@@ -207,21 +210,21 @@
               <span class="aglib-row__meta"><code>{{sourceId}}</code><span class="ag-badge{{#if statusTone}} ag-badge--{{statusTone}}{{/if}}">{{status}}</span>{{#if archived}}<span class="ag-badge ag-badge--danger">archived</span>{{/if}}{{#if version}}<span class="ag-badge">v{{version}}</span>{{/if}}{{#if edited}}<span class="ag-badge ag-badge--warn">{{edited}} edit(s)</span>{{/if}}</span>
             </button>
           </div>{{/each}}
-          {{else}}{{#if libraryTotal}}<div class="ag-empty aglib-empty"><p class="ag-empty__title">Nothing matches</p><p class="ag-empty__text">Clear the search or filters.</p></div>{{else}}<div class="ag-empty aglib-empty"><i class="fa-solid fa-layer-group" aria-hidden="true"></i><p class="ag-empty__title">No Ashen Gate records yet</p><p class="ag-empty__text">Import an Ashen Gate package on the Import tab. Items from D&amp;D Beyond, Plutonium or compendiums are under All items.</p></div>{{/if}}{{/each}}
+          {{else}}{{#if libraryTotal}}<div class="ag-empty aglib-empty"><p class="ag-empty__title">Nothing matches</p><p class="ag-empty__text">Clear the search or filters.</p></div>{{else}}<div class="ag-empty aglib-empty"><i class="fa-solid fa-layer-group" aria-hidden="true"></i><p class="ag-empty__title">No Ashen Gate records yet</p><p class="ag-empty__text">Import an Ashen Gate package on the Import tab. Items from D&amp;D Beyond, Plutonium or compendiums are under Browse.</p></div>{{/if}}{{/each}}
         </div>
         <div class="aglib-selbar">
           {{#if hasLibrarySelected}}<strong class="aglib-num">{{librarySelectedCount}} selected</strong>
           <details class="aglib-menu">
             <summary class="ag-btn ag-btn--sm">Actions <i class="fa-solid fa-caret-down" aria-hidden="true"></i></summary>
-            <div class="aglib-menu__pop" role="menu">
-              <button type="button" role="menuitem" data-ag-action="library-export"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export selected / local edits</button>
-              <button type="button" role="menuitem" data-ag-action="library-replace"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Replace from loaded JSON</button>
-              <button type="button" role="menuitem" data-ag-action="library-stage"><i class="fa-solid fa-box-archive" aria-hidden="true"></i> Copy to staging compendium</button>
+            <div class="aglib-menu__pop">
+              <button type="button" data-ag-action="library-export"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export selected / local edits…</button>
+              <button type="button" data-ag-action="library-replace"><i class="fa-solid fa-rotate" aria-hidden="true"></i> Replace from loaded JSON…</button>
+              <button type="button" data-ag-action="library-stage"><i class="fa-solid fa-box-archive" aria-hidden="true"></i> Copy to staging compendium…</button>
               <hr>
-              <button type="button" role="menuitem" data-ag-action="library-archive"><i class="fa-solid fa-folder-minus" aria-hidden="true"></i> Archive</button>
-              <button type="button" role="menuitem" data-ag-action="library-restore"><i class="fa-solid fa-folder-plus" aria-hidden="true"></i> Restore</button>
+              <button type="button" data-ag-action="library-archive"><i class="fa-solid fa-folder-minus" aria-hidden="true"></i> Archive</button>
+              <button type="button" data-ag-action="library-restore"><i class="fa-solid fa-folder-plus" aria-hidden="true"></i> Restore</button>
               <hr>
-              <button type="button" role="menuitem" data-ag-action="library-delete" class="aglib-danger"><i class="fa-solid fa-trash" aria-hidden="true"></i> Delete archived… <small>asks first</small></button>
+              <button type="button" data-ag-action="library-delete" class="aglib-danger"><i class="fa-solid fa-trash" aria-hidden="true"></i> Delete archived…</button>
             </div>
           </details>
           <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="library-clear">Clear</button>
@@ -234,7 +237,7 @@
           <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost ag-btn--icon" data-ag-action="library-next" aria-label="Next page" data-tooltip="Next page" data-tooltip-class="ag-tooltip" {{#unless libraryHasNext}}disabled{{/unless}}><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></button>
         </div>
       </section>
-      <section class="aglib-detail" aria-label="Selected library document details">
+      <section class="ag-split__detail aglib-detail" aria-label="Selected record details">
         {{#if libraryHasDetail}}
         <div class="aglib-detail__head">
           <div class="aglib-detail__title"><h3>{{libraryDetail.name}}</h3>
@@ -244,24 +247,24 @@
           <button type="button" class="ag-btn ag-btn--ghost ag-btn--icon" data-ag-action="library-inspect-clear" aria-label="Close details" data-tooltip="Close details" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
         </div>
         {{#if libraryDetail.isItem}}<div class="agpreview" data-ag-item-preview="{{libraryDetail.uuid}}" aria-live="polite"><p class="agmanager-tiny">Loading item card…</p></div>{{/if}}
-        <div class="aglib-kv">
-          <div><span>System</span><strong>{{libraryDetail.systemLabel}}</strong></div>
-          <div><span>Version</span><strong class="aglib-num">{{libraryDetail.version}}</strong></div>
-          <div><span>Package</span><strong>{{libraryDetail.packageId}}</strong></div>
-          <div><span>Visibility</span><strong>{{libraryDetail.visibility}}</strong></div>
-          <div><span>Scope</span><strong>{{libraryDetail.scope}}</strong></div>
-          <div><span>References</span><strong class="aglib-num">{{libraryDetail.refCount}} out · {{libraryDetail.inboundCount}} in</strong></div>
-          <div class="aglib-kv__wide"><span>Foundry UUID</span><code>{{libraryDetail.uuid}}</code></div>
-        </div>
+        <dl class="ag-kv aglib-kv">
+          <dt>System</dt><dd>{{libraryDetail.systemLabel}}</dd>
+          <dt>Version</dt><dd>{{libraryDetail.version}}</dd>
+          <dt>Package</dt><dd>{{libraryDetail.packageId}}</dd>
+          <dt>Visibility</dt><dd>{{libraryDetail.visibility}}</dd>
+          <dt>Scope</dt><dd>{{libraryDetail.scope}}</dd>
+          <dt>References</dt><dd>{{libraryDetail.refCount}} out · {{libraryDetail.inboundCount}} in</dd>
+          <dt>Foundry UUID</dt><dd><code>{{libraryDetail.uuid}}</code></dd>
+        </dl>
         <div class="aglib-refs">
           <div><h4>Uses <span class="aglib-num">({{libraryDetail.refCount}})</span></h4>
             {{#each libraryDetail.outgoing}}<div class="aglib-ref">
-              {{#if uuid}}<button type="button" class="aglib-link" data-ag-library-jump="{{uuid}}">{{name}}</button>{{else}}<span class="aglib-missing">Not in this world</span>{{/if}}
+              {{#if uuid}}<button type="button" class="ag-link" data-ag-library-jump="{{uuid}}">{{name}}</button>{{else}}<span class="aglib-missing">Not in this world</span>{{/if}}
               <code>{{targetId}}</code><span class="agmanager-tiny">{{relation}} · {{mode}}</span></div>
             {{else}}<p class="agmanager-tiny">No outgoing typed references.</p>{{/each}}
           </div>
           <div><h4>Used by <span class="aglib-num">({{libraryDetail.inboundCount}})</span></h4>
-            {{#each libraryDetail.incoming}}<div class="aglib-ref"><button type="button" class="aglib-link" data-ag-library-jump="{{uuid}}">{{name}}</button>
+            {{#each libraryDetail.incoming}}<div class="aglib-ref"><button type="button" class="ag-link" data-ag-library-jump="{{uuid}}">{{name}}</button>
               <code>{{sourceId}}</code><span class="agmanager-tiny">{{relation}}</span></div>
             {{else}}<p class="agmanager-tiny">No managed records link to this ID.</p>{{/each}}
           </div>
@@ -270,7 +273,7 @@
         <p class="agmanager-tiny aglib-wrap">Source: {{libraryDetail.provenanceSummary}}</p>
         {{else}}
         <div class="ag-empty aglib-empty"><i class="fa-solid fa-layer-group" aria-hidden="true"></i><p class="ag-empty__title">No record chosen</p>
-          <p class="ag-empty__text">Choose a record to see its details, references and local edits. Live campaign state stays in its own module.</p></div>
+          <p class="ag-empty__text">Choose a record to see its details, references and local edits.</p></div>
         {{/if}}
         <p class="aglib-status" role="status">{{libraryMessage}}</p>
       </section>
@@ -281,16 +284,16 @@
     <section class="ag-section aglib-section" aria-label="Check library">
       <div class="ag-section__head"><h3 class="ag-section__title">Check library</h3>
         <button type="button" class="ag-btn" data-ag-action="library-check"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Check library</button></div>
-      <p class="agmanager-tiny">Looks for missing references, duplicate IDs and other problems in managed records. Read-only.</p>
-      {{#if hasAudit}}<div class="agmanager-audit agm-scrollcap" aria-label="Library check results">
-      {{#each audit}}<div class="agmanager-auditrow agmanager-{{level}}"><span>{{level}}</span> {{message}}</div>{{/each}}
-      </div>{{/if}}
+      <p class="agmanager-tiny">Read-only: missing references, duplicate IDs and other problems in managed records.</p>
+      {{#if hasAudit}}<ul class="ag-rows agmanager-audit agm-scrollcap" aria-label="Library check results">
+      {{#each audit}}<li class="ag-row"><span class="ag-badge{{#if tone}} ag-badge--{{tone}}{{/if}}">{{level}}</span><span class="ag-row__main"><span class="ag-row__meta">{{message}}</span></span></li>{{/each}}
+      </ul>{{/if}}
       <p class="aglib-status" role="status">{{libraryMessage}}</p>
     </section>
     <section class="ag-section aglib-section" aria-label="Housekeeping report">
       <div class="ag-section__head"><h3 class="ag-section__title">Housekeeping report</h3>
         <button type="button" class="ag-btn" data-ag-action="org-housekeeping"><i class="fa-solid fa-clipboard-list" aria-hidden="true"></i> Run report</button></div>
-      <p class="agmanager-tiny">Read-only. Lists Ashen Gate ids found more than once (world and all compendiums) and likely temporary records so you can decide. Nothing is changed or deleted. Checks always look at everything; the filters above do not apply.</p>
+      <p class="agmanager-tiny">Read-only: Ashen Gate ids found more than once (world and all compendiums) and likely temporary records. Nothing is changed or deleted.</p>
       {{#if housekeeping.report}}
         <h4>Duplicate ids ({{housekeeping.report.duplicates.length}})</h4>
         {{#if housekeeping.report.hasDuplicates}}<ul>{{#each housekeeping.report.duplicates}}<li><code>{{sourceId}}</code> ×{{count}}: {{#each rows}}{{name}} ({{where}}, {{documentName}}){{#unless @last}}; {{/unless}}{{/each}}</li>{{/each}}</ul>{{else}}<p class="agmanager-tiny">None.</p>{{/if}}
@@ -308,12 +311,12 @@
       <p class="agmanager-tiny">One JSON file of all Ashen Gate tagged world records plus the other modules' definitions (no play state).</p>
       <div class="aglib-actions">
         <button type="button" class="ag-btn" data-ag-action="world-export-everything"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export everything</button>
-        <button type="button" class="ag-btn" data-ag-action="world-backup" data-tooltip="Saves everything as AG_Backup_&lt;date&gt;.json. Does not change what counts as changed since last export." data-tooltip-class="ag-tooltip"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Back up before play</button>
+        <button type="button" class="ag-btn" data-ag-action="world-backup"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i> Back up before play</button>
         <details class="aglib-menu">
           <summary class="ag-btn">More <i class="fa-solid fa-caret-down" aria-hidden="true"></i></summary>
-          <div class="aglib-menu__pop" role="menu">
-            <button type="button" role="menuitem" data-ag-action="world-export-changed"><i class="fa-solid fa-file-circle-exclamation" aria-hidden="true"></i> Export changed since last export</button>
-            <button type="button" role="menuitem" data-ag-action="world-export-copy"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy summary</button>
+          <div class="aglib-menu__pop">
+            <button type="button" data-ag-action="world-export-changed"><i class="fa-solid fa-file-circle-exclamation" aria-hidden="true"></i> Export changed since last export</button>
+            <button type="button" data-ag-action="world-export-copy"><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy summary</button>
           </div>
         </details>
       </div>
@@ -323,157 +326,20 @@
     </section>
     {{/if}}
 
-    {{#if libraryAdoptActive}}
-    <section class="ag-section aglib-section agmanager-adopt" aria-label="Adopt and export world Items for review">
-    <div class="ag-section__head"><h3 class="ag-section__title">Adopt &amp; export world Items for review</h3></div>
-    <p>Assign <strong>review tags</strong> to world Items without editing their contents. A tag records a stable capture ID and suggested classification; <strong>it does not approve a record or make it importer-managed.</strong></p>
-    <dl class="agmanager-package">
-      <div><dt>World Items</dt><dd class="aglib-num">{{worldItemCount}}</dd></div>
-      <div><dt>Tagged for review</dt><dd class="aglib-num">{{taggedCount}}</dd></div>
-      <div><dt>Visible rows</dt><dd class="aglib-num">{{captureVisibleCount}}</dd></div>
-    </dl>
-    <div class="ag-toolbar">
-      <label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-ag-capture-filter value="{{captureSearch}}" placeholder="Find Item: name or type" aria-label="Find Item" /></label>
-      <div class="ag-toolbar__filters"><label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-capture-tagged-only {{#if captureTaggedOnly}}checked{{/if}}> Tagged only</label></div>
-      <div class="ag-toolbar__end">
-        <button type="button" class="ag-btn ag-btn--sm" data-ag-action="capture-select-visible">Select visible</button>
-        <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="capture-clear">Clear selection</button>
-      </div>
-    </div>
-    <div class="ag-table-wrap agm-scrollcap">
-      <table class="ag-table">
-        <thead><tr><th scope="col">Select</th><th scope="col">Item / Foundry UUID</th><th scope="col">Item type</th><th scope="col">Capture status</th></tr></thead>
-        <tbody>
-          {{#each captureRows}}
-          <tr>
-            <td><input type="checkbox" data-ag-capture-select="{{id}}" {{#if selected}}checked{{/if}} aria-label="Select {{name}}" /></td>
-            <td><strong{{{tooltip}}}>{{name}}</strong><code class="agm-id">{{uuid}}</code></td>
-            <td>{{type}}</td>
-            <td>{{#if tagged}}<span class="ag-badge ag-badge--ok">Tagged</span> {{kindLabel}}<code class="agm-id">{{capture.captureId}}</code>{{else}}<span class="ag-badge">Not tagged</span>{{/if}}{{#if source}}<div class="agmanager-tiny">Imported binding: {{source.sourceId}}</div>{{/if}}</td>
-          </tr>
-          {{/each}}
-        </tbody>
-      </table>
-    </div>
-    <div class="ag-cluster agm-gap-top">
-      <label class="agmanager-search-label">Classify selected as
-        <select data-ag-capture-kind>
-          {{#each captureKindOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{value}}</option>{{/each}}
-        </select>
-      </label>
-      <button type="button" class="ag-btn" data-ag-action="capture-tag" {{#unless hasCaptureSelected}}disabled{{/unless}}><i class="fa-solid fa-tag" aria-hidden="true"></i> Tag selected</button>
-      <button type="button" class="ag-btn ag-btn--danger" data-ag-action="capture-untag" {{#unless hasCaptureSelected}}disabled{{/unless}}>Remove selected tags</button>
-    </div>
-    <p class="ag-notice ag-notice--info" role="status"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> {{captureMessage}}</p>
-    <p class="agmanager-tiny">Exports <strong>all tagged world Items</strong>, not just the visible/selected rows. Exported data is <strong>unreviewed</strong> until reconciled for the repo. No Actors or macros are included. Export includes system rules, active effects and other module flags. Review copyright/third-party content and hidden GM details before uploading.</p>
-    <div class="ag-cluster agmanager-capture-footer">
-      <button type="button" class="ag-btn ag-btn--primary" data-ag-action="capture-export" {{#unless canCaptureExport}}disabled{{/unless}}><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export all tagged Items (JSON)</button>
-    </div>
-    </section>
-    {{/if}}
-    {{#if libraryCodexActive}}
-    <div class="aglib-split agcodex">
-      <section class="aglib-list" aria-label="NPCs">
-        <div class="aglib-tools">
-          <label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-ag-codex-search value="{{codex.search}}" placeholder="Search NPC name, role, ID" aria-label="Search NPCs" /></label>
-          <div class="ag-chip-group" role="group" aria-label="Show">
-            <button type="button" class="ag-chip" data-ag-codex-filter="all" aria-pressed="{{#if codex.filterAll}}true{{else}}false{{/if}}">All <span class="aglib-num">{{codex.total}}</span></button>
-            <button type="button" class="ag-chip" data-ag-codex-filter="known" aria-pressed="{{#if codex.filterKnown}}true{{else}}false{{/if}}">Known to players <span class="aglib-num">{{codex.known}}</span></button>
-            <button type="button" class="ag-chip" data-ag-codex-filter="hidden" aria-pressed="{{#if codex.filterHidden}}true{{else}}false{{/if}}">Hidden <span class="aglib-num">{{codex.hidden}}</span></button>
-          </div>
-        </div>
-        <div class="aglib-rows">
-          {{#each codex.rows}}<button type="button" class="agcodex-row {{#if focused}}is-focused{{/if}}" data-ag-codex-focus="{{id}}" {{#if focused}}aria-current="true"{{/if}}>
-            {{#if img}}<img class="agcodex-portrait" src="{{img}}" alt="">{{else}}<span class="agcodex-portrait" aria-hidden="true">{{initials}}</span>{{/if}}
-            <span class="agcodex-row__text"><span class="aglib-row__name">{{name}}</span>
-              <span class="aglib-row__meta">{{#if role}}<span class="agmanager-tiny">{{role}}</span>{{/if}}<span class="ag-badge{{#if discovery.party}} ag-badge--ok{{/if}}">{{discoveryLabel}}</span>{{#if revealedCount}}<span class="ag-badge aglib-num">{{revealedCount}} field(s)</span>{{/if}}</span></span>
-          </button>{{else}}<div class="ag-empty aglib-empty"><i class="fa-solid fa-address-book" aria-hidden="true"></i><p class="ag-empty__title">No NPCs yet</p><p class="ag-empty__text">NPC records (<code>entity_type: "NPC"</code>) appear here once you import them on the Import tab.</p></div>{{/each}}
-        </div>
-        <div class="aglib-selbar">
-          <details class="aglib-menu">
-            <summary class="ag-btn ag-btn--sm">Codex <i class="fa-solid fa-caret-down" aria-hidden="true"></i></summary>
-            <div class="aglib-menu__pop" role="menu">
-              <button type="button" role="menuitem" data-ag-action="codex-export"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export codex (GM file)</button>
-              <label class="agcodex-filelabel" role="menuitem" tabindex="0"><i class="fa-solid fa-file-import" aria-hidden="true"></i> Restore reveals from a codex export… <input type="file" accept=".json,application/json" data-ag-codex-import hidden></label>
-              <hr>
-              <button type="button" role="menuitem" data-ag-action="codex-player-view"><i class="fa-solid fa-eye" aria-hidden="true"></i> Open the player view</button>
-            </div>
-          </details>
-          <span class="agmanager-tiny aglib-end">{{#if codex.playerAccess}}Shared with players{{else}}Not shared with players (GM Setup){{/if}}</span>
-        </div>
-      </section>
-      <section class="aglib-detail" aria-label="NPC details">
-        {{#with codex.detail}}
-        <div class="aglib-detail__head">
-          {{#if img}}<img class="agcodex-portrait agcodex-portrait--lg" src="{{img}}" alt="">{{else}}<span class="agcodex-portrait agcodex-portrait--lg" aria-hidden="true">{{initials}}</span>{{/if}}
-          <div class="aglib-detail__title"><h3>{{name}}</h3>
-            <div class="aglib-row__meta"><code>{{id}}</code>{{#if status}}<span class="ag-badge">{{status}}</span>{{/if}}</div></div>
-          <button type="button" class="ag-btn" data-ag-action="codex-open-actor"><i class="fa-solid fa-user" aria-hidden="true"></i> Actor sheet</button>
-          <button type="button" class="ag-btn ag-btn--danger" data-ag-action="codex-hide-all"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Hide from players…</button>
-          <button type="button" class="ag-btn ag-btn--ghost ag-btn--icon" data-ag-action="codex-close" aria-label="Close details" data-tooltip="Close details" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
-        </div>
-        <div class="agcodex-field agcodex-field--discovery">
-          <div><div class="agcodex-label">Players know this NPC</div><p class="agmanager-tiny">Name and portrait. Nothing else shows to a player until this includes them.</p></div>
-          {{#with discoverySeg}}<div class="agcodex-control"><div class="agcodex-seg" role="group" aria-label="Who knows: {{label}}">
-            <button type="button" class="{{#if isHidden}}is-on{{/if}}" data-ag-codex-reveal="{{key}}" data-mode="hidden" aria-pressed="{{#if isHidden}}true{{else}}false{{/if}}">Hidden</button>
-            <button type="button" class="{{#if isParty}}is-on is-party{{/if}}" data-ag-codex-reveal="{{key}}" data-mode="party" aria-pressed="{{#if isParty}}true{{else}}false{{/if}}">Party</button>
-            <details class="aglib-menu agcodex-chars"><summary class="{{#if isActors}}is-on is-actors{{/if}}">Characters <i class="fa-solid fa-caret-down" aria-hidden="true"></i></summary>
-              <div class="aglib-menu__pop agcodex-chars__pop">{{#each chars}}<label><input type="checkbox" data-ag-codex-actor="{{../key}}" value="{{id}}" {{#if checked}}checked{{/if}}> {{name}}</label>{{else}}<p class="agmanager-tiny">No player characters yet (character Actors with a player owner).</p>{{/each}}</div>
-            </details></div>
-            {{#if isActors}}<p class="agcodex-who">Known by {{who}}</p>{{/if}}</div>{{/with}}
-        </div>
-        {{#each fields}}
-        <div class="agcodex-field">
-          <div class="agcodex-field__body"><div class="agcodex-label">{{label}}</div>
-            {{#if isLinks}}{{#if ../links.length}}<div class="agcodex-links">{{#each ../links}}{{#if open}}<a class="agcodex-link agcodex-link--{{kind}}" role="button" data-ag-codex-deity="{{id}}" data-tooltip="{{title}}" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-sun" aria-hidden="true"></i> {{name}}{{#if named}} <code>{{id}}</code>{{/if}}</a>{{else}}<span class="agcodex-link agcodex-link--{{kind}}"{{#if title}} data-tooltip="{{title}}" data-tooltip-class="ag-tooltip"{{/if}}>{{name}}{{#if named}} <code>{{id}}</code>{{/if}}</span>{{/if}}{{/each}}</div>{{else}}<p class="agmanager-tiny">No connections. Add ids below or in the record's <code>codex.links</code>.</p>{{/if}}
-            {{else}}{{#if empty}}<p class="agmanager-tiny">Not set.</p>{{else}}<p class="agcodex-value">{{value}}</p>{{/if}}{{/if}}
-          </div>
-          <div class="agcodex-control"><div class="agcodex-seg" role="group" aria-label="Who knows: {{label}}">
-            <button type="button" class="{{#if isHidden}}is-on{{/if}}" data-ag-codex-reveal="{{key}}" data-mode="hidden" aria-pressed="{{#if isHidden}}true{{else}}false{{/if}}">Hidden</button>
-            <button type="button" class="{{#if isParty}}is-on is-party{{/if}}" data-ag-codex-reveal="{{key}}" data-mode="party" aria-pressed="{{#if isParty}}true{{else}}false{{/if}}">Party</button>
-            <details class="aglib-menu agcodex-chars"><summary class="{{#if isActors}}is-on is-actors{{/if}}">Characters <i class="fa-solid fa-caret-down" aria-hidden="true"></i></summary>
-              <div class="aglib-menu__pop agcodex-chars__pop">{{#each chars}}<label><input type="checkbox" data-ag-codex-actor="{{../key}}" value="{{id}}" {{#if checked}}checked{{/if}}> {{name}}</label>{{else}}<p class="agmanager-tiny">No player characters yet (character Actors with a player owner).</p>{{/each}}</div>
-            </details></div>
-            {{#if isActors}}<p class="agcodex-who">Known by {{who}}</p>{{/if}}</div>
-        </div>
-        {{/each}}
-        <div class="agcodex-gm">
-          <h4><i class="fa-solid fa-lock" aria-hidden="true"></i> GM only: never sent to players</h4>
-          {{#each gmFields}}<div class="agcodex-gmrow"><span class="agcodex-label">{{label}}</span>{{#if items}}<ul class="agcodex-value">{{#each items}}<li>{{this}}</li>{{/each}}</ul>{{else}}<p class="agcodex-value">{{text}}</p>{{/if}}</div>{{else}}<p class="agmanager-tiny">The record has no portrayal, session role, stat block or GM notes.</p>{{/each}}
-        </div>
-        <div class="agcodex-edit">
-          <label class="ag-field">What the party has learned <textarea rows="3" data-ag-codex-learned>{{learned}}</textarea></label>
-          <label class="ag-field">Connections (ids, space separated: LOC-, FAC-, DEITY-, QUEST-, NPC-) <input type="text" data-ag-codex-links value="{{linksText}}"></label>
-          <label class="ag-field">Your notes (GM only) <textarea rows="3" data-ag-codex-notes>{{notes}}</textarea></label>
-          <footer class="ag-footer agcodex-footer">
-            <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="codex-cancel">Cancel</button>
-            <button type="button" class="ag-btn ag-btn--primary" data-ag-action="codex-save"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save Changes</button>
-          </footer>
-        </div>
-        <div class="agcodex-preview">
-          <label class="agcodex-preview__pick">Preview as <select data-ag-codex-preview>{{#each ../codex.previewOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
-          {{#if ../codex.previewing}}{{{../codex.previewHtml}}}{{else}}<p class="agmanager-tiny">Choose the party or a character to see exactly what they receive.</p>{{/if}}
-        </div>
-        {{else}}
-        <div class="ag-empty aglib-empty"><i class="fa-solid fa-address-book" aria-hidden="true"></i><p class="ag-empty__title">No NPC chosen</p>
-          <p class="ag-empty__text">Choose an NPC to set who knows what. Reveals, what the party has learned, connections and your notes are kept on re-import.</p></div>
-        {{/with}}
-        <p class="aglib-status" role="status">{{codex.message}}</p>
-      </section>
-    </div>
-    {{/if}}
-
       {{#if organizeActive}}
       <div class="agmanager-organize">
-        <section class="ag-section agclean" aria-label="Clean compendiums">
-          <div class="ag-section__head"><h3 class="ag-section__title">Clean compendiums</h3>
-            <button type="button" class="ag-btn agclean-go" data-ag-action="clean-scan"><i class="fa-solid fa-broom" aria-hidden="true"></i> Clean compendiums</button></div>
-          <p class="agmanager-tiny">One click checks the world sidebar (Items, Actors, Journals) and every compendium against the folder rules below (Ashen Gate, Core 5.5e, Homebrew) and lists every document that is not in its folder, including whole imported sets (DDB, Plutonium) sitting in their own folders. Nothing moves until you <strong>Commit</strong>. The filters above do not apply here. Protected folders, Keep here, player characters and player-owned actors are never moved. Locked, module and system compendiums cannot be changed: they are listed as skipped with what you can do.</p>
+        <details class="ag-fold" data-ag-fold-key="folders-clean" open>
+          <summary class="ag-fold__summary"><span class="ag-fold__title">Clean compendiums</span>{{#if org.clean.preview}}<span class="ag-fold__count">{{org.clean.preview.totals.moves}}</span>{{/if}}<span class="ag-fold__hint">Put every misfiled document in its rule's folder. Nothing moves until Apply.</span></summary>
+          <div class="ag-fold__body agclean">
+          <div class="ag-cluster">
+            <button type="button" class="ag-btn agclean-go" data-ag-action="clean-scan"><i class="fa-solid fa-broom" aria-hidden="true"></i> Scan world and compendiums</button>
+            <span class="agmanager-tiny">The filters above do not apply. Protected folders, Keep here and player characters are never moved.</span>
+          </div>
           <p class="agmanager-tiny" role="status" data-ag-clean-status>{{org.clean.status}}</p>
           {{#if org.clean.running}}<div class="ag-cluster agclean-running" aria-label="Clean compendiums progress">
             <progress class="agclean-bar" data-ag-clean-bar max="1" value="{{org.clean.pct}}" aria-label="Documents moved"></progress>
             <button type="button" class="ag-btn ag-btn--danger" data-ag-clean-stop><i class="fa-solid fa-stop" aria-hidden="true"></i> Cancel move</button>
-            <span class="agmanager-tiny">Cancel stops after the current chunk of 50; everything moved so far stays moved and is in Undo last organize.</span>
+            <span class="agmanager-tiny">Stops after the current chunk of 50; what moved stays moved and is in Undo.</span>
           </div>{{/if}}
           {{#with org.clean.preview}}
           <div class="ag-cluster">
@@ -484,8 +350,8 @@
             <span class="ag-badge">Skipped (protected / Keep here / left alone): {{totals.skipped}}</span>
             <span class="ag-badge">No rule: {{totals.unmatched}}</span>
           </div>
-          {{#if weak}}<p class="ag-notice ag-notice--warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> <span>{{weak}} move(s) to Core 5.5e rest on weak evidence (copied from a dnd5e compendium, or a D&amp;D Beyond import with no core source book) and start <strong>unticked</strong>. Tick them only if they really are core items.</span></p>{{/if}}
-          <p class="agmanager-tiny">Each move says why. Core 5.5e needs real evidence: a Plutonium import, a core source book (PHB, DMG, MM 2014 or 2024, SRD 5.1 or 5.2) or a dnd5e compendium. dnd5e gives every new item rules "2024", so that alone counts as Homebrew. To keep your own items where they are, press <strong>Keep here</strong> on a row, or protect their folder under <strong>Protected folders</strong> below.</p>
+          {{#if weak}}<p class="ag-notice ag-notice--warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> <span>{{weak}} move(s) to Core 5.5e rest on weak evidence and start <strong>unticked</strong>. Tick them only if they really are core items.</span></p>{{/if}}
+          <p class="agmanager-tiny">Each move says why. To keep a document where it is, press <strong>Keep here</strong>, or protect its folder under Rules &amp; protected folders.</p>
           {{#each withMoves}}
           <div class="agmanager-org-part">
             <h4>{{label}} — {{moveCount}} to move</h4>
@@ -500,7 +366,7 @@
                 <div class="ag-table-wrap agm-scrollcap"><table class="ag-table"><thead><tr><th scope="col">Move</th><th scope="col">Document</th><th scope="col">From</th><th scope="col">Why</th><th scope="col" class="is-actions"><span class="ag-sr-only">Actions</span></th></tr></thead><tbody>
                 {{#each rows}}<tr><td><input type="checkbox" data-ag-clean-move="{{key}}" {{#if checked}}checked{{/if}} aria-label="Move {{name}}"></td><td>{{name}}</td><td>{{from}}</td>
                   <td>{{why}}{{#if weak}} <span class="ag-badge ag-badge--warn">weak evidence, unticked</span>{{/if}}</td>
-                  <td class="is-actions">{{#if keep}}<button type="button" class="ag-btn ag-btn--sm" data-ag-clean-keep="{{keep.id}}" data-ag-clean-doctype="{{keep.documentName}}" data-ag-clean-key="{{key}}" data-tooltip="Never move this document" data-tooltip-class="ag-tooltip">Keep here</button>{{/if}}</td></tr>{{/each}}
+                  <td class="is-actions">{{#if keep}}<button type="button" class="ag-btn ag-btn--sm" data-ag-clean-keep="{{keep.id}}" data-ag-clean-doctype="{{keep.documentName}}" data-ag-clean-key="{{key}}" aria-label="Keep {{name}} here" data-tooltip="Never move this document" data-tooltip-class="ag-tooltip">Keep here</button>{{/if}}</td></tr>{{/each}}
                 </tbody></table></div>
               </details>
               {{/each}}
@@ -509,21 +375,24 @@
           </div>
           {{/each}}
           {{#if clean}}<p class="agmanager-tiny">Already sorted: {{clean}}.</p>{{/if}}
-          {{#if skippedSources.length}}<details class="agmanager-org-group" open><summary>Skipped compendiums ({{skippedSources.length}})</summary><ul>
-            {{#each skippedSources}}<li><strong>{{label}}</strong>: {{#if locked}}locked, skipped. {{/if}}{{hint}}</li>{{/each}}</ul></details>{{/if}}
+          {{#if skippedSources.length}}<h4>Skipped compendiums ({{skippedSources.length}})</h4><ul>
+            {{#each skippedSources}}<li><strong>{{label}}</strong>: {{#if locked}}locked, skipped. {{/if}}{{hint}}</li>{{/each}}</ul>{{/if}}
           <footer class="ag-footer">
             <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="clean-cancel" {{#if @root.org.clean.running}}disabled{{/if}}>Cancel</button>
             <span class="ag-btn-group">
               <button type="button" class="ag-btn" data-ag-action="clean-backup" data-ag-clean-needs-ticks {{#unless ticked}}disabled{{/unless}}><i class="fa-solid fa-download" aria-hidden="true"></i> Download backup</button>
-              <button type="button" class="ag-btn ag-btn--primary" data-ag-action="clean-commit" data-ag-clean-needs-ticks {{#unless ticked}}disabled{{/unless}}{{#if @root.org.clean.running}} disabled{{/if}}><i class="fa-solid fa-broom" aria-hidden="true"></i> Commit (<span data-ag-clean-count>{{ticked}}</span>)…</button>
+              <button type="button" class="ag-btn ag-btn--primary" data-ag-action="clean-commit" data-ag-clean-needs-ticks {{#unless ticked}}disabled{{/unless}}{{#if @root.org.clean.running}} disabled{{/if}}><i class="fa-solid fa-broom" aria-hidden="true"></i> Apply (<span data-ag-clean-count>{{ticked}}</span>)…</button>
             </span>
           </footer>
           {{/with}}
-        </section>
-        <section class="ag-section" aria-label="Organize folders">
-          <div class="ag-section__head"><h3 class="ag-section__title">Organize folders</h3></div>
+          </div>
+        </details>
+
+        <details class="ag-fold" data-ag-fold-key="folders-organize">
+          <summary class="ag-fold__summary"><span class="ag-fold__title">Organize a selection</span>{{#if org.preview}}<span class="ag-fold__count">{{org.preview.totals.moves}}</span>{{/if}}<span class="ag-fold__hint">Refile only what the filters above pick, or one folder.</span></summary>
+          <div class="ag-fold__body">
           <p><strong>Where:</strong> {{org.whereLabel}}{{#unless org.whereWritable}} <span class="ag-badge ag-badge--warn">inspect only</span>{{/unless}}
-            {{#if org.allSources}}<span class="agmanager-tiny">(to organize a compendium, pick it under Source above)</span>{{/if}}</p>
+            {{#if org.allSources}}<span class="agmanager-tiny">(to organize a compendium, pick it under Filters → Source)</span>{{/if}}</p>
           {{#unless org.whereWritable}}<p class="ag-notice ag-notice--warn"><i class="fa-solid fa-lock" aria-hidden="true"></i> <span>Inspect only: {{org.whereReason}}</span></p>{{/unless}}
           <fieldset class="agitems-scope"><legend>Which documents</legend>
             <label class="ag-field--inline agmanager-toggle"><input type="radio" name="ag-org-scope" value="all" data-ag-org-scope {{#if org.scopeAll}}checked{{/if}}> Everything in {{org.whereLabel}}</label>
@@ -539,9 +408,7 @@
             <button type="button" class="ag-btn" data-ag-action="org-preview"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Preview</button>
           </div>
           <p class="agmanager-tiny" role="status">{{org.message}}</p>
-          <p class="agmanager-tiny">To organize one folder, pick it under <strong>Folder</strong> above and choose <strong>This selection or folder</strong>. To filter first (e.g. Origin: DDB / Plutonium), do the same: Preview then lists only those documents. To keep a folder as it is, protect it below.</p>
-          <p class="agmanager-tiny">Only the folder changes. Nothing is renamed, edited or deleted, and no folder is ever deleted. Player characters and player-owned actors stay where they are. Documents in a protected folder, or marked <strong>Keep here</strong>, are skipped. Locked, module and system compendiums are inspect-only.</p>
-          <p class="agmanager-tiny">Default rules: Ashen Gate records go to <strong>Ashen Gate</strong>. Other Items go to <strong>Core 5.5e</strong> only with real evidence: imported by Plutonium, a core source book (PHB'24, DMG'24, MM'24, SRD 5.2, or 2014 PHB, DMG, MM, SRD 5.1), or copied from a dnd5e compendium or imported from D&amp;D Beyond (these two are weak evidence and marked so). dnd5e gives every new item rules "2024", so a hand-made item with no source book goes to <strong>Homebrew</strong>, as do items with no source or a third-party or homebrew source, with the same sub-folders. Each move in the preview says why. Your own saved rules are used instead if you have them.</p>
+          <p class="agmanager-tiny">To organize one folder, pick it under <strong>Folder</strong> above (in Filters) and choose <strong>This selection or folder</strong>. Only the folder changes: nothing is renamed, edited or deleted. Help explains how the rules decide.</p>
 
           {{#if org.preview}}
           <div class="ag-cluster">
@@ -558,7 +425,7 @@
             {{#each groups}}
             <details class="agmanager-org-group"><summary><strong>{{path}}</strong> ({{count}})</summary>
               <div class="ag-table-wrap agm-scrollcap"><table class="ag-table"><thead><tr><th scope="col">Document</th><th scope="col">From</th><th scope="col">Why</th><th scope="col" class="is-actions"><span class="ag-sr-only">Actions</span></th></tr></thead><tbody>
-              {{#each rows}}<tr><td>{{name}}</td><td>{{from}}</td><td>{{why}}{{#if weak}} <span class="ag-badge ag-badge--warn">weak evidence: check it</span>{{/if}}</td><td class="is-actions">{{#if @root.org.world}}<button type="button" class="ag-btn ag-btn--sm" data-ag-org-keep="{{id}}" data-ag-org-doctype="{{documentName}}" data-tooltip="Never move this document" data-tooltip-class="ag-tooltip">Keep here</button>{{/if}}</td></tr>{{/each}}
+              {{#each rows}}<tr><td>{{name}}</td><td>{{from}}</td><td>{{why}}{{#if weak}} <span class="ag-badge ag-badge--warn">weak evidence: check it</span>{{/if}}</td><td class="is-actions">{{#if @root.org.world}}<button type="button" class="ag-btn ag-btn--sm" data-ag-org-keep="{{id}}" data-ag-org-doctype="{{documentName}}" aria-label="Keep {{name}} here" data-tooltip="Never move this document" data-tooltip-class="ag-tooltip">Keep here</button>{{/if}}</td></tr>{{/each}}
               </tbody></table></div>
             </details>
             {{/each}}
@@ -571,40 +438,34 @@
             <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="org-clear">Cancel</button>
             <span class="ag-btn-group">
               <button type="button" class="ag-btn" data-ag-action="org-backup" {{#unless org.preview.totals.moves}}disabled{{/unless}}><i class="fa-solid fa-download" aria-hidden="true"></i> Download backup</button>
-              <button type="button" class="ag-btn ag-btn--primary" data-ag-action="org-apply" {{#unless org.preview.canApply}}disabled{{/unless}}><i class="fa-solid fa-folder-tree" aria-hidden="true"></i> Apply…</button>
+              <button type="button" class="ag-btn ag-btn--primary" data-ag-action="org-apply" {{#unless org.preview.canApply}}disabled{{/unless}}><i class="fa-solid fa-folder-tree" aria-hidden="true"></i> Apply ({{org.preview.totals.moves}})…</button>
             </span>
           </footer>
           {{/if}}
           {{#if org.result}}<p class="agmanager-tiny"><strong>Last apply:</strong> {{org.result.message}}</p>
             {{#if org.hasEmpty}}<details class="agmanager-org-group"><summary>Empty folders (report only, nothing deleted): {{org.result.emptyFolders.length}}</summary><ul>{{#each org.result.emptyFolders}}<li>{{this}}</li>{{/each}}</ul></details>{{/if}}{{/if}}
-        </section>
+          </div>
+        </details>
 
-        <section class="ag-section" aria-label="Organize history">
-          <div class="ag-section__head"><h3 class="ag-section__title">Recent organize runs</h3>
-            <button type="button" class="ag-btn" data-ag-action="org-undo" {{#unless org.history.length}}disabled{{/unless}}><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Undo last organize…</button></div>
-          {{#if org.history.length}}<ul>{{#each org.history}}<li>{{at}} · {{source}} · {{mode}} · {{moved}} moved</li>{{/each}}</ul>{{else}}<p class="agmanager-tiny">No organize runs yet. The last 5 are kept for Undo.</p>{{/if}}
-        </section>
-
-        {{#if org.world}}
-        <section class="ag-section" aria-label="Protected folders">
-          <div class="ag-section__head"><h3 class="ag-section__title">Protected folders</h3></div>
-          <p class="agmanager-tiny">Organize never moves anything in a protected folder or its sub-folders.</p>
+        <details class="ag-fold" data-ag-fold-key="folders-rules">
+          <summary class="ag-fold__summary"><span class="ag-fold__title">Rules &amp; protected folders</span>{{#if org.schemaIsDefault}}<span class="ag-fold__hint">Default rules</span>{{else}}<span class="ag-fold__hint">Your own rules</span>{{/if}}</summary>
+          <div class="ag-fold__body">
+          {{#if org.world}}
+          <h4>Protected folders</h4>
+          <p class="agmanager-tiny">Nothing in a protected folder or its sub-folders is ever moved.</p>
           <div class="ag-cluster">
             <select data-ag-org-folder aria-label="Folder to protect">{{#each org.openFolders}}<option value="{{id}}">{{label}}</option>{{/each}}</select>
             <button type="button" class="ag-btn" data-ag-org-protect><i class="fa-solid fa-lock" aria-hidden="true"></i> Protect folder</button>
           </div>
-          {{#if org.protectedFolders.length}}<ul class="ag-list">{{#each org.protectedFolders}}<li><span>{{label}}</span> <button type="button" class="ag-btn ag-btn--sm" data-ag-org-unprotect="{{id}}">Unprotect</button></li>{{/each}}</ul>{{/if}}
-        </section>
-        {{/if}}
-
-        <section class="ag-section" aria-label="Organize rules">
-          <div class="ag-section__head"><h3 class="ag-section__title">Rules {{#if org.schemaIsDefault}}<span class="ag-badge">Default</span>{{/if}}</h3>
+          {{#if org.protectedFolders.length}}<ul class="ag-list">{{#each org.protectedFolders}}<li><span>{{label}}</span> <button type="button" class="ag-btn ag-btn--sm" data-ag-org-unprotect="{{id}}" aria-label="Unprotect {{label}}">Unprotect</button></li>{{/each}}</ul>{{/if}}
+          {{/if}}
+          <div class="ag-section__head"><h4>Rules {{#if org.schemaIsDefault}}<span class="ag-badge">Default</span>{{/if}}</h4>
             <span class="ag-btn-group">
               <button type="button" class="ag-btn ag-btn--sm" data-ag-action="org-schema-edit"><i class="fa-solid fa-pen" aria-hidden="true"></i> Edit rules (JSON)</button>
               <button type="button" class="ag-btn ag-btn--sm" data-ag-action="org-schema-export"><i class="fa-solid fa-download" aria-hidden="true"></i> Export</button>
-              <label class="ag-btn ag-btn--sm"><i class="fa-solid fa-upload" aria-hidden="true"></i> Import <input type="file" accept=".json,application/json" data-ag-org-schema-file hidden></label>
+              {{{fileButtons.rules}}}
             </span></div>
-          <p class="agmanager-tiny">Checked top to bottom; the first rule that matches decides the folder. <code>{tier}</code>, <code>{rarity}</code>, <code>{spellLevel}</code>, <code>{creatureType}</code>, <code>{crBand}</code> and <code>{entityType}</code> fill in from the document; if one is empty the next rule is tried.</p>
+          <p class="agmanager-tiny">Checked top to bottom; the first rule that matches decides the folder. <code>{tier}</code>, <code>{rarity}</code>, <code>{spellLevel}</code>, <code>{creatureType}</code>, <code>{crBand}</code> and <code>{entityType}</code> fill in from the document.</p>
           {{#if org.editing}}
             <textarea data-ag-org-schema-text rows="18" class="agmanager-org-json" aria-label="Organize rules JSON">{{org.schemaText}}</textarea>
             <footer class="ag-footer">
@@ -617,8 +478,16 @@
           </tbody></table></div>
           {{/if}}
           <p class="agm-gap-top"><button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-ag-action="org-schema-reset">Reset rules to defaults…</button></p>
-        </section>
+          </div>
+        </details>
 
+        <details class="ag-fold" data-ag-fold-key="folders-history">
+          <summary class="ag-fold__summary"><span class="ag-fold__title">History</span><span class="ag-fold__count">{{org.history.length}}</span><span class="ag-fold__hint">The last 5 organize runs, for Undo.</span></summary>
+          <div class="ag-fold__body">
+          <div class="ag-cluster"><button type="button" class="ag-btn" data-ag-action="org-undo" {{#unless org.history.length}}disabled{{/unless}}><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Undo last organize…</button></div>
+          {{#if org.history.length}}<ul>{{#each org.history}}<li>{{at}} · {{source}} · {{mode}} · {{moved}} moved</li>{{/each}}</ul>{{else}}<p class="agmanager-tiny">No organize runs yet.</p>{{/if}}
+          </div>
+        </details>
       </div>
       {{/if}}
 
@@ -629,7 +498,7 @@
             <button type="button" class="ag-btn" data-ag-action="cl-scan"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Scan</button></div>
           <p class="agmanager-tiny" role="status">{{cl.message}}</p>
           {{#if cl.noRefs}}<div class="ag-empty"><p class="ag-empty__title">Nothing to link</p><p class="ag-empty__text">No Ashen Gate item in this world has a <code>core_ref</code>. Add one in the source data and re-import, or ignore this section.</p></div>{{/if}}
-          <p class="agmanager-tiny">Only Ashen Gate world Items whose source data has <code>core_ref</code> are checked. Matches come from 2024 (5.5e) content only: Plutonium-imported and other 2024 world items, world compendiums, the core sources in <strong>GM Setup</strong>, then the dnd5e 2024 packs. <strong>Adopt</strong> replaces the item's image and data (description included) with the core item's and keeps its name, Ashen Gate id, folder, ownership and module data. Copies in player inventories are never touched.</p>
+          <p class="agmanager-tiny">Checks Ashen Gate world Items with <code>core_ref</code> against 2024 (5.5e) items; where it looks is set in {{{gotoSources}}}. <strong>Adopt</strong> takes the core item's image and data and keeps the name, id, folder, ownership and module data. Player inventories are never touched.</p>
           {{#if cl.preview}}
           <div class="ag-cluster">
             <span class="ag-badge">Core items found: {{cl.preview.poolSize}}</span>
@@ -674,6 +543,104 @@
       {{/if}}
     </div>
   </div>
+  {{/if}}
+
+  {{#if codexActive}}
+  <div class="ag-split aglib-split agcodex">
+    <section class="ag-split__list aglib-list" aria-label="NPCs">
+      <div class="aglib-tools">
+        <label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-ag-codex-search value="{{codex.search}}" placeholder="Search NPC name, role, ID" aria-label="Search NPCs" /></label>
+        <div class="ag-chip-group" role="group" aria-label="Show">
+          <button type="button" class="ag-chip" data-ag-codex-filter="all" aria-pressed="{{#if codex.filterAll}}true{{else}}false{{/if}}">All <span class="aglib-num">{{codex.total}}</span></button>
+          <button type="button" class="ag-chip" data-ag-codex-filter="known" aria-pressed="{{#if codex.filterKnown}}true{{else}}false{{/if}}">Known to players <span class="aglib-num">{{codex.known}}</span></button>
+          <button type="button" class="ag-chip" data-ag-codex-filter="hidden" aria-pressed="{{#if codex.filterHidden}}true{{else}}false{{/if}}">Hidden <span class="aglib-num">{{codex.hidden}}</span></button>
+        </div>
+      </div>
+      <div class="aglib-rows">
+        {{#each codex.rows}}<button type="button" class="agcodex-row {{#if focused}}is-focused{{/if}}" data-ag-codex-focus="{{id}}" {{#if focused}}aria-current="true"{{/if}}>
+          {{#if img}}<img class="agcodex-portrait" src="{{img}}" alt="">{{else}}<span class="agcodex-portrait" aria-hidden="true">{{initials}}</span>{{/if}}
+          <span class="agcodex-row__text"><span class="aglib-row__name">{{name}}</span>
+            <span class="aglib-row__meta">{{#if role}}<span class="agmanager-tiny">{{role}}</span>{{/if}}<span class="ag-badge{{#if discovery.party}} ag-badge--ok{{/if}}">{{discoveryLabel}}</span>{{#if revealedCount}}<span class="ag-badge aglib-num">{{revealedCount}} field(s)</span>{{/if}}</span></span>
+        </button>{{else}}<div class="ag-empty aglib-empty"><i class="fa-solid fa-address-book" aria-hidden="true"></i><p class="ag-empty__title">No NPCs yet</p><p class="ag-empty__text">NPC records (<code>entity_type: "NPC"</code>) appear here once you import them on the Import tab.</p></div>{{/each}}
+      </div>
+      <div class="aglib-selbar">
+        <details class="aglib-menu">
+          <summary class="ag-btn ag-btn--sm">Codex <i class="fa-solid fa-caret-down" aria-hidden="true"></i></summary>
+          <div class="aglib-menu__pop">
+            <button type="button" data-ag-action="codex-export"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export codex (GM file)</button>
+            {{{fileButtons.codex}}}
+            <hr>
+            <button type="button" data-ag-action="codex-player-view"><i class="fa-solid fa-eye" aria-hidden="true"></i> Open the player view</button>
+          </div>
+        </details>
+        <span class="agmanager-tiny aglib-end">{{#if codex.playerAccess}}Shared with players{{else}}Not shared with players{{/if}} ({{{gotoModules}}})</span>
+      </div>
+    </section>
+    <section class="ag-split__detail aglib-detail" aria-label="NPC details">
+      {{#with codex.detail}}
+      <div class="aglib-detail__head">
+        {{#if img}}<img class="agcodex-portrait agcodex-portrait--lg" src="{{img}}" alt="">{{else}}<span class="agcodex-portrait agcodex-portrait--lg" aria-hidden="true">{{initials}}</span>{{/if}}
+        <div class="aglib-detail__title"><h3>{{name}}</h3>
+          <div class="aglib-row__meta"><code>{{id}}</code>{{#if status}}<span class="ag-badge">{{status}}</span>{{/if}}</div></div>
+        <button type="button" class="ag-btn" data-ag-action="codex-open-actor"><i class="fa-solid fa-user" aria-hidden="true"></i> Actor sheet</button>
+        <button type="button" class="ag-btn ag-btn--ghost ag-btn--icon" data-ag-action="codex-close" aria-label="Close details" data-tooltip="Close details" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-xmark" aria-hidden="true"></i></button>
+      </div>
+      {{{../codex.tabsHtml}}}
+      <div {{{../codex.panelAttrs}}} class="agm-subpanel agcodex-panel">
+      {{#if ../codex.onReveals}}
+      <div class="ag-section__head agcodex-reveals-head"><span class="ag-badge ag-badge--accent">Applies now</span><span class="agmanager-tiny">Each choice saves at once. Players see it next time they open the codex.</span>
+        <button type="button" class="ag-btn ag-btn--sm ag-btn--danger aglib-end" data-ag-action="codex-hide-all"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Hide from players…</button></div>
+      <div class="agcodex-field agcodex-field--discovery">
+        <div><div class="agcodex-label">Players know this NPC</div><p class="agmanager-tiny">Name and portrait. Nothing else shows to a player until this includes them.</p></div>
+        {{#with discoverySeg}}<div class="agcodex-control"><div class="agcodex-seg-wrap"><div class="ag-segmented agcodex-seg" role="radiogroup" aria-label="Who knows: {{label}}" data-ag-codex-seg="{{key}}"><button type="button" role="radio" aria-checked="{{#if isHidden}}true{{else}}false{{/if}}" tabindex="{{hiddenTab}}" data-mode="hidden">Hidden</button><button type="button" role="radio" class="agcodex-seg__party" aria-checked="{{#if isParty}}true{{else}}false{{/if}}" tabindex="{{partyTab}}" data-mode="party">Party</button></div>
+          <details class="aglib-menu agcodex-chars"><summary class="ag-btn ag-btn--sm{{#if isActors}} is-on{{/if}}" aria-label="Characters who know: {{label}}">Characters{{#if isActors}} ({{actorCount}}){{/if}} <i class="fa-solid fa-caret-down" aria-hidden="true"></i></summary>
+            <div class="aglib-menu__pop agcodex-chars__pop">{{#each chars}}<label><input type="checkbox" data-ag-codex-actor="{{../key}}" value="{{id}}" {{#if checked}}checked{{/if}}> {{name}}</label>{{else}}<p class="agmanager-tiny">No player characters yet (character Actors with a player owner).</p>{{/each}}</div>
+          </details></div>
+          {{#if isActors}}<p class="agcodex-who">Known by {{who}}</p>{{/if}}</div>{{/with}}
+      </div>
+      {{#each fields}}
+      <div class="agcodex-field">
+        <div class="agcodex-field__body"><div class="agcodex-label">{{label}}</div>
+          {{#if isLinks}}{{#if ../links.length}}<div class="agcodex-links">{{#each ../links}}{{#if open}}<button type="button" class="agcodex-link agcodex-link--{{kind}} is-open" data-ag-codex-deity="{{id}}" data-tooltip="{{title}}" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-sun" aria-hidden="true"></i> {{name}}{{#if named}} <code>{{id}}</code>{{/if}}</button>{{else}}<span class="agcodex-link agcodex-link--{{kind}}"{{#if title}} data-tooltip="{{title}}" data-tooltip-class="ag-tooltip"{{/if}}>{{name}}{{#if named}} <code>{{id}}</code>{{/if}}</span>{{/if}}{{/each}}</div>{{else}}<p class="agmanager-tiny">No connections. Add ids under Notes &amp; links or in the record's <code>codex.links</code>.</p>{{/if}}
+          {{else}}{{#if empty}}<p class="agmanager-tiny">Not set.</p>{{else}}<p class="agcodex-value">{{value}}</p>{{/if}}{{/if}}
+        </div>
+        <div class="agcodex-control"><div class="agcodex-seg-wrap"><div class="ag-segmented agcodex-seg" role="radiogroup" aria-label="Who knows: {{label}}" data-ag-codex-seg="{{key}}"><button type="button" role="radio" aria-checked="{{#if isHidden}}true{{else}}false{{/if}}" tabindex="{{hiddenTab}}" data-mode="hidden">Hidden</button><button type="button" role="radio" class="agcodex-seg__party" aria-checked="{{#if isParty}}true{{else}}false{{/if}}" tabindex="{{partyTab}}" data-mode="party">Party</button></div>
+          <details class="aglib-menu agcodex-chars"><summary class="ag-btn ag-btn--sm{{#if isActors}} is-on{{/if}}" aria-label="Characters who know: {{label}}">Characters{{#if isActors}} ({{actorCount}}){{/if}} <i class="fa-solid fa-caret-down" aria-hidden="true"></i></summary>
+            <div class="aglib-menu__pop agcodex-chars__pop">{{#each chars}}<label><input type="checkbox" data-ag-codex-actor="{{../key}}" value="{{id}}" {{#if checked}}checked{{/if}}> {{name}}</label>{{else}}<p class="agmanager-tiny">No player characters yet (character Actors with a player owner).</p>{{/each}}</div>
+          </details></div>
+          {{#if isActors}}<p class="agcodex-who">Known by {{who}}</p>{{/if}}</div>
+      </div>
+      {{/each}}
+      {{/if}}
+      {{#if ../codex.onNotes}}
+      <div class="agcodex-gm">
+        <h4><i class="fa-solid fa-lock" aria-hidden="true"></i> GM only: never sent to players</h4>
+        {{#each gmFields}}<div class="agcodex-gmrow"><span class="agcodex-label">{{label}}</span>{{#if items}}<ul class="agcodex-value">{{#each items}}<li>{{this}}</li>{{/each}}</ul>{{else}}<p class="agcodex-value">{{text}}</p>{{/if}}</div>{{else}}<p class="agmanager-tiny">The record has no portrayal, session role, stat block or GM notes.</p>{{/each}}
+      </div>
+      <div class="agcodex-edit" data-ag-codex-form>
+        <label class="ag-field">What the party has learned <textarea rows="3" data-ag-codex-learned>{{learned}}</textarea></label>
+        <label class="ag-field">Connections <input type="text" data-ag-codex-links value="{{linksText}}" aria-describedby="agcodex-links-hint"><span id="agcodex-links-hint" class="ag-field__hint">Ids separated by spaces: LOC-, FAC-, DEITY-, QUEST-, NPC-.</span></label>
+        <label class="ag-field">Your notes (GM only) <textarea rows="3" data-ag-codex-notes>{{notes}}</textarea></label>
+        <footer class="ag-footer agcodex-footer">
+          <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="codex-cancel">Cancel</button>
+          <span class="ag-footer__status" role="status" data-ag-codex-status></span>
+          <button type="button" class="ag-btn ag-btn--primary" data-ag-action="codex-save"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save Changes</button>
+        </footer>
+      </div>
+      {{/if}}
+      {{#if ../codex.onPreview}}
+      <div class="agcodex-preview">
+        <label class="agcodex-preview__pick">Preview as <select data-ag-codex-preview>{{#each ../codex.previewOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
+        {{#if ../codex.previewing}}{{{../codex.previewHtml}}}{{else}}<p class="agmanager-tiny">Choose the party or a character to see exactly what they receive.</p>{{/if}}
+      </div>
+      {{/if}}
+      </div>
+      {{else}}
+      <div class="ag-empty aglib-empty"><i class="fa-solid fa-address-book" aria-hidden="true"></i><p class="ag-empty__title">No NPC chosen</p>
+        <p class="ag-empty__text">Choose an NPC to set who knows what. Reveals, what the party has learned, connections and your notes are kept on re-import.</p></div>
+      {{/with}}
+      <p class="aglib-status" role="status">{{codex.message}}</p>
+    </section>
   </div>
   {{/if}}
 
@@ -685,38 +652,37 @@
         <button type="button" class="ag-btn ag-btn--sm" data-ag-action="presession-copy" {{#unless preSession.hasText}}disabled{{/unless}}><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy report</button>
         <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="presession-download" {{#unless preSession.hasText}}disabled{{/unless}}><i class="fa-solid fa-download" aria-hidden="true"></i> Download report</button>
       </span></div>
-    <p class="agmanager-tiny">Checks module versions, GM storage, Player Access, [TEST] data, hidden names in player views, Locations migration and the Foundry version. Read-only: it never changes a document or setting.</p>
+    <p class="agmanager-tiny">Read-only: module versions, GM storage, Player Access, [TEST] data, hidden names in player views, Locations migration and the Foundry version.</p>
     {{#if preSession}}
     <p class="agmanager-presession-summary"><strong>{{preSession.summary}}</strong></p>
-    <div class="agmanager-presession-rows">
-    {{#each preSession.rows}}<div class="agmanager-presession-row agmanager-presession-{{css}}"><span class="agmanager-presession-status">{{status}}</span><span class="agmanager-presession-check">{{check}}</span><span>{{text}}</span></div>{{/each}}
-    </div>
+    <ul class="ag-rows agmanager-presession-rows">
+    {{#each preSession.rows}}<li class="ag-row agmanager-presession-row"><span class="ag-badge{{#if tone}} ag-badge--{{tone}}{{/if}}">{{status}}</span><span class="ag-row__main"><span class="ag-row__title">{{check}}</span><span class="ag-row__meta">{{text}}</span></span></li>{{/each}}
+    </ul>
     {{/if}}
   </section>
   <section class="ag-section" aria-label="Ashen Gate modules">
     <div class="ag-section__head"><h3 class="ag-section__title">Ashen Gate modules</h3>
       <span class="ag-btn-group">
         <button type="button" class="ag-btn ag-btn--sm" data-ag-action="player-access-refresh" {{#if busy}}disabled{{/if}}><i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i> Refresh</button>
-        <button type="button" class="ag-btn ag-btn--sm" data-ag-action="player-access-hide-all" {{#unless playerAccessHasVisible}}disabled{{/unless}}><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Hide all ({{playerAccessVisibleCount}})</button>
+        <button type="button" class="ag-btn ag-btn--sm" data-ag-action="player-access-hide-all" {{#unless playerAccessHasVisible}}disabled{{/unless}}><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Hide all ({{playerAccessVisibleCount}})…</button>
       </span></div>
-    <p class="agmanager-tiny">Open other Ashen Gate modules from one place. The Manager discovers <strong>installed modules</strong> and uses their published <code>api.open()</code> launcher or registered Foundry settings window; it doesn't assume a module has an interface.</p>
-    <p class="agmanager-tiny">Player access: show or hide each module's player interface. Each module saves its own setting; hiding never deletes progress. Revealing a module also switches on its parts in the Character Hub's Player visibility (Cinders also brings the Strain bar, and hiding Cinders hides it); you can still turn single parts off in the Hub's GM Setup.</p>
+    <p class="agmanager-tiny">Open each module, and show or hide its player window. Each module saves its own setting; hiding never deletes progress. Revealing a module also shows its parts in the Character Hub.</p>
     <p class="ag-notice ag-notice--info agmanager-access-bar" role="status"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> {{playerAccessMessage}}</p>
     {{#if playerAccessReport}}
-      <details open class="agmanager-access-report"><summary>Hide all: {{playerAccessReport.changed.length}} hidden; {{playerAccessReport.failed.length}} failed; {{playerAccessReport.skipped.length}} skipped</summary>
+      <div class="ag-card ag-card--compact agmanager-access-report"><p><strong>Hide all: {{playerAccessReport.changed.length}} hidden; {{playerAccessReport.failed.length}} failed; {{playerAccessReport.skipped.length}} skipped</strong></p>
         {{#each playerAccessReport.failed}}<p class="agmanager-missing">Failed: {{title}} — {{error}}</p>{{/each}}
         {{#each playerAccessReport.skipped}}<p>Skipped: {{title}} ({{reason}})</p>{{/each}}
-      </details>
+      </div>
     {{/if}}
     <div class="ag-card-grid agmanager-module-grid">
     {{#each moduleCards}}
-      <article class="ag-card agmanager-module-card"{{#if accessReason}} data-tooltip="{{accessReason}}" data-tooltip-class="ag-tooltip"{{/if}}>
+      <article class="ag-card agmanager-module-card">
         <div class="agmanager-module-card__info"><h4>{{title}}</h4><code>{{id}}</code>
           <p class="agmanager-module-card__badge"><span class="ag-badge{{#if badge.tone}} ag-badge--{{badge.tone}}{{/if}}">{{badge.label}}</span></p>
-          <p class="agmanager-tiny">v{{version}} · {{state}} · Player access: {{playerAccessState}} (GM launcher remains available)</p><p class="agmanager-tiny">{{role}}</p>
+          <p class="agmanager-tiny">v{{version}} · {{state}}</p><p class="agmanager-tiny">{{role}}</p>
           {{#unless canToggle}}<p class="agmanager-tiny">{{accessReason}}</p>{{/unless}}</div>
         <div class="agmanager-module-card__actions">
-          <button type="button" class="ag-btn ag-btn--sm" data-ag-module-open="{{id}}" {{#unless canOpen}}disabled{{/unless}}>Open</button>
+          <button type="button" class="ag-btn ag-btn--sm" data-ag-module-open="{{id}}" aria-label="Open {{title}}" {{#unless canOpen}}disabled{{/unless}}>Open</button>
           {{#if canToggle}}
             {{#if playerAccessEnabled}}<button type="button" class="ag-btn ag-btn--sm" data-ag-player-access-toggle="{{id}}" data-ag-player-access-enabled="false" {{#if @root.busy}}disabled{{/if}} aria-label="Hide {{title}} from players"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> Hide from players</button>
             {{else}}<button type="button" class="ag-btn ag-btn--sm" data-ag-player-access-toggle="{{id}}" data-ag-player-access-enabled="true" {{#if @root.busy}}disabled{{/if}} aria-label="Reveal {{title}} to players"><i class="fa-solid fa-eye" aria-hidden="true"></i> Reveal to players</button>{{/if}}
@@ -726,17 +692,14 @@
     {{else}}<div class="ag-empty"><i class="fa-solid fa-grip" aria-hidden="true"></i><p class="ag-empty__title">No other Ashen Gate modules yet</p><p class="ag-empty__text">Enable one in Manage Modules, then reopen this tab.</p></div>
     {{/each}}
     </div>
-    <p class="agmanager-tiny">Reveal / Hide needs <code>ag-player-access/1</code>; older modules show Unsupported. GM-only editors (Manager, Location Builder) cannot be revealed.</p>
-    <p class="agmanager-tiny">Disabled means the module is inactive or has not exposed an Open API / settings menu. Turn a module on in Manage Modules to open it from here. This tab never installs, enables or changes another module.</p>
+    <p class="agmanager-tiny">Open is disabled for a module that is inactive or has no launcher; Reveal / Hide needs <code>ag-player-access/1</code>. This tab never installs or enables a module.</p>
   </section>
   {{/if}}
 
   {{#if scenesActive}}
   <div class="agscenes">
-    <nav class="aglib-rail" aria-label="Scenes sections">
-      {{#each moods.views}}<button type="button" class="aglib-rail__tab {{#if active}}active{{/if}}" data-ag-mood-view="{{id}}" data-tooltip="{{label}}" data-tooltip-class="ag-tooltip" aria-label="{{label}}" aria-pressed="{{#if active}}true{{else}}false{{/if}}"><i class="{{icon}}" aria-hidden="true"></i></button>{{/each}}
-    </nav>
-    <div class="agscenes-main">
+    {{{moods.tabsHtml}}}
+    <div {{{moods.panelAttrs}}} class="agm-subpanel agscenes-main">
     {{#if moods.live}}
     <div class="agscenes-live">
       <div class="agscenes-col">
@@ -756,7 +719,7 @@
           </div>
           <h4 class="agscenes-sect">Base mood</h4>
           <div class="agmanager-mood-buttons" role="group" aria-label="Apply a mood">
-            {{#each moods.liveMoods}}<button type="button" class="ag-btn{{#if active}} ag-btn--primary{{/if}}" data-ag-mood-apply="{{id}}" {{#unless @root.moods.hasScene}}disabled{{/unless}} aria-pressed="{{#if active}}true{{else}}false{{/if}}" data-tooltip="{{summary}}" data-tooltip-class="ag-tooltip">{{#if favourite}}<i class="fa-solid fa-star" aria-label="Favourite"></i> {{/if}}{{label}}</button>{{/each}}
+            {{#each moods.liveMoods}}<button type="button" class="ag-btn{{#if active}} ag-btn--primary{{/if}}" data-ag-mood-apply="{{id}}" {{#unless @root.moods.hasScene}}disabled{{/unless}} aria-pressed="{{#if active}}true{{else}}false{{/if}}" data-tooltip="{{summary}}" data-tooltip-class="ag-tooltip">{{#if favourite}}<i class="fa-solid fa-star" aria-hidden="true"></i><span class="ag-sr-only">Favourite:</span> {{/if}}{{label}}</button>{{/each}}
             <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="mood-restore" {{#unless moods.hasBase}}disabled{{/unless}}><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Back to normal</button>
           </div>
           <p class="agmanager-tiny">Picking a mood swaps the base and keeps your layers on top. <i class="fa-solid fa-star" aria-hidden="true"></i> = favourite on this scene (set in Moods &amp; layers).</p>
@@ -806,53 +769,23 @@
         {{else}}<p class="agmanager-tiny">Normal: no mood or layer applied.</p>
         {{/each}}
         <p class="agmanager-tiny agscenes-status" role="status">{{moods.message}}</p>
-        <p class="agmanager-tiny">Removing a layer puts back only the fields it changed. If you changed one of those fields since (Scene config or Fine-tune), your change stays and the message says so.</p>
-        <p class="agmanager-tiny">Everyone on the scene sees changes. Weather can slow weaker player machines: use <strong>No weather</strong> if that happens. Core Foundry lighting and weather only.</p>
+        <p class="agmanager-tiny">Removing a layer puts back only the fields it changed. Everyone on the scene sees changes. Weather can slow weaker player machines: use <strong>No weather</strong> if that happens.</p>
       </aside>
     </div>
     {{/if}}
 
     {{#if moods.library}}
-    <section class="ag-section" aria-label="Moods and layers">
-      <div class="ag-toolbar">
-        <label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-ag-mood-search value="{{moods.search}}" placeholder="Search moods and layers" aria-label="Search moods and layers"></label>
-        <div class="ag-chip-group" role="group" aria-label="Show">{{#each moods.filters}}<button type="button" class="ag-chip" data-ag-mood-filter="{{value}}" aria-pressed="{{#if selected}}true{{else}}false{{/if}}">{{label}}</button>{{/each}}</div>
-        <div class="ag-toolbar__end">
-          <button type="button" class="ag-btn" data-ag-action="mood-new"><i class="fa-solid fa-plus" aria-hidden="true"></i> New mood</button>
-          <button type="button" class="ag-btn" data-ag-action="layer-new"><i class="fa-solid fa-plus" aria-hidden="true"></i> New layer</button>
-        </div>
-      </div>
-      {{#each moods.libraryGroups}}
-      <h4 class="agscenes-sect">{{label}}</h4>
-      <div class="ag-rows agmanager-mood-list">
-        {{#each items}}
-        <div class="ag-row agmanager-mood-row{{#if unavailable}} is-unavailable{{/if}}">
-          <div class="ag-row__main"><span class="ag-row__title">{{label}} {{#if isDefault}}<span class="ag-badge">Default</span>{{/if}}{{#if unavailable}} <span class="ag-badge ag-badge--warn">Weather "{{unavailable}}" missing</span>{{/if}}</span><span class="ag-row__meta">{{summary}}</span></div>
-          <div class="ag-row__end">
-            {{#if isMood}}<button type="button" class="ag-btn ag-btn--sm ag-btn--icon{{#if favourite}} ag-btn--primary{{/if}}" data-ag-mood-favourite="{{id}}" {{#unless @root.moods.hasScene}}disabled{{/unless}} aria-pressed="{{#if favourite}}true{{else}}false{{/if}}" aria-label="Favourite on {{@root.moods.sceneName}}" data-tooltip="Favourite on {{@root.moods.sceneName}}" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-star" aria-hidden="true"></i></button>{{/if}}
-            <button type="button" class="ag-btn ag-btn--sm" data-ag-mood-edit="{{kind}}:{{id}}">Edit</button>
-            <button type="button" class="ag-btn ag-btn--sm" data-ag-mood-duplicate="{{kind}}:{{id}}">Duplicate</button>
-          </div>
-        </div>
-        {{else}}<div class="ag-empty"><p class="ag-empty__title">Nothing matches</p><p class="ag-empty__text">Clear the search or pick another filter.</p></div>
-        {{/each}}
-      </div>
-      {{/each}}
-      {{#unless moods.hasWeather}}<p class="agmanager-tiny"><strong>No weather effects found</strong> in this Foundry (CONFIG.weatherEffects is empty); presets that set weather will refuse to apply.</p>{{/unless}}
-      <p class="agmanager-tiny">Defaults are a starting point; editing one makes it yours. Remove is inside Edit.</p>
-      <p><button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-ag-action="mood-reset">Reset moods and layers to defaults…</button></p>
-    </section>
-
     {{#if moods.edit}}
     <section class="ag-section agmanager-mood-editor" aria-label="Edit preset">
+      <p><button type="button" class="ag-link" data-ag-action="mood-cancel"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i> All moods and layers</button></p>
       <div class="ag-section__head"><h3 class="ag-section__title">{{#if moods.edit.isNew}}New {{moods.edit.noun}}{{else}}Edit {{moods.edit.noun}}: {{moods.edit.label}}{{/if}}</h3>
-        {{#unless moods.edit.isNew}}<button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-ag-action="mood-remove"><i class="fa-solid fa-trash" aria-hidden="true"></i> Remove…</button>{{/unless}}</div>
+        {{#unless moods.edit.isNew}}<button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-ag-action="mood-remove"><i class="fa-solid fa-trash" aria-hidden="true"></i> Remove {{moods.edit.noun}}…</button>{{/unless}}</div>
       <div class="ag-form-grid">
         {{#if moods.edit.isNew}}<label class="ag-field">Id <input type="text" data-ag-mood-id value="{{moods.edit.id}}" placeholder="e.g. foggy-dawn" maxlength="40"></label>{{/if}}
         <label class="ag-field">Label <input type="text" data-ag-mood-label value="{{moods.edit.label}}"></label>
         <label class="ag-field">Transition <select data-ag-mood-edit-transition>{{#each moods.edit.transitions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select></label>
       </div>
-      <p class="agmanager-tiny">Tick the fields this {{moods.edit.noun}} sets. Unticked fields are left as the scene has them. Transition fades darkness when the Live transition is "Preset default".</p>
+      <p class="agmanager-tiny">Tick the fields this {{moods.edit.noun}} sets. Unticked fields are left as the scene has them.</p>
       {{#each moods.edit.groups}}
       <fieldset class="agscenes-grp"><legend>{{label}}</legend>
       <div class="agmanager-mood-fields">
@@ -872,6 +805,36 @@
         <button type="button" class="ag-btn ag-btn--primary" data-ag-action="mood-save"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save Changes</button>
       </footer>
     </section>
+    {{else}}
+    <section class="ag-section" aria-label="Moods and layers">
+      <div class="ag-toolbar">
+        <label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-ag-mood-search value="{{moods.search}}" placeholder="Search moods and layers" aria-label="Search moods and layers"></label>
+        <div class="ag-chip-group" role="group" aria-label="Show">{{#each moods.filters}}<button type="button" class="ag-chip" data-ag-mood-filter="{{value}}" aria-pressed="{{#if selected}}true{{else}}false{{/if}}">{{label}}</button>{{/each}}</div>
+        <div class="ag-toolbar__end">
+          <button type="button" class="ag-btn" data-ag-action="mood-new"><i class="fa-solid fa-plus" aria-hidden="true"></i> New mood</button>
+          <button type="button" class="ag-btn" data-ag-action="layer-new"><i class="fa-solid fa-plus" aria-hidden="true"></i> New layer</button>
+        </div>
+      </div>
+      {{#each moods.libraryGroups}}
+      <h4 class="agscenes-sect">{{label}}</h4>
+      <div class="ag-rows agmanager-mood-list">
+        {{#each items}}
+        <div class="ag-row agmanager-mood-row{{#if unavailable}} is-unavailable{{/if}}">
+          <div class="ag-row__main"><span class="ag-row__title">{{label}} {{#if isDefault}}<span class="ag-badge">Default</span>{{/if}}{{#if unavailable}} <span class="ag-badge ag-badge--warn">Weather "{{unavailable}}" missing</span>{{/if}}</span><span class="ag-row__meta">{{summary}}</span></div>
+          <div class="ag-row__end">
+            {{#if isMood}}<button type="button" class="ag-btn ag-btn--sm ag-btn--icon{{#if favourite}} ag-btn--primary{{/if}}" data-ag-mood-favourite="{{id}}" {{#unless @root.moods.hasScene}}disabled{{/unless}} aria-pressed="{{#if favourite}}true{{else}}false{{/if}}" aria-label="Favourite {{label}} on {{@root.moods.sceneName}}" data-tooltip="Favourite on {{@root.moods.sceneName}}" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-star" aria-hidden="true"></i></button>{{/if}}
+            <button type="button" class="ag-btn ag-btn--sm" data-ag-mood-edit="{{kind}}:{{id}}" aria-label="Edit {{label}}">Edit</button>
+            <button type="button" class="ag-btn ag-btn--sm" data-ag-mood-duplicate="{{kind}}:{{id}}" aria-label="Duplicate {{label}}">Duplicate</button>
+          </div>
+        </div>
+        {{else}}<div class="ag-empty"><p class="ag-empty__title">Nothing matches</p><p class="ag-empty__text">Clear the search or pick another filter.</p></div>
+        {{/each}}
+      </div>
+      {{/each}}
+      {{#unless moods.hasWeather}}<p class="agmanager-tiny"><strong>No weather effects found</strong> in this Foundry (CONFIG.weatherEffects is empty); presets that set weather will refuse to apply.</p>{{/unless}}
+      <p class="agmanager-tiny">Defaults are a starting point; editing one makes it yours. Remove is inside Edit.</p>
+      <p><button type="button" class="ag-btn ag-btn--sm ag-btn--danger" data-ag-action="mood-reset">Reset moods and layers to defaults…</button></p>
+    </section>
     {{/if}}
     {{/if}}
 
@@ -887,7 +850,7 @@
     </section>
     <section class="ag-section" aria-label="Import moods file">
       <div class="ag-section__head"><h3 class="ag-section__title">Import</h3></div>
-      <label class="ag-field">Moods file <input type="file" accept=".json,application/json" data-ag-mood-import-file></label>
+      <div class="ag-cluster">{{{fileButtons.moods}}}</div>
       {{#if moods.import}}
       <p class="agmanager-tiny">Preview of <strong>{{moods.import.filename}}</strong>. Nothing changes until Import. Scenes are never changed.</p>
       <div class="ag-rows agmanager-mood-list">
@@ -902,7 +865,7 @@
       </div>
       <footer class="ag-footer">
         <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="mood-import-cancel">Cancel</button>
-        <button type="button" class="ag-btn ag-btn--primary" data-ag-action="mood-import-apply"><i class="fa-solid fa-file-import" aria-hidden="true"></i> Import</button>
+        <button type="button" class="ag-btn ag-btn--primary" data-ag-action="mood-import-apply"><i class="fa-solid fa-file-import" aria-hidden="true"></i> Import ({{moods.import.items.length}})</button>
       </footer>
       {{/if}}
       <p class="agmanager-tiny agscenes-status" role="status">{{moods.message}}</p>
@@ -912,57 +875,98 @@
   </div>
   {{/if}}
 
-  {{#if historyActive}}
-  <section class="ag-section" aria-label="Recent import operations">
-    <div class="ag-section__head"><h3 class="ag-section__title">Recent import operations</h3></div>
-    <p class="agmanager-tiny">History is a compact activity log, <strong>not</strong> an undo system. The manager downloads pre-change snapshots for updates and destructive operations. Keep a Foundry world backup.</p>
-    {{#if hasHistory}}
-      {{#each history}}
-      <details class="agmanager-history">
-        <summary><strong>{{packageId}}</strong> · v{{packageVersion}} · {{at}} · {{results.length}} record(s)</summary>
-        <div class="agmanager-history-records">
-        {{#each results}}
-          <div><span class="ag-badge">{{status}}</span> <code>{{id}}</code> {{action}} {{message}} {{uuid}}</div>
-        {{/each}}
-        </div>
-      </details>
-      {{/each}}
-    {{else}}<div class="ag-empty"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i><p class="ag-empty__title">No imports yet</p><p class="ag-empty__text">Imports you apply on the Import tab are listed here.</p></div>{{/if}}
-  </section>
-  {{/if}}
-
   {{#if setupActive}}
   <div class="agm-setup">
-    <section class="ag-section" aria-label="World appearance">
-      <div class="ag-section__head"><h3 class="ag-section__title">World appearance</h3></div>
-      <label class="ag-field">Default skin for everyone
-        <select data-ag-setup-skin>{{#each setupSkins}}<option value="{{id}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}</select>
-        <span class="ag-field__hint">Players who have not picked their own skin see this. The Appearance menu in the header changes the same setting.</span></label>
-    </section>
-    <section class="ag-section" aria-label="NPC Codex">
-      <div class="ag-section__head"><h3 class="ag-section__title">NPC Codex</h3></div>
-      <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-codex-access {{#if codexPlayerAccess}}checked{{/if}}> Let players open the NPC Codex</label>
-      <p class="agmanager-tiny"><strong>On:</strong> players get an <strong>Open NPC Codex</strong> button (Game Settings → Configure Settings → Ashen Gate | General Manager). It shows only the NPCs, and only the details, you have revealed to the whole party or to that player's character. Hidden NPCs and your GM notes are never sent to them.</p>
-      <p class="agmanager-tiny"><strong>Off</strong> (default): players cannot open the codex at all. You still can, and your reveals are kept for when you turn it on.</p>
-    </section>
-    <section class="ag-section" aria-label="Core sources">
-      <div class="ag-section__head"><h3 class="ag-section__title">Core sources</h3></div>
-      <p class="agmanager-tiny">These boxes only tell <strong>Items → Core links</strong> where to find official 2024 (5.5e) items to compare your Ashen Gate items with. Players never see them, and ticking or unticking them never changes or moves any item. Old 2014 items are always ignored.</p>
-      <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-auto {{#if setup.auto}}checked{{/if}}> Find 2024 items automatically (recommended)</label>
-      <p class="agmanager-tiny"><strong>On:</strong> Core Links looks in world items imported by Plutonium or marked 2024, in your world compendiums, and in the dnd5e 2024 compendiums. <strong>Off:</strong> it looks only in the compendiums and folders you tick below.</p>
-      <h4>Also use these compendiums</h4>
-      <p class="agmanager-tiny">Tick a compendium to always include it, for example one your D&amp;D Beyond importer filled. <span class="ag-badge">detected</span> means automatic search already uses it.</p>
-      <div class="agm-checks">{{#each setup.packs}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-pack="{{id}}" {{#if configured}}checked{{/if}}> {{label}} <code>{{id}}</code>{{#if detected}} <span class="ag-badge">detected</span>{{/if}}</label>{{/each}}</div>
-      <h4>Also use world Item folders</h4>
-      <p class="agmanager-tiny">Tick a sidebar Item folder to include the items in it.</p>
-      <div class="agm-checks">{{#each setup.folders}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-folder="{{id}}" {{#if configured}}checked{{/if}}> {{name}}</label>{{else}}<span class="agmanager-tiny">No Item folders.</span>{{/each}}</div>
-    </section>
-    <p class="agmanager-tiny">Showing or hiding each module from players is on the <strong>Modules</strong> tab.</p>
-    <details class="ag-devtools">
-      <summary>Developer Tools</summary>
-      <p class="agmanager-tiny">Loads the included demonstration package into the Import tab for a dry run. Nothing in the world changes until you Import.</p>
-      <button type="button" class="ag-btn ag-btn--sm" data-ag-action="demo"><i class="fa-solid fa-flask" aria-hidden="true"></i> Load example package</button>
-    </details>
+    {{{setupTabsHtml}}}
+    <div class="agm-setup-form" data-ag-setup-form>
+    <div {{{setupPanels.general}}} class="agm-subpanel">
+      <section class="ag-section" aria-label="World appearance">
+        <div class="ag-section__head"><h3 class="ag-section__title">World appearance</h3></div>
+        <p class="agmanager-tiny">The skin every player sees until they pick their own in My Appearance. Players see a saved change live.</p>
+        <div class="agm-skin-picker" role="radiogroup" aria-label="World default appearance" data-ag-skin-picker="world" data-ag-setup-skin>
+          {{#each setupSkins}}<button type="button" role="radio" class="agm-skin-card{{#if selected}} is-selected{{/if}}{{#if current}} is-current{{/if}}" aria-checked="{{#if selected}}true{{else}}false{{/if}}" tabindex="{{#if selected}}0{{else}}-1{{/if}}" data-ag-skin-value="{{id}}" aria-describedby="ag-wskin-desc-{{id}}"><span class="agm-swatch" aria-hidden="true">{{#each swatch}}<i style="background:{{this}}"></i>{{/each}}</span><span class="agm-skin-card__text"><span class="agm-skin-card__name">{{label}}</span><small id="ag-wskin-desc-{{id}}" class="agm-skin-card__desc">{{description}}</small>{{#if current}}<small class="agm-skin-card__now">Saved world default</small>{{/if}}</span></button>{{/each}}
+        </div>
+        <p class="agmanager-tiny">Your own skin and size: {{{gotoMyAppearance}}}.</p>
+      </section>
+      <section class="ag-section" aria-label="NPC Codex">
+        <div class="ag-section__head"><h3 class="ag-section__title">NPC Codex</h3></div>
+        <p>Players {{#if codexPlayerAccess}}<strong>can</strong>{{else}}<strong>cannot</strong>{{/if}} open the NPC Codex. Reveal or hide it on the {{{gotoModules}}} tab, with the other modules' player windows.</p>
+        <p class="agmanager-tiny">Players see only the NPCs and details you have revealed to the party or to their character. Your reveals are kept while it is hidden.</p>
+      </section>
+    </div>
+    <div {{{setupPanels.sources}}} class="agm-subpanel">
+      <section class="ag-section" aria-label="Core sources">
+        <div class="ag-section__head"><h3 class="ag-section__title">Core sources</h3></div>
+        <p class="agmanager-tiny">Where <strong>Items → Core links</strong> looks for official 2024 (5.5e) items. Ticking a box never changes or moves any item; 2014 items are always ignored.</p>
+        <label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-auto {{#if setup.auto}}checked{{/if}}> Find 2024 items automatically (recommended)</label>
+        <p class="agmanager-tiny"><strong>On:</strong> world items imported by Plutonium or marked 2024, your world compendiums and the dnd5e 2024 compendiums. <strong>Off:</strong> only what you tick below.</p>
+        <h4>Also use these compendiums</h4>
+        <p class="agmanager-tiny"><span class="ag-badge">detected</span> means automatic search already uses it.</p>
+        <div class="agm-checks">{{#each setup.packs}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-pack="{{id}}" {{#if configured}}checked{{/if}}> {{label}} <code>{{id}}</code>{{#if detected}} <span class="ag-badge">detected</span>{{/if}}</label>{{/each}}</div>
+        <h4>Also use world Item folders</h4>
+        <div class="agm-checks">{{#each setup.folders}}<label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-setup-folder="{{id}}" {{#if configured}}checked{{/if}}> {{name}}</label>{{else}}<span class="agmanager-tiny">No Item folders.</span>{{/each}}</div>
+      </section>
+    </div>
+    </div>
+    <div {{{setupPanels.developer}}} class="agm-subpanel">
+      <div class="ag-devtools agm-devtools">
+        <p class="ag-notice ag-notice--warn"><i class="fa-solid fa-flask" aria-hidden="true"></i> <span>Developer Tools: sample files and repo-review tools. Not needed to run a game.</span></p>
+        <section class="ag-section" aria-label="Sample files">
+          <div class="ag-section__head"><h3 class="ag-section__title">Sample files</h3></div>
+          <div class="ag-cluster">
+            <button type="button" class="ag-btn ag-btn--sm" data-ag-action="demo"><i class="fa-solid fa-flask" aria-hidden="true"></i> Load example package</button>
+            <button type="button" class="ag-btn ag-btn--sm" data-ag-action="template-example"><i class="fa-solid fa-download" aria-hidden="true"></i> Download sample template package</button>
+            <button type="button" class="ag-btn ag-btn--sm" data-ag-action="import-format-example"><i class="fa-solid fa-download" aria-hidden="true"></i> Download v0.2 Import JSON starter</button>
+            <button type="button" class="ag-btn ag-btn--sm" data-ag-action="source-manifest-template"><i class="fa-solid fa-download" aria-hidden="true"></i> Download canonical source manifest</button>
+          </div>
+          <p class="agmanager-tiny">Load example package puts the included demonstration on the Import tab for a dry run; nothing changes until you Import. Package templates (<code>templates</code> + <code>template_ref</code>) compile on load. Folder destinations use <code>foundry.folder_path</code> (e.g. <code>Ashen Gate/Professions/Recipes</code>); explicit links use <code>[[AGREF:MAT-EXAMPLE|Material]]</code>.</p>
+        </section>
+        <section class="ag-section agmanager-adopt" aria-label="Adopt and tag world Items">
+          <div class="ag-section__head"><h3 class="ag-section__title">Adopt &amp; tag world Items for review</h3></div>
+          <p class="agmanager-tiny">A review tag records a stable capture ID and a suggested classification without editing the Item. It does not approve a record or make it importer-managed.</p>
+          <dl class="agmanager-package">
+            <div><dt>World Items</dt><dd class="aglib-num">{{worldItemCount}}</dd></div>
+            <div><dt>Tagged for review</dt><dd class="aglib-num">{{taggedCount}}</dd></div>
+            <div><dt>Visible rows</dt><dd class="aglib-num">{{captureVisibleCount}}</dd></div>
+          </dl>
+          <div class="ag-toolbar">
+            <label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-ag-capture-filter value="{{captureSearch}}" placeholder="Find Item: name or type" aria-label="Find Item" /></label>
+            <div class="ag-toolbar__filters"><label class="ag-field--inline agmanager-toggle"><input type="checkbox" data-ag-capture-tagged-only {{#if captureTaggedOnly}}checked{{/if}}> Tagged only</label></div>
+            <div class="ag-toolbar__end">
+              <button type="button" class="ag-btn ag-btn--sm" data-ag-action="capture-select-visible">Select visible</button>
+              <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="capture-clear">Clear selection</button>
+            </div>
+          </div>
+          <div class="ag-table-wrap agm-scrollcap">
+            <table class="ag-table">
+              <thead><tr><th scope="col">Select</th><th scope="col">Item / Foundry UUID</th><th scope="col">Item type</th><th scope="col">Capture status</th></tr></thead>
+              <tbody>
+                {{#each captureRows}}
+                <tr>
+                  <td><input type="checkbox" data-ag-capture-select="{{id}}" {{#if selected}}checked{{/if}} aria-label="Select {{name}}" /></td>
+                  <td><strong{{{tooltip}}}>{{name}}</strong><code class="agm-id">{{uuid}}</code></td>
+                  <td>{{type}}</td>
+                  <td>{{#if tagged}}<span class="ag-badge ag-badge--ok">Tagged</span> {{kindLabel}}<code class="agm-id">{{capture.captureId}}</code>{{else}}<span class="ag-badge">Not tagged</span>{{/if}}{{#if source}}<div class="agmanager-tiny">Imported binding: {{source.sourceId}}</div>{{/if}}</td>
+                </tr>
+                {{/each}}
+              </tbody>
+            </table>
+          </div>
+          <div class="ag-cluster agm-gap-top">
+            <label class="agmanager-search-label">Classify selected as
+              <select data-ag-capture-kind>
+                {{#each captureKindOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{value}}</option>{{/each}}
+              </select>
+            </label>
+            <button type="button" class="ag-btn" data-ag-action="capture-tag" {{#unless hasCaptureSelected}}disabled{{/unless}}><i class="fa-solid fa-tag" aria-hidden="true"></i> Tag selected</button>
+            <button type="button" class="ag-btn ag-btn--danger" data-ag-action="capture-untag" {{#unless hasCaptureSelected}}disabled{{/unless}}>Remove selected tags…</button>
+            <button type="button" class="ag-btn agm-push-end" data-ag-action="capture-export" {{#unless canCaptureExport}}disabled{{/unless}}><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export all tagged Items (JSON)</button>
+          </div>
+          <p class="ag-notice ag-notice--info" role="status"><i class="fa-solid fa-circle-info" aria-hidden="true"></i> {{captureMessage}}</p>
+          <p class="agmanager-tiny">Export includes <strong>all tagged world Items</strong> (rules, effects and module flags; no Actors or macros), unreviewed until reconciled for the repo. Check copyright and hidden GM details before uploading.</p>
+        </section>
+      </div>
+    </div>
   </div>
   {{/if}}
   </div>
@@ -970,11 +974,11 @@
   <aside class="agm-drawer{{#if drawer.open}} is-open{{/if}}" aria-label="Import messages">
     <div class="agm-drawer__bar">
       <button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-ag-drawer-toggle aria-expanded="{{#if drawer.open}}true{{else}}false{{/if}}" aria-controls="agm-drawer-body"><i class="fa-solid {{#if drawer.open}}fa-chevron-down{{else}}fa-chevron-up{{/if}}" aria-hidden="true"></i> {{#if drawer.open}}Hide messages{{else}}Show messages{{/if}}</button>
-      <div class="ag-chip-group" role="tablist" aria-label="Message kinds">
-        {{#each drawer.tabs}}<button type="button" role="tab" class="ag-chip" data-ag-drawer-tab="{{id}}" aria-selected="{{#if active}}true{{else}}false{{/if}}" aria-pressed="{{#if active}}true{{else}}false{{/if}}" {{#unless count}}disabled{{/unless}}>{{label}} <span class="ag-badge{{#if count}}{{#if tone}} ag-badge--{{tone}}{{/if}}{{/if}}">{{count}}</span></button>{{/each}}
+      <div class="ag-chip-group" role="group" aria-label="Message kinds">
+        {{#each drawer.tabs}}<button type="button" class="ag-chip" data-ag-drawer-tab="{{id}}" aria-pressed="{{#if active}}true{{else}}false{{/if}}" aria-controls="agm-drawer-body" {{#unless count}}disabled{{/unless}}>{{label}} <span class="ag-badge{{#if count}}{{#if tone}} ag-badge--{{tone}}{{/if}}{{/if}}">{{count}}</span></button>{{/each}}
       </div>
     </div>
-    {{#if drawer.open}}<div id="agm-drawer-body" class="agm-drawer__body ag-scroll" role="tabpanel" aria-label="{{drawer.label}}">
+    {{#if drawer.open}}<div id="agm-drawer-body" class="agm-drawer__body ag-scroll" role="region" aria-label="{{drawer.label}}">
       {{#if drawer.errors}}<div class="ag-notice ag-notice--danger" role="alert"><i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i><div><strong>Validation failed — import blocked</strong><ul>{{#each errors}}<li>{{message}}</li>{{/each}}</ul></div></div>{{/if}}
       {{#if drawer.warnings}}<div class="ag-notice ag-notice--warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><div><strong>Import review notes</strong><ul>{{#each warnings}}<li>{{message}}</li>{{/each}}</ul></div></div>{{/if}}
       {{#if drawer.links}}<div class="ag-notice ag-notice--info" role="status"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><div><strong>Links to other Ashen Gate modules</strong> (for information; those records are imported separately and their ids are kept)<ul>{{#each moduleLinks}}<li>{{message}}</li>{{/each}}</ul></div></div>{{/if}}
@@ -982,8 +986,8 @@
       <section class="agmanager-result-panel" aria-label="Import results" aria-live="polite">
         <div class="ag-section__head"><h3 class="ag-section__title">Import results</h3><button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="clear-results">Clear results</button></div>
         {{#each importReports}}
-        <article class="agmanager-result agmanager-result-{{tone}}">
-          <header><span class="ag-badge {{#if isError}}ag-badge--danger{{else}}{{#if isWarn}}ag-badge--warn{{else}}ag-badge--ok{{/if}}{{/if}}">{{toneLabel}}</span> <strong>{{file}}</strong> <small>{{at}}</small></header>
+        <article class="ag-card ag-card--compact agmanager-result agmanager-result-{{tone}}">
+          <header class="ag-card__head"><span><span class="ag-badge {{#if isError}}ag-badge--danger{{else}}{{#if isWarn}}ag-badge--warn{{else}}ag-badge--ok{{/if}}{{/if}}">{{toneLabel}}</span> <strong>{{file}}</strong></span> <small class="ag-card__meta">{{at}}</small></header>
           <p class="agmanager-result-headline">{{headline}}</p>
           {{#each notes}}<p class="agmanager-tiny">{{this}}</p>{{/each}}
           {{#each sections}}
@@ -1007,7 +1011,7 @@
   {{#if setupActive}}
   <footer class="ag-footer agm-setup-footer">
     <button type="button" class="ag-btn ag-btn--ghost" data-ag-action="setup-cancel">Cancel</button>
-    <span class="ag-footer__status" role="status">{{setupMessage}}</span>
+    <span class="ag-footer__status" role="status" data-ag-setup-status>{{setupMessage}}</span>
     <button type="button" class="ag-btn ag-btn--primary" data-ag-action="setup-save"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save Changes</button>
   </footer>
   {{/if}}

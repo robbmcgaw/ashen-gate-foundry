@@ -231,7 +231,8 @@ function linkHtml(l, deityLink) {
   if (l.unknown || !l.id) return `<span class="agm-codex-link agm-codex-link--deity is-unknown" data-tooltip-class="ag-tooltip" data-tooltip="${esc(DEITY_TIPS.unknown)}">${esc(UNKNOWN_DEITY)}</span>`;
   const how = deityLink(l) ?? {};
   if (how.unknown) return `<span class="agm-codex-link agm-codex-link--deity is-unknown" data-tooltip-class="ag-tooltip" data-tooltip="${esc(DEITY_TIPS.unknown)}">${esc(UNKNOWN_DEITY)}</span>`;
-  if (how.open) return `<a class="agm-codex-link agm-codex-link--deity" role="button" data-ag-codex-deity="${esc(l.id)}" data-tooltip-class="ag-tooltip" data-tooltip="${esc(how.title || 'Open in the Renown Pantheon')}"><i class="fa-solid fa-sun" aria-hidden="true"></i> ${esc(l.name)}</a>`;
+  // 0.46.0: a real button, so keyboard users can open the deity (was an <a> with no href).
+  if (how.open) return `<button type="button" class="agm-codex-link agm-codex-link--deity is-open" data-ag-codex-deity="${esc(l.id)}" data-tooltip-class="ag-tooltip" data-tooltip="${esc(how.title || 'Open in the Renown Pantheon')}"><i class="fa-solid fa-sun" aria-hidden="true"></i> ${esc(l.name)}</button>`;
   return `<span class="agm-codex-link agm-codex-link--deity" data-tooltip-class="ag-tooltip" data-tooltip="${esc(how.title || DEITY_TIPS.noRenown)}">${esc(l.name)}</span>`;
 }
 /** Read-only player Codex markup (window body and api.codex.mount). Input is already a player projection.

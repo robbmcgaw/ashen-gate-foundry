@@ -122,42 +122,43 @@ test('Modules tab has Reveal / Hide per card plus Refresh and Hide all; Appearan
     'data-ag-player-access-enabled="false"', 'Reveal to players', 'Hide from players', 'data-ag-module-open="{{id}}"', '{{badge.label}}'])
     assert.ok(mods.includes(s), s);
   assert.ok(mods.indexOf('player-access-hide-all') < mods.indexOf('{{#each moduleCards}}'), 'Refresh / Hide all at the top');
-  const pop = tpl.slice(tpl.indexOf('data-ag-appearance-pop'), tpl.indexOf('</header>'));
-  assert.doesNotMatch(pop, /player-access/);
+  const header = tpl.slice(0, tpl.indexOf('</header>'));
+  assert.doesNotMatch(header, /player-access/);
   assert.doesNotMatch(tpl, /agmanager-access-compact/);
   // Same safeguards as before: GM check and click-time recheck in the handler, confirmation before Hide all.
   assert.match(main, /if\(!game\.user\?\.isGM\) throw new Error\('Only GMs can change Player Access\.'\);/);
   assert.match(main, /changePlayerAccess\(mod,enabled,\{isGM:game\.user\.isGM\}\)/);
-  assert.match(main, /title:'Hide all player windows\?',yes:'Hide all',danger:true/);
+  assert.match(main, /\{title:'Hide all player windows\?',yes:'Hide all'\}\);/);
+  assert.match(main, /const confirmed=await confirmDanger\(`Hide \$\{targets\.length\}/);
   assert.match(main, /playerAccess:\{contract:"ag-player-access\/1"/);
 });
 
-// ---- Appearance dropdown ----
-test('Appearance is a header dropdown, not a tab; the old tab id opens it on the previous tab', () => {
+// ---- Appearance (0.46.0: the world default lives in GM Setup; the header opens My Appearance) ----
+test('the world default is edited only in GM Setup; the header button opens My Appearance; old ids land in GM Setup', () => {
   assert.doesNotMatch(tpl, /data-ag-tab="appearance"/);
   const header = tpl.slice(0, tpl.indexOf('</header>'));
-  for (const s of ['data-ag-appearance-toggle', 'aria-haspopup="dialog"', 'aria-expanded=', 'data-ag-skin-picker="world"', 'agm-skin-card', 'agm-swatch',
-    'data-ag-action="appearance-save-world"', 'data-ag-action="appearance-my-appearance"', 'Effective on your screen', '{{appearanceMessage}}'])
-    assert.ok(header.includes(s), s);
-  assert.ok(header.indexOf('data-ag-appearance-menu') < header.indexOf('data-ag-action="help"'), 'next to Help');
-  assert.deepEqual(resolveTab('appearance'), {tab: 'import', view: 'all', appearance: true});
-  assert.deepEqual(resolveTab('appearance', {previous: 'modules'}), {tab: 'modules', view: 'all', appearance: true});
-  assert.deepEqual(resolveTab('appearance', {previous: 'library', librarySection: 'codex'}), {tab: 'items', view: 'codex', appearance: true});
-  assert.match(main, /if\(resolved\.appearance\)this\.appearanceOpen=true;/);
-  // Outside click, Escape, focus handling, listener removed on re-render and close.
-  assert.match(main, /event\.key==='Escape'/);
-  assert.match(main, /document\.addEventListener\('pointerdown',outside,true\)/);
-  assert.match(main, /this\.appearanceOff\?\.\(\);this\.appearanceOff=null;this\.appearanceOpen=false;/);
-  assert.match(css, /\.agmanager-appearance-pop\{position:absolute;[^}]*width:min\(35rem,calc\(100cqw - 2 \* var\(--ag-space-4\)\)\)/);
+  assert.match(header, /data-ag-action="appearance-my-appearance"><i class="fa-solid fa-palette" aria-hidden="true"><\/i> My Appearance<\/button>/);
+  for (const gone of ['data-ag-appearance-toggle', 'data-ag-appearance-pop', 'data-ag-skin-picker', 'appearance-save-world'])
+    assert.ok(!tpl.includes(gone) || !header.includes(gone), gone);
+  assert.doesNotMatch(tpl, /data-ag-appearance-pop|appearance-save-world|data-ag-size-picker="gm"/);
+  assert.ok(header.indexOf('appearance-my-appearance') < header.indexOf('class="ag-version"') && header.indexOf('class="ag-version"') < header.indexOf('data-ag-action="help"'),
+    'actions · version · Help');
+  const setup = tpl.slice(tpl.indexOf('\n  {{#if setupActive}}'), tpl.indexOf('agm-setup-footer'));
+  for (const s of ['data-ag-skin-picker="world"', 'data-ag-setup-skin', 'agm-skin-card', 'agm-swatch', 'Saved world default']) assert.ok(setup.includes(s), s);
+  assert.deepEqual(resolveTab('appearance'), {tab: 'setup', view: 'all', setupTab: 'general'});
+  assert.deepEqual(resolveTab('appearance', {view: 'records'}), {tab: 'setup', view: 'records', setupTab: 'general'});
+  assert.match(main, /if\(resolved\.setupTab\)this\.setupTab=resolved\.setupTab;/);
+  assert.doesNotMatch(main, /appearanceOpen|appearanceOff|#bindAppearanceMenu/);
+  assert.doesNotMatch(css, /agmanager-appearance-pop/);
 });
 
 test('Help and GM Setup point to the new places', () => {
-  assert.match(main, /<strong>Appearance<\/strong> \(top bar, next to Help\)/);
-  assert.match(main, /Reveal to players<\/strong> \/ <strong>Hide from players/);
+  assert.match(main, /<strong>My Appearance<\/strong> in the header is your own skin and size/);
+  assert.match(main, /Reveal and Hide change that module’s own Player Access setting/);
   const setup = tpl.slice(tpl.indexOf('\n  {{#if setupActive}}'), tpl.indexOf('agm-setup-footer'));
-  // 0.43.0: GM Setup holds the world appearance itself (same setting as the header dropdown).
+  // 0.46.0: GM Setup → General is the only world-default editor; Player Access (NPC Codex included) is on Modules.
   assert.match(setup, /World appearance/);
   assert.match(setup, /data-ag-setup-skin/);
-  assert.match(setup, /The Appearance menu in the header changes the same setting/);
-  assert.match(setup, /<strong>Modules<\/strong> tab/);
+  assert.match(setup, /\{\{\{gotoModules\}\}\} tab/);
+  assert.match(main, /gotoModules: goto\('Modules','modules'\)/);
 });

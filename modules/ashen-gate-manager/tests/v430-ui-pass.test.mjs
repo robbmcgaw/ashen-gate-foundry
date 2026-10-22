@@ -36,13 +36,15 @@ function form({access = false, skin = 'ag-default', auto = true, packs = [], fol
   return {querySelector: s => els[s] ?? null, querySelectorAll: s => lists[s] ?? []};
 }
 
-test('D4: ticking NPC Codex access saves nothing on its own; there is no change handler for it', () => {
+test('D4: GM Setup saves nothing on its own; the NPC Codex switch is on the Modules tab (0.46.0)', () => {
   assert.doesNotMatch(main, /\[data-ag-codex-access\]'\)\?\.addEventListener/, 'no instant save on tick');
   assert.doesNotMatch(tpl, /saves as soon as you tick/);
   const setup = tpl.slice(tpl.indexOf('{{#if setupActive}}\n  <div class="agm-setup">'), tpl.indexOf('agm-setup-footer'));
-  assert.match(setup, /data-ag-codex-access/);
+  assert.doesNotMatch(setup, /data-ag-codex-access/, 'one control for Codex access: its Modules card');
   assert.match(main, /case "setup-save": await this\.#saveSetup\(\); break;/);
-  assert.match(main, /saveGmSetup\(readGmSetupForm\(this\.element\)/);
+  assert.match(main, /saveGmSetup\(readGmSetupForm\(form\)/);
+  // Every setting in GM Setup is part of one draft that survives re-renders and sub-tab switches.
+  assert.match(main, /const note=\(\)=>\{this\.setupDraft=readGmSetupForm\(form\);this\.setupGuard\.markDirty\(\);\};/);
 });
 
 test('D4: Save Changes writes the changed settings together, same keys, and only what changed', async () => {
@@ -73,46 +75,50 @@ test('D4: turning access off saves false; a player is rejected in the data layer
   assert.match(bad.message, /"not-a-skin" is not an Ashen Gate skin/);
 });
 
-test('GM Setup: settings only, world appearance field, Developer Tools last, Cancel left and Save Changes right', () => {
+test('GM Setup: sub-tabs General · Core sources · Developer Tools, Developer Tools last, Cancel left and Save Changes right', () => {
   const setup = tpl.slice(tpl.indexOf('{{#if setupActive}}\n  <div class="agm-setup">'), tpl.lastIndexOf('{{/if}}'));
-  const order = ['World appearance', 'NPC Codex', 'Core sources', '<details class="ag-devtools">', 'data-ag-action="demo"'].map(s => setup.indexOf(s));
+  const order = ['{{{setupTabsHtml}}}', '{{{setupPanels.general}}}', 'World appearance', 'NPC Codex', '{{{setupPanels.sources}}}', 'Core sources', '{{{setupPanels.developer}}}', 'class="ag-devtools', 'data-ag-action="demo"'].map(s => setup.indexOf(s));
   assert.ok(order.every(i => i > 0), 'all parts present');
   assert.deepEqual([...order].sort((a, b) => a - b), order, 'in order, Developer Tools at the end');
-  assert.match(setup, /<summary>Developer Tools<\/summary>/);
+  assert.match(main, /const SETUP_TABS=\[\{id:'general',label:'General'\},\{id:'sources',label:'Core sources'\},\{id:'developer',label:'Developer Tools'\}\];/);
   assert.doesNotMatch(setup, /presession|player-access-toggle/, 'GM Setup holds settings, not tools');
+  // The Developer Tools panel sits outside the draft, so its tools never mark GM Setup as changed.
+  assert.ok(setup.indexOf('{{{setupPanels.developer}}}') > setup.indexOf('data-ag-setup-form') && setup.lastIndexOf('</div>', setup.indexOf('{{{setupPanels.developer}}}')) > setup.indexOf('{{{setupPanels.sources}}}'));
   const footer = setup.slice(setup.indexOf('<footer class="ag-footer agm-setup-footer">'));
   assert.ok(footer.indexOf('data-ag-action="setup-cancel"') < footer.indexOf('ag-footer__status') && footer.indexOf('ag-footer__status') < footer.indexOf('data-ag-action="setup-save"'));
   assert.match(footer, /class="ag-btn ag-btn--ghost" data-ag-action="setup-cancel">Cancel/);
   assert.match(footer, /class="ag-btn ag-btn--primary" data-ag-action="setup-save">.*Save Changes/);
-  assert.match(main, /case "setup-cancel": this\.setupMessage="Changes discarded\."; await this\.render\(\); break;/);
+  assert.match(main, /case "setup-cancel": this\.setupDraft=null; this\.setupGuard\.markClean\(\); this\.setupMessage="Changes discarded\."; await this\.render\(\); break;/);
   assert.match(main, /case "demo": \{[\s\S]{0,400}this\.tab="import";/, 'Load example opens the Import tab');
   assert.doesNotMatch(tpl.slice(0, tpl.indexOf('{{#if setupActive}}')), /data-ag-action="demo"/, 'Load example only in Developer Tools');
 });
 
 // ---- Header, tabs, layout ----
-test('header: standard brand h1, emblem fa-boxes-stacked, then Appearance, GM only flag, runtime version, Help', () => {
+test('header: standard brand h1, emblem fa-boxes-stacked, then My Appearance, GM only flag, runtime version, Help', () => {
   const header = tpl.slice(tpl.indexOf('<header class="ag-header'), tpl.indexOf('</header>'));
   assert.match(header, /<h1><i class="agmanager-emblem fa-solid fa-boxes-stacked" aria-hidden="true"><\/i> <span class="ag-header__brand">Ashen Gate<\/span> \| General Manager<\/h1>/);
   assert.doesNotMatch(header, /fa-dungeon|Beta|Alpha/);
   const at = s => header.indexOf(s);
-  assert.ok(at('data-ag-appearance-menu') < at('class="ag-gm-flag"') && at('class="ag-gm-flag"') < at('class="ag-version"') && at('class="ag-version"') < at('data-ag-action="help"'));
+  assert.ok(at('data-ag-action="appearance-my-appearance"') > 0 && at('data-ag-action="appearance-my-appearance"') < at('class="ag-gm-flag"') && at('class="ag-gm-flag"') < at('class="ag-version"') && at('class="ag-version"') < at('data-ag-action="help"'));
   assert.match(header, /class="ag-btn ag-btn--ghost ag-btn--sm" data-ag-action="help"/);
   assert.match(main, /name:"General Manager", label:"Open General Manager"/);
 });
 
-test('tabs: role=tab with aria-selected, scroll sideways, icons hidden, GM Setup last and marked', () => {
+test('tabs: kit tablist (roving tabindex, aria-controls), six tabs, icons hidden, GM Setup last and marked', () => {
   const nav = tpl.slice(tpl.indexOf('<nav class="ag-tabs'), tpl.indexOf('</nav>'));
   assert.match(nav, /class="ag-tabs ag-tabs--scroll agmanager-nav" role="tablist"/);
   const tabs = [...nav.matchAll(/<button [^>]*data-ag-tab="([a-z]+)"[^>]*>/g)];
-  assert.deepEqual(tabs.map(m => m[1]), ['import', 'items', 'modules', 'scenes', 'history', 'setup']);
-  for (const [b] of tabs) { assert.match(b, /role="tab"/); assert.match(b, /aria-selected="/); }
+  assert.deepEqual(tabs.map(m => m[1]), ['import', 'items', 'codex', 'modules', 'scenes', 'setup']);
+  for (const [b] of tabs) { assert.match(b, /role="tab"/); assert.match(b, /aria-selected="/); assert.match(b, /aria-controls="agm-pane"/); assert.match(b, /tabindex="\{\{#if /); }
+  assert.match(tpl, /<div class="ag-scroll agm-pane" id="agm-pane" role="tabpanel" aria-labelledby="agm-tab-\{\{tab\}\}">/);
+  assert.match(main, /bindTablist\(root\.querySelector\('\.agmanager-nav'\)\);/);
   assert.match(tabs.at(-1)[0], /ag-tab--gm/);
   assert.equal((nav.match(/<i class="fa-solid [^"]+" aria-hidden="true">/g) ?? []).length, 6);
 });
 
 test('header and tabs stay put: .ag-window with one .ag-scroll pane, scroll kept on re-render, no negative-margin hacks', () => {
   assert.match(tpl, /^<section class="agmanager-body ag-window">/);
-  assert.match(tpl, /<\/nav>\n\n  <div class="ag-scroll agm-pane">/);
+  assert.match(tpl, /<\/nav>\n\n  <div class="ag-scroll agm-pane" id="agm-pane"/);
   // 0.45.0: the Import message drawer and the preview table keep their scroll too.
   assert.match(main, /scrollable: \["\.agm-pane", "\.aglib-rows", "\.agm-drawer__body", "\.agm-preview-table"\]/);
   assert.match(css, /\.ashen-gate-manager \.window-content\{padding:0;overflow:hidden\}/);
@@ -125,8 +131,11 @@ test('the panel button override is gone and every Manager button carries a kit c
   assert.doesNotMatch(css, /agmanager-panel button|agmanager-row button|agmanager-appearance-pop button/);
   assert.doesNotMatch(tpl, /agmanager-panel|agmanager-primary|agmanager-muted|agmanager-help|agmanager-mood-footer|agmanager-chip|agmanager-badge|agmanager-beta|aglib-pill|aglib-chip/);
   // Buttons that are not .ag-btn are other kit parts or purpose-built controls: tabs, radio cards, rail icons, menu items, chips, row buttons, segmented options.
-  const other = /role="(tab|radio|menuitem)"|class="(ag-chip|aglib-rail__tab|aglib-row__main|aglib-link|agcodex-row|\{\{#if is)/;
-  for (const [b] of tpl.matchAll(/<button\b[^>]*>/g)) if (!other.test(b)) assert.match(b, /class="[^"]*\bag-btn\b/, b);
+  // 0.46.0: menu items are plain buttons in a <details> disclosure (no menu role), styled by .aglib-menu__pop.
+  const other = /role="(tab|radio)"|class="(ag-chip|ag-link|aglib-row__main|agcodex-row|agcodex-link)/;
+  const menus = [...tpl.matchAll(/<div class="aglib-menu__pop">[\s\S]*?<\/div>/g)].map(m => m[0]).join('');
+  for (const [b] of tpl.matchAll(/<button\b[^>]*>/g)) if (!other.test(b) && !menus.includes(b)) assert.match(b, /class="[^"]*\bag-btn\b/, b);
+  assert.doesNotMatch(tpl, /role="menu(item)?"/);
   for (const html of [toolbarHtml(DEFAULT_STATE)]) for (const [b] of html.matchAll(/<button\b[^>]*>/g)) assert.match(b, /\bag-btn\b/, b);
 });
 
@@ -148,7 +157,8 @@ test('danger buttons all ask first with a danger confirm, and Cancel changes not
   for (const title of ['Remove recovery tags?', 'Hide this NPC from players?', 'Remove this scene ${noun}?', 'Reset scene moods and layers?', 'Reset organize rules?']) {
     const at = main.indexOf(`title:${title.includes('${') ? '`' : "'"}${title}`);
     assert.ok(at > 0, title);
-    assert.match(main.slice(at, at + 120), /danger:true/, title);
+    const call = main.lastIndexOf('confirm', at);
+    assert.equal(main.slice(call, call + 14), 'confirmDanger(', title);
   }
   const calls = [];
   globalThis.foundry = {applications: {api: {DialogV2: {wait: async o => { calls.push(o); return o.buttons[0].callback(); }}}}};
@@ -183,7 +193,7 @@ test('empty states use the kit with a title and next step; tables are kit tables
 
 // ---- Items toolbar ----
 test('Items: one toolbar with one Load compendiums, one Clear filters and one pager style', () => {
-  const items = tpl.slice(tpl.indexOf('{{#if itemsActive}}\n  <div class="agitems">'), tpl.indexOf('<div class="aglib">'));
+  const items = tpl.slice(tpl.indexOf('{{#if itemsActive}}\n  <div class="agitems">'), tpl.indexOf('{{#if itemsAll}}\n    <div class="agbrowse"'));
   assert.equal((items.match(/class="ag-toolbar[ "]/g) ?? []).length, 1);
   assert.equal((items.match(/data-ag-items-packs>/g) ?? []).length, 1);
   assert.equal((items.match(/data-ag-items-clear /g) ?? []).length, 1);
@@ -194,14 +204,12 @@ test('Items: one toolbar with one Load compendiums, one Clear filters and one pa
   assert.match(main, /Object\.assign\(this\.browseState,\{query:'',filters:\{\},managedOnly:false,unlinkedOnly:false\}\)/, 'Clear filters also clears the All items facets');
 });
 
-test('Appearance popover: selected skin keeps its highlight (no override beats it), saved default marked, Cancel left', () => {
+test('World appearance cards: selected skin keeps its highlight (no override beats it), saved default marked', () => {
   assert.match(css, /\.agm-skin-card\.is-selected,\.agm-skin-card\.is-selected:hover\{[^}]*background:var\(--ag-accent-soft\)/);
   assert.ok(css.indexOf('.agm-skin-card.is-current') < css.indexOf('.agm-skin-card.is-selected'), 'selected wins over saved');
   assert.match(tpl, /agm-skin-card\{\{#if selected\}\} is-selected\{\{\/if\}\}\{\{#if current\}\} is-current\{\{\/if\}\}/);
-  assert.match(main, /current:skin\.id===appearanceController\.getState\(\)\.worldDefault/);
-  const pop = tpl.slice(tpl.indexOf('data-ag-appearance-pop'), tpl.indexOf('</footer>', tpl.indexOf('data-ag-appearance-pop')));
-  assert.ok(pop.indexOf('appearance-cancel') < pop.indexOf('appearance-save-world'));
-  assert.match(main, /case "appearance-cancel": this\.appearanceSelection=null; this\.appearanceOpen=false;/);
+  assert.match(main, /current:skin\.id===st\.worldDefault,selected:skin\.id===pick/);
+  assert.match(main, /const pick=this\.setupDraft\?\.worldSkin\?\?st\.worldDefault;/, 'an unsaved pick stays highlighted across re-renders');
 });
 
 test('windows open through windowSize() so Comfortable gets a bigger window', () => {

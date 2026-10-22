@@ -31,7 +31,7 @@ test('no direct DialogV2 confirm/prompt and no Yes/No or capitalised titles rema
   assert.doesNotMatch(read('../templates/manager.hbs'), /pending Tim|Other workstreams/);
 });
 
-test('destructive confirms are danger with a verb label', () => {
+test('destructive confirms use the kit confirmDanger (Cancel is the default) with a verb label', () => {
   for (const [title, yes] of [
     ['Delete managed content permanently?', 'Delete ${accepted.length} archived record(s)'],
     ['Replace fields from the source?', 'Replace fields'],
@@ -45,10 +45,12 @@ test('destructive confirms are danger with a verb label', () => {
     assert.ok(at > 0, title);
     const opts = main.slice(at, main.indexOf('});', at));
     assert.ok(opts.includes(`yes:${yes.includes('${') ? '`' : "'"}${yes}`), `${title} labels ${yes}`);
-    assert.match(opts, /danger:true/, `${title} is danger`);
+    const call = main.lastIndexOf('confirm', at);
+    assert.equal(main.slice(call, call + 'confirmDanger('.length), 'confirmDanger(', `${title} is a danger confirm`);
   }
+  assert.doesNotMatch(main, /danger:true/, 'no confirmDialog(…, {danger:true}) left: removals use confirmDanger');
   const archive = main.indexOf('managed content?`');
-  assert.match(main.slice(archive, archive + 200), /danger:action!=='restore'/);
+  assert.match(main.slice(archive - 700, archive), /\(action==='restore'\?confirmDialog:confirmDanger\)\(/);
 });
 
 test('a danger confirm puts Cancel first, marks the window, and Cancel resolves false', async () => {

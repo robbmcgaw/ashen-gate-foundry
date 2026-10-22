@@ -293,10 +293,11 @@ test('pure stack helpers: insert under a higher entry and remove from the middle
   assert.equal(writes.size, 0);
 });
 
-test('Scenes tab: rail, layer strip, stack with remove buttons, fine-tune Cancel left / Apply right, export and import', () => {
+test('Scenes tab: sub-tabs, layer strip, stack with remove buttons, fine-tune Cancel left / Apply right, export and import', () => {
   const tpl = fs.readFileSync(new URL('../templates/manager.hbs', import.meta.url), 'utf8');
   const main = fs.readFileSync(new URL('../scripts/main.js', import.meta.url), 'utf8');
-  assert.match(tpl, /aria-label="Scenes sections"/);
+  assert.match(tpl, /\{\{\{moods\.tabsHtml\}\}\}/);
+  assert.match(main, /subTabs\(\{group:'agm-scenes',label:'Scenes sections',tabs:MOOD_VIEWS/);
   assert.match(tpl, /data-ag-layer-add="\{\{id\}\}"/);
   assert.match(tpl, /data-ag-effect-remove="\{\{kind\}\}:\{\{id\}\}"/);
   assert.match(tpl, /draft-cancel">Cancel<\/button>[\s\S]{0,400}draft-apply"/);

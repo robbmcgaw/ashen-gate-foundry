@@ -38,11 +38,14 @@ function installMockFoundry(){
   const collections={items:collection(),journal:collection(),actors:collection(),tables:collection(),macros:collection(),folders:collection()};
   const callbacks={once:new Map(),on:new Map()};
   const actionElements=['preview','select','apply'].map(agAction=>({dataset:{agAction},listeners:{},addEventListener(type,listener){this.listeners[type]=listener;}}));
-  const fileInput={listeners:{},addEventListener(type,listener){this.listeners[type]=listener;}};
-  const draftToggle={checked:false,listeners:{},addEventListener(type,listener){this.listeners[type]=listener;}};
+  // 0.46.0: the Import file picker is the kit fileButton (.ag-file wrapper) and the Development profile includes drafts.
+  const fileInput={files:[],value:'',listeners:{},addEventListener(type,listener){this.listeners[type]=listener;}};
+  const fileButton={disabled:false,listeners:{},addEventListener(type,listener){this.listeners[type]=listener;}};
+  const fileWrap={dataset:{agFileKind:'import'},querySelector(selector){return selector==='[data-ag-file-button]'?fileButton:selector==='input[type="file"]'?fileInput:null;}};
+  const draftToggle={value:'session-safe',listeners:{},addEventListener(type,listener){this.listeners[type]=listener;}};
   const root={style:{setProperty(){}},dataset:{},classList:{add(){},remove(){},contains(){return false;}},
-    querySelector(selector){if(selector==='[data-ag-file]')return fileInput;if(selector==='[data-ag-drafts]')return draftToggle;return null;},
-    querySelectorAll(selector){return selector==='[data-ag-action]'?actionElements:[];}};
+    querySelector(selector){if(selector==='[data-ag-profile]')return draftToggle;return null;},
+    querySelectorAll(selector){return selector==='[data-ag-action]'?actionElements:selector==='.ag-file'?[fileWrap]:[];}};
   class ApplicationV2{constructor(){instances.push(this);this.element=root;}async render(){return this;}async _onRender(){}}
   const byType={Item:collections.items,JournalEntry:collections.journal,Actor:collections.actors,RollTable:collections.tables,Macro:collections.macros};
   for(const [type,target] of Object.entries(byType))globalThis[type]={create:async data=>{const doc=makeDocument(type,data,++nextId);target.contents.push(doc);return doc;}};
@@ -83,11 +86,12 @@ test('AG-WORK-0002 pinned source survives Manager import and Ledger read-only lo
   await runtime.managerModule.api.open();
   const app=runtime.instances.at(-1);
   await app._onRender({},{});
-  runtime.draftToggle.checked=true;
+  runtime.draftToggle.value='development';
   await runtime.draftToggle.listeners.change({target:runtime.draftToggle});
 
   const projectionFile={name:path.basename(packagePath),size:Buffer.byteLength(JSON.stringify(sourcePackage)),text:async()=>JSON.stringify(sourcePackage)};
-  await runtime.fileInput.listeners.change({target:{files:[projectionFile]}});
+  runtime.fileInput.files=[projectionFile];
+  await runtime.fileInput.listeners.change();
   assert.deepEqual(app.errors,[],`Manager validation errors: ${app.errors.join('; ')}`);
   assert.equal(app.preview.length,9);
   await runtime.actionElements.find(element=>element.dataset.agAction==='select').listeners.click({preventDefault(){}});

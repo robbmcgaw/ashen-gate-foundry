@@ -42,7 +42,8 @@ test('arrow keys move and select with wrap, move focus, and ignore other keys',(
 for(const [name,path] of [['My Appearance','../templates/my-appearance.hbs'],['Manager world default','../templates/manager.hbs']]){
   test(`${name}: picker is a radiogroup of radio cards and no <select> remains for it`,()=>{
     let t=read(path);
-    if(path.includes('manager'))t=t.slice(t.indexOf('data-ag-appearance-pop'),t.indexOf('Players choose their own'));
+    // 0.46.0: the world default is edited only in GM Setup → General (skin cards), not in a header popover.
+    if(path.includes('manager'))t=t.slice(t.indexOf('aria-label="World appearance"'),t.indexOf('aria-label="NPC Codex"'));
     assert.match(t,/role="radiogroup"/);assert.match(t,/role="radio"/);assert.match(t,/aria-checked=/);assert.match(t,/aria-describedby=/);
     assert.doesNotMatch(t,/<select/);assert.doesNotMatch(t,/<option/);
   });
@@ -56,10 +57,12 @@ test('My Appearance has a labelled Inherit card and keeps its status lines and S
 
 test('both pickers feed the existing selection state; save semantics are unchanged; GM gate intact',()=>{
   const m=read('../scripts/main.js');
-  assert.match(m,/bindSkinPicker\(root\.querySelector\('\[data-ag-skin-picker="world"\]'\),value=>\{this\.appearanceSelection=value;\}\)/);
-  assert.match(m,/bindSkinPicker\(this\.element\.querySelector\('\[data-ag-skin-picker="my"\]'\),value=>\{this\.selection=value;\}\)/);
-  assert.match(m,/const chosen=this\.selection===null \? \(appearanceController\.getState\(\)\.userOverride\?\?''\) : this\.selection;\s*await appearanceController\.setUserOverride\(chosen\)/);
-  assert.match(m,/const choice=this\.appearanceSelection\?\?appearanceController\?\.getState\(\)\?\.worldDefault;\s*await appearanceController\.setWorldDefault\(choice\)/);
+  // 0.46.0: GM Setup's skin cards write the GM Setup draft; saveGmSetup writes the world default with Save Changes.
+  assert.match(m,/bindSkinPicker\(form\.querySelector\('\[data-ag-skin-picker="world"\]'\),\(\)=>note\(\)\)/);
+  assert.match(m,/bindSkinPicker\(root\.querySelector\('\[data-ag-skin-picker="my"\]'\),value=>\{this\.selection=value;this\.guard\.markDirty\(\);\}\)/);
+  assert.match(m,/const chosen=this\.selection===null \? \(state\.userOverride\?\?''\) : this\.selection;\s*await appearanceController\.setUserOverride\(chosen\)/);
+  assert.match(read('../scripts/gm-setup.js'),/await appearance\.setWorldDefault\(values\.worldSkin\)/);
+  assert.doesNotMatch(m,/appearance-save-world|appearanceSelection/);
   assert.doesNotMatch(m,/data-ag-world-skin|data-ag-my-skin/);
 });
 test('every skin renders as a card source and the picker styles wrap and show focus',()=>{

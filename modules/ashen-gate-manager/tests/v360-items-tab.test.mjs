@@ -66,16 +66,24 @@ test('sharedMatch: every filter narrows; all off passes everything; records with
   assert.equal(activeFilterCount({...DEFAULT_FILTERS, query: 'bow', origin: 'ddb', coreRef: true}), 3);
 });
 
-test('old tab ids open the matching rail entry; other tabs are unchanged', () => {
+test('old tab ids open the matching sub-tab or tab (0.46.0); other tabs are unchanged', () => {
   assert.deepEqual(resolveTab('browse'), {tab: 'items', view: 'all'});
   assert.deepEqual(resolveTab('library'), {tab: 'items', view: 'records'});
-  assert.deepEqual(resolveTab('library', {librarySection: 'codex'}), {tab: 'items', view: 'codex'});
+  assert.deepEqual(resolveTab('library', {librarySection: 'codex'}), {tab: 'codex', view: 'all'});
+  assert.deepEqual(resolveTab('library', {librarySection: 'adopt'}), {tab: 'setup', view: 'all', setupTab: 'developer'});
+  assert.deepEqual(resolveTab('items', {view: 'codex'}), {tab: 'codex', view: 'all'}, 'Browse → Open on an NPC (saved itemsView codex)');
+  assert.deepEqual(resolveTab('items', {view: 'adopt'}), {tab: 'setup', view: 'all', setupTab: 'developer'});
+  assert.deepEqual(resolveTab('history'), {tab: 'import', view: 'all', importView: 'history'});
+  assert.deepEqual(resolveTab('codex'), {tab: 'codex', view: 'all'});
+  assert.deepEqual(resolveTab('nonsense'), {tab: 'import', view: 'all'});
   assert.deepEqual(resolveTab('library', {librarySection: 'check'}), {tab: 'items', view: 'checks'});
   assert.deepEqual(resolveTab('organize'), {tab: 'items', view: 'folders'});
   assert.deepEqual(resolveTab('corelinks'), {tab: 'items', view: 'corelinks'});
   assert.deepEqual(resolveTab('items', {view: 'nonsense'}), {tab: 'items', view: 'all'});
   assert.deepEqual(resolveTab('scenes', {view: 'folders'}), {tab: 'scenes', view: 'folders'});
-  assert.deepEqual(ITEM_VIEWS.slice(0, 5).map(v => v.id), ['all', 'records', 'folders', 'corelinks', 'checks']);
+  assert.deepEqual(ITEM_VIEWS.map(v => v.id), ['all', 'records', 'folders', 'corelinks', 'checks', 'export']);
+  assert.deepEqual(ITEM_VIEWS.map(v => v.label), ['Browse', 'Records', 'Folders', 'Core links', 'Checks', 'Export'], 'text sub-tab labels');
+  assert.deepEqual(ITEM_VIEWS.filter(v => v.filters).map(v => v.id), ['all', 'records', 'folders', 'corelinks'], 'the shared toolbar shows only where it applies');
 });
 
 // ---- Browse index with the shared filters ----
@@ -296,29 +304,36 @@ test('Clean compendiums never moves protected folders, skips moves that changed 
   assert.equal((await api.cleanApply({moves: 'world|Item|C'})).ok, false);
 });
 
-test('Clean compendiums button: exact name, preview with ticks, labelled Commit, backup and Cancel', () => {
+test('Clean compendiums: its own fold (open), preview with ticks, labelled Apply, backup and Cancel', () => {
   const org = tpl.slice(tpl.indexOf('{{#if organizeActive}}'), tpl.indexOf('{{#if coreLinksActive}}'));
-  assert.match(org, /data-ag-action="clean-scan"><i class="fa-solid fa-broom" aria-hidden="true"><\/i> Clean compendiums<\/button>/);
+  assert.match(org, /<details class="ag-fold" data-ag-fold-key="folders-clean" open>/);
+  for (const key of ['folders-organize', 'folders-rules', 'folders-history']) assert.match(org, new RegExp(`<details class="ag-fold" data-ag-fold-key="${key}">`), key);
+  assert.match(org, /data-ag-action="clean-scan"><i class="fa-solid fa-broom" aria-hidden="true"><\/i> Scan world and compendiums<\/button>/);
+  assert.match(org, /data-ag-action="clean-commit"[^>]*>.*Apply \(<span data-ag-clean-count>/);
   for (const h of ['data-ag-clean-move="{{key}}"', 'data-ag-clean-part="{{partKey}}"', 'data-ag-action="clean-commit"', 'data-ag-action="clean-backup"', 'data-ag-action="clean-cancel"', 'data-ag-clean-status', 'Skipped compendiums'])
     assert.ok(org.includes(h), h);
   assert.ok(org.indexOf('data-ag-action="clean-cancel"') < org.indexOf('data-ag-action="clean-commit"'), 'Cancel left, Commit right');
-  assert.match(main, /yes:`Commit \$\{keys\.length\} move\(s\)`/);
+  assert.match(main, /yes:`Move \$\{keys\.length\} document\(s\)`/);
   assert.match(main, /Locked, skipped\. Unlock it in the Compendium sidebar/);
 });
 
 // ---- Markup and wiring ----
-test('top bar: Items replaces Browse, Library, Organize and Core Links; the rail and shared filters are there', () => {
+test('top bar: Items replaces Browse, Library, Organize and Core Links; sub-tabs and shared filters are there', () => {
   const nav = tpl.slice(tpl.indexOf('<nav class="ag-tabs'), tpl.indexOf('</nav>'));
   assert.match(nav, /data-ag-tab="items"/);
   for (const old of ['browse', 'library', 'organize', 'corelinks']) assert.doesNotMatch(nav, new RegExp(`data-ag-tab="${old}"`), old);
   const items = tpl.slice(tpl.indexOf('\n  {{#if itemsActive}}'), tpl.indexOf('\n  {{#if modulesActive}}'));
-  assert.match(items, /data-ag-items-view="\{\{id\}\}"/);
+  assert.match(items, /\{\{\{itemsTabsHtml\}\}\}/);
+  assert.match(items, /data-ag-items-filters-toggle aria-expanded=/);
   for (const f of ['source', 'type', 'origin', 'rarity', 'folder']) assert.ok(items.includes(`data-ag-items-filter="${f}"`), f);
   for (const h of ['data-ag-items-query', 'data-ag-items-coreref', 'data-ag-items-clear', 'data-ag-browse>'])
     assert.ok(items.includes(h), h);
-  // Every rail view lives inside the Items tab.
-  for (const flag of ['itemsAll', 'libraryRecordsActive', 'organizeActive', 'coreLinksActive', 'libraryCheckActive', 'libraryExportActive', 'libraryAdoptActive', 'libraryCodexActive'])
+  // Every Items view lives inside the Items tab; the NPC Codex is its own tab (0.46.0).
+  for (const flag of ['itemsAll', 'libraryRecordsActive', 'organizeActive', 'coreLinksActive', 'libraryCheckActive', 'libraryExportActive'])
     assert.ok(items.includes(`{{#if ${flag}}}`), flag);
+  assert.match(nav, /data-ag-tab="codex"/);
+  assert.ok(nav.indexOf('data-ag-tab="setup"') > nav.indexOf('data-ag-tab="scenes"'), 'GM Setup last');
+  assert.equal((nav.match(/role="tab"/g) ?? []).length, 6, 'six top-level tabs (Import history is a sub-tab of Import)');
 });
 
 test('Organize keeps preview, backup, undo, protected folders, Keep here and confirmation; gains the selection scope', () => {
@@ -346,11 +361,12 @@ test('Core links: Apply and backup use only ticked rows the filters show; Apply 
   assert.match(main, /yes:'Link core items'/);
 });
 
-test('public API names are unchanged and stay GM-gated; Codex open goes to Items → NPC Codex', () => {
+test('public API names are unchanged and stay GM-gated; Codex open goes to the NPC Codex tab', () => {
   assert.match(main, /coreLinks:\(\(\{preview,apply,undoLast,history,describeSources,saveSources\}\)/);
   assert.match(main, /organize:\(\(\{listSources,preview,apply,undoLast,history,getSchema,saveSchema,resetSchema,setFolderProtected,setKeepFolder,housekeeping,cleanPreview,cleanApply\}\)/,
     'existing names kept; Clean compendiums adds two');
   assert.match(main, /browse:\(\(\{getIndex,search,detail,refresh,loadCompendiums,status,dragData,open\}\)/);
-  assert.match(main, /Object\.assign\(activeApp,\{tab:'items',itemsView:'codex',codexFocus:id\}\)/);
+  assert.match(main, /openCodex:id=>\{activeApp\?\?=new AshenGateManager\(\);return activeApp\.openCodexAt\(id\);\}/);
+  assert.match(main, /async openCodexAt\(id\) \{\s*this\.tab='codex';/);
   assert.match(main, /if\(!game\.user\?\.isGM\)throw new Error\('Only GMs can open the General Manager\.'\)/);
 });

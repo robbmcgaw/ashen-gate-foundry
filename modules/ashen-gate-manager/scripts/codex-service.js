@@ -32,7 +32,7 @@ export function createCodexService({game, moduleId}) {
   const find = id => {
     const hits = npcs().filter(n => n.def.id === id);
     if (!hits.length) throw new Error(`No NPC ${id} in this world. Import its record first.`);
-    if (hits.length > 1) throw new Error(`Two Actors carry ${id}. Fix the duplicate in Items → Ashen Gate records first.`);
+    if (hits.length > 1) throw new Error(`Two Actors carry ${id}. Fix the duplicate in Items → Records first.`);
     return hits[0];
   };
   /** Player characters a GM can reveal to: character Actors with a player owner. */

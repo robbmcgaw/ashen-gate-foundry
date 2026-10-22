@@ -1,7 +1,7 @@
 <section class="agm-my-appearance-body ag-window">
   <header class="ag-header">
-    <div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | My Appearance</h1><p>Personal interface look only. This does not open GM tools or change gameplay.</p></div>
-    <div class="ag-header__meta"><span class="ag-version">v{{version}}</span></div>
+    <div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | My Appearance</h1></div>
+    <div class="ag-header__meta"><span class="ag-version">v{{version}}</span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-ag-my-help><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button></div>
   </header>
   <div class="ag-scroll agm-my-appearance-main">
     <div class="agm-skin-picker" role="radiogroup" aria-label="My appearance" data-ag-skin-picker="my">
@@ -11,13 +11,13 @@
       </button>
       {{#each skins}}<button type="button" role="radio" class="agm-skin-card{{#if selected}} is-selected{{/if}}{{#if current}} is-current{{/if}}" aria-checked="{{#if selected}}true{{else}}false{{/if}}" tabindex="{{#if selected}}0{{else}}-1{{/if}}" data-ag-skin-value="{{id}}" aria-describedby="ag-skin-desc-{{id}}"><span class="agm-swatch" aria-hidden="true">{{#each swatch}}<i style="background:{{this}}"></i>{{/each}}</span><span class="agm-skin-card__text"><span class="agm-skin-card__name">{{label}}</span><small id="ag-skin-desc-{{id}}" class="agm-skin-card__desc">{{description}}</small>{{#if current}}<small class="agm-skin-card__now">Showing now</small>{{/if}}</span></button>{{/each}}
     </div>
+    <p class="agm-my-appearance-note">Your own look for every Ashen Gate window. It never changes GM tools or gameplay.</p>
     <div class="ag-field" data-ag-size-field="my">
       <span id="ag-size-label-my">Size</span>
       <div><div class="ag-segmented" role="radiogroup" aria-labelledby="ag-size-label-my" aria-describedby="ag-size-hint-my" data-ag-size-picker="my">{{#each sizes}}<button type="button" role="radio" aria-checked="{{#if selected}}true{{else}}false{{/if}}" tabindex="{{#if selected}}0{{else}}-1{{/if}}" data-ag-size-value="{{id}}">{{label}}</button>{{/each}}</div></div>
-      <small id="ag-size-hint-my" class="ag-field__hint">Comfortable makes text and controls larger on this device only.</small>
+      <small id="ag-size-hint-my" class="ag-field__hint">Comfortable makes text and controls larger on this device only. Saved with Save My Appearance.</small>
     </div>
     <p class="agm-my-appearance-note">GM world default: <strong>{{worldDefault}}</strong> · Currently displayed: <strong>{{effective}}</strong></p>
-    <p class="agm-my-appearance-note">This view only saves your own user-scoped preference. The General Manager remains GM-only.</p>
   </div>
-  <footer class="ag-footer"><span></span><span class="ag-footer__status agm-my-appearance-note" role="status" data-ag-my-appearance-status>{{status}}</span><button type="button" class="ag-btn ag-btn--primary" data-ag-my-save>Save My Appearance</button></footer>
+  <footer class="ag-footer"><button type="button" class="ag-btn ag-btn--ghost" data-ag-my-cancel>Cancel</button><span class="ag-footer__status agm-my-appearance-note" role="status" data-ag-my-appearance-status>{{status}}</span><button type="button" class="ag-btn ag-btn--primary" data-ag-my-save>Save My Appearance</button></footer>
 </section>

@@ -34,11 +34,14 @@ function installMockFoundry(){
   const collections={items:collection(),journal:collection(),actors:collection(),tables:collection(),macros:collection(),folders:collection()};
   const callbacks={once:new Map(),on:new Map()};
   const actionElements=['preview','select','apply'].map(agAction=>({dataset:{agAction},listeners:{},addEventListener(type,listener){this.listeners[type]=listener;}}));
-  const fileInput={listeners:{},addEventListener(type,listener){this.listeners[type]=listener;}};
-  const draftToggle={checked:false,listeners:{},addEventListener(type,listener){this.listeners[type]=listener;}};
+  // 0.46.0: the Import picker is the kit fileButton (.ag-file); the Development profile is the one drafts control.
+  const fileInput={files:[],value:'',listeners:{},addEventListener(type,listener){this.listeners[type]=listener;}};
+  const fileButton={disabled:false,listeners:{},addEventListener(type,listener){this.listeners[type]=listener;}};
+  const fileWrap={dataset:{agFileKind:'import'},querySelector(selector){return selector==='[data-ag-file-button]'?fileButton:selector==='input[type="file"]'?fileInput:null;}};
+  const draftToggle={value:'session-safe',listeners:{},addEventListener(type,listener){this.listeners[type]=listener;}};
   const root={style:{setProperty(){}},dataset:{},classList:{add(){},remove(){},contains(){return false;}},
-    querySelector(selector){if(selector==='[data-ag-file]')return fileInput;if(selector==='[data-ag-drafts]')return draftToggle;return null;},
-    querySelectorAll(selector){return selector==='[data-ag-action]'?actionElements:[];}};
+    querySelector(selector){if(selector==='[data-ag-profile]')return draftToggle;return null;},
+    querySelectorAll(selector){return selector==='[data-ag-action]'?actionElements:selector==='.ag-file'?[fileWrap]:[];}};
   class ApplicationV2{constructor(){instances.push(this);this.element=root;}async render(){return this;}async _onRender(){}}
   const byType={Item:collections.items,JournalEntry:collections.journal,Actor:collections.actors,RollTable:collections.tables,Macro:collections.macros};
   for(const [type,target] of Object.entries(byType))globalThis[type]={create:async data=>{const doc=makeDocument(type,data,++nextId);target.contents.push(doc);return doc;}};
@@ -55,6 +58,8 @@ function installMockFoundry(){
   globalThis.fetch=async()=>({ok:true,status:200});
   return {callbacks,collections,instances,managerModule,actionElements,fileInput,draftToggle,settings};
 }
+/** Picks a file through the kit file button's hidden input, like a GM choosing one. */
+async function pick(runtime,file){runtime.fileInput.files=[file];runtime.fileInput.value=file.name;await runtime.fileInput.listeners.change();}
 async function waitFor(predicate,message){
   for(let attempt=0;attempt<100;attempt++){
     if(predicate())return;
@@ -78,11 +83,11 @@ async function loadedApp(){
   await runtime.managerModule.api.open();
   const app=runtime.instances.at(-1);
   await app._onRender({},{});
-  runtime.draftToggle.checked=true;
+  runtime.draftToggle.value='development';
   await runtime.draftToggle.listeners.change({target:runtime.draftToggle});
   const text=fs.readFileSync(packagePath,'utf8');
   const file={name:path.basename(packagePath),size:Buffer.byteLength(text),text:async()=>text};
-  await runtime.fileInput.listeners.change({target:{files:[file],value:file.name}});
+  await pick(runtime,file);
   assert.deepEqual(app.errors,[]);
   await runtime.actionElements.find(el=>el.dataset.agAction==='select').listeners.click({preventDefault(){}});
   await waitFor(()=>app.selected.size===9,'select did not pick all records');
@@ -97,11 +102,10 @@ test('0.44.1: choosing a file (another one, or the same name again) while an imp
   await waitFor(()=>hold.calls()===2,'import did not reach its second write');
   assert.equal(app.busy,true);
   const other={name:'AG_Other_Import.json',size:20,text:async()=>'{"records":[]}'};
-  const picker={files:[other],value:other.name};
-  await runtime.fileInput.listeners.change({target:picker});
-  assert.equal(picker.value,'','the picker is reset so the same file can be chosen again later');
-  await runtime.fileInput.listeners.change({target:{files:[file],value:file.name}});
-  await runtime.draftToggle.listeners.change({target:{checked:false}});
+  await pick(runtime,other);
+  assert.equal(runtime.fileInput.value,'','the picker is reset so the same file can be chosen again later');
+  await pick(runtime,file);
+  await runtime.draftToggle.listeners.change({target:{value:'session-safe'}});
   assert.equal(app.pkg,pkg,'loaded package kept');assert.equal(app.preview,preview,'preview kept');
   assert.deepEqual([...app.selected],selected,'selection kept');assert.equal(app.includeDrafts,true,'drafts toggle ignored while busy');
   hold.release();
@@ -112,18 +116,22 @@ test('0.44.1: choosing a file (another one, or the same name again) while an imp
   assert.equal(results.filter(r=>r.action==='create'&&r.status==='ok').length,9);
   assert.doesNotMatch(app.message,/aborted/i);
   // After the import, choosing a file works again.
-  await runtime.fileInput.listeners.change({target:{files:[file],value:file.name}});
+  await pick(runtime,file);
   assert.equal(app.busy,false);assert.ok(app.pkg&&app.pkg!==pkg,'a new load replaces the package once the import is done');
 });
 
 test('0.44.1: every Import control that reloads or re-previews is guarded by busy and disabled in the template',()=>{
   const main=fs.readFileSync(new URL('../scripts/main.js',import.meta.url),'utf8');
-  for(const sel of ['data-ag-file','data-ag-upload-assets','data-ag-profile','data-ag-drafts','data-ag-update-existing','data-ag-update-actors','data-ag-zip-pick','data-ag-select']){
+  // 0.46.0: the file picker is the kit fileButton (disabled while busy, and #importFile checks busy); drafts follow the profile.
+  assert.match(main,/import: fileButton\(\{[^)]*disabled:this\.busy/);
+  assert.match(main,/async #importFile\(f\) \{[\s\S]{0,200}if \(!f \|\| this\.busy\) return;/);
+  assert.doesNotMatch(main,/\[data-ag-drafts\]/);
+  for(const sel of ['data-ag-upload-assets','data-ag-profile','data-ag-update-existing','data-ag-update-actors','data-ag-zip-pick','data-ag-select']){
     const at=main.indexOf(`[${sel}]`);assert.ok(at>0,sel);
     assert.match(main.slice(at,at+320),/this\.busy/,`${sel} handler checks busy`);
   }
   const hbs=fs.readFileSync(new URL('../templates/manager.hbs',import.meta.url),'utf8');
-  for(const sel of ['data-ag-file','data-ag-upload-assets','data-ag-profile','data-ag-drafts','data-ag-update-existing','data-ag-update-actors','data-ag-zip-pick','data-ag-select']){
+  for(const sel of ['data-ag-upload-assets','data-ag-profile','data-ag-update-existing','data-ag-update-actors','data-ag-zip-pick','data-ag-select']){
     for(const line of hbs.split('\n').filter(l=>l.includes(`${sel} `)||l.includes(`${sel}=`)||l.includes(`${sel}>`)))
       assert.match(line,/\{\{#if (@root\.)?busy\}\}disabled/,`${sel} is disabled while busy`);
   }

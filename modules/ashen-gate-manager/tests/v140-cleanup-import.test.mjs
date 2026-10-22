@@ -68,13 +68,14 @@ test('apply turns module reports (incl. Factions shape) into history results and
 test('every load attempt clears the previous file banner; failures say the new file was not loaded',()=>{
   assert.match(main,/#clearLoaded\(`Reading \$\{f\.name\}…`\)/);
   assert.match(main,/was not loaded\. Nothing in your world changed\./);
-  assert.match(main,/event\.target\.value = ''/);
+  // 0.46.0: the kit fileButton clears its input after every pick (bindFileButtons), so the same file can be chosen again.
+  assert.match(main,/bindFileButtons\(root,\(files,wrap\)=>this\.#pickFile\(wrap\.dataset\.agFileKind,files\[0\]\)\)/);
 });
 test('Manager UI: no Export or Player Access tab, export lives in Items (was Library), access on Modules',()=>{
   assert.doesNotMatch(tpl,/data-ag-tab="capture"|data-ag-tab="player-access"/);
   const lib=tpl.indexOf('\n  {{#if itemsActive}}'),modules=tpl.indexOf('\n  {{#if modulesActive}}');
-  const adopt=tpl.indexOf('data-ag-action="capture-export"');
-  assert.ok(adopt>lib&&adopt<modules,'tagged export is inside the Library tab');
+  const dev=tpl.indexOf('{{{setupPanels.developer}}}'),adopt=tpl.indexOf('data-ag-action="capture-export"');
+  assert.ok(dev>0&&adopt>dev,'tagged export (Adopt & tag) is in GM Setup → Developer Tools (0.46.0)');
   assert.ok(tpl.indexOf('data-ag-action="library-export"')>lib);
   assert.ok(tpl.indexOf('data-ag-action="player-access-hide-all"')>modules,'Hide all is on the Modules tab');
   assert.doesNotMatch(tpl,/appearanceActive/);
@@ -98,7 +99,7 @@ test('0.15: no Templates or Audit tab; samples under Import; Check library in It
   for(const a of ['template-example','import-format-example','source-manifest-template'])assert.match(tpl,new RegExp(`data-ag-action="${a}"`));
   const lib=tpl.indexOf('\n  {{#if itemsActive}}'),mods=tpl.indexOf('\n  {{#if modulesActive}}');
   assert.ok(tpl.indexOf('data-ag-action="library-check"')>lib&&tpl.indexOf('data-ag-action="library-check"')<mods);
-  assert.ok(tpl.indexOf('data-ag-action="template-example"')<lib,'samples sit in the Import tab');
+  assert.ok(tpl.indexOf('data-ag-action="template-example"')>tpl.indexOf('{{{setupPanels.developer}}}'),'samples sit in GM Setup → Developer Tools (0.46.0)');
   assert.deepEqual(JSON.parse(fs.readFileSync(new URL('../macros/manifest.json',import.meta.url),'utf8')).entries,[]);
 });
 

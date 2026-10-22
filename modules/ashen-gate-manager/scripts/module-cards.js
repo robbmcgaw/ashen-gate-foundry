@@ -16,8 +16,16 @@ export const accessBadge = state => BADGES[state] ?? {label: String(state ?? 'Un
 export function moduleCards(launchers = [], access = []) {
   const byId = new Map(access.map(row => [row.id, row]));
   const cards = launchers.map(l => ({...l, access: byId.get(l.id) ?? null}));
-  for (const row of access) if (!cards.some(c => c.id === row.id) && row.id !== 'ashen-gate-manager')
+  for (const row of access) {
+    if (cards.some(c => c.id === row.id)) continue;
+    // 0.46.0: Manager gets a card only for its NPC Codex (Player Access); Open goes to the NPC Codex tab.
+    if (row.id === 'ashen-gate-manager') {
+      if (row.audience === 'Player') cards.push({id: row.id, title: row.title, version: row.version, active: row.active, canOpen: true, opensCodex: true,
+        state: 'Ready', role: 'The read-only NPC Codex players open. Reveals are set on the NPC Codex tab.', access: row});
+      continue;
+    }
     cards.push({id: row.id, title: row.title, version: row.version, active: row.active, canOpen: false, state: row.state, role: row.reason, access: row});
+  }
   return cards.map(c => {
     const a = c.access;
     const state = a?.state ?? 'Unsupported';

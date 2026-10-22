@@ -180,12 +180,13 @@ test('4. Core Links: a scan with no core_ref items explains itself in one senten
 
 test('5. Library (now Items → Ashen Gate records) empty state says what it shows', () => {
   assert.match(tpl, /No Ashen Gate records yet<\/p><p class="ag-empty__text">Import an Ashen Gate package on the Import tab/);
-  assert.match(tpl, /compendiums are under All items/);
+  assert.match(tpl, /compendiums are under Browse/);
 });
 
 test('6. GM Setup explains the NPC Codex and Core sources boxes in plain words (same controls)', () => {
-  assert.match(tpl, /data-ag-codex-access \{\{#if codexPlayerAccess\}\}checked\{\{\/if\}\}> Let players open the NPC Codex/);
-  assert.match(tpl, /Hidden NPCs and your GM notes are never sent to them/);
+  // 0.46.0: the NPC Codex player switch is its Modules-tab card (Player Access); GM Setup says so and links there.
+  assert.match(tpl, /Players \{\{#if codexPlayerAccess\}\}<strong>can<\/strong>\{\{else\}\}<strong>cannot<\/strong>\{\{\/if\}\} open the NPC Codex/);
+  assert.match(tpl, /Players see only the NPCs and details you have revealed/);
   assert.match(tpl, /data-ag-setup-auto \{\{#if setup\.auto\}\}checked\{\{\/if\}\}> Find 2024 items automatically/);
   assert.match(tpl, /never changes or moves any item/);
 });

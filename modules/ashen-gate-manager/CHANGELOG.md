@@ -1,3 +1,22 @@
+## 0.46.0 — 2026-10-22
+
+UI/UX cleanup (docs/ui-audit-2026-10.md, General Manager; shared kit 2.2 helpers). Nothing about importing changes.
+
+- **Six tabs: Import · Items · NPC Codex · Modules · Scenes · GM Setup.** NPC Codex is its own tab (it was the 8th icon in the Items rail). History is now **Import → Import history**. The arrow keys move between tabs; focus stays on the tab you picked.
+- **Text sub-tabs instead of icon rails.** Items: **Browse · Records · Folders · Core links · Checks · Export**. Scenes: **Live · Moods & layers · Export & import**. The search and filter toolbar shows only on Browse, Records, Folders and Core links.
+- **Items filters behind Filters (n).** The toolbar is one row (search, Filters (n), Sort / Group on Browse, Clear filters, Load compendiums); Filters (n) opens a second row with Source, Type, Origin, Rarity, Folder, *Has core_ref* and, on Browse, its own filters. Results start right under the toolbar. The search syntax moved to Help.
+- **Folders in four folds:** Clean compendiums (open), Organize a selection, Rules & protected folders, History. Shorter help text; the full "how the rules decide" is in Help.
+- **NPC Codex detail sub-tabs: Reveals · Notes & links · Player preview.** Reveals are marked *Applies now*; Notes & links has its own Save Changes at the bottom. Unsaved notes are kept while you switch sub-tabs and asked about before you pick another NPC or close the window.
+- **Appearance:** the world default skin is set only in **GM Setup → General**, with the skin cards. The header button is now **My Appearance** (your own skin and size). In My Appearance, Size now saves with *Save My Appearance* (it used to save on click), with Cancel and an "Unsaved changes" status.
+- **GM Setup sub-tabs: General · Core sources · Developer Tools.** Developer Tools now holds the example package, the sample/starter/manifest downloads (moved from Import → Options) and *Adopt & tag world Items* (moved from the Items rail). Unsaved GM Setup changes survive tab switches and re-renders; closing the window asks first.
+- **NPC Codex player access is on the Modules tab.** General Manager now has a card there, *General Manager (NPC Codex)*, with Reveal / Hide like the other modules, and **Hide all** covers it. It uses the same setting as before (`codexPlayerAccess`); GM Setup shows its state with a link to Modules. The Manager window itself stays GM-only.
+- **Import Options:** one drafts control, the **Import profile** (Development includes draft, proposed and example records). The separate *Include draft* box is gone.
+- **Keyboard and screen readers:** every file picker (Import, organize rules Import, Codex restore, moods file) is a real button the keyboard can reach. Deity links in the GM and player Codex are buttons. Message-bar chips are plain toggle chips; the menus no longer claim a menu role they don't support. Module card **Open** buttons name their module. My Appearance and the player Codex have Help.
+- **Shared kit parts:** Records and NPC Codex use the kit split, key/values, rows, cards and segmented radios (so Stone Tablet and Tome Pages reshape them); toned text on tinted fills uses the kit ink tokens (clearer on light skins); History, Checks and Pre-session statuses have toned badges. Removals ask with the kit danger confirm, where Cancel is the default.
+- **Labels:** preview-then-apply buttons say **Apply (n)…** (Clean compendiums, Organize, Core links); imports say **Import (n)**. The mood editor replaces the list while you edit, with a way back.
+- Removed the unused `appearance-consumer.mjs` helper. `api.appearance.applyTo` is documented as needed only for detached roots (pop-outs); no appearance setting or API name changed.
+- Saved data: unchanged. No setting, flag or id was renamed and nothing is migrated; sub-tab, fold and Filters-row choices are remembered per user in this browser.
+
 ## 0.45.2 — 2026-10-22
 
 - Shared UI kit 2.2 (no visible change).
