@@ -1,3 +1,9 @@
+## 0.18.0 — 2026-10-22
+
+- **Creative Work Orders.** A Work Order (`ORDER-*`) can now have the domain *Creative* as well as *Crafting* and *Production*, for Artistry commissions such as composing a ballad or painting a portrait. The quest editor's *Work order domain* list offers Creative; new orders still start on Crafting.
+- An order with no domain, or one the Quest Log doesn't know, is still refused, now with "Work Order requires a crafting, production or creative domain."
+- Saved data: no change; no migration.
+
 ## 0.17.0 — 2026-10-22
 
 UI cleanup from the October UI audit. Nothing about quests, journals or saved data changes; no migration.

@@ -1,3 +1,8 @@
+## 0.51.0 — 2026-10-22
+
+- **Creative Work Orders.** Import now accepts a Work Order (`ORDER-*`) whose `work_order_domain` is `creative` (Artistry commissions such as a ballad or a portrait), alongside `crafting` and `production`. A missing or unknown domain is still refused, now with "Work Order requires a crafting, production or creative domain." Matches Quest Log 0.18.0.
+- Saved data: no change; no migration.
+
 ## 0.50.0 — 2026-10-22
 
 Import a whole ZIP without confirming each file.

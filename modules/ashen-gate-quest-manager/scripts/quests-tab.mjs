@@ -9,7 +9,7 @@ export const SUBVIEWS=Object.freeze([
  {key:'hidden',label:'Hidden',hint:'Hidden quests that are not drafts',test:r=>r.chip==='Hidden'},
  {key:'active',label:'Active',hint:'Available or Active',test:r=>r.chip==='Available'||r.chip==='Active'},
  {key:'closed',label:'Completed / Failed',hint:'Completed or Failed',test:r=>r.chip==='Completed'||r.chip==='Failed'},
- {key:'orders',label:'Orders',hint:'Work orders (crafting or production)',test:r=>r.kind==='work_order'},
+ {key:'orders',label:'Orders',hint:'Work orders (crafting, production or creative)',test:r=>r.kind==='work_order'},
  {key:'contracts',label:'Contracts',hint:'Contracts',test:r=>r.kind==='contract'},
 ]);
 export const SORTS=Object.freeze([['name','Title A-Z'],['status','Status'],['location','Location'],['changed','Recently changed'],['type','Type'],['id','ID']]);

@@ -9,7 +9,7 @@ Module ID `ashen-gate-quest-manager` · Foundry V14 · dnd5e. Quest, Work Order 
 - **Journal:** session notes in an open book, for players and the GM (see *Game Journal* below).
 - **GM Setup** (GM): Player access, players' screens and compendium pack IDs, saved together with **Save Changes**.
 
-Three objective types share one model: `QUEST-*`, `ORDER-*` (crafting/production work order) and `CONTRACT-*`. Hidden / Available / Active / Completed / Failed are campaign statuses, separate from a source definition's own `status` (draft, approved, …). `ASSIGN-*` Assignments are GM-only execution records attached to an objective; they make no automatic Faction, Profession, Location or Headquarters changes.
+Three objective types share one model: `QUEST-*`, `ORDER-*` (crafting, production or creative work order) and `CONTRACT-*`. Hidden / Available / Active / Completed / Failed are campaign statuses, separate from a source definition's own `status` (draft, approved, …). `ASSIGN-*` Assignments are GM-only execution records attached to an objective; they make no automatic Faction, Profession, Location or Headquarters changes.
 
 ## Game Journal (0.16.0)
 

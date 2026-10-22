@@ -57,8 +57,9 @@ export function checkContractRecord(rec, label) {
     else if (!rec.id?.startsWith(prefixFor[rec.objective_kind])) errors.push(`${label}.id: wrong prefix for ${rec.objective_kind} Objective.`);
     if (!isObj(rec.source) || !Array.isArray(rec.objectives) || !rec.objectives.length || !Array.isArray(rec.locations) || !isObj(rec.parameters) || !isObj(rec.outcomes))
       errors.push(`${label}: Objective requires source/objectives/locations/parameters/outcomes.`);
-    if (rec.objective_kind==='work_order' && !['crafting','production'].includes(rec.work_order_domain))
-      errors.push(`${label}.work_order_domain: Work Order requires crafting or production.`);
+    // 0.51.0: creative (Artistry commissions) joins crafting and production; Quest Log 0.18.0 accepts the same three.
+    if (rec.objective_kind==='work_order' && !['crafting','production','creative'].includes(rec.work_order_domain))
+      errors.push(`${label}.work_order_domain: Work Order requires a crafting, production or creative domain.`);
   }
   if (rec.entity_type==='Assignment') {
     if (!rec.id?.startsWith('ASSIGN-') || rec.scope!=='campaign_state' || !rec.owner_system_id?.startsWith('SYS-') || !rec.execution_status || !Array.isArray(rec.participants))

@@ -1,4 +1,4 @@
-import {MOD,assertGM,assertUI,isPlayerCharacter,cleanText,publicView,validSource,initialState,exportPackage,STATUSES} from './core.mjs';
+import {MOD,assertGM,assertUI,isPlayerCharacter,cleanText,publicView,validSource,initialState,exportPackage,STATUSES,WORK_ORDER_DOMAINS} from './core.mjs';
 import {safeButton,options,questCards,questsToolbar,questsSubnav,bulkBar,bulkHint,questsAdvanced,filterLabel,editorSection,setupPanel,emptyState,statusBadge,progressMeter} from './gm-panels.mjs';
 import {DEFAULT_VIEW,KIND_LABELS,listQuestsTab,gmViewState,filterCount} from './quests-tab.mjs';
 import {planBulk,runBulk,confirmText} from './bulk.mjs';
@@ -17,7 +17,7 @@ import {rewardsSection,playerRewardsSection,grantPanel,grantSummary,receiveList,
 import {createJournalStore} from './journal-store.mjs';
 import {installJournal,bindRadios} from './journal-ui.mjs';
 
-const VERSION='0.17.0';
+const VERSION='0.18.0';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -73,14 +73,14 @@ function readableDetail(view,actorId,{picker=''}={}){
 const NEW_STATE=Object.freeze({status:'Hidden',scope:'party',actorId:null,revealed:false,objectiveReveal:[],progress:{},partyNotes:'',gmNotes:'',rewardRecorded:false});
 function basicsSection(source,existing){
  const type=source.objective_kind;
- const kinds=[['quest','Quest'],['work_order','Work Order (crafting or production)'],['contract','Contract']];
+ const kinds=[['quest','Quest'],['work_order','Work Order (crafting, production or creative)'],['contract','Contract']];
  return `<p class="ag-field__hint">Write what the job is and what the players can learn. Permanent IDs are never renamed after creation.</p>
  <div class="ag-form-grid"><label class="ag-field">Type<select id="ag-src-kind" ${existing?'disabled':''}>${options(kinds,type)}</select></label><label class="ag-field">Permanent ID<input id="ag-src-id" value="${E(source.id)}" ${existing?'readonly':''} placeholder="QUEST-NEW-JOB"></label>
  <label class="ag-field ag-field--wide">Title<input id="ag-src-name" value="${E(source.name)}" placeholder="Name this quest"></label>
  <label class="ag-field ag-field--wide">Public description<textarea id="ag-src-summary" rows="3">${E(source.public_summary??'')}</textarea></label>
  <label class="ag-field">Related Location IDs<textarea id="ag-src-locations" rows="2">${E((source.locations||[]).filter(x=>typeof x==='string').join('\n'))}</textarea><span class="ag-field__hint">Optional LOC-* IDs, one per line.</span></label>
  <label class="ag-field">Definition visibility<select id="ag-src-visibility">${options([['reveal_gated','Reveal when GM approves'],['player','Player-visible when not Hidden'],['gm','GM only (never publish)']],source.visibility)}</select></label>
- ${type==='work_order'?`<label class="ag-field">Work order domain<select id="ag-src-workdomain">${options([['crafting','Crafting'],['production','Production']],source.work_order_domain||'crafting')}</select></label>`:''}</div>
+ ${type==='work_order'?`<label class="ag-field">Work order domain<select id="ag-src-workdomain">${options(WORK_ORDER_DOMAINS,source.work_order_domain||'crafting')}</select></label>`:''}</div>
  ${source.visibility==='gm'?'<p class="ag-notice ag-notice--warn"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> This is a GM-only source. Campaign status and reveal cannot publish it until you change Definition visibility.</p>':''}`;
 }
 function audienceSection(state){
