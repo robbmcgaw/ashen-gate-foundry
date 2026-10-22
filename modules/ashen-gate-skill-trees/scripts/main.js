@@ -2,7 +2,8 @@ import {
   SCHEMA,clone,asArray,cleanAccount,walletKey,normalizeTree,validateTree,validatePackage,allowedSourceForProvider,
   availability,publicAvailability,publicTree,totalSpent,grantPoints,purchase,changedPurchasedNodes,planTreeImport,
   resolveTree,perkCost,refund,resetUnlocks,grantTag,isGrantFor,missingGrants,savedDataReport,dependentsBlockingRefund,
-  professionStatus,overrideGrant,reconcile,withHistory,reviewCandidates,removalOrder,planLedgerImport,CINDER_MAX_POINTS
+  professionStatus,overrideGrant,reconcile,withHistory,reviewCandidates,removalOrder,planLedgerImport,CINDER_MAX_POINTS,
+  sharedWalletKey,walletGroups,groupName,memberName,accessText,cleanAccess,PROFESSION_MAX_LEVEL
 } from './engine.mjs';
 import {graphEdges,edgeLine} from './graph.mjs';
 import {NODE_SIZES,nodeSizeOf,tierBands,backgroundView,appearanceFromForm,BG_FITS,MAX_TIERS} from './appearance.mjs';
@@ -14,11 +15,12 @@ import {confirmDialog,confirmDanger,guardDirty,infoDialog} from './ag-dialogs.mj
 import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,bindFolds,linkButton} from './ag-html.mjs';
 import {readDrop,resolveItemDrop} from './ag-item-drop.mjs';
 import {isLevelBackup,assertNotLevelBackup,LEVEL_BACKUP_REFUSAL} from './level-backup.mjs';
+import {treePicker,libraryGroups,libraryItems,walletLine,professionGroups} from './groups.mjs';
 import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument,qaCleanupBlockers} from './qa-fixtures.mjs';
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.20.0';
+const VERSION='0.21.0';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -73,6 +75,58 @@ function professionLevel(actor,tree){
   if(tree?.provider?.kind!=='profession')return undefined;
   const p=ledgerProgression();if(!p||!actor)return null;
   try{return p.level(actor,tree.sourceRef)?.level??0;}catch(error){console.warn(`[${MODULE}] Ledger level unavailable`,error);return null;}
+}
+/**
+ * 0.21.0 shared wallet: the character's other trees of the same profession, each with its account ([{tree, account}]).
+ * GM: private trees resolved from world perks (tier thresholds); players: the published projection. [] for other trees.
+ */
+function walletSiblings(actor,tree,{trees=null,resolve=null}={}){
+  if(!actor||tree?.provider?.kind!=='profession')return [];
+  const pool=trees??readSelectedTrees(false),res=resolve??(game.user.isGM&&!trees);
+  return pool.filter(x=>x.id!==tree.id&&x.provider?.kind==='profession'&&x.sourceRef===tree.sourceRef)
+    .map(x=>({tree:res?resolved(x):x,account:readProgress(actor,x)}));
+}
+/** GM-side siblings from the private trees (authoritative checks). */
+const privateSiblings=(actor,tree)=>walletSiblings(actor,tree,{trees:readPrivate(),resolve:true});
+/** Trees (as this user may see them) that belong to one profession, sorted by name. */
+const professionTrees=(sourceRef,trees=readSelectedTrees(false))=>trees.filter(t=>t.provider?.kind==='profession'&&t.sourceRef===sourceRef)
+  .sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+/** dnd5e name for a proficiency key ('prf' → Performance, 'calligrapher' → Calligrapher's Supplies); other text is shown as written. */
+function proficiencyLabel(kind,key){
+  try{
+    if(kind==='skill'){const s=globalThis.CONFIG?.DND5E?.skills?.[key];if(s?.label)return String(s.label);}
+    if(kind==='tool'){const label=globalThis.dnd5e?.documents?.Trait?.keyLabel?.(key,{trait:'tool'});if(label&&label!==key)return String(label);
+      const t=globalThis.CONFIG?.DND5E?.toolTypes?.[key]??globalThis.CONFIG?.DND5E?.tools?.[key]?.label;if(typeof t==='string')return t;}
+  }catch(error){console.warn(`[${MODULE}] Proficiency label unavailable`,error);}
+  return String(key);
+}
+/** Clean the Ledger's {ok, matched} answer; null when it is not one. */
+const accessAnswer=r=>r&&typeof r==='object'&&typeof r.ok==='boolean'?{ok:r.ok,matched:asArray(r.matched).filter(x=>typeof x==='string')}:null;
+/** The Ledger's proficiency check, or null when the Ledger (or meetsProficiency) is absent. */
+function ledgerMeetsProficiency(){const m=game.modules?.get?.(LEDGER_ID);const fn=m?.active?m.api?.meetsProficiency:null;return typeof fn==='function'?fn:null;}
+/**
+ * 0.21.0 access gate: the Ledger's answer for a tree with an access object. null when there is no gate or nobody can check,
+ * so nothing is blocked. May be a Promise when the Ledger answers asynchronously (use accessCheck to wait for it).
+ */
+function accessCheckRaw(actor,tree){
+  const access=cleanAccess(tree?.access),fn=access&&actor?ledgerMeetsProficiency():null;if(!fn)return null;
+  try{return fn(actor.id,copy(access));}catch(error){console.warn(`[${MODULE}] Ledger proficiency check failed`,error);return null;}
+}
+async function accessCheck(actor,tree){try{return accessAnswer(await accessCheckRaw(actor,tree));}catch(error){console.warn(`[${MODULE}] Ledger proficiency check failed`,error);return null;}}
+/** Same, for synchronous views (embed): a Promise answer counts as unknown there (the unlock itself still waits for it). */
+function accessCheckNow(actor,tree){const r=accessCheckRaw(actor,tree);return typeof r?.then==='function'?null:accessAnswer(r);}
+/** "Needs … proficiency" for a tree's gate (with its note), or '' when the tree has none or the Ledger cannot check it. */
+const accessLine=tree=>cleanAccess(tree?.access)&&ledgerMeetsProficiency()?[accessText(tree.access,proficiencyLabel),cleanAccess(tree.access).note].filter(Boolean).join('. '):'';
+/**
+ * Shared profession wallet for one character (0.21.0): {sourceRef, level, earned, spent, available, overSpent, overAllocated, trees:[{id,name,spent}]}.
+ * earned/available are null when the Ledger is unavailable; available never goes below 0 (overSpent says by how much). Trees: those this user may see.
+ */
+function walletFor(actor,sourceRef){
+  const trees=professionTrees(sourceRef);if(!trees.length)return null;
+  const gm=game.user.isGM,first=gm?resolved(trees[0]):trees[0];
+  const st=professionStatus(first,readProgress(actor,trees[0]),professionLevel(actor,trees[0]),walletSiblings(actor,trees[0]));
+  return {sourceRef,level:st.level,earned:st.ledger?st.earned:null,spent:st.spent,available:st.ledger?Math.max(0,st.available):null,
+    overSpent:st.overSpent,overAllocated:st.overAllocated,trees:st.trees??[{id:first.id,name:first.name,spent:st.spent}]};
 }
 const historyEntry=(kind,extra={})=>({id:foundry.utils.randomID(12),kind,at:Date.now(),by:game.user?.id??'',byName:game.user?.name??'',...extra});
 const download=(filename,data)=>{
@@ -165,7 +219,7 @@ async function persistAccount(actor,tree,next){
   records[walletKey(tree)]=cleanAccount(next);
   await actor.setFlag(MODULE,'progressV2',records);
   // 0.17.0: partner modules (e.g. Ashen Gate | Cinders) keep their own records in step through this hook.
-  Hooks.callAll?.(PROGRESS_HOOK,{actorId:actor.id,treeId:tree.id,sourceRef:tree.sourceRef??null,kind:tree.provider?.kind??null,wallet:walletKey(tree),account:copy(records[walletKey(tree)])});
+  Hooks.callAll?.(PROGRESS_HOOK,{actorId:actor.id,treeId:tree.id,sourceRef:tree.sourceRef??null,kind:tree.provider?.kind??null,wallet:walletKey(tree),sharedWallet:sharedWalletKey(tree),account:copy(records[walletKey(tree)])});
 }
 const grantOf=item=>item?.flags?.[MODULE]?.grant??null;
 const grantedItems=(actor,tree,nodeId=null)=>Array.from(actor?.items??[]).filter(i=>isGrantFor(grantOf(i),tree,nodeId));
@@ -198,14 +252,16 @@ async function unlockNode(actor,treeId,nodeId,{forUser=null}={}){
   return withActorLock(actor.id,async()=>{
     const stored=readPrivate().find(t=>t.id===treeId);if(!stored)throw Error('Unknown tree');
     const t=resolved(stored),n=t.nodes.find(x=>x.id===nodeId);if(!n)throw Error('Unknown node');
-    const account=readProgress(actor,stored),level=professionLevel(actor,stored);
+    const account=readProgress(actor,stored),level=professionLevel(actor,stored),siblings=privateSiblings(actor,stored);
     checkProgress(actor,stored,'unlock');
+    // 0.21.0: a tree's proficiency gate applies to players only (the GM is never blocked); no Ledger answer, no gate.
+    const access=forUser?await accessCheck(actor,stored):null;
     if(forUser){ // A player may unlock only what the player view shows them.
       const pub=project(stored),pn=pub?.nodes.find(x=>x.id===nodeId);
       if(!pub||!pn||pn.silhouette)throw Error('That node is not released to players');
-      const ok=publicAvailability(pub,account,nodeId,{level});if(!ok.ok)throw Error(ok.reason);
+      const ok=publicAvailability(pub,account,nodeId,{level,siblings,access,accessLabel:proficiencyLabel});if(!ok.ok)throw Error(ok.reason);
     }
-    let next=purchase(t,account,nodeId,{level});
+    let next=purchase(t,account,nodeId,{level,siblings,access,accessLabel:proficiencyLabel});
     if(stored.provider.kind==='profession')next=withHistory(next,historyEntry('allocate',{nodeId,perkId:n.perkId,level,
       ...(forUser?{by:forUser.id,byName:forUser.name??''}:{})}));
     if(n.perkId&&!safePublicSource(n))throw Error(`${n.perkId} is not an approved, player-visible perk yet`);
@@ -243,7 +299,7 @@ async function overrideNode(actor,treeId,nodeId,{reason=''}={}){
     const stored=readPrivate().find(t=>t.id===treeId);if(!stored)throw Error('Unknown tree');
     const t=resolved(stored),n=t.nodes.find(x=>x.id===nodeId);if(!n)throw Error('Unknown node');
     const level=professionLevel(actor,stored);
-    const {account,overridden}=overrideGrant(t,readProgress(actor,stored),nodeId,{level,reason,by:game.user.id,at:Date.now()});
+    const {account,overridden}=overrideGrant(t,readProgress(actor,stored),nodeId,{level,reason,by:game.user.id,at:Date.now(),siblings:privateSiblings(actor,stored)});
     if(n.perkId&&!safePublicSource(n))throw Error(`${n.perkId} is not an approved, player-visible perk yet`);
     const next=withHistory(account,historyEntry('override',{nodeId,perkId:n.perkId,level,reason:String(reason).trim().slice(0,200),overridden}));
     const grant=n.perkId?await givePerk(actor,stored,n):null;
@@ -296,7 +352,7 @@ async function resolveNodes(actor,treeId,{remove=[],keep=[],reason=''}={}){
     const removed=[],failed=[];
     for(const nodeId of order){try{removed.push(...(await removeGrants(actor,stored,nodeId)).removed);}catch(error){failed.push(error.message);}}
     if(failed.length)throw Error(failed.join(' '));
-    return {removed,kept:keep.filter(id=>next.unlocks.includes(id)),status:professionStatus(t,next,level)};
+    return {removed,kept:keep.filter(id=>next.unlocks.includes(id)),status:professionStatus(t,next,level,privateSiblings(actor,stored))};
   });
 }
 /**
@@ -390,10 +446,12 @@ async function importLedgerChoices({apply=false}={}){
 function professionReport(actor,profId,{level}={}){
   if(!actor)return null;
   if(!game.user.isGM&&actor.testUserPermission?.(game.user,'OBSERVER')!==true)throw Error('Actor access denied');
-  const stored=readSelectedTrees(false).find(t=>t.provider?.kind==='profession'&&t.sourceRef===profId);if(!stored)return null;
+  const stored=professionTrees(profId)[0];if(!stored)return null;
   const t=game.user.isGM?resolved(stored):stored;
-  const st=professionStatus(t,readProgress(actor,stored),Number.isSafeInteger(level)?level:professionLevel(actor,stored));
-  return {treeId:t.id,treeName:t.name,level:st.level,earned:st.earned,spent:st.spent,nodesAboveLevel:st.aboveLevel,overSpent:st.overSpent,overAllocated:st.overAllocated};
+  const st=professionStatus(t,readProgress(actor,stored),Number.isSafeInteger(level)?level:professionLevel(actor,stored),walletSiblings(actor,stored));
+  // 0.21.0: spent and the over-allocation cover every tree of the profession; with several trees, trees lists them.
+  return {treeId:t.id,treeName:t.name,level:st.level,earned:st.earned,spent:st.spent,nodesAboveLevel:[...st.aboveLevel,...asArray(st.otherAboveLevel)],overSpent:st.overSpent,overAllocated:st.overAllocated,
+    ...(st.trees?{trees:st.trees}:{})};
 }
 /**
  * Points earned, spent and available on every tree the current user can see, for partner modules (Character Hub). Read-only.
@@ -406,8 +464,10 @@ function pointsSummary(actor){
   return readSelectedTrees(false).map(t=>{
     const acc=readProgress(actor,t),spent=totalSpent(t,acc),kind=t.provider?.kind??'generic_points';
     if(kind==='profession'){
-      const st=professionStatus(t,acc,professionLevel(actor,t));
-      return {treeId:t.id,name:t.name,kind,level:st.level,earned:st.ledger?st.earned:null,spent,available:st.ledger?Math.max(0,st.available):null};
+      const st=professionStatus(t,acc,professionLevel(actor,t),walletSiblings(actor,t));
+      // 0.21.0: spent/available are the profession's shared wallet; with several trees the row also says so (count the wallet once).
+      return {treeId:t.id,name:t.name,kind,level:st.level,earned:st.ledger?st.earned:null,spent:st.spent,available:st.ledger?Math.max(0,st.available):null,
+        ...(st.trees?{sourceRef:t.sourceRef,wallet:sharedWalletKey(t),treeSpent:st.treeSpent,walletTrees:st.trees.map(x=>x.id)}:{})};
     }
     return {treeId:t.id,name:t.name,kind,level:null,earned:acc.awarded,spent,available:Math.max(0,acc.awarded-spent)};
   });
@@ -421,7 +481,7 @@ function professionReconcile(){
     for(const actor of game.actors?.contents??[]){
       const acc=readProgress(actor,stored),level=professionLevel(actor,stored);
       if(!acc.unlocks.length&&!(level>0))continue;
-      const r=reconcile(t,acc,{level,itemTags:Array.from(actor.items??[]).map(grantOf)});
+      const r=reconcile(t,acc,{level,itemTags:Array.from(actor.items??[]).map(grantOf),siblings:privateSiblings(actor,stored)});
       rows.push({actorId:actor.id,actorName:actor.name,treeId:t.id,treeName:t.name,profId:t.sourceRef,level:r.level,earned:r.earned,spent:r.spent,
         available:r.available,overAllocated:r.overAllocated,issues:r.issues});
     }
@@ -633,12 +693,16 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const t=this.tree,actor=this.actor,acc=t&&actor?readProgress(actor,t):cleanAccount();
     const profession=t?.provider?.kind==='profession';
     const level=profession&&actor?professionLevel(actor,t):null;
-    const prof=profession?professionStatus(t,acc,actor?level:null):null;
+    // 0.21.0: the profession's other trees share the wallet; players (and preview) also meet the tree's proficiency gate.
+    const siblings=profession&&actor?walletSiblings(actor,t,{trees:this.trees,resolve:raw}):[];
+    const access=!raw&&actor&&t?await accessCheck(actor,t):null;
+    const gate=t?accessLine(t):'';
+    const prof=profession?professionStatus(t,acc,actor?level:null,siblings):null;
     const above=new Set(asArray(prof?.aboveLevel).map(x=>x.nodeId));
     const base=asArray(t?.nodes).map(n=>({...n,unlocked:acc.unlocks.includes(n.id)}));
     const nodes=base.map(n=>{
       const unlocked=n.unlocked,e=t&&actor?
-        (raw?availability(t,acc,n.id,{level}):publicAvailability(t,acc,n.id,{level})):{ok:false,reason:'Choose a character'};
+        (raw?availability(t,acc,n.id,{level,siblings}):publicAvailability(t,acc,n.id,{level,siblings,access,accessLabel:proficiencyLabel})):{ok:false,reason:'Choose a character'};
       const rel=relationsOf(base,n),flag=unlocked?'UNLOCKED':e.ok?'AVAILABLE':'LOCKED',state=STATE_VIEW[flag];
       const overLevel=unlocked&&above.has(n.id),kept=unlocked&&Boolean(acc.kept[n.id]);
       return {...n,unlocked,eligible:!unlocked&&e.ok,overLevel,kept,reason:unlocked?(overLevel?`Unlocked, but needs level ${n.requiredLevel} (now ${level})`:kept?`Unlocked (kept by the GM at level ${acc.kept[n.id].level})`:'Unlocked'):e.reason,
@@ -667,6 +731,9 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const setupReport=gm&&!preview&&this.activeTab==='library'?savedDataReport(readPrivate(),id=>Boolean(perkDoc(id))):[];
     const projectedCount=gm?readPublic().length:null;
     const libraryTrees=gm&&this.activeTab==='library'?libraryRows(readPrivate(),this.treeId):[];
+    const libraryList=gm&&this.activeTab==='library'?libraryItems(libraryGroups(libraryTrees,readPrivate(),g=>this._libraryWallet(g))):[];
+    const picker=treePicker(this.trees,this.treeId,ref=>this.ui.get(`profTree:${ref}`,null));
+    if(picker.tabs)this.ui.set(`profTree:${picker.tabs.sourceRef}`,picker.tabs.selected); // the tree last open in this profession, per user
     const side=subTabView('agst-side','Skill tree menu sections',sideTabsFor(gm),this.sideTab);this.sideTab=side.pick;
     const library=subTabView('agst-library','Tree Library sections',LIBRARY_TABS,this.libraryTab);this.libraryTab=library.pick;
     const missing=gm&&!preview&&this.activeTab==='library'?missingGrantCount():0;
@@ -674,15 +741,19 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       libraryLink:linkButton('Tree Library',{data:{act:'tab-library'}}),
       canUndoEdit:this.undo.length>0,canRedoEdit:this.redo.length>0,
       linkFromName:this.linkFrom?nodes.find(n=>n.id===this.linkFrom)?.name??'':'',gm,editing:gm&&this.editMode&&!preview,preview,initialized:!gm||!!store,legacy,
-      moduleVersion:game.modules?.get?.(MODULE)?.version??VERSION,libraryTrees,libraryCountText:countText(libraryTrees.length,libraryTrees.length),playerAccessEnabled:gm?(this._setupDraft?.playerAccessEnabled??playerAccessEnabled()):false,setupDirty:gm&&this._setupDirty(),activeTrees:this.activeTab==='trees',activeSetup:gm&&this.activeTab==='setup',activeLibrary:gm&&this.activeTab==='library',gmPanel:gm&&(this.activeTab==='setup'||this.activeTab==='library'),
-      hasTree:!!t,tree:t,selected,canBuy:gm&&!preview&&!!selected&&!!actor&&availability(t,acc,selected.id,{level}).ok,
-      canRequest:!gm&&!!selected&&!!actor&&publicAvailability(t,acc,selected.id,{level}).ok,
+      moduleVersion:game.modules?.get?.(MODULE)?.version??VERSION,libraryTrees,libraryList,libraryCountText:countText(libraryTrees.length,libraryTrees.length),playerAccessEnabled:gm?(this._setupDraft?.playerAccessEnabled??playerAccessEnabled()):false,setupDirty:gm&&this._setupDirty(),activeTrees:this.activeTab==='trees',activeSetup:gm&&this.activeTab==='setup',activeLibrary:gm&&this.activeTab==='library',gmPanel:gm&&(this.activeTab==='setup'||this.activeTab==='library'),
+      hasTree:!!t,tree:t,selected,canBuy:gm&&!preview&&!!selected&&!!actor&&availability(t,acc,selected.id,{level,siblings}).ok,
+      canRequest:!gm&&!!selected&&!!actor&&publicAvailability(t,acc,selected.id,{level,siblings,access,accessLabel:proficiencyLabel}).ok,
+      // The requirement line, unless it is already the Unlock reason shown just above it.
+      accessGate:gate&&(raw||!(selected?.reason&&gate.startsWith(selected.reason)))?{text:gate,met:access?.ok===true,gmNote:raw}:null,
       canRefund:raw&&!!selected?.unlocked&&!!actor,
       canReset:raw&&!!actor&&!!t&&acc.unlocks.length>0,
       canOverride:raw&&profession&&!!actor&&!!selected&&!selected.unlocked&&!selected.perkMissing,
       canKeep:raw&&profession&&!!actor&&!!selected?.overLevel,
       prof:prof?{...prof,levelText:prof.ledger?String(prof.level):'—',available:Math.max(0,prof.available),
-        aboveText:prof.aboveLevel.map(x=>`${x.name} (level ${x.threshold})`).join(', '),overSpentText:`${plural(prof.overSpent,'point')} used`}:null,
+        aboveText:[...prof.aboveLevel.map(x=>`${x.name} (level ${x.threshold})`),...asArray(prof.otherAboveLevel).map(x=>`${x.name} in ${x.treeName} (level ${x.threshold})`)].join(', '),
+        overSpentText:`${plural(prof.overSpent,'point')} used`,
+        sharedText:prof.trees?`Shared by ${prof.trees.length} trees of this profession. Points used: ${prof.trees.map(x=>`${memberName(x,groupName(prof.trees))} ${x.spent}`).join(' · ')}`:''}:null,
       ledgerMissing:profession&&!ledgerProgression(),
       roster:raw&&profession?this._roster(t):[],
       history:raw&&profession&&actor?[...acc.history].reverse().slice(0,12).map(h=>({...h,when:new Date(h.at||0).toLocaleString(),
@@ -692,7 +763,8 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       actorName:actor?.name??'',
       canGrant:gm&&!preview&&!!actor&&!!t&&t.provider.kind!=='profession',
       mode:t?.provider?.kind==='profession'?'Profession • points from Profession Ledger level':t?.provider?.kind==='cinder_milestone'?`Cinder • ${CINDER_MAX_POINTS}-point milestone wallet`: 'Generic • GM-awarded points',
-      trees:this.trees.map(x=>({id:x.id,name:x.name,selected:x.id===this.treeId})),
+      trees:picker.options,treeTabs:picker.tabs?subTabs({group:'agst-proftree',label:`${picker.tabs.name} trees`,tabs:picker.tabs.tabs,selected:picker.tabs.selected}):'',
+      treePanel:picker.tabs?tabPanelAttrs('agst-proftree',picker.tabs.selected):'',
       actors:actorChoices().map(x=>({id:x.id,name:x.name,selected:x.id===this.actorId})),
       nodes,sizeClass:`agst-size-${size}`,nodeSize:size,bg:backgroundView(t),tiers:tierBands(t?.tiers,Math.ceil(maxY)),canAppearance:gm&&!preview&&this.editMode,
       sidebarOpen:this.sidebarOpen!==false,
@@ -707,13 +779,20 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       selectedBinding:raw&&selected?.perkId?!selected.perkMissing:false,selectedCustom:raw&&!!selected?.custom,
       setupReport,hasSetupReport:setupReport.length>0,missingGrants:missing,missingGrantsText:`${plural(missing,'unlocked perk')} ${missing===1?'is':'are'}`};
   }
+  /** Tree Library line for a profession with several trees: the shared wallet once, for the character picked in Skill Trees. */
+  _libraryWallet(group){
+    const actor=this.actor,base='1 point per profession level, '+PROFESSION_MAX_LEVEL+' at most, shared by '+group.trees.length+' trees';
+    if(!actor)return `Shared wallet: ${base}.`;
+    const w=walletFor(actor,group.sourceRef);
+    return w?`Shared wallet (${base}). ${walletLine(actor.name,w)}.`:`Shared wallet: ${base}.`;
+  }
   /** GM list of every character on a profession tree: level, points used, and whether they need review. */
   _roster(t){
     const rows=[];
     for(const a of actorChoices()){
       const acc=readProgress(a,t),level=professionLevel(a,t);
-      if(!acc.unlocks.length&&!(level>0))continue;
-      const st=professionStatus(t,acc,level);
+      const st=professionStatus(t,acc,level,privateSiblings(a,t));
+      if(!st.spent&&!(level>0))continue;
       rows.push({id:a.id,name:a.name,selected:a.id===this.actorId,level:st.ledger?st.level:'—',spent:st.spent,earned:st.earned,
         status:!st.ledger?'Ledger off':st.overAllocated?'Needs review':st.available>0?`${st.available} to choose`:'Up to date',
         review:st.overAllocated,toChoose:st.ledger&&!st.overAllocated&&st.available>0});
@@ -732,6 +811,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     // Kit 2.2: arrow keys on the top tabs and sub-tabs, remembered sub-tabs and folds.
     const topTabs=root.querySelector('nav.ag-tabs');if(topTabs)this._unbind.push(bindTablist(topTabs));
     this._wireSubTabs(root,listenerOptions);
+    this._wireTreeTabs(root,listenerOptions);
     this._unbind.push(bindFolds(root,this.ui));
     root.addEventListener('change',e=>{
       const el=e.target;
@@ -789,6 +869,16 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       list.addEventListener('click',e=>{const tab=e.target.closest?.('[role="tab"]');if(tab)this._showSubTab(list,key,tab.dataset.tab);},listenerOptions);
     }
   }
+  /** 0.21.0: sub-tabs between the trees of one profession (they share its wallet). Choosing one opens that tree. */
+  _wireTreeTabs(root,listenerOptions){
+    const list=root.querySelector('.agst-tree-tabs .ag-tabs--sub');if(!list)return;
+    this._unbind.push(bindTablist(list));
+    list.addEventListener('click',e=>{
+      const tab=e.target.closest?.('[role="tab"]');if(!tab||tab.dataset.tab===this.treeId)return;
+      const go=()=>{this.treeId=tab.dataset.tab;this.nodeId=null;this.linkFrom=null;this.undo=[];this.redo=[];this.render();};
+      if(this._pendingMove)void this._commitMove().then(go);else go();
+    },listenerOptions);
+  }
   _showSubTab(list,key,tab){
     this[key]=tab;
     for(const b of list.querySelectorAll('[role="tab"]')){
@@ -837,6 +927,8 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const rows=[...root.querySelectorAll('[data-agst-library-row]')],count=root.querySelector('[data-agst-library-count]'),none=root.querySelector('[data-agst-library-nomatch]');
     const apply=()=>{const q=input.value.trim().toLowerCase();let shown=0;
       for(const row of rows){row.hidden=Boolean(q)&&!row.dataset.search.includes(q);if(!row.hidden)shown++;}
+      // 0.21.0: a profession heading shows while any of its trees does.
+      for(const head of root.querySelectorAll('[data-agst-library-group]'))head.hidden=!rows.some(r=>r.dataset.agstLibraryIn===head.dataset.agstLibraryGroup&&!r.hidden);
       if(count)count.textContent=countText(shown,rows.length);if(none)none.hidden=!(rows.length&&!shown);};
     input.addEventListener('input',apply,listenerOptions);
     root.querySelector('[data-agst-library-clear]')?.addEventListener('click',()=>{input.value='';apply();input.focus();},listenerOptions);
@@ -984,7 +1076,8 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
       <h3>Editing a tree (GM)</h3><p>Turn on <strong>Edit layout</strong> above the canvas. Add perks from the Edit tab (drag, or press Add). Move a node by dragging it, by focusing it and using the arrow keys (Shift for bigger steps), or with Move node. <strong>Connect prerequisite</strong> adds a required arrow; Esc or Cancel connecting stops. <strong>Player preview</strong> shows what players see.</p>
       <h3>Tree Library (GM)</h3><p><strong>Trees</strong> lists every tree with Open and Export, Export all trees and New tree. <strong>Checks &amp; maintenance</strong> has the saved-data and profession perk checks, older-data moves (Ledger perk choices, legacy trees), the progress backup and Republish player view. Tree files are imported through General Manager.</p>
       <h3>GM Setup</h3><p>Player access (saved with Save Changes) and Developer Tools.</p>
-      <h3>Profession trees</h3><p>Profession trees get 1 point per profession level from the Profession Ledger (level 16 = 16 points; a tree has 24 perks, so players choose 16). Each perk needs the level of its tier (Apprentice 1, Journeyman 4, Expert 7, Artisan 10, Master 13). Players pick their own; only the GM can remove a perk, grant one as an override, or keep one the level no longer covers. A character with perks above their level waits on GM review before picking again: the banner’s <strong>Review</strong> button (or the whisper’s) lists them, to keep or remove each.</p>`);
+      <h3>Profession trees</h3><p>Profession trees get 1 point per profession level from the Profession Ledger (level 16 = 16 points; a tree has 24 perks, so players choose 16). Each perk needs the level of its tier (Apprentice 1, Journeyman 4, Expert 7, Artisan 10, Master 13). Players pick their own; only the GM can remove a perk, grant one as an override, or keep one the level no longer covers. A character with perks above their level waits on GM review before picking again: the banner’s <strong>Review</strong> button (or the whisper’s) lists them, to keep or remove each.</p>
+      <h3>Professions with several trees</h3><p>A profession can have more than one tree (for example one per craft). Its trees share one wallet: 1 point per profession level, 16 at most, whichever tree the points go into. The Tree list shows the profession once; the tabs below it switch between its trees, and the Character tab shows how many points each tree uses. A tree can ask for a tool or skill proficiency: players without one can browse it but not pick from it (the Profession Ledger checks it); the GM can still unlock and grant.</p>`);
   }
   async _installQa(){
     if(!game.user.isGM)throw Error('GM only');
@@ -1260,7 +1353,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if(!game.user.isGM||!this.tree||!this.actor||!this.nodeId)throw Error('GM and Actor selection required');
     const actor=this.actor,t=this.tree,n=t.nodes.find(x=>x.id===this.nodeId);
     if(!n)throw Error('Missing private node');
-    const ok=availability(t,readProgress(actor,t),n.id,{level:professionLevel(actor,t)});if(!ok.ok)throw Error(ok.reason);
+    const ok=availability(t,readProgress(actor,t),n.id,{level:professionLevel(actor,t),siblings:privateSiblings(actor,t)});if(!ok.ok)throw Error(ok.reason);
     if(!await confirm(`Spend ${plural(ok.cost,'point')} and unlock ${n.name} for ${actor.name}?\n${n.perkId?'The perk is added to the character sheet.':'This older custom node has no perk, so nothing is added to the sheet.'}`,{title:'Unlock this perk?',yes:'Unlock perk'}))return;
     const {item}=await unlockNode(actor,t.id,n.id);
     notify(item?`${n.name} unlocked and added to ${actor.name}.`:`${n.name} unlocked (no perk Item: custom node).`);
@@ -1269,7 +1362,8 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if(game.user.isGM||!this.tree||!this.actor||!this.nodeId)throw Error('Select an available perk');
     const actor=this.actor;if(!actor.isOwner)throw Error('You do not own the selected character');
     const n=this.tree.nodes.find(x=>x.id===this.nodeId);
-    const ok=publicAvailability(this.tree,readProgress(actor,this.tree),n?.id,{level:professionLevel(actor,this.tree)});
+    const ok=publicAvailability(this.tree,readProgress(actor,this.tree),n?.id,{level:professionLevel(actor,this.tree),siblings:walletSiblings(actor,this.tree),
+      access:await accessCheck(actor,this.tree),accessLabel:proficiencyLabel});
     if(!ok.ok)throw Error(ok.reason);
     if(!await confirm(`Spend ${plural(n.cost??1,'point')} to unlock ${n.name} for ${actor.name}?\nThe perk is added to the character sheet. Only the GM can undo it.`,{title:'Unlock this perk?',yes:'Unlock perk'}))return;
     const result=await requestUnlock(actor,this.tree.id,n.id);
@@ -1291,7 +1385,7 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
   async _override(){
     if(!game.user.isGM||!this.tree||!this.actor||!this.nodeId)throw Error('GM, character and node required');
     const actor=this.actor,t=this.tree,n=t.nodes.find(x=>x.id===this.nodeId);if(!n)throw Error('Missing node');
-    const check=availability(t,readProgress(actor,t),n.id,{level:professionLevel(actor,t)});
+    const check=availability(t,readProgress(actor,t),n.id,{level:professionLevel(actor,t),siblings:privateSiblings(actor,t)});
     const f=await input('Grant perk (GM override)',`<div class="ag-form-grid agst-dialog"><p>Give <strong>${escape(n.name)}</strong> to ${escape(actor.name)} as a GM override.</p>
       ${check.ok?'<p>The normal rules allow this pick.</p>':`<div class="ag-notice ag-notice--warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>Overrides: ${escape(check.reason)}.</span></div>`}
       <p>It uses 1 point and is kept at the current level, so it does not flag the character for review. Recorded in the history.</p>
@@ -1300,24 +1394,37 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     const {item}=await overrideNode(actor,t.id,n.id,{reason:String(f.reason??'')});
     notify(`${n.name} granted to ${actor.name}${item?' and added to the sheet':''}.`);
   }
-  /** One dialog for an over-allocated character: Keep or Remove for each flagged perk (Keep preselected). */
+  /**
+   * One dialog for an over-allocated character: Keep or Remove for each flagged perk (Keep preselected).
+   * 0.21.0: a profession with several trees is reviewed as one wallet, so the rows cover all of its trees.
+   */
   async _resolve(){
     if(!game.user.isGM||!this.tree||!this.actor)throw Error('GM and character required');
     const actor=this.actor,t=this.tree,level=professionLevel(actor,t);
-    const rows=reviewCandidates(t,readProgress(actor,t),level);
+    const group=t.provider.kind==='profession'?professionTrees(t.sourceRef,readPrivate()).map(resolved):[t];
+    const many=group.length>1;
+    const rows=group.flatMap(x=>reviewCandidates(x,readProgress(actor,x),level,privateSiblings(actor,x)).map(r=>({...r,treeId:x.id,treeName:x.name})));
     if(!rows.length){notify(`${actor.name} has nothing to review on ${t.name}.`);return;}
-    const st=professionStatus(t,readProgress(actor,t),level);
-    const f=await input(`Review ${actor.name}`,`<div class="ag-form-grid agst-dialog"><p><strong>${escape(actor.name)}</strong> · ${escape(t.name)} · level ${escape(level)}: ${st.spent} of ${st.earned} points used.</p>
+    const st=professionStatus(t,readProgress(actor,t),level,privateSiblings(actor,t));
+    const where=many?`${group.length} trees of this profession (one shared wallet)`:t.name;
+    const f=await input(`Review ${actor.name}`,`<div class="ag-form-grid agst-dialog"><p><strong>${escape(actor.name)}</strong> · ${escape(where)} · level ${escape(level)}: ${st.spent} of ${st.earned} points used.</p>
       <p>Keep: the perk stays and still uses its point. Remove: the perk leaves the sheet and its point comes back (undo is in the History).</p>
-      <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">Perk</th><th scope="col">Needs</th><th scope="col">Keep</th><th scope="col">Remove</th></tr></thead><tbody>
-      ${rows.map(r=>`<tr><th scope="row">${escape(r.name)}</th><td>level ${escape(r.threshold)}${r.aboveLevel?' <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span class="ag-sr-only"> above the current level</span>':''}</td>
-        <td><input type="radio" name="n-${escape(r.nodeId)}" value="keep" checked aria-label="Keep ${escape(r.name)}"></td>
-        <td><input type="radio" name="n-${escape(r.nodeId)}" value="remove" aria-label="Remove ${escape(r.name)}"></td></tr>`).join('')}
+      <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col">Perk</th>${many?'<th scope="col">Tree</th>':''}<th scope="col">Needs</th><th scope="col">Keep</th><th scope="col">Remove</th></tr></thead><tbody>
+      ${rows.map((r,i)=>`<tr><th scope="row">${escape(r.name)}</th>${many?`<td>${escape(r.treeName)}</td>`:''}<td>level ${escape(r.threshold)}${r.aboveLevel?' <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span class="ag-sr-only"> above the current level</span>':''}</td>
+        <td><input type="radio" name="${many?`r-${i}`:`n-${escape(r.nodeId)}`}" value="keep" checked aria-label="Keep ${escape(r.name)}"></td>
+        <td><input type="radio" name="${many?`r-${i}`:`n-${escape(r.nodeId)}`}" value="remove" aria-label="Remove ${escape(r.name)}"></td></tr>`).join('')}
       </tbody></table></div><label class="ag-field">Reason (optional)<input name="reason" maxlength="200" placeholder="XP corrected"></label></div>`,'Apply');
     if(!f)return;
-    const remove=rows.filter(r=>f[`n-${r.nodeId}`]==='remove').map(r=>r.nodeId),keep=rows.filter(r=>f[`n-${r.nodeId}`]!=='remove').map(r=>r.nodeId);
-    const out=await resolveNodes(actor,t.id,{remove,keep,reason:String(f.reason??'')});
-    notify(`${actor.name}: kept ${out.kept.length}, removed ${remove.length}${out.removed.length?` (${out.removed.join(', ')} off the sheet)`:''}.${out.status.overAllocated?' Still needs review.':''}`,out.status.overAllocated);
+    const removed=(r,i)=>f[many?`r-${i}`:`n-${r.nodeId}`]==='remove';
+    let kept=0,gone=0,off=[],status=null;
+    for(const x of group){
+      const mine=rows.map((r,i)=>({r,i})).filter(({r})=>r.treeId===x.id);if(!mine.length)continue;
+      const remove=mine.filter(({r,i})=>removed(r,i)).map(({r})=>r.nodeId),keep=mine.filter(({r,i})=>!removed(r,i)).map(({r})=>r.nodeId);
+      const out=await resolveNodes(actor,x.id,{remove,keep,reason:String(f.reason??'')});
+      kept+=out.kept.length;gone+=remove.length;off.push(...out.removed);status=out.status;
+    }
+    const still=professionStatus(t,readProgress(actor,t),level,privateSiblings(actor,t)).overAllocated||Boolean(status?.overAllocated);
+    notify(`${actor.name}: kept ${kept}, removed ${gone}${off.length?` (${off.join(', ')} off the sheet)`:''}.${still?' Still needs review.':''}`,still);
   }
   async _undoHistory(entryId){
     if(!game.user.isGM||!this.tree||!this.actor)throw Error('GM and character required');
@@ -1475,20 +1582,22 @@ async function onProgressionChanged({actorId,profId,previousLevel,level}={}){
   if(instance?.rendered)instance.render();
   if(!game.user?.isGM||game.users?.activeGM?.id!==game.user.id)return;
   const actor=game.actors?.get?.(actorId);if(!actor||isLevelBackup(actor)||!Number.isSafeInteger(level)||!Number.isSafeInteger(previousLevel)||level===previousLevel)return;
-  for(const stored of readPrivate().filter(t=>t.provider.kind==='profession'&&t.sourceRef===profId)){
-    const t=resolved(stored),st=professionStatus(t,readProgress(actor,stored),level);
-    try{
-      if(level>previousLevel&&!st.overAllocated&&st.available>0&&project(stored)){
-        const gained=level-previousLevel;
-        await ChatMessage.create({speaker:{alias:'Skill Trees'},whisper:ownerIds(actor),
-          content:`<div class="agst-chat"><p><strong>${escape(actor.name)}</strong>: ${gained} perk${gained===1?'':'s'} to choose in <strong>${escape(t.name)}</strong> (level ${level}; ${st.available} point${st.available===1?'':'s'} to spend).</p>${openButton(actor,t,'Open Skill Tree')}</div>`});
-      }
-      if(level<previousLevel&&st.overAllocated){
-        await ChatMessage.create({speaker:{alias:'Skill Trees'},whisper:ownerIds(actor,{gmOnly:true}),
-          content:`<div class="agst-chat"><p><strong>${escape(actor.name)}</strong> needs review in <strong>${escape(t.name)}</strong>: level ${level} no longer covers ${st.aboveLevel.length?escape(st.aboveLevel.map(x=>x.name).join(', ')):`${st.overSpent} point${st.overSpent===1?'':'s'} used`}. Nothing was removed.</p>${openButton(actor,t,'Review',{resolve:true})}</div>`});
-      }
-    }catch(error){console.error(`[${MODULE}] Could not post the profession note`,error);}
-  }
+  // 0.21.0: one note per profession (its trees share one wallet), naming the profession's group when it has several trees.
+  const group=professionGroups(professionTrees(profId,readPrivate()))[0];if(!group)return;
+  const stored=group.trees.find(x=>project(x))??group.trees[0],t=resolved(stored);
+  const st=professionStatus(t,readProgress(actor,stored),level,privateSiblings(actor,stored)),name=group.multi?group.name:t.name;
+  const above=[...st.aboveLevel,...asArray(st.otherAboveLevel)];
+  try{
+    if(level>previousLevel&&!st.overAllocated&&st.available>0&&group.trees.some(x=>project(x))){
+      const gained=level-previousLevel;
+      await ChatMessage.create({speaker:{alias:'Skill Trees'},whisper:ownerIds(actor),
+        content:`<div class="agst-chat"><p><strong>${escape(actor.name)}</strong>: ${gained} perk${gained===1?'':'s'} to choose in <strong>${escape(name)}</strong> (level ${level}; ${st.available} point${st.available===1?'':'s'} to spend${group.multi?` across ${group.trees.length} trees`:''}).</p>${openButton(actor,t,'Open Skill Tree')}</div>`});
+    }
+    if(level<previousLevel&&st.overAllocated){
+      await ChatMessage.create({speaker:{alias:'Skill Trees'},whisper:ownerIds(actor,{gmOnly:true}),
+        content:`<div class="agst-chat"><p><strong>${escape(actor.name)}</strong> needs review in <strong>${escape(name)}</strong>: level ${level} no longer covers ${above.length?escape(above.map(x=>x.name).join(', ')):`${st.overSpent} point${st.overSpent===1?'':'s'} used`}. Nothing was removed.</p>${openButton(actor,t,'Review',{resolve:true})}</div>`});
+    }
+  }catch(error){console.error(`[${MODULE}] Could not post the profession note`,error);}
 }
 function wireChatButtons(_message,html){
   const root=html?.querySelectorAll?html:html?.[0];
@@ -1515,37 +1624,68 @@ function embedRefusal(actor){
 /** One tree's rows for the embed. GM: the private tree resolved from world perks; players: the published projection. */
 function embedTreeModel(actor,stored){
   const gm=game.user.isGM,t=gm?resolved(stored):stored,acc=readProgress(actor,stored),level=professionLevel(actor,stored);
+  // 0.21.0: the profession's shared wallet, and (players) the tree's proficiency gate when the Ledger can check it.
+  const siblings=walletSiblings(actor,stored),access=gm?null:accessCheckNow(actor,stored);
   const nodes=asArray(t.nodes).filter(n=>!n.silhouette).map(n=>{
     const unlocked=acc.unlocks.includes(n.id);
-    const e=unlocked?{ok:false}:(gm?availability(t,acc,n.id,{level}):publicAvailability(t,acc,n.id,{level}));
+    const e=unlocked?{ok:false}:(gm?availability(t,acc,n.id,{level,siblings}):publicAvailability(t,acc,n.id,{level,siblings,access,accessLabel:proficiencyLabel}));
     return {id:n.id,name:n.name||'Unnamed',cost:n.cost??1,text:shortText(n.description),unlocked,available:!unlocked&&e.ok,reason:unlocked?'':String(e.reason??'')};
   });
   const spent=totalSpent(t,acc),profession=t.provider?.kind==='profession';
-  const st=profession?professionStatus(t,acc,level):null;
+  const st=profession?professionStatus(t,acc,level,siblings):null;
   const earned=profession?(st.ledger?st.earned:null):acc.awarded,available=profession?(st.ledger?Math.max(0,st.available):null):Math.max(0,acc.awarded-spent);
-  return {id:t.id,name:t.name||t.id,profession,level:profession&&st.ledger?st.level:null,earned,spent,available,nodes};
+  return {id:t.id,name:t.name||t.id,profession,level:profession&&st.ledger?st.level:null,earned,spent:profession?st.spent:spent,available,nodes,
+    ...(st?.trees?{sourceRef:t.sourceRef,wallet:sharedWalletKey(t),treeSpent:st.treeSpent}:{}),
+    ...(profession&&accessLine(stored)?{access:accessLine(stored)}:{})};
+}
+/**
+ * 0.21.0 embed data: the character's trees grouped by wallet. A profession with several trees is one group with the shared
+ * wallet once ({shared:true, name, sourceRef, level, earned, spent, available, trees:[model…]}); every other tree is a group of one.
+ */
+function embedData(actor){
+  const models=new Map(readSelectedTrees(false).map(t=>[t.id,embedTreeModel(actor,t)]));
+  return professionGroups(readSelectedTrees(false)).map(g=>{
+    const trees=g.trees.map(t=>({...models.get(t.id),label:g.members.find(m=>m.id===t.id)?.label??t.name}));
+    const first=trees[0];
+    return {key:g.key,shared:g.multi,name:g.name,sourceRef:g.sourceRef,kind:g.kind,profession:first.profession,
+      level:first.level,earned:first.earned,spent:first.spent,available:first.available,trees};
+  });
 }
 function embedHTML(ctrl){
   const actor=game.actors?.get?.(ctrl.actorId)??null,refusal=embedRefusal(actor);
   if(refusal)return `<div class="ag-empty"><p class="ag-empty__title">${escape(refusal)}</p></div>`;
-  const models=readSelectedTrees(false).map(t=>embedTreeModel(actor,t));
-  const shown=models.filter(m=>m.nodes.some(n=>n.unlocked||n.available)||Number(m.earned)>0);
+  const groups=embedData(actor);
+  const active=m=>m.nodes.some(n=>n.unlocked||n.available)||Number(m.earned)>0;
+  const shown=groups.filter(g=>g.trees.some(active));
   const plural=(n,w)=>`${n} ${w}${n===1?'':'s'}`;
-  const tree=m=>{
+  // Kit parts (0.20.0): points as an ag-badge, unlocked perks as ok badges in an ag-chip-group row; no control inside <summary>.
+  const pts=m=>m.available===null?'<span class="ag-badge">Points come from the Profession Ledger (not active)</span>'
+    :`<span class="ag-badge${m.available?' ag-badge--accent':''}">${plural(m.available,'point')} to spend</span><span class="agst-embed__muted">${m.spent} of ${m.earned} spent${m.level!==null?` · level ${m.level}`:''}</span>`;
+  const body=m=>{
     const unlocked=m.nodes.filter(n=>n.unlocked),avail=m.nodes.filter(n=>n.available),locked=m.nodes.filter(n=>!n.unlocked&&!n.available);
-    // Kit parts (0.20.0): points as an ag-badge, unlocked perks as ok badges in an ag-chip-group row; no control inside <summary>.
-    const pts=m.available===null?'<span class="ag-badge">Points come from the Profession Ledger (not active)</span>'
-      :`<span class="ag-badge${m.available?' ag-badge--accent':''}">${plural(m.available,'point')} to spend</span><span class="agst-embed__muted">${m.spent} of ${m.earned} spent${m.level!==null?` · level ${m.level}`:''}</span>`;
-    return `<details class="agst-embed__tree" data-tree="${escape(m.id)}" ${ctrl.closed.has(m.id)?'':'open'}><summary><strong>${escape(m.name)}</strong>${pts}</summary>
-      <div class="agst-embed__actions"><button type="button" class="ag-btn ag-btn--sm" data-agst-embed="open" data-tree="${escape(m.id)}" aria-label="Open tree: ${escape(m.name)}">Open tree</button></div>
+    return `<div class="agst-embed__actions"><button type="button" class="ag-btn ag-btn--sm" data-agst-embed="open" data-tree="${escape(m.id)}" aria-label="Open tree: ${escape(m.name)}">Open tree</button></div>
+      ${m.access?`<p class="agst-embed__muted agst-embed__access">${escape(m.access)}</p>`:''}
       ${avail.length?`<h4>Available now</h4><ul class="agst-embed__list">${avail.map(n=>`<li><span class="agst-embed__name">${escape(n.name)}</span><span class="agst-embed__muted">${plural(n.cost,'point')}</span>
         <button type="button" class="ag-btn ag-btn--sm ag-btn--primary" data-agst-embed="unlock" data-tree="${escape(m.id)}" data-node="${escape(n.id)}" aria-label="Unlock ${escape(n.name)}">Unlock</button>${n.text?`<p class="agst-embed__text">${escape(n.text)}</p>`:''}</li>`).join('')}</ul>`:''}
       <h4>Unlocked</h4>${unlocked.length?`<ul class="ag-chip-group agst-embed__chips">${unlocked.map(n=>`<li class="ag-badge ag-badge--ok">${escape(n.name)}</li>`).join('')}</ul>`:'<p class="agst-embed__muted">None yet.</p>'}
-      ${locked.length?`<details class="agst-embed__locked"><summary>Locked (${locked.length})</summary><ul class="agst-embed__list">${locked.map(n=>`<li><span class="agst-embed__name">${escape(n.name)}</span><span class="agst-embed__muted">${escape(n.reason)}</span></li>`).join('')}</ul></details>`:''}
+      ${locked.length?`<details class="agst-embed__locked"><summary>Locked (${locked.length})</summary><ul class="agst-embed__list">${locked.map(n=>`<li><span class="agst-embed__name">${escape(n.name)}</span><span class="agst-embed__muted">${escape(n.reason)}</span></li>`).join('')}</ul></details>`:''}`;
+  };
+  const tree=m=>`<details class="agst-embed__tree" data-tree="${escape(m.id)}" ${ctrl.closed.has(m.id)?'':'open'}><summary><strong>${escape(m.name)}</strong>${pts(m)}</summary>
+      ${body(m)}
+    </details>`;
+  // 0.21.0: a profession with several trees is one entry: the shared wallet once, then sub-tabs between its trees.
+  const profession=g=>{
+    const pick=g.trees.some(m=>m.id===ctrl.tabs.get(g.key))?ctrl.tabs.get(g.key)
+      :(g.trees.find(m=>m.nodes.some(n=>n.available))??g.trees.find(m=>m.nodes.some(n=>n.unlocked))??g.trees[0]).id;
+    const tabGroup=`agst-embed-${ctrl.actorId}-${g.key}`;
+    return `<details class="agst-embed__tree agst-embed__profession" data-tree="${escape(g.key)}" data-agst-wallet="${escape(g.key)}" ${ctrl.closed.has(g.key)?'':'open'}><summary><strong>${escape(g.name)}</strong>${pts(g)}</summary>
+      <p class="agst-embed__muted">One wallet shared by ${g.trees.length} trees: ${g.trees.map(m=>`${escape(m.label)} ${m.treeSpent??0}`).join(' · ')}</p>
+      ${subTabs({group:tabGroup,label:`${g.name} trees`,tabs:g.trees.map(m=>({id:m.id,label:m.label})),selected:pick})}
+      ${g.trees.map(m=>`<section class="agst-embed__panel" ${tabPanelAttrs(tabGroup,m.id,{hidden:m.id!==pick})}>${body(m)}</section>`).join('')}
     </details>`;
   };
-  const others=models.length-shown.length;
-  return `<div class="agst-embed__body">${shown.map(tree).join('')||'<div class="ag-empty"><p class="ag-empty__title">No points or perks yet</p></div>'}
+  const others=groups.length-shown.length;
+  return `<div class="agst-embed__body">${shown.map(g=>g.shared?profession(g):tree(g.trees[0])).join('')||'<div class="ag-empty"><p class="ag-empty__title">No points or perks yet</p></div>'}
     ${others?`<p class="agst-embed__muted">${plural(others,'other tree')} with nothing to spend yet. <button type="button" class="ag-btn ag-btn--sm" data-agst-embed="open">Open Skill Trees</button></p>`:''}</div>`;
 }
 /** Unlock from the embed: the same confirm, checks and route as the window (GM unlocks here; a player asks the GM client). */
@@ -1556,14 +1696,14 @@ async function embedUnlock(actor,treeId,nodeId){
   const level=professionLevel(actor,stored);
   if(game.user.isGM){
     const t=resolved(stored),n=t.nodes.find(x=>x.id===nodeId);if(!n)throw Error('Missing private node');
-    const ok=availability(t,readProgress(actor,t),n.id,{level});if(!ok.ok)throw Error(ok.reason);
+    const ok=availability(t,readProgress(actor,t),n.id,{level,siblings:privateSiblings(actor,stored)});if(!ok.ok)throw Error(ok.reason);
     if(!await confirm(`Spend ${plural(ok.cost,'point')} and unlock ${n.name} for ${actor.name}?\n${n.perkId?'The perk is added to the character sheet.':'This older custom node has no perk, so nothing is added to the sheet.'}`,{title:'Unlock this perk?',yes:'Unlock perk'}))return null;
     const {item}=await unlockNode(actor,t.id,n.id);
     return item?`${n.name} unlocked and added to ${actor.name}.`:`${n.name} unlocked (no perk Item: custom node).`;
   }
   if(!actor.isOwner)throw Error('You do not own the selected character');
   const n=stored.nodes.find(x=>x.id===nodeId);
-  const ok=publicAvailability(stored,readProgress(actor,stored),n?.id,{level});if(!ok.ok)throw Error(ok.reason);
+  const ok=publicAvailability(stored,readProgress(actor,stored),n?.id,{level,siblings:walletSiblings(actor,stored),access:await accessCheck(actor,stored),accessLabel:proficiencyLabel});if(!ok.ok)throw Error(ok.reason);
   if(!await confirm(`Spend ${plural(n.cost??1,'point')} to unlock ${n.name} for ${actor.name}?\nThe perk is added to the character sheet. Only the GM can undo it.`,{title:'Unlock this perk?',yes:'Unlock perk'}))return null;
   const result=await requestUnlock(actor,stored.id,n.id);
   return result.message;
@@ -1572,15 +1712,27 @@ async function embedUnlock(actor,treeId,nodeId){
 function mountEmbed(element,{actorId,mode='character'}={}){
   if(!element||typeof element.addEventListener!=='function')throw TypeError('mount needs a DOM element.');
   if(!EMBED_MODES.has(mode))throw Error(`Unknown embed mode "${mode}". Supported: ${[...EMBED_MODES].join(', ')}.`);
-  const abort=new AbortController(),ctrl={actorId:String(actorId??''),closed:new Set(),mounted:true,busy:false};
+  const abort=new AbortController(),ctrl={actorId:String(actorId??''),closed:new Set(),mounted:true,busy:false,tabs:new Map(),unbind:[]};
+  const memory=uiState(MODULE); // the tree last shown per profession, per user (0.21.0)
   element.classList?.add('agst-embed');
   ctrl.render=()=>{
     if(!ctrl.mounted)return;
     if(element.isConnected===false){ctrl.unmount();return;}
+    for(const fn of ctrl.unbind.splice(0))fn();
     element.innerHTML=embedHTML(ctrl);
+    for(const list of element.querySelectorAll?.('.agst-embed__profession .ag-tabs--sub')??[])ctrl.unbind.push(bindTablist(list));
   };
-  ctrl.unmount=()=>{if(!ctrl.mounted)return;ctrl.mounted=false;abort.abort();embeds.delete(ctrl);element.innerHTML='';element.classList?.remove('agst-embed');};
+  ctrl.unmount=()=>{if(!ctrl.mounted)return;ctrl.mounted=false;abort.abort();for(const fn of ctrl.unbind.splice(0))fn();embeds.delete(ctrl);element.innerHTML='';element.classList?.remove('agst-embed');};
   element.addEventListener('click',async e=>{
+    // A profession's tree tab: show that tree's panel in place and remember it.
+    const tab=e.target?.closest?.('.agst-embed__profession [role="tab"]');
+    if(tab&&element.contains(tab)){
+      const box=tab.closest('[data-agst-wallet]'),key=box?.dataset.agstWallet;if(!key)return;
+      ctrl.tabs.set(key,tab.dataset.tab);memory.set(`embedTree:${key}`,tab.dataset.tab);
+      for(const b of box.querySelectorAll('[role="tab"]')){const on=b===tab;b.setAttribute('aria-selected',String(on));b.setAttribute('tabindex',on?'0':'-1');
+        const panel=box.querySelector(`#${CSS.escape(b.getAttribute('aria-controls')??'')}`);if(panel)panel.hidden=!on;}
+      return;
+    }
     const b=e.target?.closest?.('[data-agst-embed]');if(!b||!element.contains(b))return;
     e.preventDefault?.();e.stopPropagation?.();
     if(ctrl.busy||b.disabled)return;
@@ -1597,6 +1749,8 @@ function mountEmbed(element,{actorId,mode='character'}={}){
     finally{ctrl.busy=false;}
   },{signal:abort.signal});
   element.addEventListener('toggle',e=>{const id=e.target?.dataset?.tree;if(!id||!e.target.matches?.('.agst-embed__tree'))return;if(e.target.open)ctrl.closed.delete(id);else ctrl.closed.add(id);},{signal:abort.signal,capture:true});
+  try{for(const g of professionGroups(readSelectedTrees(false)))if(g.multi){const last=memory.get(`embedTree:${g.key}`,null);if(last)ctrl.tabs.set(g.key,last);}}
+  catch(error){console.warn(`[${MODULE}] Could not restore the embed's tree tabs`,error);}
   embeds.add(ctrl);ctrl.render();
   return {unmount:ctrl.unmount,refresh:()=>ctrl.render()};
 }
@@ -1637,7 +1791,19 @@ Hooks.once('ready',()=>{
     actorProgress:(actor,treeId)=>{checkTreePlayerAccess();if(!game.user.isGM&&!hasOwner(actor))throw Error('Actor access denied');const t=readSelectedTrees(false).find(x=>x.id===treeId);return t?readProgress(actor,t):null;},
     /** 0.13.0: points per tree for one character, [{treeId,name,kind,level,earned,spent,available}]. Owner or GM only; read-only. */
     pointsSummary:actor=>pointsSummary(actor),
-    embed:{contract:'ag-trees-embed/1',modes:[...EMBED_MODES],mount:mountEmbed},
+    embed:{contract:'ag-trees-embed/1',modes:[...EMBED_MODES],mount:mountEmbed,
+      /** 0.21.0: the embed's data, trees grouped by wallet (a profession with several trees is one group). Owner or GM. */
+      data:actorId=>{checkTreePlayerAccess();const actor=game.actors?.get?.(actorId)??null,refusal=embedRefusal(actor);if(refusal)throw Error(refusal);return copy(embedData(actor));}},
+    /** 0.21.0: the trees of one profession (same rules as listTrees: GM all, players the published ones), sorted by name. */
+    listTreesForProfession:sourceRef=>{checkTreePlayerAccess();return copy(professionTrees(String(sourceRef??'')));},
+    /**
+     * 0.21.0: a character's shared profession wallet, {sourceRef, level, earned, spent, available, trees:[{id,name,spent}]}, or null when
+     * this user can see no tree of that profession. earned/available are null when the Ledger is unavailable. Owner or GM only.
+     */
+    professionWallet:(actorId,sourceRef)=>{checkTreePlayerAccess();
+      const actor=typeof actorId==='string'?game.actors?.get?.(actorId)??null:actorId??null;if(!actor)throw Error('No Actor given');
+      if(!hasOwner(actor))throw Error('Actor access denied');
+      return walletFor(actor,String(sourceRef??''));},
     /** 0.17.0: generic account access for partner modules (contract ag-tree-accounts/1). GM only except grants(). */
     accounts:accountsApi(),
     grantPoints:async(actor,treeId,amount,label)=>{
