@@ -7,11 +7,14 @@
 //   - the UI drift lint (scripts/ui-lint.mjs): every rule at zero, except the STRICT_EXCEPTIONS it lists
 //   - the module's automated tests pass
 //   - (full run only) the playtest data pack loads, ids are unique and references resolve
+//   - the suite is pre-release: every module version is 0.x; no module.json relationship asks for an Ashen Gate module
+//     at 1.x or above; no runtime script compares a Locations version (partners feature-detect its API instead)
 // Usage: node scripts/check.mjs [module-id ...]
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { runUiLint } from './ui-lint.mjs';
+import { locationsVersionCompare, relationshipProblems } from './version-rules.mjs';
 
 const REPO = 'robbmcgaw/ashen-gate-foundry';
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
@@ -43,6 +46,11 @@ for (const id of ids) {
   const v = manifest.version;
   if (manifest.id !== id) fail(id, `module.json id "${manifest.id}" does not match folder name`);
   if (!/^\d+\.\d+\.\d+$/.test(v ?? '')) fail(id, `version "${v}" is not x.y.z`);
+  // Pre-release suite: 0.x only. Locations was renumbered 1.18.0 -> 0.18.0; Release publishes any untagged version, so a
+  // lower number is fine there (Forge just won't offer it as an update: reinstall from the manifest URL).
+  if (!/^0\./.test(v ?? '')) fail(id, `version "${v}" must stay 0.x (the suite is pre-release; see CLAUDE.md Versioning)`);
+  // Foundry enforces relationships: a 1.x minimum on another Ashen Gate module would stop this one enabling beside it.
+  for (const problem of relationshipProblems(manifest)) fail(id, problem);
   const expected = {
     manifest: `https://raw.githubusercontent.com/${REPO}/main/modules/${id}/module.json`,
     download: `https://github.com/${REPO}/releases/download/${id}-v${v}/${id}.zip`,
@@ -76,6 +84,13 @@ for (const id of ids) {
     }
   }
 
+  // Locations went from 1.18.0 to 0.18.0, so a numeric compare against it is wrong now: feature-detect its API.
+  for (const file of runtime.filter(f => !/[\\/](tests?|vendor)[\\/]/.test(f))) {
+    fs.readFileSync(file, 'utf8').split('\n').forEach((line, i) => {
+      if (locationsVersionCompare(line)) fail(id, `${path.relative(dir, file)}:${i + 1} compares a Locations version; detect the API function instead:\n    ${line.trim()}`);
+    });
+  }
+
   const testDir = ['tests', 'test'].map(d => path.join(dir, d)).find(d => fs.existsSync(d));
   const testFiles = testDir ? fs.readdirSync(testDir).filter(f => /\.test\.m?js$/.test(f)).map(f => path.join(testDir, f)) : [];
   if (testFiles.length) {
@@ -97,6 +112,9 @@ if (!wanted.length) {
   const c = spawnSync(process.execPath, ['--test', path.join(root, 'scripts/validate-content.test.mjs')], { cwd: root, encoding: 'utf8' });
   console.log(`content validator: ${(c.stdout.match(/^# (pass|fail) \d+$/gm) ?? []).join(', ')}`);
   if (c.status !== 0) fail('validate-content', `tests failed\n${c.stdout.split('\n').filter(l => /^not ok/.test(l)).join('\n')}`);
+  const vr = spawnSync(process.execPath, ['--test', path.join(root, 'scripts/version-rules.test.mjs')], { cwd: root, encoding: 'utf8' });
+  console.log(`version rules: ${(vr.stdout.match(/^# (pass|fail) \d+$/gm) ?? []).join(', ')}`);
+  if (vr.status !== 0) fail('version-rules', `tests failed\n${vr.stdout.split('\n').filter(x => /^not ok/.test(x)).join('\n')}`);
   const l = spawnSync(process.execPath, ['--test', path.join(root, 'scripts/ui-lint.test.mjs')], { cwd: root, encoding: 'utf8' });
   console.log(`ui lint rules: ${(l.stdout.match(/^# (pass|fail) \d+$/gm) ?? []).join(', ')}`);
   if (l.status !== 0) fail('ui-lint', `tests failed\n${l.stdout.split('\n').filter(x => /^not ok/.test(x)).join('\n')}`);

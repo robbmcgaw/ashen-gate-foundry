@@ -1,4 +1,6 @@
-# Route record schema (Ashen Gate Locations 1.10.0+, General Manager 0.27.0+)
+# Route record schema (Ashen Gate Locations 1.10.0+ under the old numbering, i.e. every 0.18.0+; General Manager 0.27.0+)
+
+> Locations was renumbered from 1.18.0 to 0.18.0 (the suite is pre-release). Version numbers below are the old 1.x ones; all of it is in 0.18.0 and later. Partners detect route support by the API (`importRoutes`, `listRoutes`), not the number.
 
 A **Route** joins two Location records for point-crawl travel. Route records travel in the same
 `ag-foundry-import/0.2` package as Location records, so one package can create places and the routes between them.

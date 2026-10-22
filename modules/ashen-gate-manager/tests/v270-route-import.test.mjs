@@ -109,8 +109,8 @@ test('drafts, blocked statuses and an old Locations are reported, not imported',
   assert.equal(planRoute({...r, status: 'retired'}, {existingIds: new Set(), locationIds: ids}).action, 'blocked');
   const old = {...api, importRoutes: undefined};
   assert.equal(routesApi(gameWith(old)), null);
-  assert.match(planRoute(r, {existingIds: null}).reason, /Locations 1\.10\.0 or later/);
-  assert.equal(routesNote([r], null), '1 route record skipped: enable Locations 1.10.0 or later');
+  assert.match(planRoute(r, {existingIds: null}).reason, /Locations with route import is not active/);
+  assert.equal(routesNote([r], null), '1 route record skipped: enable or update Locations (route import)');
 });
 
 test('ZIP bundle: a routes-only Manager file is imported after the other Manager files', async () => {
@@ -134,4 +134,15 @@ test('Browse and World export list routes as definitions, without play state', a
   for (const k of ['state', 'viewKey', 'audience', 'drawingUuid']) assert.equal(k in r.data, false, `no ${k}`);
   const older = collectModuleSections({modules: {get: id => id === 'ashen-gate-locations' ? {active: true, version: '1.9.0', api: {listLocations: () => []}} : null}});
   assert.equal(older.routes.status, 'not available', 'an older Locations is listed as not available, not an error');
+});
+
+test('0.45.1: Locations renumbered to 0.18.0 still imports, browses and exports routes (gated on the API, not the number)', async () => {
+  const {api} = locations();
+  const game = {modules: {get: id => id === 'ashen-gate-locations' ? {active: true, version: '0.18.0', api} : null}};
+  assert.equal(routesApi(game), api);
+  assert.equal(routesNote([route('RTE-TEST-A-B', 'LOC-TEST-A', 'LOC-TEST-B')], routesApi(game)), null);
+  const p = pkg([loc('LOC-TEST-A'), loc('LOC-TEST-B'), route('RTE-TEST-A-B', 'LOC-TEST-A', 'LOC-TEST-B')]);
+  await apply(p, api, preview(p, api));
+  assert.deepEqual(api.listRoutes().map(r => r.id), ['RTE-TEST-A-B']);
+  assert.equal(collectModuleSections(game).routes.status, 'ok');
 });

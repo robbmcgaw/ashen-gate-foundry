@@ -12,6 +12,8 @@ Foundry or The Forge: **Add-on Modules → Install Module → Manifest URL**, pa
 
 and Install. Updates arrive through Check for Updates / Forge's update button. Every version is also on the [GitHub Releases](https://github.com/robbmcgaw/ashen-gate-foundry/releases) page for manual install or rollback. Change history is in [CHANGELOG.md](CHANGELOG.md).
 
+**Version numbers:** the Ashen Gate suite is pre-release, so Locations was renumbered from 1.18.0 to **0.18.0** (October 2026). Feature notes below that say "1.x.0" refer to the old numbering and are all included in 0.18.0 and later. Foundry will not offer 0.18.0 as an update to 1.18.0 because the number is lower: uninstall Locations and install it again from the manifest URL above. Your locations, routes, pins and Party Notes are kept: they live in the world, not in the module.
+
 ## Using it
 
 - **GM:** Items sidebar → **Location Builder**. Click **New location**, type a name, and click **Save Changes**. The `LOC-*` ID is made from the name the first time you save and never changes after that.
