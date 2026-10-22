@@ -182,7 +182,7 @@ const journals=[];
 const setPath=(o,k,v)=>{const parts=k.split('.');while(parts.length>1){const p=parts.shift();o[p]??={};o=o[p];}o[parts[0]]=v;};
 const makeJournal=data=>{const j={...structuredClone(data),getFlag:(scope,key)=>j.flags?.[scope]?.[key],update:async u=>{for(const [k,v] of Object.entries(u))setPath(j,k,structuredClone(v));}};return j;};
 globalThis.JournalEntry={create:async data=>{if(!game.user.isGM)throw Error('players cannot create');const j=makeJournal(data);journals.push(j);return j;}};
-const ledgerModule={active:true,version:'0.27.0',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.28.0',set api(v){api=v},get api(){return api}};
 const modules={'ashen-gate-profession-ledger':ledgerModule,'ashen-gate-locations':{active:true,version:'1.17.4',api:locApi}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},
   actors:{contents:[belwar],get:id=>id==='belwar'?belwar:null},journal:journals,socket:{emit:(n,m)=>sent.push(m),on:()=>{}},

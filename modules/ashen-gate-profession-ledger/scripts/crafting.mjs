@@ -60,8 +60,11 @@ export function craftBlockers({recipe,crafter,knownIds,result}){
   const out=[];
   if(!recipe)return ['This recipe is not available to you.'];
   if(!knownIds.includes(recipe.id))out.push(`${crafter?.name??'This character'} has not learned this recipe.`);
-  if(!recipe.hasStructuredIngredients)out.push('This recipe has no ingredient list yet. Ask your GM.');
-  if(!result)out.push('The item this recipe makes is not in this world yet. Ask your GM to import it with General Manager.');
+  // 0.28.0: an activity (kind "activity") needs no ingredients and makes no item; known recipe and level rules are the same.
+  if(recipe.kind!=='activity'){
+    if(!recipe.hasStructuredIngredients)out.push('This recipe has no ingredient list yet. Ask your GM.');
+    if(!result)out.push('The item this recipe makes is not in this world yet. Ask your GM to import it with General Manager.');
+  }
   const need=tierLevel(recipe.tier),progress=recipe.professionId?progressOf(crafter,recipe.professionId):null;
   // Only tracked progress is enforced; a character without Ledger XP is not assumed to be under-levelled.
   if(need&&progress&&progress.level<need)out.push(`Needs ${tierLabel(recipe.tier)} (profession level ${need}); ${crafter.name} is level ${progress.level}.`);

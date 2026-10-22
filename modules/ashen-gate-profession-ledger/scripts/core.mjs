@@ -1,9 +1,8 @@
 /** Ashen Gate Profession Ledger core v0.2.3; side-effect-free, reusable transforms. */
 export const SCHEMA = 'ag-ledger/0.1';
-export const PROFESSION_NAMES = Object.freeze([
-  'Alchemy','Blacksmithing','Cooking','Enchanting','Engineering','Inscription','Jewelcrafting',
-  'Leatherworking','Tailoring','Archaeology','Fishing','Herbalism','Hunting/Skinning','Mining'
-]);
+import {BUILTIN_PROFESSIONS,allProfessions,declaredCategory} from './professions.mjs';
+/** The 14 original professions, then Artistry (0.28.0); from the registry in professions.mjs. */
+export const PROFESSION_NAMES = Object.freeze(BUILTIN_PROFESSIONS.map(p=>p.name));
 export const norm = value => String(value ?? '').trim().toLowerCase().replace(/[^a-z0-9]+/g,'');
 export const toNumber = value => Number.isFinite(Number(value)) ? Number(value) : 0;
 export const quantity = obj => Math.max(0,Math.floor(toNumber(obj?.system?.quantity ?? obj?.quantity ?? 0)));
@@ -28,7 +27,10 @@ export function classify(raw) {
   if(id?.startsWith('PROF-'))return 'Profession';
   if(id?.startsWith('PERK-'))return 'ProfessionPerk';
   if(/^Recipe\s*:/i.test(raw?.name??''))return 'Recipe';
-  if(PROFESSION_NAMES.some(x=>norm(raw?.name)===norm(x))||norm(raw?.name)==='arcana')return 'Profession';
+  // 0.28.0: imported creative professions (noted from their records) are recognised by name like the built-ins.
+  if(allProfessions().some(x=>norm(raw?.name)===norm(x.name))||norm(raw?.name)==='arcana')return 'Profession';
+  // 0.28.0: a record that declares a profession category (profession_kind, or category "creative") is a Profession.
+  if(declaredCategory(raw))return 'Profession';
   return null;
 }
 export const displayProfession = raw => norm(raw)==='arcana'?'Enchanting':String(raw??'');
@@ -44,6 +46,11 @@ export function definitionRecord(raw) {
   const {foundry,...def}=source;
   return structuredClone(def);
 }
+/** 0.28.0: a Recipe record is a craft (makes an item from ingredients; the default) or an activity (`kind: "activity"`:
+ * a creative activity such as a performance, with no ingredients and no result item, that earns profession XP). */
+export const RECIPE_KINDS=Object.freeze(['craft','activity']);
+const recipeKind=(...sources)=>sources.some(src=>String(src?.kind??src?.recipe?.kind??'').trim().toLowerCase()==='activity')?'activity':'craft';
+export const isActivity=recipe=>recipe?.kind==='activity';
 export function normalizeRecipe(raw) {
   const def=definitionRecord(raw);
   // Manager 0.11.1 stores structured Recipe fields directly in source.definition.
@@ -60,7 +67,7 @@ export function normalizeRecipe(raw) {
   const professionId=canonical?.profession_id ?? src?.profession_id ?? null;
   const resultItemId=canonical?.result_item_id ?? src?.result_item_id ?? null;
   const profession=src?.professionName??src?.profession??raw?.profession??professionId??'';
-  return {id, name, profession:displayProfession(profession),professionId,
+  return {id, name, profession:displayProfession(profession),professionId,kind:recipeKind(canonical,src,raw),
     resultItemId, tier:src?.tier??raw?.tier??null,effort:src?.effort??raw?.effort??null,
     description:src?.description??src?.rules_summary??'',
     // Optional crafting requirement: a dnd5e tool key, tool Item UUID/name, or a workstation (text).
@@ -204,7 +211,7 @@ export function normalizeLibrary(pkg) {
     if(!rec.id||!VALID_ID.test(rec.id)||!rec.id.startsWith('REC-'))throw Error(`Recipe has an invalid permanent REC- ID: ${rec.id}`);
     if(!rec.name)throw Error(`Recipe ${rec.id} has no display name`);
     if(seen.has(rec.id))throw Error(`Duplicate recipe ${rec.id}`);seen.add(rec.id);
-    if(!rec.hasStructuredIngredients){unmappedRecipes++;continue;}
+    if(!rec.hasStructuredIngredients){if(!isActivity(rec))unmappedRecipes++;continue;}
     for(const ing of rec.ingredients)if(ing.materialId && (!VALID_ID.test(ing.materialId)||!ing.materialId.startsWith('MAT-')))
       throw Error(`Recipe ${rec.id} references a non-MAT ingredient ID`);
   }
