@@ -50,8 +50,16 @@
 .agc-orb__default{background:radial-gradient(circle at 34% 28%,color-mix(in srgb,var(--ag-text) 75%,transparent) 0 5%,transparent 18%),
   radial-gradient(circle at 50% 62%,var(--agc-core) 0%,color-mix(in srgb,var(--agc-core) 55%,var(--ag-surface-sunken)) 35%,var(--ag-surface-sunken) 100%)}
 .agc-orb[data-tone="hot"] .agc-orb__default{animation:agc-pulse 1.8s ease-in-out infinite}
+/* 0.9.0: art sits on the orb. The Strain-toned orb stays behind it as a soft glow, and the image gets a halo in the same tone.
+   The whole image shows (contain, no crop), so transparent art keeps its shape. */
+.agc-orb--art{overflow:visible}
+.agc-orb--art .agc-orb__glow{position:absolute;inset:-14%;width:auto;height:auto;filter:blur(var(--ag-space-3));opacity:.9;
+  background:radial-gradient(circle at 50% 55%,var(--agc-core) 0%,color-mix(in srgb,var(--agc-core) 55%,transparent) 45%,transparent 72%)}
+.agc-orb--art .agc-orb__img{position:relative;object-fit:contain;border-radius:0;
+  filter:drop-shadow(0 0 var(--ag-space-2) color-mix(in srgb,var(--agc-core) 70%,transparent));transition:filter var(--ag-dur) var(--ag-ease)}
+.agc-orb--art[data-tone="hot"] .agc-orb__img{filter:drop-shadow(0 0 var(--ag-space-3) color-mix(in srgb,var(--agc-core) 90%,transparent))}
 @keyframes agc-pulse{50%{opacity:.7}}
-@media (prefers-reduced-motion: reduce){.agc-orb__default{animation:none!important}.agc-ring__seg,.agc-orb{transition:none}}
+@media (prefers-reduced-motion: reduce){.agc-orb__default{animation:none!important}.agc-ring__seg,.agc-orb,.agc-orb__img{transition:none}}
 /* Sockets on the orbit: circles sized by the stage, so the layout is the same in both sizes. */
 .agc-socket{position:absolute;left:calc(var(--agc-x) * 1%);top:calc(var(--agc-y) * 1%);width:24%;aspect-ratio:1;transform:translate(-50%,-50%);box-sizing:border-box;
   display:grid;place-items:center;padding:5%;margin:0;border-radius:50%;border:2px solid color-mix(in srgb,var(--ag-accent) 70%,var(--ag-border));

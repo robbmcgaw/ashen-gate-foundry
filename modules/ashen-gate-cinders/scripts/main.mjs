@@ -162,7 +162,7 @@ export function sheetView(actor,c,h,{fits=[],perks=[],strainState,gm=false,uuidO
     sockets,inactive,hasInactive:inactive.length>0,capacity:orbit.capacity,used:sockets.filter(x=>!x.empty).length,locked:Boolean(h?.locked),canEdit,
     spare,hasSpare:spare.length>0,unspent:c.unspent,hasUnspent:Number.isSafeInteger(c.unspent),treeId:c.treeId??null,
     powers,hasPowers:powers.length>0,rows,hasRows:rows.length>0,
-    gm:gm?{bearer:actor.name,since:c.bearerSince?new Date(c.bearerSince).toLocaleDateString():'not recorded',hasArt:art.kind==='image'}:null};
+    gm:gm?{bearer:actor.name,since:c.bearerSince?new Date(c.bearerSince).toLocaleDateString():'not recorded',hasArt:Boolean(c.ownArt),artSource:c.artSource??null}:null};
 }
 /** GM Setup. `pendingAccess` is the Player Access box before Save Changes (null = unchanged); `strainDraft` the Strain
  * editor's unsaved edits (null = none, the saved config is shown). */
@@ -236,7 +236,8 @@ class CindersApp extends HandlebarsApplicationMixin(ApplicationV2){
         case 'socket-open':await this._socketMenu(el.dataset.instance,el.dataset.slot===''?null:Number(el.dataset.slot),el.dataset.empty==='true');break;
         case 'art-pick':await this._pickArt(el.dataset.instance);return;
         case 'art-reset':{if(!game.user.isGM)throw Error('GM only');
-          if(!await confirm('Show the default orb for this Cinder again?\nThe image file stays in the Assets Library.',{title:'Reset to the default orb?',yes:'Reset to default orb'}))return;
+          const kindArt=this.actor?cinders.api.list(this.actor).find(x=>x.instanceId===el.dataset.instance)?.defaultArt:null;
+          if(!await confirm(`${kindArt?'Show the default art for this kind of Cinder again (from its definition), on the Strain glow?':'Show the default orb for this Cinder again?'}\nThe image file stays in the Assets Library.`,{title:'Reset to the default orb?',yes:'Reset to default orb'}))return;
           await cinders.api.setArt(el.dataset.instance,null);notify('Cinder art reset to the default orb.');}break;
         case 'strain-adjust':await this._adjust(el.dataset.op);break;
         case 'socket-attach':await this._socket('attach',el.dataset.instance,el.dataset.slot==null||el.dataset.slot===''?null:Number(el.dataset.slot),el.dataset.actor);break;

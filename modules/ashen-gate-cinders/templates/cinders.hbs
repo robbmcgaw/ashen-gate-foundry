@@ -28,8 +28,8 @@
               {{#each ring.segments}}<path class="agc-ring__seg{{#if on}} is-on{{/if}}" d="{{d}}"></path>{{/each}}
               {{#each ring.pips}}<circle class="agc-ring__pip" cx="{{cx}}" cy="{{cy}}" r="4"></circle>{{/each}}
             </svg>
-            <div class="agc-orb" data-tone="{{tone}}" data-agc-orb data-instance="{{instanceId}}" role="img" aria-label="{{name}}{{#if gm}}. GM: double-click to change the art{{/if}}"{{#if gm}} data-tooltip="Double-click to change this Cinder's art" data-tooltip-class="ag-tooltip"{{/if}}>
-              {{#if image}}<img class="agc-orb__img" src="{{art.src}}" alt="">{{else}}<span class="agc-orb__default"></span>{{/if}}
+            <div class="agc-orb{{#if image}} agc-orb--art{{/if}}" data-tone="{{tone}}" data-agc-orb data-instance="{{instanceId}}" role="img" aria-label="{{name}}{{#if gm}}. GM: double-click to change the art{{/if}}"{{#if gm}} data-tooltip="Double-click to change this Cinder's art" data-tooltip-class="ag-tooltip"{{/if}}>
+              {{#if image}}<span class="agc-orb__default agc-orb__glow" aria-hidden="true"></span><img class="agc-orb__img" src="{{art.src}}" alt="">{{else}}<span class="agc-orb__default"></span>{{/if}}
             </div>
             {{#each sockets}}
               {{#if canEdit}}<button type="button" class="agc-socket{{#if empty}} is-empty{{/if}}{{#if extra}} is-extra{{/if}}" style="--agc-x:{{x}};--agc-y:{{y}}" data-act="socket-open" data-instance="{{../instanceId}}" data-slot="{{slot}}" data-empty="{{empty}}"

@@ -5,7 +5,9 @@
 - Saving writes through the same path as Import Strain Config (`api.strain.importConfig`, GM only, refused for players in the API), so the Strain chip statuses re-register and chips rename. Character Strain is never changed (a lower maximum does not lower anyone's Strain).
 - Import / Export / Reset to Defaults stay; they work on the saved config (Import and Reset discard unsaved edits after their confirmation, Export never includes them).
 - **Players no longer see Ashen Gate | Cinders in Configure Settings**: on a player's client every Cinders setting is marked not shown and the category is removed from the Settings window. The GM's settings are unchanged.
-- Saved data: same `strainConfig` setting and shape (`ag-strain-config/0.1`). No migration.
+- **Default art per Cinder kind:** a `MUT-*` record's `cinder` block may carry an optional `art` image path (same rules as the GM's art; checked on import). A new Cinder starts with its definition's art unless the GM picks another; a Cinder with no art of its own (older ones, or after **Reset to default orb**) draws its definition's art, then the default orb. The definition art is copied to the bearer's Cinder pointer (`defaultArt`) so players see it; Check / Repair cover it. `api.cinder.list` returns `art` (resolved), `ownArt`, `defaultArt` and `artSource`; `api.cinder.create(definitionId, {art})` can override.
+- **Glow behind art:** when a Cinder shows art, the Strain-toned orb stays behind it as a soft glow and the image gets a halo in the same tone (calm, warm, ember, hot); the whole transparent image shows, no cropping.
+- Saved data: same `strainConfig` setting and shape (`ag-strain-config/0.1`); new optional `cinder.art` in content and `defaultArt` on bearer pointers. No migration.
 
 ## 0.8.1 — 2026-10-21
 
