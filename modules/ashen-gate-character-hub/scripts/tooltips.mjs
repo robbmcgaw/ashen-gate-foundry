@@ -20,10 +20,10 @@ export function loadingSection(uuid) {
 /**
  * Attributes for an element that should show the rich tooltip of the document at `uuid`. With dnd5e's tooltips:
  * data-tooltip-html (+ class, direction) and no title (so the browser's own tooltip doesn't double up). Without them:
- * a plain Foundry `data-tooltip` fallback.
+ * a plain Foundry `data-tooltip` fallback. `kind: 'rule'` is for a dnd5e rules page (weapon masteries, 0.30.0).
  */
-export function tooltipAttrs(uuid, title = '', {direction = 'LEFT'} = {}) {
-  if (uuid && richTooltipsAvailable()) return ` data-tooltip-html="${esc(loadingSection(uuid))}" data-tooltip-class="dnd5e2 dnd5e-tooltip item-tooltip" data-tooltip-direction="${direction}"`;
+export function tooltipAttrs(uuid, title = '', {direction = 'LEFT', kind = 'item'} = {}) {
+  if (uuid && richTooltipsAvailable()) return ` data-tooltip-html="${esc(loadingSection(uuid))}" data-tooltip-class="dnd5e2 dnd5e-tooltip ${kind}-tooltip" data-tooltip-direction="${direction}"`;
   return title ? ` data-tooltip="${esc(title)}"` : '';
 }
 /** The UUID of an Item on an Actor (real Items have .uuid; built from the parent otherwise). */

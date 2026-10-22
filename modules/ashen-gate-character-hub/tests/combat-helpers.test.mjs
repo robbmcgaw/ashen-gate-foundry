@@ -151,7 +151,7 @@ test('the Hub shows both hotbars at the bottom, folding; mark buttons from equip
   const sheet = new (createHubSheetClass(FakeActorSheetV2))({document: actor}); sheet.tab = 'combat';
   const html = await sheet._renderHTML();
   assert.match(html, /<\/div><div class="agch-hotbars">/, 'below the main split');
-  assert.match(html, /data-key="hotbar:marks"[\s\S]*data-key="hotbar:quick"/);
+  assert.match(html, /data-sec="hotbar:marks"[\s\S]*data-key="hotbar:quick"/, '0.30.0: marks is a strip that does not fold; the quick bar still folds');
   assert.match(html, /data-action="mark-apply" data-mark="vex"[\s\S]*data-action="mark-apply" data-mark="slow"[\s\S]*data-mark="hunters-mark"/);
   assert.doesNotMatch(html, /data-mark="sap"/);
   assert.match(html, /1 target</);

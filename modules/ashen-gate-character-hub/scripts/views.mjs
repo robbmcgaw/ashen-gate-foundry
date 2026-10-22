@@ -9,7 +9,7 @@ import {canPopOut, isPoppedOut} from './popout.mjs';
 import {compactOpacityHtml} from './compact-opacity.mjs';
 import {btn} from './buttons.mjs';
 import {ITEM_TABS} from './tabs.mjs';
-import {ashenGateTab, AG_PANELS, agPanelsFor, partnerApi, embedApi, panelState} from './partners.mjs';
+import {ashenGateTab, AG_PANELS, agPanelsFor, partnerApi, embedApi, panelState, knownProfessions} from './partners.mjs';
 import {canSee, hiddenReason, hiddenBadge, partForPartner} from './visibility.mjs';
 import {companionsTab, gmSetupTab} from './companion-views.mjs';
 import {configAttrs} from './configure.mjs';
@@ -42,8 +42,22 @@ function overviewTab(ctx) {
       ${sectionHtml(sectionKey('overview', 'saves'), 'Saving Throws', `<ul class="ag-list agch-zebra agch-saves">${saves || '<li class="ag-empty"><p class="ag-empty__title">No abilities yet.</p></li>'}</ul>`)}
       ${sectionHtml(sectionKey('overview', 'passives'), 'Passives &amp; Senses', kv([...o.passives.map(p => [`Passive ${p.label}`, String(p.value)]), ['Senses', esc(o.senses.join(', ') || 'None'), cfg('senses')]]))}
       ${sectionHtml(sectionKey('overview', 'proficiencies'), 'Proficiencies', kv(o.proficiencies.map(p => [p.label, esc(p.list.join(', ') || 'None'), TRAIT_KEYS[p.label] ? cfg('trait', TRAIT_KEYS[p.label]) : ''])))}
+      ${professionsBox(actor)}
     </div></div>
     <p class="agch-muted agch-hint">Ability checks and saves also roll from the ability tiles on the left.${off ? '' : ' Right-click a skill, save, sense or proficiency (or AC, speed, initiative, HP, an ability on the left) to open dnd5e\'s own settings for it.'}</p>`;
+}
+
+/**
+ * Professions under Proficiencies (0.30.0): name and level from the Profession Ledger (knownProfessions). The box is a
+ * button that jumps to Ashen Gate → Professions. No box when the Ledger is absent or Professions is hidden.
+ */
+export function professionsBox(actor) {
+  const list = knownProfessions(actor);
+  if (!list) return '';
+  const rows = list.map(p => `<span class="agch-profbox__row"><span class="agch-profbox__name">${esc(p.name)}</span><span class="agch-profbox__level">Level ${p.level}</span></span>`).join('');
+  const body = `<button type="button" class="agch-profbox" data-action="ag-jump" data-partner="ashen-gate-profession-ledger" data-ag-always data-tooltip="Show Ashen Gate → Professions" aria-label="${esc(`Professions: ${list.map(p => `${p.name} level ${p.level}`).join(', ') || 'none yet'}. Show Ashen Gate → Professions`)}">
+    ${rows || '<span class="agch-profbox__row agch-muted">No professions yet.</span>'}</button>`;
+  return sectionHtml(sectionKey('overview', 'professions'), `Professions${hiddenBadge('professions')}`, body);
 }
 
 /**
@@ -152,8 +166,8 @@ export function shellHtml(ctx) {
     ${ctx.limited ? '' : compactBtn(compact)}${compact ? compactOpacityHtml() : ''}${popOutBtn(ctx.sheet)}${lookAndCodexHtml(ctx.sheet)}
     ${ctx.limited || compact ? '' : `${levelUpBtn(actor)}${restoreBtn(actor)}`}
     ${compact ? '' : btn('open-native', 'Open native sheet', {kind: 'ghost', icon: 'fa-solid fa-file-lines', always: true, title: 'Open the standard dnd5e character sheet'})}
-    <span class="ag-version">v${esc(version)}</span>
-    ${btn('help', 'Help', {kind: 'ghost', extra: 'ag-btn--sm', icon: 'fa-solid fa-circle-question', always: true})}</div></header>`;
+    <span class="ag-header__meta agch-head__meta"><span class="ag-version">v${esc(version)}</span>
+    ${btn('help', 'Help', {kind: 'ghost', extra: 'ag-btn--sm', icon: 'fa-solid fa-circle-question', always: true})}</span></div></header>`;
   if (ctx.limited) return `<div class="agch-root agch-root--limited">${top}<section class="agch-hero ag-card"><img class="agch-portrait" src="${esc(actor.img)}" alt=""><div class="agch-ident__text"><h2 class="agch-name">${esc(actor.name)}</h2><p class="agch-sub">You have limited access to this character.</p></div></section></div>`;
   if (compact) return `<div class="agch-root agch-root--compact">${top}${compactPanelHtml(ctx)}${hotbarsHtml(ctx)}</div>`;
   const tabs = visibleTabs(), current = tabs.find(t => t.id === tab) ?? tabs[0];

@@ -52,7 +52,7 @@ test('Combat tab: grouped by category in order, with counts, group / sort select
   installGlobals();
   const {html} = await render('combat');
   const b = body(html);
-  assert.match(b, /^[^]*?<div class="agch-listhead"><div class="ag-toolbar agch-toolbar">/, 'search, selects and chips sit in the sticky list head');
+  assert.match(b, /^[^]*?<div class="agch-sticky"><div class="ag-toolbar agch-toolbar">[^]*?data-key="equipped"[^]*?<\/div><\/div>/, 'search, selects and chips sit in 0.30.0\'s frozen band');
   assert.match(b, /data-filter data-tab="combat"/);
   assert.match(b, /data-edit="list-sort" data-tab="combat" data-field="group"/); assert.match(b, /data-edit="list-sort" data-tab="combat" data-field="sort"/);
   assert.match(b, /data-key="equipped"[^>]*>Hide unequipped</); assert.match(b, /data-key="uses"/); assert.match(b, /data-key="left"/);
@@ -64,7 +64,7 @@ test('Combat tab: grouped by category in order, with counts, group / sort select
   assert.match(b, /data-label="To hit"/, 'the Combat group keeps the weapon columns');
   assert.doesNotMatch(b, /Fire Bolt/);
   const css = fs.readFileSync(new URL('../styles/character-hub.css', import.meta.url), 'utf8');
-  assert.match(css, /\.agch-listhead \{ position: sticky;/);
+  assert.match(css, /\.agch-sticky \{ position: sticky;/);
 });
 
 test('Combat filters and grouping: Hide unequipped keeps features, Uses left, action chip, Clear; group by action / none; sort equipped first', async () => {
