@@ -1,3 +1,13 @@
+## 0.35.0 — 2026-10-22
+
+For the new Artistry profession (Profession Ledger 0.28.0, Skill Trees 0.21.0).
+
+- **Professions box:** Artistry shows like every other profession, "Artistry - Tier - Level n", with a palette icon. The Hub reads the Ledger's list as before, so any new profession (crafting, gathering or creative) appears without a Hub update.
+- **Skill Trees:** a profession with several skill trees (Artistry: Music, Performance, Visual Arts, Literary Arts) is one entry with one shared points line ("1 point to spend, 3 of 4 points spent"), how many points each tree uses, and a tab per tree (arrow keys work; the tab you pick is kept while the Hub is open). With Skill Trees 0.21.0 the Ashen Gate → Skill Trees tab shows Skill Trees' own view, which already does this; the Hub's own summary (used when that view isn't offered) now matches it. With an older Skill Trees, trees that share points show the points once ("Shares points with …").
+- **Locked perks:** the summary lists them with Skill Trees' own reason, word for word (for example "Needs Performance proficiency" or "Needs profession level 5 (now 4)"). The Hub doesn't check proficiencies itself.
+- Repo check: `scripts/validate-content.mjs` accepts activity recipes (`kind: "activity"`) without ingredients or a result item; craft recipes still need their ingredient list.
+- Saved data: no change. No migration.
+
 ## 0.34.0 — 2026-10-22
 
 Robb's playtest feedback: less scrolling, conditions next to marks, the quick bar under the Hub.

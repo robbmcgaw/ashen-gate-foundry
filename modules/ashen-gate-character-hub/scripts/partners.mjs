@@ -79,17 +79,73 @@ function treePoints(tree, p, points) {
   return ` <span class="ag-badge${num(points.available) ? ' ag-badge--accent' : ''}">${plural(points.available, 'point')} to spend</span> <span class="agch-muted">${num(points.spent)} of ${num(points.earned)} spent</span>`;
 }
 function skillTrees(actor, api) {
+  if (typeof api.embed?.data === 'function') return groupedTrees(actor, api);
   const rows = [];
   let summary = null;
   if (typeof api.pointsSummary === 'function') summary = new Map((api.pointsSummary(actor) ?? []).map(r => [r.treeId, r]));
+  // 0.35.0: trees of one profession share a wallet (Skill Trees 0.21.0 rows carry `wallet`); its points show once.
+  const walletShown = new Map();
   for (const tree of api.listTrees?.() ?? []) {
     const p = api.actorProgress(actor, tree.id);
     if (!p) continue;
     const owned = (p.unlocks ?? []).map(id => tree.nodes?.find?.(n => n.id === id)?.name || id);
     const points = summary?.get(tree.id) ?? null;
     if (!owned.length && !num(p.awarded) && !num(points?.earned)) continue;
-    rows.push(`<li><strong>${esc(tree.name || tree.id)}</strong>${treePoints(tree, p, summary ? points : null)} <span class="agch-muted">${plural(owned.length, 'perk')}${owned.length ? `: ${owned.map(esc).join(', ')}` : ''}</span></li>`);
+    const first = points?.wallet ? walletShown.get(points.wallet) : null;
+    if (points?.wallet && !first) walletShown.set(points.wallet, tree.name || tree.id);
+    const pts = first ? ` <span class="agch-muted">Shares points with ${esc(first)}</span>` : treePoints(tree, p, summary ? points : null);
+    rows.push(`<li><strong>${esc(tree.name || tree.id)}</strong>${pts} <span class="agch-muted">${plural(owned.length, 'perk')}${owned.length ? `: ${owned.map(esc).join(', ')}` : ''}</span></li>`);
   }
+  return list(rows, 'No points or perks yet.');
+}
+
+/** Sub-tab picked per character and profession in the Skill Trees summary, kept across re-renders ("actorId|group key" → tree id). */
+export const treeTabChoice = new Map();
+/** Shows the clicked tree's panel in a profession's sub-tabs (no re-render) and remembers the choice. */
+export function pickTreeTab(tab) {
+  const list = tab?.closest?.('[role="tablist"]');
+  if (!list) return false;
+  for (const t of list.querySelectorAll('[role="tab"]')) {
+    const on = t === tab;
+    t.setAttribute('aria-selected', String(on)); t.setAttribute('tabindex', on ? '0' : '-1');
+    const panel = (list.ownerDocument ?? globalThis.document)?.getElementById?.(t.getAttribute('aria-controls'));
+    if (panel) panel.hidden = !on;
+  }
+  if (list.dataset?.stChoice) treeTabChoice.set(list.dataset.stChoice, tab.dataset.tab);
+  return true;
+}
+const treePerks = m => {
+  const nodes = Array.isArray(m?.nodes) ? m.nodes : [], owned = nodes.filter(n => n.unlocked), locked = nodes.filter(n => !n.unlocked && !n.available);
+  const ready = nodes.filter(n => n.available);
+  // Locked reasons ("Needs … proficiency", "Needs profession level 3 (now 1)") are Skill Trees' own words, shown as given.
+  return `${m.access ? `<p class="agch-muted">${esc(m.access)}</p>` : ''}<p class="agch-muted">${owned.length ? `${plural(owned.length, 'perk')}: ${owned.map(n => esc(n.name)).join(', ')}` : 'No perks yet'}${ready.length ? ` · available now: ${ready.map(n => esc(n.name)).join(', ')}` : ''}</p>`
+    + (locked.length ? `<details class="agch-stlocked"><summary>Locked (${locked.length})</summary><ul class="agch-plist">${locked.map(n => `<li>${esc(n.name)}${n.reason ? ` <span class="agch-muted">${esc(n.reason)}</span>` : ''}</li>`).join('')}</ul></details>` : '');
+};
+/** One wallet's points: "n points to spend" and "x of y spent" (only what was used when the Ledger is off). */
+const walletPoints = g => g.available === null || g.available === undefined
+  ? (num(g.spent) ? ` <span class="agch-muted">${plural(g.spent, 'point')} used</span>` : '')
+  : ` <span class="ag-badge${num(g.available) ? ' ag-badge--accent' : ''}">${plural(g.available, 'point')} to spend</span> <span class="agch-muted">${num(g.spent)} of ${plural(g.earned, 'point')} spent${g.level === null || g.level === undefined ? '' : ` · level ${num(g.level)}`}</span>`;
+/**
+ * Skill Trees 0.21.0+ (embed.data): one entry per wallet. A profession with several trees (Artistry) is one entry with its
+ * shared points once and kit sub-tabs for its trees; Skill Trees works out points, gates and reasons, the Hub only shows them.
+ */
+function groupedTrees(actor, api) {
+  const groups = api.embed.data(actor.id) ?? [];
+  const active = m => (m.nodes ?? []).some(n => n.unlocked || n.available) || num(m.earned) > 0;
+  const rows = groups.filter(g => (g.trees ?? []).some(active)).map(g => {
+    if (!g.shared) { const m = g.trees[0]; return `<li><strong>${esc(m.name || g.name)}</strong>${walletPoints(m)}${treePerks(m)}</li>`; }
+    const choice = `${actor.id}|${g.key}`, kept = treeTabChoice.get(choice);
+    const pick = g.trees.some(m => m.id === kept) ? kept
+      : (g.trees.find(m => m.nodes?.some(n => n.available)) ?? g.trees.find(m => m.nodes?.some(n => n.unlocked)) ?? g.trees[0]).id;
+    const group = `agch-st-${actor.id}-${g.key}`.replace(/[^A-Za-z0-9_-]/g, '-');
+    const tabs = subTabs({group, label: `${g.name} trees`, selected: pick, tabs: g.trees.map(m => ({id: m.id, label: m.label || m.name}))})
+      .replace('role="tablist"', `role="tablist" data-st-choice="${esc(choice)}"`).replace('class="ag-tabs ag-tabs--sub"', 'class="ag-tabs ag-tabs--sub agch-sttabs"')
+      .replaceAll('role="tab" ', 'role="tab" data-action="st-tree-tab" data-ag-always ');
+    const split = g.trees.map(m => `${esc(m.label || m.name)} ${num(m.treeSpent)}`).join(' · ');
+    return `<li class="agch-stgroup"><strong>${esc(g.name)}</strong>${walletPoints(g)}
+      <p class="agch-muted">One pool of points shared by ${g.trees.length} trees: ${split}</p>${tabs}
+      ${g.trees.map(m => `<div ${tabPanelAttrs(group, m.id, {hidden: m.id !== pick})}>${treePerks(m)}</div>`).join('')}</li>`;
+  });
   return list(rows, 'No points or perks yet.');
 }
 

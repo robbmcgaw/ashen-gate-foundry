@@ -42,6 +42,21 @@ test('a valid package passes; the documented common mistakes are rejected with t
   }
 });
 
+test('activity recipes (Ledger 0.28.0) need no ingredients or result item; craft recipes still do', async () => {
+  const recipe = over => item({id: 'REC-TEST-BALLAD', entity_type: 'Recipe', ...over});
+  for (const over of [{kind: 'activity', ingredients: []}, {kind: 'activity'}, {kind: 'Activity', ingredients: [], result_item_id: undefined}]) {
+    const {errors} = await checkContent(pack([recipe(over)]));
+    assert.ok(!errors.some(e => e.includes('Ledger cannot craft it')), `${JSON.stringify(over)}: ${JSON.stringify(errors)}`);
+  }
+  // Regression: a craft recipe (no kind, or kind "craft") without a structured ingredient list is still rejected.
+  for (const over of [{ingredients: []}, {}, {kind: 'craft', ingredients: []}, {kind: 'craft', ingredients: ['2 herbs']}]) {
+    const {errors} = await checkContent(pack([recipe(over)]));
+    assert.ok(errors.some(e => e.includes('REC-TEST-BALLAD: Ledger cannot craft it')), `${JSON.stringify(over)}: ${JSON.stringify(errors)}`);
+  }
+  const ok = await checkContent(pack([recipe({ingredients: [{material_id: 'MAT-TEST-HERB', quantity: 2}]})]));
+  assert.ok(!ok.errors.some(e => e.includes('Ledger cannot craft it')), JSON.stringify(ok.errors));
+});
+
 test('the exotic and gathering fields Locations keeps are accepted unchanged', async () => {
   const exotics = [{materialId: 'MAT-TEST-STAR', mode: 'designated', chance: 15, condition: 'rare'}, {materialId: 'MAT-TEST-MOON', mode: 'discovery'}];
   assert.deepEqual((await checkContent(pack([location(node({exotics, quantity: 2, rareMaterialId: 'MAT-TEST-RARE', rareQuantity: 1}))]))).errors, []);
