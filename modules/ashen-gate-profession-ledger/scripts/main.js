@@ -18,7 +18,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.25.0';
+const VERSION='0.25.1';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...}. */
@@ -819,7 +819,7 @@ async function craft(actor,recipeId,{confirm=true}={}){
           :`<span><strong>${esc(option.label)} check</strong> ${formatBonus(option.bonus)}${option.proficient?'':' (not proficient)'}</span>`}
           <label class="ag-field ag-field--inline">Roll ${modeSelect(mode)}</label><p class="agl-sub">${esc(modeHint(preset))} The result goes on the craft card; it doesn’t decide success yet.</p></div>`:''}
         ${foreign.length?`<p>${esc(foreign.join(', '))}’s owner${foreign.length===1?'':'s'} will be asked on their screen. Any decline cancels the craft and nothing is used.</p>`:''}`,
-      buttons:[{action:'cancel',label:'Cancel',callback:()=>false},{action:'craft',label:'Craft',default:true,callback:(event,button)=>({mode:button?.form?.elements?.mode?.value})}]});
+      buttons:[{action:'cancel',label:'Cancel',callback:()=>false},{action:'craft',label:'Craft',default:true,callback:(event,button)=>({mode:button?.form?.elements?.mode?.value,check:button?.form?.elements?.check?.value})}]});
     if(!answer)return null;
     if(typeof answer==='object'&&answer.mode!=null)mode=Math.sign(Number(answer.mode)||0);
     const chosen=typeof answer==='object'?cplan?.options.find(o=>choiceOf(o)===answer.check):null;

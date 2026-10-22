@@ -1,3 +1,7 @@
+## 0.25.1 — 2026-10-22
+
+- **Fix — Craft dialog check:** the check picked in the Craft dialog's *Check (bonus)* list is now the one rolled and named on the craft chat card (and sent with a party craft request). Before, the choice was dropped and the default check was always rolled. With nothing picked, or a recipe with only one check, the default is rolled as before. Other Ledger dialogs already passed their form values through; no other change.
+
 ## 0.25.0 — 2026-10-22
 
 - **Gathering Nodes tab (GM only):** gathering node templates owned by the Ledger. Each has a permanent `NODE-*` id, a name, an activity (Mining, Herbalism, Hunting, Fishing, Archaeology), gathering profession(s), a tier range, an optional check skill/tool and DC, and common/rare/exotic material tables (weighted chances adding up to 100 when a table has several materials). New node, Edit, Duplicate and Delete (with a labelled confirmation that names any Location pointing to it; ids are never reused). Grouped by activity, with search and an activity filter. GM Setup stays settings-only.
