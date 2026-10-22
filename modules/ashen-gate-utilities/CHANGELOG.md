@@ -1,3 +1,9 @@
+## 0.26.1 — 2026-10-22
+
+- **Conditions → Apply works again** (Foundry V14, dnd5e 6). Applying any condition from the *Native condition* list showed `Invalid status ID "…" provided to Actor#toggleStatusEffect`. Two causes: every option in the list was marked selected, so the list always showed its last entry and went back to it whenever the window re-rendered (any actor or effect change), and Apply sent that status instead of the one chosen; and V14 keys `CONFIG.statusEffects` by id where Utilities expected an array. The list now reads the status list in either shape, offers each native status once (the Strain chip stays out), keeps your pick across re-renders, and only ever passes Foundry an id it knows. Older ids from API callers (`blind`, `stun`, `restrain`, …) map to the dnd5e id; unknown ids are refused with "Unknown native status." before reaching Foundry. Who may apply or remove is unchanged.
+- **Overlay background slider** works in the overlay window and when the overlay is popped out to its own browser window: the value is set on the window itself (inline) and applied again after popping out or back in. Still saved per user.
+- No change to saved data or settings; nothing to migrate.
+
 ## 0.26.0 — 2026-10-22
 
 - **UI cleanup** (UI audit 2026-10, Utilities). No change to saved data, settings, flags, ids or the API; nothing to migrate.
