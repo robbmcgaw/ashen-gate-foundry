@@ -246,21 +246,19 @@ test('conditions carry their status icon when dnd5e provides one', () => {
   assert.equal(c.find(x => x.id === 'blinded').img, '');
 });
 
-test('conditions box lists only active conditions; + shows the others inline to add', async () => {
+test('conditions strip (0.34.0): active ones as chips with ✕, every condition in the list; observers see it disabled', async () => {
   installGlobals();
   const {Cls} = hubClass();
   const sheet = new Cls({document: makeActor({statuses: ['prone']})});
-  let html = await sheet._renderHTML();
-  assert.match(html, /agch-conds[\s\S]*data-action="condition" data-id="prone" aria-pressed="true" data-tooltip="Remove Prone"/);
-  assert.doesNotMatch(html, /data-id="blinded"/, 'inactive ones hidden until +');
-  await sheet.dispatch('cond-add', {dataset: {}}, {});
-  assert.equal(sheet.condAdd, true);
-  html = await sheet._renderHTML();
-  assert.match(html, /agch-conds__list[\s\S]*data-id="blinded" aria-pressed="false" data-tooltip="Add Blinded"/);
+  const html = await sheet._renderHTML();
+  assert.doesNotMatch(html, /data-action="condition"|data-action="cond-add"|agch-conds__list/, 'the old Conditions box is gone');
+  assert.match(html, /agch-hotbar--conds[\s\S]*Prone<button type="button" class="agch-placed__off" data-action="cond-remove" data-uuid="Actor\.actor1" data-status="prone"/);
+  assert.match(html, /<option value="blinded">Blinded<\/option><option value="poisoned">Poisoned<\/option><option value="prone">Prone<\/option>/);
   installGlobals({user: users.observer});
   const view = await new Cls({document: makeActor({statuses: ['prone']})})._renderHTML();
-  assert.doesNotMatch(view, /data-action="cond-add"/, 'observers cannot add');
-  assert.match(view, /data-id="prone"[^>]*disabled/);
+  assert.doesNotMatch(view, /data-action="cond-remove"/, 'observers cannot take one off');
+  assert.match(view, /data-action="cond-apply"[^>]*disabled/);
+  assert.match(view, /data-edit="cond-pick" aria-label="Condition" disabled/);
 });
 
 test('window opacity removed (0.29.0): an old saved value is ignored, never read, never an error', async () => {

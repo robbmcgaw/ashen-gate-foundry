@@ -30,6 +30,8 @@ import {confirmDialog, confirmDanger, formDialog} from './ag-dialogs.mjs';
 import {windowSize, uiState, bindTablist} from './ag-html.mjs';
 import {readDrop, resolveItemDrop} from './ag-item-drop.mjs';
 import {togglePopOut, isPoppedOut} from './popout.mjs';
+import {placePopovers} from './popover.mjs';
+import * as conds from './conditions.mjs';
 import {applyCompactOpacity, saveCompactOpacity} from './compact-opacity.mjs';
 import {captureScroll, restoreScroll, captureFocus, restoreFocus, focusFirstIn, fieldKey} from './redraw.mjs';
 import {syncQuickKeys, unbindQuickKeys} from './quick-keys.mjs';
@@ -81,20 +83,20 @@ export const ACTIONS = {
   'item-favorite': (s, t) => items.toggleFavorite(s.document, t.dataset.id),
   'slot-open': (s, t) => items.openItemSheet(s.document, t.dataset.id),
   'menu-close': s => toggleMenu(s, null),
-  'cond-add': s => { s.condAdd = !s.condAdd; return s.render(); },
   'item-deposit': (s, t) => { s.menu = null; return depositToParty(s.document, t.dataset.id, act.canEdit); },
   'slot-equip': (s, t) => { s.menu = null; return items.equipItem(s.document, t.dataset.id, {slot: t.dataset.slot}); },
   'slot-swap': (s, t) => items.swapSlots(s.document, t.dataset.id, t.dataset.slot, t.dataset.other, t.dataset.otherSlot),
   'retry': s => s.render({force: true}),
   'help': s => showHelp(s),
   'open-native': s => { closeMenu(s); return openNativeSheet(s.document); },
-  'configure': s => configureAsk(s),
+  'configure': s => { closeMenu(s); return configureAsk(s); },
   'art-change': (s, t) => { closeMenu(s); return changeArtFor(s, t.dataset.art); },
   'char-fold': s => { s.charFolded = s.charFolded === false; hubUi().set('charFolded', s.charFolded); return s.render(); },
   'filters-menu': (s, t) => toggleMenu(s, `filters:${t.dataset.tab}`),
   'more-menu': s => toggleMenu(s, s.menu === 'look' ? null : 'more'),
-  'level-up': s => levelUp(s),
-  'level-restore': s => restoreAsk(s),
+  // 0.34.0: Level up, Restore backup… and Configure… are items of the header's "⋯" menu, which closes first.
+  'level-up': s => { closeMenu(s); return levelUp(s); },
+  'level-restore': s => { closeMenu(s); return restoreAsk(s); },
   'hp-damage': (s, t) => hpButton(s, t, -1),
   'hp-heal': (s, t) => hpButton(s, t, 1),
   'inspiration': s => act.toggleInspiration(s.document),
@@ -110,7 +112,12 @@ export const ACTIONS = {
   // Compact (0.32.0) has no tabs: Full opens at Cinders for this window only (0.33.0, CH-14: the saved Compact choice stays).
   'cinder-open': s => { if (!vis.canSee('cinders')) return refuse('Cinders is hidden from players right now.'); s.tab = 'ashen-gate'; s.agTab = 'ashen-gate-cinders'; s.menu = null; return s.compact ? s.setCompact(false, {save: false}) : s.render(); },
   'cinder-tree': (s, t) => vis.requirePart('perks') ?? openSkillTree(s.document, t.dataset.tree || null),
-  'condition': (s, t) => act.toggleCondition(s.document, t.dataset.id),
+  // 0.34.0: the Conditions strip (conditions.mjs checks who may change what, again, at the click).
+  'cond-mode': (s, t) => { s.condMode = conds.cleanMode(t.dataset.mode); return s.render(); },
+  'cond-apply': async (s, t) => { const pick = t.closest?.('.agch-conds')?.querySelector?.('[data-edit="cond-pick"]')?.value ?? s.condPick; s.condPick = pick || ''; const r = await conds.applyCondition(s.document, s.condMode, s.condPick); if (r.ok) s.render(); return r; },
+  'cond-remove': async (s, t) => { const r = await conds.removeCondition(s.document, t.dataset.uuid, t.dataset.status); if (r.ok) s.render(); return r; },
+  // 0.34.0: the quick bar drawer under the bottom bar; the window grows by its height while it is open (fitDrawer).
+  'quick-toggle': async s => { s.quickOpen = !s.quickOpen; await s.render(); return s.fitDrawer(); },
   'roll-initiative': (s, t, e) => act.rollInitiative(s.document, e),
   'roll-check': (s, t, e) => act.rollAbilityCheck(s.document, t.dataset.ability, e),
   'roll-save': (s, t, e) => act.rollSavingThrow(s.document, t.dataset.ability, e),
@@ -337,7 +344,9 @@ export const EDITS = {
   // A refused write redraws, so the checkbox shows the stored value again (report() shows why).
   'part-visibility': async (s, i) => { const r = await vis.setVisibility({[i.dataset.part]: i.checked === true}); if (!r?.ok) s.render(); return r; },
   'list-sort': async (s, i) => { const r = await setListChoice(i.dataset.tab, i.dataset.field, i.value); if (r.ok) s.render(); return r; },
-  'look-default': async (s, i) => { const r = await look.setWorldLook(i.dataset.field, i.value); if (!r?.ok) s.render(); return r; }
+  'look-default': async (s, i) => { const r = await look.setWorldLook(i.dataset.field, i.value); if (!r?.ok) s.render(); return r; },
+  // The Conditions strip's list: remembered while the Hub is open, no redraw (Apply reads it).
+  'cond-pick': (s, i) => { s.condPick = i.value || ''; return null; }
 };
 
 /** Reads the Item (or, where `types` allows, the Actor or Macro) from a drop the way dnd5e does; parsing is the shared readDrop. */
@@ -388,8 +397,8 @@ export function segmentStep(button, step) {
 
 /** Buttons that open a menu: a click on one is not an "outside" click (it toggles its own menu). */
 const MENU_OPENERS = ['slot-menu', 'other-menu', 'look-menu', 'more-menu', 'filters-menu'].map(a => `[data-action="${a}"]`).join(', ');
-/** What counts as an open popover for the focus (CH-02): menus, the conditions list, a Journey entry being edited. */
-const POPOVER_SELECTOR = '.agch-menu, .agch-conds__list, [data-journey-form="edit"]';
+/** What counts as an open popover for the focus (CH-02): menus and a Journey entry being edited. */
+const POPOVER_SELECTOR = '.agch-menu, [data-journey-form="edit"]';
 
 /** Builds the class on top of Foundry's ActorSheetV2 (passed in so tests can supply a stand-in). */
 export function createHubSheetClass(Base) {
@@ -420,8 +429,12 @@ export function createHubSheetClass(Base) {
     tab = 'overview';
     /** Open slot menu: 'slot:<id>' or null. */
     menu = null;
-    /** The conditions box shows the inactive conditions to add. */
-    condAdd = false;
+    /** Conditions strip (0.34.0): who Apply puts the condition on ('self' or 'target') and the condition picked. */
+    condMode = 'self';
+    condPick = '';
+    /** Quick bar drawer (0.34.0): open while the Hub is open; _drawerGrow is how many px the window grew for it. */
+    quickOpen = false;
+    _drawerGrow = 0;
     /** Partner views mounted in this sheet: key → {element, handle} (see mountEmbeds). */
     _embeds = new Map();
     invView = 'character';
@@ -469,6 +482,7 @@ export function createHubSheetClass(Base) {
         mountEmbeds(content, this._embeds);
         applyFilter(content, this.filters[this.tab] ?? '');
         restoreScroll(content, this._agchScroll[view]);
+        placePopovers(content);   // 0.34.0: Filters and the header menus stay inside the window
         this._bindTabs(content);
         const pop = popNow && popNow !== popBefore ? content.querySelector?.(POPOVER_SELECTOR) : null;
         if (pop) { this._agchOpener = this._agchActionKey ?? focus?.key ?? null; focusFirstIn(pop); }
@@ -488,9 +502,9 @@ export function createHubSheetClass(Base) {
       look.applyLook(this.element);   // 0.31.0: the built-in per-user look while Manager's appearance is absent
     }
 
-    /** What popover is open now (a menu, the conditions list or a Journey entry being edited), or null. */
+    /** What popover is open now (a menu or a Journey entry being edited), or null. */
     popoverKey() {
-      return this.menu ?? (this.condAdd ? 'conditions' : null) ?? (this.journeyEdit ? `journey:${this.journeyEdit}` : null);
+      return this.menu ?? (this.journeyEdit ? `journey:${this.journeyEdit}` : null);
     }
 
     /**
@@ -614,13 +628,37 @@ export function createHubSheetClass(Base) {
      * Switches Compact / Full (0.29.0) and saves the choice for this user. The size being left is remembered while the
      * Hub is open, and the other one comes back (first time: its default size, scaled for Comfortable).
      */
-    setCompact(on, {save = true} = {}) {
+    async setCompact(on, {save = true} = {}) {
       const next = on === true, pos = this.position;
-      if (pos?.width && pos?.height) this._sizes[this.compact ? 'compact' : 'full'] = {width: pos.width, height: pos.height};
-      this.compact = next; this.menu = null;
+      // The size is remembered without the room the quick bar drawer added (0.34.0); the drawer grows the new size again.
+      if (pos?.width && pos?.height) this._sizes[this.compact ? 'compact' : 'full'] = {width: pos.width, height: pos.height - (this._drawerGrow || 0)};
+      this.compact = next; this.menu = null; this._drawerGrow = 0;
       if (save) saveCompact(next);
       const size = this._sizes[next ? 'compact' : 'full'] ?? windowSize(next ? COMPACT_SIZE : FULL_SIZE);
-      return this.render({position: {...size}});
+      const r = await this.render({position: {...size}});
+      if (this.quickOpen) this.fitDrawer();
+      return r;
+    }
+
+    /**
+     * Quick bar drawer (0.34.0): opening it makes the window taller by the drawer's height (as far as the screen allows),
+     * closing it gives that back, so the drawer never takes room from the character. A popped-out Hub (its browser
+     * window has its own size) and a minimized one are left as they are: there the drawer takes its room inside.
+     */
+    fitDrawer({view = globalThis} = {}) {
+      const pos = this.position;
+      if (!pos?.height || this.minimized || isPoppedOut(this) || typeof this.setPosition !== 'function') return {ok: true, result: 0};
+      if (this.quickOpen && !this._drawerGrow) {
+        const h = Math.ceil(this.element?.querySelector?.('.agch-drawer')?.getBoundingClientRect?.()?.height ?? 0);
+        const room = Number.isFinite(view?.innerHeight) ? Math.max(0, view.innerHeight - (Number(pos.top) || 0) - pos.height) : h;
+        const grow = Math.min(h, room);
+        if (grow > 0) { this._drawerGrow = grow; this.setPosition({height: pos.height + grow}); }
+      } else if (!this.quickOpen && this._drawerGrow) {
+        const g = this._drawerGrow;
+        this._drawerGrow = 0;
+        this.setPosition({height: Math.max(240, pos.height - g)});
+      }
+      return {ok: true, result: this._drawerGrow};
     }
 
     /** After Foundry moves the Hub to its own browser window or back (V14), redraw so Pop out / Pop in is right. */
@@ -644,6 +682,8 @@ export function createHubSheetClass(Base) {
      * Features filters, search text, open "More" texts and any open menu start fresh when the Hub is opened again.
      */
     _onClose(options) {
+      // The drawer closes with the Hub; the room it added is given back so the window reopens at its own size.
+      if (this.quickOpen) { this.quickOpen = false; try { this.fitDrawer(); } catch {} }
       unmountEmbeds(this._embeds);
       this._undo?.clear();
       unbindEscape(this); unbindQuickKeys(this);
@@ -653,7 +693,7 @@ export function createHubSheetClass(Base) {
     resetOpenState() {
       this._agchScroll = {}; this._agchHtml = null; this._agchShown = null; this._dropRow = null; this._agchPop = null; this._agchOpener = null;
       this.listFilters = {combat: {}, magic: {}, features: {}}; this.filters = {}; this.expanded = new Set();
-      this.menu = null; this.condAdd = false; this.journeyEdit = null;
+      this.menu = null; this.journeyEdit = null; this.condMode = 'self'; this.condPick = ''; this.quickOpen = false; this._drawerGrow = 0;
     }
 
     /**

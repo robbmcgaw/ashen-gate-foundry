@@ -24,26 +24,27 @@ test('Compact layout rule: the column fills the body and scrolls inside itself; 
   assert.match(rule('.agch-app .agch-root--compact'), /overflow: hidden/);
   assert.match(rule('.agch-app .agch-char--compact'), /flex: 1; min-height: 0/);
   assert.match(rule('.agch-app .agch-root--compact .agch-char--compact'), /overflow-y: auto/);
-  const doll = rule('.agch-app .agch-char--compact .agch-doll');
+  const doll = rule('.agch-app .agch-char .agch-doll');
   assert.match(doll, /container: agch-doll \/ size/, 'the doll is the size container its slots measure');
   assert.match(doll, /flex: 0 1 calc\(var\(--agch-slot-max\) \* 5 \+ var\(--ag-space-2\) \* 4\)/, 'full size, may shrink, never grows');
   assert.match(doll, /min-height: calc\(var\(--agch-slot-min\) \* 5 \+ var\(--ag-space-2\) \* 4\)/, 'never below icon-button slots');
-  assert.match(rule('.agch-app .agch-char--compact .agch-doll > *'), /--agch-slot: clamp\(var\(--agch-slot-min\), min\(\(100cqh - var\(--ag-space-2\) \* 4\) \/ 5, \(100cqw - var\(--ag-space-2\) \* 6\) \/ 7\), var\(--agch-slot-max\)\)/,
+  assert.match(rule('.agch-app .agch-char .agch-doll > *'), /--agch-slot: clamp\(var\(--agch-slot-min\), min\(\(100cqh - var\(--ag-space-2\) \* 4\) \/ 5, \(100cqw - var\(--ag-space-2\) \* 6\) \/ 7\), var\(--agch-slot-max\)\)/,
     'five slot rows fill the height; seven slots and six gaps fit the width');
-  assert.match(rule('.agch-app .agch-char--compact .agch-doll > .agch-doll__row'), /grid-row: 2; grid-column: 2; flex-wrap: nowrap/, 'rings and trinkets under the art');
-  assert.match(rule('.agch-app .agch-char--compact .agch-doll > .agch-doll__col'), /grid-row: 1 \/ span 2/);
-  assert.match(rule('.agch-app .agch-root--compact .agch-quick'), /grid-template-columns: repeat\(10, minmax\(0, var\(--ag-slot\)\)\)/, 'quick bar on one row');
+  assert.match(rule('.agch-app .agch-char .agch-doll > .agch-doll__row'), /grid-row: 2; grid-column: 2; flex-wrap: nowrap/, 'rings and trinkets under the art');
+  assert.match(rule('.agch-app .agch-char .agch-doll > .agch-doll__col'), /grid-row: 1 \/ span 2/);
+  assert.match(rule('.agch-app .agch-drawer .agch-quick'), /grid-template-columns: repeat\(10, minmax\(0, var\(--ag-slot\)\)\)/, 'quick bar on one row');
   assert.match(rule('.agch-app .agch-char--compact > *'), /flex: none/, 'everything else keeps its height');
 });
 
-test('Compact markup: Cinder chips and Configure… share a row; an empty "Other equipped" is left out; Full keeps both', async () => {
+test('Compact markup: name row with the Cinder chips (Configure… is in the ⋯ menu since 0.34.0); an empty "Other equipped" is left out, in Full too', async () => {
   const col = column(await render());
-  assert.match(col, /<h2 class="agch-name">\[TEST\] Hero<\/h2><div class="agch-ctop"><div class="agch-cchips"[\s\S]*<\/div><div class="agch-ident__actions">[\s\S]*data-action="configure"/);
+  assert.match(col, /<div class="agch-ident"><h2 class="agch-name">\[TEST\] Hero<\/h2>[\s\S]*<div class="agch-cchips"[\s\S]*data-action="inspiration"/);
+  assert.doesNotMatch(col, /data-action="configure"/);
   assert.doesNotMatch(col, /agch-other/, 'nothing equipped outside the slots: no row');
   const stone = makeActor({items: [{id: 'stone', name: '[TEST] Odd Stone', type: 'equipment', system: {quantity: 1, equipped: true, type: {value: 'wondrous'}}}]});
   assert.match(column(await render({actor: stone})), /Other equipped <span class="ag-badge">1<\/span>[\s\S]*data-id="stone"/, 'shown when something is there');
   const full = await render({compact: false});
-  assert.match(full, /Equipped items that don't fit a slot show here\./);
+  assert.doesNotMatch(full, /agch-other/, '0.34.0: Full leaves the empty row out too (room for the stats)');
   assert.doesNotMatch(full, /agch-ctop/);
 });
 

@@ -35,11 +35,11 @@ test('Inventory coin strip: no ep box while electrum is off; ep left over shows 
   assert.doesNotMatch(html, /data-key="ep"/); assert.match(html, /data-key="pp"[\s\S]*data-key="gp"[\s\S]*data-key="sp"[\s\S]*data-key="cp"/);
   assert.doesNotMatch(html, /agch-ep-off/);
   ({html} = await inventory(4));
-  assert.match(html, /<label class="agch-coin is-off" data-tooltip="Electrum is off in Utilities[^"]*"><span>ep<\/span><input type="number" min="0" step="1" max="4" data-edit="currency" data-key="ep" value="4"/, 'never hides money');
+  assert.match(html, /<label class="agch-coin agch-coin--ep is-off" data-tooltip="Electrum is off in Utilities[^"]*"><span class="agch-coin__icon" aria-hidden="true">E<\/span><span>ep<\/span><input type="number" min="0" step="1" max="4" data-edit="currency" data-key="ep" value="4"/, 'never hides money');
   assert.match(html, /agch-ep-off">Electrum is off in Utilities: it only shows because this character still has some/);
   assert.doesNotMatch(html, /convert-electrum|data-action="[^"]*convert/, 'no convert action in the Hub (GM-only in Utilities)');
   world({electrum: true}); ({html} = await inventory(0));
-  assert.match(html, /<label class="agch-coin"><span>ep<\/span>/);
+  assert.match(html, /<label class="agch-coin agch-coin--ep" data-tooltip="Electrum"><span class="agch-coin__icon" aria-hidden="true">E<\/span><span>ep<\/span>/);
   world({utilities: false}); ({html} = await inventory(0));
   assert.match(html, /data-key="ep"/, 'without Utilities: as before');
 });
@@ -61,10 +61,11 @@ test('party purse summary (when Utilities has no stash view): ep left out while 
   const panel = PANELS.find(p => p.id === 'ashen-gate-utilities'), actor = makeActor();
   world({electrum: false, purse: {pp: 1, gp: 42, ep: 0, sp: 5, cp: 0}});
   let html = panelState(panel, actor).html;
-  assert.match(html, /Party purse: 1 pp, 42 gp, 5 sp/); assert.doesNotMatch(html, /ep/);
+  const amounts = h => [...h.matchAll(/<span>(\d+ [a-z]{2})<\/span>/g)].map(m => m[1]);
+  assert.deepEqual(amounts(html), ['1 pp', '42 gp', '5 sp']); assert.doesNotMatch(html, /agch-coin--ep|\d ep/);
   world({electrum: false, purse: {pp: 0, gp: 42, ep: 6, sp: 0, cp: 0}});
   html = panelState(panel, actor).html;
-  assert.match(html, /Party purse: 42 gp<\/p><p class="agch-muted agch-ep-off">Also 6 ep \(electrum is off in Utilities; the GM can convert it there\)/);
+  assert.match(html, /Party purse: <span class="agch-coinchip agch-coin--gp"><span class="agch-coin__icon" aria-hidden="true">G<\/span><span>42 gp<\/span><\/span><\/p><p class="agch-muted agch-ep-off">Also 6 ep \(electrum is off in Utilities; the GM can convert it there\)/);
   world({electrum: true, purse: {pp: 0, gp: 42, ep: 6, sp: 0, cp: 0}});
-  assert.match(panelState(panel, actor).html, /Party purse: 42 gp, 6 ep/);
+  assert.deepEqual(amounts(panelState(panel, actor).html), ['42 gp', '6 ep']);
 });

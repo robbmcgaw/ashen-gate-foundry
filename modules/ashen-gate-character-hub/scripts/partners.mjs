@@ -6,6 +6,7 @@
  */
 import {esc, num} from './constants.mjs';
 import {btn} from './buttons.mjs';
+import {coinChip} from './coins.mjs';
 import {canSee, requirePart, hiddenBadge, hiddenReason, partForPartner} from './visibility.mjs';
 import {cindersSummary, skillTreeBtn} from './cinders.mjs';
 import {linkButton, subTabs, tabPanelAttrs} from './ag-html.mjs';
@@ -57,7 +58,7 @@ function professions(actor, api) {
 
 /**
  * Overview's Professions box (0.30.0): the professions this character knows, name and level, from the Ledger's
- * getProfessions (feature-detected). Null (no box) when the Ledger is missing or too old, when players may not see
+ * getProfessions (feature-detected; 0.34.0 also reads its `tier`, e.g. Apprentice). Null (no box) when the Ledger is missing or too old, when players may not see
  * Professions (the GM's switch, Ledger inactive or its Player Access off) or when the Ledger refuses this user.
  */
 export function knownProfessions(actor, user = globalThis.game?.user) {
@@ -67,7 +68,7 @@ export function knownProfessions(actor, user = globalThis.game?.user) {
   let rows;
   try { rows = api.getProfessions(actor); } catch { return null; }
   if (!Array.isArray(rows)) return null;
-  return rows.map(p => ({id: String(p?.professionId ?? ''), name: String(p?.name || p?.professionId || ''), level: num(p?.level)})).filter(p => p.name);
+  return rows.map(p => ({id: String(p?.professionId ?? ''), name: String(p?.name || p?.professionId || ''), level: num(p?.level), tier: typeof p?.tier === 'string' ? p.tier : ''})).filter(p => p.name);
 }
 
 const plural = (n, word) => `${num(n)} ${word}${num(n) === 1 ? '' : 's'}`;
@@ -143,7 +144,7 @@ function utilities(actor, api, {shown = STASH_SHOWN} = {}) {
   try { purse = api.purse?.totals?.(); } catch (err) { return `<p class="agch-muted">${esc(err?.message ?? 'Party purse unavailable.')}</p>`; }
   if (!purse) return '<p class="agch-muted">Party purse unavailable.</p>';
   const offEp = electrumHidden();
-  const coins = `<p>Party purse: ${['pp', 'gp', 'ep', 'sp', 'cp'].filter(k => num(purse[k]) && !(offEp && k === 'ep')).map(k => `${num(purse[k])} ${k}`).join(', ') || 'empty'}</p>`
+  const coins = `<p class="agch-purseline">Party purse: ${['pp', 'gp', 'ep', 'sp', 'cp'].filter(k => num(purse[k]) && !(offEp && k === 'ep')).map(k => coinChip(k, num(purse[k]))).join(' ') || 'empty'}</p>`
     + (offEp && num(purse.ep) ? `<p class="agch-muted agch-ep-off">Also ${num(purse.ep)} ep (electrum is off in Utilities; the GM can convert it there).</p>` : '');
   // Stash items (Utilities 0.11.0+). Same gate as the purse; a refusal just leaves the item list out.
   let items = null;

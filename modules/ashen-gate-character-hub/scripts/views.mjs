@@ -4,7 +4,7 @@
  */
 import {MODULE_ID, esc, signed} from './constants.mjs';
 import {skillsData, overviewData} from './data.mjs';
-import {characterPanelHtml, compactPanelHtml, levelUpBtn, restoreBtn} from './character.mjs';
+import {characterPanelHtml, compactPanelHtml, levelUpBtn, restoreBtn, characterMenuItems} from './character.mjs';
 import {canPopOut, isPoppedOut} from './popout.mjs';
 import {btn} from './buttons.mjs';
 import {ITEM_TABS} from './tabs.mjs';
@@ -12,7 +12,7 @@ import {ashenGateTab, AG_PANELS, agPanelsFor, partnerApi, embedApi, panelState, 
 import {canSee, hiddenReason, hiddenBadge, partForPartner} from './visibility.mjs';
 import {companionsTab, gmSetupTab} from './companion-views.mjs';
 import {configAttrs} from './configure.mjs';
-import {hotbarsHtml} from './hotbar-views.mjs';
+import {hotbarsHtml, quickToggleHtml, quickDrawerHtml} from './hotbar-views.mjs';
 import {journeyTab} from './journey-views.mjs';
 import {sectionHtml, sectionKey} from './collapse.mjs';
 import {lookMenuHtml} from './look.mjs';
@@ -41,14 +41,41 @@ function overviewTab(ctx) {
 }
 
 /**
- * Professions under Proficiencies (0.30.0): name and level from the Profession Ledger (knownProfessions). The box is a
- * button that jumps to Ashen Gate → Professions. No box when the Ledger is absent or Professions is hidden.
+ * Icons for the Professions box (0.34.0), one line each: a pattern matched against the profession's name (or its id)
+ * and a Font Awesome icon. The first match wins; a profession nothing matches gets PROFESSION_ICON_FALLBACK, so a new
+ * profession still shows. Add a line here for a new one.
+ */
+export const PROFESSION_ICONS = [
+  [/alchem/i, 'fa-solid fa-flask'],
+  [/blacksmith|smith/i, 'fa-solid fa-hammer'],
+  [/cook/i, 'fa-solid fa-utensils'],
+  [/enchant/i, 'fa-solid fa-wand-sparkles'],
+  [/engineer/i, 'fa-solid fa-gears'],
+  [/inscri|scribe/i, 'fa-solid fa-feather-pointed'],
+  [/jewel/i, 'fa-solid fa-gem'],
+  [/leather/i, 'fa-solid fa-vest'],
+  [/tailor|weav/i, 'fa-solid fa-scissors'],
+  [/archaeolog|excavat/i, 'fa-solid fa-trowel'],
+  [/fish/i, 'fa-solid fa-fish'],
+  [/herb/i, 'fa-solid fa-leaf'],
+  [/hunt|skin/i, 'fa-solid fa-paw'],
+  [/min(e|ing)\b/i, 'fa-solid fa-person-digging']
+];
+export const PROFESSION_ICON_FALLBACK = 'fa-solid fa-toolbox';
+export const professionIcon = p => PROFESSION_ICONS.find(([re]) => re.test(String(p?.name ?? '')) || re.test(String(p?.id ?? '')))?.[1] ?? PROFESSION_ICON_FALLBACK;
+/** "Archaeology - Apprentice - Level 1" (the tier is left out when the Ledger gives none). */
+export const professionLine = p => [p.name, p.tier, `Level ${p.level}`].filter(Boolean).join(' - ');
+
+/**
+ * Professions under Proficiencies (0.30.0): read from the Profession Ledger (knownProfessions; this module keeps none of
+ * that state). 0.34.0: each row is an icon and "Name - Tier - Level n". The box is a button that jumps to Ashen Gate →
+ * Professions. No box when the Ledger is absent or Professions is hidden.
  */
 export function professionsBox(actor) {
   const list = knownProfessions(actor);
   if (!list) return '';
-  const rows = list.map(p => `<span class="agch-profbox__row"><span class="agch-profbox__name">${esc(p.name)}</span><span class="agch-profbox__level">Level ${p.level}</span></span>`).join('');
-  const body = `<button type="button" class="agch-profbox" data-action="ag-jump" data-partner="ashen-gate-profession-ledger" data-ag-always data-tooltip="Show Ashen Gate → Professions" aria-label="${esc(`Professions: ${list.map(p => `${p.name} level ${p.level}`).join(', ') || 'none yet'}. Show Ashen Gate → Professions`)}">
+  const rows = list.map(p => `<span class="agch-profbox__row"><i class="${professionIcon(p)} agch-profbox__icon" aria-hidden="true"></i><span class="agch-profbox__name">${esc(professionLine(p))}</span></span>`).join('');
+  const body = `<button type="button" class="agch-profbox" data-action="ag-jump" data-partner="ashen-gate-profession-ledger" data-ag-always data-tooltip="Show Ashen Gate → Professions" aria-label="${esc(`Professions: ${list.map(professionLine).join(', ') || 'none yet'}. Show Ashen Gate → Professions`)}">
     ${rows || '<span class="agch-profbox__row agch-muted">No professions yet.</span>'}</button>`;
   return sectionHtml(sectionKey('overview', 'professions'), `Professions${hiddenBadge('professions')}`, body);
 }
@@ -127,38 +154,51 @@ export function popOutBtn(sheet) {
 /**
  * The header's "⋯" menu (0.33.0, CH-03/CH-04): Appearance…, Pop out / Pop in, NPC Codex (when General Manager offers it
  * to this user) and Open native sheet, in Full, Compact and the limited view alike. The Appearance menu opens in the
- * same place (sheet.menu 'look').
+ * same place (sheet.menu 'look'). 0.34.0: the character's own actions come first: Level up, Restore backup… (GM) and
+ * Configure… (they were buttons under the name); not in the limited view.
  */
-export function moreMenuHtml(sheet) {
+export function moreMenuHtml(sheet, ctx = null) {
   const open = sheet?.menu === 'more' ? 'more' : sheet?.menu === 'look' ? 'look' : null;
+  const own = ctx && !ctx.limited && ctx.actor ? characterMenuItems(ctx.actor, !ctx.editable) : '';
   const menu = open === 'more' ? `<div class="agch-menu agch-moremenu" role="group" aria-label="More">
+    ${own ? `${own}<hr class="agch-menu__sep">` : ''}
     ${btn('look-menu', 'Appearance…', {kind: 'ghost', extra: 'agch-menu__btn', icon: 'fa-solid fa-palette', always: true, title: 'Change how the Hub looks for you (only for you)'})}
     ${popOutBtn(sheet)}${codexBtn({menu: true})}
     ${btn('open-native', 'Open native sheet', {kind: 'ghost', extra: 'agch-menu__btn', icon: 'fa-solid fa-file-lines', always: true, title: 'Open the standard dnd5e character sheet'})}</div>`
     : open === 'look' ? lookMenuHtml(sheet) : '';
-  return `<span class="agch-lookwrap"><button type="button" class="ag-btn ag-btn--ghost ag-btn--icon agch-morebtn" data-action="more-menu" data-ag-always aria-haspopup="true" aria-expanded="${open !== null}" aria-label="More: appearance, pop out, NPC Codex, native sheet" data-tooltip="More: Appearance, Pop out, NPC Codex, Open native sheet"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>${menu}</span>`;
+  const what = [own && 'Level up', own.includes('data-action="level-restore"') && 'Restore backup', own.includes('data-action="configure"') && 'Configure', 'Appearance, Pop out, NPC Codex, Open native sheet'].filter(Boolean).join(', ');
+  return `<span class="agch-lookwrap"><button type="button" class="ag-btn ag-btn--ghost ag-btn--icon agch-morebtn" data-action="more-menu" data-ag-always aria-haspopup="true" aria-expanded="${open !== null}" aria-label="${esc(`More: ${what}`)}" data-tooltip="${esc(`More: ${what}`)}"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>${menu}</span>`;
 }
 /** Header (0.33.0): brand left; Compact / Full and the "⋯" menu; version and Help together at the far right. */
 export function headerHtml(ctx, compact) {
   const version = globalThis.game?.modules?.get?.(MODULE_ID)?.version ?? '';
   return `<header class="ag-header"><h1><span class="ag-header__brand">Ashen Gate</span> | Character Hub</h1><div class="ag-header__actions">
-    ${ctx.limited ? '' : compactBtn(compact)}${moreMenuHtml(ctx.sheet)}
+    ${ctx.limited ? '' : compactBtn(compact)}${moreMenuHtml(ctx.sheet, ctx)}
     <span class="ag-header__meta agch-head__meta"><span class="ag-version">v${esc(version)}</span>
     ${btn('help', 'Help', {kind: 'ghost', extra: 'ag-btn--sm', icon: 'fa-solid fa-circle-question', always: true})}</span></div></header>`;
+}
+/**
+ * The bottom of the Hub (0.34.0): the bar with the Ashen Gate buttons (Full) and, at its end, the Quick bar toggle; the
+ * quick bar drawer opens under it. Compact has the bar with the toggle only.
+ */
+function bottomHtml(ctx, active, compact) {
+  const bar = compact ? '' : agBarHtml(active, ctx.sheet), toggle = quickToggleHtml(ctx.sheet);
+  if (!bar && !toggle) return '';
+  return `<div class="agch-bottombar">${bar}${toggle}</div>${quickDrawerHtml(ctx)}`;
 }
 export function shellHtml(ctx) {
   const {actor, tab} = ctx, compact = ctx.compact === true && !ctx.limited;
   const top = headerHtml(ctx, compact);
   if (ctx.limited) return `<div class="agch-root agch-root--limited">${top}<section class="agch-hero ag-card"><img class="agch-portrait" src="${esc(actor.img)}" alt=""><div class="agch-ident__text"><h2 class="agch-name">${esc(actor.name)}</h2><p class="agch-sub">You have limited access to this character.</p></div></section></div>`;
-  if (compact) return `<div class="agch-root agch-root--compact">${top}${compactPanelHtml(ctx)}${hotbarsHtml(ctx, true)}</div>`;
+  if (compact) return `<div class="agch-root agch-root--compact">${top}${compactPanelHtml(ctx)}${hotbarsHtml(ctx, true)}${bottomHtml(ctx, null, true)}</div>`;
   const tabs = visibleTabs(), current = tabs.find(t => t.id === tab) ?? tabs[0];
   const folded = ctx.sheet?.charFolded !== false ? ' agch-root--charfolded' : '';
   const notice = ctx.editable ? '' : '<p class="ag-notice ag-notice--info agch-notice" role="note"><i class="fa-solid fa-eye" aria-hidden="true"></i> View only: you can look but not change or roll for this character.</p>';
   if (!current) return `<div class="agch-root${folded}">${top}<div class="agch-split">${characterPanelHtml(ctx)}
-    <section class="agch-pane"><div class="ag-empty"><p class="ag-empty__title">Nothing shared yet.</p><p class="ag-empty__text">Your GM hasn't shared any other sections yet.</p></div></section></div>${hotbarsHtml(ctx)}</div>`;
+    <section class="agch-pane"><div class="ag-empty"><p class="ag-empty__title">Nothing shared yet.</p><p class="ag-empty__text">Your GM hasn't shared any other sections yet.</p></div></section></div>${hotbarsHtml(ctx)}${bottomHtml(ctx, null, false)}</div>`;
   return `<div class="agch-root${folded}">${top}<div class="agch-split">${characterPanelHtml(ctx)}
     <section class="agch-pane"><h2 class="agch-pane__title"><i class="${current.icon}" aria-hidden="true"></i> ${esc(current.label)}${current.parts ? hiddenBadge(current.parts) : ''}</h2>${notice}
-    <div class="agch-body" id="${panelId(ctx.sheet)}" role="tabpanel" aria-labelledby="${panelId(ctx.sheet)}-tab-${current.id}">${current.render(ctx)}</div></section>${tabsHtml(current.id, ctx.sheet)}</div>${hotbarsHtml(ctx)}${agBarHtml(current.id, ctx.sheet)}</div>`;
+    <div class="agch-body" id="${panelId(ctx.sheet)}" role="tabpanel" aria-labelledby="${panelId(ctx.sheet)}-tab-${current.id}">${current.render(ctx)}</div></section>${tabsHtml(current.id, ctx.sheet)}</div>${hotbarsHtml(ctx)}${bottomHtml(ctx, current.id, false)}</div>`;
 }
 
 export function errorHtml(err) {

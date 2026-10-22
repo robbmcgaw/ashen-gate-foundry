@@ -110,12 +110,12 @@ test('Features: grouped by source (the granting item), action type, uses; filter
   assert.deepEqual(filterRows(all, {uses: true}).map(r => r.id).sort(), ['su', 'sw']);
 });
 
-test('Class, species and background are one card at the top of the character; no longer in Features', async () => {
+test('Class (with level), species and background are chips in the name row (0.34.0), before the art; no longer in Features', async () => {
   installGlobals({user: users.owner});
   const {html} = await tab('features');
-  assert.match(html, /<aside class="agch-char"[\s\S]*<section class="agch-idcard"[\s\S]*data-id="fighter"[\s\S]*Level 3[\s\S]*data-id="elf"[\s\S]*Species[\s\S]*data-id="sage"[\s\S]*Background[\s\S]*agch-doll/);
+  assert.match(html, /<aside class="agch-char"[\s\S]*<div class="agch-idchips"[\s\S]*data-id="fighter"[^>]*aria-label="[^"]*level 3 \(class\): open"[\s\S]*<span>[^<]*3<\/span>[\s\S]*data-id="elf"[^>]*\(species\)[\s\S]*data-id="sage"[^>]*\(background\)[\s\S]*data-action="inspiration"[\s\S]*agch-doll/);
+  assert.doesNotMatch(html, /agch-idcard|<p class="agch-sub">/, 'no cards and no subtitle line');
   assert.doesNotMatch(body(html), /Class, Species &amp; Background|data-key="features:identity"/);
-  assert.match(html, /<p class="agch-sub">Level 3<\/p>/, 'the subtitle no longer repeats them');
 });
 
 test('Favourites first in Features; the star has its own column in every list tab', async () => {

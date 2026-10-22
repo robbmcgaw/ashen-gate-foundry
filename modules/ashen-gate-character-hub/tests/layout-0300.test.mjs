@@ -45,7 +45,7 @@ test('Professions under Proficiencies: name and level from the Ledger; jumps to 
   setup({user: users.owner, modules: {'ashen-gate-profession-ledger': LEDGER([{professionId: 'PROF-TEST-A', name: '[TEST] Herbalism', level: 2}, {professionId: 'PROF-TEST-B', name: '[TEST] Smithing', level: 1}])}});
   const box = professionsBox(makeActor());
   assert.match(box, /data-action="ag-jump" data-partner="ashen-gate-profession-ledger"/);
-  assert.match(box, /\[TEST\] Herbalism<\/span><span class="agch-profbox__level">Level 2/);
+  assert.match(box, /<i class="fa-solid fa-leaf agch-profbox__icon" aria-hidden="true"><\/i><span class="agch-profbox__name">\[TEST\] Herbalism - Level 2<\/span>/, '0.34.0: icon; no tier from this Ledger, so none shown');
   const overview = await render('overview');
   assert.ok(overview.indexOf('Proficiencies') < overview.indexOf('agch-profbox'), 'under Proficiencies');
   const sheet = new Hub({document: makeActor()}); await sheet.dispatch('ag-jump', {dataset: {partner: 'ashen-gate-profession-ledger'}});
@@ -95,10 +95,10 @@ test('Mastery & marks: one strip, no fold; targets, Strain and the title togethe
   setup({user: users.owner, modules: {'ashen-gate-cinders': {active: true, api: {strain: {contract: 'ag-strain/1', get: () => ({value: 1, guaranteeAt: 10, band: {label: '[TEST] Low'}, chance: 0})}}}}});
   game.user.targets = new Set();
   const html = hotbarsHtml({actor: makeActor({items: WEAPONS}), editable: true});
-  const strip = html.slice(html.indexOf('agch-hotbar--marks'), html.indexOf('hotbar:quick'));
+  const strip = html.slice(html.indexOf('agch-hotbar--marks'), html.indexOf('agch-hotbar--conds'));
   assert.doesNotMatch(strip, /data-action="section-toggle"/, 'not a dropdown any more');
   assert.match(strip, /<div class="agch-marks"><div class="agch-marks__list">[\s\S]*data-mark="vex"[\s\S]*<\/div>\s*<div class="agch-marks__end"><span class="agch-muted agch-hotbar__targets">[\s\S]*No target<\/span>[\s\S]*agch-hotbar__strain[\s\S]*Mastery &amp; marks<\/span><button type="button" class="agch-marks__help" data-tooltip="[^"]+" aria-label="[^"]+"><i class="fa-solid fa-circle-question" aria-hidden="true"><\/i><\/button><\/div><\/div>/, 'CH-25: the help is a focusable button');
-  assert.match(html, /data-action="section-toggle" data-key="hotbar:quick"/, 'the quick bar still folds');
+  assert.doesNotMatch(html, /hotbar:quick|data-hotbar-slot/, '0.34.0: the quick bar is the drawer under the bottom bar, not in the strips');
   const css = fs.readFileSync(new URL('../styles/character-hub.css', import.meta.url), 'utf8');
   assert.match(css, /\.agch-marks__list \{[^}]*flex-wrap: wrap; justify-content: flex-end;/, 'marks wrap and grow to the left');
   assert.match(css, /\.agch-marks__end \{ flex: none;/, 'the right corner never shrinks under the marks');

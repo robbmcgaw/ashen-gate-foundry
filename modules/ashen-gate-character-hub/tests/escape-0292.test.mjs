@@ -30,7 +30,6 @@ function fakeElement(sheet, doc) {
     querySelector(sel) {
       if (sel === '.agch-menu') return sheet.menu ? {} : null;
       if (sel === '[data-journey-form="edit"]') return sheet.journeyEdit ? {} : null;
-      if (sel === '.agch-conds__list') return sheet.condAdd && !sheet.compact ? {} : null;
       return null;
     }, querySelectorAll: () => []};
 }
@@ -78,23 +77,21 @@ test('right-click menu, Other ⋯ menu and the HP editor close the same way; foc
   assert.notEqual(doc.foundryClosed, true);
 });
 
-test('conditions add list and the Journey inline editor: Escape closes them, innermost first', async () => {
+test('a menu and the Journey inline editor: Escape closes them, innermost first (0.34.0: no conditions list any more)', async () => {
   const doc = fakeDoc('main'), sheet = openHub(doc);
-  sheet.condAdd = true; sheet.journeyEdit = 'j1'; sheet.menu = 'slot:head'; await sheet.render();
+  sheet.journeyEdit = 'j1'; sheet.menu = 'slot:head'; await sheet.render();
   doc.keydown('Escape');
-  assert.deepEqual([sheet.menu, sheet.journeyEdit, sheet.condAdd], [null, 'j1', true]);
+  assert.deepEqual([sheet.menu, sheet.journeyEdit], [null, 'j1']);
   doc.keydown('Escape');
-  assert.deepEqual([sheet.journeyEdit, sheet.condAdd], [null, true]);
-  doc.keydown('Escape');
-  assert.equal(sheet.condAdd, false);
+  assert.equal(sheet.journeyEdit, null);
   assert.notEqual(doc.foundryClosed, true);
   assert.equal(escListeners(doc), 0);
-  assert.deepEqual(POPOVERS.map(p => p.selector), ['.agch-menu', '[data-journey-form="edit"]', '.agch-conds__list']);
+  assert.deepEqual(POPOVERS.map(p => p.selector), ['.agch-menu', '[data-journey-form="edit"]']);
 });
 
-test('a popover state that is not drawn (conditions list in Compact) does not swallow Escape', async () => {
+test('the quick bar drawer is not a popover: open, Escape is left to Foundry (0.34.0)', async () => {
   const doc = fakeDoc('main'), sheet = openHub(doc);
-  sheet.compact = true; sheet.condAdd = true; await sheet.render();
+  sheet.quickOpen = true; await sheet.render();
   assert.equal(escListeners(doc), 0);
   doc.keydown('Escape');
   assert.equal(doc.foundryClosed, true);

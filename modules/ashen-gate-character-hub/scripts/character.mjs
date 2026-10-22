@@ -1,19 +1,19 @@
 /**
  * The left column: the character itself. Portrait with the equipment slots around it (display only), AC, initiative,
- * speed, proficiency, hit points (with hit dice, rests and exhaustion under the bar), the six abilities, conditions and
- * resources. Slots: click opens the item sheet, right-click unequips, the small ⋯ button opens the slot menu
+ * speed, proficiency, hit points (with hit dice, rests and exhaustion under the bar), the six abilities and resources.
+ * 0.34.0: conditions moved to the strip under Mastery & marks (conditions.mjs). Slots: click opens the item sheet, right-click unequips, the small ⋯ button opens the slot menu
  * (sheet.menu). An empty slot's click opens its Equip… menu. Right-click on a stat opens dnd5e's own configuration
  * window for it (configure.mjs), like the standard sheet.
  */
-import {esc, signed, SLOT_PLACEHOLDERS, placeholderKind, assetUrl} from './constants.mjs';
+import {esc, signed, num, SLOT_PLACEHOLDERS, placeholderKind, assetUrl} from './constants.mjs';
 import {btn} from './buttons.mjs';
 import {headerData, abilitiesData, skillsData} from './data.mjs';
-import {equipmentLayout, equipChoices, SLOTS, featuresData} from './items.mjs';
+import {equipmentLayout, equipChoices, SLOTS} from './items.mjs';
 import {partyStashUsable} from './partners.mjs';
 import {canSee, hiddenReason, hiddenBadge} from './visibility.mjs';
 import {configAttrs} from './configure.mjs';
 import {toggleButton, bodyAttrs} from './collapse.mjs';
-import {tooltipAttrs} from './tooltips.mjs';
+import {tooltipAttrs, itemUuid} from './tooltips.mjs';
 import {strainHtml, strainPillHtml, cinderChipsHtml} from './cinders.mjs';
 import {MODULE_ID} from './constants.mjs';
 import {levelUpState} from './level-up.mjs';
@@ -95,7 +95,7 @@ function otherHtml(layout, menu, off) {
     <ul class="agch-other__list"${bodyAttrs(key)}>${rows || '<li class="agch-muted">Equipped items that don\'t fit a slot show here.</li>'}</ul></div>`;
 }
 
-function dollHtml(ctx, h, {compact = false} = {}) {
+function dollHtml(ctx, h) {
   const {actor, editable, sheet} = ctx, off = !editable, layout = equipmentLayout(actor), menu = sheet?.menu ?? null;
   const token = sheet?.dollArt === 'token';
   const art = token ? (actor.prototypeToken?.texture?.src || actor.img) : actor.img;
@@ -114,7 +114,7 @@ function dollHtml(ctx, h, {compact = false} = {}) {
     <div class="agch-doll__col">${col(RIGHT_SLOTS)}</div>
     <div class="agch-doll__row">${col(BOTTOM_SLOTS)}</div>
     ${pop}
-  </section>${compact && !layout.other.length ? '' : otherHtml(layout, menu, off)}`;
+  </section>${layout.other.length ? otherHtml(layout, menu, off) : ''}`;
 }
 
 const tile = (label, value, {extra = '', title = '', attrs = '', big = false} = {}) => `<div class="agch-tile${big ? ' agch-tile--big' : ''}"${title ? ` data-tooltip="${esc(title)}"` : ''}${attrs}><span class="agch-tile__label">${esc(label)}</span>${value}${extra}</div>`;
@@ -182,12 +182,46 @@ function exhaustionHtml(h, off) {
   return `<span class="ag-badge agch-pill agch-pill--exh${exh.value ? ' is-on' : ''}" data-tooltip="Exhaustion ${exh.value} of ${exh.max}"><i class="fa-solid fa-skull" aria-hidden="true"></i><span class="ag-sr-only">Exhaustion</span>${btn('exhaustion', '', {kind: 'ghost', icon: 'fa-solid fa-minus', data: {step: -1}, title: 'Reduce exhaustion', disabled: off || exh.value <= 0})}<b>${exh.value}</b>${btn('exhaustion', '', {kind: 'ghost', icon: 'fa-solid fa-plus', data: {step: 1}, title: 'Increase exhaustion', disabled: off || exh.value >= exh.max})}</span>`;
 }
 
-/** Class, species and background as one small card at the top (they rarely change). Click one to open its sheet. */
-function identityCard(actor) {
-  const rows = featuresData(actor).identity;
-  if (!rows.length) return '';
-  return `<section class="agch-idcard" aria-label="Class, species and background">${rows.map(r => `<button type="button" class="agch-idcard__item" data-action="item-sheet" data-id="${esc(r.id)}" data-ag-always${tooltipAttrs(r.uuid, `Open ${r.name}`)}>
-    <img src="${esc(r.img)}" alt=""><span class="agch-idcard__text"><span class="agch-idcard__name">${esc(r.name)}</span><span class="agch-idcard__detail">${esc(r.detail)}</span></span></button>`).join('')}</section>`;
+/**
+ * Class (with its level), subclass, species and background (0.34.0): one small chip each in the name row, the item's own
+ * icon and a short name; the tooltip and accessible name say what it is. A multiclass character gets a chip per class
+ * and level, each subclass right after its class. A click opens the item's sheet. Replaces 0.14.0's four cards.
+ */
+export function identityChips(actor) {
+  const items = [...(actor?.items ?? [])], of = type => items.filter(i => i.type === type);
+  const classes = of('class').sort((a, b) => num(b.system?.levels) - num(a.system?.levels) || String(a.name).localeCompare(String(b.name)));
+  const subs = of('subclass'), used = new Set(), out = [];
+  for (const c of classes) {
+    const lv = num(c.system?.levels);
+    out.push({item: c, kind: 'class', text: `${c.name} ${lv}`, label: `${c.name}, level ${lv} (class)`});
+    const sub = subs.find(x => !used.has(x) && x.system?.classIdentifier && x.system.classIdentifier === c.system?.identifier);
+    if (sub) { used.add(sub); out.push({item: sub, kind: 'subclass', text: sub.name, label: `${sub.name} (${c.name} subclass)`}); }
+  }
+  for (const x of subs.filter(x => !used.has(x))) out.push({item: x, kind: 'subclass', text: x.name, label: `${x.name} (subclass)`});
+  for (const x of of('race')) out.push({item: x, kind: 'species', text: x.name, label: `${x.name} (species)`});
+  for (const x of of('background')) out.push({item: x, kind: 'background', text: x.name, label: `${x.name} (background)`});
+  return out;
+}
+function identityChipsHtml(actor, h, compact = false) {
+  const chips = identityChips(actor);
+  // Compact: only the class chips keep their text (an item without a picture keeps it too).
+  const iconOnly = c => compact && c.kind !== 'class' && !!c.item.img;
+  const html = chips.map(c => `<button type="button" class="agch-idchip agch-idchip--${c.kind}${iconOnly(c) ? ' agch-idchip--icon' : ''}" data-action="item-sheet" data-id="${esc(c.item.id)}" data-ag-always aria-label="${esc(`${c.label}: open`)}"${tooltipAttrs(itemUuid(c.item), `${c.label}: click to open`)}>${c.item.img ? `<img src="${esc(c.item.img)}" alt="">` : ''}${iconOnly(c) ? '' : `<span>${esc(c.text)}</span>`}</button>`).join('');
+  const total = chips.filter(c => c.kind === 'class').length > 1 && h.level ? `<span class="agch-idlevel">Level ${h.level}</span>` : '';
+  const fallback = !chips.length ? `<span class="agch-idlevel">${h.species ? `${esc(h.species)} · ` : ''}${h.classes.length ? h.classes.map(c => `${esc(c.name)} ${c.level}`).join(' / ') : 'No class'}${h.level ? ` · Level ${h.level}` : ''}</span>` : '';
+  return html + total + fallback;
+}
+
+/**
+ * The name row (0.34.0): the name, then class / subclass / species / background chips, the Cinder chips, and the
+ * inspiration star last, wrapping onto a second line only when the column is too narrow. Level up, Restore backup…
+ * and Configure… moved to the header's "⋯" menu.
+ */
+function identHtml(actor, h, off, compact = false) {
+  return `<div class="agch-ident"><h2 class="agch-name">${esc(h.name)}</h2>
+    <div class="agch-idchips" role="group" aria-label="Class, subclass, species and background">${identityChipsHtml(actor, h, compact)}</div>
+    ${canSee('cinders') ? cinderChipsHtml(actor) : ''}
+    ${btn('inspiration', '', {extra: `agch-insp${h.inspiration ? ' is-active' : ''}`, icon: 'fa-solid fa-star', title: h.inspiration ? 'Inspiration (click to spend)' : 'No inspiration (click to gain)', disabled: off})}</div>`;
 }
 
 /**
@@ -211,8 +245,10 @@ function hpHtml(h, off, menu, strain = '') {
  * Strain (0.30.0): the GM keeps the row with − / + under hit points (`row`); everyone else gets the read-only pill in the
  * HP block (`pill`). Both honour the Strain bar switch in Player visibility and are empty without Cinders.
  */
-function strainParts(actor, off) {
+function strainParts(actor, off, compact = false) {
   const gm = globalThis.game?.user?.isGM === true && !off;
+  // 0.34.0 (Compact): no Strain row; the GM gets the pill too, with its − / + inside, so the column has room.
+  if (compact) return {pill: canSee('strain') ? strainPillHtml(actor, {steps: gm}) : '', row: ''};
   return {pill: canSee('strain') && !gm ? strainPillHtml(actor) : '', row: gm ? strainHtml(actor, off) : ''};
 }
 
@@ -226,19 +262,6 @@ function abilitiesHtml(actor, off, compact = false) {
   return tiles ? `<div class="agch-abils${compact ? ' agch-abils--compact' : ''}" role="group" aria-label="Abilities: click for a check, the line underneath for a saving throw (a filled dot: proficient)">${tiles}</div>` : '';
 }
 
-/** Active conditions as name chips (click removes); + shows the others inline to add one. */
-function conditionsHtml(h, off, adding) {
-  if (!h.conditions.length) return '';
-  const active = h.conditions.filter(c => c.active), inactive = h.conditions.filter(c => !c.active);
-  const chip = c => `<button type="button" class="ag-chip agch-chip${c.active ? ' is-active' : ''}" data-action="condition" data-id="${esc(c.id)}" aria-pressed="${c.active}" data-tooltip="${c.active ? `Remove ${esc(c.label)}` : `Add ${esc(c.label)}`}"${off ? ' disabled' : ''}>${c.img ? `<img src="${esc(c.img)}" alt="">` : ''}${esc(c.label)}${c.active && !off ? '<i class="fa-solid fa-xmark" aria-hidden="true"></i>' : ''}</button>`;
-  return `<section class="agch-conds" aria-label="Conditions">
-    <span class="agch-tile__label">Conditions</span>
-    <div class="agch-chips">${active.map(chip).join('') || '<span class="agch-muted">None</span>'}
-      ${off ? '' : btn('cond-add', '', {kind: 'ghost', extra: 'agch-conds__add', icon: adding ? 'fa-solid fa-minus' : 'fa-solid fa-plus', title: adding ? 'Hide conditions' : 'Add a condition'})}</div>
-    ${adding && !off ? `<div class="agch-chips agch-conds__list" role="group" aria-label="Add a condition">${inactive.map(chip).join('')}</div>` : ''}
-  </section>`;
-}
-
 /** Resources (Ki and the like) as small pills. */
 function footHtml(h) {
   return h.resources.length ? `<div class="agch-foot">${h.resources.map(r => `<span class="ag-badge agch-pill">${esc(r.label)} <b>${r.value} / ${r.max}</b></span>`).join('')}</div>` : '';
@@ -246,23 +269,23 @@ function footHtml(h) {
 
 /**
  * Level up (0.27.0): starts dnd5e's own level-up. When it isn't ready it stays clickable but aria-disabled, so a
- * click can say why (a disabled button shows no tooltip); the reason is also its tooltip. 0.33.0 (CH-03): under the
- * character's name, not in the header.
+ * click can say why (a disabled button shows no tooltip); the reason is also its tooltip. 0.34.0: an item of the
+ * header's "⋯" menu (Full and Compact).
  */
 export function levelUpBtn(actor) {
   const s = levelUpState(actor);
-  return `<button type="button" class="ag-btn ag-btn--ghost ag-btn--sm agch-levelup" data-action="level-up" data-ag-always${s.ok ? '' : ' aria-disabled="true"'} data-tooltip="${esc(s.ok ? 'Start dnd5e\'s level-up for this character' : s.reason)}"><i class="fa-solid fa-arrow-up-right-dots" aria-hidden="true"></i><span>Level up</span>${s.ok ? '' : `<span class="ag-sr-only">: ${esc(s.reason)}</span>`}</button>`;
+  return `<button type="button" class="ag-btn ag-btn--ghost agch-menu__btn agch-levelup" data-action="level-up" data-ag-always${s.ok ? '' : ' aria-disabled="true"'} data-tooltip="${esc(s.ok ? 'Start dnd5e\'s level-up for this character' : s.reason)}"><i class="fa-solid fa-arrow-up-right-dots" aria-hidden="true"></i><span>Level up</span>${s.ok ? '' : `<span class="ag-sr-only">: ${esc(s.reason)}</span>`}</button>`;
 }
 /**
  * Restore (0.28.0): GM only. On a character with level backups, "Restore backup…"; on a backup copy, "Restore this
- * backup…". Nothing for players (restoreBackup refuses them anyway). Under the name since 0.33.0.
+ * backup…". Nothing for players (restoreBackup refuses them anyway). 0.34.0: in the header's "⋯" menu.
  */
 export function restoreBtn(actor) {
   if (globalThis.game?.user?.isGM !== true) return '';
   const copy = isBackup(actor), count = copy ? 1 : backupsFor(actor).length;
   if (!count) return '';
   const source = copy ? actor.flags[MODULE_ID].levelBackup.sourceName ?? 'the character' : null;
-  return btn('level-restore', copy ? 'Restore this backup…' : 'Restore backup…', {kind: 'ghost', extra: 'ag-btn--sm', icon: 'fa-solid fa-clock-rotate-left', always: true,
+  return btn('level-restore', copy ? 'Restore this backup…' : 'Restore backup…', {kind: 'ghost', extra: 'agch-menu__btn', icon: 'fa-solid fa-clock-rotate-left', always: true,
     title: copy ? `Put this copy back onto ${source} (GM; asks first)` : `Put one of ${actor.name}'s ${count} level backup${count === 1 ? '' : 's'} back onto it (GM; asks first)`});
 }
 
@@ -279,38 +302,28 @@ export function configChoices(actor) {
   for (const [key, label] of [['armor', 'Armor'], ['weapon', 'Weapons'], ['tool', 'Tools'], ['languages', 'Languages']]) list.push(['trait', key, `Proficiencies: ${label}`]);
   return list.map(([kind, key, label]) => ({value: key ? `${kind}:${key}` : kind, label}));
 }
-const configureBtn = off => off ? '' : btn('configure', 'Configure…', {kind: 'ghost', extra: 'ag-btn--sm agch-configure', icon: 'fa-solid fa-sliders', title: 'Open dnd5e\'s settings for a stat (the same as right-clicking it)'});
+export const configureBtn = off => off ? '' : btn('configure', 'Configure…', {kind: 'ghost', extra: 'agch-menu__btn agch-configure', icon: 'fa-solid fa-sliders', title: 'Open dnd5e\'s settings for a stat (the same as right-clicking it)'});
+/** The character items of the header's "⋯" menu (0.34.0): Level up, Restore backup… (GM) and Configure… (owner, GM). */
+export const characterMenuItems = (actor, off) => [levelUpBtn(actor), restoreBtn(actor), configureBtn(off)].join('');
 
-/**
- * Under the name (0.33.0): Level up and Restore backup (moved from the header, Full only) and Configure…. In a narrow
- * Full window (CH-09) the column folds to the name, this row and a short HP / AC line; Show character opens it again.
- */
-function identActions(actor, off, full) {
-  const items = [full ? levelUpBtn(actor) : '', full ? restoreBtn(actor) : '', configureBtn(off)].join('');
-  return items ? `<div class="agch-ident__actions">${items}</div>` : '';
-}
+/** In a narrow Full window (CH-09) the column folds to the name row and a short HP / AC line; Show character opens it again. */
 function foldBtn(sheet) {
   const folded = sheet?.charFolded !== false;
   return `<button type="button" class="ag-btn ag-btn--ghost ag-btn--sm agch-charfold" data-action="char-fold" data-ag-always aria-expanded="${!folded}"><i class="fa-solid ${folded ? 'fa-chevron-down' : 'fa-chevron-up'}" aria-hidden="true"></i><span>${folded ? 'Show character' : 'Hide character'}</span></button>`;
 }
 const charSummary = h => `<p class="agch-charsum"><span>HP <b>${h.hp.value} / ${h.hp.effectiveMax}</b></span><span>AC <b>${h.ac}</b></span></p>`;
 
-/** The whole left column. */
+/** The whole left column. 0.34.0: the name row with the identity chips and the star, the art with its slots right under it. */
 export function characterPanelHtml(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, h = headerData(actor);
-  const classLine = h.classes.length ? h.classes.map(c => `${esc(c.name)} ${c.level}${c.subclass ? ` (${esc(c.subclass)})` : ''}`).join(' / ') : 'No class';
   const walk = h.walk;
   const otherSpeeds = h.speeds.filter(s => s.key !== 'walk').map(s => `${esc(s.label)} ${s.value}`).concat(h.hover ? ['Hover'] : []).join(', ');
   const cfg = (kind, key) => off ? '' : configAttrs(kind, key);
   const rc = off ? '' : ' (right-click to configure)';
   const strain = strainParts(actor, off);
   return `<aside class="agch-char" aria-label="Character">
-    <div class="agch-ident">
-      <div class="agch-ident__text"><h2 class="agch-name">${esc(h.name)}</h2><p class="agch-sub">${featuresData(actor).identity.length ? (h.level ? `Level ${h.level}` : '') : `${h.species ? `${esc(h.species)} · ` : ''}${classLine}${h.level ? ` · Level ${h.level}` : ''}`}</p>${canSee('cinders') ? cinderChipsHtml(actor) : ''}</div>
-      ${btn('inspiration', '', {extra: `agch-insp${h.inspiration ? ' is-active' : ''}`, icon: 'fa-solid fa-star', title: h.inspiration ? 'Inspiration (click to spend)' : 'No inspiration (click to gain)', disabled: off})}
-    </div>
-    ${identActions(actor, off, true)}${foldBtn(sheet)}${charSummary(h)}
-    ${identityCard(actor)}
+    ${identHtml(actor, h, off)}
+    ${foldBtn(sheet)}${charSummary(h)}
     ${canSee('equipment') ? dollHtml(ctx, h) : ''}
     <div class="agch-tiles${canSee('equipment') ? '' : ' agch-tiles--4'}">
       ${canSee('equipment') ? '' : tile('AC', `<span class="agch-tile__value">${h.ac}</span>`, {title: `Armor Class${rc}`, attrs: cfg('armorClass')})}
@@ -321,7 +334,6 @@ export function characterPanelHtml(ctx) {
     ${hpHtml(h, off, sheet?.menu ?? null, strain.pill)}
     ${strain.row}
     ${abilitiesHtml(actor, off)}
-    ${conditionsHtml(h, off, sheet?.condAdd === true)}
     ${footHtml(h)}
   </aside>`;
 }
@@ -343,24 +355,21 @@ function statLineHtml(h, off, withAc) {
 }
 
 /**
- * Compact mode's only column (0.29.0): the name (with the Cinder chips), the art with its equipment slots (when players
- * may see them) and HP. 0.32.0 adds what Full's left column has, tighter: initiative / speed / proficiency on one line,
- * hit dice, rests and exhaustion beside HP, Strain, the six abilities with their saves and the conditions. Same markup
- * and actions as the full column, so rolls, rests, the HP editor and slot clicks work unchanged. The column scrolls
- * inside itself; the hotbars stay at the bottom of the window.
+ * Compact mode's only column (0.29.0): the name row, the art with its equipment slots (when players may see them) and
+ * HP. 0.32.0 adds what Full's left column has, tighter: initiative / speed / proficiency on one line, hit dice, rests
+ * and exhaustion beside HP, Strain and the six abilities with their saves. Same markup and actions as the full column,
+ * so rolls, rests, the HP editor and slot clicks work unchanged. The column scrolls inside itself; the strips and the
+ * bottom bar stay at the bottom of the window. 0.34.0: the same name row as Full (identity chips, Cinders, star);
+ * Strain is the pill beside HP only (no row); conditions sit under Mastery & marks.
  */
 export function compactPanelHtml(ctx) {
-  const {actor, editable, sheet} = ctx, off = !editable, h = headerData(actor), strain = strainParts(actor, off);
+  const {actor, editable, sheet} = ctx, off = !editable, h = headerData(actor), strain = strainParts(actor, off, true);
   const slots = canSee('equipment');
-  // 0.33.1: the Cinder chips and Configure… share one row, and an empty "Other equipped" is left out, so the column fits.
-  const top = `${canSee('cinders') ? cinderChipsHtml(actor) : ''}${identActions(actor, off, false)}`;
   return `<aside class="agch-char agch-char--compact" aria-label="Character">
-    <h2 class="agch-name">${esc(h.name)}</h2>${top ? `<div class="agch-ctop">${top}</div>` : ''}
-    ${slots ? dollHtml(ctx, h, {compact: true}) : ''}
+    ${identHtml(actor, h, off, true)}
+    ${slots ? dollHtml(ctx, h) : ''}
     ${statLineHtml(h, off, !slots)}
     ${hpHtml(h, off, sheet?.menu ?? null, strain.pill)}
-    ${strain.row}
     ${abilitiesHtml(actor, off, true)}
-    ${conditionsHtml(h, off, sheet?.condAdd === true)}
   </aside>`;
 }

@@ -336,16 +336,18 @@ test('Journey: the copy records nothing; the source records its new level once',
 
 // ---------- The button ----------
 
-test('header button: ready, or aria-disabled with the reason; never a title attribute; the click says why', async () => {
+test('⋯ menu item (0.34.0): ready, or aria-disabled with the reason; never a title attribute; the click says why', async () => {
   const {actor} = setup();
-  let html = shellHtml({actor, editable: true, tab: 'overview'});
+  const menu = {menu: 'more'};
+  assert.doesNotMatch(shellHtml({actor, editable: true, tab: 'overview'}), /data-action="level-up"/, 'only in the open ⋯ menu');
+  let html = shellHtml({actor, editable: true, tab: 'overview', sheet: menu});
   assert.doesNotMatch(html.match(/<button[^>]*data-action="level-up"[^>]*>/)[0], /aria-disabled|title=/);
   const s = setup({xp: {value: 5, max: 2700}});
-  html = shellHtml({actor: s.actor, editable: true, tab: 'overview'});
+  html = shellHtml({actor: s.actor, editable: true, tab: 'overview', sheet: menu});
   const tag = html.match(/<button[^>]*data-action="level-up"[^>]*>/)[0];
   assert.match(tag, /aria-disabled="true"/); assert.match(tag, /data-tooltip="Not enough XP yet: 5 of 2700\."/);
   await ACTIONS['level-up']({document: s.actor});
   assert.deepEqual(s.notes.at(-1), ['info', 'Not enough XP yet: 5 of 2700.']);
   assert.equal(s.calls.length, 0);
-  assert.doesNotMatch(shellHtml({actor, limited: true, editable: false, tab: 'overview'}), /level-up/);
+  assert.doesNotMatch(shellHtml({actor, limited: true, editable: false, tab: 'overview', sheet: menu}), /level-up/);
 });

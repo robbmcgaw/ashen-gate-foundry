@@ -63,26 +63,29 @@ test('Compact rests follow Player visibility like Full: hidden from players, kep
   assert.match((await render({user: users.gm, settings: hidden})).html, /data-action="rest" data-type="short" data-tooltip="Short Rest \(dnd5e dialog: spend hit dice\) \(hidden from players/);
 });
 
-test('Compact Strain: players get the read-only pill in the HP block, the GM the − / + row; the switch and a missing Cinders hide it', async () => {
+test('Compact Strain: the pill in the HP block for everyone (0.34.0: no Strain row; the GM\'s pill carries − / +); the switch and a missing Cinders hide it', async () => {
   let col = column((await render({modules: {'ashen-gate-cinders': cinders()}})).html);
   assert.match(col, /agch-pill--strain ag-badge--warn"/);
   assert.ok(after(col, 'agch-pill--exh', 'agch-pill--strain'), 'beside exhaustion');
   assert.doesNotMatch(col, /data-action="strain-step"/);
   col = column((await render({user: users.gm, modules: {'ashen-gate-cinders': cinders()}})).html);
-  assert.match(col, /<div class="agch-strain"/); assert.match(col, /data-action="strain-step" data-step="1"/);
-  assert.doesNotMatch(col, /agch-pill--strain/);
+  assert.doesNotMatch(col, /<div class="agch-strain"/, 'no Strain detail row in Compact');
+  assert.match(col, /agch-pill--strain[\s\S]*data-action="strain-step" data-step="-1"[\s\S]*data-action="strain-step" data-step="1"/, 'the GM steps Strain in the pill');
+  assert.doesNotMatch(col, /Read only\./, 'the GM pill is not read only');
   col = column((await render({modules: {'ashen-gate-cinders': cinders()}, settings: {playerVisibility: {strain: false}}})).html);
   assert.doesNotMatch(col, /agch-pill--strain|agch-strain/);
   col = column((await render()).html);
   assert.doesNotMatch(col, /agch-pill--strain|agch-strain/, 'no Cinders: nothing');
 });
 
-test('Compact Mastery & marks strip sits above the quick bar, outside the scrolling column, with target count and Strain chip', async () => {
+test('Compact Mastery & marks strip sits above the conditions and the quick bar drawer, outside the scrolling column, with the target count', async () => {
   const {html} = await render({modules: {'ashen-gate-cinders': cinders()}});
   assert.ok(html.indexOf('</aside>') < html.indexOf('aria-label="Mastery and marks"'), 'in the hotbars, not the column');
-  assert.ok(after(html, 'aria-label="Mastery and marks"', 'aria-label="Quick bar"'));
+  assert.ok(after(html, 'aria-label="Mastery and marks"', 'aria-label="Conditions"'));
+  assert.ok(after(html, 'aria-label="Conditions"', 'data-action="quick-toggle"'));
+  assert.ok(after(html, 'data-action="quick-toggle"', 'aria-label="Quick bar"'));
   assert.match(html, /agch-hotbar__targets"><i class="fa-solid fa-crosshairs" aria-hidden="true"><\/i> No target/);
-  assert.match(html, /agch-hotbar__strain/);
+  assert.doesNotMatch(html, /agch-hotbar__strain/, '0.34.0: Compact shows Strain once, in the pill beside HP');
   assert.match(html, /<span class="agch-marks__title"[^>]*>Mastery &amp; marks<\/span>/);
   assert.doesNotMatch((await render({settings: {playerVisibility: {hotbars: false}}})).html, /Mastery and marks|Quick bar/, 'GM hides the hotbars: none in Compact either');
 });
@@ -100,16 +103,15 @@ test('Compact stat line: initiative rolls, speed and proficiency; AC joins it on
   assert.match(noSlots, /agch-statline__label">AC<\/span><b>15<\/b>/);
 });
 
-test('Compact conditions line: active chips and + to add, as in Full', async () => {
-  const {sheet, html} = await render({actor: makeActor({statuses: ['prone']})});
-  assert.match(column(html), /<section class="agch-conds"[\s\S]*data-action="condition" data-id="prone" aria-pressed="true"/);
-  await sheet.dispatch('cond-add', {dataset: {}}, {});
-  assert.match(column(await sheet._renderHTML()), /agch-conds__list/);
+test('Compact conditions: the strip under Mastery & marks (0.34.0), as in Full; no conditions box in the column', async () => {
+  const {html} = await render({actor: makeActor({statuses: ['prone']})});
+  assert.doesNotMatch(column(html), /agch-conds/);
+  assert.match(html, /agch-hotbar--conds[\s\S]*Prone<button type="button" class="agch-placed__off" data-action="cond-remove"/);
 });
 
-test('Compact order and what stays: name, Cinder chips, art + slots, stat line, HP, abilities, conditions; header controls kept; no tabs', async () => {
+test('Compact order and what stays: name, Cinder chips, art + slots, stat line, HP, abilities; header controls kept; no tabs', async () => {
   const {html} = await render({modules: {'ashen-gate-cinders': cinders()}});
-  const col = column(html), order = ['agch-name', 'agch-cchips', 'agch-doll', 'agch-statline', 'agch-hp"', 'agch-abils', 'agch-conds'];
+  const col = column(html), order = ['agch-name', 'agch-cchips', 'agch-doll', 'agch-statline', 'agch-hp"', 'agch-abils'];
   order.slice(1).forEach((k, i) => assert.ok(after(col, order[i], k), `${order[i]} before ${k}`));
   // 0.33.0 (CH-04): Compact header = Compact/Full, the ⋯ menu (Appearance… with the see-through slider, Pop out, Codex) and Help.
   for (const keep of [/data-action="compact-toggle"/, /data-action="more-menu"/, /data-action="help"/]) assert.match(html, keep);
