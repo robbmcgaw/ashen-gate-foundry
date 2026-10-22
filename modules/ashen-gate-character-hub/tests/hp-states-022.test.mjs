@@ -116,14 +116,14 @@ test('rail tabs: role tab, aria-selected, aria-label and a Foundry tooltip on th
 });
 
 test('header follows the standard: brand span, Compact, the ⋯ menu, version, then Help; Level up sits under the name', async () => {
-  installGlobals({user: users.owner, modules: {'ashen-gate-character-hub': {active: true, version: '0.33.0'}}});
+  installGlobals({user: users.owner, modules: {'ashen-gate-character-hub': {active: true, version: '0.33.1'}}});
   const html = await new (createHubSheetClass(FakeActorSheetV2))({document: makeActor()})._renderHTML();
   const head = html.slice(0, html.indexOf('</header>'));
   assert.match(head, /<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Character Hub<\/h1>/);
   const at = s => head.indexOf(s);
   assert.ok(at('data-action="compact-toggle"') > 0 && at('data-action="compact-toggle"') < at('data-action="more-menu"') && at('data-action="more-menu"') < at('ag-version') && at('ag-version') < at('data-action="help"'));
   assert.equal((head.match(/data-action="/g) ?? []).length, 3, 'CH-03: only Compact, ⋯ and Help in the header');
-  assert.match(head, /<span class="ag-version">v0\.33\.0<\/span>/);
+  assert.match(head, /<span class="ag-version">v0\.33\.1<\/span>/);
   assert.match(html, /<div class="agch-ident__actions"><button[^>]*data-action="level-up"/, 'Level up under the name');
 });
 

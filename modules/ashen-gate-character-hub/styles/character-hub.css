@@ -635,3 +635,24 @@
 .agch-app .agch-char--compact .agch-conds { grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--ag-space-1) var(--ag-space-2); padding: var(--ag-space-1) var(--ag-space-2); }
 .agch-app .agch-char--compact .agch-conds__list { grid-column: 1 / -1; }
 .agch-app .agch-root--compact .agch-marks__empty { font-size: var(--ag-text-xs); }
+/* 0.33.1: the Compact column fits its window. The rings and trinkets row sits under the art (beside the fifth side slots)
+   instead of below the whole doll, and the doll is the one part that gives way: it is a size container that shrinks
+   (down to icon-button-sized slots) before the column has to scroll, so the abilities and saves stay in view at the
+   default Compact size. The slot size follows the doll's height and width; the column still scrolls when even the
+   smallest doll does not fit. The quick bar keeps its ten slots on one row. */
+.agch-app .agch-char--compact .agch-doll {
+  --agch-slot-max: calc(var(--ag-slot) + var(--ag-space-3)); --agch-slot-min: var(--ag-icon-btn);
+  container: agch-doll / size; flex: 0 1 calc(var(--agch-slot-max) * 5 + var(--ag-space-2) * 4);
+  min-height: calc(var(--agch-slot-min) * 5 + var(--ag-space-2) * 4);
+  grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto auto; align-content: start; }
+.agch-app .agch-char--compact .agch-doll > * { --agch-slot: clamp(var(--agch-slot-min), min((100cqh - var(--ag-space-2) * 4) / 5, (100cqw - var(--ag-space-2) * 6) / 7), var(--agch-slot-max)); }
+.agch-app .agch-char--compact .agch-doll > .agch-doll__col { grid-row: 1 / span 2; grid-column: 1; }
+.agch-app .agch-char--compact .agch-doll > .agch-doll__col ~ .agch-doll__col { grid-column: 3; }
+.agch-app .agch-char--compact .agch-doll > .agch-doll__center { grid-row: 1; grid-column: 2; }
+.agch-app .agch-char--compact .agch-doll > .agch-doll__row { grid-row: 2; grid-column: 2; flex-wrap: nowrap; }
+/* The doll's containment makes it a stacking context: an open slot menu lifts the whole doll above the rows below it. */
+.agch-app .agch-char--compact .agch-doll:has(> .agch-menu) { z-index: 25; }
+.agch-app .agch-root--compact .agch-quick { display: grid; grid-template-columns: repeat(10, minmax(0, var(--ag-slot))); }
+.agch-app .agch-root--compact .agch-quick__slot { width: 100%; height: auto; aspect-ratio: 1; }
+.agch-app .agch-ctop { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: var(--ag-space-1) var(--ag-space-2); }
+.agch-app .agch-ctop > .agch-cchips { margin-top: 0; }
