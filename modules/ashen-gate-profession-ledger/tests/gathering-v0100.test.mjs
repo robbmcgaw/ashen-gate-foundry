@@ -11,9 +11,10 @@ const values={partyRoster:['belwar','tarra'],libraryData:{schema:'ag-ledger/0.1'
 const gm={id:'gm',isGM:true,name:'GM',active:true},alice={id:'u1',isGM:false,name:'Alice',active:true},bob={id:'u2',isGM:false,name:'Bob',active:true};
 const users=[gm,alice,bob];
 const esc=s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;');
-let confirmAnswer=true;
+let confirmAnswer=true,waitForm=null;
 class FakeDialog{constructor(opts){this.opts=opts;dialogs.push(this);}render(){this.rendered=true;return this;}async close(){this.closed=true;}
-  static async wait(opts){FakeDialog.last=opts;return confirmAnswer;}
+  // waitForm set: run the default button's real callback against these form elements (what Foundry does on click).
+  static async wait(opts){FakeDialog.last=opts;if(!waitForm)return confirmAnswer;const b=opts.buttons.find(x=>x.default);return b.callback({},{form:{elements:waitForm}});}
   click(action,form={}){return this.opts.buttons.find(b=>b.action===action).callback?.({},{form:{elements:form}});}}
 globalThis.foundry={applications:{api:{ApplicationV2:class{async _prepareContext(){return {};}render(){this.rendered=true;return this;}},HandlebarsApplicationMixin:c=>c,DialogV2:FakeDialog}},utils:{escapeHTML:esc,randomID:()=>`id${Math.random().toString(36).slice(2,10)}`}};
 globalThis.Hooks={once:(n,f)=>hooks[n]=f,on:()=>{},callAll:(name,data)=>xpHooks.push({name,data})};
@@ -441,6 +442,27 @@ test('Enchanting: old Arcana data resolves to it; the default check is the Arcan
  // A recipe with no tool of its own rolls Arcana only.
  rolls.length=0;await app._click('craft','REC-TG-CHARM',{actor:'belwar'});
  assert.doesNotMatch(FakeDialog.last.content,/<select name="check">/);assert.match(FakeDialog.last.content,/Arcana check/);assert.equal(rolls.at(-1).skill,'arc');
+});
+
+// 0.25.1: the check picked in the Craft dialog is the one rolled and shown on the card (it used to be dropped).
+test('craft: the check picked in the dialog is rolled and recorded; no pick keeps the default',async()=>{
+ game.user=alice;app.actorId='belwar';
+ try{
+  // Belwar carries Jeweler’s Tools (previous test), so the tool is the default; the player picks Arcana with advantage.
+  waitForm={check:{value:'skill:arc'},mode:{value:'1'}};belwar.nextRoll=17;rolls.length=0;
+  await app._click('craft','REC-TG-RING',{actor:'belwar'});
+  assert.match(FakeDialog.last.content,/value="tool:jeweler" selected/);
+  assert.deepEqual(rolls.at(-1),{actor:'belwar',skill:'arc',advantage:true,disadvantage:false});
+  assert.match(chats.at(-1).content,/Arcana check:<\/strong> 17 with advantage/);
+  // A form with no check field (single-check recipes have none) rolls the default.
+  waitForm={mode:{value:'0'}};rolls.length=0;
+  await app._click('craft','REC-TG-RING',{actor:'belwar'});
+  assert.equal(rolls.at(-1).tool,'jeweler');assert.match(chats.at(-1).content,/Jeweler’s Tools check:<\/strong>/);
+  // An unknown value is ignored, not rolled.
+  waitForm={check:{value:'skill:nope'},mode:{value:'0'}};rolls.length=0;
+  await app._click('craft','REC-TG-RING',{actor:'belwar'});
+  assert.equal(rolls.at(-1).tool,'jeweler');
+ }finally{waitForm=null;}
 });
 
 // 0.10.2: every blocked gathering path says why and how to fix it.
