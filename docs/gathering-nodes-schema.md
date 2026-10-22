@@ -86,7 +86,7 @@ A Location gathering entry may refer to a template:
 
 The template gives the activity, professions, check and material tables. The entry gives what belongs to the place: `tier` (inside the template's range; else its lowest), and optionally `label`, `dc`, `dcVisible`, `finite`, `note`, plus play state (`exhausted`, `available`, `visible`). If the template has been deleted, the entry stays in the Location; the Ledger shows "Node template NODE-… no longer exists" and nothing can be gathered there until the GM points it at another node. Deleting a template that Locations refer to asks first and names those Locations.
 
-Ledger API for Locations (GM only): `templates.resolve(entry)` gives the node the Ledger gathers for an entry; `templates.playerView(id, {tier})` gives what a Location may publish to players (no chances, no Exotic candidates, the DC only when `dcVisible`). Locations versions that store nodes inline (1.17.x) keep working as before.
+Ledger API for Locations (GM only): `templates.resolve(entry)` gives the node the Ledger gathers for an entry; `templates.playerView(id, {tier})` gives what a Location may publish to players (no chances, no Exotic candidates, the DC only when `dcVisible`). Locations versions that store nodes inline (1.17.x) keep working as before. (Locations 1.18.0 was renumbered 0.18.0; it is the node-template version.)
 
 ## Copying Location nodes (migration)
 

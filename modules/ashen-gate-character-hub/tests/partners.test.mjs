@@ -329,3 +329,15 @@ test('clicks inside an embedded view are left to the partner', async () => {
   const inside = {dataset: {action: 'help'}, closest: sel => sel === '.agch-embed' ? {} : null};
   assert.equal(await sheet._onClickAction({}, inside), null);
 });
+
+test('0.31.1: Locations renumbered to 0.18.0 still gets its panel, Open and embedded view (API detected, no version compare)', async () => {
+  const mods = partners();
+  mods['ashen-gate-locations'] = {...mods['ashen-gate-locations'], version: '0.18.0'};
+  mods['ashen-gate-locations'].api.embed = {modes: ['character'], mount: () => ({unmount() {}, refresh() {}})};
+  installGlobals({user: users.gm, modules: mods});
+  assert.equal(state('ashen-gate-locations').state, 'ok');
+  assert.match(state('ashen-gate-locations').html, /Millbrook/);
+  assert.ok(embedApi('ashen-gate-locations', 'character'), 'embed offered by a 0.18.0 Locations is used');
+  await openPartner(makeActor(), 'ashen-gate-locations', 'LOC-TEST-MILL');
+  assert.deepEqual(calls.at(-1), ['loc.openLocation', 'LOC-TEST-MILL']);
+});

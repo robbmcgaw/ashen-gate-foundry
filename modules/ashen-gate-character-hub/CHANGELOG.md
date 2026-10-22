@@ -7,6 +7,11 @@
 - Full mode is unchanged.
 - Saved data: no change. No migration.
 
+## 0.31.1 — 2026-10-22
+
+- **Locations 0.18.0.** Locations was renumbered from 1.18.0 to 0.18.0 (the suite is pre-release). The Hub already finds Locations' panel and embedded view by its API, never by version number, so nothing changes in play; the README's partner table now says so, and a test covers a Locations reporting 0.18.0.
+- Saved data: unchanged. No migration.
+
 ## 0.31.0 — 2026-10-22
 
 - **Combat lists like the others.** Combat now groups by main category: **Combat** (weapons, armor, shields), **Professions** (tools, and items whose Ashen Gate id starts with PROF-, REC- or MAT-), **Consumables**, **Features** and **Trinkets** (everything else, e.g. rings and wondrous items), each with a count. **Group** (Category, Action type, No groups) and **Sort** (Name, Equipped first, Action type, Has uses first) are remembered per user like Magic and Features. Filter chips: an action type, **Hide unequipped** (weapons and gear carried but not equipped), **Has uses**, **Uses left**, **Clear filters**. Favourites show at the top. The search, selects and chips stay at the top of the list while it scrolls.

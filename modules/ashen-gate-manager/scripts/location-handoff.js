@@ -46,11 +46,11 @@ export async function applyLocations(records, api, {updateExisting = false} = {}
   ];
 }
 
-// ---------- Routes (Locations 1.10.0+) ----------
+// ---------- Routes (Locations with importRoutes/listRoutes: old 1.10.0+, every 0.18.0+) ----------
 export const isRouteRecord = record => record?.entity_type === 'Route';
 const LOC_ID = /^LOC-[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
 
-/** The Locations API when it can import routes (1.10.0+); otherwise null. */
+/** The Locations API when it can import routes (feature-detected, never by version number); otherwise null. */
 export function routesApi(game) {
   const api = locationsApi(game);
   return api && typeof api.importRoutes === 'function' && typeof api.listRoutes === 'function' ? api : null;
@@ -69,7 +69,7 @@ export function routeEnds(record) {
  * routes). `locationIds`: LOC ids in the world plus those this import run will create.
  */
 export function planRoute(record, {existingIds = null, locationIds = new Set(), includeDrafts = false, updateExisting = false} = {}) {
-  if (!existingIds) return skipped('Locations 1.10.0 or later is not active: enable or update Locations to import routes.');
+  if (!existingIds) return skipped('Locations with route import is not active: enable or update Locations to import routes.');
   if (BLOCKED_STATUSES.has(record.status)) return {action: 'blocked', reason: `${record.status} records cannot be imported.`};
   if (record.status !== 'approved' && !includeDrafts) return skipped('Unapproved record; enable Include drafts to test.');
   const [from, to] = routeEnds(record);
@@ -89,13 +89,13 @@ export function planRoute(record, {existingIds = null, locationIds = new Set(), 
 /** Warning shown with the preview when Route records cannot be imported. */
 export function routesNote(records, api) {
   const n = records.filter(isRouteRecord).length;
-  return n && !api ? `${n} route record${n === 1 ? '' : 's'} skipped: enable Locations 1.10.0 or later` : null;
+  return n && !api ? `${n} route record${n === 1 ? '' : 's'} skipped: enable or update Locations (route import)` : null;
 }
 
 /** Sends the selected Route records to Locations (after the locations) and turns its report into import-log results. */
 export async function applyRoutes(records, api, {updateExisting = false} = {}) {
   if (!records.length) return [];
-  if (!api) return records.map(r => ({id: r.id, kind: 'Route', status: 'skipped', message: 'Locations 1.10.0 or later is not active.'}));
+  if (!api) return records.map(r => ({id: r.id, kind: 'Route', status: 'skipped', message: 'Locations with route import is not active.'}));
   let report;
   try { report = await api.importRoutes(records, {mode: updateExisting ? 'update' : 'skip'}); }
   catch (error) { return records.map(r => ({id: r.id, kind: 'Route', action: 'create', status: 'error', message: String(error?.message ?? error)})); }

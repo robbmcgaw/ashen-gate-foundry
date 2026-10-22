@@ -1,4 +1,6 @@
-# Location gathering entries (Ashen Gate Locations 1.18.0+)
+# Location gathering entries (Ashen Gate Locations 0.18.0+, first released as 1.18.0)
+
+> Locations was renumbered from 1.18.0 to 0.18.0 (the suite is pre-release); "1.18.0" below means the same code as 0.18.0.
 
 A Location's `resources` list holds its gathering entries. Each entry is one of two shapes. Both travel in the
 `location` block of an `entity_type: "Location"` record in an `ag-foundry-import/0.2` package (General Manager hands

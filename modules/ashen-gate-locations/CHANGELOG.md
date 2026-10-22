@@ -1,3 +1,10 @@
+## 0.18.0 — 2026-10-22
+
+- Version renumbered from 1.18.0 to 0.18.0. Foundry will not offer this as an update because the number is lower: uninstall and reinstall Locations from its manifest URL (`https://raw.githubusercontent.com/robbmcgaw/ashen-gate-foundry/main/modules/ashen-gate-locations/module.json`); your world data is kept (it lives in the world, not the module).
+- No other change: 0.18.0 is the same code as 1.18.0. The entries below keep their old 1.x numbers.
+- Other Ashen Gate modules detect Locations features by its API, not its version number, so they keep working with 0.18.0 (General Manager 0.45.1 stopped comparing Locations versions in its Pre-session check).
+- Saved data: unchanged. No migration.
+
 ## 1.18.0 — 2026-10-22
 
 - **Node templates (Profession Ledger 0.25.0+):** under *Gathering Resources*, choose a node template (grouped by activity) and click **Add node**. The entry stores only a reference (`nodeId: 'NODE-…'`) plus what belongs to the place: its name here, tier (inside the template's range), DC, whether players see the DC, finite, available and a note. Leave a field blank / on *Template* to use the template's value. The template's name, activity, tier range and materials are shown read only; **Gathering Nodes** / **Open in Ledger** opens the Ledger's Gathering Nodes tab to edit them.
