@@ -1,3 +1,13 @@
+## 0.15.0 — 2026-10-22
+
+- **Quests tab views:** All, Drafts, Hidden, Active (Available or Active), Completed / Failed, Orders and Contracts, each with a count. Your last view, sort, grouping and editor sections come back next time (per GM).
+- **Cleaner quest cards:** type badge (Quest / Order / Contract), status, *Visible to players* or *GM only*, location, giver or faction when the quest names one (typed refs such as `quest_giver`, `issued_by`, `offered_by_faction`); without one, the quest's source / issuer notes show as its **Source** line, in full, audience (Party, or Individual with the character), objectives done (2/5), rewards (item rewards and the suggested-rewards text, where coin is written) and when it last changed. Text wraps; nothing is cut off.
+- **Group and sort:** group by status, location, type or giver; sort by title, status, location or recently changed (also type and ID). Group by giver uses that Source text when there is no typed giver. Search matches title, ID, location (ID or name), giver or Source text, tags (when a quest file has them) and the individual character. New quest sits on the right of the toolbar.
+- **Editor:** sections that fold open and closed (Basics, Audience, Objectives, Rewards, Campaign status and reveal, GM notes). One save bar stays at the bottom of the editor: Cancel on the left, **Save changes** on the right, and a clear *Unsaved changes* note (also in the editor header). One save writes the definition and the campaign state together. Objective progress and reveal sit beside each objective. The scroll and focus behaviour from 0.14.0 is kept. Item rewards and delegated assignments still save on their own.
+- **Bulk actions** on ticked quests: set status, hide, reveal, duplicate (a GM-only draft copy with a new `-COPY` id) and delete. Set status, reveal and delete ask first and say which quests players will newly see; delete has a red, labelled button. A bulk reveal never publishes a draft or a GM-only definition. A quest that can't be changed is listed with the reason; the others still change.
+- Drafts stay GM only: a new quest is saved Hidden as a draft, as before.
+- Saved data: new per-user flag `gmView` (view, sort, grouping, editor sections). Quests themselves are stored as before. No migration.
+
 ## 0.14.0 — 2026-10-22
 
 - **No journals pop open.** Assigning, revealing or completing a quest, or giving rewards, no longer opens journal pages or entries on anyone's screen (journals and reward items are created with their sheet closed; a player's client also closes a Quest Log journal that opens by itself right after the GM wrote it).

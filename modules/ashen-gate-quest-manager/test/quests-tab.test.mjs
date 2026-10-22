@@ -40,7 +40,7 @@ test('filters: type, status, location, visibility, search',()=>{
  assert.deepEqual(filterRows(rows,{location:'LOC-MILL'}).map(r=>r.id),['QUEST-AVAIL']);
  assert.equal(filterRows(rows,{visible:'yes'}).length,3);assert.equal(filterRows(rows,{visible:'no'}).length,5);
  assert.deepEqual(filterRows(rows,{search:'escort'}).map(r=>r.id),['CONTRACT-ESCORT']);
- assert.deepEqual(listQuestsTab(data,{location:'LOC-PIER'}).locations,['LOC-MILL','LOC-PIER']);
+ assert.deepEqual(listQuestsTab(data,{location:'LOC-PIER'}).locations,[['LOC-MILL','LOC-MILL'],['LOC-PIER','LOC-PIER']]);
 });
 test('sort and group',()=>{
  const rows=data.map(questRow);
@@ -65,28 +65,34 @@ test('Quests tab toolbar offers New, Import and Export; cards are selectable',()
  assert.match(questCards([],null,{total:3}),/Nothing matches[\s\S]*data-action="clear-filters"/);
  assert.match(questCards([],null,{total:0}),/No quests yet[\s\S]*data-action="new"/);
 });
-test('toolbar order: search, status chips, filters, count, then New quest (plain, not gold) with Import/Export small',()=>{
- const html=questsToolbar({status:'Active'},['LOC-PIER'],{shown:2,total:8});
+test('toolbar order: search, filters, group, sort, count, then Import/Export small and New quest (plain, not gold) on the right',()=>{
+ const html=questsToolbar({group:'location',sort:'changed'},[['LOC-PIER','[TEST] Pier']],{shown:2,total:8});
  const at=k=>html.indexOf(k);
- assert.ok(at('ag-search')<at('ag-chip-group')&&at('ag-chip-group')<at('ag-toolbar__count')&&at('ag-toolbar__count')<at('ag-toolbar__end'));
+ assert.ok(at('ag-search')<at('ag-toolbar__filters')&&at('ag-gm-group')<at('ag-gm-sort')&&at('ag-gm-sort')<at('ag-toolbar__count')&&at('ag-toolbar__count')<at('ag-toolbar__end'));
+ assert.ok(at('data-action="export"')<at('data-action="new"'),'New quest is the rightmost control');
  assert.match(html,/2 of 8 quests/);
- assert.match(html,/data-qv-status="Active" aria-pressed="true"/);
- assert.match(html,/data-qv-status="Failed" aria-pressed="false"/);
+ assert.match(html,/<option value="LOC-PIER" >\[TEST\] Pier<\/option>/);
+ assert.match(html,/<option value="location" selected>Group: Location/);assert.match(html,/<option value="changed" selected>Sort: Recently changed/);
+ for(const g of ['status','location','type','giver'])assert.match(html,new RegExp(`value="${g}"[^>]*>Group:`));
+ for(const s of ['name','status','location','changed'])assert.match(html,new RegExp(`value="${s}"[^>]*>Sort:`));
  assert.match(html,/data-action="new" class="ag-btn"><i class="fa-solid fa-plus" aria-hidden="true"><\/i> New quest/);
  assert.match(html,/data-action="import" class="ag-btn ag-btn--sm"/);
- assert.doesNotMatch(html,/ag-btn--primary|\stitle=/);
+ assert.doesNotMatch(html,/ag-btn--primary|\stitle=|data-qv-status/);
 });
-test('quest rows: left-aligned kit rows with objectives done/total, bar and status badge, grouped with counts',()=>{
+test('quest cards: pick box, title, type badge, status chip, visibility, objectives done/total, grouped with counts',()=>{
  const rows=[entry(src('QUEST-TWO','[TEST] Two',{objectives:[{key:'a',goal:'g',visibility:'player'},{key:'b',goal:'h',visibility:'player'}]}),{status:'Active',revealed:true,progress:{a:'complete'}})];
  const r=listQuestsTab(rows);
  assert.equal(r.groups[0].rows[0].done,1);assert.equal(r.groups[0].rows[0].total,2);
  const html=questCards(r.groups,'QUEST-TWO',{total:1});
  assert.match(html,/<h3 class="ag-eyebrow agq-group__head">Active <span class="agq-group__count">1<\/span>/);
- assert.match(html,/<button type="button" class="ag-row agq-row is-selected" data-action="gm-select" data-id="QUEST-TWO" aria-current="true">/);
- assert.match(html,/aria-valuenow="1"[^>]*>|aria-valuemax="2" aria-valuenow="1"/);
+ assert.match(html,/<div class="ag-row agq-card is-selected" data-qid="QUEST-TWO"><label class="agq-card__pick"><input type="checkbox" data-pick="QUEST-TWO"><span class="ag-sr-only">Select \[TEST\] Two<\/span><\/label>/);
+ assert.match(html,/<button type="button" class="agq-card__main" data-action="gm-select" data-id="QUEST-TWO" aria-current="true">/);
+ assert.match(html,/aria-valuemax="2" aria-valuenow="1"/);
  assert.match(html,/>1\/2</);assert.match(html,/--ag-meter:50%/);
+ assert.match(html,/agq-kind agq-kind--quest"><i class="fa-solid fa-scroll" aria-hidden="true"><\/i>Quest<\/span>/);
  assert.match(html,/<span class="ag-badge ag-badge--accent">Active<\/span>/);
- assert.match(html,/ag-badge--ok"[^>]*data-tooltip="Players can see this quest"/);
+ assert.match(html,/ag-badge--ok"[^>]*data-tooltip="Players can see this quest"[^>]*>.*Visible to players/);
+ assert.match(html,/Audience: <\/span>Party/);
 });
 test('buttons: kit classes, tooltips instead of title, icon-only buttons are labelled',()=>{
  assert.equal(safeButton('Save','save-source',{kind:'primary'}),'<button type="button" data-action="save-source" class="ag-btn ag-btn--primary">Save</button>');

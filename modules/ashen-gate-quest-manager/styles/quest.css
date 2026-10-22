@@ -4,6 +4,48 @@
 .agq-root { min-height: 0; }
 .agq-pane { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .agq-toolbar { margin: 0; padding: var(--ag-space-2) var(--ag-space-4); border-bottom: 1px solid var(--ag-border); }
+/* 0.15.0 GM Quests tab: sub-views with counts under the tab strip; they wrap rather than clip. */
+.agq-subbar { padding: var(--ag-space-2) var(--ag-space-4) 0; }
+.agq-subnav { flex-wrap: wrap; max-width: 100%; }
+.agq-subnav > button { display: inline-flex; align-items: center; white-space: nowrap; }
+
+/* GM quest cards: pick box, then title and badges, facts, progress / rewards / last change. Text wraps, never clips. */
+.agq-card { align-items: flex-start; gap: var(--ag-space-2); padding-block: var(--ag-space-2); }
+.agq-card.is-picked { border-left-color: color-mix(in srgb, var(--ag-accent) 50%, transparent); }
+.agq-card__pick { flex: none; display: inline-flex; padding-top: var(--ag-space-1); cursor: pointer; }
+.agq-card__main { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: stretch; gap: var(--ag-space-1); padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; font-weight: 400; text-align: left; white-space: normal; }
+.agq-card__main:hover:not(:disabled) { background: transparent; }
+.agq-card__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--ag-space-1) var(--ag-space-2); }
+.agq-card__badges { display: inline-flex; flex-wrap: wrap; gap: var(--ag-space-1); }
+.agq-card__facts,
+.agq-card__stats { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1) var(--ag-space-3); color: var(--ag-muted); font-size: var(--ag-text-sm); }
+.agq-card__fact { display: inline-flex; align-items: baseline; gap: var(--ag-space-1); min-width: 0; overflow-wrap: anywhere; }
+.agq-card__fact > i { flex: none; }
+:is(.agq-card:hover, .agq-card.is-selected) :is(.agq-card__facts, .agq-card__stats) { color: var(--ag-muted-strong); }
+.agq-kind > i { margin-right: var(--ag-space-1); }
+
+/* Bulk bar over the list */
+.agq-bulk { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1) var(--ag-space-2); padding: var(--ag-space-2); border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--ag-surface-sunken); }
+.agq-bulk--idle { border-style: dashed; background: transparent; }
+.agq-bulk--idle .ag-field__hint { margin: 0; }
+.agq-bulk__count { font-weight: 600; }
+.agq-bulk__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1); }
+.agq-bulk__status select { width: auto; }
+
+/* Quest editor: collapsible sections, sticky save bar */
+.agq-edit { display: flex; flex-direction: column; padding-bottom: 0; }
+.agq-source { display: flex; flex-direction: column; gap: var(--ag-space-2); }
+.agq-sec { border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--ag-surface); }
+.agq-sec__head { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--ag-space-1) var(--ag-space-3); padding: var(--ag-space-2) var(--ag-space-3); cursor: pointer; }
+.agq-sec[open] > .agq-sec__head { border-bottom: 1px solid var(--ag-border); }
+.agq-sec__title { font-weight: 650; }
+.agq-sec__summary { color: var(--ag-muted); font-size: var(--ag-text-sm); overflow-wrap: anywhere; }
+.agq-sec__body { padding: var(--ag-space-2) var(--ag-space-3) var(--ag-space-3); }
+.agq-sec__body > .agq-rewards { margin-top: var(--ag-space-3); }
+.agq-savebar { position: sticky; bottom: 0; z-index: 1; margin: var(--ag-space-3) calc(-1 * var(--ag-space-4)) 0; border-top: 1px solid var(--ag-border); background: var(--ag-surface); }
+.agq-savebar.is-dirty { border-top-color: var(--ag-accent); }
+.agq-savebar.is-dirty .ag-footer__status { color: var(--ag-text); font-weight: 600; }
+.agq-edit__head .agq-dirty-badge { margin-right: auto; }
 
 /* List column (player tabs and the GM Quests tab) */
 .agq-list { display: flex; flex-direction: column; gap: var(--ag-space-3); padding: var(--ag-space-3); }
@@ -15,9 +57,7 @@
 .agq-group__head { display: flex; align-items: center; gap: var(--ag-space-2); margin: var(--ag-space-2) 0 0; }
 .agq-group__count { color: var(--ag-text); font-variant-numeric: tabular-nums; letter-spacing: 0; }
 
-/* Rows: title, meta, then objectives count + bar + badges on their own line so nothing is clipped */
-.agq-row { flex-wrap: wrap; }
-.agq-row .agq-row__end { flex: 1 1 100%; flex-wrap: wrap; margin-left: 0; }
+/* Player rows: title, meta, then badges and the objectives bar */
 .agq-row__stats { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); margin-top: var(--ag-space-1); }
 .agq-prow { align-items: flex-start; padding-block: var(--ag-space-2); }
 .agq-prow__main { flex: 1 1 auto; min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 0; padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; font-weight: 400; text-align: left; }
@@ -26,7 +66,6 @@
 .agq-track { flex: none; display: inline-flex; align-items: center; gap: var(--ag-space-1); color: var(--ag-muted); font-size: var(--ag-text-sm); cursor: pointer; }
 .agq-meter { display: inline-flex; align-items: center; gap: var(--ag-space-2); }
 .agq-meter .ag-meter__track { width: 4rem; height: var(--ag-space-1); }
-.agq-meta-loc { white-space: normal; }
 .agq-mono { font-family: var(--ag-font-mono); }
 
 /* Reading pane and editor */
@@ -42,7 +81,8 @@
 .agq-location { cursor: pointer; }
 .agq-actions { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); margin: var(--ag-space-2) 0; }
 .agq-footer { margin: var(--ag-space-3) 0; border: 1px solid var(--ag-border); border-radius: var(--ag-radius); }
-.agq-srcobj { display: grid; grid-template-columns: minmax(6rem, 1fr) minmax(10rem, 3fr) minmax(9rem, 1.5fr); gap: 0 var(--ag-space-3); padding: var(--ag-space-2) 0; border-bottom: 1px solid var(--ag-border); }
+.agq-srcobj { display: grid; grid-template-columns: minmax(6rem, 1fr) minmax(10rem, 3fr) minmax(9rem, 1.5fr) minmax(7rem, 1fr) auto; align-items: end; gap: var(--ag-space-2) var(--ag-space-3); padding: var(--ag-space-2) 0; border-bottom: 1px solid var(--ag-border); }
+.agq-srcobj__reveal { padding-bottom: var(--ag-space-2); white-space: nowrap; }
 .agq-srcobj .ag-field { margin: 0; }
 .agq-objctls { margin: 0 0 var(--ag-space-3); }
 .agq-objctl { flex-wrap: wrap; padding-block: var(--ag-space-2); }
@@ -70,6 +110,7 @@
 .agq-rewards-view .ag-row { gap: var(--ag-space-2); }
 @container (max-width: 40rem) {
   .agq-srcobj { grid-template-columns: minmax(0, 1fr); }
+  .agq-srcobj__reveal { padding-bottom: 0; }
 }
 
 /* GM Setup: settings, then the Cancel / Save Changes footer */
