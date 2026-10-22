@@ -375,14 +375,19 @@ export function createHubSheetClass(Base) {
     }
 
     _replaceHTML(result, content) {
+      // Listeners first (0.30.0): a new content element is bound before anything below can throw, so a redraw that
+      // fails half-way never leaves a reopened Hub without its change listener (Group / Sort, GM Setup switches ...).
+      const fresh = this._agchBound !== content;
+      if (fresh) this._bindContent(content);
       // Quiet redraws (0.29.4, redraw.mjs): nothing changes when the HTML is the same; otherwise scroll positions (per
       // tab) and the focused field survive the redraw, so a change made by someone else never moves the player.
-      const view = this.compact ? 'compact' : this.tab, same = this._agchBound === content;
+      const view = this.compact ? 'compact' : this.tab, same = !fresh;
       if (same && this._agchHtml === result && this._agchShown === view) {
         for (const m of this._embeds.values()) { try { m.handle?.refresh?.(); } catch {} }
       } else {
         if (same && this._agchShown) this._agchScroll[this._agchShown] = captureScroll(content);
         const focus = same && this._agchShown === view ? captureFocus(content) : null;
+        this._agchHtml = null;   // what is on screen is unknown until this redraw has finished
         content.innerHTML = result;
         mountEmbeds(content, this._embeds);
         applyFilter(content, this.filters[this.tab] ?? '');
@@ -392,38 +397,41 @@ export function createHubSheetClass(Base) {
       }
       applyCompactOpacity(this);
       this._drawUndo(content);
-      // Listeners live on the content element, bound once per element. Foundry builds a new window (and content element)
-      // each time a closed Hub is opened again, so a once-per-sheet flag left a reopened Hub with no change, drop,
-      // right-click or double-click listeners (0.29.3: GM Setup checkboxes did nothing).
-      if (this._agchBound !== content) {
-        content.addEventListener?.('change', ev => this._onHubChange(ev));
-        content.addEventListener?.('input', ev => {
-          if (ev.target?.matches?.('[data-filter]')) { this.filters[this.tab] = ev.target.value; applyFilter(content, ev.target.value); }
-          if (ev.target?.matches?.('[data-compact-opacity]')) applyCompactOpacity(this, ev.target.value);
-        });
-        content.addEventListener?.('change', ev => { if (ev.target?.matches?.('[data-compact-opacity]')) saveCompactOpacity(ev.target.value); });
-        content.addEventListener?.('contextmenu', ev => this._onContextMenu(ev));
-        content.addEventListener?.('click', ev => this._onOutsideClick(ev));
-        content.addEventListener?.('dblclick', ev => ev.target?.closest?.('[data-art-edit]') ? this._onArtEdit(ev) : this._onHpBarOpen(ev));
-        content.addEventListener?.('keydown', ev => {
-          if ((ev.key === 'Enter' || ev.key === ' ') && ev.target?.matches?.('[data-hp-bar]')) { this._onHpBarOpen(ev); return; }
-          if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(ev.key) && ev.target?.matches?.('.ag-segmented > [role="radio"]')) { ev.preventDefault(); segmentStep(ev.target, ev.key === 'ArrowLeft' || ev.key === 'ArrowUp' ? -1 : 1); return; }
-          if (ev.key === 'Enter' && ev.target?.matches?.('[data-hpedit]')) { ev.preventDefault(); this.dispatch('hp-apply', ev.target, ev); }
-        });
-        content.addEventListener?.('submit', ev => ev.preventDefault());
-        content.addEventListener?.('dragover', ev => {
-          if (ev.target?.closest?.('[data-drop-companion], [data-hotbar-slot], [data-cinder-drop]')) ev.preventDefault();
-          this._dropHighlight(ev.target?.closest?.('[data-cinder-drop]'));
-        });
-        content.addEventListener?.('dragleave', ev => { if (!ev.relatedTarget?.closest?.('[data-cinder-drop]')) this._dropHighlight(null); });
-        content.addEventListener?.('drop', ev => ev.target?.closest?.('[data-hotbar-slot]') ? this._onHotbarDrop(ev)
-          : ev.target?.closest?.('[data-cinder-drop]') ? this._onSocketDrop(ev) : this._onCompanionDrop(ev));
-        content.addEventListener?.('dragstart', ev => onItemDragStart(ev));
-        this._agchBound = content;
-      }
       syncEscape(this);   // Escape closes an open menu/editor only, wherever focus is (escape.mjs)
       syncQuickKeys(this);   // quick bar keys in a popped-out Hub's own window (quick-keys.mjs)
       try { const a = globalThis.game?.modules?.get('ashen-gate-manager')?.api?.appearance; if (a?.contract === 'ag-appearance/0.1-beta') a.applyTo?.(content); } catch {}
+    }
+
+    /**
+     * Listeners live on the content element, bound once per element. Foundry builds a new window (and content element)
+     * each time a closed Hub is opened again, so a once-per-sheet flag left a reopened Hub with no change, drop,
+     * right-click or double-click listeners (0.29.3: GM Setup checkboxes did nothing).
+     */
+    _bindContent(content) {
+      this._agchBound = content;
+      content.addEventListener?.('change', ev => this._onHubChange(ev));
+      content.addEventListener?.('input', ev => {
+        if (ev.target?.matches?.('[data-filter]')) { this.filters[this.tab] = ev.target.value; applyFilter(content, ev.target.value); }
+        if (ev.target?.matches?.('[data-compact-opacity]')) applyCompactOpacity(this, ev.target.value);
+      });
+      content.addEventListener?.('change', ev => { if (ev.target?.matches?.('[data-compact-opacity]')) saveCompactOpacity(ev.target.value); });
+      content.addEventListener?.('contextmenu', ev => this._onContextMenu(ev));
+      content.addEventListener?.('click', ev => this._onOutsideClick(ev));
+      content.addEventListener?.('dblclick', ev => ev.target?.closest?.('[data-art-edit]') ? this._onArtEdit(ev) : this._onHpBarOpen(ev));
+      content.addEventListener?.('keydown', ev => {
+        if ((ev.key === 'Enter' || ev.key === ' ') && ev.target?.matches?.('[data-hp-bar]')) { this._onHpBarOpen(ev); return; }
+        if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(ev.key) && ev.target?.matches?.('.ag-segmented > [role="radio"]')) { ev.preventDefault(); segmentStep(ev.target, ev.key === 'ArrowLeft' || ev.key === 'ArrowUp' ? -1 : 1); return; }
+        if (ev.key === 'Enter' && ev.target?.matches?.('[data-hpedit]')) { ev.preventDefault(); this.dispatch('hp-apply', ev.target, ev); }
+      });
+      content.addEventListener?.('submit', ev => ev.preventDefault());
+      content.addEventListener?.('dragover', ev => {
+        if (ev.target?.closest?.('[data-drop-companion], [data-hotbar-slot], [data-cinder-drop]')) ev.preventDefault();
+        this._dropHighlight(ev.target?.closest?.('[data-cinder-drop]'));
+      });
+      content.addEventListener?.('dragleave', ev => { if (!ev.relatedTarget?.closest?.('[data-cinder-drop]')) this._dropHighlight(null); });
+      content.addEventListener?.('drop', ev => ev.target?.closest?.('[data-hotbar-slot]') ? this._onHotbarDrop(ev)
+        : ev.target?.closest?.('[data-cinder-drop]') ? this._onSocketDrop(ev) : this._onCompanionDrop(ev));
+      content.addEventListener?.('dragstart', ev => onItemDragStart(ev));
     }
 
     /** Observers still need tabs, Help and Open native sheet; Foundry disables every form control otherwise. */
@@ -523,21 +531,41 @@ export function createHubSheetClass(Base) {
       if (html) content.insertAdjacentHTML?.('beforeend', html);
     }
 
-    /** Partner views are unmounted when the sheet closes; pending undos are dropped (the clears stand). */
+    /**
+     * Partner views are unmounted when the sheet closes; pending undos are dropped (the clears stand). Foundry keeps one
+     * sheet per character, so everything that is only "while the Hub is open" is reset here (0.30.0): the Magic and
+     * Features filters, search text, open "More" texts and any open menu start fresh when the Hub is opened again.
+     */
     _onClose(options) {
       unmountEmbeds(this._embeds);
       this._undo?.clear();
       unbindEscape(this); unbindQuickKeys(this);
-      this._agchScroll = {}; this._agchHtml = null; this._agchShown = null;
+      this.resetOpenState();
       return super._onClose?.(options);
     }
+    resetOpenState() {
+      this._agchScroll = {}; this._agchHtml = null; this._agchShown = null; this._dropRow = null;
+      this.listFilters = {magic: {}, features: {}}; this.filters = {}; this.expanded = new Set();
+      this.menu = null; this.condAdd = false; this.journeyEdit = null;
+    }
 
-    /** A click outside the open menu (and not on a menu opener) closes it. */
+    /**
+     * A click outside the open menu (and not on a menu opener) closes it. A click on a field (a Group / Sort select, a
+     * search box, a number) closes the menu without a redraw (0.30.0): redrawing replaced the select whose list had just
+     * opened, so the choice made in it went nowhere and Group / Sort seemed to do nothing.
+     */
     _onOutsideClick(event) {
       if (!this.menu) return null;
       const t = event.target;
       if (t?.closest?.('.agch-menu, [data-action="slot-menu"], [data-action="other-menu"]')) return null;
       this.menu = null;
+      if (t?.closest?.('select, input, textarea, label')) {
+        const root = this.element ?? event.currentTarget;
+        for (const m of root?.querySelectorAll?.('.agch-menu') ?? []) m.remove?.();
+        this._agchHtml = null;   // the screen no longer matches the last HTML, so the next render draws again
+        syncEscape(this);
+        return null;
+      }
       return this.render();
     }
 

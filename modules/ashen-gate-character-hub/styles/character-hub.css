@@ -159,6 +159,9 @@
 .agch-app .agch-tile__value, .agch-app .agch-tile__roll { font-size: var(--ag-text-lg); font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.4; }
 .agch-app .agch-tile__roll { min-height: 0; padding: 0 var(--ag-space-3); }
 .agch-app .agch-tile__more { font-size: var(--ag-text-xs); color: var(--ag-muted); overflow-wrap: anywhere; }
+/* 0.30.0: Initiative and Proficiency fill their box: a larger number, centred under the label. */
+.agch-app .agch-tile--big { grid-template-rows: auto minmax(0, 1fr); align-content: stretch; }
+.agch-app .agch-tile--big > .agch-tile__value, .agch-app .agch-tile--big > .agch-tile__roll { align-self: center; justify-self: stretch; text-align: center; justify-content: center; font-size: calc(var(--ag-text-xl) * 1.35); font-weight: 700; line-height: 1.15; }
 
 /* Hit points: the frame takes kit tokens; the bar's colours are game meaning (the same in every skin). */
 .agch-app .agch-hp { position: relative; display: grid; gap: var(--ag-space-2); padding: var(--ag-space-2); border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--agch-bg-raised);
@@ -223,6 +226,11 @@
 .agch-app .agch-strain__text { color: var(--ag-text); font-weight: 700; }
 .agch-app .agch-strain__band { font-weight: 600; }
 .agch-app .agch-strain__chance { color: var(--ag-muted); }
+/* 0.30.0: the read-only Strain pill beside hit dice and exhaustion (players): a small bar, the value and the band. */
+.agch-app .agch-pill--strain { align-items: center; }
+.agch-app .agch-pill--strain > i { color: var(--ag-warn); }
+.agch-app .agch-pill__meter { display: inline-grid; width: 3.5rem; }
+.agch-app .agch-pill__band { white-space: nowrap; }
 
 /* Abilities */
 .agch-app .agch-abils { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: var(--ag-space-1); }
@@ -251,6 +259,20 @@
 .agch-app .agch-orgsel { display: inline-flex; align-items: center; gap: var(--ag-space-1); font-size: var(--ag-text-sm); color: var(--ag-muted); }
 .agch-app .agch-orgsel select { width: auto; }
 .agch-app .agch-slotstrip, .agch-app .agch-filters { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1); margin: 0 0 var(--ag-space-2); }
+/* 0.30.0: a tab's search, filters (and Inventory's purse) stay at the top while its list scrolls. position: sticky inside
+   the scrolling list (.agch-body; in a narrow window the whole Hub scrolls and the band sticks there). Opaque, above the cards. */
+.agch-app .agch-sticky { position: sticky; top: 0; z-index: 5; margin: 0 0 var(--ag-space-2); padding: var(--ag-space-2) 0 var(--ag-space-1);
+  background: var(--agch-bg); border-bottom: 1px solid var(--ag-border); }
+/* The band brings its own top padding, so the list's padding never leaves a gap above it where cards show through. */
+.agch-app .agch-body:has(> .agch-sticky:first-child) { padding-top: 0; }
+.agch-app .agch-sticky > :last-child { margin-bottom: 0; }
+.agch-app .agch-purse { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2) var(--ag-space-3); }
+.agch-app .agch-purse > .agch-currency { flex: 1 1 auto; }
+.agch-app .agch-weight { flex: 0 1 12rem; min-width: 8rem; grid-template-columns: auto minmax(0, 1fr); }
+.agch-app .agch-weight__label { color: var(--ag-muted); }
+.agch-app .agch-weight > .ag-meter__value { justify-self: end; }
+.agch-app .agch-mastery { white-space: nowrap; }
+.agch-app .agch-mastery.is-off { opacity: .6; }
 .agch-app .agch-filter b { color: var(--ag-text); font-variant-numeric: tabular-nums; }
 .agch-app .agch-filter--clear { border-style: dashed; }
 
@@ -279,6 +301,13 @@
 .agch-app .agch-kv__row > dt, .agch-app .agch-kv__row > dd { padding: var(--ag-space-1) var(--ag-space-3); }
 .agch-app .agch-kv__row > dt { padding-right: var(--ag-space-4); }
 .agch-app .agch-kv__row:nth-child(even) > dt, .agch-app .agch-kv__row:nth-child(even) > dd { background: var(--ag-row-alt); }
+/* 0.30.0: Professions under Proficiencies; the whole box jumps to Ashen Gate → Professions. */
+.agch-app .agch-profbox { display: grid; width: 100%; min-height: 0; padding: 0; border: 1px solid var(--ag-border); border-radius: var(--ag-radius); overflow: hidden; background: transparent; color: var(--ag-text); text-align: left; font: inherit; cursor: pointer; }
+.agch-app .agch-profbox:hover, .agch-app .agch-profbox:focus-visible { border-color: var(--ag-accent); }
+.agch-app .agch-profbox__row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--ag-space-1) var(--ag-space-4); padding: var(--ag-space-1) var(--ag-space-3); }
+.agch-app .agch-profbox__row:nth-child(even) { background: var(--ag-row-alt); }
+.agch-app .agch-profbox__name { overflow-wrap: anywhere; }
+.agch-app .agch-profbox__level { color: var(--ag-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* Item cards (0.11.0): Combat, Inventory, Magic and Features. One grid per list, each row a subgrid, so the column
    headers line up with every row. Kit stripes and rarity edge; a short summary with More; facts in columns. */
@@ -438,7 +467,17 @@
 .agch-app .agch-hotbar__head { margin: 0; font-size: var(--ag-text-sm); color: var(--ag-muted); white-space: nowrap; padding-top: var(--ag-space-2); min-width: 9rem; }
 .agch-app .agch-hotbar__body { min-width: 0; }
 .agch-app .agch-hotbar__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-1); }
-.agch-app .agch-hotbar__targets { margin-left: auto; font-size: var(--ag-text-xs); }
+.agch-app .agch-hotbar__targets { font-size: var(--ag-text-xs); white-space: nowrap; }
+/* 0.30.0: Mastery & marks is one strip that does not fold. The target count, Strain and the title sit together in the
+   right corner; the marks wrap onto more lines and grow to the left of them, never under or over them. */
+.agch-app .agch-hotbar--marks { display: block; }
+.agch-app .agch-marks { display: flex; align-items: center; gap: var(--ag-space-2); min-width: 0; }
+.agch-app .agch-marks__list { flex: 1 1 auto; min-width: 0; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: var(--ag-space-1); }
+.agch-app .agch-marks__list > .agch-placed { margin: 0; }
+.agch-app .agch-marks__empty { text-align: right; }
+.agch-app .agch-marks__end { flex: none; display: flex; align-items: center; gap: var(--ag-space-2); padding-left: var(--ag-space-2); border-left: 1px solid var(--ag-border); }
+.agch-app .agch-marks__title { font-size: var(--ag-text-sm); color: var(--ag-muted); white-space: nowrap; cursor: help; }
+@container (max-width: 640px) { .agch-app .agch-marks { flex-wrap: wrap; } .agch-app .agch-marks__end { flex: 1 1 100%; justify-content: flex-end; border-left: 0; padding-left: 0; } }
 .agch-app .agch-hotbtn { display: inline-flex; align-items: center; gap: var(--ag-space-1); width: auto; min-height: var(--ag-control-h); padding: var(--ag-space-1) var(--ag-space-3) var(--ag-space-1) var(--ag-space-1); border: 1px solid var(--ag-border-strong); border-radius: var(--ag-radius-control); background: var(--agch-bg-raised); color: var(--ag-text); font-size: var(--ag-text-sm); cursor: pointer; }
 .agch-app .agch-hotbtn img { width: calc(var(--ag-control-h) - var(--ag-space-3)); height: calc(var(--ag-control-h) - var(--ag-space-3)); border: 0; border-radius: 50%; object-fit: contain; }
 .agch-app .agch-hotbtn:hover:not(:disabled) { border-color: var(--ag-accent); }
@@ -485,6 +524,10 @@
 .agch-app .agch-companion__head img, .agch-app .agch-chip img { object-fit: cover; object-position: center top; }
 
 @media (prefers-reduced-motion: reduce) { .agch-app .agch-sec__chev, .agch-app .agch-slot__more { transition: none; } }
+
+/* 0.30.0: version and Help stay together at the far right of the header, also when the other buttons wrap. */
+.agch-app .agch-head__meta { margin-left: auto; flex-wrap: nowrap; }
+.agch-app .ag-header__actions { justify-content: flex-end; }
 
 /* Level up (0.27.0): not ready yet, but still clickable so it can say why. */
 .agch-levelup[aria-disabled="true"] { cursor: not-allowed; color: var(--ag-muted-strong); }
