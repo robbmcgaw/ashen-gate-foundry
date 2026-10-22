@@ -49,6 +49,21 @@ test('givers come from typed refs (giver/issuer/faction relations) or a giver st
  assert.deepEqual(questGivers(src('QUEST-X','x',{source:{description:'The miller asked',giver:'[TEST] Miller'}})),['[TEST] Miller']);
  assert.deepEqual(questGivers(src('QUEST-X','x',{source:{description:'Given by the guild'}})),[]);
 });
+test('no typed giver: the source text is the card\'s Source line, searchable and grouped by; typed refs still win',()=>{
+ const long='[TEST] Fosstryn herders\' guild via the Muster, asking quietly for someone they can trust with the south pasture ledgers.';
+ const bySource=entry(src('QUEST-T-SRC','[TEST] Herders',{source:{description:long}}));
+ const bothRef=entry(src('QUEST-T-REF','[TEST] Ref wins',{source:{description:'[TEST] Free text'},refs:[{relation:'quest_giver',target_id:'NPC-TEST-DOVA',mode:'optional'}]}));
+ const sameSource=entry(src('QUEST-T-SRC2','[TEST] Herders two',{source:{description:long}}));
+ const r=[bySource,bothRef,sameSource].map(e=>questRow(e,ctx));
+ assert.equal(r[0].sourceText,long);assert.equal(r[1].sourceText,'','a typed giver ref wins over the free text');
+ const card=questCard(r[0]);
+ assert.ok(card.includes(`Source: </span>${long.replace(/'/g,'&#39;')}`),'the whole text, not shortened');assert.doesNotMatch(card,/Giver:/);
+ assert.match(questCard(r[1]),/Giver: <\/span>NPC-TEST-DOVA/);assert.doesNotMatch(questCard(r[1]),/Source:|Free text/);
+ assert.deepEqual(filterRows(r,{search:'muster'}).map(x=>x.id),['QUEST-T-SRC','QUEST-T-SRC2']);
+ assert.deepEqual(filterRows(r,{search:'free text'}).map(x=>x.id),[],'hidden behind a typed giver, so not matched');
+ assert.deepEqual(groupRows([...r,questRow(entry(src('QUEST-T-NONE','[TEST] None')),ctx)],'giver').map(g=>[g.label,g.rows.map(x=>x.id)]),
+  [[long,['QUEST-T-SRC','QUEST-T-SRC2']],['NPC-TEST-DOVA',['QUEST-T-REF']],['No giver',['QUEST-T-NONE']]]);
+});
 test('group by status, type, location (by name) and giver, with "No location" / "No giver" last; sort by location and recent change',()=>{
  assert.deepEqual(groupRows(rows,'location').map(g=>[g.label,g.rows.length]),[['[TEST] Old Mill',1],['LOC-TEST-PIER',1],['No location',6]]);
  assert.deepEqual(groupRows(rows,'giver').map(g=>g.label),['FAC-TEST-POST','NPC-TEST-DOVA','No giver']);

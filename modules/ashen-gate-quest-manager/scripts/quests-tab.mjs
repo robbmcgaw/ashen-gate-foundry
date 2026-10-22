@@ -28,6 +28,8 @@ export function questGivers(source){
  const named=['giver','faction','issuer'].map(k=>source.source?.[k]).filter(v=>typeof v==='string'&&v.trim()).map(v=>v.trim());
  return [...new Set([...refs,...named].filter(Boolean))];
 }
+// When no typed giver is named, the source descriptor's free text (GM-only issuer notes) is shown as the quest's source.
+export function questSource(source){return questGivers(source).length?'':String(source.source?.description??'').trim();}
 // Tags are optional: a quest file may carry a `tags` list; the Quest Log adds none.
 export const questTags=source=>Array.isArray(source.tags)?source.tags.filter(t=>typeof t==='string'&&t.trim()):[];
 /** GM reward summary: item rows not taken out (name from the row or itemName(itemId)), plus the suggested-rewards text. */
@@ -45,7 +47,7 @@ export function questRow({source,state,changed=null},ctx={}){
  const locName=id=>ctx.locationName?.(id)||id;
  return {id:source.id,name:source.name||source.id,kind:source.objective_kind,kindLabel:KIND_LABELS[source.objective_kind]||source.objective_kind,
   chip:statusChip(source,state),visible:isPlayerVisible(source,state),
-  locations,locationNames:locations.map(locName),givers:questGivers(source),tags:questTags(source),
+  locations,locationNames:locations.map(locName),givers:questGivers(source),sourceText:questSource(source),tags:questTags(source),
   audience:state.scope==='individual'?{scope:'individual',actorId:state.actorId,name:(state.actorId&&ctx.actorName?.(state.actorId))||state.actorId||'No character chosen'}:{scope:'party'},
   rewards:rewardSummary(source,state,ctx.itemName),changed:Number.isFinite(changed)?changed:null,
   summary:String(source.public_summary||''),
@@ -58,10 +60,10 @@ export function locationOptions(rows){
 }
 const subview=key=>SUBVIEWS.find(v=>v.key===key)||SUBVIEWS[0];
 export function navCounts(rows){return Object.fromEntries(SUBVIEWS.map(v=>[v.key,rows.filter(v.test).length]));}
-/** Search matches title, id, location (id or name), giver, tags, audience character, type, status and summary. */
+/** Search matches title, id, location (id or name), giver or source text, tags, audience character, type, status and summary. */
 export function matchesSearch(r,search){
  const q=String(search??'').trim().toLowerCase();if(!q)return true;
- return [r.name,r.id,r.summary,r.kindLabel,r.chip,...r.locations,...(r.locationNames||[]),...(r.givers||[]),...(r.tags||[]),r.audience?.name]
+ return [r.name,r.id,r.summary,r.kindLabel,r.chip,...r.locations,...(r.locationNames||[]),...(r.givers||[]),r.sourceText,...(r.tags||[]),r.audience?.name]
   .some(t=>t!=null&&String(t).toLowerCase().includes(q));
 }
 export function filterRows(rows,v={}){
@@ -80,14 +82,15 @@ export function sortRows(rows,sort='name'){
   changed:(a,b)=>(b.changed??-Infinity)-(a.changed??-Infinity)||byName(a,b)}[sort]||byName;
  return [...rows].sort(cmp);
 }
-/** [{key,label,rows}]; empty groups are dropped. Location and giver groups use the first one (A-Z); "None" last. */
+/** [{key,label,rows}]; empty groups are dropped. Location and giver groups use the first one (A-Z), giver falling back to
+    the source text; "None" last. */
 export function groupRows(rows,group='status'){
  if(group==='none')return [{key:'all',label:'All quests',rows}];
  if(group==='status'||group==='type'){
   const keys=group==='status'?CHIPS:Object.values(KIND_LABELS),keyOf=r=>group==='status'?r.chip:r.kindLabel;
   return keys.map(k=>({key:k,label:k,rows:rows.filter(r=>keyOf(r)===k)})).filter(g=>g.rows.length);
  }
- const keyOf=group==='location'?firstLoc:r=>r.givers?.length?[...r.givers].sort((a,b)=>a.localeCompare(b))[0]:null;
+ const keyOf=group==='location'?firstLoc:r=>r.givers?.length?[...r.givers].sort((a,b)=>a.localeCompare(b))[0]:r.sourceText||null;
  const none=group==='location'?'No location':'No giver';
  const keys=[...new Set(rows.map(keyOf).filter(k=>k!==null))].sort((a,b)=>a.localeCompare(b));
  const out=keys.map(k=>({key:k,label:k,rows:rows.filter(r=>keyOf(r)===k)}));
