@@ -144,7 +144,7 @@ function restoreBtn(actor) {
  * says what a click does. Only for you (client setting).
  */
 export function compactBtn(compact) {
-  const tip = compact ? 'Compact view is on: click for the Full Hub (only for you)' : 'Compact view: only the art, equipment slots, HP and quick bar, in a small window (only for you)';
+  const tip = compact ? 'Compact view is on: click for the Full Hub (only for you)' : 'Compact view: the character column (art, slots, HP, rests, abilities and saves) with marks and the quick bar, in a small window (only for you)';
   return `<button type="button" class="ag-btn ag-btn--ghost agch-compact" data-action="compact-toggle" data-ag-always aria-pressed="${compact}" data-tooltip="${esc(tip)}" aria-label="${esc(tip)}"><i class="fa-solid ${compact ? 'fa-up-right-and-down-left-from-center' : 'fa-down-left-and-up-right-to-center'}" aria-hidden="true"></i><span>${compact ? 'Full' : 'Compact'}</span></button>`;
 }
 /** Pop out / Pop in (0.29.0): Foundry's own detach into a separate browser window; not shown where Foundry can't. */

@@ -1,3 +1,12 @@
+## 0.32.0 — 2026-10-22
+
+- **Compact keeps your stats.** Compact (the narrow view with the quick bar) now has, under the art and slots: **Initiative / Speed / Proficiency** on one slim line (click Initiative to roll; AC joins the line when the slots are hidden), the **hit dice, Short Rest and Long Rest** buttons and the **exhaustion** − / + next to the HP bar, **Strain** (players: the read-only pill beside exhaustion; GM: the row with − / +; same Player visibility switch, nothing without Cinders), the **six abilities** in one row (modifier, score, save underneath; proficient saves highlighted; click to roll a check or a save, right-click to configure) and the **conditions** as a slim chip line with +. Same actions and permissions as Full.
+- **Mastery & marks in Compact** above the quick bar, as in Full: target count, Strain chip, and the marks wrapping to the left.
+- When the column is longer than the window it scrolls inside itself; Mastery & marks and the quick bar stay at the bottom, and the scroll position survives live updates. Nothing scrolls sideways.
+- The **Cinder chips** show under the name in Compact too; clicking one switches to the Full Hub at Ashen Gate → Cinders (Compact has no tabs).
+- Full mode is unchanged.
+- Saved data: no change. No migration.
+
 ## 0.31.0 — 2026-10-22
 
 - **Combat lists like the others.** Combat now groups by main category: **Combat** (weapons, armor, shields), **Professions** (tools, and items whose Ashen Gate id starts with PROF-, REC- or MAT-), **Consumables**, **Features** and **Trinkets** (everything else, e.g. rings and wondrous items), each with a count. **Group** (Category, Action type, No groups) and **Sort** (Name, Equipped first, Action type, Has uses first) are remembered per user like Magic and Features. Filter chips: an action type, **Hide unequipped** (weapons and gear carried but not equipped), **Has uses**, **Uses left**, **Clear filters**. Favourites show at the top. The search, selects and chips stay at the top of the list while it scrolls.
