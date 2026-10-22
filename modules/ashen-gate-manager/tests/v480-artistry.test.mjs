@@ -51,7 +51,7 @@ test('0.48.0: recipe kind and profession category are read the same way as the L
   assert.equal(isActivityRecipe({entity_type: 'Item', kind: 'activity'}), false);
 
   const [prof, ballad, portrait] = SAMPLE.records;
-  assert.deepEqual(professionFacts(prof), {label: 'Creative', fields: [['Profession category', 'Creative']], summary: 'Creative'});
+  assert.deepEqual(professionFacts(prof), {label: 'Creative', fields: [['Profession category', 'Creative']], summary: 'Creative', chips: ['Creative'], searchText: ['Creative']});
   assert.deepEqual(professionFacts({id: 'PROF-TEST-X', entity_type: 'Profession', category: 'creative'}).summary, 'Creative');
   assert.equal(professionFacts(ballad).summary, 'Activity · Short effort · Apprentice');
   assert.deepEqual(professionFacts(ballad).fields, [['Recipe kind', 'Activity'], ['Effort', 'Short'], ['Tier', 'Apprentice'], ['Tools', 'Any musical instrument']]);
@@ -325,4 +325,41 @@ test('0.48.0: Import preview labels Activity and Creative; Apply creates the rec
   for (const r of app.preview) assert.ok(['unchanged', 'update'].includes(r.action), `${r.id}: ${r.action} ${r.reason}`);
   assert.equal(row('PROF-ARTISTRY').action, 'unchanged');
   assert.equal(runtime.collections.items.contents.length, 7);
+});
+
+test('0.49.0: re-importing the Artistry records with an effect note and recipe labels is a metadata refresh, ids unchanged', async () => {
+  const runtime = installMockFoundry();
+  await import(`../scripts/main.js?v490=${Date.now()}${Math.random()}`);
+  runtime.callbacks.once.get('init')?.();
+  runtime.callbacks.once.get('ready')?.();
+  await runtime.managerModule.api.open();
+  const app = runtime.instances.at(-1);
+  await app._onRender({}, {});
+  const load = async data => {
+    const text = JSON.stringify(data);
+    runtime.fileInput.files = [{name: 'AG_Artistry_Test.json', size: text.length, text: async () => text}];
+    runtime.fileInput.value = 'AG_Artistry_Test.json';
+    await runtime.fileInput.listeners.change();
+  };
+  await load(clone(SAMPLE));
+  await waitFor(() => app.preview.length === 3 && app.preview.every(r => r.action === 'create'), 'first preview');
+  await runtime.actions.find(a => a.dataset.agAction === 'select').listeners.click({preventDefault() {}});
+  await waitFor(() => app.selected.size === 3, 'select');
+  await runtime.actions.find(a => a.dataset.agAction === 'apply').listeners.click({preventDefault() {}});
+  await waitFor(() => runtime.settings.has('importHistory') && !app.busy, 'import did not finish');
+
+  const next = JSON.parse(readFileSync(new URL('../samples/AG_Artistry_v0.49.0_Test.json', import.meta.url), 'utf8'));
+  await load(next);
+  await waitFor(() => app.preview.length === 3 && app.preview.every(r => r.action !== 'create'), 'second preview');
+  const row = id => app.preview.find(r => r.id === id);
+  assert.deepEqual(app.errors, []);
+  // Same as any new definition field: Foundry rule fields are untouched, the stored definition is refreshed.
+  assert.equal(row('PROF-ARTISTRY').action, 'metadata', row('PROF-ARTISTRY').reason);
+  assert.match(row('PROF-ARTISTRY').reason, /^Metadata refresh/);
+  // (The ballad's description carries an AGREF marker, so it shows as an update anyway, as in the 0.48.0 re-import above.)
+  assert.ok(['metadata', 'update'].includes(row('REC-TEST-ARTISTRY-BALLAD').action), row('REC-TEST-ARTISTRY-BALLAD').reason);
+  assert.equal(row('PROF-ARTISTRY').detail, 'Creative · Recipe label: [TEST] Piece / [TEST] Pieces');
+  assert.equal(row('REC-TEST-ARTISTRY-BALLAD').detail, 'Activity · Short effort · Apprentice · Effect note');
+  assert.equal(row('REC-TEST-ARTISTRY-PORTRAIT').detail, 'Activity · Long effort · Journeyman');
+  assert.equal(runtime.collections.items.contents.length, 3, 'the same permanent ids are matched: no new documents');
 });

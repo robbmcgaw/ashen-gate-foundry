@@ -1,3 +1,13 @@
+## 0.49.0 — 2026-10-22
+
+For effect notes and recipe names in Profession Ledger 0.29.0. Display only: imports, ids and saved data don't change.
+
+- **Effect notes on activities.** An activity recipe's effect note (`effect_note`, up to 400 characters: a boon the GM decides at the table) shows in Browse as an **Effect note** chip and detail field, and Browse search finds its words. The Import preview row says "Effect note" after the effort and tier. A note on a craft recipe is not shown (the Ledger ignores it).
+- **What a profession calls a recipe.** A Profession record's `recipeLabel` / `recipeLabelPlural` (1–30 characters each) shows in Browse as **Recipe label**, for example "Formula / Formulas", as a chip and detail field, and in the Import preview row. A profession with only a recipe label and no category now shows it too. A label longer than 30 characters is ignored, as in the Ledger.
+- Re-importing a record that gains either field shows as a metadata refresh, as for any new field.
+- New sample: `samples/AG_Artistry_v0.49.0_Test.json` (synthetic [TEST] data) adds an effect note and recipe labels to the Artistry sample.
+- **Content checker** (`scripts/validate-content.mjs`, repo root): notes, not errors, when an effect note isn't text, is over 400 characters or is on a craft recipe, and when a recipe label isn't 1–30 characters of text.
+
 ## 0.48.0 — 2026-10-22
 
 For the new Artistry profession in Profession Ledger 0.28.0.

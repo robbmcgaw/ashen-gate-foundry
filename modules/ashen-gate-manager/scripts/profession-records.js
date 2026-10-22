@@ -6,6 +6,8 @@
  *  - Profession: `profession_kind` crafting | gathering | creative, or `category: "creative"`.
  *  - Recipe: `kind` craft (default) | activity. An activity has no ingredients and no result item; it still imports
  *    as its recipe Item (the learnable item). For an activity `required_tools` are alternatives (any one).
+ *  - 0.49.0 (Ledger 0.29.0), optional and display only: an activity's `effect_note` (or `effectNote`; up to 400 characters,
+ *    a boon the GM decides) and a profession's `recipeLabel` / `recipeLabelPlural` (1–30 characters; its word for a recipe).
  *  - "Any musical instrument" (also "Musical instrument", "music") is a tool group. Manager does not check tool names
  *    (the Ledger resolves them), so a group passes import like any other text.
  */
@@ -35,9 +37,33 @@ const tierLabel = tier => tier === null || tier === undefined || tier === '' ? n
   : /^\d+$/.test(String(tier)) ? `Tier ${tier}` : capital(String(tier).replace(/[-_]+/g, ' '));
 const effortLabel = effort => EFFORT_LABELS[lower(effort)] ?? (effort ? capital(String(effort)) : null);
 
+/** Same rules as the Ledger's effectNoteOf and cleanRecipeLabel (copied: modules stay independent). */
+export const EFFECT_NOTE_MAX = 400;
+export const RECIPE_LABEL_MAX = 30;
+/** An activity's effect note: whitespace collapsed, cut to 400 characters with "…"; null when missing or not text. */
+export function effectNoteOf(record) {
+  const value = record?.effect_note ?? record?.effectNote;
+  if (typeof value !== 'string') return null;
+  const text = value.replace(/\s+/g, ' ').trim();
+  if (!text) return null;
+  return text.length > EFFECT_NOTE_MAX ? `${text.slice(0, EFFECT_NOTE_MAX - 1).trimEnd()}…` : text;
+}
+/** A recipe label as shown: whitespace collapsed, 1–30 characters, else null (ignored). */
+export function cleanRecipeLabel(value) {
+  if (typeof value !== 'string') return null;
+  const text = value.replace(/\s+/g, ' ').trim();
+  return text.length >= 1 && text.length <= RECIPE_LABEL_MAX ? text : null;
+}
+/** "Formula / Formulas" (or just the one that is set) for a Profession record, or null. */
+export function recipeLabelText(record) {
+  const labels = [cleanRecipeLabel(record?.recipeLabel), cleanRecipeLabel(record?.recipeLabelPlural)].filter(Boolean);
+  return labels.length ? labels.join(' / ') : null;
+}
+
 /**
  * Plain facts for a Profession or Recipe record (Manager's source definition), or null for other records.
- * {label: 'Activity' | 'Craft' | 'Creative' | ..., fields: [[label, value]], summary: 'Activity · Short effort · Apprentice'}
+ * {label: 'Activity' | 'Craft' | 'Creative' | ... | null, fields: [[label, value]], summary: 'Activity · Short effort · Apprentice',
+ *  chips: [...], searchText: [...]}
  */
 export function professionFacts(record) {
   if (isRecipeRecord(record)) {
@@ -45,15 +71,20 @@ export function professionFacts(record) {
     const label = activity ? 'Activity' : 'Craft';
     const effort = effortLabel(record.effort), tier = tierLabel(record.tier);
     const tools = Array.isArray(record.required_tools) ? record.required_tools.filter(t => typeof t === 'string' && t.trim()) : [];
+    // 0.49.0: only activities carry an effect note (the Ledger shows it nowhere else).
+    const note = activity ? effectNoteOf(record) : null;
     const fields = [['Recipe kind', label], ['Effort', effort], ['Tier', tier],
-      ['Tools', tools.length ? tools.join(activity ? ' or ' : ', ') : null]].filter(([, v]) => v);
-    return {label, fields, summary: [label, effort ? `${effort} effort` : null, tier].filter(Boolean).join(' · ')};
+      ['Tools', tools.length ? tools.join(activity ? ' or ' : ', ') : null], ['Effect note', note]].filter(([, v]) => v);
+    return {label, fields, summary: [label, effort ? `${effort} effort` : null, tier, note ? 'Effect note' : null].filter(Boolean).join(' · '),
+      chips: [label, note ? 'Effect note' : null].filter(Boolean), searchText: [label, note].filter(Boolean)};
   }
   if (isProfessionRecord(record)) {
-    const category = professionCategory(record);
-    if (!category) return null;
-    const label = CATEGORY_LABELS[category];
-    return {label, fields: [['Profession category', label]], summary: label};
+    const category = professionCategory(record), recipeLabel = recipeLabelText(record);
+    if (!category && !recipeLabel) return null;
+    const label = category ? CATEGORY_LABELS[category] : null;
+    const fields = [['Profession category', label], ['Recipe label', recipeLabel]].filter(([, v]) => v);
+    return {label, fields, summary: [label, recipeLabel ? `Recipe label: ${recipeLabel}` : null].filter(Boolean).join(' · '),
+      chips: [label, recipeLabel ? `Recipe label: ${recipeLabel}` : null].filter(Boolean), searchText: [label, recipeLabel].filter(Boolean)};
   }
   return null;
 }

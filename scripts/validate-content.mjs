@@ -45,7 +45,8 @@ import { validateConfig as validateStrainConfig } from '../modules/ashen-gate-ci
 import { planImport as planFactions } from '../modules/ashen-gate-factions/scripts/import.mjs';
 import { planShopImport, importItemRefs, SHOP_IMPORT_TYPES } from '../modules/ashen-gate-utilities/scripts/core.mjs';
 import { planFacilityImport } from '../modules/ashen-gate-headquarters/js/logic.mjs';
-import { normalizeRecipe } from '../modules/ashen-gate-profession-ledger/scripts/core.mjs';
+import { normalizeRecipe, EFFECT_NOTE_MAX } from '../modules/ashen-gate-profession-ledger/scripts/core.mjs';
+import { cleanRecipeLabel, RECIPE_LABEL_MAX } from '../modules/ashen-gate-profession-ledger/scripts/recipe-labels.mjs';
 import { materialMeta } from '../modules/ashen-gate-profession-ledger/scripts/exotic.mjs';
 import { catalogCrosswalk, PROFESSION_KEYS } from '../modules/ashen-gate-profession-ledger/scripts/assign.mjs';
 import { professionKey } from '../modules/ashen-gate-profession-ledger/scripts/checks.mjs';
@@ -121,12 +122,23 @@ function domainChecks(pkg, knownIds = new Set()) {
       const recipe = normalizeRecipe({flags: {'ashen-gate-manager': {source: {definition: rec}}}});
       // Ledger 0.28.0: an activity (kind "activity") has no ingredients and no result item, so only craft recipes need them.
       if (recipe.kind !== 'activity' && !recipe.hasStructuredIngredients) errors.push(`${rec.id}: Ledger cannot craft it: ingredients must be a non-empty list of {material_id, quantity (whole number > 0)}.`);
+      // Ledger 0.29.0: an optional effect note (display only). Malformed is a note, not an error: the Ledger just ignores or shortens it.
+      for (const key of ['effect_note', 'effectNote']) {
+        const value = rec[key];
+        if (value === undefined || value === null) continue;
+        if (typeof value !== 'string') notes.push(`${rec.id}: ${key} must be text; the Ledger ignores it.`);
+        else if (value.replace(/\s+/g, ' ').trim().length > EFFECT_NOTE_MAX) notes.push(`${rec.id}: ${key} is over ${EFFECT_NOTE_MAX} characters; the Ledger cuts it short.`);
+        if (recipe.kind !== 'activity') notes.push(`${rec.id}: ${key} is only shown on activity recipes (kind "activity"); the Ledger ignores it on a craft recipe.`);
+      }
     }
     if (rec.entity_type === 'Profession') {
       // The Ledger matches a profession by name (tags like [TEST] ignored) and its access lists by dnd5e skill/tool name.
       if (!PROFESSION_KEYS.includes(professionKey(rec.name))) notes.push(`${rec.id}: name ${JSON.stringify(rec.name)} is not one of the Ledger's 14 professions, so Assign and the tools table ignore it.`);
       else for (const u of catalogCrosswalk([{sourceId: rec.id, name: rec.name, access: rec.access}]).unresolved)
         errors.push(`${rec.id}: access.${u.field} "${u.name}" matches no dnd5e ${u.field === 'skillProficienciesAnyOf' ? 'skill' : 'tool'} (the Ledger ignores it).`);
+      // Ledger 0.29.0: what the profession calls a recipe (display only). Malformed is a note: the Ledger falls back to its default.
+      for (const key of ['recipeLabel', 'recipeLabelPlural'])
+        if (rec[key] !== undefined && rec[key] !== null && !cleanRecipeLabel(rec[key])) notes.push(`${rec.id}: ${key} must be text of 1-${RECIPE_LABEL_MAX} characters; the Ledger ignores it and uses its default.`);
     }
     // Cinder (MUT-*), Power (POWER-*) and Backfire table (BF-*) blocks: Ashen Gate | Cinders' own check (Manager runs the same at import).
     if (['Mutation', 'Power', 'BackfireTable'].includes(rec.entity_type)) {
