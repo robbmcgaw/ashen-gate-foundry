@@ -1,3 +1,14 @@
+## 0.50.0 — 2026-10-22
+
+Import a whole ZIP without confirming each file.
+
+- **Import everything without stopping** (new, off by default, on the ZIP files list). Each ticked file is previewed in the usual order and its new records and metadata refreshes are imported straight away, with the same checks, backups, Import history and results as pressing Import yourself. Your Options (profile, update and icon settings) still apply, and records the preview blocks or excludes are never imported. It starts off again for every new ZIP.
+- **Also apply updates to records that already exist** (only with the first box). Off: records already in your world are left as they are and listed as **Needs your decision** in the summary. On: the updates your Options allow are applied too, after Manager downloads its usual backup of the changed documents. An icon-only change counts as an update.
+- **Pauses only when needed.** Auto mode stops at a file with errors, or when an import fails or cannot start; **Skip this file** goes on with the rest, **Stop ZIP import** ends it. While it runs, the window shows "File n of m" with the file name, and **Stop ZIP import** stays available (it stops after the current file).
+- **Summary.** At the end, one row per file: Created, Updated, Unchanged, Needs your decision, Skipped and Failed, with the same Done / Done with notes / Needs attention labels as the Import results panel.
+- Quest Log, Skill Trees, Strain, Headquarters and Renown files run through their own modules the same way. A file whose module is off or too old is listed as Nothing to import, with the reason.
+- With the box off, ZIP import works exactly as before.
+
 ## 0.49.0 — 2026-10-22
 
 For effect notes and recipe names in Profession Ledger 0.29.0. Display only: imports, ids and saved data don't change.

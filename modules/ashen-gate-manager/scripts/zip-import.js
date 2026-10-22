@@ -131,6 +131,51 @@ export function planBundleImport(bundle, picked, {isGM = false} = {}) {
     .map(f => ({filename: f.filename, kind: f.kind, label: f.label, payload: withoutDuplicates(f)}));
 }
 
+/**
+ * "Import everything without stopping" (0.50.0): the preview rows auto mode ticks. Only rows the manual flow could tick
+ * are ever chosen. New records and metadata refreshes are always ticked; rows that change a record already in the world
+ * (an update, or an icon-only fill) only when `updates` is on, otherwise they are returned as needing the GM's decision.
+ */
+const AUTO_SAFE = new Set(['create', 'metadata']);
+const AUTO_UPDATE = new Set(['update', 'icon']);
+const AUTO_UNCHANGED = new Set(['unchanged', 'local']);
+const KEPT = /kept|already|exists|unchanged/i;
+export function autoSelect(rows, {updates = false} = {}) {
+  const selected = [], needsDecision = [];
+  for(const row of rows ?? []) {
+    if(AUTO_SAFE.has(row.action) || (updates && AUTO_UPDATE.has(row.action))) selected.push(row.id);
+    else if(AUTO_UPDATE.has(row.action)) needsDecision.push(row);
+  }
+  return {selected, needsDecision};
+}
+
+/**
+ * One file's line in the auto-mode summary: what happened to each preview row, from the apply's own log results.
+ * Tones and labels are the Import results panel's (Done / Done with notes / Needs attention).
+ */
+export function autoFileCounts(rows = [], selectedIds = [], results = []) {
+  const counts = {created: 0, updated: 0, unchanged: 0, needsDecision: 0, skipped: 0, failed: 0};
+  const picked = new Set(selectedIds);
+  const aborted = results.some(r => r.action === 'import-aborted');
+  for(const row of rows) {
+    if(!picked.has(row.id)) {
+      // A specialist module's "already there, kept" row previews as skipped; it is unchanged, like the results panel's Kept.
+      const kept = AUTO_UNCHANGED.has(row.action) || (row.action === 'skipped' && KEPT.test(row.reason ?? ''));
+      counts[AUTO_UPDATE.has(row.action) ? 'needsDecision' : kept ? 'unchanged' : 'skipped']++;
+      continue;
+    }
+    const mine = results.filter(r => r.id === row.id);
+    const ok = mine.find(r => r.status === 'ok' && ['create', 'update', 'metadata'].includes(r.action));
+    const skipped = mine.find(r => r.status === 'skipped');
+    if(ok) counts[ok.action === 'create' ? 'created' : ok.action === 'update' ? 'updated' : 'unchanged']++;
+    else if(row.action === 'icon' && !aborted && !mine.some(r => r.status === 'error')) counts.updated++;
+    else if(skipped) counts[KEPT.test(skipped.message ?? '') ? 'unchanged' : 'skipped']++;
+    else counts.failed++;
+  }
+  const tone = counts.failed ? 'error' : counts.needsDecision || counts.skipped ? 'warn' : 'ok';
+  return {counts, tone, toneLabel: {ok: 'Done', warn: 'Done with notes', error: 'Needs attention'}[tone]};
+}
+
 /** Plain summary of the ZIP's contents for the Import tab. */
 export function bundleSummary(bundle) {
   const importable = bundle.files.filter(f => f.kind && f.status !== 'error').length;

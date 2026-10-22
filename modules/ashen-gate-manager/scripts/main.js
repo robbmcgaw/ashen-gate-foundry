@@ -23,7 +23,7 @@ import {moduleRecordLookup} from "./module-records.js";
 import {createIconIndexer, filePickerClass, wantsSmartIcon, pickRecordIcon, chooseImportIcon, existingIconDecision, plannerIcon, iconFlagUpdate, ICON_DOCUMENT_TYPES} from './smart-icons.js';
 import {scanIconDocuments, applyIconChanges, undoIconChanges, iconBackup, ICON_UNDO_SETTING} from './icon-improve.js';
 import {ensureFolder, renameManagerFolders, FOLDER_RENAMES_SETTING} from "./folders.js";
-import {readImportZip, readImportBundle, planBundleImport, bundleSummary, adaptRecordArtwork, uploadMatchingArt} from "./zip-import.js";
+import {readImportZip, readImportBundle, planBundleImport, bundleSummary, autoSelect, autoFileCounts, adaptRecordArtwork, uploadMatchingArt} from "./zip-import.js";
 import {CAPTURE_TYPES, normalizeCaptureFlag, buildCapturePackage} from "./capture.js";
 import {compilePackage, dependencyOrder, normalizeRef, docManagerSnapshot, localEdits, planLifecycle, buildSourceReplacementPatch} from "./workflows.js";
 import {downloadJson, downloadText} from "./download.js";
@@ -241,7 +241,7 @@ const browseFacetCount=st=>Object.values(st.filters??{}).filter(v=>v!==undefined
 const statusTone=status=>['active','approved'].includes(status)?'ok':status==='draft'?'warn':'';
 
 /** Help dialog (0.46.0: follows the new tabs). Longer explanations moved here from the tabs. */
-const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): choose Manager JSON or a ZIP with <strong>Choose JSON or ZIP package…</strong>, pick an <strong>Import profile</strong> under Options (Development includes draft, proposed and example records), press <strong>Validate &amp; Preview</strong>, tick records, then <strong>Import</strong>. Load, ZIP files, Options and Preview fold open or shut (remembered on this device). Errors, review notes, links to other modules’ records and results are in the message bar at the bottom, with their counts; it opens by itself on new errors or a new result. A ZIP with several import files lists them: untick any you do not want, press Import selected files, then preview and Apply each in turn (Manager packages first). Scripts in a ZIP never run. <em>Import history</em> lists the imports applied so far.</p>',
+const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): choose Manager JSON or a ZIP with <strong>Choose JSON or ZIP package…</strong>, pick an <strong>Import profile</strong> under Options (Development includes draft, proposed and example records), press <strong>Validate &amp; Preview</strong>, tick records, then <strong>Import</strong>. Load, ZIP files, Options and Preview fold open or shut (remembered on this device). Errors, review notes, links to other modules’ records and results are in the message bar at the bottom, with their counts; it opens by itself on new errors or a new result. A ZIP with several import files lists them: untick any you do not want, press Import selected files, then preview and Apply each in turn (Manager packages first). Or tick <strong>Import everything without stopping</strong> first: each file’s new records are imported without asking, updates to records already in the world only with <strong>Also apply updates to records that already exist</strong>, and it pauses only on a file with errors or a failed import. Scripts in a ZIP never run. <em>Import history</em> lists the imports applied so far.</p>',
   '<p><strong>Supported documents:</strong> Item, JournalEntry, Actor, RollTable and Macro, plus Locations, Routes and Shops (handed to Locations and Utilities). Existing Tables and Macros are never replaced. Existing Actors change only with <strong>Update existing actors</strong>: name, image, token settings and package items follow the file; HP, XP, level, conditions, player items, notes, ownership, folders and other modules’ data are kept. Item effects (each with a permanent eff_id) are listed under their Item; your own edits and hand-made effects are never touched.</p>',
   '<p><strong>Icons:</strong> with <strong>Choose icons for records without one</strong> (Options, on by default) a record with no icon or a placeholder one (Foundry\u2019s bag, mystery man or d20, dnd5e\u2019s default art, Manager\u2019s generic icons) gets a fitting icon from Foundry\u2019s icon library, picked from its name and kind. The Icon column shows each pick and why; <strong>Change…</strong> picks another. An icon set in the file, or by you in Foundry, is never replaced. The library is indexed once per browser (\u201cIndexing icons…\u201d); if it cannot be read, generic icons are used. <strong>Re-pick smart icons</strong> picks again for icons Manager chose before. For documents already in the world, use <em>Items \u2192 Checks \u2192 Improve icons</em>.</p>',
   '<p><strong>Items</strong> sub-tabs: <strong>Browse</strong> (one search over world documents, Ashen Gate records from every module and, after Load compendiums, compendium indexes), <strong>Records</strong> (Manager-imported records by permanent id), <strong>Folders</strong>, <strong>Core links</strong>, <strong>Checks</strong> (library check, housekeeping report and Improve icons) and <strong>Export</strong>. The search box and <strong>Filters (n)</strong> (source, type, origin, rarity, folder, has core_ref, and on Browse its own facets) apply on Browse, Records, Folders and Core links and stay as you switch between them. Search words, or prefixes such as id:MAT-HERB, id:DEITY-, type:deity, type:npc-codex, tag:, status:, tier:major. Pick an item’s name to see dnd5e’s item card; drag a world or compendium row onto a sheet, the canvas or a journal. Open on an NPC goes to the NPC Codex tab; Open on a deity opens Renown’s Pantheon.</p>',
@@ -662,7 +662,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       folds: layout.folds, drawer, optionsSummary,
       selectedCount: this.preview.filter(row => actionAllowed.has(row.action) && this.selected.has(row.id)).length,
       importReports: this.importReports, hasImportReports: this.importReports.length>0,
-      zipBundle: this.zipBundle ? {source:this.zipBundle.source, running:Boolean(this.zipBundle.queue), summary:bundleSummary(this.zipBundle),
+      zipBundle: this.zipBundle ? {source:this.zipBundle.source, running:Boolean(this.zipBundle.queue), summary:bundleSummary(this.zipBundle), ...this.#zipAutoContext(),
         rows:this.zipBundle.files.map(f=>({filename:f.filename, label:f.label, count:f.count, notice:f.notice,
           status:this.zipBundle.outcome.get(f.filename) ?? (f.status==='error'?'Error':f.status==='warning'?'Ready, with notes':'Ready'),
           isError:f.status==='error', isCurrent:this.zipBundle.current===f.filename,
@@ -746,8 +746,8 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       schemaVersion: this.specialist ? (this.specialist.payload?.schema_version ?? this.specialist.payload?.schema ?? "list") : (this.pkg?.manifest?.schema_version ?? "—"),
       hasErrors: this.errors.length > 0,
       hasPreview: this.preview.length > 0 && !this.errors.length,
-      canApply: !this.busy && this.errors.length === 0 && this.preview.some(row => actionAllowed.has(row.action) && this.selected.has(row.id)),
-      busy: this.busy,
+      canApply: !this.busy && !this.zipBundle?.autoRunning && this.errors.length === 0 && this.preview.some(row => actionAllowed.has(row.action) && this.selected.has(row.id)),
+      busy: this.busy || Boolean(this.zipBundle?.autoRunning),
       summary,
       rows: this.#previewRows(),
       smartIcons: this.smartIcons, repickIcons: this.repickIcons, iconStatus: this.#iconStatusText(),
@@ -866,6 +866,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     {
       // 0.44.1: never swap the loaded file while an import is writing; it would null this.pkg mid-apply.
       if (!f || this.busy) return;
+      if (this.zipBundle?.autoRunning) return;
       this.#clearLoaded(`Reading ${f.name}…`);
       this.zipBundle=null;
       try {
@@ -876,7 +877,9 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
           const importable=bundle.files.filter(x=>x.kind);
           // A ZIP with one Manager package (and no other import file) keeps the single-file path exactly as before.
           if(importable.length>1 || importable[0]?.kind && importable[0].kind!=='manager') {
-            this.zipBundle={source:f.name,...bundle,picked:new Set(importable.filter(x=>x.status!=='error').map(x=>x.filename)),queue:null,current:null,outcome:new Map()};
+            // 0.50.0: auto mode (and its updates box) starts off for every new ZIP.
+            this.zipBundle={source:f.name,...bundle,picked:new Set(importable.filter(x=>x.status!=='error').map(x=>x.filename)),queue:null,current:null,outcome:new Map(),
+              auto:false,autoUpdates:false,autoRunning:false,stopRequested:false,paused:null,summary:new Map()};
             this.message=`${f.name}: ${bundleSummary(bundle)} Tick the files to import, then press Import selected files. Nothing in your world has changed.`;
             this.tab='import';await this.render();return;
           }
@@ -995,6 +998,30 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       if(event.target.checked) this.zipBundle.picked.add(name); else this.zipBundle.picked.delete(name);
       void this.render();
     }));
+    // 0.50.0 auto mode: two opt-in boxes (the second only with the first) and a stop button that works while it runs.
+    root.querySelector('[data-ag-zip-auto]')?.addEventListener('change',event=>{
+      if(this.busy||!this.zipBundle||this.zipBundle.queue) return;
+      this.zipBundle.auto=Boolean(event.target.checked);
+      if(!this.zipBundle.auto) this.zipBundle.autoUpdates=false;
+      this.focusAfterRender='[data-ag-zip-auto]';void this.render();
+    });
+    root.querySelector('[data-ag-zip-auto-updates]')?.addEventListener('change',event=>{
+      if(this.busy||!this.zipBundle?.auto||this.zipBundle.queue) return;
+      this.zipBundle.autoUpdates=Boolean(event.target.checked);
+      this.focusAfterRender='[data-ag-zip-auto-updates]';void this.render();
+    });
+    // Not a data-ag-action: those are ignored while busy, and Stop must work while a file imports.
+    root.querySelector('[data-ag-zip-stop]')?.addEventListener('click',event=>{
+      event.preventDefault();
+      const bundle=this.zipBundle;
+      if(!bundle?.queue) return;
+      if(bundle.autoRunning) {
+        bundle.stopRequested=true;event.currentTarget.disabled=true;
+        const el=root.querySelector('[data-ag-zip-progress]');if(el)el.textContent='Stopping after the current file…';
+        return;
+      }
+      this.#zipCancel().catch(err=>this.#fail(err));
+    });
     root.querySelectorAll("[data-ag-select]").forEach(el => el.addEventListener("change", event => {
       if (this.busy) return;
       const id = event.target.dataset.agSelect;
@@ -1037,7 +1064,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   }
   async #action(name) {
     if(!game.user?.isGM) throw new Error('Only GMs can operate the General Manager.');
-    if (this.busy) return;
+    if (this.busy || this.zipBundle?.autoRunning) return;
     switch(name) {
       case "demo": {
         const response = await fetch(`modules/${MODULE_ID}/samples/demo-package.json`, {cache:"no-store"});
@@ -1069,14 +1096,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       case "zip-skip":
         if(this.zipBundle?.current){this.zipBundle.outcome.set(this.zipBundle.current,'Skipped by GM');await this.#zipNext();}
         break;
-      case "zip-cancel":
-        if(this.zipBundle){
-          for(const item of [...(this.zipBundle.queue??[]),...(this.zipBundle.current?[{filename:this.zipBundle.current}]:[])]) this.zipBundle.outcome.set(item.filename,'Not imported');
-          this.zipBundle.queue=null;this.zipBundle.current=null;
-          this.#clearLoaded(`${this.zipBundle.source}: the rest of the ZIP was not imported. Files already applied keep their results below.`);
-          await this.render();
-        }
-        break;
+      case "zip-cancel": await this.#zipCancel(); break;
       case "backup-actors": {
         if(!game.user.isGM) throw new Error('GM access required.');
         const docs=this.preview.filter(r=>r.kind==='Actor'&&r.action==='update').flatMap(r=>foundDocuments(r.id));
@@ -1208,13 +1228,39 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.iconOverrides=new Map(); this.repickIcons=false;
     this.message=message;
   }
+  /** ZIP auto mode (0.50.0): the two boxes, progress while it runs and the per-file summary table. */
+  #zipAutoContext() {
+    const b=this.zipBundle;
+    const tone={'Done':'ok','Done with notes':'warn','Needs attention':'danger','Skipped by GM':'warn','Importing':'accent'};
+    const summaryRows=(b.autoPlan??[]).map(filename=>{
+      const f=b.files.find(x=>x.filename===filename), s=b.summary.get(filename), status=b.outcome.get(filename)??'Waiting';
+      return {filename,label:f?.label??'',status,tone:tone[status]??'',hasCounts:Boolean(s),counts:s?.counts??{},note:s?.note??''};
+    });
+    const decisions=(b.autoPlan??[]).map(filename=>({filename,names:(b.summary.get(filename)?.needsDecision??[]).join(', ')})).filter(d=>d.names);
+    return {auto:b.auto, autoUpdates:b.autoUpdates, autoLocked:Boolean(b.queue)||this.busy, autoMode:Boolean(b.auto&&b.queue),
+      autoRunning:Boolean(b.autoRunning), paused:Boolean(b.paused), stopping:Boolean(b.stopRequested),
+      progress:b.autoRunning&&b.current?`File ${b.step} of ${b.total}: ${b.current}`:b.paused?`Paused at file ${b.step} of ${b.total}: ${b.paused.filename}`:'',
+      hasAutoSummary:summaryRows.length>0, summaryRows, decisions, hasDecisions:decisions.length>0};
+  }
+  /** Ends a ZIP import: the files not yet imported are marked so, and those already applied keep their results. */
+  async #zipCancel() {
+    const bundle=this.zipBundle;
+    if(!bundle) return;
+    // A file auto mode paused on keeps its Needs attention: part of it may already be imported.
+    const current=bundle.current&&bundle.paused?.filename!==bundle.current?[{filename:bundle.current}]:[];
+    for(const item of [...(bundle.queue??[]),...current]) bundle.outcome.set(item.filename,'Not imported');
+    bundle.queue=null;bundle.current=null;bundle.paused=null;bundle.stopRequested=false;
+    this.#clearLoaded(`${bundle.source}: the rest of the ZIP was not imported. Files already applied keep their results below.`);
+    await this.render();
+  }
   /** Starts a multi-file ZIP: the ticked files, Manager package(s) first, each through the normal preview and Apply. */
   async #zipStart() {
     const bundle=this.zipBundle;
     if(!bundle||bundle.queue) return;
     const plan=planBundleImport(bundle,bundle.picked,{isGM:Boolean(game.user?.isGM)});
     if(!plan.length){this.message='No files are ticked in the ZIP contents list, so nothing was imported.';await this.render();return;}
-    bundle.queue=plan;bundle.total=plan.length;
+    bundle.queue=plan;bundle.total=plan.length;bundle.summary=new Map();bundle.stopRequested=false;bundle.paused=null;
+    bundle.autoPlan=bundle.auto?plan.map(p=>p.filename):null;
     for(const f of bundle.files) if(!plan.some(p=>p.filename===f.filename)) bundle.outcome.set(f.filename,f.status==='error'?'Not imported (error)':'Not ticked');
     await this.#zipNext();
   }
@@ -1222,6 +1268,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
   async #zipNext() {
     const bundle=this.zipBundle;
     if(!bundle?.queue) return;
+    if(bundle.auto) return this.#zipAutoRun();
     const next=bundle.queue.shift();
     if(!next) {
       bundle.current=null;bundle.queue=null;
@@ -1241,6 +1288,66 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       return this.#zipNext();
     }
     this.message=`${step} from the ZIP: ${next.filename} (${next.label}). ${this.message} Select records and Apply, or press Skip this file.`;
+    await this.render();
+  }
+  /**
+   * 0.50.0 "Import everything without stopping": each queued file loads and previews as usual, autoSelect ticks its safe
+   * rows, and the same #apply the Import button runs writes them (same revalidation, backups, history and results), only
+   * without the confirmation dialogs the GM opted out of. Pauses on a file with errors or a failed apply; Skip this file
+   * goes on, Stop ZIP import ends the rest.
+   */
+  async #zipAutoRun() {
+    const bundle=this.zipBundle;
+    if(bundle.autoRunning) return;
+    bundle.autoRunning=true;bundle.paused=null;
+    const pause=async(next,message)=>{
+      bundle.paused={filename:next.filename};bundle.outcome.set(next.filename,'Needs attention');
+      this.message=`Paused at file ${bundle.step} of ${bundle.total}: ${next.filename}. ${message} Press Skip this file to go on with the rest, or Stop ZIP import.`;
+      await this.render();
+    };
+    try {
+      while(bundle.queue?.length && !bundle.stopRequested) {
+        const next=bundle.queue.shift();
+        const label=`ZIP ${bundle.source} → ${next.filename}`;
+        bundle.current=next.filename;bundle.step=bundle.total-bundle.queue.length;bundle.outcome.set(next.filename,'Importing');
+        this.zipMedia=next.kind==='manager'?bundle.assets:new Map();this.packageSource=label;
+        this.busy=true;
+        try {await this.#load(next.payload,label);}
+        catch(error) {this.errors=[String(error?.message??error)];}
+        if(this.errors.length) {
+          this.importReports=pushReport(this.importReports,buildBlockedReport({file:label,module:next.label,
+            message:`${next.filename} was not imported: ${this.errors.slice(0,3).join(' ')}`,fix:'Skip this file to go on with the rest of the ZIP, then correct it and import it on its own.'}));
+          this.busy=false;return pause(next,'It has errors, so nothing in it was imported.');
+        }
+        const rows=this.preview.map(r=>({id:r.id,name:r.name,action:r.action,reason:r.reason}));
+        const {selected,needsDecision}=autoSelect(rows,{updates:bundle.autoUpdates});
+        const entry={label:next.label,needsDecision:needsDecision.map(r=>r.name),...autoFileCounts(rows,[],[])};
+        if(!selected.length) {
+          // A specialist module that is off or too old previews as one skipped row carrying the reason.
+          const why=rows.find(r=>r.action==='skipped'&&r.id===SPECIALISTS[next.kind]?.moduleId)?.reason;
+          bundle.summary.set(next.filename,{...entry,note:why??'Nothing in this file needed importing.'});
+          bundle.outcome.set(next.filename,entry.counts.needsDecision?'Done with notes':'Nothing to import');
+          continue;
+        }
+        this.selected=new Set(selected);
+        this.applyRan=false;
+        try {await this.#apply({auto:true});}
+        catch(error) {this.errors=[String(error?.message??error)];}
+        this.busy=true;
+        const log=(game.settings.get(MODULE_ID,'importHistory')??[]).at(-1);
+        if(!this.applyRan || !log) {
+          bundle.summary.set(next.filename,{...entry,...autoFileCounts(rows,selected,[]),note:this.errors[0]??'The import could not start.'});
+          this.busy=false;return pause(next,`The import could not start: ${this.errors.slice(0,2).join(' ')||'see the Import results panel.'}`);
+        }
+        const result={...entry,...autoFileCounts(rows,selected,log.results??[])};
+        bundle.summary.set(next.filename,result);
+        bundle.outcome.set(next.filename,result.toneLabel);
+        if(result.counts.failed) {this.busy=false;return pause(next,`${result.counts.failed} record(s) failed to import; the reasons are in the Import results panel.`);}
+      }
+    } finally {bundle.autoRunning=false;this.busy=false;}
+    if(bundle.stopRequested) {bundle.current=null;return this.#zipCancel();}
+    bundle.current=null;bundle.queue=null;
+    this.#clearLoaded(`${bundle.source}: ZIP import finished. The summary below lists each file; the Import results panel has the details.`);
     await this.render();
   }
   async #load(input, label) {
@@ -1273,7 +1380,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       : `Validated ${this.specialist.count} ${label} record(s). ${label} stores them; nothing changes before Apply.`;
     await this.render();
   }
-  async #applySpecialist() {
+  async #applySpecialist({auto=false}={}) {
     const {kind,payload}=this.specialist, spec=SPECIALISTS[kind];
     const rows=this.preview.filter(row=>actionAllowed.has(row.action)&&this.selected.has(row.id));
     const fileLabel=this.packageSource??`${spec.label} file`;
@@ -1286,7 +1393,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       this.errors=[`${message} Enable or update it.`];
       this.importReports=pushReport(this.importReports,buildBlockedReport({file:fileLabel,module:spec.label,message}));
       await this.render();return;}
-    const yes=await confirmDialog(`${rows.length} ${spec.kind.toLowerCase()} record(s) will be passed to ${spec.label}, which stores and owns them.\n${spec.canUpdate&&this.updateExisting?'Records already in the world are replaced; their progress and state are kept.':'Records already in the world are kept as they are.'} Back up your world first.`,
+    const yes=auto || await confirmDialog(`${rows.length} ${spec.kind.toLowerCase()} record(s) will be passed to ${spec.label}, which stores and owns them.\n${spec.canUpdate&&this.updateExisting?'Records already in the world are replaced; their progress and state are kept.':'Records already in the world are kept as they are.'} Back up your world first.`,
       {title:`Import into ${spec.label}?`,yes:'Import'});
     if(!yes)return;
     this.applyRan=true;
@@ -1663,9 +1770,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     this.captureMessage=`Exported ${pack.records.length} tagged world Items for review. No world content changed.`;
     await this.render();toast(this.captureMessage);
   }
-  async #apply() {
+  /** `auto` (ZIP auto mode only): the GM opted out of the confirmation dialogs; every check, backup and log still runs. */
+  async #apply({auto=false}={}) {
     if (!game.user.isGM) throw new Error("Only a GM may import content.");
-    if (this.specialist) return this.#applySpecialist();
+    if (this.specialist) return this.#applySpecialist({auto});
     if (!this.pkg || this.errors.length) throw new Error("Load a validated package first.");
     const targetRows = this.preview.filter(row => actionAllowed.has(row.action) && this.selected.has(row.id));
     const blocked=(message,fix)=>{this.importReports=pushReport(this.importReports,buildBlockedReport({file:this.packageSource??this.pkg.manifest.package_id,message,fix}));};
@@ -1691,10 +1799,10 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     const docRows=targetRows.filter(r=>r.kind!=='Location'&&r.kind!=='Route'&&!isShopRecord({entity_type:r.kind}));
     const actorUpdates=docRows.filter(r=>r.kind==='Actor'&&r.action==='update');
     const wantsScriptMacros=targetRows.some(r=>this.pkg.records.find(rec=>rec.id===r.id)?.foundry?.document_type==='Macro' && this.pkg.records.find(rec=>rec.id===r.id)?.foundry?.data?.type==='script');
-    const decision = await confirmDialog(`${docRows.length} document(s)${locRows.length?` and ${locRows.length} location(s) (passed to Locations, after the documents)`:''}${routeRows.length?` and ${routeRows.length} route(s) (passed to Locations, after the locations)`:''}${shopRows.length?` and ${shopRows.length} shop(s), service(s) or merchant list(s) (passed to Utilities, after the Items)`:''} will be created or updated in this world.${cycleNotice?`\n${cycleNotice}`:''}\nBack up your world first. If anything fails part way, the changes already made stay.\nActors: ${actorUpdates.length?`${actorUpdates.length} existing Actor(s) will have their definition updated (you confirm this separately next).`:'only new NPC/character definitions; existing Actors are not changed.'} HP, XP, level, conditions and player items are never replaced.${wantsScriptMacros?' Warning: this import installs untrusted Script Macro source as GM-only, but never runs it.':''}\n${this.uploadZipArtwork&&this.zipMedia.size?`${this.zipMedia.size} bundled assets may be uploaded to the current world before importing documents.`:'ZIP artwork will not be uploaded. If actor images reference missing world paths, upload them manually.'}`,
+    const decision = auto || await confirmDialog(`${docRows.length} document(s)${locRows.length?` and ${locRows.length} location(s) (passed to Locations, after the documents)`:''}${routeRows.length?` and ${routeRows.length} route(s) (passed to Locations, after the locations)`:''}${shopRows.length?` and ${shopRows.length} shop(s), service(s) or merchant list(s) (passed to Utilities, after the Items)`:''} will be created or updated in this world.${cycleNotice?`\n${cycleNotice}`:''}\nBack up your world first. If anything fails part way, the changes already made stay.\nActors: ${actorUpdates.length?`${actorUpdates.length} existing Actor(s) will have their definition updated (you confirm this separately next).`:'only new NPC/character definitions; existing Actors are not changed.'} HP, XP, level, conditions and player items are never replaced.${wantsScriptMacros?' Warning: this import installs untrusted Script Macro source as GM-only, but never runs it.':''}\n${this.uploadZipArtwork&&this.zipMedia.size?`${this.zipMedia.size} bundled assets may be uploaded to the current world before importing documents.`:'ZIP artwork will not be uploaded. If actor images reference missing world paths, upload them manually.'}`,
       {title:'Apply this import to the world?',yes:'Import'});
     if (!decision) return;
-    if (actorUpdates.length) {
+    if (actorUpdates.length && !auto) {
       const list=actorUpdates.map(r=>`• ${r.name}: ${r.changes.join('; ')}`).join('\n');
       const sure=await confirmDanger(`This changes ${actorUpdates.length} Actor(s) already in your world. Only the listed definition fields and package items change. HP, XP, level, conditions, player-added items, notes, ownership, folders and other modules' data are kept.\n${list}\nA JSON backup of these Actors downloads automatically before anything is written.`,
         {title:'Update existing Actors?',yes:`Update ${actorUpdates.length} existing Actor(s)`});
