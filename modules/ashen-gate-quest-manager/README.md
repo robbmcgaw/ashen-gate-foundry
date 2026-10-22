@@ -6,9 +6,20 @@ Module ID `ashen-gate-quest-manager` · Foundry V14 · dnd5e. Quest, Work Order 
 
 - **Party** and **Individual:** what players can see. Tick **Track** on an objective, then **Show objectives overlay** for a small on-screen tracker (display only; it does not change progress). Individual is scoped to the character's owner.
 - **Quests** (GM): every quest, order and contract as a card: type, status, visible to players or GM only, location, giver or faction (when the quest names one in a typed ref), audience (party, or the individual character), objectives done (e.g. 2/5), rewards (item rewards and the suggested-rewards text) and when it last changed. Views with counts under the tabs: All, Drafts, Hidden, Active (Available or Active), Completed / Failed, Orders, Contracts. The toolbar has search (title, ID, location, giver, tags), type, location and visibility filters, group (status, location, type, giver) and sort (title, status, location, recently changed, type, ID); Import, Export and **New quest** are on the right. Your view, sort, grouping and editor sections are remembered for you. Tick cards for bulk actions: set status, hide, reveal, duplicate (a GM-only draft copy) and delete (asks first). A bulk reveal never publishes a draft. The editor has sections that fold (Basics, Audience, Objectives, Rewards, Campaign status and reveal, GM notes) and one save bar at the bottom: Cancel, an unsaved-changes note, **Save changes**. Drafts are never shown to players.
+- **Journal:** session notes in an open book, for players and the GM (see *Game Journal* below).
 - **GM Setup** (GM): Player Access, compendium pack IDs and the objectives overlay. Player Access and pack IDs save together with **Save Changes**.
 
 Three objective types share one model: `QUEST-*`, `ORDER-*` (crafting/production work order) and `CONTRACT-*`. Hidden / Available / Active / Completed / Failed are campaign statuses, separate from a source definition's own `status` (draft, approved, …). `ASSIGN-*` Assignments are GM-only execution records attached to an objective; they make no automatic Faction, Profession, Location or Headquarters changes.
+
+## Game Journal (0.16.0)
+
+- **New session** (GM or a player; a player needs a GM connected) creates *Session N* (`SESSION-001`, `SESSION-002`, …) with a party journal and one journal per player user. Name and optional subtitle can be changed by the GM and by whoever started it.
+- Players switch between **My journal** and **Party journal**; the GM picks the party journal or any player's journal (read only) from **Journal**. Search covers session names and the pages the viewer may read.
+- Toolbar: bold, italic, underline, heading, subheading, normal text, bulleted and numbered lists. Stored as HTML with those tags only (no attributes, no links, images or scripts).
+- Saves on leaving the book, on **Save** / Ctrl+S, and before switching or closing. A page someone else saved meanwhile asks before it is replaced.
+- GM: **Export Markdown**; **Archive session** (hidden from players, read only, nothing deleted) and **Restore session**.
+- Storage: one JournalEntry per session in *Ashen Gate / Quests / Game Journal*. Entry: OBSERVER for everyone. Party page: OWNER for everyone. A player's page: OWNER for that player, NONE for the other players. Foundry's own ownership lets players write their pages with no GM connected, and stops them writing anyone else's; Quest Log's API checks the same rules before every read and write. These entries are also listed in Foundry's Journal sidebar under that folder (a player opening one sees the party page and their own only).
+- API `api.journal` (`ag-quest-journal/1`): `isAvailable()`, `list({archived})`, `get(id)`, `pages(id)`, `read(id, target)`, `write(id, target, html, {base, force})`, `create({name, subtitle})`, `rename(id, {name, subtitle})`, `search(query)`; GM only: `archive(id)`, `restore(id)`, `exportMarkdown(id)`. `target` is `'me'`, `'party'` or a player's user id.
 
 ## Item rewards (0.11.0)
 

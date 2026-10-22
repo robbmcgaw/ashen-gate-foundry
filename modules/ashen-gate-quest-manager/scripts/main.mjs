@@ -14,8 +14,10 @@ import {windowSize} from './ag-html.mjs';
 import {readDrop,worldItemById} from './ag-item-drop.mjs';
 import {rewardsApi,grantableRewards,addFromDrop,updateReward,removeReward,grantRewards,grantAgain,rewardDragData,onActorSheetDrop} from './rewards.mjs';
 import {rewardsSection,playerRewardsSection,grantPanel,grantSummary,receiveList,defaultChoices} from './rewards-ui.mjs';
+import {createJournalStore} from './journal-store.mjs';
+import {installJournal} from './journal-ui.mjs';
 
-const VERSION='0.15.0';
+const VERSION='0.16.0';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -26,7 +28,7 @@ const hasGM=()=>!!game.user?.isGM;
 // Character pickers: player characters only (core.mjs isPlayerCharacter); a player sees their own.
 function actorsOwned(){return [...game.actors].filter(a=>isPlayerCharacter(a,hasGM()?[...game.users]:[game.user])).sort((a,b)=>String(a.name).localeCompare(String(b.name)));}
 function notifyError(err){console.error(`[${MOD}]`,err);ui.notifications?.error(err.message??String(err));}
-function dialogDownload(name,text){const blob=new Blob([text],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+function dialogDownload(name,text,type='application/json'){const blob=new Blob([text],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
 function blankTemplate(){return {
  id:'QUEST-',entity_type:'Objective',objective_kind:'quest',status:'draft',version:'0.1.0',
  provenance:{sources:['GM-authored world draft; not approved canon']},visibility:'reveal_gated',refs:[],
@@ -196,7 +198,19 @@ function questsPanel(app,rewardsHtml=''){
  <section class="ag-split__detail agq-edit${app.unsavedSource?' is-dirty':''}" data-ag-scroll="gm-edit:${E(selected?.source.id??'new')}">${questEditor(selected,rewardsHtml,{sections:app.gmPrefs.sections,dirty:app.unsavedSource})}</section></div></div>`;
 }
 function setupTab(){return setupPanel({playerAccess:game.settings.get(MOD,'playerAccessEnabled'),packIds:game.settings.get(MOD,'compendiumPackIds'),overlayVisible:trackerVisible(),openForPlayers:game.settings.get(MOD,'openForPlayers')===true});}
-const TABS=[['party','Party','fa-users',false],['individual','Individual','fa-user',false],['quests','Quests','fa-scroll',true],['setup','GM Setup','fa-gears',true]];
+const TABS=[['party','Party','fa-users',false],['individual','Individual','fa-user',false],['journal','Journal','fa-book',false],['quests','Quests','fa-scroll',true],['setup','GM Setup','fa-gears',true]];
+/* ---- Game Journal: session notes for the party and each player (journal-core.mjs, journal-store.mjs, journal-ui.mjs).
+   Players see it when Player Access is on and the Character Hub (if active) shows 'quests'. ---- */
+function hubShowsQuests(){
+ const hub=game.modules?.get?.('ashen-gate-character-hub'),vis=hub?.active?hub.api?.playerVisibility:null;
+ if(typeof vis?.isShown!=='function')return true;
+ try{return vis.isShown('quests')!==false;}catch{return true;}
+}
+const journalStore=createJournalStore({moduleId:MOD,users:()=>game.users,me:()=>game.user,entries:()=>game.journal??[],
+ createEntry:data=>JournalEntry.create(data,{renderSheet:false}),folderId:()=>ensureFolder('Game Journal'),
+ access:()=>game.settings.get(MOD,'playerAccessEnabled')===true,hubShown:hubShowsQuests,
+ isPrimaryGM:()=>!!game.user?.isGM&&(game.users?.activeGM?.isSelf??true),get socket(){return game.socket;}});
+const journalAllowed=()=>{try{return journalStore.allowed();}catch{return false;}};
 function playerPane(tab,rows,detail,ctx){
  const actorLabel=tab==='individual'?'Character':'Notes for character';
  return `<div class="ag-split agq-split"><aside class="ag-split__list agq-list" data-ag-scroll="list:${tab}"><div class="agq-filters"><label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="ag-quest-search" placeholder="Search quests" aria-label="Search visible quests" value="${E(ctx.filter)}"></label>
@@ -219,15 +233,16 @@ class QuestLogApplication extends Base {
  }
  async _renderHTML(){assertUI(game.user,openAllowed());
   let rows=[],detail=null;
-  const gmTab=this.tab==='quests'||this.tab==='setup';
+  if(this.tab==='journal'&&!journalAllowed())this.tab='party';
+  const gmTab=this.tab==='quests'||this.tab==='setup'||this.tab==='journal';
   if(!gmTab){rows=roleViewList(this.tab,this.actorId).filter(x=>(this.statusFilter==='all'||x.view.status===this.statusFilter)&&[x.view.name,x.view.summary,x.view.id].some(t=>t.toLowerCase().includes(this.filter.toLowerCase())));if(!rows.some(x=>x.view.id===this.selectedId))this.selectedId=rows[0]?.view.id??null;detail=rows.find(x=>x.view.id===this.selectedId)?.view??null;}
   const allowed=actorsOwned(),actorOption=options(allowed.map(a=>[a.id,a.name]),this.actorId);
   const version=game.modules.get(MOD)?.version||VERSION;
-  const tabs=TABS.filter(([,,,gm])=>!gm||hasGM()).map(([id,label,ic,gm])=>{const on=this.tab===id;return `<button type="button" role="tab" data-tab="${id}" aria-selected="${on}" class="${[on?'active':'',gm?'ag-tab--gm':''].filter(Boolean).join(' ')}"><i class="fa-solid ${ic}" aria-hidden="true"></i> ${label}</button>`;}).join('');
+  const tabs=TABS.filter(([id,,,gm])=>(!gm||hasGM())&&(id!=='journal'||journalAllowed())).map(([id,label,ic,gm])=>{const on=this.tab===id;return `<button type="button" role="tab" data-tab="${id}" aria-selected="${on}" class="${[on?'active':'',gm?'ag-tab--gm':''].filter(Boolean).join(' ')}"><i class="fa-solid ${ic}" aria-hidden="true"></i> ${label}</button>`;}).join('');
   const overlay=trackerVisible()?'Hide objectives overlay':'Show objectives overlay';
   return `<div class="ag-window agq-root"><header class="ag-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Quest Log</h1><p>Quests · Work orders · Contracts</p></div><div class="ag-header__meta">${safeButton(overlay,'toggle-overlay',{kind:'ghost',sm:true,icon:'fa-list-check',title:'Your tracked objectives on screen (only for you)'})}<span class="ag-version">v${E(version)}</span>${safeButton('Help','help',{kind:'ghost',sm:true,icon:'fa-circle-question'})}</div></header>
   <nav class="ag-tabs ag-tabs--scroll" role="tablist" aria-label="Quest sections">${tabs}</nav>
-  ${this.tab==='quests'?questsPanel(this,await this.rewardsHtml()):this.tab==='setup'?setupTab():playerPane(this.tab,rows,detail,{filter:this.filter,statusFilter:this.statusFilter,actorOption,actorId:this.actorId,selectedId:this.selectedId})}</div>`;
+  ${this.tab==='journal'?this.journalHTML():this.tab==='quests'?questsPanel(this,await this.rewardsHtml()):this.tab==='setup'?setupTab():playerPane(this.tab,rows,detail,{filter:this.filter,statusFilter:this.statusFilter,actorOption,actorId:this.actorId,selectedId:this.selectedId})}</div>`;
  }
  // GM editor: the selected quest's Item rewards. A quest that can't be listed shows no section rather than breaking the editor.
  async rewardsHtml(){
@@ -290,7 +305,7 @@ class QuestLogApplication extends Base {
   this.rewardNote=note;const html=await this.rewardsHtml(),zone=root.querySelector('[data-reward-zone]');
   if(!zone)return;zone.outerHTML=html;this.bindRewards(root);
  }
- showHelp(){return infoDialog('Quest Log Help',`<p><strong>Quest Log</strong> shows the quests, work orders and contracts your party is working on.</p><ul><li><strong>Party</strong> lists the quests the whole party can see. Pick one to read its objectives and write your character's notes.</li><li><strong>Individual</strong> lists a character's own quests; choose the character on the left.</li>${hasGM()?'<li><strong>Quests</strong> (GM) lists every quest as a card. The views under the tabs (All, Drafts, Hidden, Active, Completed / Failed, Orders, Contracts) show counts and are remembered for you, with your sort and grouping. Search matches title, ID, location, giver and tags. Tick cards to set status, hide, reveal, duplicate or delete several at once (drafts are never revealed that way). Pick a card to edit it: its sections fold open and closed, and one <em>Save changes</em> at the bottom saves the whole quest.</li><li><strong>GM Setup</strong> holds Player Access (whether players see the Quest Log) and other settings; they save together with <em>Save Changes</em>.</li>':''}</ul><p>The <em>Objectives Overlay</em> button shows or hides your tracked objectives on screen. Drag the overlay by its header to move it; the slider fades its background (text stays solid); the minus button by a quest stops tracking it. Its place and fade are kept for you only.</p>${hasGM()?'<p>Deleting a quest or an assignment, or leaving a tab with unsaved source changes, asks you to confirm first.</p>':''}`);}
+ showHelp(){return infoDialog('Quest Log Help',`<p><strong>Quest Log</strong> shows the quests, work orders and contracts your party is working on.</p><ul><li><strong>Party</strong> lists the quests the whole party can see. Pick one to read its objectives and write your character's notes.</li><li><strong>Individual</strong> lists a character's own quests; choose the character on the left.</li><li><strong>Journal</strong> keeps session notes. <em>New session</em> starts one with a party journal and a journal for each player. Pick a session on the left; switch between <em>My journal</em> and <em>Party journal</em> above the book. Your own journal is only yours${hasGM()?' (the GM can read it)':''}; everyone can write the party journal. Pages save when you click away and with <em>Save</em> (Ctrl+S). The GM and whoever started a session can rename it (pencil).</li>${hasGM()?'<li><strong>Quests</strong> (GM) lists every quest as a card. The views under the tabs (All, Drafts, Hidden, Active, Completed / Failed, Orders, Contracts) show counts and are remembered for you, with your sort and grouping. Search matches title, ID, location, giver and tags. Tick cards to set status, hide, reveal, duplicate or delete several at once (drafts are never revealed that way). Pick a card to edit it: its sections fold open and closed, and one <em>Save changes</em> at the bottom saves the whole quest.</li><li><strong>GM Setup</strong> holds Player Access (whether players see the Quest Log) and other settings; they save together with <em>Save Changes</em>.</li>':''}</ul><p>The <em>Objectives Overlay</em> button shows or hides your tracked objectives on screen. Drag the overlay by its header to move it; the slider fades its background (text stays solid); the minus button by a quest stops tracking it. Its place and fade are kept for you only.</p>${hasGM()?'<p>Deleting a quest or an assignment, or leaving a tab with unsaved source changes, asks you to confirm first.</p>':''}`);}
  // Appearance is inherited: the kit's --ag-* tokens live on the document, kept in sync by General Manager when active.
  // 0.14.0 A redraw keeps each panel's scroll place and the field being typed in (view-state.mjs). Unsaved text is put
  // back only for a redraw someone else caused (updateWindows), and focus only while the same tab and quest are shown.
@@ -303,7 +318,7 @@ class QuestLogApplication extends Base {
   restoreView(content,this.scrollMemo,same?focus:null,{keepText});this.lastScope=this.viewScope();
  }
  bind(root){
-   for(const b of root.querySelectorAll('[data-tab]'))b.addEventListener('click',async e=>{if(this.unsavedSource&&!await confirmDialog('Your quest changes have not been saved. Discard them?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing',danger:true}))return;this.tab=e.currentTarget.dataset.tab;this.unsavedSource=false;this.sourceJsonEdited=false;await this.render();});
+   for(const b of root.querySelectorAll('[data-tab]'))b.addEventListener('click',async e=>{if(!await this.flushJournal())return;if(this.unsavedSource&&!await confirmDialog('Your quest changes have not been saved. Discard them?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing',danger:true}))return;this.tab=e.currentTarget.dataset.tab;this.unsavedSource=false;this.sourceJsonEdited=false;await this.render();});
    root.querySelector('#ag-actor')?.addEventListener('change',async e=>{this.actorId=e.target.value;this.selectedId=null;await this.render();});
    root.querySelector('#ag-player-filter')?.addEventListener('change',async e=>{this.statusFilter=e.target.value;this.selectedId=null;await this.render();});
    this.bindToolbar(root);this.bindNav(root);
@@ -322,7 +337,10 @@ class QuestLogApplication extends Base {
    for(const ev of ['input','change'])setupBody?.addEventListener(ev,e=>{if(e.target?.id&&setupStatus)setupStatus.textContent='Unsaved changes';});
    for(const b of root.querySelectorAll('[data-action]:not([data-reward-zone] *)'))b.addEventListener('click',()=>this.action(b,root));
    this.bindRewards(root);
+   if(this.tab==='journal')this.bindJournal(root);
  }
+ // Unsaved journal text is saved before the window closes.
+ async close(options){try{await this.flushJournal();}catch(err){console.error(`[${MOD}]`,err);}return super.close(options);}
  // The unsaved state shows in the save bar, the editor header and on the editor itself.
  markDirty(root){
   this.unsavedSource=true;
@@ -471,6 +489,7 @@ class QuestLogApplication extends Base {
   }catch(err){notifyError(err);}
  }
 }
+installJournal(QuestLogApplication,{store:journalStore,confirm:confirmDialog,notify:notifyError,info:m=>ui.notifications?.info(m),download:dialogDownload});
 // Per-user preferences only. Never store the authoritative progress, private source or player projection.
 function trackedIds(){return trackingState(game.user?.getFlag?.(MOD,'tracking')).ids;}
 function trackerVisible(){return trackingState(game.user?.getFlag?.(MOD,'tracking')).visible;}
@@ -603,7 +622,7 @@ function mountEmbed(element,{actorId=null,mode='character'}={}){
  return {unmount:ctrl.unmount,refresh:()=>ctrl.render()};
 }
 const refreshEmbeds=()=>{for(const e of [...embeds])e.render().catch(notifyError);};
-function updateWindows(){refreshLaunchers();renderTracker();refreshEmbeds();if(instance?.rendered&&!instance.unsavedSource){instance.externalRender=true;instance.render().catch(notifyError);}}
+function updateWindows(){refreshLaunchers();renderTracker();refreshEmbeds();if(instance?.rendered&&instance.tab==='journal'){instance.journalExternal();return;}if(instance?.rendered&&!instance.unsavedSource){instance.externalRender=true;instance.render().catch(notifyError);}}
 // 0.15.0 The GM's Quests view prefs are already shown; saving them needs no redraw.
 const onlyGmView=change=>onlyOwnFlags(change)&&Object.keys(change.flags[MOD]??{}).every(k=>k==='gmView'||k==='-=gmView');
 const onlyOwnFlags=change=>!!change&&typeof change==='object'&&Object.keys(change).every(k=>k==='_id'||k==='flags')&&!!change.flags&&Object.keys(change.flags).every(k=>k===MOD);
@@ -613,7 +632,7 @@ const onlyOwnFlags=change=>!!change&&typeof change==='object'&&Object.keys(chang
    Quest Log window at it, never the journal. ---- */
 const AUTO_OPEN_MS=2000;
 const writtenAt=new Map(),seenReveals=new Set();
-const questJournal=doc=>{try{return ['public','private','notesFor'].some(k=>doc?.getFlag?.(MOD,k));}catch{return false;}};
+const questJournal=doc=>{try{return ['public','private','notesFor','session'].some(k=>doc?.getFlag?.(MOD,k));}catch{return false;}};
 const journalOf=doc=>doc?.documentName==='JournalEntryPage'?doc.parent:doc;
 function noteWrite(doc,userId){const j=journalOf(doc);if(!hasGM()&&j?.id&&userId!==game.user?.id&&questJournal(j))writtenAt.set(j.id,Date.now());}
 function closeAutoOpened(app,options){
@@ -679,6 +698,11 @@ Hooks.once('ready',()=>{
   getGMState:(id)=>{assertGM(game.user);return structuredClone(getPrivate(id)?.getFlag(MOD,'state')??null);},
   setGMState:(id,patch)=>{assertGM(game.user);return updateState(id,patch);},
   rewards:rewardsApi(),
+  // Game Journal (ag-quest-journal/1): every call checks the caller (journal-core.mjs rules) before reading or writing.
+  journal:Object.freeze({contract:journalStore.contract,isAvailable:()=>journalAllowed(),list:o=>journalStore.list(o),get:id=>journalStore.get(id),
+   pages:id=>journalStore.pages(id),read:(id,target)=>journalStore.read(id,target),write:(id,target,html,o)=>journalStore.write(id,target,html,o),
+   create:o=>journalStore.create(o),rename:(id,o)=>journalStore.rename(id,o),archive:id=>journalStore.archive(id),restore:id=>journalStore.restore(id),
+   search:q=>journalStore.search(q),exportMarkdown:id=>journalStore.exportMarkdown(id)}),
   playerAccess:{contract:'ag-player-access/1',getState:()=>({contract:'ag-player-access/1',moduleId:MOD,audience:'player',playerAccessEnabled:game.settings.get(MOD,'playerAccessEnabled'),configurable:true}),setEnabled:async enabled=>{assertGM(game.user);if(typeof enabled!=='boolean')throw new Error('Boolean required.');await game.settings.set(MOD,'playerAccessEnabled',enabled);return module.api.playerAccess.getState();}}
  };
  Hooks.on('renderActorDirectory',addLauncher);refreshLaunchers();
@@ -694,6 +718,12 @@ Hooks.once('ready',()=>{
  Hooks.on('createActor',(actor)=>{if(hasGM())reconcileActorAudience().catch(notifyError);});
  // Overlay and tracking prefs are this module's own User flags: they change no audience, so no reconcile for them.
  Hooks.on('updateUser',(user,change)=>{if(user?.id===game.user?.id&&onlyGmView(change))return;if(hasGM()&&!onlyOwnFlags(change))reconcileActorAudience().catch(notifyError);updateWindows();});
+  // Game Journal: the primary GM carries out players' New session / rename requests and adds missing player pages.
+  game.socket?.on?.(`module.${MOD}`,(msg,senderId)=>{journalStore.onSocket(msg,senderId).catch(notifyError);});
+  const addPages=()=>{if(hasGM()&&(game.users?.activeGM?.isSelf??true))journalStore.ensurePages().catch(notifyError);};
+  addPages();Hooks.on('createUser',addPages);
+  for(const hook of ['createJournalEntryPage','deleteJournalEntryPage'])Hooks.on(hook,updateWindows);
+  Hooks.on('updateSetting',setting=>{if(setting?.key==='ashen-gate-character-hub.playerVisibility')updateWindows();});
   renderTracker();
   console.info(`${MOD} ${VERSION} ready (standalone, GM documents + sanitized Journal projections).`);
 });
