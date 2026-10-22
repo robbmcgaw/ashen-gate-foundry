@@ -84,6 +84,13 @@ button.agc-socket:hover{border-color:var(--ag-accent);background:var(--ag-surfac
 .agc-notice-action > i{margin-top:0}
 /* GM Setup */
 .agc-bands{width:fit-content;max-width:100%}
+.agc-subhead{margin:var(--ag-space-4) 0 var(--ag-space-1);font-size:var(--ag-text-md);font-weight:650}
+.agc-num{width:6rem;max-width:100%}
+.agc-band-edit{width:fit-content;max-width:100%}
+.agc-band-edit td{vertical-align:top}
+.agc-band-edit .ag-field{margin:0}
+.agc-schedule{display:grid;grid-template-columns:repeat(auto-fill,minmax(6.5rem,1fr));gap:0 var(--ag-space-2)}
+.agc-actions-start{justify-content:flex-start}
 .agc-rules{margin:var(--ag-space-2) 0;padding-left:var(--ag-space-5);display:flex;flex-direction:column;gap:var(--ag-space-1);font-size:var(--ag-text-sm)}
 /* Narrow window: the Manage table becomes labelled stacked rows. */
 @container (max-width: 40rem){

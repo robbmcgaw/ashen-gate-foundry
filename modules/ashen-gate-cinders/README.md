@@ -30,7 +30,7 @@ Needs **Ashen Gate | Skill Trees 0.17.0 or later** for Cinder trees (the powers 
   - **Art:** a shared default orb whose colour follows Strain, or the Cinder's own image. Only the GM changes it: double-click the orb (or **Change art…** on the Binding card) to pick a file, best kept in the Assets Library under `ashen-gate/cinders/`; **Reset to default orb** goes back. Players see it but cannot change it.
   - **Push** asks first (Cancel on the left, Push on the right; red when the Backfire is guaranteed).
 - **Manage** (GM): New Cinder; Bind / Transfer / Unbind; Move existing Cinder progress (characters with Cinder tree progress but no Cinder); Take over from Skill Trees (data saved by Skill Trees 0.15/0.16); Check and Repair.
-- **GM Setup** (GM): Player Access (saved with **Save Changes**); Strain bands, chances and rules with Import / Export / Reset; Cinder limits.
+- **GM Setup** (GM): Player Access and the **Strain editor** (band names and ranges, Backfire % per Strain, guarantee point, normal-use Backfire, prevention, maximum, rest recovery, effect-roll bonus), both kept as a draft with inline checks until **Save Changes**; Import / Export / Reset of the saved Strain config; Cinder limits. Players see no Cinders settings in Configure Settings.
 
 ## Public API
 

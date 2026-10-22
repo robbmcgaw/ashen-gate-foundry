@@ -1,3 +1,12 @@
+## 0.9.0 — 2026-10-22
+
+- **Strain editor** in GM Setup → Strain (GM only): edit band names and From / To ranges (add or remove bands; leave the last band's To empty for open-ended), the Backfire % for Strain 0–10, the guaranteed-Backfire point, the normal-use Backfire point, whether modifiers can prevent the guaranteed Backfire, the maximum Strain (empty = none), long and short rest recovery, and the Backfire effect-roll Strain bonus (on/off, starting Strain, every N).
+- Edits stay a draft until **Save Changes** (bottom right); **Cancel** (bottom left) or leaving the tab drops them. Each field shows its problem next to it as you type (gaps or overlaps between bands, a Backfire % lower than the one before, numbers out of range); Save Changes checks the whole draft with the same check as Import and saves nothing while anything is marked.
+- Saving writes through the same path as Import Strain Config (`api.strain.importConfig`, GM only, refused for players in the API), so the Strain chip statuses re-register and chips rename. Character Strain is never changed (a lower maximum does not lower anyone's Strain).
+- Import / Export / Reset to Defaults stay; they work on the saved config (Import and Reset discard unsaved edits after their confirmation, Export never includes them).
+- **Players no longer see Ashen Gate | Cinders in Configure Settings**: on a player's client every Cinders setting is marked not shown and the category is removed from the Settings window. The GM's settings are unchanged.
+- Saved data: same `strainConfig` setting and shape (`ag-strain-config/0.1`). No migration.
+
 ## 0.8.1 — 2026-10-21
 
 - Character Hub level-backup copies (Actors with the Hub's `levelBackup` flag) no longer appear in the Cinders character list or the Bind / Transfer choices.
