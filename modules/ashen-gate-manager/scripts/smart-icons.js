@@ -12,6 +12,7 @@
  */
 import {ICON_CONCEPTS, KIND_CONCEPTS, STOPWORDS} from './icon-keywords.js';
 import {iconFallback} from './import-fidelity.js';
+import {isActivityRecipe} from './profession-records.js';
 
 export const ICON_FLAGS = Object.freeze({source: 'iconSource', path: 'iconPath'});
 export const ICON_SOURCES = Object.freeze(['smart', 'authored', 'fallback']);
@@ -128,7 +129,8 @@ export function recordIconInput(record) {
   return {
     seed: String(record?.id ?? data.name ?? record?.name ?? ''),
     name: String(data.name ?? record?.name ?? record?.id ?? ''),
-    kinds: [data.system?.type?.value, data.type, record?.entity_type, record?.foundry?.document_type, String(record?.id ?? '').split('-')[0]].filter(Boolean),
+    // 0.48.0: an activity recipe's kind comes first, so it falls back to the stage, not to its loot or recipe kind.
+    kinds: [isActivityRecipe(record) ? 'activity' : null, data.system?.type?.value, data.type, record?.entity_type, record?.foundry?.document_type, String(record?.id ?? '').split('-')[0]].filter(Boolean),
     tags: tags.filter(t => typeof t === 'string'),
     description: stripHtml(data.system?.description?.value ?? data.system?.details?.biography?.value ?? data.description ?? ''),
   };
@@ -139,7 +141,8 @@ export function documentIconInput(doc) {
   return {
     seed: String(source.sourceId ?? doc?.uuid ?? doc?.id ?? doc?.name ?? ''),
     name: String(doc?.name ?? ''),
-    kinds: [doc?.system?.type?.value, doc?.type, source.entityType, doc?.documentName].filter(Boolean),
+    kinds: [isActivityRecipe({id: source.sourceId, entity_type: source.entityType, kind: source.definition?.kind}) ? 'activity' : null,
+      doc?.system?.type?.value, doc?.type, source.entityType, doc?.documentName].filter(Boolean),
     tags: [],
     description: stripHtml(doc?.system?.description?.value ?? ''),
   };

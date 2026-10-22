@@ -9,6 +9,7 @@ import {collectModuleSections, sourceFlagOf} from './world-export.js';
 import {systemOf, normalizeSourceRef} from './browser.js';
 import {FILTER_INDEX_FIELDS, itemFacts, rarityKey, sharedMatch} from './item-filters.js';
 import {loadItemPreview} from './item-preview.js';
+import {professionFacts} from './profession-records.js';
 
 const MODULE_ID = 'ashen-gate-manager';
 const GM_ONLY = 'Only the GM can browse Ashen Gate data.';
@@ -79,7 +80,9 @@ function entry(base) {
 function agFields(source, system) {
   const def = source.definition ?? {};
   const sys = systemOf({sourceId: source.sourceId, ownerSystemId: source.ownerSystemId, entityType: source.entityType, packageId: source.packageId});
-  return {id: source.sourceId, ag: true, managed: true, owner: MODULE_ID, entityType: str(source.entityType), status: str(source.status),
+  // 0.48.0: a recipe's kind (Activity / Craft) and a profession's category (Creative, ...) as a chip and detail fields.
+  const facts = professionFacts({id: source.sourceId, entity_type: source.entityType, ...def});
+  return {...(facts ? {chips: [facts.label], extraFields: facts.fields, searchText: [facts.label]} : {}), id: source.sourceId, ag: true, managed: true, owner: MODULE_ID, entityType: str(source.entityType), status: str(source.status),
     visibility: str(source.visibility), category: sys.label, ...definitionFields(def, system),
     refIds: [...new Set([...(source.refs ?? []).map(r => normalizeSourceRef(r).targetId).filter(Boolean), ...scanIds(def)])].filter(id => id !== source.sourceId)};
 }

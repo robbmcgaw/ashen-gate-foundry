@@ -17,6 +17,7 @@ import {followHubVisibility} from "./hub-visibility.js";
 import {LAYOUT_SETTING, FOLDS, normalizeLayout, noteDrawerChanges, drawerContext} from "./import-layout.js";
 import {moduleCards} from './module-cards.js';
 import {itemTooltipAttrs, previewHtml} from './item-preview.js';
+import {professionFacts} from './profession-records.js';
 import {markerTargets,buildUuidIndex,resolveRichText,resolveTypedRefs,appendReferenceBlock} from "./import-fidelity.js";
 import {moduleRecordLookup} from "./module-records.js";
 import {createIconIndexer, filePickerClass, wantsSmartIcon, pickRecordIcon, chooseImportIcon, existingIconDecision, plannerIcon, iconFlagUpdate, ICON_DOCUMENT_TYPES} from './smart-icons.js';
@@ -1377,7 +1378,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
         continue;
       }
       const {action,reason,patch={},changes=[],effects=null}=planDocument(record,this.pkg,this).plan;
-      this.preview.push({id:record.id, name:record.foundry?.data?.name ?? record.name ?? record.id, kind:record.foundry?.document_type ?? record.entity_type+" (unmapped)", lifecycle:record.status, action, reason, patch, changes, effects,
+      this.preview.push({id:record.id, name:record.foundry?.data?.name ?? record.name ?? record.id, kind:record.foundry?.document_type ?? record.entity_type+" (unmapped)", detail:professionFacts(record)?.summary ?? '', lifecycle:record.status, action, reason, patch, changes, effects,
         effectRows:(effects?.rows??[]).map(r=>({...r,label:{create:'New',update:'Update',kept:'Kept',handmade:'Untouched'}[r.action]}))});
       this.warnings.push(...flagWarnings(record));
     }
@@ -1602,7 +1603,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     });
   }
   #exportPreview() {
-    const report = {generated_at:new Date().toISOString(), manifest:this.pkg?.manifest ?? (this.specialist?{specialist:SPECIALISTS[this.specialist.kind].label}:null), errors:this.errors, warnings:this.warnings, module_links:this.moduleLinks??[], preview:this.preview.map(({id, name, kind, lifecycle, action, reason, patch, changes, effects, icon})=>({id,name,kind,lifecycle,action,reason,patch,changes,effects:effects?.rows??undefined,
+    const report = {generated_at:new Date().toISOString(), manifest:this.pkg?.manifest ?? (this.specialist?{specialist:SPECIALISTS[this.specialist.kind].label}:null), errors:this.errors, warnings:this.warnings, module_links:this.moduleLinks??[], preview:this.preview.map(({id, name, kind, detail, lifecycle, action, reason, patch, changes, effects, icon})=>({id,name,kind,detail:detail||undefined,lifecycle,action,reason,patch,changes,effects:effects?.rows??undefined,
       icon:icon?{img:icon.img,source:icon.source,reason:icon.reason}:undefined}))};
     downloadJson("ag-import-preview.json",report);
   }
