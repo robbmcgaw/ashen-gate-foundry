@@ -31,6 +31,8 @@ import {windowSize} from './ag-html.mjs';
 import {readDrop, resolveItemDrop} from './ag-item-drop.mjs';
 import {togglePopOut} from './popout.mjs';
 import {applyCompactOpacity, saveCompactOpacity} from './compact-opacity.mjs';
+import {captureScroll, restoreScroll, captureFocus, restoreFocus} from './redraw.mjs';
+import {syncQuickKeys, unbindQuickKeys} from './quick-keys.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
 /** Push asks first through the shared dialog: "Push [power]?" with Cancel and Push. */
@@ -355,6 +357,8 @@ export function createHubSheetClass(Base) {
     expanded = new Set();
     /** Magic and Features filters while the sheet is open: {magic: {level, prepared, ritual, castable}, features: {action, uses, left}}. */
     listFilters = {magic: {}, features: {}};
+    /** Scroll positions per view ('compact' or a tab id) while the sheet is open (redraw.mjs). */
+    _agchScroll = {};
 
     get hubContext() {
       const actor = this.document, user = globalThis.game?.user;
@@ -371,13 +375,21 @@ export function createHubSheetClass(Base) {
     }
 
     _replaceHTML(result, content) {
-      const body = content.querySelector?.('.agch-body');
-      const scroll = body?.scrollTop ?? 0;
-      content.innerHTML = result;
-      mountEmbeds(content, this._embeds);
-      const next = content.querySelector?.('.agch-body');
-      if (next) next.scrollTop = scroll;
-      applyFilter(content, this.filters[this.tab] ?? '');
+      // Quiet redraws (0.29.4, redraw.mjs): nothing changes when the HTML is the same; otherwise scroll positions (per
+      // tab) and the focused field survive the redraw, so a change made by someone else never moves the player.
+      const view = this.compact ? 'compact' : this.tab, same = this._agchBound === content;
+      if (same && this._agchHtml === result && this._agchShown === view) {
+        for (const m of this._embeds.values()) { try { m.handle?.refresh?.(); } catch {} }
+      } else {
+        if (same && this._agchShown) this._agchScroll[this._agchShown] = captureScroll(content);
+        const focus = same && this._agchShown === view ? captureFocus(content) : null;
+        content.innerHTML = result;
+        mountEmbeds(content, this._embeds);
+        applyFilter(content, this.filters[this.tab] ?? '');
+        restoreScroll(content, this._agchScroll[view]);
+        restoreFocus(content, focus);
+        this._agchHtml = result; this._agchShown = view;
+      }
       applyCompactOpacity(this);
       this._drawUndo(content);
       // Listeners live on the content element, bound once per element. Foundry builds a new window (and content element)
@@ -410,6 +422,7 @@ export function createHubSheetClass(Base) {
         this._agchBound = content;
       }
       syncEscape(this);   // Escape closes an open menu/editor only, wherever focus is (escape.mjs)
+      syncQuickKeys(this);   // quick bar keys in a popped-out Hub's own window (quick-keys.mjs)
       try { const a = globalThis.game?.modules?.get('ashen-gate-manager')?.api?.appearance; if (a?.contract === 'ag-appearance/0.1-beta') a.applyTo?.(content); } catch {}
     }
 
@@ -496,8 +509,8 @@ export function createHubSheetClass(Base) {
     }
 
     /** After Foundry moves the Hub to its own browser window or back (V14), redraw so Pop out / Pop in is right. */
-    _onDetach(from, to) { unbindEscape(this); super._onDetach?.(from, to); this.render(); }
-    _onAttach(from, to) { unbindEscape(this); super._onAttach?.(from, to); this.render(); }
+    _onDetach(from, to) { unbindEscape(this); unbindQuickKeys(this); this._agchHtml = null; super._onDetach?.(from, to); this.render(); }
+    _onAttach(from, to) { unbindEscape(this); unbindQuickKeys(this); this._agchHtml = null; super._onAttach?.(from, to); this.render(); }
 
     /** Pending quick-bar Undo notices (5 seconds each); redrawn over the content when one is added, used or expires. */
     get undoList() {
@@ -514,7 +527,8 @@ export function createHubSheetClass(Base) {
     _onClose(options) {
       unmountEmbeds(this._embeds);
       this._undo?.clear();
-      unbindEscape(this);
+      unbindEscape(this); unbindQuickKeys(this);
+      this._agchScroll = {}; this._agchHtml = null; this._agchShown = null;
       return super._onClose?.(options);
     }
 
