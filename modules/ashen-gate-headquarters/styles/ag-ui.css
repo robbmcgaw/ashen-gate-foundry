@@ -1,4 +1,4 @@
-/* ag-ui kit 2.1.0 */
+/* ag-ui kit 2.2.0 */
 /*
  * Ashen Gate UI kit (ag-ui.css)
  * Every Ashen Gate module ships an identical copy of this file; scripts/check.mjs fails if
@@ -20,6 +20,8 @@
  * Kit 2 is additive: every kit-1 class and token keeps working.
  * 2.1.0: tone "ink" tokens and --ag-muted-strong for 4.5:1 text on tinted fills, [hidden] guard,
  * .ag-sr-only, disabled rows, .ag-search grows only in a toolbar, choice dialogs.
+ * 2.2.0: sub-tabs (.ag-tabs--sub), folds (.ag-fold), file buttons (.ag-file), link buttons (.ag-link), the danger
+ * confirm dialog (.ag-dialog--danger-confirm) and the dirty footer status. Additive; no kit 2.1 rule changed.
  */
 
 /* ---------- Base tokens (what a skin sets) ---------- */
@@ -770,6 +772,71 @@ button.ag-row { width: 100%; justify-content: flex-start; text-align: left; bord
 .application.ag-dialog--danger .form-footer > button:is([data-action="confirm"], [data-action="ok"]),
 .application.ag-dialog--danger .form-footer > button:is([data-action="confirm"], [data-action="ok"]):hover:not(:disabled) { background: var(--ag-danger); border-color: var(--ag-danger); color: var(--ag-surface); }
 
+/* =====================================================================================
+ * Kit 2.2 parts (2.2.0). Helpers in ag-html.mjs / ag-dialogs.mjs; usage in docs/ui-ux-guidelines.md §17.
+ * ===================================================================================== */
+
+/* ---------- Sub-tabs: one level under the top tabs; underline, not a pill (subTabs + bindTablist) ---------- */
+.ag-tabs.ag-tabs--sub { gap: var(--ag-space-3); padding: 0 var(--ag-space-4); background: transparent; }
+.ag-tabs--sub > :where(button, a, .ag-tab) {
+  min-height: var(--ag-control-h-sm);
+  padding: var(--ag-space-1) var(--ag-space-1);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font-size: var(--ag-text-sm);
+}
+.ag-tabs--sub > :where(button, a, .ag-tab):where(:hover:not(:disabled)) { background: transparent; color: var(--ag-text); border-bottom-color: var(--ag-border-strong); }
+.ag-tabs--sub > :where(.active, [aria-current="page"], [aria-selected="true"], .is-active) { background: transparent; color: var(--ag-text); border-bottom-color: var(--ag-accent); font-weight: 700; }
+
+/* ---------- Fold: labelled collapsible section (<details class="ag-fold">); never a fold in a fold ---------- */
+.ag-fold { border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--ag-surface-raised); }
+.ag-fold + .ag-fold { margin-top: var(--ag-space-2); }
+.ag-fold__summary { display: flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); min-height: var(--ag-row-h); padding: var(--ag-space-1) var(--ag-space-3); list-style: none; cursor: pointer; font-weight: 600; border-radius: var(--ag-radius); }
+.ag-fold__summary::-webkit-details-marker { display: none; }
+.ag-fold__summary::before { content: ""; flex: none; width: .45em; height: .45em; margin: 0 var(--ag-space-1); border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); transition: transform var(--ag-dur-fast) var(--ag-ease); }
+.ag-fold[open] > .ag-fold__summary::before { transform: rotate(45deg); }
+.ag-fold__summary:hover { background: var(--ag-surface-hover); }
+.ag-fold[open] > .ag-fold__summary { border-bottom: 1px solid var(--ag-border); border-radius: var(--ag-radius) var(--ag-radius) 0 0; }
+.ag-fold__title { min-width: 0; overflow-wrap: anywhere; }
+.ag-fold__count { padding: 0 var(--ag-space-2); border-radius: var(--ag-radius-control); background: var(--ag-surface-sunken); color: var(--ag-muted); font-size: var(--ag-text-xs); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ag-fold__hint { flex: 1 1 12rem; min-width: 0; color: var(--ag-muted); font-size: var(--ag-text-sm); font-weight: 400; }
+.ag-fold__body { padding: var(--ag-space-3); }
+
+/* ---------- File button: a real button; its input is visually hidden, never display:none (fileButton) ---------- */
+.ag-file { position: relative; display: inline-flex; align-items: center; }
+
+/* ---------- Link button: looks like an inline link, is a <button> (linkButton) ---------- */
+.ag-link,
+:where(.ag-app) button.ag-link {
+  display: inline;
+  width: auto;
+  min-height: 0;
+  height: auto;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--ag-radius-sm);
+  background: none;
+  box-shadow: none;
+  color: var(--ag-accent);
+  font: inherit;
+  text-align: inherit;
+  text-decoration: underline;
+  text-underline-offset: .15em;
+  cursor: pointer;
+}
+.ag-link:hover:not(:disabled),
+:where(.ag-app) button.ag-link:hover:not(:disabled) { background: none; border: 0; color: var(--ag-text); text-decoration-thickness: 2px; }
+.ag-link:disabled { color: var(--ag-muted); text-decoration: none; cursor: not-allowed; }
+.ag-link > i { margin-right: var(--ag-space-1); }
+
+/* ---------- Dirty status in the footer (guardDirty writes "Unsaved changes") ---------- */
+.ag-footer__status[data-ag-dirty] { color: var(--ag-text); font-weight: 600; }
+
+/* ---------- Danger confirm (confirmDanger): Cancel is the default and keeps the plain look; the action stays red ---------- */
+.application.ag-dialog--danger-confirm .form-footer > button[data-action="cancel"] { font-weight: 650; }
+
 /* ---------- Tooltips: data-tooltip + data-tooltip-class="ag-tooltip" ---------- */
 #tooltip.ag-tooltip, .locked-tooltip.ag-tooltip {
   background: var(--ag-surface-raised); color: var(--ag-text); border: 1px solid var(--ag-border-strong);
@@ -784,6 +851,6 @@ button.ag-row { width: 100%; justify-content: flex-start; text-align: left; bord
 
 /* ---------- Reduced motion: no transitions, no looping spinners ---------- */
 @media (prefers-reduced-motion: reduce) {
-  .ag-app *, .ag-launcher, .ag-sidebar-launch-button, .ag-chip, .ag-meter__fill { transition: none !important; }
+  .ag-app *, .ag-launcher, .ag-sidebar-launch-button, .ag-chip, .ag-meter__fill, .ag-fold__summary::before { transition: none !important; }
   .ag-app :is(.fa-spin, .fa-spin-pulse) { animation: none !important; }
 }

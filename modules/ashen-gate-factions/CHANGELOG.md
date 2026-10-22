@@ -1,3 +1,7 @@
+## 0.14.1 — 2026-10-22
+
+- Shared UI kit 2.2 (no visible change).
+
 ## 0.14.0 — 2026-10-21
 
 - **Item rewards follow the shared item-drop standard** (`ag-item-drop.mjs`, copied unchanged from Quest Log). Reward levels take **items only**: a journal or other document gets "Rewards take items. Drop journals and other documents on the info list." and nothing is added; a folder is refused. The information list still takes any document.

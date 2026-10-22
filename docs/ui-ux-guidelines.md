@@ -194,9 +194,9 @@ device to Comfortable.
 4. **Body**: one sentence on the consequence ("Players lose access to its notes."). Name the side effects, for example other
    lists that also show the store. Don't explain the buttons. [Apple Alerts] [Carbon Dialogs]
 5. `danger: true` for removals and resets, so the button is red; the label still carries the meaning. [WCAG 1.4.1]
-6. **The destructive button is never the default.** In a danger dialog, Enter and initial focus go to Cancel *(kit 2.2:
-   today `confirmDialog` makes the action the default even with `danger: true`)*. [Apple Buttons] [W3C APG Dialog]
-   [GNOME Dialogs]
+6. **The destructive button is never the default.** In a danger dialog, Enter and initial focus go to Cancel: use
+   `confirmDanger()` (kit 2.2). `confirmDialog(…, {danger: true})` still makes the action the default, so each cleanup
+   moves its removals to `confirmDanger`. [Apple Buttons] [W3C APG Dialog] [GNOME Dialogs]
 7. Esc cancels. Don't open a confirmation from inside another modal; finish one before the next. [W3C APG Dialog]
    [Carbon Dialogs]
 8. A form that collects input and then asks "Are you sure?" asks once: put the consequence in the form's button ("Award 3
@@ -327,19 +327,20 @@ one PR, each with a patch bump.
 
 ## 15. Kit gaps (proposed kit 2.2)
 
-The audit kept reaching for things the kit doesn't have yet. These are proposals; each is additive and keeps kit 2.1 working.
+The audit kept reaching for things the kit doesn't have yet. Each is additive and keeps kit 2.1 working. Kit 2.2.0 ships the
+rows marked **shipped** (usage in [section 17](#17-kit-22-usage)); the rest are still proposals.
 
 | Addition | What it is | Rules it serves |
 |---|---|---|
-| `.ag-tabs--sub` | Secondary tab row: smaller, underline style, distinct from the top pill row | §2.5 |
-| `bindTablist(root)` in `ag-html.mjs` | Roving tabindex, Left/Right/Home/End, `aria-controls`/`aria-labelledby` wiring for any `.ag-tabs` | §2.7, §9.10 |
-| `.ag-fold` | Styled `<details>`/`<summary>` section with chevron, count and optional end actions (generalises `.ag-devtools`) | §3 |
-| `fileButton({label, accept})` | A real button plus a visually hidden file input | §9.2 |
-| `.ag-link` | A button that looks like an inline link, for in-text navigation | §9.1 |
-| `guardDirty(app)` helper | Tracks a form's dirty state, writes "Unsaved changes" to the footer status, asks before discard | §6.6–6.7 |
+| `.ag-tabs--sub` **shipped** (with `subTabs()`) | Secondary tab row: smaller, underline style, distinct from the top pill row | §2.5 |
+| `bindTablist(root)` in `ag-html.mjs` **shipped** | Roving tabindex, Left/Right/Home/End, `aria-controls`/`aria-labelledby` wiring for any `.ag-tabs` | §2.7, §9.10 |
+| `.ag-fold` **shipped** (with `fold()`, `bindFolds()`) | Styled `<details>`/`<summary>` section with chevron, count and optional end actions (generalises `.ag-devtools`) | §3 |
+| `fileButton({label, accept})` **shipped** (with `bindFileButtons()`) | A real button plus a visually hidden file input | §9.2 |
+| `.ag-link` **shipped** (with `linkButton()`) | A button that looks like an inline link, for in-text navigation | §9.1 |
+| `guardDirty()` helper **shipped** (in `ag-dialogs.mjs`) | Tracks a form's dirty state, writes "Unsaved changes" to the footer status, asks before discard | §6.6–6.7 |
 | `.ag-badge--now` / "Applies now" | Badge for cards whose controls save immediately | §6.8 |
 | `.ag-spinner`, `.ag-skeleton` | Loading states, reduced-motion safe | §8.3–8.4 |
-| `confirmDialog` danger default | With `danger: true`, Cancel becomes the default button | §7.6 |
+| `confirmDanger()` **shipped** (a new helper; `confirmDialog` is unchanged) | With `danger: true`, Cancel becomes the default button | §7.6 |
 | `captureFocus`/`restoreFocus` | Shared version of Character Hub's focus restore, covering buttons too | §9.6 |
 
 ## 16. Review checklist (copy into a UI PR)
@@ -359,6 +360,95 @@ The audit kept reaching for things the kit doesn't have yet. These are proposals
 - [ ] Reduced motion respected.
 - [ ] Same names in launcher, header, tabs, Help and embeds; verb-first buttons; no raw ids or tokens.
 - [ ] Tell Robb exactly what to click in Forge to see the change.
+
+## 17. Kit 2.2 usage
+
+Kit 2.2.0 adds helpers to `ag-html.mjs` and `ag-dialogs.mjs` and the matching classes to `ag-ui.css`. Nothing calls them
+yet: each module's cleanup adopts them. They have unit tests against a mocked DOM in `scripts/kit-tests/` (logic only; check
+the look and the keyboard in Forge). Import from the module's own copy (`./ag-html.mjs`, `./ag-dialogs.mjs`).
+
+| Helper | File | Signature |
+|---|---|---|
+| `uiState` | ag-html | `uiState(namespace, {storage?, userId?}) → {key, get(name, fallback, allowed?), set(name, value)}` |
+| `subTabs` | ag-html | `subTabs({group, label, tabs: [{id, label, icon?, count?}], selected}) → html` |
+| `tabPanelAttrs` | ag-html | `tabPanelAttrs(group, tab, {hidden?}) → attribute string` |
+| `bindTablist` | ag-html | `bindTablist(root, {state?, key?}) → unbind()` |
+| `fold` | ag-html | `fold({key?, title, count?, hint?, open?, body}) → html` |
+| `bindFolds` | ag-html | `bindFolds(root, state) → unbind()` |
+| `fileButton` | ag-html | `fileButton({label?, accept?, multiple?, icon?, disabled?, data?, className?}) → html` |
+| `bindFileButtons` | ag-html | `bindFileButtons(root, handler(files, wrapper)) → unbind()` |
+| `linkButton` | ag-html | `linkButton(label, {data?, icon?, ariaLabel?, tooltip?}) → html` |
+| `confirmDanger` | ag-dialogs | `confirmDanger(message, {title, yes, no?}) → Promise<boolean>` |
+| `guardDirty` | ag-dialogs | `guardDirty({status?, text?, title?, message?, discard?, keep?, ask?, onChange?}) → guard` |
+
+Text arguments (labels, titles, counts, hints) are escaped; `body` of `fold()` is HTML the caller has already escaped.
+
+**Remember a choice per user** (sub-tab, open folds). Stored in the browser's localStorage per user; never throws.
+
+```js
+const ui = uiState('ashen-gate-quest-manager');
+this.subTab = ui.get('gmSetupTab', 'general', ['general', 'rules', 'access']); // falls back if the tab no longer exists
+```
+
+**Sub-tabs** (one level, at the top of the pane they switch). Clicks still run your handler; `bindTablist` adds the
+keyboard (one Tab stop, Left/Right, Home/End; Enter or Space selects) and remembers the clicked `data-tab`.
+
+```js
+const tabs = [{id: 'general', label: 'General'}, {id: 'rules', label: 'Rules'}, {id: 'access', label: 'Player access'}];
+const html = `${subTabs({group: 'gm-setup', label: 'GM Setup sections', tabs, selected: this.subTab})}
+  <section ${tabPanelAttrs('gm-setup', this.subTab)}>…</section>`;
+// after render:
+bindTablist(root.querySelector('.ag-tabs--sub'), {state: ui, key: 'gmSetupTab'});
+root.querySelectorAll('.ag-tabs--sub [data-tab]').forEach(b => b.addEventListener('click', () => { this.subTab = b.dataset.tab; this.render(); }));
+```
+
+`bindTablist` also works on an existing top-level `.ag-tabs` row: it adds `role="tab"` and roving `tabindex` to its buttons
+and wires each tab's `aria-controls` panel. Focus after a re-render is still the module's job (§9.6).
+
+**Folds** for optional sections (never a fold in a fold, no buttons in the title):
+
+```js
+const html = fold({key: 'advanced', title: 'Advanced options', count: 3, body: advancedHtml});
+// after render:
+bindFolds(root, ui); // restores and remembers open/closed per user
+```
+
+**File picker** that the keyboard can reach. A drop zone may stay beside it, never instead of it.
+
+```js
+const html = fileButton({label: 'Import JSON…', accept: '.json,application/json'});
+// after render:
+bindFileButtons(root, async ([file]) => this.importFile(file));
+```
+
+**Link button** for in-app navigation inside text (use `<a href>` for real URLs):
+
+```js
+`Turn on Player access in ${linkButton('GM Setup', {data: {action: 'goto-tab', tab: 'gm-setup'}})}.`
+```
+
+**Destructive confirmation**: title "Delete <thing>?", action "Delete <thing>", Cancel is the default.
+
+```js
+if (!(await confirmDanger('Players lose access to its notes.', {title: `Delete ${name}?`, yes: 'Delete location'}))) return;
+```
+
+**Unsaved edits**: one guard per draft form. It writes "Unsaved changes" into the footer status and asks "Discard unsaved
+changes?" (Keep editing / Discard changes, Keep editing is the default) before a tab switch, selection change or close.
+
+```js
+this.guard ??= guardDirty({status: () => this.element?.querySelector('.ag-footer__status')});
+// after render:
+this.guard.watch(root.querySelector('form.ag-draft'));
+const selectTab = this.guard.guard(tab => { this.tab = tab; return this.render(); });
+// after a successful save, and on Cancel:
+this.guard.markClean();
+// on close:
+async close(options) { if (!(await this.guard?.confirm() ?? true)) return this; return super.close(options); }
+```
+
+An action that needs the saved record can pass its own `ask` (for example a `choiceDialog` with **Save and <action>** /
+**Keep editing**, §6.9).
 
 ---
 

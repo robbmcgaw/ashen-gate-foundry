@@ -1,3 +1,7 @@
+## 0.19.6 — 2026-10-22
+
+- Shared UI kit 2.2 (no visible change).
+
 ## 0.19.5 — 2026-10-22
 
 - The Undo confirmation in a character's History no longer shows raw `<strong>` tags (or `&amp;` for names with special characters): the message is plain text, escaped once by the shared dialog helper. All other Skill Trees confirmations were checked and were already plain text.

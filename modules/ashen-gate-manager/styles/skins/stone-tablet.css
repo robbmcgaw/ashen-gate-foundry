@@ -262,6 +262,7 @@ html[data-ag-skin="ag-stone-tablet"] :is(#ashen-gate-launchers > .ag-launcher, .
  * .ag-window, .ag-split, .ag-card-grid, .ag-form-grid, .ag-btn-group, .ag-chip-group, .ag-kv,
  * .ag-field, .ag-toolbar, .ag-hotbar, .ag-rarity-edge, .ag-version, .ag-eyebrow, .ag-gm-flag,
  * .ag-icon-chip, .ag-sr-only (kit 2.1.0).
+ * Kit 2.2.0 parts keep the kit look here too: .ag-fold, .ag-file, .ag-link (and .ag-tabs--sub).
  * ===================================================================================== */
 html[data-ag-skin="ag-stone-tablet"] :is(.ag-chip, .ag-segmented, .ag-rarity-badge) { border-radius: 0; }
 html[data-ag-skin="ag-stone-tablet"] .ag-chip { border-color: #111412; box-shadow: var(--agx-bevel); }

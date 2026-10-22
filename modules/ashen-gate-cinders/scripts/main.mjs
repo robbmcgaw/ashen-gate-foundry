@@ -14,7 +14,7 @@ import {draftFromConfig,draftDirty,setDraftField,addBand,removeBand,checkDraft,e
 import {hideSettingsFromPlayers,stripSettingsCategory} from './gm-settings.mjs';
 
 const MODULE='ashen-gate-cinders';
-const VERSION='0.10.0';
+const VERSION='0.10.1';
 const SOCKET=`module.${MODULE}`;
 const TREES_ID='ashen-gate-skill-trees';
 const ACCOUNTS_CONTRACT='ag-tree-accounts/1';

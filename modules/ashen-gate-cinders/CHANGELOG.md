@@ -1,3 +1,7 @@
+## 0.10.1 — 2026-10-22
+
+- Shared UI kit 2.2 (no visible change).
+
 ## 0.10.0 — 2026-10-22
 
 - **Signature ability and passive.** A Cinder definition (`MUT-*`, `cinder.schema: "ag-cinder/0.2"`) may name `cinder.bearer_items: {active, passive}`: two Power records of the new kinds `signature_active` (summary, Push modes, and the Item's own dnd5e activities, uses and recovery) and `signature_passive` (summary, no Push modes, a transferring Active Effect). From the moment a Cinder is bound its bearer has a copy of each, tagged with the Cinder (`flags.ashen-gate-cinders.bearerItem`). They cost no points and are not tree nodes; tree powers, perks and socket items modify the ability's Push as usual, and a tree node can open a new Push mode on it (`requires.powers`). `ag-cinder/0.1` files stay valid.

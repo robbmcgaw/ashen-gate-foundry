@@ -1,3 +1,7 @@
+## 0.45.2 — 2026-10-22
+
+- Shared UI kit 2.2 (no visible change).
+
 ## 0.45.1 — 2026-10-22
 
 - **Works with Locations 0.18.0.** Locations was renumbered from 1.18.0 to 0.18.0 (the suite is pre-release). Manager never compares a Locations version number any more: the Pre-session check's *Module versions* row asks whether Locations offers `importLocations`, `previewLocation`, `setLocationState` and `publishLocation`, and its *Migration* row runs when Locations has `moveLocation` and `setAudience`. Before this, Locations 0.18.0 would have been reported as "older than 1.3.0" and its migration skipped. Route import, Browse and World export already checked for `importRoutes` / `listRoutes` and are unchanged; their "not active" messages no longer name a version.
