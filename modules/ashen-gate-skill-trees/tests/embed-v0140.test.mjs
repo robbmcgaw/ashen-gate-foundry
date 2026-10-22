@@ -46,7 +46,10 @@ test('GM: trees with points or perks, available perks with Unlock, unlocked chip
   assert.ok(el.classes.has('agst-embed'));
   assert.match(el.innerHTML,/\[TEST\] Herbalism Tree[\s\S]*2 points to spend[\s\S]*1 of 3 spent · level 3/);
   assert.match(el.innerHTML,/data-agst-embed="unlock" data-tree="TP-PROF" data-node="P2"/);
-  assert.match(el.innerHTML,/Unlocked<\/h4><ul class="agst-embed__chips"><li[^>]*>\[TEST\] Perk P1/);
+  // 0.20.0 (ST-13): kit badges, no hand-rolled pill or chip, no control inside <summary>.
+  assert.match(el.innerHTML,/Unlocked<\/h4><ul class="ag-chip-group agst-embed__chips"><li class="ag-badge ag-badge--ok">\[TEST\] Perk P1/);
+  assert.match(el.innerHTML,/<span class="ag-badge ag-badge--accent">2 points to spend<\/span>/);
+  assert.doesNotMatch(el.innerHTML,/agst-embed__pts|<summary>(?:(?!<\/summary>)[\s\S])*<button/);
   assert.match(el.innerHTML,/\[TEST\] Generic Tree[\s\S]*3 points to spend/);
   assert.match(el.innerHTML,/data-agst-embed="open" data-tree="TP-PROF"/);
   view.unmount();assert.equal(el.innerHTML,'');assert.equal(el.listeners.length,0);

@@ -39,7 +39,7 @@ for(const h of history)test(`Undo (${h.kind}) confirmation has no literal tag te
 
 test('no confirm() message in Skill Trees carries markup or pre-escaped text',async()=>{
   const src=await fs.readFile(new URL('../scripts/main.js',import.meta.url),'utf8');
-  const calls=[...src.matchAll(/await confirm\(([^;]*?),\{title:/g)].map(m=>m[1]);
+  const calls=[...src.matchAll(/await confirm(?:Danger)?\(([^;]*?),\{title:/g)].map(m=>m[1]);
   assert.ok(calls.length>=10);
   for(const c of calls){assert.doesNotMatch(c,/<\/?[a-z]+[ >]|&[a-z#0-9]+;/i,c);assert.doesNotMatch(c,/escape\(/,c);}
   const undo=src.slice(src.indexOf('async _undoHistory('),src.indexOf('async _ledgerImport('));
