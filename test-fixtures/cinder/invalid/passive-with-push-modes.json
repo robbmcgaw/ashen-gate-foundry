@@ -1,0 +1,68 @@
+{
+  "_expect_error": "signature_passive has no push_modes",
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-TEST-CINDER",
+    "version": "1.0.0",
+    "description": "Synthetic Cinder, powers and Backfire tables for testing (not canon)."
+  },
+  "records": [
+    {
+      "id": "POWER-TEST-WARD",
+      "entity_type": "Power",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Ward",
+      "power": {
+        "schema": "ag-power/0.1",
+        "kind": "signature_passive",
+        "standard": {
+          "summary": "[TEST] Always on: +1 AC while bearing the Cinder."
+        },
+        "push_modes": [
+          {
+            "id": "flare",
+            "label": "[TEST] Flare up",
+            "strain_cost": 1
+          }
+        ]
+      },
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Cinders",
+        "data": {
+          "name": "[TEST] Ward",
+          "type": "feat",
+          "system": {
+            "description": {
+              "value": "<p>[TEST] Ward: synthetic test definition; no setting content.</p>"
+            }
+          },
+          "effects": [
+            {
+              "eff_id": "ward",
+              "name": "[TEST] Ward",
+              "img": "icons/svg/shield.svg",
+              "transfer": true,
+              "changes": [
+                {
+                  "key": "system.attributes.ac.bonus",
+                  "mode": "add",
+                  "value": 1
+                }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

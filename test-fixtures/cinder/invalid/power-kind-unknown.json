@@ -1,0 +1,93 @@
+{
+  "_expect_error": "power.kind must be power, enhancement, signature_active or signature_passive",
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-TEST-CINDER",
+    "version": "1.0.0",
+    "description": "Synthetic Cinder, powers and Backfire tables for testing (not canon)."
+  },
+  "records": [
+    {
+      "id": "POWER-TEST-FLARE",
+      "entity_type": "Power",
+      "status": "approved",
+      "version": "1.0.0",
+      "provenance": {
+        "sources": [
+          "Synthetic test data (not canon)"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Flare",
+      "power": {
+        "schema": "ag-power/0.1",
+        "kind": "aura",
+        "standard": {
+          "summary": "[TEST] A flare of light, twice per long rest."
+        },
+        "push_modes": [
+          {
+            "id": "blaze",
+            "label": "[TEST] Blaze",
+            "strain_cost": 2,
+            "effect": "[TEST] The flare blinds for a moment."
+          },
+          {
+            "id": "inferno",
+            "label": "[TEST] Inferno",
+            "strain_cost": 3,
+            "effect": "[TEST] The flare fills the room.",
+            "requires": {
+              "powers": [
+                "POWER-TEST-REACH"
+              ]
+            }
+          }
+        ]
+      },
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Test/Cinders",
+        "data": {
+          "name": "[TEST] Flare",
+          "type": "feat",
+          "system": {
+            "description": {
+              "value": "<p>[TEST] Flare: synthetic test definition; no setting content.</p>"
+            },
+            "uses": {
+              "max": "2",
+              "recovery": [
+                {
+                  "period": "lr",
+                  "type": "recoverAll"
+                }
+              ]
+            },
+            "activities": {
+              "flareUse0000001": {
+                "_id": "flareUse0000001",
+                "type": "utility",
+                "name": "[TEST] Flare",
+                "activation": {
+                  "type": "action",
+                  "value": 1
+                },
+                "consumption": {
+                  "targets": [
+                    {
+                      "type": "itemUses",
+                      "value": "1"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}

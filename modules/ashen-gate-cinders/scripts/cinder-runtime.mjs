@@ -3,7 +3,8 @@
  * api.accounts (ag-tree-accounts/1), so the tree window keeps working; Skill Trees knows nothing about Cinders. */
 import {CINDER_CONTRACT,CINDER_WALLET_CAP,cleanAccount,normalizeRegistry,createInstance,bindInstance,unbindInstance,transferInstance,withProgression,boundTo,bearerInstance,
   planMigration,powerBlock,availableModes,planPush,resolveBackfire,categoriesFor,backfireBlock,effectProblem,collectModifiers,validateDefinition,
-  MODIFIER_CONTRACT,MODIFIER_SCOPE,MODIFIER_TARGETS,validateModifiers,blockModifiers,isLevelBackup,LEVEL_BACKUP_MESSAGE,definitionArt} from './cinder.mjs';
+  MODIFIER_CONTRACT,MODIFIER_SCOPE,MODIFIER_TARGETS,validateModifiers,blockModifiers,isLevelBackup,LEVEL_BACKUP_MESSAGE,definitionArt,isPushable} from './cinder.mjs';
+import {SLOT_KIND,SLOT_LABEL,bearerItemsOf,bearerTag,planBearerItems,bearerItemData,playerUpdateProblem} from './bearer-items.mjs';
 import {SOCKETS_CONTRACT,SOCKETS_HOOK,MAX_SOCKETS,normalizeSockets,socketMirror,socketPlan,applySocketOp,withoutItem} from './sockets.mjs';
 import {cleanArt,artInput,resolveArt} from './orb.mjs';
 
@@ -19,6 +20,8 @@ const emptyAccount=()=>({awarded:0,unlocks:[],grants:[],revision:0});
  * deps: module, socket, strain (Strain runtime), lookup(id) → world definition hit, escape,
  * trees() → {status: 'ok'|'missing'|'old', accounts?, api?, message?} (Skill Trees, looked up at call time),
  * blocked() → a reason while Cinders must stay off, else null.
+ * 0.10.0: pushOffer() → whether this user is offered a Push when they use a signature ability (world switch and their own setting);
+ * offerPush({actor, ability, modes}) → the chosen mode id, or null for "Use without Push" (the dialog; absent = never offered).
  */
 export function createCinders(deps){
   const {module,socket,strain,lookup,escape,trees,blocked}=deps;
@@ -79,6 +82,47 @@ export function createCinders(deps){
   }
   const hasProgress=(actor,definitionId)=>{const t=cinderTree(definitionId);if(!t)return false;const a=cleanAccount(accounts().account(actor,t.id));return a.awarded>0||a.unlocks.length>0;};
 
+  // ---- Bearer items (0.10.0): the signature ability and passive a Cinder gives its bearer from the moment it is bound ----
+  /** This module's tagged copies on a character: [{id, item, tag}]. Skill Trees' perk copies are never in this list. */
+  const taggedOn=actor=>[...(actor?.items??[])].map(item=>({id:item.id,item,tag:bearerTag(item,module)})).filter(x=>x.tag);
+  /** What each Cinder the character bears should give it. items null = its definition cannot be read now (its copies are left alone). */
+  const bearerWant=(registry,actorId)=>boundTo(registry,actorId).map(inst=>{const def=definition(inst.definitionId);
+    return {instanceId:inst.instanceId,definitionId:inst.definitionId,items:def?bearerItemsOf(def):null};});
+  /** The world Item a bearer item is copied from: {doc}, or {problem} when it is missing or of the wrong kind. */
+  function bearerSource(sourceId,slot){
+    const hit=lookup(sourceId),label=SLOT_LABEL[slot].toLowerCase();
+    if(hit?.status!=='ok'||hit.document?.documentName!=='Item')return {problem:`${sourceId} (the Cinder's ${label}) is not in this world as an Item. Import it through General Manager.`};
+    const kind=powerBlock(sourceOf(hit.document)?.definition)?.kind;
+    if(kind!==SLOT_KIND[slot])return {problem:`${sourceId} is ${kind?`a ${kind}`:'not a Power with a power block'}, not a ${SLOT_KIND[slot]}, so it is not given as the Cinder's ${label}.`};
+    return {doc:hit.document};
+  }
+  /** Make one character carry exactly the bearer items of the Cinders it bears (the registry is the truth). Idempotent: missing copies
+   * are created, duplicates and copies for Cinders it does not bear are removed; untagged items (Skill Trees' perks included) are never touched.
+   * Resolves {done: [text], problems: [text]}. */
+  async function syncBearerItems(actor,registry){
+    const plan=planBearerItems(taggedOn(actor),bearerWant(registry,actor.id)),done=[],problems=[];
+    for(const r of plan.remove){const item=itemOf(actor,r.id);if(!item)continue;await item.delete();done.push(`${actor.name}: removed ${item.name}`);}
+    const data=[];
+    for(const c of plan.create){const src=bearerSource(c.sourceId,c.slot);if(src.problem)problems.push(`${actor.name}: ${src.problem}`);else data.push(bearerItemData(src.doc.toObject(),module,c));}
+    if(data.length)for(const item of await actor.createEmbeddedDocuments('Item',data)??[])done.push(`${actor.name}: gained ${item.name}`);
+    return {done,problems};
+  }
+  const bearerSync=(actor,registry)=>syncBearerItems(actor,registry).catch(error=>({done:[],problems:[`${actor.name}: ${error?.message??error}`]}));
+  const WHY={duplicate:'a second copy','replaced':'the Cinder now gives another power','not on the Cinder':'the Cinder gives none','not borne':'does not bear that Cinder'};
+  /** Check rows: bearer items missing (repairable when the source is in the world), extra copies, sources missing or of the wrong kind. */
+  function bearerReport(registry){
+    const rows=[];
+    for(const actor of playable()){
+      const plan=planBearerItems(taggedOn(actor),bearerWant(registry,actor.id));
+      for(const c of plan.create){const src=bearerSource(c.sourceId,c.slot),name=definitionName(c.definitionId);
+        rows.push(src.problem?{instanceId:c.instanceId,name,actorId:actor.id,text:`${actor.name}: ${src.problem}`}
+          :{instanceId:c.instanceId,name,actorId:actor.id,repair:true,text:`${actor.name} is missing this Cinder's ${SLOT_LABEL[c.slot].toLowerCase()} (${c.sourceId}).`});}
+      for(const r of plan.remove)rows.push({instanceId:r.instanceId,name:itemOf(actor,r.id)?.name??r.id,actorId:actor.id,repair:true,
+        text:`${actor.name} has an extra ${SLOT_LABEL[r.slot].toLowerCase()} item (${WHY[r.why]??r.why}).`});
+    }
+    return rows;
+  }
+
   // ---- GM operations ----
   /** New unbound Cinder. Its art is the definition's art (0.9.0) unless options.art names another image. */
   async function create(definitionId,{art}={}){
@@ -97,7 +141,9 @@ export function createCinders(deps){
       if(hasProgress(actor,instance.definitionId))throw Error(`${actor.name} already has progress on this Cinder's tree from before Cinders. Use Move existing Cinder progress first.`);
       try{await writeBearer(actor,instance);await saveRegistry(registry);}
       catch(error){await clearBearer(actor,instance).catch(e=>console.error(`[${module}] Could not undo bind`,e));throw error;}
-      changed('bind',instance);return {instance,initialAwarded};
+      // 0.10.0: the signature ability and passive. A missing source never undoes the bind; Manage → Check names it, Repair gives it later.
+      const bearerItems=await bearerSync(actor,registry);
+      changed('bind',instance);return {instance,initialAwarded,bearerItems};
     });
   }
   /** Move a bound Cinder to another character: points and unlocks go with it; Strain and Backfire conditions stay where they are. */
@@ -109,11 +155,12 @@ export function createCinders(deps){
       // New bearer first, then the record, then the old bearer: an interruption never leaves the Cinder with nobody.
       try{await writeBearer(toActor,instance);await saveRegistry(registry);}
       catch(error){await clearBearer(toActor,instance).catch(e=>console.error(`[${module}] Could not undo transfer`,e));throw error;}
+      const bearerItems=await bearerSync(toActor,registry);
       const old=actorById(from);let left=null;
-      if(old){try{await clearBearer(old,instance);await clearMarkers(old,detached);}catch(error){left=error.message;}}
+      if(old){try{await clearBearer(old,instance);await clearMarkers(old,detached);const r=await syncBearerItems(old,registry);bearerItems.done.push(...r.done);}catch(error){left=error.message;}}
       changed('transfer',instance,{fromActorId:from});if(detached.length)socketsChanged('transfer',instance,from);
       if(left)throw Error(`Cinder moved to ${toActor.name}, but cleaning up the previous bearer failed: ${left}. Run Manage → Check.`);
-      return {instance,from};
+      return {instance,from,bearerItems};
     });
   }
   async function unbind(instanceId){
@@ -121,7 +168,7 @@ export function createCinders(deps){
     return withRegistry(async()=>{
       const {registry,instance,from,detached}=unbindInstance(readRegistry(),instanceId);
       await saveRegistry(registry);
-      const old=actorById(from);if(old){await clearBearer(old,instance);await clearMarkers(old,detached);}
+      const old=actorById(from);if(old){await clearBearer(old,instance);await clearMarkers(old,detached);await syncBearerItems(old,registry);}
       changed('unbind',instance,{fromActorId:from});if(detached.length)socketsChanged('unbind',instance,from);return {instance,from};
     });
   }
@@ -131,7 +178,8 @@ export function createCinders(deps){
    *   - a bearer pointer for each Cinder bound to it (sockets and art copied from the record); pointers to Cinders it does not bear dropped;
    *   - its Cinder tree accounts set from each Cinder's progression, and Cinder progress on trees of Cinders it does not bear
    *     removed (through Skill Trees; skipped, and said so, when Skill Trees is missing);
-   *   - item socket markers: set for its items in its Cinders' sockets, cleared on the rest.
+   *   - item socket markers: set for its items in its Cinders' sockets, cleared on the rest;
+   *   - (0.10.0) its bearer items: the signature ability and passive of each Cinder it bears, missing ones given, extra ones removed.
    * Re-runnable. Resolves {instances: [instanceId], done: [text]}.
    */
   async function rehook(actor){
@@ -151,6 +199,7 @@ export function createCinders(deps){
         const marker=inst?{instanceId:inst.instanceId,slot}:null;
         if(JSON.stringify(markerOf(item))!==JSON.stringify(marker)&&(marker||markerOf(item))){await setMarker(item,marker);done.push(`${actor.name}: ${item.name} ${marker?'marked attached':'unmarked'}`);}
       }
+      const items=await bearerSync(actor,registry);done.push(...items.done,...items.problems);
       for(const inst of mine)changed('rehook',inst);
       return {instances:mine.map(i=>i.instanceId),done};
     });
@@ -230,7 +279,7 @@ export function createCinders(deps){
   /** GM check: bearers that no longer exist, tree accounts out of date, Cinder powers on the wrong character. Read-only. */
   function report(){
     requireGM();
-    const registry=readRegistry(),rows=[],t=trees();
+    const registry=readRegistry(),rows=bearerReport(registry),t=trees();
     if(t.status!=='ok'){rows.push({instanceId:null,name:'Skill Trees',text:t.message});return rows;}
     for(const inst of registry.instances){
       const name=definitionName(inst.definitionId),actor=inst.bearer?actorById(inst.bearer.actorId):null,tree=cinderTree(inst.definitionId);
@@ -249,12 +298,14 @@ export function createCinders(deps){
     rows.push(...socketReport(registry));
     return rows;
   }
-  /** Repair what report() flags: bearers' tree progress rewritten from the Cinder; Cinder progress taken off non-bearers. Never changes a Cinder. */
+  /** Repair what report() flags: bearers' tree progress rewritten from the Cinder; Cinder progress taken off non-bearers; (0.10.0) missing
+   * bearer items given and extra copies removed (the re-runnable "give missing bearer items" step for Cinders bound before 0.10.0). Never changes a Cinder. */
   async function repair(){
     requireGM();
     const acc=accounts();
     return withRegistry(async()=>{
       const registry=readRegistry(),done=[];
+      for(const actor of playable()){const r=await bearerSync(actor,registry);done.push(...r.done,...r.problems);}
       for(const inst of registry.instances){const actor=inst.bearer?actorById(inst.bearer.actorId):null,tree=cinderTree(inst.definitionId);if(!actor||!tree)continue;
         const r=await acc.setAccount(actor,tree.id,inst.progression);if(r.given.length||r.removed.length)done.push(`${actor.name}: ${[...r.given.map(x=>`+${x}`),...r.removed.map(x=>`−${x}`)].join(', ')}`);}
       for(const actor of playable()){
@@ -318,6 +369,17 @@ export function createCinders(deps){
     try{row=(t.api.pointsSummary?.(actor)??[]).find(r=>r.treeId===tree.id)??null;}catch{row=null;}
     return {treeId:tree.id,unspent:Number.isSafeInteger(row?.available)?row.available:null};
   }
+  /** The bearer items of one Cinder on the character: {active: {powerId, name, itemId, summary, modes} | null, passive: {powerId, name, itemId, summary} | null}. */
+  function signatureOf(actor,instanceId,modes){
+    const out={active:null,passive:null};
+    for(const {item,tag} of taggedOn(actor)){
+      if(tag.instanceId!==instanceId||out[tag.slot])continue;
+      const power=powerBlock(sourceOf(item)?.definition);
+      out[tag.slot]={powerId:tag.sourceId,name:item.name??tag.sourceId,itemId:item.id,summary:power?.standard?.summary??'',
+        ...(tag.slot==='active'?{modes:isPushable(power)?modes(power,tag.sourceId):[]}:{})};
+    }
+    return out;
+  }
   function list(actor){
     requireOn();requirePlayerAccess();if(!canRead(actor))throw Error('Actor access denied');
     const strainState=strain.readState(actor),config=strain.config();
@@ -328,19 +390,21 @@ export function createCinders(deps){
       const powers=st.powers,ids=powers.map(x=>x.powerId);
       // art: what the orb draws (own, then the definition's; null = default orb). ownArt: the Cinder's own image only.
       const ownArt=cleanArt(p.art),defaultArt=cleanArt(p.defaultArt)??defArt(p.definitionId);
+      const modes=(power,powerId)=>availableModes({power},ids).map(m=>{const plan=planPush({strainValue:strainState.value,config,mode:m,unlocked:powers,powerId,extra});
+        return {id:m.id,label:m.label,effect:m.effect??'',cost:plan.cost,after:plan.after,chance:plan.chance,guaranteed:plan.guaranteed,
+          modifiers:[...plan.modifiers.cost.used,...plan.modifiers.chance.used,...plan.modifiers.severity.used]};});
       return {instanceId:p.instanceId,definitionId:p.definitionId,name:p.name??p.definitionId,art:resolveArt(ownArt,defaultArt),ownArt,defaultArt,
         artSource:ownArt?'cinder':defaultArt?'definition':null,...treePoints(actor,p.definitionId),
         ...(since?{bearerSince:since.get(p.instanceId)??null}:{}),
-        powers:powers.filter(x=>x.power?.kind==='power').map(x=>({powerId:x.powerId,name:x.name,itemId:x.item.id,nodeId:x.nodeId,standard:x.power.standard?.summary??'',
-          modes:availableModes({power:x.power},ids).map(m=>{const plan=planPush({strainValue:strainState.value,config,mode:m,unlocked:powers,powerId:x.powerId,extra});
-            return {id:m.id,label:m.label,effect:m.effect??'',cost:plan.cost,after:plan.after,chance:plan.chance,guaranteed:plan.guaranteed,
-              modifiers:[...plan.modifiers.cost.used,...plan.modifiers.chance.used,...plan.modifiers.severity.used]};})})),
-        enhancements:powers.filter(x=>x.power?.kind==='enhancement').map(x=>({powerId:x.powerId,name:x.name}))};
+        powers:powers.filter(x=>x.power?.kind==='power').map(x=>({powerId:x.powerId,name:x.name,itemId:x.item.id,nodeId:x.nodeId,standard:x.power.standard?.summary??'',modes:modes(x.power,x.powerId)})),
+        enhancements:powers.filter(x=>x.power?.kind==='enhancement').map(x=>({powerId:x.powerId,name:x.name})),
+        // 0.10.0 (additive): the bearer items on this character, read from its own tagged Items. null when it has none in that slot.
+        signature:signatureOf(actor,p.instanceId,modes)};
     });
   }
   function previewPush(actor,instanceId,powerId,modeId){
     const c=list(actor).find(x=>x.instanceId===instanceId);if(!c)throw Error('That character does not bear this Cinder');
-    const p=c.powers.find(x=>x.powerId===powerId);if(!p)throw Error('That power is not unlocked');
+    const p=c.powers.find(x=>x.powerId===powerId)??(c.signature?.active?.powerId===powerId?c.signature.active:null);if(!p)throw Error('That power is not unlocked');
     const m=p.modes.find(x=>x.id===modeId);if(!m)throw Error('That Push is not available');
     return {...m,powerId,powerName:p.name,strain:strain.readState(actor).value};
   }
@@ -359,20 +423,23 @@ export function createCinders(deps){
   /** Checks shared by Push and normal use; throws when the character cannot use the power. */
   function context(actor,powerId){
     const registry=readRegistry();
+    const unlockedOn=(inst,tree)=>tree?tree.nodes.filter(n=>n.perkId&&inst.progression.unlocks.includes(n.id)).map(n=>({powerId:n.perkId,name:definitionName(n.perkId),power:powerBlock(definition(n.perkId))})):[];
+    const ctx=(inst,tree,node)=>{const st=socketState(actor,inst.definitionId,inst.sockets);
+      return {instance:inst,tree,node,unlocked:unlockedOn(inst,tree),extra:[...st.perks,...st.activeItems],powerDef:definition(powerId),cinderDef:definition(inst.definitionId)};};
     for(const inst of boundTo(registry,actor.id)){
+      // 0.10.0: the Cinder's signature ability. Always usable by its bearer; the tree's unlocked powers still modify it.
+      if(bearerItemsOf(definition(inst.definitionId)).active===powerId)return ctx(inst,cinderTree(inst.definitionId),null);
       const tree=cinderTree(inst.definitionId);if(!tree)continue;
       const node=tree.nodes.find(n=>n.perkId===powerId);if(!node)continue;
       if(!inst.progression.unlocks.includes(node.id))throw Error('That power is not unlocked on the Cinder');
-      const unlocked=tree.nodes.filter(n=>n.perkId&&inst.progression.unlocks.includes(n.id)).map(n=>({powerId:n.perkId,name:definitionName(n.perkId),power:powerBlock(definition(n.perkId))}));
-      const st=socketState(actor,inst.definitionId,inst.sockets);
-      return {instance:inst,tree,node,unlocked,extra:[...st.perks,...st.activeItems],powerDef:definition(powerId),cinderDef:definition(inst.definitionId)};
+      return ctx(inst,tree,node);
     }
     throw Error('This character does not bear a Cinder with that power');
   }
   async function push(actor,powerId,modeId,{forUser=null}={}){
     requireGM();if(!actor)throw Error('No character');notBackup(actor);accounts();
     const ctx=context(actor,powerId),power=powerBlock(ctx.powerDef);
-    if(power?.kind!=='power')throw Error('That power has no Push');
+    if(!isPushable(power))throw Error('That power has no Push');
     const mode=availableModes(ctx.powerDef,ctx.unlocked.map(u=>u.powerId)).find(m=>m.id===modeId);
     if(!mode)throw Error('That Push is not available');
     const config=strain.config(),plan=planPush({strainValue:strain.readState(actor).value,config,mode,unlocked:ctx.unlocked,powerId,extra:ctx.extra});
@@ -391,7 +458,7 @@ export function createCinders(deps){
     requireGM();if(!actor)throw Error('No character');notBackup(actor);accounts();
     const config=strain.config(),value=strain.readState(actor).value;
     if(value<config.normal_use_backfire_at)return null;
-    const ctx=context(actor,powerId);if(powerBlock(ctx.powerDef)?.kind!=='power')return null;
+    const ctx=context(actor,powerId);if(!isPushable(powerBlock(ctx.powerDef)))return null;
     const severity=collectModifiers(ctx.unlocked,'backfire.severity',{powerId,modeId:null,extra:ctx.extra}).total;
     const backfire=await resolveBackfire({chance:100,forced:true,tables:tablesFor(ctx.cinderDef,ctx.powerDef,null),config,strain:value,severity,roll});
     const result={opId:`use:${foundry.utils.randomID(16)}`,kind:'use',actorId:actor.id,instanceId:ctx.instance.instanceId,powerId,powerName:definitionName(powerId),
@@ -642,10 +709,13 @@ export function createCinders(deps){
     requirePlayerAccess();if(!actor.isOwner)throw Error('Actor access denied');
     return request('cinder-push',{actorId:actor.id,powerId,modeId});
   }
-  /** dnd5e activity use on the using client: a Cinder power used at or above the threshold backfires. */
-  async function onUseActivity(activity){
+  /** dnd5e activity use on the using client: a Cinder power used at or above the threshold backfires.
+   * 0.10.0: a Cinder's signature ability offers a Push first (onSignatureUse). dnd5e.postUseActivity(activity, usageConfig, results). */
+  async function onUseActivity(activity,usageConfig,results){
     if(blocked())return;
     const item=activity?.item,actor=item?.actor??activity?.actor;if(!actor)return;
+    const tag=bearerTag(item,module);
+    if(tag){if(tag.slot==='active')await onSignatureUse(actor,item,tag,results);return;}
     const t=trees();if(t.status!=='ok')return;
     let grant;try{grant=t.accounts.grants(actor).find(g=>g.itemId===item.id&&g.wallet?.startsWith('cinder:'));}catch{return;}
     if(!grant)return;
@@ -656,6 +726,51 @@ export function createCinders(deps){
       else if(actor.isOwner)await request('cinder-use',{actorId:actor.id,powerId:grant.perkId});
     }catch(error){console.error(`[${module}] Cinder Backfire on use failed`,error);ui.notifications?.error?.(`Cinder Backfire: ${error?.message??error}`);}
   }
+  /** Normal-use Backfire at or above the threshold, on the GM client (a player's goes there). */
+  async function normalUse(actor,powerId){
+    if(strain.readState(actor).value<strain.config().normal_use_backfire_at)return null;
+    if(game.user.isGM)return useBackfire(actor,powerId);
+    if(actor.isOwner)return request('cinder-use',{actorId:actor.id,powerId});
+    return null;
+  }
+  // One offer per use: dnd5e fires postUseActivity once per use; the chat card id (and the item while its offer is open) guard against a repeat.
+  const offered=new Set(),offering=new Set();
+  /**
+   * The signature ability was used through its dnd5e use button (the use itself is done and never blocked). On the using client:
+   * offer a Push when this user has the offer on and a mode is available; a chosen mode runs the normal Push path (a player's on the GM
+   * client). "Use without Push" (or no offer) leaves the use as it was, and from the normal-use point the automatic Backfire applies.
+   */
+  async function onSignatureUse(actor,item,tag,results){
+    const key=results?.message?.id??results?.message?._id??null;
+    if(key){if(offered.has(key))return;offered.add(key);if(offered.size>200)offered.delete(offered.values().next().value);}
+    if(!pointerFor(actor,tag.instanceId)||!(game.user.isGM||actor.isOwner))return;
+    const powerId=tag.sourceId;
+    try{
+      let pushed=false;
+      const canOffer=typeof deps.offerPush==='function'&&deps.pushOffer?.()===true&&(game.user.isGM||deps.playerAccess())&&!offering.has(item.id);
+      if(canOffer){
+        let ability=null;try{ability=list(actor).find(c=>c.instanceId===tag.instanceId)?.signature?.active??null;}catch{ability=null;}
+        if(ability?.modes?.length){
+          offering.add(item.id);
+          try{const modeId=await deps.offerPush({actor,ability,modes:ability.modes});
+            if(modeId&&ability.modes.some(m=>m.id===modeId)){await requestPush(actor,powerId,modeId);pushed=true;}}
+          finally{offering.delete(item.id);}
+        }
+      }
+      if(!pushed)await normalUse(actor,powerId);
+    }catch(error){console.error(`[${module}] Cinder signature ability use failed`,error);ui.notifications?.error?.(`Cinder: ${error?.message??error}`);}
+  }
+  /** Players may use a bearer item, never change its mechanics, delete it, or make one (enforced on the client making the change;
+   * the GM changes anything). Returns false to refuse, as Foundry's pre-hooks expect. */
+  const byGM=userId=>(game.users?.get?.(userId)??game.user)?.isGM===true;
+  const refuse=why=>{ui.notifications?.warn?.(why);return false;};
+  const itemGuards={
+    preCreateItem:(item,data,_o,userId)=>{if(!byGM(userId)&&(bearerTag(item,module)||bearerTag(data,module)))return refuse('Only the GM can give a Cinder\'s signature ability or passive.');},
+    preUpdateItem:(item,changes,_o,userId)=>{if(byGM(userId)||!bearerTag(item,module))return;const why=playerUpdateProblem(changes);if(why)return refuse(why);},
+    preDeleteItem:(item,_o,userId)=>{if(!byGM(userId)&&bearerTag(item,module))return refuse('Only the GM can remove a Cinder\'s signature ability or passive.');}
+  };
+  for(const ev of ['preCreateActiveEffect','preUpdateActiveEffect','preDeleteActiveEffect'])
+    itemGuards[ev]=(effect,...rest)=>{const userId=rest.at(-1);if(!byGM(userId)&&bearerTag(effect?.parent,module))return refuse('Only the GM can change the effects of a Cinder\'s signature ability or passive.');};
   /** Strain recovery modifiers (added to rest recovery): each borne Cinder's unlocked powers and active socket items, plus the character's perks once
    * (a perk's requires is met when any borne Cinder has those powers unlocked). */
   function recoveryBonus(actor){
@@ -687,7 +802,7 @@ export function createCinders(deps){
     detach:(actor,instanceId,slot,{opId=null}={})=>requestSocket(actor,instanceId,{kind:'detach',slot,opId}),
     swap:(actor,instanceId,slot,itemId,{opId=null}={})=>requestSocket(actor,instanceId,{kind:'swap',slot,itemId,opId}),
     setLocked,setCount,attachDropped};
-  return {api,modifiersApi,socketsApi,onDeleteActor,onProgressChanged,onCheckProgress,onSocket,onUseActivity,recoveryBonus,readRegistry,migrationPlan,definitionName,cinderTree,store,
+  return {api,modifiersApi,socketsApi,itemGuards,onDeleteActor,onProgressChanged,onCheckProgress,onSocket,onUseActivity,recoveryBonus,readRegistry,migrationPlan,definitionName,cinderTree,store,
     register(){
       game.settings.register(module,MAX_CINDERS_SETTING,{name:'Cinders per character',hint:'GM: the most Cinders one character can bear at once (default 1).',scope:'world',config:true,type:Number,default:1,range:{min:1,max:9,step:1}});
       game.settings.register(module,SOCKETS_SETTING,{name:'Sockets per Cinder',hint:'GM: how many items a Cinder can hold in its sockets (default 3). A Cinder can have its own number (Manage), and perks or items can add sockets.',scope:'world',config:true,type:Number,default:3,range:{min:0,max:MAX_SOCKETS,step:1}});

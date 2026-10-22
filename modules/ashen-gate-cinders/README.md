@@ -14,13 +14,14 @@ Needs **Ashen Gate | Skill Trees 0.17.0 or later** for Cinder trees (the powers 
   - The first time a Cinder is bound it gets **Starting Cinder points** (setting, default 1), once per Cinder.
   - A transfer keeps the points and powers. Strain and Backfire conditions stay with the previous bearer.
   - A deleted bearer leaves the Cinder **Lost**, with its progress.
+- **Signature ability and passive** (0.10.0): a Cinder whose definition names them (`cinder.bearer_items`, `ag-cinder/0.2`) gives its bearer one active ability and one always-on passive as Items from the moment it is bound (no points, not tree nodes; the tree's powers and perks still modify the ability's Push). They move on a transfer, leave on unbind, and are given again by Check / Repair and `rehook`. Using the signature ability from the character sheet offers a Push (or **Use without Push**). Players use them but only the GM can change them. See [docs/cinder-strain-schema.md](../../docs/cinder-strain-schema.md).
 - **Unlock powers** in the Skill Trees window as before; only the Cinder's bearer can.
 - **Push** (Cinders tab): pick a power and a Push mode.
   - Every Push gains Strain, and the Backfire chance uses the Strain after the gain. From Strain 10 every Push backfires.
   - A Backfire rolls a **category**, then an **effect** on that table (mildest first). Higher Strain pushes the effect roll toward the severe end.
   - One chat card shows the result. A temporary status is applied when the effect names one; otherwise the GM adjudicates.
   - A player's Push is rolled and recorded by the GM client (a GM must be logged in).
-- **Normal use at Strain 10+**: using a Cinder power from the sheet backfires automatically. It adds no Strain and never blocks the use.
+- **Normal use at Strain 10+**: using a Cinder power (or the signature ability without a Push) from the sheet backfires automatically. It adds no Strain and never blocks the use.
 - **Never lethal**: a Backfire cannot kill, knock out, exhaust or remove a character, delete a Cinder or take its progress.
 
 ## Tabs
@@ -29,8 +30,9 @@ Needs **Ashen Gate | Skill Trees 0.17.0 or later** for Cinder trees (the powers 
   - **Sockets on the orbit** follow attach order (no reordering). Items are active up to the number of sockets; a socket added by a perk, power or item shows **+1**; an item over capacity sits under the orb, dimmed, as inactive. Tap an empty socket to attach, a filled one to swap or detach; or drag an item from **Items that fit** (or the bearer's sheet) onto a socket. The bearer's owner can do this while Player Access is on and the GM has not locked the Cinder; the GM always can, and can also drop an Item from the Items sidebar (it is copied to the bearer).
   - **Art:** a shared default orb whose colour follows Strain, the Cinder's own image, or (0.9.0) its definition's `cinder.art`, drawn on a Strain-toned glow. Only the GM changes it: double-click the orb (or **Change art…** on the Binding card) to pick a file, best kept in the Assets Library under `ashen-gate/cinders/`; **Reset to default orb** goes back. Players see it but cannot change it.
   - **Push** asks first (Cancel on the left, Push on the right; red when the Backfire is guaranteed).
+  - **Signature ability / Passive** (0.10.0) under the orb: their names and summaries, and the signature ability's Push modes. **Offer a Push when I use the signature ability on this device** turns the offer off for you only.
 - **Manage** (GM): New Cinder; Bind / Transfer / Unbind; Move existing Cinder progress (characters with Cinder tree progress but no Cinder); Take over from Skill Trees (data saved by Skill Trees 0.15/0.16); Check and Repair.
-- **GM Setup** (GM): Player Access and the **Strain editor** (band names and ranges, Backfire % per Strain, guarantee point, normal-use Backfire, prevention, maximum, rest recovery, effect-roll bonus), both kept as a draft with inline checks until **Save Changes**; Import / Export / Reset of the saved Strain config; Cinder limits. Players see no Cinders settings in Configure Settings.
+- **GM Setup** (GM): Player Access, **Offer a Push when a signature ability is used** (0.10.0, world, default on) and the **Strain editor** (band names and ranges, Backfire % per Strain, guarantee point, normal-use Backfire, prevention, maximum, rest recovery, effect-roll bonus), both kept as a draft with inline checks until **Save Changes**; Import / Export / Reset of the saved Strain config; Cinder limits. Players see no Cinders settings in Configure Settings.
 
 ## Public API
 
@@ -56,9 +58,9 @@ if (strain?.contract === 'ag-strain/1') {
 
 ### `api.cinder` (contract `ag-cinder/1`)
 
-- `list(actor)`: the Cinders the character bears, with each power's Push modes, cost and chance, and (0.6.0) `art` (image path or null), `treeId` and `unspent` (from Skill Trees' `listTrees` and `pointsSummary`; null when not available). For the GM only, `bearerSince`. Allowed for the GM or the owner (players only while Player Access is on).
-- `previewPush(actor, instanceId, powerId, modeId)`. `push(actor, powerId, modeId)`: the GM does it directly; an owner's Push is relayed to the active GM client.
-- GM only: `setArt(instanceId, path | null)` (0.6.0; rejected for players; null = the default orb), `instances()`, `create(definitionId)`, `bind(instanceId, actor)`, `transfer(instanceId, actor)`, `unbind(instanceId)`, `rehook(actor)` (0.7.0: rewrites the bearer links, Cinder tree progress and item socket markers on one character from the records, e.g. after Character Hub restores a level backup onto it; never changes a record; resolves `{instances, done}`), `migrate({dryRun})`, `adoptLegacy()`, `report()`, `repair()`.
+- `list(actor)`: the Cinders the character bears, with each power's Push modes, cost and chance, and (0.6.0) `art` (image path or null), `treeId` and `unspent` (from Skill Trees' `listTrees` and `pointsSummary`; null when not available), and (0.10.0) `signature: {active: {powerId, name, itemId, summary, modes} | null, passive: {powerId, name, itemId, summary} | null}`. For the GM only, `bearerSince`. Allowed for the GM or the owner (players only while Player Access is on).
+- `previewPush(actor, instanceId, powerId, modeId)`. `push(actor, powerId, modeId)`: the GM does it directly; an owner's Push is relayed to the active GM client. `powerId` can be a Cinder's signature ability (0.10.0).
+- GM only: `setArt(instanceId, path | null)` (0.6.0; rejected for players; null = the default orb), `instances()`, `create(definitionId)`, `bind(instanceId, actor)`, `transfer(instanceId, actor)`, `unbind(instanceId)`, `rehook(actor)` (0.7.0: rewrites the bearer links, Cinder tree progress and item socket markers on one character from the records, e.g. after Character Hub restores a level backup onto it; never changes a record; resolves `{instances, done}`; 0.10.0: also gives missing bearer items and removes extra ones), `migrate({dryRun})`, `adoptLegacy()`, `report()`, `repair()`.
 - `validateDefinition(record)` → `{errors, warnings}` for Mutation / Power / BackfireTable records (used by General Manager and `scripts/validate-content.mjs`).
 - Hook `ashenGateCinder.changed` `{kind, instanceId, definitionId, actorId, fromActorId?, art?}` (kind `art` from 0.6.0).
 
