@@ -9,29 +9,21 @@
  * 1.8.0: a "Selected players" location reaches only its audience. Every player read goes through readViews(), which
  * returns only pages Foundry lets this user open, so for anyone else it answers exactly as for a hidden location.
  */
-import {MODULE_ID, GATHERING, STATES, PARTY_NOTES, notesLockHolder, clone, newLocation, normalizeLocation, parseImport, exportPackage, importRecords, resourcesOf, nodeForGM, nodeMatch,
-  publishable, hasUnpublishedChanges, previewView, wouldCycle, parentMap, normalizeAudience, AUDIENCE_MODES, isPlaceable, resolvePassConditions, isLevelBackup} from './model.mjs';
+import {MODULE_ID, GATHERING, STATES, PARTY_NOTES, ROUTES_RETIRED, notesLockHolder, clone, newLocation, normalizeLocation, parseImport, exportPackage, importRecords, resourcesOf,
+  nodeForGM, nodeMatch, publishable, hasUnpublishedChanges, previewView, wouldCycle, parentMap, normalizeAudience, AUDIENCE_MODES, isPlaceable, resolvePassConditions} from './model.mjs';
 import {checkMove} from './tree.mjs';
-import {ROUTE_STATES, normalizeRoute, makeRouteId, routeProblems, routeKmProblems, routeTouches, importRouteRecords, routeRecord, legsOf, legKmOf} from './routes.mjs';
-import {startJourney, nextLeg, setHazardResult, resolveHazard, reverseJourney, abortJourney, pauseJourney, travelLine, HAZARD_FALLBACK,
-  setBehaviours, CHECKS} from './journey.mjs';
-import {covers, esc, DEFAULT_UNIDENTIFIED_LABEL} from './model.mjs';
+import {planRouteConversion} from './route-convert.mjs';
 
 export const PLAYER_ACCESS_CONTRACT = 'ag-player-access/1';
-export const TRAVEL_CONTRACT = 'ag-locations-travel/1';
 
 /**
  * deps: {isGM(), playerAccessEnabled(), setPlayerAccess(bool), readAll(), writeAll(list), readViews(),
  *        placeNote(loc, opts), open(), openLocation(idOrKey), version, viewOptions?(),
  *        notes?: {readGM(locationId), readPlayer(pinKey), request(payload), userId(), isActive(id), nameOf(id), now?()},
  *        sharing?: {request({ref, userIds})}, playerIds?(), pinsOf?(loc),
- *        routes?: {readAll(), writeAll(list), readViews(), usedIds(), defaultLegKm()},
- *        drawings?: {link(route, uuid), unlink(route, {remove}), draw(route, scene), info(route), viewedScene()},
- *        travel?: {read(), write(travel), readView(), drawHazard?({uuid, name}) → {text, fromTable, tableMissing}, chat?: {gm(html), public(html)},
- *                  rng?(), now?(), emit?(event, payload)},
- *        tracker?: {open(), behaviours: {register(def), unregister(id), list()}},
- *        rolls?() → Utilities' api.rolls when it can open a prefilled roll (1.15.0), else null,
- *        characters?() → [{id, name}] the characters the GM can put on watch (1.15.2)}
+ *        tables?: {draw(uuid) → {results: [text]}, uuidByName?(name)} (0.20.0: GM rolls a linked RollTable to chat),
+ *        storedRoutes?() → the routes 0.19.0 and earlier stored (read only; Developer Tools conversion)}
+ * 0.20.0: routes, journeys, the Travel tracker and route drawings are retired; their methods are gone.
  */
 export function createApi(deps) {
   const gm = () => deps.isGM() === true;
@@ -84,78 +76,6 @@ export function createApi(deps) {
     return notesOut(rec ?? (gm() ? notesDeps().readGM(target) : notesDeps().readPlayer(key)), key);
   };
 
-  // ---------- 1.10.0 routes ----------
-  const routesDeps = () => { if (!deps.routes) throw new Error('Routes are unavailable.'); return deps.routes; };
-  const findRoute = id => {
-    const all = routesDeps().readAll();
-    const route = all.find(r => r.id === id);
-    if (!route) throw new Error(`No route ${id}.`);
-    return {all, route};
-  };
-  /** GM copy with what the editor shows: legs and the leg length in effect. */
-  const routeOut = r => ({...clone(r), legs: legsOf(r, routesDeps().defaultLegKm()), legKmInEffect: legKmOf(r, routesDeps().defaultLegKm())});
-  /** Every Route record of an import package, run against the world's locations. */
-  const importRouteList = async (records, mode) => {
-    const rd = routesDeps();
-    const all = rd.readAll();
-    const r = importRouteRecords(records, all, deps.readAll().map(l => l.id), {mode, used: rd.usedIds()});
-    if (r.created.length || r.updated.length) {
-      const replaced = new Map(r.updated.map(x => [x.id, x]));
-      await rd.writeAll([...all.map(x => replaced.get(x.id) ?? x), ...r.created]);
-    }
-    return {created: r.created.map(x => x.id), updated: r.updated.map(x => x.id), skipped: r.skipped};
-  };
-
-  // ---------- 1.11.0 journeys ----------
-  const travelDeps = () => { if (!deps.travel) throw new Error('Journeys are unavailable.'); return deps.travel; };
-  const now = () => deps.travel?.now?.() ?? Date.now();
-  const activeJourney = () => {
-    const travel = travelDeps().read();
-    if (travel.journey?.status !== 'active') throw new Error('There is no journey under way.');
-    return travel;
-  };
-  /** 1.15.2: ids of the characters the GM may put on watch: deps.characters(), else every character Actor in the world.
-   *  1.17.4: never a Character Hub level-up backup, even if deps.characters() lists one. */
-  const watchCharacterIds = () => (deps.characters ? deps.characters()
-    : [...(globalThis.game?.actors?.values?.() ?? [])].filter(a => a?.type === 'character')).map(a => a?.id).filter(Boolean)
-    .filter(id => !isLevelBackup(globalThis.game?.actors?.get?.(id)));
-  /** A name for a Party Notes line, as the readers of `reader`'s notes may see `loc`; never a place they cannot see. */
-  const safeName = (loc, reader) => {
-    if (!loc || loc.state === 'hidden' || !loc.published || !covers(loc, reader)) return 'an unknown place';
-    return loc.state === 'revealed' ? loc.published.name : loc.published.unidentifiedLabel || deps.viewOptions?.().label || DEFAULT_UNIDENTIFIED_LABEL;
-  };
-  /** Rolls the route's hazard table, or "Hazard!" when it has none or it is missing. Never throws. */
-  const drawHazard = async route => {
-    const t = route?.hazardTable ?? {};
-    if (!t.uuid && !t.name) return {text: HAZARD_FALLBACK, fromTable: false, tableMissing: false};
-    try { return (await travelDeps().drawHazard?.(t)) ?? {text: HAZARD_FALLBACK, fromTable: false, tableMissing: true}; }
-    catch (err) { console.warn('ashen-gate-locations | hazard table failed', err); return {text: HAZARD_FALLBACK, fromTable: false, tableMissing: true}; }
-  };
-  const hazardCard = (j, route) => `<div class="agl-hazard-card"><h3>Hazard on leg ${j.pending.leg} of ${j.legs}</h3>
-    <p class="agl-hint">GM only. ${esc(route?.name || route?.id || '')}: rolled ${j.pending.roll} against ${j.pending.chance}%.${j.pending.tableMissing ? ' The hazard table was not found.' : ''}</p>
-    <p>${esc(j.pending.result)}</p><p class="agl-hint">Travel tracker or Locations → Routes: Reroll, Dismiss or Share with players.</p></div>`;
-  const whisperHazard = async (j, route) => { try { await travelDeps().chat?.gm?.(hazardCard(j, route)); } catch (err) { console.warn('ashen-gate-locations | GM hazard card failed', err); } };
-  /** Appends the arrival line to the destination's Party Notes through the GM path. Returns {travelLog, travelLogError}. */
-  const writeTravelLog = async j => {
-    try {
-      if (!deps.notes) throw new Error('Party Notes are unavailable.');
-      const all = deps.readAll();
-      const byId = new Map(all.map(l => [l.id, l]));
-      const dest = byId.get(j.toId);
-      if (!dest) throw new Error(`No location ${j.toId}.`);
-      const lineText = travelLine(j, id => safeName(byId.get(id), dest));
-      const rec = deps.notes.readGM(dest.id);
-      const text = rec.text ? `${rec.text}\n${lineText}` : lineText;
-      if (text.length > PARTY_NOTES.maxLength) throw new Error('The Party Notes there are full.');
-      await deps.notes.request({op: 'save', ref: dest.id, text, rev: rec.rev});
-      return {travelLog: 'ok', travelLogError: ''};
-    } catch (err) {
-      return {travelLog: 'failed', travelLogError: String(err?.message ?? err).slice(0, 300)};
-    }
-  };
-  const finish = (travel, j) => { travel.history = [...(travel.history ?? []), j]; };
-  const emit = (event, payload) => { try { deps.travel?.emit?.(event, payload); } catch (err) { console.warn('ashen-gate-locations | hook failed', err); } };
-
   /** Saves privately. State, published content and pin binding of an existing location are kept. New ones start Hidden. */
   async function saveLocation(data) {
     requireGM();
@@ -163,7 +83,7 @@ export function createApi(deps) {
     const old = data?.id ? all.find(l => l.id === data.id) : null;
     let loc = normalizeLocation(data);
     // The audience is play state like the marker state (players can add to it mid-session): only setAudience and sharing change it.
-    if (old) loc = {...loc, pinKey: old.pinKey, state: old.state, revealed: old.revealed, published: old.published, audience: old.audience};
+    if (old) loc = {...loc, pinKey: old.pinKey, state: old.state, revealed: old.revealed, published: old.published, audience: old.audience, convertedFromRoute: old.convertedFromRoute};
     else loc = {...loc, id: newLocation(data?.name, all.map(l => l.id)).id, state: 'hidden', revealed: false, published: null, passConditions: loc.passConditions === true};
     checkParent(loc, all);
     await deps.writeAll([...all.filter(l => l.id !== loc.id), loc]);
@@ -218,6 +138,26 @@ export function createApi(deps) {
       const list = gm() ? deps.readAll() : revealedViews();
       return list.flatMap(l => resourcesOf(l, {gm: gm()}).map(n => [n, nodeMatch(n, materialId)]).filter(([, m]) => m)
         .map(([n, matches]) => ({locationId: l.id, locationName: l.name, matches, ...n})));
+    },
+    /**
+     * 0.20.0: a location's hazards. GM: every entry {id, name, note, shown, tableUuid}. Player: only the revealed
+     * location's shown ones, as published {id, name, note} (never the linked table); [] for a hidden or unknown place.
+     */
+    hazardsAt(ref) {
+      requireAccess();
+      return clone(gm() ? find(ref)?.hazards ?? [] : findView(ref)?.hazards ?? []);
+    },
+    /** 0.20.0: linked roll tables. GM: every entry {id, name, uuid, shown}. Player: shown ones {id, name, uuid} of a revealed place. */
+    rollTablesAt(ref) {
+      requireAccess();
+      return clone(gm() ? find(ref)?.rollTables ?? [] : findView(ref)?.rollTables ?? []);
+    },
+    /** 0.20.0 GM: draws from a RollTable (by uuid) to chat, with the table's own roll mode. Players are refused. */
+    async rollTable(uuid) {
+      requireGM();
+      if (typeof uuid !== 'string' || !uuid) throw new Error('Choose a roll table first.');
+      if (!deps.tables?.draw) throw new Error('Roll tables are unavailable.');
+      return deps.tables.draw(uuid);
     },
     /** Locations that list a quest, for Quest Manager's reverse link: [{id, name}]. */
     locationsForQuest(questId) {
@@ -290,17 +230,14 @@ export function createApi(deps) {
       const result = parseImport(pkg, all);
       // Records from before 1.8.0 settle "Pass conditions" the way the migration does.
       if (result.created.length) await deps.writeAll(resolvePassConditions([...all, ...result.created]).list);
-      // 1.10.0: Route records in the same package, after the locations they join. Existing routes are kept.
-      const routeRecords = pkg.records.filter(r => r?.entity_type === 'Route');
-      const routes = routeRecords.length && deps.routes ? await importRouteList(routeRecords, 'skip') : {created: [], updated: [], skipped: []};
-      return {created: result.created.map(l => l.id), skipped: result.skipped, errors: result.errors,
-        routes: {created: routes.created, skipped: routes.skipped.filter(s => /Already exists/.test(s.reason)).map(s => s.id),
-          errors: routes.skipped.filter(s => !/Already exists/.test(s.reason)).map(s => `${s.id}: ${s.reason}`)}};
+      // 0.20.0: Route records are skipped, each with ROUTES_RETIRED; the locations in the same file still import.
+      return {created: result.created.map(l => l.id), skipped: result.skipped, errors: result.errors, retired: result.retired};
     },
     /**
      * GM: imports Location records from an ag-foundry-import/0.2 package (General Manager calls this in its
      * import run). mode 'skip' keeps existing ids as they are; 'update' replaces their definition but keeps
      * marker state, published content, pin binding and exhausted nodes. Returns {created: [id], updated: [id], skipped: [{id, reason}]}.
+     * 0.20.0: a Route record is skipped with the reason ROUTES_RETIRED; the rest of the list still imports.
      */
     async importLocations(records, {mode = 'skip'} = {}) {
       requireGM();
@@ -312,95 +249,27 @@ export function createApi(deps) {
       }
       return {created: r.created.map(l => l.id), updated: r.updated.map(l => l.id), skipped: r.skipped};
     },
-    /** GM: locations, then (1.10.0) routes as Route records in the same package. */
+    /** GM: every location (0.20.0: with its hazards and rollTables; no Route records). */
     exportPackage() {
       requireGM();
-      const pkg = exportPackage(deps.readAll());
-      if (deps.routes) pkg.records.push(...deps.routes.readAll().map(routeRecord));
-      return pkg;
+      return exportPackage(deps.readAll());
+    },
+    ROUTES_RETIRED,
+    /**
+     * 0.20.0 GM (Developer Tools): turns each stored route into a new location of type Route (route-convert.mjs). Without
+     * `apply` it only previews. Re-runnable: a route already converted (convertedFromRoute) is listed in `done`, never again.
+     * The stored routes are never changed or deleted. Returns {total, convert: [{routeId, name, locationId, parentId, notes}],
+     * done: [{routeId, name, locationId}], skipped: [{routeId, name, reason}], applied}.
+     */
+    async convertRoutes({apply = false} = {}) {
+      requireGM();
+      const all = deps.readAll();
+      const plan = planRouteConversion(deps.storedRoutes?.() ?? [], all, {tableUuid: name => deps.tables?.uuidByName?.(name) ?? ''});
+      if (apply && plan.convert.length) await deps.writeAll([...all, ...plan.convert.map(c => c.location)]);
+      return {total: plan.total, done: plan.done, skipped: plan.skipped, applied: apply && plan.convert.length > 0,
+        convert: plan.convert.map(c => ({routeId: c.routeId, name: c.name, locationId: c.location.id, parentId: c.location.parentLocationId, notes: c.notes}))};
     },
 
-    // ---------- 1.10.0 routes ----------
-    ROUTE_STATES,
-    /**
-     * GM: every route (full record plus `legs` and `legKmInEffect`); `locationId` limits it to routes touching that place.
-     * Player: the route views they may see ({key, variant, state, name, from, to, ...}; see routes.mjs), never an RTE id.
-     */
-    listRoutes({locationId = ''} = {}) {
-      requireAccess();
-      if (gm()) return routesDeps().readAll().filter(r => !locationId || routeTouches(r, locationId)).map(routeOut);
-      const views = deps.routes ? deps.routes.readViews() : [];
-      return clone(locationId ? views.filter(v => [v.from, v.to].some(e => e && (e.id === locationId || e.key === locationId))) : views);
-    },
-    /** GM: one route by RTE id. Player: a route view by its key; null when they may not see it. */
-    getRoute(ref) {
-      requireAccess();
-      if (gm()) { const r = deps.routes?.readAll().find(x => x.id === ref); return r ? routeOut(r) : null; }
-      return clone((deps.routes ? deps.routes.readViews() : []).find(v => v.key === ref) ?? null);
-    },
-    /**
-     * GM: saves a route's definition (from, to, one-way, km, leg km, terrain, hazard table and base chance, GM notes,
-     * unknown-path choice). A new route gets its RTE id from its endpoints and starts Unknown. Discovery and audience
-     * of an existing route are kept: setRouteState and setRouteAudience change them.
-     */
-    async saveRoute(data) {
-      requireGM();
-      const rd = routesDeps();
-      const all = rd.readAll();
-      const old = data?.id ? all.find(r => r.id === data.id) : null;
-      if (data?.id && !old) throw new Error(`No route ${data.id}.`);
-      let route = normalizeRoute(data);
-      const problems = [...new Set([...routeProblems(route, deps.readAll().map(l => l.id)), ...routeKmProblems(data)])];
-      if (problems.length) throw new Error(problems.join(' '));
-      route = old ? {...route, id: old.id, viewKey: old.viewKey, state: old.state, audience: old.audience, drawingUuid: old.drawingUuid}
-        : {...route, id: makeRouteId(route.fromId, route.toId, [...rd.usedIds(), ...all.map(r => r.id)]), state: 'unknown', drawingUuid: ''};
-      await rd.writeAll([...all.filter(r => r.id !== route.id), route]);
-      return routeOut(route);
-    },
-    /** GM: unknown (players see nothing), rumoured, known or explored. Takes effect at once. */
-    async setRouteState(id, state) {
-      requireGM();
-      if (!ROUTE_STATES.includes(state)) throw new Error(`Unknown route state "${state}"; use ${ROUTE_STATES.join(', ')}.`);
-      const {all, route} = findRoute(id);
-      route.state = state;
-      await routesDeps().writeAll(all);
-      return routeOut(route);
-    },
-    /** GM: who may see a route: {mode: 'everyone'|'selected', userIds}. Endpoint visibility still applies on top. */
-    async setRouteAudience(id, {mode, userIds} = {}) {
-      requireGM();
-      const {all, route} = findRoute(id);
-      const old = route.audience;
-      if (mode !== undefined && !AUDIENCE_MODES.includes(mode)) throw new Error(`Unknown audience "${mode}"; use ${AUDIENCE_MODES.join(' or ')}.`);
-      if (userIds !== undefined && !Array.isArray(userIds)) throw new TypeError('userIds must be a list of player user ids.');
-      const known = deps.playerIds ? new Set(deps.playerIds()) : null;
-      const unknown = known ? (userIds ?? []).filter(u => !known.has(u) && !old.userIds.includes(u)) : [];
-      if (unknown.length) throw new Error(`Not a player in this world: ${unknown.join(', ')}.`);
-      route.audience = normalizeAudience({mode: mode ?? old.mode, userIds: userIds ?? old.userIds, sharing: false});
-      await routesDeps().writeAll(all);
-      return clone(route.audience);
-    },
-    /**
-     * GM: deletes a route. Its RTE id is never issued again. Its linked drawing stays on the map (just unlinked) unless
-     * `deleteDrawing: true` (the window asks first).
-     */
-    async deleteRoute(id, {deleteDrawing = false} = {}) {
-      requireGM();
-      const {all, route} = findRoute(id);
-      const j = deps.travel?.read().journey;
-      if (j?.status === 'active' && j.routeId === id) throw new Error('The party is travelling this route. Abort the journey first.');
-      if (route.drawingUuid && deps.drawings) await deps.drawings.unlink(route, {remove: deleteDrawing === true});
-      await routesDeps().writeAll(all.filter(r => r.id !== id));
-    },
-    /**
-     * GM: imports Route records (General Manager calls this in its import run, after importLocations). Endpoints must
-     * already exist. mode 'skip' keeps existing ids unchanged; 'update' replaces the definition but keeps discovery state,
-     * audience, the unknown-path choice and the player page binding. Returns {created: [id], updated: [id], skipped: [{id, reason}]}.
-     */
-    async importRoutes(records, {mode = 'skip'} = {}) {
-      requireGM();
-      return importRouteList(records, mode);
-    },
     placeOnScene(id, opts) {
       requireGM();
       const loc = find(id);
@@ -493,253 +362,6 @@ export function createApi(deps) {
     releasePartyNotes: ref => notesOp(ref, {op: 'release'}),
     /** GM: empty a location's notes. */
     async clearPartyNotes(ref) { requireGM(); return notesOp(ref, {op: 'clear'}); },
-
-    // ---------- 1.12.0 route drawings ----------
-    /** GM: {status: 'none'|'linked'|'missing'|'elsewhere', sceneName?, hidden?, hasText?, path?} for a route's map drawing. */
-    routeDrawing(id) {
-      requireGM();
-      const {route} = findRoute(id);
-      return deps.drawings ? deps.drawings.info(route) : {status: 'none'};
-    },
-    /** GM: links a scene Drawing (by uuid) to a route; Locations then sets only its `hidden` from the route. */
-    async linkRouteDrawing(id, drawingUuid) {
-      requireGM();
-      if (!deps.drawings) throw new Error('Drawings are unavailable.');
-      if (typeof drawingUuid !== 'string' || !drawingUuid) throw new Error('Select a drawing on the scene first.');
-      const {all, route} = findRoute(id);
-      if (route.drawingUuid && route.drawingUuid !== drawingUuid) await deps.drawings.unlink(route);
-      route.drawingUuid = await deps.drawings.link(route, drawingUuid);
-      await routesDeps().writeAll(all);
-      return routeOut(route);
-    },
-    /** GM: removes the link. The drawing stays on the map as it is. */
-    async unlinkRouteDrawing(id) {
-      requireGM();
-      const {all, route} = findRoute(id);
-      if (route.drawingUuid && deps.drawings) await deps.drawings.unlink(route);
-      route.drawingUuid = '';
-      await routesDeps().writeAll(all);
-      return routeOut(route);
-    },
-    /** GM: "Draw for me": a straight line between the two pins on the scene being viewed (or `scene`), linked to the route. */
-    async drawRoute(id, {scene = null} = {}) {
-      requireGM();
-      if (!deps.drawings) throw new Error('Drawings are unavailable.');
-      const {all, route} = findRoute(id);
-      const target = scene ?? deps.drawings.viewedScene?.() ?? null;
-      const uuid = await deps.drawings.draw(route, target);
-      if (route.drawingUuid && route.drawingUuid !== uuid) await deps.drawings.unlink(route);
-      route.drawingUuid = uuid;
-      await routesDeps().writeAll(all);
-      return routeOut(route);
-    },
-
-    // ---------- 1.11.0 journeys ----------
-    /**
-     * GM: {journey, partyLocationId, history} (journey: see journey.mjs, including the current hazard chance and log).
-     * Player: progress only, {status, leg, legs, paused?, log?, from?, to?, routeKey?, behaviours?} (see journey.mjs journeyView),
-     * or null. Never a chance, a roll or a hazard the GM has not shared.
-     */
-    getJourney() {
-      requireAccess();
-      if (gm()) return deps.travel ? clone(deps.travel.read()) : {journey: null, partyLocationId: '', history: []};
-      return clone(deps.travel?.readView?.() ?? null);
-    },
-    /** GM: the party sets out along a route ('forward' = From → To; 'reverse' = To → From, not on a one-way route). */
-    async startJourney(routeId, {direction = 'forward'} = {}) {
-      requireGM();
-      const {route} = findRoute(routeId);
-      const travel = travelDeps().read();
-      if (travel.journey?.status === 'active') throw new Error('The party is already travelling. Finish or abort that journey first.');
-      const ids = new Set(deps.readAll().map(l => l.id));
-      const missing = [route.fromId, route.toId].filter(id => !ids.has(id));
-      if (missing.length) throw new Error(`This route's end no longer exists: ${missing.join(', ')}.`);
-      const j = startJourney(route, direction, {now: now(), defaultLegKm: routesDeps().defaultLegKm()});
-      await travelDeps().write({...travel, journey: j, partyLocationId: j.fromId});
-      emit('journeyStart', {journeyId: j.journeyId, routeId: j.routeId, fromId: j.fromId, toId: j.toId, legs: j.legs});
-      return clone(j);
-    },
-    /**
-     * GM: travels one leg: d100 against the current chance. No hazard doubles the chance (max 100%); a hazard rolls the
-     * route's table (or "Hazard!"), whispers it to the GM, waits for Dismiss/Share and resets the chance to the base.
-     * After the last leg the party arrives and the trip is added to the destination's Party Notes.
-     * Returns {journey, roll, chance, hazard, result, arrived}.
-     */
-    async nextLeg() {
-      requireGM();
-      const travel = activeJourney();
-      const route = routesDeps().readAll().find(r => r.id === travel.journey.routeId) ?? null;
-      const rng = deps.travel.rng ?? Math.random;
-      let {journey: j, roll, chance, hazard, arrived} = nextLeg(travel.journey, rng, {now: now()});
-      if (hazard) j = setHazardResult(j, await drawHazard(route));
-      if (arrived) { Object.assign(j, await writeTravelLog(j)); travel.partyLocationId = j.toId; finish(travel, j); }
-      await travelDeps().write({...travel, journey: j});
-      if (hazard) await whisperHazard(j, route);
-      // Extension point for a campaign clock or a per-leg group check (not built): GM client only.
-      emit('journeyLeg', {journeyId: j.journeyId, routeId: j.routeId, leg: j.legIndex, legs: j.legs, hazard, arrived});
-      if (arrived) emit('journeyArrived', {journeyId: j.journeyId, routeId: j.routeId, toId: j.toId, legs: j.legs, hazards: j.hazardCount});
-      return {journey: clone(j), roll, chance, hazard, result: hazard ? j.pending.result : '', arrived};
-    },
-    /** GM: rolls the waiting hazard again (replaces its result). */
-    async rerollHazard() {
-      requireGM();
-      const travel = travelDeps().read();
-      if (!travel.journey?.pending) throw new Error('There is no hazard waiting.');
-      const route = routesDeps().readAll().find(r => r.id === travel.journey.routeId) ?? null;
-      const j = setHazardResult(travel.journey, await drawHazard(route));
-      await travelDeps().write({...travel, journey: j});
-      await whisperHazard(j, route);
-      return clone(j.pending);
-    },
-    /** GM: closes the waiting hazard without telling players. */
-    async dismissHazard() {
-      requireGM();
-      const travel = travelDeps().read();
-      const j = resolveHazard(travel.journey, 'dismissed');
-      await travelDeps().write({...travel, journey: j});
-      return clone(j);
-    },
-    /** GM: posts the waiting hazard's result to chat for everyone (no route or place names), then closes it. */
-    async shareHazard() {
-      requireGM();
-      const travel = travelDeps().read();
-      if (!travel.journey?.pending) throw new Error('There is no hazard waiting.');
-      await travelDeps().chat?.public?.(`<div class="agl-hazard-card"><h3>Hazard on the road</h3><p>${esc(travel.journey.pending.result)}</p></div>`);
-      const j = resolveHazard(travel.journey, 'shared');
-      await travelDeps().write({...travel, journey: j});
-      return clone(j);
-    },
-    /** GM: the party turns back the way it came (legs travelled become legs to go). */
-    async reverseJourney() {
-      requireGM();
-      const travel = activeJourney();
-      const route = routesDeps().readAll().find(r => r.id === travel.journey.routeId) ?? null;
-      const j = reverseJourney(travel.journey, route, {now: now()});
-      await travelDeps().write({...travel, journey: j});
-      return clone(j);
-    },
-    /** GM: ends the journey where the party is. Nothing is written to Party Notes. */
-    async abortJourney() {
-      requireGM();
-      const travel = activeJourney();
-      const j = abortJourney(travel.journey, {now: now()});
-      if (j.legIndex === 0) travel.partyLocationId = j.fromId;
-      else if (j.legIndex >= j.legs) travel.partyLocationId = j.toId;
-      else travel.partyLocationId = '';
-      finish(travel, j);
-      await travelDeps().write({...travel, journey: j});
-      return clone(j);
-    },
-    /** 1.14.0 GM: holds the journey (Next leg is refused) until resumeJourney. Players see "Paused". */
-    async pauseJourney() {
-      requireGM();
-      const travel = activeJourney();
-      const j = pauseJourney(travel.journey, true);
-      await travelDeps().write({...travel, journey: j});
-      return clone(j);
-    },
-    /** 1.14.0 GM: the paused journey goes on. */
-    async resumeJourney() {
-      requireGM();
-      const travel = activeJourney();
-      const j = pauseJourney(travel.journey, false);
-      await travelDeps().write({...travel, journey: j});
-      return clone(j);
-    },
-    /** GM: tries again to add an arrived journey's line to the destination's Party Notes. */
-    async retryTravelLog() {
-      requireGM();
-      const travel = travelDeps().read();
-      const j = travel.journey;
-      if (j?.status !== 'arrived' || j.travelLog === 'ok') throw new Error('There is no travel log waiting to be written.');
-      Object.assign(j, await writeTravelLog(j));
-      await travelDeps().write({...travel, journey: j});
-      return clone(j);
-    },
-
-    // ---------- 1.14.0 Travel tracker ----------
-    travel: Object.freeze({
-      contract: TRAVEL_CONTRACT,
-      /** Opens (or brings forward) the pop-out Travel tracker: the GM's controls, or a player's progress view. */
-      async open() {
-        requireAccess();
-        if (!deps.tracker?.open) throw new Error('The Travel tracker is unavailable.');
-        return deps.tracker.open();
-      },
-      /**
-       * Read-only, player-safe journey state for anyone who may open Locations (the GM gets exactly what players get):
-       * {status, leg, legs, paused, routeName, from: {name, key} | null, to: {...} | null, routeKey, log: [{leg, text}],
-       * behaviours?: {pace?, watch?: [{watch, names}]}}, or null.
-       * Built from the players' progress page: never a hazard chance, roll, table, GM note or unshared hazard.
-       */
-      state() {
-        requireAccess();
-        const v = deps.travel?.readView?.() ?? null;
-        if (!v) return null;
-        let routeName = '';
-        if (v.routeKey && deps.routes) {
-          // routeKey is only set while every player sees the whole route, so its name is theirs to see.
-          routeName = gm() ? deps.routes.readAll().find(r => r.viewKey === v.routeKey)?.name ?? ''
-            : deps.routes.readViews().find(x => x.key === v.routeKey)?.name ?? '';
-        }
-        const end = e => e?.name ? {name: String(e.name), key: e.key ?? ''} : null;
-        const out = {status: v.status, leg: v.leg, legs: v.legs, paused: v.paused === true, routeName: String(routeName || ''),
-          from: end(v.from), to: end(v.to), routeKey: v.routeKey ?? '', log: (v.log ?? []).map(e => ({leg: e.leg, text: e.text}))};
-        // 1.15.0: pace and watch order, as on the players' page (only the parts the GM has switched on).
-        const b = v.behaviours;
-        if (b && (b.pace || b.watch)) out.behaviours = {
-          ...(b.pace ? {pace: String(b.pace)} : {}),
-          ...(Array.isArray(b.watch) ? {watch: b.watch.map(w => ({watch: String(w.watch), names: (w.names ?? []).map(String)}))} : {})};
-        return clone(out);
-      },
-      /**
-       * 1.15.0 GM: the current journey's travel behaviours (tracking only), or null with no journey:
-       * {pace: {enabled, value}, watch: {enabled, first, second, third}, checks: {enabled, forage, navigate}}.
-       */
-      getBehaviours() {
-        requireGM();
-        const j = deps.travel?.read().journey ?? null;
-        return j ? clone(j.behaviours) : null;
-      },
-      /**
-       * 1.15.0 GM: changes the journey's behaviours, e.g. {pace: {value: 'fast'}}, {watch: {first: [actorId]}},
-       * {checks: {enabled: false}}. Only while a journey is under way. Changes nothing else about the journey.
-       * 1.15.2: a watch takes only the characters the GM can put on watch (deps.characters: the party's characters,
-       * else every character Actor); anything else, an NPC say, is refused. Someone already on a watch may stay.
-       */
-      async setBehaviours(patch) {
-        requireGM();
-        const travel = activeJourney();
-        const j = setBehaviours(travel.journey, patch, {characterIds: watchCharacterIds()});
-        await travelDeps().write({...travel, journey: j});
-        return clone(j.behaviours);
-      },
-      /** 1.15.0: true when Utilities can open a prefilled roll (api.rolls.open) for the GM. */
-      checksAvailable: () => gm() && typeof deps.rolls?.()?.open === 'function',
-      /**
-       * 1.15.0 GM: opens Utilities' Rolls tab with a foraging ('forage') or navigation ('navigate') check filled in:
-       * Group result, the journey's skill for that check (Survival unless the GM changed it), the party ticked.
-       * Nothing is rolled until the GM clicks Start Rolls in Utilities. Refused without Utilities 0.13.0 or later.
-       */
-      async openCheck(check) {
-        requireGM();
-        if (!CHECKS.includes(check)) throw new Error(`Unknown check "${check}" (use ${CHECKS.join(' or ')}).`);
-        const j = activeJourney().journey;
-        if (!j.behaviours.checks.enabled) throw new Error('Foraging and navigation checks are off for this journey.');
-        const rolls = deps.rolls?.();
-        if (typeof rolls?.open !== 'function') throw new Error('Foraging and navigation checks need Ashen Gate Utilities 0.13.0 or later.');
-        return rolls.open({skills: [j.behaviours.checks[check]], mode: 'group', title: check === 'forage' ? 'Foraging' : 'Navigation'});
-      },
-      /**
-       * Extension point for travel behaviour panels. 1.15.0 ships pace, night watches and foraging/navigation checks
-       * (travel-behaviours.mjs); other modules can register their own. See travel-view.mjs createBehaviours.
-       */
-      behaviours: Object.freeze({
-        register: def => { if (!deps.tracker?.behaviours) throw new Error('The Travel tracker is unavailable.'); return deps.tracker.behaviours.register(def); },
-        unregister: id => deps.tracker?.behaviours?.unregister(id) ?? false,
-        list: () => deps.tracker?.behaviours?.list() ?? []
-      })
-    }),
 
     playerAccess: Object.freeze({
       contract: PLAYER_ACCESS_CONTRACT,

@@ -71,14 +71,11 @@ test('moods files are checked with the Scenes import preview', async () => {
   assert.match(bad.errors.join(' | '), /Id must be.*Label is required.*Darkness must be a number from 0 to 1.*lighting.colour is not a supported mood field.*weather "ashfall" is not a core weather id/);
 });
 
-test('Route records get every Locations check; endpoints outside the file are noted', async () => {
-  const route = over => ({id: 'RTE-TEST-FIELD-MILL', entity_type: 'Route', status: 'approved', version: '1.0.0', provenance: {sources: ['[TEST] synthetic']},
-    visibility: 'gm', refs: [], name: '[TEST] Road', route: {from_location_id: 'LOC-TEST-FIELD', to_location_id: 'LOC-TEST-MILL', distance_km: 12, ...over}});
-  const ok = await checkContent(pack([location(node()), route({})]), 'routes.json');
-  assert.deepEqual(ok.errors, []);
-  assert.match(ok.notes.join(' '), /LOC-TEST-MILL is not in this file/);
-  const bad = await checkContent(pack([location(node()), route({distance_km: 0, hazard_base_percent: 150})]), 'routes.json');
-  assert.match(bad.errors.join(' '), /distance_km must be a number from 0.01 to 100000.*hazard_base_percent must be a number from 0 to 100/);
+test('Route records are reported as skipped (Locations 0.20.0 retired routes); the locations in the file still check', async () => {
+  const route = {id: 'RTE-TEST-FIELD-MILL', entity_type: 'Route', status: 'approved', version: '1.0.0', provenance: {sources: ['[TEST] synthetic']},
+    visibility: 'gm', refs: [], name: '[TEST] Road', route: {from_location_id: 'LOC-TEST-FIELD', to_location_id: 'LOC-TEST-MILL', distance_km: 12}};
+  const r = await checkContent(pack([location(node()), route]), 'routes.json');
+  assert.deepEqual(r.errors, ['RTE-TEST-FIELD-MILL: Locations skips it: Routes are retired; make a location with type Route instead.']);
 });
 
 test('NPC Codex fields: what the Codex would drop or turn into other text is reported', async () => {

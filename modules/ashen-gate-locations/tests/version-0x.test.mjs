@@ -14,11 +14,14 @@ test('the suite is pre-release: Locations is on 0.x and its manifest, VERSION an
   assert.ok(manifest.download.endsWith(`/ashen-gate-locations-v${manifest.version}/ashen-gate-locations.zip`));
 });
 
-test('a 0.18.0 API still offers what partners detect (Manager import/preview/migration, routes, Hub panel)', () => {
+test('the API offers what partners detect (Manager import/preview/migration, Hub panel); 0.20.0: no route or journey methods', () => {
   const api = createApi({version: manifest.version, isGM: () => true, playerAccessEnabled: () => true, setPlayerAccess: async () => {},
-    readAll: () => [], writeAll: async () => {}, readViews: () => [], placeNote: async () => ({}), open: () => {}, openLocation: () => {},
-    routes: {readAll: () => [], writeAll: async () => {}, readViews: () => [], usedIds: () => [], defaultLegKm: () => 10}});
-  assert.equal(api.version, '0.19.0');
+    readAll: () => [], writeAll: async () => {}, readViews: () => [], placeNote: async () => ({}), open: () => {}, openLocation: () => {}});
+  assert.equal(api.version, '0.20.0');
   for (const fn of ['listLocations', 'importLocations', 'previewLocation', 'setLocationState', 'publishLocation', 'moveLocation', 'setAudience',
-    'importRoutes', 'listRoutes', 'open', 'openLocation']) assert.equal(typeof api[fn], 'function', fn);
+    'hazardsAt', 'rollTablesAt', 'rollTable', 'convertRoutes', 'open', 'openLocation']) assert.equal(typeof api[fn], 'function', fn);
+  // Partners feature-detect these; they must be gone so Manager reports Route records as retired instead of calling them.
+  for (const fn of ['importRoutes', 'listRoutes', 'getRoute', 'saveRoute', 'deleteRoute', 'getJourney', 'startJourney', 'nextLeg', 'routeDrawing'])
+    assert.equal(api[fn], undefined, fn);
+  assert.equal(api.travel, undefined);
 });

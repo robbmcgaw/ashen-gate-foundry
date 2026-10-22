@@ -35,8 +35,7 @@ import { flagWarnings } from '../modules/ashen-gate-manager/scripts/item-effects
 import { detectSpecialistFile, describeUnrecognized } from '../modules/ashen-gate-manager/scripts/specialist-handoff.js';
 import { readImportBundle } from '../modules/ashen-gate-manager/scripts/zip-import.js';
 import { createSceneMoods } from '../modules/ashen-gate-manager/scripts/scene-moods.js';
-import { importRecords, normalizeExotics as locationExotics, NODE_ID as LOCATION_NODE_ID } from '../modules/ashen-gate-locations/scripts/model.mjs';
-import { importRouteRecords } from '../modules/ashen-gate-locations/scripts/routes.mjs';
+import { importRecords, normalizeExotics as locationExotics, NODE_ID as LOCATION_NODE_ID, ROUTES_RETIRED } from '../modules/ashen-gate-locations/scripts/model.mjs';
 import { planQuestImport } from '../modules/ashen-gate-quest-manager/scripts/core.mjs';
 import { validatePackage as validateTrees } from '../modules/ashen-gate-skill-trees/scripts/engine.mjs';
 import { validateDefinition as validateCinderDefinition, categoriesFor } from '../modules/ashen-gate-cinders/scripts/cinder.mjs';
@@ -193,17 +192,8 @@ function domainChecks(pkg, knownIds = new Set()) {
       if (src.audience?.mode !== undefined && src.audience.mode !== loc.audience.mode) errors.push(`${loc.id}: audience.mode ${JSON.stringify(src.audience.mode)} is not everyone/selected.`);
     }
   }
-  // Route records (Locations 1.10.0+): every field check Locations makes. Endpoints outside this file must already
-  // be in the world (Manager checks that at import), so they are noted here, not errors.
-  const routes = pkg.records.filter(r => r.entity_type === 'Route');
-  if (routes.length) {
-    const inFile = new Set(locations.map(l => l.id));
-    const ends = new Set(inFile);
-    for (const r of routes) for (const id of [r.route?.from_location_id, r.route?.to_location_id]) if (typeof id === 'string') ends.add(id);
-    const r = importRouteRecords(routes, [], ends, {mode: 'skip'});
-    for (const s of r.skipped) errors.push(`${s.id}: Locations skips it: ${s.reason}`);
-    for (const rt of r.created) for (const id of [rt.fromId, rt.toId]) if (!inFile.has(id)) notes.push(`${rt.id}: endpoint ${id} is not in this file; it must already exist in Locations.`);
-  }
+  // Route records: retired in Locations 0.20.0, which skips each one (the rest of the file still imports).
+  for (const r of pkg.records.filter(x => x.entity_type === 'Route')) errors.push(`${r.id}: Locations skips it: ${ROUTES_RETIRED}`);
   // Shop, Service and MerchantList records (Utilities 0.21.0+): Utilities' own import rules, in an empty world with
   // electrum off. Items named by item_id outside this file must already be in the world, so they are notes.
   const shopRecs = pkg.records.filter(r => SHOP_IMPORT_TYPES.includes(r.entity_type));

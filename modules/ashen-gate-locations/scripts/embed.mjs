@@ -1,37 +1,28 @@
 /**
- * 1.13.0: embed API. A partner module (Character Hub) mounts a compact, read-only view: the party's journey progress and
- * the revealed places the user can see, grouped by region, each with Open. It is built from the same player views the
+ * 1.13.0: embed API. A partner module (Character Hub) mounts a compact, read-only view: the revealed places the user can
+ * see, grouped by region, each with Open (0.20.0: no journey progress; journeys are retired). It is built from the same player views the
  * Locations window shows players (the GM sees the same list: what the party knows). Editing stays in the window.
- * Dependencies are injected so this file has no Foundry imports: {mayOpen, readViews, readJourneyView, api, notifyError}.
+ * Dependencies are injected so this file has no Foundry imports: {mayOpen, readViews, api, notifyError}.
  */
 export const EMBED_MODES = Object.freeze(['character']);
 export const EMBED_CONTRACT = 'ag-locations-embed/1';
 const OTHER = 'Other places';
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
-const endName = e => typeof e === 'string' ? e : e?.name ?? '';
-const num = v => Number(v) || 0;
 /** Kit empty state (title + text). */
 const empty = (title, text) => `<div class="ag-empty"><p class="ag-empty__title">${esc(title)}</p><p class="ag-empty__text">${esc(text)}</p></div>`;
 
 /** HTML for one embed. `filter` is the search text. */
 export function embedHTML(deps, filter = '') {
   if (!deps.mayOpen()) return empty('Locations is hidden', 'The GM has hidden Locations.');
-  const journey = deps.readJourneyView();
   const q = String(filter).trim().toLowerCase();
   const places = deps.readViews().filter(v => v.id && v.state === 'revealed')
     .filter(v => !q || [v.name, v.region, v.type].some(t => String(t ?? '').toLowerCase().includes(q)));
   const groups = new Map();
   for (const v of places) { const g = v.region || OTHER; if (!groups.has(g)) groups.set(g, []); groups.get(g).push(v); }
-  const status = journey?.status === 'active' ? 'Travelling' : journey?.status === 'arrived' ? 'Arrived' : 'Journey stopped';
-  const pct = journey ? Math.round(100 * Math.min(1, num(journey.leg) / Math.max(1, num(journey.legs)))) : 0;
-  const trip = journey ? `<section class="agl-embed__journey"><strong>${status}</strong>
-      <span>${esc(endName(journey.from) || 'Somewhere')} → ${esc(endName(journey.to) || 'somewhere')}</span>
-      <span class="agl-embed__muted">Leg ${num(journey.leg)} of ${num(journey.legs)}</span>
-      <span class="ag-meter agl-embed__meter"><span class="ag-meter__track" role="progressbar" aria-label="Journey progress" aria-valuemin="0" aria-valuemax="${num(journey.legs)}" aria-valuenow="${Math.min(num(journey.leg), num(journey.legs))}" aria-valuetext="Leg ${num(journey.leg)} of ${num(journey.legs)}" style="--ag-meter:${pct}%"><span class="ag-meter__fill"></span></span></span></section>` : '';
   const list = [...groups.entries()].sort(([a], [b]) => a === OTHER ? 1 : b === OTHER ? -1 : a.localeCompare(b))
     .map(([g, rows]) => `<h4>${esc(g)} <small>${rows.length}</small></h4>
     <ul class="agl-embed__list">${rows.map(v => `<li><button type="button" class="agl-embed__open" data-agl-embed="open" data-ref="${esc(v.id)}" data-tooltip="Open ${esc(v.name)} in Locations" data-tooltip-class="ag-tooltip">${esc(v.name)}</button>${v.type ? `<span class="agl-embed__muted">${esc(v.type)}</span>` : ''}</li>`).join('')}</ul>`).join('');
-  return `<div class="agl-embed__body">${trip}
+  return `<div class="agl-embed__body">
     <div class="agl-embed__tools"><label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" class="agl-embed__search" placeholder="Search places" aria-label="Search places" value="${esc(filter)}"></label><button type="button" class="ag-btn ag-btn--sm" data-agl-embed="open-all">Open Locations</button></div>
     ${list || (q ? empty('Nothing matches', 'No places match this search.') : empty('No places yet', 'No places revealed yet.'))}</div>`;
 }

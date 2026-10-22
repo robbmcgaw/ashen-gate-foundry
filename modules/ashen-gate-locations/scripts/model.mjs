@@ -36,6 +36,8 @@ export const BLOCKS = Object.freeze([
   {key: 'quests', label: 'Quests'},
   {key: 'related', label: 'Related Locations'},
   {key: 'loot', label: 'Loot & Rewards'},
+  {key: 'hazards', label: 'Hazards'},
+  {key: 'rollTables', label: 'Roll Tables'},
   {key: 'notes', label: 'Notes'},
   {key: 'scenes', label: 'Linked Scenes'}
 ]);
@@ -88,6 +90,11 @@ export function normalizeExotics(list) {
 /** True when a node's DC is its tier default (current or pre-1.9.0), so a tier change may move it. */
 export const isTierDefaultDc = (dc, tier) => dc === GATHERING.dcByTier[tier] || dc === GATHERING.legacyDcByTier[tier];
 export const LOCATION_ID = /^LOC-[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
+/** 0.20.0: routes are retired. An old RTE-* id is only ever read (Convert routes to locations, `convertedFromRoute`). */
+export const ROUTE_ID = /^RTE-[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
+export const ROUTES_RETIRED = 'Routes are retired; make a location with type Route instead.';
+/** Suggested values for the free-text Type field (any text is allowed). */
+export const TYPE_SUGGESTIONS = Object.freeze(['Route', 'Town', 'Ruin', 'Forest', 'Dungeon', 'Region']);
 export const QUEST_ID = /^(?:QUEST|ORDER|CONTRACT)-[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
 /**
  * Marker states. Hidden: players get nothing. Unidentified: players get a generic label and an
@@ -178,6 +185,27 @@ const ENTRY_SHAPES = {
   notes: e => ({title: line(e.title), text: text(e.text), ...linked(e)})
 };
 const DETAIL_SHAPE = e => ({title: line(e.title), text: text(e.text), ...linked(e)});
+/**
+ * 0.20.0: hazards and linked roll tables, on any location (a "Route" is just a location of type Route). Lists of
+ * {id, ...}; `shown` (default false) is the per-entry player toggle, so a new entry is GM only. No chance, no
+ * automation: the GM adjudicates and rolls. A hazard's `tableUuid` (optional RollTable) is never sent to players.
+ */
+const MAX_LIST = 50;
+function idList(list, shape, keep) {
+  const out = [], seen = new Set();
+  for (const raw of Array.isArray(list) ? list : []) {
+    const e = raw && typeof raw === 'object' ? raw : {};
+    let id = line(e.id ?? e.key, 40) || newKey();
+    while (seen.has(id)) id = newKey();
+    const item = {id, ...shape(e), shown: bool(e.shown, false)};
+    if (!keep(item)) continue;
+    seen.add(id); out.push(item);
+    if (out.length >= MAX_LIST) break;
+  }
+  return out;
+}
+export const normalizeHazards = list => idList(list, e => ({name: line(e.name), note: text(e.note, 2000), tableUuid: safeUuid(e.tableUuid)}), h => h.name || h.note || h.tableUuid);
+export const normalizeRollTables = list => idList(list, e => ({name: line(e.name), uuid: safeUuid(e.uuid)}), t => t.uuid);
 const KEEP_ENTRY = {
   conditions: e => e.label || e.text,
   loot: e => e.label || e.text || e.uuid,
@@ -236,6 +264,8 @@ function normalizeBody(r, id) {
   body.details = (Array.isArray(r.details) ? r.details : []).map(e => entry(e, DETAIL_SHAPE)).filter(e => e.title || e.text || e.uuid);
   body.details = body.details.filter((e, i, all) => all.findIndex(x => x.key === e.key) === i);
   body.layout = normalizeLayout(r.layout, body.details);
+  body.hazards = normalizeHazards(r.hazards);
+  body.rollTables = normalizeRollTables(r.rollTables);
   body.isRegion = bool(r.isRegion, false);
   // 1.8.0: a Region passes its Conditions down only while this is on. null = a record from before 1.8.0, read as on
   // (the 1.4.0 behaviour) until the GM's migration settles it (resolvePassConditions); new records get false.
@@ -268,6 +298,8 @@ export function normalizeLocation(raw = {}) {
   // 1.8.0, GM-only: null = the default (placeable unless it is a Region), see isPlaceable().
   loc.placeable = typeof r.placeable === 'boolean' ? r.placeable : null;
   loc.audience = normalizeAudience(r.audience);
+  // 0.20.0, GM-only: the RTE id this location was converted from (Developer Tools), so a route is never converted twice.
+  loc.convertedFromRoute = ROUTE_ID.test(r.convertedFromRoute ?? '') ? r.convertedFromRoute : '';
   loc.state = STATES.includes(r.state) ? r.state : r.revealed === true ? 'revealed' : 'hidden';
   loc.revealed = loc.state === 'revealed';
   loc.published = r.published && typeof r.published === 'object' ? normalizeBody(r.published, id)
@@ -461,11 +493,14 @@ export function playerView(raw, all = [], {label = '', normalized = null, nodeVi
   // Only what the GM wrote for players. Nothing is read from the linked document, and the status is the GM's.
   const loot = on('loot').map(e => ({label: e.label, text: e.text, img: e.img, uuid: e.uuid, docType: e.docType, status: e.status}));
   const details = pub.details.filter(d => d.visible).map(d => ({key: d.key, title: d.title, text: d.text, uuid: d.uuid, docType: d.docType}));
+  // 0.20.0: only entries the GM marked shown; never a hazard's linked table (that is the GM's tool).
+  const hazards = pub.hazards.filter(h => h.shown).map(h => ({id: h.id, name: h.name, note: h.note}));
+  const rollTables = pub.rollTables.filter(t => t.shown).map(t => ({id: t.id, name: t.name, uuid: t.uuid}));
   const conditions = pub.sections.conditions ? effectiveConditions(loc, all, {player: true, normalized}).map(c => ({label: c.label, text: c.text})) : [];
   const parent = shown.get(pub.parentLocationId);
   if (parent) view.parent = ref(parent);
   const children = [...shown.values()].filter(l => l.published.parentLocationId === loc.id).map(ref).sort((a, b) => a.name.localeCompare(b.name));
-  for (const [key, list] of Object.entries({conditions, resources, factions, quests, related, loot, notes, details, children})) if (list.length) view[key] = list;
+  for (const [key, list] of Object.entries({conditions, resources, factions, quests, related, loot, hazards, rollTables, notes, details, children})) if (list.length) view[key] = list;
   // Block order as the GM published it, listing only blocks the player actually has (so no empty or unrevealed titles).
   const present = new Set(Object.keys(view).filter(k => k !== 'details'));
   for (const d of details) present.add(DETAIL_PREFIX + d.key);
@@ -581,6 +616,8 @@ export function viewHtml(view) {
     related: list('Related Locations', view.related?.map(r => esc(r.name))),
     // Plain text only: a Journal page never links a document, so it can't open one the reader may not see.
     loot: list('Loot & Rewards', view.loot?.map(l => [esc(l.label), l.text && esc(l.text), `(${LOOT_STATUS_LABELS[l.status] ?? 'Available'})`].filter(Boolean).join(' · '))),
+    hazards: list('Hazards', view.hazards?.map(h => [esc(h.name || 'Hazard'), h.note && p(h.note)].filter(Boolean).join(': '))),
+    rollTables: list('Roll Tables', view.rollTables?.map(t => esc(t.name || 'Roll table'))),
     notes: (view.notes ?? []).map(n => `<h2>${esc(n.title || 'Note')}</h2>${n.text ? `<p>${p(n.text)}</p>` : ''}`).join('\n')
   };
   for (const d of view.details ?? []) blocks[DETAIL_PREFIX + d.key] = `<h2>${esc(d.title || 'Detail')}</h2>${d.text ? `<p>${p(d.text)}</p>` : ''}`;
@@ -613,8 +650,18 @@ export function exportPackage(locations, {packageId = 'AG-LOCATIONS-EXPORT', ver
   };
 }
 
+/** A Location record's body. 0.20.0: `roll_tables` is read as `rollTables` (export writes `rollTables`). */
+function recordBody(rec) {
+  const body = {...(rec.location ?? {}), id: rec.id, name: rec.location?.name ?? rec.name};
+  if (body.rollTables === undefined) delete body.rollTables;
+  if (!('rollTables' in body) && body.roll_tables !== undefined) body.rollTables = body.roll_tables;
+  delete body.roll_tables;
+  return body;
+}
+
 /**
- * Reads Location records from an ag-foundry-import/0.2 package. Other entity types are skipped.
+ * Reads Location records from an ag-foundry-import/0.2 package. Other entity types are skipped; Route records (retired in
+ * 0.20.0) are listed in `retired` with ROUTES_RETIRED.
  * Records already in the world are left untouched (user edits win); new ones are returned for creation.
  * `existing` is the world's locations (or just their ids); a parent link that would make a loop is an error.
  */
@@ -624,10 +671,12 @@ export function parseImport(pkg, existing = []) {
   const known = existing.map(e => typeof e === 'string' ? {id: e} : e);
   const taken = new Set(known.map(l => l.id));
   const parents = parentMap(known);
-  const created = [], skipped = [], errors = [];
+  const created = [], skipped = [], errors = [], retired = [];
   for (const [i, rec] of pkg.records.entries()) {
+    // 0.20.0: Route records are skipped with a message; the rest of the file still imports.
+    if (rec?.entity_type === 'Route') { retired.push({id: typeof rec.id === 'string' ? rec.id : `records[${i}]`, reason: ROUTES_RETIRED}); continue; }
     if (rec?.entity_type !== 'Location') continue;
-    const body = {...(rec.location ?? {}), id: rec.id, name: rec.location?.name ?? rec.name};
+    const body = recordBody(rec);
     if (!LOCATION_ID.test(body.id ?? '')) { errors.push(`records[${i}]: id must look like LOC-NAME.`); continue; }
     if (taken.has(body.id)) { skipped.push(body.id); continue; }
     const loc = normalizeLocation(body);
@@ -636,12 +685,12 @@ export function parseImport(pkg, existing = []) {
     parents.set(loc.id, loc.parentLocationId);
     created.push(loc);
   }
-  return {created, skipped, errors};
+  return {created, skipped, errors, retired};
 }
 
-/** Fields added in 1.3.0, 1.4.0 and 1.8.0. An update that leaves one out keeps the world's value instead of clearing it. */
+/** Fields added in 1.3.0, 1.4.0, 1.8.0 and 0.20.0. An update that leaves one out keeps the world's value instead of clearing it. */
 const ADDITIVE = ['parentLocationId', 'unidentifiedLabel', 'teaser', 'pin', 'sceneUuids', 'layout', 'details', 'isRegion', 'conditionOverrides', 'conditions', 'loot',
-  'passConditions', 'placeable'];
+  'passConditions', 'placeable', 'hazards', 'rollTables', 'convertedFromRoute'];
 
 /**
  * Imports Location records (Manager's import run, or the package path above) into `existing`.
@@ -660,8 +709,9 @@ export function importRecords(records, existing = [], {mode = 'skip'} = {}) {
   const created = [], updated = [], skipped = [];
   for (const [i, rec] of records.entries()) {
     const id = rec?.id ?? `records[${i}]`;
+    if (rec?.entity_type === 'Route') { skipped.push({id, reason: ROUTES_RETIRED}); continue; }
     if (rec?.entity_type !== 'Location') { skipped.push({id, reason: 'Not a Location record.'}); continue; }
-    const body = {...(rec.location ?? {}), id: rec.id, name: rec.location?.name ?? rec.name};
+    const body = recordBody(rec);
     if (!LOCATION_ID.test(body.id ?? '')) { skipped.push({id, reason: 'id must look like LOC-NAME.'}); continue; }
     if (seen.has(body.id)) { skipped.push({id, reason: 'Duplicate id in this import.'}); continue; }
     seen.add(body.id);
