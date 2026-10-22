@@ -11,8 +11,12 @@
 //     or {rules}; Manager > Organize > Import), *.crosswalk.json (Profession Ledger baseline file; Ledger > GM Setup >
 //     Tools and checks > Import baseline file) and *.npc-codex.json (ag-npc-codex-export/0.1; Library > NPC Codex >
 //     Restore reveals). They are left out of the folder's ZIP bundle.
+//   - gathering node files (*.gathering-nodes.json, or any file with "schema": "ag-gathering-nodes/1"; Profession Ledger 0.25.0+,
+//     imported in Ledger > Gathering Nodes > Import nodes) are checked with the Ledger's own parser; a MAT-* id not defined
+//     in the same folder gets a note. Also left out of the ZIP bundle.
 //   - ag-strain-config/0.1 files (Strain bands and Backfire schedule) are checked with Ashen Gate | Cinders' own validator;
-//     Cinder / Power / BackfireTable records in a Manager package get Cinders' definition check.
+//     Cinder / Power / BackfireTable records in a Manager package get Cinders' definition check (including a Cinder's
+//     optional default art, cinder.art, from Cinders 0.9.0).
 //   - record-level modifiers blocks (ag-modifiers/0.1): Manager checks the shape, then each scope's owner checks its entries
 //     (scope cinder: Cinders' exported validateModifiers, when that Cinders version has it).
 //   - each folder's accepted import files are also zipped together and read as a Manager ZIP bundle.
@@ -47,6 +51,7 @@ import { materialMeta } from '../modules/ashen-gate-profession-ledger/scripts/ex
 import { catalogCrosswalk, PROFESSION_KEYS } from '../modules/ashen-gate-profession-ledger/scripts/assign.mjs';
 import { professionKey } from '../modules/ashen-gate-profession-ledger/scripts/checks.mjs';
 import { parseBaselineFile } from '../modules/ashen-gate-profession-ledger/scripts/assign.mjs';
+import { parseNodeFile, NODE_SCHEMA } from '../modules/ashen-gate-profession-ledger/scripts/nodes.mjs';
 import { planRevealsImport, isLinkId, REVEAL_FIELDS, LINK_PREFIXES } from '../modules/ashen-gate-manager/scripts/codex.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -236,6 +241,14 @@ export async function checkContent(data, filename = '', {knownIds = new Set()} =
       for (const v of row.items) if (typeof v === 'string' && (!v.trim() || v.trim().length > 200)) errors.push(`${name}: items entry ${JSON.stringify(v.slice(0, 40))} is empty or over 200 characters (dropped).`);
     return {kind: 'crosswalk', errors, notes: ['Imported in Profession Ledger > GM Setup > Tools and checks > Import baseline file (not through Manager Import).']};
   }
+  if (/\.gathering-nodes\.json$/i.test(filename) || (data && typeof data === 'object' && !Array.isArray(data) && data.schema === NODE_SCHEMA)) {
+    const r = parseNodeFile(data);
+    const notes = [...r.warnings];
+    const mats = [...new Set(r.nodes.flatMap(n => ['common', 'rare', 'exotic'].flatMap(t => n.materials[t].map(e => e.materialId))))];
+    const missing = mats.filter(id => !knownIds.has(id));
+    if (missing.length) notes.push(`Materials not defined in this folder (they must be imported with General Manager before they can be awarded): ${missing.join(', ')}.`);
+    return {kind: 'gathering-nodes', errors: r.errors, notes: [...notes, 'Imported in Profession Ledger > Gathering Nodes > Import nodes (not through Manager Import).']};
+  }
   if (/\.npc-codex\.json$/i.test(filename)) {
     const r = planRevealsImport(data, []);
     const errors = [...r.errors];
@@ -301,7 +314,7 @@ export async function validateTargets(targets) {
     }
     if (errors.length) { ok = false; lines.push(`FAIL ${rel} (${kind ?? 'unrecognised'}):\n  - ${errors.join('\n  - ')}`); continue; }
     lines.push(`ok   ${rel} (${kind})${notes.length ? `\n  note: ${notes.join('\n  note: ')}` : ''}`);
-    if (!['scene-moods', 'organize-rules', 'crosswalk', 'npc-codex'].includes(kind)) {
+    if (!['scene-moods', 'organize-rules', 'crosswalk', 'npc-codex', 'gathering-nodes'].includes(kind)) {
       const dir = path.dirname(file);
       if (!byFolder.has(dir)) byFolder.set(dir, []);
       byFolder.get(dir).push(file);

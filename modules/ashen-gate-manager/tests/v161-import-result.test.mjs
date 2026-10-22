@@ -56,7 +56,8 @@ test('specialist notes and warnings from the owning module reach the result rows
 test('the Import tab renders the persistent panel and Apply records a report on every path', () => {
   const main = readFileSync(new URL('../scripts/main.js', import.meta.url), 'utf8');
   const hbs = readFileSync(new URL('../templates/manager.hbs', import.meta.url), 'utf8');
-  assert.match(hbs, /\{\{#if hasImportReports\}\}/);
+  // 0.45.0: the results live in the Import tab's bottom message drawer.
+  assert.match(hbs, /\{\{#if drawer\.results\}\}/);
   assert.match(hbs, /data-ag-action="clear-results"/);
   assert.equal((main.match(/pushReport\(this\.importReports/g) ?? []).length >= 6, true);
   assert.match(main, /importHistory/, 'History entry is still written');

@@ -5,6 +5,7 @@
 import {MODULE_ID, VERSION, SHEET_LABEL, COMPACT_SETTING} from './constants.mjs';
 import {createHubSheetClass} from './sheet.mjs';
 import {COMPACT_OPACITY_SETTING} from './compact-opacity.mjs';
+import {registerQuickKeys, pressQuickSlot} from './quick-keys.mjs';
 import {openNativeSheet, nativeSheetClass} from './native.mjs';
 import {registerCompanionSettings, petCapFor, companionsData, registerPetSlotSource, unregisterPetSlotSource} from './companions.mjs';
 import {registerCollapseSetting} from './collapse.mjs';
@@ -44,6 +45,8 @@ export function scheduleRender(actor, delay = 50) {
 }
 /** Re-draws every open Hub (a world setting that changes what is shown). One render per burst. */
 let allPending = null;
+/** Every Hub window open now, any character (quick bar keys pick from these). */
+export const allHubs = () => HubSheet ? [...(globalThis.foundry?.applications?.instances?.values?.() ?? [])].filter(app => app instanceof HubSheet) : [];
 export function renderAllHubs(delay = 50) {
   clearTimeout(allPending);
   allPending = setTimeout(() => { allPending = null; for (const app of globalThis.foundry?.applications?.instances?.values?.() ?? []) if (HubSheet && app instanceof HubSheet && app.rendered) app.render(); }, delay);
@@ -131,6 +134,9 @@ if (globalThis.Hooks) {
     journey.registerJourneySettings(game.settings);
     registerCompanionSettings(game.settings, () => renderAllHubs());
     registerVisibilitySetting(game.settings, () => renderAllHubs());
+    // Quick bar keys (0.29.4, quick-keys.mjs): 1-9 and 0 use the open Hub's quick bar; without a Hub they stay Foundry's.
+    if (game.keybindings?.register) registerQuickKeys(game.keybindings, (i, event) => pressQuickSlot(i, event, allHubs(), globalThis.ui?.activeWindow ?? null),
+      globalThis.CONST?.KEYBINDING_PRECEDENCE?.PRIORITY);
     const mod = game.modules.get(MODULE_ID);
     if (mod) mod.api = createApi();
   });

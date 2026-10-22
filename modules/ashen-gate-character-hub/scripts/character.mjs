@@ -14,7 +14,7 @@ import {canSee, hiddenReason, hiddenBadge} from './visibility.mjs';
 import {configAttrs} from './configure.mjs';
 import {toggleButton, bodyAttrs} from './collapse.mjs';
 import {tooltipAttrs} from './tooltips.mjs';
-import {strainHtml} from './cinders.mjs';
+import {strainHtml, strainPillHtml} from './cinders.mjs';
 
 export const LEFT_SLOTS = ['head', 'neck', 'back', 'body', 'hands'];
 export const RIGHT_SLOTS = ['mainhand', 'offhand', 'waist', 'feet', 'bracer'];
@@ -112,7 +112,7 @@ function dollHtml(ctx, h) {
   </section>${otherHtml(layout, menu, off)}`;
 }
 
-const tile = (label, value, {extra = '', title = '', attrs = ''} = {}) => `<div class="agch-tile"${title ? ` data-tooltip="${esc(title)}"` : ''}${attrs}><span class="agch-tile__label">${esc(label)}</span>${value}${extra}</div>`;
+const tile = (label, value, {extra = '', title = '', attrs = '', big = false} = {}) => `<div class="agch-tile${big ? ' agch-tile--big' : ''}"${title ? ` data-tooltip="${esc(title)}"` : ''}${attrs}><span class="agch-tile__label">${esc(label)}</span>${value}${extra}</div>`;
 
 /**
  * Health band of the HP fill colour, as a share of the effective max (max + max adjustment; temp HP doesn't count).
@@ -185,15 +185,18 @@ function identityCard(actor) {
     <img src="${esc(r.img)}" alt=""><span class="agch-idcard__text"><span class="agch-idcard__name">${esc(r.name)}</span><span class="agch-idcard__detail">${esc(r.detail)}</span></span></button>`).join('')}</section>`;
 }
 
-/** The HP block. Compact (0.29.0) keeps the bar, its editor, damage/heal and the death save; hit dice, rests and exhaustion stay in Full. */
-function hpHtml(h, off, menu, compact = false) {
+/**
+ * The HP block. Compact (0.29.0) keeps the bar, its editor, damage/heal and the death save; hit dice, rests and exhaustion
+ * stay in Full. `strain` is the read-only Strain pill shown beside them (0.30.0).
+ */
+function hpHtml(h, off, menu, compact = false, strain = '') {
   const hp = h.hp;
   return `<div class="agch-hp" role="group" aria-label="Hit points">
     ${hpBarHtml(hp, off)}
     ${menu === 'hp' && !off ? hpEditor(hp) : ''}
     <div class="agch-hp__row">
       <span class="agch-hp__adjust" role="group" aria-label="Damage or heal">${btn('hp-damage', '', {kind: 'sm', icon: 'fa-solid fa-minus', title: 'Damage: subtract the amount (temp HP first, then HP)', disabled: off})}<input type="number" min="0" step="1" class="agch-hp__amount" data-hp-amount placeholder="0" aria-label="Amount to add or subtract"${off ? ' disabled' : ''}>${btn('hp-heal', '', {kind: 'sm', icon: 'fa-solid fa-plus', title: 'Heal: add the amount (up to max HP)', disabled: off})}</span>
-      ${compact ? '' : `${hitDiceHtml(h, off)}${exhaustionHtml(h, off)}`}</div>
+      ${compact ? '' : `${hitDiceHtml(h, off)}${exhaustionHtml(h, off)}${strain}`}</div>
     ${hp.value <= 0 ? `<span${off ? '' : configAttrs('death')}>${btn('roll-death', 'Death save', {icon: 'fa-solid fa-dice-d20', title: off ? 'Death save' : 'Death save (right-click to configure)', disabled: off})}</span>` : ''}
   </div>`;
 }
@@ -233,6 +236,8 @@ export function characterPanelHtml(ctx) {
   const otherSpeeds = h.speeds.filter(s => s.key !== 'walk').map(s => `${esc(s.label)} ${s.value}`).concat(h.hover ? ['Hover'] : []).join(', ');
   const cfg = (kind, key) => off ? '' : configAttrs(kind, key);
   const rc = off ? '' : ' (right-click to configure)';
+  // Strain (0.30.0): the GM keeps the row with − / + under hit points; everyone else gets the read-only pill in the HP block.
+  const strainGm = globalThis.game?.user?.isGM === true && !off, strain = canSee('strain') && !strainGm ? strainPillHtml(actor) : '';
   return `<aside class="agch-char" aria-label="Character">
     <div class="agch-ident">
       <div class="agch-ident__text"><h2 class="agch-name">${esc(h.name)}</h2><p class="agch-sub">${featuresData(actor).identity.length ? (h.level ? `Level ${h.level}` : '') : `${h.species ? `${esc(h.species)} · ` : ''}${classLine}${h.level ? ` · Level ${h.level}` : ''}`}</p></div>
@@ -242,12 +247,12 @@ export function characterPanelHtml(ctx) {
     ${canSee('equipment') ? dollHtml(ctx, h) : ''}
     <div class="agch-tiles${canSee('equipment') ? '' : ' agch-tiles--4'}">
       ${canSee('equipment') ? '' : tile('AC', `<span class="agch-tile__value">${h.ac}</span>`, {title: `Armor Class${rc}`, attrs: cfg('armorClass')})}
-      ${tile('Initiative', btn('roll-initiative', signed(h.init), {extra: 'agch-tile__roll', title: `Roll initiative${rc}`, disabled: off}), {attrs: cfg('initiative')})}
+      ${tile('Initiative', btn('roll-initiative', signed(h.init), {extra: 'agch-tile__roll', title: `Roll initiative${rc}`, disabled: off}), {attrs: cfg('initiative'), big: true})}
       ${tile('Speed', `<span class="agch-tile__value">${walk ? `${walk.value} ${esc(walk.units)}` : '—'}</span>`, {extra: otherSpeeds ? `<span class="agch-tile__more">${otherSpeeds}</span>` : '', title: `Speed${rc ? ' (right-click to set walk, climb, fly, burrow, swim, jump, hover and units)' : ''}`, attrs: cfg('movement')})}
-      ${tile('Proficiency', `<span class="agch-tile__value">${signed(h.prof)}</span>`)}
+      ${tile('Proficiency', `<span class="agch-tile__value">${signed(h.prof)}</span>`, {big: true})}
     </div>
-    ${hpHtml(h, off, sheet?.menu ?? null)}
-    ${canSee('strain') ? strainHtml(actor, off) : ''}
+    ${hpHtml(h, off, sheet?.menu ?? null, false, strainGm ? '' : strain)}
+    ${strainGm ? strainHtml(actor, off) : ''}
     ${abilitiesHtml(actor, off)}
     ${conditionsHtml(h, off, sheet?.condAdd === true)}
     ${footHtml(h)}

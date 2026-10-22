@@ -519,6 +519,38 @@ test('Manage: Unbind is a danger confirm and Cancel changes nothing; toolbar cou
   assert.equal(cinder.instances().find(i=>i.instanceId===ember.instanceId).status,'bound','Cancel leaves the Cinder bound');
   dialogs.DialogV2=before;app.tab='cinders';
 });
+// 0.9.0: default art on the MUT-* definition (cinder.art), copied to new Cinders, and the fallback when a Cinder has no art of its own.
+test('definition art (0.9.0): checked like the GM\'s art; new Cinders copy it; no own art falls back to it, also for players; Reset keeps working',async()=>{
+  const ok=validateDefinition({id:'MUT-TEST-EMBER',entity_type:'Mutation',cinder:{schema:'ag-cinder/0.1',art:'ashen-gate/cinders/test-ember.webp'}});
+  assert.deepEqual(ok.errors,[]);
+  for(const bad of ['javascript:alert(1)','a"b.png',42,''])
+    assert.match(validateDefinition({id:'MUT-TEST-EMBER',entity_type:'Mutation',cinder:{schema:'ag-cinder/0.1',art:bad}}).errors.join(),/cinder\.art must be an image path/,String(bad));
+  game.user=gm;
+  const def=items[0].flags['ashen-gate-manager'].source,KIND='ashen-gate/cinders/test-ember.webp';
+  def.definition.cinder.art=KIND;
+  try{
+    assert.equal((await cinder.create(DEF)).art,KIND,'a new Cinder starts with its definition\'s art');
+    assert.equal((await cinder.create(DEF,{art:'ashen-gate/cinders/test-other.png'})).art,'ashen-gate/cinders/test-other.png','unless the GM chooses another');
+    await assert.rejects(cinder.create(DEF,{art:'javascript:x'}),/Choose an image file/);
+    const id=ember.instanceId;
+    assert.match(cinder.report().map(r=>r.text).join('\n'),/copy of this Cinder's art differs/,'a bearer copy without the definition art is reported');
+    await cinder.repair();
+    await cinder.setArt(id,'ashen-gate/cinders/test-own.png');
+    let [c]=cinder.list(B);assert.deepEqual([c.art,c.ownArt,c.artSource],['ashen-gate/cinders/test-own.png','ashen-gate/cinders/test-own.png','cinder']);
+    await cinder.setArt(id,null);
+    [c]=cinder.list(B);assert.deepEqual([c.art,c.ownArt,c.defaultArt,c.artSource],[KIND,null,KIND,'definition'],'Reset: the definition\'s art, not the plain orb');
+    assert.equal(B.flags[MOD].cinders.find(p=>p.instanceId===id).defaultArt,KIND,'copied to the bearer\'s pointer');
+    def.visibility='gm';game.user=bob;
+    try{[c]=cinder.list(B);assert.equal(c.art,KIND,'a player who cannot see the MUT-* record still gets the art from the pointer');}finally{def.visibility='player';game.user=gm;}
+    const {sheetView}=await import('../scripts/main.mjs');
+    const view=sheetView(B,c,null,{strainState:strain.get(B),gm:true});
+    assert.deepEqual([view.image,view.art.src,view.gm.hasArt,view.tone],[true,KIND,false,view.tone],'drawn as art; no own art, so no Reset button');
+    assert.deepEqual(cinder.report(),[]);
+  }finally{delete def.definition.cinder.art;}
+  assert.match(cinder.report().map(r=>r.text).join('\n'),/art differs/,'definition art removed: the bearer copy is stale');
+  await cinder.repair();assert.equal('defaultArt' in B.flags[MOD].cinders.find(p=>p.instanceId===ember.instanceId),false);
+  const [c]=cinder.list(B);assert.deepEqual([c.art,c.artSource],[null,null],'no art anywhere: the default orb');
+});
 test('unbind keeps the Cinder\'s progress; a deleted bearer leaves it lost',async()=>{
   game.user=gm;await cinder.unbind(ember.instanceId);await settle();
   let inst=cinder.instances().find(i=>i.instanceId===ember.instanceId);

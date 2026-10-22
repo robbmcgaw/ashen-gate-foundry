@@ -57,8 +57,16 @@ export function normalizeExotics(list){
 
 /** The gathering profession a node uses, or null when its skill is a plain skill/tool rather than a gathering profession. */
 export function nodeProfessionKey(node){
+  const listed=(Array.isArray(node?.professions)?node.professions:[]).find(k=>GATHERING_KEYS.includes(k));
+  if(listed)return listed;
   const key=professionKey(node?.skill??'');
   return GATHERING_KEYS.includes(key)?key:null;
+}
+/** 0.25.0: every gathering profession a node allows (a template may list several), else its one from the skill. */
+export function nodeProfessionKeys(node){
+  const listed=(Array.isArray(node?.professions)?node.professions:[]).filter(k=>GATHERING_KEYS.includes(k));
+  if(listed.length)return [...new Set(listed)];
+  const one=nodeProfessionKey(node);return one?[one]:[];
 }
 /** A PROF-* id read as a profession key when no Profession definition gives its name: PROF-PT-HERBALISM → herbalism. */
 export function professionKeyFromId(id){
@@ -102,11 +110,11 @@ export function filterMaterials(metas,{query='',profession=null,quality=null,tie
 export function exoticEligibility(entry,node,meta,{keyOf}={}){
   if(!meta)return {eligible:false,reason:'Not an imported, approved, player-visible world material'};
   if(!meta.exotic)return {eligible:false,reason:`Its definition says ${meta.quality??'no quality'}, not Exotic`};
-  const prof=nodeProfessionKey(node);
-  if(!prof)return {eligible:false,reason:'The node’s skill is not a gathering profession'};
+  const profs=nodeProfessionKeys(node);
+  if(!profs.length)return {eligible:false,reason:'The node’s skill is not a gathering profession'};
   const keys=materialProfessionKeys(meta,keyOf);
   if(!keys.length)return {eligible:false,reason:'Its definition names no gathering profession'};
-  if(!keys.includes(prof))return {eligible:false,reason:'Gathered by another profession'};
+  if(!keys.some(k=>profs.includes(k)))return {eligible:false,reason:'Gathered by another profession'};
   const nodeTier=tierNumber(node?.tier);
   if(meta.tier==null||nodeTier==null)return {eligible:false,reason:'Its tier or the node’s tier is missing'};
   if(meta.tier>nodeTier)return {eligible:false,reason:`Tier ${meta.tier} is above the node’s tier ${nodeTier}`};
@@ -155,7 +163,7 @@ export function resolveExotic({node,outcome,percent=DEFAULT_EXOTIC_PERCENT,roll,
  * {base: gatherReward(...), exotic: resolveExotic(...), awards:[{materialId, quantity, kind:'common'|'rare'|'exotic'}]}.
  */
 export function resolveGatherRewards({node,outcome,percent,roll,metaOf,keyOf}={}){
-  const base=gatherReward(node,outcome);
+  const base=gatherReward(node,outcome,{roll});
   const exotic=resolveExotic({node,outcome,percent,roll,metaOf,keyOf});
   const awards=[];
   if(base)awards.push({materialId:base.materialId,quantity:base.quantity,kind:base.rare?'rare':'common'});
