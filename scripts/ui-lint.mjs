@@ -89,7 +89,7 @@ export const RULES = {
 };
 
 // Rules kept as a ratchet for one module only, {moduleId: {rule: highest allowed count}}. The count may go down
-// (lower it here when it does), never up. Each entry needs a follow-up in docs/ui-pass-plan.md.
+// (lower it here when it does), never up. Each entry needs a follow-up in docs/ui-audit-2026-10.md.
 export const STRICT_EXCEPTIONS = {};
 
 /** Compares one module's counts with zero, or with its exception count. Returns {failures, notes}. */
