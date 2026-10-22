@@ -1,3 +1,10 @@
+## 0.16.0 — 2026-10-22
+
+- **Delete folder…** (GM): each row in *Manage folders* now has a Delete folder… button. It asks "Delete folder “<name>”?", says how many factions (and deities) will move to *Other factions* and that they are not deleted, and Cancel is the default. Deleting a folder never deletes a faction or deity, or touches its Renown, discovery or rewards; everything in it moves to *Other factions*. Keyboard focus moves to the next folder's Delete folder… (or the New folder name when none are left).
+- A deleted folder's id is never used again for a new folder. Players cannot delete folders: the API refuses anyone but the GM.
+- A faction that points at a folder that no longer exists (for example one imported from another world) shows under *Other factions* instead of being hidden, and Export, `getFactions` and General Manager's world export no longer name a folder that is gone.
+- New GM-only API: `api.deleteFolder(key)`. No changes to saved data; no migration.
+
 ## 0.15.0 — 2026-10-22
 
 UI cleanup (audit 2026-10, Renown brief). No changes to saved data, flags, setting keys, ids or the API.

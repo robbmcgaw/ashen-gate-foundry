@@ -47,7 +47,7 @@ test('GM Setup holds settings only; the Factions tab holds all content actions',
  // Demo loaders and one-off maintenance (Fill in permanent item ids, FR-06) live only in the collapsed Developer Tools.
  for(const a of DEV_ACTIONS){assert.ok(dev.includes(`data-action="${a}"`),`${a} belongs in Developer Tools`);assert.ok(!settings.includes(`data-action="${a}"`));assert.ok(!orgs.includes(`data-action="${a}"`));}
  assert.ok(setup.indexOf('ag-devtools')>setup.indexOf('name="group-name"'),'Developer Tools come last');
- for(const a of ['create','createDeity','exportAll','addObjective','createFolder','saveFolder','resolveRequest','addEntry','addReward','discovery','removeRelation','toggleFolders'])assert.ok(orgs.includes(`data-action="${a}"`),`${a} missing from Factions`);
+ for(const a of ['create','createDeity','exportAll','addObjective','createFolder','saveFolder','deleteFolder','resolveRequest','addEntry','addReward','discovery','removeRelation','toggleFolders'])assert.ok(orgs.includes(`data-action="${a}"`),`${a} missing from Factions`);
  assert.ok(orgs.includes('{{{importButton}}}'),'Import is a kit file button in the Factions toolbar');
  assert.match(template,/data-agf-view="orgs"[\s\S]*data-agf-view="requests"[\s\S]*data-agf-view="setup"/);
 });
