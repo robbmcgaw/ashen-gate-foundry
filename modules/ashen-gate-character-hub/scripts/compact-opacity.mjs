@@ -17,10 +17,11 @@ export function saveCompactOpacity(value) {
 }
 /** Sets the variable while the Hub is Compact, removes it in Full. Returns the value in use (100 in Full). */
 export function applyCompactOpacity(sheet, value = compactOpacity()) {
-  const style = sheet?.element?.style;
-  if (sheet?.compact !== true) { style?.removeProperty?.('--agch-compact-alpha'); return 100; }
+  const style = sheet?.element?.style, cls = sheet?.element?.classList;
+  if (sheet?.compact !== true) { style?.removeProperty?.('--agch-compact-alpha'); cls?.remove?.('agch-see-through'); return 100; }
   const v = clampCompactOpacity(value);
   style?.setProperty?.('--agch-compact-alpha', `${v}%`);
+  cls?.toggle?.('agch-see-through', v < 100);
   return v;
 }
 /** The slider, shown in the Compact header only. */
