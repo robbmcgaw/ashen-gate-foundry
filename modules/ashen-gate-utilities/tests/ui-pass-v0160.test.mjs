@@ -31,7 +31,7 @@ const src=fs.readFileSync(new URL('../scripts/main.mjs',import.meta.url),'utf8')
 const css=fs.readFileSync(new URL('../styles/utilities.css',import.meta.url),'utf8');
 /** A fake window root: GM Setup checkboxes by id. */
 const setupRoot=checked=>({querySelector:q=>{const id=q.replace(/^#/,'');return id in checked?{checked:checked[id]}:null;}});
-const tabHtml=async(tab,user=gm)=>{game.user=user;try{const app=await api().open();app.tab=tab;return await app._renderHTML();}finally{game.user=gm;}};
+const tabHtml=async(tab,user=gm)=>{game.user=user;try{const app=await api().open();app.tab=tab;if(tab==='rolls')app.rollsSub='current';return await app._renderHTML();}finally{game.user=gm;}};
 
 test('header: brand title, then Appearance, version (from module.json at runtime), Help last',async()=>{
  modules.set('ashen-gate-manager',{active:true,api:{appearance:{openMyAppearance:()=>{}}}});
@@ -44,23 +44,24 @@ test('header: brand title, then Appearance, version (from module.json at runtime
   assert.doesNotMatch(css,/agu-header \.ag-header__meta button/,'no header button shrink override');
  }finally{modules.delete('ashen-gate-manager');}
 });
-test('tabs: role="tab" with aria-selected, icons hidden from screen readers, GM tabs marked .ag-tab--gm (0.17.0: Shops, GM only for now, sits after Party Inventory)',async()=>{
+test('tabs: role="tab" with aria-selected, icons hidden from screen readers, GM tabs marked .ag-tab--gm (0.26.0: six tabs; History is Rolls → History, Roll Tables is GM only)',async()=>{
  const html=await tabHtml('setup');
  assert.match(html,/<nav class="ag-tabs ag-tabs--scroll agu-tabs" role="tablist"/);
- const tabs=[...html.matchAll(/<button type="button" role="tab" data-tab="([a-z]+)" aria-selected="(true|false)" class="([^"]*)"><i class="fa-solid [a-z0-9-]+" aria-hidden="true"><\/i>/g)];
- assert.deepEqual(tabs.map(t=>t[1]),['rolls','inventory','shops','tables','conditions','history','setup']);
- assert.deepEqual(tabs.filter(t=>t[3].includes('ag-tab--gm')).map(t=>t[1]),['shops','history','setup']);
+ const tabs=[...html.matchAll(/<button type="button" role="tab" id="agu-tab-([a-z]+)" data-tab="\1" aria-controls="agu-main-panel" aria-selected="(true|false)" tabindex="(?:0|-1)" class="([^"]*)"><i class="fa-solid [a-z0-9-]+" aria-hidden="true"><\/i>/g)];
+ assert.deepEqual(tabs.map(t=>t[1]),['rolls','inventory','shops','conditions','tables','setup']);
+ assert.deepEqual(tabs.filter(t=>t[3].includes('ag-tab--gm')).map(t=>t[1]),['shops','tables','setup']);
+ assert.match(html,/<main class="agu-main" id="agu-main-panel" role="tabpanel" aria-labelledby="agu-tab-setup">/);
  assert.deepEqual(tabs.filter(t=>t[2]==='true').map(t=>t[1]),['setup']);
  await game.settings.set(ID,'playerAccessEnabled',true);
  const player=await tabHtml('rolls',{...alice});
- assert.doesNotMatch(player,/ag-tab--gm|data-tab="setup"|data-tab="shops"/);
+ assert.doesNotMatch(player,/ag-tab--gm|data-tab="setup"|data-tab="shops"|data-tab="tables"/,'0.26.0: no Roll Tables tab for players');
 });
 test('buttons use kit classes only; Award Gold is one button everywhere; no title= tooltips',async()=>{
  await game.settings.set(ID,'playerAccessEnabled',true);
  for(const tab of ['rolls','inventory','shops','tables','conditions','history','setup']){
   const html=await tabHtml(tab);
   for(const [,cls] of html.matchAll(/<button type="button" class="([^"]*)" data-action=/g)){
-   assert.match(cls,/^ag-btn( ag-btn--(primary|danger|ghost|sm))*( agu-[a-z-]+)?$/,`${tab}: ${cls}`);
+   assert.match(cls,/^(ag-btn( ag-btn--(primary|danger|ghost|sm))*( agu-[a-z-]+)?|ag-link)$/,`${tab}: ${cls}`);
   }
   assert.doesNotMatch(html,/\stitle=/,`${tab} has a title= attribute`);
   assert.ok((html.match(/ag-btn--primary/g)??[]).length<=1,`${tab}: at most one primary`);
@@ -77,7 +78,7 @@ test('labels: every label is a kit field; no global label rule; empty states hav
   for(const [tag] of html.matchAll(/<label\b[^>]*>/g))assert.match(tag,/class="ag-field/,`${tab}: ${tag}`);
   for(const [block] of html.matchAll(/<div class="ag-empty">.*?<\/div>/g))assert.match(block,/<p class="ag-empty__title">[^<]+<\/p>/,`${tab}: ${block}`);
  }
- const rolls=await tabHtml('rolls');assert.match(rolls,/<p class="ag-empty__title">No characters yet<\/p><p class="ag-empty__text">Add at least two characters to start a check.<\/p>/);
+ const rolls=await tabHtml('rolls');assert.match(rolls,/<p class="ag-field__hint">No characters yet\. Add at least two characters to start a check\.<\/p>/,'0.26.0: a hint inside the form, not a whole-pane empty state');
  const player=await tabHtml('rolls',{...alice});assert.doesNotMatch(player,/Start Rolls|GM Setup/);
 });
 test('GM Setup: settings only, Cancel bottom-left and Save Changes bottom-right in the footer',async()=>{
@@ -120,13 +121,12 @@ test('Cancel Session asks first, labelled, and Cancel keeps the check running',a
  assert.equal(game.settings.get(ID,'activeSession').status,'active');
  await game.settings.set(ID,'activeSession',{});
 });
-test('CSS: tokens only, container queries, one roll-large rule, striped stash rows',()=>{
+test('CSS: tokens only, container queries, one roll-large rule; 0.26.0: kit rows and tables, no hand-rolled copies',()=>{
  const code=css.replace(/\/\*[\s\S]*?\*\//g,'');
  assert.doesNotMatch(code,/font-size\s*:\s*[\d.]+(px|rem|em)/);
  assert.doesNotMatch(code,/@media[^{]*width/);
  assert.doesNotMatch(code,/var\(--ag-(bg|panel)\)/);
  assert.equal((code.match(/\.agu-roll-large\s*\{/g)??[]).length,1);
- assert.equal((code.match(/\.agu-participant\s*\{/g)??[]).length,1);
- assert.match(code,/\.agu-stash-row:nth-child\(even of \.agu-stash-row\)\s*\{background:var\(--ag-row-alt\);\}/);
+ assert.doesNotMatch(code,/\.agu-(participant|history|stash-grid|stash-head|subtabs|shop-subtabs)\b/,'UT-12/13: rows and tables come from the kit');
  assert.match(code,/@container \(max-width:35rem\)/,'stash keeps its container query');
 });

@@ -55,7 +55,7 @@ test('api.rolls.open fills in the form and starts nothing; Start Rolls uses the 
  assert.equal(out.busy,false);assert.deepEqual(game.settings.get(ID,'activeSession'),{});
  const html=await out.app._renderHTML();
  assert.ok(html.includes('value="individual" checked'));
- assert.match(html,/value="sur" checked/);assert.doesNotMatch(html,/value="ath" checked/);
+ assert.match(html,/data-skill="sur" aria-pressed="true"/);assert.doesNotMatch(html,/data-skill="ath" aria-pressed="true"/);
  assert.match(html,/value="pc3" checked/);assert.doesNotMatch(html,/value="pc1" checked/);
  assert.match(html,/id="agu-dc"[^>]*value="14"/);assert.match(html,/value="\[TEST\] Navigate"/);
  await start(out.app,{mode:'individual',title:'[TEST] Navigate',actors:['pc3'],skills:['nat'],dc:'14'});

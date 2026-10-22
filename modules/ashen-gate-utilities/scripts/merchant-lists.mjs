@@ -4,12 +4,14 @@
    needs the entry presented. 0.25.0: a list is shared with nobody (hidden), the whole party or chosen players
    (`audience`), and each entry has an Open switch that presents it to that audience (Present) or stops showing it, plus
    Open all / Close all. Every call is GM only. ---- */
-import {escapeHTML as E,normalizeMerchantList,normalizeAudience,migrateMerchantLists,listNeedsMigration,presentedCovers,mergePresented,audienceText,
+import {escapeHTML as E,normalizeMerchantList,normalizeAudience,migrateMerchantLists,listNeedsMigration,presentedCovers,presentedBeyond,mergePresented,audienceText,
  shopIdFromName,validId,MLIST_NAME_MAX,shopPlace} from './core.mjs';
-import {readAll,readServices,readMeta,writeMeta,queueShops,locationsApi,locationMap,icon,button,tip,shownBadge} from './shops.mjs';
+import {readAll,readServices,readMeta,writeMeta,queueShops,locationMap,icon,button,tip,settlementSelect} from './shops.mjs';
+import {emptyState} from './ui-parts.mjs';
+import {fold} from './ag-html.mjs';
 import {syncPlayerView,setPresentations,getRecord} from './shop-buy.mjs';
 import {servicesAll,typeLabel} from './services.mjs';
-import {confirmDialog,formDialog} from './ag-dialogs.mjs';
+import {confirmDanger,formDialog} from './ag-dialogs.mjs';
 
 const isGM=()=>Boolean(game.user?.isGM);
 const gmOnly=()=>{if(!isGM())throw Error('GM only.');};
@@ -136,53 +138,75 @@ function entryIndex(){
 }
 const cityName=(id,locations)=>id?shopPlace({locationId:id},locations).place:'';
 const shareBadge=a=>a.mode==='hidden'?`<span class="ag-badge">${icon('fa-eye-slash')} Hidden</span>`:`<span class="ag-badge ag-badge--ok">${icon(a.mode==='party'?'fa-users':'fa-user-check')} ${E(audienceText(a,userName))}</span>`;
+/**
+ * 0.26.0: what closing these entries does beyond this list: stores also shown to players outside its audience
+ * (presented on their own, or through another list) and other shared lists that hold them. Names only; nothing changes.
+ */
+export function closeEffects(listId,entryIds){
+ const all=lists(),l=all.find(x=>x.id===listId);if(!l)return [];
+ return [].concat(entryIds).map(id=>{
+  const st=entryState(l,id);if(!st.presented)return null;
+  const others=all.filter(o=>o.id!==l.id&&o.audience.mode!=='hidden'&&o.shopIds.includes(id)).map(o=>o.name);
+  const beyond=presentedBeyond(st.presented,l.audience);
+  return beyond||others.length?{id,name:st.name,beyond,others}:null;
+ }).filter(Boolean);
+}
+const effectsText=effects=>effects.map(e=>`${e.name}${e.others.length?` (also on ${e.others.join(', ')})`:' (also shown on its own)'}`).join('; ');
+/** A summary card: name, settlement, who it is shared with, how many stores are open, its actions; the stores in a fold. */
 function card(l,index,locations){
  const city=cityName(l.locationId,locations),states=l.shopIds.map(id=>({...entryState(l,id),...(index.get(id)??{what:'Missing (deleted)'})}));
  const openN=states.filter(s=>s.open).length,canN=states.filter(s=>s.canOpen).length,hidden=l.audience.mode==='hidden';
- const items=states.map(e=>`<li class="ag-row agu-mlist__entry"><div class="ag-row__main"><span class="ag-row__title">${E(e.name)}</span><span class="ag-row__meta">${E(e.what)}${e.canOpen||hidden?'':` · ${E(e.reason)}`}</span>${e.rec?shownBadge(e.rec):''}</div>
+ const items=states.map(e=>`<li class="ag-row agu-mlist__entry"><div class="ag-row__main"><span class="ag-row__title">${E(e.name)}</span>${e.canOpen||hidden?'':`<span class="ag-row__meta">${E(e.reason)}</span>`}</div>
   <div class="ag-row__end"><label class="ag-field ag-field--inline agu-mlist__open"><input type="checkbox" role="switch" data-mlist-open="${E(l.id)}" data-entry="${E(e.id)}"${e.open?' checked':''}${e.canOpen?'':' disabled'} aria-label="Open ${E(e.name)} to this list's players"> ${e.open?'Open':'Closed'}</label></div></li>`).join('');
- return `<article class="ag-card agu-mlist" data-mlist="${E(l.id)}"><div class="ag-card__head"><h3 class="ag-card__title">${E(l.name)}</h3><span class="ag-card__meta">${E([city,`${states.length} ${states.length===1?'entry':'entries'}`].filter(Boolean).join(' · '))}</span></div>
- <div class="agu-line agu-mlist__share"><span>Shared with: ${shareBadge(l.audience)}</span>${button('mlist-share','Share…',{kind:'sm',ic:'fa-share-nodes',attrs:`data-mlist-id="${E(l.id)}" aria-label="Choose who sees ${E(l.name)}"`})}</div>
- ${states.length?`<div class="ag-toolbar"><span class="ag-toolbar__count">${E(`${openN} of ${states.length} open`)}</span><div class="ag-toolbar__end">${button('mlist-open-all','Open all',{kind:'sm',ic:'fa-door-open',disabled:hidden||!canN||openN===canN,attrs:`data-mlist-id="${E(l.id)}" aria-label="Open every store on ${E(l.name)}"`})}${button('mlist-close-all','Close all',{kind:'sm',ic:'fa-door-closed',disabled:!states.some(s=>s.presented),attrs:`data-mlist-id="${E(l.id)}" aria-label="Close every store on ${E(l.name)}"`})}</div></div>
- <ul class="ag-rows">${items}</ul><p class="ag-field__hint">${hidden?'Share the list to open its stores. Players can browse a shared list; they buy, sell or use only what is Open.':'Open shows a store to this list\'s players (Present), so they can buy, sell or use it. Closed stops showing it to every player.'}</p>`:'<p class="ag-field__hint">No shops or services yet. Edit the list to add some.</p>'}
- <div class="ag-card__actions">${button('mlist-edit','Edit',{kind:'sm',ic:'fa-pen',attrs:`data-mlist-id="${E(l.id)}" aria-label="Edit ${E(l.name)}"`})}${button('mlist-delete','Delete',{kind:'sm danger',ic:'fa-trash',attrs:`data-mlist-id="${E(l.id)}" aria-label="Delete ${E(l.name)}"`})}</div></article>`;
+ const stores=states.length?fold({key:`mlist-stores:${l.id}`,title:'Stores',count:states.length,body:`<ul class="ag-rows">${items}</ul>`}):'<p class="ag-field__hint">No shops or services yet. Edit the list to add some.</p>';
+ return `<article class="ag-card ag-card--compact agu-mlist" data-mlist="${E(l.id)}"><div class="ag-card__head"><h3 class="ag-card__title">${E(l.name)}</h3><span class="ag-card__meta">${E([city,`${states.length} ${states.length===1?'entry':'entries'}`].filter(Boolean).join(' · '))}</span></div>
+ <div class="agu-line agu-mlist__share"><span>Shared with: ${shareBadge(l.audience)}</span>${states.length?`<span class="ag-toolbar__count">${E(`${openN} of ${states.length} open`)}</span>`:''}</div>
+ ${stores}
+ <div class="ag-card__actions">${button('mlist-share','Share…',{kind:'sm',ic:'fa-share-nodes',attrs:`data-mlist-id="${E(l.id)}" aria-label="Choose who sees ${E(l.name)}"`})}${states.length?`${button('mlist-open-all','Open all',{kind:'sm',ic:'fa-door-open',disabled:hidden||!canN||openN===canN,attrs:`data-mlist-id="${E(l.id)}" aria-label="Open every store on ${E(l.name)}"`})}${button('mlist-close-all','Close all…',{kind:'sm',ic:'fa-door-closed',disabled:!states.some(s=>s.presented),attrs:`data-mlist-id="${E(l.id)}" aria-label="Close every store on ${E(l.name)}"`})}`:''}${button('mlist-edit','Edit',{kind:'sm',ic:'fa-pen',attrs:`data-mlist-id="${E(l.id)}" aria-label="Edit ${E(l.name)}"`})}${button('mlist-delete','Delete…',{kind:'sm danger',ic:'fa-trash',attrs:`data-mlist-id="${E(l.id)}" aria-label="Delete ${E(l.name)}"`})}</div></article>`;
 }
 function editorHTML(d,index,locations){
- const loc=locationsApi(),locs=loc?[...locations.values()].sort((a,b)=>String(a.name).localeCompare(String(b.name))):[];
  const opt=(v,label,sel)=>`<option value="${E(v)}"${String(v)===String(sel)?' selected':''}>${E(label)}</option>`;
- const city=loc?`<label class="ag-field">Settlement<select data-mlist-field="locationId"><option value="">None</option>${locs.map(l=>opt(l.id,l.name,d.locationId)).join('')}${d.locationId&&!locs.some(l=>l.id===d.locationId)?opt(d.locationId,d.locationId,d.locationId):''}</select><span class="ag-field__hint">Optional. Players see its name only once it is revealed in Locations.</span></label>`:'';
+ // 0.26.0: the same Settlement select as the shop editor (Locations' settlements only).
+ const city=settlementSelect(d,{attr:'data-mlist-field',hint:'Optional. Players see its name only once it is revealed in Locations.'})??'';
  const rows=d.shopIds.map((id,i)=>{const e=index.get(id)??{name:id,what:'Missing (deleted)'};
   return `<li class="ag-row"><div class="ag-row__main"><span class="ag-row__title">${E(e.name)}</span><span class="ag-row__meta">${E(e.what)}</span></div><div class="ag-row__end">
   ${button('mlist-up','',{kind:'icon sm',ic:'fa-arrow-up',disabled:i===0,attrs:`data-index="${i}" aria-label="Move ${E(e.name)} up" ${tip('Move up')}`})}${button('mlist-down','',{kind:'icon sm',ic:'fa-arrow-down',disabled:i===d.shopIds.length-1,attrs:`data-index="${i}" aria-label="Move ${E(e.name)} down" ${tip('Move down')}`})}${button('mlist-remove','',{kind:'icon sm danger',ic:'fa-xmark',attrs:`data-index="${i}" aria-label="Take ${E(e.name)} off the list" ${tip('Take off the list')}`})}</div></li>`;}).join('');
  const left=[...index.values()].filter(e=>!d.shopIds.includes(e.id)).sort((a,b)=>String(a.name).localeCompare(String(b.name)));
- return `<div class="agu-shop-editor"><div class="agu-shop-editor__head"><h2>${E(d.id?d.name||'Unnamed list':'New merchant list')}</h2>${d.id?`<code>${E(d.id)}</code>`:''}</div>
+ const saved=d.id?lists().find(l=>l.id===d.id)??null:null;
+ const back=button('mlist-back','All merchant lists',{kind:'ghost sm',ic:'fa-arrow-left',attrs:'aria-label="Back to all merchant lists"'});
+ const share=saved?`<span class="agu-now-group"><span class="ag-badge ag-badge--warn agu-now" ${tip('Sharing changes the saved list now; it does not wait for Save Changes')}>${icon('fa-bolt')} Applies now</span>${shareBadge(saved.audience)}${button('mlist-share','Share…',{kind:'sm',ic:'fa-share-nodes',attrs:`data-mlist-id="${E(saved.id)}" aria-label="Choose who sees ${E(saved.name)}"`})}</span>`:'';
+ return `<div class="agu-shop-editor"><div class="agu-shop-editor__head">${back}<h2>${E(d.id?d.name||'Unnamed list':'New merchant list')}</h2>${d.id?`<code>${E(d.id)}</code>`:''}${share}</div>
  <div class="ag-form-grid"><label class="ag-field">List name<input type="text" maxlength="${MLIST_NAME_MAX}" data-mlist-field="name" value="${E(d.name)}" required><span class="ag-field__hint">Required. Players see it.</span></label>${city}</div>
  <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Shops and services · ${d.shopIds.length}</h3></div>
  ${d.shopIds.length?`<ul class="ag-rows">${rows}</ul>`:'<p class="ag-field__hint">Nothing on this list yet. Add saved shops and services below; players see them in this order.</p>'}
- ${left.length?`<div class="ag-toolbar"><select data-mlist-add aria-label="Shop or service to add">${left.map(e=>opt(e.id,`${e.name} (${e.what})`,'')).join('')}</select><div class="ag-toolbar__end">${button('mlist-add','Add to list',{kind:'sm',ic:'fa-plus'})}</div></div>`:'<p class="ag-field__hint">Every saved shop and service is on this list.</p>'}</section></div>`;
+ ${left.length?`<div class="ag-toolbar"><label class="ag-field ag-field--inline agu-mlist-add">Add<select data-mlist-add>${left.map(e=>opt(e.id,`${e.name} (${e.what})`,'')).join('')}</select></label><div class="ag-toolbar__end">${button('mlist-add','Add to list',{kind:'sm',ic:'fa-plus'})}</div></div>`:'<p class="ag-field__hint">Every saved shop and service is on this list.</p>'}</section>
+ ${saved?`<section class="ag-section agu-danger-zone"><div class="ag-section__head"><h3 class="ag-section__title">Danger zone</h3></div><p class="ag-field__hint">Deleting removes the list; its shops and services are not changed. Its id is never reused.</p>${button('mlist-delete','Delete list…',{kind:'danger',ic:'fa-trash',attrs:`data-mlist-id="${E(saved.id)}"`})}</section>`:''}</div>`;
 }
 export function listsView(app){
  const all=lists(),index=entryIndex(),locations=locationMap();
  if(app.listDraft)return editorHTML(app.listDraft,index,locations);
  const toolbar=`<div class="ag-toolbar"><span class="ag-toolbar__count">${all.length} ${all.length===1?'list':'lists'}</span><div class="ag-toolbar__end">${button('mlist-new','New merchant list',{ic:'fa-plus'})}</div></div>`;
- if(!all.length)return toolbar+`<div class="ag-empty">${icon('fa-list')}<p class="ag-empty__title">No merchant lists yet</p><p class="ag-empty__text">Group the shops and services of a settlement, a faction or anything else with New merchant list, then Share it with the party or chosen players and open its stores.</p>${button('mlist-new','New merchant list',{kind:'sm',ic:'fa-plus'})}</div>`;
+ if(!all.length)return toolbar+emptyState('No merchant lists yet','Group the shops and services of a settlement, a faction or anything else with New merchant list, then Share it with the party or chosen players and open its stores.',{icon:'fa-list',action:button('mlist-new','New merchant list',{kind:'sm',ic:'fa-plus'})});
  return toolbar+`<div class="ag-card-grid">${all.map(l=>card(l,index,locations)).join('')}</div>`;
 }
 export function listsFooter(app){
- if(!isGM()||app.shopSub!=='lists'||!app.listDraft)return null;
+ if(!isGM()||!app.listDraft)return null;
  return `<footer class="ag-footer agu-footer">${button('mlist-cancel','Cancel',{kind:'ghost'})}<span class="ag-footer__status" role="status" data-mlist-status>${E(app.listStatus??'')}</span>${button('mlist-save','Save Changes',{kind:'primary'})}</footer>`;
 }
 const dirty=(app,root)=>{app.listDirty=true;app.listStatus='Unsaved changes';const st=root?.querySelector?.('[data-mlist-status]');if(st)st.textContent=app.listStatus;};
 export function bindLists(app,root,{error,render}){
  if(app.tab!=='shops'||app.shopSub!=='lists'||!isGM())return;
- for(const el of root.querySelectorAll('[data-mlist-open]'))el.addEventListener('change',()=>{
+ for(const el of root.querySelectorAll('[data-mlist-open]'))el.addEventListener('change',async()=>{
+  // 0.26.0: closing a store that is also shown to players outside this list asks first (it closes for them too).
+  if(!el.checked){const fx=closeEffects(el.dataset.mlistOpen,el.dataset.entry);
+   if(fx.length&&!(await confirmDanger(`${effectsText(fx)}. Closing stops showing it to every player, there too.`,{title:`Close ${fx[0].name} for every player?`,yes:'Close store'}))){el.checked=true;return;}}
   el.disabled=true;
   setOpen(el.dataset.mlistOpen,el.dataset.entry,el.checked).then(st=>{ui.notifications?.info(st.open?`${st.name} is open to this list's players.`:`${st.name} is closed (no longer shown to players).`);return render();}).catch(e=>{error(e);render();});
  });
  const d=app.listDraft;if(!d)return;
  for(const el of root.querySelectorAll('[data-mlist-field]'))el.addEventListener(el.tagName==='SELECT'?'change':'input',()=>{const f=el.dataset.mlistField;d[f]=f==='locationId'?(el.value||null):el.value;dirty(app,root);});
 }
-const discardOk=async app=>!app.listDirty||confirmDialog('Your changes to this merchant list are not saved. Discard them?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing',danger:true});
+const discardOk=async app=>!app.listDirty||confirmDanger('Your changes to this merchant list are not saved. Discard them?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing'});
 const openDraft=(app,l)=>{app.listDraft=l?{id:l.id,name:l.name,locationId:l.locationId,shopIds:[...l.shopIds]}:{id:null,name:'',locationId:null,shopIds:[]};app.listDirty=false;app.listStatus='';};
 /** Share…: Hidden, Whole party, or Chosen players (ticked). */
 async function shareDialog(l){
@@ -205,10 +229,17 @@ export async function handleLists(app,action,b,{render,root}){
   case 'mlist-add':{const v=root?.querySelector?.('[data-mlist-add]')?.value;if(!d||!v||d.shopIds.includes(v))return true;d.shopIds=[...d.shopIds,v];dirty(app);break;}
   case 'mlist-up':case 'mlist-down':{if(!d)return true;const j=action==='mlist-up'?i-1:i+1;if(j<0||j>=d.shopIds.length)return true;const ids=[...d.shopIds];[ids[i],ids[j]]=[ids[j],ids[i]];d.shopIds=ids;dirty(app);break;}
   case 'mlist-remove':if(!d)return true;d.shopIds=d.shopIds.filter((_,n)=>n!==i);dirty(app);break;
-  case 'mlist-cancel':if(!await discardOk(app))return true;app.listDraft=null;app.listDirty=false;app.listStatus='';break;
+  case 'mlist-back':case 'mlist-cancel':if(!await discardOk(app))return true;app.listDraft=null;app.listDirty=false;app.listStatus='';break;
   case 'mlist-share':{const l=await shareDialog(mustGetList(b.dataset.mlistId));if(!l)return true;ui.notifications?.info(`${l.name}: ${audienceText(l.audience,userName)}.`);break;}
   case 'mlist-open-all':case 'mlist-close-all':{
    const l=mustGetList(b.dataset.mlistId),open=action==='mlist-open-all';
+   // 0.26.0: Close all stops showing every store on the list to every player, so it asks first and names the side effects.
+   if(!open){
+    const shown=l.shopIds.filter(id=>entryState(l,id).presented),fx=closeEffects(l.id,shown);
+    if(!shown.length)return true;
+    const n=`${shown.length} ${shown.length===1?'store':'stores'}`;
+    if(!await confirmDanger(`Players can no longer buy, sell or use ${shown.length===1?'it':'them'} until you open ${shown.length===1?'it':'them'} again.${fx.length?` This also closes them for players outside this list: ${effectsText(fx)}.`:''}`,{title:`Close ${n} for every player?`,yes:`Close ${n}`}))return true;
+   }
    const r=await setAllOpen(l.id,open);
    ui.notifications?.info(`${l.name}: ${r.changed.length} ${r.changed.length===1?'store':'stores'} ${open?'opened':'closed'}.`);
    if(r.skipped.length)ui.notifications?.warn(`Not opened: ${r.skipped.map(x=>`${x.id} (${x.reason})`).join(', ')}.`);
@@ -217,7 +248,7 @@ export async function handleLists(app,action,b,{render,root}){
   case 'mlist-save':{if(!d)return true;const l=await save({id:d.id??undefined,name:d.name,locationId:d.locationId,shopIds:d.shopIds});app.listDraft=null;app.listDirty=false;app.listStatus='';ui.notifications?.info(`Saved ${l.name}.`);break;}
   case 'mlist-delete':{
    const l=mustGetList(b.dataset.mlistId);
-   if(!await confirmDialog(`Delete the merchant list ${l.name}? Players can no longer browse it. Its shops and services are not changed.`,{title:'Delete this merchant list?',yes:'Delete list',danger:true}))return true;
+   if(!await confirmDanger(`Delete the merchant list ${l.name}? Players can no longer browse it. Its shops and services are not changed.`,{title:`Delete ${l.name}?`,yes:'Delete list'}))return true;
    await remove(l.id,{confirm:true});if(app.listDraft?.id===l.id)app.listDraft=null;ui.notifications?.info(`Deleted ${l.name}.`);break;
   }
   default:return false;

@@ -226,13 +226,13 @@ test('player window: Buy / Sell switch, Coins go to, sellable rows and greyed ro
  assert.match(html,/Coins go to<\/span><div class="ag-segmented"[^>]*><button type="button" role="radio" data-sell-pay="actor" aria-checked="true">\[TEST\] Kestrel<\/button><button type="button" role="radio" data-sell-pay="purse" aria-checked="false">Party purse<\/button>/);
  const plain=html.replace(/<span class="agu-coin__icon"[^>]*>.<\/span>/g,'').replace(/<\/?span[^>]*>/g,'');
  assert.match(plain,/×20[\s\S]*Shop pays 2 cp each[\s\S]*data-action="shop-sell" data-shop="SHOP-TEST-THE-COPPER-KETTLE" data-item-id="testarrow" aria-label="Sell \[TEST\] Arrow"/);
- assert.match(html,/<li class="agu-ware-card is-disabled" aria-disabled="true" data-sell-item="testbackpack">[\s\S]*×1 · Containers can&#39;t be sold\. Empty it and sell the items separately\./);
+ assert.match(html,/<li class="ag-card ag-card--compact agu-ware-card is-disabled" aria-disabled="true" data-sell-item="testbackpack">[\s\S]*×1 · Containers can&#39;t be sold\. Empty it and sell the items separately\./);
  assert.doesNotMatch(html,/title=|style=/);
  w.mode='buy';assert.match(await as(alice,()=>w._renderHTML()),/For sale · 1/);
 });
 test('GM editor: sold-in hidden lines show "Bought from players"; an open draft follows sales and purchases',async()=>{
  const rec=gmRecord(SHOP),d=shopsMod.draftFrom(rec);
- const app=await game.modules.get(ID).api.open();app.tab='shops';app.shopSub='editor';app.shopDraft=d;
+ const app=await game.modules.get(ID).api.open();app.tab='shops';app.shopSub='editor';app.shopEdTab='items';app.shopDraft=d;
  const html=await app._renderHTML();
  assert.match(html,/<span class="ag-badge ag-badge--warn"><i class="fa-solid fa-hand-holding-dollar" aria-hidden="true"><\/i> Bought from players<\/span>/);
  d.lines=d.lines.filter(l=>l.lineId!=='ln_rope');

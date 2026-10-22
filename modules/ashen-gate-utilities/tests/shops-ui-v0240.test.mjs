@@ -139,7 +139,7 @@ test('GM editor: Settlement lists only Locations\' settlements; a linked place t
  assert.deepEqual([...sel.matchAll(/<option value="([^"]*)"/g)].map(m=>m[1]),['','LOC-TEST-HAMLET','LOC-TEST-TOWN','LOC-TEST-MARKET']);
  assert.match(sel,/<option value="LOC-TEST-MARKET" selected>\[TEST\] Market Ward \(not a settlement\)<\/option>/);assert.doesNotMatch(sel,/LOC-TEST-VALE/,'a region is not a settlement');
  assert.doesNotMatch(html,/Linked location|data-shop-field="settlement"/,'no typed field while Locations is active and none was typed');
- const list=(await render(gm,app=>{app.shopSub='list';})).html;
+ const list=(await render(gm,app=>{app.shopSub='list';app.shopDraft=null;})).html;
  assert.match(list,/<option value="location" selected>Group by settlement<\/option>/);assert.match(list,/<h3 class="ag-eyebrow">\[TEST\] Testford · 1<\/h3>/,'grouped by the town, not the region on top');
 });
 test('GM editor without Locations: Settlement is a text field; saved, shown to players, and used for the list group',async()=>{
@@ -152,14 +152,14 @@ test('GM editor without Locations: Settlement is a text field; saved, shown to p
   await as(gm,()=>shopsMod.handleShops(app,'shop-save',{dataset:{}},{render:async()=>{},root:{}}));
   const saved=api.get(SHOP);assert.equal(saved.settlement,'[TEST] Hamlet');assert.equal(saved.locationId,null);
   assert.deepEqual(trade.projectionOf(saved).location,{name:'[TEST] Hamlet'});
-  assert.match((await render(gm,app=>{app.shopSub='list';})).html,/<h3 class="ag-eyebrow">\[TEST\] Hamlet · 1<\/h3>/);
+  assert.match((await render(gm,app=>{app.shopSub='list';app.shopDraft=null;})).html,/<h3 class="ag-eyebrow">\[TEST\] Hamlet · 1<\/h3>/);
  }finally{locationsActive=true;}
  const back=(await render(gm,app=>{app.shopDraft=shopsMod.draftFrom(api.get(SHOP));app.shopSub='editor';})).html;
  assert.match(back,/Settlement \(typed\)<input[^>]*data-shop-field="settlement" value="\[TEST\] Hamlet"[\s\S]*Typed while Locations was off/,'kept and still editable once Locations is back');
 });
 test('GM editor: lines grouped by category; each item\'s picture and name show its tooltip and open it',async()=>{
- const {html}=await render(gm,app=>{app.shopDraft=shopsMod.draftFrom(api.get(SHOP));app.shopSub='editor';});
- assert.deepEqual([...html.matchAll(/<tr class="agu-shop-lines__cat"><th scope="rowgroup" colspan="7">([^<]+)<\/th>/g)].map(m=>m[1]),['Consumable · 1','Loot · 2']);
+ const {html}=await render(gm,app=>{app.shopDraft=shopsMod.draftFrom(api.get(SHOP));app.shopSub='editor';app.shopEdTab='items';});
+ assert.deepEqual([...html.matchAll(/<tr class="agu-shop-lines__cat"><th scope="rowgroup" colspan="5">([^<]+)<\/th>/g)].map(m=>m[1]),['Consumable · 1','Loot · 2']);
  assert.match(html,/<button type="button" class="agu-item-link agu-shop-item__open" data-agu-item-open data-agu-item-tip="gm:ln_rope" data-tooltip="Open Rope, Hempen \(50 ft\)"/);
  assert.equal(trade_tip('gm:ln_rope').name,'Rope, Hempen (50 ft)','the GM sees the line\'s own snapshot');
 });
@@ -168,7 +168,7 @@ test('player window: ware cards grouped by category, price as coin chips; toolti
  await api.present(SHOP,{mode:'all'});
  const w=await as(alice,()=>api.open(SHOP));const html=await as(alice,()=>w._renderHTML());
  assert.deepEqual([...html.matchAll(/<section class="agu-ware-group" aria-label="([^"]+)"><h4 class="ag-eyebrow">[^<]+<\/h4>/g)].map(m=>m[1]),['Consumable','Loot']);
- assert.match(html,/<li class="agu-ware-card" data-line="ln_rope"><button type="button" class="agu-item-link agu-ware-card__img" data-agu-item-open data-agu-item-tip="SHOP-TEST-THE-COPPER-KETTLE:ln_rope"/);
+ assert.match(html,/<li class="ag-card ag-card--compact agu-ware-card" data-line="ln_rope"><button type="button" class="agu-item-link agu-ware-card__img" data-agu-item-open data-agu-item-tip="SHOP-TEST-THE-COPPER-KETTLE:ln_rope"/);
  assert.match(html,/<strong class="agu-ware__price" aria-label="Price 1 gp"><span class="agu-coin-chips"><span class="agu-coin-chip agu-coin--gp"/);
  assert.match(html,/<span class="ag-badge">3 left<\/span>/);
  assert.doesNotMatch(html,/Sealed Crate|GM only text|title=/);
@@ -182,7 +182,7 @@ test('player window: ware cards grouped by category, price as coin chips; toolti
 test('sell view: the seller\'s own items as cards with dnd5e\'s tooltip for the real Item',async()=>{
  const s=api.get(SHOP);await api.save({...s,buys:{enabled:true,percent:50,types:[]}});await trade.syncPlayerView();
  const w=await as(alice,()=>api.open(SHOP));w.mode='sell';const html=await as(alice,()=>w._renderHTML());
- assert.match(html,/<li class="agu-ware-card" data-sell-item="dag1"><button type="button" class="agu-item-link agu-ware-card__img" data-agu-item-open data-tooltip="Open \[TEST\] Dagger" data-agu-item-uuid="Actor\.kestrel\.Item\.dag1"/);
+ assert.match(html,/<li class="ag-card ag-card--compact agu-ware-card" data-sell-item="dag1"><button type="button" class="agu-item-link agu-ware-card__img" data-agu-item-open data-tooltip="Open \[TEST\] Dagger" data-agu-item-uuid="Actor\.kestrel\.Item\.dag1"/);
  assert.match(html,/Shop pays <span class="agu-coin-chips"><span class="agu-coin-chip agu-coin--gp"[^>]*><span class="agu-coin__icon" aria-hidden="true">G<\/span><span>1 gp<\/span><\/span> each<\/span>/);
 });
 test('merchant from a dropped Actor: name and portrait (token art for a default portrait), the Actor kept as a note; edit by hand; Clear',async()=>{
@@ -195,10 +195,10 @@ test('merchant from a dropped Actor: name and portrait (token art for a default 
  app.shopDraft.merchant={...app.shopDraft.merchant,img:'custom.webp'};// overridden by hand
  const saved=await as(gm,()=>api.save(shopsMod.recordFrom(app.shopDraft)));
  assert.deepEqual(saved.merchant,{name:'[TEST] Brin Tallow',img:'custom.webp',actor:{uuid:'Actor.brin',id:'brin',name:'[TEST] Brin Tallow'}});
- let html=(await render(gm,a=>{a.shopDraft=shopsMod.draftFrom(api.get(SHOP));a.shopSub='editor';})).html;
+ let html=(await render(gm,a=>{a.shopDraft=shopsMod.draftFrom(api.get(SHOP));a.shopSub='editor';a.shopEdTab='details';})).html;
  assert.match(html,/Name and art taken from the Actor <strong>\[TEST\] Brin Tallow<\/strong>[\s\S]*data-action="shop-merchant-clear"/);assert.match(html,/data-merchant-drop/);
  gone=new Set(['Actor.brin']);
- html=(await render(gm,a=>{a.shopDraft=shopsMod.draftFrom(api.get(SHOP));a.shopSub='editor';})).html;
+ html=(await render(gm,a=>{a.shopDraft=shopsMod.draftFrom(api.get(SHOP));a.shopSub='editor';a.shopEdTab='details';})).html;
  assert.match(html,/From an Actor that no longer exists \(\[TEST\] Brin Tallow\); the name and art stay as they are\./,'a deleted Actor never breaks the shop');
  assert.equal(trade.projectionOf(api.get(SHOP)).merchant.img,'custom.webp');gone=new Set();
  const ed={shopDraft:shopsMod.draftFrom(api.get(SHOP)),shopDirty:false};
@@ -208,6 +208,9 @@ test('merchant from a dropped Actor: name and portrait (token art for a default 
 });
 test('coins everywhere: the party purse and the shop window strips use the shared boxes',async()=>{
  const w=await as(alice,()=>api.open(SHOP));w.mode='buy';const html=await as(alice,()=>w._renderHTML());
- assert.match(html,/<h3 class="ag-eyebrow"><label for="agu-shop-actor-[^"]+">Your coins<\/label><\/h3>[\s\S]*?<div class="agu-coins"><div class="agu-coin agu-coin--cp" data-coin="cp"/);
+ // 0.26.0: one "Paying as" line with that character's coins as chips; the party purse and merchant's coins in a closed Coins fold.
+ assert.match(html,/<div class="agu-shop-paying"><label class="ag-field ag-field--inline">Paying as<select id="agu-shop-actor-[^"]+" data-shop-actor>[\s\S]*?<\/select><\/label><span class="agu-shop-paying__coins">(<span class="agu-coin-chips">|No coins)/);
+ assert.match(html,/Paying as[\s\S]*?<span class="agu-coin-chip agu-coin--gp" data-coin="gp"><span class="agu-coin__icon" aria-hidden="true">G<\/span><span>9 gp<\/span>/);
+ assert.doesNotMatch(html,/data-ag-fold-key="shop-coins"/,'no party purse or merchant purse here: no Coins fold');
  assert.doesNotMatch(html,/data-coin="ep"/,'no electrum while it is off');
 });

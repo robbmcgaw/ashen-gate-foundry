@@ -50,13 +50,11 @@ test('Award Gold coin choice: same each/split logic, old gp entries still read a
  const asked=[];planGoldUndo(old,(id,coin)=>{asked.push(coin);return 5;});assert.deepEqual(asked,['gp']);
  assert.throws(()=>planGoldAward({amount:1,coin:'xp',recipients:[{id:'a',held:0}]}),/Coin must be/);
 });
-test('stash header and rows share one column definition (no auto column), also when narrow',()=>{
+// 0.26.0: the stash is a kit ag-table per item type (UT-13); a narrow window keeps picture, item and action.
+test('stash table: kit ag-table, no module grid template; narrow windows hide qty, weight, value and type',()=>{
  const css=fs.readFileSync(new URL('../styles/utilities.css',import.meta.url),'utf8');
- const tmpl=css.match(/\.agu-stash-grid \{[^}]*grid-template-columns:([^;]+);/);assert.ok(tmpl,'one grid rule for .agu-stash-grid');assert.equal(tmpl[1].trim(),'var(--agu-stash-cols)');
- const cols=[...css.matchAll(/--agu-stash-cols:([^;]+);/g)].map(m=>m[1].trim());
- assert.equal(cols.length,2,'wide and narrow templates');for(const c of cols)assert.doesNotMatch(c,/\bauto\b/);
- assert.equal(cols[0].split(/\s+(?![^(]*\))/).length,7,'seven columns: icon, Item, Qty, Weight, Value, Type, Action');
- assert.doesNotMatch(css,/\.agu-stash-(head|row)[^{]*\{[^}]*grid-template-columns/,'header/row never set their own template');
+ assert.doesNotMatch(css,/agu-stash-grid|--agu-stash-cols/,'the hand-built grid is gone');
+ assert.match(css,/@container \(max-width:35rem\) \{\.ag-utilities \.agu-stash-table :is\(\.agu-col-qty,\.agu-col-weight,\.agu-col-value,\.agu-col-type\) \{display:none;\}\}/);
 });
 
 // ---- Integration through main.mjs ----
@@ -209,13 +207,17 @@ test('Party Fund tab: purse strip with five labelled counters (electrum on); Ite
  try{
   const app=await api.stash.open();app.stashTab='fund';const fund=await app._renderHTML();
   for(const c of ['Copper','Silver','Electrum','Gold','Platinum'])assert.match(fund,new RegExp(`aria-label="${c}: \\d+"`));
-  assert.match(fund,/data-action="purse-deposit"/);assert.match(fund,/data-action="purse-take"/);assert.doesNotMatch(fund,/data-action="purse-adjust"/);
+  // 0.26.0: one Character picker, then Deposit / Take / Change coins one at a time (Deposit first), each with a primary button.
+  assert.match(fund,/<select id="agu-purse-actor">/);assert.match(fund,/data-fund-action="deposit" aria-checked="true"/);
+  assert.match(fund,/class="ag-btn ag-btn--primary" data-action="purse-deposit"/);assert.doesNotMatch(fund,/data-action="purse-take"/);assert.doesNotMatch(fund,/data-action="purse-adjust"/);
+  app.fundAction='take';assert.match(await app._renderHTML(),/class="ag-btn ag-btn--primary" data-action="purse-take"/);
   app.stashTab='items';const html=await app._renderHTML();
   assert.doesNotMatch(html,/data-action="purse-deposit"/);assert.match(html,/Party purse: <strong><span class="agu-coin-chips">[\s\S]*?<\/strong>[\s\S]*?data-stash-tab="fund"/);
-  const head=html.match(/<div class="agu-stash-grid agu-stash-head"[^>]*>(.*?)<\/div>/)[1],row=html.match(/<div class="agu-stash-grid agu-stash-row"[^>]*>(.*?)<\/div>/)[1];
-  const cols=s=>[...s.matchAll(/class="agu-stash-cell (agu-col-\w+)"/g)].map(m=>m[1]);
+  assert.match(html,/<table class="ag-table agu-stash-table" aria-labelledby="agu-stash-g-Consumable">/);
+  const head=html.match(/<thead><tr>(.*?)<\/tr><\/thead>/)[1],row=html.match(/<tr class="agu-stash-row"[^>]*>(.*?)<\/tr>/)[1];
+  const cols=s=>[...s.matchAll(/class="(agu-col-\w+)/g)].map(m=>m[1]);
   assert.deepEqual(cols(head),cols(row));assert.deepEqual(cols(head),['agu-col-icon','agu-col-item','agu-col-qty','agu-col-weight','agu-col-value','agu-col-type','agu-col-action']);
-  assert.deepEqual([...head.matchAll(/>([^<]*)<\/span>/g)].map(m=>m[1]),['','Item','Qty','Weight (each)','Value (each)','Type','Action']);
+  assert.deepEqual([...head.matchAll(/<th[^>]*>(?:<span class="ag-sr-only">)?([^<]*)/g)].map(m=>m[1]),['Picture','Item','Qty','Weight (each)','Value (each)','Type','Action']);
   assert.match(row,/Consumable/);assert.match(row,/data-action="stash-take"/);
  }finally{game.user=gm;}
  const gmApp=await api.stash.open();gmApp.stashTab='fund';const gmHtml=await gmApp._renderHTML();assert.match(gmHtml,/data-action="purse-adjust"/);
