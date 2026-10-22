@@ -50,8 +50,21 @@
 .agc-orb__default{background:radial-gradient(circle at 34% 28%,color-mix(in srgb,var(--ag-text) 75%,transparent) 0 5%,transparent 18%),
   radial-gradient(circle at 50% 62%,var(--agc-core) 0%,color-mix(in srgb,var(--agc-core) 55%,var(--ag-surface-sunken)) 35%,var(--ag-surface-sunken) 100%)}
 .agc-orb[data-tone="hot"] .agc-orb__default{animation:agc-pulse 1.8s ease-in-out infinite}
+/* 0.9.0: art sits on the orb. The Strain-toned orb stays behind it as a soft glow, and the image gets a halo in the same tone.
+   The whole image shows (contain, no crop), so transparent art keeps its shape. */
+.agc-orb--art{overflow:visible}
+.agc-orb--art .agc-orb__glow{position:absolute;inset:-14%;width:auto;height:auto;filter:blur(var(--ag-space-3));opacity:.9;
+  background:radial-gradient(circle at 50% 55%,var(--agc-core) 0%,color-mix(in srgb,var(--agc-core) 55%,transparent) 45%,transparent 72%)}
+.agc-orb--art .agc-orb__img{position:relative;object-fit:contain;border-radius:0;
+  filter:drop-shadow(0 0 var(--ag-space-2) color-mix(in srgb,var(--agc-core) 70%,transparent));transition:filter var(--ag-dur) var(--ag-ease)}
+.agc-orb--art[data-tone="hot"] .agc-orb__img{filter:drop-shadow(0 0 var(--ag-space-3) color-mix(in srgb,var(--agc-core) 90%,transparent))}
+/* 0.9.0: the art turns slowly around its centre; the glow and halo stay still. CSS only (compositor), paused while the window is minimized. */
+.agc-orb--spin .agc-orb__img{animation:agc-spin 90s linear infinite;will-change:transform;transform-origin:50% 50%}
+.agc-window.minimized .agc-orb__img{animation-play-state:paused}
+@keyframes agc-spin{to{transform:rotate(360deg)}}
+.agc-spin-toggle{justify-content:center;margin:0}
 @keyframes agc-pulse{50%{opacity:.7}}
-@media (prefers-reduced-motion: reduce){.agc-orb__default{animation:none!important}.agc-ring__seg,.agc-orb{transition:none}}
+@media (prefers-reduced-motion: reduce){.agc-orb__default,.agc-orb__img{animation:none!important}.agc-ring__seg,.agc-orb,.agc-orb__img{transition:none}}
 /* Sockets on the orbit: circles sized by the stage, so the layout is the same in both sizes. */
 .agc-socket{position:absolute;left:calc(var(--agc-x) * 1%);top:calc(var(--agc-y) * 1%);width:24%;aspect-ratio:1;transform:translate(-50%,-50%);box-sizing:border-box;
   display:grid;place-items:center;padding:5%;margin:0;border-radius:50%;border:2px solid color-mix(in srgb,var(--ag-accent) 70%,var(--ag-border));
@@ -84,6 +97,13 @@ button.agc-socket:hover{border-color:var(--ag-accent);background:var(--ag-surfac
 .agc-notice-action > i{margin-top:0}
 /* GM Setup */
 .agc-bands{width:fit-content;max-width:100%}
+.agc-subhead{margin:var(--ag-space-4) 0 var(--ag-space-1);font-size:var(--ag-text-md);font-weight:650}
+.agc-num{width:6rem;max-width:100%}
+.agc-band-edit{width:fit-content;max-width:100%}
+.agc-band-edit td{vertical-align:top}
+.agc-band-edit .ag-field{margin:0}
+.agc-schedule{display:grid;grid-template-columns:repeat(auto-fill,minmax(6.5rem,1fr));gap:0 var(--ag-space-2)}
+.agc-actions-start{justify-content:flex-start}
 .agc-rules{margin:var(--ag-space-2) 0;padding-left:var(--ag-space-5);display:flex;flex-direction:column;gap:var(--ag-space-1);font-size:var(--ag-text-sm)}
 /* Narrow window: the Manage table becomes labelled stacked rows. */
 @container (max-width: 40rem){

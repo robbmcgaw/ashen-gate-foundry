@@ -18,8 +18,24 @@ export function itemRow(item) {
     equippable: 'equipped' in s, equipped: !!s.equipped,
     canAttune: s.attunement === 'required' || s.attunement === 'optional', attunement: s.attunement ?? '', attuned: !!s.attuned,
     uses: num(uses.max) > 0 ? {value: num(uses.value, num(uses.max) - num(uses.spent)), max: num(uses.max)} : null,
-    usable: activitiesOf(item).length > 0, container: s.container ?? null, rarity: RARITIES.has(s.rarity) ? s.rarity : ''
+    usable: activitiesOf(item).length > 0, container: s.container ?? null, rarity: RARITIES.has(s.rarity) ? s.rarity : '',
+    mastery: item.type === 'weapon' ? weaponMastery(item) : null
   };
+}
+
+/**
+ * A weapon's mastery from dnd5e's own data (0.30.0): the key in system.mastery, its label and rules page from
+ * CONFIG.DND5E.weaponMasteries. `mastered` follows dnd5e's system.masteryOptions (dnd5e lists the mastery there only
+ * when the character can use it): true / false, or null when this dnd5e has no masteryOptions. Null: no mastery.
+ */
+export function weaponMastery(item) {
+  const key = typeof item?.system?.mastery === 'string' ? item.system.mastery : '';
+  if (!key) return null;
+  const cfg = dnd5eConfig().weaponMasteries?.[key];
+  let options;
+  try { options = item.system.masteryOptions; } catch { options = undefined; }
+  const mastered = Array.isArray(options) ? options.some(o => o?.value === key) : null;
+  return {key, label: labelOf(cfg) || key, reference: typeof cfg?.reference === 'string' ? cfg.reference : null, mastered};
 }
 
 export const INVENTORY_TYPES = [['weapon', 'Weapons'], ['equipment', 'Equipment'], ['consumable', 'Consumables'], ['tool', 'Tools'], ['container', 'Containers'], ['loot', 'Loot']];
@@ -33,7 +49,22 @@ export function inventoryData(actor) {
   const groups = INVENTORY_TYPES.map(([type, label]) => ({type, label, items: items
     .filter(i => i.type === type && !(i.system?.container && ids.has(i.system.container)))
     .map(i => ({...itemRow(i), contents: i.type === 'container' ? inside(i.id) : []}))})).filter(g => g.items.length);
-  return {groups, attunement: attunementData(actor), currency: currencyData(actor)};
+  return {groups, attunement: attunementData(actor), currency: currencyData(actor), encumbrance: encumbranceData(actor)};
+}
+
+/**
+ * Carried weight against carrying capacity, as dnd5e works it out (system.attributes.encumbrance: value, max, pct).
+ * The Hub adds no rules: null when dnd5e gives no capacity. Units: dnd5e's default weight unit (lb or kg).
+ */
+export function encumbranceData(actor) {
+  const e = actor?.system?.attributes?.encumbrance;
+  const max = num(e?.max), value = Math.round(num(e?.value) * 100) / 100;
+  if (!e || !(max > 0)) return null;
+  let units = '';
+  try { units = globalThis.dnd5e?.utils?.defaultUnits?.('weight') ?? ''; } catch { units = ''; }
+  const abbr = dnd5eConfig().weightUnits?.[units]?.abbreviation ?? (units || 'lb');
+  const pct = Math.max(0, Math.min(100, Number.isFinite(Number(e.pct)) ? num(e.pct) : value / max * 100));
+  return {value, max, pct: Math.round(pct), units: abbr, over: value > max};
 }
 
 /** dnd5e derives attunement.value from attuned items; max is the actor's setting (3 by default). */

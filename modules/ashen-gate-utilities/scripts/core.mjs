@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.22.2';
+export const VERSION = '0.23.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -221,22 +221,61 @@ export function withUnlocked(unlocks, actorId, unlocked) {
   return next;
 }
 /**
- * Whether `user` may remove `statusId` from `actor`. The GM always may. Anyone else must own the
- * character, the GM must have unlocked it, and the status must be a native one: Custom statuses are
- * removed by deleting or disabling their source effect, which stays a GM decision.
- * Read-only statuses (isReadOnlyStatus, e.g. the Cinders Strain chip) are refused for everyone, the GM included.
+ * 0.23.0 condition controllers: players the GM lets apply and remove native conditions on every character, like the GM
+ * (conditions only). World setting {userId: true}; absent means not a controller. GMs are never stored.
  */
-export function removalDecision({user, actor, statusId, unlocks, nativeIds = []}) {
+export const isController = (controllers, userId) => typeof userId === 'string' && controllers?.[userId] === true;
+export function withController(controllers, userId, on) {
+  if (typeof userId !== 'string' || !userId) throw Error('Player id required.');
+  const next = {...(controllers ?? {})};
+  if (on) next[userId] = true; else delete next[userId];
+  return next;
+}
+/**
+ * Who `user` is for conditions on `actor`: 'gm', 'controller' (any character), 'owner' (owns it and the GM let owners
+ * manage it: GM Setup switch `ownersManage` for every character, or the character's unlock), or '' with the reason.
+ */
+export function conditionRole({user, actor, unlocks, ownersManage = false, controllers = {}}) {
+  if (!user) return {role: '', reason: 'Unknown user.'};
+  if (!actor) return {role: '', reason: 'Character not found.'};
+  if (isLevelBackup(actor)) return {role: '', reason: LEVEL_BACKUP_REFUSAL};
+  if (user.isGM) return {role: 'gm', reason: ''};
+  if (isController(controllers, user.id)) return {role: 'controller', reason: ''};
+  if (!actor.testUserPermission?.(user, 'OWNER')) return {role: '', reason: `You do not own ${actor.name}.`};
+  if (ownersManage !== true && !isUnlocked(unlocks, actor.id)) return {role: '', reason: `The GM has locked conditions for ${actor.name}.`};
+  return {role: 'owner', reason: ''};
+}
+/**
+ * Whether `user` may remove `statusId` from `actor`. The GM always may. A condition controller may remove native
+ * statuses on any character. An owner may remove native statuses when the GM let owners manage conditions (GM Setup)
+ * or unlocked the character. Custom statuses are removed by deleting or disabling their source effect, which stays a
+ * GM decision. Read-only statuses (isReadOnlyStatus, e.g. the Cinders Strain chip) are refused for everyone, the GM included.
+ */
+export function removalDecision({user, actor, statusId, unlocks, nativeIds = [], ownersManage = false, controllers = {}}) {
   if (!user) return {ok: false, reason: 'Unknown user.'};
   if (!actor) return {ok: false, reason: 'Character not found.'};
   if (!hasStatus(actor, statusId)) return {ok: false, reason: `${actor.name} does not have that condition.`};
   if (isReadOnlyStatus(statusId)) return {ok: false, reason: `The Strain chip follows ${actor.name}'s Strain and can't be removed here. Change Strain in Ashen Gate | Cinders (or the Character Hub Strain bar).`};
-  if (user.isGM) return {ok: true, reason: ''};
-  if (!actor.testUserPermission?.(user, 'OWNER')) return {ok: false, reason: `You do not own ${actor.name}.`};
-  if (!isUnlocked(unlocks, actor.id)) return {ok: false, reason: `The GM has locked condition removal for ${actor.name}.`};
+  const r = conditionRole({user, actor, unlocks, ownersManage, controllers});
+  if (!r.role) return {ok: false, reason: r.reason};
+  if (r.role === 'gm') return {ok: true, reason: ''};
   if (!nativeIds.includes(statusId)) return {ok: false, reason: 'Custom statuses can only be removed by the GM.'};
   return {ok: true, reason: ''};
 }
+/** 0.23.0: whether `user` may apply native `statusId` to `actor`. Same people as removal; never a Custom or read-only status. */
+export function applyDecision({user, actor, statusId, unlocks, nativeIds = [], ownersManage = false, controllers = {}}) {
+  if (!user) return {ok: false, reason: 'Unknown user.'};
+  if (!actor) return {ok: false, reason: 'Character not found.'};
+  if (isReadOnlyStatus(statusId)) return {ok: false, reason: `The Strain chip follows ${actor.name}'s Strain and can't be applied here. Change Strain in Ashen Gate | Cinders (or the Character Hub Strain bar).`};
+  if (typeof statusId !== 'string' || !nativeIds.includes(statusId)) return {ok: false, reason: 'Unknown native status.'};
+  const r = conditionRole({user, actor, unlocks, ownersManage, controllers});
+  if (!r.role) return {ok: false, reason: r.reason};
+  if (hasStatus(actor, statusId)) return {ok: false, reason: `${actor.name} already has that condition.`};
+  return {ok: true, reason: ''};
+}
+/** 0.23.0 overlay see-through: background opacity 0-100 % (per user); text, buttons and the header stay opaque. */
+export const OVERLAY_OPACITY_DEFAULT = 25;
+export const clampOverlayOpacity = v => { const n = Math.round(Number(v)); return v === null || v === '' || v === undefined || !Number.isFinite(n) ? OVERLAY_OPACITY_DEFAULT : Math.min(100, Math.max(0, n)); };
 /** Overlay model: one group per character that has a condition, in the given order. */
 export function conditionGroups(actors, {label = id => id, isNative = () => true, canRemove = () => false} = {}) {
   return actors.map(actor => ({actorId: actor.id, name: actor.name, conditions: [...(actor.statuses ?? [])].map(id => ({id, label: label(id), custom: !isNative(id), readOnly: isReadOnlyStatus(id), removable: !isReadOnlyStatus(id) && Boolean(canRemove(actor, id))}))}))

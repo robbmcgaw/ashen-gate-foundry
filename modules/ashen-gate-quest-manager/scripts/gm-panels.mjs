@@ -42,11 +42,14 @@ export function questsToolbar(view,locations,{shown=0,total=0}={}){
  <div class="ag-toolbar__end">${safeButton('New quest','new',{icon:'fa-plus'})}${safeButton('Import','import',{sm:true,icon:'fa-file-import',title:'Import quest sources from a JSON file'})}${safeButton('Export','export',{sm:true,icon:'fa-file-export',title:'Export every quest source as JSON'})}</div></div>`;
 }
 /** GM Setup: settings only, saved together by the footer's Save Changes (Player Access included, decision D4). */
-export function setupPanel({playerAccess,packIds,overlayVisible}){
- return `<div class="agq-setup"><div class="agq-setup__body ag-scroll ag-pad">
+export function setupPanel({playerAccess,packIds,overlayVisible,openForPlayers=false}){
+ return `<div class="agq-setup"><div class="agq-setup__body ag-scroll ag-pad" data-ag-scroll="setup">
  <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Player Access</h3></div>
  <label class="ag-field ag-field--inline"><input type="checkbox" id="ag-player-access" ${playerAccess?'checked':''}> Show Quest Log to players</label>
  <p class="ag-field__hint">Controls the player window only, not which quests they see. Reveal each quest from the Quests tab. Saved with Save Changes.</p></section>
+ <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Players' screens</h3></div>
+ <label class="ag-field ag-field--inline"><input type="checkbox" id="ag-open-for-players" ${openForPlayers?'checked':''}> Open the Quest Log for players when a quest is revealed to them</label>
+ <p class="ag-field__hint">Off by default: assigning, revealing or completing a quest, or giving rewards, opens nothing on players' screens. When on, a newly revealed quest opens the player's Quest Log window at that quest (never a journal page). Saved with Save Changes.</p></section>
  <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Compendium packs</h3></div>
  <label class="ag-field">Compendium pack IDs<input id="ag-compendium-packs" value="${E(packIds||'')}" placeholder="world.my-quests"><span class="ag-field__hint">Optional read-only quest definitions, not player quests. Leave blank unless you use a quest compendium. Reload Foundry after changing.</span></label></section>
  <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Objectives overlay</h3></div>

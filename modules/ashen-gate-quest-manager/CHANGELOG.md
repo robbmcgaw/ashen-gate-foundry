@@ -1,3 +1,13 @@
+## 0.14.0 — 2026-10-22
+
+- **No journals pop open.** Assigning, revealing or completing a quest, or giving rewards, no longer opens journal pages or entries on anyone's screen (journals and reward items are created with their sheet closed; a player's client also closes a Quest Log journal that opens by itself right after the GM wrote it).
+- New GM Setup switch, off by default: **Open the Quest Log for players when a quest is revealed to them**. It opens the player's Quest Log window at that quest, never a journal.
+- **Objectives overlay:** drag it by its header (kept on screen); a minus button by each quest stops tracking it; a slider in the header fades the background from 100 % to 0 % while the header and text stay solid. Place and fade are kept per user.
+- **Quest editor keeps its place.** Saving, picking a quest in the list or another client's change no longer scrolls the list or editor back to the top; each list and each quest's editor keeps its own scroll. The field you are typing in keeps focus.
+- **Character pickers list player characters only** (dnd5e characters a player owns): the individual-character dropdown, the character selector and party reward recipients. NPCs, monsters, GM-only actors and level backups ("… - level X") are left out. A quest already set to another actor keeps it, labelled "(not a player character)".
+- Players no longer get a Quest Log entry in Configure Settings (every Quest Log setting was already hidden; their Settings window now also drops any Quest Log entry).
+- Saved data: new per-user flag `overlay` (place and fade) and world setting `openForPlayers` (off). Nothing else changes. No migration.
+
 ## 0.13.1 — 2026-10-21
 
 - Character Hub level-up backups ("<Name> - level X") no longer appear in the character selector or the individual-quest character picker, and are not counted as party reward recipients.

@@ -1,3 +1,13 @@
+## 0.23.0 — 2026-10-22
+
+- **Players change conditions on their own characters:** new GM Setup switch **Players apply and remove conditions on their own characters** (default off). On: owners get **Apply** and **Remove** for native conditions on every character they own. Off: as before, per character with **Unlock for Owner** in the Conditions tab — an unlocked character's owner can now also **apply** native conditions, not only remove them.
+- **Condition controllers** (GM Setup, saved with Save Changes): ticked players apply and remove native conditions on every character, like the GM, and nothing else. The Conditions tab lists them for the GM with **Revoke** (asks to confirm, takes effect at once); a controller sees a *Condition controller* badge. They still need Player Access.
+- Enforced on the GM client: a player's apply or remove is re-checked there (owner/switch/unlock or controller, Player Access, native status, sender) and refused otherwise; the player client never edits the Actor. Custom statuses stay GM only; the Cinders Strain chip stays read only for everyone.
+- **Overlay background slider** (in the overlay, per user, 0–100 %, default 25 % as before): fades only the window background; the header (now solid), names, conditions and × stay opaque.
+- **Fix:** Utilities no longer shows in Foundry's Configure Settings (players saw an empty entry). Player Access was its only listed setting and is in GM Setup.
+- API `conditions`: `canApply`, `apply`, `ownersManage`, `setOwnersManage`, `isController`, `controllers`, `setController` (setters and `controllers` GM only).
+- Saved data: additive only. New world settings `ownersManageConditions` (false) and `conditionControllers` ({}), client setting `overlayOpacity` (25). No migration.
+
 ## 0.22.2 — 2026-10-21
 
 - **Fix: Character Hub level backups are not party characters.** A copy the Hub keeps on level-up ("<Name> - level X", in Ashen Gate / Level backups) no longer shows in Conditions, Rolls, Award Gold, the stash's take list or shop buyer lists, and is not ticked from the dnd5e Primary Party.

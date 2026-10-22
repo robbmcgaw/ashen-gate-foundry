@@ -124,3 +124,11 @@
 /* An Exotic that can't be added yet: the kit's disabled look (muted, its Add button disabled), with the reason as text. */
 .agl-app .agl-exotic-filters{flex-wrap:wrap;align-items:end}
 .agl-assign-actor th{padding-top:var(--ag-space-2)}
+/* 0.25.0 Gathering Nodes tab: node editor tables and Cancel-left / Save-right actions. */
+.agl-app .agl-node-table{display:grid;gap:var(--ag-space-2);border:1px solid var(--ag-border);border-radius:var(--ag-radius);padding:var(--ag-space-2) var(--ag-space-3);margin-top:var(--ag-space-3)}
+.agl-app .agl-node-table legend{font-weight:600;padding:0 var(--ag-space-1)}
+.agl-app .agl-node-mat{flex-wrap:wrap;align-items:end}
+.agl-app .agl-node-mat>.ag-field{flex:1 1 10rem;min-width:0}
+.agl-app .agl-editor-actions{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--ag-space-2);margin-top:var(--ag-space-3)}
+.agl-app .agl-node-plan{display:grid;gap:var(--ag-space-1);margin:0 0 var(--ag-space-2);padding-left:var(--ag-space-4)}
+.agl-app .agl-node-card code{font-size:var(--ag-text-sm);color:var(--ag-muted)}

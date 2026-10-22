@@ -25,7 +25,8 @@
         "backfire_categories": [
           "BF-TEST-BODY",
           "BF-TEST-MIND"
-        ]
+        ],
+        "art": "ashen-gate/cinders/test-ember.webp"
       },
       "foundry": {
         "document_type": "Item",

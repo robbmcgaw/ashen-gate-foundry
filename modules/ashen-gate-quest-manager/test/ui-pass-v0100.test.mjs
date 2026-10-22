@@ -29,7 +29,7 @@ test('header: brand, overlay toggle, then version, then Help; tabs are typed, la
  const at=k=>head.indexOf(k);
  assert.ok(at('toggle-overlay')<at('ag-version')&&at('ag-version')<at('data-action="help"'),'overlay, version, Help');
  assert.match(head,/data-action="help" class="ag-btn ag-btn--ghost ag-btn--sm"/);
- assert.match(head,/<span class="ag-version">v0\.13\.1<\/span>/);
+ assert.match(head,/<span class="ag-version">v0\.14\.0<\/span>/);
  assert.match(html,/<nav class="ag-tabs ag-tabs--scroll" role="tablist"/);
  const tabs=[...html.matchAll(/<button type="button" role="tab" data-tab="(\w+)" aria-selected="(true|false)" class="([^"]*)">/g)].map(m=>[m[1],m[2],m[3]]);
  assert.deepEqual(tabs.map(t=>t[0]),['party','individual','quests','setup']);
@@ -133,13 +133,14 @@ test('0.11.0: Item rewards sits after Campaign status and before the assignments
  game.user=gm;
 });
 test('0.13.1: Character Hub level backups are left out of both character pickers',async()=>{
- reset();const mk=(id,name,flags={})=>({id,name,flags,testUserPermission:u=>u.isGM});
+ reset();const mk=(id,name,flags={})=>({id,name,flags,testUserPermission:u=>u.isGM||u.id==='alice'});
  actors.push(mk('aria','[TEST] Aria'),mk('ariaL2','[TEST] Aria - level 2',{'ashen-gate-character-hub':{levelBackup:{fromLevel:2}}}));
+ game.users.push(alice);
  try{
   const select=(h,id)=>{const at=h.indexOf(`<select id="${id}"`);assert.ok(at>=0,id);return h.slice(at,h.indexOf('</select>',at));};
   app.tab='individual';app.actorId=null;let html=await app.render();
   assert.match(select(html,'ag-actor'),/value="aria"/);assert.doesNotMatch(select(html,'ag-actor'),/ariaL2|level 2/);
   app.tab='quests';app.gmId='QUEST-TEST-WELL';html=await app.render();
   assert.match(select(html,'ag-state-actor'),/value="aria"/);assert.doesNotMatch(select(html,'ag-state-actor'),/ariaL2|level 2/);
- }finally{actors.length=0;}
+ }finally{actors.length=0;game.users.splice(game.users.indexOf(alice),1);}
 });

@@ -1,6 +1,6 @@
 // Quest item rewards (contract ag-quest-rewards/1): the GM's reward list on a quest, and giving it to characters (0.12.0).
 // Every call is GM only and every write goes through updateState (assertGM, validState, publish).
-import {MOD,REWARD_VISIBILITY,REWARD_RECIPIENTS,MAX_ADDED_REWARDS,MAX_GRANTS,emptyRewards,rewardRows,grantedKeys,givenTo,isLevelBackup,LEVEL_BACKUP_ERROR} from './core.mjs';
+import {MOD,REWARD_VISIBILITY,REWARD_RECIPIENTS,MAX_ADDED_REWARDS,MAX_GRANTS,emptyRewards,rewardRows,grantedKeys,givenTo,isLevelBackup,isPlayerCharacter,LEVEL_BACKUP_ERROR} from './core.mjs';
 import {getPrivate,allPrivate,updateState} from './store.mjs';
 import {resolveItemDrop,itemRef,resolveRef,bundleOf,grantBundle,dragPayload} from './ag-item-drop.mjs';
 
@@ -27,7 +27,7 @@ async function createHolding(item,from){
  const folder=await holdingFolder();
  const {data}=await grantBundle(item,{scope:MOD,tag:{holding:{from,at:Date.now()}}});
  for(const d of data){d.folder=folder?.id??null;d.ownership={default:0};}
- const created=await Item.createDocuments(data,{keepId:true});
+ const created=await Item.createDocuments(data,{keepId:true,renderSheet:false});
  const root=created?.find?.(d=>d.id===data[0]._id)??created?.[0];
  if(!root)throw new Error('Could not create the held copy of that item.');
  return root;
@@ -115,12 +115,12 @@ const HUB='ashen-gate-character-hub';
 const randomId=n=>globalThis.foundry?.utils?.randomID?.(n)??Math.random().toString(36).slice(2,2+n);
 const actorName=id=>game.actors?.get?.(id)?.name??'a character';
 
-/** The characters a quest goes to: its character on individual quests; on party quests the characters players own
-    (the same set that gets character notes). */
+/** The characters a quest goes to: its character on individual quests; on party quests the player characters
+    (isPlayerCharacter: players' characters, no NPCs, monsters or level backups). */
 export function partyActors(state){
  if(state?.scope==='individual'){const a=game.actors?.get?.(state.actorId);return a&&!isLevelBackup(a)?[a]:[];}
- const users=[...(game.users??[])].filter(u=>!u.isGM);
- return [...(game.actors??[])].filter(a=>!isLevelBackup(a)&&users.some(u=>a.testUserPermission?.(u,'OWNER')));
+ const users=[...(game.users??[])];
+ return [...(game.actors??[])].filter(a=>isPlayerCharacter(a,users));
 }
 /** Items on an Actor tagged as this reward (questId, rewardKey, round). */
 function taggedItems(actor,questId,rewardKey,round){
@@ -181,7 +181,7 @@ async function giveActor(actor,lines,{questId,grantId}){
  }
  const want=data.map(d=>d._id),arrivedIds=()=>want.filter(id=>actor.items?.get?.(id));
  try{
-  const created=await actor.createEmbeddedDocuments('Item',data,{keepId:true});
+  const created=await actor.createEmbeddedDocuments('Item',data,{keepId:true,renderSheet:false});
   const got=new Set((created??[]).map(d=>d?.id??d?._id));
   if(want.every(id=>got.has(id)))return {ok:true,itemIds:per};
   const made=want.filter(id=>got.has(id)||actor.items?.get?.(id));
