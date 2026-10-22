@@ -57,6 +57,50 @@ test('activity recipes (Ledger 0.28.0) need no ingredients or result item; craft
   assert.ok(!ok.errors.some(e => e.includes('Ledger cannot craft it')), JSON.stringify(ok.errors));
 });
 
+test('effect notes (Ledger 0.29.0) on activities are accepted; malformed ones are notes, not errors', async () => {
+  const recipe = over => item({id: 'REC-TEST-BALLAD', entity_type: 'Recipe', kind: 'activity', ...over});
+  const check = async over => checkContent(pack([recipe(over)]));
+  const noteOf = r => r.notes.filter(n => /effect_?note/i.test(n)).join(' | ');
+  for (const over of [{effect_note: '[TEST] A small boon'}, {effectNote: '[TEST] A small boon'}, {effect_note: 'x'.repeat(400)}, {effect_note: `  ${'x'.repeat(400)}  `}]) {
+    const r = await check(over);
+    assert.deepEqual(r.errors, [], JSON.stringify(over));
+    assert.equal(noteOf(r), '', JSON.stringify(over));
+  }
+  const tooLong = await check({effect_note: 'x'.repeat(401)});
+  assert.deepEqual(tooLong.errors, []);
+  assert.match(noteOf(tooLong), /REC-TEST-BALLAD: effect_note is over 400 characters/);
+  const wrongType = await check({effectNote: 42});
+  assert.deepEqual(wrongType.errors, []);
+  assert.match(noteOf(wrongType), /REC-TEST-BALLAD: effectNote must be text/);
+  const craft = await checkContent(pack([recipe({kind: undefined, ingredients: [{material_id: 'MAT-TEST-HERB', quantity: 2}], effect_note: '[TEST] A boon'})]));
+  assert.deepEqual(craft.errors, []);
+  assert.match(noteOf(craft), /REC-TEST-BALLAD: effect_note is only shown on activity recipes/);
+  // Regression: craft recipes and activities without a note get exactly what they got before.
+  const plainCraft = await checkContent(pack([recipe({kind: undefined, ingredients: [{material_id: 'MAT-TEST-HERB', quantity: 2}]})]));
+  const plainActivity = await check({});
+  assert.deepEqual([plainCraft.errors, noteOf(plainCraft), plainActivity.errors, noteOf(plainActivity)], [[], '', [], '']);
+});
+
+test('recipe labels (Ledger 0.29.0) on professions are accepted; malformed ones are notes, not errors', async () => {
+  const prof = over => item({id: 'PROF-TEST-ALCHEMY', entity_type: 'Profession', name: '[TEST] Alchemy', ...over});
+  const check = async over => checkContent(pack([prof(over)]));
+  const noteOf = r => r.notes.filter(n => /recipeLabel/.test(n)).join(' | ');
+  const plain = await check({});
+  for (const over of [{recipeLabel: 'Formula', recipeLabelPlural: 'Formulas'}, {recipeLabel: 'x'.repeat(30)}, {recipeLabelPlural: ' Formulas '}]) {
+    const r = await check(over);
+    assert.deepEqual(r.errors, [], JSON.stringify(over));
+    assert.deepEqual(r.notes, plain.notes, JSON.stringify(over));
+  }
+  const tooLong = await check({recipeLabel: 'x'.repeat(31)});
+  assert.deepEqual(tooLong.errors, []);
+  assert.match(noteOf(tooLong), /PROF-TEST-ALCHEMY: recipeLabel must be text of 1-30 characters/);
+  const bad = await check({recipeLabel: '   ', recipeLabelPlural: 5});
+  assert.deepEqual(bad.errors, []);
+  assert.match(noteOf(bad), /recipeLabel must be text.*recipeLabelPlural must be text/);
+  // Regression: a plain profession gets no recipe-label note and no errors.
+  assert.deepEqual([plain.errors, noteOf(plain)], [[], '']);
+});
+
 test('the exotic and gathering fields Locations keeps are accepted unchanged', async () => {
   const exotics = [{materialId: 'MAT-TEST-STAR', mode: 'designated', chance: 15, condition: 'rare'}, {materialId: 'MAT-TEST-MOON', mode: 'discovery'}];
   assert.deepEqual((await checkContent(pack([location(node({exotics, quantity: 2, rareMaterialId: 'MAT-TEST-RARE', rareQuantity: 1}))]))).errors, []);

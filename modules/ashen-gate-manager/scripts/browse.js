@@ -81,8 +81,9 @@ function agFields(source, system) {
   const def = source.definition ?? {};
   const sys = systemOf({sourceId: source.sourceId, ownerSystemId: source.ownerSystemId, entityType: source.entityType, packageId: source.packageId});
   // 0.48.0: a recipe's kind (Activity / Craft) and a profession's category (Creative, ...) as a chip and detail fields.
+  // 0.49.0: also an activity's effect note and a profession's recipe label (chips, fields, and searchable).
   const facts = professionFacts({id: source.sourceId, entity_type: source.entityType, ...def});
-  return {...(facts ? {chips: [facts.label], extraFields: facts.fields, searchText: [facts.label]} : {}), id: source.sourceId, ag: true, managed: true, owner: MODULE_ID, entityType: str(source.entityType), status: str(source.status),
+  return {...(facts ? {chips: facts.chips, extraFields: facts.fields, searchText: facts.searchText} : {}), id: source.sourceId, ag: true, managed: true, owner: MODULE_ID, entityType: str(source.entityType), status: str(source.status),
     visibility: str(source.visibility), category: sys.label, ...definitionFields(def, system),
     refIds: [...new Set([...(source.refs ?? []).map(r => normalizeSourceRef(r).targetId).filter(Boolean), ...scanIds(def)])].filter(id => id !== source.sourceId)};
 }
