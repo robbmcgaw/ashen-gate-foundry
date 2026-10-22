@@ -6,14 +6,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {ID,tradeCardHTML,SHOP_LOG_CAP} from '../scripts/core.mjs';
 
+// 0.24.0: money in a card is coin chips; `plain` reads the card without the chip markup.
+const plain=h=>String(h).replace(/<span class="agu-coin__icon"[^>]*>.<\/span>/g,'').replace(/<\/?span[^>]*>/g,'');
 test('card markup: purchase, sale and bank exchange; names, item ×quantity, total as the shop shows it, escaped, no ids',()=>{
- const buy=tradeCardHTML({kind:'shop-purchase',shopId:'SHOP-X',shopName:'[TEST] Kettle',itemName:'Rope <50 ft>',quantity:2,totalText:'1 gp 5 sp',payFrom:'actor',payerName:'[TEST] Kestrel',actorName:'[TEST] Kestrel',userName:'Alice'});
+ const buy=plain(tradeCardHTML({kind:'shop-purchase',shopId:'SHOP-X',shopName:'[TEST] Kettle',itemName:'Rope <50 ft>',quantity:2,totalText:'1 gp 5 sp',payFrom:'actor',payerName:'[TEST] Kestrel',actorName:'[TEST] Kestrel',userName:'Alice'}));
  assert.match(buy,/<h3>Bought at \[TEST\] Kettle<\/h3>/);
  for(const s of ['<strong>Buyer:</strong> Alice','<strong>Character:</strong> [TEST] Kestrel','<strong>Bought:</strong> Rope &lt;50 ft&gt; ×2','<strong>Total:</strong> 1 gp 5 sp','<strong>Paid from:</strong> [TEST] Kestrel&#39;s coins'])assert.ok(buy.includes(s),s);
  assert.equal(buy.includes('SHOP-X'),false,'no ids');
- const sale=tradeCardHTML({kind:'shop-sale',shopName:'[TEST] Kettle',itemName:'Dagger',quantity:1,totalText:'1 gp',payTo:'purse',actorName:'[TEST] Kestrel',userName:'Alice'});
+ const sale=plain(tradeCardHTML({kind:'shop-sale',shopName:'[TEST] Kettle',itemName:'Dagger',quantity:1,totalText:'1 gp',payTo:'purse',actorName:'[TEST] Kestrel',userName:'Alice'}));
  assert.match(sale,/Sold to \[TEST\] Kettle[\s\S]*Seller:<\/strong> Alice[\s\S]*Sold:<\/strong> Dagger ×1[\s\S]*Total:<\/strong> 1 gp[\s\S]*Paid into:<\/strong> the party purse/);
- const bank=tradeCardHTML({kind:'bank-exchange',serviceName:'[TEST] Counting House',payFrom:'actor',payerName:'[TEST] Kestrel',userName:'Alice',from:'sp',to:'gp',give:20,fee:2,total:22,receive:2});
+ const bank=plain(tradeCardHTML({kind:'bank-exchange',serviceName:'[TEST] Counting House',payFrom:'actor',payerName:'[TEST] Kestrel',userName:'Alice',from:'sp',to:'gp',give:20,fee:2,total:22,receive:2}));
  assert.match(bank,/Coins changed at \[TEST\] Counting House[\s\S]*Character:<\/strong> \[TEST\] Kestrel[\s\S]*Gave:<\/strong> 22 sp[\s\S]*Got:<\/strong> 2 gp[\s\S]*Fee:<\/strong> 2 sp/);
  assert.equal(tradeCardHTML({kind:'bank-exchange',serviceName:'B',payFrom:'purse',userName:'A',from:'cp',to:'gp',fee:0,total:100,receive:1}).includes('Fee'),false,'no fee line without a fee');
 });
@@ -106,7 +108,7 @@ test('a player purchase posts one card, whispered to the buyer and the GM only (
  const msg=await buy(alice,{shopId:KETTLE,lineId:'ln_rope',quantity:2,actorId:'kestrel',payFrom:'actor',payerId:'kestrel',rev:api.get(KETTLE).rev});
  assert.match(msg,/2 Rope added to \[TEST\] Kestrel/);await settle();
  const c=cards();assert.equal(c.length,1);assert.deepEqual(c[0].whisper,['alice','gm']);
- assert.match(c[0].content,/Bought at \[TEST\] Kettle[\s\S]*Buyer:<\/strong> Alice[\s\S]*Character:<\/strong> \[TEST\] Kestrel[\s\S]*Bought:<\/strong> Rope ×2[\s\S]*Total:<\/strong> 30 sp/);
+ assert.match(plain(c[0].content),/Bought at \[TEST\] Kettle[\s\S]*Buyer:<\/strong> Alice[\s\S]*Character:<\/strong> \[TEST\] Kestrel[\s\S]*Bought:<\/strong> Rope ×2[\s\S]*Total:<\/strong> 30 sp/);
  assert.ok(chat.every(m=>Array.isArray(m.whisper)&&m.whisper.length),'nothing public');
 });
 test('a player sale posts a card to the seller and the GM',async()=>{
@@ -114,14 +116,14 @@ test('a player sale posts a card to the seller and the GM',async()=>{
  const msg=await sale(alice,{shopId:KETTLE,itemId:'dag',actorId:'kestrel',quantity:1,payTo:'actor',rev:api.get(KETTLE).rev});
  assert.match(msg,/Dagger/);await settle();
  const c=cards();assert.equal(c.length,1);assert.deepEqual(c[0].whisper,['alice','gm']);
- assert.match(c[0].content,/Sold to \[TEST\] Kettle[\s\S]*Sold:<\/strong> \[TEST\] Dagger ×1[\s\S]*Total:<\/strong> 1 gp[\s\S]*Paid into:<\/strong> \[TEST\] Kestrel&#39;s coins/);
+ assert.match(plain(c[0].content),/Sold to \[TEST\] Kettle[\s\S]*Sold:<\/strong> \[TEST\] Dagger ×1[\s\S]*Total:<\/strong> 1 gp[\s\S]*Paid into:<\/strong> \[TEST\] Kestrel&#39;s coins/);
 });
 test('a bank exchange posts a card and writes the bank log (who, character, from, to, fee, time) on the GM Data page',async()=>{
  chat.length=0;const t0=Date.now();
  const msg=await use(alice,{serviceId:BANK,payFrom:'actor',actorId:'kestrel',from:'cp',to:'gp',receive:1,rev:api.services.get(BANK).rev});
  assert.equal(msg,'Changed 110 cp into 1 gp (fee 10 cp) for [TEST] Kestrel.');await settle();
  const c=cards();assert.equal(c.length,1);assert.deepEqual(c[0].whisper,['alice','gm']);
- assert.match(c[0].content,/Coins changed at \[TEST\] Counting House[\s\S]*Gave:<\/strong> 110 cp[\s\S]*Got:<\/strong> 1 gp[\s\S]*Fee:<\/strong> 10 cp/);
+ assert.match(plain(c[0].content),/Coins changed at \[TEST\] Counting House[\s\S]*Gave:<\/strong> 110 cp[\s\S]*Got:<\/strong> 1 gp[\s\S]*Fee:<\/strong> 10 cp/);
  const log=api.services.log(BANK);assert.equal(log.length,1);
  const e=log[0];assert.deepEqual([e.kind,e.userName,e.payerName,e.from,e.to,e.total,e.receive,e.fee],['bank-exchange','Alice','[TEST] Kestrel','cp','gp',110,1,10]);
  assert.ok(e.realTime>=t0);

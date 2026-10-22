@@ -6,7 +6,7 @@
    rates in one currency update (all or nothing by itself), logged in stash History. The party purse needs no vote
    (D13); the fee is per bank, 0 by default (D14). ---- */
 import {ID,escapeHTML as E,COIN_LABELS,coinChoices,readCoins,normalizeService,shopIdFromName,validId,SERVICE_TYPES,SHOP_REFUSALS,
- presentedTo,bankQuote,bankExchangeEntry,bankText,listShops,initials} from './core.mjs';
+ presentedTo,bankQuote,bankExchangeEntry,bankText,listShops,initials,coinStripHTML,coinChipsHTML,coinChipHTML} from './core.mjs';
 import {readAll,readServices,writeService,deleteServicePage,readMeta,writeMeta,queueShops,randomId,locationMap,icon,button,serviceLogOf,appendServiceLog} from './shops.mjs';
 import {tradeCtx,playerGate,viewOf,readablePurse,owns,queueBuy,whisper,gmIds,warn,receivers,empty,postTradeCard} from './shop-buy.mjs';
 
@@ -48,8 +48,11 @@ const bank={
   if(!actor&&!purse)return `<p class="ag-notice ag-notice--warn">${icon('fa-triangle-exclamation')}<span>You need a character of your own, or the party purse, to change coins here.</span></p>`;
   const b=bankState(state,{actor,purse}),fee=Number(view.service?.settings?.feePercent)||0,dis=ro?' disabled':'';
   const whose=[...(actor?[['actor',actor.name]]:[]),...(purse?[['purse','Party purse']]:[])];
+  // 0.24.0: the chosen coins as coin boxes (the same ones as every purse).
+  const held=readCoins(b.payFrom==='purse'?purse:actor),strip=held?`<div class="agu-bank__coins">${coinStripHTML(held,ep)}</div>`:'';
   return `<section class="agu-bank" aria-label="Change coins">
   <div class="ag-field"><span id="agu-bank-whose-${E(view.id)}">Whose coins</span><div class="ag-segmented" role="radiogroup" aria-labelledby="agu-bank-whose-${E(view.id)}">${whose.map(([id,label])=>`<button type="button" role="radio" data-bank-whose="${id}" aria-checked="${b.payFrom===id}"${dis}>${E(label)}</button>`).join('')}</div>${purse?'<span class="ag-field__hint">Party purse: no vote needed, nothing leaves the party. Every exchange is listed in stash History.</span>':''}</div>
+  ${strip}
   <div class="ag-form-grid">
    <label class="ag-field">Change from<select data-bank="from"${dis}>${coinOpts(b.from,ep)}</select></label>
    <label class="ag-field">Into<select data-bank="to"${dis}>${coinOpts(b.to,ep)}</select></label>
@@ -89,9 +92,9 @@ export function bankPreviewHTML(view,state){
  if(q.empty)return '<p class="ag-field__hint">Say how many coins you want to get.</p>';
  if(!q.ok)return `<p class="ag-notice ag-notice--danger" role="alert">${icon('fa-circle-exclamation')}<span>${E(q.reason)}</span></p>`;
  const whose=q.payFrom==='purse'?'Party purse':q.payerName;
- const kv=[['You give',`${q.total} ${q.from}${q.fee?` (${q.give} ${q.from} + ${q.fee} ${q.from} fee)`:''}`],['You get',`${q.receive} ${q.to}`],
-  [whose,`${COIN_LABELS[q.from]} ${q.fromBefore} → ${q.fromAfter}, ${COIN_LABELS[q.to].toLowerCase()} ${q.toBefore} → ${q.toAfter}`]];
- return `<dl class="ag-kv">${kv.map(([k,v])=>`<dt>${E(k)}</dt><dd>${E(v)}</dd>`).join('')}</dl>`;
+ const kv=[['You give',`${coinChipHTML(q.from,q.total)}${q.fee?` ${E(`(${q.give} ${q.from} + ${q.fee} ${q.from} fee)`)}`:''}`],['You get',coinChipHTML(q.to,q.receive)],
+  [whose,`${coinChipHTML(q.from,q.fromBefore)} → ${coinChipHTML(q.from,q.fromAfter)}, ${coinChipHTML(q.to,q.toBefore)} → ${coinChipHTML(q.to,q.toAfter)}`]];
+ return `<dl class="ag-kv">${kv.map(([k,v])=>`<dt>${E(k)}</dt><dd>${v}</dd>`).join('')}</dl>`;
 }
 
 /** The registry: core's pure part plus the views and the GM-client step. A new type is one more entry. */

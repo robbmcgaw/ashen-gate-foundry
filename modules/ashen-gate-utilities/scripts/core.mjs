@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.23.0';
+export const VERSION = '0.24.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -707,6 +707,31 @@ export function shopPriceText(cp, coin = 'gp', {electrum = false} = {}) {
 }
 /** "2 gp 5 sp", largest coin first; "nothing" for none. */
 export const coinsText = coins => byValueDesc(COINS).filter(c => Number(coins?.[c]) > 0).map(c => `${coins[c]} ${c}`).join(' ') || 'nothing';
+/*
+ * 0.24.0: the shared coin markup. Every place that shows coins (shop and merchant purses, the party purse, the Bank,
+ * prices, previews and chat cards) uses these, so styles/utilities.css gives every coin the same icon, metal glow and
+ * centred text. Electrum appears only where the caller shows it (shownCoins: while Use electrum is on, or dimmed
+ * while a purse still holds some).
+ */
+const coinIcon = coin => `<span class="agu-coin__icon" aria-hidden="true">${escapeHTML(String(coin).slice(0, 1).toUpperCase())}</span>`;
+/** One coin box: the coin's icon, its name and abbreviation, the amount. `off`: electrum held while electrum is off. */
+export function coinBoxHTML(coin, value, {off = false, note = ''} = {}) {
+  const E = escapeHTML, label = COIN_LABELS[coin] ?? coin, n = value ?? 0;
+  return `<div class="agu-coin agu-coin--${E(coin)}${off ? ' agu-coin--off' : ''}" data-coin="${E(coin)}" role="group" aria-label="${E(label)}: ${E(n)}${note ? ` (${E(note)})` : ''}">${coinIcon(coin)}<span class="agu-coin__label">${E(label)} <abbr data-tooltip="${E(label)}" data-tooltip-class="ag-tooltip">${E(coin)}</abbr></span><strong class="agu-coin__value">${E(n)}</strong></div>`;
+}
+/** A row of coin boxes for a purse (the coins shownCoins lists; electrum dimmed while it is off but still held). */
+export function coinStripHTML(coins, electrum = false) {
+  const stranded = strandedElectrum(coins, electrum);
+  return `<div class="agu-coins">${shownCoins(coins, electrum).map(c => coinBoxHTML(c, coins?.[c] ?? 0, {off: c === 'ep' && stranded, note: c === 'ep' && stranded ? 'electrum is off' : ''})).join('')}</div>`;
+}
+/** One inline coin chip ("12 gp"), same icon and glow as the boxes. */
+export const coinChipHTML = (coin, n) => `<span class="agu-coin-chip agu-coin--${escapeHTML(coin)}" data-coin="${escapeHTML(coin)}">${coinIcon(coin)}<span>${escapeHTML(n)} ${escapeHTML(coin)}</span></span>`;
+/** An amount text ("1 gp 5 sp", from shopPriceText or coinsText) as coin chips; any other words stay as escaped text. */
+export function coinChipsHTML(text) {
+  const parts = String(text ?? '').split(/\b(\d+(?:\.\d+)?\s(?:cp|sp|ep|gp|pp))\b/);
+  const out = parts.map((p, i) => { if (i % 2) { const [n, c] = p.split(/\s/); return coinChipHTML(c, n); } return escapeHTML(p); }).join('');
+  return parts.length > 1 ? `<span class="agu-coin-chips">${out}</span>` : out;
+}
 /**
  * `amountCp` in coins, largest first, from `coins` (default pp, gp, sp, cp). `till` limits what is available
  * (null = unlimited). Returns the coins, or null when the till can't make the amount exactly.
@@ -759,13 +784,23 @@ export function normalizePurse(coins, {electrum = false} = {}) {
 export const SHOP_BUYS_DEFAULT = Object.freeze({enabled: false, percent: 50, types: Object.freeze([])});
 const normalizePresented = p => (p && (p.mode === 'all' || p.mode === 'users')
   ? {mode: p.mode, userIds: p.mode === 'users' ? [...new Set((p.userIds ?? []).filter(u => typeof u === 'string' && u))] : [], since: num(p.since), by: str(p.by)} : null);
+/**
+ * 0.24.0: the Actor a merchant's name and art were taken from, kept only as a reference note ({uuid, id, name}); the
+ * name and art fields stay the source of truth, so a deleted Actor never breaks the shop. null when there is none.
+ */
+export const merchantActorRef = a => {
+  if (!a || typeof a !== 'object') return null;
+  const uuid = str(a.uuid, 400) || null, id = str(a.id, 100) || null;
+  return uuid || id ? {uuid, id, name: str(a.name, MERCHANT_NAME_MAX) ?? ''} : null;
+};
 const textField = (v, max, label) => { const s = String(v ?? '').trim(); if (s.length > max) throw Error(`${label} can be up to ${max} characters.`); return s; };
 const shared = (raw, prefix, label) => {
   if (!validId(raw.id, prefix)) throw Error(`${label} id must be ${prefix}- and upper-case letters, digits and single hyphens.`);
   const name = textField(raw.name, MERCHANT_NAME_MAX, `${label} name`);
   if (!name) throw Error(`A ${label.toLowerCase()} needs a name.`);
-  return {id: raw.id, name, merchant: {name: textField(raw.merchant?.name, MERCHANT_NAME_MAX, 'Merchant name'), img: str(raw.merchant?.img, 400) ?? ''},
-    flavour: textField(raw.flavour, SHOP_FLAVOUR_MAX, 'Flavour text'), locationId: str(raw.locationId)?.trim() || null, gmNotes: String(raw.gmNotes ?? ''),
+  const actor = merchantActorRef(raw.merchant?.actor), settlement = textField(raw.settlement, MERCHANT_NAME_MAX, 'Settlement');
+  return {id: raw.id, name, merchant: {name: textField(raw.merchant?.name, MERCHANT_NAME_MAX, 'Merchant name'), img: str(raw.merchant?.img, 400) ?? '', ...(actor ? {actor} : {})},
+    flavour: textField(raw.flavour, SHOP_FLAVOUR_MAX, 'Flavour text'), locationId: str(raw.locationId)?.trim() || null, ...(settlement ? {settlement} : {}), gmNotes: String(raw.gmNotes ?? ''),
     presented: normalizePresented(raw.presented), rev: Number.isInteger(raw.rev) && raw.rev >= 0 ? raw.rev : 0,
     createdAt: num(raw.createdAt) ?? 0, updatedAt: num(raw.updatedAt) ?? 0, updatedBy: str(raw.updatedBy)};
 };
@@ -870,11 +905,36 @@ export function bankQuote({hold, from, to, receive, feePercent = 0, electrum = f
 
 /** Removes `<section class="secret">…</section>` blocks from item HTML. */
 export const stripSecrets = html => String(html ?? '').replace(/<section\b[^>]*\bclass\s*=\s*["'][^"']*\bsecret\b[^"']*["'][^>]*>[\s\S]*?<\/section>/gi, '');
-const projectBase = (rec, locationName) => ({id: rec.id, name: rec.name, merchant: {name: rec.merchant?.name ?? '', img: rec.merchant?.img ?? ''},
-  flavour: rec.flavour ?? '', ...(locationName ? {location: {name: String(locationName)}} : {}), rev: rec.rev ?? 0});
+/** The place players see: the revealed linked location, else (no link at all) the settlement the GM typed. */
+const shownPlace = (rec, locationName) => locationName || (!rec.locationId && rec.settlement ? rec.settlement : null);
+const projectBase = (rec, locationName, place = shownPlace(rec, locationName)) => ({id: rec.id, name: rec.name, merchant: {name: rec.merchant?.name ?? '', img: rec.merchant?.img ?? ''},
+  flavour: rec.flavour ?? '', ...(place ? {location: {name: String(place)}} : {}), rev: rec.rev ?? 0});
+const TIP_DROP = ['container', 'identifier'];
 /**
- * The player view of a shop (§5). Never contains hidden lines, costCp, gmNotes, itemId, itemUuid, item snapshots,
- * purseStart, presented or sales; `purse` only when the shop has one and showPurse is on. `locationName` only when
+ * 0.24.0: the item data a player's tooltip and item sheet are built from, for one shown line. Only what the shop
+ * shows: name and description as the player sees them (unidentified ones only), secret sections removed, the price
+ * set to the shop's price, and no flags, effects, ids, ownership, folder or stats. Never the cost or GM notes (those
+ * are on the line, not the item).
+ */
+export function playerTipItem(line, {electrum = false} = {}) {
+  const it = line?.item ?? {}, sys = structuredClone(it.system ?? {}), unid = sys.identified === false;
+  for (const k of TIP_DROP) delete sys[k];
+  const desc = unid ? sys.unidentified?.description : sys.description?.value;
+  sys.description = {value: stripSecrets(desc), chat: unid ? '' : stripSecrets(sys.description?.chat)};
+  if (unid) sys.unidentified = {name: shopLineName(line), description: stripSecrets(sys.unidentified?.description)};
+  const coin = line?.priceCoin === 'ep' && !electrum ? 'sp' : COINS.includes(line?.priceCoin) ? line.priceCoin : 'gp';
+  sys.price = {value: Number(((Number(line?.priceCp) || 0) / perPurchase(line) / CP_VALUE[coin]).toFixed(4)), denomination: coin};
+  return {name: shopLineName(line), type: String(it.type ?? 'loot'), img: typeof it.img === 'string' ? it.img : '', system: sys};
+}
+/** 0.24.0: lines grouped by their category (item type label), groups A–Z, lines in their own order: [{category, lines}]. */
+export function groupByCategory(lines, categoryOf = l => l.type) {
+  const groups = new Map();
+  for (const l of lines ?? []) { const c = String(categoryOf(l) || 'Other'); if (!groups.has(c)) groups.set(c, []); groups.get(c).push(l); }
+  return [...groups].sort(([a], [b]) => a.localeCompare(b)).map(([category, list]) => ({category, lines: list}));
+}
+/**
+ * The player view of a shop (§5). Never contains hidden lines, costCp, gmNotes, itemId, itemUuid, item snapshots
+ * (each line's `tip` is the trimmed copy from playerTipItem), purseStart, presented, the merchant's Actor or sales; `purse` only when the shop has one and showPurse is on. `locationName` only when
  * Locations says it is revealed (the caller decides). `typeLabel` turns a dnd5e item type into its label.
  */
 export function projectShop(shop, {electrum = false, locationName = null, typeLabel = t => t} = {}) {
@@ -883,7 +943,7 @@ export function projectShop(shop, {electrum = false, locationName = null, typeLa
     return {lineId: l.lineId, name: String((unid && sys.unidentified?.name) || it.name || 'Unnamed Item'), img: typeof it.img === 'string' ? it.img : '',
       type: typeLabel(it.type ?? 'item'), per: Number(sys.quantity) > 0 ? Number(sys.quantity) : 1, priceCp: l.priceCp,
       priceCoin: l.priceCoin === 'ep' && !electrum ? 'sp' : l.priceCoin ?? 'gp', priceText: shopPriceText(l.priceCp, l.priceCoin, {electrum}), flavour: l.flavour ?? '', stock: l.stock ?? null, soldOut: l.stock === 0,
-      description: stripSecrets(unid ? sys.unidentified?.description : sys.description?.value)};
+      description: stripSecrets(unid ? sys.unidentified?.description : sys.description?.value), tip: playerTipItem(l, {electrum})};
   });
   const purse = shop?.purse && shop.showPurse !== false ? coinSet(shop.purse, coinChoices(electrum)) : null;
   // 0.19.0: what the shop buys (§7c). `purse` says only whether the merchant's coins are shown, hidden or unlimited.
@@ -1033,15 +1093,15 @@ export function shopLine(h) {
  */
 export function tradeCardHTML(h) {
   const E = escapeHTML, purse = h?.payFrom === 'purse' || h?.payTo === 'purse';
-  const li = (k, v) => `<li><strong>${E(k)}:</strong> ${E(v)}</li>`;
+  const li = (k, v) => `<li><strong>${E(k)}:</strong> ${E(v)}</li>`, money = (k, v, after = '') => `<li><strong>${E(k)}:</strong> ${coinChipsHTML(v)}${E(after)}</li>`;
   if (h?.kind === 'bank-exchange') {
     return `<div class="ag-utilities-trade"><h3>Coins changed at ${E(h.serviceName)}</h3><ul>${li('Who', h.userName)}${li('Character', purse ? 'Party purse' : h.payerName ?? 'Unknown')}
-${li('Gave', `${h.total} ${h.from}`)}${li('Got', `${h.receive} ${h.to}`)}${h.fee ? li('Fee', `${h.fee} ${h.from} (included above)`) : ''}</ul></div>`;
+${money('Gave', `${h.total} ${h.from}`)}${money('Got', `${h.receive} ${h.to}`)}${h.fee ? money('Fee', `${h.fee} ${h.from}`, ' (included above)') : ''}</ul></div>`;
   }
   const sale = h?.kind === 'shop-sale', item = `${h?.itemName ?? 'Unnamed Item'} ×${h?.quantity ?? 1}`;
-  const money = sale ? li('Paid into', purse ? 'the party purse' : `${h.receiverName ?? 'their own'}'s coins`) : li('Paid from', purse ? 'the party purse' : `${h.payerName ?? 'their own'}'s coins`);
+  const paid = sale ? li('Paid into', purse ? 'the party purse' : `${h.receiverName ?? 'their own'}'s coins`) : li('Paid from', purse ? 'the party purse' : `${h.payerName ?? 'their own'}'s coins`);
   return `<div class="ag-utilities-trade"><h3>${sale ? 'Sold to' : 'Bought at'} ${E(h?.shopName)}</h3><ul>${li(sale ? 'Seller' : 'Buyer', h?.userName)}${li('Character', h?.actorName ?? 'Unknown')}
-${li(sale ? 'Sold' : 'Bought', item)}${li('Total', h?.totalText)}${money}</ul></div>`;
+${li(sale ? 'Sold' : 'Bought', item)}${money('Total', h?.totalText)}${paid}</ul></div>`;
 }
 
 /* ---- 0.17.0: the GM's Shops tab. Pure helpers for the shop list, the editor, drops and the shop purse. ---- */
@@ -1052,38 +1112,54 @@ export const SHOP_BUY_TYPES = Object.freeze(['weapon', 'equipment', 'consumable'
 export const SHOP_LOG_CAP = 200;
 export const NO_LOCATION = 'No location';
 /**
- * Where a shop is, for the list: `place` is the linked location's name, `city` the top of its Locations tree (the
- * location itself when it has no parent). `locations` maps id → {name, parentLocationId}. An id Locations doesn't
- * know is shown as the id; no link reads "No location".
+ * 0.24.0: whether a Locations record is a settlement. In this order: Locations' own answer (`isSettlement`, when its
+ * API has one), then the documented marks on the record: `settlement: true`, or `kind` / `locationType` "settlement",
+ * then its Type text naming a settlement as a whole word (Settlement, City, Town, Village, Hamlet; any case).
  */
-export function shopPlace(shop, locations = new Map()) {
+export const SETTLEMENT_WORDS = Object.freeze(['settlement', 'city', 'town', 'village', 'hamlet']);
+const SETTLEMENT_RE = new RegExp(`\\b(?:${SETTLEMENT_WORDS.join('|')})\\b`, 'i');
+export function isSettlementLocation(loc, {api = null} = {}) {
+  if (!loc || typeof loc !== 'object') return false;
+  if (typeof api?.isSettlement === 'function') { try { const r = api.isSettlement(loc); if (typeof r === 'boolean') return r; } catch { /* fall back to the record */ } }
+  if (loc.settlement === true) return true;
+  if ([loc.kind, loc.locationType].some(k => String(k ?? '').toLowerCase() === 'settlement')) return true;
+  return SETTLEMENT_RE.test(String(loc.type ?? ''));
+}
+/**
+ * Where a shop is, for the list: `place` is the linked location's name, `city` its settlement (0.24.0: the nearest of
+ * the location and its parents that is a settlement), else the top of its Locations tree (the location itself when it
+ * has no parent). `locations` maps id → {name, parentLocationId, type}. An id Locations doesn't know is shown as the id;
+ * no link reads the settlement the GM typed (`settlement`), else "No location".
+ */
+export function shopPlace(shop, locations = new Map(), {isSettlement = isSettlementLocation} = {}) {
   const id = shop?.locationId;
-  if (!id) return {place: '', city: NO_LOCATION};
+  if (!id) { const typed = String(shop?.settlement ?? '').trim(); return {place: typed, city: typed || NO_LOCATION}; }
   const loc = locations.get(id);
   if (!loc) return {place: id, city: id};
-  let top = loc;
+  let top = loc, town = isSettlement(loc) ? loc : null;
   for (const seen = new Set([id]); top.parentLocationId && locations.has(top.parentLocationId) && !seen.has(top.parentLocationId);) {
     seen.add(top.parentLocationId);top = locations.get(top.parentLocationId);
+    if (!town && isSettlement(top)) town = top;
   }
-  return {place: String(loc.name ?? id), city: String(top.name ?? id)};
+  return {place: String(loc.name ?? id), city: String((town ?? top).name ?? id)};
 }
 const lineName = l => String(l?.item?.name ?? '');
 /** Search: name, merchant, place, item names and id, any case. */
-export function shopMatches(shop, search, locations) {
+export function shopMatches(shop, search, locations, opts = {}) {
   const q = String(search ?? '').trim().toLowerCase();
   if (!q) return true;
-  const {place, city} = shopPlace(shop, locations);
+  const {place, city} = shopPlace(shop, locations, opts);
   return [shop.name, shop.merchant?.name, place, city === NO_LOCATION ? '' : city, shop.id, ...(shop.lines ?? []).map(lineName)].some(t => String(t ?? '').toLowerCase().includes(q));
 }
 const byText = (a, b) => String(a ?? '').localeCompare(String(b ?? ''));
 /**
- * Filters and sorts shops. `location` (default) sorts by city, then place, then name, "No location" last; `updated` is
- * newest first. Returns [{group, shops}]: one group per city for `location`, a single group otherwise.
+ * Filters and sorts shops. `location` (default) sorts by settlement (shopPlace's `city`), then place, then name, "No
+ * location" last; `updated` is newest first. Returns [{group, shops}]: one group per settlement for `location`, a single group otherwise.
  */
-export function listShops(shops, {search = '', sort = 'location', locations = new Map()} = {}) {
+export function listShops(shops, {search = '', sort = 'location', locations = new Map(), isSettlement = isSettlementLocation} = {}) {
   const how = SHOP_SORTS.includes(sort) ? sort : 'location';
-  const at = new Map((shops ?? []).map(s => [s.id, shopPlace(s, locations)]));
-  const list = (shops ?? []).filter(s => shopMatches(s, search, locations));
+  const at = new Map((shops ?? []).map(s => [s.id, shopPlace(s, locations, {isSettlement})]));
+  const list = (shops ?? []).filter(s => shopMatches(s, search, locations, {isSettlement}));
   const cmp = {
     name: (a, b) => byText(a.name, b.name) || byText(a.id, b.id),
     merchant: (a, b) => byText(a.merchant?.name, b.merchant?.name) || byText(a.name, b.name),
@@ -1332,7 +1408,7 @@ function importLine(raw, n, electrum) {
   out.hidden = optBool(raw.hidden, `${where} hidden`) === true;
   return out;
 }
-const merchantOf = (block, old) => ({name: block.merchant_name ?? old?.name ?? '', img: block.merchant_img ?? old?.img ?? ''});
+const merchantOf = (block, old) => ({name: block.merchant_name ?? old?.name ?? '', img: block.merchant_img ?? old?.img ?? '', ...(old?.actor ? {actor: old.actor} : {})});
 const locationOf = (rec, block) => block.location_id ?? (Array.isArray(rec.refs) ? rec.refs.find(r => r?.relation === 'located_at' && typeof r.target_id === 'string')?.target_id : undefined) ?? null;
 /** The shared text fields of a Shop or Service block, checked. */
 function importShared(rec, block) {
