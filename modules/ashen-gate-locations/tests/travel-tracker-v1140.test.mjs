@@ -67,11 +67,13 @@ test('strip: one marker per leg, current highlighted, hazards outlined; a bar fo
   assert.equal((html.match(/<li/g) ?? []).length, 8);
   assert.equal((html.match(/is-done/g) ?? []).length, 3);
   assert.match(html, /<li class="is-done is-current" data-tooltip="Leg 3" data-tooltip-class="ag-tooltip">/);
-  assert.match(html, /<li class="is-done is-hazard" data-tooltip="Leg 2: hazard" data-tooltip-class="ag-tooltip">/);
-  assert.match(html, /aria-label="Leg 3 of 8"/);
+  assert.match(html, /<li class="is-done is-hazard" data-tooltip="Leg 2: hazard" data-tooltip-class="ag-tooltip"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"><\/i><\/li>/, '0.19.0: a hazard leg has a mark, not only a red border');
+  assert.match(html, /aria-label="Leg 3 of 8; hazard on leg 2"/, '0.19.0: the strip names its hazard legs');
+  assert.match(stripHTML({leg: 4, legs: 8, hazardLegs: [3, 2]}), /aria-label="Leg 4 of 8; hazards on legs 2, 3"/);
+  assert.match(stripHTML({leg: 1, legs: 8}), /aria-label="Leg 1 of 8"/);
   assert.match(stripHTML({leg: 0, legs: 8}), /^(?![\s\S]*is-current)/, 'not set out: nothing current');
   const bar = stripHTML({leg: 25, legs: STRIP_MAX_MARKERS + 10});
-  assert.match(bar, /agl-travel__strip--bar[\s\S]*width:50%/);
+  assert.match(bar, /class="ag-meter agl-travel__meter"><div class="ag-meter__track" role="progressbar" aria-label="Leg 25 of 50"[^>]*aria-valuenow="25"[^>]*style="--ag-meter:50%"/, 'kit meter (0.19.0)');
   assert.doesNotMatch(bar, /<li/);
 });
 

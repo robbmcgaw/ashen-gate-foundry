@@ -3,7 +3,7 @@
  *  This file neither imports nor requires General Manager.
  */
 export const LOCATION_LAUNCHER = Object.freeze({
-  tab: 'items', moduleId: 'ashen-gate-locations', label: 'Location Builder',
+  tab: 'items', moduleId: 'ashen-gate-locations', label: 'Locations',
   order: 20, icon: 'fa-solid fa-map-location-dot'
 });
 const GROUP_SELECTOR = '[data-ag-launch-group="items"]';
@@ -60,14 +60,15 @@ export function mountLocationLauncher(root, {isGM, onOpen} = {}) {
     button.type = 'button';
     button.dataset.agModule = LOCATION_LAUNCHER.moduleId;
     button.dataset.agLaunch = 'locations';
-    button.innerHTML = '<i class="fa-solid fa-map-location-dot" aria-hidden="true"></i><span>Location Builder</span>';
     group.append(button);
   }
+  // 0.19.0: one name everywhere (LOC-NAV-05): the Items launcher says Locations, like the window and the Actors launcher.
+  button.innerHTML = '<i class="fa-solid fa-map-location-dot" aria-hidden="true"></i><span>Locations</span>';
   button.className = 'ag-sidebar-launch-button';
   button.dataset.agOrder = String(LOCATION_LAUNCHER.order);
   button.dataset.agLaunchOrder = String(LOCATION_LAUNCHER.order);
-  button.title = 'Open GM-only Location Builder';
-  button.setAttribute('aria-label', 'Open Ashen Gate Location Builder');
+  button.title = 'Open Ashen Gate Locations (GM only)';
+  button.setAttribute('aria-label', 'Open Ashen Gate Locations (GM)');
   // Guard at invocation as well as visibility; the module API repeats this check.
   button.onclick = event => {
     event.preventDefault();

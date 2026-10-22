@@ -320,7 +320,9 @@ test('GM editor: grips and arrows on every block and entry; Add Detail; Region s
   const app = new LocationsApp();
   app.select(child.id);
   const html = await app._renderHTML();
-  for (const k of DEFAULT_KEYS) assert.ok(html.includes(`data-block="${k}"`), k);
+  // 0.19.0: Linked Scenes is a GM-only card on the Visibility & map sub-tab, not a reorderable block.
+  for (const k of DEFAULT_KEYS.filter(k => k !== 'scenes')) assert.ok(html.includes(`data-block="${k}"`), k);
+  assert.ok(!html.includes('data-block="scenes"') && html.includes('<h3>Linked Scenes</h3>'));
   assert.ok(html.includes('data-block="detail:dd"'));
   assert.match(html, /data-action="move-block" data-key="loot" data-dir="-1"/);
   assert.match(html, /data-drag-block="detail:dd"/);

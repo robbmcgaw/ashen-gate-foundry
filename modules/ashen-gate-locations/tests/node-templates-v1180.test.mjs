@@ -36,8 +36,8 @@ const ref = (over = {}) => ({id: 'r1', nodeId: 'NODE-TEST-RIVER-REEDS', tier: 2,
 const ford = (resources = [ref()]) => ({id: 'LOC-TEST-FORD', name: '[TEST] Ford', state: 'revealed', revealed: true, sections: {resources: true}, resources});
 function setup(ledger) {
   const game = installFoundry();
-  const mod = {version: '0.18.1', active: true};
-  mod.api = createApi({version: '0.18.1', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}, viewOptions: presentationOptions});
+  const mod = {version: '0.19.0', active: true};
+  mod.api = createApi({version: '0.19.0', isGM: () => game.user.isGM, playerAccessEnabled: () => true, setPlayerAccess: async () => {}, readAll, writeAll, readViews, placeNote, open: () => {}, openLocation: () => {}, viewOptions: presentationOptions});
   game.modules = {get: id => id === 'ashen-gate-locations' ? mod : id === 'ashen-gate-profession-ledger' ? ledger ?? null : null};
   return {game, mod};
 }
@@ -145,7 +145,7 @@ test('editor: pick a template by activity, see it read only (Hunting, tier range
   const ledger = fakeLedger();
   const {app, mod} = await editor(ledger);
   let html = await app._renderHTML();
-  assert.match(html, /<optgroup label="Hunting"><option value="NODE-TEST-RIVER-REEDS">\[TEST\] River Reeds \(tier 1–3\)<\/option><\/optgroup>/);
+  assert.match(html, /data-action="add-node"[^>]*><i[^>]*><\/i><span>Add node…<\/span>/, '0.19.0: one Add node… button');
   assert.match(html, /<strong>\[TEST\] River Reeds<\/strong> · Hunting · Tier 1–3/);
   assert.match(html, /Common: \[TEST\] Reed ×2 \(70%\), MAT-TEST-RUSH \(30%\) · Rare \(by 5\+\): MAT-TEST-SILVER-REED · Exotic: 1 candidate/);
   assert.match(html, /data-action="open-ledger-nodes"/);
@@ -157,9 +157,19 @@ test('editor: pick a template by activity, see it read only (Hunting, tier range
   assert.deepEqual([app.draft.resources[0].dc, app.draft.resources[0].dcVisible, app.draft.resources[0].finite], [16, true, null]);
   app.setPath('resources.r1.dc', '');
   assert.equal(app.draft.resources[0].dc, null, 'cleared: the template DC applies again');
-  app.element = {querySelector: sel => sel === '#agl-add-node-template' ? {value: 'NODE-TEST-RIVER-REEDS'} : null};
-  await app.onAction({dataset: {action: 'add-node-template'}});
+  // 0.19.0: Add node… asks From template / Custom (kit choiceDialog), then the template from a list labelled by activity.
+  const seen = [];
+  const prev = foundry.applications.api.DialogV2;
+  foundry.applications.api.DialogV2 = {wait: async o => {
+    seen.push(o);
+    const pick = o.buttons.find(b => b.action === 'template') ?? o.buttons.find(b => b.action === 'ok');
+    return pick.callback({}, {form: {elements: [{name: 'template', value: 'NODE-TEST-RIVER-REEDS'}]}});
+  }};
+  try { await app.onAction({dataset: {action: 'add-node'}}); } finally { foundry.applications.api.DialogV2 = prev; }
+  assert.deepEqual(seen[0].buttons.map(b => b.label), ['Cancel', 'From template…', 'Custom…']);
+  assert.match(seen[1].content, /<option value="NODE-TEST-RIVER-REEDS"[^>]*>Hunting: \[TEST\] River Reeds \(tier 1–3\)<\/option>/);
   assert.deepEqual(app.draft.resources.at(-1), {...app.draft.resources.at(-1), nodeId: 'NODE-TEST-RIVER-REEDS', tier: 1, label: '', dc: null});
+  assert.ok(app.openNodes.has(app.draft.resources.at(-1).key), 'a new node opens its Edit node fold');
   await app.onAction({dataset: {action: 'open-ledger-nodes'}});
   assert.deepEqual(ledger.opened, [{view: 'nodes'}]);
   await mod.api.saveLocation(app.draft);
@@ -174,8 +184,8 @@ test('editor: a deleted template shows "no longer exists" and keeps the data; no
   ({app} = await editor(null));
   html = await app._renderHTML();
   assert.match(html, /Profession Ledger 0\.25\.0 or later is not active, so node templates are not available\. Add a custom node instead\./);
-  assert.match(html, /id="agl-add-resources"/, 'the manual entry is still offered');
-  assert.doesNotMatch(html, /id="agl-add-node-template"/);
+  assert.match(html, /data-action="add-node"/, 'the manual entry is still offered (Add node… goes straight to Custom)');
+  assert.doesNotMatch(html, /data-action="open-ledger-nodes"/);
   ({app} = await editor(fakeLedger([REEDS], {refuse: true})));
   assert.match(await app._renderHTML(), /Profession Ledger did not list its node templates \(Only the GM can manage gathering nodes\)/);
   assert.equal(materialsSummary({materials: {common: [], rare: [], exotic: []}}), 'No materials: the GM awards it by hand');

@@ -28,18 +28,22 @@ const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
  */
 export function stripHTML({leg, legs, status = 'active', hazardLegs = []}) {
   const done = Math.min(Math.max(0, leg | 0), legs);
-  const label = `Leg ${done} of ${legs}`;
-  if (legs > STRIP_MAX_MARKERS) {
-    const pct = Math.round(100 * done / Math.max(1, legs));
-    return `<div class="agl-travel__strip agl-travel__strip--bar" role="img" aria-label="${label}"><i style="width:${pct}%"></i></div>`;
-  }
   const marks = new Set(hazardLegs);
+  // 0.19.0 (LOC-A11Y-03): the accessible name lists the hazard legs too, not just "Leg N of M".
+  const hz = [...marks].filter(n => n >= 1 && n <= legs).sort((a, b) => a - b);
+  const label = `Leg ${done} of ${legs}${hz.length ? `; ${hz.length === 1 ? 'hazard on leg' : 'hazards on legs'} ${hz.join(', ')}` : ''}`;
+  if (legs > STRIP_MAX_MARKERS) {
+    // Many legs: the kit meter (LOC-CMP-03), named like the strip.
+    const pct = Math.round(100 * done / Math.max(1, legs));
+    return `<div class="ag-meter agl-travel__meter"><div class="ag-meter__track" role="progressbar" aria-label="${esc(label)}" aria-valuemin="0" aria-valuemax="${legs}" aria-valuenow="${done}" style="--ag-meter:${pct}%"><span class="ag-meter__fill"></span></div></div>`;
+  }
   const cells = Array.from({length: legs}, (_, i) => {
     const n = i + 1;
     const cls = [n <= done ? 'is-done' : '', n === done && status === 'active' ? 'is-current' : '', marks.has(n) ? 'is-hazard' : ''].filter(Boolean).join(' ');
-    return `<li class="${cls}"${tip(`Leg ${n}${marks.has(n) ? ': hazard' : ''}`)}></li>`;
+    // A hazard leg carries a mark (a shape, not only the red border).
+    return `<li class="${cls}"${tip(`Leg ${n}${marks.has(n) ? ': hazard' : ''}`)}>${marks.has(n) ? '<i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>' : ''}</li>`;
   }).join('');
-  return `<ol class="agl-travel__strip" role="img" aria-label="${label}">${cells}</ol>`;
+  return `<ol class="agl-travel__strip" role="img" aria-label="${esc(label)}">${cells}</ol>`;
 }
 
 const header = (version, opacity) => `<header class="ag-header agl-travel__head"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Travel</h1></div>
@@ -66,10 +70,10 @@ export function gmTrackerHTML({journey: j, routeName = '', legKm = 0, nameOf = i
   const km = kmTravelled(j, legKm);
   const streak = safeStreak(j);
   const p = j.pending;
-  const hazard = p ? `<div class="ag-card agl-travel__hazard" role="alert"><h3>Hazard on leg ${p.leg}</h3>
+  const hazard = p ? `<div class="ag-card agl-travel__hazard" role="status"><h3>Hazard on leg ${p.leg}</h3>
       <p class="agl-travel__result">${esc(p.result)}</p>
       <p class="agl-hint">Rolled ${p.roll} vs ${p.chance}%.${p.tableMissing ? ' The hazard table was not found, so this is the plain fallback.' : ''} Only you see this.</p>
-      <div class="agl-travel__row">${btn('reroll', 'Reroll', {icon: 'fa-solid fa-dice'})}${btn('dismiss', 'Dismiss', {icon: 'fa-solid fa-xmark'})}
+      <div class="agl-travel__row">${btn('reroll', 'Reroll', {icon: 'fa-solid fa-dice'})}${btn('dismiss', 'Dismiss', {icon: 'fa-solid fa-xmark', title: 'Discard this hazard. Players never learn of it.'})}
         ${btn('share', 'Share to players', {icon: 'fa-solid fa-bullhorn', title: 'Posts the result to chat for everyone (no route or place names)'})}</div></div>` : '';
   const last = !active ? `<p class="agl-hint">${j.status === 'arrived' ? `Arrived at ${esc(to)} after ${plural(j.legs, 'leg')}` : `Ended after ${plural(j.legIndex, 'leg')}`}, ${plural(j.hazardCount, 'hazard')}.
       ${j.status === 'arrived' ? j.travelLog === 'ok' ? `Logged in ${esc(to)}'s Party Notes.` : `Not logged in Party Notes: ${esc(j.travelLogError || 'unknown error')}` : ''}</p>
@@ -90,9 +94,9 @@ export function gmTrackerHTML({journey: j, routeName = '', legKm = 0, nameOf = i
     ${hazard}${roll}${last}
     ${panelsHTML(panels)}
     ${lines ? `<section class="agl-travel__log"><h3>Latest</h3><ol>${lines}</ol><p class="agl-hint">The trip is added to ${esc(to)}'s Party Notes on arrival.</p></section>` : ''}
-    <footer class="agl-travel__foot">${active ? `${btn(j.paused ? 'resume' : 'pause', j.paused ? 'Resume' : 'Pause', {icon: j.paused ? 'fa-solid fa-play' : 'fa-solid fa-pause'})}
-      ${btn('end', 'End journey', {kind: 'danger', icon: 'fa-solid fa-ban'})}` : ''}
-      ${btn('open-route', 'Open route', {icon: 'fa-solid fa-route', title: 'Open this route in Locations'})}</footer></div>`;
+    <footer class="agl-travel__foot">${active ? btn('end', 'End journey', {kind: 'danger', icon: 'fa-solid fa-ban'}) : ''}
+      <span class="agl-travel__foot-end">${active ? btn(j.paused ? 'resume' : 'pause', j.paused ? 'Resume' : 'Pause', {icon: j.paused ? 'fa-solid fa-play' : 'fa-solid fa-pause'}) : ''}
+      ${btn('open-route', 'Open route', {icon: 'fa-solid fa-route', title: 'Open this route in Locations'})}</span></footer></div>`;
 }
 
 /** Player model: {state (api.travel.state()), version, opacity, panels}. Progress and what the GM shared only. */

@@ -28,7 +28,8 @@ function fakeElement() {
 
 test('journey progress and revealed places by region; unidentified ones are left out; names escaped', () => {
   const html = embedHTML(deps());
-  assert.match(html, /Travelling[\s\S]*\[TEST\] Millbrook → \[TEST\] Old Tower[\s\S]*Leg 2 of 5[\s\S]*width:40%/);
+  assert.match(html, /Travelling[\s\S]*\[TEST\] Millbrook → \[TEST\] Old Tower[\s\S]*Leg 2 of 5[\s\S]*class="ag-meter__track" role="progressbar"[^>]*aria-valuenow="2"[^>]*style="--ag-meter:40%"/, 'kit meter (0.19.0)');
+  assert.match(html, /<label class="ag-search">[\s\S]*class="agl-embed__search"/, 'kit search box');
   assert.match(html, /<h4>\[TEST\] Vale <small>2<\/small><\/h4>/);
   assert.match(html, /<h4>Other places <small>1<\/small><\/h4>/);
   assert.match(html, /\[TEST\] Camp &lt;b&gt;/);
@@ -37,7 +38,7 @@ test('journey progress and revealed places by region; unidentified ones are left
 });
 
 test('hidden from players: only a note; no journey: no journey card; search filters', () => {
-  assert.equal(embedHTML(deps({mayOpen: () => false})), '<div class="ag-empty">The GM has hidden Locations.</div>');
+  assert.equal(embedHTML(deps({mayOpen: () => false})), '<div class="ag-empty"><p class="ag-empty__title">Locations is hidden</p><p class="ag-empty__text">The GM has hidden Locations.</p></div>');
   assert.doesNotMatch(embedHTML(deps({readJourneyView: () => null})), /agl-embed__journey/);
   const html = embedHTML(deps(), 'tower');
   assert.match(html, /Old Tower/); assert.doesNotMatch(html, /Millbrook<\/button>/);
