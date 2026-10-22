@@ -1,4 +1,4 @@
-# Shop, Service and MerchantList record schema (Ashen Gate Utilities 0.21.0+, General Manager 0.44.0+)
+# Shop, Service and MerchantList record schema (Ashen Gate Utilities 0.21.0+, General Manager 0.44.0+; notes for 0.24.0)
 
 Shops, services and merchant lists travel in an `ag-foundry-import/0.2` package, next to the Items they sell. They
 belong to Utilities (`ashen-gate-utilities`). Import them with General Manager → Import (0.44.0+), which creates the
@@ -49,7 +49,7 @@ How many come per purchase is the Item's own `system.quantity`.
 
 | Key | Type | Required | Notes |
 |---|---|---|---|
-| `type` | string | yes | `"bank"` (the only type). An unknown type is refused |
+| `type` | string | yes | `"bank"` (the only type; **deprecated since Utilities 0.24.0**: still imported and working, exchange only, with a note in the preview and from `validate-content.mjs`; players change coins in Party Inventory → Party Fund without a service). An unknown type is refused |
 | `merchant_name`, `merchant_img`, `flavour`, `location_id`, `gm_notes` | | optional | as for a shop |
 | `settings` | object | optional | bank: `{"fee_percent": 0}` (whole number 0–50; default 0 = no fee) |
 
@@ -60,13 +60,15 @@ How many come per purchase is the Item's own `system.quantity`.
 | `location_id` | string | optional | the city's `LOC-*` id |
 | `shop_ids` | array | yes | `SHOP-*` and `SVC-*` ids, in display order. An id not in the world or the file is noted and shows as missing |
 
-Merchant lists always import hidden. The GM switches them on.
+Merchant lists always import hidden. The GM shares them (Utilities 0.24.0: with the whole party or chosen players) and opens their stores in Utilities. Who a list is shared with is play state: it is not in the file, an update never changes it, and an export never writes it.
+
+A list can group any merchants: a settlement (`location_id`), a faction, a guild. The record format did not change in 0.24.0.
 
 ## Import behaviour
 
 - **Preview first** (Utilities): each record shows Create, Update, Kept or Skipped with the reason, and each item line that wasn't found.
 - **Existing id:** kept as it is by default. With **Update shops that already exist** (`importShops(records, {mode: 'update'})`): a shop's name, merchant, flavour and lines come from the file; a service's name, merchant, flavour and settings; a list's name and entries. Fields the file leaves out keep the world's value.
-- **Play state is never written:** nothing is shown to players by an import (`presented` stays as it is, `null` for a new record), lists come in hidden and a shown list stays shown, and an update keeps stock left, lines the GM added by hand, lines bought from players, the merchant's coins now, the linked location, GM notes and the sales log. `purse`, `show_purse` and `buys` apply only when a shop is created.
+- **Play state is never written:** nothing is shown to players by an import (`presented` stays as it is, `null` for a new record), lists come in hidden and a shared list stays shared with the same players, and an update keeps stock left, lines the GM added by hand, lines bought from players, the merchant's coins now, the linked location, GM notes and the sales log. `purse`, `show_purse` and `buys` apply only when a shop is created.
 - **Lines:** an item not found is skipped and reported; the rest of the shop imports (on an update the existing line stays as it was).
 - **Validation, per record** (the rest of the import carries on; the message names the record and the line): bad id, missing name or `merchant_name`, a bad price, stock, cost or purse, `ep` while electrum is off, an unknown service type or bad bank fee, a `shop_ids` entry that is not a `SHOP-*` / `SVC-*` id, a duplicate id in the same file, a deleted id.
 - **Export** (Shops → Export, `exportShops(ids?)`) writes the same format: starting stock and starting cash, never stock left, sales or who it is shown to.
@@ -290,3 +292,7 @@ The synthetic package `test-fixtures/shops/AG_Test_Shops.json` (Items, a shop, a
   ]
 }
 ```
+
+## Changes by version
+
+- **0.24.0:** no change to the `ag-foundry-import/0.2` fields. `service.type: "bank"` is deprecated (still accepted; the preview and `validate-content.mjs` add the note "Bank services are deprecated (exchange only): players change coins in Party Inventory → Party Fund. A Bank still imports and works."). Stored in the world only (never imported or exported): a merchant list's `audience` (`{"mode": "hidden" | "party" | "users", "userIds": [...]}`; `visible` is kept and derived from it).

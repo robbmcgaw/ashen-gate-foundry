@@ -83,7 +83,8 @@ await game.settings.set(ID,'playerAccessEnabled',true);await api.stash.setEnable
 const tick=()=>new Promise(r=>setTimeout(r,5));
 const receipt=id=>sent.find(m=>m.type==='receipt'&&m.requestId===id);
 const hist=()=>game.settings.get(ID,'stashHistory');
-const itemsHtml=async(user=gm)=>{game.user=user;try{const app=await api.stash.open();app.stashTab='items';return await app._renderHTML();}finally{game.user=gm;}};
+// 0.24.0: the purse strip lives in Party Inventory → Party Fund (the embed keeps it).
+const itemsHtml=async(user=gm)=>{game.user=user;try{const app=await api.stash.open();app.stashTab='fund';return await app._renderHTML();}finally{game.user=gm;}};
 const historyHtml=async(user=gm)=>{game.user=user;try{const app=await api.stash.open();app.stashTab='history';return await app._renderHTML();}finally{game.user=gm;}};
 const purseOf=html=>html.match(/<section class="agu-purse"[\s\S]*?<\/section>/)[0];
 /** Answers a sequence of DialogV2.wait calls: a form (values), 'confirm' or 'cancel'. Records every dialog. */

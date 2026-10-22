@@ -4,7 +4,8 @@
    quote and execute here. A record whose type this version doesn't know is kept untouched, listed for the GM as
    "Unknown service type", and never shown to players. The first type is the Bank: it changes coins at the standard
    rates in one currency update (all or nothing by itself), logged in stash History. The party purse needs no vote
-   (D13); the fee is per bank, 0 by default (D14). ---- */
+   (D13); the fee is per bank, 0 by default (D14). 0.24.0: the Bank is deprecated (exchange only); party-fund.mjs
+   changes coins without a service, with the same rules. ---- */
 import {ID,escapeHTML as E,COIN_LABELS,coinChoices,readCoins,normalizeService,shopIdFromName,validId,SERVICE_TYPES,SHOP_REFUSALS,
  presentedTo,bankQuote,bankExchangeEntry,bankText,listShops,initials} from './core.mjs';
 import {readAll,readServices,writeService,deleteServicePage,readMeta,writeMeta,queueShops,randomId,locationMap,icon,button,serviceLogOf,appendServiceLog} from './shops.mjs';
@@ -22,8 +23,8 @@ const clone=v=>structuredClone(v);
 const nothingChanged=t=>{const s=String(t??'').trim();return /No coins changed/.test(s)?s:`${s}${/[.!?]$/.test(s)?'':'.'} ${NOTHING_CHANGED}`.trim();};
 
 /* ---------- The Bank ---------- */
-/** Whose coins a bank request uses: the user's own character, or the party purse (no vote). Throws the refusal. */
-function bankPayer(r,user,{forQuote=false}={}){
+/** Whose coins a bank (or Party Fund) request uses: the user's own character, or the party purse (no vote). Throws the refusal. */
+export function bankPayer(r,user,{forQuote=false}={}){
  const stash=tradeCtx().stashActor?.();
  if(r.payFrom==='purse'){
   if(forQuote){const p=readablePurse(user);if(!p)throw Error('The party purse is not available.');return p;}
@@ -255,8 +256,10 @@ export function bindServiceView(win,content,view,again){
 export function serviceSettingsHTML(d){
  const t=serviceType(d.service?.type);
  if(!t)return `<p class="ag-notice ag-notice--warn">${icon('fa-triangle-exclamation')}<span>${E(UNKNOWN_TYPE)}: ${E(d.service?.type||'none')}. This Utilities version keeps it as it is and never shows it to players. Update Utilities to change it, or delete it.</span></p>`;
- return `<section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Service</h3></div>
- <div class="ag-form-grid"><label class="ag-field">Service type<select data-shop-field="serviceType">${Object.values(SERVICE_REGISTRY).map(x=>`<option value="${E(x.id)}"${x.id===t.id?' selected':''}>${E(x.label)}</option>`).join('')}</select><span class="ag-field__hint">Bank: changes coins at the standard rates (1 pp = 10 gp = 100 sp = 1000 cp). It has unlimited coins.</span></label></div>
+ // 0.24.0: the Bank is deprecated (exchange only); Party Inventory → Party Fund changes coins without a service.
+ const dep=t.deprecated?`<p class="ag-notice ag-notice--warn">${icon('fa-triangle-exclamation')}<span>${E(t.deprecated)} You can keep, present and import Banks; new campaigns don't need one.</span></p>`:'';
+ return `<section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Service</h3></div>${dep}
+ <div class="ag-form-grid"><label class="ag-field">Service type<select data-shop-field="serviceType">${Object.values(SERVICE_REGISTRY).map(x=>`<option value="${E(x.id)}"${x.id===t.id?' selected':''}>${E(x.label)}${x.deprecated?' (deprecated)':''}</option>`).join('')}</select><span class="ag-field__hint">Bank: changes coins at the standard rates (1 pp = 10 gp = 100 sp = 1000 cp). It has unlimited coins.</span></label></div>
  ${t.renderEditor(d.service.settings??{})}</section>`;
 }
 

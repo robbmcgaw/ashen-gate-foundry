@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.23.0';
+export const VERSION = '0.24.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -782,8 +782,10 @@ export function normalizeShop(raw = {}, {electrum = false} = {}) {
 }
 
 /* Services: one registry entry per type. Only the Bank for now. */
+export const BANK_DEPRECATED = 'Bank services are deprecated (exchange only): players change coins in Party Inventory → Party Fund. A Bank still imports and works.';
 export const SERVICE_TYPES = Object.freeze({
-  bank: Object.freeze({id: 'bank', label: 'Bank', defaults: () => ({feePercent: 0}),
+  // 0.24.0: deprecated. Players change coins in Party Inventory → Party Fund; a Bank keeps importing and working (exchange only).
+  bank: Object.freeze({id: 'bank', label: 'Bank', defaults: () => ({feePercent: 0}), deprecated: BANK_DEPRECATED,
     checkSettings(s = {}) {
       const fee = s.feePercent === undefined ? 0 : Number(s.feePercent);
       if (!Number.isInteger(fee) || fee < 0 || fee > 50) throw Error('The bank fee must be a whole number from 0 to 50.');
@@ -1012,6 +1014,27 @@ export function bankExchangeEntry({id, service, quote, payFrom, payer, user, wor
     from: quote.from, to: quote.to, give: quote.give, fee: quote.fee, total: quote.total, receive: quote.receive,
     fromBefore: quote.fromBefore, fromAfter: quote.fromAfter, toBefore: quote.toBefore, toAfter: quote.toAfter, worldTime: num(worldTime), realTime: num(realTime) ?? Date.now()};
 }
+/**
+ * 0.24.0 Party Fund: a coin exchange (no service). `quote` from bankQuote with the Party Fund fee. Same fields as a bank
+ * exchange, so the History and the chat card read alike; `serviceId` is null.
+ */
+export const COIN_EXCHANGE = 'coin-exchange';
+export function coinExchangeEntry({id, quote, payFrom, payer, user, worldTime = null, realTime = Date.now()} = {}) {
+  if (!quote?.ok) throw new TypeError('An exchange entry needs a quote.');
+  return {...bankExchangeEntry({id: id ?? `x${realTime}`, service: {id: null, name: 'Party Fund'}, quote, payFrom, payer, user, worldTime, realTime}), kind: COIN_EXCHANGE};
+}
+/** "Alice changed 200 cp into 2 gp (Party Fund), Kestrel's coins". */
+export const exchangeLine = h => `${h.userName} changed ${h.total} ${h.from} into ${h.receive} ${h.to}${h.kind === COIN_EXCHANGE ? '' : ` at ${h.serviceName}`}${h.fee ? ` (fee ${h.fee} ${h.from})` : ''}, ${h.payFrom === 'purse' ? 'party purse' : `${h.payerName ?? 'their own'}'s coins`}`;
+/**
+ * 0.24.0: what the Party Fund log lists from stash History: coins in and out of the purse (deposits, takes, GM
+ * adjustments, electrum conversions), coin exchanges (Party Fund and banks), and shop purchases and sales paid with the
+ * party purse.
+ */
+export function fundLogEntry(h) {
+  const k = h?.kind;
+  if (PURSE_KINDS.includes(k) || k === 'purse-convert' || k === COIN_EXCHANGE || k === 'bank-exchange') return true;
+  return (k === 'shop-purchase' && h.payFrom === 'purse') || (k === 'shop-sale' && h.payTo === 'purse');
+}
 /** History line for a shop entry. */
 export function shopLine(h) {
   const purse = h.payFrom === 'purse', own = `${h.payerName ?? 'their own'}'s coins`;
@@ -1023,7 +1046,7 @@ export function shopLine(h) {
     const who = `${h.userName}${h.actorName ? ` (${h.actorName})` : ''}`;
     return `${who} sold ${h.itemName}${h.quantity > 1 ? ` ×${h.quantity}` : ''} to ${h.shopName} for ${h.totalText}, paid into ${h.payTo === 'purse' ? 'the party purse' : `${h.receiverName ?? 'their own'}'s coins`}`;
   }
-  if (h.kind === 'bank-exchange') return `${h.userName} changed ${h.total} ${h.from} into ${h.receive} ${h.to} at ${h.serviceName}${h.fee ? ` (fee ${h.fee} ${h.from})` : ''}, ${purse ? 'party purse' : own}`;
+  if (h.kind === 'bank-exchange' || h.kind === COIN_EXCHANGE) return exchangeLine(h);
   return '';
 }
 
@@ -1034,9 +1057,15 @@ export function shopLine(h) {
 export function tradeCardHTML(h) {
   const E = escapeHTML, purse = h?.payFrom === 'purse' || h?.payTo === 'purse';
   const li = (k, v) => `<li><strong>${E(k)}:</strong> ${E(v)}</li>`;
-  if (h?.kind === 'bank-exchange') {
-    return `<div class="ag-utilities-trade"><h3>Coins changed at ${E(h.serviceName)}</h3><ul>${li('Who', h.userName)}${li('Character', purse ? 'Party purse' : h.payerName ?? 'Unknown')}
+  if (h?.kind === 'bank-exchange' || h?.kind === COIN_EXCHANGE) {
+    return `<div class="ag-utilities-trade"><h3>${h.kind === COIN_EXCHANGE ? 'Coins changed (Party Fund)' : `Coins changed at ${E(h.serviceName)}`}</h3><ul>${li('Who', h.userName)}${li('Character', purse ? 'Party purse' : h.payerName ?? 'Unknown')}
 ${li('Gave', `${h.total} ${h.from}`)}${li('Got', `${h.receive} ${h.to}`)}${h.fee ? li('Fee', `${h.fee} ${h.from} (included above)`) : ''}</ul></div>`;
+  }
+  // 0.24.0: Party Fund deposit or take (a purseEntry that moved).
+  if (h?.kind === 'purse-deposit' || h?.kind === 'purse-take') {
+    const dep = h.kind === 'purse-deposit';
+    return `<div class="ag-utilities-trade"><h3>${dep ? 'Coins put in the party purse' : 'Coins taken from the party purse'}</h3><ul>${li('Who', h.userName)}${li('Character', h.actorName ?? 'Unknown')}
+${li(dep ? 'Put in' : 'Took', `${h.amount} ${h.coin}`)}${Number.isFinite(h.purseAfter) ? li('Party purse now', `${h.purseAfter} ${h.coin}`) : ''}</ul></div>`;
   }
   const sale = h?.kind === 'shop-sale', item = `${h?.itemName ?? 'Unnamed Item'} ×${h?.quantity ?? 1}`;
   const money = sale ? li('Paid into', purse ? 'the party purse' : `${h.receiverName ?? 'their own'}'s coins`) : li('Paid from', purse ? 'the party purse' : `${h.payerName ?? 'their own'}'s coins`);
@@ -1257,14 +1286,57 @@ export const saleText = ({quantity, name, shopName, totalText, payTo, receiverNa
 /* ---- 0.20.0: merchant lists and services (design §3, §7b, brief 5). Pure helpers; storage and the GM client live in
    merchant-lists.mjs and services.mjs. ---- */
 export const MLIST_NAME_MAX = 120;
-/** A merchant list as stored (GM data): `shopIds` holds SHOP-* and SVC-* ids in the order players see them. */
+/**
+ * 0.24.0: who a merchant list is shared with. `hidden` (nobody), `party` (every player, also those who log in later) or
+ * `users` (chosen players). A stored list from 0.20–0.23 has only `visible`: true reads as `party`, anything else as
+ * `hidden`. `users` with nobody chosen is `hidden`.
+ */
+export const MLIST_AUDIENCES = Object.freeze(['hidden', 'party', 'users']);
+export function normalizeAudience(raw, legacyVisible = false) {
+  const mode = MLIST_AUDIENCES.includes(raw?.mode) ? raw.mode : legacyVisible === true ? 'party' : 'hidden';
+  const userIds = mode === 'users' ? [...new Set((Array.isArray(raw?.userIds) ? raw.userIds : []).filter(u => typeof u === 'string' && u))] : [];
+  return mode === 'users' && !userIds.length ? {mode: 'hidden', userIds: []} : {mode, userIds};
+}
+/** A merchant list as stored (GM data): `shopIds` holds SHOP-* and SVC-* ids in the order players see them. `visible` is kept for older readers. */
 export function normalizeMerchantList(raw = {}) {
   if (!validId(raw.id, 'MLIST')) throw Error('Merchant list id must be MLIST- and upper-case letters, digits and single hyphens.');
   const name = textField(raw.name, MLIST_NAME_MAX, 'Merchant list name');
   if (!name) throw Error('A merchant list needs a name.');
   const ids = [...new Set((Array.isArray(raw.shopIds) ? raw.shopIds : []).filter(x => validId(x, 'SHOP') || validId(x, 'SVC')))];
-  return {id: raw.id, name, locationId: str(raw.locationId)?.trim() || null, shopIds: ids, visible: raw.visible === true,
+  const audience = normalizeAudience(raw.audience, raw.visible);
+  return {id: raw.id, name, locationId: str(raw.locationId)?.trim() || null, shopIds: ids, audience, visible: audience.mode !== 'hidden',
     createdAt: num(raw.createdAt) ?? 0, updatedAt: num(raw.updatedAt) ?? 0, updatedBy: str(raw.updatedBy)};
+}
+/** 0.24.0 migration check: a stored list written before `audience` (or with one that doesn't read back the same). */
+export const listNeedsMigration = raw => { try { const n = normalizeMerchantList(raw); return JSON.stringify(raw?.audience) !== JSON.stringify(n.audience) || raw?.visible !== n.visible; } catch { return false; } };
+/**
+ * Stored lists with `audience` written (re-runnable: a list already migrated comes back unchanged). A list that can't
+ * be read is kept exactly as it is, never dropped.
+ */
+export const migrateMerchantLists = lists => (Array.isArray(lists) ? lists : []).map(l => (listNeedsMigration(l) ? normalizeMerchantList(l) : l));
+/** The presentation that opens a shop to a list's audience; null for a hidden list. */
+export const audiencePresented = a => (a?.mode === 'party' ? {mode: 'all', userIds: []} : a?.mode === 'users' && a.userIds?.length ? {mode: 'users', userIds: [...a.userIds]} : null);
+/** Whether the shop's presentation already reaches the list's whole audience (the entry reads as Open). */
+export function presentedCovers(presented, audience) {
+  if (!presented || !audiencePresented(audience)) return false;
+  if (presented.mode === 'all') return true;
+  return audience.mode === 'users' && audience.userIds.every(u => (presented.userIds ?? []).includes(u));
+}
+/**
+ * Opening an entry from a list adds the list's audience to whoever the shop is already shown to; it never takes
+ * anyone away. `all` stays `all`. Returns {mode, userIds} for present(); null for a hidden list.
+ */
+export function mergePresented(current, audience) {
+  const want = audiencePresented(audience);
+  if (!want) return null;
+  if (want.mode === 'all' || current?.mode === 'all') return {mode: 'all', userIds: []};
+  return {mode: 'users', userIds: [...new Set([...(current?.mode === 'users' ? current.userIds ?? [] : []), ...want.userIds])]};
+}
+/** "Hidden", "Whole party" or "2 players: Alice, Bob" (names from `userName(id)`). */
+export function audienceText(a, userName = id => id) {
+  if (a?.mode === 'party') return 'Whole party';
+  if (a?.mode === 'users' && a.userIds?.length) return `${a.userIds.length} ${a.userIds.length === 1 ? 'player' : 'players'}: ${a.userIds.map(userName).join(', ')}`;
+  return 'Hidden';
 }
 /**
  * The player view of a shown merchant list: its name, the city only once revealed (the caller decides), and the player
@@ -1436,6 +1508,7 @@ export function planShopImport(records, {mode = 'create', shops = [], services =
         importShared(rec, b);
         const kind = SERVICE_TYPES[b.type];
         if (!kind) throw Error(b.type ? `Unknown service type: ${b.type}.` : 'service.type is required.');
+        if (kind.deprecated) row.notes.push(kind.deprecated);
         if (b.settings !== undefined && !isObj(b.settings)) throw Error('service.settings must be an object.');
         const given = Object.fromEntries(Object.entries(b.settings ?? {}).map(([k, v]) => [k.replace(/_([a-z])/g, (m, c) => c.toUpperCase()), v]));
         if (old && mode === 'create') { row.result = 'kept'; row.reason = 'Already in this world; kept as it is.'; continue; }

@@ -249,7 +249,7 @@ test('GM views: Shops list with New service and a Bank row; editor with type and
  assert.equal(/data-line-field|Merchant's coins/.test(ed),false,'no item lines or coin purse for a service');
  assert.equal(gmView.recordFrom(app.shopDraft).service.settings.feePercent,10);
  const cards=gmView.shopsView({shopSub:'lists'});
- assert.match(cards,/class="ag-card-grid"/);assert.match(cards,/Players can browse/);assert.match(cards,/data-mlist-visible="MLIST-TEST-TESTFORD-MERCHANTS" checked/);assert.match(cards,/data-action="mlist-new"/);
+ assert.match(cards,/class="ag-card-grid"/);assert.match(cards,/Shared with: <span class="ag-badge ag-badge--ok">[\s\S]*?Whole party/);assert.match(cards,/data-mlist-open="MLIST-TEST-TESTFORD-MERCHANTS" data-entry="/);assert.match(cards,/data-action="mlist-new"/);
  const foot=gmView.shopsFooter({shopSub:'lists',listDraft:{id:null,name:'',shopIds:[]}});assert.match(foot,/mlist-cancel[\s\S]*mlist-save/);
  for(const h of [list,ed,cards])assert.equal(/<button[^>]*\stitle=/.test(h),false);
 });

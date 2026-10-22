@@ -197,3 +197,10 @@
 .ag-utilities .agu-ware__desc {margin-top:var(--ag-space-1);font-size:var(--ag-text-sm);}
 .ag-utilities .agu-ware__desc summary {cursor:pointer;color:var(--ag-muted);}
 .ag-utilities .agu-setup > h3 {margin-top:var(--ag-space-4);}
+/* 0.24.0: Party Fund (Change coins, log), the Items purse line, merchant list sharing and Open switches. */
+.ag-utilities .agu-fund-exchange,.ag-utilities .agu-fund-log {margin:0 0 var(--ag-space-3);padding:var(--ag-space-2) var(--ag-space-3);border:1px solid var(--ag-border);border-radius:var(--ag-radius);}
+.ag-utilities .agu-fund-exchange h3,.ag-utilities .agu-fund-log h3 {margin:0 0 var(--ag-space-2);}
+.ag-utilities .agu-fund-log .ag-toolbar h3 {margin:0;}
+.ag-utilities .agu-purse-line {flex-wrap:wrap;gap:var(--ag-space-2);margin:0 0 var(--ag-space-3);}
+.ag-utilities .agu-mlist__share {flex-wrap:wrap;gap:var(--ag-space-2);margin:0 0 var(--ag-space-2);}
+.ag-utilities .agu-mlist__open {margin:0;white-space:nowrap;}
