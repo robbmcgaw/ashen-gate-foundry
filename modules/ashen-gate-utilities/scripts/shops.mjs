@@ -10,7 +10,8 @@ import {ID,escapeHTML as E,COIN_LABELS,CP_VALUE,coinChoices,shownCoins,strandedE
 import {itemButton} from './item-tips.mjs';
 import {confirmDialog,confirmDanger,formDialog} from './ag-dialogs.mjs';
 import {subTabs,tabPanelAttrs,fileButton,bindFileButtons} from './ag-html.mjs';
-import {tip,icon,button,emptyState} from './ui-parts.mjs';
+import {tip,icon,button,emptyState,focusKey,refocus} from './ui-parts.mjs';
+import {pickShopItems,pickMerchantActor} from './keyboard-add.mjs';
 import {readDrop,resolveItemDrop,bundleOf} from './ag-item-drop.mjs';
 import {servicesAll,servicesApi,serviceSettingsHTML,serviceType,typeLabel as serviceTypeLabel,UNKNOWN_TYPE} from './services.mjs';
 import {listsView,listsFooter,bindLists,handleLists} from './merchant-lists.mjs';
@@ -329,7 +330,7 @@ const lineCategory=l=>typeLabel(l.item?.type??'item');
 /** 0.26.0: the items table has five columns (item, price, stock, hidden, remove); flavour and cost sit on a second line under each item. */
 function linesTable(d){
  const coins=coinChoices(electrumEnabled());
- if(!d.lines.length)return emptyState('No items yet','Drop items below from a character sheet, the Items sidebar, a compendium or a folder.',{icon:'fa-box-open'});
+ if(!d.lines.length)return emptyState('No items yet','Use Add item… below, or drop items from a character sheet, the Items sidebar, a compendium or a folder.',{icon:'fa-box-open'});
  const row=l=>{const it=l.item??{},qty=Number(it.system?.quantity)||1,n=lineName(l),contents=(l.contents??[]).length,coinOpts=[...new Set([...coins,l._coin])].map(c=>opt(c,c,l._coin)).join('');
   // 0.24.0: the GM sees the line's own snapshot (what is sold), as dnd5e shows it; a click opens it read only.
   const tipped=inner=>itemButton({key:`gm:${l.lineId}`,data:it,name:n,inner,cls:'agu-item-link agu-shop-item__open'});
@@ -354,7 +355,7 @@ function merchantFields(d){
  const linked=ref?`<p class="agu-merchant__linked" role="status">${icon(gone?'fa-user-slash':'fa-user-tag')}<span>${gone?`From an Actor that no longer exists (${E(ref.name||ref.id||'unknown')}); the name and art stay as they are.`:`Name and art taken from the Actor <strong>${E(ref.name||ref.id)}</strong>. Edit either by hand; the Actor is only a note.`}</span>${button('shop-merchant-clear','Clear',{kind:'sm',ic:'fa-eraser',attrs:tip('Forget the Actor and empty the merchant name and art, for typing them by hand')})}</p>`:'';
  return `<label class="ag-field">Merchant name<input type="text" maxlength="${MERCHANT_NAME_MAX}" data-shop-field="merchantName" value="${E(d.merchant?.name??'')}"></label>
   <div class="ag-field"><span>Merchant art</span><div class="agu-shop-art">${art(d.merchant,'agu-shop-art__img')}<input type="text" data-shop-field="merchantImg" value="${E(d.merchant?.img??'')}" placeholder="Image path" aria-label="Merchant art path">${button('shop-pick-art','Choose image',{kind:'sm',ic:'fa-image'})}</div><span class="ag-field__hint">Empty: the merchant's initials.</span></div>
-  <div class="ag-field ag-field--wide agu-merchant" data-merchant-drop>${linked}<div class="agu-dropzone agu-merchant__drop">${icon('fa-user-plus')} Drop an Actor (an NPC) here to use its name and portrait as the merchant. You can still change both by hand.</div></div>`;
+  <div class="ag-field ag-field--wide agu-merchant" data-merchant-drop>${linked}<div class="agu-dropzone agu-merchant__drop">${button('shop-merchant-pick','Choose Actor…',{kind:'sm',ic:'fa-user-plus'})}<span>or drop an Actor (an NPC) here to use its name and portrait as the merchant. You can still change both by hand.</span></div></div>`;
 }
 /**
  * 0.26.0: the Settlement select (Locations' settlements; a place already picked that isn't one stays, marked), for the
@@ -400,7 +401,7 @@ function editorView(app){
  ${d.saved?`<section class="ag-section agu-danger-zone"><div class="ag-section__head"><h3 class="ag-section__title">Danger zone</h3></div><p class="ag-field__hint">Deleting removes the shop and its items list. Its id is never reused.</p>${button('shop-delete','Delete shop…',{kind:'danger',ic:'fa-trash'})}</section>`:''}`;
  const items=`<section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Items for sale · ${d.lines.length}</h3>${saved?`<span class="agu-now-group">${appliesNow}${button('shop-restock','Restock…',{kind:'sm',ic:'fa-boxes-stacked',disabled:!restockable,attrs:tip('Stock back to where it started')})}</span>`:''}</div>
  ${linesTable(d)}
- <div class="agu-dropzone agu-shop-drop" data-shop-drop>${icon('fa-hand-holding')} Drop items here from a character sheet, the Items sidebar, a compendium or a folder. A container brings what is inside it. The source item is not changed.</div>
+ <div class="agu-dropzone agu-shop-drop" data-shop-drop>${button('shop-add-item','Add item…',{kind:'sm',ic:'fa-plus'})}<span>or drop items here from a character sheet, the Items sidebar, a compendium or a folder. A container brings what is inside it. The source item is not changed.</span></div>
  <p class="ag-field__hint">Price starts at the item's own price. Stock blank means unlimited; a number counts down with each sale. Hidden items and cost never reach players.</p></section>`;
  const body=tab==='items'?items:tab==='coins'?purseSection(d,saved)+buysSection(d):details;
  return `<div class="agu-shop-editor">${editorHead(d,saved,{kind:'shop'})}${subTabs({group:'agu-shop-ed',label:'Shop editor sections',tabs:ED_TABS.map(t=>({...t,count:t.id==='items'?d.lines.length:undefined})),selected:tab})}<div class="agu-subpanel" ${tabPanelAttrs('agu-shop-ed',tab)}>${body}</div></div>`;
@@ -565,6 +566,19 @@ export async function handleShops(app,action,b,{render,root}){
   case 'shop-edit':{if(d?.id!==b.dataset.shop&&!await discardOk(app))return true;const s=isSvc(b.dataset.shop)?svc().get(b.dataset.shop):get(b.dataset.shop);if(!s)throw Error(isSvc(b.dataset.shop)?'That service no longer exists.':'That shop no longer exists.');if(d?.id!==s.id)openDraft(app,s);else app.shopSub='list';break;}
   case 'shop-duplicate':{const copy=isSvc(b.dataset.shop)?await svc().duplicate(b.dataset.shop):await duplicate(b.dataset.shop);ui.notifications?.info(`Made ${copy.name}.`);break;}
   case 'shop-pick-art':openArtPicker(app,render);return true;
+  // 0.27.0 (UT-31): keyboard alternatives to the editor's drop zones; the pick goes through the drop's own function.
+  case 'shop-add-item':{
+   if(!d||d.kind==='service')return true;const key=focusKey(b);
+   try{const data=await pickShopItems({actors:game.actors??[],folders:game.folders??[],worldItems:game.items??[]});if(data)await dropIntoDraft(app,data);}
+   finally{await render();refocus(root,[key]);}
+   return true;
+  }
+  case 'shop-merchant-pick':{
+   if(!d)return true;const key=focusKey(b);
+   try{const data=await pickMerchantActor({actors:game.actors??[]});if(data)await dropMerchant(app,data);}
+   finally{await render();refocus(root,[key]);}
+   return true;
+  }
   case 'shop-merchant-clear':{if(!d)return true;d.merchant={name:'',img:''};app.shopDirty=true;app.shopStatus='Unsaved changes';break;}
   case 'shop-line-remove':{
    const line=d?.lines.find(l=>l.lineId===b.dataset.lineId);if(!line)return true;

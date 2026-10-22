@@ -1,3 +1,13 @@
+## 0.27.0 — 2026-10-22
+
+- **Keyboard and click alternatives to drag and drop** (UI audit UT-31). Each opens a small dialog (Cancel on the left, the labelled action on the right) and then does exactly what the drop does, through the same code, so the same rules and permissions apply. Dragging still works as before.
+  - **Party Inventory → Items: Add to stash…** (toolbar, also in the Character Hub's party stash). Pick the character (skipped when you own only one), then the item. The whole stack moves and a container brings what is inside it, as when you drag it. Players see only their own characters; the GM can pick any character, or copy an item from the Items sidebar. Turned off for players while the stash is off.
+  - **Take** on each stash row was already the keyboard way to take an item out (into the character in *Take into*); it still asks the party when the take-out vote is on. Focus now stays on the stash after a Take.
+  - **Shops → shop editor → Items: Add item…** — from the Items sidebar, a whole Items folder, or any Actor's inventory. Same lines as a drop; saved with Save Changes. Compendium items still need a drag (or bring them into the Items sidebar first).
+  - **Shop or service editor → Details: Choose Actor…** — the merchant's name and portrait from an Actor, as when you drop one.
+  - Shop editing stays GM only, checked in the code, not just hidden. Focus goes back to the button after the dialog closes.
+- No change to saved data, settings or the API; nothing to migrate.
+
 ## 0.26.1 — 2026-10-22
 
 - **Conditions → Apply works again** (Foundry V14, dnd5e 6). Applying any condition from the *Native condition* list showed `Invalid status ID "…" provided to Actor#toggleStatusEffect`. Two causes: every option in the list was marked selected, so the list always showed its last entry and went back to it whenever the window re-rendered (any actor or effect change), and Apply sent that status instead of the one chosen; and V14 keys `CONFIG.statusEffects` by id where Utilities expected an array. The list now reads the status list in either shape, offers each native status once (the Strain chip stays out), keeps your pick across re-renders, and only ever passes Foundry an id it knows. Older ids from API callers (`blind`, `stun`, `restrain`, …) map to the dnd5e id; unknown ids are refused with "Unknown native status." before reaching Foundry. Who may apply or remove is unchanged.

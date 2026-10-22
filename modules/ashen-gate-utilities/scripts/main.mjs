@@ -4,7 +4,8 @@ import {confirmDialog,confirmDanger,guardDirty,infoDialog,formDialog} from './ag
 import {windowSize,subTabs,tabPanelAttrs,bindTablist,fold,bindFolds,linkButton,uiState} from './ag-html.mjs';
 import {readDrop,resolveItemDrop,grantBundle} from './ag-item-drop.mjs';
 import {shopsApi,shopsView,shopsFooter,bindShops,handleShops,shopHooks,shopsDirty} from './shops.mjs';
-import {button,emptyState,rowHTML,rowsHTML,focusKey,restoreFocus} from './ui-parts.mjs';
+import {button,emptyState,rowHTML,rowsHTML,focusKey,restoreFocus,refocus} from './ui-parts.mjs';
+import {pickStashDeposit} from './keyboard-add.mjs';
 import {configureTrade,tradeApi,tradeHooks,tradeSocketHandlers,handleTrade,playerShopsView,bindPlayerShops,shopsVisible,shopsOn,shopVoteRequired,executeBuy,refreshShopWindows,postTradeCard} from './shop-buy.mjs';
 import {executeSell} from './shop-sell.mjs';
 import {servicesApi,executeServiceUse} from './services.mjs';
@@ -284,8 +285,8 @@ function historyView(app){if(!isGM())return '';
 /** Help, grouped by tab (0.26.0: the explanations that used to sit on the working screens live here). */
 function helpHtml(){const gm=isGM(),sec=(title,body)=>`<h3>${title}</h3>${body}`;
  const rolls=sec('Rolls',gm?'<p>Open <em>Start Rolls</em>, pick characters and skills, and send a roll to players. <em>Group result</em> averages everyone\'s rolls against the DC for one pass or fail (a Group Check); <em>Individual rolls</em> asks each character for one roll of one skill and shows each result (a Roll Request). Only one can run at a time; it ends when everyone has rolled, or you can end it early with <em>End &amp; Record</em>. <em>History</em> lists finished and cancelled checks.</p>':'<p>When the GM asks for a roll, roll it here for your character.</p>');
- const inv=sec('Party Inventory',`<p>The shared party stash${gm?' is an NPC Actor kept by Utilities. While it is on for players (GM Setup), they get Observer permission on it so they can read item sheets; Utilities moves items for them through the GM client. You can move items freely: drag from any sheet onto the tab, drag a row onto a sheet, or use Take':''}.${gm?'':' Drag an item from your character sheet onto the Items tab to stash it; to take one out, drag its row onto your sheet or use Take (the party may have to accept).'}</p><p><em>Party Fund</em> holds the party purse (copper to platinum${gm?'; electrum only while <em>Use electrum</em> is on in GM Setup':''}). Pick a character, then <em>Deposit</em> coins from it, <em>Take</em> coins out${gm?'':' (taking out uses the party vote when the GM has it on for coins)'}, or <em>Change coins</em> at the standard rates (${gm?'no fee unless you set one in GM Setup → Party Fund':'no fee unless the GM sets one'}). The <em>Log</em> lists who moved how much, and when.${gm?' You can also Adjust the purse directly, and Undo adjustments and takes in History.':''}</p>`);
- const shops=gm?sec('Shops','<p>In <em>Shops &amp; services</em>, build shops (and Banks, deprecated: players change coins in Party Fund), then <em>Present</em> one to all or chosen players; they buy, sell or use it until you click <em>Stop showing</em>. The shop editor has <em>Details</em>, <em>Items</em> and <em>Coins &amp; buying</em>; buttons marked <em>Applies now</em> change the saved shop at once, everything else waits for Save Changes.</p><p><em>Merchant lists</em> group the shops and services of a settlement or any group. <em>Share…</em> one with the whole party or chosen players; players can browse a shared list. Switch each store <em>Open</em> (shown to the list\'s players, so they can buy, sell or use it) or <em>Closed</em> (stops showing it to every player), or use <em>Open all</em> / <em>Close all</em>.</p>')
+ const inv=sec('Party Inventory',`<p>The shared party stash${gm?' is an NPC Actor kept by Utilities. While it is on for players (GM Setup), they get Observer permission on it so they can read item sheets; Utilities moves items for them through the GM client. You can move items freely: <em>Add to stash…</em> (from any character, or a copy from the Items sidebar) or drag from any sheet onto the tab; <em>Take</em> or drag a row onto a sheet':''}.${gm?'':' Use <em>Add to stash…</em> (or drag an item from your character sheet onto the Items tab) to stash it; to take one out, use <em>Take</em> into the character picked in <em>Take into</em>, or drag its row onto your sheet (the party may have to accept).'}</p><p><em>Party Fund</em> holds the party purse (copper to platinum${gm?'; electrum only while <em>Use electrum</em> is on in GM Setup':''}). Pick a character, then <em>Deposit</em> coins from it, <em>Take</em> coins out${gm?'':' (taking out uses the party vote when the GM has it on for coins)'}, or <em>Change coins</em> at the standard rates (${gm?'no fee unless you set one in GM Setup → Party Fund':'no fee unless the GM sets one'}). The <em>Log</em> lists who moved how much, and when.${gm?' You can also Adjust the purse directly, and Undo adjustments and takes in History.':''}</p>`);
+ const shops=gm?sec('Shops','<p>In <em>Shops &amp; services</em>, build shops (and Banks, deprecated: players change coins in Party Fund), then <em>Present</em> one to all or chosen players; they buy, sell or use it until you click <em>Stop showing</em>. The shop editor has <em>Details</em>, <em>Items</em> and <em>Coins &amp; buying</em>; buttons marked <em>Applies now</em> change the saved shop at once, everything else waits for Save Changes. <em>Add item…</em> (Items) and <em>Choose Actor…</em> (Details) do the same as dropping items or an Actor on the editor.</p><p><em>Merchant lists</em> group the shops and services of a settlement or any group. <em>Share…</em> one with the whole party or chosen players; players can browse a shared list. Switch each store <em>Open</em> (shown to the list\'s players, so they can buy, sell or use it) or <em>Closed</em> (stops showing it to every player), or use <em>Open all</em> / <em>Close all</em>.</p>')
   :shopsVisible()?sec('Shops','<p>Shops and services your GM shows you. Pick Buy, choose how many, who gets it and who pays, then confirm. <em>Merchant lists</em> shows the lists your GM shares with you: <em>Open</em> stores you can use, <em>Closed</em> ones you can only look inside.</p>'):'';
  const tables=gm?sec('Roll Tables','<p>Roll a table with Foundry\'s own draw and send the result to chat or selected players. Text, document and compendium results are supported; documents are linked in the message.</p>'):'';
  const cond=sec('Conditions',`<p>See the conditions on party characters. Conditions are locked for every character until the GM unlocks it (or turns on <em>Players apply and remove conditions on their own characters</em> in GM Setup); the owner can then apply and remove its native conditions. Condition controllers chosen by the GM can do that on every character${gm?'':controlsConditions()?' (you are one)':''}. Statuses Foundry does not list (shown as Custom) are traced to the effect that grants them, and only the GM can remove them. Read-only statuses such as the Strain chip are changed where they come from (Cinders or the Character Hub Strain bar). Automatic duration, exhaustion and concentration management are not part of Utilities. The overlay has a background slider (only for you).</p>`);
@@ -412,7 +413,8 @@ class UtilitiesApp extends ApplicationV2 {
    return;
   }
   if(action==='create-stash'){if(!isGM())throw Error('GM only.');if(stashActor())throw Error('Party Stash already exists.');await Actor.create({name:'Ashen Gate | Party Stash',type:'npc',ownership:{default:stashEnabled()?OBSERVER():0},flags:{[ID]:{partyStash:true}}});await this.render();return;}
-  if(action==='stash-take'){await notifyResult(withdrawItem(b.dataset.item,root.querySelector('#agu-stash-target')?.value));return;}
+  if(action==='stash-take'){const keys=takeFocusKeys(b);try{await notifyResult(withdrawItem(b.dataset.item,root.querySelector('#agu-stash-target')?.value));}finally{await this.render?.();refocus(root,keys);}return;}
+  if(action==='stash-add'){await addToStash(this,b,root);return;}
   if(action==='stash-history-more'){this.historyShown+=HISTORY_PAGE;await this.render();return;}
   if(action==='stash-history-clear'){if(!await confirmDanger('Clear the whole stash history? This cannot be undone.',{title:'Clear stash history?',yes:'Clear history'}))return;await clearStashHistory();this.historyShown=HISTORY_PAGE;ui.notifications?.info('Stash history cleared.');await this.render();return;}
   if(action==='gold-award'){if(await awardGoldDialog())await this.render();return;}
@@ -1087,11 +1089,34 @@ const notifyResult=p=>p.then(msg=>{if(msg)ui.notifications?.info(msg);},error);
 /** Drag data from a drop event (shared ag-item-drop parser). */
 const dragData=event=>readDrop(event);
 const stashItemFromUuid=uuid=>{const stash=stashActor();if(!stash||typeof uuid!=='string')return null;let doc=null;try{doc=fromUuidSync(uuid);}catch{}return doc?.parent&&doc.parent.id===stash.id?doc:null;};
-/** A drop on the stash list (window or embed): one Item, not a folder; dragging a stash row onto the list does nothing. */
+/**
+ * A drop on the stash list (window or embed): one Item, not a folder; dragging a stash row onto the list does nothing.
+ * 0.27.0: Add to stash… hands its pick to this same function. Resolves once the deposit has been reported.
+ */
 async function stashListDrop(data){
  const {ok,items:[item],reason}=await resolveItemDrop(data);
  if(!ok)return ui.notifications?.warn(reason);
- if(stashItemFromUuid(item.uuid))return;notifyResult(depositItem(item.uuid));
+ if(stashItemFromUuid(item.uuid))return;return notifyResult(depositItem(item.uuid));
+}
+/**
+ * 0.27.0 (UT-31): Add to stash…, the keyboard way to drop an item on the stash (window and embed). The player picks
+ * from their own characters (the GM from any, or the Items sidebar), then the pick goes through stashListDrop, so the
+ * deposit is checked again exactly as a drop is. Focus goes back to the button.
+ */
+async function addToStash(app,b,root){
+ if(!permitted())throw Error('Utilities access is hidden by the GM.');
+ if(!isGM())playerStashGate(game.user);
+ if(!stashActor())throw Error(isGM()?'Create the party stash first.':'There is no party stash yet.');
+ const key=focusKey(b);
+ try{
+  const data=await pickStashDeposit({characters:isGM()?allCharacters():permittedActors(),gm:isGM(),worldItems:isGM()?game.items?.contents??[]:[],preferred:app.takeActorId});
+  if(data)await stashListDrop(data);
+ }finally{await app.render?.();refocus(root,[key]);}
+}
+/** After Take: the same button if the item is still there (refused or kept), else the next row's Take, else Add to stash…. */
+function takeFocusKeys(b){
+ const row=b?.closest?.('tr'),near=row?.nextElementSibling?.querySelector?.('[data-action="stash-take"]')??row?.previousElementSibling?.querySelector?.('[data-action="stash-take"]');
+ return [focusKey(b),near?focusKey(near):null,'button[data-action="stash-add"]','#agu-stash-search'];
 }
 /** Native actor-sheet drops: out of the stash goes through consent, into the stash is a move, not a copy. */
 function onSheetDrop(actor,sheet,data){
@@ -1121,9 +1146,9 @@ function stashBody(app,{purse=true}={}){
  const gid=g=>`agu-stash-g-${E(g.replace(/\W+/g,'-'))}`;
  const table=groups.map(g=>{const list=shown.filter(r=>r.typeLabel===g);return `<section class="agu-stash-group"><h3 class="ag-eyebrow" id="${gid(g)}">${E(g)} · ${list.length}</h3><div class="ag-table-wrap"><table class="ag-table agu-stash-table" aria-labelledby="${gid(g)}">${head}<tbody>${list.map(stashRowHTML).join('')}</tbody></table></div></section>`;}).join('');
  const count=q?`${shown.length} of ${rows.length}`:`${rows.length} ${rows.length===1?'item':'items'}`;
- const toolbar=`<div class="ag-toolbar"><label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="agu-stash-search" placeholder="Search items" value="${E(app.filter)}" aria-label="Search the stash"></label>${takers.length?`<div class="ag-toolbar__filters"><label class="ag-field ag-field--inline agu-take-into">Take into<select id="agu-stash-target">${takers.map(a=>option(a.id,a.name,target)).join('')}</select></label></div>`:''}<span class="ag-toolbar__count">${E(count)}</span></div>`;
- const note=isGM()?'':`<p class="ag-field__hint">Drag an item from your character sheet onto this tab to stash it. To take one out, drag its row onto your sheet or use Take${stashVoteRequired()?'; every other connected player must accept':''}.</p>`;
- return (purse?purseStrip(app,takers,target):purseLine1())+toolbar+(rows.length?(table||empty('Nothing matches','Clear the search to see every item.')):empty('No items yet','Drag an item from a character sheet onto this tab.',{icon:'fa-box-open'}))+`<div class="agu-dropzone"><i class="fa-solid fa-hand-holding" aria-hidden="true"></i> Drop items anywhere on this tab to put them in the stash</div>`+note;
+ const toolbar=`<div class="ag-toolbar"><label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="agu-stash-search" placeholder="Search items" value="${E(app.filter)}" aria-label="Search the stash"></label>${takers.length?`<div class="ag-toolbar__filters"><label class="ag-field ag-field--inline agu-take-into">Take into<select id="agu-stash-target">${takers.map(a=>option(a.id,a.name,target)).join('')}</select></label></div>`:''}<span class="ag-toolbar__count">${E(count)}</span>${isGM()||takers.length?`<div class="ag-toolbar__end">${btn('stash-add','Add to stash…',{kind:'sm',icon:'fa-plus'})}</div>`:''}</div>`;
+ const note=isGM()?'':`<p class="ag-field__hint">Use Add to stash…, or drag an item from your character sheet onto this tab, to stash it. To take one out, use Take or drag its row onto your sheet${stashVoteRequired()?'; every other connected player must accept':''}.</p>`;
+ return (purse?purseStrip(app,takers,target):purseLine1())+toolbar+(rows.length?(table||empty('Nothing matches','Clear the search to see every item.')):empty('No items yet','Use Add to stash…, or drag an item from a character sheet onto this tab.',{icon:'fa-box-open'}))+`<div class="agu-dropzone"><i class="fa-solid fa-hand-holding" aria-hidden="true"></i> Drop items anywhere on this tab to put them in the stash</div>`+note;
 }
 const STASH_SUBS=[{id:'items',label:'Items'},{id:'fund',label:'Party Fund'},{id:'history',label:'History'}];
 function stashPanel(app){
@@ -1262,7 +1287,7 @@ async function openStash(){
    The same Items/purse markup as the Party Inventory tab, mounted into the caller's element. Every action goes through
    the same entry points as the window (depositItem, withdrawItem, depositCoins, takeCoins, adjustPurseDialog), so the
    same gates apply: GM always; players need Player Access and the stash on; take-outs keep the party vote. ---- */
-const EMBED_ACTIONS=new Set(['stash-take','purse-deposit','purse-take','purse-adjust','purse-convert']);
+const EMBED_ACTIONS=new Set(['stash-take','stash-add','purse-deposit','purse-take','purse-adjust','purse-convert']);
 const EMBED_MODES=new Set(['stash']);
 const embeds=new Set();
 /** HTML for one embed: a refusal note when this user may not see the stash, else the stash body (purse + items). */

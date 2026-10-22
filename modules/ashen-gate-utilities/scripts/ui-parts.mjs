@@ -35,3 +35,12 @@ export function restoreFocus(root,key){
  if(!el||el.disabled||typeof el.focus!=='function')return false;
  el.focus({preventScroll:true});return true;
 }
+/**
+ * 0.27.0: after a dialog closes and the view re-renders, focus the first control `keys` still names (the button that
+ * opened it, usually). Leaves focus alone when the user has already moved on to something outside `root`.
+ */
+export function refocus(root,keys){
+ const doc=globalThis.document,active=doc?.activeElement;
+ if(active&&active!==doc?.body&&root?.contains?.(active)===false)return false;
+ return [].concat(keys).filter(Boolean).some(k=>restoreFocus(root,k));
+}
