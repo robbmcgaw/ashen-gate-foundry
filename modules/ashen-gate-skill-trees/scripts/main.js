@@ -18,7 +18,7 @@ import {QA_FIXTURE,QA_TREES,qaTreeLayouts,qaSourceItems,qaActorData,isQaDocument
 
 /** Skill Trees: perk-assigned nodes, private GM definitions, GM-side unlocks that add the perk Item to the sheet. */
 const MODULE='ashen-gate-skill-trees';
-const VERSION='0.19.4';
+const VERSION='0.19.5';
 const SOCKET=`module.${MODULE}`;
 const {ApplicationV2,HandlebarsApplicationMixin,DialogV2}=foundry.applications.api;
 const STORAGE_FLAG='privateStore';
@@ -1184,8 +1184,9 @@ class SkillTreeApp extends HandlebarsApplicationMixin(ApplicationV2) {
     if(!game.user.isGM||!this.tree||!this.actor)throw Error('GM and character required');
     const actor=this.actor,entry=readProgress(actor,this.tree).history.find(h=>h.id===entryId);if(!entry)throw Error('That change is no longer in the history');
     const node=this.tree.nodes.find(n=>n.id===entry.nodeId)?.name??entry.nodeId;
-    const what={allocate:`take back the pick of <strong>${escape(node)}</strong> (the perk leaves the sheet, the point returns)`,override:`take back the GM grant of <strong>${escape(node)}</strong> (the perk leaves the sheet)`,
-      remove:`put <strong>${escape(node)}</strong> back${entry.itemSnapshot?' exactly as it was on the sheet':' (a fresh copy of the perk)'}`,keep:`stop keeping <strong>${escape(node)}</strong> (it may be flagged for review again)`}[entry.kind];
+    // Plain text: confirmDialog escapes the message itself (no markup, no pre-escaping).
+    const what={allocate:`take back the pick of ${node} (the perk leaves the sheet, the point returns)`,override:`take back the GM grant of ${node} (the perk leaves the sheet)`,
+      remove:`put ${node} back${entry.itemSnapshot?' exactly as it was on the sheet':' (a fresh copy of the perk)'}`,keep:`stop keeping ${node} (it may be flagged for review again)`}[entry.kind];
     if(!await confirm(`Undo for ${actor.name}: ${what}?`,{title:'Undo this change?',yes:'Undo change',danger:true}))return;
     const r=await undoHistory(actor,this.tree.id,entryId);
     notify(`Undone: ${r.node}${r.restored?` restored to ${actor.name}`:''}${r.removed.length?`; removed ${r.removed.join(', ')}`:''}.`);
