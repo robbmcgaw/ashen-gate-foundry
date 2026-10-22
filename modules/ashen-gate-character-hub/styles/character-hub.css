@@ -8,7 +8,12 @@
 .application.ag-app.agch-app > .window-header { background: var(--agch-bg-sunken); }
 /* Compact see-through (0.29.0, experimental, compact-opacity.mjs): only Compact sets --agch-compact-alpha (60-100 %);
    only the window background fades. Full never sets it, so it stays opaque. Remove this block to drop the feature. */
-.agch-app { --agch-bg: color-mix(in srgb, var(--ag-surface) var(--agch-compact-alpha, 100%), transparent); }
+.agch-app { --agch-bg: color-mix(in srgb, var(--ag-surface) var(--agch-compact-alpha, 100%), transparent);
+  --agch-bg-raised-fade: color-mix(in srgb, var(--ag-surface-raised) var(--agch-compact-alpha, 100%), transparent); }
+/* 0.29.4: the Compact column filled almost the whole window with an opaque gradient, so the slider seemed to do nothing.
+   It fades with the window now; the art, HP box, slots, header and text stay solid. No blur behind a see-through window. */
+.agch-app .agch-root--compact .agch-char--compact { background: radial-gradient(ellipse at 50% 28%, var(--agch-bg-raised-fade), var(--agch-bg) 72%); }
+.application.ag-app.agch-app.agch-see-through { backdrop-filter: none; }
 .agch-app .agch-cfade { display: inline-flex; gap: var(--ag-space-1); align-items: center; color: var(--ag-muted); }
 .agch-app .agch-cfade input { width: 5rem; height: auto; padding: 0; accent-color: var(--ag-accent); }
 /* As in 0.10.0-0.28.x at 100 %: the window itself is painted once; core/theme layers on top of it stay off. */
