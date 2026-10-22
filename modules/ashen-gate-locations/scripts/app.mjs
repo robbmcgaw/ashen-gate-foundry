@@ -1,7 +1,9 @@
 /** The Locations window: GM builder (list + editor + GM Setup) and the player viewer, one class. */
 import {MODULE_ID, THREATS, FIELDS, SECTIONS, BLOCKS, DETAIL_PREFIX, LOOT_STATUSES, LOOT_STATUS_LABELS, NOTE_DOC_TYPES, FACTION_DOC_TYPES, GATHERING, STATES, STATE_LABELS,
   DEFAULT_UNIDENTIFIED_LABEL, PIN_DEFAULTS, esc, clone, threatLabel, normalizeLocation, normalizeLayout, reorder, effectiveConditions, newKey, newNode, nodeName, materialIdOf,
-  hasUnpublishedChanges, wouldCycle, parentMap, PARTY_NOTES, isPlaceable, passesConditions, EXOTIC_MODES, EXOTIC_CONDITIONS, normalizeExotics, isTierDefaultDc} from './model.mjs';
+  hasUnpublishedChanges, wouldCycle, parentMap, PARTY_NOTES, isPlaceable, passesConditions, EXOTIC_MODES, EXOTIC_CONDITIONS, normalizeExotics, isTierDefaultDc,
+  isNodeRef, activityLabel, ACTIVITY_LABELS} from './model.mjs';
+import {nodeTemplates, openNodesTab} from './ledger-nodes.mjs';
 import {GROUP_MODES, SORTS, emptyFilters, hasFilters, searchText, matchesQuery, applyFilters, filterOptions, comparator, groupRows} from './list-filter.mjs';
 import {buildTree, withAncestors, breadcrumb, moveTargets, VIEW} from './tree.mjs';
 import {routesMixin} from './routes-ui.mjs';
@@ -24,6 +26,22 @@ const eye = (bind, on, what) => `<label class="agl-eye"${tip(`${on ? 'Visible' :
 /** "section:key" -> [section, key] (a key may itself contain a colon). */
 const splitEntry = v => { const i = v.indexOf(':'); return [v.slice(0, i), v.slice(i + 1)]; };
 const NUMERIC = new Set(['tier', 'dc', 'quantity', 'rareQuantity']);
+/** A template reference's optional overrides: '' (blank / "Template") stores null, so the template's value applies. */
+const REF_OPTIONAL = new Set(['tier', 'dc', 'dcVisible', 'finite']);
+const refValue = (field, value) => value === '' || value == null ? null : field === 'dcVisible' || field === 'finite' ? value === true || value === 'true' : Number(value);
+/** A node template's tier range, "1–3" or "2". */
+const tierRange = t => t.tier.min === t.tier.max ? `${t.tier.min}` : `${t.tier.min}–${t.tier.max}`;
+/** A read-only summary of a template's material tables (GM only: chances are shown here, never to players). */
+export function materialsSummary(t, names = new Map()) {
+  const name = id => names.get(id) ?? id;
+  const row = e => `${name(e.materialId)}${e.quantity > 1 ? ` ×${e.quantity}` : ''}${e.chance ? ` (${e.chance}%)` : ''}`;
+  const m = t.materials ?? {};
+  const parts = [];
+  if (m.common?.length) parts.push(`Common: ${m.common.map(row).join(', ')}`);
+  if (m.rare?.length) parts.push(`Rare (by 5+): ${m.rare.map(row).join(', ')}`);
+  if (m.exotic?.length) parts.push(`Exotic: ${m.exotic.length} candidate${m.exotic.length === 1 ? '' : 's'}`);
+  return parts.join(' · ') || 'No materials: the GM awards it by hand';
+}
 /** MAT-* id -> Item name, for the pickers and list search. */
 function materialNames() {
   const seen = new Map();
@@ -505,9 +523,10 @@ export class LocationsApp extends Base {
     const addText = (key, placeholder) => `<input type="text" id="agl-add-${key}" placeholder="${placeholder}">${btn('add-text', 'Add', {kind: 'sm', data: {section: key}, icon: 'fa-solid fa-plus'})}`;
     const text = (bind, v, placeholder, aria) => `<input type="text" data-bind="${esc(bind)}" value="${esc(v)}" placeholder="${esc(placeholder)}" aria-label="${esc(aria)}">`;
 
+    const nodes = nodeTemplates();
     const resources = d.resources.length ? `<datalist id="agl-skills">${GATHERING.skills.map(k => `<option value="${esc(k)}">`).join('')}</datalist>
       <datalist id="agl-mats">${materialOptions()}</datalist>
-      <ul class="ag-list agl-nodes">${d.resources.map(e => this.nodeHtml(e, entryTools, docLink)).join('')}</ul>` : '';
+      <ul class="ag-list agl-nodes">${d.resources.map(e => isNodeRef(e) ? this.nodeRefHtml(e, nodes, entryTools) : this.nodeHtml(e, entryTools, docLink)).join('')}</ul>` : '';
     const factions = rows('factions', e => `<span class="agl-entry">${docLink(e.label, e.uuid)}</span>`);
     const questRows = rows('quests', e => {
       const name = questName(e.questId, quests);
@@ -558,7 +577,7 @@ export class LocationsApp extends Base {
       description: block('description', 'Description', 'Description', `<div class="agl-field__row"><textarea id="agl-description" rows="4" data-bind="description" aria-label="Description">${esc(d.description)}</textarea>${eye('show.description', d.show.description, 'Description')}</div>`, '', ''),
       conditions: sec('conditions', conditions, `${addText('conditions', 'Condition name')}`, passesConditions(d) ? 'No conditions yet. Those you add here apply to every place inside this Region.' : 'No conditions. Places inside a Region that passes its conditions down show them here.'),
       children: this.childrenHtml(d, all, block),
-      resources: sec('resources', resources, addText('resources', 'Custom node name'), 'Drop material Items here, or add a custom gathering node.'),
+      resources: sec('resources', resources, `${this.nodePickHtml(nodes)}${addText('resources', 'Custom node name')}`, 'Drop material Items here, add a node template from the Profession Ledger, or add a custom gathering node.'),
       factions: sec('factions', factions, addText('factions', 'Custom faction name'), 'Drop Actors or Journals here, or add a custom faction.'),
       quests: sec('quests', questRows, questAdd, 'No quests linked.'),
       related: sec('related', relatedRows, relatedAdd, 'No related locations.'),
@@ -721,6 +740,56 @@ export class LocationsApp extends Base {
           : e.finite ? btn('exhaust', 'Mark exhausted', {kind: 'sm', data: {key: e.key}}) : ''}
       </div>${this.exoticHtml(e)}</li>`;
   }
+  /** 1.18.0: add a gathering entry that refers to a Ledger node template, grouped by activity. Without the Ledger: a note. */
+  nodePickHtml(nodes) {
+    if (!nodes.ok) return `<p class="agl-hint agl-node-pick__note">${esc(nodes.message)}</p>`;
+    const groups = [...Object.keys(ACTIVITY_LABELS).map(k => [ACTIVITY_LABELS[k], nodes.list.filter(t => t.activity === k)]),
+      ['No activity set', nodes.list.filter(t => !ACTIVITY_LABELS[t.activity])]].filter(([, l]) => l.length);
+    const opts = groups.map(([label, list]) => `<optgroup label="${esc(label)}">${list.map(t => `<option value="${esc(t.id)}">${esc(t.name)} (tier ${esc(tierRange(t))})</option>`).join('')}</optgroup>`).join('');
+    return `<div class="agl-node-pick"><select id="agl-add-node-template" aria-label="Node template"><option value="">${opts ? 'Choose a node template…' : 'No node templates yet'}</option>${opts}</select>
+      ${btn('add-node-template', 'Add node', {kind: 'sm', icon: 'fa-solid fa-plus', title: 'Add a gathering entry that uses this Profession Ledger node template'})}
+      ${btn('open-ledger-nodes', 'Gathering Nodes', {kind: 'ghost sm', icon: 'fa-solid fa-up-right-from-square', title: 'Open the Profession Ledger on its Gathering Nodes tab'})}</div>`;
+  }
+  /**
+   * 1.18.0: a gathering entry that refers to a Ledger node template. The template's name, activity, tier range and
+   * materials are read only (the Ledger owns them); this place's label, tier, DC, finite, availability and note are editable.
+   * A deleted template keeps the entry and its data, with a warning.
+   */
+  nodeRefHtml(e, nodes, entryTools) {
+    const b = f => `data-bind="resources.${esc(e.key)}.${f}"`;
+    const t = nodes.ok ? nodes.list.find(n => n.id === e.nodeId) ?? null : null;
+    const range = t ? Array.from({length: t.tier.max - t.tier.min + 1}, (_, i) => t.tier.min + i) : [1, 2, 3, 4, 5];
+    const tier = e.tier != null && range.includes(e.tier) ? e.tier : range[0];
+    const outside = t && e.tier != null && !range.includes(e.tier);
+    const finite = e.finite ?? t?.finite ?? true;
+    const tplDc = t?.dc ?? GATHERING.dcByTier[tier];
+    const yesNo = (f, v, yes, no, tplValue) => `<select ${b(f)} aria-label="${esc(f === 'finite' ? 'Finite' : 'Players see the DC')}">
+        <option value="" ${v == null ? 'selected' : ''}>Template${tplValue == null ? '' : ` (${tplValue ? yes : no})`}</option>
+        <option value="true" ${v === true ? 'selected' : ''}>${yes}</option><option value="false" ${v === false ? 'selected' : ''}>${no}</option></select>`;
+    const info = t ? `<span class="agl-node__tpl"><strong>${esc(t.name)}</strong> · ${esc(activityLabel(t.activity) || 'No activity set')} · Tier ${esc(tierRange(t))}
+        <small>${esc(materialsSummary(t, materialNames()))}</small></span>`
+      : nodes.ok ? `<span class="ag-badge ag-badge--warn">Node template ${esc(e.nodeId)} no longer exists</span>
+        <small>This place keeps its own data. Nothing can be gathered here until you add another node template and remove this entry.</small>`
+      : `<span class="ag-badge">Node template ${esc(e.nodeId)}</span><small>${esc(nodes.message)}</small>`;
+    return `<li class="agl-node agl-node--ref${e.visible ? '' : ' agl-hidden'}${e.exhausted ? ' agl-exhausted' : ''}" data-entry="resources:${esc(e.key)}">
+      <div class="agl-node__row">
+        <span class="agl-handle" draggable="true" data-drag-entry="resources:${esc(e.key)}" tabindex="0" role="button" aria-label="Move this node. Drag, or press Alt+Up or Alt+Down."${tip('Drag to reorder (Alt+Up / Alt+Down)')}><i class="fa-solid fa-grip-vertical" aria-hidden="true"></i></span>
+        <input type="text" class="agl-node__name" ${b('label')} value="${esc(e.label)}" placeholder="${esc(t?.name ?? 'Name at this place')}" aria-label="Name at this place">
+        <label class="ag-field ag-field--inline agl-mini">Tier<select ${b('tier')}>${range.map(n => `<option value="${n}" ${tier === n ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+        <label class="ag-field ag-field--inline agl-mini">DC<input type="number" min="1" max="40" step="1" ${b('dc')} value="${e.dc ?? ''}" placeholder="${esc(tplDc)}"></label>
+        <label class="ag-field ag-field--inline agl-mini">Players see DC${yesNo('dcVisible', e.dcVisible, 'Shown', 'Hidden', t?.dcVisible)}</label>
+        <span class="agl-tools">${entryTools('resources', e)}</span>
+      </div>
+      <div class="agl-node__row">${info}${t || nodes.reason !== 'absent' ? btn('open-ledger-nodes', 'Open in Ledger', {kind: 'ghost sm', icon: 'fa-solid fa-up-right-from-square', title: 'Open the Profession Ledger on its Gathering Nodes tab'}) : ''}
+        ${outside ? `<span class="ag-badge ag-badge--warn">Tier ${e.tier} is outside the template's range: tier ${tier} is used</span>` : ''}</div>
+      <div class="agl-node__row">
+        <label class="ag-field ag-field--inline agl-mini">Finite${yesNo('finite', e.finite, 'Finite', 'Not finite', t?.finite)}</label>
+        <label class="ag-field ag-field--inline agl-switch"><input type="checkbox" data-toggle="resources.${esc(e.key)}.available" ${e.available ? 'checked' : ''}> Available</label>
+        <input type="text" class="agl-node__note" ${b('note')} value="${esc(e.note)}" placeholder="Note for this place" aria-label="Note">
+        ${e.exhausted ? `<span class="ag-badge">Exhausted</span>${btn('restore', 'Restore', {kind: 'sm', icon: 'fa-solid fa-rotate-left', data: {key: e.key}})}`
+          : finite ? btn('exhaust', 'Mark exhausted', {kind: 'sm', data: {key: e.key}}) : ''}
+      </div></li>`;
+  }
   /** Optional Exotic candidates for a node (GM only, never published). Picked by name from the imported catalog. */
   exoticHtml(e) {
     const names = materialNames(), list = normalizeExotics(e.exotics), chosen = new Set(list.map(x => x.materialId));
@@ -809,7 +878,7 @@ export class LocationsApp extends Base {
     if (!this.gm) return;
     for (const el of root.querySelectorAll('[data-bind]')) el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => {
       this.setPath(el.dataset.bind, el.value);
-      if (['threat', 'img', 'parentLocationId'].includes(el.dataset.bind) || el.dataset.bind.endsWith('.tier')) this.render();
+      if (['threat', 'img', 'parentLocationId'].includes(el.dataset.bind) || /\.(?:tier|finite|dcVisible)$/.test(el.dataset.bind)) this.render();
     });
     for (const el of root.querySelectorAll('[data-toggle]')) el.addEventListener('change', () => { this.setPath(el.dataset.toggle, el.checked); this.render(); });
     // Exotic candidate fields: "<node key>|<MAT id>|mode|chance|condition".
@@ -907,10 +976,11 @@ export class LocationsApp extends Base {
     const [a, b, c] = path.split('.');
     if (Array.isArray(this.draft[a])) {
       const e = this.draft[a].find(x => x.key === b);
-      if (e && NUMERIC.has(c)) value = Number(value);
+      if (e && a === 'resources' && isNodeRef(e) && REF_OPTIONAL.has(c)) value = refValue(c, value);
+      else if (e && NUMERIC.has(c)) value = Number(value);
       // Changing the tier moves the DC with it, unless the GM had set a custom DC.
       if (e && c === 'tier' && isTierDefaultDc(e.dc, e.tier)) e.dc = GATHERING.dcByTier[value] ?? e.dc;
-      if (e && c === 'finite' && !value) e.exhausted = false;
+      if (e && c === 'finite' && value === false) e.exhausted = false;
       if (e) e[c] = value;
     }
     else if (b) this.draft[a][b] = path === 'pin.size' ? Number(value) || 0 : value;
@@ -1109,6 +1179,14 @@ export class LocationsApp extends Base {
         if (!value) return;
         return section === 'resources' ? this.addNode({label: value}) : this.addEntry(section, {label: value, uuid: '', docType: '', note: '', ...(section === 'loot' ? {status: 'available'} : {})});
       }
+      case 'add-node-template': {
+        const id = root.querySelector('#agl-add-node-template')?.value;
+        if (!id) return;
+        const nodes = nodeTemplates(), t = nodes.ok ? nodes.list.find(n => n.id === id) : null;
+        if (!t) throw new Error(nodes.ok ? `Node template ${id} no longer exists.` : nodes.message);
+        return this.addNode({nodeId: t.id, tier: t.tier.min});
+      }
+      case 'open-ledger-nodes': if (!openNodesTab()) ui.notifications.warn('Profession Ledger is not active.'); return;
       case 'exhaust': case 'restore': {
         const exhausted = action === 'exhaust';
         // With no other unsaved edits, save straight away: this is a mid-session click.
@@ -1285,6 +1363,7 @@ export class LocationsApp extends Base {
       <li><strong>New Location</strong>, type a name. The ID is made for you.</li>
       <li>Drop material Items on <em>Gathering Resources</em>, Actors/Journals on <em>Factions</em>, anything on <em>Notes</em>. Or type a custom entry.</li>
       <li>Each gathering node has a skill, tier and DC (10/12/15/18/20 by tier; a DC you set stays). Optional <em>Exotic materials</em> on a node make them findable on a successful check through the Profession Ledger (GM only, never shown to players). <strong>Mark exhausted</strong> after a node is used or a check fails; <strong>Restore</strong> undoes it. Players only see the DC if you turn on its <i class="fa-solid fa-eye"></i>.</li>
+      <li><strong>Node templates</strong> (Profession Ledger 0.25.0+): choose one under <em>Gathering Resources</em> and click <strong>Add node</strong>. The Ledger owns its activity, tier range, check and materials (shown read only; <strong>Gathering Nodes</strong> opens the Ledger to edit them); you set this place's name, tier, DC, finite, availability and note. Leave a field on <em>Template</em> to use the template's value. If the template is deleted the entry stays, marked, with its data.</li>
       <li>Each location is <strong>Hidden</strong> (players see nothing), <strong>Unidentified</strong> (players see only its label and teaser) or <strong>Revealed</strong>. The buttons next to the name change it.</li>
       <li><strong>Save Changes</strong> is private. Players see edits only after <strong>Publish</strong> (or Reveal). <strong>Player Preview</strong> shows what they would see.</li>
       <li>The <i class="fa-solid fa-eye"></i> toggles decide what players see once revealed, and each section has its own switch.</li>

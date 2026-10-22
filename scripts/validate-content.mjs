@@ -31,7 +31,7 @@ import { flagWarnings } from '../modules/ashen-gate-manager/scripts/item-effects
 import { detectSpecialistFile, describeUnrecognized } from '../modules/ashen-gate-manager/scripts/specialist-handoff.js';
 import { readImportBundle } from '../modules/ashen-gate-manager/scripts/zip-import.js';
 import { createSceneMoods } from '../modules/ashen-gate-manager/scripts/scene-moods.js';
-import { importRecords, normalizeExotics as locationExotics } from '../modules/ashen-gate-locations/scripts/model.mjs';
+import { importRecords, normalizeExotics as locationExotics, NODE_ID as LOCATION_NODE_ID } from '../modules/ashen-gate-locations/scripts/model.mjs';
 import { importRouteRecords } from '../modules/ashen-gate-locations/scripts/routes.mjs';
 import { planQuestImport } from '../modules/ashen-gate-quest-manager/scripts/core.mjs';
 import { validatePackage as validateTrees } from '../modules/ashen-gate-skill-trees/scripts/engine.mjs';
@@ -101,7 +101,7 @@ const ownerEngines = {[MODIFIER_SCOPES.cinder.moduleId]: cinderEngine};
 const ownerGame = {modules: new Map(Object.entries(ownerEngines).map(([id, engine]) => [id,
   {active: true, api: typeof engine.validateModifiers === 'function' ? {modifiers: {validate: engine.validateModifiers}} : {}}]))};
 
-function domainChecks(pkg) {
+function domainChecks(pkg, knownIds = new Set()) {
   const errors = [], notes = [];
   const ids = new Set(pkg.records.map(r => r.id));
   const owned = modifierDefinitionChecks(ownerGame, pkg.records);
@@ -155,6 +155,18 @@ function domainChecks(pkg) {
       const src = locations.find(x => x.id === loc.id)?.location ?? {};
       // A value the normaliser silently drops or changes means the author wrote something Locations does not keep.
       for (const [i, node] of (src.resources ?? []).entries()) {
+        // Locations 1.18.0: an entry with a nodeId refers to a Profession Ledger node template, which owns its check and materials.
+        if (node && typeof node === 'object' && node.nodeId !== undefined) {
+          const where = `${loc.id}: resources[${i}]`;
+          if (!LOCATION_NODE_ID.test(String(node.nodeId))) { errors.push(`${where}.nodeId ${JSON.stringify(node.nodeId)} is not a NODE-* id (NODE- then capitals, digits and single hyphens, e.g. NODE-TEST-RIVER-REEDS).`); continue; }
+          const kept = loc.resources.find(r => r.nodeId === node.nodeId && r.key === String(node.key ?? node.id ?? r.key));
+          const inline = ['skill', 'materialId', 'quantity', 'rareMaterialId', 'rareQuantity', 'exotics', 'uuid'].filter(k => node[k] !== undefined);
+          if (inline.length) errors.push(`${where} refers to ${node.nodeId}, so ${inline.join(', ')} belong${inline.length === 1 ? 's' : ''} to the node template in Profession Ledger; Locations drops ${inline.length === 1 ? 'it' : 'them'}.`);
+          for (const k of ['tier', 'dc', 'dcVisible', 'finite', 'exhausted', 'available', 'visible'])
+            if (node[k] !== undefined && node[k] !== null && node[k] !== kept?.[k]) errors.push(`${where}.${k} ${JSON.stringify(node[k])} was changed to ${JSON.stringify(kept?.[k] ?? null)}.`);
+          if (!knownIds.has(node.nodeId)) notes.push(`${where} refers to node template ${node.nodeId}: it must exist in Profession Ledger > Gathering Nodes (0.25.0+), or the entry shows "no longer exists" and nothing can be gathered there.`);
+          continue;
+        }
         const kept = loc.resources[i];
         if (!kept) { errors.push(`${loc.id}: resources[${i}] dropped (needs a label, materialId, rareMaterialId or uuid).`); continue; }
         for (const k of ['tier', 'dc', 'quantity', 'rareQuantity', 'materialId', 'rareMaterialId'])
@@ -260,7 +272,7 @@ export async function checkContent(data, filename = '', {knownIds = new Set()} =
   try { pkg = compilePackage(data); } catch (e) { return {kind: 'manager', errors: [e.message], notes: []}; }
   const errors = validatePackage(pkg, new Map());
   if (errors.length) return {kind: 'manager', errors, notes: []};
-  const extra = domainChecks(pkg);
+  const extra = domainChecks(pkg, knownIds);
   return {kind: 'manager', errors: extra.errors, notes: extra.notes};
 }
 
