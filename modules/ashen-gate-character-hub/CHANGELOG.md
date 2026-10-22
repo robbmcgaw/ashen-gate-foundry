@@ -1,3 +1,8 @@
+## 0.33.1 — 2026-10-22
+
+- **Compact fits its window again.** At the default Compact size the ability and save row sat half under the bottom edge (the column was about 120 px taller than its box). Now the rings and trinkets row sits under the art, the paper doll shrinks (down to small slots) before the column has to scroll, Cinders and **Configure…** share one row under the name, an empty **Other equipped** is left out (it shows as soon as something is in it), the marks strip says just "No marks" (where marks come from is in its **?** button) and the quick bar keeps its ten slots on one row. In a very small window the column still scrolls on its own; header and hotbars stay put.
+- Full is unchanged. Saved data: no change. No migration.
+
 ## 0.33.0 — 2026-10-22
 
 UI cleanup (audit `docs/ui-audit-2026-10.md`, decisions `docs/ui-audit-decisions-2026-10.md`). Same features, less crowding, better keyboard use.

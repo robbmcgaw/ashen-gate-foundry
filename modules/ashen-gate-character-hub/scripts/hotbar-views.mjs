@@ -28,14 +28,16 @@ export function strainChip(actor) {
   return `<span class="ag-badge${tone} agch-hotbar__strain" data-tooltip="${esc(tip)}" aria-label="${esc(tip)}"><i class="fa-solid fa-fire" aria-hidden="true"></i> Strain ${esc(m.label)}${m.band ? ` · ${esc(m.band)}` : ''}</span>`;
 }
 
-function marksBar(actor, off) {
+function marksBar(actor, off, compact = false) {
   const marks = availableMarks(actor), placed = placedMarks(actor), n = targetedTokens().length;
   const buttons = marks.map(a => `<button type="button" class="agch-hotbtn" data-action="mark-apply" data-mark="${esc(a.mark.id)}"${tooltipAttrs(a.sourceUuids?.[0] ?? null, `${a.label}: put on or take off your targeted token${n === 1 ? '' : 's'} (from ${a.sources.join(', ')})`)} aria-label="${esc(`${a.label}: put on or take off your targeted token${n === 1 ? '' : 's'}`)}"${off ? ' disabled' : ''}>
       <img src="${esc(a.mark.icon)}" alt=""><span>${esc(a.label)}</span></button>`).join('');
   const onTargets = placed.length ? `<ul class="agch-placed" aria-label="Marks you placed">${placed.map(p => `<li><img src="${esc(p.mark.icon)}" alt=""> ${esc(p.tokenName)}: ${esc(p.mark.label)}
       <button type="button" class="agch-placed__off" data-action="mark-remove" data-scene="${esc(p.sceneId)}" data-token="${esc(p.tokenId)}" data-mark="${esc(p.mark.id)}" data-tooltip="Take ${esc(p.mark.label)} off ${esc(p.tokenName)}" aria-label="Take ${esc(p.mark.label)} off ${esc(p.tokenName)}"${off ? ' disabled' : ''}><i class="fa-solid fa-xmark" aria-hidden="true"></i></button></li>`).join('')}</ul>` : '';
-  const empty = '<span class="agch-muted agch-marks__empty">No marks: they come from equipped weapons with a mastery you know, and from spells like Hunter\'s Mark or Hex.</span>';
-  const help = 'Mastery & marks: target a token (T), then click a mark to put it on your targets or take it off. Tracking only: nothing is automated.';
+  const from = 'they come from equipped weapons with a mastery you know, and from spells like Hunter\'s Mark or Hex.';
+  // 0.33.1: Compact says "No marks" on one line; where they come from moves into the help button.
+  const empty = `<span class="agch-muted agch-marks__empty">${compact ? 'No marks' : `No marks: ${from}`}</span>`;
+  const help = `Mastery & marks: target a token (T), then click a mark to put it on your targets or take it off. Tracking only: nothing is automated.${compact && !marks.length ? ` Marks: ${from}` : ''}`;
   return `<div class="agch-marks"><div class="agch-marks__list">${buttons || empty}${onTargets}</div>
     <div class="agch-marks__end"><span class="agch-muted agch-hotbar__targets"><i class="fa-solid fa-crosshairs" aria-hidden="true"></i> ${n ? `${n} target${n === 1 ? '' : 's'}` : 'No target'}</span>${strainChip(actor)}<span class="agch-marks__title">Mastery &amp; marks</span><button type="button" class="agch-marks__help" data-tooltip="${esc(help)}" aria-label="${esc(help)}"><i class="fa-solid fa-circle-question" aria-hidden="true"></i></button></div></div>`;
 }
@@ -47,12 +49,12 @@ function quickBar(actor, off) {
 }
 
 /** Both hotbars (in Compact too since 0.32.0), or nothing when the GM hides them from players. Observers see them disabled. */
-export function hotbarsHtml(ctx) {
+export function hotbarsHtml(ctx, compact = false) {
   if (!canSee('hotbars')) return '';
   const {actor, editable} = ctx, off = !editable;
   const bar = (key, title, body) => `<section class="agch-hotbar" data-sec="${esc(key)}"><h3 class="agch-hotbar__head">${toggleButton(key, title)}</h3><div class="agch-hotbar__body"${bodyAttrs(key)}>${body}</div></section>`;
   return `<div class="agch-hotbars">${hiddenBadge('hotbars') ? `<p class="agch-hidden-note">${hiddenBadge('hotbars')}</p>` : ''}
-    <section class="agch-hotbar agch-hotbar--marks" data-sec="${esc(sectionKey('hotbar', 'marks'))}" aria-label="Mastery and marks">${marksBar(actor, off)}</section>
+    <section class="agch-hotbar agch-hotbar--marks" data-sec="${esc(sectionKey('hotbar', 'marks'))}" aria-label="Mastery and marks">${marksBar(actor, off, compact)}</section>
     ${bar(sectionKey('hotbar', 'quick'), 'Quick bar', quickBar(actor, off))}</div>`;
 }
 

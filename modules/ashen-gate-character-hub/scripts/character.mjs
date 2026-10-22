@@ -95,7 +95,7 @@ function otherHtml(layout, menu, off) {
     <ul class="agch-other__list"${bodyAttrs(key)}>${rows || '<li class="agch-muted">Equipped items that don\'t fit a slot show here.</li>'}</ul></div>`;
 }
 
-function dollHtml(ctx, h) {
+function dollHtml(ctx, h, {compact = false} = {}) {
   const {actor, editable, sheet} = ctx, off = !editable, layout = equipmentLayout(actor), menu = sheet?.menu ?? null;
   const token = sheet?.dollArt === 'token';
   const art = token ? (actor.prototypeToken?.texture?.src || actor.img) : actor.img;
@@ -114,7 +114,7 @@ function dollHtml(ctx, h) {
     <div class="agch-doll__col">${col(RIGHT_SLOTS)}</div>
     <div class="agch-doll__row">${col(BOTTOM_SLOTS)}</div>
     ${pop}
-  </section>${otherHtml(layout, menu, off)}`;
+  </section>${compact && !layout.other.length ? '' : otherHtml(layout, menu, off)}`;
 }
 
 const tile = (label, value, {extra = '', title = '', attrs = '', big = false} = {}) => `<div class="agch-tile${big ? ' agch-tile--big' : ''}"${title ? ` data-tooltip="${esc(title)}"` : ''}${attrs}><span class="agch-tile__label">${esc(label)}</span>${value}${extra}</div>`;
@@ -352,9 +352,11 @@ function statLineHtml(h, off, withAc) {
 export function compactPanelHtml(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, h = headerData(actor), strain = strainParts(actor, off);
   const slots = canSee('equipment');
+  // 0.33.1: the Cinder chips and Configure… share one row, and an empty "Other equipped" is left out, so the column fits.
+  const top = `${canSee('cinders') ? cinderChipsHtml(actor) : ''}${identActions(actor, off, false)}`;
   return `<aside class="agch-char agch-char--compact" aria-label="Character">
-    <h2 class="agch-name">${esc(h.name)}</h2>${canSee('cinders') ? cinderChipsHtml(actor) : ''}${identActions(actor, off, false)}
-    ${slots ? dollHtml(ctx, h) : ''}
+    <h2 class="agch-name">${esc(h.name)}</h2>${top ? `<div class="agch-ctop">${top}</div>` : ''}
+    ${slots ? dollHtml(ctx, h, {compact: true}) : ''}
     ${statLineHtml(h, off, !slots)}
     ${hpHtml(h, off, sheet?.menu ?? null, strain.pill)}
     ${strain.row}
