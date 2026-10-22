@@ -32,7 +32,7 @@ export async function saveAssignment(value,{replace=false,objectiveExists=()=>tr
  const old=assignmentDoc(rec.id);
  if(old&&!replace)throw new Error(`Assignment ${rec.id} already exists`);
  if(old){await old.update({name:`Quest Assignment — ${rec.id}`,[`${FLAG}.assignment`]:rec});}
- else await JournalEntry.create({name:`Quest Assignment — ${rec.id}`,folder:await ensureFolder('Assignments'),ownership:{default:0},flags:{[MOD]:{assignmentPrivate:true,assignment:rec}},pages:[{name:'GM Assignment',type:'text',text:{format:1,content:'<p>Quest-owned delegated execution. GM-only authoritative campaign state.</p>'}}]});
+ else await JournalEntry.create({name:`Quest Assignment — ${rec.id}`,folder:await ensureFolder('Assignments'),ownership:{default:0},flags:{[MOD]:{assignmentPrivate:true,assignment:rec}},pages:[{name:'GM Assignment',type:'text',text:{format:1,content:'<p>Quest-owned delegated execution. GM-only authoritative campaign state.</p>'}}]},{renderSheet:false});
  return rec.id;
 }
 export async function removeAssignment(id){assertGM(game.user);const doc=assignmentDoc(id);if(!doc)throw new Error('Assignment not found');await doc.delete();return true;}

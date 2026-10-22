@@ -266,8 +266,9 @@ test('Clean compendiums: Commit moves only ticked moves, in batches, across plac
   const out = await api.cleanApply({moves: ticked, onProgress: p => progress.push(p.done)});
   assert.equal(out.moved, 603);
   assert.equal(items.find(i => i.id === 'A').folder, 'FU', 'unticked move left alone');
-  assert.ok(calls.every(c => c.n <= 250), 'batches of at most 250');
-  assert.deepEqual(calls.filter(c => c.pack === 'world.big').map(c => c.n), [250, 250, 100]);
+  // 0.45.0: chunks of 50 (was 250), so a big commit never holds Foundry in one long write.
+  assert.ok(calls.every(c => c.n <= 50), 'chunks of at most 50');
+  assert.deepEqual(calls.filter(c => c.pack === 'world.big').map(c => c.n), Array(12).fill(50));
   assert.equal(progress.at(-1), 603, 'progress ends at the number written');
   assert.equal(store[HISTORY_SETTING][0].source, 'clean');
   const backup = api.cleanBackupOf(prev, ['world|Item|C', 'pack:world.big|Item|P0']);
