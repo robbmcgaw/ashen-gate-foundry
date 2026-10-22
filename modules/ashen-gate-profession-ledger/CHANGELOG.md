@@ -1,3 +1,14 @@
+## 0.26.0 — 2026-10-22
+
+UI cleanup (October 2026 audit, PL-02 to PL-13). No setting, flag or id changes; nothing to migrate.
+
+- **Gathering (GM):** sub-tabs **Requests (n)**, **Active checks (n)** and **Start gathering**. The tab opens on Requests when one is waiting; new requests and checks no longer push Start gathering down the page. The last result is in Active checks. Each request is a card with the reason above **Decline** (left) and **Approve** (right). The ad-hoc **Exotic candidates** picker is a closed section that counts the chosen ones; the gathering rules sit in a closed "How gathering works" section; the draft tick box reads **Use draft materials anyway**, with the explanation underneath.
+- **Gathering Nodes:** **Edit** and **New node** open the editor in place of the list (**All nodes** goes back to where you were). The editor is grouped into Basics, Check, Materials and Node test (closed). **Cancel** and **Save Changes** (and **Cancel** / **Apply import** for a node file) are in the window footer, with "Unsaved changes"; Cancel or closing the window asks before dropping edits.
+- **GM Setup:** sub-tabs **Party**, **Tools and checks**, **Gathering & crafting** and **Player Access**, all saved with the one **Save Changes**. **Cancel** now discards and stays on GM Setup. The baseline file import and export are in a "Baseline file" section; **Apply baseline** is the primary button of its preview and says it saves at once.
+- **Recipe Catalog (GM):** the Catalog tools card is gone. **Open General Manager** is at the end of the toolbar, the visibility guide is in the GM notice, and the older Ledger JSON import moved to a closed **Advanced: import here, or use General Manager** section at the end.
+- **Profession cards (GM):** one **GM: XP** section per card with an **Award** / **Adjust** switch and the XP history (also in the Tidy5e tab and the Character Hub embed). The XP bar is the kit meter and names the profession for screen readers.
+- **Keyboard and accessibility:** the tabs and sub-tabs take the arrow keys, Home and End; file imports use real buttons; "Open <name>'s view" (Party) is no longer inside a folder header; delete and discard confirmations default to **Cancel** / **Keep editing**; an unavailable gathering spot is muted by colour, not faded.
+
 ## 0.25.2 — 2026-10-22
 
 - Shared UI kit 2.2 (no visible change).

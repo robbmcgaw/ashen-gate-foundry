@@ -35,17 +35,14 @@
 .agl-prof{display:flex;flex-direction:column;gap:var(--ag-space-2)}
 .agl-prof-head{display:flex;align-items:center;gap:var(--ag-space-2);flex-wrap:wrap}
 .agl-prof-head strong{flex:1;font-size:var(--ag-text-lg)}
-.agl-xpbar{height:var(--ag-space-3);border-radius:var(--ag-radius-control);background:var(--ag-surface-sunken);border:1px solid var(--ag-border);overflow:hidden}
-.agl-xpbar>span{display:block;height:100%;background:linear-gradient(90deg,var(--ag-ok),var(--ag-accent));transition:width var(--ag-dur) var(--ag-ease)}
 .agl-xp-award{display:flex;align-items:flex-end;gap:var(--ag-space-2);flex-wrap:wrap}
 .agl-xp-award input{width:5rem}
 .agl-xp-award input[type=text]{width:12rem}
-.agl-xp-adjust{margin-top:var(--ag-space-2)}
-.agl-xp-adjust summary{cursor:pointer}
-.agl-xp-adjust ul{margin:var(--ag-space-1) 0 0;padding-left:var(--ag-space-5)}
+.agl-prof .ag-fold__body{display:flex;flex-direction:column;gap:var(--ag-space-2)}
+.agl-xp-history{margin:0;padding-left:var(--ag-space-5)}
 .agl-flash{animation:agl-flash 1.6s ease-out 1;border-color:var(--ag-accent)}
 @keyframes agl-flash{0%{box-shadow:0 0 0 3px var(--ag-accent)}100%{box-shadow:0 0 0 0 transparent}}
-@media (prefers-reduced-motion:reduce){.agl-flash{animation:none}.agl-xpbar>span{transition:none}}
+@media (prefers-reduced-motion:reduce){.agl-flash{animation:none}}
 
 /* Recipe rows: one format for Individual, Party, Catalog and the sheet tab */
 .agl-recipe-row{display:flex;flex-direction:column;gap:var(--ag-space-2);margin-bottom:var(--ag-space-2)}
@@ -69,7 +66,7 @@
 .agl-folder>summary::-webkit-details-marker{display:none}
 .agl-folder>summary:hover{background:var(--ag-surface-hover)}
 .agl-folder:not([open])>summary .fa-folder-open::before{content:'\f07b'}
-.agl-folder>summary .ag-btn{margin-left:auto}
+.agl-folder-actions{margin:var(--ag-space-2) 0}
 .agl-folder-body{padding:0 var(--ag-space-2) var(--ag-space-1)}
 
 /* GM Setup, roster, gathering */
@@ -91,7 +88,8 @@
 .agl-node:hover{background:var(--ag-surface-hover)}
 .agl-node>span{display:flex;flex-direction:column;gap:var(--ag-space-1);min-width:0}
 .agl-node small{color:var(--ag-muted)}
-.agl-node.is-off{cursor:default;opacity:.7}
+.agl-node.is-off{cursor:default}
+.agl-node.is-off strong{color:var(--ag-muted)}
 .agl-node.is-off:hover{background:transparent}
 @container (max-width:40rem){.agl-gather-form{grid-template-columns:1fr}.agl-gather-eligible{grid-column:1}}
 
@@ -132,3 +130,9 @@
 .agl-app .agl-editor-actions{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:var(--ag-space-2);margin-top:var(--ag-space-3)}
 .agl-app .agl-node-plan{display:grid;gap:var(--ag-space-1);margin:0 0 var(--ag-space-2);padding-left:var(--ag-space-4)}
 .agl-app .agl-node-card code{font-size:var(--ag-text-sm);color:var(--ag-muted)}
+/* 0.26.0: sub-tab panels (GM Setup, Gathering), request cards, the draft-materials hint and the Advanced catalog import. */
+.agl-app .agl-subpanel{display:flex;flex-direction:column;gap:var(--ag-space-3);min-width:0}
+.agl-app .agl-request-list{display:grid;gap:var(--ag-space-2)}
+.agl-app .agl-request p{margin:0 0 var(--ag-space-1)}
+.agl-app .agl-field-group{display:flex;flex-direction:column;gap:var(--ag-space-1);margin:var(--ag-space-2) 0}
+.agl-app .agl-node-editor .ag-fold{margin-top:var(--ag-space-2)}

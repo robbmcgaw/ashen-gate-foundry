@@ -25,12 +25,12 @@ app.element={querySelectorAll:s=>s==='[data-roster-actor]'||s==='[data-roster-ac
 test('GM Setup owns roster, access and tool mapping only; standard header/footer',async()=>{
  const html=(await app._prepareContext({})).html;
  assert.match(html,/<header class="ag-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate<\/span> \| Profession Ledger<\/h1>/);
- assert.match(html,/<span class="ag-version">v0\.25\.2<\/span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="help"><i class="fa-solid fa-circle-question" aria-hidden="true"><\/i> Help<\/button>/,'version, then Help (ghost, small) on the right');
+ assert.match(html,/<span class="ag-version">v0\.26\.0<\/span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="help"><i class="fa-solid fa-circle-question" aria-hidden="true"><\/i> Help<\/button>/,'version, then Help (ghost, small) on the right');
  assert.doesNotMatch(html.slice(0,html.indexOf('</header>')),/Alpha|Beta/,'no Alpha/Beta in the window header');
  assert.match(html,/<nav class="ag-tabs ag-tabs--scroll" role="tablist"/);
- assert.match(html,/role="tab" data-action="tab" data-id="individual" class="" aria-selected="false">Individual/);
- assert.match(html,/role="tab" data-action="tab" data-id="assign" class="ag-tab--gm" aria-selected="false">Assign<\/button><button type="button" role="tab" data-action="tab" data-id="gm" class="active ag-tab--gm" aria-selected="true">GM Setup<\/button><\/nav>/,'GM-only tabs last, GM Setup at the end');
- assert.match(html,/v0\.25\.2/);
+ assert.match(html,/role="tab" id="agl-tab-individual" aria-controls="agl-panel" data-action="tab" data-id="individual" class="" aria-selected="false" tabindex="-1">Individual/);
+ assert.match(html,/role="tab" id="agl-tab-assign" aria-controls="agl-panel" data-action="tab" data-id="assign" class="ag-tab--gm" aria-selected="false" tabindex="-1">Assign<\/button><button type="button" role="tab" id="agl-tab-gm" aria-controls="agl-panel" data-action="tab" data-id="gm" class="active ag-tab--gm" aria-selected="true" tabindex="0">GM Setup<\/button><\/nav><main class="agl-main" id="agl-panel" role="tabpanel" aria-labelledby="agl-tab-gm"/,'GM-only tabs last, GM Setup at the end');
+ assert.match(html,/v0\.26\.0/);
  assert.match(html,/data-id="gm"/);
  assert.match(html,/data-action="help"/);
  assert.match(html,/data-action="roster-save"/);
@@ -40,15 +40,17 @@ test('GM Setup owns roster, access and tool mapping only; standard header/footer
  assert.doesNotMatch((await (app.view='party',app._prepareContext({}))).html,/data-action="demo"|data-action="import"|data-action="manager"/);
 });
 
-test('Recipe Catalog tab: GM gets Catalog tools (import, Manager), players do not',async()=>{
+test('Recipe Catalog tab: GM gets the Manager shortcut and the Advanced import, players do not',async()=>{
  app.view='catalog';
  let html=(await app._prepareContext({})).html;
- assert.match(html,/Catalog tools/);
- assert.match(html,/data-action="import"/);
+ // 0.26.0 (PL-05): the older Ledger import is a closed fold at the end, a kit file button (keyboard reachable).
+ assert.match(html,/<details class="ag-fold" data-ag-fold-key="catalog-import"><summary class="ag-fold__summary"><span class="ag-fold__title">Advanced: import here, or use General Manager<\/span><\/summary>/);
+ assert.match(html,/<span class="ag-file" data-agl-file="catalog"><button type="button" class="ag-btn" data-ag-file-button>.*Import Ledger recipe\/material JSON…<\/button>/);
+ assert.ok(html.indexOf('catalog-import')>html.indexOf('agl-no-matches'),'after the recipe list');
  assert.match(html,/data-action="manager" disabled/,'Missing optional Manager has truthful disabled button');
  game.user=player;app.view='catalog';
  html=(await app._prepareContext({})).html;
- assert.doesNotMatch(html,/Catalog tools|data-action="import"|data-action="manager"|data-id="gm"/);
+ assert.doesNotMatch(html,/Advanced: import|data-agl-file|data-action="manager"|data-id="gm"/);
  game.user=gm;
 });
 

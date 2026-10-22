@@ -286,7 +286,8 @@ test('players never get Exotic candidates: node list, roll prompt, Gathering tab
 test('GM ad-hoc editor: Exotic picker filters by profession, tier and rarity; adding sets eligibility only',async()=>{
  game.user=gm;app.gather.source='adhoc';Object.assign(app.gather.adhoc,{skill:'Herbalism',tier:'1',materialId:'MAT-TG-HERB',exotics:[]});
  let h=await html('gathering');
- assert.match(h,/Exotic candidates \(optional, GM only\)/);
+ // 0.26.0: a closed fold whose title counts the chosen candidates.
+ assert.match(h,/<details class="ag-fold" data-ag-fold-key="adhoc-exotics"><summary class="ag-fold__summary"><span class="ag-fold__title">Exotic candidates<\/span><span class="ag-fold__count">0 chosen<\/span><span class="ag-fold__hint">optional, GM only<\/span><\/summary>/);
  const pick=h.slice(h.indexOf('agl-exotic-filters'));
  assert.match(pick,/\[TEST\] Star Moss/);assert.doesNotMatch(pick,/Phoenix Ash/,'tier 3 is above a tier 1 node');
  assert.doesNotMatch(pick,/Deep Ore/,'Mining Exotic at a Herbalism node');assert.doesNotMatch(pick,/Rare Herb|>\[TEST\] Herb</,'only Exotic quality');

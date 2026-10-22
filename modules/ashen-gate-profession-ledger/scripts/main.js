@@ -6,8 +6,8 @@ import {PLAYER_ACCESS_CONTRACT,PLAYER_ACCESS_SETTING,playerAccessAllowed,assertP
 import {lookupWorldDefinition,readWorldDefinition,isActiveDefinition} from './definition-lookup.mjs';
 import {planCraft,craftBlockers,executeCraft,craftResultData,materialStock,tierLabel,ConsentBroker} from './crafting.mjs';
 import {launcherRoot,mountLauncher} from './ag-launchers.mjs';
-import {confirmDialog,infoDialog} from './ag-dialogs.mjs';
-import {windowSize} from './ag-html.mjs';
+import {confirmDialog,confirmDanger,guardDirty,infoDialog} from './ag-dialogs.mjs';
+import {windowSize,uiState,subTabs,tabPanelAttrs,bindTablist,fold,bindFolds,fileButton,bindFileButtons,linkButton} from './ag-html.mjs';
 import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiveMapping,toolKeys,toolLabel,skillLabel,toolRef,requiredToolRef,toolRefLabel,heldTool,
   checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS,DEFAULT_PROFESSION_TOOLS,DEFAULT_GATHER_SKILLS,migrateCheckMapping,advantageToolsOf} from './checks.mjs';
 import {PROFESSION_KEYS,professionTitle,catalogCrosswalk,definitionProfessionKey,unmappedProfessions,assignmentPlan,rowId,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
@@ -18,7 +18,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.25.2';
+const VERSION='0.26.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...}. */
@@ -101,6 +101,9 @@ const heldRecipeItems=(actor)=>Array.from(actor?.items??[]).filter(item=>classif
 const recipeItems=(actor)=>heldRecipeItems(actor).filter(item=>game.user.isGM||sourceAvailableToPlayer(item));
 const itemStatus=item=>item?.flags?.['ashen-gate-manager']?.source?.status??'approved';
 const GM_VIEWS=new Set(['gm','assign','nodes']);
+/** 0.26.0 sub-tabs (kit 2.2). The chosen one is remembered per user on this device (uiState), never in world data. */
+const GM_SETUP_TABS=[{id:'party',label:'Party'},{id:'tools',label:'Tools and checks'},{id:'gather',label:'Gathering & crafting'},{id:'access',label:'Player Access'}];
+const GATHER_TAB_IDS=['requests','active','start'];
 const LEGACY_VIEWS={materials:'party',recipes:'party',planner:'individual',learning:'individual',roster:'gm'};
 const HIDDEN_STATUSES=['draft','proposed','superseded','retired','placeholder'];
 const hiddenFromPlayers=(recipe)=>HIDDEN_STATUSES.includes(recipe?.status)||['gm','reveal_gated'].includes(recipe?.sourceVisibility);
@@ -591,26 +594,44 @@ function folders(rows,closed=new Set()){
     <div class="agl-folder-body">${g.rows.map(r=>r.html).join('')}</div></details>`).join('');
 }
 const HISTORY_LABELS={award:'Awarded',adjust:'Adjusted',set:'Set',undo:'Award undone'};
-/** GM only: adjust / set XP, plus the recorded history. Players never receive this markup. */
-function xpAdjustPanel(actor,p){
+/** 0.26.0: which half of a card's "GM: XP" fold is showing (award | adjust), per actor and profession, for this client. */
+const xpModes=new Map();
+const XP_MODES=[['award','Award'],['adjust','Adjust']];
+/** GM only: one "GM: XP" fold per profession card: Award or Adjust (a segmented switch), then the recorded history.
+ * Players never receive this markup. */
+function xpPanel(actor,p){
+  const key=`${actor.id}:${p.sourceId}`,mode=xpModes.get(key)==='adjust'?'adjust':'award';
   const rows=xpHistoryOf(actor,p.sourceId).slice(-8).reverse().map(h=>`<li>${esc(new Date(h.at??0).toLocaleString())} · ${esc(h.byName??'GM')} · ${esc(HISTORY_LABELS[h.kind]??h.kind)} ${h.delta>0?'+':h.delta<0?'−':''}${Math.abs(Number(h.delta)||0)} (${Number(h.from)} → ${Number(h.to)})${h.reason?` · ${esc(h.reason)}`:''}${h.messageId?' · from chat card':''}</li>`).join('');
   const attrs=`data-id="${esc(p.sourceId)}" data-actor="${esc(actor.id)}"`;
-  return `<details class="agl-xp-adjust"><summary>Adjust XP</summary>
-    <div class="agl-xp-award"><label class="ag-field">Change (+/−) <input type="number" step="1" data-xp-delta="${esc(p.sourceId)}" placeholder="−5"></label>
+  const body=`<div class="ag-segmented" role="radiogroup" aria-label="${esc(p.name)} XP change">${XP_MODES.map(([m,label])=>`<button type="button" role="radio" aria-checked="${mode===m}" data-action="xp-mode" data-mode="${m}" data-key="${esc(key)}">${label}</button>`).join('')}</div>
+    <div class="agl-xp-award" data-xp-pane="award"${mode==='award'?'':' hidden'}><label class="ag-field">Award XP <input type="number" data-xp-input="${esc(p.sourceId)}" min="1" max="1000" step="1" value="1"></label><button type="button" class="ag-btn" data-action="award-xp" ${attrs}>Award ${esc(p.name)} XP</button></div>
+    <div class="agl-xp-award" data-xp-pane="adjust"${mode==='adjust'?'':' hidden'}><label class="ag-field">Change (+/−) <input type="number" step="1" data-xp-delta="${esc(p.sourceId)}" placeholder="−5"></label>
     <label class="ag-field">or Set to <input type="number" min="0" max="${XP_CAP}" step="1" data-xp-set="${esc(p.sourceId)}" placeholder="${p.xp}"></label>
     <label class="ag-field">Why <input type="text" maxlength="200" data-xp-reason="${esc(p.sourceId)}" placeholder="Accidental award"></label>
-    <button type="button" class="ag-btn" data-action="adjust-xp" ${attrs}>Apply</button></div>
-    ${rows?`<p class="agl-sub">XP history (GM only):</p><ul class="agl-sub">${rows}</ul>`:''}</details>`;
+    <button type="button" class="ag-btn" data-action="adjust-xp" ${attrs}>Adjust XP…</button></div>
+    ${rows?`<p class="agl-sub">XP history (GM only):</p><ul class="agl-sub agl-xp-history">${rows}</ul>`:''}`;
+  return fold({key:`xp:${key}`,title:'GM: XP',body});
+}
+/** The "GM: XP" Award/Adjust switch. Only the panes inside this card change; nothing is saved. Works in the window,
+ * the Tidy5e tab and the Character Hub embed (each click handler calls this first). Returns true when it handled the click. */
+function xpModeClick(button){
+  if(button?.dataset?.action!=='xp-mode')return false;
+  const mode=button.dataset.mode==='adjust'?'adjust':'award';
+  xpModes.set(button.dataset.key,mode);
+  const fold=button.closest?.('.ag-fold');
+  fold?.querySelectorAll?.('[data-action="xp-mode"]')?.forEach(b=>b.setAttribute('aria-checked',String(b.dataset.mode===mode)));
+  fold?.querySelectorAll?.('[data-xp-pane]')?.forEach(pane=>{pane.hidden=pane.dataset.xpPane!==mode;});
+  return true;
 }
 function professionCard(actor,p,{lastAward=null}={}){
   const gm=game.user.isGM;
   const flash=lastAward&&lastAward.actorId===actor.id&&lastAward.profId===p.sourceId;
+  const value=`${p.xp} XP${p.toNext!==null?` · ${p.toNext} XP to level ${p.level+1}`:' · maximum level'}`;
   return `<div class="ag-card agl-prof ${flash?'agl-flash':''}">
     <div class="agl-prof-head"><strong>${esc(p.name)}</strong>${badge(`Level ${p.level}`,'ok')}${gm&&p.draft?badge('Draft','warn'):''}${flash?badge(`+${lastAward.points} XP`,'recipe'):''}</div>
-    <div class="agl-xpbar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p.percent}"><span style="width:${p.percent}%"></span></div>
-    <div class="agl-sub">${esc(p.tier)} · ${p.xp} XP${p.toNext!==null?` · ${p.toNext} XP to level ${p.level+1}`:' · maximum level'}${p.tracked?'':' · no XP awarded yet'}</div>
-    ${gm?xpAdjustPanel(actor,p):''}
-    ${gm?`<div class="agl-xp-award"><label class="ag-field">Award XP <input type="number" data-xp-input="${esc(p.sourceId)}" min="1" max="1000" step="1" value="1"></label><button type="button" class="ag-btn" data-action="award-xp" data-id="${esc(p.sourceId)}" data-actor="${esc(actor.id)}">Award</button></div>`:''}
+    <div class="ag-meter ag-meter--ok"><span class="ag-meter__label">${esc(p.tier)}</span><span class="ag-meter__value">${esc(value)}</span><span class="ag-meter__track" role="progressbar" aria-label="${esc(p.name)} XP" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p.percent}" aria-valuetext="${esc(value)}" style="--ag-meter:${p.percent}%"><span class="ag-meter__fill"></span></span></div>
+    ${p.tracked?'':'<div class="agl-sub">No XP awarded yet.</div>'}
+    ${gm?xpPanel(actor,p):''}
   </div>`;
 }
 /** The crafting panel for one character: used by the Individual tab and the Tidy5e sheet tab. */
@@ -1441,7 +1462,7 @@ function decorateChatCard(message,html){
     const undo=slot.querySelector('[data-agl-xp-undo]');
     undo?.addEventListener?.('click',async event=>{
       event.preventDefault?.();undo.disabled=true;
-      try{const ok=await confirmDialog(`Take back ${Number(x.awarded.points)} ${x.professionName} XP from ${x.actorName} and allow Award XP on this card again?`,{title:'Undo XP award?',yes:'Undo award',danger:true});
+      try{const ok=await confirmDanger(`Take back ${Number(x.awarded.points)} ${x.professionName} XP from ${x.actorName} and allow Award XP on this card again?`,{title:'Undo XP award?',yes:'Undo award'});
         if(!ok){undo.disabled=false;return;}
         say((await undoAwardFromCard(message)).message);}
       catch(err){undo.disabled=false;say(`Profession Ledger: ${err.message}`,true);}
@@ -1564,12 +1585,26 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     this.assignState={target:'party',preview:null,selected:new Set()};
     // 0.25.0 Gathering Nodes tab: the open editor draft, an import preview, and the activity filter.
     this.nodeDraft=null;this.nodeImport=null;this.nodeFilter='all';
+    // 0.26.0: sub-tabs shown (null: pick on first show), and the node editor's unsaved-edit guard (kit guardDirty).
+    this.gmTab=null;this.gatherTab=null;
+    this.nodeGuard=guardDirty({status:()=>this.element?.querySelector?.('[data-agl-node-status]')});
+  }
+  /** Per-user, per-device UI memory (sub-tabs, folds); never world data. */
+  get _ui(){return this.__ui??=uiState(ID);}
+  /** Asks before closing over unsaved GM Setup or node editor changes (Keep editing is the default). */
+  async close(options={}){
+    if(game.user?.isGM&&!options?.force){
+      if(this.view==='gm'&&this.setupDirty&&!await this._leaveGmSetup())return this;
+      if(this.nodeGuard?.dirty&&!await this.nodeGuard.confirm())return this;
+    }
+    return super.close?.(options);
   }
   get actors(){return partyActors();}
   get library(){return catalog();}
   get actor(){const mine=myCharacters();return mine.find(a=>a.id===this.actorId)??mine[0]??null;}
   _tabs(){const names=[['individual','Individual'],['party','Party'],['catalog','Recipe Catalog'],['gathering','Gathering'],...(game.user.isGM?[['nodes','Gathering Nodes'],['assign','Assign'],['gm','GM Setup']]:[])];
-    return names.map(([key,title])=>`<button type="button" role="tab" data-action="tab" data-id="${key}" class="${[this.view===key?'active':'',GM_VIEWS.has(key)?'ag-tab--gm':''].filter(Boolean).join(' ')}" aria-selected="${this.view===key}">${title}</button>`).join('');}
+    // 0.26.0 (PL-10): ids and aria-controls; bindTablist adds the arrow keys (one Tab stop, Left/Right, Home/End).
+    return names.map(([key,title])=>`<button type="button" role="tab" id="agl-tab-${key}" aria-controls="agl-panel" data-action="tab" data-id="${key}" class="${[this.view===key?'active':'',GM_VIEWS.has(key)?'ag-tab--gm':''].filter(Boolean).join(' ')}" aria-selected="${this.view===key}" tabindex="${this.view===key?0:-1}">${title}</button>`).join('');}
   _search(placeholder){return `<label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-agl-search value="${esc(this.query)}" placeholder="${esc(placeholder)}" aria-label="${esc(placeholder)}"></label>`;}
   _noRoster(){return game.user.isGM?emptyState('No party yet.','Choose the party characters in GM Setup.','<button type="button" class="ag-btn ag-btn--sm" data-action="tab" data-id="gm"><i class="fa-solid fa-gears" aria-hidden="true"></i> Choose the party in GM Setup</button>')
     :emptyState('No party yet.','Your GM hasn’t chosen the party yet. The Ledger fills in once they do.');}
@@ -1577,7 +1612,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const mine=myCharacters(),actor=this.actor;
     if(!actor)return game.user.isGM&&!rosterIds().length?this._noRoster():(game.user.isGM?emptyState('No characters in the party.','Add characters in GM Setup.'):emptyState('No character of yours in the party yet.','Ask your GM to add your character to the party.'));
     const picker=mine.length>1?`<label class="ag-field ag-field--inline">Character <select data-agl-actor>${mine.map(a=>`<option value="${esc(a.id)}" ${a.id===actor.id?'selected':''}>${esc(a.name)}</option>`).join('')}</select></label>`:`<div class="agl-who">${portrait(actor)}<strong>${esc(actor.name)}</strong></div>`;
-    const gmNote=game.user.isGM?notice(`Viewing <b>${esc(actor.name)}</b> as GM. Award XP on a profession below; ${actor.hasPlayerOwner?'the player learns recipes from their own Ledger or sheet.':'you can learn recipes for this character.'}`):'';
+    const gmNote=game.user.isGM?notice(`Viewing <b>${esc(actor.name)}</b> as GM. Award or adjust XP under <b>GM: XP</b> on a profession below; ${actor.hasPlayerOwner?'the player learns recipes from their own Ledger or sheet.':'you can learn recipes for this character.'}`):'';
     return `<div class="ag-toolbar agl-toolbar">${this._search('Search recipes')}<div class="ag-toolbar__filters">${picker}</div></div>${gmNote}${characterPanel(actor,lib,{closed:this.closedFolders,lastAward:this.lastAward})}`;
   }
   _party(lib){
@@ -1600,8 +1635,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         const mineFound=[...found.entries()].filter(([id,list])=>defs.has(id)&&list.some(x=>x.actor.id===actor.id)).map(([id])=>id);
         const list=[...new Set([...mineKnown,...mineFound])].map(id=>defs.get(id)).sort((a,b)=>professionLabel(a).localeCompare(professionLabel(b))||a.name.localeCompare(b.name));
         const key=`actor-${actor.id}`;
-        return `<details class="agl-folder" data-folder="${esc(key)}" ${this.closedFolders.has(key)?'':'open'}><summary>${portrait(actor)} <strong>${esc(actor.name)}</strong> <span class="ag-badge">${mineKnown.length} known${mineFound.length?` · ${mineFound.length} to learn`:''}</span>${gm?` <button type="button" class="ag-btn ag-btn--sm" data-action="open-individual" data-id="${esc(actor.id)}">Open ${esc(actor.name)}’s view</button>`:''}</summary>
-          <div class="agl-folder-body">${list.map(r=>recipeRow(r,lib,{knownBy:mineKnown.includes(r.id)?[actor]:[],foundBy:mineFound.includes(r.id)?[actor]:[]})).join('')||emptyState('No recipes yet.')}</div></details>`;
+        return `<details class="agl-folder" data-folder="${esc(key)}" ${this.closedFolders.has(key)?'':'open'}><summary>${portrait(actor)} <strong>${esc(actor.name)}</strong> <span class="ag-badge">${mineKnown.length} known${mineFound.length?` · ${mineFound.length} to learn`:''}</span></summary>
+          <div class="agl-folder-body">${gm?`<div class="ag-btn-group agl-folder-actions"><button type="button" class="ag-btn ag-btn--sm" data-action="open-individual" data-id="${esc(actor.id)}">Open ${esc(actor.name)}’s view</button></div>`:''}${list.map(r=>recipeRow(r,lib,{knownBy:mineKnown.includes(r.id)?[actor]:[],foundBy:mineFound.includes(r.id)?[actor]:[]})).join('')||emptyState('No recipes yet.')}</div></details>`;
       }).join('');
     }
     const profRows=actors.map(a=>{const p=professionsOf(a);return `<li class="ag-row">${portrait(a)}<span class="ag-row__main"><span class="ag-row__title">${esc(a.name)}</span><span class="ag-row__meta">${p.map(x=>`${esc(x.name)} ${badge(`L${x.level}`,'ok')}`).join(' ')||'No professions'}</span></span></li>`;}).join('');
@@ -1622,18 +1657,14 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         </section>
       </div>`;
   }
-  /** GM-only catalog management: legacy JSON import, Manager shortcut, draft visibility guide. */
-  _catalogTools(){
+  /** GM-only: is General Manager there to open? */
+  _managerReady(){const manager=game.modules.get('ashen-gate-manager');return Boolean(manager?.active&&typeof manager.api?.open==='function');}
+  /** 0.26.0 (PL-05): the older Ledger JSON import, demoted to a closed fold at the end of the Recipe Catalog.
+   * General Manager is the documented import path. */
+  _catalogAdvanced(){
     if(!game.user.isGM)return '';
-    const manager=game.modules.get('ashen-gate-manager');
-    const canOpen=Boolean(manager?.active&&typeof manager.api?.open==='function');
-    return `<section class="ag-card agl-panel agl-catalog-tools"><h2>Catalog tools</h2>
-        <p class="agl-sub">General Manager imports recipes, materials and the items recipes make. A crafted item is copied from the recipe’s result item in the world Items directory. The Ledger catalog import below is only for older player-safe JSON catalogs.</p>
-        <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="import">Import Ledger recipe/material JSON</button>
-        <button type="button" class="ag-btn" data-action="manager" ${canOpen?'':'disabled'}><i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i> Open General Manager</button>${canOpen?'':'<span class="agl-reason">General Manager is not installed or enabled.</span>'}</div>
-        <div class="agl-management-actions">${badge('All players','ok')} ${badge('Some players','partial')} ${badge('GM only','warn')} ${badge('Draft — hidden from players','warn')}</div>
-        <p class="agl-sub">Draft recipes are visible only to you. A player never sees a draft recipe item, and can’t learn or craft it, until you approve it in General Manager.</p>
-      </section>`;
+    return fold({key:'catalog-import',title:'Advanced: import here, or use General Manager',body:`<p class="agl-sub">General Manager imports recipes, materials and the items recipes make; use it for new content. This import is only for older player-safe Ledger JSON catalogs, and it replaces the previous Ledger catalog. It never creates or changes Items, XP or inventories.</p>
+      <div class="ag-btn-group">${fileButton({label:'Import Ledger recipe/material JSON…',accept:'application/json,.json',data:{aglFile:'catalog'}})}</div>`});
   }
   _catalog(lib){
     const gm=game.user.isGM,party=this.actors;
@@ -1641,12 +1672,14 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const recipes=gm?lib.recipes:[...new Set([...known.keys(),...found.keys()])].map(id=>partyRecipeDefinition(id,lib)).filter(Boolean);
     const rows=recipes.map(r=>({group:professionLabel(r),html:recipeRow(r,lib,{knownBy:known.get(r.id)??[],foundBy:(found.get(r.id)??[]).map(x=>x.actor)})}));
     const hidden=gm?lib.recipes.filter(hiddenFromPlayers).length:0;
-    return `<div class="ag-toolbar agl-toolbar">${this._search('Search recipes, professions or results')}</div>
-      ${this._catalogTools()}
-      ${gm?notice(`GM view: every recipe in the world. ${hidden?`<b>${hidden} of ${lib.recipes.length} ${lib.recipes.length===1?'recipe':'recipes'} ${hidden===1?'is':'are'} draft or GM-only and hidden from players.</b> `:''}Players only see recipes someone in the party has found or learned.`,hidden?'warn':'info')
+    const canOpen=gm&&this._managerReady();
+    const legend=`${badge('All players','ok')} ${badge('Some players','partial')} ${badge('GM only','warn')} ${badge('Draft — hidden from players','warn')}`;
+    return `<div class="ag-toolbar agl-toolbar">${this._search('Search recipes, professions or results')}${gm?`<div class="ag-toolbar__end"><button type="button" class="ag-btn ag-btn--sm" data-action="manager" ${canOpen?'':'disabled'}><i class="fa-solid fa-up-right-from-square" aria-hidden="true"></i> Open General Manager</button></div>`:''}</div>
+      ${gm?notice(`GM view: every recipe in the world. ${hidden?`<b>${hidden} of ${lib.recipes.length} ${lib.recipes.length===1?'recipe':'recipes'} ${hidden===1?'is':'are'} draft or GM-only and hidden from players.</b> `:''}Players only see recipes someone in the party has found or learned; a draft stays hidden until you approve it in General Manager.${canOpen?'':' <b>General Manager is not installed or enabled.</b>'}<br>${legend}`,hidden?'warn':'info')
         :'<p class="agl-sub">Recipes your party has found or learned, by profession.</p>'}
       ${folders(rows,this.closedFolders)||(gm?emptyState('No recipes in this world yet.','Import recipes with General Manager.'):emptyState('No recipes yet.','A recipe appears here once someone in the party finds its recipe item or learns it.'))}
-      <div class="ag-empty agl-no-matches" hidden><p class="ag-empty__title">Nothing matches.</p><p class="ag-empty__text">Clear the search to see every recipe.</p></div>`;
+      <div class="ag-empty agl-no-matches" hidden><p class="ag-empty__title">Nothing matches.</p><p class="ag-empty__text">Clear the search to see every recipe.</p></div>
+      ${this._catalogAdvanced()}`;
   }
   _roster(){if(!game.user.isGM)return emptyState('Party Roster is GM-only.');
     const selected=this.rosterDraft??new Set(rosterIds());const chars=allCharacters();
@@ -1659,18 +1692,20 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       ${notice('Access indicators are calculated against non-GM user accounts. Being in the party does not grant ownership or show a player anything beyond the Ledger’s profession, material and recipe lists.')}
     </section>`;
   }
+  /** 0.26.0 (PL-04): GM Setup sections as sub-tabs under the one footer. Every panel is rendered (the others hidden), so
+   * switching sub-tabs never re-renders and never drops a draft; Save Changes saves every sub-tab at once. */
   _gmSetup(){
     if(!game.user.isGM)return emptyState('GM Setup is restricted to the GM.');
-    return `<div class="agl-gm-setup">
-      ${this._roster()}
-      <section class="ag-card agl-panel"><h2>Player Access ${badge(playerAccessEnabled()?'Visible to players':'Hidden from players',playerAccessEnabled()?'ok':'warn')}</h2>
+    const tab=this.gmTab=GM_SETUP_TABS.some(t=>t.id===this.gmTab)?this.gmTab:this._ui.get('gmSetupTab','party',GM_SETUP_TABS.map(t=>t.id));
+    const panels={party:this._roster(),
+      tools:this._toolSetup(),
+      gather:`${this._exoticSetup()}${this._coreAwardSetup()}`,
+      access:`<section class="ag-card agl-panel"><h2>Player Access ${badge(playerAccessEnabled()?'Visible to players':'Hidden from players',playerAccessEnabled()?'ok':'warn')}</h2>
         <p class="agl-sub">Controls the Actors launcher, Ledger window and sheet tab only; it never changes Profession XP, known recipes or Items. Manager can also change this setting (${PLAYER_ACCESS_CONTRACT}). Saved with <b>Save Changes</b>.</p>
         <label class="ag-field ag-field--inline"><input type="checkbox" data-player-access ${(this.accessDraft??playerAccessEnabled())?'checked':''}> Players can open the Profession Ledger</label>
-      </section>
-      ${this._toolSetup()}
-      ${this._exoticSetup()}
-      ${this._coreAwardSetup()}
-    </div>`;
+      </section>`};
+    return `${subTabs({group:'agl-gm-setup',label:'GM Setup sections',tabs:GM_SETUP_TABS,selected:tab})}
+      <div class="agl-gm-setup">${GM_SETUP_TABS.map(t=>`<div class="agl-subpanel" ${tabPanelAttrs('agl-gm-setup',t.id,{hidden:t.id!==tab})}>${panels[t.id]}</div>`).join('')}</div>`;
   }
   /** GM Setup: the generic Exotic discovery chance (a setting only; candidates are chosen per node). */
   _exoticSetup(){
@@ -1736,11 +1771,11 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       preview=`<div class="agl-baseline-preview" role="region" aria-label="Baseline file preview"><h3>Preview: ${esc(p.fileName||'baseline file')}</h3>
         ${notes.length?`<ul class="agl-sub">${notes.map(n=>`<li>${esc(n)}</li>`).join('')}</ul>`:''}
         ${r.ok?(rows?`<div class="ag-table-wrap agl-map-wrap"><table class="ag-table agl-map"><thead><tr><th scope="col">Profession</th><th scope="col">List</th><th scope="col">Baseline now</th><th scope="col">From this file</th><th scope="col">Note</th></tr></thead><tbody>${rows}</tbody></table></div>`:'<p class="agl-sub">This file changes nothing.</p>'):'<p class="agl-sub">Fix the file and import it again. Nothing was changed.</p>'}
-        <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="xwalk-cancel">Cancel</button>${r.ok?`<button type="button" class="ag-btn" data-action="xwalk-apply"><i class="fa-solid fa-check" aria-hidden="true"></i> Apply baseline</button>`:''}</div></div>`;
+        <div class="agl-editor-actions"><button type="button" class="ag-btn ag-btn--ghost" data-action="xwalk-cancel">Cancel</button>${r.ok?`<button type="button" class="ag-btn ag-btn--primary" data-action="xwalk-apply"><i class="fa-solid fa-check" aria-hidden="true"></i> Apply baseline</button>`:''}</div></div>`;
     }
-    return `<div class="agl-baseline"><p class="agl-sub"><b>Baseline file</b>: ${rec?`${esc(rec.fileName||'imported file')}, imported ${esc(String(rec.importedAt??'').slice(0,10))}`:'none imported'}. Layers, lowest first: built in, Profession catalog, baseline file, your edits here (your edits always win; Reset a row to fall back).</p>
-      <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="xwalk-import">Import baseline file…</button><button type="button" class="ag-btn" data-action="xwalk-export">Export current table</button>
-      <input id="agl-xwalk-file" type="file" accept="application/json,.json" hidden></div>${preview}</div>`;
+    // 0.26.0 (PL-04): a fold; a waiting preview shows below it, never hidden. Apply baseline writes at once (not with Save Changes), so it says so.
+    return fold({key:'baseline',title:'Baseline file',hint:rec?(rec.fileName||'imported file'):'none imported',body:`<p class="agl-sub"><b>Baseline file</b>: ${rec?`${esc(rec.fileName||'imported file')}, imported ${esc(String(rec.importedAt??'').slice(0,10))}`:'none imported'}. Layers, lowest first: built in, Profession catalog, baseline file, your edits here (your edits always win; Reset a row to fall back). ${badge('Applies now')} Apply baseline saves at once, not with Save Changes.</p>
+      <div class="ag-btn-group">${fileButton({label:'Import baseline file…',accept:'application/json,.json',data:{aglFile:'baseline'}})}<button type="button" class="ag-btn" data-action="xwalk-export"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export current table</button></div>`})+preview;
   }
   /** GM: assign the profession features characters qualify for (dry run, then confirm). Not part of GM Setup. */
   _assign(){
@@ -1780,10 +1815,11 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     <p><strong>Where XP lives:</strong> on your character, kept by the Profession Ledger. It’s shown here, in the Professions tab of the Tidy5e sheet, and in the profession feature’s description on your sheet. Only the GM awards XP.</p>
     <p><strong>Gathering:</strong> pick a gathering spot at a location your party knows and press <b>Request gather</b>. It waits in the GM’s Requests list until they approve or decline (with a reason); one waiting request per character. The GM can also send a check to you directly. The lead gatherer rolls one check for the party (skill or tool bonus shown, advantage preset from the sheet, effects and helpers). Success gives one common bundle, success by 5+ a rare one instead; failure exhausts the spot. The result is posted in chat.</p>
     <p><strong>Tools:</strong> a recipe shows the tool or workstation it needs and warns if your character doesn’t carry the tool. Crafting rolls a tool check; the result is on the craft card. Gold costs are shown, not deducted.</p>
-    <p><strong>XP:</strong> the GM awards profession XP from the gather and craft chat cards.</p>
-    ${game.user.isGM?'<p><strong>Gathering Nodes:</strong> reusable gathering spots (NODE-* ids) with an activity, profession(s), tier range, check, DC and common/rare/exotic material tables. Roll on one from anywhere (Gathering → Node template), point a Location at one by id, or import/export node files. <em>Copy Location nodes</em> makes templates from the gathering nodes your Locations already have, without changing Locations. Draft materials are listed for you, marked; tick <em>Use draft materials anyway</em> on the Gathering tab to award one.</p>':''}
+    <p><strong>XP:</strong> the GM awards profession XP from the gather and craft chat cards${game.user.isGM?', or under <b>GM: XP</b> on a profession card (Award or Adjust, with the history)':''}.</p>
+    ${game.user.isGM?'<p><strong>Gathering (GM):</strong> three sub-tabs. <em>Requests</em> lists what players asked for (Approve or Decline); <em>Active checks</em> holds the open checks and the last result; <em>Start gathering</em> starts a check on a Location node, a node template or an ad-hoc node. The Gathering tab opens on Requests when any are waiting.</p>':''}
+    ${game.user.isGM?'<p><strong>Gathering Nodes:</strong> reusable gathering spots (NODE-* ids) with an activity, profession(s), tier range, check, DC and common/rare/exotic material tables. Roll on one from anywhere (Gathering → Start gathering → Node template), point a Location at one by id, or import/export node files. Edit opens the node in place of the list; <em>All nodes</em> or Cancel goes back to where you were. <em>Copy Location nodes</em> makes templates from the gathering nodes your Locations already have, without changing Locations. Draft materials are listed for you, marked; tick <em>Use draft materials anyway</em> on the Gathering tab to award one.</p>':''}
     ${game.user.isGM?'<p><strong>Assign:</strong> preview which profession features each party character qualifies for from their skill and tool proficiencies (the Skill to Access and Tool to Access in GM Setup → Tools and checks), then add the missing ones. Re-running adds nothing new; XP is never changed.</p>':''}
-    ${game.user.isGM?'<p><strong>GM Setup:</strong> choose the party and Player Access; every GM Setup change, Player Access included, is saved with <b>Save Changes</b>. <em>Tools and checks</em> has one row per profession, crafting then gathering: the skill or tool that gives access (either one qualifies; they are also the profession’s checks) and, for gathering, the tool that gives advantage (advantage tools apply to gathering professions only; ignored for crafting). It can import a baseline crosswalk file (preview, then apply) and export the current table. Recipe imports and Manager are in the Recipe Catalog tab; XP is awarded from the Individual tab.</p>':''}
+    ${game.user.isGM?'<p><strong>GM Setup:</strong> sub-tabs <em>Party</em>, <em>Tools and checks</em>, <em>Gathering &amp; crafting</em> and <em>Player Access</em>; every change on any of them is saved together with <b>Save Changes</b>, and <b>Cancel</b> discards them and stays on GM Setup. <em>Tools and checks</em> has one row per profession, crafting then gathering: the skill or tool that gives access (either one qualifies; they are also the profession’s checks) and, for gathering, the tool that gives advantage (advantage tools apply to gathering professions only; ignored for crafting). Its <em>Baseline file</em> section imports a baseline crosswalk file (preview, then Apply baseline, which saves at once) and exports the current table. General Manager imports recipes and materials; the older Ledger JSON import is under <em>Advanced</em> at the end of the Recipe Catalog. XP is awarded from the Individual tab.</p>':''}
   `;}
   /** Ad-hoc node from the GM's form; same shape as a Locations entry. */
   _adhocNode(){
@@ -1819,13 +1855,17 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const migNote=store.migrations.length?notice(`${plural(copied,'Location gathering node')} copied into templates (last copy ${esc(new Date(store.migrations.at(-1).at).toLocaleString())}). Locations records were not changed; the original entries are backed up in the Journal “${esc(GM_JOURNAL_NAME)}”.`):'';
     const filter=`<label class="ag-field ag-field--inline">Activity<select data-node-filter><option value="all" ${f==='all'?'selected':''}>All</option>${ACTIVITY_KEYS.map(k=>`<option value="${k}" ${f===k?'selected':''}>${esc(activityLabel(k))}</option>`).join('')}${store.nodes.some(n=>!n.activity)?`<option value="none" ${f==='none'?'selected':''}>No activity set</option>`:''}</select></label>`;
     const canCopy=Boolean(locations);
+    // 0.26.0 (PL-03): the editor and the import preview open in place of the list (never above or below it), with a way
+    // back; their Cancel and Save Changes / Apply import sit in the window footer.
+    if(this.nodeDraft||this.nodeImport)return `<div class="ag-toolbar agl-toolbar">${linkButton('All nodes',{data:{action:this.nodeDraft?'node-cancel':'node-import-cancel'},icon:'fa-solid fa-arrow-left'})}</div>
+      ${this.nodeDraft?this._nodeEditor(store):this._nodeImportPreview()}`;
     return `<div class="ag-toolbar agl-toolbar">${this._search('Search nodes, ids or materials')}<div class="ag-toolbar__filters">${filter}<span class="ag-toolbar__count">${shown.length} of ${store.nodes.length}</span></div>
-        <div class="ag-toolbar__end"><button type="button" class="ag-btn ag-btn--sm" data-action="node-import"><i class="fa-solid fa-file-import" aria-hidden="true"></i> Import nodes</button>
+        <div class="ag-toolbar__end">${fileButton({label:'Import nodes…',accept:'application/json,.json',data:{aglFile:'nodes'},className:'ag-btn ag-btn--sm'})}
         <button type="button" class="ag-btn ag-btn--sm" data-action="node-export" ${store.nodes.length?'':'disabled'}><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export</button>
         <button type="button" class="ag-btn ag-btn--sm" data-action="node-copy-locations" ${canCopy?'':`disabled ${tip(GATHER_FIX.noLocations)}`}><i class="fa-solid fa-map-location-dot" aria-hidden="true"></i> Copy Location nodes</button>
         <button type="button" class="ag-btn ag-btn--primary ag-btn--sm" data-action="node-new"><i class="fa-solid fa-plus" aria-hidden="true"></i> New node</button></div></div>
       <p class="agl-sub">Node templates are gathering spots you can roll on from anywhere (Gathering → Node template). A Location can point to one by its NODE id. Ids are permanent: a deleted node’s id is never reused. Players never see this tab.</p>
-      ${migNote}${this.nodeImport?this._nodeImportPreview():''}${this.nodeDraft?this._nodeEditor(store):''}
+      ${migNote}
       ${folders(rows,this.closedFolders)||emptyState(store.nodes.length?'No nodes match this filter.':'No gathering nodes yet.',store.nodes.length?'Choose All activities.':'Create one with New node, import a node file, or copy the gathering nodes your Locations already have.')}
       <div class="ag-empty agl-no-matches" hidden><p class="ag-empty__title">Nothing matches.</p><p class="ag-empty__text">Clear the search to see every node.</p></div>`;
   }
@@ -1867,9 +1907,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const test=used.length?`<ul class="ag-rows">${used.map(id=>{const s=materialState(id),m=gmMaterialChoices().find(x=>x.id===id);
       return `<li class="ag-row"><span class="ag-row__main"><span class="ag-row__title">${esc(m?.name??id)}</span><span class="ag-row__meta">${esc(id)}${s.state==='ok'?'':` · ${esc(materialUnavailable(id))}`}</span></span><span class="ag-row__end">${s.state==='ok'?badge('Released','ok'):materialBadge(id)}</span></li>`;}).join('')}</ul>`
       :'<p class="agl-sub">No materials yet.</p>';
-    return `<section class="ag-card agl-panel agl-node-editor"><h2>${isNew?'New gathering node':`Edit ${esc(d.name||d.id)}`}</h2>
-      ${errors.length?`<div class="ag-notice ag-notice--warn" role="alert"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>${errors.map(esc).join('<br>')}</span></div>`:''}
-      <div class="agl-gather-form">
+    // Basics, Check and Materials open; Node test closed (each remembered per user once toggled). No fold inside a fold.
+    const basics=`<div class="agl-gather-form">
         <label class="ag-field">Name<input data-node-field="name" maxlength="80" value="${esc(d.name)}" placeholder="e.g. [TEST] River reeds"></label>
         <label class="ag-field">Id (permanent)${isNew?`<input data-node-field="id" maxlength="60" value="${esc(d.id)}" placeholder="${esc(d.name?nodeIdFromName(d.name,taken):'NODE-… (made from the name)')}">`:`<input value="${esc(d.id)}" readonly aria-readonly="true">`}</label>
         <label class="ag-field">Activity${sel('activity',[['','Choose…'],...ACTIVITY_KEYS.map(k=>[k,activityLabel(k)])],d.activity)}</label>
@@ -1877,16 +1916,22 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
           <span class="agl-sub">None ticked: the activity’s profession. The first one the lead has gives the XP.</span></fieldset>
         <label class="ag-field">Lowest tier${sel('tierMin',tierOpts,d.tierMin)}</label>
         <label class="ag-field">Highest tier${sel('tierMax',tierOpts,d.tierMax)}</label>
+        <label class="ag-field ag-field--inline"><input type="checkbox" data-node-field="finite" ${d.finite?'checked':''}> Finite: used up when gathered at a Location</label>
+        <label class="ag-field">Note (GM)<input data-node-field="note" maxlength="500" value="${esc(d.note)}"></label>
+      </div>`;
+    const check=`<div class="agl-gather-form">
         <label class="ag-field">DC<input type="number" min="1" max="40" step="1" data-node-field="dc" value="${esc(d.dc)}" placeholder="Default for the tier (${Object.values(DEFAULT_DC_BY_TIER).join('/')})"></label>
         <label class="ag-field ag-field--inline"><input type="checkbox" data-node-field="dcVisible" ${d.dcVisible?'checked':''}> Players see the DC</label>
         <label class="ag-field">Check skill${sel('checkSkill',[['','The profession’s (GM Setup)'],...SKILL_IDS.map(k=>[k,skillLabel(k)])],d.checkSkill)}</label>
         <label class="ag-field">Check tool${sel('checkTool',[['','The profession’s (GM Setup)'],...toolKeys().map(k=>[k,toolLabel(k)])],d.checkTool)}</label>
-        <label class="ag-field ag-field--inline"><input type="checkbox" data-node-field="finite" ${d.finite?'checked':''}> Finite: used up when gathered at a Location</label>
-        <label class="ag-field">Note (GM)<input data-node-field="note" maxlength="500" value="${esc(d.note)}"></label>
-      </div>
-      ${tables}
-      <fieldset class="agl-node-table"><legend>Node test: materials</legend><p class="agl-sub">Whether each material can be awarded now. A draft or unreleased one is awarded only when you tick “Use draft materials anyway” on the Gathering tab.</p>${test}</fieldset>
-      <div class="agl-editor-actions"><button type="button" class="ag-btn ag-btn--ghost" data-action="node-cancel">Cancel</button><button type="button" class="ag-btn ag-btn--primary" data-action="node-save"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save Changes</button></div>
+      </div>`;
+    const count=TABLES.reduce((n,t)=>n+d[t].filter(e=>e.materialId).length,0);
+    return `<section class="ag-card agl-panel agl-node-editor"><h2>${isNew?'New gathering node':`Edit ${esc(d.name||d.id)}`}</h2>
+      ${errors.length?`<div class="ag-notice ag-notice--warn" role="alert"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>${errors.map(esc).join('<br>')}</span></div>`:''}
+      ${fold({key:'node-basics',title:'Basics',open:true,body:basics})}
+      ${fold({key:'node-check',title:'Check',open:true,body:check})}
+      ${fold({key:'node-materials',title:'Materials',count,open:true,body:tables})}
+      ${fold({key:'node-test',title:'Node test',hint:'can each material be awarded now?',body:`<p class="agl-sub">Whether each material can be awarded now. A draft or unreleased one is awarded only when you tick “Use draft materials anyway” on the Gathering tab.</p>${test}`})}
     </section>`;
   }
   /** GM: what a node file import will do; nothing is written until Apply. */
@@ -1897,7 +1942,6 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       ${plan.ok?`<ul class="agl-node-plan">${list('New',plan.add,'ok')}${list('Updated',plan.update,'ok')}${list('Kept (edited here; your edit stays)',plan.keep,'warn')}${list('Unchanged',plan.unchanged)}${list('Skipped (deleted id; ids are never reused)',plan.retired,'warn')}</ul>
         ${plan.warnings.length?`<p class="agl-sub">${plan.warnings.map(esc).join('<br>')}</p>`:''}<p class="agl-sub">Import never removes a node and never overwrites one you edited here. Locations are not changed.</p>`
         :`<div class="ag-notice ag-notice--warn" role="alert"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>This file can’t be imported:<br>${plan.errors.map(esc).join('<br>')}</span></div>`}
-      <div class="agl-editor-actions"><button type="button" class="ag-btn ag-btn--ghost" data-action="node-import-cancel">Cancel</button>${plan.ok?`<button type="button" class="ag-btn ag-btn--primary" data-action="node-import-apply" ${plan.add.length||plan.update.length?'':'disabled'}><i class="fa-solid fa-file-import" aria-hidden="true"></i> Apply import</button>`:''}</div>
     </section>`;
   }
   _gathering(){
@@ -1920,7 +1964,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         ${r.mode==='designated'?`<label class="ag-field ag-field--inline">Chance %<input type="number" min="1" max="100" step="1" data-adhoc-exotic="${esc(r.materialId)}" data-exotic-key="chance" value="${esc(r.chance??'')}" placeholder="required"></label>
         <label class="ag-field ag-field--inline">When<select data-adhoc-exotic="${esc(r.materialId)}" data-exotic-key="condition">${Object.entries(DESIGNATED_CONDITIONS).map(([k,l])=>`<option value="${k}" ${r.condition===k?'selected':''}>${esc(l)}</option>`).join('')}</select></label>`:''}
         <span class="ag-row__end"><button type="button" class="ag-btn ag-btn--sm" data-action="adhoc-exotic-remove" data-id="${esc(r.materialId)}">Remove</button></span></li>`).join('');
-    return `<fieldset class="agl-exotic-pick"><legend>Exotic candidates (optional, GM only)</legend>
+    // 0.26.0 (PL-02): a closed fold under the ad-hoc form; its title counts the chosen candidates.
+    return fold({key:'adhoc-exotics',title:'Exotic candidates',count:`${a.exotics.length} chosen`,hint:'optional, GM only',body:`<div class="agl-exotic-pick">
       <p class="agl-sub">Pick which Exotic materials this node can give. A pick sets eligibility only: a successful check rolls d100 once (discovery ${exoticPercent()}%, set in GM Setup), or a designated source uses its own chance instead. A failed check never finds one. Players never see this list. A draft or unreleased Exotic can be picked; it is only found when “Use draft materials anyway” is ticked.</p>
       ${rows?`<ul class="ag-rows agl-exotic-list">${rows}</ul>`:''}
       <div class="ag-toolbar agl-exotic-filters">
@@ -1932,28 +1977,33 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         <span class="ag-row__meta">Tier ${m.tier??'—'}${m.unavailable?` · ${esc(m.unavailable)}`:''}</span></span>
         <span class="ag-row__end">${qualityBadge('exotic')}${m.draft?materialBadge(m.id):''}<button type="button" class="ag-btn ag-btn--sm" data-action="adhoc-exotic-add" data-id="${esc(m.id)}" ${off?'disabled':''}>Add</button></span></li>`;}).join('')}</ul>`
         :`<p class="agl-sub">${p.profession==='node'&&!nodeProf?'This node’s skill is not a gathering profession, so no Exotic can be found here. Choose a gathering profession above.':'No imported Exotic materials match. Exotics come from General Manager (quality “Exotic”; a draft one is marked and needs “Use draft materials anyway”).'}</p>`}
-    </fieldset>`;
+    </div>`});
   }
-  /** GM: players' gathering requests waiting for Approve or Decline (0.21.0). */
+  /** GM: players' gathering requests waiting for Approve or Decline (0.21.0). 0.26.0 (PL-06): one kit card per request,
+   * the reason above Decline (left) and Approve (right, primary). */
   _gatherQueue(){
     const list=[...gatherRequests.values()].sort((a,b)=>a.at-b.at);
-    if(!list.length)return '';
-    const rows=list.map(r=>{
+    if(!list.length)return emptyState('No gathering requests waiting.','Players ask to gather from their own Gathering tab. Their requests wait here for you to approve or decline.');
+    const cards=list.map(r=>{
       const actor=game.actors?.get?.(r.actorId),node=r.node;
       const plan=actor?gatherCheckPlan(actor,node):null,info=plan?helperInfo(r.helperIds.map(id=>game.actors.get(id)).filter(Boolean),actor,plan):[];
       const need=node.tier?ACCESS_LEVELS[tierName(node.tier)]:null,progress=plan?.professionId?progressOf(actor,plan.professionId):null;
       const draftNote=r.draft?`<p class="agl-reason">${esc(startBlocker({rosterCount:1,partyCount:1,leadInParty:true,node,...nodeMaterialCheck(node)}))} Approve gives it anyway (players still never see draft materials listed).</p>`:'';
-      return `<li class="agl-request" data-request="${esc(r.requestId)}"><p><strong>${esc(r.requesterName)}</strong> asks for <strong>${esc(r.actorName)}</strong> to gather <strong>${esc(nodeTitle(node))}</strong> at ${esc(node.locationName)}.</p>${draftNote}
+      return `<article class="ag-card ag-card--compact agl-request" data-request="${esc(r.requestId)}"><p><strong>${esc(r.requesterName)}</strong> asks for <strong>${esc(r.actorName)}</strong> to gather <strong>${esc(nodeTitle(node))}</strong> at ${esc(node.locationName)}.</p>${draftNote}
         <p class="agl-sub">${esc(nodeSummary(node))} · common ${node.quantity} × ${esc(materialName(node.materialId))}${node.rareMaterialId?`, rare ${node.rareQuantity} × ${esc(materialName(node.rareMaterialId))}`:''}${node.finite?' · finite':''}</p>
         <p class="agl-sub">${info.length?`Helpers: ${info.map(h=>`${esc(h.name)} (${esc(h.reason)}${h.eligible?' — gives advantage':''})`).join(', ')}`:'No helpers.'}
           ${plan&&!plan.professionId?` · ${esc(r.actorName)} has no ${esc(plan.profession||'matching')} profession feature.`:''}
           ${need&&progress&&progress.level<need?` · ${esc(plan.professionName)} level ${progress.level}; tier ${node.tier} usually needs level ${need}.`:''}</p>
-        <div class="agl-management-actions"><label class="ag-field ag-field--inline">Reason (optional, sent to the player)<input type="text" maxlength="200" data-gather-decline-reason="${esc(r.requestId)}"></label>
-          <button type="button" class="ag-btn" data-action="gather-decline" data-id="${esc(r.requestId)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Decline</button>
-          <button type="button" class="ag-btn" data-action="gather-approve" data-id="${esc(r.requestId)}"${r.draft?' data-draft="1"':''}><i class="fa-solid fa-check" aria-hidden="true"></i> ${r.draft?'Approve (use draft material)':'Approve'}</button></div></li>`;}).join('');
-    return `<section class="ag-card agl-panel agl-gather-requests"><h2>Requests ${badge(String(list.length),'warn')}</h2>
-      <p class="agl-sub">Players asked to gather. Approve starts the check as Start gathering does (the lead’s owner rolls); Decline tells the player, with your reason if you give one.</p>
-      <ul class="agl-request-list">${rows}</ul></section>`;
+        <label class="ag-field">Reason for declining (optional, sent to the player)<input type="text" maxlength="200" data-gather-decline-reason="${esc(r.requestId)}"></label>
+        <div class="agl-editor-actions"><button type="button" class="ag-btn ag-btn--ghost" data-action="gather-decline" data-id="${esc(r.requestId)}"><i class="fa-solid fa-xmark" aria-hidden="true"></i> Decline</button>
+          <button type="button" class="ag-btn ag-btn--primary" data-action="gather-approve" data-id="${esc(r.requestId)}"${r.draft?' data-draft="1"':''}><i class="fa-solid fa-check" aria-hidden="true"></i> ${r.draft?'Approve (use draft material)':'Approve'}</button></div></article>`;}).join('');
+    return `<p class="agl-sub">Players asked to gather. Approve starts the check as Start gathering does (the lead’s owner rolls); Decline tells the player, with your reason if you give one.</p>
+      <div class="agl-request-list">${cards}</div>`;
+  }
+  /** GM Gathering sub-tab to show: the one picked, else Requests when any wait, else the one remembered (or Start gathering). */
+  _gatherTabNow(){
+    if(GATHER_TAB_IDS.includes(this.gatherTab))return this.gatherTab;
+    return this.gatherTab=gatherRequests.size?'requests':this._ui.get('gatherTab','start',GATHER_TAB_IDS);
   }
   _gatherPlayer(){
     const mine=myCharacters(),actor=mine.find(a=>a.id===this.gather.actorId)??mine[0]??null;
@@ -2022,8 +2072,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const ready=!blocker;
     const lead0=lead,rollers=allUsers().filter(u=>u.active&&!u.isGM&&lead0.testUserPermission?.(u,'OWNER'));
     const startLabel=rollers.length?`Send gathering check to ${nameList(rollers)}`:'Start gathering check (you roll)';
-    return `${this._gatherQueue()}${sessions}${last}<section class="ag-card agl-panel"><h2>Start gathering</h2>
-      <p class="agl-sub">One lead gatherer, one check per node for the party. Helpers with suitable tools give advantage, not another attempt. Success gives one common bundle; success by 5+ gives one rare bundle instead. A success can also find one Exotic when the node has Exotic candidates (only an awarded Exotic is shown to players). Failure exhausts the node. Players can also request a node from their Gathering tab: requests wait in the Requests list above.</p>
+    const start=`<section class="ag-card agl-panel"><h2>Start gathering</h2>
+      ${fold({key:'gather-how',title:'How gathering works',body:'<p class="agl-sub">One lead gatherer, one check per node for the party. Helpers with suitable tools give advantage, not another attempt. Success gives one common bundle; success by 5+ gives one rare bundle instead. A success can also find one Exotic when the node has Exotic candidates (only an awarded Exotic is shown to players). Failure exhausts the node. Players can also ask for a node from their Gathering tab: their requests wait in Requests.</p>'})}
       <div class="ag-segmented" role="radiogroup" aria-label="Node source"><button type="button" role="radio" aria-checked="${g.source==='location'}" data-action="gather-source" data-id="location" ${where.ok?'':`disabled data-tooltip="${esc(where.reason)}" data-tooltip-class="ag-tooltip"`}>Location node</button><button type="button" role="radio" aria-checked="${g.source==='template'}" data-action="gather-source" data-id="template">Node template</button><button type="button" role="radio" aria-checked="${g.source==='adhoc'}" data-action="gather-source" data-id="adhoc">Ad-hoc node</button></div>
       ${where.ok?'':`<p class="agl-sub">${esc(where.reason)} Node templates and ad-hoc nodes still work.</p>`}
       ${form}
@@ -2035,10 +2085,19 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         ${plan?`<div class="agl-sub">${esc(lead.name)}: ${plan.options.slice(0,2).map(o=>{const c=checkOption(lead,o);return `${esc(c.label)} ${formatBonus(c.bonus)}`;}).join(' · ')}${plan.professionId?'':` · no ${esc(plan.profession||'matching')} profession feature (no XP target)`}</div>`:'<div></div>'}
         ${helpers.length?`<fieldset class="agl-gather-eligible"><legend>Helpers</legend>${helpers.map(h=>`<label ${tip(h.reason)}><input type="checkbox" data-gather-helper="${esc(h.id)}" ${g.helperIds.includes(h.id)?'checked':''}> ${esc(h.name)} ${badge(h.eligible?'Advantage':h.reason,h.eligible?'ok':'muted')}</label>`).join('')}</fieldset>`:''}
       </div>
-      <label class="ag-field ag-field--inline"><input type="checkbox" data-gather-allow-draft ${g.allowDraft?'checked':''}> Use draft materials anyway (GM only: awards draft or unreleased materials for this check; players still only see released ones)</label>
+      <div class="agl-field-group"><label class="ag-field ag-field--inline"><input type="checkbox" data-gather-allow-draft aria-describedby="agl-allow-draft-hint" ${g.allowDraft?'checked':''}> Use draft materials anyway</label>
+        <p class="ag-field__hint" id="agl-allow-draft-hint">GM only: this check can award draft or unreleased materials. Players still only see released ones.</p></div>
       ${blocker?`<p class="agl-reason" role="status">${esc(blocker)}</p>`:''}
       <div class="agl-management-actions"><button type="button" class="ag-btn ag-btn--primary" data-action="gather-start" ${ready?'':'disabled'}><i class="fa-solid fa-seedling" aria-hidden="true"></i> ${esc(startLabel)}</button></div>
     </section>`;
+    // 0.26.0 (PL-02): Requests (n) · Active checks (n) · Start gathering. Every panel is rendered (the others hidden), so a
+    // sub-tab switch keeps what was typed; new requests and checks no longer push Start gathering down the page.
+    const tab=this._gatherTabNow();
+    const active=sessions||last?`${last}${sessions}`:emptyState('No gathering checks open.','Start one in Start gathering, or approve a request. Checks wait here until they are rolled or cancelled.');
+    const tabs=[{id:'requests',label:'Requests',count:gatherRequests.size},{id:'active',label:'Active checks',count:gatherSessions.size},{id:'start',label:'Start gathering'}];
+    const panels={requests:this._gatherQueue(),active,start};
+    return `${subTabs({group:'agl-gather',label:'Gathering',tabs,selected:tab})}
+      ${tabs.map(t=>`<div class="agl-subpanel" ${tabPanelAttrs('agl-gather',t.id,{hidden:t.id!==tab})}>${panels[t.id]}</div>`).join('')}`;
   }
   async _prepareContext(options){checkPlayerLedger();const ctx=await super._prepareContext(options);
     this.demo=false;
@@ -2046,14 +2105,16 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     if(!game.user.isGM){this.rosterDraft=null;if(GM_VIEWS.has(this.view))this.view='individual';}
     const lib=this.library;
     const content=({individual:()=>this._individual(lib),party:()=>this._party(lib),catalog:()=>this._catalog(lib),gathering:()=>this._gathering(),nodes:()=>this._nodes(),assign:()=>this._assign(),gm:()=>this._gmSetup()})[this.view]?.()??this._individual(lib);
-    const inGm=game.user.isGM&&this.view==='gm';
+    const inGm=game.user.isGM&&this.view==='gm',inNodes=game.user.isGM&&this.view==='nodes';
+    const plan=this.nodeImport?.plan;
+    const footer=inGm?`<button type="button" class="ag-btn ag-btn--ghost" data-action="gm-cancel">Cancel</button><span class="ag-footer__status" role="status" data-agl-roster-status>${this.setupStatus}</span><button type="button" class="ag-btn ag-btn--primary" data-action="roster-save" ${this.setupDirty?'':'disabled'}>Save Changes</button>`
+      :inNodes&&this.nodeDraft?`<button type="button" class="ag-btn ag-btn--ghost" data-action="node-cancel">Cancel</button><span class="ag-footer__status" role="status" data-agl-node-status>${this.nodeGuard?.dirty?'Unsaved changes':esc(this.notice||'')}</span><button type="button" class="ag-btn ag-btn--primary" data-action="node-save"><i class="fa-solid fa-floppy-disk" aria-hidden="true"></i> Save Changes</button>`
+      :inNodes&&this.nodeImport?`<button type="button" class="ag-btn ag-btn--ghost" data-action="node-import-cancel">Cancel</button><span class="ag-footer__status" role="status">${esc(this.notice||'')}</span>${plan?.ok?`<button type="button" class="ag-btn ag-btn--primary" data-action="node-import-apply" ${plan.add.length||plan.update.length?'':'disabled'}><i class="fa-solid fa-file-import" aria-hidden="true"></i> Apply import</button>`:''}`
+      :`<span class="ag-footer__status agl-footer-note" role="status">${esc(this.notice||'')}</span>`;
     return {...ctx,html:`<div class="agl-shell"><header class="ag-header"><div class="ag-header__title"><h1><span class="ag-header__brand">Ashen Gate</span> | Profession Ledger</h1></div>
-      <div class="ag-header__meta"><span class="ag-version">v${esc(game.modules.get(ID)?.version??VERSION)}</span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button></div>
-      <input id="agl-file" type="file" accept="application/json,.json" hidden>${game.user.isGM?'<input id="agl-node-file" type="file" accept="application/json,.json" hidden>':''}</header>
-      <nav class="ag-tabs ag-tabs--scroll" role="tablist" aria-label="Profession Ledger views">${this._tabs()}</nav><main class="agl-main" role="tabpanel">${content}</main>
-      <footer class="ag-footer">${inGm?`<button type="button" class="ag-btn ag-btn--ghost" data-action="gm-cancel">Cancel</button><span class="ag-footer__status" role="status" data-agl-roster-status>${this.setupStatus}</span><button type="button" class="ag-btn ag-btn--primary" data-action="roster-save" ${this.setupDirty?'':'disabled'}>Save Changes</button>`
-        :`<span class="ag-footer__status agl-footer-note" role="status">${esc(this.notice||'')}</span>`}
-      </footer></div>`};
+      <div class="ag-header__meta"><span class="ag-version">v${esc(game.modules.get(ID)?.version??VERSION)}</span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="help"><i class="fa-solid fa-circle-question" aria-hidden="true"></i> Help</button></div></header>
+      <nav class="ag-tabs ag-tabs--scroll" role="tablist" aria-label="Profession Ledger views">${this._tabs()}</nav><main class="agl-main" id="agl-panel" role="tabpanel" aria-labelledby="agl-tab-${esc(this.view)}" tabindex="-1">${content}</main>
+      <footer class="ag-footer">${footer}</footer></div>`};
   }
   /** 0.22.0: every action re-renders the whole part, which replaces the .agl-main scroll box (and the tables' sideways
    * scroll) and so jumped back to the top. The positions are kept across a re-render of the same tab; a new tab starts at the top. */
@@ -2064,16 +2125,21 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   _restoreScroll(){
     const s=this._scrollState,main=this.element?.querySelector?.('.agl-main');
     this._scrollState=null;
+    if(main&&this._scrollTo!=null){main.scrollTop=this._scrollTo;this._scrollTo=null;this._renderedView=this.view;return;}
     if(main&&s&&s.view===this.view){main.scrollTop=s.top;[...(main.querySelectorAll?.('.agl-map-wrap')??[])].forEach((w,i)=>{if(s.wraps[i])w.scrollLeft=s.wraps[i];});}
     this._renderedView=this.view;
   }
   async _preRender(context,options){await super._preRender?.(context,options);this._captureScroll();}
   async _onRender(context,options){await super._onRender(context,options);if(!canOpenLedger()){await this.close?.({animate:false});return;}openLedgerWindows.add(this);this._restoreScroll();this._events?.abort();this._events=new AbortController();
     const signal=this._events.signal;
-    this.element.addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(!b||b.disabled)return;if(b.closest('summary'))e.preventDefault();void this._click(b.dataset.action,b.dataset.id,b.dataset);},{signal});
-    this.element.querySelector('#agl-file')?.addEventListener('change',e=>this._upload(e),{signal});
-    this.element.querySelector('#agl-xwalk-file')?.addEventListener('change',e=>this._uploadBaseline(e),{signal});
-    this.element.querySelector('#agl-node-file')?.addEventListener('change',e=>this._uploadNodes(e),{signal});
+    this.element.addEventListener('click',e=>{
+      const sub=e.target.closest?.('.ag-tabs--sub [role="tab"]');if(sub){this._showSubTab(sub);return;}
+      const b=e.target.closest('[data-action]');if(!b||b.disabled)return;if(b.closest('summary'))e.preventDefault();if(xpModeClick(b))return;void this._click(b.dataset.action,b.dataset.id,b.dataset);},{signal});
+    // 0.26.0: kit file buttons (a real button plus a visually hidden input), tab keyboard, remembered folds.
+    const unbind=[bindFileButtons(this.element,([file],wrap)=>this._readFile(wrap?.dataset?.aglFile,file)),
+      bindTablist(this.element.querySelector('nav.ag-tabs')),...[...this.element.querySelectorAll('.ag-tabs--sub')].map(list=>bindTablist(list)),bindFolds(this.element,this._ui)];
+    signal.addEventListener('abort',()=>unbind.forEach(fn=>fn()));
+    if(this.nodeDraft)this.nodeGuard.watch(this.element.querySelector('.agl-node-editor'));
     this.element.addEventListener('toggle',e=>{const key=e.target?.dataset?.folder;if(!key||this.query)return;if(e.target.open)this.closedFolders.delete(key);else this.closedFolders.add(key);},{signal,capture:true});
     this.element.addEventListener('change',e=>{
       if(e.target?.matches?.('[data-agl-actor]')){this.actorId=e.target.value;this.render();return;}
@@ -2101,7 +2167,25 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(e.target?.matches?.('[data-roster-actor]')&&game.user.isGM)this._rememberRosterDraft();
     },{signal});
     this.element.querySelector('[data-agl-search]')?.addEventListener('input',e=>{this.query=e.target.value;this._applySearch();},{signal});
-    this._applySearch();this._syncRosterActions();}
+    this._applySearch();this._syncRosterActions();
+    if(this._focusAfter){const el=this.element.querySelector(this._focusAfter);this._focusAfter=null;el?.focus?.();}}
+  /** Sub-tab switch inside GM Setup or Gathering (GM): panels are already rendered, so nothing re-renders and no draft is touched. */
+  _showSubTab(tab){
+    const list=tab.closest('[role="tablist"]'),id=tab.dataset.tab;
+    for(const t of list?.querySelectorAll?.('[role="tab"]')??[]){
+      const on=t===tab;t.setAttribute('aria-selected',String(on));t.setAttribute('tabindex',on?'0':'-1');
+      const panel=this.element.querySelector(`#${t.getAttribute('aria-controls')}`);if(panel)panel.hidden=!on;
+    }
+    if(tab.id.startsWith('agl-gm-setup-')&&GM_SETUP_TABS.some(t=>t.id===id))this._ui.set('gmSetupTab',this.gmTab=id);
+    if(tab.id.startsWith('agl-gather-')&&GATHER_TAB_IDS.includes(id))this._ui.set('gatherTab',this.gatherTab=id);
+  }
+  /** A file picked with one of the kit file buttons: catalog JSON, baseline file or node file. */
+  async _readFile(kind,file){
+    if(!file)return;
+    if(kind==='catalog')return this._upload(file);
+    if(kind==='baseline')return this._uploadBaseline(file);
+    if(kind==='nodes')return this._uploadNodes(file);
+  }
   /** Records one node editor input in the draft. Returns true when the editor must re-render (its layout changed). */
   _nodeDraftChange(el){
     const d=this.nodeDraft.data;
@@ -2121,9 +2205,9 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     return ['activity','tierMin','tierMax'].includes(f);
   }
   /** GM: read a node file and show its import preview; nothing is saved until Apply import. */
-  async _uploadNodes(e){if(!game.user.isGM)return;const f=e.target.files?.[0];if(!f)return;
-    try{const data=JSON.parse(await f.text());this.nodeImport={fileName:f.name??'',data,plan:previewNodeFile(data)};this.render();}
-    catch(err){say(`Node file not read: ${err.message}`,true);}finally{if(e.target)e.target.value='';}}
+  async _uploadNodes(f){if(!game.user.isGM||!f)return;
+    try{const data=JSON.parse(await f.text());this._rememberNodeList();this.nodeImport={fileName:f.name??'',data,plan:previewNodeFile(data)};this.render();}
+    catch(err){say(`Node file not read: ${err.message}`,true);}}
   /** Client-side filter; folders open while searching and hide when empty. */
   _applySearch(){
     const query=this.query.trim().toLowerCase();
@@ -2142,13 +2226,14 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         const next=LEGACY_VIEWS[id]??id;
         if(!game.user.isGM&&GM_VIEWS.has(next))throw Error('GM only');
         if(this.view==='gm'&&next!=='gm'&&!await this._leaveGmSetup())return;
+        if(next==='gathering'&&this.view!=='gathering')this.gatherTab=null;
         this.view=next;this.render();return;}
       if(action==='help'){await infoDialog('Profession Ledger help',this._help());return;}
-      if(action==='gm-cancel'){if(!game.user.isGM)throw Error('GM only');if(!await this._leaveGmSetup())return;this.view='individual';this.render();return;}
+      // 0.26.0 (PL-13): Cancel discards the GM Setup drafts and stays on GM Setup (the suite convention).
+      if(action==='gm-cancel'){if(!game.user.isGM)throw Error('GM only');if(!await this._leaveGmSetup())return;this.baselinePreview=null;this.render();return;}
       if(action==='actor'||action==='open-individual'){if(!myCharacters().some(a=>a.id===id))throw Error('You can only open your own character');this.actorId=id;this.view='individual';this.render();return;}
       if(action==='party-sort'){this.partySort=id==='profession'?'profession':'player';this.render();return;}
       if(action==='demo')throw Error('Demonstration mode was removed. Use an isolated test world with imported source definitions.');
-      if(action==='xwalk-import'){requireCrosswalkGM();this.element.querySelector('#agl-xwalk-file')?.click();return;}
       if(action==='xwalk-cancel'){this.baselinePreview=null;this.render();return;}
       if(action==='xwalk-apply'){requireCrosswalkGM();const p=this.baselinePreview;if(!p)throw Error('Import a baseline file first');
         const out=await applyBaseline(p.data,{fileName:p.fileName});this.baselinePreview=null;
@@ -2203,8 +2288,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(action==='gather-source'){if(!game.user.isGM)throw Error('GM only');this.gather.source=['adhoc','template'].includes(id)?id:'location';this.render();return;}
       if(action==='gather-start'){if(!game.user.isGM)throw Error('GM only');
         const session=await startGather({node:this._selectedNode(),leadId:this.gather.actorId,helperIds:this.gather.helperIds,allowDraft:this.gather.allowDraft});
-        this.gather.nodeRef='';this.gather.helperIds=[];
-        this.notice=session.rollerIds.length?`Gathering check sent to ${session.leadName}’s player.`:`No owner of ${session.leadName} is online: roll for them below.`;this.render();say(this.notice);return;}
+        this.gather.nodeRef='';this.gather.helperIds=[];this.gatherTab='active';
+        this.notice=session.rollerIds.length?`Gathering check sent to ${session.leadName}’s player.`:`No owner of ${session.leadName} is online: roll for them in Active checks.`;this.render();say(this.notice);return;}
       if(action==='gather-cancel'){cancelGather(id);this.notice='Gathering check cancelled. Nothing was used.';this.render();return;}
       if(action==='gather-gm-roll'||action==='gather-record'){if(!game.user.isGM)throw Error('GM only');
         const session=gatherSessions.get(id);if(!session)throw Error('This gathering check is no longer open');
@@ -2224,29 +2309,28 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         this.gather.pending=true;this.render();say('Gathering request sent to the GM.');
         let out;try{out=await requestGather({actorId:actor?.id,locationId,nodeId,helperIds:this.gather.helperIds});}finally{this.gather.pending=false;}
         this.notice=out.message;if(out.ok){this.gather.nodeRef='';this.gather.helperIds=[];}this.render();say(out.message,!out.ok);return;}
-      if(action==='gather-approve'){if(!game.user.isGM)throw Error('Only the GM can approve gathering');await approveGatherRequest(id,{allowDraft:data.draft==='1'});this.render();return;}
+      if(action==='gather-approve'){if(!game.user.isGM)throw Error('Only the GM can approve gathering');await approveGatherRequest(id,{allowDraft:data.draft==='1'});if(!gatherRequests.size)this.gatherTab='active';this.render();return;}
       if(action.startsWith('node-')){await this._nodeAction(action,id);return;}
       if(action==='gather-decline'){if(!game.user.isGM)throw Error('Only the GM can decline gathering');
         const reason=this.element?.querySelector?.(`[data-gather-decline-reason="${id}"]`)?.value??'';declineGatherRequest(id,{reason});this.render();return;}
-      if(action==='import'){if(!game.user.isGM)throw Error('GM only');this.element.querySelector('#agl-file')?.click();return;}
     }catch(e){console.error(`[${ID}]`,e);say(`Profession Ledger: ${e.message}`,true);}}
   /** GM: Gathering Nodes tab actions. Every write goes through the GM-only data layer. */
   async _nodeAction(action,id){
     requireNodesGM();
-    if(action==='node-new'){this.nodeDraft=nodeDraftOf(null);this.render();return;}
-    if(action==='node-edit'){const t=nodeTemplate(id);if(!t)throw Error(`No node ${id}`);this.nodeDraft=nodeDraftOf(t);this.render();return;}
-    if(action==='node-cancel'){this.nodeDraft=null;this.render();return;}
+    if(action==='node-new'){this._openNodeEditor(nodeDraftOf(null),null);return;}
+    if(action==='node-edit'){const t=nodeTemplate(id);if(!t)throw Error(`No node ${id}`);this._openNodeEditor(nodeDraftOf(t),id);return;}
+    if(action==='node-cancel'){if(!await this.nodeGuard.confirm())return;this._closeNodeEditor();return;}
     if(action==='node-row-add'){if(!this.nodeDraft||!TABLES.includes(id))return;
-      this.nodeDraft.data[id].push(id==='exotic'?{materialId:'',mode:'discovery',chance:'',condition:'success'}:{materialId:'',quantity:'1',chance:''});this.render();return;}
-    if(action==='node-row-remove'){const [t,i]=String(id).split(':');if(!this.nodeDraft||!TABLES.includes(t))return;this.nodeDraft.data[t].splice(Number(i),1);this.render();return;}
+      this.nodeDraft.data[id].push(id==='exotic'?{materialId:'',mode:'discovery',chance:'',condition:'success'}:{materialId:'',quantity:'1',chance:''});this.nodeGuard.markDirty();this.render();return;}
+    if(action==='node-row-remove'){const [t,i]=String(id).split(':');if(!this.nodeDraft||!TABLES.includes(t))return;this.nodeDraft.data[t].splice(Number(i),1);this.nodeGuard.markDirty();this.render();return;}
     if(action==='node-save'){
       const draft=this.nodeDraft;if(!draft)return;
       const store=readNodeStore(),taken=new Set([...store.nodes.map(n=>n.id),...store.retiredIds]);
       const raw=draftTemplate(draft.data,taken),r=saveTemplate(store,raw,{isNew:draft.isNew});
       if(!r.ok){draft.errors=r.errors;this.render();throw Error(`Node not saved: ${r.errors[0]}${r.errors.length>1?` (+${r.errors.length-1} more)`:''}`);}
       await writeNodeStore(r.store);
-      this.nodeDraft=null;this.notice=`Saved node ${r.node.name} (${r.node.id}).`;this.render();say(this.notice);return;}
-    if(action==='node-duplicate'){const copy=await duplicateNodeTemplate(id);this.nodeDraft=nodeDraftOf(nodeTemplate(copy.id));this.notice=`Duplicated as ${copy.id}.`;this.render();say(this.notice);return;}
+      this.notice=`Saved node ${r.node.name} (${r.node.id}).`;this._closeNodeEditor(r.node.id);say(this.notice);return;}
+    if(action==='node-duplicate'){const copy=await duplicateNodeTemplate(id);this.notice=`Duplicated as ${copy.id}.`;this._openNodeEditor(nodeDraftOf(nodeTemplate(copy.id)),copy.id);say(this.notice);return;}
     if(action==='node-delete'){
       const t=nodeTemplate(id);if(!t)throw Error(`No node ${id}`);
       const refs=nodeReferences(id),used=refs.filter(r=>r.kind==='reference'),from=refs.filter(r=>r.kind==='copied-from');
@@ -2254,14 +2338,13 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         ...(used.length?[`${plural(used.length,'Location entry','Location entries')} point${used.length===1?'s':''} to this node: ${used.map(r=>r.locationName).join(', ')}. They are not changed or removed; each shows that its node template is gone until you pick another one in Locations.`]:[]),
         ...(from.length?[`It was copied from ${plural(from.length,'Location entry','Location entries')} (${from.map(r=>r.locationName).join(', ')}); those keep their own gathering data in Locations.`]:[]),
         'Characters keep everything they already gathered.'];
-      if(!await confirmDialog(lines.join('\n'),{title:'Delete gathering node?',yes:'Delete node',danger:true}))return;
+      if(!await confirmDanger(lines.join('\n'),{title:`Delete ${t.name}?`,yes:'Delete node'}))return;
       await deleteNodeTemplate(id);
       if(this.nodeDraft?.data.id===id)this.nodeDraft=null;
       this.notice=`Deleted node ${t.name} (${t.id}).${used.length?` ${plural(used.length,'Location entry','Location entries')} still point${used.length===1?'s':''} to it: pick another node there.`:''}`;this.render();say(this.notice);return;}
-    if(action==='node-import'){this.element.querySelector('#agl-node-file')?.click();return;}
-    if(action==='node-import-cancel'){this.nodeImport=null;this.render();return;}
+    if(action==='node-import-cancel'){this.nodeImport=null;this._backToNodeList();this.render();return;}
     if(action==='node-import-apply'){const p=this.nodeImport;if(!p)throw Error('Choose a node file first');
-      const out=await importNodeFile(p.data);this.nodeImport=null;
+      const out=await importNodeFile(p.data);this.nodeImport=null;this._backToNodeList();
       this.notice=`Imported nodes: ${out.added.length} new, ${out.updated.length} updated${out.kept.length?`, ${out.kept.length} kept as you edited them`:''}${out.retired.length?`, ${out.retired.length} skipped (deleted ids)`:''}.`;this.render();say(this.notice);return;}
     if(action==='node-export'){const data=exportNodeFile();
       const save=globalThis.foundry?.utils?.saveDataToFile??globalThis.saveDataToFile;
@@ -2271,6 +2354,19 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       this.notice=out.created.length||out.linked?`Copied ${plural(out.created.length+out.linked,'Location node')} (${plural(out.created.length,'new template')}). Locations were not changed.`:'No new Location nodes to copy: every Location gathering node has been copied before.';
       this.render();say(this.notice);return;}
   }
+  /** 0.26.0 (PL-03): remember where the node list was, so closing the editor or import preview returns to it. */
+  _rememberNodeList(focusId=null){
+    if(this.nodeDraft||this.nodeImport)return;
+    this._nodeList={top:this.element?.querySelector?.('.agl-main')?.scrollTop??0,focusId};
+  }
+  _backToNodeList(focusId){
+    const back=this._nodeList;this._nodeList=null;
+    if(back)this._scrollTo=back.top;
+    const id=focusId??back?.focusId;
+    this._focusAfter=id?`[data-action="node-edit"][data-id="${String(id).replace(/["\\]/g,'\\$&')}"]`:'[data-action="node-new"]';
+  }
+  _openNodeEditor(draft,focusId){this._rememberNodeList(focusId);this.nodeGuard.markClean();this.nodeDraft=draft;this._scrollTo=0;this.render();}
+  _closeNodeEditor(focusId){this.nodeGuard.markClean();this.nodeDraft=null;this._backToNodeList(focusId);this.render();}
   /** Unsaved party-roster edits live only in this client until the GM confirms Save. */
   get rosterDirty(){
     if(this.rosterDraft===null)return false;
@@ -2314,15 +2410,15 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
   }
   async _leaveGmSetup(){
     if(!this.setupDirty){this._clearSetupDrafts();return true;}
-    const discard=await confirmDialog('Your GM Setup changes have not been saved. Discard these changes and leave GM Setup?',{title:'Discard unsaved GM Setup changes?',yes:'Discard changes',no:'Keep editing',danger:true});
+    const discard=await confirmDanger('Your GM Setup changes have not been saved.',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing'});
     if(!discard)return false;
     this._clearSetupDrafts();return true;
   }
   /** GM: read a baseline file and show its preview; nothing is saved until Apply baseline. */
-  async _uploadBaseline(e){if(!game.user.isGM)return;const f=e.target.files?.[0];if(!f)return;
+  async _uploadBaseline(f){if(!game.user.isGM||!f)return;
     try{const data=JSON.parse(await f.text());this.baselinePreview={fileName:f.name??'',data,result:previewBaseline(data)};this.render();}
-    catch(err){say(`Baseline file not read: ${err.message}`,true);}finally{if(e.target)e.target.value='';}}
-  async _upload(e){checkPlayerLedger();if(!game.user.isGM)return;const f=e.target.files?.[0];if(!f)return;
+    catch(err){say(`Baseline file not read: ${err.message}`,true);}}
+  async _upload(f){checkPlayerLedger();if(!game.user.isGM||!f)return;
     try{const data=normalizeLibrary(JSON.parse(await f.text()));const approved=await confirmDialog(`Source format: ${data.sourceSchema}.\nImport ${data.recipes.length} recipes and ${data.materials.length} materials into the Ledger's world-visible read-only catalog?\n${data.importSummary.skippedRestricted} restricted/inactive entries excluded; ${data.importSummary.unmappedRecipes} recipes have no verified structured ingredients and cannot be crafted.\nThis replaces the previous Ledger catalog. It will not create or alter Foundry Items, Actor progression, or inventories. Only player-visible records may be stored here.`,{title:'Import the Ledger catalog?',yes:'Import catalog'});
       if(!approved)return;await game.settings.set(ID,'libraryData',data);this.query='';this.notice=`Imported ${data.recipes.length} recipe definitions and ${data.materials.length} materials (${data.importSummary.skippedRestricted} restricted excluded; ${data.importSummary.unmappedRecipes} recipes unmapped).`;this.render();say('Profession Ledger catalog loaded. No world Items were modified.');
     }catch(err){console.error(err);say(`Ledger import failed: ${err.message}`,true);}}
@@ -2336,11 +2432,13 @@ function renderSheetTab(params){
   if(!target||!actor)return;
   if(!canOpenLedger()){target.innerHTML=emptyState('The GM has hidden the Profession Ledger.');return;}
   target.innerHTML=`<div class="agl-sheet ag-app"><div class="agl-sheet-head"><strong>Professions</strong><button type="button" class="ag-btn ag-btn--sm" data-action="open-ledger">Open Profession Ledger</button></div>${characterPanel(actor,catalog(),{surface:'sheet'})}</div>`;
+  bindFolds(target,uiState(ID));
   if(target.dataset.aglBound)return;
   target.dataset.aglBound='1';
   target.addEventListener('click',async e=>{
     const b=e.target.closest?.('[data-action]');if(!b||b.disabled||!target.contains(b))return;
     e.preventDefault();e.stopPropagation();
+    if(xpModeClick(b))return;
     const sheetActor=params?.app?.actor??params?.app?.document??actor;
     try{
       if(b.dataset.action==='open-ledger'){game.modules.get(ID)?.api?.open({actorId:sheetActor.id,view:'individual'});return;}
@@ -2377,12 +2475,14 @@ function mountEmbed(element,{actorId,mode='individual'}={}){
     const actor=game.actors?.get?.(ctrl.actorId)??null,refusal=embedRefusal(actor);
     element.innerHTML=refusal?emptyState(esc(refusal))
       :`<div class="agl-sheet agl-embed__body">${characterPanel(actor,catalog(),{surface:'sheet'})}</div>`;
+    if(!refusal)bindFolds(element,uiState(ID));
   };
   ctrl.unmount=()=>{if(!ctrl.mounted)return;ctrl.mounted=false;abort.abort();embeds.delete(ctrl);element.innerHTML='';element.classList?.remove('agl-embed');};
   element.addEventListener('click',async e=>{
     const b=e.target?.closest?.('[data-action]');if(!b||b.disabled||!element.contains(b))return;
     if(b.closest?.('summary'))e.preventDefault?.();
     e.stopPropagation?.();
+    if(xpModeClick(b))return;
     const actor=game.actors?.get?.(ctrl.actorId)??null;
     try{
       if(embedRefusal(actor))throw Error(embedRefusal(actor));
@@ -2530,4 +2630,4 @@ Hooks.on('renderChatMessageHTML',(message,html)=>{try{decorateChatCard(message,h
 export const _test={craft,orchestrateCraft,onSocket,performAction,registerTidyTab,renderSheetTab,myCharacters,getBroker,
   startGather,resolveGather,cancelGather,setExoticRoll:fn=>{exoticRoll=fn??defaultRoll;},handleGatherRequest,gatherRequests,myGatherRequests,
   setGatherRequestCooldown:ms=>{gatherRequestCooldownMs=ms;},resetGatherRequests:()=>{gatherRequests.clear();lastGatherRequestAt.clear();myGatherRequests.clear();},receiveGatherRoll,gatherSessions,decorateChatCard,awardXpFromCard,undoAwardFromCard,adjustXP,gatherLocations,
-  readNodeStore,writeNodeStore,copyLocationNodes,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites};
+  readNodeStore,writeNodeStore,copyLocationNodes,autoMigrateNodes,approveGatherRequest,materialState,nodeWrites:()=>nodeWrites,xpModeClick};
