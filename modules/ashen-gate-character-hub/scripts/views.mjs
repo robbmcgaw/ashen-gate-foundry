@@ -19,6 +19,8 @@ import {sectionHtml, sectionKey} from './collapse.mjs';
 import {levelUpState} from './level-up.mjs';
 import {backupsFor} from './level-restore.mjs';
 import {isBackup} from './level-backup.mjs';
+import {lookBtn, lookMenuHtml} from './look.mjs';
+import {codexBtn} from './codex.mjs';
 
 export {btn};
 
@@ -152,11 +154,16 @@ export function popOutBtn(sheet) {
   return btn('pop-out', out ? 'Pop in' : 'Pop out', {kind: 'ghost', icon: out ? 'fa-solid fa-arrow-right-to-bracket' : 'fa-solid fa-arrow-up-right-from-square', always: true,
     title: out ? 'Put the Hub back in the main Foundry window' : 'Open the Hub in its own browser window (e.g. on a second screen)'});
 }
+/** Appearance (0.31.0, per user) with its menu, then NPC Codex (when General Manager offers it to this user). */
+export function lookAndCodexHtml(sheet) {
+  const open = sheet?.menu === 'look';
+  return `<span class="agch-lookwrap">${lookBtn(open)}${open ? lookMenuHtml() : ''}</span>${codexBtn()}`;
+}
 export function shellHtml(ctx) {
   const {actor, tab} = ctx, compact = ctx.compact === true && !ctx.limited;
   const version = globalThis.game?.modules?.get?.(MODULE_ID)?.version ?? '';
   const top = `<header class="ag-header"><h1><span class="ag-header__brand">Ashen Gate</span> | Character Hub</h1><div class="ag-header__actions">
-    ${ctx.limited ? '' : compactBtn(compact)}${compact ? compactOpacityHtml() : ''}${popOutBtn(ctx.sheet)}
+    ${ctx.limited ? '' : compactBtn(compact)}${compact ? compactOpacityHtml() : ''}${popOutBtn(ctx.sheet)}${lookAndCodexHtml(ctx.sheet)}
     ${ctx.limited || compact ? '' : `${levelUpBtn(actor)}${restoreBtn(actor)}`}
     ${compact ? '' : btn('open-native', 'Open native sheet', {kind: 'ghost', icon: 'fa-solid fa-file-lines', always: true, title: 'Open the standard dnd5e character sheet'})}
     <span class="ag-header__meta agch-head__meta"><span class="ag-version">v${esc(version)}</span>

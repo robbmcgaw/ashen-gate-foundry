@@ -7,7 +7,7 @@ import {esc} from './constants.mjs';
 import {btn} from './buttons.mjs';
 import {journeyFor, canRead, partyActors, TYPES, TEXT_MAX} from './journey.mjs';
 
-const ICONS = {level: 'fa-solid fa-arrow-up-right-dots', renown: 'fa-solid fa-flag', quest: 'fa-solid fa-scroll', reward: 'fa-solid fa-coins', manual: 'fa-solid fa-feather-pointed'};
+const ICONS = {level: 'fa-solid fa-arrow-up-right-dots', renown: 'fa-solid fa-flag', quest: 'fa-solid fa-scroll', reward: 'fa-solid fa-coins', cinder: 'fa-solid fa-fire', manual: 'fa-solid fa-feather-pointed'};
 const when = e => e.date ?? (e.at ? new Date(e.at).toISOString().slice(0, 10) : '');
 
 /** The character whose journey is shown: this sheet's, or (GM) the one picked. */

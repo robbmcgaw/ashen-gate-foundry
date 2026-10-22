@@ -532,6 +532,50 @@
 /* Level up (0.27.0): not ready yet, but still clickable so it can say why. */
 .agch-levelup[aria-disabled="true"] { cursor: not-allowed; color: var(--ag-muted-strong); }
 
+/* 0.31.0: Cinders 0.9.0's art look on the mini orbs: the Strain-toned orb stays behind the art as a blurred glow (one step
+   smaller than Cinders' because the orb is smaller), the whole image shows with a halo in the same tone, and the art turns
+   slowly (90 s a turn, CSS only) when Cinders' "Rotate Cinder art" allows it. Never under reduced motion. */
+.agch-app .agch-corb__orb--art { overflow: visible; }
+.agch-app .agch-corb__orb--art .agch-corb__glow { position: absolute; inset: -14%; width: auto; height: auto; filter: blur(var(--ag-space-2)); opacity: .9;
+  background: radial-gradient(circle at 50% 55%, var(--agch-core) 0%, color-mix(in srgb, var(--agch-core) 55%, transparent) 45%, transparent 72%); }
+.agch-app .agch-corb__orb--art .agch-corb__img { position: relative; object-fit: contain; border-radius: 0;
+  filter: drop-shadow(0 0 var(--ag-space-1) color-mix(in srgb, var(--agch-core) 70%, transparent)); transition: filter var(--ag-dur) var(--ag-ease); }
+.agch-app .agch-corb__orb--art[data-tone="hot"] .agch-corb__img { filter: drop-shadow(0 0 var(--ag-space-2) color-mix(in srgb, var(--agch-core) 90%, transparent)); }
+.agch-app .agch-corb__orb--spin .agch-corb__img { animation: agch-spin 90s linear infinite; will-change: transform; transform-origin: 50% 50%; }
+.agch-app.minimized .agch-corb__img { animation-play-state: paused; }
+@keyframes agch-spin { to { transform: rotate(360deg); } }
+/* Header chip: a small orb (same markup) and the Cinder's name; a click opens Ashen Gate → Cinders. */
+.agch-app .agch-cchips { display: flex; flex-wrap: wrap; gap: var(--ag-space-1); margin-top: var(--ag-space-1); }
+.agch-app .agch-cchip { display: inline-flex; align-items: center; gap: var(--ag-space-2); width: auto; min-height: var(--ag-control-h-sm); margin: 0; padding: 0 var(--ag-space-3) 0 var(--ag-space-1);
+  border: 1px solid var(--ag-border); border-radius: var(--ag-radius-control); background: var(--ag-surface-raised); color: var(--ag-text); font-size: var(--ag-text-sm); cursor: pointer; }
+.agch-app .agch-cchip:hover, .agch-app .agch-cchip:focus-visible { border-color: var(--ag-accent); background: var(--ag-surface-hover); }
+.agch-app .agch-cchip__orb { position: relative; flex: none; width: calc(var(--ag-control-h-sm) - var(--ag-space-1)); aspect-ratio: 1; }
+.agch-app .agch-cchip__orb .agch-corb__orb { width: 100%; box-shadow: 0 0 var(--ag-space-1) color-mix(in srgb, var(--agch-core) 45%, transparent); }
+.agch-app .agch-cchip__orb .agch-corb__orb--art .agch-corb__glow { filter: blur(var(--ag-space-1)); }
+.agch-app .agch-cchip__name { overflow-wrap: anywhere; text-align: left; }
+@media (prefers-reduced-motion: reduce) { .agch-app .agch-corb__img { animation: none !important; transition: none; } }
+/* Cinders panel head: Open skill tree sits next to the title. */
+.agch-app .agch-panel__title { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--ag-space-2); }
+
+/* 0.31.0: Appearance (per user) and NPC Codex in the header. The menu is a kit popover under its button. */
+.agch-app .agch-lookwrap { position: relative; display: inline-flex; }
+.agch-app .agch-lookmenu { top: calc(100% + var(--ag-space-1)); right: 0; width: 17rem; max-width: 80vw; }
+.agch-app .agch-look__group { display: grid; gap: var(--ag-space-1); }
+.agch-app .agch-look__label { color: var(--ag-muted); }
+.agch-app .agch-look__skin { display: flex; align-items: center; gap: var(--ag-space-2); text-align: left; }
+.agch-app .agch-lookmenu p { margin: 0; }
+.agch-app .agch-root--compact .agch-lookbtn > span { display: none; }
+.agch-app .agch-looksetup__row { display: flex; flex-wrap: wrap; gap: var(--ag-space-3); }
+/* Built-in look (look.mjs), only while General Manager's appearance is absent: a light theme and the Comfortable size. */
+.application.ag-app.agch-app[data-agch-theme="light"] {
+  --ag-surface: #f3eee5; --ag-surface-sunken: #e6dfd2; --ag-surface-raised: #fbf8f2; --ag-text: #2a251f; --ag-muted: #625a50; --ag-border: #cbc1b1; /* ag-lint-allow: built-in light skin without Manager */
+  --ag-accent: #8a5a1c; --ag-accent-contrast: #ffffff; --ag-danger: #a83d35; --ag-ok: #2d7650; --ag-warn: #8f6200; --ag-focus: #7a4f16; /* ag-lint-allow: built-in light skin without Manager */
+  --ag-shadow: 0 1px 2px rgb(0 0 0 / .12), 0 6px 18px rgb(0 0 0 / .10); --ag-shadow-sm: 0 1px 2px rgb(0 0 0 / .10); color-scheme: light; } /* ag-lint-allow: built-in light skin without Manager */
+.application.ag-app.agch-app[data-agch-density="comfortable"] {
+  --ag-text-xs: 11px; --ag-text-sm: 12.5px; --ag-text-md: 14px; --ag-text-lg: 17px; --ag-text-xl: 21px;
+  --ag-space-1: 4px; --ag-space-2: 8px; --ag-space-3: 12px; --ag-space-4: 16px; --ag-space-5: 24px; --ag-space-6: 32px;
+  --ag-control-h: 36px; --ag-control-h-sm: 30px; --ag-icon-btn: 32px; --ag-icon: 14px; --ag-icon-chip: 32px; --ag-slot: 48px; --ag-portrait: 84px; --ag-row-h: 44px; }
+
 /* Compact mode (0.29.0): one column (name, art with slots, HP) and the quick bar; no tab rail or middle content. */
 .agch-app .agch-root--compact .ag-header { flex-wrap: wrap; row-gap: var(--ag-space-1); }
 .agch-app .agch-root--compact .ag-header__actions { flex-wrap: wrap; }

@@ -54,18 +54,33 @@ function favouritesSection(actor, tab, rows, columns, card, expanded) {
 }
 
 // ---------- Combat ----------
+/** Action-type chips for the dnd5e activation types these rows have (only when there is more than one). */
+function actionChips(tab, all, f) {
+  const types = orderGroups([...new Set(all.map(r => r.actType || 'none'))].map(k => ({key: k, label: actionLabel(k === 'none' ? '' : k)})), 'action').map(g => g.key);
+  return types.length > 1 ? types.map(t => filterBtn(tab, 'action', t, esc(actionLabel(t === 'none' ? '' : t)), f.action === t, `Show only ${actionLabel(t === 'none' ? '' : t)}`)).join('') : '';
+}
+/**
+ * Combat (0.31.0): one list grouped by main category (Combat, Professions, Consumables, Features, Trinkets) or by action
+ * type, with search, sort, filter chips and favourites like Magic and Features; the search, selects and chips sit in
+ * 0.30.0's frozen band (stickyBand).
+ */
 function combatTab(ctx) {
   const {actor, editable, sheet} = ctx, off = !editable, d = combatData(actor), h = headerData(actor), expanded = sheet?.expanded;
-  const top = stickyBand(`<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'weapons and actions')}
-    ${h.hp.value <= 0 ? `<div class="ag-toolbar__end">${btn('roll-death', 'Death save', {icon: 'fa-solid fa-dice-d20', disabled: off})}</div>` : ''}</div>`);
+  const {group, sort} = listChoice('combat'), f = sheet?.listFilters?.combat ?? {};
   // dnd5e's damage labels include healing (heal activities), so the column says both.
   const dmg = {...C.damage, label: 'DMG/HEAL'};
-  const weaponCols = [dmg, C.toHit, C.range, C.properties], actionCols = [C.range, dmg, C.uses, C.recovery];
-  const weapons = d.weapons.length ? cardList(d.weapons, weaponCols, {expanded, listKey: 'combat-weapons',
-    card: w => ({controls: useBtn(w, off), star: starBtn(actor, w, off), badges: `${masteryBadge(w)}${w.equipped ? '' : '<span class="ag-badge">Not equipped</span>'}${attunedBadge(w)}`})}) : empty('No weapons yet.', 'Equip or carry a weapon and it shows here.');
-  const groups = d.groups.map(g => sectionHtml(sectionKey('combat', g.key), esc(g.label), cardList(g.items, actionCols, {expanded, listKey: `combat-${g.key}`, card: r => ({controls: useBtn(r, off), star: starBtn(actor, r, off)})}))).join('');
-  return `${top}${sectionHtml(sectionKey('combat', 'weapons'), 'Weapons', weapons)}${groups}
-    <p class="agch-muted agch-hint">Use opens dnd5e's own usage dialog: attacks, damage, targets and resource use happen there. Initiative rolls from the tile on the left.</p>`;
+  const weaponCols = [dmg, C.toHit, C.range, C.properties], actionCols = [C.range, dmg, C.uses, C.recovery], mixedCols = [dmg, C.toHit, C.range, C.uses];
+  const card = r => ({controls: useBtn(r, off), star: starBtn(actor, r, off), badges: `${masteryBadge(r)}${r.type === 'weapon' && !r.equipped ? '<span class="ag-badge">Not equipped</span>' : ''}${attunedBadge(r)}`});
+  const shown = sortRows(filterRows(d.rows, f), sort);
+  const groups = orderGroups(groupRows(shown, group === 'none' ? () => null : GROUP_BY[group], {allLabel: 'Everything'}), group);
+  const colsFor = g => group !== 'category' ? mixedCols : g.key === 'combat' ? weaponCols : actionCols;
+  const sections = groups.map(g => sectionHtml(sectionKey('combat', group, g.key), `${esc(g.label)} <span class="ag-badge">${g.items.length}</span>`, cardList(g.items, colsFor(g), {card, expanded, listKey: `combat-${group}-${g.key}`}))).join('');
+  const toolbar = `<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'weapons and actions')}${organizeSelects('combat')}
+    ${h.hp.value <= 0 ? `<div class="ag-toolbar__end">${btn('roll-death', 'Death save', {icon: 'fa-solid fa-dice-d20', disabled: off})}</div>` : ''}</div>`;
+  const body = sections || (d.rows.length ? empty('Nothing matches.', 'Change the search or use Clear filters.') : empty('No weapons or actions yet.', 'Weapons, and items or features you can use, show here.'));
+  return `${stickyBand(`${toolbar}<div class="agch-filters" role="group" aria-label="Combat filters">${actionChips('combat', d.rows, f)}${filterToggles('combat', f)}</div>`)}
+    ${favouritesSection(actor, 'combat', shown, mixedCols, card, expanded)}${body}
+    <p class="agch-muted agch-hint">Use opens dnd5e's own usage dialog: attacks, damage, targets and resource use happen there. Initiative rolls from the tile on the left. Hide unequipped leaves out weapons and gear you carry but have not equipped.</p>`;
 }
 
 // ---------- Inventory ----------
@@ -177,8 +192,7 @@ function featuresTab(ctx) {
     : orderGroups(groupRows(sortRows(shown, sort), group === 'none' ? () => null : GROUP_BY[group], {allLabel: 'All features'}), group);
   const sections = groups.map(g => sectionHtml(sectionKey('features', group === 'type' ? g.key : `${group}-${g.key}`), esc(g.label), cardList(g.items, columns, {card, expanded, listKey: `features-${group}-${g.key}`}))).join('');
   // Action-type buttons for the dnd5e activation types these features have.
-  const types = orderGroups([...new Set(all.map(r => r.actType || 'none'))].map(k => ({key: k, label: actionLabel(k === 'none' ? '' : k)})), 'action').map(g => g.key);
-  const actBtns = types.length > 1 ? types.map(t => filterBtn('features', 'action', t, esc(actionLabel(t === 'none' ? '' : t)), f.action === t, `Show only ${actionLabel(t === 'none' ? '' : t)}`)).join('') : '';
+  const actBtns = actionChips('features', all, f);
   return `${stickyBand(`<div class="ag-toolbar agch-toolbar">${searchBox(ctx, 'features')}${organizeSelects('features')}</div>
     <div class="agch-filters" role="group" aria-label="Feature filters">${actBtns}${filterToggles('features', f)}</div>`)}
     ${favouritesSection(actor, 'features', sortRows(shown, sort), columns, card, expanded)}${sections || (all.length ? empty('Nothing matches.', 'Change the search or use Clear filters.') : empty('No features yet.', 'Class, species and other features show here.'))}

@@ -1,6 +1,7 @@
 /** Read-only view models for the Actor's embedded Items (inventory, combat, spells, features). */
 import {MODULE_ID, dnd5eConfig, labelOf, num} from './constants.mjs';
 import {itemFacts, plainText, summaryOf} from './cards.mjs';
+import {COMBAT_CATEGORIES} from './organize.mjs';
 
 const bySortThenName = (a, b) => (num(a.sort) - num(b.sort)) || String(a.name).localeCompare(String(b.name));
 /** dnd5e keeps activities in a Collection; tests may pass an array. */
@@ -83,15 +84,37 @@ export function currencyData(actor) {
 // ---------- Combat ----------
 
 const ACTIVATION_GROUPS = [['action', 'Actions'], ['bonus', 'Bonus Actions'], ['reaction', 'Reactions']];
-/** Weapons (equipped first), then other usable items and features grouped by their first activity's activation. */
+const ARMOR_TYPES = new Set(['light', 'medium', 'heavy', 'natural', 'shield']);
+const FEATURE_TYPES = new Set(['feat', 'class', 'subclass', 'race', 'background']);
+/** Profession things by their Ashen Gate id (flags['ashen-gate-manager'].source.sourceId): professions, recipes, materials. */
+const PROFESSION_ID = /^(PROF|REC|MAT)-/;
+/**
+ * Combat's main category for an item (0.31.0): Professions (tools, and PROF-/REC-/MAT- records), Combat (weapons, armor
+ * and shields), Consumables, Features (features, class, subclass, species, background) and Trinkets (everything else:
+ * rings, wondrous items, loot). Display only; nothing is stored.
+ */
+export function combatCategory(item) {
+  const id = String(item?.flags?.['ashen-gate-manager']?.source?.sourceId ?? '');
+  if (item?.type === 'tool' || PROFESSION_ID.test(id)) return 'professions';
+  if (item?.type === 'weapon' || (item?.type === 'equipment' && ARMOR_TYPES.has(item.system?.type?.value))) return 'combat';
+  if (item?.type === 'consumable') return 'consumables';
+  if (FEATURE_TYPES.has(item?.type)) return 'features';
+  return 'trinkets';
+}
+export {COMBAT_CATEGORIES};
+/**
+ * Weapons (equipped first), then other usable items and features grouped by their first activity's activation.
+ * `rows` (0.31.0) is all of them in one list, each with its main `category`, for Combat's group / sort / filters.
+ */
 export function combatData(actor) {
   const items = [...(actor.items ?? [])].sort(bySortThenName);
-  const weapons = items.filter(i => i.type === 'weapon').map(itemRow).sort((a, b) => Number(b.equipped) - Number(a.equipped));
+  const row = i => ({...itemRow(i), category: combatCategory(i)});
+  const weapons = items.filter(i => i.type === 'weapon').map(row).sort((a, b) => Number(b.equipped) - Number(a.equipped));
   const usable = items.filter(i => i.type !== 'weapon' && i.type !== 'spell' && activitiesOf(i).length);
   const groupOf = i => activitiesOf(i)[0]?.activation?.type;
-  const groups = ACTIVATION_GROUPS.map(([key, label]) => ({key, label, items: usable.filter(i => groupOf(i) === key).map(itemRow)}));
-  groups.push({key: 'other', label: 'Other', items: usable.filter(i => !ACTIVATION_GROUPS.some(([k]) => k === groupOf(i))).map(itemRow)});
-  return {weapons, groups: groups.filter(g => g.items.length)};
+  const groups = ACTIVATION_GROUPS.map(([key, label]) => ({key, label, items: usable.filter(i => groupOf(i) === key).map(row)}));
+  groups.push({key: 'other', label: 'Other', items: usable.filter(i => !ACTIVATION_GROUPS.some(([k]) => k === groupOf(i))).map(row)});
+  return {weapons, groups: groups.filter(g => g.items.length), rows: [...weapons, ...usable.map(row)]};
 }
 
 // ---------- Spells ----------

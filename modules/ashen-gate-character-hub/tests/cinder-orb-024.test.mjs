@@ -80,7 +80,8 @@ test('locked or Player Access off: players get a Locked badge, no buttons, no dr
 test('art: the Cinder\'s own art replaces the default orb; else the default orb whose tone follows Strain only', () => {
   let api = install(users.owner, {art: 'ashen-gate/cinders/test-orb.webp', strain: 6});
   let html = cindersSummary(makeActor(), api);
-  assert.match(html, /<img class="agch-corb__img" src="ashen-gate\/cinders\/test-orb\.webp" alt="">/);assert.doesNotMatch(html, /agch-corb__default/);
+  // 0.31.0: Cinders 0.9.0's markup: the default orb stays behind the art as the glow.
+  assert.match(html, /<span class="agch-corb__default agch-corb__glow" aria-hidden="true"><\/span><img class="agch-corb__img" src="ashen-gate\/cinders\/test-orb\.webp" alt="">/);assert.doesNotMatch(html, /<span class="agch-corb__default">/);
   api = install(users.owner, {art: null, strain: 6});
   html = cindersSummary(makeActor(), api);
   assert.match(html, /data-tone="ember"><span class="agch-corb__default">/);assert.doesNotMatch(html, /<img/);

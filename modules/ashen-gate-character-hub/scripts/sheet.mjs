@@ -25,7 +25,7 @@ import * as marks from './marks.mjs';
 import * as hotbar from './hotbar.mjs';
 import {undoNoticesHtml} from './hotbar-views.mjs';
 import {syncEscape, unbindEscape} from './escape.mjs';
-import {stepStrain, pushFromHub, socketFromHub, dropOnSocket} from './cinders.mjs';
+import {stepStrain, pushFromHub, socketFromHub, dropOnSocket, openSkillTree} from './cinders.mjs';
 import {confirmDialog, formDialog} from './ag-dialogs.mjs';
 import {windowSize} from './ag-html.mjs';
 import {readDrop, resolveItemDrop} from './ag-item-drop.mjs';
@@ -33,6 +33,8 @@ import {togglePopOut} from './popout.mjs';
 import {applyCompactOpacity, saveCompactOpacity} from './compact-opacity.mjs';
 import {captureScroll, restoreScroll, captureFocus, restoreFocus} from './redraw.mjs';
 import {syncQuickKeys, unbindQuickKeys} from './quick-keys.mjs';
+import * as look from './look.mjs';
+import {openCodex} from './codex.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
 /** Push asks first through the shared dialog: "Push [power]?" with Cancel and Push. */
@@ -90,6 +92,9 @@ export const ACTIONS = {
   'cinder-attach': (s, t) => socketFromHub(s.document, 'attach', {instance: t.dataset.instance, slot: t.dataset.slot}, socketUi),
   'cinder-swap': (s, t) => socketFromHub(s.document, 'swap', {instance: t.dataset.instance, slot: t.dataset.slot}, socketUi),
   'cinder-detach': (s, t) => socketFromHub(s.document, 'detach', {instance: t.dataset.instance, slot: t.dataset.slot}, socketUi),
+  // 0.31.0: the header Cinder chip opens Ashen Gate → Cinders here; Open skill tree opens Skill Trees (players: only while Perks is shown).
+  'cinder-open': s => { if (!vis.canSee('cinders')) return refuse('Cinders is hidden from players right now.'); s.tab = 'ashen-gate'; s.agTab = 'ashen-gate-cinders'; s.menu = null; return s.render(); },
+  'cinder-tree': (s, t) => vis.requirePart('perks') ?? openSkillTree(s.document, t.dataset.tree || null),
   'condition': (s, t) => act.toggleCondition(s.document, t.dataset.id),
   'roll-initiative': (s, t, e) => act.rollInitiative(s.document, e),
   'roll-check': (s, t, e) => act.rollAbilityCheck(s.document, t.dataset.ability, e),
@@ -113,6 +118,13 @@ export const ACTIONS = {
   'visibility-preset': (s, t) => vis.applyPreset(t.dataset.preset),
   'doll-art': s => { s.dollArt = s.dollArt === 'token' ? 'portrait' : 'token'; return s.render(); },
   'compact-toggle': s => s.setCompact(!s.compact),
+  // 0.31.0: Appearance (only for this user: Manager's own per-user skin and size, or the built-in look) and the NPC Codex.
+  'look-menu': s => toggleMenu(s, 'look'),
+  'look-skin': async (s, t) => { const r = await look.setManagerSkin(t.dataset.value); if (r.ok) s.render(); return r; },
+  'look-size': async (s, t) => { const r = await look.setManagerSize(t.dataset.value); if (r.ok) s.render(); return r; },
+  'look-set': async (s, t) => { const r = await look.setUserLook(t.dataset.field, t.dataset.value); if (r.ok) { look.applyLook(s.element); s.render(); } return r; },
+  'look-more': s => { s.menu = null; s.render(); return look.managerAppearance()?.openMyAppearance?.(); },
+  'codex-open': () => openCodex(),
   'pop-out': s => togglePopOut(s)
 };
 /** Level up (0.27.0): dnd5e's own flow. The shared form dialog asks which class to advance, or to add one. */
@@ -180,15 +192,15 @@ export function applyFilter(root, text) {
   }
 }
 /**
- * Magic/Features filters (kept on the open sheet). level and action pick one value (the same again clears it);
+ * Combat/Magic/Features filters (kept on the open sheet). level and action pick one value (the same again clears it);
  * the others switch on and off; 'clear' turns everything off.
  */
 export function setListFilter(sheet, tab, key, value) {
-  if (!['magic', 'features'].includes(tab)) return null;
+  if (!['combat', 'magic', 'features'].includes(tab)) return null;
   const f = {...(sheet.listFilters[tab] ?? {})};
   if (key === 'clear') sheet.listFilters[tab] = {};
   else if (key === 'level' || key === 'action') { const v = key === 'level' ? Number(value) : String(value); f[key] = f[key] === v ? null : v; sheet.listFilters[tab] = f; }
-  else if (['prepared', 'ritual', 'castable', 'uses', 'left'].includes(key)) { f[key] = !f[key]; sheet.listFilters[tab] = f; }
+  else if (['prepared', 'ritual', 'castable', 'uses', 'left', 'equipped'].includes(key)) { f[key] = !f[key]; sheet.listFilters[tab] = f; }
   return sheet.listFilters[tab];
 }
 /** Journey (GM): read a form's fields. */
@@ -270,7 +282,8 @@ export const EDITS = {
   'journey-actor': (s, i) => { s.journeyActorId = globalThis.game?.user?.isGM ? i.value || null : null; s.journeyEdit = null; return s.render(); },
   // A refused write redraws, so the checkbox shows the stored value again (report() shows why).
   'part-visibility': async (s, i) => { const r = await vis.setVisibility({[i.dataset.part]: i.checked === true}); if (!r?.ok) s.render(); return r; },
-  'list-sort': async (s, i) => { const r = await setListChoice(i.dataset.tab, i.dataset.field, i.value); if (r.ok) s.render(); return r; }
+  'list-sort': async (s, i) => { const r = await setListChoice(i.dataset.tab, i.dataset.field, i.value); if (r.ok) s.render(); return r; },
+  'look-default': async (s, i) => { const r = await look.setWorldLook(i.dataset.field, i.value); if (!r?.ok) s.render(); return r; }
 };
 
 /** Reads the Item (or, where `types` allows, the Actor or Macro) from a drop the way dnd5e does; parsing is the shared readDrop. */
@@ -355,8 +368,8 @@ export function createHubSheetClass(Base) {
     filters = {};
     /** Cards whose "More" is open (detail keys), kept across re-renders while the sheet is open. */
     expanded = new Set();
-    /** Magic and Features filters while the sheet is open: {magic: {level, prepared, ritual, castable}, features: {action, uses, left}}. */
-    listFilters = {magic: {}, features: {}};
+    /** Combat, Magic and Features filters while the sheet is open: {combat: {action, equipped, uses, left}, magic: {level, prepared, ritual, castable}, features: {action, uses, left}}. */
+    listFilters = {combat: {}, magic: {}, features: {}};
     /** Scroll positions per view ('compact' or a tab id) while the sheet is open (redraw.mjs). */
     _agchScroll = {};
 
@@ -400,6 +413,7 @@ export function createHubSheetClass(Base) {
       syncEscape(this);   // Escape closes an open menu/editor only, wherever focus is (escape.mjs)
       syncQuickKeys(this);   // quick bar keys in a popped-out Hub's own window (quick-keys.mjs)
       try { const a = globalThis.game?.modules?.get('ashen-gate-manager')?.api?.appearance; if (a?.contract === 'ag-appearance/0.1-beta') a.applyTo?.(content); } catch {}
+      look.applyLook(this.element);   // 0.31.0: the built-in per-user look while Manager's appearance is absent
     }
 
     /**
@@ -557,7 +571,7 @@ export function createHubSheetClass(Base) {
     _onOutsideClick(event) {
       if (!this.menu) return null;
       const t = event.target;
-      if (t?.closest?.('.agch-menu, [data-action="slot-menu"], [data-action="other-menu"]')) return null;
+      if (t?.closest?.('.agch-menu, [data-action="slot-menu"], [data-action="other-menu"], [data-action="look-menu"]')) return null;
       this.menu = null;
       if (t?.closest?.('select, input, textarea, label')) {
         const root = this.element ?? event.currentTarget;
