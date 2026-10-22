@@ -313,3 +313,22 @@ a.agcodex-link:hover,a.agm-codex-link:hover{text-decoration:underline}
 .agm-my-appearance .window-content{padding:0;overflow:hidden}
 .agm-my-appearance-main{display:grid;align-content:start;gap:var(--ag-space-3);padding:var(--ag-space-4)}
 .agm-my-appearance-note{margin:0;color:var(--ag-muted);font-size:var(--ag-text-sm)}
+
+/* ---------- 0.45.0: Import tab folds, capped lists and the bottom message drawer ---------- */
+/* Long lists scroll inside their own box, so no tab needs endless page scrolling. */
+.agm-scrollcap{max-height:min(28rem,45vh);overflow:auto;overscroll-behavior:contain}
+.agm-import-bar{flex-wrap:wrap;align-items:center}
+.agm-import-loaded{min-width:0;overflow-wrap:anywhere}
+.agm-fold{border:1px solid var(--ag-border);border-radius:var(--ag-radius);padding:0 var(--ag-space-3);margin:var(--ag-space-2) 0} /* ag-lint-allow: 1px hairline fold border */
+.agm-fold>summary{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--ag-space-2);padding:var(--ag-space-2) 0;cursor:pointer;font-weight:600}
+.agm-fold>summary .agmanager-tiny{margin:0;font-weight:400;overflow-wrap:anywhere}
+.agm-fold[open]>summary{border-bottom:1px solid var(--ag-border);margin-bottom:var(--ag-space-2)} /* ag-lint-allow: 1px hairline fold border */
+.agm-import-actions{position:sticky;bottom:0;z-index:2;padding:var(--ag-space-2) 0;background:var(--ag-surface)}
+.agclean-running{align-items:center}
+.agclean-bar{flex:1 1 12rem;min-width:8rem}
+.agm-drawer{flex:0 0 auto;display:flex;flex-direction:column;border-top:1px solid var(--ag-border-strong);background:var(--ag-surface)} /* ag-lint-allow: 1px hairline drawer edge */
+.agm-drawer__bar{display:flex;flex-wrap:wrap;align-items:center;gap:var(--ag-space-2);padding:var(--ag-space-2) var(--ag-space-4)}
+.agm-drawer__bar .ag-chip-group{flex-wrap:wrap}
+.agm-drawer__body{max-height:min(18rem,35vh);padding:0 var(--ag-space-4) var(--ag-space-3)}
+.agm-drawer__body .ag-notice ul{margin:var(--ag-space-1) 0 0;padding-left:var(--ag-space-5)}
+.agm-drawer__body .ag-notice li,.agm-drawer__body .agmanager-result-line{overflow-wrap:anywhere}

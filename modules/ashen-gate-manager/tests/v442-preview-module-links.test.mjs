@@ -59,7 +59,8 @@ test('0.44.2: preview keeps module links out of warnings and shows them in an in
   assert.match(main,/this\.moduleLinks\.push\(\.\.\.graphNotes\.moduleLinks\)/);
   assert.match(main,/game\.modules\?\.get\?\.\(id\)\?\.active/);
   assert.match(main,/module_links:this\.moduleLinks/);
-  assert.match(hbs,/\{\{#if hasModuleLinks\}\}<div class="ag-notice ag-notice--info" role="status">.*Links to other Ashen Gate modules.*\{\{#each moduleLinks\}\}/);
+  // 0.45.0: shown in the Import tab's bottom message drawer (Module links).
+  assert.match(hbs,/\{\{#if drawer\.links\}\}<div class="ag-notice ag-notice--info" role="status">.*Links to other Ashen Gate modules.*\{\{#each moduleLinks\}\}/);
 });
 
 test('0.44.2: legacy validation names the owning module on a required link too',()=>{

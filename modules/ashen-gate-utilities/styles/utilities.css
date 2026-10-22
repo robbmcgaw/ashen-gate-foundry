@@ -71,11 +71,19 @@
 .ag-utilities .agu-status-title {display:flex;align-items:center;gap:var(--ag-space-2);}
 .ag-utilities .agu-status-icon {width:var(--ag-icon-chip);height:var(--ag-icon-chip);object-fit:contain;flex:none;border:0;}
 .ag-utilities .agu-lock-line {margin:0 0 var(--ag-space-2);font-size:var(--ag-text-md);}
+.ag-utilities .agu-controllers {margin:var(--ag-space-2) 0 0;font-size:var(--ag-text-md);flex-wrap:wrap;gap:var(--ag-space-1);}
+.ag-utilities .agu-controllers .ag-badge {gap:var(--ag-space-1);}
+.ag-utilities .agu-controller-list {display:flex;flex-wrap:wrap;gap:var(--ag-space-1) var(--ag-space-3);border:0;padding:0;margin:0;}
+.ag-utilities .agu-controller-list legend {font-weight:700;padding:0;margin-bottom:var(--ag-space-1);}
 @container (max-width:47rem) {.ag-utilities .agu-party-panes {grid-template-columns:1fr;}.ag-utilities .agu-compact > .ag-field {flex:1 1 11rem;}}
 
 /* ---------- Conditions overlay: a mostly transparent pop-out ---------- */
-.application.ag-app.agu-overlay-app {background:color-mix(in srgb,var(--ag-surface) 25%,transparent);border-color:color-mix(in srgb,var(--ag-border) 45%,transparent);box-shadow:none;min-width:10.5rem;}
-.application.ag-app.agu-overlay-app > .window-header {background:color-mix(in srgb,var(--ag-surface-sunken) 40%,transparent);border-bottom-color:transparent;}
+/* 0.23.0: --agu-ov-alpha (per-user slider, 0-100 %, default 25 % as before) fades only the window background; the header, text and buttons stay opaque. */
+.application.ag-app.agu-overlay-app {background:color-mix(in srgb,var(--ag-surface) var(--agu-ov-alpha,25%),transparent);border-color:color-mix(in srgb,var(--ag-border) 45%,transparent);box-shadow:none;min-width:10.5rem;}
+.application.ag-app.agu-overlay-app::before,.application.ag-app.agu-overlay-app::after {background:none !important;}
+.application.ag-app.agu-overlay-app > .window-header {background:var(--ag-surface-sunken);border-bottom-color:transparent;}
+.agu-overlay .agu-ov-fade {display:flex;justify-content:flex-end;align-items:center;gap:var(--ag-space-1);margin-bottom:var(--ag-space-1);color:var(--ag-muted);text-shadow:none;}
+.agu-overlay .agu-ov-fade input {width:5rem;height:auto;padding:0;accent-color:var(--ag-accent);}
 .application.ag-app.agu-overlay-app > .window-content {background:transparent;padding:var(--ag-space-1) var(--ag-space-3) var(--ag-space-2);overflow-y:auto;}
 .agu-overlay {color:var(--ag-text);text-shadow:0 0 3px var(--ag-surface),0 0 2px var(--ag-surface);}
 .agu-overlay .agu-ov-group + .agu-ov-group {margin-top:var(--ag-space-2);}

@@ -9,6 +9,14 @@ const STATES = ['pending','complete','failed'];
 // Character Hub level-up backups: GM-only copies flagged ashen-gate-character-hub.levelBackup. Never a playable character.
 export const LEVEL_BACKUP_ERROR='That is a level backup copy, not a playable character.';
 export function isLevelBackup(actor){return !!actor?.flags?.['ashen-gate-character-hub']?.levelBackup;}
+// 0.14.0 Character pickers list player characters only: a dnd5e character (any other actor type is an NPC or monster),
+// owned by at least one non-GM user, and not a Character Hub level backup (flagged, or named "<Name> - level X").
+const BACKUP_NAME=/ - level \d+\s*$/i;
+export function isPlayerCharacter(actor,users=[]){
+ if(!actor||isLevelBackup(actor)||BACKUP_NAME.test(String(actor.name??'')))return false;
+ if(actor.type!==undefined&&actor.type!=='character')return false;
+ return [...users].some(u=>u&&!u.isGM&&actor.testUserPermission?.(u,'OWNER'));
+}
 export function assertGM(user) {if (!user?.isGM) throw new Error('GM permission required.');}
 export function assertUI(user, enabled) {if (!user?.isGM && !enabled) throw new Error('Quest Log is hidden by the GM.');}
 export function cleanText(s) {return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}

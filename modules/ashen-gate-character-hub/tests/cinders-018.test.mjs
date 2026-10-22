@@ -39,13 +39,16 @@ test('Strain bar: nothing without Cinders; band, chance and over-10 shown; playe
   installGlobals({user: users.owner, modules: {'ashen-gate-cinders': cinders({refuse: true})}});
   assert.equal(strainHtml(makeActor(), false), '', 'a refusal hides the bar, never breaks the sheet');
 });
-test('Strain bar sits with hit points and follows the Hub\'s own Strain toggle', () => {
+test('Strain sits with hit points and follows the Hub\'s own Strain toggle (0.30.0: players get the pill in the HP block)', () => {
+  const STRAIN = /agch-strain|agch-pill--strain/;
   installGlobals({user: users.owner, modules: {'ashen-gate-cinders': cinders({value: 2})}});
-  assert.match(characterPanelHtml({actor: makeActor()}), /agch-strain/);
+  assert.match(characterPanelHtml({actor: makeActor(), editable: true}), /class="agch-hp"[\s\S]*agch-pill--strain[\s\S]*<\/div>\s*<\/div>/);
+  assert.doesNotMatch(characterPanelHtml({actor: makeActor(), editable: true}), /class="agch-strain/, 'no separate row for players');
   installGlobals({user: users.owner, modules: {'ashen-gate-cinders': cinders({value: 2})}, settings: {playerVisibility: {strain: false}}});
-  assert.doesNotMatch(characterPanelHtml({actor: makeActor()}), /agch-strain/);
+  assert.doesNotMatch(characterPanelHtml({actor: makeActor(), editable: true}), STRAIN);
   installGlobals({user: users.gm, modules: {'ashen-gate-cinders': cinders({value: 2})}, settings: {playerVisibility: {strain: false}}});
-  assert.match(characterPanelHtml({actor: makeActor()}), /agch-strain/, 'the GM always sees it');
+  assert.match(characterPanelHtml({actor: makeActor(), editable: true}), /class="agch-strain[\s\S]*data-action="strain-step"/, 'the GM always sees it, with − / + in the row under HP');
+  assert.doesNotMatch(characterPanelHtml({actor: makeActor(), editable: true}), /agch-pill--strain/, 'no second readout for the GM');
 });
 test('GM − / + go to api.strain with a source and reason; players are refused before any call', async () => {
   installGlobals({user: users.gm, modules: {'ashen-gate-cinders': cinders()}});

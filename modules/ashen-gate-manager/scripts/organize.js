@@ -294,8 +294,11 @@ export function whyOf(rule, facts) {
 }
 /** History `source` of a Clean compendiums run; each of its moves carries its own source (0.36.0). */
 export const CLEAN_SOURCE = 'clean';
-/** Documents per updateDocuments call. */
-const BATCH = 250;
+/**
+ * Documents per updateDocuments call (0.45.0: was 250). Between chunks the run yields to the browser, so a
+ * 2000-document commit never holds Foundry in one long write; each chunk is its own small update.
+ */
+export const CHUNK = 50;
 
 /**
  * Narrowing for one loaded scope (0.36.0): `ids` keeps only those document ids, `folderId` only documents in that
@@ -347,15 +350,30 @@ export function emptyFolders(folders, docs) {
 const INDEX_FIELDS = ['type', 'folder', 'system.rarity', 'system.type', 'system.level', 'system.school', 'system.details.cr', 'system.details.type',
   'system.source', 'flags.plutonium', 'flags.ddbimporter', `flags.${MODULE_ID}`, '_stats.compendiumSource'];
 
+const collectionsOf = game => ({Item:() => game.items, Actor:() => game.actors, JournalEntry:() => game.journal});
+
 /**
  * Foundry-facing organizer. `updateDocuments(documentName, updates, {pack})` and `createFolder(data, {pack})`
  * are injectable for tests; the defaults call Foundry's own Document classes.
  */
 export function createOrganizer({game,
   updateDocuments = (name, updates, opts) => globalThis.CONFIG[name].documentClass.updateDocuments(updates, opts),
-  createFolder = (data, opts) => globalThis.CONFIG.Folder.documentClass.create(data, opts)}) {
+  createFolder = (data, opts) => globalThis.CONFIG.Folder.documentClass.create(data, opts),
+  // 0.45.0: lets the browser paint (and a Cancel click land) between chunks.
+  yieldToUI = () => new Promise(resolve => setTimeout(resolve, 0)),
+  // 0.45.0: Clean compendiums writes with render:false, then redraws each touched sidebar or compendium once.
+  rerender = scope => {try {(scope.pack ?? collectionsOf(game)[scope.documentName]?.())?.render?.();} catch {/* a stale list redraws on its next render */}}}) {
   const isGM = () => Boolean(game.user?.isGM);
-  const collections = {Item:() => game.items, Actor:() => game.actors, JournalEntry:() => game.journal};
+  const collections = collectionsOf(game);
+  /** Writes `updates` CHUNK documents at a time, yielding between chunks; `after(written)` runs after each chunk. */
+  async function writeChunks(documentName, updates, opts, after = () => {}) {
+    for(let n = 0; n < updates.length; n += CHUNK) {
+      const chunk = updates.slice(n, n + CHUNK);
+      await updateDocuments(documentName, chunk, opts);
+      after(chunk);
+      await yieldToUI();
+    }
+  }
   const rules = () => {
     const stored = game.settings.get(MODULE_ID, SCHEMA_SETTING);
     return clone(Array.isArray(stored) && stored.length ? stored : DEFAULT_RULES);
@@ -458,7 +476,7 @@ export function createOrganizer({game,
           moved.push({documentName:scope.documentName, id:move.id, name:move.name, fromId:move.fromId, from:move.from, toId, to:move.to});
         }
         const opts = scope.pack ? {pack:scope.pack.collection} : {};
-        for(let n = 0; n < updates.length; n += BATCH) await updateDocuments(scope.documentName, updates.slice(n, n + BATCH), opts);
+        await writeChunks(scope.documentName, updates, opts);
       }
       if(moved.length) {
         const entry = {at:new Date().toISOString(), source, types, mode, moves:moved, createdFolders:created,
@@ -491,7 +509,7 @@ export function createOrganizer({game,
         updates.push({_id:move.id, folder:move.fromId ?? null});
       }
       const opts = scope.pack ? {pack:scope.pack.collection} : {};
-      for(let n = 0; n < updates.length; n += BATCH) await updateDocuments(scope.documentName, updates.slice(n, n + BATCH), opts);
+      await writeChunks(scope.documentName, updates, opts);
       restored += updates.length;
     }
     return restored;
@@ -558,19 +576,24 @@ export function createOrganizer({game,
 
   /**
    * Clean compendiums, commit: re-plans each place and moves only the ticked moves that are still planned the same
-   * way (a document changed since the preview is left alone and named). Writes in batches of BATCH; one history
-   * entry so Undo last organize puts the whole run back. `onProgress({done, total})` counts documents written.
+   * way (a document changed since the preview is left alone and named). 0.45.0: writes CHUNK documents per update
+   * with render:false, yielding to the browser between chunks, and creates a chunk's missing folders just before
+   * writing it. `signal` (an AbortSignal, or any {aborted}) stops the run between chunks: every chunk is either
+   * fully written or not started, and whatever was written (also after an error) is one history entry, so Undo last
+   * organize puts it back. `onProgress({done, total})` counts documents written.
    */
-  async function cleanApply({moves = [], types = ORGANIZE_TYPES, onProgress = null} = {}) {
+  async function cleanApply({moves = [], types = ORGANIZE_TYPES, onProgress = null, signal = null} = {}) {
     if(!isGM()) return fail(GM_ONLY);
     if(!Array.isArray(moves) || !moves.every(k => typeof k === 'string')) return fail('moves must be a list of move keys from the preview.');
+    const moved = [], created = [], notes = [], touched = [];
+    const total = moves.length;
+    let done = 0, cancelled = false, error = null;
+    const stop = () => Boolean(signal?.aborted);
     try {
       const schema = rules();
       const bySource = groupBy(moves, k => k.split('|')[0]);
-      const total = moves.length;
-      const moved = [], created = [], notes = [];
-      let done = 0;
-      for(const [source, keys] of bySource) {
+      places: for(const [source, keys] of bySource) {
+        if(stop()) {cancelled = true; break;}
         const want = new Set(keys);
         const scopes = await load(source, types);
         const blocked = scopes.find(sc => !sc.writable);
@@ -578,31 +601,47 @@ export function createOrganizer({game,
         for(const scope of scopes) {
           const plan = planSource({...scope, rules:schema, mode:'all'});
           const chosen = plan.moves.filter(m => want.has(moveKey(source, scope.documentName, m.id)));
-          const cache = new Map(), updates = [];
-          for(const move of chosen) {
-            const toId = await ensurePath(scope, move.to, cache, created);
-            updates.push({_id:move.id, folder:toId});
-            moved.push({source, documentName:scope.documentName, id:move.id, name:move.name, fromId:move.fromId, from:move.from, toId, to:move.to});
-          }
-          const opts = scope.pack ? {pack:scope.pack.collection} : {};
-          for(let n = 0; n < updates.length; n += BATCH) {
-            await updateDocuments(scope.documentName, updates.slice(n, n + BATCH), opts);
-            done += Math.min(BATCH, updates.length - n);
+          if(!chosen.length) continue;
+          const cache = new Map();
+          const opts = {...(scope.pack ? {pack:scope.pack.collection} : {}), render:false};
+          touched.push(scope);
+          for(let n = 0; n < chosen.length; n += CHUNK) {
+            if(stop()) {cancelled = true; break places;}
+            const updates = [], rows = [];
+            for(const move of chosen.slice(n, n + CHUNK)) {
+              const toId = await ensurePath(scope, move.to, cache, created);
+              updates.push({_id:move.id, folder:toId});
+              rows.push({source, documentName:scope.documentName, id:move.id, name:move.name, fromId:move.fromId, from:move.from, toId, to:move.to});
+            }
+            await updateDocuments(scope.documentName, updates, opts);
+            moved.push(...rows);
+            done += rows.length;
             onProgress?.({done, total});
+            await yieldToUI();
           }
         }
       }
-      const planned = new Set(moved.map(m => moveKey(m.source, m.documentName, m.id)));
-      const gone = moves.filter(k => !planned.has(k)).length;
-      if(gone) notes.push(`${gone} ticked document(s) changed since the preview (moved, protected, deleted or locked) and were left as they are`);
+    } catch(e) {error = e;}
+    // Whatever was written is recorded, so Undo last organize can always put it back (also after Cancel or an error).
+    try {
       if(moved.length) {
-        const entry = {at:new Date().toISOString(), source:CLEAN_SOURCE, types, mode:'all', moves:moved, createdFolders:created};
+        const entry = {at:new Date().toISOString(), source:CLEAN_SOURCE, types, mode:'all', moves:moved, createdFolders:created,
+          ...(cancelled || error ? {partial:true} : {})};
         await game.settings.set(MODULE_ID, HISTORY_SETTING, [entry, ...history()].slice(0, HISTORY_LIMIT));
       }
-      onProgress?.({done:total, total});
-      return {ok:true, moved:moved.length, createdFolders:created.length, notes, moves:moved,
-        message:moved.length ? `Moved ${moved.length} document(s) in ${new Set(moved.map(m => m.source)).size} place(s); created ${created.length} folder(s).${notes.length ? ` ${notes.join('. ')}.` : ''}` : `Nothing was moved.${notes.length ? ` ${notes.join('. ')}.` : ''}`};
-    } catch(error) {return fail(`Clean stopped: ${error.message ?? error}. Moves already written are in Undo last organize only if the run finished; download the backup before committing.`);}
+    } catch(e) {error ??= e;}
+    for(const scope of touched) rerender(scope);
+    const places = new Set(moved.map(m => m.source)).size;
+    if(error) return {...fail(`Clean stopped: ${error.message ?? error}. ${moved.length ? `The ${moved.length} document(s) moved before it stopped are in Undo last organize.` : 'Nothing was moved.'}`),
+      moved:moved.length, moves:moved, createdFolders:created.length, notes};
+    if(cancelled) return {ok:true, cancelled:true, moved:moved.length, createdFolders:created.length, notes, moves:moved,
+      message:`Cancelled. Moved ${moved.length} of ${total} document(s)${moved.length ? ` in ${places} place(s); Undo last organize puts them back` : ''}. The rest were not touched.`};
+    const planned = new Set(moved.map(m => moveKey(m.source, m.documentName, m.id)));
+    const gone = moves.filter(k => !planned.has(k)).length;
+    if(gone) notes.push(`${gone} ticked document(s) changed since the preview (moved, protected, deleted or locked) and were left as they are`);
+    onProgress?.({done:total, total});
+    return {ok:true, moved:moved.length, createdFolders:created.length, notes, moves:moved,
+      message:moved.length ? `Moved ${moved.length} document(s) in ${places} place(s); created ${created.length} folder(s).${notes.length ? ` ${notes.join('. ')}.` : ''}` : `Nothing was moved.${notes.length ? ` ${notes.join('. ')}.` : ''}`};
   }
 
   /** Backup of current folders for every ticked move of a Clean compendiums preview. */

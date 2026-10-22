@@ -102,6 +102,32 @@ test('crosswalk baseline files go through the Ledger parser; unknown names are r
   assert.match(bad.errors.join(' | '), /listed twice.*"Dancing" is not one of the Ledger's 14 professions.*"\[TEST\] Press" matches no dnd5e tool.*empty or over 200 characters/);
 });
 
+test('gathering node files (Ledger 0.25.0) go through the Ledger parser, by name or schema, and stay out of the ZIP', async () => {
+  const nodeFile = (nodes) => ({schema: 'ag-gathering-nodes/1', nodes});
+  const reeds = (over = {}) => ({id: 'NODE-TEST-REEDS', name: '[TEST] Reeds', activity: 'herbalism', tier: {min: 1, max: 2},
+    materials: {common: [{materialId: 'MAT-TEST-HERB', quantity: 2}], rare: [], exotic: [{materialId: 'MAT-TEST-STAR', mode: 'designated', chance: 5, condition: 'rare'}]}, ...over});
+  const ok = await checkContent(nodeFile([reeds()]), 'x.gathering-nodes.json');
+  assert.equal(ok.kind, 'gathering-nodes');
+  assert.deepEqual(ok.errors, []);
+  assert.match(ok.notes.join(' '), /Materials not defined in this folder.*MAT-TEST-HERB, MAT-TEST-STAR.*Gathering Nodes > Import nodes/);
+  assert.deepEqual((await checkContent(nodeFile([reeds()]), 'x.gathering-nodes.json', {knownIds: new Set(['MAT-TEST-HERB', 'MAT-TEST-STAR'])})).notes,
+    ['Imported in Profession Ledger > Gathering Nodes > Import nodes (not through Manager Import).']);
+  assert.equal((await checkContent(nodeFile([reeds({activity: 'Skinning & Harvesting'})]), 'any-name.json')).kind, 'gathering-nodes', 'recognised by its schema');
+  const bad = await checkContent(nodeFile([reeds({id: 'reeds'}), reeds({activity: 'dancing', tier: {min: 3, max: 1}}), reeds({name: '[TEST] Twice',
+    materials: {common: [{materialId: 'MAT-TEST-A', chance: 50}, {materialId: 'MAT-TEST-B', chance: 40}]}})]), 'x.gathering-nodes.json');
+  assert.match(bad.errors.join(' | '), /permanent NODE-\* id.*activity "dancing".*tier min 3 is above max 1.*add up to 90, not 100.*used twice in this file/);
+  assert.deepEqual((await checkContent({schema: 'ag-gathering-nodes/1'}, 'x.gathering-nodes.json')).errors, ['The file needs a "nodes" list.']);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ag-content-'));
+  try {
+    fs.writeFileSync(path.join(dir, 'a.json'), JSON.stringify(pack([item()])));
+    fs.writeFileSync(path.join(dir, 'b.json'), JSON.stringify(pack([item({id: 'ITEM-TEST-ROPE'})])));
+    fs.writeFileSync(path.join(dir, 'c.gathering-nodes.json'), JSON.stringify(nodeFile([reeds()])));
+    const {ok: good, lines} = await validateTargets([dir]);
+    assert.ok(good, lines.join('\n'));
+    assert.doesNotMatch(lines.at(-1), /gathering-nodes/);
+  } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+});
+
 test('NPC Codex export files are checked with the restore planner and kept out of the ZIP', async () => {
   const file = {schema_version: 'ag-npc-codex-export/0.1', visibility: 'gm', definitions: [], reveals: {'NPC-TEST-CLERK': {discovery: {party: true, actors: []}}}};
   assert.deepEqual((await checkContent(file, 'x.npc-codex.json')).errors, []);
