@@ -170,6 +170,9 @@ test('list (additive): the signature ability with its Push modes, the passive wi
   const view=main.sheetView(A,cinder.list(A)[0],null,{strainState:strain.get(A),offer:{world:true,local:true}});
   assert.deepEqual(view.signature.map(s=>[s.label,s.name,s.summary]),[['Signature ability','[TEST] Flare','[TEST] A flare of light.'],['Passive','[TEST] Ward','[TEST] Always warded.']]);
   assert.equal(view.offerToggle,true);
+  assert.deepEqual(view.signature.map(s=>s.badge),['Signature','Passive'],'0.11.0: the first rows of Powers, badged');
+  assert.ok(view.signature[0].modes.length>0&&view.signature[0].modes.every(m=>typeof m.cost==='number'&&'mods' in m),'the same mode stats as tree powers');
+  assert.equal(view.hasDeviceOptions,true,'the Push offer switch sits in "On this device"');
   assert.equal(main.sheetView(A,cinder.list(A)[0],null,{strainState:strain.get(A),offer:{world:false,local:true}}).offerToggle,false,'no device switch while the GM has it off');
 });
 test('using the signature ability offers a Push once; choosing a mode runs the Push; "Use without Push" leaves the use alone',async()=>{
@@ -256,6 +259,22 @@ test('Check reports missing and extra bearer items; Repair (re-runnable) fixes t
   assert.deepEqual(grants(A),perksBefore,'Skill Trees\' tagged perk copies untouched');
   assert.deepEqual(cinder.report().filter(r=>/signature|passive/.test(r.text)),[]);
   const before={...ops};await cinder.repair();assert.deepEqual(ops,before,'nothing left to do: no writes');
+});
+// 0.11.0 (CN-04): Manage → Check → Repair… asks first, listing the rows; it removes items here, so Cancel is the default.
+test('Repair… asks first ("Repair Cinders?", Cancel default when it removes items); Cancel changes nothing',async()=>{
+  game.user=gm;
+  await B.createEmbeddedDocuments('Item',[{name:'[TEST] Flare',flags:{[MOD]:{bearerItem:{instanceId:ember.instanceId,definitionId:DEF,slot:'active',sourceId:'POWER-TEST-FLARE'}}}}]);
+  assert.equal(main.repairRemoves(cinder.report()),true);
+  const app=api.open();dialogs.length=0;answers.push('cancel');
+  const before={...ops};await app._act({dataset:{act:'cinder-repair'}});
+  assert.equal(dialogs.length,1);const d=dialogs[0];
+  assert.equal(d.window.title,'Repair Cinders?');assert.deepEqual(d.buttons.map(b=>[b.label,b.default]),[['Cancel',true],['Repair',false]]);
+  assert.match(d.content,/\[TEST\] B has an extra signature ability item/);assert.match(d.content,/Items are taken off characters/);
+  assert.deepEqual(ops,before,'Cancel: nothing removed');assert.equal(tagged(B).length,1);
+  answers.push('confirm');await app._act({dataset:{act:'cinder-repair'}});
+  assert.deepEqual(tagged(B),[],'Repair ran after the confirmation');
+  dialogs.length=0;await app._act({dataset:{act:'cinder-repair'}});assert.equal(dialogs.length,0,'nothing to repair: no question');
+  assert.equal(main.repairRemoves([{repair:true,text:'[TEST] A is missing this Cinder\'s passive (POWER-TEST-WARD).'}]),false,'only giving items is not a removal');
 });
 test('transfer moves the bearer items; unbind removes them; Hub Restore (rehook) recreates them',async()=>{
   game.user=gm;
