@@ -180,7 +180,10 @@ test('editor markup: kit table, labelled icon Remove, tooltips not title, empty 
  assert.match(html,/<h3 class="ag-section__title">Item rewards<\/h3>/);
  assert.match(html,/role="status" data-reward-status>Saved</);
  assert.match(html,/<div class="ag-table-wrap"><table class="ag-table/);
- assert.equal((html.match(/<th scope="col"/g)||[]).length,6);
+ // 0.17.0 QL-06: four columns; Shown to players and Goes to are labelled fields under the item name. Edits apply at once.
+ assert.equal((html.match(/<th scope="col"/g)||[]).length,4);
+ assert.match(html,/<td><span class="agq-reward__item">[^]*?<div class="agq-reward__opts"><label class="ag-field">Shown to players<select data-reward-field="visibility"[^]*?<label class="ag-field">Goes to<select data-reward-field="recipient"/);
+ assert.match(html,/<h3 class="ag-section__title">Item rewards<\/h3><span class="ag-badge">Applies now<\/span>/);
  assert.equal((html.match(/data-reward-key=/g)||[]).length,3,'removed rows are hidden');
  assert.ok(html.includes('&lt;Blade&gt;')&&!html.includes('<Blade>'));
  assert.match(html,/class="agq-mono">ITEM-TEST-BLADE</);

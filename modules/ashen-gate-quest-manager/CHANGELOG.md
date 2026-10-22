@@ -1,3 +1,21 @@
+## 0.17.0 — 2026-10-22
+
+UI cleanup from the October UI audit. Nothing about quests, journals or saved data changes; no migration.
+- **One name: Quest Log.** Module title, Actors-sidebar launcher (was *Quests*), window, Help and embed all say Quest Log. The module id stays `ashen-gate-quest-manager`.
+- **Header** shows only the version and Help (no subtitle). **Show objectives overlay** moved to the right end of the Party and Individual toolbar, and out of GM Setup.
+- **Party and Individual** have one full-width toolbar like the Quests tab: search, status, count, overlay toggle. Individual picks its character in the toolbar; Party picks whose notes to show in the *Character notes* heading.
+- **Location links** in a quest (and in the Character Hub embed) are real buttons: Tab reaches them, Enter opens the location.
+- **Quests tab toolbar** is one row: search, **Filters (n)** (opens a second row with type, location and visibility, plus Clear filters), group, sort, count, **New quest**. Ticking quests shows the bulk actions as a full-width row above the list instead of inside the list column.
+- **Import / Export** moved to *Advanced: import here, or use General Manager* at the end of the list. *Import JSON…* now shows what the file adds and asks *Import N quests?* before writing; quests already in the world are kept as they are (as with General Manager's importer).
+- **Quest editor:** sections are the kit's folds. Only Basics, Audience and Objectives start open (your own open/closed choices are kept). The source JSON is its own section, *Advanced: source JSON*; once you edit it the save bar says *Saving from JSON; form edits are ignored*. *Individual character* shows only for an individual quest. The GM info line moved into Help.
+- **Item rewards** say *Applies now* (they save as you change them) and the table is down to four columns: *Shown to players* and *Goes to* sit under the item name. *Give rewards* is its own box with its footer at the bottom.
+- **Delegated assignments** have their own section after Save changes, *Assignments (saved separately)*, with Cancel / status / **Save assignment**. *Load into editor* (was *Edit*) fills the JSON, scrolls to it, focuses it and shows *Editing ASSIGN-…*.
+- **Never lose edits:** closing the window with unsaved quest changes now asks first. Delete, remove and archive confirmations default to Cancel.
+- **Tabs** are one Tab stop with Left/Right/Home/End; the quest views and the journal switch move with the arrow keys too.
+- **Journal:** players switch *My journal* / *Party journal* with a segmented control; the GM's picker is *Whose journal*. *Export Markdown* and *Archive session* sit on their own line under the session title. The page goes to one column when the page pane (not the window) is under about 46rem. *New session* is a secondary button, and is disabled with "New session needs a GM connected" when a player has no GM online. The formatting toolbar is one Tab stop (arrow keys), shows Bold / Italic / Underline / list state, and both headings use text glyphs (H2, H3).
+- GM Setup → Player access says that the Journal tab also follows Character Hub's Quests visibility.
+- Saved data: no change. Editor sections gain two keys in the per-user `gmView` flag (`json`, `assignments`); older flags read with defaults. The Filters row and the Advanced fold remember open/closed per user in the browser.
+
 ## 0.16.1 — 2026-10-22
 
 - Shared UI kit 2.2 (no visible change).

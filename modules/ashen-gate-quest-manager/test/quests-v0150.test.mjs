@@ -3,7 +3,7 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {MOD,initialState,publicView} from '../scripts/core.mjs';
 import {SUBVIEWS,questRow,listQuestsTab,filterRows,sortRows,groupRows,navCounts,gmViewState,changedLabel,rewardSummary,questGivers,EDITOR_SECTIONS,CONTENT_ACTIONS} from '../scripts/quests-tab.mjs';
-import {questCard,questsSubnav,bulkBar,editorSection} from '../scripts/gm-panels.mjs';
+import {questCard,questsSubnav,bulkBar,bulkHint,editorSection} from '../scripts/gm-panels.mjs';
 import {planBulk,runBulk,duplicateSource,confirmText} from '../scripts/bulk.mjs';
 import {El} from './helpers/fake-dom.mjs';
 
@@ -79,7 +79,12 @@ test('remembered view: sub-view, sort, group and section open state, with safe d
  assert.equal(v.nav,'orders');assert.equal(v.sort,'changed');assert.equal(v.group,'giver');
  assert.equal(v.sections.rewards,true);assert.equal(v.sections.basics,false);assert.equal('bogus' in v.sections,false);assert.equal('search' in v,false);
  assert.deepEqual(gmViewState({nav:'x',sort:1,group:[]}),gmViewState({}));
- assert.deepEqual(EDITOR_SECTIONS.map(s=>s[1]),['Basics','Audience','Objectives','Rewards','Campaign status and reveal','GM notes']);
+ assert.deepEqual(EDITOR_SECTIONS.map(s=>s[1]),['Basics','Audience','Objectives','Rewards','Campaign status and reveal','GM notes','Advanced: source JSON','Assignments (saved separately)']);
+ // 0.17.0 QL-02: only Basics, Audience and Objectives start open; a flag saved before 0.17.0 keeps its choices and the new
+ // sections take their defaults.
+ assert.deepEqual(EDITOR_SECTIONS.filter(s=>s[2]).map(s=>s[0]),['basics','audience','objectives']);
+ const old=gmViewState({sections:{basics:true,audience:true,objectives:true,rewards:false,status:true,gmnotes:false}});
+ assert.equal(old.sections.status,true);assert.equal(old.sections.json,false);assert.equal(old.sections.assignments,false);
 });
 test('last changed reads as a short relative time',()=>{
  const now=Date.parse('2026-10-22T12:00:00Z');
@@ -115,13 +120,18 @@ test('cards never clip actionable text: wrapping styles, no ellipsis anywhere in
  assert.match(css,/\.agq-savebar \{[^}]*position: sticky; bottom: 0/);
 });
 test('bulk bar: idle hint, then count, select all / clear, status, hide, reveal, duplicate and a red Delete',()=>{
- assert.match(bulkBar(0,5),/agq-bulk--idle[\s\S]*Select all 5 shown/);assert.doesNotMatch(bulkBar(0,5),/bulk-delete/);
+ // 0.17.0 QL-05: the hint stays in the list column; the actions are a full-width row under the toolbar, hidden until a tick.
+ assert.match(bulkHint(0,5),/agq-bulk--idle[\s\S]*Select all 5 shown/);assert.doesNotMatch(bulkHint(0,5),/bulk-delete/);
+ assert.match(bulkHint(2,5),/2 selected: bulk actions are above the list/);
+ assert.equal(bulkBar(0,5),'<div class="agq-bulk" id="ag-gm-bulk" role="group" aria-label="Bulk actions" hidden></div>');
  const html=bulkBar(2,5);
  assert.match(html,/2 selected/);
  for(const a of ['bulk-all','bulk-clear','bulk-status','bulk-hide','bulk-reveal','bulk-duplicate','bulk-delete'])assert.match(html,new RegExp(`data-action="${a}"`));
  assert.match(html,/data-action="bulk-delete" class="ag-btn ag-btn--danger ag-btn--sm"/);
  for(const a of ['bulk-status','bulk-hide','bulk-reveal','bulk-duplicate','bulk-delete','save-quest'])assert.ok(CONTENT_ACTIONS.includes(a),a);
- assert.equal(editorSection('rewards','Rewards','<p>x</p>',{open:false,summary:'2 items'}),'<details class="agq-sec" data-section="rewards"><summary class="agq-sec__head"><span class="agq-sec__title">Rewards</span><span class="agq-sec__summary">2 items</span></summary><div class="agq-sec__body"><p>x</p></div></details>');
+ // 0.17.0 Editor sections are the kit's fold; the summary is escaped text in the fold's hint.
+ assert.equal(editorSection('rewards','Rewards','<p>x</p>',{open:false,summary:'2 <items>'}),'<details class="ag-fold agq-sec" data-section="rewards"><summary class="ag-fold__summary"><span class="ag-fold__title">Rewards</span><span class="ag-fold__hint">2 &lt;items&gt;</span></summary><div class="ag-fold__body"><p>x</p></div></details>');
+ assert.equal(editorSection('gmnotes','GM notes','',{open:true}),'<details class="ag-fold agq-sec" data-section="gmnotes" open><summary class="ag-fold__summary"><span class="ag-fold__title">GM notes</span></summary><div class="ag-fold__body"></div></details>');
 });
 test('bulk reveal never publishes a draft or a GM-only definition; hide takes the reveal back (and Hidden when needed)',()=>{
  const ids=data.map(e=>e.source.id);
@@ -224,7 +234,7 @@ test('window: sub-views with counts; picking one is remembered for this GM and c
 test('editor: collapsible sections remember open/closed; one sticky save bar shows a clear unsaved state',async()=>{
  reset();const app=lastApp;app.tab='quests';app.gmId='QUEST-TEST-B';app.unsavedSource=false;await draw(app);
  const secs=content.querySelectorAll('details[data-section]');
- assert.deepEqual(secs.map(d=>[d.dataset.section,d.open]),[['basics',true],['audience',true],['objectives',true],['rewards',false],['status',true],['gmnotes',false]]);
+ assert.deepEqual(secs.map(d=>[d.dataset.section,d.open]),[['basics',true],['audience',true],['objectives',true],['rewards',false],['status',false],['gmnotes',false],['json',false],['assignments',false]]);
  const rewards=content.querySelector('[data-section="rewards"]');rewards.open=true;rewards.fire('toggle');
  assert.equal(gm.flags.gmView.sections.rewards,true);
  await draw(app);assert.equal(content.querySelector('[data-section="rewards"]').open,true,'kept open after a redraw');

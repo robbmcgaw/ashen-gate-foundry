@@ -54,6 +54,8 @@ export function questRow({source,state,changed=null},ctx={}){
   total:(source.objectives||[]).length,done:(source.objectives||[]).filter(o=>state.progress?.[o.key]==='complete').length};
 }
 export const DEFAULT_VIEW=Object.freeze({search:'',nav:'all',type:'all',status:'all',location:'all',visible:'all',sort:'name',group:'status'});
+/** How many of the filters behind Filters (n) are set (type, location, visible). */
+export const filterCount=v=>['type','location','visible'].filter(k=>(v?.[k]??'all')!=='all').length;
 export function locationOptions(rows){
  const names=new Map();for(const r of rows)r.locations.forEach((id,i)=>names.set(id,r.locationNames?.[i]||id));
  return [...names].sort((a,b)=>a[1].localeCompare(b[1])||a[0].localeCompare(b[0]));
@@ -111,7 +113,9 @@ export function changedLabel(ms,now=Date.now()){
  return new Date(ms).toISOString().slice(0,10);
 }
 // 0.15.0 The GM's last Quests view and editor sections, kept per user (User flag `gmView`). Search is not kept.
-export const EDITOR_SECTIONS=Object.freeze([['basics','Basics',true],['audience','Audience',true],['objectives','Objectives',true],['rewards','Rewards',false],['status','Campaign status and reveal',true],['gmnotes','GM notes',false]]);
+// 0.17.0 Campaign status starts closed too; delegated assignments get their own section (saved on their own), and the
+// source JSON its own (it was a fold inside GM notes). A section missing from a stored flag takes its default here.
+export const EDITOR_SECTIONS=Object.freeze([['basics','Basics',true],['audience','Audience',true],['objectives','Objectives',true],['rewards','Rewards',false],['status','Campaign status and reveal',false],['gmnotes','GM notes',false],['json','Advanced: source JSON',false],['assignments','Assignments (saved separately)',false]]);
 export function gmViewState(raw){
  const r=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:{};
  const pick=(v,list,d)=>list.includes(v)?v:d;
@@ -119,6 +123,6 @@ export function gmViewState(raw){
  return {nav:pick(r.nav,SUBVIEWS.map(v=>v.key),'all'),sort:pick(r.sort,SORTS.map(x=>x[0]),'name'),group:pick(r.group,GROUPS.map(x=>x[0]),'status'),sections};
 }
 // Actions that author or manage content. GM Setup must never offer these.
-export const CONTENT_ACTIONS=Object.freeze(['new','gm-select','save-quest','cancel-edit','clear-filters','delete','import','export','add-objective','save-assignment','edit-assignment','remove-assignment','bulk-status','bulk-hide','bulk-reveal','bulk-duplicate','bulk-delete','bulk-all','bulk-clear']);
+export const CONTENT_ACTIONS=Object.freeze(['new','gm-select','save-quest','cancel-edit','clear-filters','delete','import','export','add-objective','save-assignment','edit-assignment','cancel-assignment','remove-assignment','toggle-filters','bulk-status','bulk-hide','bulk-reveal','bulk-duplicate','bulk-delete','bulk-all','bulk-clear']);
 // GM Setup saves every setting with one Save Changes (Player Access included, D4); Cancel puts the form back.
-export const SETUP_ACTIONS=Object.freeze(['save-setup','cancel-setup','toggle-overlay']);
+export const SETUP_ACTIONS=Object.freeze(['save-setup','cancel-setup']);

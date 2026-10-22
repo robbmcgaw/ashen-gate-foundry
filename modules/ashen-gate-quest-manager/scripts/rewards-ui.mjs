@@ -20,25 +20,25 @@ function statusCell(r){
  if(r.givenNames?.length)return `<span class="ag-badge ag-badge--ok agq-given">Given to ${E(r.givenNames.join(', '))}</span>`;
  return r.givenNames?'<span class="ag-badge">Not yet</span>':'';
 }
+// 0.17.0 Four columns (QL-06): Shown to players and Goes to sit under the item name, each with its own label.
 function rewardRow(r,{individual}){
  const label=E(r.name);
  const goes=individual
-  ?`<select data-reward-field="recipient" aria-label="Goes to: ${label}" disabled>${options(GOES,r.recipient)}</select><span class="ag-field__hint">Individual quest: goes to its character.</span>`
-  :`<select data-reward-field="recipient" aria-label="Goes to: ${label}">${options(GOES,r.recipient)}</select>`;
+  ?`<label class="ag-field">Goes to<select data-reward-field="recipient" aria-label="Goes to: ${label}" disabled>${options(GOES,r.recipient)}</select><span class="ag-field__hint">Individual quest: goes to its character.</span></label>`
+  :`<label class="ag-field">Goes to<select data-reward-field="recipient" aria-label="Goes to: ${label}">${options(GOES,r.recipient)}</select></label>`;
  const drag=r.status==='ok'&&r.uuid&&!r.gone?' draggable="true" data-reward-drag':'';
- return `<tr data-reward-key="${E(r.key)}"${drag}><td>${itemCell(r)}</td>
+ return `<tr data-reward-key="${E(r.key)}"${drag}><td>${itemCell(r)}<div class="agq-reward__opts"><label class="ag-field">Shown to players<select data-reward-field="visibility" aria-label="Shown to players: ${label}">${options(SHOWN,r.visibility)}</select></label>${goes}</div></td>
  <td class="is-num"><input type="number" class="agq-reward__qty" data-reward-field="quantity" min="1" step="1" value="${E(r.quantity)}" aria-label="Quantity: ${label}"></td>
- <td><select data-reward-field="visibility" aria-label="Shown to players: ${label}">${options(SHOWN,r.visibility)}</select></td>
- <td>${goes}</td><td>${statusCell(r)}</td>
+ <td>${statusCell(r)}</td>
  <td class="is-actions">${r.givenNames?.length&&!r.gone?safeButton('Grant again','grant-again',{sm:true,data:{key:r.key},title:'Give this reward once more'}):''}${safeButton(`Remove ${r.name}`,'remove-reward',{kind:'danger',sm:true,iconOnly:true,icon:'fa-trash',title:'Remove this reward',data:{key:r.key}})}</td></tr>`;
 }
-/** GM editor section. rows = api.rewards.list() output; removed rows are not shown. */
+/** GM editor section. rows = api.rewards.list() output; removed rows are not shown. Its edits save at once (Applies now). */
 export function rewardsSection(rows,{individual=false,status='',grantHtml='',canGive=false}={}){
  const shown=rows.filter(r=>!r.removed);
- const table=shown.length?`<div class="ag-table-wrap"><table class="ag-table agq-rewards__table"><thead><tr><th scope="col">Item</th><th scope="col" class="is-num">Qty</th><th scope="col">Shown to players</th><th scope="col">Goes to</th><th scope="col">Status</th><th scope="col" class="is-actions"><span class="ag-sr-only">Actions</span></th></tr></thead>
+ const table=shown.length?`<div class="ag-table-wrap"><table class="ag-table agq-rewards__table"><thead><tr><th scope="col">Item</th><th scope="col" class="is-num">Qty</th><th scope="col">Status</th><th scope="col" class="is-actions"><span class="ag-sr-only">Actions</span></th></tr></thead>
  <tbody>${shown.map(r=>rewardRow(r,{individual})).join('')}</tbody></table></div>`
   :emptyState('No item rewards yet','Drop an item here to add it.',{iconName:'fa-gift'});
- return `<section class="agq-rewards ag-section" data-reward-zone><div class="ag-section__head"><h3 class="ag-section__title">Item rewards</h3><span class="ag-field__hint" role="status" data-reward-status>${E(status)}</span>${canGive&&!grantHtml?safeButton('Give rewards','open-grant',{icon:'fa-gift'}):''}</div>
+ return `<section class="agq-rewards ag-section" data-reward-zone><div class="ag-section__head"><h3 class="ag-section__title">Item rewards</h3><span class="ag-badge">Applies now</span><span class="ag-field__hint" role="status" data-reward-status>${E(status)}</span>${canGive&&!grantHtml?safeButton('Give rewards','open-grant',{icon:'fa-gift'}):''}</div>
  ${table}${grantHtml}
  <div class="agq-reward-drop"><i class="fa-solid fa-gift" aria-hidden="true"></i> <span>Drop items here: from a character or NPC sheet, a compendium or the Items sidebar.</span></div></section>`;
 }
@@ -97,9 +97,9 @@ export function grantPanel(rows,choices,{individual=false,noParty=false}={}){
   return `<tr data-grant-key="${E(r.key)}" data-recipient="${E(individual?'individual':r.recipient)}"><td><input type="checkbox" data-grant-give ${ok&&c.give?'checked':''} ${ok?'':'disabled'} aria-label="Give ${E(r.name)}"></td>
   <td><span class="agq-reward__item">${img(r.img)}<span class="agq-reward__text"><span class="agq-reward__name">${E(r.name)} × ${E(r.quantity)}</span>${noteHint(r)}${ok?'':`<span class="ag-field__hint">${E(r.reason||'Not available.')}</span>`}</span></span></td>
   <td>${ok?goesToCell(r,c,individual):''}</td></tr>`;}).join('');
- return `<div class="agq-grant" data-grant-panel><h4 class="agq-h">Give rewards</h4>
+ return `<div class="agq-grant" data-grant-panel role="group" aria-labelledby="agq-grant-title"><h4 class="agq-h agq-grant__title" id="agq-grant-title">Give rewards</h4>
  ${noParty?'<p class="ag-notice ag-notice--warn"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> No player owns a character yet, so there is nobody to give party rewards to.</p>':''}
  <div class="ag-table-wrap"><table class="ag-table"><thead><tr><th scope="col"><span class="ag-sr-only">Give</span></th><th scope="col">Item</th><th scope="col">Goes to</th></tr></thead><tbody>${body}</tbody></table></div>
  <h4 class="agq-h">Will receive</h4><ul class="ag-list" data-grant-summary>${receiveList(summary)}</ul>
- <footer class="ag-footer agq-footer">${safeButton('Not now','close-grant',{kind:'ghost'})}<span class="ag-footer__status" role="status" data-grant-status>${E(summary.problems.join(' '))}</span>${safeButton('Grant rewards','grant-rewards',{kind:'primary',disabled:blocked,icon:'fa-gift'})}</footer></div>`;
+ <footer class="ag-footer agq-grant__footer">${safeButton('Not now','close-grant',{kind:'ghost'})}<span class="ag-footer__status" role="status" data-grant-status>${E(summary.problems.join(' '))}</span>${safeButton('Grant rewards','grant-rewards',{kind:'primary',disabled:blocked,icon:'fa-gift'})}</footer></div>`;
 }
