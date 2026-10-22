@@ -78,8 +78,14 @@
 .agq-setup__body > .ag-section { max-width: 46rem; }
 
 /* Objectives overlay: fixed over the canvas, outside any Ashen Gate window */
-.agq-tracker { position: fixed; top: clamp(3.75rem, 10vh, 6.25rem); right: clamp(var(--ag-space-3), 1.5vw, var(--ag-space-5)); z-index: 70; display: flex; flex-direction: column; width: 20rem; max-width: min(22rem, calc(100vw - 1.5rem)); max-height: min(65vh, 40rem); overflow: hidden; border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: var(--ag-surface); color: var(--ag-text); box-shadow: var(--ag-shadow); font-family: var(--ag-font-body); font-size: var(--ag-text-md); }
-.agq-tracker__head { display: flex; align-items: center; justify-content: space-between; gap: var(--ag-space-2); padding: var(--ag-space-2) var(--ag-space-4); border-bottom: 1px solid var(--ag-border); }
+.agq-tracker { position: fixed; top: clamp(3.75rem, 10vh, 6.25rem); right: clamp(var(--ag-space-3), 1.5vw, var(--ag-space-5)); z-index: 70; display: flex; flex-direction: column; width: 20rem; max-width: min(22rem, calc(100vw - 1.5rem)); max-height: min(65vh, 40rem); overflow: hidden; border: 1px solid var(--ag-border); border-radius: var(--ag-radius); background: color-mix(in srgb, var(--ag-surface) var(--agq-tracker-alpha, 100%), transparent); color: var(--ag-text); box-shadow: var(--ag-shadow); font-family: var(--ag-font-body); font-size: var(--ag-text-md); }
+.agq-tracker__head { display: flex; align-items: center; justify-content: space-between; gap: var(--ag-space-2); padding: var(--ag-space-2) var(--ag-space-4); border-bottom: 1px solid var(--ag-border); background: var(--ag-surface); cursor: move; touch-action: none; user-select: none; }
+/* 0.14.0: the slider fades only the background (--agq-tracker-alpha); the header keeps a solid background, text stays solid. */
+.agq-tracker.is-dragging { user-select: none; }
+.agq-tracker__tools { display: inline-flex; align-items: center; gap: var(--ag-space-2); }
+.agq-tracker__fade { display: inline-flex; align-items: center; gap: var(--ag-space-1); color: var(--ag-muted); cursor: default; }
+.agq-tracker__fade input { width: 5rem; }
+.agq-tracker__quest { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ag-space-2); }
 .agq-tracker__body { overflow: auto; padding: var(--ag-space-2) var(--ag-space-4); }
 .agq-tracker section { padding: var(--ag-space-3) 0; border-bottom: 1px solid var(--ag-border); }
 .agq-tracker section:last-child { border-bottom: 0; }
