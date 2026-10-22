@@ -4,6 +4,8 @@ import {worldItemById} from './ag-item-drop.mjs';
 const FLAG = `flags.${MOD}`;
 const GM_ONLY = {default:0};
 const FLAGROOT = `flags.${MOD}`;
+// 0.14.0 Quest Log never opens a journal on anyone's screen as a side effect of saving, revealing or completing.
+const QUIET = {renderSheet:false};
 // Imported rewards are named from the world Item bound to their permanent id; none bound -> left out of the player view.
 const itemById=id=>{const item=worldItemById(id);return item?{name:item.name,img:item.img}:null;};
 export async function ensureFolder(segment){
@@ -46,7 +48,7 @@ async function publish(source,state){
   if(old&&old.getFlag(MOD,'accessSignature')!==sig)await old.delete();
   const cur=(old&&old.getFlag(MOD,'accessSignature')===sig)?old:null;
   if(!cur){const created=await JournalEntry.create({name:`Quest Log — ${source.name}`,folder:await ensureFolder('Quest Log'),ownership,
-    flags:projectionFlags(v,sig),pages:[{name:'Quest Log',type:'text',text:{format:1,content:journalPageHtml(v)}}]});await synchronizeNotes(source,state,true);return created;}
+    flags:projectionFlags(v,sig),pages:[{name:'Quest Log',type:'text',text:{format:1,content:journalPageHtml(v)}}]},QUIET);await synchronizeNotes(source,state,true);return created;}
   // Skip unchanged writes: audience reconciles re-publish every individual quest, and each write re-renders every client.
   const name=`Quest Log — ${source.name}`,html=journalPageHtml(v);
   if(cur.name!==name||JSON.stringify(cur.getFlag(MOD,'view'))!==JSON.stringify(v))await cur.update({name,[`${FLAG}.view`]:v});
@@ -74,7 +76,7 @@ async function synchronizeNotes(source,state,visible){
     if(old)await old.delete();
     await JournalEntry.create({name:`Quest Character Notes — ${source.name} — ${actor.name}`,folder:await ensureFolder('Character Notes'),ownership:ownerAccess,
       flags:{[MOD]:{notesFor:id,noteActorId:actor.id,notesAccessSignature:sig}},
-      pages:[{name:'Character notes',type:'text',text:{format:1,content}}]});
+      pages:[{name:'Character notes',type:'text',text:{format:1,content}}]},QUIET);
   }
 }
 export async function saveRecord(source,{state=null,replace=false}={}){
@@ -84,7 +86,7 @@ export async function saveRecord(source,{state=null,replace=false}={}){
   const next=state??(existing?.getFlag(MOD,'state')??initialState(source));validState(source,next);
   preflightAudience(source,next);
   if(existing){await existing.update({name:`Quest GM — ${source.name}`,[`${FLAG}.source`]:source,[`${FLAG}.state`]:next});}
-  else await JournalEntry.create({name:`Quest GM — ${source.name}`,folder:await ensureFolder('GM Source'),ownership:GM_ONLY,flags:{[MOD]:{private:true,source,state:next}},pages:[{name:'GM source',type:'text',text:{format:1,content:'<p>Private objective authority. Edit through Quest Manager. Do not grant players permission to this Journal.</p>'}}]});
+  else await JournalEntry.create({name:`Quest GM — ${source.name}`,folder:await ensureFolder('GM Source'),ownership:GM_ONLY,flags:{[MOD]:{private:true,source,state:next}},pages:[{name:'GM source',type:'text',text:{format:1,content:'<p>Private objective authority. Edit through Quest Manager. Do not grant players permission to this Journal.</p>'}}]},QUIET);
   await publish(source,next);return source.id;
 }
 export async function updateState(id,update){
@@ -100,7 +102,7 @@ export async function removeRecord(id){
   const projected=findProjection(id);if(projected)await projected.delete();
   // Preserve authored notes in a separate private GM archive before revoking Journal permissions.
   const notes=[...(doc.getFlag(MOD,'notesArchive')||[]),...noteDocs(id).map(n=>({actorId:n.getFlag(MOD,'noteActorId'),content:[...n.pages][0]?.text?.content||''}))];
-  if(notes.some(x=>x.content?.replace(/<[^>]*>/g,'').trim()))await JournalEntry.create({name:`Quest Notes Archive — ${id}`,folder:await ensureFolder('Archives'),ownership:GM_ONLY,flags:{[MOD]:{notesArchiveFor:id,notes}},pages:[{name:'Archive',type:'text',text:{format:1,content:'<p>GM-only backup of character-authored notes for a deleted Objective.</p>'}}]});
+  if(notes.some(x=>x.content?.replace(/<[^>]*>/g,'').trim()))await JournalEntry.create({name:`Quest Notes Archive — ${id}`,folder:await ensureFolder('Archives'),ownership:GM_ONLY,flags:{[MOD]:{notesArchiveFor:id,notes}},pages:[{name:'Archive',type:'text',text:{format:1,content:'<p>GM-only backup of character-authored notes for a deleted Objective.</p>'}}]},QUIET);
   await synchronizeNotes(doc.getFlag(MOD,'source'),doc.getFlag(MOD,'state'),false);
   await doc.delete();
   return true;
