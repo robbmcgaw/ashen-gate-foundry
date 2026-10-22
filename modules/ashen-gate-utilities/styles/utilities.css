@@ -9,7 +9,6 @@
 .ag-utilities h2 {font-size:var(--ag-text-lg);margin:0 0 var(--ag-space-2);}
 .ag-utilities h3 {font-size:var(--ag-text-md);margin:var(--ag-space-2) 0;}
 .ag-utilities .agu-main {flex:1;overflow-y:auto;padding:var(--ag-space-4);min-height:0;container-type:inline-size;}
-.ag-utilities .agu-footer__status {text-align:left;}
 @container agu-window (max-width:38rem) {.ag-utilities .agu-main {padding:var(--ag-space-2);}.ag-utilities .agu-card {padding:var(--ag-space-3);}}
 
 /* ---------- Shared bits ---------- */
@@ -25,7 +24,17 @@
 .ag-utilities .agu-compact :is(select,input) {min-width:0;}
 .ag-utilities [data-group-only][hidden] {display:none;}
 .ag-utilities textarea {min-height:calc(var(--ag-control-h) * 2.5);}
-.ag-utilities .agu-link {color:var(--ag-accent);text-decoration:underline;cursor:pointer;}
+/* 0.26.0: a sub-tab's panel sits a little below its tab row; kit rows used by Rolls, History, Conditions and the logs. */
+.ag-utilities .agu-subpanel {margin-top:var(--ag-space-3);}
+.ag-utilities .agu-subpanel:focus-visible {outline-offset:calc(var(--ag-space-1) * -1);}
+.ag-utilities .agu-contributions {display:flex;flex-wrap:wrap;gap:var(--ag-space-1);justify-content:flex-end;}
+.ag-utilities .agu-log-row {align-items:flex-start;}
+.ag-utilities .agu-log-line {display:block;}
+.ag-utilities .agu-log-line--note {font-style:italic;}
+.ag-utilities .agu-start {margin-top:var(--ag-space-4);}
+.ag-utilities .agu-start fieldset {margin:0 0 var(--ag-space-3);}
+.ag-utilities .agu-start-hint {margin-top:var(--ag-space-3);}
+.ag-utilities .agu-session-actions {justify-content:space-between;}
 
 /* ---------- Rolls: start form, roll panel, progress, result ---------- */
 .ag-utilities .agu-mode {align-items:flex-start;flex:1 1 16rem;}
@@ -34,10 +43,7 @@
 .ag-utilities .agu-action-panel {padding:var(--ag-space-4);border-radius:var(--ag-radius-lg);border:1px solid color-mix(in srgb,var(--ag-accent) 55%,var(--ag-border));background:var(--ag-accent-soft);margin-top:var(--ag-space-3);}
 .ag-utilities .agu-action-panel h3 {font-size:var(--ag-text-lg);margin-top:0;}
 .ag-utilities button.agu-roll-large {min-width:calc(var(--ag-control-h) * 6);min-height:calc(var(--ag-control-h) * 1.5);margin-top:var(--ag-space-3);font-size:var(--ag-text-lg);}
-.ag-utilities .agu-participant {display:flex;align-items:center;justify-content:space-between;gap:var(--ag-space-3);padding:var(--ag-space-3) 0;border-bottom:1px solid var(--ag-border);flex-wrap:wrap;font-size:var(--ag-text-lg);}
-.ag-utilities .agu-participant:last-child {border-bottom:0;}
 .ag-utilities .agu-who {display:flex;flex-direction:column;gap:var(--ag-space-1);min-width:0;}
-.ag-utilities .agu-contributions {display:flex;flex-wrap:wrap;gap:var(--ag-space-1);flex:1;justify-content:flex-end;}
 .ag-utilities .agu-bonuses,.ag-utilities .agu-source {color:var(--ag-muted);font-size:var(--ag-text-sm);line-height:1.4;}
 .ag-utilities .agu-checkbar {display:flex;gap:var(--ag-space-1);width:100%;height:var(--ag-control-h-sm);margin:var(--ag-space-3) 0 var(--ag-space-4);padding:var(--ag-space-1);box-sizing:border-box;border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface-sunken);}
 .ag-utilities .agu-checkbar-seg {flex:1 1 0;min-width:var(--ag-space-2);border-radius:var(--ag-radius-sm);background:var(--ag-border);opacity:.55;transition:background var(--ag-dur) var(--ag-ease),opacity var(--ag-dur) var(--ag-ease),transform var(--ag-dur) var(--ag-ease);}
@@ -57,9 +63,6 @@
 .ag-utilities .agu-result-score {display:flex;align-items:baseline;gap:var(--ag-space-3);margin-bottom:var(--ag-space-3);}
 .ag-utilities .agu-result-num {font-size:calc(var(--ag-text-xl) * 2.5);font-weight:800;line-height:1;}
 .ag-utilities .agu-result-vs {font-size:var(--ag-text-lg);color:var(--ag-muted);}
-.ag-utilities .agu-history {border-bottom:1px solid var(--ag-border);padding:var(--ag-space-2) 0;}
-.ag-utilities .agu-history p {margin:var(--ag-space-2) 0;font-size:var(--ag-text-md);overflow-wrap:anywhere;}
-.ag-utilities .agu-history small {color:var(--ag-muted);}
 
 /* ---------- Conditions: roster + detail panes ---------- */
 .ag-utilities .agu-party-panes {display:grid;grid-template-columns:minmax(11rem,1fr) minmax(17rem,1.5fr);gap:var(--ag-space-4);min-width:0;}
@@ -85,7 +88,7 @@
 .agu-overlay .agu-ov-fade {display:flex;justify-content:flex-end;align-items:center;gap:var(--ag-space-1);margin-bottom:var(--ag-space-1);color:var(--ag-muted);text-shadow:none;}
 .agu-overlay .agu-ov-fade input {width:5rem;height:auto;padding:0;accent-color:var(--ag-accent);}
 .application.ag-app.agu-overlay-app > .window-content {background:transparent;padding:var(--ag-space-1) var(--ag-space-3) var(--ag-space-2);overflow-y:auto;}
-.agu-overlay {color:var(--ag-text);text-shadow:0 0 3px var(--ag-surface),0 0 2px var(--ag-surface);}
+.agu-overlay {color:var(--ag-text);text-shadow:0 0 var(--ag-space-1) var(--ag-surface),0 0 var(--ag-space-1) var(--ag-surface);}
 .agu-overlay .agu-ov-group + .agu-ov-group {margin-top:var(--ag-space-2);}
 .agu-overlay h3 {margin:0 0 var(--ag-space-1);font-size:var(--ag-text-md);font-weight:800;}
 .agu-overlay ul {margin:0;padding-left:var(--ag-space-5);list-style:disc;}
@@ -97,32 +100,22 @@
 .ag-app.agu-overlay-app .agu-overlay button.agu-ov-x:hover:not(:disabled) {background:var(--ag-danger-soft);}
 
 /* ---------- Party Inventory: stash, purse, history ---------- */
-.ag-utilities .agu-main.agu-drop-over {outline:2px dashed var(--ag-accent);outline-offset:-6px;}
+.ag-utilities .agu-main.agu-drop-over {outline:2px dashed var(--ag-accent);outline-offset:calc(var(--ag-space-2) * -1);}
 .ag-utilities .agu-main.agu-drop-over .agu-dropzone {border-style:solid;border-color:var(--ag-accent);color:var(--ag-text);background:var(--ag-surface-hover);}
-.ag-utilities .agu-subtabs {margin:0 0 var(--ag-space-3);background:transparent;}
 .ag-utilities .agu-take-into {margin:0;}
 .ag-utilities .agu-take-into > select {width:auto;max-width:14rem;}
 .ag-utilities .agu-stash-group {margin-bottom:var(--ag-space-3);}
-/* One column template for the header and every row (no `auto` column, which sized per row and pushed headers off
-   their columns). Columns are in em, so they follow the text size (Compact or Comfortable). */
-.ag-utilities .agu-stash-table {--agu-stash-cols:2.5em minmax(9em,1fr) 3.7em 8em 8em 8em 5.5em;font-size:var(--ag-text-md);}
-.ag-utilities .agu-stash-grid {display:grid;grid-template-columns:var(--agu-stash-cols);align-items:center;gap:var(--ag-space-2);padding-inline:var(--ag-space-1);}
-.ag-utilities .agu-stash-cell {min-width:0;overflow-wrap:anywhere;}
-.ag-utilities .agu-stash-head {color:var(--ag-muted);font-weight:600;padding-block:0 var(--ag-space-1);border-bottom:1px solid var(--ag-border);}
-/* Smaller text on the head's cells, not the head row, so its em columns match the rows'. */
-.ag-utilities .agu-stash-head > .agu-stash-cell {font-size:var(--ag-text-xs);}
-.ag-utilities .agu-stash-head .agu-col-item {padding-inline:var(--ag-space-1);} /* same inset as the item-name button below it */
-.ag-utilities .agu-stash-row {padding-block:var(--ag-space-2);border-bottom:1px solid var(--ag-border);cursor:grab;}
-.ag-utilities .agu-stash-table > .agu-stash-row:nth-child(even of .agu-stash-row) {background:var(--ag-row-alt);}
-.ag-utilities .agu-stash-table > .agu-stash-row:hover {background:var(--ag-surface-hover);}
+.ag-utilities .agu-stash-group > .ag-eyebrow {margin:var(--ag-space-2) 0 var(--ag-space-1);}
+/* 0.26.0: the stash is a kit ag-table per item type; narrow windows keep picture, item and action. */
+.ag-utilities .agu-stash-table {font-size:var(--ag-text-md);}
+.ag-utilities .agu-stash-table .agu-col-icon {width:var(--ag-icon-chip);}
+.ag-utilities .agu-stash-row {cursor:grab;}
+.ag-utilities .agu-stash-bar {flex-wrap:wrap;gap:var(--ag-space-2);margin:0 0 var(--ag-space-3);}
+@container (max-width:35rem) {.ag-utilities .agu-stash-table :is(.agu-col-qty,.agu-col-weight,.agu-col-value,.agu-col-type) {display:none;}}
 .ag-utilities .agu-stash-icon {width:calc(var(--ag-icon-chip) + var(--ag-space-1));height:calc(var(--ag-icon-chip) + var(--ag-space-1));object-fit:contain;border-radius:var(--ag-radius-sm);border:0;}
 .ag-app.ag-utilities button.agu-stash-name {justify-content:flex-start;min-height:0;padding:var(--ag-space-1);border:0;background:transparent;color:var(--ag-text);font-weight:600;text-align:left;overflow-wrap:anywhere;}
 .ag-app.ag-utilities button.agu-stash-name:hover {color:var(--ag-accent);text-decoration:underline;background:transparent;}
 .ag-utilities .agu-dropzone {margin:var(--ag-space-3) 0;padding:var(--ag-space-3);border:1px dashed var(--ag-border-strong);border-radius:var(--ag-radius);color:var(--ag-muted);text-align:center;}
-@container (max-width:35rem) {.ag-utilities .agu-stash-table {--agu-stash-cols:2.5em minmax(0,1fr) 5.5em;}.ag-utilities .agu-stash-grid > :is(.agu-col-qty,.agu-col-weight,.agu-col-value,.agu-col-type) {display:none;}}
-.ag-utilities .agu-stash-log .agu-line {align-items:center;gap:var(--ag-space-2);}
-.ag-utilities .agu-stash-log__what {display:flex;align-items:center;gap:var(--ag-space-2);min-width:0;}
-.ag-utilities .agu-stash-log small {color:var(--ag-muted);}
 .ag-utilities .agu-purse {margin:0 0 var(--ag-space-3);padding:var(--ag-space-2) var(--ag-space-3);border:1px solid var(--ag-border);border-radius:var(--ag-radius);}
 .ag-utilities .agu-purse h3 {margin:0;}
 /* ---------- 0.24.0 Coins: one look everywhere (purses, the Bank, prices, previews, chat cards) ----------
@@ -152,7 +145,7 @@
 .ag-utilities .agu-purse-move .agu-actions {margin:0;}
 /* Party stash embedded in a partner module (api.embed.mount). The host element carries .ag-utilities.agu-embed. */
 .agu-embed {display:block;min-width:0;}
-.agu-embed.agu-drop-over {outline:2px dashed var(--ag-accent);outline-offset:2px;border-radius:var(--ag-radius);}
+.agu-embed.agu-drop-over {outline:2px dashed var(--ag-accent);outline-offset:var(--ag-space-1);border-radius:var(--ag-radius);}
 .agu-embed.agu-drop-over .agu-dropzone {border-style:solid;border-color:var(--ag-accent);color:var(--ag-text);background:var(--ag-surface-hover);}
 
 /* ---------- Take-out vote prompt ---------- */
@@ -166,7 +159,6 @@
 .ag-utilities .agu-setting__hint {margin:var(--ag-space-1) 0 0;padding-left:var(--ag-space-6);font-size:var(--ag-text-sm);line-height:1.5;}
 
 /* ---------- Shops (GM): list and editor ---------- */
-.ag-utilities .agu-shop-subtabs {margin:0 0 var(--ag-space-3);}
 .ag-utilities .agu-shop-group {margin:0 0 var(--ag-space-3);}
 .ag-utilities .agu-shop-group > .ag-eyebrow {margin:var(--ag-space-3) 0 var(--ag-space-1);}
 .ag-utilities .agu-shop-row {flex-wrap:wrap;}
@@ -179,6 +171,18 @@
 .ag-utilities .agu-shop-art > input {flex:1 1 8rem;min-width:0;}
 .ag-utilities .agu-shop-art__img {display:grid;place-items:center;flex:none;width:calc(var(--ag-control-h) * 1.5);height:calc(var(--ag-control-h) * 1.5);border-radius:var(--ag-radius);border:1px solid var(--ag-border);background:var(--ag-surface-sunken);color:var(--ag-accent);font-weight:700;object-fit:cover;}
 .ag-utilities .agu-shop-lines td {vertical-align:top;}
+/* 0.26.0: each item is two table rows (the main row, then flavour and cost), so stripe by item, not by row. */
+.ag-utilities .agu-shop-lines tbody tr:nth-child(even) {background:transparent;}
+.ag-utilities .agu-shop-lines tr.agu-line-main > td {border-top:1px solid var(--ag-border);}
+.ag-utilities .agu-shop-lines tr.agu-line-extra > td {padding-top:0;}
+.ag-utilities .agu-line-extra__grid {display:flex;flex-wrap:wrap;gap:var(--ag-space-2) var(--ag-space-4);}
+.ag-utilities .agu-line-extra__grid > .ag-field {margin:0;flex:1 1 14rem;}
+.ag-utilities .agu-line-extra__grid > .ag-field:last-child {flex:0 1 auto;}
+.ag-utilities .agu-now-group {display:inline-flex;flex-wrap:wrap;align-items:center;gap:var(--ag-space-2);margin-left:auto;}
+.ag-utilities .agu-shop-sort {margin:0;}
+.ag-utilities .agu-shop-sort > select,.ag-utilities .agu-mlist-add > select {width:auto;}
+.ag-utilities .agu-mlist-add {margin:0;flex:1 1 auto;}
+.ag-utilities .agu-row-cash {display:inline-flex;align-items:center;gap:var(--ag-space-1);}
 .ag-utilities .agu-shop-lines :is(input[type="text"],input[type="number"],select) {min-width:0;}
 .ag-utilities .agu-shop-item {display:flex;align-items:flex-start;gap:var(--ag-space-2);min-width:12em;}
 .ag-utilities .agu-shop-item__text {display:flex;flex-direction:column;align-items:flex-start;gap:var(--ag-space-1);min-width:0;overflow-wrap:anywhere;}
@@ -208,14 +212,19 @@
 .ag-utilities .agu-shop-head__text h2 {margin:0;}
 .ag-utilities .agu-shop-head__text p {margin:var(--ag-space-1) 0 0;}
 .ag-utilities .agu-shop-portrait {display:grid;place-items:center;flex:none;width:calc(var(--ag-control-h) * 2);height:calc(var(--ag-control-h) * 2);border-radius:var(--ag-radius);border:1px solid var(--ag-border);background:var(--ag-surface-sunken);color:var(--ag-accent);font-weight:700;object-fit:cover;}
-.ag-utilities .agu-shop-strips {display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:var(--ag-space-3);margin:0 0 var(--ag-space-3);}
+.ag-utilities .agu-shop-strips {display:grid;grid-template-columns:repeat(auto-fit,minmax(14rem,1fr));gap:var(--ag-space-3);}
+/* 0.26.0: "Paying as [character]" and its coins on one line; the other purses in the Coins fold. */
+.ag-utilities .agu-shop-coinbar {margin:0 0 var(--ag-space-3);}
+.ag-utilities .agu-shop-paying {display:flex;flex-wrap:wrap;align-items:center;gap:var(--ag-space-2) var(--ag-space-3);margin:0 0 var(--ag-space-2);}
+.ag-utilities .agu-shop-paying > .ag-field {margin:0;}
+.ag-utilities .agu-shop-paying select {width:auto;max-width:14rem;}
 .ag-utilities .agu-shop-coins > .ag-eyebrow {margin:0 0 var(--ag-space-1);}
-.ag-utilities .agu-shop-coins > select {width:100%;}
 /* 0.24.0: wares (buy and sell) as cards, grouped by category: picture, name, what it is, then price, stock and the action. */
 .ag-utilities .agu-ware-group {margin:0 0 var(--ag-space-3);}
 .ag-utilities .agu-ware-group > .ag-eyebrow {margin:var(--ag-space-2) 0 var(--ag-space-1);}
-.ag-utilities .agu-ware-grid {display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,15rem),1fr));gap:var(--ag-space-2);margin:0;padding:0;list-style:none;}
-.ag-utilities .agu-ware-card {display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:1fr auto;gap:var(--ag-space-2) var(--ag-space-3);min-width:0;padding:var(--ag-space-3);border:1px solid var(--ag-border);border-radius:var(--ag-radius);background:var(--ag-surface-raised);}
+.ag-utilities .agu-ware-grid {grid-template-columns:repeat(auto-fill,minmax(min(100%,15rem),1fr));gap:var(--ag-space-2);margin:0;padding:0;list-style:none;}
+/* The kit card (ag-card ag-card--compact) gives the border, padding and fill; this lays out picture, text and foot. */
+.ag-utilities .agu-ware-card {display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:1fr auto;gap:var(--ag-space-2) var(--ag-space-3);min-width:0;}
 .ag-utilities .agu-ware-card:hover {border-color:var(--ag-border-strong);}
 .ag-utilities .agu-ware-card.is-disabled {opacity:.65;}
 .ag-utilities .agu-ware-card__body {display:flex;flex-direction:column;align-items:flex-start;gap:var(--ag-space-1);min-width:0;overflow-wrap:anywhere;}
@@ -227,7 +236,6 @@
 /* The item as a button: picture or name; hover shows the item tooltip, click opens the item. */
 .ag-app button.agu-item-link {display:inline-flex;align-items:center;justify-content:flex-start;gap:var(--ag-space-1);min-height:0;width:auto;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;overflow-wrap:anywhere;white-space:normal;cursor:pointer;}
 .ag-app button.agu-item-link:hover:not(:disabled) {background:transparent;color:var(--ag-accent);text-decoration:underline;}
-.ag-app button.agu-item-link:focus-visible {outline:2px solid var(--ag-focus);outline-offset:2px;}
 .ag-app button.agu-ware-card__name {font-weight:700;}
 .ag-app button:is(.agu-ware-card__img,.agu-preview-item__img) {display:grid;place-items:center;width:calc(var(--ag-control-h) * 1.75);height:calc(var(--ag-control-h) * 1.75);border:1px solid var(--ag-border);border-radius:var(--ag-radius-sm);background:var(--ag-surface-sunken);color:var(--ag-muted);}
 .ag-app button:is(.agu-ware-card__img,.agu-preview-item__img) img {width:100%;height:100%;object-fit:contain;border:0;}
@@ -240,9 +248,12 @@
 .ag-utilities .agu-bank__coins {margin:var(--ag-space-2) 0;}
 .ag-utilities .agu-setup > h3 {margin-top:var(--ag-space-4);}
 /* 0.25.0: Party Fund (Change coins, log), the Items purse line, merchant list sharing and Open switches. */
-.ag-utilities .agu-fund-exchange,.ag-utilities .agu-fund-log {margin:0 0 var(--ag-space-3);padding:var(--ag-space-2) var(--ag-space-3);border:1px solid var(--ag-border);border-radius:var(--ag-radius);}
-.ag-utilities .agu-fund-exchange h3,.ag-utilities .agu-fund-log h3 {margin:0 0 var(--ag-space-2);}
-.ag-utilities .agu-fund-log .ag-toolbar h3 {margin:0;}
+.ag-utilities .agu-fund-who {margin:0 0 var(--ag-space-3);}
+.ag-utilities .agu-fund-who > select {width:auto;max-width:16rem;}
+.ag-utilities .agu-fund-panel {margin:0 0 var(--ag-space-3);padding:var(--ag-space-3);border:1px solid var(--ag-border);border-radius:var(--ag-radius);}
+.ag-utilities .agu-fund-actions {margin:0 0 var(--ag-space-3);}
+.ag-utilities .agu-fund-exchange h3 {margin:0 0 var(--ag-space-2);}
+.ag-utilities .agu-fund-log {margin:var(--ag-space-3) 0;}
 .ag-utilities .agu-purse-line {flex-wrap:wrap;gap:var(--ag-space-2);margin:0 0 var(--ag-space-3);}
 .ag-utilities .agu-mlist__share {flex-wrap:wrap;gap:var(--ag-space-2);margin:0 0 var(--ag-space-2);}
 .ag-utilities .agu-mlist__open {margin:0;white-space:nowrap;}

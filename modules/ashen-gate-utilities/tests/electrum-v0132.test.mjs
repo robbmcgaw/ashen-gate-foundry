@@ -86,7 +86,8 @@ const hist=()=>game.settings.get(ID,'stashHistory');
 // 0.25.0: the purse strip lives in Party Inventory → Party Fund (the embed keeps it).
 const itemsHtml=async(user=gm)=>{game.user=user;try{const app=await api.stash.open();app.stashTab='fund';return await app._renderHTML();}finally{game.user=gm;}};
 const historyHtml=async(user=gm)=>{game.user=user;try{const app=await api.stash.open();app.stashTab='history';return await app._renderHTML();}finally{game.user=gm;}};
-const purseOf=html=>html.match(/<section class="agu-purse"[\s\S]*?<\/section>/)[0];
+// 0.26.0: Party Fund is the purse strip, then one form at a time (Deposit by default), then the Log.
+const purseOf=html=>(html.match(/<section class="agu-purse"[\s\S]*?<div class="agu-fund-log">/)??html.match(/<section class="agu-purse"[\s\S]*?<\/section>/))[0];
 /** Answers a sequence of DialogV2.wait calls: a form (values), 'confirm' or 'cancel'. Records every dialog. */
 function scriptDialogs(steps){const seen=[];foundry.applications.api.DialogV2={wait:async o=>{seen.push(o);const s=steps[seen.length-1];
  if(s==='confirm')return o.buttons.find(b=>b.action==='confirm').callback();if(s==='cancel'||!s)return o.buttons.find(b=>b.action==='cancel').callback();

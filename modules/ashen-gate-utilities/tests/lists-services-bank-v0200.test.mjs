@@ -256,7 +256,7 @@ test('GM views: Shops list with New service and a Bank row; editor with type and
 test('player views: Merchant list sub-tab marks entries Open only when presented; a read-only window disables Buy; the Bank form and preview',async()=>{
  await api.present(BANK,{mode:'users',userIds:['alice']});
  const lists=await as(alice,()=>trade.playerShopsView({playerShopSub:'lists'}));
- assert.match(lists,/data-player-shop-sub="lists" aria-checked="true"/);assert.match(lists,/Look inside/);
+ assert.match(lists,/role="tab" id="agu-pshops-tab-lists" data-tab="lists"[^>]*aria-selected="true"[^>]*>Merchant lists<\/button>/);assert.match(lists,/Look inside/);
  assert.match(lists,/\[TEST\] Counting House[\s\S]*?Bank[\s\S]*?ag-badge--ok[^>]*>[^<]*<i[^>]*><\/i> Open/);
  assert.equal((lists.match(/ Open<\/span>/g)??[]).length,1,'only the presented entry is marked Open');
  await api.merchants.setVisible(LIST,false);const empty=await as(bob,()=>trade.playerShopsView({playerShopSub:'lists'}));await api.merchants.setVisible(LIST,true);

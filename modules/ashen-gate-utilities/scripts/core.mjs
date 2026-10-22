@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.25.1';
+export const VERSION = '0.26.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -1397,6 +1397,17 @@ export function presentedCovers(presented, audience) {
   if (!presented || !audiencePresented(audience)) return false;
   if (presented.mode === 'all') return true;
   return audience.mode === 'users' && audience.userIds.every(u => (presented.userIds ?? []).includes(u));
+}
+/**
+ * 0.26.0: does a store's presentation reach players outside a list's audience? (Closing it from the list then closes
+ * it for them too, so the GM is asked first.) A whole-party list covers everyone; a hidden list covers no one.
+ */
+export function presentedBeyond(presented, audience) {
+  if (!presented) return false;
+  if (audience?.mode === 'party') return false;
+  if (audience?.mode !== 'users') return true;
+  if (presented.mode === 'all') return true;
+  return (presented.userIds ?? []).some(u => !(audience.userIds ?? []).includes(u));
 }
 /**
  * Opening an entry from a list adds the list's audience to whoever the shop is already shown to; it never takes

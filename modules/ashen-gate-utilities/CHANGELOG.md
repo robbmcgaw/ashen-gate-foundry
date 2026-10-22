@@ -1,3 +1,17 @@
+## 0.26.0 — 2026-10-22
+
+- **UI cleanup** (UI audit 2026-10, Utilities). No change to saved data, settings, flags, ids or the API; nothing to migrate.
+- **Tabs:** six for the GM (Rolls, Party Inventory, Shops, Conditions, Roll Tables, GM Setup; GM tabs last). Roll history is **Rolls → History**; players no longer get an empty Roll Tables tab. No header subtitle; no footer on tabs without a form. Every tab row (top tabs and sub-tabs) is one Tab stop with Left/Right/Home/End; focus and scroll stay put after a re-render.
+- **Sub-tabs** use the kit's tabs everywhere: Rolls (Current / History), Party Inventory (Items / Party Fund / History), Shops (GM: **Shops & services** / **Merchant lists**; players: Open shops / **Merchant lists**).
+- **Rolls:** **Start Rolls** is a fold, open while nothing is running or shown; skills are toggle chips. **End & Record** is the primary button, **Cancel Session** a quiet one.
+- **Party Inventory:** the GM's stash card is one line (stash · items · On/Off badge · Award Gold). The stash's On/Off switch lives only in GM Setup; the badge links there. **Party Fund:** one **Character** picker drives **Deposit**, **Take** and **Change coins**, shown one at a time, each with its own primary button; the **Log** is a fold.
+- **Shops (GM):** the Shop editor sub-tab is gone: **Edit** / **New shop** open the editor in place of the list with **All shops** to go back. The editor has tabs **Details**, **Items** and **Coins & buying** under one footer; the items table has five columns, with flavour and cost on a second line. Duplicate, Present… / Stop showing, Restock and the merchant's coin buttons sit under an **Applies now** badge (they change the saved shop at once). Rows keep Edit and Present… / Open / Stop showing, with the cash in the meta line. Import JSON… (a keyboard-reachable file button) and Export are grouped; **New Bank (deprecated)** is a small button. Sort has a visible label.
+- **Merchant lists:** each card is a summary (shared with, "n of m open", Share…, Open all, Close all…, Edit, Delete…) with its stores in a **Stores** fold; the duplicate "Shown to" badges and the long hint are gone (now in Help). **Close all…** asks first and names stores also shown to players outside the list; closing one such store asks too. The list editor has **All merchant lists**, **Share…**, a Danger zone with **Delete list…**, the shop editor's Settlement select, and a labelled **Add** select.
+- **Shop window:** one line "Paying as [character]" with that character's coins; the party purse and the merchant's coins are in a closed **Coins** fold. Ware cards use the kit card.
+- **Vote prompt:** the title and buttons say what is approved (*Party purse: approve purchase?*, *Party purse: approve take-out?*, *Party stash: approve take-out?*; Deny / Allow …), and the seconds count down.
+- **Confirmations:** every removal (delete shop, service or list, remove an item, clear history, undo, revoke, discard changes) uses the kit's danger confirmation: Cancel is the default. GM Setup asks before a tab switch or close drops unsaved edits; the window asks before closing over an unsaved shop or list.
+- **Kit parts:** Rolls, roll History, Conditions, stash History and the Party Fund log are kit rows; the stash is a kit table per item type; one button helper, one empty state. The explanations that sat on working screens (stash, Conditions, merchant lists) moved into Help, now grouped by tab.
+
 ## 0.25.1 — 2026-10-22
 
 - Shared UI kit 2.2 (no visible change).

@@ -144,7 +144,7 @@ test('dropping a stash item on a sheet is intercepted: no native copy, consent r
 });
 test('stash tab in the Utilities window lists items with details and opens sheets; players see it only when on',async()=>{
  game.user=alice;const app=await api.stash.open();const html=await app._renderHTML();
- for(const s of ['Gem','Loot','Qty','Weight (each)','Value (each)','data-open-item=','draggable="true"','Take into','Drop items anywhere on this tab','data-stash-tab="items"','Ashen Gate</span> | Utilities'])assert.ok(html.includes(s),s);
+ for(const s of ['Gem','Loot','Qty','Weight (each)','Value (each)','data-open-item=','draggable="true"','Take into','Drop items anywhere on this tab','id="agu-stash-tab-items"','Ashen Gate</span> | Utilities'])assert.ok(html.includes(s),s);
  assert.equal(app.tab,'inventory');assert.ok(!html.includes('Open Party Stash'));assert.ok(!html.includes('stash-history-clear'));
  game.user=gm;await api.stash.setEnabled(false);game.user=alice;
  assert.ok((await app._renderHTML()).includes('turned the party stash off'));

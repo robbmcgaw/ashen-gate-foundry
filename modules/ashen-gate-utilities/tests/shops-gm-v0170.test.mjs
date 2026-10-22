@@ -217,22 +217,24 @@ test('restock puts stock back to where it started',async()=>{
 const render=async(user=gm,setup=()=>{})=>{game.user=user;try{const app=await game.modules.get(ID).api.open();app.tab='shops';setup(app);return {app,html:await app._renderHTML()};}finally{game.user=gm;}};
 test('Shops tab: GM only, between Party Inventory and Roll Tables; players see nothing',async()=>{
  const {html}=await render();
- assert.match(html,/data-tab="inventory"[\s\S]*data-tab="shops" aria-selected="true" class="active ag-tab--gm"><i class="fa-solid fa-store" aria-hidden="true"><\/i>Shops[\s\S]*data-tab="tables"/);
+ assert.match(html,/data-tab="inventory"[\s\S]*data-tab="shops" aria-controls="agu-main-panel" aria-selected="true" tabindex="0" class="active ag-tab--gm"><i class="fa-solid fa-store" aria-hidden="true"><\/i>Shops[\s\S]*data-tab="tables"/);
  const player=(await render(alice)).html;
  assert.doesNotMatch(player,/data-tab="shops"|agu-shops|Shop editor/);
 });
 test('list: toolbar (search, sort, count, New shop), city groups with counts, rows with initials, badges and row actions',async()=>{
  const {html}=await render();
- assert.match(html,/<div class="ag-segmented agu-shop-subtabs" role="radiogroup" aria-label="Shops sections"><button type="button" role="radio" data-shop-sub="list" aria-checked="true">Shops<\/button><button type="button" role="radio" data-shop-sub="editor" aria-checked="false">Shop editor<\/button>/);
+ // 0.26.0: kit sub-tabs Shops & services / Merchant lists (no Shop editor sub-tab).
+ assert.match(html,/<div class="ag-tabs ag-tabs--sub" role="tablist" aria-label="Shops sections"><button type="button" role="tab" id="agu-shops-tab-list" data-tab="list" aria-controls="agu-shops-panel-list" aria-selected="true" tabindex="0">Shops &amp; services<\/button><button type="button" role="tab" id="agu-shops-tab-lists" data-tab="lists"[^>]*>Merchant lists<\/button><\/div><div class="agu-subpanel" id="agu-shops-panel-list" role="tabpanel"/);
+ assert.doesNotMatch(html,/Shop editor|ag-segmented/);
  assert.match(html,/<label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"><\/i><input type="search" id="agu-shop-search"/);
- assert.match(html,/<select id="agu-shop-sort" aria-label="Sort shops"><option value="location" selected>Group by settlement<\/option><option value="name">Name<\/option><option value="merchant">Merchant<\/option><option value="updated">Recently changed<\/option>/);
- assert.match(html,/<span class="ag-toolbar__count">2 shops<\/span><div class="ag-toolbar__end"><button type="button" class="ag-btn ag-btn--sm" data-action="shop-import"[^>]*><i class="fa-solid fa-file-import" aria-hidden="true"><\/i> Import JSON<\/button><button type="button" class="ag-btn ag-btn--sm" data-action="shop-export"[\s\S]*?<input type="file" id="agu-shop-import-file" accept=".json,application\/json" hidden><button type="button" class="ag-btn" data-action="shop-new"/,'0.21.0: Import JSON and Export (--sm) before New shop');
+ assert.match(html,/<label class="ag-field ag-field--inline agu-shop-sort">Sort<select id="agu-shop-sort"><option value="location" selected>Group by settlement<\/option><option value="name">Name<\/option><option value="merchant">Merchant<\/option><option value="updated">Recently changed<\/option>/);
+ assert.match(html,/<span class="ag-toolbar__count">2 shops<\/span><div class="ag-toolbar__end"><span class="ag-btn-group"><span class="ag-file" data-shop-import=""><button type="button" class="ag-btn ag-btn--sm" data-ag-file-button><i class="fa-solid fa-file-import" aria-hidden="true"><\/i> Import JSON…<\/button><input type="file" class="ag-file__input ag-sr-only"[^>]*accept=".json,application\/json"><\/span><button type="button" class="ag-btn ag-btn--sm" data-action="shop-export"[\s\S]*?<\/span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="shop-new-service"[\s\S]*?New Bank \(deprecated\)<\/button><button type="button" class="ag-btn" data-action="shop-new"/,'0.26.0: Import JSON (a kit file button) and Export grouped, then New Bank (deprecated), then New shop');
  assert.match(html,/<h3 class="ag-eyebrow">\[TEST\] Testford · 1<\/h3>[\s\S]*<h3 class="ag-eyebrow">No location · 1<\/h3>/);
  assert.match(html,/<span class="ag-row__icon agu-shop-avatar" aria-hidden="true">BT<\/span>/);
  assert.match(html,/\[TEST\] Brin Tallow · \[TEST\] Market Ward · 7 items · <code>SHOP-TEST-THE-COPPER-KETTLE<\/code>/);
  assert.match(html,/Unlimited cash/);
  assert.match(html,/data-action="shop-edit" data-shop="SHOP-TEST-THE-COPPER-KETTLE" aria-label="Edit \[TEST\] The Copper Kettle"/);
- assert.match(html,/class="ag-btn ag-btn--sm" data-action="shop-duplicate"/);
+ assert.doesNotMatch(html,/data-action="shop-duplicate"/,'0.26.0: Duplicate is in the editor head, not the row');
  const none=(await render(gm,app=>{app.shopSearch='zzz';})).html;
  assert.match(none,/<p class="ag-empty__title">Nothing matches<\/p>[\s\S]*data-action="shop-clear-search"/);assert.match(none,/0 of 2/);
  locationsActive=false;
@@ -240,25 +242,36 @@ test('list: toolbar (search, sort, count, New shop), city groups with counts, ro
 });
 test('editor: kit fields, items table, coin purse, buys, footer Cancel / Save Changes and a Danger zone; ep only while electrum is on',async()=>{
  const id='SHOP-TEST-THE-COPPER-KETTLE';
- const open=async(electrum)=>{await game.settings.set(ID,'electrumEnabled',electrum);return render(gm,app=>{app.shopDraft=shopsMod.draftFrom(api.get(id));app.shopSub='editor';});};
+ const open=async(electrum,tab='details')=>{await game.settings.set(ID,'electrumEnabled',electrum);return render(gm,app=>{app.shopDraft=shopsMod.draftFrom(api.get(id));app.shopSub='editor';app.shopEdTab=tab;});};
  const {html}=await open(false);
+ // 0.26.0: the editor replaces the list (no sub-tab row), with a back button and its own tabs Details / Items / Coins & buying.
+ assert.match(html,/<div class="agu-shop-editor"><div class="agu-shop-editor__head"><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="shop-back"[^>]*>[\s\S]*?All shops<\/button><h2>/);
+ assert.match(html,/aria-label="Shop editor sections"><button type="button" role="tab" id="agu-shop-ed-tab-details" data-tab="details"[^>]*aria-selected="true"[^>]*>Details<\/button><button[^>]*data-tab="items"[^>]*>Items <span class="ag-tab__count">7<\/span><\/button><button[^>]*data-tab="coins"[^>]*>Coins &amp; buying<\/button>/);
+ assert.doesNotMatch(html,/aria-label="Shops sections"/);
+ assert.match(html,/Applies now[\s\S]*data-action="shop-duplicate"[\s\S]*data-action="shop-present"/,'0.26.0: Duplicate and Present… in the head, under Applies now');
  assert.match(html,/<div class="ag-form-grid">[\s\S]*Shop name<input type="text" maxlength="120" data-shop-field="name" value="\[TEST\] The Copper Kettle" required>/);
  // 0.24.0: Settlement lists only settlements; a linked place that is not one stays, marked.
  assert.match(html,/Settlement<select data-shop-field="locationId"><option value="">None<\/option>[\s\S]*?<option value="LOC-TEST-MARKET" selected>\[TEST\] Market Ward \(not a settlement\)<\/option>/);
  assert.match(html,/GM notes <span class="ag-gm-flag"><i class="fa-solid fa-eye-slash" aria-hidden="true"><\/i> GM only<\/span>/);
- assert.match(html,/<table class="ag-table agu-shop-lines"><thead><tr><th scope="col">Item<\/th><th scope="col">Price each<\/th><th scope="col">Stock<\/th><th scope="col">Flavour<\/th><th scope="col">Cost/);
- assert.match(html,/<code>ITEM-TEST-ROPE<\/code>/);assert.match(html,/With 2 items inside/);assert.match(html,/Already in this shop/);
- assert.match(html,/class="ag-btn ag-btn--icon ag-btn--sm ag-btn--danger" data-action="shop-line-remove"/);
- assert.match(html,/data-shop-drop>/);
- assert.match(html,/<input type="checkbox" role="switch" data-shop-field="hasPurse"> This shop has its own coin purse/);
- assert.match(html,/This shop buys items from players[\s\S]*value="50"[\s\S]*data-shop-buy-type="weapon" aria-pressed="false">Weapon/);
  assert.match(html,/Danger zone[\s\S]*class="ag-btn ag-btn--danger" data-action="shop-delete"/);
+ assert.doesNotMatch(html,/agu-shop-lines|data-shop-field="hasPurse"/,'Items and Coins & buying are their own tabs');
+ const items=(await open(false,'items')).html;
+ // 0.26.0: five columns; flavour and cost on a second line under each item.
+ assert.match(items,/<table class="ag-table agu-shop-lines"><thead><tr><th scope="col">Item<\/th><th scope="col">Price each<\/th><th scope="col">Stock<\/th><th scope="col">Hidden<\/th><th scope="col"><span class="ag-sr-only">Remove<\/span><\/th><\/tr><\/thead>/);
+ assert.match(items,/<tr class="agu-line-extra" data-line="[^"]+"><td colspan="5"><div class="agu-line-extra__grid"><label class="ag-field ag-field--inline">Flavour<input[^>]*data-line-field="flavour"[\s\S]*?Cost <span class="ag-gm-flag">[\s\S]*?data-line-field="_cost"/);
+ assert.match(items,/<code>ITEM-TEST-ROPE<\/code>/);assert.match(items,/With 2 items inside/);assert.match(items,/Already in this shop/);
+ assert.match(items,/class="ag-btn ag-btn--icon ag-btn--sm ag-btn--danger" data-action="shop-line-remove"/);
+ assert.match(items,/data-shop-drop>/);assert.match(items,/Applies now[\s\S]*data-action="shop-restock"/);
+ const coins=(await open(false,'coins')).html;
+ assert.match(coins,/<input type="checkbox" role="switch" data-shop-field="hasPurse"> This shop has its own coin purse/);
+ assert.match(coins,/This shop buys items from players[\s\S]*value="50"[\s\S]*data-shop-buy-type="weapon" aria-pressed="false">Weapon/);
  assert.match(html,/<footer class="ag-footer agu-footer"><button type="button" class="ag-btn ag-btn--ghost" data-action="shop-cancel"[^>]*>Cancel<\/button><span class="ag-footer__status" role="status" data-shop-status><\/span><button type="button" class="ag-btn ag-btn--primary" data-action="shop-save"[^>]*>Save Changes<\/button><\/footer>/);
- assert.doesNotMatch(html,/<option value="ep"/,'no electrum while it is off');
- assert.match((await open(true)).html,/<option value="ep"/);
+ assert.doesNotMatch(items,/<option value="ep"/,'no electrum while it is off');
+ assert.match((await open(true,'items')).html,/<option value="ep"/);
  await game.settings.set(ID,'electrumEnabled',false);
+ // 0.26.0: no editor open is the list itself (the old Shop editor sub-tab maps to it), with no footer.
  const empty=(await render(gm,app=>{app.shopDraft=null;app.shopSub='editor';})).html;
- assert.match(empty,/No shop open[\s\S]*data-action="shop-new"/);assert.doesNotMatch(empty,/data-action="shop-save"/);
+ assert.match(empty,/aria-label="Shops sections"[\s\S]*data-action="shop-new"/);assert.doesNotMatch(empty,/data-action="shop-save"/);
 });
 test('editor saves typed prices as copper and names the item when a price is not whole copper',()=>{
  const d=shopsMod.draftFrom(api.get('SHOP-TEST-THE-COPPER-KETTLE'));
@@ -273,7 +286,7 @@ test('editor saves typed prices as copper and names the item when a price is not
 test('editor actions: new shop, drop into the draft, Save Changes creates it; Cancel with changes asks first',async()=>{
  const steps=[];foundry.applications.api.DialogV2={wait:async o=>{steps.push(o.window.title);return o.buttons.at(-1).callback();}};
  const {app}=await render();const b={dataset:{}};const go=a=>shopsMod.handleShops(app,a,b,{render:async()=>{}});
- await go('shop-new');assert.equal(app.shopSub,'editor');assert.equal(app.shopDraft.saved,false);
+ await go('shop-new');assert.equal(app.shopSub,'list');assert.equal(app.shopDraft.saved,false);assert.equal(app.shopEdTab,'details');
  const r=await shopsMod.dropIntoDraft(app,{type:'Item',uuid:'Item.gem'});
  assert.equal(r.added.length,1);assert.equal(app.shopDraft.lines[0]._coin,'sp','ep price shown in sp while electrum is off');assert.equal(app.shopDraft.lines[0]._price,'15');
  app.shopDraft.name='[TEST] Gem Stall';
@@ -282,7 +295,7 @@ test('editor actions: new shop, drop into the draft, Save Changes creates it; Ca
  app.shopDirty=true;await go('shop-cancel');assert.deepEqual(steps,['Discard unsaved changes?']);assert.equal(app.shopDraft,null);
  await go('shop-new');app.shopDraft.name='';await assert.rejects(()=>go('shop-save'),/needs a name/);
  app.shopDirty=false;b.dataset.shop='SHOP-TEST-GEM-STALL';await go('shop-edit');assert.equal(app.shopDraft.id,'SHOP-TEST-GEM-STALL');
- await go('shop-delete');assert.equal(steps.at(-1),'Delete this shop?');assert.equal(api.get('SHOP-TEST-GEM-STALL'),null);
+ await go('shop-delete');assert.equal(steps.at(-1),'Delete [TEST] Gem Stall?');assert.equal(api.get('SHOP-TEST-GEM-STALL'),null);
  assert.equal(await shopsMod.handleShops(app,'stash-take',b,{render:async()=>{}}),false,'other actions pass through');
  delete foundry.applications.api.DialogV2;
 });

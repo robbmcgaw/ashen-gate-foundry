@@ -8,11 +8,13 @@ import {ID,escapeHTML as E,COIN_LABELS,CP_VALUE,coinChoices,shownCoins,strandedE
  duplicateShop,restockLines,planShopPurseAdjust,shopLogEntry,MERCHANT_NAME_MAX,SHOP_FLAVOUR_MAX,LINE_FLAVOUR_MAX,coinStripHTML,coinChipsHTML,isSettlementLocation,groupByCategory,
  merchantActorRef,SETTLEMENT_WORDS} from './core.mjs';
 import {itemButton} from './item-tips.mjs';
-import {confirmDialog,formDialog} from './ag-dialogs.mjs';
+import {confirmDialog,confirmDanger,formDialog} from './ag-dialogs.mjs';
+import {subTabs,tabPanelAttrs,fileButton,bindFileButtons} from './ag-html.mjs';
+import {tip,icon,button,emptyState} from './ui-parts.mjs';
 import {readDrop,resolveItemDrop,bundleOf} from './ag-item-drop.mjs';
 import {servicesAll,servicesApi,serviceSettingsHTML,serviceType,typeLabel as serviceTypeLabel,UNKNOWN_TYPE} from './services.mjs';
 import {listsView,listsFooter,bindLists,handleLists} from './merchant-lists.mjs';
-import {importView,importFooter,bindImport,handleImport} from './shop-import.mjs';
+import {importView,importFooter,bindImport,handleImport,openImportFile} from './shop-import.mjs';
 
 export const STORE='shops-gm',JOURNAL_NAME='Utilities Shops (GM Data)';
 const isGM=()=>Boolean(game.user?.isGM);
@@ -222,10 +224,9 @@ export function shopsApi(){
   log:id=>{gmOnly();mustGet(id);return clone(logOf(id));}};
 }
 
-/* ---------- View (GM only): sub-tabs Shops and Shop editor ---------- */
-export const tip=text=>`data-tooltip="${E(text)}" data-tooltip-class="ag-tooltip"`;
-export const icon=name=>`<i class="fa-solid ${E(name)}" aria-hidden="true"></i>`;
-export const button=(action,label,{kind='',ic='',attrs='',disabled=false}={})=>`<button type="button" class="${['ag-btn',...kind.split(/\s+/).filter(Boolean).map(k=>`ag-btn--${k}`)].join(' ')}" data-action="${E(action)}"${disabled?' disabled':''} ${attrs}>${ic?`${icon(ic)} `:''}${E(label)}</button>`;
+/* ---------- View (GM only). 0.26.0: sub-tabs Shops & services and Merchant lists; an editor opens in place of its
+   list (with a back button), with its own tabs Details / Items / Coins & buying. ---------- */
+export {tip,icon,button};
 const opt=(v,label,sel)=>`<option value="${E(v)}"${String(v)===String(sel)?' selected':''}>${E(label)}</option>`;
 export const art=(merchant,cls)=>merchant?.img?`<img class="${cls}" src="${E(merchant.img)}" alt="">`:`<span class="${cls}" aria-hidden="true">${E(initials(merchant?.name))}</span>`;
 const SORT_LABELS={location:'Group by settlement',name:'Name',merchant:'Merchant',updated:'Recently changed'};
@@ -242,23 +243,26 @@ function serviceRow(s,locations){
  const {place}=placeOf(s,locations),meta=[s.merchant?.name,place,serviceTypeLabel(s.service?.type)].filter(Boolean).map(E).join(' · ');
  const unknown=!s.known?`<span class="ag-badge ag-badge--warn">${icon('fa-triangle-exclamation')} ${E(UNKNOWN_TYPE)}</span>`:'';
  return `<li class="ag-row agu-shop-row" data-shop-row="${E(s.id)}">${art(s.merchant,'ag-row__icon agu-shop-avatar')}<div class="ag-row__main"><span class="ag-row__title">${E(s.name)}</span><span class="ag-row__meta">${meta} · <code>${E(s.id)}</code></span></div>
- <div class="ag-row__end">${shownBadge(s)}${unknown}${button('shop-edit','Edit',{kind:'sm',ic:'fa-pen',attrs:`data-shop="${E(s.id)}" aria-label="Edit ${E(s.name)}"`})}${button('shop-duplicate','Duplicate',{kind:'sm',ic:'fa-copy',disabled:!s.known,attrs:`data-shop="${E(s.id)}" aria-label="Duplicate ${E(s.name)}"`})}${presentButtons(s)}</div></li>`;
+ <div class="ag-row__end">${shownBadge(s)}${unknown}${button('shop-edit','Edit',{kind:'sm',ic:'fa-pen',attrs:`data-shop="${E(s.id)}" aria-label="Edit ${E(s.name)}"`})}${presentButtons(s)}</div></li>`;
 }
 function shopRow(s,locations){
  if(s.kind==='service')return serviceRow(s,locations);
  const {place}=placeOf(s,locations),lines=s.lines??[],hidden=lines.filter(l=>l.hidden).length;
- const meta=[s.merchant?.name,place,`${lines.length} ${lines.length===1?'item':'items'}`].filter(Boolean).map(E).join(' · ');
- return `<li class="ag-row agu-shop-row" data-shop-row="${E(s.id)}">${art(s.merchant,'ag-row__icon agu-shop-avatar')}<div class="ag-row__main"><span class="ag-row__title">${E(s.name)}</span><span class="ag-row__meta">${meta} · <code>${E(s.id)}</code></span></div>
- <div class="ag-row__end">${shownBadge(s)}${hidden?`<span class="ag-badge">${icon('fa-eye-slash')} ${hidden} hidden</span>`:''}<span class="ag-badge${s.purse?'':' ag-badge--accent'}">${s.purse?coinChipsHTML(cashText(s)):`${icon('fa-coins')} ${E(cashText(s))}`}</span>${button('shop-edit','Edit',{kind:'sm',ic:'fa-pen',attrs:`data-shop="${E(s.id)}" aria-label="Edit ${E(s.name)}"`})}${button('shop-duplicate','Duplicate',{kind:'sm',ic:'fa-copy',attrs:`data-shop="${E(s.id)}" aria-label="Duplicate ${E(s.name)}"`})}${presentButtons(s)}</div></li>`;
+ const meta=[s.merchant?.name,place,`${lines.length} ${lines.length===1?'item':'items'}`,...(hidden?[`${hidden} hidden`]:[])].filter(Boolean).map(E).join(' · ');
+ // 0.26.0: cash in the meta line; the row keeps Edit and Present… / Open / Stop showing (Duplicate is in the editor).
+ const cash=s.purse?`<span class="agu-row-cash">Cash ${coinChipsHTML(cashText(s))}</span>`:E(cashText(s));
+ return `<li class="ag-row agu-shop-row" data-shop-row="${E(s.id)}">${art(s.merchant,'ag-row__icon agu-shop-avatar')}<div class="ag-row__main"><span class="ag-row__title">${E(s.name)}</span><span class="ag-row__meta">${meta} · <code>${E(s.id)}</code></span><span class="ag-row__meta">${cash}</span></div>
+ <div class="ag-row__end">${shownBadge(s)}${button('shop-edit','Edit',{kind:'sm',ic:'fa-pen',attrs:`data-shop="${E(s.id)}" aria-label="Edit ${E(s.name)}"`})}${presentButtons(s)}</div></li>`;
 }
 function listView(app){
  if(app.shopImport)return importView(app);
  const all=[...readAll(),...servicesAll()],locations=locationMap(),groups=listShops(all,{search:app.shopSearch,sort:app.shopSort,locations,isSettlement:isTown()});
  const shown=groups.reduce((n,g)=>n+g.shops.length,0),nShops=all.filter(s=>s.kind!=='service').length,nSvc=all.length-nShops;
  const count=app.shopSearch.trim()?`${shown} of ${all.length}`:[`${nShops} ${nShops===1?'shop':'shops'}`,...(nSvc?[`${nSvc} ${nSvc===1?'service':'services'}`]:[])].join(' · ');
- const toolbar=`<div class="ag-toolbar"><label class="ag-search">${icon('fa-magnifying-glass')}<input type="search" id="agu-shop-search" placeholder="Search shops, merchants, places or items" value="${E(app.shopSearch)}" aria-label="Search shops"></label><div class="ag-toolbar__filters"><select id="agu-shop-sort" aria-label="Sort shops">${SHOP_SORTS.map(s=>opt(s,SORT_LABELS[s],app.shopSort)).join('')}</select></div><span class="ag-toolbar__count">${E(count)}</span><div class="ag-toolbar__end">${button('shop-import','Import JSON',{kind:'sm',ic:'fa-file-import',attrs:tip('Shop, Service and MerchantList records (ag-foundry-import/0.2). You see a preview first.')})}${button('shop-export','Export',{kind:'sm',ic:'fa-file-export',attrs:tip('Every shop, service and merchant list as one JSON file')})}<input type="file" id="agu-shop-import-file" accept=".json,application/json" hidden>${button('shop-new','New shop',{ic:'fa-plus'})}${button('shop-new-service','New service',{ic:'fa-scale-balanced',attrs:tip('A Bank (deprecated): players change coins in Party Inventory → Party Fund.')})}</div></div>`;
- if(!all.length)return toolbar+`<div class="ag-empty">${icon('fa-store')}<p class="ag-empty__title">No shops yet</p><p class="ag-empty__text">Create one with New shop, then drop items into it. New service makes a Bank (deprecated; players change coins in Party Inventory → Party Fund). Import JSON reads shops from a file.</p>${button('shop-new','New shop',{kind:'sm',ic:'fa-plus'})}</div>`;
- if(!shown)return toolbar+`<div class="ag-empty">${icon('fa-magnifying-glass')}<p class="ag-empty__title">Nothing matches</p><p class="ag-empty__text">No shop or service name, merchant, place, item or id has that text.</p>${button('shop-clear-search','Clear search',{kind:'sm'})}</div>`;
+ // 0.26.0: Sort has a visible label; Import / Export are one group; New Bank (deprecated) is a small ghost button; New shop is the create action.
+ const toolbar=`<div class="ag-toolbar"><label class="ag-search">${icon('fa-magnifying-glass')}<input type="search" id="agu-shop-search" placeholder="Search shops, merchants, places or items" value="${E(app.shopSearch)}" aria-label="Search shops"></label><div class="ag-toolbar__filters"><label class="ag-field ag-field--inline agu-shop-sort">Sort<select id="agu-shop-sort">${SHOP_SORTS.map(s=>opt(s,SORT_LABELS[s],app.shopSort)).join('')}</select></label></div><span class="ag-toolbar__count">${E(count)}</span><div class="ag-toolbar__end"><span class="ag-btn-group">${fileButton({label:'Import JSON…',accept:'.json,application/json',className:'ag-btn ag-btn--sm',data:{shopImport:true}})}${button('shop-export','Export',{kind:'sm',ic:'fa-file-export',attrs:tip('Every shop, service and merchant list as one JSON file')})}</span>${button('shop-new-service','New Bank (deprecated)',{kind:'ghost sm',ic:'fa-scale-balanced',attrs:tip('A Bank (deprecated): players change coins in Party Inventory → Party Fund.')})}${button('shop-new','New shop',{ic:'fa-plus'})}</div></div>`;
+ if(!all.length)return toolbar+emptyState('No shops yet','Create one with New shop, then drop items into it, or import shops from a file with Import JSON.',{icon:'fa-store',action:button('shop-new','New shop',{kind:'sm',ic:'fa-plus'})});
+ if(!shown)return toolbar+emptyState('Nothing matches','No shop or service name, merchant, place, item or id has that text.',{icon:'fa-magnifying-glass',action:button('shop-clear-search','Clear search',{kind:'sm'})});
  return toolbar+groups.map(g=>`<section class="agu-shop-group">${g.group?`<h3 class="ag-eyebrow">${E(g.group)} · ${g.shops.length}</h3>`:''}<ul class="ag-rows">${g.shops.map(s=>shopRow(s,locations)).join('')}</ul></section>`).join('');
 }
 
@@ -322,22 +326,22 @@ function buysSection(d){
 }
 /** 0.24.0: a line's category in the editor and the player view: its item type's label. */
 const lineCategory=l=>typeLabel(l.item?.type??'item');
+/** 0.26.0: the items table has five columns (item, price, stock, hidden, remove); flavour and cost sit on a second line under each item. */
 function linesTable(d){
  const coins=coinChoices(electrumEnabled());
- if(!d.lines.length)return `<div class="ag-empty">${icon('fa-box-open')}<p class="ag-empty__title">No items yet</p><p class="ag-empty__text">Drop items below from a character sheet, the Items sidebar, a compendium or a folder.</p></div>`;
+ if(!d.lines.length)return emptyState('No items yet','Drop items below from a character sheet, the Items sidebar, a compendium or a folder.',{icon:'fa-box-open'});
  const row=l=>{const it=l.item??{},qty=Number(it.system?.quantity)||1,n=lineName(l),contents=(l.contents??[]).length,coinOpts=[...new Set([...coins,l._coin])].map(c=>opt(c,c,l._coin)).join('');
   // 0.24.0: the GM sees the line's own snapshot (what is sold), as dnd5e shows it; a click opens it read only.
   const tipped=inner=>itemButton({key:`gm:${l.lineId}`,data:it,name:n,inner,cls:'agu-item-link agu-shop-item__open'});
-  return `<tr data-line="${E(l.lineId)}"><td><div class="agu-shop-item">${it.img?tipped(`<img class="agu-shop-thumb" src="${E(it.img)}" alt="">`):''}<div class="agu-shop-item__text">${tipped(`<strong>${E(n)}</strong>`)}${qty>1?` <span class="ag-badge">Sold as ${E(qty)}</span>`:''}${contents?` <span class="ag-badge">With ${contents} ${contents===1?'item':'items'} inside</span>`:''}${lineRepeats(d.lines,l)?` <span class="ag-badge ag-badge--warn">Already in this shop</span>`:''}${l.soldIn&&l.hidden?` <span class="ag-badge ag-badge--warn">${icon('fa-hand-holding-dollar')} Bought from players</span>`:''}<code>${E(l.itemId??'No permanent id')}</code></div></div></td>
+  return `<tr class="agu-line-main" data-line="${E(l.lineId)}"><td><div class="agu-shop-item">${it.img?tipped(`<img class="agu-shop-thumb" src="${E(it.img)}" alt="">`):''}<div class="agu-shop-item__text">${tipped(`<strong>${E(n)}</strong>`)}${qty>1?` <span class="ag-badge">Sold as ${E(qty)}</span>`:''}${contents?` <span class="ag-badge">With ${contents} ${contents===1?'item':'items'} inside</span>`:''}${lineRepeats(d.lines,l)?` <span class="ag-badge ag-badge--warn">Already in this shop</span>`:''}${l.soldIn&&l.hidden?` <span class="ag-badge ag-badge--warn">${icon('fa-hand-holding-dollar')} Bought from players</span>`:''}<code>${E(l.itemId??'No permanent id')}</code></div></div></td>
   <td><div class="agu-shop-price"><input type="number" min="0" step="any" data-line-field="_price" value="${E(l._price)}" aria-label="Price of ${E(n)}"><select data-line-field="_coin" aria-label="Price coin of ${E(n)}">${coinOpts}</select></div></td>
   <td><input class="agu-shop-num" type="number" min="0" step="1" data-line-field="_stock" value="${E(l._stock)}" placeholder="∞" aria-label="Stock of ${E(n)} (blank: unlimited)">${l.stock===0&&!l._stockEdited?' <span class="ag-badge ag-badge--danger">Sold out</span>':''}</td>
-  <td><input type="text" maxlength="${LINE_FLAVOUR_MAX}" data-line-field="flavour" value="${E(l.flavour??'')}" placeholder="Optional" aria-label="Flavour text for ${E(n)}"></td>
-  <td><input class="agu-shop-num" type="number" min="0" step="any" data-line-field="_cost" value="${E(l._cost)}" aria-label="Cost of ${E(n)} (GM only)"></td>
   <td><input type="checkbox" role="switch" data-line-field="hidden"${l.hidden?' checked':''} aria-label="Hide ${E(n)} from players"></td>
-  <td class="is-actions">${button('shop-line-remove','',{kind:'icon sm danger',ic:'fa-trash',attrs:`data-line-id="${E(l.lineId)}" aria-label="Remove ${E(n)}" ${tip(`Remove ${n}`)}`})}</td></tr>`;};
+  <td class="is-actions">${button('shop-line-remove','',{kind:'icon sm danger',ic:'fa-trash',attrs:`data-line-id="${E(l.lineId)}" aria-label="Remove ${E(n)}" ${tip(`Remove ${n}`)}`})}</td></tr>
+  <tr class="agu-line-extra" data-line="${E(l.lineId)}"><td colspan="5"><div class="agu-line-extra__grid"><label class="ag-field ag-field--inline">Flavour<input type="text" maxlength="${LINE_FLAVOUR_MAX}" data-line-field="flavour" value="${E(l.flavour??'')}" placeholder="Optional" aria-label="Flavour text for ${E(n)}"></label><label class="ag-field ag-field--inline">Cost <span class="ag-gm-flag">${icon('fa-eye-slash')} GM</span><input class="agu-shop-num" type="number" min="0" step="any" data-line-field="_cost" value="${E(l._cost)}" aria-label="Cost of ${E(n)} (GM only)"></label></div></td></tr>`;};
  const groups=groupByCategory(d.lines,lineCategory);
- const body=groups.map(g=>`<tbody class="agu-shop-lines__group"><tr class="agu-shop-lines__cat"><th scope="rowgroup" colspan="7">${E(g.category)} · ${g.lines.length}</th></tr>${g.lines.map(row).join('')}</tbody>`).join('');
- return `<div class="ag-table-wrap"><table class="ag-table agu-shop-lines"><thead><tr><th scope="col">Item</th><th scope="col">Price each</th><th scope="col">Stock</th><th scope="col">Flavour</th><th scope="col">Cost <span class="ag-gm-flag">${icon('fa-eye-slash')} GM</span></th><th scope="col">Hidden</th><th scope="col"><span class="ag-sr-only">Remove</span></th></tr></thead>${body}</table></div>`;
+ const body=groups.map(g=>`<tbody class="agu-shop-lines__group"><tr class="agu-shop-lines__cat"><th scope="rowgroup" colspan="5">${E(g.category)} · ${g.lines.length}</th></tr>${g.lines.map(row).join('')}</tbody>`).join('');
+ return `<div class="ag-table-wrap"><table class="ag-table agu-shop-lines"><thead><tr><th scope="col">Item</th><th scope="col">Price each</th><th scope="col">Stock</th><th scope="col">Hidden</th><th scope="col"><span class="ag-sr-only">Remove</span></th></tr></thead>${body}</table></div>`;
 }
 /** 0.24.0: is the Actor a merchant was taken from still there? (A reference only: a missing one changes nothing.) */
 function actorGone(ref){
@@ -352,37 +356,54 @@ function merchantFields(d){
   <div class="ag-field"><span>Merchant art</span><div class="agu-shop-art">${art(d.merchant,'agu-shop-art__img')}<input type="text" data-shop-field="merchantImg" value="${E(d.merchant?.img??'')}" placeholder="Image path" aria-label="Merchant art path">${button('shop-pick-art','Choose image',{kind:'sm',ic:'fa-image'})}</div><span class="ag-field__hint">Empty: the merchant's initials.</span></div>
   <div class="ag-field ag-field--wide agu-merchant" data-merchant-drop>${linked}<div class="agu-dropzone agu-merchant__drop">${icon('fa-user-plus')} Drop an Actor (an NPC) here to use its name and portrait as the merchant. You can still change both by hand.</div></div>`;
 }
+/**
+ * 0.26.0: the Settlement select (Locations' settlements; a place already picked that isn't one stays, marked), for the
+ * shop and service editors and the merchant-list editor. `attr` is the data attribute the editor listens on. Null
+ * without Locations.
+ */
+export function settlementSelect(d,{attr='data-shop-field',hint}={}){
+ if(!locationsApi())return null;
+ const towns=settlements(),all=locationMap(),cur=d.locationId&&!towns.some(l=>l.id===d.locationId)?opt(d.locationId,`${all.get(d.locationId)?.name??d.locationId} (not a settlement)`,d.locationId):'';
+ const words=SETTLEMENT_WORDS.map(w=>w[0].toUpperCase()+w.slice(1)).join(', ');
+ return `<label class="ag-field">Settlement<select ${attr}="locationId"><option value="">None</option>${towns.map(l=>opt(l.id,l.name,d.locationId)).join('')}${cur}</select><span class="ag-field__hint">${towns.length?E(hint??'Settlements from Locations. Players see the name only once it is revealed in Locations.'):`No settlements in Locations yet. A location counts when its Type names one (${E(words)}).`}</span></label>`;
+}
 /** 0.24.0: Settlement: a select of Locations' settlements, or a typed name when Locations is not active. */
 function settlementField(d){
  const typed=hint=>`<label class="ag-field">Settlement${loc?' (typed)':''}<input type="text" maxlength="${MERCHANT_NAME_MAX}" data-shop-field="settlement" value="${E(d.settlement??'')}" placeholder="Town or city name"><span class="ag-field__hint">${hint}</span></label>`;
  const loc=locationsApi();
  if(!loc)return typed('Ashen Gate | Locations is not active, so type the settlement. Players see this name.');
- const towns=settlements(),all=locationMap(),cur=d.locationId&&!towns.some(l=>l.id===d.locationId)?opt(d.locationId,`${all.get(d.locationId)?.name??d.locationId} (not a settlement)`,d.locationId):'';
- const words=SETTLEMENT_WORDS.map(w=>w[0].toUpperCase()+w.slice(1)).join(', ');
- const sel=`<label class="ag-field">Settlement<select data-shop-field="locationId"><option value="">None</option>${towns.map(l=>opt(l.id,l.name,d.locationId)).join('')}${cur}</select><span class="ag-field__hint">${towns.length?'Settlements from Locations. Players see the name only once it is revealed in Locations.':`No settlements in Locations yet. A location counts when its Type names one (${E(words)}).`}</span></label>`;
- return sel+(d.settlement?typed('Typed while Locations was off. Used only when no settlement is picked above.'):'');
+ return settlementSelect(d)+(d.settlement?typed('Typed while Locations was off. Used only when no settlement is picked above.'):'');
 }
+/** 0.26.0: actions in an editor that change the saved record at once (not the draft) carry this badge. */
+const appliesNow=`<span class="ag-badge ag-badge--warn agu-now" ${tip('These buttons change the saved shop now; they do not wait for Save Changes')}>${icon('fa-bolt')} Applies now</span>`;
+/** The editor's head: back to the list, the name, and (saved records) the immediate actions under "Applies now". */
+function editorHead(d,saved,{kind}){
+ const back=button('shop-back','All shops',{kind:'ghost sm',ic:'fa-arrow-left',attrs:'aria-label="Back to all shops and services"'});
+ const now=saved?`<span class="agu-now-group">${appliesNow}${shownBadge(saved)}<span class="ag-btn-group">${saved.kind==='service'&&!saved.known?'':button('shop-duplicate','Duplicate',{kind:'sm',ic:'fa-copy',attrs:`data-shop="${E(saved.id)}" aria-label="Duplicate ${E(saved.name)}"`})}${presentButtons(saved)}</span></span>`:'';
+ return `<div class="agu-shop-editor__head">${back}<h2>${E(d.saved?d.name||`Unnamed ${kind}`:`New ${kind}`)}</h2>${d.id?`<code>${E(d.id)}</code>`:''}${now}</div>`;
+}
+const ED_TABS=[{id:'details',label:'Details'},{id:'items',label:'Items'},{id:'coins',label:'Coins & buying'}];
 function editorView(app){
  const d=app.shopDraft;
- if(!d)return `<div class="ag-empty">${icon('fa-store')}<p class="ag-empty__title">No shop open</p><p class="ag-empty__text">Pick Edit on a shop in the Shops list, or start a new one.</p>${button('shop-new','New shop',{kind:'sm',ic:'fa-plus'})}</div>`;
+ if(!d)return '';
  if(d.kind==='service')return serviceEditorView(d);
  const saved=d.id?readAll().find(s=>s.id===d.id)??null:null;
  const restockable=d.lines.some(l=>l.stockStart!==null&&l.stockStart!==undefined);
- return `<div class="agu-shop-editor"><div class="agu-shop-editor__head"><h2>${E(d.saved?d.name||'Unnamed shop':'New shop')}</h2>${d.id?`<code>${E(d.id)}</code>`:''}${saved?`${shownBadge(saved)}<span class="ag-btn-group">${presentButtons(saved)}</span>`:''}</div>
- <div class="ag-form-grid">
+ const tab=ED_TABS.some(t=>t.id===app.shopEdTab)?app.shopEdTab:'details';
+ const details=`<div class="ag-form-grid">
   <label class="ag-field">Shop name<input type="text" maxlength="${MERCHANT_NAME_MAX}" data-shop-field="name" value="${E(d.name)}" required><span class="ag-field__hint">Required.</span></label>
   ${settlementField(d)}
   ${merchantFields(d)}
   <label class="ag-field ag-field--wide">Flavour text (players see this)<textarea maxlength="${SHOP_FLAVOUR_MAX}" data-shop-field="flavour" rows="3">${E(d.flavour??'')}</textarea></label>
   <label class="ag-field ag-field--wide"><span>GM notes <span class="ag-gm-flag">${icon('fa-eye-slash')} GM only</span></span><textarea data-shop-field="gmNotes" rows="2">${E(d.gmNotes??'')}</textarea></label>
  </div>
- <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Items for sale · ${d.lines.length}</h3>${button('shop-restock','Restock',{kind:'sm',ic:'fa-boxes-stacked',disabled:!saved||!restockable,attrs:tip('Stock back to where it started')})}</div>
+ ${d.saved?`<section class="ag-section agu-danger-zone"><div class="ag-section__head"><h3 class="ag-section__title">Danger zone</h3></div><p class="ag-field__hint">Deleting removes the shop and its items list. Its id is never reused.</p>${button('shop-delete','Delete shop…',{kind:'danger',ic:'fa-trash'})}</section>`:''}`;
+ const items=`<section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Items for sale · ${d.lines.length}</h3>${saved?`<span class="agu-now-group">${appliesNow}${button('shop-restock','Restock…',{kind:'sm',ic:'fa-boxes-stacked',disabled:!restockable,attrs:tip('Stock back to where it started')})}</span>`:''}</div>
  ${linesTable(d)}
  <div class="agu-dropzone agu-shop-drop" data-shop-drop>${icon('fa-hand-holding')} Drop items here from a character sheet, the Items sidebar, a compendium or a folder. A container brings what is inside it. The source item is not changed.</div>
- <p class="ag-field__hint">Price starts at the item's own price. Stock blank means unlimited; a number counts down with each sale. Hidden items and cost never reach players.</p></section>
- ${purseSection(d,saved)}${buysSection(d)}
- ${d.saved?`<section class="ag-section agu-danger-zone"><div class="ag-section__head"><h3 class="ag-section__title">Danger zone</h3></div><p class="ag-field__hint">Deleting removes the shop and its items list. Its id is never reused.</p>${button('shop-delete','Delete shop',{kind:'danger',ic:'fa-trash'})}</section>`:''}
- </div>`;
+ <p class="ag-field__hint">Price starts at the item's own price. Stock blank means unlimited; a number counts down with each sale. Hidden items and cost never reach players.</p></section>`;
+ const body=tab==='items'?items:tab==='coins'?purseSection(d,saved)+buysSection(d):details;
+ return `<div class="agu-shop-editor">${editorHead(d,saved,{kind:'shop'})}${subTabs({group:'agu-shop-ed',label:'Shop editor sections',tabs:ED_TABS.map(t=>({...t,count:t.id==='items'?d.lines.length:undefined})),selected:tab})}<div class="agu-subpanel" ${tabPanelAttrs('agu-shop-ed',tab)}>${body}</div></div>`;
 }
 /** 0.22.0: one bank exchange in its log: who, whose coins, from → to, the fee. */
 const bankLogLine=h=>`${h.userName??'Unknown'} (${h.payFrom==='purse'?'Party purse':h.payerName??'Unknown'}): ${h.total} ${h.from} → ${h.receive} ${h.to}${h.fee?`, fee ${h.fee} ${h.from} (included)`:', no fee'}`;
@@ -404,25 +425,37 @@ function serviceEditorView(d){
   <label class="ag-field ag-field--wide">Flavour text (players see this)<textarea maxlength="${SHOP_FLAVOUR_MAX}" data-shop-field="flavour" rows="3">${E(d.flavour??'')}</textarea></label>
   <label class="ag-field ag-field--wide"><span>GM notes <span class="ag-gm-flag">${icon('fa-eye-slash')} GM only</span></span><textarea data-shop-field="gmNotes" rows="2">${E(d.gmNotes??'')}</textarea></label>
  </div>`:'';
- return `<div class="agu-shop-editor"><div class="agu-shop-editor__head"><h2>${E(d.saved?d.name||'Unnamed service':'New service')}</h2>${d.id?`<code>${E(d.id)}</code>`:''}${saved?`${shownBadge(saved)}<span class="ag-btn-group">${presentButtons(saved)}</span>`:''}</div>
+ return `<div class="agu-shop-editor">${editorHead(d,saved,{kind:'service'})}
  ${fields}${serviceSettingsHTML(d)}${saved&&known&&d.service?.type==='bank'?serviceLogSection(d.id):''}
- ${d.saved?`<section class="ag-section agu-danger-zone"><div class="ag-section__head"><h3 class="ag-section__title">Danger zone</h3></div><p class="ag-field__hint">Deleting removes the service. Its id is never reused. Merchant lists that name it skip it.</p>${button('shop-delete','Delete service',{kind:'danger',ic:'fa-trash'})}</section>`:''}
+ ${d.saved?`<section class="ag-section agu-danger-zone"><div class="ag-section__head"><h3 class="ag-section__title">Danger zone</h3></div><p class="ag-field__hint">Deleting removes the service. Its id is never reused. Merchant lists that name it skip it.</p>${button('shop-delete','Delete service…',{kind:'danger',ic:'fa-trash'})}</section>`:''}
  </div>`;
 }
-const SUBS=[['list','Shops'],['editor','Shop editor'],['lists','Merchant lists']];
+const SUBS=[{id:'list',label:'Shops & services'},{id:'lists',label:'Merchant lists'}];
+/** The GM's sub-tab: 'list' or 'lists' (the 0.25 'editor' sub-tab is the list with its editor open). */
+const subOf=app=>app.shopSub==='lists'?'lists':'list';
+/** While an editor is open it replaces its list and the sub-tab row (one level of tabs: the editor's own). */
+const editing=app=>subOf(app)==='lists'?Boolean(app.listDraft):Boolean(app.shopDraft);
 export function shopsView(app){
  if(!isGM())return '';
- const sub=SUBS.some(([id])=>id===app.shopSub)?app.shopSub:'list';
- const seg=`<div class="ag-segmented agu-shop-subtabs" role="radiogroup" aria-label="Shops sections">${SUBS.map(([id,label])=>`<button type="button" role="radio" data-shop-sub="${id}" aria-checked="${sub===id}">${label}</button>`).join('')}</div>`;
- return `<section class="agu-shops" aria-label="Shops">${seg}${sub==='editor'?editorView(app):sub==='lists'?listsView(app):listView(app)}</section>`;
+ if(app.shopSub==='editor')app.shopSub='list';
+ const sub=subOf(app);
+ const body=sub==='lists'?listsView(app):app.shopDraft?editorView(app):listView(app);
+ if(editing(app))return `<section class="agu-shops" aria-label="Shops">${body}</section>`;
+ return `<section class="agu-shops" aria-label="Shops">${subTabs({group:'agu-shops',label:'Shops sections',tabs:SUBS,selected:sub})}<div class="agu-subpanel" ${tabPanelAttrs('agu-shops',sub)}>${body}</div></section>`;
 }
 export function shopsFooter(app){
- if(isGM()&&app.shopSub==='lists')return listsFooter(app);
- if(isGM()&&app.shopImport&&(app.shopSub??'list')==='list')return importFooter(app);
- if(!isGM()||app.shopSub!=='editor'||!app.shopDraft)return null;
- if(app.shopDraft.kind==='service'&&!serviceType(app.shopDraft.service?.type))return `<footer class="ag-footer agu-footer">${button('shop-cancel','Cancel',{kind:'ghost'})}<span class="ag-footer__status" role="status">${E(UNKNOWN_TYPE)}: can't be changed here</span>${button('shop-save','Save Changes',{kind:'primary',disabled:true})}</footer>`;
- return `<footer class="ag-footer agu-footer">${button('shop-cancel','Cancel',{kind:'ghost'})}<span class="ag-footer__status" role="status" data-shop-status>${E(app.shopStatus??'')}</span>${button('shop-save','Save Changes',{kind:'primary'})}</footer>`;
+ if(!isGM())return null;
+ const sub=subOf(app);
+ if(sub==='lists')return listsFooter(app);
+ if(app.shopDraft){
+  if(app.shopDraft.kind==='service'&&!serviceType(app.shopDraft.service?.type))return `<footer class="ag-footer agu-footer">${button('shop-cancel','Cancel',{kind:'ghost'})}<span class="ag-footer__status" role="status">${E(UNKNOWN_TYPE)}: can't be changed here</span>${button('shop-save','Save Changes',{kind:'primary',disabled:true})}</footer>`;
+  return `<footer class="ag-footer agu-footer">${button('shop-cancel','Cancel',{kind:'ghost'})}<span class="ag-footer__status" role="status" data-shop-status>${E(app.shopStatus??'')}</span>${button('shop-save','Save Changes',{kind:'primary'})}</footer>`;
+ }
+ if(app.shopImport)return importFooter(app);
+ return null;
 }
+/** 0.26.0: true while a shop/service or merchant-list draft has unsaved edits (the window asks before closing). */
+export const shopsDirty=app=>Boolean((app?.shopDraft&&app.shopDirty)||(app?.listDraft&&app.listDirty));
 
 /* ---------- Wiring ---------- */
 const markDirty=(app,root)=>{app.shopDirty=true;app.shopStatus='Unsaved changes';const st=root.querySelector?.('[data-shop-status]');if(st)st.textContent=app.shopStatus;};
@@ -457,7 +490,10 @@ export function bindShops(app,root,{error,render}){
  if(app.tab!=='shops'||!isGM())return;
  bindLists(app,root,{error,render});
  bindImport(app,root,{error,render});
- for(const b of root.querySelectorAll('[data-shop-sub]'))b.addEventListener('click',()=>{app.shopSub=b.dataset.shopSub;render();});
+ // 0.26.0: kit sub-tabs (Shops & services / Merchant lists) and the shop editor's tabs; the window binds their arrow keys.
+ for(const b of root.querySelectorAll('[id^="agu-shops-tab-"]'))b.addEventListener('click',()=>{app.shopSub=b.dataset.tab;render();});
+ for(const b of root.querySelectorAll('[id^="agu-shop-ed-tab-"]'))b.addEventListener('click',()=>{app.shopEdTab=b.dataset.tab;render();});
+ bindFileButtons(root,([file])=>openImportFile(app,file).then(()=>render()).catch(error));
  root.querySelector('#agu-shop-search')?.addEventListener('input',e=>{app.shopSearch=e.target.value;const at=e.target.selectionStart;Promise.resolve(render()).then(()=>{const q=app.element?.querySelector?.('#agu-shop-search');if(q){q.focus();q.setSelectionRange?.(at,at);}}).catch(error);});
  root.querySelector('#agu-shop-sort')?.addEventListener('change',e=>{app.shopSort=e.target.value;render();});
  const d=app.shopDraft;if(!d)return;
@@ -513,8 +549,8 @@ function openArtPicker(app,render){
  if(!FP)throw Error('The Foundry file picker is not available here. Type the image path instead.');
  new FP({type:'image',current:app.shopDraft?.merchant?.img??'',callback:path=>{if(!app.shopDraft)return;app.shopDraft.merchant={...app.shopDraft.merchant,img:path};app.shopDirty=true;app.shopStatus='Unsaved changes';render();}}).render(true);
 }
-const discardOk=async app=>!app.shopDirty||confirmDialog('Your changes to this shop are not saved. Discard them?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing',danger:true});
-const openDraft=(app,record,opts)=>{app.shopDraft=draftFrom(record,opts);app.shopDirty=false;app.shopStatus='';app.shopSub='editor';};
+const discardOk=async app=>!app.shopDirty||confirmDanger('Your changes to this shop are not saved. Discard them?',{title:'Discard unsaved changes?',yes:'Discard changes',no:'Keep editing'});
+const openDraft=(app,record,opts)=>{const same=app.shopDraft?.id&&app.shopDraft.id===record?.id;app.shopDraft=draftFrom(record,opts);app.shopDirty=false;app.shopStatus='';app.shopSub='list';if(!same)app.shopEdTab='details';};
 /** Shops tab actions. Returns false when the action isn't a Shops one. */
 export async function handleShops(app,action,b,{render,root}){
  if(await handleLists(app,action,b,{render,root}))return true;
@@ -526,13 +562,13 @@ export async function handleShops(app,action,b,{render,root}){
   case 'shop-new':if(!await discardOk(app))return true;openDraft(app,null);break;
   case 'shop-new-service':if(!await discardOk(app))return true;openDraft(app,null,{kind:'service'});break;
   case 'shop-clear-search':app.shopSearch='';break;
-  case 'shop-edit':{if(d?.id!==b.dataset.shop&&!await discardOk(app))return true;const s=isSvc(b.dataset.shop)?svc().get(b.dataset.shop):get(b.dataset.shop);if(!s)throw Error(isSvc(b.dataset.shop)?'That service no longer exists.':'That shop no longer exists.');if(d?.id!==s.id)openDraft(app,s);else app.shopSub='editor';break;}
+  case 'shop-edit':{if(d?.id!==b.dataset.shop&&!await discardOk(app))return true;const s=isSvc(b.dataset.shop)?svc().get(b.dataset.shop):get(b.dataset.shop);if(!s)throw Error(isSvc(b.dataset.shop)?'That service no longer exists.':'That shop no longer exists.');if(d?.id!==s.id)openDraft(app,s);else app.shopSub='list';break;}
   case 'shop-duplicate':{const copy=isSvc(b.dataset.shop)?await svc().duplicate(b.dataset.shop):await duplicate(b.dataset.shop);ui.notifications?.info(`Made ${copy.name}.`);break;}
   case 'shop-pick-art':openArtPicker(app,render);return true;
   case 'shop-merchant-clear':{if(!d)return true;d.merchant={name:'',img:''};app.shopDirty=true;app.shopStatus='Unsaved changes';break;}
   case 'shop-line-remove':{
    const line=d?.lines.find(l=>l.lineId===b.dataset.lineId);if(!line)return true;
-   if(!await confirmDialog(`Remove ${lineName(line)} from this shop? It leaves the shop when you save.`,{title:'Remove this item?',yes:'Remove item',danger:true}))return true;
+   if(!await confirmDanger(`Remove ${lineName(line)} from this shop? It leaves the shop when you save.`,{title:`Remove ${lineName(line)}?`,yes:'Remove item'}))return true;
    d.lines=d.lines.filter(l=>l!==line);app.shopDirty=true;app.shopStatus='Unsaved changes';break;
   }
   case 'shop-restock':{
@@ -547,23 +583,23 @@ export async function handleShops(app,action,b,{render,root}){
    if(!await confirmDialog(`Put the merchant's coins back to the starting cash?\n${coinsText(s.purse)} → ${coinsText(s.purseStart)}.`,{title:'Restock cash?',yes:'Restock cash'}))return true;
    const r=await restockCash(d.id);d.purse=clone(r.purse);d.purseStart=clone(r.purseStart);ui.notifications?.info(`Merchant's coins: ${coinsText(r.purse)}.`);break;
   }
-  case 'shop-cancel':{if(!await discardOk(app))return true;app.shopDraft=null;app.shopDirty=false;app.shopStatus='';app.shopSub='list';break;}
+  case 'shop-back':case 'shop-cancel':{if(!await discardOk(app))return true;app.shopDraft=null;app.shopDirty=false;app.shopStatus='';app.shopSub='list';break;}
   case 'shop-save':{
    if(!d)return true;
    const rec=recordFrom(d);
    if(d.kind==='service'){const saved=d.id?await svc().save(rec):await svc().create(rec);openDraft(app,saved);app.shopStatus='Saved';ui.notifications?.info(`Saved ${saved.name}.`);break;}
    const old=d.id?readAll().find(s=>s.id===d.id):null;
-   if(old?.purse&&!rec.purse&&Object.values(old.purse).some(n=>n>0)&&!await confirmDialog(`Remove ${old.name}'s coin purse? It holds ${coinsText(old.purse)}; those coins are not kept. The shop then has unlimited cash.`,{title:'Remove the merchant\'s coins?',yes:'Remove purse and save',danger:true}))return true;
+   if(old?.purse&&!rec.purse&&Object.values(old.purse).some(n=>n>0)&&!await confirmDanger(`Remove ${old.name}'s coin purse? It holds ${coinsText(old.purse)}; those coins are not kept. The shop then has unlimited cash.`,{title:'Remove the merchant\'s coins?',yes:'Remove purse and save'}))return true;
    const saved=d.id?await save(rec):await create(rec);
    openDraft(app,saved);app.shopStatus='Saved';ui.notifications?.info(`Saved ${saved.name}.`);break;
   }
   case 'shop-delete':{
    if(!d?.id)return true;
    if(d.kind==='service'){
-    if(!await confirmDialog(`Delete ${d.name}? The service is removed and this can't be undone. Coins already changed are not affected.`,{title:'Delete this service?',yes:'Delete service',danger:true}))return true;
+    if(!await confirmDanger(`Delete ${d.name}? The service is removed and this can't be undone. Coins already changed are not affected.`,{title:`Delete ${d.name}?`,yes:'Delete service'}))return true;
     await svc().delete(d.id,{confirm:true});ui.notifications?.info(`Deleted ${d.name}.`);app.shopDraft=null;app.shopDirty=false;app.shopStatus='';app.shopSub='list';break;
    }
-   if(!await confirmDialog(`Delete ${d.name}? Its items list, prices and coins are removed and this can't be undone. Items already bought are not affected.`,{title:'Delete this shop?',yes:'Delete shop',danger:true}))return true;
+   if(!await confirmDanger(`Delete ${d.name}? Its items list, prices and coins are removed and this can't be undone. Items already bought are not affected.`,{title:`Delete ${d.name}?`,yes:'Delete shop'}))return true;
    await remove(d.id,{confirm:true});ui.notifications?.info(`Deleted ${d.name}.`);app.shopDraft=null;app.shopDirty=false;app.shopStatus='';app.shopSub='list';break;
   }
   default:return false;

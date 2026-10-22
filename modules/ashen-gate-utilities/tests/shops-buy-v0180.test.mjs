@@ -303,7 +303,7 @@ test('stop showing removes the page; the shop window says it is closed',async()=
  await restocked();const w=await as(alice,()=>api.open(SHOP));
  const html=await as(alice,()=>w._renderHTML());
  assert.match(html,/<span class="ag-badge ag-badge--ok"><i class="fa-solid fa-door-open" aria-hidden="true"><\/i> Open for you<\/span>/);
- assert.match(html,/<h3 class="ag-eyebrow">Party purse<\/h3>/);assert.match(html,/<div class="agu-wares"><section class="agu-ware-group" aria-label="[^"]+"><h4 class="ag-eyebrow">[^<]+ · \d+<\/h4><ul class="agu-ware-grid"><li class="agu-ware-card"/,'0.24.0: wares as cards grouped by category');
+ assert.match(html,/<h3 class="ag-eyebrow">Party purse<\/h3>/);assert.match(html,/<div class="agu-wares"><section class="agu-ware-group" aria-label="[^"]+"><h4 class="ag-eyebrow">[^<]+ · \d+<\/h4><ul class="ag-card-grid agu-ware-grid"><li class="ag-card ag-card--compact agu-ware-card"/,'0.24.0: wares as cards grouped by category');
  assert.match(html,/data-action="shop-buy" data-shop="SHOP-TEST-THE-COPPER-KETTLE" data-line-id="ln_rope" aria-label="Buy Rope, Hempen \(50 ft\)"/);
  assert.doesNotMatch(html,/title=|Sealed Crate|GM only text|<option value="ep"/);
  await api.stopShowing(SHOP);
@@ -318,10 +318,10 @@ const render=async(user,tab,setup=()=>{})=>as(user,async()=>{const app=await gam
 test('GM Setup → Shopping: two settings, saved with the footer; the Shops tab shows for players only while both switches are on',async()=>{
  const setup=await render(gm,'setup');
  assert.match(setup,/<h3>Shopping<\/h3>[\s\S]*id="agu-shops-enabled" type="checkbox" data-setup-field checked>Shops on for players[\s\S]*id="agu-shop-vote" type="checkbox" data-setup-field >Party must accept when a player spends the party purse/);
- assert.match(await render(alice,'shops'),/data-tab="shops" aria-selected="true" class="active"><i class="fa-solid fa-store" aria-hidden="true"><\/i>Shops/);
+ assert.match(await render(alice,'shops'),/data-tab="shops" aria-controls="agu-main-panel" aria-selected="true" tabindex="0" class="active"><i class="fa-solid fa-store" aria-hidden="true"><\/i>Shops/);
  assert.match(await render(alice,'shops'),/No shops open for you/);
  await set('shopsEnabled',false);
- const off=await render(alice,'shops');assert.doesNotMatch(off,/data-tab="shops"/);assert.match(off,/data-tab="rolls" aria-selected="true"/,'falls back to Rolls');
+ const off=await render(alice,'shops');assert.doesNotMatch(off,/data-tab="shops"/);assert.match(off,/data-tab="rolls" aria-controls="agu-main-panel" aria-selected="true"/,'falls back to Rolls');
  await set('shopsEnabled',true);
 });
 test('GM list rows: Present… on a hidden shop; Shown badge, Open and Stop showing on a presented one',async()=>{

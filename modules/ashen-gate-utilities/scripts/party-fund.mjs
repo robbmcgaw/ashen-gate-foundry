@@ -95,28 +95,32 @@ export function fundPreviewHTML(app){
  return `<dl class="ag-kv">${kv.map(([k,v])=>`<dt>${E(k)}</dt><dd>${E(v)}</dd>`).join('')}</dl>`;
 }
 export const fundCanConfirm=app=>{try{return quoteFor(app).ok===true;}catch{return false;}};
-/** The Change coins section. */
-export function exchangeHTML(app){
+/**
+ * The Change coins section. 0.26.0, `whoseSwitch` (Party Fund): the character comes from Party Fund's one Character
+ * picker, so "Whose coins" is a two-way switch (that character or the party purse) instead of a second picker.
+ */
+export function exchangeHTML(app,{whoseSwitch=false}={}){
  const s=fundState(app),ep=electrum(),fee=fundFee();
  if(!s.chars.length&&!s.purse)return `<section class="agu-fund-exchange" aria-label="Change coins"><h3>Change coins</h3><p class="ag-notice ag-notice--warn">${icon('fa-triangle-exclamation')}<span>You need a character of your own, or the party purse, to change coins.</span></p></section>`;
  const opt=(v,label,sel)=>`<option value="${E(v)}"${v===sel?' selected':''}>${E(label)}</option>`;
- const whoseSel=s.payFrom==='purse'?'purse':`actor:${s.actorId}`;
+ const whoseSel=s.payFrom==='purse'?'purse':`actor:${s.actorId}`,actor=s.chars.find(a=>a.id===s.actorId);
  const whose=[...s.chars.map(a=>opt(`actor:${a.id}`,`${a.name}'s coins`,whoseSel)),...(s.purse?[opt('purse','Party purse',whoseSel)]:[])].join('');
  const coinOpts=sel=>coinChoices(ep).map(c=>opt(c,`${COIN_LABELS[c]} (${c})`,sel)).join('');
- return `<section class="agu-fund-exchange" aria-label="Change coins"><h3>Change coins</h3>
+ return `<section class="agu-fund-exchange agu-fund-form" aria-label="Change coins">${whoseSwitch?'':'<h3>Change coins</h3>'}
  <div class="ag-form-grid">
-  <label class="ag-field">Whose coins<select id="agu-fund-whose" data-fund="whose">${whose}</select></label>
+  ${whoseSwitch?`<div class="ag-field"><span id="agu-fund-whose-label">Whose coins</span><div class="ag-segmented" role="radiogroup" aria-labelledby="agu-fund-whose-label">${[...(actor?[[`actor:${actor.id}`,`${actor.name}'s coins`]]:[]),...(s.purse?[['purse','Party purse']]:[])].map(([v,label])=>`<button type="button" role="radio" data-fund-whose="${E(v)}" aria-checked="${v===whoseSel}">${E(label)}</button>`).join('')}</div></div>`:`<label class="ag-field">Whose coins<select id="agu-fund-whose" data-fund="whose">${whose}</select></label>`}
   <label class="ag-field">Change from<select id="agu-fund-from" data-fund="from">${coinOpts(s.from)}</select></label>
   <label class="ag-field">Into<select id="agu-fund-to" data-fund="to">${coinOpts(s.to)}</select></label>
   <label class="ag-field">How many to get<input type="number" id="agu-fund-receive" data-fund="receive" min="1" step="1" inputmode="numeric" value="${E(s.receive)}"></label>
  </div>
- <p class="ag-field__hint">${fee?`Fee: ${E(fee)} % of what you give, in that coin, rounded up.`:'No fee.'} 1 pp = 10 gp = 100 sp = 1000 cp. Party purse: no vote needed, nothing leaves the party. Every exchange is in the log below.</p>
+ <p class="ag-field__hint">${fee?`Fee: ${E(fee)} % of what you give, in that coin, rounded up.`:'No fee.'} 1 pp = 10 gp = 100 sp = 1000 cp. Party purse: no vote needed. Every exchange is in the Log.</p>
  <div data-fund-preview aria-live="polite">${fundPreviewHTML(app)}</div>
  <div class="agu-actions">${button('fund-exchange','Confirm exchange',{kind:'primary',ic:'fa-scale-balanced',disabled:!fundCanConfirm(app)})}</div></section>`;
 }
 /** Wires the Change coins inputs: the preview and Confirm update in place (no re-render while typing). */
 export function bindExchange(app,root){
- const update=()=>{const box=root.querySelector?.('[data-fund-preview]');if(box)box.innerHTML=fundPreviewHTML(app);const c=root.querySelector?.('[data-action="fund-exchange"]');if(c)c.disabled=!fundCanConfirm(app);};
+ const update=()=>{for(const b of root.querySelectorAll?.('[data-fund-whose]')??[]){const s=fundState(app);b.setAttribute('aria-checked',String(b.dataset.fundWhose===(s.payFrom==='purse'?'purse':`actor:${s.actorId}`)));}const box=root.querySelector?.('[data-fund-preview]');if(box)box.innerHTML=fundPreviewHTML(app);const c=root.querySelector?.('[data-action="fund-exchange"]');if(c)c.disabled=!fundCanConfirm(app);};
+ for(const b of root.querySelectorAll?.('[data-fund-whose]')??[])b.addEventListener('click',()=>{const v=b.dataset.fundWhose;app.fund={...(app.fund??{}),...(v==='purse'?{payFrom:'purse'}:{payFrom:'actor',actorId:v.replace(/^actor:/,'')})};update();});
  for(const el of root.querySelectorAll?.('[data-fund]')??[])el.addEventListener(el.tagName==='SELECT'?'change':'input',()=>{
   const k=el.dataset.fund,v=el.value;
   app.fund={...(app.fund??{}),...(k==='whose'?(v==='purse'?{payFrom:'purse'}:{payFrom:'actor',actorId:v.replace(/^actor:/,'')}):{[k]:v})};

@@ -5,7 +5,7 @@
 // Mocked Foundry globals: proves the logic and the markup, not the live Foundry UI, sockets or layout.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ID,normalizeAudience,normalizeMerchantList,listNeedsMigration,migrateMerchantLists,audiencePresented,presentedCovers,mergePresented,audienceText,
+import {ID,normalizeAudience,normalizeMerchantList,listNeedsMigration,migrateMerchantLists,audiencePresented,presentedCovers,presentedBeyond,mergePresented,audienceText,
  coinExchangeEntry,exchangeLine,fundLogEntry,tradeCardHTML,bankQuote,planShopImport,BANK_DEPRECATED,purseEntry} from '../scripts/core.mjs';
 
 // ---- Pure helpers ----
@@ -276,16 +276,21 @@ test('deposit and take post the card to the player and the GM; History for playe
 });
 test('Party Fund tab markup: purse with Deposit / Take, Change coins with preview, and the coin log; Items shows the purse in one line',async()=>{
  const app=await as(alice,()=>game.modules.get(ID).api.stash.open());
- app.stashTab='fund';app.fund={payFrom:'actor',actorId:'kestrel',from:'gp',to:'sp',receive:'10'};kestrel.system.currency.gp=3;
- const html=await as(alice,()=>app._renderHTML());
- assert.match(html,/role="tab" data-stash-tab="fund" aria-selected="true"[^>]*>Party Fund/);
- assert.match(html,/data-action="purse-deposit"/);assert.match(html,/<h3>Change coins<\/h3>/);
- assert.match(html,/id="agu-fund-whose" data-fund="whose"><option value="actor:kestrel" selected>\[TEST\] Kestrel&#39;s coins<\/option><option value="purse">Party purse<\/option>/);
+ app.stashTab='fund';app.fundAction='deposit';app.fund={payFrom:'actor',actorId:'kestrel',from:'gp',to:'sp',receive:'10'};kestrel.system.currency.gp=3;
+ const deposit=await as(alice,()=>app._renderHTML());
+ // 0.26.0: kit sub-tabs; one Character picker drives Deposit / Take / Change coins, shown one at a time.
+ assert.match(deposit,/role="tab" id="agu-stash-tab-fund" data-tab="fund"[^>]*aria-selected="true"[^>]*>Party Fund/);
+ assert.match(deposit,/<label class="ag-field ag-field--inline agu-fund-who">Character<select id="agu-purse-actor">/);
+ assert.match(deposit,/data-action="purse-deposit"/);assert.doesNotMatch(deposit,/data-action="fund-exchange"/);
+ app.fundAction='exchange';const html=await as(alice,()=>app._renderHTML());
+ assert.doesNotMatch(html,/data-action="purse-deposit"|id="agu-fund-whose"/,'no second character picker');
+ assert.match(html,/<div class="ag-segmented" role="radiogroup" aria-labelledby="agu-fund-whose-label"><button type="button" role="radio" data-fund-whose="actor:kestrel" aria-checked="true">\[TEST\] Kestrel&#39;s coins<\/button><button type="button" role="radio" data-fund-whose="purse" aria-checked="false">Party purse<\/button>/);
+ assert.match(html,/class="ag-btn ag-btn--primary" data-action="fund-exchange"/,'the same primary weight as Deposit and Take');
  assert.doesNotMatch(html.match(/id="agu-fund-from"[\s\S]*?<\/select>/)[0],/value="ep"/,'no electrum while it is off');
  assert.match(html,/You give<\/dt><dd>1 gp<\/dd><dt>You get<\/dt><dd>10 sp<\/dd>/);assert.match(html,/No fee\./);
  assert.doesNotMatch(html,/data-action="fund-exchange" disabled/);
- assert.match(html,/aria-label="Party Fund log"[\s\S]*?Alice changed 200 cp into 2 gp/);
- assert.doesNotMatch(html.slice(html.indexOf('Party Fund log')),/Bob changed/,'another player\'s own coins are not in the log');
+ assert.match(html,/<div class="agu-fund-log"><details class="ag-fold" data-ag-fold-key="fund-log" open><summary class="ag-fold__summary"><span class="ag-fold__title">Log<\/span>[\s\S]*?Alice changed 200 cp into 2 gp/);
+ assert.doesNotMatch(html.slice(html.indexOf('agu-fund-log')),/Bob changed/,'another player\'s own coins are not in the log');
  assert.doesNotMatch(html,/<button[^>]*\stitle=/);
  app.stashTab='items';const items=await as(alice,()=>app._renderHTML());
  assert.doesNotMatch(items,/data-action="purse-deposit"/);assert.match(items,/Party purse: <strong>/);
@@ -299,4 +304,57 @@ test('the Bank is deprecated in the GM editor and toolbar but keeps working',asy
  const msg=await viaGM(alice,()=>api.services.use({serviceId:BANK,payFrom:'actor',actorId:'kestrel',from:'cp',to:'sp',receive:10,rev}),'service-use',svcMod.executeServiceUse);
  assert.equal(msg,'Changed 100 cp into 10 sp for [TEST] Kestrel.');assert.equal(history().at(-1).kind,'bank-exchange');
  await api.stopShowing(BANK);
+});
+
+// ---- 0.26.0 cleanup (UT-15, UT-16, UT-23, UT-24): summary cards, Close all asks first, Share… and Delete in the editor ----
+test('presentedBeyond: a whole-party list covers everyone; a hidden list no one; chosen players only themselves',()=>{
+ assert.equal(presentedBeyond(null,{mode:'users',userIds:['a']}),false);
+ assert.equal(presentedBeyond({mode:'all',userIds:[]},{mode:'party',userIds:[]}),false);
+ assert.equal(presentedBeyond({mode:'users',userIds:['a']},{mode:'hidden',userIds:[]}),true);
+ assert.equal(presentedBeyond({mode:'all',userIds:[]},{mode:'users',userIds:['a']}),true);
+ assert.equal(presentedBeyond({mode:'users',userIds:['a']},{mode:'users',userIds:['a','b']}),false);
+ assert.equal(presentedBeyond({mode:'users',userIds:['a','c']},{mode:'users',userIds:['a','b']}),true);
+});
+test('merchant-list card is a summary: stores in a fold with name and switch only; Share…, Open all, Close all…, Edit, Delete… in the actions',async()=>{
+ await merchants.save({id:LIST,name:'[TEST] Harbour guild',shopIds:[KETTLE,ANVIL]});
+ await merchants.setAudience(LIST,{mode:'party'});await merchants.setOpen(LIST,KETTLE,true);
+ const html=gmView.shopsView({shopSub:'lists'});
+ const card=html.match(/<article class="ag-card ag-card--compact agu-mlist" data-mlist="MLIST-TEST-HARBOUR-GUILD">[\s\S]*?<\/article>/)[0];
+ assert.match(card,/<details class="ag-fold" data-ag-fold-key="mlist-stores:MLIST-TEST-HARBOUR-GUILD"><summary class="ag-fold__summary"><span class="ag-fold__title">Stores<\/span><span class="ag-fold__count">2<\/span><\/summary>/);
+ assert.doesNotMatch(card,/Shown to/,'no repeated "Shown to" badge on entries');
+ assert.doesNotMatch(card,/Open shows a store to this list/,'the hint moved to Help');
+ assert.match(card,/<div class="ag-card__actions">[^]*data-action="mlist-share"[^]*data-action="mlist-open-all"[^]*data-action="mlist-close-all"[^]*Close all…[^]*data-action="mlist-edit"[^]*data-action="mlist-delete"[^]*Delete…/);
+ await merchants.setAllOpen(LIST,false);
+});
+test('Close all asks first, names stores also shown elsewhere, and Cancel closes nothing; Close n stores closes them',async()=>{
+ const OTHER=(await merchants.save({name:'[TEST] Second list',shopIds:[KETTLE]})).id;
+ await merchants.setAudience(OTHER,{mode:'party'});
+ await merchants.setAudience(LIST,{mode:'users',userIds:['alice']});
+ await api.present(KETTLE,{mode:'all'});await merchants.setOpen(LIST,ANVIL,true);
+ const fx=mlMod.closeEffects(LIST,[KETTLE,ANVIL]);
+ assert.deepEqual(fx.map(e=>[e.id,e.beyond]),[[KETTLE,true]],'the Anvil reaches only the list\'s own players');
+ assert.ok(fx[0].others.includes('[TEST] Second list'),'other shared lists that hold it are named');
+ const seen=[];let answer='cancel';
+ foundry.applications.api.DialogV2={wait:async o=>{seen.push(o);return o.buttons.find(b=>b.action===answer).callback();}};
+ try{
+  const app={listDraft:null},render=async()=>{};
+  await mlMod.handleLists(app,'mlist-close-all',{dataset:{mlistId:LIST}},{render});
+  assert.equal(seen[0].window.title,'Close 2 stores for every player?');
+  assert.deepEqual(seen[0].buttons.map(b=>[b.label,b.default]),[['Cancel',true],['Close 2 stores',false]],'Cancel is the default');
+  assert.match(seen[0].content,/outside this list: \[TEST\] Kettle \(also on [^)]*\[TEST\] Second list\)/);
+  assert.deepEqual(api.presented().map(s=>s.id).sort(),[ANVIL,KETTLE].sort(),'Cancel: nothing closed');
+  answer='confirm';await mlMod.handleLists(app,'mlist-close-all',{dataset:{mlistId:LIST}},{render});
+  assert.deepEqual(api.presented(),[]);
+ }finally{delete foundry.applications.api.DialogV2;}
+ await merchants.delete(OTHER,{confirm:true});
+});
+test('list editor: back button, Share… (Applies now) and a Danger zone with Delete list…; the Add select has a visible label',async()=>{
+ const html=gmView.shopsView({shopSub:'lists',listDraft:{id:LIST,name:'[TEST] Harbour guild',locationId:null,shopIds:[KETTLE]}});
+ assert.match(html,/data-action="mlist-back"[^>]*>[\s\S]*?All merchant lists<\/button>/);
+ assert.match(html,/Applies now[\s\S]*data-action="mlist-share" data-mlist-id="MLIST-TEST-HARBOUR-GUILD"/);
+ assert.match(html,/Danger zone[\s\S]*class="ag-btn ag-btn--danger" data-action="mlist-delete" data-mlist-id="MLIST-TEST-HARBOUR-GUILD"[^>]*>[\s\S]*?Delete list…/);
+ assert.match(html,/<label class="ag-field ag-field--inline agu-mlist-add">Add<select data-mlist-add>/);
+ assert.doesNotMatch(html,/aria-label="Shops sections"/,'the editor replaces the sub-tab row');
+ const fresh=gmView.shopsView({shopSub:'lists',listDraft:{id:null,name:'',locationId:null,shopIds:[]}});
+ assert.doesNotMatch(fresh,/mlist-share|mlist-delete/,'a new list has nothing to share or delete yet');
 });

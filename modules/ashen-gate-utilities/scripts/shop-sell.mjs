@@ -183,9 +183,9 @@ export function sellViewHTML(view,actor,state={}){
  const category=Object.fromEntries(items.map(i=>[i.id??i._id,typeLabel(i.type)]));
  const row=x=>{const uuid=uuidOf(x.id),pic=itemButton({uuid,name:x.name,inner:x.img?`<img src="${E(x.img)}" alt="">`:icon('fa-box'),cls:'agu-item-link agu-ware-card__img'});
   const price=x.ok?coinChipsHTML(x.priceText.replace(/^Shop pays /,'')):'';
-  return `<li class="agu-ware-card${x.ok?'':' is-disabled'}"${x.ok?'':' aria-disabled="true"'} data-sell-item="${E(x.id)}">${pic}<div class="agu-ware-card__body">${itemButton({uuid,name:x.name,cls:'agu-item-link agu-ware-card__name'})}<span class="agu-ware-card__meta">${E(`×${x.quantity}${x.ok?'':` · ${x.reason}`}`)}</span></div>
+  return `<li class="ag-card ag-card--compact agu-ware-card${x.ok?'':' is-disabled'}"${x.ok?'':' aria-disabled="true"'} data-sell-item="${E(x.id)}">${pic}<div class="agu-ware-card__body">${itemButton({uuid,name:x.name,cls:'agu-item-link agu-ware-card__name'})}<span class="agu-ware-card__meta">${E(`×${x.quantity}${x.ok?'':` · ${x.reason}`}`)}</span></div>
   <div class="agu-ware-card__foot">${x.ok?`<span class="agu-ware__price">Shop pays ${price}</span>${button('shop-sell','Sell…',{kind:'sm',ic:'fa-coins',attrs:`data-shop="${E(view.id)}" data-item-id="${E(x.id)}" aria-label="Sell ${E(x.name)}"`})}`:''}</div></li>`;};
- const grid=list=>groupByCategory(list,x=>category[x.id]).map(g=>`<section class="agu-ware-group" aria-label="${E(g.category)}"><h4 class="ag-eyebrow">${E(g.category)} · ${g.lines.length}</h4><ul class="agu-ware-grid">${g.lines.map(row).join('')}</ul></section>`).join('');
+ const grid=list=>groupByCategory(list,x=>category[x.id]).map(g=>`<section class="agu-ware-group" aria-label="${E(g.category)}"><h4 class="ag-eyebrow">${E(g.category)} · ${g.lines.length}</h4><ul class="ag-card-grid agu-ware-grid">${g.lines.map(row).join('')}</ul></section>`).join('');
  const ok=rows.filter(x=>x.ok),no=rows.filter(x=>!x.ok);
  const pct=`${view.name} pays ${view.buys.percent} % of an item's price. Drag an item from ${actor.name}'s sheet onto this window to sell it.`;
  return `${dest}<p class="ag-field__hint">${E(pct)}</p>
