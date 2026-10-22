@@ -61,14 +61,14 @@ test('crosswalk defaults cover all 15 professions (0.28.0: Artistry); Fishing is
   assert.deepEqual(unmappedProfessions(map),[]);
 });
 
-test('catalog-derived defaults: access lists replace built-in ones; empty access keeps the default; unknown names are reported',()=>{
+test('catalog-derived defaults: access lists replace built-in ones; empty access, or a list left out (0.29.1), keeps the default; unknown names are reported',()=>{
   const {catalog,unresolved}=catalogCrosswalk([
     {sourceId:'PROF-TG-HERBALISM',name:'[TEST] Herbalism',access:{skillProficienciesAnyOf:['Nature'],advantageToolsAnyOf:['Herbalism Kit']}},
     {sourceId:'PROF-TG-ALCHEMY',name:'[TEST] Alchemy',access:{toolProficienciesAnyOf:["Alchemist's Supplies",'Herbalism Kit']}},
     {sourceId:'PROF-TG-ENCHANTING',name:'[TEST] Enchanting',access:{}},
     {sourceId:'PROF-TG-MINING',name:'[TEST] Mining',access:{toolProficienciesAnyOf:['[TEST] Pickaxe']}}]);
   const map=effectiveMapping({},{catalog});
-  assert.deepEqual(map.qualifySkills.herbalism,['nat']);assert.deepEqual(map.qualifyTools.herbalism,[],'the kit only gives advantage in the catalog');
+  assert.deepEqual(map.qualifySkills.herbalism,['nat']);assert.deepEqual(map.qualifyTools.herbalism,['herb'],'0.29.1: no tool list in the content, so the built-in qualifying tool stays');assert.equal(map.origin.herbalism.qualifyTools,'default');
   assert.deepEqual(map.advantageTools.herbalism,['herb']);assert.equal(map.origin.herbalism.qualifySkills,'catalog');
   assert.deepEqual(map.qualifyTools.alchemy,['alchemist','herb']);
   assert.deepEqual(map.qualifySkills.enchanting,['arc'],'{} access keeps the Arcana default');assert.equal(map.origin.enchanting.qualifySkills,'default');
@@ -116,7 +116,7 @@ test('GM preview for the party: catalog crosswalk, "already has", missing Items;
   const view=p.rows.map(r=>[r.actorName,r.profession,r.reason,r.status]);
   assert.deepEqual(view,[
     ['[TEST] Ana','Alchemy','Herbalism Kit → Alchemy','has'],
-    ['[TEST] Ana','Herbalism','Nature → Herbalism','propose'],
+    ['[TEST] Ana','Herbalism','Herbalism Kit + Nature → Herbalism','propose'],
     ['[TEST] Bo','Cooking','Cook’s Utensils → Cooking','propose'],
     ['[TEST] Bo','Mining','Mason’s Tools → Mining','propose']]);
   assert.equal(JSON.stringify(all.map(a=>a.items.length)),before);

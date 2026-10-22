@@ -15,7 +15,7 @@ test('export writes only GM and baseline lists as overrides; catalog advantage t
   assert.deepEqual(out.professions.mining.qualifyTools,['smith'],'GM list is');
   assert.deepEqual(out.professions.fishing.qualifySkills,['nat'],'baseline list is');
   assert.deepEqual(out.professions.herbalism.inEffect.advantageTools,['herb'],'the table in effect is still shown');
-  assert.deepEqual(out.professions.herbalism.origin,{qualifySkills:'catalog',qualifyTools:'catalog',advantageTools:'catalog',items:'default',advantageItems:'default'});
+  assert.deepEqual(out.professions.herbalism.origin,{qualifySkills:'catalog',qualifyTools:'default',advantageTools:'catalog',items:'default',advantageItems:'default'});
   const back=parseBaselineFile(out);
   assert.equal(back.ok,true);
   assert.equal(back.baseline.herbalism.advantageTools,undefined);
