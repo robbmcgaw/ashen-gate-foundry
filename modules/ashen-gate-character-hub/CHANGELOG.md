@@ -1,3 +1,10 @@
+## 0.29.5 — 2026-10-22
+
+- **Fix: Level up now opens dnd5e's advancement windows (hit points, features, subclass, ability scores) the way the dnd5e sheet does.** The Hub is a Foundry sheet, not a dnd5e one, so it opened dnd5e's window with a plain render, which always lands in the main Foundry window. It now asks Foundry to open it in the Hub's own window (as dnd5e's sheets do), so it also shows when the Hub is popped out. Same for **Add a class**.
+- Unchanged: the class level only goes up when you finish dnd5e's window. Closing it, or an error opening it, leaves the character as it was and makes no backup copy. Finishing it makes the "<Name> - level X" backup for the GM.
+- When dnd5e itself reports nothing to ask (or the world turns dnd5e advancements off), the class level goes up by one directly, as on the native sheet; the browser console notes "dnd5e has no advancement steps for …".
+- Saved data: no change. No migration.
+
 ## 0.29.4 — 2026-10-22
 
 - **Fix: the Hub jumped back to the top when it redrew.** Any change to the character (the GM changing Strain, say) redraws an open Hub, and each redraw put the lists back at the top. Now every scrolled area (the tab's list, the character column, embedded module views) keeps its place, remembered per tab: a live update never moves a player reading Inventory, Magic or Features, and switching back to a tab returns to where you were. The search text stays, and a field you are typing in keeps the focus, the caret and what you typed. A redraw that would show exactly the same thing is skipped.
