@@ -1,3 +1,17 @@
+## 0.48.0 — 2026-10-22
+
+For the new Artistry profession in Profession Ledger 0.28.0.
+
+- **Creative professions import.** A Profession record with `profession_kind: "creative"` (or `category: "creative"`) imports like a crafting or gathering one. Artistry is `PROF-ARTISTRY`.
+- **Activity recipes import.** A Recipe record with `kind: "activity"` (a performance, a painting) has no ingredients and no result item. It imports as its recipe Item, the thing a character learns, and nothing else: no result Item and no "missing result item" or "no ingredients" problem. Recipes without `kind` are craft recipes and import exactly as before, errors included.
+- **Import preview:** under the Type, a recipe shows *Activity* or *Craft* with its effort and tier ("Activity · Short effort · Apprentice"), and a profession shows its category ("Creative"). The downloaded preview report has the same line.
+- **Browse:** recipes get an *Activity* or *Craft* chip, professions their category, with *Recipe kind*, *Effort*, *Tier*, *Tools* or *Profession category* in the detail. Searching "activity" finds activities.
+- **"Any musical instrument"** (also "Musical instrument", "music") is a group of tools. Manager never checked tool names, so it imports in a profession's access list and in `required_tools` like any other.
+- **Smart icons know creative words:** music, instrument, lute, lyre, drum, song, performance (instruments); paint, brush, canvas, art (painting); sculpt, statue (sculpture); poem, verse (scrolls and quills); play, mask, theatre (masks). "Instrument" now means a musical instrument, not a hand tool. An activity whose name matches nothing gets a stage or instrument icon instead of a document.
+- The new fields (`kind`, `access`, the creative category) are kept whole in the stored definition and in world export.
+- New sample: `samples/AG_Artistry_v0.48.0_Test.json` ([TEST] Artistry and two [TEST] activities).
+- Saved data: no change. No migration.
+
 ## 0.47.0 — 2026-10-22
 
 - **Smart icons.** A record with no icon, or only a placeholder (blank, Foundry's bag / mystery man / d20 / dice art, dnd5e's default item art, Manager's own generic icons, or a local file that is missing), now gets a fitting icon from Foundry's own icon library (core `icons/`, plus `systems/dnd5e/icons` when it can be read), picked from its name, kind and tags: "Iron Caltrops" gets a caltrops icon, "Healing Draught" a potion, "Oak Shield" a shield. The same record always gets the same icon. If nothing fits, the generic category icon is used as before. The words-to-folders list is in `scripts/icon-keywords.js` and easy to extend.

@@ -1,0 +1,140 @@
+{
+  "manifest": {
+    "schema_version": "ag-foundry-import/0.2",
+    "package_id": "AG-TEST-ARTISTRY",
+    "version": "0.48.0"
+  },
+  "records": [
+    {
+      "id": "PROF-ARTISTRY",
+      "entity_type": "Profession",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic [TEST] Artistry fixture (General Manager 0.48.0); no rules text"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [],
+      "name": "[TEST] Artistry",
+      "profession_kind": "creative",
+      "access": {
+        "toolProficienciesAnyOf": [
+          "Any musical instrument",
+          "Painter's Supplies",
+          "Calligrapher's Supplies",
+          "Disguise Kit"
+        ],
+        "skillProficienciesAnyOf": [
+          "Performance"
+        ]
+      },
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Professions/Test Artistry",
+        "data": {
+          "name": "[TEST] Artistry — Profession",
+          "type": "feat",
+          "system": {
+            "description": {
+              "value": "<h2>[TEST] Artistry</h2><p>Synthetic creative profession for testing the import; no rules text.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "REC-TEST-ARTISTRY-BALLAD",
+      "entity_type": "Recipe",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic [TEST] Artistry fixture (General Manager 0.48.0); no rules text"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "requires_profession",
+          "target_id": "PROF-ARTISTRY",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Tavern Ballad",
+      "kind": "activity",
+      "profession_id": "PROF-ARTISTRY",
+      "tier": "apprentice",
+      "effort": "short",
+      "ingredients": [],
+      "required_tools": [
+        "Any musical instrument"
+      ],
+      "access": {
+        "skillProficienciesAnyOf": [
+          "Performance"
+        ]
+      },
+      "rules_summary": "Synthetic activity for testing; no rules effect.",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Professions/Test Artistry",
+        "data": {
+          "name": "Recipe: [TEST] Tavern Ballad",
+          "type": "loot",
+          "system": {
+            "description": {
+              "value": "<h2>Recipe: [TEST] Tavern Ballad</h2><p>[[AGREF:PROF-ARTISTRY|Artistry]] · Apprentice · short effort · activity</p><p>Synthetic activity for testing; no rules effect.</p>"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "REC-TEST-ARTISTRY-PORTRAIT",
+      "entity_type": "Recipe",
+      "status": "approved",
+      "version": "0.1.0",
+      "provenance": {
+        "sources": [
+          "Synthetic [TEST] Artistry fixture (General Manager 0.48.0); no rules text"
+        ]
+      },
+      "visibility": "player",
+      "scope": "generic_rules",
+      "refs": [
+        {
+          "relation": "requires_profession",
+          "target_id": "PROF-ARTISTRY",
+          "mode": "required"
+        }
+      ],
+      "name": "[TEST] Quick Portrait",
+      "kind": "activity",
+      "profession_id": "PROF-ARTISTRY",
+      "tier": "journeyman",
+      "effort": "long",
+      "required_tools": [
+        "Painter's Supplies",
+        "Calligrapher's Supplies"
+      ],
+      "rules_summary": "Synthetic activity for testing; no rules effect.",
+      "foundry": {
+        "document_type": "Item",
+        "folder_path": "Ashen Gate/Professions/Test Artistry",
+        "data": {
+          "name": "Recipe: [TEST] Quick Portrait",
+          "type": "loot",
+          "system": {
+            "description": {
+              "value": "<h2>Recipe: [TEST] Quick Portrait</h2><p>[[AGREF:PROF-ARTISTRY|Artistry]] · Journeyman · long effort · activity</p><p>Synthetic activity for testing; no rules effect.</p>"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

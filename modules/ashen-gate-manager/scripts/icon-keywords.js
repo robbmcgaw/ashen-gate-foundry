@@ -70,7 +70,7 @@ export const ICON_CONCEPTS = Object.freeze([
   {id: 'orb', words: ['orb', 'sphere', 'globe'], folders: ['sundries/misc', 'commodities/gems'], names: ['orb', 'sphere', 'globe']},
   {id: 'survival', words: ['kit', 'pack', 'bedroll', 'tinderbox', 'tinder', 'firewood', 'flint', 'canteen', 'rations', 'camp', 'mess'], folders: ['sundries/survival'], names: ['bedroll', 'tinderbox', 'canteen', 'pack']},
   // Tools
-  {id: 'tool', words: ['tool', 'tools', 'toolkit', 'implement', 'instrument'], folders: ['tools/hand'], names: ['tool']},
+  {id: 'tool', words: ['tool', 'tools', 'toolkit', 'implement'], folders: ['tools/hand'], names: ['tool']},
   {id: 'smithing', words: ['anvil', 'tongs', 'bellows', 'smith', 'smithing', 'forge', 'hammer', 'chisel', 'file'], folders: ['tools/smithing', 'tools/hand'], names: ['anvil', 'tongs', 'hammer', 'chisel']},
   {id: 'digging', words: ['pick', 'pickaxe', 'shovel', 'spade', 'hoe', 'crowbar', 'mattock', 'sickle', 'saw'], folders: ['tools/hand'], names: ['pick', 'shovel', 'spade', 'crowbar', 'saw', 'sickle']},
   {id: 'scribe', words: ['quill', 'ink', 'pen', 'inkwell', 'calligraphy', 'scribe', 'cartographer', 'sealing', 'wax'], folders: ['tools/scribal'], names: ['quill', 'ink', 'pen']},
@@ -78,7 +78,12 @@ export const ICON_CONCEPTS = Object.freeze([
   {id: 'thieves', words: ['lockpick', 'picks', 'thieves', 'burglar'], folders: ['tools/hand'], names: ['lockpick', 'pick']},
   {id: 'fishing', words: ['fishing', 'hook', 'lure', 'rod'], folders: ['tools/fishing'], names: ['fishing', 'hook', 'rod']},
   {id: 'cooking', words: ['cook', 'cooking', 'pot', 'pan', 'kettle', 'cauldron', 'utensil', 'ladle'], folders: ['tools/cooking', 'containers/kitchenware'], names: ['pot', 'pan', 'kettle', 'cauldron']},
-  {id: 'music', words: ['lute', 'flute', 'drum', 'harp', 'lyre', 'horn', 'fiddle', 'viol', 'bagpipe', 'pipe', 'whistle', 'bell', 'song'], folders: ['tools/instruments'], names: ['lute', 'flute', 'drum', 'harp', 'lyre', 'horn', 'bell']},
+  // Creative work (0.48.0, Artistry): music, painting, sculpture, writing and the stage.
+  {id: 'music', words: ['music', 'musical', 'musician', 'instrument', 'lute', 'flute', 'drum', 'harp', 'lyre', 'horn', 'fiddle', 'viol', 'bagpipe', 'pipe', 'whistle', 'bell', 'song', 'ballad', 'melody', 'hymn', 'chant', 'tune', 'performance', 'perform', 'concert', 'recital'], folders: ['tools/instruments'], names: ['lute', 'flute', 'drum', 'harp', 'lyre', 'horn', 'bell', 'music', 'instrument']},
+  {id: 'painting', words: ['paint', 'painting', 'painter', 'brush', 'paintbrush', 'canvas', 'art', 'artwork', 'artist', 'portrait', 'easel', 'palette', 'pigment', 'sketch', 'drawing', 'mural'], folders: ['tools/scribal', 'sundries/documents'], names: ['paint', 'brush', 'canvas', 'palette', 'easel', 'art', 'portrait']},
+  {id: 'sculpture', words: ['sculpt', 'sculpture', 'sculptor', 'statue', 'carving', 'bust'], folders: ['commodities/treasure', 'commodities/stone'], names: ['statue', 'sculpture', 'bust', 'figurine', 'idol']},
+  {id: 'writing', words: ['poem', 'poetry', 'poet', 'verse', 'sonnet', 'ode', 'story', 'storytelling', 'prose', 'composition', 'compose'], folders: ['sundries/scrolls', 'tools/scribal', 'sundries/books'], names: ['scroll', 'quill', 'book', 'paper']},
+  {id: 'theatre', words: ['play', 'theatre', 'theater', 'theatrical', 'drama', 'stage', 'mask', 'masque', 'comedy', 'tragedy', 'performance', 'troupe', 'dance', 'dancer', 'dancing', 'juggle', 'juggling'], folders: ['sundries/misc', 'equipment/head'], names: ['mask', 'theater', 'theatre', 'comedy', 'tragedy']},
   {id: 'navigation', words: ['compass', 'sextant', 'spyglass', 'telescope', 'astrolabe', 'hourglass', 'spectacles', 'magnifying'], folders: ['tools/navigation'], names: ['compass', 'spyglass', 'hourglass']},
   // Containers
   {id: 'bag', words: ['bag', 'sack', 'pouch', 'backpack', 'satchel', 'haversack', 'knapsack', 'purse'], folders: ['containers/bags'], names: ['bag', 'sack', 'pouch', 'backpack', 'satchel']},
@@ -120,6 +125,8 @@ export const KIND_CONCEPTS = Object.freeze({
   recipe: ['document'], profession: ['trade'], perk: ['melee'], feature: ['melee'], cinder: ['fire'], power: ['fire'],
   mutation: ['unholy'], handout: ['document'], npc: ['person'], character: ['person'], actor: ['person'],
   rolltable: ['game'], macro: ['game'], resourceopportunity: ['herb'],
+  // 0.48.0: an activity recipe (kind "activity": a performance, a painting) reads as the stage before it reads as a document.
+  activity: ['theatre', 'music'],
 });
 
 /** Words that never decide an icon by themselves. */
