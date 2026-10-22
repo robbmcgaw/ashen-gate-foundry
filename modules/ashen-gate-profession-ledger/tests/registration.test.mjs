@@ -9,11 +9,11 @@ const entry=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../script
 await import(pathToFileURL(entry));
 assert.equal(typeof hooks.init,'function');assert.equal(typeof hooks.ready,'function');
 hooks.init();hooks.ready();
-assert.equal(menu.open.restricted,false);
+assert.equal(menu.open.restricted,true,'0.25.0: no Ledger section in players’ Configure Settings');
 assert.equal(settings.libraryData.scope,'world');
 assert.equal(settings.partyRoster.scope,'world');
 assert.deepEqual(settings.partyRoster.default,[]);
-assert.equal(api.version,'0.24.3');
+assert.equal(api.version,'0.25.0');
 const window=api.open({view:'party',demo:true});
 assert.equal(window.view,'party');assert.equal(window.demo,false);assert.equal(window.rendered,true);
 console.log('PASS module registration and launch smoke test');

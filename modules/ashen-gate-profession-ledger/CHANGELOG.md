@@ -1,3 +1,14 @@
+## 0.25.0 — 2026-10-22
+
+- **Gathering Nodes tab (GM only):** gathering node templates owned by the Ledger. Each has a permanent `NODE-*` id, a name, an activity (Mining, Herbalism, Hunting, Fishing, Archaeology), gathering profession(s), a tier range, an optional check skill/tool and DC, and common/rare/exotic material tables (weighted chances adding up to 100 when a table has several materials). New node, Edit, Duplicate and Delete (with a labelled confirmation that names any Location pointing to it; ids are never reused). Grouped by activity, with search and an activity filter. GM Setup stays settings-only.
+- **Roll on a template from anywhere:** Gathering → *Node template*, with a tier inside its range. A Location entry may refer to a template by `nodeId`; a deleted template leaves the Location entry in place with "Node template NODE-… no longer exists".
+- **Node files:** Import nodes (preview, then Apply import) and Export, schema `ag-gathering-nodes/1` (`docs/gathering-nodes-schema.md`). Import adds new ids and updates templates you have not edited; it never removes one or overwrites your edit. `scripts/validate-content.mjs` checks `*.gathering-nodes.json` files.
+- **Draft materials (GM):** the ad-hoc dropdowns, the Exotic picker and the node editor list every imported material, drafts in their own group marked *Draft*/*Unreleased*. A blocked node now says whether its material is **not imported** or **draft/unreleased**. **Use draft materials anyway** (Gathering tab, GM only) awards draft common, rare and Exotic materials for that check; a player's request on such a node waits in Requests with **Approve (use draft material)**. Players still only see released materials.
+- **Hunting:** gathering nodes stored as "Skinning & Harvesting" read *Hunting* in the Ledger (stored values and ids unchanged).
+- **Settings:** the Ledger's settings menu is GM-only, so players no longer see a Profession Ledger section in Configure Settings (they open it from the Actors sidebar).
+- API (additive; old calls unchanged): `gathering.templates.*`, `gathering.start({templateId, tier, allowDraft})`, `gathering.approve(id, {allowDraft})`.
+- **Saved data / migration:** node templates live in the new GM-only Journal *Profession Ledger (GM Data)* (flag `gatheringNodes`). On first load with Locations active, the active GM's client copies every Location gathering entry into a template once (identical entries share one; existing `NODE-*` ids kept; "Skinning & Harvesting" becomes Hunting). Locations records are never changed. Each original entry is backed up in the same flag and the GM gets a whispered note. Safe to re-run (**Copy Location nodes**): entries already copied, or deleted afterwards, are not copied again.
+
 ## 0.24.3 — 2026-10-21
 
 - Character Hub's level-up backup copies ("<Name> - level X") no longer appear in the Party Roster picker, party lists or the Assign view, and a backup id already saved in the roster is ignored.
