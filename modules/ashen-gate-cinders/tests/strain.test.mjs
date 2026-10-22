@@ -168,9 +168,10 @@ test('Help opens through infoDialog with one Close button; Reset to defaults is 
   assert.deepEqual(saved.get('strainConfig'),{marker:'[TEST] kept'},'Cancel leaves the Strain config alone');
   saved.delete('strainConfig');api.DialogV2=before;
 });
-test('Unbind and Detach are labelled danger confirms; no DialogV2.confirm or .input left',async()=>{
+test('Unbind and Detach are labelled danger confirms with Cancel as the default (kit confirmDanger); no DialogV2.confirm or .input left',async()=>{
   const src=await (await import('node:fs/promises')).readFile(new URL('../scripts/main.mjs',import.meta.url),'utf8');
-  assert.match(src,/yes:'Unbind Cinder',danger:true/);assert.match(src,/yes:'Detach item',danger:true/);
+  assert.match(src,/confirmDanger\(`Unbind [^`]*`,\{title:`Unbind \$\{name\}\?`,yes:'Unbind Cinder'\}\)/);
+  assert.match(src,/confirmDanger\(`Detach [^`]*`,\{title:`Detach \$\{x\.name\}\?`,yes:'Detach item'\}\)/);
   assert.match(src,/title:`Push \$\{pv\.powerName\}\?`,yes:'Push'/);
   assert.doesNotMatch(src,/DialogV2\.(confirm|prompt|input)\(/);
 });
@@ -203,7 +204,7 @@ test('Strain row uses the same kit meter and badge markup as Character Hub',asyn
 test('header, tabs, toolbar, empty states and tooltips follow the UI standard',()=>{
   assert.match(hbs,/<h1><span class="ag-header__brand">Ashen Gate<\/span> \| Cinders<\/h1>/);
   assert.match(hbs,/<span class="ag-version">v\{\{version\}\}<\/span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-act="help">/);
-  assert.match(hbs,/class="ag-tabs ag-tabs--scroll" role="tablist"/);
+  assert.match(hbs,/class="ag-tabs ag-tabs--scroll agc-tabs" role="tablist"/);
   assert.equal((hbs.match(/role="tab"/g)??[]).length,3);assert.equal((hbs.match(/aria-selected=/g)??[]).length,3);
   assert.equal((hbs.match(/class="ag-tab--gm /g)??[]).length,2,'Manage and GM Setup are marked GM and come last');
   assert.doesNotMatch(hbs,/agc-active|agc-card|agc-table|agc-toolbar|agc-note|title=/);

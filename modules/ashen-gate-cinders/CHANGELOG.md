@@ -1,3 +1,16 @@
+## 0.11.0 — 2026-10-22
+
+UI cleanup (audit 2026-10, CN-01 to CN-12). No rules or saved data change: same setting keys, flags and ids, no migration.
+
+- **Manage** has sub-tabs **Cinders | Sockets | Check** (kit sub-tabs, arrow keys, remembered per user). Check shows a count when it has rows. In Sockets each Cinder is a fold (name · bearer · n of m in use · lock badge); Attach… comes first, then Lock and Socket count…, right-aligned, with the "Attach needs…" hint on its own line. The long explanations moved to Help.
+- **Repair…** asks first ("Repair Cinders?"), listing what it fixes; when it takes items off characters Cancel is the default.
+- **GM Setup** has sub-tabs **General | Strain** under the one Save Changes footer. General now edits **Cinders per character**, **Starting Cinder points**, **Sockets per Cinder** and **Show Strain chip on tokens** (same settings; staged and checked until Save Changes, nothing saved while a field is marked). Strain starts with the **Strain config file** row (Import Strain config… / Export / Reset Strain to defaults…) and puts Bands (open), Backfire chance, Rules and Effect roll bonus in folds. A refused save opens the marked field's sub-tab and fold and focuses it.
+- Leaving GM Setup or closing the window with unsaved changes asks "Discard unsaved changes?" (Keep editing is the default). Before, leaving the tab dropped them silently.
+- **Cinders tab:** the signature ability and passive are the first rows of **Powers** (badged, with the same mode stats; "Push is offered when you use it from the character sheet."). The two per-device switches are in an **On this device** fold. Sockets on the orbit show a gem and their number; the filled ones are listed by name under the orb. **Items that fit** are buttons that open Attach with the item chosen (still draggable).
+- The Strain card is one shared partial (the no-Cinder copy now has the "every use backfires" notice too) and reads **Backfire N%** instead of a bare N%; the duplicate line and the Strain part of the orb legend are gone. GM buttons read **Add Strain… / Remove Strain… / Set Strain…**; Bind / Transfer / Unbind / Detach / Repair end in "…".
+- Unbind, Detach and Reset Strain use the kit's danger confirmation (Cancel is the default). Focus returns to the button you used after a re-render.
+- Uses the shared kit 2.2 helpers (subTabs, bindTablist, folds, fileButton, confirmDanger, guardDirty, uiState).
+
 ## 0.10.1 — 2026-10-22
 
 - Shared UI kit 2.2 (no visible change).

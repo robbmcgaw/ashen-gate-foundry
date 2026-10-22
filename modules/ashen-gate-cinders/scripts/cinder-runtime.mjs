@@ -538,7 +538,7 @@ export function createCinders(deps){
         if(op.kind!=='detach')await setMarker(itemOf(actor,op.itemId),{instanceId,slot:r.slot});
       }catch(error){after.push(String(error?.message??error));}
       socketsChanged(op.kind,updated,actor.id,{slot:r.slot});if(moved)socketsChanged('detach',moved,moved.bearer?.actorId??null);
-      if(after.length)ui.notifications?.warn?.(`Cinder socket saved, but updating the character failed (${after[0]}). Run Cinders → Manage → Repair.`);
+      if(after.length)ui.notifications?.warn?.(`Cinder socket saved, but updating the character failed (${after[0]}). Run Cinders → Manage → Check → Repair….`);
       return {changed:true,slot:r.slot};
     });
   }

@@ -135,7 +135,7 @@ const node=(data)=>({dataset:data,textContent:'',hidden:true,attrs:{},setAttribu
 test('GM Setup → Strain: edits stay in the draft until Save Changes; marks update in place; Cancel drops them',async()=>{
   game.user=gm;saved.set('strainConfig',null);
   const app=api.open();app.tab='setup';
-  const mark=node({agcError:'schedule.4'}),field=node({agcKey:'schedule.4'}),status={textContent:''};
+  const mark=node({agcError:'schedule.4'}),field=node({agcKey:'schedule.4'}),status={textContent:'',dataset:{}};
   app.element={querySelectorAll:sel=>sel==='[data-agc-error]'?[mark]:sel==='[data-agc-key]'?[field]:[],querySelector:sel=>sel==='[data-agc-status]'?status:null};
   let ctx=await app._prepareContext({});
   assert.equal(ctx.setup.dirty,false);assert.equal(ctx.setup.strain.bands[0].label,'Band 0');assert.equal(ctx.setup.strain.schedule.length,11);
@@ -240,4 +240,117 @@ test('rotate art: the GM switch waits for Save Changes; Cancel drops it; players
   await app._setLocalSpin(false);assert.equal(saved.get(ROTATE_LOCAL_SETTING),false,'a player turns it off for their device');
   await app._setLocalSpin(true);assert.equal(saved.get(ROTATE_LOCAL_SETTING),true);
   game.user=gm;await game.settings.set(MOD,ROTATE_SETTING,true);app.tab='cinders';
+});
+
+// ---- 0.11.0: UI cleanup (CN-01..CN-12) ----
+test('CN-03: GM Setup → General stages the Cinder limits, sockets and Strain chip (same keys) and writes them with the Strain edits in one Save Changes',async()=>{
+  const {NUMBER_SETTINGS,checkSettingNumber}=await import('../scripts/main.mjs');
+  assert.deepEqual(NUMBER_SETTINGS.map(d=>[d.key,d.min,d.max]),[['maxCindersPerActor',1,9],['initialCinderPoints',0,16],['socketsPerCinder',0,12]],'the ranges they are registered with');
+  for(const k of ['maxCindersPerActor','initialCinderPoints','socketsPerCinder','strainChip'])assert.ok(registered.has(k),k);
+  assert.equal(checkSettingNumber('3',{min:1,max:9}),null);
+  for(const bad of ['','0','10','1.5','x'])assert.match(checkSettingNumber(bad,{min:1,max:9}),/Whole number from 1 to 9/,bad);
+  game.user=gm;saved.set('strainConfig',null);errors.length=0;
+  const app=api.open();app.tab='setup';
+  let ctx=await app._prepareContext({});
+  assert.deepEqual(ctx.setup.numbers.map(n=>[n.key,n.value,n.error]),[['maxCindersPerActor','1',null],['initialCinderPoints','1',null],['socketsPerCinder','3',null]]);
+  assert.equal(ctx.setup.chipChecked,true);assert.equal(ctx.setup.dirty,false);
+  app._stageNumber('maxCindersPerActor','12');app._stageChip(false);app._stageStrain('bands.0.label','[TEST] Still');
+  ctx=await app._prepareContext({});
+  assert.equal(ctx.setup.numbers[0].error,'Whole number from 1 to 9.');assert.equal(ctx.setup.dirty,true);assert.equal(ctx.setup.chipChecked,false);
+  await app._act({dataset:{act:'setup-save'}});
+  assert.match(errors.at(-1),/Cinders per character needs a whole number from 1 to 9/);
+  assert.deepEqual([saved.get('maxCindersPerActor'),saved.get('strainChip'),saved.get('strainConfig')],[1,true,null],'a marked field: nothing at all is written');
+  app._stageNumber('maxCindersPerActor','2');app._stageNumber('socketsPerCinder','4');
+  await app._act({dataset:{act:'setup-save'}});await settle();
+  assert.deepEqual([saved.get('maxCindersPerActor'),saved.get('socketsPerCinder'),saved.get('initialCinderPoints'),saved.get('strainChip')],[2,4,1,false]);
+  assert.equal(api.strain.config().bands[0].label,'[TEST] Still','the Strain edit saved with the same press');
+  ctx=await app._prepareContext({});assert.equal(ctx.setup.dirty,false);
+  app._stageNumber('initialCinderPoints','5');await app._act({dataset:{act:'setup-cancel'}});
+  assert.equal(saved.get('initialCinderPoints'),1,'Cancel writes nothing');
+  game.user=player;app._stageNumber('initialCinderPoints','5');assert.deepEqual(app.pendingNumbers,{},'a player cannot stage');
+  game.user=gm;for(const [k,v] of [['maxCindersPerActor',1],['socketsPerCinder',3],['strainChip',true]])await game.settings.set(MOD,k,v);
+  await api.strain.resetConfig();await settle();app.tab='cinders';
+});
+test('CN-01/CN-02: Manage (Cinders | Sockets | Check) and GM Setup (General | Strain) sub-tabs from the kit; the choice is remembered; a top-tab switch asks before dropping edits',async()=>{
+  const {subTabView,MANAGE_TABS,SETUP_TABS}=await import('../scripts/main.mjs');
+  const v=subTabView('agc-manage','Manage sections',MANAGE_TABS.map(t=>t.id==='check'?{...t,count:2}:t),'sockets');
+  assert.equal(v.selected,'sockets');
+  assert.match(v.tabsHtml,/class="ag-tabs ag-tabs--sub" role="tablist" aria-label="Manage sections"/);
+  assert.deepEqual([...v.tabsHtml.matchAll(/data-tab="([a-z]+)"[^>]*aria-selected="(true|false)"/g)].map(m=>[m[1],m[2]]),[['cinders','false'],['sockets','true'],['check','false']]);
+  assert.match(v.tabsHtml,/Check <span class="ag-tab__count">2<\/span>/,'Check carries the report count');
+  assert.match(v.panels.cinders,/id="agc-manage-panel-cinders" role="tabpanel"[^]*hidden/);assert.doesNotMatch(v.panels.sockets,/hidden/);
+  assert.equal(subTabView('agc-setup','GM Setup sections',SETUP_TABS,'gone').selected,'general','an unknown tab falls back to the first');
+  // Remembered per user (kit uiState in localStorage).
+  const store=new Map();globalThis.localStorage={getItem:k=>store.get(k)??null,setItem:(k,x)=>store.set(k,x)};
+  game.user=gm;for(const fn of hooks.get('closeApplicationV2')??[])fn(api.open());
+  const app=api.open();app.ui.set('setupTab','strain');
+  for(const fn of hooks.get('closeApplicationV2')??[])fn(app);
+  const again=api.open();assert.equal(again.setupTab,'strain');again.tab='setup';
+  const ctx=await again._prepareContext({});assert.match(ctx.setup.tabsHtml,/data-tab="strain"[^>]*aria-selected="true"/);
+  // Leaving GM Setup with unsaved edits asks first (kit guardDirty → confirmDanger, Keep editing is the default).
+  const dialogs=foundry.applications.api,before=dialogs.DialogV2;let seen=null;
+  dialogs.DialogV2={wait:async o=>{seen=o;return o.buttons.find(b=>b.action==='cancel').callback();}};
+  again._stageAccess(false);await again._act({dataset:{act:'tab',tab:'cinders'}});
+  assert.equal(seen.window.title,'Discard unsaved changes?');assert.deepEqual(seen.buttons.map(b=>[b.label,b.default]),[['Keep editing',true],['Discard changes',false]]);
+  assert.deepEqual([again.tab,again.pendingAccess],['setup',false],'Keep editing: still on GM Setup with the edit');
+  dialogs.DialogV2={wait:async o=>o.buttons.find(b=>b.action==='confirm').callback()};
+  await again._act({dataset:{act:'tab',tab:'cinders'}});assert.deepEqual([again.tab,again.pendingAccess],['cinders',null]);
+  dialogs.DialogV2=before;delete globalThis.localStorage;
+});
+test('Cinders tab: numbered sockets with a name list (CN-09), focusable tray chips (CN-10), signature rows in Powers (CN-05), "On this device" fold (CN-07)',async()=>{
+  const {sheetView}=await import('../scripts/main.mjs');
+  const c={instanceId:'cinst_TEST',definitionId:'MUT-TEST-EMBER',name:'[TEST] Ember',art:'ashen-gate/cinders/test-ember.webp',powers:[],enhancements:[],
+    signature:{active:{name:'[TEST] Flare',summary:'[TEST] A flare.',modes:[{id:'blaze',label:'[TEST] Blaze',cost:1,after:4,chance:10,modifiers:[]}]},passive:{name:'[TEST] Ward',summary:'[TEST] Warded.'}}};
+  const h={instanceId:'cinst_TEST',capacity:2,free:1,canEdit:true,locked:false,slots:[{slot:0,itemId:'it1',name:'[TEST] A very long socket item name',active:true,modifiers:[]}]};
+  const v=sheetView(hero,c,h,{strainState:{value:3,guaranteeAt:10},fits:[{itemId:'it2',name:'[TEST] Gem'}],uuidOf:id=>`Actor.hero.Item.${id}`});
+  assert.deepEqual(v.filled.map(x=>[x.number,x.name]),[[1,'[TEST] A very long socket item name']]);
+  assert.deepEqual(v.spare.map(x=>[x.itemId,x.uuid]),[['it2','Actor.hero.Item.it2']]);
+  assert.deepEqual(v.signature.map(s=>[s.badge,s.modes.length]),[['Signature',1],['Passive',0]]);
+  assert.deepEqual([v.hasDeviceOptions,v.spinToggle,v.offerToggle],[true,true,true]);
+  assert.equal(sheetView(hero,{...c,art:null,signature:{}},h,{strainState:{value:3,guaranteeAt:10}}).hasDeviceOptions,false,'nothing to switch: no fold');
+  const fs=await import('node:fs/promises');
+  const hbs=await fs.readFile(new URL('../templates/cinders.hbs',import.meta.url),'utf8'),css=await fs.readFile(new URL('../styles/cinders.css',import.meta.url),'utf8');
+  assert.doesNotMatch(hbs+css,/agc-signature|Push on use:/,'the hand-rolled signature box is gone');
+  assert.match(hbs,/<span class="ag-badge ag-badge--accent">\{\{badge\}\}<\/span>/);assert.match(hbs,/Push is offered when you use it from the character sheet\./);
+  assert.match(hbs,/<span class="agc-socket__num" aria-hidden="true"><i class="fa-solid fa-gem" aria-hidden="true"><\/i> \{\{number\}\}<\/span>/);
+  assert.doesNotMatch(hbs,/agc-socket__name/,'no item names inside the orbit circles');
+  assert.match(hbs,/<button type="button" class="ag-chip agc-chip" draggable="true" data-agc-chip data-uuid="\{\{uuid\}\}" data-act="socket-attach"/);
+  assert.doesNotMatch(hbs,/<span class="ag-chip agc-chip"/,'tray chips are buttons');
+  const device=hbs.slice(hbs.indexOf('data-ag-fold-key="device"'),hbs.indexOf('</details>',hbs.indexOf('data-ag-fold-key="device"')));
+  assert.match(device,/On this device/);assert.match(device,/data-agc-spin/);assert.match(device,/data-agc-offer-local/);assert.match(device,/save at once and affect only this browser/);
+});
+test('Strain card is one partial (CN-06) with a labelled Backfire % (CN-08) and Add/Remove/Set Strain… (CN-11); Manage and GM Setup layout (CN-01, CN-02, CN-12)',async()=>{
+  const fs=await import('node:fs/promises');
+  const hbs=await fs.readFile(new URL('../templates/cinders.hbs',import.meta.url),'utf8');
+  assert.equal((hbs.match(/class="agc-strain\{\{/g)??[]).length,1,'the Strain row is written once');
+  assert.equal((hbs.match(/\{\{> agcStrain/g)??[]).length,2,'and used with and without a Cinder');
+  assert.match(hbs,/<span class="agc-strain__chance[^"]*">Backfire \{\{bar\.chance\}\}%/);assert.doesNotMatch(hbs,/Backfire on a Push from here/);
+  assert.match(hbs,/<p class="agc-legend agc-meta">Sockets \{\{used\}\} of \{\{capacity\}\}<\/p>/,'the legend no longer repeats Strain');
+  for(const l of ['Add Strain…','Remove Strain…','Set Strain…','Repair…','Transfer…','Unbind…','Bind…'])assert.ok(hbs.includes(`</i> ${l}</button>`),l);
+  for(const p of ['manage.panels.cinders','manage.panels.sockets','manage.panels.check','setup.panels.general','setup.panels.strain'])assert.ok(hbs.includes(`{{{${p}}}}`),p);
+  assert.match(hbs,/data-ag-fold-key="sockets:\{\{instanceId\}\}"/);
+  const sockets=hbs.slice(hbs.indexOf('data-ag-fold-key="sockets:'),hbs.indexOf('</details>',hbs.indexOf('data-ag-fold-key="sockets:')));
+  assert.ok(sockets.indexOf('data-act="socket-attach"')<sockets.indexOf('data-act="socket-lock"')&&sockets.indexOf('data-act="socket-lock"')<sockets.indexOf('data-act="socket-count"'),'Attach…, then Lock, then Socket count…');
+  assert.match(sockets,/<p class="ag-field__hint">Attach needs a free socket/,'the hint has its own line');
+  assert.doesNotMatch(hbs,/agc-socket-actions|Configure Settings/,'right-aligned actions; nothing sends the GM to Configure Settings');
+  const keys=[...hbs.matchAll(/data-ag-fold-key="(strain-[a-z]+)"( open)?/g)].map(m=>[m[1],Boolean(m[2])]);
+  assert.deepEqual(keys,[['strain-bands',true],['strain-schedule',false],['strain-rules',false],['strain-effect',false]],'Bands open by default');
+  const general=hbs.slice(hbs.indexOf('{{{setup.panels.general}}}'),hbs.indexOf('{{{setup.panels.strain}}}'));
+  for(const x of ['data-agc-access','data-agc-setting','data-agc-chip-setting','data-agc-rotate','data-agc-offer'])assert.ok(general.includes(x),x);
+  const strainPanel=hbs.slice(hbs.indexOf('{{{setup.panels.strain}}}'));
+  assert.ok(strainPanel.indexOf('{{{setup.importButton}}}')<strainPanel.indexOf('data-ag-fold-key="strain-bands"'),'the config file row is at the top of Strain');
+  assert.equal((hbs.match(/<details class="ag-fold/g)??[]).length,(hbs.match(/<\/details>/g)??[]).length);
+  assert.equal((hbs.match(/<footer class="ag-footer">/g)??[]).length,1,'one Save Changes footer for both GM Setup sub-tabs');
+});
+test('Import Strain config… is a kit file button; the picked file goes through the same preview, confirmation and importConfig',async()=>{
+  game.user=gm;saved.set('strainConfig',null);errors.length=0;
+  const app=api.open();app.tab='setup';
+  const ctx=await app._prepareContext({});
+  assert.match(ctx.setup.importButton,/<span class="ag-file"><button type="button" class="ag-btn" data-ag-file-button><i class="fa-solid fa-file-import" aria-hidden="true"><\/i> Import Strain config…<\/button><input type="file" class="ag-file__input ag-sr-only"/);
+  const cfg=structuredClone(api.strain.config());cfg.bands[0].label='[TEST] Imported';
+  await app._strainImport({name:'[TEST].json',text:async()=>JSON.stringify(cfg)});
+  assert.equal(api.strain.config().bands[0].label,'[TEST] Imported');
+  await assert.rejects(app._strainImport({name:'[TEST] bad.json',text:async()=>'{'}),/not valid JSON/);
+  game.user=player;await assert.rejects(app._strainImport({name:'x.json',text:async()=>'{}'}),/GM only/);
+  game.user=gm;await api.strain.resetConfig();await settle();app.tab='cinders';
 });
