@@ -938,21 +938,22 @@ async function convertElectrumDialog(){
  return entry;
 }
 /**
- * The purse: coins, the electrum note and (GM) Adjust / Convert. `move`: the embed's own Character/Coin/Amount form, which
- * since 0.28.0 sits in the heading row beside "Party purse" (it wraps on a narrow pane; Deposit and Take stay together).
+ * The purse card: title, coins, the electrum note, the embed's own Character/Coin/Amount/Deposit/Take form (`move`), (GM)
+ * Adjust / Convert and a one-line caption. 0.28.1: the CSS places the GM tools on the title's line and centres the coins
+ * and the form below; in the markup they come after the form, so Tab goes Character, Coin, Amount, Deposit, Take, Adjust.
  */
 function purseStrip(app,takers,target,{move:withMove=true}={}){
  const stash=stashActor();if(!stash)return '';
  const coins=readCoins(stash);
- if(!coins)return `<section class="agu-purse" aria-label="Party purse"><h3>Party purse</h3>${empty('No purse','The stash Actor has no dnd5e currency, so there is no purse.')}</section>`;
+ if(!coins)return `<section class="agu-purse" aria-label="Party purse"><h3 class="agu-purse__title">Party purse</h3>${empty('No purse','The stash Actor has no dnd5e currency, so there is no purse.')}</section>`;
  const ep=electrumEnabled(),stranded=strandedElectrum(coins,ep),choices=coinChoices(ep);
  if(!choices.includes(app.purseCoin))app.purseCoin='gp';
- const coinSel=`<label class="ag-field">Coin<select id="agu-purse-coin">${choices.map(c=>option(c,COIN_LABELS[c],app.purseCoin)).join('')}</select></label>`;
- const move=withMove&&takers.length?`<div class="agu-purse-move"><label class="ag-field agu-purse-who">Character<select id="agu-purse-actor">${takers.map(a=>option(a.id,`${a.name} (${readCoin(a,app.purseCoin)??'—'} ${app.purseCoin})`,target)).join('')}</select></label>${coinSel}<label class="ag-field">Amount<input type="number" id="agu-purse-amount" min="1" step="1" value="${E(app.purseAmount)}" inputmode="numeric"></label><div class="agu-actions">${btn('purse-deposit','Deposit',{kind:'sm',attrs:'data-purse-move="deposit"'})}${btn('purse-take','Take',{kind:'sm',attrs:'data-purse-move="take"'})}</div></div>`:'';
- const gm=isGM()?`<div class="ag-toolbar__end">${stranded?btn('purse-convert','Convert electrum to silver/gold',{kind:'sm'}):''}${btn('purse-adjust','Adjust Purse',{kind:'sm'})}</div>`:'';
+ const coinSel=`<label class="ag-field agu-purse-coin">Coin<select id="agu-purse-coin">${choices.map(c=>option(c,COIN_LABELS[c],app.purseCoin)).join('')}</select></label>`;
+ const move=withMove&&takers.length?`<div class="agu-purse-move" role="group" aria-label="Deposit or take coins"><label class="ag-field agu-purse-who">Character<select id="agu-purse-actor">${takers.map(a=>option(a.id,`${a.name} (${readCoin(a,app.purseCoin)??'—'} ${app.purseCoin})`,target)).join('')}</select></label>${coinSel}<label class="ag-field agu-purse-amount">Amount<input type="number" id="agu-purse-amount" min="1" step="1" value="${E(app.purseAmount)}" inputmode="numeric"></label><div class="agu-actions agu-purse-buttons">${btn('purse-deposit','Deposit',{kind:'sm',attrs:'data-purse-move="deposit"'})}${btn('purse-take','Take',{kind:'sm',attrs:'data-purse-move="take"'})}</div></div>`:'';
+ const gm=isGM()?`<div class="agu-purse-tools">${stranded?btn('purse-convert','Convert electrum to silver/gold',{kind:'sm'}):''}${btn('purse-adjust','Adjust Purse',{kind:'sm'})}</div>`:'';
  const epNote=stranded?`<p class="ag-notice ag-notice--warn agu-ep-note"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>The purse still holds ${E(coins.ep)} electrum (ep), worth ${E(coins.ep*5)} sp. Electrum is off, so it can't be moved here; ${isGM()?'use <strong>Convert electrum to silver/gold</strong> (value kept exactly, undo in History) or turn electrum back on in GM Setup.':'the GM can convert it.'}</span></p>`:'';
- const note=!withMove?'':isGM()?`<p class="agu-note">Coin vote: ${purseVoteRequired()?'on':'off'} (change it in GM Setup).</p>`:`<p class="agu-note">Deposit moves coins from your character to the purse${purseVoteRequired()?'; Take needs every other connected player to accept':''}. Coins are never converted unless the GM does it.</p>`;
- return `<section class="agu-purse" aria-label="Party purse"><div class="agu-line agu-purse-head"><h3>Party purse</h3>${move}${gm}</div>${coinStripHTML(coins,ep)}${epNote}${note}</section>`;
+ const note=!withMove?'':isGM()?`<p class="agu-note agu-purse-caption">Coin vote: ${purseVoteRequired()?'on':'off'} (change it in GM Setup).</p>`:`<p class="agu-note agu-purse-caption">Deposit moves coins from your character to the purse${purseVoteRequired()?'; Take needs every other connected player to accept':''}. Coins are never converted unless the GM does it.</p>`;
+ return `<section class="agu-purse" aria-label="Party purse"><h3 class="agu-purse__title">Party purse</h3>${coinStripHTML(coins,ep)}${epNote}${move}${gm}${note}</section>`;
 }
 const randomId=()=>foundry.utils?.randomID?.(16)??Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[b%62]).join('');
 /** Removes copies made by a move that is being called off. A failure here leaves duplicates, never a loss. */
@@ -1154,7 +1155,7 @@ function stashBody(app,{purse=true}={}){
  const gid=g=>`agu-stash-g-${E(g.replace(/\W+/g,'-'))}`;
  const table=groups.map(g=>{const list=shown.filter(r=>r.typeLabel===g);return `<section class="agu-stash-group"><h3 class="ag-eyebrow" id="${gid(g)}">${E(g)} · ${list.length}</h3><div class="ag-table-wrap"><table class="ag-table agu-stash-table" aria-labelledby="${gid(g)}">${head}<tbody>${list.map(stashRowHTML).join('')}</tbody></table></div></section>`;}).join('');
  const count=q?`${shown.length} of ${rows.length}`:`${rows.length} ${rows.length===1?'item':'items'}`;
- const toolbar=`<div class="ag-toolbar"><label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="agu-stash-search" placeholder="Search items" value="${E(app.filter)}" aria-label="Search the stash"></label>${takers.length?`<div class="ag-toolbar__filters"><label class="ag-field ag-field--inline agu-take-into">Take into<select id="agu-stash-target">${takers.map(a=>option(a.id,a.name,target)).join('')}</select></label></div>`:''}<span class="ag-toolbar__count">${E(count)}</span>${isGM()||takers.length?`<div class="ag-toolbar__end">${btn('stash-add','Add to stash…',{kind:'sm',icon:'fa-plus'})}</div>`:''}</div>`;
+ const toolbar=`<div class="ag-toolbar agu-stash-tools"><label class="ag-search"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i><input type="search" id="agu-stash-search" placeholder="Search items" value="${E(app.filter)}" aria-label="Search the stash"></label>${takers.length?`<div class="ag-toolbar__filters"><label class="ag-field ag-field--inline agu-take-into">Take into<select id="agu-stash-target">${takers.map(a=>option(a.id,a.name,target)).join('')}</select></label></div>`:''}<span class="ag-toolbar__count">${E(count)}</span>${isGM()||takers.length?`<div class="ag-toolbar__end">${btn('stash-add','Add to stash…',{kind:'sm',icon:'fa-plus'})}</div>`:''}</div>`;
  const note=isGM()?'':`<p class="ag-field__hint">Use Add to stash…, or drag an item from your character sheet onto this tab, to stash it. To take one out, use Take or drag its row onto your sheet${stashVoteRequired()?'; every other connected player must accept':''}.</p>`;
  return (purse?purseStrip(app,takers,target):purseLine1())+toolbar+(rows.length?(table||empty('Nothing matches','Clear the search to see every item.')):empty('No items yet','Use Add to stash…, or drag an item from a character sheet onto this tab.',{icon:'fa-box-open'}))+`<div class="agu-dropzone"><i class="fa-solid fa-hand-holding" aria-hidden="true"></i> Drop items anywhere on this tab to put them in the stash</div>`+note;
 }
