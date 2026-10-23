@@ -1,4 +1,4 @@
-# Ashen Gate Manager macro library (experimental)
+# Ashen Gate Manager macro library
 
 The Manager reads `macros/manifest.json` and loads the JS file declared in each entry. It does **not** scan directories automatically: adding a new file requires registering its metadata and source in the manifest. The Manager installs script macros as world Macro documents without executing them. Installed macros must be reviewed before anyone runs them.
 

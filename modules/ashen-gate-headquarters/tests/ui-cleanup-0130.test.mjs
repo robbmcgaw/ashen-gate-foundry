@@ -37,7 +37,7 @@ globalThis.Hooks={once:(k,f)=>{hooks.once[k]=f;},on:(k,f)=>{(hooks.on[k]??=[]).p
 globalThis.ui={notifications:{warn:m=>warnings.push(m),info:m=>infos.push(m),error:m=>warnings.push(m)}};
 globalThis.document={querySelectorAll:()=>[]};
 let menu;
-const mod={id:'ashen-gate-headquarters',version:'0.13.0'};
+const mod={id:'ashen-gate-headquarters',version:'0.13.1'};
 globalThis.game={user:gm,users:Object.assign(new Map([['gm',gm],['p1',player]]),{activeGM:gm}),modules:{get:()=>mod},
   settings:{register:()=>{},registerMenu:(_m,_k,o)=>{menu=o;},get:(m,k)=>structuredClone(settings.get(`${m}.${k}`)),set:async(m,k,v)=>{writes.push({[k]:v});settings.set(`${m}.${k}`,v);}},
   keybindings:{register:()=>{}},journal:{contents:[],get:()=>null},items:{contents:[hire('HIRE-TEST-ADA','[TEST] Ada'),hire('HIRE-TEST-BEN','[TEST] Ben'),hire('HIRE-TEST-CAL','[TEST] Cal')]},actors:{contents:[]}};

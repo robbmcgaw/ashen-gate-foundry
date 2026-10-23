@@ -45,7 +45,7 @@ export function compilePackage(source) {
     if (Object.keys(t.defaults).some(k=>!validDefaults.includes(k))) {
       throw new Error(`Template ${t.id}: unsupported default fields.`);
     }
-    if (t.document_type==='JournalEntry' && has(t.defaults,'pages')) throw new Error(`Template ${t.id}: Journal pages cannot be shared between records in alpha.`);
+    if (t.document_type==='JournalEntry' && has(t.defaults,'pages')) throw new Error(`Template ${t.id}: Journal pages cannot be shared between records.`);
     map.set(t.id,t);
   }
   for (const record of pkg.records) {
@@ -136,7 +136,7 @@ export function planLifecycle({managed,kind,sourceId=null,entityType=null,archiv
 export function buildSourceReplacementPatch(record, docWrapper, {allowLocalEdits=false}={}) {
   const handoff=domainHandoff(record);
   if(handoff) return {action:'blocked',reason:handoff};
-  if (record.foundry.document_type!=='Item') return {action:'blocked',reason:'Full source replacement is Item-only in this alpha.'};
+  if (record.foundry.document_type!=='Item') return {action:'blocked',reason:'Full source replacement works for Items only.'};
   const old=docWrapper.flag?.managedFields;
   if (!old) return {action:'blocked',reason:'No baseline; cannot replace unmanaged content.'};
   if (docWrapper.type!==record.foundry.data.type) return {action:'blocked',reason:'Item subtype mismatch.'};

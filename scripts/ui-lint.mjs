@@ -62,6 +62,19 @@ function selectors(css) {
   return out;
 }
 
+// Status words (Alpha, Beta, Preview as a status, ...) in user-visible text. Scanned: module.json title and
+// description, and every runtime script/template line outside comments (so settings names and hints, Help text,
+// notices, labels and templates). A word joined to a code token by "-", "_", "/", "." or "$" is an identifier, not
+// copy: internal contract ids such as 'ag-utilities/0.2-alpha' and CSS names like --agu-ov-alpha keep their names.
+// "Preview" counts only as a status ("(Preview)", "early preview", "preview build"), not the feature (Player preview).
+// Not covered: JSON data files, CSS content, README/CHANGELOG and test fixtures.
+export const STATUS_WORD = /(?<![\w$./-])(?:alpha|beta|experimental|coming soon|runtime unverified|work in progress|wip|\(preview\)|(?:tech|early|public) preview|preview (?:build|release|version|feature))(?![\w$/-]|\.\w)/gi;
+const stripCodeComments = text => text
+  .replace(/\{\{!--[\s\S]*?--\}\}|\{\{![\s\S]*?\}\}|<!--[\s\S]*?-->/g, m => m.replace(/[^\n]/g, ' '))
+  .replace(/(^|[\s;{}(),])\/\*[\s\S]*?\*\//gm, (m, pre) => pre + m.slice(pre.length).replace(/[^\n]/g, ' '))
+  .replace(/(^|[\s;{}(),])\/\/[^\n]*/gm, '$1');
+export const statusWords = text => (stripCodeComments(text).match(STATUS_WORD) ?? []).length;
+
 // ---------- Rules over one module's own files ----------
 // Each returns a count for a module (module CSS = styles/**/*.css except the kit and Manager's skins).
 export const RULES = {
@@ -86,6 +99,8 @@ export const RULES = {
     return n;
   }},
   'button-title-attr': {code: text => (text.match(/<button\b[^>]*\stitle=/g) ?? []).length},
+  'status-wording': {code: statusWords, manifest: json => statusWords([json.title, json.description].filter(Boolean).join('\n')),
+    message: "Status words don't belong in the UI; discuss them in chat."},
   // ag-lint-allow must say why, in at least three words (CSS and scripts/templates).
   'lint-allow-reason': {raw: true, css: line => allowReasons(line).filter(r => !goodReason(r)).length,
     code: text => text.split('\n').reduce((n, line) => n + allowReasons(line).filter(r => !goodReason(r)).length, 0)},
@@ -93,7 +108,11 @@ export const RULES = {
 
 // Rules kept as a ratchet for one module only, {moduleId: {rule: highest allowed count}}. The count may go down
 // (lower it here when it does), never up. Each entry needs a follow-up in docs/ui-audit-2026-10.md.
-export const STRICT_EXCEPTIONS = {};
+export const STRICT_EXCEPTIONS = {
+  // The Character Hub's status wording (module.json "Alpha:", Journey/Look/Help labels) is being removed in the Hub's
+  // own PR; lower this to 0 (and drop the entry) when that lands.
+  'ashen-gate-character-hub': {'status-wording': 5},
+};
 
 /** Compares one module's counts with zero, or with its exception count. Returns {failures, notes}. */
 export function judgeModule(id, {counts, where}, exceptions = STRICT_EXCEPTIONS) {
@@ -101,7 +120,7 @@ export function judgeModule(id, {counts, where}, exceptions = STRICT_EXCEPTIONS)
   for (const [rule, n] of Object.entries(counts)) {
     const limit = exceptions[id]?.[rule];
     if (limit === undefined) {
-      if (n > 0) failures.push(`${id}: ${rule} must be 0, found ${n}: ${where[rule].slice(0, 8).join(', ')}`);
+      if (n > 0) failures.push(`${id}: ${rule} must be 0, found ${n}: ${where[rule].slice(0, 8).join(', ')}${RULES[rule]?.message ? `. ${RULES[rule].message}` : ''}`);
     } else if (n > limit) {
       failures.push(`${id}: ${rule} went up from ${limit} to ${n} (exception: the count may only go down): ${where[rule].slice(0, 8).join(', ')}`);
     } else if (n < limit) {
@@ -152,6 +171,14 @@ export function lintModule(dir, kit) {
           if (!kit.has(blockOf(cls))) { counts['css-kit-prefix-class']++; where['css-kit-prefix-class'].push(`${r}: .${cls}`); }
         }
       }
+    }
+  }
+  const manifestPath = path.join(dir, 'module.json');
+  if (fs.existsSync(manifestPath)) {
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    for (const [k, rule] of Object.entries(RULES)) {
+      const n = rule.manifest?.(manifest) ?? 0;
+      if (n) { counts[k] += n; where[k].push(`module.json (${n})`); }
     }
   }
   for (const {f, r} of code) {
