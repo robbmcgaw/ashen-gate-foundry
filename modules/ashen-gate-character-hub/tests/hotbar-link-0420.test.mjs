@@ -297,3 +297,52 @@ test('a Group the player picks stays: a new Hub sheet (reopened) uses it, other 
   assert.equal(listChoice('combat').group, 'category'); assert.equal(listChoice('features').group, 'type');
   assert.equal(reopened.document.calls.length, 0, 'nothing written to the character');
 });
+
+// 0.42.1: hostile and duplicate item names
+import {unsafeName} from '../scripts/hotbar-link.mjs';
+
+test('0.42.1: unsafeName flags quotes, backslashes, backticks, ${ and line breaks', () => {
+  for (const n of ['x"); game.user.delete()//', 'a\\b', 'a`b', 'a${1}b', 'a\nb', 'a\rb', 'a b']) assert.equal(unsafeName(n), true, JSON.stringify(n));
+  for (const n of ['[TEST] Shortsword', "Rogue's Blade", 'Potion $5', '{braces}']) assert.equal(unsafeName(n), false, n);
+});
+
+test('0.42.1: itemMacroCommand escapes a hostile name defensively and leaves safe names exactly as dnd5e writes them', () => {
+  assert.equal(itemMacroCommand({name: '[TEST] Sword'}), 'dnd5e.documents.macro.rollItem("[TEST] Sword", { event })');
+  assert.equal(itemMacroCommand({name: 'x"); evil()//'}), 'dnd5e.documents.macro.rollItem("x\\"); evil()//", { event })');
+  assert.ok(itemMacroCommand({name: 'a${b}`c\\d\ne'}).includes('a\\${b}\\`c\\\\d\\ne'));
+});
+
+test('0.42.1: a hostile item name is never copied to the hotbar (nothing created, nothing assigned), the others still are, one notice', async () => {
+  const w = world({hub: [{type: 'Item', id: 'ss'}, {type: 'Item', id: 'bad'}, {type: 'Item', id: 'bad2'}, {type: 'Item', id: 'hp'}]});
+  for (const [id, name] of [['bad', 'x"); game.user.delete()//'], ['bad2', 'y`${evil}']]) {
+    const it = {id, name, type: 'weapon', uuid: `Actor.actor1.Item.${id}`, _source: {name}, system: {activities: [{activation: {type: 'action'}}]}};
+    w.actor.items.push(it);
+  }
+  await w.link.activate(w.actor, {ask: askNever});
+  assert.equal(game.macros.get(w.user.hotbar[1]).name, '[TEST] Shortsword');
+  assert.equal(w.user.hotbar[2], undefined); assert.equal(w.user.hotbar[3], undefined);
+  assert.equal(game.macros.get(w.user.hotbar[4]).name, '[TEST] Potion');
+  assert.equal(w.made(), 2, 'only the two safe items got a macro');
+  assert.ok(!game.macros.some(m => /evil|delete/.test(m.command)));
+  assert.equal(w.told.length, 1, 'the GM/player is told once');
+  assert.ok(!w.told[0].includes('delete') && !w.told[0].includes('evil'), 'the notice never repeats the hostile name');
+});
+
+test('0.42.1: an existing hotbar macro with a hostile name is not read back into the Hub', () => {
+  const w = world({});
+  const it = {id: 'bad', name: 'x"); evil()//', type: 'weapon', _source: {name: 'x"); evil()//'}};
+  w.actor.items.push(it);
+  const m = w.macro('m', 'x', 'dnd5e.documents.macro.rollItem("x"); evil()//", { event })');
+  assert.deepEqual(macroToEntry(m, w.actor, w.user), {kind: 'foreign'});
+});
+
+test('0.42.1: two items with the same name: the first links, the duplicate is skipped with a notice (it would roll the first)', async () => {
+  const w = world({hub: [{type: 'Item', id: 'ss'}, {type: 'Item', id: 'dup'}]});
+  w.actor.items.push({id: 'dup', name: '[TEST] Shortsword', type: 'weapon', uuid: 'Actor.actor1.Item.dup', _source: {name: '[TEST] Shortsword'}, system: {activities: [{activation: {type: 'action'}}]}});
+  await w.link.activate(w.actor, {ask: askNever});
+  assert.equal(game.macros.get(w.user.hotbar[1]).name, '[TEST] Shortsword');
+  assert.equal(w.user.hotbar[2], undefined);
+  assert.equal(w.made(), 1);
+  assert.equal(w.told.length, 1);
+  assert.match(w.told[0], /same name/);
+});
