@@ -75,7 +75,7 @@ test('A: the ⋯ menu carries Level up, Restore backup… (GM with copies) and C
   const {sheet} = await render();
   await sheet.dispatch('more-menu', {dataset: {}}, {});
   let html = await sheet._renderHTML();
-  assert.match(html, /aria-label="More: Edit name and title, Level up, Configure, Appearance, Pop out, NPC Codex, Open native sheet"/);
+  assert.match(html, /aria-label="More: Edit name and title, Level up, Configure, Appearance, Pop out, Link quick bar to Foundry&#39;s hotbar, NPC Codex, Open native sheet"/);
   const menu = html.match(/<div class="agch-menu agch-moremenu"[\s\S]*?<\/div>/)[0];
   assert.match(menu, /class="ag-btn ag-btn--ghost agch-menu__btn agch-levelup" data-action="level-up"/);
   assert.match(menu, /data-action="configure"/); assert.doesNotMatch(menu, /level-restore/, 'players never get Restore');

@@ -66,6 +66,17 @@ export async function clearHotbarSlot(actor, index) {
   await write(actor, slots);
   return {ok: true, result: {index: at, previous, name}};
 }
+/**
+ * Several slots at once (0.42.0, the Foundry hotbar link): `patch` maps a slot index to an entry or null. One write; the
+ * same owner and Hotbars checks as a drop.
+ */
+export async function writeHotbarSlots(actor, patch) {
+  const blocked = guard(actor); if (blocked) return blocked;
+  const slots = hotbarSlots(actor);
+  for (const [k, v] of Object.entries(patch ?? {})) { const at = Math.trunc(Number(k)); if (at >= 0 && at < HOTBAR_SLOTS) slots[at] = cleanSlot(v); }
+  await write(actor, slots);
+  return {ok: true, result: slots};
+}
 const sameSlot = (a, b) => !!a && !!b && a.type === b.type && a.id === b.id && a.uuid === b.uuid;
 /**
  * Undo of a clear (0.26.0): puts `entry` back in slot `index`, touching no other slot. Does nothing (and says why)
@@ -117,12 +128,12 @@ export function createUndoList({ms = UNDO_MS, onChange = () => {}, timers = glob
   };
 }
 /** Uses the slot: dnd5e's item.use() for an Item, Macro#execute for a Macro. */
-export async function useHotbarSlot(actor, index, event) {
+export async function useHotbarSlot(actor, index, event, anchor = null) {
   const blocked = guard(actor); if (blocked) return blocked;
   const d = hotbarData(actor)[Math.trunc(Number(index))];
   if (!d?.slot) return refuse('That slot is empty. Drag an item or a macro onto it.');
   if (d.missing) return refuse('That item or macro is gone. Right-click the slot to clear it.');
-  if (d.slot.type === 'Item') return useItem(actor, d.slot.id, event);
+  if (d.slot.type === 'Item') return useItem(actor, d.slot.id, event, anchor);
   const macro = d.doc;
   if (macro.canExecute === false) return refuse(`You can't run ${macro.name}.`);
   try { return {ok: true, result: await macro.execute?.({actor})}; } catch (err) { return refuse(`${macro.name}: ${err?.message ?? err}`); }

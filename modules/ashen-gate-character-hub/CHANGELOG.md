@@ -1,3 +1,16 @@
+## 0.42.0 — 2026-10-23
+
+Robb's requests: connect the quick bar and Foundry's hotbar both ways; a roll from the quick bar stuck its dialog to the top of the screen; clicking an item's icon should use it.
+
+- **Quick bar linked to Foundry's hotbar:** slots 1-10 of the Hub quick bar and page 1 of your Foundry hotbar (the page the number keys use) now hold the same things, for the character whose Hub is in front. Drag an item or macro onto either bar, clear it or move it, and the other follows. An item becomes dnd5e's usual item macro, exactly as if you had dragged it onto Foundry's hotbar (an existing one of yours is reused, never duplicated). Foundry macros the quick bar can't hold (another character's item, an activity macro) stay in Foundry and leave the quick bar slot alone. Other hotbar pages are never touched.
+- **First link:** when a character's two bars differ, the Hub asks once per character: **Use the Hub quick bar**, **Use Foundry's hotbar** or **Keep both and fill empty slots** (Cancel links nothing and asks again next time you load). After that, bringing a character's Hub to the front puts that character's quick bar on Foundry's page 1, replacing what was there.
+- **Turn it off:** **⋯ → Link quick bar to Foundry's hotbar** (only for you, applies at once). Off works exactly as before.
+- **Keys:** 1-0 with a Hub in front still use the Hub slot once, never also Foundry's macro. With no Hub open they run Foundry's macro, now the same thing.
+- **No script-macro permission:** the quick bar slot still works; a single notice says the Foundry copy could not be made.
+- **Fix: roll dialog at the top of the screen.** dnd5e opens its attack and damage roll dialogs where you clicked. A key press (1-0), or pressing Enter on a slot, has no click position, so the dialog ended up at the top. The Hub now tells dnd5e the slot's position (or the middle of the screen), keeping Shift/Ctrl/Alt for fast-forward. Clicking with the mouse is unchanged.
+- **Item icons use the item:** in Combat, Inventory, Magic and Features, clicking an item's icon uses it (cast, attack, drink, dnd5e's activity chooser when there are several), like a quick-bar slot; clicking the name still opens it. Items with nothing to use (plain loot) open from the icon too. Only for characters you own; observers see the plain icon. Dragging rows, More, right-click and the quick-bar drag work as before.
+- Saved data: a new per-user client setting (`linkFoundryHotbar`, default on) and the first-link answer on your User (`flags.ashen-gate-character-hub.hotbarLink`). The quick bar flag is unchanged. No migration.
+
 ## 0.40.0 — 2026-10-23
 
 Robb's request: change the character's name in the Hub, and show a title beside it.

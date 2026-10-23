@@ -33,10 +33,10 @@ const ctxFor = (actor, user, extra = {}) => {
   return {actor, sheet: {menu: null}, limited, editable: !limited && (user.isGM || actor.testUserPermission(user, 'OWNER')), ...extra};
 };
 
-test('version is 0.40.0 in the code, module.json and its download URL', () => {
-  assert.equal(VERSION, '0.40.0');
-  assert.equal(manifest.version, '0.40.0');
-  assert.match(manifest.download, /ashen-gate-character-hub-v0\.40\.0\/ashen-gate-character-hub\.zip$/);
+test('version is 0.42.0 in the code, module.json and its download URL', () => {
+  assert.equal(VERSION, '0.42.0');
+  assert.equal(manifest.version, '0.42.0');
+  assert.match(manifest.download, /ashen-gate-character-hub-v0\.42\.0\/ashen-gate-character-hub\.zip$/);
 });
 
 test('the owner and the GM can rename; the name is written to actor.name, trimmed', async () => {
