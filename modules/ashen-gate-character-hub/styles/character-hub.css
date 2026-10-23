@@ -49,8 +49,8 @@
 .agch-app .agch-railcol { grid-area: rail; display: flex; flex-direction: column; gap: var(--ag-space-2); min-height: 0; }
 .agch-app .agch-pane__title { margin: 0; padding-bottom: var(--ag-space-1); border-bottom: 1px solid var(--ag-border); font-size: var(--ag-text-lg); display: flex; gap: var(--ag-space-2); align-items: center; }
 .agch-app .agch-pane__title i { color: var(--ag-accent); font-size: var(--ag-text-md); }
-/* The character column. --agch-slot follows the kit slot size, a little larger so the art keeps its height. */
-.agch-app .agch-char { --agch-slot: calc(var(--ag-slot) + var(--ag-space-3)); display: flex; flex-direction: column; gap: var(--ag-space-2); min-height: 0; overflow-y: auto; padding: var(--ag-space-2); border: 1px solid var(--ag-border); border-radius: var(--ag-radius-lg); background: radial-gradient(ellipse at 50% 28%, var(--agch-bg-raised), var(--agch-bg) 72%); }
+/* The character column. --agch-slot follows the kit slot size (0.43.0: about 28 % larger; the art pane gives up the width). */
+.agch-app .agch-char { --agch-slot: calc((var(--ag-slot) + var(--ag-space-3)) * 1.28); display: flex; flex-direction: column; gap: var(--ag-space-2); min-height: 0; overflow-y: auto; padding: var(--ag-space-2); border: 1px solid var(--ag-border); border-radius: var(--ag-radius-lg); background: radial-gradient(ellipse at 50% 28%, var(--agch-bg-raised), var(--agch-bg) 72%); }
 .agch-app .agch-charfold, .agch-app .agch-charsum { display: none; }
 /* 0.33.0 (CH-09): a narrow Full window puts the tabs first, then the character, then the section; Hide character folds
    the column to its top row and a short HP / AC line (per user, kit uiState). 0.41.0: the character shows until the user
@@ -154,6 +154,8 @@
    visible (the attuned ✦ sits outside it), so its image is pinned to the circle. */
 .agch-app .agch-slotwrap { position: relative; width: var(--agch-slot); height: var(--agch-slot); }
 .agch-app .agch-slot { width: var(--agch-slot); height: var(--agch-slot); cursor: pointer; }
+/* 0.43.0: the rings and trinkets row is five slots in the art's width, so its slots are a little smaller than the side slots. */
+.agch-app .agch-doll__row .agch-slotwrap, .agch-app .agch-doll__row .agch-slot { width: var(--agch-row-slot, var(--agch-slot)); height: var(--agch-row-slot, var(--agch-slot)); }
 .agch-app .agch-slot img { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; max-width: none; border: 0; border-radius: 50%; object-fit: cover; }
 .agch-app .agch-slot.is-empty { background: transparent; }
 .agch-app .agch-slot:hover, .agch-app .agch-slot.is-open { border-color: var(--ag-accent); }
@@ -169,6 +171,7 @@
    and faintness as the Font Awesome placeholders, so they never vanish on a light skin. */
 .agch-app .agch-slot__mask { width: var(--ag-text-xl); height: var(--ag-text-xl); background-color: var(--ag-muted); opacity: .55; -webkit-mask: var(--agch-mask) center / contain no-repeat; mask: var(--agch-mask) center / contain no-repeat; }
 /* The small ⋯ button on a slot (shown on hover/focus; always on touch screens) */
+.agch-app .agch-doll .agch-slot__mask { width: calc(var(--agch-slot) * .4); height: calc(var(--agch-slot) * .4); }
 .agch-app .agch-slot__more { position: absolute; right: calc(var(--ag-space-1) * -1); bottom: calc(var(--ag-space-1) * -1); width: var(--ag-text-xl); height: var(--ag-text-xl); min-height: 0; padding: 0; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--ag-border-strong); background: var(--ag-surface-sunken); color: var(--ag-text); font-size: var(--ag-text-xs); opacity: 0; transition: opacity var(--ag-dur-fast); z-index: 2; }
 .agch-app .agch-slotwrap:hover .agch-slot__more, .agch-app .agch-slot__more:focus-visible, .agch-app .agch-slot__more[aria-expanded="true"] { opacity: 1; }
 .agch-app .agch-slot__more.is-shown { position: static; opacity: 1; flex: none; }
@@ -187,7 +190,7 @@
 .agch-app .agch-menu { position: absolute; z-index: 20; width: 15rem; max-width: calc(100% - var(--agch-slot) - var(--ag-space-5)); display: grid; gap: var(--ag-space-1); padding: var(--ag-space-2); background: var(--ag-surface-sunken); border: 1px solid var(--ag-border-strong); border-radius: var(--ag-radius); box-shadow: var(--ag-shadow); font-size: var(--ag-text-sm); }
 .agch-app .agch-menu--slot.is-left { left: calc(var(--agch-slot) + var(--ag-space-3)); top: calc(var(--row) * (var(--agch-slot) + var(--ag-space-2))); }
 .agch-app .agch-menu--slot.is-right { right: calc(var(--agch-slot) + var(--ag-space-3)); top: calc(var(--row) * (var(--agch-slot) + var(--ag-space-2))); }
-.agch-app .agch-menu--slot.is-bottom { left: 50%; transform: translateX(-50%); bottom: calc(var(--agch-slot) + var(--ag-space-3)); }
+.agch-app .agch-menu--slot.is-bottom { left: 50%; transform: translateX(-50%); bottom: calc(var(--agch-row-slot, var(--agch-slot)) + var(--ag-space-3)); }
 .agch-app .agch-menu--inline { position: static; width: auto; max-width: none; flex-basis: 100%; }
 .agch-app .agch-menu__head { display: flex; flex-wrap: wrap; gap: var(--ag-space-1) var(--ag-space-2); align-items: baseline; padding-bottom: var(--ag-space-1); border-bottom: 1px solid var(--ag-border); margin-bottom: var(--ag-space-1); }
 .agch-app .agch-menu__head strong { flex: 1 1 8rem; overflow-wrap: anywhere; }
@@ -727,15 +730,16 @@
    default Compact size. The slot size follows the doll's height and width; the column still scrolls when even the
    smallest doll does not fit. The quick bar keeps its ten slots on one row. 0.34.0: Full's column does the same. */
 .agch-app .agch-char .agch-doll {
-  --agch-slot-max: calc(var(--ag-slot) + var(--ag-space-3)); --agch-slot-min: var(--ag-icon-btn);
+  --agch-slot-max: calc((var(--ag-slot) + var(--ag-space-3)) * 1.28); --agch-slot-min: var(--ag-icon-btn);
   container: agch-doll / size; flex: 0 1 calc(var(--agch-slot-max) * 5 + var(--ag-space-2) * 4);
   min-height: calc(var(--agch-slot-min) * 5 + var(--ag-space-2) * 4);
   grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto auto; align-content: start; }
-.agch-app .agch-char .agch-doll > * { --agch-slot: clamp(var(--agch-slot-min), min((100cqh - var(--ag-space-2) * 4) / 5, (100cqw - var(--ag-space-2) * 6) / 7), var(--agch-slot-max)); }
+.agch-app .agch-char .agch-doll > * { --agch-slot: clamp(var(--agch-slot-min), min((100cqh - var(--ag-space-2) * 4) / 5, (100cqw - var(--ag-space-2) * 2 - var(--ag-space-1) * 4) / 6.25), var(--agch-slot-max));
+  --agch-row-slot: max(calc(var(--agch-slot) * .85), var(--ag-icon-btn)); }
 .agch-app .agch-char .agch-doll > .agch-doll__col { grid-row: 1 / span 2; grid-column: 1; }
 .agch-app .agch-char .agch-doll > .agch-doll__col ~ .agch-doll__col { grid-column: 3; }
 .agch-app .agch-char .agch-doll > .agch-doll__center { grid-row: 1; grid-column: 2; }
-.agch-app .agch-char .agch-doll > .agch-doll__row { grid-row: 2; grid-column: 2; flex-wrap: nowrap; }
+.agch-app .agch-char .agch-doll > .agch-doll__row { grid-row: 2; grid-column: 2; flex-wrap: nowrap; align-items: center; gap: var(--ag-space-1); min-height: var(--agch-slot); }
 /* The doll's containment makes it a stacking context: an open slot menu lifts the whole doll above the rows below it. */
 .agch-app .agch-char .agch-doll:has(> .agch-menu) { z-index: 25; }
 
