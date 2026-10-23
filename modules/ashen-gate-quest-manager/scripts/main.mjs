@@ -17,7 +17,7 @@ import {rewardsSection,playerRewardsSection,grantPanel,grantSummary,receiveList,
 import {createJournalStore} from './journal-store.mjs';
 import {installJournal,bindRadios} from './journal-ui.mjs';
 
-const VERSION='0.18.0';
+const VERSION='0.18.1';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -71,16 +71,18 @@ function readableDetail(view,actorId,{picker=''}={}){
 }
 // 0.15.0 Quest editor: collapsible sections (open state kept per user), one sticky save bar for the whole quest.
 const NEW_STATE=Object.freeze({status:'Hidden',scope:'party',actorId:null,revealed:false,objectiveReveal:[],progress:{},partyNotes:'',gmNotes:'',rewardRecorded:false});
+// The permanent ID's prefix for each Type (core.mjs checks that they agree).
+const KIND_PREFIX=Object.freeze({quest:'QUEST',work_order:'ORDER',contract:'CONTRACT'});
 function basicsSection(source,existing){
  const type=source.objective_kind;
  const kinds=[['quest','Quest'],['work_order','Work Order (crafting, production or creative)'],['contract','Contract']];
  return `<p class="ag-field__hint">Write what the job is and what the players can learn. Permanent IDs are never renamed after creation.</p>
- <div class="ag-form-grid"><label class="ag-field">Type<select id="ag-src-kind" ${existing?'disabled':''}>${options(kinds,type)}</select></label><label class="ag-field">Permanent ID<input id="ag-src-id" value="${E(source.id)}" ${existing?'readonly':''} placeholder="QUEST-NEW-JOB"></label>
+ <div class="ag-form-grid"><label class="ag-field">Type<select id="ag-src-kind" ${existing?'disabled':''}>${options(kinds,type)}</select></label><label class="ag-field">Permanent ID<input id="ag-src-id" value="${E(source.id)}" ${existing?'readonly':''} placeholder="${KIND_PREFIX[type]||'QUEST'}-NEW-JOB"></label>
  <label class="ag-field ag-field--wide">Title<input id="ag-src-name" value="${E(source.name)}" placeholder="Name this quest"></label>
  <label class="ag-field ag-field--wide">Public description<textarea id="ag-src-summary" rows="3">${E(source.public_summary??'')}</textarea></label>
  <label class="ag-field">Related Location IDs<textarea id="ag-src-locations" rows="2">${E((source.locations||[]).filter(x=>typeof x==='string').join('\n'))}</textarea><span class="ag-field__hint">Optional LOC-* IDs, one per line.</span></label>
  <label class="ag-field">Definition visibility<select id="ag-src-visibility">${options([['reveal_gated','Reveal when GM approves'],['player','Player-visible when not Hidden'],['gm','GM only (never publish)']],source.visibility)}</select></label>
- ${type==='work_order'?`<label class="ag-field">Work order domain<select id="ag-src-workdomain">${options(WORK_ORDER_DOMAINS,source.work_order_domain||'crafting')}</select></label>`:''}</div>
+ ${existing&&type!=='work_order'?'':`<label class="ag-field" data-kind-field="work_order"${type==='work_order'?'':' hidden'}>Work order domain<select id="ag-src-workdomain">${options(WORK_ORDER_DOMAINS,source.work_order_domain||'crafting')}</select></label>`}</div>
  ${source.visibility==='gm'?'<p class="ag-notice ag-notice--warn"><i class="fa-solid fa-eye-slash" aria-hidden="true"></i> This is a GM-only source. Campaign status and reveal cannot publish it until you change Definition visibility.</p>':''}`;
 }
 function audienceSection(state){
@@ -360,6 +362,7 @@ class QuestLogApplication extends Base {
    bindFileButtons(root,files=>this.importFile(files[0]).catch(notifyError));
    // QL-09 The individual character only shows for an individual quest.
    root.querySelector('#ag-scope')?.addEventListener('change',e=>{const f=root.querySelector('[data-actor-field]');if(f){f.hidden=e.target.value!=='individual';if(f.hidden)f.setAttribute?.('hidden','');else f.removeAttribute?.('hidden');}});
+   root.querySelector('#ag-src-kind')?.addEventListener('change',e=>this.paintKind(root,e.target.value));
    for(const d of root.querySelectorAll('details[data-section]'))d.addEventListener('toggle',()=>{if(this.gmPrefs.sections[d.dataset.section]!==d.open)this.saveGmView({sections:{...this.gmPrefs.sections,[d.dataset.section]:d.open}});});
    const search=root.querySelector('#ag-quest-search');search?.addEventListener('input',()=>{
      this.filter=search.value;const wrap=root.querySelector('#ag-quest-cards');const filtered=roleViewList(this.tab,this.actorId).filter(({view})=>(this.statusFilter==='all'||view.status===this.statusFilter)&&[view.name,view.summary,view.id].some(t=>t.toLowerCase().includes(this.filter.toLowerCase())));
@@ -388,6 +391,17 @@ class QuestLogApplication extends Base {
   const first=!this.sourceJsonEdited;this.sourceJsonEdited=true;if(first)this.markDirty(root);
   const st=root.querySelector('[data-source-status]');if(st)st.textContent='Saving from JSON; form edits are ignored';
   for(const el of root.querySelectorAll('.agq-source input, .agq-source select, .agq-source textarea'))if(el.id!=='ag-source-json'&&!el.closest?.('[data-reward-zone]'))el.setAttribute('aria-disabled','true');
+ }
+ // A new quest's Type change shows its own fields at once, in place, so typed edits, the unsaved note and focus stay.
+ // An ID still on the old Type's prefix moves to the new one (QUEST-FOO becomes ORDER-FOO); any other typed ID stays.
+ paintKind(root,kind){
+  for(const f of root.querySelectorAll('[data-kind-field]')){f.hidden=f.dataset.kindField!==kind;if(f.hidden)f.setAttribute?.('hidden','');else f.removeAttribute?.('hidden');}
+  const id=root.querySelector('#ag-src-id'),next=KIND_PREFIX[kind];
+  if(id&&next&&id.getAttribute?.('readonly')==null){
+   const m=String(id.value).match(/^(QUEST|ORDER|CONTRACT)-(.*)$/i);if(m&&m[1].toUpperCase()!==next)id.value=`${next}-${m[2]}`;
+   id.setAttribute?.('placeholder',`${next}-NEW-JOB`);
+  }
+  const hint=root.querySelector('details[data-section="basics"] .ag-fold__hint');if(hint)hint.textContent=KIND_LABELS[kind]||kind;
  }
  // The unsaved state shows in the save bar, the editor header and on the editor itself.
  markDirty(root){
