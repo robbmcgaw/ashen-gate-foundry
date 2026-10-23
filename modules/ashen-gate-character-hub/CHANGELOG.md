@@ -1,3 +1,10 @@
+## 0.43.0 — 2026-10-23
+
+Paper doll: bigger equipment slots. Tests use mocked Foundry and cannot judge layout; the live Hub is for Robb to look at.
+
+- **Bigger equipment slots.** The slots beside the character art are about 28 % larger in Full and Compact, at both Sizes. The art pane gives up the width: it stays centred, uncropped (never stretched) and the same pane for wide, tall and square portraits and tokens. The rings and trinkets row sits under it at 85 % of the side-slot size, so five fit the art's width; the AC badge, Change portrait / token art and Portrait / Token art buttons, rarity rings, attuned mark, empty-slot placeholders and the Equip / Unequip menus all scale and position from the new size.
+- Saved data: unchanged. No migration.
+
 ## 0.42.4 — 2026-10-23
 
 Fixes from the 0.42.3 test run. Tests use mocked Foundry; the live Hub is for Robb to click through.
