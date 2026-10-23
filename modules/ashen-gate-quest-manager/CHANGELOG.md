@@ -1,3 +1,12 @@
+## 0.19.0 — 2026-10-23
+
+The Quests list at the size of a real campaign (about 90 quests, work orders and contracts).
+- **Group, sort and filter by level and region.** *Group* and *Sort* gain **Level**; *Group* gains **Region**. **Filters (n)** now has Level, Region and Giver next to Type, Location and Visibility. The level comes from the quest file's `recommended_level`; the region from the quest's locations, when Ashen Gate | Locations is active (without it the list works as before, with no region groups). Quests without a level or region go last under *No level* / *No region*.
+- **Kind of quest on the card.** The type badge now reads *Quest · Exploration*, *Order · Crafting*, *Contract · Escort* (the quest file's `quest_type`, the work order domain or `contract_type`), and a *Level n* badge shows when the quest has one. Search also finds the kind, level (*level 4*) and region.
+- **Givers by name.** A giver set by id (`NPC-HALE-MARROW`) shows as *Hale Marrow* on cards and in the Giver group and filter; searching for the id still works.
+- The Quest Log's importer takes the sandbox quest, work order and contract files (S03, S07, S12) with no errors.
+- Saved data: no change; no migration.
+
 ## 0.18.2 — 2026-10-23
 
 - **Fix: recipes and materials as quest rewards.** A quest file's `outcomes.item_rewards[].item_id` can now be a recipe (`REC-*`) or material (`MAT-*`) id as well as an `ITEM-*` id. Before, a learnable recipe reward stopped the import with "item_id must be an ITEM-* id."; the message is now "item_id must be an ITEM-*, REC-* or MAT-* id." Uuids, duplicates and other prefixes (`PERK-*`, `PROF-*` …) are still refused.

@@ -32,7 +32,7 @@ export function questCard(r,{selected=false,picked=false,now=Date.now()}={}){
  const vis=r.visible?`<span class="ag-badge ag-badge--ok"${tip('Players can see this quest')}>${icon('fa-eye')}Visible to players</span>`
   :`<span class="ag-badge"${tip('Players cannot see this quest')}>${icon('fa-eye-slash')}GM only</span>`;
  const facts=[`<span class="agq-mono">${E(r.id)}</span>`];
- if(r.locationNames.length)facts.push(meta('fa-map-location-dot','Location',r.locationNames.map(E).join(', ')));
+ if(r.locationNames.length)facts.push(meta('fa-map-location-dot','Location',r.locationNames.map(E).join(', ')+(r.regions?.length?` (${r.regions.map(E).join(', ')})`:'')));
  if(r.givers.length)facts.push(meta('fa-handshake','Giver',r.givers.map(E).join(', ')));
  else if(r.sourceText)facts.push(meta('fa-handshake','Source',E(r.sourceText)));
  facts.push(r.audience.scope==='individual'?meta('fa-user','Audience',`Individual: ${E(r.audience.name)}`):meta('fa-users','Audience','Party'));
@@ -40,7 +40,7 @@ export function questCard(r,{selected=false,picked=false,now=Date.now()}={}){
  const rewards=rewardText(r.rewards),changed=changedLabel(r.changed,now);
  return `<div class="ag-row agq-card${selected?' is-selected':''}${picked?' is-picked':''}" data-qid="${E(r.id)}"><label class="agq-card__pick"><input type="checkbox" data-pick="${E(r.id)}"${picked?' checked':''}><span class="ag-sr-only">Select ${E(r.name)}</span></label>
  <button type="button" class="agq-card__main" data-action="gm-select" data-id="${E(r.id)}"${selected?' aria-current="true"':''}>
- <span class="agq-card__head"><span class="ag-row__title">${E(r.name)}</span><span class="agq-card__badges"><span class="ag-badge agq-kind agq-kind--${E(r.kind)}">${icon(KIND_ICON[r.kind]||'fa-scroll')}${E(r.kindLabel)}</span>${statusBadge(r.chip)}${vis}</span></span>
+ <span class="agq-card__head"><span class="ag-row__title">${E(r.name)}</span><span class="agq-card__badges"><span class="ag-badge agq-kind agq-kind--${E(r.kind)}">${icon(KIND_ICON[r.kind]||'fa-scroll')}${E(r.kindLabel)}${r.detail?` · ${E(r.detail)}`:''}</span>${r.level!==null?`<span class="ag-badge">Level ${r.level}</span>`:''}${statusBadge(r.chip)}${vis}</span></span>
  <span class="agq-card__facts">${facts.join('')}</span>
  <span class="agq-card__stats">${progressMeter(r.done,r.total)}${rewards?meta('fa-gift','Rewards',rewards):''}${changed?`<span class="agq-card__fact agq-card__changed">${icon('fa-clock')}Changed ${E(changed)}</span>`:''}</span></button></div>`;
 }
@@ -57,7 +57,7 @@ export function questsSubnav(nav,counts={}){
 }
 /** Toolbar, one row: search, Filters (n), Group, Sort, count, New quest. Type, Location and Visible sit in the second row that
     Filters (n) opens (0.17.0, QL-05). */
-export function questsToolbar(view,locations,{shown=0,total=0,filtersOpen=false}={}){
+export function questsToolbar(view,locations,{shown=0,total=0,filtersOpen=false,levels=[],regions=[],givers=[]}={}){
  const v={...DEFAULT_VIEW,...view},n=filterCount(v);
  return `<div class="agq-bars"><div class="ag-toolbar agq-toolbar"><label class="ag-search">${icon('fa-magnifying-glass')}<input type="search" id="ag-gm-search" placeholder="Search quests" aria-label="Search quests by title, ID, location, giver or source, or tag" value="${E(v.search)}"></label>
  <div class="ag-toolbar__filters"><button type="button" class="ag-btn ag-btn--sm" data-action="toggle-filters" id="ag-gm-filters-toggle" aria-expanded="${filtersOpen}" aria-controls="ag-gm-filters">${icon('fa-filter')} <span data-filter-label>${filterLabel(n)}</span></button>
@@ -67,6 +67,9 @@ export function questsToolbar(view,locations,{shown=0,total=0,filtersOpen=false}
  <div class="ag-toolbar__end">${safeButton('New quest','new',{icon:'fa-plus'})}</div></div>
  <div class="ag-toolbar agq-filterrow" id="ag-gm-filters" role="group" aria-label="Filters"${filtersOpen?'':' hidden'}><div class="ag-toolbar__filters"><select id="ag-gm-type" aria-label="Type">${options([['all','All types'],...Object.entries(KIND_LABELS)],v.type)}</select>
  <select id="ag-gm-location" aria-label="Location">${options([['all','Any location'],...locations.map(x=>Array.isArray(x)?x:[x,x])],v.location)}</select>
+ <select id="ag-gm-level" aria-label="Level">${options([['all','Any level'],...levels],v.level)}</select>
+ <select id="ag-gm-region" aria-label="Region">${options([['all','Any region'],...regions],v.region)}</select>
+ <select id="ag-gm-giver" aria-label="Giver">${options([['all','Any giver'],...givers],v.giver)}</select>
  <select id="ag-gm-visible" aria-label="Visible to players">${options([['all','Visible or not'],['yes','Visible to players'],['no','GM only']],v.visible)}</select></div>
  ${safeButton('Clear filters','clear-filters',{sm:true,kind:'ghost'})}</div></div>`;
 }

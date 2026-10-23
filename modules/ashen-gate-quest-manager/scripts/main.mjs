@@ -17,7 +17,7 @@ import {rewardsSection,playerRewardsSection,grantPanel,grantSummary,receiveList,
 import {createJournalStore} from './journal-store.mjs';
 import {installJournal,bindRadios} from './journal-ui.mjs';
 
-const VERSION='0.18.2';
+const VERSION='0.19.0';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;
@@ -201,15 +201,15 @@ function questEditor(selected,rewardsHtml,{sections,dirty=false}){
 function rowContext(){
  const loc=game.modules.get('ashen-gate-locations'),getLoc=loc?.active&&typeof loc.api?.getLocation==='function'?loc.api.getLocation:null;
  const safe=fn=>id=>{try{return fn(id)??null;}catch{return null;}};
- return {actorName:safe(id=>game.actors.get(id)?.name),locationName:safe(id=>getLoc?.(id)?.name),itemName:safe(id=>worldItemById(id)?.name)};
+ return {actorName:safe(id=>game.actors.get(id)?.name),locationName:safe(id=>getLoc?.(id)?.name),locationRegion:safe(id=>getLoc?.(id)?.region),itemName:safe(id=>worldItemById(id)?.name)};
 }
 function gmList(view){return listQuestsTab(stateForGM(),view,rowContext());}
 // 0.17.0 Toolbar (Filters (n) opens a second row), then the bulk row once quests are ticked, then list and editor (QL-05).
 function questsPanel(app,rewardsHtml=''){
  const rows=stateForGM(),selected=rows.find(x=>x.source.id===app.gmId)||null;
- const {groups,locations,shown,total,counts,ids}=listQuestsTab(rows,app.qv,rowContext());
+ const {groups,locations,levels,regions,givers,shown,total,counts,ids}=listQuestsTab(rows,app.qv,rowContext());
  app.shownIds=ids;app.picked=new Set([...app.picked].filter(id=>rows.some(x=>x.source.id===id)));
- return `<div class="agq-pane"><div class="agq-subbar">${questsSubnav(app.qv.nav,counts)}</div>${questsToolbar(app.qv,locations,{shown,total,filtersOpen:app.filtersOpen})}${bulkBar(app.picked.size,shown)}<div class="ag-split agq-split"><aside class="ag-split__list agq-list" aria-label="Quests" data-ag-scroll="gm-list">${bulkHint(app.picked.size,shown)}<div id="ag-gm-cards">${questCards(groups,app.gmId,{total,picked:app.picked})}</div>${questsAdvanced()}</aside>
+ return `<div class="agq-pane"><div class="agq-subbar">${questsSubnav(app.qv.nav,counts)}</div>${questsToolbar(app.qv,locations,{shown,total,filtersOpen:app.filtersOpen,levels,regions,givers})}${bulkBar(app.picked.size,shown)}<div class="ag-split agq-split"><aside class="ag-split__list agq-list" aria-label="Quests" data-ag-scroll="gm-list">${bulkHint(app.picked.size,shown)}<div id="ag-gm-cards">${questCards(groups,app.gmId,{total,picked:app.picked})}</div>${questsAdvanced()}</aside>
  <section class="ag-split__detail agq-edit${app.unsavedSource?' is-dirty':''}" data-ag-scroll="gm-edit:${E(selected?.source.id??'new')}">${questEditor(selected,rewardsHtml,{sections:app.gmPrefs.sections,dirty:app.unsavedSource})}</section></div></div>`;
 }
 function setupTab(){return setupPanel({playerAccess:game.settings.get(MOD,'playerAccessEnabled'),packIds:game.settings.get(MOD,'compendiumPackIds'),openForPlayers:game.settings.get(MOD,'openForPlayers')===true});}
@@ -334,7 +334,7 @@ class QuestLogApplication extends Base {
   return infoDialog('Quest Log Help',`<p><strong>Quest Log</strong> shows the quests, work orders and contracts your party is working on.</p>
   <h3>Party and Individual</h3><ul><li><strong>Party</strong> lists the quests the whole party can see. Pick one to read its objectives; choose a character in the <em>Character notes</em> heading to write that character's notes.</li><li><strong>Individual</strong> lists a character's own quests; choose the character in the toolbar.</li><li>Tick <em>Track</em> on a quest to show it in your objectives overlay. <em>Show objectives overlay</em> (right of the toolbar) shows or hides it. Drag the overlay by its header to move it; the slider fades its background (text stays solid); the minus button by a quest stops tracking it. Its place and fade are kept for you only.</li>${gm?'<li>Players see only the quests you reveal; Journal and Actor permissions apply.</li>':''}</ul>
   <h3>Journal</h3><p>Session notes. <em>New session</em> starts one with a party journal and a journal for each player${gm?'':' (a player needs a GM connected for this)'}. Pick a session on the left; ${gm?'choose <em>Whose journal</em> to read':'switch between <em>My journal</em> and <em>Party journal</em>'} above the book. Your own journal is only yours${gm?' (the GM can read it)':''}; everyone can write the party journal. Pages save when you click away and with <em>Save</em> (Ctrl+S). The GM and whoever started a session can rename it (pencil).${gm?' <em>Export Markdown</em> and <em>Archive session</em> sit under the session title.':''}</p>
-  ${gm?`<h3>Quests (GM)</h3><ul><li>Every quest as a card. The views under the tabs (All, Drafts, Hidden, Active, Completed / Failed, Orders, Contracts) show counts and are remembered for you, with your sort and grouping. Search matches title, ID, location, giver and tags; <em>Filters</em> opens type, location and visibility.</li><li>Tick cards to set status, hide, reveal, duplicate or delete several at once; the actions appear in a row above the list (drafts are never revealed that way).</li><li>Pick a card to edit it. Its sections fold open and closed, and one <em>Save changes</em> at the bottom saves the whole quest. Objective progress and rewards are GM controlled; nothing is granted automatically. Drafts stay GM only.</li><li>Item rewards save as you change them (<em>Applies now</em>). Delegated assignments have their own section and <em>Save assignment</em>.</li><li>General Manager is the usual way to import quest files. Quest Log's own <em>Import JSON…</em> is under <em>Advanced</em> at the end of the list; it shows what a file adds before writing anything.</li></ul>
+  ${gm?`<h3>Quests (GM)</h3><ul><li>Every quest as a card. The views under the tabs (All, Drafts, Hidden, Active, Completed / Failed, Orders, Contracts) show counts and are remembered for you, with your sort and grouping. Search matches title, ID, location, giver and tags; <em>Filters</em> opens type, location, level, region, giver and visibility; group by status, location, type, level, region or giver.</li><li>Tick cards to set status, hide, reveal, duplicate or delete several at once; the actions appear in a row above the list (drafts are never revealed that way).</li><li>Pick a card to edit it. Its sections fold open and closed, and one <em>Save changes</em> at the bottom saves the whole quest. Objective progress and rewards are GM controlled; nothing is granted automatically. Drafts stay GM only.</li><li>Item rewards save as you change them (<em>Applies now</em>). Delegated assignments have their own section and <em>Save assignment</em>.</li><li>General Manager is the usual way to import quest files. Quest Log's own <em>Import JSON…</em> is under <em>Advanced</em> at the end of the list; it shows what a file adds before writing anything.</li></ul>
   <h3>GM Setup</h3><p>Player access (whether players see the Quest Log) and other settings; they save together with <em>Save Changes</em>.</p>
   <p>Deleting a quest or an assignment, or leaving a quest with unsaved changes, asks you to confirm first.</p>`:''}`);
  }
@@ -412,7 +412,7 @@ class QuestLogApplication extends Base {
  }
  // Views, filters, sort and group redraw the list only, so the editor and its unsaved edits stay.
  bindToolbar(root){
-  for(const [id,key] of [['type','type'],['location','location'],['visible','visible'],['sort','sort'],['group','group']])root.querySelector(`#ag-gm-${id}`)?.addEventListener('change',e=>{this.qv[key]=e.target.value;if(key==='sort'||key==='group')this.saveGmView({[key]:e.target.value});this.paintFilterCount(root);this.paintList(root);});
+  for(const [id,key] of [['type','type'],['location','location'],['level','level'],['region','region'],['giver','giver'],['visible','visible'],['sort','sort'],['group','group']])root.querySelector(`#ag-gm-${id}`)?.addEventListener('change',e=>{this.qv[key]=e.target.value;if(key==='sort'||key==='group')this.saveGmView({[key]:e.target.value});this.paintFilterCount(root);this.paintList(root);});
   const gmSearch=root.querySelector('#ag-gm-search');gmSearch?.addEventListener('input',()=>{this.qv.search=gmSearch.value;this.paintList(root);});
  }
  bindNav(root){
@@ -422,8 +422,8 @@ class QuestLogApplication extends Base {
  // Clear filters puts the toolbar controls back too (redrawn and rebound), then the list.
  paintToolbar(root){
   const bar=root.querySelector('.agq-bars');if(!bar)return;
-  const {locations,shown,total}=gmList(this.qv);
-  bar.outerHTML=questsToolbar(this.qv,locations,{shown,total,filtersOpen:this.filtersOpen});
+  const {locations,levels,regions,givers,shown,total}=gmList(this.qv);
+  bar.outerHTML=questsToolbar(this.qv,locations,{shown,total,filtersOpen:this.filtersOpen,levels,regions,givers});
   for(const b of root.querySelector('.agq-bars')?.querySelectorAll('[data-action]')??[])b.addEventListener('click',()=>this.action(b,root));
   this.bindToolbar(root);this.paintNav(root);this.paintList(root);
  }
