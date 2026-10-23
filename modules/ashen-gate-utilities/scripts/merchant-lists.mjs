@@ -175,7 +175,7 @@ function editorHTML(d,index,locations){
  const saved=d.id?lists().find(l=>l.id===d.id)??null:null;
  const back=button('mlist-back','All merchant lists',{kind:'ghost sm',ic:'fa-arrow-left',attrs:'aria-label="Back to all merchant lists"'});
  const share=saved?`<span class="agu-now-group"><span class="ag-badge ag-badge--warn agu-now" ${tip('Sharing changes the saved list now; it does not wait for Save Changes')}>${icon('fa-bolt')} Applies now</span>${shareBadge(saved.audience)}${button('mlist-share','Share…',{kind:'sm',ic:'fa-share-nodes',attrs:`data-mlist-id="${E(saved.id)}" aria-label="Choose who sees ${E(saved.name)}"`})}</span>`:'';
- return `<div class="agu-shop-editor"><div class="agu-shop-editor__head">${back}<h2>${E(d.id?d.name||'Unnamed list':'New merchant list')}</h2>${d.id?`<code>${E(d.id)}</code>`:''}${share}</div>
+ return `<div class="agu-shop-editor"><div class="agu-shop-editor__head">${back}<h2>${E(d.id?d.name||'Unnamed list':'New merchant list')}</h2>${share}</div>
  <div class="ag-form-grid"><label class="ag-field">List name<input type="text" maxlength="${MLIST_NAME_MAX}" data-mlist-field="name" value="${E(d.name)}" required><span class="ag-field__hint">Required. Players see it.</span></label>${city}</div>
  <section class="ag-section"><div class="ag-section__head"><h3 class="ag-section__title">Shops and services · ${d.shopIds.length}</h3></div>
  ${d.shopIds.length?`<ul class="ag-rows">${rows}</ul>`:'<p class="ag-field__hint">Nothing on this list yet. Add saved shops and services below; players see them in this order.</p>'}

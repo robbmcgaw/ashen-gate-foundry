@@ -17,10 +17,12 @@ const sourceIdOf=item=>item?.flags?.['ashen-gate-manager']?.source?.sourceId??it
 
 /** Looks up every item the lines name: `id:` among world Items by permanent id, `uuid:` with fromUuid. Missing ones are left out. */
 export async function resolveItems(keys){
- const out=new Map(),world=[...(game.items??[])];
+ const out=new Map(),bySource=new Map();
+ // Indexed once: a trainer file names 100+ items and a world can hold thousands.
+ for(const i of game.items??[]){const sid=sourceIdOf(i);if(sid&&!bySource.has(sid))bySource.set(sid,i);}
  for(const key of keys){
   let item=null;
-  if(key.startsWith('id:')){const id=key.slice(3);item=world.find(i=>sourceIdOf(i)===id)??null;}
+  if(key.startsWith('id:')){const id=key.slice(3);item=bySource.get(id)??null;}
   else{try{item=await fromUuid(key.slice(5));}catch{item=null;}if(item&&item.documentName!=='Item')item=null;}
   if(!item)continue;
   const contents=(await bundleOf(item)).slice(1);
@@ -74,18 +76,23 @@ const TYPE_LABEL={Shop:'Shop',Service:'Service',MerchantList:'Merchant list'};
 const countOf=results=>results.filter(r=>r.result==='created'||r.result==='updated').length;
 function row(r){
  const [tone,ic,label]=BADGES[r.result]??BADGES.skipped;
- const why=[r.reason,...(r.lines?.skipped??[]).map(s=>`Line ${s.ref}: ${s.reason}`),...(r.notes??[])].filter(Boolean);
+ const skipped=r.lines?.skipped??[];
+ // A trainer shop can have a dozen unresolved lines: more than three fold into one "not found" disclosure instead of a dozen rows of text.
+ const long=skipped.length>3,why=[r.reason,...(long?[]:skipped.map(s=>`Line ${s.ref}: ${s.reason}`)),...(r.notes??[])].filter(Boolean);
+ const fold=long?`<details class="ag-row__meta agu-import-skipped"><summary>${skipped.length} items not found in this world</summary><ul>${skipped.map(s=>`<li>${E(s.ref)}</li>`).join('')}</ul></details>`:'';
  const lines=r.lines?`${r.lines.imported} ${r.lines.imported===1?'item':'items'}${r.lines.skipped.length?`, ${r.lines.skipped.length} not found`:''}`:'';
- return `<li class="ag-row"><div class="ag-row__main"><span class="ag-row__title">${E(r.name||r.id)}</span><span class="ag-row__meta">${E([TYPE_LABEL[r.type]??'Record',lines].filter(Boolean).join(' · '))} · <code>${E(r.id)}</code></span>
- ${why.map(w=>`<span class="ag-row__meta">${E(w)}</span>`).join('')}</div><div class="ag-row__end"><span class="${['ag-badge',tone].filter(Boolean).join(' ')}">${icon(ic)} ${label}</span>${r.lines?.skipped.length&&r.result!=='skipped'?`<span class="ag-badge ag-badge--warn">${icon('fa-triangle-exclamation')} ${r.lines.skipped.length} ${r.lines.skipped.length===1?'line':'lines'} skipped</span>`:''}</div></li>`;
+ return `<li class="ag-row"><div class="ag-row__main"><span class="ag-row__title">${E(r.name||r.id)}</span><span class="ag-row__meta">${E([TYPE_LABEL[r.type]??'Record',lines].filter(Boolean).join(' · '))}</span>
+ ${why.map(w=>`<span class="ag-row__meta">${E(w)}</span>`).join('')}${fold}</div><div class="ag-row__end"><span class="${['ag-badge',tone].filter(Boolean).join(' ')}">${icon(ic)} ${label}</span>${r.lines?.skipped.length&&r.result!=='skipped'?`<span class="ag-badge ag-badge--warn">${icon('fa-triangle-exclamation')} ${r.lines.skipped.length} ${r.lines.skipped.length===1?'line':'lines'} skipped</span>`:''}</div></li>`;
 }
 /** The preview pane shown in place of the Shops list while a file is open. */
 export function importView(app){
  const st=app.shopImport,res=st.results??[];
  const ignored=st.ignored?`<p class="ag-notice ag-notice--info">${icon('fa-circle-info')}<span>${st.ignored} other ${st.ignored===1?'record in this file (an Item or another type) is':'records in this file (Items and other types) are'} not read here. Import the whole file with General Manager to create its Items first.</span></p>`:'';
+ const missing=res.reduce((n,r)=>n+(r.lines?.skipped.length??0),0);
+ const absent=missing?`<p class="ag-notice ag-notice--warn">${icon('fa-triangle-exclamation')}<span>${missing} ${missing===1?'item line names an item':'item lines name items'} that ${missing===1?"isn't":"aren't"} in this world yet, so ${missing===1?'it is':'they are'} skipped. Import the file's Items (and the crafting packs they need) with General Manager first, then import this file again with <em>Update shops that already exist</em> on.</span></p>`:'';
  const none=!res.length?`<div class="ag-empty">${icon('fa-file-import')}<p class="ag-empty__title">No shops in this file</p><p class="ag-empty__text">The file has no Shop, Service or MerchantList records.</p></div>`:'';
  return `<section class="ag-section agu-shop-import" aria-label="Import preview"><div class="ag-section__head"><h3 class="ag-section__title">Import ${E(st.fileName||'file')}</h3></div>
- ${ignored}
+ ${ignored}${absent}
  <label class="ag-field ag-field--inline"><input type="checkbox" role="switch" data-shop-import-mode${st.mode==='update'?' checked':''}> Update shops that already exist</label>
  <p class="ag-field__hint">${st.mode==='update'?'Name, merchant, flavour and items come from the file. Items you added by hand, stock left, the merchant\'s coins now and who it is shown to stay as they are.':'Shops, services and lists already in this world are kept as they are.'} Imported merchant lists start hidden.</p>
  ${none}${res.length?`<ul class="ag-rows">${res.map(row).join('')}</ul>`:''}</section>`;

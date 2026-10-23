@@ -231,7 +231,7 @@ test('list: toolbar (search, sort, count, New shop), city groups with counts, ro
  assert.match(html,/<span class="ag-toolbar__count">2 shops<\/span><div class="ag-toolbar__end"><span class="ag-btn-group"><span class="ag-file" data-shop-import=""><button type="button" class="ag-btn ag-btn--sm" data-ag-file-button><i class="fa-solid fa-file-import" aria-hidden="true"><\/i> Import JSON…<\/button><input type="file" class="ag-file__input ag-sr-only"[^>]*accept=".json,application\/json"><\/span><button type="button" class="ag-btn ag-btn--sm" data-action="shop-export"[\s\S]*?<\/span><button type="button" class="ag-btn ag-btn--ghost ag-btn--sm" data-action="shop-new-service"[\s\S]*?New Bank \(deprecated\)<\/button><button type="button" class="ag-btn" data-action="shop-new"/,'0.26.0: Import JSON (a kit file button) and Export grouped, then New Bank (deprecated), then New shop');
  assert.match(html,/<h3 class="ag-eyebrow">\[TEST\] Testford · 1<\/h3>[\s\S]*<h3 class="ag-eyebrow">No location · 1<\/h3>/);
  assert.match(html,/<span class="ag-row__icon agu-shop-avatar" aria-hidden="true">BT<\/span>/);
- assert.match(html,/\[TEST\] Brin Tallow · \[TEST\] Market Ward · 7 items · <code>SHOP-TEST-THE-COPPER-KETTLE<\/code>/);
+ assert.match(html,/\[TEST\] Brin Tallow · \[TEST\] Market Ward · 7 items<\/span>/);assert.doesNotMatch(html,/<code>SHOP-/);
  assert.match(html,/Unlimited cash/);
  assert.match(html,/data-action="shop-edit" data-shop="SHOP-TEST-THE-COPPER-KETTLE" aria-label="Edit \[TEST\] The Copper Kettle"/);
  assert.doesNotMatch(html,/data-action="shop-duplicate"/,'0.26.0: Duplicate is in the editor head, not the row');
@@ -259,7 +259,7 @@ test('editor: kit fields, items table, coin purse, buys, footer Cancel / Save Ch
  // 0.26.0: five columns; flavour and cost on a second line under each item.
  assert.match(items,/<table class="ag-table agu-shop-lines"><thead><tr><th scope="col">Item<\/th><th scope="col">Price each<\/th><th scope="col">Stock<\/th><th scope="col">Hidden<\/th><th scope="col"><span class="ag-sr-only">Remove<\/span><\/th><\/tr><\/thead>/);
  assert.match(items,/<tr class="agu-line-extra" data-line="[^"]+"><td colspan="5"><div class="agu-line-extra__grid"><label class="ag-field ag-field--inline">Flavour<input[^>]*data-line-field="flavour"[\s\S]*?Cost <span class="ag-gm-flag">[\s\S]*?data-line-field="_cost"/);
- assert.match(items,/<code>ITEM-TEST-ROPE<\/code>/);assert.match(items,/With 2 items inside/);assert.match(items,/Already in this shop/);
+ assert.doesNotMatch(items,/<code>ITEM-TEST-ROPE<\/code>/);assert.match(items,/With 2 items inside/);assert.match(items,/Already in this shop/);
  assert.match(items,/class="ag-btn ag-btn--icon ag-btn--sm ag-btn--danger" data-action="shop-line-remove"/);
  assert.match(items,/data-shop-drop>/);assert.match(items,/Applies now[\s\S]*data-action="shop-restock"/);
  const coins=(await open(false,'coins')).html;
