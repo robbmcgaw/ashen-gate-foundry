@@ -1,3 +1,9 @@
+## 0.31.3 — 2026-10-23
+
+- **Fix: one question when both an edited node and an unapplied import preview are open.** Leaving Gathering nodes asked twice, and answering Discard to the first and Keep reviewing to the second left the editor on screen with its draft already gone. It now asks once (**Discard unsaved changes?**) and changes nothing until you choose **Discard changes**; **Keep editing** leaves the draft, the preview and the focus as they were.
+- **Notification text goes through one helper.** Names in notifications are still escaped (the safe choice if Foundry shows them as HTML). If Foundry V14 shows them as plain text, a name with `&` would show as `&amp;`; the switch to turn escaping off is `ESCAPE_NOTIFICATIONS` at the top of `scripts/main.js`. Chat whispers stay escaped either way.
+- **Saved data:** none changed; no migration.
+
 ## 0.31.2 — 2026-10-23
 
 - **Fix: leaving Gathering nodes no longer drops unsaved work silently.** Clicking another tab, or another Gathering sub-tab (Requests, Active checks, Start gathering), while a node is being edited with unsaved changes now asks **Discard unsaved changes?** (Keep editing is the default and leaves everything as it was, including where the focus is). The same goes for a node file import preview you haven't applied: **Discard this import preview?** (Keep reviewing / Discard preview). Moving into Gathering nodes, or leaving with nothing pending, asks nothing.

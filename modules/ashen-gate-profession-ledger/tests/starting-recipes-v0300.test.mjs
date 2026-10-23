@@ -48,7 +48,7 @@ const npc=makeActor('npc','[TEST] Goblin',{type:'npc',owner:false,items:[alchemy
 const loner=makeActor('loner','[TEST] Hireling',{owner:false,items:[alchemy()]});
 const backup=makeActor('bak','[TEST] Ana - level 3',{items:[alchemy()],backup:true});
 const all=[ana,bo,cy,npc,loner,backup];
-const ledgerModule={active:true,version:'0.31.2',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.31.3',set api(v){api=v},get api(){return api}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},
   actors:{contents:all,get:id=>all.find(a=>a.id===id)},socket:{emit:()=>{},on:()=>{}},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?ledgerModule:null},settings:{register:()=>{},registerMenu:()=>{},get:(m,k)=>values[k],set:async(m,k,v)=>{values[k]=v;}}};

@@ -22,7 +22,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.31.2';
+const VERSION='0.31.3';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -52,7 +52,11 @@ const notice=(html,kind='info')=>`<div class="ag-notice ag-notice--${kind}"><i c
 const rowMeta=html=>html?`<span class="ag-row__meta">${html}</span>`:'';
 const materialQuality=(sourceId,lib)=>sourceId?lib.materials.find(m=>m.id===sourceId)?.quality??null:null;
 // Notifications are shown as HTML, and messages carry actor, node and file names a player or a file can choose: escape them.
-const say=(message,error=false)=>error?ui.notifications.error(esc(message)):ui.notifications.info(esc(message));
+// Notification text goes through notifyText. Whether V14 renders it as HTML (names must be escaped) or as plain text (escaping
+// would show "&amp;") could not be confirmed offline: escaping is the safe default; set ESCAPE_NOTIFICATIONS=false to flip it.
+const ESCAPE_NOTIFICATIONS=true;
+const notifyText=text=>ESCAPE_NOTIFICATIONS?esc(text):String(text??'');
+const say=(message,error=false)=>error?ui.notifications.error(notifyText(message)):ui.notifications.info(notifyText(message));
 const plural=(n,one,many=`${one}s`)=>`${n} ${n===1?one:many}`;
 /** 0.26.2: a control's identity across a re-render: its tag, name and data-* attributes (tooltips aside). */
 const FOCUSABLE='input, textarea, select, button, a[href], [tabindex]';
@@ -830,7 +834,7 @@ const signatureWarned=new Set();
 function warnSignatureMissing(actor,profId,tier,why){
   const key=`${profId}:${tier}`;if(signatureWarned.has(key))return;signatureWarned.add(key);
   const name=professionNameOf(actor,profId),text=`${actor.name} reached ${signatureTierName(tier)} in ${name}, but ${why} Import the signature perks with General Manager; then use Assign → Signature perks to catch up.`;
-  try{ui.notifications.warn(esc(text));}catch{}
+  try{ui.notifications.warn(notifyText(text));}catch{}
   try{void globalThis.ChatMessage?.create?.({whisper:allUsers().filter(u=>u.isGM).map(u=>u.id),content:`<div class="agl-chat-card"><header><div><strong>Signature perk not granted</strong><span>${esc(text)}</span></div></header></div>`});}catch(err){console.warn(`[${ID}] signature note failed`,err);}
 }
 /**
@@ -3155,18 +3159,20 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     const status=this.element?.querySelector?.('[data-agl-roster-status]');
     if(status)status.textContent=this.setupStatus;
   }
-  /** Before leaving Gathering nodes by a tab or sub-tab: ask about an edited node and about an import preview that was not
-   * applied. Keep editing leaves everything (and the focus) where it is; discarding drops the draft or preview. */
+  /** Before leaving Gathering nodes by a tab or sub-tab: ask once about an edited node and/or an import preview that was not
+   * applied. Nothing is changed until the answer is Discard, so Keep editing leaves the draft, the preview, the dirty mark and
+   * the focus exactly as they were. */
   async _leaveNodes(){
     if(this.view!=='nodes')return true;
-    if(this.nodeDraft&&this.nodeGuard?.dirty){
-      if(!await this.nodeGuard.confirm())return false;
-      this.nodeDraft=null;
-    }
+    const dirty=Boolean(this.nodeDraft&&this.nodeGuard?.dirty);
     const plan=this.nodeImport?.plan;
-    if(plan?.ok&&(plan.add.length||plan.update.length)){
-      const discard=await confirmDanger('This node import has not been applied yet.',{title:'Discard this import preview?',yes:'Discard preview',no:'Keep reviewing'});
+    const preview=Boolean(plan?.ok&&(plan.add.length||plan.update.length));
+    if(dirty||preview){
+      const both=dirty&&preview;
+      const discard=await confirmDanger(both?'Your node changes have not been saved, and the node import has not been applied.':dirty?'Your changes have not been saved.':'This node import has not been applied yet.',
+        {title:preview&&!dirty?'Discard this import preview?':'Discard unsaved changes?',yes:preview&&!dirty?'Discard preview':'Discard changes',no:preview&&!dirty?'Keep reviewing':'Keep editing'});
       if(!discard)return false;
+      if(dirty){this.nodeGuard.markClean();this.nodeDraft=null;}
     }
     this.nodeImport=null;
     return true;
