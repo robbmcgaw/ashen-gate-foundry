@@ -7,7 +7,7 @@
 import {escapeHTML as E,normalizeMerchantList,normalizeAudience,migrateMerchantLists,listNeedsMigration,presentedCovers,presentedBeyond,mergePresented,audienceText,
  shopIdFromName,validId,MLIST_NAME_MAX,shopPlace} from './core.mjs';
 import {readAll,readServices,readMeta,writeMeta,queueShops,locationMap,icon,button,tip,settlementSelect} from './shops.mjs';
-import {emptyState} from './ui-parts.mjs';
+import {emptyState,focusKey,refocusSoon} from './ui-parts.mjs';
 import {fold} from './ag-html.mjs';
 import {syncPlayerView,setPresentations,getRecord} from './shop-buy.mjs';
 import {servicesAll,typeLabel} from './services.mjs';
@@ -197,11 +197,13 @@ const dirty=(app,root)=>{app.listDirty=true;app.listStatus='Unsaved changes';con
 export function bindLists(app,root,{error,render}){
  if(app.tab!=='shops'||app.shopSub!=='lists'||!isGM())return;
  for(const el of root.querySelectorAll('[data-mlist-open]'))el.addEventListener('change',async()=>{
+  // 0.27.1: focus comes back to the switch after its confirm (either answer) and the re-render.
+  const key=focusKey(el),back=()=>refocusSoon(root,[key]);
   // 0.26.0: closing a store that is also shown to players outside this list asks first (it closes for them too).
   if(!el.checked){const fx=closeEffects(el.dataset.mlistOpen,el.dataset.entry);
-   if(fx.length&&!(await confirmDanger(`${effectsText(fx)}. Closing stops showing it to every player, there too.`,{title:`Close ${fx[0].name} for every player?`,yes:'Close store'}))){el.checked=true;return;}}
+   if(fx.length&&!(await confirmDanger(`${effectsText(fx)}. Closing stops showing it to every player, there too.`,{title:`Close ${fx[0].name} for every player?`,yes:'Close store'}))){el.checked=true;back();return;}}
   el.disabled=true;
-  setOpen(el.dataset.mlistOpen,el.dataset.entry,el.checked).then(st=>{ui.notifications?.info(st.open?`${st.name} is open to this list's players.`:`${st.name} is closed (no longer shown to players).`);return render();}).catch(e=>{error(e);render();});
+  setOpen(el.dataset.mlistOpen,el.dataset.entry,el.checked).then(st=>{ui.notifications?.info(st.open?`${st.name} is open to this list's players.`:`${st.name} is closed (no longer shown to players).`);return render();}).catch(e=>{error(e);return render();}).finally(back);
  });
  const d=app.listDraft;if(!d)return;
  for(const el of root.querySelectorAll('[data-mlist-field]'))el.addEventListener(el.tagName==='SELECT'?'change':'input',()=>{const f=el.dataset.mlistField;d[f]=f==='locationId'?(el.value||null):el.value;dirty(app,root);});

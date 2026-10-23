@@ -35,12 +35,63 @@ export function restoreFocus(root,key){
  if(!el||el.disabled||typeof el.focus!=='function')return false;
  el.focus({preventScroll:true});return true;
 }
+/** True for an element inside a dialog window (a kit dialog, or any <dialog>), which is closing or still open. */
+const inDialog=el=>Boolean(el?.closest?.('dialog,.ag-dialog'));
 /**
  * 0.27.0: after a dialog closes and the view re-renders, focus the first control `keys` still names (the button that
  * opened it, usually). Leaves focus alone when the user has already moved on to something outside `root`.
+ * 0.27.1: focus still inside the closing dialog is not "moved on".
  */
 export function refocus(root,keys){
  const doc=globalThis.document,active=doc?.activeElement;
- if(active&&active!==doc?.body&&root?.contains?.(active)===false)return false;
+ if(active&&active!==doc?.body&&!inDialog(active)&&root?.contains?.(active)===false)return false;
  return [].concat(keys).filter(Boolean).some(k=>restoreFocus(root,k));
+}
+const focusTimers=new WeakMap();
+/**
+ * 0.27.1: refocus, then try again for a moment. A modal dialog that is still closing keeps `root` inert and then hands
+ * focus back to the button that opened it, which a re-render replaced (or which was disabled while the dialog was
+ * open), so focus lands on the page. Every `every` ms, up to `tries` times, focus the control again until it takes;
+ * stop as soon as the user has moved focus somewhere else, or the control is gone. One retry per root at a time.
+ */
+export function refocusSoon(root,keys,{every=50,tries=40}={}){
+ const list=[].concat(keys).filter(Boolean),doc=globalThis.document;
+ if(!root)return false;
+ clearInterval(focusTimers.get(root));focusTimers.delete(root);
+ const ok=refocus(root,list);
+ const target=()=>{for(const k of list){let el=null;try{el=root.querySelector?.(k)??null;}catch{el=null;}if(el&&!el.disabled&&typeof el.focus==='function')return el;}return null;};
+ if(!doc||!list.length||typeof setInterval!=='function')return ok;
+ const first=target();if(!first||doc.activeElement===first)return ok;
+ let n=0;
+ const timer=setInterval(()=>{
+  const a=doc.activeElement,el=target(),elsewhere=a&&a!==doc.body&&a!==el&&!inDialog(a);
+  if(++n>tries||elsewhere||!el){stop();return;}
+  if(a!==el)el.focus({preventScroll:true});
+  if(doc.activeElement===el)stop();
+ },every);
+ function stop(){clearInterval(timer);if(focusTimers.get(root)===timer)focusTimers.delete(root);}
+ timer?.unref?.();focusTimers.set(root,timer);
+ return ok;
+}
+
+/* 0.27.1: Foundry's keybindings listen on the window, and its Space binding pauses the game and cancels the key. A Space
+   that bubbles out of a Utilities window therefore paused the game and the focused button never clicked. Space and
+   Enter stop at the module's root when they start on one of its controls; the browser's own action (click the button,
+   type the space, open the select) is untouched, and so is every listener inside the root. */
+export const KEY_CONTROLS='button,a[href],select,input,textarea,summary,[role="tab"],[role="button"],[role="radio"],[role="checkbox"],[role="switch"],[contenteditable=""],[contenteditable="true"]';
+const activationKey=ev=>ev?.key===' '||ev?.key==='Spacebar'||ev?.code==='Space'||ev?.key==='Enter';
+/** The keydown/keyup listener body: stops Space/Enter from leaving `root` when they start on one of its controls. */
+export function stopActivationKeys(root,ev){
+ if(!activationKey(ev))return false;
+ const c=ev.target?.closest?.(KEY_CONTROLS);
+ if(!c||(c!==root&&root?.contains?.(c)===false))return false;
+ ev.stopPropagation();return true;
+}
+const guarded=new WeakSet();
+/** Once per root element (a window's content, which survives re-renders): the Space/Enter guard on keydown and keyup. */
+export function guardKeys(root){
+ if(!root?.addEventListener||guarded.has(root))return false;guarded.add(root);
+ const stop=ev=>{stopActivationKeys(root,ev);};
+ root.addEventListener('keydown',stop);root.addEventListener('keyup',stop);
+ return true;
 }

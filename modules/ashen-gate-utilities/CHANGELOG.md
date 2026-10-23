@@ -1,3 +1,9 @@
+## 0.27.1 — 2026-10-23
+
+- **Space presses the focused button again, and no longer pauses the game.** With a Utilities button, tab, switch, list or text box focused (for example *Add to stash…*, *Choose Actor…* or *Add item…*), Space used to reach Foundry's own Space shortcut, which paused or unpaused the game, and the button did nothing. Space and Enter now stay with the Utilities window (also the Character Hub's party stash, shop windows, the conditions overlay and the take-out vote) and press the control, exactly like a click. Typing a space in a text box works as before. With nothing in a Utilities window focused, Space still pauses as usual.
+- **Focus comes back to the button after its dialog.** After *Choose Actor…* and *Add item…* (and every other Utilities button that opens a dialog: Help, Award gold, Adjust purse, Share…, Present…, Restock, Delete…, Buy… and Sell… in a shop window, Remove on the conditions overlay, the Open/Closed switch on a merchant list), focus goes back to that button when the dialog closes, whether you confirm, cancel or press Escape, as *Add to stash…* already did. If you click somewhere else meanwhile, focus stays where you put it.
+- No change to saved data, settings or the API; nothing to migrate.
+
 ## 0.27.0 — 2026-10-22
 
 - **Keyboard and click alternatives to drag and drop** (UI audit UT-31). Each opens a small dialog (Cancel on the left, the labelled action on the right) and then does exactly what the drop does, through the same code, so the same rules and permissions apply. Dragging still works as before.

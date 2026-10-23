@@ -4,7 +4,7 @@ import {confirmDialog,confirmDanger,guardDirty,infoDialog,formDialog} from './ag
 import {windowSize,subTabs,tabPanelAttrs,bindTablist,fold,bindFolds,linkButton,uiState} from './ag-html.mjs';
 import {readDrop,resolveItemDrop,grantBundle} from './ag-item-drop.mjs';
 import {shopsApi,shopsView,shopsFooter,bindShops,handleShops,shopHooks,shopsDirty} from './shops.mjs';
-import {button,emptyState,rowHTML,rowsHTML,focusKey,restoreFocus,refocus} from './ui-parts.mjs';
+import {button,emptyState,rowHTML,rowsHTML,focusKey,restoreFocus,refocusSoon,guardKeys,stopActivationKeys} from './ui-parts.mjs';
 import {pickStashDeposit} from './keyboard-add.mjs';
 import {configureTrade,tradeApi,tradeHooks,tradeSocketHandlers,handleTrade,playerShopsView,bindPlayerShops,shopsVisible,shopsOn,shopVoteRequired,executeBuy,refreshShopWindows,postTradeCard} from './shop-buy.mjs';
 import {executeSell} from './shop-sell.mjs';
@@ -343,7 +343,7 @@ class UtilitiesApp extends ApplicationV2 {
  _replaceHTML(html,content){
   // 0.26.0: focus and the scroll position survive a re-render (§9.6).
   const active=globalThis.document?.activeElement,key=active&&content.contains?.(active)?focusKey(active):null,scroll=content.querySelector?.('.agu-main')?.scrollTop??0;
-  content.innerHTML=html;this.bind(content);
+  content.innerHTML=html;guardKeys(content);this.bind(content);
   const main=content.querySelector?.('.agu-main');if(main&&scroll)main.scrollTop=scroll;
   restoreFocus(content,key);
  }
@@ -389,7 +389,11 @@ class UtilitiesApp extends ApplicationV2 {
   bindPlayerShops(this,root,{render:()=>this.render().catch(error)});
   for(const b of root.querySelectorAll('[data-action]'))b.addEventListener('click',()=>this.handle(b.dataset.action,b,root).catch(error));
  }
- async handle(action,b,root){if(b.disabled)return;b.disabled=true;try{
+ /**
+  * Every [data-action] button of the window and the embed. 0.27.1: when the action is done (a dialog it opened
+  * confirmed or cancelled, the view re-rendered), focus goes back to the button, or after Take to the nearest Take.
+  */
+ async handle(action,b,root){if(b.disabled)return;b.disabled=true;const keys=action==='stash-take'?takeFocusKeys(b):[focusKey(b)];try{
   if(await handleTrade(this,action,b,{render:()=>this.render()}))return;
   if(await handleShops(this,action,b,{render:()=>this.render(),root}))return;
   if(action==='start'){
@@ -413,7 +417,7 @@ class UtilitiesApp extends ApplicationV2 {
    return;
   }
   if(action==='create-stash'){if(!isGM())throw Error('GM only.');if(stashActor())throw Error('Party Stash already exists.');await Actor.create({name:'Ashen Gate | Party Stash',type:'npc',ownership:{default:stashEnabled()?OBSERVER():0},flags:{[ID]:{partyStash:true}}});await this.render();return;}
-  if(action==='stash-take'){const keys=takeFocusKeys(b);try{await notifyResult(withdrawItem(b.dataset.item,root.querySelector('#agu-stash-target')?.value));}finally{await this.render?.();refocus(root,keys);}return;}
+  if(action==='stash-take'){try{await notifyResult(withdrawItem(b.dataset.item,root.querySelector('#agu-stash-target')?.value));}finally{await this.render?.();}return;}
   if(action==='stash-add'){await addToStash(this,b,root);return;}
   if(action==='stash-history-more'){this.historyShown+=HISTORY_PAGE;await this.render();return;}
   if(action==='stash-history-clear'){if(!await confirmDanger('Clear the whole stash history? This cannot be undone.',{title:'Clear stash history?',yes:'Clear history'}))return;await clearStashHistory();this.historyShown=HISTORY_PAGE;ui.notifications?.info('Stash history cleared.');await this.render();return;}
@@ -475,7 +479,7 @@ class UtilitiesApp extends ApplicationV2 {
   if(action==='toggle-overlay'){await game.settings.set(ID,'overlayOpen',game.settings.get(ID,'overlayOpen')!==true);await this.render();return;}
   if(action==='setup-cancel'){if(!isGM())throw Error('GM only.');this.setupGuard?.markClean();this.setupStatus='';await this.render();return;}
   if(action==='save-access'){if(!isGM())throw Error('GM only.');const feeBox=root.querySelector('#agu-exchange-fee'),fee=feeBox?Number(feeBox.value===''?0:feeBox.value):null;if(fee!==null&&(!Number.isInteger(fee)||fee<0||fee>FUND_FEE_MAX))throw Error(`The exchange fee must be a whole number from 0 to ${FUND_FEE_MAX}. Nothing was saved.`);await game.settings.set(ID,'playerAccessEnabled',Boolean(root.querySelector('#agu-access')?.checked));const stashBox=root.querySelector('#agu-stash-enabled');if(stashBox&&stashBox.checked!==stashEnabled())await setStashEnabled(stashBox.checked);const voteBox=root.querySelector('#agu-stash-vote');if(voteBox&&voteBox.checked!==stashVoteRequired())await setStashVoteRequired(voteBox.checked);const coinBox=root.querySelector('#agu-purse-vote');if(coinBox)await setPurseVoteRequired(coinBox.checked);const epBox=root.querySelector('#agu-electrum');if(epBox&&epBox.checked!==electrumEnabled())await setElectrumEnabled(epBox.checked);const shopBox=root.querySelector('#agu-shops-enabled');if(shopBox&&shopBox.checked!==shopsOn())await game.settings.set(ID,'shopsEnabled',shopBox.checked);const shopVote=root.querySelector('#agu-shop-vote');if(shopVote)await game.settings.set(ID,'shopPurseVote',shopVote.checked?'on':'off');if(fee!==null&&fee!==fundFee())await game.settings.set(ID,'exchangeFeePercent',fee);const ownBox=root.querySelector('#agu-owner-conditions');if(ownBox&&ownBox.checked!==ownersManage())await setOwnersManage(ownBox.checked);const ctrlBoxes=[...(root.querySelectorAll?.('input[name="agu-controller"]')??[])];if(ctrlBoxes.length)await setControllers(ctrlBoxes.filter(x=>x.checked).map(x=>x.value));this.setupGuard?.markClean();this.setupStatus='Saved';const st=root.querySelector?.('[data-setup-status]');if(st)st.textContent=this.setupStatus;ui.notifications.info('GM Setup saved.');return;}
- }finally{b.disabled=false;}}
+ }finally{b.disabled=false;refocusSoon(root,keys);}}
 }
 async function sendMessage(raw,root){if(!isGM())throw Error('GM only.');const content=String(raw).trim();if(!content||content.length>3000)throw Error('Message must be 1–3000 characters.');const selected=[...root.querySelectorAll('input[name="agu-recipient"]:checked')].map(x=>x.value),valid=selected.filter(id=>game.users.get(id)&&!game.users.get(id).isGM);if(valid.length!==selected.length)throw Error('Invalid recipients.');
  await ChatMessage.create({content:`<p>${E(content).replace(/\n/g,'<br>')}</p>`,whisper:valid.length?[...new Set([...valid,...game.users.filter(u=>u.isGM).map(u=>u.id)])]:[],speaker:ChatMessage.getSpeaker()});
@@ -622,10 +626,12 @@ let positionTimer=null;
 class ConditionsOverlay extends ApplicationV2 {
  static DEFAULT_OPTIONS={id:'ashen-gate-utilities-conditions-overlay',classes:['ag-app','agu-overlay-app'],window:{title:'Party Conditions',resizable:true,minimizable:false},position:{width:240,height:'auto'}};
  async _renderHTML(){if(!permitted())throw Error('Utilities is hidden for players.');return overlayHTML();}
- _replaceHTML(html,content){content.innerHTML=html;applyOverlayOpacity(this);
+ _replaceHTML(html,content){const active=globalThis.document?.activeElement,key=active&&content.contains?.(active)?focusKey(active):null;
+  content.innerHTML=html;guardKeys(content);applyOverlayOpacity(this);restoreFocus(content,key);
   const fade=content.querySelector('[data-ov-opacity]');
   if(fade){fade.addEventListener('input',()=>applyOverlayOpacity(this,fade.value));fade.addEventListener('change',()=>{game.settings.set(ID,'overlayOpacity',applyOverlayOpacity(this,fade.value))?.catch?.(error);});}
-  for(const b of content.querySelectorAll('[data-ov-remove]'))b.addEventListener('click',()=>{b.disabled=true;removeFromUI(game.actors.get(b.dataset.actor),b.dataset.status).catch(error).finally(()=>{b.disabled=false;});});
+  // 0.27.1: after the remove (and its confirm, confirmed or cancelled) focus goes back to the button while it is still there.
+  for(const b of content.querySelectorAll('[data-ov-remove]'))b.addEventListener('click',()=>{const key=focusKey(b);b.disabled=true;removeFromUI(game.actors.get(b.dataset.actor),b.dataset.status).catch(error).finally(()=>{b.disabled=false;refocusSoon(content,[key]);});});
  }
  // 0.26.1: popping out to a browser window (or back) moves the window into another document; apply the value again there.
  _onDetach(from,to){super._onDetach?.(from,to);applyOverlayOpacity(this,liveOverlayOpacity(this));}
@@ -1059,7 +1065,7 @@ class StashVotePrompt extends ApplicationV2 {
    :r.purpose==='coins'?`<p><strong>${E(r.requester)}</strong> wants to take <strong>${E(r.item)}</strong> from the party purse for <strong>${E(r.actor)}</strong>.</p><p class="agu-note" aria-live="off">If anyone denies, or not everyone answers in ${secs} seconds, the coins stay in the purse.</p>`
    :`<p><strong>${E(r.requester)}</strong> wants to take <strong>${E(r.item)}</strong>${Number(r.quantity)>1?` (×${E(r.quantity)})`:''}${E(contentsNote(Number(r.contents)))} from the party stash for <strong>${E(r.actor)}</strong>.</p><p class="agu-note" aria-live="off">If anyone denies, or not everyone answers in ${secs} seconds, the item stays in the stash.</p>`;
   return `<div class="agu-vote">${ask}<div class="agu-vote-actions">${btn('vote-deny',t.deny)}${btn('vote-accept',t.allow,{kind:'primary'})}</div></div>`;}
- _replaceHTML(html,content){content.innerHTML=html;
+ _replaceHTML(html,content){content.innerHTML=html;guardKeys(content);
   for(const b of content.querySelectorAll('[data-action^="vote-"]'))b.addEventListener('click',()=>{this.answer(b.dataset.action==='vote-accept'?'accept':'deny');});
   // The countdown ticks in place (no re-render, so focus stays on the button).
   clearInterval(this.ticker);const left=content.querySelector?.('[data-vote-seconds]');
@@ -1101,17 +1107,16 @@ async function stashListDrop(data){
 /**
  * 0.27.0 (UT-31): Add to stash…, the keyboard way to drop an item on the stash (window and embed). The player picks
  * from their own characters (the GM from any, or the Items sidebar), then the pick goes through stashListDrop, so the
- * deposit is checked again exactly as a drop is. Focus goes back to the button.
+ * deposit is checked again exactly as a drop is. Focus goes back to the button (handle).
  */
 async function addToStash(app,b,root){
  if(!permitted())throw Error('Utilities access is hidden by the GM.');
  if(!isGM())playerStashGate(game.user);
  if(!stashActor())throw Error(isGM()?'Create the party stash first.':'There is no party stash yet.');
- const key=focusKey(b);
  try{
   const data=await pickStashDeposit({characters:isGM()?allCharacters():permittedActors(),gm:isGM(),worldItems:isGM()?game.items?.contents??[]:[],preferred:app.takeActorId});
   if(data)await stashListDrop(data);
- }finally{await app.render?.();refocus(root,[key]);}
+ }finally{await app.render?.();}
 }
 /** After Take: the same button if the item is still there (refused or kept), else the next row's Take, else Add to stash…. */
 function takeFocusKeys(b){
@@ -1324,6 +1329,8 @@ function mountEmbed(element,{actorId='',mode='stash'}={}){
   ev.stopPropagation();
   UtilitiesApp.prototype.handle.call(ctrl,b.dataset.action,b,element).catch(error);
  });
+ // 0.27.1: Space/Enter on the embed's controls press them; they never reach Foundry's pause keybinding.
+ on(element,'keydown',ev=>{stopActivationKeys(element,ev);});on(element,'keyup',ev=>{stopActivationKeys(element,ev);});
  on(element,'input',ev=>{
   const t=ev.target;
   if(t?.id==='agu-stash-search'){ctrl.filter=t.value;ctrl.render().catch(error);}

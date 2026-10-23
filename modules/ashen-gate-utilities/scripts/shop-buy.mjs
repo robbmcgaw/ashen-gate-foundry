@@ -8,6 +8,7 @@ import {ID,isLevelBackup,escapeHTML as E,COIN_LABELS,coinChoices,shownCoins,stra
  shopPurchaseEntry,shopPriceText,SHOP_REFUSALS,CONSENT_TIMEOUT_MS,consentVoters,createPoll,initials,shopLineName,purchaseCount,purchaseItemData,
  nothingCharged,purchaseText,presentedOwnership,quotePurchase,projectService,projectMerchantList,entrySummary,tradeCardHTML,coinStripHTML,coinChipsHTML,groupByCategory,normalizeMerchantList,audiencePresented} from './core.mjs';
 import {itemButton} from './item-tips.mjs';
+import {focusKey,restoreFocus,refocusSoon,guardKeys} from './ui-parts.mjs';
 import {readAll,mustGet,writeShop,queueShops,appendLog,norm,locationsApi,randomId,purseDialog,button,icon,tip,writeService,readMeta} from './shops.mjs';
 import {confirmDialog,formDialog,choiceDialog} from './ag-dialogs.mjs';
 import {windowSize,subTabs,tabPanelAttrs,fold,bindFolds,uiState} from './ag-html.mjs';
@@ -474,18 +475,21 @@ function shopWindowClass(){
   current(){let v=null,ro=false;try{v=viewOf(this.shopId);if(!v){v=browseViewOf(this.shopId);ro=Boolean(v);}}catch{v=null;}return {v,ro};}
   get title(){return this.current().v?.name??'Shop';}
   async _renderHTML(){const {v,ro}=this.current();this.readOnly=ro;return `<div class="agu-shop-window__body">${v?shopViewHTML(v,this):empty('This shop is closed now','It opens again when your GM shows it to you.')}</div>`;}
-  _replaceHTML(html,content){content.innerHTML=html;
+  // 0.27.1: Space/Enter press the window's controls (never Foundry's pause); focus survives a re-render and comes back
+  // to Buy… / Sell… after their dialogs.
+  _replaceHTML(html,content){const active=globalThis.document?.activeElement,key=active&&content.contains?.(active)?focusKey(active):null;
+   content.innerHTML=html;guardKeys(content);
    // 0.20.0: a service's own controls (the Bank form).
    if(!this.readOnly){const {v}=this.current();if(v?.kind==='service')bindServiceView(this,content,v,()=>this.render().catch(ctx.error??console.error));}
    bindFolds(content,uiState(ID));
    content.querySelector('[data-shop-actor]')?.addEventListener('change',e=>{this.actorId=e.target.value;this.render().catch(ctx.error??console.error);});
-   for(const b of content.querySelectorAll('[data-action="shop-buy"]'))b.addEventListener('click',()=>{if(b.disabled)return;b.disabled=true;buyFlow(b.dataset.shop,b.dataset.lineId,{actorId:this.actorId}).finally(()=>{b.disabled=false;});});
+   for(const b of content.querySelectorAll('[data-action="shop-buy"]'))b.addEventListener('click',()=>{if(b.disabled)return;const k=focusKey(b);b.disabled=true;buyFlow(b.dataset.shop,b.dataset.lineId,{actorId:this.actorId}).finally(()=>{b.disabled=false;refocusSoon(content,[k]);});});
    // 0.19.0: Buy / Sell, where the coins go, Sell…, and a drop from the player's own sheet.
    const again=()=>this.render().catch(ctx.error??console.error);
    for(const b of content.querySelectorAll('[data-shop-mode]'))b.addEventListener('click',()=>{this.mode=b.dataset.shopMode;again();});
    for(const b of content.querySelectorAll('[data-sell-pay]'))b.addEventListener('click',()=>{this.payTo=b.dataset.sellPay;again();});
    const seller=()=>this.actorId||receivers()[0]?.id||'';
-   for(const b of content.querySelectorAll('[data-action="shop-sell"]'))b.addEventListener('click',()=>{if(b.disabled)return;b.disabled=true;sellFlow(b.dataset.shop,seller(),b.dataset.itemId,{payTo:this.payTo}).finally(()=>{b.disabled=false;});});
+   for(const b of content.querySelectorAll('[data-action="shop-sell"]'))b.addEventListener('click',()=>{if(b.disabled)return;const k=focusKey(b);b.disabled=true;sellFlow(b.dataset.shop,seller(),b.dataset.itemId,{payTo:this.payTo}).finally(()=>{b.disabled=false;refocusSoon(content,[k]);});});
    const body=content.querySelector('.agu-shop-window__body');
    if(body){
     body.addEventListener('dragover',ev=>ev.preventDefault());
@@ -494,6 +498,7 @@ function shopWindowClass(){
      if(!v.buys){ui.notifications?.warn('This shop doesn\'t buy items.');return;}
      this.mode='sell';sellDrop(this.shopId,ev,{payTo:this.payTo}).finally(again);});
    }
+   restoreFocus(content,key);
   }
   _onClose(o){super._onClose?.(o);if(windows.get(this.shopId)===this)windows.delete(this.shopId);}
  };
