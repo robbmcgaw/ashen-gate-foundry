@@ -99,17 +99,39 @@ export function linkedActor(uuid) {
   if (!uuid) return null;
   try { const a = globalThis.fromUuidSync?.(uuid) ?? globalThis.game?.actors?.get?.(uuid.replace(/^Actor\./, '')); return a?.documentName === 'Actor' ? a : null; } catch { return null; }
 }
-/** Companions with their Items and Actors resolved, for display. */
+/** The GM, or a user with at least Observer on the Actor: the level the Hub needs to show anything from its sheet. */
+export const canSeeActor = a => !!a && (globalThis.game?.user?.isGM === true || a.testUserPermission?.(globalThis.game?.user, 'OBSERVER') === true);
+/**
+ * Companions with their Items and Actors resolved, for display. A linked Actor the viewer can no longer observe (the GM
+ * unshared it after it was linked) is `denied`: it stays listed and removable, but its name, art, notes and stats never show.
+ */
 export function companionsData(actor) {
   const items = ids => ids.map(id => actor.items.get(id)).filter(Boolean);
   const entries = storedCompanions(actor).map(e => {
-    const item = e.itemId ? actor.items.get(e.itemId) : null, linked = linkedActor(e.actorUuid);
-    return {...e, item, actor: linked, missing: !!e.actorUuid && !linked, displayName: e.name || linked?.name || item?.name || 'Missing companion',
+    const item = e.itemId ? actor.items.get(e.itemId) : null, found = linkedActor(e.actorUuid), denied = !!found && !canSeeActor(found), linked = denied ? null : found;
+    return {...e, item, actor: linked, denied, missing: !!e.actorUuid && !found, displayName: e.name || linked?.name || item?.name || (denied ? 'Companion (not shared)' : 'Missing companion'),
       art: linked?.img || item?.img || 'icons/svg/mystery-man.svg', perks: items(e.perkItemIds), gear: items(e.gearItemIds), clothingItems: e.clothing.map(id => id ? actor.items.get(id) ?? null : null)};
   });
   const cap = petCapFor(actor);
   const pets = entries.filter(e => e.kind === 'pet');
   return {mount: entries.find(e => e.kind === 'mount') ?? null, pets, cap, capLabel: capLabel(cap), overCap: pets.length > cap, entries};
+}
+/**
+ * World Actors the user could link as a mount or pet from a list (the keyboard route; dragging from the Actors sidebar
+ * still works for any Actor). Only Actors the user can observe, never this character, level backups or one already
+ * linked. Actors in a folder named "Companions" come first and, when there are any, are the whole list; otherwise every
+ * non-character Actor is offered (capped, so a big world stays usable).
+ */
+export const LINKABLE_CAP = 150;
+export function linkableActors(actor, kind) {
+  const linked = new Set(storedCompanions(actor).map(e => e.actorUuid).filter(Boolean));
+  const all = [...(globalThis.game?.actors ?? [])].filter(a => a !== actor && a.uuid !== actor.uuid && !linked.has(a.uuid) && !isBackup(a) && canSeeActor(a) && String(a.uuid ?? '').startsWith('Actor.'));
+  const inCompanions = a => { for (let f = a.folder; f; f = f.folder) if (/^companions?$/i.test(String(f.name ?? '').trim())) return true; return false; };
+  const folderPath = a => { const names = []; for (let f = a.folder; f; f = f.folder) names.unshift(String(f.name ?? '')); return names.join(' / '); };
+  const pool = all.some(inCompanions) ? all.filter(inCompanions) : all.filter(a => a.type !== 'character');
+  const word = kind === 'mount' ? /mount/i : /pet|companion/i;
+  const rank = a => word.test(`${folderPath(a)} ${a.name ?? ''}`) ? 0 : 1;
+  return pool.sort((a, b) => rank(a) - rank(b) || String(a.name).localeCompare(String(b.name))).slice(0, LINKABLE_CAP);
 }
 const usedIds = actor => new Set(storedCompanions(actor).flatMap(e => [e.itemId, ...e.perkItemIds, ...e.gearItemIds, ...e.clothing].filter(Boolean)));
 /** Items on the character that are not already a companion, an attached perk or gear, or worn by a pet. */

@@ -1,7 +1,7 @@
 /** Companions tab and the GM Setup tab (player visibility, pet limits). */
 import {esc, num} from './constants.mjs';
 import {btn} from './buttons.mjs';
-import {companionsData, freeItems, freeItemsFor, petCapOverride, defaultPetCap, NAME_MAX, DESC_MAX} from './companions.mjs';
+import {companionsData, freeItems, linkableActors, freeItemsFor, petCapOverride, defaultPetCap, NAME_MAX, DESC_MAX} from './companions.mjs';
 import {companionRole, COMPANION_ROLES, companionStats, itemGives} from './companion-items.mjs';
 import {itemRow} from './items.mjs';
 import {cardList, plainText, summaryOf} from './cards.mjs';
@@ -49,6 +49,7 @@ function cardHead(entry, {off, index, count}) {
     <div class="agch-companion__id"><input type="text" class="agch-companion__name" data-edit="companion-name" data-entry="${esc(entry.id)}" value="${esc(entry.name)}" maxlength="${NAME_MAX}" placeholder="${esc(entry.actor?.name || entry.item?.name || 'Name')}" aria-label="Name for ${esc(entry.displayName)}"${off ? ' disabled' : ''}>
       <span class="agch-companion__badges"><span class="ag-badge">${entry.kind === 'mount' ? 'Mount' : 'Pet'}</span><span class="ag-badge" data-tooltip="${entry.missing ? 'The linked Actor is gone' : `Linked ${source.toLowerCase()}`}">${source}</span></span></div>
     <span class="agch-item__controls">${open}${moves}${btn('companion-remove', 'Remove', {kind: 'danger', extra: 'ag-btn--sm', icon: 'fa-solid fa-trash', data: {entry: entry.id}, title: `Remove ${entry.displayName} from companions (the Actor or Item is kept)`, disabled: off})}</span></header>
+    ${entry.denied ? '<p class="ag-notice ag-notice--warn agch-notice" role="note"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> This companion is not shared with you any more, so its sheet and notes are hidden. Remove it, or ask the GM to share it again.</p>' : ''}
     ${entry.missing ? '<p class="ag-notice ag-notice--warn agch-notice" role="note"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i> The linked Actor is gone. Remove this companion, or ask the GM.</p>' : ''}
     <textarea class="agch-companion__desc" data-edit="companion-desc" data-entry="${esc(entry.id)}" rows="3" maxlength="${DESC_MAX}" placeholder="${esc(ownText(entry) || `Description (your own notes for this ${entry.kind})`)}" aria-label="Description for ${esc(entry.displayName)}"${off ? ' disabled' : ''}>${esc(entry.description)}</textarea>`;
 }
@@ -89,8 +90,13 @@ function petCard(entry, {off, index, count, actor}) {
 
 export function companionsTab({actor, editable}) {
   const off = !editable, d = companionsData(actor), free = freeItems(actor), gm = globalThis.game?.user?.isGM === true;
-  const addZone = (kind, label, full) => off || full ? '' : `<div class="agch-drop agch-drop--add" data-drop-companion="${kind}"><i class="fa-solid ${kind === 'mount' ? 'fa-horse' : 'fa-paw'}" aria-hidden="true"></i> ${label}
+  const addZone = (kind, label, full) => {
+    if (off || full) return '';
+    const actors = linkableActors(actor, kind);
+    return `<div class="agch-drop agch-drop--add" data-drop-companion="${kind}"><i class="fa-solid ${kind === 'mount' ? 'fa-horse' : 'fa-paw'}" aria-hidden="true"></i> ${label}
+    ${actors.length ? `<select data-edit="companion-link" data-kind="${kind}" aria-label="Link a ${kind} Actor"><option value="">or link a world Actor…</option>${actors.map(a => `<option value="${esc(a.uuid)}">${esc(a.name)}</option>`).join('')}</select>` : ''}
     <select data-edit="companion-add" data-kind="${kind}" aria-label="Add a ${kind} from this character's items">${itemOptions(free, 'or choose one of this character\'s items…')}</select></div>`;
+  };
   const mount = d.mount ? mountCard(d.mount, {off, free, actor}) : '<p class="agch-muted">No mount.</p>';
   const pets = d.pets.map((p, i) => petCard(p, {off, index: i, count: d.pets.length, actor})).join('') || (d.cap === 0 ? '<p class="agch-muted">No pet slots yet. The GM can raise the pet limit.</p>' : '<p class="agch-muted">No pets.</p>');
   const override = petCapOverride(actor);
@@ -118,7 +124,7 @@ function visibilityCard() {
   }).join('');
   const key = sectionKey('gm', 'visibility');
   return `<section class="ag-card"><h3 class="agch-sec__head">${toggleButton(key, 'Player visibility')}</h3><div${bodyAttrs(key)}>
-    <p class="agch-muted">Choose which parts of the Character Hub players see, so you can bring systems in one at a time. You always see everything; hidden parts carry a "Hidden from players" badge. An Ashen Gate part is also hidden from players while its module is not active or its own Player Access is off (change that in the module's own GM Setup). Hiding a part changes no character data, and players can't use its Hub actions while it is hidden.</p>
+    <p class="agch-muted">Choose which parts of the Character Hub players see, so you can bring systems in one at a time. You always see everything; hidden parts carry a "Hidden from players" badge. An Ashen Gate part is also hidden from players while its module is not active or its own Player Access is off (change that in the module's own GM Setup). Hiding a part changes no character data. The Hub refuses players' actions in Rests, Equipment slots, Companions, Hotbars and the party stash while they are hidden; items, spells and features stay usable on dnd5e's own sheet.</p>
     <div class="agch-vis__presets"><span class="agch-muted">Quick set:</span>${PRESETS.map(p => btn('visibility-preset', p.label, {kind: 'sm', data: {preset: p.id}})).join('')}</div>
     <ul class="agch-vis">${rows}</ul></div></section>`;
 }

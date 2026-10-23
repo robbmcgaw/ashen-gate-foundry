@@ -1,3 +1,13 @@
+## 0.42.2 — 2026-10-23
+
+QA pass on Companions (world-Actor mounts and pets), the list tabs, Player visibility. Tests use mocked Foundry; the live Hub is for Robb to click through.
+
+- **Fix: an unshared Actor companion leaked.** A mount or pet linked to a world Actor kept showing that Actor's name, art, biography and AC / HP / speed after the GM took the player's Observer permission away. It now stays listed as "Companion (not shared)" with a note, can still be removed, and shows nothing from the Actor (the Remove confirmation does not name it either). The GM is unaffected.
+- **Link a mount or pet without dragging.** The Mount and Pets boxes get **or link a world Actor…**, a list of world Actors you can observe (never this character, a level backup or one already linked). If the world has a folder named Companions, the list is that folder (mount-named ones first for a mount); otherwise every non-character Actor, up to 150. Dragging from the Actors sidebar works as before. The same permission, one-mount and pet-limit rules apply.
+- **Fix: search could hide real matches.** In Combat, Inventory, Magic and Features a section you had folded stayed shut while the search matched items in it, so it looked empty. A folded section (or container) now opens while it holds a match and folds back when the search is cleared (your saved folds are not changed). A search with no match anywhere now says "Nothing matches your search." instead of showing a blank list.
+- **Fix: Player visibility text.** GM Setup claimed players can't use *any* hidden part's actions. It now says what is enforced (Rests, Equipment slots, Companions, Hotbars, the party stash); items, spells and features stay usable on dnd5e's own sheet.
+- Help and README describe the above. Saved data: unchanged. No migration.
+
 ## 0.42.1 — 2026-10-23
 
 Code-read review fixes for the quick bar ↔ Foundry hotbar link.

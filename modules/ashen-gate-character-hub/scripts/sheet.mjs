@@ -16,7 +16,7 @@ import {openPartner, mountEmbeds, unmountEmbeds, depositToParty, pickTreeTab} fr
 import * as comp from './companions.mjs';
 import * as vis from './visibility.mjs';
 import {openConfig} from './configure.mjs';
-import {toggleSection} from './collapse.mjs';
+import {toggleSection, isCollapsed} from './collapse.mjs';
 import {setListChoice} from './organize.mjs';
 import {changeArt} from './art.mjs';
 import * as journey from './journey.mjs';
@@ -255,19 +255,42 @@ export async function presetAsk(id, ask = confirmDialog) {
  */
 export function applyFilter(root, text) {
   const q = String(text ?? '').trim().toLowerCase();
-  for (const row of root?.querySelectorAll?.('.agch-body .agch-card, .agch-body .agch-plist > li') ?? []) {
+  const rows = [...(root?.querySelectorAll?.('.agch-body .agch-card, .agch-body .agch-plist > li') ?? [])];
+  for (const row of rows) {
     const name = (row.querySelector?.('.agch-item__name')?.textContent ?? row.textContent ?? '').toLowerCase();
     row.hidden = !!q && !name.includes(q);
   }
   for (const box of root?.querySelectorAll?.('.agch-body .agch-contents') ?? []) {
     const any = [...(box.querySelectorAll?.('.agch-card') ?? [])].some(r => !r.hidden);
     if (any && box.previousElementSibling) box.previousElementSibling.hidden = false;
+    openWhileSearching(box, q && any);
   }
   for (const sec of root?.querySelectorAll?.('.agch-body .agch-sec') ?? []) {
     if (typeof sec.querySelectorAll !== 'function' || !sec.classList) continue;
     const cards = [...sec.querySelectorAll('.agch-card')];
     sec.classList.toggle('is-filtered-out', !!q && cards.length > 0 && cards.every(r => r.hidden));
+    openWhileSearching(sec.querySelector?.('.agch-sec__body'), q && cards.some(r => !r.hidden), sec);
   }
+  noMatchNote(root?.querySelector?.('.agch-body'), !!q && rows.length > 0 && rows.every(r => r.hidden));
+}
+/** A folded section (or container) that holds a match opens while the search text is there, and folds back after (the saved fold state is untouched). */
+function openWhileSearching(el, match, sec = el) {
+  const key = el?.dataset?.secBody;
+  if (!key) return;
+  const shown = match ? true : !isCollapsed(key);
+  el.hidden = !shown;
+  for (const b of sec.querySelectorAll?.(`[data-action="section-toggle"][data-key="${key}"]`) ?? []) b.setAttribute?.('aria-expanded', String(shown));
+}
+/** "Nothing matches" under a search with no hits anywhere in the tab (the rows are hidden without a re-render, so this note is too). */
+function noMatchNote(body, none) {
+  let note = body?.querySelector?.('.agch-nomatch');
+  if (!note && none && body?.ownerDocument?.createElement) {
+    note = body.ownerDocument.createElement('div');
+    note.className = 'ag-empty agch-nomatch'; note.setAttribute('role', 'status');
+    note.innerHTML = '<p class="ag-empty__title">Nothing matches your search.</p><p class="ag-empty__text">Clear the search box to see everything again.</p>';
+    body.append(note);
+  }
+  if (note) note.hidden = !none;
 }
 /**
  * Combat/Magic/Features filters (kept on the open sheet). level and action pick one value (the same again clears it);
@@ -354,7 +377,7 @@ async function journeyDelete(sheet, target) {
 export async function removeCompanionAsk(sheet, entryId, ask = confirmDanger) {
   const actor = sheet.document, entry = comp.storedCompanions(actor).find(e => e.id === entryId);
   if (!entry) return {ok: false, error: 'That companion is no longer listed.'};
-  const name = entry.name || comp.linkedActor(entry.actorUuid)?.name || actor.items?.get?.(entry.itemId)?.name || 'this companion';
+  const seen = comp.linkedActor(entry.actorUuid), name = entry.name || (comp.canSeeActor(seen) ? seen.name : '') || actor.items?.get?.(entry.itemId)?.name || 'this companion';
   const yes = await ask(`${name} is taken off ${actor.name}'s companions and their notes are deleted. The Actor or Item itself is kept.`, {title: `Remove ${name}?`, yes: 'Remove companion', danger: true});
   if (!yes) return {ok: true, result: null};
   return comp.removeCompanion(actor, entryId);
@@ -397,6 +420,7 @@ export const EDITS = {
   'item-qty': (s, i) => items.setQuantity(s.document, i.dataset.id, i.value),
   'item-slot': (s, i) => items.setSlot(s.document, i.dataset.id, i.value),
   'companion-add': (s, i) => i.value ? comp.addCompanion(s.document, i.value, i.dataset.kind) : null,
+  'companion-link': (s, i) => i.value ? comp.addActorCompanion(s.document, comp.linkedActor(i.value), i.dataset.kind) : null,
   'companion-attach': (s, i) => i.value ? comp.attachPerk(s.document, i.dataset.entry, i.value) : null,
   'companion-extra': (s, i) => i.value ? comp.attachExtra(s.document, i.dataset.entry, i.value) : null,
   'companion-clothing': (s, i) => i.value ? comp.attachExtra(s.document, i.dataset.entry, i.value, {slot: i.dataset.slot, list: 'clothing'}) : null,
