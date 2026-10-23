@@ -58,15 +58,15 @@ test('no typed giver: the source text is the card\'s Source line, searchable and
  assert.equal(r[0].sourceText,long);assert.equal(r[1].sourceText,'','a typed giver ref wins over the free text');
  const card=questCard(r[0]);
  assert.ok(card.includes(`Source: </span>${long.replace(/'/g,'&#39;')}`),'the whole text, not shortened');assert.doesNotMatch(card,/Giver:/);
- assert.match(questCard(r[1]),/Giver: <\/span>NPC-TEST-DOVA/);assert.doesNotMatch(questCard(r[1]),/Source:|Free text/);
+ assert.match(questCard(r[1]),/Giver: <\/span>Test Dova/);assert.doesNotMatch(questCard(r[1]),/Source:|Free text/);
  assert.deepEqual(filterRows(r,{search:'muster'}).map(x=>x.id),['QUEST-T-SRC','QUEST-T-SRC2']);
  assert.deepEqual(filterRows(r,{search:'free text'}).map(x=>x.id),[],'hidden behind a typed giver, so not matched');
  assert.deepEqual(groupRows([...r,questRow(entry(src('QUEST-T-NONE','[TEST] None')),ctx)],'giver').map(g=>[g.label,g.rows.map(x=>x.id)]),
-  [[long,['QUEST-T-SRC','QUEST-T-SRC2']],['NPC-TEST-DOVA',['QUEST-T-REF']],['No giver',['QUEST-T-NONE']]]);
+  [[long,['QUEST-T-SRC','QUEST-T-SRC2']],['Test Dova',['QUEST-T-REF']],['No giver',['QUEST-T-NONE']]]);
 });
 test('group by status, type, location (by name) and giver, with "No location" / "No giver" last; sort by location and recent change',()=>{
  assert.deepEqual(groupRows(rows,'location').map(g=>[g.label,g.rows.length]),[['[TEST] Old Mill',1],['LOC-TEST-PIER',1],['No location',6]]);
- assert.deepEqual(groupRows(rows,'giver').map(g=>g.label),['FAC-TEST-POST','NPC-TEST-DOVA','No giver']);
+ assert.deepEqual(groupRows(rows,'giver').map(g=>g.label),['Test Dova','Test Post','No giver']);
  assert.deepEqual(groupRows(rows,'type').map(g=>g.label),['Quest','Order','Contract']);
  assert.deepEqual(sortRows(rows,'changed').slice(0,3).map(r=>r.id),['QUEST-T-AVAIL','QUEST-T-ACT','QUEST-T-HID'],'newest first, never-changed last');
  assert.deepEqual(sortRows(rows,'location').slice(0,2).map(r=>r.id),['QUEST-T-AVAIL','QUEST-T-ACT']);
@@ -105,7 +105,7 @@ test('quest card: type badge, status chip, location, giver, audience character, 
  assert.match(html,/agq-card is-picked/);assert.match(html,/data-pick="CONTRACT-T-CARD" checked/);
  assert.match(html,/agq-kind--contract"><i class="fa-solid fa-file-signature" aria-hidden="true"><\/i>Contract/);
  assert.match(html,/ag-badge--accent">Active/);assert.match(html,/Visible to players/);
- assert.match(html,/Location: <\/span>\[TEST\] Old Mill/);assert.match(html,/Giver: <\/span>NPC-TEST-DOVA/);
+ assert.match(html,/Location: <\/span>\[TEST\] Old Mill/);assert.match(html,/Giver: <\/span>Test Dova/);
  assert.match(html,/Audience: <\/span>Individual: \[TEST\] Aria/);
  assert.match(html,/>2\/3</);assert.match(html,/Rewards: <\/span>\[TEST\] 25 gp on delivery/);assert.match(html,/Changed 2 min ago/);
  const hidden=questCard(questRow(entry(src('QUEST-T-H','[TEST] H',{status:'draft'})),ctx));
