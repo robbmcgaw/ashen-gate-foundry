@@ -126,12 +126,12 @@
 .agu-coin--ep {--agu-metal:#cdbb6e;} /* ag-lint-allow: electrum metal colour is fixed */
 .agu-coin--gp {--agu-metal:#e0b23c;} /* ag-lint-allow: gold metal colour is fixed */
 .agu-coin--pp {--agu-metal:#d9e4ec;} /* ag-lint-allow: platinum metal colour is fixed */
-.agu-coins {display:grid;grid-template-columns:repeat(auto-fit,minmax(5.25rem,1fr));gap:var(--ag-space-2);margin:var(--ag-space-2) 0;}
-.agu-coin {display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:var(--ag-space-1);min-width:0;padding:var(--ag-space-2);border:1px solid color-mix(in srgb,var(--agu-metal,var(--ag-border)) 55%,var(--ag-border));border-radius:var(--ag-radius-sm);background:color-mix(in srgb,var(--agu-metal,var(--ag-surface)) 8%,var(--ag-surface));box-shadow:0 0 var(--ag-space-3) color-mix(in srgb,var(--agu-metal,transparent) 40%,transparent),inset 0 0 var(--ag-space-2) color-mix(in srgb,var(--agu-metal,transparent) 18%,transparent);}
+/* 0.28.0: one line per coin ("[icon] Copper 124"), the entries in one row that wraps. */
+.agu-coins {display:flex;flex-wrap:wrap;gap:var(--ag-space-2);margin:var(--ag-space-2) 0;}
+.agu-coin {display:inline-flex;flex-direction:row;align-items:center;gap:var(--ag-space-2);min-width:0;padding:var(--ag-space-1) var(--ag-space-3) var(--ag-space-1) var(--ag-space-2);white-space:nowrap;border:1px solid color-mix(in srgb,var(--agu-metal,var(--ag-border)) 55%,var(--ag-border));border-radius:var(--ag-radius-sm);background:color-mix(in srgb,var(--agu-metal,var(--ag-surface)) 8%,var(--ag-surface));box-shadow:0 0 var(--ag-space-3) color-mix(in srgb,var(--agu-metal,transparent) 40%,transparent),inset 0 0 var(--ag-space-2) color-mix(in srgb,var(--agu-metal,transparent) 18%,transparent);}
 .agu-coin__icon {display:inline-grid;place-items:center;flex:none;width:calc(var(--ag-icon) * 1.6);height:calc(var(--ag-icon) * 1.6);border-radius:50%;border:1px solid color-mix(in srgb,var(--agu-metal) 60%,var(--ag-text));background:radial-gradient(circle at 35% 30%,color-mix(in srgb,var(--agu-metal) 35%,white),var(--agu-metal) 55%,color-mix(in srgb,var(--agu-metal) 70%,black));color:color-mix(in srgb,var(--agu-metal) 25%,black);font-size:var(--ag-text-xs);font-weight:800;line-height:1;box-shadow:0 0 var(--ag-space-2) color-mix(in srgb,var(--agu-metal) 55%,transparent);text-shadow:none;}
-.agu-coin__label {color:var(--ag-muted);font-size:var(--ag-text-xs);}
-.agu-coin__label abbr {text-decoration:none;text-transform:uppercase;}
-.agu-coin__value {font-variant-numeric:tabular-nums;overflow-wrap:anywhere;font-size:var(--ag-text-lg);}
+.agu-coin__label {color:var(--ag-muted);font-size:var(--ag-text-sm);}
+.agu-coin__value {font-variant-numeric:tabular-nums;font-size:var(--ag-text-md);}
 /* Electrum is off but the purse still holds some: keep the line, dimmed, never hidden. */
 .agu-coin.agu-coin--off {opacity:.6;border-style:dashed;box-shadow:none;}
 /* Inline amounts ("1 gp 5 sp"): one chip per coin, same icon and glow. */
@@ -140,9 +140,19 @@
 .agu-coin-chip .agu-coin__icon {width:calc(var(--ag-icon) * 1.2);height:calc(var(--ag-icon) * 1.2);box-shadow:none;}
 .ag-utilities-trade .agu-coin-chip {color:inherit;}
 .ag-utilities .agu-ep-note {margin:var(--ag-space-2) 0;}
-.ag-utilities .agu-purse-move {display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--ag-space-2);}
-.ag-utilities .agu-purse-move > .ag-field {margin:0;flex:1 1 9rem;}
-.ag-utilities .agu-purse-move .agu-actions {margin:0;}
+/* 0.28.0: the Character / Coin / Amount form sits in the purse's heading row; controls sized to their content, the row
+   wraps on a narrow pane and Deposit + Take wrap as one. */
+.ag-utilities .agu-purse-head {align-items:flex-end;justify-content:flex-start;gap:var(--ag-space-2) var(--ag-space-3);margin:0;}
+.ag-utilities .agu-purse-head > h3 {align-self:flex-start;}
+.ag-utilities .agu-purse-head > .ag-toolbar__end {margin-left:auto;}
+.ag-utilities .agu-purse-move {display:flex;flex-wrap:wrap;align-items:flex-end;gap:var(--ag-space-2);flex:1 1 0;min-width:min(100%,14rem);}
+.ag-utilities .agu-purse-move > .ag-field {margin:0;flex:0 1 auto;min-width:0;max-width:100%;}
+.ag-utilities .agu-purse-move > .ag-field > select {width:auto;max-width:100%;}
+/* A long character name may shorten the closed Character list (the open list shows it whole); Coin never shrinks. */
+.ag-utilities .agu-purse-move > .agu-purse-who {max-width:min(100%,16rem);}
+.ag-utilities .agu-purse-move #agu-purse-coin {flex:none;}
+.ag-utilities .agu-purse-move > .ag-field > input[type="number"] {width:calc(6ch + 2 * var(--ag-space-3));}
+.ag-utilities .agu-purse-move .agu-actions {margin:0;flex-wrap:nowrap;}
 /* Party stash embedded in a partner module (api.embed.mount). The host element carries .ag-utilities.agu-embed. */
 .agu-embed {display:block;min-width:0;}
 .agu-embed.agu-drop-over {outline:2px dashed var(--ag-accent);outline-offset:var(--ag-space-1);border-radius:var(--ag-radius);}

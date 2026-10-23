@@ -1,3 +1,9 @@
+## 0.28.0 — 2026-10-23
+
+- **Party stash: a shorter purse.** In the Character Hub's *Inventory → Party stash*, *Character*, *Coin*, *Amount*, *Deposit* and *Take* now sit in the *Party purse* heading row instead of a second row below the coins. The selects and the amount box are sized to their content; on a narrow window the row wraps, with Deposit and Take kept together. The Coin list shows the coin's name (Gold, Silver, …).
+- **Coins on one line.** Each coin in a purse now reads `[icon] Copper 124` on one line, in a single row that wraps, instead of a tall box; the CP/SP/GP/PP abbreviations are gone. The icon is named for screen readers. The same coin row is used everywhere a purse is shown (Party Fund, the Bank, shop windows), so they match. Electrum still appears only while *Use electrum* is on (or, dimmed, while the purse still holds some).
+- Who may deposit or take, the checks, the vote, messages, keyboard use and focus after a re-render are unchanged. No change to saved data, settings or the API; nothing to migrate.
+
 ## 0.27.1 — 2026-10-23
 
 - **Space presses the focused button again, and no longer pauses the game.** With a Utilities button, tab, switch, list or text box focused (for example *Add to stash…*, *Choose Actor…* or *Add item…*), Space used to reach Foundry's own Space shortcut, which paused or unpaused the game, and the button did nothing. Space and Enter now stay with the Utilities window (also the Character Hub's party stash, shop windows, the conditions overlay and the take-out vote) and press the control, exactly like a click. Typing a space in a text box works as before. With nothing in a Utilities window focused, Space still pauses as usual.
