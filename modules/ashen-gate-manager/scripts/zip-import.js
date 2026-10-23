@@ -59,6 +59,53 @@ export function bundleRecordIds(kind, payload) {
   return Array.isArray(list) ? list.map(r => r?.id).filter(id => typeof id === 'string' && id) : [];
 }
 
+/** A manifest that lists the intended import order (`ordered_files`: paths, only the file names are compared), or null. */
+export function importOrderHint(obj) {
+  if(!Array.isArray(obj?.ordered_files) || !/^ag-[a-z-]*manifest\//.test(String(obj.schema ?? ''))) return null;
+  const names = obj.ordered_files.filter(x => typeof x === 'string').map(x => x.split('/').at(-1));
+  return names.length ? names : null;
+}
+
+/** Locale-independent comparison (plain code-unit order), so the same ZIP imports in the same order in every browser. */
+const byCode = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+const basename = path => String(path).split('/').at(-1);
+/** The number in a leading `L18_25_…`-style prefix (L18 → 18), or a large number for files without one. */
+const prefixNumber = path => { const m = /^L(\d+)/i.exec(basename(path)); return m ? Number(m[1]) : 1e9; };
+/** The whole `L18_25` or `L04B`-style prefix, or '' for a file without one. */
+const prefixOf = path => /^L\d+[a-z]*(?:_\d+)?/i.exec(basename(path))?.[0] ?? '';
+const ID_TOKEN = /\b[A-Z][A-Z0-9]*(?:-[A-Z0-9_]+)+\b/g;
+
+/**
+ * Sorts the files of a bundle in place into import order: by kind (BUNDLE_ORDER), then by the ZIP's own order list
+ * when it carries one (`orderHint`, file names), then Route-only Manager files last (they join locations imported
+ * earlier), then by the number in an `L18_25`-style prefix, then (among files sharing the whole prefix) files that name fewer ids defined by other files of the ZIP
+ * (their dependencies are likely already in), then file name by plain code-unit comparison.
+ */
+export function sortBundleFiles(files, orderHint = null) {
+  const routesOnly = f => f.kind === 'manager' && f.count > 0 && f.payload.records.every(r => r?.entity_type === 'Route');
+  const rank = new Map((orderHint ?? []).map((name, i) => [name, i]));
+  const rankOf = f => rank.get(basename(f.filename)) ?? 1e9;
+  const definedBy = new Map();
+  const defs = new Map();
+  const defsOf = f => { if(!defs.has(f)) defs.set(f, f.kind && f.payload ? new Set(bundleRecordIds(f.kind, f.payload)) : new Set()); return defs.get(f); };
+  const deps = new Map();
+  const depsOf = f => {
+    if(!deps.has(f)) {
+      if(!definedBy.size) for(const g of files) for(const id of defsOf(g)) definedBy.set(id, (definedBy.get(id) ?? new Set()).add(g));
+      const mine = defsOf(f), found = new Set();
+      for(const id of f.payload ? JSON.stringify(f.payload).match(ID_TOKEN) ?? [] : []) {
+        if(!mine.has(id) && [...(definedBy.get(id) ?? [])].some(g => g !== f)) found.add(id);
+      }
+      deps.set(f, found.size);
+    }
+    return deps.get(f);
+  };
+  return files.sort((a, b) => (a.kind ? BUNDLE_ORDER.indexOf(a.kind) : 99) - (b.kind ? BUNDLE_ORDER.indexOf(b.kind) : 99)
+    || rankOf(a) - rankOf(b) || routesOnly(a) - routesOnly(b) || prefixNumber(a.filename) - prefixNumber(b.filename)
+    || byCode(prefixOf(a.filename), prefixOf(b.filename)) || (prefixOf(a.filename) && depsOf(a) - depsOf(b))
+    || byCode(a.filename, b.filename));
+}
+
 /**
  * Reads a ZIP that may hold several import files: Manager projections and the specialist files Manager already
  * recognises one at a time (Quest Log, Skill Trees, Headquarters, Factions). Other JSON is listed as skipped.
@@ -68,6 +115,7 @@ export function bundleRecordIds(kind, payload) {
  */
 export async function readImportBundle(buffer, JSZipClass = globalThis.JSZip) {
   const files = [], skipped = [], assets = new Map(), duplicateArt = new Set();
+  let orderHint = null;
   await walkZip(buffer, JSZipClass, {
     onArt(basename, path, entry) {
       if(assets.has(basename) || duplicateArt.has(basename)) {assets.delete(basename); duplicateArt.add(basename);}
@@ -82,6 +130,8 @@ export async function readImportBundle(buffer, JSZipClass = globalThis.JSZip) {
           status: count ? 'ok' : 'error', notice: !count ? 'The package has no records.' : obj.manifest.schema_version.endsWith('/0.1') ? 'Legacy 0.1 package: accepted for compatibility.' : ''});
         return;
       }
+      const hint = importOrderHint(obj);
+      if(hint) {orderHint = hint; skipped.push({filename: path, reason: 'Import order list: used to order the other files in this ZIP.'}); return;}
       const kind = detectSpecialistFile(obj);
       if(kind) {
         const count = specialistCount(kind, obj);
@@ -93,9 +143,7 @@ export async function readImportBundle(buffer, JSZipClass = globalThis.JSZip) {
     }
   });
   if(files.length > MAX_BUNDLE_FILES) throw new Error(`ZIP holds ${files.length} import files; the limit is ${MAX_BUNDLE_FILES}. Split it into smaller ZIPs. No world changes made.`);
-  // A Manager file holding only Route records goes after the other Manager files, so the locations it joins import first.
-  const routesOnly = f => f.kind === 'manager' && f.count > 0 && f.payload.records.every(r => r?.entity_type === 'Route');
-  files.sort((a, b) => (a.kind ? BUNDLE_ORDER.indexOf(a.kind) : 99) - (b.kind ? BUNDLE_ORDER.indexOf(b.kind) : 99) || routesOnly(a) - routesOnly(b) || a.filename.localeCompare(b.filename));
+  sortBundleFiles(files, orderHint);
   const owner = new Map();
   for(const file of files) {
     file.duplicateIds = [];

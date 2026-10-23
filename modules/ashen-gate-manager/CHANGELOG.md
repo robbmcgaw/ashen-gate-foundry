@@ -1,3 +1,12 @@
+## 0.53.1 — 2026-10-23
+
+Code-read review fixes for the pre-session check and ZIP import.
+
+- **Pre-session check uses Quest Log's item rule.** The Recipes and Skill trees rows counted retired, superseded and archived items, and ids shared by two items, as present. They now count only active items with exactly one holder of the id, so a recipe or perk is flagged when Quest Log would call its item missing.
+- **Quest rewards row flags shared ids.** A reward whose item id is held by two items (Quest Log status "conflict") is now listed, as well as one that is missing.
+- **ZIP import order no longer depends on the browser's language, and honours the intended order.** Files of the same kind are sorted by plain character comparison and by the number in the `L18_25`-style prefix, not by `localeCompare`. If the ZIP holds the alpha import manifest (`ordered_files`), that order is used (the manifest is listed as used, not as an unknown file). Without it, files sharing a prefix import after the files whose ids they name, so the two `L18_25` files import Artistry first, then Act One. Content files are unchanged.
+- Saved data: unchanged. No migration.
+
 ## 0.53.0 — 2026-10-23
 
 Pre-session check (Modules tab, GM only). Still strictly read-only: it writes nothing to the world.
