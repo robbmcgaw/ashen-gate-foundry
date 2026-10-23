@@ -80,7 +80,20 @@ export function locationOptions(rows){
  return [...names].sort((a,b)=>a[1].localeCompare(b[1])||a[0].localeCompare(b[0]));
 }
 export const levelOptions=rows=>[...new Set(rows.map(r=>r.level).filter(n=>n!==null))].sort((a,b)=>a-b).map(n=>[String(n),`Level ${n}`]);
-export const giverOptions=rows=>[...new Set(rows.flatMap(r=>r.givers||[]))].sort((a,b)=>a.localeCompare(b)).map(x=>[x,x]);
+// Giver filter and group values are the giver's id (or the written name); the label is for display. Two ids that read alike
+// (NPC-X, FACTION-X) both stay, the second and later told apart by their kind: "X (Npc)", "X (Faction)".
+export function giverNames(rows){
+ const ids=[...new Set(rows.flatMap(r=>r.giverIds||[]))],count=new Map();
+ for(const id of ids)count.set(giverLabel(id),(count.get(giverLabel(id))||0)+1);
+ return new Map(ids.map(id=>{const l=giverLabel(id),kind=id.split('-')[0];
+  return [id,count.get(l)>1&&l!==id?`${l} (${kind.charAt(0)+kind.slice(1).toLowerCase()})`:l];}));
+}
+export const giverOptions=rows=>[...giverNames(rows)].sort((a,b)=>a[1].localeCompare(b[1])||a[0].localeCompare(b[0]));
+/** A chosen filter value that is no longer among the options (its last quest changed) stays in the list, marked, so the
+    select shows what is applied and the GM can clear it. */
+export function keepSelected(options,value,label=value){
+ return value==null||value==='all'||options.some(([v])=>String(v)===String(value))?options:[...options,[String(value),`${label} (none now)`]];
+}
 export const regionOptions=rows=>[...new Set(rows.flatMap(r=>r.regions||[]))].sort((a,b)=>a.localeCompare(b)).map(x=>[x,x]);
 const subview=key=>SUBVIEWS.find(v=>v.key===key)||SUBVIEWS[0];
 export function navCounts(rows){return Object.fromEntries(SUBVIEWS.map(v=>[v.key,rows.filter(v.test).length]));}
@@ -93,7 +106,7 @@ export function matchesSearch(r,search){
 export function filterRows(rows,v={}){
  const f={...DEFAULT_VIEW,...v},nav=subview(f.nav);
  return rows.filter(r=>nav.test(r)&&(f.type==='all'||r.kind===f.type)&&(f.status==='all'||r.chip===f.status)
-  &&(f.location==='all'||r.locations.includes(f.location))&&(f.level==='all'||String(r.level)===String(f.level))&&(f.region==='all'||(r.regions||[]).includes(f.region))&&(f.giver==='all'||(r.givers||[]).includes(f.giver))
+  &&(f.location==='all'||r.locations.includes(f.location))&&(f.level==='all'||String(r.level)===String(f.level))&&(f.region==='all'||(r.regions||[]).includes(f.region))&&(f.giver==='all'||(r.giverIds||[]).includes(f.giver))
   &&(f.visible==='all'||(f.visible==='yes')===r.visible)&&matchesSearch(r,f.search));
 }
 const byName=(a,b)=>a.name.localeCompare(b.name)||a.id.localeCompare(b.id);
@@ -122,17 +135,20 @@ export function groupRows(rows,group='status'){
   const rest=rows.filter(r=>r.level===null);if(rest.length)out.push({key:'none',label:'No level',rows:rest});
   return out;
  }
- const keyOf=group==='location'?firstLoc:group==='region'?r=>r.regions?.[0]??null:r=>r.givers?.length?[...r.givers].sort((a,b)=>a.localeCompare(b))[0]:r.sourceText||null;
+ const names=group==='giver'?giverNames(rows):null,nameOf=id=>names?.get(id)??id;
+ const keyOf=group==='location'?firstLoc:group==='region'?r=>r.regions?.[0]??null:r=>r.giverIds?.length?[...r.giverIds].sort((a,b)=>nameOf(a).localeCompare(nameOf(b))||a.localeCompare(b))[0]:r.sourceText||null;
  const none=group==='location'?'No location':group==='region'?'No region':'No giver';
- const keys=[...new Set(rows.map(keyOf).filter(k=>k!==null))].sort((a,b)=>a.localeCompare(b));
- const out=keys.map(k=>({key:k,label:k,rows:rows.filter(r=>keyOf(r)===k)}));
+ const labelOf=k=>group==='giver'?nameOf(k):k;
+ const keys=[...new Set(rows.map(keyOf).filter(k=>k!==null))].sort((a,b)=>labelOf(a).localeCompare(labelOf(b))||a.localeCompare(b));
+ const out=keys.map(k=>({key:k,label:labelOf(k),rows:rows.filter(r=>keyOf(r)===k)}));
  const rest=rows.filter(r=>keyOf(r)===null);if(rest.length)out.push({key:'none',label:none,rows:rest});
  return out;
 }
 export function listQuestsTab(entries,view={},ctx={}){
  const all=entries.map(e=>questRow(e,ctx)),f={...DEFAULT_VIEW,...view};
  const shown=sortRows(filterRows(all,f),f.sort);
- return {total:all.length,shown:shown.length,groups:groupRows(shown,f.group),locations:locationOptions(all),levels:levelOptions(all),regions:regionOptions(all),givers:giverOptions(all),counts:navCounts(all),ids:shown.map(r=>r.id)};
+ return {total:all.length,shown:shown.length,groups:groupRows(shown,f.group),locations:keepSelected(locationOptions(all),f.location),levels:keepSelected(levelOptions(all),f.level,`Level ${f.level}`),
+  regions:keepSelected(regionOptions(all),f.region),givers:keepSelected(giverOptions(all),f.giver,giverLabel(f.giver)),counts:navCounts(all),ids:shown.map(r=>r.id)};
 }
 /** "just now", "5 min ago", "3 h ago", "2 days ago", then the date. */
 export function changedLabel(ms,now=Date.now()){

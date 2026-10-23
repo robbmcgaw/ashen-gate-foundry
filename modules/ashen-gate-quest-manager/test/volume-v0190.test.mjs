@@ -40,15 +40,15 @@ test('120 quests: group, filter and sort by level, region and giver',()=>{
  assert.equal(r.groups.reduce((n,g)=>n+g.rows.length,0),120);
  assert.deepEqual(r.levels,[['3','Level 3'],['4','Level 4'],['5','Level 5']]);
  assert.deepEqual(r.regions,[['[TEST] North','[TEST] North'],['[TEST] South','[TEST] South']]);
- assert.equal(r.givers.length,7);assert.equal(r.givers[0][0],'T Giver 0');
+ assert.equal(r.givers.length,7);assert.deepEqual(r.givers[0],['NPC-T-GIVER-0','T Giver 0']);
  assert.deepEqual(listQuestsTab(many,{group:'region'},ctx).groups.map(g=>g.label),['[TEST] North','[TEST] South','No region']);
  assert.ok(listQuestsTab(many,{group:'giver'},ctx).groups.at(-1).label==='No giver');
  const lv4=listQuestsTab(many,{level:'4'},ctx);assert.ok(lv4.shown>0&&lv4.ids.every(id=>many.find(e=>e.source.id===id).source.parameters.recommended_level==='4'));
  const rows=many.map(e=>questRow(e,ctx));
  assert.ok(filterRows(rows,{region:'[TEST] North'}).every(x=>x.regions.includes('[TEST] North')));
- assert.ok(filterRows(rows,{giver:'T Giver 2'}).every(x=>x.givers.includes('T Giver 2')));
+ assert.ok(filterRows(rows,{giver:'NPC-T-GIVER-2'}).every(x=>x.giverIds.includes('NPC-T-GIVER-2')));
  assert.equal(filterRows(rows,{search:'level 5'}).length,rows.filter(x=>x.level===5).length);
- assert.equal(filterRows(rows,{search:'npc-t-giver-2'}).length,filterRows(rows,{giver:'T Giver 2'}).length,'raw id stays searchable');
+ assert.equal(filterRows(rows,{search:'npc-t-giver-2'}).length,filterRows(rows,{giver:'NPC-T-GIVER-2'}).length,'raw id stays searchable');
  const sorted=sortRows(rows,'level').map(x=>x.level);assert.deepEqual(sorted,[...sorted].sort((a,b)=>(a??99)-(b??99)));
  assert.equal(filterCount({level:'4',region:'x',giver:'y',type:'quest'}),4);
 });
@@ -75,4 +75,30 @@ test('sandbox quest, order and contract files import without errors and list sen
  assert.equal(r.groups.reduce((n,g)=>n+g.rows.length,0),all.length);
  assert.ok(r.groups.some(g=>g.label==='Level 3')&&r.groups.some(g=>g.label==='No level'));
  assert.ok(!listQuestsTab(all.map(entry),{group:'giver'},{}).groups.some(g=>/^NPC-/.test(g.label)),'no raw ids as group names');
+});
+
+// ---- 0.19.1 ----
+import {giverNames,giverOptions,keepSelected} from '../scripts/quests-tab.mjs';
+test('0.19.1: a chosen filter value that is no longer an option stays visible, marked "(none now)", and is still applied',()=>{
+ const only5=[entry(src('QUEST-T-1','[TEST] one',{parameters:{recommended_level:'5'},locations:['LOC-T-A']})),entry(src('QUEST-T-2','[TEST] two',{parameters:{recommended_level:'3'}}))];
+ assert.deepEqual(listQuestsTab(only5,{level:'5'},ctx).levels,[['3','Level 3'],['5','Level 5']]);
+ const gone=[only5[1]];
+ const r=listQuestsTab(gone,{level:'5',region:'[TEST] North',location:'LOC-T-A',giver:'NPC-T-GONE'},ctx);
+ assert.deepEqual(r.levels.at(-1),['5','Level 5 (none now)']);assert.deepEqual(r.regions.at(-1),['[TEST] North','[TEST] North (none now)']);
+ assert.deepEqual(r.locations.at(-1),['LOC-T-A','LOC-T-A (none now)']);assert.deepEqual(r.givers.at(-1),['NPC-T-GONE','T Gone (none now)']);
+ assert.equal(r.shown,0,'the filter is still applied');
+ const html=questsToolbar({level:'5'},[],{levels:r.levels,filtersOpen:true});
+ assert.match(html,/<option value="5" selected>Level 5 \(none now\)/);
+ assert.deepEqual(keepSelected([['3','Level 3']],'all'),[['3','Level 3']]);assert.deepEqual(keepSelected([['3','Level 3']],'3'),[['3','Level 3']]);
+});
+test('0.19.1: ids that read alike stay separate giver values; the filter and groups key on the id',()=>{
+ const mk=(id,giver)=>entry(src(id,`[TEST] ${id}`,{refs:[{relation:'issued_by',target_id:giver,mode:'optional'}]}));
+ const list=[mk('QUEST-T-A','NPC-T-WARDEN'),mk('QUEST-T-B','FACTION-T-WARDEN'),mk('QUEST-T-C','NPC-T-OTHER')];
+ const rows=list.map(e=>questRow(e,{}));
+ assert.equal(new Set(giverOptions(rows).map(o=>o[0])).size,3);
+ assert.deepEqual(giverOptions(rows).map(o=>o[1]),['T Other','T Warden (Faction)','T Warden (Npc)']);
+ assert.deepEqual(filterRows(rows,{giver:'NPC-T-WARDEN'}).map(r=>r.id),['QUEST-T-A']);
+ assert.deepEqual(filterRows(rows,{giver:'FACTION-T-WARDEN'}).map(r=>r.id),['QUEST-T-B']);
+ const g=groupRows(rows,'giver');assert.equal(g.length,3);assert.deepEqual(g.map(x=>x.label),['T Other','T Warden (Faction)','T Warden (Npc)']);
+ assert.equal(giverNames(rows).get('NPC-T-OTHER'),'T Other','a unique label has no suffix');
 });
