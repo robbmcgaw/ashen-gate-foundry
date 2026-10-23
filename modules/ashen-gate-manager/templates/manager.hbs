@@ -129,7 +129,7 @@
         <tr>
           <td><input type="checkbox" data-ag-select="{{id}}" {{#if selected}}checked{{/if}} {{#unless canSelect}}disabled{{else}}{{#if @root.busy}}disabled{{/if}}{{/unless}} aria-label="Select {{name}}" /></td>
           <td><strong>{{name}}</strong><code class="agm-id">{{id}}</code></td>
-          <td>{{kind}}{{#if detail}}<div class="agmanager-tiny">{{detail}}</div>{{/if}}<div class="agmanager-tiny">{{lifecycle}}</div></td>
+          <td>{{kind}}{{#if detail}}<div class="agmanager-tiny">{{detail}}</div>{{/if}}{{#if folderNote}}<div class="agmanager-tiny">Folder: {{folderNote}}</div>{{/if}}<div class="agmanager-tiny">{{lifecycle}}</div></td>
           <td><span class="ag-badge{{#if badgeTone}} ag-badge--{{badgeTone}}{{/if}}">{{badge}}</span></td>
           <td>{{reason}}{{#if changes.length}}<ul class="agmanager-changes">{{#each changes}}<li>{{this}}</li>{{/each}}</ul>{{/if}}{{#if effectRows.length}}<ul class="agmanager-changes agmanager-effects" aria-label="Effects">{{#each effectRows}}<li><strong>{{label}}</strong> {{name}}{{#if effId}} <code>{{effId}}</code>{{/if}}: {{reason}}</li>{{/each}}</ul>{{/if}}</td>
           {{#if @root.hasIconRows}}<td class="agm-icon-cell">{{#if icon}}<div class="agm-icon">

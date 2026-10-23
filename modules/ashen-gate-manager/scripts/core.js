@@ -31,6 +31,18 @@ export function flatten(value, prefix = "", result = {}) {
   } else if (prefix) result[prefix] = value;
   return result;
 }
+/**
+ * The last-import baseline as flat leaf paths (0.52.2). Manager writes managedFields with dotted keys
+ * ("system.description.value"), but Foundry expands dotted keys when a document is updated, so a stored baseline can
+ * come back nested ({system: {description: {value}}}) or as both. Values are never non-empty plain objects (flatten
+ * makes leaves), so flattening is lossless; where both forms exist the nested one is the later write and wins.
+ */
+export function baselineFields(managed) {
+  if (!isPlainObject(managed)) return managed;
+  const flat = {}, nested = {};
+  for (const [key, value] of Object.entries(managed)) (isPlainObject(value) && Object.keys(value).length ? nested : flat)[key] = value;
+  return {...flat, ...flatten(nested)};
+}
 export function exportedFields(record) {
   const data = record?.foundry?.data ?? {};
   if (record?.foundry?.document_type === "Item") {
@@ -195,21 +207,22 @@ export function planRecord(record, matches = [], sameNameUnmanaged = false, incl
   if (!flag || !isPlainObject(flag.managedFields)) return {action:"blocked", reason:"Missing previous managed-field baseline; manual repair required."};
   if (kind === "JournalEntry" && !equal(flag.pagesDefinition ?? [], data.pages ?? [])) return {action:"blocked", reason:"Journal page changes require a later page-aware updater; v0.1 preserves pages."};
   const fields = exportedFields(record);
+  const baseline = baselineFields(flag.managedFields);
   // Core links (0.26.0): fields adopted from a 2024 core item belong to that item now. Re-import keeps them
   // and reports them as a known local edit instead of updating, conflicting or blocking on them.
   const link = doc.coreLink?.adopted ? doc.coreLink : null;
   const coreOwned = path => Boolean(link) && (link.adoptedPaths ?? []).some(p => path === p || path.startsWith(`${p}.`));
   const coreKept = [];
-  for (const key of Object.keys(flag.managedFields)) {
+  for (const key of Object.keys(baseline)) {
     if (!own(fields, key) && !coreOwned(key)) return {action:"blocked", reason:`Source removed ${key}; v0.1 requires manual review of removed fields.`};
   }
   const patch = {};
   const locallyEdited = [];
   const conflicting = [];
   for (const [path, incoming] of Object.entries(fields)) {
-    const old = flag.managedFields[path];
+    const old = baseline[path];
     if (coreOwned(path)) {if (!equal(incoming, old)) coreKept.push(path); continue;}
-    if (!own(flag.managedFields, path)) {
+    if (!own(baseline, path)) {
       if (doc.get(path) === undefined) {patch[path] = incoming; continue;}
       // Already the same live value (e.g. a Hub role flag the GM set by hand): adopt it, nothing to write.
       if (equal(doc.get(path), incoming)) continue;
