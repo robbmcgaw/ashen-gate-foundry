@@ -85,7 +85,7 @@ test('0.19.1: a chosen filter value that is no longer an option stays visible, m
  const gone=[only5[1]];
  const r=listQuestsTab(gone,{level:'5',region:'[TEST] North',location:'LOC-T-A',giver:'NPC-T-GONE'},ctx);
  assert.deepEqual(r.levels.at(-1),['5','Level 5 (none now)']);assert.deepEqual(r.regions.at(-1),['[TEST] North','[TEST] North (none now)']);
- assert.deepEqual(r.locations.at(-1),['LOC-T-A','LOC-T-A (none now)']);assert.deepEqual(r.givers.at(-1),['NPC-T-GONE','T Gone (none now)']);
+ assert.deepEqual(r.locations.at(-1),['LOC-T-A','Place A (none now)']);assert.deepEqual(r.givers.at(-1),['NPC-T-GONE','T Gone (none now)']);
  assert.equal(r.shown,0,'the filter is still applied');
  const html=questsToolbar({level:'5'},[],{levels:r.levels,filtersOpen:true});
  assert.match(html,/<option value="5" selected>Level 5 \(none now\)/);
@@ -101,4 +101,14 @@ test('0.19.1: ids that read alike stay separate giver values; the filter and gro
  assert.deepEqual(filterRows(rows,{giver:'FACTION-T-WARDEN'}).map(r=>r.id),['QUEST-T-B']);
  const g=groupRows(rows,'giver');assert.equal(g.length,3);assert.deepEqual(g.map(x=>x.label),['T Other','T Warden (Faction)','T Warden (Npc)']);
  assert.equal(giverNames(rows).get('NPC-T-OTHER'),'T Other','a unique label has no suffix');
+});
+
+// ---- 0.19.2 ----
+test('0.19.2: a vanished Location filter shows a readable label, never the raw id',()=>{
+ const none=[entry(src('QUEST-T-1','[TEST] one'))];
+ const unknown=listQuestsTab(none,{location:'LOC-T-GONE'},{}).locations.at(-1);
+ assert.deepEqual(unknown,['LOC-T-GONE','a location that no longer matches (none now)']);
+ const named=listQuestsTab(none,{location:'LOC-T-A'},ctx).locations.at(-1);
+ assert.deepEqual(named,['LOC-T-A','Place A (none now)']);
+ assert.doesNotMatch(questsToolbar({location:'LOC-T-GONE'},[unknown],{filtersOpen:true}),/>LOC-T-GONE/);
 });
