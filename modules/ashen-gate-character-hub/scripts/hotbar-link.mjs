@@ -33,7 +33,12 @@ export function linkOn() { try { return globalThis.game?.settings?.get?.(MODULE_
 export const setLinkOn = on => globalThis.game.settings.set(MODULE_ID, LINK_SETTING, on === true);
 
 /** The command dnd5e 6 writes for an item macro (documents/macro.mjs create5eMacro, type "Item"). */
-export const itemMacroCommand = item => `dnd5e.documents.macro.rollItem("${item?._source?.name ?? item?.name}", { event })`;
+export const UNSAFE_NAME = /["\\`\r\n\u2028\u2029]|\$\{/;
+/** An item name that could break out of the string in the macro command (quote, backslash, backtick, `${`, newline). */
+export const unsafeName = name => UNSAFE_NAME.test(String(name ?? ''));
+/** Defensive escape for a name placed in macro code. Names that need it are never linked (see push), so safe names come out unchanged. */
+const escapeName = name => String(name ?? '').replace(/[\\"`]/g, c => '\\' + c).replace(/\$\{/g, '\\${').replace(/\r/g, '\\r').replace(/\n/g, '\\n').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+export const itemMacroCommand = item => `dnd5e.documents.macro.rollItem("${escapeName(item?._source?.name ?? item?.name)}", { event })`;
 const ITEM_MACRO = /^dnd5e\.documents\.macro\.rollItem\("(.*)", \{ event \}\)$/s;
 /** The item name a dnd5e item macro rolls, or null (an activity macro or any other command). */
 export function itemMacroName(macro) {
@@ -50,6 +55,7 @@ export function macroToEntry(macro, actor, user = globalThis.game?.user) {
   if (!macro) return {kind: 'empty'};
   const name = itemMacroName(macro);
   if (name !== null) {
+    if (unsafeName(name)) return {kind: 'foreign'};   // never trust a hostile-looking name, in either direction
     const item = [...(actor?.items ?? [])].find(i => sourceName(i) === name);   // dnd5e uses the first item of that name
     return item ? {kind: 'entry', entry: {type: 'Item', id: item.id}} : {kind: 'foreign'};
   }
@@ -100,6 +106,8 @@ export function createHotbarLink(env = {}) {
   const declined = new Set();
   const run = fn => (queue = queue.then(fn).catch(err => { console.warn(`${MODULE_ID} | hotbar link`, err); return null; }));
   const eligible = actor => !!actor && typeof user()?.assignHotbarMacro === 'function' && canEdit(actor) && canSee('hotbars');
+  let warned = false;
+  const skipped = reason => { if (warned) return; warned = true; notify(`A quick-bar item was not copied to Foundry's hotbar because ${reason} Rename the item to link it.`); };
   const quiet = () => { if (noticed) return; noticed = true; notify('The quick bar slot works, but Foundry\'s hotbar copy could not be made: you may not create script macros in this world. Ask the GM for the "Use Script Macros" permission.'); };
 
   /** Puts one Hub slot on Foundry's page 1. Never throws; a copy that can't be made leaves the Foundry slot as it is. */
@@ -110,6 +118,9 @@ export function createHotbarLink(env = {}) {
     if (entry.type === 'Macro') { const m = fromUuid(entry.uuid); return m ? u.assignHotbarMacro(m, slot) : null; }
     const item = actor.items?.get?.(entry.id);
     if (!item) return null;
+    const name = sourceName(item);
+    if (unsafeName(name)) { skipped('its name has a quote, backslash, backtick, "${" or line break, which is not safe in a macro.'); return null; }
+    if ([...(actor.items ?? [])].find(i => sourceName(i) === name) !== item) { skipped('another item on this character has the same name, and dnd5e macros find items by name.'); return null; }
     const command = itemMacroCommand(item);
     const mine = macros().find(m => m.name === item.name && m.command === command && m.isAuthor);   // dnd5e's own reuse rule
     if (mine) return u.assignHotbarMacro(mine, slot);

@@ -1,3 +1,11 @@
+## 0.42.1 — 2026-10-23
+
+Code-read review fixes for the quick bar ↔ Foundry hotbar link.
+
+- **Security: unsafe item names are never copied to the hotbar.** dnd5e writes an item's name straight into the hotbar macro's script. An item named with a double quote, backslash, backtick, `${` or a line break could therefore run its own code as a script macro for whoever brought that Hub to the front (including the GM). The link now skips such items in both directions and shows one notice (it never repeats the name). Rename the item to link it. The macro command builder also escapes names defensively.
+- **Fix: two items with the same name.** dnd5e finds the item by name, so the second item's hotbar slot rolled the first. The first item links as before; later items sharing its name are skipped with one notice. Their quick-bar slots still work.
+- Saved data: unchanged. No migration.
+
 ## 0.42.0 — 2026-10-23
 
 Robb's requests: connect the quick bar and Foundry's hotbar both ways; a roll from the quick bar stuck its dialog to the top of the screen; clicking an item's icon should use it.
