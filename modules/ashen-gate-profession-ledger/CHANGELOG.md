@@ -1,3 +1,17 @@
+## 0.31.1 — 2026-10-23
+
+QA pass for big worlds (the sandbox content: about 700 recipes, 400 materials, 60 gathering nodes).
+
+- **Faster with a lot of content.** Every recipe, material and result lookup used to scan every document in the world, so Recipe Catalog, Party, Individual, Gathering and GM Setup got slow as content grew (in a test world of 700 recipes, 400 materials and 250 items, lookups were most of the time of every render, and a Catalog render took about three times as long). Lookups now use an index built once per pass; a document that is added, removed, archived or replaced is still seen straight away. Nothing about who sees what changes.
+- **Big lists start folded.** A list of more than 40 recipes or nodes (the GM's Recipe Catalog, Party recipes, Gathering nodes) opens with every profession or activity folder closed, each still showing its count; open the ones you want (the window remembers them). Searching still opens the folders that match. Short lists open as before.
+- **Six top-level tabs for the GM.** **Gathering nodes** is now the fourth sub-tab of **Gathering** (Requests · Active checks · Start gathering · Gathering nodes) instead of a seventh top-level tab. It shows the same node list, editor and import, and Gathering stays the selected tab. Players are unaffected. `api.open({view: 'nodes'})` still works.
+- **Node file import is readable.** The preview lists one node per line under a fold for each outcome (New, Updated, Kept, Unchanged, Skipped) instead of one long run of names; long lists start folded.
+- **Select all / Clear selection** on the Assign **Starting recipes** and **Signature perks** previews, for when you want to grant only a few of many rows.
+- **Material pickers say more.** In the node editor the Material list adds the material's quality and tier after its name (for example "Marsh Reed · Common Tier 2") so similar names can be told apart in a long list.
+- Wording: the Assign help no longer shows the internal PROF-* id pattern; the node help says "permanent node id".
+- **Checked, no change needed.** The 60 sandbox nodes (`S01_Frontier_Sites` and `S10_Blight_Sites` gathering-nodes files) import with no errors or warnings; all 85 materials they name (28 nodes carry a designated Exotic at 50%) exist in the sandbox and earlier content packs; the ten signature perks in S08 are valid for the five gathering professions.
+- **Saved data:** none changed; no migration.
+
 ## 0.31.0 — 2026-10-23
 
 - **Signature perks:** a Profession perk can be a *signature perk* (`signature: true` in the content, with `profession_id`, `tier` of `journeyman` or `expert`, and `point_cost: 0`). When a character's level in that profession reaches Journeyman (4) or Expert (7), the Ledger adds every signature perk of that profession and tier to the character as an Item, on the GM's screen, and posts one chat note per character and profession naming the perks (shown to the GM and the character's owners, like XP notes). A jump over several levels grants every tier it crosses. A perk the character already holds is never added twice, and re-running changes nothing.

@@ -166,3 +166,9 @@
 .agl-app .agl-request p{margin:0 0 var(--ag-space-1)}
 .agl-app .agl-field-group{display:flex;flex-direction:column;gap:var(--ag-space-1);margin:var(--ag-space-2) 0}
 .agl-app .agl-node-editor .ag-fold{margin-top:var(--ag-space-2)}
+/* 0.31.1: node import preview (one fold per outcome, a node per line) and Select all / Clear selection on the Assign grants. */
+.agl-app .agl-node-plan{list-style:none;padding-left:0}
+.agl-app .agl-node-plan-group>summary{cursor:pointer;padding:var(--ag-space-1) 0}
+.agl-app .agl-node-plan-list{display:grid;gap:var(--ag-space-1);margin:var(--ag-space-1) 0 var(--ag-space-2);padding-left:var(--ag-space-4);max-height:20rem;overflow:auto}
+.agl-app .agl-node-plan-list code{font-size:var(--ag-text-sm);color:var(--ag-muted)}
+.agl-app .agl-select-actions{margin:var(--ag-space-2) 0}
