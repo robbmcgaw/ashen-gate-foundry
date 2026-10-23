@@ -34,7 +34,7 @@ export function world({rec = recorder(), gm = true, items, trees, unresolved = [
   const quests = [{id: 'QUEST-TEST-OPEN', name: 'Open Road', status: 'Active'}];
   const rewardRows = rewards ?? {'QUEST-TEST-OPEN': [{key: 'def:ITEM-TEST-BLADE', itemId: 'ITEM-TEST-BLADE', status: 'ok', origin: 'import', removed: false}]};
   const all = {
-    [M]: {id: M, title: 'Ashen Gate | General Manager', active: true, version: '0.54.0', api: {}},
+    [M]: {id: M, title: 'Ashen Gate | General Manager', active: true, version: '0.54.1', api: {}},
     'ashen-gate-locations': {id: 'ashen-gate-locations', active: true, version: '0.18.0', api: {listLocations: () => [], previewLocation: () => null,
       playerAccess: access(rec, 'ashen-gate-locations'), ...writeApi(['importLocations', 'setLocationState', 'publishLocation', 'moveLocation', 'setAudience'])}},
     'ashen-gate-quest-manager': {id: 'ashen-gate-quest-manager', active: true, version: '0.18.1', api: {

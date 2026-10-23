@@ -2995,7 +2995,7 @@ async function runFolderRenames() {
   } catch(error) {console.warn(`[${MODULE_ID}] Folder rename skipped`,error);return null;}
 }
 Hooks.once("init",()=>{
-  registerAppearanceSettings({game,namespace:MODULE_ID,onSettingChange:(key,value)=>appearanceController?.noteChange(key,value)});
+  registerAppearanceSettings({game,namespace:MODULE_ID,onSettingChange:(key,value,userId)=>appearanceController?.noteChange(key,value,userId)});
   game.settings.register(MODULE_ID,SNAPSHOT_SETTING,{name:"World export snapshot",scope:"world",config:false,type:Object,default:{}});
   game.settings.register(MODULE_ID,"importHistory",{name:"Import History",scope:"world",config:false,type:Array,default:[]});
   // Empty means "use the shipped default moods"; written only by the GM from the Scenes tab.
