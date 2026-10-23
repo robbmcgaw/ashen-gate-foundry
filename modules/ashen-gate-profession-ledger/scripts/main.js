@@ -22,7 +22,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.31.1';
+const VERSION='0.31.2';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -51,7 +51,8 @@ const notice=(html,kind='info')=>`<div class="ag-notice ag-notice--${kind}"><i c
 /** A kit row's meta line, or nothing when there is nothing to show. */
 const rowMeta=html=>html?`<span class="ag-row__meta">${html}</span>`:'';
 const materialQuality=(sourceId,lib)=>sourceId?lib.materials.find(m=>m.id===sourceId)?.quality??null:null;
-const say=(message,error=false)=>error?ui.notifications.error(message):ui.notifications.info(message);
+// Notifications are shown as HTML, and messages carry actor, node and file names a player or a file can choose: escape them.
+const say=(message,error=false)=>error?ui.notifications.error(esc(message)):ui.notifications.info(esc(message));
 const plural=(n,one,many=`${one}s`)=>`${n} ${n===1?one:many}`;
 /** 0.26.2: a control's identity across a re-render: its tag, name and data-* attributes (tooltips aside). */
 const FOCUSABLE='input, textarea, select, button, a[href], [tabindex]';
@@ -829,7 +830,7 @@ const signatureWarned=new Set();
 function warnSignatureMissing(actor,profId,tier,why){
   const key=`${profId}:${tier}`;if(signatureWarned.has(key))return;signatureWarned.add(key);
   const name=professionNameOf(actor,profId),text=`${actor.name} reached ${signatureTierName(tier)} in ${name}, but ${why} Import the signature perks with General Manager; then use Assign → Signature perks to catch up.`;
-  try{ui.notifications.warn(text);}catch{}
+  try{ui.notifications.warn(esc(text));}catch{}
   try{void globalThis.ChatMessage?.create?.({whisper:allUsers().filter(u=>u.isGM).map(u=>u.id),content:`<div class="agl-chat-card"><header><div><strong>Signature perk not granted</strong><span>${esc(text)}</span></div></header></div>`});}catch(err){console.warn(`[${ID}] signature note failed`,err);}
 }
 /**
@@ -2882,12 +2883,14 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         const next=LEGACY_VIEWS[id]??id;
         if(!game.user.isGM&&GM_VIEWS.has(next))throw Error('GM only');
         if(this.view==='gm'&&next!=='gm'&&!await this._leaveGmSetup())return;
+        if(next!=='nodes'&&!await this._leaveNodes())return;
         if(next==='gathering'&&this.view!=='gathering')this.gatherTab=null;
         this.view=next;this.render();return;}
       if(action==='gather-tab'){
         if(!game.user.isGM)throw Error('GM only');
         if(id==='nodes'){this.view='nodes';this.render();return;}
         if(!GATHER_TAB_IDS.includes(id))return;
+        if(!await this._leaveNodes())return;
         this._ui.set('gatherTab',this.gatherTab=id);this.view='gathering';this.render();return;}
       if(action==='help'){await infoDialog('Profession Ledger help',this._help());return;}
       // 0.26.0 (PL-13): Cancel discards the GM Setup drafts and stays on GM Setup (the suite convention).
@@ -3151,6 +3154,22 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     if(save)save.disabled=!this.setupDirty;
     const status=this.element?.querySelector?.('[data-agl-roster-status]');
     if(status)status.textContent=this.setupStatus;
+  }
+  /** Before leaving Gathering nodes by a tab or sub-tab: ask about an edited node and about an import preview that was not
+   * applied. Keep editing leaves everything (and the focus) where it is; discarding drops the draft or preview. */
+  async _leaveNodes(){
+    if(this.view!=='nodes')return true;
+    if(this.nodeDraft&&this.nodeGuard?.dirty){
+      if(!await this.nodeGuard.confirm())return false;
+      this.nodeDraft=null;
+    }
+    const plan=this.nodeImport?.plan;
+    if(plan?.ok&&(plan.add.length||plan.update.length)){
+      const discard=await confirmDanger('This node import has not been applied yet.',{title:'Discard this import preview?',yes:'Discard preview',no:'Keep reviewing'});
+      if(!discard)return false;
+    }
+    this.nodeImport=null;
+    return true;
   }
   async _leaveGmSetup(){
     if(!this.setupDirty){this._clearSetupDrafts();return true;}

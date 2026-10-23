@@ -1,3 +1,9 @@
+## 0.31.2 — 2026-10-23
+
+- **Fix: leaving Gathering nodes no longer drops unsaved work silently.** Clicking another tab, or another Gathering sub-tab (Requests, Active checks, Start gathering), while a node is being edited with unsaved changes now asks **Discard unsaved changes?** (Keep editing is the default and leaves everything as it was, including where the focus is). The same goes for a node file import preview you haven't applied: **Discard this import preview?** (Keep reviewing / Discard preview). Moving into Gathering nodes, or leaving with nothing pending, asks nothing.
+- **Fix: names in notifications are escaped.** A character or file name containing HTML (for example in "reached Journeyman… no signature perk is imported", or an error message) is shown as text, not interpreted.
+- **Saved data:** none changed; no migration.
+
 ## 0.31.1 — 2026-10-23
 
 QA pass for big worlds (the sandbox content: about 700 recipes, 400 materials, 60 gathering nodes).
