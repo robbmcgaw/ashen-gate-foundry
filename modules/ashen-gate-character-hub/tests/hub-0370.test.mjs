@@ -31,21 +31,19 @@ async function render({user = users.owner, compact = false, actor = makeActor({i
 const head = html => html.slice(0, html.indexOf('</header>') + 9);
 const column = html => html.slice(html.indexOf('<aside class="agch-char'), html.indexOf('</aside>'));
 
-test('version is 0.37.0', () => assert.equal(VERSION, '0.37.0'));
-
-test('the window title is the brand; the header heading is the character\'s name, escaped', async () => {
+test('the window title is the brand and the name (0.37.1); the header heading is the character\'s name, escaped', async () => {
   const actor = makeActor({items: ITEMS});
   actor.name = '[TEST] <b>Bold</b> & "Quoted"';
   const {sheet, html} = await render({actor});
   assert.equal(HUB_TITLE, 'Ashen Gate | Character Hub');
-  assert.equal(sheet.title, 'Ashen Gate | Character Hub', 'no "<Actor type>: <name>"');
-  assert.doesNotMatch(sheet.title, /Bold|Player|:/);
+  assert.equal(sheet.title, 'Ashen Gate | Character Hub — [TEST] <b>Bold</b> & "Quoted"', '0.37.1: brand — name, no "<Actor type>: <name>"');
+  assert.doesNotMatch(sheet.title, /Player|:/);
   const h = head(html);
   assert.match(h, /<h1 class="agch-head__name"[^>]*>\[TEST\] &lt;b&gt;Bold&lt;\/b&gt; &amp; &quot;Quoted&quot;<\/h1>/);
   assert.doesNotMatch(h, /<b>Bold/);
   assert.doesNotMatch(h, /Character Hub/, 'the brand is not repeated inside the Hub');
   assert.equal((html.match(/<h1\b/g) ?? []).length, 1, 'one h1');
-  assert.match(h, /class="ag-header__actions">[\s\S]*data-action="compact-toggle"[\s\S]*data-action="more-menu"[\s\S]*class="ag-version">v0\.37\.0<\/span>[\s\S]*data-action="help"/, 'actions keep their place');
+  assert.match(h, /class="ag-header__actions">[\s\S]*data-action="compact-toggle"[\s\S]*data-action="more-menu"[\s\S]*class="ag-version">v0\.37\.1<\/span>[\s\S]*data-action="help"/, 'actions keep their place');
 });
 
 test('no second name in the character column; the column starts with the Cinders / star row, then the art', async () => {

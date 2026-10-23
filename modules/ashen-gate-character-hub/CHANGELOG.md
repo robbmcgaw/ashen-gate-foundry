@@ -1,3 +1,8 @@
+## 0.37.1 — 2026-10-23
+
+- **Window title:** now **Ashen Gate | Character Hub — <character name>** instead of the same title for every Hub, so several open, minimised or popped-out Hubs are easy to tell apart. It follows the character when they're renamed (the title updates when the Hub redraws), and a popped-out Hub's browser window shows the same title. A limited view uses the same title. The in-sheet header is unchanged. A very long name is cut with "…" by Foundry's own title bar.
+- Saved data: no change. No migration.
+
 ## 0.37.0 — 2026-10-22
 
 Robb's request: the character's name goes where "Ashen Gate | Character Hub" was, and the column below shifts up.

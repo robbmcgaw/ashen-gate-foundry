@@ -3,7 +3,7 @@
  * from the live Actor and sends every change through the Actor/Item (see actions.mjs). It never
  * mounts or hides the native sheet; "Open native sheet" opens that one separately.
  */
-import {MODULE_ID, SHEET_LABEL, HUB_TITLE, COMPACT_SETTING, compactPreference} from './constants.mjs';
+import {MODULE_ID, SHEET_LABEL, hubTitle, COMPACT_SETTING, compactPreference} from './constants.mjs';
 import {shellHtml, errorHtml} from './views.mjs';
 import * as act from './actions.mjs';
 import {openNativeSheet} from './native.mjs';
@@ -412,10 +412,21 @@ export function createHubSheetClass(Base) {
     };
     static LABEL = SHEET_LABEL;
     /**
-     * The window title bar (0.37.0): the brand only, never Foundry's "<Actor type>: <name>" (the name is the heading
-     * inside the Hub). Foundry also uses it for a popped-out window and the minimised bar.
+     * The window title bar: the brand and the character's name (0.37.1; the brand only in 0.37.0), never Foundry's
+     * "<Actor type>: <name>". Foundry also uses it for a popped-out window and the minimised bar.
      */
-    get title() { return HUB_TITLE; }
+    get title() { return hubTitle(this.document?.name); }
+    /**
+     * Keeps the title bar (and a popped-out window's browser title) on the actor's current name after a rename; Foundry
+     * writes the title when the frame is first drawn. Set as text, so a name is never read as HTML.
+     */
+    _syncTitle() {
+      const title = this.title;
+      const bar = this.window?.title;
+      if (bar && bar.textContent !== title) bar.textContent = title;
+      const doc = this.element?.ownerDocument;
+      if (isPoppedOut(this) && doc && doc.title !== title) doc.title = title;
+    }
     /**
      * The default size follows the kit size set (Comfortable is 1.2x) and this user's Compact choice (0.29.0); an
      * explicit position still wins.
@@ -501,6 +512,7 @@ export function createHubSheetClass(Base) {
       this._drawUndo(content);
       syncEscape(this);   // Escape closes an open menu/editor only, wherever focus is (escape.mjs)
       syncQuickKeys(this);   // quick bar keys in a popped-out Hub's own window (quick-keys.mjs)
+      try { this._syncTitle(); } catch {}   // 0.37.1: the title follows a rename
       // <html> carries General Manager's skin to every window in Foundry's own page, so the Hub no longer copies the skin
       // onto its content on each render (0.33.0, GM-CO-04: the copy went stale on a skin change). A popped-out Hub sits
       // in another browser window's <html>, so there it is still applied.

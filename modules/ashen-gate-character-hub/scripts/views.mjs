@@ -175,7 +175,7 @@ export const LONG_NAME = 24;
 /**
  * Header (0.33.0): Compact / Full and the "⋯" menu; version and Help together at the far right. 0.37.0: the left side
  * is the character: the name as the heading, a "Level n" badge beside it and, under it, the identity line (species ·
- * class subclass · background; not in the limited view). "Ashen Gate | Character Hub" is the window title (sheet.mjs).
+ * class subclass · background; not in the limited view). "Ashen Gate | Character Hub — <name>" is the window title (sheet.mjs).
  */
 export function headerHtml(ctx, compact) {
   const version = globalThis.game?.modules?.get?.(MODULE_ID)?.version ?? '';

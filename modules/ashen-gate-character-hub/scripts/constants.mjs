@@ -1,8 +1,13 @@
 export const MODULE_ID = 'ashen-gate-character-hub';
-export const VERSION = '0.37.0';
+export const VERSION = '0.37.1';
 export const SHEET_LABEL = 'Ashen Gate Character Hub';
 /** The window title (0.37.0): the brand, in place of Foundry's "<Actor type>: <name>"; the name is the in-sheet heading. */
 export const HUB_TITLE = 'Ashen Gate | Character Hub';
+/**
+ * The window title for one character (0.37.1): "Ashen Gate | Character Hub — <name>", so several open, minimised or
+ * popped-out Hubs can be told apart. Plain text (Foundry sets it as text); a blank name leaves the brand alone.
+ */
+export const hubTitle = name => { const n = String(name ?? '').replace(/\s+/g, ' ').trim(); return n ? `${HUB_TITLE} — ${n}` : HUB_TITLE; };
 
 export const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
 /** +3 / −1 style modifier text. */
