@@ -646,6 +646,16 @@ function assignPreview({actorIds=null}={}){
   const rows=assignmentPlan(actors,info.map,{professionItems:items,heldKeys:heldProfessionKeys,heldIds:heldProfessionIds}).map(r=>({...r,id:rowId(r)}));
   return {actors:actors.map(a=>({id:a.id,name:a.name})),rows,unmapped:unmappedProfessions(info.map),unresolved:info.unresolved,conflicts:info.conflicts};
 }
+/** The plan rows of one status that `rowIds` selects. Omitted/null = every row; anything else must be an array of ids the plan holds, else it throws (a malformed list never widens to every row). */
+function selectedRows(plan,status,rowIds){
+  if(rowIds==null)return plan.rows.filter(r=>r.status===status);
+  if(!Array.isArray(rowIds))throw Error('rowIds must be a list of row ids');
+  const known=new Set(plan.rows.map(r=>r.id));
+  const bad=rowIds.filter(id=>typeof id!=='string'||!known.has(id));
+  if(bad.length)throw Error('Unknown row id: preview again and pick from the list');
+  const want=new Set(rowIds);
+  return plan.rows.filter(r=>r.status===status&&want.has(r.id));
+}
 const assignLocks=new Set();
 /**
  * GM: add the missing Profession Items. `rowIds` limits it to those proposals (from assignPreview); otherwise every
@@ -655,7 +665,7 @@ const assignLocks=new Set();
 async function assignProfessions({actorIds=null,rowIds=null}={}){
   requireAssignGM();
   const plan=assignPreview({actorIds});
-  const picked=plan.rows.filter(r=>r.status==='propose'&&(!Array.isArray(rowIds)||rowIds.includes(r.id)));
+  const picked=selectedRows(plan,'propose',rowIds);
   const defs=new Map(professionDefinitions().map(d=>[d.sourceId,d]));
   const added=[],skipped=[];
   for(const actorId of [...new Set(picked.map(r=>r.actorId))]){
@@ -725,7 +735,7 @@ async function grantStartingRecipes({preview=true,actorIds=null,rowIds=null}={})
   requireGrantGM();
   const plan=startingRecipesPreview({actorIds});
   if(preview!==false)return {preview:true,...plan};
-  const picked=plan.rows.filter(r=>r.status==='new'&&(!Array.isArray(rowIds)||rowIds.includes(r.id)));
+  const picked=selectedRows(plan,'new',rowIds);
   const ids=[...new Set(picked.map(r=>r.actorId))];
   if(ids.some(id=>grantLocks.has(id)))throw Error('Starting recipes are already being granted');
   const granted=[],skipped=[],written=[];
@@ -862,7 +872,7 @@ function signaturePerksPreview({actorIds=null}={}){
 async function grantSignaturePerks({actorIds=null,rowIds=null}={}){
   requireSignatureGM();
   const plan=signaturePerksPreview({actorIds}),defs=new Map(signaturePerkDefs().map(p=>[p.id,p]));
-  const picked=plan.rows.filter(r=>r.status==='new'&&(!Array.isArray(rowIds)||rowIds.includes(r.id)));
+  const picked=selectedRows(plan,'new',rowIds);
   const granted=[],skipped=[],failed=[];
   for(const actorId of [...new Set(picked.map(r=>r.actorId))]){
     const actor=actorById(actorId),rows=picked.filter(r=>r.actorId===actorId);

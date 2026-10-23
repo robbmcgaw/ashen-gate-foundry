@@ -290,16 +290,26 @@ function checkEnvironment(game) {
 }
 
 // ---------- shared reads for 8 to 12 ----------
-/** Manager-imported world Items (source flag with a permanent id), read once for the content checks. */
+/**
+ * Active Manager-imported world Items (source flag with a permanent id), read once for the content checks. Retired,
+ * superseded and archived items are left out, as Quest Log's availability rule does (ag-item-drop.mjs activeWorldItems).
+ */
 function managedItems(game) {
   const out = [];
   for (const doc of listOf(game.items)) {
     const source = doc?.flags?.[MODULE_ID]?.source;
-    if (source?.sourceId) out.push({doc, source, id: String(source.sourceId)});
+    if (!source?.sourceId) continue;
+    if (source.status === 'retired' || source.status === 'superseded' || doc.flags[MODULE_ID].lifecycle?.archived === true) continue;
+    out.push({doc, source, id: String(source.sourceId)});
   }
   return out;
 }
-const sourceIds = managed => new Set(managed.map(m => m.id));
+/** Ids Quest Log can resolve: exactly one active item holds the id (two make it a conflict, which Quest Log treats as not available). */
+const sourceIds = managed => {
+  const count = new Map();
+  for (const m of managed) count.set(m.id, (count.get(m.id) ?? 0) + 1);
+  return new Set([...count].filter(([, n]) => n === 1).map(([id]) => id));
+};
 
 // ---------- 8. Recipes ----------
 const INGREDIENT_ID = x => x?.materialId ?? x?.material_id ?? x?.target_id ?? x?.id ?? null;
@@ -392,7 +402,7 @@ async function checkQuestRewards(game, ctx) {
     for (const r of Array.isArray(rows) ? rows : []) {
       if (r?.removed || r?.gone) continue;
       checked++;
-      if (r.status === 'missing') missing.push(`${q.id} (${r.itemId ?? 'added item'})`);
+      if (r.status === 'missing' || r.status === 'conflict') missing.push(`${q.id} (${r.itemId ?? 'added item'}${r.status === 'conflict' ? ', two items share this id' : ''})`);
     }
   }
   if (missing.length) return [row(C, STATUS.warn, `${plural(missing.length, 'item reward')} ${missing.length === 1 ? 'points' : 'point'} at an item that is not in the world: ${capList(missing)}. Import the item, or change the reward in Quest Log.`)];

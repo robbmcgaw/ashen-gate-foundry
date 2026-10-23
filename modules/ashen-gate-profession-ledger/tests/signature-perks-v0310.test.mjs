@@ -205,3 +205,13 @@ test('Assign has a Signature perks sub-tab: preview, confirm, grant, then the re
   game.user=alice;
   try{app.view='assign';const p=(await app._prepareContext({})).html;assert.doesNotMatch(p,/Grant signature perks/);}finally{game.user=gm;}
 });
+
+test('malformed or unknown rowIds are rejected like the other grants, never widened to every row; [] means none',async()=>{
+  reset();
+  ana.flags['ashen-gate-profession-ledger'].professionProgress={schema:'ag-profession-actor-progress/0.1',professions:{[MINE]:{xp:xpForLevel(4),selectedPerkIds:[]}}};
+  for(const bad of ['all','PERK-X',{},7,true])await assert.rejects(api.signaturePerks.grant({rowIds:bad}),/rowIds must be a list/,JSON.stringify(bad));
+  for(const bad of [[7],['nope'],['ana:PERK-TEST-NOPE'],['ana:PERK-TEST-MINING-SIGNATURE-JOURNEYMAN-01','bad']])await assert.rejects(api.signaturePerks.grant({rowIds:bad}),/Unknown row id/,JSON.stringify(bad));
+  assert.deepEqual(sigNames(ana),[],'nothing was granted by a rejected call');
+  assert.deepEqual((await api.signaturePerks.grant({rowIds:[]})).granted,[]);assert.deepEqual(sigNames(ana),[]);
+  assert.equal((await api.signaturePerks.grant({rowIds:null})).granted[0].perks.length,2,'null still means every new row');
+});
