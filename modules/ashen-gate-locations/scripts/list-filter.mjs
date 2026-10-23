@@ -1,9 +1,9 @@
 /** The GM list: search, filters, sort and grouping. Pure functions over the location records; nothing here is saved. */
-import {THREATS, threatLabel, hasUnpublishedChanges, isPlaceable} from './model.mjs';
+import {THREATS, threatLabel, hasUnpublishedChanges, isPlaceable, isNodeRef, activityLabel, STATE_LABELS} from './model.mjs';
 
 export const NONE = '__none';
 export const HAS = '__has';
-export const GROUP_MODES = Object.freeze([{value: 'none', label: 'None'}, {value: 'region', label: 'Region'}, {value: 'threat', label: 'Threat level'},
+export const GROUP_MODES = Object.freeze([{value: 'none', label: 'None'}, {value: 'region', label: 'Region'}, {value: 'threat', label: 'Threat level'}, {value: 'status', label: 'Reveal status'},
   {value: 'profession', label: 'Gathering profession'}, {value: 'quest', label: 'Quest'}]);
 export const SORTS = Object.freeze([{value: 'name', label: 'Name'}, {value: 'threat', label: 'Threat'}, {value: 'region', label: 'Region, then name'},
   {value: 'nodes', label: 'Gathering nodes'}, {value: 'status', label: 'Status'}]);
@@ -12,6 +12,23 @@ export const STATUS_FILTERS = Object.freeze([{value: 'hidden', label: 'Hidden'},
 export const PLACEABLE_FILTERS = Object.freeze([{value: 'yes', label: 'Placeable on a map'}, {value: 'no', label: 'Representative only'}]);
 export const emptyFilters = () => ({threat: '', region: '', profession: '', quest: '', status: '', placeable: ''});
 export const hasFilters = f => Object.values(f).some(Boolean);
+
+/**
+ * 0.20.1: gathering entries that refer to a Ledger node template carry no skill or name of their own, so search, the
+ * profession filter and Group by profession could not see them. Reads the template's activity and name into a copy
+ * used for the list only (nothing is saved). Locations without such entries are returned as they are.
+ */
+export function withNodeInfo(locations, templates) {
+  const byId = new Map((templates ?? []).map(t => [t.id, t]));
+  if (!byId.size) return locations;
+  return locations.map(l => {
+    if (!(l.resources ?? []).some(r => isNodeRef(r) && byId.has(r.nodeId))) return l;
+    return {...l, resources: l.resources.map(r => {
+      const t = isNodeRef(r) ? byId.get(r.nodeId) : null;
+      return t ? {...r, skill: r.skill || activityLabel(t.activity), label: r.label || t.name} : r;
+    })};
+  });
+}
 
 const skillsOf = l => [...new Set((l.resources ?? []).map(r => String(r.skill ?? '').trim()).filter(Boolean))];
 const questIdsOf = l => [...new Set((l.quests ?? []).map(q => q.questId).filter(Boolean))];
@@ -78,12 +95,14 @@ export function groupRows(rows, mode, questName = id => id) {
   const groups = new Map();
   const put = (key, label, l) => { if (!groups.has(key)) groups.set(key, {key, label, rows: []}); groups.get(key).rows.push(l); };
   for (const l of rows) {
-    if (mode === 'threat') put(l.threat || 'normal', threatLabel(l.threat), l);
+    if (mode === 'status') put(l.state, STATE_LABELS[l.state] ?? l.state, l);
+    else if (mode === 'threat') put(l.threat || 'normal', threatLabel(l.threat), l);
     else if (mode === 'profession') { const s = skillsOf(l); if (s.length) s.forEach(k => put(k, k, l)); else put('', 'No gathering', l); }
     else if (mode === 'quest') { const q = questIdsOf(l); if (q.length) q.forEach(id => put(id, questName(id), l)); else put('', 'No quest', l); }
     else put(l.region || '', l.region || 'No region', l);
   }
   const order = THREATS.map(t => t.value);
-  return [...groups.values()].sort(mode === 'threat' ? (a, b) => order.indexOf(a.key) - order.indexOf(b.key)
+  return [...groups.values()].sort(mode === 'status' ? (a, b) => STATUS_ORDER.indexOf(a.key) - STATUS_ORDER.indexOf(b.key)
+    : mode === 'threat' ? (a, b) => order.indexOf(a.key) - order.indexOf(b.key)
     : (a, b) => (a.key === '') - (b.key === '') || a.label.localeCompare(b.label));
 }
