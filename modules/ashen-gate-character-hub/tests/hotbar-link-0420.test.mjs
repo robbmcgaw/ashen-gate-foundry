@@ -266,3 +266,34 @@ test('Combat, Inventory, Magic and Features all give the owner the icon button; 
   }
   assert.match(await render(users.owner, 'inventory'), /class="agch-item__icon" data-action="item-sheet" data-id="rock"[^>]*Nothing to use/);
 });
+
+// ---------- Magic: Group defaults to Spell level and keeps the player's choice (Robb, 0.42.0) ----------
+
+import {listChoice, setListChoice} from '../scripts/organize.mjs';
+import {setListFilter} from '../scripts/sheet.mjs';
+
+test('Magic groups by Spell level for a fresh user; Combat and Features keep their own defaults', () => {
+  installGlobals();
+  assert.equal(listChoice('magic').group, 'level');
+  assert.equal(listChoice('combat').group, 'category');
+  assert.equal(listChoice('features').group, 'type');
+  installGlobals({settings: {listSort: {magic: {group: 'nonsense'}}}});
+  assert.equal(listChoice('magic').group, 'level', 'an unknown stored value falls back to Spell level');
+});
+
+test('a Group the player picks stays: a new Hub sheet (reopened) uses it, other tabs keep theirs, Clear filters leaves it', async () => {
+  installGlobals();
+  const Sheet = createHubSheetClass(FakeActorSheetV2);
+  const items = [{id: 'fb', name: '[TEST] Fire Bolt', type: 'spell', system: {level: 0, school: 'evo'}}];
+  assert.equal((await setListChoice('magic', 'group', 'none')).ok, true);
+  const s = new Sheet({document: makeActor({items})}); s.tab = 'magic';
+  assert.equal(listChoice('magic').group, 'none');
+  assert.match(await s._renderHTML(), /All spells/, 'drawn with the chosen Group (No groups)');
+  setListFilter(s, 'magic', 'prepared', '1'); setListFilter(s, 'magic', 'clear');
+  assert.deepEqual(s.listFilters.magic, {}); assert.equal(listChoice('magic').group, 'none', 'Clear filters keeps the chosen Group');
+  const reopened = new Sheet({document: makeActor({items})});
+  reopened.tab = 'magic';
+  assert.equal(listChoice('magic').group, 'none', 'saved per user on this computer (client setting), not on the Actor');
+  assert.equal(listChoice('combat').group, 'category'); assert.equal(listChoice('features').group, 'type');
+  assert.equal(reopened.document.calls.length, 0, 'nothing written to the character');
+});
