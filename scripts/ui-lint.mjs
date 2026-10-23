@@ -108,11 +108,7 @@ export const RULES = {
 
 // Rules kept as a ratchet for one module only, {moduleId: {rule: highest allowed count}}. The count may go down
 // (lower it here when it does), never up. Each entry needs a follow-up in docs/ui-audit-2026-10.md.
-export const STRICT_EXCEPTIONS = {
-  // The Character Hub's status wording (module.json "Alpha:", Journey/Look/Help labels) is being removed in the Hub's
-  // own PR; lower this to 0 (and drop the entry) when that lands.
-  'ashen-gate-character-hub': {'status-wording': 5},
-};
+export const STRICT_EXCEPTIONS = {};
 
 /** Compares one module's counts with zero, or with its exception count. Returns {failures, notes}. */
 export function judgeModule(id, {counts, where}, exceptions = STRICT_EXCEPTIONS) {
