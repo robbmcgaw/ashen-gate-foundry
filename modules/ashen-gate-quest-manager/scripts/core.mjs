@@ -72,7 +72,8 @@ const isObj=v=>!!v&&typeof v==='object'&&!Array.isArray(v);
 const wholeQty=v=>Number.isInteger(v)&&v>=1;
 /* ---- 0.13.0: imported item rewards, outcomes.item_rewards[] (design §8.1). ---- */
 export const MAX_ITEM_REWARDS=50;
-const ITEM_REWARD_ID=/^ITEM-[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
+// 0.18.2: an Item, a learnable recipe Item (REC-*) or a material Item (MAT-*), each matched by Manager's source id.
+const ITEM_REWARD_ID=/^(?:ITEM|REC|MAT)-[A-Z0-9]+(?:-[A-Z0-9]+)*$/;
 const ITEM_REWARD_KEYS=['item_id','quantity','visibility','recipient','note'];
 export function validItemRewards(questId,list){
   const at=i=>`${questId}: outcomes.item_rewards[${i}]`;
@@ -84,7 +85,7 @@ export function validItemRewards(questId,list){
     if('uuid' in e)throw new Error(`${at(i)}: Use item_id, not a Foundry uuid.`);
     const extra=Object.keys(e).filter(k=>!ITEM_REWARD_KEYS.includes(k));
     if(extra.length)throw new Error(`${at(i)}: unknown key ${extra.map(k=>JSON.stringify(k)).join(', ')} (allowed: ${ITEM_REWARD_KEYS.join(', ')}).`);
-    if(typeof e.item_id!=='string'||!ITEM_REWARD_ID.test(e.item_id))throw new Error(`${at(i)}: item_id must be an ITEM-* id.`);
+    if(typeof e.item_id!=='string'||!ITEM_REWARD_ID.test(e.item_id))throw new Error(`${at(i)}: item_id must be an ITEM-*, REC-* or MAT-* id.`);
     if(seen.has(e.item_id))throw new Error(`${at(i)}: duplicate item_id ${e.item_id}.`);seen.add(e.item_id);
     if(e.quantity!==undefined&&!wholeQty(e.quantity))throw new Error(`${at(i)}: quantity must be a whole number, 1 or more.`);
     if(e.visibility!==undefined&&!REWARD_VISIBILITY.includes(e.visibility))throw new Error(`${at(i)}: visibility must be ${REWARD_VISIBILITY.join(', ')}.`);

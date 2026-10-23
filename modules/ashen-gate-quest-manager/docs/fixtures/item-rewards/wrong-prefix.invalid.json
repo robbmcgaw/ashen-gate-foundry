@@ -1,0 +1,38 @@
+{
+  "_expect_error": "item_id must be an ITEM-*, REC-* or MAT-* id.",
+  "schema_version": "ag-quest-source/0.1",
+  "records": [
+    {
+      "id": "QUEST-TEST-WRONG-PREFIX",
+      "entity_type": "Objective",
+      "objective_kind": "quest",
+      "status": "draft",
+      "version": "0.1.0",
+      "visibility": "player",
+      "provenance": {
+        "sources": [
+          "[TEST] synthetic example"
+        ]
+      },
+      "refs": [],
+      "name": "[TEST] The Herbalist's Debt",
+      "objectives": [
+        {
+          "key": "repay",
+          "goal": "[TEST] Bring the herbalist what she is owed."
+        }
+      ],
+      "source": {},
+      "locations": [],
+      "parameters": {},
+      "outcomes": {
+        "description": "[TEST] Recipe and material rewards.",
+        "item_rewards": [
+          {
+            "item_id": "PERK-TEST-STEADY-HANDS"
+          }
+        ]
+      }
+    }
+  ]
+}

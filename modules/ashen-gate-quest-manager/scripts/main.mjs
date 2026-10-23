@@ -17,7 +17,7 @@ import {rewardsSection,playerRewardsSection,grantPanel,grantSummary,receiveList,
 import {createJournalStore} from './journal-store.mjs';
 import {installJournal,bindRadios} from './journal-ui.mjs';
 
-const VERSION='0.18.1';
+const VERSION='0.18.2';
 let instance=null;
 let objectiveConsumer=null;
 let questDefinitionReader=null;

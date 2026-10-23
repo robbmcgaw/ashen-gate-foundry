@@ -60,16 +60,16 @@ A quest record can list item rewards in `outcomes.item_rewards` (at most 50):
 
 | Field | Rule |
 |---|---|
-| `item_id` | Required. An `ITEM-*` id, unique within the quest. Never a Foundry uuid. |
+| `item_id` | Required. An `ITEM-*` id, a `REC-*` recipe id or a `MAT-*` material id (0.18.2), unique within the quest. Never a Foundry uuid. |
 | `quantity` | Optional whole number, 1 or more (default 1). |
 | `visibility` | Optional: `on_complete` (default), `shown` or `gm`. |
 | `recipient` | Optional: `chosen` (default), `each` or `split`. |
 | `note` | Optional, up to 300 characters, shown to the GM only. |
 
 - Unknown keys, a `uuid`, a duplicate `item_id`, a bad value or more than 50 entries stop the import with an error naming the quest and the entry.
-- The item itself is imported as an Item (in the same file, the same bundle or earlier). If the world has no item with that id yet, the import warns and still brings the quest in; the row shows Missing until the item arrives.
+- The item itself is imported as an Item (in the same file, the same bundle or earlier). General Manager imports each Recipe record as its recipe Item and each Material record as its material Item, matched by the `REC-*` / `MAT-*` id. A given recipe Item arrives as an ordinary recipe Item with its source intact, so the character can learn it with Learn in the Profession Ledger. If the world has no item with that id yet, the import warns and still brings the quest in; the row shows Missing until the item arrives.
 - Reimporting with *update* keeps the GM's changes (quantity, visibility, recipient, removed rows) and every grant. A reward taken out of the file that was already given stays in the GM list as "No longer in the quest".
-- Example and common mistakes: `docs/fixtures/item-rewards/` (check with `node scripts/validate-content.mjs`).
+- Examples and common mistakes: `docs/fixtures/item-rewards/` (`quest-recipe-rewards.json` shows REC/MAT rewards) (check with `node scripts/validate-content.mjs`).
 
 ## Relation to other modules
 
