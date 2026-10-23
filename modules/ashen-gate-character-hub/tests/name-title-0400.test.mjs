@@ -14,7 +14,6 @@ import * as nt from '../scripts/name-title.mjs';
 import {HELP_HTML} from '../scripts/help.mjs';
 import {VERSION, MODULE_ID} from '../scripts/constants.mjs';
 
-const manifest = JSON.parse(fs.readFileSync(new URL('../module.json', import.meta.url), 'utf8'));
 const css = fs.readFileSync(new URL('../styles/character-hub.css', import.meta.url), 'utf8');
 const Hub = createHubSheetClass(FakeActorSheetV2);
 const FLAG = `flags.${MODULE_ID}.title`;
@@ -32,12 +31,6 @@ const ctxFor = (actor, user, extra = {}) => {
   const limited = !user.isGM && actor.limited === true;
   return {actor, sheet: {menu: null}, limited, editable: !limited && (user.isGM || actor.testUserPermission(user, 'OWNER')), ...extra};
 };
-
-test('version is 0.40.0 in the code, module.json and its download URL', () => {
-  assert.equal(VERSION, '0.40.0');
-  assert.equal(manifest.version, '0.40.0');
-  assert.match(manifest.download, /ashen-gate-character-hub-v0\.40\.0\/ashen-gate-character-hub\.zip$/);
-});
 
 test('the owner and the GM can rename; the name is written to actor.name, trimmed', async () => {
   for (const user of [users.owner, users.gm]) {

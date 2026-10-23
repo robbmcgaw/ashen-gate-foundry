@@ -362,9 +362,12 @@ export const configureBtn = off => off ? '' : btn('configure', 'Configure…', {
 /** The character items of the header's "⋯" menu (0.34.0): Level up, Restore backup… (GM) and Configure… (owner, GM). */
 export const characterMenuItems = (actor, off) => [levelUpBtn(actor), restoreBtn(actor), configureBtn(off)].join('');
 
-/** In a narrow Full window (CH-09) the column folds to its top row (Cinders, star) and a short HP / AC line; Show character opens it again. */
+/**
+ * In a narrow Full window (CH-09) Hide character folds the column to its top row (Cinders, star) and a short HP / AC line;
+ * Show character opens it again. 0.41.0: shown until the user hides it.
+ */
 function foldBtn(sheet) {
-  const folded = sheet?.charFolded !== false;
+  const folded = sheet?.charFolded === true;
   return `<button type="button" class="ag-btn ag-btn--ghost ag-btn--sm agch-charfold" data-action="char-fold" data-ag-always aria-expanded="${!folded}"><i class="fa-solid ${folded ? 'fa-chevron-down' : 'fa-chevron-up'}" aria-hidden="true"></i><span>${folded ? 'Show character' : 'Hide character'}</span></button>`;
 }
 const charSummary = h => `<p class="agch-charsum"><span>HP <b>${h.hp.value} / ${h.hp.effectiveMax}</b></span><span>AC <b>${h.ac}</b></span></p>`;
