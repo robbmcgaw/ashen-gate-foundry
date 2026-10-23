@@ -373,6 +373,21 @@ async function journeyDelete(sheet, target) {
   if (r.ok) sheet.render();
   return r;
 }
+/**
+ * The "Find an Actor by name" box (0.42.4) links only on Enter or on a pick from the browser's name suggestions, never
+ * on blur or a plain `change`. A pick arrives as an `input` event that is not typing (`insertReplacementText`, or no
+ * inputType at all) and whose text is one of the suggestions; typing a whole name does not count.
+ */
+export async function submitLinkFind(sheet, ev) {
+  const input = ev?.target;
+  if (!input) return null;
+  if (ev.type === 'input') {
+    const pick = ev.inputType === undefined || ev.inputType === 'insertReplacementText';
+    const names = [...(input.list?.options ?? [])].map(o => o.value);
+    if (!pick || !names.includes(input.value)) return null;
+  }
+  try { return report(await EDITS['companion-find'](sheet, input)); } catch (err) { return report({ok: false, error: err?.message ?? String(err)}); }
+}
 /** Removing a companion asks first; Cancel changes nothing. The linked Actor or Item itself is kept. */
 export async function removeCompanionAsk(sheet, entryId, ask = confirmDanger) {
   const actor = sheet.document, entry = comp.storedCompanions(actor).find(e => e.id === entryId);
@@ -661,6 +676,7 @@ export function createHubSheetClass(Base) {
       this._agchBound = content;
       content.addEventListener?.('change', ev => this._onHubChange(ev));
       content.addEventListener?.('input', ev => {
+        if (ev.target?.matches?.('[data-link-find]')) submitLinkFind(this, ev);
         if (ev.target?.matches?.('[data-filter]')) { this.filters[this.tab] = ev.target.value; applyFilter(content, ev.target.value); }
         if (ev.target?.matches?.('[data-compact-opacity]')) applyCompactOpacity(this, ev.target.value);
         if (ev.target?.closest?.('[data-bio]')) onBioInput(this, ev.target);
@@ -678,6 +694,7 @@ export function createHubSheetClass(Base) {
         if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(ev.key) && ev.target?.matches?.('.ag-segmented > [role="radio"]')) { ev.preventDefault(); segmentStep(ev.target, ev.key === 'ArrowLeft' || ev.key === 'ArrowUp' ? -1 : 1); return; }
         // 0.41.0: in a narrow window the tab rail is a row, so Left / Right move along it too (the kit binds Up / Down).
         if ((ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') && ev.target?.matches?.('.agch-rail > [role="tab"]')) { ev.preventDefault(); railStep(ev.target, ev.key === 'ArrowLeft' ? -1 : 1); return; }
+        if (ev.key === 'Enter' && ev.target?.matches?.('[data-link-find]')) { ev.preventDefault(); submitLinkFind(this, ev); return; }
         if (ev.key === 'Enter' && ev.target?.matches?.('[data-hpedit]')) { ev.preventDefault(); this.dispatch('hp-apply', ev.target, ev); }
       });
       content.addEventListener?.('submit', ev => ev.preventDefault());

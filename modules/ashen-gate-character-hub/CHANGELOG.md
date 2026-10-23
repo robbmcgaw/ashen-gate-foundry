@@ -1,3 +1,11 @@
+## 0.42.4 — 2026-10-23
+
+Fixes from the 0.42.3 test run. Tests use mocked Foundry; the live Hub is for Robb to click through.
+
+- **Fix: Find an Actor by name linked on blur.** Typing part of a name and clicking elsewhere linked the Actor if exactly one matched, because the box acted on the browser's change event. It now links only when you press **Enter** or pick one of the browser's name suggestions; leaving the box does nothing.
+- **Fix: two open Hubs shared one suggestion list.** The suggestions list had the same id in every Hub window, so a second window's box used the first window's list. Each window now has its own.
+- Saved data: unchanged. No migration.
+
 ## 0.42.3 — 2026-10-23
 
 Follow-ups from the 0.42.2 test run. Tests use mocked Foundry; the live Hub is for Robb to click through.

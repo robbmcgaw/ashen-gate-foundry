@@ -105,7 +105,7 @@ test('0.42.3: below Observer is "not shared" everywhere; any observable Actor is
   assert.equal(await EDITS['companion-find'](sheet, {value: '', dataset: {kind: 'pet'}}), null);
   assert.equal((await EDITS['companion-find'](sheet, {value: 'steed', dataset: {kind: 'mount'}})).ok, true);
   assert.equal(hero.flags[MODULE_ID].companions[0].actorUuid, 'Actor.steed');
-  assert.match(companionsTab({actor: hero, editable: true}), /data-edit="companion-find" data-kind="pet"[^>]*aria-label="Find a pet Actor by name"/);
+  assert.match(companionsTab({actor: hero, editable: true}), /data-link-find data-kind="pet"[^>]*aria-label="Find a pet Actor by name"/);
   // opening: Observer opens, Limited and below are told it is not shared (no name)
   const rendered = []; steed.sheet = {render: () => rendered.push('steed')};
   assert.equal((await ACTIONS['companion-open'](sheet, {dataset: {entry: hero.flags[MODULE_ID].companions[0].id}})).ok, true);
@@ -113,4 +113,32 @@ test('0.42.3: below Observer is "not shared" everywhere; any observable Actor is
   const r = await ACTIONS['companion-open'](sheet, {dataset: {entry: hero.flags[MODULE_ID].companions[0].id}});
   assert.equal(r.ok, false); assert.match(r.error, /not shared/); assert.doesNotMatch(r.error, /steed/);
   assert.equal(rendered.length, 1);
+});
+
+test('0.42.4: Find an Actor links on Enter or a suggestion pick only, never on blur or typing; datalist ids are per window', async () => {
+  const { submitLinkFind } = await import('../scripts/sheet.mjs');
+  const steed = world('steed', {perms: {owner: 'OBSERVER'}});
+  const hero = setup([steed]);
+  const sheet = {document: hero};
+  const input = (value, names = ['[TEST] steed']) => ({value, dataset: {kind: 'mount'}, list: {options: names.map(v => ({value: v}))}});
+  const ev = (type, target, extra = {}) => ({type, target, ...extra});
+  const stored = () => hero.flags[MODULE_ID]?.companions ?? [];
+  // blur / change: the box has no data-edit, so the sheet's change handler ignores it
+  assert.doesNotMatch(companionsTab({actor: hero, editable: true}), /data-edit="companion-find"/);
+  // typing, even a whole suggested name, does not link
+  assert.equal(await submitLinkFind(sheet, ev('input', input('[TEST] steed'), {inputType: 'insertText'})), null);
+  assert.equal(await submitLinkFind(sheet, ev('input', input('stee'), {inputType: undefined})), null, 'text that is not a suggestion');
+  assert.equal(stored().length, 0);
+  // a suggestion pick (Chrome: insertReplacementText; Firefox: no inputType) links
+  await submitLinkFind(sheet, ev('input', input('[TEST] steed'), {inputType: 'insertReplacementText'}));
+  assert.equal(stored().length, 1);
+  // Enter links by typed name
+  const other = world('other', {perms: {owner: 'OBSERVER'}}); installGlobals({user: users.owner, settings: {petCap: 2}, actors: [steed, other]});
+  globalThis.fromUuidSync = u => ({[steed.uuid]: steed, [other.uuid]: other})[u] ?? null;
+  await submitLinkFind(sheet, ev('keydown', {...input('oth'), dataset: {kind: 'pet'}}));
+  assert.equal(stored().length, 2); assert.equal(stored()[1].actorUuid, 'Actor.other');
+  // two windows, two datalist ids
+  const a = companionsTab({actor: hero, editable: true, sheet: {id: 'hub-1'}}), b = companionsTab({actor: hero, editable: true, sheet: {id: 'hub-2'}});
+  assert.match(a, /list="hub-1-linkfind-pet"[\s\S]*<datalist id="hub-1-linkfind-pet">/); assert.match(b, /<datalist id="hub-2-linkfind-pet">/);
+  assert.doesNotMatch(a, /hub-2/);
 });

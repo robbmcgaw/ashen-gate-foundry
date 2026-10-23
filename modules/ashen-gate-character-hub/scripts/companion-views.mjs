@@ -88,13 +88,13 @@ function petCard(entry, {off, index, count, actor}) {
   </article>`;
 }
 
-export function companionsTab({actor, editable}) {
+export function companionsTab({actor, editable, sheet}) {
   const off = !editable, d = companionsData(actor), free = freeItems(actor), gm = globalThis.game?.user?.isGM === true;
   const addZone = (kind, label, full) => {
     if (off || full) return '';
-    const actors = linkableActors(actor, kind);
+    const actors = linkableActors(actor, kind), listId = `${String(sheet?.id ?? 'agch').replace(/[^A-Za-z0-9_-]/g, '')}-linkfind-${kind}`;   // unique per window: two open Hubs must not share a datalist
     return `<div class="agch-drop agch-drop--add" data-drop-companion="${kind}"><i class="fa-solid ${kind === 'mount' ? 'fa-horse' : 'fa-paw'}" aria-hidden="true"></i> ${label}
-    <input type="search" class="agch-linkfind" list="agch-linkfind-${kind}" data-edit="companion-find" data-kind="${kind}" placeholder="Find an Actor by name…" aria-label="Find a ${kind} Actor by name" autocomplete="off"><datalist id="agch-linkfind-${kind}">${actors.map(a => `<option value="${esc(a.name)}"></option>`).join('')}</datalist>
+    <input type="search" class="agch-linkfind" list="${listId}" data-link-find data-kind="${kind}" placeholder="Find an Actor by name…" aria-label="Find a ${kind} Actor by name" autocomplete="off"><datalist id="${listId}">${actors.map(a => `<option value="${esc(a.name)}"></option>`).join('')}</datalist>
     ${actors.length ? `<select data-edit="companion-link" data-kind="${kind}" aria-label="Link a ${kind} Actor"><option value="">or link a world Actor…</option>${actors.map(a => `<option value="${esc(a.uuid)}">${esc(a.name)}</option>`).join('')}</select>` : ''}
     <select data-edit="companion-add" data-kind="${kind}" aria-label="Add a ${kind} from this character's items">${itemOptions(free, 'or choose one of this character\'s items…')}</select></div>`;
   };
