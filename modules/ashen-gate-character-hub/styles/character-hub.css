@@ -34,6 +34,7 @@
 .agch-app .agch-sec__toggle[aria-expanded="false"] .agch-sec__chev { transform: rotate(-90deg); }
 .agch-app .agch-sec__toggle--icon { width: var(--ag-control-h-sm); height: var(--ag-control-h-sm); justify-content: center; flex: none; }
 .agch-app .agch-sec.is-filtered-out { display: none; }
+.agch-app .agch-nomatch[hidden] { display: none; }
 .agch-app .agch-heading { margin: var(--ag-space-4) 0 var(--ag-space-2); font-size: var(--ag-text-lg); }
 .agch-app .agch-body > .agch-heading:first-child { margin-top: 0; }
 .agch-app .agch-subheading { margin: var(--ag-space-4) 0 var(--ag-space-1); font-size: var(--ag-text-md); }
