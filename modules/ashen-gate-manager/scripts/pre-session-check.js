@@ -5,6 +5,8 @@
  * Foundry globals so the Node suite can cover it.
  */
 import {inspectPlayerModule} from './player-access.js';
+import {coreRefOf, LINK_FLAG} from './core-links.js';
+import {recipeKind} from './profession-records.js';
 
 const MODULE_ID = 'ashen-gate-manager';
 export const STATUS = Object.freeze({pass: 'PASS', warn: 'WARN', fail: 'FAIL', na: 'N-A'});
@@ -22,7 +24,9 @@ export const AG_MODULES = Object.freeze([
   {id: 'ashen-gate-factions', title: 'Renown', min: '0.7.0', why: 'faction import'},
   {id: 'ashen-gate-headquarters', title: 'Headquarters', min: '0.7.0', why: 'facility import'},
   {id: 'ashen-gate-profession-ledger', title: 'Profession Ledger', min: null},
-  {id: 'ashen-gate-utilities', title: 'Utilities', min: null}
+  {id: 'ashen-gate-utilities', title: 'Utilities', min: null},
+  {id: 'ashen-gate-character-hub', title: 'Character Hub', min: null},
+  {id: 'ashen-gate-cinders', title: 'Cinders', min: null}
 ]);
 const TITLES = Object.fromEntries(AG_MODULES.map(m => [m.id, m.title]));
 /** API that Locations' inheritance/audience migration (old 1.8.0, so every 0.18.0+) came with: present means there is a migration to check. */
@@ -40,6 +44,12 @@ export function compareVersions(a, b) {
 const row = (check, status, text) => ({check, status, text});
 const errText = error => String(error?.message ?? error);
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+/** Long lists stop after `max` entries: "A, B, C and 12 more". */
+export const LIST_CAP = 10;
+export function capList(list, max = LIST_CAP) {
+  const shown = list.slice(0, max).join(', ');
+  return list.length > max ? `${shown} and ${list.length - max} more` : shown;
+}
 const listOf = value => [...(value?.contents ?? value ?? [])];
 const players = game => listOf(game.users).filter(u => !u.isGM);
 /** The module's API when it is installed and active, plus its state for "not installed"/"not active" rows. */
@@ -124,7 +134,9 @@ function checkStorage(game) {
 
 // ---------- 3. Player Access ----------
 const PLAYER_MODULES = ['ashen-gate-locations', 'ashen-gate-quest-manager', 'ashen-gate-skill-trees', 'ashen-gate-factions',
-  'ashen-gate-headquarters', 'ashen-gate-profession-ledger', 'ashen-gate-utilities'];
+  'ashen-gate-headquarters', 'ashen-gate-profession-ledger', 'ashen-gate-utilities', 'ashen-gate-character-hub', 'ashen-gate-cinders'];
+/** Modules that may have no Player Access switch at all: without a playerAccess API they are N-A, not a warning. */
+const NO_ACCESS_REASON = {'ashen-gate-character-hub': 'no Player Access switch; players open it as the sheet of a character they own'};
 async function checkPlayerAccess(game) {
   const C = 'Player Access';
   const out = [];
@@ -132,6 +144,7 @@ async function checkPlayerAccess(game) {
     const title = TITLES[id];
     const mod = game.modules?.get?.(id);
     if (!mod) { out.push(row(C, STATUS.na, `${title}: not installed.`)); continue; }
+    if (mod.active && NO_ACCESS_REASON[id] && !mod.api?.playerAccess) { out.push(row(C, STATUS.na, `${title}: ${NO_ACCESS_REASON[id]}.`)); continue; }
     // inspectPlayerModule only calls the module's playerAccess.getState(); it never writes.
     const info = await inspectPlayerModule(mod);
     if (!info.active) out.push(row(C, STATUS.na, `${title}: not active, so players have no launcher.`));
@@ -276,7 +289,127 @@ function checkEnvironment(game) {
   return out;
 }
 
-const GROUPS = ['Module versions', 'GM storage', 'Player Access', 'Test data', 'Leak scan', 'Migration', 'Environment'];
+// ---------- shared reads for 8 to 12 ----------
+/** Manager-imported world Items (source flag with a permanent id), read once for the content checks. */
+function managedItems(game) {
+  const out = [];
+  for (const doc of listOf(game.items)) {
+    const source = doc?.flags?.[MODULE_ID]?.source;
+    if (source?.sourceId) out.push({doc, source, id: String(source.sourceId)});
+  }
+  return out;
+}
+const sourceIds = managed => new Set(managed.map(m => m.id));
+
+// ---------- 8. Recipes ----------
+const INGREDIENT_ID = x => x?.materialId ?? x?.material_id ?? x?.target_id ?? x?.id ?? null;
+function checkRecipes(game, ctx) {
+  const C = 'Recipes';
+  const recipes = ctx.managed.filter(m => /^REC-/.test(m.id) || m.source.definition?.entity_type === 'Recipe');
+  if (!recipes.length) return [row(C, STATUS.na, 'No imported recipes in the world.')];
+  const ids = ctx.ids, problems = [];
+  let craft = 0;
+  for (const {id, source} of recipes) {
+    const def = {id, ...(source.definition ?? {})};
+    // Activity recipes have no result item and no ingredients by design.
+    if (recipeKind(def) !== 'craft') continue;
+    craft++;
+    const missing = [];
+    const result = typeof def.result_item_id === 'string' ? def.result_item_id.trim() : '';
+    if (result && !ids.has(result)) missing.push(`result ${result}`);
+    for (const x of Array.isArray(def.ingredients) ? def.ingredients : []) {
+      const mat = INGREDIENT_ID(x);
+      if (typeof mat === 'string' && /^MAT-/.test(mat) && !ids.has(mat)) missing.push(`ingredient ${mat}`);
+    }
+    if (missing.length) problems.push(`${id} (${[...new Set(missing)].join(', ')})`);
+  }
+  if (problems.length) return [row(C, STATUS.warn, `${plural(problems.length, 'craft recipe')} name an item that is not in the world: ${capList(problems)}. Import the missing items, or fix the ids in the content file.`)];
+  return [row(C, STATUS.pass, craft ? `Every result and ingredient of ${plural(craft, 'craft recipe')} is in the world.` : `${plural(recipes.length, 'recipe')} in the world, all activities (no result or ingredients to check).`)];
+}
+
+// ---------- 9. Skill trees ----------
+const PERK_REF = /^[A-Z]+-[A-Z0-9-]+$/;
+function checkSkillTrees(game, ctx) {
+  const C = 'Skill trees';
+  const {mod, api, state} = partner(game, 'ashen-gate-skill-trees');
+  if (!mod || state !== 'active') return [row(C, STATUS.na, `Skill Trees is ${state}.`)];
+  if (!has(api, 'listTrees')) return [row(C, STATUS.na, 'Skill Trees: could not check (no listTrees in its API).')];
+  let trees;
+  try { trees = api.listTrees(); } catch (error) { return [row(C, STATUS.na, `Skill Trees: could not check (${errText(error)}).`)]; }
+  if (!Array.isArray(trees)) return [row(C, STATUS.na, 'Skill Trees: could not check (listTrees did not return a list).')];
+  const missing = new Map();
+  let checked = 0;
+  for (const tree of trees) for (const node of Array.isArray(tree?.nodes) ? tree.nodes : []) {
+    const perk = typeof node?.perkId === 'string' ? node.perkId.trim() : '';
+    if (!PERK_REF.test(perk)) continue;
+    checked++;
+    if (!ctx.ids.has(perk) && !missing.has(perk)) missing.set(perk, `${perk} (${tree.id ?? '?'})`);
+  }
+  if (missing.size) return [row(C, STATUS.warn, `${plural(missing.size, 'perk')} on tree nodes ${missing.size === 1 ? 'has' : 'have'} no imported Item in the world: ${capList([...missing.values()])}. Import the perk files in General Manager.`)];
+  if (!checked) return [row(C, STATUS.pass, `No tree node names a perk (${plural(trees.length, 'tree')}).`)];
+  return [row(C, STATUS.pass, `Every perk on ${plural(checked, 'tree node')} has an imported Item.`)];
+}
+
+// ---------- 10. Core links ----------
+function checkCoreLinks(game, ctx) {
+  const C = 'Core links';
+  const withRef = ctx.managed.filter(m => coreRefOf(m.doc));
+  if (!withRef.length) return [row(C, STATUS.na, 'No imported Item has a core_ref.')];
+  // Same reading as Items > Core links: an Item with a coreLink flag is done (adopted, or link only when adopting would hurt it).
+  const unlinked = withRef.filter(m => !m.doc.flags?.[MODULE_ID]?.[LINK_FLAG]);
+  if (unlinked.length) return [row(C, STATUS.warn, `${plural(unlinked.length, 'Item')} with a core_ref ${unlinked.length === 1 ? 'is' : 'are'} not adopted: ${capList(unlinked.map(m => m.id))}. Adopt them in Items > Core links.`)];
+  return [row(C, STATUS.pass, `All ${plural(withRef.length, 'Item')} with a core_ref are linked to their core item.`)];
+}
+
+// ---------- 11. Profession Ledger ----------
+const LIST_WORD = u => /skill/i.test(`${u?.field ?? ''}${u?.list ?? ''}`) ? 'skill' : 'tool';
+function checkLedger(game) {
+  const C = 'Profession Ledger';
+  const {mod, api, state} = partner(game, 'ashen-gate-profession-ledger');
+  if (!mod || state !== 'active') return [row(C, STATUS.na, `Profession Ledger is ${state}.`)];
+  // assign.preview is the Ledger's GM dry run ("changes nothing"); its `unresolved` lists catalog names it could not match.
+  if (!has(api?.assign, 'preview')) return [row(C, STATUS.na, 'Profession Ledger: could not check (no unresolved-name report in its API).')];
+  let unresolved;
+  try { unresolved = api.assign.preview()?.unresolved; } catch (error) { return [row(C, STATUS.na, `Profession Ledger: could not check (${errText(error)}).`)]; }
+  if (!Array.isArray(unresolved)) return [row(C, STATUS.na, 'Profession Ledger: could not check (no unresolved-name report in its API).')];
+  const names = [...new Set(unresolved.map(u => `${u?.profession ?? '?'}: ${LIST_WORD(u)} "${u?.name ?? ''}"`))];
+  if (names.length) return [row(C, STATUS.warn, `${plural(names.length, 'tool or skill name')} from imported content ${names.length === 1 ? 'matches' : 'match'} no dnd5e tool or skill: ${capList(names)}. Fix the name in the content file, or set it in Profession Ledger > GM Setup > Tools and checks.`)];
+  return [row(C, STATUS.pass, 'Every tool and skill name in imported profession content is recognised.')];
+}
+
+// ---------- 12. Quest rewards ----------
+async function checkQuestRewards(game, ctx) {
+  const C = 'Quest rewards';
+  const {mod, api, state} = partner(game, 'ashen-gate-quest-manager');
+  if (!mod || state !== 'active') return [row(C, STATUS.na, `Quest Log is ${state}.`)];
+  if (!has(api?.rewards, 'list')) return [row(C, STATUS.na, 'Quest Log: could not check (no rewards list in its API).')];
+  if (!ctx.quests) return [row(C, STATUS.na, 'Quest Log: could not check (its quests could not be read).')];
+  const missing = [];
+  let checked = 0;
+  for (const q of ctx.quests) {
+    let rows;
+    try { rows = await api.rewards.list(q.id); } catch (error) { return [row(C, STATUS.na, `Quest Log: could not check (${errText(error)}).`)]; }
+    for (const r of Array.isArray(rows) ? rows : []) {
+      if (r?.removed || r?.gone) continue;
+      checked++;
+      if (r.status === 'missing') missing.push(`${q.id} (${r.itemId ?? 'added item'})`);
+    }
+  }
+  if (missing.length) return [row(C, STATUS.warn, `${plural(missing.length, 'item reward')} ${missing.length === 1 ? 'points' : 'point'} at an item that is not in the world: ${capList(missing)}. Import the item, or change the reward in Quest Log.`)];
+  return [row(C, STATUS.pass, checked ? `Every item reward (${checked}) is in the world.` : 'No quest has an item reward.')];
+}
+
+// ---------- 13. Imports ----------
+/**
+ * Blocked and Conflict are preview results: Manager works them out from a package against the world and never stores
+ * them (Import history keeps what was applied). So there is nothing stored to report; this row says so instead of guessing.
+ */
+function checkImports() {
+  return [row('Imports', STATUS.na, 'Manager does not store Blocked or Conflict results; preview a package on the Import tab to see them.')];
+}
+
+const GROUPS = ['Module versions', 'GM storage', 'Player Access', 'Test data', 'Leak scan', 'Migration', 'Environment',
+  'Recipes', 'Skill trees', 'Core links', 'Profession Ledger', 'Quest rewards', 'Imports'];
 /** Plain-text report: header, one line per result under its check, summary line. */
 export function reportText({rows, summary, world, date}) {
   const lines = [`Ashen Gate pre-session check — ${world}, ${date}`];
@@ -295,11 +428,14 @@ export function reportText({rows, summary, world, date}) {
  */
 export async function runPreSessionCheck(game, {now = new Date()} = {}) {
   if (!game?.user?.isGM) throw new Error('Only the GM can run the pre-session check.');
-  const ctx = {locations: readLocations(game), quests: readQuests(game)};
+  const managed = managedItems(game);
+  const ctx = {locations: readLocations(game), quests: readQuests(game), managed, ids: sourceIds(managed)};
   const rows = [];
   const steps = [['Module versions', () => checkVersions(game)], ['GM storage', () => checkStorage(game)],
     ['Player Access', () => checkPlayerAccess(game)], ['Test data', () => checkTestData(game, ctx)],
-    ['Leak scan', () => checkLeaks(game, ctx)], ['Migration', () => checkMigration(game, ctx)], ['Environment', () => checkEnvironment(game)]];
+    ['Leak scan', () => checkLeaks(game, ctx)], ['Migration', () => checkMigration(game, ctx)], ['Environment', () => checkEnvironment(game)],
+    ['Recipes', () => checkRecipes(game, ctx)], ['Skill trees', () => checkSkillTrees(game, ctx)], ['Core links', () => checkCoreLinks(game, ctx)],
+    ['Profession Ledger', () => checkLedger(game)], ['Quest rewards', () => checkQuestRewards(game, ctx)], ['Imports', () => checkImports()]];
   for (const [name, step] of steps) {
     try { rows.push(...await step()); }
     catch (error) { rows.push(row(name, STATUS.fail, `This check could not run: ${errText(error)}.`)); }
@@ -311,4 +447,16 @@ export async function runPreSessionCheck(game, {now = new Date()} = {}) {
   const date = now.toISOString().slice(0, 16).replace('T', ' ');
   return {rows, counts, summary, text: reportText({rows, summary, world, date}),
     filename: `AG_PreSession_Check_${now.toISOString().slice(0, 10)}.txt`};
+}
+
+/** Shown when there is no report (none run yet, or Clear results). */
+export const EMPTY_TEXT = 'Run the check to see results.';
+/**
+ * The Modules tab's view of the last result (or of none, after Clear): Copy, Download and Clear are off without one.
+ * `tone(status)` gives the kit badge tone. Pure; the result itself lives only in the Manager window, never in the world.
+ */
+export function preSessionView(result, tone = () => '') {
+  if (!result) return {hasResults: false, hasText: false, summary: '', rows: [], empty: EMPTY_TEXT};
+  return {hasResults: true, hasText: Boolean(result.text), summary: result.summary, empty: '',
+    rows: (result.rows ?? []).map(r => ({...r, css: r.status === 'N-A' ? 'na' : r.status.toLowerCase(), tone: tone(r.status)}))};
 }
