@@ -8,9 +8,8 @@ import {tabsHtml} from '../scripts/views.mjs';
 import {showHelp} from '../scripts/help.mjs';
 
 const hp = (value, temp, tempmax, max = 20) => ({value, temp, max, tempmax, effectiveMax: max + tempmax});
-/** Segment [left, right] in percent from the rendered style, or null when the segment is not drawn. */
-const seg = (html, cls) => { const m = html.match(new RegExp(`class="agch-hp__${cls}" style="(?:left:([\\d.]+)%;)?width:([\\d.]+)%"`)); return m ? [Number(m[1] ?? 0), Number(m[1] ?? 0) + Number(m[2])] : null; };
-const near = (a, b) => Math.abs(a - b) < 0.11;
+/** Region kinds in DOM order, from the rendered bar (0.39.0: side by side). */
+const kinds = html => [...html.matchAll(/class="agch-hp__seg agch-hp__(\w+)"/g)].map(m => m[1]);
 
 test('hpBand: green at 70% of effective max and up, yellow from 30%, red below (integer maths, exact edges)', () => {
   for (const [v, eff, band] of [[70, 100, 'high'], [69, 100, 'mid'], [30, 100, 'mid'], [29, 100, 'low'], [32, 45, 'high'], [31, 45, 'mid'], [14, 45, 'mid'], [13, 45, 'low'], [0, 0, 'low'], [5, 0, 'low'], [100, 100, 'high']]) {
@@ -26,49 +25,19 @@ test('matrix: 3 bands x {no max change, +6, -6} x {no temp, +5 temp} at max 30: 
   for (const [band, valueFor] of Object.entries(values)) for (const adj of [0, 6, -6]) for (const temp of [0, 5]) {
     const h = hp(valueFor(30 + adj), temp, adj, 30), html = hpBarHtml(h), name = `${band} adj ${adj} temp ${temp}`;
     assert.match(html, new RegExp(`data-band="${band}"`), name);
-    assert.match(html, /class="agch-hp__fill"/, name);
-    assert.equal(html.includes('agch-hp__temp"'), temp > 0, `${name}: temp segment`);
-    assert.equal(html.includes('agch-hp__boost"'), adj > 0, `${name}: blue frame`);
-    assert.equal(html.includes('agch-hp__lost"'), adj < 0, `${name}: olive part`);
+    const k = kinds(html);
+    assert.ok(k.includes('hp'), name);
+    assert.equal(k.includes('temp'), temp > 0, `${name}: temp region`);
+    assert.equal(k.includes('boost'), adj > 0, `${name}: blue region`);
+    assert.equal(k.includes('lost'), adj < 0, `${name}: olive region`);
+    assert.deepEqual(k, ['hp', 'temp', 'empty', 'lost', 'boost'].filter(x => k.includes(x)), `${name}: left to right`);
     assert.match(html, new RegExp(`${h.value} / ${30 + adj} HP`), name);
     assert.equal(html.includes(`(+${temp} TEMP)`), temp > 0, `${name}: temp text`);
     assert.equal(html.includes(`(+${adj} MAX)`), adj > 0, `${name}: raised max text`);
     assert.equal(html.includes(`(−${-adj} MAX)`), adj < 0, `${name}: reduced max text`);
-    const lost = seg(html, 'lost'), t = seg(html, 'temp');
-    if (lost && t) assert.ok(t[1] <= lost[0] + 0.05, `${name}: temp never runs into the reduced max`);
     n++;
   }
   assert.equal(n, 18);
-});
-
-test('raised max near full (24 HP, +4 temp, adj +5, scale 25): temp and the blue frame both show, frame layered above temp', () => {
-  const html = hpBarHtml(hp(24, 4, 5));
-  assert.ok(html.includes('agch-hp__temp"') && html.includes('agch-hp__boost"'));
-  assert.ok(html.indexOf('agch-hp__boost"') > html.indexOf('agch-hp__temp"'), 'DOM order matches the CSS z-index: boost after temp');
-  assert.ok(near(seg(html, 'boost')[0], 80) && near(seg(html, 'temp')[0], 84), 'ranges as hpBar computes them');
-  assert.match(html, /\(\+4 TEMP\)<\/span> <span class="agch-hp__boosttext">\(\+5 MAX\)<\/span>/);
-});
-
-test('reduced max at full HP (15 HP, +4 temp, adj -5): temp ends at or before the olive part; both texts show', () => {
-  const b = hpBar(hp(15, 4, -5));
-  assert.ok(b.tempLeft + b.temp <= b.lostLeft + 1e-9);
-  assert.equal(b.tempText, '(+4 TEMP)'); assert.equal(b.lostText, '(−5 MAX)');
-});
-
-test('temp larger than the room left (adj -5, +20 temp): the temp segment stops at the olive part, text keeps the full amount', () => {
-  const b = hpBar(hp(5, 20, -5)), html = hpBarHtml(hp(5, 20, -5));
-  assert.equal(b.tempLeft, 0); assert.equal(b.tempLeft + b.temp, b.lostLeft);
-  assert.match(html, /\(\+20 TEMP\)/);
-  assert.ok(html.indexOf('agch-hp__lost"') < html.indexOf('agch-hp__temp"'), 'layer order: lost, then temp');
-});
-
-test('low HP, both signs: fill, temp and the max change do not overlap', () => {
-  for (const adj of [5, -5]) {
-    const h = hp(adj > 0 ? 6 : 3, 4, adj), html = hpBarHtml(h);
-    const fill = seg(html, 'fill'), t = seg(html, 'temp'), other = seg(html, adj > 0 ? 'boost' : 'lost');
-    assert.ok(fill[1] <= t[0] + 0.05, `adj ${adj}: temp after the fill`);
-    assert.ok(t[1] <= other[0] + 0.05, `adj ${adj}: temp before the max change`);
-  }
 });
 
 test('companion Remove asks first ("Remove <name>?", danger, Cancel is the default) and Cancel changes nothing', async () => {

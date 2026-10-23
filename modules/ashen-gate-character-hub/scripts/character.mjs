@@ -130,33 +130,80 @@ export function hpBand(value, effectiveMax) {
 }
 
 /**
- * The HP bar's pieces as percentages of the bar. The bar is the larger of normal max and effective max (max + max
- * adjustment). A positive max adjustment is the blue frame at the right end; a negative one is the olive "lost" part
- * at the right end. Temp HP is the silver overshield after the current HP (pushed back when it would not fit, and
- * never into the lost part). The temp and lost/boost texts always show, so neither change hides the other.
+ * Percentages (one decimal) that add up to exactly 100.0: each part is rounded down to a tenth, then the leftover tenths
+ * go to the parts that lost the most (largest remainder), so rounding never pushes the bar past 100% or leaves a gap.
+ */
+function tenths(parts, total) {
+  const raw = parts.map(p => p / total * 1000), out = raw.map(Math.floor);
+  let left = 1000 - out.reduce((s, x) => s + x, 0);
+  for (const i of raw.map((r, i) => i).sort((a, b) => (raw[b] - out[b]) - (raw[a] - out[a]) || a - b)) { if (left <= 0) break; if (parts[i] > 0) { out[i]++; left--; } }
+  return out.map(x => x / 10);
+}
+
+/**
+ * The HP bar's regions (0.39.0), left to right, side by side so no effect hides another. The whole bar is
+ * D = max + raised max + temp HP (at least 1); every region is its share of D:
+ *  - hp: current HP (clamped to the effective max), in the band colour;
+ *  - temp: temp HP, right after the current HP;
+ *  - empty: the HP missing up to the effective max;
+ *  - lost: a reduced max, the last part of the normal max that can't be filled;
+ *  - boost: a raised max, the extra capacity at the far end; `used` is the share of it current HP fills (0 to 1).
+ * Only regions with a size are listed; `left` and `width` are percentages that add up to 100. `cue` marks a region that
+ * lies in an outer quarter of the bar, clear of the numbers in the middle, so it may carry its own short text.
+ */
+export function hpRegions(hp) {
+  const max = Math.max(0, Number(hp.max) || 0), adj = Number(hp.tempmax) || 0;
+  const given = Number.isFinite(Number(hp.effectiveMax)) && hp.effectiveMax !== undefined && hp.effectiveMax !== null ? Number(hp.effectiveMax) : max + adj;
+  const boost = Math.max(0, adj), cap = max + boost, eff = Math.max(0, Math.min(cap, given));
+  const lost = cap - eff, temp = Math.max(0, Number(hp.temp) || 0);
+  const cur = Math.max(0, Math.min(eff, Number(hp.value) || 0)), base = max - Math.min(max, lost);
+  const curBase = Math.min(cur, base), curBoost = Math.max(0, cur - curBase);
+  const parts = [['hp', curBase], ['temp', temp], ['empty', base - curBase], ['lost', Math.min(max, lost)], ['boost', boost]].filter(([, n]) => n > 0);
+  if (!parts.length) parts.push(['empty', 1]);
+  const widths = tenths(parts.map(([, n]) => n), parts.reduce((s, [, n]) => s + n, 0));
+  let left = 0;
+  return parts.map(([kind, amount], i) => {
+    const r = {kind, amount, left: Math.round(left * 10) / 10, width: widths[i]};
+    left += widths[i];
+    r.cue = r.left + r.width <= 25 || r.left >= 75;
+    if (kind === 'boost') r.used = boost ? curBoost / boost : 0;
+    return r;
+  });
+}
+
+/** The HP bar in words, for its tooltip and the meter's aria-valuetext: "18 of 35 hit points; 6 temporary hit points; maximum raised by 5". */
+export function hpWords(hp) {
+  const b = hpBar(hp), adj = Number(hp.tempmax) || 0, temp = Math.max(0, Number(hp.temp) || 0), eff = Math.max(0, b.eff);
+  return [`${b.value} of ${eff} ${eff === 1 ? 'hit point' : 'hit points'}`, temp > 0 ? `${temp} temporary ${temp === 1 ? 'hit point' : 'hit points'}` : '',
+    adj > 0 ? `maximum raised by ${adj}` : adj < 0 ? `maximum reduced by ${-adj}` : ''].filter(Boolean).join('; ');
+}
+
+/**
+ * The HP bar's texts and band: "X / Y HP" with the effective max (max + max adjustment), "(+T TEMP)", "(+M MAX)" or
+ * "(−M MAX)"; the band colours the fill by health (hpBand). `regions` is the drawing (hpRegions).
  */
 export function hpBar(hp) {
   const max = Math.max(0, Number(hp.max) || 0), adj = Number(hp.tempmax) || 0;
   const eff = Number.isFinite(Number(hp.effectiveMax)) && hp.effectiveMax !== undefined && hp.effectiveMax !== null ? Number(hp.effectiveMax) : max + adj;
-  const scale = Math.max(1, eff, max);
   const value = Math.max(0, Number(hp.value) || 0), temp = Math.max(0, Number(hp.temp) || 0);
-  const pct = x => Math.max(0, Math.min(100, x / scale * 100));
-  const fill = pct(value), tempW = pct(temp), boostW = adj > 0 ? pct(adj) : 0, lostW = adj < 0 ? pct(-adj) : 0;
-  const room = 100 - lostW, tempLeft = Math.max(0, Math.min(fill, room - tempW));
-  return {fill, temp: Math.min(tempW, room - tempLeft), tempLeft, boost: boostW, boostLeft: 100 - boostW, lost: lostW, lostLeft: room,
-    band: hpBand(value, eff), text: `${value} / ${eff} HP`, tempText: temp > 0 ? `(+${temp} TEMP)` : '',
+  return {value, eff, regions: hpRegions(hp), band: hpBand(value, eff), text: `${value} / ${eff} HP`, tempText: temp > 0 ? `(+${temp} TEMP)` : '',
     boostText: adj > 0 ? `(+${adj} MAX)` : '', lostText: adj < 0 ? `(−${-adj} MAX)` : ''};
 }
 
+const HP_CUE = {temp: r => `+${r.amount}`, lost: r => `−${r.amount} max`, boost: r => `+${r.amount} max`};
+
 /**
- * The bar itself. Layers, bottom to top: track, fill, reduced max, temp, raised-max frame, text (DOM order matches the
- * CSS z-index), so temp HP and a max change always show together.
+ * The bar itself (0.39.0): one element per region side by side (a flex row, so the 2px minimum width of a small region
+ * shrinks its neighbours instead of overflowing), a 1px divider between neighbours, and the numbers centred on top.
+ * A temp, lost or boost region in an outer quarter also shows a short cue when it is wide enough (CSS container query).
  */
 export function hpBarHtml(hp, off = false) {
-  const b = hpBar(hp), f = n => n.toFixed(1);
-  const tip = off ? 'Hit points' : 'Hit points: double-click to edit, right-click for dnd5e\'s hit point settings';
-  return `<div class="agch-hp__bar${off ? '' : ' is-editable'}" data-hp-bar data-band="${b.band}"${off ? '' : ` tabindex="0"${configAttrs('hitPoints')}`} role="meter" aria-valuemin="0" aria-valuemax="${hp.effectiveMax}" aria-valuenow="${hp.value}" aria-label="${esc(`${b.text} ${b.tempText} ${b.boostText} ${b.lostText}`.replace(/\s+/g, ' ').trim())}" data-tooltip="${esc(tip)}">
-      <span class="agch-hp__fill" style="width:${f(b.fill)}%"></span>${b.lost ? `<span class="agch-hp__lost" style="left:${f(b.lostLeft)}%;width:${f(b.lost)}%"></span>` : ''}${b.temp ? `<span class="agch-hp__temp" style="left:${f(b.tempLeft)}%;width:${f(b.temp)}%"></span>` : ''}${b.boost ? `<span class="agch-hp__boost" style="left:${f(b.boostLeft)}%;width:${f(b.boost)}%"></span>` : ''}
+  const b = hpBar(hp), f = n => n.toFixed(1), words = hpWords(hp);
+  const tip = off ? words : `${words}. Double-click to edit, right-click for dnd5e's hit point settings`;
+  const now = Math.max(0, Math.min(Math.max(0, b.eff), b.value));
+  const region = r => `<span class="agch-hp__seg agch-hp__${r.kind}" style="flex-basis:${f(r.width)}%">${r.kind === 'boost' && r.used > 0 ? `<span class="agch-hp__used" style="width:${f(r.used * 100)}%"></span>` : ''}${r.cue && HP_CUE[r.kind] ? `<span class="agch-hp__cue" aria-hidden="true">${esc(HP_CUE[r.kind](r))}</span>` : ''}</span>`;
+  return `<div class="agch-hp__bar${off ? '' : ' is-editable'}" data-hp-bar data-band="${b.band}"${off ? '' : ` tabindex="0"${configAttrs('hitPoints')}`} role="meter" aria-valuemin="0" aria-valuemax="${Math.max(0, b.eff)}" aria-valuenow="${now}" aria-valuetext="${esc(words)}" aria-label="Hit points" data-tooltip="${esc(tip)}">
+      ${b.regions.map(region).join('')}
       <span class="agch-hp__text">${esc(b.text)}${b.tempText ? ` <span class="agch-hp__temptext">${esc(b.tempText)}</span>` : ''}${b.boostText ? ` <span class="agch-hp__boosttext">${esc(b.boostText)}</span>` : ''}${b.lostText ? ` <span class="agch-hp__losttext">${esc(b.lostText)}</span>` : ''}</span></div>`;
 }
 
