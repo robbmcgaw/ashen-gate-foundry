@@ -10,7 +10,7 @@ import {ID,escapeHTML as E,COIN_LABELS,CP_VALUE,coinChoices,shownCoins,strandedE
 import {itemButton} from './item-tips.mjs';
 import {confirmDialog,confirmDanger,formDialog} from './ag-dialogs.mjs';
 import {subTabs,tabPanelAttrs,fileButton,bindFileButtons} from './ag-html.mjs';
-import {tip,icon,button,emptyState,focusKey,refocus} from './ui-parts.mjs';
+import {tip,icon,button,emptyState} from './ui-parts.mjs';
 import {pickShopItems,pickMerchantActor} from './keyboard-add.mjs';
 import {readDrop,resolveItemDrop,bundleOf} from './ag-item-drop.mjs';
 import {servicesAll,servicesApi,serviceSettingsHTML,serviceType,typeLabel as serviceTypeLabel,UNKNOWN_TYPE} from './services.mjs';
@@ -567,16 +567,17 @@ export async function handleShops(app,action,b,{render,root}){
   case 'shop-duplicate':{const copy=isSvc(b.dataset.shop)?await svc().duplicate(b.dataset.shop):await duplicate(b.dataset.shop);ui.notifications?.info(`Made ${copy.name}.`);break;}
   case 'shop-pick-art':openArtPicker(app,render);return true;
   // 0.27.0 (UT-31): keyboard alternatives to the editor's drop zones; the pick goes through the drop's own function.
+  // 0.27.1: the window's handle puts focus back on the button afterwards (confirm or cancel).
   case 'shop-add-item':{
-   if(!d||d.kind==='service')return true;const key=focusKey(b);
+   if(!d||d.kind==='service')return true;
    try{const data=await pickShopItems({actors:game.actors??[],folders:game.folders??[],worldItems:game.items??[]});if(data)await dropIntoDraft(app,data);}
-   finally{await render();refocus(root,[key]);}
+   finally{await render();}
    return true;
   }
   case 'shop-merchant-pick':{
-   if(!d)return true;const key=focusKey(b);
+   if(!d)return true;
    try{const data=await pickMerchantActor({actors:game.actors??[]});if(data)await dropMerchant(app,data);}
-   finally{await render();refocus(root,[key]);}
+   finally{await render();}
    return true;
   }
   case 'shop-merchant-clear':{if(!d)return true;d.merchant={name:'',img:''};app.shopDirty=true;app.shopStatus='Unsaved changes';break;}
