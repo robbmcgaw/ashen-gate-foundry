@@ -711,15 +711,18 @@
     <div class="ag-section__head"><h3 class="ag-section__title">Pre-session check</h3>
       <span class="ag-btn-group">
         <button type="button" class="ag-btn" data-ag-action="presession-run"><i class="fa-solid fa-stethoscope" aria-hidden="true"></i> Run pre-session check</button>
+        <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="presession-clear" {{#unless preSession.hasResults}}disabled{{/unless}}><i class="fa-solid fa-eraser" aria-hidden="true"></i> Clear results</button>
         <button type="button" class="ag-btn ag-btn--sm" data-ag-action="presession-copy" {{#unless preSession.hasText}}disabled{{/unless}}><i class="fa-solid fa-copy" aria-hidden="true"></i> Copy report</button>
         <button type="button" class="ag-btn ag-btn--sm ag-btn--ghost" data-ag-action="presession-download" {{#unless preSession.hasText}}disabled{{/unless}}><i class="fa-solid fa-download" aria-hidden="true"></i> Download report</button>
       </span></div>
-    <p class="agmanager-tiny">Read-only: module versions, GM storage, Player Access, [TEST] data, hidden names in player views, Locations migration and the Foundry version.</p>
-    {{#if preSession}}
+    <p class="agmanager-tiny">Read-only: module versions, GM storage, Player Access, [TEST] data, hidden names in player views, Locations migration, the Foundry version, and content links (recipes, skill tree perks, core links, Profession Ledger names, quest item rewards).</p>
+    {{#if preSession.hasResults}}
     <p class="agmanager-presession-summary"><strong>{{preSession.summary}}</strong></p>
     <ul class="ag-rows agmanager-presession-rows">
     {{#each preSession.rows}}<li class="ag-row agmanager-presession-row"><span class="ag-badge{{#if tone}} ag-badge--{{tone}}{{/if}}">{{status}}</span><span class="ag-row__main"><span class="ag-row__title">{{check}}</span><span class="ag-row__meta">{{text}}</span></span></li>{{/each}}
     </ul>
+    {{else}}
+    <p class="ag-field__hint agmanager-presession-empty">{{preSession.empty}}</p>
     {{/if}}
   </section>
   <section class="ag-section" aria-label="Ashen Gate modules">

@@ -1,3 +1,18 @@
+## 0.53.0 — 2026-10-23
+
+Pre-session check (Modules tab, GM only). Still strictly read-only: it writes nothing to the world.
+
+- **Clear results** next to *Run pre-session check* removes the report from the window. The report is not saved anywhere (no setting or flag), so this changes nothing in the world. With no report, Clear, Copy and Download are off and the section says "Run the check to see results." Focus stays on *Run pre-session check* after Run and moves there after Clear.
+- **Character Hub and Cinders** are in the check: *Module versions* shows them active, not active or not installed like the others, and *Player Access* reads Cinders' switch. Character Hub has no Player Access switch (players open it as their character's sheet), so its line is N-A.
+- **New content checks**, each PASS / WARN / N-A with what to do; long lists stop after 10 ids ("and 12 more"):
+  - *Recipes*: a craft recipe whose result item (`result_item_id`) or `MAT-*` ingredient is not in the world. Activity recipes are never flagged.
+  - *Skill trees*: a tree node whose perk has no imported Item (N-A without Skill Trees).
+  - *Core links*: imported Items with a `core_ref` that are not linked yet; "Adopt them in Items > Core links". An Item linked without adopting (Core links' link-only choice) counts as done, as it does in Core links.
+  - *Profession Ledger*: tool and skill names from imported profession content that match no dnd5e tool or skill (N-A without the Ledger).
+  - *Quest rewards*: a quest item reward whose item is not in the world (N-A without Quest Log's rewards list).
+  - *Imports*: N-A. Manager does not store Blocked or Conflict results (it works them out when you preview a package), so the check does not guess them.
+- Saved data: no change; no migration.
+
 ## 0.52.2 — 2026-10-23
 
 Import fixes from the real-Foundry test run.

@@ -34,7 +34,7 @@ import {modifierDefinitionChecks} from './modifier-definitions.js';
 import {SPECIALISTS, detectSpecialistFile, specialistCount, specialistApi, describeUnrecognized, planSpecialist, applySpecialist} from './specialist-handoff.js';
 import {classifyDelivery} from './delivery.js';
 import {buildWorldExport, saveWorldExport, saveBackup, SNAPSHOT_SETTING} from './world-export.js';
-import {runPreSessionCheck} from './pre-session-check.js';
+import {runPreSessionCheck,preSessionView} from './pre-session-check.js';
 import {readGmSetupForm, saveGmSetup} from './gm-setup.js';
 import {buildImportReport, buildBlockedReport, pushReport} from './import-result.js';
 import {ITEM_FLAG, ACTOR_ITEMS_FLAG, itemKeys, matchActors, planActor, applyActorUpdate} from './actor-update.js';
@@ -251,7 +251,7 @@ const MANAGER_HELP=['<p><strong>Import</strong> (<em>Load and preview</em>): cho
   '<p><strong>Items</strong> sub-tabs: <strong>Browse</strong> (one search over world documents, Ashen Gate records from every module and, after Load compendiums, compendium indexes), <strong>Records</strong> (Manager-imported records by permanent id), <strong>Folders</strong>, <strong>Core links</strong>, <strong>Checks</strong> (library check, housekeeping report and Improve icons) and <strong>Export</strong>. The search box and <strong>Filters (n)</strong> (source, type, origin, rarity, folder, has core_ref, and on Browse its own facets) apply on Browse, Records, Folders and Core links and stay as you switch between them. Search words, or prefixes such as id:MAT-HERB, id:DEITY-, type:deity, type:npc-codex, tag:, status:, tier:major. Pick an item’s name to see dnd5e’s item card; drag a world or compendium row onto a sheet, the canvas or a journal. Open on an NPC goes to the NPC Codex tab; Open on a deity opens Renown’s Pantheon.</p>',
   '<p><strong>Folders:</strong> <em>Clean compendiums</em> scans the world sidebar and every compendium against the folder rules and lists each document that is not in its folder; nothing moves until Apply, and Undo puts the last 5 runs back. <em>Organize a selection</em> does the same for what the filters pick, or one folder. Default rules: Ashen Gate records go to <strong>Ashen Gate</strong>; other Items go to <strong>Core 5.5e</strong> only with real evidence (a Plutonium import, a core source book, a copy from a dnd5e compendium or a D&amp;D Beyond import, the last two marked weak); anything else goes to <strong>Homebrew</strong>. dnd5e gives every new item rules "2024", so that alone counts as Homebrew. Player characters, player-owned actors, protected folders and documents marked Keep here never move; locked, module and system compendiums are inspect-only. Only the folder changes: nothing is renamed, edited or deleted.</p>',
   '<p><strong>NPC Codex:</strong> set who knows each NPC and each field (Hidden, Party, or chosen characters) on <em>Reveals</em>: these apply at once. <em>Notes &amp; links</em> holds what the party has learned, connections and your GM notes, saved with Save Changes. <em>Player preview</em> shows exactly what the party or one character receives. Whether players can open the codex at all is on the Modules tab.</p>',
-  '<p><strong>Modules:</strong> open each Ashen Gate module and see whether its player window is <strong>Visible to players</strong> or <strong>Hidden</strong>. Reveal and Hide change that module’s own Player Access setting (General Manager’s card is its NPC Codex); <strong>Hide all</strong> asks first. Hiding never deletes progress. The Pre-session check is read-only.</p>',
+  '<p><strong>Modules:</strong> open each Ashen Gate module and see whether its player window is <strong>Visible to players</strong> or <strong>Hidden</strong>. Reveal and Hide change that module’s own Player Access setting (General Manager’s card is its NPC Codex); <strong>Hide all</strong> asks first. Hiding never deletes progress. The <strong>Pre-session check</strong> is read-only: it reports module versions, GM storage, Player Access, [TEST] data, hidden names in player views and the Locations migration, plus content links (craft recipes whose result or materials are missing, skill tree perks with no Item, Items with a core_ref still to adopt in Items &gt; Core links, Profession Ledger tool and skill names it cannot match, and quest item rewards whose item is gone). <strong>Clear results</strong> only removes the report from this window.</p>',
   '<p><strong>Scenes:</strong> <em>Live</em> applies a base mood, layers on top and a fine-tune draft to the current scene; <em>Moods &amp; layers</em> edits the presets; <em>Export &amp; import</em> shares them as a file.</p>',
   '<p><strong>GM Setup:</strong> <em>General</em> sets the world default skin (players who have not picked their own see it live), <em>Core sources</em> tells Core links where to look, and <em>Developer Tools</em> holds the example package, sample files and the Adopt &amp; tag review workflow. Settings save only with <strong>Save Changes</strong>; Cancel drops them. <strong>My Appearance</strong> in the header is your own skin and size.</p>',
   '<p>Back up a test world before importing.</p>'].join('');
@@ -397,11 +397,17 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
     } catch(error){this.worldExportSummary=`Export failed: ${error.message??error}`;toast(String(error.message??error),true);}
     await this.render();
   }
-  /** Read-only: runPreSessionCheck never writes; Copy and Download reuse the last result. */
+  /**
+   * Read-only: runPreSessionCheck never writes; Copy and Download reuse the last result. Clear (0.53.0) only drops that
+   * result from this window: the report is kept nowhere else (no setting or flag), so nothing in the world changes.
+   */
   async #preSession(name) {
     try {
       if(!game.user?.isGM)throw new Error('Only the GM can run the pre-session check.');
-      if(name==='presession-run' || !this.preSessionResult) this.preSessionResult=await runPreSessionCheck(game);
+      // Clear disables itself, so focus goes to Run; Run keeps focus on Run.
+      if(name==='presession-clear'){this.preSessionResult=null;this.focusAfterRender='[data-ag-action="presession-run"]';await this.render();return;}
+      if(name==='presession-run'){this.focusAfterRender='[data-ag-action="presession-run"]';this.preSessionResult=await runPreSessionCheck(game);}
+      else if(!this.preSessionResult) this.preSessionResult=await runPreSessionCheck(game);
       const out=this.preSessionResult;
       if(name==='presession-copy'){
         try{await (game.clipboard?.copyPlainText?.(out.text)??navigator.clipboard.writeText(out.text));toast('Report copied.');}
@@ -699,7 +705,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       housekeeping:items&&view==='checks'?{report:this.orgReport,message:this.housekeepingMessage}:null,
       librarySystemChips:[{value:'all',label:'All',count:libraryInScope.filter(r=>this.libraryShowArchived||!r.archived).length,selected:this.librarySystem==='all'},...browser.systemOptions],
       libraryMessage:this.libraryMessage, worldExportSummary:this.worldExportSummary??'',
-      preSession:this.preSessionResult?{summary:this.preSessionResult.summary,rows:this.preSessionResult.rows.map(r=>({...r,css:r.status==='N-A'?'na':r.status.toLowerCase(),tone:RESULT_TONE(r.status)})),hasText:Boolean(this.preSessionResult.text)}:null,
+      preSession:preSessionView(this.preSessionResult,RESULT_TONE),
       profile:this.profile,developmentProfile:this.profile==='development',sessionProfile:this.profile==='session-safe',
       hasLibrarySelected:this.librarySelected.size>0,
       captureRows: captureRows.map(row => ({...row, tooltip:itemTooltipAttrs(row.uuid), tagged:Boolean(row.capture), selected:this.captureSelected.has(row.id), kindLabel:row.capture?.entityType??"—"})),
@@ -1111,7 +1117,7 @@ class AshenGateManager extends HandlebarsApplicationMixin(ApplicationV2) {
       }
       case "clear-results": this.importReports=[]; await this.render(); break;
       case "world-export-everything": case "world-export-changed": case "world-export-copy": case "world-backup": await this.#worldExport(name); break;
-      case "presession-run": case "presession-copy": case "presession-download": await this.#preSession(name); break;
+      case "presession-run": case "presession-clear": case "presession-copy": case "presession-download": await this.#preSession(name); break;
       // Back to normal also drops the fine-tune draft, so the panel shows the restored scene.
       case "mood-restore": this.moodDraft=null; await this.#moodResult(sceneMoods().restore({sceneId:this.moodSceneId||undefined,animate:this.#moodAnimate()})); break;
       case "mood-new": case "layer-new": this.moodEdit={isNew:true,kind:name==='layer-new'?'layer':'mood',id:'',label:'',set:name==='layer-new'?{weather:NO_WEATHER}:{'environment.darknessLevel':0,weather:NO_WEATHER},transitionMs:0}; await this.render(); break;
