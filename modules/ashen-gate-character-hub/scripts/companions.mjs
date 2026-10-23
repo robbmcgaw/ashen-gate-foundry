@@ -123,9 +123,26 @@ export function companionsData(actor) {
  * non-character Actor is offered (capped, so a big world stays usable).
  */
 export const LINKABLE_CAP = 150;
-export function linkableActors(actor, kind) {
+/** Every world Actor this user could link to `actor` (observable, not itself, a backup or already linked), unsorted and uncapped. */
+function linkCandidates(actor) {
   const linked = new Set(storedCompanions(actor).map(e => e.actorUuid).filter(Boolean));
-  const all = [...(globalThis.game?.actors ?? [])].filter(a => a !== actor && a.uuid !== actor.uuid && !linked.has(a.uuid) && !isBackup(a) && canSeeActor(a) && String(a.uuid ?? '').startsWith('Actor.'));
+  return [...(globalThis.game?.actors ?? [])].filter(a => a !== actor && a.uuid !== actor.uuid && !linked.has(a.uuid) && !isBackup(a) && canSeeActor(a) && String(a.uuid ?? '').startsWith('Actor.'));
+}
+/**
+ * Finds a linkable Actor by the name typed in the "Find an Actor by name" box, among ALL candidates (the list's cap and
+ * Companions-folder narrowing do not apply): an exact name (any case) wins, else a name containing the text.
+ * Returns {ok, actor} or {ok: false, error} (nothing, or more than one, matches).
+ */
+export function findLinkableActor(actor, text) {
+  const q = String(text ?? '').trim().toLowerCase();
+  if (!q) return refuse('Type the name of an Actor to link.');
+  const all = linkCandidates(actor), exact = all.filter(a => String(a.name ?? '').trim().toLowerCase() === q);
+  const hits = exact.length ? exact : all.filter(a => String(a.name ?? '').toLowerCase().includes(q));
+  if (hits.length === 1) return {ok: true, actor: hits[0]};
+  return refuse(hits.length ? `${hits.length} Actors match "${String(text).trim()}". Type more of the name, or pick one from the list.` : `No Actor you can see matches "${String(text).trim()}". The GM may need to share it with you.`);
+}
+export function linkableActors(actor, kind) {
+  const all = linkCandidates(actor);
   const inCompanions = a => { for (let f = a.folder; f; f = f.folder) if (/^companions?$/i.test(String(f.name ?? '').trim())) return true; return false; };
   const folderPath = a => { const names = []; for (let f = a.folder; f; f = f.folder) names.unshift(String(f.name ?? '')); return names.join(' / '); };
   const pool = all.some(inCompanions) ? all.filter(inCompanions) : all.filter(a => a.type !== 'character');

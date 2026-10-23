@@ -421,6 +421,7 @@ export const EDITS = {
   'item-slot': (s, i) => items.setSlot(s.document, i.dataset.id, i.value),
   'companion-add': (s, i) => i.value ? comp.addCompanion(s.document, i.value, i.dataset.kind) : null,
   'companion-link': (s, i) => i.value ? comp.addActorCompanion(s.document, comp.linkedActor(i.value), i.dataset.kind) : null,
+  'companion-find': (s, i) => { if (!String(i.value ?? '').trim()) return null; const f = comp.findLinkableActor(s.document, i.value); return f.ok ? comp.addActorCompanion(s.document, f.actor, i.dataset.kind) : f; },
   'companion-attach': (s, i) => i.value ? comp.attachPerk(s.document, i.dataset.entry, i.value) : null,
   'companion-extra': (s, i) => i.value ? comp.attachExtra(s.document, i.dataset.entry, i.value) : null,
   'companion-clothing': (s, i) => i.value ? comp.attachExtra(s.document, i.dataset.entry, i.value, {slot: i.dataset.slot, list: 'clothing'}) : null,
@@ -469,7 +470,7 @@ async function openLinkedActor(actor, entryId) {
   const entry = comp.storedCompanions(actor).find(e => e.id === entryId), other = comp.linkedActor(entry?.actorUuid);
   if (!other) return {ok: false, error: 'That Actor is gone.'};
   const user = globalThis.game?.user;
-  if (!user?.isGM && other.testUserPermission?.(user, 'LIMITED') !== true) return {ok: false, error: `You can't see ${other.name}.`};
+  if (!comp.canSeeActor(other)) return {ok: false, error: 'That Actor is not shared with you any more.'};
   await other.sheet?.render?.({force: true});
   return {ok: true};
 }

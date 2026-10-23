@@ -89,3 +89,28 @@ test('search: a folded section opens while it holds a match and folds back; a se
   applyFilter(root, 'bless');
   assert.equal(note.hidden, true, 'the note goes away when something matches');
 });
+
+test('0.42.3: below Observer is "not shared" everywhere; any observable Actor is found by name past the list cap', async () => {
+  const { ACTIONS } = await import('../scripts/sheet.mjs');
+  const many = Array.from({length: 200}, (x, i) => world(`wolf${String(i).padStart(3, '0')}`, {perms: {owner: 'OBSERVER'}}));
+  const lim = world('limited', {perms: {owner: 'LIMITED'}}), steed = world('steed', {perms: {owner: 'OBSERVER'}});
+  const hero = setup([...many, lim, steed]);
+  assert.equal(c.linkableActors(hero, 'pet').length, c.LINKABLE_CAP, 'the list is capped');
+  assert.equal(c.findLinkableActor(hero, 'steed').actor.id, 'steed', 'but search reaches past the cap');
+  assert.equal(c.findLinkableActor(hero, '[TEST] WOLF007').actor.id, 'wolf007', 'exact name, any case');
+  assert.match(c.findLinkableActor(hero, 'wolf').error, /200 Actors match/);
+  assert.match(c.findLinkableActor(hero, 'limited').error, /No Actor you can see/, 'Limited is not enough');
+  assert.match(c.findLinkableActor(hero, '  ').error, /Type the name/);
+  const sheet = {document: hero};
+  assert.equal(await EDITS['companion-find'](sheet, {value: '', dataset: {kind: 'pet'}}), null);
+  assert.equal((await EDITS['companion-find'](sheet, {value: 'steed', dataset: {kind: 'mount'}})).ok, true);
+  assert.equal(hero.flags[MODULE_ID].companions[0].actorUuid, 'Actor.steed');
+  assert.match(companionsTab({actor: hero, editable: true}), /data-edit="companion-find" data-kind="pet"[^>]*aria-label="Find a pet Actor by name"/);
+  // opening: Observer opens, Limited and below are told it is not shared (no name)
+  const rendered = []; steed.sheet = {render: () => rendered.push('steed')};
+  assert.equal((await ACTIONS['companion-open'](sheet, {dataset: {entry: hero.flags[MODULE_ID].companions[0].id}})).ok, true);
+  steed.testUserPermission = (u, level) => level === 'LIMITED';
+  const r = await ACTIONS['companion-open'](sheet, {dataset: {entry: hero.flags[MODULE_ID].companions[0].id}});
+  assert.equal(r.ok, false); assert.match(r.error, /not shared/); assert.doesNotMatch(r.error, /steed/);
+  assert.equal(rendered.length, 1);
+});

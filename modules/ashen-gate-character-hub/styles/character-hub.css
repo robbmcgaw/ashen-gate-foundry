@@ -541,6 +541,7 @@
 .agch-app .agch-clothing__off { position: absolute; top: calc(var(--ag-space-2) * -1); right: calc(var(--ag-space-2) * -1); min-height: 0; padding: 0 var(--ag-space-1); background: var(--ag-surface-sunken); border-radius: 50%; }
 .agch-app .agch-drop { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); align-items: center; padding: var(--ag-space-2) var(--ag-space-4); border: 2px dashed var(--ag-border-strong); border-radius: var(--ag-radius-lg); color: var(--ag-muted); margin-bottom: var(--ag-space-2); }
 .agch-app .agch-drop select { flex: 1 1 14rem; width: auto; }
+.agch-app .agch-drop .agch-linkfind { flex: 1 1 14rem; width: auto; }
 .agch-app .agch-drop--add { margin-top: var(--ag-space-2); }
 .agch-app .agch-gmcap { display: flex; flex-wrap: wrap; gap: var(--ag-space-2); align-items: center; margin-top: var(--ag-space-2); color: var(--ag-muted); }
 .agch-app .agch-gmcap select, .agch-app .agch-table select { width: auto; }
