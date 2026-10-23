@@ -20,13 +20,14 @@ import {toggleSection} from './collapse.mjs';
 import {setListChoice} from './organize.mjs';
 import {changeArt} from './art.mjs';
 import * as journey from './journey.mjs';
-import {journeyActor} from './journey-views.mjs';
+import {journeyActor, JOURNEY_VIEWS} from './journey-views.mjs';
+import * as bio from './biography.mjs';
 import * as marks from './marks.mjs';
 import * as hotbar from './hotbar.mjs';
 import {undoNoticesHtml} from './hotbar-views.mjs';
 import {syncEscape, unbindEscape} from './escape.mjs';
 import {stepStrain, pushFromHub, socketFromHub, dropOnSocket, openSkillTree} from './cinders.mjs';
-import {confirmDialog, confirmDanger, formDialog} from './ag-dialogs.mjs';
+import {confirmDialog, confirmDanger, formDialog, guardDirty} from './ag-dialogs.mjs';
 import {windowSize, uiState, bindTablist} from './ag-html.mjs';
 import {readDrop, resolveItemDrop} from './ag-item-drop.mjs';
 import {togglePopOut, isPoppedOut} from './popout.mjs';
@@ -59,14 +60,17 @@ export const report = result => { if (result && result.ok === false && result.er
 
 /** Click handlers by data-action. Each receives (sheet, target, event). Views add their own entries. */
 export const ACTIONS = {
-  'hub-tab': (s, t) => { s.tab = t.dataset.tab; s.menu = null; return s.render(); },
+  'hub-tab': async (s, t) => { if (t.dataset.tab !== s.tab && !(await leaveBiography(s))) return null; s.tab = t.dataset.tab; s.menu = null; return s.render(); },
+  'journey-view': (s, t) => journeyView(s, t.dataset.tab),
+  'bio-save': s => bioSave(s),
+  'bio-cancel': s => { bio.clearDraft(s); bioGuard(s).markClean(); return s.render(); },
   'ag-subtab': (s, t) => { s.agTab = t.dataset.tab ?? t.dataset.partner; return s.render(); },
   'st-tree-tab': (s, t) => pickTreeTab(t),
   'inv-view': (s, t) => { s.invView = t.dataset.view === 'party' ? 'party' : 'character'; return s.render(); },
   'slot-menu': (s, t) => toggleMenu(s, `slot:${t.dataset.slot}`),
   'other-menu': (s, t) => toggleMenu(s, `other:${t.dataset.id}`),
   'section-toggle': (s, t) => toggleSection(s.element ?? t.closest?.('.agch-root'), t.dataset.key),
-  'ag-jump': (s, t) => { s.tab = 'ashen-gate'; s.agTab = t.dataset.partner; s.menu = null; return s.render(); },
+  'ag-jump': async (s, t) => { if (!(await leaveBiography(s))) return null; s.tab = 'ashen-gate'; s.agTab = t.dataset.partner; s.menu = null; return s.render(); },
   'hp-apply': (s, t) => hpApply(s, t),
   'item-more': (s, t) => toggleMore(s, t),
   'journey-add': (s, t) => journeyAdd(s, t),
@@ -111,7 +115,7 @@ export const ACTIONS = {
   'cinder-detach': (s, t) => socketFromHub(s.document, 'detach', {instance: t.dataset.instance, slot: t.dataset.slot}, socketUi),
   // 0.31.0: the header Cinder chip opens Ashen Gate → Cinders here; Open skill tree opens Skill Trees (players: only while Perks is shown).
   // Compact (0.32.0) has no tabs: Full opens at Cinders for this window only (0.33.0, CH-14: the saved Compact choice stays).
-  'cinder-open': s => { if (!vis.canSee('cinders')) return refuse('Cinders is hidden from players right now.'); s.tab = 'ashen-gate'; s.agTab = 'ashen-gate-cinders'; s.menu = null; return s.compact ? s.setCompact(false, {save: false}) : s.render(); },
+  'cinder-open': async s => { if (!vis.canSee('cinders')) return refuse('Cinders is hidden from players right now.'); if (!(await leaveBiography(s))) return null; s.tab = 'ashen-gate'; s.agTab = 'ashen-gate-cinders'; s.menu = null; return s.compact ? s.setCompact(false, {save: false}) : s.render(); },
   'cinder-tree': (s, t) => vis.requirePart('perks') ?? openSkillTree(s.document, t.dataset.tree || null),
   // 0.34.0: the Conditions strip (conditions.mjs checks who may change what, again, at the click).
   'cond-mode': (s, t) => { s.condMode = conds.cleanMode(t.dataset.mode); return s.render(); },
@@ -265,6 +269,53 @@ export function setListFilter(sheet, tab, key, value) {
   else if (['prepared', 'ritual', 'castable', 'uses', 'left', 'equipped'].includes(key)) { f[key] = !f[key]; sheet.listFilters[tab] = f; }
   return sheet.listFilters[tab];
 }
+/**
+ * Biography (0.38.0): the unsaved-edit guard (kit guardDirty) writes "Unsaved changes" into the Biography footer and asks
+ * "Discard unsaved changes?" (Keep editing is the default) before a tab or sub-tab switch or closing the Hub loses typed
+ * text. A redraw keeps the text (the draft lives on the sheet), so it never asks for that.
+ */
+export const bioGuard = sheet => sheet._bioGuard ??= guardDirty({status: () => sheet.element?.querySelector?.('[data-bio-status]') ?? null});
+/** Resolves true when nothing typed in the Biography would be lost (no edits, or the user discards them). */
+export async function leaveBiography(sheet) {
+  bio.syncRichDraft(sheet);
+  const guard = bioGuard(sheet);
+  if (bio.isBioDirty(sheet)) guard.markDirty(); else guard.markClean();
+  if (!(await guard.confirm())) return false;
+  bio.clearDraft(sheet);
+  return true;
+}
+/** Journey | Biography sub-tab: remembered per user on this device. */
+export async function journeyView(sheet, view) {
+  const next = JOURNEY_VIEWS.some(v => v.id === view) ? view : 'journey';
+  if (next !== sheet.journeyView && !(await leaveBiography(sheet))) return null;
+  sheet.journeyView = next; hubUi().set('journeyView', next);
+  return sheet.render();
+}
+/** Save Changes: only the fields that were changed go to actor.update (biography.mjs checks ownership again). */
+export async function bioSave(sheet) {
+  bio.syncRichDraft(sheet);
+  const values = {...(sheet.bioDraft?.values ?? {})};
+  const r = await bio.updateBiography(sheet.document, values);
+  if (r.ok) { bio.clearDraft(sheet); bioGuard(sheet).markClean(); await sheet.render(); }
+  return r;
+}
+/** Typing in a Biography box updates the draft and the footer status without a redraw (so the caret stays put). */
+function onBioInput(sheet, target) {
+  const box = target?.closest?.('[data-bio]');
+  if (!box || !sheet.hubContext.editable) return;
+  const key = box.dataset.bio;
+  const paint = () => { const guard = bioGuard(sheet); if (bio.isBioDirty(sheet)) guard.markDirty(); else guard.markClean(); };
+  if (box.tagName !== 'PROSE-MIRROR') { bio.setDraft(sheet, key, box.value); paint(); return; }
+  // The editor updates its own text just after the event, so it is read a moment later.
+  bio.bioDraft(sheet).touched.add(key);
+  setTimeout(() => { bio.syncRichDraft(sheet); paint(); }, 0);
+}
+/** Keys that only move the caret or the focus: they never make a rich field "edited". */
+const MOVE_KEYS = /^(Arrow|Page|Home$|End$|Tab$|Shift$|Control$|Alt$|Meta$|Escape$|CapsLock$|F\d)/;
+/** An edit in a rich editor that fires no input event: a toolbar button (bold, lists ...), a typed key, paste or drop. */
+export const richEditEvent = ev => !!ev?.target?.closest?.('prose-mirror[data-bio]') && (ev.type === 'click' ? !!ev.target.closest('button, [data-action], menu li')
+  : ev.type === 'keyup' ? !MOVE_KEYS.test(String(ev.key ?? '')) : true);
+
 /** Journey (GM): read a form's fields. */
 const formValues = target => { const f = target.closest?.('[data-journey-form]'); const v = n => f?.querySelector?.(`[name="${n}"]`); return {text: v('text')?.value ?? '', date: v('date')?.value ?? '', hidden: v('hidden')?.checked === true}; };
 async function journeyAdd(sheet, target) {
@@ -436,7 +487,13 @@ export function createHubSheetClass(Base) {
       super({...options, position: {...windowSize(compact ? COMPACT_SIZE : CharacterHubSheet.DEFAULT_OPTIONS.position), ...options.position}});
       this.compact = compact;
       this.charFolded = hubUi().get('charFolded', true, [true, false]);
+      this.journeyView = hubUi().get('journeyView', 'journey', JOURNEY_VIEWS.map(v => v.id));
     }
+    /** Journey tab's sub-tab (0.38.0): 'journey' or 'biography'. */
+    journeyView = 'journey';
+    /** Biography edits typed but not saved (biography.mjs bioDraft), and the rich fields ready to show. */
+    bioDraft = null;
+    _bioShown = null;
     /** Narrow Full window (0.33.0, CH-09): the character column is folded to name, HP and AC (per user, this device). */
     charFolded = true;
     /** Compact view (0.29.0): only the art with its slots, HP and the quick bar. */
@@ -473,7 +530,15 @@ export function createHubSheetClass(Base) {
 
     /** Never a blank window: a failure while drawing shows the error inside the sheet with Retry. */
     async _renderHTML() {
-      try { return shellHtml(this.hubContext); } catch (err) {
+      try {
+        const ctx = this.hubContext;
+        // Biography (0.38.0): text typed in a rich editor is kept before the redraw; the rich fields are enriched first.
+        bio.syncRichDraft(this);
+        if (!ctx.limited && !ctx.compact && this.tab === 'journey' && this.journeyView === 'biography') {
+          try { this._bioShown = {actorId: this.document?.id, html: await bio.enrichBiography(this.document)}; } catch { this._bioShown = null; }
+        }
+        return shellHtml(ctx);
+      } catch (err) {
         console.error(`${MODULE_ID} | render failed`, err);
         return errorHtml(err);
       }
@@ -531,7 +596,7 @@ export function createHubSheetClass(Base) {
      * an embedded partner view binds its own. Bound again after each redraw, which replaces those rows.
      */
     _bindTabs(content) {
-      for (const list of content.querySelectorAll?.('.agch-rail, .agch-agtabs, .agch-sttabs') ?? []) bindTablist(list);
+      for (const list of content.querySelectorAll?.('.agch-rail, .agch-agtabs, .agch-sttabs, .agch-jtabs') ?? []) bindTablist(list);
     }
 
     /**
@@ -545,7 +610,10 @@ export function createHubSheetClass(Base) {
       content.addEventListener?.('input', ev => {
         if (ev.target?.matches?.('[data-filter]')) { this.filters[this.tab] = ev.target.value; applyFilter(content, ev.target.value); }
         if (ev.target?.matches?.('[data-compact-opacity]')) applyCompactOpacity(this, ev.target.value);
+        if (ev.target?.closest?.('[data-bio]')) onBioInput(this, ev.target);
       });
+      // A rich editor's toolbar (bold, lists ...) changes the text without an input event.
+      for (const type of ['keyup', 'paste', 'drop', 'click']) content.addEventListener?.(type, ev => { if (richEditEvent(ev)) onBioInput(this, ev.target); });
       content.addEventListener?.('change', ev => { if (ev.target?.matches?.('[data-compact-opacity]')) saveCompactOpacity(ev.target.value); });
       content.addEventListener?.('contextmenu', ev => this._onContextMenu(ev));
       content.addEventListener?.('click', ev => this._onOutsideClick(ev));
@@ -700,6 +768,11 @@ export function createHubSheetClass(Base) {
      * sheet per character, so everything that is only "while the Hub is open" is reset here (0.30.0): the Magic and
      * Features filters, search text, open "More" texts and any open menu start fresh when the Hub is opened again.
      */
+    /** Closing asks first while the Biography has unsaved edits (0.38.0); Keep editing leaves the Hub open. */
+    async close(options = {}) {
+      if (options?.force !== true && !(await leaveBiography(this))) return this;
+      return super.close?.(options);
+    }
     _onClose(options) {
       // The drawer closes with the Hub; the room it added is given back so the window reopens at its own size.
       if (this.quickOpen) { this.quickOpen = false; try { this.fitDrawer(); } catch {} }
@@ -712,6 +785,7 @@ export function createHubSheetClass(Base) {
     resetOpenState() {
       this._agchScroll = {}; this._agchHtml = null; this._agchShown = null; this._dropRow = null; this._agchPop = null; this._agchOpener = null;
       this.listFilters = {combat: {}, magic: {}, features: {}}; this.filters = {}; this.expanded = new Set();
+      this.bioDraft = null; this._bioShown = null; this._bioGuard?.markClean();
       this.menu = null; this.journeyEdit = null; this.condMode = 'self'; this.condPick = ''; this.quickOpen = false; this._drawerGrow = 0;
     }
 

@@ -95,7 +95,7 @@ const group = (label, buttons) => `<div class="agch-look__group"><span class="ag
  * Dark / Light and Compact / Comfortable size. In Compact view it also holds the see-through background slider (CH-04).
  */
 export function lookMenuHtml(sheet = null) {
-  const fade = sheet?.compact === true ? `<div class="agch-look__group"><span class="agch-look__label">Background opacity <span class="ag-badge">Experimental</span></span>${compactOpacityHtml()}</div>` : '';
+  const fade = sheet?.compact === true ? `<div class="agch-look__group"><span class="agch-look__label">Background opacity</span>${compactOpacityHtml()}</div>` : '';
   const a = managerAppearance();
   const head = `<header class="agch-menu__head"><strong>Appearance</strong><span class="agch-muted">Only for you</span>${btn('menu-close', '', {kind: 'ghost', icon: 'fa-solid fa-xmark', title: 'Close', always: true})}</header>`;
   if (a) {
