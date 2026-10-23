@@ -1,3 +1,9 @@
+## 0.19.1 — 2026-10-23
+
+- **Fix: a filter whose value has gone.** If the Level, Region, Giver or Location you picked in *Filters (n)* is no longer in the list (say the only level-5 quest changed), the select now keeps it, marked *(none now)*, instead of showing *Any level* while the filter was still applied and counted. Pick *Any…* or *Clear filters* to drop it.
+- **Fix: givers that read alike.** Two givers whose ids differ only by kind (an NPC and a faction both called Warden) are now two entries in the Giver filter and group, told apart as *Warden (Npc)* and *Warden (Faction)*, instead of merging into one.
+- Saved data: no change; no migration.
+
 ## 0.19.0 — 2026-10-23
 
 The Quests list at the size of a real campaign (about 90 quests, work orders and contracts).
