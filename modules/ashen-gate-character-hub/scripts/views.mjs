@@ -17,6 +17,7 @@ import {journeyTab} from './journey-views.mjs';
 import {sectionHtml, sectionKey} from './collapse.mjs';
 import {lookMenuHtml} from './look.mjs';
 import {codexBtn} from './codex.mjs';
+import {titleHtml, nameEditBtn, nameMenuItem} from './name-title.mjs';
 
 export {btn, levelUpBtn, restoreBtn};
 
@@ -160,14 +161,14 @@ export function popOutBtn(sheet) {
  */
 export function moreMenuHtml(sheet, ctx = null) {
   const open = sheet?.menu === 'more' ? 'more' : sheet?.menu === 'look' ? 'look' : null;
-  const own = ctx && !ctx.limited && ctx.actor ? characterMenuItems(ctx.actor, !ctx.editable) : '';
+  const own = ctx && !ctx.limited && ctx.actor ? (ctx.editable ? nameMenuItem(ctx.actor) : '') + characterMenuItems(ctx.actor, !ctx.editable) : '';
   const menu = open === 'more' ? `<div class="agch-menu agch-moremenu" role="group" aria-label="More">
     ${own ? `${own}<hr class="agch-menu__sep">` : ''}
     ${btn('look-menu', 'Appearance…', {kind: 'ghost', extra: 'agch-menu__btn', icon: 'fa-solid fa-palette', always: true, title: 'Change how the Hub looks for you (only for you)'})}
     ${popOutBtn(sheet)}${codexBtn({menu: true})}
     ${btn('open-native', 'Open native sheet', {kind: 'ghost', extra: 'agch-menu__btn', icon: 'fa-solid fa-file-lines', always: true, title: 'Open the standard dnd5e character sheet'})}</div>`
     : open === 'look' ? lookMenuHtml(sheet) : '';
-  const what = [own && 'Level up', own.includes('data-action="level-restore"') && 'Restore backup', own.includes('data-action="configure"') && 'Configure', 'Appearance, Pop out, NPC Codex, Open native sheet'].filter(Boolean).join(', ');
+  const what = [own.includes('data-action="name-edit"') && 'Edit name and title', own && 'Level up', own.includes('data-action="level-restore"') && 'Restore backup', own.includes('data-action="configure"') && 'Configure', 'Appearance, Pop out, NPC Codex, Open native sheet'].filter(Boolean).join(', ');
   return `<span class="agch-lookwrap"><button type="button" class="ag-btn ag-btn--ghost ag-btn--icon agch-morebtn" data-action="more-menu" data-ag-always aria-haspopup="true" aria-expanded="${open !== null}" aria-label="${esc(`More: ${what}`)}" data-tooltip="${esc(`More: ${what}`)}"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>${menu}</span>`;
 }
 /** A name this long gets its full text as a tooltip, since the header may cut it off with "…" in a narrow window. */
@@ -176,13 +177,16 @@ export const LONG_NAME = 24;
  * Header (0.33.0): Compact / Full and the "⋯" menu; version and Help together at the far right. 0.37.0: the left side
  * is the character: the name as the heading, a "Level n" badge beside it and, under it, the identity line (species ·
  * class subclass · background; not in the limited view). "Ashen Gate | Character Hub — <name>" is the window title (sheet.mjs).
+ * 0.40.0: the character's title (smaller, italic, muted) beside the name, also in the limited view, and for the owner
+ * and the GM an icon-only "Edit name and title…" button (name-title.mjs).
  */
 export function headerHtml(ctx, compact) {
   const version = globalThis.game?.modules?.get?.(MODULE_ID)?.version ?? '';
   const {actor} = ctx, h = ctx.limited ? null : headerData(actor), name = String(actor?.name ?? '');
   const tip = name.length > LONG_NAME ? ` data-tooltip="${esc(name)}"` : '';
+  const title = titleHtml(actor);
   const level = h?.level ? `<span class="ag-badge agch-head__level">Level ${h.level}</span>` : '';
-  return `<header class="ag-header agch-head"><div class="agch-head__who"><div class="agch-head__line"><h1 class="agch-head__name"${tip}>${esc(name)}</h1>${level}</div>${h ? identityLineHtml(actor, h) : ''}</div>
+  return `<header class="ag-header agch-head"><div class="agch-head__who"><div class="agch-head__line${title ? ' agch-head__line--titled' : ''}"><h1 class="agch-head__name"${tip}>${esc(name)}</h1>${title}${level}${ctx.editable ? nameEditBtn(actor) : ''}</div>${h ? identityLineHtml(actor, h) : ''}</div>
     <div class="ag-header__actions">
     ${ctx.limited ? '' : compactBtn(compact)}${moreMenuHtml(ctx.sheet, ctx)}
     <span class="ag-header__meta agch-head__meta"><span class="ag-version">v${esc(version)}</span>

@@ -1,3 +1,14 @@
+## 0.40.0 — 2026-10-23
+
+Robb's request: change the character's name in the Hub, and show a title beside it.
+
+- **Name and title:** the header shows the character's title beside the name, smaller and in italics, in the muted text colour (for example "Velwin *Warden of the Ford*"). Everyone who can see the character sees it, also in the limited view. A long title ends in "…" only when the header has no room (hover it for the whole title); the Level badge always stays.
+- **Edit name and title…:** the owner and the GM get a small pen button beside the name (also in the header's **⋯** menu). It opens a dialog with **Name** and **Title**: **Save** (bottom right) is greyed out while the name is empty; **Cancel** or Escape changes nothing. Only what you changed is saved. The name is the character's real name (the same as on the dnd5e sheet); the window title follows it, also in a popped-out Hub.
+- **Who can:** owners and the GM only. Observers and limited viewers don't see the button, and a change from them is refused, not just hidden. Level backup copies ("<name> - level X") can't be renamed.
+- The title is plain text, one line, up to 60 characters.
+- Saved data: dnd5e 6.0.6 has no title field, so the title is stored on the character as a Hub flag (`flags.ashen-gate-character-hub.title`). New data only; no migration.
+- Docs: `docs/perks-and-modifiers-architecture.md` §1.7 now describes Quest Log's item rewards and Give rewards.
+
 ## 0.39.0 — 2026-10-23
 
 Robb's request: the HP bar's effects shouldn't stack on top of each other; each should show on its own part of the bar.

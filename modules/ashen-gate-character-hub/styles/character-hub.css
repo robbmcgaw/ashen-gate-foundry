@@ -96,8 +96,15 @@
 .agch-app .agch-head { align-items: flex-start; flex-wrap: wrap; gap: var(--ag-space-1) var(--ag-space-3); padding-block: var(--ag-space-2); }
 .agch-app .agch-head__who { flex: 1 1 14rem; min-width: 0; display: flex; flex-direction: column; gap: calc(var(--ag-space-1) / 2); }
 .agch-app .agch-head__line { display: flex; align-items: center; gap: var(--ag-space-2); min-width: 0; }
-.agch-app .agch-head .agch-head__name { min-width: 0; margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; line-height: 1.2; border: 0; }
+.agch-app .agch-head .agch-head__name { flex: 0 0 auto; max-width: calc(100% - 6.5rem); min-width: 0; margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; line-height: 1.2; border: 0; }
 .agch-app .agch-head__level { flex: none; font-size: var(--ag-text-xs); }
+/* Title (0.40.0): beside the name, smaller, italic and muted, on the same line. Only the title shrinks (ending in "…"
+   when nothing else fits); the name keeps its width up to what leaves room for the Level badge and the edit button
+   (6.5rem), which never shrink. With a title the name leaves 3em more, so at least the start of the title shows. */
+.agch-app .agch-head__line--titled .agch-head__name { max-width: calc(100% - 6.5rem - 3em - var(--ag-space-2)); }
+.agch-app .agch-head__title { flex: 0 1 auto; min-width: 3em; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  font-size: var(--ag-text-md); font-style: italic; color: var(--ag-muted); line-height: 1.2; }
+.agch-app .agch-head__edit { flex: none; }
 .agch-app .agch-head__ident { margin: 0; color: var(--ag-muted); font-size: var(--ag-text-sm); line-height: 1.35; overflow-wrap: anywhere; }
 .agch-app .agch-idlink { display: inline; width: auto; height: auto; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: var(--ag-radius-control);
   background: none; color: inherit; font: inherit; line-height: inherit; text-align: left; white-space: normal; cursor: pointer; }
