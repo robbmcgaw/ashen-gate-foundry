@@ -48,7 +48,7 @@ const npc=makeActor('npc','[TEST] Goblin',{type:'npc',owner:false,items:[alchemy
 const loner=makeActor('loner','[TEST] Hireling',{owner:false,items:[alchemy()]});
 const backup=makeActor('bak','[TEST] Ana - level 3',{items:[alchemy()],backup:true});
 const all=[ana,bo,cy,npc,loner,backup];
-const ledgerModule={active:true,version:'0.30.0',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.30.1',set api(v){api=v},get api(){return api}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},
   actors:{contents:all,get:id=>all.find(a=>a.id===id)},socket:{emit:()=>{},on:()=>{}},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?ledgerModule:null},settings:{register:()=>{},registerMenu:()=>{},get:(m,k)=>values[k],set:async(m,k,v)=>{values[k]=v;}}};
@@ -177,4 +177,30 @@ test('buttons: Preview selects the new rows; a declined confirmation grants noth
   assert.match(html,/<h3>Granted<\/h3><ul><li><b>\[TEST\] Bo<\/b> \(1\): \[TEST\] Poultice<\/li><\/ul>/);
   assert.match(html,/\[TEST\] Bo <span class="agl-sub">— nothing to grant, 1 already known<\/span>/,'the preview is refreshed');
   reset();
+});
+
+test('0.30.1: a malformed or unknown rowIds is rejected, never widened to every row (grant and assign)',async()=>{
+  for(const bad of ['bo:REC-TEST-POULTICE',{0:'bo:REC-TEST-POULTICE'},42,true]){
+    reset();
+    await assert.rejects(api.grantStartingRecipes({preview:false,rowIds:bad}),/rowIds must be a list/);
+    assert.equal(writes.length,0);assert.deepEqual(known(bo),[]);assert.deepEqual(known(ana),['REC-TEST-TEA']);
+    await assert.rejects(api.assign.apply({rowIds:bad}),/rowIds must be a list/);
+  }
+  reset();
+  for(const bad of [['nobody:REC-TEST-SALVE'],['bo:REC-TEST-POULTICE','bo:REC-NOPE'],[7],[{}],[null]]){
+    await assert.rejects(api.grantStartingRecipes({preview:false,rowIds:bad}),/Unknown row id/,JSON.stringify(bad));
+    await assert.rejects(api.assign.apply({rowIds:bad}),/Unknown row id/);
+  }
+  assert.equal(writes.length,0,'a rejected call writes nothing, not even the valid ids beside the bad one');
+  assert.deepEqual(known(bo),[]);
+});
+
+test('0.30.1: no rowIds (or null) still means every new row; an empty list means none; a known but already-known row is skipped',async()=>{
+  reset();
+  await api.grantStartingRecipes({preview:false,rowIds:[]});
+  assert.equal(writes.length,0);
+  await api.grantStartingRecipes({preview:false,rowIds:['ana:REC-TEST-TEA']});
+  assert.equal(writes.length,0,'a row that is already known grants nothing');
+  await api.grantStartingRecipes({preview:false,rowIds:null});
+  assert.deepEqual(known(bo),['REC-TEST-POULTICE']);
 });

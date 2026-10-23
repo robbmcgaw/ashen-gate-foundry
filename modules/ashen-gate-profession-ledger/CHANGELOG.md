@@ -1,3 +1,10 @@
+## 0.30.1 — 2026-10-23
+
+Code-read review fix.
+
+- **Fix: a malformed `rowIds` no longer grants everything.** `api.grantStartingRecipes({preview: false, rowIds})` and `api.assign.apply({rowIds})` treated a `rowIds` that was not a list (a string, a number) as "no limit" and acted on every new row. They now reject a non-list and any id that is not in the current preview, before writing anything. Leaving `rowIds` out still means every row, and the Assign tab (which always sends a list from the preview) is unchanged.
+- Saved data: unchanged. No migration.
+
 ## 0.30.0 — 2026-10-23
 
 - **Grant starting recipes (GM):** **Assign** now has two sub-tabs, **Professions** (the profession assignment, unchanged) and **Starting recipes**. Pick the whole party or one character and press **Preview**: for each player character it lists the recipes marked as starting recipes (`starting: true` in the content) for the professions that character has, each as **Will grant**, **Already known** or **Not granted** (a draft, GM-only or otherwise unreleased recipe, with what to fix in General Manager). The header of each character says how many it gets; a character with no profession says so. Nothing changes until you confirm with **Grant all new (n)…** or **Grant selected…**; the window then lists what each character got.
