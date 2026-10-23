@@ -937,19 +937,22 @@ async function convertElectrumDialog(){
  ui.notifications?.info(`${convertLine(entry)}.`);
  return entry;
 }
-/** The purse: coins, the electrum note and (GM) Adjust / Convert. `move`: the embed's own Character/Coin/Amount form. */
+/**
+ * The purse: coins, the electrum note and (GM) Adjust / Convert. `move`: the embed's own Character/Coin/Amount form, which
+ * since 0.28.0 sits in the heading row beside "Party purse" (it wraps on a narrow pane; Deposit and Take stay together).
+ */
 function purseStrip(app,takers,target,{move:withMove=true}={}){
  const stash=stashActor();if(!stash)return '';
  const coins=readCoins(stash);
  if(!coins)return `<section class="agu-purse" aria-label="Party purse"><h3>Party purse</h3>${empty('No purse','The stash Actor has no dnd5e currency, so there is no purse.')}</section>`;
  const ep=electrumEnabled(),stranded=strandedElectrum(coins,ep),choices=coinChoices(ep);
  if(!choices.includes(app.purseCoin))app.purseCoin='gp';
- const coinSel=`<label class="ag-field">Coin<select id="agu-purse-coin">${choices.map(c=>option(c,`${COIN_LABELS[c]} (${c})`,app.purseCoin)).join('')}</select></label>`;
- const move=withMove&&takers.length?`<div class="agu-purse-move"><label class="ag-field">Character<select id="agu-purse-actor">${takers.map(a=>option(a.id,`${a.name} (${readCoin(a,app.purseCoin)??'—'} ${app.purseCoin})`,target)).join('')}</select></label>${coinSel}<label class="ag-field">Amount<input type="number" id="agu-purse-amount" min="1" step="1" value="${E(app.purseAmount)}" inputmode="numeric"></label><div class="agu-actions">${btn('purse-deposit','Deposit',{kind:'sm',attrs:'data-purse-move="deposit"'})}${btn('purse-take','Take',{kind:'sm',attrs:'data-purse-move="take"'})}</div></div>`:'';
+ const coinSel=`<label class="ag-field">Coin<select id="agu-purse-coin">${choices.map(c=>option(c,COIN_LABELS[c],app.purseCoin)).join('')}</select></label>`;
+ const move=withMove&&takers.length?`<div class="agu-purse-move"><label class="ag-field agu-purse-who">Character<select id="agu-purse-actor">${takers.map(a=>option(a.id,`${a.name} (${readCoin(a,app.purseCoin)??'—'} ${app.purseCoin})`,target)).join('')}</select></label>${coinSel}<label class="ag-field">Amount<input type="number" id="agu-purse-amount" min="1" step="1" value="${E(app.purseAmount)}" inputmode="numeric"></label><div class="agu-actions">${btn('purse-deposit','Deposit',{kind:'sm',attrs:'data-purse-move="deposit"'})}${btn('purse-take','Take',{kind:'sm',attrs:'data-purse-move="take"'})}</div></div>`:'';
  const gm=isGM()?`<div class="ag-toolbar__end">${stranded?btn('purse-convert','Convert electrum to silver/gold',{kind:'sm'}):''}${btn('purse-adjust','Adjust Purse',{kind:'sm'})}</div>`:'';
  const epNote=stranded?`<p class="ag-notice ag-notice--warn agu-ep-note"><i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i><span>The purse still holds ${E(coins.ep)} electrum (ep), worth ${E(coins.ep*5)} sp. Electrum is off, so it can't be moved here; ${isGM()?'use <strong>Convert electrum to silver/gold</strong> (value kept exactly, undo in History) or turn electrum back on in GM Setup.':'the GM can convert it.'}</span></p>`:'';
  const note=!withMove?'':isGM()?`<p class="agu-note">Coin vote: ${purseVoteRequired()?'on':'off'} (change it in GM Setup).</p>`:`<p class="agu-note">Deposit moves coins from your character to the purse${purseVoteRequired()?'; Take needs every other connected player to accept':''}. Coins are never converted unless the GM does it.</p>`;
- return `<section class="agu-purse" aria-label="Party purse"><div class="agu-line"><h3>Party purse</h3>${gm}</div>${coinStripHTML(coins,ep)}${epNote}${move}${note}</section>`;
+ return `<section class="agu-purse" aria-label="Party purse"><div class="agu-line agu-purse-head"><h3>Party purse</h3>${move}${gm}</div>${coinStripHTML(coins,ep)}${epNote}${note}</section>`;
 }
 const randomId=()=>foundry.utils?.randomID?.(16)??Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'[b%62]).join('');
 /** Removes copies made by a move that is being called off. A failure here leaves duplicates, never a loss. */

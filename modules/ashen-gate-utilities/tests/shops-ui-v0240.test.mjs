@@ -11,7 +11,7 @@ import {ID,coinBoxHTML,coinStripHTML,coinChipsHTML,isSettlementLocation,shopPlac
 // ---- Pure helpers ----
 test('coins: one box per coin with its metal class and icon, centred markup; electrum only while on (dimmed when still held)',()=>{
  const box=coinBoxHTML('gp',12);
- assert.match(box,/^<div class="agu-coin agu-coin--gp" data-coin="gp" role="group" aria-label="Gold: 12"><span class="agu-coin__icon" aria-hidden="true">G<\/span><span class="agu-coin__label">Gold <abbr[^>]*>gp<\/abbr><\/span><strong class="agu-coin__value">12<\/strong><\/div>$/);
+ assert.match(box,/^<div class="agu-coin agu-coin--gp" data-coin="gp" role="group" aria-label="Gold: 12"><span class="agu-coin__icon" role="img" aria-label="Gold coin">G<\/span><span class="agu-coin__label">Gold<\/span><strong class="agu-coin__value">12<\/strong><\/div>$/);
  const off=coinStripHTML({cp:1,sp:2,gp:3,pp:4},false);
  assert.deepEqual([...off.matchAll(/data-coin="(\w+)"/g)].map(m=>m[1]),['cp','sp','gp','pp'],'no electrum while it is off');
  const held=coinStripHTML({cp:0,sp:0,ep:3,gp:0,pp:0},false);

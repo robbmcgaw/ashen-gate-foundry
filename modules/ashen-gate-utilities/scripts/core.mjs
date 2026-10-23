@@ -1,6 +1,6 @@
 /** Ashen Gate | Utilities 0.2.0-alpha pure session rules. No Foundry globals. */
 export const ID = 'ashen-gate-utilities';
-export const VERSION = '0.27.1';
+export const VERSION = '0.28.0';
 export const SKILL_IDS = Object.freeze(['acr','ani','arc','ath','dec','his','ins','itm','inv','med','nat','prc','prf','per','rel','slt','ste','sur']);
 export const ABILITY_IDS = Object.freeze(['str','dex','con','int','wis','cha']);
 export const MAX_PARTICIPANTS = 24;
@@ -736,10 +736,13 @@ export const coinsText = coins => byValueDesc(COINS).filter(c => Number(coins?.[
  * while a purse still holds some).
  */
 const coinIcon = coin => `<span class="agu-coin__icon" aria-hidden="true">${escapeHTML(String(coin).slice(0, 1).toUpperCase())}</span>`;
-/** One coin box: the coin's icon, its name and abbreviation, the amount. `off`: electrum held while electrum is off. */
+/**
+ * One coin entry, on one line: the coin's icon, its name, the amount ("Copper 124"). 0.28.0: no abbreviation; the icon
+ * is named (role img) so the coin is never told by its colour alone. `off`: electrum held while electrum is off.
+ */
 export function coinBoxHTML(coin, value, {off = false, note = ''} = {}) {
   const E = escapeHTML, label = COIN_LABELS[coin] ?? coin, n = value ?? 0;
-  return `<div class="agu-coin agu-coin--${E(coin)}${off ? ' agu-coin--off' : ''}" data-coin="${E(coin)}" role="group" aria-label="${E(label)}: ${E(n)}${note ? ` (${E(note)})` : ''}">${coinIcon(coin)}<span class="agu-coin__label">${E(label)} <abbr data-tooltip="${E(label)}" data-tooltip-class="ag-tooltip">${E(coin)}</abbr></span><strong class="agu-coin__value">${E(n)}</strong></div>`;
+  return `<div class="agu-coin agu-coin--${E(coin)}${off ? ' agu-coin--off' : ''}" data-coin="${E(coin)}" role="group" aria-label="${E(label)}: ${E(n)}${note ? ` (${E(note)})` : ''}"><span class="agu-coin__icon" role="img" aria-label="${E(label)} coin">${E(String(coin).slice(0, 1).toUpperCase())}</span><span class="agu-coin__label">${E(label)}</span><strong class="agu-coin__value">${E(n)}</strong></div>`;
 }
 /** A row of coin boxes for a purse (the coins shownCoins lists; electrum dimmed while it is off but still held). */
 export function coinStripHTML(coins, electrum = false) {
