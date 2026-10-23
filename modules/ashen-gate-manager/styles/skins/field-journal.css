@@ -1,0 +1,148 @@
+/*
+ * Ashen Gate skin: Field Journal (ag-field-journal). Loaded by General Manager only while this skin
+ * is the effective one, and every rule is scoped to html[data-ag-skin="ag-field-journal"], so it is
+ * inert otherwise. Colours come from the skin's --ag-* tokens (scripts/appearance.js); this file
+ * adds the surveyor's notebook: a leather cover with fine grain, a stitched inner edge, typewriter
+ * labels and cards pasted in with a strip of tape. Dark, with pencil-grey text on leather.
+ * Generic element rules use :where() (zero specificity) like the kit, so module CSS still wins.
+ * No web fonts, no images other than inline SVG noise, no animation.
+ */
+html[data-ag-skin="ag-field-journal"] {
+  --ag-radius-sm: 2px;
+  --ag-radius: 3px;
+  --ag-radius-lg: 5px;
+  --ag-radius-control: 3px;
+  --ag-radius-field: 3px;
+  --ag-radius-window: 6px;
+  --ag-font-display: "American Typewriter", "Courier New", Courier, "Liberation Mono", monospace;
+  --agx-stitch: color-mix(in srgb, var(--ag-accent) 75%, transparent);
+  --agx-tape: color-mix(in srgb, var(--ag-accent) 28%, transparent);
+  /* Leather grain: faint warm fractal noise. */
+  --agx-leather: url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='l'><feTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 .1  0 0 0 0 .06  0 0 0 0 .03  0 0 0 .6 0'/></filter><rect width='100%25' height='100%25' filter='url(%23l)' opacity='.35'/></svg>");
+  --agx-note-shadow: 2px 3px 0 rgb(0 0 0 / .35);
+}
+
+/* ---------- Window: leather cover with a stitched edge ---------- */
+html[data-ag-skin="ag-field-journal"] .application.ag-app {
+  border: 1px solid color-mix(in srgb, var(--ag-surface-sunken) 80%, #000);
+  box-shadow: 0 0 0 1px var(--ag-border), var(--ag-shadow);
+}
+html[data-ag-skin="ag-field-journal"] .application.ag-app > .window-header {
+  background: var(--agx-leather), linear-gradient(180deg, var(--ag-surface-raised), var(--ag-surface-sunken));
+  background-color: var(--ag-surface-sunken);
+  border-bottom: 2px dashed var(--agx-stitch);
+}
+html[data-ag-skin="ag-field-journal"] .application.ag-app > .window-header .window-title {
+  font-family: var(--ag-font-display);
+  letter-spacing: .04em;
+}
+html[data-ag-skin="ag-field-journal"] .application.ag-app > .window-content {
+  background: var(--agx-leather);
+  background-color: var(--ag-surface);
+  outline: 2px dashed var(--agx-stitch);
+  outline-offset: -6px;
+}
+
+/* ---------- Typewriter labels ---------- */
+:where(html[data-ag-skin="ag-field-journal"]) :where(.ag-app) :where(h1, h2, h3, h4, legend, th) {
+  font-family: var(--ag-font-display);
+  letter-spacing: .03em;
+}
+:where(html[data-ag-skin="ag-field-journal"]) :where(.ag-app) :where(hr) { border: 0; border-top: 2px dashed var(--agx-stitch); }
+
+/* ---------- Header and footer: bound edges ---------- */
+html[data-ag-skin="ag-field-journal"] .ag-header {
+  background-color: var(--ag-surface-raised);
+  border-bottom: 2px dashed var(--agx-stitch);
+}
+html[data-ag-skin="ag-field-journal"] .ag-header :where(h1, h2) { font-family: var(--ag-font-display); letter-spacing: .04em; }
+html[data-ag-skin="ag-field-journal"] .ag-footer {
+  background-color: var(--ag-surface-raised);
+  border-top: 2px dashed var(--agx-stitch);
+}
+
+/* ---------- Tabs: bookmarks tucked into the cover ---------- */
+html[data-ag-skin="ag-field-journal"] .ag-tabs {
+  background-color: var(--ag-surface-sunken);
+  border-bottom: 1px solid var(--ag-border);
+}
+html[data-ag-skin="ag-field-journal"] .ag-tabs > :where(button, a, .ag-tab) {
+  border: 1px solid var(--ag-border);
+  border-radius: 3px;
+  background: var(--ag-surface);
+  color: var(--ag-muted);
+  font-family: var(--ag-font-display);
+  box-shadow: none;
+}
+html[data-ag-skin="ag-field-journal"] .ag-tabs > :where(button, a, .ag-tab):where(:hover:not(:disabled)) {
+  background: var(--ag-surface-hover);
+  color: var(--ag-text);
+}
+html[data-ag-skin="ag-field-journal"] .ag-tabs > :where(.active, [aria-current="page"], [aria-selected="true"], .is-active) {
+  background: var(--ag-surface-raised);
+  color: var(--ag-text);
+  border-color: var(--ag-accent);
+  box-shadow: inset 0 -3px 0 var(--ag-accent);
+}
+
+/* ---------- Buttons: stitched leather patches ---------- */
+:where(html[data-ag-skin="ag-field-journal"]) :where(.ag-app) :where(button:not(.header-control):not([data-action="close"])),
+html[data-ag-skin="ag-field-journal"] .ag-btn {
+  border-radius: var(--ag-radius-control);
+  box-shadow: 0 1px 0 rgb(0 0 0 / .4);
+}
+html[data-ag-skin="ag-field-journal"] :is(.ag-btn--primary, .ag-app button.primary) {
+  box-shadow: 0 1px 0 rgb(0 0 0 / .4), inset 0 0 0 2px var(--ag-accent), inset 0 0 0 3px color-mix(in srgb, var(--ag-accent-contrast) 45%, transparent);
+}
+html[data-ag-skin="ag-field-journal"] .ag-btn--ghost { box-shadow: none; }
+
+/* ---------- Inputs ---------- */
+:where(html[data-ag-skin="ag-field-journal"]) :where(.ag-app) :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select, textarea) {
+  border-radius: var(--ag-radius-field);
+  background-color: var(--ag-surface-sunken);
+}
+:where(html[data-ag-skin="ag-field-journal"]) :where(.ag-app) :where(fieldset) { border: 2px dashed var(--agx-stitch); border-radius: var(--ag-radius); }
+
+/* ---------- Cards: notes pasted in with tape ---------- */
+html[data-ag-skin="ag-field-journal"] .ag-card {
+  background: linear-gradient(100deg, transparent 0 12px, var(--agx-tape) 12px 56px, transparent 56px) top left / 100% 9px no-repeat, var(--ag-surface-raised);
+  border-radius: 2px;
+  box-shadow: var(--agx-note-shadow);
+}
+html[data-ag-skin="ag-field-journal"] .ag-card--accent {
+  background: linear-gradient(100deg, transparent 0 12px, var(--agx-tape) 12px 56px, transparent 56px) top left / 100% 9px no-repeat, var(--ag-accent-soft);
+}
+html[data-ag-skin="ag-field-journal"] .ag-list > * { border-bottom: 1px dashed var(--ag-border); }
+html[data-ag-skin="ag-field-journal"] .ag-list > *:last-child { border-bottom: 0; }
+:where(html[data-ag-skin="ag-field-journal"]) :where(.ag-app) :where(td, th) { border-bottom: 1px dashed var(--ag-border); }
+html[data-ag-skin="ag-field-journal"] .ag-badge { border-radius: 2px; font-family: var(--ag-font-display); }
+html[data-ag-skin="ag-field-journal"] .ag-empty { border: 2px dashed var(--agx-stitch); border-radius: var(--ag-radius); }
+
+/* ---------- Sidebar launchers ---------- */
+html[data-ag-skin="ag-field-journal"] :is(#ashen-gate-launchers.ag-launchers, .ag-sidebar-launch-group[data-ag-launch-group]) {
+  border: 2px dashed var(--agx-stitch);
+  background: var(--agx-leather);
+  background-color: var(--ag-surface);
+}
+html[data-ag-skin="ag-field-journal"] :is(#ashen-gate-launchers > .ag-launcher, .ag-sidebar-launch-group[data-ag-launch-group] > .ag-sidebar-launch-button) {
+  border-radius: var(--ag-radius-control);
+  box-shadow: 0 1px 0 rgb(0 0 0 / .4);
+}
+
+/* ---------- Kit 2 parts ---------- */
+html[data-ag-skin="ag-field-journal"] .ag-chip { font-family: var(--ag-font-display); }
+html[data-ag-skin="ag-field-journal"] .ag-segmented > [aria-checked="true"] { box-shadow: inset 0 -3px 0 var(--ag-accent); }
+html[data-ag-skin="ag-field-journal"] .ag-section__title { font-family: var(--ag-font-display); letter-spacing: .03em; }
+html[data-ag-skin="ag-field-journal"] .ag-section__head { border-bottom: 2px dashed var(--agx-stitch); }
+html[data-ag-skin="ag-field-journal"] :is(.ag-table thead th, .ag-rows__head) { font-family: var(--ag-font-display); border-bottom: 2px dashed var(--agx-stitch); }
+html[data-ag-skin="ag-field-journal"] .ag-row + .ag-row { border-top: 1px dashed var(--ag-border); }
+html[data-ag-skin="ag-field-journal"] .ag-notice { border-radius: 2px; box-shadow: var(--agx-note-shadow); }
+html[data-ag-skin="ag-field-journal"] .application.ag-dialog .form-footer { border-top: 2px dashed var(--agx-stitch); padding-top: var(--ag-space-3); }
+
+/* ---------- Kit parts that keep the kit look in this skin ----------
+ * .ag-btn-group, .ag-card-grid, .ag-chip-group, .ag-cluster, .ag-devtools, .ag-eyebrow,
+ * .ag-field, .ag-file, .ag-fold, .ag-form-grid, .ag-gm-flag, .ag-hotbar, .ag-icon-chip, .ag-kv,
+ * .ag-link, .ag-meter, .ag-orb, .ag-pad, .ag-pips, .ag-portrait, .ag-rarity-badge,
+ * .ag-rarity-edge, .ag-scroll, .ag-search, .ag-siderail, .ag-slot, .ag-split, .ag-sr-only,
+ * .ag-stack, .ag-steps, .ag-table-wrap, .ag-toolbar, .ag-tooltip, .ag-version, .ag-window
+ */

@@ -13,7 +13,7 @@ import {pathToFileURL} from 'node:url';
 const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const modulesDir = path.join(root, 'modules');
 const MANAGER = 'ashen-gate-manager';
-const SKIN_FILES = ['styles/skins/stone-tablet.css', 'styles/skins/tome-pages.css'];
+const SKIN_FILES = ['stone-tablet', 'tome-pages', 'ledger-book', 'field-journal', 'frontier-map'].map(n => `styles/skins/${n}.css`);
 
 function walk(dir, out = []) {
   if (!fs.existsSync(dir)) return out;
@@ -206,7 +206,7 @@ export function checkSizeSets(kitCss) {
   return problems;
 }
 
-/** Every kit block class is mentioned (rule or the "keep the kit look" comment) in both structural skin files. */
+/** Every kit block class is mentioned (rule or the "keep the kit look" comment) in every structural skin file. */
 export function checkSkinCoverage(kitCss, skins) {
   const problems = [];
   for (const [file, css] of Object.entries(skins)) {

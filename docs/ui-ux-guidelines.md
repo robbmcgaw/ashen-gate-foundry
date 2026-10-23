@@ -8,7 +8,8 @@ where the sources disagree or say nothing. Rules marked *(kit 2.2)* need a share
 [Kit gaps](#15-kit-gaps-proposed-kit-22)).
 
 Scope: Foundry VTT V14 ApplicationV2 windows, DialogV2 dialogs, sidebar launchers, embeds in Character Hub, and chat cards,
-in every skin (Standard, light skins, Stone Tablet, Tome Pages) and at both sizes (Compact, Comfortable).
+in every skin (Standard, the colour skins, High Contrast, Daylight, and the shaped skins: Stone Tablet, Tome Pages,
+Ledger Book, Field Journal, Frontier Map) and at both sizes (Compact, Comfortable).
 
 ---
 
@@ -306,8 +307,8 @@ device to Comfortable.
 3. **General Manager owns appearance.** Modules don't ship their own skin, palette or theme picker; they follow `<html>`.
    They don't copy skin tokens onto their own content on every render either: `<html>` already reaches every window, and a
    copy goes stale when the skin changes. [Apple Dark mode] (CLAUDE.md "Ownership")
-4. Structural skins reshape **kit classes only**, so a hand-rolled copy of a kit component won't follow Stone Tablet or Tome
-   Pages. That's one more reason to use the kit (section 14). **Ours**
+4. Structural skins reshape **kit classes only**, so a hand-rolled copy of a kit component won't follow Stone Tablet, Tome
+   Pages, Ledger Book, Field Journal or Frontier Map. That's one more reason to use the kit (section 14). **Ours**
 5. Test new UI in one dark and one light skin and at both sizes before release. [Apple Dark mode]
 
 ## 14. Use the kit

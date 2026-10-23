@@ -1,0 +1,163 @@
+/*
+ * Ashen Gate skin: Ledger Book (ag-ledger-book). Loaded by General Manager only while this skin is
+ * the effective one, and every rule is scoped to html[data-ag-skin="ag-ledger-book"], so it is
+ * inert otherwise. Colours come from the skin's --ag-* tokens (scripts/appearance.js); this file
+ * adds the account book: faint ruled lines, column rules, stamped small-cap headings and double
+ * rules. The ruling is a few per cent of the border colour, so text keeps its token contrast.
+ * Generic element rules use :where() (zero specificity) like the kit, so module CSS still wins.
+ * No web fonts, no images other than inline SVG, no animation.
+ */
+html[data-ag-skin="ag-ledger-book"] {
+  --ag-radius-sm: 0;
+  --ag-radius: 2px;
+  --ag-radius-lg: 2px;
+  --ag-radius-control: 2px;
+  --ag-radius-field: 2px;
+  --ag-radius-window: 2px;
+  --ag-font-display: "Palatino Linotype", "Book Antiqua", Palatino, Georgia, serif;
+  --agx-rule: color-mix(in srgb, var(--ag-border) 70%, transparent);
+  --agx-line: color-mix(in srgb, var(--ag-border) 22%, transparent);
+  --agx-stamp: .09em;
+  /* Ruled paper: one hairline every 28px. */
+  --agx-ruled: repeating-linear-gradient(180deg, transparent 0, transparent 27px, var(--agx-line) 27px, var(--agx-line) 28px);
+}
+
+/* ---------- Window: one open book page ---------- */
+html[data-ag-skin="ag-ledger-book"] .application.ag-app {
+  border: 1px solid var(--ag-border);
+  box-shadow: 0 0 0 3px var(--ag-surface-raised), 0 0 0 4px var(--ag-border), var(--ag-shadow);
+}
+html[data-ag-skin="ag-ledger-book"] .application.ag-app > .window-header {
+  background-color: var(--ag-surface-raised);
+  border-bottom: 3px double var(--ag-border);
+}
+html[data-ag-skin="ag-ledger-book"] .application.ag-app > .window-header .window-title {
+  font-family: var(--ag-font-display);
+  font-variant: small-caps;
+  letter-spacing: var(--agx-stamp);
+}
+html[data-ag-skin="ag-ledger-book"] .application.ag-app > .window-content {
+  background-color: var(--ag-surface);
+  background-image: var(--agx-ruled);
+}
+
+/* ---------- Stamped headings ---------- */
+:where(html[data-ag-skin="ag-ledger-book"]) :where(.ag-app) :where(h1, h2, h3, h4, legend) {
+  font-family: var(--ag-font-display);
+  font-variant: small-caps;
+  letter-spacing: var(--agx-stamp);
+}
+:where(html[data-ag-skin="ag-ledger-book"]) :where(.ag-app) :where(h2, h3) { border-bottom: 1px solid var(--agx-rule); }
+:where(html[data-ag-skin="ag-ledger-book"]) :where(.ag-app) :where(hr) { border: 0; border-top: 3px double var(--agx-rule); }
+
+/* ---------- Header and footer: double rules ---------- */
+html[data-ag-skin="ag-ledger-book"] .ag-header {
+  background-color: var(--ag-surface-raised);
+  border-bottom: 3px double var(--ag-border);
+}
+html[data-ag-skin="ag-ledger-book"] .ag-header :where(h1, h2) {
+  font-family: var(--ag-font-display);
+  font-variant: small-caps;
+  letter-spacing: var(--agx-stamp);
+}
+html[data-ag-skin="ag-ledger-book"] .ag-footer {
+  background-color: var(--ag-surface-raised);
+  border-top: 3px double var(--ag-border);
+}
+
+/* ---------- Tabs: index tabs along the page edge ---------- */
+html[data-ag-skin="ag-ledger-book"] .ag-tabs {
+  background-color: var(--ag-surface-sunken);
+  border-bottom: 1px solid var(--ag-border);
+}
+html[data-ag-skin="ag-ledger-book"] .ag-tabs > :where(button, a, .ag-tab) {
+  border: 1px solid var(--ag-border);
+  border-bottom: 0;
+  border-radius: 2px 2px 0 0;
+  background: var(--ag-surface-raised);
+  color: var(--ag-muted);
+  font-variant: small-caps;
+  letter-spacing: .05em;
+  box-shadow: none;
+}
+html[data-ag-skin="ag-ledger-book"] .ag-tabs > :where(button, a, .ag-tab):where(:hover:not(:disabled)) {
+  background: var(--ag-surface-hover);
+  color: var(--ag-text);
+}
+html[data-ag-skin="ag-ledger-book"] .ag-tabs > :where(.active, [aria-current="page"], [aria-selected="true"], .is-active) {
+  background: var(--ag-surface);
+  color: var(--ag-text);
+  border-top: 3px solid var(--ag-accent);
+  box-shadow: none;
+}
+
+/* ---------- Buttons: flat entries; the primary one is the stamp ---------- */
+:where(html[data-ag-skin="ag-ledger-book"]) :where(.ag-app) :where(button:not(.header-control):not([data-action="close"])),
+html[data-ag-skin="ag-ledger-book"] .ag-btn {
+  border-radius: var(--ag-radius-control);
+  box-shadow: none;
+  font-variant: small-caps;
+  letter-spacing: .04em;
+}
+html[data-ag-skin="ag-ledger-book"] :is(.ag-btn--primary, .ag-app button.primary) {
+  border-color: var(--ag-accent);
+  box-shadow: inset 0 0 0 2px var(--ag-accent), inset 0 0 0 3px color-mix(in srgb, var(--ag-accent-contrast) 55%, transparent);
+}
+html[data-ag-skin="ag-ledger-book"] .ag-btn--ghost { border-color: transparent; box-shadow: none; }
+
+/* ---------- Inputs: ruled boxes ---------- */
+:where(html[data-ag-skin="ag-ledger-book"]) :where(.ag-app) :where(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]), select, textarea) {
+  border-radius: var(--ag-radius-field);
+  background-color: var(--ag-surface-sunken);
+}
+:where(html[data-ag-skin="ag-ledger-book"]) :where(.ag-app) :where(fieldset) { border: 1px solid var(--agx-rule); border-radius: 0; }
+
+/* ---------- Cards, lists, tables: ruled entries with column rules ---------- */
+html[data-ag-skin="ag-ledger-book"] .ag-card {
+  background-color: var(--ag-surface-raised);
+  border-radius: 0;
+  border-top: 3px double var(--ag-border);
+}
+html[data-ag-skin="ag-ledger-book"] .ag-list > * { border-bottom: 1px solid var(--agx-rule); }
+html[data-ag-skin="ag-ledger-book"] .ag-list > *:last-child { border-bottom: 0; }
+:where(html[data-ag-skin="ag-ledger-book"]) :where(.ag-app) :where(table) { border-collapse: collapse; }
+:where(html[data-ag-skin="ag-ledger-book"]) :where(.ag-app) :where(td, th) {
+  border-bottom: 1px solid var(--agx-rule);
+  border-left: 1px solid var(--agx-rule);
+}
+:where(html[data-ag-skin="ag-ledger-book"]) :where(.ag-app) :where(td:first-child, th:first-child) { border-left: 0; }
+:where(html[data-ag-skin="ag-ledger-book"]) :where(.ag-app) :where(th) {
+  font-variant: small-caps;
+  letter-spacing: var(--agx-stamp);
+  border-bottom: 3px double var(--ag-border);
+}
+html[data-ag-skin="ag-ledger-book"] .ag-badge { border-radius: 0; font-variant: small-caps; letter-spacing: .04em; }
+html[data-ag-skin="ag-ledger-book"] .ag-empty { border: 1px dashed var(--ag-border); border-radius: 0; }
+
+/* ---------- Sidebar launchers ---------- */
+html[data-ag-skin="ag-ledger-book"] :is(#ashen-gate-launchers.ag-launchers, .ag-sidebar-launch-group[data-ag-launch-group]) {
+  border-color: var(--ag-border);
+  border-radius: 0;
+  background-color: var(--ag-surface);
+}
+html[data-ag-skin="ag-ledger-book"] :is(#ashen-gate-launchers > .ag-launcher, .ag-sidebar-launch-group[data-ag-launch-group] > .ag-sidebar-launch-button) {
+  border-radius: var(--ag-radius-control);
+  box-shadow: none;
+}
+
+/* ---------- Kit 2 parts ---------- */
+html[data-ag-skin="ag-ledger-book"] :is(.ag-chip, .ag-segmented, .ag-rarity-badge, .ag-notice, .ag-table-wrap, .ag-rows, .ag-siderail, .ag-devtools, .ag-meter__track, .ag-meter__fill) { border-radius: 0; }
+html[data-ag-skin="ag-ledger-book"] .ag-segmented > [aria-checked="true"] { box-shadow: inset 0 -3px 0 var(--ag-accent); }
+html[data-ag-skin="ag-ledger-book"] .ag-section__head { border-bottom: 1px solid var(--agx-rule); }
+html[data-ag-skin="ag-ledger-book"] .ag-section__title { font-variant: small-caps; letter-spacing: var(--agx-stamp); }
+html[data-ag-skin="ag-ledger-book"] :is(.ag-table thead th, .ag-rows__head) { font-variant: small-caps; letter-spacing: var(--agx-stamp); border-bottom: 3px double var(--ag-border); }
+html[data-ag-skin="ag-ledger-book"] .ag-row + .ag-row { border-top: 1px solid var(--agx-rule); }
+html[data-ag-skin="ag-ledger-book"] .application.ag-dialog .form-footer { border-top: 3px double var(--ag-border); padding-top: var(--ag-space-3); }
+html[data-ag-skin="ag-ledger-book"] :is(#tooltip.ag-tooltip, .locked-tooltip.ag-tooltip) { border-radius: 0; }
+
+/* ---------- Kit parts that keep the kit look in this skin ----------
+ * .ag-btn-group, .ag-card-grid, .ag-chip-group, .ag-cluster, .ag-eyebrow, .ag-field, .ag-file,
+ * .ag-fold, .ag-form-grid, .ag-gm-flag, .ag-hotbar, .ag-icon-chip, .ag-kv, .ag-link, .ag-orb,
+ * .ag-pad, .ag-pips, .ag-portrait, .ag-rarity-edge, .ag-scroll, .ag-search, .ag-slot,
+ * .ag-split, .ag-sr-only, .ag-stack, .ag-steps, .ag-toolbar, .ag-version, .ag-window
+ */

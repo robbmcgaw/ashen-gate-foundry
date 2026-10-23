@@ -1,11 +1,11 @@
-// Structural skins (Stone Tablet, Tome Pages): registry, fallback, stylesheet injection and CSS scoping.
+// Structural skins (Stone Tablet, Tome Pages, Ledger Book, Field Journal, Frontier Map): registry, fallback, stylesheet injection and CSS scoping.
 // Proves controller logic and CSS text with a mocked document, not live Foundry rendering.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
 import {createAppearanceController,skinStylesheet,syncSkinStylesheet,SKIN_STYLESHEET_ID} from '../scripts/appearance.js';
 
-const STRUCTURAL=['ag-stone-tablet','ag-tome-pages'];
+const STRUCTURAL=['ag-stone-tablet','ag-tome-pages','ag-ledger-book','ag-field-journal','ag-frontier-map'];
 const controller=world=>createAppearanceController({currentUser:()=>({id:'u'}),getSetting:k=>k==='worldSkin'?world:'',setSetting:async()=>{},subscribeSettings:()=>()=>{}});
 const tokensOf=id=>{const v=new Map();controller(id).applyTo({style:{setProperty:(k,x)=>v.set(k,x)},dataset:{}});return v;};
 
@@ -25,7 +25,7 @@ test('picker lists both structural skins with descriptions; colour skins stay co
     assert.ok(s,id);assert.equal(s.structural,true);assert.match(s.description,/\w{8,}/);
     assert.equal('stylesheet' in s,false,'stylesheet path stays internal');
   }
-  assert.deepEqual(skins.filter(s=>!s.structural).map(s=>s.id),['ag-default','ag-slate','ag-ember','ag-verdigris','ag-parchment']);
+  assert.deepEqual(skins.filter(s=>!s.structural).map(s=>s.id),['ag-default','ag-slate','ag-ember','ag-verdigris','ag-parchment','ag-blightgreen','ag-cinderlight','ag-hearthfire','ag-frostbound','ag-high-contrast','ag-daylight']);
 });
 test('structural skins are selectable as world default and user override; unknown ids still fall back',async()=>{
   const world=new Map([['worldSkin','ag-default']]),mine=new Map();
@@ -107,7 +107,7 @@ for(const id of STRUCTURAL){
 const rgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
 const hexOf=c=>'#'+c.map(v=>Math.round(v).toString(16).padStart(2,'0')).join('');
 const mix=(fg,bg,p)=>hexOf(rgb(fg).map((v,i)=>v*p+rgb(bg)[i]*(1-p)));
-const ALL_SKINS=['ag-default','ag-slate','ag-ember','ag-verdigris','ag-parchment',...STRUCTURAL];
+const ALL_SKINS=['ag-default','ag-slate','ag-ember','ag-verdigris','ag-parchment','ag-blightgreen','ag-cinderlight','ag-hearthfire','ag-frostbound','ag-high-contrast','ag-daylight',...STRUCTURAL];
 for(const id of ALL_SKINS){
   test(`${id}: kit pairs (links, badges, danger) meet WCAG AA (text 4.5:1, focus 3:1)`,()=>{
     const t=tokensOf(id);
