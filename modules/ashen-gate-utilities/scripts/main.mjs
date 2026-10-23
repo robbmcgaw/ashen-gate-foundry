@@ -1392,7 +1392,7 @@ function addLauncher(app,html){
 }
 Hooks.once('init',()=>{
  // 0.23.0: config:false, so Utilities never appears in Foundry's Configure Settings list (players had an empty entry); set in GM Setup.
- game.settings.register(ID,'playerAccessEnabled',{name:'Utilities: Player Access',hint:'New module player launcher starts Hidden until enabled by GM.',scope:'world',config:false,type:Boolean,default:false,onChange:refreshWindows});
+ game.settings.register(ID,'playerAccessEnabled',{name:'Utilities: Player Access',hint:'The Utilities player launcher stays hidden until the GM turns Player Access on.',scope:'world',config:false,type:Boolean,default:false,onChange:refreshWindows});
  game.settings.register(ID,'activeSession',{name:'Utilities: Active Interaction',scope:'world',config:false,type:Object,default:{},onChange:sessionChanged});
  game.settings.register(ID,'history',{name:'Utilities: Interaction History',scope:'world',config:false,type:Array,default:[],onChange:refreshWindows});
  game.settings.register(ID,'lastResult',{name:'Utilities: Last Finished Check',scope:'world',config:false,type:Object,default:{},onChange:refreshWindows});

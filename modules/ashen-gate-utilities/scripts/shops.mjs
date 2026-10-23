@@ -243,7 +243,7 @@ export const presentButtons=s=>s.kind==='service'&&!s.known?'':s.presented?`${bu
 function serviceRow(s,locations){
  const {place}=placeOf(s,locations),meta=[s.merchant?.name,place,serviceTypeLabel(s.service?.type)].filter(Boolean).map(E).join(' · ');
  const unknown=!s.known?`<span class="ag-badge ag-badge--warn">${icon('fa-triangle-exclamation')} ${E(UNKNOWN_TYPE)}</span>`:'';
- return `<li class="ag-row agu-shop-row" data-shop-row="${E(s.id)}">${art(s.merchant,'ag-row__icon agu-shop-avatar')}<div class="ag-row__main"><span class="ag-row__title">${E(s.name)}</span><span class="ag-row__meta">${meta} · <code>${E(s.id)}</code></span></div>
+ return `<li class="ag-row agu-shop-row" data-shop-row="${E(s.id)}">${art(s.merchant,'ag-row__icon agu-shop-avatar')}<div class="ag-row__main"><span class="ag-row__title">${E(s.name)}</span><span class="ag-row__meta">${meta}</span></div>
  <div class="ag-row__end">${shownBadge(s)}${unknown}${button('shop-edit','Edit',{kind:'sm',ic:'fa-pen',attrs:`data-shop="${E(s.id)}" aria-label="Edit ${E(s.name)}"`})}${presentButtons(s)}</div></li>`;
 }
 function shopRow(s,locations){
@@ -252,7 +252,7 @@ function shopRow(s,locations){
  const meta=[s.merchant?.name,place,`${lines.length} ${lines.length===1?'item':'items'}`,...(hidden?[`${hidden} hidden`]:[])].filter(Boolean).map(E).join(' · ');
  // 0.26.0: cash in the meta line; the row keeps Edit and Present… / Open / Stop showing (Duplicate is in the editor).
  const cash=s.purse?`<span class="agu-row-cash">Cash ${coinChipsHTML(cashText(s))}</span>`:E(cashText(s));
- return `<li class="ag-row agu-shop-row" data-shop-row="${E(s.id)}">${art(s.merchant,'ag-row__icon agu-shop-avatar')}<div class="ag-row__main"><span class="ag-row__title">${E(s.name)}</span><span class="ag-row__meta">${meta} · <code>${E(s.id)}</code></span><span class="ag-row__meta">${cash}</span></div>
+ return `<li class="ag-row agu-shop-row" data-shop-row="${E(s.id)}">${art(s.merchant,'ag-row__icon agu-shop-avatar')}<div class="ag-row__main"><span class="ag-row__title">${E(s.name)}</span><span class="ag-row__meta">${meta}</span><span class="ag-row__meta">${cash}</span></div>
  <div class="ag-row__end">${shownBadge(s)}${button('shop-edit','Edit',{kind:'sm',ic:'fa-pen',attrs:`data-shop="${E(s.id)}" aria-label="Edit ${E(s.name)}"`})}${presentButtons(s)}</div></li>`;
 }
 function listView(app){
@@ -334,7 +334,7 @@ function linesTable(d){
  const row=l=>{const it=l.item??{},qty=Number(it.system?.quantity)||1,n=lineName(l),contents=(l.contents??[]).length,coinOpts=[...new Set([...coins,l._coin])].map(c=>opt(c,c,l._coin)).join('');
   // 0.24.0: the GM sees the line's own snapshot (what is sold), as dnd5e shows it; a click opens it read only.
   const tipped=inner=>itemButton({key:`gm:${l.lineId}`,data:it,name:n,inner,cls:'agu-item-link agu-shop-item__open'});
-  return `<tr class="agu-line-main" data-line="${E(l.lineId)}"><td><div class="agu-shop-item">${it.img?tipped(`<img class="agu-shop-thumb" src="${E(it.img)}" alt="">`):''}<div class="agu-shop-item__text">${tipped(`<strong>${E(n)}</strong>`)}${qty>1?` <span class="ag-badge">Sold as ${E(qty)}</span>`:''}${contents?` <span class="ag-badge">With ${contents} ${contents===1?'item':'items'} inside</span>`:''}${lineRepeats(d.lines,l)?` <span class="ag-badge ag-badge--warn">Already in this shop</span>`:''}${l.soldIn&&l.hidden?` <span class="ag-badge ag-badge--warn">${icon('fa-hand-holding-dollar')} Bought from players</span>`:''}<code>${E(l.itemId??'No permanent id')}</code></div></div></td>
+  return `<tr class="agu-line-main" data-line="${E(l.lineId)}"><td><div class="agu-shop-item">${it.img?tipped(`<img class="agu-shop-thumb" src="${E(it.img)}" alt="">`):''}<div class="agu-shop-item__text">${tipped(`<strong>${E(n)}</strong>`)}${qty>1?` <span class="ag-badge">Sold as ${E(qty)}</span>`:''}${contents?` <span class="ag-badge">With ${contents} ${contents===1?'item':'items'} inside</span>`:''}${lineRepeats(d.lines,l)?` <span class="ag-badge ag-badge--warn">Already in this shop</span>`:''}${l.soldIn&&l.hidden?` <span class="ag-badge ag-badge--warn">${icon('fa-hand-holding-dollar')} Bought from players</span>`:''}${l.itemId?'':`<span class="ag-badge ag-badge--warn">No permanent id</span>`}</div></div></td>
   <td><div class="agu-shop-price"><input type="number" min="0" step="any" data-line-field="_price" value="${E(l._price)}" aria-label="Price of ${E(n)}"><select data-line-field="_coin" aria-label="Price coin of ${E(n)}">${coinOpts}</select></div></td>
   <td><input class="agu-shop-num" type="number" min="0" step="1" data-line-field="_stock" value="${E(l._stock)}" placeholder="∞" aria-label="Stock of ${E(n)} (blank: unlimited)">${l.stock===0&&!l._stockEdited?' <span class="ag-badge ag-badge--danger">Sold out</span>':''}</td>
   <td><input type="checkbox" role="switch" data-line-field="hidden"${l.hidden?' checked':''} aria-label="Hide ${E(n)} from players"></td>
@@ -381,7 +381,7 @@ const appliesNow=`<span class="ag-badge ag-badge--warn agu-now" ${tip('These but
 function editorHead(d,saved,{kind}){
  const back=button('shop-back','All shops',{kind:'ghost sm',ic:'fa-arrow-left',attrs:'aria-label="Back to all shops and services"'});
  const now=saved?`<span class="agu-now-group">${appliesNow}${shownBadge(saved)}<span class="ag-btn-group">${saved.kind==='service'&&!saved.known?'':button('shop-duplicate','Duplicate',{kind:'sm',ic:'fa-copy',attrs:`data-shop="${E(saved.id)}" aria-label="Duplicate ${E(saved.name)}"`})}${presentButtons(saved)}</span></span>`:'';
- return `<div class="agu-shop-editor__head">${back}<h2>${E(d.saved?d.name||`Unnamed ${kind}`:`New ${kind}`)}</h2>${d.id?`<code>${E(d.id)}</code>`:''}${now}</div>`;
+ return `<div class="agu-shop-editor__head">${back}<h2>${E(d.saved?d.name||`Unnamed ${kind}`:`New ${kind}`)}</h2>${now}</div>`;
 }
 const ED_TABS=[{id:'details',label:'Details'},{id:'items',label:'Items'},{id:'coins',label:'Coins & buying'}];
 function editorView(app){

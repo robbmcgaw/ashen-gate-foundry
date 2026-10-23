@@ -1,3 +1,11 @@
+## 0.28.2 — 2026-10-23
+
+- **Shops: no raw ids on screen.** The Shops list, the shop and merchant-list editor headings, the Import JSON preview and the item rows in the shop editor no longer show `SHOP-…` / `ITEM-…` ids. Search still finds a shop by its id. An item that has no permanent id shows a "No permanent id" badge.
+- **Import JSON preview stays readable for trainer shops.** When a shop has more than three item lines that aren't in the world yet (for example recipe sheets from the crafting packs), they fold into one "N items not found in this world" disclosure instead of one text line each. A warning above the list says what to do: import the Items (and crafting packs) with General Manager first, then import the file again with *Update shops that already exist* on, which fills the skipped lines in. Nothing else about importing changes: a missing item still skips only its own line.
+- Shop imports look items up through one index instead of searching the Items list once per line.
+- A settings hint no longer says "New module".
+- No change to saved data, settings or the API; nothing to migrate.
+
 ## 0.28.1 — 2026-10-23
 
 - **Party stash: a tidy purse at every width.** In the Character Hub's *Inventory → Party stash* the purse is one card again. The *Party purse* title has the GM's *Adjust Purse* (and *Convert electrum to silver/gold* when shown) on its line, at the right; they move under the title only when both can't fit. The coins are centred below, and wrap into centred rows on a narrow pane. Under them, *Character*, *Coin*, *Amount*, *Deposit* and *Take* are one centred group laid out by the pane's own width: one line on a wide pane; *Character* on its own line and the rest below on a medium one; on a narrow one *Character*, then *Coin* and *Amount* side by side, then *Deposit* and *Take* as two equal buttons. The select, the amount box and the buttons are the same height, the amount box fits six digits, and nothing runs off the side. The coin vote (GM) or the player's note is a small centred line under the form.

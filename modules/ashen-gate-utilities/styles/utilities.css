@@ -227,6 +227,8 @@
 .ag-utilities .agu-shop-sort > select,.ag-utilities .agu-mlist-add > select {width:auto;}
 .ag-utilities .agu-mlist-add {margin:0;flex:1 1 auto;}
 .ag-utilities .agu-row-cash {display:inline-flex;align-items:center;gap:var(--ag-space-1);}
+.ag-utilities .agu-import-skipped summary {cursor:pointer;}
+.ag-utilities .agu-import-skipped ul {margin:var(--ag-space-1) 0 0;padding-left:var(--ag-space-4);overflow-wrap:anywhere;}
 .ag-utilities .agu-shop-lines :is(input[type="text"],input[type="number"],select) {min-width:0;}
 .ag-utilities .agu-shop-item {display:flex;align-items:flex-start;gap:var(--ag-space-2);min-width:12em;}
 .ag-utilities .agu-shop-item__text {display:flex;flex-direction:column;align-items:flex-start;gap:var(--ag-space-1);min-width:0;overflow-wrap:anywhere;}

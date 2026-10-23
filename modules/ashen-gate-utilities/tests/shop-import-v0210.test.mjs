@@ -188,7 +188,7 @@ test('Import JSON preview: a badge per record with the reason, the update switch
  assert.match(html,/<h3 class="ag-section__title">Import test-shops\.json<\/h3>/);
  assert.match(html,/1 other record in this file \(an Item or another type\) is not read here/);
  assert.match(html,/<input type="checkbox" role="switch" data-shop-import-mode> Update shops that already exist/);
- assert.match(html,/\[TEST\] New<\/span><span class="ag-row__meta">Shop · 4 items · <code>SHOP-TEST-NEW<\/code>[\s\S]*?ag-badge ag-badge--ok"><i class="fa-solid fa-plus" aria-hidden="true"><\/i> Create/);
+ assert.match(html,/\[TEST\] New<\/span><span class="ag-row__meta">Shop · 4 items<\/span>[\s\S]*?ag-badge ag-badge--ok"><i class="fa-solid fa-plus" aria-hidden="true"><\/i> Create/);
  assert.match(html,/Already in this world; kept as it is\.[\s\S]*?<span class="ag-badge"><i class="fa-solid fa-lock" aria-hidden="true"><\/i> Kept/);
  assert.match(html,/Unknown service type: tailor\.[\s\S]*?ag-badge--danger"><i class="fa-solid fa-ban" aria-hidden="true"><\/i> Skipped/);
  assert.match(foot,/data-action="shop-import-cancel"[\s\S]*<button type="button" class="ag-btn ag-btn--primary" data-action="shop-import-apply" ><i class="fa-solid fa-file-import" aria-hidden="true"><\/i> Import 1<\/button>/);
@@ -200,4 +200,18 @@ test('Import JSON preview: a badge per record with the reason, the update switch
  assert.equal(api.get('SHOP-TEST-NEW').name,'[TEST] New');assert.equal(app.shopImport,null);
  assert.ok(notes.some(([k,m])=>k==='info'&&/^Imported: 1 created, 0 updated, 0 kept, 0 skipped\.$/.test(m)));
  await assert.rejects(()=>imp.openImportFile(app,{name:'bad.json',text:async()=>'not json'}),/the file is not JSON/);
+});
+// 0.28.2: a trainer shop with many unresolved item lines folds them into one disclosure; a warning explains how to fill them in; no raw shop ids.
+test('Import JSON preview: more than three missing items fold into one disclosure, the warning says what to do, shop ids are not shown',()=>{
+ const refs=['REC-A','REC-B','REC-C','REC-D','REC-E'].map(ref=>({ref,reason:'Item not found in this world.'}));
+ const app={shopImport:{fileName:'trainers.json',mode:'create',ignored:0,results:[
+  {id:'SHOP-TEST-TRAINER',type:'Shop',name:'[TEST] Trainer',result:'created',lines:{imported:1,skipped:refs},notes:[]},
+  {id:'SHOP-TEST-SMALL',type:'Shop',name:'[TEST] Small',result:'created',lines:{imported:2,skipped:refs.slice(0,2)},notes:[]}]}};
+ const html=imp.importView(app);
+ assert.match(html,/<details class="ag-row__meta agu-import-skipped"><summary>5 items not found in this world<\/summary><ul><li>REC-A<\/li>/);
+ assert.equal(html.match(/<details/g).length,1,'two missing items stay as plain lines');
+ assert.match(html,/Line REC-A: Item not found in this world\./);
+ assert.match(html,/7 item lines name items that aren't in this world yet, so they are skipped\. Import the file's Items/);
+ assert.doesNotMatch(html,/<code>|SHOP-TEST-TRAINER/);
+ assert.doesNotMatch(imp.importView({shopImport:{fileName:'a.json',mode:'create',ignored:0,results:[{id:'SHOP-TEST-OK',type:'Shop',name:'[TEST] Ok',result:'created',lines:{imported:2,skipped:[]},notes:[]}]}}),/aren't in this world|isn't in this world/);
 });
