@@ -1,3 +1,11 @@
+## 0.20.1 — 2026-10-23
+
+QA pass at sandbox volume (about 110 places across the main and sandbox packs, 100+ gathering entries).
+
+- **Fixed:** gathering entries that refer to a Profession Ledger node template carry no skill or name of their own, so the GM list's **search**, **Profession** filter and **Group by Gathering profession** found none of them (every entry in the sandbox sites is such a reference). The list now reads the template's activity and name (a copy used for the list only; nothing is saved). Without the Ledger the list behaves as before.
+- **Group by Reveal status** (Hidden, Unidentified, Revealed) in the list's Filters row, to see at a glance what is still hidden.
+- **Checked, no change needed:** the S01 and S10 Location files import with no errors or skips (59 places, 106 gathering entries; with the main pack's L01 and L02 first, every parent resolves); the list, tree, search and filters stay fast at this size. Saved data: unchanged. No migration.
+
 ## 0.20.0 — 2026-10-22
 
 **Routes retired.** Routes were finicky in play, so they are gone. A road, river or pass is now just a location whose **Type** is *Route*: a container for hazards, loot, gathering resources and roll tables. It is not linked to other locations (plain parent/child, no ends, nothing drawn on the map). When the party travels, the GM rules and rolls.

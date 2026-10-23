@@ -4,7 +4,7 @@ import {MODULE_ID, THREATS, FIELDS, SECTIONS, BLOCKS, DETAIL_PREFIX, LOOT_STATUS
   hasUnpublishedChanges, wouldCycle, parentMap, PARTY_NOTES, isPlaceable, passesConditions, EXOTIC_MODES, EXOTIC_CONDITIONS, normalizeExotics, isTierDefaultDc,
   isNodeRef, activityLabel, ACTIVITY_LABELS, TYPE_SUGGESTIONS, ROUTES_RETIRED} from './model.mjs';
 import {nodeTemplates, openNodesTab} from './ledger-nodes.mjs';
-import {GROUP_MODES, SORTS, emptyFilters, hasFilters, searchText, matchesQuery, applyFilters, filterOptions, comparator, groupRows} from './list-filter.mjs';
+import {GROUP_MODES, SORTS, emptyFilters, hasFilters, searchText, matchesQuery, applyFilters, filterOptions, comparator, groupRows, withNodeInfo} from './list-filter.mjs';
 import {buildTree, withAncestors, breadcrumb, moveTargets, VIEW} from './tree.mjs';
 import {confirmDialog, confirmDanger, choiceDialog, formDialog, infoDialog, guardDirty} from './ag-dialogs.mjs';
 import {windowSize, uiState, subTabs, tabPanelAttrs, bindTablist, fold, bindFolds, fileButton, bindFileButtons, linkButton} from './ag-html.mjs';
@@ -295,6 +295,8 @@ export class LocationsApp extends Base {
   locationsHtml(list) {
     let rows = list, total = list.length, filters = '';
     if (this.gm) {
+      const tpl = nodeTemplates();
+      if (tpl.ok) rows = list = withNodeInfo(list, tpl.list);
       const questChoicesList = questChoices();
       const qName = id => questName(id, questChoicesList) ?? id;
       const mats = materialNames();
