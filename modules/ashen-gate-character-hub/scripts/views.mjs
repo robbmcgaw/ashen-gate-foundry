@@ -207,7 +207,7 @@ export function shellHtml(ctx) {
   if (ctx.limited) return `<div class="agch-root agch-root--limited">${top}<section class="agch-hero ag-card"><img class="agch-portrait" src="${esc(actor.img)}" alt=""><div class="agch-ident__text"><p class="agch-sub">You have limited access to this character.</p></div></section></div>`;
   if (compact) return `<div class="agch-root agch-root--compact">${top}${compactPanelHtml(ctx)}${hotbarsHtml(ctx, true)}${bottomHtml(ctx, null, true)}</div>`;
   const tabs = visibleTabs(), current = tabs.find(t => t.id === tab) ?? tabs[0];
-  const folded = ctx.sheet?.charFolded !== false ? ' agch-root--charfolded' : '';
+  const folded = ctx.sheet?.charFolded === true ? ' agch-root--charfolded' : '';
   const notice = ctx.editable ? '' : '<p class="ag-notice ag-notice--info agch-notice" role="note"><i class="fa-solid fa-eye" aria-hidden="true"></i> View only: you can look but not change or roll for this character.</p>';
   if (!current) return `<div class="agch-root${folded}">${top}<div class="agch-split">${characterPanelHtml(ctx)}
     <section class="agch-pane"><div class="ag-empty"><p class="ag-empty__title">Nothing shared yet.</p><p class="ag-empty__text">Your GM hasn't shared any other sections yet.</p></div></section></div>${hotbarsHtml(ctx)}${bottomHtml(ctx, null, false)}</div>`;

@@ -161,24 +161,28 @@ test('CH-07: Filters (n) counts what is on (not Magic\'s spell level); Clear fil
   assert.doesNotMatch(filtersControl({sheet: {listFilters: {}}}, 'features', ''), /data-key="clear"|Filters \(/);
 });
 
-test('CH-09: the character column folds in a narrow window; Show character opens it and the choice is remembered', async () => {
+test('CH-09: the character column shows by default (0.41.0); Hide character folds it and the choice is remembered', async () => {
   const mem = {};
   globalThis.localStorage = {getItem: k => mem[k] ?? null, setItem: (k, v) => { mem[k] = v; }};
   try {
     installGlobals({user: users.owner});
     const sheet = new Hub({document: makeActor()});
     sheet.render = async () => sheet;
-    assert.equal(sheet.charFolded, true);
+    assert.equal(sheet.charFolded, false);
     let html = await sheet._renderHTML();
+    assert.doesNotMatch(html, /agch-root--charfolded/);
+    assert.match(html, /data-action="char-fold" data-ag-always aria-expanded="true"><i[^>]*><\/i><span>Hide character<\/span>/);
+    assert.deepEqual(mem, {}, 'opening the Hub stores nothing');
+    await ACTIONS['char-fold'](sheet);
+    assert.equal(sheet.charFolded, true);
+    html = await sheet._renderHTML();
     assert.match(html, /<div class="agch-root agch-root--charfolded">/);
     assert.match(html, /data-action="char-fold" data-ag-always aria-expanded="false"><i[^>]*><\/i><span>Show character<\/span>/);
     assert.match(html, /<p class="agch-charsum"><span>HP <b>20 \/ 24<\/b><\/span><span>AC <b>15<\/b><\/span><\/p>/);
+    assert.equal(new Hub({document: makeActor()}).charFolded, true, 'remembered per user (kit uiState)');
+    assert.equal(hubUi().get('charFolded'), true);
     await ACTIONS['char-fold'](sheet);
-    assert.equal(sheet.charFolded, false);
-    html = await sheet._renderHTML();
-    assert.doesNotMatch(html, /agch-root--charfolded/); assert.match(html, /<span>Hide character<\/span>/);
-    assert.equal(new Hub({document: makeActor()}).charFolded, false, 'remembered per user (kit uiState)');
-    assert.equal(hubUi().get('charFolded'), false);
+    assert.equal(new Hub({document: makeActor()}).charFolded, false);
   } finally { delete globalThis.localStorage; }
 });
 

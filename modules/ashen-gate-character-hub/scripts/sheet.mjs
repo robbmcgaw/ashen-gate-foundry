@@ -97,7 +97,7 @@ export const ACTIONS = {
   'open-native': s => { closeMenu(s); return openNativeSheet(s.document); },
   'configure': s => { closeMenu(s); return configureAsk(s); },
   'art-change': (s, t) => { closeMenu(s); return changeArtFor(s, t.dataset.art); },
-  'char-fold': s => { s.charFolded = s.charFolded === false; hubUi().set('charFolded', s.charFolded); return s.render(); },
+  'char-fold': s => { s.charFolded = s.charFolded !== true; hubUi().set('charFolded', s.charFolded); return s.render(); },
   'filters-menu': (s, t) => toggleMenu(s, `filters:${t.dataset.tab}`),
   'more-menu': s => toggleMenu(s, s.menu === 'look' ? null : 'more'),
   // 0.34.0: Level up, Restore backup… and Configure… are items of the header's "⋯" menu, which closes first.
@@ -441,6 +441,15 @@ async function openLinkedActor(actor, entryId) {
   return {ok: true};
 }
 
+/** Moves focus to the next or previous rail tab (wrapping), with the roving tabindex the kit's tablist keeps. */
+export function railStep(tab, dir) {
+  const tabs = [...(tab.parentElement?.querySelectorAll?.('[role="tab"]') ?? [])];
+  const i = tabs.indexOf(tab);
+  if (i < 0) return;
+  const to = tabs[(i + dir + tabs.length) % tabs.length];
+  for (const t of tabs) t.setAttribute('tabindex', t === to ? '0' : '-1');
+  to.focus?.();
+}
 /** Arrow keys in a segmented control (radio group) move to the next choice and pick it. */
 export function segmentStep(button, step) {
   const all = [...(button.parentElement?.querySelectorAll?.('[role="radio"]') ?? [])];
@@ -489,7 +498,7 @@ export function createHubSheetClass(Base) {
       const compact = compactPreference();
       super({...options, position: {...windowSize(compact ? COMPACT_SIZE : CharacterHubSheet.DEFAULT_OPTIONS.position), ...options.position}});
       this.compact = compact;
-      this.charFolded = hubUi().get('charFolded', true, [true, false]);
+      this.charFolded = hubUi().get('charFolded', false, [true, false]);
       this.journeyView = hubUi().get('journeyView', 'journey', JOURNEY_VIEWS.map(v => v.id));
     }
     /** Journey tab's sub-tab (0.38.0): 'journey' or 'biography'. */
@@ -497,8 +506,8 @@ export function createHubSheetClass(Base) {
     /** Biography edits typed but not saved (biography.mjs bioDraft), and the rich fields ready to show. */
     bioDraft = null;
     _bioShown = null;
-    /** Narrow Full window (0.33.0, CH-09): the character column is folded to name, HP and AC (per user, this device). */
-    charFolded = true;
+    /** Narrow Full window (0.33.0, CH-09): the character column is folded to name, HP and AC (per user, this device). 0.41.0: shown by default. */
+    charFolded = false;
     /** Compact view (0.29.0): only the art with its slots, HP and the quick bar. */
     compact = false;
     /** The last Full and Compact window sizes while this Hub is open, so toggling back restores them. */
@@ -626,6 +635,8 @@ export function createHubSheetClass(Base) {
         // 0.33.0 (CH-11): Delete or Backspace on a filled quick-bar slot clears it, like right-click (with Undo).
         if ((ev.key === 'Delete' || ev.key === 'Backspace') && ev.target?.matches?.('.agch-quick__slot.is-filled')) { ev.preventDefault(); this._clearQuickSlot(ev.target); return; }
         if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(ev.key) && ev.target?.matches?.('.ag-segmented > [role="radio"]')) { ev.preventDefault(); segmentStep(ev.target, ev.key === 'ArrowLeft' || ev.key === 'ArrowUp' ? -1 : 1); return; }
+        // 0.41.0: in a narrow window the tab rail is a row, so Left / Right move along it too (the kit binds Up / Down).
+        if ((ev.key === 'ArrowLeft' || ev.key === 'ArrowRight') && ev.target?.matches?.('.agch-rail > [role="tab"]')) { ev.preventDefault(); railStep(ev.target, ev.key === 'ArrowLeft' ? -1 : 1); return; }
         if (ev.key === 'Enter' && ev.target?.matches?.('[data-hpedit]')) { ev.preventDefault(); this.dispatch('hp-apply', ev.target, ev); }
       });
       content.addEventListener?.('submit', ev => ev.preventDefault());
