@@ -42,7 +42,7 @@ const cy=makeActor('cy','[TEST] Cy',[prof(FISH,'Fishing')]);
 const di=makeActor('di','[TEST] Di',[prof(ALCH,'Alchemy')]);
 const all=[ana,bo,cy,di];
 const values={partyRoster:['ana','bo','cy','di'],libraryData:{schema:'ag-ledger/0.1',recipes:[],materials:[]},checkMapping:{}};
-const ledgerModule={active:true,version:'0.31.1',set api(v){api=v},get api(){return api}};
+const ledgerModule={active:true,version:'0.31.2',set api(v){api=v},get api(){return api}};
 globalThis.game={user:gm,users:{contents:users,get:id=>users.find(u=>u.id===id),get activeGM(){return gm;}},items:{contents:world,get:id=>world.find(x=>x.id===id)},
   actors:{contents:all,get:id=>all.find(a=>a.id===id)},socket:{emit:()=>{},on:()=>{}},
   modules:{get:id=>id==='ashen-gate-profession-ledger'?ledgerModule:null},settings:{register:()=>{},registerMenu:()=>{},get:(m,k)=>values[k],set:async(m,k,v)=>{values[k]=v;}}};
@@ -214,4 +214,14 @@ test('malformed or unknown rowIds are rejected like the other grants, never wide
   assert.deepEqual(sigNames(ana),[],'nothing was granted by a rejected call');
   assert.deepEqual((await api.signaturePerks.grant({rowIds:[]})).granted,[]);assert.deepEqual(sigNames(ana),[]);
   assert.equal((await api.signaturePerks.grant({rowIds:null})).granted[0].perks.length,2,'null still means every new row');
+});
+
+test('0.31.2: a character name in the "perk not granted" notice is escaped (notifications show HTML)',async()=>{
+  reset();
+  const name=di.name;di.name='<img src=x onerror=alert(1)> Di';
+  try{
+    await api.awardProfessionXP(di,ALCH,xpForLevel(7));await settle();
+    assert.equal(warns.length,1,'Alchemy Expert had not been announced yet');
+    assert.doesNotMatch(warns[0],/<img/);assert.match(warns[0],/&lt;img src=x onerror=alert\(1\)(&gt;|>) Di reached Expert/);
+  }finally{di.name=name;reset();}
 });
