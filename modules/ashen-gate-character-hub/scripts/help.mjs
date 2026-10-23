@@ -32,7 +32,7 @@ export const HELP_SECTIONS = [
     '<strong>Rests</strong>: the cup (Short Rest) and tent (Long Rest) beside Hit Dice open dnd5e\'s rest dialogs.',
     '<strong>Equipment slots</strong> are a display only. Hover for the item name. <strong>Click</strong> opens the item; <strong>right-click</strong> unequips it. The small <strong>⋯</strong> on a slot has Use, Attune, Swap, Move to party stash and <em>Move to…</em>. Click an empty slot to equip a carried item that fits. A glow means attuned; the border colour is the item\'s rarity. <em>Other equipped</em> under the rings and trinkets lists equipped items that fit no slot (it shows only when there are some).',
     'Equipping an item that needs attunement asks whether to attune. At your limit it lists attuned items so you can unattune one.',
-    '<strong>Narrow window:</strong> when the Full Hub is narrow, the tabs come first and the character folds to its Cinders, the star, HP and AC; <strong>Show character</strong> opens it.'
+    '<strong>Narrow window:</strong> when the Full Hub is narrow, the tabs sit in one slim row at the top (it scrolls sideways if they do not all fit), with the character under them and then the section; only that part scrolls. <strong>Hide character</strong> folds the character to its Cinders, the star, HP and AC and <strong>Show character</strong> opens it again (remembered for you). Mastery &amp; marks, the Ashen Gate bar and the quick bar stay along the bottom.'
   ]],
   ['Tabs and lists', [
     '<strong>Overview</strong>: skills, passives and senses, proficiencies and (with the Profession Ledger) your professions with their tier and level (e.g. <em>Archaeology - Apprentice - Level 1</em>); click Professions to open Ashen Gate → Professions.',

@@ -51,13 +51,12 @@
 /* The character column. --agch-slot follows the kit slot size, a little larger so the art keeps its height. */
 .agch-app .agch-char { --agch-slot: calc(var(--ag-slot) + var(--ag-space-3)); display: flex; flex-direction: column; gap: var(--ag-space-2); min-height: 0; overflow-y: auto; padding: var(--ag-space-2); border: 1px solid var(--ag-border); border-radius: var(--ag-radius-lg); background: radial-gradient(ellipse at 50% 28%, var(--agch-bg-raised), var(--agch-bg) 72%); }
 .agch-app .agch-charfold, .agch-app .agch-charsum { display: none; }
-/* 0.33.0 (CH-09): a narrow Full window puts the tabs first; the character column folds to its name, the actions under it
-   and a short HP / AC line until "Show character" opens it (per user, kit uiState). */
+/* 0.33.0 (CH-09): a narrow Full window puts the tabs first, then the character, then the section; Hide character folds
+   the column to its top row and a short HP / AC line (per user, kit uiState). 0.41.0: the character shows until the user
+   hides it; the tabs are one slim row (below); the tabs, character and
+   section scroll together inside the split, so Mastery & marks and the Ashen Gate quick bar stay pinned at the bottom. */
 @container (max-width: 900px) {
-  .agch-app .agch-root { overflow-y: auto; }
-  .agch-app .agch-split { grid-template-columns: minmax(0, 1fr); grid-template-areas: "rail" "char" "pane"; flex: none; }
-  .agch-app .agch-railcol { flex-direction: row; flex-wrap: wrap; }
-  .agch-app .agch-rail { flex-direction: row; flex-wrap: wrap; align-self: stretch; }
+  .agch-app .agch-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(3, max-content); grid-template-areas: "rail" "char" "pane"; align-content: start; gap: var(--ag-space-2); overflow-y: auto; overscroll-behavior: contain; }
   .agch-app .agch-char { overflow: visible; }
   .agch-app .agch-body { overflow: visible; }
   .agch-app .agch-hotbar { grid-template-columns: minmax(0, 1fr); }
@@ -80,6 +79,18 @@
 }
 .agch-app .agch-rail__tab.is-hidden > i:first-child { opacity: .55; }
 .agch-app .agch-rail__hidden { position: absolute; right: 0; bottom: 0; font-size: var(--ag-text-xs); color: var(--ag-warn); }
+/* 0.41.0: the narrow window's tab row (CH-09), after the rail rules above so it wins: small icon and name side by side,
+   one row at the kit's small control height, sticky at the top of the split and scrolling sideways when it does not fit. */
+@container (max-width: 900px) {
+  .agch-app .agch-railcol { position: sticky; top: 0; z-index: 2; flex-direction: row; min-width: 0; background: var(--agch-bg); }
+  .agch-app .agch-rail { flex: 1 1 auto; flex-direction: row; flex-wrap: nowrap; min-width: 0; overflow-x: auto; overflow-y: hidden; align-self: stretch; scrollbar-width: thin; }
+  .agch-app .agch-rail .agch-rail__tab { flex: none; display: inline-flex; align-items: center; gap: var(--ag-space-1); width: auto; min-width: 0; height: var(--ag-control-h-sm); min-height: 0; padding: 0 var(--ag-space-2); font-size: var(--ag-text-sm); border-radius: var(--ag-radius-control); }
+  .agch-app .agch-rail__label { font-size: var(--ag-text-xs); line-height: 1; white-space: nowrap; overflow-wrap: normal; }
+  .agch-app .agch-rail__tab.ag-tab--gm::after { margin-left: 0; white-space: nowrap; }
+  /* The row scrolls sideways (so it clips), so the focus ring sits just inside the tab. */
+  .agch-app .agch-rail .agch-rail__tab:focus-visible { outline-offset: -2px; }
+  .agch-app .agch-rail__hidden { position: static; }
+}
 /* Ashen Gate quick bar (0.29.0): a thin bar along the bottom edge; wraps on narrow windows, never clipped. */
 .agch-app .agch-agbar { flex: none; display: flex; flex-wrap: wrap; justify-content: center; gap: var(--ag-space-1); padding-top: var(--ag-space-1); border-top: 1px solid var(--ag-border); }
 .agch-app .agch-agbar__btn { font-size: var(--ag-text-md); }

@@ -11,6 +11,16 @@ Robb's requests: connect the quick bar and Foundry's hotbar both ways; a roll fr
 - **Item icons use the item:** in Combat, Inventory, Magic and Features, clicking an item's icon uses it (cast, attack, drink, dnd5e's activity chooser when there are several), like a quick-bar slot; clicking the name still opens it. Items with nothing to use (plain loot) open from the icon too. Only for characters you own; observers see the plain icon. Dragging rows, More, right-click and the quick-bar drag work as before.
 - Saved data: a new per-user client setting (`linkFoundryHotbar`, default on) and the first-link answer on your User (`flags.ashen-gate-character-hub.hotbarLink`). The quick bar flag is unchanged. No migration.
 
+## 0.41.0 — 2026-10-23
+
+Robb's request: in a narrow Hub, show the character by default, make the tab row smaller, and keep the Ashen Gate buttons and the quick bar at the bottom.
+
+- **Character shown by default:** when the Full Hub is narrow (about 900 px or less), the whole character column now shows under the tabs. **Hide character** folds it to the Cinders, the star and a short HP / AC line; **Show character** opens it again. The Hub still remembers your choice on this computer. Nothing is saved until you click the button (it never was), so anyone who folded it on purpose keeps it folded; everyone else now sees it open.
+- **Smaller tab row:** in a narrow Hub the sections sit in one slim row: a small icon with the name beside it, at the kit's small button height (the row is about 32 px tall instead of 44 px). It stays at the top while you scroll. If all the tabs don't fit, the row scrolls sideways instead of wrapping; names are never cut off. Left / Right arrow keys move along the row (Up / Down still work), and the focus ring sits just inside the tab so it is never cut off.
+- **Bottom stays put:** in a narrow Hub only the tabs, character and section scroll. Mastery & marks, the conditions strip, the Ashen Gate bar, the **Quick bar** button and the quick bar itself (when open) stay pinned along the bottom of the window. Before, the whole window scrolled and long sections pushed them off the bottom. The quick bar's keys 1-9 and 0 work as before, open or closed.
+- The wide layout and Compact are unchanged.
+- Saved data: no change. No migration.
+
 ## 0.40.0 — 2026-10-23
 
 Robb's request: change the character's name in the Hub, and show a title beside it.
