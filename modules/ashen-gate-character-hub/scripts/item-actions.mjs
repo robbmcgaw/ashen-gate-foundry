@@ -8,6 +8,7 @@ import {requirePart} from './visibility.mjs';
 import {attunementData, SLOTS} from './items.mjs';
 import {electrumHidden} from './partners.mjs';
 import {choiceDialog} from './ag-dialogs.mjs';
+import {renderBeside} from './popout.mjs';
 
 const refuse = error => ({ok: false, error});
 const SLOT_IDS = new Set(SLOTS.map(s => s.id));
@@ -63,10 +64,10 @@ export async function useItem(actor, id, event, anchor = null) {
 }
 
 /** Viewing an item sheet only needs to see the character; the item sheet itself enforces editing. */
-export async function openItemSheet(actor, id) {
+export async function openItemSheet(actor, id, hub = null) {
   const item = ownedItem(actor, id);
   if (!item) return refuse('That item is no longer on this character.');
-  return run('open the item', () => item.sheet?.render?.({force: true}) ?? item.sheet?.render?.(true));
+  return run('open the item', () => (item.sheet ? renderBeside(hub, item.sheet) : undefined));
 }
 
 export async function setQuantity(actor, id, raw) {

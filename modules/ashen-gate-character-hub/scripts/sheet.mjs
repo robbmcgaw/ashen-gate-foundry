@@ -89,7 +89,7 @@ export const ACTIONS = {
   'hotbar-use': (s, t, e) => hotbar.useHotbarSlot(s.document, t.dataset.hotbarSlot, e, t.getBoundingClientRect ? t : s.element?.querySelector?.(`[data-hotbar-slot="${t.dataset.hotbarSlot}"]`) ?? s.element ?? null),
   'hotbar-undo': (s, t) => s.undoList.undo(t.dataset.undo),
   'item-favorite': (s, t) => items.toggleFavorite(s.document, t.dataset.id),
-  'slot-open': (s, t) => items.openItemSheet(s.document, t.dataset.id),
+  'slot-open': (s, t) => items.openItemSheet(s.document, t.dataset.id, s),
   'menu-close': s => toggleMenu(s, null),
   'item-deposit': (s, t) => { s.menu = null; return depositToParty(s.document, t.dataset.id, act.canEdit); },
   'slot-equip': (s, t) => { s.menu = null; return items.equipItem(s.document, t.dataset.id, {slot: t.dataset.slot}); },
@@ -134,7 +134,7 @@ export const ACTIONS = {
   'roll-skill': (s, t, e) => act.rollSkill(s.document, t.dataset.skill, e),
   'roll-death': (s, t, e) => act.rollDeathSave(s.document, e),
   'item-use': (s, t, e) => items.useItem(s.document, t.dataset.id, e, t),
-  'item-sheet': (s, t) => items.openItemSheet(s.document, t.dataset.id),
+  'item-sheet': (s, t) => items.openItemSheet(s.document, t.dataset.id, s),
   'item-qty': (s, t) => { const item = s.document.items?.get?.(t.dataset.id); return items.setQuantity(s.document, t.dataset.id, Number(item?.system?.quantity ?? 0) + Number(t.dataset.step)); },
   'item-equip': (s, t) => items.equipItem(s.document, t.dataset.id),
   'item-unequip': (s, t) => items.unequipItem(s.document, t.dataset.id),
@@ -241,13 +241,13 @@ export async function configureAsk(sheet, pick = configPick) {
   const value = await pick(configChoices(sheet.document));
   if (!value) return null;
   const [kind, key = null] = String(value).split(':');
-  return openConfig(sheet.document, kind, key);
+  return openConfig(sheet.document, kind, key, sheet);
 }
 /** Change portrait… / Change token art… (0.33.0, CH-12): the same picker as double-clicking the art. */
 function changeArtFor(sheet, mode) {
   if (!sheet.hubContext.editable) return null;
   const pos = sheet.position ? {top: (sheet.position.top ?? 0) + 40, left: (sheet.position.left ?? 0) + 10} : null;
-  return changeArt(sheet.document, mode === 'token' ? 'token' : 'portrait', {position: pos});
+  return changeArt(sheet.document, mode === 'token' ? 'token' : 'portrait', {position: pos, hub: sheet});
 }
 /**
  * Player visibility Quick set (0.33.0, CH-21): it sets every switch at once, so it asks first, naming what players will
@@ -766,7 +766,7 @@ export function createHubSheetClass(Base) {
       const cfg = event.target?.closest?.('[data-config]');
       if (!cfg) return null;
       event.preventDefault(); event.stopPropagation();
-      return openConfig(this.document, cfg.dataset.config, cfg.dataset.configKey ?? null).then(report);
+      return openConfig(this.document, cfg.dataset.config, cfg.dataset.configKey ?? null, this).then(report);
     }
 
     /** Clears a quick-bar slot (right-click, or Delete / Backspace on it) and offers Undo for 5 seconds. */
@@ -785,7 +785,7 @@ export function createHubSheetClass(Base) {
       if (!this.hubContext.editable) return null;
       event.preventDefault?.();
       const pos = this.position ? {top: (this.position.top ?? 0) + 40, left: (this.position.left ?? 0) + 10} : null;
-      return changeArt(this.document, pane.dataset.artEdit === 'token' ? 'token' : 'portrait', {position: pos}).then(report);
+      return changeArt(this.document, pane.dataset.artEdit === 'token' ? 'token' : 'portrait', {position: pos, hub: this}).then(report);
     }
 
     /** Double-click (or Enter) on the HP bar opens the small HP editor. Only for users who can edit the character. */

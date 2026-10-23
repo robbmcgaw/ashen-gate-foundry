@@ -4,6 +4,7 @@
  * so the Hub stores nothing. Like the standard sheet, only users who can edit the character (owner or GM) may open them.
  */
 import {canEdit} from './actions.mjs';
+import {renderBeside} from './popout.mjs';
 
 const actorApps = () => globalThis.dnd5e?.applications?.actor ?? {};
 const sharedApps = () => globalThis.dnd5e?.applications?.shared ?? {};
@@ -26,7 +27,7 @@ export const CONFIGS = {
 };
 
 /** Opens dnd5e's configuration window for one value. Resolves to {ok, result | error}. */
-export async function openConfig(actor, kind, key = null) {
+export async function openConfig(actor, kind, key = null, hub = null) {
   const make = CONFIGS[kind];
   if (!make) return {ok: false, error: `Nothing to configure for ${kind}.`};
   if (!canEdit(actor)) return {ok: false, error: `You don't own ${actor?.name ?? 'this character'}, so you can't change its settings.`};
@@ -34,7 +35,7 @@ export async function openConfig(actor, kind, key = null) {
   if (typeof cls !== 'function') return {ok: false, error: 'This version of dnd5e has no configuration window for that. Use the native sheet.'};
   try {
     const app = new cls({document: actor, ...options});
-    await app.render({force: true});
+    await renderBeside(hub, app);
     return {ok: true, result: app};
   } catch (err) {
     console.error('ashen-gate-character-hub | configure', kind, err);
