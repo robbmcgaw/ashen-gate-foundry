@@ -13,7 +13,7 @@ import {SKILL_IDS,SKILL_LABELS,MODE_LABELS,craftCheckPlan,professionKey,effectiv
   checkOption,rollModeFor,rollCheck,formatBonus,CROSSWALK_LISTS,DEFAULT_PROFESSION_TOOLS,DEFAULT_GATHER_SKILLS,migrateCheckMapping,compactCheckMapping,advantageToolsOf,advantageItemsOf,cleanItemList,
   TOOL_GROUP_KEYS,isToolGroup,toolProficiencyMatches,expandToolGroups} from './checks.mjs';
 import {allProfessions,categoryOfKey,declaredCategory} from './professions.mjs';
-import {PROFESSION_KEYS,professionTitle,meetsAccess,catalogCrosswalk,definitionProfessionKey,unmappedProfessions,assignmentPlan,rowId,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
+import {PROFESSION_KEYS,professionTitle,meetsAccess,catalogCrosswalk,definitionProfessionKey,unmappedProfessions,assignmentPlan,rowId,startingRecipePlan,isStartingRecipe,parseBaselineFile,baselineChanges,exportCrosswalk} from './assign.mjs';
 import {DEFAULT_DC_BY_TIER,tierName,defaultDC,normalizeNode,gatherOutcome,gatherReward,exhaustsNode,helperEligibility,checkGatherRequest,canRunGathering,nodeBlocker,startBlocker,playerBlocker,GATHER_FIX,
   stackMaterial,DRAFT_STATES} from './gathering.mjs';
 import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TABLE_LABELS,activityLabel,skillText,nodeIdFromName,checkTemplate,normalizeStore,plainTemplate,saveTemplate,
@@ -21,7 +21,7 @@ import {NODE_SCHEMA,NODE_ID,ACTIVITIES,ACTIVITY_KEYS,NODE_PROFESSIONS,TABLES,TAB
 import {EXOTIC_SETTING,DEFAULT_EXOTIC_PERCENT,EXOTIC_MODES,DESIGNATED_CONDITIONS,GATHERING_KEYS,clampPercent,normalizeExotics,materialMeta,filterMaterials,
   exoticEligibility,resolveGatherRewards,defaultRoll,nodeProfessionKey,professionKeyFromId,materialProfessionKeys} from './exotic.mjs';
 const ID='ashen-gate-profession-ledger';
-const VERSION='0.29.2';
+const VERSION='0.30.0';
 const MAX_PROFESSION_LEVEL=16;
 /** Called on the GM client whenever a gather or craft chat card offers an XP award. Nothing listens yet:
  * this is the seam for later automation. Payload: {kind, actorId, professionId, professionName, suggested, messageId, ...};
@@ -130,6 +130,8 @@ const GM_VIEWS=new Set(['gm','assign','nodes']);
 /** 0.26.0 sub-tabs (kit 2.2). The chosen one is remembered per user on this device (uiState), never in world data. */
 const GM_SETUP_TABS=[{id:'party',label:'Party'},{id:'tools',label:'Tools and checks'},{id:'gather',label:'Gathering & crafting'},{id:'access',label:'Player Access'}];
 const GATHER_TAB_IDS=['requests','active','start'];
+/** 0.30.0 Assign sub-tabs. */
+const ASSIGN_TABS=[{id:'professions',label:'Professions'},{id:'recipes',label:'Starting recipes'}];
 const LEGACY_VIEWS={materials:'party',recipes:'party',planner:'individual',learning:'individual',roster:'gm'};
 const HIDDEN_STATUSES=['draft','proposed','superseded','retired','placeholder'];
 const hiddenFromPlayers=(recipe)=>HIDDEN_STATUSES.includes(recipe?.status)||['gm','reveal_gated'].includes(recipe?.sourceVisibility);
@@ -670,6 +672,84 @@ async function assignProfessions({actorIds=null,rowIds=null}={}){
     }finally{assignLocks.delete(actorId);}
   }
   return {added,skipped};
+}
+/* ---- Starting recipes (0.30.0, GM only) -------------------------------------------------------
+ * The GM grants the `starting: true` recipes of each player character's professions straight into its known recipes
+ * (the same knownRecipes Actor flag Learn writes), without a recipe item. Separate from learnRecipe, whose rule that the
+ * GM doesn't learn for player-owned characters is unchanged. Never removes or duplicates a known recipe. */
+const requireGrantGM=()=>{if(!game.user?.isGM)throw Error('Only the GM can grant starting recipes');};
+const isPlayerCharacter=a=>a?.type==='character'&&!isLevelBackup(a)&&a.hasPlayerOwner===true;
+/** The given characters (each must be a player character; a level backup is refused), else Assign's party, player characters only. */
+function grantActors(actorIds=null){
+  if(Array.isArray(actorIds)&&actorIds.length)return [...new Set(actorIds)].map(id=>{const a=actorById(id);
+    if(!a)throw Error('Character not found');
+    if(!isPlayerCharacter(a))throw Error(`${a.name} is not a player character: starting recipes go to player-owned characters only.`);
+    return a;});
+  return assignActors().filter(isPlayerCharacter);
+}
+/** PROF-* ids and profession keys a character holds (any profession feature, as Assign counts them). */
+function heldProfessionsOf(actor){
+  const ids=heldProfessionIds(actor),keys=heldProfessionKeys(actor);
+  for(const id of ids){const k=definitionProfessionKey(id,'');if(k)keys.add(k);}
+  return {ids,keys};
+}
+/** '' when players may have this recipe; else why it is not granted (named after what the GM fixes in General Manager). */
+function startingUnreleased(recipe){
+  const status=String(recipe?.status??''),vis=recipe?.sourceVisibility;
+  if(HIDDEN_STATUSES.includes(status))return `${status[0].toUpperCase()}${status.slice(1)}: not released to players. Approve it in General Manager.`;
+  if(vis==='gm')return 'GM-only: not released to players. Make it player-visible in General Manager.';
+  if(vis==='reveal_gated')return 'Reveal-gated: not released to players yet. Reveal it in General Manager.';
+  if(vis!=='player')return 'Not released to players: make it player-visible in General Manager.';
+  return '';
+}
+/** GM dry run: the starting recipes each player character would get. Writes nothing. */
+function startingRecipesPreview({actorIds=null}={}){
+  requireGrantGM();
+  const actors=grantActors(actorIds),lib=catalog(),byId=new Map(lib.recipes.map(r=>[r.id,r]));
+  const rows=startingRecipePlan(actors,lib.recipes,{heldProfessions:heldProfessionsOf,known:knownRecipesOf,unreleased:startingUnreleased})
+    .map(r=>({...r,recipeName:recipeTitle(r.recipeName),profession:professionLabel(byId.get(r.recipeId))}));
+  return {actors:actors.map(a=>{const h=heldProfessionsOf(a);return {id:a.id,name:a.name,hasProfession:h.ids.size>0||h.keys.size>0};}),
+    rows,startingRecipes:lib.recipes.filter(isStartingRecipe).length};
+}
+const grantLocks=new Set();
+/**
+ * GM: `preview` (the default) returns the dry run and writes nothing. `preview: false` adds the 'new' rows (`rowIds`
+ * limits it to those) to each character's known recipes, re-checked just before writing, so a second run grants
+ * nothing. All or nothing: if one character can't be updated, the characters already updated are put back.
+ * Returns {granted:[{actorId, actorName, recipes:[{id, name, profession}]}], skipped}.
+ */
+async function grantStartingRecipes({preview=true,actorIds=null,rowIds=null}={}){
+  requireGrantGM();
+  const plan=startingRecipesPreview({actorIds});
+  if(preview!==false)return {preview:true,...plan};
+  const picked=plan.rows.filter(r=>r.status==='new'&&(!Array.isArray(rowIds)||rowIds.includes(r.id)));
+  const ids=[...new Set(picked.map(r=>r.actorId))];
+  if(ids.some(id=>grantLocks.has(id)))throw Error('Starting recipes are already being granted');
+  const granted=[],skipped=[],written=[];
+  ids.forEach(id=>grantLocks.add(id));
+  try{
+    for(const actorId of ids){
+      const actor=actorById(actorId);
+      if(!isPlayerCharacter(actor))throw Error('Character not found');
+      const raw=actor.flags?.[ID]?.knownRecipes,before=Array.isArray(raw)?[...raw]:[],known=new Set(knownRecipesOf(actor)),add=[];
+      for(const row of picked.filter(r=>r.actorId===actorId)){
+        if(known.has(row.recipeId)){skipped.push({...row,reason:'already known'});continue;}
+        known.add(row.recipeId);add.push(row);
+      }
+      if(!add.length)continue;
+      try{await actor.setFlag(ID,'knownRecipes',[...before,...add.map(r=>r.recipeId)]);}
+      catch(err){
+        for(const w of written.reverse())try{await w.actor.setFlag(ID,'knownRecipes',w.before);}catch(rollback){
+          console.error(`[${ID}] Starting recipe rollback failed`,rollback);
+          throw Error(`Starting recipes: ${actor.name} could not be updated AND putting back ${w.actor.name}'s known recipes failed; check ${w.actor.name}'s known recipes before retrying`);
+        }
+        throw Error(`Starting recipes were not granted: ${actor.name} could not be updated (${err.message}). Nothing was changed.`);
+      }
+      written.push({actor,before});
+      granted.push({actorId,actorName:actor.name,recipes:add.map(r=>({id:r.recipeId,name:r.recipeName,profession:r.profession}))});
+    }
+  }finally{ids.forEach(id=>grantLocks.delete(id));}
+  return {preview:false,granted,skipped};
 }
 /**
  * What a recipe needs at the bench. Its own tool wins; a workstation-only recipe needs no tool; otherwise
@@ -1853,6 +1933,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     this.coreAwardDraft=null;
     this.accessDraft=null;
     this.assignState={target:'party',preview:null,selected:new Set()};
+    // 0.30.0 Assign → Starting recipes: target, dry run, ticked rows and the last grant's result.
+    this.grantState={target:'party',preview:null,selected:new Set(),result:null};this.assignTab=null;
     // 0.25.0 Gathering Nodes tab: the open editor draft, an import preview, and the activity filter.
     this.nodeDraft=null;this.nodeImport=null;this.nodeFilter='all';
     // 0.26.0: sub-tabs shown (null: pick on first show), and the node editor's unsaved-edit guard (kit guardDirty).
@@ -2061,9 +2143,45 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     return fold({key:'baseline',title:'Baseline file',hint:rec?(rec.fileName||'imported file'):'none imported',body:`<p class="agl-sub"><b>Baseline file</b>: ${rec?`${esc(rec.fileName||'imported file')}, imported ${esc(String(rec.importedAt??'').slice(0,10))}`:'none imported'}. Layers, lowest first: built in, Profession catalog, baseline file, your edits here (your edits always win; Reset a row to fall back). ${badge('Applies now')} Apply baseline saves at once, not with Save Changes.</p>
       <div class="ag-btn-group">${fileButton({label:'Import baseline file…',accept:'application/json,.json',data:{aglFile:'baseline'}})}<button type="button" class="ag-btn" data-action="xwalk-export"><i class="fa-solid fa-file-export" aria-hidden="true"></i> Export current table</button></div>`})+preview;
   }
-  /** GM: assign the profession features characters qualify for (dry run, then confirm). Not part of GM Setup. */
+  /** GM Assign: sub-tabs Professions and (0.30.0) Starting recipes; both panels rendered, the other hidden. */
   _assign(){
     if(!game.user.isGM)return emptyState('Assign is restricted to the GM.');
+    const tab=this.assignTab=ASSIGN_TABS.some(t=>t.id===this.assignTab)?this.assignTab:this._ui.get('assignTab','professions',ASSIGN_TABS.map(t=>t.id));
+    const panels={professions:this._assignProfessions(),recipes:this._assignRecipes()};
+    return `${subTabs({group:'agl-assign',label:'Assign',tabs:ASSIGN_TABS,selected:tab})}
+      ${ASSIGN_TABS.map(t=>`<div class="agl-subpanel" ${tabPanelAttrs('agl-assign',t.id,{hidden:t.id!==tab})}>${panels[t.id]}</div>`).join('')}`;
+  }
+  /** 0.30.0 GM: grant the starting recipes of each player character's professions (dry run, then confirm). */
+  _assignRecipes(){
+    const g=this.grantState,party=assignActors().filter(isPlayerCharacter),chars=allCharacters().filter(isPlayerCharacter);
+    const target=`<label class="ag-field ag-field--inline">Characters <select data-grant-target><option value="party" ${g.target==='party'?'selected':''}>Whole party (${party.length})</option>${chars.map(c=>`<option value="${esc(c.id)}" ${g.target===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label>`;
+    const result=g.result?`<div class="agl-section" role="status"><h3>Granted</h3>${g.result.granted.length
+      ?`<ul>${g.result.granted.map(x=>`<li><b>${esc(x.actorName)}</b> (${x.recipes.length}): ${esc(x.recipes.map(r=>r.name).join(', '))}</li>`).join('')}</ul>`
+      :'<p class="agl-sub">Nothing new was granted.</p>'}</div>`:'';
+    const p=g.preview;
+    let body='<p class="agl-sub">Preview lists the starting recipes of each player character’s professions. Nothing changes until you confirm.</p>';
+    if(p){
+      const fresh=p.rows.filter(r=>r.status==='new');
+      const groups=p.actors.map(act=>{const rows=p.rows.filter(r=>r.actorId===act.id),n=rows.filter(r=>r.status==='new').length,k=rows.filter(r=>r.status==='known').length;
+        const note=!act.hasProfession?'no profession yet':!rows.length?'no starting recipes for their professions':`${n?`${plural(n,'recipe')} to grant`:'nothing to grant'}${k?`, ${k} already known`:''}`;
+        return `<tr class="agl-map-group agl-assign-actor"><th colspan="4" scope="rowgroup">${esc(act.name)} <span class="agl-sub">— ${esc(note)}</span></th></tr>${rows.map(r=>`<tr>
+          <td>${r.status==='new'?`<input type="checkbox" data-grant-row="${esc(r.id)}" ${g.selected.has(r.id)?'checked':''} aria-label="Grant ${esc(r.recipeName)} to ${esc(r.actorName)}">`:''}</td>
+          <td>${esc(r.recipeName)}</td><td>${esc(r.profession)}</td>
+          <td>${r.status==='new'?badge('Will grant','ok'):r.status==='known'?badge('Already known','muted'):`${badge('Not granted','warn')} <span class="agl-reason">${esc(r.reason)}</span>`}</td></tr>`).join('')}`;}).join('');
+      body=`${p.startingRecipes?'':'<p class="agl-sub">No imported recipe is marked as a starting recipe. Import the recipes with General Manager.</p>'}
+        ${groups?`<div class="ag-table-wrap agl-map-wrap"><table class="ag-table agl-map agl-assign"><thead><tr><th scope="col"><span class="ag-sr-only">Grant</span></th><th scope="col">Recipe</th><th scope="col">Profession</th><th scope="col">Result</th></tr></thead><tbody>${groups}</tbody></table></div>`
+          :emptyState('No player characters to check.','Choose the party in GM Setup, or pick one character above.')}
+        <p class="agl-sub">${fresh.length?`${plural(fresh.length,'starting recipe')} to grant. Granting adds them to the known recipes: no recipe item is needed or used up, and no known recipe is removed. A recipe above the character’s level is known but can’t be crafted until the level is reached.`:'Nothing new to grant.'}</p>
+        <div class="agl-management-actions"><button type="button" class="ag-btn" data-action="grant-apply" data-id="selected" ${[...g.selected].some(id=>fresh.some(r=>r.id===id))?'':'disabled'}>Grant selected…</button>
+          <button type="button" class="ag-btn ag-btn--primary" data-action="grant-apply" data-id="all" ${fresh.length?'':'disabled'}>Grant all new (${fresh.length})…</button></div>`;
+    }
+    return `<section class="ag-card agl-panel"><h2>Grant starting recipes</h2>
+      <p class="agl-sub">Adds the recipes marked as starting recipes for the professions each player character has to their known recipes. Run it again after a character gains a profession; recipes they already know are skipped.</p>
+      <div class="ag-toolbar agl-toolbar">${target}<button type="button" class="ag-btn" data-action="grant-preview"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i> Preview</button></div>
+      ${result}${body}</section>`;
+  }
+  /** GM: assign the profession features characters qualify for (dry run, then confirm). Not part of GM Setup. */
+  _assignProfessions(){
     const a=this.assignState,party=assignActors(),chars=allCharacters();
     const target=`<label class="ag-field ag-field--inline">Characters <select data-assign-target><option value="party" ${a.target==='party'?'selected':''}>Whole party (${party.length})</option>${chars.map(c=>`<option value="${esc(c.id)}" ${a.target===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}</select></label>`;
     const p=a.preview;
@@ -2105,7 +2223,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     ${game.user.isGM?'<p><strong>Gathering (GM):</strong> three sub-tabs. <em>Requests</em> lists what players asked for (Approve or Decline); <em>Active checks</em> holds the open checks and the last result; <em>Start gathering</em> starts a check on a Location node, a node template or an ad-hoc node. The Gathering tab opens on Requests when any are waiting.</p>':''}
     ${game.user.isGM?'<p><strong>Gathering Nodes:</strong> reusable gathering spots (NODE-* ids) with an activity, profession(s), tier range, check, DC and common/rare/exotic material tables. Roll on one from anywhere (Gathering → Start gathering → Node template), point a Location at one by id, or import/export node files. Edit opens the node in place of the list; <em>All nodes</em> or Cancel goes back to where you were. <em>Copy Location nodes</em> makes templates from the gathering nodes your Locations already have, without changing Locations. Draft materials are listed for you, marked; tick <em>Use draft materials anyway</em> on the Gathering tab to award one.</p>':''}
     ${game.user.isGM?'<p><strong>Recipe names (GM):</strong> GM Setup → Tools and checks → <em>Recipe names</em> sets what each profession calls a recipe, singular and plural. Leave a box empty to use the default shown in grey (from the imported Profession content, else the built-in draft name, else Recipe). Only the words shown change, saved with <b>Save Changes</b>.</p>':''}
-    ${game.user.isGM?'<p><strong>Assign:</strong> preview which profession features each party character qualifies for from their skill and tool proficiencies (the Skill to Access and Tool to Access in GM Setup → Tools and checks), then add the missing ones. Re-running adds nothing new; XP is never changed.</p>':''}
+    ${game.user.isGM?'<p><strong>Assign:</strong> preview which profession features each party character qualifies for from their skill and tool proficiencies (the Skill to Access and Tool to Access in GM Setup → Tools and checks), then add the missing ones. Re-running adds nothing new; XP is never changed. Its <em>Starting recipes</em> sub-tab previews the recipes marked as starting recipes for each player character’s professions, then grants them as known recipes without a recipe item. Recipes already known are skipped, and recipes not released to players are not granted; press it again after a character gains a profession.</p>':''}
     ${game.user.isGM?'<p><strong>GM Setup:</strong> sub-tabs <em>Party</em>, <em>Tools and checks</em>, <em>Gathering &amp; crafting</em> and <em>Player Access</em>; every change on any of them is saved together with <b>Save Changes</b>, and <b>Cancel</b> discards them and stays on GM Setup. <em>Tools and checks</em> has one row per profession, crafting, gathering, then creative (Artistry; <em>Any musical instrument</em> matches any instrument proficiency): the skills and tools that give access (any one qualifies; the first skill and tool are also the profession’s checks) and, for gathering, the tools that give advantage (gathering professions only; ignored for crafting). Click a cell to tick several values; under it you see where its value comes from (default, imported content, baseline file or your edit). Its <em>Baseline file</em> section imports a baseline crosswalk file (preview, then Apply baseline, which saves at once) and exports the current table. General Manager imports recipes and materials; the older Ledger JSON import is under <em>Advanced</em> at the end of the Recipe Catalog. XP is awarded from the Individual tab.</p>':''}
   `;}
   /** Ad-hoc node from the GM's form; same shape as a Locations entry. */
@@ -2502,6 +2620,8 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
       if(e.target?.matches?.('[data-map-cell]')&&game.user.isGM){this._rememberMapDraft(e.target);return;}
       if(e.target?.matches?.('[data-assign-target]')&&game.user.isGM){this.assignState={target:e.target.value,preview:null,selected:new Set()};this.render();return;}
       if(e.target?.matches?.('[data-assign-row]')&&game.user.isGM){const id=e.target.dataset.assignRow;if(e.target.checked)this.assignState.selected.add(id);else this.assignState.selected.delete(id);this.render();return;}
+      if(e.target?.matches?.('[data-grant-target]')&&game.user.isGM){this.grantState={target:e.target.value,preview:null,selected:new Set(),result:null};this.render();return;}
+      if(e.target?.matches?.('[data-grant-row]')&&game.user.isGM){const id=e.target.dataset.grantRow;if(e.target.checked)this.grantState.selected.add(id);else this.grantState.selected.delete(id);this.render();return;}
       if(e.target?.matches?.('[data-roster-actor]')&&game.user.isGM)this._rememberRosterDraft();
     },{signal});
     this.element.querySelector('[data-agl-search]')?.addEventListener('input',e=>{this.query=e.target.value;this._applySearch();},{signal});
@@ -2518,6 +2638,7 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
     }
     if(tab.id.startsWith('agl-gm-setup-')&&GM_SETUP_TABS.some(t=>t.id===id))this._ui.set('gmSetupTab',this.gmTab=id);
     if(tab.id.startsWith('agl-gather-')&&GATHER_TAB_IDS.includes(id))this._ui.set('gatherTab',this.gatherTab=id);
+    if(tab.id.startsWith('agl-assign-')&&ASSIGN_TABS.some(t=>t.id===id))this._ui.set('assignTab',this.assignTab=id);
   }
   /** A file picked with one of the kit file buttons: catalog JSON, baseline file or node file. */
   async _readFile(kind,file){
@@ -2608,6 +2729,19 @@ class LedgerApp extends HandlebarsApplicationMixin(ApplicationV2){
         const out=await assignProfessions({actorIds:a.target==='party'?null:[a.target],rowIds:rows.map(r=>r.id)});
         a.preview=assignPreview({actorIds:a.target==='party'?null:[a.target]});a.selected=new Set();
         this.notice=`Added ${plural(out.added.length,'profession feature')}${out.skipped.length?`; ${out.skipped.length} skipped (already there)`:''}.`;this.render();say(this.notice);return;}
+      if(action==='grant-preview'){requireGrantGM();const g=this.grantState;
+        g.preview=startingRecipesPreview({actorIds:g.target==='party'?null:[g.target]});g.selected=new Set(g.preview.rows.filter(r=>r.status==='new').map(r=>r.id));g.result=null;this.render();return;}
+      if(action==='grant-apply'){requireGrantGM();const g=this.grantState;if(!g.preview)throw Error('Preview first');
+        const rows=g.preview.rows.filter(r=>r.status==='new'&&(id==='all'||g.selected.has(r.id)));
+        if(!rows.length)throw Error('Nothing selected to grant');
+        const byActor=[...new Set(rows.map(r=>r.actorName))].map(n=>`• ${n}: ${rows.filter(r=>r.actorName===n).map(r=>r.recipeName).join(', ')}`);
+        const ok=await confirmDialog(`Grant these starting recipes:\n${byActor.join('\n')}\nNo recipe item is needed or used up, and no known recipe is removed.`,{title:'Grant starting recipes?',yes:'Grant recipes'});
+        if(!ok)return;
+        const actorIds=g.target==='party'?null:[g.target];
+        const out=await grantStartingRecipes({preview:false,actorIds,rowIds:rows.map(r=>r.id)});
+        g.result=out;g.preview=startingRecipesPreview({actorIds});g.selected=new Set();
+        const total=out.granted.reduce((n,x)=>n+x.recipes.length,0);
+        this.notice=total?`Granted ${plural(total,'starting recipe')} to ${plural(out.granted.length,'character')}.`:'Nothing new to grant.';this.render();say(this.notice);return;}
       if(action==='manager'){if(!game.user.isGM)throw Error('GM only');const m=game.modules.get('ashen-gate-manager');const api=m?.active?m.api:null;if(api?.open)api.open();else say('Ashen Gate Manager is not enabled.',true);return;}
       if(action==='skilltree'){const module=game.modules.get('ashen-gate-skill-trees');const api=module?.active?module.api:null;
         if(!api?.open){say('Skill Trees is not enabled.',true);return;}
@@ -2992,6 +3126,8 @@ Hooks.once('ready',()=>{
     /** GM only (0.16.0): profession assignment from skill/tool proficiencies. preview changes nothing; apply adds missing PROF-* Items. */
     assign:{preview:options=>{checkPlayerLedger();return structuredClone(assignPreview(options));},
       apply:options=>{checkPlayerLedger();return assignProfessions(options);}},
+    /** GM only (0.30.0): grantStartingRecipes({preview = true, actorIds?, rowIds?}). See the README. */
+    grantStartingRecipes:async options=>{checkPlayerLedger();return structuredClone(await grantStartingRecipes(options));},
     /** GM only (0.20.0): baseline file import (preview, then apply) and export of the current crosswalk table. */
     crosswalk:{previewBaseline:data=>structuredClone(previewBaseline(data)),applyBaseline:(data,options)=>applyBaseline(data,options),
       exportTable:()=>exportCurrentCrosswalk(),baseline:()=>{requireCrosswalkGM();return structuredClone(baselineRecord());}},

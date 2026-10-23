@@ -1,3 +1,11 @@
+## 0.30.0 — 2026-10-23
+
+- **Grant starting recipes (GM):** **Assign** now has two sub-tabs, **Professions** (the profession assignment, unchanged) and **Starting recipes**. Pick the whole party or one character and press **Preview**: for each player character it lists the recipes marked as starting recipes (`starting: true` in the content) for the professions that character has, each as **Will grant**, **Already known** or **Not granted** (a draft, GM-only or otherwise unreleased recipe, with what to fix in General Manager). The header of each character says how many it gets; a character with no profession says so. Nothing changes until you confirm with **Grant all new (n)…** or **Grant selected…**; the window then lists what each character got.
+- Granted recipes become known recipes exactly as if learned: no recipe item is needed or used up, nothing already known is removed or doubled, and pressing it again grants nothing new. A character who gains a profession later gets that profession's starting recipes the next time you press it. A recipe above the character's profession level is granted too; Craft shows its usual level reason until the level is reached. Only player-owned characters get them (never NPCs or Character Hub level backups). If one character can't be updated, the others are put back and nothing is granted.
+- Unchanged: the GM still can't **Learn** a recipe item for a player-owned character; no chat card is posted.
+- **For partner modules:** new GM-only `api.grantStartingRecipes({preview = true, actorIds, rowIds})`; see the README.
+- **Saved data:** no new data and no migration; granted recipes go in the existing `knownRecipes` Actor flag.
+
 ## 0.29.2 — 2026-10-23
 
 - Removed the Beta wording from the interface: the module description in Setup → Add-on Modules no longer ends in "(Beta)", and the note when Skill Trees is missing says "Skill Trees is not enabled." (before: "Skill Trees prototype is not enabled.").
