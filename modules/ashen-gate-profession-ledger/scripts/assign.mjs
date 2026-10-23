@@ -180,3 +180,31 @@ export function assignmentPlan(actors,map,{professionItems,heldKeys,heldIds}){
   return rows;
 }
 export const rowId=row=>`${row.actorId}:${row.sourceId??row.key}`;
+
+/** 0.30.0: a recipe record marked `starting: true` (the content's starting recipes). */
+export const isStartingRecipe=recipe=>recipe?.starting===true;
+/** 0.30.0: the profession key a recipe belongs to (its PROF-* id first, then its profession name), or null. */
+export const recipeProfessionKey=recipe=>definitionProfessionKey(recipe?.professionId,recipe?.profession)??(professionKey(recipe?.profession)||null);
+/**
+ * 0.30.0: the dry-run rows for granting starting recipes. For each character, every `starting: true` recipe of a
+ * profession it holds (by PROF-* id or profession key). `heldProfessions(actor)` → {ids:Set, keys:Set};
+ * `known(actor)` → the REC-* ids it knows; `unreleased(recipe)` → '' when players may have it, else why not.
+ * Row status: 'new' (will be granted), 'known' (already known, skipped) or 'unreleased' (draft or not player-visible,
+ * skipped; `reason` says why). Rows come in recipe-name order per character. Pure: reads nothing, writes nothing.
+ */
+export function startingRecipePlan(actors,recipes,{heldProfessions,known,unreleased}){
+  const starting=recipes.filter(r=>isStartingRecipe(r)&&/^REC-[A-Z0-9-]+$/.test(r?.id??'')).sort((a,b)=>String(a.name).localeCompare(String(b.name)));
+  const rows=[];
+  for(const actor of actors){
+    const held=heldProfessions(actor),knows=new Set(known(actor)),seen=new Set();
+    for(const r of starting){
+      const key=recipeProfessionKey(r);
+      if(seen.has(r.id)||!(held.ids.has(r.professionId)||(key&&held.keys.has(key))))continue;
+      seen.add(r.id);
+      const base={id:`${actor.id}:${r.id}`,actorId:actor.id,actorName:actor.name,recipeId:r.id,recipeName:r.name,professionKey:key};
+      if(knows.has(r.id))rows.push({...base,status:'known',reason:''});
+      else{const why=unreleased(r);rows.push({...base,status:why?'unreleased':'new',reason:why||''});}
+    }
+  }
+  return rows;
+}

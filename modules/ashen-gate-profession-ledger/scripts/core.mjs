@@ -82,6 +82,8 @@ export function normalizeRecipe(raw) {
   const profession=src?.professionName??src?.profession??raw?.profession??professionId??'';
   return {id, name, profession:displayProfession(profession),professionId,kind:recipeKind(canonical,src,raw),
     resultItemId, tier:src?.tier??raw?.tier??null,effort:src?.effort??raw?.effort??null,
+    // 0.30.0: `starting: true` marks a starting recipe (the GM grants these from Assign → Starting recipes).
+    starting:[canonical,src,raw].some(x=>x?.starting===true),
     description:src?.description??src?.rules_summary??'',
     effectNote:effectNoteOf(canonical,src,raw),
     // Optional crafting requirement: a dnd5e tool key, tool Item UUID/name, or a workstation (text).
