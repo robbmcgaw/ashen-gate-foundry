@@ -1,3 +1,13 @@
+## 0.38.0 — 2026-10-23
+
+Robb's request: the character's Biography in the Hub, and no "alpha" style labels anywhere.
+
+- **Journey → Biography:** the Journey tab now has two sub-tabs, **Journey** (the accomplishments, as before) and **Biography**. Biography shows the same things as the Biography page of the standard dnd5e sheet: **Backstory** (the biography and the public biography), **Personality** (traits, ideals, bonds, flaws) and **Appearance** (the appearance text, then age, height, weight, eyes, skin, hair, gender, faith and alignment). The Hub remembers which sub-tab you had open (for you, on this computer). The arrow keys move between the two sub-tabs.
+- **Editing:** the owner and the GM can type in every box and press **Save Changes** (bottom right; **Cancel** bottom left throws the changes away). The footer says **Unsaved changes** while something isn't saved, and switching tab or sub-tab or closing the Hub asks first. Text you type survives the Hub redrawing. The two biography boxes use Foundry's own text editor, so bold, lists and links are kept; if that editor isn't available they show read-only with **Open native sheet to edit formatting**. Only the boxes you changed are saved; the others are never rewritten.
+- **Who sees what:** other players who can see the character (observers) see only the public biography and the appearance; never the private biography or the personality. Someone with limited access still sees only the name. Saving is refused for anyone who doesn't own the character, not just hidden.
+- **Labels:** the "New · alpha" badge on the Journey, "(alpha)" in Help, the "Experimental" badge on Compact's see-through background and "Alpha:" in the module description are gone.
+- Saved data: no change. The Biography is dnd5e's own data on the character; the Hub stores only the remembered sub-tab in the browser. No migration.
+
 ## 0.37.1 — 2026-10-23
 
 - **Window title:** now **Ashen Gate | Character Hub — <character name>** instead of the same title for every Hub, so several open, minimised or popped-out Hubs are easy to tell apart. It follows the character when they're renamed (the title updates when the Hub redraws), and a popped-out Hub's browser window shows the same title. A limited view uses the same title. The in-sheet header is unchanged. A very long name is cut with "…" by Foundry's own title bar.

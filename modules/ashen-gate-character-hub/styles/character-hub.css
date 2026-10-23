@@ -554,8 +554,8 @@
 .agch-app .agch-quick__n { pointer-events: none; }
 .agch-app .agch-quick__slot:hover:not(:disabled), .agch-app .agch-quick__slot.is-empty:hover { border-color: var(--ag-accent); }
 
-/* Journey (0.20.0, alpha): accomplishments, newest first, as striped rows */
-.agch-app .agch-journey__alpha { margin: 0 0 var(--ag-space-2); font-size: var(--ag-text-sm); color: var(--ag-muted); }
+/* Journey (0.20.0): accomplishments, newest first, as striped rows */
+.agch-app .agch-journey__intro { margin: 0 0 var(--ag-space-2); font-size: var(--ag-text-sm); color: var(--ag-muted); }
 .agch-app .agch-journey { list-style: none; margin: 0; padding: 0; display: grid; border: 1px solid var(--ag-border); border-radius: var(--ag-radius); overflow: hidden; }
 .agch-app .agch-journey__entry { display: grid; grid-template-columns: var(--ag-icon-chip) 6.5rem minmax(0, 1fr) auto; gap: var(--ag-space-2); align-items: center; min-height: var(--ag-row-h); padding: var(--ag-space-1) var(--ag-space-3); border-bottom: 1px solid var(--ag-border); }
 .agch-app .agch-journey__entry:last-child { border-bottom: 0; }
@@ -702,3 +702,23 @@
 .agch-app .agch-ctop { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: var(--ag-space-1) var(--ag-space-2); }
 .agch-app .agch-ctop > .agch-cchips { margin-top: 0; }
 
+
+/* Journey | Biography (0.38.0): kit sub-tabs at the top of the Journey tab; the Biography's Save Changes / Cancel footer
+   stays pinned to the bottom of the pane (sticky in the scrolling body) and is opaque so the text scrolls under it. */
+.agch-app .agch-jtabs { margin: 0 0 var(--ag-space-2); padding: 0; }
+.agch-app .agch-jpanel:focus-visible { outline: none; }
+.agch-app .agch-bio { display: grid; gap: var(--ag-space-2); }
+.agch-app .agch-bio__sec .agch-heading { margin: var(--ag-space-2) 0 var(--ag-space-1); }
+.agch-app .agch-bio__sec:first-child .agch-heading, .agch-app .agch-bio__start + .agch-bio__sec .agch-heading { margin-top: 0; }
+.agch-app .agch-bio__sec { display: grid; gap: var(--ag-space-2); }
+.agch-app .agch-bio__label { font-size: var(--ag-text-sm); color: var(--ag-muted); font-weight: 600; }
+.agch-app .agch-bio__text textarea { min-height: calc(var(--ag-control-h) * 2.4); resize: vertical; font: inherit; color: var(--ag-text); }
+.agch-app .agch-bio__html, .agch-app .agch-bio__plain { margin: 0; overflow-wrap: anywhere; color: var(--ag-text); }
+.agch-app .agch-bio__html { padding: var(--ag-space-2) var(--ag-space-3); border: thin solid var(--ag-border); border-radius: var(--ag-radius); background: var(--ag-surface-raised); }
+.agch-app .agch-bio__html > :first-child { margin-top: 0; }
+.agch-app .agch-bio__html > :last-child { margin-bottom: 0; }
+.agch-app .agch-bio__editor { display: block; min-height: calc(var(--ag-control-h) * 5); border: thin solid var(--ag-border); border-radius: var(--ag-radius); background: var(--ag-surface-raised); }
+.agch-app .agch-bio__native { justify-self: start; }
+.agch-app .agch-bio__none, .agch-app .agch-bio__start { margin: 0; font-size: var(--ag-text-sm); }
+.agch-app .agch-bio__chars.ag-kv { padding: var(--ag-space-2) var(--ag-space-3); border: thin solid var(--ag-border); border-radius: var(--ag-radius); }
+.agch-app .agch-bio__footer { position: sticky; bottom: 0; z-index: 2; margin: var(--ag-space-2) 0 0; background: var(--ag-surface); border-top: thin solid var(--ag-border); }

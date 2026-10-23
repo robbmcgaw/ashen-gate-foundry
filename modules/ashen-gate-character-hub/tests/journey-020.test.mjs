@@ -131,7 +131,7 @@ test('permissions in the data layer: players read only their own visible entries
   assert.deepEqual(r.result, ['level-9'], 'the recorders only append automatic entries');
 });
 
-test('Journey tab: alpha badge; players see their list; the GM gets the picker, add form, hide/show/edit/delete controls', async () => {
+test('Journey tab: no alpha badge (0.38.0); players see their list; the GM gets the picker, add form, hide/show/edit/delete controls', async () => {
   world();
   const actor = hero(), Cls = createHubSheetClass(FakeActorSheetV2);
   game.actors = Object.assign([actor], {get: () => actor});
@@ -139,7 +139,7 @@ test('Journey tab: alpha badge; players see their list; the GM gets the picker, 
   await j.addManual(actor, {text: '[TEST] Hidden', hidden: true});
   const gmSheet = new Cls({document: actor}); gmSheet.tab = 'journey';
   let html = await gmSheet._renderHTML();
-  assert.match(html, /New · alpha/);
+  assert.doesNotMatch(html, /alpha/i); assert.match(html, /class="agch-journey__intro">Accomplishments are recorded from now on/);
   assert.match(html, /data-edit="journey-actor"/); assert.match(html, /data-journey-form="add"/);
   assert.match(html, /\[TEST\] Hidden <span class="ag-gm-flag"><i class="fa-solid fa-eye-slash" aria-hidden="true"><\/i> Hidden from player<\/span>/, "CH-23: one marker");
   assert.doesNotMatch(html, /> GM only<\/span>/);

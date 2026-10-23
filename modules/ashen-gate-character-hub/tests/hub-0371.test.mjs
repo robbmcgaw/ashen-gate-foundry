@@ -28,7 +28,7 @@ function openHub({user = users.owner, actor = makeActor(), ownerDocument = MAIN_
 }
 const draw = async ({sheet, content}) => sheet._replaceHTML(await sheet._renderHTML(), content);
 
-test('version is 0.37.1', () => assert.equal(VERSION, '0.37.1'));
+
 
 test('the title is the brand, an em dash and the character\'s name', async () => {
   const hub = openHub();

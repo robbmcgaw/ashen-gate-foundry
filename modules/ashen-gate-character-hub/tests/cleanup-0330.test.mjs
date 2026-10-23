@@ -113,7 +113,7 @@ test('captureFocus / restoreFocus: fields keep text and caret as before; buttons
 test('CH-20: arrow keys are bound on the Hub\'s own rail and Ashen Gate sub-tabs only, never inside an embedded partner view', () => {
   const {sheet, content} = openHub({x: () => []});
   sheet._replaceHTML('x', content);
-  assert.ok(content.queried.includes('.agch-rail, .agch-agtabs, .agch-sttabs'), '0.35.0: also the Skill Trees summary\'s tree tabs (Hub markup)');
+  assert.ok(content.queried.includes('.agch-rail, .agch-agtabs, .agch-sttabs, .agch-jtabs'), '0.35.0: also the Skill Trees summary\'s tree tabs (Hub markup); 0.38.0: Journey | Biography');
   assert.ok(!content.queried.some(q => q === '[role="tablist"]'), 'no blanket tablist query that would reach an embed');
 });
 
