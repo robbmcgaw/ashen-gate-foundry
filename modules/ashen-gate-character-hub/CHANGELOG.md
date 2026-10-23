@@ -1,3 +1,11 @@
+## 0.42.3 — 2026-10-23
+
+Follow-ups from the 0.42.2 test run. Tests use mocked Foundry; the live Hub is for Robb to click through.
+
+- **Fix: Limited and Observer now agree for a linked Actor.** The companion card treated anything below Observer as "not shared", but the open-sheet button let a Limited viewer open the Actor's sheet. Opening now needs Observer too (the same rule as seeing the card), and a viewer below Observer is told the Actor is not shared with them, without its name.
+- **Find any Actor by name.** The Mount and Pets boxes get **Find an Actor by name…**: type part of a name and press Enter. It searches every Actor you can observe (not only the first 150 the list shows, and not only the Companions folder), links the one that matches, and says so when none or several match ("Type more of the name"). An exact name wins over partial matches. The same permission, one-mount and pet-limit rules apply. Browsers also suggest names as you type.
+- Help and README describe it. Saved data: unchanged. No migration.
+
 ## 0.42.2 — 2026-10-23
 
 QA pass on Companions (world-Actor mounts and pets), the list tabs, Player visibility. Tests use mocked Foundry; the live Hub is for Robb to click through.
