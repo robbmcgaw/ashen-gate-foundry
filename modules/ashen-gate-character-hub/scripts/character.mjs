@@ -101,7 +101,7 @@ function dollHtml(ctx, h) {
   const art = token ? (actor.prototypeToken?.texture?.src || actor.img) : actor.img;
   const col = ids => ids.map(id => slotHtml(id, layout, menu)).join('');
   const openSlot = typeof menu === 'string' && menu.startsWith('slot:') ? menu.slice(5) : null;
-  const where = !openSlot ? '' : LEFT_SLOTS.includes(openSlot) ? `is-left" style="--row:${LEFT_SLOTS.indexOf(openSlot)};--row2:${LEFT_SLOTS.indexOf(openSlot) % 3}` : RIGHT_SLOTS.includes(openSlot) ? `is-right" style="--row:${RIGHT_SLOTS.indexOf(openSlot)};--row2:${RIGHT_SLOTS.indexOf(openSlot) % 3}` : 'is-bottom';
+  const where = !openSlot ? '' : LEFT_SLOTS.includes(openSlot) ? `is-left" style="--row:${LEFT_SLOTS.indexOf(openSlot)}` : RIGHT_SLOTS.includes(openSlot) ? `is-right" style="--row:${RIGHT_SLOTS.indexOf(openSlot)}` : 'is-bottom';
   const pop = openSlot && BOTTOM_SLOTS.concat(LEFT_SLOTS, RIGHT_SLOTS).includes(openSlot) ? `<div class="agch-menu agch-menu--slot ${where}" role="menu" aria-label="${esc(slotLabel(openSlot))}">${slotMenu(actor, openSlot, layout, off)}</div>` : '';
   return `${hiddenBadge('equipment') ? `<p class="agch-hidden-note">${hiddenBadge('equipment')}</p>` : ''}<section class="agch-doll" aria-label="Equipment (display only)">
     <div class="agch-doll__col">${col(LEFT_SLOTS)}</div>

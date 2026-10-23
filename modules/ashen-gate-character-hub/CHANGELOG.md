@@ -1,3 +1,7 @@
+## 0.44.1 — 2026-10-23
+
+Reverts 0.44.0's paper doll layout for now (Robb: the two-column side slots and the 44 px minimum looked wrong). The doll is back to 0.43.0's layout and sizes. Kept from 0.44.0: the character column opens shown (the one-time reset of a stored fold). Saved data: nothing changes.
+
 ## 0.44.0 — 2026-10-23
 
 Paper doll slots in short windows; Show character opens by default. Tests use mocked Foundry and cannot judge layout; the sizes below were measured in headless Chromium with the shipped CSS.
