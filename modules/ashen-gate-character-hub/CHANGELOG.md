@@ -1,3 +1,7 @@
+## 0.44.1 — 2026-10-23
+
+Puts the paper doll back to how it was before 0.43.0: slot sizes and arrangement as in 0.42.4 (Robb: 0.43.0 and 0.44.0 covered most of the art with the slots, the Token art button and the AC badge). Both slot changes are undone. Kept from 0.44.0: the character column opens shown (the one-time reset of a stored fold). Saved data: nothing changes.
+
 ## 0.44.0 — 2026-10-23
 
 Paper doll slots in short windows; Show character opens by default. Tests use mocked Foundry and cannot judge layout; the sizes below were measured in headless Chromium with the shipped CSS.

@@ -28,9 +28,9 @@ test('Compact layout rule: the column fills the body and scrolls inside itself; 
   assert.match(doll, /container: agch-doll \/ size/, 'the doll is the size container its slots measure');
   assert.match(doll, /flex: 0 1 calc\(var\(--agch-slot-max\) \* 5 \+ var\(--ag-space-2\) \* 4\)/, 'full size, may shrink, never grows');
   assert.match(doll, /min-height: calc\(var\(--agch-slot-min\) \* 5 \+ var\(--ag-space-2\) \* 4\)/, 'never below icon-button slots');
-  assert.match(rule('.agch-app .agch-char .agch-doll > *'), /--agch-slot: clamp\(var\(--agch-slot-min\), min\(\(100cqh - var\(--ag-space-2\) \* 4\) \/ 5, \(100cqw - var\(--ag-space-2\) \* 2 - var\(--ag-space-1\) \* 4\) \/ 6\.25\), var\(--agch-slot-max\)\)/,
-    'five slot rows fill the height; side slots, the 0.85-size row of five and their gaps fit the width');
-  assert.match(rule('.agch-app .agch-char .agch-doll > .agch-doll__row'), /grid-row: 2; grid-column: 2; flex-wrap: nowrap; align-items: center/, 'rings and trinkets under the art');
+  assert.match(rule('.agch-app .agch-char .agch-doll > *'), /--agch-slot: clamp\(var\(--agch-slot-min\), min\(\(100cqh - var\(--ag-space-2\) \* 4\) \/ 5, \(100cqw - var\(--ag-space-2\) \* 6\) \/ 7\), var\(--agch-slot-max\)\)/,
+    'five slot rows fill the height; seven slots and six gaps fit the width');
+  assert.match(rule('.agch-app .agch-char .agch-doll > .agch-doll__row'), /grid-row: 2; grid-column: 2; flex-wrap: nowrap/, 'rings and trinkets under the art');
   assert.match(rule('.agch-app .agch-char .agch-doll > .agch-doll__col'), /grid-row: 1 \/ span 2/);
   assert.match(rule('.agch-app .agch-drawer .agch-quick'), /grid-template-columns: repeat\(10, minmax\(0, var\(--ag-slot\)\)\)/, 'quick bar on one row');
   assert.match(rule('.agch-app .agch-char--compact > *'), /flex: none/, 'everything else keeps its height');
