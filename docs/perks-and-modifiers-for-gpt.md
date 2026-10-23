@@ -44,6 +44,7 @@ Ashen Gate is a set of Foundry VTT modules for Robb's D&D campaign: Foundry V14 
 | A Cinder power or enhancement | A `POWER-*` record with a `power` block; numbers go in `power.modifiers` with the targets `push.cost`, `backfire.chance`, `backfire.severity`, `strain.recovery` (`docs/cinder-strain-schema.md`) | built |
 | A Cinder's tree | One `cinder_milestone` tree per Cinder (`sourceRef` = its `MUT-*` id), `provider.maxPoints: 16` (the Cinder point cap; was 13). Its nodes are `POWER-*` ids (`docs/cinder-strain-schema.md`) | built |
 | Mount gear, mount perk, pet clothing, pet perk | `ITEM-MOUNT-` / `PERK-MOUNT-` / `ITEM-PET-` / `PERK-PET-` Items; Active Effects with **`transfer: false`** (`docs/companion-items-schema.md`) | built (display only) |
+| A perk a character receives automatically at Journeyman or Expert in a profession (no points, no tree) | A `ProfessionPerk` with `signature: true`, `tier`, `profession_id` and `point_cost: 0` (§3b) | **built** (Profession Ledger 0.31.0) |
 | A hireling perk | An `HPERK-*` record with `contexts`, `conditions`, `stacking`, `implementation` | built (display only) |
 | A crafted item | An `ITEM-*` Item, plus a `REC-*` recipe whose `result_item_id` names it | built |
 | A faction or deity reward | A reward entry on the faction or deity (`docs/renown-deity-schema.md`); GM-approved | built |
@@ -53,6 +54,36 @@ Ashen Gate is a set of Foundry VTT modules for Robb's D&D campaign: Foundry V14 
 | Make an item fit a Cinder socket | Nothing extra: an `ITEM-*` with at least one `cinder` modifier fits (`docs/cinder-strain-schema.md` → Sockets). Effects `transfer: false`. There is **no** `socketable` block | **built** (Cinders 0.3.0) |
 | Add a socket to a Cinder | A `sockets.count` modifier (scope `cinder`) on a perk, power or socket item | **built** (Cinders 0.3.0) |
 | A Cinder's picture | Nothing in content. The GM sets an image on one Cinder in Foundry (double-click the orb; `api.cinder.setArt`, GM only); it is saved as `art` on that Cinder's record, not on the `MUT-*`. Without it the module draws a default orb that follows Strain (`docs/cinder-strain-schema.md` → Cinder art) | **built** (Cinders 0.6.0) |
+
+## 3b. Signature perks (built: Profession Ledger 0.31.0)
+
+A *signature perk* belongs to one profession and one tier. The Profession Ledger gives it to a character by itself the moment the character reaches that tier, with a chat note. It is not bought, costs no points and sits in no skill tree.
+
+Write it as a normal `ProfessionPerk` record plus these fields:
+
+| Field | Value |
+|---|---|
+| `signature` | `true`. Exactly the boolean; leave the field out on every ordinary perk. |
+| `profession_id` | The `PROF-*` id of the profession (required). |
+| `tier` | `"journeyman"` (granted at profession level 4) or `"expert"` (level 7). Lowercase. No other tier is granted. |
+| `point_cost` | `0`. |
+
+- Id pattern: `PERK-<PROF>-SIGNATURE-<TIER>-0N`, for example `PERK-ARCHAEOLOGY-SIGNATURE-JOURNEYMAN-01`. Several perks may share a profession and tier; the character gets all of them.
+- Folder: `Ashen Gate/Professions/<Profession>/Signature Perks`. `foundry.data.type` is `feat`, as for any perk.
+- `visibility: "player"`. A GM-only or reveal-gated signature perk is not granted to players.
+- Never removed: a character who loses XP keeps the perk. Write the text so it still makes sense at a lower level.
+- Do not list a signature perk in a skill tree. Use `implementation` (`gm_resolved`, `informational`, `automatic`) as for any perk.
+- Import the file with General Manager first. A character who reached the tier before the import is caught up by the GM in the Ledger: **Assign → Signature perks → Preview → Grant**.
+
+```json
+{"id": "PERK-TEST-MINING-SIGNATURE-JOURNEYMAN-01", "entity_type": "ProfessionPerk", "status": "draft", "version": "0.1.0",
+ "provenance": {"sources": ["Synthetic test data (not canon)"]}, "visibility": "player", "scope": "generic_rules",
+ "refs": [{"target_id": "PROF-TEST-MINING", "relation": "perk_of", "mode": "optional"}],
+ "profession_id": "PROF-TEST-MINING", "tier": "journeyman", "signature": true, "point_cost": 0,
+ "implementation": "gm_resolved", "rules_summary": "[TEST] Shape only, not a rule.",
+ "name": "[TEST] Read Rock",
+ "foundry": {"document_type": "Item", "folder_path": "Ashen Gate/Professions/Mining/Signature Perks", "data": {"name": "[TEST] Read Rock", "type": "feat"}}}
+```
 
 **Modifier entry** (`ag-modifier/1`, the same in `power.modifiers` and in a `modifiers` block):
 
@@ -114,6 +145,7 @@ Ashen Gate is a set of Foundry VTT modules for Robb's D&D campaign: Foundry V14 
 | Deities | `docs/renown-deity-schema.md`: **built** |
 | Profession crosswalk | `docs/profession-crosswalk-schema.md`: **built** |
 | Routes, NPC Codex, scene moods, organize rules | `docs/routes-schema.md`, `docs/npc-codex-schema.md`, `docs/scene-moods-schema.md`, `docs/organize-rules.md`: **built** |
+| Signature perks (this brief, §3b) | `docs/perks-and-modifiers-for-gpt.md`: **built** (Profession Ledger 0.31.0) |
 | Perks/modifiers/sockets architecture | `docs/perks-and-modifiers-architecture.md`: **approved** (decisions in §8); Cinder sockets built in Cinders 0.3.0 without a `socketable` block |
 | Check a file before handing it over | `node scripts/validate-content.mjs <file>` in the public repo |
 

@@ -83,6 +83,7 @@ Module versions read: Manager 0.38.1, Skill Trees 0.16.0, Character Hub 0.17.0, 
   - The copy is tagged with `flags.ashen-gate-profession-ledger = {entityType, sourceId, craftedFrom, coreItem?}`.
   - `executeCraft` (`crafting.mjs:131-178`) uses up ingredients and rolls back if anything fails.
   - Profession perks are only ids in `professionProgress.selectedPerkIds`. Skill Trees grants the Items.
+  - Exception (Ledger 0.31.0): a *signature perk* (`signature: true`, `tier`, `profession_id`, `point_cost: 0`) is not in a tree and not in `selectedPerkIds`. The Ledger adds its imported Item to the Actor when the tier is reached (Journeyman 4, Expert 7) and never removes it; the Item on the Actor is the only record.
 - **State.** Actor flags `professionProgress` and `knownRecipes`.
 
 ### 1.6 Renown: faction and deity rewards
