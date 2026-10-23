@@ -1,3 +1,13 @@
+## 0.39.0 — 2026-10-23
+
+Robb's request: the HP bar's effects shouldn't stack on top of each other; each should show on its own part of the bar.
+
+- **HP bar:** current HP, temp HP and a max change now sit side by side instead of on top of each other. Left to right: your current HP (green, yellow or red, as before), then the silver temp HP stripes, then the dark empty part for missing HP, then at the end either a blue outlined part for extra max HP or the dark green cross-hatching for max HP lost. The whole bar is your normal max plus any extra max plus your temp HP, so every part keeps its true size and you can see all of them at once. When your HP goes above your normal max, the blue part fills from the left.
+- A thin dark line separates neighbouring parts, so they're easy to tell apart without relying on colour. A very small part is still at least a sliver wide. When there's room at either end of a wide bar, the temp, extra or lost part also shows its own number.
+- The numbers in the middle are unchanged ("18 / 35 HP (+6 TEMP) (+5 MAX)"). The tooltip and screen readers now say it in words, for example "18 of 35 hit points; 6 temporary hit points; maximum raised by 5".
+- Same in Compact and in the read-only view. Double-click to edit, damage / heal and right-click work as before.
+- Saved data: no change. No migration.
+
 ## 0.38.0 — 2026-10-23
 
 Robb's request: the character's Biography in the Hub, and no "alpha" style labels anywhere.

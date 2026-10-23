@@ -49,12 +49,6 @@ function openBio(user = users.owner, actor = hero()) {
 const text = html => html.replace(/<[^>]+>/g, ' ');
 const updates = actor => actor.calls.filter(c => c[0] === 'update');
 
-test('version is 0.38.0 in the code, module.json and its download URL', () => {
-  assert.equal(VERSION, '0.38.0');
-  assert.equal(manifest.version, '0.38.0');
-  assert.match(manifest.download, /ashen-gate-character-hub-v0\.38\.0\/ashen-gate-character-hub\.zip$/);
-});
-
 test('the fields are dnd5e 6.0.6\'s own (system.details), and a field shows only when the Actor has it', () => {
   assert.deepEqual(bio.RICH.map(f => f[0]), ['biography.value', 'biography.public']);
   assert.deepEqual(bio.PERSONALITY.map(f => f[0]), ['trait', 'ideal', 'bond', 'flaw']);

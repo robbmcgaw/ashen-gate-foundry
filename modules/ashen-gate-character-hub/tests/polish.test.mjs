@@ -25,23 +25,16 @@ function installDnd5e() {
   return made;
 }
 
-test('HP bar: fill, yellow temp overshield, blue max-adjustment overlay, "X / X HP (+X TEMP)"', () => {
+test('HP bar texts: "X / Y HP (+T TEMP)", the max change and its sign (0.39.0: drawn side by side)', () => {
   let b = hpBar({value: 20, temp: 5, max: 24, tempmax: 0, effectiveMax: 24});
-  assert.equal(b.text, '20 / 24 HP'); assert.equal(b.tempText, '(+5 TEMP)');
-  assert.ok(Math.abs(b.fill - 83.33) < 0.01); assert.equal(b.boost, 0);
-  assert.ok(Math.abs(b.tempLeft - (100 - b.temp)) < 0.01, 'temp would overflow, so it is pushed back from the end');
-  b = hpBar({value: 10, temp: 2, max: 20, tempmax: 0, effectiveMax: 20});
-  assert.equal(b.tempLeft, 50); assert.equal(b.temp, 10, 'temp right after current HP');
+  assert.equal(b.text, '20 / 24 HP'); assert.equal(b.tempText, '(+5 TEMP)'); assert.equal(b.boostText, ''); assert.equal(b.lostText, '');
+  assert.deepEqual(b.regions.map(r => [r.kind, r.width]), [['hp', 69], ['temp', 17.2], ['empty', 13.8]], 'of 29 = 24 max + 5 temp');
   b = hpBar({value: 30, temp: 0, max: 20, tempmax: 10, effectiveMax: 30});
-  assert.equal(b.text, '30 / 30 HP'); assert.equal(b.tempText, '');
-  assert.ok(Math.abs(b.boost - 33.33) < 0.01); assert.ok(Math.abs(b.boostLeft - 66.67) < 0.01, 'blue part is the max HP above normal max');
+  assert.equal(b.text, '30 / 30 HP'); assert.equal(b.tempText, ''); assert.equal(b.boostText, '(+10 MAX)');
+  assert.deepEqual(b.regions.map(r => [r.kind, r.width, r.used ?? null]), [['hp', 66.7, null], ['boost', 33.3, 1]], 'HP above the normal max fills the blue part');
   b = hpBar({value: 10, temp: 0, max: 20, tempmax: -5, effectiveMax: 15});
-  assert.equal(b.boost, 0, 'a negative adjustment draws no blue part');
-  assert.equal(b.text, '10 / 15 HP'); assert.equal(b.lostText, '(−5 MAX)');
-  assert.equal(b.fill, 50, 'the bar keeps the normal max as its length');
-  assert.equal(b.lost, 25); assert.equal(b.lostLeft, 75, 'sickly-green lost part at the right end');
-  b = hpBar({value: 14, temp: 4, max: 20, tempmax: -5, effectiveMax: 15});
-  assert.equal(b.tempLeft + b.temp, 75, 'temp HP is kept out of the lost part');
+  assert.equal(b.text, '10 / 15 HP'); assert.equal(b.lostText, '(−5 MAX)'); assert.equal(b.boostText, '');
+  assert.deepEqual(b.regions.map(r => [r.kind, r.left, r.width]), [['hp', 0, 50], ['empty', 50, 25], ['lost', 75, 25]], 'the bar keeps the normal max as its length');
   assert.equal(hpBar({value: 10, temp: 0, max: 20, tempmax: 0, effectiveMax: 20}).lostText, '');
 });
 
@@ -49,7 +42,7 @@ test('HP bar renders the lost part and "(−X MAX)" for a negative max adjustmen
   installGlobals({user: users.owner});
   const base = makeActor().system.attributes;
   const {html} = await render({actor: makeActor({system: {attributes: {...base, hp: {value: 10, temp: 0, max: 20, tempmax: -5, effectiveMax: 15}}}})});
-  assert.match(html, /<span class="agch-hp__lost" style="left:75.0%;width:25.0%"/);
+  assert.match(html, /<span class="agch-hp__seg agch-hp__lost" style="flex-basis:25.0%">/);
   assert.match(html, /10 \/ 15 HP <span class="agch-hp__losttext">\(−5 MAX\)<\/span>/);
 });
 

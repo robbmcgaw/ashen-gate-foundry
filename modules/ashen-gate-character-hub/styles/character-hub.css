@@ -196,7 +196,7 @@
   --agch-hp-low: color-mix(in srgb, var(--ag-danger) 70%, #400); /* ag-lint-allow: HP band red, as before 0.22.0 */
   --agch-hp-temp-a: #f3f6f9; /* ag-lint-allow: temp HP silver stripe */
   --agch-hp-temp-b: #8fa3b4; /* ag-lint-allow: temp HP silver stripe */
-  --agch-hp-edge: #121417; /* ag-lint-allow: near-black outline around temp HP */
+  --agch-hp-edge: #121417; /* ag-lint-allow: near-black outline around temp HP and between the HP regions */
   --agch-hp-lost-a: #3c4520; /* ag-lint-allow: reduced max, dark olive */
   --agch-hp-lost-b: #20250f; /* ag-lint-allow: reduced max, darker olive */
   --agch-hp-lost: #8fae3a; /* ag-lint-allow: reduced max, sickly-green edge */
@@ -210,21 +210,37 @@
 .agch-app .agch-hp__bar[data-band="high"] { --agch-hp-fill: var(--agch-hp-high); }
 .agch-app .agch-hp__bar[data-band="mid"] { --agch-hp-fill: var(--agch-hp-mid); }
 .agch-app .agch-hp__bar.is-editable { cursor: pointer; }
-.agch-app .agch-hp__bar > span { position: absolute; top: 0; bottom: 0; }
-/* Layers, bottom to top: track, fill, reduced max, temp, raised-max frame, text. */
-.agch-app .agch-hp__fill { left: 0; z-index: 1; background: var(--agch-hp-fill); transition: width var(--ag-dur) var(--ag-ease), background-color var(--ag-dur) var(--ag-ease); }
-.agch-app .agch-hp__lost { z-index: 2; box-shadow: inset 3px 0 0 var(--agch-hp-lost);
-  background: repeating-linear-gradient(-45deg, var(--agch-hp-lost-b) 0 1.5px, transparent 1.5px 6px), repeating-linear-gradient(45deg, var(--agch-hp-lost-a) 0 3px, var(--agch-hp-lost-b) 3px 6px); }
-.agch-app .agch-hp__bar > .agch-hp__temp { z-index: 3; top: 2px; bottom: 2px; border-radius: 2px; box-shadow: 0 0 0 1.5px var(--agch-hp-edge);
+/* 0.39.0: the regions sit side by side in a flex row (character.mjs hpRegions); none covers another. A non-empty region is
+   at least 2px wide; flex-shrink takes that room from its neighbours, so the row never runs past the bar. */
+.agch-app .agch-hp__bar { display: flex; }
+.agch-app .agch-hp__seg { position: relative; flex: 0 1 0; min-width: 2px; height: 100%; container: agch-hpseg / inline-size; overflow: hidden; /* ag-lint-allow: 2px minimum keeps tiny HP regions visible */
+  transition: flex-basis var(--ag-dur) var(--ag-ease), background-color var(--ag-dur) var(--ag-ease); }
+/* A 1px dark divider between neighbouring regions, so they are told apart without relying on colour. */
+.agch-app .agch-hp__seg + .agch-hp__seg { border-left: 1px solid var(--agch-hp-edge); }
+/* The end regions follow the bar's rounded ends, so the blue outline isn't clipped. */
+.agch-app .agch-hp__seg:first-child { border-radius: var(--ag-radius-control) 0 0 var(--ag-radius-control); }
+.agch-app .agch-hp__seg:has(+ .agch-hp__text) { border-top-right-radius: var(--ag-radius-control); border-bottom-right-radius: var(--ag-radius-control); }
+.agch-app .agch-hp__hp { background: var(--agch-hp-fill); }
+.agch-app .agch-hp__empty { background: transparent; }
+.agch-app .agch-hp__temp { box-shadow: inset 0 0 0 1.5px var(--agch-hp-edge);
   background: repeating-linear-gradient(45deg, var(--agch-hp-temp-a) 0 4px, var(--agch-hp-temp-b) 4px 7px); }
-.agch-app .agch-hp__boost { z-index: 4; background: color-mix(in srgb, var(--agch-hp-boost) 18%, transparent);
-  box-shadow: inset 0 3px 0 var(--agch-hp-boost), inset 0 -3px 0 var(--agch-hp-boost), inset 2px 0 0 var(--agch-hp-boost); }
-.agch-app .agch-hp__bar > .agch-hp__text { inset: 0; z-index: 5; display: flex; justify-content: center; align-items: center; gap: .35em; white-space: nowrap; font-weight: 700; font-size: var(--ag-text-sm); font-variant-numeric: tabular-nums;
+.agch-app .agch-hp__lost { box-shadow: inset 3px 0 0 var(--agch-hp-lost);
+  background: repeating-linear-gradient(-45deg, var(--agch-hp-lost-b) 0 1.5px, transparent 1.5px 6px), repeating-linear-gradient(45deg, var(--agch-hp-lost-a) 0 3px, var(--agch-hp-lost-b) 3px 6px); }
+/* Raised max: extra capacity, a blue outline and tint (never filled green); the HP above the normal max fills it from the left. */
+.agch-app .agch-hp__boost { background: color-mix(in srgb, var(--agch-hp-boost) 18%, transparent); box-shadow: inset 0 0 0 2px var(--agch-hp-boost); }
+.agch-app .agch-hp__used { position: absolute; top: 2px; bottom: 2px; left: 2px; max-width: calc(100% - 4px); background: var(--agch-hp-fill); } /* ag-lint-allow: stays inside the 2px blue outline */
+/* A region's own short text, only in an outer quarter of the bar (clear of the numbers) and only when it fits. */
+.agch-app .agch-hp__cue { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; white-space: nowrap; font-size: var(--ag-text-xs); font-weight: 700; font-variant-numeric: tabular-nums;
+  color: var(--agch-hp-ink); text-shadow: 0 0 2px var(--agch-hp-halo), 0 0 2px var(--agch-hp-halo), 0 1px 3px var(--agch-hp-halo), 0 0 5px var(--agch-hp-halo); pointer-events: none; }
+@container agch-hpseg (min-width: 4.5em) { .agch-app .agch-hp__cue { display: flex; } }
+.agch-app .agch-hp__boost .agch-hp__cue { color: var(--agch-hp-boost-ink); }
+.agch-app .agch-hp__lost .agch-hp__cue { color: var(--agch-hp-lost-ink); }
+.agch-app .agch-hp__bar > .agch-hp__text { position: absolute; inset: 0; z-index: 1; display: flex; justify-content: center; align-items: center; gap: .35em; white-space: nowrap; font-weight: 700; font-size: var(--ag-text-sm); font-variant-numeric: tabular-nums;
   color: var(--agch-hp-ink); text-shadow: 0 0 2px var(--agch-hp-halo), 0 0 2px var(--agch-hp-halo), 0 1px 3px var(--agch-hp-halo), 0 0 5px var(--agch-hp-halo); pointer-events: none; }
 .agch-app .agch-hp__temptext { color: var(--agch-hp-temp-ink); }
 .agch-app .agch-hp__boosttext { color: var(--agch-hp-boost-ink); }
 .agch-app .agch-hp__losttext { color: var(--agch-hp-lost-ink); }
-@media (prefers-reduced-motion: reduce) { .agch-app .agch-hp__fill { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .agch-app .agch-hp__seg { transition: none; } }
 .agch-app .agch-hp__row, .agch-app .agch-hp__adjust { display: flex; flex-wrap: wrap; gap: var(--ag-space-1); align-items: center; }
 .agch-app .agch-hp__amount { width: 4.5rem; text-align: center; font-variant-numeric: tabular-nums; }
 .agch-app .agch-hp__adjust .ag-btn { width: var(--ag-control-h-sm); padding: 0; justify-content: center; border-radius: 50%; }
