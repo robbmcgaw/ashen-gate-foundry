@@ -1,6 +1,6 @@
 ## 0.44.1 — 2026-10-23
 
-Reverts 0.44.0's paper doll layout for now (Robb: the two-column side slots and the 44 px minimum looked wrong). The doll is back to 0.43.0's layout and sizes. Kept from 0.44.0: the character column opens shown (the one-time reset of a stored fold). Saved data: nothing changes.
+Puts the paper doll back to how it was before 0.43.0: slot sizes and arrangement as in 0.42.4 (Robb: 0.43.0 and 0.44.0 covered most of the art with the slots, the Token art button and the AC badge). Both slot changes are undone. Kept from 0.44.0: the character column opens shown (the one-time reset of a stored fold). Saved data: nothing changes.
 
 ## 0.44.0 — 2026-10-23
 
