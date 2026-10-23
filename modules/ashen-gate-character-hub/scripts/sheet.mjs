@@ -219,6 +219,20 @@ function closeMenu(sheet) {
 }
 /** Per-user UI memory for the Hub (kit uiState): the folded character column of a narrow Full window (CH-09). */
 export const hubUi = () => uiState(MODULE_ID);
+
+/**
+ * 0.44.0: 0.33.0 shipped the character column folded by default and remembered every click, so a stored `true` could
+ * outlive the 0.41.0 change to "shown until you hide it". Once per user and device (stamped with the version, so it
+ * never repeats) a stored fold is dropped; after that the choice is remembered as before. Returns the folded state.
+ */
+export function resetCharFold(ui = hubUi()) {
+  if (ui.get(CHARFOLD_RESET_KEY) !== VERSION_CHARFOLD_RESET) {
+    if (ui.get('charFolded') !== undefined) ui.set('charFolded', undefined);
+    ui.set(CHARFOLD_RESET_KEY, VERSION_CHARFOLD_RESET);
+  }
+  return ui.get('charFolded', false, [true, false]);
+}
+const CHARFOLD_RESET_KEY = 'charFoldReset', VERSION_CHARFOLD_RESET = '0.44.0';
 /** Configure… (0.33.0, CH-11): pick a stat, then dnd5e's own settings window for it opens (as right-click does). */
 export const configPick = async options => (await formDialog('Configure a stat', [{name: 'stat', label: 'Stat', type: 'select', value: options[0]?.value ?? '', options,
   hint: 'Opens dnd5e\'s own settings for it, the same window as right-clicking the stat.'}], {ok: 'Open settings'}))?.stat ?? null;
@@ -547,7 +561,7 @@ export function createHubSheetClass(Base) {
       const compact = compactPreference();
       super({...options, position: {...windowSize(compact ? COMPACT_SIZE : CharacterHubSheet.DEFAULT_OPTIONS.position), ...options.position}});
       this.compact = compact;
-      this.charFolded = hubUi().get('charFolded', false, [true, false]);
+      this.charFolded = resetCharFold();
       this.journeyView = hubUi().get('journeyView', 'journey', JOURNEY_VIEWS.map(v => v.id));
     }
     /** Journey tab's sub-tab (0.38.0): 'journey' or 'biography'. */
