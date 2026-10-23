@@ -98,8 +98,16 @@ Module versions read: Manager 0.38.1, Skill Trees 0.16.0, Character Hub 0.17.0, 
 - **State.** Journal flags `groupClaims` and `individual`.
 
 ### 1.7 Quest Log rewards
-- **Definition.** `outcomes.description` is free text (`modules/ashen-gate-quest-manager/scripts/main.mjs:61,81`).
-- **Apply.** None. The checkbox `rewardRecorded` reads "Reward handled by GM (no automatic grants)" (`main.mjs:113`). Quest Log makes no XP, Item or Renown calls.
+- **Definition.**
+  - `outcomes.description` is free text (the suggested-rewards text; coin, XP and Renown stay GM-handled).
+  - **Item rewards** (0.11.0): rows on the quest, `{quantity, visibility: on_complete|shown|gm, recipient: chosen|each|split}`. The GM drops Items onto the quest editor's *Rewards* section; an Item dropped from a sheet is copied into the GM-only Items folder *Ashen Gate Rewards (Quest Log)* (`modules/ashen-gate-quest-manager/scripts/rewards.mjs:8,59`). Individual quests always give to their character.
+  - **Quest files** (0.13.0): `outcomes.item_rewards[]`, at most 50, each `{item_id: ITEM-*, quantity?, visibility?, recipient?, note?}` (never a Foundry uuid; validated in `core.mjs:73-80`). The Item is imported separately and resolved by its canonical id; reimport keeps the GM's changes and every grant.
+- **Apply.**
+  - **GM-confirmed, automatic grant** (0.12.0, **Give rewards**): when a quest is saved as Completed, the GM picks what to give and to whom; Quest Log copies each Item onto the characters (`actor.createEmbeddedDocuments`, all or nothing per character, contents included, no stacking; `rewards.mjs:184,199`). Nothing is ever taken from anyone; a reward is never given twice in one round (**Grant again** asks first). Dragging a reward row onto a character sheet also grants it (GM only, recorded).
+  - Level backups are refused. A whispered chat card goes to the GMs and the recipients' owners; with Character Hub 0.25.0 or later the character's Journey records it.
+  - The checkbox `rewardRecorded` ("Rewards handled outside Quest Log", `main.mjs:106`) still marks rewards the GM handled by hand. Quest Log makes no XP or Renown calls.
+  - API (GM only, contract `ag-quest-rewards/1`): `api.rewards.list`, `addFromDrop`, `update`, `remove`, `grantable`, `grant`, `grantAgain`.
+- **State.** The quest's private state flag `rewards` (GM rows and the `grants` record, `rewards.mjs:228`); granted Items are tagged with the quest and reward so a crash between creating Items and saving the record is repaired. Players see only the rewards their row allows (name, picture, quantity), never who got what.
 
 ### 1.8 Summary table
 
@@ -111,7 +119,7 @@ Module versions read: Manager 0.38.1, Skill Trees 0.16.0, Character Hub 0.17.0, 
 | Hub companions | `ITEM-/PERK-MOUNT/PET-*` Items | Manager imports / Hub (`companions`) | Nothing applied; shows AE changes and armour | Same-key additions summed for display | **Display only** |
 | Ledger crafting | Recipe → `ITEM-*` copy | Manager imports / Ledger (Actor flags) | Whatever the result Item carries | n/a | **Automatic** Item creation |
 | Renown rewards | Reward entry on a faction/deity | Renown | An Item copy (`kind: uuid`) or nothing | `choose_one`, `usage_limit` | **GM-resolved** claim; Item copy or text |
-| Quest rewards | Free text | Quest Log | Nothing | n/a | **Text only**; GM grants by hand |
+| Quest rewards | Item reward rows (`ITEM-*` or a dropped Item) plus free text | Quest Log / Quest Log (quest state, `grants`) | Whatever the granted Item carries | n/a (one grant per reward per round) | **GM-confirmed automatic** Item copy (Give rewards); the rest is text |
 
 ---
 

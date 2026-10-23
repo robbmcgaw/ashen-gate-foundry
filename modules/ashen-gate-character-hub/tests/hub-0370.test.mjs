@@ -43,7 +43,7 @@ test('the window title is the brand and the name (0.37.1); the header heading is
   assert.doesNotMatch(h, /<b>Bold/);
   assert.doesNotMatch(h, /Character Hub/, 'the brand is not repeated inside the Hub');
   assert.equal((html.match(/<h1\b/g) ?? []).length, 1, 'one h1');
-  assert.match(h, /class="ag-header__actions">[\s\S]*data-action="compact-toggle"[\s\S]*data-action="more-menu"[\s\S]*class="ag-version">v0\.39\.0<\/span>[\s\S]*data-action="help"/, 'actions keep their place');
+  assert.match(h, /class="ag-header__actions">[\s\S]*data-action="compact-toggle"[\s\S]*data-action="more-menu"[\s\S]*class="ag-version">v0\.40\.0<\/span>[\s\S]*data-action="help"/, 'actions keep their place');
 });
 
 test('no second name in the character column; the column starts with the Cinders / star row, then the art', async () => {
@@ -61,7 +61,7 @@ test('identity line: species · class subclass · background, each a button that
   assert.equal(text, '[TEST] Elf · [TEST] Fighter [TEST] Champion · [TEST] Sage');
   for (const id of ['elf', 'fighter', 'champ', 'sage']) assert.match(line, new RegExp(`<button type="button" class="agch-idlink agch-idlink--[a-z]+" data-action="item-sheet" data-id="${id}" data-ag-always aria-label="[^"]+: open" data-tooltip="[^"]+: click to open">`));
   assert.match(line, /<span class="agch-idsep" aria-hidden="true"> · <\/span>/, 'separators are not read out');
-  assert.match(h, /<div class="agch-head__line"><h1 class="agch-head__name">\[TEST\] Hero<\/h1><span class="ag-badge agch-head__level">Level 3<\/span><\/div>/, 'Level badge beside the name');
+  assert.match(h, /<div class="agch-head__line"><h1 class="agch-head__name">\[TEST\] Hero<\/h1><span class="ag-badge agch-head__level">Level 3<\/span><button [^>]*data-action="name-edit"[^>]*>.*?<\/button><\/div>/, 'Level badge beside the name (0.40.0: then the owner\'s edit button)');
 });
 
 test('multiclass keeps each class\'s level in the line, the total in the badge', async () => {

@@ -33,12 +33,6 @@ function wellFormed(h, name) {
   return rs;
 }
 
-test('version is 0.39.0 in the code, module.json and its download URL', () => {
-  assert.equal(VERSION, '0.39.0');
-  assert.equal(manifest.version, '0.39.0');
-  assert.match(manifest.download, /ashen-gate-character-hub-v0\.39\.0\/ashen-gate-character-hub\.zip$/);
-});
-
 test('the bar is max + raised max + temp; each region is its own share of it', () => {
   // 18 / 35 HP, +6 temp, +5 max (base 30): D = 41.
   assert.deepEqual(shape(hp(18, 6, 5)), [['hp', 43.9], ['temp', 14.6], ['empty', 29.3], ['boost', 12.2]]);

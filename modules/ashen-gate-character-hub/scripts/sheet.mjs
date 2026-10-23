@@ -39,6 +39,7 @@ import {syncQuickKeys, unbindQuickKeys} from './quick-keys.mjs';
 import * as look from './look.mjs';
 import {openCodex} from './codex.mjs';
 import {configChoices} from './character.mjs';
+import {renameAsk} from './name-title.mjs';
 
 const warn = msg => globalThis.ui?.notifications?.warn?.(msg);
 /**
@@ -101,6 +102,8 @@ export const ACTIONS = {
   'more-menu': s => toggleMenu(s, s.menu === 'look' ? null : 'more'),
   // 0.34.0: Level up, Restore backup… and Configure… are items of the header's "⋯" menu, which closes first.
   'level-up': s => { closeMenu(s); return levelUp(s); },
+  // 0.40.0: Edit name and title… (header button and ⋯ menu); name-title.mjs checks who may, again.
+  'name-edit': s => { closeMenu(s); return renameAsk(s); },
   'level-restore': s => { closeMenu(s); return restoreAsk(s); },
   'hp-damage': (s, t) => hpButton(s, t, -1),
   'hp-heal': (s, t) => hpButton(s, t, 1),
