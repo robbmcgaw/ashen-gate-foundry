@@ -422,6 +422,10 @@
   height: var(--agch-icon); min-height: var(--agch-icon); max-height: var(--agch-icon); aspect-ratio: 1 / 1; padding: 0; margin: 0;
   object-fit: contain; object-position: center; background: var(--agch-bg-sunken); border: 0; border-radius: var(--ag-radius-sm); }
 .agch-app .agch-other__row img { --agch-icon: var(--ag-icon-chip); }
+/* 0.42.0: the icon of an item row is a Use button for users who can edit the character (cards.mjs iconHtml). */
+.agch-app .agch-item__icon { display: grid; place-items: center; justify-self: center; align-self: center; flex: 0 0 auto; width: auto; min-width: 0; height: auto; min-height: 0; padding: 0; margin: 0; border: 0; border-radius: var(--ag-radius-sm); background: none; cursor: pointer; line-height: 0; }
+.agch-app .agch-item__icon:hover .agch-item__img { box-shadow: 0 0 0 2px var(--ag-accent); }
+.agch-app .agch-item__icon:focus-visible { outline: 2px solid var(--ag-accent); outline-offset: 2px; }
 
 /* Inventory: currency, the resurrection diamond banner (display only) */
 .agch-app .agch-contents { padding-left: var(--ag-space-5); }

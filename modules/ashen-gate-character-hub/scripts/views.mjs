@@ -13,6 +13,7 @@ import {canSee, hiddenReason, hiddenBadge, partForPartner} from './visibility.mj
 import {companionsTab, gmSetupTab} from './companion-views.mjs';
 import {configAttrs} from './configure.mjs';
 import {hotbarsHtml, quickToggleHtml, quickDrawerHtml} from './hotbar-views.mjs';
+import {linkOn} from './hotbar-link.mjs';
 import {journeyTab} from './journey-views.mjs';
 import {sectionHtml, sectionKey} from './collapse.mjs';
 import {lookMenuHtml} from './look.mjs';
@@ -154,21 +155,30 @@ export function popOutBtn(sheet) {
     title: out ? 'Put the Hub back in the main Foundry window' : 'Open the Hub in its own browser window (e.g. on a second screen)'});
 }
 /**
+ * Link quick bar to Foundry's hotbar (0.42.0): a switch for this user, saved at once (hotbar-link.mjs). Pressed while on.
+ */
+export function linkMenuItem(on = linkOn()) {
+  const tip = on ? 'On: quick bar slots 1-10 and your Foundry hotbar page 1 stay the same. Click to turn off (only for you; applies now)'
+    : 'Off: the quick bar and Foundry\'s hotbar are separate. Click to link them (only for you; applies now)';
+  return `<button type="button" class="ag-btn ag-btn--ghost agch-menu__btn agch-linkbtn" data-action="hotbar-link" data-ag-always aria-pressed="${on}" data-tooltip="${esc(tip)}"><i class="fa-solid ${on ? 'fa-link' : 'fa-link-slash'}" aria-hidden="true"></i><span>Link quick bar to Foundry's hotbar</span><span class="ag-badge">${on ? 'On' : 'Off'}</span></button>`;
+}
+/**
  * The header's "⋯" menu (0.33.0, CH-03/CH-04): Appearance…, Pop out / Pop in, NPC Codex (when General Manager offers it
  * to this user) and Open native sheet, in Full, Compact and the limited view alike. The Appearance menu opens in the
  * same place (sheet.menu 'look'). 0.34.0: the character's own actions come first: Level up, Restore backup… (GM) and
  * Configure… (they were buttons under the name); not in the limited view.
  */
+const linkShown = ctx => !!ctx?.editable && !ctx.limited && canSee('hotbars');
 export function moreMenuHtml(sheet, ctx = null) {
   const open = sheet?.menu === 'more' ? 'more' : sheet?.menu === 'look' ? 'look' : null;
   const own = ctx && !ctx.limited && ctx.actor ? (ctx.editable ? nameMenuItem(ctx.actor) : '') + characterMenuItems(ctx.actor, !ctx.editable) : '';
   const menu = open === 'more' ? `<div class="agch-menu agch-moremenu" role="group" aria-label="More">
     ${own ? `${own}<hr class="agch-menu__sep">` : ''}
     ${btn('look-menu', 'Appearance…', {kind: 'ghost', extra: 'agch-menu__btn', icon: 'fa-solid fa-palette', always: true, title: 'Change how the Hub looks for you (only for you)'})}
-    ${popOutBtn(sheet)}${codexBtn({menu: true})}
+    ${popOutBtn(sheet)}${linkShown(ctx) ? linkMenuItem() : ''}${codexBtn({menu: true})}
     ${btn('open-native', 'Open native sheet', {kind: 'ghost', extra: 'agch-menu__btn', icon: 'fa-solid fa-file-lines', always: true, title: 'Open the standard dnd5e character sheet'})}</div>`
     : open === 'look' ? lookMenuHtml(sheet) : '';
-  const what = [own.includes('data-action="name-edit"') && 'Edit name and title', own && 'Level up', own.includes('data-action="level-restore"') && 'Restore backup', own.includes('data-action="configure"') && 'Configure', 'Appearance, Pop out, NPC Codex, Open native sheet'].filter(Boolean).join(', ');
+  const what = [own.includes('data-action="name-edit"') && 'Edit name and title', own && 'Level up', own.includes('data-action="level-restore"') && 'Restore backup', own.includes('data-action="configure"') && 'Configure', 'Appearance, Pop out', linkShown(ctx) && 'Link quick bar to Foundry\'s hotbar', 'NPC Codex, Open native sheet'].filter(Boolean).join(', ');
   return `<span class="agch-lookwrap"><button type="button" class="ag-btn ag-btn--ghost ag-btn--icon agch-morebtn" data-action="more-menu" data-ag-always aria-haspopup="true" aria-expanded="${open !== null}" aria-label="${esc(`More: ${what}`)}" data-tooltip="${esc(`More: ${what}`)}"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>${menu}</span>`;
 }
 /** A name this long gets its full text as a tooltip, since the header may cut it off with "…" in a narrow window. */

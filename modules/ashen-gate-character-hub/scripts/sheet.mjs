@@ -25,6 +25,7 @@ import * as bio from './biography.mjs';
 import * as marks from './marks.mjs';
 import * as hotbar from './hotbar.mjs';
 import {undoNoticesHtml} from './hotbar-views.mjs';
+import {hotbarLink, linkOn, setLinkOn} from './hotbar-link.mjs';
 import {syncEscape, unbindEscape} from './escape.mjs';
 import {stepStrain, pushFromHub, socketFromHub, dropOnSocket, openSkillTree} from './cinders.mjs';
 import {confirmDialog, confirmDanger, formDialog, guardDirty} from './ag-dialogs.mjs';
@@ -84,7 +85,8 @@ export const ACTIONS = {
   'list-filter': (s, t) => { setListFilter(s, t.dataset.tab, t.dataset.key, t.dataset.value); return s.render(); },
   'mark-apply': async (s, t) => { const r = await marks.applyMark(s.document, t.dataset.mark); if (r.ok) s.render(); return r; },
   'mark-remove': async (s, t) => { const r = await marks.removePlaced(s.document, t.dataset.scene, t.dataset.token, t.dataset.mark); if (r.ok) s.render(); return r; },
-  'hotbar-use': (s, t, e) => hotbar.useHotbarSlot(s.document, t.dataset.hotbarSlot, e),
+  // 0.42.0: the slot itself (a key press passes only its number) places dnd5e's roll dialogs (item-actions.mjs rollEvent).
+  'hotbar-use': (s, t, e) => hotbar.useHotbarSlot(s.document, t.dataset.hotbarSlot, e, t.getBoundingClientRect ? t : s.element?.querySelector?.(`[data-hotbar-slot="${t.dataset.hotbarSlot}"]`) ?? s.element ?? null),
   'hotbar-undo': (s, t) => s.undoList.undo(t.dataset.undo),
   'item-favorite': (s, t) => items.toggleFavorite(s.document, t.dataset.id),
   'slot-open': (s, t) => items.openItemSheet(s.document, t.dataset.id),
@@ -131,7 +133,7 @@ export const ACTIONS = {
   'roll-save': (s, t, e) => act.rollSavingThrow(s.document, t.dataset.ability, e),
   'roll-skill': (s, t, e) => act.rollSkill(s.document, t.dataset.skill, e),
   'roll-death': (s, t, e) => act.rollDeathSave(s.document, e),
-  'item-use': (s, t, e) => items.useItem(s.document, t.dataset.id, e),
+  'item-use': (s, t, e) => items.useItem(s.document, t.dataset.id, e, t),
   'item-sheet': (s, t) => items.openItemSheet(s.document, t.dataset.id),
   'item-qty': (s, t) => { const item = s.document.items?.get?.(t.dataset.id); return items.setQuantity(s.document, t.dataset.id, Number(item?.system?.quantity ?? 0) + Number(t.dataset.step)); },
   'item-equip': (s, t) => items.equipItem(s.document, t.dataset.id),
@@ -156,8 +158,15 @@ export const ACTIONS = {
   'look-set': async (s, t) => { const r = await look.setUserLook(t.dataset.field, t.dataset.value); if (r.ok) { look.applyLook(s.element); s.render(); } return r; },
   'look-more': s => { s.menu = null; s.render(); return look.managerAppearance()?.openMyAppearance?.(); },
   'codex-open': s => { closeMenu(s); return openCodex(); },
-  'pop-out': s => { s.menu = null; return togglePopOut(s); }
+  'pop-out': s => { s.menu = null; return togglePopOut(s); },
+  // 0.42.0: Link quick bar to Foundry's hotbar (per user; applies at once). On: this Hub's character is linked now.
+  'hotbar-link': async s => { const on = !linkOn(); await setLinkOn(on); s.render(); return on ? linkHub(s) : null; }
 };
+/** Links this Hub's character to the user's Foundry hotbar page 1 (hotbar-link.mjs), when the user can change its quick bar. */
+export function linkHub(sheet, link = hotbarLink) {
+  if (!sheet?.hubContext?.editable) return null;
+  return link.activate(sheet.document);
+}
 /** Level up (0.27.0): dnd5e's own flow. The shared form dialog asks which class to advance, or to add one. */
 export const levelClassPick = async options => (await formDialog('Level up', [{name: 'cls', label: 'Class', type: 'select', value: options[0]?.value ?? '', options,
   hint: 'dnd5e\'s level-up opens for the class you pick. "Add a class" opens dnd5e\'s class browser. A copy of the character as it is now is kept for the GM.'}], {ok: 'Level up'}))?.cls ?? null;
@@ -560,7 +569,7 @@ export function createHubSheetClass(Base) {
       // Listeners first (0.30.0): a new content element is bound before anything below can throw, so a redraw that
       // fails half-way never leaves a reopened Hub without its change listener (Group / Sort, GM Setup switches ...).
       const fresh = this._agchBound !== content;
-      if (fresh) this._bindContent(content);
+      if (fresh) { this._bindContent(content); void linkHub(this); }   // 0.42.0: an opened Hub takes the Foundry hotbar link
       // Quiet redraws (0.29.4, redraw.mjs): nothing changes when the HTML is the same; otherwise scroll positions (per
       // tab) and the focused field survive the redraw, so a change made by someone else never moves the player.
       // 0.33.0 (CH-02): buttons and tabs keep the focus too (also across a tab switch or Compact / Full); a popover that
@@ -595,6 +604,13 @@ export function createHubSheetClass(Base) {
       // in another browser window's <html>, so there it is still applied.
       if (isPoppedOut(this)) try { const a = globalThis.game?.modules?.get('ashen-gate-manager')?.api?.appearance; if (a?.contract === 'ag-appearance/0.1-beta') a.applyTo?.(content); } catch {}
       look.applyLook(this.element);   // 0.31.0: the built-in per-user look while Manager's appearance is absent
+    }
+
+    /** Brought to the front (clicked, focused): the Foundry hotbar link follows this character (0.42.0). */
+    bringToFront(...args) {
+      const r = super.bringToFront?.(...args);
+      void linkHub(this);
+      return r;
     }
 
     /** What popover is open now (a menu or a Journey entry being edited), or null. */

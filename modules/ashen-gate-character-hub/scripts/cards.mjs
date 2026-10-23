@@ -103,17 +103,30 @@ const cell = (col, row) => `<span class="agch-card__fact" data-label="${esc(col.
 /**
  * One item card. `expanded` (Set of item ids) keeps "More" open across re-renders. `lead` is HTML before the image
  * (a container's fold toggle), `star` the favourite button, `controls` the row's actions, `extra` HTML after the card
- * (a container's contents).
+ * (a container's contents). `iconUse` (0.42.0): the user can edit the character, so the icon is a Use button (iconHtml).
  */
-export function cardHtml(row, columns, {controls = '', lead = '', star = '', badges = '', alt = false, expanded = null, listKey = ''} = {}) {
+/**
+ * The item's icon (0.42.0). For someone who can edit the character it is a button: it uses the item (dnd5e's item.use,
+ * the activity chooser when there are several), like a quick-bar slot; an item with nothing to use (no activities)
+ * opens the item, as the name does. Observers get the plain image. The image inside never starts a drag of its own, so
+ * dragging the row still works.
+ */
+export function iconHtml(row, editable) {
+  const img = `<img class="agch-item__img" src="${esc(row.img)}" alt=""${editable ? ' draggable="false"' : ''}>`;
+  if (!editable) return img;
+  return row.usable
+    ? `<button type="button" class="agch-item__icon" data-action="item-use" data-id="${esc(row.id)}" aria-label="${esc(`Use ${row.name}`)}" data-tooltip="Use">${img}</button>`
+    : `<button type="button" class="agch-item__icon" data-action="item-sheet" data-id="${esc(row.id)}" aria-label="${esc(`Open ${row.name}`)}" data-tooltip="Nothing to use: opens the item">${img}</button>`;
+}
+export function cardHtml(row, columns, {controls = '', lead = '', star = '', badges = '', alt = false, expanded = null, listKey = '', iconUse = false} = {}) {
   const detailKey = sectionKey('more', listKey, row.id), open = expanded?.has?.(detailKey) === true;
   // 0.36.0: an activity recipe's effect note: a badge whose tooltip holds the note; the same text is in the row (summary or More).
   if (row.effectNote) badges = `<span class="ag-badge ag-badge--accent agch-effect-badge" data-tooltip="${esc(`Effect (the GM decides): ${row.effectNote}`)}"><i class="fa-solid fa-wand-sparkles" aria-hidden="true"></i> Effect</span>${badges}`;
   const more = row.more ? `<button type="button" class="agch-card__more" data-action="item-more" data-id="${esc(row.id)}" data-key="${esc(detailKey)}" data-ag-always aria-expanded="${open}" aria-controls="${esc(detailKey)}">${open ? 'Less' : 'More'}</button>` : '';
   return `<li class="agch-card${alt ? ' is-alt' : ''}${row.equipped ? ' is-equipped' : ''}${row.rarity ? ' has-rarity ag-rarity-edge' : ''}" data-item-id="${esc(row.id)}"${row.rarity ? ` data-rarity="${row.rarity}"` : ''}${row.uuid ? ` draggable="true" data-drag-uuid="${esc(row.uuid)}"` : ''}>
     <span class="agch-card__lead">${lead}${star}</span>
-    <img class="agch-item__img" src="${esc(row.img)}" alt="">
-    <span class="agch-card__main"><button type="button" class="agch-item__name" data-action="item-sheet" data-id="${esc(row.id)}" data-ag-always${tooltipAttrs(row.uuid, `Open ${row.name}`)}>${esc(row.name)}</button>${badges ? `<span class="agch-item__badges">${badges}</span>` : ''}
+    ${iconHtml(row, iconUse)}
+    <span class="agch-card__main"><button type="button" class="agch-item__name" data-action="item-sheet" data-id="${esc(row.id)}" data-ag-always${tooltipAttrs(row.uuid, `Open ${row.name}`)} aria-label="${esc(`Open ${row.name}`)}">${esc(row.name)}</button>${badges ? `<span class="agch-item__badges">${badges}</span>` : ''}
       ${row.summary ? `<span class="agch-card__summary">${esc(row.summary)} ${more}</span>` : more}</span>
     ${columns.map(c => cell(c, row)).join('')}
     <span class="agch-item__controls agch-card__actions">${controls}</span>

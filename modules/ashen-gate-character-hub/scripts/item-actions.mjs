@@ -31,10 +31,35 @@ function guard(actor, id) {
   return {item};
 }
 
-export async function useItem(actor, id, event) {
+/**
+ * The event handed to dnd5e's item.use (0.42.0). dnd5e 6 opens its attack and damage roll dialogs at
+ * `top: event.clientY - 80` (activity/attack.mjs, activity/mixin.mjs). A key press (the quick bar keys 1-9 and 0) has no
+ * clientY, and a button pressed with Enter or Space has clientY 0, so those dialogs were pinned to the top of the screen;
+ * a click in a popped-out Hub gives a position in that other window. Such events are replaced by a click event at
+ * `anchor` (the slot or row used), else at the middle of the screen, carrying the same Shift/Ctrl/Alt/Meta keys, so
+ * dnd5e's fast-forward keys still work. A real mouse click in Foundry's own window is passed on unchanged.
+ */
+export function rollEvent(event, anchor = null, view = globalThis) {
+  if (!event || typeof event !== 'object') return event;
+  const here = !event.view || event.view === view;
+  const pointed = Number.isFinite(event.clientY) && here && !(event.detail === 0 && !event.clientX && !event.clientY);
+  if (pointed) return event;
+  const Click = view?.PointerEvent ?? view?.MouseEvent;
+  if (typeof Click !== 'function') return event;
+  let box = null;
+  for (const el of [anchor, anchor?.closest?.('.application, .window-app')]) {
+    if (!el || (view?.document && el.ownerDocument && el.ownerDocument !== view.document)) continue;
+    const r = el.getBoundingClientRect?.();
+    if (r && (r.width || r.height)) { box = r; break; }
+  }
+  const x = box ? box.left + box.width / 2 : (view?.innerWidth ?? 0) / 2, y = box ? box.top + box.height / 2 : (view?.innerHeight ?? 0) / 2;
+  return new Click('click', {clientX: Math.round(x), clientY: Math.round(y), shiftKey: !!event.shiftKey, ctrlKey: !!event.ctrlKey, altKey: !!event.altKey, metaKey: !!event.metaKey});
+}
+
+export async function useItem(actor, id, event, anchor = null) {
   const {item, error} = guard(actor, id); if (error) return error;
   if (typeof item.use !== 'function') return refuse(`${item.name} can't be used from here; open its sheet.`);
-  return run(`use ${item.name}`, () => item.use({event}));
+  return run(`use ${item.name}`, () => item.use({event: rollEvent(event, anchor)}));
 }
 
 /** Viewing an item sheet only needs to see the character; the item sheet itself enforces editing. */
