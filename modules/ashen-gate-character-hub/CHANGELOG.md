@@ -1,3 +1,7 @@
+## 0.44.2 — 2026-10-23
+
+Level up now says what happened when dnd5e shows no advancement window. If the class has no advancement steps for that level, or dnd5e's "Disable Advancements" world setting is on, the level still goes up as before and a notice says so, with what is left to do by hand (set Hit Points, add new features). Before, it looked as if nothing had happened. Nothing else changes; saved data is untouched.
+
 ## 0.44.1 — 2026-10-23
 
 Puts the paper doll back to how it was before 0.43.0: slot sizes and arrangement as in 0.42.4 (Robb: 0.43.0 and 0.44.0 covered most of the art with the slots, the Token art button and the AC badge). Both slot changes are undone. Kept from 0.44.0: the character column opens shown (the one-time reset of a stored fold). Saved data: nothing changes.

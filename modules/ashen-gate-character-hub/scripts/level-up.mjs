@@ -83,6 +83,14 @@ async function advanceClass(actor, cls, sheet, after) {
   return 'levels';
 }
 
+/** What to tell the user when a level went up with no dnd5e advancement window (0.44.2): why, and what is left to do by hand. */
+export const noStepsNotice = (cls, actor, level) => {
+  const name = cls?.name ?? 'The class', off = setting('disableAdvancements', false);
+  return off
+    ? `${name} is now level ${level}. dnd5e's "Disable Advancements" setting is on in this world, so there were no choices to make: set Hit Points and add new features yourself on ${actor?.name ?? 'the character'}.`
+    : `${name} is now level ${level}. dnd5e has no advancement steps for this level of the class (its Advancement tab is empty for it), so there were no choices to make: set Hit Points and add new features yourself on ${actor?.name ?? 'the character'}.`;
+};
+
 /** Add a class through dnd5e's compendium browser and its new-item advancement, as the native "Add class" does. */
 async function addClass(actor, sheet, after) {
   const {CompendiumBrowser} = dnd5eApps(), Manager = advancementManager(), g = globalThis.game;
@@ -129,7 +137,9 @@ export async function startLevelUp(actor, {choose = null, sheet = null, onBackup
     onBackup?.(b); return b;
   };
   try {
-    return {ok: true, result: cls ? await advanceClass(actor, cls, sheet, after) : await addClass(actor, sheet, after)};
+    const before = Number(cls?.system?.levels) || 0;
+    const result = cls ? await advanceClass(actor, cls, sheet, after) : await addClass(actor, sheet, after);
+    return result === 'levels' ? {ok: true, result, notice: noStepsNotice(cls, actor, before + 1)} : {ok: true, result};
   } catch (err) {
     console.error('ashen-gate-character-hub | level up', err);
     return refuse(`Could not start the level-up: ${err?.message ?? err}`);

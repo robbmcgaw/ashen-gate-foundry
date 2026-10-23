@@ -129,12 +129,20 @@ test('a sheet that can render a child window (as dnd5e sheets do) is used for it
 
 test('no advancement steps, or advancements disabled: the class level goes up by one, then the copy', async () => {
   let {actor} = setup({user: users.gm, steps: 0});
-  assert.deepEqual(await startLevelUp(actor, {choose: pickClass('fig')}), {ok: true, result: 'levels'});
+  { const r1 = await startLevelUp(actor, {choose: pickClass('fig')}); assert.equal(r1.ok, true); assert.equal(r1.result, 'levels'); assert.match(r1.notice, /is now level \d+/); }
   assert.deepEqual(actor.items.get('fig').calls, [['update', {'system.levels': 4}]]);
   assert.equal(copies().length, 1);
-  const s = setup({user: users.gm, settings: {disableAdvancements: true}});
-  assert.deepEqual(await startLevelUp(s.actor, {choose: pickClass('fig')}), {ok: true, result: 'levels'});
+  const s = setup({user: users.gm, settings: {disableAdvancements: true}}); let r2;
+  r2 = await startLevelUp(s.actor, {choose: pickClass('fig')}); assert.equal(r2.ok, true); assert.equal(r2.result, 'levels');
   assert.equal(s.calls.length, 0);
+  assert.match(r2.notice, /level 4\. dnd5e's "Disable Advancements" setting is on/, 'says why, and what is left to do by hand');
+});
+
+test('0.44.2: no steps but advancements on says the class has no steps for that level', async () => {
+  const {actor} = setup({user: users.gm, steps: 0});
+  const r = await startLevelUp(actor, {choose: pickClass('fig')});
+  assert.match(r.notice, /\[TEST\] Fighter is now level 4\. dnd5e has no advancement steps for this level/);
+  assert.match(r.notice, /set Hit Points and add new features yourself/);
 });
 
 // ---------- 0.29.5: dnd5e's window opens the way dnd5e's sheets open it ----------
@@ -169,7 +177,7 @@ test('0.29.5: with steps (dnd5e fills them in forLevelChange) the level is never
 test('0.29.5: dnd5e reports no steps: one direct level bump (as the native sheet), noted in the console', async () => {
   const {actor} = setup({user: users.gm, steps: 0}); const said = [], info = console.info;
   console.info = m => said.push(m);
-  try { assert.deepEqual(await startLevelUp(actor, {choose: pickClass('fig'), sheet: {renderChild: () => assert.fail('no window')}}), {ok: true, result: 'levels'}); }
+  try { { const r3 = await startLevelUp(actor, {choose: pickClass('fig'), sheet: {renderChild: () => assert.fail('no window')}}); assert.equal(r3.ok, true); assert.equal(r3.result, 'levels'); assert.match(r3.notice, /is now level \d+/); } }
   finally { console.info = info; }
   assert.deepEqual(actor.items.get('fig').calls, [['update', {'system.levels': 4}]]);
   assert.match(said[0], /no advancement steps for \[TEST\] Fighter/);
