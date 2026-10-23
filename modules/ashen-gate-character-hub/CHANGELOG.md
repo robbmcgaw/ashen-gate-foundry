@@ -1,3 +1,12 @@
+## 0.44.0 — 2026-10-23
+
+Paper doll slots in short windows; Show character opens by default. Tests use mocked Foundry and cannot judge layout; the sizes below were measured in headless Chromium with the shipped CSS.
+
+- **Equipment slots are at least about 44 px.** The smallest slot used to be the icon-button size (about 26 to 32 px), which is where a short Compact window put them, so 0.43.0's growth never showed.
+- **Short windows: two columns per side.** When the doll is short for its width, each side's five slots sit in two columns over the blurred margins of the art pane (outer column first, top to bottom, then the inner one; Tab order is unchanged, head to hands then main hand to bracer). The art stays centred, uncropped and contained, with a clear middle (about 0.7 x its height) for the subject; Change portrait / Token art stack in that middle. The slots grow with the height (about 58 px at the shortest Compact doll, up to about 74 px with room), the rings and trinkets row stays under the art, and the AC badge, rarity rings, attuned mark and Equip / Unequip menus follow the new size and column. Too narrow for that (a doll under 320 px wide, 410 px at the Comfortable size) or tall enough for full-size slots keeps the single column at the 44 px minimum.
+- **Fix: Show character was closed on first open for some users.** 0.33.0 shipped the narrow Full column folded and remembered every click, so a stored "folded" from then could outlive 0.41.0's open default. This version drops a stored fold once per user and computer (stamped, so it never repeats); after that your Hide / Show choice is remembered as before. A new user with nothing stored gets it open in narrow Full and in Compact.
+- Saved data: one browser-side setting (the character fold) is reset once; nothing in the world changes.
+
 ## 0.43.0 — 2026-10-23
 
 Paper doll: bigger equipment slots. Tests use mocked Foundry and cannot judge layout; the live Hub is for Robb to look at.

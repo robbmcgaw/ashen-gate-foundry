@@ -20,14 +20,14 @@ const Hub = createHubSheetClass(FakeActorSheetV2);
 const narrow = CSS.split('@container (max-width: 900px) {').slice(1).map(b => b.slice(0, b.indexOf('\n}\n'))).join('\n');
 const rule = sel => { const at = narrow.indexOf(`  ${sel} {`); assert.ok(at >= 0, `narrow rule ${sel}`); return narrow.slice(at, narrow.indexOf('}', at)); };
 
-test('version is 0.43.0 in the code, module.json and its download URL', () => {
-  assert.equal(VERSION, '0.43.0');
-  assert.equal(manifest.version, '0.43.0');
-  assert.match(manifest.download, /ashen-gate-character-hub-v0\.43\.0\/ashen-gate-character-hub\.zip$/);
+test('version is 0.44.0 in the code, module.json and its download URL', () => {
+  assert.equal(VERSION, '0.44.0');
+  assert.equal(manifest.version, '0.44.0');
+  assert.match(manifest.download, /ashen-gate-character-hub-v0\.44\.0\/ashen-gate-character-hub\.zip$/);
 });
 
 test('a new Hub shows the whole character column: Hide character, no folded class', async () => {
-  globalThis.localStorage = {getItem: () => null, setItem: () => { throw new Error('nothing is stored on open'); }};
+  globalThis.localStorage = {getItem: () => null, setItem: (k, v) => { assert.deepEqual(JSON.parse(v), {charFoldReset: '0.44.0'}, 'opening stores only the one-time reset stamp'); }};
   try {
     installGlobals({user: users.owner});
     const sheet = new Hub({document: makeActor()});
@@ -40,7 +40,7 @@ test('a new Hub shows the whole character column: Hide character, no folded clas
 
 test('a stored folded choice is kept; an unknown stored value falls back to shown', () => {
   for (const [stored, folded] of [[true, true], [false, false], ['yes', false]]) {
-    globalThis.localStorage = {getItem: () => JSON.stringify({charFolded: stored}), setItem: () => {}};
+    globalThis.localStorage = {getItem: () => JSON.stringify({charFolded: stored, charFoldReset: '0.44.0'}), setItem: () => {}};
     try { installGlobals({user: users.owner}); assert.equal(new Hub({document: makeActor()}).charFolded, folded, String(stored)); }
     finally { delete globalThis.localStorage; }
   }

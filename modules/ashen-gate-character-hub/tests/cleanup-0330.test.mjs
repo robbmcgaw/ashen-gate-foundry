@@ -172,7 +172,7 @@ test('CH-09: the character column shows by default (0.41.0); Hide character fold
     let html = await sheet._renderHTML();
     assert.doesNotMatch(html, /agch-root--charfolded/);
     assert.match(html, /data-action="char-fold" data-ag-always aria-expanded="true"><i[^>]*><\/i><span>Hide character<\/span>/);
-    assert.deepEqual(mem, {}, 'opening the Hub stores nothing');
+    assert.deepEqual(JSON.parse(Object.values(mem)[0]), {charFoldReset: '0.44.0'}, 'opening the Hub stores only the one-time reset stamp');
     await ACTIONS['char-fold'](sheet);
     assert.equal(sheet.charFolded, true);
     html = await sheet._renderHTML();

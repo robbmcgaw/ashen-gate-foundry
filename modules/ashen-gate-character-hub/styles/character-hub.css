@@ -187,9 +187,9 @@
 .agch-app .agch-other__att { color: var(--ag-accent); }
 
 /* Small menus (slot actions, HP editor) */
-.agch-app .agch-menu { position: absolute; z-index: 20; width: 15rem; max-width: calc(100% - var(--agch-slot) - var(--ag-space-5)); display: grid; gap: var(--ag-space-1); padding: var(--ag-space-2); background: var(--ag-surface-sunken); border: 1px solid var(--ag-border-strong); border-radius: var(--ag-radius); box-shadow: var(--ag-shadow); font-size: var(--ag-text-sm); }
-.agch-app .agch-menu--slot.is-left { left: calc(var(--agch-slot) + var(--ag-space-3)); top: calc(var(--row) * (var(--agch-slot) + var(--ag-space-2))); }
-.agch-app .agch-menu--slot.is-right { right: calc(var(--agch-slot) + var(--ag-space-3)); top: calc(var(--row) * (var(--agch-slot) + var(--ag-space-2))); }
+.agch-app .agch-menu { position: absolute; z-index: 20; width: 15rem; max-width: calc(100% - var(--agch-cluster, var(--agch-slot)) - var(--ag-space-5)); display: grid; gap: var(--ag-space-1); padding: var(--ag-space-2); background: var(--ag-surface-sunken); border: 1px solid var(--ag-border-strong); border-radius: var(--ag-radius); box-shadow: var(--ag-shadow); font-size: var(--ag-text-sm); }
+.agch-app .agch-menu--slot.is-left { left: calc(var(--agch-cluster, var(--agch-slot)) + var(--ag-space-3)); top: calc(var(--row) * (var(--agch-slot) + var(--ag-space-2))); }
+.agch-app .agch-menu--slot.is-right { right: calc(var(--agch-cluster, var(--agch-slot)) + var(--ag-space-3)); top: calc(var(--row) * (var(--agch-slot) + var(--ag-space-2))); }
 .agch-app .agch-menu--slot.is-bottom { left: 50%; transform: translateX(-50%); bottom: calc(var(--agch-row-slot, var(--agch-slot)) + var(--ag-space-3)); }
 .agch-app .agch-menu--inline { position: static; width: auto; max-width: none; flex-basis: 100%; }
 .agch-app .agch-menu__head { display: flex; flex-wrap: wrap; gap: var(--ag-space-1) var(--ag-space-2); align-items: baseline; padding-bottom: var(--ag-space-1); border-bottom: 1px solid var(--ag-border); margin-bottom: var(--ag-space-1); }
@@ -701,6 +701,40 @@
 .agch-app .agch-drawer .agch-quick { display: grid; grid-template-columns: repeat(10, minmax(0, var(--ag-slot))); justify-content: center; gap: var(--ag-space-1); }
 .agch-app .agch-drawer .agch-quick__slot { width: 100%; height: auto; aspect-ratio: 1; }
 
+/* 0.44.0: the smallest slot is about 44 px (it was the icon-button size). A doll that is short for its width (Compact in a
+   short window, Full when the column is squeezed) lays each side's five slots out in TWO columns (outer column first, top
+   to bottom, then the inner one; the DOM and Tab order stay head to bracer) over the blurred margins of the art pane, so
+   the slots grow without adding height. The art stays centred, uncropped and contained; the slot size keeps a centre of
+   about 0.7 x the art's height clear (Change portrait / Token art stack in it). Height: 3 slots + the rings row (0.85 slot)
+   + 3 gaps. Width: 4 slots + that centre + 5.4 gaps. A doll under 320 px wide (410 px at the Comfortable size) or taller
+   than 300 px (392 px) keeps the single column at 44 px or more. Two blocks, one per Size, because a container query
+   cannot read the Size tokens. They are more specific than the base doll rules near the end of this file, so order
+   does not matter. */
+@container agch-doll (max-height: 300px) and (min-width: 320px) {
+  html:not([data-ag-size="comfortable"]) .agch-app .agch-char .agch-doll > * { --agch-slot: clamp(var(--agch-slot-min), min((100cqh - var(--ag-space-2) * 3) / 3.85, (100cqw - var(--ag-space-2) * 5.4) / 6.1), var(--agch-slot-max2)); --agch-cluster: calc(var(--agch-slot) * 2 + var(--ag-space-2)); }
+  html:not([data-ag-size="comfortable"]) .agch-app .agch-char .agch-doll > .agch-doll__col { grid-area: 1 / 2; display: grid; grid-template-columns: repeat(2, var(--agch-slot)); grid-template-rows: repeat(3, var(--agch-slot)); grid-auto-flow: column; gap: var(--ag-space-2); align-self: start; justify-self: start; z-index: 1; }
+  html:not([data-ag-size="comfortable"]) .agch-app .agch-char .agch-doll > .agch-doll__col ~ .agch-doll__col { grid-column: 2; justify-self: end; direction: rtl; }
+  html:not([data-ag-size="comfortable"]) .agch-app .agch-char .agch-doll > .agch-doll__col > * { direction: ltr; }
+  html:not([data-ag-size="comfortable"]) .agch-app .agch-char .agch-doll > .agch-doll__center, html:not([data-ag-size="comfortable"]) .agch-app .agch-char .agch-doll > .agch-doll__row { margin-inline: calc(var(--ag-space-2) * -1); }
+  html:not([data-ag-size="comfortable"]) .agch-app .agch-char .agch-doll > .agch-doll__row { min-height: var(--agch-row-slot); }
+  html:not([data-ag-size="comfortable"]) .agch-app .agch-char .agch-doll .agch-doll__art { height: calc(var(--agch-slot) * 3 + var(--ag-space-2) * 2); }
+  html:not([data-ag-size="comfortable"]) .agch-app .agch-char .agch-doll .agch-doll__change { left: 50%; transform: translateX(-50%); }
+  html:not([data-ag-size="comfortable"]) .agch-app .agch-char .agch-doll .agch-doll__toggle { top: calc(var(--ag-control-h-sm) + var(--ag-space-1) * 2); left: 50%; right: auto; transform: translateX(-50%); }
+  html:not([data-ag-size="comfortable"]) .agch-app .agch-char .agch-doll .agch-menu--slot { top: calc(var(--row2) * (var(--agch-slot) + var(--ag-space-2))); }
+}
+@container agch-doll (max-height: 392px) and (min-width: 410px) {
+  html[data-ag-size="comfortable"] .agch-app .agch-char .agch-doll > * { --agch-slot: clamp(var(--agch-slot-min), min((100cqh - var(--ag-space-2) * 3) / 3.85, (100cqw - var(--ag-space-2) * 5.4) / 6.1), var(--agch-slot-max2)); --agch-cluster: calc(var(--agch-slot) * 2 + var(--ag-space-2)); }
+  html[data-ag-size="comfortable"] .agch-app .agch-char .agch-doll > .agch-doll__col { grid-area: 1 / 2; display: grid; grid-template-columns: repeat(2, var(--agch-slot)); grid-template-rows: repeat(3, var(--agch-slot)); grid-auto-flow: column; gap: var(--ag-space-2); align-self: start; justify-self: start; z-index: 1; }
+  html[data-ag-size="comfortable"] .agch-app .agch-char .agch-doll > .agch-doll__col ~ .agch-doll__col { grid-column: 2; justify-self: end; direction: rtl; }
+  html[data-ag-size="comfortable"] .agch-app .agch-char .agch-doll > .agch-doll__col > * { direction: ltr; }
+  html[data-ag-size="comfortable"] .agch-app .agch-char .agch-doll > .agch-doll__center, html[data-ag-size="comfortable"] .agch-app .agch-char .agch-doll > .agch-doll__row { margin-inline: calc(var(--ag-space-2) * -1); }
+  html[data-ag-size="comfortable"] .agch-app .agch-char .agch-doll > .agch-doll__row { min-height: var(--agch-row-slot); }
+  html[data-ag-size="comfortable"] .agch-app .agch-char .agch-doll .agch-doll__art { height: calc(var(--agch-slot) * 3 + var(--ag-space-2) * 2); }
+  html[data-ag-size="comfortable"] .agch-app .agch-char .agch-doll .agch-doll__change { left: 50%; transform: translateX(-50%); }
+  html[data-ag-size="comfortable"] .agch-app .agch-char .agch-doll .agch-doll__toggle { top: calc(var(--ag-control-h-sm) + var(--ag-space-1) * 2); left: 50%; right: auto; transform: translateX(-50%); }
+  html[data-ag-size="comfortable"] .agch-app .agch-char .agch-doll .agch-menu--slot { top: calc(var(--row2) * (var(--agch-slot) + var(--ag-space-2))); }
+}
+
 /* Compact mode (0.29.0): one column (name, art with slots, HP; 0.32.0 also the stats) and the hotbars; no tab rail or middle content. */
 .agch-app .agch-root--compact .ag-header { flex-wrap: wrap; row-gap: var(--ag-space-1); }
 .agch-app .agch-root--compact .ag-header__actions { flex-wrap: wrap; }
@@ -730,12 +764,12 @@
    default Compact size. The slot size follows the doll's height and width; the column still scrolls when even the
    smallest doll does not fit. The quick bar keeps its ten slots on one row. 0.34.0: Full's column does the same. */
 .agch-app .agch-char .agch-doll {
-  --agch-slot-max: calc((var(--ag-slot) + var(--ag-space-3)) * 1.28); --agch-slot-min: var(--ag-icon-btn);
+  --agch-slot-max: calc((var(--ag-slot) + var(--ag-space-3)) * 1.28); --agch-slot-min: calc(var(--ag-slot) + var(--ag-space-2)); --agch-slot-max2: calc(var(--agch-slot-max) * 1.25);
   container: agch-doll / size; flex: 0 1 calc(var(--agch-slot-max) * 5 + var(--ag-space-2) * 4);
   min-height: calc(var(--agch-slot-min) * 5 + var(--ag-space-2) * 4);
   grid-template-columns: auto minmax(0, 1fr) auto; grid-template-rows: auto auto; align-content: start; }
 .agch-app .agch-char .agch-doll > * { --agch-slot: clamp(var(--agch-slot-min), min((100cqh - var(--ag-space-2) * 4) / 5, (100cqw - var(--ag-space-2) * 2 - var(--ag-space-1) * 4) / 6.25), var(--agch-slot-max));
-  --agch-row-slot: max(calc(var(--agch-slot) * .85), var(--ag-icon-btn)); }
+  --agch-row-slot: max(calc(var(--agch-slot) * .85), calc(var(--agch-slot-min) * .85)); --agch-cluster: var(--agch-slot); }
 .agch-app .agch-char .agch-doll > .agch-doll__col { grid-row: 1 / span 2; grid-column: 1; }
 .agch-app .agch-char .agch-doll > .agch-doll__col ~ .agch-doll__col { grid-column: 3; }
 .agch-app .agch-char .agch-doll > .agch-doll__center { grid-row: 1; grid-column: 2; }
