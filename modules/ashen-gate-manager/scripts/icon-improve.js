@@ -23,7 +23,7 @@ export function scanIconDocuments(docs, index) {
     const found = resolveIcon(documentIconInput(doc), index);
     const suggestion = found && found.img !== img ? found : null;
     rows.push({uuid: doc.uuid, id: doc.id, documentName: doc.documentName, name: String(doc.name ?? ''), type: doc.type ?? '',
-      from: img ?? '', img: suggestion?.img ?? null, reason: suggestion?.reason ?? 'No fitting icon found; use Change…',
+      from: img ?? '', img: suggestion?.img ?? null, reason: suggestion?.reason ?? (index?.size ? 'No confident match; use Change…' : 'No fitting icon found; use Change…'),
       confidence: suggestion?.confidence ?? 'none', source: suggestion ? 'smart' : null, playerOwned: playerOwned(doc),
       checked: Boolean(suggestion) && !playerOwned(doc)});
   }

@@ -184,7 +184,7 @@ test('0.48.0: Browse shows a recipe\'s kind and a profession\'s category as a ch
   assert.ok(entry('REC-TEST-ARTISTRY-BALLAD').hay.includes('activity'), 'searchable by "activity"');
 });
 
-test('0.48.0: smart icons know creative words; an activity recipe with no matching word falls back to the stage', () => {
+test('0.48.0: smart icons know creative words; an activity recipe with no matching word gets the generic icon (0.52.0)', () => {
   const byWord = new Map();
   for (const c of ICON_CONCEPTS) for (const w of c.words) byWord.set(w, [...(byWord.get(w) ?? []), c.id]);
   const expected = {music: 'music', instrument: 'music', lute: 'music', lyre: 'music', drum: 'music', song: 'music', performance: 'music',
@@ -194,27 +194,25 @@ test('0.48.0: smart icons know creative words; an activity recipe with no matchi
   assert.ok(!byWord.get('instrument').includes('tool'), 'an instrument is a musical one, not a hand tool');
   assert.ok(byWord.get('performance').includes('theatre'));
 
-  const index = createIconIndex([...FAKE_ICONS, 'icons/tools/instruments/lute-gold-brown.webp', 'icons/tools/instruments/drum-hand-tan.webp',
-    'icons/tools/scribal/brush-paint-red.webp', 'icons/tools/scribal/quill-feather-white.webp', 'icons/sundries/misc/mask-theater-comedy.webp',
-    'icons/commodities/treasure/statue-gold.webp', 'icons/tools/hand/hammer-claw.webp']);
+  // 0.52.0: real Foundry core paths (the 0.48.0 list had made-up ones).
+  const index = createIconIndex([...FAKE_ICONS, 'icons/tools/instruments/lute-gold-brown.webp', 'icons/tools/instruments/drum-brown-red.webp',
+    'icons/tools/hand/brush-paint-brown-tan.webp', 'icons/tools/scribal/ink-quill-red.webp', 'icons/equipment/head/mask-carved-wood-pink.webp',
+    'icons/commodities/treasure/statue-bust-stone-grey.webp', 'icons/tools/hand/hammer-cobbler-steel.webp']);
   const item = (id, name, extra = {}) => ({id, entity_type: 'Recipe', ...extra, foundry: {document_type: 'Item', data: {name, type: 'loot'}}});
   const cases = [['[TEST] Tavern Ballad', 'music', /tools\/instruments\//], ['[TEST] Lute', 'music', /lute/], ['[TEST] Musical Instrument', 'music', /tools\/instruments\//],
     ['[TEST] Oil Painting', 'painting', /brush-paint/], ['[TEST] Marble Sculpture', 'sculpture', /statue/], ['[TEST] Epic Poem', 'writing', /scroll|quill|book/],
-    ['[TEST] Comedy Play', 'theatre', /mask-theater/]];
+    ['[TEST] Comedy Play', 'theatre', /mask-carved/]];
   for (const [name, concept, path] of cases) {
     const out = resolveIcon(recordIconInput(item('REC-TEST-ICON', name)), index);
     assert.equal(out?.concept, concept, name);
     assert.match(out.img, path, name);
   }
-  // Kind: an activity recipe whose name says nothing gets the stage; a craft recipe keeps its old fallback (no change).
-  const activity = resolveIcon(recordIconInput(item('REC-TEST-ZORBLAT', '[TEST] Zorblat', {kind: 'activity'})), index);
-  assert.match(activity.reason, /^matched kind: theatre/);
-  assert.match(activity.img, /mask-theater/);
-  const craft = resolveIcon(recordIconInput(item('REC-TEST-ZORBLAT', '[TEST] Zorblat')), index);
-  assert.doesNotMatch(craft.reason, /theatre/);
+  // 0.52.0: a recipe whose name says nothing gets no pick (the generic recipe icon), activity or craft, at import and in Improve icons.
+  assert.equal(resolveIcon(recordIconInput(item('REC-TEST-ZORBLAT', '[TEST] Zorblat', {kind: 'activity'})), index), null);
+  assert.equal(resolveIcon(recordIconInput(item('REC-TEST-ZORBLAT', '[TEST] Zorblat')), index), null);
   const worldDoc = {documentName: 'Item', name: '[TEST] Zorblat', type: 'loot', system: {},
     flags: {[M]: {source: {sourceId: 'REC-TEST-ZORBLAT', entityType: 'Recipe', definition: {kind: 'activity'}}}}};
-  assert.equal(documentIconInput(worldDoc).kinds[0], 'activity', 'Improve icons reads the same kind from a world Item');
+  assert.equal(resolveIcon(documentIconInput(worldDoc), index), null);
   // The old matches are unchanged.
   assert.equal(resolveIcon(recordIconInput(item('MAT-TEST-X', '[TEST] Healing Draught')), index).concept, 'potion');
 });

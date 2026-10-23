@@ -36,9 +36,8 @@ test('0.47.0: names find a logically fitting icon, with a reason and a confidenc
   assert.equal(resolveIcon(recordIconInput(item('[TEST] Oak Shield')), index).concept, 'shield');
   // Prefers .webp and an un-numbered file over sword-guard-02 / .png duplicates.
   assert.equal(resolveIcon(recordIconInput(item('[TEST] Longsword', {type: 'weapon'})), index).img, 'icons/weapons/swords/sword-guard.webp');
-  // Kind is the last resort; nothing at all gives null (the caller then uses the generic category icon).
-  const byKind = resolveIcon(recordIconInput(item('[TEST] Zorblat', {type: 'weapon'})), index);
-  assert.match(byKind.img, /^icons\/weapons\//); assert.equal(byKind.confidence, 'low'); assert.match(byKind.reason, /kind: sword/);
+  // 0.52.0: the kind alone no longer picks an icon (it gave loose matches): null, so the caller uses the generic category icon.
+  assert.equal(resolveIcon(recordIconInput(item('[TEST] Zorblat', {type: 'weapon'})), index), null);
   assert.equal(resolveIcon(recordIconInput({id: 'X-TEST-1', entity_type: 'Thing', foundry: {document_type: 'JournalEntry', data: {name: '[TEST] Zorblat'}}}), index), null);
   assert.equal(resolveIcon(recordIconInput(item('[TEST] Healing Draught')), null), null, 'no index, no pick');
   // Never picks placeholder art from icons/svg.

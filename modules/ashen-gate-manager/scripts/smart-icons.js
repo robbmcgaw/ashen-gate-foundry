@@ -10,9 +10,8 @@
  *
  * Everything here is pure except createIconIndexer, which browses with the FilePicker it is given and never throws.
  */
-import {ICON_CONCEPTS, KIND_CONCEPTS, STOPWORDS} from './icon-keywords.js';
+import {ICON_CONCEPTS, SHORT_WORDS, STOPWORDS} from './icon-keywords.js';
 import {iconFallback} from './import-fidelity.js';
-import {isActivityRecipe} from './profession-records.js';
 
 export const ICON_FLAGS = Object.freeze({source: 'iconSource', path: 'iconPath'});
 export const ICON_SOURCES = Object.freeze(['smart', 'authored', 'fallback']);
@@ -54,7 +53,7 @@ export function managerAssignedIcon(img, flags) {
 }
 
 // ---------- Words ----------
-const STOP = new Set(STOPWORDS);
+const STOP = new Set(STOPWORDS), SHORT = new Set(SHORT_WORDS);
 /** The word and its likely singular forms ("caltrops" → caltrop, "leaves" → leaf / leafe, "berries" → berry). */
 export function wordForms(word) {
   const w = String(word).toLowerCase(), out = [w];
@@ -64,10 +63,16 @@ export function wordForms(word) {
   if (w.length > 3 && w.endsWith('s') && !w.endsWith('ss')) out.push(w.slice(0, -1));
   return [...new Set(out)];
 }
-/** Lower-case words of two or more letters, without stop words, [TEST]-style tags or numbers. */
+/** An id-like chunk ("LIT-01", "MUS-CORE", "x2"): any digit, or capitals joined by hyphens. */
+const ID_LIKE = /\d|^[A-Z]{2,}(?:[-_][A-Z0-9]+)+$/;
+/**
+ * Lower-case words of a name, without stop words, [TEST]-style tags, numbers or id-like chunks (0.52.0), and without
+ * words under 4 letters unless SHORT_WORDS lists them.
+ */
 export function tokenize(text) {
-  return String(text ?? '').toLowerCase().replace(/\[[^\]]*\]/g, ' ').replace(/[^a-z]+/g, ' ').split(' ')
-    .filter(w => w.length >= 2 && !STOP.has(w));
+  return String(text ?? '').replace(/\[[^\]]*\]/g, ' ').split(/[^A-Za-z0-9_-]+/).filter(chunk => chunk && !ID_LIKE.test(chunk))
+    .flatMap(chunk => chunk.toLowerCase().split(/[^a-z]+/))
+    .filter(w => (w.length >= 4 || SHORT.has(w)) && !STOP.has(w));
 }
 const fileWords = text => String(text ?? '').toLowerCase().split(/[^a-z]+/).filter(w => w.length >= 2);
 
@@ -121,31 +126,23 @@ function filesInFolder(index, hint) {
 }
 
 // ---------- Record → words ----------
-const stripHtml = html => String(html ?? '').replace(/<[^>]*>/g, ' ').slice(0, 600);
-/** What the resolver reads from an import record. */
+/**
+ * What the resolver reads from an import record. 0.52.0: only the name and tags decide; the kind and the description
+ * no longer pick an icon on their own (they gave loose matches), so a record they alone would match gets the generic icon.
+ */
 export function recordIconInput(record) {
   const data = record?.foundry?.data ?? {};
   const tags = [record?.tags, record?.keywords, record?.definition?.tags].find(Array.isArray) ?? [];
   return {
     seed: String(record?.id ?? data.name ?? record?.name ?? ''),
     name: String(data.name ?? record?.name ?? record?.id ?? ''),
-    // 0.48.0: an activity recipe's kind comes first, so it falls back to the stage, not to its loot or recipe kind.
-    kinds: [isActivityRecipe(record) ? 'activity' : null, data.system?.type?.value, data.type, record?.entity_type, record?.foundry?.document_type, String(record?.id ?? '').split('-')[0]].filter(Boolean),
     tags: tags.filter(t => typeof t === 'string'),
-    description: stripHtml(data.system?.description?.value ?? data.system?.details?.biography?.value ?? data.description ?? ''),
   };
 }
 /** What the resolver reads from a world Item or Actor. */
 export function documentIconInput(doc) {
   const source = doc?.flags?.['ashen-gate-manager']?.source ?? doc?.getFlag?.('ashen-gate-manager', 'source') ?? {};
-  return {
-    seed: String(source.sourceId ?? doc?.uuid ?? doc?.id ?? doc?.name ?? ''),
-    name: String(doc?.name ?? ''),
-    kinds: [isActivityRecipe({id: source.sourceId, entity_type: source.entityType, kind: source.definition?.kind}) ? 'activity' : null,
-      doc?.system?.type?.value, doc?.type, source.entityType, doc?.documentName].filter(Boolean),
-    tags: [],
-    description: stripHtml(doc?.system?.description?.value ?? ''),
-  };
+  return {seed: String(source.sourceId ?? doc?.uuid ?? doc?.id ?? doc?.name ?? ''), name: String(doc?.name ?? ''), tags: []};
 }
 
 /** Stable 32-bit hash (FNV-1a) for picking among equally good icons. */
@@ -156,8 +153,8 @@ export function stableHash(text) {
 }
 
 /**
- * Best icon for one record from an index, or null when nothing fits well enough.
- * Returns {img, reason, confidence: 'high'|'medium'|'low', concept}.
+ * Best icon for one record from an index, or null when nothing fits well enough (0.52.0: no loose matches).
+ * Returns {img, reason, confidence: 'high'|'medium', concept}.
  * Deterministic: the same input and index always give the same icon. Among equally scored icons the pick is by a hash
  * of the record's permanent id over the path-sorted list, so similar records do not all share one icon.
  */
@@ -177,67 +174,43 @@ export function resolveIcon(input, index) {
     fromName.add(ci);
   }
   for (const t of input?.tags ?? []) for (const w of tokenize(t)) for (const ci of conceptsOf(w)) add(ci, 1.5);
-  let via = weights.size ? 'name' : '';
-  if (!weights.size) {
-    // Description: only when the name says nothing, and only concepts mentioned at least twice.
-    const counts = new Map();
-    for (const w of tokenize(input?.description)) for (const ci of conceptsOf(w)) counts.set(ci, (counts.get(ci) ?? 0) + 1);
-    for (const [ci, n] of counts) if (n >= 2) add(ci, 1);
-    if (weights.size) via = 'description';
+  const cand = new Map(); // file index → score
+  const bump = (i, sc) => cand.set(i, (cand.get(i) ?? 0) + sc);
+  for (const [ci, w] of weights) {
+    const c = ICON_CONCEPTS[ci];
+    const inFolder = new Set(c.folders.flatMap(hint => filesInFolder(index, hint)));
+    for (const i of inFolder) bump(i, 10 * w);
+    // A file-name hint counts once per concept, so "potion-flask" does not beat "bottle-round" on two hints.
+    const named = new Set((c.names ?? []).flatMap(n => index.byWord.get(n) ?? []));
+    for (const i of named) bump(i, (inFolder.has(i) ? 3 : 2) * w);
   }
-  const kindConcepts = [];
-  for (const k of input?.kinds ?? []) for (const id of KIND_CONCEPTS[String(k).toLowerCase().replace(/[^a-z]/g, '')] ?? []) {
-    const ci = CONCEPT_BY_ID.get(id);
-    if (ci !== undefined && !kindConcepts.includes(ci)) kindConcepts.push(ci);
+  for (const w of nameWords) for (const f of wordForms(w)) for (const i of index.byWord.get(f) ?? []) bump(i, 4);
+  for (const [i, sc] of cand) {
+    const f = index.files[i];
+    let extra = (f.webp ? 1 : 0) - (f.numbered ? 1.5 : 0);
+    for (const w of nameWords) if (wordForms(w).some(x => f.dirWords.has(x))) extra += 1;
+    cand.set(i, sc + extra);
   }
-  const score = (concepts, useKind) => {
-    const cand = new Map(); // file index → score
-    const bump = (i, s) => cand.set(i, (cand.get(i) ?? 0) + s);
-    for (const [ci, w] of concepts) {
-      const c = ICON_CONCEPTS[ci];
-      const inFolder = new Set(c.folders.flatMap(hint => filesInFolder(index, hint)));
-      for (const i of inFolder) bump(i, 10 * w);
-      // A file-name hint counts once per concept, so "potion-flask" does not beat "bottle-round" on two hints.
-      const named = new Set((c.names ?? []).flatMap(n => index.byWord.get(n) ?? []));
-      for (const i of named) bump(i, (inFolder.has(i) ? 3 : 2) * w);
-    }
-    if (!useKind) for (const w of nameWords) {
-      if (w.length < 3) continue;
-      for (const f of wordForms(w)) for (const i of index.byWord.get(f) ?? []) bump(i, 4);
-    }
-    for (const [i, s] of cand) {
-      const f = index.files[i];
-      let extra = (f.webp ? 1 : 0) - (f.numbered ? 1.5 : 0);
-      for (const w of nameWords) if (w.length >= 3 && wordForms(w).some(x => f.dirWords.has(x))) extra += 1;
-      cand.set(i, s + extra);
-    }
-    return cand;
-  };
-  let cand = score(weights, false), kindOnly = false;
-  let best = Math.max(-Infinity, ...cand.values());
-  if (!(best >= 5) && kindConcepts.length) {
-    // Last resort by kind: the first kind concept that has art in this world.
-    for (const ci of kindConcepts) {
-      cand = score(new Map([[ci, 1]]), true);
-      best = Math.max(-Infinity, ...cand.values());
-      if (best >= 5) { kindOnly = true; via = `kind: ${ICON_CONCEPTS[ci].id}`; break; }
-    }
-  }
+  const best = Math.max(-Infinity, ...cand.values());
   if (!(best >= 5)) return null;
-  const tier = [...cand].filter(([, s]) => s === best).map(([i]) => index.files[i].path).sort();
+  const tier = [...cand].filter(([, sc]) => sc === best).map(([i]) => index.files[i].path).sort();
   const img = tier[stableHash(input?.seed || input?.name || '') % tier.length];
   const file = index.files[index.byPath.get(img)];
   const top = [...weights].sort((a, b) => b[1] - a[1] || a[0] - b[0]).map(([ci]) => ci);
-  const concept = kindOnly ? via.slice(6) : top.length ? ICON_CONCEPTS[top[0]].id : null;
-  const overlap = nameWords.filter(w => w.length >= 3 && wordForms(w).some(x => file.words.has(x)));
-  let reason, confidence;
-  if (kindOnly) { reason = `matched ${via}`; confidence = 'low'; }
-  else if (concept) {
-    reason = `matched: ${concept}${via === 'description' ? ' (from the description)' : ''}`;
-    confidence = via === 'name' && fromName.has(top[0]) ? (overlap.length || (ICON_CONCEPTS[top[0]].names ?? []).some(n => file.words.has(n)) ? 'high' : 'medium') : 'low';
-  } else { reason = `matched words: ${overlap.join(', ')}`; confidence = overlap.length > 1 ? 'medium' : 'low'; }
-  return {img, reason, confidence, concept};
+  const concept = top.length ? ICON_CONCEPTS[top[0]].id : null;
+  const overlap = nameWords.filter(w => wordForms(w).some(x => file.words.has(x)));
+  // 0.52.0: only good and likely matches are offered. A loose one (a single file-name word, or before 0.52.0 the kind
+  // or the description alone) gave odd icons, so the caller uses the generic icon and says "no confident match".
+  if (concept) {
+    const fromTags = !fromName.has(top[0]);
+    const confidence = !fromTags && (overlap.length || (ICON_CONCEPTS[top[0]].names ?? []).some(n => file.words.has(n))) ? 'high' : 'medium';
+    return {img, reason: `matched: ${concept}${fromTags ? ' (from the tags)' : ''}`, confidence, concept};
+  }
+  return overlap.length > 1 ? {img, reason: `matched words: ${overlap.join(', ')}`, confidence: 'medium', concept: null} : null;
 }
+
+/** The preview's and Improve icons' word for a record where nothing in the icon library fits well enough. */
+export const NO_CONFIDENT_MATCH = 'no confident match';
 
 /**
  * The icon Manager would give a new record whose own icon is missing or a placeholder, without checking files (the
@@ -255,7 +228,9 @@ export function pickRecordIcon(record, {index = null, smart = true, override, wh
   if (!smart && state === 'placeholder' && !why) return null;
   const found = smart ? resolveIcon(recordIconInput(record), index) : null;
   if (found) return {img: found.img, reason: found.reason, confidence: found.confidence, source: 'smart', ...(original ? {original} : {})};
-  return {img: iconFallback(record), reason: why === 'missing-authored' ? 'missing-authored' : 'fallback', source: 'fallback', ...(original ? {original} : {})};
+  // 0.52.0: the library was read but nothing fits well: the generic icon, and the preview says so.
+  const reason = why === 'missing-authored' ? 'missing-authored' : smart && index?.size ? NO_CONFIDENT_MATCH : 'fallback';
+  return {img: iconFallback(record), reason, source: 'fallback', ...(original ? {original} : {})};
 }
 
 /**
