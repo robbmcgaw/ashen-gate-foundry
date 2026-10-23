@@ -20,7 +20,7 @@
 //   - record-level modifiers blocks (ag-modifiers/0.1): Manager checks the shape, then each scope's owner checks its entries
 //     (scope cinder: Cinders' exported validateModifiers, when that Cinders version has it).
 //   - each folder's accepted import files are also zipped together and read as a Manager ZIP bundle.
-//   - quest files: an item reward (outcomes.item_rewards) whose ITEM id is not defined in the same file or folder gets a note.
+//   - quest files: an item reward (outcomes.item_rewards) whose ITEM-*, REC-* or MAT-* id is not defined in the same file or folder gets a note.
 //   - Shop / Service / MerchantList records: Utilities' own import rules (shop items named by id outside the file get a note).
 // Exit code 1 when any file does not behave as expected.
 import fs from 'node:fs';
@@ -283,7 +283,7 @@ export async function checkContent(data, filename = '', {knownIds = new Set()} =
   if (specialist === 'quests') {
     // Item reward notes are dropped when the item is defined in this file or in the same folder bundle.
     const plan = planQuestImport(data), here = recordIds(data);
-    const notes = (plan.notes ?? []).filter(n => { const id = n.match(/item reward (ITEM-[A-Z0-9-]+)/)?.[1]; return !here.has(id) && !knownIds.has(id); });
+    const notes = (plan.notes ?? []).filter(n => { const id = n.match(/item reward ((?:ITEM|REC|MAT)-[A-Z0-9-]+)/)?.[1]; return !here.has(id) && !knownIds.has(id); });
     return {kind: 'quests', errors: plan.errors, notes};
   }
   if (specialist === 'skill-trees') { const v = validateTrees(data); return {kind: 'skill-trees', errors: v.errors, notes: v.warnings}; }

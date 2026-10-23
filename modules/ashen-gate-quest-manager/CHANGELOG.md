@@ -1,3 +1,10 @@
+## 0.18.2 — 2026-10-23
+
+- **Fix: recipes and materials as quest rewards.** A quest file's `outcomes.item_rewards[].item_id` can now be a recipe (`REC-*`) or material (`MAT-*`) id as well as an `ITEM-*` id. Before, a learnable recipe reward stopped the import with "item_id must be an ITEM-* id."; the message is now "item_id must be an ITEM-*, REC-* or MAT-* id." Uuids, duplicates and other prefixes (`PERK-*`, `PROF-*` …) are still refused.
+- The reward finds the recipe or material Item General Manager imported, by that id. *Give rewards* copies it to each character with its source intact, so a recipe shows under *Recipes to learn* in the Profession Ledger and Learn works on it. Players still see only name, picture and quantity.
+- `node scripts/validate-content.mjs` uses the same rule, and drops the "must be imported as an Item" note when the recipe or material is defined beside the quest file.
+- Saved data: no change; no migration.
+
 ## 0.18.1 — 2026-10-23
 
 - **Fix: Type change on a new quest.** Choosing *Work Order* in a new, unsaved quest now shows the *Work order domain* list straight away (Crafting picked, as before), and the first *Create quest* saves the domain you chose. Switching back to Quest or to Contract hides it again. Title, description and everything else you typed stay, the editor still says *Unsaved changes*, and focus stays on Type.

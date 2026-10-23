@@ -262,7 +262,7 @@ test('quest item rewards: the valid example passes with a note; the note goes wh
   assert.ok(ok, lines.join('\n'));
   const example = lines.join('\n');
   assert.match(example, /quest-item-rewards\.json \(quests\)\n  note: QUEST-TEST-BEAST-OF-THE-FEN: item reward ITEM-TEST-HEALING-DRAUGHT must be imported as an Item/);
-  for (const name of ['uuid', 'quantity-zero', 'unknown-visibility', 'duplicate-id', 'unknown-key']) assert.match(example, new RegExp(`${name}\\.invalid\\.json rejected as expected`));
+  for (const name of ['uuid', 'quantity-zero', 'unknown-visibility', 'duplicate-id', 'unknown-key', 'wrong-prefix']) assert.match(example, new RegExp(`${name}\\.invalid\\.json rejected as expected`));
   const quests = JSON.parse(fs.readFileSync(path.join(fixtures, 'quest-item-rewards.json'), 'utf8'));
   const {notes} = await checkContent(quests, 'quest-item-rewards.json', {knownIds: new Set(['ITEM-TEST-HEALING-DRAUGHT'])});
   assert.deepEqual(notes, ['QUEST-TEST-BEAST-OF-THE-FEN: item reward ITEM-TEST-RUSTED-BLADE must be imported as an Item (in this file or already in the world).']);
@@ -275,6 +275,18 @@ test('quest item rewards: the valid example passes with a note; the note goes wh
     assert.ok(res.ok, res.lines.join('\n'));
     assert.doesNotMatch(res.lines.join('\n'), /item reward/);
   } finally { fs.rmSync(dir, {recursive: true, force: true}); }
+});
+
+test('quest item rewards (Quest Log 0.18.2): REC-* recipe and MAT-* material ids pass; their notes go when the recipe or material is known', async () => {
+  const fixtures = path.join(root, 'modules/ashen-gate-quest-manager/docs/fixtures/item-rewards');
+  const quests = JSON.parse(fs.readFileSync(path.join(fixtures, 'quest-recipe-rewards.json'), 'utf8'));
+  const res = await checkContent(quests, 'quest-recipe-rewards.json');
+  assert.deepEqual(res.errors, []);
+  assert.deepEqual(res.notes, ['REC-TEST-FIELD-TONIC', 'MAT-TEST-IRON-ORE'].map(id => `QUEST-TEST-HERBALISTS-DEBT: item reward ${id} must be imported as an Item (in this file or already in the world).`));
+  assert.deepEqual((await checkContent(quests, 'quest-recipe-rewards.json', {knownIds: new Set(['REC-TEST-FIELD-TONIC', 'MAT-TEST-IRON-ORE'])})).notes, []);
+  const wrong = structuredClone(quests);
+  wrong.records[0].outcomes.item_rewards = [{item_id: 'PERK-TEST-A'}];
+  assert.deepEqual((await checkContent(wrong, 'q.json')).errors, ['QUEST-TEST-HERBALISTS-DEBT: outcomes.item_rewards[0]: item_id must be an ITEM-*, REC-* or MAT-* id.']);
 });
 
 test('Shop, Service and MerchantList records (Utilities 0.21.0): the synthetic package passes, the documented mistakes are rejected naming the record', async () => {

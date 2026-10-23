@@ -118,7 +118,7 @@ export function previewQuestImport(payload,{mode='skip'}={}){
   const {errors,rows}=questPlan(payload,mode);
   return {errors,warnings:unboundRewardWarnings(rows.filter(r=>r.action!=='skip').map(r=>r.source)),rows:rows.map(({id,name,action,reason})=>({id,name,action,reason}))};
 }
-/** Item rewards whose ITEM id has no world Item yet (the quest still imports; the row shows Missing until the item arrives). */
+/** Item rewards whose ITEM/REC/MAT id has no world Item yet (the quest still imports; the row shows Missing until the item arrives). */
 function unboundRewardWarnings(sources){
   return itemRewardIds(sources).filter(({itemId})=>!worldItemById(itemId))
     .map(({questId,itemId})=>`${questId}: item reward ${itemId} has no matching item in this world yet. Import the item first; the quest still imports.`);
