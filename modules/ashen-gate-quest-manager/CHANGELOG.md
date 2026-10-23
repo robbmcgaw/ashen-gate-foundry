@@ -1,3 +1,8 @@
+## 0.19.2 — 2026-10-23
+
+- **Fix: no raw id in a vanished Location filter.** When the Location picked in *Filters (n)* no longer matches any quest, the select now reads the location's name (or *a location that no longer matches* if it can't be found) followed by *(none now)*, not its `LOC-…` id.
+- Saved data: no change; no migration.
+
 ## 0.19.1 — 2026-10-23
 
 - **Fix: a filter whose value has gone.** If the Level, Region, Giver or Location you picked in *Filters (n)* is no longer in the list (say the only level-5 quest changed), the select now keeps it, marked *(none now)*, instead of showing *Any level* while the filter was still applied and counted. Pick *Any…* or *Clear filters* to drop it.

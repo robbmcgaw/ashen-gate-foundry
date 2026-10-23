@@ -147,7 +147,7 @@ export function groupRows(rows,group='status'){
 export function listQuestsTab(entries,view={},ctx={}){
  const all=entries.map(e=>questRow(e,ctx)),f={...DEFAULT_VIEW,...view};
  const shown=sortRows(filterRows(all,f),f.sort);
- return {total:all.length,shown:shown.length,groups:groupRows(shown,f.group),locations:keepSelected(locationOptions(all),f.location),levels:keepSelected(levelOptions(all),f.level,`Level ${f.level}`),
+ return {total:all.length,shown:shown.length,groups:groupRows(shown,f.group),locations:keepSelected(locationOptions(all),f.location,ctx.locationName?.(f.location)||'a location that no longer matches'),levels:keepSelected(levelOptions(all),f.level,`Level ${f.level}`),
   regions:keepSelected(regionOptions(all),f.region),givers:keepSelected(giverOptions(all),f.giver,giverLabel(f.giver)),counts:navCounts(all),ids:shown.map(r=>r.id)};
 }
 /** "just now", "5 min ago", "3 h ago", "2 days ago", then the date. */
