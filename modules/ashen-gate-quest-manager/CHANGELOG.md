@@ -1,3 +1,9 @@
+## 0.18.1 — 2026-10-23
+
+- **Fix: Type change on a new quest.** Choosing *Work Order* in a new, unsaved quest now shows the *Work order domain* list straight away (Crafting picked, as before), and the first *Create quest* saves the domain you chose. Switching back to Quest or to Contract hides it again. Title, description and everything else you typed stay, the editor still says *Unsaved changes*, and focus stays on Type.
+- The Permanent ID follows the Type while it still starts with the old prefix (`QUEST-BELLOWS` becomes `ORDER-BELLOWS`), so the ID and Type agree when you save.
+- Saved data: no change; no migration.
+
 ## 0.18.0 — 2026-10-22
 
 - **Creative Work Orders.** A Work Order (`ORDER-*`) can now have the domain *Creative* as well as *Crafting* and *Production*, for Artistry commissions such as composing a ballad or painting a portrait. The quest editor's *Work order domain* list offers Creative; new orders still start on Crafting.
