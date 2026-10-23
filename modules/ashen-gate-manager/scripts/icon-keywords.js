@@ -3,11 +3,14 @@
  *
  * Each concept:
  *   id       short name shown in the reason ("matched: potion")
- *   words    words in a record's name, kind or tags that mean this concept (lower case; plurals are folded:
- *            "caltrops" also matches "caltrop", "leaves" matches "leaf")
- *   folders  icon folders that hold fitting art. A hint matches when it appears as whole path segments of a file's folder
- *            ("consumables/potions" matches icons/consumables/potions/...). Hints that do not exist in a world simply
- *            find nothing.
+ *   words    whole words in a record's name or tags that mean this concept (lower case; plurals are folded:
+ *            "caltrops" also matches "caltrop", "leaves" matches "leaf"). 0.52.0: a word is never matched as the start
+ *            of a longer one ("art" does not match "artistry"), and words under 4 letters count only when listed in
+ *            SHORT_WORDS below (so an id such as "LIT-01" never matches "lit").
+ *   folders  icon folders under Foundry core's icons/ that hold fitting art. A hint matches when it appears as whole path
+ *            segments of a file's folder ("consumables/potions" matches icons/consumables/potions/...). Hints that do not
+ *            exist in a world simply find nothing. 0.52.0: tests check the hints against real core paths
+ *            (tests/fixtures/core-icons-fixture.mjs).
  *   names    optional words in an icon's file name that fit best (file "caltrops-spiked.webp" for caltrops)
  *   modifier true for material or colour words ("iron", "oak") that usually describe the thing rather than name it,
  *            so "Iron Caltrops" is a trap made of iron, not an ingot
@@ -32,7 +35,7 @@ export const ICON_CONCEPTS = Object.freeze([
   // Armour and worn things
   {id: 'shield', words: ['shield', 'buckler', 'targe', 'pavise'], folders: ['equipment/shield'], names: ['shield', 'buckler']},
   {id: 'armor', words: ['armor', 'armour', 'mail', 'chainmail', 'breastplate', 'cuirass', 'hauberk', 'brigandine', 'gambeson', 'plate', 'jerkin', 'vest', 'robe', 'tunic', 'coat'], folders: ['equipment/chest'], names: ['armor', 'mail', 'breastplate', 'robe', 'coat']},
-  {id: 'helmet', words: ['helm', 'helmet', 'hood', 'hat', 'cap', 'circlet', 'crown', 'cowl', 'mask', 'diadem', 'tiara'], folders: ['equipment/head'], names: ['helm', 'helmet', 'hood', 'hat', 'crown', 'mask', 'circlet']},
+  {id: 'helmet', words: ['helm', 'helmet', 'hood', 'hat', 'cap', 'circlet', 'crown', 'cowl', 'diadem', 'tiara'], folders: ['equipment/head'], names: ['helm', 'helmet', 'hood', 'hat', 'crown', 'circlet']},
   {id: 'boots', words: ['boot', 'shoe', 'sandal', 'slipper', 'greave'], folders: ['equipment/feet'], names: ['boot', 'shoe', 'sandal']},
   {id: 'gloves', words: ['glove', 'gauntlet', 'mitten', 'handwrap'], folders: ['equipment/hand'], names: ['glove', 'gauntlet']},
   {id: 'bracers', words: ['bracer', 'bracelet', 'vambrace', 'wristband', 'bangle'], folders: ['equipment/wrist'], names: ['bracer', 'bracelet']},
@@ -79,11 +82,12 @@ export const ICON_CONCEPTS = Object.freeze([
   {id: 'fishing', words: ['fishing', 'hook', 'lure', 'rod'], folders: ['tools/fishing'], names: ['fishing', 'hook', 'rod']},
   {id: 'cooking', words: ['cook', 'cooking', 'pot', 'pan', 'kettle', 'cauldron', 'utensil', 'ladle'], folders: ['tools/cooking', 'containers/kitchenware'], names: ['pot', 'pan', 'kettle', 'cauldron']},
   // Creative work (0.48.0, Artistry): music, painting, sculpture, writing and the stage.
-  {id: 'music', words: ['music', 'musical', 'musician', 'instrument', 'lute', 'flute', 'drum', 'harp', 'lyre', 'horn', 'fiddle', 'viol', 'bagpipe', 'pipe', 'whistle', 'bell', 'song', 'ballad', 'melody', 'hymn', 'chant', 'tune', 'performance', 'perform', 'concert', 'recital'], folders: ['tools/instruments'], names: ['lute', 'flute', 'drum', 'harp', 'lyre', 'horn', 'bell', 'music', 'instrument']},
-  {id: 'painting', words: ['paint', 'painting', 'painter', 'brush', 'paintbrush', 'canvas', 'art', 'artwork', 'artist', 'portrait', 'easel', 'palette', 'pigment', 'sketch', 'drawing', 'mural'], folders: ['tools/scribal', 'sundries/documents'], names: ['paint', 'brush', 'canvas', 'palette', 'easel', 'art', 'portrait']},
+  // 0.52.0: folders point at core art that exists (paint brushes in tools/hand, masks in equipment/head and commodities/treasure).
+  {id: 'music', words: ['music', 'musical', 'musician', 'minstrel', 'instrument', 'lute', 'flute', 'drum', 'harp', 'lyre', 'horn', 'fiddle', 'viol', 'bagpipe', 'pipe', 'whistle', 'bell', 'song', 'singer', 'singing', 'ballad', 'melody', 'hymn', 'chant', 'tune', 'performance', 'perform', 'concert', 'recital'], folders: ['tools/instruments'], names: ['lute', 'flute', 'drum', 'harp', 'lyre', 'horn', 'bell', 'pipe', 'music', 'instrument']},
+  {id: 'painting', words: ['artistry', 'artistic', 'paint', 'painting', 'painter', 'brush', 'paintbrush', 'canvas', 'art', 'artwork', 'artist', 'portrait', 'portraiture', 'easel', 'palette', 'pigment', 'sketch', 'drawing', 'mural'], folders: ['tools/hand'], names: ['brush', 'paint', 'palette', 'easel', 'canvas']},
   {id: 'sculpture', words: ['sculpt', 'sculpture', 'sculptor', 'statue', 'carving', 'bust'], folders: ['commodities/treasure', 'commodities/stone'], names: ['statue', 'sculpture', 'bust', 'figurine', 'idol']},
-  {id: 'writing', words: ['poem', 'poetry', 'poet', 'verse', 'sonnet', 'ode', 'story', 'storytelling', 'prose', 'composition', 'compose'], folders: ['sundries/scrolls', 'tools/scribal', 'sundries/books'], names: ['scroll', 'quill', 'book', 'paper']},
-  {id: 'theatre', words: ['play', 'theatre', 'theater', 'theatrical', 'drama', 'stage', 'mask', 'masque', 'comedy', 'tragedy', 'performance', 'troupe', 'dance', 'dancer', 'dancing', 'juggle', 'juggling'], folders: ['sundries/misc', 'equipment/head'], names: ['mask', 'theater', 'theatre', 'comedy', 'tragedy']},
+  {id: 'writing', words: ['poem', 'poetry', 'poet', 'verse', 'sonnet', 'ode', 'story', 'storytelling', 'prose', 'composition', 'compose', 'literary', 'literature', 'writing', 'writer', 'author', 'manuscript'], folders: ['sundries/scrolls', 'tools/scribal', 'sundries/books'], names: ['scroll', 'quill', 'book', 'paper']},
+  {id: 'theatre', words: ['play', 'theatre', 'theater', 'theatrical', 'drama', 'stage', 'mask', 'masque', 'comedy', 'tragedy', 'performance', 'troupe', 'dance', 'dancer', 'dancing', 'juggle', 'juggling'], folders: ['equipment/head', 'commodities/treasure'], names: ['mask', 'theater', 'theatre', 'comedy', 'tragedy']},
   {id: 'navigation', words: ['compass', 'sextant', 'spyglass', 'telescope', 'astrolabe', 'hourglass', 'spectacles', 'magnifying'], folders: ['tools/navigation'], names: ['compass', 'spyglass', 'hourglass']},
   // Containers
   {id: 'bag', words: ['bag', 'sack', 'pouch', 'backpack', 'satchel', 'haversack', 'knapsack', 'purse'], folders: ['containers/bags'], names: ['bag', 'sack', 'pouch', 'backpack', 'satchel']},
@@ -104,7 +108,7 @@ export const ICON_CONCEPTS = Object.freeze([
   {id: 'melee', words: ['strike', 'parry', 'riposte', 'cleave', 'smite', 'bash', 'duel', 'fighter', 'brawl', 'grapple'], folders: ['skills/melee'], names: ['strike', 'blade', 'sword']},
   {id: 'ranged', words: ['aim', 'volley', 'shot', 'sharpshooter', 'marksman', 'archery'], folders: ['skills/ranged', 'skills/targeting'], names: ['arrow', 'target', 'bow']},
   {id: 'social', words: ['persuade', 'persuasion', 'deceive', 'deception', 'intimidate', 'intimidation', 'barter', 'haggle', 'trade', 'trader', 'merchant', 'renown', 'reputation', 'faction', 'favor', 'favour', 'contact'], folders: ['skills/social'], names: ['handshake', 'trade', 'coin']},
-  {id: 'trade', words: ['craft', 'crafting', 'crafter', 'profession', 'artisan', 'carpenter', 'mason', 'tailor', 'tanner', 'cobbler', 'brewer', 'weaver', 'jeweler', 'jeweller', 'miner', 'mining', 'forager', 'foraging', 'harvest', 'gather', 'gathering', 'salvage'], folders: ['skills/trades'], names: ['craft', 'hammer', 'tool']},
+  {id: 'trade', words: ['craft', 'crafting', 'crafter', 'artisan', 'carpenter', 'mason', 'tailor', 'tanner', 'cobbler', 'brewer', 'weaver', 'jeweler', 'jeweller', 'miner', 'mining', 'forager', 'foraging', 'harvest', 'gather', 'gathering', 'salvage'], folders: ['skills/trades'], names: ['craft', 'hammer', 'tool', 'smithing', 'construction', 'woodcutting', 'farming']},
   {id: 'wound', words: ['wound', 'injury', 'bleed', 'bleeding', 'scar', 'fracture', 'disease', 'sickness', 'plague', 'fever', 'infection'], folders: ['skills/wounds'], names: ['blood', 'wound']},
   {id: 'creature', words: ['wolf', 'bear', 'boar', 'rat', 'spider', 'snake', 'serpent', 'bat', 'bird', 'crow', 'raven', 'hawk', 'eagle', 'owl', 'deer', 'stag', 'horse', 'pony', 'mule', 'dog', 'hound', 'cat', 'lion', 'tiger', 'goat', 'sheep', 'ox', 'boar', 'skeleton', 'zombie', 'ghoul', 'ghost', 'wraith', 'specter', 'spectre', 'slime', 'ooze', 'dragon', 'drake', 'wyrm', 'wyvern', 'crab', 'beetle', 'insect', 'worm', 'scorpion', 'toad', 'frog', 'lizard', 'elemental', 'golem', 'troll', 'ogre', 'giant', 'demon', 'devil', 'fiend', 'imp', 'gargoyle', 'harpy', 'griffon', 'griffin'], folders: ['creatures'], names: []},
   {id: 'person', words: ['guard', 'soldier', 'merchant', 'priest', 'cleric', 'farmer', 'villager', 'smith', 'blacksmith', 'innkeeper', 'noble', 'bandit', 'thief', 'knight', 'mage', 'wizard', 'witch', 'hunter', 'sailor', 'captain', 'guildmaster', 'elder', 'monk', 'acolyte', 'scholar', 'sage', 'healer', 'shopkeeper', 'peddler', 'ranger', 'scout', 'mercenary', 'cultist', 'pilgrim', 'beggar', 'child', 'commoner', 'lord', 'lady', 'king', 'queen', 'prince', 'princess', 'chieftain', 'warden', 'sheriff', 'magistrate', 'bard'], folders: ['environment/people'], names: []},
@@ -112,26 +116,18 @@ export const ICON_CONCEPTS = Object.freeze([
 ]);
 
 /**
- * Last resort by kind: a dnd5e item type, an Ashen Gate entity type or the Foundry document type. Each points at
- * concept ids above (the first one with art in this world wins). Records whose name and kind find nothing keep
- * Manager's generic category icon.
+ * Words under 4 letters that still name a thing (0.52.0). Any other short word is ignored: it is too often an id part
+ * ("LIT-01") or the start of an unrelated word.
  */
-export const KIND_CONCEPTS = Object.freeze({
-  weapon: ['sword'], equipment: ['armor'], consumable: ['potion'], tool: ['tool'], loot: ['treasure'],
-  container: ['bag'], backpack: ['bag'], spell: ['holy'], feat: ['melee'], class: ['book'], subclass: ['book'],
-  background: ['document'], race: ['person'], species: ['person'],
-  potion: ['potion'], scroll: ['scroll'], wand: ['wand'], rod: ['wand'], ammo: ['ammunition'], food: ['food'],
-  poison: ['poison'], trinket: ['treasure'], gem: ['gem'], material: ['metal'], art: ['treasure'], junk: ['bag'],
-  recipe: ['document'], profession: ['trade'], perk: ['melee'], feature: ['melee'], cinder: ['fire'], power: ['fire'],
-  mutation: ['unholy'], handout: ['document'], npc: ['person'], character: ['person'], actor: ['person'],
-  rolltable: ['game'], macro: ['game'], resourceopportunity: ['herb'],
-  // 0.48.0: an activity recipe (kind "activity": a performance, a painting) reads as the stage before it reads as a document.
-  activity: ['theatre', 'music'],
-});
+export const SHORT_WORDS = Object.freeze(['axe', 'bow', 'orb', 'ale', 'rod', 'hat', 'cap', 'ore', 'gem', 'fur', 'oak', 'yew', 'elm',
+  'ink', 'pen', 'key', 'net', 'jar', 'jug', 'urn', 'keg', 'box', 'bag', 'pot', 'tub', 'kit', 'pie', 'egg', 'tea', 'rum', 'art', 'ode',
+  'map', 'saw', 'hoe', 'rat', 'bat', 'cat', 'dog', 'owl', 'imp', 'eye', 'ice', 'sun', 'gun', 'hex']);
 
 /** Words that never decide an icon by themselves. */
 export const STOPWORDS = Object.freeze(['the', 'and', 'for', 'with', 'from', 'into', 'test', 'item', 'items', 'record',
   'ashen', 'gate', 'common', 'uncommon', 'rare', 'very', 'legendary', 'minor', 'major', 'greater', 'lesser', 'superior',
   'basic', 'fine', 'quality', 'crude', 'small', 'large', 'old', 'new', 'one', 'two', 'three', 'set', 'piece', 'part',
   'kind', 'type', 'level', 'tier', 'rank', 'grade', 'masterwork', 'improved', 'advanced', 'simple',
-  'bundle', 'bunch', 'handful', 'pinch', 'batch', 'stack', 'pile', 'dose', 'portion', 'measure', 'sample', 'pair']);
+  'bundle', 'bunch', 'handful', 'pinch', 'batch', 'stack', 'pile', 'dose', 'portion', 'measure', 'sample', 'pair',
+  // 0.52.0: labels that say what kind of record it is, not what it looks like ("[TEST] Artistry — Profession").
+  'profession', 'professions']);

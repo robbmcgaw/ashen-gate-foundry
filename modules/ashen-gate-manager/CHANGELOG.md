@@ -1,3 +1,16 @@
+## 0.52.0 — 2026-10-23
+
+Browse search and smart icons, from the live test.
+
+- **Browse search finds what a row shows.** Every chip on a Browse row is now searchable, so "activity" lists the activity recipes and "creative" the creative professions. A recipe is also found by its profession's word for a recipe: if a profession calls its recipes "Compositions", searching "composition" lists the profession and its recipes. Craft recipes don't match "activity". Typing in the search box now always starts at the first page of results (before, only Enter went back to page 1).
+- **Smart icons: fewer odd picks.**
+  - Id-like parts of a name ("LIT-01", "MUS-01", anything with a digit), [TEST]-style tags and words under 4 letters are ignored, except a short list of real words such as axe, bow, orb and ale.
+  - A keyword only matches a whole word or its plural, never the start of a longer word ("Lutenist" is not a lute).
+  - Creative words point at Foundry core art that exists: artistry, art, painting, portrait, canvas and brush give a paint brush; music, lute, lyre, ballad, song and instrument give an instrument; poem, verse, literary, quill and scroll give a scroll, quill or book; play, mask, theatre and performance give a mask.
+  - When nothing fits the name well enough, the record gets Manager's generic icon for its type, and the Import preview says **no confident match** (Improve icons says "No confident match; use Change…"). The kind or the description alone no longer picks an icon, so an activity recipe with an unhelpful name gets the generic recipe icon instead of a random mask.
+  - Unchanged: an icon set on a record or by you in Foundry is always kept, Change… and Undo work as before, and imports, ids and saved data don't change.
+- Saved data: no change; no migration.
+
 ## 0.51.0 — 2026-10-22
 
 - **Creative Work Orders.** Import now accepts a Work Order (`ORDER-*`) whose `work_order_domain` is `creative` (Artistry commissions such as a ballad or a portrait), alongside `crafting` and `production`. A missing or unknown domain is still refused, now with "Work Order requires a crafting, production or creative domain." Matches Quest Log 0.18.0.

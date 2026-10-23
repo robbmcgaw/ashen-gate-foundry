@@ -72,7 +72,8 @@ function entry(base) {
   e.source ??= null; e.origin ??= e.ag ? 'ag' : null; e.rarity ??= rarityKey(e.quality); e.coreRef ??= false; e.folderIds ??= [];
   e.provenance ??= e.pack ? `Compendium: ${e.pack}` : e.owner === 'world' || e.owner === MODULE_ID && e.uuid ? 'World' : TITLES[e.owner] ?? e.owner;
   e.sources = [e.provenance];
-  e.hay = fold([e.name, e.id, e.kind, e.docType, e.entityType, e.category, e.profession, e.tier, e.quality, e.status, ...e.tags, e.folder, e.description, ...e.searchText].filter(Boolean).join(' \u0001 '));
+  // 0.52.0: every chip the row shows is searchable too ("activity" finds the rows with the Activity chip).
+  e.hay = fold([e.name, e.id, e.kind, e.docType, e.entityType, e.category, e.profession, e.tier, e.quality, e.status, ...e.tags, e.folder, e.description, ...e.searchText, ...e.chips].filter(Boolean).join(' \u0001 '));
   e.idFold = fold(e.id ?? '');
   return e;
 }
@@ -248,6 +249,9 @@ export function mergeEntries(...lists) {
   }
   // "Unlinked" = an Ashen Gate record with no world document behind it.
   for (const e of out) e.unlinked = e.ag && !e.linked && !e.pack;
+  // 0.52.0: a recipe is also found by its profession's word for a recipe ("composition" finds an Artistry composition).
+  const labels = new Map(out.filter(e => e.entityType === 'Profession' && e.id).map(e => [e.id, e.extraFields.find(([l]) => l === 'Recipe label')?.[1]]).filter(([, v]) => v));
+  for (const e of out) if (e.entityType === 'Recipe' && labels.has(e.profession)) e.hay += ' \u0001 ' + fold(labels.get(e.profession));
   return out;
 }
 
